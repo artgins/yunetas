@@ -5341,7 +5341,7 @@ PRIVATE char *find_alias_topic(hgobj gobj, uint16_t alias)
 /***************************************************************************
  *
  ***************************************************************************/
-PRIVATE int handle__auth(hgobj gobj, gbuffer_t *gbuf)
+PRIVATE int handle__auth_s(hgobj gobj, gbuffer_t *gbuf)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
     int ret = 0;
@@ -5394,6 +5394,19 @@ PRIVATE int handle__auth(hgobj gobj, gbuffer_t *gbuf)
         NULL
     );
     return -1;
+}
+
+/***************************************************************************
+ *
+ ***************************************************************************/
+PRIVATE int handle__auth_c(hgobj gobj, gbuffer_t *gbuf)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+    int ret = 0;
+
+    // TODO
+
+    return ret;
 }
 
 /***************************************************************************
@@ -6221,7 +6234,7 @@ PRIVATE int handle__connect(hgobj gobj, gbuffer_t *gbuf)
 /***************************************************************************
  *
  ***************************************************************************/
-PRIVATE int handle__disconnect(hgobj gobj, gbuffer_t *gbuf)
+PRIVATE int handle__disconnect_s(hgobj gobj, gbuffer_t *gbuf)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
     int ret = 0;
@@ -6279,7 +6292,20 @@ PRIVATE int handle__disconnect(hgobj gobj, gbuffer_t *gbuf)
     }
 
     do_disconnect(gobj, MOSQ_ERR_SUCCESS);
-    return 0;
+    return ret;
+}
+
+/***************************************************************************
+ *
+ ***************************************************************************/
+PRIVATE int handle__disconnect_c(hgobj gobj, gbuffer_t *gbuf)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+    int ret = 0;
+
+    // TODO
+
+    return ret;
 }
 
 /***************************************************************************
@@ -6638,18 +6664,19 @@ PRIVATE int handle__pubackcomp(hgobj gobj, gbuffer_t *gbuf, const char *type)
             );
         }
 
-        rc = message__delete(gobj, mid, mosq_md_out, qos);
-        if(rc == MOSQ_ERR_SUCCESS) {
-            // mosq->in_callback = TRUE;
-            on_publish_v5(gobj, mid, reason_code, properties);
-            // mosq->in_callback = FALSE;
-        } else if(rc != MOSQ_ERR_NOT_FOUND){
-            JSON_DECREF(properties)
-            return rc;
-        }
-
+        // TODO client
+        // rc = message__delete(gobj, mid, mosq_md_out, qos);
+        // if(rc == MOSQ_ERR_SUCCESS) {
+        //     // mosq->in_callback = TRUE;
+        //     on_publish_v5(gobj, mid, reason_code, properties);
+        //     // mosq->in_callback = FALSE;
+        // } else if(rc != MOSQ_ERR_NOT_FOUND){
+        //     JSON_DECREF(properties)
+        //     return rc;
+        // }
+        //
+        // message__release_to_inflight(gobj, mosq_md_out);
         JSON_DECREF(properties)
-    	message__release_to_inflight(gobj, mosq_md_out);
     	return MOSQ_ERR_SUCCESS;
     }
 }
@@ -6691,8 +6718,8 @@ PRIVATE int handle__pubrec(hgobj gobj, gbuffer_t *gbuf)
                 && reason_code != MQTT_RC_NOT_AUTHORIZED
                 && reason_code != MQTT_RC_TOPIC_NAME_INVALID
                 && reason_code != MQTT_RC_PACKET_ID_IN_USE
-                && reason_code != MQTT_RC_QUOTA_EXCEEDED) {
-
+                && reason_code != MQTT_RC_QUOTA_EXCEEDED
+                && reason_code != MQTT_RC_PAYLOAD_FORMAT_INVALID) {
             return MOSQ_ERR_PROTOCOL;
         }
 
@@ -7035,7 +7062,7 @@ PRIVATE int handle__unsuback(hgobj gobj, gbuffer_t *gbuf)
 /***************************************************************************
  *
  ***************************************************************************/
-PRIVATE int handle__publish(hgobj gobj, gbuffer_t *gbuf)
+PRIVATE int handle__publish_s(hgobj gobj, gbuffer_t *gbuf)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
@@ -7451,6 +7478,17 @@ process_bad_message:
 /***************************************************************************
  *
  ***************************************************************************/
+PRIVATE int handle__publish_c(hgobj gobj, gbuffer_t *gbuf)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+    int rc = 0;
+    // TODO
+    return rc;
+}
+
+/***************************************************************************
+ *
+ ***************************************************************************/
 PRIVATE int handle__subscribe(hgobj gobj, gbuffer_t *gbuf)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
@@ -7850,8 +7888,12 @@ PRIVATE int frame_completed(hgobj gobj)
         case CMD_PUBCOMP:
             ret = handle__pubackcomp(gobj, gbuf, "PUBCOMP"); // common to server/client
             break;
-        case CMD_PUBLISH:
-            ret = handle__publish(gobj, gbuf);  // NOT common to server/client
+        case CMD_PUBLISH: // NOT common to server/client
+            if(priv->iamServer) {
+                ret = handle__publish_s(gobj, gbuf);
+            } else {
+                ret = handle__publish_c(gobj, gbuf);
+            }
             break;
         case CMD_PUBREC:
             ret = handle__pubrec(gobj, gbuf);   // common to server/client
@@ -7859,18 +7901,26 @@ PRIVATE int frame_completed(hgobj gobj)
         case CMD_PUBREL:
             ret = handle__pubrel(gobj, gbuf);   // common to server/client
             break;
-        case CMD_DISCONNECT:
-            ret = handle__disconnect(gobj, gbuf);   // NOT common to server/client
+        case CMD_DISCONNECT: // NOT common to server/client TODO
+            if(priv->iamServer) {
+                ret = handle__disconnect_s(gobj, gbuf);
+            } else {
+                ret = handle__disconnect_c(gobj, gbuf);
+            }
             break;
-        case CMD_AUTH:
-            ret = handle__auth(gobj, gbuf);
-            break;
+        case CMD_AUTH: // NOT common to server/client TODO
+            if(priv->iamServer) {
+                ret = handle__auth_s(gobj, gbuf);
+            } else {
+                ret = handle__auth_c(gobj, gbuf);
+            }
+        break;
 
         /*
          *  If server only with BRIDGE
          */
         case CMD_CONNACK:
-            ret = handle__connack(gobj, gbuf);  // NOT common to server/client
+            ret = handle__connack(gobj, gbuf);  // NOT common to server/client TODO
             break;
         case CMD_SUBACK:
             ret = handle__suback(gobj, gbuf);   // common to server/client
@@ -7890,6 +7940,10 @@ PRIVATE int frame_completed(hgobj gobj)
             break;
         case CMD_UNSUBSCRIBE:
             ret  = handle__unsubscribe(gobj, gbuf);
+            break;
+
+        case CMD_RESERVED:
+            ret = MOSQ_ERR_PROTOCOL;
             break;
     }
 
