@@ -7843,28 +7843,28 @@ PRIVATE int frame_completed(hgobj gobj)
 
     switch(frame->command) {
         case CMD_PINGREQ:
-            ret = handle__pingreq(gobj);         // common to server/client
+            ret = handle__pingreq(gobj);        // common to server/client
             break;
         case CMD_PINGRESP:
-            ret = handle__pingresp(gobj);
+            ret = handle__pingresp(gobj);       // common to server/client
             break;
         case CMD_PUBACK:
-            ret = handle__pubackcomp(gobj, gbuf, "PUBACK");
+            ret = handle__pubackcomp(gobj, gbuf, "PUBACK"); // common to server/client
             break;
         case CMD_PUBCOMP:
-            ret = handle__pubackcomp(gobj, gbuf, "PUBCOMP");
+            ret = handle__pubackcomp(gobj, gbuf, "PUBCOMP"); // common to server/client
             break;
         case CMD_PUBLISH:
-            ret = handle__publish(gobj, gbuf);
+            ret = handle__publish(gobj, gbuf);  // NOT common to server/client
             break;
         case CMD_PUBREC:
-            ret = handle__pubrec(gobj, gbuf);
+            ret = handle__pubrec(gobj, gbuf);   // common to server/client
             break;
         case CMD_PUBREL:
-            ret = handle__pubrel(gobj, gbuf);
+            ret = handle__pubrel(gobj, gbuf);   // common to server/client
             break;
         case CMD_DISCONNECT:
-            ret = handle__disconnect(gobj, gbuf);
+            ret = handle__disconnect(gobj, gbuf);   // NOT common to server/client
             break;
         case CMD_AUTH:
             ret = handle__auth(gobj, gbuf);
@@ -7874,13 +7874,13 @@ PRIVATE int frame_completed(hgobj gobj)
          *  If server only with BRIDGE
          */
         case CMD_CONNACK:
-            ret = handle__connack(gobj, gbuf);
+            ret = handle__connack(gobj, gbuf);  // NOT common to server/client
             break;
         case CMD_SUBACK:
-            ret = handle__suback(gobj, gbuf); // Too in mqtt client
+            ret = handle__suback(gobj, gbuf);   // common to server/client
             break;
         case CMD_UNSUBACK:
-            ret = handle__unsuback(gobj, gbuf); // Too in mqtt client
+            ret = handle__unsuback(gobj, gbuf); // common to server/client
             break;
 
         /*
