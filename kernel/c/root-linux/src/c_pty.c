@@ -57,7 +57,7 @@ SDATA (DTP_BOOLEAN,     "no_output",            0,          0,      "Mirror, onl
 SDATA (DTP_INTEGER,     "rows",                 SDF_RD,     "24",   "Rows"),
 SDATA (DTP_INTEGER,     "cols",                 SDF_RD,     "80",   "Columns"),
 SDATA (DTP_STRING,      "cwd",                  SDF_RD,     "",     "Current work directory"),
-SDATA (DTP_INTEGER,     "max_tx_queue",         SDF_WR,     "32",   "Maximum messages in tx queue. Default is 0: no limit."),
+SDATA (DTP_INTEGER,     "max_tx_queue",         SDF_WR,     "0",    "Maximum messages in tx queue. Default is 0: no limit."),
 SDATA (DTP_POINTER,     "user_data",            0,          0,      "user data"),
 SDATA (DTP_POINTER,     "user_data2",           0,          0,      "more user data"),
 SDATA (DTP_POINTER,     "subscriber",           0,          0,      "subscriber of output-events. If it's null then subscriber is the parent."),
