@@ -1131,7 +1131,7 @@ PRIVATE gbuffer_t *build_modbus_request_read_message(hgobj gobj, json_t *jn_slav
 
     priv->modbus_function = modbus_function;
 
-    if(gobj_trace_level(gobj) & TRACE_DECODE) {
+    if(gobj_trace_level(gobj) & TRACE_POLLING) {
         gobj_trace_msg(gobj, "🍅🍅⏩ func: %d %s, slave_id: %d, addr: %d (0x%04X), size: %d, id: %s",
             modbus_function,
             modbus_function_name(modbus_function),
@@ -1305,7 +1305,7 @@ PRIVATE gbuffer_t *build_modbus_request_write_message(hgobj gobj, json_t *jn_req
 
     priv->modbus_function = modbus_function;
 
-    if(gobj_trace_level(gobj) & TRACE_DECODE) {
+    if(gobj_trace_level(gobj) & TRACE_POLLING) {
         gobj_trace_msg(gobj, "🍅🍅⏩ func: %d %s, slave_id: %d, addr: %d (0x%04X), value: %d",
             modbus_function,
             modbus_function_name(modbus_function),
@@ -1961,7 +1961,7 @@ PRIVATE int framehead_consume(hgobj gobj, FRAME_HEAD *frame, istream_h istream, 
             NULL
         );
     } else {
-        if(gobj_trace_level(gobj) & TRACE_DECODE) {
+        if(gobj_trace_level(gobj) & TRACE_POLLING) {
             gobj_trace_msg(gobj, "🍅🍅⏪ func: %d %s, slave_id: %d, count: %d",
                 frame->function,
                 modbus_function_name(frame->function),
@@ -2101,6 +2101,16 @@ PRIVATE int store_slave_bit(
     cell_control->control.bit_value = value?1:0;
     cell_control->control.updated = 1;
 
+    if(gobj_trace_level(gobj) & TRACE_DECODE) {
+        gobj_trace_msg(gobj,
+            "store bit in %s x%0X %d, value: %d",
+            get_object_type_name(object_type),
+            address,
+            address,
+            cell_control->control.bit_value
+        );
+    }
+
     return 0;
 }
 
@@ -2129,11 +2139,35 @@ PRIVATE int store_slave_word(
         case TYPE_INPUT_REGISTER:
             memmove(&cell_control->input_register, bf, 2);
             cell_control->control.updated = 1;
+
+            if(gobj_trace_level(gobj) & TRACE_DECODE) {
+                gobj_trace_dump(gobj,
+                    (const char *)bf, 2, "store word in %s x%0X %d, value: %d",
+                    get_object_type_name(object_type),
+                    address,
+                    address,
+                    cell_control->input_register
+                );
+            }
+
             break;
+
         case TYPE_HOLDING_REGISTER:
             memmove(&cell_control->holding_register, bf, 2);
             cell_control->control.updated = 1;
+
+            if(gobj_trace_level(gobj) & TRACE_DECODE) {
+                gobj_trace_dump(gobj,
+                    (const char *)bf, 2, "store word in %s x%0X %d, value: %d",
+                    get_object_type_name(object_type),
+                    address,
+                    address,
+                    cell_control->holding_register
+                );
+            }
+
             break;
+
         default:
             gobj_log_error(gobj, 0,
                 "function",     "%s", __FUNCTION__,
