@@ -2906,7 +2906,27 @@ PRIVATE json_t *get_variable_value(hgobj gobj, slave_data_t *pslv, json_t *jn_va
         //         }
         //     }
         //     break;
-        //
+
+        case FORMAT_INT32:
+        case FORMAT_UINT32:
+            {
+                uint8_t b[4];
+                if(collect_register_bytes(gobj, pslv, object_type, address, 2, b)==0) {
+                    if(variable_format==FORMAT_INT32) {
+                        int32_t v = (int32_t)endian_32(endian_format, b);
+                        jn_value = (multiplier>0.0 && multiplier<1.0)
+                            ? json_real((float)v * multiplier)
+                            : json_integer((json_int_t)((int64_t)v * (int64_t)multiplier));
+                    } else {
+                        uint32_t v = endian_32(endian_format, b);
+                        jn_value = (multiplier>0.0 && multiplier<1.0)
+                            ? json_real((float)v * multiplier)
+                            : json_integer((json_int_t)((uint64_t)v * (uint64_t)multiplier));
+                    }
+                }
+            }
+            break;
+
         // case FORMAT_INT64:
         // case FORMAT_UINT64:
         //     {
@@ -2949,7 +2969,27 @@ PRIVATE json_t *get_variable_value(hgobj gobj, slave_data_t *pslv, json_t *jn_va
         //         }
         //     }
         //     break;
-        //
+
+        case FORMAT_INT64:
+        case FORMAT_UINT64:
+            {
+                uint8_t b[8];
+                if(collect_register_bytes(gobj, pslv, object_type, address, 4, b)==0) {
+                    if(variable_format==FORMAT_INT64) {
+                        int64_t v = (int64_t)endian_64(endian_format, b);
+                        jn_value = (multiplier>0.0 && multiplier<1.0)
+                            ? json_real((double)v * multiplier)
+                            : json_integer((json_int_t)(v * (int64_t)multiplier));
+                    } else {
+                        uint64_t v = endian_64(endian_format, b);
+                        jn_value = (multiplier>0.0 && multiplier<1.0)
+                            ? json_real((double)v * multiplier)
+                            : json_integer((json_int_t)(v * (uint64_t)multiplier));
+                    }
+                }
+            }
+            break;
+
         // case FORMAT_FLOAT:
         //     {
         //         uint16_t *pv = 0;
@@ -2975,7 +3015,17 @@ PRIVATE json_t *get_variable_value(hgobj gobj, slave_data_t *pslv, json_t *jn_va
         //         }
         //     }
         //     break;
-        //
+
+        case FORMAT_FLOAT:
+            {
+                uint8_t b[4];
+                if(collect_register_bytes(gobj, pslv, object_type, address, 2, b)==0) {
+                    float v = endian_float(endian_format, b);
+                    jn_value = json_real(v * multiplier);
+                }
+            }
+            break;
+
         // case FORMAT_DOUBLE:
         //     {
         //         uint16_t *pv = 0;
@@ -3001,7 +3051,17 @@ PRIVATE json_t *get_variable_value(hgobj gobj, slave_data_t *pslv, json_t *jn_va
         //         }
         //     }
         //     break;
-        //
+
+        case FORMAT_DOUBLE:
+            {
+                uint8_t b[8];
+                if(collect_register_bytes(gobj, pslv, object_type, address, 4, b)==0) {
+                    double v = endian_double(endian_format, b);
+                    jn_value = json_real(v * multiplier);
+                }
+            }
+            break;
+
         // case FORMAT_STRING:
         //     {
         //         int size = (int)kw_get_int(gobj, jn_variable, "multiplier", 1, KW_WILD_NUMBER);
@@ -3039,66 +3099,6 @@ PRIVATE json_t *get_variable_value(hgobj gobj, slave_data_t *pslv, json_t *jn_va
         //         GBUFFER_DECREF(gbuf_string)
         //     }
         //     break;
-
-        case FORMAT_INT32:
-        case FORMAT_UINT32:
-            {
-                uint8_t b[4];
-                if(collect_register_bytes(gobj, pslv, object_type, address, 2, b)==0) {
-                    if(variable_format==FORMAT_INT32) {
-                        int32_t v = (int32_t)endian_32(endian_format, b);
-                        jn_value = (multiplier>0.0 && multiplier<1.0)
-                            ? json_real((float)v * multiplier)
-                            : json_integer((json_int_t)((int64_t)v * (int64_t)multiplier));
-                    } else {
-                        uint32_t v = endian_32(endian_format, b);
-                        jn_value = (multiplier>0.0 && multiplier<1.0)
-                            ? json_real((float)v * multiplier)
-                            : json_integer((json_int_t)((uint64_t)v * (uint64_t)multiplier));
-                    }
-                }
-            }
-            break;
-
-        case FORMAT_FLOAT:
-            {
-                uint8_t b[4];
-                if(collect_register_bytes(gobj, pslv, object_type, address, 2, b)==0) {
-                    float v = endian_float(endian_format, b);
-                    jn_value = json_real(v * multiplier);
-                }
-            }
-            break;
-
-        case FORMAT_INT64:
-        case FORMAT_UINT64:
-            {
-                uint8_t b[8];
-                if(collect_register_bytes(gobj, pslv, object_type, address, 4, b)==0) {
-                    if(variable_format==FORMAT_INT64) {
-                        int64_t v = (int64_t)endian_64(endian_format, b);
-                        jn_value = (multiplier>0.0 && multiplier<1.0)
-                            ? json_real((double)v * multiplier)
-                            : json_integer((json_int_t)(v * (int64_t)multiplier));
-                    } else {
-                        uint64_t v = endian_64(endian_format, b);
-                        jn_value = (multiplier>0.0 && multiplier<1.0)
-                            ? json_real((double)v * multiplier)
-                            : json_integer((json_int_t)(v * (uint64_t)multiplier));
-                    }
-                }
-            }
-            break;
-
-        case FORMAT_DOUBLE:
-            {
-                uint8_t b[8];
-                if(collect_register_bytes(gobj, pslv, object_type, address, 4, b)==0) {
-                    double v = endian_double(endian_format, b);
-                    jn_value = json_real(v * multiplier);
-                }
-            }
-            break;
 
         case FORMAT_STRING:
             {
