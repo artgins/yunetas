@@ -3102,11 +3102,16 @@ PRIVATE json_t *get_variable_value(hgobj gobj, slave_data_t *pslv, json_t *jn_va
 
         case FORMAT_STRING:
             {
-                /* Prefer 'length_bytes', fallback to historic 'multiplier' (=bytes). */
+                /*
+                 *  Prefer 'length_bytes', fallback to historic 'multiplier' (=bytes).
+                 */
                 int bytes = (int)kw_get_int(gobj, jn_variable, "length_bytes", -1, KW_WILD_NUMBER);
-                if(bytes <= 0)
+                if(bytes <= 0) {
                     bytes = (int)kw_get_int(gobj, jn_variable, "multiplier", 1, KW_WILD_NUMBER);
-                if(bytes <= 0) bytes = 1;
+                }
+                if(bytes <= 0) {
+                    bytes = 1;
+                }
 
                 int words = (bytes + 1) / 2;                /* registers needed */
                 gbuffer_t *gbuf = gbuffer_create(bytes, bytes);
@@ -3114,19 +3119,22 @@ PRIVATE json_t *get_variable_value(hgobj gobj, slave_data_t *pslv, json_t *jn_va
 
                 /* Gather raw bytes (MSB,LSB per register). */
                 uint8_t tmp[2*words];
-                if(collect_register_bytes(gobj, pslv, object_type, address, words, tmp) != 0){
+                if(collect_register_bytes(gobj, pslv, object_type, address, words, tmp) != 0) {
                     GBUFFER_DECREF(gbuf);
                     break;
                 }
 
-                /* Apply endian to string:
+                /*
+                 *  Apply endian to string:
                    - Within each register (word) swap if little-endian variants.
                    - If *_BYTE_SWAP, also swap adjacent 16-bit words in each 32-bit block (CDAB).
-                   This mirrors your numeric semantics for CDAB/BADC. */
-                for(int w=0; w<words; w++){
+                   This mirrors your numeric semantics for CDAB/BADC.
+                */
+                for(int w=0; w<words; w++) {
                     uint8_t hi = tmp[(w<<1)+0]; /* MSB */
                     uint8_t lo = tmp[(w<<1)+1]; /* LSB */
-                    switch(endian_format){
+
+                    switch(endian_format) {
                         case FORMAT_BIG_ENDIAN:
                         case FORMAT_BIG_ENDIAN_BYTE_SWAP:
                             tmp[(w<<1)+0] = hi; tmp[(w<<1)+1] = lo; /* keep */
@@ -3137,29 +3145,36 @@ PRIVATE json_t *get_variable_value(hgobj gobj, slave_data_t *pslv, json_t *jn_va
                             break;
                     }
                 }
-                if(endian_format==FORMAT_BIG_ENDIAN_BYTE_SWAP || endian_format==FORMAT_LITTLE_ENDIAN_BYTE_SWAP){
-                    for(int i=0; i+3 < 2*words; i+=4){
+                if(endian_format==FORMAT_BIG_ENDIAN_BYTE_SWAP ||
+                    endian_format==FORMAT_LITTLE_ENDIAN_BYTE_SWAP
+                ) {
+                    for(int i=0; i+3 < 2*words; i+=4) {
                         /* swap word0 <-> word1 in each 4-byte block: [0,1,2,3] -> [2,3,0,1] */
                         uint8_t a=tmp[i], b=tmp[i+1], c=tmp[i+2], d=tmp[i+3];
                         tmp[i]=c; tmp[i+1]=d; tmp[i+2]=a; tmp[i+3]=b;
                     }
                 }
 
-                /* Emit exactly 'bytes' bytes (trim the padding byte if odd). */
+                /*
+                 *  Emit exactly 'bytes' bytes (trim the padding byte if odd).
+                 */
                 gbuffer_append(gbuf, tmp, bytes);
 
-                /* Optional: treat NULs as spaces like your legacy code (toggle via a flag if you want). */
+                /*
+                 *  Optional: treat NULs as spaces like your legacy code
+                 *  (toggle via a flag if you want).
+                 */
                 uint8_t *s = (uint8_t *)gbuffer_cur_rd_pointer(gbuf);
-                for(int i=0;i<bytes;i++){ if(s[i]==0) s[i]=' '; }
+                for(int i=0; i<bytes; i++) {
+                    if(s[i]==0) s[i]=' ';
+                }
 
                 left_justify((char *)s);               /* your existing helper */
                 jn_value = json_string((char *)s);
                 GBUFFER_DECREF(gbuf);
             }
             break;
-
     }
-
 
     return jn_value;
 }
@@ -3315,8 +3330,20 @@ PRIVATE int check_conversion_variable(hgobj gobj, slave_data_t *pslv, json_t *jn
         case FORMAT_DOUBLE:
             compound_value = 4;
             break;
+        // case FORMAT_STRING:
+        //     compound_value = (int)kw_get_int(gobj, jn_variable, "multiplier", 1, KW_WILD_NUMBER);
+
         case FORMAT_STRING:
-            compound_value = (int)kw_get_int(gobj, jn_variable, "multiplier", 1, KW_WILD_NUMBER);
+            {
+                int bytes = (int)kw_get_int(gobj, jn_variable, "length_bytes", -1, KW_WILD_NUMBER);
+                if(bytes <= 0) {
+                    bytes = (int)kw_get_int(gobj, jn_variable, "multiplier", 1, KW_WILD_NUMBER);
+                }
+                if(bytes <= 0) {
+                    bytes = 1;
+                }
+                compound_value = (bytes + 1) / 2;   /* reserve needed registers */
+            }
             break;
     }
 
