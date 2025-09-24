@@ -267,6 +267,7 @@ typedef enum {
 /***************************************************************************
  *              Prototypes
  ***************************************************************************/
+PRIVATE const char *get_object_type_name(modbus_object_type_t object_type);
 PRIVATE int print_slave_data(hgobj gobj);
 PRIVATE slave_data_t *get_slave_data(hgobj gobj, int slave_id, BOOL verbose);
 PRIVATE const char *modbus_function_name(int modbus_function);
@@ -1328,6 +1329,48 @@ PRIVATE gbuffer_t *build_modbus_request_write_message(hgobj gobj, json_t *jn_req
 
 
 
+
+/***************************************************************************
+ *  Gather 2*words bytes from consecutive registers starting at address.
+ ***************************************************************************/
+PRIVATE int collect_register_bytes(
+    hgobj gobj,
+    slave_data_t *pslv,
+    modbus_object_type_t ot,
+    int address,
+    int words,
+    uint8_t *out /* >= 2*words */
+) {
+    for(int i=0; i<words; i++) {
+        cell_control_t *c = get_cell_control(gobj, pslv, ot, address+i, FALSE);
+        if(!c) { return -1; }
+        uint8_t *p = 0;
+        switch(ot) {
+            case TYPE_INPUT_REGISTER:
+                p = (uint8_t *)&c->input_register;
+                break;
+
+            case TYPE_HOLDING_REGISTER:
+                p = (uint8_t *)&c->holding_register;
+                break;
+
+            default:
+                gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
+                    "function",     "%s", __FUNCTION__,
+                    "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+                    "msg",          "%s", "type NOT implemented or UNKNOWN",
+                    "type",         "%s", get_object_type_name(ot),
+                    NULL
+                );
+            return -1;
+        }
+        /* store_modbus_response_data() kept wire order: p[0]=MSB, p[1]=LSB */
+        out[(i<<1)+0] = p[0];
+        out[(i<<1)+1] = p[1];
+        c->control.updated = 0;
+    }
+    return 0;
+}
 
 /***************************************************************************
  *
@@ -2821,87 +2864,197 @@ PRIVATE json_t *get_variable_value(hgobj gobj, slave_data_t *pslv, json_t *jn_va
             }
             break;
 
+        // case FORMAT_INT32:
+        // case FORMAT_UINT32:
+        //     {
+        //         uint16_t *pv = 0;
+        //         switch(object_type) {
+        //             case TYPE_COIL:
+        //             case TYPE_DISCRETE_INPUT:
+        //                 jn_value = cell_control->control.bit_value?json_integer(1):json_integer(0);
+        //                 break;
+        //             case TYPE_INPUT_REGISTER:
+        //                 pv = &cell_control->input_register;
+        //                 break;
+        //             case TYPE_HOLDING_REGISTER:
+        //                 pv = &cell_control->holding_register;
+        //                 break;
+        //             default:
+        //                 break;
+        //         }
+        //
+        //         if(pv) {
+        //             if(variable_format == FORMAT_INT32) {
+        //                 int32_t v = endian_32(endian_format, (uint8_t *)pv);
+        //                 if(multiplier < 1.0 &&  multiplier > 0.0) {
+        //                     float v_ = (float)v * multiplier;
+        //                     jn_value = json_real(v_);
+        //                 } else {
+        //                     v = v*multiplier;
+        //                     jn_value = json_integer(v);
+        //                 }
+        //             } else {
+        //                 uint32_t v = endian_32(endian_format, (uint8_t *)pv);
+        //                 if(multiplier < 1.0 &&  multiplier > 0.0) {
+        //                     float v_ = (float)v * multiplier;
+        //                     jn_value = json_real(v_);
+        //                 } else {
+        //                     v = v*multiplier;
+        //                     jn_value = json_integer(v);
+        //                 }
+        //             }
+        //         }
+        //     }
+        //     break;
+        //
+        // case FORMAT_INT64:
+        // case FORMAT_UINT64:
+        //     {
+        //         uint16_t *pv = 0;
+        //         switch(object_type) {
+        //             case TYPE_COIL:
+        //             case TYPE_DISCRETE_INPUT:
+        //                 jn_value = cell_control->control.bit_value?json_integer(1):json_integer(0);
+        //                 break;
+        //             case TYPE_INPUT_REGISTER:
+        //                 pv = &cell_control->input_register;
+        //                 break;
+        //             case TYPE_HOLDING_REGISTER:
+        //                 pv = &cell_control->holding_register;
+        //                 break;
+        //             default:
+        //                 break;
+        //         }
+        //
+        //         if(pv) {
+        //             if(variable_format == FORMAT_INT64) {
+        //                 int64_t v = endian_64(endian_format, (uint8_t *)pv);
+        //                 if(multiplier < 1.0 &&  multiplier > 0.0) {
+        //                     double v_ = (double)v * multiplier;
+        //                     jn_value = json_real(v_);
+        //                 } else {
+        //                     v = v*multiplier;
+        //                     jn_value = json_integer(v);
+        //                 }
+        //             } else {
+        //                 uint64_t v = endian_64(endian_format, (uint8_t *)pv);
+        //                 if(multiplier < 1.0 &&  multiplier > 0.0) {
+        //                     double v_ = (double)v * multiplier;
+        //                     jn_value = json_real(v_);
+        //                 } else {
+        //                     v = v*multiplier;
+        //                     jn_value = json_integer(v);
+        //                 }
+        //             }
+        //         }
+        //     }
+        //     break;
+        //
+        // case FORMAT_FLOAT:
+        //     {
+        //         uint16_t *pv = 0;
+        //         switch(object_type) {
+        //             case TYPE_COIL:
+        //             case TYPE_DISCRETE_INPUT:
+        //                 jn_value = cell_control->control.bit_value?json_integer(1):json_integer(0);
+        //                 break;
+        //             case TYPE_INPUT_REGISTER:
+        //                 pv = &cell_control->input_register;
+        //                 break;
+        //             case TYPE_HOLDING_REGISTER:
+        //                  pv = &cell_control->holding_register;
+        //                 break;
+        //             default:
+        //                 break;
+        //         }
+        //
+        //         if(pv) {
+        //             float v = endian_float(endian_format, (uint8_t *)pv);
+        //             v = v*multiplier;
+        //             jn_value = json_real(v);
+        //         }
+        //     }
+        //     break;
+        //
+        // case FORMAT_DOUBLE:
+        //     {
+        //         uint16_t *pv = 0;
+        //         switch(object_type) {
+        //             case TYPE_COIL:
+        //             case TYPE_DISCRETE_INPUT:
+        //                 jn_value = cell_control->control.bit_value?json_integer(1):json_integer(0);
+        //                 break;
+        //             case TYPE_INPUT_REGISTER:
+        //                 pv = &cell_control->input_register;
+        //                 break;
+        //             case TYPE_HOLDING_REGISTER:
+        //                 pv = &cell_control->holding_register;
+        //                 break;
+        //             default:
+        //                 break;
+        //         }
+        //
+        //         if(pv) {
+        //             double v = endian_double(endian_format, (uint8_t *)pv);
+        //             v = v*multiplier;
+        //             jn_value = json_real(v);
+        //         }
+        //     }
+        //     break;
+        //
+        // case FORMAT_STRING:
+        //     {
+        //         int size = (int)kw_get_int(gobj, jn_variable, "multiplier", 1, KW_WILD_NUMBER);
+        //         gbuffer_t *gbuf_string = gbuffer_create(size*2, size*2);
+        //
+        //         for(int i=0; i<size; i++) {
+        //             uint16_t *pv = 0;
+        //             cell_control_t *cell2 = get_cell_control(gobj, pslv, object_type, address+i, FALSE);
+        //             switch(object_type) {
+        //                 case TYPE_INPUT_REGISTER:
+        //                     pv = &cell2->input_register;
+        //                     break;
+        //                 case TYPE_HOLDING_REGISTER:
+        //                     pv = &cell2->holding_register;
+        //                     break;
+        //                 default:
+        //                     break;
+        //             }
+        //
+        //             uint32_t word = endian_16(endian_format, (uint8_t *)pv);
+        //             uint8_t b1 = (uint8_t)(word >> 8); // get the higher byte;
+        //             uint8_t b2 = (uint8_t)(word & 0xFF); // get the lower byte
+        //             // convert the nulls into space
+        //             if(b1==0) {
+        //                 b1 = ' ';
+        //             }
+        //             if(b2==0) {
+        //                 b2 = ' ';
+        //             }
+        //             gbuffer_append(gbuf_string, &b1, 1);
+        //             gbuffer_append(gbuf_string, &b2, 1);
+        //         }
+        //         left_justify(gbuffer_cur_rd_pointer(gbuf_string));
+        //         jn_value = json_string(gbuffer_cur_rd_pointer(gbuf_string));
+        //         GBUFFER_DECREF(gbuf_string)
+        //     }
+        //     break;
+
         case FORMAT_INT32:
         case FORMAT_UINT32:
             {
-                uint16_t *pv = 0;
-                switch(object_type) {
-                    case TYPE_COIL:
-                    case TYPE_DISCRETE_INPUT:
-                        jn_value = cell_control->control.bit_value?json_integer(1):json_integer(0);
-                        break;
-                    case TYPE_INPUT_REGISTER:
-                        pv = &cell_control->input_register;
-                        break;
-                    case TYPE_HOLDING_REGISTER:
-                        pv = &cell_control->holding_register;
-                        break;
-                    default:
-                        break;
-                }
-
-                if(pv) {
-                    if(variable_format == FORMAT_INT32) {
-                        int32_t v = endian_32(endian_format, (uint8_t *)pv);
-                        if(multiplier < 1.0 &&  multiplier > 0.0) {
-                            float v_ = (float)v * multiplier;
-                            jn_value = json_real(v_);
-                        } else {
-                            v = v*multiplier;
-                            jn_value = json_integer(v);
-                        }
+                uint8_t b[4];
+                if(collect_register_bytes(gobj, pslv, object_type, address, 2, b)==0) {
+                    if(variable_format==FORMAT_INT32) {
+                        int32_t v = (int32_t)endian_32(endian_format, b);
+                        jn_value = (multiplier>0.0 && multiplier<1.0)
+                            ? json_real((float)v * multiplier)
+                            : json_integer((json_int_t)((int64_t)v * (int64_t)multiplier));
                     } else {
-                        uint32_t v = endian_32(endian_format, (uint8_t *)pv);
-                        if(multiplier < 1.0 &&  multiplier > 0.0) {
-                            float v_ = (float)v * multiplier;
-                            jn_value = json_real(v_);
-                        } else {
-                            v = v*multiplier;
-                            jn_value = json_integer(v);
-                        }
-                    }
-                }
-            }
-            break;
-
-        case FORMAT_INT64:
-        case FORMAT_UINT64:
-            {
-                uint16_t *pv = 0;
-                switch(object_type) {
-                    case TYPE_COIL:
-                    case TYPE_DISCRETE_INPUT:
-                        jn_value = cell_control->control.bit_value?json_integer(1):json_integer(0);
-                        break;
-                    case TYPE_INPUT_REGISTER:
-                        pv = &cell_control->input_register;
-                        break;
-                    case TYPE_HOLDING_REGISTER:
-                        pv = &cell_control->holding_register;
-                        break;
-                    default:
-                        break;
-                }
-
-                if(pv) {
-                    if(variable_format == FORMAT_INT64) {
-                        int64_t v = endian_64(endian_format, (uint8_t *)pv);
-                        if(multiplier < 1.0 &&  multiplier > 0.0) {
-                            double v_ = (double)v * multiplier;
-                            jn_value = json_real(v_);
-                        } else {
-                            v = v*multiplier;
-                            jn_value = json_integer(v);
-                        }
-                    } else {
-                        uint64_t v = endian_64(endian_format, (uint8_t *)pv);
-                        if(multiplier < 1.0 &&  multiplier > 0.0) {
-                            double v_ = (double)v * multiplier;
-                            jn_value = json_real(v_);
-                        } else {
-                            v = v*multiplier;
-                            jn_value = json_integer(v);
-                        }
+                        uint32_t v = endian_32(endian_format, b);
+                        jn_value = (multiplier>0.0 && multiplier<1.0)
+                            ? json_real((float)v * multiplier)
+                            : json_integer((json_int_t)((uint64_t)v * (uint64_t)multiplier));
                     }
                 }
             }
@@ -2909,94 +3062,104 @@ PRIVATE json_t *get_variable_value(hgobj gobj, slave_data_t *pslv, json_t *jn_va
 
         case FORMAT_FLOAT:
             {
-                uint16_t *pv = 0;
-                switch(object_type) {
-                    case TYPE_COIL:
-                    case TYPE_DISCRETE_INPUT:
-                        jn_value = cell_control->control.bit_value?json_integer(1):json_integer(0);
-                        break;
-                    case TYPE_INPUT_REGISTER:
-                        pv = &cell_control->input_register;
-                        break;
-                    case TYPE_HOLDING_REGISTER:
-                         pv = &cell_control->holding_register;
-                        break;
-                    default:
-                        break;
+                uint8_t b[4];
+                if(collect_register_bytes(gobj, pslv, object_type, address, 2, b)==0) {
+                    float v = endian_float(endian_format, b);
+                    jn_value = json_real(v * multiplier);
                 }
+            }
+            break;
 
-                if(pv) {
-                    float v = endian_float(endian_format, (uint8_t *)pv);
-                    v = v*multiplier;
-                    jn_value = json_real(v);
+        case FORMAT_INT64:
+        case FORMAT_UINT64:
+            {
+                uint8_t b[8];
+                if(collect_register_bytes(gobj, pslv, object_type, address, 4, b)==0) {
+                    if(variable_format==FORMAT_INT64) {
+                        int64_t v = (int64_t)endian_64(endian_format, b);
+                        jn_value = (multiplier>0.0 && multiplier<1.0)
+                            ? json_real((double)v * multiplier)
+                            : json_integer((json_int_t)(v * (int64_t)multiplier));
+                    } else {
+                        uint64_t v = endian_64(endian_format, b);
+                        jn_value = (multiplier>0.0 && multiplier<1.0)
+                            ? json_real((double)v * multiplier)
+                            : json_integer((json_int_t)(v * (uint64_t)multiplier));
+                    }
                 }
             }
             break;
 
         case FORMAT_DOUBLE:
             {
-                uint16_t *pv = 0;
-                switch(object_type) {
-                    case TYPE_COIL:
-                    case TYPE_DISCRETE_INPUT:
-                        jn_value = cell_control->control.bit_value?json_integer(1):json_integer(0);
-                        break;
-                    case TYPE_INPUT_REGISTER:
-                        pv = &cell_control->input_register;
-                        break;
-                    case TYPE_HOLDING_REGISTER:
-                        pv = &cell_control->holding_register;
-                        break;
-                    default:
-                        break;
-                }
-
-                if(pv) {
-                    double v = endian_double(endian_format, (uint8_t *)pv);
-                    v = v*multiplier;
-                    jn_value = json_real(v);
+                uint8_t b[8];
+                if(collect_register_bytes(gobj, pslv, object_type, address, 4, b)==0) {
+                    double v = endian_double(endian_format, b);
+                    jn_value = json_real(v * multiplier);
                 }
             }
             break;
 
         case FORMAT_STRING:
             {
-                int size = (int)kw_get_int(gobj, jn_variable, "multiplier", 1, KW_WILD_NUMBER);
-                gbuffer_t *gbuf_string = gbuffer_create(size*2, size*2);
+                /* Prefer 'length_bytes', fallback to historic 'multiplier' (=bytes). */
+                int bytes = (int)kw_get_int(gobj, jn_variable, "length_bytes", -1, KW_WILD_NUMBER);
+                if(bytes <= 0)
+                    bytes = (int)kw_get_int(gobj, jn_variable, "multiplier", 1, KW_WILD_NUMBER);
+                if(bytes <= 0) bytes = 1;
 
-                for(int i=0; i<size; i++) {
-                    uint16_t *pv = 0;
-                    cell_control_t *cell2 = get_cell_control(gobj, pslv, object_type, address+i, FALSE);
-                    switch(object_type) {
-                        case TYPE_INPUT_REGISTER:
-                            pv = &cell2->input_register;
-                            break;
-                        case TYPE_HOLDING_REGISTER:
-                            pv = &cell2->holding_register;
-                            break;
-                        default:
-                            break;
-                    }
+                int words = (bytes + 1) / 2;                /* registers needed */
+                gbuffer_t *gbuf = gbuffer_create(bytes, bytes);
+                if(!gbuf) break;
 
-                    uint32_t word = endian_16(endian_format, (uint8_t *)pv);
-                    uint8_t b1 = (uint8_t)(word >> 8); // get the higher byte;
-                    uint8_t b2 = (uint8_t)(word & 0xFF); // get the lower byte
-                    // convert the nulls into space
-                    if(b1==0) {
-                        b1 = ' ';
-                    }
-                    if(b2==0) {
-                        b2 = ' ';
-                    }
-                    gbuffer_append(gbuf_string, &b1, 1);
-                    gbuffer_append(gbuf_string, &b2, 1);
+                /* Gather raw bytes (MSB,LSB per register). */
+                uint8_t tmp[2*words];
+                if(collect_register_bytes(gobj, pslv, object_type, address, words, tmp) != 0){
+                    GBUFFER_DECREF(gbuf);
+                    break;
                 }
-                left_justify(gbuffer_cur_rd_pointer(gbuf_string));
-                jn_value = json_string(gbuffer_cur_rd_pointer(gbuf_string));
-                GBUFFER_DECREF(gbuf_string)
+
+                /* Apply endian to string:
+                   - Within each register (word) swap if little-endian variants.
+                   - If *_BYTE_SWAP, also swap adjacent 16-bit words in each 32-bit block (CDAB).
+                   This mirrors your numeric semantics for CDAB/BADC. */
+                for(int w=0; w<words; w++){
+                    uint8_t hi = tmp[(w<<1)+0]; /* MSB */
+                    uint8_t lo = tmp[(w<<1)+1]; /* LSB */
+                    switch(endian_format){
+                        case FORMAT_BIG_ENDIAN:
+                        case FORMAT_BIG_ENDIAN_BYTE_SWAP:
+                            tmp[(w<<1)+0] = hi; tmp[(w<<1)+1] = lo; /* keep */
+                            break;
+                        case FORMAT_LITTLE_ENDIAN:
+                        case FORMAT_LITTLE_ENDIAN_BYTE_SWAP:
+                            tmp[(w<<1)+0] = lo; tmp[(w<<1)+1] = hi; /* swap bytes inside word */
+                            break;
+                    }
+                }
+                if(endian_format==FORMAT_BIG_ENDIAN_BYTE_SWAP || endian_format==FORMAT_LITTLE_ENDIAN_BYTE_SWAP){
+                    for(int i=0; i+3 < 2*words; i+=4){
+                        /* swap word0 <-> word1 in each 4-byte block: [0,1,2,3] -> [2,3,0,1] */
+                        uint8_t a=tmp[i], b=tmp[i+1], c=tmp[i+2], d=tmp[i+3];
+                        tmp[i]=c; tmp[i+1]=d; tmp[i+2]=a; tmp[i+3]=b;
+                    }
+                }
+
+                /* Emit exactly 'bytes' bytes (trim the padding byte if odd). */
+                gbuffer_append(gbuf, tmp, bytes);
+
+                /* Optional: treat NULs as spaces like your legacy code (toggle via a flag if you want). */
+                uint8_t *s = (uint8_t *)gbuffer_cur_rd_pointer(gbuf);
+                for(int i=0;i<bytes;i++){ if(s[i]==0) s[i]=' '; }
+
+                left_justify((char *)s);               /* your existing helper */
+                jn_value = json_string((char *)s);
+                GBUFFER_DECREF(gbuf);
             }
             break;
+
     }
+
 
     return jn_value;
 }
