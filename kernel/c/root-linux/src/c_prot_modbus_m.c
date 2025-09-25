@@ -2146,7 +2146,7 @@ PRIVATE int store_slave_bit(
 
     if(gobj_trace_level(gobj) & TRACE_DECODE) {
         gobj_trace_msg(gobj,
-            "store bit in %s x%0X %d, value: %d",
+            "store bit in %s x%0X %d, value: x%0X",
             get_object_type_name(object_type),
             address,
             address,
@@ -2185,7 +2185,7 @@ PRIVATE int store_slave_word(
 
             if(gobj_trace_level(gobj) & TRACE_DECODE) {
                 gobj_trace_dump(gobj,
-                    (const char *)bf, 2, "store word in %s x%0X %d, value: %d",
+                    (const char *)bf, 2, "store word in %s x%0X %d, value: x%0X",
                     get_object_type_name(object_type),
                     address,
                     address,
@@ -2201,7 +2201,7 @@ PRIVATE int store_slave_word(
 
             if(gobj_trace_level(gobj) & TRACE_DECODE) {
                 gobj_trace_dump(gobj,
-                    (const char *)bf, 2, "store word in %s x%0X %d, value: %d",
+                    (const char *)bf, 2, "store word in %s x%0X %d, value: x%0X",
                     get_object_type_name(object_type),
                     address,
                     address,
