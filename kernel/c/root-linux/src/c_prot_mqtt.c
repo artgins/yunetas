@@ -4031,6 +4031,7 @@ PRIVATE int handle__pingreq(hgobj gobj)
         return MOSQ_ERR_MALFORMED_PACKET;
     }
 
+    // TODO if mosq->keepalive then send__pingreq()
     // TODO mosq->ping_t = mosquitto_time(); esto no está en esta función!!
     return send_simple_command(gobj, CMD_PINGRESP);
 }
