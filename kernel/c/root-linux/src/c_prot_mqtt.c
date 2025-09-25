@@ -1671,7 +1671,8 @@ PRIVATE int check_passwd(
     json_int_t iterations
 )
 {
-#if defined(CONFIG_HAVE_OPENSSL)
+#if defined(__linux__)
+    #if defined(CONFIG_HAVE_OPENSSL)
     const EVP_MD *digest;
     unsigned char hash_[EVP_MAX_MD_SIZE+1];
     unsigned int hash_len_ = EVP_MAX_MD_SIZE;
@@ -1788,6 +1789,8 @@ PRIVATE int check_passwd(
 #else
     #error "No crypto library defined"
 #endif
+#endif
+
     return -1;
 }
 
@@ -1815,7 +1818,8 @@ PRIVATE json_t *hash_password(
     const char *algorithm,
     int iterations
 ) {
-#if defined(CONFIG_HAVE_OPENSSL)
+#if defined(__linux__)
+    #if defined(CONFIG_HAVE_OPENSSL)
     #define SALT_LEN 12
     unsigned int hash_len;
     unsigned char hash[64]; /* For SHA512 */
@@ -1987,10 +1991,12 @@ PRIVATE json_t *hash_password(
 error:
     mbedtls_ctr_drbg_free(&ctr_drbg);
     mbedtls_entropy_free(&entropy);
-    return 0;
+    return NULL;
 #else
     #error "No crypto library defined"
 #endif
+#endif
+    return NULL;
 }
 
 /***************************************************************************
@@ -5407,7 +5413,7 @@ PRIVATE int handle__auth_s(hgobj gobj, gbuffer_t *gbuf)
  ***************************************************************************/
 PRIVATE int handle__auth_c(hgobj gobj, gbuffer_t *gbuf)
 {
-    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+    // PRIVATE_DATA *priv = gobj_priv_data(gobj);
     int ret = 0;
 
     // TODO
@@ -6170,14 +6176,14 @@ PRIVATE int handle__connect(hgobj gobj, gbuffer_t *gbuf)
             protocol_name,
             protocol_version_name(protocol_version),
             is_bridge,
-            clean_start,
-            session_expiry_interval,
-            will,
-            will_retain,
-            will_qos,
-            username_flag,
-            password_flag,
-            keepalive
+            (int)clean_start,
+            (int)session_expiry_interval,
+            (int)will,
+            (int)will_retain,
+            (int)will_qos,
+            (int)username_flag,
+            (int)password_flag,
+            (int)keepalive
         );
         if(priv->gbuf_will_payload) {
             gobj_trace_dump_gbuf(gobj, priv->gbuf_will_payload, "gbuf_will_payload");
@@ -6306,7 +6312,7 @@ PRIVATE int handle__disconnect_s(hgobj gobj, gbuffer_t *gbuf)
  ***************************************************************************/
 PRIVATE int handle__disconnect_c(hgobj gobj, gbuffer_t *gbuf)
 {
-    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+    // PRIVATE_DATA *priv = gobj_priv_data(gobj);
     int ret = 0;
 
     // TODO
@@ -7486,7 +7492,7 @@ process_bad_message:
  ***************************************************************************/
 PRIVATE int handle__publish_c(hgobj gobj, gbuffer_t *gbuf)
 {
-    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+    // PRIVATE_DATA *priv = gobj_priv_data(gobj);
     int rc = 0;
     // TODO
     return rc;
