@@ -1,0 +1,511 @@
+%PDF-1.4
+%����
+1 0 obj
+<< /F1 << /Type /Font /Subtype /Type1 /BaseFont /Helvetica >> /F1B << /Type /Font /Subtype /Type1 /BaseFont /Helvetica-Bold >> /F2 << /Type /Font /Subtype /Type1 /BaseFont /Courier >> >>
+endobj
+2 0 obj
+<< /Length 4380 >>
+stream
+BT
+/F1B 16.00 Tf
+1 0 0 1 50.00 792.00 Tm
+(JSON config for `slaves` \(mapping · conversion · derived\)) Tj
+/F1 10.00 Tf
+1 0 0 1 50.00 760.40 Tm
+(This describes the structure the Modbus master uses to poll data and publish) Tj
+/F1 10.00 Tf
+1 0 0 1 50.00 747.40 Tm
+(variables per slave. It’s concise, Yunetas-style, and matches the current code) Tj
+/F1 10.00 Tf
+1 0 0 1 50.00 734.40 Tm
+(paths.) Tj
+/F1B 13.00 Tf
+1 0 0 1 50.00 715.40 Tm
+(Top level) Tj
+/F2 9.00 Tf
+1 0 0 1 60.00 683.90 Tm
+("slaves": [) Tj
+/F2 9.00 Tf
+1 0 0 1 60.00 672.20 Tm
+(  {) Tj
+/F2 9.00 Tf
+1 0 0 1 60.00 660.50 Tm
+(    "id": 3,                      // Modbus unit id \(1..247\)) Tj
+/F2 9.00 Tf
+1 0 0 1 60.00 648.80 Tm
+(    "mapping":   [ /* poll plan */ ],) Tj
+/F2 9.00 Tf
+1 0 0 1 60.00 637.10 Tm
+(    "conversion":[ /* variables built from mapped registers */ ],) Tj
+/F2 9.00 Tf
+1 0 0 1 60.00 625.40 Tm
+(    "derived":   [ /* optional, computed variables \(upper layer\) */ ]) Tj
+/F2 9.00 Tf
+1 0 0 1 60.00 613.70 Tm
+(  }) Tj
+/F2 9.00 Tf
+1 0 0 1 60.00 602.00 Tm
+(]) Tj
+/F1 10.00 Tf
+1 0 0 1 62.00 578.30 Tm
+(• `id` – required. Modbus slave/unit address.) Tj
+/F1 10.00 Tf
+1 0 0 1 62.00 565.30 Tm
+(• `mapping` – required. What raw areas to read every cycle.) Tj
+/F1 10.00 Tf
+1 0 0 1 62.00 552.30 Tm
+(• `conversion` – required. How to interpret the mapped registers into typed) Tj
+/F1 10.00 Tf
+1 0 0 1 62.00 539.30 Tm
+(variables.) Tj
+/F1 10.00 Tf
+1 0 0 1 62.00 526.30 Tm
+(• `derived` – optional. Post-processing on published variables \(handled by your) Tj
+/F1 10.00 Tf
+1 0 0 1 62.00 513.30 Tm
+(app layer; `c_prot_modbus_m` does not evaluate these\).) Tj
+/F1B 13.00 Tf
+1 0 0 1 50.00 494.30 Tm
+(`mapping[]` — poll plan) Tj
+/F1 10.00 Tf
+1 0 0 1 50.00 468.80 Tm
+(Each item defines **one Modbus read** \(function code is implied by `type`\). Sizes) Tj
+/F1 10.00 Tf
+1 0 0 1 50.00 455.80 Tm
+(are bounded by the Modbus spec.) Tj
+/F2 9.00 Tf
+1 0 0 1 60.00 430.80 Tm
+({) Tj
+/F2 9.00 Tf
+1 0 0 1 60.00 419.10 Tm
+(  "type": "holding_register",     // one of: "coil", "discrete_input", "input_register",) Tj
+/F2 9.00 Tf
+1 0 0 1 60.00 407.40 Tm
+("holding_register") Tj
+/F2 9.00 Tf
+1 0 0 1 60.00 395.70 Tm
+(  "address": 4096,                // base register/bit \(0..65535\). Decimal or "0x1000") Tj
+/F2 9.00 Tf
+1 0 0 1 60.00 384.00 Tm
+(accepted.) Tj
+/F2 9.00 Tf
+1 0 0 1 60.00 372.30 Tm
+(  "size": 16,                     // quantity to read: bits for coils/inputs; 16-bit WORDS) Tj
+/F2 9.00 Tf
+1 0 0 1 60.00 360.60 Tm
+(for registers) Tj
+/F2 9.00 Tf
+1 0 0 1 60.00 348.90 Tm
+(  "id": "hr@4096"                 // optional label, used only for logging) Tj
+/F2 9.00 Tf
+1 0 0 1 60.00 337.20 Tm
+(}) Tj
+/F1B 11.50 Tf
+1 0 0 1 50.00 313.50 Tm
+(Notes & rules) Tj
+/F1 10.00 Tf
+1 0 0 1 62.00 291.40 Tm
+(• Addressing is **0-based** register numbers \(not PLC “4xxxx” notation\).) Tj
+/F1 10.00 Tf
+1 0 0 1 62.00 278.40 Tm
+(• Size limits \(enforced\):) Tj
+/F1 10.00 Tf
+1 0 0 1 62.00 265.40 Tm
+(• Coils / discrete inputs: `1..2000` bits.) Tj
+/F1 10.00 Tf
+1 0 0 1 62.00 252.40 Tm
+(• Input / holding registers: `1..125` words.) Tj
+/F1 10.00 Tf
+1 0 0 1 62.00 239.40 Tm
+(• Overlaps: if two mappings claim the same cell, the later one is **disabled**) Tj
+/F1 10.00 Tf
+1 0 0 1 62.00 226.40 Tm
+(\(logged as “Map OVERRIDE”\).) Tj
+/F1 10.00 Tf
+1 0 0 1 62.00 213.40 Tm
+(• Polling order: by array order; all mappings of a slave form a **cycle**. After) Tj
+/F1 10.00 Tf
+1 0 0 1 62.00 200.40 Tm
+(the last map, a publish event is emitted.) Tj
+/F1B 13.00 Tf
+1 0 0 1 50.00 181.40 Tm
+(`conversion[]` — typed variables from registers) Tj
+/F1 10.00 Tf
+1 0 0 1 50.00 155.90 Tm
+(Each item turns raw mapped cells into a typed value. Multi-word types are) Tj
+/F1 10.00 Tf
+1 0 0 1 50.00 142.90 Tm
+(assembled from **consecutive registers** starting at `address`.) Tj
+/F2 9.00 Tf
+1 0 0 1 60.00 117.90 Tm
+({) Tj
+/F2 9.00 Tf
+1 0 0 1 60.00 106.20 Tm
+(  "id": "counter1",               // required, unique within the slave) Tj
+/F2 9.00 Tf
+1 0 0 1 60.00 94.50 Tm
+(  "type": "input_register",       // same domain you mapped) Tj
+/F2 9.00 Tf
+1 0 0 1 60.00 82.80 Tm
+(  "address": 4096,                // start register; must be inside a mapped span) Tj
+/F2 9.00 Tf
+1 0 0 1 60.00 71.10 Tm
+(  "format": "int64",              //) Tj
+/F2 9.00 Tf
+1 0 0 1 60.00 59.40 Tm
+(int16,uint16,bool,int32,uint32,int64,uint64,float,double,string) Tj
+ET
+endstream
+endobj
+3 0 obj
+<< /Type /Page /Parent 8 0 R /MediaBox [0 0 595 842] /Resources << /Font 1 0 R >> /Contents 2 0 R >>
+endobj
+4 0 obj
+<< /Length 4640 >>
+stream
+BT
+/F2 9.00 Tf
+1 0 0 1 60.00 792.00 Tm
+(  "multiplier": 1,                // optional numeric scale \(see below\)) Tj
+/F2 9.00 Tf
+1 0 0 1 60.00 780.30 Tm
+(  "endian": "big endian",         // optional per-var: big endian \(default\) | little endian) Tj
+/F2 9.00 Tf
+1 0 0 1 60.00 768.60 Tm
+(| big endian byte swap | little endian byte swap) Tj
+/F2 9.00 Tf
+1 0 0 1 60.00 756.90 Tm
+() Tj
+/F2 9.00 Tf
+1 0 0 1 60.00 745.20 Tm
+(  // STRING ONLY:) Tj
+/F2 9.00 Tf
+1 0 0 1 60.00 733.50 Tm
+(  "length_bytes": 31              // preferred for strings; fallback: use 'multiplier' as) Tj
+/F2 9.00 Tf
+1 0 0 1 60.00 721.80 Tm
+(byte length if 'length_bytes' missing) Tj
+/F2 9.00 Tf
+1 0 0 1 60.00 710.10 Tm
+(}) Tj
+/F1B 11.50 Tf
+1 0 0 1 50.00 686.40 Tm
+(Supported formats & how they’re read) Tj
+/F1 10.00 Tf
+1 0 0 1 62.00 664.30 Tm
+(• `bool`) Tj
+/F1 10.00 Tf
+1 0 0 1 50.00 651.30 Tm
+(  From a **coil**, **discrete_input**, or a 16-bit register \(non-zero → true\).) Tj
+/F1 10.00 Tf
+1 0 0 1 62.00 638.30 Tm
+(• `int16` / `uint16`) Tj
+/F1 10.00 Tf
+1 0 0 1 50.00 625.30 Tm
+(  From one register at `address`.) Tj
+/F1 10.00 Tf
+1 0 0 1 62.00 612.30 Tm
+(• `int32` / `uint32` / `float`) Tj
+/F1 10.00 Tf
+1 0 0 1 50.00 599.30 Tm
+(  From two consecutive registers `[address, address+1]`.) Tj
+/F1 10.00 Tf
+1 0 0 1 62.00 586.30 Tm
+(• `int64` / `uint64` / `double`) Tj
+/F1 10.00 Tf
+1 0 0 1 50.00 573.30 Tm
+(  From four consecutive registers `[address .. address+3]`.) Tj
+/F1 10.00 Tf
+1 0 0 1 62.00 560.30 Tm
+(• `string`) Tj
+/F1 10.00 Tf
+1 0 0 1 50.00 547.30 Tm
+(  Takes **`length_bytes`** bytes from consecutive registers, high-byte then) Tj
+/F1 10.00 Tf
+1 0 0 1 50.00 534.30 Tm
+(low-byte per register \(wire order\).  ) Tj
+/F1 10.00 Tf
+1 0 0 1 50.00 521.30 Tm
+(  `endian` is **ignored for strings**. NULs are turned into spaces; trailing) Tj
+/F1 10.00 Tf
+1 0 0 1 50.00 508.30 Tm
+(spaces trimmed \(legacy behavior\).) Tj
+/F1 10.00 Tf
+1 0 0 1 60.00 489.30 Tm
+(The validator reserves the needed span \(`compound_value`\) for multi-word types and) Tj
+/F1 10.00 Tf
+1 0 0 1 60.00 476.30 Tm
+(will **disable** the variable if any required register wasn’t mapped.) Tj
+/F1B 11.50 Tf
+1 0 0 1 50.00 455.30 Tm
+(`endian` semantics \(numerics only\)) Tj
+/F1 10.00 Tf
+1 0 0 1 62.00 433.20 Tm
+(• `"big endian"` \(default\): words in natural order \(ABCD\).) Tj
+/F1 10.00 Tf
+1 0 0 1 62.00 420.20 Tm
+(• `"little endian"`: reverse the whole 32/64-bit byte order \(DCBA / HGFEDCBA\).) Tj
+/F1 10.00 Tf
+1 0 0 1 62.00 407.20 Tm
+(• `"big endian byte swap"`: 16-bit word-swap \(CDAB\): common for IEEE-754 floats on) Tj
+/F1 10.00 Tf
+1 0 0 1 62.00 394.20 Tm
+(Modbus.) Tj
+/F1 10.00 Tf
+1 0 0 1 62.00 381.20 Tm
+(• `"little endian byte swap"`: BADC.) Tj
+/F1B 11.50 Tf
+1 0 0 1 50.00 362.20 Tm
+(`multiplier` semantics) Tj
+/F1 10.00 Tf
+1 0 0 1 62.00 340.10 Tm
+(• If `0.0 < multiplier < 1.0` → result is emitted as **real** \(`json_real`\).) Tj
+/F1 10.00 Tf
+1 0 0 1 62.00 327.10 Tm
+(• If `multiplier >= 1` → integer formats keep **integer** type after scaling.) Tj
+/F1 10.00 Tf
+1 0 0 1 62.00 314.10 Tm
+(• **STRING exception:** if `length_bytes` is absent, `multiplier` is treated as) Tj
+/F1 10.00 Tf
+1 0 0 1 62.00 301.10 Tm
+(the **byte length**.) Tj
+/F1B 11.50 Tf
+1 0 0 1 50.00 282.10 Tm
+(Examples) Tj
+/F2 9.00 Tf
+1 0 0 1 60.00 254.00 Tm
+("mapping": [) Tj
+/F2 9.00 Tf
+1 0 0 1 60.00 242.30 Tm
+(  { "type":"holding_register", "address":4100, "size": 16 },   // reads 32 bytes) Tj
+/F2 9.00 Tf
+1 0 0 1 60.00 230.60 Tm
+(  { "type":"input_register",   "address":900,  "size": 10  }) Tj
+/F2 9.00 Tf
+1 0 0 1 60.00 218.90 Tm
+(],) Tj
+/F2 9.00 Tf
+1 0 0 1 60.00 207.20 Tm
+("conversion": [) Tj
+/F2 9.00 Tf
+1 0 0 1 60.00 195.50 Tm
+(  { "id":"total_L", "type":"holding_register", "address":4100, "format":"int64",) Tj
+/F2 9.00 Tf
+1 0 0 1 60.00 183.80 Tm
+("endian":"big endian", "multiplier":1 },) Tj
+/F2 9.00 Tf
+1 0 0 1 60.00 172.10 Tm
+(  { "id":"flow_m3h","type":"input_register",   "address":900,  "format":"float",) Tj
+/F2 9.00 Tf
+1 0 0 1 60.00 160.40 Tm
+("endian":"big endian byte swap", "multiplier":1.0 },) Tj
+/F2 9.00 Tf
+1 0 0 1 60.00 148.70 Tm
+(  { "id":"tag",     "type":"holding_register", "address":4100, "format":"string",) Tj
+/F2 9.00 Tf
+1 0 0 1 60.00 137.00 Tm
+("length_bytes":31 }) Tj
+/F2 9.00 Tf
+1 0 0 1 60.00 125.30 Tm
+(]) Tj
+/F1B 13.00 Tf
+1 0 0 1 50.00 101.60 Tm
+(`derived[]` — computed variables \(optional, app-layer\)) Tj
+/F1 10.00 Tf
+1 0 0 1 50.00 76.10 Tm
+(`c_prot_modbus_m` **does not** evaluate `derived`. They are intended for your) Tj
+/F1 10.00 Tf
+1 0 0 1 50.00 63.10 Tm
+(upper layer to compute after each publish. Typical use cases: unit conversions,) Tj
+ET
+endstream
+endobj
+5 0 obj
+<< /Type /Page /Parent 8 0 R /MediaBox [0 0 595 842] /Resources << /Font 1 0 R >> /Contents 4 0 R >>
+endobj
+6 0 obj
+<< /Length 4293 >>
+stream
+BT
+/F1 10.00 Tf
+1 0 0 1 50.00 792.00 Tm
+(combining integer/fraction parts, conditionals, clamping, etc.) Tj
+/F1 10.00 Tf
+1 0 0 1 50.00 773.00 Tm
+(Suggested shape \(flexible; define in your app\):) Tj
+/F2 9.00 Tf
+1 0 0 1 60.00 748.00 Tm
+({) Tj
+/F2 9.00 Tf
+1 0 0 1 60.00 736.30 Tm
+(  "id": "total_L_text",) Tj
+/F2 9.00 Tf
+1 0 0 1 60.00 724.60 Tm
+(  "expr": "sprintf\('%ld L', total_L\)",   // your expression language) Tj
+/F2 9.00 Tf
+1 0 0 1 60.00 712.90 Tm
+(  "depends_on": ["total_L"],             // optional explicit deps) Tj
+/F2 9.00 Tf
+1 0 0 1 60.00 701.20 Tm
+(  "type": "string"                       // optional hint for downstream) Tj
+/F2 9.00 Tf
+1 0 0 1 60.00 689.50 Tm
+(}) Tj
+/F1B 13.00 Tf
+1 0 0 1 50.00 665.80 Tm
+(Validation & common pitfalls) Tj
+/F1 10.00 Tf
+1 0 0 1 62.00 640.30 Tm
+(• **Address coverage:** Every `conversion` span must lie entirely within at least) Tj
+/F1 10.00 Tf
+1 0 0 1 62.00 627.30 Tm
+(one `mapping` span of the same `type`. Otherwise it is disabled.) Tj
+/F1 10.00 Tf
+1 0 0 1 62.00 614.30 Tm
+(• **Multi-word assembly:** Values are built from **consecutive registers**. Verify) Tj
+/F1 10.00 Tf
+1 0 0 1 62.00 601.30 Tm
+(the device’s word order and set `endian` accordingly \(floats often need `big) Tj
+/F1 10.00 Tf
+1 0 0 1 62.00 588.30 Tm
+(endian byte swap`\).) Tj
+/F1 10.00 Tf
+1 0 0 1 62.00 575.30 Tm
+(• **Strings:** Don’t use `endian`. Use `length_bytes`. Legacy fallback:) Tj
+/F1 10.00 Tf
+1 0 0 1 62.00 562.30 Tm
+(`multiplier` as bytes.) Tj
+/F1 10.00 Tf
+1 0 0 1 62.00 549.30 Tm
+(• **Overlaps:** Overlapping mappings or overlapping compound reads log an error;) Tj
+/F1 10.00 Tf
+1 0 0 1 62.00 536.30 Tm
+(the later definition is disabled to avoid corruption.) Tj
+/F1 10.00 Tf
+1 0 0 1 62.00 523.30 Tm
+(• **Limits:** Respect Modbus max counts \(125 regs, 2000 bits\). The code) Tj
+/F1 10.00 Tf
+1 0 0 1 62.00 510.30 Tm
+(clamps/explains if exceeded.) Tj
+/F1 10.00 Tf
+1 0 0 1 62.00 497.30 Tm
+(• **Address base:** Use raw register numbers \(0..65535\). Decimal or `"0xNNNN"`) Tj
+/F1 10.00 Tf
+1 0 0 1 62.00 484.30 Tm
+(strings are accepted.) Tj
+/F1 10.00 Tf
+1 0 0 1 62.00 471.30 Tm
+(• **Booleans from registers:** Non-zero → true. If you meant an individual bit) Tj
+/F1 10.00 Tf
+1 0 0 1 62.00 458.30 Tm
+(inside a register, expose it via coils/discrete inputs or split at app-layer.) Tj
+/F1B 13.00 Tf
+1 0 0 1 50.00 439.30 Tm
+(Minimal working slave \(complete example\)) Tj
+/F2 9.00 Tf
+1 0 0 1 60.00 407.80 Tm
+({) Tj
+/F2 9.00 Tf
+1 0 0 1 60.00 396.10 Tm
+(  "id": 3,) Tj
+/F2 9.00 Tf
+1 0 0 1 60.00 384.40 Tm
+(  "mapping": [) Tj
+/F2 9.00 Tf
+1 0 0 1 60.00 372.70 Tm
+(    { "type":"holding_register", "address":4100, "size":16 },) Tj
+/F2 9.00 Tf
+1 0 0 1 60.00 361.00 Tm
+(    { "type":"input_register",   "address":900,  "size":10  }) Tj
+/F2 9.00 Tf
+1 0 0 1 60.00 349.30 Tm
+(  ],) Tj
+/F2 9.00 Tf
+1 0 0 1 60.00 337.60 Tm
+(  "conversion": [) Tj
+/F2 9.00 Tf
+1 0 0 1 60.00 325.90 Tm
+(    { "id":"total_L",  "type":"holding_register", "address":4100, "format":"int64", ) Tj
+/F2 9.00 Tf
+1 0 0 1 60.00 314.20 Tm
+("endian":"big endian",           "multiplier":1 },) Tj
+/F2 9.00 Tf
+1 0 0 1 60.00 302.50 Tm
+(    { "id":"flow_m3h", "type":"input_register",   "address":900,  "format":"float", ) Tj
+/F2 9.00 Tf
+1 0 0 1 60.00 290.80 Tm
+("endian":"big endian byte swap", "multiplier":1 },) Tj
+/F2 9.00 Tf
+1 0 0 1 60.00 279.10 Tm
+(    { "id":"tag",      "type":"holding_register", "address":4100, "format":"string",) Tj
+/F2 9.00 Tf
+1 0 0 1 60.00 267.40 Tm
+("length_bytes":31 }) Tj
+/F2 9.00 Tf
+1 0 0 1 60.00 255.70 Tm
+(  ],) Tj
+/F2 9.00 Tf
+1 0 0 1 60.00 244.00 Tm
+(  "derived": [) Tj
+/F2 9.00 Tf
+1 0 0 1 60.00 232.30 Tm
+(    { "id":"total_m3", "expr":"total_L / 1000.0" }) Tj
+/F2 9.00 Tf
+1 0 0 1 60.00 220.60 Tm
+(  ]) Tj
+/F2 9.00 Tf
+1 0 0 1 60.00 208.90 Tm
+(}) Tj
+/F1B 13.00 Tf
+1 0 0 1 50.00 185.20 Tm
+(Publishing behavior \(for context\)) Tj
+/F1 10.00 Tf
+1 0 0 1 50.00 159.70 Tm
+(At the end of each poll cycle per slave, the GClass emits:) Tj
+/F2 9.00 Tf
+1 0 0 1 60.00 134.70 Tm
+({) Tj
+/F2 9.00 Tf
+1 0 0 1 60.00 123.00 Tm
+(  "slave_id": 3,) Tj
+/F2 9.00 Tf
+1 0 0 1 60.00 111.30 Tm
+(  "total_L": 140474,) Tj
+/F2 9.00 Tf
+1 0 0 1 60.00 99.60 Tm
+(  "flow_m3h": 12.34,) Tj
+/F2 9.00 Tf
+1 0 0 1 60.00 87.90 Tm
+(  "tag": "LINE A ...") Tj
+/F2 9.00 Tf
+1 0 0 1 60.00 76.20 Tm
+(}) Tj
+ET
+endstream
+endobj
+7 0 obj
+<< /Type /Page /Parent 8 0 R /MediaBox [0 0 595 842] /Resources << /Font 1 0 R >> /Contents 6 0 R >>
+endobj
+8 0 obj
+<< /Type /Pages /Count 3 /Kids [ 3 0 R 5 0 R 7 0 R ] >>
+endobj
+9 0 obj
+<< /Type /Catalog /Pages 8 0 R >>
+endobj
+xref
+0 10
+0000000000 65535 f 
+0000000015 00000 n 
+0000000217 00000 n 
+0000004648 00000 n 
+0000004764 00000 n 
+0000009455 00000 n 
+0000009571 00000 n 
+0000013915 00000 n 
+0000014031 00000 n 
+0000014102 00000 n 
+trailer
+<< /Size 10 /Root 9 0 R >>
+startxref
+14151
+%%EOF
