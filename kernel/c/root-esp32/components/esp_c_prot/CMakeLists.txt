@@ -20,6 +20,7 @@ set(srcs
     src/c_prot_http_cl.c
     src/c_ievent_cli.c
     src/c_prot_tcp4h.c
+    src/c_prot_mqtt.c
     src/c_ota.c
 )
 

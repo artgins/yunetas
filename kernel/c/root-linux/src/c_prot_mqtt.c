@@ -21,13 +21,13 @@
 #include <stdint.h>
 #include <endian.h>
 #include <time.h>
-#include <arpa/inet.h>
 
 #include <gobj.h>
 #include <g_ev_kernel.h>
 #include <g_st_kernel.h>
 #include <helpers.h>
 
+#ifdef __linux__
 #if defined(CONFIG_HAVE_OPENSSL)
     #include <openssl/ssl.h>
     #include <openssl/rand.h>
@@ -37,6 +37,11 @@
     #include <mbedtls/pkcs5.h>
 #else
     #error "No crypto library defined"
+#endif
+#endif
+
+#ifdef ESP_PLATFORM
+#include "c_esp_transport.h"
 #endif
 
 #include "command_parser.h"
