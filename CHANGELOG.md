@@ -1,5 +1,8 @@
 # **Changelog**
 
+## v7.0.0-b17 -- 26/Sep/2025
+    - fix remote console (controlcenter) blocked when paste text
+
 ## v7.0.0-b15 -- 22/Sep/2025
     - fix yuneta_agent: wrong assignment of ips to public service
 
