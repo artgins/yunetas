@@ -18,6 +18,7 @@
 #include <errno.h>
 #include <sys/ioctl.h>
 #include <sys/wait.h>
+#include <fcntl.h>
 
 #include <yev_loop.h>
 #include <g_ev_kernel.h>
@@ -86,13 +87,13 @@ typedef struct _PRIVATE_DATA {
     int cols;
     char *argv[2]; // HACK Command or process (by the moment) without arguments
 
-    int uv_in;   // Duplicated fd of pty, use for put data into terminal
-    int uv_out;  // Duplicated fd of pty, use for get the output of the terminal
+    int uv_in;   // Duplicated fd of master_fd, use for put data into terminal
+    int uv_out;  // Duplicated fd of master_fd, use for get the output of the terminal
 
     yev_event_h yev_reading;
 
-    pid_t pty;      // file descriptor of pseudoterminal
-    int pid;        // child pid
+    int master_fd;    // file descriptor of pseudoterminal
+    int pid;    // child pid
 
     dl_list_t dl_tx;
     gbuffer_t *gbuf_txing;
@@ -127,7 +128,7 @@ PRIVATE void mt_create(hgobj gobj)
     priv->argv[1] = 0;
 
     dl_init(&priv->dl_tx, gobj);
-    priv->pty = -1;
+    priv->master_fd = -1;
     priv->uv_in = -1;
     priv->uv_out = -1;
 
@@ -184,11 +185,11 @@ PRIVATE int mt_start(hgobj gobj)
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
     int master, pid;
 
-    if(priv->pty != -1) {
+    if(priv->master_fd != -1) {
         gobj_log_error(gobj, 0,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_INTERNAL_ERROR,
-            "msg",          "%s", "pty terminal ALREADY open",
+            "msg",          "%s", "master_fd terminal ALREADY open",
             NULL
         );
         return -1;
@@ -234,7 +235,7 @@ PRIVATE int mt_start(hgobj gobj)
             }
             exit(0); // Child will die after exit of execute command
         } else {
-            print_error(0, "🙋 exit pty, tty empty");
+            print_error(0, "🙋 exit master_fd, tty empty");
             exit(0); // Child will die after receive signal
         }
     }
@@ -278,7 +279,7 @@ PRIVATE int mt_start(hgobj gobj)
        }
     }
 
-    priv->pty = master;     // file descriptor of pseudoterminal
+    priv->master_fd = master;     // file descriptor of pseudoterminal
     priv->pid = pid;        // child pid
 
     if(priv->uv_out != -1) {
@@ -525,9 +526,9 @@ PRIVATE void try_to_stop_yevents(hgobj gobj)  // IDEMPOTENT
         );
     }
 
-    if(priv->pty != -1) {
-        close(priv->pty);
-        priv->pty = -1;
+    if(priv->master_fd != -1) {
+        close(priv->master_fd);
+        priv->master_fd = -1;
     }
     if(priv->uv_in != -1) {
         close(priv->uv_in);
@@ -642,6 +643,44 @@ PRIVATE int on_read_cb(hgobj gobj, gbuffer_t *gbuf)
 }
 
 /***************************************************************************
+ *
+ ***************************************************************************/
+PRIVATE int tty_send_signal(hgobj gobj, int sig)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+#ifdef TIOCSIG
+    int s = sig;
+    if(ioctl(priv->master_fd, TIOCSIG, &s) == 0) {   // <-- pass pointer
+        return 0;
+    }
+    gobj_log_error(gobj,0,
+        "function", "%s",   __FUNCTION__,
+        "msgset",   "%s",   MSGSET_SYSTEM_ERROR,
+        "msg",      "%s",   "TIOCSIG failed",
+        "errno",    "%d",   errno,
+        "strerror", "%s",strerror(errno),
+        NULL
+    );
+#endif
+    pid_t pgid;
+    if(ioctl(priv->master_fd, TIOCGPGRP, &pgid) == 0 && pgid > 0) {
+        if(killpg(pgid, sig) == 0) {
+            return 0;
+        }
+        gobj_log_error(0, 0,
+            "function", "%s", __FUNCTION__,
+            "msg",      "%s", "killpg failed",
+            "errno",    "%d", errno,
+            "strerror", "%s", strerror(errno),
+            "pgid",     "%d", (int)pgid,
+            NULL
+        );
+    }
+    return -1;
+}
+
+/***************************************************************************
  *  Write data to pseudo terminal
  ***************************************************************************/
 PRIVATE int write_data_to_pty(hgobj gobj)
@@ -650,24 +689,32 @@ PRIVATE int write_data_to_pty(hgobj gobj)
 
     gbuffer_t *gbuf = priv->gbuf_txing;
 
-    // const char *bracket_paste_mode = "\e[200~";
-    // size_t xl = strlen(bracket_paste_mode);
-    // if(ln >= xl) {
-    //     if(memcmp(bf, bracket_paste_mode, xl)==0) {
-    //         bf += xl;
-    //         ln -= xl;
-    //     }
-    // }
+    size_t ln = gbuffer_chunk(gbuf);
+    char *bf = gbuffer_cur_rd_pointer(gbuf);
 
     if(gobj_trace_level(gobj) & TRACE_TRAFFIC) {
-        size_t ln = gbuffer_chunk(gbuf);
-        char *bf = gbuffer_cur_rd_pointer(gbuf);
         gobj_trace_dump(gobj,
             bf,
             ln,
             "WRITE to PTY %s",
             gobj_short_name(gobj)
         );
+    }
+
+    if(bf[0]==0x03) {
+        tty_send_signal(gobj, SIGINT); /* ^C */
+        try_more_writes(gobj);
+        return 0;
+    }
+    if(bf[0]==0x1A) {
+        tty_send_signal(gobj, SIGTSTP); /* ^Z */
+        try_more_writes(gobj);
+        return 0;
+    }
+    if(bf[0]==0x1C) {
+        tty_send_signal(gobj, SIGQUIT); /* ^\ */
+        try_more_writes(gobj);
+        return 0;
     }
 
     priv->txMsgs++;
