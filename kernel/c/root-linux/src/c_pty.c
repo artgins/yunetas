@@ -650,11 +650,10 @@ PRIVATE int tty_send_signal(hgobj gobj, int sig)
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
 #ifdef TIOCSIG
-    int s = sig;
-    if(ioctl(priv->master_fd, TIOCSIG, &s) == 0) {   // <-- pass pointer
+    if(ioctl(priv->master_fd, TIOCSIG, sig) == 0) {   /* pass value, not pointer */
         return 0;
     }
-    gobj_log_error(gobj,0,
+    gobj_log_error(gobj, 0,
         "function", "%s", __FUNCTION__,
         "msgset",   "%s", MSGSET_SYSTEM_ERROR,
         "msg",      "%s", "TIOCSIG failed",
@@ -663,12 +662,13 @@ PRIVATE int tty_send_signal(hgobj gobj, int sig)
         NULL
     );
 #endif
-    pid_t pgid;
+
+    pid_t pgid = 0;
     if(ioctl(priv->master_fd, TIOCGPGRP, &pgid) == 0 && pgid > 0) {
         if(killpg(pgid, sig) == 0) {
             return 0;
         }
-        gobj_log_error(0, 0,
+        gobj_log_error(gobj, 0,
             "function", "%s", __FUNCTION__,
             "msg",      "%s", "killpg failed",
             "errno",    "%d", errno,
@@ -701,20 +701,24 @@ PRIVATE int write_data_to_pty(hgobj gobj)
         );
     }
 
-    if(bf[0]==0x03) {
-        tty_send_signal(gobj, SIGINT); /* ^C */
-        try_more_writes(gobj);
-        return 0;
-    }
-    if(bf[0]==0x1A) {
-        tty_send_signal(gobj, SIGTSTP); /* ^Z */
-        try_more_writes(gobj);
-        return 0;
-    }
-    if(bf[0]==0x1C) {
-        tty_send_signal(gobj, SIGQUIT); /* ^\ */
-        try_more_writes(gobj);
-        return 0;
+    if(ln > 0) {
+        unsigned char c = (unsigned char)bf[0];
+
+        if(c == 0x03) {          /* ^C */
+            tty_send_signal(gobj, SIGINT);
+            try_more_writes(gobj);
+            return 0;
+        }
+        if(c == 0x1A) {          /* ^Z */
+            tty_send_signal(gobj, SIGTSTP);
+            try_more_writes(gobj);
+            return 0;
+        }
+        if(c == 0x1C) {          /* ^\ */
+            tty_send_signal(gobj, SIGQUIT);
+            try_more_writes(gobj);
+            return 0;
+        }
     }
 
     priv->txMsgs++;

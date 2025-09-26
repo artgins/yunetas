@@ -140,14 +140,14 @@ typedef struct linenoiseCompletions {
 /***************************************************************************
  *              Prototypes
  ***************************************************************************/
-PRIVATE void tty_reset_mode(void);
+PRIVATE void linenoiseAtExit(void);
 
 /***************************************************************************
  *          Data: config, public data, private data
  ***************************************************************************/
-PRIVATE int orig_termios_fd = -1;
 PRIVATE struct termios orig_termios;
 PRIVATE int atexit_registered = 0; /* Register atexit just 1 time. */
+PRIVATE int rawmode = 0; /* For atexit() function to check if restore is needed*/
 
 /*---------------------------------------------*
  *      Attributes - order affect to oid's
@@ -241,7 +241,7 @@ PRIVATE void mt_create(hgobj gobj)
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
     if(!atexit_registered) {
-        atexit(tty_reset_mode);
+        atexit(linenoiseAtExit);
         atexit_registered = 1;
     }
 
@@ -381,7 +381,7 @@ PRIVATE void mt_destroy(hgobj gobj)
     GBMEM_FREE(priv->buf);
     freeHistory(priv);
 
-    tty_reset_mode();
+    linenoiseAtExit();
 }
 
 
@@ -395,197 +395,27 @@ PRIVATE void mt_destroy(hgobj gobj)
 
 
 /*****************************************************************
- *
+ *  Raw mode: 1960 magic shit.
  *****************************************************************/
-PRIVATE void tty_reset_mode(void)
+PRIVATE int enableRawMode(int fd)
 {
-    /* This function is async signal-safe, meaning that it's safe to call from
-     * inside a signal handler _unless_ execution was inside uv_tty_set_mode()'s
-     * critical section when the signal was raised.
-     */
-    if(orig_termios_fd != -1) {
-        tcsetattr(orig_termios_fd, TCSANOW, &orig_termios);
-        tcsetattr(STDIN_FILENO, TCSANOW, &orig_termios);
-        // /* Disable xterm mouse (1002 + 1006) and show cursor */
-        // write(STDOUT_FILENO, "\x1b[?1002l\x1b[?1006l\x1b[?25h", 18);
-        orig_termios_fd = -1;
-    }
-}
+    struct termios raw;
 
-/***************************************************************************
- *  Code copied from libuv
- *  Copyright Joyent, Inc. and other Node contributors. All rights reserved.
- ***************************************************************************/
-static inline int tty_is_slave(const int fd) {
-    int result;
-    int dummy;
-
-    result = ioctl(fd, TIOCGPTN, &dummy) != 0;
-    return result;
-}
-
-/***************************************************************************
- *  Code copied from libuv
- *  Copyright Joyent, Inc. and other Node contributors. All rights reserved.
- ***************************************************************************/
-PRIVATE int open_cloexec(const char* path, int flags) {
-    int fd = open(path, flags | O_CLOEXEC);
-    if (fd == -1) {
-        print_error(0, "open(%s) FAILED", path);
+    if (!isatty(fd)) {
         gobj_log_error(0, LOG_OPT_TRACE_STACK,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_SYSTEM_ERROR,
-            "msg",          "%s", "open() FAILED",
-            "path",         "%s", path,
-            "errno",        "%d", errno,
-            "serrno",       "%s", strerror(errno),
+            "msg",          "%s", "NOT a TTY",
             NULL
         );
+        goto fatal;
     }
-    return fd;
-}
-
-/***************************************************************************
- *  Code copied from libuv
- *  Copyright Joyent, Inc. and other Node contributors. All rights reserved.
- ***************************************************************************/
-PRIVATE int dup2_cloexec(int oldfd, int newfd)
-{
-    int r;
-
-    r = dup3(oldfd, newfd, O_CLOEXEC);
-    if (r == -1) {
-        gobj_log_error(0, 0,
-            "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_SYSTEM_ERROR,
-            "msg",          "%s", "dup3() FAILED",
-            "errno",        "%d", errno,
-            "serrno",       "%s", strerror(errno),
-            NULL
-        );
-        return -1;
+    if (!atexit_registered) {
+        atexit(linenoiseAtExit);
+        atexit_registered = 1;
     }
-
-    return r;
-}
-
-/***************************************************************************
- *  Code copied from libuv
- *  Copyright Joyent, Inc. and other Node contributors. All rights reserved.
- ***************************************************************************/
-PRIVATE int nonblock(int fd, int set) {
-    int r;
-
-    do
-        r = ioctl(fd, FIONBIO, &set);
-    while (r == -1 && errno == EINTR);
-
-    if(r) {
-        gobj_log_error(0, 0,
-            "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_SYSTEM_ERROR,
-            "msg",          "%s", "ioctl() FAILED",
-            "errno",        "%d", errno,
-            "serrno",       "%s", strerror(errno),
-            NULL
-        );
-    }
-
-    return r;
-}
-
-/***************************************************************************
- *  Code copied from libuv
- *  Copyright Joyent, Inc. and other Node contributors. All rights reserved.
- ***************************************************************************/
-PUBLIC int tty_keyboard_init(void) /* Create and return a 'stdin' fd, to read input keyboard, without echo, then you can feed the editline with EV_KEYCHAR event */
-{
-    int fd = STDIN_FILENO;
-    int newfd;
-    int r;
-    int saved_flags;
-    int mode;
-    char path[256];
-
-    newfd = -1;
-
-    /* Save the fd flags in case we need to restore them due to an error. */
-    do
-        saved_flags = fcntl(fd, F_GETFL);
-    while (saved_flags == -1 && errno == EINTR);
-
-    if (saved_flags == -1) {
-        gobj_log_error(0, 0,
-            "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_SYSTEM_ERROR,
-            "msg",          "%s", "fcntl() FAILED",
-            "errno",        "%d", errno,
-            "serrno",       "%s", strerror(errno),
-            NULL
-        );
-        return -1;
-    }
-
-    mode = saved_flags & O_ACCMODE;
-
-    /* Reopen the file descriptor when it refers to a tty. This lets us put the
-     * tty in non-blocking mode without affecting other processes that share it
-     * with us.
-     *
-     * Example: `node | cat` - if we put our fd 0 in non-blocking mode, it also
-     * affects fd 1 of `cat` because both file descriptors refer to the same
-     * struct file in the kernel. When we reopen our fd 0, it points to a
-     * different struct file, hence changing its properties doesn't affect
-     * other processes.
-     */
-
-    if(isatty(fd)) {
-        /* Reopening a pty in master mode won't work either because the reopened
-         * pty will be in slave mode (*BSD) or reopening will allocate a new
-         * master/slave pair (Linux). Therefore check if the fd points to a
-         * slave device.
-         */
-        if (tty_is_slave(fd) && ttyname_r(fd, path, sizeof(path)) == 0) {
-            r = open_cloexec(path, mode | O_NOCTTY);
-            if(r<0) {
-                // Error already logged
-                return -1;
-            }
-        } else {
-            r = -1;
-        }
-
-        if (r < 0) {
-            goto skip;
-        }
-
-        newfd = r;
-
-        r = dup2_cloexec(newfd, fd);
-        if (r < 0 && errno != EINVAL) {
-            /* EINVAL means newfd == fd which could conceivably happen if another
-             * thread called close(fd) between our calls to isatty() and open().
-             * That's a rather unlikely event but let's handle it anyway.
-             */
-            close(newfd);
-            return r;
-        }
-
-        fd = newfd;
-    }
-
-skip:
-    if(nonblock(fd, 1)<0) {
-        close(fd);
-        fd = -1;
-    }
-
-    do
-        r = tcgetattr(fd, &orig_termios);
-    while (r == -1 && errno == EINTR);
-
-    if (r == -1) {
-        gobj_log_error(0, 0,
+    if (tcgetattr(fd,&orig_termios) == -1) {
+        gobj_log_error(0, LOG_OPT_TRACE_STACK,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_SYSTEM_ERROR,
             "msg",          "%s", "tcgetattr() FAILED",
@@ -593,28 +423,28 @@ skip:
             "serrno",       "%s", strerror(errno),
             NULL
         );
+        goto fatal;
     }
 
-    /* This is used for tty_reset_mode() */
-    if (orig_termios_fd == -1) {
-        orig_termios_fd = fd;
-    }
+    raw = orig_termios;  /* modify the original mode */
+    /* input modes: no break, no CR to NL, no parity check, no strip char,
+     * no start/stop output control. */
+    raw.c_iflag &= ~(BRKINT | ICRNL | INPCK | ISTRIP | IXON);
+    /* output modes - disable post processing */
+    // raw.c_oflag &= ~(OPOST);
+    raw.c_oflag |= (ONLCR);
+    /* control modes - set 8 bit chars */
+    raw.c_cflag |= (CS8);
+    /* local modes - choing off, canonical off, no extended functions,
+     * no signal chars (^Z,^C) */
+    raw.c_lflag &= ~(ECHO | ICANON | IEXTEN | ISIG);
+    /* control chars - set return condition: min number of bytes and timer.
+     * We want read to return every single byte, without timeout. */
+    raw.c_cc[VMIN] = 1; raw.c_cc[VTIME] = 0; /* 1 byte, no timer */
 
-    struct termios tmp;
-    tmp = orig_termios;
-    tmp.c_iflag &= ~(BRKINT | ICRNL | INPCK | ISTRIP | IXON);
-    tmp.c_oflag |= (ONLCR);
-    tmp.c_cflag |= (CS8);
-    tmp.c_lflag &= ~(ECHO | ICANON | IEXTEN | ISIG);
-    tmp.c_cc[VMIN] = 1;
-    tmp.c_cc[VTIME] = 0;
-
-    do
-        r = tcsetattr(fd, TCSADRAIN, &tmp);
-    while (r == -1 && errno == EINTR);
-
-    if (r == -1) {
-        gobj_log_error(0, 0,
+    /* put terminal in raw mode after flushing */
+    if (tcsetattr(fd,TCSAFLUSH,&raw) < 0) {
+        gobj_log_error(0, LOG_OPT_TRACE_STACK,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_SYSTEM_ERROR,
             "msg",          "%s", "tcsetattr() FAILED",
@@ -622,12 +452,49 @@ skip:
             "serrno",       "%s", strerror(errno),
             NULL
         );
+        goto fatal;
     }
+    rawmode = 1;
+    return 0;
 
-    // /* Enable xterm mouse: 1002 Button-Motion + 1006 SGR, hide cursor */
-    // write(STDOUT_FILENO, "\x1b[?1002h\x1b[?1006h\x1b[?25l", 18);
+fatal:
+    errno = ENOTTY;
+    return -1;
+}
 
-    return fd;
+/*****************************************************************
+ *  Raw mode: 1960 magic shit.
+ *****************************************************************/
+PRIVATE void disableRawMode(int fd)
+{
+    /* Don't even check the return value as it's too late. */
+    if (rawmode && tcsetattr(fd, TCSAFLUSH, &orig_termios) != -1) {
+        rawmode = 0;
+    }
+}
+
+/***************************************************************************
+ *  At exit we'll try to fix the terminal to the initial conditions.
+ ***************************************************************************/
+PRIVATE void linenoiseAtExit(void)
+{
+    disableRawMode(STDIN_FILENO);
+    // freeHistory();
+}
+
+/***************************************************************************
+ *  Create and return a 'stdin' fd, to read input keyboard, without echo,
+ *  then you can feed the editline with EV_KEYCHAR event
+ ***************************************************************************/
+PUBLIC int tty_keyboard_init(void)
+{
+    int fd = STDIN_FILENO;
+
+    int newfd = dup(fd);
+    set_cloexec(newfd);
+
+    enableRawMode(newfd);
+    return newfd;
 }
 
 /***************************************************************************
