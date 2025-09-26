@@ -8,6 +8,7 @@
  *          All Rights Reserved.
  ****************************************************************************/
 #include <yunetas.h>
+#include <c_pty.h>
 #include "c_agent22.h"
 
 /***************************************************************************
@@ -200,6 +201,7 @@ static int register_yuno_and_more(void)
     // gobj_set_gclass_trace(gclass_find_by_name(C_IEVENT_CLI), "identity-card", TRUE);
 
     // gobj_set_gclass_trace(gclass_find_by_name(C_TCP), "traffic", TRUE);
+    // gobj_set_gclass_trace(gclass_find_by_name(C_PTY), "traffic", TRUE);
 
     // Global traces
     // gobj_set_global_trace("create_delete", TRUE);

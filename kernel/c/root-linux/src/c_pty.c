@@ -160,6 +160,8 @@ PRIVATE void mt_destroy(hgobj gobj)
     GBUFFER_DECREF(priv->gbuf_txing)
     dl_flush(&priv->dl_tx, (fnfree)gbuffer_decref);
 
+    EXEC_AND_RESET(yev_destroy_event, priv->yev_reading)
+
     GBMEM_FREE(priv->argv[0]);
 }
 
@@ -298,7 +300,10 @@ PRIVATE int mt_start(hgobj gobj)
             yev_set_fd(priv->yev_reading, priv->uv_out);
 
             if(!yev_get_gbuf(priv->yev_reading)) {
-                yev_set_gbuffer(priv->yev_reading, gbuffer_create(rx_buffer_size, rx_buffer_size));
+                yev_set_gbuffer(
+                    priv->yev_reading,
+                    gbuffer_create(rx_buffer_size, rx_buffer_size)
+                );
             } else {
                 gbuffer_clear(yev_get_gbuf(priv->yev_reading));
             }

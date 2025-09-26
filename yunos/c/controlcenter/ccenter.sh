@@ -1,0 +1,1 @@
+./controlcenter --config-file="[\"/yuneta/realms/artgins/artgins.yunetacontrol.ovh/controlcenter^1997/bin/1-controlcenter^artgins.ovh.json\",\"/yuneta/realms/artgins/artgins.yunetacontrol.ovh/controlcenter^1997/bin/2-controlcenter^artgins.ovh.json\",\"/yuneta/realms/artgins/artgins.yunetacontrol.ovh/controlcenter^1997/bin/3-controlcenter^artgins.ovh.json\"]" $1

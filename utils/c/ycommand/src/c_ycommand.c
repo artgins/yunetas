@@ -536,7 +536,7 @@ PRIVATE int process_key(hgobj gobj, uint8_t kb)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
-    if(kb >= 0x20 && kb <= 0x7f) {
+    if(kb >= 0x20 && kb <= 0x7f || 1) {
         json_t *kw_char = json_pack("{s:i}",
             "char", kb
         );
@@ -565,22 +565,6 @@ PRIVATE int on_read_cb(hgobj gobj, gbuffer_t *gbuf)
         if(!priv->on_mirror_tty) {
             gobj_shutdown();
             return -1;
-        }
-    }
-    if(nread > 8) {
-        // It's must be the mouse cursor
-        char *p = strchr(base+1, 0x1B);
-        if(p) {
-            *p = 0;
-            nread = (int)(p - base);
-            if(gobj_trace_level(gobj) & (TRACE_KB)) {
-                gobj_trace_dump(
-                    gobj,
-                    base,
-                    nread,
-                    "REDUCE!"
-                );
-            }
         }
     }
     uint8_t b[8] = {0};
