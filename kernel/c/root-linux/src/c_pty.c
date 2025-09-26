@@ -655,11 +655,11 @@ PRIVATE int tty_send_signal(hgobj gobj, int sig)
         return 0;
     }
     gobj_log_error(gobj,0,
-        "function", "%s",   __FUNCTION__,
-        "msgset",   "%s",   MSGSET_SYSTEM_ERROR,
-        "msg",      "%s",   "TIOCSIG failed",
-        "errno",    "%d",   errno,
-        "strerror", "%s",strerror(errno),
+        "function", "%s", __FUNCTION__,
+        "msgset",   "%s", MSGSET_SYSTEM_ERROR,
+        "msg",      "%s", "TIOCSIG failed",
+        "errno",    "%d", errno,
+        "strerror", "%s", strerror(errno),
         NULL
     );
 #endif
