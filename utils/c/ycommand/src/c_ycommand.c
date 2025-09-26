@@ -536,14 +536,10 @@ PRIVATE int process_key(hgobj gobj, uint8_t kb)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
-    if(kb >= 0x20 && kb <= 0x7f || 1) {
-        json_t *kw_char = json_pack("{s:i}",
-            "char", kb
-        );
-        gobj_send_event(priv->gobj_editline, EV_KEYCHAR, kw_char, gobj);
-    }
-
-    return 0;
+    json_t *kw_char = json_pack("{s:i}",
+        "char", kb
+    );
+    return gobj_send_event(priv->gobj_editline, EV_KEYCHAR, kw_char, gobj);
 }
 
 /***************************************************************************
@@ -567,8 +563,8 @@ PRIVATE int on_read_cb(hgobj gobj, gbuffer_t *gbuf)
             return -1;
         }
     }
-    uint8_t b[8] = {0};
-    memmove(b, base, MIN(8, nread));
+    uint8_t b[8] = {0}; // To search keys in keytable
+    memmove(b, base, MIN(sizeof(b), nread));
 
     do {
         if(priv->on_mirror_tty) {

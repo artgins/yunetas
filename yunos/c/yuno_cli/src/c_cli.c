@@ -1482,23 +1482,6 @@ PRIVATE keytable_t *event_by_key(keytable_t *keytable, uint8_t kb[8])
 }
 
 /***************************************************************************
- *
- ***************************************************************************/
-// PRIVATE int process_key(hgobj gobj, uint8_t kb) TODO ???
-// {
-//     PRIVATE_DATA *priv = gobj_priv_data(gobj);
-//
-//     if(kb >= 0x20 && kb <= 0x7f) {
-//         json_t *kw_char = json_pack("{s:i}",
-//             "char", kb
-//         );
-//         gobj_send_event(priv->gobj_editline, EV_KEYCHAR, kw_char, gobj);
-//     }
-//
-//     return 0;
-// }
-
-/***************************************************************************
  *  process read
  ***************************************************************************/
 
@@ -1673,8 +1656,8 @@ PRIVATE int process_read(hgobj gobj, char *base, size_t nread)
     //     nread -= used;
     // }
 
-    uint8_t b[8] = {0};
-    memmove(b, base, MIN(8, nread));
+    uint8_t b[8] = {0}; // To search keys in keytable
+    memmove(b, base, MIN(sizeof(b), nread));
 
     do {
         if(priv->on_mirror_tty) {
