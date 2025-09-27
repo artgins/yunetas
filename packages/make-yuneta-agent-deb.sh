@@ -301,25 +301,34 @@ _run_as_yuneta() {
 }
 
 start_yunos() {
-    RC=0
+    RC1=1
+    RC2=1
     _set_limits
 
     if [ -x "$AGENT1_BIN" ]; then
         log_daemon_msg "Starting yuneta_agent"
-        _run_as_yuneta "exec \"$AGENT1_BIN\" --start --config-file=\"$AGENT1_CFG\"" || RC=$?
-        log_end_msg $RC
+        _run_as_yuneta "exec /yuneta/agent/yuneta_agent --config-file=/yuneta/agent/yuneta_agent.json --start" && RC1=0 || RC1=$?
+        log_end_msg $RC1
+        logger -t yuneta_agent_init "start yuneta_agent rc=$RC1"
     else
         echo "WARN: $AGENT1_BIN not found or not executable" >&2
+        logger -t yuneta_agent_init "start yuneta_agent skipped: not executable"
     fi
 
     if [ -x "$AGENT2_BIN" ]; then
         log_daemon_msg "Starting yuneta_agent22"
-        _run_as_yuneta "exec \"$AGENT2_BIN\" --start --config-file=\"$AGENT2_CFG\"" || true
-        log_end_msg 0
+        _run_as_yuneta "exec /yuneta/agent/yuneta_agent22 --config-file=/yuneta/agent/yuneta_agent22.json --start" && RC2=0 || RC2=$?
+        log_end_msg $RC2
+        logger -t yuneta_agent_init "start yuneta_agent22 rc=$RC2"
     else
         echo "WARN: $AGENT2_BIN not found or not executable" >&2
+        logger -t yuneta_agent_init "start yuneta_agent22 skipped: not executable"
     fi
-    return 0
+
+    if [ "$RC1" -eq 0 ] || [ "$RC2" -eq 0 ]; then
+        return 0
+    fi
+    return 1
 }
 
 # ---------------- Web server selection + control ----------------
@@ -417,6 +426,31 @@ status_yunos() {
 
     echo "$MSG"
     return $S
+}
+
+stop_yunos() {
+    RC1=0
+    RC2=0
+
+    if [ -x "$AGENT1_BIN" ]; then
+        log_daemon_msg "Stopping yuneta_agent"
+        _run_as_yuneta "exec /yuneta/agent/yuneta_agent --config-file=/yuneta/agent/yuneta_agent.json --stop" && RC1=0 || RC1=$?
+        log_end_msg $RC1
+        logger -t yuneta_agent_init "stop yuneta_agent rc=$RC1"
+    else
+        logger -t yuneta_agent_init "stop yuneta_agent skipped: not executable"
+    fi
+
+    if [ -x "$AGENT2_BIN" ]; then
+        log_daemon_msg "Stopping yuneta_agent22"
+        _run_as_yuneta "exec /yuneta/agent/yuneta_agent22 --config-file=/yuneta/agent/yuneta_agent22.json --stop" && RC2=0 || RC2=$?
+        log_end_msg $RC2
+        logger -t yuneta_agent_init "stop yuneta_agent22 rc=$RC2"
+    else
+        logger -t yuneta_agent_init "stop yuneta_agent22 skipped: not executable"
+    fi
+
+    return 0
 }
 
 case "$1" in
