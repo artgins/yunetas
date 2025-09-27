@@ -60,68 +60,120 @@
 
 ---
 
-## Per-packet summary (v3.1.1 + v5)
+## MQTT Control Packets summary (v3.1.1 + v5)
 Format: `Type (ID)  Dir  Flags  | Variable Header …  | Payload …`
 
+Format: `Type (ID)  Dir  Flags  | Variable Header …  | Payload …`
+Legend: C=Client, B=Broker.
+
 1) CONNECT (1)  C→B  0000
-   | Protocol Name+Level, **Connect Flags** (username, password, will QoS/retain, will flag, cleanSession/cleanStart), **Keep Alive**, **Properties(v5)**
-   | **ClientID**, [Will Properties(v5), Will Topic, Will Payload], [Username], [Password]
+
+Open a new session: conveys protocol level, client ID, auth, will, keep-alive, and (v5) properties.
+
+    | Protocol Name+Level, **Connect Flags** (username, password, will QoS/retain, will flag, cleanSession/cleanStart), **Keep Alive**, **Properties(v5)**
+    | **ClientID**, [Will Properties(v5), Will Topic, Will Payload], [Username], [Password]
 
 2) CONNACK (2)  B→C  0000
-   | **Ack Flags** (Session Present), **Reason Code** (v5), **Properties(v5)**
-   | (none)
+
+Broker’s reply to CONNECT: success/failure, session-present, and negotiated (v5) properties/limits.
+
+    | **Ack Flags** (Session Present), **Reason Code** (v5), **Properties(v5)**
+    | (none)
 
 3) PUBLISH (3)  C↔B  DUP/QoS/RETAIN
-   | **Topic Name**, [**Packet Identifier** if QoS>0], **Properties(v5)**
-   | **Application Payload** (opaque bytes)
+
+Application message on a topic; may be retained and delivered at requested QoS.
+
+    | **Topic Name**, [**Packet Identifier** if QoS>0], **Properties(v5)**
+    | **Application Payload** (opaque bytes)
 
 4) PUBACK (4)   C↔B  0000   — QoS1 ack
-   | **Packet Identifier**, [Reason Code(v5)], [Properties(v5)]
-   | (none)
 
-5) PUBREC (5)   C↔B  0000   — QoS2 step 1 (received)
-   | **Packet Identifier**, [Reason Code(v5)], [Properties(v5)]
-   | (none)
+Acknowledge a QoS1 PUBLISH; may include a reason code (v5).
 
-6) PUBREL (6)   C↔B  **0010** — QoS2 step 2 (release)
-   | **Packet Identifier**, [Reason Code(v5)], [Properties(v5)]
-   | (none)
+    | **Packet Identifier**, [Reason Code(v5)], [Properties(v5)]
+    | (none)
 
-7) PUBCOMP (7)  C↔B  0000   — QoS2 step 3 (complete)
-   | **Packet Identifier**, [Reason Code(v5)], [Properties(v5)]
-   | (none)
+5) PUBREC (5)   C↔B  0000   — QoS2 step 1
+
+QoS2 receipt marker: broker/sender records the message to avoid duplicate processing.
+
+    | **Packet Identifier**, [Reason Code(v5)], [Properties(v5)]
+    | (none)
+
+6) PUBREL (6)   C↔B  **0010** — QoS2 step 2
+
+Sender requests release/forwarding of the stored QoS2 message; requires flags `0010`.
+    
+    | **Packet Identifier**, [Reason Code(v5)], [Properties(v5)]
+    | (none)
+
+7) PUBCOMP (7)  C↔B  0000   — QoS2 step 3
+
+Final QoS2 completion; both sides can drop in-flight state for the PID.
+
+    | **Packet Identifier**, [Reason Code(v5)], [Properties(v5)]
+    | (none)
 
 8) SUBSCRIBE (8) C→B **0010**
-   | **Packet Identifier**, **Properties(v5)**
-   | Repeated: **Topic Filter**, **Options** (max QoS, NL/no-local, RAP/retain-as-published, RH/retain-handling)
+
+Request one or more subscriptions with per-filter options and (v5) properties.
+   
+    | **Packet Identifier**, **Properties(v5)**
+    | Repeated: **Topic Filter**, **Options** (max QoS, NL/no-local, RAP/retain-as-published, RH/retain-handling)
 
 9) SUBACK (9)   B→C  0000
-   | **Packet Identifier**, **Properties(v5)**
-   | Repeated: **Reason Code per subscription** (or granted QoS in v3.1.1)
+   
+Grant/deny each requested subscription (granted QoS in v3.1.1; reason codes in v5).
+
+    | **Packet Identifier**, **Properties(v5)**
+    | Repeated: **Reason Code per subscription** (or granted QoS in v3.1.1)
 
 10) UNSUBSCRIBE (10) C→B **0010**
+
+Remove one or more subscriptions; supports (v5) properties.
+    
     | **Packet Identifier**, **Properties(v5)**
     | Repeated: **Topic Filter**
 
 11) UNSUBACK (11) B→C 0000
+
+Confirm unsubscription; (v5) can return per-topic reason codes.
+    
     | **Packet Identifier**, **Properties(v5)**
     | Repeated: **Reason Code** (v5) (v3.1.1 has none)
 
 12) PINGREQ (12) C→B 0000
+    
+Keep-alive/liveness probe from client during idle periods.
+
     | (none)
     | (none)
 
 13) PINGRESP (13) B→C 0000
+    
+Broker’s response to PINGREQ indicating the connection is alive.
+
     | (none)
     | (none)
 
 14) DISCONNECT (14) C↔B 0000
+
+Orderly shutdown; may carry reason and (v5) session-expiry instructions.
+
     | [**Reason Code(v5)**], [**Properties(v5)** e.g., Session Expiry Interval]
     | (none)
 
 15) AUTH (15) (v5) C↔B 0000
+
+Optional extended authentication (e.g., challenge/response) beyond username/password.
+    
     | **Reason Code**, **Properties(v5)** (Auth Method, Auth Data, etc.)
     | (none)
+
+## Fixed header (all packets)
+- Byte 1: Bits 7–4 **Type**, Bits 3–0 **Flags** (PUBLISH uses `DUP|QoS|RETAIN`; many others must be `0000`, except SUBSCRIBE/UNSUBSCRIBE/PUBREL=`0010`)
+- Bytes 2..N: **Remaining Length** (varint, max 268,435,455)
 
 ---
 
