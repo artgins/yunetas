@@ -8146,10 +8146,6 @@ PRIVATE int ac_process_frame_header(hgobj gobj, const char *event, json_t *kw, h
         );
     }
 
-    if(priv->pingT>0) {
-        set_timeout(priv->timer, priv->pingT);
-    }
-
     while(gbuffer_leftbytes(gbuf)) {
         size_t ln = gbuffer_leftbytes(gbuf);
         char *bf = gbuffer_cur_rd_pointer(gbuf);
@@ -8219,6 +8215,13 @@ PRIVATE int ac_process_frame_header(hgobj gobj, const char *event, json_t *kw, h
                 }
                 istream_read_until_num_bytes(priv->istream_payload, frame_length, 0);
 
+                /*
+                 *  Better re-set timeout when receiving valid frames, isn't it?
+                 */
+                if(priv->pingT>0) {
+                    set_timeout(priv->timer, priv->pingT);
+                }
+
                 gobj_change_state(gobj, ST_WAITING_PAYLOAD_DATA);
                 return gobj_send_event(gobj, EV_RX_DATA, kw, gobj);
 
@@ -8243,10 +8246,11 @@ PRIVATE int ac_timeout_waiting_frame_header(hgobj gobj, const char *event, json_
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
-    if(priv->pingT > 0) {
-        set_timeout(priv->timer, priv->pingT);
-        //ping(gobj);
-    }
+    // TODO better broke no? instead of re-set timeout
+    // if(priv->pingT > 0) {
+    //     set_timeout(priv->timer, priv->pingT);
+    //     //ping(gobj);
+    // }
 
     KW_DECREF(kw)
     return 0;
@@ -8293,7 +8297,14 @@ PRIVATE int ac_process_payload_data(hgobj gobj, const char *event, json_t *kw, h
             KW_DECREF(kw)
             return -1;
         }
+        /*
+         *  Better re-set timeout when receiving valid frames, isn't it?
+         */
+        if(priv->pingT>0) {
+            set_timeout(priv->timer, priv->pingT);
+        }
     }
+
     if(gbuffer_leftbytes(gbuf)) {
         return gobj_send_event(gobj, EV_RX_DATA, kw, gobj);
     }
