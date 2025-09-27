@@ -613,9 +613,9 @@ SDATA (DTP_STRING,      "cert_pem",         SDF_PERSIST,                "",     
 SDATA (DTP_BOOLEAN,     "in_session",       SDF_VOLATIL|SDF_STATS,      0,      "CONNECT mqtt done"),
 SDATA (DTP_BOOLEAN,     "send_disconnect",  SDF_VOLATIL,                0,      "send DISCONNECT"),
 SDATA (DTP_JSON,        "client",           SDF_VOLATIL,                0,      "client online"),
-SDATA (DTP_INTEGER,     "timeout_handshake",SDF_WR|SDF_PERSIST,    "5000",      "Timeout to handshake"),
-SDATA (DTP_INTEGER,     "timeout_close",    SDF_WR|SDF_PERSIST,    "3000",      "Timeout to close"),
-SDATA (DTP_INTEGER,     "pingT",            SDF_WR|SDF_PERSIST,   "50000",      "Ping interval. If value <= 0 then No ping"),
+SDATA (DTP_INTEGER,     "timeout_handshake",SDF_WR|SDF_PERSIST,       "5",      "Timeout to handshake in seconds"),
+SDATA (DTP_INTEGER,     "timeout_close",    SDF_WR|SDF_PERSIST,       "3",      "Timeout to close in seconds"),
+SDATA (DTP_INTEGER,     "timeout_periodic", SDF_RD,                "1000",      "Timeout periodic"),
 
 SDATA (DTP_POINTER,     "gobj_mqtt_topics", 0,                          0,      "global gobj to save topics"),
 SDATA (DTP_POINTER,     "gobj_mqtt_clients",0,                          0,      "global gobj with clients"),
@@ -715,7 +715,11 @@ typedef struct _PRIVATE_DATA {
     hgobj gobj_mqtt_users;
     hgobj timer;
     BOOL iamServer;         // What side? server or client
-    int pingT;
+    int timeout_periodic;
+    time_t timer_handshake;
+    time_t timer_payload;
+    time_t timer_close;
+    time_t timer_ping;
 
     FRAME_HEAD frame_head;
     istream_h istream_frame;
@@ -827,7 +831,7 @@ PRIVATE void mt_create(hgobj gobj)
      *  Do copy of heavy used parameters, for quick access.
      *  HACK The writable attributes must be repeated in mt_writing method.
      */
-    SET_PRIV(pingT,                     gobj_read_integer_attr)
+    SET_PRIV(timeout_periodic,          gobj_read_integer_attr)
     SET_PRIV(in_session,                gobj_read_bool_attr)
     SET_PRIV(send_disconnect,           gobj_read_bool_attr)
     SET_PRIV(client,                    gobj_read_json_attr)
@@ -885,7 +889,7 @@ PRIVATE void mt_writing(hgobj gobj, const char *path)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
-    IF_EQ_SET_PRIV(pingT,                       gobj_read_integer_attr)
+    IF_EQ_SET_PRIV(timeout_periodic,            gobj_read_integer_attr)
     ELIF_EQ_SET_PRIV(in_session,                gobj_read_bool_attr)
     ELIF_EQ_SET_PRIV(send_disconnect,           gobj_read_bool_attr)
     ELIF_EQ_SET_PRIV(client,                    gobj_read_json_attr)
@@ -978,8 +982,6 @@ PRIVATE int mt_start(hgobj gobj)
         gobj_start(bottom_gobj);
     }
 
-    gobj_start(priv->timer);
-
     return 0;
 }
 
@@ -994,7 +996,6 @@ PRIVATE int mt_stop(hgobj gobj)
 
     if(priv->timer) {
         clear_timeout(priv->timer);
-        gobj_stop(priv->timer);
     }
 
     hgobj tcp0 = gobj_bottom_gobj(gobj);
@@ -2085,9 +2086,7 @@ PRIVATE void start_wait_frame_header(hgobj gobj)
         return;
     }
     gobj_change_state(gobj, ST_WAITING_FRAME_HEADER);
-    if(priv->pingT>0) {
-        set_timeout(priv->timer, priv->pingT);
-    }
+
     istream_reset_wr(priv->istream_frame);  // Reset buffer for next frame
     memset(&priv->frame_head, 0, sizeof(priv->frame_head));
 }
@@ -5743,6 +5742,9 @@ PRIVATE int connect_on_authorised(
 
         // db__message_write_queued_out(context); TODO
         //db__message_write_inflight_out_all(context); TODO
+        if(priv->keepalive > 0) {
+            priv->timer_ping = start_sectimer(priv->keepalive);
+        }
     }
 
     return ret;
@@ -8049,7 +8051,12 @@ PRIVATE int ac_connected(hgobj gobj, const char *event, json_t *kw, hgobj src)
          * send the request
          */
     }
-    set_timeout(priv->timer, gobj_read_integer_attr(gobj, "timeout_handshake"));
+    set_timeout_periodic(priv->timer, priv->timeout_periodic);
+
+    priv->timer_handshake = start_sectimer(
+        gobj_read_integer_attr(gobj, "timeout_handshake")
+    );
+
     KW_DECREF(kw)
     return 0;
 }
@@ -8215,12 +8222,9 @@ PRIVATE int ac_process_frame_header(hgobj gobj, const char *event, json_t *kw, h
                 }
                 istream_read_until_num_bytes(priv->istream_payload, frame_length, 0);
 
-                /*
-                 *  Better re-set timeout when receiving valid frames, isn't it?
-                 */
-                if(priv->pingT>0) {
-                    set_timeout(priv->timer, priv->pingT);
-                }
+                priv->timer_handshake = start_sectimer(
+                    gobj_read_integer_attr(gobj, "timeout_handshake")
+                );
 
                 gobj_change_state(gobj, ST_WAITING_PAYLOAD_DATA);
                 return gobj_send_event(gobj, EV_RX_DATA, kw, gobj);
@@ -8240,16 +8244,23 @@ PRIVATE int ac_process_frame_header(hgobj gobj, const char *event, json_t *kw, h
 }
 
 /***************************************************************************
- *  No activity, send ping
+ *
  ***************************************************************************/
 PRIVATE int ac_timeout_waiting_frame_header(hgobj gobj, const char *event, json_t *kw, hgobj src)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
-    // TODO better broke no? instead of re-set timeout
-    // if(priv->pingT > 0) {
-    //     set_timeout(priv->timer, priv->pingT);
-    //     //ping(gobj);
+    if(priv->timer_handshake) {
+        if(test_sectimer(priv->timer_handshake)) {
+            // TODO broke connection, no handshake received
+        }
+    }
+
+    // TODO mosquitto__check_keepalive()
+    // if(priv->timer_ping) {
+    //     if(test_sectimer(priv->timer_ping)) {
+    //         // TODO process send ping
+    //     }
     // }
 
     KW_DECREF(kw)
@@ -8297,12 +8308,6 @@ PRIVATE int ac_process_payload_data(hgobj gobj, const char *event, json_t *kw, h
             KW_DECREF(kw)
             return -1;
         }
-        /*
-         *  Better re-set timeout when receiving valid frames, isn't it?
-         */
-        if(priv->pingT>0) {
-            set_timeout(priv->timer, priv->pingT);
-        }
     }
 
     if(gbuffer_leftbytes(gbuf)) {
@@ -8323,6 +8328,13 @@ PRIVATE int ac_timeout_waiting_payload_data(hgobj gobj, const char *event, json_
         "msg",          "%s", "Timeout waiting mqtt PAYLOAD data",
         NULL
     );
+
+    // TODO mosquitto__check_keepalive()
+    // if(priv->timer_ping) {
+    //     if(test_sectimer(priv->timer_ping)) {
+    //         // TODO process send ping
+    //     }
+    // }
 
     ws_close(gobj, MOSQ_ERR_PROTOCOL);
     KW_DECREF(kw)
@@ -8538,7 +8550,7 @@ PRIVATE int create_gclass(gclass_name_t gclass_name)
     ev_action_t st_disconnected[] = {
         {EV_CONNECTED,        ac_connected,                       ST_WAITING_FRAME_HEADER},
         {EV_DISCONNECTED,     ac_disconnected,                    0},
-        {EV_TIMEOUT,          ac_timeout_waiting_disconnected,    0},
+        {EV_TIMEOUT_PERIODIC, ac_timeout_waiting_disconnected,    0},
         {EV_STOPPED,          ac_stopped,                         0},
         {EV_TX_READY,         0,                                  0},
         {0,0,0}
@@ -8547,7 +8559,7 @@ PRIVATE int create_gclass(gclass_name_t gclass_name)
         {EV_RX_DATA,          ac_process_frame_header,            0},
         {EV_SEND_MESSAGE,     ac_send_message,                    0},
         {EV_DISCONNECTED,     ac_disconnected,                    ST_DISCONNECTED},
-        {EV_TIMEOUT,          ac_timeout_waiting_frame_header,    0},
+        {EV_TIMEOUT_PERIODIC, ac_timeout_waiting_frame_header,    0},
         {EV_DROP,             ac_drop,                            0},
         {EV_TX_READY,         0,                                  0},
         {0,0,0}
@@ -8556,7 +8568,7 @@ PRIVATE int create_gclass(gclass_name_t gclass_name)
         {EV_RX_DATA,          ac_process_payload_data,            0},
         {EV_SEND_MESSAGE,     ac_send_message,                    0},
         {EV_DISCONNECTED,     ac_disconnected,                    ST_DISCONNECTED},
-        {EV_TIMEOUT,          ac_timeout_waiting_payload_data,    0},
+        {EV_TIMEOUT_PERIODIC, ac_timeout_waiting_payload_data,    0},
         {EV_DROP,             ac_drop,                            0},
         {EV_TX_READY,         0,                                  0},
         {0,0,0}
@@ -8572,8 +8584,8 @@ PRIVATE int create_gclass(gclass_name_t gclass_name)
     event_type_t event_types[] = {
         {EV_RX_DATA,            0},
         {EV_SEND_MESSAGE,       0},
+        {EV_TIMEOUT_PERIODIC,   0},
         {EV_TX_READY,           0},
-        {EV_TIMEOUT,            0},
         {EV_CONNECTED,          0},
         {EV_DISCONNECTED,       0},
         {EV_STOPPED,            0},
