@@ -26,20 +26,47 @@ set -e
 
 #-----------------------------------------------------#
 #   Get yunetas base path:
-#   - defined in environment variable YUNETAS_BASE
-#   - else default "/yuneta/development/yunetas"
-#
-#   YUNETA_INSTALL_PREFIX by default:
-#       --prefix=/yuneta/development/outputs_ext_static
+#   Resolve YUNETAS_BASE:
+#       1) $YUNETAS_BASE if valid dir,
+#       2) /yuneta/development/yunetas,
+#       3) /yuneta/development,
+#       else fail.
 #-----------------------------------------------------#
-if [ -n "$YUNETAS_BASE" ]; then
-    YUNETAS_BASE_DIR="$YUNETAS_BASE"
-else
-    YUNETAS_BASE_DIR="/yuneta/development/yunetas"
+# If env is set but invalid, warn and ignore
+if [[ -n "${YUNETAS_BASE:-}" && ! -d "$YUNETAS_BASE" ]]; then
+    echo "Warning: YUNETAS_BASE is set to '$YUNETAS_BASE' but is not a directory. Falling back..." >&2
+    unset YUNETAS_BASE
 fi
 
-PARENT_DIR=$(dirname "$YUNETAS_BASE_DIR")
-YUNETA_INSTALL_PREFIX="${PARENT_DIR}/outputs_ext_static"
+# Pick first existing candidate
+if [[ -z "${YUNETAS_BASE:-}" ]]; then
+    for d in /yuneta/development/yunetas /yuneta/development; do
+        if [[ -d "$d" ]]; then
+            YUNETAS_BASE="$d"
+            break
+        fi
+    done
+fi
+
+# Hard fail if still unset
+if [[ -z "${YUNETAS_BASE:-}" ]]; then
+    echo "Error: Could not determine YUNETAS_BASE. Set the env var or ensure /yuneta/development[/yunetas] exists." >&2
+    exit 1
+fi
+
+export YUNETAS_BASE
+echo "Using YUNETAS_BASE: $YUNETAS_BASE"
+
+# Optional: verify a required file (uncomment if needed)
+# req="${YUNETAS_BASE}/tools/cmake/project.cmake"
+# if [[ ! -f "$req" ]]; then
+#     echo "Error: Missing required file: $req" >&2
+#     exit 1
+# fi
+
+YUNETA_INSTALL_PREFIX="${YUNETAS_BASE}/outputs_ext_static"
+
+rm -rf "$YUNETA_INSTALL_PREFIX"
 mkdir -p "$YUNETA_INSTALL_PREFIX"
 
 MUSL_TOOLCHAIN="$YUNETAS_BASE_DIR/tools/cmake/musl-toolchain.cmake"

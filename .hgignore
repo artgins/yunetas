@@ -13,6 +13,11 @@ cmake-build-relwithdebinfo/
 cmake-build-minsizerel/
 cmake-build-debug-musl/
 
+outputs/
+outputs_ext/
+outputs_ext_static/
+outputs_static/
+
 build.sin-configurar/
 build_static.sin-configurar/
 external-libs/liburing/

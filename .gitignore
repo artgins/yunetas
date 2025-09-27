@@ -5,6 +5,11 @@ chatgpt/
 
 build_static/
 
+outputs/
+outputs_ext/
+outputs_ext_static/
+outputs_static/
+
 cmake-build-release/
 cmake-build-debug/
 cmake-build-relwithdebinfo/
