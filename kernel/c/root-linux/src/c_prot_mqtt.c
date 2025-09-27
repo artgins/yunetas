@@ -8252,16 +8252,19 @@ PRIVATE int ac_timeout_waiting_frame_header(hgobj gobj, const char *event, json_
 
     if(priv->timer_handshake) {
         if(test_sectimer(priv->timer_handshake)) {
-            // TODO broke connection, no handshake received
+            ws_close(gobj, MQTT_RC_PROTOCOL_ERROR);
         }
     }
 
-    // TODO mosquitto__check_keepalive()
-    // if(priv->timer_ping) {
-    //     if(test_sectimer(priv->timer_ping)) {
-    //         // TODO process send ping
-    //     }
-    // }
+    // mosquitto__check_keepalive()
+    if(priv->timer_ping) {
+        if(test_sectimer(priv->timer_ping)) {
+            // TODO send send__pingreq(mosq); or close connection if not receive response
+            if(priv->keepalive > 0) {
+                priv->timer_ping = start_sectimer(priv->keepalive);
+            }
+        }
+    }
 
     KW_DECREF(kw)
     return 0;
@@ -8323,18 +8326,28 @@ PRIVATE int ac_process_payload_data(hgobj gobj, const char *event, json_t *kw, h
  ***************************************************************************/
 PRIVATE int ac_timeout_waiting_payload_data(hgobj gobj, const char *event, json_t *kw, hgobj src)
 {
-    gobj_log_info(gobj, 0,
-        "msgset",       "%s", MSGSET_MQTT_ERROR,
-        "msg",          "%s", "Timeout waiting mqtt PAYLOAD data",
-        NULL
-    );
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
-    // TODO mosquitto__check_keepalive()
-    // if(priv->timer_ping) {
-    //     if(test_sectimer(priv->timer_ping)) {
-    //         // TODO process send ping
-    //     }
-    // }
+    if(priv->timer_payload) {
+        if(test_sectimer(priv->timer_payload)) {
+            gobj_log_info(gobj, 0,
+                "msgset",       "%s", MSGSET_MQTT_ERROR,
+                "msg",          "%s", "Timeout waiting mqtt PAYLOAD data",
+                NULL
+            );
+            ws_close(gobj, MQTT_RC_PROTOCOL_ERROR);
+        }
+    }
+
+    // mosquitto__check_keepalive()
+    if(priv->timer_ping) {
+        if(test_sectimer(priv->timer_ping)) {
+            // TODO send send__pingreq(mosq); or close connection if not receive response
+            if(priv->keepalive > 0) {
+                priv->timer_ping = start_sectimer(priv->keepalive);
+            }
+        }
+    }
 
     ws_close(gobj, MOSQ_ERR_PROTOCOL);
     KW_DECREF(kw)
