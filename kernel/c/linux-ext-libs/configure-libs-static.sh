@@ -69,7 +69,7 @@ YUNETA_INSTALL_PREFIX="${YUNETAS_BASE}/outputs_ext_static"
 rm -rf "$YUNETA_INSTALL_PREFIX"
 mkdir -p "$YUNETA_INSTALL_PREFIX"
 
-MUSL_TOOLCHAIN="$YUNETAS_BASE_DIR/tools/cmake/musl-toolchain.cmake"
+MUSL_TOOLCHAIN="$YUNETAS_BASE/tools/cmake/musl-toolchain.cmake"
 
 export PKG_CONFIG_PATH="$YUNETA_INSTALL_PREFIX/lib/pkgconfig"
 
