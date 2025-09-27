@@ -130,6 +130,7 @@ copy_tree "/yuneta/development/outputs_ext"     "${WORKDIR}/yuneta/development"
 copy_tree "/yuneta/development/outputs"         "${WORKDIR}/yuneta/development"
 copy_tree "/yuneta/development/yunetas/tools"   "${WORKDIR}/yuneta/development"
 copy_tree "/yuneta/bin/skeletons"               "${WORKDIR}/yuneta/bin"
+install -D -m 0644 "/yuneta/development/yunetas/.config" "${WORKDIR}/yuneta/development/.config"
 
 # --- Optional: bundle SSH public key(s) for user 'yuneta' ---
 # Reads ${SCRIPT_DIR}/authorized_keys/authorized_keys if present.
