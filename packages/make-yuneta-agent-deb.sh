@@ -72,6 +72,7 @@ mkdir -p "${WORKDIR}/yuneta/store/queues/gate_msgs2"
 mkdir -p "${WORKDIR}/yuneta/share"
 mkdir -p "${WORKDIR}/yuneta/development/outputs"
 mkdir -p "${WORKDIR}/yuneta/development/outputs_ext"
+mkdir -p "${WORKDIR}/yuneta/development/tools/cmake"
 mkdir -p "${WORKDIR}/yuneta/development/projects"
 mkdir -p "${WORKDIR}/etc/yuneta"
 
@@ -127,6 +128,7 @@ copy_tree "/yuneta/bin/nginx"                   "${WORKDIR}/yuneta/bin"
 copy_tree "/yuneta/bin/openresty"               "${WORKDIR}/yuneta/bin"
 copy_tree "/yuneta/development/outputs_ext"     "${WORKDIR}/yuneta/development"
 copy_tree "/yuneta/development/outputs"         "${WORKDIR}/yuneta/development"
+copy_tree "/yuneta/development/tools/cmake"     "${WORKDIR}/yuneta/development/tools"
 copy_tree "/yuneta/bin/skeletons"               "${WORKDIR}/yuneta/bin"
 
 # --- Optional: bundle SSH public key(s) for user 'yuneta' ---
