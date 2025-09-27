@@ -499,19 +499,19 @@ struct mosquitto_client_msg {
 
 typedef struct _FRAME_HEAD {
     // Information of the first two bytes header
-    mqtt_message_t command;
-    uint8_t flags;
+    mqtt_message_t command; // byte1 & 0xF0;
+    uint8_t flags;          // byte1 & 0x0F; (command&0x0F in mosquitto)
 
     // state of frame
     char busy;              // in half of header
     char header_complete;   // Set True when header is completed
 
     // must do
-    char must_read_remaining_length_2;
+    char must_read_remaining_length_2;  // byte2 & 0x80
     char must_read_remaining_length_3;
     char must_read_remaining_length_4;
 
-    size_t frame_length;
+    size_t frame_length;    // byte2 & 0x7F;
 } FRAME_HEAD;
 
 /***************************************************************************
