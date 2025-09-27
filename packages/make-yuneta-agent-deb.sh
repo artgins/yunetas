@@ -72,6 +72,7 @@ mkdir -p "${WORKDIR}/yuneta/store/queues/gate_msgs2"
 mkdir -p "${WORKDIR}/yuneta/share"
 mkdir -p "${WORKDIR}/yuneta/development/outputs"
 mkdir -p "${WORKDIR}/yuneta/development/outputs_ext"
+mkdir -p "${WORKDIR}/yuneta/development/projects"
 mkdir -p "${WORKDIR}/etc/yuneta"
 
 # --- Single-file utilities to include /yuneta/bin ---
@@ -235,7 +236,7 @@ chmod 0755 "${WORKDIR}/yuneta/bin/check-certs-validity.sh"
 cat > "${WORKDIR}/etc/profile.d/yuneta.sh" <<'EOF'
 # Yuneta environment
 export YUNETA_DIR=/yuneta
-export PATH="/yuneta/bin:/usr/sbin:/sbin:$PATH"
+export PATH="/yuneta/bin:/usr/sbin:/sbin:/home/yuneta/.local/bin:$PATH"
 
 # Raise core dump and open-files limits for interactive shells
 # (Init/service scripts also raise limits before launching daemons)
@@ -1117,6 +1118,14 @@ case "$ACTION" in
         : # not starting on other actions (e.g. triggered/abort*)
         ;;
 esac
+
+# --- friendly reminder for developers ---
+printf "\n[Yuneta] To install developer dependencies, run:\n" >&2
+printf "    sudo /yuneta/bin/install-yuneta-dev-deps.sh\n\n" >&2
+printf "    sudo /yuneta/bin/install-certbot-snap.sh\n\n" >&2
+
+logger -t yuneta_agent_deb "Reminder: run /yuneta/bin/install-yuneta-dev-deps.sh"
+logger -t yuneta_agent_deb "Reminder: run /yuneta/bin/install-certbot-snap.sh"
 
 exit 0
 EOF
