@@ -338,42 +338,42 @@ typedef enum mosquitto_protocol {
 
 /* Error values */
 typedef enum mosq_err_t {
-    MOSQ_ERR_AUTH_CONTINUE = -4,
-    MOSQ_ERR_NO_SUBSCRIBERS = -3,
-    MOSQ_ERR_SUB_EXISTS = -2,
-    MOSQ_ERR_CONN_PENDING = -1,
     MOSQ_ERR_SUCCESS = 0,
-    MOSQ_ERR_NOMEM = 1,
-    MOSQ_ERR_PROTOCOL = 2,
-    MOSQ_ERR_INVAL = 3,
-    MOSQ_ERR_NO_CONN = 4,
-    MOSQ_ERR_CONN_REFUSED = 5,
-    MOSQ_ERR_NOT_FOUND = 6,
-    MOSQ_ERR_CONN_LOST = 7,
-    MOSQ_ERR_TLS = 8,
-    MOSQ_ERR_PAYLOAD_SIZE = 9,
-    MOSQ_ERR_NOT_SUPPORTED = 10,
-    MOSQ_ERR_AUTH = 11,
-    MOSQ_ERR_ACL_DENIED = 12,
-    MOSQ_ERR_UNKNOWN = 13,
-    MOSQ_ERR_ERRNO = 14,
-    MOSQ_ERR_EAI = 15,
-    MOSQ_ERR_PROXY = 16,
-    MOSQ_ERR_PLUGIN_DEFER = 17,
-    MOSQ_ERR_MALFORMED_UTF8 = 18,
-    MOSQ_ERR_KEEPALIVE = 19,
-    MOSQ_ERR_LOOKUP = 20,
-    MOSQ_ERR_MALFORMED_PACKET = 21,
-    MOSQ_ERR_DUPLICATE_PROPERTY = 22,
-    MOSQ_ERR_TLS_HANDSHAKE = 23,
-    MOSQ_ERR_QOS_NOT_SUPPORTED = 24,
-    MOSQ_ERR_OVERSIZE_PACKET = 25,
-    MOSQ_ERR_OCSP = 26,
-    MOSQ_ERR_TIMEOUT = 27,
-    MOSQ_ERR_RETAIN_NOT_SUPPORTED = 28,
-    MOSQ_ERR_TOPIC_ALIAS_INVALID = 29,
-    MOSQ_ERR_ADMINISTRATIVE_ACTION = 30,
-    MOSQ_ERR_ALREADY_EXISTS = 31,
+    MOSQ_ERR_PROTOCOL = -2,
+    MOSQ_ERR_INVAL = -3,
+    MOSQ_ERR_NO_CONN = -4,
+    MOSQ_ERR_CONN_REFUSED = -5,
+    MOSQ_ERR_NOT_FOUND = -6,
+    MOSQ_ERR_CONN_LOST = -7,
+    MOSQ_ERR_TLS = -8,
+    MOSQ_ERR_PAYLOAD_SIZE = -9,
+    MOSQ_ERR_NOT_SUPPORTED = -10,
+    MOSQ_ERR_AUTH = -11,
+    MOSQ_ERR_ACL_DENIED = -12,
+    MOSQ_ERR_UNKNOWN = -13,
+    MOSQ_ERR_ERRNO = -14,
+    MOSQ_ERR_EAI = -15,
+    MOSQ_ERR_PROXY = -16,
+    MOSQ_ERR_PLUGIN_DEFER = -17,
+    MOSQ_ERR_MALFORMED_UTF8 = -18,
+    MOSQ_ERR_KEEPALIVE = -19,
+    MOSQ_ERR_LOOKUP = -20,
+    MOSQ_ERR_MALFORMED_PACKET = -21,
+    MOSQ_ERR_DUPLICATE_PROPERTY = -22,
+    MOSQ_ERR_TLS_HANDSHAKE = -23,
+    MOSQ_ERR_QOS_NOT_SUPPORTED = -24,
+    MOSQ_ERR_OVERSIZE_PACKET = -25,
+    MOSQ_ERR_OCSP = -26,
+    MOSQ_ERR_TIMEOUT = -27,
+    MOSQ_ERR_RETAIN_NOT_SUPPORTED = -28,
+    MOSQ_ERR_TOPIC_ALIAS_INVALID = -29,
+    MOSQ_ERR_ADMINISTRATIVE_ACTION = -30,
+    MOSQ_ERR_ALREADY_EXISTS = -31,
+    MOSQ_ERR_NOMEM = -32,
+    MOSQ_ERR_AUTH_CONTINUE = -44,
+    MOSQ_ERR_NO_SUBSCRIBERS = -43,
+    MOSQ_ERR_SUB_EXISTS = -42,
+    MOSQ_ERR_CONN_PENDING = -41,
 } mosq_err_t;
 
 /* Option values */
@@ -499,19 +499,19 @@ struct mosquitto_client_msg {
 
 typedef struct _FRAME_HEAD {
     // Information of the first two bytes header
-    mqtt_message_t command; // byte1 & 0xF0;
-    uint8_t flags;          // byte1 & 0x0F; (command&0x0F in mosquitto)
+    mqtt_message_t command;
+    uint8_t flags;
 
     // state of frame
     char busy;              // in half of header
     char header_complete;   // Set True when header is completed
 
     // must do
-    char must_read_remaining_length_2;  // byte2 & 0x80
+    char must_read_remaining_length_2;
     char must_read_remaining_length_3;
     char must_read_remaining_length_4;
 
-    size_t frame_length;    // byte2 & 0x7F;
+    size_t frame_length;
 } FRAME_HEAD;
 
 /***************************************************************************
@@ -613,9 +613,9 @@ SDATA (DTP_STRING,      "cert_pem",         SDF_PERSIST,                "",     
 SDATA (DTP_BOOLEAN,     "in_session",       SDF_VOLATIL|SDF_STATS,      0,      "CONNECT mqtt done"),
 SDATA (DTP_BOOLEAN,     "send_disconnect",  SDF_VOLATIL,                0,      "send DISCONNECT"),
 SDATA (DTP_JSON,        "client",           SDF_VOLATIL,                0,      "client online"),
-SDATA (DTP_INTEGER,     "timeout_handshake",SDF_WR|SDF_PERSIST,       "5",      "Timeout to handshake in seconds"),
-SDATA (DTP_INTEGER,     "timeout_close",    SDF_WR|SDF_PERSIST,       "3",      "Timeout to close in seconds"),
-SDATA (DTP_INTEGER,     "timeout_periodic", SDF_RD,                "1000",      "Timeout periodic"),
+SDATA (DTP_INTEGER,     "timeout_handshake",SDF_WR|SDF_PERSIST,    "5000",      "Timeout to handshake"),
+SDATA (DTP_INTEGER,     "timeout_close",    SDF_WR|SDF_PERSIST,    "3000",      "Timeout to close"),
+SDATA (DTP_INTEGER,     "pingT",            SDF_WR|SDF_PERSIST,   "50000",      "Ping interval. If value <= 0 then No ping"),
 
 SDATA (DTP_POINTER,     "gobj_mqtt_topics", 0,                          0,      "global gobj to save topics"),
 SDATA (DTP_POINTER,     "gobj_mqtt_clients",0,                          0,      "global gobj with clients"),
@@ -715,11 +715,7 @@ typedef struct _PRIVATE_DATA {
     hgobj gobj_mqtt_users;
     hgobj timer;
     BOOL iamServer;         // What side? server or client
-    int timeout_periodic;
-    time_t timer_handshake;
-    time_t timer_payload;
-    time_t timer_close;
-    time_t timer_ping;
+    int pingT;
 
     FRAME_HEAD frame_head;
     istream_h istream_frame;
@@ -831,7 +827,7 @@ PRIVATE void mt_create(hgobj gobj)
      *  Do copy of heavy used parameters, for quick access.
      *  HACK The writable attributes must be repeated in mt_writing method.
      */
-    SET_PRIV(timeout_periodic,          gobj_read_integer_attr)
+    SET_PRIV(pingT,                     gobj_read_integer_attr)
     SET_PRIV(in_session,                gobj_read_bool_attr)
     SET_PRIV(send_disconnect,           gobj_read_bool_attr)
     SET_PRIV(client,                    gobj_read_json_attr)
@@ -889,7 +885,7 @@ PRIVATE void mt_writing(hgobj gobj, const char *path)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
-    IF_EQ_SET_PRIV(timeout_periodic,            gobj_read_integer_attr)
+    IF_EQ_SET_PRIV(pingT,                       gobj_read_integer_attr)
     ELIF_EQ_SET_PRIV(in_session,                gobj_read_bool_attr)
     ELIF_EQ_SET_PRIV(send_disconnect,           gobj_read_bool_attr)
     ELIF_EQ_SET_PRIV(client,                    gobj_read_json_attr)
@@ -982,6 +978,8 @@ PRIVATE int mt_start(hgobj gobj)
         gobj_start(bottom_gobj);
     }
 
+    gobj_start(priv->timer);
+
     return 0;
 }
 
@@ -996,6 +994,7 @@ PRIVATE int mt_stop(hgobj gobj)
 
     if(priv->timer) {
         clear_timeout(priv->timer);
+        gobj_stop(priv->timer);
     }
 
     hgobj tcp0 = gobj_bottom_gobj(gobj);
@@ -2086,7 +2085,9 @@ PRIVATE void start_wait_frame_header(hgobj gobj)
         return;
     }
     gobj_change_state(gobj, ST_WAITING_FRAME_HEADER);
-
+    if(priv->pingT>0) {
+        set_timeout(priv->timer, priv->pingT);
+    }
     istream_reset_wr(priv->istream_frame);  // Reset buffer for next frame
     memset(&priv->frame_head, 0, sizeof(priv->frame_head));
 }
@@ -4025,7 +4026,7 @@ PRIVATE int handle__pingreq(hgobj gobj)
             "msg",          "%s", "Mqtt CMD_PINGREQ: not in session",
             NULL
         );
-        return MOSQ_ERR_PROTOCOL;
+        return -1;
     }
     if(!priv->iamServer) {
         gobj_log_error(gobj, 0,
@@ -4034,7 +4035,7 @@ PRIVATE int handle__pingreq(hgobj gobj)
             "msg",          "%s", "Mqtt CMD_PINGREQ: not server",
             NULL
         );
-        return MOSQ_ERR_PROTOCOL;
+        return -1;
     }
 
     if(priv->frame_head.flags != 0) {
@@ -4060,24 +4061,17 @@ PRIVATE int handle__pingresp(hgobj gobj)
             "msg",          "%s", "Mqtt CMD_PINGRESP: not in session",
             NULL
         );
+        return -1;
+    }
+
+    // mosq->ping_t = 0; /* No longer waiting for a PINGRESP. */
+
+    if(!priv->is_bridge) {
+        // Parece que el broker no debe recibir pingresp
         return MOSQ_ERR_PROTOCOL;
     }
 
-    // priv->ping_t = 0; TODO /* No longer waiting for a PINGRESP. */
-
-    if(priv->iamServer) {
-        if(!priv->is_bridge) {
-            // Parece que el broker no debe recibir pingresp, solo si es bridge
-            gobj_log_error(gobj, 0,
-                "function",     "%s", __FUNCTION__,
-                "msgset",       "%s", MSGSET_MQTT_ERROR,
-                "msg",          "%s", "Mqtt CMD_PINGREQ: not server",
-                NULL
-            );
-            return MOSQ_ERR_PROTOCOL;
-        }
-    }
-    return MOSQ_ERR_SUCCESS;
+    return send_simple_command(gobj, CMD_PINGRESP);
 }
 
 /***************************************************************************
@@ -5742,9 +5736,6 @@ PRIVATE int connect_on_authorised(
 
         // db__message_write_queued_out(context); TODO
         //db__message_write_inflight_out_all(context); TODO
-        if(priv->keepalive > 0) {
-            priv->timer_ping = start_sectimer(priv->keepalive);
-        }
     }
 
     return ret;
@@ -6685,37 +6676,18 @@ PRIVATE int handle__pubackcomp(hgobj gobj, gbuffer_t *gbuf, const char *type)
             );
         }
 
-        rc = message__delete(gobj, mid, mosq_md_out, qos);
-
-        if(rc == MOSQ_ERR_SUCCESS) {
-            // mosq->in_callback = TRUE;
-            on_publish_v5(gobj, mid, reason_code, properties);
-
-
-            gbuffer_t *gbuf_message = gbuffer_create(stored->payloadlen, stored->payloadlen);
-            if(gbuf_message) {
-                if(stored->payloadlen > 0) {
-                    // Can become without payload
-                    gbuffer_append(gbuf_message, stored->payload, stored->payloadlen);
-                }
-                json_t *kw = json_pack("{s:s, s:s, s:I}",
-                    "mqtt_action", "publishing",
-                    "topic", topic_name,
-                    "gbuffer", (json_int_t)(uintptr_t)gbuf_message
-                );
-                gobj_publish_event(gobj, EV_ON_MESSAGE, kw);
-            }
-
-
-
-            // mosq->in_callback = FALSE;
-        } else if(rc != MOSQ_ERR_NOT_FOUND){
-            JSON_DECREF(properties)
-            return rc;
-        }
-
-        message__release_to_inflight(gobj, mosq_md_out);
-
+        // TODO client
+        // rc = message__delete(gobj, mid, mosq_md_out, qos);
+        // if(rc == MOSQ_ERR_SUCCESS) {
+        //     // mosq->in_callback = TRUE;
+        //     on_publish_v5(gobj, mid, reason_code, properties);
+        //     // mosq->in_callback = FALSE;
+        // } else if(rc != MOSQ_ERR_NOT_FOUND){
+        //     JSON_DECREF(properties)
+        //     return rc;
+        // }
+        //
+        // message__release_to_inflight(gobj, mosq_md_out);
         JSON_DECREF(properties)
     	return MOSQ_ERR_SUCCESS;
     }
@@ -8070,12 +8042,7 @@ PRIVATE int ac_connected(hgobj gobj, const char *event, json_t *kw, hgobj src)
          * send the request
          */
     }
-    set_timeout_periodic(priv->timer, priv->timeout_periodic);
-
-    priv->timer_handshake = start_sectimer(
-        gobj_read_integer_attr(gobj, "timeout_handshake")
-    );
-
+    set_timeout(priv->timer, gobj_read_integer_attr(gobj, "timeout_handshake"));
     KW_DECREF(kw)
     return 0;
 }
@@ -8172,6 +8139,10 @@ PRIVATE int ac_process_frame_header(hgobj gobj, const char *event, json_t *kw, h
         );
     }
 
+    if(priv->pingT>0) {
+        set_timeout(priv->timer, priv->pingT);
+    }
+
     while(gbuffer_leftbytes(gbuf)) {
         size_t ln = gbuffer_leftbytes(gbuf);
         char *bf = gbuffer_cur_rd_pointer(gbuf);
@@ -8241,10 +8212,6 @@ PRIVATE int ac_process_frame_header(hgobj gobj, const char *event, json_t *kw, h
                 }
                 istream_read_until_num_bytes(priv->istream_payload, frame_length, 0);
 
-                priv->timer_handshake = start_sectimer(
-                    gobj_read_integer_attr(gobj, "timeout_handshake")
-                );
-
                 gobj_change_state(gobj, ST_WAITING_PAYLOAD_DATA);
                 return gobj_send_event(gobj, EV_RX_DATA, kw, gobj);
 
@@ -8263,26 +8230,15 @@ PRIVATE int ac_process_frame_header(hgobj gobj, const char *event, json_t *kw, h
 }
 
 /***************************************************************************
- *
+ *  No activity, send ping
  ***************************************************************************/
 PRIVATE int ac_timeout_waiting_frame_header(hgobj gobj, const char *event, json_t *kw, hgobj src)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
-    if(priv->timer_handshake) {
-        if(test_sectimer(priv->timer_handshake)) {
-            ws_close(gobj, MQTT_RC_PROTOCOL_ERROR);
-        }
-    }
-
-    // mosquitto__check_keepalive()
-    if(priv->timer_ping) {
-        if(test_sectimer(priv->timer_ping)) {
-            // TODO send send__pingreq(mosq); or close connection if not receive response
-            if(priv->keepalive > 0) {
-                priv->timer_ping = start_sectimer(priv->keepalive);
-            }
-        }
+    if(priv->pingT > 0) {
+        set_timeout(priv->timer, priv->pingT);
+        //ping(gobj);
     }
 
     KW_DECREF(kw)
@@ -8331,7 +8287,6 @@ PRIVATE int ac_process_payload_data(hgobj gobj, const char *event, json_t *kw, h
             return -1;
         }
     }
-
     if(gbuffer_leftbytes(gbuf)) {
         return gobj_send_event(gobj, EV_RX_DATA, kw, gobj);
     }
@@ -8345,28 +8300,11 @@ PRIVATE int ac_process_payload_data(hgobj gobj, const char *event, json_t *kw, h
  ***************************************************************************/
 PRIVATE int ac_timeout_waiting_payload_data(hgobj gobj, const char *event, json_t *kw, hgobj src)
 {
-    PRIVATE_DATA *priv = gobj_priv_data(gobj);
-
-    if(priv->timer_payload) {
-        if(test_sectimer(priv->timer_payload)) {
-            gobj_log_info(gobj, 0,
-                "msgset",       "%s", MSGSET_MQTT_ERROR,
-                "msg",          "%s", "Timeout waiting mqtt PAYLOAD data",
-                NULL
-            );
-            ws_close(gobj, MQTT_RC_PROTOCOL_ERROR);
-        }
-    }
-
-    // mosquitto__check_keepalive()
-    if(priv->timer_ping) {
-        if(test_sectimer(priv->timer_ping)) {
-            // TODO send send__pingreq(mosq); or close connection if not receive response
-            if(priv->keepalive > 0) {
-                priv->timer_ping = start_sectimer(priv->keepalive);
-            }
-        }
-    }
+    gobj_log_info(gobj, 0,
+        "msgset",       "%s", MSGSET_MQTT_ERROR,
+        "msg",          "%s", "Timeout waiting mqtt PAYLOAD data",
+        NULL
+    );
 
     ws_close(gobj, MOSQ_ERR_PROTOCOL);
     KW_DECREF(kw)
@@ -8582,7 +8520,7 @@ PRIVATE int create_gclass(gclass_name_t gclass_name)
     ev_action_t st_disconnected[] = {
         {EV_CONNECTED,        ac_connected,                       ST_WAITING_FRAME_HEADER},
         {EV_DISCONNECTED,     ac_disconnected,                    0},
-        {EV_TIMEOUT_PERIODIC, ac_timeout_waiting_disconnected,    0},
+        {EV_TIMEOUT,          ac_timeout_waiting_disconnected,    0},
         {EV_STOPPED,          ac_stopped,                         0},
         {EV_TX_READY,         0,                                  0},
         {0,0,0}
@@ -8591,7 +8529,7 @@ PRIVATE int create_gclass(gclass_name_t gclass_name)
         {EV_RX_DATA,          ac_process_frame_header,            0},
         {EV_SEND_MESSAGE,     ac_send_message,                    0},
         {EV_DISCONNECTED,     ac_disconnected,                    ST_DISCONNECTED},
-        {EV_TIMEOUT_PERIODIC, ac_timeout_waiting_frame_header,    0},
+        {EV_TIMEOUT,          ac_timeout_waiting_frame_header,    0},
         {EV_DROP,             ac_drop,                            0},
         {EV_TX_READY,         0,                                  0},
         {0,0,0}
@@ -8600,7 +8538,7 @@ PRIVATE int create_gclass(gclass_name_t gclass_name)
         {EV_RX_DATA,          ac_process_payload_data,            0},
         {EV_SEND_MESSAGE,     ac_send_message,                    0},
         {EV_DISCONNECTED,     ac_disconnected,                    ST_DISCONNECTED},
-        {EV_TIMEOUT_PERIODIC, ac_timeout_waiting_payload_data,    0},
+        {EV_TIMEOUT,          ac_timeout_waiting_payload_data,    0},
         {EV_DROP,             ac_drop,                            0},
         {EV_TX_READY,         0,                                  0},
         {0,0,0}
@@ -8616,8 +8554,8 @@ PRIVATE int create_gclass(gclass_name_t gclass_name)
     event_type_t event_types[] = {
         {EV_RX_DATA,            0},
         {EV_SEND_MESSAGE,       0},
-        {EV_TIMEOUT_PERIODIC,   0},
         {EV_TX_READY,           0},
+        {EV_TIMEOUT,            0},
         {EV_CONNECTED,          0},
         {EV_DISCONNECTED,       0},
         {EV_STOPPED,            0},
