@@ -78,14 +78,6 @@ function(add_yuno_executable name)
     endif()
 endfunction()
 
-
-#--------------------------------------------------#
-#   Get the parent of YUNETAS_BASE
-#   where the project code can be
-#   and where the output of yunetas is installed
-#--------------------------------------------------#
-get_filename_component(YUNETAS_PARENT_BASE_DIR "${YUNETAS_BASE}" DIRECTORY)
-
 #----------------------------------------#
 #   Add tools/cmake to the module path
 #----------------------------------------#
@@ -96,11 +88,11 @@ list(APPEND CMAKE_MODULE_PATH "${YUNETAS_BASE}/tools/cmake")
 #----------------------------------------#
 if(AS_STATIC)
     # To use with musl compiler
-    list(APPEND CMAKE_SYSTEM_PREFIX_PATH "${YUNETAS_PARENT_BASE_DIR}/outputs_static")
-    set(CMAKE_INSTALL_PREFIX "${YUNETAS_PARENT_BASE_DIR}/outputs_static")
+    list(APPEND CMAKE_SYSTEM_PREFIX_PATH "${YUNETAS_BASE}/outputs_static")
+    set(CMAKE_INSTALL_PREFIX "${YUNETAS_BASE}/outputs_static")
 else()
-    list(APPEND CMAKE_SYSTEM_PREFIX_PATH "${YUNETAS_PARENT_BASE_DIR}/outputs")
-    set(CMAKE_INSTALL_PREFIX "${YUNETAS_PARENT_BASE_DIR}/outputs")
+    list(APPEND CMAKE_SYSTEM_PREFIX_PATH "${YUNETAS_BASE}/outputs")
+    set(CMAKE_INSTALL_PREFIX "${YUNETAS_BASE}/outputs")
 endif()
 
 #----------------------------------------#
@@ -120,11 +112,11 @@ else()
 
     if(AS_STATIC)
         # To use with musl compiler
-        include_directories("${YUNETAS_PARENT_BASE_DIR}/outputs_ext_static/include")
-        link_directories("${YUNETAS_PARENT_BASE_DIR}/outputs_ext_static/lib")
+        include_directories("${YUNETAS_BASE}/outputs_ext_static/include")
+        link_directories("${YUNETAS_BASE}/outputs_ext_static/lib")
     else()
-        include_directories("${YUNETAS_PARENT_BASE_DIR}/outputs_ext/include")
-        link_directories("${YUNETAS_PARENT_BASE_DIR}/outputs_ext/lib")
+        include_directories("${YUNETAS_BASE}/outputs_ext/include")
+        link_directories("${YUNETAS_BASE}/outputs_ext/lib")
     endif()
 
     include_directories("${INC_DEST_DIR}")
