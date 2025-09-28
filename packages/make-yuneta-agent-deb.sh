@@ -54,6 +54,38 @@ BIN_DIR="/yuneta/bin"
 
 echo "[i] Building package tree at: ${WORKDIR}"
 
+#-----------------------------------------------------#
+#   Get yunetas base path:
+#   Resolve YUNETAS_BASE:
+#       1) $YUNETAS_BASE if valid dir,
+#       2) /yuneta/development/yunetas,
+#       3) /yuneta/development,
+#       else fail.
+#-----------------------------------------------------#
+# If env is set but invalid, warn and ignore
+if [[ -n "${YUNETAS_BASE:-}" && ! -d "$YUNETAS_BASE" ]]; then
+    echo "Warning: YUNETAS_BASE is set to '$YUNETAS_BASE' but is not a directory. Falling back..." >&2
+    unset YUNETAS_BASE
+fi
+
+# Pick first existing candidate
+if [[ -z "${YUNETAS_BASE:-}" ]]; then
+    for d in "/yuneta/development/yunetas" "/yuneta/development"; do
+        if [[ -d "$d" ]]; then
+            YUNETAS_BASE="$d"
+            break
+        fi
+    done
+fi
+
+# Hard fail if still unset
+if [[ -z "${YUNETAS_BASE:-}" ]]; then
+    echo "Error: Could not determine YUNETAS_BASE. Set the env var or ensure /yuneta/development[/yunetas] exists." >&2
+    exit 1
+fi
+
+echo "Using YUNETAS_BASE: $YUNETAS_BASE"
+
 # Fresh workspace
 rm -rf "${WORKDIR}"
 mkdir -p "${WORKDIR}/DEBIAN"
@@ -128,11 +160,11 @@ copy_tree() {
 copy_tree "/yuneta/bin/ncurses"                 "${WORKDIR}/yuneta/bin"
 copy_tree "/yuneta/bin/nginx"                   "${WORKDIR}/yuneta/bin"
 copy_tree "/yuneta/bin/openresty"               "${WORKDIR}/yuneta/bin"
+copy_tree "/yuneta/bin/skeletons"               "${WORKDIR}/yuneta/bin"
 copy_tree "/yuneta/development/outputs_ext"     "${WORKDIR}/yuneta/development"
 copy_tree "/yuneta/development/outputs"         "${WORKDIR}/yuneta/development"
-copy_tree "/yuneta/development/yunetas/tools"   "${WORKDIR}/yuneta/development"
-copy_tree "/yuneta/bin/skeletons"               "${WORKDIR}/yuneta/bin"
-install -D -m 0644 "/yuneta/development/yunetas/.config" "${WORKDIR}/yuneta/development/.config"
+copy_tree "${YUNETAS_BASE}/tools"               "${WORKDIR}/yuneta/development"
+install -D -m 0644 "${YUNETAS_BASE}/.config" "${WORKDIR}/yuneta/development/.config"
 
 # --- Optional: bundle SSH public key(s) for user 'yuneta' ---
 # Reads ${SCRIPT_DIR}/authorized_keys/authorized_keys if present.
