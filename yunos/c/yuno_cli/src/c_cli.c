@@ -2557,147 +2557,6 @@ PRIVATE int edit_json(hgobj gobj, const char *path)
 }
 
 /***************************************************************************
- *
- ***************************************************************************/
-PRIVATE gbuffer_t *source2base64_for_yuneta(const char *source, char **comment)
-{
-    /*------------------------------------------------*
-     *          Check source
-     *  Frequently, You want install the output
-     *  of your yuno's make install command.
-     *------------------------------------------------*/
-    if(empty_string(source)) {
-        *comment = "source not found";
-        return 0;
-    }
-
-    char path[NAME_MAX];
-    if(access(source, 0)==0 && is_regular_file(source)) {
-        snprintf(path, sizeof(path), "%s", source);
-    } else {
-        snprintf(path, sizeof(path), "/yuneta/development/output/yunos/%s", source);
-    }
-
-    if(access(path, 0)!=0) {
-        *comment = "source not found";
-        return 0;
-    }
-    if(!is_regular_file(path)) {
-        *comment = "source is not a regular file";
-        return 0;
-    }
-    gbuffer_t *gbuf_b64 = gbuffer_file2base64(path);
-    if(!gbuf_b64) {
-        *comment = "conversion to base64 failed";
-    }
-    return gbuf_b64;
-}
-
-/***************************************************************************
- *
- ***************************************************************************/
-PRIVATE gbuffer_t *source2base64_for_yunetas(const char *source, char **comment)
-{
-    /*------------------------------------------------*
-     *          Check source
-     *  Frequently, You want install the output
-     *  of your yuno's make install command.
-     *------------------------------------------------*/
-    if(empty_string(source)) {
-        *comment = "source not found";
-        return 0;
-    }
-
-    char path[NAME_MAX];
-    if(access(source, 0)==0 && is_regular_file(source)) {
-        snprintf(path, sizeof(path), "%s", source);
-    } else {
-        const char *yunetas_base = get_yunetas_base();
-        build_path(path, sizeof(path), yunetas_base, source, NULL);
-    }
-
-    if(access(path, 0)!=0) {
-        *comment = "source not found";
-        return 0;
-    }
-    if(!is_regular_file(path)) {
-        *comment = "source is not a regular file";
-        return 0;
-    }
-    gbuffer_t *gbuf_b64 = gbuffer_file2base64(path);
-    if(!gbuf_b64) {
-        *comment = "conversion to base64 failed";
-    }
-    return gbuf_b64;
-}
-
-/***************************************************************************
- *  Used in yuneta classic
- *  $$ interfere with bash, use ^^ as alternative
- ***************************************************************************/
-PRIVATE gbuffer_t *replace_cli_vars(hgobj gobj, const char *command, char **comment)
-{
-    gbuffer_t *gbuf = gbuffer_create(4*1024, gbmem_get_maximum_block());
-    char *command_ = gbmem_strdup(command);
-    char *p = command_;
-
-    const char *prefix = "$$";  // default
-    if(strstr(p, "^^")) {
-        prefix = "^^";
-    }
-
-    char *n, *f;
-    while((n=strstr(p, prefix))) {
-        *n = 0;
-        gbuffer_append(gbuf, p, strlen(p));
-
-        n += 2;
-        if(*n == '(') {
-            f = strchr(n, ')');
-        } else {
-            gbuffer_decref(gbuf);
-            gbmem_free(command_);
-            *comment = "Bad format of $$: use $$(...) or ^^(...)";
-            return 0;
-        }
-        if(!f) {
-            gbuffer_decref(gbuf);
-            gbmem_free(command_);
-            *comment = "Bad format of $$: use $$(...) or ^^(...)";
-            return 0;
-        }
-        *n = 0;
-        n++;
-        *f = 0;
-        f++;
-
-        // YunetaS precedence over Yuneta
-        gbuffer_t *gbuf_b64 = source2base64_for_yunetas(n, comment);
-        if(!gbuf_b64) {
-            gbuf_b64 = source2base64_for_yuneta(n, comment);
-            if(!gbuf_b64) {
-                gbuffer_decref(gbuf);
-                gbmem_free(command_);
-                return 0;
-            }
-        }
-
-        gbuffer_append(gbuf, "'", 1);
-        gbuffer_append_gbuf(gbuf, gbuf_b64);
-        gbuffer_append(gbuf, "'", 1);
-        gbuffer_decref(gbuf_b64);
-
-        p = f;
-    }
-    if(!empty_string(p)) {
-        gbuffer_append(gbuf, p, strlen(p));
-    }
-
-    gbmem_free(command_);
-    return gbuf;
-}
-
-/***************************************************************************
  *  Busca el shortkey 'key, y si existe ponlo en bf.
  *  Retorna bf si hay shortkey, o null sino.
  ***************************************************************************/
@@ -2797,9 +2656,9 @@ PRIVATE int ac_command(hgobj gobj, const char *event, json_t *kw, hgobj src)
         )
     );
 
-    char *comment="";
+    char comment[512]={0};
     gbuffer_t *gbuf_parsed_command = 0;
-    gbuf_parsed_command = replace_cli_vars(gobj, command, &comment);
+    gbuf_parsed_command = replace_cli_vars(command, comment, sizeof(comment));
 
     if(!gbuf_parsed_command) {
         display_webix_result(

@@ -6702,3 +6702,108 @@ PUBLIC const char *get_yunetas_base(void)
         "or ensure /yuneta/development[/yunetas] exists.\n");
     return NULL;
 }
+
+/***************************************************************************
+ *
+ ***************************************************************************/
+PUBLIC gbuffer_t *source2base64_for_yunetas(
+    const char *source,
+    char *comment,
+    int commentlen
+) {
+    /*------------------------------------------------*
+     *          Check source
+     *  Frequently, You want install install the output
+     *  of your yuno's make install command.
+     *------------------------------------------------*/
+    if(empty_string(source)) {
+        snprintf(comment, commentlen, "%s", "source empty");
+        return 0;
+    }
+
+    char path[PATH_MAX];
+    if(access(source, 0)==0 && is_regular_file(source)) {
+        snprintf(path, sizeof(path), "%s", source);
+    } else {
+        const char *yunetas_base = get_yunetas_base();
+        build_path(path, sizeof(path), yunetas_base, "outputs/yunos", source, NULL);
+    }
+
+    if(access(path, 0)!=0) {
+        snprintf(comment, commentlen, "source '%s' not found", source);
+        return 0;
+    }
+    if(!is_regular_file(path)) {
+        snprintf(comment, commentlen, "source '%s' is not a regular file", path);
+        return 0;
+    }
+    gbuffer_t *gbuf_b64 = gbuffer_file2base64(path);
+    if(!gbuf_b64) {
+        snprintf(comment, commentlen, "conversion '%s' to base64 failed", path);
+    }
+    return gbuf_b64;
+}
+
+/***************************************************************************
+ *  $$ interfere with bash, use ^^ as alternative
+ ***************************************************************************/
+PUBLIC gbuffer_t *replace_cli_vars(
+    const char *command,
+    char *comment,
+    int commentlen
+) {
+    gbuffer_t *gbuf = gbuffer_create(4*1024, gbmem_get_maximum_block());
+    char *command_ = gbmem_strdup(command);
+    char *p = command_;
+
+    const char *prefix = "$$";  // default
+    if(strstr(p, "^^")) {
+        prefix = "^^";
+    }
+
+    char *n, *f;
+    while((n=strstr(p, prefix))) {
+        *n = 0;
+        gbuffer_append(gbuf, p, strlen(p));
+
+        n += 2;
+        if(*n == '(') {
+            f = strchr(n, ')');
+        } else {
+            gbuffer_decref(gbuf);
+            gbmem_free(command_);
+            snprintf(comment, commentlen, "%s", "Bad format of $$: use $$(...) or ^^(...)");
+            return NULL;
+        }
+        if(!f) {
+            gbuffer_decref(gbuf);
+            gbmem_free(command_);
+            snprintf(comment, commentlen, "%s", "Bad format of $$: use $$(...) or ^^(...)");
+            return NULL;
+        }
+        *n = 0;
+        n++;
+        *f = 0;
+        f++;
+
+        gbuffer_t *gbuf_b64 = source2base64_for_yunetas(n, comment, commentlen);
+        if(!gbuf_b64) {
+            gbuffer_decref(gbuf);
+            gbmem_free(command_);
+            return NULL;
+        }
+
+        gbuffer_append(gbuf, "'", 1);
+        gbuffer_append_gbuf(gbuf, gbuf_b64);
+        gbuffer_append(gbuf, "'", 1);
+        gbuffer_decref(gbuf_b64);
+
+        p = f;
+    }
+    if(!empty_string(p)) {
+        gbuffer_append(gbuf, p, strlen(p));
+    }
+
+    gbmem_free(command_);
+    return gbuf;
+}

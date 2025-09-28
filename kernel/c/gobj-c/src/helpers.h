@@ -1086,3 +1086,13 @@ PUBLIC int print_open_fds(const char *fmt, ...);
 PUBLIC int is_yuneta_user(const char *username);
 PUBLIC const char *path_basename(const char *path);
 PUBLIC const char *get_yunetas_base(void);
+PUBLIC gbuffer_t *source2base64_for_yunetas(
+    const char *source,
+    char *comment,
+    int commentlen
+);
+PUBLIC gbuffer_t *replace_cli_vars(
+    const char *command,
+    char *comment,
+    int commentlen
+);
