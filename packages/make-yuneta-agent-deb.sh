@@ -123,6 +123,8 @@ copy_tree() {
     fi
 }
 
+# TODO don't use /yuneta/development/yunetas, get YUNETAS_BASE
+
 copy_tree "/yuneta/bin/ncurses"                 "${WORKDIR}/yuneta/bin"
 copy_tree "/yuneta/bin/nginx"                   "${WORKDIR}/yuneta/bin"
 copy_tree "/yuneta/bin/openresty"               "${WORKDIR}/yuneta/bin"

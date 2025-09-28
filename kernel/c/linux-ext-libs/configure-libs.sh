@@ -39,7 +39,7 @@ fi
 
 # Pick first existing candidate
 if [[ -z "${YUNETAS_BASE:-}" ]]; then
-    for d in /yuneta/development/yunetas /yuneta/development; do
+    for d in "/yuneta/development/yunetas" "/yuneta/development"; do
         if [[ -d "$d" ]]; then
             YUNETAS_BASE="$d"
             break
