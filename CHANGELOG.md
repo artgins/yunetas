@@ -1,5 +1,8 @@
 # **Changelog**
 
+## v7.0.0 -- 28/Sep/2025
+    - Publish first 7.0.0 for production
+
 ## v7.0.0-b17 -- 26/Sep/2025
     - fix remote console (controlcenter) blocked when paste text
 
