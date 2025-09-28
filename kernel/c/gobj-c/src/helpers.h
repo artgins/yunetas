@@ -1085,3 +1085,4 @@ PUBLIC int check_open_fds(void); // return # opened fd's
 PUBLIC int print_open_fds(const char *fmt, ...);
 PUBLIC int is_yuneta_user(const char *username);
 PUBLIC const char *path_basename(const char *path);
+PUBLIC const char *get_yunetas_base(void);

@@ -602,21 +602,6 @@ PRIVATE gbuffer_t *source2base64_for_yuneta(const char *source, char *comment, i
 /***************************************************************************
  *
  ***************************************************************************/
-PRIVATE const char *get_yunetas_base(void)
-{
-    // Define the default value
-    const char* default_value = "/yuneta/development/outputs/yunos";
-
-    // Get the value of the environment variable YUNETAS_YUNOS
-    const char* yunetas_base = getenv("YUNETAS_YUNOS");
-
-    // Return the environment variable value if it's set, otherwise the default value
-    return yunetas_base ? yunetas_base : default_value;
-}
-
-/***************************************************************************
- *
- ***************************************************************************/
 PRIVATE gbuffer_t *source2base64_for_yunetas(const char *source, char *comment, int commentlen)
 {
     /*------------------------------------------------*

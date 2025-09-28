@@ -6666,3 +6666,39 @@ PUBLIC const char *path_basename(const char *path)
     const char *p = strrchr(path, '/');
     return p ? p + 1 : path;
 }
+
+/***************************************************************************
+ *  Resolve YUNETAS_BASE with this precedence:
+ *      1) $YUNETAS_BASE if it exists and is a directory
+ *      2) /yuneta/development/yunetas
+ *      3) /yuneta/development
+ ***************************************************************************/
+PUBLIC const char *get_yunetas_base(void)
+{
+    const char *env = getenv("YUNETAS_BASE");
+
+    if(env) {
+        if(!is_directory(env)) {
+            print_error(0,
+                "Warning: YUNETAS_BASE is set to '%s' but is not a directory."
+                " Falling back...\n",
+                env
+            );
+        } else {
+            return env;
+        }
+    }
+
+    if(is_directory("/yuneta/development/yunetas")) {
+        return "/yuneta/development/yunetas";
+    }
+    if(is_directory("/yuneta/development")) {
+        return "/yuneta/development";
+    }
+
+    print_error(0,
+        "Error: Could not determine YUNETAS_BASE. "
+        "Set the environment variable to a valid directory, "
+        "or ensure /yuneta/development[/yunetas] exists.\n");
+    return NULL;
+}
