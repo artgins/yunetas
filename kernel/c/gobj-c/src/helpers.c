@@ -6696,7 +6696,7 @@ PUBLIC const char *get_yunetas_base(void)
         return "/yuneta/development";
     }
 
-    print_error(0,
+    print_error(PEF_EXIT,
         "Error: Could not determine YUNETAS_BASE. "
         "Set the environment variable to a valid directory, "
         "or ensure /yuneta/development[/yunetas] exists.\n");
