@@ -111,6 +111,14 @@ PRIVATE void mt_create(hgobj gobj)
 
     priv->timer = gobj_create(gobj_name(gobj), C_TIMER, 0, gobj);
 
+    // TODO select what type of subscription model
+    /*
+     *  SERVICE subscription model
+     */
+    /*
+     *  CHILD subscription model
+     */
+
     /*
      *  Do copy of heavy used parameters, for quick access.
      *  HACK The writable attributes must be repeated in mt_writing method.
