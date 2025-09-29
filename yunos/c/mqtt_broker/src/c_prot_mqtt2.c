@@ -6685,36 +6685,34 @@ PRIVATE int handle__pubackcomp(hgobj gobj, gbuffer_t *gbuf, const char *type)
             );
         }
 
-        rc = message__delete(gobj, mid, mosq_md_out, qos);
-
-        if(rc == MOSQ_ERR_SUCCESS) {
-            // mosq->in_callback = TRUE;
-            on_publish_v5(gobj, mid, reason_code, properties);
-
-
-            gbuffer_t *gbuf_message = gbuffer_create(stored->payloadlen, stored->payloadlen);
-            if(gbuf_message) {
-                if(stored->payloadlen > 0) {
-                    // Can become without payload
-                    gbuffer_append(gbuf_message, stored->payload, stored->payloadlen);
-                }
-                json_t *kw = json_pack("{s:s, s:s, s:I}",
-                    "mqtt_action", "publishing",
-                    "topic", topic_name,
-                    "gbuffer", (json_int_t)(uintptr_t)gbuf_message
-                );
-                gobj_publish_event(gobj, EV_ON_MESSAGE, kw);
-            }
-
-
-
-            // mosq->in_callback = FALSE;
-        } else if(rc != MOSQ_ERR_NOT_FOUND){
-            JSON_DECREF(properties)
-            return rc;
-        }
-
-        message__release_to_inflight(gobj, mosq_md_out);
+        // rc = message__delete(gobj, mid, mosq_md_out, qos);
+        //
+        // if(rc == MOSQ_ERR_SUCCESS) {
+        //     // mosq->in_callback = TRUE;
+        //     on_publish_v5(gobj, mid, reason_code, properties);
+        //
+        //
+        //     gbuffer_t *gbuf_message = gbuffer_create(stored->payloadlen, stored->payloadlen);
+        //     if(gbuf_message) {
+        //         if(stored->payloadlen > 0) {
+        //             // Can become without payload
+        //             gbuffer_append(gbuf_message, stored->payload, stored->payloadlen);
+        //         }
+        //         json_t *kw = json_pack("{s:s, s:s, s:I}",
+        //             "mqtt_action", "publishing",
+        //             "topic", topic_name,
+        //             "gbuffer", (json_int_t)(uintptr_t)gbuf_message
+        //         );
+        //         gobj_publish_event(gobj, EV_ON_MESSAGE, kw);
+        //     }
+        //
+        //     // mosq->in_callback = FALSE;
+        // } else if(rc != MOSQ_ERR_NOT_FOUND){
+        //     JSON_DECREF(properties)
+        //     return rc;
+        // }
+        //
+        // message__release_to_inflight(gobj, mosq_md_out);
 
         JSON_DECREF(properties)
     	return MOSQ_ERR_SUCCESS;
@@ -8548,7 +8546,7 @@ PRIVATE const GMETHODS gmt = {
 /*------------------------*
  *      GClass name
  *------------------------*/
-GOBJ_DEFINE_GCLASS(C_PROT_MQTT);
+GOBJ_DEFINE_GCLASS(C_PROT_MQTT2);
 
 /*------------------------*
  *      States
@@ -8662,7 +8660,7 @@ PRIVATE int create_gclass(gclass_name_t gclass_name)
 /***************************************************************************
  *
  ***************************************************************************/
-PUBLIC int register_c_prot_mqtt(void)
+PUBLIC int register_c_prot_mqtt2(void)
 {
-    return create_gclass(C_PROT_MQTT);
+    return create_gclass(C_PROT_MQTT2);
 }

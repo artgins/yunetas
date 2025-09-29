@@ -8,6 +8,7 @@
  *          All Rights Reserved.
  ****************************************************************************/
 #include <yunetas.h>
+#include "c_prot_mqtt2.h"
 #include "c_mqtt_client.h"
 
 /***************************************************************************
@@ -101,6 +102,7 @@ static int register_yuno_and_more(void)
      *  Register gclass
      *--------------------*/
     register_c_mqtt_client();
+    register_c_prot_mqtt2();
 
     /*------------------------------------------------*
      *          Traces

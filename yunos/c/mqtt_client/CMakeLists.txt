@@ -40,6 +40,7 @@ include("${_yunetas_project_cmake}")
 SET (YUNO_SRCS
     src/main.c
     src/c_mqtt_client.c
+    src/c_prot_mqtt2.c
 )
 SET (YUNO_HDRS
     src/c_mqtt_client.h
