@@ -1161,48 +1161,48 @@ logger -t yuneta_agent_deb "Reminder: run /yuneta/bin/install-yuneta-dev-deps.sh
 logger -t yuneta_agent_deb "Reminder: run /yuneta/bin/install-certbot-snap.sh"
 
 # --- OPT-IN-REBOOT: inserted by build script ---
-# Offer to reboot after installation. Non-interactive installs will skip reboot and set a flag.
+# Offer to reboot after installation. Default: YES (safer non-blocking schedule).
 DO_REBOOT=1
 
-# If an explicit environment override is set, honor it.
+# Environment override
 case "${YUNETA_REBOOT:-}" in
-    [Yy][Ee][Ss]|[Yy]|force) DO_REBOOT=1 ;;
     [Nn][Oo]|[Nn]|never)     DO_REBOOT=0 ;;
+    [Yy][Ee][Ss]|[Yy]|force) DO_REBOOT=1 ;;
     *)                       ;;
 esac
 
-if [ "$DO_REBOOT" -eq 0 ]; then
-    # Only prompt if we are on a TTY and not in noninteractive frontends
-    if [ -t 1 ] && [ "${DEBIAN_FRONTEND:-}" != "noninteractive" ]; then
-        echo
-        echo "Yuneta Agent installed."
-        printf "Reboot now to finalize installation? [Y/n]: "
-        read -r ans || ans="y"
-        case "$ans" in
-            [Yy]*) DO_REBOOT=1 ;;
-        esac
+# Interactive prompt only if on a TTY and not noninteractive
+if [ -t 1 ] && [ "${DEBIAN_FRONTEND:-}" != "noninteractive" ]; then
+    echo
+    echo "Yuneta Agent installed."
+    printf "Reboot now to finalize installation? [Y/n]: "
+    read -r ans || ans="y"
+    case "$ans" in
+        [Nn]*) DO_REBOOT=0 ;;
+        *)      DO_REBOOT=1 ;;
+    esac
+else
+    if [ "$DO_REBOOT" -eq 1 ]; then
+        echo "Auto-reboot is enabled by default. To disable, set YUNETA_REBOOT=no."
     else
-        echo "Reboot recommended. Skipping because installation is non-interactive."
-        echo "To auto-reboot in future runs set YUNETA_REBOOT=yes."
+        echo "Reboot disabled by environment override."
     fi
 fi
 
-# Create the standard reboot-required flag so admins/tools can see it.
-# On most Debian/Ubuntu systems /var/run is a symlink to /run.
+# Create reboot-required flag (tmpfs; disappears after reboot).
 mkdir -p /run || true
-printf "reboot requested by yuneta-agent installer
-" >/run/reboot-required || true
+printf "reboot requested by yuneta-agent installer\n" >/run/reboot-required || true
 
 if [ "$DO_REBOOT" -eq 1 ]; then
     if command -v shutdown >/dev/null 2>&1; then
         echo "Rebooting now..."
         shutdown -r now
     elif command -v systemctl >/dev/null 2>&1; then
-        echo "Requesting reboot (non-blocking)..."
+        echo "Requesting non-blocking reboot..."
         systemctl --no-block reboot
     else
-        echo "Rebooting using /sbin/reboot..."
-        /sbin/reboot || /sbin/shutdown -r now
+        echo "Reboot requested; falling back to background reboot after 5s."
+        (sleep 5; /sbin/reboot || /sbin/shutdown -r now) &
     fi
 else
     echo "No reboot performed."
