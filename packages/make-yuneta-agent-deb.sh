@@ -1162,7 +1162,7 @@ logger -t yuneta_agent_deb "Reminder: run /yuneta/bin/install-certbot-snap.sh"
 
 # --- OPT-IN-REBOOT: inserted by build script ---
 # Offer to reboot after installation. Non-interactive installs will skip reboot and set a flag.
-DO_REBOOT=0
+DO_REBOOT=1
 
 # If an explicit environment override is set, honor it.
 case "${YUNETA_REBOOT:-}" in
