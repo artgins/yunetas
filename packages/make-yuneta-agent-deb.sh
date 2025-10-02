@@ -1160,7 +1160,57 @@ printf "    sudo /yuneta/bin/install-certbot-snap.sh\n\n" >&2
 logger -t yuneta_agent_deb "Reminder: run /yuneta/bin/install-yuneta-dev-deps.sh"
 logger -t yuneta_agent_deb "Reminder: run /yuneta/bin/install-certbot-snap.sh"
 
+# --- OPT-IN-REBOOT: inserted by build script ---
+# Offer to reboot after installation. Non-interactive installs will skip reboot and set a flag.
+DO_REBOOT=0
+
+# If an explicit environment override is set, honor it.
+case "${YUNETA_REBOOT:-}" in
+    [Yy][Ee][Ss]|[Yy]|force) DO_REBOOT=1 ;;
+    [Nn][Oo]|[Nn]|never)     DO_REBOOT=0 ;;
+    *)                       ;;
+esac
+
+if [ "$DO_REBOOT" -eq 0 ]; then
+    # Only prompt if we are on a TTY and not in noninteractive frontends
+    if [ -t 1 ] && [ "${DEBIAN_FRONTEND:-}" != "noninteractive" ]; then
+        echo
+        echo "Yuneta Agent installed."
+        printf "Reboot now to finalize installation? [y/N]: "
+        read -r ans || ans="n"
+        case "$ans" in
+            [Yy]*) DO_REBOOT=1 ;;
+        esac
+    else
+        echo "Reboot recommended. Skipping because installation is non-interactive."
+        echo "To auto-reboot in future runs set YUNETA_REBOOT=yes."
+    fi
+fi
+
+# Create the standard reboot-required flag so admins/tools can see it.
+# On most Debian/Ubuntu systems /var/run is a symlink to /run.
+mkdir -p /run || true
+printf "reboot requested by yuneta-agent installer
+" >/run/reboot-required || true
+
+if [ "$DO_REBOOT" -eq 1 ]; then
+    if command -v shutdown >/dev/null 2>&1; then
+        echo "Rebooting now..."
+        shutdown -r now
+    elif command -v systemctl >/dev/null 2>&1; then
+        echo "Requesting reboot (non-blocking)..."
+        systemctl --no-block reboot
+    else
+        echo "Rebooting using /sbin/reboot..."
+        /sbin/reboot || /sbin/shutdown -r now
+    fi
+else
+    echo "No reboot performed."
+fi
+# --- /OPT-IN-REBOOT ---
+
 exit 0
+
 EOF
 chmod 0755 "${WORKDIR}/DEBIAN/postinst"
 
