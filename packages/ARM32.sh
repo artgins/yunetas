@@ -13,7 +13,7 @@ fi
 
 PROJECT="yuneta-agent"
 ARCHITECTURE="arm32"
-RELEASE="1"   # manual control
+RELEASE="2"   # manual control
 
 VER_FILE="../YUNETA_VERSION"
 if [ ! -r "$VER_FILE" ]; then
