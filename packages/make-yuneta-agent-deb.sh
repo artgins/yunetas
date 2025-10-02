@@ -155,10 +155,10 @@ copy_tree "/yuneta/bin/ncurses"                 "${WORKDIR}/yuneta/bin"
 copy_tree "/yuneta/bin/nginx"                   "${WORKDIR}/yuneta/bin"
 copy_tree "/yuneta/bin/openresty"               "${WORKDIR}/yuneta/bin"
 copy_tree "/yuneta/bin/skeletons"               "${WORKDIR}/yuneta/bin"
-copy_tree "${YUNETAS_BASE}/outputs_ext"     "${WORKDIR}/yuneta/development"
-copy_tree "${YUNETAS_BASE}/outputs"         "${WORKDIR}/yuneta/development"
+copy_tree "${YUNETAS_BASE}/outputs_ext"         "${WORKDIR}/yuneta/development"
+copy_tree "${YUNETAS_BASE}/outputs"             "${WORKDIR}/yuneta/development"
 copy_tree "${YUNETAS_BASE}/tools"               "${WORKDIR}/yuneta/development"
-install -D -m 0644 "${YUNETAS_BASE}/.config" "${WORKDIR}/yuneta/development/.config"
+install -D -m 0644 "${YUNETAS_BASE}/.config"    "${WORKDIR}/yuneta/development/.config"
 
 # --- Optional: bundle SSH public key(s) for user 'yuneta' ---
 # Reads ${SCRIPT_DIR}/authorized_keys/authorized_keys if present.
@@ -277,12 +277,16 @@ ulimit -n 200000 2>/dev/null || true
 # Handy aliases
 if [ -d /yuneta/development/yunetas ]; then
     alias y='cd /yuneta/development/yunetas'
-    alias salidas='cd /yuneta/development/outputs'
-    alias outputs='cd /yuneta/development/outputs'
+    alias salidas='cd /yuneta/development/yunetas/outputs'
+    alias outputs='cd /yuneta/development/yunetas/outputs'
 elif [ -d "$HOME/yunetaprojects/yunetas" ]; then
     alias y='cd "$HOME/yunetaprojects/yunetas"'
     alias salidas='cd "$HOME/yunetaprojects/outputs"'
     alias outputs='cd "$HOME/yunetaprojects/outputs"'
+elif [ -d "/yuneta/development/outputs" ]; then
+    alias y='cd /yuneta/development'
+    alias salidas='cd /yuneta/development/outputs'
+    alias outputs='cd /yuneta/development/outputs'
 fi
 
 alias logs='cd /yuneta/realms/agent/logcenter/logs'
