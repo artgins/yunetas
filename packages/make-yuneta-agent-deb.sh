@@ -1164,13 +1164,6 @@ logger -t yuneta_agent_deb "Reminder: run /yuneta/bin/install-certbot-snap.sh"
 # Offer to reboot after installation. Default: YES (safer non-blocking schedule).
 DO_REBOOT=1
 
-# Environment override
-case "${YUNETA_REBOOT:-}" in
-    [Nn][Oo]|[Nn]|never)     DO_REBOOT=0 ;;
-    [Yy][Ee][Ss]|[Yy]|force) DO_REBOOT=1 ;;
-    *)                       ;;
-esac
-
 # Interactive prompt only if on a TTY and not noninteractive
 if [ -t 1 ] && [ "${DEBIAN_FRONTEND:-}" != "noninteractive" ]; then
     echo
@@ -1183,7 +1176,7 @@ if [ -t 1 ] && [ "${DEBIAN_FRONTEND:-}" != "noninteractive" ]; then
     esac
 else
     if [ "$DO_REBOOT" -eq 1 ]; then
-        echo "Auto-reboot is enabled by default. To disable, set YUNETA_REBOOT=no."
+        echo "Auto-reboot is enabled by default."
     else
         echo "Reboot disabled by environment override."
     fi
