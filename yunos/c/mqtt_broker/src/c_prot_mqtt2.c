@@ -7982,7 +7982,7 @@ PRIVATE int ac_connected(hgobj gobj, const char *event, json_t *kw, hgobj src)
     GBUFFER_DECREF(priv->gbuf_will_payload);
     priv->jn_alias_list = json_object();
 
-    if (priv->iamServer) {
+    if(priv->iamServer) {
         /*
          * wait the request
          */
@@ -8026,10 +8026,10 @@ PRIVATE int ac_disconnected(hgobj gobj, const char *event, json_t *kw, hgobj src
     if (priv->must_broadcast_on_close) {
         priv->must_broadcast_on_close = FALSE;
 
-        json_t *kw = json_pack("s:s",
+        json_t *kw2 = json_pack("s:s",
             "client_id", priv->client_id
         );
-        gobj_publish_event(gobj, EV_ON_CLOSE, kw);
+        gobj_publish_event(gobj, EV_ON_CLOSE, kw2);
     }
     if(priv->timer) {
         clear_timeout(priv->timer);
@@ -8229,7 +8229,7 @@ PRIVATE int ac_process_payload_data(hgobj gobj, const char *event, json_t *kw, h
     size_t bf_len = gbuffer_leftbytes(gbuf);
     char *bf = gbuffer_cur_rd_pointer(gbuf);
 
-    int consumed = istream_consume(priv->istream_payload, bf, bf_len);
+    size_t consumed = istream_consume(priv->istream_payload, bf, bf_len);
     if(consumed > 0) {
         gbuffer_get(gbuf, consumed);  // take out the bytes consumed
     }
