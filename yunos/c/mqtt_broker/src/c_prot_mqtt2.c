@@ -464,7 +464,13 @@ PRIVATE void start_wait_frame_header(hgobj gobj);
 PRIVATE void ws_close(hgobj gobj, int code);
 
 PRIVATE int framehead_prepare_new_frame(FRAME_HEAD *frame);
-PRIVATE int framehead_consume(hgobj gobj, FRAME_HEAD *frame, istream_h istream, char *bf, int len);
+PRIVATE size_t framehead_consume(
+    hgobj gobj,
+    FRAME_HEAD *frame,
+    istream_h istream,
+    char *bf,
+    size_t len
+);
 PRIVATE int frame_completed(hgobj gobj);
 PRIVATE int set_client_disconnected(hgobj gobj);
 
@@ -2108,7 +2114,7 @@ PRIVATE size_t framehead_consume(
         data = istream_extract_matched_data(istream, 0);
         if(decode_head(gobj, frame, data)<0) {
             // Error already logged
-            return -1;
+            return 0;
         }
     }
 
@@ -2178,7 +2184,7 @@ PRIVATE size_t framehead_consume(
                 "msg",          "%s", "Fourth remaining_length byte MUST be without 0x80",
                 NULL
             );
-            return MOSQ_ERR_PROTOCOL;
+            return 0;
         }
     }
 
@@ -2195,7 +2201,7 @@ PRIVATE size_t framehead_consume(
                         "frame_length", "%d", (int)frame->frame_length,
                         NULL
                     );
-                    return -1;
+                    return 0;
                 }
                 break;
             case CMD_DISCONNECT:
@@ -2224,7 +2230,7 @@ PRIVATE size_t framehead_consume(
                         "frame_length", "%d", (int)frame->frame_length,
                         NULL
                     );
-                    return -1;
+                    return 0;
                 }
                 break;
 
@@ -2239,7 +2245,7 @@ PRIVATE size_t framehead_consume(
                 if(priv->in_session) {
                     send_disconnect(gobj, MQTT_RC_PROTOCOL_ERROR, NULL);
                 }
-                return -1;
+                return 0;
         }
     }
 
@@ -8096,8 +8102,8 @@ PRIVATE int ac_process_frame_header(hgobj gobj, const char *event, json_t *kw, h
     while(gbuffer_leftbytes(gbuf)) {
         size_t ln = gbuffer_leftbytes(gbuf);
         char *bf = gbuffer_cur_rd_pointer(gbuf);
-        int n = framehead_consume(gobj, frame, istream, bf, ln);
-        if (n <= 0) {
+        size_t n = framehead_consume(gobj, frame, istream, bf, ln);
+        if (n == 0) {
             // Some error in parsing
             // on error do break the connection
             ws_close(gobj, MQTT_RC_PROTOCOL_ERROR);

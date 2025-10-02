@@ -17,8 +17,8 @@ add_subdirectory(watchfs)
 add_subdirectory(yuno_cli)
 add_subdirectory(yuno_agent)
 add_subdirectory(yuno_agent22)
-add_subdirectory(mqtt_broker)
-add_subdirectory(mqtt_client)
+#add_subdirectory(mqtt_broker)
+#add_subdirectory(mqtt_client)
 
 # compile in Release mode :
 #

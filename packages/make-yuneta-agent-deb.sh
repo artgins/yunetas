@@ -59,7 +59,6 @@ echo "[i] Building package tree at: ${WORKDIR}"
 #   Resolve YUNETAS_BASE:
 #       1) $YUNETAS_BASE if valid dir,
 #       2) /yuneta/development/yunetas,
-#       3) /yuneta/development,
 #       else fail.
 #-----------------------------------------------------#
 # If env is set but invalid, warn and ignore
@@ -68,19 +67,16 @@ if [[ -n "${YUNETAS_BASE:-}" && ! -d "$YUNETAS_BASE" ]]; then
     unset YUNETAS_BASE
 fi
 
-# Pick first existing candidate
 if [[ -z "${YUNETAS_BASE:-}" ]]; then
-    for d in "/yuneta/development/yunetas" "/yuneta/development"; do
-        if [[ -d "$d" ]]; then
-            YUNETAS_BASE="$d"
-            break
-        fi
-    done
+    d="/yuneta/development/yunetas"
+    if [[ -d "$d" ]]; then
+        YUNETAS_BASE="$d"
+    fi
 fi
 
 # Hard fail if still unset
 if [[ -z "${YUNETAS_BASE:-}" ]]; then
-    echo "Error: Could not determine YUNETAS_BASE. Set the env var or ensure /yuneta/development[/yunetas] exists." >&2
+    echo "Error: Could not determine YUNETAS_BASE. Set the env var or ensure /yuneta/development/yunetas exists." >&2
     exit 1
 fi
 
