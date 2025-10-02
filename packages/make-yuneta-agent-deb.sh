@@ -151,14 +151,12 @@ copy_tree() {
     fi
 }
 
-# TODO don't use /yuneta/development/yunetas, get YUNETAS_BASE
-
 copy_tree "/yuneta/bin/ncurses"                 "${WORKDIR}/yuneta/bin"
 copy_tree "/yuneta/bin/nginx"                   "${WORKDIR}/yuneta/bin"
 copy_tree "/yuneta/bin/openresty"               "${WORKDIR}/yuneta/bin"
 copy_tree "/yuneta/bin/skeletons"               "${WORKDIR}/yuneta/bin"
-copy_tree "/yuneta/development/outputs_ext"     "${WORKDIR}/yuneta/development"
-copy_tree "/yuneta/development/outputs"         "${WORKDIR}/yuneta/development"
+copy_tree "${YUNETAS_BASE}/outputs_ext"     "${WORKDIR}/yuneta/development"
+copy_tree "${YUNETAS_BASE}/outputs"         "${WORKDIR}/yuneta/development"
 copy_tree "${YUNETAS_BASE}/tools"               "${WORKDIR}/yuneta/development"
 install -D -m 0644 "${YUNETAS_BASE}/.config" "${WORKDIR}/yuneta/development/.config"
 
@@ -277,11 +275,19 @@ ulimit -c unlimited 2>/dev/null || true
 ulimit -n 200000 2>/dev/null || true
 
 # Handy aliases
-alias y='cd /yuneta/development/yunetas'
-alias salidas='cd /yuneta/development/outputs'
-alias outputs='cd /yuneta/development/outputs'
+if [ -d /yuneta/development/yunetas ]; then
+    alias y='cd /yuneta/development/yunetas'
+    alias salidas='cd /yuneta/development/outputs'
+    alias outputs='cd /yuneta/development/outputs'
+elif [ -d "$HOME/yunetaprojects/yunetas" ]; then
+    alias y='cd "$HOME/yunetaprojects/yunetas"'
+    alias salidas='cd "$HOME/yunetaprojects/outputs"'
+    alias outputs='cd "$HOME/yunetaprojects/outputs"'
+fi
+
 alias logs='cd /yuneta/realms/agent/logcenter/logs'
 alias ll='ls -la'
+
 EOF
 chmod 0644 "${WORKDIR}/etc/profile.d/yuneta.sh"
 
