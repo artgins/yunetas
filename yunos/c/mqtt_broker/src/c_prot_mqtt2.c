@@ -2072,12 +2072,17 @@ PRIVATE int decode_head(hgobj gobj, FRAME_HEAD *frame, char *data)
  *  Consume input data to get and analyze the frame header.
  *  Return the consumed size.
  ***************************************************************************/
-PRIVATE int framehead_consume(hgobj gobj, FRAME_HEAD *frame, istream_h istream, char *bf, int len)
-{
+PRIVATE size_t framehead_consume(
+    hgobj gobj,
+    FRAME_HEAD *frame,
+    istream_h istream,
+    char *bf,
+    size_t len
+) {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
-    int total_consumed = 0;
-    int consumed;
+    size_t total_consumed = 0;
+    size_t consumed;
     char *data;
 
     /*
@@ -2318,7 +2323,7 @@ PRIVATE unsigned int packet_varint_bytes(uint32_t word)
 PRIVATE unsigned int property_get_length(const char *property_name, json_t *value)
 {
     hgobj gobj = 0;
-    int str_len = 0;
+    size_t str_len = 0;
     unsigned long v = 0;
     const char *name = 0;
     int identifier;
