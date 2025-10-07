@@ -58,6 +58,7 @@ SDATA_END()
  *---------------------------------------------*/
 PRIVATE sdata_desc_t tattr_desc[] = {
 /*-ATTR-type------------name----------------flag----------------default-----description---------- */
+SDATA (DTP_POINTER,     "subscriber",       0,                  0,          "Subscriber of output-events"),
 SDATA (DTP_INTEGER,     "timeout",          SDF_RD,             "1000",     "Timeout"),
 SDATA (DTP_POINTER,     "user_data",        0,                  0,          "user data"),
 SDATA (DTP_POINTER,     "user_data2",       0,                  0,          "more user data"),
@@ -115,9 +116,22 @@ PRIVATE void mt_create(hgobj gobj)
     /*
      *  SERVICE subscription model
      */
+    //hgobj subscriber = (hgobj)gobj_read_pointer_attr(gobj, "subscriber");
+    //if(subscriber) {
+    //    gobj_subscribe_event(gobj, NULL, NULL, subscriber);
+    //} else if(gobj_is_pure_child(gobj)) {
+    //    subscriber = gobj_parent(gobj);
+    //    gobj_subscribe_event(gobj, NULL, NULL, subscriber);
+    //}
+
     /*
      *  CHILD subscription model
      */
+    //hgobj subscriber = (hgobj)gobj_read_pointer_attr(gobj, "subscriber");
+    //if(!subscriber) {
+    //    subscriber = gobj_parent(gobj);
+    //}
+    //gobj_subscribe_event(gobj, NULL, NULL, subscriber);
 
     /*
      *  Do copy of heavy used parameters, for quick access.
