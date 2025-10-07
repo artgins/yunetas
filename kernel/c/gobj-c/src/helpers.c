@@ -5055,7 +5055,7 @@ PUBLIC uint64_t time_in_milliseconds(void)
 /***************************************************************************
  *  Return current time in seconds (standard time(&t))
  ***************************************************************************/
-PUBLIC uint64_t time_in_seconds(void)
+PUBLIC time_t time_in_seconds(void)
 {
     time_t __t__;
     time(&__t__);

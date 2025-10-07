@@ -952,7 +952,7 @@ PUBLIC uint64_t start_msectimer(uint64_t milliseconds);   /* value <=0 will disa
 PUBLIC BOOL   test_msectimer(uint64_t value);           /* Return TRUE if timer has finish */
 PUBLIC uint64_t time_in_milliseconds_monotonic(void); // Return MONOTONIC time in milliseconds
 PUBLIC uint64_t time_in_milliseconds(void);   // Return current **real** time in milliseconds
-PUBLIC uint64_t time_in_seconds(void);       // Return current time in seconds (standart time(&t))
+PUBLIC time_t time_in_seconds(void);       // Return current time in seconds (standard time(&t))
 
 PUBLIC uint64_t cpu_usage(void);
 PUBLIC double cpu_usage_percent(
