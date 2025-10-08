@@ -634,6 +634,12 @@ PRIVATE int mt_stop(hgobj gobj)
 
     JSON_DECREF(priv->jn_request_queue);
     JSON_DECREF(priv->jn_current_request);
+
+    hgobj bottom_gobj = gobj_bottom_gobj(gobj);
+    if(bottom_gobj) {
+        gobj_stop(bottom_gobj);
+    }
+
     return 0;
 }
 
