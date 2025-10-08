@@ -60,10 +60,39 @@ target_link_libraries(${PROJECT_NAME}
 )
 
 ##############################################
+#   yuno agent44
+##############################################
+SET (YUNO44_SRCS
+    src/main44.c
+    src/c_agent22.c
+)
+SET (YUNO44_HDRS
+)
+add_yuno_executable("yuneta_agent44" ${YUNO44_SRCS} ${YUNO44_HDRS})
+
+target_link_libraries("yuneta_agent44"
+    ${YUNETAS_KERNEL_LIBS}
+    ${YUNETAS_EXTERNAL_LIBS}
+    ${YUNETAS_PCRE_LIBS}
+    ${OPENSSL_LIBS}
+    ${MBEDTLS_LIBS}
+    ${DEBUG_LIBS}
+)
+
+##############################################
 #   Installation
 ##############################################
 install(
     TARGETS ${PROJECT_NAME}
+    PERMISSIONS
+    OWNER_READ OWNER_WRITE OWNER_EXECUTE
+    GROUP_READ GROUP_WRITE GROUP_EXECUTE
+    WORLD_READ WORLD_EXECUTE
+    DESTINATION "/yuneta/agent"
+)
+
+install(
+    TARGETS "yuneta_agent44"
     PERMISSIONS
     OWNER_READ OWNER_WRITE OWNER_EXECUTE
     GROUP_READ GROUP_WRITE GROUP_EXECUTE
