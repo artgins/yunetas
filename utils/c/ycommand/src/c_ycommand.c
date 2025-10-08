@@ -1283,9 +1283,9 @@ PRIVATE int ac_command_answer(hgobj gobj, const char *event, json_t *kw, hgobj s
                 printf("%s\n", data);
             } else {
                 if(!gobj_read_bool_attr(gobj, "print_with_metadata")) {
-                    jn_data = kw_filter_metadata(gobj, jn_data);
-                    print_json2("", jn_data);
-                    JSON_DECREF(jn_data);
+                    json_t *jn_data2 = kw_filter_metadata(gobj, json_incref(jn_data));
+                    print_json2("", jn_data2);
+                    JSON_DECREF(jn_data2);
                 } else {
                     print_json2("", jn_data);
                 }

@@ -629,8 +629,7 @@ PRIVATE q_msg enqueue_message(
     json_t *kw_clean_clone;
 
     if(!priv->with_metadata) {
-        kw_incref(kw);
-        kw_clean_clone = kw_filter_metadata(gobj, kw);
+        kw_clean_clone = kw_filter_metadata(gobj, kw_incref(kw));
     } else {
         kw_clean_clone = kw_incref(kw);
     }

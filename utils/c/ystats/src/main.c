@@ -341,7 +341,9 @@ static int register_yuno_and_more(void)
         gobj_set_gobj_trace(0, "create_delete", TRUE, 0);
         gobj_set_gobj_trace(0, "start_stop", TRUE, 0);
     }
-
+    if(arguments.verbose > 3) {
+        gobj_set_deep_tracing(1);
+    }
     return 0;
 }
 

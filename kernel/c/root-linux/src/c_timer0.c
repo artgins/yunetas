@@ -193,10 +193,12 @@ PRIVATE int yev_callback(yev_event_h yev_event)
         event = EV_STOPPED;
     }
 
+    json_t *kw = json_object();
+
     if(gobj_is_pure_child(gobj)) {
-        gobj_send_event(gobj_parent(gobj), event, 0, gobj);
+        gobj_send_event(gobj_parent(gobj), event, kw, gobj);
     } else {
-        gobj_publish_event(gobj, event, 0);
+        gobj_publish_event(gobj, event, kw);
     }
 
     return gobj_is_running(gobj)?0:-1;

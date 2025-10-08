@@ -77,7 +77,7 @@ PRIVATE const trace_level_t s_user_trace_level[16] = {
  *              Private data
  *---------------------------------------------*/
 typedef struct _PRIVATE_DATA {
-    int32_t refresh_time;
+    json_int_t refresh_time;
     int32_t verbose;
 
     hgobj timer;
@@ -138,9 +138,6 @@ PRIVATE void mt_destroy(hgobj gobj)
  ***************************************************************************/
 PRIVATE int mt_start(hgobj gobj)
 {
-    PRIVATE_DATA *priv = gobj_priv_data(gobj);
-
-    gobj_start(priv->timer);
     const char *auth_url = gobj_read_str_attr(gobj, "auth_url");
     const char *user_id = gobj_read_str_attr(gobj, "user_id");
     if(!empty_string(auth_url) && !empty_string(user_id)) {
@@ -163,7 +160,6 @@ PRIVATE int mt_stop(hgobj gobj)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
     clear_timeout(priv->timer);
-    gobj_stop(priv->timer);
     return 0;
 }
 
@@ -455,22 +451,23 @@ PRIVATE int ac_on_open(hgobj gobj, const char *event, json_t *kw, hgobj src)
             gobj_set_exit_code(-1);
             gobj_shutdown();
         } else {
-            if(!priv->verbose) {
-                set_timeout(priv->timer, priv->refresh_time * 1000);
-            }
+            // if(!priv->verbose) {
+            //     set_timeout(priv->timer, priv->refresh_time * 1000);
+            // }
             poll_attr_data(gobj);
         }
     } else if(!empty_string(command)) {
-        if(!priv->verbose) {
-            set_timeout(priv->timer, priv->refresh_time * 1000);
-        }
+        // if(!priv->verbose) {
+        //     set_timeout(priv->timer, priv->refresh_time * 1000);
+        // }
         poll_command_data(gobj);
     } else {
         // Por defecto stats.
-        if(!priv->verbose) {
-            set_timeout(priv->timer, priv->refresh_time * 1000);
-        }
+        // if(!priv->verbose) {
+        //     set_timeout(priv->timer, priv->refresh_time * 1000);
+        // }
         poll_stats_data(gobj);
+
 // Sistema de subscription. No lo voy a usar aquí.
 //         json_t *kw_subscription = json_pack("{s:s, s:i}",
 //             "stats", stats,
@@ -529,7 +526,7 @@ PRIVATE int ac_stats(hgobj gobj, const char *event, json_t *kw, hgobj src)
         BOOL to_free = FALSE;
         json_t *jn_data = kw_get_dict_value(gobj, kw, "data", 0, 0);
         if(!gobj_read_bool_attr(gobj, "print_with_metadata")) {
-            jn_data = kw_filter_metadata(gobj, jn_data);
+            jn_data = kw_filter_metadata(gobj, json_incref(jn_data));
             to_free = TRUE;
         }
 
