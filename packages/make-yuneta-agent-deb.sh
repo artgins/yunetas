@@ -491,15 +491,6 @@ stop_yunos() {
         logger -t yuneta_agent_init "stop yuneta_agent skipped: not executable"
     fi
 
-    if [ -x "$AGENT2_BIN" ]; then
-        log_daemon_msg "Stopping yuneta_agent22"
-        _run_as_yuneta "exec /yuneta/agent/yuneta_agent22 --config-file=/yuneta/agent/yuneta_agent22.json --stop" && RC2=0 || RC2=$?
-        log_end_msg $RC2
-        logger -t yuneta_agent_init "stop yuneta_agent22 rc=$RC2"
-    else
-        logger -t yuneta_agent_init "stop yuneta_agent22 skipped: not executable"
-    fi
-
     return 0
 }
 
