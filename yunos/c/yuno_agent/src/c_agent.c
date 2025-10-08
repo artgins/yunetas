@@ -1057,7 +1057,7 @@ PRIVATE void mt_create(hgobj gobj)
     /*---------------------------------------*
      *      Create timer to start yunos
      *---------------------------------------*/
-    priv->timer = gobj_create_pure_child("", C_TIMER, 0, gobj);
+    priv->timer = gobj_create_pure_child(gobj_name(gobj), C_TIMER, 0, gobj);
 
     /*---------------------------------------*
      *      Check if already running

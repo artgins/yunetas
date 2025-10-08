@@ -228,7 +228,7 @@ PRIVATE void mt_create(hgobj gobj)
         kw_editline,
         gobj
     );
-    priv->timer = gobj_create_pure_child("", C_TIMER, 0, gobj);
+    priv->timer = gobj_create_pure_child(gobj_name(gobj), C_TIMER, 0, gobj);
 
     /*
      *  Do copy of heavy used parameters, for quick access.

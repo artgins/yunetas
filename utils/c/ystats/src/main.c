@@ -471,7 +471,7 @@ int main(int argc, char *argv[])
      *          Start yuneta
      *------------------------------------------------*/
     helper_quote2doublequote(fixed_config);
-    helper_quote2doublequote(variable_config);
+    helper_quote2doublequote(my_variable_config);
     yuneta_setup(
         NULL,       // persistent_attrs, default internal dbsimple
         NULL,       // command_parser, default internal command_parser
