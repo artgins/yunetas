@@ -186,6 +186,7 @@ printf '%s\n' "${WEB_CHOICE}" > "${WORKDIR}/etc/yuneta/webserver"
 # --- Copy yuneta_agent binaries (required) and create default config samples ---
 AGENT_SRC_1="/yuneta/agent/yuneta_agent"
 AGENT_SRC_2="/yuneta/agent/yuneta_agent22"
+AGENT_SRC_4="/yuneta/agent/yuneta_agent44"
 AGENT_JSON_1="/yuneta/agent/yuneta_agent.json"
 AGENT_JSON_2="/yuneta/agent/yuneta_agent22.json"
 
@@ -197,9 +198,14 @@ if [ ! -x "${AGENT_SRC_2}" ]; then
     echo "[-] Missing or non-executable: ${AGENT_SRC_2}" >&2
     exit 2
 fi
+if [ ! -x "${AGENT_SRC_4}" ]; then
+    echo "[-] Missing or non-executable: ${AGENT_SRC_4}" >&2
+    exit 2
+fi
 
 install -D -m 0755 "${AGENT_SRC_1}" "${WORKDIR}/yuneta/agent/yuneta_agent"
 install -D -m 0755 "${AGENT_SRC_2}" "${WORKDIR}/yuneta/agent/yuneta_agent22"
+install -D -m 0755 "${AGENT_SRC_4}" "${WORKDIR}/yuneta/agent/yuneta_agent44"
 
 # Create default JSON samples (real files are created in postinst only if missing)
 install -D -m 0644 "${AGENT_JSON_1}" "${WORKDIR}/yuneta/agent/yuneta_agent.json.sample"
