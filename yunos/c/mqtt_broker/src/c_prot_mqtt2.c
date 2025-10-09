@@ -5442,7 +5442,7 @@ PRIVATE int set_client_disconnected(hgobj gobj)
 /***************************************************************************
  *
  ***************************************************************************/
-PRIVATE int connect_on_authorised(
+PRIVATE int connect__on_authorised(
     hgobj gobj
 )
 {
@@ -5452,6 +5452,7 @@ PRIVATE int connect_on_authorised(
 
     /*--------------------------------------------------------------*
      *  Find if this client already has an entry.
+     *  This must be done *after* any security checks.
      *  With assigned_id the id is random!, not a persistent id
      *  (HACK client_id is really a device_id)
      *--------------------------------------------------------------*/
@@ -6175,7 +6176,7 @@ PRIVATE int handle__connect(hgobj gobj, gbuffer_t *gbuf)
             );
             return -1;
         }
-        return connect_on_authorised(gobj);
+        return connect__on_authorised(gobj);
     }
 
     return -1;
