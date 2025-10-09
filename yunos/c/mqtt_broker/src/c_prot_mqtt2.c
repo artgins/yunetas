@@ -5895,6 +5895,15 @@ PRIVATE int handle__connect(hgobj gobj, gbuffer_t *gbuf)
     gobj_write_bool_attr(gobj, "will_retain", will_retain);
     gobj_write_integer_attr(gobj, "will_qos", will_qos);
 
+    // TODO remove will if error (refuse connection)
+    // if(context->will){
+    //     mosquitto_property_free_all(&context->will->properties);
+    //     mosquitto__free(context->will->msg.payload);
+    //     mosquitto__free(context->will->msg.topic);
+    //     mosquitto__free(context->will);
+    //     context->will = NULL;
+    // }
+
     /*-------------------------------------------*
      *      Keepalive
      *-------------------------------------------*/
@@ -6130,9 +6139,9 @@ PRIVATE int handle__connect(hgobj gobj, gbuffer_t *gbuf)
     }
 
     if(gobj_read_bool_attr(gobj, "use_username_as_clientid")) {
-        const char *username = gobj_read_str_attr(gobj, "username");
-        if(!empty_string(username)) {
-            gobj_write_str_attr(gobj, "client_id", username);
+        const char *username2 = gobj_read_str_attr(gobj, "username");
+        if(!empty_string(username2)) {
+            gobj_write_str_attr(gobj, "client_id", username2);
         } else {
             if(protocol_version == mosq_p_mqtt5) {
                 send_connack(gobj, 0, MQTT_RC_NOT_AUTHORIZED, NULL);
