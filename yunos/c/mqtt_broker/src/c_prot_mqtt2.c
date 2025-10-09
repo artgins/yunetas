@@ -5715,12 +5715,12 @@ PRIVATE int handle__connect(hgobj gobj, gbuffer_t *gbuf)
     BOOL is_bridge = FALSE;
     uint8_t version_byte;
 
-    uint16_t ll;
-    if(mqtt_read_uint16(gobj, gbuf, &ll)<0) {
+    uint16_t slen;
+    if(mqtt_read_uint16(gobj, gbuf, &slen)<0) {
         // Error already logged
         return -1;
     }
-    if(ll != 4 /* MQTT */ && ll != 6 /* MQIsdp */) {
+    if(slen != 4 /* MQTT */ && slen != 6 /* MQIsdp */) {
         gobj_log_error(gobj, 0,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_MQTT_ERROR,
@@ -5730,11 +5730,11 @@ PRIVATE int handle__connect(hgobj gobj, gbuffer_t *gbuf)
         return -1;
     }
 
-    if(mqtt_read_bytes(gobj, gbuf, protocol_name, ll) < 0) {
+    if(mqtt_read_bytes(gobj, gbuf, protocol_name, slen) < 0) {
         // Error already logged
         return -1;
     }
-    protocol_name[ll] = '\0';
+    protocol_name[slen] = '\0';
 
     if(mqtt_read_byte(gobj, gbuf, &version_byte)<0) {
         // Error already logged
