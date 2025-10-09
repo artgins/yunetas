@@ -587,9 +587,6 @@ PRIVATE const trace_level_t s_user_trace_level[16] = {
  *              Private data
  *---------------------------------------------*/
 typedef struct _PRIVATE_DATA {
-    hgobj gobj_mqtt_topics;
-    hgobj gobj_mqtt_clients;
-    hgobj gobj_mqtt_users;
     hgobj timer;
     BOOL iamServer;         // What side? server or client
     int timeout_periodic;
@@ -710,10 +707,6 @@ PRIVATE void mt_create(hgobj gobj)
     SET_PRIV(send_disconnect,           gobj_read_bool_attr)
     SET_PRIV(client,                    gobj_read_json_attr)
 
-    SET_PRIV(gobj_mqtt_topics,          gobj_read_pointer_attr)
-    SET_PRIV(gobj_mqtt_clients,         gobj_read_pointer_attr)
-    SET_PRIV(gobj_mqtt_users,           gobj_read_pointer_attr)
-
     SET_PRIV(max_inflight_messages,     gobj_read_integer_attr)
     SET_PRIV(max_keepalive,             gobj_read_integer_attr)
     SET_PRIV(max_packet_size,           gobj_read_integer_attr)
@@ -764,10 +757,6 @@ PRIVATE void mt_writing(hgobj gobj, const char *path)
     ELIF_EQ_SET_PRIV(in_session,                gobj_read_bool_attr)
     ELIF_EQ_SET_PRIV(send_disconnect,           gobj_read_bool_attr)
     ELIF_EQ_SET_PRIV(client,                    gobj_read_json_attr)
-
-    ELIF_EQ_SET_PRIV(gobj_mqtt_topics,          gobj_read_pointer_attr)
-    ELIF_EQ_SET_PRIV(gobj_mqtt_clients,         gobj_read_pointer_attr)
-    ELIF_EQ_SET_PRIV(gobj_mqtt_users,           gobj_read_pointer_attr)
 
     ELIF_EQ_SET_PRIV(max_inflight_messages,     gobj_read_integer_attr)
     ELIF_EQ_SET_PRIV(max_keepalive,             gobj_read_integer_attr)
@@ -3842,7 +3831,7 @@ PRIVATE int save_client(hgobj gobj)
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
     if(!priv->assigned_id && !empty_string(priv->client_id)) {
-        gobj_save_resource(priv->gobj_mqtt_clients, priv->client_id, priv->client, 0);
+        // TODO new gobj_save_resource(priv->gobj_mqtt_clients, priv->client_id, priv->client, 0);
     }
     return 0;
 }
@@ -3881,43 +3870,45 @@ PRIVATE int connect__on_authorised(
      *--------------------------------------------------------------*/
     json_t *client = 0;
     if(priv->assigned_id) {
-        json_t *jn_options = json_pack("{s:b}", "volatil", 1);
-        client = gobj_create_resource(priv->gobj_mqtt_clients, priv->client_id, 0, jn_options);
-        if(!client) {
-            gobj_log_error(gobj, 0,
-                "function",     "%s", __FUNCTION__,
-                "msgset",       "%s", MSGSET_INTERNAL_ERROR,
-                "msg",          "%s", "Mqtt auth: cannot create client",
-                NULL
-            );
-            JSON_DECREF(connack_props);
-            return -1;
-        }
-        kw_set_dict_value(gobj, client, "id", json_string(priv->client_id));
-        kw_set_dict_value(gobj, client, "assigned_id", json_true());
-        kw_set_dict_value(gobj, client, "subscriptions", json_object());
+        // TODO new
+        // json_t *jn_options = json_pack("{s:b}", "volatil", 1);
+        // client = gobj_create_resource(priv->gobj_mqtt_clients, priv->client_id, 0, jn_options);
+        // if(!client) {
+        //     gobj_log_error(gobj, 0,
+        //         "function",     "%s", __FUNCTION__,
+        //         "msgset",       "%s", MSGSET_INTERNAL_ERROR,
+        //         "msg",          "%s", "Mqtt auth: cannot create client",
+        //         NULL
+        //     );
+        //     JSON_DECREF(connack_props);
+        //     return -1;
+        // }
+        // kw_set_dict_value(gobj, client, "id", json_string(priv->client_id));
+        // kw_set_dict_value(gobj, client, "assigned_id", json_true());
+        // kw_set_dict_value(gobj, client, "subscriptions", json_object());
     } else {
-        client = gobj_get_resource(priv->gobj_mqtt_clients, priv->client_id, 0, 0); // NOT YOURS
-        if(!client) {
-            // New client (device)
-            json_t *kw_client = json_pack("{s:s, s:b, s:i, s:{}}",
-                "id", priv->client_id,
-                "assigned_id", 0,
-                "last_mid", 0,
-                "subscriptions"
-            );
-            client = gobj_create_resource(priv->gobj_mqtt_clients, priv->client_id, kw_client, 0);
-            if(!client) {
-                gobj_log_error(gobj, 0,
-                    "function",     "%s", __FUNCTION__,
-                    "msgset",       "%s", MSGSET_INTERNAL_ERROR,
-                    "msg",          "%s", "Mqtt auth: cannot create client",
-                    NULL
-                );
-                JSON_DECREF(connack_props);
-                return -1;
-            }
-        }
+        // TODO new
+        // client = gobj_get_resource(priv->gobj_mqtt_clients, priv->client_id, 0, 0); // NOT YOURS
+        // if(!client) {
+        //     // New client (device)
+        //     json_t *kw_client = json_pack("{s:s, s:b, s:i, s:{}}",
+        //         "id", priv->client_id,
+        //         "assigned_id", 0,
+        //         "last_mid", 0,
+        //         "subscriptions"
+        //     );
+        //     client = gobj_create_resource(priv->gobj_mqtt_clients, priv->client_id, kw_client, 0);
+        //     if(!client) {
+        //         gobj_log_error(gobj, 0,
+        //             "function",     "%s", __FUNCTION__,
+        //             "msgset",       "%s", MSGSET_INTERNAL_ERROR,
+        //             "msg",          "%s", "Mqtt auth: cannot create client",
+        //             NULL
+        //         );
+        //         JSON_DECREF(connack_props);
+        //         return -1;
+        //     }
+        // }
     }
     if(!client) {
         gobj_log_error(gobj, 0,
@@ -5067,15 +5058,17 @@ PRIVATE uint16_t mosquitto__mid_generate(hgobj gobj, const char *client_id)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
-    json_t *client = gobj_get_resource(priv->gobj_mqtt_clients, client_id, 0, 0);
-    uint16_t last_mid = (uint16_t)kw_get_int(gobj, client, "last_mid", 0, KW_REQUIRED);
-
+    // TODO new
+    // json_t *client = gobj_get_resource(priv->gobj_mqtt_clients, client_id, 0, 0);
+    // uint16_t last_mid = (uint16_t)kw_get_int(gobj, client, "last_mid", 0, KW_REQUIRED);
+    static uint16_t last_mid = 0;
     // TODO it seems that does nothing saving in resource
     last_mid++;
     if(last_mid == 0) {
         last_mid++;
     }
-    gobj_save_resource(priv->gobj_mqtt_clients, client_id, client, 0);
+    // TODO new
+    // gobj_save_resource(priv->gobj_mqtt_clients, client_id, client, 0);
 
     return last_mid;
 }
