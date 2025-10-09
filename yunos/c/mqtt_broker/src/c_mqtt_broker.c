@@ -245,7 +245,7 @@ PRIVATE int ac_timeout(hgobj gobj, const char *event, json_t *kw, hgobj src)
 {
 //    PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
-    printf("Timeout\n");
+    // printf("Timeout\n");
 
     KW_DECREF(kw);
     return 0;
