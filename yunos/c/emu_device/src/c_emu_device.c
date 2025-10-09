@@ -147,7 +147,7 @@ PRIVATE void mt_create(hgobj gobj)
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
 
-    priv->timer_interval = gobj_create("", C_TIMER, 0, gobj);
+    priv->timer_interval = gobj_create_pure_child(gobj_name(gobj), C_TIMER, 0, gobj);
     // TODO gobj_write_str_attr(priv->timer_interval, "timeout_event_name", EV_TICK2SEND);
 
     /*

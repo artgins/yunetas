@@ -145,7 +145,7 @@ PRIVATE void mt_create(hgobj gobj)
     SET_PRIV(timeout,               gobj_read_integer_attr)
     SET_PRIV(exit_on_error,             gobj_read_integer_attr)
 
-    priv->timer = gobj_create(gobj_name(gobj), C_TIMER, 0, gobj);
+    priv->timer = gobj_create_pure_child(gobj_name(gobj), C_TIMER, 0, gobj);
 
     /*----------------------------------------*
      *  Check AUTHZS

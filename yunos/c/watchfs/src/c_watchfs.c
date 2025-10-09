@@ -123,7 +123,7 @@ PRIVATE void mt_create(hgobj gobj)
     SET_PRIV(ignore_renamed_event,          gobj_read_bool_attr)
     SET_PRIV(info,                          gobj_read_bool_attr)
 
-    priv->timer = gobj_create("", C_TIMER, 0, gobj);
+    priv->timer = gobj_create_pure_child(gobj_name(gobj), C_TIMER, 0, gobj);
 }
 
 /***************************************************************************
