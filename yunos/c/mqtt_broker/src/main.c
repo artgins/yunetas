@@ -41,6 +41,13 @@ PRIVATE char fixed_config[]= "\
 
 PRIVATE char variable_config[]= "\
 {                                                                   \n\
+    '__json_config_variables__': {                                  \n\
+        '__mqtt_max_connections__': 100,                            \n\
+        '__mqtt_url__': 'mqtt://127.0.0.1:1881',                    \n\
+        '__mqtt_secure_url__': 'mqtts://0.0.0.0:1883',              \n\
+        '__mqtt_certificate__': '/yuneta/agent/certs/yuneta_agent.crt',     \n\
+        '__mqtt_certificate_key__': '/yuneta/agent/certs/yuneta_agent.key'  \n\
+    },                                                              \n\
     'environment': {                                                \n\
         'console_log_handlers': {                                   \n\
             'to_stdout': {                                          \n\
@@ -51,7 +58,7 @@ PRIVATE char variable_config[]= "\
         'daemon_log_handlers': {                                    \n\
             'to_file': {                                            \n\
                 'handler_type': 'file',                             \n\
-                'filename_mask': 'mqtt_broker-W.log',             \n\
+                'filename_mask': 'mqtt_broker-W.log',               \n\
                 'handler_options': 255                              \n\
             },                                                      \n\
             'to_udp': {                                             \n\
@@ -76,8 +83,8 @@ PRIVATE char variable_config[]= "\
     },                                                              \n\
     'services': [                                                   \n\
         {                                                           \n\
-            'name': 'mqtt_broker',                                \n\
-            'gclass': 'C_MQTT_BROKER',                            \n\
+            'name': 'mqtt_broker',                                  \n\
+            'gclass': 'C_MQTT_BROKER',                              \n\
             'default_service': true,                                \n\
             'autostart': true,                                      \n\
             'autoplay': false                                       \n\
@@ -88,9 +95,81 @@ PRIVATE char variable_config[]= "\
             'default_service': false,                               \n\
             'autostart': true,                                      \n\
             'autoplay': true                                        \n\
-        }                                                           \n\
-    ]                                                               \n\
-}                                                                   \n\
+        },                                                          \n\
+        {                                               \n\
+            'name': '__input_side__',                   \n\
+            'gclass': 'C_IOGATE',                       \n\
+            'autostart': true,                          \n\
+            'autoplay': false,                          \n\
+            'kw': {                                     \n\
+            },                                          \n\
+            'children': [                                       \n\
+                {                                               \n\
+                    'name': 'mqtt_server_port',                 \n\
+                    'gclass': 'C_TCP_S',                        \n\
+                    'as_service': true,                         \n\
+                    'kw': {                                     \n\
+                        'url': '(^^__mqtt_url__^^)',            \n\
+                        'child_tree_filter': {                      \n\
+                            'kw': {                                 \n\
+                                '__gclass_name__': 'C_CHANNEL',     \n\
+                                '__disabled__': false,              \n\
+                                'connected': false                  \n\
+                            }                                       \n\
+                        }                                           \n\
+                    }                                               \n\
+                },                                                  \n\
+                {                                                   \n\
+                    'name': 'mqtt_secure_port',                     \n\
+                    'gclass': 'C_TCP_S',                            \n\
+                    'as_service': true,                             \n\
+                    'kw': {                                         \n\
+                        'crypto': {                                 \n\
+                            'library': 'openssl',                   \n\
+                            'ssl_certificate': '(^^__mqtt_certificate__^^)',          \n\
+                            'ssl_certificate_key': '(^^__mqtt_certificate_key__^^)',  \n\
+                            'trace': false                          \n\
+                        },                                          \n\
+                        'url': '(^^__mqtt_secure_url__^^)',         \n\
+                        'child_tree_filter': {                      \n\
+                            'kw': {                                 \n\
+                                '__gclass_name__': 'C_CHANNEL',     \n\
+                                '__disabled__': false,              \n\
+                                'connected': false                  \n\
+                            }                                       \n\
+                        }                                           \n\
+                    }                                               \n\
+                }                                                   \n\
+            ],                                                      \n\
+            '[^^children^^]': {                                     \n\
+                '__range__': '(^^__mqtt_max_connections__^^)',      \n\
+                '__vars__': {                                       \n\
+                },                                                  \n\
+                '__content__': {                                    \n\
+                    'name': 'input-(^^__range__^^)',                \n\
+                    'gclass': 'C_CHANNEL',                          \n\
+                    'kw': {                                         \n\
+                    },                                              \n\
+                    'children': [                                   \n\
+                        {                                           \n\
+                            'name': 'input-(^^__range__^^)',        \n\
+                            'gclass': 'C_PROT_MQTT2',               \n\
+                            'kw': {                                 \n\
+                                'iamServer': true                   \n\
+                            },                                      \n\
+                            'children': [                           \n\
+                                {                                   \n\
+                                    'name': 'input-(^^__range__^^)',\n\
+                                    'gclass': 'C_TCP'               \n\
+                                }                                   \n\
+                            ]                                       \n\
+                        }                                       \n\
+                    ]                                           \n\
+                }                                               \n\
+            }                                                   \n\
+        }                                                       \n\
+    ]                                                           \n\
+}                                                               \n\
 ";
 
 /***************************************************************************
