@@ -8007,7 +8007,7 @@ PRIVATE int ac_connected(hgobj gobj, const char *event, json_t *kw, hgobj src)
          * send the request
          */
     }
-    set_timeout_periodic(priv->timer, priv->timeout_periodic);
+    //set_timeout_periodic(priv->timer, priv->timeout_periodic);
 
     priv->timer_handshake = start_sectimer(
         gobj_read_integer_attr(gobj, "timeout_handshake")
@@ -8517,29 +8517,29 @@ PRIVATE int create_gclass(gclass_name_t gclass_name)
      *          Define States
      *----------------------------------------*/
     ev_action_t st_disconnected[] = {
-        {EV_CONNECTED,        ac_connected,                       ST_WAITING_FRAME_HEADER},
-        {EV_DISCONNECTED,     ac_disconnected,                    0},
-        {EV_TIMEOUT_PERIODIC, ac_timeout_waiting_disconnected,    0},
-        {EV_STOPPED,          ac_stopped,                         0},
-        {EV_TX_READY,         0,                                  0},
+        {EV_CONNECTED,          ac_connected,                       ST_WAITING_FRAME_HEADER},
+        {EV_DISCONNECTED,       ac_disconnected,                    0},
+        {EV_TIMEOUT,            ac_timeout_waiting_disconnected,    0},
+        {EV_STOPPED,            ac_stopped,                         0},
+        {EV_TX_READY,           0,                                  0},
         {0,0,0}
     };
     ev_action_t st_waiting_frame_header[] = {
-        {EV_RX_DATA,          ac_process_frame_header,            0},
-        {EV_SEND_MESSAGE,     ac_send_message,                    0},
-        {EV_DISCONNECTED,     ac_disconnected,                    ST_DISCONNECTED},
-        {EV_TIMEOUT_PERIODIC, ac_timeout_waiting_frame_header,    0},
-        {EV_DROP,             ac_drop,                            0},
-        {EV_TX_READY,         0,                                  0},
+        {EV_RX_DATA,            ac_process_frame_header,            0},
+        {EV_SEND_MESSAGE,       ac_send_message,                    0},
+        {EV_DISCONNECTED,       ac_disconnected,                    ST_DISCONNECTED},
+        {EV_TIMEOUT,            ac_timeout_waiting_frame_header,    0},
+        {EV_DROP,               ac_drop,                            0},
+        {EV_TX_READY,           0,                                  0},
         {0,0,0}
     };
     ev_action_t st_waiting_payload_data[] = {
-        {EV_RX_DATA,          ac_process_payload_data,            0},
-        {EV_SEND_MESSAGE,     ac_send_message,                    0},
-        {EV_DISCONNECTED,     ac_disconnected,                    ST_DISCONNECTED},
-        {EV_TIMEOUT_PERIODIC, ac_timeout_waiting_payload_data,    0},
-        {EV_DROP,             ac_drop,                            0},
-        {EV_TX_READY,         0,                                  0},
+        {EV_RX_DATA,            ac_process_payload_data,            0},
+        {EV_SEND_MESSAGE,       ac_send_message,                    0},
+        {EV_DISCONNECTED,       ac_disconnected,                    ST_DISCONNECTED},
+        {EV_TIMEOUT,            ac_timeout_waiting_payload_data,    0},
+        {EV_DROP,               ac_drop,                            0},
+        {EV_TX_READY,           0,                                  0},
         {0,0,0}
     };
 
@@ -8553,7 +8553,7 @@ PRIVATE int create_gclass(gclass_name_t gclass_name)
     event_type_t event_types[] = {
         {EV_RX_DATA,            0},
         {EV_SEND_MESSAGE,       0},
-        {EV_TIMEOUT_PERIODIC,   0},
+        {EV_TIMEOUT,            0},
         {EV_TX_READY,           0},
         {EV_CONNECTED,          0},
         {EV_DISCONNECTED,       0},
