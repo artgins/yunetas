@@ -1764,8 +1764,8 @@ PRIVATE int expand_children_list(hgobj gobj, json_t *kw)
 
     json_int_t first;
     json_int_t second;
-    if(json_is_integer(__range__)) {
-        json_int_t max_range = json_integer_value(__range__);
+    if(json_is_integer(__range__) || json_is_string(__range__)) {
+        json_int_t max_range = kw_get_int(gobj, kw, "__range__", 1, KW_WILD_NUMBER);
         for(json_int_t range=1; range<=max_range; range++) {
             char temp[64];
             snprintf(temp, sizeof(temp), "%" JSON_INTEGER_FORMAT , range);
