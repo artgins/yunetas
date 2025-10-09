@@ -3730,7 +3730,7 @@ PRIVATE int send_simple_command(hgobj gobj, uint8_t command)
 /***************************************************************************
  *
  ***************************************************************************/
-PRIVATE int send_connack(
+PRIVATE int send__connack(
     hgobj gobj,
     uint8_t ack,
     uint8_t reason_code,
@@ -5617,7 +5617,7 @@ PRIVATE int connect__on_authorised(
         if(priv->protocol_version == mosq_p_mqtt5) {
             mqtt_property_add_int16(gobj, connack_props, MQTT_PROP_SERVER_KEEP_ALIVE, priv->keepalive);
         } else {
-            send_connack(gobj, connect_ack, CONNACK_REFUSED_IDENTIFIER_REJECTED, NULL);
+            send__connack(gobj, connect_ack, CONNACK_REFUSED_IDENTIFIER_REJECTED, NULL);
             JSON_DECREF(connack_props);
             return -1;
         }
@@ -5649,7 +5649,7 @@ PRIVATE int connect__on_authorised(
 
     //mosquitto__set_state(context, mosq_cs_active);
 
-    int ret = send_connack(gobj, connect_ack, CONNACK_ACCEPTED, connack_props);
+    int ret = send__connack(gobj, connect_ack, CONNACK_ACCEPTED, connack_props);
     if(ret == 0) {
         kw_set_dict_value(gobj, client, "isConnected", json_true());
         kw_set_dict_value(gobj,
@@ -5749,7 +5749,7 @@ PRIVATE int handle__connect(hgobj gobj, gbuffer_t *gbuf)
                 "version",      "%d", (int)version_byte,
                 NULL
             );
-            send_connack(gobj, 0, CONNACK_REFUSED_PROTOCOL_VERSION, NULL);
+            send__connack(gobj, 0, CONNACK_REFUSED_PROTOCOL_VERSION, NULL);
             return -1;
         }
         protocol_version = mosq_p_mqtt31;
@@ -5773,7 +5773,7 @@ PRIVATE int handle__connect(hgobj gobj, gbuffer_t *gbuf)
                 "version",      "%d", (int)version_byte,
                 NULL
             );
-            send_connack(gobj, 0, CONNACK_REFUSED_PROTOCOL_VERSION, NULL);
+            send__connack(gobj, 0, CONNACK_REFUSED_PROTOCOL_VERSION, NULL);
             return -1;
         }
         if(priv->frame_head.flags != 0x00) {
@@ -5870,7 +5870,7 @@ PRIVATE int handle__connect(hgobj gobj, gbuffer_t *gbuf)
             NULL
         );
         if(version_byte == mosq_p_mqtt5) {
-            send_connack(gobj, 0, MQTT_RC_RETAIN_NOT_SUPPORTED, NULL);
+            send__connack(gobj, 0, MQTT_RC_RETAIN_NOT_SUPPORTED, NULL);
         }
         return -1;
     }
@@ -5884,7 +5884,7 @@ PRIVATE int handle__connect(hgobj gobj, gbuffer_t *gbuf)
             NULL
         );
         if(version_byte == mosq_p_mqtt5) {
-            send_connack(gobj, 0, MQTT_RC_QOS_NOT_SUPPORTED, NULL);
+            send__connack(gobj, 0, MQTT_RC_QOS_NOT_SUPPORTED, NULL);
         }
         return -1;
     }
@@ -5970,7 +5970,7 @@ PRIVATE int handle__connect(hgobj gobj, gbuffer_t *gbuf)
                 "msg",          "%s", "Mqtt: no client_id",
                 NULL
             );
-            send_connack(gobj, 0, CONNACK_REFUSED_IDENTIFIER_REJECTED, NULL);
+            send__connack(gobj, 0, CONNACK_REFUSED_IDENTIFIER_REJECTED, NULL);
             return -1;
 
         } else { /* mqtt311/mqtt5 */
@@ -5984,9 +5984,9 @@ PRIVATE int handle__connect(hgobj gobj, gbuffer_t *gbuf)
                     NULL
                 );
                 if(protocol_version == mosq_p_mqtt311) {
-                    send_connack(gobj, 0, CONNACK_REFUSED_IDENTIFIER_REJECTED, NULL);
+                    send__connack(gobj, 0, CONNACK_REFUSED_IDENTIFIER_REJECTED, NULL);
                 } else {
-                    send_connack(gobj, 0, MQTT_RC_UNSPECIFIED, NULL);
+                    send__connack(gobj, 0, MQTT_RC_UNSPECIFIED, NULL);
                 }
                 return -1;
             } else {
@@ -6144,9 +6144,9 @@ PRIVATE int handle__connect(hgobj gobj, gbuffer_t *gbuf)
             gobj_write_str_attr(gobj, "client_id", username2);
         } else {
             if(protocol_version == mosq_p_mqtt5) {
-                send_connack(gobj, 0, MQTT_RC_NOT_AUTHORIZED, NULL);
+                send__connack(gobj, 0, MQTT_RC_NOT_AUTHORIZED, NULL);
             } else {
-                send_connack(gobj, 0, CONNACK_REFUSED_NOT_AUTHORIZED, NULL);
+                send__connack(gobj, 0, CONNACK_REFUSED_NOT_AUTHORIZED, NULL);
             }
             gobj_log_info(gobj, 0,
                 "function",     "%s", __FUNCTION__,
@@ -6167,14 +6167,14 @@ PRIVATE int handle__connect(hgobj gobj, gbuffer_t *gbuf)
             "client_id",    "%s", priv->client_id,
             NULL
         );
-        send_connack(gobj, 0, MQTT_RC_BAD_AUTHENTICATION_METHOD, NULL); // por contestar algo
+        send__connack(gobj, 0, MQTT_RC_BAD_AUTHENTICATION_METHOD, NULL); // por contestar algo
 
     } else {
         if(mqtt_check_password(gobj)<0) {
             if(priv->protocol_version == mosq_p_mqtt5) {
-                send_connack(gobj, 0, MQTT_RC_NOT_AUTHORIZED, NULL);
+                send__connack(gobj, 0, MQTT_RC_NOT_AUTHORIZED, NULL);
             } else {
-                send_connack(gobj, 0, CONNACK_REFUSED_NOT_AUTHORIZED, NULL);
+                send__connack(gobj, 0, CONNACK_REFUSED_NOT_AUTHORIZED, NULL);
             }
             gobj_log_info(gobj, 0,
                 "function",     "%s", __FUNCTION__,
@@ -7853,70 +7853,70 @@ PRIVATE int frame_completed(hgobj gobj)
     int ret = 0;
 
     switch(frame->command) {
-        case CMD_PINGREQ:
-            ret = handle__pingreq(gobj);        // common to server/client
-            break;
-        case CMD_PINGRESP:
-            ret = handle__pingresp(gobj);       // common to server/client
-            break;
-        case CMD_PUBACK:
-            ret = handle__pubackcomp(gobj, gbuf, "PUBACK"); // common to server/client
-            break;
-        case CMD_PUBCOMP:
-            ret = handle__pubackcomp(gobj, gbuf, "PUBCOMP"); // common to server/client
-            break;
-        case CMD_PUBLISH: // NOT common to server/client
-            if(priv->iamServer) {
-                ret = handle__publish_s(gobj, gbuf);
-            } else {
-                ret = handle__publish_c(gobj, gbuf);
-            }
-            break;
-        case CMD_PUBREC:
-            ret = handle__pubrec(gobj, gbuf);   // common to server/client
-            break;
-        case CMD_PUBREL:
-            ret = handle__pubrel(gobj, gbuf);   // common to server/client
-            break;
-        case CMD_DISCONNECT: // NOT common to server/client TODO
-            if(priv->iamServer) {
-                ret = handle__disconnect_s(gobj, gbuf);
-            } else {
-                ret = handle__disconnect_c(gobj, gbuf);
-            }
-            break;
-        case CMD_AUTH: // NOT common to server/client TODO
-            if(priv->iamServer) {
-                ret = handle__auth_s(gobj, gbuf);
-            } else {
-                ret = handle__auth_c(gobj, gbuf);
-            }
-        break;
+        // case CMD_PINGREQ:
+        //     ret = handle__pingreq(gobj);        // common to server/client
+        //     break;
+        // case CMD_PINGRESP:
+        //     ret = handle__pingresp(gobj);       // common to server/client
+        //     break;
+        // case CMD_PUBACK:
+        //     ret = handle__pubackcomp(gobj, gbuf, "PUBACK"); // common to server/client
+        //     break;
+        // case CMD_PUBCOMP:
+        //     ret = handle__pubackcomp(gobj, gbuf, "PUBCOMP"); // common to server/client
+        //     break;
+        // case CMD_PUBLISH: // NOT common to server/client
+        //     if(priv->iamServer) {
+        //         ret = handle__publish_s(gobj, gbuf);
+        //     } else {
+        //         ret = handle__publish_c(gobj, gbuf);
+        //     }
+        //     break;
+        // case CMD_PUBREC:
+        //     ret = handle__pubrec(gobj, gbuf);   // common to server/client
+        //     break;
+        // case CMD_PUBREL:
+        //     ret = handle__pubrel(gobj, gbuf);   // common to server/client
+        //     break;
+        // case CMD_DISCONNECT: // NOT common to server/client TODO
+        //     if(priv->iamServer) {
+        //         ret = handle__disconnect_s(gobj, gbuf);
+        //     } else {
+        //         ret = handle__disconnect_c(gobj, gbuf);
+        //     }
+        //     break;
+        // case CMD_AUTH: // NOT common to server/client TODO
+        //     if(priv->iamServer) {
+        //         ret = handle__auth_s(gobj, gbuf);
+        //     } else {
+        //         ret = handle__auth_c(gobj, gbuf);
+        //     }
+        // break;
 
         /*
          *  If server only with BRIDGE
          */
-        case CMD_CONNACK:
-            if(!priv->iamServer) {
-                ret = MOSQ_ERR_PROTOCOL;
-                break;
-            }
-            ret = handle__connack(gobj, gbuf);  // NOT common to server/client TODO
-            break;
-        case CMD_SUBACK:
-            if(!priv->iamServer) {
-                ret = MOSQ_ERR_PROTOCOL;
-                break;
-            }
-            ret = handle__suback(gobj, gbuf);   // common to server/client
-            break;
-        case CMD_UNSUBACK:
-            if(!priv->iamServer) {
-                ret = MOSQ_ERR_PROTOCOL;
-                break;
-            }
-            ret = handle__unsuback(gobj, gbuf); // common to server/client
-            break;
+        // case CMD_CONNACK:
+        //     if(!priv->iamServer) {
+        //         ret = MOSQ_ERR_PROTOCOL;
+        //         break;
+        //     }
+        //     ret = handle__connack(gobj, gbuf);  // NOT common to server/client TODO
+        //     break;
+        // case CMD_SUBACK:
+        //     if(!priv->iamServer) {
+        //         ret = MOSQ_ERR_PROTOCOL;
+        //         break;
+        //     }
+        //     ret = handle__suback(gobj, gbuf);   // common to server/client
+        //     break;
+        // case CMD_UNSUBACK:
+        //     if(!priv->iamServer) {
+        //         ret = MOSQ_ERR_PROTOCOL;
+        //         break;
+        //     }
+        //     ret = handle__unsuback(gobj, gbuf); // common to server/client
+        //     break;
 
         /*
          *  Only Server
@@ -7929,25 +7929,25 @@ PRIVATE int frame_completed(hgobj gobj)
             ret = handle__connect(gobj, gbuf);
             break;
 
-        case CMD_SUBSCRIBE:
-            if(!priv->iamServer) {
-                ret = MOSQ_ERR_PROTOCOL;
-                break;
-            }
-            ret = handle__subscribe(gobj, gbuf);
-            break;
-
-        case CMD_UNSUBSCRIBE:
-            if(!priv->iamServer) {
-                ret = MOSQ_ERR_PROTOCOL;
-                break;
-            }
-            ret  = handle__unsubscribe(gobj, gbuf);
-            break;
-
-        case CMD_RESERVED:
-            ret = MOSQ_ERR_PROTOCOL;
-            break;
+        // case CMD_SUBSCRIBE:
+        //     if(!priv->iamServer) {
+        //         ret = MOSQ_ERR_PROTOCOL;
+        //         break;
+        //     }
+        //     ret = handle__subscribe(gobj, gbuf);
+        //     break;
+        //
+        // case CMD_UNSUBSCRIBE:
+        //     if(!priv->iamServer) {
+        //         ret = MOSQ_ERR_PROTOCOL;
+        //         break;
+        //     }
+        //     ret  = handle__unsubscribe(gobj, gbuf);
+        //     break;
+        //
+        // case CMD_RESERVED:
+        //     ret = MOSQ_ERR_PROTOCOL;
+        //     break;
     }
 
     GBUFFER_DECREF(gbuf);
