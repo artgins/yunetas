@@ -501,7 +501,7 @@ PRIVATE sdata_desc_t attrs_table[] = {
 SDATA (DTP_STRING,      "url",              SDF_PERSIST,                "",     "Url to connect"),
 SDATA (DTP_STRING,      "cert_pem",         SDF_PERSIST,                "",     "SSL server certificate, PEM format"),
 SDATA (DTP_BOOLEAN,     "in_session",       SDF_VOLATIL|SDF_STATS,      0,      "CONNECT mqtt done"),
-SDATA (DTP_BOOLEAN,     "send__disconnect",  SDF_VOLATIL,                0,      "send DISCONNECT"),
+SDATA (DTP_BOOLEAN,     "send_disconnect",  SDF_VOLATIL,                0,      "send DISCONNECT"),
 SDATA (DTP_JSON,        "client",           SDF_VOLATIL,                0,      "client online"),
 SDATA (DTP_INTEGER,     "timeout_handshake",SDF_WR|SDF_PERSIST,       "5",      "Timeout to handshake in seconds"),
 SDATA (DTP_INTEGER,     "timeout_close",    SDF_WR|SDF_PERSIST,       "3",      "Timeout to close in seconds"),
@@ -626,7 +626,7 @@ typedef struct _PRIVATE_DATA {
      *  Dynamic data (reset per connection)
      */
     BOOL in_session;
-    BOOL send__disconnect;
+    BOOL send_disconnect;
     json_t *client;
     const char *protocol_name;
     uint32_t protocol_version;
@@ -705,7 +705,7 @@ PRIVATE void mt_create(hgobj gobj)
      */
     SET_PRIV(timeout_periodic,          gobj_read_integer_attr)
     SET_PRIV(in_session,                gobj_read_bool_attr)
-    SET_PRIV(send__disconnect,           gobj_read_bool_attr)
+    SET_PRIV(send_disconnect,           gobj_read_bool_attr)
     SET_PRIV(client,                    gobj_read_json_attr)
 
     SET_PRIV(max_inflight_messages,     gobj_read_integer_attr)
@@ -756,7 +756,7 @@ PRIVATE void mt_writing(hgobj gobj, const char *path)
 
     IF_EQ_SET_PRIV(timeout_periodic,            gobj_read_integer_attr)
     ELIF_EQ_SET_PRIV(in_session,                gobj_read_bool_attr)
-    ELIF_EQ_SET_PRIV(send__disconnect,           gobj_read_bool_attr)
+    ELIF_EQ_SET_PRIV(send_disconnect,           gobj_read_bool_attr)
     ELIF_EQ_SET_PRIV(client,                    gobj_read_json_attr)
 
     ELIF_EQ_SET_PRIV(max_inflight_messages,     gobj_read_integer_attr)
@@ -1302,7 +1302,7 @@ PRIVATE void ws_close(hgobj gobj, int reason)
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
     if(priv->in_session) {
-        if(priv->send__disconnect) {
+        if(priv->send_disconnect) {
             // Fallan los test con el send__disconnect
             //send__disconnect(gobj, code, NULL);
         }
@@ -5096,7 +5096,7 @@ PRIVATE int ac_connected(hgobj gobj, const char *event, json_t *kw, hgobj src)
 
     gobj_reset_volatil_attrs(gobj);
     start_wait_frame_header(gobj);
-    priv->send__disconnect = FALSE;
+    priv->send_disconnect = FALSE;
     gobj_write_bool_attr(gobj, "connected", TRUE);
     GBUFFER_DECREF(priv->gbuf_will_payload);
     priv->jn_alias_list = json_object();
