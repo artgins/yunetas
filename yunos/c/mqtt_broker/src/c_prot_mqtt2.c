@@ -644,7 +644,7 @@ typedef struct _PRIVATE_DATA {
     uint32_t keepalive;
     const char *auth_method;
     const char *auth_data;
-    uint32_t state; // TODO enum mosquitto_client_state state;
+    mosquitto_client_state_t state;
     uint32_t msgs_out_inflight_maximum;
     uint32_t msgs_out_inflight_quota;
     uint32_t maximum_packet_size;
