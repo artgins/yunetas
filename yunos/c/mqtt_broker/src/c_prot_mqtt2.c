@@ -435,7 +435,7 @@ typedef struct _FRAME_HEAD {
 /***************************************************************************
  *              Prototypes
  ***************************************************************************/
-PRIVATE int send_disconnect(
+PRIVATE int send__disconnect(
     hgobj gobj,
     uint8_t reason_code,
     json_t *properties
@@ -501,7 +501,7 @@ PRIVATE sdata_desc_t attrs_table[] = {
 SDATA (DTP_STRING,      "url",              SDF_PERSIST,                "",     "Url to connect"),
 SDATA (DTP_STRING,      "cert_pem",         SDF_PERSIST,                "",     "SSL server certificate, PEM format"),
 SDATA (DTP_BOOLEAN,     "in_session",       SDF_VOLATIL|SDF_STATS,      0,      "CONNECT mqtt done"),
-SDATA (DTP_BOOLEAN,     "send_disconnect",  SDF_VOLATIL,                0,      "send DISCONNECT"),
+SDATA (DTP_BOOLEAN,     "send__disconnect",  SDF_VOLATIL,                0,      "send DISCONNECT"),
 SDATA (DTP_JSON,        "client",           SDF_VOLATIL,                0,      "client online"),
 SDATA (DTP_INTEGER,     "timeout_handshake",SDF_WR|SDF_PERSIST,       "5",      "Timeout to handshake in seconds"),
 SDATA (DTP_INTEGER,     "timeout_close",    SDF_WR|SDF_PERSIST,       "3",      "Timeout to close in seconds"),
@@ -626,7 +626,7 @@ typedef struct _PRIVATE_DATA {
      *  Dynamic data (reset per connection)
      */
     BOOL in_session;
-    BOOL send_disconnect;
+    BOOL send__disconnect;
     json_t *client;
     const char *protocol_name;
     uint32_t protocol_version;
@@ -705,7 +705,7 @@ PRIVATE void mt_create(hgobj gobj)
      */
     SET_PRIV(timeout_periodic,          gobj_read_integer_attr)
     SET_PRIV(in_session,                gobj_read_bool_attr)
-    SET_PRIV(send_disconnect,           gobj_read_bool_attr)
+    SET_PRIV(send__disconnect,           gobj_read_bool_attr)
     SET_PRIV(client,                    gobj_read_json_attr)
 
     SET_PRIV(max_inflight_messages,     gobj_read_integer_attr)
@@ -756,7 +756,7 @@ PRIVATE void mt_writing(hgobj gobj, const char *path)
 
     IF_EQ_SET_PRIV(timeout_periodic,            gobj_read_integer_attr)
     ELIF_EQ_SET_PRIV(in_session,                gobj_read_bool_attr)
-    ELIF_EQ_SET_PRIV(send_disconnect,           gobj_read_bool_attr)
+    ELIF_EQ_SET_PRIV(send__disconnect,           gobj_read_bool_attr)
     ELIF_EQ_SET_PRIV(client,                    gobj_read_json_attr)
 
     ELIF_EQ_SET_PRIV(max_inflight_messages,     gobj_read_integer_attr)
@@ -1302,9 +1302,9 @@ PRIVATE void ws_close(hgobj gobj, int reason)
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
     if(priv->in_session) {
-        if(priv->send_disconnect) {
-            // Fallan los test con el send_disconnect
-            //send_disconnect(gobj, code, NULL);
+        if(priv->send__disconnect) {
+            // Fallan los test con el send__disconnect
+            //send__disconnect(gobj, code, NULL);
         }
     }
 
@@ -1658,7 +1658,7 @@ PRIVATE size_t framehead_consume(
                     NULL
                 );
                 if(priv->in_session) {
-                    send_disconnect(gobj, MQTT_RC_PROTOCOL_ERROR, NULL);
+                    send__disconnect(gobj, MQTT_RC_PROTOCOL_ERROR, NULL);
                 }
                 return 0;
         }
@@ -3210,7 +3210,7 @@ PRIVATE int send__connack(
 /***************************************************************************
  *
  ***************************************************************************/
-PRIVATE int send_disconnect(
+PRIVATE int send__disconnect(
     hgobj gobj,
     uint8_t reason_code,
     json_t *properties
@@ -3218,7 +3218,7 @@ PRIVATE int send_disconnect(
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
-    gobj_write_bool_attr(gobj, "send_disconnect", FALSE);
+    gobj_write_bool_attr(gobj, "send__disconnect", FALSE);
 
     if(gobj_trace_level(gobj) & SHOW_DECODE) {
         if(priv->iamServer) {
@@ -4075,7 +4075,7 @@ PRIVATE int connect__on_authorised(
         );
         gobj_write_bool_attr(gobj, "in_session", TRUE);
         gobj_write_json_attr(gobj, "client", client);
-        gobj_write_bool_attr(gobj, "send_disconnect", TRUE);
+        gobj_write_bool_attr(gobj, "send__disconnect", TRUE);
         priv->must_broadcast_on_close = TRUE;
         priv->client = client;
         save_client(gobj);
@@ -4425,6 +4425,9 @@ PRIVATE int handle__connect(hgobj gobj, gbuffer_t *gbuf)
     gobj_write_bool_attr(gobj, "assigned_id", assigned_id);
     gobj_write_strn_attr(gobj, "client_id", client_id, client_id_len);
 
+    /*-------------------------------------------*
+     *      Will
+     *-------------------------------------------*/
     if(will) {
         if(will_read(gobj, gbuf)<0) {
             gobj_log_error(gobj, 0,
@@ -5032,19 +5035,19 @@ PRIVATE int frame_completed(hgobj gobj)
 
     if(frame->command != CMD_CONNECT && priv->protocol_version == mosq_p_mqtt5) {
         if(ret == MOSQ_ERR_PROTOCOL || ret == MOSQ_ERR_DUPLICATE_PROPERTY) {
-            send_disconnect(gobj, MQTT_RC_PROTOCOL_ERROR, NULL);
+            send__disconnect(gobj, MQTT_RC_PROTOCOL_ERROR, NULL);
         } else if(ret == MOSQ_ERR_MALFORMED_PACKET) {
-            send_disconnect(gobj, MQTT_RC_MALFORMED_PACKET, NULL);
+            send__disconnect(gobj, MQTT_RC_MALFORMED_PACKET, NULL);
         } else if(ret == MOSQ_ERR_QOS_NOT_SUPPORTED) {
-            send_disconnect(gobj, MQTT_RC_QOS_NOT_SUPPORTED, NULL);
+            send__disconnect(gobj, MQTT_RC_QOS_NOT_SUPPORTED, NULL);
         } else if(ret == MOSQ_ERR_RETAIN_NOT_SUPPORTED) {
-            send_disconnect(gobj, MQTT_RC_RETAIN_NOT_SUPPORTED, NULL);
+            send__disconnect(gobj, MQTT_RC_RETAIN_NOT_SUPPORTED, NULL);
         } else if(ret == MOSQ_ERR_TOPIC_ALIAS_INVALID) {
-            send_disconnect(gobj, MQTT_RC_TOPIC_ALIAS_INVALID, NULL);
+            send__disconnect(gobj, MQTT_RC_TOPIC_ALIAS_INVALID, NULL);
         } else if(ret == MOSQ_ERR_UNKNOWN || ret == MOSQ_ERR_NOMEM) {
-            send_disconnect(gobj, MQTT_RC_UNSPECIFIED, NULL);
+            send__disconnect(gobj, MQTT_RC_UNSPECIFIED, NULL);
         } else if(ret<0) {
-            send_disconnect(gobj, MQTT_RC_PROTOCOL_ERROR, NULL);
+            send__disconnect(gobj, MQTT_RC_PROTOCOL_ERROR, NULL);
         }
     }
 
@@ -5093,7 +5096,7 @@ PRIVATE int ac_connected(hgobj gobj, const char *event, json_t *kw, hgobj src)
 
     gobj_reset_volatil_attrs(gobj);
     start_wait_frame_header(gobj);
-    priv->send_disconnect = FALSE;
+    priv->send__disconnect = FALSE;
     gobj_write_bool_attr(gobj, "connected", TRUE);
     GBUFFER_DECREF(priv->gbuf_will_payload);
     priv->jn_alias_list = json_object();
@@ -5287,7 +5290,7 @@ PRIVATE int ac_process_frame_header(hgobj gobj, const char *event, json_t *kw, h
 
             } else {
                 if(frame_completed(gobj)<0) {
-                    //priv->send_disconnect = TRUE;
+                    //priv->send__disconnect = TRUE;
                     ws_close(gobj, MQTT_RC_PROTOCOL_ERROR);
                     break;
                 }
