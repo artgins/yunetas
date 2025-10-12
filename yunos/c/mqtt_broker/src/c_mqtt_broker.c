@@ -90,6 +90,7 @@ SDATA_END()
 typedef struct _PRIVATE_DATA {
     hgobj timer;
     int32_t timeout;
+    hgobj gobj_input_side;
 } PRIVATE_DATA;
 
 
@@ -171,6 +172,13 @@ PRIVATE int mt_play(hgobj gobj)
 
     set_timeout(priv->timer, priv->timeout);
 
+    /*-------------------------*
+     *      Start services
+     *-------------------------*/
+    priv->gobj_input_side = gobj_find_service("__input_side__", TRUE);
+    gobj_subscribe_event(priv->gobj_input_side, 0, 0, gobj);
+    gobj_start_tree(priv->gobj_input_side);
+
     return 0;
 }
 
@@ -180,6 +188,16 @@ PRIVATE int mt_play(hgobj gobj)
 PRIVATE int mt_pause(hgobj gobj)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    /*---------------------------------------*
+     *      Stop services
+     *---------------------------------------*/
+    if(priv->gobj_input_side) {
+        if(gobj_is_playing(priv->gobj_input_side)) {
+            gobj_pause(priv->gobj_input_side);
+        }
+        gobj_stop_tree(priv->gobj_input_side);
+    }
 
     clear_timeout(priv->timer);
 
@@ -237,6 +255,42 @@ PRIVATE json_t *cmd_authzs(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
 
 
 
+
+/***************************************************************************
+ *  Identity_card on from
+ *      mqtt clients (__top_side__)
+ ***************************************************************************/
+PRIVATE int ac_on_open(hgobj gobj, const char *event, json_t *kw, hgobj src)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    if(src != priv->gobj_input_side) {
+        gobj_log_error(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_INTERNAL_ERROR,
+            "msg",          "%s", "on_open NOT from GOBJ_TOP_SIDE",
+            "src",          "%s", gobj_full_name(src),
+            NULL
+        );
+    }
+
+    KW_DECREF(kw);
+    return 0;
+}
+
+/***************************************************************************
+ *  Identity_card off from
+ *      mqtt clients (__input_side__)
+ ***************************************************************************/
+PRIVATE int ac_on_close(hgobj gobj, const char *event, json_t *kw, hgobj src)
+{
+    // PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    // TODO do will job ?
+
+    KW_DECREF(kw);
+    return 0;
+}
 
 /***************************************************************************
  *
@@ -298,6 +352,8 @@ PRIVATE int create_gclass(gclass_name_t gclass_name)
      *      States
      *------------------------*/
     ev_action_t st_idle[] = {
+        {EV_ON_OPEN,                ac_on_open,              0},
+        {EV_ON_CLOSE,               ac_on_close,             0},
         {EV_TIMEOUT,                ac_timeout,              0},
         {0,0,0}
     };
@@ -311,6 +367,8 @@ PRIVATE int create_gclass(gclass_name_t gclass_name)
      *      Events
      *------------------------*/
     event_type_t event_types[] = {
+        {EV_ON_OPEN,                0},
+        {EV_ON_CLOSE,               0},
         {EV_TIMEOUT,                0},
         {NULL, 0}
     };
