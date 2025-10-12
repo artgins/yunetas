@@ -274,6 +274,14 @@ PRIVATE int ac_on_open(hgobj gobj, const char *event, json_t *kw, hgobj src)
         );
     }
 
+    if(gobj_trace_level(gobj) & TRACE_MESSAGES) {
+        gobj_trace_json(
+            gobj,
+            kw, // not own
+            "ON_OPEN %s", gobj_short_name(src)
+        );
+    }
+
     KW_DECREF(kw);
     return 0;
 }
@@ -285,6 +293,14 @@ PRIVATE int ac_on_open(hgobj gobj, const char *event, json_t *kw, hgobj src)
 PRIVATE int ac_on_close(hgobj gobj, const char *event, json_t *kw, hgobj src)
 {
     // PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    if(gobj_trace_level(gobj) & TRACE_MESSAGES) {
+        gobj_trace_json(
+            gobj,
+            kw, // not own
+            "ON_CLOSE %s", gobj_short_name(src)
+        );
+    }
 
     // TODO do will job ?
 

@@ -569,13 +569,11 @@ SDATA_END()
  *      GClass trace levels
  *---------------------------------------------*/
 enum {
-    TRACE_CONNECT_DISCONNECT    = 0x0001,
-    TRAFFIC                     = 0x0002,
-    SHOW_DECODE                 = 0x0004,
-    TRAFFIC_PAYLOAD             = 0x0008,
+    TRAFFIC                     = 0x0001,
+    SHOW_DECODE                 = 0x0002,
+    TRAFFIC_PAYLOAD             = 0x0004,
 };
 PRIVATE const trace_level_t s_user_trace_level[16] = {
-{"connections",     "Trace connections and disconnections"},
 {"traffic",         "Trace input/output data (without payload"},
 {"show-decode",     "Print decode"},
 {"traffic-payload", "Trace payload data"},
@@ -3926,38 +3924,6 @@ PRIVATE int connect__on_authorised(
     //     }
     // }
 
-    /*-----------------------------*
-     *  Trace connection
-     *-----------------------------*/
-    if(gobj_trace_level(gobj) & TRACE_CONNECT_DISCONNECT) {
-        gobj_log_info(gobj, 0,
-            "msgset",           "%s", MSGSET_CONNECT_DISCONNECT,
-            "msg",              "%s", "Mqtt: New CLIENT/BRIDGE connected",
-            "is_bridge",        "%d", priv->is_bridge,
-            "client_id",        "%s", priv->client_id,
-            "username",         "%s", priv->username?priv->username:"",
-            "protocol",         "%d", (int)priv->protocol_version,
-            "protocol_name",    "%s", priv->protocol_name,
-            "clean_start",      "%d", (int)priv->clean_start,
-            "keepalive",        "%d", (int)priv->keepalive,
-            "session_expiry_interval", "%d", (int)priv->session_expiry_interval,
-            NULL
-        );
-
-        if(priv->will) {
-            gobj_log_info(gobj, 0,
-                "msgset",               "%s", MSGSET_CONNECT_DISCONNECT,
-                "msg",                  "%s", "Mqtt: Will",
-                "client_id",            "%s", priv->client_id,
-                "username",             "%s", priv->username?priv->username:"",
-                "topic",                "%s", priv->will_topic,
-                "will payload len",     "%ld", (long)gbuffer_leftbytes(priv->gbuf_will_payload),
-                "will_retain",          "%d", priv->will_retain,
-                "will_qos",             "%d", priv->will_qos,
-                NULL
-            );
-        }
-    }
 
 //     kw_set_dict_value(gobj, client, "ping_t", json_integer(0));
 //     kw_set_dict_value(gobj, client, "is_dropping", json_false());
@@ -4435,7 +4401,7 @@ PRIVATE int handle__connect(hgobj gobj, gbuffer_t *gbuf)
     }
 
     if(gobj_trace_level(gobj) & SHOW_DECODE) {
-        gobj_trace_msg(gobj,
+        trace_msg0(
         "  👈 CONNECT\n"
         "   client '%s', assigned_id %d\n"
         "   username '%s', password '%s'\n"

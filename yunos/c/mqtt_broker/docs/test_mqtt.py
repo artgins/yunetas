@@ -133,7 +133,7 @@ def main():
         s.sendall(bytearray(p))
         print("Sending connect to %r:%r %r" % (ip, port, p))
         rx = s.recv(1024)
-        print("Received len %d, %r" % (len(rx), rx))
+        print("Received 1 len %d, %r" % (len(rx), rx))
 
         p = extract_hexa(data_subscribe)
         s.sendall(bytearray(p))
@@ -142,7 +142,7 @@ def main():
         s.sendall(bytearray(p))
         print("Sending connect to %r:%r %r" % (ip, port, p))
         rx = s.recv(1024)
-        print("Received len %d, %r" % (len(rx), rx))
+        print("Received 2 len %d, %r" % (len(rx), rx))
 
         p = extract_hexa(data_publish)
         s.sendall(bytearray(p))
@@ -151,7 +151,7 @@ def main():
         s.sendall(bytearray(p))
         print("Sending connect to %r:%r %r" % (ip, port, p))
         rx = s.recv(1024)
-        print("Received len %d, %r" % (len(rx), rx))
+        print("Received 3 len %d, %r" % (len(rx), rx))
 
         sleep(100000000)
         break
