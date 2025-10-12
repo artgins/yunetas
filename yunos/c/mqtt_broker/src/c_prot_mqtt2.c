@@ -3871,14 +3871,14 @@ PRIVATE int connect__on_authorised(
             "will_delay_interval",  (int)priv->will_delay_interval,
             "will_expiry_interval", (int)priv->will_expiry_interval
         );
-        // TODO if(priv->gbuf_will_payload) {
-        //     gbuffer_incref(priv->gbuf_will_payload);
-        //     json_object_set_new(
-        //         jn_will,
-        //         "__gbuffer__",
-        //         json_integer((json_int_t)(uintptr_t)priv->gbuf_will_payload)
-        //     );
-        // }
+        if(priv->gbuf_will_payload) {
+            json_object_set_new(
+                jn_will,
+                "gbuffer",
+                json_integer((json_int_t)(uintptr_t)priv->gbuf_will_payload)
+            );
+            priv->gbuf_will_payload = NULL;
+        }
         json_object_update_new(client, jn_will);
     }
 
