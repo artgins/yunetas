@@ -245,14 +245,14 @@ PRIVATE int ac_rx_data(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
         );
     }
 
-    size_t pend_size = 0;
-    size_t len = gbuffer_leftbytes(gbuf);
+    ssize_t pend_size = 0;
+    ssize_t len = (ssize_t)gbuffer_leftbytes(gbuf);
     while(len>0) {
         if(priv->last_pkt) {
             /*--------------------*
               *   Estoy a medias
               *--------------------*/
-            pend_size = gbuffer_freebytes(priv->last_pkt); /* mira lo que falta */
+            pend_size = (ssize_t)gbuffer_freebytes(priv->last_pkt); /* mira lo que falta */
             if(len >= pend_size) {
                 /*----------------------------------------*
                  *   Justo lo que falta o
@@ -286,7 +286,7 @@ PRIVATE int ac_rx_data(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
             /*--------------------*
              *   New packet
              *--------------------*/
-            size_t need2header = sizeof(HEADER_ERPL4) - priv->idx_header;
+            ssize_t need2header = (ssize_t)(sizeof(HEADER_ERPL4) - priv->idx_header);
             if(len < need2header) {
                 memcpy(
                     priv->bf_header_erpl4 + priv->idx_header,
