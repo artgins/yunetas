@@ -258,7 +258,7 @@ PRIVATE json_t *cmd_authzs(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
 
 /***************************************************************************
  *  Identity_card on from
- *      mqtt clients (__top_side__)
+ *      mqtt clients (__input_side__)
  ***************************************************************************/
 PRIVATE int ac_on_open(hgobj gobj, const char *event, json_t *kw, hgobj src)
 {
