@@ -97,8 +97,7 @@ typedef struct _PRIVATE_DATA {
     int32_t timeout;
     hgobj gobj_input_side;
 
-    hgobj gobj_tranger_queues;
-    json_t *tranger;
+    hgobj gobj_tranger_broker;
 } PRIVATE_DATA;
 
 
@@ -190,16 +189,6 @@ PRIVATE int mt_play(hgobj gobj)
     /*--------------------------------*
      *      Tranger database
      *--------------------------------*/
-    if(priv->tranger) {
-        gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
-            "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_INTERNAL_ERROR,
-            "msg",          "%s", "tranger NOT NULL",
-            NULL
-        );
-        tranger2_shutdown(priv->tranger);
-    }
-
     const char *path = gobj_read_str_attr(gobj, "tranger_path");
     if(empty_string(path)) {
         gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
@@ -223,7 +212,7 @@ PRIVATE int mt_play(hgobj gobj)
     }
 
     /*---------------------------------*
-     *      Open Timeranger queues
+     *      Open Timeranger
      *---------------------------------*/
     json_t *kw_tranger = json_pack("{s:s, s:s, s:s, s:b, s:I, s:i}",
         "path", path,
@@ -235,14 +224,13 @@ PRIVATE int mt_play(hgobj gobj)
     );
     char name[NAME_MAX];
     snprintf(name, sizeof(name), "tranger_%s", gobj_name(gobj));
-    priv->gobj_tranger_queues = gobj_create_service(
+    priv->gobj_tranger_broker = gobj_create_service(
         name,
         C_TRANGER,
         kw_tranger,
         gobj
     );
-    gobj_start(priv->gobj_tranger_queues);
-    priv->tranger = gobj_read_pointer_attr(priv->gobj_tranger_queues, "tranger");
+    gobj_start(priv->gobj_tranger_broker);
 
     // TODO
     // priv->trq_msgs = trq_open(
@@ -276,15 +264,14 @@ PRIVATE int mt_pause(hgobj gobj)
     }
 
     /*----------------------------------*
-     *      Close Timeranger queues
+     *      Close Timeranger
      *----------------------------------*/
     // TODO
     // EXEC_AND_RESET(trq_close, priv->trq_msgs);
 
-    gobj_stop(priv->gobj_tranger_queues);
+    gobj_stop(priv->gobj_tranger_broker);
 
-    EXEC_AND_RESET(gobj_destroy, priv->gobj_tranger_queues);
-    priv->tranger = 0;
+    EXEC_AND_RESET(gobj_destroy, priv->gobj_tranger_broker);
 
     clear_timeout(priv->timer);
 
@@ -359,6 +346,29 @@ PRIVATE int open_queue(hgobj gobj)
 /***************************************************************************
  *  Identity_card on from
  *      mqtt clients (__input_side__)
+ *
+    {
+        "client_id": "DVES_40AC66",
+        "assigned_id": false,
+        "clean_start": true,
+        "protocol_version": 2,
+        "protocol_name": "MQTT",
+        "keepalive": 30,
+        "session_expiry_interval": 0,
+        "max_qos": 2,
+        "will": true,
+        "will_topic": "tele/tasmota_40AC66/LWT",
+        "will_retain": true,
+        "will_qos": 1,
+        "will_delay_interval": 0,
+        "will_expiry_interval": 0,
+        "gbuffer": 95091873745312,
+        "__temp__": {
+            "channel": "input-1",
+            "channel_gobj": 95091872991280
+        }
+    }
+ *
  ***************************************************************************/
 PRIVATE int ac_on_open(hgobj gobj, const char *event, json_t *kw, hgobj src)
 {

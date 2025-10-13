@@ -3941,9 +3941,6 @@ PRIVATE int connect__on_authorised(
 
     send__connack(gobj, connect_ack, CONNACK_ACCEPTED, connack_props);
 
-    kw_set_dict_value(gobj,
-        client, "_gobj", json_integer((json_int_t)(uintptr_t)(gobj))
-    );
     gobj_write_bool_attr(gobj, "in_session", TRUE);
     gobj_write_bool_attr(gobj, "send_disconnect", TRUE);
     priv->must_broadcast_on_close = TRUE;
