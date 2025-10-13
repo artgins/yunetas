@@ -24,8 +24,6 @@
 /***************************************************************************
  *              Prototypes
  ***************************************************************************/
-PRIVATE int open_queue(hgobj gobj);
-PRIVATE int close_queue(hgobj gobj);
 
 /***************************************************************************
  *          Data: config, public data, private data
@@ -277,7 +275,16 @@ PRIVATE int mt_pause(hgobj gobj)
         gobj_stop_tree(priv->gobj_input_side);
     }
 
-    close_queue(gobj);
+    /*----------------------------------*
+     *      Close Timeranger queues
+     *----------------------------------*/
+    // TODO
+    // EXEC_AND_RESET(trq_close, priv->trq_msgs);
+
+    gobj_stop(priv->gobj_tranger_queues);
+
+    EXEC_AND_RESET(gobj_destroy, priv->gobj_tranger_queues);
+    priv->tranger = 0;
 
     clear_timeout(priv->timer);
 
@@ -335,27 +342,6 @@ PRIVATE json_t *cmd_authzs(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
 PRIVATE int open_queue(hgobj gobj)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
-
-
-    return 0;
-}
-
-/***************************************************************************
- *
- ***************************************************************************/
-PRIVATE int close_queue(hgobj gobj)
-{
-    PRIVATE_DATA *priv = gobj_priv_data(gobj);
-
-    // TODO
-    // EXEC_AND_RESET(trq_close, priv->trq_msgs);
-
-    /*----------------------------------*
-     *      Close Timeranger queues
-     *----------------------------------*/
-    gobj_stop(priv->gobj_tranger_queues);
-    EXEC_AND_RESET(gobj_destroy, priv->gobj_tranger_queues);
-    priv->tranger = 0;
 
     return 0;
 }
