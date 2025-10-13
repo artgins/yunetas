@@ -416,28 +416,29 @@ PRIVATE int ac_on_open(hgobj gobj, const char *event, json_t *kw, hgobj src)
         gobj
     );
 
-    json_int_t result =  COMMAND_RESULT(gobj, jn_response);
-    if(result < 0) {
-        JSON_DECREF(jn_response)
-        jn_response = gobj_command(
-            priv->gobj_tranger_broker,
-            "create-topic", // idempotent function
-            json_pack("{s:s}",
-                "topic_name",
-                client_id
-            ),
-            gobj
-        );
-    }
-    if(result < 0) {
-        const char *comment = COMMAND_COMMENT(gobj, jn_response);
-        KW_DECREF(kw);
-        return -1;
-    }
-
-    json_t *topic = COMMAND_DATA(gobj, jn_response);
-
-
+    // json_int_t result =  COMMAND_RESULT(gobj, jn_response);
+    // if(result < 0) {
+    //     JSON_DECREF(jn_response)
+    //     jn_response = gobj_command(
+    //         priv->gobj_tranger_broker,
+    //         "create-topic", // idempotent function
+    //         json_pack("{s:s}",
+    //             "topic_name",
+    //             client_id
+    //         ),
+    //         gobj
+    //     );
+    //     result =  COMMAND_RESULT(gobj, jn_response);
+    // }
+    // if(result < 0) {
+    //     const char *comment = COMMAND_COMMENT(gobj, jn_response);
+    //     KW_DECREF(kw);
+    //     return -1;
+    // }
+    //
+    // json_t *topic = COMMAND_DATA(gobj, jn_response);
+    //
+    //
     JSON_DECREF(jn_response)
     KW_DECREF(kw);
     return 0;
