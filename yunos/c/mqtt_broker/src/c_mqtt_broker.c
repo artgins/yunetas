@@ -356,13 +356,15 @@ PRIVATE int open_queue(hgobj gobj)
         "keepalive": 30,
         "session_expiry_interval": 0,
         "max_qos": 2,
+                                    #^^ the will fields are optionals
         "will": true,
         "will_topic": "tele/tasmota_40AC66/LWT",
         "will_retain": true,
         "will_qos": 1,
         "will_delay_interval": 0,
         "will_expiry_interval": 0,
-        "gbuffer": 95091873745312,
+        "gbuffer": 95091873745312,  #^^ it contents the will payload
+
         "__temp__": {
             "channel": "input-1",
             "channel_gobj": 95091872991280
