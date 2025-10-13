@@ -4965,13 +4965,6 @@ PRIVATE const GMETHODS gmt = {
     .mt_pause = mt_pause,
 };
 
-/*---------------------------------------------*
- *          Local methods table
- *---------------------------------------------*/
-PRIVATE LMETHOD lmt[] = {
-    {0, 0, 0}
-};
-
 /*------------------------*
  *      GClass name
  *------------------------*/
@@ -5029,7 +5022,7 @@ PRIVATE int create_gclass(gclass_name_t gclass_name)
         event_types,
         states,
         &gmt,
-        lmt,
+        0, //lmt,
         attrs_table,
         sizeof(PRIVATE_DATA),
         authz_table,

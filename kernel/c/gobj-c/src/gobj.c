@@ -4123,7 +4123,7 @@ PRIVATE json_t *gobj_check_required_attrs(gobj_t *gobj)
 PUBLIC json_t *gobj_local_method(
     hgobj gobj_,
     const char *lmethod,
-    json_t *kw,
+    json_t *kw, // must be owned
     hgobj src
 )
 {
@@ -4138,6 +4138,7 @@ PUBLIC json_t *gobj_local_method(
             "msg",          "%s", "hgobj NULL or DESTROYED",
             NULL
         );
+        KW_DECREF(kw)
         return 0;
     }
 
@@ -4159,6 +4160,8 @@ PUBLIC json_t *gobj_local_method(
         "lmethod",      "%s", lmethod,
         NULL
     );
+
+    KW_DECREF(kw)
     return 0;
 }
 

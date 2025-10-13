@@ -909,6 +909,7 @@ PRIVATE json_t *channels_opened(hgobj gobj, const char *lmethod, json_t *kw, hgo
     }
     JSON_DECREF(jn_filter)
 
+    KW_DECREF(kw)
     return json_pack("{s:i}",
         "channels_opened", opened
     );

@@ -187,6 +187,8 @@ SDATACM2 (DTP_SCHEMA,   "topics",           SDF_AUTHZ_X,    0,      0,          
 SDATACM2 (DTP_SCHEMA,   "desc",             SDF_AUTHZ_X,    0,      pm_desc,            cmd_desc,           "Schema of topic or full"),
 SDATACM2 (DTP_SCHEMA,   "create-topic",     SDF_AUTHZ_X,    0,      pm_create_topic,    cmd_create_topic,   "Create topic"),
 SDATACM2 (DTP_SCHEMA,   "delete-topic",     SDF_AUTHZ_X,    0,      pm_delete_topic,    cmd_delete_topic,   "Delete topic"),
+
+// TODO these commands are not implemented
 SDATACM2 (DTP_SCHEMA,   "open-list",        SDF_AUTHZ_X,    0,      pm_open_list,       cmd_open_list,      "Open list"),
 SDATACM2 (DTP_SCHEMA,   "close-list",       SDF_AUTHZ_X,    0,      pm_close_list,      cmd_close_list,     "Close list"),
 SDATACM2 (DTP_SCHEMA,   "add-record",       SDF_AUTHZ_X,    0,      pm_add_record,      cmd_add_record,     "Add record"),
@@ -241,6 +243,11 @@ PRIVATE sdata_desc_t pm_authz_write[] = {
 SDATAPM0 (DTP_STRING,       "topic_name",       0,          "",             "Topic name"),
 SDATA_END()
 };
+PRIVATE sdata_desc_t pm_authz_list[] = {
+/*-PM-----type--------------name----------------flag--------authpath--------description-- */
+SDATAPM0 (DTP_STRING,       "topic_name",       0,          "",             "Topic name"),
+SDATA_END()
+};
 PRIVATE sdata_desc_t pm_authz_read[] = {
 /*-PM-----type--------------name----------------flag--------authpath--------description-- */
 SDATAPM0 (DTP_STRING,       "topic_name",       0,          "",             "Topic name"),
@@ -256,6 +263,7 @@ PRIVATE sdata_desc_t authz_table[] = {
 /*-AUTHZ-- type---------name------------flag----alias---items---------------description--*/
 SDATAAUTHZ (DTP_SCHEMA, "create",       0,      0,      pm_authz_create,    "Permission to create topics"),
 SDATAAUTHZ (DTP_SCHEMA, "write",        0,      0,      pm_authz_write,     "Permission to write topics"),
+SDATAAUTHZ (DTP_SCHEMA, "list",         0,      0,      pm_authz_list,      "Permission to list topics"),
 SDATAAUTHZ (DTP_SCHEMA, "read",         0,      0,      pm_authz_read,      "Permission to read topics"),
 SDATAAUTHZ (DTP_SCHEMA, "delete",       0,      0,      pm_authz_delete,    "Permission to delete topics"),
 SDATA_END()
@@ -484,7 +492,7 @@ PRIVATE json_t *cmd_check_json(hgobj gobj, const char *cmd, json_t *kw, hgobj sr
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
-    int max_refcount = kw_get_int(gobj, kw, "max_refcount", 1, KW_WILD_NUMBER);
+    int max_refcount = (int)kw_get_int(gobj, kw, "max_refcount", 1, KW_WILD_NUMBER);
 
     json_t *tranger = priv->tranger;
     int result = json_check_refcounts(tranger, max_refcount, 0)?0:-1;
@@ -643,7 +651,7 @@ PRIVATE json_t *cmd_topics(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
     /*----------------------------------------*
      *  Check AUTHZS
      *----------------------------------------*/
-    const char *permission = "read";
+    const char *permission = "list";
     if(!gobj_user_has_authz(gobj, permission, kw_incref(kw), src)) {
         KW_DECREF(kw);
         return msg_iev_build_response(
@@ -677,7 +685,7 @@ PRIVATE json_t *cmd_topics(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
 }
 
 /***************************************************************************
- *
+ *  Return description (schema) of the topic
  ***************************************************************************/
 PRIVATE json_t *cmd_desc(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
 {
@@ -1207,6 +1215,16 @@ PRIVATE json_t *cmd_get_list_data(hgobj gobj, const char *cmd, json_t *kw, hgobj
 
 
 
+/***************************************************************************
+ *
+ ***************************************************************************/
+PRIVATE json_t *get_topic(hgobj gobj, const char *lmethod, json_t *kw, hgobj src)
+{
+}
+
+
+
+
             /***************************
              *      Private Methods
              ***************************/
@@ -1397,6 +1415,14 @@ PRIVATE const GMETHODS gmt = {
     .mt_stop = mt_stop,
 };
 
+/*---------------------------------------------*
+ *              Local methods table
+ *---------------------------------------------*/
+PRIVATE LMETHOD lmt[] = {
+    {"get_topic",         get_topic,   "read"},
+    {0, 0, 0}
+};
+
 /*------------------------*
  *      GClass name
  *------------------------*/
@@ -1455,7 +1481,7 @@ PRIVATE int create_gclass(gclass_name_t gclass_name)
         event_types,
         states,
         &gmt,
-        0,  //lmt,
+        lmt,
         attrs_table,
         sizeof(PRIVATE_DATA),
         authz_table,  // authz_table,

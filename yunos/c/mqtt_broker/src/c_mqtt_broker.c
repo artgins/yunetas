@@ -400,6 +400,10 @@ PRIVATE int ac_on_open(hgobj gobj, const char *event, json_t *kw, hgobj src)
      *  MQTT Client ID is the topic in Timeranger
      */
     const char *client_id = kw_get_str(gobj, kw, "client_id", "", KW_REQUIRED);
+    BOOL clean_start = kw_get_bool(gobj, kw, "clean_start", 0, KW_REQUIRED);
+    BOOL will = kw_get_bool(gobj, kw, "will", 0, KW_REQUIRED);
+
+
 
     KW_DECREF(kw);
     return 0;

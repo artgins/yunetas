@@ -738,9 +738,14 @@ typedef struct { // GClass methods (Yuneta framework methods)
     future_method_fn mt_future64;
 } GMETHODS;
 
-typedef json_t *(*internal_method_fn)(hgobj gobj, const char *lmethod, json_t *kw, hgobj src);
+typedef json_t *(*internal_method_fn)(
+    hgobj gobj,
+    const char *lmethod,
+    json_t *kw, // must be owned
+    hgobj src
+);
 
-typedef struct { // Internal methods
+typedef struct { // Internal (local) methods
     const char *lname;
     const internal_method_fn lm;
     const char *authz;
@@ -1139,7 +1144,7 @@ PUBLIC int gobj_write_pointer_attr(hgobj gobj, const char *name, void *value);
 PUBLIC json_t *gobj_local_method(
     hgobj gobj,
     const char *lmethod,
-    json_t *kw,
+    json_t *kw, // must be owned
     hgobj src
 );
 
