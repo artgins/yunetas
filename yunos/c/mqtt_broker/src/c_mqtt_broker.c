@@ -403,7 +403,10 @@ PRIVATE int ac_on_open(hgobj gobj, const char *event, json_t *kw, hgobj src)
     BOOL clean_start = kw_get_bool(gobj, kw, "clean_start", 0, KW_REQUIRED);
     BOOL will = kw_get_bool(gobj, kw, "will", 0, KW_REQUIRED);
 
-
+    /*
+     *  Open the topic (client_id) or create it if it doesn't exist
+     */
+    json_t *jn_answer = gobj_command(priv->gobj_tranger_broker, "create-topic", 0, gobj);
 
     KW_DECREF(kw);
     return 0;

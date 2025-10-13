@@ -1078,8 +1078,7 @@ PUBLIC json_t *tranger2_open_topic( // WARNING returned json IS NOT YOURS
 
 /***************************************************************************
    Get topic by his topic_name.
-   Topic is opened if it's not opened.
-   HACK topic can exists in disk, but it's not opened until tranger_open_topic()
+   HACK topic can exist in disk, but it's not opened until tranger_open_topic()
  ***************************************************************************/
 PUBLIC json_t *tranger2_topic( // WARNING returned JSON IS NOT YOURS
     json_t *tranger,
