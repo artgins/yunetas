@@ -3863,11 +3863,11 @@ PRIVATE int connect__on_authorised(
     );
 
     if(priv->will) {
-        json_t *jn_will = json_pack("{s:b, s:s, s:b, s:i, s:i, s:i}",
+        json_t *jn_will = json_pack("{s:b, s:b, s:i, s:s, s:i, s:i}",
             "will",                 priv->will,
-            "will_topic",           priv->will_topic,
             "will_retain",          priv->will_retain,
             "will_qos",             (int)priv->will_qos,
+            "will_topic",           priv->will_topic,
             "will_delay_interval",  (int)priv->will_delay_interval,
             "will_expiry_interval", (int)priv->will_expiry_interval
         );

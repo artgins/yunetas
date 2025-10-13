@@ -349,18 +349,18 @@ PRIVATE int open_queue(hgobj gobj)
  *
     {
         "client_id": "DVES_40AC66",
-        "assigned_id": false,
+        "assigned_id": false,       #^^ if assigned_id is true the client_id is temporary.
         "clean_start": true,
         "protocol_version": 2,
         "protocol_name": "MQTT",
         "keepalive": 30,
         "session_expiry_interval": 0,
         "max_qos": 2,
-                                    #^^ the will fields are optionals
+
         "will": true,
-        "will_topic": "tele/tasmota_40AC66/LWT",
         "will_retain": true,
         "will_qos": 1,
+        "will_topic": "tele/tasmota_40AC66/LWT",    #^^ these will fields are optionals
         "will_delay_interval": 0,
         "will_expiry_interval": 0,
         "gbuffer": 95091873745312,  #^^ it contents the will payload
