@@ -42,7 +42,7 @@ PRIVATE char fixed_config[]= "\
 PRIVATE char variable_config[]= "\
 {                                                                   \n\
     '__json_config_variables__': {                                  \n\
-        '__mqtt_max_connections__': '100',                          \n\
+        '__mqtt_max_connections__': '2',                            \n\
         '__mqtt_url__': 'mqtt://127.0.0.1:1881',                    \n\
         '__mqtt_secure_url__': 'mqtts://0.0.0.0:1883',              \n\
         '__mqtt_certificate__': '/yuneta/agent/certs/yuneta_agent.crt',     \n\

@@ -59,19 +59,16 @@ SDATA_END()
  *      Attributes - order affect to oid's
  *---------------------------------------------*/
 PRIVATE sdata_desc_t tattr_desc[] = {
-/*-ATTR-type------------name----------------flag----------------default-----description---------- */
-SDATA (DTP_STRING,      "tranger_path",     SDF_RD,             "",         "tranger path"),
-SDATA (DTP_STRING,      "tranger_database", SDF_RD,             "",         "tranger database"),
+/*-ATTR-type------------name----------------flag--------default-----description---------- */
+SDATA (DTP_STRING,      "tranger_path",     SDF_RD,     "/yuneta/store/mqtt-broker/(^^__node_owner__^^)",         "tranger path"),
+SDATA (DTP_STRING,      "tranger_database", SDF_RD,     "(^^__yuno_role__^^)^(^^__yuno_name__^^)",         "tranger database"),
+SDATA (DTP_STRING,      "filename_mask",    SDF_RD|SDF_REQUIRED,"%Y-%m-%d",    "Organization of tables (file name format, see strftime())"),
+SDATA (DTP_INTEGER,     "on_critical_error",SDF_RD,     "0x0010",   "LOG_OPT_TRACE_STACK"),
 
-    // TODO set a default like below (used in json config files)
-    // "tranger_path": "/yuneta/store/queues/gate_msgs2",
-    // "tranger_database": "(^^__yuno_role__^^)^(^^__yuno_name__^^)-(^^__range__^^)",
-    //
-
-SDATA (DTP_POINTER,     "subscriber",       0,                  0,          "Subscriber of output-events. If it's null then the subscriber is the parent."),
-SDATA (DTP_INTEGER,     "timeout",          SDF_RD,             "1000",     "Timeout"),
-SDATA (DTP_POINTER,     "user_data",        0,                  0,          "user data"),
-SDATA (DTP_POINTER,     "user_data2",       0,                  0,          "more user data"),
+SDATA (DTP_POINTER,     "subscriber",       0,          0,          "Subscriber of output-events. If it's null then the subscriber is the parent."),
+SDATA (DTP_INTEGER,     "timeout",          SDF_RD,     "1000",     "Timeout"),
+SDATA (DTP_POINTER,     "user_data",        0,          0,          "user data"),
+SDATA (DTP_POINTER,     "user_data2",       0,          0,          "more user data"),
 SDATA_END()
 };
 
@@ -193,9 +190,71 @@ PRIVATE int mt_play(hgobj gobj)
     gobj_start_tree(priv->gobj_input_side);
 
     /*--------------------------------*
-     *      Output queue
+     *      Tranger database
      *--------------------------------*/
-    open_queue(gobj);
+    if(priv->tranger) {
+        gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_INTERNAL_ERROR,
+            "msg",          "%s", "tranger NOT NULL",
+            NULL
+        );
+        tranger2_shutdown(priv->tranger);
+    }
+
+    const char *path = gobj_read_str_attr(gobj, "tranger_path");
+    if(empty_string(path)) {
+        gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_INTERNAL_ERROR,
+            "msg",          "%s", "tranger path EMPTY",
+            NULL
+        );
+        return -1;
+    }
+
+    const char *database = gobj_read_str_attr(gobj, "tranger_database");
+    if(empty_string(database)) {
+        gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_INTERNAL_ERROR,
+            "msg",          "%s", "tranger database EMPTY",
+            NULL
+        );
+        return -1;
+    }
+
+    /*---------------------------------*
+     *      Open Timeranger queues
+     *---------------------------------*/
+    json_t *kw_tranger = json_pack("{s:s, s:s, s:s, s:b, s:I, s:i}",
+        "path", path,
+        "database", database,
+        "filename_mask", gobj_read_str_attr(gobj, "filename_mask"),
+        "master", 1,
+        "subscriber", (json_int_t)(uintptr_t)gobj,
+        "on_critical_error", (int)gobj_read_integer_attr(gobj, "on_critical_error")
+    );
+    char name[NAME_MAX];
+    snprintf(name, sizeof(name), "tranger_%s", gobj_name(gobj));
+    priv->gobj_tranger_queues = gobj_create_service(
+        name,
+        C_TRANGER,
+        kw_tranger,
+        gobj
+    );
+    gobj_start(priv->gobj_tranger_queues);
+    priv->tranger = gobj_read_pointer_attr(priv->gobj_tranger_queues, "tranger");
+
+    // TODO
+    // priv->trq_msgs = trq_open(
+    //     priv->tranger,
+    //     topic_name,
+    //     gobj_read_str_attr(gobj, "tkey"),
+    //     tranger2_str2system_flag(gobj_read_str_attr(gobj, "system_flag")),
+    //     gobj_read_integer_attr(gobj, "backup_queue_size")
+    // );
+
     // TODO trq_load(priv->trq_msgs);
 
     return 0;
@@ -277,70 +336,6 @@ PRIVATE int open_queue(hgobj gobj)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
-    if(priv->tranger) {
-        gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
-            "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_INTERNAL_ERROR,
-            "msg",          "%s", "tranger NOT NULL",
-            NULL
-        );
-        tranger2_shutdown(priv->tranger);
-    }
-
-    const char *path = gobj_read_str_attr(gobj, "tranger_path");
-    if(empty_string(path)) {
-        gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
-            "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_INTERNAL_ERROR,
-            "msg",          "%s", "tranger path EMPTY",
-            NULL
-        );
-        return -1;
-    }
-
-    if(!is_directory(path)) {
-        mkrdir(path, yuneta_xpermission());
-    }
-
-    const char *database = gobj_read_str_attr(gobj, "tranger_database");
-    if(empty_string(database)) {
-        gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
-            "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_INTERNAL_ERROR,
-            "msg",          "%s", "tranger database EMPTY",
-            NULL
-        );
-        return -1;
-    }
-
-    /*---------------------------------*
-     *      Open Timeranger queues
-     *---------------------------------*/
-    json_t *kw_tranger = json_pack("{s:s, s:s, s:b, s:I, s:i}",
-        "path", path,
-        "database", database,
-        "master", 1,
-        "subscriber", (json_int_t)(uintptr_t)gobj,
-        "on_critical_error", (int)gobj_read_integer_attr(gobj, "on_critical_error")
-    );
-    char name[NAME_MAX];
-    snprintf(name, sizeof(name), "tranger_%s", gobj_name(gobj));
-    priv->gobj_tranger_queues = gobj_create_service(
-        name,
-        C_TRANGER,
-        kw_tranger,
-        gobj
-    );
-    gobj_start(priv->gobj_tranger_queues);
-    priv->tranger = gobj_read_pointer_attr(priv->gobj_tranger_queues, "tranger");
-
-    // priv->trq_msgs = trq_open(
-    //     priv->tranger,
-    //     topic_name,
-    //     gobj_read_str_attr(gobj, "tkey"),
-    //     tranger2_str2system_flag(gobj_read_str_attr(gobj, "system_flag")),
-    //     gobj_read_integer_attr(gobj, "backup_queue_size")
-    // );
 
     return 0;
 }
@@ -352,7 +347,8 @@ PRIVATE int close_queue(hgobj gobj)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
-    EXEC_AND_RESET(trq_close, priv->trq_msgs);
+    // TODO
+    // EXEC_AND_RESET(trq_close, priv->trq_msgs);
 
     /*----------------------------------*
      *      Close Timeranger queues
