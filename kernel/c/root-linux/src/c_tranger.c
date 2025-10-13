@@ -1220,17 +1220,25 @@ PRIVATE json_t *cmd_get_list_data(hgobj gobj, const char *cmd, json_t *kw, hgobj
  ***************************************************************************/
 PRIVATE json_t *get_topic(hgobj gobj, const char *lmethod, json_t *kw, hgobj src)
 {
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    const char *topic_name = kw_get_str(gobj, kw, "topic_name", "", KW_REQUIRED);
+
+    json_t *topic = tranger2_topic(priv->tranger, topic_name);
+    if(!topic) {
+        return msg_iev_build_response(
+            gobj,
+            -1,
+            json_sprintf("Topic not found: '%s'", topic_name),
+            0,
+            0,
+            kw  // owned
+        );
+    }
+
+    KW_DECREF(kw)
+    return topic;
 }
-
-
-
-
-            /***************************
-             *      Private Methods
-             ***************************/
-
-
-
 
 /***************************************************************************
  *

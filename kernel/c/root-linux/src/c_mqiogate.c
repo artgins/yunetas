@@ -394,7 +394,6 @@ PRIVATE int ac_send_message(hgobj gobj, const char *event, json_t *kw, hgobj src
     return gobj_send_event(gobj_dst, event, kw, gobj);
 }
 
-
 /***************************************************************************
  *                          FSM
  ***************************************************************************/
