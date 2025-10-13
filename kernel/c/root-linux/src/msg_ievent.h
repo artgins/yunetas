@@ -93,10 +93,10 @@ extern "C"{
 #define COMMAND_STACK_ID    "command_stack"
 #define STATS_STACK_ID      "stats_stack"
 
-#define COMMAND_RESULT(gobj, kw)     (kw_get_int((gobj), (kw), "result", -1, 0))
-#define COMMAND_COMMENT(gobj, kw)    (kw_get_str((gobj), (kw), "comment", "", 0))
-#define COMMAND_SCHEMA(gobj, kw)     (kw_get_dict_value((gobj), (kw), "schema", 0, 0))
-#define COMMAND_DATA(gobj, kw)       (kw_get_dict_value((gobj), (kw), "data", 0, 0))
+#define COMMAND_RESULT(gobj, kw)     (kw_get_int((gobj), (kw), "result", -1, KW_REQUIRED))
+#define COMMAND_COMMENT(gobj, kw)    (kw_get_str((gobj), (kw), "comment", "", KW_REQUIRED))
+#define COMMAND_SCHEMA(gobj, kw)     (kw_get_dict_value((gobj), (kw), "schema", 0, KW_REQUIRED))
+#define COMMAND_DATA(gobj, kw)       (kw_get_dict_value((gobj), (kw), "data", 0, KW_REQUIRED))
 
 /***************************************************
  *              FSM

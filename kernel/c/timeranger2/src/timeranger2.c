@@ -52,8 +52,8 @@ PRIVATE const char *sf_names[16+1] = {
     "sf_rowid_key",             // 0x0002
     "sf_int_key",               // 0x0004
     "",                         // 0x0008
-    "sf2_zip_record",           // 0x0010
-    "sf2_cipher_record",        // 0x0020
+    "sf_zip_record",            // 0x0010
+    "sf_cipher_record",         // 0x0020
     "",                         // 0x0040
     "",                         // 0x0080
     "sf_t_ms",                  // 0x0100

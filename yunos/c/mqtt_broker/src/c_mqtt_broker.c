@@ -406,7 +406,19 @@ PRIVATE int ac_on_open(hgobj gobj, const char *event, json_t *kw, hgobj src)
     /*
      *  Open the topic (client_id) or create it if it doesn't exist
      */
-    json_t *jn_answer = gobj_command(priv->gobj_tranger_broker, "create-topic", 0, gobj);
+    json_t *jn_response = gobj_command(
+        priv->gobj_tranger_broker,
+        "create-topic", // idempotent function
+        0,
+        gobj
+    );
+
+    json_int_t result =  COMMAND_RESULT(gobj, jn_response);
+    const char *comment = COMMAND_COMMENT(gobj, jn_response);
+    json_t *schema = COMMAND_SCHEMA(gobj, jn_response);
+    json_t *data = COMMAND_DATA(gobj, jn_response);
+
+
 
     KW_DECREF(kw);
     return 0;

@@ -71,6 +71,7 @@ PRIVATE json_t *cmd_check_json(hgobj gobj, const char *cmd, json_t *kw, hgobj sr
 PRIVATE json_t *cmd_topics(hgobj gobj, const char *cmd, json_t *kw, hgobj src);
 PRIVATE json_t *cmd_desc(hgobj gobj, const char *cmd, json_t *kw, hgobj src);
 PRIVATE json_t *cmd_create_topic(hgobj gobj, const char *cmd, json_t *kw, hgobj src);
+PRIVATE json_t *cmd_open_topic(hgobj gobj, const char *cmd, json_t *kw, hgobj src);
 PRIVATE json_t *cmd_delete_topic(hgobj gobj, const char *cmd, json_t *kw, hgobj src);
 PRIVATE json_t *cmd_open_list(hgobj gobj, const char *cmd, json_t *kw, hgobj src);
 PRIVATE json_t *cmd_close_list(hgobj gobj, const char *cmd, json_t *kw, hgobj src);
@@ -111,12 +112,18 @@ SDATAPM (DTP_STRING,    "topic_name",   0,              0,          "Topic name"
 SDATA_END()
 };
 
+PRIVATE sdata_desc_t pm_open_topic[] = {
+/*-PM----type-----------name------------flag------------default-----description---------- */
+SDATAPM (DTP_STRING,    "topic_name",   0,              0,          "Topic name"),
+SDATA_END()
+};
+
 PRIVATE sdata_desc_t pm_create_topic[] = {
 /*-PM----type-----------name------------flag------------default-----description---------- */
 SDATAPM (DTP_STRING,    "topic_name",   0,              0,          "Topic name"),
 SDATAPM (DTP_STRING,    "pkey",         0,              "id",       "Primary Key"),
 SDATAPM (DTP_STRING,    "tkey",         0,              "tm",       "Time Key"),
-SDATAPM (DTP_STRING,    "system_flag",  0,              "sf_string_key", "System flag: sf_string_key|sf_int_key|sf_t_ms|sf_tm_ms|sf_no_disk, future: sf2_zip_record|sf2_cipher_record"),
+SDATAPM (DTP_STRING,    "system_flag",  0,              "sf_string_key", "System flag: sf_string_key|sf_rowid_key|sf_int_key|sf_t_ms|sf_tm_ms, future: sf_zip_record|sf_cipher_record"),
 SDATAPM (DTP_JSON,      "jn_cols",      0,              0,          "Cols"),
 SDATAPM (DTP_JSON,      "jn_var",       0,              0,          "Var"),
 SDATA_END()
@@ -186,6 +193,7 @@ SDATACM2 (DTP_SCHEMA,   "check-json",       0,              0,      pm_check_jso
 SDATACM2 (DTP_SCHEMA,   "topics",           SDF_AUTHZ_X,    0,      0,                  cmd_topics,         "List topics"),
 SDATACM2 (DTP_SCHEMA,   "desc",             SDF_AUTHZ_X,    0,      pm_desc,            cmd_desc,           "Schema of topic or full"),
 SDATACM2 (DTP_SCHEMA,   "create-topic",     SDF_AUTHZ_X,    0,      pm_create_topic,    cmd_create_topic,   "Create topic"),
+SDATACM2 (DTP_SCHEMA,   "open-topic",       SDF_AUTHZ_X,    0,      pm_open_topic,    cmd_open_topic,   "Open topic"),
 SDATACM2 (DTP_SCHEMA,   "delete-topic",     SDF_AUTHZ_X,    0,      pm_delete_topic,    cmd_delete_topic,   "Delete topic"),
 
 // TODO these commands are not implemented
@@ -562,6 +570,56 @@ PRIVATE json_t *cmd_create_topic(hgobj gobj, const char *cmd, json_t *kw, hgobj 
     return msg_iev_build_response(gobj,
         topic?0:-1,
         topic?json_sprintf("Topic created: '%s'", topic_name):json_string(gobj_log_last_message()),
+        0,
+        json_incref(topic),
+        kw  // owned
+    );
+}
+
+/***************************************************************************
+ *
+ ***************************************************************************/
+PRIVATE json_t *cmd_open_topic(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    /*----------------------------------------*
+     *  Check AUTHZS
+     *----------------------------------------*/
+    const char *permission = "read";
+    if(!gobj_user_has_authz(gobj, permission, kw_incref(kw), src)) {
+        KW_DECREF(kw);
+        return msg_iev_build_response(
+            gobj,
+            -403,
+            json_sprintf("No permission to '%s'", permission),
+            0,
+            0,
+            kw  // owned
+        );
+    }
+
+    const char *topic_name = kw_get_str(gobj, kw, "topic_name", "", 0);
+    if(empty_string(topic_name)) {
+        return msg_iev_build_response(
+            gobj,
+            -1,
+            json_sprintf("What topic_name?"),
+            0,
+            0,
+            kw  // owned
+        );
+    }
+
+    json_t *topic = tranger2_open_topic( // WARNING returned json IS NOT YOURS
+        priv->tranger,      // If topic exists then only needs (tranger, topic_name) parameters
+        topic_name,
+        FALSE
+    );
+
+    return msg_iev_build_response(gobj,
+        topic?0:-1,
+        topic?json_sprintf("Topic opened: '%s'", topic_name):json_string(gobj_log_last_message()),
         0,
         json_incref(topic),
         kw  // owned
