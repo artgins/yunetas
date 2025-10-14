@@ -52,6 +52,8 @@ a.out
 core.*
 packages/authorized_keys/*
 !packages/authorized_keys/.gitkeep
+packages/webserver/*
+!packages/webserver/.gitkeep
 
 .hgignore
 .hgtags
@@ -104,4 +106,3 @@ ipch
 
 *.xcodeproj
 *.xcworkspace
-

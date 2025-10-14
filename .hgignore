@@ -45,7 +45,8 @@ logs/
 data/
 _build/
 Debug/
-authorized_keys/
+packages/authorized_keys/
+packages/webserver/
 \.libs/
 \.deps/
 tests/reports/
@@ -86,4 +87,3 @@ package-lock.json
 \.egg$
 ^\.project$
 ^\.pydevproject$
-
