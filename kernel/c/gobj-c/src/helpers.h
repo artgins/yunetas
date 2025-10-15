@@ -13,6 +13,7 @@
 #include <regex.h>
 #include <inttypes.h>
 #include <time.h>
+#include <sys/socket.h>
 
 /*
  * Do not remove, include the list of dependencies
@@ -1078,6 +1079,7 @@ PUBLIC int set_tcp_socket_options(int fd, int delay); // Set internally in tcp s
 
 PUBLIC BOOL is_tcp_socket(int fd);
 PUBLIC BOOL is_udp_socket(int fd);
+PUBLIC int print_socket_address(char *buf, size_t buflen, const struct sockaddr *sa);
 PUBLIC int get_peername(char *bf, size_t bfsize, int fd);
 PUBLIC int get_sockname(char *bf, size_t bfsize, int fd);
 

@@ -34,6 +34,7 @@
 #include <sys/sysinfo.h>
 #include <sys/stat.h>
 #include <sys/random.h> // For getrandom()
+#include <sys/un.h>
 #include <syslog.h>
 #include <backtrace.h>
 #endif
@@ -6438,25 +6439,38 @@ PUBLIC BOOL is_udp_socket(int fd)
 /***************************************************************************
  *
  ***************************************************************************/
-PRIVATE int printSocketAddress(char *bf, size_t bfsize, const struct sockaddr* sa)
+PUBLIC int print_socket_address(char *buf, size_t buflen, const struct sockaddr *sa)
 {
-    char ipAddress[INET6_ADDRSTRLEN];
-    unsigned short port;
-
+    if(!buf) {
+        return -1;
+    }
     if (sa->sa_family == AF_INET) {
-        struct sockaddr_in* sa_ipv4 = (struct sockaddr_in*)sa;
-        inet_ntop(AF_INET, &(sa_ipv4->sin_addr), ipAddress, INET6_ADDRSTRLEN);
-        port = ntohs(sa_ipv4->sin_port);
+        const struct sockaddr_in *in = (const struct sockaddr_in *)sa;
+        char ip[INET_ADDRSTRLEN];
+        if(inet_ntop(AF_INET, &in->sin_addr, ip, sizeof(ip)) == NULL) {
+            return -1;
+        }
+        unsigned port = (unsigned)ntohs(in->sin_port);
+        (void)snprintf(buf, buflen, "%s:%u", ip, port);
+
     } else if (sa->sa_family == AF_INET6) {
-        struct sockaddr_in6* sa_ipv6 = (struct sockaddr_in6*)sa;
-        inet_ntop(AF_INET6, &(sa_ipv6->sin6_addr), ipAddress, INET6_ADDRSTRLEN);
-        port = ntohs(sa_ipv6->sin6_port);
+        const struct sockaddr_in6 *in6 = (const struct sockaddr_in6 *)sa;
+        char ip6[INET6_ADDRSTRLEN];
+        if(inet_ntop(AF_INET6, &in6->sin6_addr, ip6, sizeof(ip6)) == NULL) {
+            return -1;
+        }
+        unsigned port = (unsigned)ntohs(in6->sin6_port);
+        if(in6->sin6_scope_id) {
+            (void)snprintf(buf, buflen, "[%s%%%u]:%u", ip6, (unsigned)in6->sin6_scope_id, port);
+        } else {
+            (void)snprintf(buf, buflen, "[%s]:%u", ip6, port);
+        }
+
     } else {
-        *bf = 0;
+        *buf = 0;
         return -1;
     }
 
-    snprintf(bf, bfsize, "%s:%hu", ipAddress, port);
     return 0;
 }
 
@@ -6475,7 +6489,7 @@ PUBLIC int get_peername(char *bf, size_t bfsize, int fd)
         }
         return -1;
     }
-    printSocketAddress(bf, bfsize, (struct sockaddr*)&remoteAddr);
+    print_socket_address(bf, bfsize, (struct sockaddr*)&remoteAddr);
     return 0;
 }
 
@@ -6494,7 +6508,7 @@ PUBLIC int get_sockname(char *bf, size_t bfsize, int fd)
         }
         return -1;
     }
-    printSocketAddress(bf, bfsize, (struct sockaddr*)&localAddr);
+    print_socket_address(bf, bfsize, (struct sockaddr*)&localAddr);
     return 0;
 }
 

@@ -138,10 +138,10 @@ SDATA_END()
  *      GClass trace levels
  *---------------------------------------------*/
 enum {
-    TRACE_USER = 0x0001,
+    TRACE_DEBUG = 0x0001,
 };
 PRIVATE const trace_level_t s_user_trace_level[16] = {
-{"trace_user",        "Trace user description"},
+{"debug",        "Trace debug"},
 {0, 0},
 };
 
@@ -1205,7 +1205,7 @@ PRIVATE int ac_on_message(hgobj gobj, const char *event, json_t *kw, hgobj src)
     gbuffer_t *gbuf = (gbuffer_t *)(uintptr_t)kw_get_int(gobj, kw, "gbuffer", 0, 0);
     static uint32_t last_sequence = 0;
 
-//     gobj_trace_dump_gbuf(gobj, "monitor-input", gbuf);
+    //     gobj_trace_dump_gbuf(gobj, "monitor-input", gbuf);
 
     /*---------------------------------------*
      *  Get priority, sequence and crc
@@ -1240,17 +1240,19 @@ PRIVATE int ac_on_message(hgobj gobj, const char *event, json_t *kw, hgobj src)
     );
     char *pcrc = (char *)bf + len - 8;
     if(strcmp(pcrc, scrc)!=0) {
-//        gobj_log_error(gobj, 0,
-//            "function",     "%s", __FUNCTION__,
-//            "msgset",       "%s", MSGSET_JSON_ERROR,
-//            "msg",          "%s", "BAD crc",
-//            "my-crc",       "%s", scrc,
-//            "his-crc",      "%s", pcrc,
-//            "bf",           "%s", bf,
-//            "len",          "%d", len,
-//            NULL
-//        );
-//        log_debug_full_gbuf(0, gbuf, "crc bad");
+        if(gobj_trace_level(gobj) & TRACE_DEBUG) {
+            gobj_log_error(gobj, 0,
+                "function",     "%s", __FUNCTION__,
+                "msgset",       "%s", MSGSET_JSON_ERROR,
+                "msg",          "%s", "BAD crc",
+                "my-crc",       "%s", scrc,
+                "his-crc",      "%s", pcrc,
+                "bf",           "%s", bf,
+                "len",          "%d", len,
+                NULL
+            );
+            gobj_trace_dump_full_gbuf(gobj, gbuf, "crc bad");
+        }
         //KW_DECREF(kw);
         //return -1;
     }
@@ -1264,14 +1266,16 @@ PRIVATE int ac_on_message(hgobj gobj, const char *event, json_t *kw, hgobj src)
         uint32_t sequence = strtol(ssequence, NULL, 16);
         if(sequence != last_sequence +1) {
             // Cuando vengan de diferentes fuentes vendrán lógicamente con diferente secuencia
-    //         gobj_log_warning(gobj, 1,
-    //             "function",     "%s", __FUNCTION__,
-    //             "msgset",       "%s", MSGSET_JSON_ERROR,
-    //             "msg",          "%s", "BAD sequence",
-    //             "last",         "%d", last_sequence,
-    //             "curr",         "%d", sequence,
-    //             NULL
-    //         );
+            if(gobj_trace_level(gobj) & TRACE_DEBUG) {
+                gobj_log_warning(gobj, 0,
+                    "function",     "%s", __FUNCTION__,
+                    "msgset",       "%s", MSGSET_JSON_ERROR,
+                    "msg",          "%s", "BAD sequence",
+                    "last",         "%d", last_sequence,
+                    "curr",         "%d", sequence,
+                    NULL
+                );
+            }
         }
         last_sequence = sequence;
     }

@@ -288,11 +288,32 @@ PRIVATE int ac_rx_data(hgobj gobj, const char *event, json_t *kw, hgobj src)
 
     UDP_CHANNEL *ch = find_udp_channel(gobj, udp_channel);
     if(!ch) {
+        if(gobj_trace_level(gobj) & TRACE_DEBUG) {
+            gobj_log_debug(gobj, 0,
+                "function",     "%s", __FUNCTION__,
+                "msgset",       "%s", MSGSET_INFO,
+                "msg",          "%s", "new channel",
+                "name",         "%s", udp_channel,
+                NULL
+            );
+        }
         ch = new_udp_channel(gobj, udp_channel);
 
         gobj_publish_event(gobj, EV_ON_OPEN, 0);
     }
     ch->t_inactivity = start_sectimer(priv->seconds_inactivity);
+
+    if(gobj_trace_level(gobj) & TRACE_DEBUG) {
+        gobj_log_debug(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_INFO,
+            "msg",          "%s", "rx data",
+            "channel",      "%d", (int)ch->__id__,
+            "name",         "%s", ch->name,
+            NULL
+        );
+        gobj_trace_dump_gbuf(gobj, gbuf, "rx data");
+    }
 
     if(priv->disable_end_of_frame) {
         gobj_publish_event(gobj, EV_ON_MESSAGE, kw);

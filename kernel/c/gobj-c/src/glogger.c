@@ -1074,7 +1074,7 @@ PUBLIC void trace_vjson(
     va_list ap
 ) {
     log_opt_t opt = 0;
-    // char timestamp[90];
+    char timestamp[90];
     char msg[256];
 
     if(!__initialized__) {
@@ -1094,10 +1094,13 @@ PUBLIC void trace_vjson(
 
     json_t *jn_log = json_object();
 
+    current_timestamp(timestamp, sizeof(timestamp));
+    json_object_set_new(jn_log, "timestamp", json_string(timestamp));
+    if(gobj) {
+        json_object_set_new(jn_log, "gobj_name", json_string(gobj_short_name(gobj)));
+    }
+
     // HACK too much information, comment!
-    // current_timestamp(timestamp, sizeof(timestamp));
-    // json_object_set_new(jn_log, "timestamp", json_string(timestamp));
-    //
     // if(gobj_has_attr(gobj, "id")) {
     //     const char *value = gobj_read_str_attr(gobj, "id");
     //     if(!empty_string(value)) {

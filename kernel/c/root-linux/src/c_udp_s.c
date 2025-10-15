@@ -43,9 +43,6 @@ PRIVATE void try_to_stop_yevents(hgobj gobj);  // IDEMPOTENT
  *---------------------------------------------*/
 PRIVATE sdata_desc_t tattr_desc[] = {
 SDATA (DTP_STRING,      "url",              SDF_RD,  0, "url of udp server"),
-SDATA (DTP_STRING,      "lHost",            SDF_RD,  0, "Local ip, got from url"),
-SDATA (DTP_STRING,      "lPort",            SDF_RD,  0, "Local port, got from url."),
-SDATA (DTP_STRING,      "url",              SDF_RD,  0, "Url"),
 SDATA (DTP_JSON,        "crypto",           SDF_WR|SDF_PERSIST, 0, "Crypto config"),
 SDATA (DTP_BOOLEAN,     "only_allowed_ips", SDF_WR|SDF_PERSIST, 0, "Only allowed ips"),
 SDATA (DTP_BOOLEAN,     "trace_tls",        SDF_WR|SDF_PERSIST, 0, "Trace TLS"),
@@ -59,7 +56,6 @@ SDATA (DTP_INTEGER,     "txBytes",          SDF_RSTATS,     "0", "Messages trans
 SDATA (DTP_INTEGER,     "rxBytes",          SDF_RSTATS,     "0", "Messages received"),
 SDATA (DTP_INTEGER,     "txMsgs",           SDF_RSTATS,     "0", "Messages transmitted"),
 SDATA (DTP_INTEGER,     "rxMsgs",           SDF_RSTATS,     "0", "Messages received"),
-SDATA (DTP_STRING,      "peername",         SDF_VOLATIL|SDF_STATS, "",  "Peername"),
 SDATA (DTP_STRING,      "sockname",         SDF_VOLATIL|SDF_STATS, "",  "Sockname"),
 SDATA (DTP_POINTER,     "user_data",        0,  0, "user data"),
 SDATA (DTP_POINTER,     "user_data2",       0,  0, "more user data"),
@@ -103,7 +99,6 @@ typedef struct _PRIVATE_DATA {
     dl_list_t dl_tx;
     gbuffer_t *gbuf_txing;
 
-    BOOL no_tx_ready_event;
     int tx_in_progress;
 
     BOOL trace_tls;
@@ -313,8 +308,7 @@ PRIVATE int mt_start(hgobj gobj)
         "msg",          "%s", "UDP listening ...",
         "msg2",         "%s", "UDP Listening...🔷",
         "url",          "%s", priv->url,
-        "lHost",        "%s", host,
-        "lPort",        "%s", port,
+        "sockname",     "%s", gobj_read_str_attr(gobj, "sockname"),
         NULL
     );
 
@@ -447,11 +441,14 @@ PRIVATE int write_data(hgobj gobj)
 
     uint32_t trace_level = gobj_trace_level(gobj);
     if(trace_level & TRACE_TRAFFIC) {
+        struct sockaddr *addr = gbuffer_getaddr(gbuf);
+        char peername[60];
+        print_socket_address(peername, sizeof(peername), addr);
         gobj_trace_dump_gbuf(gobj, gbuf, "%s: %s%s%s",
             gobj_short_name(gobj),
             gobj_read_str_attr(gobj, "sockname"),
             " -> ",
-            gobj_read_str_attr(gobj, "peername")
+            peername
         );
     }
 
@@ -517,12 +514,8 @@ PRIVATE void try_more_writes(hgobj gobj)
     gbuffer_t *gbuf_txing = dl_first(&priv->dl_tx);
     if(!gbuf_txing) {
         /*
-         *  If no more publish tx ready
+         *  If no more publish tx ready.
          */
-        if(!priv->no_tx_ready_event) {
-            json_t *kw_tx_ready = json_object();
-            gobj_publish_event(gobj, EV_TX_READY, kw_tx_ready);
-        }
     } else {
         priv->gbuf_txing = gbuf_txing;
         dl_delete(&priv->dl_tx, gbuf_txing, 0);
@@ -759,6 +752,13 @@ PRIVATE int yev_callback(yev_event_h yev_event)
         json_decref(jn_flags);
     }
 
+    char peername[60];
+    if(trace_level) {
+        print_socket_address(peername, sizeof(peername), yev_event->msghdr->msg_name);
+    } else {
+        peername[0] = 0;
+    }
+
     yev_state_t yev_state = yev_get_state(yev_event);
 
     switch(yev_get_type(yev_event)) {
@@ -781,7 +781,7 @@ PRIVATE int yev_callback(yev_event_h yev_event)
                             gobj_short_name(gobj),
                             gobj_read_str_attr(gobj, "sockname"),
                             " <- ",
-                            gobj_read_str_attr(gobj, "peername")
+                            peername
                         );
                     }
 
@@ -814,6 +814,7 @@ PRIVATE int yev_callback(yev_event_h yev_event)
                         json_t *kw = json_pack("{s:I}",
                             "gbuffer", (json_int_t)(uintptr_t)gbuf
                         );
+                        gbuffer_setlabel(gbuf, peername);
                         ret = gobj_publish_event(gobj, EV_RX_DATA, kw);
                     }
 
@@ -844,7 +845,7 @@ PRIVATE int yev_callback(yev_event_h yev_event)
                             "msg",          "%s", "UDP: read FAILED",
                             "msg2",         "%s", "🌐UDP: read FAILED",
                             "url",          "%s", gobj_read_str_attr(gobj, "url"),
-                            "remote-addr",  "%s", gobj_read_str_attr(gobj, "peername"),
+                            "remote-addr",  "%s", peername,
                             "local-addr",   "%s", gobj_read_str_attr(gobj, "sockname"),
                             "errno",        "%d", -yev_get_result(yev_event),
                             "strerror",     "%s", strerror(-yev_get_result(yev_event)),
@@ -913,7 +914,7 @@ PRIVATE int yev_callback(yev_event_h yev_event)
                             "msg",          "%s", "UDP: write FAILED",
                             "msg2",         "%s", "🌐UDP: write FAILED",
                             "url",          "%s", gobj_read_str_attr(gobj, "url"),
-                            "remote-addr",  "%s", gobj_read_str_attr(gobj, "peername"),
+                            "remote-addr",  "%s", peername,
                             "local-addr",   "%s", gobj_read_str_attr(gobj, "sockname"),
                             "errno",        "%d", -yev_get_result(yev_event),
                             "strerror",     "%s", strerror(-yev_get_result(yev_event)),
@@ -938,7 +939,7 @@ PRIVATE int yev_callback(yev_event_h yev_event)
                 "msg",          "%s", "UDP: event type NOT IMPLEMENTED",
                 "msg2",         "%s", "🌐UDP: event type NOT IMPLEMENTED",
                 "url",          "%s", gobj_read_str_attr(gobj, "url"),
-                "remote-addr",  "%s", gobj_read_str_attr(gobj, "peername"),
+                "remote-addr",  "%s", peername,
                 "local-addr",   "%s", gobj_read_str_attr(gobj, "sockname"),
                 "event_type",   "%s", yev_event_type_name(yev_event),
                 "p",            "%p", yev_event,
