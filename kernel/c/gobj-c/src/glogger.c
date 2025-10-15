@@ -1094,12 +1094,6 @@ PUBLIC void trace_vjson(
 
     json_t *jn_log = json_object();
 
-    current_timestamp(timestamp, sizeof(timestamp));
-    json_object_set_new(jn_log, "timestamp", json_string(timestamp));
-    if(gobj) {
-        json_object_set_new(jn_log, "gobj_name", json_string(gobj_short_name(gobj)));
-    }
-
     // HACK too much information, comment!
     // if(gobj_has_attr(gobj, "id")) {
     //     const char *value = gobj_read_str_attr(gobj, "id");
@@ -1134,6 +1128,13 @@ PUBLIC void trace_vjson(
     vsnprintf(msg, sizeof(msg), fmt, ap);
     json_object_set_new(jn_log, "msgset", json_string(msgset));
     json_object_set_new(jn_log, "msg", json_string(msg));
+
+    current_timestamp(timestamp, sizeof(timestamp));
+    json_object_set_new(jn_log, "timestamp", json_string(timestamp));
+    if(gobj) {
+        json_object_set_new(jn_log, "gobj_name", json_string(gobj_short_name(gobj)));
+    }
+
     if(jn_data) {
         json_object_set(jn_log, "data", jn_data);
         // json_object_set_new(jn_log, "refcount", json_integer((json_int_t)jn_data->refcount));
