@@ -1964,8 +1964,9 @@ enum { /* String table in s_global_trace_level */
     TRACE_URING_TIME        = 0x40000000,
 };
 #define TRACE_USER_LEVEL      0x0000FFFF
-#define TRACE_GLOBAL_LEVEL0   0x0FFF0000
-#define TRACE_GLOBAL_LEVEL1   0xFFFF0000
+#define TRACE_GLOBAL_LEVEL0   0x00FF0000
+#define TRACE_GLOBAL_LEVEL1   0x0FFF0000
+#define TRACE_GLOBAL_LEVEL2   0xFFFF0000
 
 /*
  *  Global trace level names:
