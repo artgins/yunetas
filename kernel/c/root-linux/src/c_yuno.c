@@ -626,7 +626,7 @@ PRIVATE int yev_loop_callback(yev_event_h yev_event)
                                     gobj_set_global_trace2(TRACE_GLOBAL_LEVEL2, 0);
                                 }
                                 global_trace = gobj_global_trace_level2();
-                                trace_msg0("================> global_trace x%08X", global_trace);
+                                gobj_trace_msg(gobj, "======> global_trace x%08X", global_trace);
                             }
                             break;
 
