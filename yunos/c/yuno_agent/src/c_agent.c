@@ -916,7 +916,7 @@ SDATA (DTP_INTEGER,     "signal2kill",      SDF_RD,             "3",            
 
 SDATA (DTP_JSON,        "range_ports",      SDF_RD,             "[[11100,11199]]", "Range Ports. List of ports to be assigned to public services of yunos."),
 SDATA (DTP_INTEGER,     "last_port",        SDF_WR,             0,              "Last port assigned"),
-SDATA (DTP_INTEGER,     "max_consoles",     SDF_WR,             "10",           "Maximum consoles opened"),
+SDATA (DTP_INTEGER,     "max_consoles",     SDF_WR,             "30",           "Maximum consoles opened"),
 SDATA (DTP_INTEGER,     "timeout_expiration",SDF_WR,            "30000",        "Expiration timeout for commands"),
 SDATA (DTP_BOOLEAN,     "use_internal_schema",SDF_RD,           "1",            "Use internal (hardcoded) schema (TODO don't set to 0, out schema not working)"),
 

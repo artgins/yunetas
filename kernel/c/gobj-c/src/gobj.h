@@ -1952,18 +1952,20 @@ enum { /* String table in s_global_trace_level */
     TRACE_CREATE_DELETE2    = 0x00040000,
     TRACE_SUBSCRIPTIONS     = 0x00080000,
     TRACE_START_STOP        = 0x00100000,
-    TRACE_URING             = 0x00200000,
-    TRACE_EV_KW             = 0x00400000,
-    TRACE_AUTHZS            = 0x00800000,
-    TRACE_STATES            = 0x01000000,
-    TRACE_GBUFFERS          = 0x02000000,
-    TRACE_TIMER_PERIODIC    = 0x04000000,
-    TRACE_TIMER             = 0x08000000,
-    TRACE_URING_TIME        = 0x10000000,
-    TRACE_FS                = 0x20000000,
+    TRACE_EV_KW             = 0x00200000,
+    TRACE_AUTHZS            = 0x00400000,
+    TRACE_STATES            = 0x00800000,
+    TRACE_GBUFFERS          = 0x01000000,
+    TRACE_TIMER             = 0x02000000,
+    TRACE_FS                = 0x04000000,
+    TRACE_FUTURE            = 0x08000000,
+    TRACE_TIMER_PERIODIC    = 0x10000000,
+    TRACE_URING             = 0x20000000,
+    TRACE_URING_TIME        = 0x40000000,
 };
-#define TRACE_USER_LEVEL    0x0000FFFF
-#define TRACE_GLOBAL_LEVEL  0xFFFF0000
+#define TRACE_USER_LEVEL      0x0000FFFF
+#define TRACE_GLOBAL_LEVEL0   0x0FFF0000
+#define TRACE_GLOBAL_LEVEL1   0xFFFF0000
 
 /*
  *  Global trace level names:
@@ -2020,6 +2022,7 @@ PUBLIC json_t *gobj_get_gobj_trace_level_tree(hgobj gobj);
 PUBLIC json_t *gobj_get_gobj_trace_no_level_tree(hgobj gobj);
 
 PUBLIC uint32_t gobj_global_trace_level(void);
+PUBLIC uint32_t gobj_global_trace_level2(void); // don't consider deep trace
 PUBLIC uint32_t gobj_trace_level(hgobj gobj);
 PUBLIC uint32_t gobj_trace_no_level(hgobj gobj);
 PUBLIC BOOL gobj_is_level_tracing(hgobj gobj, uint32_t level);
@@ -2038,6 +2041,9 @@ PUBLIC int gobj_set_deep_tracing(int level); /* 1 all but considering __gobj_tra
 PUBLIC int gobj_get_deep_tracing(void);
 PUBLIC int gobj_set_global_trace(const char *level, BOOL set); // If level is empty, set all global traces
 PUBLIC int gobj_set_global_no_trace(const char *level, BOOL set); // If level is empty, set all global traces
+
+PUBLIC int gobj_set_global_trace2(uint32_t level, BOOL set);
+PUBLIC int gobj_set_global_no_trace2(uint32_t level, BOOL set);
 
 /*
  *  With these trace filter functions you can trace the levels of a gclass

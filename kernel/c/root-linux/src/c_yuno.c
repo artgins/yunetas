@@ -612,8 +612,24 @@ PRIVATE int yev_loop_callback(yev_event_h yev_event)
                             }
                             break;
 
-                            case SIGUSR1:
-                                gobj_set_deep_tracing(-1);
+                            case SIGUSR1: {
+                                uint32_t global_trace = gobj_global_trace_level2();
+                                if(global_trace) {
+                                    gobj_set_global_trace2(TRACE_GLOBAL_LEVEL1, 0);
+                                } else  {
+                                    gobj_set_global_trace2(TRACE_GLOBAL_LEVEL0, 1);
+                                }
+                            }
+                            break;
+
+                            case SIGUSR2: {
+                                int deep_trace = gobj_get_deep_tracing();
+                                if(deep_trace) {
+                                    gobj_set_deep_tracing(0);
+                                } else  {
+                                    gobj_set_deep_tracing(1);
+                                }
+                            }
                             break;
 
                             case SIGPIPE:
@@ -4370,6 +4386,7 @@ PRIVATE int catch_signals(hgobj gobj)
     sigaddset(&mask, SIGQUIT);
     sigaddset(&mask, SIGINT);
     sigaddset(&mask, SIGUSR1);
+    sigaddset(&mask, SIGUSR2);
 
     if(sigprocmask(SIG_BLOCK, &mask, NULL) == -1) {
         gobj_log_error(gobj, 0,

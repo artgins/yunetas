@@ -325,15 +325,16 @@ PRIVATE const trace_level_t s_global_trace_level[16] = {
     {"create_delete2",  "Trace create/delete of gobjs level 2: with kw"},
     {"subscriptions",   "Trace subscriptions of gobjs"},
     {"start_stop",      "Trace start/stop of gobjs"},
-    {"liburing",        "Trace liburing mixins"},
     {"ev_kw",           "Trace event keywords"},
     {"authzs",          "Trace authorizations"},
     {"states",          "Trace change of states"},
     {"gbuffers",        "Trace gbuffers"},
-    {"timer_periodic",  "Trace periodic timers"},
     {"timer",           "Trace timers"},
-    {"liburing_timer",  "Trace liburing timer"},
     {"fs",              "Trace file system"},
+    {"future",          "Trace future"},
+    {"timer_periodic",  "Trace periodic timers"},
+    {"liburing",        "Trace liburing mixins"},
+    {"liburing_timer",  "Trace liburing timer"},
     {0, 0}
 };
 
@@ -430,7 +431,7 @@ SDATA_END()
  ***************************************************************************/
 PRIVATE inline BOOL is_machine_tracing(gobj_t * gobj, gobj_event_t event)
 {
-    if(__deep_trace__) {
+    if(__deep_trace__ > 1) {
         return TRUE;
     }
     if(!gobj) {
@@ -10977,6 +10978,13 @@ PUBLIC uint32_t gobj_global_trace_level(void)
     return __global_trace_level__;
 }
 
+/****************************************************************************
+ *  Return gobj trace level without considering deep trace
+ ****************************************************************************/
+PUBLIC uint32_t gobj_global_trace_level2(void)
+{
+    return __global_trace_level__;
+}
 
 /****************************************************************************
  *  Return gobj trace level
@@ -11266,7 +11274,7 @@ PUBLIC int gobj_set_global_trace(const char *level, BOOL set)
     uint32_t bitmask = 0;
 
     if(empty_string(level)) {
-        bitmask = TRACE_GLOBAL_LEVEL;
+        bitmask = TRACE_GLOBAL_LEVEL1;
     } else {
         if(isdigit(*((unsigned char *)level))) {
             bitmask = (uint32_t)atoi(level);
@@ -11310,7 +11318,7 @@ PUBLIC int gobj_set_global_no_trace(const char *level, BOOL set)
     uint32_t bitmask = 0;
 
     if(empty_string(level)) {
-        bitmask = TRACE_GLOBAL_LEVEL;
+        bitmask = TRACE_GLOBAL_LEVEL1;
     } else {
         if(isdigit(*((unsigned char *)level))) {
             bitmask = (uint32_t)atoi(level);
@@ -11343,6 +11351,46 @@ PUBLIC int gobj_set_global_no_trace(const char *level, BOOL set)
          */
         __global_trace_no_level__ &= ~bitmask;
     }
+    return 0;
+}
+
+/****************************************************************************
+ *
+ ****************************************************************************/
+PUBLIC int gobj_set_global_trace2(uint32_t bitmask, BOOL set)
+{
+    if(set) {
+        /*
+         *  Set
+         */
+        __global_trace_level__ |= bitmask;
+    } else {
+        /*
+         *  Reset
+         */
+        __global_trace_level__ &= ~bitmask;
+    }
+
+    return 0;
+}
+
+/****************************************************************************
+ *
+ ****************************************************************************/
+PUBLIC int gobj_set_global_no_trace2(uint32_t bitmask, BOOL set)
+{
+    if(set) {
+        /*
+         *  Set
+         */
+        __global_trace_no_level__ |= bitmask;
+    } else {
+        /*
+         *  Reset
+         */
+        __global_trace_no_level__ &= ~bitmask;
+    }
+
     return 0;
 }
 

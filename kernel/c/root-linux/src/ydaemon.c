@@ -49,6 +49,7 @@ PRIVATE void daemon_catch_signals(void)
     signal(SIGQUIT, SIG_IGN);
     signal(SIGINT, SIG_IGN);     // ctrl+c
     signal(SIGUSR1, SIG_IGN);
+    signal(SIGUSR2, SIG_IGN);
 }
 
 /***************************************************************************
