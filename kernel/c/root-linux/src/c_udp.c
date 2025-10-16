@@ -730,6 +730,8 @@ PRIVATE int yev_callback(yev_event_h yev_event)
                                 if(gobj_is_running(gobj)) {
                                     gobj_stop(gobj); // auto-stop
                                     // WARNING if IS_CLISRV the gobj will be destroyed here
+                                } else {
+                                    try_to_stop_yevents(gobj);
                                 }
                             }
                             break;
