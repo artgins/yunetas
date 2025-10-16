@@ -614,11 +614,19 @@ PRIVATE int yev_loop_callback(yev_event_h yev_event)
 
                             case SIGUSR1: {
                                 uint32_t global_trace = gobj_global_trace_level2();
-                                if(global_trace) {
-                                    gobj_set_global_trace2(TRACE_GLOBAL_LEVEL2, 0);
-                                } else  {
+                                if(global_trace == 0) {
                                     gobj_set_global_trace2(TRACE_GLOBAL_LEVEL0, 1);
+                                } else if(global_trace == TRACE_GLOBAL_LEVEL0) {
+                                    gobj_set_global_trace2(TRACE_GLOBAL_LEVEL2, 0);
+                                    gobj_set_global_trace2(TRACE_GLOBAL_LEVEL1, 1);
+                                } else if(global_trace == TRACE_GLOBAL_LEVEL1) {
+                                    gobj_set_global_trace2(TRACE_GLOBAL_LEVEL2, 0);
+                                    gobj_set_global_trace2(TRACE_GLOBAL_LEVEL2, 1);
+                                } else {
+                                    gobj_set_global_trace2(TRACE_GLOBAL_LEVEL2, 0);
                                 }
+                                global_trace = gobj_global_trace_level2();
+                                trace_msg0("================> global_trace x%08X", global_trace);
                             }
                             break;
 
