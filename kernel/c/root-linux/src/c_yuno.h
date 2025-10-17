@@ -65,6 +65,21 @@ PUBLIC BOOL is_ip_denied(const char *peername);
 PUBLIC int add_denied_ip(const char *ip, BOOL denied); // denied: TRUE to deny, FALSE to not deny
 PUBLIC int remove_denied_ip(const char *ip); // Remove from interna list
 
+/*--------------------------------------------------*
+ *  Sending signals to any yuno (10 SIGUSR1) (12 SIGUSR2)
+    killall -10 <yuno_name>
+        rotating between
+            TRACE_GLOBAL_LEVEL0,
+            TRACE_GLOBAL_LEVEL1,
+            TRACE_GLOBAL_LEVEL2,
+            nothing
+
+    killall -12 <yuno_name>
+        rotating between
+            gobj_set_deep_tracing(1)
+            gobj_set_deep_tracing(0)
+ *--------------------------------------------------*/
+
 #ifdef __cplusplus
 }
 #endif
