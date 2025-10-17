@@ -90,7 +90,6 @@ PRIVATE sdata_desc_t pm_open_console[] = {
 SDATAPM (DTP_STRING,    "name",         0,              "",         "Name of console"),
 SDATAPM (DTP_STRING,    "process",      0,              "bash",     "Process to execute"),
 SDATAPM (DTP_STRING,    "cwd",          0,              0,          "Current work directory"),
-SDATAPM (DTP_BOOLEAN,   "hold_open",    0,              0,          "True to not close pty on client disconnection"),
 SDATAPM (DTP_INTEGER,   "cx",           0,              "80",       "Columns"),
 SDATAPM (DTP_INTEGER,   "cy",           0,              "24",       "Rows"),
 SDATA_END()
@@ -98,7 +97,6 @@ SDATA_END()
 PRIVATE sdata_desc_t pm_close_console[] = {
 /*-PM----type-----------name------------flag------------default-----description---------- */
 SDATAPM (DTP_STRING,    "name",         0,              "",         "Name of console"),
-SDATAPM (DTP_BOOLEAN,   "force",        0,              0,          "Force to close although hold_open TRUE"),
 SDATA_END()
 };
 PRIVATE sdata_desc_t pm_write_tty[] = {
@@ -510,7 +508,6 @@ PRIVATE json_t *cmd_open_console(hgobj gobj, const char *cmd, json_t *kw, hgobj 
     const char *name = kw_get_str(gobj, kw, "name", "", 0);
     const char *process = kw_get_str(gobj, kw, "process", "bash", 0);
     const char *cwd = kw_get_str(gobj, kw, "cwd", "/home/yuneta", 0);
-    BOOL hold_open = kw_get_bool(gobj, kw, "hold_open", 0, KW_WILD_NUMBER);
     int cx = kw_get_int(gobj, kw, "cx", 80, KW_WILD_NUMBER);
     int cy = kw_get_int(gobj, kw, "cy", 24, KW_WILD_NUMBER);
 
@@ -583,9 +580,8 @@ PRIVATE json_t *cmd_open_console(hgobj gobj, const char *cmd, json_t *kw, hgobj 
         /*
          *  Save console
          */
-        json_t *jn_console = json_pack("{s:s, s:b, s:{}}",
+        json_t *jn_console = json_pack("{s:s, s:{}}",
             "process", process,
-            "hold_open", hold_open,
             "routes"
         );
 
@@ -677,7 +673,6 @@ PRIVATE json_t *cmd_close_console(hgobj gobj, const char *cmd, json_t *kw, hgobj
      *  Close console
      *----------------------------------------*/
     const char *name = kw_get_str(gobj, kw, "name", "", 0);
-    BOOL force = kw_get_bool(gobj, kw, "force", 0, KW_WILD_NUMBER);
 
     if(empty_string(name)) {
         return msg_iev_build_response(
@@ -702,22 +697,15 @@ PRIVATE json_t *cmd_close_console(hgobj gobj, const char *cmd, json_t *kw, hgobj
         );
     }
 
-    BOOL hold_open = kw_get_bool(gobj, jn_console, "hold_open", 0, KW_REQUIRED);
-    if(force) {
-        hold_open = FALSE;
-    }
-
     /*
      *  Delete console or route
      */
     int ret = 0;
-    if(hold_open) {
-        const char *route_service = gobj_name(gobj_nearest_top_service(src));
-        const char *route_child = gobj_name(src);
-        ret = remove_console_route(gobj, name, route_service, route_child);
+    hgobj gobj_console = gobj_find_service(name, TRUE);
+    if(gobj_console) {
+        ret = gobj_stop(gobj_console); // volatil, auto-destroy
     } else {
-        hgobj gobj_console = gobj_find_service(name, TRUE);
-        gobj_stop(gobj_console); // volatil, auto-destroy
+        ret = -1;
     }
 
     /*
@@ -987,19 +975,9 @@ PRIVATE int delete_consoles_on_disconnection(hgobj gobj, json_t *kw, hgobj src_)
         return 0;
     }
 
-    const char *route_service = gobj_name(gobj_nearest_top_service(gobj_channel));
-    const char *route_child = gobj_name(gobj_channel);
-
     const char *name; json_t *jn_; void *n;
     json_object_foreach_safe(consoles, n, name, jn_) {
-        json_t *jn_console = kw_get_dict(gobj, priv->list_consoles, name, 0, 0);
-
-        BOOL hold_open = kw_get_bool(gobj, jn_console, "hold_open", 0, 0);
-        if(hold_open) {
-            remove_console_route(gobj, name, route_service, route_child);
-        } else {
-            delete_console(gobj, name);
-        }
+        delete_console(gobj, name);
     }
 
     return 0;
