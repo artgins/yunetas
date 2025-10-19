@@ -503,10 +503,11 @@ PRIVATE json_t *cmd_check_json(hgobj gobj, const char *cmd, json_t *kw, hgobj sr
     int max_refcount = (int)kw_get_int(gobj, kw, "max_refcount", 1, KW_WILD_NUMBER);
 
     json_t *tranger = priv->tranger;
-    int result = json_check_refcounts(tranger, max_refcount, 0)?0:-1;
+    int result = 0;
+    json_check_refcounts(tranger, max_refcount, &result);
     return msg_iev_build_response(gobj,
         result,
-        json_sprintf("check refcounts of tranger: %s", result==0?"Ok":"Bad"),
+        json_sprintf("check refcounts of tranger: %s. If it was error then check the log files", result==0?"Ok":"Bad"),
         0,
         0,
         kw  // owned
