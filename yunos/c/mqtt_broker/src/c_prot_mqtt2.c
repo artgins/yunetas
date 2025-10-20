@@ -3851,9 +3851,11 @@ PRIVATE int connect__on_authorised(
      *  With assigned_id the id is random!, not a persistent id
      *  (HACK client_id is really a device_id)
      *--------------------------------------------------------------*/
-    json_t *client = json_pack("{s:s, s:b, s:b, s:i, s:s, s:i, s:i, s:i}",
+    json_t *client = json_pack("{s:s, s:b, s:s, s:s, s:b, s:i, s:s, s:i, s:i, s:i}",
         "client_id",                priv->client_id,
         "assigned_id",              priv->assigned_id,
+        "username",                 priv->username,
+        "password",                 priv->password,
         "clean_start",              priv->clean_start,
         "protocol_version",         (int)priv->protocol_version,
         "protocol_name",            priv->protocol_name,
