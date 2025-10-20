@@ -60,9 +60,11 @@ SDATA_END()
  *---------------------------------------------*/
 enum {
     TRAFFIC         = 0x0001,
+    DECODE          = 0x0002,
 };
 PRIVATE const trace_level_t s_user_trace_level[16] = {
     {"traffic",         "Trace traffic"},
+    {"decode",          "Decode"},
     {0, 0},
 };
 
@@ -253,6 +255,11 @@ PRIVATE int ac_rx_data(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
               *   Estoy a medias
               *--------------------*/
             pend_size = (ssize_t)gbuffer_freebytes(priv->last_pkt); /* mira lo que falta */
+
+            if(gobj_trace_level(gobj) & DECODE) {
+                trace_msg0("Estoy a medias pend_size: %zd, len: %zd", pend_size, len);
+            }
+
             if(len >= pend_size) {
                 /*----------------------------------------*
                  *   Justo lo que falta o
@@ -287,6 +294,13 @@ PRIVATE int ac_rx_data(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
              *   New packet
              *--------------------*/
             ssize_t need2header = (ssize_t)(sizeof(HEADER_ERPL4) - priv->idx_header);
+
+            if(gobj_trace_level(gobj) & DECODE) {
+                trace_msg0("New packet len: %zd, need2header: %zd, idx_header: %zu",
+                    len, need2header, priv->idx_header
+                );
+            }
+
             if(len < need2header) {
                 memcpy(
                     priv->bf_header_erpl4 + priv->idx_header,
@@ -313,6 +327,12 @@ PRIVATE int ac_rx_data(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
             memmove((char *)&header_erpl4, priv->bf_header_erpl4, sizeof(HEADER_ERPL4));
             header_erpl4.len = ntohl(header_erpl4.len);
             header_erpl4.len -= sizeof(HEADER_ERPL4); // remove header
+
+            if(gobj_trace_level(gobj) & DECODE) {
+                trace_msg0("New packet header_erpl4.len: %u",
+                    header_erpl4.len
+                );
+            }
 
             if(header_erpl4.len > priv->max_pkt_size) {
                 gobj_log_error(gobj, 0,
