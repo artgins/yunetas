@@ -401,9 +401,14 @@ PRIVATE int ac_on_open(hgobj gobj, const char *event, json_t *kw, hgobj src)
     /*---------------------------------------------*
      *  MQTT Client ID <==> topic in Timeranger
      *---------------------------------------------*/
+    const char *username = kw_get_str(gobj, kw, "username", "", KW_REQUIRED);
+    const char *password = kw_get_str(gobj, kw, "password", "", KW_REQUIRED);
     const char *client_id = kw_get_str(gobj, kw, "client_id", "", KW_REQUIRED);
     BOOL clean_start = kw_get_bool(gobj, kw, "clean_start", 0, KW_REQUIRED);
     BOOL will = kw_get_bool(gobj, kw, "will", 0, KW_REQUIRED);
+    if(will) {
+        // TODO read the remain will fields
+    }
 
     /*----------------------------------------------------------------*
      *  Open the topic (client_id) or create it if it doesn't exist
