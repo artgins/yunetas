@@ -191,6 +191,8 @@ PRIVATE int mt_start(hgobj gobj)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
+    // TODO this setup (until set ST_IDLE) must be in a time action
+
     if(empty_string(priv->url)) {
         gobj_log_error(gobj, 0,
             "function",     "%s", __FUNCTION__,
