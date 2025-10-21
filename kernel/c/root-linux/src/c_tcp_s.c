@@ -55,7 +55,7 @@ SDATA (DTP_BOOLEAN,     "trace_tls",            SDF_WR|SDF_PERSIST, 0,          
 SDATA (DTP_BOOLEAN,     "use_ssl",              SDF_RD,             "FALSE",        "True if schema is secure. Set internally"),
 SDATA (DTP_STRING,      "lHost",                SDF_RD,             0,              "Listening ip, got internally from url"),
 SDATA (DTP_STRING,      "lPort",                SDF_RD,             0,              "Listening port, got internally from url"),
-SDATA (DTP_BOOLEAN,     "exitOnError",          SDF_RD,             "1",            "Exit if Listen failed"),
+SDATA (DTP_INTEGER,     "exitOnError",          SDF_RD,             "-1",           "Exit if Listen failed"),
 SDATA (DTP_DICT,        "child_tree_filter",    SDF_RD,             0,              "tree of children to create on new accept, legacy method"),
 
 SDATA (DTP_DICT,        "clisrv_kw",            SDF_RD,             0,              "kw of clisrv gobj"),
@@ -87,7 +87,7 @@ PRIVATE const trace_level_t s_user_trace_level[16] = {
  *---------------------------------------------*/
 typedef struct _PRIVATE_DATA {
     const char *url;
-    BOOL exitOnError;
+    int exitOnError;
 
     json_t * clisrv_kw;
     BOOL trace_tls;
@@ -131,7 +131,7 @@ PRIVATE void mt_create(hgobj gobj)
      *  HACK The writable attributes must be repeated in mt_writing method.
      */
     SET_PRIV(url,               gobj_read_str_attr)
-    SET_PRIV(exitOnError,       gobj_read_bool_attr)
+    SET_PRIV(exitOnError,       gobj_read_integer_attr)
     SET_PRIV(trace_tls,         gobj_read_bool_attr)
     SET_PRIV(only_allowed_ips,  gobj_read_bool_attr)
     SET_PRIV(child_tree_filter, gobj_read_json_attr)
@@ -156,7 +156,7 @@ PRIVATE void mt_writing(hgobj gobj, const char *path)
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
     IF_EQ_SET_PRIV(url,                 gobj_read_str_attr)
-    ELIF_EQ_SET_PRIV(exitOnError,       gobj_read_bool_attr)
+    ELIF_EQ_SET_PRIV(exitOnError,       gobj_read_integer_attr)
     ELIF_EQ_SET_PRIV(trace_tls,         gobj_read_bool_attr)
     ELIF_EQ_SET_PRIV(only_allowed_ips,  gobj_read_bool_attr)
     END_EQ_SET_PRIV()
@@ -198,7 +198,7 @@ PRIVATE int mt_start(hgobj gobj)
             "msg",          "%s", "URL NULL",
             NULL);
         if(priv->exitOnError) {
-            exit(0); //WARNING exit with 0 to stop daemon watcher!
+            exit(priv->exitOnError); //WARNING exit with 0 to stop daemon watcher!
         } else {
             return -1;
         }
@@ -227,7 +227,7 @@ PRIVATE int mt_start(hgobj gobj)
             NULL
         );
         if(priv->exitOnError) {
-            exit(0); //WARNING exit with 0 to stop daemon watcher!
+            exit(priv->exitOnError); //WARNING exit with 0 to stop daemon watcher!
         } else {
             return -1;
         }
@@ -242,7 +242,7 @@ PRIVATE int mt_start(hgobj gobj)
             NULL
         );
         if(priv->exitOnError) {
-            exit(0); //WARNING exit with 0 to stop daemon watcher!
+            exit(priv->exitOnError); //WARNING exit with 0 to stop daemon watcher!
         } else {
             return -1;
         }
@@ -273,7 +273,7 @@ PRIVATE int mt_start(hgobj gobj)
             NULL
         );
         if(priv->exitOnError) {
-            exit(0); //WARNING exit with 0 to stop daemon watcher!
+            exit(priv->exitOnError); //WARNING exit with 0 to stop daemon watcher!
         } else {
             if(priv->yev_server_accept) {
                 yev_destroy_event(priv->yev_server_accept);

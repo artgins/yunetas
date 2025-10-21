@@ -2921,7 +2921,7 @@ PUBLIC yev_event_h yev_create_sendmsg_event(
 }
 
 /***************************************************************************
- *
+ *  TODO why don't use print_socket_address()?
  ***************************************************************************/
 PRIVATE int print_addrinfo(hgobj gobj, char *bf, size_t bfsize, struct addrinfo *ai, int port)
 {
