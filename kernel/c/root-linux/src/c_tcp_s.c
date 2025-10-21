@@ -198,6 +198,13 @@ PRIVATE int mt_start(hgobj gobj)
             "msg",          "%s", "URL NULL",
             NULL);
         if(priv->exitOnError) {
+            gobj_log_warning(gobj, 0,
+                "function",     "%s", __FUNCTION__,
+                "msgset",       "%s", MSGSET_SYSTEM_ERROR,
+                "msg",          "%s", "Exiting",
+                "exitOnError",  "%d", priv->exitOnError,
+                NULL
+            );
             exit(priv->exitOnError); //WARNING exit with 0 to stop daemon watcher!
         } else {
             return -1;
@@ -227,6 +234,13 @@ PRIVATE int mt_start(hgobj gobj)
             NULL
         );
         if(priv->exitOnError) {
+            gobj_log_warning(gobj, 0,
+                "function",     "%s", __FUNCTION__,
+                "msgset",       "%s", MSGSET_SYSTEM_ERROR,
+                "msg",          "%s", "Exiting",
+                "exitOnError",  "%d", priv->exitOnError,
+                NULL
+            );
             exit(priv->exitOnError); //WARNING exit with 0 to stop daemon watcher!
         } else {
             return -1;
@@ -242,6 +256,13 @@ PRIVATE int mt_start(hgobj gobj)
             NULL
         );
         if(priv->exitOnError) {
+            gobj_log_warning(gobj, 0,
+                "function",     "%s", __FUNCTION__,
+                "msgset",       "%s", MSGSET_SYSTEM_ERROR,
+                "msg",          "%s", "Exiting",
+                "exitOnError",  "%d", priv->exitOnError,
+                NULL
+            );
             exit(priv->exitOnError); //WARNING exit with 0 to stop daemon watcher!
         } else {
             return -1;
@@ -273,6 +294,13 @@ PRIVATE int mt_start(hgobj gobj)
             NULL
         );
         if(priv->exitOnError) {
+            gobj_log_warning(gobj, 0,
+                "function",     "%s", __FUNCTION__,
+                "msgset",       "%s", MSGSET_SYSTEM_ERROR,
+                "msg",          "%s", "Exiting",
+                "exitOnError",  "%d", priv->exitOnError,
+                NULL
+            );
             exit(priv->exitOnError); //WARNING exit with 0 to stop daemon watcher!
         } else {
             if(priv->yev_server_accept) {
