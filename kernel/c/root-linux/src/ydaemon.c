@@ -32,7 +32,7 @@
  *      Data
  ******************************************************/
 PRIVATE volatile int relaunch_times = 0;
-PRIVATE volatile int debug = 0;
+PRIVATE volatile int debug = 1; // TODO repon a 0
 PRIVATE volatile int exit_code;
 PRIVATE volatile int signal_code;
 PRIVATE volatile int watcher_pid = 0;
@@ -161,7 +161,7 @@ PRIVATE int relauncher(
         }
 
         if(WIFSIGNALED(status)) {
-            signal_code = (int)(char)(WTERMSIG(status));
+            signal_code = (int)(int8_t)(WTERMSIG(status));
             if(debug) {
                 print_error(0, "Process child signalized with signal %d, process %s, pid %d",
                     signal_code,
@@ -175,7 +175,7 @@ PRIVATE int relauncher(
             return -1; // relaunch
 
         } else if(WIFEXITED(status)) {
-            exit_code = (int)(char)(WEXITSTATUS(status));
+            exit_code = (int)(int8_t)(WEXITSTATUS(status));
             if(debug) {
                 print_error(0, "Process child exiting with code %d, process %s, pid %d",
                     exit_code,
@@ -183,9 +183,9 @@ PRIVATE int relauncher(
                     getpid()
                 );
             }
-            if(exit_code < 0) {
+            if(exit_code) {
                 // relaunch the child
-                return exit_code;
+                return -1;
             }
             return 1;
 
