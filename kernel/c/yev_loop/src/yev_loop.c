@@ -2551,6 +2551,9 @@ PUBLIC yev_event_h yev_create_accept_event( // create the socket listening in ye
             "addr size",    "%d", (int)sizeof(yev_event->sock_info->addr),
             NULL
         );
+        freeaddrinfo(results);
+        yev_destroy_event(yev_event);
+        return NULL;
     }
 
     if(secure) {

@@ -219,7 +219,38 @@ Use this utility to edit the Kconfig file and to select the compiler, build type
 
     menuconfig
 
-> ⚠️ **Warning:** Save the configuration, otherwise the compilation will fail, the .config file is required.
+    Options:
+
+    (Top) → Compiler Selection
+        (X) Clang compiler (default, but don't use in RISC cpus)
+        ( ) GCC compiler
+        ( ) Musl compiler
+
+    (Top) → Build Type
+        (X) RelWithDebInfo
+        ( ) Release
+        ( ) Debug
+        ( ) MinSizeRel
+
+    (Top) → TLS Library
+        (X) OpenSSL
+        ( ) Mbed-TLS        TODO
+
+    (Top) → Debug Options
+        [*] Use backtrace library
+        [*] Enable track memory
+        [ ] Print times of yev_loop
+
+    (Top) → Modules
+        *** Available modules. ***
+        [*] C_PROT support
+        [*] C_CONSOLE support
+        [*] C_POSTGRES support
+
+
+> ⚠️ **Warning:** Save the configuration, otherwise the compilation will fail, the **.config** file is required.
+
+> ⚠️ **Warning:** Execute the ./set_compiler.sh to compile the external libs with the same compiler as Yunetas.
 
 
 ## Install dependencies

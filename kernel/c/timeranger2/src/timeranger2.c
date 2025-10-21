@@ -5363,6 +5363,8 @@ PUBLIC json_t *tranger2_open_iterator( // LOADING: load data from disk, APPENDIN
         realtime = FALSE;
     }
 
+//print_json2("SEGMENTS·segments); // TODO TEST
+
     json_t *iterator = json_object();
     json_object_set_new(iterator, "id", json_string(iterator_id));
     json_object_set_new(iterator, "creator", json_string(creator));
