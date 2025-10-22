@@ -8524,7 +8524,7 @@ PRIVATE int create_gclass(gclass_name_t gclass_name)
         {EV_TX_READY,           0,                                  0},
         {0,0,0}
     };
-    ev_action_t st_waiting_frame_header[] = {
+    ev_action_t st_wait_frame_header[] = {
         {EV_RX_DATA,            ac_process_frame_header,            0},
         {EV_SEND_MESSAGE,       ac_send_message,                    0},
         {EV_DISCONNECTED,       ac_disconnected,                    ST_DISCONNECTED},
@@ -8533,7 +8533,7 @@ PRIVATE int create_gclass(gclass_name_t gclass_name)
         {EV_TX_READY,           0,                                  0},
         {0,0,0}
     };
-    ev_action_t st_waiting_payload_data[] = {
+    ev_action_t st_wait_payload[] = {
         {EV_RX_DATA,            ac_process_payload_data,            0},
         {EV_SEND_MESSAGE,       ac_send_message,                    0},
         {EV_DISCONNECTED,       ac_disconnected,                    ST_DISCONNECTED},
@@ -8545,8 +8545,8 @@ PRIVATE int create_gclass(gclass_name_t gclass_name)
 
     states_t states[] = {
         {ST_DISCONNECTED,           st_disconnected},
-        {ST_WAIT_FRAME_HEADER,   st_waiting_frame_header},
-        {ST_WAIT_PAYLOAD,   st_waiting_payload_data},
+        {ST_WAIT_FRAME_HEADER,   st_wait_frame_header},
+        {ST_WAIT_PAYLOAD,   st_wait_payload},
         {0, 0}
     };
 
