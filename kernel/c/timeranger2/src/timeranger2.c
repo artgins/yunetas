@@ -4385,7 +4385,13 @@ PRIVATE json_int_t update_new_records_from_disk(
         json_object_update_new(cur_cache_cell, new_cache_cell);
     }
 
-    json_int_t totals = update_totals_of_key_cache2(gobj, topic, key, cur_cache_cell, rows_added);
+    json_int_t totals = update_totals_of_key_cache2(
+        gobj,
+        topic,
+        key,
+        cur_cache_cell?cur_cache_cell:new_cache_cell,
+        rows_added
+    );
 
     return totals;
 }
@@ -5362,8 +5368,6 @@ PUBLIC json_t *tranger2_open_iterator( // LOADING: load data from disk, APPENDIN
     if(!load_record_callback) {
         realtime = FALSE;
     }
-
-//print_json2("SEGMENTS·segments); // TODO TEST
 
     json_t *iterator = json_object();
     json_object_set_new(iterator, "id", json_string(iterator_id));
