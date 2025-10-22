@@ -526,22 +526,36 @@ PRIVATE int create_gclass(gclass_name_t gclass_name)
      *          Define States
      *----------------------------------------*/
     ev_action_t st_disconnected[] = {
-        {EV_CONNECTED,          ac_connected,       ST_CONNECTED},
-        {EV_STOPPED,            ac_stopped,         0},
+        {EV_CONNECTED,          ac_connected,                       ST_WAIT_FRAME_HEADER},
+        {EV_DISCONNECTED,       ac_disconnected,                    0},
+        {EV_TIMEOUT,            ac_timeout_waiting_disconnected,    0},
+        {EV_STOPPED,            ac_stopped,                         0},
+        {EV_TX_READY,           0,                                  0},
         {0,0,0}
     };
-    ev_action_t st_connected[] = {
-        {EV_RX_DATA,            ac_rx_data,         0},
-        {EV_SEND_MESSAGE,       ac_send_message,    0},
-        {EV_TX_READY,           0,                  0},
-        {EV_DISCONNECTED,       ac_disconnected,    ST_DISCONNECTED},
-        {EV_DROP,               ac_drop,            0},
+    ev_action_t st_wait_frame_header[] = {
+        {EV_RX_DATA,            ac_process_frame_header,            0},
+        {EV_SEND_MESSAGE,       ac_send_message,                    0},
+        {EV_DISCONNECTED,       ac_disconnected,                    ST_DISCONNECTED},
+        {EV_TIMEOUT,            ac_timeout_waiting_frame_header,    0},
+        {EV_DROP,               ac_drop,                            0},
+        {EV_TX_READY,           0,                                  0},
+        {0,0,0}
+    };
+    ev_action_t st_wait_payload[] = {
+        {EV_RX_DATA,            ac_process_payload_data,            0},
+        {EV_SEND_MESSAGE,       ac_send_message,                    0},
+        {EV_DISCONNECTED,       ac_disconnected,                    ST_DISCONNECTED},
+        {EV_TIMEOUT,            ac_timeout_waiting_payload_data,    0},
+        {EV_DROP,               ac_drop,                            0},
+        {EV_TX_READY,           0,                                  0},
         {0,0,0}
     };
 
     states_t states[] = {
-        {ST_DISCONNECTED,   st_disconnected},
-        {ST_CONNECTED,      st_connected},
+        {ST_DISCONNECTED,           st_disconnected},
+        {ST_WAIT_FRAME_HEADER,      st_wait_frame_header},
+        {ST_WAIT_PAYLOAD,           st_wait_payload},
         {0, 0}
     };
 

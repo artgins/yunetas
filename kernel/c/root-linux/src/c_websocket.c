@@ -2046,37 +2046,37 @@ PRIVATE int create_gclass(gclass_name_t gclass_name)
      *          Define States
      *----------------------------------------*/
     ev_action_t st_disconnected[] = {
-        {EV_CONNECTED,        ac_connected,                       ST_WAIT_HANDSHAKE},
-        {EV_DISCONNECTED,     ac_disconnected,                    0},
-        {EV_TIMEOUT,          ac_timeout_waiting_disconnected,    0},
-        {EV_STOPPED,          ac_stopped,                         0},
-        {EV_TX_READY,         0,                                  0},
+        {EV_CONNECTED,          ac_connected,                       ST_WAIT_HANDSHAKE},
+        {EV_DISCONNECTED,       ac_disconnected,                    0},
+        {EV_TIMEOUT,            ac_timeout_waiting_disconnected,    0},
+        {EV_STOPPED,            ac_stopped,                         0},
+        {EV_TX_READY,           0,                                  0},
         {0,0,0}
     };
     ev_action_t st_wait_handshake[] = {
-        {EV_RX_DATA,          ac_process_handshake,               0},
-        {EV_DISCONNECTED,     ac_disconnected,                    ST_DISCONNECTED},
-        {EV_TIMEOUT,          ac_timeout_waiting_handshake,       0},
-        {EV_DROP,             ac_drop,                            0},
-        {EV_TX_READY,         0,                                  0},
+        {EV_RX_DATA,            ac_process_handshake,               0},
+        {EV_DISCONNECTED,       ac_disconnected,                    ST_DISCONNECTED},
+        {EV_TIMEOUT,            ac_timeout_waiting_handshake,       0},
+        {EV_DROP,               ac_drop,                            0},
+        {EV_TX_READY,           0,                                  0},
         {0,0,0}
     };
     ev_action_t st_wait_frame_header[] = {
-        {EV_RX_DATA,          ac_process_frame_header,            0},
-        {EV_SEND_MESSAGE,     ac_send_message,                    0},
-        {EV_DISCONNECTED,     ac_disconnected,                    ST_DISCONNECTED},
-        {EV_TIMEOUT,          ac_timeout_waiting_frame_header,    0},
-        {EV_DROP,             ac_drop,                            0},
-        {EV_TX_READY,         0,                                  0},
+        {EV_RX_DATA,            ac_process_frame_header,            0},
+        {EV_SEND_MESSAGE,       ac_send_message,                    0},
+        {EV_DISCONNECTED,       ac_disconnected,                    ST_DISCONNECTED},
+        {EV_TIMEOUT,            ac_timeout_waiting_frame_header,    0},
+        {EV_DROP,               ac_drop,                            0},
+        {EV_TX_READY,           0,                                  0},
         {0,0,0}
     };
     ev_action_t st_wait_payload[] = {
-        {EV_RX_DATA,          ac_process_payload_data,            0},
-        {EV_SEND_MESSAGE,     ac_send_message,                    0},
-        {EV_DISCONNECTED,     ac_disconnected,                    ST_DISCONNECTED},
-        {EV_TIMEOUT,          ac_timeout_waiting_payload_data,    0},
-        {EV_DROP,             ac_drop,                            0},
-        {EV_TX_READY,         0,                                  0},
+        {EV_RX_DATA,            ac_process_payload_data,            0},
+        {EV_SEND_MESSAGE,       ac_send_message,                    0},
+        {EV_DISCONNECTED,       ac_disconnected,                    ST_DISCONNECTED},
+        {EV_TIMEOUT,            ac_timeout_waiting_payload_data,    0},
+        {EV_DROP,               ac_drop,                            0},
+        {EV_TX_READY,           0,                                  0},
         {0,0,0}
     };
 

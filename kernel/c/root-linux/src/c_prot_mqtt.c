@@ -8109,7 +8109,7 @@ PRIVATE int ac_stopped(hgobj gobj, const char *event, json_t *kw, hgobj src)
 /***************************************************************************
  *  Too much time waiting disconnected
  ***************************************************************************/
-PRIVATE int ac_timeout_waiting_disconnected(hgobj gobj, const char *event, json_t *kw, hgobj src)
+PRIVATE int ac_timeout_wait_disconnected(hgobj gobj, const char *event, json_t *kw, hgobj src)
 {
     gobj_log_warning(gobj, 0,
         "msgset",       "%s", MSGSET_MQTT_ERROR,
@@ -8232,7 +8232,7 @@ PRIVATE int ac_process_frame_header(hgobj gobj, const char *event, json_t *kw, h
 /***************************************************************************
  *  No activity, send ping
  ***************************************************************************/
-PRIVATE int ac_timeout_waiting_frame_header(hgobj gobj, const char *event, json_t *kw, hgobj src)
+PRIVATE int ac_timeout_wait_frame_header(hgobj gobj, const char *event, json_t *kw, hgobj src)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
@@ -8298,7 +8298,7 @@ PRIVATE int ac_process_payload_data(hgobj gobj, const char *event, json_t *kw, h
 /***************************************************************************
  *  Too much time waiting payload data
  ***************************************************************************/
-PRIVATE int ac_timeout_waiting_payload_data(hgobj gobj, const char *event, json_t *kw, hgobj src)
+PRIVATE int ac_timeout_wait_payload_data(hgobj gobj, const char *event, json_t *kw, hgobj src)
 {
     gobj_log_info(gobj, 0,
         "msgset",       "%s", MSGSET_MQTT_ERROR,
@@ -8518,29 +8518,29 @@ PRIVATE int create_gclass(gclass_name_t gclass_name)
      *          Define States
      *----------------------------------------*/
     ev_action_t st_disconnected[] = {
-        {EV_CONNECTED,        ac_connected,                       ST_WAIT_FRAME_HEADER},
-        {EV_DISCONNECTED,     ac_disconnected,                    0},
-        {EV_TIMEOUT,          ac_timeout_waiting_disconnected,    0},
-        {EV_STOPPED,          ac_stopped,                         0},
-        {EV_TX_READY,         0,                                  0},
+        {EV_CONNECTED,          ac_connected,                       ST_WAIT_FRAME_HEADER},
+        {EV_DISCONNECTED,       ac_disconnected,                    0},
+        {EV_TIMEOUT,            ac_timeout_wait_disconnected,       0},
+        {EV_STOPPED,            ac_stopped,                         0},
+        {EV_TX_READY,           0,                                  0},
         {0,0,0}
     };
     ev_action_t st_wait_frame_header[] = {
-        {EV_RX_DATA,          ac_process_frame_header,            0},
-        {EV_SEND_MESSAGE,     ac_send_message,                    0},
-        {EV_DISCONNECTED,     ac_disconnected,                    ST_DISCONNECTED},
-        {EV_TIMEOUT,          ac_timeout_waiting_frame_header,    0},
-        {EV_DROP,             ac_drop,                            0},
-        {EV_TX_READY,         0,                                  0},
+        {EV_RX_DATA,            ac_process_frame_header,            0},
+        {EV_SEND_MESSAGE,       ac_send_message,                    0},
+        {EV_DISCONNECTED,       ac_disconnected,                    ST_DISCONNECTED},
+        {EV_TIMEOUT,            ac_timeout_wait_frame_header,       0},
+        {EV_DROP,               ac_drop,                            0},
+        {EV_TX_READY,           0,                                  0},
         {0,0,0}
     };
     ev_action_t st_wait_payload[] = {
-        {EV_RX_DATA,          ac_process_payload_data,            0},
-        {EV_SEND_MESSAGE,     ac_send_message,                    0},
-        {EV_DISCONNECTED,     ac_disconnected,                    ST_DISCONNECTED},
-        {EV_TIMEOUT,          ac_timeout_waiting_payload_data,    0},
-        {EV_DROP,             ac_drop,                            0},
-        {EV_TX_READY,         0,                                  0},
+        {EV_RX_DATA,            ac_process_payload_data,            0},
+        {EV_SEND_MESSAGE,       ac_send_message,                    0},
+        {EV_DISCONNECTED,       ac_disconnected,                    ST_DISCONNECTED},
+        {EV_TIMEOUT,            ac_timeout_wait_payload_data,       0},
+        {EV_DROP,               ac_drop,                            0},
+        {EV_TX_READY,           0,                                  0},
         {0,0,0}
     };
 
