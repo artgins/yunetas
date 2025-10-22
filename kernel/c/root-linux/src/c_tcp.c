@@ -92,8 +92,8 @@ SDATA (DTP_BOOLEAN, "use_close_poll",   SDF_PERSIST,    "TRUE",     "Set TRUE if
 SDATA (DTP_BOOLEAN, "use_ssl",          SDF_RD,         "FALSE",    "True if schema is secure. Set internally if client, externally is clisrv"),
 SDATA (DTP_JSON,    "crypto",           SDF_RD,         "{}",       "Crypto config"),
 SDATA (DTP_POINTER, "ytls",             0,              0,          "TLS handler"),
-SDATA (DTP_INTEGER, "fd_clisrv",        0,              0,          "socket fd of clisrv"),
-SDATA (DTP_INTEGER, "fd_listen",        0,              0,          "socket accept listen"),
+SDATA (DTP_INTEGER, "fd_clisrv",        SDF_RD,         0,          "socket fd of clisrv"),
+SDATA (DTP_INTEGER, "fd_listen",        SDF_RD,         0,          "socket accept listen"),
 
 SDATA (DTP_INTEGER, "connxs",           SDF_STATS,      "0",        "connection counter"),
 SDATA (DTP_BOOLEAN, "connected",        SDF_VOLATIL|SDF_STATS, "FALSE", "Connection state. Important filter!"),
@@ -1372,7 +1372,7 @@ PRIVATE int yev_callback(yev_event_h yev_event)
                      */
                     gobj_log_set_last_message("%s", strerror(-yev_get_result(yev_event)));
 
-                    if(trace) {
+                    if(trace || 1) { // TODO testing
                         gobj_log_debug(gobj, 0,
                             "function",     "%s", __FUNCTION__,
                             "msgset",       "%s", MSGSET_LIBURING_ERROR,
