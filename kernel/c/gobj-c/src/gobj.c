@@ -331,9 +331,8 @@ PRIVATE const trace_level_t s_global_trace_level[16] = {
     {"gbuffers",        "Trace gbuffers"},
     {"timer",           "Trace timers"},
     {"fs",              "Trace file system"},
-    {"future",          "Trace future"},
-    {"timer_periodic",  "Trace periodic timers"},
     {"liburing",        "Trace liburing mixins"},
+    {"timer_periodic",  "Trace periodic timers"},
     {"liburing_timer",  "Trace liburing timer"},
     {0, 0}
 };

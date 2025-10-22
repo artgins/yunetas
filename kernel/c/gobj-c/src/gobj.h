@@ -1958,10 +1958,9 @@ enum { /* String table in s_global_trace_level */
     TRACE_GBUFFERS          = 0x01000000,
     TRACE_TIMER             = 0x02000000,
     TRACE_FS                = 0x04000000,
-    TRACE_FUTURE            = 0x08000000,
+    TRACE_URING             = 0x08000000,
     TRACE_TIMER_PERIODIC    = 0x10000000,
-    TRACE_URING             = 0x20000000,
-    TRACE_URING_TIME        = 0x40000000,
+    TRACE_URING_TIME        = 0x20000000,
 };
 #define TRACE_USER_LEVEL      0x0000FFFF
 #define TRACE_GLOBAL_LEVEL0   0x00FF0000
