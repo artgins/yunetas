@@ -66,9 +66,9 @@ DEFAULT_SUBSTITUTIONS = [
     ("\"ST_OPENED\"",               "ST_OPENED"),
     ("\"ST_CLOSED\"",               "ST_CLOSED"),
 
-    ("\"ST_WAITING_HANDSHAKE\"",    "ST_WAITING_HANDSHAKE"),
-    ("\"ST_WAITING_FRAME_HEADER\"", "ST_WAITING_FRAME_HEADER"),
-    ("\"ST_WAITING_PAYLOAD_DATA\"", "ST_WAITING_PAYLOAD_DATA"),
+    ("\"ST_WAITING_HANDSHAKE\"",    "ST_WAIT_HANDSHAKE"),
+    ("\"ST_WAITING_FRAME_HEADER\"", "ST_WAIT_FRAME_HEADER"),
+    ("\"ST_WAITING_PAYLOAD_DATA\"", "ST_WAIT_PAYLOAD_DATA"),
 
 
     ("uint64_t *ptxMsgs;",      "uint64_t txMsgs;"),

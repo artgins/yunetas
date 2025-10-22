@@ -2084,7 +2084,7 @@ PRIVATE void start_wait_frame_header(hgobj gobj)
     if(!gobj_is_running(gobj)) {
         return;
     }
-    gobj_change_state(gobj, ST_WAITING_FRAME_HEADER);
+    gobj_change_state(gobj, ST_WAIT_FRAME_HEADER);
     if(priv->pingT>0) {
         set_timeout(priv->timer, priv->pingT);
     }
@@ -8212,7 +8212,7 @@ PRIVATE int ac_process_frame_header(hgobj gobj, const char *event, json_t *kw, h
                 }
                 istream_read_until_num_bytes(priv->istream_payload, frame_length, 0);
 
-                gobj_change_state(gobj, ST_WAITING_PAYLOAD_DATA);
+                gobj_change_state(gobj, ST_WAIT_PAYLOAD);
                 return gobj_send_event(gobj, EV_RX_DATA, kw, gobj);
 
             } else {
@@ -8518,7 +8518,7 @@ PRIVATE int create_gclass(gclass_name_t gclass_name)
      *          Define States
      *----------------------------------------*/
     ev_action_t st_disconnected[] = {
-        {EV_CONNECTED,        ac_connected,                       ST_WAITING_FRAME_HEADER},
+        {EV_CONNECTED,        ac_connected,                       ST_WAIT_FRAME_HEADER},
         {EV_DISCONNECTED,     ac_disconnected,                    0},
         {EV_TIMEOUT,          ac_timeout_waiting_disconnected,    0},
         {EV_STOPPED,          ac_stopped,                         0},
@@ -8546,8 +8546,8 @@ PRIVATE int create_gclass(gclass_name_t gclass_name)
 
     states_t states[] = {
         {ST_DISCONNECTED,           st_disconnected},
-        {ST_WAITING_FRAME_HEADER,   st_waiting_frame_header},
-        {ST_WAITING_PAYLOAD_DATA,   st_waiting_payload_data},
+        {ST_WAIT_FRAME_HEADER,   st_waiting_frame_header},
+        {ST_WAIT_PAYLOAD,   st_waiting_payload_data},
         {0, 0}
     };
 
