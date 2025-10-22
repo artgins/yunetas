@@ -21,7 +21,11 @@
 #ifdef __linux__
     #include "c_tcp.h"
 #endif
+#include "c_timer.h"
+#include "istream.h"
 #include "c_prot_tcp4h.h"
+
+
 
 /***************************************************************
  *              Constants
@@ -35,6 +39,23 @@ typedef union {
     uint32_t len;
 } HEADER_ERPL4;
 
+typedef struct _FRAME_HEAD {
+    // Information of the first two bytes header
+// mqtt_message_t command;
+    uint8_t flags;
+
+    // state of frame
+    char busy;              // in half of header
+    char header_complete;   // Set True when header is completed
+
+    // must do
+    char must_read_remaining_length_2;
+    char must_read_remaining_length_3;
+    char must_read_remaining_length_4;
+
+    size_t frame_length;
+} FRAME_HEAD;
+
 /***************************************************************
  *              Data
  ***************************************************************/
@@ -46,6 +67,11 @@ PRIVATE const sdata_desc_t attrs_table[] = {
 SDATA (DTP_STRING,  "url",              SDF_PERSIST,    "",         "Url to connect"),
 SDATA (DTP_STRING,  "cert_pem",         SDF_PERSIST,    "",         "SSL server certification, PEM str format"),
 SDATA (DTP_INTEGER, "max_pkt_size",     SDF_WR,         0,          "Package maximum size"),
+
+SDATA (DTP_BOOLEAN, "iamServer",        SDF_RD,                     0,      "What side? server or client"),
+SDATA (DTP_INTEGER, "timeout_handshake",SDF_PERSIST,   "5000",      "Timeout to handshake"),
+SDATA (DTP_INTEGER, "timeout_close",    SDF_PERSIST,   "3000",      "Timeout to close"),
+
 SDATA (DTP_POINTER, "user_data",        0,              0,          "user data"),
 SDATA (DTP_POINTER, "user_data2",       0,              0,          "more user data"),
 SDATA (DTP_POINTER, "subscriber",       0,              0,          "subscriber of output-events. If null then subscriber is the parent"),
@@ -75,8 +101,26 @@ typedef struct _PRIVATE_DATA {
     gbuffer_t *last_pkt;  /* packet currently receiving */
     char bf_header_erpl4[sizeof(HEADER_ERPL4)];
     size_t idx_header;
-
     uint32_t max_pkt_size;
+
+    hgobj timer;
+    dl_list_t dl_msgs_out;  // Output queue of messages
+
+    FRAME_HEAD frame_head;
+    istream_h istream_frame;
+    istream_h istream_payload;
+
+    FRAME_HEAD message_head;
+
+    /*
+     *  Config
+     */
+    BOOL iamServer;         // What side? server or client
+
+    /*
+     *  Dynamic data (reset per connection)
+     */
+
 } PRIVATE_DATA;
 
 
@@ -95,6 +139,22 @@ typedef struct _PRIVATE_DATA {
 PRIVATE void mt_create(hgobj gobj)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    priv->iamServer = gobj_read_bool_attr(gobj, "iamServer");
+    priv->timer = gobj_create_pure_child(gobj_name(gobj), C_TIMER, 0, gobj);
+
+    dl_init(&priv->dl_msgs_out, gobj);
+
+    priv->istream_frame = istream_create(gobj, 14, 14);
+    if(!priv->istream_frame) {
+        gobj_log_error(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_INTERNAL_ERROR,
+            "msg",          "%s", "istream_create() FAILED",
+            NULL
+        );
+        return;
+    }
 
     /*
      *  CHILD subscription model
@@ -216,8 +276,22 @@ PRIVATE void mt_destroy(hgobj gobj)
  ***************************************************************************/
 PRIVATE int ac_connected(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 {
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    gobj_reset_volatil_attrs(gobj);
+// TODO     start_wait_frame_header(gobj);
     gobj_write_bool_attr(gobj, "connected", TRUE);
 
+    if (priv->iamServer) {
+        /*
+         * wait the request
+         */
+    } else {
+        /*
+         * send the request
+         */
+    }
+    set_timeout(priv->timer, gobj_read_integer_attr(gobj, "timeout_handshake"));
     return gobj_publish_event(gobj, EV_ON_OPEN, kw); // use the same kw
 }
 
@@ -229,6 +303,32 @@ PRIVATE int ac_disconnected(hgobj gobj, gobj_event_t event, json_t *kw, hgobj sr
     gobj_write_bool_attr(gobj, "connected", FALSE);
 
     return gobj_publish_event(gobj, EV_ON_CLOSE, kw); // use the same kw
+}
+
+/***************************************************************************
+ *  Too much time waiting disconnected
+ ***************************************************************************/
+PRIVATE int ac_timeout_wait_disconnected(hgobj gobj, const char *event, json_t *kw, hgobj src)
+{
+    gobj_log_warning(gobj, 0,
+        "msgset",       "%s", MSGSET_MQTT_ERROR,
+        "msg",          "%s", "Timeout waiting disconnected",
+        NULL
+    );
+
+    gobj_send_event(gobj_bottom_gobj(gobj), EV_DROP, 0, gobj);
+    KW_DECREF(kw)
+    return 0;
+}
+
+/***************************************************************************
+ *  Process the header.
+ ***************************************************************************/
+PRIVATE int ac_process_frame_header(hgobj gobj, const char *event, json_t *kw, hgobj src)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+    KW_DECREF(kw)
+    return 0;
 }
 
 /***************************************************************************
@@ -402,6 +502,43 @@ PRIVATE int ac_rx_data(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 }
 
 /***************************************************************************
+ *  No activity, send ping
+ ***************************************************************************/
+PRIVATE int ac_timeout_wait_frame_header(hgobj gobj, const char *event, json_t *kw, hgobj src)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+
+    KW_DECREF(kw)
+    return 0;
+}
+
+/***************************************************************************
+ *  Get payload data
+ ***************************************************************************/
+PRIVATE int ac_process_payload_data(hgobj gobj, const char *event, json_t *kw, hgobj src)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+    KW_DECREF(kw)
+    return 0;
+}
+
+/***************************************************************************
+ *  Too much time waiting payload data
+ ***************************************************************************/
+PRIVATE int ac_timeout_wait_payload_data(hgobj gobj, const char *event, json_t *kw, hgobj src)
+{
+    gobj_log_info(gobj, 0,
+        "msgset",       "%s", MSGSET_MQTT_ERROR,
+        "msg",          "%s", "Timeout waiting PAYLOAD data",
+        NULL
+    );
+
+    KW_DECREF(kw)
+    return 0;
+}
+
+/***************************************************************************
  *
  ***************************************************************************/
 PRIVATE int ac_send_message(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
@@ -485,11 +622,11 @@ PRIVATE int ac_stopped(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
  *          Global methods table
  *---------------------------------------------*/
 PRIVATE const GMETHODS gmt = {
-    .mt_create = mt_create,
+    .mt_create  = mt_create,
     .mt_writing = mt_writing,
     .mt_destroy = mt_destroy,
-    .mt_start = mt_start,
-    .mt_stop = mt_stop,
+    .mt_start   = mt_start,
+    .mt_stop    = mt_stop,
 };
 
 /*------------------------*
@@ -528,7 +665,7 @@ PRIVATE int create_gclass(gclass_name_t gclass_name)
     ev_action_t st_disconnected[] = {
         {EV_CONNECTED,          ac_connected,                       ST_WAIT_FRAME_HEADER},
         {EV_DISCONNECTED,       ac_disconnected,                    0},
-        {EV_TIMEOUT,            ac_timeout_waiting_disconnected,    0},
+        {EV_TIMEOUT,            ac_timeout_wait_disconnected,       0},
         {EV_STOPPED,            ac_stopped,                         0},
         {EV_TX_READY,           0,                                  0},
         {0,0,0}
@@ -537,7 +674,7 @@ PRIVATE int create_gclass(gclass_name_t gclass_name)
         {EV_RX_DATA,            ac_process_frame_header,            0},
         {EV_SEND_MESSAGE,       ac_send_message,                    0},
         {EV_DISCONNECTED,       ac_disconnected,                    ST_DISCONNECTED},
-        {EV_TIMEOUT,            ac_timeout_waiting_frame_header,    0},
+        {EV_TIMEOUT,            ac_timeout_wait_frame_header,       0},
         {EV_DROP,               ac_drop,                            0},
         {EV_TX_READY,           0,                                  0},
         {0,0,0}
@@ -546,7 +683,7 @@ PRIVATE int create_gclass(gclass_name_t gclass_name)
         {EV_RX_DATA,            ac_process_payload_data,            0},
         {EV_SEND_MESSAGE,       ac_send_message,                    0},
         {EV_DISCONNECTED,       ac_disconnected,                    ST_DISCONNECTED},
-        {EV_TIMEOUT,            ac_timeout_waiting_payload_data,    0},
+        {EV_TIMEOUT,            ac_timeout_wait_payload_data,       0},
         {EV_DROP,               ac_drop,                            0},
         {EV_TX_READY,           0,                                  0},
         {0,0,0}
