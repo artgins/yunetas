@@ -382,8 +382,9 @@ PUBLIC char *istream_extract_matched_data(istream_h istream, size_t *len)
     }
     ln = gbuffer_leftbytes(ist->gbuf);
     p = gbuffer_get(ist->gbuf, ln);
-    if(len)
+    if(len) {
         *len = ln;
+    }
     ist->completed = FALSE;
     return p;
 }
