@@ -5112,6 +5112,7 @@ PRIVATE int ac_process_frame_header(hgobj gobj, const char *event, json_t *kw, h
                 );
             }
             if(frame->frame_length) {
+            // TODO esto está mal, debería ir en framehead_consume() ????
                 /*
                  *
                  */
