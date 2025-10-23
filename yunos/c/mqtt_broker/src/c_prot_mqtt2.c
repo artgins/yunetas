@@ -1280,7 +1280,7 @@ PRIVATE const char *protocol_version_name(mosquitto_protocol_t mosquitto_protoco
 /***************************************************************************
  *
  ***************************************************************************/
-PRIVATE void do_disconnect(hgobj gobj, int reason)
+PRIVATE void do_disconnect(hgobj gobj, int reason) // TODO delete
 {
     gobj_send_event(gobj_bottom_gobj(gobj), EV_DROP, 0, gobj);
 }
@@ -1291,6 +1291,9 @@ PRIVATE void do_disconnect(hgobj gobj, int reason)
 PRIVATE void ws_close(hgobj gobj, int reason)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    // Change firstly for avoid new messages from client
+    gobj_change_state(gobj, ST_DISCONNECTED);
 
     if(priv->in_session) {
         if(priv->send_disconnect) {
