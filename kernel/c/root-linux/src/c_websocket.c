@@ -1718,7 +1718,7 @@ PRIVATE int ac_process_handshake(hgobj gobj, const char *event, json_t *kw, hgob
 /***************************************************************************
  *  Too much time waiting the handshake.
  ***************************************************************************/
-PRIVATE int ac_timeout_waiting_handshake(hgobj gobj, const char *event, json_t *kw, hgobj src)
+PRIVATE int ac_timeout_wait_handshake(hgobj gobj, const char *event, json_t *kw, hgobj src)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
@@ -1739,7 +1739,7 @@ PRIVATE int ac_timeout_waiting_handshake(hgobj gobj, const char *event, json_t *
 /***************************************************************************
  *  Too much time waiting disconnected
  ***************************************************************************/
-PRIVATE int ac_timeout_waiting_disconnected(hgobj gobj, const char *event, json_t *kw, hgobj src)
+PRIVATE int ac_timeout_wait_disconnected(hgobj gobj, const char *event, json_t *kw, hgobj src)
 {
     gobj_log_warning(gobj, 0,
         "msgset",       "%s", MSGSET_PROTOCOL_ERROR,
@@ -1758,6 +1758,7 @@ PRIVATE int ac_timeout_waiting_disconnected(hgobj gobj, const char *event, json_
 PRIVATE int ac_process_frame_header(hgobj gobj, const char *event, json_t *kw, hgobj src)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
     gbuffer_t *gbuf = (gbuffer_t *)(uintptr_t)kw_get_int(gobj, kw, "gbuffer", 0, FALSE);
     FRAME_HEAD *frame = &priv->frame_head;
     istream_h istream = priv->istream_frame;
@@ -1857,7 +1858,7 @@ PRIVATE int ac_process_frame_header(hgobj gobj, const char *event, json_t *kw, h
 /***************************************************************************
  *  No activity, send ping
  ***************************************************************************/
-PRIVATE int ac_timeout_waiting_frame_header(hgobj gobj, const char *event, json_t *kw, hgobj src)
+PRIVATE int ac_timeout_wait_frame_header(hgobj gobj, const char *event, json_t *kw, hgobj src)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
@@ -1900,7 +1901,7 @@ PRIVATE int ac_process_payload_data(hgobj gobj, const char *event, json_t *kw, h
 /***************************************************************************
  *  Too much time waiting payload data
  ***************************************************************************/
-PRIVATE int ac_timeout_waiting_payload_data(hgobj gobj, const char *event, json_t *kw, hgobj src)
+PRIVATE int ac_timeout_wait_payload_data(hgobj gobj, const char *event, json_t *kw, hgobj src)
 {
     gobj_log_info(gobj, 0,
         "msgset",       "%s", MSGSET_PROTOCOL_ERROR,
@@ -2048,7 +2049,7 @@ PRIVATE int create_gclass(gclass_name_t gclass_name)
     ev_action_t st_disconnected[] = {
         {EV_CONNECTED,          ac_connected,                       ST_WAIT_HANDSHAKE},
         {EV_DISCONNECTED,       ac_disconnected,                    0},
-        {EV_TIMEOUT,            ac_timeout_waiting_disconnected,    0},
+        {EV_TIMEOUT,            ac_timeout_wait_disconnected,       0},
         {EV_STOPPED,            ac_stopped,                         0},
         {EV_TX_READY,           0,                                  0},
         {0,0,0}
@@ -2056,7 +2057,7 @@ PRIVATE int create_gclass(gclass_name_t gclass_name)
     ev_action_t st_wait_handshake[] = {
         {EV_RX_DATA,            ac_process_handshake,               0},
         {EV_DISCONNECTED,       ac_disconnected,                    ST_DISCONNECTED},
-        {EV_TIMEOUT,            ac_timeout_waiting_handshake,       0},
+        {EV_TIMEOUT,            ac_timeout_wait_handshake,          0},
         {EV_DROP,               ac_drop,                            0},
         {EV_TX_READY,           0,                                  0},
         {0,0,0}
@@ -2065,7 +2066,7 @@ PRIVATE int create_gclass(gclass_name_t gclass_name)
         {EV_RX_DATA,            ac_process_frame_header,            0},
         {EV_SEND_MESSAGE,       ac_send_message,                    0},
         {EV_DISCONNECTED,       ac_disconnected,                    ST_DISCONNECTED},
-        {EV_TIMEOUT,            ac_timeout_waiting_frame_header,    0},
+        {EV_TIMEOUT,            ac_timeout_wait_frame_header,       0},
         {EV_DROP,               ac_drop,                            0},
         {EV_TX_READY,           0,                                  0},
         {0,0,0}
@@ -2074,7 +2075,7 @@ PRIVATE int create_gclass(gclass_name_t gclass_name)
         {EV_RX_DATA,            ac_process_payload_data,            0},
         {EV_SEND_MESSAGE,       ac_send_message,                    0},
         {EV_DISCONNECTED,       ac_disconnected,                    ST_DISCONNECTED},
-        {EV_TIMEOUT,            ac_timeout_waiting_payload_data,    0},
+        {EV_TIMEOUT,            ac_timeout_wait_payload_data,       0},
         {EV_DROP,               ac_drop,                            0},
         {EV_TX_READY,           0,                                  0},
         {0,0,0}
