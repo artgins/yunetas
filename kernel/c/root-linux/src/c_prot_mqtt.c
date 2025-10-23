@@ -8128,6 +8128,7 @@ PRIVATE int ac_timeout_wait_disconnected(hgobj gobj, const char *event, json_t *
 PRIVATE int ac_process_frame_header(hgobj gobj, const char *event, json_t *kw, hgobj src)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
     gbuffer_t *gbuf = (gbuffer_t *)(uintptr_t)kw_get_int(gobj, kw, "gbuffer", 0, FALSE);
     FRAME_HEAD *frame = &priv->frame_head;
     istream_h istream = priv->istream_frame;
