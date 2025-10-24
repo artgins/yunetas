@@ -142,18 +142,19 @@ PRIVATE int frame_completed(hgobj gobj);
  *      Attributes - order affect to oid's
  *---------------------------------------------*/
 PRIVATE sdata_desc_t attrs_table[] = {
-/*-ATTR-type------------name----------------flag------------------------default-----description---------- */
-SDATA (DTP_STRING,      "url",              SDF_PERSIST,                "",         "Url to connect"),
-SDATA (DTP_STRING,      "cert_pem",         SDF_PERSIST,                "",         "SSL server certificate, PEM format"),
-SDATA (DTP_INTEGER,     "timeout_handshake",SDF_WR|SDF_PERSIST,    "5000",          "Timeout to handshake"),
-SDATA (DTP_INTEGER,     "timeout_close",    SDF_WR|SDF_PERSIST,    "3000",          "Timeout to close"),
-SDATA (DTP_INTEGER,     "pingT",            SDF_WR|SDF_PERSIST,         "0",        "Ping interval. If value <= 0 then No ping"),
-SDATA (DTP_POINTER,     "user_data",        0,                          0,          "user data"),
-SDATA (DTP_POINTER,     "user_data2",       0,                          0,          "more user data"),
-SDATA (DTP_BOOLEAN,     "iamServer",        SDF_RD,                     0,          "What side? server or client"),
-SDATA (DTP_STRING,      "resource",         SDF_RD,                     "/",        "Resource when iam client"),
-SDATA (DTP_JSON,        "kw_connex",        SDF_RD,                     0,          "DEPRECATED, Kw to create connex at client ws"),
-SDATA (DTP_POINTER,     "subscriber",       0,                          0,          "subscriber of output-events. Default if null is parent."),
+/*-ATTR-type------------name----------------flag------------default-----description---------- */
+SDATA (DTP_STRING,      "url",              SDF_PERSIST,    "",         "Url to connect"),
+SDATA (DTP_STRING,      "cert_pem",         SDF_PERSIST,    "",         "SSL server certificate, PEM format"),
+SDATA (DTP_INTEGER,     "timeout_handshake",SDF_PERSIST,    "5000",      "Timeout to handshake"),
+SDATA (DTP_INTEGER,     "timeout_close",    SDF_PERSIST,    "3000",      "Timeout to close"),
+SDATA (DTP_INTEGER,     "timeout_payload",  SDF_PERSIST,    "5000",      "Timeout to payload"),
+SDATA (DTP_INTEGER,     "pingT",            SDF_PERSIST,    "0",        "Ping interval. If value <= 0 then No ping"),
+SDATA (DTP_POINTER,     "user_data",        0,              0,          "user data"),
+SDATA (DTP_POINTER,     "user_data2",       0,              0,          "more user data"),
+SDATA (DTP_BOOLEAN,     "iamServer",        SDF_RD,         0,          "What side? server or client"),
+SDATA (DTP_STRING,      "resource",         SDF_RD,         "/",        "Resource when iam client"),
+SDATA (DTP_JSON,        "kw_connex",        SDF_RD,         0,          "DEPRECATED, Kw to create connex at client ws"),
+SDATA (DTP_POINTER,     "subscriber",       0,              0,          "subscriber of output-events. Default if null is parent."),
 SDATA_END()
 };
 
@@ -175,6 +176,10 @@ typedef struct _PRIVATE_DATA {
     hgobj timer;
     BOOL iamServer;         // What side? server or client
     int pingT;
+
+    json_int_t timeout_handshake;
+    json_int_t timeout_payload;
+    json_int_t timeout_close;
 
     FRAME_HEAD frame_head;
     istream_h istream_frame;
@@ -262,6 +267,9 @@ PRIVATE void mt_create(hgobj gobj)
      *  HACK The writable attributes must be repeated in mt_writing method.
      */
     SET_PRIV(pingT,             gobj_read_integer_attr)
+    SET_PRIV(timeout_handshake,     gobj_read_integer_attr)
+    SET_PRIV(timeout_payload,       gobj_read_integer_attr)
+    SET_PRIV(timeout_close,         gobj_read_integer_attr)
 }
 
 /***************************************************************************
@@ -272,6 +280,9 @@ PRIVATE void mt_writing(hgobj gobj, const char *path)
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
     IF_EQ_SET_PRIV(pingT,               gobj_read_integer_attr)
+    ELIF_EQ_SET_PRIV(timeout_handshake,   gobj_read_integer_attr)
+    ELIF_EQ_SET_PRIV(timeout_payload,     gobj_read_integer_attr)
+    ELIF_EQ_SET_PRIV(timeout_close,       gobj_read_integer_attr)
     END_EQ_SET_PRIV()
 }
 
@@ -578,7 +589,7 @@ PRIVATE void ws_close(hgobj gobj, int code, const char *reason)
             gobj_stop(tcp0);
         }
     }
-    set_timeout(priv->timer, gobj_read_integer_attr(gobj, "timeout_close"));
+    set_timeout(priv->timer, priv->timeout_close);
 }
 
 /***************************************************************************
@@ -1585,7 +1596,7 @@ PRIVATE int ac_connected(hgobj gobj, const char *event, json_t *kw, hgobj src)
             0
         );
     }
-    set_timeout(priv->timer, gobj_read_integer_attr(gobj, "timeout_handshake"));
+    set_timeout(priv->timer, priv->timeout_handshake);
     KW_DECREF(kw)
     return 0;
 }
@@ -1840,6 +1851,7 @@ PRIVATE int ac_process_frame_header(hgobj gobj, const char *event, json_t *kw, h
                 istream_read_until_num_bytes(priv->istream_payload, frame_length, 0);
 
                 gobj_change_state(gobj, ST_WAIT_PAYLOAD);
+                set_timeout(priv->timer, priv->timeout_payload);
                 return gobj_send_event(gobj, EV_RX_DATA, kw, gobj);
 
             } else {
@@ -1880,6 +1892,8 @@ PRIVATE int ac_process_payload_data(hgobj gobj, const char *event, json_t *kw, h
     int ret = 0;
     gbuffer_t *gbuf = (gbuffer_t *)(uintptr_t)kw_get_int(gobj, kw, "gbuffer", 0, FALSE);
 
+    clear_timeout(priv->timer);
+
     size_t bf_len = gbuffer_leftbytes(gbuf);
     char *bf = gbuffer_cur_rd_pointer(gbuf);
 
@@ -1889,6 +1903,8 @@ PRIVATE int ac_process_payload_data(hgobj gobj, const char *event, json_t *kw, h
     }
     if(istream_is_completed(priv->istream_payload)) {
         ret = frame_completed(gobj);
+    } else {
+        set_timeout(priv->timer, priv->timeout_payload);
     }
     if(gbuffer_leftbytes(gbuf)) {
         return gobj_send_event(gobj, EV_RX_DATA, kw, gobj);

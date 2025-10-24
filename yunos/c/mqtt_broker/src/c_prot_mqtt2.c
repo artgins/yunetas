@@ -502,9 +502,13 @@ SDATA (DTP_STRING,      "url",              SDF_PERSIST,                "",     
 SDATA (DTP_STRING,      "cert_pem",         SDF_PERSIST,                "",     "SSL server certificate, PEM format"),
 SDATA (DTP_BOOLEAN,     "in_session",       SDF_VOLATIL|SDF_STATS,      0,      "CONNECT mqtt done"),
 SDATA (DTP_BOOLEAN,     "send_disconnect",  SDF_VOLATIL,                0,      "send DISCONNECT"),
-SDATA (DTP_INTEGER,     "timeout_handshake",SDF_WR|SDF_PERSIST,       "5",      "Timeout to handshake in seconds"),
-SDATA (DTP_INTEGER,     "timeout_close",    SDF_WR|SDF_PERSIST,       "3",      "Timeout to close in seconds"),
-SDATA (DTP_INTEGER,     "timeout_periodic", SDF_RD,                "1000",      "Timeout periodic"),
+SDATA (DTP_INTEGER,     "timeout_handshake",SDF_PERSIST,                "5",      "Timeout to handshake in seconds"),
+SDATA (DTP_INTEGER,     "timeout_close",    SDF_PERSIST,                "3",    "Timeout to close in seconds"),
+SDATA (DTP_INTEGER,     "timeout_periodic", SDF_RD,                     "1000", "Timeout periodic"),
+
+// SDATA (DTP_INTEGER, "timeout_handshake",SDF_PERSIST,   "5000",      "Timeout to handshake"),
+// SDATA (DTP_INTEGER, "timeout_payload",  SDF_PERSIST,   "5000",      "Timeout to payload"),
+// SDATA (DTP_INTEGER, "timeout_close",    SDF_PERSIST,   "3000",      "Timeout to close"),
 
 /*
  *  Configuration
@@ -5216,6 +5220,8 @@ PRIVATE int ac_process_payload_data(hgobj gobj, const char *event, json_t *kw, h
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
     gbuffer_t *gbuf = (gbuffer_t *)(uintptr_t)kw_get_int(gobj, kw, "gbuffer", 0, FALSE);
 
+    clear_timeout(priv->timer);
+
     if(gobj_trace_level(gobj) & TRAFFIC_PAYLOAD) {
         gobj_trace_dump_gbuf(gobj, gbuf, "PAYLOAD %s <== %s (accumulated %lu)",
             gobj_short_name(gobj),
@@ -5249,6 +5255,8 @@ PRIVATE int ac_process_payload_data(hgobj gobj, const char *event, json_t *kw, h
             KW_DECREF(kw)
             return -1;
         }
+    } else {
+        // TODO set_timeout(priv->timer, priv->timeout_payload);
     }
 
     if(gbuffer_leftbytes(gbuf)) {
