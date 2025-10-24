@@ -876,7 +876,7 @@ PRIVATE int create_gclass(gclass_name_t gclass_name)
         {EV_TX_READY,           0,                                  0},
         {0,0,0}
     };
-    ev_action_t st_wait_handshake[] = {
+    ev_action_t st_wait_handshake[] = { // WARNING not used in this protocol
         {EV_RX_DATA,            ac_process_frame_header,            0},
         {EV_DISCONNECTED,       ac_disconnected,                    ST_DISCONNECTED},
         {EV_TIMEOUT,            ac_timeout_wait_handshake,          0},

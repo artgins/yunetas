@@ -5077,6 +5077,124 @@ PRIVATE int ac_timeout_waiting_disconnected(hgobj gobj, const char *event, json_
 }
 
 /***************************************************************************
+ *  Process the handshake.
+ ***************************************************************************/
+PRIVATE int ac_process_handshake(hgobj gobj, const char *event, json_t *kw, hgobj src)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+    gbuffer_t *gbuf = (gbuffer_t *)(uintptr_t)kw_get_int(gobj, kw, "gbuffer", 0, FALSE);
+    FRAME_HEAD *frame = &priv->frame_head;
+    istream_h istream = priv->istream_frame;
+
+    if(gobj_trace_level(gobj) & TRAFFIC) {
+        gobj_trace_dump_gbuf(gobj, gbuf, "HEADER %s <== %s",
+            gobj_short_name(gobj),
+            gobj_short_name(src)
+        );
+    }
+
+    while(gbuffer_leftbytes(gbuf)) {
+        size_t ln = gbuffer_leftbytes(gbuf);
+        char *bf = gbuffer_cur_rd_pointer(gbuf);
+        size_t n = framehead_consume(gobj, frame, istream, bf, ln);
+        if (n == 0) {
+            // Some error in parsing
+            // on error do break the connection
+            ws_close(gobj, MQTT_RC_PROTOCOL_ERROR);
+            break;
+        } else if (n > 0) {
+            gbuffer_get(gbuf, n);  // take out the bytes consumed
+        }
+
+        if(frame->header_complete) {
+            if(gobj_trace_level(gobj) & SHOW_DECODE) {
+                trace_msg0("👈👈rx COMMAND=%s (%d), FRAME_LEN=%d",
+                    get_command_name(frame->command),
+                    (int)frame->command,
+                    (int)frame->frame_length
+                );
+            }
+            if(frame->frame_length) {
+            // TODO esto está mal, debería ir en framehead_consume() ????
+                /*
+                 *
+                 */
+                if(priv->istream_payload) {
+                    istream_destroy(priv->istream_payload);
+                    priv->istream_payload = 0;
+                    gobj_log_error(gobj, 0,
+                        "function",     "%s", __FUNCTION__,
+                        "msgset",       "%s", MSGSET_INTERNAL_ERROR,
+                        "msg",          "%s", "istream_payload NOT NULL",
+                        NULL
+                    );
+                }
+
+                /*
+                 *  Creat a new buffer for payload data
+                 */
+                size_t frame_length = frame->frame_length;
+                if(!frame_length) {
+                    gobj_log_error(gobj, 0,
+                        "function",     "%s", __FUNCTION__,
+                        "msgset",       "%s", MSGSET_MEMORY_ERROR,
+                        "msg",          "%s", "no memory for istream_payload",
+                        "frame_length", "%d", frame_length,
+                        NULL
+                    );
+                    ws_close(gobj, MQTT_RC_PROTOCOL_ERROR);
+                    break;
+                }
+                priv->istream_payload = istream_create(
+                    gobj,
+                    4*1024,
+                    gbmem_get_maximum_block()
+                );
+                if(!priv->istream_payload) {
+                    gobj_log_error(gobj, 0,
+                        "function",     "%s", __FUNCTION__,
+                        "msgset",       "%s", MSGSET_MEMORY_ERROR,
+                        "msg",          "%s", "no memory for istream_payload",
+                        "frame_length", "%d", frame_length,
+                        NULL
+                    );
+                    ws_close(gobj, MQTT_RC_PROTOCOL_ERROR);
+                    break;
+                }
+                istream_read_until_num_bytes(priv->istream_payload, frame_length, 0);
+
+                // priv->timer_handshake = start_sectimer(
+                //     gobj_read_integer_attr(gobj, "timeout_handshake")
+                // );
+
+                gobj_change_state(gobj, ST_WAIT_PAYLOAD);
+                return gobj_send_event(gobj, EV_RX_DATA, kw, gobj);
+
+            } else {
+                if(frame_completed(gobj)<0) {
+                    //priv->send__disconnect = TRUE;
+                    ws_close(gobj, MQTT_RC_PROTOCOL_ERROR);
+                    break;
+                }
+            }
+        }
+    }
+
+    KW_DECREF(kw)
+    return 0;
+}
+
+/***************************************************************************
+ *  Too much time waiting handshake
+ ***************************************************************************/
+PRIVATE int ac_timeout_wait_handshake(hgobj gobj, const char *event, json_t *kw, hgobj src)
+{
+    ws_close(gobj, MOSQ_ERR_PROTOCOL);
+    KW_DECREF(kw)
+    return 0;
+}
+
+/***************************************************************************
  *  Process the header.
  ***************************************************************************/
 PRIVATE int ac_process_frame_header(hgobj gobj, const char *event, json_t *kw, hgobj src)
@@ -5506,10 +5624,18 @@ PRIVATE int create_gclass(gclass_name_t gclass_name)
      *          Define States
      *----------------------------------------*/
     ev_action_t st_disconnected[] = {
-        {EV_CONNECTED,          ac_connected,                       ST_WAIT_FRAME_HEADER},
+        {EV_CONNECTED,          ac_connected,                       ST_WAIT_HANDSHAKE},
         {EV_DISCONNECTED,       ac_disconnected,                    0},
         {EV_TIMEOUT,            ac_timeout_waiting_disconnected,    0},
         {EV_STOPPED,            ac_stopped,                         0},
+        {EV_TX_READY,           0,                                  0},
+        {0,0,0}
+    };
+    ev_action_t st_wait_handshake[] = {
+        {EV_RX_DATA,            ac_process_handshake,               0},
+        {EV_DISCONNECTED,       ac_disconnected,                    ST_DISCONNECTED},
+        {EV_TIMEOUT,            ac_timeout_wait_handshake,          0},
+        {EV_DROP,               ac_drop,                            0},
         {EV_TX_READY,           0,                                  0},
         {0,0,0}
     };
@@ -5534,6 +5660,7 @@ PRIVATE int create_gclass(gclass_name_t gclass_name)
 
     states_t states[] = {
         {ST_DISCONNECTED,           st_disconnected},
+        {ST_WAIT_HANDSHAKE,         st_wait_handshake},
         {ST_WAIT_FRAME_HEADER,      st_wait_frame_header},
         {ST_WAIT_PAYLOAD,           st_wait_payload},
         {0, 0}
