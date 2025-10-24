@@ -86,6 +86,7 @@ SDATA (DTP_INTEGER, "max_pkt_size",     SDF_WR,         0,          "Package max
 
 SDATA (DTP_BOOLEAN, "iamServer",        SDF_RD,                     0,      "What side? server or client"),
 SDATA (DTP_INTEGER, "timeout_handshake",SDF_PERSIST,   "5000",      "Timeout to handshake"),
+SDATA (DTP_INTEGER, "timeout_payload",  SDF_PERSIST,   "5000",      "Timeout to payload"),
 SDATA (DTP_INTEGER, "timeout_close",    SDF_PERSIST,   "3000",      "Timeout to close"),
 
 SDATA (DTP_POINTER, "user_data",        0,              0,          "user data"),
@@ -102,11 +103,9 @@ SDATA_END()
  *---------------------------------------------*/
 enum {
     TRAFFIC         = 0x0001,
-    DECODE          = 0x0002,
 };
 PRIVATE const trace_level_t s_user_trace_level[16] = {
     {"traffic",         "Trace traffic"},
-    {"decode",          "Decode"},
     {0, 0},
 };
 
@@ -114,9 +113,9 @@ PRIVATE const trace_level_t s_user_trace_level[16] = {
  *              Private data
  *---------------------------------------------*/
 typedef struct _PRIVATE_DATA {
-    gbuffer_t *last_pkt;  /* packet currently receiving */
-    char bf_header_erpl4[sizeof(HEADER_ERPL4)];
-    size_t idx_header;
+    // gbuffer_t *last_pkt;  /* packet currently receiving */
+    // char bf_header_erpl4[sizeof(HEADER_ERPL4)];
+    // size_t idx_header;
     uint32_t max_pkt_size;
 
     hgobj timer;
@@ -132,6 +131,9 @@ typedef struct _PRIVATE_DATA {
      *  Config
      */
     BOOL iamServer;         // What side? server or client
+    json_int_t timeout_handshake;
+    json_int_t timeout_payload;
+    json_int_t timeout_close;
 
     /*
      *  Dynamic data (reset per connection)
@@ -189,6 +191,10 @@ PRIVATE void mt_create(hgobj gobj)
     if(priv->max_pkt_size == 0) {
         priv->max_pkt_size = (uint32_t)gbmem_get_maximum_block();
     }
+
+    SET_PRIV(timeout_handshake,     gobj_read_integer_attr)
+    SET_PRIV(timeout_payload,       gobj_read_integer_attr)
+    SET_PRIV(timeout_close,         gobj_read_integer_attr)
 }
 
 /***************************************************************************
@@ -202,6 +208,9 @@ PRIVATE void mt_writing(hgobj gobj, const char *path)
         if(priv->max_pkt_size == 0) {
             priv->max_pkt_size = (uint32_t)gbmem_get_maximum_block();
         }
+    ELIF_EQ_SET_PRIV(timeout_handshake,   gobj_read_integer_attr)
+    ELIF_EQ_SET_PRIV(timeout_payload,     gobj_read_integer_attr)
+    ELIF_EQ_SET_PRIV(timeout_close,       gobj_read_integer_attr)
     END_EQ_SET_PRIV()
 }
 
@@ -264,6 +273,18 @@ PRIVATE int mt_stop(hgobj gobj)
  ***************************************************************************/
 PRIVATE void mt_destroy(hgobj gobj)
 {
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    if(priv->istream_frame) {
+        istream_destroy(priv->istream_frame);
+        priv->istream_frame = 0;
+    }
+    if(priv->istream_payload) {
+        istream_destroy(priv->istream_payload);
+        priv->istream_payload = 0;
+    }
+
+    dl_flush(&priv->dl_msgs_out, gbmem_free);
 }
 
 
@@ -294,7 +315,7 @@ PRIVATE void ws_close(hgobj gobj, int reason)
             gobj_stop(tcp0);
         }
     }
-    set_timeout(priv->timer, gobj_read_integer_attr(gobj, "timeout_close"));
+    set_timeout(priv->timer, priv->timeout_close);
 }
 
 /***************************************************************************
@@ -310,6 +331,7 @@ PRIVATE void start_wait_handshake(hgobj gobj)
     gobj_change_state(gobj, ST_WAIT_HANDSHAKE);
     istream_reset_wr(priv->istream_frame);  // Reset buffer for next frame
     memset(&priv->frame_head, 0, sizeof(priv->frame_head));
+    set_timeout(priv->timer, priv->timeout_handshake);
 }
 
 /***************************************************************************
@@ -349,11 +371,11 @@ PRIVATE int decode_head(hgobj gobj, FRAME_HEAD *frame, char *data)
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
     HEADER_ERPL4 header_erpl4;
-    memmove((char *)&header_erpl4, priv->bf_header_erpl4, sizeof(HEADER_ERPL4));
+    memmove((char *)&header_erpl4, data, sizeof(HEADER_ERPL4));
     header_erpl4.len = ntohl(header_erpl4.len);
     header_erpl4.len -= sizeof(HEADER_ERPL4); // remove header
 
-    if(gobj_trace_level(gobj) & DECODE) {
+    if(gobj_trace_level(gobj) & TRAFFIC) {
         trace_msg0("New packet header_erpl4.len: %u",
             header_erpl4.len
         );
@@ -420,18 +442,6 @@ PRIVATE int framehead_consume(
         }
     }
 
-    /*
-     *  here we got the header, processing remaining_length
-     */
-    if(frame->must_read_payload) {
-        istream_read_until_num_bytes(istream, frame->frame_length, 0);  // idempotent
-        consumed = (int)istream_consume(istream, bf, len);
-        total_consumed += consumed;
-        if(!istream_is_completed(istream)) {
-            return total_consumed;  // wait more data
-        }
-    }
-
     frame->header_complete = TRUE;
 
     return total_consumed;
@@ -478,7 +488,8 @@ PRIVATE int ac_connected(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 
     gobj_reset_volatil_attrs(gobj);
     gobj_write_bool_attr(gobj, "connected", TRUE);
-    start_wait_handshake(gobj);
+    //start_wait_handshake(gobj);   // In tcp4h there is no handshake
+    start_wait_frame_header(gobj);
 
     if (priv->iamServer) {
         /*
@@ -489,7 +500,6 @@ PRIVATE int ac_connected(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
          * send the request
          */
     }
-    set_timeout(priv->timer, gobj_read_integer_attr(gobj, "timeout_handshake"));
     return gobj_publish_event(gobj, EV_ON_OPEN, kw); // use the same kw
 }
 
@@ -637,6 +647,8 @@ PRIVATE int ac_process_frame_header(hgobj gobj, const char *event, json_t *kw, h
                 istream_read_until_num_bytes(priv->istream_payload, frame_length, 0);
 
                 gobj_change_state(gobj, ST_WAIT_PAYLOAD);
+                set_timeout(priv->timer, priv->timeout_payload);
+
                 return gobj_send_event(gobj, EV_RX_DATA, kw, gobj);
 
             } else {
@@ -656,175 +668,175 @@ PRIVATE int ac_process_frame_header(hgobj gobj, const char *event, json_t *kw, h
     return 0;
 }
 
-/***************************************************************************
- *
- ***************************************************************************/
-PRIVATE int ac_rx_data(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
-{
-    PRIVATE_DATA *priv = gobj_priv_data(gobj);
-
-    gbuffer_t *gbuf = (gbuffer_t *)(uintptr_t)kw_get_int(gobj, kw, "gbuffer", 0, 0);
-
-    if(gobj_trace_level(gobj) & TRAFFIC) {
-        gobj_trace_dump_gbuf(gobj, gbuf, "%s <- %s",
-             gobj_short_name(gobj),
-             gobj_short_name(gobj_bottom_gobj(gobj))
-        );
-    }
-
-    ssize_t pend_size = 0;
-    ssize_t len = (ssize_t)gbuffer_leftbytes(gbuf);
-    while(len>0) {
-        if(priv->last_pkt) {
-            /*--------------------*
-              *   Estoy a medias
-              *--------------------*/
-            pend_size = (ssize_t)gbuffer_freebytes(priv->last_pkt); /* mira lo que falta */
-
-            if(gobj_trace_level(gobj) & DECODE) {
-                trace_msg0("Estoy a medias pend_size: %zd, len: %zd", pend_size, len);
-            }
-
-            if(len >= pend_size) {
-                /*----------------------------------------*
-                 *   Justo lo que falta o
-                 *   Resto de uno y principio de otro
-                 *---------------------------------------*/
-                gbuffer_append(
-                    priv->last_pkt,
-                    gbuffer_get(gbuf, pend_size),
-                    pend_size
-                );
-                len -= pend_size;
-                json_t *kw_tx = json_pack("{s:I}",
-                    "gbuffer", (json_int_t)(uintptr_t)priv->last_pkt
-                );
-                priv->last_pkt = 0;
-
-                gobj_publish_event(gobj, EV_ON_MESSAGE, kw_tx);
-
-            } else { /* len < pend_size */
-                /*-------------------------------------*
-                  *   Falta todavía mas
-                  *-------------------------------------*/
-                gbuffer_append(
-                    priv->last_pkt,
-                    gbuffer_get(gbuf, len),
-                    len
-                );
-                len = 0;
-            }
-        } else {
-            /*--------------------*
-             *   New packet
-             *--------------------*/
-            ssize_t need2header = (ssize_t)(sizeof(HEADER_ERPL4) - priv->idx_header);
-
-            if(gobj_trace_level(gobj) & DECODE) {
-                trace_msg0("New packet len: %zd, need2header: %zd, idx_header: %zu",
-                    len, need2header, priv->idx_header
-                );
-            }
-
-            if(len < need2header) {
-                memcpy(
-                    priv->bf_header_erpl4 + priv->idx_header,
-                    gbuffer_get(gbuf, len),
-                    len
-                );
-                priv->idx_header += len;
-                len = 0;
-                continue;
-            } else {
-                memcpy(
-                    priv->bf_header_erpl4 + priv->idx_header,
-                    gbuffer_get(gbuf, need2header),
-                    need2header
-                );
-                len -= need2header;
-                priv->idx_header = 0;
-            }
-
-            /*
-             *  Quita la cabecera
-             */
-            HEADER_ERPL4 header_erpl4;
-            memmove((char *)&header_erpl4, priv->bf_header_erpl4, sizeof(HEADER_ERPL4));
-            header_erpl4.len = ntohl(header_erpl4.len);
-            header_erpl4.len -= sizeof(HEADER_ERPL4); // remove header
-
-            if(gobj_trace_level(gobj) & DECODE) {
-                trace_msg0("New packet header_erpl4.len: %u",
-                    header_erpl4.len
-                );
-            }
-
-            if(header_erpl4.len > priv->max_pkt_size) {
-                gobj_log_error(gobj, 0,
-                    "function",     "%s", __FUNCTION__,
-                    "msgset",       "%s", MSGSET_MEMORY_ERROR,
-                    "msg",          "%s", "TOO LONG SIZE",
-                    "len",          "%d", header_erpl4.len,
-                    NULL
-                );
-                gobj_trace_dump_gbuf(
-                    gobj,
-                    gbuf,
-                    "ERROR: TOO LONG SIZE (%d)",
-                    (int)header_erpl4.len
-                );
-                gobj_send_event(gobj_bottom_gobj(gobj), EV_DROP, 0, gobj);
-                break;
-            }
-            gbuffer_t *new_pkt = gbuffer_create(header_erpl4.len, header_erpl4.len);
-            if(!new_pkt) {
-                gobj_log_error(gobj, 0,
-                    "function",     "%s", __FUNCTION__,
-                    "msgset",       "%s", MSGSET_MEMORY_ERROR,
-                    "msg",          "%s", "gbuffer_create() FAILED",
-                    "len",          "%d", header_erpl4.len,
-                    NULL
-                );
-                gobj_send_event(gobj_bottom_gobj(gobj), EV_DROP, 0, gobj);
-                break;
-            }
-            /*
-             *  Put the data
-             */
-            if(len >= header_erpl4.len) {
-                /* PAQUETE COMPLETO o MULTIPLE */
-                if(header_erpl4.len > 0) {
-                    // SSQ/SSR are 0 length
-                    gbuffer_append(
-                        new_pkt,
-                        gbuffer_get(gbuf, header_erpl4.len),
-                        header_erpl4.len
-                    );
-                    len -= header_erpl4.len;
-                }
-                json_t *kw_tx = json_pack("{s:I}",
-                    "gbuffer", (json_int_t)(uintptr_t)new_pkt
-                );
-                gobj_publish_event(gobj, EV_ON_MESSAGE, kw_tx);
-
-            } else { /* len < header_erpl4.len */
-                /* PAQUETE INCOMPLETO */
-                if(len>0) {
-                    gbuffer_append(
-                        new_pkt,
-                        gbuffer_get(gbuf, len),
-                        len
-                    );
-                }
-                priv->last_pkt = new_pkt;
-                len = 0;
-            }
-        }
-    }
-
-    KW_DECREF(kw)
-    return 0;
-}
+// /***************************************************************************
+//  *
+//  ***************************************************************************/
+// PRIVATE int ac_rx_data(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
+// {
+//     PRIVATE_DATA *priv = gobj_priv_data(gobj);
+//
+//     gbuffer_t *gbuf = (gbuffer_t *)(uintptr_t)kw_get_int(gobj, kw, "gbuffer", 0, 0);
+//
+//     if(gobj_trace_level(gobj) & TRAFFIC) {
+//         gobj_trace_dump_gbuf(gobj, gbuf, "%s <- %s",
+//              gobj_short_name(gobj),
+//              gobj_short_name(gobj_bottom_gobj(gobj))
+//         );
+//     }
+//
+//     ssize_t pend_size = 0;
+//     ssize_t len = (ssize_t)gbuffer_leftbytes(gbuf);
+//     while(len>0) {
+//         if(priv->last_pkt) {
+//             /*--------------------*
+//               *   Estoy a medias
+//               *--------------------*/
+//             pend_size = (ssize_t)gbuffer_freebytes(priv->last_pkt); /* mira lo que falta */
+//
+//             if(gobj_trace_level(gobj) & DECODE) {
+//                 trace_msg0("Estoy a medias pend_size: %zd, len: %zd", pend_size, len);
+//             }
+//
+//             if(len >= pend_size) {
+//                 /*----------------------------------------*
+//                  *   Justo lo que falta o
+//                  *   Resto de uno y principio de otro
+//                  *---------------------------------------*/
+//                 gbuffer_append(
+//                     priv->last_pkt,
+//                     gbuffer_get(gbuf, pend_size),
+//                     pend_size
+//                 );
+//                 len -= pend_size;
+//                 json_t *kw_tx = json_pack("{s:I}",
+//                     "gbuffer", (json_int_t)(uintptr_t)priv->last_pkt
+//                 );
+//                 priv->last_pkt = 0;
+//
+//                 gobj_publish_event(gobj, EV_ON_MESSAGE, kw_tx);
+//
+//             } else { /* len < pend_size */
+//                 /*-------------------------------------*
+//                   *   Falta todavía mas
+//                   *-------------------------------------*/
+//                 gbuffer_append(
+//                     priv->last_pkt,
+//                     gbuffer_get(gbuf, len),
+//                     len
+//                 );
+//                 len = 0;
+//             }
+//         } else {
+//             /*--------------------*
+//              *   New packet
+//              *--------------------*/
+//             ssize_t need2header = (ssize_t)(sizeof(HEADER_ERPL4) - priv->idx_header);
+//
+//             if(gobj_trace_level(gobj) & DECODE) {
+//                 trace_msg0("New packet len: %zd, need2header: %zd, idx_header: %zu",
+//                     len, need2header, priv->idx_header
+//                 );
+//             }
+//
+//             if(len < need2header) {
+//                 memcpy(
+//                     priv->bf_header_erpl4 + priv->idx_header,
+//                     gbuffer_get(gbuf, len),
+//                     len
+//                 );
+//                 priv->idx_header += len;
+//                 len = 0;
+//                 continue;
+//             } else {
+//                 memcpy(
+//                     priv->bf_header_erpl4 + priv->idx_header,
+//                     gbuffer_get(gbuf, need2header),
+//                     need2header
+//                 );
+//                 len -= need2header;
+//                 priv->idx_header = 0;
+//             }
+//
+//             /*
+//              *  Quita la cabecera
+//              */
+//             HEADER_ERPL4 header_erpl4;
+//             memmove((char *)&header_erpl4, priv->bf_header_erpl4, sizeof(HEADER_ERPL4));
+//             header_erpl4.len = ntohl(header_erpl4.len);
+//             header_erpl4.len -= sizeof(HEADER_ERPL4); // remove header
+//
+//             if(gobj_trace_level(gobj) & DECODE) {
+//                 trace_msg0("New packet header_erpl4.len: %u",
+//                     header_erpl4.len
+//                 );
+//             }
+//
+//             if(header_erpl4.len > priv->max_pkt_size) {
+//                 gobj_log_error(gobj, 0,
+//                     "function",     "%s", __FUNCTION__,
+//                     "msgset",       "%s", MSGSET_MEMORY_ERROR,
+//                     "msg",          "%s", "TOO LONG SIZE",
+//                     "len",          "%d", header_erpl4.len,
+//                     NULL
+//                 );
+//                 gobj_trace_dump_gbuf(
+//                     gobj,
+//                     gbuf,
+//                     "ERROR: TOO LONG SIZE (%d)",
+//                     (int)header_erpl4.len
+//                 );
+//                 gobj_send_event(gobj_bottom_gobj(gobj), EV_DROP, 0, gobj);
+//                 break;
+//             }
+//             gbuffer_t *new_pkt = gbuffer_create(header_erpl4.len, header_erpl4.len);
+//             if(!new_pkt) {
+//                 gobj_log_error(gobj, 0,
+//                     "function",     "%s", __FUNCTION__,
+//                     "msgset",       "%s", MSGSET_MEMORY_ERROR,
+//                     "msg",          "%s", "gbuffer_create() FAILED",
+//                     "len",          "%d", header_erpl4.len,
+//                     NULL
+//                 );
+//                 gobj_send_event(gobj_bottom_gobj(gobj), EV_DROP, 0, gobj);
+//                 break;
+//             }
+//             /*
+//              *  Put the data
+//              */
+//             if(len >= header_erpl4.len) {
+//                 /* PAQUETE COMPLETO o MULTIPLE */
+//                 if(header_erpl4.len > 0) {
+//                     // SSQ/SSR are 0 length
+//                     gbuffer_append(
+//                         new_pkt,
+//                         gbuffer_get(gbuf, header_erpl4.len),
+//                         header_erpl4.len
+//                     );
+//                     len -= header_erpl4.len;
+//                 }
+//                 json_t *kw_tx = json_pack("{s:I}",
+//                     "gbuffer", (json_int_t)(uintptr_t)new_pkt
+//                 );
+//                 gobj_publish_event(gobj, EV_ON_MESSAGE, kw_tx);
+//
+//             } else { /* len < header_erpl4.len */
+//                 /* PAQUETE INCOMPLETO */
+//                 if(len>0) {
+//                     gbuffer_append(
+//                         new_pkt,
+//                         gbuffer_get(gbuf, len),
+//                         len
+//                     );
+//                 }
+//                 priv->last_pkt = new_pkt;
+//                 len = 0;
+//             }
+//         }
+//     }
+//
+//     KW_DECREF(kw)
+//     return 0;
+// }
 
 /***************************************************************************
  *  No activity, send ping
@@ -842,6 +854,8 @@ PRIVATE int ac_process_payload_data(hgobj gobj, const char *event, json_t *kw, h
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
     gbuffer_t *gbuf = (gbuffer_t *)(uintptr_t)kw_get_int(gobj, kw, "gbuffer", 0, FALSE);
+
+    clear_timeout(priv->timer);
 
     if(gobj_trace_level(gobj) & TRAFFIC) {
         gobj_trace_dump_gbuf(gobj, gbuf, "PAYLOAD %s <== %s (accumulated %zu)",
@@ -871,7 +885,10 @@ PRIVATE int ac_process_payload_data(hgobj gobj, const char *event, json_t *kw, h
             KW_DECREF(kw)
             return -1;
         }
+    } else {
+        set_timeout(priv->timer, priv->timeout_payload);
     }
+
     if(gbuffer_leftbytes(gbuf)) {
         return gobj_send_event(gobj, EV_RX_DATA, kw, gobj);
     }
