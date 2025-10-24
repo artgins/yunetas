@@ -440,6 +440,7 @@ PRIVATE int send__disconnect(
     uint8_t reason_code,
     json_t *properties
 );
+PRIVATE void start_wait_handshake(hgobj gobj);
 PRIVATE void start_wait_frame_header(hgobj gobj);
 PRIVATE void ws_close(hgobj gobj, int code);
 
@@ -1319,98 +1320,20 @@ PRIVATE void ws_close(hgobj gobj, int reason)
 }
 
 /***************************************************************************
- *
+ *  Start to wait handshake
  ***************************************************************************/
-PRIVATE int mosquitto_validate_utf8(const char *str, int len)
+PRIVATE void start_wait_handshake(hgobj gobj)
 {
-    int i;
-    int j;
-    int codelen;
-    int codepoint;
-    const uint8_t *ustr = (const unsigned char *)str;
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
-    if(!str) {
-        return -1;
+    if(!gobj_is_running(gobj)) {
+        return;
     }
-    if(len < 0 || len > 65536) {
-        return -1;
-    }
+    gobj_change_state(gobj, ST_WAIT_HANDSHAKE);
 
-    for(i=0; i<len; i++) {
-        if(ustr[i] == 0) {
-            return -1;
-        } else if(ustr[i] <= 0x7f) {
-            codelen = 1;
-            codepoint = ustr[i];
-        } else if((ustr[i] & 0xE0) == 0xC0) {
-            /* 110xxxxx - 2 byte sequence */
-            if(ustr[i] == 0xC0 || ustr[i] == 0xC1) {
-                /* Invalid bytes */
-                return -1;
-            }
-            codelen = 2;
-            codepoint = (ustr[i] & 0x1F);
-        } else if((ustr[i] & 0xF0) == 0xE0) {
-            /* 1110xxxx - 3 byte sequence */
-            codelen = 3;
-            codepoint = (ustr[i] & 0x0F);
-        } else if((ustr[i] & 0xF8) == 0xF0) {
-            /* 11110xxx - 4 byte sequence */
-            if(ustr[i] > 0xF4) {
-                /* Invalid, this would produce values > 0x10FFFF. */
-                return -1;
-            }
-            codelen = 4;
-            codepoint = (ustr[i] & 0x07);
-        } else {
-            /* Unexpected continuation byte. */
-            return -1;
-        }
-
-        /* Reconstruct full code point */
-        if(i == len-codelen+1) {
-            /* Not enough data */
-            return -1;
-        }
-        for(j=0; j<codelen-1; j++) {
-            if((ustr[++i] & 0xC0) != 0x80) {
-                /* Not a continuation byte */
-                return -1;
-            }
-            codepoint = (codepoint<<6) | (ustr[i] & 0x3F);
-        }
-
-        /* Check for UTF-16 high/low surrogates */
-        if(codepoint >= 0xD800 && codepoint <= 0xDFFF) {
-            return -1;
-        }
-
-        /* Check for overlong or out of range encodings */
-        /* Checking codelen == 2 isn't necessary here, because it is already
-         * covered above in the C0 and C1 checks.
-         * if(codelen == 2 && codepoint < 0x0080) {
-         *     return MOSQ_ERR_MALFORMED_UTF8;
-         * } else
-        */
-        if(codelen == 3 && codepoint < 0x0800) {
-            return -1;
-        } else if(codelen == 4 && (codepoint < 0x10000 || codepoint > 0x10FFFF)) {
-            return -1;
-        }
-
-        /* Check for non-characters */
-        if(codepoint >= 0xFDD0 && codepoint <= 0xFDEF) {
-            return -1;
-        }
-        if((codepoint & 0xFFFF) == 0xFFFE || (codepoint & 0xFFFF) == 0xFFFF) {
-            return -1;
-        }
-        /* Check for control characters */
-        if(codepoint <= 0x001F || (codepoint >= 0x007F && codepoint <= 0x009F)) {
-            return -1;
-        }
-    }
-    return 0;
+    istream_reset_wr(priv->istream_frame);  // Reset buffer for next frame
+    memset(&priv->frame_head, 0, sizeof(priv->frame_head));
+    set_timeout(priv->timer, priv->timeout_handshake);
 }
 
 /***************************************************************************
@@ -1486,184 +1409,6 @@ PRIVATE int decode_head(hgobj gobj, FRAME_HEAD *frame, char *data)
      */
 
     return 0;
-}
-
-/***************************************************************************
- *  Consume input data to get and analyze the frame header.
- *  Return the consumed size.
- ***************************************************************************/
-PRIVATE size_t framehead_consume(
-    hgobj gobj,
-    FRAME_HEAD *frame,
-    istream_h istream,
-    char *bf,
-    size_t len
-) {
-    PRIVATE_DATA *priv = gobj_priv_data(gobj);
-
-    size_t total_consumed = 0;
-    size_t consumed;
-    char *data;
-
-    /*
-     *
-     */
-    if (!frame->busy) {
-        /*
-         * waiting the first two byte's head
-         */
-        istream_read_until_num_bytes(istream, 2, 0); // idempotent
-        consumed = istream_consume(istream, bf, len);
-        total_consumed += consumed;
-        bf += consumed;
-        len -= consumed;
-        if(!istream_is_completed(istream)) {
-            return total_consumed;  // wait more data
-        }
-
-        /*
-         *  we've got enough data! Start a new frame
-         */
-        framehead_prepare_new_frame(frame);  // `busy` flag is set.
-        data = istream_extract_matched_data(istream, 0);
-        if(decode_head(gobj, frame, data)<0) {
-            // Error already logged
-            return 0;
-        }
-    }
-
-    /*
-     *  processing remaining_length
-     */
-    if(frame->must_read_remaining_length_2) {
-        istream_read_until_num_bytes(istream, 1, 0);  // idempotent
-        consumed = istream_consume(istream, bf, len);
-        total_consumed += consumed;
-        bf += consumed;
-        len -= consumed;
-        if(!istream_is_completed(istream)) {
-            return total_consumed;  // wait more data
-        }
-
-        /*
-         *  Read 1 bytes of remaining_length
-         */
-        data = istream_extract_matched_data(istream, 0);
-        unsigned char byte = *data;
-        frame->frame_length += (byte & 0x7F) * (1*128);
-        if(byte & 0x80) {
-            frame->must_read_remaining_length_3 = 1;
-        }
-    }
-    if(frame->must_read_remaining_length_3) {
-        istream_read_until_num_bytes(istream, 1, 0);  // idempotent
-        consumed = istream_consume(istream, bf, len);
-        total_consumed += consumed;
-        bf += consumed;
-        len -= consumed;
-        if(!istream_is_completed(istream)) {
-            return total_consumed;  // wait more data
-        }
-
-        /*
-         *  Read 1 bytes of remaining_length
-         */
-        data = istream_extract_matched_data(istream, 0);
-        unsigned char byte = *data;
-        frame->frame_length += (byte & 0x7F) * (128*128);
-        if(byte & 0x80) {
-            frame->must_read_remaining_length_4 = 1;
-        }
-    }
-    if(frame->must_read_remaining_length_4) {
-        istream_read_until_num_bytes(istream, 1, 0);  // idempotent
-        consumed = istream_consume(istream, bf, len);
-        total_consumed += consumed;
-        bf += consumed;
-        len -= consumed;
-        if(!istream_is_completed(istream)) {
-            return total_consumed;  // wait more data
-        }
-
-        /*
-         *  Read 1 bytes of remaining_length
-         */
-        data = istream_extract_matched_data(istream, 0);
-        unsigned char byte = *data;
-        frame->frame_length += (byte & 0x7F) * (128*128*128);
-        if(byte & 0x80) {
-            gobj_log_error(gobj, 0,
-                "function",     "%s", __FUNCTION__,
-                "msgset",       "%s", MSGSET_MQTT_ERROR,
-                "msg",          "%s", "Fourth remaining_length byte MUST be without 0x80",
-                NULL
-            );
-            return 0;
-        }
-    }
-
-    frame->header_complete = TRUE;
-
-    if(priv->iamServer) {
-        switch(frame->command) {
-            case CMD_CONNECT:
-                if(frame->frame_length > 100000) {
-                    gobj_log_error(gobj, 0,
-                        "function",     "%s", __FUNCTION__,
-                        "msgset",       "%s", MSGSET_MQTT_ERROR,
-                        "msg",          "%s", "CONNECT command too large",
-                        "frame_length", "%d", (int)frame->frame_length,
-                        NULL
-                    );
-                    return 0;
-                }
-                break;
-            case CMD_DISCONNECT:
-                break;
-
-            case CMD_CONNACK:
-            case CMD_PUBLISH:
-            case CMD_PUBACK:
-            case CMD_PUBREC:
-            case CMD_PUBREL:
-            case CMD_PUBCOMP:
-            case CMD_SUBSCRIBE:
-            case CMD_SUBACK:
-            case CMD_UNSUBSCRIBE:
-            case CMD_UNSUBACK:
-            case CMD_AUTH:
-                break;
-
-            case CMD_PINGREQ:
-            case CMD_PINGRESP:
-                if(frame->frame_length != 0) {
-                    gobj_log_error(gobj, 0,
-                        "function",     "%s", __FUNCTION__,
-                        "msgset",       "%s", MSGSET_MQTT_ERROR,
-                        "msg",          "%s", "PING command must be 0 large",
-                        "frame_length", "%d", (int)frame->frame_length,
-                        NULL
-                    );
-                    return 0;
-                }
-                break;
-
-            default:
-                gobj_log_error(gobj, 0,
-                    "function",     "%s", __FUNCTION__,
-                    "msgset",       "%s", MSGSET_MQTT_ERROR,
-                    "msg",          "%s", "Mqtt command unknown",
-                    "command",      "%d", (int)frame->command,
-                    NULL
-                );
-                if(priv->in_session) {
-                    send__disconnect(gobj, MQTT_RC_PROTOCOL_ERROR, NULL);
-                }
-                return 0;
-        }
-    }
-
-    return total_consumed;
 }
 
 /***************************************************************************
@@ -2015,6 +1760,101 @@ PRIVATE int mosquitto_property_add_varint(hgobj gobj, json_t *proplist, int iden
     json_object_set_new(proplist, property_name, json_integer(value));
 
     return MOSQ_ERR_SUCCESS;
+}
+
+/***************************************************************************
+ *
+ ***************************************************************************/
+PRIVATE int mosquitto_validate_utf8(const char *str, int len)
+{
+    int i;
+    int j;
+    int codelen;
+    int codepoint;
+    const uint8_t *ustr = (const unsigned char *)str;
+
+    if(!str) {
+        return -1;
+    }
+    if(len < 0 || len > 65536) {
+        return -1;
+    }
+
+    for(i=0; i<len; i++) {
+        if(ustr[i] == 0) {
+            return -1;
+        } else if(ustr[i] <= 0x7f) {
+            codelen = 1;
+            codepoint = ustr[i];
+        } else if((ustr[i] & 0xE0) == 0xC0) {
+            /* 110xxxxx - 2 byte sequence */
+            if(ustr[i] == 0xC0 || ustr[i] == 0xC1) {
+                /* Invalid bytes */
+                return -1;
+            }
+            codelen = 2;
+            codepoint = (ustr[i] & 0x1F);
+        } else if((ustr[i] & 0xF0) == 0xE0) {
+            /* 1110xxxx - 3 byte sequence */
+            codelen = 3;
+            codepoint = (ustr[i] & 0x0F);
+        } else if((ustr[i] & 0xF8) == 0xF0) {
+            /* 11110xxx - 4 byte sequence */
+            if(ustr[i] > 0xF4) {
+                /* Invalid, this would produce values > 0x10FFFF. */
+                return -1;
+            }
+            codelen = 4;
+            codepoint = (ustr[i] & 0x07);
+        } else {
+            /* Unexpected continuation byte. */
+            return -1;
+        }
+
+        /* Reconstruct full code point */
+        if(i == len-codelen+1) {
+            /* Not enough data */
+            return -1;
+        }
+        for(j=0; j<codelen-1; j++) {
+            if((ustr[++i] & 0xC0) != 0x80) {
+                /* Not a continuation byte */
+                return -1;
+            }
+            codepoint = (codepoint<<6) | (ustr[i] & 0x3F);
+        }
+
+        /* Check for UTF-16 high/low surrogates */
+        if(codepoint >= 0xD800 && codepoint <= 0xDFFF) {
+            return -1;
+        }
+
+        /* Check for overlong or out of range encodings */
+        /* Checking codelen == 2 isn't necessary here, because it is already
+         * covered above in the C0 and C1 checks.
+         * if(codelen == 2 && codepoint < 0x0080) {
+         *     return MOSQ_ERR_MALFORMED_UTF8;
+         * } else
+        */
+        if(codelen == 3 && codepoint < 0x0800) {
+            return -1;
+        } else if(codelen == 4 && (codepoint < 0x10000 || codepoint > 0x10FFFF)) {
+            return -1;
+        }
+
+        /* Check for non-characters */
+        if(codepoint >= 0xFDD0 && codepoint <= 0xFDEF) {
+            return -1;
+        }
+        if((codepoint & 0xFFFF) == 0xFFFE || (codepoint & 0xFFFF) == 0xFFFF) {
+            return -1;
+        }
+        /* Check for control characters */
+        if(codepoint <= 0x001F || (codepoint >= 0x007F && codepoint <= 0x009F)) {
+            return -1;
+        }
+    }
+    return 0;
 }
 
 /***************************************************************************
@@ -4800,6 +4640,206 @@ PRIVATE int handle__connack(hgobj gobj, gbuffer_t *gbuf)
 }
 
 /***************************************************************************
+ *
+ ***************************************************************************/
+PRIVATE uint16_t mosquitto__mid_generate(hgobj gobj, const char *client_id)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    // TODO new
+    // json_t *client = gobj_get_resource(priv->gobj_mqtt_clients, client_id, 0, 0);
+    // uint16_t last_mid = (uint16_t)kw_get_int(gobj, client, "last_mid", 0, KW_REQUIRED);
+    static uint16_t last_mid = 0;
+    // TODO it seems that does nothing saving in resource
+    last_mid++;
+    if(last_mid == 0) {
+        last_mid++;
+    }
+    // TODO new
+    // gobj_save_resource(priv->gobj_mqtt_clients, client_id, client, 0);
+
+    return last_mid;
+}
+
+/***************************************************************************
+ *  Consume input data to get and analyze the frame header.
+ *  Return the consumed size.
+ ***************************************************************************/
+PRIVATE size_t framehead_consume(
+    hgobj gobj,
+    FRAME_HEAD *frame,
+    istream_h istream,
+    char *bf,
+    size_t len
+) {
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    size_t total_consumed = 0;
+    size_t consumed;
+    char *data;
+
+    /*
+     *
+     */
+    if (!frame->busy) {
+        /*
+         * waiting the first two byte's head
+         */
+        istream_read_until_num_bytes(istream, 2, 0); // idempotent
+        consumed = istream_consume(istream, bf, len);
+        total_consumed += consumed;
+        bf += consumed;
+        len -= consumed;
+        if(!istream_is_completed(istream)) {
+            return total_consumed;  // wait more data
+        }
+
+        /*
+         *  we've got enough data! Start a new frame
+         */
+        framehead_prepare_new_frame(frame);  // `busy` flag is set.
+        data = istream_extract_matched_data(istream, 0);
+        if(decode_head(gobj, frame, data)<0) {
+            // Error already logged
+            return 0;
+        }
+    }
+
+    /*
+     *  processing remaining_length
+     */
+    if(frame->must_read_remaining_length_2) {
+        istream_read_until_num_bytes(istream, 1, 0);  // idempotent
+        consumed = istream_consume(istream, bf, len);
+        total_consumed += consumed;
+        bf += consumed;
+        len -= consumed;
+        if(!istream_is_completed(istream)) {
+            return total_consumed;  // wait more data
+        }
+
+        /*
+         *  Read 1 bytes of remaining_length
+         */
+        data = istream_extract_matched_data(istream, 0);
+        unsigned char byte = *data;
+        frame->frame_length += (byte & 0x7F) * (1*128);
+        if(byte & 0x80) {
+            frame->must_read_remaining_length_3 = 1;
+        }
+    }
+    if(frame->must_read_remaining_length_3) {
+        istream_read_until_num_bytes(istream, 1, 0);  // idempotent
+        consumed = istream_consume(istream, bf, len);
+        total_consumed += consumed;
+        bf += consumed;
+        len -= consumed;
+        if(!istream_is_completed(istream)) {
+            return total_consumed;  // wait more data
+        }
+
+        /*
+         *  Read 1 bytes of remaining_length
+         */
+        data = istream_extract_matched_data(istream, 0);
+        unsigned char byte = *data;
+        frame->frame_length += (byte & 0x7F) * (128*128);
+        if(byte & 0x80) {
+            frame->must_read_remaining_length_4 = 1;
+        }
+    }
+    if(frame->must_read_remaining_length_4) {
+        istream_read_until_num_bytes(istream, 1, 0);  // idempotent
+        consumed = istream_consume(istream, bf, len);
+        total_consumed += consumed;
+        bf += consumed;
+        len -= consumed;
+        if(!istream_is_completed(istream)) {
+            return total_consumed;  // wait more data
+        }
+
+        /*
+         *  Read 1 bytes of remaining_length
+         */
+        data = istream_extract_matched_data(istream, 0);
+        unsigned char byte = *data;
+        frame->frame_length += (byte & 0x7F) * (128*128*128);
+        if(byte & 0x80) {
+            gobj_log_error(gobj, 0,
+                "function",     "%s", __FUNCTION__,
+                "msgset",       "%s", MSGSET_MQTT_ERROR,
+                "msg",          "%s", "Fourth remaining_length byte MUST be without 0x80",
+                NULL
+            );
+            return 0;
+        }
+    }
+
+    frame->header_complete = TRUE;
+
+    if(priv->iamServer) {
+        switch(frame->command) {
+            case CMD_CONNECT:
+                if(frame->frame_length > 100000) {
+                    gobj_log_error(gobj, 0,
+                        "function",     "%s", __FUNCTION__,
+                        "msgset",       "%s", MSGSET_MQTT_ERROR,
+                        "msg",          "%s", "CONNECT command too large",
+                        "frame_length", "%d", (int)frame->frame_length,
+                        NULL
+                    );
+                    return 0;
+                }
+                break;
+            case CMD_DISCONNECT:
+                break;
+
+            case CMD_CONNACK:
+            case CMD_PUBLISH:
+            case CMD_PUBACK:
+            case CMD_PUBREC:
+            case CMD_PUBREL:
+            case CMD_PUBCOMP:
+            case CMD_SUBSCRIBE:
+            case CMD_SUBACK:
+            case CMD_UNSUBSCRIBE:
+            case CMD_UNSUBACK:
+            case CMD_AUTH:
+                break;
+
+            case CMD_PINGREQ:
+            case CMD_PINGRESP:
+                if(frame->frame_length != 0) {
+                    gobj_log_error(gobj, 0,
+                        "function",     "%s", __FUNCTION__,
+                        "msgset",       "%s", MSGSET_MQTT_ERROR,
+                        "msg",          "%s", "PING command must be 0 large",
+                        "frame_length", "%d", (int)frame->frame_length,
+                        NULL
+                    );
+                    return 0;
+                }
+                break;
+
+            default:
+                gobj_log_error(gobj, 0,
+                    "function",     "%s", __FUNCTION__,
+                    "msgset",       "%s", MSGSET_MQTT_ERROR,
+                    "msg",          "%s", "Mqtt command unknown",
+                    "command",      "%d", (int)frame->command,
+                    NULL
+                );
+                if(priv->in_session) {
+                    send__disconnect(gobj, MQTT_RC_PROTOCOL_ERROR, NULL);
+                }
+                return 0;
+        }
+    }
+
+    return total_consumed;
+}
+
+/***************************************************************************
  *  Process the completed frame
  ***************************************************************************/
 PRIVATE int frame_completed(hgobj gobj)
@@ -4938,28 +4978,6 @@ PRIVATE int frame_completed(hgobj gobj)
     return ret;
 }
 
-/***************************************************************************
- *
- ***************************************************************************/
-PRIVATE uint16_t mosquitto__mid_generate(hgobj gobj, const char *client_id)
-{
-    PRIVATE_DATA *priv = gobj_priv_data(gobj);
-
-    // TODO new
-    // json_t *client = gobj_get_resource(priv->gobj_mqtt_clients, client_id, 0, 0);
-    // uint16_t last_mid = (uint16_t)kw_get_int(gobj, client, "last_mid", 0, KW_REQUIRED);
-    static uint16_t last_mid = 0;
-    // TODO it seems that does nothing saving in resource
-    last_mid++;
-    if(last_mid == 0) {
-        last_mid++;
-    }
-    // TODO new
-    // gobj_save_resource(priv->gobj_mqtt_clients, client_id, client, 0);
-
-    return last_mid;
-}
-
 
 
 
@@ -4978,11 +4996,12 @@ PRIVATE int ac_connected(hgobj gobj, const char *event, json_t *kw, hgobj src)
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
     gobj_reset_volatil_attrs(gobj);
-    start_wait_frame_header(gobj);
     priv->send_disconnect = FALSE;
     gobj_write_bool_attr(gobj, "connected", TRUE);
     GBUFFER_DECREF(priv->gbuf_will_payload);
     priv->jn_alias_list = json_object();
+
+    start_wait_handshake(gobj); // start the timeout of handshake
 
     if(priv->iamServer) {
         /*
@@ -4993,11 +5012,6 @@ PRIVATE int ac_connected(hgobj gobj, const char *event, json_t *kw, hgobj src)
          * send the request
          */
     }
-    //set_timeout_periodic(priv->timer, priv->timeout_periodic);
-
-    // priv->timer_handshake = start_sectimer(
-    //     gobj_read_integer_attr(gobj, "timeout_handshake")
-    // );
 
     KW_DECREF(kw)
     return 0;
@@ -5049,18 +5063,6 @@ PRIVATE int ac_disconnected(hgobj gobj, const char *event, json_t *kw, hgobj src
 }
 
 /***************************************************************************
- *  Child stopped
- ***************************************************************************/
-PRIVATE int ac_stopped(hgobj gobj, const char *event, json_t *kw, hgobj src)
-{
-    if(gobj_is_volatil(src)) {
-        gobj_destroy(src);
-    }
-    KW_DECREF(kw)
-    return 0;
-}
-
-/***************************************************************************
  *  Too much time waiting disconnected
  ***************************************************************************/
 PRIVATE int ac_timeout_waiting_disconnected(hgobj gobj, const char *event, json_t *kw, hgobj src)
@@ -5087,7 +5089,7 @@ PRIVATE int ac_process_handshake(hgobj gobj, const char *event, json_t *kw, hgob
     istream_h istream = priv->istream_frame;
 
     if(gobj_trace_level(gobj) & TRAFFIC) {
-        gobj_trace_dump_gbuf(gobj, gbuf, "HEADER %s <== %s",
+        gobj_trace_dump_gbuf(gobj, gbuf, "HANDSHAKE %s <== %s",
             gobj_short_name(gobj),
             gobj_short_name(src)
         );
@@ -5571,6 +5573,18 @@ PRIVATE int ac_drop(hgobj gobj, const char *event, json_t *kw, hgobj src)
 {
     gobj_send_event(gobj_bottom_gobj(gobj), EV_DROP, 0, gobj);
 
+    KW_DECREF(kw)
+    return 0;
+}
+
+/***************************************************************************
+ *  Child stopped
+ ***************************************************************************/
+PRIVATE int ac_stopped(hgobj gobj, const char *event, json_t *kw, hgobj src)
+{
+    if(gobj_is_volatil(src)) {
+        gobj_destroy(src);
+    }
     KW_DECREF(kw)
     return 0;
 }
