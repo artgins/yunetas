@@ -502,13 +502,10 @@ SDATA (DTP_STRING,      "url",              SDF_PERSIST,                "",     
 SDATA (DTP_STRING,      "cert_pem",         SDF_PERSIST,                "",     "SSL server certificate, PEM format"),
 SDATA (DTP_BOOLEAN,     "in_session",       SDF_VOLATIL|SDF_STATS,      0,      "CONNECT mqtt done"),
 SDATA (DTP_BOOLEAN,     "send_disconnect",  SDF_VOLATIL,                0,      "send DISCONNECT"),
-SDATA (DTP_INTEGER,     "timeout_handshake",SDF_PERSIST,                "5",      "Timeout to handshake in seconds"),
-SDATA (DTP_INTEGER,     "timeout_close",    SDF_PERSIST,                "3",    "Timeout to close in seconds"),
-SDATA (DTP_INTEGER,     "timeout_periodic", SDF_RD,                     "1000", "Timeout periodic"),
 
-// SDATA (DTP_INTEGER, "timeout_handshake",SDF_PERSIST,   "5000",      "Timeout to handshake"),
-// SDATA (DTP_INTEGER, "timeout_payload",  SDF_PERSIST,   "5000",      "Timeout to payload"),
-// SDATA (DTP_INTEGER, "timeout_close",    SDF_PERSIST,   "3000",      "Timeout to close"),
+SDATA (DTP_INTEGER,     "timeout_handshake",SDF_PERSIST,                "5000",  "Timeout to handshake"),
+SDATA (DTP_INTEGER,     "timeout_payload",  SDF_PERSIST,                "5000",  "Timeout to payload"),
+SDATA (DTP_INTEGER,     "timeout_close",    SDF_PERSIST,                "3000",  "Timeout to close"),
 
 /*
  *  Configuration
@@ -590,11 +587,11 @@ PRIVATE const trace_level_t s_user_trace_level[16] = {
 typedef struct _PRIVATE_DATA {
     hgobj timer;
     BOOL iamServer;         // What side? server or client
-    int timeout_periodic;
-    time_t timer_handshake;
-    time_t timer_payload;
-    time_t timer_close;
-    time_t timer_ping;
+    int pingT;
+
+    json_int_t timeout_handshake;
+    json_int_t timeout_payload;
+    json_int_t timeout_close;
 
     FRAME_HEAD frame_head;
     istream_h istream_frame;
@@ -702,7 +699,10 @@ PRIVATE void mt_create(hgobj gobj)
      *  Do copy of heavy used parameters, for quick access.
      *  HACK The writable attributes must be repeated in mt_writing method.
      */
-    SET_PRIV(timeout_periodic,          gobj_read_integer_attr)
+    SET_PRIV(pingT,                     gobj_read_integer_attr)
+    SET_PRIV(timeout_handshake,         gobj_read_integer_attr)
+    SET_PRIV(timeout_payload,           gobj_read_integer_attr)
+    SET_PRIV(timeout_close,             gobj_read_integer_attr)
     SET_PRIV(in_session,                gobj_read_bool_attr)
     SET_PRIV(send_disconnect,           gobj_read_bool_attr)
 
@@ -752,7 +752,10 @@ PRIVATE void mt_writing(hgobj gobj, const char *path)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
-    IF_EQ_SET_PRIV(timeout_periodic,            gobj_read_integer_attr)
+    IF_EQ_SET_PRIV(pingT,                       gobj_read_integer_attr)
+    ELIF_EQ_SET_PRIV(timeout_handshake,         gobj_read_integer_attr)
+    ELIF_EQ_SET_PRIV(timeout_payload,           gobj_read_integer_attr)
+    ELIF_EQ_SET_PRIV(timeout_close,             gobj_read_integer_attr)
     ELIF_EQ_SET_PRIV(in_session,                gobj_read_bool_attr)
     ELIF_EQ_SET_PRIV(send_disconnect,           gobj_read_bool_attr)
 
@@ -849,9 +852,7 @@ PRIVATE int mt_stop(hgobj gobj)
 
     set_client_disconnected(gobj);
 
-    if(priv->timer) {
-        clear_timeout(priv->timer);
-    }
+    clear_timeout(priv->timer);
 
     hgobj tcp0 = gobj_bottom_gobj(gobj);
     if(tcp0) {
@@ -1314,7 +1315,7 @@ PRIVATE void ws_close(hgobj gobj, int reason)
             gobj_stop(tcp0);
         }
     }
-    set_timeout(priv->timer, gobj_read_integer_attr(gobj, "timeout_close"));
+    set_timeout(priv->timer, priv->timeout_close);
 }
 
 /***************************************************************************
@@ -3959,7 +3960,7 @@ PRIVATE int connect__on_authorised(
     // db__message_write_queued_out(context); TODO
     //db__message_write_inflight_out_all(context); TODO
     if(priv->keepalive > 0) {
-        priv->timer_ping = start_sectimer(priv->keepalive);
+        // priv->timer_ping = start_sectimer(priv->keepalive);
     }
 
     return 0;
@@ -4994,9 +4995,9 @@ PRIVATE int ac_connected(hgobj gobj, const char *event, json_t *kw, hgobj src)
     }
     //set_timeout_periodic(priv->timer, priv->timeout_periodic);
 
-    priv->timer_handshake = start_sectimer(
-        gobj_read_integer_attr(gobj, "timeout_handshake")
-    );
+    // priv->timer_handshake = start_sectimer(
+    //     gobj_read_integer_attr(gobj, "timeout_handshake")
+    // );
 
     KW_DECREF(kw)
     return 0;
@@ -5032,9 +5033,7 @@ PRIVATE int ac_disconnected(hgobj gobj, const char *event, json_t *kw, hgobj src
         );
         gobj_publish_event(gobj, EV_ON_CLOSE, kw2);
     }
-    if(priv->timer) {
-        clear_timeout(priv->timer);
-    }
+    clear_timeout(priv->timer);
 
     JSON_DECREF(priv->jn_alias_list)
 
@@ -5164,9 +5163,9 @@ PRIVATE int ac_process_frame_header(hgobj gobj, const char *event, json_t *kw, h
                 }
                 istream_read_until_num_bytes(priv->istream_payload, frame_length, 0);
 
-                priv->timer_handshake = start_sectimer(
-                    gobj_read_integer_attr(gobj, "timeout_handshake")
-                );
+                // priv->timer_handshake = start_sectimer(
+                //     gobj_read_integer_attr(gobj, "timeout_handshake")
+                // );
 
                 gobj_change_state(gobj, ST_WAIT_PAYLOAD);
                 return gobj_send_event(gobj, EV_RX_DATA, kw, gobj);
@@ -5192,21 +5191,21 @@ PRIVATE int ac_timeout_waiting_frame_header(hgobj gobj, const char *event, json_
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
-    if(priv->timer_handshake) {
-        if(test_sectimer(priv->timer_handshake)) {
-            ws_close(gobj, MQTT_RC_PROTOCOL_ERROR);
-        }
-    }
+    // if(priv->timer_handshake) {
+    //     if(test_sectimer(priv->timer_handshake)) {
+    //         ws_close(gobj, MQTT_RC_PROTOCOL_ERROR);
+    //     }
+    // }
 
     // mosquitto__check_keepalive()
-    if(priv->timer_ping) {
-        if(test_sectimer(priv->timer_ping)) {
-            // TODO send send__pingreq(mosq); or close connection if not receive response
-            if(priv->keepalive > 0) {
-                priv->timer_ping = start_sectimer(priv->keepalive);
-            }
-        }
-    }
+    // if(priv->timer_ping) {
+    //     if(test_sectimer(priv->timer_ping)) {
+    //         // TODO send send__pingreq(mosq); or close connection if not receive response
+    //         if(priv->keepalive > 0) {
+    //             priv->timer_ping = start_sectimer(priv->keepalive);
+    //         }
+    //     }
+    // }
 
     KW_DECREF(kw)
     return 0;
@@ -5274,26 +5273,26 @@ PRIVATE int ac_timeout_waiting_payload_data(hgobj gobj, const char *event, json_
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
-    if(priv->timer_payload) {
-        if(test_sectimer(priv->timer_payload)) {
-            gobj_log_info(gobj, 0,
-                "msgset",       "%s", MSGSET_MQTT_ERROR,
-                "msg",          "%s", "Timeout waiting mqtt PAYLOAD data",
-                NULL
-            );
-            ws_close(gobj, MQTT_RC_PROTOCOL_ERROR);
-        }
-    }
+    // if(priv->timer_payload) {
+    //     if(test_sectimer(priv->timer_payload)) {
+    //         gobj_log_info(gobj, 0,
+    //             "msgset",       "%s", MSGSET_MQTT_ERROR,
+    //             "msg",          "%s", "Timeout waiting mqtt PAYLOAD data",
+    //             NULL
+    //         );
+    //         ws_close(gobj, MQTT_RC_PROTOCOL_ERROR);
+    //     }
+    // }
 
     // mosquitto__check_keepalive()
-    if(priv->timer_ping) {
-        if(test_sectimer(priv->timer_ping)) {
-            // TODO send send__pingreq(mosq); or close connection if not receive response
-            if(priv->keepalive > 0) {
-                priv->timer_ping = start_sectimer(priv->keepalive);
-            }
-        }
-    }
+    // if(priv->timer_ping) {
+    //     if(test_sectimer(priv->timer_ping)) {
+    //         // TODO send send__pingreq(mosq); or close connection if not receive response
+    //         if(priv->keepalive > 0) {
+    //             priv->timer_ping = start_sectimer(priv->keepalive);
+    //         }
+    //     }
+    // }
 
     ws_close(gobj, MOSQ_ERR_PROTOCOL);
     KW_DECREF(kw)
