@@ -189,7 +189,7 @@ static int register_yuno_and_more(void)
     // Avoid timer trace, too much information
     gobj_set_gclass_no_trace(gclass_find_by_name(C_YUNO), "machine", TRUE);
     gobj_set_gclass_no_trace(gclass_find_by_name(C_TIMER0), "machine", TRUE);
-    gobj_set_gclass_no_trace(gclass_find_by_name(C_TIMER), "machine", TRUE);
+    // gobj_set_gclass_no_trace(gclass_find_by_name(C_TIMER), "machine", TRUE);
     gobj_set_global_no_trace("timer_periodic", TRUE);
 
     // Samples of traces

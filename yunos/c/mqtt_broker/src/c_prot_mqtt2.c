@@ -1372,7 +1372,7 @@ PRIVATE int decode_head(hgobj gobj, FRAME_HEAD *frame, char *data)
     frame->command = byte1 & 0xF0;
     frame->flags = byte1 & 0x0F;
 
-    if(!priv->in_session) {
+    if(!priv->in_session) { // TODO remove when not needed
         if(frame->command != CMD_CONNECT) {
             gobj_log_error(gobj, 0,
                 "function",     "%s", __FUNCTION__,
@@ -1392,10 +1392,6 @@ PRIVATE int decode_head(hgobj gobj, FRAME_HEAD *frame, char *data)
     if(byte2 & 0x80) {
         frame->must_read_remaining_length_2 = 1;
     }
-
-    /*
-     *  analize
-     */
 
     return 0;
 }
@@ -5105,6 +5101,18 @@ PRIVATE int ac_process_handshake(hgobj gobj, const char *event, json_t *kw, hgob
                     (int)frame->frame_length
                 );
             }
+            if(frame->command != CMD_CONNECT) {
+                gobj_log_error(gobj, 0,
+                    "function",     "%s", __FUNCTION__,
+                    "msgset",       "%s", MSGSET_MQTT_ERROR,
+                    "msg",          "%s", "First command MUST be CONNECT",
+                    "command",      "%s", get_command_name(frame->command),
+                    NULL
+                );
+                ws_close(gobj, MQTT_RC_PROTOCOL_ERROR);
+                break;
+            }
+
             if(frame->frame_length) {
                 /*
                  *
@@ -5118,6 +5126,18 @@ PRIVATE int ac_process_handshake(hgobj gobj, const char *event, json_t *kw, hgob
                         "msg",          "%s", "istream_payload NOT NULL",
                         NULL
                     );
+                }
+
+                if(frame->frame_length > 1000) {
+                    gobj_log_error(gobj, 0,
+                        "function",     "%s", __FUNCTION__,
+                        "msgset",       "%s", MSGSET_MQTT_ERROR,
+                        "msg",          "%s", "CONNECT command too large",
+                        "frame_length", "%d", (int)frame->frame_length,
+                        NULL
+                    );
+                    ws_close(gobj, MQTT_RC_PROTOCOL_ERROR);
+                    break;
                 }
 
                 /*
@@ -5153,11 +5173,9 @@ PRIVATE int ac_process_handshake(hgobj gobj, const char *event, json_t *kw, hgob
                 }
                 istream_read_until_num_bytes(priv->istream_payload, frame_length, 0);
 
-                // priv->timer_handshake = start_sectimer(
-                //     gobj_read_integer_attr(gobj, "timeout_handshake")
-                // );
-
                 gobj_change_state(gobj, ST_WAIT_PAYLOAD);
+                set_timeout(priv->timer, priv->timeout_payload);
+
                 return gobj_send_event(gobj, EV_RX_DATA, kw, gobj);
 
             } else {
@@ -5193,6 +5211,8 @@ PRIVATE int ac_process_frame_header(hgobj gobj, const char *event, json_t *kw, h
     gbuffer_t *gbuf = (gbuffer_t *)(uintptr_t)kw_get_int(gobj, kw, "gbuffer", 0, FALSE);
     FRAME_HEAD *frame = &priv->frame_head;
     istream_h istream = priv->istream_frame;
+
+    clear_timeout(priv->timer);
 
     if(gobj_trace_level(gobj) & TRAFFIC) {
         gobj_trace_dump_gbuf(gobj, gbuf, "HEADER %s <== %s",
@@ -5271,11 +5291,9 @@ PRIVATE int ac_process_frame_header(hgobj gobj, const char *event, json_t *kw, h
                 }
                 istream_read_until_num_bytes(priv->istream_payload, frame_length, 0);
 
-                // priv->timer_handshake = start_sectimer(
-                //     gobj_read_integer_attr(gobj, "timeout_handshake")
-                // );
-
                 gobj_change_state(gobj, ST_WAIT_PAYLOAD);
+                set_timeout(priv->timer, priv->timeout_payload);
+
                 return gobj_send_event(gobj, EV_RX_DATA, kw, gobj);
 
             } else {

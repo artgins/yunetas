@@ -177,7 +177,7 @@ PRIVATE int mt_play(hgobj gobj)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
-    set_timeout(priv->timer, priv->timeout);
+    // set_timeout(priv->timer, priv->timeout);
 
     /*-------------------------*
      *      Start services

@@ -504,9 +504,7 @@ PRIVATE int ac_disconnected(hgobj gobj, gobj_event_t event, json_t *kw, hgobj sr
         istream_destroy(priv->istream_payload);
         priv->istream_payload = NULL;
     }
-    if(priv->timer) {
-        clear_timeout(priv->timer);
-    }
+    clear_timeout(priv->timer);
 
     dl_flush(&priv->dl_msgs_out, gbmem_free);
 
