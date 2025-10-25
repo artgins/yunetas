@@ -440,19 +440,6 @@ PRIVATE int send__disconnect(
     uint8_t reason_code,
     json_t *properties
 );
-PRIVATE void start_wait_handshake(hgobj gobj);
-PRIVATE void start_wait_frame_header(hgobj gobj);
-PRIVATE void ws_close(hgobj gobj, int code);
-
-PRIVATE int framehead_prepare_new_frame(FRAME_HEAD *frame);
-PRIVATE size_t framehead_consume(
-    hgobj gobj,
-    FRAME_HEAD *frame,
-    istream_h istream,
-    char *bf,
-    size_t len
-);
-PRIVATE int frame_completed(hgobj gobj);
 PRIVATE int set_client_disconnected(hgobj gobj);
 
 /***************************************************************************

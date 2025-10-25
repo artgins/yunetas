@@ -58,20 +58,6 @@ typedef struct _FRAME_HEAD {
 
 #pragma pack()
 
-PRIVATE void start_wait_handshake(hgobj gobj);
-PRIVATE void start_wait_frame_header(hgobj gobj);
-PRIVATE void ws_close(hgobj gobj, int code);
-
-PRIVATE int framehead_prepare_new_frame(FRAME_HEAD *frame);
-PRIVATE int framehead_consume(
-    hgobj gobj,
-    FRAME_HEAD *frame,
-    istream_h istream,
-    char *bf,
-    size_t len
-);
-PRIVATE int frame_completed(hgobj gobj);
-
 /***************************************************************
  *              Data
  ***************************************************************/
