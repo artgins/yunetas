@@ -3974,6 +3974,10 @@ PRIVATE int handle__connect(hgobj gobj, gbuffer_t *gbuf)
             (int)password_flag,
             (int)keepalive
         );
+        if(connect_properties) {
+            print_json2("CONNECT_PROPERTIES", connect_properties);
+        }
+
         if(priv->gbuf_will_payload) {
             gobj_trace_dump_gbuf(gobj, priv->gbuf_will_payload, "gbuf_will_payload");
         }
@@ -4014,8 +4018,6 @@ PRIVATE int handle__connect(hgobj gobj, gbuffer_t *gbuf)
         return -1;
     }
 
-    JSON_DECREF(connect_properties);
-
     uint8_t connect_ack = 0;
     json_t *connack_props = json_object();
 
@@ -4025,6 +4027,7 @@ PRIVATE int handle__connect(hgobj gobj, gbuffer_t *gbuf)
             mqtt_property_add_int16(gobj, connack_props, MQTT_PROP_SERVER_KEEP_ALIVE, priv->keepalive);
         } else {
             send__connack(gobj, connect_ack, CONNACK_REFUSED_IDENTIFIER_REJECTED, NULL);
+            JSON_DECREF(connect_properties);
             JSON_DECREF(connack_props);
             return -1;
         }
@@ -4036,6 +4039,7 @@ PRIVATE int handle__connect(hgobj gobj, gbuffer_t *gbuf)
                 gobj, connack_props, MQTT_PROP_TOPIC_ALIAS_MAXIMUM, priv->max_topic_alias)<0)
             {
                 // Error already logged
+                JSON_DECREF(connect_properties);
                 JSON_DECREF(connack_props);
                 return -1;
             }
@@ -4045,6 +4049,7 @@ PRIVATE int handle__connect(hgobj gobj, gbuffer_t *gbuf)
                 gobj, connack_props, MQTT_PROP_ASSIGNED_CLIENT_IDENTIFIER, priv->client_id)<0)
             {
                 // Error already logged
+                JSON_DECREF(connect_properties);
                 JSON_DECREF(connack_props);
                 return -1;
             }
@@ -4091,6 +4096,11 @@ PRIVATE int handle__connect(hgobj gobj, gbuffer_t *gbuf)
             priv->gbuf_will_payload = NULL;
         }
         json_object_update_new(client, jn_will);
+    }
+
+    if(connect_properties) {
+        json_object_set_new(client, "connect_properties", connect_properties);
+        connect_properties = NULL;
     }
 
     // TODO esto debe ir a new client in upper level
@@ -4173,12 +4183,16 @@ PRIVATE int handle__connect(hgobj gobj, gbuffer_t *gbuf)
         return -1;
     }
 
-    send__connack(gobj, connect_ack, CONNACK_ACCEPTED, connack_props);
+    send__connack(
+        gobj,
+        connect_ack,
+        CONNACK_ACCEPTED,
+        connack_props // owned
+    );
 
     gobj_write_bool_attr(gobj, "in_session", TRUE);
     gobj_write_bool_attr(gobj, "send_disconnect", TRUE);
     priv->must_broadcast_on_close = TRUE;
-
 
     // db__message_write_queued_out(context); TODO
     //db__message_write_inflight_out_all(context); TODO
