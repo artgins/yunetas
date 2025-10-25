@@ -149,7 +149,7 @@ PRIVATE void mt_create(hgobj gobj)
 
     dl_init(&priv->dl_msgs_out, gobj);
 
-    priv->istream_frame = istream_create(gobj, 14, 14);
+    priv->istream_frame = istream_create(gobj, sizeof(HEADER_ERPL4), sizeof(HEADER_ERPL4));
     if(!priv->istream_frame) {
         gobj_log_error(gobj, 0,
             "function",     "%s", __FUNCTION__,

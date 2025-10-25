@@ -238,6 +238,7 @@ PRIVATE void mt_create(hgobj gobj)
     );
 
 
+    // The maximum size of a frame header is 14 bytes.
     priv->istream_frame = istream_create(gobj, 14, 14);
     if(!priv->istream_frame) {
         gobj_log_error(gobj, 0,
@@ -1829,8 +1830,8 @@ PRIVATE int ac_process_frame_header(hgobj gobj, const char *event, json_t *kw, h
                 }
                 priv->istream_payload = istream_create(
                     gobj,
-                    4*1024,
-                    gbmem_get_maximum_block()
+                    frame_length,
+                    frame_length
                 );
                 if(!priv->istream_payload) {
                     gobj_log_error(gobj, 0,

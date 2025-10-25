@@ -664,7 +664,8 @@ PRIVATE void mt_create(hgobj gobj)
     dl_init(&priv->dl_msgs_out, gobj);
     dl_init(&priv->dl_msgs_in, gobj);
 
-    priv->istream_frame = istream_create(gobj, 14, 14);
+    // The maximum size of a frame header is 5 bytes.
+    priv->istream_frame = istream_create(gobj, 5, 5);
     if(!priv->istream_frame) {
         gobj_log_error(gobj, 0,
             "function",     "%s", __FUNCTION__,
@@ -4662,8 +4663,8 @@ PRIVATE int framehead_consume(
 ) {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
-    size_t total_consumed = 0;
-    size_t consumed;
+    int total_consumed = 0;
+    int consumed;
     char *data;
 
     /*
@@ -4674,7 +4675,7 @@ PRIVATE int framehead_consume(
          * waiting the first two byte's head
          */
         istream_read_until_num_bytes(istream, 2, 0); // idempotent
-        consumed = istream_consume(istream, bf, len);
+        consumed = (int)istream_consume(istream, bf, len);
         total_consumed += consumed;
         bf += consumed;
         len -= consumed;
@@ -4689,7 +4690,7 @@ PRIVATE int framehead_consume(
         data = istream_extract_matched_data(istream, 0);
         if(decode_head(gobj, frame, data)<0) {
             // Error already logged
-            return 0;
+            return -1;
         }
     }
 
@@ -4698,7 +4699,7 @@ PRIVATE int framehead_consume(
      */
     if(frame->must_read_remaining_length_2) {
         istream_read_until_num_bytes(istream, 1, 0);  // idempotent
-        consumed = istream_consume(istream, bf, len);
+        consumed = (int)istream_consume(istream, bf, len);
         total_consumed += consumed;
         bf += consumed;
         len -= consumed;
@@ -4718,7 +4719,7 @@ PRIVATE int framehead_consume(
     }
     if(frame->must_read_remaining_length_3) {
         istream_read_until_num_bytes(istream, 1, 0);  // idempotent
-        consumed = istream_consume(istream, bf, len);
+        consumed = (int)istream_consume(istream, bf, len);
         total_consumed += consumed;
         bf += consumed;
         len -= consumed;
@@ -4738,7 +4739,7 @@ PRIVATE int framehead_consume(
     }
     if(frame->must_read_remaining_length_4) {
         istream_read_until_num_bytes(istream, 1, 0);  // idempotent
-        consumed = istream_consume(istream, bf, len);
+        consumed = (int)istream_consume(istream, bf, len);
         total_consumed += consumed;
         bf += consumed;
         len -= consumed;
@@ -4759,70 +4760,70 @@ PRIVATE int framehead_consume(
                 "msg",          "%s", "Fourth remaining_length byte MUST be without 0x80",
                 NULL
             );
-            return 0;
+            return -1;
         }
     }
 
     frame->header_complete = TRUE;
 
-    if(priv->iamServer) {
-        switch(frame->command) {
-            case CMD_CONNECT:
-                if(frame->frame_length > 100000) {
-                    gobj_log_error(gobj, 0,
-                        "function",     "%s", __FUNCTION__,
-                        "msgset",       "%s", MSGSET_MQTT_ERROR,
-                        "msg",          "%s", "CONNECT command too large",
-                        "frame_length", "%d", (int)frame->frame_length,
-                        NULL
-                    );
-                    return 0;
-                }
-                break;
-            case CMD_DISCONNECT:
-                break;
-
-            case CMD_CONNACK:
-            case CMD_PUBLISH:
-            case CMD_PUBACK:
-            case CMD_PUBREC:
-            case CMD_PUBREL:
-            case CMD_PUBCOMP:
-            case CMD_SUBSCRIBE:
-            case CMD_SUBACK:
-            case CMD_UNSUBSCRIBE:
-            case CMD_UNSUBACK:
-            case CMD_AUTH:
-                break;
-
-            case CMD_PINGREQ:
-            case CMD_PINGRESP:
-                if(frame->frame_length != 0) {
-                    gobj_log_error(gobj, 0,
-                        "function",     "%s", __FUNCTION__,
-                        "msgset",       "%s", MSGSET_MQTT_ERROR,
-                        "msg",          "%s", "PING command must be 0 large",
-                        "frame_length", "%d", (int)frame->frame_length,
-                        NULL
-                    );
-                    return 0;
-                }
-                break;
-
-            default:
-                gobj_log_error(gobj, 0,
-                    "function",     "%s", __FUNCTION__,
-                    "msgset",       "%s", MSGSET_MQTT_ERROR,
-                    "msg",          "%s", "Mqtt command unknown",
-                    "command",      "%d", (int)frame->command,
-                    NULL
-                );
-                if(priv->in_session) {
-                    send__disconnect(gobj, MQTT_RC_PROTOCOL_ERROR, NULL);
-                }
-                return 0;
-        }
-    }
+    // if(priv->iamServer) {
+    //     switch(frame->command) {
+    //         case CMD_CONNECT:
+    //             if(frame->frame_length > 100000) {
+    //                 gobj_log_error(gobj, 0,
+    //                     "function",     "%s", __FUNCTION__,
+    //                     "msgset",       "%s", MSGSET_MQTT_ERROR,
+    //                     "msg",          "%s", "CONNECT command too large",
+    //                     "frame_length", "%d", (int)frame->frame_length,
+    //                     NULL
+    //                 );
+    //                 return 0;
+    //             }
+    //             break;
+    //         case CMD_DISCONNECT:
+    //             break;
+    //
+    //         case CMD_CONNACK:
+    //         case CMD_PUBLISH:
+    //         case CMD_PUBACK:
+    //         case CMD_PUBREC:
+    //         case CMD_PUBREL:
+    //         case CMD_PUBCOMP:
+    //         case CMD_SUBSCRIBE:
+    //         case CMD_SUBACK:
+    //         case CMD_UNSUBSCRIBE:
+    //         case CMD_UNSUBACK:
+    //         case CMD_AUTH:
+    //             break;
+    //
+    //         case CMD_PINGREQ:
+    //         case CMD_PINGRESP:
+    //             if(frame->frame_length != 0) {
+    //                 gobj_log_error(gobj, 0,
+    //                     "function",     "%s", __FUNCTION__,
+    //                     "msgset",       "%s", MSGSET_MQTT_ERROR,
+    //                     "msg",          "%s", "PING command must be 0 large",
+    //                     "frame_length", "%d", (int)frame->frame_length,
+    //                     NULL
+    //                 );
+    //                 return 0;
+    //             }
+    //             break;
+    //
+    //         default:
+    //             gobj_log_error(gobj, 0,
+    //                 "function",     "%s", __FUNCTION__,
+    //                 "msgset",       "%s", MSGSET_MQTT_ERROR,
+    //                 "msg",          "%s", "Mqtt command unknown",
+    //                 "command",      "%d", (int)frame->command,
+    //                 NULL
+    //             );
+    //             if(priv->in_session) {
+    //                 send__disconnect(gobj, MQTT_RC_PROTOCOL_ERROR, NULL);
+    //             }
+    //             return 0;
+    //     }
+    // }
 
     return total_consumed;
 }
@@ -5086,8 +5087,8 @@ PRIVATE int ac_process_handshake(hgobj gobj, const char *event, json_t *kw, hgob
     while(gbuffer_leftbytes(gbuf)) {
         size_t ln = gbuffer_leftbytes(gbuf);
         char *bf = gbuffer_cur_rd_pointer(gbuf);
-        size_t n = framehead_consume(gobj, frame, istream, bf, ln);
-        if (n == 0) {
+        int n = framehead_consume(gobj, frame, istream, bf, ln);
+        if (n <= 0) {
             // Some error in parsing
             // on error do break the connection
             ws_close(gobj, MQTT_RC_PROTOCOL_ERROR);
@@ -5105,7 +5106,6 @@ PRIVATE int ac_process_handshake(hgobj gobj, const char *event, json_t *kw, hgob
                 );
             }
             if(frame->frame_length) {
-            // TODO esto está mal, debería ir en framehead_consume() ????
                 /*
                  *
                  */
@@ -5137,8 +5137,8 @@ PRIVATE int ac_process_handshake(hgobj gobj, const char *event, json_t *kw, hgob
                 }
                 priv->istream_payload = istream_create(
                     gobj,
-                    4*1024,
-                    gbmem_get_maximum_block()
+                    frame_length,
+                    frame_length
                 );
                 if(!priv->istream_payload) {
                     gobj_log_error(gobj, 0,
@@ -5204,8 +5204,8 @@ PRIVATE int ac_process_frame_header(hgobj gobj, const char *event, json_t *kw, h
     while(gbuffer_leftbytes(gbuf)) {
         size_t ln = gbuffer_leftbytes(gbuf);
         char *bf = gbuffer_cur_rd_pointer(gbuf);
-        size_t n = framehead_consume(gobj, frame, istream, bf, ln);
-        if (n == 0) {
+        int n = framehead_consume(gobj, frame, istream, bf, ln);
+        if (n <= 0) {
             // Some error in parsing
             // on error do break the connection
             ws_close(gobj, MQTT_RC_PROTOCOL_ERROR);
@@ -5255,8 +5255,8 @@ PRIVATE int ac_process_frame_header(hgobj gobj, const char *event, json_t *kw, h
                 }
                 priv->istream_payload = istream_create(
                     gobj,
-                    4*1024,
-                    gbmem_get_maximum_block()
+                    frame_length,
+                    frame_length
                 );
                 if(!priv->istream_payload) {
                     gobj_log_error(gobj, 0,
