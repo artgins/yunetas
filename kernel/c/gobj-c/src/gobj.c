@@ -9109,6 +9109,7 @@ PUBLIC int gobj_publish_event(
                 }
             }
 
+            sent_count++;
             int ret_ = gobj_send_event(
                 subscriber,
                 event_name,
@@ -9116,11 +9117,9 @@ PUBLIC int gobj_publish_event(
                 publisher
             );
             if(ret_ < 0 && (subs_flag & __own_event__)) {
-                sent_count = -1; // Return of -1 indicates that someone owned the event
                 break;
             }
             ret += ret_;
-            sent_count++;
 
             if(publisher->obflag & (obflag_destroying|obflag_destroyed)) {
                 /*
