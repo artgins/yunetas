@@ -4121,15 +4121,6 @@ PRIVATE int handle__connect(hgobj gobj, gbuffer_t *gbuf)
     // }
 
     // TODO esto debe ir a new client in upper level
-    // uint32_t prev_session_expiry_interval = kw_get_int(gobj,
-    //     client, "session_expiry_interval", 0, KW_CREATE
-    // );
-    // uint32_t prev_protocol_version = kw_get_int(gobj,
-    //     client, "protocol_version", 0, KW_CREATE
-    // );
-    // BOOL prev_clean_start = kw_get_bool(gobj,
-    //     client, "clean_start", 0, KW_CREATE
-    // );
     // if(priv->clean_start == FALSE && prev_session_expiry_interval > 0) {
     //     if(priv->protocol_version == mosq_p_mqtt311 || priv->protocol_version == mosq_p_mqtt5) {
     //         connect_ack |= 0x01;
