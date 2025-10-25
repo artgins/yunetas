@@ -439,6 +439,7 @@ PRIVATE int ac_on_open(hgobj gobj, const char *event, json_t *kw, hgobj src)
     }
     if(result < 0) {
         const char *comment = COMMAND_COMMENT(gobj, jn_response);
+        JSON_DECREF(jn_response)
         KW_DECREF(kw);
         return -1;
     }
