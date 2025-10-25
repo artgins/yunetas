@@ -11,6 +11,24 @@
 #include <limits.h>
 #include <string.h>
 
+#include <gobj.h>
+#include <g_ev_kernel.h>
+#include <g_st_kernel.h>
+#include <helpers.h>
+
+#ifdef __linux__
+#if defined(CONFIG_HAVE_OPENSSL)
+    #include <openssl/ssl.h>
+    #include <openssl/rand.h>
+#elif defined(CONFIG_HAVE_MBEDTLS)
+    #include <mbedtls/md.h>
+    #include <mbedtls/ctr_drbg.h>
+    #include <mbedtls/pkcs5.h>
+#else
+    #error "No crypto library defined"
+#endif
+#endif
+
 #include "c_mqtt_broker.h"
 
 /***************************************************************************
@@ -58,10 +76,12 @@ SDATA_END()
  *---------------------------------------------*/
 PRIVATE sdata_desc_t tattr_desc[] = {
 /*-ATTR-type------------name----------------flag--------default-----description---------- */
-SDATA (DTP_STRING,      "tranger_path",     SDF_RD,     "/yuneta/store/mqtt-broker/(^^__node_owner__^^)",         "tranger path"),
-SDATA (DTP_STRING,      "tranger_database", SDF_RD,     "(^^__yuno_role__^^)^(^^__yuno_name__^^)",         "tranger database"),
-SDATA (DTP_STRING,      "filename_mask",    SDF_RD|SDF_REQUIRED,"%Y-%m-%d",    "Organization of tables (file name format, see strftime())"),
+SDATA (DTP_STRING,      "tranger_path",     SDF_RD,     "/yuneta/store/mqtt-broker/(^^__node_owner__^^)", "tranger path"),
+SDATA (DTP_STRING,      "tranger_database", SDF_RD,     "(^^__yuno_role__^^)^(^^__yuno_name__^^)", "tranger database"),
+SDATA (DTP_STRING,      "filename_mask",    SDF_RD|SDF_REQUIRED,"%Y-%m-%d", "Organization of tables (file name format, see strftime())"),
 SDATA (DTP_INTEGER,     "on_critical_error",SDF_RD,     "0x0010",   "LOG_OPT_TRACE_STACK"),
+
+SDATA (DTP_BOOLEAN,     "allow_anonymous",  SDF_PERSIST, "1",       "Boolean value that determines whether clients that connect without providing a username are allowed to connect. If set to FALSE then another means of connection should be created to control authenticated client access. Defaults to TRUE, (TODO but connections are only allowed from the local machine)."),
 
 SDATA (DTP_POINTER,     "subscriber",       0,          0,          "Subscriber of output-events. If it's null then the subscriber is the parent."),
 SDATA (DTP_INTEGER,     "timeout",          SDF_RD,     "1000",     "Timeout"),
@@ -96,8 +116,10 @@ typedef struct _PRIVATE_DATA {
     hgobj timer;
     int32_t timeout;
     hgobj gobj_input_side;
-
     hgobj gobj_tranger_broker;
+
+    BOOL allow_anonymous;
+
 } PRIVATE_DATA;
 
 
@@ -133,7 +155,8 @@ PRIVATE void mt_create(hgobj gobj)
      *  Do copy of heavy used parameters, for quick access.
      *  HACK The writable attributes must be repeated in mt_writing method.
      */
-    SET_PRIV(timeout,               gobj_read_integer_attr)
+    SET_PRIV(timeout,                   gobj_read_integer_attr)
+    SET_PRIV(allow_anonymous,           gobj_read_bool_attr)
 }
 
 /***************************************************************************
@@ -333,6 +356,448 @@ PRIVATE int open_queue(hgobj gobj)
     return 0;
 }
 
+/***************************************************************************
+ *
+ ***************************************************************************/
+PRIVATE int check_passwd(
+    hgobj gobj,
+    const char *password,
+    const char *hash,
+    const char *salt,
+    const char *algorithm, // hashtype
+    json_int_t iterations
+)
+{
+#if defined(__linux__)
+    #if defined(CONFIG_HAVE_OPENSSL)
+    const EVP_MD *digest;
+    unsigned char hash_[EVP_MAX_MD_SIZE+1];
+    unsigned int hash_len_ = EVP_MAX_MD_SIZE;
+
+    if(empty_string(algorithm)) {
+        algorithm = "sha512";
+    }
+    digest = EVP_get_digestbyname(algorithm);
+    if(!digest) {
+        gobj_log_error(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_INTERNAL_ERROR,
+            "msg",          "%s", "Unable to get openssl digest",
+            "digest",       "%s", algorithm,
+            NULL
+        );
+        return -1;
+    }
+
+    if(0) { //strcasecmp(algorithm, "sha512")==0) {
+        EVP_MD_CTX *context = EVP_MD_CTX_new();
+        EVP_DigestInit_ex(context, digest, NULL);
+        EVP_DigestUpdate(context, password, strlen(password));
+        EVP_DigestUpdate(context, salt, (size_t)strlen(salt));
+        EVP_DigestFinal_ex(context, hash_, &hash_len_);
+        EVP_MD_CTX_free(context);
+    } else {
+        PKCS5_PBKDF2_HMAC(password, (int)strlen(password),
+            (const unsigned char *)salt, (int)strlen(salt), iterations,
+            digest, (int)hash_len_, hash_
+        );
+    }
+
+    if(hash_len_ == strlen(hash) && memcmp(hash, hash_, hash_len_)==0) {
+        return 0;
+    }
+#elif defined(CONFIG_HAVE_MBEDTLS)
+    unsigned char derived_hash[64]; // SHA512 max size
+    size_t hash_len;
+    const mbedtls_md_info_t *md_info = NULL;
+
+    if(empty_string(algorithm)) {
+        algorithm = "sha512";
+    }
+
+    md_info = mbedtls_md_info_from_string(algorithm);
+    if(!md_info) {
+        gobj_log_error(gobj, 0,
+            "function", "%s", __FUNCTION__,
+            "msgset",   "%s", MSGSET_INTERNAL_ERROR,
+            "msg",      "%s", "Unable to get mbedtls digest",
+            "digest",   "%s", algorithm,
+            NULL
+        );
+        return -1;
+    }
+
+    hash_len = mbedtls_md_get_size(md_info);
+
+    /* Decode salt from base64 */
+    gbuffer_t *gbuf_salt = gbuffer_base64_to_string(salt, strlen(salt));
+    if(!gbuf_salt) {
+        gobj_log_error(gobj, 0,
+            "function", "%s", __FUNCTION__,
+            "msgset",   "%s", MSGSET_INTERNAL_ERROR,
+            "msg",      "%s", "Invalid base64 salt",
+            NULL
+        );
+        return -1;
+    }
+
+    if(mbedtls_pkcs5_pbkdf2_hmac(
+            md_info,
+            (const unsigned char *)password, strlen(password),
+            (const unsigned char *)gbuffer_cur_rd_pointer(gbuf_salt), gbuffer_leftbytes(gbuf_salt),
+            iterations,
+            hash_len,
+            derived_hash
+        ) != 0) {
+        gobj_log_error(gobj, 0,
+            "function", "%s", __FUNCTION__,
+            "msgset",   "%s", MSGSET_INTERNAL_ERROR,
+            "msg",      "%s", "mbedtls_pbkdf2_hmac() FAILED",
+            NULL
+        );
+        GBUFFER_DECREF(gbuf_salt);
+        return -1;
+    }
+
+    /* Decode input hash from base64 */
+    gbuffer_t *gbuf_hash = gbuffer_base64_to_string(hash, strlen(hash));
+    if(!gbuf_hash) {
+        gobj_log_error(gobj, 0,
+            "function", "%s", __FUNCTION__,
+            "msgset",   "%s", MSGSET_INTERNAL_ERROR,
+            "msg",      "%s", "Invalid base64 hash",
+            NULL
+        );
+        GBUFFER_DECREF(gbuf_salt);
+        return -1;
+    }
+
+    const unsigned char *stored_hash = (const unsigned char *)gbuffer_cur_rd_pointer(gbuf_hash);
+    size_t stored_hash_len = gbuffer_leftbytes(gbuf_hash);
+
+    int result = -1;
+    if(stored_hash_len == hash_len && memcmp(derived_hash, stored_hash, hash_len) == 0) {
+        result = 0; // Match
+    }
+
+    GBUFFER_DECREF(gbuf_salt);
+    GBUFFER_DECREF(gbuf_hash);
+    return result;
+#else
+    #error "No crypto library defined"
+#endif
+#endif
+
+    return -1;
+}
+
+/***************************************************************************
+    "credentials" : [
+        {
+            "type": "password",
+            "createdDate": 1581316153674,
+            "secretData": {
+                "value": "???",
+                "salt": "???=="
+            },
+            "credentialData" : {
+                "hashIterations": 27500,
+                "algorithm": "sha512",
+                "additionalParameters": {
+                }
+            }
+        }
+    ]
+ ***************************************************************************/
+#define PW_DEFAULT_ITERATIONS 101
+
+PRIVATE json_t *hash_password(
+    hgobj gobj,
+    const char *password,
+    const char *algorithm,
+    int iterations
+) {
+#if defined(__linux__)
+    #if defined(CONFIG_HAVE_OPENSSL)
+    #define SALT_LEN 12
+    unsigned int hash_len;
+    unsigned char hash[64]; /* For SHA512 */
+    unsigned char salt[SALT_LEN];
+
+    if(empty_string(algorithm)) {
+        algorithm = "sha512";
+    }
+    if(iterations < 1) {
+        iterations = PW_DEFAULT_ITERATIONS;
+    }
+    if(RAND_bytes(salt, sizeof(salt))<0) {
+        gobj_log_error(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_INTERNAL_ERROR,
+            "msg",          "%s", "RAND_bytes() FAILED",
+            "digest",       "%s", algorithm,
+            NULL
+        );
+        return 0;
+    }
+
+    const EVP_MD *digest = EVP_get_digestbyname(algorithm);
+    if(!digest) {
+        gobj_log_error(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_INTERNAL_ERROR,
+            "msg",          "%s", "Unable to get openssl digest",
+            "digest",       "%s", algorithm,
+            NULL
+        );
+        return 0;
+    }
+
+    hash_len = sizeof(hash);
+    PKCS5_PBKDF2_HMAC(password, (int)strlen(password),
+        salt, sizeof(salt), iterations,
+        digest, (int)hash_len, hash
+    );
+
+    gbuffer_t *gbuf_hash = gbuffer_string_to_base64((const char *)hash, hash_len);
+    gbuffer_t *gbuf_salt = gbuffer_string_to_base64((const char *)salt, sizeof(salt));
+    char *hash_b64 = gbuffer_cur_rd_pointer(gbuf_hash);
+    char *salt_b64 = gbuffer_cur_rd_pointer(gbuf_salt);
+
+    json_t *credentials = json_object();
+    json_t *credential_list = kw_get_list(gobj, credentials, "credentials", json_array(), KW_CREATE);
+    json_t *credential = json_pack("{s:s, s:I, s:{s:s, s:s}, s:{s:I, s:s, s:{}}}",
+        "type", "password",
+        "createdDate", (json_int_t)time_in_milliseconds(),
+        "secretData",
+            "value", hash_b64,
+            "salt", salt_b64,
+        "credentialData",
+            "hashIterations", iterations,
+            "algorithm", algorithm,
+            "additionalParameters"
+    );
+    json_array_append_new(credential_list, credential);
+
+    GBUFFER_DECREF(gbuf_hash);
+    GBUFFER_DECREF(gbuf_salt);
+
+    return credentials;
+#elif defined(CONFIG_HAVE_MBEDTLS)
+    #define SALT_LEN 12
+    unsigned char hash[64];  // Support up to SHA512
+    unsigned char salt[SALT_LEN];
+    const mbedtls_md_info_t *md_info = NULL;
+
+    if(empty_string(algorithm)) {
+        algorithm = "sha512";
+    }
+    if(iterations < 1) {
+        iterations = PW_DEFAULT_ITERATIONS;
+    }
+
+    /* Resolve hash algorithm */
+    md_info = mbedtls_md_info_from_string(algorithm);
+    if(!md_info) {
+        gobj_log_error(gobj, 0,
+            "function", "%s", __FUNCTION__,
+            "msgset",   "%s", MSGSET_INTERNAL_ERROR,
+            "msg",      "%s", "Unable to get mbedtls digest",
+            "digest",   "%s", algorithm,
+            NULL
+        );
+        return 0;
+    }
+    size_t hash_len = mbedtls_md_get_size(md_info);
+
+    /* Initialize RNG */
+    mbedtls_entropy_context entropy;
+    mbedtls_ctr_drbg_context ctr_drbg;
+    const char *pers = "hash_password";
+
+    mbedtls_entropy_init(&entropy);
+    mbedtls_ctr_drbg_init(&ctr_drbg);
+
+    if(mbedtls_ctr_drbg_seed(
+            &ctr_drbg,
+            mbedtls_entropy_func,
+            &entropy,
+            (const unsigned char *)pers,
+            strlen(pers)
+        ) != 0) {
+        gobj_log_error(gobj, 0,
+            "function", "%s", __FUNCTION__,
+            "msgset",   "%s", MSGSET_INTERNAL_ERROR,
+            "msg",      "%s", "mbedtls_ctr_drbg_seed() FAILED",
+            NULL
+        );
+        goto error;
+    }
+
+    if(mbedtls_ctr_drbg_random(&ctr_drbg, salt, SALT_LEN) != 0) {
+        gobj_log_error(gobj, 0,
+            "function", "%s", __FUNCTION__,
+            "msgset",   "%s", MSGSET_INTERNAL_ERROR,
+            "msg",      "%s", "mbedtls_ctr_drbg_random() FAILED",
+            NULL
+        );
+        goto error;
+    }
+
+    if(mbedtls_pkcs5_pbkdf2_hmac(
+            md_info,
+            (const unsigned char *)password, strlen(password),
+            salt, SALT_LEN,
+            iterations,
+            hash_len,
+            hash
+        ) != 0) {
+        gobj_log_error(gobj, 0,
+            "function", "%s", __FUNCTION__,
+            "msgset",   "%s", MSGSET_INTERNAL_ERROR,
+            "msg",      "%s", "mbedtls_pkcs5_pbkdf2_hmac() FAILED",
+            NULL
+        );
+        goto error;
+    }
+
+    gbuffer_t *gbuf_hash = gbuffer_string_to_base64((const char *)hash, hash_len);
+    gbuffer_t *gbuf_salt = gbuffer_string_to_base64((const char *)salt, SALT_LEN);
+    char *hash_b64 = gbuffer_cur_rd_pointer(gbuf_hash);
+    char *salt_b64 = gbuffer_cur_rd_pointer(gbuf_salt);
+
+    json_t *credential_list = json_array();
+    json_t *credentials = json_pack("{s:o}", "credentials", credential_list);
+    json_t *credential = json_pack("{s:s, s:I, s:{s:s, s:s}, s:{s:I, s:s, s:{}}}",
+        "type", "password",
+        "createdDate", (json_int_t)time_in_milliseconds(),
+        "secretData",
+            "value", hash_b64,
+            "salt", salt_b64,
+        "credentialData",
+            "hashIterations", iterations,
+            "algorithm", algorithm,
+            "additionalParameters"
+    );
+    json_array_append_new(credential_list, credential);
+
+    GBUFFER_DECREF(gbuf_hash);
+    GBUFFER_DECREF(gbuf_salt);
+    mbedtls_ctr_drbg_free(&ctr_drbg);
+    mbedtls_entropy_free(&entropy);
+    return credentials;
+
+error:
+    mbedtls_ctr_drbg_free(&ctr_drbg);
+    mbedtls_entropy_free(&entropy);
+    return NULL;
+#else
+    #error "No crypto library defined"
+#endif
+#endif
+    return NULL;
+}
+
+/***************************************************************************
+ *  Return -2 if username is not authorized
+ ***************************************************************************/
+PRIVATE int check_password(
+    hgobj gobj,
+    const char *client_id,
+    const char *username,
+    const char *password
+) {
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    if(empty_string(username)) {
+        // TODO a client_id can have permitted usernames in blank
+        gobj_log_warning(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_AUTH_ERROR,
+            "msg",          "%s", "No username given to check password",
+            "client_id",    "%s", client_id,
+            NULL
+        );
+        return -2;
+    }
+    json_t *user = gobj_get_resource(0, username, 0, 0);
+    if(!user) {
+        gobj_log_warning(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_AUTH_ERROR,
+            "msg",          "%s", "Username not exist",
+            "client_id",    "%s", client_id,
+            "username",     "%s", username,
+            NULL
+        );
+        return -2;
+    }
+
+    json_t *credentials = kw_get_list(gobj, user, "credentials", 0, KW_REQUIRED);
+
+    int idx; json_t *credential;
+    json_array_foreach(credentials, idx, credential) {
+        const char *password_saved = kw_get_str(
+            gobj,
+            credential,
+            "secretData`value",
+            "",
+            KW_REQUIRED
+        );
+        const char *salt = kw_get_str(
+            gobj,
+            credential,
+            "secretData`salt",
+            "",
+            KW_REQUIRED
+        );
+        json_int_t hashIterations = kw_get_int(
+            gobj,
+            credential,
+            "credentialData`hashIterations",
+            0,
+            KW_REQUIRED
+        );
+        const char *algorithm = kw_get_str(
+            gobj,
+            credential,
+            "credentialData`algorithm",
+            "",
+            KW_REQUIRED
+        );
+
+        if(check_passwd(
+            gobj,
+            password,
+            password_saved,
+            salt,
+            algorithm,
+            hashIterations
+        )==0) {
+            gobj_log_info(gobj, 0,
+                "function",     "%s", __FUNCTION__,
+                "msgset",       "%s", MSGSET_INFO,
+                "msg",          "%s", "Username authorized",
+                "client_id",    "%s", client_id,
+                "username",     "%s", username,
+                NULL
+            );
+            return 0;
+        }
+    }
+
+    gobj_log_warning(gobj, 0,
+        "function",     "%s", __FUNCTION__,
+        "msgset",       "%s", MSGSET_AUTH_ERROR,
+        "msg",          "%s", "Username not authorized",
+        "client_id",    "%s", client_id,
+        "username",     "%s", username,
+        NULL
+    );
+
+    return -2;
+}
+
 
 
 
@@ -378,6 +843,8 @@ PRIVATE int ac_on_open(hgobj gobj, const char *event, json_t *kw, hgobj src)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
+print_json2("XXXXXXXXX", kw); // TODO TEST
+
     if(src != priv->gobj_input_side) {
         gobj_log_error(gobj, 0,
             "function",     "%s", __FUNCTION__,
@@ -399,11 +866,27 @@ PRIVATE int ac_on_open(hgobj gobj, const char *event, json_t *kw, hgobj src)
     }
 
     /*---------------------------------------------*
-     *  MQTT Client ID <==> topic in Timeranger
+     *      Check user/password
      *---------------------------------------------*/
+    const char *client_id = kw_get_str(gobj, kw, "client_id", "", KW_REQUIRED);
     const char *username = kw_get_str(gobj, kw, "username", "", KW_REQUIRED);
     const char *password = kw_get_str(gobj, kw, "password", "", KW_REQUIRED);
-    const char *client_id = kw_get_str(gobj, kw, "client_id", "", KW_REQUIRED);
+
+    int authorized = 0;
+    if(priv->allow_anonymous) {
+        username = "yuneta";
+    } else {
+        authorized = check_password(gobj, client_id, username, password);
+    }
+
+    if(authorized < 0) {
+        KW_DECREF(kw);
+        return authorized;
+    }
+
+    /*---------------------------------------------*
+     *  MQTT Client ID <==> topic in Timeranger
+     *---------------------------------------------*/
     BOOL clean_start = kw_get_bool(gobj, kw, "clean_start", 0, KW_REQUIRED);
     BOOL will = kw_get_bool(gobj, kw, "will", 0, KW_REQUIRED);
     if(will) {
@@ -416,26 +899,26 @@ PRIVATE int ac_on_open(hgobj gobj, const char *event, json_t *kw, hgobj src)
     json_t *jn_response = gobj_command(
         priv->gobj_tranger_broker,
         "open-topic",
-        json_pack("{s:s}",
-            "topic_name",
-            client_id
+        json_pack("{s:s, s:s}",
+            "topic_name", client_id,
+            "__username__", username
         ),
         gobj
     );
 
-    int result =  COMMAND_RESULT(gobj, jn_response);
+    int result = COMMAND_RESULT(gobj, jn_response);
     if(result < 0) {
         JSON_DECREF(jn_response)
         jn_response = gobj_command(
             priv->gobj_tranger_broker,
             "create-topic", // idempotent function
-            json_pack("{s:s}",
-                "topic_name",
-                client_id
+            json_pack("{s:s, s:s}",
+                "topic_name", client_id,
+                "__username__", username
             ),
             gobj
         );
-        result =  COMMAND_RESULT(gobj, jn_response);
+        result = COMMAND_RESULT(gobj, jn_response);
     }
     if(result < 0) {
         const char *comment = COMMAND_COMMENT(gobj, jn_response);
