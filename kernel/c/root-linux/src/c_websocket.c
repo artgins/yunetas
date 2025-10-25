@@ -126,14 +126,10 @@ typedef struct _FRAME_HEAD {
 /***************************************************************************
  *              Prototypes
  ***************************************************************************/
-PRIVATE int send_http_message2(hgobj gobj, const char *format, ...) JANSSON_ATTRS((format(printf, 2, 3)));
-PRIVATE void start_wait_frame_header(hgobj gobj);
+PRIVATE int send_http_message2(
+    hgobj gobj, const char *format, ...) JANSSON_ATTRS((format(printf, 2, 3))
+);
 PRIVATE void ws_close(hgobj gobj, int code, const char *reason);
-PRIVATE BOOL do_response(hgobj gobj, GHTTP_PARSER *request);
-
-PRIVATE int framehead_prepare_new_frame(FRAME_HEAD *frame);
-PRIVATE int framehead_consume(FRAME_HEAD *frame, istream_h istream, char *bf, size_t len);
-PRIVATE int frame_completed(hgobj gobj);
 
 /***************************************************************************
  *          Data: config, public data, private data
