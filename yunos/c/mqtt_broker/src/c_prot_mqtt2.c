@@ -507,6 +507,7 @@ SDATA (DTP_BOOLEAN,     "send_disconnect",  SDF_VOLATIL,                0,      
 SDATA (DTP_INTEGER,     "timeout_handshake",SDF_PERSIST,                "5000",  "Timeout to handshake"),
 SDATA (DTP_INTEGER,     "timeout_payload",  SDF_PERSIST,                "5000",  "Timeout to payload"),
 SDATA (DTP_INTEGER,     "timeout_close",    SDF_PERSIST,                "3000",  "Timeout to close"),
+SDATA (DTP_INTEGER,     "pingT",            SDF_PERSIST,                "0",    "Ping interval. If value <= 0 then No ping"),
 
 /*
  *  Configuration
@@ -4665,7 +4666,7 @@ PRIVATE uint16_t mosquitto__mid_generate(hgobj gobj, const char *client_id)
  *  Consume input data to get and analyze the frame header.
  *  Return the consumed size.
  ***************************************************************************/
-PRIVATE size_t framehead_consume(
+PRIVATE int framehead_consume(
     hgobj gobj,
     FRAME_HEAD *frame,
     istream_h istream,
@@ -5001,7 +5002,7 @@ PRIVATE int ac_connected(hgobj gobj, const char *event, json_t *kw, hgobj src)
     GBUFFER_DECREF(priv->gbuf_will_payload);
     priv->jn_alias_list = json_object();
 
-    start_wait_handshake(gobj); // start the timeout of handshake
+    start_wait_handshake(gobj); // include the start of the timeout of handshake
 
     if(priv->iamServer) {
         /*

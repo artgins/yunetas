@@ -129,9 +129,9 @@ def main():
     s.connect((ip, port))
 
     while 1:
-        p = extract_hexa(data_connect)
-        s.sendall(bytearray(p))
-        print("Sending connect to %r:%r %r" % (ip, port, p))
+        # p = extract_hexa(data_connect)
+        # s.sendall(bytearray(p))
+        # print("Sending connect to %r:%r %r" % (ip, port, p))
         rx = s.recv(1024)
         print("Received 1 len %d, %r" % (len(rx), rx))
 

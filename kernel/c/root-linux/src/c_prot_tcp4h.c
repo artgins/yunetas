@@ -409,8 +409,6 @@ PRIVATE int framehead_consume(
     char *bf,
     size_t len
 ) {
-    PRIVATE_DATA *priv = gobj_priv_data(gobj);
-
     int total_consumed = 0;
     int consumed;
     char *data;
