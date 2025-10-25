@@ -5381,7 +5381,7 @@ PRIVATE int ac_process_payload_data(hgobj gobj, const char *event, json_t *kw, h
             return -1;
         }
     } else {
-        // TODO set_timeout(priv->timer, priv->timeout_payload);
+        set_timeout(priv->timer, priv->timeout_payload);
     }
 
     if(gbuffer_leftbytes(gbuf)) {
