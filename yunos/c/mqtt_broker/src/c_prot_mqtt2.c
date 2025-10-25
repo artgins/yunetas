@@ -1275,130 +1275,6 @@ PRIVATE const char *protocol_version_name(mosquitto_protocol_t mosquitto_protoco
 /***************************************************************************
  *
  ***************************************************************************/
-PRIVATE void do_disconnect(hgobj gobj, int reason) // TODO delete
-{
-    gobj_send_event(gobj_bottom_gobj(gobj), EV_DROP, 0, gobj);
-}
-
-/***************************************************************************
- *
- ***************************************************************************/
-PRIVATE void ws_close(hgobj gobj, int reason)
-{
-    PRIVATE_DATA *priv = gobj_priv_data(gobj);
-
-    // Change firstly for avoid new messages from client
-    gobj_change_state(gobj, ST_DISCONNECTED);
-
-    if(priv->in_session) {
-        if(priv->send_disconnect) {
-            // Fallan los test con el send__disconnect
-            //send__disconnect(gobj, code, NULL);
-        }
-    }
-
-    do_disconnect(gobj, reason);
-
-    if(priv->iamServer) {
-        hgobj tcp0 = gobj_bottom_gobj(gobj);
-        if(gobj_is_running(tcp0)) {
-            gobj_stop(tcp0);
-        }
-    }
-    set_timeout(priv->timer, priv->timeout_close);
-}
-
-/***************************************************************************
- *  Start to wait handshake
- ***************************************************************************/
-PRIVATE void start_wait_handshake(hgobj gobj)
-{
-    PRIVATE_DATA *priv = gobj_priv_data(gobj);
-
-    if(!gobj_is_running(gobj)) {
-        return;
-    }
-    gobj_change_state(gobj, ST_WAIT_HANDSHAKE);
-
-    istream_reset_wr(priv->istream_frame);  // Reset buffer for next frame
-    memset(&priv->frame_head, 0, sizeof(priv->frame_head));
-    set_timeout(priv->timer, priv->timeout_handshake);
-}
-
-/***************************************************************************
- *  Start to wait frame header
- ***************************************************************************/
-PRIVATE void start_wait_frame_header(hgobj gobj)
-{
-    PRIVATE_DATA *priv = gobj_priv_data(gobj);
-
-    if(!gobj_is_running(gobj)) {
-        return;
-    }
-    gobj_change_state(gobj, ST_WAIT_FRAME_HEADER);
-
-    istream_reset_wr(priv->istream_frame);  // Reset buffer for next frame
-    memset(&priv->frame_head, 0, sizeof(priv->frame_head));
-}
-
-/***************************************************************************
- *  Reset variables for a new read.
- ***************************************************************************/
-PRIVATE int framehead_prepare_new_frame(FRAME_HEAD *frame)
-{
-    /*
-     *  state of frame
-     */
-    memset(frame, 0, sizeof(*frame));
-    frame->busy = 1;    //in half of header
-
-    return 0;
-}
-
-/***************************************************************************
- *  Decode the two bytes head.
- ***************************************************************************/
-PRIVATE int decode_head(hgobj gobj, FRAME_HEAD *frame, char *data)
-{
-    PRIVATE_DATA *priv = gobj_priv_data(gobj);
-    unsigned char byte1, byte2;
-
-    byte1 = *(data+0);
-    byte2 = *(data+1);
-
-    /*
-     *  decod byte1
-     */
-    frame->command = byte1 & 0xF0;
-    frame->flags = byte1 & 0x0F;
-
-    if(!priv->in_session) { // TODO remove when not needed
-        if(frame->command != CMD_CONNECT) {
-            gobj_log_error(gobj, 0,
-                "function",     "%s", __FUNCTION__,
-                "msgset",       "%s", MSGSET_MQTT_ERROR,
-                "msg",          "%s", "First command MUST be CONNECT",
-                "command",      "%s", get_command_name(frame->command),
-                NULL
-            );
-            return -1;
-        }
-    }
-
-    /*
-     *  decod byte2
-     */
-    frame->frame_length = byte2 & 0x7F;
-    if(byte2 & 0x80) {
-        frame->must_read_remaining_length_2 = 1;
-    }
-
-    return 0;
-}
-
-/***************************************************************************
- *
- ***************************************************************************/
 PRIVATE gbuffer_t *build_mqtt_packet(hgobj gobj, uint8_t command, uint32_t size)
 {
     uint32_t remaining_length = size;
@@ -4644,6 +4520,130 @@ PRIVATE uint16_t mosquitto__mid_generate(hgobj gobj, const char *client_id)
     // gobj_save_resource(priv->gobj_mqtt_clients, client_id, client, 0);
 
     return last_mid;
+}
+
+/***************************************************************************
+ *
+ ***************************************************************************/
+PRIVATE void do_disconnect(hgobj gobj, int reason) // TODO delete
+{
+    gobj_send_event(gobj_bottom_gobj(gobj), EV_DROP, 0, gobj);
+}
+
+/***************************************************************************
+ *
+ ***************************************************************************/
+PRIVATE void ws_close(hgobj gobj, int reason)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    // Change firstly for avoid new messages from client
+    gobj_change_state(gobj, ST_DISCONNECTED);
+
+    if(priv->in_session) {
+        if(priv->send_disconnect) {
+            // Fallan los test con el send__disconnect
+            //send__disconnect(gobj, code, NULL);
+        }
+    }
+
+    do_disconnect(gobj, reason);
+
+    if(priv->iamServer) {
+        hgobj tcp0 = gobj_bottom_gobj(gobj);
+        if(gobj_is_running(tcp0)) {
+            gobj_stop(tcp0);
+        }
+    }
+    set_timeout(priv->timer, priv->timeout_close);
+}
+
+/***************************************************************************
+ *  Start to wait handshake
+ ***************************************************************************/
+PRIVATE void start_wait_handshake(hgobj gobj)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    if(!gobj_is_running(gobj)) {
+        return;
+    }
+    gobj_change_state(gobj, ST_WAIT_HANDSHAKE);
+
+    istream_reset_wr(priv->istream_frame);  // Reset buffer for next frame
+    memset(&priv->frame_head, 0, sizeof(priv->frame_head));
+    set_timeout(priv->timer, priv->timeout_handshake);
+}
+
+/***************************************************************************
+ *  Start to wait frame header
+ ***************************************************************************/
+PRIVATE void start_wait_frame_header(hgobj gobj)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    if(!gobj_is_running(gobj)) {
+        return;
+    }
+    gobj_change_state(gobj, ST_WAIT_FRAME_HEADER);
+
+    istream_reset_wr(priv->istream_frame);  // Reset buffer for next frame
+    memset(&priv->frame_head, 0, sizeof(priv->frame_head));
+}
+
+/***************************************************************************
+ *  Reset variables for a new read.
+ ***************************************************************************/
+PRIVATE int framehead_prepare_new_frame(FRAME_HEAD *frame)
+{
+    /*
+     *  state of frame
+     */
+    memset(frame, 0, sizeof(*frame));
+    frame->busy = 1;    //in half of header
+
+    return 0;
+}
+
+/***************************************************************************
+ *  Decode the two bytes head.
+ ***************************************************************************/
+PRIVATE int decode_head(hgobj gobj, FRAME_HEAD *frame, char *data)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+    unsigned char byte1, byte2;
+
+    byte1 = *(data+0);
+    byte2 = *(data+1);
+
+    /*
+     *  decod byte1
+     */
+    frame->command = byte1 & 0xF0;
+    frame->flags = byte1 & 0x0F;
+
+    if(!priv->in_session) { // TODO remove when not needed
+        if(frame->command != CMD_CONNECT) {
+            gobj_log_error(gobj, 0,
+                "function",     "%s", __FUNCTION__,
+                "msgset",       "%s", MSGSET_MQTT_ERROR,
+                "msg",          "%s", "First command MUST be CONNECT",
+                "command",      "%s", get_command_name(frame->command),
+                NULL
+            );
+            return -1;
+        }
+    }
+
+    /*
+     *  decod byte2
+     */
+    frame->frame_length = byte2 & 0x7F;
+    if(byte2 & 0x80) {
+        frame->must_read_remaining_length_2 = 1;
+    }
+
+    return 0;
 }
 
 /***************************************************************************
