@@ -423,7 +423,7 @@ PRIVATE int ac_on_open(hgobj gobj, const char *event, json_t *kw, hgobj src)
         gobj
     );
 
-    json_int_t result =  COMMAND_RESULT(gobj, jn_response);
+    int result =  COMMAND_RESULT(gobj, jn_response);
     if(result < 0) {
         JSON_DECREF(jn_response)
         jn_response = gobj_command(
@@ -449,7 +449,7 @@ PRIVATE int ac_on_open(hgobj gobj, const char *event, json_t *kw, hgobj src)
 
     JSON_DECREF(jn_response)
     KW_DECREF(kw);
-    return 0;
+    return result;
 }
 
 /***************************************************************************

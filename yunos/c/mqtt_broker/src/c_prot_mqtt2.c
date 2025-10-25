@@ -3511,165 +3511,6 @@ PRIVATE int set_client_disconnected(hgobj gobj)
 /***************************************************************************
  *
  ***************************************************************************/
-PRIVATE int connect__on_authorised(
-    hgobj gobj
-)
-{
-    PRIVATE_DATA *priv = gobj_priv_data(gobj);
-    uint8_t connect_ack = 0;
-    json_t *connack_props = json_object();
-
-    if(priv->max_keepalive && (priv->keepalive > priv->max_keepalive || priv->keepalive == 0)) {
-        priv->keepalive = priv->max_keepalive;
-        if(priv->protocol_version == mosq_p_mqtt5) {
-            mqtt_property_add_int16(gobj, connack_props, MQTT_PROP_SERVER_KEEP_ALIVE, priv->keepalive);
-        } else {
-            send__connack(gobj, connect_ack, CONNACK_REFUSED_IDENTIFIER_REJECTED, NULL);
-            JSON_DECREF(connack_props);
-            return -1;
-        }
-    }
-
-    if(priv->protocol_version == mosq_p_mqtt5) {
-        if(priv->max_topic_alias > 0) {
-            if(mqtt_property_add_int16 (
-                gobj, connack_props, MQTT_PROP_TOPIC_ALIAS_MAXIMUM, priv->max_topic_alias)<0)
-            {
-                // Error already logged
-                JSON_DECREF(connack_props);
-                return -1;
-            }
-        }
-        if(priv->assigned_id) {
-            if(mqtt_property_add_string(
-                gobj, connack_props, MQTT_PROP_ASSIGNED_CLIENT_IDENTIFIER, priv->client_id)<0)
-            {
-                // Error already logged
-                JSON_DECREF(connack_props);
-                return -1;
-            }
-        }
-        if(priv->auth_method) {
-            // TODO No tenemos auth method
-        }
-    }
-
-    /*--------------------------------------------------------------*
-     *  Create a client, must be checked in upper level.
-     *  This must be done *after* any security checks.
-     *  With assigned_id the id is random!, not a persistent id
-     *  (HACK client_id is really a device_id)
-     *--------------------------------------------------------------*/
-    json_t *client = json_pack("{s:s, s:b, s:s, s:s, s:b, s:i, s:s, s:i, s:i, s:i}",
-        "client_id",                priv->client_id,
-        "assigned_id",              priv->assigned_id,
-        "username",                 priv->username,
-        "password",                 priv->password,
-        "clean_start",              priv->clean_start,
-        "protocol_version",         (int)priv->protocol_version,
-        "protocol_name",            priv->protocol_name,
-        "keepalive",                (int)priv->keepalive,
-        "session_expiry_interval",  (int)priv->session_expiry_interval,
-        "max_qos",                  (int)priv->max_qos
-    );
-
-    if(priv->will) {
-        json_t *jn_will = json_pack("{s:b, s:b, s:i, s:s, s:i, s:i}",
-            "will",                 priv->will,
-            "will_retain",          priv->will_retain,
-            "will_qos",             (int)priv->will_qos,
-            "will_topic",           priv->will_topic,
-            "will_delay_interval",  (int)priv->will_delay_interval,
-            "will_expiry_interval", (int)priv->will_expiry_interval
-        );
-        if(priv->gbuf_will_payload) {
-            json_object_set_new(
-                jn_will,
-                "gbuffer",
-                json_integer((json_int_t)(uintptr_t)priv->gbuf_will_payload)
-            );
-            priv->gbuf_will_payload = NULL;
-        }
-        json_object_update_new(client, jn_will);
-    }
-
-    // TODO esto debe ir a new client in upper level
-    // uint32_t prev_session_expiry_interval = kw_get_int(gobj,
-    //     client, "session_expiry_interval", 0, KW_CREATE
-    // );
-    // uint32_t prev_protocol_version = kw_get_int(gobj,
-    //     client, "protocol_version", 0, KW_CREATE
-    // );
-    // BOOL prev_clean_start = kw_get_bool(gobj,
-    //     client, "clean_start", 0, KW_CREATE
-    // );
-    // if(priv->clean_start == FALSE && prev_session_expiry_interval > 0) {
-    //     if(priv->protocol_version == mosq_p_mqtt311 || priv->protocol_version == mosq_p_mqtt5) {
-    //         connect_ack |= 0x01;
-    //     }
-    //     // copia client session TODO
-    // }
-    //
-    // if(priv->clean_start == TRUE) {
-    //     // TODO new sub__clean_session(gobj, client);
-    // }
-    // if((prev_protocol_version == mosq_p_mqtt5 && prev_session_expiry_interval == 0)
-    //         || (prev_protocol_version != mosq_p_mqtt5 && prev_clean_start == TRUE)
-    //         || (priv->clean_start == TRUE)
-    //         ) {
-    //     // TODO context__send_will(found_context);
-    // }
-    //
-    // // TODO session_expiry__remove(found_context);
-    // // TODO will_delay__remove(found_context);
-    // // TODO will__clear(found_context);
-    //
-    // //found_context->clean_start = TRUE;
-    // //found_context->session_expiry_interval = 0;
-    // //mosquitto__set_state(found_context, mosq_cs_duplicate);
-    //
-    // if(isConnected) {
-    //     hgobj gobj_bottom = (hgobj)(size_t)kw_get_int(gobj, client, "_gobj_bottom", 0, KW_REQUIRED);
-    //     if(gobj_bottom) {
-    //         gobj_send_event(gobj_bottom, EV_DROP, 0, gobj);
-    //     }
-    // }
-
-
-//     kw_set_dict_value(gobj, client, "ping_t", json_integer(0));
-//     kw_set_dict_value(gobj, client, "is_dropping", json_false());
-
-    /*-----------------------------*
-     *  Check acl acl__find_acls
-     *-----------------------------*/
-    //connection_check_acl(context, &context->msgs_in.inflight);
-    //connection_check_acl(context, &context->msgs_in.queued);
-    //connection_check_acl(context, &context->msgs_out.inflight);
-    //connection_check_acl(context, &context->msgs_out.queued);
-    //context__add_to_by_id(context); TODO
-
-    //mosquitto__set_state(context, mosq_cs_active);
-
-    send__connack(gobj, connect_ack, CONNACK_ACCEPTED, connack_props);
-
-    gobj_write_bool_attr(gobj, "in_session", TRUE);
-    gobj_write_bool_attr(gobj, "send_disconnect", TRUE);
-    priv->must_broadcast_on_close = TRUE;
-
-    gobj_publish_event(gobj, EV_ON_OPEN, client);
-
-    // db__message_write_queued_out(context); TODO
-    //db__message_write_inflight_out_all(context); TODO
-    if(priv->keepalive > 0) {
-        // priv->timer_ping = start_sectimer(priv->keepalive);
-    }
-
-    return 0;
-}
-
-/***************************************************************************
- *
- ***************************************************************************/
 PRIVATE int handle__connect(hgobj gobj, gbuffer_t *gbuf)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
@@ -4173,7 +4014,87 @@ PRIVATE int handle__connect(hgobj gobj, gbuffer_t *gbuf)
         return -1;
     }
 
-    // TODO new if(mqtt_check_password(gobj)<0) {
+    JSON_DECREF(connect_properties);
+
+    uint8_t connect_ack = 0;
+    json_t *connack_props = json_object();
+
+    if(priv->max_keepalive && (priv->keepalive > priv->max_keepalive || priv->keepalive == 0)) {
+        priv->keepalive = priv->max_keepalive;
+        if(priv->protocol_version == mosq_p_mqtt5) {
+            mqtt_property_add_int16(gobj, connack_props, MQTT_PROP_SERVER_KEEP_ALIVE, priv->keepalive);
+        } else {
+            send__connack(gobj, connect_ack, CONNACK_REFUSED_IDENTIFIER_REJECTED, NULL);
+            JSON_DECREF(connack_props);
+            return -1;
+        }
+    }
+
+    if(priv->protocol_version == mosq_p_mqtt5) {
+        if(priv->max_topic_alias > 0) {
+            if(mqtt_property_add_int16 (
+                gobj, connack_props, MQTT_PROP_TOPIC_ALIAS_MAXIMUM, priv->max_topic_alias)<0)
+            {
+                // Error already logged
+                JSON_DECREF(connack_props);
+                return -1;
+            }
+        }
+        if(priv->assigned_id) {
+            if(mqtt_property_add_string(
+                gobj, connack_props, MQTT_PROP_ASSIGNED_CLIENT_IDENTIFIER, priv->client_id)<0)
+            {
+                // Error already logged
+                JSON_DECREF(connack_props);
+                return -1;
+            }
+        }
+        if(priv->auth_method) {
+            // TODO No tenemos auth method
+        }
+    }
+
+    /*--------------------------------------------------------------*
+     *  Create a client, must be checked in upper level.
+     *  This must be done *after* any security checks.
+     *  With assigned_id the id is random!, not a persistent id
+     *  (HACK client_id is really a device_id)
+     *--------------------------------------------------------------*/
+    json_t *client = json_pack("{s:s, s:b, s:s, s:s, s:b, s:i, s:s, s:i, s:i, s:i}",
+        "client_id",                priv->client_id,
+        "assigned_id",              priv->assigned_id,
+        "username",                 priv->username,
+        "password",                 priv->password,
+        "clean_start",              priv->clean_start,
+        "protocol_version",         (int)priv->protocol_version,
+        "protocol_name",            priv->protocol_name,
+        "keepalive",                (int)priv->keepalive,
+        "session_expiry_interval",  (int)priv->session_expiry_interval,
+        "max_qos",                  (int)priv->max_qos
+    );
+
+    if(priv->will) {
+        json_t *jn_will = json_pack("{s:b, s:b, s:i, s:s, s:i, s:i}",
+            "will",                 priv->will,
+            "will_retain",          priv->will_retain,
+            "will_qos",             (int)priv->will_qos,
+            "will_topic",           priv->will_topic,
+            "will_delay_interval",  (int)priv->will_delay_interval,
+            "will_expiry_interval", (int)priv->will_expiry_interval
+        );
+        if(priv->gbuf_will_payload) {
+            json_object_set_new(
+                jn_will,
+                "gbuffer",
+                json_integer((json_int_t)(uintptr_t)priv->gbuf_will_payload)
+            );
+            priv->gbuf_will_payload = NULL;
+        }
+        json_object_update_new(client, jn_will);
+    }
+
+    // TODO esto debe ir a new client in upper level
+    //  if(mqtt_check_password(gobj)<0) {
     //     if(priv->protocol_version == mosq_p_mqtt5) {
     //         send__connack(gobj, 0, MQTT_RC_NOT_AUTHORIZED, NULL);
     //     } else {
@@ -4189,8 +4110,83 @@ PRIVATE int handle__connect(hgobj gobj, gbuffer_t *gbuf)
     //     return -1;
     // }
 
-    JSON_DECREF(connect_properties);
-    return connect__on_authorised(gobj);
+    // TODO esto debe ir a new client in upper level
+    // uint32_t prev_session_expiry_interval = kw_get_int(gobj,
+    //     client, "session_expiry_interval", 0, KW_CREATE
+    // );
+    // uint32_t prev_protocol_version = kw_get_int(gobj,
+    //     client, "protocol_version", 0, KW_CREATE
+    // );
+    // BOOL prev_clean_start = kw_get_bool(gobj,
+    //     client, "clean_start", 0, KW_CREATE
+    // );
+    // if(priv->clean_start == FALSE && prev_session_expiry_interval > 0) {
+    //     if(priv->protocol_version == mosq_p_mqtt311 || priv->protocol_version == mosq_p_mqtt5) {
+    //         connect_ack |= 0x01;
+    //     }
+    //     // copia client session TODO
+    // }
+    //
+    // if(priv->clean_start == TRUE) {
+    //     // TODO new sub__clean_session(gobj, client);
+    // }
+    // if((prev_protocol_version == mosq_p_mqtt5 && prev_session_expiry_interval == 0)
+    //         || (prev_protocol_version != mosq_p_mqtt5 && prev_clean_start == TRUE)
+    //         || (priv->clean_start == TRUE)
+    //         ) {
+    //     // TODO context__send_will(found_context);
+    // }
+    //
+    // // TODO session_expiry__remove(found_context);
+    // // TODO will_delay__remove(found_context);
+    // // TODO will__clear(found_context);
+    //
+    // //found_context->clean_start = TRUE;
+    // //found_context->session_expiry_interval = 0;
+    // //mosquitto__set_state(found_context, mosq_cs_duplicate);
+    //
+    // if(isConnected) {
+    //     hgobj gobj_bottom = (hgobj)(size_t)kw_get_int(gobj, client, "_gobj_bottom", 0, KW_REQUIRED);
+    //     if(gobj_bottom) {
+    //         gobj_send_event(gobj_bottom, EV_DROP, 0, gobj);
+    //     }
+    // }
+
+
+//     kw_set_dict_value(gobj, client, "ping_t", json_integer(0));
+//     kw_set_dict_value(gobj, client, "is_dropping", json_false());
+
+    /*-----------------------------*
+     *  Check acl acl__find_acls
+     *-----------------------------*/
+    //connection_check_acl(context, &context->msgs_in.inflight);
+    //connection_check_acl(context, &context->msgs_in.queued);
+    //connection_check_acl(context, &context->msgs_out.inflight);
+    //connection_check_acl(context, &context->msgs_out.queued);
+    //context__add_to_by_id(context); TODO
+
+    //mosquitto__set_state(context, mosq_cs_active);
+
+    int ret = gobj_publish_event(gobj, EV_ON_OPEN, client);
+    if(ret < 0) {
+        JSON_DECREF(connack_props);
+        return -1;
+    }
+
+    send__connack(gobj, connect_ack, CONNACK_ACCEPTED, connack_props);
+
+    gobj_write_bool_attr(gobj, "in_session", TRUE);
+    gobj_write_bool_attr(gobj, "send_disconnect", TRUE);
+    priv->must_broadcast_on_close = TRUE;
+
+
+    // db__message_write_queued_out(context); TODO
+    //db__message_write_inflight_out_all(context); TODO
+    if(priv->keepalive > 0) {
+        // priv->timer_ping = start_sectimer(priv->keepalive);
+    }
+
+    return 0;
 }
 
 /***************************************************************************
