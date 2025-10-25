@@ -446,6 +446,14 @@ PRIVATE int ac_on_open(hgobj gobj, const char *event, json_t *kw, hgobj src)
 
     json_t *topic = COMMAND_DATA(gobj, jn_response);
 
+    // TODO if session already exists with below conditions return 1!
+    // if(priv->clean_start == FALSE && prev_session_expiry_interval > 0) {
+    //     if(priv->protocol_version == mosq_p_mqtt311 || priv->protocol_version == mosq_p_mqtt5) {
+    //         connect_ack |= 0x01;
+    //          result = 1;
+    //     }
+    //     // copia client session TODO
+    // }
 
     JSON_DECREF(jn_response)
     KW_DECREF(kw);

@@ -4173,7 +4173,9 @@ PRIVATE int handle__connect(hgobj gobj, gbuffer_t *gbuf)
         JSON_DECREF(connack_props);
         return -1;
     }
-
+    if(ret == 1) {
+        connect_ack |= 0x01;
+    }
     send__connack(
         gobj,
         connect_ack,
