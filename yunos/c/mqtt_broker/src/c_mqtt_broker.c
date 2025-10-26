@@ -76,7 +76,7 @@ SDATA_END()
  *---------------------------------------------*/
 PRIVATE sdata_desc_t tattr_desc[] = {
 /*-ATTR-type------------name----------------flag--------default-----description---------- */
-SDATA (DTP_STRING,      "tranger_path",     SDF_RD,     "/yuneta/store/mqtt-broker/(^^__node_owner__^^)", "tranger path"),
+SDATA (DTP_STRING,      "tranger_path",     SDF_RD,     "/yuneta/store/(^^__yuno_role__^^)/(^^__node_owner__^^)", "tranger path"),
 SDATA (DTP_STRING,      "tranger_database", SDF_RD,     "(^^__yuno_role__^^)^(^^__yuno_name__^^)", "tranger database"),
 SDATA (DTP_STRING,      "filename_mask",    SDF_RD|SDF_REQUIRED,"%Y-%m-%d", "Organization of tables (file name format, see strftime())"),
 SDATA (DTP_INTEGER,     "on_critical_error",SDF_RD,     "0x0010",   "LOG_OPT_TRACE_STACK"),

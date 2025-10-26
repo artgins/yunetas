@@ -138,7 +138,7 @@ SDATA_END()
 
 /*---------------------------------------------*
  *      GClass trace levels
- *  HACK strict ascendent value!
+ *  HACK strict ascendant value!
  *  required paired correlative strings
  *  in s_user_trace_level
  *---------------------------------------------*/

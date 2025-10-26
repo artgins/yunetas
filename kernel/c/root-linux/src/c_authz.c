@@ -35,7 +35,6 @@
 #include "c_authz.h"
 
 #include "treedb_schema_authzs.c"
-// #include "../../libjwt/src/jwt-private.h"
 
 /***************************************************************************
  *              Constants
@@ -244,7 +243,7 @@ SDATA_END()
 
 /*---------------------------------------------*
  *      GClass trace levels
- *  HACK strict ascendent value!
+ *  HACK strict ascendant value!
  *  required paired correlative strings
  *  in s_user_trace_level
  *---------------------------------------------*/
@@ -315,9 +314,9 @@ PRIVATE void mt_create(hgobj gobj)
         free_func
     );
 
-    /*---------------------------*
-     *  Create Timeranger
-     *---------------------------*/
+    /*--------------------------------*
+     *      Tranger database
+     *--------------------------------*/
     const char *path = gobj_read_str_attr(gobj, "tranger_path");
     BOOL master = gobj_read_bool_attr(gobj, "master");
 
