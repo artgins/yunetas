@@ -11,6 +11,10 @@
 #include <limits.h>
 #include <string.h>
 
+#include <grp.h>
+#include <pwd.h>
+#include <unistd.h>
+
 #include <gobj.h>
 #include <g_ev_kernel.h>
 #include <g_st_kernel.h>
@@ -77,11 +81,12 @@ SDATA_END()
  *---------------------------------------------*/
 PRIVATE sdata_desc_t tattr_desc[] = {
 /*-ATTR-type------------name----------------flag--------default-----description---------- */
-SDATA (DTP_STRING,      "tranger_path",     SDF_RD,     "/yuneta/store/(^^__yuno_role__^^)/(^^__node_owner__^^)", "tranger path"),
-SDATA (DTP_STRING,      "tranger_database", SDF_RD,     "(^^__yuno_role__^^)^(^^__yuno_name__^^)", "tranger database"),
-SDATA (DTP_STRING,      "filename_mask",    SDF_RD|SDF_REQUIRED,"%Y-%m-%d", "Organization of tables (file name format, see strftime())"),
-SDATA (DTP_INTEGER,     "on_critical_error",SDF_RD,     "0x0010",   "LOG_OPT_TRACE_STACK"),
+// SDATA (DTP_STRING,      "tranger_path",     SDF_RD,     "/yuneta/store/(^^__yuno_role__^^)/(^^__node_owner__^^)", "tranger path"),
+// SDATA (DTP_STRING,      "tranger_database", SDF_RD,     "(^^__yuno_role__^^)^(^^__yuno_name__^^)", "tranger database"),
+// SDATA (DTP_STRING,      "filename_mask",    SDF_RD|SDF_REQUIRED,"%Y-%m-%d", "Organization of tables (file name format, see strftime())"),
+// SDATA (DTP_INTEGER,     "on_critical_error",SDF_RD,     "0x0010",   "LOG_OPT_TRACE_STACK"),
 
+SDATA (DTP_STRING,      "__username__",     SDF_RD,             "",         "Username"),
 // TODO a 0 cuando funcionen bien los out schemas
 SDATA (DTP_BOOLEAN,     "use_internal_schema",SDF_PERSIST, "1",     "Use internal (hardcoded) schema"),
 
@@ -160,6 +165,34 @@ PRIVATE void mt_create(hgobj gobj)
     } else if(gobj_is_pure_child(gobj)) {
         subscriber = gobj_parent(gobj);
         gobj_subscribe_event(gobj, NULL, NULL, subscriber);
+    }
+
+    /*----------------------------------------*
+     *  Check AUTHZS
+     *----------------------------------------*/
+    BOOL is_yuneta = FALSE;
+    struct passwd *pw = getpwuid(getuid());
+    if(strcmp(pw->pw_name, "yuneta")==0) {
+        gobj_write_str_attr(gobj, "__username__", "yuneta");
+        is_yuneta = TRUE;
+    } else {
+        static gid_t groups[30]; // HACK to use outside
+        int ngroups = sizeof(groups)/sizeof(groups[0]);
+
+        getgrouplist(pw->pw_name, 0, groups, &ngroups);
+        for(int i=0; i<ngroups; i++) {
+            struct group *gr = getgrgid(groups[i]);
+            if(strcmp(gr->gr_name, "yuneta")==0) {
+                gobj_write_str_attr(gobj, "__username__", "yuneta");
+                is_yuneta = TRUE;
+                break;
+            }
+        }
+    }
+    if(!is_yuneta) {
+        gobj_trace_msg(gobj, "User or group 'yuneta' is needed to run %s", gobj_yuno_role());
+        printf("User or group 'yuneta' is needed to run %s\n", gobj_yuno_role());
+        exit(0);
     }
 
     /*
