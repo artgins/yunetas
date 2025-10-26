@@ -781,9 +781,9 @@ PRIVATE void mt_create(hgobj gobj)
         }
     }
 
-    /*--------------------------*
-     *     Yuneta user
-     *--------------------------*/
+    /*----------------------------------------*
+     *      Check user yuneta
+     *----------------------------------------*/
     BOOL is_yuneta = FALSE;
 #ifdef __linux__
     struct passwd *pw = getpwuid(getuid());

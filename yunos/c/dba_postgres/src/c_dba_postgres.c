@@ -148,7 +148,7 @@ PRIVATE void mt_create(hgobj gobj)
     priv->timer = gobj_create_pure_child(gobj_name(gobj), C_TIMER, 0, gobj);
 
     /*----------------------------------------*
-     *  Check AUTHZS
+     *      Check user yuneta
      *----------------------------------------*/
     BOOL is_yuneta = FALSE;
     struct passwd *pw = getpwuid(getuid());

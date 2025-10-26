@@ -86,7 +86,6 @@ PRIVATE sdata_desc_t tattr_desc[] = {
 // SDATA (DTP_STRING,      "filename_mask",    SDF_RD|SDF_REQUIRED,"%Y-%m-%d", "Organization of tables (file name format, see strftime())"),
 // SDATA (DTP_INTEGER,     "on_critical_error",SDF_RD,     "0x0010",   "LOG_OPT_TRACE_STACK"),
 
-SDATA (DTP_STRING,      "__username__",     SDF_RD,             "",         "Username"),
 // TODO a 0 cuando funcionen bien los out schemas
 SDATA (DTP_BOOLEAN,     "use_internal_schema",SDF_PERSIST, "1",     "Use internal (hardcoded) schema"),
 
@@ -168,32 +167,9 @@ PRIVATE void mt_create(hgobj gobj)
     }
 
     /*----------------------------------------*
-     *  Check AUTHZS
+     *      Check user yuneta
      *----------------------------------------*/
-    BOOL is_yuneta = FALSE;
-    struct passwd *pw = getpwuid(getuid());
-    if(strcmp(pw->pw_name, "yuneta")==0) {
-        gobj_write_str_attr(gobj, "__username__", "yuneta");
-        is_yuneta = TRUE;
-    } else {
-        static gid_t groups[30]; // HACK to use outside
-        int ngroups = sizeof(groups)/sizeof(groups[0]);
-
-        getgrouplist(pw->pw_name, 0, groups, &ngroups);
-        for(int i=0; i<ngroups; i++) {
-            struct group *gr = getgrgid(groups[i]);
-            if(strcmp(gr->gr_name, "yuneta")==0) {
-                gobj_write_str_attr(gobj, "__username__", "yuneta");
-                is_yuneta = TRUE;
-                break;
-            }
-        }
-    }
-    if(!is_yuneta) {
-        gobj_trace_msg(gobj, "User or group 'yuneta' is needed to run %s", gobj_yuno_role());
-        printf("User or group 'yuneta' is needed to run %s\n", gobj_yuno_role());
-        exit(0);
-    }
+    // Use __username__ from yuno
 
     /*
      *  Do copy of heavy used parameters, for quick access.
@@ -330,12 +306,13 @@ PRIVATE int mt_play(hgobj gobj)
         KW_REQUIRED
     );
 
-    json_t *kw_treedb = json_pack("{s:s, s:i, s:s, s:o, s:b}",
+    json_t *kw_treedb = json_pack("{s:s, s:i, s:s, s:o, s:b, s:s}",
         "filename_mask", "%Y",
         "exit_on_error", 0,
         "treedb_name", treedb_name,
         "treedb_schema", jn_treedb_schema_mqtt_broker,
-        "use_internal_schema", use_internal_schema
+        "use_internal_schema", use_internal_schema,
+        "__username__", gobj_read_str_attr(gobj_yuno(), "__username__")
     );
     json_t *jn_resp = gobj_command(priv->gobj_treedbs,
         "open-treedb",
@@ -400,8 +377,9 @@ PRIVATE int mt_pause(hgobj gobj)
      *---------------------------------------*/
     json_decref(gobj_command(priv->gobj_treedbs,
         "close-treedb",
-        json_pack("{s:s}",
-            "treedb_name", "treedb_mqtt_broker"
+        json_pack("{s:s, s:s}",
+            "treedb_name", "treedb_mqtt_broker",
+            "__username__", gobj_read_str_attr(gobj_yuno(), "__username__")
         ),
         gobj
     ));

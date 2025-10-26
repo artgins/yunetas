@@ -213,7 +213,7 @@ PRIVATE void mt_create(hgobj gobj)
     }
 
     /*----------------------------------------*
-     *  Check AUTHZS
+     *      Check user yuneta
      *----------------------------------------*/
     BOOL is_yuneta = FALSE;
     struct passwd *pw = getpwuid(getuid());
