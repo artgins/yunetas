@@ -149,6 +149,7 @@ PRIVATE void mt_create(hgobj gobj)
 
     /*----------------------------------------*
      *      Check user yuneta
+     *  TODO Use __username__ from yuno
      *----------------------------------------*/
     BOOL is_yuneta = FALSE;
     struct passwd *pw = getpwuid(getuid());
