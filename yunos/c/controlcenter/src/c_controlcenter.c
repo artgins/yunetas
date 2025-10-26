@@ -235,6 +235,72 @@ PRIVATE void mt_create(hgobj gobj)
         exit(0);
     }
 
+    /*
+     *  Do copy of heavy used parameters, for quick access.
+     *  HACK The writable attributes must be repeated in mt_writing method.
+     */
+    SET_PRIV(timeout,               gobj_read_integer_attr)
+}
+
+/***************************************************************************
+ *      Framework Method writing
+ ***************************************************************************/
+PRIVATE void mt_writing(hgobj gobj, const char *path)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    IF_EQ_SET_PRIV(timeout,             gobj_read_integer_attr)
+    END_EQ_SET_PRIV()
+}
+
+/***************************************************************************
+ *      Framework Method destroy
+ ***************************************************************************/
+PRIVATE void mt_destroy(hgobj gobj)
+{
+}
+
+/***************************************************************************
+ *      Framework Method start
+ ***************************************************************************/
+PRIVATE int mt_start(hgobj gobj)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    /*-----------------------------*
+     *      Get Authzs service
+     *-----------------------------*/
+    priv->gobj_authz =  gobj_find_service("authz", TRUE);
+    gobj_subscribe_event(priv->gobj_authz, 0, 0, gobj);
+
+    gobj_start(priv->timer);
+    return 0;
+}
+
+/***************************************************************************
+ *      Framework Method stop
+ ***************************************************************************/
+PRIVATE int mt_stop(hgobj gobj)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    gobj_unsubscribe_event(priv->gobj_authz, 0, 0, gobj);
+
+    gobj_stop(priv->timer);
+    return 0;
+}
+
+/***************************************************************************
+ *      Framework Method play
+ *  cccc rule:
+ *  If service has mt_play then start only the service gobj.
+ *      (Let mt_play be responsible to start their tree)
+ *  If service has not mt_play then start the tree with gobj_start_tree().
+ ***************************************************************************/
+PRIVATE int mt_play(hgobj gobj)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
     /*-------------------------------------------*
      *          Create Treedb System
      *-------------------------------------------*/
@@ -269,80 +335,14 @@ PRIVATE void mt_create(hgobj gobj)
     gobj_set_bottom_gobj(gobj, priv->gobj_treedbs);
 
     /*
-     *  Do copy of heavy used parameters, for quick access.
-     *  HACK The writable attributes must be repeated in mt_writing method.
-     */
-    SET_PRIV(timeout,               gobj_read_integer_attr)
-}
-
-/***************************************************************************
- *      Framework Method writing
- ***************************************************************************/
-PRIVATE void mt_writing(hgobj gobj, const char *path)
-{
-    PRIVATE_DATA *priv = gobj_priv_data(gobj);
-
-    IF_EQ_SET_PRIV(timeout,             gobj_read_integer_attr)
-    END_EQ_SET_PRIV()
-}
-
-/***************************************************************************
- *      Framework Method destroy
- ***************************************************************************/
-PRIVATE void mt_destroy(hgobj gobj)
-{
-}
-
-/***************************************************************************
- *      Framework Method start
- ***************************************************************************/
-PRIVATE int mt_start(hgobj gobj)
-{
-    PRIVATE_DATA *priv = gobj_priv_data(gobj);
-
-    /*
      *  Start treedbs
      */
     gobj_subscribe_event(priv->gobj_treedbs, 0, 0, gobj);
     gobj_start_tree(priv->gobj_treedbs);
 
-    gobj_start(priv->timer);
-    return 0;
-}
-
-/***************************************************************************
- *      Framework Method stop
- ***************************************************************************/
-PRIVATE int mt_stop(hgobj gobj)
-{
-    PRIVATE_DATA *priv = gobj_priv_data(gobj);
-
-    /*
-     *  Stop treedbs
-     */
-    if(priv->gobj_treedbs) {
-        gobj_unsubscribe_event(priv->gobj_treedbs, 0, 0, gobj);
-        gobj_stop_tree(priv->gobj_treedbs);
-    }
-
-    gobj_stop(priv->timer);
-    return 0;
-}
-
-/***************************************************************************
- *      Framework Method play
- *  cccc rule:
- *  If service has mt_play then start only the service gobj.
- *      (Let mt_play be responsible to start their tree)
- *  If service has not mt_play then start the tree with gobj_start_tree().
- ***************************************************************************/
-PRIVATE int mt_play(hgobj gobj)
-{
-    PRIVATE_DATA *priv = gobj_priv_data(gobj);
-
     /*---------------------------------------*
-    *      Load schema
-    *---------------------------------------*/
+     *      Load schema
+     *---------------------------------------*/
     helper_quote2doublequote(treedb_schema_controlcenter);
     json_t *jn_treedb_schema_controlcenter = legalstring2json(treedb_schema_controlcenter, TRUE);
     if(!jn_treedb_schema_controlcenter) {
@@ -386,7 +386,7 @@ PRIVATE int mt_play(hgobj gobj)
         kw_treedb,
         gobj
     );
-    int result = kw_get_int(gobj, jn_resp, "result", -1, KW_REQUIRED);
+    int result = (int)kw_get_int(gobj, jn_resp, "result", -1, KW_REQUIRED);
     if(result < 0) {
         const char *comment = kw_get_str(gobj, jn_resp, "comment", "", KW_REQUIRED);
         gobj_log_error(gobj, 0,
@@ -400,12 +400,6 @@ PRIVATE int mt_play(hgobj gobj)
 
     priv->gobj_treedb_controlcenter = gobj_find_service("treedb_controlcenter", TRUE);
     gobj_subscribe_event(priv->gobj_treedb_controlcenter, 0, 0, gobj);
-
-    /*-----------------------------*
-     *      Get Authzs service
-     *-----------------------------*/
-    priv->gobj_authz =  gobj_find_service("authz", TRUE);
-    gobj_subscribe_event(priv->gobj_authz, 0, 0, gobj);
 
     /*-------------------------*
      *      Start services
@@ -455,6 +449,15 @@ PRIVATE int mt_pause(hgobj gobj)
         gobj
     ));
     priv->gobj_treedb_controlcenter = 0;
+
+    /*-------------------------*
+     *      Stop treedbs
+     *-------------------------*/
+    if(priv->gobj_treedbs) {
+        gobj_unsubscribe_event(priv->gobj_treedbs, 0, 0, gobj);
+        gobj_stop_tree(priv->gobj_treedbs);
+        EXEC_AND_RESET(gobj_destroy, priv->gobj_treedbs)
+    }
 
     clear_timeout(priv->timer);
     return 0;
