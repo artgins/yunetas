@@ -340,9 +340,10 @@ PRIVATE int mt_play(hgobj gobj)
     gobj_subscribe_event(priv->gobj_treedbs, 0, 0, gobj);
     gobj_start_tree(priv->gobj_treedbs);
 
-    /*---------------------------------------*
+    /*-------------------------------------------*
      *      Load schema
-     *---------------------------------------*/
+     *      Open treedb controlcenter service
+     *-------------------------------------------*/
     helper_quote2doublequote(treedb_schema_controlcenter);
     json_t *jn_treedb_schema_controlcenter = legalstring2json(treedb_schema_controlcenter, TRUE);
     if(!jn_treedb_schema_controlcenter) {

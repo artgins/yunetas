@@ -118,6 +118,10 @@ typedef struct _PRIVATE_DATA {
     hgobj gobj_input_side;
     hgobj gobj_tranger_broker;
 
+    hgobj gobj_treedbs;
+    hgobj gobj_treedb_mqtt_broker;
+    hgobj gobj_authz;
+
     BOOL allow_anonymous;
 
 } PRIVATE_DATA;
@@ -184,6 +188,14 @@ PRIVATE void mt_destroy(hgobj gobj)
  ***************************************************************************/
 PRIVATE int mt_start(hgobj gobj)
 {
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    /*-----------------------------*
+     *      Get Authzs service
+     *-----------------------------*/
+    priv->gobj_authz =  gobj_find_service("authz", TRUE);
+    gobj_subscribe_event(priv->gobj_authz, 0, 0, gobj);
+
     return 0;
 }
 
@@ -192,6 +204,10 @@ PRIVATE int mt_start(hgobj gobj)
  ***************************************************************************/
 PRIVATE int mt_stop(hgobj gobj)
 {
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    gobj_unsubscribe_event(priv->gobj_authz, 0, 0, gobj);
+
     return 0;
 }
 
@@ -202,7 +218,106 @@ PRIVATE int mt_play(hgobj gobj)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
-    // set_timeout(priv->timer, priv->timeout);
+    /*-------------------------------------------*
+     *          Create Treedb System
+     *-------------------------------------------*/
+    char path[PATH_MAX];
+    yuneta_realm_store_dir(
+        path,
+        sizeof(path),
+        gobj_yuno_role(),
+        gobj_yuno_realm_owner(),
+        gobj_yuno_realm_id(),
+        "",  // gclass-treedb controls the directories
+        TRUE
+    );
+    json_t *kw_treedbs = json_pack("{s:s, s:s, s:b, s:i, s:i, s:i}",
+        "path", path,
+        "filename_mask", "%Y",  // to management treedbs we don't need multifiles (per day)
+        "master", 1,
+        "xpermission", 02770,
+        "rpermission", 0660,
+        "exit_on_error", LOG_OPT_EXIT_ZERO
+    );
+    priv->gobj_treedbs = gobj_create_service(
+        "treedbs",
+        C_TREEDB,
+        kw_treedbs,
+        gobj
+    );
+
+    /*
+     *  HACK pipe inheritance
+     */
+    gobj_set_bottom_gobj(gobj, priv->gobj_treedbs);
+
+    /*
+     *  Start treedbs
+     */
+    gobj_subscribe_event(priv->gobj_treedbs, 0, 0, gobj);
+    gobj_start_tree(priv->gobj_treedbs);
+
+    /*-------------------------------------------*
+     *      Load schema
+     *      Open treedb mqtt_broker service
+     *-------------------------------------------*/
+    helper_quote2doublequote(treedb_schema_mqtt_broker);
+    json_t *jn_treedb_schema_mqtt_broker = legalstring2json(treedb_schema_mqtt_broker, TRUE);
+    if(!jn_treedb_schema_mqtt_broker) {
+        /*
+         *  Exit if schema fails
+         */
+        exit(-1);
+    }
+
+    if(parse_schema(jn_treedb_schema_mqtt_broker)<0) {
+        /*
+         *  Exit if schema fails
+         */
+        gobj_log_error(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_APP_ERROR,
+            "msg",          "%s", "Parse schema fails",
+            NULL
+        );
+        exit(-1);
+    }
+
+    BOOL use_internal_schema = gobj_read_bool_attr(gobj, "use_internal_schema");
+
+    const char *treedb_name = kw_get_str(gobj,
+        jn_treedb_schema_mqtt_broker,
+        "id",
+        "treedb_mqtt_broker",
+        KW_REQUIRED
+    );
+
+    json_t *kw_treedb = json_pack("{s:s, s:i, s:s, s:o, s:b}",
+        "filename_mask", "%Y",
+        "exit_on_error", 0,
+        "treedb_name", treedb_name,
+        "treedb_schema", jn_treedb_schema_mqtt_broker,
+        "use_internal_schema", use_internal_schema
+    );
+    json_t *jn_resp = gobj_command(priv->gobj_treedbs,
+        "open-treedb",
+        kw_treedb,
+        gobj
+    );
+    int result = (int)kw_get_int(gobj, jn_resp, "result", -1, KW_REQUIRED);
+    if(result < 0) {
+        const char *comment = kw_get_str(gobj, jn_resp, "comment", "", KW_REQUIRED);
+        gobj_log_error(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_APP_ERROR,
+            "msg",          "%s", comment,
+            NULL
+        );
+    }
+    json_decref(jn_resp);
+
+    priv->gobj_treedb_mqtt_broker = gobj_find_service("treedb_mqtt_broker", TRUE);
+    gobj_subscribe_event(priv->gobj_treedb_mqtt_broker, 0, 0, gobj);
 
     /*-------------------------*
      *      Start services
@@ -210,52 +325,6 @@ PRIVATE int mt_play(hgobj gobj)
     priv->gobj_input_side = gobj_find_service("__input_side__", TRUE);
     gobj_subscribe_event(priv->gobj_input_side, 0, 0, gobj);
     gobj_start_tree(priv->gobj_input_side);
-
-    /*--------------------------------*
-     *      Tranger database
-     *--------------------------------*/
-    const char *path = gobj_read_str_attr(gobj, "tranger_path");
-    if(empty_string(path)) {
-        gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
-            "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_INTERNAL_ERROR,
-            "msg",          "%s", "tranger path EMPTY",
-            NULL
-        );
-        return -1;
-    }
-
-    const char *database = gobj_read_str_attr(gobj, "tranger_database");
-    if(empty_string(database)) {
-        gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
-            "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_INTERNAL_ERROR,
-            "msg",          "%s", "tranger database EMPTY",
-            NULL
-        );
-        return -1;
-    }
-
-    /*---------------------------------*
-     *      Open Timeranger
-     *---------------------------------*/
-    json_t *kw_tranger = json_pack("{s:s, s:s, s:s, s:b, s:I, s:i}",
-        "path", path,
-        "database", database,
-        "filename_mask", gobj_read_str_attr(gobj, "filename_mask"),
-        "master", 1,
-        "subscriber", (json_int_t)(uintptr_t)gobj,
-        "on_critical_error", (int)gobj_read_integer_attr(gobj, "on_critical_error")
-    );
-    char name[NAME_MAX];
-    snprintf(name, sizeof(name), "tranger_%s", gobj_name(gobj));
-    priv->gobj_tranger_broker = gobj_create_service(
-        name,
-        C_TRANGER,
-        kw_tranger,
-        gobj
-    );
-    gobj_start(priv->gobj_tranger_broker);
 
     // TODO
     // priv->trq_msgs = trq_open(
@@ -288,15 +357,26 @@ PRIVATE int mt_pause(hgobj gobj)
         gobj_stop_tree(priv->gobj_input_side);
     }
 
-    /*----------------------------------*
-     *      Close Timeranger
-     *----------------------------------*/
-    // TODO
-    // EXEC_AND_RESET(trq_close, priv->trq_msgs);
+    /*---------------------------------------*
+     *      Close treedb mqtt_broker
+     *---------------------------------------*/
+    json_decref(gobj_command(priv->gobj_treedbs,
+        "close-treedb",
+        json_pack("{s:s}",
+            "treedb_name", "treedb_mqtt_broker"
+        ),
+        gobj
+    ));
+    priv->gobj_treedb_mqtt_broker = 0;
 
-    gobj_stop(priv->gobj_tranger_broker);
-
-    EXEC_AND_RESET(gobj_destroy, priv->gobj_tranger_broker);
+    /*-------------------------*
+     *      Stop treedbs
+     *-------------------------*/
+    if(priv->gobj_treedbs) {
+        gobj_unsubscribe_event(priv->gobj_treedbs, 0, 0, gobj);
+        gobj_stop_tree(priv->gobj_treedbs);
+        EXEC_AND_RESET(gobj_destroy, priv->gobj_treedbs)
+    }
 
     clear_timeout(priv->timer);
 

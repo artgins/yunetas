@@ -1256,9 +1256,10 @@ PRIVATE int mt_play(hgobj gobj)
      */
     gobj_start_tree(priv->gobj_treedbs);
 
-    /*---------------------------------------*
-     *      Open treedb_agentdb service
-     *---------------------------------------*/
+    /*-------------------------------------------*
+     *      Load schema
+     *      Open treedb agentdb service
+     *-------------------------------------------*/
     helper_quote2doublequote(treedb_schema_yuneta_agent);
     json_t *jn_treedb_schema_yuneta_agent;
     jn_treedb_schema_yuneta_agent = legalstring2json(treedb_schema_yuneta_agent, TRUE);
