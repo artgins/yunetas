@@ -116,9 +116,9 @@ SDATA_END()
  *---------------------------------------------*/
 PRIVATE sdata_desc_t tattr_desc[] = {
 /*-ATTR-type------------name----------------flag----------------default-----description---------- */
-SDATA (DTP_STRING,      "__username__",     SDF_RD,             "",              "Username"),
+SDATA (DTP_STRING,      "__username__",     SDF_RD,             "",         "Username"),
 SDATA (DTP_INTEGER,     "txMsgs",           SDF_RD|SDF_PSTATS,  0,          "Messages transmitted"),
-SDATA (DTP_INTEGER,     "rxMsgs",           SDF_RD|SDF_RSTATS,  0,          "Messages receiveds"),
+SDATA (DTP_INTEGER,     "rxMsgs",           SDF_RD|SDF_RSTATS,  0,          "Messages received"),
 
 SDATA (DTP_INTEGER,     "txMsgsec",         SDF_RD|SDF_RSTATS,  0,          "Messages by second"),
 SDATA (DTP_INTEGER,     "rxMsgsec",         SDF_RD|SDF_RSTATS,  0,          "Messages by second"),

@@ -29,6 +29,7 @@
 #endif
 #endif
 
+#include "treedb_schema_mqtt_broker.c"
 #include "c_mqtt_broker.h"
 
 /***************************************************************************
@@ -81,7 +82,11 @@ SDATA (DTP_STRING,      "tranger_database", SDF_RD,     "(^^__yuno_role__^^)^(^^
 SDATA (DTP_STRING,      "filename_mask",    SDF_RD|SDF_REQUIRED,"%Y-%m-%d", "Organization of tables (file name format, see strftime())"),
 SDATA (DTP_INTEGER,     "on_critical_error",SDF_RD,     "0x0010",   "LOG_OPT_TRACE_STACK"),
 
+// TODO a 0 cuando funcionen bien los out schemas
+SDATA (DTP_BOOLEAN,     "use_internal_schema",SDF_PERSIST, "1",     "Use internal (hardcoded) schema"),
+
 SDATA (DTP_BOOLEAN,     "allow_anonymous",  SDF_PERSIST, "1",       "Boolean value that determines whether clients that connect without providing a username are allowed to connect. If set to FALSE then another means of connection should be created to control authenticated client access. Defaults to TRUE, (TODO but connections are only allowed from the local machine)."),
+
 
 SDATA (DTP_POINTER,     "subscriber",       0,          0,          "Subscriber of output-events. If it's null then the subscriber is the parent."),
 SDATA (DTP_INTEGER,     "timeout",          SDF_RD,     "1000",     "Timeout"),
