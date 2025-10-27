@@ -53,6 +53,11 @@
  ***************************************************************************/
 PRIVATE json_t *cmd_help(hgobj gobj, const char *cmd, json_t *kw, hgobj src);
 PRIVATE json_t *cmd_authzs(hgobj gobj, const char *cmd, json_t *kw, hgobj src);
+PRIVATE json_t *cmd_allow_anonymous(hgobj gobj, const char *cmd, json_t *kw, hgobj src);
+PRIVATE json_t *cmd_list_users(hgobj gobj, const char *cmd, json_t *kw, hgobj src);
+PRIVATE json_t *cmd_add_user(hgobj gobj, const char *cmd, json_t *kw, hgobj src);
+PRIVATE json_t *cmd_del_user(hgobj gobj, const char *cmd, json_t *kw, hgobj src);
+PRIVATE json_t *cmd_set_user_passw(hgobj gobj, const char *cmd, json_t *kw, hgobj src);
 
 PRIVATE sdata_desc_t pm_help[] = {
 /*-PM----type-----------name------------flag------------default-----description---------- */
@@ -67,12 +72,40 @@ SDATAPM (DTP_STRING,    "service",      0,              0,          "Service whe
 SDATA_END()
 };
 
+PRIVATE sdata_desc_t pm_allow_anonymous[] = {
+/*-PM----type-----------name------------flag------------default-----description---------- */
+SDATA_END()
+};
+PRIVATE sdata_desc_t pm_list_users[] = {
+/*-PM----type-----------name------------flag------------default-----description---------- */
+SDATA_END()
+};
+PRIVATE sdata_desc_t pm_add_user[] = {
+/*-PM----type-----------name------------flag------------default-----description---------- */
+SDATA_END()
+};
+PRIVATE sdata_desc_t pm_del_user[] = {
+/*-PM----type-----------name------------flag------------default-----description---------- */
+SDATA_END()
+};
+PRIVATE sdata_desc_t pm_set_passw[] = {
+/*-PM----type-----------name------------flag------------default-----description---------- */
+SDATA_END()
+};
+
 PRIVATE const char *a_help[] = {"h", "?", 0};
 
 PRIVATE sdata_desc_t command_table[] = {
-/*-CMD---type-----------name----------------alias---------------items-----------json_fn---------description---------- */
-SDATACM (DTP_SCHEMA,    "help",             a_help,             pm_help,        cmd_help,       "Command's help"),
-SDATACM2 (DTP_SCHEMA,   "authzs",           0,                  0,              pm_authzs,      cmd_authzs,     "Authorization's help"),
+/*-CMD---type-----------name----------------alias---items-------json_fn-------------description---------- */
+SDATACM (DTP_SCHEMA,    "help",             a_help, pm_help,    cmd_help,           "Command's help"),
+
+/*-CMD2---type----------name----------------flag----alias---items---------------json_fn-------------description--*/
+SDATACM2 (DTP_SCHEMA,   "authzs",           0,      0,      pm_authzs,          cmd_authzs,         "Authorization's help"),
+SDATACM2 (DTP_SCHEMA,   "allow-anonymous",  0,      0,      pm_allow_anonymous, cmd_allow_anonymous,"Allow anonymous users (don't check user/password of CONNECT mqtt command)"),
+SDATACM2 (DTP_SCHEMA,   "list-users",       0,      0,      pm_list_users,      cmd_list_users,     "List users"),
+SDATACM2 (DTP_SCHEMA,   "add-user",         0,      0,      pm_add_user,        cmd_add_user,       "Add user"),
+SDATACM2 (DTP_SCHEMA,   "delete-user",      0,      0,      pm_del_user,        cmd_del_user,       "Delete user"),
+SDATACM2 (DTP_SCHEMA,   "set-user-passw",   0,      0,      pm_set_passw,       cmd_set_user_passw, "Set user password"),
 SDATA_END()
 };
 
@@ -434,6 +467,44 @@ PRIVATE json_t *cmd_authzs(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
     return gobj_build_authzs_doc(gobj, cmd, kw);
 }
 
+/***************************************************************************
+ *
+ ***************************************************************************/
+PRIVATE json_t *cmd_allow_anonymous(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
+{
+    return gobj_build_authzs_doc(gobj, cmd, kw);
+}
+/***************************************************************************
+ *
+ ***************************************************************************/
+PRIVATE json_t *cmd_list_users(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
+{
+    return gobj_build_authzs_doc(gobj, cmd, kw);
+}
+
+/***************************************************************************
+ *
+ ***************************************************************************/
+PRIVATE json_t *cmd_add_user(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
+{
+    return gobj_build_authzs_doc(gobj, cmd, kw);
+}
+
+/***************************************************************************
+ *
+ ***************************************************************************/
+PRIVATE json_t *cmd_del_user(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
+{
+    return gobj_build_authzs_doc(gobj, cmd, kw);
+}
+
+/***************************************************************************
+ *
+ ***************************************************************************/
+PRIVATE json_t *cmd_set_user_passw(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
+{
+    return gobj_build_authzs_doc(gobj, cmd, kw);
+}
 
 
 
@@ -443,16 +514,6 @@ PRIVATE json_t *cmd_authzs(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
 
 
 
-
-/***************************************************************************
- *
- ***************************************************************************/
-PRIVATE int open_queue(hgobj gobj)
-{
-    PRIVATE_DATA *priv = gobj_priv_data(gobj);
-
-    return 0;
-}
 
 /***************************************************************************
  *
