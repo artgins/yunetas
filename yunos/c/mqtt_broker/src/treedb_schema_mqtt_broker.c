@@ -56,13 +56,13 @@
 static char treedb_schema_mqtt_broker[]= "\
 {                                                                   \n\
     'id': 'treedb_mqtt_broker',                                     \n\
-    'schema_version': '1',                                          \n\
+    'schema_version': '2',                                          \n\
     'topics': [                                                     \n\
         {                                                           \n\
             'id': 'users',                                          \n\
             'pkey': 'id',                                           \n\
             'system_flag': 'sf_string_key',                         \n\
-            'topic_version': '1',                                   \n\
+            'topic_version': '2',                                   \n\
             'cols': {                                               \n\
                 'id': {                                             \n\
                     'header': 'User',                               \n\
@@ -73,10 +73,10 @@ static char treedb_schema_mqtt_broker[]= "\
                         'required'                                  \n\
                     ]                                               \n\
                 },                                                  \n\
-                'password': {                                       \n\
-                    'header': 'Password',                           \n\
+                'credentials': {                                    \n\
+                    'header': 'Credentials',                        \n\
                     'fillspace': 30,                                \n\
-                    'type': 'string',                               \n\
+                    'type': 'dict',                                 \n\
                     'flag': [                                       \n\
                         'persistent',                               \n\
                         'required'                                  \n\
