@@ -12,35 +12,11 @@
     * field required
     = field inherited
 
-                        roles
+                        users
             ┌───────────────────────────┐
             │* id                       │
             │                           │
-            │                  roles {} │ ◀─┐N
-            │                           │   │
-            │        parent_role_id (↖) │ ──┘ 1
-            │                           │
-            │* description              │
-            │  disabled                 │
-            │* realm_id                 │
-            │* service                  │
-            │  permission               │
-            │  permissions              │
-            │  deny                     │
-            │                           │
-            │                           │
-            │                  users {} │ ◀─┐N
-            │                           │   │
-            │  _geometry                │   │
-            └───────────────────────────┘   │
-                                            │
-                                            │
-                        users               │
-            ┌───────────────────────────┐   │
-            │* id                       │   │
-            │                           │   │
-            │                 roles [↖] │ ──┘n
-            │                           │
+            │  credentials              │
             │  disabled                 │
             │  properties               │
             │  time                     │

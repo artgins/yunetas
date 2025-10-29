@@ -47,6 +47,12 @@
 /***************************************************************************
  *              Prototypes
  ***************************************************************************/
+PRIVATE json_t *hash_password(
+    hgobj gobj,
+    const char *password,
+    const char *algorithm,
+    int iterations
+);
 
 /***************************************************************************
  *          Data: config, public data, private data
@@ -55,8 +61,8 @@ PRIVATE json_t *cmd_help(hgobj gobj, const char *cmd, json_t *kw, hgobj src);
 PRIVATE json_t *cmd_authzs(hgobj gobj, const char *cmd, json_t *kw, hgobj src);
 PRIVATE json_t *cmd_allow_anonymous(hgobj gobj, const char *cmd, json_t *kw, hgobj src);
 PRIVATE json_t *cmd_list_users(hgobj gobj, const char *cmd, json_t *kw, hgobj src);
-PRIVATE json_t *cmd_add_user(hgobj gobj, const char *cmd, json_t *kw, hgobj src);
-PRIVATE json_t *cmd_del_user(hgobj gobj, const char *cmd, json_t *kw, hgobj src);
+PRIVATE json_t *cmd_create_user(hgobj gobj, const char *cmd, json_t *kw, hgobj src);
+PRIVATE json_t *cmd_delete_user(hgobj gobj, const char *cmd, json_t *kw, hgobj src);
 PRIVATE json_t *cmd_set_user_passw(hgobj gobj, const char *cmd, json_t *kw, hgobj src);
 
 PRIVATE sdata_desc_t pm_help[] = {
@@ -80,11 +86,15 @@ PRIVATE sdata_desc_t pm_list_users[] = {
 /*-PM----type-----------name------------flag------------default-----description---------- */
 SDATA_END()
 };
-PRIVATE sdata_desc_t pm_add_user[] = {
-/*-PM----type-----------name------------flag------------default-----description---------- */
+PRIVATE sdata_desc_t pm_create_user[] = {
+/*-PM----type-----------name---------------flag--------default---------description---------- */
+SDATAPM (DTP_STRING,    "username",         0,          0,              "Username"),
+SDATAPM (DTP_STRING,    "password",         0,          0,              "Password"),
+SDATAPM (DTP_INTEGER,   "hashIterations",   0,          "27500",        "Default To build a password"),
+SDATAPM (DTP_STRING,    "algorithm",        0,          "pbkdf2-sha256","Default To build a password"),
 SDATA_END()
 };
-PRIVATE sdata_desc_t pm_del_user[] = {
+PRIVATE sdata_desc_t pm_delete_user[] = {
 /*-PM----type-----------name------------flag------------default-----description---------- */
 SDATA_END()
 };
@@ -103,8 +113,8 @@ SDATACM (DTP_SCHEMA,    "help",             a_help, pm_help,    cmd_help,       
 SDATACM2 (DTP_SCHEMA,   "authzs",           0,      0,      pm_authzs,          cmd_authzs,         "Authorization's help"),
 SDATACM2 (DTP_SCHEMA,   "allow-anonymous",  0,      0,      pm_allow_anonymous, cmd_allow_anonymous,"Allow anonymous users (don't check user/password of CONNECT mqtt command)"),
 SDATACM2 (DTP_SCHEMA,   "list-users",       0,      0,      pm_list_users,      cmd_list_users,     "List users"),
-SDATACM2 (DTP_SCHEMA,   "add-user",         0,      0,      pm_add_user,        cmd_add_user,       "Add user"),
-SDATACM2 (DTP_SCHEMA,   "delete-user",      0,      0,      pm_del_user,        cmd_del_user,       "Delete user"),
+SDATACM2 (DTP_SCHEMA,   "create-user",      0,      0,      pm_create_user,     cmd_create_user,    "Create user"),
+SDATACM2 (DTP_SCHEMA,   "delete-user",      0,      0,      pm_delete_user,     cmd_delete_user,    "Delete user"),
 SDATACM2 (DTP_SCHEMA,   "set-user-passw",   0,      0,      pm_set_passw,       cmd_set_user_passw, "Set user password"),
 SDATA_END()
 };
@@ -202,6 +212,15 @@ PRIVATE void mt_create(hgobj gobj)
      *      Check user yuneta
      *----------------------------------------*/
     // Use __username__ from yuno
+
+#if defined(__linux__)
+#if defined(CONFIG_HAVE_OPENSSL)
+    OpenSSL_add_all_digests();
+// #elif defined(CONFIG_HAVE_MBEDTLS)
+#else
+    #error "No crypto library defined"
+#endif
+#endif
 
     /*
      *  Do copy of heavy used parameters, for quick access.
@@ -484,15 +503,127 @@ PRIVATE json_t *cmd_list_users(hgobj gobj, const char *cmd, json_t *kw, hgobj sr
 /***************************************************************************
  *
  ***************************************************************************/
-PRIVATE json_t *cmd_add_user(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
+PRIVATE json_t *cmd_create_user(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
 {
-    return gobj_build_authzs_doc(gobj, cmd, kw);
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    /*--------------------------*
+     *      Get parameters
+     *--------------------------*/
+    const char *username = kw_get_str(gobj, kw, "username", "", 0);
+    const char *password = kw_get_str(gobj, kw, "password", "", 0);
+    if(empty_string(username)) {
+        return msg_iev_build_response(
+            gobj,
+            -1,
+            json_sprintf("What username?"),
+            0,
+            0,
+            kw  // owned
+        );
+    }
+    if(empty_string(password)) {
+        return msg_iev_build_response(
+            gobj,
+            -1,
+            json_sprintf("What password?"),
+            0,
+            0,
+            kw  // owned
+        );
+    }
+
+    int hashIterations = (int)kw_get_int(
+        gobj,
+        kw,
+        "hashIterations",
+        gobj_read_integer_attr(gobj, "hashIterations"),
+        KW_WILD_NUMBER
+    );
+    const char *algorithm = kw_get_str(
+        gobj,
+        kw,
+        "algorithm",
+        gobj_read_str_attr(gobj, "algorithm"),
+        0
+    );
+
+    /*-----------------------------*
+     *  Check if username exists
+     *-----------------------------*/
+    json_t *user = gobj_get_node(
+        priv->gobj_treedb_mqtt_broker,
+        "users",
+        json_pack("{s:s}",
+            "id", username
+        ),
+        json_pack("{s:b, s:b}", "only_id", 1, "with_metadata", 1),
+        src
+    );
+    if(user) {
+        return msg_iev_build_response(gobj,
+            -1,
+            json_sprintf("User already exists: %s", username),
+            0,
+            0,
+            kw  // owned
+        );
+    }
+
+    /*-----------------------------*
+     *      Create user
+     *-----------------------------*/
+    json_t *credentials = hash_password(
+        gobj,
+        password,
+        algorithm,
+        hashIterations
+    );
+    if(!credentials) {
+        return msg_iev_build_response(
+            gobj,
+            -1,
+            json_sprintf("Error creating credentials: %s", gobj_log_last_message()),
+            0,
+            0,
+            kw  // owned
+        );
+    }
+    user = gobj_create_node(
+        priv->gobj_treedb_mqtt_broker,
+        "users",
+        json_pack("{s:s, s:o}",
+            "id", username,
+            "credentials", credentials
+        ),
+        0,
+        gobj
+    );
+    if(!user) {
+        return msg_iev_build_response(
+            gobj,
+            -1,
+            json_sprintf("Cannot create user: %s", gobj_log_last_message()),
+            0,
+            0,
+            kw  // owned
+        );
+    }
+
+    return msg_iev_build_response(
+        gobj,
+        0,
+        json_sprintf("Created user: %s", username),
+        0,
+        0, // owned
+        kw  // owned
+    );
 }
 
 /***************************************************************************
  *
  ***************************************************************************/
-PRIVATE json_t *cmd_del_user(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
+PRIVATE json_t *cmd_delete_user(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
 {
     return gobj_build_authzs_doc(gobj, cmd, kw);
 }
@@ -533,7 +664,7 @@ PRIVATE int check_passwd(
     unsigned int hash_len_ = EVP_MAX_MD_SIZE;
 
     if(empty_string(algorithm)) {
-        algorithm = "sha512";
+        algorithm = pbkdf2-sha256;
     }
     digest = EVP_get_digestbyname(algorithm);
     if(!digest) {
