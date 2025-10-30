@@ -100,6 +100,10 @@ SDATA_END()
 };
 PRIVATE sdata_desc_t pm_set_passw[] = {
 /*-PM----type-----------name------------flag------------default-----description---------- */
+SDATAPM (DTP_STRING,    "username",         0,          0,              "Username"),
+SDATAPM (DTP_STRING,    "password",         0,          0,              "Password"),
+SDATAPM (DTP_INTEGER,   "hashIterations",   0,          "27500",        "Default To build a password"),
+SDATAPM (DTP_STRING,    "algorithm",        0,          "sha256",       "Default To build a password"),
 SDATA_END()
 };
 
@@ -636,7 +640,122 @@ PRIVATE json_t *cmd_delete_user(hgobj gobj, const char *cmd, json_t *kw, hgobj s
  ***************************************************************************/
 PRIVATE json_t *cmd_set_user_passw(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
 {
-    return gobj_build_authzs_doc(gobj, cmd, kw);
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    /*--------------------------*
+     *      Get parameters
+     *--------------------------*/
+    const char *username = kw_get_str(gobj, kw, "username", "", 0);
+    const char *password = kw_get_str(gobj, kw, "password", "", 0);
+    if(empty_string(username)) {
+        return msg_iev_build_response(
+            gobj,
+            -1,
+            json_sprintf("What username?"),
+            0,
+            0,
+            kw  // owned
+        );
+    }
+    if(empty_string(password)) {
+        return msg_iev_build_response(
+            gobj,
+            -1,
+            json_sprintf("What password?"),
+            0,
+            0,
+            kw  // owned
+        );
+    }
+
+    int hashIterations = (int)kw_get_int(
+        gobj,
+        kw,
+        "hashIterations",
+        gobj_read_integer_attr(gobj, "hashIterations"),
+        KW_WILD_NUMBER
+    );
+    const char *algorithm = kw_get_str(
+        gobj,
+        kw,
+        "algorithm",
+        gobj_read_str_attr(gobj, "algorithm"),
+        0
+    );
+
+    /*-----------------------------*
+     *  Get username
+     *-----------------------------*/
+    json_t *user = gobj_get_node(
+        priv->gobj_treedb_mqtt_broker,
+        "users",
+        json_pack("{s:s}",
+            "id", username
+        ),
+        json_pack("{s:b, s:b}", "only_id", 1, "with_metadata", 1),
+        src
+    );
+    if(!user) {
+        return msg_iev_build_response(gobj,
+            -1,
+            json_sprintf("User not exist: %s", username),
+            0,
+            0,
+            kw  // owned
+        );
+    }
+
+    /*-----------------------------*
+     *      Create user
+     *-----------------------------*/
+    json_t *credentials = hash_password(
+        gobj,
+        password,
+        algorithm,
+        hashIterations
+    );
+    if(!credentials) {
+        return msg_iev_build_response(
+            gobj,
+            -1,
+            json_sprintf("Error creating credentials: %s", gobj_log_last_message()),
+            0,
+            0,
+            kw  // owned
+        );
+    }
+
+print_json2("XXXX", credentials);
+
+    user = gobj_update_node(
+        priv->gobj_treedb_mqtt_broker,
+        "users",
+        json_pack("{s:s, s:o}",
+            "id", username,
+            "credentials", credentials
+        ),
+        0,
+        gobj
+    );
+    if(!user) {
+        return msg_iev_build_response(
+            gobj,
+            -1,
+            json_sprintf("Cannot update user: %s", gobj_log_last_message()),
+            0,
+            0,
+            kw  // owned
+        );
+    }
+
+    return msg_iev_build_response(
+        gobj,
+        0,
+        json_sprintf("Updated user: %s", username),
+        0,
+        0, // owned
+        kw  // owned
+    );
 }
 
 
