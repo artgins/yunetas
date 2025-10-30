@@ -53,6 +53,11 @@ PRIVATE json_t *hash_password(
     const char *digest,
     unsigned int iterations
 );
+PRIVATE int check_password(
+    hgobj gobj,
+    const char *username,
+    const char *password
+);
 
 /***************************************************************************
  *          Data: config, public data, private data
@@ -119,7 +124,7 @@ SDATACM2 (DTP_SCHEMA,   "allow-anonymous",  0,      0,      pm_allow_anonymous, 
 SDATACM2 (DTP_SCHEMA,   "list-users",       0,      0,      pm_list_users,      cmd_list_users,     "List users"),
 SDATACM2 (DTP_SCHEMA,   "create-user",      0,      0,      pm_create_user,     cmd_create_user,    "Create user"),
 SDATACM2 (DTP_SCHEMA,   "delete-user",      0,      0,      pm_delete_user,     cmd_delete_user,    "Delete user"),
-SDATACM2 (DTP_SCHEMA,   "set-user-passw",   0,      0,      pm_set_passw,       cmd_set_user_passw, "Set user password"),
+SDATACM2 (DTP_SCHEMA,   "set-user-pwd",     0,      0,      pm_set_passw,       cmd_set_user_passw, "Set user password"),
 SDATA_END()
 };
 
@@ -668,21 +673,6 @@ PRIVATE json_t *cmd_set_user_passw(hgobj gobj, const char *cmd, json_t *kw, hgob
         );
     }
 
-    int hashIterations = (int)kw_get_int(
-        gobj,
-        kw,
-        "hashIterations",
-        gobj_read_integer_attr(gobj, "hashIterations"),
-        KW_WILD_NUMBER
-    );
-    const char *algorithm = kw_get_str(
-        gobj,
-        kw,
-        "algorithm",
-        gobj_read_str_attr(gobj, "algorithm"),
-        0
-    );
-
     /*-----------------------------*
      *  Get username
      *-----------------------------*/
@@ -705,8 +695,34 @@ PRIVATE json_t *cmd_set_user_passw(hgobj gobj, const char *cmd, json_t *kw, hgob
         );
     }
 
+    int hashIterations = (int)kw_get_int(
+        gobj,
+        kw,
+        "hashIterations",
+        gobj_read_integer_attr(gobj, "hashIterations"),
+        KW_WILD_NUMBER
+    );
+    const char *algorithm = kw_get_str(
+        gobj,
+        kw,
+        "algorithm",
+        gobj_read_str_attr(gobj, "algorithm"),
+        0
+    );
+
+    int authorized = check_password(gobj, username, password);
+
+return msg_iev_build_response(
+    gobj,
+    0,
+    json_sprintf("Updated user: %s", username),
+    0,
+    0, // owned
+    kw  // owned
+);
+
     /*-----------------------------*
-     *      Create user
+     *      Update user
      *-----------------------------*/
     json_t *credentials = hash_password(
         gobj,
@@ -970,14 +986,7 @@ PRIVATE json_t *hash_password(
     char *hash_b64 = gbuffer_cur_rd_pointer(gbuf_hash);
     char *salt_b64 = gbuffer_cur_rd_pointer(gbuf_salt);
 
-    json_t *credentials = json_object();
-    json_t *credential_list = kw_get_list(
-        gobj,
-        credentials,
-        "credentials",
-        json_array(),
-        KW_CREATE
-    );
+    json_t *credential_list = json_array();
     json_t *credential = json_pack("{s:s, s:{s:s, s:s}, s:{s:I, s:s, s:{}}}",
         "type", "password",
         "secretData",
@@ -993,7 +1002,7 @@ PRIVATE json_t *hash_password(
     GBUFFER_DECREF(gbuf_hash);
     GBUFFER_DECREF(gbuf_salt);
 
-    return credentials;
+    return credential_list;
 }
 
 /***************************************************************************
@@ -1088,35 +1097,43 @@ PRIVATE int match_hash(
  ***************************************************************************/
 PRIVATE int check_password(
     hgobj gobj,
-    const char *client_id,
     const char *username,
     const char *password
 ) {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
+    // TODO a client_id can have permitted usernames in blank
+
     if(empty_string(username)) {
-        // TODO a client_id can have permitted usernames in blank
         gobj_log_warning(gobj, 0,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_AUTH_ERROR,
             "msg",          "%s", "No username given to check password",
-            "client_id",    "%s", client_id,
             NULL
         );
         return -2;
     }
-    json_t *user = gobj_get_resource(0, username, 0, 0);
+    json_t *user = gobj_get_node(
+        priv->gobj_treedb_mqtt_broker,
+        "users",
+        json_pack("{s:s}",
+            "id", username
+        ),
+        json_pack("{s:b, s:b}", "only_id", 1, "with_metadata", 1),
+        gobj
+    );
     if(!user) {
         gobj_log_warning(gobj, 0,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_AUTH_ERROR,
             "msg",          "%s", "Username not exist",
-            "client_id",    "%s", client_id,
             "username",     "%s", username,
             NULL
         );
         return -2;
     }
+
+print_json2("XXX", user); // TODO TEST
 
     json_t *credentials = kw_get_list(gobj, user, "credentials", 0, KW_REQUIRED);
 
@@ -1163,7 +1180,6 @@ PRIVATE int check_password(
                 "function",     "%s", __FUNCTION__,
                 "msgset",       "%s", MSGSET_INFO,
                 "msg",          "%s", "Username authorized",
-                "client_id",    "%s", client_id,
                 "username",     "%s", username,
                 NULL
             );
@@ -1175,7 +1191,6 @@ PRIVATE int check_password(
         "function",     "%s", __FUNCTION__,
         "msgset",       "%s", MSGSET_AUTH_ERROR,
         "msg",          "%s", "Username not authorized",
-        "client_id",    "%s", client_id,
         "username",     "%s", username,
         NULL
     );
@@ -1261,7 +1276,7 @@ print_json2("XXXXXXXXX", kw); // TODO TEST
     if(priv->allow_anonymous) {
         username = "yuneta";
     } else {
-        authorized = check_password(gobj, client_id, username, password);
+        authorized = check_password(gobj, username, password);
     }
 
     if(authorized < 0) {
