@@ -50,8 +50,8 @@
 PRIVATE json_t *hash_password(
     hgobj gobj,
     const char *password,
-    const char *algorithm,
-    int iterations
+    const char *digest,
+    unsigned int iterations
 );
 
 /***************************************************************************
@@ -91,7 +91,7 @@ PRIVATE sdata_desc_t pm_create_user[] = {
 SDATAPM (DTP_STRING,    "username",         0,          0,              "Username"),
 SDATAPM (DTP_STRING,    "password",         0,          0,              "Password"),
 SDATAPM (DTP_INTEGER,   "hashIterations",   0,          "27500",        "Default To build a password"),
-SDATAPM (DTP_STRING,    "algorithm",        0,          "pbkdf2-sha256","Default To build a password"),
+SDATAPM (DTP_STRING,    "algorithm",        0,          "sha256",       "Default To build a password"),
 SDATA_END()
 };
 PRIVATE sdata_desc_t pm_delete_user[] = {
@@ -132,7 +132,7 @@ SDATA (DTP_BOOLEAN, "allow_anonymous",  SDF_PERSIST, "1",       "Boolean value t
 
 
 SDATA (DTP_INTEGER, "hashIterations",   0,          "27500",    "Default To build a password"),
-SDATA (DTP_STRING,  "algorithm",        0,          "pbkdf2-sha256", "Default To build a password"),
+SDATA (DTP_STRING,  "algorithm",        0,          "sha256",   "Default To build a password"),
 
 SDATA (DTP_POINTER, "subscriber",       0,          0,          "Subscriber of output-events. If it's null then the subscriber is the parent."),
 SDATA (DTP_INTEGER, "timeout",          SDF_RD,     "1000",     "Timeout"),
@@ -589,6 +589,9 @@ PRIVATE json_t *cmd_create_user(hgobj gobj, const char *cmd, json_t *kw, hgobj s
             kw  // owned
         );
     }
+
+print_json2("XXXX", credentials);
+
     user = gobj_create_node(
         priv->gobj_treedb_mqtt_broker,
         "users",
@@ -646,6 +649,275 @@ PRIVATE json_t *cmd_set_user_passw(hgobj gobj, const char *cmd, json_t *kw, hgob
 
 
 /***************************************************************************
+ *  Constant-time comparison
+ ***************************************************************************/
+PRIVATE int secure_eq(const uint8_t *a, const uint8_t *b, size_t n)
+{
+    if(!a || !b) {
+        return -1;
+    }
+    unsigned int diff = 0;
+    for(size_t i = 0; i < n; i++) {
+        diff |= (unsigned int)(a[i] ^ b[i]);
+    }
+    return diff == 0 ? 0 : -1;
+}
+
+/***************************************************************************
+ *
+ ***************************************************************************/
+PRIVATE int gen_salt(hgobj gobj, uint8_t *salt, size_t salt_len)
+{
+#if defined(__linux__)
+#if defined(CONFIG_HAVE_OPENSSL)
+    if(RAND_bytes(salt, (int)salt_len) != 1) {
+        gobj_log_error(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_INTERNAL_ERROR,
+            "msg",          "%s", "RAND_bytes() FAILED",
+            NULL
+        );
+        return -1;
+    }
+#elif defined(CONFIG_HAVE_MBEDTLS)
+#else
+#error "No crypto library defined"
+#endif
+#endif
+    return 0;
+}
+
+/***************************************************************************
+ *  PBKDF2-HMAC with arbitrary digest
+ *
+ *  password    : NUL-terminated string
+ *  salt        : salt bytes
+ *  salt_len    : length of salt
+ *  iterations  : cost factor (>=1)
+ *  digest_name : e.g. "sha256", "sha3-512", "sm3"
+ *  out_key     : output buffer
+ *  out_len     : desired key length
+ *
+ *  Returns 0 on success, −1 on failure ***************************************************************************/
+PRIVATE int pbkdf2_any(
+    hgobj gobj,
+    const char *password,
+    const uint8_t *salt,
+    size_t salt_len,
+    unsigned int iterations,
+    const char *digest_name,
+    uint8_t *out_key,
+    size_t out_len
+) {
+    int ret = 0;
+
+#if defined(__linux__)
+#if defined(CONFIG_HAVE_OPENSSL)
+
+    EVP_MD *md = EVP_MD_fetch(NULL, digest_name, NULL);
+    if(!md) {
+        gobj_log_error(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_INTERNAL_ERROR,
+            "msg",          "%s", "Unable to get openssl digest",
+            "digest",       "%s", digest_name,
+            NULL
+        );
+        return -1;
+    }
+
+    int md_size = EVP_MD_get_size(md);
+    if(md_size <= 0) { /* Should not happen for HMAC-capable digests */
+        gobj_log_error(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_INTERNAL_ERROR,
+            "msg",          "%s", "EVP_MD_get_size() failed",
+            "digest",       "%s", digest_name,
+            NULL
+        );
+        EVP_MD_free(md);
+        return -1;
+    }
+
+    if(md_size > out_len) {
+        gobj_log_error(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_INTERNAL_ERROR,
+            "msg",          "%s", "out_key size too small",
+            "digest",       "%s", digest_name,
+            "md_size",      "%d", (int)md_size,
+            "out_len",      "%d", (int)out_len,
+            NULL
+        );
+        EVP_MD_free(md);
+        return -1;
+    }
+
+    if(PKCS5_PBKDF2_HMAC(
+        password, (int)strlen(password),
+        salt, (int)salt_len,
+        (int)iterations, md,
+        (int)md_size, out_key
+    ) != 1) {
+        gobj_log_error(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_INTERNAL_ERROR,
+            "msg",          "%s", "PKCS5_PBKDF2_HMAC() failed",
+            "digest",       "%s", digest_name,
+            NULL
+        );
+        ret = -1;
+    }
+
+    EVP_MD_free(md);
+    ret = md_size;
+
+#elif defined(CONFIG_HAVE_MBEDTLS)
+#else
+#error "No crypto library defined"
+#endif
+#endif
+
+    return ret;
+}
+
+/***************************************************************************
+ *  Return
+
+    "credentials" : [
+        {
+            "type": "password",
+            "secretData": {
+                "value": "???",
+                "salt": "???=="
+            },
+            "credentialData" : {
+                "hashIterations": 27500,
+                "algorithm": "sha512",
+                "additionalParameters": {
+                }
+            }
+        }
+    ]
+
+ ***************************************************************************/
+PRIVATE json_t *hash_password(
+    hgobj gobj,
+    const char *password,
+    const char *digest,
+    unsigned int iterations
+)
+{
+    if(empty_string(digest)) {
+        digest = "sha512";
+    }
+    if(iterations < 1) {
+        iterations = 27500;
+    }
+
+    uint8_t salt[16];
+    if(gen_salt(gobj, salt, sizeof(salt)) != 0) {
+        gobj_log_error(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_INTERNAL_ERROR,
+            "msg",          "%s", "RAND_bytes() FAILED",
+            NULL
+        );
+        return NULL;
+    }
+
+    uint8_t hash[EVP_MAX_MD_SIZE];
+
+    int hash_len = pbkdf2_any(
+        gobj,
+        password,
+        salt, sizeof(salt),
+        iterations, digest,
+        hash, sizeof(hash)
+    );
+    if(hash_len <= 0) {
+        gobj_log_error(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_INTERNAL_ERROR,
+            "msg",          "%s", "pbkdf2_any() failed",
+            "digest",       "%s", digest,
+            NULL
+        );
+        return NULL;
+    }
+
+    gbuffer_t *gbuf_hash = gbuffer_string_to_base64((const char *)hash, hash_len);
+    gbuffer_t *gbuf_salt = gbuffer_string_to_base64((const char *)salt, sizeof(salt));
+    char *hash_b64 = gbuffer_cur_rd_pointer(gbuf_hash);
+    char *salt_b64 = gbuffer_cur_rd_pointer(gbuf_salt);
+
+    json_t *credentials = json_object();
+    json_t *credential_list = kw_get_list(gobj, credentials, "credentials", json_array(), KW_CREATE);
+    json_t *credential = json_pack("{s:s, s:{s:s, s:s}, s:{s:I, s:s, s:{}}}",
+        "type", "password",
+        "secretData",
+            "value", hash_b64,
+            "salt", salt_b64,
+        "credentialData",
+            "hashIterations", (json_int_t)iterations,
+            "algorithm", digest,
+            "additionalParameters"
+    );
+    json_array_append_new(credential_list, credential);
+
+    GBUFFER_DECREF(gbuf_hash);
+    GBUFFER_DECREF(gbuf_salt);
+
+    return credentials;
+}
+
+/***************************************************************************
+ *  Verify a PBKDF2-HMAC derived key matches the expected value
+ *
+ *  password     : NUL-terminated password string
+ *  salt         : salt bytes
+ *  salt_len     : length of salt
+ *  iterations   : cost factor (>=1)
+ *  digest_name  : e.g., "sha256", "sha3-512", "sm3"
+ *  expected_dk  : expected derived key bytes
+ *  expected_len : length of expected_dk (and of recomputed dk)
+ *
+ *  Returns 0 on match, -1 on error or mismatch
+ ***************************************************************************/
+PRIVATE int pbkdf2_verify_any(
+    hgobj gobj,
+    const char *password,
+    const uint8_t *salt,
+    size_t salt_len,
+    unsigned int iterations,
+    const char *digest_name,
+    const uint8_t *expected_dk,
+    size_t expected_len
+)
+{
+    if(!password || !salt || salt_len == 0 ||
+       iterations == 0 || !digest_name ||
+       !expected_dk || expected_len == 0)
+    {
+        return -1;
+    }
+
+    uint8_t *dk = (uint8_t *)OPENSSL_malloc(expected_len);
+    if(!dk) {
+        return -1;
+    }
+
+    int rc = -1;
+    if(pbkdf2_any(gobj, password, salt, salt_len, iterations, digest_name, dk, expected_len) == 0) {
+        /* secure_eq() returns 0 on equal, -1 otherwise */
+        rc = secure_eq(dk, expected_dk, expected_len);
+    }
+
+    OPENSSL_clear_free(dk, expected_len);
+    return rc;  /* 0 = match, -1 = mismatch/error */
+}
+
+/***************************************************************************
  *
  ***************************************************************************/
 PRIVATE int check_passwd(
@@ -664,7 +936,7 @@ PRIVATE int check_passwd(
     unsigned int hash_len_ = EVP_MAX_MD_SIZE;
 
     if(empty_string(algorithm)) {
-        algorithm = pbkdf2-sha256;
+        algorithm = "sha256";
     }
     digest = EVP_get_digestbyname(algorithm);
     if(!digest) {
@@ -778,213 +1050,6 @@ PRIVATE int check_passwd(
 #endif
 
     return -1;
-}
-
-/***************************************************************************
-    "credentials" : [
-        {
-            "type": "password",
-            "createdDate": 1581316153674,
-            "secretData": {
-                "value": "???",
-                "salt": "???=="
-            },
-            "credentialData" : {
-                "hashIterations": 27500,
-                "algorithm": "sha512",
-                "additionalParameters": {
-                }
-            }
-        }
-    ]
- ***************************************************************************/
-#define PW_DEFAULT_ITERATIONS 101
-
-PRIVATE json_t *hash_password(
-    hgobj gobj,
-    const char *password,
-    const char *algorithm,
-    int iterations
-) {
-#if defined(__linux__)
-    #if defined(CONFIG_HAVE_OPENSSL)
-    #define SALT_LEN 12
-    unsigned int hash_len;
-    unsigned char hash[64]; /* For SHA512 */
-    unsigned char salt[SALT_LEN];
-
-    if(empty_string(algorithm)) {
-        algorithm = "sha512";
-    }
-    if(iterations < 1) {
-        iterations = PW_DEFAULT_ITERATIONS;
-    }
-    if(RAND_bytes(salt, sizeof(salt))<0) {
-        gobj_log_error(gobj, 0,
-            "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_INTERNAL_ERROR,
-            "msg",          "%s", "RAND_bytes() FAILED",
-            "digest",       "%s", algorithm,
-            NULL
-        );
-        return 0;
-    }
-
-    const EVP_MD *digest = EVP_get_digestbyname(algorithm);
-    if(!digest) {
-        gobj_log_error(gobj, 0,
-            "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_INTERNAL_ERROR,
-            "msg",          "%s", "Unable to get openssl digest",
-            "digest",       "%s", algorithm,
-            NULL
-        );
-        return 0;
-    }
-
-    hash_len = sizeof(hash);
-    PKCS5_PBKDF2_HMAC(password, (int)strlen(password),
-        salt, sizeof(salt), iterations,
-        digest, (int)hash_len, hash
-    );
-
-    gbuffer_t *gbuf_hash = gbuffer_string_to_base64((const char *)hash, hash_len);
-    gbuffer_t *gbuf_salt = gbuffer_string_to_base64((const char *)salt, sizeof(salt));
-    char *hash_b64 = gbuffer_cur_rd_pointer(gbuf_hash);
-    char *salt_b64 = gbuffer_cur_rd_pointer(gbuf_salt);
-
-    json_t *credentials = json_object();
-    json_t *credential_list = kw_get_list(gobj, credentials, "credentials", json_array(), KW_CREATE);
-    json_t *credential = json_pack("{s:s, s:I, s:{s:s, s:s}, s:{s:I, s:s, s:{}}}",
-        "type", "password",
-        "createdDate", (json_int_t)time_in_milliseconds(),
-        "secretData",
-            "value", hash_b64,
-            "salt", salt_b64,
-        "credentialData",
-            "hashIterations", iterations,
-            "algorithm", algorithm,
-            "additionalParameters"
-    );
-    json_array_append_new(credential_list, credential);
-
-    GBUFFER_DECREF(gbuf_hash);
-    GBUFFER_DECREF(gbuf_salt);
-
-    return credentials;
-#elif defined(CONFIG_HAVE_MBEDTLS)
-    #define SALT_LEN 12
-    unsigned char hash[64];  // Support up to SHA512
-    unsigned char salt[SALT_LEN];
-    const mbedtls_md_info_t *md_info = NULL;
-
-    if(empty_string(algorithm)) {
-        algorithm = "sha512";
-    }
-    if(iterations < 1) {
-        iterations = PW_DEFAULT_ITERATIONS;
-    }
-
-    /* Resolve hash algorithm */
-    md_info = mbedtls_md_info_from_string(algorithm);
-    if(!md_info) {
-        gobj_log_error(gobj, 0,
-            "function", "%s", __FUNCTION__,
-            "msgset",   "%s", MSGSET_INTERNAL_ERROR,
-            "msg",      "%s", "Unable to get mbedtls digest",
-            "digest",   "%s", algorithm,
-            NULL
-        );
-        return 0;
-    }
-    size_t hash_len = mbedtls_md_get_size(md_info);
-
-    /* Initialize RNG */
-    mbedtls_entropy_context entropy;
-    mbedtls_ctr_drbg_context ctr_drbg;
-    const char *pers = "hash_password";
-
-    mbedtls_entropy_init(&entropy);
-    mbedtls_ctr_drbg_init(&ctr_drbg);
-
-    if(mbedtls_ctr_drbg_seed(
-            &ctr_drbg,
-            mbedtls_entropy_func,
-            &entropy,
-            (const unsigned char *)pers,
-            strlen(pers)
-        ) != 0) {
-        gobj_log_error(gobj, 0,
-            "function", "%s", __FUNCTION__,
-            "msgset",   "%s", MSGSET_INTERNAL_ERROR,
-            "msg",      "%s", "mbedtls_ctr_drbg_seed() FAILED",
-            NULL
-        );
-        goto error;
-    }
-
-    if(mbedtls_ctr_drbg_random(&ctr_drbg, salt, SALT_LEN) != 0) {
-        gobj_log_error(gobj, 0,
-            "function", "%s", __FUNCTION__,
-            "msgset",   "%s", MSGSET_INTERNAL_ERROR,
-            "msg",      "%s", "mbedtls_ctr_drbg_random() FAILED",
-            NULL
-        );
-        goto error;
-    }
-
-    if(mbedtls_pkcs5_pbkdf2_hmac(
-            md_info,
-            (const unsigned char *)password, strlen(password),
-            salt, SALT_LEN,
-            iterations,
-            hash_len,
-            hash
-        ) != 0) {
-        gobj_log_error(gobj, 0,
-            "function", "%s", __FUNCTION__,
-            "msgset",   "%s", MSGSET_INTERNAL_ERROR,
-            "msg",      "%s", "mbedtls_pkcs5_pbkdf2_hmac() FAILED",
-            NULL
-        );
-        goto error;
-    }
-
-    gbuffer_t *gbuf_hash = gbuffer_string_to_base64((const char *)hash, hash_len);
-    gbuffer_t *gbuf_salt = gbuffer_string_to_base64((const char *)salt, SALT_LEN);
-    char *hash_b64 = gbuffer_cur_rd_pointer(gbuf_hash);
-    char *salt_b64 = gbuffer_cur_rd_pointer(gbuf_salt);
-
-    json_t *credential_list = json_array();
-    json_t *credentials = json_pack("{s:o}", "credentials", credential_list);
-    json_t *credential = json_pack("{s:s, s:I, s:{s:s, s:s}, s:{s:I, s:s, s:{}}}",
-        "type", "password",
-        "createdDate", (json_int_t)time_in_milliseconds(),
-        "secretData",
-            "value", hash_b64,
-            "salt", salt_b64,
-        "credentialData",
-            "hashIterations", iterations,
-            "algorithm", algorithm,
-            "additionalParameters"
-    );
-    json_array_append_new(credential_list, credential);
-
-    GBUFFER_DECREF(gbuf_hash);
-    GBUFFER_DECREF(gbuf_salt);
-    mbedtls_ctr_drbg_free(&ctr_drbg);
-    mbedtls_entropy_free(&entropy);
-    return credentials;
-
-error:
-    mbedtls_ctr_drbg_free(&ctr_drbg);
-    mbedtls_entropy_free(&entropy);
-    return NULL;
-#else
-    #error "No crypto library defined"
-#endif
-#endif
-    return NULL;
 }
 
 /***************************************************************************
