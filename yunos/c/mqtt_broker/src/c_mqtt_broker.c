@@ -789,6 +789,8 @@ print_json2("XXXX", credentials);
 
 /***************************************************************************
  *  Constant-time comparison
+ *      Always compares all bytes, takes constant time.
+ *      ✅ Yes — resistant to timing attacks.
  ***************************************************************************/
 PRIVATE int secure_eq(const uint8_t *a, const uint8_t *b, size_t n)
 {
