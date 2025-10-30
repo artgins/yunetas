@@ -896,166 +896,73 @@ PRIVATE int pbkdf2_verify_any(
     const uint8_t *salt,
     size_t salt_len,
     unsigned int iterations,
-    const char *digest_name,
+    const char *digest,
     const uint8_t *expected_dk,
     size_t expected_len
 )
 {
-    if(!password || !salt || salt_len == 0 ||
-       iterations == 0 || !digest_name ||
-       !expected_dk || expected_len == 0)
-    {
+
+    uint8_t hash[EVP_MAX_MD_SIZE];
+
+    int hash_len = pbkdf2_any(
+        gobj,
+        password,
+        salt, sizeof(salt),
+        iterations, digest,
+        hash, sizeof(hash)
+    );
+    if(hash_len <= 0) {
+        gobj_log_error(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_INTERNAL_ERROR,
+            "msg",          "%s", "pbkdf2_any() failed",
+            "digest",       "%s", digest,
+            NULL
+        );
+        return -1;
+    }
+    if(hash_len != expected_len) {
+        gobj_log_error(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_INTERNAL_ERROR,
+            "msg",          "%s", "expected_len don't match",
+            "digest",       "%s", digest,
+            "hash_len",     "%d", (int)hash_len,
+            "expected_len", "%d", (int)expected_len,
+            NULL
+        );
         return -1;
     }
 
-    uint8_t *dk = (uint8_t *)OPENSSL_malloc(expected_len);
-    if(!dk) {
-        return -1;
-    }
-
-    int rc = -1;
-    if(pbkdf2_any(gobj, password, salt, salt_len, iterations, digest_name, dk, expected_len) == 0) {
-        /* secure_eq() returns 0 on equal, -1 otherwise */
-        rc = secure_eq(dk, expected_dk, expected_len);
-    }
-
-    OPENSSL_clear_free(dk, expected_len);
-    return rc;  /* 0 = match, -1 = mismatch/error */
+    return secure_eq(hash, expected_dk, expected_len); /* 0 = match, -1 = mismatch/error */
 }
 
 /***************************************************************************
  *
  ***************************************************************************/
-PRIVATE int check_passwd(
+PRIVATE int match_hash(
     hgobj gobj,
     const char *password,
-    const char *hash,
-    const char *salt,
-    const char *algorithm, // hashtype
+    const char *hash_b64,
+    const char *salt_b64,
+    const char *digest,
     json_int_t iterations
 )
 {
-#if defined(__linux__)
-    #if defined(CONFIG_HAVE_OPENSSL)
-    const EVP_MD *digest;
-    unsigned char hash_[EVP_MAX_MD_SIZE+1];
-    unsigned int hash_len_ = EVP_MAX_MD_SIZE;
+    gbuffer_t *gbuf_hash = gbuffer_base64_to_string((const char *)hash_b64, strlen(hash_b64));
+    gbuffer_t *gbuf_salt = gbuffer_base64_to_string((const char *)salt_b64, strlen(salt_b64));
+    uint8_t *hash = gbuffer_cur_rd_pointer(gbuf_hash);
+    uint8_t *salt = gbuffer_cur_rd_pointer(gbuf_salt);
+    size_t hash_len = gbuffer_leftbytes(gbuf_hash);
+    size_t salt_len = gbuffer_leftbytes(gbuf_salt);
 
-    if(empty_string(algorithm)) {
-        algorithm = "sha256";
-    }
-    digest = EVP_get_digestbyname(algorithm);
-    if(!digest) {
-        gobj_log_error(gobj, 0,
-            "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_INTERNAL_ERROR,
-            "msg",          "%s", "Unable to get openssl digest",
-            "digest",       "%s", algorithm,
-            NULL
-        );
-        return -1;
-    }
-
-    if(0) { //strcasecmp(algorithm, "sha512")==0) {
-        EVP_MD_CTX *context = EVP_MD_CTX_new();
-        EVP_DigestInit_ex(context, digest, NULL);
-        EVP_DigestUpdate(context, password, strlen(password));
-        EVP_DigestUpdate(context, salt, (size_t)strlen(salt));
-        EVP_DigestFinal_ex(context, hash_, &hash_len_);
-        EVP_MD_CTX_free(context);
-    } else {
-        PKCS5_PBKDF2_HMAC(password, (int)strlen(password),
-            (const unsigned char *)salt, (int)strlen(salt), iterations,
-            digest, (int)hash_len_, hash_
-        );
-    }
-
-    if(hash_len_ == strlen(hash) && memcmp(hash, hash_, hash_len_)==0) {
-        return 0;
-    }
-#elif defined(CONFIG_HAVE_MBEDTLS)
-    unsigned char derived_hash[64]; // SHA512 max size
-    size_t hash_len;
-    const mbedtls_md_info_t *md_info = NULL;
-
-    if(empty_string(algorithm)) {
-        algorithm = "sha512";
-    }
-
-    md_info = mbedtls_md_info_from_string(algorithm);
-    if(!md_info) {
-        gobj_log_error(gobj, 0,
-            "function", "%s", __FUNCTION__,
-            "msgset",   "%s", MSGSET_INTERNAL_ERROR,
-            "msg",      "%s", "Unable to get mbedtls digest",
-            "digest",   "%s", algorithm,
-            NULL
-        );
-        return -1;
-    }
-
-    hash_len = mbedtls_md_get_size(md_info);
-
-    /* Decode salt from base64 */
-    gbuffer_t *gbuf_salt = gbuffer_base64_to_string(salt, strlen(salt));
-    if(!gbuf_salt) {
-        gobj_log_error(gobj, 0,
-            "function", "%s", __FUNCTION__,
-            "msgset",   "%s", MSGSET_INTERNAL_ERROR,
-            "msg",      "%s", "Invalid base64 salt",
-            NULL
-        );
-        return -1;
-    }
-
-    if(mbedtls_pkcs5_pbkdf2_hmac(
-            md_info,
-            (const unsigned char *)password, strlen(password),
-            (const unsigned char *)gbuffer_cur_rd_pointer(gbuf_salt), gbuffer_leftbytes(gbuf_salt),
-            iterations,
-            hash_len,
-            derived_hash
-        ) != 0) {
-        gobj_log_error(gobj, 0,
-            "function", "%s", __FUNCTION__,
-            "msgset",   "%s", MSGSET_INTERNAL_ERROR,
-            "msg",      "%s", "mbedtls_pbkdf2_hmac() FAILED",
-            NULL
-        );
-        GBUFFER_DECREF(gbuf_salt);
-        return -1;
-    }
-
-    /* Decode input hash from base64 */
-    gbuffer_t *gbuf_hash = gbuffer_base64_to_string(hash, strlen(hash));
-    if(!gbuf_hash) {
-        gobj_log_error(gobj, 0,
-            "function", "%s", __FUNCTION__,
-            "msgset",   "%s", MSGSET_INTERNAL_ERROR,
-            "msg",      "%s", "Invalid base64 hash",
-            NULL
-        );
-        GBUFFER_DECREF(gbuf_salt);
-        return -1;
-    }
-
-    const unsigned char *stored_hash = (const unsigned char *)gbuffer_cur_rd_pointer(gbuf_hash);
-    size_t stored_hash_len = gbuffer_leftbytes(gbuf_hash);
-
-    int result = -1;
-    if(stored_hash_len == hash_len && memcmp(derived_hash, stored_hash, hash_len) == 0) {
-        result = 0; // Match
-    }
-
-    GBUFFER_DECREF(gbuf_salt);
-    GBUFFER_DECREF(gbuf_hash);
-    return result;
-#else
-    #error "No crypto library defined"
-#endif
-#endif
-
-    return -1;
+    return pbkdf2_verify_any(
+        gobj,
+        password,
+        salt, salt_len,
+        iterations, digest,
+        hash, hash_len
+    );
 }
 
 /***************************************************************************
@@ -1126,7 +1033,7 @@ PRIVATE int check_password(
             KW_REQUIRED
         );
 
-        if(check_passwd(
+        if(match_hash(
             gobj,
             password,
             password_saved,
