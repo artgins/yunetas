@@ -570,6 +570,7 @@ PRIVATE json_t *cmd_create_user(hgobj gobj, const char *cmd, json_t *kw, hgobj s
         src
     );
     if(user) {
+        JSON_DECREF(user)
         return msg_iev_build_response(gobj,
             -1,
             json_sprintf("User already exists: %s", username),
@@ -713,7 +714,8 @@ PRIVATE json_t *cmd_set_user_passw(hgobj gobj, const char *cmd, json_t *kw, hgob
 
     int authorized = check_password(gobj, username, password);
 
-return msg_iev_build_response(
+JSON_DECREF(user)
+return msg_iev_build_response( // TODO TEST
     gobj,
     0,
     json_sprintf("Updated user: %s", username),
@@ -1095,13 +1097,17 @@ PRIVATE int match_hash(
     gobj_trace_dump(gobj, hash, hash_len, "HASH2");
 
 
-    return pbkdf2_verify_any(
+    int ret = pbkdf2_verify_any(
         gobj,
         password,
         salt, salt_len,
         iterations, digest,
         hash, hash_len
     );
+    GBUFFER_DECREF(gbuf_hash);
+    GBUFFER_DECREF(gbuf_salt);
+
+    return ret;
 }
 
 /***************************************************************************
@@ -1195,6 +1201,7 @@ print_json2("XXX", user); // TODO TEST
                 "username",     "%s", username,
                 NULL
             );
+            JSON_DECREF(user)
             return 0;
         }
     }
@@ -1207,6 +1214,7 @@ print_json2("XXX", user); // TODO TEST
         NULL
     );
 
+    JSON_DECREF(user)
     return -2;
 }
 
