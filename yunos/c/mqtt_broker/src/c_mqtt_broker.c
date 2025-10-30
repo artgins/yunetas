@@ -981,6 +981,9 @@ PRIVATE json_t *hash_password(
         return NULL;
     }
 
+gobj_trace_dump(gobj, salt, sizeof(salt), "SALT");
+gobj_trace_dump(gobj, hash, hash_len, "HASH");
+
     gbuffer_t *gbuf_hash = gbuffer_string_to_base64((const char *)hash, hash_len);
     gbuffer_t *gbuf_salt = gbuffer_string_to_base64((const char *)salt, sizeof(salt));
     char *hash_b64 = gbuffer_cur_rd_pointer(gbuf_hash);
@@ -1034,10 +1037,13 @@ PRIVATE int pbkdf2_verify_any(
     int hash_len = pbkdf2_any(
         gobj,
         password,
-        salt, sizeof(salt),
+        salt, salt_len,
         iterations, digest,
         hash, sizeof(hash)
     );
+
+gobj_trace_dump(gobj, hash, hash_len, "HASH3");
+
     if(hash_len <= 0) {
         gobj_log_error(gobj, 0,
             "function",     "%s", __FUNCTION__,
@@ -1082,6 +1088,10 @@ PRIVATE int match_hash(
     uint8_t *salt = gbuffer_cur_rd_pointer(gbuf_salt);
     size_t hash_len = gbuffer_leftbytes(gbuf_hash);
     size_t salt_len = gbuffer_leftbytes(gbuf_salt);
+
+    gobj_trace_dump(gobj, salt, salt_len, "SALT2");
+    gobj_trace_dump(gobj, hash, hash_len, "HASH2");
+
 
     return pbkdf2_verify_any(
         gobj,
@@ -1139,7 +1149,7 @@ print_json2("XXX", user); // TODO TEST
 
     int idx; json_t *credential;
     json_array_foreach(credentials, idx, credential) {
-        const char *password_saved = kw_get_str(
+        const char *hash_saved = kw_get_str(
             gobj,
             credential,
             "secretData`value",
@@ -1171,7 +1181,7 @@ print_json2("XXX", user); // TODO TEST
         if(match_hash(
             gobj,
             password,
-            password_saved,
+            hash_saved,
             salt,
             algorithm,
             hashIterations
@@ -1426,6 +1436,9 @@ PRIVATE int create_gclass(gclass_name_t gclass_name)
     ev_action_t st_idle[] = {
         {EV_ON_OPEN,                ac_on_open,              0},
         {EV_ON_CLOSE,               ac_on_close,             0},
+        {EV_TREEDB_NODE_CREATED,    0,   0},
+        {EV_TREEDB_NODE_UPDATED,    0,  0},
+        {EV_TREEDB_NODE_DELETED,    0,  0},
         {EV_TIMEOUT,                ac_timeout,              0},
         {0,0,0}
     };
@@ -1441,6 +1454,9 @@ PRIVATE int create_gclass(gclass_name_t gclass_name)
     event_type_t event_types[] = {
         {EV_ON_OPEN,                0},
         {EV_ON_CLOSE,               0},
+        {EV_TREEDB_NODE_CREATED,    0},
+        {EV_TREEDB_NODE_UPDATED,    0},
+        {EV_TREEDB_NODE_DELETED,    0},
         {EV_TIMEOUT,                0},
         {NULL, 0}
     };
