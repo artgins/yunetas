@@ -901,7 +901,6 @@ PRIVATE int pbkdf2_verify_any(
     size_t expected_len
 )
 {
-
     uint8_t hash[EVP_MAX_MD_SIZE];
 
     int hash_len = pbkdf2_any(
