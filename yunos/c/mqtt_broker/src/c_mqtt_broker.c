@@ -621,6 +621,7 @@ print_json2("XXXX", credentials);
             kw  // owned
         );
     }
+    JSON_DECREF(user)
 
     return msg_iev_build_response(
         gobj,
@@ -763,6 +764,7 @@ print_json2("XXXX", credentials);
             kw  // owned
         );
     }
+    JSON_DECREF(user)
 
     return msg_iev_build_response(
         gobj,
