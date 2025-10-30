@@ -852,7 +852,13 @@ PRIVATE json_t *hash_password(
     char *salt_b64 = gbuffer_cur_rd_pointer(gbuf_salt);
 
     json_t *credentials = json_object();
-    json_t *credential_list = kw_get_list(gobj, credentials, "credentials", json_array(), KW_CREATE);
+    json_t *credential_list = kw_get_list(
+        gobj,
+        credentials,
+        "credentials",
+        json_array(),
+        KW_CREATE
+    );
     json_t *credential = json_pack("{s:s, s:{s:s, s:s}, s:{s:I, s:s, s:{}}}",
         "type", "password",
         "secretData",
