@@ -987,9 +987,6 @@ PRIVATE json_t *hash_password(
         return NULL;
     }
 
-gobj_trace_dump(gobj, salt, sizeof(salt), "SALT");
-gobj_trace_dump(gobj, hash, hash_len, "HASH");
-
     gbuffer_t *gbuf_hash = gbuffer_string_to_base64((const char *)hash, hash_len);
     gbuffer_t *gbuf_salt = gbuffer_string_to_base64((const char *)salt, sizeof(salt));
     char *hash_b64 = gbuffer_cur_rd_pointer(gbuf_hash);
@@ -1048,8 +1045,6 @@ PRIVATE int pbkdf2_verify_any(
         hash, sizeof(hash)
     );
 
-gobj_trace_dump(gobj, hash, hash_len, "HASH3");
-
     if(hash_len <= 0) {
         gobj_log_error(gobj, 0,
             "function",     "%s", __FUNCTION__,
@@ -1094,10 +1089,6 @@ PRIVATE int match_hash(
     uint8_t *salt = gbuffer_cur_rd_pointer(gbuf_salt);
     size_t hash_len = gbuffer_leftbytes(gbuf_hash);
     size_t salt_len = gbuffer_leftbytes(gbuf_salt);
-
-    gobj_trace_dump(gobj, salt, salt_len, "SALT2");
-    gobj_trace_dump(gobj, hash, hash_len, "HASH2");
-
 
     int ret = pbkdf2_verify_any(
         gobj,
@@ -1152,8 +1143,6 @@ PRIVATE int check_password(
         );
         return -2;
     }
-
-print_json2("XXX", user); // TODO TEST
 
     json_t *credentials = kw_get_list(gobj, user, "credentials", 0, KW_REQUIRED);
 
@@ -1265,10 +1254,8 @@ PRIVATE int ac_on_open(hgobj gobj, const char *event, json_t *kw, hgobj src)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
-print_json2("XXXXXXXXX", kw); // TODO TEST
-
     if(src != priv->gobj_input_side) {
-        gobj_log_error(gobj, 0,
+         gobj_log_error(gobj, 0,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_INTERNAL_ERROR,
             "msg",          "%s", "on_open NOT from input_size",
