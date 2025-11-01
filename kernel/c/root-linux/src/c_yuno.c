@@ -82,6 +82,7 @@ PRIVATE int set_user_gclass_no_traces(hgobj gobj);
 PRIVATE int set_user_trace_filter(hgobj gobj);
 PRIVATE int set_user_gobj_traces(hgobj gobj);
 PRIVATE int set_user_gobj_no_traces(hgobj gobj);
+PRIVATE int set_limit_open_files(hgobj gobj, json_int_t limit_open_files);
 
 PRIVATE json_t *cmd_help(hgobj gobj, const char *cmd, json_t *kw, hgobj src);
 PRIVATE json_t *cmd_view_gclass_register(hgobj gobj, const char *cmd, json_t *kw, hgobj src);
@@ -472,6 +473,8 @@ SDATA (DTP_INTEGER, "timeout_restart",  SDF_PERSIST,    "0",            "timeout
 SDATA (DTP_BOOLEAN, "autoplay",         SDF_RD,         "0",            "Auto play the yuno, don't use in yunos citizen, only in standalone or tests"),
 
 SDATA (DTP_INTEGER, "io_uring_entries", SDF_RD,         "0",            "Entries for the SQ ring, multiply by 3 the maximum number of wanted connections. Default if 0 = 2400"),
+SDATA (DTP_INTEGER, "limit_open_files", SDF_PERSIST,    "20000",        "Limit open files"),
+SDATA (DTP_INTEGER, "limit_open_files_done", SDF_RD,    "",             "Limit open files done"),
 
 SDATA (DTP_INTEGER, "cpu_core",         SDF_WR|SDF_PERSIST, "0",        "Cpu core, used if > 0"),
 SDATA (DTP_INTEGER, "priority",         SDF_WR|SDF_PERSIST, "20",       "Process priority, BE CAREFUL"),
@@ -521,6 +524,7 @@ typedef struct _PRIVATE_DATA {
     json_int_t timeout_stats;
     json_int_t timeout_restart;
     json_int_t timeout_periodic;
+    json_int_t limit_open_files;
 
     yev_event_h yev_signal;
 } PRIVATE_DATA;
@@ -739,6 +743,12 @@ PRIVATE void mt_create(hgobj gobj)
     }
 
     /*--------------------------*
+     *  Set limit open files
+     *--------------------------*/
+    json_int_t limit_open_files = gobj_read_integer_attr(gobj, "limit_open_files");
+    set_limit_open_files(gobj, limit_open_files);
+
+    /*--------------------------*
      *      Set start time
      *--------------------------*/
     time_t now;
@@ -841,6 +851,7 @@ PRIVATE void mt_create(hgobj gobj)
     SET_PRIV(timeout_stats,         gobj_read_integer_attr)
     SET_PRIV(timeout_flush,         gobj_read_integer_attr)
     SET_PRIV(timeout_restart,       gobj_read_integer_attr)
+    SET_PRIV(limit_open_files,      gobj_read_integer_attr)
 }
 
 /***************************************************************************
@@ -862,6 +873,8 @@ PRIVATE void mt_writing(hgobj gobj, const char *path)
         } else {
             priv->t_restart = 0;
         }
+    ELIF_EQ_SET_PRIV(limit_open_files,  gobj_read_integer_attr)
+        set_limit_open_files(gobj, priv->limit_open_files);
     END_EQ_SET_PRIV()
 }
 
@@ -4785,6 +4798,57 @@ PRIVATE int set_user_gobj_no_traces(hgobj gobj)
 
     if(save) {
         gobj_save_persistent_attrs(gobj, json_string("no_trace_levels"));
+    }
+
+    return 0;
+}
+
+/***************************************************************************
+ *
+ ***************************************************************************/
+PRIVATE int set_limit_open_files(hgobj gobj, json_int_t limit_open_files)
+{
+    struct rlimit rl;
+    rl.rlim_cur = (rlim_t)limit_open_files;  // Set soft limit
+    rl.rlim_max = (rlim_t)limit_open_files;  // Set hard limit
+    if(setrlimit(RLIMIT_NOFILE, &rl)<0) {
+        gobj_log_error(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_SYSTEM_ERROR,
+            "msg",          "%s", "setrlimit() FAILED",
+            "limit",        "%lu", (unsigned long)limit_open_files,
+            "errno",        "%d", errno,
+            "strerror",     "%s", strerror(errno),
+            NULL
+        );
+    }
+
+    // Verify the new limit
+    if(getrlimit(RLIMIT_NOFILE, &rl) != 0) {
+        gobj_log_error(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_SYSTEM_ERROR,
+            "msg",          "%s", "getrlimit() FAILED",
+            "limit",        "%lu", (unsigned long)limit_open_files,
+            "errno",        "%d", errno,
+            "strerror",     "%s", strerror(errno),
+            NULL
+        );
+    }
+
+    gobj_write_integer_attr(gobj, "limit_open_files_done", (json_int_t)rl.rlim_cur);
+
+    if(rl.rlim_cur != limit_open_files || rl.rlim_max != limit_open_files) {
+        gobj_log_error(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_SYSTEM_ERROR,
+            "msg",          "%s", "setrlimit() limit not match ",
+            "rlim_cur",     "%lu", (unsigned long)rl.rlim_cur,
+            "rlim_max",     "%lu", (unsigned long)rl.rlim_max,
+            "limit",        "%lu", (unsigned long)limit_open_files,
+            NULL
+        );
+        return -1;
     }
 
     return 0;
