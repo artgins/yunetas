@@ -103,6 +103,11 @@ mkdir -p "${WORKDIR}/yuneta/development/outputs_ext"
 mkdir -p "${WORKDIR}/yuneta/development/tools/cmake"
 mkdir -p "${WORKDIR}/yuneta/development/projects"
 mkdir -p "${WORKDIR}/etc/yuneta"
+mkdir -p "${WORKDIR}/var/crash"
+mkdir -p "${WORKDIR}/etc/sysctl.d"
+mkdir -p "${WORKDIR}/etc/security/limits.d"
+
+
 
 # --- Single-file utilities to include /yuneta/bin ---
 BINARIES=(
@@ -300,6 +305,49 @@ alias ll='ls -la'
 
 EOF
 chmod 0644 "${WORKDIR}/etc/profile.d/yuneta.sh"
+
+
+
+
+
+
+# --- Kernel tuning and Core dumps to /var/crash ---
+cat > "${WORKDIR}/etc/sysctl.d/99-yuneta-core.conf" <<'EOF'
+# Yuneta: TCP server tuning
+# yuneta: write core files to /var/crash
+# Install this file in /etc/sysctl.d/ and execute `sudo sysctl --system`
+#
+
+net.core.somaxconn = 65535
+# net.ipv4.tcp_max_syn_backlog = 65535
+# net.ipv4.tcp_syncookies = 1
+# net.ipv4.tcp_synack_retries = 2
+
+kernel.core_uses_pid = 0
+kernel.core_pattern = /var/crash/core.%e
+# Uncomment to allow dumps of setuid binaries (usually not needed)
+# fs.suid_dumpable = 2
+EOF
+chmod 0644 "${WORKDIR}/etc/sysctl.d/99-yuneta-core.conf"
+
+# limits drop-in (prefer over editing /etc/security/limits.conf)
+cat > "${WORKDIR}/etc/security/limits.d/99-yuneta-core.conf" <<'EOF'
+# Allow core dumps for yuneta
+yuneta soft core unlimited
+yuneta hard core unlimited
+EOF
+chmod 0644 "${WORKDIR}/etc/security/limits.d/99-yuneta-core.conf"
+
+
+
+
+
+
+
+
+
+
+
 
 # --- SysV init script (adds hard runtime limits before starting) ---
 cat > "${WORKDIR}/etc/init.d/yuneta_agent" <<'EOF'
@@ -1107,50 +1155,10 @@ if [ -d /yuneta/store/certs/private ]; then
     chmod 0700 /yuneta/store/certs/private || true
 fi
 
-# --- Core dumps to /var/crash (idempotent) ---
-echo "[postinst] Configuring core dumps for yuneta to /var/crash"
-# Directory with safe permissions
-install -d -m 0770 -o root -g yuneta /var/crash || true
-
-# sysctl drop-in (prefer over editing /etc/sysctl.conf)
-SYSCTL_D="/etc/sysctl.d"
-SYSCTL_FILE="${SYSCTL_D}/99-yuneta-core.conf"
-mkdir -p "$SYSCTL_D" || true
-cat > "$SYSCTL_FILE" <<'EOSYS'
-# Yuneta: TCP server tuning
-# yuneta: write core files to /var/crash
-# Install this file in /etc/sysctl.d/ and execute `sudo sysctl --system`
-#
-
-net.core.somaxconn = 65535
-# net.ipv4.tcp_max_syn_backlog = 65535
-# net.ipv4.tcp_syncookies = 1
-# net.ipv4.tcp_synack_retries = 2
-
-kernel.core_uses_pid = 0
-kernel.core_pattern = /var/crash/core.%e
-# Uncomment to allow dumps of setuid binaries (usually not needed)
-# fs.suid_dumpable = 2
-EOSYS
-
-# limits drop-in (prefer over editing /etc/security/limits.conf)
-LIMITS_D="/etc/security/limits.d"
-LIMITS_FILE="${LIMITS_D}/yuneta-core.conf"
-mkdir -p "$LIMITS_D" || true
-cat > "$LIMITS_FILE" <<'EOLIM'
-# Allow core dumps for yuneta
-yuneta soft core unlimited
-yuneta hard core unlimited
-EOLIM
-
 # Apply kernel settings and reload systemd units
 if command -v sysctl >/dev/null 2>&1; then
     sysctl --system >/dev/null 2>&1 || true
 fi
-if command -v systemctl >/dev/null 2>&1; then
-    systemctl daemon-reload >/dev/null 2>&1 || true
-fi
-# --- /Core dumps ---
 
 # SSH authorized_keys for 'yuneta' (merge, idempotent)
 if [ -s /etc/yuneta/authorized_keys ]; then
@@ -1189,11 +1197,7 @@ fi
 case "$ACTION" in
     configure|reconfigure)
         info "Starting service…"
-        if command -v systemctl >/dev/null 2>&1; then
-            systemctl daemon-reload || true
-            systemctl enable yuneta_agent.service || true
-            systemctl start yuneta_agent.service || true
-        elif command -v invoke-rc.d >/dev/null 2>&1; then
+        if command -v invoke-rc.d >/dev/null 2>&1; then
             invoke-rc.d yuneta_agent start || true
         else
             /etc/init.d/yuneta_agent start || true
