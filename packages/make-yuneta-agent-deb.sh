@@ -107,8 +107,6 @@ mkdir -p "${WORKDIR}/var/crash"
 mkdir -p "${WORKDIR}/etc/sysctl.d"
 mkdir -p "${WORKDIR}/etc/security/limits.d"
 
-chmod 0775 "${WORKDIR}/var/crash"
-
 # --- Single-file utilities to include /yuneta/bin ---
 BINARIES=(
     keycloak_pkey_to_jwks
@@ -1143,6 +1141,11 @@ if [ -d /yuneta/store/certs ]; then
 fi
 if [ -d /yuneta/store/certs/private ]; then
     chmod 0700 /yuneta/store/certs/private || true
+fi
+
+if [ -d /var/crash ]; then
+    chmod 0775 /var/crash || true
+    chown root:yuneta /var/crash || true
 fi
 
 # Apply kernel settings and reload systemd units
