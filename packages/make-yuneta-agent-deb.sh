@@ -1107,6 +1107,58 @@ if [ -d /yuneta/store/certs/private ]; then
     chmod 0700 /yuneta/store/certs/private || true
 fi
 
+# --- Core dumps to /var/crash (idempotent) ---
+echo "[postinst] Configuring core dumps for yuneta to /var/crash"
+# Directory with safe permissions
+install -d -m 0770 -o root -g yuneta /var/crash || true
+
+# sysctl drop-in (prefer over editing /etc/sysctl.conf)
+SYSCTL_D="/etc/sysctl.d"
+SYSCTL_FILE="${SYSCTL_D}/99-yuneta-core.conf"
+mkdir -p "$SYSCTL_D" || true
+cat > "$SYSCTL_FILE" <<'EOSYS'
+# yuneta: write core files to /var/crash
+kernel.core_uses_pid = 0
+kernel.core_pattern = /var/crash/core.%e
+# Uncomment to allow dumps of setuid binaries (usually not needed)
+# fs.suid_dumpable = 2
+EOSYS
+
+# limits drop-in (prefer over editing /etc/security/limits.conf)
+LIMITS_D="/etc/security/limits.d"
+LIMITS_FILE="${LIMITS_D}/yuneta-core.conf"
+mkdir -p "$LIMITS_D" || true
+cat > "$LIMITS_FILE" <<'EOLIM'
+# Allow core dumps for yuneta
+yuneta soft core unlimited
+yuneta hard core unlimited
+EOLIM
+
+# systemd drop-ins for services (only if services exist on this host)
+add_service_core_limit() {
+    svc="$1"
+    if command -v systemctl >/dev/null 2>&1 && systemctl list-unit-files | grep -q "^${svc}\.service"; then
+        dropin_dir="/etc/systemd/system/${svc}.service.d"
+        mkdir -p "$dropin_dir" || true
+        cat > "${dropin_dir}/50-core.conf" <<'EOSD'
+[Service]
+LimitCORE=infinity
+WorkingDirectory=/var/crash
+EOSD
+    fi
+}
+add_service_core_limit yuneta_agent
+add_service_core_limit yuneta_agent22
+
+# Apply kernel settings and reload systemd units
+if command -v sysctl >/dev/null 2>&1; then
+    sysctl --system >/dev/null 2>&1 || true
+fi
+if command -v systemctl >/dev/null 2>&1; then
+    systemctl daemon-reload >/dev/null 2>&1 || true
+fi
+# --- /Core dumps ---
+
 # SSH authorized_keys for 'yuneta' (merge, idempotent)
 if [ -s /etc/yuneta/authorized_keys ]; then
     umask 077
