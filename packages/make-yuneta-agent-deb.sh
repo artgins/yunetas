@@ -1117,7 +1117,16 @@ SYSCTL_D="/etc/sysctl.d"
 SYSCTL_FILE="${SYSCTL_D}/99-yuneta-core.conf"
 mkdir -p "$SYSCTL_D" || true
 cat > "$SYSCTL_FILE" <<'EOSYS'
+# Yuneta: TCP server tuning
 # yuneta: write core files to /var/crash
+# Install this file in /etc/sysctl.d/ and execute `sudo sysctl --system`
+#
+
+net.core.somaxconn = 65535
+# net.ipv4.tcp_max_syn_backlog = 65535
+# net.ipv4.tcp_syncookies = 1
+# net.ipv4.tcp_synack_retries = 2
+
 kernel.core_uses_pid = 0
 kernel.core_pattern = /var/crash/core.%e
 # Uncomment to allow dumps of setuid binaries (usually not needed)
@@ -1133,22 +1142,6 @@ cat > "$LIMITS_FILE" <<'EOLIM'
 yuneta soft core unlimited
 yuneta hard core unlimited
 EOLIM
-
-# systemd drop-ins for services (only if services exist on this host)
-add_service_core_limit() {
-    svc="$1"
-    if command -v systemctl >/dev/null 2>&1 && systemctl list-unit-files | grep -q "^${svc}\.service"; then
-        dropin_dir="/etc/systemd/system/${svc}.service.d"
-        mkdir -p "$dropin_dir" || true
-        cat > "${dropin_dir}/50-core.conf" <<'EOSD'
-[Service]
-LimitCORE=infinity
-WorkingDirectory=/var/crash
-EOSD
-    fi
-}
-add_service_core_limit yuneta_agent
-add_service_core_limit yuneta_agent22
 
 # Apply kernel settings and reload systemd units
 if command -v sysctl >/dev/null 2>&1; then
