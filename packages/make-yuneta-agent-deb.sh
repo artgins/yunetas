@@ -107,7 +107,7 @@ mkdir -p "${WORKDIR}/var/crash"
 mkdir -p "${WORKDIR}/etc/sysctl.d"
 mkdir -p "${WORKDIR}/etc/security/limits.d"
 
-
+chmod 01777 "${WORKDIR}/var/crash"
 
 # --- Single-file utilities to include /yuneta/bin ---
 BINARIES=(
@@ -306,11 +306,6 @@ alias ll='ls -la'
 EOF
 chmod 0644 "${WORKDIR}/etc/profile.d/yuneta.sh"
 
-
-
-
-
-
 # --- Kernel tuning and Core dumps to /var/crash ---
 cat > "${WORKDIR}/etc/sysctl.d/99-yuneta-core.conf" <<'EOF'
 # Yuneta: TCP server tuning
@@ -327,27 +322,22 @@ kernel.core_uses_pid = 0
 kernel.core_pattern = /var/crash/core.%e
 # Uncomment to allow dumps of setuid binaries (usually not needed)
 # fs.suid_dumpable = 2
+
+fs.file-max = 4000000
+fs.nr_open  = 4000000
+
 EOF
 chmod 0644 "${WORKDIR}/etc/sysctl.d/99-yuneta-core.conf"
 
 # limits drop-in (prefer over editing /etc/security/limits.conf)
 cat > "${WORKDIR}/etc/security/limits.d/99-yuneta-core.conf" <<'EOF'
 # Allow core dumps for yuneta
-yuneta soft core unlimited
-yuneta hard core unlimited
+yuneta  soft    core    unlimited
+yuneta  hard    core    unlimited
+yuneta  soft    nofile  unlimited
+yuneta  hard    nofile  unlimited
 EOF
 chmod 0644 "${WORKDIR}/etc/security/limits.d/99-yuneta-core.conf"
-
-
-
-
-
-
-
-
-
-
-
 
 # --- SysV init script (adds hard runtime limits before starting) ---
 cat > "${WORKDIR}/etc/init.d/yuneta_agent" <<'EOF'
