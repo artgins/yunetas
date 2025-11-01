@@ -107,7 +107,7 @@ mkdir -p "${WORKDIR}/var/crash"
 mkdir -p "${WORKDIR}/etc/sysctl.d"
 mkdir -p "${WORKDIR}/etc/security/limits.d"
 
-chmod 01777 "${WORKDIR}/var/crash"
+chmod 0775 "${WORKDIR}/var/crash"
 
 # --- Single-file utilities to include /yuneta/bin ---
 BINARIES=(
