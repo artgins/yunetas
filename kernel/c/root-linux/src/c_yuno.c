@@ -473,7 +473,7 @@ SDATA (DTP_INTEGER, "timeout_restart",  SDF_PERSIST,    "0",            "timeout
 SDATA (DTP_BOOLEAN, "autoplay",         SDF_RD,         "0",            "Auto play the yuno, don't use in yunos citizen, only in standalone or tests"),
 
 SDATA (DTP_INTEGER, "io_uring_entries", SDF_RD,         "0",            "Entries for the SQ ring, multiply by 3 the maximum number of wanted connections. Default if 0 = 2400"),
-SDATA (DTP_INTEGER, "limit_open_files", SDF_PERSIST,    "20000",        "Limit open files"),
+SDATA (DTP_INTEGER, "limit_open_files", SDF_PERSIST,    "0",            "Limit open files"),
 SDATA (DTP_INTEGER, "limit_open_files_done", SDF_RD,    "",             "Limit open files done"),
 
 SDATA (DTP_INTEGER, "cpu_core",         SDF_WR|SDF_PERSIST, "0",        "Cpu core, used if > 0"),
@@ -4808,7 +4808,37 @@ PRIVATE int set_user_gobj_no_traces(hgobj gobj)
  ***************************************************************************/
 PRIVATE int set_limit_open_files(hgobj gobj, json_int_t limit_open_files)
 {
+    if(limit_open_files <= 0) {
+        // Silence
+        return 0;
+    }
+
     struct rlimit rl;
+
+    /*
+     *  Verify the current limit
+     */
+    if(getrlimit(RLIMIT_NOFILE, &rl) != 0) {
+        gobj_log_error(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_SYSTEM_ERROR,
+            "msg",          "%s", "getrlimit() FAILED",
+            "limit",        "%lu", (unsigned long)limit_open_files,
+            "errno",        "%d", errno,
+            "strerror",     "%s", strerror(errno),
+            NULL
+        );
+    }
+
+    if(rl.rlim_cur >= limit_open_files && rl.rlim_max >= limit_open_files) {
+        // Valid limit for us
+        // Silence
+        return 0;
+    }
+
+    /*
+     *  Set new limit. It's common for all app's of yuneta user
+     */
     rl.rlim_cur = (rlim_t)limit_open_files;  // Set soft limit
     rl.rlim_max = (rlim_t)limit_open_files;  // Set hard limit
     if(setrlimit(RLIMIT_NOFILE, &rl)<0) {
@@ -4836,13 +4866,11 @@ PRIVATE int set_limit_open_files(hgobj gobj, json_int_t limit_open_files)
         );
     }
 
-    gobj_write_integer_attr(gobj, "limit_open_files_done", (json_int_t)rl.rlim_cur);
-
-    if(rl.rlim_cur != limit_open_files || rl.rlim_max != limit_open_files) {
+    if(rl.rlim_cur < limit_open_files || rl.rlim_max < limit_open_files) {
         gobj_log_error(gobj, 0,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_SYSTEM_ERROR,
-            "msg",          "%s", "setrlimit() limit not match ",
+            "msg",          "%s", "setrlimit() limit doesn't comply",
             "rlim_cur",     "%lu", (unsigned long)rl.rlim_cur,
             "rlim_max",     "%lu", (unsigned long)rl.rlim_max,
             "limit",        "%lu", (unsigned long)limit_open_files,
@@ -4850,6 +4878,18 @@ PRIVATE int set_limit_open_files(hgobj gobj, json_int_t limit_open_files)
         );
         return -1;
     }
+
+    gobj_write_integer_attr(gobj, "limit_open_files_done", (json_int_t)rl.rlim_cur);
+
+    gobj_log_info(gobj, 0,
+        "function",     "%s", __FUNCTION__,
+        "msgset",       "%s", MSGSET_INFO,
+        "msg",          "%s", "setrlimit() limit complies",
+        "rlim_cur",     "%lu", (unsigned long)rl.rlim_cur,
+        "rlim_max",     "%lu", (unsigned long)rl.rlim_max,
+        "limit",        "%lu", (unsigned long)limit_open_files,
+        NULL
+    );
 
     return 0;
 }
