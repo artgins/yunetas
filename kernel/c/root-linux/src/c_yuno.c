@@ -4832,6 +4832,7 @@ PRIVATE int set_limit_open_files(hgobj gobj, json_int_t limit_open_files)
 
     if(rl.rlim_cur >= limit_open_files && rl.rlim_max >= limit_open_files) {
         // Valid limit for us
+        gobj_write_integer_attr(gobj, "limit_open_files_done", (json_int_t)rl.rlim_cur);
         // Silence
         return 0;
     }
