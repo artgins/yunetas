@@ -873,8 +873,6 @@ PRIVATE void mt_writing(hgobj gobj, const char *path)
         } else {
             priv->t_restart = 0;
         }
-    ELIF_EQ_SET_PRIV(limit_open_files,  gobj_read_integer_attr)
-        set_limit_open_files(gobj, priv->limit_open_files);
     END_EQ_SET_PRIV()
 }
 
@@ -4823,6 +4821,7 @@ PRIVATE int set_limit_open_files(hgobj gobj, json_int_t limit_open_files)
             "strerror",     "%s", strerror(errno),
             NULL
         );
+        gobj_write_integer_attr(gobj, "limit_open_files_done", -1);
     }
 
     if(rl.rlim_cur >= limit_open_files && rl.rlim_max >= limit_open_files) {
@@ -4839,6 +4838,8 @@ PRIVATE int set_limit_open_files(hgobj gobj, json_int_t limit_open_files)
         );
         return 0;
     }
+
+    gobj_write_integer_attr(gobj, "limit_open_files_done", -1); // Set fail by default
 
     if(limit_open_files <= 0) {
         // Silence
