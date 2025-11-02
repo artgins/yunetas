@@ -4808,11 +4808,6 @@ PRIVATE int set_user_gobj_no_traces(hgobj gobj)
  ***************************************************************************/
 PRIVATE int set_limit_open_files(hgobj gobj, json_int_t limit_open_files)
 {
-    if(limit_open_files <= 0) {
-        // Silence
-        return 0;
-    }
-
     struct rlimit rl;
 
     /*
@@ -4833,6 +4828,19 @@ PRIVATE int set_limit_open_files(hgobj gobj, json_int_t limit_open_files)
     if(rl.rlim_cur >= limit_open_files && rl.rlim_max >= limit_open_files) {
         // Valid limit for us
         gobj_write_integer_attr(gobj, "limit_open_files_done", (json_int_t)rl.rlim_cur);
+        gobj_log_info(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_INFO,
+            "msg",          "%s", "getrlimit() limit complies",
+            "rlim_cur",     "%lu", (unsigned long)rl.rlim_cur,
+            "rlim_max",     "%lu", (unsigned long)rl.rlim_max,
+            "limit",        "%lu", (unsigned long)limit_open_files,
+            NULL
+        );
+        return 0;
+    }
+
+    if(limit_open_files <= 0) {
         // Silence
         return 0;
     }
