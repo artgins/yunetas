@@ -1205,6 +1205,16 @@ case "$ACTION" in
         ;;
 esac
 
+# Ensure pam_limits.so is enabled in PAM session files
+for pam_file in /etc/pam.d/common-session /etc/pam.d/common-session-noninteractive; do
+    if [ -f "$pam_file" ]; then
+        if ! grep -q '^session[[:space:]]\+required[[:space:]]\+pam_limits\.so' "$pam_file"; then
+            echo "Adding 'session required pam_limits.so' to $pam_file"
+            echo 'session required pam_limits.so' >> "$pam_file"
+        fi
+    fi
+done
+
 # --- friendly reminder for developers ---
 printf "\n[Yuneta] To install developer dependencies, run:\n" >&2
 printf "    sudo /yuneta/bin/install-yuneta-dev-deps.sh\n\n" >&2
@@ -1254,16 +1264,6 @@ else
     echo "No reboot performed."
 fi
 # --- /OPT-IN-REBOOT ---
-
-# Ensure pam_limits.so is enabled in PAM session files
-for pam_file in /etc/pam.d/common-session /etc/pam.d/common-session-noninteractive; do
-    if [ -f "$pam_file" ]; then
-        if ! grep -q '^session[[:space:]]\+required[[:space:]]\+pam_limits\.so' "$pam_file"; then
-            echo "Adding 'session required pam_limits.so' to $pam_file"
-            echo 'session required pam_limits.so' >> "$pam_file"
-        fi
-    fi
-done
 
 exit 0
 
