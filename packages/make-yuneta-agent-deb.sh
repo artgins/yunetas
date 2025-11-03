@@ -1218,10 +1218,6 @@ if [ -t 1 ] && [ "${DEBIAN_FRONTEND:-}" != "noninteractive" ]; then
     echo
     echo "Yuneta Agent installed."
     printf "Reboot now to finalize installation? [Y/n]: "
-
-    # Flush stdin safely
-    while read -t 0; do read -r -t 0.01; done
-
     read -r ans || ans="y"
     case "$ans" in
         [Nn]*) DO_REBOOT=0 ;;
