@@ -514,7 +514,27 @@ PRIVATE json_t *cmd_allow_anonymous(hgobj gobj, const char *cmd, json_t *kw, hgo
  ***************************************************************************/
 PRIVATE json_t *cmd_list_users(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
 {
-    return gobj_build_authzs_doc(gobj, cmd, kw);
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    json_t *users = gobj_list_nodes(
+        priv->gobj_treedb_mqtt_broker,
+        "users",
+        0, // filter
+        0, // options
+        src
+    );
+
+    return msg_iev_build_response(
+        gobj,
+        0,
+        0,
+        tranger2_list_topic_desc_cols(
+            gobj_read_pointer_attr(priv->gobj_treedb_mqtt_broker, "tranger"),
+            "users"
+        ),
+        users, // owned
+        kw  // owned
+    );
 }
 
 /***************************************************************************
