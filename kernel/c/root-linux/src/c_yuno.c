@@ -183,6 +183,13 @@ SDATAPM (DTP_STRING,    "attribute",    0,              0,          "attribute n
 SDATAPM (DTP_STRING,    "value",        0,              0,          "value"),
 SDATA_END()
 };
+PRIVATE const sdata_desc_t pm_rd_attr[] = {
+/*-PM----type-----------name------------flag------------default-----description---------- */
+SDATAPM (DTP_STRING,    "gobj_name",    0,              0,          "named-gobj or full gobj name"),
+SDATAPM (DTP_STRING,    "gobj",         0,              "__default_service__", "named-gobj or full gobj name"),
+SDATAPM (DTP_STRING,    "attribute",    0,              0,          "attribute name"),
+SDATA_END()
+};
 PRIVATE const sdata_desc_t pm_gobj_def_name[] = {
 /*-PM----type-----------name------------flag------------default-----description---------- */
 SDATAPM (DTP_STRING,    "gobj_name",    0,              0,          "named-gobj or full gobj name"),
@@ -357,7 +364,7 @@ SDATACM2(DTP_SCHEMA,    "view-gclass-register",     SDF_AUTHZ_X, 0,      0,     
 SDATACM2(DTP_SCHEMA,    "view-service-register",    SDF_AUTHZ_X, a_services,0,cmd_view_service_register,         "View service's register"),
 
 SDATACM2(DTP_SCHEMA,    "write-attr",               SDF_AUTHZ_X, 0,      pm_wr_attr, cmd_write_attr,             "Write a writable attribute)"),
-SDATACM2(DTP_SCHEMA,    "view-attrs",               SDF_AUTHZ_X, a_read_attrs,pm_gobj_def_name, cmd_view_attrs,  "View gobj's attrs"),
+SDATACM2(DTP_SCHEMA,    "view-attrs",               SDF_AUTHZ_X, a_read_attrs,pm_rd_attr, cmd_view_attrs,  "View gobj's attrs"),
 SDATACM2(DTP_SCHEMA,    "view-attrs-schema",        SDF_AUTHZ_X, a_read_attrs2,pm_gobj_def_name, cmd_attrs_schema,"View gobj's attrs schema"),
 
 SDATACM2(DTP_SCHEMA,    "view-gclass",              SDF_AUTHZ_X, 0,      pm_gclass_name, cmd_view_gclass,        "View gclass description"),
@@ -1291,20 +1298,51 @@ PRIVATE json_t *cmd_view_attrs(hgobj gobj, const char *cmd, json_t *kw, hgobj sr
         }
     }
 
+    const char *attribute = kw_get_str(gobj, kw, "attribute", 0, 0);
+
     json_t *jn_data = json_object();
-    json_object_set_new(
-        jn_data,
-        gobj_short_name(gobj2read),
-        gobj_read_attrs(gobj2read, SDF_PERSIST|SDF_RD|SDF_WR|SDF_STATS|SDF_RSTATS|SDF_PSTATS, gobj)
-    );
+
+    if(empty_string(attribute)) {
+        json_object_set_new(
+            jn_data,
+            gobj_short_name(gobj2read),
+            gobj_read_attrs(gobj2read, SDF_PERSIST|SDF_RD|SDF_WR|SDF_STATS|SDF_RSTATS|SDF_PSTATS, gobj)
+        );
+    } else {
+        if(gobj_has_attr(gobj2read, attribute)) {
+            json_object_set(
+                jn_data,
+                gobj_short_name(gobj2read),
+                gobj_read_attr( // Return is NOT yours!
+                    gobj2read,
+                    attribute,
+                    gobj
+                )
+            );
+        }
+    }
 
     hgobj gobj_bottom = gobj_bottom_gobj(gobj2read);
     while(gobj_bottom) {
-        json_object_set_new(
-            jn_data,
-            gobj_short_name(gobj_bottom),
-            gobj_read_attrs(gobj_bottom, SDF_PERSIST|SDF_RD|SDF_WR|SDF_STATS|SDF_RSTATS|SDF_PSTATS, gobj)
-        );
+        if(empty_string(attribute)) {
+            json_object_set_new(
+                jn_data,
+                gobj_short_name(gobj_bottom),
+                gobj_read_attrs(gobj_bottom, SDF_PERSIST|SDF_RD|SDF_WR|SDF_STATS|SDF_RSTATS|SDF_PSTATS, gobj)
+            );
+        } else {
+            if(gobj_has_attr(gobj_bottom, attribute)) {
+                json_object_set(
+                    jn_data,
+                    gobj_short_name(gobj_bottom),
+                    gobj_read_attr( // Return is NOT yours!
+                        gobj_bottom,
+                        attribute,
+                        gobj
+                    )
+                );
+            }
+        }
         gobj_bottom = gobj_bottom_gobj(gobj_bottom);
     }
 
