@@ -329,7 +329,11 @@ chmod 0644 "${WORKDIR}/etc/sysctl.d/99-yuneta-core.conf"
 
 # limits drop-in (prefer over editing /etc/security/limits.conf)
 cat > "${WORKDIR}/etc/security/limits.d/99-yuneta-core.conf" <<'EOF'
-# Allow core dumps for yuneta
+# Yuneta: file limits tuning
+# Install this file in /etc/security/limits.d
+# and add to files /etc/pam.d/common-session and /etc/pam.d/common-session-noninteractive
+# the line "session required pam_limits.so"
+
 yuneta  soft    core    unlimited
 yuneta  hard    core    unlimited
 yuneta  soft    nofile  unlimited
