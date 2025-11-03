@@ -709,21 +709,17 @@ PRIVATE json_t *cmd_enable_user(hgobj gobj, const char *cmd, json_t *kw, hgobj s
         priv->gobj_treedb_mqtt_broker,
         "users",
         user,
-        json_pack("{s:b}",
-            "with_metadata", 0
-        ),
+        0,
         src
     );
+    JSON_DECREF(user)
 
     return msg_iev_build_response(
         gobj,
         0,
         json_sprintf("User enabled: %s", username),
-        tranger2_list_topic_desc_cols(
-            gobj_read_pointer_attr(priv->gobj_treedb_mqtt_broker, "tranger"),
-            "users"
-        ),
-        user,
+        0,
+        0,
         kw  // owned
     );
 }
@@ -767,28 +763,23 @@ PRIVATE json_t *cmd_disable_user(hgobj gobj, const char *cmd, json_t *kw, hgobj 
         );
     }
 
-    json_object_set_new(user, "username", json_string(username));
     json_object_set_new(user, "disabled", json_true());
 
-    user = gobj_get_node(
+    user = gobj_update_node(
         priv->gobj_treedb_mqtt_broker,
         "users",
-        json_pack("{s:s}", "id", username),
-        json_pack("{s:b}",
-            "with_metadata", 0
-        ),
+        user,
+        0,
         gobj
     );
+    JSON_DECREF(user)
 
     return msg_iev_build_response(
         gobj,
         0,
         json_sprintf("User disabled: %s", username),
-        tranger2_list_topic_desc_cols(
-            gobj_read_pointer_attr(priv->gobj_treedb_mqtt_broker, "tranger"),
-            "users"
-        ),
-        user,
+        0,
+        0,
         kw  // owned
     );
 }

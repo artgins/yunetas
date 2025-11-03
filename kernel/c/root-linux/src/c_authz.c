@@ -1426,9 +1426,7 @@ PRIVATE json_t *cmd_enable_user(hgobj gobj, const char *cmd, json_t *kw, hgobj s
         priv->gobj_treedb,
         "users",
         user,
-        json_pack("{s:b}",
-            "with_metadata", 0
-        ),
+        0,
         src
     );
 
@@ -1486,9 +1484,7 @@ PRIVATE json_t *cmd_disable_user(hgobj gobj, const char *cmd, json_t *kw, hgobj 
         priv->gobj_treedb,
         "users",
         user,
-        json_pack("{s:b}",
-            "with_metadata", 0
-        ),
+        0,
         src
     );
     gobj_send_event(gobj, EV_REJECT_USER, user, src);
