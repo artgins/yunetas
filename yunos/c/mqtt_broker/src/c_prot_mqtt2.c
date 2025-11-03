@@ -5116,6 +5116,10 @@ PRIVATE int ac_process_handshake(hgobj gobj, const char *event, json_t *kw, hgob
                     "command",      "%s", get_command_name(frame->command),
                     NULL
                 );
+                gobj_trace_dump_full_gbuf(gobj, gbuf, "HANDSHAKE %s <== %s",
+                    gobj_short_name(gobj),
+                    gobj_short_name(src)
+                );
                 ws_close(gobj, MQTT_RC_PROTOCOL_ERROR);
                 break;
             }

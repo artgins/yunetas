@@ -4855,6 +4855,8 @@ PRIVATE int set_limit_open_files(hgobj gobj, json_int_t limit_open_files)
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_SYSTEM_ERROR,
             "msg",          "%s", "setrlimit() FAILED",
+            "rlim_cur",     "%lu", (unsigned long)rl.rlim_cur,
+            "rlim_max",     "%lu", (unsigned long)rl.rlim_max,
             "limit",        "%lu", (unsigned long)limit_open_files,
             "errno",        "%d", errno,
             "strerror",     "%s", strerror(errno),
