@@ -4850,6 +4850,7 @@ PRIVATE int set_limit_open_files(hgobj gobj, json_int_t limit_open_files)
      *  Set new limit. It's common for all app's of yuneta user
      */
     rl.rlim_cur = (rlim_t)limit_open_files;  // Set soft limit
+    rl.rlim_max = (rlim_t)limit_open_files;  // Set hard limit
     if(setrlimit(RLIMIT_NOFILE, &rl)<0) {
         gobj_log_error(gobj, 0,
             "function",     "%s", __FUNCTION__,
