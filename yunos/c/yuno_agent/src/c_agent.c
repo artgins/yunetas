@@ -8307,6 +8307,8 @@ PRIVATE int run_enabled_yunos(hgobj gobj)
         json_pack("{s:b, s:b}", "only_id", 1, "with_metadata", 1),
         gobj
     );
+    // TODO sort the yunos by their id, to start firstly logcenter and emailsender
+
     int idx; json_t *yuno;
     json_array_foreach(iter_yunos, idx, yuno) {
         /*
