@@ -67,6 +67,8 @@ PRIVATE json_t *cmd_authzs(hgobj gobj, const char *cmd, json_t *kw, hgobj src);
 PRIVATE json_t *cmd_allow_anonymous(hgobj gobj, const char *cmd, json_t *kw, hgobj src);
 PRIVATE json_t *cmd_list_users(hgobj gobj, const char *cmd, json_t *kw, hgobj src);
 PRIVATE json_t *cmd_create_user(hgobj gobj, const char *cmd, json_t *kw, hgobj src);
+PRIVATE json_t *cmd_enable_user(hgobj gobj, const char *cmd, json_t *kw, hgobj src);
+PRIVATE json_t *cmd_disable_user(hgobj gobj, const char *cmd, json_t *kw, hgobj src);
 PRIVATE json_t *cmd_delete_user(hgobj gobj, const char *cmd, json_t *kw, hgobj src);
 PRIVATE json_t *cmd_set_user_passw(hgobj gobj, const char *cmd, json_t *kw, hgobj src);
 PRIVATE json_t *cmd_check_user_passw(hgobj gobj, const char *cmd, json_t *kw, hgobj src);
@@ -100,8 +102,9 @@ SDATAPM (DTP_INTEGER,   "hashIterations",   0,          "27500",        "Default
 SDATAPM (DTP_STRING,    "algorithm",        0,          "sha256",       "Default To build a password"),
 SDATA_END()
 };
-PRIVATE sdata_desc_t pm_delete_user[] = {
+PRIVATE sdata_desc_t pm_user[] = {
 /*-PM----type-----------name------------flag------------default-----description---------- */
+SDATAPM (DTP_STRING,    "username",         0,          0,              "Username"),
 SDATA_END()
 };
 PRIVATE sdata_desc_t pm_check_passw[] = {
@@ -130,7 +133,9 @@ SDATACM2 (DTP_SCHEMA,   "authzs",           0,      0,      pm_authzs,          
 SDATACM2 (DTP_SCHEMA,   "allow-anonymous",  0,      0,      pm_allow_anonymous, cmd_allow_anonymous,"Allow anonymous users (don't check user/password of CONNECT mqtt command)"),
 SDATACM2 (DTP_SCHEMA,   "list-users",       0,      0,      pm_list_users,      cmd_list_users,     "List users"),
 SDATACM2 (DTP_SCHEMA,   "create-user",      0,      0,      pm_create_user,     cmd_create_user,    "Create user"),
-SDATACM2 (DTP_SCHEMA,   "delete-user",      0,      0,      pm_delete_user,     cmd_delete_user,    "Delete user"),
+SDATACM2 (DTP_SCHEMA,   "enable-user",      0,      0,      pm_user,            cmd_enable_user,    "Delete user"),
+SDATACM2 (DTP_SCHEMA,   "disable-user",     0,      0,      pm_user,            cmd_disable_user,    "Delete user"),
+SDATACM2 (DTP_SCHEMA,   "delete-user",      0,      0,      pm_user,            cmd_delete_user,    "Delete user"),
 SDATACM2 (DTP_SCHEMA,   "check-user-pwd",   0,      0,      pm_check_passw,     cmd_check_user_passw, "Check user password"),
 SDATACM2 (DTP_SCHEMA,   "set-user-pwd",     0,      0,      pm_set_passw,       cmd_set_user_passw, "Set user password"),
 SDATA_END()
@@ -507,8 +512,8 @@ PRIVATE json_t *cmd_authzs(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
  ***************************************************************************/
 PRIVATE json_t *cmd_allow_anonymous(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
 {
-    return gobj_build_authzs_doc(gobj, cmd, kw);
 }
+
 /***************************************************************************
  *
  ***************************************************************************/
@@ -663,9 +668,136 @@ PRIVATE json_t *cmd_create_user(hgobj gobj, const char *cmd, json_t *kw, hgobj s
 /***************************************************************************
  *
  ***************************************************************************/
+PRIVATE json_t *cmd_enable_user(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+    const char *username = kw_get_str(gobj, kw, "username", "", 0);
+
+    if(empty_string(username)) {
+        return msg_iev_build_response(
+            gobj,
+            -1,
+            json_sprintf("What username?"),
+            0,
+            0,
+            kw  // owned
+        );
+    }
+
+    json_t *user = gobj_get_node(
+        priv->gobj_treedb_mqtt_broker,
+        "users",
+        json_pack("{s:s}", "id", username),
+        json_pack("{s:b}",
+            "with_metadata", 1
+        ),
+        gobj
+    );
+    if(!user) {
+        return msg_iev_build_response(
+            gobj,
+            -1,
+            json_sprintf("User not found: '%s'", username),
+            0,
+            0,
+            kw  // owned
+        );
+    }
+
+    json_object_set_new(user, "disabled", json_false());
+    user = gobj_update_node(
+        priv->gobj_treedb_mqtt_broker,
+        "users",
+        user,
+        json_pack("{s:b}",
+            "with_metadata", 0
+        ),
+        src
+    );
+
+    return msg_iev_build_response(
+        gobj,
+        0,
+        json_sprintf("User enabled: %s", username),
+        tranger2_list_topic_desc_cols(
+            gobj_read_pointer_attr(priv->gobj_treedb_mqtt_broker, "tranger"),
+            "users"
+        ),
+        user,
+        kw  // owned
+    );
+}
+
+/***************************************************************************
+ *
+ ***************************************************************************/
+PRIVATE json_t *cmd_disable_user(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+    const char *username = kw_get_str(gobj, kw, "username", "", 0);
+
+    if(empty_string(username)) {
+        return msg_iev_build_response(
+            gobj,
+            -1,
+            json_sprintf("What username?"),
+            0,
+            0,
+            kw  // owned
+        );
+    }
+
+    json_t *user = gobj_get_node(
+        priv->gobj_treedb_mqtt_broker,
+        "users",
+        json_pack("{s:s}", "id", username),
+        json_pack("{s:b}",
+            "with_metadata", 1
+        ),
+        gobj
+    );
+    if(!user) {
+        return msg_iev_build_response(
+            gobj,
+            -1,
+            json_sprintf("User not found: '%s'", username),
+            0,
+            0,
+            kw  // owned
+        );
+    }
+
+    json_object_set_new(user, "username", json_string(username));
+    json_object_set_new(user, "disabled", json_true());
+
+    user = gobj_get_node(
+        priv->gobj_treedb_mqtt_broker,
+        "users",
+        json_pack("{s:s}", "id", username),
+        json_pack("{s:b}",
+            "with_metadata", 0
+        ),
+        gobj
+    );
+
+    return msg_iev_build_response(
+        gobj,
+        0,
+        json_sprintf("User disabled: %s", username),
+        tranger2_list_topic_desc_cols(
+            gobj_read_pointer_attr(priv->gobj_treedb_mqtt_broker, "tranger"),
+            "users"
+        ),
+        user,
+        kw  // owned
+    );
+}
+
+/***************************************************************************
+ *
+ ***************************************************************************/
 PRIVATE json_t *cmd_delete_user(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
 {
-    return gobj_build_authzs_doc(gobj, cmd, kw);
 }
 
 /***************************************************************************

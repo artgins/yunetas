@@ -1481,19 +1481,17 @@ PRIVATE json_t *cmd_disable_user(hgobj gobj, const char *cmd, json_t *kw, hgobj 
         );
     }
 
-    json_object_set_new(user, "username", json_string(username));
     json_object_set_new(user, "disabled", json_true());
-    gobj_send_event(gobj, EV_REJECT_USER, user, src);
-
-    user = gobj_get_node(
+    user = gobj_update_node(
         priv->gobj_treedb,
         "users",
-        json_pack("{s:s}", "id", username),
+        user,
         json_pack("{s:b}",
             "with_metadata", 0
         ),
-        gobj
+        src
     );
+    gobj_send_event(gobj, EV_REJECT_USER, user, src);
 
     return msg_iev_build_response(
         gobj,
