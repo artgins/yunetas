@@ -1255,6 +1255,16 @@ else
 fi
 # --- /OPT-IN-REBOOT ---
 
+# Ensure pam_limits.so is enabled in PAM session files
+for pam_file in /etc/pam.d/common-session /etc/pam.d/common-session-noninteractive; do
+    if [ -f "$pam_file" ]; then
+        if ! grep -q '^session[[:space:]]\+required[[:space:]]\+pam_limits\.so' "$pam_file"; then
+            echo "Adding 'session required pam_limits.so' to $pam_file"
+            echo 'session required pam_limits.so' >> "$pam_file"
+        fi
+    fi
+done
+
 exit 0
 
 EOF
