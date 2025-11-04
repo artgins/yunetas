@@ -154,13 +154,8 @@ PRIVATE int add_console_route(
     hgobj src,
     json_t *kw
 );
-PRIVATE int remove_console_route(
-    hgobj gobj,
-    const char *name,
-    const char *route_service,
-    const char *route_child
-);
 PRIVATE int get_last_public_port(hgobj gobj);
+PRIVATE int run_util_yunos(hgobj gobj);
 
 /***************************************************************************
  *              Resources
@@ -1324,6 +1319,7 @@ PRIVATE int mt_play(hgobj gobj)
     gobj_subscribe_event(priv->gobj_input_side, NULL, 0, gobj);
 
     get_last_public_port(gobj);
+    run_util_yunos(gobj);
 
     set_timeout(priv->timer, priv->timerStBoot);
 
@@ -6744,75 +6740,6 @@ PRIVATE int add_console_route(
      *  add in input gate
      */
     return add_console_in_input_gate(gobj, name, src);
-}
-
-/***************************************************************************
- *  Delete route in local list and input gate
- ***************************************************************************/
-PRIVATE int remove_console_route(
-    hgobj gobj,
-    const char *name,
-    const char *route_service,
-    const char *route_child
-)
-{
-    PRIVATE_DATA *priv = gobj_priv_data(gobj);
-
-    json_t *jn_console_ = kw_get_dict(gobj, priv->list_consoles, name, 0, 0);
-    json_t *jn_routes = kw_get_dict(gobj, jn_console_, "routes", 0, KW_REQUIRED);
-
-    char route_name[NAME_MAX];
-    snprintf(route_name, sizeof(route_name), "%s.%s", route_service, route_child);
-
-    /*
-     *  delete in local list
-     */
-    if(kw_has_key(jn_routes, route_name)) {
-        json_object_del(jn_routes, route_name);
-    } else {
-        gobj_log_error(gobj, 0,
-            "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_INTERNAL_ERROR,
-            "msg",          "%s", "route not exist in local list",
-            "name",         "%s", route_name,
-            NULL
-        );
-    }
-
-    /*
-     *  delete in input gate
-     */
-    hgobj gobj_route_service = gobj_find_service(route_service, TRUE);
-    if(gobj_route_service) {
-        hgobj gobj_input_gate = gobj_child_by_name(gobj_route_service, route_child);
-        if(gobj_input_gate) {
-            json_t *consoles = gobj_kw_get_user_data(gobj_input_gate, "consoles", 0, 0);
-            if(consoles) {
-                json_object_del(consoles, route_name);
-            } else {
-                gobj_log_error(gobj, 0,
-                    "function",     "%s", __FUNCTION__,
-                    "msgset",       "%s", MSGSET_INTERNAL_ERROR,
-                    "msg",          "%s", "no route found in child gobj",
-                    "route_name",   "%s", route_name,
-                    "service",      "%s", route_service,
-                    "child",        "%s", route_child,
-                    NULL
-                );
-            }
-        } else {
-            gobj_log_error(gobj, 0,
-                "function",     "%s", __FUNCTION__,
-                "msgset",       "%s", MSGSET_INTERNAL_ERROR,
-                "msg",          "%s", "no route child gobj found",
-                "service",      "%s", route_service,
-                "child",        "%s", route_child,
-                NULL
-            );
-        }
-    }
-
-    return 0;
 }
 
 /***************************************************************************
