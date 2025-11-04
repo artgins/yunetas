@@ -133,8 +133,8 @@ SDATACM2 (DTP_SCHEMA,   "authzs",           0,      0,      pm_authzs,          
 SDATACM2 (DTP_SCHEMA,   "allow-anonymous",  0,      0,      pm_allow_anonymous, cmd_allow_anonymous,"Allow anonymous users (don't check user/password of CONNECT mqtt command)"),
 SDATACM2 (DTP_SCHEMA,   "list-users",       0,      0,      pm_list_users,      cmd_list_users,     "List users"),
 SDATACM2 (DTP_SCHEMA,   "create-user",      0,      0,      pm_create_user,     cmd_create_user,    "Create user"),
-SDATACM2 (DTP_SCHEMA,   "enable-user",      0,      0,      pm_user,            cmd_enable_user,    "Delete user"),
-SDATACM2 (DTP_SCHEMA,   "disable-user",     0,      0,      pm_user,            cmd_disable_user,    "Delete user"),
+SDATACM2 (DTP_SCHEMA,   "enable-user",      0,      0,      pm_user,            cmd_enable_user,    "Enable user"),
+SDATACM2 (DTP_SCHEMA,   "disable-user",     0,      0,      pm_user,            cmd_disable_user,    "Disable user"),
 SDATACM2 (DTP_SCHEMA,   "delete-user",      0,      0,      pm_user,            cmd_delete_user,    "Delete user"),
 SDATACM2 (DTP_SCHEMA,   "check-user-pwd",   0,      0,      pm_check_passw,     cmd_check_user_passw, "Check user password"),
 SDATACM2 (DTP_SCHEMA,   "set-user-pwd",     0,      0,      pm_set_passw,       cmd_set_user_passw, "Set user password"),
@@ -789,6 +789,56 @@ PRIVATE json_t *cmd_disable_user(hgobj gobj, const char *cmd, json_t *kw, hgobj 
  ***************************************************************************/
 PRIVATE json_t *cmd_delete_user(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
 {
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+    const char *username = kw_get_str(gobj, kw, "username", "", 0);
+
+    if(empty_string(username)) {
+        return msg_iev_build_response(
+            gobj,
+            -1,
+            json_sprintf("What username?"),
+            0,
+            0,
+            kw  // owned
+        );
+    }
+
+    json_t *user = gobj_get_node(
+        priv->gobj_treedb_mqtt_broker,
+        "users",
+        json_pack("{s:s}", "id", username),
+        json_pack("{s:b}",
+            "with_metadata", 1
+        ),
+        gobj
+    );
+    if(!user) {
+        return msg_iev_build_response(
+            gobj,
+            -1,
+            json_sprintf("User not found: '%s'", username),
+            0,
+            0,
+            kw  // owned
+        );
+    }
+
+    int ret = gobj_delete_node(
+        priv->gobj_treedb_mqtt_broker,
+        "users",
+        user,
+        0,
+        gobj
+    );
+
+    return msg_iev_build_response(
+        gobj,
+        ret,
+        json_sprintf("User deleted: %s", username),
+        0,
+        0,
+        kw  // owned
+    );
 }
 
 /***************************************************************************
