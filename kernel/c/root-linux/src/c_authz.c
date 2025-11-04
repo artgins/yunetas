@@ -164,7 +164,7 @@ SDATA_END()
 PRIVATE sdata_desc_t pm_create_user[] = {
 /*-PM----type-----------name------------flag------------default-----description---------- */
 SDATAPM (DTP_STRING,    "username",     0,              0,          "Username"),
-SDATAPM (DTP_STRING,    "role",         0,              0,          "Role, format: roles^ROLE^users"),
+SDATAPM (DTP_STRING,    "role",         0,              0,          "ROLE format: roles^ROLE^users"),
 SDATAPM (DTP_BOOLEAN,   "disabled",     0,              0,          "Disabled"),
 SDATA_END()
 };
