@@ -749,6 +749,7 @@ PRIVATE json_t *cmd_enable_user(hgobj gobj, const char *cmd, json_t *kw, hgobj s
     }
 
     json_object_set_new(user, "disabled", json_false());
+
     user = gobj_update_node(
         priv->gobj_treedb_mqtt_broker,
         "users",
