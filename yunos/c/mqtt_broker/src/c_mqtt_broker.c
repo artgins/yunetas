@@ -151,8 +151,6 @@ SDATA (DTP_BOOLEAN, "use_internal_schema",SDF_PERSIST, "1",     "Use internal (h
 
 SDATA (DTP_BOOLEAN, "allow_anonymous",  SDF_PERSIST, "1",       "Boolean value that determines whether clients that connect without providing a username are allowed to connect. If set to FALSE then another means of connection should be created to control authenticated client access. Defaults to TRUE, (TODO but connections are only allowed from the local machine)."),
 
-
-
 SDATA (DTP_INTEGER, "hashIterations",   0,          "27500",    "Default To build a password"),
 SDATA (DTP_STRING,  "algorithm",        0,          "sha256",   "Default To build a password"),
 
