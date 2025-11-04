@@ -2609,7 +2609,7 @@ PRIVATE json_t *cmd_trace(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
     return msg_iev_build_response(
         gobj,
         0,
-        json_sprintf("Set trace %s", set?"on":"FALSE"),
+        json_sprintf("Set trace %s", set?"on":"off"),
         0,
         0,
         kw  // owned

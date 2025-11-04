@@ -88,6 +88,7 @@ SDATA_END()
 
 PRIVATE sdata_desc_t pm_allow_anonymous[] = {
 /*-PM----type-----------name------------flag------------default-----description---------- */
+SDATAPM (DTP_BOOLEAN,   "set",          0,              0,          "Allow anonymous: set 1 o 0"),
 SDATA_END()
 };
 PRIVATE sdata_desc_t pm_list_users[] = {
@@ -257,7 +258,8 @@ PRIVATE void mt_writing(hgobj gobj, const char *path)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
-    IF_EQ_SET_PRIV(timeout,             gobj_read_integer_attr)
+    IF_EQ_SET_PRIV(timeout,                 gobj_read_integer_attr)
+    ELIF_EQ_SET_PRIV(allow_anonymous,       gobj_read_bool_attr)
     END_EQ_SET_PRIV()
 }
 
@@ -405,6 +407,8 @@ PRIVATE int mt_play(hgobj gobj)
     priv->gobj_treedb_mqtt_broker = gobj_find_service("treedb_mqtt_broker", TRUE);
     gobj_subscribe_event(priv->gobj_treedb_mqtt_broker, 0, 0, gobj);
 
+    priv->gobj_tranger_broker = gobj_read_pointer_attr(priv->gobj_treedb_mqtt_broker, "tranger");
+
     /*-------------------------*
      *      Start services
      *-------------------------*/
@@ -510,6 +514,21 @@ PRIVATE json_t *cmd_authzs(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
  ***************************************************************************/
 PRIVATE json_t *cmd_allow_anonymous(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
 {
+    BOOL set = kw_get_bool(gobj, kw, "set", 0, KW_WILD_NUMBER);
+
+    if(set) {
+        gobj_write_bool_attr(gobj, "allow_anonymous", TRUE);
+    } else {
+        gobj_write_bool_attr(gobj, "allow_anonymous", FALSE);
+    }
+    return msg_iev_build_response(
+        gobj,
+        0,
+        json_sprintf("Set allow_anonymous %s", set?"true":"false"),
+        0,
+        0,
+        kw  // owned
+    );
 }
 
 /***************************************************************************
