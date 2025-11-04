@@ -440,7 +440,6 @@ PRIVATE json_t *cmd_print_tranger(hgobj gobj, const char *cmd, json_t *kw, hgobj
      *----------------------------------------*/
     const char *permission = "read";
     if(!gobj_user_has_authz(gobj, permission, kw_incref(kw), src)) {
-        KW_DECREF(kw);
         return msg_iev_build_response(
             gobj,
             -403,
@@ -526,7 +525,6 @@ PRIVATE json_t *cmd_create_topic(hgobj gobj, const char *cmd, json_t *kw, hgobj 
      *----------------------------------------*/
     const char *permission = "create";
     if(!gobj_user_has_authz(gobj, permission, kw_incref(kw), src)) {
-        KW_DECREF(kw);
         return msg_iev_build_response(
             gobj,
             -403,
@@ -589,7 +587,6 @@ PRIVATE json_t *cmd_open_topic(hgobj gobj, const char *cmd, json_t *kw, hgobj sr
      *----------------------------------------*/
     const char *permission = "read";
     if(!gobj_user_has_authz(gobj, permission, kw_incref(kw), src)) {
-        KW_DECREF(kw);
         return msg_iev_build_response(
             gobj,
             -403,
@@ -639,7 +636,6 @@ PRIVATE json_t *cmd_delete_topic(hgobj gobj, const char *cmd, json_t *kw, hgobj 
      *----------------------------------------*/
     const char *permission = "delete";
     if(!gobj_user_has_authz(gobj, permission, kw_incref(kw), src)) {
-        KW_DECREF(kw);
         return msg_iev_build_response(
             gobj,
             -403,
@@ -712,7 +708,6 @@ PRIVATE json_t *cmd_topics(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
      *----------------------------------------*/
     const char *permission = "list";
     if(!gobj_user_has_authz(gobj, permission, kw_incref(kw), src)) {
-        KW_DECREF(kw);
         return msg_iev_build_response(
             gobj,
             -403,
@@ -755,7 +750,6 @@ PRIVATE json_t *cmd_desc(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
      *----------------------------------------*/
     const char *permission = "read";
     if(!gobj_user_has_authz(gobj, permission, kw_incref(kw), src)) {
-        KW_DECREF(kw);
         return msg_iev_build_response(
             gobj,
             -403,
@@ -828,7 +822,6 @@ PRIVATE json_t *cmd_open_list(hgobj gobj, const char *cmd, json_t *kw, hgobj src
 //     *----------------------------------------*/
 //    const char *permission = "read";
 //    if(!gobj_user_has_authz(gobj, permission, kw_incref(kw), src)) {
-//        KW_DECREF(kw)
 //        return msg_iev_build_response(
 //            gobj,
 //            -403,
@@ -1013,7 +1006,6 @@ PRIVATE json_t *cmd_close_list(hgobj gobj, const char *cmd, json_t *kw, hgobj sr
 //     *----------------------------------------*/
 //    const char *permission = "read";
 //    if(!gobj_user_has_authz(gobj, permission, kw_incref(kw), src)) {
-//        KW_DECREF(kw);
 //        return msg_iev_build_response(
 //            gobj,
 //            -403,
@@ -1101,7 +1093,6 @@ PRIVATE json_t *cmd_add_record(hgobj gobj, const char *cmd, json_t *kw, hgobj sr
 //     *----------------------------------------*/
 //    const char *permission = "write";
 //    if(!gobj_user_has_authz(gobj, permission, kw_incref(kw), src)) {
-//        KW_DECREF(kw);
 //        return msg_iev_build_response(
 //            gobj,
 //            -403,
@@ -1205,7 +1196,6 @@ PRIVATE json_t *cmd_get_list_data(hgobj gobj, const char *cmd, json_t *kw, hgobj
 //     *----------------------------------------*/
 //    const char *permission = "read";
 //    if(!gobj_user_has_authz(gobj, permission, kw_incref(kw), src)) {
-//        KW_DECREF(kw);
 //        return msg_iev_build_response(
 //            gobj,
 //            -403,
