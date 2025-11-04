@@ -8290,7 +8290,7 @@ PRIVATE int run_util_yunos(hgobj gobj)
     json_t *iter_yunos = gobj_list_nodes(
         priv->resource,
         resource,
-        0, // filter
+        json_pack("{s:s}", "yuno_tag", "util"),
         json_pack("{s:b, s:b}", "only_id", 1, "with_metadata", 1),
         gobj
     );
