@@ -1323,6 +1323,8 @@ PRIVATE int mt_play(hgobj gobj)
     priv->gobj_input_side = gobj_find_service("__input_side__", TRUE);
     gobj_subscribe_event(priv->gobj_input_side, NULL, 0, gobj);
 
+    get_last_public_port(gobj);
+
     set_timeout(priv->timer, priv->timerStBoot);
 
     return 0;
@@ -8307,7 +8309,6 @@ PRIVATE int run_enabled_yunos(hgobj gobj)
         json_pack("{s:b, s:b}", "only_id", 1, "with_metadata", 1),
         gobj
     );
-    // TODO sort the yunos by their id, to start firstly logcenter and emailsender
 
     int idx; json_t *yuno;
     json_array_foreach(iter_yunos, idx, yuno) {
@@ -8337,7 +8338,63 @@ PRIVATE int run_enabled_yunos(hgobj gobj)
     }
     JSON_DECREF(iter_yunos);
 
-    get_last_public_port(gobj);
+    return 0;
+}
+
+/***************************************************************************
+ *  Try to run the util yunos.
+ *  This function is called once by timer at startup
+ ***************************************************************************/
+PRIVATE int run_util_yunos(hgobj gobj)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+    char *resource = "yunos";
+
+    gobj_log_debug(gobj, 0,
+        "function",     "%s", __FUNCTION__,
+        "msgset",       "%s", MSGSET_STARTUP,
+        "msg",          "%s", "run_util_yunos",
+        NULL
+    );
+
+    /*
+     *  Esta bien así, no le paso nada, que devuelva all yunos de all reinos.
+     */
+    json_t *iter_yunos = gobj_list_nodes(
+        priv->resource,
+        resource,
+        0, // filter
+        json_pack("{s:b, s:b}", "only_id", 1, "with_metadata", 1),
+        gobj
+    );
+
+    int idx; json_t *yuno;
+    json_array_foreach(iter_yunos, idx, yuno) {
+        /*
+         *  Activate the yuno
+         */
+        BOOL disabled = kw_get_bool(gobj, yuno, "yuno_disabled", 0, KW_REQUIRED);
+        if(!disabled) {
+            BOOL running = kw_get_bool(gobj, yuno, "yuno_running", 0, KW_REQUIRED);
+            if(!running) {
+                run_yuno(gobj, yuno, 0);
+                // Volatil if you don't want historic data
+                // TODO legacy force volatil, sino no aparece el yuno con mas release el primero
+                // y falla el deactivate-snap
+                json_decref(
+                    gobj_update_node(
+                        priv->resource,
+                        resource,
+                        json_incref(yuno),
+                        json_pack("{s:b}", "volatil", 1),
+                        gobj
+                    )
+                );
+
+            }
+        }
+    }
+    JSON_DECREF(iter_yunos);
 
     return 0;
 }
