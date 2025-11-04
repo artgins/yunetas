@@ -2261,6 +2261,27 @@ PRIVATE json_t *get_user_permissions(
 
     json_t *services_roles = json_object();
 
+    json_t *user = gobj_get_node(
+        priv->gobj_treedb,
+        "users", // topic_name
+        json_pack("{s:s}",
+            "id", username
+        ),
+        NULL,
+        gobj
+    );
+    if(!user) {
+        gobj_log_warning(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_TREEDB_ERROR,
+            "msg",          "%s", "User not found",
+            "user",         "%s", username,
+            NULL
+        );
+        return services_roles;
+    }
+    JSON_DECREF(user)
+
     json_t *roles_refs = gobj_node_parents(
         priv->gobj_treedb,
         "users", // topic_name
@@ -2834,13 +2855,15 @@ PUBLIC BOOL authz_checker(hgobj gobj_to_check, const char *authz, json_t *kw, hg
         }
     }
 
-    // TODO what is used for?
-    // json_t *jn_authz_desc = gobj_authz(gobj_to_check, authz);
-    // if(!jn_authz_desc) {
-    //     // Error already logged
-    //     KW_DECREF(kw)
-    //     return FALSE;
-    // }
+    /*
+     *  Check if the authz exists in gobj_to_check
+     */
+    json_t *jn_authz_desc = gobj_authz(gobj_to_check, authz);
+    if(!jn_authz_desc) {
+        // Error already logged
+        KW_DECREF(kw)
+        return FALSE;
+    }
 
     json_t *user_authzs = get_user_permissions(
         gobj,
@@ -2868,7 +2891,7 @@ PUBLIC BOOL authz_checker(hgobj gobj_to_check, const char *authz, json_t *kw, hg
     }
 
     JSON_DECREF(user_authzs)
-    // JSON_DECREF(jn_authz_desc)
+    JSON_DECREF(jn_authz_desc)
     KW_DECREF(kw)
     return allow;
 }
