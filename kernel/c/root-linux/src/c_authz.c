@@ -2834,6 +2834,7 @@ PUBLIC BOOL authz_checker(hgobj gobj_to_check, const char *authz, json_t *kw, hg
         }
     }
 
+    // TODO what is used for?
     // json_t *jn_authz_desc = gobj_authz(gobj_to_check, authz);
     // if(!jn_authz_desc) {
     //     // Error already logged
