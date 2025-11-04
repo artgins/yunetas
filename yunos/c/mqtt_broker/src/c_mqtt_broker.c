@@ -546,6 +546,8 @@ PRIVATE json_t *cmd_allow_anonymous(hgobj gobj, const char *cmd, json_t *kw, hgo
     } else {
         gobj_write_bool_attr(gobj, "allow_anonymous", FALSE);
     }
+    gobj_save_persistent_attrs(gobj, json_string("allow_anonymous"));
+
     return msg_iev_build_response(
         gobj,
         0,
@@ -1578,7 +1580,7 @@ PRIVATE int ac_on_open(hgobj gobj, const char *event, json_t *kw, hgobj src)
     const char *client_id = kw_get_str(gobj, kw, "client_id", "", KW_REQUIRED);
     const char *username = kw_get_str(gobj, kw, "username", "", KW_REQUIRED);
     const char *password = kw_get_str(gobj, kw, "password", "", KW_REQUIRED);
-    const char *peername = gobj_read_str_attr(src, "peername");
+    const char *peername = kw_get_str(gobj, kw, "peername", "", KW_REQUIRED);
 
     int authorization = 0;
     if(priv->allow_anonymous) {
@@ -1588,7 +1590,7 @@ PRIVATE int ac_on_open(hgobj gobj, const char *event, json_t *kw, hgobj src)
              *  Only localhost is allowed without user/password or jwt
              */
             authorization = -1;
-            gobj_log_info(gobj, 0,
+            gobj_log_warning(gobj, 0,
                 "function",     "%s", __FUNCTION__,
                 "msgset",       "%s", MSGSET_AUTH,
                 "msg",          "%s", "allow_anonymous, only localhost is allowed",
@@ -1644,6 +1646,13 @@ PRIVATE int ac_on_open(hgobj gobj, const char *event, json_t *kw, hgobj src)
     }
     if(result < 0) {
         const char *comment = COMMAND_COMMENT(gobj, jn_response);
+        gobj_log_warning(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_AUTH,
+            "msg",          "%s", comment?comment:"cannot create/open topic (client)",
+            "user",         "%s", username,
+            NULL
+        );
         JSON_DECREF(jn_response)
         KW_DECREF(kw);
         return -1;
