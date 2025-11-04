@@ -407,7 +407,7 @@ PRIVATE int mt_play(hgobj gobj)
     priv->gobj_treedb_mqtt_broker = gobj_find_service("treedb_mqtt_broker", TRUE);
     gobj_subscribe_event(priv->gobj_treedb_mqtt_broker, 0, 0, gobj);
 
-    priv->gobj_tranger_broker = gobj_read_pointer_attr(priv->gobj_treedb_mqtt_broker, "tranger");
+    priv->gobj_tranger_broker = gobj_bottom_gobj(priv->gobj_treedb_mqtt_broker);
 
     /*-------------------------*
      *      Start services
@@ -458,7 +458,9 @@ PRIVATE int mt_pause(hgobj gobj)
         ),
         gobj
     ));
+
     priv->gobj_treedb_mqtt_broker = 0;
+    priv->gobj_tranger_broker = 0;
 
     /*-------------------------*
      *      Stop treedbs

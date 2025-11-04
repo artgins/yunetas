@@ -543,7 +543,7 @@ PRIVATE json_t *cmd_open_treedb(hgobj gobj, const char *cmd, json_t *kw, hgobj s
     );
     // TODO crea como servicio hasta que se pueda integrar el bottom como propio
     char tranger_name[NAME_MAX];
-    snprintf(tranger_name, sizeof(tranger_name), "tranger_%s", treedb_name);
+    snprintf(tranger_name, sizeof(tranger_name), "gobj_tranger_%s", treedb_name);
     hgobj gobj_client_tranger = gobj_create_service(
         tranger_name,
         C_TRANGER,

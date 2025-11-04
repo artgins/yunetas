@@ -550,7 +550,7 @@ PRIVATE int open_queue(hgobj gobj)
         "on_critical_error", (int)gobj_read_integer_attr(gobj, "on_critical_error")
     );
     char name[NAME_MAX];
-    snprintf(name, sizeof(name), "tranger_%s", gobj_name(gobj));
+    snprintf(name, sizeof(name), "gobj_tranger_%s", gobj_name(gobj));
     priv->gobj_tranger_queues = gobj_create_service(
         name,
         C_TRANGER,
