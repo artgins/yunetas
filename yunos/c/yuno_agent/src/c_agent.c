@@ -8283,7 +8283,7 @@ PRIVATE int authzs_to_yuno(
 
 /***************************************************************************
  *  Try to run the activated yunos.
- *  This function is periodically called by timer
+ *  This function is called once by timer at startup
  ***************************************************************************/
 PRIVATE int run_enabled_yunos(hgobj gobj)
 {
