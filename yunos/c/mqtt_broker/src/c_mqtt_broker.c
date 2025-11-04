@@ -677,12 +677,16 @@ PRIVATE json_t *cmd_create_user(hgobj gobj, const char *cmd, json_t *kw, hgobj s
         );
     }
 
+    time_t t_now;
+    time(&t_now);
+
     user = gobj_create_node(
         priv->gobj_treedb_mqtt_broker,
         "users",
-        json_pack("{s:s, s:o}",
+        json_pack("{s:s, s:o, s:I}",
             "id", username,
-            "credentials", credentials
+            "credentials", credentials,
+            "time", (json_int_t)t_now
         ),
         0,
         gobj
