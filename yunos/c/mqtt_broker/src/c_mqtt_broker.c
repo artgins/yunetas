@@ -150,7 +150,7 @@ PRIVATE sdata_desc_t tattr_desc[] = {
 // TODO a 0 cuando funcionen bien los out schemas
 SDATA (DTP_BOOLEAN, "use_internal_schema",SDF_PERSIST, "1",     "Use internal (hardcoded) schema"),
 
-SDATA (DTP_BOOLEAN, "allow_anonymous",  SDF_PERSIST, "1",       "Boolean value that determines whether clients that connect without providing a username are allowed to connect. If set to FALSE then another means of connection should be created to control authenticated client access. Defaults to TRUE, (TODO but connections are only allowed from the local machine)."),
+SDATA (DTP_BOOLEAN, "allow_anonymous",  SDF_PERSIST, "0",       "Boolean value that determines whether clients that connect without providing a username are allowed to connect. If set to TRUE  connections are only allowed from the local machine)."),
 
 SDATA (DTP_INTEGER, "hashIterations",   0,          "27500",    "Default To build a password"),
 SDATA (DTP_STRING,  "algorithm",        0,          "sha256",   "Default To build a password"),
@@ -1578,9 +1578,24 @@ PRIVATE int ac_on_open(hgobj gobj, const char *event, json_t *kw, hgobj src)
     const char *client_id = kw_get_str(gobj, kw, "client_id", "", KW_REQUIRED);
     const char *username = kw_get_str(gobj, kw, "username", "", KW_REQUIRED);
     const char *password = kw_get_str(gobj, kw, "password", "", KW_REQUIRED);
+    const char *peername = gobj_read_str_attr(src, "peername");
 
     int authorization = 0;
     if(priv->allow_anonymous) {
+        const char *localhost = "127.0.0.";
+        if(strncmp(peername, localhost, strlen(localhost))!=0) {
+            /*
+             *  Only localhost is allowed without user/password or jwt
+             */
+            authorization = -1;
+            gobj_log_info(gobj, 0,
+                "function",     "%s", __FUNCTION__,
+                "msgset",       "%s", MSGSET_AUTH,
+                "msg",          "%s", "allow_anonymous, only localhost is allowed",
+                "user",         "%s", username,
+                NULL
+            );
+        }
         username = "yuneta";
     } else {
         authorization = check_password(gobj, username, password);
