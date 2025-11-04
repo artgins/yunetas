@@ -4093,6 +4093,8 @@ PRIVATE int handle__connect(hgobj gobj, gbuffer_t *gbuf)
         json_object_update_new(client, jn_will);
     }
 
+    json_object_set_new(client, "peername", json_string(gobj_read_str_attr(gobj, "peername")));
+
     if(connect_properties) {
         json_object_set_new(client, "connect_properties", connect_properties);
         connect_properties = NULL;

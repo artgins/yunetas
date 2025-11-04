@@ -155,6 +155,7 @@ SDATA (DTP_BOOLEAN, "allow_anonymous",  SDF_PERSIST, "1",       "Boolean value t
 SDATA (DTP_INTEGER, "hashIterations",   0,          "27500",    "Default To build a password"),
 SDATA (DTP_STRING,  "algorithm",        0,          "sha256",   "Default To build a password"),
 
+SDATA (DTP_INTEGER, "on_critical_error",SDF_RD,     "2",        "LOG_OPT_EXIT_ZERO exit on error (Zero to avoid restart)"),
 SDATA (DTP_POINTER, "subscriber",       0,          0,          "Subscriber of output-events. If it's null then the subscriber is the parent."),
 SDATA (DTP_INTEGER, "timeout",          SDF_RD,     "1000",     "Timeout"),
 SDATA (DTP_POINTER, "user_data",        0,          0,          "user data"),
@@ -188,13 +189,14 @@ typedef struct _PRIVATE_DATA {
     hgobj timer;
     int32_t timeout;
     hgobj gobj_input_side;
-    hgobj gobj_tranger_broker;
+    hgobj gobj_tranger_clients;
 
     hgobj gobj_treedbs;
     hgobj gobj_treedb_mqtt_broker;
     hgobj gobj_authz;
 
     BOOL allow_anonymous;
+    char treedb_name[NAME_MAX];
 
 } PRIVATE_DATA;
 
@@ -378,11 +380,12 @@ PRIVATE int mt_play(hgobj gobj)
         "treedb_mqtt_broker",
         KW_REQUIRED
     );
+    snprintf(priv->treedb_name, sizeof(priv->treedb_name), "%s", treedb_name);
 
     json_t *kw_treedb = json_pack("{s:s, s:i, s:s, s:o, s:b, s:s}",
         "filename_mask", "%Y",
         "exit_on_error", 0,
-        "treedb_name", treedb_name,
+        "treedb_name", priv->treedb_name,
         "treedb_schema", jn_treedb_schema_mqtt_broker,
         "use_internal_schema", use_internal_schema,
         "__username__", gobj_read_str_attr(gobj_yuno(), "__username__")
@@ -404,10 +407,26 @@ PRIVATE int mt_play(hgobj gobj)
     }
     json_decref(jn_resp);
 
-    priv->gobj_treedb_mqtt_broker = gobj_find_service("treedb_mqtt_broker", TRUE);
+    priv->gobj_treedb_mqtt_broker = gobj_find_service(priv->treedb_name, TRUE);
     gobj_subscribe_event(priv->gobj_treedb_mqtt_broker, 0, 0, gobj);
 
-    priv->gobj_tranger_broker = gobj_bottom_gobj(priv->gobj_treedb_mqtt_broker);
+    /*------------------------------------------------------*
+     *      Open mqtt_broker tranger for clients (topics)
+     *------------------------------------------------------*/
+    json_t *kw_tranger = json_pack("{s:s, s:s, s:b, s:I, s:i}",
+        "path", path,
+        "database", "clients",
+        "master", 1,
+        "subscriber", (json_int_t)(uintptr_t)gobj,
+        "on_critical_error", (int)gobj_read_integer_attr(gobj, "on_critical_error")
+    );
+    priv->gobj_tranger_clients = gobj_create_service(
+        "gobj_tranger_clients",
+        C_TRANGER,
+        kw_tranger,
+        gobj
+    );
+    gobj_start(priv->gobj_tranger_clients);
 
     /*-------------------------*
      *      Start services
@@ -453,14 +472,18 @@ PRIVATE int mt_pause(hgobj gobj)
     json_decref(gobj_command(priv->gobj_treedbs,
         "close-treedb",
         json_pack("{s:s, s:s}",
-            "treedb_name", "treedb_mqtt_broker",
+            "treedb_name", priv->treedb_name,
             "__username__", gobj_read_str_attr(gobj_yuno(), "__username__")
         ),
         gobj
     ));
 
     priv->gobj_treedb_mqtt_broker = 0;
-    priv->gobj_tranger_broker = 0;
+
+    if(priv->gobj_tranger_clients) {
+        gobj_stop(priv->gobj_tranger_clients);
+        EXEC_AND_RESET(gobj_destroy, priv->gobj_tranger_clients)
+    }
 
     /*-------------------------*
      *      Stop treedbs
@@ -1581,7 +1604,7 @@ PRIVATE int ac_on_open(hgobj gobj, const char *event, json_t *kw, hgobj src)
      *  Open the topic (client_id) or create it if it doesn't exist
      *----------------------------------------------------------------*/
     json_t *jn_response = gobj_command(
-        priv->gobj_tranger_broker,
+        priv->gobj_tranger_clients,
         "open-topic",
         json_pack("{s:s, s:s}",
             "topic_name", client_id,
@@ -1594,7 +1617,7 @@ PRIVATE int ac_on_open(hgobj gobj, const char *event, json_t *kw, hgobj src)
     if(result < 0) {
         JSON_DECREF(jn_response)
         jn_response = gobj_command(
-            priv->gobj_tranger_broker,
+            priv->gobj_tranger_clients,
             "create-topic", // idempotent function
             json_pack("{s:s, s:s}",
                 "topic_name", client_id,
