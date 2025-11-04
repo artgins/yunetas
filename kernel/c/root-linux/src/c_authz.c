@@ -2834,12 +2834,12 @@ PUBLIC BOOL authz_checker(hgobj gobj_to_check, const char *authz, json_t *kw, hg
         }
     }
 
-    json_t *jn_authz_desc = gobj_authz(gobj_to_check, authz);
-    if(!jn_authz_desc) {
-        // Error already logged
-        KW_DECREF(kw)
-        return FALSE;
-    }
+    // json_t *jn_authz_desc = gobj_authz(gobj_to_check, authz);
+    // if(!jn_authz_desc) {
+    //     // Error already logged
+    //     KW_DECREF(kw)
+    //     return FALSE;
+    // }
 
     json_t *user_authzs = get_user_permissions(
         gobj,
@@ -2867,7 +2867,7 @@ PUBLIC BOOL authz_checker(hgobj gobj_to_check, const char *authz, json_t *kw, hg
     }
 
     JSON_DECREF(user_authzs)
-    JSON_DECREF(jn_authz_desc)
+    // JSON_DECREF(jn_authz_desc)
     KW_DECREF(kw)
     return allow;
 }
