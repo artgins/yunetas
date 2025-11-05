@@ -1023,7 +1023,7 @@ PRIVATE json_t *mt_authenticate(hgobj gobj, json_t *kw, hgobj src)
         gobj_log_info(gobj, 0,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_AUTH,
-            "msg",          "%s", "Username has not authz in service",
+            "msg",          "%s", "User has not authz in service",
             "user",         "%s", username,
             "service",      "%s", dst_service,
             NULL
@@ -1034,7 +1034,7 @@ PRIVATE json_t *mt_authenticate(hgobj gobj, json_t *kw, hgobj src)
         KW_DECREF(kw)
         return json_pack("{s:i, s:s, s:s, s:s}",
             "result", -1,
-            "comment", "Username has not authz in service",
+            "comment", "User has not authz in service",
             "dst_service", dst_service,
             "username", username
         );
@@ -2814,7 +2814,7 @@ PRIVATE int check_password(
         gobj_log_warning(gobj, 0,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_AUTH_ERROR,
-            "msg",          "%s", "Username not exist",
+            "msg",          "%s", "User not exist",
             "username",     "%s", username,
             NULL
         );
