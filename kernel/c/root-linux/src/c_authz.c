@@ -635,18 +635,40 @@ PRIVATE int mt_stop(hgobj gobj)
 PRIVATE json_t *mt_authenticate(hgobj gobj, json_t *kw, hgobj src)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
-    const char *peername = gobj_read_str_attr(src, "peername");
     const char *jwt= kw_get_str(gobj, kw, "jwt", "", 0);
-    const char *username = "";
+    const char *username = kw_get_str(gobj, kw, "username", "", 0);
+    const char *peername;
+    if(gobj_has_attr(src, "peername")) {
+        peername = gobj_read_str_attr(src, "peername");
+    } else {
+        peername = kw_get_str(gobj, kw, "peername", "", 0);
+    }
 
+    /*-----------------------------*
+     *  peername is required
+     *-----------------------------*/
+    if(empty_string(peername)) {
+        gobj_log_info(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_AUTH,
+            "msg",          "%s", "Destination service not found",
+            "user",         "%s", username,
+            NULL
+        );
+        KW_DECREF(kw)
+        return json_pack("{s:i, s:s}",
+            "result", -1,
+            "comment", "Peername is required"
+        );
+    }
     /*-----------------------------*
      *  Get destination service
      *-----------------------------*/
     const char *dst_service = kw_get_str(gobj,
         kw,
         "__md_iev__`ievent_gate_stack`0`dst_service",
-        "",
-        KW_REQUIRED
+        kw_get_str(gobj, kw, "dst_service", "", 0),
+        0
     );
     if(!gobj_find_service(dst_service, FALSE)) {
         gobj_log_info(gobj, 0,

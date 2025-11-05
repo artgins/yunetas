@@ -460,8 +460,9 @@ PRIVATE int ac_on_open(hgobj gobj, const char *event, json_t *kw, hgobj src)
         }
         username = "yuneta";
     } else {
-        json_t *auth = gobj_authenticate(gobj, kw, src);
+        json_t *auth = gobj_authenticate(gobj, kw_incref(kw), src);
         authorization = COMMAND_RESULT(gobj, auth);
+        JSON_DECREF(auth)
     }
 
     if(authorization < 0) {
