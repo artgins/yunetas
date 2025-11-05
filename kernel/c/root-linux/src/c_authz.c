@@ -636,7 +636,9 @@ PRIVATE json_t *mt_authenticate(hgobj gobj, json_t *kw, hgobj src)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
     const char *jwt= kw_get_str(gobj, kw, "jwt", "", 0);
+    json_t *jwt_payload = NULL;
     const char *username = kw_get_str(gobj, kw, "username", "", 0);
+    const char *password = kw_get_str(gobj, kw, "password", "", 0);
     const char *peername;
     if(gobj_has_attr(src, "peername")) {
         peername = gobj_read_str_attr(src, "peername");
@@ -661,6 +663,7 @@ PRIVATE json_t *mt_authenticate(hgobj gobj, json_t *kw, hgobj src)
             "comment", "Peername is required"
         );
     }
+
     /*-----------------------------*
      *  Get destination service
      *-----------------------------*/
@@ -709,31 +712,6 @@ PRIVATE json_t *mt_authenticate(hgobj gobj, json_t *kw, hgobj src)
                 "comment", "Ip denied"
             );
         }
-        struct passwd *pw = getpwuid(getuid());
-        username = pw->pw_name;
-
-        if(is_yuneta_user(username)) {
-            username = "yuneta";
-        } else {
-            json_t *user = identify_system_user(gobj, &username, TRUE, FALSE);
-            if(!user) {
-                gobj_log_info(gobj, 0,
-                    "function",     "%s", __FUNCTION__,
-                    "msgset",       "%s", MSGSET_AUTH,
-                    "msg",          "%s", "System user not found or not authorized",
-                    "user",         "%s", username,
-                    "service",      "%s", dst_service,
-                    NULL
-                );
-                KW_DECREF(kw)
-                return json_pack("{s:i, s:s, s:s}",
-                    "result", -1,
-                    "comment", "System user not found or not authorized",
-                    "username", username
-                );
-            }
-            json_decref(user);
-        }
 
         char *comment = "";
         do {
@@ -742,6 +720,54 @@ PRIVATE json_t *mt_authenticate(hgobj gobj, json_t *kw, hgobj src)
                  *  IP autorizada sin user/passw, usa logged user
                  */
                 comment = "Registered Ip allowed";
+
+                /*
+                 *  Autorizado
+                 */
+                gobj_log_info(gobj, 0,
+                    "function",     "%s", __FUNCTION__,
+                    "msgset",       "%s", MSGSET_AUTH,
+                    "msg",          "%s", comment,
+                    "user",         "%s", username,
+                    "service",      "%s", dst_service,
+                    NULL
+                );
+                break;
+            }
+
+            if(!empty_string(password)) {
+                int authorization = check_password(gobj, username, password);
+                if(authorization < 0) {
+                    /*
+                     *  Only localhost is allowed without jwt
+                     */
+                    gobj_log_info(gobj, 0,
+                        "function",     "%s", __FUNCTION__,
+                        "msgset",       "%s", MSGSET_AUTH,
+                        "msg",          "%s", "User is not allowed",
+                        "user",         "%s", username,
+                        "service",      "%s", dst_service,
+                        NULL
+                    );
+                    KW_DECREF(kw)
+                    return json_pack("{s:i, s:s}",
+                        "result", -1,
+                        "comment", "User is not allowed"
+                    );
+                }
+                comment = "User with password";
+
+                /*
+                 *  Autorizado
+                 */
+                gobj_log_info(gobj, 0,
+                    "function",     "%s", __FUNCTION__,
+                    "msgset",       "%s", MSGSET_AUTH,
+                    "msg",          "%s", comment,
+                    "user",         "%s", username,
+                    "service",      "%s", dst_service,
+                    NULL
+                );
                 break;
             }
 
@@ -765,104 +791,91 @@ PRIVATE json_t *mt_authenticate(hgobj gobj, json_t *kw, hgobj src)
                 );
             }
             comment = "Local Ip allowed";
+
+            /*
+             *  Autorizado
+             */
+            gobj_log_info(gobj, 0,
+                "function",     "%s", __FUNCTION__,
+                "msgset",       "%s", MSGSET_AUTH,
+                "msg",          "%s", comment,
+                "user",         "%s", username,
+                "service",      "%s", dst_service,
+                NULL
+            );
+            break;
+
         } while(0);
 
-        /*------------------------------------------------*
-         *  HACK guarda username en src (IEvent_srv)
-         *------------------------------------------------*/
-        if(gobj_has_attr(src, "__username__")) {
-            gobj_write_str_attr(src, "__username__", username);
+    } else {
+        /*-------------------------------*
+         *      HERE user with JWT
+         *-------------------------------*/
+        const char *status = NULL;
+
+        if(!verify_token(gobj, jwt, &jwt_payload, &status)) {
+            char temp[512];
+            snprintf(temp, sizeof(temp), "%s", status);
+            gobj_log_warning(gobj, 0,
+                "function",     "%s", __FUNCTION__,
+                "msgset",       "%s", MSGSET_AUTH,
+                "msg",          "%s", "Bad jwt token",
+                "status",       "%s", temp,
+                "user",         "%s", username,
+                "service",      "%s", dst_service,
+                "jwt",          "%s", jwt,
+                NULL
+            );
+            JSON_DECREF(jwt_payload);
+            KW_DECREF(kw)
+            return json_pack("{s:i, s:s, s:s}",
+                "result", -1,
+                "comment", temp,
+                "username", username
+            );
         }
 
-        /*
-         *  Autorizado
-         */
-        gobj_log_info(gobj, 0,
-            "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_AUTH,
-            "msg",          "%s", "LOGIN: Local Ip allowed",
-            "user",         "%s", username,
-            "service",      "%s", dst_service,
-            NULL
-        );
-        KW_DECREF(kw)
-        return json_pack("{s:i, s:s, s:s, s:s, s:{}, s:o}",
-            "result", 0,
-            "comment", comment,
-            "username", username,
-            "dst_service", dst_service,
-            "services_roles",
-            "jwt_payload", json_null()
-        );
+        /*-------------------------------------------------*
+         *  Get username and validate against our system
+         *-------------------------------------------------*/
+        username = kw_get_str(gobj, jwt_payload, "email", "", KW_REQUIRED);
+        BOOL email_verified = kw_get_bool(gobj, jwt_payload, "email_verified", FALSE, KW_REQUIRED);
+        if(!email_verified) {
+            gobj_log_info(gobj, 0,
+                "function",     "%s", __FUNCTION__,
+                "msgset",       "%s", MSGSET_AUTH,
+                "msg",          "%s", "Email not verified",
+                "user",         "%s", username,
+                "service",      "%s", dst_service,
+                NULL
+            );
+            JSON_DECREF(jwt_payload);
+            KW_DECREF(kw)
+            return json_pack("{s:i, s:s, s:s}",
+                "result", -1,
+                "comment", "Email not verified",
+                "username", username
+            );
+        }
+        if(!strchr(username, '@')) {
+            gobj_log_info(gobj, 0,
+                "function",     "%s", __FUNCTION__,
+                "msgset",       "%s", MSGSET_AUTH,
+                "msg",          "%s", "Username must be an email address",
+                "user",         "%s", username,
+                "service",      "%s", dst_service,
+                NULL
+            );
+            JSON_DECREF(jwt_payload);
+            KW_DECREF(kw)
+            return json_pack("{s:i, s:s, s:s}",
+                "result", -1,
+                "comment", "Username must be an email address",
+                "username", username
+            );
+        }
     }
 
-    /*-------------------------------*
-     *      HERE with user JWT
-     *-------------------------------*/
-    json_t *jwt_payload = NULL;
-    const char *status = NULL;
-
-    if(!verify_token(gobj, jwt, &jwt_payload, &status)) {
-        char temp[512];
-        snprintf(temp, sizeof(temp), "%s", status);
-        gobj_log_warning(gobj, 0,
-            "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_AUTH,
-            "msg",          "%s", "NO verify_token",
-            "status",       "%s", temp,
-            "user",         "%s", username,
-            "service",      "%s", dst_service,
-            "jwt",          "%s", jwt,
-            NULL
-        );
-        JSON_DECREF(jwt_payload);
-        KW_DECREF(kw)
-        return json_pack("{s:i, s:s, s:s}",
-            "result", -1,
-            "comment", status,
-            "username", username
-        );
-    }
-
-    /*-------------------------------------------------*
-     *  Get username and validate against our system
-     *-------------------------------------------------*/
-    username = kw_get_str(gobj, jwt_payload, "email", "", KW_REQUIRED);
-    BOOL email_verified = kw_get_bool(gobj, jwt_payload, "email_verified", FALSE, KW_REQUIRED);
-    if(!email_verified) {
-        gobj_log_info(gobj, 0,
-            "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_AUTH,
-            "msg",          "%s", "Email not verified",
-            "user",         "%s", username,
-            "service",      "%s", dst_service,
-            NULL
-        );
-        JSON_DECREF(jwt_payload);
-        KW_DECREF(kw)
-        return json_pack("{s:i, s:s, s:s}",
-            "result", -1,
-            "comment", "Email not verified",
-            "username", username
-        );
-    }
-    if(!strchr(username, '@')) {
-        gobj_log_info(gobj, 0,
-            "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_AUTH,
-            "msg",          "%s", "Username must be an email address",
-            "user",         "%s", username,
-            "service",      "%s", dst_service,
-            NULL
-        );
-        JSON_DECREF(jwt_payload);
-        KW_DECREF(kw)
-        return json_pack("{s:i, s:s, s:s}",
-            "result", -1,
-            "comment", "Username must be an email address",
-            "username", username
-        );
-    }
     json_t *user = gobj_get_node(
         priv->gobj_treedb,
         "users",
@@ -890,14 +903,14 @@ PRIVATE json_t *mt_authenticate(hgobj gobj, json_t *kw, hgobj src)
         gobj_log_info(gobj, 0,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_AUTH,
-            "msg",          "%s", "User not authorized",
+            "msg",          "%s", "User not exits",
             "user",         "%s", username,
             "service",      "%s", dst_service,
             NULL
         );
         json_t *jn_msg = json_pack("{s:i, s:s, s:s}",
             "result", -1,
-            "comment", "User not authorized",
+            "comment", "User not exist",
             "username", username
         );
         JSON_DECREF(jwt_payload);
@@ -927,10 +940,14 @@ PRIVATE json_t *mt_authenticate(hgobj gobj, json_t *kw, hgobj src)
     }
 
     /*----------------------------------------------------------*
-     *  HACK guarda username, jwt_payload en src (IEvent_srv)
+     *  HACK save username, jwt_payload in src (IEvent_srv)
      *----------------------------------------------------------*/
-    gobj_write_str_attr(src, "__username__", username);
-    gobj_write_json_attr(src, "jwt_payload", jwt_payload);
+    if(gobj_has_attr(src, "__username__")) {
+        gobj_write_str_attr(src, "__username__", username);
+    }
+    if(gobj_has_attr(src, "jwt_payload")) {
+        gobj_write_json_attr(src, "jwt_payload", jwt_payload);
+    }
 
     /*------------------------------*
      *      Save user access
