@@ -770,7 +770,9 @@ PRIVATE json_t *mt_authenticate(hgobj gobj, json_t *kw, hgobj src)
         /*------------------------------------------------*
          *  HACK guarda username en src (IEvent_srv)
          *------------------------------------------------*/
-        gobj_write_str_attr(src, "__username__", username);
+        if(gobj_has_attr(src, "__username__")) {
+            gobj_write_str_attr(src, "__username__", username);
+        }
 
         /*
          *  Autorizado

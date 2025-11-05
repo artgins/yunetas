@@ -245,7 +245,7 @@ PRIVATE int mt_play(hgobj gobj)
         "on_critical_error", (int)gobj_read_integer_attr(gobj, "on_critical_error")
     );
     priv->gobj_tranger_clients = gobj_create_service(
-        "gobj_tranger_clients",
+        "mqtt-broker-clients",
         C_TRANGER,
         kw_tranger,
         gobj
@@ -458,8 +458,9 @@ PRIVATE int ac_on_open(hgobj gobj, const char *event, json_t *kw, hgobj src)
                 NULL
             );
         }
-        username = "yuneta";
+
     } else {
+        json_object_set_new(kw, "dst_service", json_string("mqtt-broker-clients"));
         json_t *auth = gobj_authenticate(gobj, kw_incref(kw), src);
         authorization = COMMAND_RESULT(gobj, auth);
         JSON_DECREF(auth)
