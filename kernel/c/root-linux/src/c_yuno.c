@@ -4862,7 +4862,7 @@ PRIVATE int set_limit_open_files(hgobj gobj, json_int_t limit_open_files)
         gobj_write_integer_attr(gobj, "limit_open_files_done", -1);
     }
 
-    gobj_log_info(gobj, 0,
+    gobj_log_debug(gobj, 0,
         "function",     "%s", __FUNCTION__,
         "msgset",       "%s", MSGSET_INFO,
         "msg",          "%s", "getrlimit()",

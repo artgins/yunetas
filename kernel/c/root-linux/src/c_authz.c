@@ -3738,7 +3738,14 @@ PUBLIC BOOL authz_checker(hgobj gobj_to_check, const char *authz, json_t *kw, hg
    Authenticate user
    If we are here is because gobj_service has no authentication parser,
    then use this global parser
- ***************************************************************************/
+
+    Return json response
+        {
+            "result": 0,        // 0 successful authentication, -1 error
+            "comment": "",
+            "username": ""      // username authenticated
+        }
+***************************************************************************/
 PUBLIC json_t *authentication_parser(hgobj gobj_service, json_t *kw, hgobj src)
 {
     hgobj gobj = gobj_find_service_by_gclass(C_AUTHZ, TRUE);
@@ -3748,8 +3755,9 @@ PUBLIC json_t *authentication_parser(hgobj gobj_service, json_t *kw, hgobj src)
          *  If the service is not found, deny all.
          */
         KW_DECREF(kw)
-        return json_pack("{s:i, s:s}",
+        return json_pack("{s:i, s:s, s:s}",
             "result", -1,
+            "username", "",
             "comment", "Authz gclass not found"
         );
     }
