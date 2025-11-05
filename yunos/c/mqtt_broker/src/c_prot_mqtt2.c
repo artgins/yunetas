@@ -4165,6 +4165,7 @@ PRIVATE int handle__connect(hgobj gobj, gbuffer_t *gbuf)
 
     //mosquitto__set_state(context, mosq_cs_active);
 
+    priv->must_broadcast_on_close = TRUE;
     int ret = gobj_publish_event(gobj, EV_ON_OPEN, client);
     if(ret < 0) {
         if(ret == -2) {
@@ -4191,7 +4192,6 @@ PRIVATE int handle__connect(hgobj gobj, gbuffer_t *gbuf)
 
     gobj_write_bool_attr(gobj, "in_session", TRUE);
     gobj_write_bool_attr(gobj, "send_disconnect", TRUE);
-    priv->must_broadcast_on_close = TRUE;
 
     // db__message_write_queued_out(context); TODO
     //db__message_write_inflight_out_all(context); TODO
@@ -4991,7 +4991,6 @@ PRIVATE int ac_connected(hgobj gobj, const char *event, json_t *kw, hgobj src)
 
     gobj_reset_volatil_attrs(gobj);
     priv->send_disconnect = FALSE;
-    gobj_write_bool_attr(gobj, "connected", TRUE);
     GBUFFER_DECREF(priv->gbuf_will_payload);
     priv->jn_alias_list = json_object();
 
@@ -5033,7 +5032,7 @@ PRIVATE int ac_disconnected(hgobj gobj, const char *event, json_t *kw, hgobj src
         istream_destroy(priv->istream_payload);
         priv->istream_payload = 0;
     }
-    if (priv->must_broadcast_on_close) {
+    if(priv->must_broadcast_on_close) {
         priv->must_broadcast_on_close = FALSE;
 
         json_t *kw2 = json_pack("s:s",
@@ -5044,10 +5043,6 @@ PRIVATE int ac_disconnected(hgobj gobj, const char *event, json_t *kw, hgobj src
     clear_timeout(priv->timer);
 
     JSON_DECREF(priv->jn_alias_list)
-
-    gobj_write_str_attr(gobj, "client_id", "");
-    gobj_write_str_attr(gobj, "username", "");
-    gobj_write_bool_attr(gobj, "connected", FALSE);
 
     // TODO new dl_flush(&priv->dl_msgs_in, db_free_client_msg);
     // TODO new dl_flush(&priv->dl_msgs_out, db_free_client_msg);
