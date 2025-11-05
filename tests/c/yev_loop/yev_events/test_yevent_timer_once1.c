@@ -192,7 +192,7 @@ int main(int argc, char *argv[])
         NULL,   // global_command_parser
         NULL,   // global_stats_parser
         NULL,   // global_authz_checker
-        NULL    // global_authenticate_parser
+        NULL    // global_authentication_parser
     );
 
     yuno_catch_signals();

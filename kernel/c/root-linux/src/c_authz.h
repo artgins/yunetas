@@ -43,7 +43,7 @@ GOBJ_DECLARE_EVENT(EV_AUTHZ_USER_NEW);
 PUBLIC int register_c_authz(void);
 
 PUBLIC BOOL authz_checker(hgobj gobj_to_check, const char *authz, json_t *kw, hgobj src);
-PUBLIC json_t *authenticate_parser(hgobj gobj_service, json_t *kw, hgobj src);
+PUBLIC json_t *authentication_parser(hgobj gobj_service, json_t *kw, hgobj src);
 
 #ifdef __cplusplus
 }

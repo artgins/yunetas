@@ -460,6 +460,7 @@ PRIVATE int ac_on_open(hgobj gobj, const char *event, json_t *kw, hgobj src)
         }
         username = "yuneta";
     } else {
+        //json_t *auth = authentication_parser(hgobj gobj_service, json_t *kw, hgobj src)
         int x;
         // TODO authorization = check_password(gobj, username, password);
     }

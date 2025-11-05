@@ -3736,10 +3736,10 @@ PUBLIC BOOL authz_checker(hgobj gobj_to_check, const char *authz, json_t *kw, hg
 
 /***************************************************************************
    Authenticate user
-   If we are here is because gobj_service has not authenticate parser,
+   If we are here is because gobj_service has no authentication parser,
    then use this global parser
  ***************************************************************************/
-PUBLIC json_t *authenticate_parser(hgobj gobj_service, json_t *kw, hgobj src)
+PUBLIC json_t *authentication_parser(hgobj gobj_service, json_t *kw, hgobj src)
 {
     hgobj gobj = gobj_find_service_by_gclass(C_AUTHZ, TRUE);
     if(!gobj) {

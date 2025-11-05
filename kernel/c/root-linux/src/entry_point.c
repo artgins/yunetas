@@ -81,7 +81,7 @@ PRIVATE json_function_fn __command_parser_fn__ = command_parser;
 PRIVATE json_function_fn __stats_parser_fn__ = stats_parser;
 
 PRIVATE authorization_checker_fn __authz_checker_fn__ = authz_checker;
-PRIVATE authentication_parser_fn __authenticate_parser_fn__ = authenticate_parser;
+PRIVATE authentication_parser_fn __authentication_parser_fn__ = authentication_parser;
 
 uint64_t MEM_MIN_BLOCK = 512;                     /* smaller memory block */
 uint64_t MEM_MAX_BLOCK = 16*1024LL*1024LL;         /* largest memory block */
@@ -283,7 +283,7 @@ PUBLIC int yuneta_setup(
     json_function_fn            command_parser,         // default internal command_parser
     json_function_fn            stats_parser,           // default internal stats_parser
     authorization_checker_fn    authz_checker,          // default Monoclass C_AUTHZ
-    authentication_parser_fn    authenticate_parser,    // default Monoclass C_AUTHZ
+    authentication_parser_fn    authentication_parser,    // default Monoclass C_AUTHZ
     size_t                      mem_max_block,
     size_t                      mem_max_system_memory,
     BOOL                        use_own_system_memory,
@@ -309,8 +309,8 @@ PUBLIC int yuneta_setup(
     if(authz_checker) {
         __authz_checker_fn__ = authz_checker;
     }
-    if(authenticate_parser) {
-        __authenticate_parser_fn__ = authenticate_parser;
+    if(authentication_parser) {
+        __authentication_parser_fn__ = authentication_parser;
     }
 
     USE_OWN_SYSTEM_MEMORY = use_own_system_memory;
@@ -523,7 +523,7 @@ PUBLIC int yuneta_entry_point(int argc, char *argv[],
         __command_parser_fn__,
         __stats_parser_fn__,
         __authz_checker_fn__,
-        __authenticate_parser_fn__
+        __authentication_parser_fn__
     );
 
     /*------------------------------------------------*
