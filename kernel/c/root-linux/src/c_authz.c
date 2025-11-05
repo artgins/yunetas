@@ -270,10 +270,10 @@ SDATA_END()
  *      Attributes - order affect to oid's
  *---------------------------------------------*/
 PRIVATE sdata_desc_t attrs_table[] = {
-/*-ATTR-type------------name----------------flag----------------default-----description---------- */
-SDATA (DTP_INTEGER,     "max_sessions_per_user",SDF_PERSIST,    "1",        "Max sessions per user"),
-SDATA (DTP_JSON,        "jwks",                 SDF_WR|SDF_PERSIST, "[]",   "JWKS public keys, OLD jwt_public_keys, use the utility keycloak_pkey_to_jwks to create."),
-SDATA (DTP_JSON,        "initial_load",         SDF_RD,         "{}",       "Initial data for treedb"),
+/*-ATTR-type--------name----------------flag--------default-----description---------- */
+SDATA (DTP_INTEGER, "max_sessions_per_user",SDF_PERSIST,    "1",        "Max sessions per user"),
+SDATA (DTP_JSON,    "jwks",                 SDF_WR|SDF_PERSIST, "[]",   "JWKS public keys, OLD jwt_public_keys, use the utility keycloak_pkey_to_jwks to create."),
+SDATA (DTP_JSON,    "initial_load",         SDF_RD,         "{}",       "Initial data for treedb"),
 /*
  *  HACK WARNING 2024-Nov-13: use of "tranger_path" to determine if this instance is master or not.
  *  If tranger_path is empty, then
@@ -281,12 +281,16 @@ SDATA (DTP_JSON,        "initial_load",         SDF_RD,         "{}",       "Ini
  *  if it's not empty:
  *      use master as set externally
  */
-SDATA (DTP_STRING,      "tranger_path",     SDF_RD,             "",         "Tranger path, internal value (or not)"),
-SDATA (DTP_STRING,      "authz_yuno_role",  SDF_RD,             "",         "If tranger_path is empty you can force the yuno_role where build the authz. If authz_yuno_role is empty get it from this yuno."),
-SDATA (DTP_BOOLEAN,     "master",           SDF_RD,             "0",        "the master is the only that can write, if tranger_path is empty is set to TRUE internally"),
-SDATA (DTP_POINTER,     "user_data",        0,                  0,          "user data"),
-SDATA (DTP_POINTER,     "user_data2",       0,                  0,          "more user data"),
-SDATA (DTP_POINTER,     "subscriber",       0,                  0,          "subscriber of output-events. Not a child gobj."),
+SDATA (DTP_STRING,  "tranger_path",     SDF_RD,     "",         "Tranger path, internal value (or not)"),
+SDATA (DTP_STRING,  "authz_yuno_role",  SDF_RD,     "",         "If tranger_path is empty you can force the yuno_role where build the authz. If authz_yuno_role is empty get it from this yuno."),
+SDATA (DTP_BOOLEAN, "master",           SDF_RD,     "0",        "the master is the only that can write, if tranger_path is empty is set to TRUE internally"),
+
+SDATA (DTP_INTEGER, "hashIterations",   0,          "27500",    "Default To build a password"),
+SDATA (DTP_STRING,  "algorithm",        0,          "sha256",   "Default To build a password"),
+
+SDATA (DTP_POINTER, "user_data",        0,          0,          "user data"),
+SDATA (DTP_POINTER, "user_data2",       0,          0,          "more user data"),
+SDATA (DTP_POINTER, "subscriber",       0,          0,          "subscriber of output-events. Not a child gobj."),
 SDATA_END()
 };
 
@@ -744,7 +748,7 @@ PRIVATE json_t *mt_authenticate(hgobj gobj, json_t *kw, hgobj src)
                     gobj_log_info(gobj, 0,
                         "function",     "%s", __FUNCTION__,
                         "msgset",       "%s", MSGSET_AUTH,
-                        "msg",          "%s", "User is not allowed",
+                        "msg",          "%s", "Bad user/pwd",
                         "user",         "%s", username,
                         "service",      "%s", dst_service,
                         NULL
@@ -752,10 +756,10 @@ PRIVATE json_t *mt_authenticate(hgobj gobj, json_t *kw, hgobj src)
                     KW_DECREF(kw)
                     return json_pack("{s:i, s:s}",
                         "result", -1,
-                        "comment", "User is not allowed"
+                        "comment", "Bad user/pwd"
                     );
                 }
-                comment = "User with password";
+                comment = "User authenticated with password";
 
                 /*
                  *  Autorizado
@@ -874,6 +878,20 @@ PRIVATE json_t *mt_authenticate(hgobj gobj, json_t *kw, hgobj src)
                 "username", username
             );
         }
+
+        const char *comment = "User authenticated with jwt";
+
+        /*
+         *  Autorizado
+         */
+        gobj_log_info(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_AUTH,
+            "msg",          "%s", comment,
+            "user",         "%s", username,
+            "service",      "%s", dst_service,
+            NULL
+        );
     }
 
     json_t *user = gobj_get_node(
@@ -2844,13 +2862,6 @@ PRIVATE int check_password(
             algorithm,
             hashIterations
         )==0) {
-            gobj_log_info(gobj, 0,
-                "function",     "%s", __FUNCTION__,
-                "msgset",       "%s", MSGSET_INFO,
-                "msg",          "%s", "Username authorized",
-                "username",     "%s", username,
-                NULL
-            );
             JSON_DECREF(user)
             return 0;
         }
@@ -2859,7 +2870,7 @@ PRIVATE int check_password(
     gobj_log_warning(gobj, 0,
         "function",     "%s", __FUNCTION__,
         "msgset",       "%s", MSGSET_AUTH_ERROR,
-        "msg",          "%s", "Username not authorized",
+        "msg",          "%s", "User pwd not matched",
         "username",     "%s", username,
         NULL
     );
@@ -3237,7 +3248,7 @@ PRIVATE json_t *get_user_permissions(
 PRIVATE int add_user_login(
     hgobj gobj,
     const char *username,
-    json_t *jwt_payload,
+    json_t *jwt_payload, // not owned
     const char *peername
 )
 {
@@ -3247,18 +3258,20 @@ PRIVATE int add_user_login(
         /*
          *  Crea user en users_accesses
          */
-        json_t *access = json_pack("{s:s, s:s, s:I, s:s, s:O}",
+        json_t *accesso = json_pack("{s:s, s:s, s:I, s:s}",
             "id", username,
             "ev", "login",
             "tm", (json_int_t)time_in_seconds(),
-            "ip", peername,
-            "jwt_payload", jwt_payload
+            "ip", peername
         );
+        if(jwt_payload) {
+            json_object_set(accesso, "jwt_payload", jwt_payload);
+        }
 
         json_decref(gobj_update_node(
             priv->gobj_treedb,
             "users_accesses",
-            access, // owned
+            accesso, // owned
             json_pack("{s:b}",
                 "create", 1
             ),
@@ -3429,8 +3442,8 @@ PRIVATE int ac_create_user(hgobj gobj, const char *event, json_t *kw, hgobj src)
     const char *username = kw_get_str(gobj, kw, "username", "", KW_REQUIRED);
     const char *role = kw_get_str(gobj, kw, "role", "", 0);
     BOOL disabled = kw_get_bool(gobj, kw, "disabled", 0, 0);
-    json_t *credentials = kw_get_dict(gobj, kw, "credentials", 0, 0);
-    json_t *properties = kw_get_dict(gobj, kw, "properties", 0, 0);
+    json_t *credentials = kw_get_dict_value(gobj, kw, "credentials", 0, 0);
+    json_t *properties = kw_get_dict_value(gobj, kw, "properties", 0, 0);
 
     time_t t;
     time(&t);

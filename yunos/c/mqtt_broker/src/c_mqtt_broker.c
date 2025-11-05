@@ -82,9 +82,6 @@ SDATA (DTP_BOOLEAN, "use_internal_schema",SDF_PERSIST, "1",     "Use internal (h
 
 SDATA (DTP_BOOLEAN, "allow_anonymous",  SDF_PERSIST, "0",       "Boolean value that determines whether clients that connect without providing a username are allowed to connect. If set to TRUE  connections are only allowed from the local machine)."),
 
-SDATA (DTP_INTEGER, "hashIterations",   0,          "27500",    "Default To build a password"),
-SDATA (DTP_STRING,  "algorithm",        0,          "sha256",   "Default To build a password"),
-
 SDATA (DTP_INTEGER, "on_critical_error",SDF_RD,     "2",        "LOG_OPT_EXIT_ZERO exit on error (Zero to avoid restart)"),
 SDATA (DTP_POINTER, "subscriber",       0,          0,          "Subscriber of output-events. If it's null then the subscriber is the parent."),
 SDATA (DTP_INTEGER, "timeout",          SDF_RD,     "1000",     "Timeout"),
