@@ -79,13 +79,13 @@ import "./ui/lib_graph.css";
 /************************************************
  *          Data
  ************************************************/
-const yuno_name = "Hidraulia Connect GUI";
-const yuno_role = "hidrauliaconnect_gui";
-const yuno_version = "7.1.0";
+const yuno_name = "TreeDB GUI";
+const yuno_role = "treedb_gui";
+const yuno_version = "7.0.0";
 
-const remote_yuno_role = "db_history";
-const remote_yuno_service = "db_history";
-const required_services = ["treedb_airedb", "treedb_authzs"];
+const remote_yuno_role = "db_authzs";
+const remote_yuno_service = "db_authzs";
+const required_services = ["treedb_authzs"];
 
 /*
  *  TEST Trace Simple Machine
@@ -148,11 +148,6 @@ function main()
      */
     register_c_yuneta_gui();
     register_c_login();
-    register_c_ui_alarms();
-    register_c_ui_device_sonda();
-    register_c_ui_historical_chart();
-    register_c_ui_monitoring_group();
-    register_c_ui_monitoring();
     register_c_ui_todo();
 
     /*

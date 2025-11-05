@@ -126,19 +126,6 @@ let es = {
         "power": "Potencia",
         "unit": "Unidad",
 
-        "enchufe.power_on": "Encendido",
-        "enchufe.total": "Consumo total",
-        "enchufe.yesterday": "Consumo ayer",
-        "enchufe.today": "Consumo hoy",
-        "enchufe.power": "Potencia activa",
-        "enchufe.apparentPower": "Potencia Aparente",
-        "enchufe.reactivePower": "Potencia Reactiva",
-        "enchufe.current": "Intensidad",
-        "enchufe.voltage": "Voltaje",
-        "enchufe.temperature": "Temperatura",
-        "enchufe.factor": "Factor de potencia",
-        "enchufe.period": "Periodo",
-
         "Remove all selected options": "Borrar todas las opciones seleccionadas",
         "alarm_colors": "Colores alarmas",
         "active_not_validated": "Activa, no-validada",
@@ -172,23 +159,6 @@ let es = {
         "Notified": "Notificada a:",
 
         'Inicio': 'Inicio',
-        'Quality Air Device & Platform': 'Dispositivo y Plataforma de Calidad del Aire',
-        'Quality Air Device & Smart Platform': 'Dispositivo de Calidad del Aire y Plataforma Inteligente',
-        'Next-Gen Air Quality Device': 'Dispositivo de Calidad del Aire de Próxima Generación',
-        'Monitor and improve your indoor air quality with real-time insights and alerts':
-            'Monitorea y mejora la calidad del aire en tu hogar con información y alertas en tiempo real',
-        'Smart Air Quality Platform': 'Plataforma Inteligente de Calidad del Aire',
-        'Analyze trends, get health recommendations, and connect with smart home systems':
-            'Analiza tendencias, recibe recomendaciones de salud y conéctate con sistemas inteligentes para el hogar',
-        'Why Choose Our Solution?': '¿Por qué elegir nuestra solución?',
-        'Real-time air quality monitoring': 'Monitoreo de calidad del aire en tiempo real',
-        'Smart alerts and recommendations': 'Alertas inteligentes y recomendaciones',
-        'Integration with IoT and smart home devices': 'Integración con dispositivos IoT y sistemas inteligentes',
-        'Easy-to-use dashboard with detailed reports': 'Panel fácil de usar con informes detallados',
-        'What Our Users Say': 'Lo que dicen nuestros usuarios',
-        '"Ever since I installed this device, my home\'s air quality has significantly improved!" - Jane D.':
-            '"Desde que instalé este dispositivo, la calidad del aire en mi hogar ha mejorado significativamente!" - Jane D.',
-        'Get Your Device Now': 'Obtén tu dispositivo ahora',
 
         'xxx': 'ultima entrada NO TOCAR, insertar antes'
     }

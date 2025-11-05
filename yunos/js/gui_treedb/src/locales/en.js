@@ -126,19 +126,6 @@ var en = {
         "power": "Power",
         "unit": "Unit",
 
-        "enchufe.power_on": "Power On",
-        "enchufe.total": "Energy total",
-        "enchufe.yesterday": "Energy Yesterday",
-        "enchufe.today": "Energy today",
-        "enchufe.power": "Active power",
-        "enchufe.apparentPower": "Apparent Power",
-        "enchufe.reactivePower": "Reactive Power",
-        "enchufe.current": "Current",
-        "enchufe.voltage": "Voltage",
-        "enchufe.temperature": "Temperature",
-        "enchufe.factor": "Power factor",
-        "enchufe.period": "Period",
-
         "Remove all selected options": "Remove all selected options",
         "alarm_colors": "Alarm Colors",
         "active_not_validated": "Active, not-validated",
@@ -172,23 +159,6 @@ var en = {
         "Notified": "Notified to:",
 
         'Inicio': 'Home',
-        'Quality Air Device & Platform': 'Quality Air Device & Platform',
-        'Quality Air Device & Smart Platform': 'Quality Air Device & Smart Platform',
-        'Next-Gen Air Quality Device': 'Next-Gen Air Quality Device',
-        'Monitor and improve your indoor air quality with real-time insights and alerts':
-            'Monitor and improve your indoor air quality with real-time insights and alerts',
-        'Smart Air Quality Platform': 'Smart Air Quality Platform',
-        'Analyze trends, get health recommendations, and connect with smart home systems':
-            'Analyze trends, get health recommendations, and connect with smart home systems',
-        'Why Choose Our Solution?': 'Why Choose Our Solution?',
-        'Real-time air quality monitoring': 'Real-time air quality monitoring',
-        'Smart alerts and recommendations': 'Smart alerts and recommendations',
-        'Integration with IoT and smart home devices': 'Integration with IoT and smart home devices',
-        'Easy-to-use dashboard with detailed reports': 'Easy-to-use dashboard with detailed reports',
-        'What Our Users Say': 'What Our Users Say',
-        '"Ever since I installed this device, my home\'s air quality has significantly improved!" - Jane D.':
-            '"Ever since I installed this device, my home\'s air quality has significantly improved!" - Jane D.',
-        'Get Your Device Now': 'Get Your Device Now',
 
         'xxx': 'last entry DONT CHANGE, insert before'
     }
