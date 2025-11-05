@@ -1,0 +1,36 @@
+{
+    "name": "gui-treedb",
+    "private": true,
+    "version": "7.1.0",
+    "type": "module",
+    "scripts": {
+        "dev": "vite",
+        "build": "vite build",
+        "preview": "vite preview",
+        "test": "vitest",
+        "test:watch": "vitest --watch",
+        "test:coverage": "vitest --coverage"
+    },
+    "dependencies": {
+        "@antv/g6": "file:/home/gines/antv/G6-mine/packages/g6",
+        "@antv/s2": "^2.3.1",
+        "bootstrap-table": "^1.24.1",
+        "bulma": "^1.0.4",
+        "bulma-switch-control": "^1.2.2",
+        "i18next": "^25.0.1",
+        "jquery": "^3.7.1",
+        "luxon": "^3.6.1",
+        "maplibre-gl": "^5.4.0",
+        "tabulator-tables": "^6.3.1",
+        "tom-select": "^2.4.3",
+        "uplot": "^1.6.32",
+        "vanilla-jsoneditor": "0.23.8",
+        "yunetas": "file:../../../kernel/js/yunetas-js7/yunetas"
+    },
+    "devDependencies": {
+        "@rollup/plugin-terser": "^0.4.4",
+        "@vitest/coverage-v8": "^3.1.2",
+        "vite": "^6.3.3",
+        "vitest": "^3.1.2"
+    }
+}

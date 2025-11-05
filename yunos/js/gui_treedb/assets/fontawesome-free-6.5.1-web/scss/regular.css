@@ -1,0 +1,46 @@
+/*
+Error: Invalid CSS after "...style-family }'": expected "{", was ";"
+        on line 10 of regular.scss
+
+5:  *\/
+6: @import 'functions';
+7: @import 'variables';
+8: 
+9: :root, :host {
+10:   --#{$fa-css-prefix}-style-family-classic: '#{ $fa-style-family }';
+11:   --#{$fa-css-prefix}-font-regular: normal 400 1em/1 '#{ $fa-style-family }';
+12: }
+13: 
+14: @font-face {
+15:   font-family: 'Font Awesome 6 Free';
+
+Backtrace:
+regular.scss:10
+/var/lib/gems/3.1.0/gems/sass-3.4.25/lib/sass/scss/parser.rb:1207:in `expected'
+/var/lib/gems/3.1.0/gems/sass-3.4.25/lib/sass/scss/parser.rb:1137:in `expected'
+/var/lib/gems/3.1.0/gems/sass-3.4.25/lib/sass/scss/parser.rb:1132:in `tok!'
+/var/lib/gems/3.1.0/gems/sass-3.4.25/lib/sass/scss/parser.rb:665:in `block'
+/var/lib/gems/3.1.0/gems/sass-3.4.25/lib/sass/scss/parser.rb:735:in `declaration_or_ruleset'
+/var/lib/gems/3.1.0/gems/sass-3.4.25/lib/sass/scss/parser.rb:685:in `block_child'
+/var/lib/gems/3.1.0/gems/sass-3.4.25/lib/sass/scss/parser.rb:674:in `block_contents'
+/var/lib/gems/3.1.0/gems/sass-3.4.25/lib/sass/scss/parser.rb:666:in `block'
+/var/lib/gems/3.1.0/gems/sass-3.4.25/lib/sass/scss/parser.rb:658:in `ruleset'
+/var/lib/gems/3.1.0/gems/sass-3.4.25/lib/sass/scss/parser.rb:684:in `block_child'
+/var/lib/gems/3.1.0/gems/sass-3.4.25/lib/sass/scss/parser.rb:677:in `block_contents'
+/var/lib/gems/3.1.0/gems/sass-3.4.25/lib/sass/scss/parser.rb:125:in `stylesheet'
+/var/lib/gems/3.1.0/gems/sass-3.4.25/lib/sass/scss/parser.rb:41:in `parse'
+/var/lib/gems/3.1.0/gems/sass-3.4.25/lib/sass/engine.rb:409:in `_to_tree'
+/var/lib/gems/3.1.0/gems/sass-3.4.25/lib/sass/engine.rb:384:in `_render_with_sourcemap'
+/var/lib/gems/3.1.0/gems/sass-3.4.25/lib/sass/engine.rb:301:in `render_with_sourcemap'
+/var/lib/gems/3.1.0/gems/sass-3.4.25/lib/sass/exec/sass_scss.rb:391:in `run'
+/var/lib/gems/3.1.0/gems/sass-3.4.25/lib/sass/exec/sass_scss.rb:63:in `process_result'
+/var/lib/gems/3.1.0/gems/sass-3.4.25/lib/sass/exec/base.rb:52:in `parse'
+/var/lib/gems/3.1.0/gems/sass-3.4.25/lib/sass/exec/base.rb:19:in `parse!'
+/var/lib/gems/3.1.0/gems/sass-3.4.25/bin/sass:13:in `<top (required)>'
+/usr/local/bin/sass:25:in `load'
+/usr/local/bin/sass:25:in `<main>'
+*/
+body:before {
+  white-space: pre;
+  font-family: monospace;
+  content: "Error: Invalid CSS after \"...style-family }'\": expected \"{\", was \";\"\A         on line 10 of regular.scss\A \A 5:  */\A 6: @import 'functions';\A 7: @import 'variables';\A 8: \A 9: :root, :host {\A 10:   --#{$fa-css-prefix}-style-family-classic: '#{ $fa-style-family }';\A 11:   --#{$fa-css-prefix}-font-regular: normal 400 1em/1 '#{ $fa-style-family }';\A 12: }\A 13: \A 14: @font-face {\A 15:   font-family: 'Font Awesome 6 Free';"; }

@@ -1,0 +1,64 @@
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<svg
+   xmlns:dc="http://purl.org/dc/elements/1.1/"
+   xmlns:cc="http://creativecommons.org/ns#"
+   xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#"
+   xmlns:svg="http://www.w3.org/2000/svg"
+   xmlns="http://www.w3.org/2000/svg"
+   xmlns:sodipodi="http://sodipodi.sourceforge.net/DTD/sodipodi-0.dtd"
+   xmlns:inkscape="http://www.inkscape.org/namespaces/inkscape"
+   version="1.1"
+   id="58744666_Capa_1_grid"
+   x="0px"
+   y="0px"
+   width="24px"
+   height="24px"
+   viewBox="0 0 24 24"
+   style="enable-background:new 0 0 24 24;"
+   xml:space="preserve"
+   sodipodi:docname="instance_stopping.svg"
+   inkscape:version="1.0 (1.0+r73+1)"><metadata
+   id="metadata12"><rdf:RDF><cc:Work
+       rdf:about=""><dc:format>image/svg+xml</dc:format><dc:type
+         rdf:resource="http://purl.org/dc/dcmitype/StillImage" /></cc:Work></rdf:RDF></metadata><defs
+   id="defs10" /><sodipodi:namedview
+   inkscape:document-rotation="0"
+   pagecolor="#ffffff"
+   bordercolor="#666666"
+   borderopacity="1"
+   objecttolerance="10"
+   gridtolerance="10"
+   guidetolerance="10"
+   inkscape:pageopacity="0"
+   inkscape:pageshadow="2"
+   inkscape:window-width="1920"
+   inkscape:window-height="991"
+   id="namedview8"
+   showgrid="false"
+   inkscape:zoom="34.708333"
+   inkscape:cx="12"
+   inkscape:cy="12"
+   inkscape:window-x="0"
+   inkscape:window-y="0"
+   inkscape:window-maximized="1"
+   inkscape:current-layer="58744666_Capa_1_grid" />
+
+<rect
+   class="st1"
+   width="24"
+   height="24"
+   style="fill:none;;"
+   id="rect2" />
+<path
+   id="58744666_shock_x5F_color_grid"
+   class="stshockcolor"
+   d="M10,7.5v9l6-4.5L10,7.5z M10,7.5v9l6-4.5L10,7.5z M10,7.5v9l6-4.5L10,7.5z M12,2h-0.04  C6.46,2.02,2,6.49,2,12s4.46,9.98,9.96,10H12c5.52,0,10-4.48,10-10C22,6.48,17.52,2,12,2z M12,20h-0.04C7.57,19.98,4,16.4,4,12  c0-4.4,3.57-7.98,7.96-8H12c4.41,0,8,3.59,8,8S16.41,20,12,20z M10,16.5l6-4.5l-6-4.5V16.5z M10,7.5v9l6-4.5L10,7.5z"
+   style="fill:#ff3700;fill-opacity:1"
+   inkscape:export-xdpi="153.60001"
+   inkscape:export-ydpi="153.60001" />
+<path
+   class="st0"
+   d="M22,12c0,5.52-4.48,10-10,10v-2c4.41,0,8-3.59,8-8s-3.59-8-8-8V2C17.52,2,22,6.48,22,12z"
+   style="opacity:0.25;fill:#FFFFFF;;"
+   id="path5" />
+</svg>

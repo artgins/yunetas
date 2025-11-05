@@ -1,0 +1,50 @@
+/*********************************************************
+ *      Toolbars
+ *********************************************************/
+.yui-horizontal-toolbar {
+    z-index: inherit;
+    width: 100%;
+    height: auto;
+    position: relative;
+}
+
+.yui-horizontal-toolbar-container {
+    height: auto;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    overflow-x: auto;
+    -ms-overflow-style: none; /* IE and Edge */
+    scrollbar-width: none; /* Firefox */
+    margin: 0 1.2em; /* Reserve space for buttons */
+    white-space: nowrap;
+    user-select: none;
+}
+
+.yui-horizontal-toolbar-container::-webkit-scrollbar {
+    display: none; /* Chrome, Safari, Opera */
+}
+
+.yui-horizontal-toolbar-scroll-btn {
+    cursor: pointer;
+    user-select: none;
+    border: none;
+    position: absolute;
+    top: 50%;
+    transform: translateY(-50%);
+    width: 1.2em;
+    height: 2em;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.yui-horizontal-toolbar-scroll-btn.left {
+    left: 0;
+}
+.yui-horizontal-toolbar-scroll-btn.right {
+    right: 0;
+}
+.yui-horizontal-toolbar-scroll-btn span {
+    width: 1.2em;
+}

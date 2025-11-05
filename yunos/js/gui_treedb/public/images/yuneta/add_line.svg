@@ -1,0 +1,65 @@
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<svg
+   xmlns:dc="http://purl.org/dc/elements/1.1/"
+   xmlns:cc="http://creativecommons.org/ns#"
+   xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#"
+   xmlns:svg="http://www.w3.org/2000/svg"
+   xmlns="http://www.w3.org/2000/svg"
+   xmlns:sodipodi="http://sodipodi.sourceforge.net/DTD/sodipodi-0.dtd"
+   xmlns:inkscape="http://www.inkscape.org/namespaces/inkscape"
+   version="1.1"
+   id="Capa_1"
+   x="0px"
+   y="0px"
+   width="24px"
+   height="24px"
+   viewBox="0 0 24 24"
+   style="enable-background:new 0 0 24 24;"
+   xml:space="preserve"
+   sodipodi:docname="add_line.svg"
+   inkscape:export-filename="/yuneta/development/yuneta/^yuneta/yuno_gui/code/app/images/yuneta/add_line.png"
+   inkscape:export-xdpi="128"
+   inkscape:export-ydpi="128"
+   inkscape:version="1.0.2 (1.0.2+r75+1)"><metadata
+   id="metadata12"><rdf:RDF><cc:Work
+       rdf:about=""><dc:format>image/svg+xml</dc:format><dc:type
+         rdf:resource="http://purl.org/dc/dcmitype/StillImage" /></cc:Work></rdf:RDF></metadata><defs
+   id="defs10" /><sodipodi:namedview
+   pagecolor="#ffffff"
+   bordercolor="#666666"
+   borderopacity="1"
+   objecttolerance="10"
+   gridtolerance="10"
+   guidetolerance="10"
+   inkscape:pageopacity="0"
+   inkscape:pageshadow="2"
+   inkscape:window-width="1920"
+   inkscape:window-height="991"
+   id="namedview8"
+   showgrid="false"
+   inkscape:zoom="15.764525"
+   inkscape:cx="12"
+   inkscape:cy="12"
+   inkscape:window-x="0"
+   inkscape:window-y="0"
+   inkscape:window-maximized="1"
+   inkscape:current-layer="Capa_1"
+   inkscape:document-rotation="0" />
+
+<rect
+   class="st0"
+   width="24"
+   height="24"
+   style="fill:none;;"
+   id="rect2" />
+<path
+   id="583345445_shock_x5F_color"
+   class="stshockcolor"
+   d="M22,18c0,1.66-1.34,3-3,3c-1.31,0-2.42-0.83-2.82-2H7.82c-0.4,1.17-1.51,2-2.82,2  c-1.66,0-3-1.34-3-3s1.34-3,3-3c1.31,0,2.42,0.83,2.82,2h8.36c0.4-1.17,1.511-2,2.82-2C20.66,15,22,16.34,22,18z M13,8V5h-2v3H8v2h3  v3h2v-3h3V8H13z"
+   style="fill:#039BE5;;" />
+<polygon
+   class="st1"
+   points="16,8 16,10 13,10 13,13 11,13 11,10 8,10 8,8 11,8 11,5 13,5 13,8 "
+   style="opacity:0.4;fill:#FFFFFF;;"
+   id="polygon5" />
+</svg>

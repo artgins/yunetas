@@ -1,0 +1,69 @@
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<svg
+   xmlns:dc="http://purl.org/dc/elements/1.1/"
+   xmlns:cc="http://creativecommons.org/ns#"
+   xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#"
+   xmlns:svg="http://www.w3.org/2000/svg"
+   xmlns="http://www.w3.org/2000/svg"
+   xmlns:sodipodi="http://sodipodi.sourceforge.net/DTD/sodipodi-0.dtd"
+   xmlns:inkscape="http://www.inkscape.org/namespaces/inkscape"
+   version="1.1"
+   id="Capa_1"
+   x="0px"
+   y="0px"
+   width="24px"
+   height="24px"
+   viewBox="0 0 24 24"
+   style="enable-background:new 0 0 24 24;"
+   xml:space="preserve"
+   sodipodi:docname="add_object.svg"
+   inkscape:export-filename="/yuneta/development/yuneta/^yuneta/yuno_gui/code/app/images/yuneta/add_object.png"
+   inkscape:export-xdpi="128"
+   inkscape:export-ydpi="128"
+   inkscape:version="1.0.2 (1.0.2+r75+1)"><metadata
+   id="metadata14"><rdf:RDF><cc:Work
+       rdf:about=""><dc:format>image/svg+xml</dc:format><dc:type
+         rdf:resource="http://purl.org/dc/dcmitype/StillImage" /></cc:Work></rdf:RDF></metadata><defs
+   id="defs12" /><sodipodi:namedview
+   pagecolor="#ffffff"
+   bordercolor="#666666"
+   borderopacity="1"
+   objecttolerance="10"
+   gridtolerance="10"
+   guidetolerance="10"
+   inkscape:pageopacity="0"
+   inkscape:pageshadow="2"
+   inkscape:window-width="1920"
+   inkscape:window-height="991"
+   id="namedview10"
+   showgrid="false"
+   inkscape:zoom="33.202814"
+   inkscape:cx="12"
+   inkscape:cy="12"
+   inkscape:window-x="0"
+   inkscape:window-y="0"
+   inkscape:window-maximized="1"
+   inkscape:current-layer="Capa_1" />
+
+<rect
+   class="st1"
+   width="24"
+   height="24"
+   style="fill:none;;"
+   id="rect2" />
+<path
+   id="583345446_shock_x5F_color"
+   class="stshockcolor"
+   d="M17,14v6l-5,2l-5-2v-6l5-2L17,14z M13,5V2h-2v3H8v2h3v3h2V7h3V5H13z"
+   style="fill:#039BE5;;" />
+<path
+   class="st0"
+   d="M12,22v-6l-5-2v6L12,22z"
+   style="opacity:0.2;fill:#FFFFFF;enable-background:new    ;;"
+   id="path5" />
+<path
+   class="st2"
+   d="M7,14l5-2l5,2l-5,2L7,14z M16,5v2h-3v3h-2V7H8V5h3V2h2v3H16z"
+   style="opacity:0.4;fill:#FFFFFF;enable-background:new    ;;"
+   id="path7" />
+</svg>

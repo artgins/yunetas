@@ -1,0 +1,66 @@
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<svg
+   xmlns:dc="http://purl.org/dc/elements/1.1/"
+   xmlns:cc="http://creativecommons.org/ns#"
+   xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#"
+   xmlns:svg="http://www.w3.org/2000/svg"
+   xmlns="http://www.w3.org/2000/svg"
+   xmlns:sodipodi="http://sodipodi.sourceforge.net/DTD/sodipodi-0.dtd"
+   xmlns:inkscape="http://www.inkscape.org/namespaces/inkscape"
+   version="1.1"
+   id="58129072_Capa_1_grid"
+   x="0px"
+   y="0px"
+   width="24px"
+   height="24px"
+   viewBox="0 0 24 24"
+   style="enable-background:new 0 0 24 24;"
+   xml:space="preserve"
+   sodipodi:docname="delete.svg"
+   inkscape:export-filename="/yuneta/development/yuneta/^yuneta/yuno_gui/code/app/images/yuneta/delete.png"
+   inkscape:export-xdpi="128"
+   inkscape:export-ydpi="128"
+   inkscape:version="1.0.1 (1.0.1+r75)"><metadata
+   id="metadata12"><rdf:RDF><cc:Work
+       rdf:about=""><dc:format>image/svg+xml</dc:format><dc:type
+         rdf:resource="http://purl.org/dc/dcmitype/StillImage" /></cc:Work></rdf:RDF></metadata><defs
+   id="defs10" /><sodipodi:namedview
+   pagecolor="#ffffff"
+   bordercolor="#666666"
+   borderopacity="1"
+   objecttolerance="10"
+   gridtolerance="10"
+   guidetolerance="10"
+   inkscape:pageopacity="0"
+   inkscape:pageshadow="2"
+   inkscape:window-width="1920"
+   inkscape:window-height="991"
+   id="namedview8"
+   showgrid="false"
+   inkscape:zoom="49.397274"
+   inkscape:cx="12"
+   inkscape:cy="7.1837568"
+   inkscape:window-x="0"
+   inkscape:window-y="0"
+   inkscape:window-maximized="1"
+   inkscape:current-layer="58129072_Capa_1_grid"
+   inkscape:document-rotation="0"
+   showguides="false" />
+
+<rect
+   class="st1"
+   width="24"
+   height="24"
+   style="fill:none;;"
+   id="rect2" />
+
+<path
+   id="58129072_shock_x5F_color_grid"
+   class="stshockcolor"
+   d="M 20.8412,2.234099 V 4.6236286 H 19.543918 V 20.155571 c 0,1.314241 -1.167554,2.38953 -2.594564,2.38953 H 6.5710991 c -1.4270101,0 -2.5945638,-1.075289 -2.5945638,-2.38953 V 4.6236286 H 2.6792534 V 2.234099 H 7.2197401 L 8.517022,1.0393342 h 6.486409 l 1.297282,1.1947648 z"
+   style="fill:#ab19a1;stroke-width:1.24497;fill-opacity:1" /><path
+   class="st2"
+   d="M 19.543918,7.0131582 V 4.6236286 H 3.9765353 V 20.155571 c 0,1.314241 1.1675537,2.38953 2.5945638,2.38953 H 16.949354 c 1.42701,0 2.594564,-1.075289 2.594564,-2.38953 H 16.949354 V 7.0131582 Z M 9.1656629,20.155571 H 6.5710991 V 7.0131582 h 2.5945638 z m 5.1891281,0 H 11.760227 V 7.0131582 h 2.594564 z"
+   style="opacity:0.4;fill:#ffffff;stroke-width:1.24497"
+   id="path5" />
+</svg>

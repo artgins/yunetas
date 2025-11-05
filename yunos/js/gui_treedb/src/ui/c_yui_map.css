@@ -1,0 +1,35 @@
+/*********************************************************
+ *      yui_map.css
+ *********************************************************/
+.maplibregl-ctrl-top-left .maplibregl-ctrl {
+    margin: 4px 0 0 4px;
+    float: left;
+}
+
+.maplibregl-ctrl-top-right .maplibregl-ctrl {
+    margin: 4px 4px 0 0;
+    float: right;
+}
+
+.maplibregl-ctrl-bottom-left .maplibregl-ctrl {
+    margin: 0 0 4px 4px;
+    float: left;
+}
+
+.maplibregl-ctrl-bottom-right .maplibregl-ctrl {
+    margin: 0 4px 4px 0;
+    float: right;
+}
+
+.maplibregl-ctrl-group button {
+    width: 32px;
+    height: 32px;
+}
+
+.maplibregl-popup-content {
+    padding: 0 !important;
+}
+
+.xmap .column {
+    padding: 0 !important;
+}

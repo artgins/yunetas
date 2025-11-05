@@ -1,0 +1,18 @@
+/*********************************************************
+ *      Layout ui_route
+ *********************************************************/
+.container-grid-2col {
+    display: grid;
+    grid-template-columns: max-content 1fr;
+    height: 100%;
+}
+
+.container-grid-2col-left {
+    overflow-y: auto;
+    display: inline-block; /* Makes the div only as wide as its content */
+    white-space: nowrap; /* Prevents the menu items from wrapping */
+}
+
+.container-grid-2col-right {
+    overflow: hidden;
+}

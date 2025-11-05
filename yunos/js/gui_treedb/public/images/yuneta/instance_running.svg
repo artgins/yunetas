@@ -1,0 +1,63 @@
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<svg
+   xmlns:dc="http://purl.org/dc/elements/1.1/"
+   xmlns:cc="http://creativecommons.org/ns#"
+   xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#"
+   xmlns:svg="http://www.w3.org/2000/svg"
+   xmlns="http://www.w3.org/2000/svg"
+   xmlns:sodipodi="http://sodipodi.sourceforge.net/DTD/sodipodi-0.dtd"
+   xmlns:inkscape="http://www.inkscape.org/namespaces/inkscape"
+   inkscape:version="1.0 (1.0+r73+1)"
+   sodipodi:docname="instance_running.svg"
+   xml:space="preserve"
+   style="enable-background:new 0 0 24 24;"
+   viewBox="0 0 24 24"
+   height="24px"
+   width="24px"
+   y="0px"
+   x="0px"
+   id="58744666_Capa_1_grid"
+   version="1.1"><metadata
+   id="metadata12"><rdf:RDF><cc:Work
+       rdf:about=""><dc:format>image/svg+xml</dc:format><dc:type
+         rdf:resource="http://purl.org/dc/dcmitype/StillImage" /></cc:Work></rdf:RDF></metadata><defs
+   id="defs10" /><sodipodi:namedview
+   inkscape:current-layer="58744666_Capa_1_grid"
+   inkscape:window-maximized="1"
+   inkscape:window-y="0"
+   inkscape:window-x="0"
+   inkscape:cy="12"
+   inkscape:cx="12"
+   inkscape:zoom="34.708333"
+   showgrid="false"
+   id="namedview8"
+   inkscape:window-height="991"
+   inkscape:window-width="1920"
+   inkscape:pageshadow="2"
+   inkscape:pageopacity="0"
+   guidetolerance="10"
+   gridtolerance="10"
+   objecttolerance="10"
+   borderopacity="1"
+   bordercolor="#666666"
+   pagecolor="#ffffff" />
+
+<rect
+   id="rect2"
+   style="fill:none;;"
+   height="24"
+   width="24"
+   class="st1" />
+<path
+   inkscape:export-ydpi="153"
+   inkscape:export-xdpi="153"
+   style="fill:#039209;fill-opacity:1"
+   d="M10,7.5v9l6-4.5L10,7.5z M10,7.5v9l6-4.5L10,7.5z M10,7.5v9l6-4.5L10,7.5z M12,2h-0.04  C6.46,2.02,2,6.49,2,12s4.46,9.98,9.96,10H12c5.52,0,10-4.48,10-10C22,6.48,17.52,2,12,2z M12,20h-0.04C7.57,19.98,4,16.4,4,12  c0-4.4,3.57-7.98,7.96-8H12c4.41,0,8,3.59,8,8S16.41,20,12,20z M10,16.5l6-4.5l-6-4.5V16.5z M10,7.5v9l6-4.5L10,7.5z"
+   class="stshockcolor"
+   id="58744666_shock_x5F_color_grid" />
+<path
+   id="path5"
+   style="opacity:0.25;fill:#FFFFFF;;"
+   d="M22,12c0,5.52-4.48,10-10,10v-2c4.41,0,8-3.59,8-8s-3.59-8-8-8V2C17.52,2,22,6.48,22,12z"
+   class="st0" />
+</svg>

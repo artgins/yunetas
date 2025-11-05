@@ -1,0 +1,13 @@
+/*********************************************************
+ *      lib_graph.css
+ *********************************************************/
+
+.color_submit_state {
+    color: #32CD32 !important;
+}
+.color_cancel_state {
+    color: #FF0000 !important;
+}
+.color_active_state {
+    color: #0000FF !important;
+}

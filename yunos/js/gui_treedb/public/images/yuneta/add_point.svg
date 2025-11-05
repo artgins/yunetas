@@ -1,0 +1,61 @@
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<svg
+   xmlns:dc="http://purl.org/dc/elements/1.1/"
+   xmlns:cc="http://creativecommons.org/ns#"
+   xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#"
+   xmlns:svg="http://www.w3.org/2000/svg"
+   xmlns="http://www.w3.org/2000/svg"
+   xmlns:sodipodi="http://sodipodi.sourceforge.net/DTD/sodipodi-0.dtd"
+   xmlns:inkscape="http://www.inkscape.org/namespaces/inkscape"
+   version="1.1"
+   id="Capa_1"
+   x="0px"
+   y="0px"
+   width="24px"
+   height="24px"
+   viewBox="0 0 24 24"
+   style="enable-background:new 0 0 24 24;"
+   xml:space="preserve"
+   sodipodi:docname="add_point.svg"
+   inkscape:export-filename="/yuneta/development/yuneta/^yuneta/yuno_gui/code/app/images/yuneta/add_point.png"
+   inkscape:export-xdpi="128"
+   inkscape:export-ydpi="128"
+   inkscape:version="1.0.2 (1.0.2+r75+1)"><metadata
+   id="metadata12"><rdf:RDF><cc:Work
+       rdf:about=""><dc:format>image/svg+xml</dc:format><dc:type
+         rdf:resource="http://purl.org/dc/dcmitype/StillImage" /></cc:Work></rdf:RDF></metadata><defs
+   id="defs10" /><sodipodi:namedview
+   pagecolor="#ffffff"
+   bordercolor="#666666"
+   borderopacity="1"
+   objecttolerance="10"
+   gridtolerance="10"
+   guidetolerance="10"
+   inkscape:pageopacity="0"
+   inkscape:pageshadow="2"
+   inkscape:window-width="1920"
+   inkscape:window-height="991"
+   id="namedview8"
+   showgrid="false"
+   inkscape:zoom="11.872049"
+   inkscape:cx="13.263472"
+   inkscape:cy="12"
+   inkscape:window-x="0"
+   inkscape:window-y="0"
+   inkscape:window-maximized="1"
+   inkscape:current-layer="Capa_1"
+   inkscape:document-rotation="0" />
+
+<rect
+   class="st0"
+   width="24"
+   height="24"
+   style="fill:none;;"
+   id="rect2" />
+<path
+   id="583345448_shock_x5F_color"
+   class="stshockcolor"
+   d="m 12.06966,23.138237 c -4.8298404,0 -8.7465411,-2.453888 -8.7465411,-5.482323 0,-3.028436 3.9167007,-5.482324 8.7465411,-5.482324 4.831588,0 8.746539,2.453888 8.746539,5.482324 0,3.028435 -3.914951,5.482323 -8.746539,5.482323 z M 13.818967,4.4983377 V 1.2089436 H 10.320351 V 4.4983377 H 5.0724269 v 2.1929295 h 5.2479241 v 3.289394 h 3.498616 v -3.289394 h 5.247925 V 4.4983377 Z"
+   style="fill:#039be5;stroke-width:1.38494" />
+
+</svg>

@@ -1,0 +1,293 @@
+/*********************************************************
+ *      Colors
+ *********************************************************/
+[data-theme=light],
+.theme-light {
+    /* CSS Variables */
+    /*background-color: #EEEEEE;*/
+    --my-text-color: black;
+    --modal-background-color: hsla(var(--bulma-scheme-h),var(--bulma-scheme-s),var(--bulma-scheme-invert-l),0.40);
+
+}
+
+[data-theme=dark],
+.theme-dark {
+    /* CSS Variables */
+    /*background-color: black;*/
+    --my-text-color: white;
+    --modal-background-color: hsla(var(--bulma-scheme-h),var(--bulma-scheme-s),var(--bulma-scheme-invert-l),0.90);
+}
+
+[data-theme=system],
+.theme-system {
+    /* CSS Variables */
+    /*background-color: var(--bulma-body-background-color);*/
+    --my-text-color: var(--bulma-body-color);
+    --modal-background-color: hsla(var(--bulma-scheme-h),var(--bulma-scheme-s),var(--bulma-scheme-invert-l),0.90);
+}
+
+/*********************************************************
+ *      Body
+ *********************************************************/
+/*
+ *  Margins and size of html/body is defined in index.mako, same as below #root
+ */
+#root {
+    margin: 0;
+    padding: 0;
+    width: 100%;
+    height: 100%;
+}
+
+
+/*********************************************************
+ *      Layers
+ *********************************************************/
+:root {
+    --top-layer-size: 41px;
+    --top-layer-size-inside: 36px;   /* top-layer-size - 5 */
+                                            /* (1 for border, 4 for top/bottom center */
+    --top-border: 1px;
+
+    /*--bottom-layer-size: 35px;*/
+    --bottom-layer-size: 0px;
+    --bottom-layer-size-inside: 30px;
+    /*--bottom-border: 1px;*/
+    --bottom-border: 0px;
+    --bulma-body-min-width: 200px !important;
+}
+
+.top-layer {
+    position: fixed;
+    z-index: 2;
+
+    left: 0;
+    right: 0;
+
+    top: 0;
+    height: var(--top-layer-size);
+
+    border-bottom: var(--top-border) solid var(--bulma-border-weak);
+
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.bottom-layer {
+    position: fixed;
+    z-index: 2;
+
+    left: 0;
+    right: 0;
+
+    height: var(--bottom-layer-size);
+    bottom: 0;
+
+    border-top: var(--bottom-border) solid var(--bulma-border-weak);
+
+    display: none;
+    /*display: flex;*/
+    justify-content: space-between;
+    align-items: center;
+}
+
+.content-layer {
+    position: absolute;
+    z-index: 1;
+    top: calc(var(--top-layer-size) + var(--top-border));
+    bottom: calc(var(--bottom-layer-size) + var(--bottom-border));
+    left: 0;
+    right: 0;
+}
+
+.iframe-layer {
+    position: absolute;
+    z-index: 1;
+    top: calc(var(--top-layer-size) + var(--top-border));
+    bottom: calc(var(--bottom-layer-size) + var(--bottom-border));
+    left: 0;
+    right: 0;
+}
+
+.popup-layer {
+    position: absolute;
+    z-index: 20;
+    top: 0;
+    left: 0;
+}
+
+.modal-layer {
+    position: absolute;
+    z-index: 99;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background-color: rgba(0,0,0,0.3);
+    display: none;
+}
+
+/*********************************************************
+ *      Bulma
+ *********************************************************/
+.modal-background {
+    /* En firefox aclara el fondo, pero en chrome no cambia */
+    /*background-color: var(--modal-background-color) !important;*/
+}
+
+.is-large.modal-close {
+    --bulma-delete-dimensions: 3.5rem !important;
+}
+
+/* Custom class to adjust the modal width */
+.modal-card.modal-is-responsive {
+    width: 100%;
+    max-width: 100%;
+}
+
+@media screen and (min-width: 768px) {
+    .modal-card.modal-is-responsive {
+        width: 50rem;
+        max-width: 50rem;
+    }
+}
+
+.grid.is-col-min-22 {
+    --bulma-grid-column-min: 28rem !important;
+}
+
+/*
+ *  Generic helpers
+ */
+
+.overscroll-contain {
+    overscroll-behavior: contain;
+}
+
+.without-border {
+    border: none !important; /* Remove the border */
+    box-shadow: none !important; /* Optional: remove the box-shadow if present */
+}
+
+.with-border {
+    border: 1px solid var(--bulma-border);
+}
+
+.wrap-text {
+    white-space: normal !important;;
+    word-wrap: break-word !important;;
+    overflow-wrap: break-word !important;;
+}
+
+.strong-shadow {
+    box-shadow:
+        0 1em 2em -0.125em hsla(var(--bulma-shadow-h), var(--bulma-shadow-s), var(--bulma-shadow-l), 0.3),
+        0 0 0 2px hsla(var(--bulma-shadow-h), var(--bulma-shadow-s), var(--bulma-shadow-l), 0.1) !important;
+}
+
+@media screen and (max-width: 768px) {
+    .column {
+        padding: 0 !important;
+        margin-bottom: 16px !important;
+    }
+}
+
+.full-width-button {
+    width: 100%;
+}
+
+/*********************************************************
+ *      Toolbars
+ *********************************************************/
+.yui-horizontal-toolbar-section {
+    display: flex;
+    height: auto;
+    flex-shrink: 0; /* Prevents resizing */
+    white-space: nowrap;
+    margin: 0 2px; /* Space between sections */
+    justify-content: space-between;
+    align-items: center;
+}
+
+a.flex-horizontal-section { /* To make flex any <a> */
+    display: flex;
+    flex-shrink: 0; /* Prevents resizing */
+    white-space: nowrap;
+    margin: 0 2px; /* Space between sections */
+    justify-content: space-between;
+    align-items: center;
+    padding-inline-end: 2rem;
+}
+
+/*********************************************************
+ *      Bootstrap-table
+ *********************************************************/
+/*
+ *  In the bootstrap-table toolbar the buttons with icon shows smaller, fix it:
+ */
+.fixed-table-toolbar > .columns > .button {
+}
+.fixed-table-toolbar > .columns > .button > i {
+    padding-top: 5px;
+    height: 1.5rem;
+    width: 1.5rem;
+}
+
+/*
+ *  Select2
+ */
+.select2-selection__rendered {
+    line-height: var(--bulma-control-line-height);
+}
+.select2-container .select2-selection--single {
+    font-size: var(--bulma-control-size);
+    height: var(--bulma-control-height);
+}
+.select2-container .select2-selection--multiple {
+    font-size: var(--bulma-control-size);
+    height: var(--bulma-control-height);
+}
+
+/*********************************************************
+ *      Tabulator
+ *********************************************************/
+.tabulator-row .tabulator-cell.tabulator-frozen {
+    background-color: var(--bulma-background) !important;
+}
+.tabulator .tabulator-header .tabulator-frozen {
+    background-color: var(--bulma-background) !important;
+}
+
+/*********************************************************
+ *      From
+ *********************************************************/
+@font-face {
+    font-family: 'Roboto Condensed';
+    src: url('/fonts/RobotoCondensed-Bold.ttf') format('truetype');
+    font-weight: bold;
+}
+.roboto-bold-text {
+    font-family: 'Roboto Condensed', sans-serif;
+    font-weight: bold;
+}
+
+@font-face {
+    font-family:Dancing Script; /* Catalish Huntera; */
+    src:url(/fonts/DancingScript-Bold.ttf) format('truetype');
+    font-weight: bold;
+}
+@font-face {
+    font-family:Titillium Web;
+    src:url(/fonts/TitilliumWeb-Bold.ttf) format('truetype');
+    font-weight: bold;
+}
+
+.titulo1 {
+    font-family:Dancing Script,sans-serif !important; /*Catalish Huntera*/
+    font-size: max(6vw, 36px);
+}
+.titulo2 {
+    font-family:Titillium Web,sans-serif !important;
+    font-size: max(2vw, 16px);
+}
