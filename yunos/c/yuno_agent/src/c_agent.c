@@ -1019,34 +1019,6 @@ PRIVATE void mt_create(hgobj gobj)
         print_error(0, "yuneta_agent: node_owner EMPTY, setting none");
     }
 
-    /*----------------------------------------*
-     *      Check user yuneta
-     *----------------------------------------*/
-    BOOL is_yuneta = FALSE;
-    struct passwd *pw = getpwuid(getuid());
-    if(strcmp(pw->pw_name, "yuneta")==0) {
-        gobj_write_str_attr(gobj, "__username__", "yuneta");
-        is_yuneta = TRUE;
-    } else {
-        static gid_t groups[30]; // HACK to use outside
-        int ngroups = sizeof(groups)/sizeof(groups[0]);
-
-        getgrouplist(pw->pw_name, 0, groups, &ngroups);
-        for(int i=0; i<ngroups; i++) {
-            struct group *gr = getgrgid(groups[i]);
-            if(strcmp(gr->gr_name, "yuneta")==0) {
-                gobj_write_str_attr(gobj, "__username__", "yuneta");
-                is_yuneta = TRUE;
-                break;
-            }
-        }
-    }
-    if(!is_yuneta) {
-        gobj_trace_msg(gobj, "User or group 'yuneta' is needed to run %s", gobj_yuno_role());
-        printf("User or group 'yuneta' is needed to run %s\n", gobj_yuno_role());
-        exit(0);
-    }
-
     /*---------------------------------------*
      *      Create timer to start yunos
      *---------------------------------------*/

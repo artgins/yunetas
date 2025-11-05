@@ -29,7 +29,6 @@
 #include <netinet/in.h>
 #include <arpa/inet.h>
 #include <net/if.h>
-#include <dirent.h>
 
 #include <sched.h>
 #include <sys/mman.h>
@@ -794,26 +793,10 @@ PRIVATE void mt_create(hgobj gobj)
     BOOL is_yuneta = FALSE;
 #ifdef __linux__
     struct passwd *pw = getpwuid(getuid());
-    if(strcmp(pw->pw_name, "yuneta")==0) {
-        gobj_write_str_attr(gobj, "__username__", "yuneta");
-        is_yuneta = TRUE;
-    } else {
-        struct group *grp = getgrnam("yuneta");
-        if(grp && grp->gr_mem) {
-            char **gr_mem = grp->gr_mem;
-            while(*gr_mem) {
-                if(strcmp(*gr_mem, pw->pw_name)==0) {
-                    gobj_write_str_attr(gobj, "__username__", "yuneta");
-                    is_yuneta = TRUE;
-                    break;
-                }
-                gr_mem++;
-            }
-        }
-    }
+    const char *username = pw->pw_name;
+    is_yuneta = is_yuneta_user(username);
 #endif
 #ifdef ESP_PLATFORM
-    gobj_write_str_attr(gobj, "__username__", "yuneta");
     is_yuneta = TRUE;
 #endif
     if(!is_yuneta) {
@@ -826,6 +809,7 @@ PRIVATE void mt_create(hgobj gobj)
         printf("User or group 'yuneta' is needed to run a yuno\n");
         exit(0);
     }
+    gobj_write_str_attr(gobj, "__username__", "yuneta");
 
     /*------------------------*
      *  Traces

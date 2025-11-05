@@ -6652,11 +6652,12 @@ PUBLIC int is_yuneta_user(const char *username)
     }
 
     /* Check supplementary groups */
-    gid_t groups[NGROUPS_MAX];
-    int ngroups = NGROUPS_MAX;
+    #define NGROUPS 256
+    gid_t groups[NGROUPS];
+    int ngroups = NGROUPS;
 
     if(getgrouplist(username, pw->pw_gid, groups, &ngroups) == -1) {
-        /* In case of error, fallback: user likely has more groups than NGROUPS_MAX */
+        /* In case of error, fallback: user likely has more groups than NGROUPS */
         return FALSE;
     }
 
