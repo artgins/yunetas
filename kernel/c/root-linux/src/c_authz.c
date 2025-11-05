@@ -644,7 +644,7 @@ PRIVATE json_t *mt_authenticate(hgobj gobj, json_t *kw, hgobj src)
     const char *username = kw_get_str(gobj, kw, "username", "", 0);
     const char *password = kw_get_str(gobj, kw, "password", "", 0);
     const char *peername;
-    if(gobj_has_attr(src, "peername")) {
+    if(gobj_has_bottom_attr(src, "peername")) {
         peername = gobj_read_str_attr(src, "peername");
     } else {
         peername = kw_get_str(gobj, kw, "peername", "", 0);

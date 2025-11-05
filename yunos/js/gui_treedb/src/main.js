@@ -28,11 +28,6 @@ import {
 
 import {register_c_yuneta_gui} from "./c_yuneta_gui.js";
 import {register_c_login} from "./c_login.js";
-import {register_c_ui_monitoring_group} from "./c_ui_monitoring_group.js";
-import {register_c_ui_monitoring} from "./c_ui_monitoring.js";
-import {register_c_ui_alarms} from "./c_ui_alarms.js";
-import {register_c_ui_device_sonda} from "./c_ui_device_sonda.js";
-import {register_c_ui_historical_chart} from "./c_ui_historical_chart.js";
 import {register_c_ui_todo} from "./c_ui_todo.js";
 
 import {register_c_yui_map} from "./ui/c_yui_map.js";
@@ -83,8 +78,8 @@ const yuno_name = "TreeDB GUI";
 const yuno_role = "treedb_gui";
 const yuno_version = "7.0.0";
 
-const remote_yuno_role = "db_authzs";
-const remote_yuno_service = "db_authzs";
+const remote_yuno_role = "mqtt_broker";
+const remote_yuno_service = "mqtt_broker";
 const required_services = ["treedb_authzs"];
 
 /*

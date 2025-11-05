@@ -559,6 +559,245 @@ PRIVATE int ac_on_close(hgobj gobj, const char *event, json_t *kw, hgobj src)
 /***************************************************************************
  *
  ***************************************************************************/
+PRIVATE int ac_treedb_node_create(hgobj gobj, const char *event, json_t *kw, hgobj src)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    const char *treedb_name = kw_get_str(gobj, kw, "treedb_name", "", KW_REQUIRED);
+    const char *topic_name = kw_get_str(gobj, kw, "topic_name", "", KW_REQUIRED);
+    json_t *node_ = kw_get_dict(gobj, kw, "node", 0, KW_REQUIRED);
+
+    // TODO wtf purezadb?
+    if(strcmp(treedb_name, "treedb_purezadb")==0 &&
+        strcmp(topic_name, "users")==0) {
+        /*--------------------------------*
+         *  Get user
+         *  Create it if not exist
+         *  Han creado el user en la tabla users de treedb_purezadb
+         *  Puede que exista o no en la users de authzs
+         *--------------------------------*/
+        const char *username = kw_get_str(gobj, node_, "id", "", KW_REQUIRED);
+        json_t *webix = gobj_command(
+            priv->gobj_authz,
+            "user-roles",
+            json_pack("{s:s}",
+                "username", username
+            ),
+            gobj
+        );
+        if(json_array_size(kw_get_dict_value(gobj, webix, "data", 0, KW_REQUIRED))==0) {
+            gobj_send_event(
+                priv->gobj_authz,
+                EV_ADD_USER,
+                json_pack("{s:s, s:s}",
+                    "username", username,
+                    "role", "roles^user-purezadb^users"
+                ),
+                gobj
+            );
+        }
+        json_decref(webix);
+    }
+
+    KW_DECREF(kw);
+    return 0;
+}
+
+/***************************************************************************
+ *
+ ***************************************************************************/
+PRIVATE int ac_treedb_node_updated(hgobj gobj, const char *event, json_t *kw, hgobj src)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    const char *treedb_name = kw_get_str(gobj, kw, "treedb_name", "", KW_REQUIRED);
+    const char *topic_name = kw_get_str(gobj, kw, "topic_name", "", KW_REQUIRED);
+    json_t *node_ = kw_get_dict(gobj, kw, "node", 0, KW_REQUIRED);
+
+    if(strcmp(treedb_name, "treedb_purezadb")==0 &&
+        strcmp(topic_name, "users")==0) {
+        /*--------------------------------*
+         *  Get user
+         *  Create it if not exist
+         *  Han creado el user en la tabla users de treedb_purezadb
+         *  Puede que exista o no en la users de authzs
+         *--------------------------------*/
+        BOOL enabled = kw_get_bool(gobj, node_, "enabled", 0, KW_REQUIRED);
+        const char *username = kw_get_str(gobj, node_, "id", "", KW_REQUIRED);
+        json_t *webix = gobj_command(
+            priv->gobj_authz,
+            "user-roles",
+            json_pack("{s:s}",
+                "username", username
+            ),
+            gobj
+        );
+
+        if(json_array_size(kw_get_list(gobj, webix, "data", 0, KW_REQUIRED))==0) {
+            gobj_send_event(
+                priv->gobj_authz,
+                EV_ADD_USER,
+                json_pack("{s:s, s:s, s:b}",
+                    "username", username,
+                    "role", "roles^user-purezadb^users",
+                    "disabled", enabled?0:1
+                ),
+                gobj
+            );
+        } else {
+            gobj_send_event(
+                priv->gobj_authz,
+                EV_ADD_USER,
+                json_pack("{s:s, s:b}",
+                    "username", username,
+                    "disabled", enabled?0:1
+                ),
+                gobj
+            );
+        }
+        json_decref(webix);
+    }
+
+    KW_DECREF(kw);
+    return 0;
+}
+
+/***************************************************************************
+ *
+ ***************************************************************************/
+PRIVATE int ac_treedb_node_deleted(hgobj gobj, const char *event, json_t *kw, hgobj src)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    const char *treedb_name = kw_get_str(gobj, kw, "treedb_name", "", KW_REQUIRED);
+    const char *topic_name = kw_get_str(gobj, kw, "topic_name", "", KW_REQUIRED);
+    json_t *node_ = kw_get_dict(gobj, kw, "node", 0, KW_REQUIRED);
+
+    if(strcmp(treedb_name, "treedb_purezadb")==0 &&
+        strcmp(topic_name, "users")==0) {
+        /*--------------------------------*
+         *  Get user
+         *  Create it if not exist
+         *  Han creado el user en la tabla users de treedb_purezadb
+         *  Puede que exista o no en la users de authzs
+         *--------------------------------*/
+        const char *username = kw_get_str(gobj, node_, "id", "", KW_REQUIRED);
+        gobj_send_event(
+            priv->gobj_authz,
+            EV_REJECT_USER,
+            json_pack("{s:s, s:b}",
+                "username", username,
+                "disabled", 1
+            ),
+            gobj
+        );
+    }
+
+    KW_DECREF(kw);
+    return 0;
+}
+
+/***************************************************************************
+ *
+ ***************************************************************************/
+PRIVATE int ac_user_login(hgobj gobj, const char *event, json_t *kw, hgobj src)
+{
+    // PRIVATE_DATA *priv = gobj_priv_data(gobj);
+    //
+    // const char *username = kw_get_str(gobj, kw, "username", "", KW_REQUIRED);
+
+    /*--------------------------------*
+     *  Get user
+     *  Create it if not exist
+     *--------------------------------*/
+    // json_t *user = gobj_get_node(
+    //     priv->gobj_treedb_controlcenter,
+    //     "users",
+    //     json_pack("{s:s}",
+    //         "id", username
+    //     ),
+    //     0,
+    //     gobj
+    // );
+    // if(!user) {
+    //     time_t t;
+    //     time(&t);
+    //     BOOL enabled_new_users = gobj_read_bool_attr(gobj, "enabled_new_users");
+    //     json_t *jn_user = json_pack("{s:s, s:b, s:I}",
+    //         "id", username,
+    //         "enabled", enabled_new_users,
+    //         "time", (json_int_t)t
+    //     );
+    //
+    //     user = gobj_create_node(
+    //         priv->gobj_treedb_controlcenter,
+    //         "users",
+    //         jn_user,
+    //         0,
+    //         gobj
+    //     );
+    // }
+    // json_decref(user);
+
+    KW_DECREF(kw);
+    return 0;
+}
+
+/***************************************************************************
+ *
+ ***************************************************************************/
+PRIVATE int ac_user_logout(hgobj gobj, const char *event, json_t *kw, hgobj src)
+{
+//     PRIVATE_DATA *priv = gobj_priv_data(gobj);
+//
+//     const char *username = kw_get_str(gobj, kw, "username", "", KW_REQUIRED);
+//     json_t *user_ = kw_get_dict(gobj, kw, "user", 0, KW_REQUIRED);
+//     json_t *session_ = kw_get_dict(gobj, kw, "session", 0, KW_REQUIRED);
+
+    //print_json(kw);
+
+    KW_DECREF(kw);
+    return 0;
+}
+
+/***************************************************************************
+ *
+ ***************************************************************************/
+PRIVATE int ac_user_new(hgobj gobj, const char *event, json_t *kw, hgobj src)
+{
+    // PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    // const char *username = kw_get_str(gobj, kw, "username", "", KW_REQUIRED);
+    // const char *dst_service = kw_get_str(gobj, kw, "dst_service", "", KW_REQUIRED);
+    //
+    // if(strcmp(dst_service, gobj_name(gobj))==0) {
+    //     time_t t;
+    //     time(&t);
+    //     BOOL enabled_new_users = gobj_read_bool_attr(gobj, "enabled_new_users");
+    //     if(enabled_new_users) {
+    //         json_t *jn_user = json_pack("{s:s, s:b, s:I}",
+    //             "id", username,
+    //             "enabled", enabled_new_users,
+    //             "time", (json_int_t)t
+    //         );
+    //
+    //         json_decref(gobj_create_node(
+    //             priv->gobj_treedb_controlcenter,
+    //             "users",
+    //             jn_user,
+    //             0,
+    //             gobj
+    //         ));
+    //     }
+    // }
+
+    KW_DECREF(kw);
+    return 0;
+}
+
+/***************************************************************************
+ *
+ ***************************************************************************/
 PRIVATE int ac_timeout(hgobj gobj, const char *event, json_t *kw, hgobj src)
 {
 //    PRIVATE_DATA *priv = gobj_priv_data(gobj);
@@ -615,12 +854,16 @@ PRIVATE int create_gclass(gclass_name_t gclass_name)
      *      States
      *------------------------*/
     ev_action_t st_idle[] = {
-        {EV_ON_OPEN,                ac_on_open,              0},
-        {EV_ON_CLOSE,               ac_on_close,             0},
-        {EV_TREEDB_NODE_CREATED,    0,   0},
-        {EV_TREEDB_NODE_UPDATED,    0,  0},
-        {EV_TREEDB_NODE_DELETED,    0,  0},
-        {EV_TIMEOUT,                ac_timeout,              0},
+        {EV_ON_OPEN,                ac_on_open,             0},
+        {EV_ON_CLOSE,               ac_on_close,            0},
+        {EV_TREEDB_NODE_CREATED,    ac_treedb_node_create,  0},
+        {EV_TREEDB_NODE_UPDATED,    ac_treedb_node_updated, 0},
+        {EV_TREEDB_NODE_DELETED,    ac_treedb_node_deleted, 0},
+
+        {EV_AUTHZ_USER_LOGIN,       ac_user_login,          0},
+        {EV_AUTHZ_USER_LOGOUT,      ac_user_logout,         0},
+        {EV_AUTHZ_USER_NEW,         ac_user_new,            0},
+        {EV_TIMEOUT,                ac_timeout,             0},
         {0,0,0}
     };
 
@@ -638,6 +881,9 @@ PRIVATE int create_gclass(gclass_name_t gclass_name)
         {EV_TREEDB_NODE_CREATED,    0},
         {EV_TREEDB_NODE_UPDATED,    0},
         {EV_TREEDB_NODE_DELETED,    0},
+        {EV_AUTHZ_USER_LOGIN,       0},
+        {EV_AUTHZ_USER_LOGOUT,      0},
+        {EV_AUTHZ_USER_NEW,         0},
         {EV_TIMEOUT,                0},
         {NULL, 0}
     };
