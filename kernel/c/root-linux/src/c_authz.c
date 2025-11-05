@@ -486,11 +486,15 @@ PRIVATE int mt_start(hgobj gobj)
          *  Empty treedb? initialize treedb
          *-----------------------------------*/
         json_t *initial_load = gobj_read_json_attr(gobj, "initial_load");
+        time_t t;
+        time(&t);
         const char *topic_name;
         json_t *topic_records;
         json_object_foreach(initial_load, topic_name, topic_records) {
             int idx; json_t *record;
             json_array_foreach(topic_records, idx, record) {
+                json_object_set_new(record, "time", json_integer((json_int_t)t));
+
                 json_t *kw_update_node = json_pack("{s:s, s:O, s:{s:b, s:b}}",
                     "topic_name", topic_name,
                     "record", record,
@@ -549,9 +553,9 @@ PRIVATE int mt_stop(hgobj gobj)
             "realm_access": {},
             "resource_access": {},
             "scope": "profile email",
-            "session_state": "aa4fb7ce-d0c7-48a0-ae92-253ef5a600d2",
-            "sid": "aa4fb7ce-d0c7-48a0-ae92-253ef5a600d2",
-            "sub": "0a1e5c27-80f1-4225-943a-edfbc204972d",
+            "session_state": "aa4fb7ce-...",
+            "sid": "aa4fb7ce-...",
+            "sub": "0a1e5c27-...",
             "typ": "Bearer"
         }
     Ejemplo de jwt dado por google  {
@@ -567,7 +571,7 @@ PRIVATE int mt_stop(hgobj gobj)
             "name": "Xxx",
             "nbf": 1337527,
             "picture": "",
-            "sub": "109408784262322618770"
+            "sub": "1094087..."
         }
  ***************************************************************************/
 PRIVATE json_t *mt_authenticate(hgobj gobj, json_t *kw, hgobj src)
