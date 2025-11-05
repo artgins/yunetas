@@ -381,10 +381,11 @@ PRIVATE void add_command_help(gbuffer_t *gbuf, const sdata_desc_t *pcmds, BOOL e
             //get_sdata_flag_desc
             gbuffer_t *gbuf_flag = bits2gbuffer(get_sdata_flag_table(), pparam->flag);
             char *p = gbuffer_cur_rd_pointer(gbuf_flag);
-            gbuffer_printf(gbuf, "    - %-16s Type:%-8s, Desc:%-35s, Flag:%s\n",
+            gbuffer_printf(gbuf, "    - %-16s Type:%-8s, Desc:%-35s, Default:%s, Flag:%s\n",
                 pparam->name,
                 sdata_command_type(pparam->type),
                 (pparam->description)?pparam->description:"",
+                 (pparam->default_value)?pparam->default_value:"",
                 p?p:""
             );
             gbuffer_decref(gbuf_flag);

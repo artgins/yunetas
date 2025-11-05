@@ -209,15 +209,6 @@ static char treedb_schema_authzs[]= "\
                         'fkey'                                      \n\
                     ]                                               \n\
                 },                                                  \n\
-                'time': {                                           \n\
-                    'header': 'Created Time',                       \n\
-                    'type': 'integer',                              \n\
-                    'fillspace': 15,                                \n\
-                    'flag': [                                       \n\
-                        'time',                                     \n\
-                        'persistent'                                \n\
-                    ]                                               \n\
-                },                                                  \n\
                 'disabled': {                                       \n\
                     'header': 'Disabled',                           \n\
                     'fillspace': 4,                                 \n\
@@ -225,6 +216,15 @@ static char treedb_schema_authzs[]= "\
                     'default': false,                               \n\
                     'flag': [                                       \n\
                         'writable',                                 \n\
+                        'persistent'                                \n\
+                    ]                                               \n\
+                },                                                  \n\
+                'time': {                                           \n\
+                    'header': 'Created Time',                       \n\
+                    'type': 'integer',                              \n\
+                    'fillspace': 11,                                \n\
+                    'flag': [                                       \n\
+                        'time',                                     \n\
                         'persistent'                                \n\
                     ]                                               \n\
                 },                                                  \n\
