@@ -1308,6 +1308,7 @@ PRIVATE int ac_treedb_node_create(hgobj gobj, const char *event, json_t *kw, hgo
     const char *topic_name = kw_get_str(gobj, kw, "topic_name", "", KW_REQUIRED);
     json_t *node_ = kw_get_dict(gobj, kw, "node", 0, KW_REQUIRED);
 
+    // TODO wtf purezadb?
     if(strcmp(treedb_name, "treedb_purezadb")==0 &&
         strcmp(topic_name, "users")==0) {
         /*--------------------------------*
@@ -1328,7 +1329,7 @@ PRIVATE int ac_treedb_node_create(hgobj gobj, const char *event, json_t *kw, hgo
         if(json_array_size(kw_get_dict_value(gobj, webix, "data", 0, KW_REQUIRED))==0) {
             gobj_send_event(
                 priv->gobj_authz,
-                "EV_ADD_USER",
+                EV_ADD_USER,
                 json_pack("{s:s, s:s}",
                     "username", username,
                     "role", "roles^user-purezadb^users"
@@ -1455,8 +1456,8 @@ PRIVATE int ac_treedb_node_deleted(hgobj gobj, const char *event, json_t *kw, hg
         "properties": {},
         "time": 0,
         "__sessions": {
-            "793e8631-8356-47ec-b811-e2efe2fd2ec8": {
-                "id": "793e8631-8356-47ec-b811-e2efe2fd2ec8",
+            "793e8631...": {
+                "id": "793e...",
                 "channel_gobj": 94438141520952
             }
         },
@@ -1465,7 +1466,7 @@ PRIVATE int ac_treedb_node_deleted(hgobj gobj, const char *event, json_t *kw, hg
             "y": 340,
             "width": 110,
             "height": 80,
-            "__origin__": "me-6fcce598-0987-4c34-9fb0-0de8d998cd3d"
+            "__origin__": "me-6f..."
         },
         "__md_treedb__": {
             "treedb_name": "treedb_authzs",
@@ -1478,7 +1479,7 @@ PRIVATE int ac_treedb_node_deleted(hgobj gobj, const char *event, json_t *kw, hg
         }
     },
     "session": {
-        "id": "793e8631-8356-47ec-b811-e2efe2fd2ec8",
+        "id": "793e8...",
         "channel_gobj": 94438141520952
     },
     "services_roles": {
@@ -1490,14 +1491,14 @@ PRIVATE int ac_treedb_node_deleted(hgobj gobj, const char *event, json_t *kw, hg
         "exp": 1977040064,
         "iat": 1631440064,
         "auth_time": 0,
-        "jti": "efe5db43-2b30-43a6-9411-328303783d15",
+        "jti": "efe5...",
         "iss": "http://localhost:8281/auth/realms/xxxxx",
         "aud": "yunetacontrol",
-        "sub": "f24512d4-2618-4e1f-9b64-10ae7d46e07d",
+        "sub": "f245...",
         "typ": "ID",
         "azp": "yunetacontrol",
-        "session_state": "793e8631-8356-47ec-b811-e2efe2fd2ec8",
-        "at_hash": "VoqtYD61IdSxvuDegzBJoA",
+        "session_state": "793e...",
+        "at_hash": "Voq...",
         "acr": "1",
         "email_verified": true,
         "name": "cccc Agent",
@@ -1523,8 +1524,8 @@ DEBUG: {
         "properties": {},
         "time": 0,
         "__sessions": {
-            "38e11e29-823c-40c3-adb3-a45719364c9c": {
-                "id": "38e11e29-823c-40c3-adb3-a45719364c9c",
+            "38e11e2...": {
+                "id": "38e11e2...",
                 "channel_gobj": 94438141390792
             }
         },
@@ -1533,7 +1534,7 @@ DEBUG: {
             "y": 350,
             "width": 110,
             "height": 80,
-            "__origin__": "me-6fcce598-0987-4c34-9fb0-0de8d998cd3d"
+            "__origin__": "me-6fcce5..."
         },
         "__md_treedb__": {
             "treedb_name": "treedb_authzs",
@@ -1546,7 +1547,7 @@ DEBUG: {
         }
     },
     "session": {
-        "id": "38e11e29-823c-40c3-adb3-a45719364c9c",
+        "id": "38e11...",
         "channel_gobj": 94438141390792
     },
     "services_roles": {
@@ -1563,16 +1564,16 @@ DEBUG: {
     "jwt_payload": {
         "exp": 1667026950,
         "iat": 1666970907,
-        "jti": "73860e4c-d79d-483e-830b-64c9b65c5e1b",
+        "jti": "73860...",
         "iss": "https://localhost:8641/auth/realms/xxxxx",
         "aud": [
             "realm-management",
             "account"
         ],
-        "sub": "0a1e5c27-80f1-4225-943a-edfbc204972d",
+        "sub": "0a1e5...",
         "typ": "Bearer",
         "azp": "yunetacontrol",
-        "session_state": "38e11e29-823c-40c3-adb3-a45719364c9c",
+        "session_state": "38e11...",
         "acr": "1",
         "allowed-origins": [
             "*"
@@ -1603,7 +1604,7 @@ DEBUG: {
             }
         },
         "scope": "profile email",
-        "sid": "38e11e29-823c-40c3-adb3-a45719364c9c",
+        "sid": "38e11...",
         "email_verified": true,
         "name": "XX Xxx",
         "preferred_username": "xxx@xxx.es",

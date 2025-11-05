@@ -24,6 +24,20 @@
 #include <g_ev_kernel.h>
 #include <g_st_kernel.h>
 #include <helpers.h>
+
+#ifdef __linux__
+#if defined(CONFIG_HAVE_OPENSSL)
+    #include <openssl/ssl.h>
+    #include <openssl/rand.h>
+#elif defined(CONFIG_HAVE_MBEDTLS)
+    #include <mbedtls/md.h>
+    #include <mbedtls/ctr_drbg.h>
+    #include <mbedtls/pkcs5.h>
+#else
+    #error "No crypto library defined"
+#endif
+#endif
+
 #include <command_parser.h>
 #include <timeranger2.h>
 #include <tr_treedb.h>
@@ -82,6 +96,18 @@ PRIVATE int create_jwt_validations(hgobj gobj);
 PRIVATE int destroy_jwt_validations(hgobj gobj);
 PRIVATE BOOL verify_token(hgobj gobj, const char *token, json_t **jwt_payload, const char **status);
 
+PRIVATE json_t *hash_password(
+    hgobj gobj,
+    const char *password,
+    const char *digest,
+    unsigned int iterations
+);
+PRIVATE int check_password(
+    hgobj gobj,
+    const char *username,
+    const char *password
+);
+
 /***************************************************************************
  *              Resources
  ***************************************************************************/
@@ -116,86 +142,105 @@ PRIVATE json_t *cmd_accesses(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
 PRIVATE json_t *cmd_create_user(hgobj gobj, const char *cmd, json_t *kw, hgobj src);
 PRIVATE json_t *cmd_enable_user(hgobj gobj, const char *cmd, json_t *kw, hgobj src);
 PRIVATE json_t *cmd_disable_user(hgobj gobj, const char *cmd, json_t *kw, hgobj src);
+PRIVATE json_t *cmd_delete_user(hgobj gobj, const char *cmd, json_t *kw, hgobj src);
+PRIVATE json_t *cmd_set_user_passw(hgobj gobj, const char *cmd, json_t *kw, hgobj src);
+PRIVATE json_t *cmd_check_user_passw(hgobj gobj, const char *cmd, json_t *kw, hgobj src);
 PRIVATE json_t *cmd_roles(hgobj gobj, const char *cmd, json_t *kw, hgobj src);
 PRIVATE json_t *cmd_user_roles(hgobj gobj, const char *cmd, json_t *kw, hgobj src);
 PRIVATE json_t *cmd_user_authzs(hgobj gobj, const char *cmd, json_t *kw, hgobj src);
 
 PRIVATE sdata_desc_t pm_help[] = {
-/*-PM----type-----------name------------flag------------default-----description---------- */
-SDATAPM (DTP_STRING, "cmd",          0,              0,          "command about you want help."),
-SDATAPM (DTP_INTEGER,  "level",        0,              0,          "level=1: search in bottoms, level=2: search in all childs"),
+/*-PM----type-----------name------------flag----default-----description---------- */
+SDATAPM (DTP_STRING, "cmd",             0,      0,          "command about you want help."),
+SDATAPM (DTP_INTEGER,  "level",         0,      0,          "level=1: search in bottoms, level=2: search in all childs"),
 SDATA_END()
 };
 
 PRIVATE sdata_desc_t pm_add_jwk[] = {
-/*-PM----type-----------name------------flag------------default-----description---------- */
-SDATAPM (DTP_STRING,    "kid",          0,              0,          "Key ID – used to match JWT's kid to the correct key, same as 'iss'"),
-SDATAPM (DTP_STRING,    "iss",          0,              0,          "Key ID – used to match JWT's kid to the correct key, same as 'kid'"),
-SDATAPM (DTP_STRING,    "kty",          0,              "RSA",      "Key type (e.g. RSA, EC)"),
-SDATAPM (DTP_STRING,    "use",          0,              "sig",      "Intended key use (sig = signature, enc = encryption)"),
-SDATAPM (DTP_STRING,    "alg",          0,              "RS256",    "Algorithm used with the key (e.g. RS256)"),
-SDATAPM (DTP_STRING,    "n",            0,              0,          "RSA modulus, base64url-encoded, same as 'pkey'"),
-SDATAPM (DTP_STRING,    "pkey",         0,              0,          "RSA modulus, base64url-encoded, same as 'n'"),
-SDATAPM (DTP_STRING,    "e",            0,              "AQAB",     "RSA exponent, usually 'AQAB' (65537), base64url-encoded"),
-SDATAPM (DTP_STRING,    "x5c",          0,              0,          "(Optional) X.509 certificate chain"),
+/*-PM----type-----------name------------flag----default-----description---------- */
+SDATAPM (DTP_STRING,    "kid",          0,      0,          "Key ID – used to match JWT's kid to the correct key, same as 'iss'"),
+SDATAPM (DTP_STRING,    "iss",          0,      0,          "Key ID – used to match JWT's kid to the correct key, same as 'kid'"),
+SDATAPM (DTP_STRING,    "kty",          0,      "RSA",      "Key type (e.g. RSA, EC)"),
+SDATAPM (DTP_STRING,    "use",          0,      "sig",      "Intended key use (sig = signature, enc = encryption)"),
+SDATAPM (DTP_STRING,    "alg",          0,      "RS256",    "Algorithm used with the key (e.g. RS256)"),
+SDATAPM (DTP_STRING,    "n",            0,      0,          "RSA modulus, base64url-encoded, same as 'pkey'"),
+SDATAPM (DTP_STRING,    "pkey",         0,      0,          "RSA modulus, base64url-encoded, same as 'n'"),
+SDATAPM (DTP_STRING,    "e",            0,      "AQAB",     "RSA exponent, usually 'AQAB' (65537), base64url-encoded"),
+SDATAPM (DTP_STRING,    "x5c",          0,      0,          "(Optional) X.509 certificate chain"),
 
-SDATAPM (DTP_STRING,    "description",  0,              0,          "Description"),
+SDATAPM (DTP_STRING,    "description",  0,      0,          "Description"),
 SDATA_END()
 };
 PRIVATE sdata_desc_t pm_rm_jwk[] = {
-/*-PM----type-----------name------------flag------------default-----description---------- */
-SDATAPM (DTP_STRING,    "kid",          0,              0,          "Key ID, same as 'iss'"),
-SDATAPM (DTP_STRING,    "iss",          0,              0,          "Issuer, same as 'kid'"),
+/*-PM----type-----------name------------flag----default-----description---------- */
+SDATAPM (DTP_STRING,    "kid",          0,      0,          "Key ID, same as 'iss'"),
+SDATAPM (DTP_STRING,    "iss",          0,      0,          "Issuer, same as 'kid'"),
 SDATA_END()
 };
 
 PRIVATE sdata_desc_t pm_authzs[] = {
-/*-PM----type-----------name------------flag------------default-----description---------- */
-SDATAPM (DTP_STRING,    "authz",        0,              0,          "permission to search"),
-SDATAPM (DTP_STRING,    "service",      0,              0,          "Service where to search the permission. If empty print all service's permissions"),
+/*-PM----type-----------name------------flag----default-----description---------- */
+SDATAPM (DTP_STRING,    "authz",        0,      0,          "permission to search"),
+SDATAPM (DTP_STRING,    "service",      0,      0,          "Service where to search the permission. If empty print all service's permissions"),
 SDATA_END()
 };
 PRIVATE sdata_desc_t pm_users[] = {
-/*-PM----type-----------name------------flag------------default-----description---------- */
-SDATAPM (DTP_JSON,      "filter",       0,              0,          "Filter"),
+/*-PM----type-----------name------------flag----default-----description---------- */
+SDATAPM (DTP_JSON,      "filter",       0,      0,          "Filter"),
 SDATA_END()
 };
 
 PRIVATE sdata_desc_t pm_create_user[] = {
-/*-PM----type-----------name------------flag------------default-----description---------- */
-SDATAPM (DTP_STRING,    "username",     0,              0,          "Username"),
-SDATAPM (DTP_STRING,    "role",         0,              0,          "ROLE format: roles^ROLE^users"),
-SDATAPM (DTP_BOOLEAN,   "disabled",     0,              0,          "Disabled"),
+/*-PM----type-----------name------------flag----default-----description---------- */
+SDATAPM (DTP_STRING,    "username",     0,      0,          "Username"),
+SDATAPM (DTP_STRING,    "role",         0,      0,          "ROLE format: roles^ROLE^users"),
+SDATAPM (DTP_BOOLEAN,   "disabled",     0,      0,          "Disabled"),
+
+SDATAPM (DTP_STRING,    "password",     0,      0,          "Password"),
+SDATAPM (DTP_INTEGER,   "hashIterations",0,     "27500",    "Default To build a password"),
+SDATAPM (DTP_STRING,    "algorithm",    0,      "sha256",   "Default To build a password"),
+
 SDATA_END()
 };
-PRIVATE sdata_desc_t pm_enable_user[] = {
-/*-PM----type-----------name------------flag------------default-----description---------- */
-SDATAPM (DTP_STRING,    "username",     0,              0,          "Username"),
+PRIVATE sdata_desc_t pm_user[] = {
+/*-PM----type-----------name------------flag----default-----description---------- */
+SDATAPM (DTP_STRING,    "username",     0,      0,          "Username"),
 SDATA_END()
 };
-PRIVATE sdata_desc_t pm_disable_user[] = {
-/*-PM----type-----------name------------flag------------default-----description---------- */
-SDATAPM (DTP_STRING,    "username",     0,              0,          "Username"),
+
+PRIVATE sdata_desc_t pm_check_passw[] = {
+/*-PM----type-----------name------------flag----default-----description---------- */
+SDATAPM (DTP_STRING,    "username",     0,      0,          "Username"),
+SDATAPM (DTP_STRING,    "password",     0,      0,          "Password"),
+SDATA_END()
+};
+PRIVATE sdata_desc_t pm_set_passw[] = {
+/*-PM----type-----------name------------flag----default-----description---------- */
+SDATAPM (DTP_STRING,    "username",     0,      0,          "Username"),
+SDATAPM (DTP_STRING,    "password",     0,      0,          "Password"),
+SDATAPM (DTP_INTEGER,   "hashIterations",0,     "27500",    "Default To build a password"),
+SDATAPM (DTP_STRING,    "algorithm",    0,      "sha256",   "Default To build a password"),
 SDATA_END()
 };
 
 PRIVATE sdata_desc_t pm_roles[] = {
-/*-PM----type-----------name------------flag------------default-----description---------- */
-SDATAPM (DTP_JSON,      "filter",       0,              0,          "Filter"),
+/*-PM----type-----------name------------flag----default-----description---------- */
+SDATAPM (DTP_JSON,      "filter",       0,      0,          "Filter"),
 SDATA_END()
 };
 PRIVATE sdata_desc_t pm_user_roles[] = {
-/*-PM----type-----------name------------flag------------default-----description---------- */
-SDATAPM (DTP_STRING,    "username",     0,              0,          "Username"),
+/*-PM----type-----------name------------flag----default-----description---------- */
+SDATAPM (DTP_STRING,    "username",     0,      0,          "Username"),
 SDATA_END()
 };
 PRIVATE sdata_desc_t pm_user_authzs[] = {
-/*-PM----type-----------name------------flag------------default-----description---------- */
-SDATAPM (DTP_STRING,    "username",     0,              0,          "Username"),
+/*-PM----type-----------name------------flag----default-----description---------- */
+SDATAPM (DTP_STRING,    "username",     0,      0,          "Username"),
 SDATA_END()
 };
 
 PRIVATE const char *a_help[] = {"h", "?", 0};
+PRIVATE const char *a_users[] = {"list-users", 0};
 
 PRIVATE sdata_desc_t command_table[] = {
 /*-CMD---type-----------name----------------alias---items-----------json_fn---------description---------- */
@@ -206,11 +251,15 @@ SDATACM (DTP_SCHEMA,    "authzs",           0,      pm_authzs,      cmd_authzs, 
 SDATACM2(DTP_SCHEMA,    "list-jwk",     SDF_AUTHZ_X,    0,      0,              cmd_list_jwk,   "List OAuth2 JWKs"),
 SDATACM2(DTP_SCHEMA,    "add-jwk",      SDF_AUTHZ_X,    0,      pm_add_jwk,     cmd_add_jwk,    "Add OAuth2 JWK"),
 SDATACM2(DTP_SCHEMA,    "remove-jwk",   SDF_AUTHZ_X,    0,      pm_rm_jwk,      cmd_remove_jwk, "Remove OAuth2 JWK"),
-SDATACM2(DTP_SCHEMA,    "users",        SDF_AUTHZ_X,    0,      pm_users,       cmd_users,      "List users"),
+SDATACM2(DTP_SCHEMA,    "users",        SDF_AUTHZ_X,    a_users,pm_users,       cmd_users,      "List users"),
 SDATACM2(DTP_SCHEMA,    "accesses",     SDF_AUTHZ_X,    0,      pm_users,       cmd_accesses,   "List user accesses"),
 SDATACM2(DTP_SCHEMA,    "create-user",  SDF_AUTHZ_X,    0,      pm_create_user, cmd_create_user,"Create or update user (see ROLE format)"),
-SDATACM2(DTP_SCHEMA,    "enable-user",  SDF_AUTHZ_X,    0,      pm_enable_user, cmd_enable_user,"Enable user"),
-SDATACM2(DTP_SCHEMA,    "disable-user", SDF_AUTHZ_X,    0,      pm_disable_user,cmd_disable_user,"Disable user"),
+SDATACM2(DTP_SCHEMA,    "enable-user",  SDF_AUTHZ_X,    0,      pm_user,        cmd_enable_user,"Enable user"),
+SDATACM2(DTP_SCHEMA,    "disable-user", SDF_AUTHZ_X,    0,      pm_user,        cmd_disable_user,"Disable user"),
+SDATACM2 (DTP_SCHEMA,   "delete-user",  SDF_AUTHZ_X,    0,      pm_user,        cmd_delete_user, "Delete user"),
+SDATACM2 (DTP_SCHEMA,   "check-user-pwd",SDF_AUTHZ_X,   0,      pm_check_passw, cmd_check_user_passw, "Check user password"),
+SDATACM2 (DTP_SCHEMA,   "set-user-pwd", SDF_AUTHZ_X,    0,      pm_set_passw,   cmd_set_user_passw, "Set user password"),
+
 SDATACM2(DTP_SCHEMA,    "roles",        SDF_AUTHZ_X,    0,      pm_roles,       cmd_roles,      "List roles"),
 SDATACM2(DTP_SCHEMA,    "user-roles",   SDF_AUTHZ_X,    0,      pm_user_roles,  cmd_user_roles, "Get roles of user"),
 SDATACM2(DTP_SCHEMA,    "user-authzs",  SDF_AUTHZ_X,    0,      pm_user_authzs, cmd_user_authzs,"Get permissions of user"),
@@ -313,6 +362,15 @@ PRIVATE void mt_create(hgobj gobj)
         malloc_func,
         free_func
     );
+
+#if defined(__linux__)
+#if defined(CONFIG_HAVE_OPENSSL)
+    OpenSSL_add_all_digests();
+    // #elif defined(CONFIG_HAVE_MBEDTLS)
+#else
+#error "No crypto library defined"
+#endif
+#endif
 
     /*--------------------------------*
      *      Tranger database
@@ -1341,8 +1399,11 @@ PRIVATE json_t *cmd_accesses(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
 PRIVATE json_t *cmd_create_user(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
-    const char *username = kw_get_str(gobj, kw, "username", "", 0);
 
+    /*--------------------------*
+     *      Get parameters
+     *--------------------------*/
+    const char *username = kw_get_str(gobj, kw, "username", "", 0);
     if(empty_string(username)) {
         return msg_iev_build_response(
             gobj,
@@ -1354,9 +1415,70 @@ PRIVATE json_t *cmd_create_user(hgobj gobj, const char *cmd, json_t *kw, hgobj s
         );
     }
 
+    /*-----------------------------*
+     *  Check if username exists
+     *-----------------------------*/
+    json_t *user = gobj_get_node(
+        priv->gobj_treedb,
+        "users",
+        json_pack("{s:s}",
+            "id", username
+        ),
+        0,
+        gobj
+    );
+    if(user) {
+        JSON_DECREF(user)
+        return msg_iev_build_response(gobj,
+            -1,
+            json_sprintf("User already exists: %s", username),
+            0,
+            0,
+            kw  // owned
+        );
+    }
+
+    /*-----------------------------*
+     *      Has password?
+     *-----------------------------*/
+    const char *password = kw_get_str(gobj, kw, "password", "", 0);
+    if(!empty_string(password)) {
+        int hashIterations = (int)kw_get_int(
+            gobj,
+            kw,
+            "hashIterations",
+            gobj_read_integer_attr(gobj, "hashIterations"),
+            KW_WILD_NUMBER
+        );
+        const char *algorithm = kw_get_str(
+            gobj,
+            kw,
+            "algorithm",
+            gobj_read_str_attr(gobj, "algorithm"),
+            0
+        );
+        json_t *credentials = hash_password(
+            gobj,
+            password,
+            algorithm,
+            hashIterations
+        );
+        if(!credentials) {
+            return msg_iev_build_response(
+                gobj,
+                -1,
+                json_sprintf("Error creating credentials: %s", gobj_log_last_message()),
+                0,
+                0,
+                kw  // owned
+            );
+        }
+        json_object_set_new(kw, "credentials", credentials);
+    }
+
     gobj_send_event(gobj, EV_ADD_USER, json_incref(kw), src);
 
-    json_t *user = gobj_get_node(
+    user = gobj_get_node(
         priv->gobj_treedb,
         "users",
         json_pack("{s:s}", "id", username),
@@ -1501,6 +1623,257 @@ PRIVATE json_t *cmd_disable_user(hgobj gobj, const char *cmd, json_t *kw, hgobj 
         json_sprintf("User disabled: %s", username),
         tranger2_list_topic_desc_cols(priv->tranger, "users"),
         user,
+        kw  // owned
+    );
+}
+
+/***************************************************************************
+ *
+ ***************************************************************************/
+PRIVATE json_t *cmd_delete_user(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+    const char *username = kw_get_str(gobj, kw, "username", "", 0);
+
+    if(empty_string(username)) {
+        return msg_iev_build_response(
+            gobj,
+            -1,
+            json_sprintf("What username?"),
+            0,
+            0,
+            kw  // owned
+        );
+    }
+
+    json_t *user = gobj_get_node(
+        priv->gobj_treedb,
+        "users",
+        json_pack("{s:s}", "id", username),
+        json_pack("{s:b}",
+            "with_metadata", 1
+        ),
+        gobj
+    );
+    if(!user) {
+        return msg_iev_build_response(
+            gobj,
+            -1,
+            json_sprintf("User not found: '%s'", username),
+            0,
+            0,
+            kw  // owned
+        );
+    }
+
+    gobj_send_event(gobj, EV_REJECT_USER, user, src);
+
+    int ret = gobj_delete_node(
+        priv->gobj_treedb,
+        "users",
+        user,
+        0,
+        gobj
+    );
+
+    return msg_iev_build_response(
+        gobj,
+        ret,
+        json_sprintf("User deleted: %s", username),
+        0,
+        0,
+        kw  // owned
+    );
+}
+
+/***************************************************************************
+ *
+ ***************************************************************************/
+PRIVATE json_t *cmd_check_user_passw(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    /*--------------------------*
+     *      Get parameters
+     *--------------------------*/
+    const char *username = kw_get_str(gobj, kw, "username", "", 0);
+    const char *password = kw_get_str(gobj, kw, "password", "", 0);
+    if(empty_string(username)) {
+        return msg_iev_build_response(
+            gobj,
+            -1,
+            json_sprintf("What username?"),
+            0,
+            0,
+            kw  // owned
+        );
+    }
+    if(empty_string(password)) {
+        return msg_iev_build_response(
+            gobj,
+            -1,
+            json_sprintf("What password?"),
+            0,
+            0,
+            kw  // owned
+        );
+    }
+
+    /*-----------------------------*
+     *  Get username
+     *-----------------------------*/
+    json_t *user = gobj_get_node(
+        priv->gobj_treedb,
+        "users",
+        json_pack("{s:s}",
+            "id", username
+        ),
+        0,
+        src
+    );
+    if(!user) {
+        return msg_iev_build_response(gobj,
+            -1,
+            json_sprintf("User not exist: %s", username),
+            0,
+            0,
+            kw  // owned
+        );
+    }
+
+    int authorization = check_password(gobj, username, password);
+
+    JSON_DECREF(user)
+    return msg_iev_build_response(
+        gobj,
+        0,
+        json_sprintf("Password match: %s", authorization==0?"Yes":"No"),
+        0,
+        0, // owned
+        kw  // owned
+    );
+
+}
+
+/***************************************************************************
+ *
+ ***************************************************************************/
+PRIVATE json_t *cmd_set_user_passw(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    /*--------------------------*
+     *      Get parameters
+     *--------------------------*/
+    const char *username = kw_get_str(gobj, kw, "username", "", 0);
+    const char *password = kw_get_str(gobj, kw, "password", "", 0);
+    if(empty_string(username)) {
+        return msg_iev_build_response(
+            gobj,
+            -1,
+            json_sprintf("What username?"),
+            0,
+            0,
+            kw  // owned
+        );
+    }
+    if(empty_string(password)) {
+        return msg_iev_build_response(
+            gobj,
+            -1,
+            json_sprintf("What password?"),
+            0,
+            0,
+            kw  // owned
+        );
+    }
+
+    /*-----------------------------*
+     *  Get username
+     *-----------------------------*/
+    json_t *user = gobj_get_node(
+        priv->gobj_treedb,
+        "users",
+        json_pack("{s:s}",
+            "id", username
+        ),
+        0,
+        src
+    );
+    if(!user) {
+        return msg_iev_build_response(gobj,
+            -1,
+            json_sprintf("User not exist: %s", username),
+            0,
+            0,
+            kw  // owned
+        );
+    }
+
+    int hashIterations = (int)kw_get_int(
+        gobj,
+        kw,
+        "hashIterations",
+        gobj_read_integer_attr(gobj, "hashIterations"),
+        KW_WILD_NUMBER
+    );
+    const char *algorithm = kw_get_str(
+        gobj,
+        kw,
+        "algorithm",
+        gobj_read_str_attr(gobj, "algorithm"),
+        0
+    );
+
+    /*-----------------------------*
+     *      Update user
+     *-----------------------------*/
+    json_t *credentials = hash_password(
+        gobj,
+        password,
+        algorithm,
+        hashIterations
+    );
+    if(!credentials) {
+        return msg_iev_build_response(
+            gobj,
+            -1,
+            json_sprintf("Error creating credentials: %s", gobj_log_last_message()),
+            0,
+            0,
+            kw  // owned
+        );
+    }
+    JSON_DECREF(user)
+
+    user = gobj_update_node(
+        priv->gobj_treedb,
+        "users",
+        json_pack("{s:s, s:o}",
+            "id", username,
+            "credentials", credentials
+        ),
+        0,
+        gobj
+    );
+    if(!user) {
+        return msg_iev_build_response(
+            gobj,
+            -1,
+            json_sprintf("Cannot update user password: %s", gobj_log_last_message()),
+            0,
+            0,
+            kw  // owned
+        );
+    }
+    JSON_DECREF(user)
+
+    return msg_iev_build_response(
+        gobj,
+        0,
+        json_sprintf("Updated user password: %s", username),
+        0,
+        0, // owned
         kw  // owned
     );
 }
@@ -2032,6 +2405,429 @@ PRIVATE json_t *identify_system_user(
 }
 
 /***************************************************************************
+ *  Constant-time comparison
+ *      Always compares all bytes, takes constant time.
+ *      ✅ Yes — resistant to timing attacks.
+ ***************************************************************************/
+PRIVATE int secure_eq(const uint8_t *a, const uint8_t *b, size_t n)
+{
+    if(!a || !b) {
+        return -1;
+    }
+    unsigned int diff = 0;
+    for(size_t i = 0; i < n; i++) {
+        diff |= (unsigned int)(a[i] ^ b[i]);
+    }
+    return diff == 0 ? 0 : -1;
+}
+
+/***************************************************************************
+ *
+ ***************************************************************************/
+PRIVATE int gen_salt(hgobj gobj, uint8_t *salt, size_t salt_len)
+{
+#if defined(__linux__)
+#if defined(CONFIG_HAVE_OPENSSL)
+    if(RAND_bytes(salt, (int)salt_len) != 1) {
+        gobj_log_error(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_INTERNAL_ERROR,
+            "msg",          "%s", "RAND_bytes() FAILED",
+            NULL
+        );
+        return -1;
+    }
+#elif defined(CONFIG_HAVE_MBEDTLS)
+#else
+#error "No crypto library defined"
+#endif
+#endif
+    return 0;
+}
+
+/***************************************************************************
+ *  PBKDF2-HMAC with arbitrary digest
+ *
+ *  password    : NUL-terminated string
+ *  salt        : salt bytes
+ *  salt_len    : length of salt
+ *  iterations  : cost factor (>=1)
+ *  digest_name : e.g. "sha256", "sha3-512", "sm3"
+ *  out_key     : output buffer
+ *  out_len     : desired key length
+ *
+ *  Returns 0 on success, −1 on failure ***************************************************************************/
+PRIVATE int pbkdf2_any(
+    hgobj gobj,
+    const char *password,
+    const uint8_t *salt,
+    size_t salt_len,
+    unsigned int iterations,
+    const char *digest_name,
+    uint8_t *out_key,
+    size_t out_len
+) {
+    int ret = 0;
+
+#if defined(__linux__)
+#if defined(CONFIG_HAVE_OPENSSL)
+
+    EVP_MD *md = EVP_MD_fetch(NULL, digest_name, NULL);
+    if(!md) {
+        gobj_log_error(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_INTERNAL_ERROR,
+            "msg",          "%s", "Unable to get openssl digest",
+            "digest",       "%s", digest_name,
+            NULL
+        );
+        return -1;
+    }
+
+    int md_size = EVP_MD_get_size(md);
+    if(md_size <= 0) { /* Should not happen for HMAC-capable digests */
+        gobj_log_error(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_INTERNAL_ERROR,
+            "msg",          "%s", "EVP_MD_get_size() failed",
+            "digest",       "%s", digest_name,
+            NULL
+        );
+        EVP_MD_free(md);
+        return -1;
+    }
+
+    if(md_size > out_len) {
+        gobj_log_error(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_INTERNAL_ERROR,
+            "msg",          "%s", "out_key size too small",
+            "digest",       "%s", digest_name,
+            "md_size",      "%d", (int)md_size,
+            "out_len",      "%d", (int)out_len,
+            NULL
+        );
+        EVP_MD_free(md);
+        return -1;
+    }
+
+    if(PKCS5_PBKDF2_HMAC(
+        password, (int)strlen(password),
+        salt, (int)salt_len,
+        (int)iterations, md,
+        (int)md_size, out_key
+    ) != 1) {
+        gobj_log_error(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_INTERNAL_ERROR,
+            "msg",          "%s", "PKCS5_PBKDF2_HMAC() failed",
+            "digest",       "%s", digest_name,
+            NULL
+        );
+        ret = -1;
+    }
+
+    EVP_MD_free(md);
+    ret = md_size;
+
+#elif defined(CONFIG_HAVE_MBEDTLS)
+#else
+#error "No crypto library defined"
+#endif
+#endif
+
+    return ret;
+}
+
+/***************************************************************************
+ *  Return
+
+    "credentials" : [
+        {
+            "type": "password",
+            "secretData": {
+                "value": "???",
+                "salt": "???=="
+            },
+            "credentialData" : {
+                "hashIterations": 27500,
+                "algorithm": "sha512",
+                "additionalParameters": {
+                }
+            }
+        }
+    ]
+
+ ***************************************************************************/
+PRIVATE json_t *hash_password(
+    hgobj gobj,
+    const char *password,
+    const char *digest,
+    unsigned int iterations
+)
+{
+    if(empty_string(digest)) {
+        digest = "sha512";
+    }
+    if(iterations < 1) {
+        iterations = 27500;
+    }
+
+    uint8_t salt[16];
+    if(gen_salt(gobj, salt, sizeof(salt)) != 0) {
+        gobj_log_error(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_INTERNAL_ERROR,
+            "msg",          "%s", "RAND_bytes() FAILED",
+            NULL
+        );
+        return NULL;
+    }
+
+    uint8_t hash[EVP_MAX_MD_SIZE];
+
+    int hash_len = pbkdf2_any(
+        gobj,
+        password,
+        salt, sizeof(salt),
+        iterations, digest,
+        hash, sizeof(hash)
+    );
+    if(hash_len <= 0) {
+        gobj_log_error(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_INTERNAL_ERROR,
+            "msg",          "%s", "pbkdf2_any() failed",
+            "digest",       "%s", digest,
+            NULL
+        );
+        return NULL;
+    }
+
+    gbuffer_t *gbuf_hash = gbuffer_string_to_base64((const char *)hash, hash_len);
+    gbuffer_t *gbuf_salt = gbuffer_string_to_base64((const char *)salt, sizeof(salt));
+    char *hash_b64 = gbuffer_cur_rd_pointer(gbuf_hash);
+    char *salt_b64 = gbuffer_cur_rd_pointer(gbuf_salt);
+
+    json_t *credential_list = json_array();
+    json_t *credential = json_pack("{s:s, s:{s:s, s:s}, s:{s:I, s:s, s:{}}}",
+        "type", "password",
+        "secretData",
+            "value", hash_b64,
+            "salt", salt_b64,
+        "credentialData",
+            "hashIterations", (json_int_t)iterations,
+            "algorithm", digest,
+            "additionalParameters"
+    );
+    json_array_append_new(credential_list, credential);
+
+    GBUFFER_DECREF(gbuf_hash);
+    GBUFFER_DECREF(gbuf_salt);
+
+    return credential_list;
+}
+
+/***************************************************************************
+ *  Verify a PBKDF2-HMAC derived key matches the expected value
+ *
+ *  password     : NUL-terminated password string
+ *  salt         : salt bytes
+ *  salt_len     : length of salt
+ *  iterations   : cost factor (>=1)
+ *  digest_name  : e.g., "sha256", "sha3-512", "sm3"
+ *  expected_dk  : expected derived key bytes
+ *  expected_len : length of expected_dk (and of recomputed dk)
+ *
+ *  Returns 0 on match, -1 on error or mismatch
+ ***************************************************************************/
+PRIVATE int pbkdf2_verify_any(
+    hgobj gobj,
+    const char *password,
+    const uint8_t *salt,
+    size_t salt_len,
+    unsigned int iterations,
+    const char *digest,
+    const uint8_t *expected_dk,
+    size_t expected_len
+)
+{
+    uint8_t hash[EVP_MAX_MD_SIZE];
+
+    int hash_len = pbkdf2_any(
+        gobj,
+        password,
+        salt, salt_len,
+        iterations, digest,
+        hash, sizeof(hash)
+    );
+
+    if(hash_len <= 0) {
+        gobj_log_error(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_INTERNAL_ERROR,
+            "msg",          "%s", "pbkdf2_any() failed",
+            "digest",       "%s", digest,
+            NULL
+        );
+        return -1;
+    }
+    if(hash_len != expected_len) {
+        gobj_log_error(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_INTERNAL_ERROR,
+            "msg",          "%s", "expected_len don't match",
+            "digest",       "%s", digest,
+            "hash_len",     "%d", (int)hash_len,
+            "expected_len", "%d", (int)expected_len,
+            NULL
+        );
+        return -1;
+    }
+
+    return secure_eq(hash, expected_dk, expected_len); /* 0 = match, -1 = mismatch/error */
+}
+
+/***************************************************************************
+ *
+ ***************************************************************************/
+PRIVATE int match_hash(
+    hgobj gobj,
+    const char *password,
+    const char *hash_b64,
+    const char *salt_b64,
+    const char *digest,
+    json_int_t iterations
+)
+{
+    gbuffer_t *gbuf_hash = gbuffer_base64_to_string((const char *)hash_b64, strlen(hash_b64));
+    gbuffer_t *gbuf_salt = gbuffer_base64_to_string((const char *)salt_b64, strlen(salt_b64));
+    uint8_t *hash = gbuffer_cur_rd_pointer(gbuf_hash);
+    uint8_t *salt = gbuffer_cur_rd_pointer(gbuf_salt);
+    size_t hash_len = gbuffer_leftbytes(gbuf_hash);
+    size_t salt_len = gbuffer_leftbytes(gbuf_salt);
+
+    int ret = pbkdf2_verify_any(
+        gobj,
+        password,
+        salt, salt_len,
+        iterations, digest,
+        hash, hash_len
+    );
+    GBUFFER_DECREF(gbuf_hash);
+    GBUFFER_DECREF(gbuf_salt);
+
+    return ret;
+}
+
+/***************************************************************************
+ *  Return -2 if username is not authorized
+ *  Return 0 if password matches
+ ***************************************************************************/
+PRIVATE int check_password(
+    hgobj gobj,
+    const char *username,
+    const char *password
+) {
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    // TODO a client_id can have permitted usernames in blank
+
+    if(empty_string(username)) {
+        gobj_log_warning(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_AUTH_ERROR,
+            "msg",          "%s", "No username given to check password",
+            NULL
+        );
+        return -2;
+    }
+    json_t *user = gobj_get_node(
+        priv->gobj_treedb,
+        "users",
+        json_pack("{s:s}",
+            "id", username
+        ),
+        0,
+        gobj
+    );
+    if(!user) {
+        gobj_log_warning(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_AUTH_ERROR,
+            "msg",          "%s", "Username not exist",
+            "username",     "%s", username,
+            NULL
+        );
+        return -2;
+    }
+
+    json_t *credentials = kw_get_list(gobj, user, "credentials", 0, KW_REQUIRED);
+
+    int idx; json_t *credential;
+    json_array_foreach(credentials, idx, credential) {
+        const char *hash_saved = kw_get_str(
+            gobj,
+            credential,
+            "secretData`value",
+            "",
+            KW_REQUIRED
+        );
+        const char *salt = kw_get_str(
+            gobj,
+            credential,
+            "secretData`salt",
+            "",
+            KW_REQUIRED
+        );
+        json_int_t hashIterations = kw_get_int(
+            gobj,
+            credential,
+            "credentialData`hashIterations",
+            0,
+            KW_REQUIRED
+        );
+        const char *algorithm = kw_get_str(
+            gobj,
+            credential,
+            "credentialData`algorithm",
+            "",
+            KW_REQUIRED
+        );
+
+        if(match_hash(
+            gobj,
+            password,
+            hash_saved,
+            salt,
+            algorithm,
+            hashIterations
+        )==0) {
+            gobj_log_info(gobj, 0,
+                "function",     "%s", __FUNCTION__,
+                "msgset",       "%s", MSGSET_INFO,
+                "msg",          "%s", "Username authorized",
+                "username",     "%s", username,
+                NULL
+            );
+            JSON_DECREF(user)
+            return 0;
+        }
+    }
+
+    gobj_log_warning(gobj, 0,
+        "function",     "%s", __FUNCTION__,
+        "msgset",       "%s", MSGSET_AUTH_ERROR,
+        "msg",          "%s", "Username not authorized",
+        "username",     "%s", username,
+        NULL
+    );
+
+    JSON_DECREF(user)
+    return -2;
+}
+
+/***************************************************************************
  *
  ***************************************************************************/
 PRIVATE json_t *append_role(
@@ -2466,9 +3262,9 @@ PRIVATE int add_user_logout(hgobj gobj, const char *username)
 
 
 
-            /***************************
-             *      Actions
-             ***************************/
+                    /***************************
+                     *      Actions
+                     ***************************/
 
 
 
@@ -2592,19 +3388,44 @@ PRIVATE int ac_create_user(hgobj gobj, const char *event, json_t *kw, hgobj src)
     const char *username = kw_get_str(gobj, kw, "username", "", KW_REQUIRED);
     const char *role = kw_get_str(gobj, kw, "role", "", 0);
     BOOL disabled = kw_get_bool(gobj, kw, "disabled", 0, 0);
+    json_t *credentials = kw_get_dict(gobj, kw, "credentials", 0, 0);
+    json_t *properties = kw_get_dict(gobj, kw, "properties", 0, 0);
 
     time_t t;
     time(&t);
 
+    json_t *user = gobj_get_node(
+        priv->gobj_treedb,
+        "users",
+        json_pack("{s:s}",
+            "id", username
+        ),
+        0,
+        gobj
+    );
+    BOOL new_user = user?TRUE:FALSE;
+    JSON_DECREF(user)
+
     if(empty_string(role)) {
+        json_t *record = json_pack("{s:s, s:b}",
+            "id", username,
+            "disabled", disabled
+        );
+
+        if(new_user) {
+            json_object_set_new(record, "time", json_integer((json_int_t)t));
+        }
+        if(credentials) {
+            json_object_set(record, "credentials", credentials);
+        }
+        if(properties) {
+            json_object_set(record, "properties", properties);
+        }
+
         json_decref(gobj_update_node(
             priv->gobj_treedb,
             "users",
-            json_pack("{s:s, s:I, s:b}",
-                "id", username,
-                "time", (json_int_t)t,
-                "disabled", disabled
-            ),
+            record,
             json_pack("{s:b, s:b}",
                 "create", 1,
                 "autolink", 0
@@ -2612,15 +3433,26 @@ PRIVATE int ac_create_user(hgobj gobj, const char *event, json_t *kw, hgobj src)
             src
         ));
     } else {
+        json_t *record = json_pack("{s:s, s:s, s:b}",
+            "id", username,
+            "roles", role,
+            "disabled", disabled
+        );
+
+        if(new_user) {
+            json_object_set_new(record, "time", json_integer((json_int_t)t));
+        }
+        if(credentials) {
+            json_object_set(record, "credentials", credentials);
+        }
+        if(properties) {
+            json_object_set(record, "properties", properties);
+        }
+
         json_decref(gobj_update_node(
             priv->gobj_treedb,
             "users",
-            json_pack("{s:s, s:s, s:I, s:b}",
-                "id", username,
-                "roles", role,
-                "time", (json_int_t)t,
-                "disabled", disabled
-            ),
+            record,
             json_pack("{s:b, s:b}",
                 "create", 1,
                 "autolink", 1
@@ -2724,11 +3556,11 @@ PRIVATE int ac_reject_user(hgobj gobj, const char *event, json_t *kw, hgobj src)
  *          Global methods table
  *---------------------------------------------*/
 PRIVATE const GMETHODS gmt = {
-    .mt_create = mt_create,
+    .mt_create  = mt_create,
     .mt_writing = mt_writing,
     .mt_destroy = mt_destroy,
-    .mt_start = mt_start,
-    .mt_stop = mt_stop,
+    .mt_start   = mt_start,
+    .mt_stop    = mt_stop,
     .mt_authenticate = mt_authenticate,
 };
 

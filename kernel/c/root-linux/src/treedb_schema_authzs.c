@@ -233,6 +233,7 @@ static char treedb_schema_authzs[]= "\
                     'fillspace': 30,                                \n\
                     'type': 'blob',                                 \n\
                     'flag': [                                       \n\
+                        'hidden',                                   \n\
                         'writable',                                 \n\
                         'persistent'                                \n\
                     ]                                               \n\
