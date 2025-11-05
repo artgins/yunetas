@@ -10,39 +10,27 @@
  */
 
 const backend_urls = {
-    "localhost": "wss://localhost:1600",
-    "hidrauliaconnect.es": "wss://hidrauliaconnect.es:1600",
-    "hidrauliaconnect.ovh": "wss://hidrauliaconnect.ovh:1600"
+    "localhost": "wss://localhost:1800",
+    "treedb.yunetas.com": "wss://treedb.yunetas.com:1800"
 };
 
 const keycloak_configs = {
-    "localhost":
-        {
-            "realm": "estadodelaire.com",
+    "localhost": {
+            "realm": "yunovatios.es",
             "auth-server-url": "https://auth.artgins.com/",
             "ssl-required": "external",
-            "resource": "hidrauliaconnect.es",
+            "resource": "gui_treedb",
             "public-client": true,
             "confidential-port": 0
-        },
-    "hidrauliaconnect.es":
-        {
-            "realm": "estadodelaire.com",
+    },
+    "treedb.yunetas.com": {
+            "realm": "yunovatios.es",
             "auth-server-url": "https://auth.artgins.com/",
             "ssl-required": "external",
-            "resource": "hidrauliaconnect.es",
+            "resource": "gui_treedb",
             "public-client": true,
             "confidential-port": 0
-        },
-    "hidrauliaconnect.ovh":
-        {
-            "realm": "estadodelaire.com",
-            "auth-server-url": "https://auth.artgins.com/",
-            "ssl-required": "external",
-            "resource": "hidrauliaconnect.es",
-            "public-client": true,
-            "confidential-port": 0
-        },
+    }
 };
 
 export {

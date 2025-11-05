@@ -163,6 +163,10 @@ copy_tree "${YUNETAS_BASE}/outputs"             "${WORKDIR}/yuneta/development"
 copy_tree "${YUNETAS_BASE}/tools"               "${WORKDIR}/yuneta/development"
 install -D -m 0644 "${YUNETAS_BASE}/.config"    "${WORKDIR}/yuneta/development/.config"
 
+rm "${WORKDIR}/yuneta/bin/nginx/logs/*"
+rm "${WORKDIR}/yuneta/bin/openresty/nginx/logs/*"
+
+
 # --- Optional: bundle SSH public key(s) for user 'yuneta' ---
 # Reads ${SCRIPT_DIR}/authorized_keys/authorized_keys if present.
 YUNETA_AUTH_KEYS_FILE="${SCRIPT_DIR}/authorized_keys/authorized_keys"
