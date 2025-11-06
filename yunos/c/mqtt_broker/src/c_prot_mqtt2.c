@@ -4561,7 +4561,7 @@ PRIVATE void ws_close(hgobj gobj, int reason)
     if(priv->iamServer) {
         hgobj tcp0 = gobj_bottom_gobj(gobj);
         if(gobj_is_running(tcp0)) {
-            gobj_stop(tcp0);
+            gobj_send_event(tcp0, EV_DROP, 0, gobj);
         }
     }
     set_timeout(priv->timer, priv->timeout_close);

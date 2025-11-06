@@ -354,12 +354,7 @@ PRIVATE int mt_stop(hgobj gobj)
     }
     clear_timeout(priv->timer);
 
-    hgobj tcp0 = gobj_bottom_gobj(gobj);
-    if(tcp0) {
-        if(gobj_is_running(tcp0)) {
-            gobj_stop(tcp0);
-        }
-    }
+    gobj_stop(gobj_bottom_gobj(gobj));
 
     return 0;
 }
@@ -583,7 +578,7 @@ PRIVATE void ws_close(hgobj gobj, int code, const char *reason)
     if(priv->iamServer) {
         hgobj tcp0 = gobj_bottom_gobj(gobj);
         if(gobj_is_running(tcp0)) {
-            gobj_stop(tcp0);
+            gobj_send_event(tcp0, EV_DROP, 0, gobj);
         }
     }
     set_timeout(priv->timer, priv->timeout_close);
@@ -1660,7 +1655,7 @@ PRIVATE int ac_process_handshake(hgobj gobj, const char *event, json_t *kw, hgob
          */
         int result = process_http(gobj, gbuf, priv->parsing_request);
         if (result < 0) {
-            gobj_stop(gobj_bottom_gobj(gobj));
+            gobj_send_event(gobj_bottom_gobj(gobj), EV_DROP, 0, gobj);
 
         } else if (result > 0) {
             int ok = do_response(gobj, priv->parsing_request);
@@ -1668,7 +1663,7 @@ PRIVATE int ac_process_handshake(hgobj gobj, const char *event, json_t *kw, hgob
                 /*
                  * request refused! Drop connection.
                  */
-                gobj_stop(gobj_bottom_gobj(gobj));
+                gobj_send_event(gobj_bottom_gobj(gobj), EV_DROP, 0, gobj);
             } else {
                 /*------------------------------------*
                  *   Upgrade to websocket
