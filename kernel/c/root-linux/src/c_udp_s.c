@@ -43,6 +43,8 @@ PRIVATE void try_to_stop_yevents(hgobj gobj);  // IDEMPOTENT
  *---------------------------------------------*/
 PRIVATE sdata_desc_t tattr_desc[] = {
 SDATA (DTP_STRING,      "url",              SDF_RD,  0, "url of udp server"),
+SDATA (DTP_STRING,      "lHost",            SDF_RD,  0, "Listening ip, got internally from url"),
+SDATA (DTP_STRING,      "lPort",            SDF_RD,  0, "Listening port, got internally from url"),
 SDATA (DTP_JSON,        "crypto",           SDF_WR|SDF_PERSIST, 0, "Crypto config"),
 SDATA (DTP_BOOLEAN,     "only_allowed_ips", SDF_WR|SDF_PERSIST, 0, "Only allowed ips"),
 SDATA (DTP_BOOLEAN,     "trace_tls",        SDF_WR|SDF_PERSIST, 0, "Trace TLS"),
