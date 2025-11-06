@@ -642,16 +642,17 @@ function hide_login_form(gobj)
 function set_error_login_message(gobj, message)
 {
     let $element = document.querySelector("#modal-login .invalid-username-password");
+    if($element) {
+        let $content = $element.querySelector(".message-body");
+        if($content) {
+            $content.textContent = `${message}`;
+        }
 
-    let $content = $element.querySelector(".message-body");
-    if($content) {
-        $content.textContent = `${message}`;
-    }
-
-    if(empty_string(message)) {
-        $element.classList.add('is-hidden');
-    } else {
-        $element.classList.remove('is-hidden');
+        if(empty_string(message)) {
+            $element.classList.add('is-hidden');
+        } else {
+            $element.classList.remove('is-hidden');
+        }
     }
 }
 
@@ -1164,11 +1165,15 @@ function show_app_content(gobj, show)
     if(show) {
         // Activate own content
         $content_layer.classList.remove('is-hidden');
-        $iframe_layer.classList.add('is-hidden');
+        if($iframe_layer) {
+            $iframe_layer.classList.add('is-hidden');
+        }
     } else {
         // Activate publi content
         $content_layer.classList.add('is-hidden');
-        $iframe_layer.classList.remove('is-hidden');
+        if($iframe_layer) {
+            $iframe_layer.classList.remove('is-hidden');
+        }
     }
 }
 

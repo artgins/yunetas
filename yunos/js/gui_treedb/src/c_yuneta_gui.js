@@ -34,6 +34,7 @@ import {
     gobj_write_attr,
     gobj_start,
     gobj_publish_event,
+    gobj_read_attr,
     json_size,
     strs_in_list,
     gobj_short_name,
@@ -319,7 +320,7 @@ function build_app(gobj, services_roles)
     //  *  Historical tracks
     //  *-----------------------------------*/
     // let gobj_historical_tracks = gobj_create_service(
-    //     "#historical_tracks",
+    //     "#historical_tracks", // HACK href
     //     Ui_historical_tracks,
     //     {
     //         subscriber: gobj,
@@ -342,45 +343,36 @@ function build_app(gobj, services_roles)
     /*-----------------------------------*
      *      Settings
      *-----------------------------------*/
+    let main_roles = services_roles[main_remote_service];
+    if(!main_roles || !strs_in_list(main_roles, ["root","owner"], true)) {
+        // Don't show settings, only for admin
+        menu.push(
+            {
+                // If it doesn't have an ID, then it's a menu title.
+                label: `version ${gobj_read_str_attr(__yuno__, "yuno_version")}`
+            }
+        );
+        return menu;
+    }
+
     menu.push(
         {
-            // Si no tiene id entonces es un titulo de menu
+            // If it doesn't have an ID, then it's a menu title.
             label: "settings",
             icon: "far fa-cog",
         }
     );
 
-    if(strs_in_list(services_roles["treedb_airedb"], ["root","owner"], true)) {
-        /*----------------------------------------*
-         *      DB USER Topics
-         *----------------------------------------*/
-        let gobj_topics_airedb = gobj_create_service(
-            "#topics_airedb",
-            "C_YUI_TREEDB_TOPICS",
-            {
-                gobj_remote_yuno: __yuno__.__remote_service__,
-                treedb_name: "treedb_airedb",
-            },
-            gobj
-        );
-        priv.user_gobjs.push(gobj_topics_airedb);
-        // gobj_start(gobj_topics_airedb);
-        menu.push(
-            {
-                id: gobj_name(gobj_topics_airedb),
-                label: "DB Topics",
-                icon: "fas fa-table",
-                gobj: gobj_topics_airedb  // use "$container" attribute
-            }
-        );
-    }
-
-    if(strs_in_list(services_roles["treedb_authzs"], ["root","owner"], true)) {
-        /*----------------------------------------*
-         *      Authzs USER Topics
-         *----------------------------------------*/
+    /*----------------------------------------*
+     *      Treedb Authzs
+     *----------------------------------------*/
+    let authzs_roles = services_roles["treedb_authzs"];
+    if(authzs_roles && strs_in_list(authzs_roles, ["root","owner"], true)) {
+        /*----------------------*
+         *      USER Topics
+         *----------------------*/
         let gobj_tables_authzsdb = gobj_create_service(
-            "#tables_authzsdb",
+            "#topics_authzs", // HACK href
             "C_YUI_TREEDB_TOPICS",
             {
                 gobj_remote_yuno: __yuno__.__remote_service__,
@@ -393,55 +385,17 @@ function build_app(gobj, services_roles)
         menu.push(
             {
                 id: gobj_name(gobj_tables_authzsdb),
-                label: "Authzs Topics",
+                label: "AuthzDB Topics",
                 icon: "fas fa-table",
                 gobj: gobj_tables_authzsdb  // use "$container" attribute
             }
         );
-    }
 
-    if(strs_in_list(services_roles["treedb_airedb"], ["root","owner"], true)) {
-        /*----------------------------------------*
-         *      DB Graph
-         *----------------------------------------*/
+        /*----------------------*
+         *      USER Graphs
+         *----------------------*/
         let gobj_tabs = gobj_create_pure_child(
-            "#airedb_graphs",  // HACK href
-            "C_YUI_TABS",
-            {
-            },
-            gobj
-        );
-        menu.push(
-            {
-                id: gobj_name(gobj_tabs),
-                label: "AireDB Graphs",
-                icon: "fas fa-chart-network",
-                gobj: gobj_tabs   // use "$container" attribute
-            }
-        );
-
-        let gobj_graph_airedb = gobj_create_service(
-            "airedb_treedb_view",
-            "C_YUI_TREEDB_GRAPH",
-            {
-                subscriber: gobj,
-                treedb_name: "treedb_airedb",
-                gobj_remote_yuno: __yuno__.__remote_service__,
-                label: "AireDB",
-                icon: "fas fa-chart-network",
-                modes: ["reading", "operation", "writing", "edition"],
-            },
-            gobj_tabs
-        );
-        priv.user_gobjs.push(gobj_tabs);
-    }
-
-    if(strs_in_list(services_roles["treedb_authzs"], ["root","owner"], true)) {
-        /*----------------------------------------*
-         *      Authzs Graph
-         *----------------------------------------*/
-        let gobj_tabs = gobj_create_pure_child(
-            "#authzdb_graphs",  // HACK href
+            "#graphs_authzs", // HACK href
             "C_YUI_TABS",
             {
             },
@@ -475,48 +429,20 @@ function build_app(gobj, services_roles)
     /*----------------------------------------*
      *      Design
      *----------------------------------------*/
-    if(strs_in_list(services_roles["treedb_airedb"], ["root","owner"], true)) {
-        menu.push(
-            {
-                // Si no tiene id entonces es un titulo de menu
-                label: "developer",
-                icon: "far fa-cog",
-            }
-        );
-    }
+    menu.push(
+        {
+            // If it doesn't have an ID, then it's a menu title.
+            label: "developer",
+            icon: "far fa-cog",
+        }
+    );
 
-    if(strs_in_list(services_roles["treedb_airedb"], ["root","owner"], true)) {
-        /*----------------------------------------*
-         *      DB SYSTEM Topics
-         *----------------------------------------*/
-        let gobj_topics_airedb = gobj_create_service(
-            "#topics_airedb_system",
-            "C_YUI_TREEDB_TOPICS",
-            {
-                gobj_remote_yuno: __yuno__.__remote_service__,
-                treedb_name: "treedb_airedb",
-                system: true,
-            },
-            gobj
-        );
-        priv.user_gobjs.push(gobj_topics_airedb);
-        // gobj_start(gobj_topics_airedb);
-        menu.push(
-            {
-                id: gobj_name(gobj_topics_airedb),
-                label: "DB Design",
-                icon: "fas fa-table",
-                gobj: gobj_topics_airedb  // use "$container" attribute
-            }
-        );
-    }
-
-    if(strs_in_list(services_roles["treedb_authzs"], ["root","owner"], true)) {
-        /*----------------------------------------*
-         *      Authzs SYSTEM Topics
-         *----------------------------------------*/
+    if(authzs_roles && strs_in_list(authzs_roles, ["root","owner"], true)) {
+        /*-------------------------*
+         *      SYSTEM Topics
+         *-------------------------*/
         let gobj_tables_authzsdb = gobj_create_service(
-            "#tables_authzsdb_system",
+            "#topics_authzs_system", // HACK href
             "C_YUI_TREEDB_TOPICS",
             {
                 gobj_remote_yuno: __yuno__.__remote_service__,
@@ -530,19 +456,19 @@ function build_app(gobj, services_roles)
         menu.push(
             {
                 id: gobj_name(gobj_tables_authzsdb),
-                label: "Authzs Design",
+                label: "AuthzDB Design",
                 icon: "fas fa-table",
                 gobj: gobj_tables_authzsdb  // use "$container" attribute
             }
         );
     }
 
-    if(strs_in_list(services_roles["db_history"], ["developer"], true)) {
-        /*----------------------------------------*
-         *      Developer
-         *----------------------------------------*/
+    /*----------------------------------------*
+     *      Developer
+     *----------------------------------------*/
+    if(main_roles && strs_in_list(main_roles, ["developer"], true)) {
         let gobj_tree_js = gobj_create_service(
-            "#JS",
+            "#JS", // HACK href
             "C_UI_TODO", //Ui_gobj_tree_js,
             {
             },
@@ -558,7 +484,6 @@ function build_app(gobj, services_roles)
                 gobj: gobj_tree_js  // use "$container" attribute
             }
         );
-
     }
 
     /*----------------------------------------*
@@ -566,7 +491,7 @@ function build_app(gobj, services_roles)
      *----------------------------------------*/
     menu.push(
         {
-            // Si no tiene id entonces es un título de menu
+            // If it doesn't have an ID, then it's a menu title.
             label: `version ${gobj_read_str_attr(__yuno__, "yuno_version")}`
         }
     );
@@ -627,7 +552,9 @@ function ac_on_open(gobj, event, kw, src)
     /*----------------------------------------*
      *      Developer
      *----------------------------------------*/
-    if(strs_in_list(services_roles["db_history"], ["developer"], true)) {
+    let main_remote_service = gobj_read_str_attr(gobj, "remote_yuno_service");
+    let main_roles = services_roles[main_remote_service];
+    if(main_roles && strs_in_list(main_roles, ["developer"], true)) {
         __yuno__.__developer__ = true; // TODO review
     }
 
