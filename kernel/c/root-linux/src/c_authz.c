@@ -640,8 +640,7 @@ PRIVATE json_t *mt_authenticate(hgobj gobj, json_t *kw, hgobj src)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
     const char *jwt = kw_get_str(gobj, kw, "jwt", NULL, 0);
-    json_t *jwt_payload = NULL;
-    BOOL authenticated_by_local_ip = FALSE;
+    json_t *jwt_payload = json_null();
     const char *session_id = "";
     const char *username = kw_get_str(gobj, kw, "username", "", 0);
     const char *password = kw_get_str(gobj, kw, "password", "", 0);
@@ -806,8 +805,26 @@ PRIVATE json_t *mt_authenticate(hgobj gobj, json_t *kw, hgobj src)
                 );
             }
 
-            comment = "User authenticated by local ip";
-            authenticated_by_local_ip = TRUE;
+            if(strcmp(username, "yuneta")!=0) {
+                /*
+                 *  Only yuneta is allowed by localhost
+                 */
+                gobj_log_info(gobj, 0,
+                    "function",     "%s", __FUNCTION__,
+                    "msgset",       "%s", MSGSET_AUTH,
+                    "msg",          "%s", "Without JWT only yuneta is allowed",
+                    "user",         "%s", username,
+                    "service",      "%s", dst_service,
+                    NULL
+                );
+                KW_DECREF(kw)
+                return json_pack("{s:i, s:s}",
+                    "result", -1,
+                    "comment", "Without JWT only yuneta is allowed"
+                );
+            }
+
+            comment = "User yuneta authenticated by local ip";
 
             /*
              *  Autorizado
@@ -820,7 +837,14 @@ PRIVATE json_t *mt_authenticate(hgobj gobj, json_t *kw, hgobj src)
                 "service",      "%s", dst_service,
                 NULL
             );
-            break;
+            json_t *jn_resp = json_pack("{s:i, s:s, s:s, s:s}",
+                "result", 0,
+                "comment", comment,
+                "username", username,
+                "dst_service", dst_service
+            );
+            KW_DECREF(kw)
+            return jn_resp;
 
         } while(0);
 
@@ -913,21 +937,6 @@ PRIVATE json_t *mt_authenticate(hgobj gobj, json_t *kw, hgobj src)
             "service",      "%s", dst_service,
             NULL
         );
-    }
-
-    /*------------------------------*
-     *  Local and no authz db
-     *------------------------------*/
-    if(authenticated_by_local_ip && !priv->gobj_treedb) {
-        json_t *jn_resp = json_pack("{s:i, s:s, s:s, s:s}",
-            "result", 0,
-            "comment", "User local authenticated and no authz db",
-            "username", username,
-            "dst_service", dst_service
-        );
-        JSON_DECREF(jwt_payload);
-        KW_DECREF(kw)
-        return jn_resp;
     }
 
     /*------------------------------*
@@ -1142,7 +1151,6 @@ PRIVATE json_t *mt_authenticate(hgobj gobj, json_t *kw, hgobj src)
         )
     );
 
-    JSON_DECREF(user);
     KW_DECREF(kw)
     return jn_resp;
 }
