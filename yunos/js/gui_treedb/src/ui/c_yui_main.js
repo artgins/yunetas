@@ -81,7 +81,7 @@ const GCLASS_NAME = "C_YUI_MAIN";
 const attrs_table = [
 SDATA(data_type_t.DTP_POINTER,  "subscriber",           0,  null,           "Subscriber of output events"),
 SDATA(data_type_t.DTP_STRING,   "username",             0,  "",             "username logged"),
-SDATA(data_type_t.DTP_STRING,   "publi_page",           0,  "publi_page",   "Publicity page shown when user is not logged in"),
+// SDATA(data_type_t.DTP_STRING,   "publi_page",           0,  "publi_page",   "Publicity page shown when user is not logged in"),
 SDATA(data_type_t.DTP_STRING,   "theme",                0,  "light",        "Theme: light or dark"),
 SDATA(data_type_t.DTP_STRING,   "logo_wide",            0,  "logo-wide.png", "Logo for the app"),
 SDATA(data_type_t.DTP_REAL,     "width",                0,  "-1",           "Main Window size. -1 -> set full size of the device"),
@@ -175,21 +175,21 @@ function build_ui(gobj)
             ['div', {id: 'bottom-layer', class: 'bottom-layer'}],
             ['div', {id: 'popup-layer', class: 'popup-layer'}],
             ['div', {id: 'modal-layer', class: 'modal-layer'}],
-            ['div', {id: 'iframe-layer', class: 'iframe-layer'},
-                `<iframe id="iframe-publi-page" src="./${gobj_read_attr(gobj, "publi_page")}/index.html" width="100%" height="100%"></iframe>`]
+            // ['div', {id: 'iframe-layer', class: 'iframe-layer'},
+            //     `<iframe id="iframe-publi-page" src="./${gobj_read_attr(gobj, "publi_page")}/index.html" width="100%" height="100%"></iframe>`]
         ]]
     );
     document.body.appendChild($layout);
 
-    const iframe = document.getElementById('iframe-publi-page');
-    if(iframe) {
-        iframe.onload = () => {
-            const theme = kw_get_local_storage_value("theme", "light", true);
-            let iframeDocument = iframe.contentDocument || iframe.contentWindow.document;
-            iframeDocument.documentElement.setAttribute("data-theme", theme);
-            refresh_language(iframeDocument, t);
-        };
-    }
+    // const iframe = document.getElementById('iframe-publi-page');
+    // if(iframe) {
+    //     iframe.onload = () => {
+    //         const theme = kw_get_local_storage_value("theme", "light", true);
+    //         let iframeDocument = iframe.contentDocument || iframe.contentWindow.document;
+    //         iframeDocument.documentElement.setAttribute("data-theme", theme);
+    //         refresh_language(iframeDocument, t);
+    //     };
+    // }
 
     /*---------------------------------------*
      *      Top Header toolbar
@@ -392,12 +392,12 @@ function set_theme(gobj, theme)
         elm.style.display = 'flex';
     }
 
-    const iframe = document.getElementById('iframe-publi-page');
-    if(iframe && iframe.contentWindow) {
-        iframe.contentWindow.document.documentElement.setAttribute("data-theme", theme);
-    } else {
-        log_error("WTF!");
-    }
+    // const iframe = document.getElementById('iframe-publi-page');
+    // if(iframe && iframe.contentWindow) {
+    //     iframe.contentWindow.document.documentElement.setAttribute("data-theme", theme);
+    // } else {
+    //     log_error("WTF!");
+    // }
     gobj_publish_event(gobj, "EV_THEME", {theme: theme});
 }
 
@@ -410,9 +410,9 @@ function change_language(new_language)
     i18next.changeLanguage(new_language);
     refresh_language(null, t);
 
-    const iframe = document.getElementById('iframe-publi-page');
-    let iframeDocument = iframe.contentDocument || iframe.contentWindow.document;
-    refresh_language(iframeDocument, t);
+    // const iframe = document.getElementById('iframe-publi-page');
+    // let iframeDocument = iframe.contentDocument || iframe.contentWindow.document;
+    // refresh_language(iframeDocument, t);
 
     window.dispatchEvent(new Event('resize'));
 }

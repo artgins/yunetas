@@ -206,6 +206,7 @@ function main()
         {
             remote_yuno_role: remote_yuno_role,
             remote_yuno_service: remote_yuno_service,
+            required_services: required_services,
         },
         gobj_yuno()
     );

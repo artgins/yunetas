@@ -73,6 +73,7 @@ SDATA (data_type_t.DTP_STRING,  "username",             0,  "",     "username lo
 SDATA (data_type_t.DTP_STRING,  "remote_yuno_role",     0,  "",     "remote yuno role"),
 SDATA (data_type_t.DTP_STRING,  "remote_yuno_name",     0,  "",     "remote yuno name"),
 SDATA (data_type_t.DTP_STRING,  "remote_yuno_service",  0,  "",     "remote yuno service"),
+SDATA (data_type_t.DTP_LIST,    "required_services",    0,  [],     "required services"),
 SDATA (data_type_t.DTP_STRING,  "home",                 0,  "",     "Home of the app in the browser"),
 SDATA (data_type_t.DTP_STRING,  "url",                  0,  "",     "remote url to connect"),
 SDATA_END()
@@ -151,22 +152,6 @@ function console_log_remote(msg)
         {msg: msg},
         __yuno__
     );
-}
-
-/************************************************************
- *
- ************************************************************/
-function find_device_cell(device_id)
-{
-    let services = gobj_services();
-    for(let service of services) {
-        let gobj = gobj_find_service(service);
-        let name = gobj_name(gobj);
-        if (name.startsWith("device_cell_") && name.endsWith(device_id)) {
-            return gobj;
-        }
-    }
-    return null;
 }
 
 /********************************************
@@ -322,56 +307,13 @@ function build_app(gobj, services_roles)
 {
     let priv = gobj.priv;
 
-    if(!json_size(services_roles["db_history"])) {
+    let main_remote_service = gobj_read_str_attr(gobj, "remote_yuno_service");
+
+    if(!json_size(services_roles[main_remote_service])) {
         return null; // No permission
     }
 
     let menu = [];
-
-    /*-----------------------------------*
-     *  Monitoring - current data
-     *-----------------------------------*/
-    let gobj_monitoring = gobj_create_service(
-        "#monitoring",
-        "C_UI_MONITORING",
-        {
-            subscriber: gobj,
-            gobj_remote_yuno: __yuno__.__remote_service__,
-        },
-        gobj
-    );
-    priv.user_gobjs.push(gobj_monitoring);
-    menu.push(
-        {
-            id: gobj_name(gobj_monitoring),
-            label: "devices",    // Si no está se coge 'id', son iguales!
-            icon: "fa-solid fa-share-nodes",
-            gobj: gobj_monitoring   // use "$container" attribute
-        }
-    );
-
-    /*-----------------------------------*
-     *  Alarms
-     *-----------------------------------*/
-    let gobj_alarms = gobj_create_service(
-        "#alarms",
-        "C_UI_ALARMS",
-        {
-            subscriber: gobj,
-            gobj_remote_yuno: __yuno__.__remote_service__,
-        },
-        gobj
-    );
-    priv.user_gobjs.push(gobj_alarms);
-    // gobj_start(gobj_alarms);
-    menu.push(
-        {
-            id: gobj_name(gobj_alarms),
-            label: "alarms",
-            icon: "fa-solid fa-bell",
-            gobj: gobj_alarms     // use "$container" attribute
-        }
-    );
 
     // /*-----------------------------------*
     //  *  Historical tracks
@@ -396,59 +338,17 @@ function build_app(gobj, services_roles)
     //         gobj: gobj_historical_tracks     // use "$container" attribute
     //     }
     // );
-    //
-    // /*-----------------------------------*
-    //  *  Historical alarms
-    //  *-----------------------------------*/
-    // let gobj_historical_alarms = gobj_create_service(
-    //     "#historical_alarms",
-    //     Ui_historical_alarms,
-    //     {
-    //         subscriber: gobj,
-    //         treedb_name: "treedb_airedb",
-    //         gobj_remote_yuno: __yuno__.__remote_service__,
-    //     },
-    //     gobj
-    // );
-    // priv.user_gobjs.push(gobj_historical_alarms);
-    // // gobj_start(gobj_historical);
-    // menu.push(
-    //     {
-    //         id: gobj_name(gobj_historical_alarms),
-    //         label: "historical_alarms",
-    //         icon: "fa-solid fa-chart-line",
-    //         gobj: gobj_historical_alarms     // use "$container" attribute
-    //     }
-    // );
 
     /*-----------------------------------*
      *      Settings
      *-----------------------------------*/
-    /*
-        TODO se pregunta por roles o permisos, aquí se conocen los roles !!!???
-        TODO Hay que revisar tema de permisos y roles
-     */
-    if(services_roles["treedb_airedb"] &&
-            strs_in_list(services_roles["treedb_airedb"], ["root","owner"], true)) {
-        menu.push(
-            {
-                // Si no tiene id entonces es un titulo de menu
-                label: "settings",
-                icon: "far fa-cog",
-            }
-        );
-    } else {
-        /*----------------------------------------*
-         *      Version
-         *----------------------------------------*/
-        menu.push(
-            {
-                // Si no tiene id entonces es un título de menu
-                label: `version ${gobj_read_str_attr(__yuno__, "yuno_version")}`
-            }
-        );
-        return menu;
-    }
+    menu.push(
+        {
+            // Si no tiene id entonces es un titulo de menu
+            label: "settings",
+            icon: "far fa-cog",
+        }
+    );
 
     if(strs_in_list(services_roles["treedb_airedb"], ["root","owner"], true)) {
         /*----------------------------------------*
@@ -976,4 +876,4 @@ function register_c_yuneta_gui()
     return create_gclass(GCLASS_NAME);
 }
 
-export { register_c_yuneta_gui, find_device_cell};
+export { register_c_yuneta_gui };
