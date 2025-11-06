@@ -916,6 +916,21 @@ PRIVATE json_t *mt_authenticate(hgobj gobj, json_t *kw, hgobj src)
     }
 
     /*------------------------------*
+     *  Local and no authz db
+     *------------------------------*/
+    if(authenticated_by_local_ip && !priv->gobj_treedb) {
+        json_t *jn_resp = json_pack("{s:i, s:s, s:s, s:s}",
+            "result", 0,
+            "comment", "User local authenticated and no authz db",
+            "username", username,
+            "dst_service", dst_service
+        );
+        JSON_DECREF(jwt_payload);
+        KW_DECREF(kw)
+        return jn_resp;
+    }
+
+    /*------------------------------*
      *      Get user roles
      *------------------------------*/
     json_t *services_roles = get_user_roles(
@@ -930,11 +945,12 @@ PRIVATE json_t *mt_authenticate(hgobj gobj, json_t *kw, hgobj src)
          *  No Autorizado
          */
         gobj_log_info(gobj, 0,
-            "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_AUTH,
-            "msg",          "%s", "User has not authz in service",
-            "user",         "%s", username,
-            "service",      "%s", dst_service,
+            "function",         "%s", __FUNCTION__,
+            "msgset",           "%s", MSGSET_AUTH,
+            "msg",              "%s", "User has not authz in service",
+            "user",             "%s", username,
+            "service",          "%s", dst_service,
+            "services_roles",   "%j", services_roles?services_roles:json_null(),
             NULL
         );
         JSON_DECREF(services_roles);
@@ -946,20 +962,6 @@ PRIVATE json_t *mt_authenticate(hgobj gobj, json_t *kw, hgobj src)
             "dst_service", dst_service,
             "username", username
         );
-    }
-
-    if(authenticated_by_local_ip) {
-        json_t *jn_resp = json_pack("{s:i, s:s, s:s, s:s, s:O}",
-            "result", 0,
-            "comment", "User local authenticated",
-            "username", username,
-            "dst_service", dst_service,
-            "services_roles", services_roles
-        );
-        JSON_DECREF(services_roles);
-        JSON_DECREF(jwt_payload);
-        KW_DECREF(kw)
-        return jn_resp;
     }
 
     json_t *user = gobj_get_node(
