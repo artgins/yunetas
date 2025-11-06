@@ -1019,6 +1019,15 @@ PRIVATE void mt_create(hgobj gobj)
         print_error(0, "yuneta_agent: node_owner EMPTY, setting none");
     }
 
+    /*----------------------------------------*
+     *      Check user yuneta
+     *----------------------------------------*/
+    gobj_write_str_attr(
+        gobj,
+        "__username__",
+        gobj_read_str_attr(gobj_yuno(), "__username__")
+    );
+
     /*---------------------------------------*
      *      Create timer to start yunos
      *---------------------------------------*/

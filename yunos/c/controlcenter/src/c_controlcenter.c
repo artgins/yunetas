@@ -205,6 +205,15 @@ PRIVATE void mt_create(hgobj gobj)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
+    /*----------------------------------------*
+     *      Check user yuneta
+     *----------------------------------------*/
+    gobj_write_str_attr(
+        gobj,
+        "__username__",
+        gobj_read_str_attr(gobj_yuno(), "__username__")
+    );
+
     priv->timer = gobj_create_pure_child(gobj_name(gobj), C_TIMER, 0, gobj);
 
     /*

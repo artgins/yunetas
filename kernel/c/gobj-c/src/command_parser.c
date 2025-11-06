@@ -136,7 +136,6 @@ PUBLIC json_t * command_parser(
     }
     KW_DECREF(kw)
     return kw_response;  /* can be null if asynchronous response */
-
 }
 
 /***************************************************************************
