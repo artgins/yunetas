@@ -45,9 +45,9 @@ import {register_c_yui_tabs} from "./ui/c_yui_tabs.js";
 import {register_c_g6_node} from "./ui/c_g6_node.js";
 
 import "bulma/css/bulma.css";
-import "/assets/fontawesome-free-6.5.1-web/css/fontawesome.css";
-import "/assets/fontawesome-free-6.5.1-web/css/regular.css";
-import "/assets/fontawesome-free-6.5.1-web/css/solid.css";
+import "/assets/fontawesome-free-7.1.0-web/css/fontawesome.css";
+import "/assets/fontawesome-free-7.1.0-web/css/regular.css";
+import "/assets/fontawesome-free-7.1.0-web/css/solid.css";
 
 import "tabulator-tables/dist/css/tabulator.min.css"; // Import Tabulator CSS
 import "tabulator-tables/dist/css/tabulator_bulma.css";

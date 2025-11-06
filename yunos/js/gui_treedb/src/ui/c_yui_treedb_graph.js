@@ -445,10 +445,10 @@ function make_toolbar(gobj)
     let center_items = [];
     let c_icons = [
         //["fa-regular fa-arrows-maximize",       "EV_FULLSCREEN",    false,  'i'],
-        ["fa-regular fa-magnifying-glass-plus", "EV_ZOOM_IN",       false,  'i'],
-        ["fa-regular fa-magnifying-glass",      "EV_ZOOM_RESET",    false,  'i'],
-        ["fa-regular fa-magnifying-glass-minus","EV_ZOOM_OUT",      false,  'i'],
-        ["fa-regular fa-arrows-to-eye",         "EV_CENTER",        false,  'i'],
+        ["fas fa-magnifying-glass-plus", "EV_ZOOM_IN",       false,  'i'],
+        ["fas fa-magnifying-glass",      "EV_ZOOM_RESET",    false,  'i'],
+        ["fas fa-magnifying-glass-minus","EV_ZOOM_OUT",      false,  'i'],
+        ["fas fa-arrows-to-eye",         "EV_CENTER",        false,  'i'],
     ];
 
     add_buttons(gobj, center_items, c_icons);
@@ -855,11 +855,11 @@ function set_mode(gobj, mode)
             break;
         case 'edition':
             c_icons = [
-                ["fa-solid fa-pen ",                    "EV_EDIT_MODE",     false,  'i'],
-                ["fa-solid fa-plus-large",              "EV_NEW",           true,   'i'],
-                ["fa-regular fa-arrow-rotate-left",     "EV_HISTORY_UNDO",  true,   'i'],
-                ["fa-regular fa-arrow-rotate-right",    "EV_HISTORY_REDO",  true,   'i'],
-                ["fa-solid fa-save ",                   "EV_SAVE_GRAPH",    true,   'i'],
+                ["fas fa-pen ",                 "EV_EDIT_MODE",     false,  'i'],
+                ["fas fa-plus",                 "EV_NEW",           true,   'i'],
+                ["fas fa-arrow-rotate-left",    "EV_HISTORY_UNDO",  true,   'i'],
+                ["fas fa-arrow-rotate-right",   "EV_HISTORY_REDO",  true,   'i'],
+                ["fas fa-save ",                "EV_SAVE_GRAPH",    true,   'i'],
             ];
             break;
     }

@@ -405,7 +405,7 @@ function build_app(gobj, services_roles)
             {
                 id: gobj_name(gobj_tabs),
                 label: "AuthzDB Graphs",
-                icon: "fas fa-chart-network",
+                icon: "fas fa-hexagon-nodes",
                 gobj: gobj_tabs   // use "$container" attribute
             }
         );
@@ -418,7 +418,7 @@ function build_app(gobj, services_roles)
                 treedb_name: "treedb_authzs",
                 gobj_remote_yuno: __yuno__.__remote_service__,
                 label: "AuthDB",
-                icon: "fas fa-chart-network",
+                icon: "fas fa-hexagon-nodes",
                 modes: ["reading", "operation", "writing", "edition"],
             },
             gobj_tabs
