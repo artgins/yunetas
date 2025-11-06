@@ -828,7 +828,8 @@ PRIVATE int ac_identity_card(hgobj gobj, const char *event, json_t *kw, hgobj sr
 
     // json_object_set(kw, "jwt", kw_get_dict_value(jn_resp, "jwt_payload", json_null(), KW_REQUIRED)); // HACK delete original jwt
 
-    json_object_set(kw, "jwt", gobj_read_json_attr(gobj, "jwt_payload")); // HACK delete original jwt
+    json_t *jwt_payload = gobj_read_json_attr(gobj, "jwt_payload");
+    json_object_set(kw, "jwt", jwt_payload?jwt_payload:json_null()); // HACK delete original jwt
     gobj_write_json_attr(gobj, "identity_card", kw);
 
     /*----------------------------------------------*
