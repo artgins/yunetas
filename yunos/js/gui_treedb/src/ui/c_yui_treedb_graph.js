@@ -435,7 +435,7 @@ function make_toolbar(gobj)
         }],
     ];
     let l_icons = [
-        ["fa-regular fa-arrows-rotate",         "EV_REFRESH_TREEDB",false,  'i'],
+        ["fas fa-arrows-rotate",        "EV_REFRESH_TREEDB",false,  'i'],
     ];
     add_buttons(gobj, left_items, l_icons);
 
