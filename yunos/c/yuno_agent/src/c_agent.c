@@ -155,7 +155,6 @@ PRIVATE int add_console_route(
     json_t *kw
 );
 PRIVATE int get_last_public_port(hgobj gobj);
-PRIVATE int run_util_yunos(hgobj gobj);
 
 /***************************************************************************
  *              Resources
@@ -904,7 +903,7 @@ SDATA (DTP_STRING,      "__username__",     SDF_RD,             "",             
 SDATA (DTP_STRING,      "startup_command",  SDF_RD,             0,              "Command to execute at startup"),
 SDATA (DTP_JSON,        "agent_environment",SDF_RD,             0,              "Agent environment. Override the yuno environment"),
 SDATA (DTP_JSON,        "node_variables",   SDF_RD,             0,              "Global to Node json config variables"),
-SDATA (DTP_INTEGER,     "timerStBoot",      SDF_RD,             "6000",         "Timer to run yunos on boot"),
+SDATA (DTP_INTEGER,     "timerStBoot",      SDF_RD,             "4000",         "Timer to run yunos on boot"),
 SDATA (DTP_INTEGER,     "signal2kill",      SDF_RD,             "3",            "Signal to kill yunos:SIGQUIT"),
 
 SDATA (DTP_JSON,        "range_ports",      SDF_RD,             "[[11100,11199]]", "Range Ports. List of ports to be assigned to public services of yunos."),
@@ -949,6 +948,7 @@ SDATA_END()
 typedef struct _PRIVATE_DATA {
     int32_t timerStBoot;
     BOOL enabled_yunos_running;
+    BOOL util_yunos_running;
 
     hgobj gobj_authz;
     hgobj gobj_input_side;
@@ -1300,9 +1300,8 @@ PRIVATE int mt_play(hgobj gobj)
     gobj_subscribe_event(priv->gobj_input_side, NULL, 0, gobj);
 
     get_last_public_port(gobj);
-    run_util_yunos(gobj);
 
-    set_timeout(priv->timer, priv->timerStBoot);
+    set_timeout(priv->timer, 3000); // for util_yunos_running
 
     return 0;
 }
@@ -10568,7 +10567,12 @@ PRIVATE int ac_write_tty(hgobj gobj, const char *event, json_t *kw, hgobj src)
 PRIVATE int ac_timeout(hgobj gobj, const char *event, json_t *kw, hgobj src)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
-    if(!priv->enabled_yunos_running) {
+
+    if(!priv->util_yunos_running) {
+        priv->util_yunos_running = 1;
+        run_util_yunos(gobj);
+        set_timeout(priv->timer, priv->timerStBoot);
+    } else if(!priv->enabled_yunos_running) {
         priv->enabled_yunos_running = 1;
         run_enabled_yunos(gobj);
         exec_startup_command(gobj);

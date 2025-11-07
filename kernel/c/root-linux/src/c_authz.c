@@ -642,6 +642,8 @@ PRIVATE json_t *mt_authenticate(hgobj gobj, json_t *kw, hgobj src)
     const char *jwt = kw_get_str(gobj, kw, "jwt", NULL, 0);
     json_t *jwt_payload = json_null();
     const char *session_id = "";
+    char *comment = "";
+    BOOL yuneta_by_local_ip = FALSE;
     const char *username = kw_get_str(gobj, kw, "username", "", 0);
     const char *password = kw_get_str(gobj, kw, "password", "", 0);
     const char *peername;
@@ -695,52 +697,34 @@ PRIVATE json_t *mt_authenticate(hgobj gobj, json_t *kw, hgobj src)
         );
     }
 
+    if(is_ip_denied(peername)) {
+        /*
+         *  IP not authorized
+         */
+        gobj_log_info(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_AUTH,
+            "msg",          "%s", "Ip denied",
+            "user",         "%s", username,
+            "service",      "%s", dst_service,
+            NULL
+        );
+        KW_DECREF(kw)
+        return json_pack("{s:i, s:s}",
+            "result", -1,
+            "comment", "Ip denied"
+        );
+    }
+
     if(empty_string(jwt)) {
-        /*-------------------------------*
-         *  Without JWT, check local
-         *-------------------------------*/
-        if(is_ip_denied(peername)) {
-            /*
-             *  IP no autorizada sin user/passw, informa
-             */
-            gobj_log_info(gobj, 0,
-                "function",     "%s", __FUNCTION__,
-                "msgset",       "%s", MSGSET_AUTH,
-                "msg",          "%s", "Ip denied",
-                "user",         "%s", username,
-                "service",      "%s", dst_service,
-                NULL
-            );
-            KW_DECREF(kw)
-            return json_pack("{s:i, s:s}",
-                "result", -1,
-                "comment", "Ip denied"
-            );
-        }
-
-        char *comment = "";
+        /*-----------------------------------------------*
+         *  Without JWT, check user password,yuneta,ip
+         *-----------------------------------------------*/
         do {
-            if(is_ip_allowed(peername)) {
-                /*
-                 *  IP autorizada sin user/passw, usa logged user
-                 */
-                comment = "Registered Ip allowed";
-
-                /*
-                 *  Autorizado
-                 */
-                gobj_log_info(gobj, 0,
-                    "function",     "%s", __FUNCTION__,
-                    "msgset",       "%s", MSGSET_AUTH,
-                    "msg",          "%s", comment,
-                    "user",         "%s", username,
-                    "service",      "%s", dst_service,
-                    NULL
-                );
-                break;
-            }
-
-            if(!empty_string(password)) {
+            if(!empty_string(password) && priv->gobj_treedb) {
+                /*-----------------------------*
+                 *      User with password
+                 *-----------------------------*/
                 int authorization = check_password(gobj, username, password);
                 if(authorization < 0) {
                     /*
@@ -785,6 +769,45 @@ PRIVATE json_t *mt_authenticate(hgobj gobj, json_t *kw, hgobj src)
                 break;
             }
 
+            if(strcmp(username, "yuneta")!=0) {
+                /*
+                 *  Only yuneta is allowed without jwt/passw
+                 */
+                gobj_log_info(gobj, 0,
+                    "function",     "%s", __FUNCTION__,
+                    "msgset",       "%s", MSGSET_AUTH,
+                    "msg",          "%s", "Without JWT/passw only yuneta is allowed",
+                    "user",         "%s", username,
+                    "service",      "%s", dst_service,
+                    NULL
+                );
+                KW_DECREF(kw)
+                return json_pack("{s:i, s:s}",
+                    "result", -1,
+                    "comment", "Without JWT/passw only yuneta is allowed"
+                );
+            }
+
+            if(is_ip_allowed(peername)) {
+                /*
+                 *  IP autorizada sin user/passw, usa logged user
+                 */
+                comment = "Registered Ip allowed";
+
+                /*
+                 *  Autorizado
+                 */
+                gobj_log_info(gobj, 0,
+                    "function",     "%s", __FUNCTION__,
+                    "msgset",       "%s", MSGSET_AUTH,
+                    "msg",          "%s", comment,
+                    "user",         "%s", username,
+                    "service",      "%s", dst_service,
+                    NULL
+                );
+                break;
+            }
+
             const char *localhost = "127.0.0.";
             if(strncmp(peername, localhost, strlen(localhost))!=0) {
                 /*
@@ -793,7 +816,7 @@ PRIVATE json_t *mt_authenticate(hgobj gobj, json_t *kw, hgobj src)
                 gobj_log_info(gobj, 0,
                     "function",     "%s", __FUNCTION__,
                     "msgset",       "%s", MSGSET_AUTH,
-                    "msg",          "%s", "Without JWT only localhost is allowed",
+                    "msg",          "%s", "Without JWT/passw only localhost is allowed",
                     "user",         "%s", username,
                     "service",      "%s", dst_service,
                     NULL
@@ -801,50 +824,38 @@ PRIVATE json_t *mt_authenticate(hgobj gobj, json_t *kw, hgobj src)
                 KW_DECREF(kw)
                 return json_pack("{s:i, s:s}",
                     "result", -1,
-                    "comment", "Without JWT or password only localhost is allowed"
+                    "comment", "Without JWT/passw only localhost is allowed"
                 );
             }
 
-            if(strcmp(username, "yuneta")!=0) {
+            yuneta_by_local_ip = TRUE;
+
+            if(!priv->gobj_treedb) {
                 /*
-                 *  Only yuneta is allowed by localhost
+                 *  If local ip, is yuneta, and is not treedb, let it.
+                 */
+                comment = "User yuneta authenticated by local ip";
+
+                /*
+                 *  Autorizado
                  */
                 gobj_log_info(gobj, 0,
                     "function",     "%s", __FUNCTION__,
                     "msgset",       "%s", MSGSET_AUTH,
-                    "msg",          "%s", "Without JWT only yuneta is allowed",
+                    "msg",          "%s", comment,
                     "user",         "%s", username,
                     "service",      "%s", dst_service,
                     NULL
                 );
-                KW_DECREF(kw)
-                return json_pack("{s:i, s:s}",
-                    "result", -1,
-                    "comment", "Without JWT only yuneta is allowed"
+                json_t *jn_resp = json_pack("{s:i, s:s, s:s, s:s}",
+                    "result", 0,
+                    "comment", comment,
+                    "username", username,
+                    "dst_service", dst_service
                 );
+                KW_DECREF(kw)
+                return jn_resp;
             }
-
-            comment = "User yuneta authenticated by local ip";
-
-            /*
-             *  Autorizado
-             */
-            gobj_log_info(gobj, 0,
-                "function",     "%s", __FUNCTION__,
-                "msgset",       "%s", MSGSET_AUTH,
-                "msg",          "%s", comment,
-                "user",         "%s", username,
-                "service",      "%s", dst_service,
-                NULL
-            );
-            json_t *jn_resp = json_pack("{s:i, s:s, s:s, s:s}",
-                "result", 0,
-                "comment", comment,
-                "username", username,
-                "dst_service", dst_service
-            );
-            KW_DECREF(kw)
-            return jn_resp;
 
         } while(0);
 
@@ -924,7 +935,7 @@ PRIVATE json_t *mt_authenticate(hgobj gobj, json_t *kw, hgobj src)
             0
         );
 
-        const char *comment = "User authenticated by jwt";
+        comment = "User authenticated by jwt";
 
         /*
          *  Autorizado
@@ -940,6 +951,21 @@ PRIVATE json_t *mt_authenticate(hgobj gobj, json_t *kw, hgobj src)
     }
 
     /*------------------------------*
+     *  Let it if no treedb
+     *------------------------------*/
+    if(!priv->gobj_treedb) {
+        json_t *jn_resp = json_pack("{s:i, s:s, s:s, s:s}",
+            "result", 0,
+            "comment", comment,
+            "username", username,
+            "dst_service", dst_service
+        );
+        JSON_DECREF(jwt_payload);
+        KW_DECREF(kw)
+        return jn_resp;
+    }
+
+    /*------------------------------*
      *      Get user roles
      *------------------------------*/
     json_t *services_roles = get_user_roles(
@@ -951,12 +977,13 @@ PRIVATE json_t *mt_authenticate(hgobj gobj, json_t *kw, hgobj src)
     );
     if(!kw_has_key(services_roles, dst_service)) {
         /*
-         *  No Autorizado
+         *  No authorized in dst service
          */
         gobj_log_info(gobj, 0,
             "function",         "%s", __FUNCTION__,
             "msgset",           "%s", MSGSET_AUTH,
             "msg",              "%s", "User has not authz in service",
+            "comment",          "%s", comment,
             "user",             "%s", username,
             "service",          "%s", dst_service,
             "services_roles",   "%j", services_roles?services_roles:json_null(),
@@ -973,6 +1000,25 @@ PRIVATE json_t *mt_authenticate(hgobj gobj, json_t *kw, hgobj src)
         );
     }
 
+    /*------------------------------*
+     *      yuneta
+     *------------------------------*/
+    if(yuneta_by_local_ip) {
+        json_t *jn_resp = json_pack("{s:i, s:s, s:s, s:s}",
+            "result", 0,
+            "comment", comment,
+            "username", username,
+            "dst_service", dst_service
+        );
+        JSON_DECREF(services_roles);
+        JSON_DECREF(jwt_payload);
+        KW_DECREF(kw)
+        return jn_resp;
+    }
+
+    /*------------------------------*
+     *      Check user
+     *------------------------------*/
     json_t *user = gobj_get_node(
         priv->gobj_treedb,
         "users",
