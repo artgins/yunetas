@@ -830,32 +830,23 @@ PRIVATE json_t *mt_authenticate(hgobj gobj, json_t *kw, hgobj src)
 
             yuneta_by_local_ip = TRUE;
 
-            if(!priv->gobj_treedb) {
-                /*
-                 *  If local ip, is yuneta, and is not treedb, let it.
-                 */
-                comment = "User yuneta authenticated by local ip";
+            /*
+             *  If local ip, is yuneta, and is not treedb, let it.
+             */
+            comment = "User yuneta authenticated by local ip";
 
-                /*
-                 *  Autorizado
-                 */
-                gobj_log_info(gobj, 0,
-                    "function",     "%s", __FUNCTION__,
-                    "msgset",       "%s", MSGSET_AUTH,
-                    "msg",          "%s", comment,
-                    "user",         "%s", username,
-                    "service",      "%s", dst_service,
-                    NULL
-                );
-                json_t *jn_resp = json_pack("{s:i, s:s, s:s, s:s}",
-                    "result", 0,
-                    "comment", comment,
-                    "username", username,
-                    "dst_service", dst_service
-                );
-                KW_DECREF(kw)
-                return jn_resp;
-            }
+            /*
+             *  Autorizado
+             */
+            gobj_log_info(gobj, 0,
+                "function",     "%s", __FUNCTION__,
+                "msgset",       "%s", MSGSET_AUTH,
+                "msg",          "%s", comment,
+                "user",         "%s", username,
+                "service",      "%s", dst_service,
+                NULL
+            );
+            break;
 
         } while(0);
 
