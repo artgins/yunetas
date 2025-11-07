@@ -985,11 +985,6 @@ PRIVATE void mt_create(hgobj gobj)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
-    if (!atexit_registered) {
-        atexit(remove_pid_file);
-        atexit_registered = 1;
-    }
-
     /*----------------------------------------*
      *  Get node uuid
      *----------------------------------------*/
@@ -1075,6 +1070,11 @@ PRIVATE void mt_create(hgobj gobj)
         if(file) {
             fprintf(file, "%d\n", getpid());
             fclose(file);
+        }
+
+        if (!atexit_registered) {
+            atexit(remove_pid_file);
+            atexit_registered = 1;
         }
     }
 
