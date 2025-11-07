@@ -5933,6 +5933,7 @@ PRIVATE json_t *cmd_authzs_yuno(hgobj gobj, const char *cmd, json_t *kw, hgobj s
  ***************************************************************************/
 PRIVATE json_t *cmd_command_agent(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
 {
+print_json2("XXXX", kw); // TODO TEST
     const char *command = kw_get_str(gobj, kw, "command", 0, 0);
     if(empty_string(command)) {
         return msg_iev_build_response(gobj,

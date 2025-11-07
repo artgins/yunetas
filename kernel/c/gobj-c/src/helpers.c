@@ -2352,12 +2352,12 @@ PUBLIC BOOL json_is_identical(
  ***************************************************************************/
 PUBLIC json_t *anystring2json(const char *bf, size_t len, BOOL verbose)
 {
-    if(empty_string(bf)) {
+    if(!bf) {
         if(verbose) {
             gobj_log_error(0, LOG_OPT_TRACE_STACK,
                 "function",     "%s", __FUNCTION__,
                 "msgset",       "%s", MSGSET_PARAMETER_ERROR,
-                "msg",          "%s", "bf EMPTY",
+                "msg",          "%s", "bf NULL",
                 NULL
             );
         }
@@ -2372,7 +2372,7 @@ PUBLIC json_t *anystring2json(const char *bf, size_t len, BOOL verbose)
                 "function",     "%s", __FUNCTION__,
                 "msgset",       "%s", MSGSET_JSON_ERROR,
                 "msg",          "%s", "json_loads() FAILED",
-                "bf",          "%s", bf,
+                "bf",           "%s", bf,
                 "error",        "%s", error.text,
                 "line",         "%d", error.line,
                 "column",       "%d", error.column,
@@ -2390,7 +2390,7 @@ PUBLIC json_t *anystring2json(const char *bf, size_t len, BOOL verbose)
  *  legal json string: MUST BE an array [] or object {}
  *  Old legalstring2json()
  ***************************************************************************/
-PUBLIC json_t * string2json(const char* str, BOOL verbose)
+PUBLIC json_t *string2json(const char *str, BOOL verbose)
 {
     size_t flags = 0;
     json_error_t error;

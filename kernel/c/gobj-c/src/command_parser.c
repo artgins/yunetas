@@ -501,13 +501,17 @@ PRIVATE json_t *build_cmd_kw(
             json_t *value = kw_get_dict_value(0, kw, ip->name, 0, 0);
             if(!DTP_IS_STRING(ip->type) && json_is_string(value)) {
                 const char *s = json_string_value(value);
-                json_t *new_value = anystring2json(s, strlen(s), TRUE);
-                json_object_set_new(kw_cmd, ip->name, new_value);
-            } else {
+                json_t *new_value = anystring2json(s, strlen(s), FALSE);
+                if(new_value) {
+                    json_object_set_new(kw_cmd, ip->name, new_value);
+                    ip++;
+                    continue;
+                }
+            } else if(value) {
                 json_object_set(kw_cmd, ip->name, value);
+                ip++;
+                continue;
             }
-            ip++;
-            continue;
         }
 
         if(ip->default_value) {

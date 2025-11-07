@@ -52,19 +52,20 @@ PRIVATE json_t *build_srv_ievent_request(
  *      Attributes - order affect to oid's
  *---------------------------------------------*/
 PRIVATE sdata_desc_t attrs_table[] = {
-SDATA (DTP_STRING,      "client_yuno_role",     SDF_RD, 0, "yuno role of connected client"),
-SDATA (DTP_STRING,      "client_yuno_name",     SDF_RD, 0, "yuno name of connected client"),
-SDATA (DTP_STRING,      "client_yuno_service",  SDF_RD, 0, "yuno service of connected client"),
+SDATA (DTP_STRING,      "client_yuno_role",     SDF_VOLATIL, 0, "yuno role of connected client"),
+SDATA (DTP_STRING,      "client_yuno_name",     SDF_VOLATIL, 0, "yuno name of connected client"),
+SDATA (DTP_STRING,      "client_yuno_service",  SDF_VOLATIL, 0, "yuno service of connected client"),
 
-SDATA (DTP_STRING,      "this_service",         SDF_RD, 0, "dst_service at identity_card"),
-SDATA (DTP_POINTER,     "gobj_service",         0,      0, "gobj of identity_card dst_service"),
+SDATA (DTP_STRING,      "this_service",         SDF_VOLATIL, 0, "dst_service at identity_card"),
+SDATA (DTP_POINTER,     "gobj_service",         SDF_VOLATIL, 0, "gobj of identity_card dst_service"),
 
-SDATA (DTP_BOOLEAN,     "authenticated",        SDF_RD, 0, "True if entry was authenticated"),
+SDATA (DTP_BOOLEAN,     "authenticated",        SDF_VOLATIL, 0, "True if entry was authenticated"),
 
 // HACK set by c_authz
-SDATA (DTP_JSON,        "jwt_payload",          SDF_RD, 0, "JWT payload (decoded user data) of authenticated user, WARNING set by c_authz"),
-SDATA (DTP_STRING,      "__username__",         SDF_RD, "", "Username, WARNING set by c_authz"),
-SDATA (DTP_JSON,        "identity_card",        SDF_RD, "", "Identity Card of clisrv"),
+SDATA (DTP_JSON,        "jwt_payload",          SDF_VOLATIL, 0, "JWT payload (decoded user data) of authenticated user, WARNING set by c_authz"),
+SDATA (DTP_STRING,      "__username__",         SDF_VOLATIL, "", "Username, WARNING set by c_authz"),
+
+SDATA (DTP_JSON,        "identity_card",        SDF_VOLATIL, "", "Identity Card of clisrv"),
 
 // TODO available_services for this gate
 // TODO available_services in this gate
@@ -1282,6 +1283,16 @@ PRIVATE int ac_on_message(hgobj gobj, const char *event, json_t *kw, hgobj src)
 //             }
 //         }
 
+        /*
+         *   Set __username__
+         */
+        kw_set_dict_value(
+            gobj,
+            iev_kw,
+            "__username__",
+            json_string(gobj_read_str_attr(gobj, "__username__"))
+        );
+
         if(gobj_has_event(gobj, iev_event, EVF_PUBLIC_EVENT)) {
             /*
             *  It's mine (I manage inter-command and inter-stats)
@@ -1295,16 +1306,6 @@ PRIVATE int ac_on_message(hgobj gobj, const char *event, json_t *kw, hgobj src)
             KW_DECREF(kw)
             return ret;
         }
-
-        /*
-         *   Set __username__
-         */
-        kw_set_dict_value(
-            gobj,
-            iev_kw,
-            "__username__",
-            json_string(gobj_read_str_attr(gobj, "__username__"))
-        );
 
         /*
          *   Send inter-event to subscriber
