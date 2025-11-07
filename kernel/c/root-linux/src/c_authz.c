@@ -950,6 +950,16 @@ PRIVATE json_t *mt_authenticate(hgobj gobj, json_t *kw, hgobj src)
         );
     }
 
+    /*----------------------------------------------------------*
+     *  HACK save username, jwt_payload in src (IEvent_srv)
+     *----------------------------------------------------------*/
+    if(gobj_has_bottom_attr(src, "__username__")) {
+        gobj_write_str_attr(src, "__username__", username);
+    }
+    if(gobj_has_bottom_attr(src, "jwt_payload")) {
+        gobj_write_json_attr(src, "jwt_payload", jwt_payload?jwt_payload:json_null());
+    }
+
     /*------------------------------*
      *  Let it if no treedb
      *------------------------------*/
@@ -1082,16 +1092,6 @@ PRIVATE json_t *mt_authenticate(hgobj gobj, json_t *kw, hgobj src)
         JSON_DECREF(user);
         KW_DECREF(kw)
         return jn_msg;
-    }
-
-    /*----------------------------------------------------------*
-     *  HACK save username, jwt_payload in src (IEvent_srv)
-     *----------------------------------------------------------*/
-    if(gobj_has_bottom_attr(src, "__username__")) {
-        gobj_write_str_attr(src, "__username__", username);
-    }
-    if(gobj_has_bottom_attr(src, "jwt_payload")) {
-        gobj_write_json_attr(src, "jwt_payload", jwt_payload?jwt_payload:json_null());
     }
 
     /*------------------------------*

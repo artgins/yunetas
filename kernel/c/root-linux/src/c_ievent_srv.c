@@ -588,14 +588,7 @@ PRIVATE int ac_on_close(hgobj gobj, const char *event, json_t *kw, hgobj src)
     /*----------------------------*
      *      Reset "client data"
      *----------------------------*/
-    gobj_write_bool_attr(gobj, "authenticated", FALSE);
-    gobj_write_str_attr(gobj, "client_yuno_role", "");
-    gobj_write_str_attr(gobj, "client_yuno_service", "");
-    gobj_write_str_attr(gobj, "client_yuno_name", "");
-    gobj_write_str_attr(gobj, "this_service", "");
-    gobj_write_pointer_attr(gobj, "gobj_service", 0);
-    gobj_write_str_attr(gobj, "__username__", "");
-    gobj_write_json_attr(gobj, "identity_card", 0);
+    gobj_reset_volatil_attrs(gobj);
 
     KW_DECREF(kw)
     return 0;
