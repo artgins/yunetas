@@ -754,18 +754,6 @@ PRIVATE json_t *mt_authenticate(hgobj gobj, json_t *kw, hgobj src)
                 );
 
                 comment = "User authenticated by password";
-
-                /*
-                 *  Autorizado
-                 */
-                gobj_log_info(gobj, 0,
-                    "function",     "%s", __FUNCTION__,
-                    "msgset",       "%s", MSGSET_AUTH,
-                    "msg",          "%s", comment,
-                    "user",         "%s", username,
-                    "service",      "%s", dst_service,
-                    NULL
-                );
                 break;
             }
 
@@ -792,19 +780,7 @@ PRIVATE json_t *mt_authenticate(hgobj gobj, json_t *kw, hgobj src)
                 /*
                  *  IP autorizada sin user/passw, usa logged user
                  */
-                comment = "Registered Ip allowed";
-
-                /*
-                 *  Autorizado
-                 */
-                gobj_log_info(gobj, 0,
-                    "function",     "%s", __FUNCTION__,
-                    "msgset",       "%s", MSGSET_AUTH,
-                    "msg",          "%s", comment,
-                    "user",         "%s", username,
-                    "service",      "%s", dst_service,
-                    NULL
-                );
+                comment = "User authenticated by Ip allowed";
                 break;
             }
 
@@ -834,18 +810,6 @@ PRIVATE json_t *mt_authenticate(hgobj gobj, json_t *kw, hgobj src)
              *  If local ip, is yuneta, and is not treedb, let it.
              */
             comment = "User yuneta authenticated by local ip";
-
-            /*
-             *  Autorizado
-             */
-            gobj_log_info(gobj, 0,
-                "function",     "%s", __FUNCTION__,
-                "msgset",       "%s", MSGSET_AUTH,
-                "msg",          "%s", comment,
-                "user",         "%s", username,
-                "service",      "%s", dst_service,
-                NULL
-            );
             break;
 
         } while(0);
@@ -927,18 +891,6 @@ PRIVATE json_t *mt_authenticate(hgobj gobj, json_t *kw, hgobj src)
         );
 
         comment = "User authenticated by jwt";
-
-        /*
-         *  Autorizado
-         */
-        gobj_log_info(gobj, 0,
-            "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_AUTH,
-            "msg",          "%s", comment,
-            "user",         "%s", username,
-            "service",      "%s", dst_service,
-            NULL
-        );
     }
 
     /*----------------------------------------------------------*
@@ -980,7 +932,7 @@ PRIVATE json_t *mt_authenticate(hgobj gobj, json_t *kw, hgobj src)
         /*
          *  No authorized in dst service
          */
-        gobj_log_info(gobj, 0,
+        gobj_log_warning(gobj, 0,
             "function",         "%s", __FUNCTION__,
             "msgset",           "%s", MSGSET_AUTH,
             "msg",              "%s", "User has not authz in service",
@@ -1044,7 +996,7 @@ PRIVATE json_t *mt_authenticate(hgobj gobj, json_t *kw, hgobj src)
             )
         );
 
-        gobj_log_info(gobj, 0,
+        gobj_log_warning(gobj, 0,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_AUTH,
             "msg",          "%s", "User not exits",
@@ -1065,7 +1017,7 @@ PRIVATE json_t *mt_authenticate(hgobj gobj, json_t *kw, hgobj src)
 
     BOOL disabled = kw_get_bool(gobj, user, "disabled", 0, KW_REQUIRED);
     if(disabled) {
-        gobj_log_info(gobj, 0,
+        gobj_log_warning(gobj, 0,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_AUTH,
             "msg",          "%s", "User disabled",
@@ -1115,7 +1067,7 @@ PRIVATE json_t *mt_authenticate(hgobj gobj, json_t *kw, hgobj src)
         hgobj prev_channel_gobj = (hgobj)(uintptr_t)kw_get_int(
             gobj, session, "channel_gobj", 0, KW_REQUIRED
         );
-        gobj_log_info(gobj, 0,
+        gobj_log_warning(gobj, 0,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_AUTH,
             "msg",          "%s", "Drop session, max sessions reached",

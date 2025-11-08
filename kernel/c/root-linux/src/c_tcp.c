@@ -1372,7 +1372,7 @@ PRIVATE int yev_callback(yev_event_h yev_event)
                      */
                     gobj_log_set_last_message("%s", strerror(-yev_get_result(yev_event)));
 
-                    if(trace || 1) { // TODO testing
+                    if(trace) {
                         gobj_log_debug(gobj, 0,
                             "function",     "%s", __FUNCTION__,
                             "msgset",       "%s", MSGSET_LIBURING_ERROR,
