@@ -330,24 +330,9 @@ PRIVATE void kill_proc(void *self, const char *name, pid_t pid)
         return;
     }
 
-    kill(pid, SIGQUIT);
+    kill(pid, SIGQUIT);  // soft exit, let it delete pid file
     sleep(1);
-
-    if(kill(pid, SIGKILL)<0) {
-        int last_errno = errno;
-        gobj_log_error(0, LOG_OPT_EXIT_NEGATIVE,
-            "gobj",             "%s", __FILE__,
-            "function",         "%s", __FUNCTION__,
-            "msgset",           "%s", MSGSET_SYSTEM_ERROR,
-            "msg",              "%s", "kill() FAILED",
-            "process",          "%s", name,
-            "pid",              "%d", (int)getpid(),
-            "relaunch_times",   "%d", relaunch_times,
-            "error",            "%d", last_errno,
-            "strerror",         "%s", strerror(last_errno),
-            NULL
-        );
-    }
+    kill(pid, SIGKILL);  // hard exit, assure that exits
 }
 
 PUBLIC void daemon_shutdown(const char *process_name)
