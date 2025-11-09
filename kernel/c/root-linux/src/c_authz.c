@@ -3345,7 +3345,6 @@ PRIVATE int add_user_logout(hgobj gobj, const char *username)
 
 /***************************************************************************
  *  Identity_card off from
- *      Web clients (__top_side__)
  ***************************************************************************/
 PRIVATE int ac_on_close(hgobj gobj, const char *event, json_t *kw, hgobj src)
 {
@@ -3359,7 +3358,7 @@ PRIVATE int ac_on_close(hgobj gobj, const char *event, json_t *kw, hgobj src)
         gobj_log_error(gobj, 0,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_INTERNAL_ERROR,
-            "msg",          "%s", "open without jwt_payload",
+            "msg",          "%s", "close without jwt_payload",
             NULL
         );
         KW_DECREF(kw)
@@ -3374,7 +3373,7 @@ PRIVATE int ac_on_close(hgobj gobj, const char *event, json_t *kw, hgobj src)
     /*--------------------------------------------*
      *  Add logout user
      *--------------------------------------------*/
-    if(priv->tranger) { // Si han pasado a pause es 0
+    if(priv->gobj_treedb) { // Si han pasado a pause es 0
         const char *session_id = kw_get_str(
             gobj,
             jwt_payload,

@@ -26,6 +26,11 @@
     --modal-background-color: hsla(var(--bulma-scheme-h),var(--bulma-scheme-s),var(--bulma-scheme-invert-l),0.90);
 }
 
+/* MERDE label of form bash bad color in dark, guilty is bootstrap-table! */
+html[data-theme="dark"] {
+    --bulma-text-strong: hsl(221deg, 14%, 21%);
+}
+
 /*********************************************************
  *      Body
  *********************************************************/
