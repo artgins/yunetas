@@ -257,6 +257,7 @@ PRIVATE int mt_play(hgobj gobj)
     /*---------------------------------------*
      *      Open treedb_airedb service
      *---------------------------------------*/
+#ifdef PEPE
     helper_quote2doublequote(treedb_schema_airedb);
     json_t *jn_treedb_schema_airedb;
     jn_treedb_schema_airedb = legalstring2json(treedb_schema_airedb, TRUE);
@@ -312,7 +313,7 @@ PRIVATE int mt_play(hgobj gobj)
 
     // Get timeranger of treedb_airedb, will be used for alarms too
     priv->tranger_treedb_airedb = gobj_read_pointer_attr(priv->gobj_treedb_airedb, "tranger");
-
+#endif
     /*------------------------------------------------------*
      *      Open mqtt_broker tranger for clients (topics)
      *------------------------------------------------------*/
