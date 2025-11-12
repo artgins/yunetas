@@ -598,9 +598,14 @@ PRIVATE void set_connected(hgobj gobj, int fd)
             gobj
         );
         if(!priv->sskt) {
-            if(gobj_is_running(gobj)) {
-                gobj_stop(gobj); // auto-stop
-            }
+            gobj_log_error(gobj, 0,
+                "function",     "%s", __FUNCTION__,
+                "msgset",       "%s", MSGSET_SYSTEM_ERROR,
+                "msg",          "%s", "ytls_new_secure_filter() FAILED",
+                "error",        "%s", ytls_get_last_error(priv->ytls, priv->sskt),
+                NULL
+            );
+            try_to_stop_yevents(gobj);
             return;
         }
 
@@ -1187,12 +1192,7 @@ PRIVATE int yev_callback(yev_event_h yev_event)
                              *      Solution: don't return -1 on ytls_on_clear_data_callback
                              */
                             if(ret < -1000) { // Mark as TLS error
-                                if(gobj_is_running(gobj)) {
-                                    gobj_stop(gobj); // auto-stop
-                                    // WARNING if IS_CLISRV the gobj will be destroyed here
-                                } else {
-                                    try_to_stop_yevents(gobj);
-                                }
+                                try_to_stop_yevents(gobj);
                             }
                             break;
                         }

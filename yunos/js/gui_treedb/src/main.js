@@ -79,7 +79,7 @@ const yuno_role = "treedb_gui";
 const yuno_version = "7.0.0";
 
 const remote_yuno_role = "mqtt_broker";
-const remote_yuno_service = "mqtt_broker";
+const remote_yuno_service = "mqtt-broker-db";
 const required_services = ["treedb_authzs"];
 
 /*

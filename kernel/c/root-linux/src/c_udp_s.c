@@ -803,12 +803,7 @@ PRIVATE int yev_callback(yev_event_h yev_event)
                              *      Solution: don't return -1 on ytls_on_clear_data_callback
                              */
                             if(ret < -1000) { // Mark as TLS error
-                                if(gobj_is_running(gobj)) {
-                                    gobj_stop(gobj); // auto-stop
-                                    // WARNING if IS_CLISRV the gobj will be destroyed here
-                                } else {
-                                    try_to_stop_yevents(gobj);
-                                }
+                                try_to_stop_yevents(gobj);
                             }
                             break;
                         }
