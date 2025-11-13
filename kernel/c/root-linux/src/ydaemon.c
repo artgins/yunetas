@@ -1,10 +1,6 @@
 /****************************************************************************
  *          ydaemon.c
  *
- *  Work inspired in daemon.c from NXWEB project.
- *  https://bitbucket.org/yarosla/nxweb/overview
- *  Copyright (c) 2011-2012 Yaroslav Stavnichiy <yarosla@gmail.com>
- *
  *  Parent → daemon_catch_signals() → ignores signals → pure waitpid().
  *  Child → daemon_catch_signals_child() → installs signalfd() → clean shutdown → _exit().
  *
@@ -13,6 +9,7 @@
  *          All Rights Reserved.
  ****************************************************************************/
 #ifdef __linux__
+#include <fcntl.h>
 #include <glob.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -27,6 +24,11 @@
 #include <signal.h>
 #include "entry_point.h"
 #include "ydaemon.h"
+
+/******************************************************
+ *      Constants
+ ******************************************************/
+#define BD_MAX_CLOSE 8192
 
 /******************************************************
  *      Data
@@ -53,7 +55,7 @@ PRIVATE void daemon_catch_signals(void)
 }
 
 /***************************************************************************
- *  function like daemon() syscall
+ *  First fork
  ***************************************************************************/
 PRIVATE void continue_as_daemon(const char *work_dir, const char *process_name)
 {
@@ -69,42 +71,71 @@ PRIVATE void continue_as_daemon(const char *work_dir, const char *process_name)
      *  and errno is set appropriately.
      */
 
-    /* Fork off the parent process */
+    /*
+     *  Fork off the parent process
+     *  The first fork will change our pid
+     *  but the sid and pgid will be the calling process.
+     */
     pid = fork();
 
-    if (pid < 0) {
-        print_error(PEF_EXIT, "fork() FAILED, errno %d %s", errno, strerror(errno));
-    }
-    /* If we got a good PID, then we can exit the parent process. */
-    if (pid > 0) {
-        _exit(EXIT_SUCCESS);
+    switch(pid) {
+        case -1:
+            print_error(PEF_EXIT, "fork1 FAILED, errno %d %s", errno, strerror(errno));
+            break;
+        case 0:
+            break;                  // child falls through
+        default:
+            /* If we got a good PID, then we can exit the parent process. */
+            _exit(EXIT_SUCCESS);   // parent terminates
     }
 
     watcher_pid = getpid();
 
-    /* Create a new SID for the child process */
-    sid = setsid();
+    /*
+     *  Create a new SID for the child process
+     *  Run the process in a new session without a controlling
+     *  terminal. The process group ID will be the process ID
+     *  and thus, the process will be the process group leader.
+     *  After this call the process will be in a new session,
+     *  and it will be the progress group leader in a new
+     *  process group.
+     */
+    sid = setsid(); // become leader of new session
     if (sid < 0) {
         print_error(PEF_EXIT, "setsid() FAILED, errno %d %s", errno, strerror(errno));
     }
 
-    /* Clear umask to enable explicit file modes. */
-    umask(0);
-
     /* Change the current working directory */
-    if (work_dir && chdir(work_dir) < 0) {
-        print_error(PEF_EXIT, "chdir() FAILED, errno %d %s", errno, strerror(errno));
+    if(!empty_string(work_dir)) {
+        chdir(work_dir);
     }
 
-    /* Close out the standard file descriptors */
-    // WARNING Removing this comments, --stop doesn't kill the daemon! why?
-    // close(STDIN_FILENO);
-    // close(STDOUT_FILENO);
-    // close(STDERR_FILENO);
+    /*
+     *  Close all open files
+     */
+    long maxfd = sysconf(_SC_OPEN_MAX);
+    if(maxfd == -1) {
+        maxfd = BD_MAX_CLOSE;         // if we don't know then guess
+    }
+    int fd;
+    for(fd = 0; fd < maxfd; fd++) {
+        close(fd);
+    }
+
+    fd = open("/dev/null", O_RDWR);
+    if(fd != STDIN_FILENO) {
+        print_error(0, "open() doesn't return %d", STDIN_FILENO);
+    }
+    if(dup2(STDIN_FILENO, STDOUT_FILENO) != STDOUT_FILENO) {
+        print_error(0, "open() doesn't return %d", STDOUT_FILENO);
+    }
+    if(dup2(STDIN_FILENO, STDERR_FILENO) != STDERR_FILENO) {
+        print_error(0, "open() doesn't return %d", STDERR_FILENO);
+    }
 }
 
 /***************************************************************************
- *
+ *  Second fork
  ***************************************************************************/
 PRIVATE int relauncher(
     void (*process) (
@@ -127,16 +158,23 @@ PRIVATE int relauncher(
     }
 
     /*
-     *  From fork(2) - Linux man page
-     *
-     *  On success, the PID of the child process is returned in the parent,
-     *  and 0 is returned in the child.
-     *  On failure, -1 is returned **in the parent**, no child process is created,
-     *  and errno is set appropriately.
+     *  We will fork again, also known as a
+     *  double fork. This second fork will orphan
+     *  our process because the parent will exit.
+     *  When the parent process exits the child
+     *  process will be adopted by the init process
+     *  with process ID 1.
+     *  The result of this second fork is a process
+     *  with the parent as the init process with an ID
+     *  of 1. The process will be in it's own session
+     *  and process group and will have no controlling
+     *  terminal. Furthermore, the process will not
+     *  be the process group leader and thus, cannot
+     *  have the controlling terminal if there was one.
      */
     pid_t pid = fork();
     if(debug) {
-        print_error(0, "fork() return pid %d, process %s, pid %d",
+        print_error(0, "fork return pid %d, process %s, pid %d",
             pid,
             process_name,
             getpid()
@@ -144,7 +182,8 @@ PRIVATE int relauncher(
     }
 
     if (pid < 0) {
-        _exit(EXIT_FAILURE);
+        print_error(PEF_EXIT, "fork2 FAILED, errno %d %s", errno, strerror(errno));
+        return 1;
     } else if (pid > 0) {
         /*------------------------*
          *  we are the parent
@@ -152,7 +191,9 @@ PRIVATE int relauncher(
         daemon_catch_signals();
         int status;
         if(waitpid(pid, &status, 0) == -1) {
-            print_error(PEF_EXIT, "waitpid() failed, errno %d %s", errno, strerror(errno));
+            print_error(PEF_EXIT,
+                "waitpid() failed, errno %d %s", errno, strerror(errno)
+            );
         }
         exit_code = 0;
         signal_code = 0;
@@ -203,6 +244,9 @@ PRIVATE int relauncher(
          *  we are the child
          *  (return 0)
          *------------------------*/
+        /* Clear umask to enable explicit file modes. */
+        umask(0);
+
         gobj_trace_msg(0, "\n"); // Blank line
         char temp[120];
         snprintf(temp, sizeof(temp), "\n=====> Starting yuno '%s', times: %d, pid: %d\n",
