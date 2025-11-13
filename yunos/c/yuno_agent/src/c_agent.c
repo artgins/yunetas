@@ -1036,7 +1036,8 @@ PRIVATE void mt_create(hgobj gobj)
 
         FILE *file = fopen(pidfile, "r");
         if(file) {
-            (void)fscanf(file, "%d", &pid);
+            int x = fscanf(file, "%d", &pid);
+            if(x) {} // ignore warning
             fclose(file);
 
             if(pid != getpid()) {
