@@ -1036,35 +1036,35 @@ PRIVATE void mt_create(hgobj gobj)
 
         FILE *file = fopen(pidfile, "r");
         if(file) {
-            int x = fscanf(file, "%d", &pid);
-            if(x) {} // avoid warning
+            (void)fscanf(file, "%d", &pid);
             fclose(file);
 
-            int ret = is_yuneta_agent(pid);
-            if(ret == 0) {
-                gobj_log_warning(gobj, 0,
-                    "function",     "%s", __FUNCTION__,
-                    "msgset",       "%s", MSGSET_INFO,
-                    "msg",          "%s", "yuneta_agent already running, exiting",
-                    "pid",          "%d", pid,
-                    NULL
-                );
-                exit(0);
-            } else if(errno == ESRCH) {
-                unlink(pidfile);
-            } else {
-                gobj_log_error(gobj, 0,
-                    "function",     "%s", __FUNCTION__,
-                    "msgset",       "%s", MSGSET_SYSTEM_ERROR,
-                    "msg",          "%s", "cannot check pid",
-                    "pid",          "%d", pid,
-                    "errno",        "%d", errno,
-                    "serrno",       "%s", strerror(errno),
-                    NULL
-                );
-                unlink(pidfile);
+            if(pid != getpid()) {
+                int ret = is_yuneta_agent(pid);
+                if(ret == 0) {
+                    gobj_log_warning(gobj, 0,
+                        "function",     "%s", __FUNCTION__,
+                        "msgset",       "%s", MSGSET_INFO,
+                        "msg",          "%s", "yuneta_agent already running, exiting",
+                        "pid",          "%d", pid,
+                        NULL
+                    );
+                    exit(0);
+                } else if(errno == ESRCH) {
+                    unlink(pidfile);
+                } else {
+                    gobj_log_error(gobj, 0,
+                        "function",     "%s", __FUNCTION__,
+                        "msgset",       "%s", MSGSET_SYSTEM_ERROR,
+                        "msg",          "%s", "cannot check pid",
+                        "pid",          "%d", pid,
+                        "errno",        "%d", errno,
+                        "serrno",       "%s", strerror(errno),
+                        NULL
+                    );
+                    unlink(pidfile);
+                }
             }
-
         }
         file = fopen(pidfile, "w");
         if(file) {
