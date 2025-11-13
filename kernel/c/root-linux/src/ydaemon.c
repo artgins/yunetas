@@ -28,7 +28,6 @@
 /******************************************************
  *      Constants
  ******************************************************/
-#define BD_MAX_CLOSE 8192
 
 /******************************************************
  *      Data
@@ -103,34 +102,6 @@ PRIVATE void continue_as_daemon(const char *work_dir, const char *process_name)
     sid = setsid(); // become leader of new session
     if (sid < 0) {
         print_error(PEF_EXIT, "setsid() FAILED, errno %d %s", errno, strerror(errno));
-    }
-
-    /* Change the current working directory */
-    if(!empty_string(work_dir)) {
-        chdir(work_dir);
-    }
-
-    /*
-     *  Close all open files
-     */
-    long maxfd = sysconf(_SC_OPEN_MAX);
-    if(maxfd == -1) {
-        maxfd = BD_MAX_CLOSE;         // if we don't know then guess
-    }
-    int fd;
-    for(fd = 0; fd < maxfd; fd++) {
-        close(fd);
-    }
-
-    fd = open("/dev/null", O_RDWR);
-    if(fd != STDIN_FILENO) {
-        print_error(0, "open() doesn't return %d", STDIN_FILENO);
-    }
-    if(dup2(STDIN_FILENO, STDOUT_FILENO) != STDOUT_FILENO) {
-        print_error(0, "open() doesn't return %d", STDOUT_FILENO);
-    }
-    if(dup2(STDIN_FILENO, STDERR_FILENO) != STDERR_FILENO) {
-        print_error(0, "open() doesn't return %d", STDERR_FILENO);
     }
 }
 
@@ -246,6 +217,11 @@ PRIVATE int relauncher(
          *------------------------*/
         /* Clear umask to enable explicit file modes. */
         umask(0);
+
+        /* Change the current working directory */
+        if(!empty_string(work_dir)) {
+            chdir(work_dir);
+        }
 
         gobj_trace_msg(0, "\n"); // Blank line
         char temp[120];

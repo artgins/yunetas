@@ -16,6 +16,7 @@
 #include <libgen.h>
 #include <argp-standalone.h>
 #include <pwd.h>
+#include <fcntl.h>
 
 #include <command_parser.h>
 #include <stats_parser.h>
@@ -418,6 +419,31 @@ PUBLIC int yuneta_entry_point(int argc, char *argv[],
      *  Check inherit files
      *------------------------------------------------*/
     if(__as_daemon__) {
+
+        /*
+         *  Close all open files
+         */
+        long maxfd = sysconf(_SC_OPEN_MAX);
+        if(maxfd == -1) {
+            #define BD_MAX_CLOSE 8192
+            maxfd = BD_MAX_CLOSE;         // if we don't know then guess
+        }
+        int fd;
+        for(fd = 0; fd < maxfd; fd++) {
+            close(fd);
+        }
+
+        fd = open("/dev/null", O_RDWR);
+        if(fd != STDIN_FILENO) {
+            print_error(0, "open() doesn't return %d", STDIN_FILENO);
+        }
+        if(dup2(STDIN_FILENO, STDOUT_FILENO) != STDOUT_FILENO) {
+            print_error(0, "open() doesn't return %d", STDOUT_FILENO);
+        }
+        if(dup2(STDIN_FILENO, STDERR_FILENO) != STDERR_FILENO) {
+            print_error(0, "open() doesn't return %d", STDERR_FILENO);
+        }
+
         int opened_fds = check_open_fds();
         if(opened_fds > 4) {
             char temp[NAME_MAX];
