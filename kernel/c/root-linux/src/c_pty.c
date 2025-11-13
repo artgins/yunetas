@@ -426,11 +426,7 @@ PRIVATE int yev_callback(yev_event_h yev_event)
                             NULL
                         );
                     }
-                    if(gobj_is_running(gobj)) {
-                        gobj_stop(gobj); // auto-stop
-                    } else {
-                        try_to_stop_yevents(gobj);
-                    }
+                    try_to_stop_yevents(gobj);
                 }
             }
             break;
@@ -463,11 +459,7 @@ PRIVATE int yev_callback(yev_event_h yev_event)
                         try_more_writes(gobj);
                     } else {
                         yev_destroy_event(yev_event);
-                        if(gobj_is_running(gobj)) {
-                            gobj_stop(gobj); // auto-stop
-                        } else {
-                            try_to_stop_yevents(gobj);
-                        }
+                        try_to_stop_yevents(gobj);
                     }
 
                 } else {
@@ -490,11 +482,7 @@ PRIVATE int yev_callback(yev_event_h yev_event)
                     }
 
                     yev_destroy_event(yev_event);
-                    if(gobj_is_running(gobj)) {
-                        gobj_stop(gobj); // auto-stop
-                    } else {
-                        try_to_stop_yevents(gobj);
-                    }
+                    try_to_stop_yevents(gobj);
                 }
 
             }
@@ -527,6 +515,10 @@ PRIVATE void try_to_stop_yevents(hgobj gobj)  // IDEMPOTENT
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
     BOOL to_wait_stopped = FALSE;
+
+    if(gobj_current_state(gobj)==ST_STOPPED) {
+        return;
+    }
 
     uint32_t trace_level = gobj_trace_level(gobj);
     if(trace_level & TRACE_URING) {
@@ -586,6 +578,9 @@ PRIVATE void try_to_stop_yevents(hgobj gobj)  // IDEMPOTENT
         }
 
         if(gobj_is_volatil(gobj)) {
+            if(gobj_is_running(gobj)) {
+                gobj_stop(gobj);
+            }
             gobj_destroy(gobj);
         } else {
             gobj_publish_event(gobj, EV_STOPPED, 0);
