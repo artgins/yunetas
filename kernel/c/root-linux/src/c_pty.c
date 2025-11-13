@@ -581,7 +581,7 @@ PRIVATE void try_to_stop_yevents(hgobj gobj)  // IDEMPOTENT
             if(gobj_is_running(gobj)) {
                 gobj_stop(gobj);
             }
-            gobj_destroy(gobj);
+            gobj_destroy(gobj);  // auto-destroy
         } else {
             gobj_publish_event(gobj, EV_STOPPED, 0);
         }
