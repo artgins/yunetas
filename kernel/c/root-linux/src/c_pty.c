@@ -55,7 +55,6 @@ PRIVATE void try_more_writes(hgobj gobj);
 PRIVATE sdata_desc_t tattr_desc[] = {
 /*-ATTR-type------------name--------------------flag--------default-description---------- */
 SDATA (DTP_STRING,      "process",              SDF_RD,     "bash", "Process to execute in pseudo terminal"),
-SDATA (DTP_BOOLEAN,     "no_output",            0,          0,      "Mirror, only input"),
 SDATA (DTP_INTEGER,     "rows",                 SDF_RD,     "24",   "Rows"),
 SDATA (DTP_INTEGER,     "cols",                 SDF_RD,     "80",   "Columns"),
 SDATA (DTP_STRING,      "cwd",                  SDF_RD,     "",     "Current work directory"),
@@ -197,7 +196,6 @@ PRIVATE int mt_start(hgobj gobj)
     }
 
     BOOL tty_empty = (empty_string(priv->argv[0]))?TRUE:FALSE;
-    BOOL no_output = gobj_read_bool_attr(gobj, "no_output");
 
     struct winsize size = {
         priv->rows,
@@ -262,7 +260,7 @@ PRIVATE int mt_start(hgobj gobj)
        }
     }
 
-    if(!no_output) {
+    if(1) {
         priv->uv_out = fd_duplicate(master);
         if(priv->uv_out < 0) {
            gobj_log_error(gobj, 0,
