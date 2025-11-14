@@ -96,7 +96,8 @@ typedef struct _PRIVATE_DATA {
     const char *remote_yuno_service;
     hgobj gobj_timer;
     BOOL inform_on_close;
-    BOOL inside_on_open;    // avoid duplicates, no subscriptions while in on_open,
+    BOOL inside_on_open;    // TODO review,not used
+                            // avoid duplicates, no subscriptions while in on_open,
                             // they will send in resend_subscriptions
 
 } PRIVATE_DATA;
@@ -825,17 +826,16 @@ PRIVATE int ac_identity_card_ack(hgobj gobj, gobj_event_t event, json_t *kw, hgo
 
         gobj_change_state(gobj, ST_SESSION);
 
-        if(!priv->inform_on_close) {
-            priv->inform_on_close = TRUE;
-            json_t *kw_on_open = json_pack("{s:s, s:s, s:s, s:O}",
-                "remote_yuno_name", gobj_read_str_attr(gobj, "remote_yuno_name"),
-                "remote_yuno_role", gobj_read_str_attr(gobj, "remote_yuno_role"),
-                "remote_yuno_service", gobj_read_str_attr(gobj, "remote_yuno_service"),
-                "data", jn_data?jn_data:json_null()
-            );
+        priv->inform_on_close = TRUE;
 
-            gobj_publish_event(gobj, EV_ON_OPEN, kw_on_open);
-        }
+        json_t *kw_on_open = json_pack("{s:s, s:s, s:s, s:O}",
+            "remote_yuno_name", gobj_read_str_attr(gobj, "remote_yuno_name"),
+            "remote_yuno_role", gobj_read_str_attr(gobj, "remote_yuno_role"),
+            "remote_yuno_service", gobj_read_str_attr(gobj, "remote_yuno_service"),
+            "data", jn_data?jn_data:json_null()
+        );
+
+        gobj_publish_event(gobj, EV_ON_OPEN, kw_on_open);
 
         /*
          *  Resend subscriptions

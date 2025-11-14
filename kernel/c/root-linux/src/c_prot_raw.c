@@ -64,7 +64,7 @@ typedef struct _PRIVATE_DATA {
     const char *on_open_event_name;
     const char *on_close_event_name;
     const char *on_message_event_name;
-    int inform_on_close;
+    BOOL inform_on_close;
 } PRIVATE_DATA;
 
 

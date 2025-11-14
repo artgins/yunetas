@@ -138,10 +138,6 @@ typedef struct _PRIVATE_DATA {
     const char *url;
     const char *from;
 
-    int inform_on_close;
-    int inform_no_more_email;
-
-
     hgobj gobj_tranger_queues;
     json_t *tranger;
     tr_queue_t *trq_emails_queue;

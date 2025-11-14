@@ -451,7 +451,7 @@ typedef struct _PRIVATE_DATA {
 
     slave_data_t *slave_data;
 
-    int inform_on_close;
+    BOOL inform_on_close;
 
     FRAME_HEAD frame_head;
     istream_h istream_head;

@@ -184,10 +184,9 @@ typedef struct _PRIVATE_DATA {
     FRAME_HEAD message_head;
     gbuffer_t *gbuf_message;
 
-    char connected;
+    BOOL connected;
     char close_frame_sent;              // close frame sent
-    char on_close_broadcasted;          // event on_close already broadcasted
-    char on_open_broadcasted;           // event on_open already broadcasted
+    BOOL inform_on_close;
 
     GHTTP_PARSER *parsing_request;      // A request parser instance
     GHTTP_PARSER *parsing_response;     // A response parser instance
@@ -1562,7 +1561,8 @@ PRIVATE int ac_connected(hgobj gobj, const char *event, json_t *kw, hgobj src)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
-    priv->connected = 1;
+    priv->connected = TRUE;
+    priv->inform_on_close = FALSE;
     priv->close_frame_sent = FALSE;
 
     ghttp_parser_reset(priv->parsing_request);
@@ -1602,8 +1602,7 @@ PRIVATE int ac_disconnected(hgobj gobj, const char *event, json_t *kw, hgobj src
 
     clear_timeout(priv->timer);
 
-    priv->connected = 0;
-    gobj_write_bool_attr(gobj, "connected", FALSE);
+    priv->connected = FALSE;
 
     if(gobj_is_volatil(src)) {
         gobj_set_bottom_gobj(gobj, 0);
@@ -1616,11 +1615,12 @@ PRIVATE int ac_disconnected(hgobj gobj, const char *event, json_t *kw, hgobj src
         istream_destroy(priv->istream_payload);
         priv->istream_payload = 0;
     }
-    if (!priv->on_close_broadcasted) {
-        priv->on_close_broadcasted = TRUE;
+    if (priv->inform_on_close) {
+        priv->inform_on_close = FALSE;
 
         gobj_publish_event(gobj, EV_ON_CLOSE, 0);
     }
+
     KW_DECREF(kw)
 
     return 0;
@@ -1669,11 +1669,10 @@ PRIVATE int ac_process_handshake(hgobj gobj, const char *event, json_t *kw, hgob
                  *   Upgrade to websocket
                  *------------------------------------*/
                 start_wait_frame_header(gobj);
-                gobj_write_bool_attr(gobj, "connected", TRUE);
-                gobj_publish_event(gobj, EV_ON_OPEN, 0);
 
-                priv->on_open_broadcasted = TRUE;
-                priv->on_close_broadcasted = FALSE;
+                priv->inform_on_close = TRUE;
+
+                gobj_publish_event(gobj, EV_ON_OPEN, 0);
             }
         }
     } else {
@@ -1690,11 +1689,11 @@ PRIVATE int ac_process_handshake(hgobj gobj, const char *event, json_t *kw, hgob
                  *   Upgrade to websocket
                  *------------------------------------*/
                 start_wait_frame_header(gobj);
-                gobj_write_bool_attr(gobj, "connected", TRUE);
+
+                priv->inform_on_close = TRUE;
+
                 gobj_publish_event(gobj, EV_ON_OPEN, 0);
 
-                priv->on_open_broadcasted = TRUE;
-                priv->on_close_broadcasted = FALSE;
             } else {
                 gobj_log_error(gobj, 0,
                     "function",     "%s", __FUNCTION__,
@@ -1708,7 +1707,7 @@ PRIVATE int ac_process_handshake(hgobj gobj, const char *event, json_t *kw, hgob
                 gobj_trace_dump(gobj, bf, ln, "NO 101 HTTP Response");
 
                 priv->close_frame_sent = TRUE;
-                priv->on_close_broadcasted = TRUE;
+                priv->inform_on_close = FALSE;
                 ws_close(gobj, STATUS_PROTOCOL_ERROR, 0);
                 gobj_send_event(gobj_bottom_gobj(gobj), EV_DROP, 0, gobj);
             }
@@ -1731,7 +1730,7 @@ PRIVATE int ac_timeout_wait_handshake(hgobj gobj, const char *event, json_t *kw,
         NULL
     );
 
-    priv->on_close_broadcasted = TRUE;  // no on_open was broadcasted
+    priv->inform_on_close = FALSE;  // no on_open was broadcasted
     priv->close_frame_sent = TRUE;
     ws_close(gobj, STATUS_PROTOCOL_ERROR, 0);
     gobj_send_event(gobj_bottom_gobj(gobj), EV_DROP, 0, gobj);
