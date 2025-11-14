@@ -853,23 +853,22 @@ PRIVATE int ac_identity_card(hgobj gobj, const char *event, json_t *kw, hgobj sr
     /*-----------------------------------------------------------*
      *  Publish the new client
      *-----------------------------------------------------------*/
-    if(!priv->inform_on_close) {
-        priv->inform_on_close = TRUE;
-        json_t *kw_on_open = json_pack("{s:s, s:s, s:s, s:O}",
-            "client_yuno_name", gobj_read_str_attr(gobj, "client_yuno_name"),
-            "client_yuno_role", gobj_read_str_attr(gobj, "client_yuno_role"),
-            "client_yuno_service", gobj_read_str_attr(gobj, "client_yuno_service"),
-            "identity_card", kw // REQUIRED for controlcenter, agent!!
-        );
-        kw_set_dict_value(
-            gobj,
-            kw_on_open,
-            "__username__",
-            json_string(gobj_read_str_attr(gobj, "__username__"))
-        );
+    priv->inform_on_close = TRUE;
 
-        gobj_publish_event(gobj, EV_ON_OPEN, kw_on_open);
-    }
+    json_t *kw_on_open = json_pack("{s:s, s:s, s:s, s:O}",
+        "client_yuno_name", gobj_read_str_attr(gobj, "client_yuno_name"),
+        "client_yuno_role", gobj_read_str_attr(gobj, "client_yuno_role"),
+        "client_yuno_service", gobj_read_str_attr(gobj, "client_yuno_service"),
+        "identity_card", kw // REQUIRED for controlcenter, agent!!
+    );
+    kw_set_dict_value(
+        gobj,
+        kw_on_open,
+        "__username__",
+        json_string(gobj_read_str_attr(gobj, "__username__"))
+    );
+
+    gobj_publish_event(gobj, EV_ON_OPEN, kw_on_open);
 
     JSON_DECREF(kw)
     return 0;
