@@ -60,9 +60,6 @@ PRIVATE const trace_level_t s_user_trace_level[16] = {
  *              Private data
  *---------------------------------------------*/
 typedef struct _PRIVATE_DATA {
-    const char *on_open_event_name;
-    const char *on_close_event_name;
-    const char *on_message_event_name;
     BOOL inform_on_close;
 } PRIVATE_DATA;
 
@@ -97,9 +94,7 @@ PRIVATE void mt_create(hgobj gobj)
      *  Do copy of heavy used parameters, for quick access.
      *  HACK The writable attributes must be repeated in mt_writing method.
      */
-    SET_PRIV(on_open_event_name,    gobj_read_str_attr)
-    SET_PRIV(on_close_event_name,   gobj_read_str_attr)
-    SET_PRIV(on_message_event_name, gobj_read_str_attr)
+    // SET_PRIV(on_open_event_name,    gobj_read_str_attr)
 }
 
 /***************************************************************************
@@ -166,9 +161,7 @@ PRIVATE int ac_connected(hgobj gobj, const char *event, json_t *kw, hgobj src)
     gobj_change_state(gobj, ST_SESSION);
 
     priv->inform_on_close = TRUE;
-    if(!empty_string(priv->on_open_event_name)) {
-        gobj_publish_event(gobj, priv->on_open_event_name, 0);
-    }
+    gobj_publish_event(gobj, EV_ON_OPEN, 0);
 
     KW_DECREF(kw);
     return 0;
@@ -187,9 +180,7 @@ PRIVATE int ac_disconnected(hgobj gobj, const char *event, json_t *kw, hgobj src
 
     if(priv->inform_on_close) {
         priv->inform_on_close = FALSE;
-        if(!empty_string(priv->on_close_event_name)) {
-            gobj_publish_event(gobj, priv->on_close_event_name, 0);
-        }
+        gobj_publish_event(gobj, EV_ON_CLOSE, 0);
     }
 
     KW_DECREF(kw);
@@ -201,9 +192,7 @@ PRIVATE int ac_disconnected(hgobj gobj, const char *event, json_t *kw, hgobj src
  ********************************************************************/
 PRIVATE int ac_rx_data(hgobj gobj, const char *event, json_t *kw, hgobj src)
 {
-    PRIVATE_DATA *priv = gobj_priv_data(gobj);
-    gobj_publish_event(gobj, priv->on_message_event_name, kw); // reuse kw
-    return 0;
+    return gobj_publish_event(gobj, EV_ON_MESSAGE, kw); // reuse kw
 }
 
 /********************************************************************
