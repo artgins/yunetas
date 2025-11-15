@@ -3164,7 +3164,7 @@ PUBLIC int walk_dir_array(
     /*
      *  Fill the array
      */
-    _walk_tree(gobj, root_dir, &r, &da, opt, 0, fill_array_cb);
+    _walk_tree(gobj, root_dir, &r, da, opt, 0, fill_array_cb);
     regfree(&r);
 
     return 0;
