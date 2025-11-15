@@ -717,6 +717,11 @@ PRIVATE int yev_callback(yev_event_h yev_event)
             clisrv = gobj_bottom;
         }
 
+        // TODO repon when found the error gobj is running
+        // if(gobj_is_running(clisrv)) {
+        //     gobj_stop(clisrv);
+        // }
+
         gobj_write_pointer_attr(clisrv, "ytls", priv->ytls);
         gobj_write_bool_attr(clisrv, "use_ssl", priv->use_ssl);
         gobj_write_bool_attr(clisrv, "__clisrv__", TRUE);
