@@ -124,7 +124,6 @@ PRIVATE sdata_desc_t tattr_desc[] = {
 /*-ATTR-type------------name----------------------------flag------------default---------description---------- */
 SDATA (DTP_JSON,        "schema",                       SDF_RD,         0,              "Database schema"),
 SDATA (DTP_STRING,      "url",                          SDF_PERSIST|SDF_WR,0,           "Url"),
-SDATA (DTP_BOOLEAN,     "connected",                    SDF_RD|SDF_STATS,0,             "Connection state. Important filter!"),
 SDATA (DTP_BOOLEAN,     "manual",                       SDF_RD,         0,              "Set true if you want connect manually"),
 SDATA (DTP_INTEGER,     "timeout_waiting_connected",    SDF_RD,         "10000",        ""),
 SDATA (DTP_INTEGER,     "timeout_between_connections",  SDF_RD,         "5000",         "Idle timeout to wait between attempts of connection"),
@@ -1139,7 +1138,6 @@ PRIVATE int ac_connected(hgobj gobj, const char *event, json_t *kw, hgobj src)
 
     clear_timeout(priv->timer);
 
-    gobj_write_bool_attr(gobj, "connected", TRUE);
     priv->inform_disconnected = TRUE;
     gobj_publish_event(gobj, EV_ON_OPEN, 0);
 

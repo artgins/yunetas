@@ -41,7 +41,6 @@
 PRIVATE sdata_desc_t attrs_table[] = {
 /*-ATTR-type------------name----------------flag------------default---------description---------- */
 SDATA (DTP_INTEGER,     "timeout_inactivity",SDF_WR,        "300",          "Timeout inactivity, in seconds"),
-SDATA (DTP_BOOLEAN,     "connected",        SDF_RD|SDF_STATS,0,             "Connection state. Important filter!"),
 SDATA (DTP_POINTER,     "user_data",        0,              0,              "user data"),
 SDATA (DTP_POINTER,     "user_data2",       0,              0,              "more user data"),
 SDATA (DTP_POINTER,     "subscriber",       0,              0,              "subscriber of output-events. If it's null then subscriber is the parent."),
@@ -212,8 +211,6 @@ PRIVATE int ac_connected(hgobj gobj, const char *event, json_t *kw, hgobj src)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
-    gobj_write_bool_attr(gobj, "connected", TRUE);
-
     ghttp_parser_reset(priv->parsing_request);
 
     gobj_publish_event(gobj, EV_ON_OPEN, 0);
@@ -236,8 +233,6 @@ PRIVATE int ac_disconnected(hgobj gobj, const char *event, json_t *kw, hgobj src
     if(gobj_is_volatil(src)) {
         gobj_set_bottom_gobj(gobj, 0);
     }
-    gobj_write_bool_attr(gobj, "connected", FALSE);
-
     gobj_publish_event(gobj, EV_ON_CLOSE, 0);
 
     KW_DECREF(kw)

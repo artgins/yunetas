@@ -38,7 +38,6 @@
  *---------------------------------------------*/
 PRIVATE sdata_desc_t tattr_desc[] = {
 /*-ATTR-type------------name----------------flag------------default---------description---------- */
-SDATA (DTP_BOOLEAN,     "connected",        SDF_RD|SDF_STATS,0,              "Connection state. Important filter!"),
 SDATA (DTP_POINTER,     "user_data",        0,              0,              "user data"),
 SDATA (DTP_POINTER,     "user_data2",       0,              0,              "more user data"),
 SDATA (DTP_POINTER,     "subscriber",       0,              0,              "subscriber of output-events. If it's null then subscriber is the parent."),
@@ -164,7 +163,6 @@ PRIVATE int ac_connected(hgobj gobj, const char *event, json_t *kw, hgobj src)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
-    gobj_write_bool_attr(gobj, "connected", TRUE);
     gobj_change_state(gobj, ST_SESSION);
 
     priv->inform_on_close = TRUE;
@@ -186,7 +184,6 @@ PRIVATE int ac_disconnected(hgobj gobj, const char *event, json_t *kw, hgobj src
     if(gobj_is_volatil(src)) {
         gobj_set_bottom_gobj(gobj, 0);
     }
-    gobj_write_bool_attr(gobj, "connected", FALSE);
 
     if(priv->inform_on_close) {
         priv->inform_on_close = FALSE;
