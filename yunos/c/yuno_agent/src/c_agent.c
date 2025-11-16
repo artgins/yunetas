@@ -10138,6 +10138,7 @@ PRIVATE int ac_on_open(hgobj gobj, const char *event, json_t *kw, hgobj src)
                     "__md_iev__", requester_md_iev
                 );
                 json_object_update_new(kw_play, kw_ext);
+                json_object_set_new(yuno, "_requester", json_string(requester));
             }
             cmd_play_yuno(gobj, "play-yuno", kw_play, gobj);
         }
