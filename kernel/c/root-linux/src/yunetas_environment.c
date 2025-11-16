@@ -95,9 +95,9 @@ PUBLIC char *yuneta_realm_dir(
     build_path(bf, bfsize, yuneta_root_dir(), yuneta_domain_dir(), subdomain, NULL);
 
     if(create) {
-        if(access(bf, 0)!=0) {
+        if(!is_directory(bf)) {
             mkrdir(bf, yuneta_xpermission());
-            if(access(bf, 0)!=0) {
+            if(!is_directory(bf)) {
                 *bf = 0;
                 return 0;
             }
@@ -202,9 +202,9 @@ PUBLIC char *yuneta_store_dir(
     build_path(bf, bfsize, yuneta_root_dir(), "store", dir, subdir, NULL);
 
     if(create) {
-        if(access(bf, 0)!=0) {
+        if(!is_directory(bf)) {
             mkrdir(bf, yuneta_xpermission());
-            if(access(bf, 0)!=0) {
+            if(!is_directory(bf)) {
                 *bf = 0;
                 return 0;
             }
@@ -256,9 +256,42 @@ PUBLIC char *yuneta_realm_store_dir(
     build_path(bf, bfsize, yuneta_root_dir(), "store", service, owner, realm_id, dir, NULL);
 
     if(create) {
-        if(access(bf, 0)!=0) {
+        if(!is_directory(bf)) {
             mkrdir(bf, yuneta_xpermission());
-            if(access(bf, 0)!=0) {
+            if(!is_directory(bf)) {
+                *bf = 0;
+                return 0;
+            }
+        }
+    }
+    return bf;
+}
+
+/***************************************************************************
+ *
+ ***************************************************************************/
+PUBLIC char *yuneta_realm_store_tenant_dir(
+    char *bf,
+    int bfsize,
+    const char *service,
+    const char *owner,
+    const char *realm_id,
+    const char *tenant,
+    const char *dir,
+    BOOL create
+)
+{
+    if(empty_string(yuneta_root_dir())) {
+        *bf = 0;
+        return 0;
+    }
+
+    build_path(bf, bfsize, yuneta_root_dir(), "store", service, owner, realm_id, tenant, dir, NULL);
+
+    if(create) {
+        if(!is_directory(bf)) {
+            mkrdir(bf, yuneta_xpermission());
+            if(!is_directory(bf)) {
                 *bf = 0;
                 return 0;
             }

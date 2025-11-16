@@ -282,7 +282,8 @@ SDATA (DTP_JSON,    "initial_load",         SDF_RD,         "{}",       "Initial
  *      use master as set externally
  */
 SDATA (DTP_STRING,  "tranger_path",     SDF_RD,     "",         "Tranger path, internal value (or not)"),
-SDATA (DTP_STRING,  "authz_service",    SDF_RD,     "",         "If tranger_path is empty you can force the service where build the authz. If authz_service is empty get it from this yuno."),
+SDATA (DTP_STRING,  "authz_service",    SDF_RD,     "",         "If tranger_path is empty you can force the service where build the authz. If authz_service is empty then it will be the yuno_role"),
+SDATA (DTP_STRING,  "authz_tenant",     SDF_RD,     "",         "Used for multi-tenant service"),
 SDATA (DTP_BOOLEAN, "master",           SDF_RD,     "0",        "the master is the only that can write, if tranger_path is empty is set to TRUE internally"),
 
 SDATA (DTP_INTEGER, "hashIterations",   0,          "27500",    "Default To build a password"),
@@ -380,29 +381,41 @@ PRIVATE void mt_create(hgobj gobj)
      *      Tranger database
      *--------------------------------*/
     const char *path = gobj_read_str_attr(gobj, "tranger_path");
+    const char *authz_service = gobj_read_str_attr(gobj, "authz_service");
+    const char *authz_tenant = gobj_read_str_attr(gobj, "authz_tenant");
     BOOL master = gobj_read_bool_attr(gobj, "master");
 
     if(empty_string(path)) {
         /*--------------------------------------------*
          *  Without path, it must be master (or not)
-         *--------------------------------------------*/
-        /*
          *  Set the path
-         */
-        const char *authz_service = gobj_read_str_attr(gobj, "authz_service");
+         *--------------------------------------------*/
+        char path_[PATH_MAX];
         if(empty_string(authz_service)) {
             authz_service = gobj_yuno_role();
         }
-        char path_[PATH_MAX];
-        yuneta_realm_store_dir(
-            path_,
-            sizeof(path_),
-            authz_service,
-            gobj_yuno_realm_owner(),
-            gobj_yuno_realm_id(),
-            "authzs",
-            master?TRUE:FALSE
-        );
+        if(empty_string(authz_tenant)) {
+            yuneta_realm_store_dir(
+                path_,
+                sizeof(path_),
+                authz_service,
+                gobj_yuno_realm_owner(),
+                gobj_yuno_realm_id(),
+                "authzs",
+                master?TRUE:FALSE
+            );
+        } else {
+            yuneta_realm_store_tenant_dir(
+                path_,
+                sizeof(path_),
+                authz_service,
+                gobj_yuno_realm_owner(),
+                gobj_yuno_realm_id(),
+                authz_tenant,
+                "authzs",
+                master?TRUE:FALSE
+            );
+        }
         gobj_write_str_attr(gobj, "tranger_path", path_);
         path = gobj_read_str_attr(gobj, "tranger_path");
 
