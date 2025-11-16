@@ -282,7 +282,8 @@ SDATA (DTP_JSON,    "initial_load",         SDF_RD,         "{}",       "Initial
  *      use master as set externally
  */
 SDATA (DTP_STRING,  "tranger_path",     SDF_RD,     "",         "Tranger path, internal value (or not)"),
-SDATA (DTP_STRING,  "authz_yuno_role",  SDF_RD,     "",         "If tranger_path is empty you can force the yuno_role where build the authz. If authz_yuno_role is empty get it from this yuno."),
+SDATA (DTP_STRING,  "authz_yuno_role",  SDF_RD,     "",         "If tranger_path is empty you can force the yuno_role where build the authz. If authz_yuno_role is empty get it from this yuno. DEPRECATED: use authz_service"),
+SDATA (DTP_STRING,  "authz_service",  SDF_RD,       "",         "If tranger_path is empty you can force the service where build the authz. If authz_service is empty get it from this yuno."),
 SDATA (DTP_BOOLEAN, "master",           SDF_RD,     "0",        "the master is the only that can write, if tranger_path is empty is set to TRUE internally"),
 
 SDATA (DTP_INTEGER, "hashIterations",   0,          "27500",    "Default To build a password"),
@@ -389,15 +390,18 @@ PRIVATE void mt_create(hgobj gobj)
         /*
          *  Set the path
          */
-        const char *authz_yuno_role = gobj_read_str_attr(gobj, "authz_yuno_role");
-        if(empty_string(authz_yuno_role)) {
-            authz_yuno_role = gobj_yuno_role();
+        const char *authz_service = gobj_read_str_attr(gobj, "authz_service");
+        if(empty_string(authz_service)) {
+            authz_service = gobj_read_str_attr(gobj, "authz_yuno_role");
+            if(empty_string(authz_service)) {
+                authz_service = gobj_yuno_role();
+            }
         }
         char path_[PATH_MAX];
         yuneta_realm_store_dir(
             path_,
             sizeof(path_),
-            authz_yuno_role,
+            authz_service,
             gobj_yuno_realm_owner(),
             gobj_yuno_realm_id(),
             "authzs",
