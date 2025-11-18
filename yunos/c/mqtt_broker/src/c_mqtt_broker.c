@@ -30,6 +30,13 @@
 /***************************************************************************
  *              Prototypes
  ***************************************************************************/
+PRIVATE int open_devices_tracks(hgobj gobj);
+PRIVATE int close_devices_tracks(hgobj gobj);
+PRIVATE int process_msg(
+    hgobj gobj,
+    json_t *kw,  // NOT owned
+    json_t *device_resource // NOT owned
+);
 
 /***************************************************************************
  *          Data: config, public data, private data
@@ -116,20 +123,96 @@ SDATA_END()
 typedef struct _PRIVATE_DATA {
     hgobj timer;
     int32_t timeout;
-    hgobj gobj_input_side;
+
     hgobj gobj_authz;
+    hgobj gobj_input_side;
+    hgobj gobj_top_side;
+
+    hgobj gobj_tranger_tracks;
+    json_t *tranger_tracks;
+    json_t *realtime_tracks;
+    json_t *track_list;
+
     hgobj gobj_treedbs;
     hgobj gobj_treedb_mqtt_broker;      // service of treedb_mqtt_broker (create in gobj_treedbs)
-    // json_t *tranger_treedb_mqtt_broker;
-    char treedb_mqtt_broker_name[80];
+    json_t *tranger_treedb_mqtt_broker;
 
-    hgobj gobj_tranger_clients; // TODO need it?
+    char treedb_mqtt_broker_name[80];
+    char msg2db_alarms_name[80];
 
     BOOL allow_anonymous;
     char treedb_name[NAME_MAX];
 
 } PRIVATE_DATA;
 
+
+
+
+                    /******************************
+                     *      Callbacks
+                     ******************************/
+
+
+
+
+/***************************************************************************
+ *
+ ***************************************************************************/
+PRIVATE int load_record_callback(
+    json_t *tranger,
+    json_t *topic,
+    const char *key,
+    json_t *list,       // iterator or rt_list/rt_disk id, don't own
+    json_int_t rowid,   // in a rt_mem will be the relative rowid, in rt_disk the absolute rowid
+    md2_record_ex_t *md_record,
+    json_t *jn_record   // must be owned, can be null if only_md
+)
+{
+    hgobj gobj = (hgobj)json_integer_value(json_object_get(list, "gobj"));
+
+//    char temp[128];
+//    tranger2_print_md1_record(temp, sizeof(temp), key, md_record, TRUE);
+//    printf("=================> load_record_callback():\n   %s\n", temp);
+
+    // if(gobj_gclass_name(gobj) != C_DB_HISTORY) {
+    //     gobj_log_error(gobj, 0,
+    //         "function",     "%s", __FUNCTION__,
+    //         "msgset",       "%s", MSGSET_INTERNAL_ERROR,
+    //         "msg",          "%s", "What gclass from?",
+    //         "src",          "%s", gobj_short_name(gobj),
+    //         NULL
+    //     );
+    //     return 0;
+    // }
+    //
+    // json_t *device_resource = load_device(gobj, key, TRUE);
+    //
+    // json_int_t last_saved_t = kw_get_int(gobj, device_resource, "__t__", 0, 0);
+    // json_int_t cur_t = (json_int_t)md_record->__t__;
+    // if(cur_t > last_saved_t) {
+    //     if(!jn_record) {
+    //         jn_record = tranger2_read_record_content( // return is yours
+    //             tranger,
+    //             topic,
+    //             key,
+    //             md_record
+    //         );
+    //     }
+    //     //printf("====> PROCESS %d > last_save_t %d\n", (int)cur_t, (int)last_saved_t);
+    //
+    //     process_msg(gobj, jn_record, device_resource);
+    //     json_object_set_new(device_resource, "__t__", json_integer(cur_t));
+    //     save_device(gobj, key, device_resource);
+    // } else {
+    //     // Message already processed
+    //     //printf("====> TRASH %d <= last_save_t %d\n", (int)cur_t, (int)last_saved_t);
+    // }
+    //
+    // json_decref(device_resource);
+
+    json_decref(jn_record);
+    return 0;
+}
 
 
 
@@ -278,8 +361,7 @@ PRIVATE int mt_play(hgobj gobj)
      *      Open treedb_mqtt_broker service
      *---------------------------------------*/
     helper_quote2doublequote(treedb_schema_mqtt_broker);
-    json_t *jn_treedb_schema_mqtt_broker;
-    jn_treedb_schema_mqtt_broker = legalstring2json(treedb_schema_mqtt_broker, TRUE);
+    json_t *jn_treedb_schema_mqtt_broker = legalstring2json(treedb_schema_mqtt_broker, TRUE);
     if(parse_schema(jn_treedb_schema_mqtt_broker)<0) {
         /*
          *  Exit if schema fails
@@ -331,25 +413,72 @@ PRIVATE int mt_play(hgobj gobj)
     gobj_subscribe_event(priv->gobj_treedb_mqtt_broker, 0, 0, gobj);
 
     // Get timeranger of treedb_mqtt_broker, will be used for alarms too
-    // priv->tranger_treedb_mqtt_broker = gobj_read_pointer_attr(priv->gobj_treedb_mqtt_broker, "tranger");
+    priv->tranger_treedb_mqtt_broker = gobj_read_pointer_attr(priv->gobj_treedb_mqtt_broker, "tranger");
 
-    /*------------------------------------------------------*
-     *      Open mqtt_broker tranger for clients (topics)
-     *------------------------------------------------------*/
-    json_t *kw_tranger = json_pack("{s:s, s:s, s:b, s:I, s:i}",
-        "path", path,
-        "database", "clients",
-        "master", 1,
-        "subscriber", (json_int_t)(uintptr_t)gobj,
-        "on_critical_error", (int)gobj_read_integer_attr(gobj, "on_critical_error")
+    /*---------------------------------------*
+     *      Open Msg2db (ALARMS)
+     *---------------------------------------*/
+    helper_quote2doublequote(msg2db_schema_alarms);
+    json_t *jn_msg2db_schema_alarms = legalstring2json(msg2db_schema_alarms, TRUE);
+    if(parse_schema(jn_msg2db_schema_alarms)<0) {
+        /*
+         *  Exit if schema fails
+         */
+        gobj_log_error(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_APP_ERROR,
+            "msg",          "%s", "Parse schema fails",
+            NULL
+        );
+        exit(-1);
+    }
+
+    /*
+     *  Use the same tranger as treedb_airedb, a "%Y" based.
+     */
+    const char *msg2db_name_ = kw_get_str(gobj,
+        jn_msg2db_schema_alarms,
+        "id",
+        "msg2db_alarms",
+        KW_REQUIRED
     );
-    priv->gobj_tranger_clients = gobj_create_service(
-        "mqtt-broker-clients",
+    snprintf(priv->msg2db_alarms_name, sizeof(priv->msg2db_alarms_name), "%s", msg2db_name_);
+
+    msg2db_open_db(
+        priv->tranger_treedb_mqtt_broker,
+        priv->msg2db_alarms_name,   // msg2db_name, got from jn_schema
+        jn_msg2db_schema_alarms,    // owned
+        "persistent"
+    );
+
+    /*----------------------------*
+     *  Open Tracks Timeranger
+     *----------------------------*/
+    yuneta_realm_store_dir(
+        path,
+        sizeof(path),
+        mqtt_service,
+        gobj_yuno_realm_owner(),
+        gobj_yuno_realm_id(),
+        mqtt_tenant,  // tenant
+        "tracks",
+        TRUE
+    );
+
+    json_t *kw_tranger_tracks = json_pack("{s:s, s:b, s:i}",
+        "path", path,
+        "master", 1,
+        "on_critical_error", (int)(LOG_OPT_EXIT_ZERO)
+    );
+    priv->gobj_tranger_tracks = gobj_create_service(
+        "tranger_tracks",
         C_TRANGER,
-        kw_tranger,
+        kw_tranger_tracks,
         gobj
     );
-    gobj_start(priv->gobj_tranger_clients);
+    gobj_start(priv->gobj_tranger_tracks);
+
+    priv->tranger_tracks = gobj_read_pointer_attr(priv->gobj_tranger_tracks, "tranger");
 
     /*-------------------------*
      *      Start services
@@ -357,6 +486,20 @@ PRIVATE int mt_play(hgobj gobj)
     priv->gobj_input_side = gobj_find_service("__input_side__", TRUE);
     gobj_subscribe_event(priv->gobj_input_side, 0, 0, gobj);
     gobj_start_tree(priv->gobj_input_side);
+
+    priv->gobj_top_side = gobj_find_service("__top_side__", TRUE);
+    gobj_subscribe_event(priv->gobj_top_side, 0, 0, gobj);
+    gobj_start_tree(priv->gobj_top_side);
+
+    /*--------------------------------*
+     *  Open device tracks
+     *--------------------------------*/
+    //open_devices_tracks(gobj);
+
+    /*
+     *  Periodic timer for tasks
+     */
+    set_timeout_periodic(priv->timer, priv->timeout); // La verdadera
 
     // TODO
     // priv->trq_msgs = trq_open(
@@ -379,23 +522,21 @@ PRIVATE int mt_pause(hgobj gobj)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
+    /*---------------------------------*
+     *  Close device tracks
+     *---------------------------------*/
+    //close_devices_tracks(gobj);
+
     /*---------------------------------------*
-     *      Stop services
+     *      Close Msg2db Alarms
      *---------------------------------------*/
-    if(priv->gobj_input_side) {
-        if(gobj_is_playing(priv->gobj_input_side)) {
-            gobj_pause(priv->gobj_input_side);
-        }
-        gobj_stop_tree(priv->gobj_input_side);
-    }
-
-    if(priv->gobj_tranger_clients) {
-        gobj_stop(priv->gobj_tranger_clients);
-        EXEC_AND_RESET(gobj_destroy, priv->gobj_tranger_clients)
-    }
+    msg2db_close_db(
+        priv->tranger_treedb_mqtt_broker,
+        priv->msg2db_alarms_name
+    );
 
     /*---------------------------------------*
-     *      Close treedb mqtt_broker
+     *      Close treedb
      *---------------------------------------*/
     json_decref(gobj_command(priv->gobj_treedbs,
         "close-treedb",
@@ -409,12 +550,29 @@ PRIVATE int mt_pause(hgobj gobj)
      *      Stop treedbs
      *-------------------------*/
     if(priv->gobj_treedbs) {
+        gobj_unsubscribe_event(priv->gobj_treedbs, 0, 0, gobj);
         gobj_stop_tree(priv->gobj_treedbs);
         EXEC_AND_RESET(gobj_destroy, priv->gobj_treedbs)
     }
 
+    /*-------------------------*
+     *  Stop tranger_tracks
+     *-------------------------*/
+    gobj_stop(priv->gobj_tranger_tracks);
+    EXEC_AND_RESET(gobj_destroy, priv->gobj_tranger_tracks)
+    priv->tranger_tracks = 0;
+
+    /*-----------------------------*
+     *      Stop top/input side
+     *-----------------------------*/
+    gobj_unsubscribe_event(priv->gobj_top_side, 0, 0, gobj);
+    EXEC_AND_RESET(gobj_stop_tree, priv->gobj_top_side)
+
+    gobj_unsubscribe_event(priv->gobj_input_side, 0, 0, gobj);
+    EXEC_AND_RESET(gobj_stop_tree, priv->gobj_input_side)
 
     clear_timeout(priv->timer);
+
 
     return 0;
 }
@@ -487,6 +645,369 @@ PRIVATE json_t *cmd_allow_anonymous(hgobj gobj, const char *cmd, json_t *kw, hgo
 
 
 
+
+/***************************************************************************
+ *
+ ***************************************************************************/
+PRIVATE int open_devices_tracks(hgobj gobj)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    json_t *match_cond = json_pack("{s:i, s:b, s:I}",
+        // TODO check
+        "from_t", -3600*24, // recupera desde el último día, la app no puede estar parada mas tiempo
+        "only_md", 1,
+        "load_record_callback", (json_int_t)(size_t)load_record_callback
+    );
+
+    priv->realtime_tracks = tranger2_open_list( // TODO esto puede tardar mucho
+        priv->tranger_tracks,
+        "raw_tracks",
+        match_cond,     // owned
+        json_pack("{s:I}",   // extra
+            "gobj", (json_int_t)(size_t)gobj
+        ),
+        gobj_short_name(gobj), // rt_id
+        TRUE,   // rt_by_disk
+        ""      // creator
+    );
+    if(!priv->realtime_tracks) {
+        gobj_log_error(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_TREEDB_ERROR,
+            "msg",          "%s", "tranger2_open_list() failed",
+            "topic_name",   "%s", "raw_tracks",
+            NULL
+        );
+    }
+
+    priv->track_list = trmsg_open_list(
+        priv->tranger_tracks,
+        "raw_tracks",  // topic
+        json_pack("{s:i, s:i, s:i}",  // match_cond
+            "max_key_instances", 20,    /* sync with max_chart_tracks in ui_device_sonda.js */
+            "from_rowid", -30,
+            "to_rowid", 0
+        ),
+        NULL,       // extra
+        NULL,       // rt_id
+        FALSE,      // rt_by_disk
+        NULL        // creator
+    );
+    if(!priv->track_list) {
+        gobj_log_error(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_TREEDB_ERROR,
+            "msg",          "%s", "trmsg_open_list() failed",
+            "topic_name",   "%s", "raw_tracks",
+            NULL
+        );
+    }
+
+    return 0;
+}
+
+/***************************************************************************
+ *
+ ***************************************************************************/
+PRIVATE int close_devices_tracks(hgobj gobj)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    if(priv->realtime_tracks) {
+        tranger2_close_list(
+            priv->tranger_tracks,
+            priv->realtime_tracks
+        );
+        priv->realtime_tracks = 0;
+    }
+
+    if(priv->track_list) {
+        trmsg_close_list(priv->tranger_tracks, priv->track_list);
+        priv->track_list = 0;
+    }
+
+    return 0;
+}
+
+/***************************************************************************
+ *
+ ***************************************************************************/
+PRIVATE int process_msg(
+    hgobj gobj,
+    json_t *kw,  // NOT owned
+    json_t *device_resource // NOT owned
+)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    const char *device_id = kw_get_str(gobj, kw, "id", "", KW_REQUIRED);
+    if(empty_string(device_id)) {
+        gobj_log_error(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_INTERNAL_ERROR,
+            "msg",          "%s", "Message without id",
+            NULL
+        );
+        gobj_trace_json(gobj, kw, "Message without id");
+        return -1;
+    }
+
+    /*--------------------------------*
+     *  Get device of track
+     *  Create it if not exist
+     *--------------------------------*/
+    const char *yuno = kw_get_str(gobj, kw, "yuno", "", 0);
+    json_t *device = gobj_get_node(
+        priv->gobj_treedb_mqtt_broker,
+        "devices",
+        json_incref(kw),
+        json_pack("{s:b}", "fkey_only_id", TRUE),  // fkey,hook options
+        gobj
+    );
+
+    if(!device) {
+        /*
+         *  Nuevo device, crea registro
+         */
+        time_t t;
+        time(&t);
+        BOOL enabled_new_devices = gobj_read_bool_attr(gobj, "enabled_new_devices");
+        json_t *jn_device = json_pack("{s:s, s:s, s:b, s:{}, s:s, s:I}",
+            "id", device_id,
+            "name", device_id,
+            "enabled", enabled_new_devices,
+            "properties",
+            "yuno", yuno,
+            "tm", (json_int_t)t
+        );
+
+        device = gobj_create_node(
+            priv->gobj_treedb_mqtt_broker,
+            "devices",
+            jn_device,
+            json_pack("{s:b}", "fkey_only_id", TRUE),  // fkey,hook options
+            gobj
+        );
+    }
+
+    if(!device) {
+        gobj_log_error(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_INTERNAL_ERROR,
+            "msg",          "%s", "Device ???",
+            NULL
+        );
+        return -1;
+    }
+
+    /*---------------------------------*
+     *  Get schema of device_types
+     *  To check template version
+     *---------------------------------*/
+    json_t *jn_desc = gobj_topic_desc(
+        priv->gobj_treedb_mqtt_broker,
+        "device_types"
+    );
+    json_t *template_settings = kwid_get(gobj,
+        jn_desc,
+        KW_VERBOSE,
+        "cols`template_settings`template"
+    );
+
+    json_int_t schema_template_settings_version = kw_get_int(
+        gobj, template_settings, "template_version`default", 0, KW_WILD_NUMBER
+    );
+
+    /*-----------------------------*
+     *  Get type of device
+     *  Create it if not exist
+     *-----------------------------*/
+    char type_id[NAME_MAX];
+    snprintf(type_id, sizeof(type_id), "%s", yuno);
+    change_char(type_id, '^', '-');
+
+    json_t *device_type = gobj_get_node(
+        priv->gobj_treedb_mqtt_broker,
+        "device_types",
+        json_pack("{s:s}", "id", type_id),
+        0,
+        gobj
+    );
+
+    if(!device_type) {
+        /*
+         *  Nuevo device, crea registro
+         */
+        /*
+         *  HACK trigger point: default to create a new device type
+         */
+        time_t t;
+        time(&t);
+        json_t *jn_device_type = json_pack("{s:s, s:s, s:s, s:s, s:{}, s:O, s:I}",
+            "id", type_id,
+            "name", type_id,
+            "description", "",
+            "icon", "",
+            "properties",
+            "template_settings", template_settings?template_settings:json_null(),
+            "tm", (json_int_t)t
+        );
+
+        device_type = gobj_create_node(
+            priv->gobj_treedb_mqtt_broker,
+            "device_types",
+            jn_device_type,
+            0,
+            gobj
+        );
+    } else {
+        /*
+         *  Check if settings template has a new version
+         */
+        json_int_t device_type_template_settings_version = kw_get_int(
+            gobj, device_type, "template_settings`template_version`default", 0, KW_WILD_NUMBER
+        );
+        if(schema_template_settings_version > device_type_template_settings_version) {
+            JSON_DECREF(device_type)
+
+            time_t t;
+            time(&t);
+            device_type = gobj_update_node(
+                priv->gobj_treedb_mqtt_broker,
+                "device_types",
+                json_pack("{s:s, s:O, s:I}",
+                    "id", type_id,
+                    "template_settings", template_settings?template_settings:json_null(),
+                    "tm", (json_int_t)t
+                ),
+                0,  // fkey,hook options
+                gobj
+            );
+        }
+    }
+
+    /*
+     *  Set type if not defined
+     */
+    json_t *device_type_ = kw_get_list(gobj, device, "device_type", 0, KW_REQUIRED);
+    if(json_array_size(device_type_)==0) {
+        gobj_link_nodes(
+            priv->gobj_treedb_mqtt_broker,
+            "devices",                  // const char *hook,
+            "device_types",             // const char *parent_topic_name,
+            json_incref(device_type),   // json_t *parent_record,  // owned
+            "devices",                  // const char *child_topic_name,
+            json_incref(device),        // json_t *child_record,  // owned
+            gobj
+        );
+    }
+
+    /*
+     *  Set settings if not defined, or if it has a minor version
+     */
+    json_t *settings = kw_get_dict(gobj, device, "settings", 0, KW_REQUIRED);
+    json_int_t template_settings_version = kw_get_int(gobj, settings, "template_version", 0, 0);
+
+    if(json_object_size(settings)==0 ||
+            schema_template_settings_version > template_settings_version) {
+        JSON_INCREF(settings);
+        json_t *jn_settings = create_template_record("settings", template_settings, settings);
+
+        JSON_DECREF(device)
+        device = gobj_update_node( // Return is YOURS
+            priv->gobj_treedb_mqtt_broker,
+            "devices",
+            json_pack("{s:s, s:o}",
+                "id", device_id,
+                "settings", jn_settings
+            ),
+            0,  // fkey,hook options
+            gobj
+        );
+    }
+    JSON_DECREF(jn_desc)
+
+    /*------------------------------------------------------*
+     *  Actualiza nombre si ha cambiado en el dispositivo
+     *------------------------------------------------------*/
+    const char *old_name = kw_get_str(gobj, device, "name", "", 0);
+    if(empty_string(old_name)) {
+        old_name = device_id;
+    }
+
+    /*--------------------------------*
+     *      Build track message
+     *--------------------------------*/
+    /*
+     *  Pon el name del device
+     */
+    json_object_set_new(
+        kw,
+        "name",
+        json_string(old_name)
+    );
+
+    /*--------------------------------------*
+     *  Get the first group of the device
+     *  to get the language
+     *--------------------------------------*/
+    const char *language = "es";
+    json_t *group = 0;
+    json_t *device_groups = kw_get_list(gobj, device, "device_groups", 0, KW_REQUIRED);
+    if(device_groups && json_array_size(device_groups)) {
+        const char *group_id = json_string_value(json_array_get(device_groups, 0));
+        group = gobj_get_node(
+            priv->gobj_treedb_mqtt_broker,
+            "device_groups",
+            json_pack("{s:s}",
+                "id", group_id
+            ),
+            json_pack("{s:b}",
+                "only_id", 1
+            ),
+            gobj
+        );
+        if(group) {
+            language = kw_get_str(gobj, group, "language", language, KW_REQUIRED);
+        }
+        // TODO override the language if user to send the email has a language defined
+    }
+
+    // /*--------------------------------*
+    //  *      Check alarms
+    //  *--------------------------------*/
+    // int n_alarms = check_new_alarms(
+    //     gobj,
+    //     device, // not owned
+    //     kw,    // not owned
+    //     language,
+    //     FALSE
+    // );
+    //
+    // /*
+    //  *  Adjunta nº alarmas
+    //  */
+    // json_object_set_new(
+    //     kw,
+    //     "n_alarms",
+    //     json_integer(n_alarms)
+    // );
+    //
+    // /*--------------------------------*
+    //  *      Publish the trace
+    //  *--------------------------------*/
+    // gobj_publish_event(gobj, EV_REALTIME_TRACK, json_incref(kw));
+
+    /*---------------------*
+     *      Free device
+     *---------------------*/
+    JSON_DECREF(group)
+    JSON_DECREF(device)
+    JSON_DECREF(device_type)
+
+    return 0;
+}
 
 
 
@@ -603,7 +1124,7 @@ PRIVATE int ac_on_open(hgobj gobj, const char *event, json_t *kw, hgobj src)
      *  Open the topic (client_id) or create it if it doesn't exist
      *----------------------------------------------------------------*/
     json_t *jn_response = gobj_command(
-        priv->gobj_tranger_clients,
+        priv->gobj_tranger_tracks,
         "open-topic",
         json_pack("{s:s, s:s}",
             "topic_name", client_id,
@@ -616,7 +1137,7 @@ PRIVATE int ac_on_open(hgobj gobj, const char *event, json_t *kw, hgobj src)
     if(result < 0) {
         JSON_DECREF(jn_response)
         jn_response = gobj_command(
-            priv->gobj_tranger_clients,
+            priv->gobj_tranger_tracks,
             "create-topic", // idempotent function
             json_pack("{s:s, s:s}",
                 "topic_name", client_id,
@@ -985,7 +1506,7 @@ PRIVATE int create_gclass(gclass_name_t gclass_name)
         {EV_AUTHZ_USER_LOGIN,       ac_user_login,          0},
         {EV_AUTHZ_USER_LOGOUT,      ac_user_logout,         0},
         {EV_AUTHZ_USER_NEW,         ac_user_new,            0},
-        {EV_TIMEOUT,                ac_timeout,             0},
+        {EV_TIMEOUT_PERIODIC,       ac_timeout,             0},
         {0,0,0}
     };
 
@@ -1006,7 +1527,7 @@ PRIVATE int create_gclass(gclass_name_t gclass_name)
         {EV_AUTHZ_USER_LOGIN,       0},
         {EV_AUTHZ_USER_LOGOUT,      0},
         {EV_AUTHZ_USER_NEW,         0},
-        {EV_TIMEOUT,                0},
+        {EV_TIMEOUT_PERIODIC,       0},
         {NULL, 0}
     };
 
