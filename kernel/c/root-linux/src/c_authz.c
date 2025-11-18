@@ -271,9 +271,6 @@ SDATA_END()
  *---------------------------------------------*/
 PRIVATE sdata_desc_t attrs_table[] = {
 /*-ATTR-type--------name----------------flag--------default-----description---------- */
-SDATA (DTP_INTEGER, "max_sessions_per_user",SDF_PERSIST,    "1",        "Max sessions per user"),
-SDATA (DTP_JSON,    "jwks",                 SDF_WR|SDF_PERSIST, "[]",   "JWKS public keys, OLD jwt_public_keys, use the utility keycloak_pkey_to_jwks to create."),
-SDATA (DTP_JSON,    "initial_load",         SDF_RD,         "{}",       "Initial data for treedb"),
 /*
  *  HACK WARNING 2024-Nov-13: use of "tranger_path" to determine if this instance is master or not.
  *  If tranger_path is empty, then
@@ -285,6 +282,10 @@ SDATA (DTP_STRING,  "tranger_path",     SDF_RD,     "",         "Tranger path, i
 SDATA (DTP_STRING,  "authz_service",    SDF_RD,     "",         "If tranger_path is empty you can force the service where build the authz. If authz_service is empty then it will be the yuno_role"),
 SDATA (DTP_STRING,  "authz_tenant",     SDF_RD,     "",         "Used for multi-tenant service"),
 SDATA (DTP_BOOLEAN, "master",           SDF_RD,     "0",        "the master is the only that can write, if tranger_path is empty is set to TRUE internally"),
+
+SDATA (DTP_INTEGER, "max_sessions_per_user",SDF_PERSIST,    "1",        "Max sessions per user"),
+SDATA (DTP_JSON,    "jwks",                 SDF_WR|SDF_PERSIST, "[]",   "JWKS public keys, OLD jwt_public_keys, use the utility keycloak_pkey_to_jwks to create."),
+SDATA (DTP_JSON,    "initial_load",         SDF_RD,         "{}",       "Initial data for treedb"),
 
 SDATA (DTP_INTEGER, "hashIterations",   0,          "27500",    "Default To build a password"),
 SDATA (DTP_STRING,  "algorithm",        0,          "sha256",   "Default To build a password"),

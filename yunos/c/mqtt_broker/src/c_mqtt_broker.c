@@ -77,6 +77,9 @@ SDATA_END()
  *---------------------------------------------*/
 PRIVATE sdata_desc_t tattr_desc[] = {
 /*-ATTR-type--------name----------------flag--------default-----description---------- */
+SDATA (DTP_STRING,  "mqtt_service",     SDF_RD,     "",         "If mqtt_service is empty then it will be the yuno_role"),
+SDATA (DTP_STRING,  "mqtt_tenant",      SDF_RD,     "",         "Used for multi-tenant service"),
+
 // TODO a 0 cuando funcionen bien los out schemas
 SDATA (DTP_BOOLEAN, "use_internal_schema",SDF_PERSIST, "1",     "Use internal (hardcoded) schema"),
 
@@ -222,14 +225,20 @@ PRIVATE int mt_play(hgobj gobj)
     /*-------------------------------------------*
      *          Create Treedb System
      *-------------------------------------------*/
+    const char *mqtt_service = gobj_read_str_attr(gobj, "mqtt_service");
+    const char *mqtt_tenant = gobj_read_str_attr(gobj, "mqtt_tenant");
+    if(empty_string(mqtt_service)) {
+        mqtt_service = gobj_yuno_role();
+    }
+
     char path[PATH_MAX];
     yuneta_realm_store_dir(
         path,
         sizeof(path),
-        gobj_yuno_role(),
+        mqtt_service,
         gobj_yuno_realm_owner(),
         gobj_yuno_realm_id(),
-        "",  // tenant
+        mqtt_tenant,  // tenant
         "",  // gclass-treedb controls the directories
         TRUE
     );
