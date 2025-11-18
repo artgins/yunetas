@@ -13,11 +13,11 @@
     * field required
     = field inherited
 
-                    device_groups
+                    client_groups
             ┌───────────────────────────┐
             │* id                       │
             │                           │
-            │         device_groups {}  │ ◀─┐N
+            │         client_groups {}  │ ◀─┐N
             │                           │   │
             │         group_parent (↖)  │ ──┘ 1
             │                           │
@@ -30,7 +30,7 @@
             │  cluster                  │
             │                           │
             │               managers {} │ ◀─────────────────┐N
-            │                devices {} │ ◀─┐N              │
+            │                clients {} │ ◀─┐N              │
             │                           │   │               │
             │                           │   │               │
             │  _geometry                │   │               │
@@ -38,31 +38,31 @@
                                             │               │
                                             │               │
                                             │               │
-                        devices             │               │
+                        clients             │               │
             ┌───────────────────────────┐   │               │
             │* id                       │   │               │
             │                           │   │n              │
-            │         device_groups [↖] │ ──┘               │
+            │         client_groups [↖] │ ──┘               │
             │                           │                   │
             │  name                     │                   │
             │  description              │                   │
             │  enabled                  │                   │
             │  coordinates              │                   │       TODO users of templates:
-            │  settings             <------------------------- using device_types.template_settings
+            │  settings             <----------------- using client_types.template_settings
             │  properties               │                   │       TODO    make a shortcut to get it
             │  time                     │                   │
             │  yuno                     │                   │
             │                           │                   │
-            │           device_type [↖] │ ──┐ n             │
+            │           client_type [↖] │ ──┐ n             │
             │                           │   │               │
             │  _geometry                │   │               │
             └───────────────────────────┘   │               │
                                             │               │
-                      device_types          │               │
+                      client_types          │               │
             ┌───────────────────────────┐   │               │
             │* id                       │   │               │
             │                           │   │               │
-            │                devices {} │ ◀─┘ N             │
+            │                clients {} │ ◀─┘ N             │
             │  name                     │                   │
             │  description              │                   │
             │  icon                     │                   │
@@ -91,7 +91,7 @@
 
             alarms
             ┌───────────────────────────┐
-            │  id                       │   device_id
+            │  id                       │   client_id
             │  tm                       │
             │  alarm                    │
             │  description              │
@@ -111,27 +111,27 @@ static char treedb_schema_mqtt_broker[]= "\
     'schema_version': '1',                                         	\n\
     'topics': [                                                     \n\
         {                                                           \n\
-            'id': 'device_groups',                                  \n\
+            'id': 'client_groups',                                  \n\
             'pkey': 'id',                                           \n\
             'system_flag': 'sf_string_key',                         \n\
             'topic_version': '1',                                   \n\
             'cols': {                                               \n\
                 'id': {                                             \n\
-                    'header': 'Device Group',                       \n\
+                    'header': 'Client Group',                       \n\
                     'type': 'string',                               \n\
                     'flag': [                                       \n\
                         'persistent',                               \n\
                         'required'                                  \n\
                     ]                                               \n\
                 },                                                  \n\
-                'device_groups': {                                  \n\
+                'client_groups': {                                  \n\
                     'header': 'Groups',                             \n\
                     'type': 'object',                               \n\
                     'flag': [                                       \n\
                         'hook'                                      \n\
                     ],                                              \n\
                     'hook': {                                       \n\
-                        'device_groups': 'group_parent'             \n\
+                        'client_groups': 'group_parent'             \n\
                     }                                               \n\
                 },                                                  \n\
                 'group_parent': {                                   \n\
@@ -213,12 +213,12 @@ static char treedb_schema_mqtt_broker[]= "\
                         'persistent'                                \n\
                     ]                                               \n\
                 },                                                  \n\
-                'devices': {                                        \n\
-                    'header': 'Devices',                            \n\
+                'clients': {                                        \n\
+                    'header': 'Clients',                            \n\
                     'type': 'object',                               \n\
                     'flag': ['hook'],                               \n\
                     'hook': {                                       \n\
-                        'devices': 'device_groups'                  \n\
+                        'clients': 'client_groups'                  \n\
                     }                                               \n\
                 },                                                  \n\
                 'managers': {                                       \n\
@@ -240,22 +240,22 @@ static char treedb_schema_mqtt_broker[]= "\
         },                                                          \n\
                                                                     \n\
         {                                                           \n\
-            'id': 'devices',                                        \n\
+            'id': 'clients',                                        \n\
             'pkey': 'id',                                           \n\
             'tkey': 'tm',                                           \n\
             'system_flag': 'sf_string_key',                         \n\
             'topic_version': '1',                                   \n\
             'cols': {                                               \n\
                 'id': {                                             \n\
-                    'header': 'Device',                             \n\
+                    'header': 'Client',                             \n\
                     'type': 'string',                               \n\
                     'flag': [                                       \n\
                         'persistent',                               \n\
                         'required'                                  \n\
                     ]                                               \n\
                 },                                                  \n\
-                'device_groups': {                                  \n\
-                    'header': 'Device Groups',                      \n\
+                'client_groups': {                                  \n\
+                    'header': 'Client Groups',                      \n\
                     'type': 'array',                                \n\
                     'flag': [                                       \n\
                         'fkey'                                      \n\
@@ -301,7 +301,7 @@ static char treedb_schema_mqtt_broker[]= "\
                         'coordinates'                           \n\
                     ]                                           \n\
                 },                                              \n\
-                'device_type': {                                    \n\
+                'client_type': {                                    \n\
                     'header': 'Type',                               \n\
                     'type': 'array',                                \n\
                     'flag': [                                       \n\
@@ -309,7 +309,7 @@ static char treedb_schema_mqtt_broker[]= "\
                     ]                                               \n\
                 },                                                  \n\
                 'settings': {                                       \n\
-                    'header': 'Device Settings',                    \n\
+                    'header': 'Client Settings',                    \n\
                     'type': 'dict',                                 \n\
                     'flag': [                                       \n\
                         'writable',                                 \n\
@@ -357,7 +357,7 @@ static char treedb_schema_mqtt_broker[]= "\
         },                                                          \n\
                                                                     \n\
         {                                                           \n\
-            'id': 'device_types',                                   \n\
+            'id': 'client_types',                                   \n\
             'pkey': 'id',                                           \n\
             'tkey': 'tm',                                           \n\
             'system_flag': 'sf_string_key',                         \n\
@@ -371,14 +371,14 @@ static char treedb_schema_mqtt_broker[]= "\
                         'required'                                  \n\
                     ]                                               \n\
                 },                                                  \n\
-                'devices': {                                        \n\
-                    'header': 'Devices',                            \n\
+                'clients': {                                        \n\
+                    'header': 'Clients',                            \n\
                     'type': 'object',                               \n\
                     'flag': [                                       \n\
                         'hook'                                      \n\
                     ],                                              \n\
                     'hook': {                                       \n\
-                        'devices': 'device_type'                    \n\
+                        'clients': 'client_type'                    \n\
                     }                                               \n\
                 },                                                  \n\
                 'name': {                                           \n\
@@ -440,7 +440,7 @@ static char treedb_schema_mqtt_broker[]= "\
                                 'enum'                                  \n\
                             ],                                          \n\
                             'placeholder': 'select a measure',          \n\
-                            'enum': '$device_measures'                  \n\
+                            'enum': '$client_measures'                  \n\
                         },                                              \n\
                         'coordinates': {                                \n\
                             'type': 'dict',                             \n\
@@ -545,7 +545,7 @@ static char treedb_schema_mqtt_broker[]= "\
                                                 'enum'                  \n\
                                             ],                          \n\
                                             'placeholder': 'select a measure', \n\
-                                            'enum': '$device_measures'  \n\
+                                            'enum': '$client_measures'  \n\
                                         },                              \n\
                                         'operation': {                  \n\
                                             'type': 'string',           \n\
@@ -712,7 +712,7 @@ static char msg2db_schema_alarms[]= "\
             'topic_version': '1',                                   \n\
             'cols': {                                               \n\
                 'id': {                                             \n\
-                    'header': 'Device Id',                          \n\
+                    'header': 'Client Id',                          \n\
                     'type': 'string',                               \n\
                     'fillspace': 2,                                 \n\
                     'flag': ['persistent','required']               \n\
@@ -724,7 +724,7 @@ static char msg2db_schema_alarms[]= "\
                     'flag': ['persistent','required','time']        \n\
                 },                                                  \n\
                 'name': {                                           \n\
-                    'header': 'Device Name',                        \n\
+                    'header': 'Client Name',                        \n\
                     'fillspace': 1,                                 \n\
                     'type': 'string',                               \n\
                     'flag': ['persistent']                          \n\
@@ -783,8 +783,8 @@ static char msg2db_schema_alarms[]= "\
                     'type': 'string',                               \n\
                     'flag': ['persistent']                          \n\
                 },                                                  \n\
-                '_device_type': {                                   \n\
-                    'header': 'Device Type',                        \n\
+                '_client_type': {                                   \n\
+                    'header': 'Client Type',                        \n\
                     'type': 'array',                                \n\
                     'flag': ['persistent']                          \n\
                 }                                                   \n\
