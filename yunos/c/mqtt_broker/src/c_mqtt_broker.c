@@ -11,16 +11,13 @@
 #include <limits.h>
 #include <string.h>
 
-#include <grp.h>
-#include <pwd.h>
-#include <unistd.h>
-
 #include <gobj.h>
 #include <g_ev_kernel.h>
 #include <g_st_kernel.h>
 #include <helpers.h>
 
 #include "c_mqtt_broker.h"
+#include "treedb_schema_mqtt_broker.c"
 
 /***************************************************************************
  *              Constants
@@ -77,6 +74,7 @@ SDATA_END()
  *---------------------------------------------*/
 PRIVATE sdata_desc_t tattr_desc[] = {
 /*-ATTR-type--------name----------------flag--------default-----description---------- */
+SDATA (DTP_STRING,  "__username__",     SDF_RD,     "",         "Username"),
 SDATA (DTP_STRING,  "mqtt_service",     SDF_RD,     "",         "If mqtt_service is empty then it will be the yuno_role"),
 SDATA (DTP_STRING,  "mqtt_tenant",      SDF_RD,     "",         "Used for multi-tenant service"),
 
@@ -121,6 +119,9 @@ typedef struct _PRIVATE_DATA {
     hgobj gobj_input_side;
     hgobj gobj_authz;
     hgobj gobj_treedbs;
+    hgobj gobj_treedb_mqtt_broker;      // service of treedb_mqtt_broker (create in gobj_treedbs)
+    // json_t *tranger_treedb_mqtt_broker;
+    char treedb_mqtt_broker_name[80];
 
     hgobj gobj_tranger_clients; // TODO need it?
 
@@ -146,6 +147,15 @@ typedef struct _PRIVATE_DATA {
 PRIVATE void mt_create(hgobj gobj)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    /*----------------------------------------*
+     *      Check user yuneta
+     *----------------------------------------*/
+    gobj_write_str_attr(
+        gobj,
+        "__username__",
+        gobj_read_str_attr(gobj_yuno(), "__username__")
+    );
 
     priv->timer = gobj_create_pure_child(gobj_name(gobj), C_TIMER, 0, gobj);
 
@@ -265,63 +275,63 @@ PRIVATE int mt_play(hgobj gobj)
     gobj_start_tree(priv->gobj_treedbs);
 
     /*---------------------------------------*
-     *      Open treedb_airedb service
+     *      Open treedb_mqtt_broker service
      *---------------------------------------*/
-    // helper_quote2doublequote(treedb_schema_airedb);
-    // json_t *jn_treedb_schema_airedb;
-    // jn_treedb_schema_airedb = legalstring2json(treedb_schema_airedb, TRUE);
-    // if(parse_schema(jn_treedb_schema_airedb)<0) {
-    //     /*
-    //      *  Exit if schema fails
-    //      */
-    //     gobj_log_error(gobj, 0,
-    //         "function",     "%s", __FUNCTION__,
-    //         "msgset",       "%s", MSGSET_APP_ERROR,
-    //         "msg",          "%s", "Parse schema fails",
-    //         NULL
-    //     );
-    //     exit(-1);
-    // }
-    //
-    // BOOL use_internal_schema = gobj_read_bool_attr(gobj, "use_internal_schema");
-    //
-    // const char *treedb_name_ = kw_get_str(gobj,
-    //     jn_treedb_schema_airedb,
-    //     "id",
-    //     "treedb_airedb",
-    //     KW_REQUIRED
-    // );
-    // snprintf(priv->treedb_airedb_name, sizeof(priv->treedb_airedb_name), "%s", treedb_name_);
-    //
-    // json_t *kw_treedb = json_pack("{s:s, s:i, s:s, s:o, s:b}",
-    //     "filename_mask", "%Y",
-    //     "exit_on_error", 0,
-    //     "treedb_name", priv->treedb_airedb_name,
-    //     "treedb_schema", jn_treedb_schema_airedb,
-    //     "use_internal_schema", use_internal_schema
-    // );
-    // json_t *jn_resp = gobj_command(priv->gobj_treedbs,
-    //     "open-treedb",
-    //     kw_treedb,
-    //     gobj
-    // );
-    // int result = (int)kw_get_int(gobj, jn_resp, "result", -1, KW_REQUIRED);
-    // if(result < 0) {
-    //     const char *comment = kw_get_str(gobj, jn_resp, "comment", "", KW_REQUIRED);
-    //     gobj_log_error(gobj, 0,
-    //         "function",     "%s", __FUNCTION__,
-    //         "msgset",       "%s", MSGSET_APP_ERROR,
-    //         "msg",          "%s", comment,
-    //         NULL
-    //     );
-    // }
-    // json_decref(jn_resp);
-    //
-    // priv->gobj_treedb_airedb = gobj_find_service(priv->treedb_airedb_name, TRUE);
-    // gobj_subscribe_event(priv->gobj_treedb_airedb, 0, 0, gobj);
-    //
-    // // Get timeranger of treedb_airedb, will be used for alarms too
-    // priv->tranger_treedb_airedb = gobj_read_pointer_attr(priv->gobj_treedb_airedb, "tranger");
+    helper_quote2doublequote(treedb_schema_mqtt_broker);
+    json_t *jn_treedb_schema_mqtt_broker;
+    jn_treedb_schema_mqtt_broker = legalstring2json(treedb_schema_mqtt_broker, TRUE);
+    if(parse_schema(jn_treedb_schema_mqtt_broker)<0) {
+        /*
+         *  Exit if schema fails
+         */
+        gobj_log_error(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_APP_ERROR,
+            "msg",          "%s", "Parse schema fails",
+            NULL
+        );
+        exit(-1);
+    }
+
+    BOOL use_internal_schema = gobj_read_bool_attr(gobj, "use_internal_schema");
+
+    const char *treedb_name_ = kw_get_str(gobj,
+        jn_treedb_schema_mqtt_broker,
+        "id",
+        "treedb_mqtt_broker",
+        KW_REQUIRED
+    );
+    snprintf(priv->treedb_mqtt_broker_name, sizeof(priv->treedb_mqtt_broker_name), "%s", treedb_name_);
+
+    json_t *kw_treedb = json_pack("{s:s, s:i, s:s, s:o, s:b}",
+        "filename_mask", "%Y",
+        "exit_on_error", 0,
+        "treedb_name", priv->treedb_mqtt_broker_name,
+        "treedb_schema", jn_treedb_schema_mqtt_broker,
+        "use_internal_schema", use_internal_schema
+    );
+    json_t *jn_resp = gobj_command(priv->gobj_treedbs,
+        "open-treedb",
+        kw_treedb,
+        gobj
+    );
+    int result = (int)kw_get_int(gobj, jn_resp, "result", -1, KW_REQUIRED);
+    if(result < 0) {
+        const char *comment = kw_get_str(gobj, jn_resp, "comment", "", KW_REQUIRED);
+        gobj_log_error(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_APP_ERROR,
+            "msg",          "%s", comment,
+            NULL
+        );
+    }
+    json_decref(jn_resp);
+
+    priv->gobj_treedb_mqtt_broker = gobj_find_service(priv->treedb_mqtt_broker_name, TRUE);
+    gobj_subscribe_event(priv->gobj_treedb_mqtt_broker, 0, 0, gobj);
+
+    // Get timeranger of treedb_mqtt_broker, will be used for alarms too
+    // priv->tranger_treedb_mqtt_broker = gobj_read_pointer_attr(priv->gobj_treedb_mqtt_broker, "tranger");
 
     /*------------------------------------------------------*
      *      Open mqtt_broker tranger for clients (topics)
@@ -383,6 +393,26 @@ PRIVATE int mt_pause(hgobj gobj)
         gobj_stop(priv->gobj_tranger_clients);
         EXEC_AND_RESET(gobj_destroy, priv->gobj_tranger_clients)
     }
+
+    /*---------------------------------------*
+     *      Close treedb mqtt_broker
+     *---------------------------------------*/
+    json_decref(gobj_command(priv->gobj_treedbs,
+        "close-treedb",
+        json_pack("{s:s}",
+            "treedb_name", priv->treedb_mqtt_broker_name
+        ),
+        gobj
+    ));
+
+    /*-------------------------*
+     *      Stop treedbs
+     *-------------------------*/
+    if(priv->gobj_treedbs) {
+        gobj_stop_tree(priv->gobj_treedbs);
+        EXEC_AND_RESET(gobj_destroy, priv->gobj_treedbs)
+    }
+
 
     clear_timeout(priv->timer);
 
