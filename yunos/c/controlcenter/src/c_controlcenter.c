@@ -292,6 +292,7 @@ PRIVATE int mt_play(hgobj gobj)
         gobj_yuno_role(),
         gobj_yuno_realm_owner(),
         gobj_yuno_realm_id(),
+        "",  // tenant
         "",  // gclass-treedb controls the directories
         TRUE
     );
