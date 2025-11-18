@@ -88,7 +88,7 @@ The documentation needs to be update with next changes
     create_uuid -> create_random_uuid
     gclass_find_event_type -> gclass_event_type
     PUBLIC gbuffer_t *run_command(const char *command); // use popen(), synchronous
-
+    yuneta_realm_store_dir
 
 # New API
 

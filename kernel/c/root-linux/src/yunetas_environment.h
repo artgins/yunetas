@@ -93,15 +93,6 @@ PUBLIC char *yuneta_realm_store_dir(
     const char *service,
     const char *owner,
     const char *realm_id,
-    const char *dir,
-    BOOL create
-);
-PUBLIC char *yuneta_realm_store_tenant_dir(
-    char *bf,
-    int bfsize,
-    const char *service,
-    const char *owner,
-    const char *realm_id,
     const char *tenant,
     const char *dir,
     BOOL create

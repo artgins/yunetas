@@ -244,38 +244,6 @@ PUBLIC char *yuneta_realm_store_dir(
     const char *service,
     const char *owner,
     const char *realm_id,
-    const char *dir,
-    BOOL create
-)
-{
-    if(empty_string(yuneta_root_dir())) {
-        *bf = 0;
-        return 0;
-    }
-
-    build_path(bf, bfsize, yuneta_root_dir(), "store", service, owner, realm_id, dir, NULL);
-
-    if(create) {
-        if(!is_directory(bf)) {
-            mkrdir(bf, yuneta_xpermission());
-            if(!is_directory(bf)) {
-                *bf = 0;
-                return 0;
-            }
-        }
-    }
-    return bf;
-}
-
-/***************************************************************************
- *
- ***************************************************************************/
-PUBLIC char *yuneta_realm_store_tenant_dir(
-    char *bf,
-    int bfsize,
-    const char *service,
-    const char *owner,
-    const char *realm_id,
     const char *tenant,
     const char *dir,
     BOOL create

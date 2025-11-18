@@ -394,28 +394,16 @@ PRIVATE void mt_create(hgobj gobj)
         if(empty_string(authz_service)) {
             authz_service = gobj_yuno_role();
         }
-        if(empty_string(authz_tenant)) {
-            yuneta_realm_store_dir(
-                path_,
-                sizeof(path_),
-                authz_service,
-                gobj_yuno_realm_owner(),
-                gobj_yuno_realm_id(),
-                "authzs",
-                master?TRUE:FALSE
-            );
-        } else {
-            yuneta_realm_store_tenant_dir(
-                path_,
-                sizeof(path_),
-                authz_service,
-                gobj_yuno_realm_owner(),
-                gobj_yuno_realm_id(),
-                authz_tenant,
-                "authzs",
-                master?TRUE:FALSE
-            );
-        }
+        yuneta_realm_store_dir(
+            path_,
+            sizeof(path_),
+            authz_service,
+            gobj_yuno_realm_owner(),
+            gobj_yuno_realm_id(),
+            authz_tenant,
+            "authzs",
+            master?TRUE:FALSE
+        );
         gobj_write_str_attr(gobj, "tranger_path", path_);
         path = gobj_read_str_attr(gobj, "tranger_path");
 
