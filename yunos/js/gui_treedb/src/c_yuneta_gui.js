@@ -364,6 +364,69 @@ function build_app(gobj, services_roles)
     );
 
     /*----------------------------------------*
+     *      Treedb Mqtt
+     *----------------------------------------*/
+    let mqtt_broker_roles = services_roles["treedb_mqtt_broker"];
+    if(mqtt_broker_roles && strs_in_list(mqtt_broker_roles, ["root","owner"], true)) {
+        /*----------------------*
+         *      USER Topics
+         *----------------------*/
+        let gobj_tables_mqtt_broker = gobj_create_service(
+            "#topics_mqtt_broker", // HACK href
+            "C_YUI_TREEDB_TOPICS",
+            {
+                gobj_remote_yuno: __yuno__.__remote_service__,
+                treedb_name: "treedb_mqtt_broker",
+            },
+            gobj
+        );
+        priv.user_gobjs.push(gobj_tables_mqtt_broker);
+        // gobj_start(gobj_tables_mqtt_broker);
+        menu.push(
+            {
+                id: gobj_name(gobj_tables_mqtt_broker),
+                label: "MQTT Topics",
+                icon: "fas fa-table",
+                gobj: gobj_tables_mqtt_broker  // use "$container" attribute
+            }
+        );
+
+        /*----------------------*
+         *      USER Graphs
+         *----------------------*/
+        let gobj_tabs = gobj_create_pure_child(
+            "#graphs_mqtt_broker", // HACK href
+            "C_YUI_TABS",
+            {
+            },
+            gobj
+        );
+        menu.push(
+            {
+                id: gobj_name(gobj_tabs),
+                label: "MQTT Graphs",
+                icon: "fas fa-hexagon-nodes",
+                gobj: gobj_tabs   // use "$container" attribute
+            }
+        );
+
+        let gobj_graph_mqtt_broker = gobj_create_service(
+            "mqtt_treedb_view",
+            "C_YUI_TREEDB_GRAPH",
+            {
+                subscriber: gobj,
+                treedb_name: "treedb_mqtt_broker",
+                gobj_remote_yuno: __yuno__.__remote_service__,
+                label: "AuthDB",
+                icon: "fas fa-hexagon-nodes",
+                modes: ["reading", "operation", "writing", "edition"],
+            },
+            gobj_tabs
+        );
+        priv.user_gobjs.push(gobj_tabs);
+    }
+
+    /*----------------------------------------*
      *      Treedb Authzs
      *----------------------------------------*/
     let authzs_roles = services_roles["treedb_authzs"];
@@ -436,6 +499,32 @@ function build_app(gobj, services_roles)
             icon: "far fa-cog",
         }
     );
+
+    if(mqtt_broker_roles && strs_in_list(mqtt_broker_roles, ["root","owner"], true)) {
+        /*-------------------------*
+         *      SYSTEM Topics
+         *-------------------------*/
+        let gobj_tables_mqtt_broker = gobj_create_service(
+            "#topics_mqtt_broker_system", // HACK href
+            "C_YUI_TREEDB_TOPICS",
+            {
+                gobj_remote_yuno: __yuno__.__remote_service__,
+                treedb_name: "treedb_mqtt_broker",
+                system: true,
+            },
+            gobj
+        );
+        priv.user_gobjs.push(gobj_tables_mqtt_broker);
+        // gobj_start(gobj_tables_mqtt_broker);
+        menu.push(
+            {
+                id: gobj_name(gobj_tables_mqtt_broker),
+                label: "MQTT Design",
+                icon: "fas fa-table",
+                gobj: gobj_tables_mqtt_broker  // use "$container" attribute
+            }
+        );
+    }
 
     if(authzs_roles && strs_in_list(authzs_roles, ["root","owner"], true)) {
         /*-------------------------*
