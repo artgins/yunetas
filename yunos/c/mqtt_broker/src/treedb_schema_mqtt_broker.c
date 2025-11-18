@@ -247,7 +247,7 @@ static char treedb_schema_mqtt_broker[]= "\
             'topic_version': '1',                                   \n\
             'cols': {                                               \n\
                 'id': {                                             \n\
-                    'header': 'Client',                             \n\
+                    'header': 'Client Id',                          \n\
                     'type': 'string',                               \n\
                     'flag': [                                       \n\
                         'persistent',                               \n\
