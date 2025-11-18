@@ -1054,6 +1054,11 @@ PRIVATE int ac_on_open(hgobj gobj, const char *event, json_t *kw, hgobj src)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
+    if(src == priv->gobj_top_side) {
+        KW_DECREF(kw);
+        return 0;
+    }
+
     if(src != priv->gobj_input_side) {
          gobj_log_error(gobj, 0,
             "function",     "%s", __FUNCTION__,
@@ -1183,7 +1188,24 @@ PRIVATE int ac_on_open(hgobj gobj, const char *event, json_t *kw, hgobj src)
  ***************************************************************************/
 PRIVATE int ac_on_close(hgobj gobj, const char *event, json_t *kw, hgobj src)
 {
-    // PRIVATE_DATA *priv = gobj_priv_data(gobj);
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    if(src == priv->gobj_top_side) {
+        KW_DECREF(kw);
+        return 0;
+    }
+
+    if(src != priv->gobj_input_side) {
+        gobj_log_error(gobj, 0,
+           "function",     "%s", __FUNCTION__,
+           "msgset",       "%s", MSGSET_INTERNAL_ERROR,
+           "msg",          "%s", "on_close NOT from input_size",
+           "src",          "%s", gobj_full_name(src),
+           NULL
+       );
+        KW_DECREF(kw);
+        return -1;
+    }
 
     if(gobj_trace_level(gobj) & TRACE_MESSAGES) {
         gobj_trace_json(
