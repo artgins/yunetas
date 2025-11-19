@@ -42,11 +42,9 @@ PRIVATE json_t *build_srv_ievent_request(
     const char *dst_service
 );
 
-
 /***************************************************************************
  *          Data: config, public data, private data
  ***************************************************************************/
-
 
 /*---------------------------------------------*
  *      Attributes - order affect to oid's
@@ -1079,34 +1077,6 @@ PRIVATE int ac_on_message(hgobj gobj, const char *event, json_t *kw, hgobj src)
         "__username__",
         json_string(gobj_read_str_attr(gobj, "__username__"))
     );
-
-    /*---------------------------------------*
-     *          trace inter_event
-     *---------------------------------------*/
-    if(trace_level) {
-        snprintf(prefix, sizeof(prefix),
-            "INTRA-EVENT(%s^%s) %s <== %s",
-            gobj_yuno_role(),
-            gobj_yuno_name(),
-            gobj_short_name(gobj),
-            gobj_short_name(src)
-        );
-        if((trace_level & TRACE_IEVENTS2)) {
-            trace_inter_event2(gobj, prefix, iev_event, iev_kw);
-        } else if((trace_level & TRACE_IEVENTS)) {
-            trace_inter_event(gobj, prefix, iev_event, iev_kw);
-        } else if((trace_level & TRACE_IDENTITY_CARD)) {
-            if(iev_event == EV_IDENTITY_CARD ||
-                iev_event == EV_IDENTITY_CARD_ACK ||
-                iev_event == EV_PLAY_YUNO ||
-                iev_event == EV_PLAY_YUNO_ACK ||
-                iev_event == EV_PAUSE_YUNO ||
-                iev_event == EV_PAUSE_YUNO_ACK
-               ) {
-                trace_inter_event2(gobj, prefix, iev_event, iev_kw);
-               }
-        }
-    }
 
     /*------------------------------------*
      *   Dispatch event
