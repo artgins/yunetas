@@ -1105,9 +1105,18 @@ PRIVATE int ac_on_open(hgobj gobj, const char *event, json_t *kw, hgobj src)
         }
 
     } else {
-        json_object_set_new(kw, "dst_service", json_string("mqtt-broker-clients"));
-        json_t *auth = gobj_authenticate(gobj, kw_incref(kw), src);
+        json_t *kw_auth = json_pack("{s:s, s:s, s:s, s:s, s:s}",
+            "client_id", client_id,
+            "username", username,
+            "password", password,
+            "peername", peername,
+            "dst_service", "treedb_mqtt_broker"
+        );
+print_json2("XXX kw_auth", kw_auth); // TODO TEST
+
+        json_t *auth = gobj_authenticate(gobj, kw_auth, src);
         authorization = COMMAND_RESULT(gobj, auth);
+print_json2("XXX", auth); // TODO TEST
         JSON_DECREF(auth)
     }
 
