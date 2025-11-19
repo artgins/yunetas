@@ -844,7 +844,7 @@ PRIVATE json_t *mt_authenticate(hgobj gobj, json_t *kw, hgobj src)
             gobj_log_warning(gobj, 0,
                 "function",     "%s", __FUNCTION__,
                 "msgset",       "%s", MSGSET_AUTH,
-                "msg",          "%s", "Bad jwt token",
+                "msg",          "%s", "Invalid JWT (Json Web Token)",
                 "status",       "%s", temp,
                 "user",         "%s", username,
                 "service",      "%s", dst_service,

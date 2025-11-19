@@ -250,6 +250,7 @@ typedef enum {
         JWT_CLAIM_NBF           = 0x0010, /**< @rfc_t{7519,4.1.5} ``"nbf"`` */
         JWT_CLAIM_IAT           = 0x0020, /**< @rfc_t{7519,4.1.6} ``"iat"`` */
         JWT_CLAIM_JTI           = 0x0040, /**< @rfc_t{7519,4.1.7} ``"jti"`` */
+        JWT_CLAIM_JWT           = 0x0080, /** Bad jwt */
 } jwt_claims_t;
 
 /**

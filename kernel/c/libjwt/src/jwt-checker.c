@@ -317,7 +317,7 @@ json_t *jwt_checker_verify2(jwt_checker_t *__cmd, const char *token)
 {
     JWT_CONFIG_DECLARE(config);
     unsigned int payload_len;
-    jwt_auto_t *jwt = NULL;
+    jwt_auto_t *jwt = NULL;  // HACK jwt_auto_t -> free at return !!!
 
     if(__cmd == NULL)
         return NULL;
@@ -336,7 +336,6 @@ json_t *jwt_checker_verify2(jwt_checker_t *__cmd, const char *token)
 
     if(jwt_parse(jwt, token, &payload_len)) {
         jwt_copy_error(__cmd, jwt);
-        jwt_free(jwt);
         return NULL;
     };
 
@@ -345,7 +344,6 @@ json_t *jwt_checker_verify2(jwt_checker_t *__cmd, const char *token)
     config.ctx = __cmd->c.cb_ctx;
 
     if(__setkey_check(__cmd, config.alg, config.key)) {
-        jwt_free(jwt);
         return NULL;
     }
 

@@ -210,10 +210,11 @@ static int __verify_config_post(jwt_t *jwt, const jwt_config_t *config,
 				unsigned int sig_len)
 {
 	/* Yes, we do this before checking a signature. */
-	if (__verify_claims(jwt)) {
-		/* TODO Pass back the ORd list of claims failed. */
+    jwt_claims_t failed_claims = __verify_claims(jwt);
+	if (failed_claims) {
+		/* Pass back the ORd list of claims failed. */
 		jwt_write_error(jwt, "Failed one or more claims");
-		return 1;
+		return failed_claims;
 	}
 
 	if (!sig_len) {
@@ -221,7 +222,7 @@ static int __verify_config_post(jwt_t *jwt, const jwt_config_t *config,
 		    jwt->alg != JWT_ALG_NONE) {
 			jwt_write_error(jwt,
 				"Expected a signature, but JWT has none");
-			return 1;
+			return JWT_CLAIM_JWT;
 		}
 
 		return 0;
@@ -230,31 +231,31 @@ static int __verify_config_post(jwt_t *jwt, const jwt_config_t *config,
 	/* Signature is known to be present from this point */
 	if (jwt->alg == JWT_ALG_NONE) {
 		jwt_write_error(jwt, "JWT has signature block, but no alg set");
-		return 1;
+		return JWT_CLAIM_JWT;
 	}
 
 	if (config->key == NULL) {
 		jwt_write_error(jwt,
 			"JWT has signature, but no key was given");
-		return 1;
+		return JWT_CLAIM_JWT;
 	}
 
 	/* Key is known to be given at this point */
 	if (config->alg == JWT_ALG_NONE) {
 		if (config->key->alg != jwt->alg) {
 			jwt_write_error(jwt, "Key alg does not match JWT");
-			return 1;
+			return JWT_CLAIM_JWT;
 		}
 	} else if (config->key->alg == JWT_ALG_NONE) {
 		if (config->alg != jwt->alg) {
 			jwt_write_error(jwt, "Config alg does not match JWT");
-			return 1;
+			return JWT_CLAIM_JWT;
 		}
 	} else if (config->alg != config->key->alg) {
 		/* It's not really possible to get here due to checks in setkey */
 		// LCOV_EXCL_START
 		jwt_write_error(jwt, "Config and key alg does not match");
-		return 1;
+		return JWT_CLAIM_JWT;
 		// LCOV_EXCL_STOP
 	}
 
