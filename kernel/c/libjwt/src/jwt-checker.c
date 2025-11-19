@@ -313,7 +313,7 @@ int jwt_checker_verify(jwt_checker_t *__cmd, const char *token)
     return __cmd->error;
 }
 
-json_t *jwt_checker_verify2(jwt_checker_t *__cmd, const char *token)
+json_t *jwt_checker_verify2(jwt_checker_t *__cmd, const char *token) // ArtGins
 {
     JWT_CONFIG_DECLARE(config);
     unsigned int payload_len;
@@ -332,7 +332,6 @@ json_t *jwt_checker_verify2(jwt_checker_t *__cmd, const char *token)
         jwt_write_error(__cmd, "Could not allocate JWT object");
         return NULL;
     }
-
 
     if(jwt_parse(jwt, token, &payload_len)) {
         jwt_copy_error(__cmd, jwt);

@@ -214,6 +214,32 @@ static int __verify_config_post(jwt_t *jwt, const jwt_config_t *config,
 	if (failed_claims) {
 		/* Pass back the ORd list of claims failed. */
 		jwt_write_error(jwt, "Failed one or more claims");
+		switch(failed_claims) {
+			case JWT_CLAIM_ISS:
+				jwt_write_error(jwt, "Invalid 'iss' claim");
+				break;
+			case JWT_CLAIM_SUB:
+				jwt_write_error(jwt, "Invalid 'sub' claim");
+				break;
+			case JWT_CLAIM_AUD:
+				jwt_write_error(jwt, "Invalid 'aud' claim");
+				break;
+			case JWT_CLAIM_EXP:
+				jwt_write_error(jwt, "Token has expired");
+				break;
+			case JWT_CLAIM_NBF:
+				jwt_write_error(jwt, "Token not valid yet");
+				break;
+			case JWT_CLAIM_IAT:
+				jwt_write_error(jwt, "Invalid 'iat' claim");
+				break;
+			case JWT_CLAIM_JTI:
+				jwt_write_error(jwt, "Invalid 'jti' claim");
+				break;
+			case JWT_CLAIM_JWT:
+				jwt_write_error(jwt, "Malformed or invalid JWT");
+				break;
+		}
 		return failed_claims;
 	}
 

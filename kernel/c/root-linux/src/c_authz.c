@@ -844,7 +844,7 @@ PRIVATE json_t *mt_authenticate(hgobj gobj, json_t *kw, hgobj src)
             gobj_log_warning(gobj, 0,
                 "function",     "%s", __FUNCTION__,
                 "msgset",       "%s", MSGSET_AUTH,
-                "msg",          "%s", "Invalid JWT (Json Web Token)",
+                "msg",          "%s", "Authentication failed: Invalid token",
                 "status",       "%s", temp,
                 "user",         "%s", username,
                 "service",      "%s", dst_service,
@@ -853,7 +853,7 @@ PRIVATE json_t *mt_authenticate(hgobj gobj, json_t *kw, hgobj src)
             );
             json_t *jn_resp = json_pack("{s:i, s:s, s:s, s:s}",
                 "result", -1,
-                "comment", temp,
+                "comment", "Authentication failed: Invalid token",
                 "username", username,
                 "service", dst_service
             );
