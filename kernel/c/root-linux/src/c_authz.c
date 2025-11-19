@@ -1553,39 +1553,48 @@ PRIVATE json_t *cmd_create_user(hgobj gobj, const char *cmd, json_t *kw, hgobj s
      *      Has password?
      *-----------------------------*/
     const char *password = kw_get_str(gobj, kw, "password", "", 0);
-    if(!empty_string(password)) {
-        int hashIterations = (int)kw_get_int(
+    if(empty_string(password)) {
+        return msg_iev_build_response(
             gobj,
-            kw,
-            "hashIterations",
-            gobj_read_integer_attr(gobj, "hashIterations"),
-            KW_WILD_NUMBER
+            -1,
+            json_sprintf("What password?"),
+            0,
+            0,
+            kw  // owned
         );
-        const char *algorithm = kw_get_str(
-            gobj,
-            kw,
-            "algorithm",
-            gobj_read_str_attr(gobj, "algorithm"),
-            0
-        );
-        json_t *credentials = hash_password(
-            gobj,
-            password,
-            algorithm,
-            hashIterations
-        );
-        if(!credentials) {
-            return msg_iev_build_response(
-                gobj,
-                -1,
-                json_sprintf("Error creating credentials: %s", gobj_log_last_message()),
-                0,
-                0,
-                kw  // owned
-            );
-        }
-        json_object_set_new(kw, "credentials", credentials);
     }
+
+    int hashIterations = (int)kw_get_int(
+        gobj,
+        kw,
+        "hashIterations",
+        gobj_read_integer_attr(gobj, "hashIterations"),
+        KW_WILD_NUMBER
+    );
+    const char *algorithm = kw_get_str(
+        gobj,
+        kw,
+        "algorithm",
+        gobj_read_str_attr(gobj, "algorithm"),
+        0
+    );
+    json_t *credentials = hash_password(
+        gobj,
+        password,
+        algorithm,
+        hashIterations
+    );
+    if(!credentials) {
+        return msg_iev_build_response(
+            gobj,
+            -1,
+            json_sprintf("Error creating credentials: %s", gobj_log_last_message()),
+            0,
+            0,
+            kw  // owned
+        );
+    }
+    json_object_set_new(kw, "credentials", credentials);
 
     gobj_send_event(gobj, EV_ADD_USER, json_incref(kw), src);
 
@@ -1779,6 +1788,7 @@ PRIVATE json_t *cmd_delete_user(hgobj gobj, const char *cmd, json_t *kw, hgobj s
 
     gobj_send_event(gobj, EV_REJECT_USER, user, src);
 
+    // TODO force to delete links?
     int ret = gobj_delete_node(
         priv->gobj_treedb,
         "users",
