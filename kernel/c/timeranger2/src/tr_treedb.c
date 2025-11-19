@@ -4979,6 +4979,11 @@ PUBLIC int treedb_delete_node(
                 int idx3; json_t *child;
                 json_array_foreach(children, idx3, child) {
                     _unlink_nodes(gobj, tranger, hook, node, child);
+                    /*----------------------------*
+                     *      Save persistent
+                     *  Only children are saved
+                     *----------------------------*/
+                    treedb_save_node(tranger, child);
                 }
                 JSON_DECREF(children)
             }
@@ -5284,6 +5289,11 @@ PUBLIC int treedb_delete_instance(
                 int idx3; json_t *child;
                 json_array_foreach(children, idx3, child) {
                     _unlink_nodes(gobj, tranger, hook, node, child);
+                    /*----------------------------*
+                     *      Save persistent
+                     *  Only children are saved
+                     *----------------------------*/
+                    treedb_save_node(tranger, child);
                 }
                 JSON_DECREF(children)
             }
@@ -6772,7 +6782,7 @@ PUBLIC int treedb_unlink_nodes(
     }
 
     /*----------------------------*
-     *      Save persistents
+     *      Save persistent
      *  Only children are saved
      *----------------------------*/
     return treedb_save_node(tranger, child_node);
