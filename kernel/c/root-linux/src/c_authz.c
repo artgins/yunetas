@@ -3841,6 +3841,8 @@ PUBLIC BOOL authz_checker(hgobj gobj_to_check, const char *authz, json_t *kw, hg
         kw // not owned
     );
 
+print_json2("XXX user_authzs", user_authzs); // TODO TEST
+
     BOOL allow = FALSE;
     const char *authz_; json_t *jn_allow;
     json_object_foreach(user_authzs, authz_, jn_allow) {

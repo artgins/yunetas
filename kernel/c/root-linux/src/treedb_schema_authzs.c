@@ -27,7 +27,7 @@
             │  permission               │
             │  permissions              │
             │  deny                     │
-            │                           │
+            │  parameters               │
             │                           │
             │                  users {} │ ◀─┐N
             │                           │   │
