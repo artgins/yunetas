@@ -2292,7 +2292,7 @@ PRIVATE json_t *filtra_fkeys(
                             NULL
                         );
                         json_decref(jn_list);
-                        return 0;
+                        return NULL;
                     }
                 } else if(json_typeof(v)==JSON_OBJECT) {
                     char temp[NAME_MAX];
@@ -2310,7 +2310,7 @@ PRIVATE json_t *filtra_fkeys(
                             NULL
                         );
                         json_decref(jn_list);
-                        return 0;
+                        return NULL;
                     }
                     snprintf(temp, sizeof(temp), "%s^%s^%s",
                         topic_name_,
@@ -2340,7 +2340,7 @@ PRIVATE json_t *filtra_fkeys(
                         NULL
                     );
                     json_decref(jn_list);
-                    return 0;
+                    return NULL;
                 }
             }
         }
@@ -2364,10 +2364,15 @@ PRIVATE json_t *filtra_fkeys(
                     NULL
                 );
                 json_decref(jn_list);
-                return 0;
+                return NULL;
             }
         }
         break;
+
+    case JSON_NULL:
+        json_decref(jn_list);
+        return NULL;
+
     default:
         gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
             "function",     "%s", __FUNCTION__,
@@ -2379,7 +2384,7 @@ PRIVATE json_t *filtra_fkeys(
             NULL
         );
         json_decref(jn_list);
-        return 0;
+        return NULL;
     }
 
     json_t *mix_ids = 0;
