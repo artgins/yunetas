@@ -762,7 +762,7 @@ PRIVATE json_t *mt_authenticate(hgobj gobj, json_t *kw, hgobj src)
                     kw,
                     "sid",
                     "",
-                    KW_REQUIRED
+                    0
                 );
 
                 comment = "User authenticated by password";

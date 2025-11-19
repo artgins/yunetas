@@ -2369,7 +2369,7 @@ PRIVATE json_t *filtra_fkeys(
         }
         break;
     default:
-        gobj_log_error(gobj, 0,
+        gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_PARAMETER_ERROR,
             "msg",          "%s", "Wrong fkey reference: type unknown",
