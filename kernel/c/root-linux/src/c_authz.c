@@ -3841,6 +3841,7 @@ PUBLIC BOOL authz_checker(hgobj gobj_to_check, const char *authz, json_t *kw, hg
         kw // not owned
     );
 
+trace_msg0("username: %s", __username__);
 print_json2("XXX user_authzs", user_authzs); // TODO TEST
 
     BOOL allow = FALSE;
