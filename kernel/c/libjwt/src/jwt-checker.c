@@ -317,7 +317,7 @@ json_t *jwt_checker_verify2(jwt_checker_t *__cmd, const char *token) // ArtGins
 {
     JWT_CONFIG_DECLARE(config);
     unsigned int payload_len;
-    jwt_auto_t *jwt = NULL;  // HACK jwt_auto_t -> free at return !!!
+    jwt_auto_t *jwt = NULL;  // HACK jwt_auto_t -> will be free in the return !!!
 
     if(__cmd == NULL)
         return NULL;
@@ -352,12 +352,9 @@ json_t *jwt_checker_verify2(jwt_checker_t *__cmd, const char *token) // ArtGins
 
     jwt = jwt_verify_complete(jwt, &config, token, payload_len);
 
+    // In __cmd->error is the error; 0 -> ok
     jwt_copy_error(__cmd, jwt);
 
-    if(__cmd->error) {
-        return NULL;
-    } else {
-        json_t *payload = json_incref(jwt->claims);
-        return payload;
-    }
+    json_t *payload = json_incref(jwt->claims);
+    return payload;
 }

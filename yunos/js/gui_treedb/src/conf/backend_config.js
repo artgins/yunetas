@@ -16,7 +16,7 @@ const backend_urls = {
 
 const keycloak_configs = {
     "localhost": {
-            "realm": "yunovatios.es",
+            "realm": "estadodelaire.com",
             "auth-server-url": "https://auth.artgins.com/",
             "ssl-required": "external",
             "resource": "gui_treedb",
@@ -24,7 +24,7 @@ const keycloak_configs = {
             "confidential-port": 0
     },
     "treedb.yunetas.com": {
-            "realm": "yunovatios.es",
+            "realm": "estadodelaire.com",
             "auth-server-url": "https://auth.artgins.com/",
             "ssl-required": "external",
             "resource": "gui_treedb",

@@ -49,6 +49,7 @@
 #include "c_authz.h"
 
 #include "treedb_schema_authzs.c"
+#include "../../libjwt/src/jwt-private.h"
 
 /***************************************************************************
  *              Constants
@@ -2425,26 +2426,40 @@ PRIVATE int destroy_validation_key(
 PRIVATE BOOL verify_token(
     hgobj gobj,
     const char *token,
-    json_t **jwt_payload,
+    json_t **jwt_payload_,
     const char **status
 ) {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
     BOOL validated = FALSE;
-    *jwt_payload = NULL;
+    *jwt_payload_ = NULL;
     *status = "No OAuth2 Issuer found";
 
     int idx; json_t *jn_validation;
     json_array_foreach(priv->jn_validations, idx, jn_validation) {
+        const char *jn_validation_iss = kw_get_str(gobj, jn_validation, "kid", "", KW_REQUIRED);
+
         jwt_checker_t *jwt_checker = (jwt_checker_t *)(uintptr_t)kw_get_int(
             gobj, jn_validation, "jwt_checker", 0, KW_REQUIRED
         );
 
-        *jwt_payload = jwt_checker_verify2(jwt_checker, token);
-        if(*jwt_payload) {
-            validated = TRUE;
-            break;
+        json_t *payload = jwt_checker_verify2(jwt_checker, token);
+        if(!payload) {
+            continue;
         }
-        *status = jwt_checker_error_msg(jwt_checker); // Don't use jwt messages
+
+        const char *jn_jwt_iss = kw_get_str(gobj, payload, "iss", "", KW_REQUIRED);
+        if(empty_string(jn_jwt_iss) || strcmp(jn_validation_iss, jn_jwt_iss)!=0) {
+            JSON_DECREF(payload)
+            continue;
+        }
+
+        *jwt_payload_ = payload;
+
+        if(!jwt_checker->error) {
+            validated = TRUE;
+        }
+        *status = jwt_checker_error_msg(jwt_checker);
+        break;
     }
 
     return validated;

@@ -213,8 +213,14 @@ static int __verify_config_post(jwt_t *jwt, const jwt_config_t *config,
     jwt_claims_t failed_claims = __verify_claims(jwt);
 	if (failed_claims) {
 		/* Pass back the ORd list of claims failed. */
-		jwt_write_error(jwt, "Failed one or more claims");
+		// jwt_write_error(jwt, "Failed one or more claims");
 		switch(failed_claims) {
+			case JWT_CLAIM_EXP:
+				jwt_write_error(jwt, "Token has expired");
+				break;
+			case JWT_CLAIM_NBF:
+				jwt_write_error(jwt, "Token not valid yet");
+				break;
 			case JWT_CLAIM_ISS:
 				jwt_write_error(jwt, "Invalid 'iss' claim");
 				break;
@@ -224,12 +230,6 @@ static int __verify_config_post(jwt_t *jwt, const jwt_config_t *config,
 			case JWT_CLAIM_AUD:
 				jwt_write_error(jwt, "Invalid 'aud' claim");
 				break;
-			case JWT_CLAIM_EXP:
-				jwt_write_error(jwt, "Token has expired");
-				break;
-			case JWT_CLAIM_NBF:
-				jwt_write_error(jwt, "Token not valid yet");
-				break;
 			case JWT_CLAIM_IAT:
 				jwt_write_error(jwt, "Invalid 'iat' claim");
 				break;
@@ -238,6 +238,9 @@ static int __verify_config_post(jwt_t *jwt, const jwt_config_t *config,
 				break;
 			case JWT_CLAIM_JWT:
 				jwt_write_error(jwt, "Malformed or invalid JWT");
+				break;
+			default:
+				jwt_write_error(jwt, "What JWT_CLAIM_???");
 				break;
 		}
 		return failed_claims;
@@ -298,8 +301,10 @@ jwt_t *jwt_verify_complete(jwt_t *jwt, const jwt_config_t *config,
 	sig_len = strlen(sig);
 
 	/* Check for conflicts in user request and JWT */
-	if (__verify_config_post(jwt, config, sig_len))
-		return jwt;
+	if (__verify_config_post(jwt, config, sig_len)) {
+		// Let the payload be loaded; // ArtGins
+		// return jwt;
+	}
 
 	/* After all the checks, if we don't have a sig, we can move on. */
 	if (!sig_len)
