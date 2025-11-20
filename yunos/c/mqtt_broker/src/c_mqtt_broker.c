@@ -1082,6 +1082,7 @@ PRIVATE int ac_on_open(hgobj gobj, const char *event, json_t *kw, hgobj src)
     /*---------------------------------------------*
      *      Check user/password
      *---------------------------------------------*/
+int x; // move to c_prot_mqtt2
     const char *client_id = kw_get_str(gobj, kw, "client_id", "", KW_REQUIRED);
     const char *username = kw_get_str(gobj, kw, "username", "", KW_REQUIRED);
     const char *password = kw_get_str(gobj, kw, "password", "", KW_REQUIRED);

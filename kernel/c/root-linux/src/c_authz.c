@@ -1107,15 +1107,11 @@ print_json2("XXX services_roles", services_roles); // TODO TEST
      *  HACK save username, jwt_payload, session_id
      *  in src (IEvent_srv)
      *------------------------------------------------*/
-    // if(gobj_has_bottom_attr(src, "__username__")) {
-        gobj_write_str_attr(src, "__username__", username);
-    // }
-    // if(gobj_has_bottom_attr(src, "__session_id__")) {
-        gobj_write_str_attr(src, "__session_id__", session_id);
-    // }
-    // if(gobj_has_bottom_attr(src, "jwt_payload")) {
-        gobj_write_json_attr(src, "jwt_payload", jwt_payload?jwt_payload:json_null());
-    // }
+    gobj_write_str_attr(src, "__username__", username);
+    gobj_write_str_attr(src, "__session_id__", session_id);
+    if(jwt_payload) {
+        gobj_write_json_attr(src, "jwt_payload", jwt_payload);
+    }
 
     /*-------------------------------*
      *      Save session
