@@ -7217,6 +7217,7 @@ PUBLIC json_t *node_collapsed_view( // Return MUST be decref
         BOOL is_fkey = kw_has_word(gobj, desc_flag, "fkey", 0)?TRUE:FALSE;
         BOOL is_rowid = kw_has_word(gobj, desc_flag, "rowid", 0)?TRUE:FALSE;
         BOOL is_required = kw_has_word(gobj, desc_flag, "required", 0)?TRUE:FALSE;
+        BOOL is_hidden = kw_has_word(gobj, desc_flag, "hidden", 0)?TRUE:FALSE;
         json_t *field_data = kw_get_dict_value(gobj, node, col_name, 0, is_required?KW_REQUIRED:0);
         if(!field_data) {
             // Something wrong?
@@ -7263,6 +7264,13 @@ PUBLIC json_t *node_collapsed_view( // Return MUST be decref
             json_array_extend(list, parents);
             json_decref(parents);
             json_decref(refs);
+
+        } else if(is_hidden) {
+            json_object_set_new(
+                node_view,
+                col_name,
+                json_null()
+            );
 
         } else {
             json_object_set(
