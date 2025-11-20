@@ -1071,59 +1071,12 @@ PRIVATE int ac_on_open(hgobj gobj, const char *event, json_t *kw, hgobj src)
         return -1;
     }
 
-    if(gobj_trace_level(gobj) & TRACE_MESSAGES) {
+    if(gobj_trace_level(gobj) & TRACE_MESSAGES || 1) { // TODO remove || 1
         gobj_trace_json(
             gobj,
             kw, // not own
             "ON_OPEN %s", gobj_short_name(src)
         );
-    }
-
-    /*---------------------------------------------*
-     *      Check user/password
-     *---------------------------------------------*/
-int x; // move to c_prot_mqtt2
-    const char *client_id = kw_get_str(gobj, kw, "client_id", "", KW_REQUIRED);
-    const char *username = kw_get_str(gobj, kw, "username", "", KW_REQUIRED);
-    const char *password = kw_get_str(gobj, kw, "password", "", KW_REQUIRED);
-    const char *peername = kw_get_str(gobj, kw, "peername", "", KW_REQUIRED);
-
-    int authorization = 0;
-    if(priv->allow_anonymous) {
-        const char *localhost = "127.0.0.";
-        if(strncmp(peername, localhost, strlen(localhost))!=0) {
-            /*
-             *  Only localhost is allowed without user/password or jwt
-             */
-            authorization = -1;
-            gobj_log_warning(gobj, 0,
-                "function",     "%s", __FUNCTION__,
-                "msgset",       "%s", MSGSET_AUTH,
-                "msg",          "%s", "allow_anonymous, only localhost is allowed",
-                "user",         "%s", username,
-                NULL
-            );
-        }
-
-    } else {
-        json_t *kw_auth = json_pack("{s:s, s:s, s:s, s:s, s:s}",
-            "client_id", client_id,
-            "username", username,
-            "password", password,
-            "peername", peername,
-            "dst_service", "treedb_mqtt_broker"
-        );
-print_json2("XXX kw_auth", kw_auth); // TODO TEST
-
-        json_t *auth = gobj_authenticate(gobj, kw_auth, src);
-        authorization = COMMAND_RESULT(gobj, auth);
-print_json2("XXX authenticated", auth); // TODO TEST
-        JSON_DECREF(auth)
-    }
-
-    if(authorization < 0) {
-        KW_DECREF(kw);
-        return authorization;
     }
 
     /*---------------------------------------------*
@@ -1135,6 +1088,9 @@ print_json2("XXX authenticated", auth); // TODO TEST
         // TODO read the remain will fields
     }
 
+    const char *__username__ = kw_get_str(gobj, kw, "__username__", "", KW_REQUIRED);
+    const char *__client_id__ = kw_get_str(gobj, kw, "__username__", "", KW_REQUIRED);
+
     /*----------------------------------------------------------------*
      *  Open the topic (client_id) or create it if it doesn't exist
      *----------------------------------------------------------------*/
@@ -1142,8 +1098,8 @@ print_json2("XXX authenticated", auth); // TODO TEST
         priv->gobj_tranger_tracks,
         "open-topic",
         json_pack("{s:s, s:s}",
-            "topic_name", client_id,
-            "__username__", username
+            "topic_name", __client_id__,
+            "__username__", __username__
         ),
         gobj
     );
@@ -1155,8 +1111,8 @@ print_json2("XXX authenticated", auth); // TODO TEST
             priv->gobj_tranger_tracks,
             "create-topic", // idempotent function
             json_pack("{s:s, s:s}",
-                "topic_name", client_id,
-                "__username__", username
+            "topic_name", __client_id__,
+            "__username__", __username__
             ),
             gobj
         );
@@ -1168,7 +1124,7 @@ print_json2("XXX authenticated", auth); // TODO TEST
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_AUTH,
             "msg",          "%s", comment?comment:"cannot create/open topic (client)",
-            "user",         "%s", username,
+            "username",     "%s", __username__,
             NULL
         );
         JSON_DECREF(jn_response)
@@ -1217,7 +1173,7 @@ PRIVATE int ac_on_close(hgobj gobj, const char *event, json_t *kw, hgobj src)
         return -1;
     }
 
-    if(gobj_trace_level(gobj) & TRACE_MESSAGES) {
+    if(gobj_trace_level(gobj) & TRACE_MESSAGES || 1) { // TODO remove || 1
         gobj_trace_json(
             gobj,
             kw, // not own

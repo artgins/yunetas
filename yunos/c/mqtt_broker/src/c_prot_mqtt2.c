@@ -4108,6 +4108,89 @@ PRIVATE int handle__connect(hgobj gobj, gbuffer_t *gbuf)
         connect_properties = NULL;
     }
 
+    /*---------------------------------------------*
+     *      Check user/password
+     *---------------------------------------------*/
+    int x; // move to c_prot_mqtt2
+    const char *client_id = kw_get_str(gobj, kw, "client_id", "", KW_REQUIRED);
+    const char *username = kw_get_str(gobj, kw, "username", "", KW_REQUIRED);
+    const char *password = kw_get_str(gobj, kw, "password", "", KW_REQUIRED);
+    const char *peername = kw_get_str(gobj, kw, "peername", "", KW_REQUIRED);
+
+    int authorization = 0;
+    if(priv->allow_anonymous) {
+        const char *localhost = "127.0.0.";
+        if(strncmp(peername, localhost, strlen(localhost))!=0) {
+            /*
+             *  Only localhost is allowed without user/password or jwt
+             */
+            authorization = -1;
+            gobj_log_warning(gobj, 0,
+                "function",     "%s", __FUNCTION__,
+                "msgset",       "%s", MSGSET_AUTH,
+                "msg",          "%s", "allow_anonymous, only localhost is allowed",
+                "user",         "%s", username,
+                NULL
+            );
+        }
+
+    } else {
+        json_t *kw_auth = json_pack("{s:s, s:s, s:s, s:s, s:s}",
+            "client_id", client_id,
+            "username", username,
+            "password", password,
+            "peername", peername,
+            "dst_service", "treedb_mqtt_broker"
+        );
+        print_json2("XXX kw_auth", kw_auth); // TODO TEST
+
+        json_t *auth = gobj_authenticate(gobj, kw_auth, src);
+        authorization = COMMAND_RESULT(gobj, auth);
+        print_json2("XXX authenticated", auth); // TODO TEST
+        JSON_DECREF(auth)
+    }
+
+    if(authorization < 0) {
+        KW_DECREF(kw);
+        return authorization;
+    }
+
+    /*-------------------------*
+     *  Do authentication
+     *-------------------------*/
+    int x; // do same as ievent_srv
+    //     KW_INCREF(kw)
+    //     json_t *jn_resp = gobj_authenticate(gobj_service, kw, gobj);
+    //     if(kw_get_int(gobj, jn_resp, "result", -1, KW_REQUIRED|KW_CREATE)<0) {
+    //         const char *comment = kw_get_str(gobj, jn_resp, "comment", "", 0);
+    //         // TODO sacalo: const char *remote_addr = gobj_read_str_attr(get_bottom_gobj(src), "remote-addr");
+    //         // TODO y en el cliente mete la ip de origen
+    //         gobj_log_warning(gobj, 0,
+    //             "function",     "%s", __FUNCTION__,
+    //             "msgset",       "%s", MSGSET_PROTOCOL_ERROR,
+    //             "msg",          "%s", "Authentication rejected",
+    //             "cause",        "%s", comment,
+    //             "detail",       "%j", jn_resp,
+    //             //"remote-addr",  "%s", remote_addr?remote_addr:"",
+    //             "yuno_role",    "%s", kw_get_str(gobj, kw, "yuno_role", "", 0),
+    //             "yuno_id",      "%s", kw_get_str(gobj, kw, "yuno_id", "", 0),
+    //             "yuno_name",    "%s", kw_get_str(gobj, kw, "yuno_name", "", 0),
+    //             "yuno_tag",     "%s", kw_get_str(gobj, kw, "yuno_tag", "", 0),
+    //             "yuno_version", "%s", kw_get_str(gobj, kw, "yuno_version", "", 0),
+    //             "src_yuno",     "%s", iev_src_yuno,
+    //             "src_role",     "%s", iev_src_role,
+    //             "src_service",  "%s", iev_src_service,
+    //             NULL
+    //         );
+    //
+    //         KW_DECREF(kw)
+    //         return 0; // Don't return -1, don't drop connection, let send negative ack. Drop by timeout.
+    //     }
+    // }
+    //
+    //
+
+
     // TODO esto debe ir a new client in upper level
     //  if(mqtt_check_password(gobj)<0) {
     //     if(priv->protocol_version == mosq_p_mqtt5) {
@@ -4173,42 +4256,6 @@ PRIVATE int handle__connect(hgobj gobj, gbuffer_t *gbuf)
 
     //mosquitto__set_state(context, mosq_cs_active);
 
-
-
-    /*-------------------------*
-     *  Do authentication
-     *-------------------------*/
-int x; // do same as ievent_srv
-//     KW_INCREF(kw)
-//     json_t *jn_resp = gobj_authenticate(gobj_service, kw, gobj);
-//     if(kw_get_int(gobj, jn_resp, "result", -1, KW_REQUIRED|KW_CREATE)<0) {
-//         const char *comment = kw_get_str(gobj, jn_resp, "comment", "", 0);
-//         // TODO sacalo: const char *remote_addr = gobj_read_str_attr(get_bottom_gobj(src), "remote-addr");
-//         // TODO y en el cliente mete la ip de origen
-//         gobj_log_warning(gobj, 0,
-//             "function",     "%s", __FUNCTION__,
-//             "msgset",       "%s", MSGSET_PROTOCOL_ERROR,
-//             "msg",          "%s", "Authentication rejected",
-//             "cause",        "%s", comment,
-//             "detail",       "%j", jn_resp,
-//             //"remote-addr",  "%s", remote_addr?remote_addr:"",
-//             "yuno_role",    "%s", kw_get_str(gobj, kw, "yuno_role", "", 0),
-//             "yuno_id",      "%s", kw_get_str(gobj, kw, "yuno_id", "", 0),
-//             "yuno_name",    "%s", kw_get_str(gobj, kw, "yuno_name", "", 0),
-//             "yuno_tag",     "%s", kw_get_str(gobj, kw, "yuno_tag", "", 0),
-//             "yuno_version", "%s", kw_get_str(gobj, kw, "yuno_version", "", 0),
-//             "src_yuno",     "%s", iev_src_yuno,
-//             "src_role",     "%s", iev_src_role,
-//             "src_service",  "%s", iev_src_service,
-//             NULL
-//         );
-//
-//         KW_DECREF(kw)
-//         return 0; // Don't return -1, don't drop connection, let send negative ack. Drop by timeout.
-//     }
-// }
-//
-//
 
 
 
