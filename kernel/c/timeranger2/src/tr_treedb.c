@@ -3102,7 +3102,6 @@ PRIVATE json_t *record2tranger(
 )
 {
     json_t *cols = tranger2_dict_topic_desc_cols(tranger, topic_name);
-print_json2("XXX cols", cols); // TODO TEST
     if(!cols) {
         gobj_log_error(gobj, 0,
             "function",     "%s", __FUNCTION__,

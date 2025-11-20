@@ -644,7 +644,6 @@ PRIVATE json_t *mt_authenticate(hgobj gobj, json_t *kw, hgobj src)
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
     const char *jwt = kw_get_str(gobj, kw, "jwt", NULL, 0);
     json_t *jwt_payload = json_null();
-    const char *session_id = "";
     char *comment = "";
     BOOL yuneta_by_local_ip = FALSE;
     const char *username = kw_get_str(gobj, kw, "username", "", 0);
@@ -749,14 +748,6 @@ PRIVATE json_t *mt_authenticate(hgobj gobj, json_t *kw, hgobj src)
                     KW_DECREF(kw)
                     return jn_resp;
                 }
-
-                session_id = kw_get_str(
-                    gobj,
-                    kw,
-                    "sid",
-                    "",
-                    0
-                );
 
                 comment = "User authenticated by password";
                 break;
@@ -899,14 +890,6 @@ PRIVATE json_t *mt_authenticate(hgobj gobj, json_t *kw, hgobj src)
             return jn_resp;
         }
 
-        session_id = kw_get_str(
-            gobj,
-            jwt_payload,
-            "sid",
-            kw_get_str(gobj, jwt_payload, "session_state", "", 0),
-            0
-        );
-
         comment = "User authenticated by jwt";
     }
 
@@ -939,6 +922,7 @@ PRIVATE json_t *mt_authenticate(hgobj gobj, json_t *kw, hgobj src)
      *      yuneta
      *------------------------------*/
     if(yuneta_by_local_ip) {
+        // TODO add the services_roles???
         json_t *jn_resp = json_pack("{s:i, s:s, s:s, s:s}",
             "result", 0,
             "comment", comment,
@@ -1059,10 +1043,23 @@ print_json2("XXX services_roles", services_roles); // TODO TEST
         return jn_resp;
     }
 
-    /*------------------------------*
-     *      Save user access
-     *------------------------------*/
-    add_user_login(gobj, username, jwt_payload, peername);
+
+    session_id = kw_get_str(
+        gobj,
+        kw,
+        "sid",
+        "",
+        0
+    );
+
+    session_id = kw_get_str(
+        gobj,
+        jwt_payload,
+        "sid",
+        kw_get_str(gobj, jwt_payload, "session_state", "", 0),
+        0
+    );
+
 
     /*--------------------------------------------*
      *  Get sessions, check max sessions allowed
@@ -1089,7 +1086,7 @@ print_json2("XXX services_roles", services_roles); // TODO TEST
     json_t *session;
     void *n; const char *k;
     json_object_foreach_safe(sessions, n, k, session) {
-        if(json_object_size(sessions) <= max_sessions) {
+        if(json_object_size(sessions) < max_sessions) {
             break;
         }
         /*-------------------------------*
@@ -1137,6 +1134,11 @@ print_json2("XXX services_roles", services_roles); // TODO TEST
         ),
         src
     );
+
+    /*------------------------------*
+     *      Save user access
+     *------------------------------*/
+    add_user_login(gobj, username, jwt_payload, peername);
 
     /*------------------------------------*
      *  Subscribe to know close session
