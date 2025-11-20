@@ -1840,7 +1840,7 @@ PUBLIC json_t *gobj_get_node( // Return is YOURS
     hgobj gobj,
     const char *topic_name,
     json_t *kw,         // 'id' and pkey2s fields are used to find the node
-    json_t *jn_options, // fkey,hook options
+    json_t *jn_options, // fkey,hook,show_hidden options
     hgobj src
 );
 

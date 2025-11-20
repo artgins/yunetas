@@ -2876,7 +2876,9 @@ PRIVATE int check_password(
         json_pack("{s:s}",
             "id", username
         ),
-        0,
+        json_pack("{s:b}",
+            "show_hidden", 1
+        ),
         gobj
     );
     if(!user) {

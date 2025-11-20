@@ -7175,7 +7175,7 @@ PUBLIC json_t *treedb_get_instance( // WARNING Return is NOT YOURS, pure node
 PUBLIC json_t *node_collapsed_view( // Return MUST be decref
     json_t *tranger, // NOT owned
     json_t *node, // NOT owned
-    json_t *jn_options // owned fkey,hook options
+    json_t *jn_options // owned fkey,hook,show_hidden options
 )
 {
     hgobj gobj = (hgobj)json_integer_value(json_object_get(tranger, "gobj"));
@@ -7207,6 +7207,7 @@ PUBLIC json_t *node_collapsed_view( // Return MUST be decref
 
     BOOL with_metadata = kw_get_bool(gobj, jn_options, "with_metadata", 0, KW_WILD_NUMBER);
     BOOL without_rowid =  kw_get_bool(gobj, jn_options, "without_rowid", 0, KW_WILD_NUMBER);
+    BOOL show_hidden =  kw_get_bool(gobj, jn_options, "show_hidden", 0, KW_WILD_NUMBER);
 
     json_t *node_view = json_object();
 
@@ -7265,7 +7266,7 @@ PUBLIC json_t *node_collapsed_view( // Return MUST be decref
             json_decref(parents);
             json_decref(refs);
 
-        } else if(is_hidden) {
+        } else if(is_hidden && !show_hidden) {
             json_object_set_new(
                 node_view,
                 col_name,
