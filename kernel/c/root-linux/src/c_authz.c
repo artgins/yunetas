@@ -742,7 +742,7 @@ PRIVATE json_t *mt_authenticate(hgobj gobj, json_t *kw, hgobj src)
                      */
                     json_t *jn_resp = json_pack("{s:i, s:s, s:s, s:s}",
                         "result", -1,
-                        "comment", "Bad user/pwd",
+                        "comment", "Wrong user/pwd",
                         "user",  username,
                         "service", dst_service
                     );
@@ -936,42 +936,6 @@ PRIVATE json_t *mt_authenticate(hgobj gobj, json_t *kw, hgobj src)
     }
 
     /*------------------------------*
-     *      Get user roles
-     *------------------------------*/
-    json_t *services_roles = get_user_roles(
-        gobj,
-        gobj_yuno_realm_id(),
-        dst_service,
-        username,
-        kw
-    );
-    if(!kw_has_key(services_roles, dst_service)) {
-        /*
-         *  No authorized in dst service
-         */
-        gobj_log_warning(gobj, 0,
-            "function",         "%s", __FUNCTION__,
-            "msgset",           "%s", MSGSET_AUTH,
-            "msg",              "%s", "User has not authz in service",
-            "comment",          "%s", comment,
-            "user",             "%s", username,
-            "service",          "%s", dst_service,
-            "services_roles",   "%j", services_roles?services_roles:json_null(),
-            NULL
-        );
-        json_t *jn_resp = json_pack("{s:i, s:s, s:s, s:s}",
-            "result", -1,
-            "comment", "User has not authz in service",
-            "username", username,
-            "dst_service", dst_service
-        );
-        JSON_DECREF(services_roles);
-        JSON_DECREF(jwt_payload);
-        KW_DECREF(kw)
-        return jn_resp;
-    }
-
-    /*------------------------------*
      *      yuneta
      *------------------------------*/
     if(yuneta_by_local_ip) {
@@ -981,7 +945,6 @@ PRIVATE json_t *mt_authenticate(hgobj gobj, json_t *kw, hgobj src)
             "username", username,
             "dst_service", dst_service
         );
-        JSON_DECREF(services_roles);
         JSON_DECREF(jwt_payload);
         KW_DECREF(kw)
         return jn_resp;
@@ -1017,7 +980,7 @@ PRIVATE json_t *mt_authenticate(hgobj gobj, json_t *kw, hgobj src)
         gobj_log_warning(gobj, 0,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_AUTH,
-            "msg",          "%s", "User not exits",
+            "msg",          "%s", "User not exist",
             "user",         "%s", username,
             "service",      "%s", dst_service,
             NULL
@@ -1028,6 +991,45 @@ PRIVATE json_t *mt_authenticate(hgobj gobj, json_t *kw, hgobj src)
             "username", username,
             "dst_service", dst_service
         );
+        JSON_DECREF(jwt_payload);
+        KW_DECREF(kw)
+        return jn_resp;
+    }
+
+    /*------------------------------*
+     *      Get user roles
+     *------------------------------*/
+    json_t *services_roles = get_user_roles(
+        gobj,
+        gobj_yuno_realm_id(),
+        dst_service,
+        username,
+        kw
+    );
+
+print_json2("XXX services_roles", services_roles); // TODO TEST
+
+    if(!kw_has_key(services_roles, dst_service)) {
+        /*
+         *  No authorized in dst service
+         */
+        gobj_log_warning(gobj, 0,
+            "function",         "%s", __FUNCTION__,
+            "msgset",           "%s", MSGSET_AUTH,
+            "msg",              "%s", "User has not authz in service",
+            "comment",          "%s", comment,
+            "user",             "%s", username,
+            "service",          "%s", dst_service,
+            "services_roles",   "%j", services_roles?services_roles:json_null(),
+            NULL
+        );
+        json_t *jn_resp = json_pack("{s:i, s:s, s:s, s:s}",
+            "result", -1,
+            "comment", "User has not authz in service",
+            "username", username,
+            "dst_service", dst_service
+        );
+        JSON_DECREF(user);
         JSON_DECREF(services_roles);
         JSON_DECREF(jwt_payload);
         KW_DECREF(kw)
@@ -1050,9 +1052,9 @@ PRIVATE json_t *mt_authenticate(hgobj gobj, json_t *kw, hgobj src)
             "username", username,
             "dst_service", dst_service
         );
+        JSON_DECREF(user);
         JSON_DECREF(services_roles);
         JSON_DECREF(jwt_payload);
-        JSON_DECREF(user);
         KW_DECREF(kw)
         return jn_resp;
     }
@@ -1065,6 +1067,14 @@ PRIVATE json_t *mt_authenticate(hgobj gobj, json_t *kw, hgobj src)
     /*--------------------------------------------*
      *  Get sessions, check max sessions allowed
      *--------------------------------------------*/
+    json_int_t max_sessions = kw_get_int(
+        gobj,
+        user,
+        "max_sessions",
+        priv->max_sessions_per_user, // TODO REVIEW
+        KW_REQUIRED
+    );
+
     json_t *sessions = kw_get_dict(gobj, user, "__sessions", 0, KW_REQUIRED);
     if(!sessions) {
         gobj_log_error(gobj, 0,
@@ -1079,7 +1089,7 @@ PRIVATE json_t *mt_authenticate(hgobj gobj, json_t *kw, hgobj src)
     json_t *session;
     void *n; const char *k;
     json_object_foreach_safe(sessions, n, k, session) {
-        if(json_object_size(sessions) <= priv->max_sessions_per_user) {
+        if(json_object_size(sessions) <= max_sessions) {
             break;
         }
         /*-------------------------------*
