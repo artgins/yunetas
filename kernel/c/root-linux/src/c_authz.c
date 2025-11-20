@@ -643,7 +643,7 @@ PRIVATE json_t *mt_authenticate(hgobj gobj, json_t *kw, hgobj src)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
     const char *jwt = kw_get_str(gobj, kw, "jwt", NULL, 0);
-    json_t *jwt_payload = json_null();
+    json_t *jwt_payload = NULL;
     char *comment = "";
     BOOL yuneta_by_local_ip = FALSE;
     const char *username = kw_get_str(gobj, kw, "username", "", 0);
@@ -1043,23 +1043,25 @@ print_json2("XXX services_roles", services_roles); // TODO TEST
         return jn_resp;
     }
 
+    /*------------------------------*
+     *      Get session id
+     *------------------------------*/
+    char uuid[60];
+    const char *session_id;
 
-    session_id = kw_get_str(
-        gobj,
-        kw,
-        "sid",
-        "",
-        0
-    );
-
-    session_id = kw_get_str(
-        gobj,
-        jwt_payload,
-        "sid",
-        kw_get_str(gobj, jwt_payload, "session_state", "", 0),
-        0
-    );
-
+    if(jwt_payload) {
+        // WARNING "session_state" is from keycloak!!!
+        session_id = kw_get_str(
+            gobj,
+            jwt_payload,
+            "sid",
+            kw_get_str(gobj, jwt_payload, "session_state", "", 0),
+            0
+        );
+    } else {
+        create_random_uuid(uuid, sizeof(uuid));
+        session_id = uuid;
+    }
 
     /*--------------------------------------------*
      *  Get sessions, check max sessions allowed
@@ -1068,9 +1070,12 @@ print_json2("XXX services_roles", services_roles); // TODO TEST
         gobj,
         user,
         "max_sessions",
-        priv->max_sessions_per_user, // TODO REVIEW
+        0,
         KW_REQUIRED
     );
+    if(max_sessions < 0) {
+        max_sessions = priv->max_sessions_per_user;
+    }
 
     json_t *sessions = kw_get_dict(gobj, user, "__sessions", 0, KW_REQUIRED);
     if(!sessions) {
@@ -1110,14 +1115,7 @@ print_json2("XXX services_roles", services_roles); // TODO TEST
 
     /*-------------------------------*
      *      Save session
-     *  WARNING "session_state" is from keycloak!!!
-     *  And others???
      *-------------------------------*/
-    char uuid[60];
-    if(empty_string(session_id)) {
-        create_random_uuid(uuid, sizeof(uuid));
-        session_id = uuid;
-    }
     session = json_pack("{s:s, s:I}",
         "id", session_id,
         "channel_gobj", (json_int_t)(uintptr_t)src
