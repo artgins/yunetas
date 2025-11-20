@@ -594,7 +594,7 @@ typedef struct _PRIVATE_DATA {
 
     FRAME_HEAD message_head;
 
-    char must_broadcast_on_close;       // event on_open already broadcasted
+    BOOL inform_on_close;
     json_t *jn_alias_list;
     dl_list_t dl_msgs_out;  // Output queue of messages
     dl_list_t dl_msgs_in;   // Input queue of messages (qos 2, waiting for pubrel)
@@ -4111,7 +4111,6 @@ PRIVATE int handle__connect(hgobj gobj, gbuffer_t *gbuf)
     /*---------------------------------------------*
      *      Check user/password
      *---------------------------------------------*/
-    int x; // move to c_prot_mqtt2
     const char *client_id = kw_get_str(gobj, kw, "client_id", "", KW_REQUIRED);
     const char *username = kw_get_str(gobj, kw, "username", "", KW_REQUIRED);
     const char *password = kw_get_str(gobj, kw, "password", "", KW_REQUIRED);
@@ -4265,7 +4264,7 @@ PRIVATE int handle__connect(hgobj gobj, gbuffer_t *gbuf)
 
 
 
-    priv->must_broadcast_on_close = TRUE;
+    priv->inform_on_close = TRUE;
     int ret = gobj_publish_event(gobj, EV_ON_OPEN, client);
     if(ret < 0) {
         if(ret == -2) {
@@ -5132,8 +5131,8 @@ PRIVATE int ac_disconnected(hgobj gobj, const char *event, json_t *kw, hgobj src
         istream_destroy(priv->istream_payload);
         priv->istream_payload = 0;
     }
-    if(priv->must_broadcast_on_close) {
-        priv->must_broadcast_on_close = FALSE;
+    if(priv->inform_on_close) {
+        priv->inform_on_close = FALSE;
 
         json_t *kw2 = json_pack("s:s",
             "client_id", priv->client_id
