@@ -334,6 +334,7 @@ PRIVATE const trace_level_t s_global_trace_level[16] = {
     {"liburing",        "Trace liburing mixins"},
     {"timer_periodic",  "Trace periodic timers"},
     {"liburing_timer",  "Trace liburing timer"},
+    {"commands",        "Trace commands"},
     {0, 0}
 };
 
@@ -424,6 +425,25 @@ SDATA_END()
 
 
 
+
+/***************************************************************************
+ *
+ ***************************************************************************/
+PRIVATE inline BOOL is_commands_tracing(gobj_t * gobj)
+{
+    if(__deep_trace__ > 1) {
+        return TRUE;
+    }
+    if(!gobj) {
+        return FALSE;
+    }
+    uint32_t trace =
+        __global_trace_level__ & TRACE_COMMANDS ||
+        gobj->trace_level & TRACE_COMMANDS ||
+        gobj->gclass->trace_level & TRACE_COMMANDS;
+
+    return trace?TRUE:FALSE;
+}
 
 /***************************************************************************
  *  Must trace? TODO set FALSE in non-debug compilation
@@ -4790,7 +4810,8 @@ PUBLIC json_t *gobj_command( // With AUTHZ
     /*-----------------------------------------------*
      *  Trace
      *-----------------------------------------------*/
-    BOOL tracea = is_machine_tracing(gobj, 0) && !is_machine_not_tracing(src, 0);
+    BOOL tracea = is_commands_tracing(gobj) ||
+        is_machine_tracing(gobj, 0) && !is_machine_not_tracing(src, 0);
     if(tracea) {
         trace_machine("🌀🌀 mach(%s%s), cmd: %s%s%s, src: %s",
             (!gobj->running)?"!!":"",

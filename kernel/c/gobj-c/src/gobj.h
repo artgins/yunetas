@@ -1961,6 +1961,7 @@ enum { /* String table in s_global_trace_level */
     TRACE_URING             = 0x08000000,
     TRACE_TIMER_PERIODIC    = 0x10000000,
     TRACE_URING_TIME        = 0x20000000,
+    TRACE_COMMANDS          = 0x40000000,
 };
 #define TRACE_USER_LEVEL      0x0000FFFF
 #define TRACE_GLOBAL_LEVEL0   0x00FF0000
@@ -1985,6 +1986,7 @@ enum { /* String table in s_global_trace_level */
  *      "timer_periodic"
  *      "timer"
  *      "liburing_timer"
+ *      "commands"
  */
 
 /*
