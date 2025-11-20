@@ -1116,7 +1116,7 @@ print_json2("XXX kw_auth", kw_auth); // TODO TEST
 
         json_t *auth = gobj_authenticate(gobj, kw_auth, src);
         authorization = COMMAND_RESULT(gobj, auth);
-print_json2("XXX", auth); // TODO TEST
+print_json2("XXX authenticated", auth); // TODO TEST
         JSON_DECREF(auth)
     }
 

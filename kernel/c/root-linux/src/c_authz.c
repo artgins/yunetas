@@ -740,14 +740,6 @@ PRIVATE json_t *mt_authenticate(hgobj gobj, json_t *kw, hgobj src)
                     /*
                      *  Only localhost is allowed without jwt
                      */
-                    gobj_log_warning(gobj, 0,
-                        "function",     "%s", __FUNCTION__,
-                        "msgset",       "%s", MSGSET_AUTH,
-                        "msg",          "%s", "Bad user/pwd",
-                        "user",         "%s", username,
-                        "service",      "%s", dst_service,
-                        NULL
-                    );
                     json_t *jn_resp = json_pack("{s:i, s:s, s:s, s:s}",
                         "result", -1,
                         "comment", "Bad user/pwd",

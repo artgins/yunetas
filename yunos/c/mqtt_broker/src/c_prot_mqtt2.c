@@ -5375,13 +5375,6 @@ PRIVATE int ac_process_payload_data(hgobj gobj, const char *event, json_t *kw, h
         if((ret=frame_completed(gobj))<0) {
             if(gobj_trace_level(gobj) & SHOW_DECODE) {
                 trace_msg0("❌❌ Mqtt error: disconnecting: %d", ret);
-            } else {
-                gobj_log_error(gobj, 0,
-                    "function",     "%s", __FUNCTION__,
-                    "msgset",       "%s", MSGSET_INTERNAL_ERROR,
-                    "msg",          "%s", "Mqtt error: disconnecting",
-                    NULL
-                );
                 gobj_trace_dump_full_gbuf(gobj, gbuf, "Mqtt error: disconnecting");
             }
             ws_close(gobj, MQTT_RC_PROTOCOL_ERROR);

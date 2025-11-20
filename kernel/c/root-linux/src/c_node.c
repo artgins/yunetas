@@ -3487,6 +3487,8 @@ PRIVATE int treedb_callback(
     json_t *node            // owned
 )
 {
+    hgobj gobj = user_data;
+
     json_t *collapse_node = node_collapsed_view( // Return MUST be decref
         tranger,
         node, // not owned
@@ -3502,7 +3504,11 @@ PRIVATE int treedb_callback(
     );
     json_decref(node);
 
-    gobj_publish_event(user_data, operation, kw);
+    if(gobj_trace_level(gobj) & TRACE_MESSAGES) {
+        gobj_trace_json(gobj, kw, "🔝🔝 publish_event %s %s", operation, topic_name);
+    }
+
+    gobj_publish_event(gobj, operation, kw);
     return 0;
 }
 
@@ -3650,6 +3656,10 @@ PRIVATE int ac_treedb_update_node(hgobj gobj, const char *event, json_t *kw, hgo
     json_t *record = kw_get_dict(gobj, kw, "record", 0, 0);
     json_t *_jn_options = kw_get_dict(gobj, kw, "options", 0, 0); // "create", "auto-link"
 
+    if(gobj_trace_level(gobj) & TRACE_MESSAGES) {
+        gobj_trace_json(gobj, kw, "⏩ treedb_update_node topic %s", topic_name);
+    }
+
     json_t *node = gobj_update_node( // Return is YOURS
         gobj,
         topic_name,
@@ -3657,6 +3667,11 @@ PRIVATE int ac_treedb_update_node(hgobj gobj, const char *event, json_t *kw, hgo
         json_incref(_jn_options),
         src
     );
+
+    if(gobj_trace_level(gobj) & TRACE_MESSAGES) {
+        gobj_trace_json(gobj, node, "⏪ treedb_update_node topic %s", topic_name);
+    }
+
     json_decref(node); // return something? de momento no, uso interno.
 
     KW_DECREF(kw)
