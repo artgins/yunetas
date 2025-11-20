@@ -7906,6 +7906,7 @@ PUBLIC json_t *treedb_parent_refs( // Return MUST be decref
     json_decref(cols);
     return parents;
 }
+
 /***************************************************************************
  *  Return a list of parent nodes pointed by the link (fkey)
  ***************************************************************************/
@@ -7913,11 +7914,28 @@ PUBLIC json_t *treedb_list_parents( // Return MUST be decref
     json_t *tranger,
     const char *fkey, // must be a fkey field
     json_t *node, // not owned
-    BOOL collapsed_view, // TRUE return collapsed views
-    json_t *jn_options // owned, fkey,hook options when collapsed_view is TRUE
+    json_t *jn_options // owned, fkey,hook options
 ) {
     hgobj gobj = (hgobj)json_integer_value(json_object_get(tranger, "gobj"));
 
+    /*------------------------------*
+     *      Check original node
+     *------------------------------*/
+    if(!kw_get_bool(gobj, node, "__md_treedb__`pure_node", 0, 0)) {
+        gobj_log_error(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_TREEDB_ERROR,
+            "msg",          "%s", "Not a pure node",
+            NULL
+        );
+        gobj_trace_json(gobj, node, "Not a pure node");
+        JSON_DECREF(jn_options)
+        return 0;
+    }
+
+    /*-------------------------------*
+     *      Get node info
+     *-------------------------------*/
     const char *treedb_name = kw_get_str(gobj, node, "__md_treedb__`treedb_name", 0, KW_REQUIRED);
     const char *topic_name = kw_get_str(gobj, node, "__md_treedb__`topic_name", 0, 0);
 
@@ -7968,16 +7986,12 @@ PUBLIC json_t *treedb_list_parents( // Return MUST be decref
             continue;
         }
 
-        if(collapsed_view) {
-            json_t *view_parent_node = node_collapsed_view( // Return MUST be decref
-                tranger, // not owned
-                parent_node, // not owned
-                json_incref(jn_options) // owned
-            );
-            json_array_append_new(parents, view_parent_node);
-        } else {
-            json_array_append(parents, parent_node);
-        }
+        json_t *view_parent_node = node_collapsed_view( // Return MUST be decref
+            tranger, // not owned
+            parent_node, // not owned
+            json_incref(jn_options) // owned
+        );
+        json_array_append_new(parents, view_parent_node);
     }
 
     JSON_DECREF(jn_options)

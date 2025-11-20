@@ -505,8 +505,7 @@ PUBLIC json_t *treedb_list_parents( // Return MUST be decref
     json_t *tranger,
     const char *fkey,   // must be a fkey field
     json_t *node,       // NOT owned, pure node
-    BOOL collapsed_view, // TRUE return collapsed views
-    json_t *jn_options // owned, fkey,hook options when collapsed_view is true
+    json_t *jn_options // owned, fkey,hook options
 );
 
 /*

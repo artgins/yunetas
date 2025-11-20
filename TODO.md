@@ -89,6 +89,7 @@ The documentation needs to be update with next changes
     gclass_find_event_type -> gclass_event_type
     PUBLIC gbuffer_t *run_command(const char *command); // use popen(), synchronous
     yuneta_realm_store_dir
+    treedb_list_parents
 
 # New API
 
