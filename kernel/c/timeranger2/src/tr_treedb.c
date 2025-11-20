@@ -64,12 +64,21 @@ PRIVATE int load_all_links(
 PRIVATE json_t *get_fkey_refs(
     json_t *field_data // NOT owned
 );
+PRIVATE int _link_nodes(
+    hgobj gobj,
+    json_t *tranger,
+    const char *hook_name,
+    json_t *parent_node,    // NOT owned
+    json_t *child_node,     // NOT owned
+    BOOL save
+);
 PRIVATE int _unlink_nodes(
     hgobj gobj,
     json_t *tranger,
     const char *hook_name,
     json_t *parent_node,    // NOT owned
-    json_t *child_node      // NOT owned
+    json_t *child_node,     // NOT owned
+    BOOL save
 );
 
 PRIVATE json_t * treedb_get_activated_snap_tag(
@@ -4985,12 +4994,7 @@ PUBLIC int treedb_delete_node(
                 );
                 int idx3; json_t *child;
                 json_array_foreach(children, idx3, child) {
-                    _unlink_nodes(gobj, tranger, hook, node, child);
-                    /*----------------------------*
-                     *      Save persistent
-                     *  Only children are saved
-                     *----------------------------*/
-                    treedb_save_node(tranger, child);
+                    _unlink_nodes(gobj, tranger, hook, node, child, TRUE);
                 }
                 JSON_DECREF(children)
             }
@@ -5295,12 +5299,7 @@ PUBLIC int treedb_delete_instance(
                 );
                 int idx3; json_t *child;
                 json_array_foreach(children, idx3, child) {
-                    _unlink_nodes(gobj, tranger, hook, node, child);
-                    /*----------------------------*
-                     *      Save persistent
-                     *  Only children are saved
-                     *----------------------------*/
-                    treedb_save_node(tranger, child);
+                    _unlink_nodes(gobj, tranger, hook, node, child, TRUE);
                 }
                 JSON_DECREF(children)
             }
@@ -5612,7 +5611,8 @@ PRIVATE int _link_nodes(
     json_t *tranger,
     const char *hook_name,
     json_t *parent_node,    // NOT owned
-    json_t *child_node      // NOT owned
+    json_t *child_node,     // NOT owned
+    BOOL save
 )
 {
     /*------------------------------*
@@ -5956,7 +5956,7 @@ PRIVATE int _link_nodes(
     );
     if(treedb_callback) {
         /*
-         *  Inform user in real time
+         *  Inform user in real time, HACK ONLY to PARENT, child will be in save
          */
         void *user_data =
             (treedb_callback_t)(size_t)kw_get_int(gobj,
@@ -5975,15 +5975,10 @@ PRIVATE int _link_nodes(
             EV_TREEDB_NODE_UPDATED,
             parent_node
         );
-        JSON_INCREF(child_node);
-        treedb_callback(
-            user_data,
-            tranger,
-            treedb_name,
-            child_topic_name,
-            EV_TREEDB_NODE_UPDATED,
-            child_node
-        );
+    }
+
+    if(save) {
+        treedb_save_node(tranger, child_node);
     }
 
     return 0;
@@ -5997,7 +5992,8 @@ PRIVATE int _unlink_nodes(
     json_t *tranger,
     const char *hook_name,
     json_t *parent_node,    // NOT owned
-    json_t *child_node      // NOT owned
+    json_t *child_node,     // NOT owned
+    BOOL save
 )
 {
     /*------------------------------*
@@ -6407,7 +6403,7 @@ PRIVATE int _unlink_nodes(
     );
     if(treedb_callback) {
         /*
-         *  Inform user in real time
+         *  Inform user in real time, HACK ONLY to PARENT, child will be in save
          */
         void *user_data =
             (treedb_callback_t)(size_t)kw_get_int(gobj,
@@ -6426,15 +6422,10 @@ PRIVATE int _unlink_nodes(
             EV_TREEDB_NODE_UPDATED,
             parent_node
         );
-        JSON_INCREF(child_node)
-        treedb_callback(
-            user_data,
-            tranger,
-            treedb_name,
-            child_topic_name,
-            EV_TREEDB_NODE_UPDATED,
-            child_node
-        );
+    }
+
+    if(save) {
+        treedb_save_node(tranger, child_node);
     }
 
     return 0;
@@ -6517,7 +6508,8 @@ PUBLIC int treedb_clean_node(
                     tranger,
                     hook_name,
                     parent_node,    // NOT owned
-                    node      // NOT owned
+                    node,           // NOT owned
+                    FALSE
                 );
             } else {
                 search_and_remove_wrong_up_ref(
@@ -6710,7 +6702,8 @@ PUBLIC int treedb_autolink( // use fkeys fields of kw to auto-link
                 tranger,
                 hook_name,
                 parent_node,    // NOT owned
-                node      // NOT owned
+                node,           // NOT owned
+                FALSE
             )==0) {
                 to_save = TRUE;
             } else {
@@ -6752,7 +6745,8 @@ PUBLIC int treedb_link_nodes(
         tranger,
         hook_name,
         parent_node,    // NOT owned
-        child_node      // NOT owned
+        child_node,     // NOT owned
+        FALSE
     ) < 0) {
         // Error already logged
         return -1;
@@ -6782,7 +6776,8 @@ PUBLIC int treedb_unlink_nodes(
         tranger,
         hook_name,
         parent_node,    // NOT owned
-        child_node      // NOT owned
+        child_node,     // NOT owned
+        FALSE
     ) < 0) {
         // Error already logged
         return -1;
