@@ -2756,7 +2756,11 @@ PRIVATE int set_tranger_field_value(
             break;
 
         CASES("blob")
-            json_object_set(record, field, value);
+            if(JSON_TYPEOF(value, JSON_ARRAY) || JSON_TYPEOF(value, JSON_OBJECT)) {
+                json_object_set(record, field, value);
+            } else {
+                json_object_set_new(record, field, json_object());
+            }
             break;
 
         CASES("string")
@@ -2935,8 +2939,10 @@ PRIVATE int set_volatil_field_value(
             break;
 
         CASES("blob")
-            if(value) {
+            if(JSON_TYPEOF(value, JSON_ARRAY) || JSON_TYPEOF(value, JSON_OBJECT)) {
                 json_object_set(record, field, value);
+            } else {
+                json_object_set_new(record, field, json_object());
             }
             break;
 
@@ -3096,6 +3102,7 @@ PRIVATE json_t *record2tranger(
 )
 {
     json_t *cols = tranger2_dict_topic_desc_cols(tranger, topic_name);
+print_json2("XXX cols", cols); // TODO TEST
     if(!cols) {
         gobj_log_error(gobj, 0,
             "function",     "%s", __FUNCTION__,
