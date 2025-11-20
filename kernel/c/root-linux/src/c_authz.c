@@ -663,13 +663,13 @@ PRIVATE json_t *mt_authenticate(hgobj gobj, json_t *kw, hgobj src)
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_AUTH,
             "msg",          "%s", "Destination service not found",
-            "user",         "%s", username,
+            "username",     "%s", username,
             NULL
         );
         json_t *jn_resp = json_pack("{s:i, s:s, s:s}",
             "result", -1,
             "comment", "Peername is required",
-            "user",  username
+            "username", username
         );
         KW_DECREF(kw)
         return jn_resp;
@@ -689,14 +689,14 @@ PRIVATE json_t *mt_authenticate(hgobj gobj, json_t *kw, hgobj src)
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_AUTH,
             "msg",          "%s", "Destination service not found",
-            "user",         "%s", username,
+            "username",     "%s", username,
             "service",      "%s", dst_service,
             NULL
         );
         json_t *jn_resp = json_pack("{s:i, s:s, s:s, s:s}",
             "result", -1,
             "comment", "Destination service not found",
-            "user",  username,
+            "username", username,
             "service", dst_service
         );
         KW_DECREF(kw)
@@ -711,14 +711,14 @@ PRIVATE json_t *mt_authenticate(hgobj gobj, json_t *kw, hgobj src)
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_AUTH,
             "msg",          "%s", "Ip denied",
-            "user",         "%s", username,
+            "username",     "%s", username,
             "service",      "%s", dst_service,
             NULL
         );
         json_t *jn_resp = json_pack("{s:i, s:s, s:s, s:s}",
             "result", -1,
             "comment", "Ip denied",
-            "user",  username,
+            "username", username,
             "service", dst_service
         );
         KW_DECREF(kw)
@@ -742,7 +742,7 @@ PRIVATE json_t *mt_authenticate(hgobj gobj, json_t *kw, hgobj src)
                     json_t *jn_resp = json_pack("{s:i, s:s, s:s, s:s}",
                         "result", -1,
                         "comment", "Wrong user/pwd",
-                        "user",  username,
+                        "username", username,
                         "service", dst_service
                     );
                     KW_DECREF(kw)
@@ -761,14 +761,14 @@ PRIVATE json_t *mt_authenticate(hgobj gobj, json_t *kw, hgobj src)
                     "function",     "%s", __FUNCTION__,
                     "msgset",       "%s", MSGSET_AUTH,
                     "msg",          "%s", "Without JWT/passw only yuneta is allowed",
-                    "user",         "%s", username,
+                    "username",     "%s", username,
                     "service",      "%s", dst_service,
                     NULL
                 );
                 json_t *jn_resp = json_pack("{s:i, s:s, s:s, s:s}",
                     "result", -1,
                     "comment", "Without JWT/passw only yuneta is allowed",
-                    "user",  username,
+                    "username", username,
                     "service", dst_service
                 );
                 KW_DECREF(kw)
@@ -792,14 +792,14 @@ PRIVATE json_t *mt_authenticate(hgobj gobj, json_t *kw, hgobj src)
                     "function",     "%s", __FUNCTION__,
                     "msgset",       "%s", MSGSET_AUTH,
                     "msg",          "%s", "Without JWT/passw only localhost is allowed",
-                    "user",         "%s", username,
+                    "username",     "%s", username,
                     "service",      "%s", dst_service,
                     NULL
                 );
                 json_t *jn_resp = json_pack("{s:i, s:s, s:s, s:s}",
                     "result", -1,
                     "comment", "Without JWT/passw only localhost is allowed",
-                    "user",  username,
+                    "username", username,
                     "service", dst_service
                 );
                 KW_DECREF(kw)
@@ -830,7 +830,7 @@ PRIVATE json_t *mt_authenticate(hgobj gobj, json_t *kw, hgobj src)
                 "msgset",       "%s", MSGSET_AUTH,
                 "msg",          "%s", "Authentication failed: Invalid token",
                 "status",       "%s", temp,
-                "user",         "%s", username,
+                "username",     "%s", username,
                 "service",      "%s", dst_service,
                 "jwt",          "%s", jwt,
                 NULL
@@ -856,7 +856,7 @@ PRIVATE json_t *mt_authenticate(hgobj gobj, json_t *kw, hgobj src)
                 "function",     "%s", __FUNCTION__,
                 "msgset",       "%s", MSGSET_AUTH,
                 "msg",          "%s", "Email not verified",
-                "user",         "%s", username,
+                "username",     "%s", username,
                 "service",      "%s", dst_service,
                 NULL
             );
@@ -875,7 +875,7 @@ PRIVATE json_t *mt_authenticate(hgobj gobj, json_t *kw, hgobj src)
                 "function",     "%s", __FUNCTION__,
                 "msgset",       "%s", MSGSET_AUTH,
                 "msg",          "%s", "Username must be an email address",
-                "user",         "%s", username,
+                "username",     "%s", username,
                 "service",      "%s", dst_service,
                 NULL
             );
@@ -891,16 +891,6 @@ PRIVATE json_t *mt_authenticate(hgobj gobj, json_t *kw, hgobj src)
         }
 
         comment = "User authenticated by jwt";
-    }
-
-    /*----------------------------------------------------------*
-     *  HACK save username, jwt_payload in src (IEvent_srv)
-     *----------------------------------------------------------*/
-    if(gobj_has_bottom_attr(src, "__username__")) {
-        gobj_write_str_attr(src, "__username__", username);
-    }
-    if(gobj_has_bottom_attr(src, "jwt_payload")) {
-        gobj_write_json_attr(src, "jwt_payload", jwt_payload?jwt_payload:json_null());
     }
 
     /*------------------------------*
@@ -965,7 +955,7 @@ PRIVATE json_t *mt_authenticate(hgobj gobj, json_t *kw, hgobj src)
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_AUTH,
             "msg",          "%s", "User not exist",
-            "user",         "%s", username,
+            "username",     "%s", username,
             "service",      "%s", dst_service,
             NULL
         );
@@ -1002,7 +992,7 @@ print_json2("XXX services_roles", services_roles); // TODO TEST
             "msgset",           "%s", MSGSET_AUTH,
             "msg",              "%s", "User has not authz in service",
             "comment",          "%s", comment,
-            "user",             "%s", username,
+            "username",         "%s", username,
             "service",          "%s", dst_service,
             "services_roles",   "%j", services_roles?services_roles:json_null(),
             NULL
@@ -1113,6 +1103,20 @@ print_json2("XXX services_roles", services_roles); // TODO TEST
         json_object_del(sessions, k);
     }
 
+    /*------------------------------------------------*
+     *  HACK save username, jwt_payload, session_id
+     *  in src (IEvent_srv)
+     *------------------------------------------------*/
+    // if(gobj_has_bottom_attr(src, "__username__")) {
+        gobj_write_str_attr(src, "__username__", username);
+    // }
+    // if(gobj_has_bottom_attr(src, "__session_id__")) {
+        gobj_write_str_attr(src, "__session_id__", session_id);
+    // }
+    // if(gobj_has_bottom_attr(src, "jwt_payload")) {
+        gobj_write_json_attr(src, "jwt_payload", jwt_payload?jwt_payload:json_null());
+    // }
+
     /*-------------------------------*
      *      Save session
      *-------------------------------*/
@@ -1146,17 +1150,19 @@ print_json2("XXX services_roles", services_roles); // TODO TEST
     gobj_log_info(gobj, 0,
         "function",     "%s", __FUNCTION__,
         "msgset",       "%s", MSGSET_AUTH,
-        "msg",          "%s", "User authenticated",
+        "msg",          "%s", "Login",
         "username",     "%s", username,
+        "session_id",   "%s", session_id,
         "service",      "%s", dst_service,
         "roles",        "%j", services_roles,
         NULL
     );
 
-    json_t *jn_resp = json_pack("{s:i, s:s, s:s, s:s, s:O}",
+    json_t *jn_resp = json_pack("{s:i, s:s, s:s, s:s, s:s, s:O}",
         "result", 0,
         "comment", "User authenticated",
         "username", username,
+        "session_id", session_id,
         "dst_service", dst_service,
         "services_roles", services_roles
     );
@@ -3215,7 +3221,7 @@ PRIVATE json_t *get_user_permissions(
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_TREEDB_ERROR,
             "msg",          "%s", "User not found",
-            "user",         "%s", username,
+            "username"      "%s", username,
             NULL
         );
         return services_roles;
@@ -3416,21 +3422,6 @@ PRIVATE int ac_on_close(hgobj gobj, const char *event, json_t *kw, hgobj src)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
-    /*------------------------------*
-    *      Get jwt info
-    *------------------------------*/
-    json_t *jwt_payload = gobj_read_json_attr(src, "jwt_payload");
-    if(!jwt_payload) {
-        gobj_log_error(gobj, 0,
-            "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_INTERNAL_ERROR,
-            "msg",          "%s", "close without jwt_payload",
-            NULL
-        );
-        KW_DECREF(kw)
-        return 0;
-    }
-
     if(gobj_is_shutdowning()) {
         KW_DECREF(kw)
         return 0;
@@ -3440,23 +3431,17 @@ PRIVATE int ac_on_close(hgobj gobj, const char *event, json_t *kw, hgobj src)
      *  Add logout user
      *--------------------------------------------*/
     if(priv->gobj_treedb) { // Si han pasado a pause es 0
-        const char *session_id = kw_get_str(
-            gobj,
-            jwt_payload,
-            "sid",
-            kw_get_str(gobj, jwt_payload, "session_state", "", 0),
-            0
-        );
+        const char *session_id = gobj_read_str_attr(src, "__session_id__");
         if(empty_string(session_id)) {
             gobj_log_error(gobj, 0,
                 "function",         "%s", __FUNCTION__,
                 "msgset",           "%s", MSGSET_PARAMETER_ERROR,
-                "msg",              "%s", "sid or session_state not found",
-                "msg",              "%s", "jwt_str_alg() FAILED",
+                "msg",              "%s", "__session_id__ not found",
+                "src",              "%s", gobj_full_name(src),
                 NULL
             );
         }
-        const char *username = kw_get_str(gobj, jwt_payload, "preferred_username", 0, KW_REQUIRED);
+        const char *username = gobj_read_str_attr(src, "__username__");
 
         json_t *user = gobj_get_node(
             priv->gobj_treedb,
@@ -3506,7 +3491,8 @@ PRIVATE int ac_on_close(hgobj gobj, const char *event, json_t *kw, hgobj src)
                 "function",     "%s", __FUNCTION__,
                 "msgset",       "%s", MSGSET_AUTH,
                 "msg",          "%s", "Logout",
-                "user",         "%s", username,
+                "username",     "%s", username,
+                "session_id",   "%s", session_id,
                 NULL
             );
         }

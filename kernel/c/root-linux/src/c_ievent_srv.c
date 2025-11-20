@@ -62,6 +62,7 @@ SDATA (DTP_BOOLEAN,     "authenticated",        SDF_VOLATIL, 0, "True if entry w
 // HACK set by c_authz
 SDATA (DTP_JSON,        "jwt_payload",          SDF_VOLATIL, 0, "JWT payload (decoded user data) of authenticated user, WARNING set by c_authz"),
 SDATA (DTP_STRING,      "__username__",         SDF_VOLATIL, "", "Username, WARNING set by c_authz"),
+SDATA (DTP_STRING,      "__session_id__",       SDF_VOLATIL, "", "Session ID, WARNING set by c_authz"),
 
 SDATA (DTP_JSON,        "identity_card",        SDF_VOLATIL, "", "Identity Card of clisrv"),
 
