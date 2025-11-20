@@ -1106,15 +1106,10 @@ PRIVATE json_t *mt_authenticate(hgobj gobj, json_t *kw, hgobj src)
      *  WARNING "session_state" is from keycloak!!!
      *  And others???
      *-------------------------------*/
+    char uuid[60];
     if(empty_string(session_id)) {
-        gobj_log_error(gobj, 0,
-            "function",         "%s", __FUNCTION__,
-            "msgset",           "%s", MSGSET_PARAMETER_ERROR,
-            "msg",              "%s", "sid or session_state not found",
-            "username",         "%s", username,
-            "service",          "%s", dst_service,
-            NULL
-        );
+        create_random_uuid(uuid, sizeof(uuid));
+        session_id = uuid;
     }
     session = json_pack("{s:s, s:I}",
         "id", session_id,
@@ -1137,6 +1132,16 @@ PRIVATE json_t *mt_authenticate(hgobj gobj, json_t *kw, hgobj src)
      *  Subscribe to know close session
      *------------------------------------*/
     gobj_subscribe_event(src, EV_ON_CLOSE, 0, gobj);
+
+    gobj_log_info(gobj, 0,
+        "function",     "%s", __FUNCTION__,
+        "msgset",       "%s", MSGSET_AUTH,
+        "msg",          "%s", "User authenticated",
+        "username",     "%s", username,
+        "service",      "%s", dst_service,
+        "roles",        "%j", services_roles,
+        NULL
+    );
 
     json_t *jn_resp = json_pack("{s:i, s:s, s:s, s:s, s:O}",
         "result", 0,

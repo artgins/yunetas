@@ -56,13 +56,13 @@
 static char treedb_schema_authzs[]= "\
 {                                                                   \n\
     'id': 'treedb_authzs',                                          \n\
-    'schema_version': '13',                                         \n\
+    'schema_version': '15',                                         \n\
     'topics': [                                                     \n\
         {                                                           \n\
             'id': 'roles',                                          \n\
             'pkey': 'id',                                           \n\
             'system_flag': 'sf_string_key',                         \n\
-            'topic_version': '4',                                   \n\
+            'topic_version': '6',                                   \n\
             'cols': {                                               \n\
                 'id': {                                             \n\
                     'header': 'Role',                               \n\
@@ -148,6 +148,15 @@ static char treedb_schema_authzs[]= "\
                         'persistent'                                \n\
                     ]                                               \n\
                 },                                                  \n\
+                'max_sessions': {                                   \n\
+                    'header': 'Max Sessions',                       \n\
+                    'fillspace': 4,                                 \n\
+                    'type': 'integer',                              \n\
+                    'flag': [                                       \n\
+                        'writable',                                 \n\
+                        'persistent'                                \n\
+                    ]                                               \n\
+                },                                                  \n\
                 'deny': {                                           \n\
                     'header': 'Deny',                               \n\
                     'fillspace': 6,                                 \n\
@@ -190,7 +199,7 @@ static char treedb_schema_authzs[]= "\
             'id': 'users',                                          \n\
             'pkey': 'id',                                           \n\
             'system_flag': 'sf_string_key',                         \n\
-            'topic_version': '7',                                   \n\
+            'topic_version': '9',                                   \n\
             'cols': {                                               \n\
                 'id': {                                             \n\
                     'header': 'User',                               \n\
@@ -214,6 +223,15 @@ static char treedb_schema_authzs[]= "\
                     'fillspace': 4,                                 \n\
                     'type': 'boolean',                              \n\
                     'default': false,                               \n\
+                    'flag': [                                       \n\
+                        'writable',                                 \n\
+                        'persistent'                                \n\
+                    ]                                               \n\
+                },                                                  \n\
+                'max_sessions': {                                   \n\
+                    'header': 'Max Sessions',                       \n\
+                    'fillspace': 4,                                 \n\
+                    'type': 'integer',                              \n\
                     'flag': [                                       \n\
                         'writable',                                 \n\
                         'persistent'                                \n\
