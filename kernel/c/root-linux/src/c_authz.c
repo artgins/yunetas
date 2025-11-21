@@ -981,8 +981,6 @@ PRIVATE json_t *mt_authenticate(hgobj gobj, json_t *kw, hgobj src)
         kw
     );
 
-print_json2("XXX services_roles", services_roles); // TODO TEST
-
     if(!kw_has_key(services_roles, dst_service)) {
         /*
          *  No authorized in dst service

@@ -4012,7 +4012,7 @@ PRIVATE int handle__connect(hgobj gobj, gbuffer_t *gbuf)
         gobj_log_error(gobj, 0,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_MQTT_ERROR,
-            "msg",          "%s", "Mqtt: too AUTHORIZATION METHOD not supported",
+            "msg",          "%s", "Mqtt: AUTHORIZATION METHOD not supported",
             "client_id",    "%s", priv->client_id,
             NULL
         );
@@ -4062,127 +4062,38 @@ PRIVATE int handle__connect(hgobj gobj, gbuffer_t *gbuf)
         }
     }
 
-    /*--------------------------------------------------------------*
-     *  Create a client, must be checked in upper level.
-     *  This must be done *after* any security checks.
-     *  With assigned_id the id is random!, not a persistent id
-     *  (HACK client_id is really a device_id)
-     *--------------------------------------------------------------*/
-    json_t *client = json_pack("{s:s, s:b, s:s, s:s, s:b, s:i, s:s, s:i, s:i, s:i}",
-        "client_id",                priv->client_id,
-        "assigned_id",              priv->assigned_id,
-        "username",                 priv->username,
-        "password",                 priv->password,
-        "clean_start",              priv->clean_start,
-        "protocol_version",         (int)priv->protocol_version,
-        "protocol_name",            priv->protocol_name,
-        "keepalive",                (int)priv->keepalive,
-        "session_expiry_interval",  (int)priv->session_expiry_interval,
-        "max_qos",                  (int)priv->max_qos
-    );
-
-    if(priv->will) {
-        json_t *jn_will = json_pack("{s:b, s:b, s:i, s:s, s:i, s:i}",
-            "will",                 priv->will,
-            "will_retain",          priv->will_retain,
-            "will_qos",             (int)priv->will_qos,
-            "will_topic",           priv->will_topic,
-            "will_delay_interval",  (int)priv->will_delay_interval,
-            "will_expiry_interval", (int)priv->will_expiry_interval
-        );
-        if(priv->gbuf_will_payload) {
-            json_object_set_new(
-                jn_will,
-                "gbuffer",
-                json_integer((json_int_t)(uintptr_t)priv->gbuf_will_payload)
-            );
-            priv->gbuf_will_payload = NULL;
-        }
-        json_object_update_new(client, jn_will);
-    }
-
-    const char *peername = gobj_read_str_attr(gobj, "peername");
-    json_object_set_new(client, "peername", json_string(peername));
-
-    if(connect_properties) {
-        json_object_set_new(client, "connect_properties", connect_properties);
-        connect_properties = NULL;
-    }
-
     /*---------------------------------------------*
      *      Check user/password
      *---------------------------------------------*/
+    const char *peername = gobj_read_str_attr(gobj, "peername");
+    const char *dst_service = "treedb_mqtt_broker"; // TODO too much hardcoded
     int authorization = 0;
-    json_t *kw_auth = json_pack("{s:s, s:s, s:s, s:s}",
+    json_t *kw_auth = json_pack("{s:s, s:s, s:s, s:s, s:s}",
         "client_id", client_id,
         "username", username,
         "password", password,
-        "peername", peername
+        "peername", peername,
+        "dst_service", dst_service
     );
-    print_json2("XXX kw_auth", kw_auth); // TODO TEST
 
     json_t *auth = gobj_authenticate(gobj, kw_auth, gobj);
     authorization = COMMAND_RESULT(gobj, auth);
     print_json2("XXX authenticated", auth); // TODO TEST
-    JSON_DECREF(auth)
 
-    // if(authorization < 0) {
-    //     KW_DECREF(kw);
-    //     return authorization;
-    // }
+    if(authorization < 0) {
+        if(priv->protocol_version == mosq_p_mqtt5) {
+            send__connack(gobj, 0, MQTT_RC_NOT_AUTHORIZED, NULL);
+        } else {
+            send__connack(gobj, 0, CONNACK_REFUSED_NOT_AUTHORIZED, NULL);
+        }
+        JSON_DECREF(auth)
+        JSON_DECREF(connect_properties);
+        JSON_DECREF(connack_props);
+        return -1;
+    }
 
-    /*-------------------------*
-     *  Do authentication
-     *-------------------------*/
-    int x; // do same as ievent_srv
-    //     KW_INCREF(kw)
-    //     json_t *jn_resp = gobj_authenticate(gobj_service, kw, gobj);
-    //     if(kw_get_int(gobj, jn_resp, "result", -1, KW_REQUIRED|KW_CREATE)<0) {
-    //         const char *comment = kw_get_str(gobj, jn_resp, "comment", "", 0);
-    //         // TODO sacalo: const char *remote_addr = gobj_read_str_attr(get_bottom_gobj(src), "remote-addr");
-    //         // TODO y en el cliente mete la ip de origen
-    //         gobj_log_warning(gobj, 0,
-    //             "function",     "%s", __FUNCTION__,
-    //             "msgset",       "%s", MSGSET_PROTOCOL_ERROR,
-    //             "msg",          "%s", "Authentication rejected",
-    //             "cause",        "%s", comment,
-    //             "detail",       "%j", jn_resp,
-    //             //"remote-addr",  "%s", remote_addr?remote_addr:"",
-    //             "yuno_role",    "%s", kw_get_str(gobj, kw, "yuno_role", "", 0),
-    //             "yuno_id",      "%s", kw_get_str(gobj, kw, "yuno_id", "", 0),
-    //             "yuno_name",    "%s", kw_get_str(gobj, kw, "yuno_name", "", 0),
-    //             "yuno_tag",     "%s", kw_get_str(gobj, kw, "yuno_tag", "", 0),
-    //             "yuno_version", "%s", kw_get_str(gobj, kw, "yuno_version", "", 0),
-    //             "src_yuno",     "%s", iev_src_yuno,
-    //             "src_role",     "%s", iev_src_role,
-    //             "src_service",  "%s", iev_src_service,
-    //             NULL
-    //         );
-    //
-    //         KW_DECREF(kw)
-    //         return 0; // Don't return -1, don't drop connection, let send negative ack. Drop by timeout.
-    //     }
-    // }
-    //
-    //
-
-
-    // TODO esto debe ir a new client in upper level
-    //  if(mqtt_check_password(gobj)<0) {
-    //     if(priv->protocol_version == mosq_p_mqtt5) {
-    //         send__connack(gobj, 0, MQTT_RC_NOT_AUTHORIZED, NULL);
-    //     } else {
-    //         send__connack(gobj, 0, CONNACK_REFUSED_NOT_AUTHORIZED, NULL);
-    //     }
-    //     gobj_log_info(gobj, 0,
-    //         "function",     "%s", __FUNCTION__,
-    //         "msgset",       "%s", MSGSET_INFO,
-    //         "msg",          "%s", "Mqtt: not authorized, use_username_as_clientid and no username",
-    //         "client_id",    "%s", priv->client_id,
-    //         NULL
-    //     );
-    //     return -1;
-    // }
+    const char *session_id = kw_get_str(gobj, auth, "session_id", "", KW_REQUIRED);
+    json_t *services_roles = kw_get_dict(gobj, auth, "services_roles", NULL, KW_REQUIRED);
 
     // TODO esto debe ir a new client in upper level
     // if(priv->clean_start == FALSE && prev_session_expiry_interval > 0) {
@@ -4233,13 +4144,49 @@ PRIVATE int handle__connect(hgobj gobj, gbuffer_t *gbuf)
     //mosquitto__set_state(context, mosq_cs_active);
 
 
+    /*--------------------------------------------------------------*
+     *  Create a client, must be checked in upper level.
+     *  This must be done *after* any security checks.
+     *  With assigned_id the id is random!, not a persistent id
+     *  (HACK client_id is really a device_id)
+     *--------------------------------------------------------------*/
+    json_t *client = json_pack("{s:s, s:O, s:s, s:s, s:s, s:b, s:b, s:i, s:i, s:b}",
+        "username",                 priv->username,
+        "services_roles",           services_roles,
+        "session_id",               session_id,
+        "peername",                 peername,
+        "client_id",                priv->client_id,
+        "assigned_id",              priv->assigned_id,
+        "clean_start",              priv->clean_start,
+        "session_expiry_interval",  (int)priv->session_expiry_interval,
+        "max_qos",                  (int)priv->max_qos,
+        "will",                     priv->will
+    );
 
+    if(priv->will) {
+        json_t *jn_will = json_pack("{s:b, s:i, s:s, s:i, s:i}",
+            "will_retain",          priv->will_retain,
+            "will_qos",             (int)priv->will_qos,
+            "will_topic",           priv->will_topic,
+            "will_delay_interval",  (int)priv->will_delay_interval,
+            "will_expiry_interval", (int)priv->will_expiry_interval
+        );
+        if(priv->gbuf_will_payload) {
+            json_object_set_new(
+                jn_will,
+                "gbuffer",
+                json_integer((json_int_t)(uintptr_t)priv->gbuf_will_payload)
+            );
+            priv->gbuf_will_payload = NULL;
+        }
+        json_object_update_new(client, jn_will);
+    }
+    JSON_DECREF(auth)
 
-
-
-
-
-
+    if(connect_properties) {
+        json_object_set_new(client, "connect_properties", connect_properties);
+        connect_properties = NULL;
+    }
 
     priv->inform_on_close = TRUE;
     int ret = gobj_publish_event(gobj, EV_ON_OPEN, client);
@@ -5097,13 +5044,6 @@ PRIVATE int ac_disconnected(hgobj gobj, const char *event, json_t *kw, hgobj src
 
     JSON_DECREF(priv->jn_alias_list);
 
-    gobj_reset_volatil_attrs(gobj);
-    GBUFFER_DECREF(priv->gbuf_will_payload);
-
-    if(gobj_is_volatil(src)) {
-        gobj_set_bottom_gobj(gobj, 0);
-    }
-
     if(priv->istream_payload) {
         istream_destroy(priv->istream_payload);
         priv->istream_payload = 0;
@@ -5111,11 +5051,20 @@ PRIVATE int ac_disconnected(hgobj gobj, const char *event, json_t *kw, hgobj src
     if(priv->inform_on_close) {
         priv->inform_on_close = FALSE;
 
-        json_t *kw2 = json_pack("s:s",
-            "client_id", priv->client_id
+        json_t *kw2 = json_pack("{s:s, s:s}",
+            "__username__", gobj_read_str_attr(gobj, "__username__"),
+            "__session_id__", gobj_read_str_attr(gobj, "__session_id__")
         );
         gobj_publish_event(gobj, EV_ON_CLOSE, kw2);
     }
+
+    gobj_reset_volatil_attrs(gobj);
+    GBUFFER_DECREF(priv->gbuf_will_payload);
+
+    if(gobj_is_volatil(src)) {
+        gobj_set_bottom_gobj(gobj, 0);
+    }
+
     clear_timeout(priv->timer);
 
     JSON_DECREF(priv->jn_alias_list)

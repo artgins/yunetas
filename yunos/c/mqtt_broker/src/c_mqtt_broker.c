@@ -986,31 +986,34 @@ PRIVATE int process_msg(
  *  Identity_card on from
  *      mqtt clients (__input_side__)
  *
+
     {
+        "username": "DVES_USER",
+        "services_roles": {
+            "treedb_mqtt_broker": [
+                "device"
+            ]
+        },
+        "session_id": "d1515457-f1a1-45d3-a7fd-3f335ae50037",
+        "peername": "127.0.0.1:47298",
         "client_id": "DVES_40AC66",
         "assigned_id": false,       #^^ if assigned_id is true the client_id is temporary.
-        "username": "DVES_USER",
-        "password": "DVES_PASS",
         "clean_start": true,
-        "protocol_version": 2,
-        "protocol_name": "MQTT",
-        "keepalive": 30,
         "session_expiry_interval": 0,
         "max_qos": 2,
-
         "will": true,
-        "will_retain": true,
+        "will_retain": true, #^^ these will fields are optionals
         "will_qos": 1,
-        "will_topic": "tele/tasmota_40AC66/LWT",    #^^ these will fields are optionals
+        "will_topic": "tele/tasmota_40AC66/LWT",
         "will_delay_interval": 0,
         "will_expiry_interval": 0,
         "gbuffer": 95091873745312,  #^^ it contents the will payload
-
         "__temp__": {
             "channel": "input-1",
-            "channel_gobj": 95091872991280
+            "channel_gobj": 98214347824800
         }
     }
+
  *
  ***************************************************************************/
 PRIVATE int ac_on_open(hgobj gobj, const char *event, json_t *kw, hgobj src)
@@ -1055,8 +1058,8 @@ PRIVATE int ac_on_open(hgobj gobj, const char *event, json_t *kw, hgobj src)
         // TODO read the remain will fields
     }
 
-    const char *__username__ = kw_get_str(gobj, kw, "__username__", "", KW_REQUIRED);
-    const char *__client_id__ = kw_get_str(gobj, kw, "__username__", "", KW_REQUIRED);
+    const char *username = kw_get_str(gobj, kw, "username", "", KW_REQUIRED);
+    const char *client_id = kw_get_str(gobj, kw, "client_id", "", KW_REQUIRED);
 
     /*----------------------------------------------------------------*
      *  Open the topic (client_id) or create it if it doesn't exist
@@ -1065,8 +1068,8 @@ PRIVATE int ac_on_open(hgobj gobj, const char *event, json_t *kw, hgobj src)
         priv->gobj_tranger_tracks,
         "open-topic",
         json_pack("{s:s, s:s}",
-            "topic_name", __client_id__,
-            "__username__", __username__
+            "topic_name", client_id,
+            "__username__", username
         ),
         gobj
     );
@@ -1078,8 +1081,8 @@ PRIVATE int ac_on_open(hgobj gobj, const char *event, json_t *kw, hgobj src)
             priv->gobj_tranger_tracks,
             "create-topic", // idempotent function
             json_pack("{s:s, s:s}",
-            "topic_name", __client_id__,
-            "__username__", __username__
+                "topic_name", client_id,
+                "__username__", username
             ),
             gobj
         );
@@ -1091,7 +1094,7 @@ PRIVATE int ac_on_open(hgobj gobj, const char *event, json_t *kw, hgobj src)
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_AUTH,
             "msg",          "%s", comment?comment:"cannot create/open topic (client)",
-            "username",     "%s", __username__,
+            "username",     "%s", username,
             NULL
         );
         JSON_DECREF(jn_response)
