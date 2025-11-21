@@ -331,7 +331,7 @@ PRIVATE const trace_level_t s_user_trace_level[16] = {
  *              Private data
  *---------------------------------------------*/
 typedef struct _PRIVATE_DATA {
-    int32_t max_sessions_per_user;
+    json_int_t max_sessions_per_user;
 
     hgobj gobj_tranger;
     hgobj gobj_treedb;
