@@ -4101,7 +4101,8 @@ PRIVATE int handle__connect(hgobj gobj, gbuffer_t *gbuf)
         json_object_update_new(client, jn_will);
     }
 
-    json_object_set_new(client, "peername", json_string(gobj_read_str_attr(gobj, "peername")));
+    const char *peername = gobj_read_str_attr(gobj, "peername");
+    json_object_set_new(client, "peername", json_string(peername));
 
     if(connect_properties) {
         json_object_set_new(client, "connect_properties", connect_properties);
@@ -4111,43 +4112,20 @@ PRIVATE int handle__connect(hgobj gobj, gbuffer_t *gbuf)
     /*---------------------------------------------*
      *      Check user/password
      *---------------------------------------------*/
-    const char *client_id = kw_get_str(gobj, kw, "client_id", "", KW_REQUIRED);
-    const char *username = kw_get_str(gobj, kw, "username", "", KW_REQUIRED);
-    const char *password = kw_get_str(gobj, kw, "password", "", KW_REQUIRED);
-    const char *peername = kw_get_str(gobj, kw, "peername", "", KW_REQUIRED);
-
     int authorization = 0;
-    if(priv->allow_anonymous) {
-        const char *localhost = "127.0.0.";
-        if(strncmp(peername, localhost, strlen(localhost))!=0) {
-            /*
-             *  Only localhost is allowed without user/password or jwt
-             */
-            authorization = -1;
-            gobj_log_warning(gobj, 0,
-                "function",     "%s", __FUNCTION__,
-                "msgset",       "%s", MSGSET_AUTH,
-                "msg",          "%s", "allow_anonymous, only localhost is allowed",
-                "user",         "%s", username,
-                NULL
-            );
-        }
+    json_t *kw_auth = json_pack("{s:s, s:s, s:s, s:s, s:s}",
+        "client_id", client_id,
+        "username", username,
+        "password", password,
+        "peername", peername,
+        "dst_service", "treedb_mqtt_broker"
+    );
+    print_json2("XXX kw_auth", kw_auth); // TODO TEST
 
-    } else {
-        json_t *kw_auth = json_pack("{s:s, s:s, s:s, s:s, s:s}",
-            "client_id", client_id,
-            "username", username,
-            "password", password,
-            "peername", peername,
-            "dst_service", "treedb_mqtt_broker"
-        );
-        print_json2("XXX kw_auth", kw_auth); // TODO TEST
-
-        json_t *auth = gobj_authenticate(gobj, kw_auth, src);
-        authorization = COMMAND_RESULT(gobj, auth);
-        print_json2("XXX authenticated", auth); // TODO TEST
-        JSON_DECREF(auth)
-    }
+    json_t *auth = gobj_authenticate(gobj, kw_auth, src);
+    authorization = COMMAND_RESULT(gobj, auth);
+    print_json2("XXX authenticated", auth); // TODO TEST
+    JSON_DECREF(auth)
 
     if(authorization < 0) {
         KW_DECREF(kw);

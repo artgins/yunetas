@@ -43,7 +43,6 @@ PRIVATE int process_msg(
  ***************************************************************************/
 PRIVATE json_t *cmd_help(hgobj gobj, const char *cmd, json_t *kw, hgobj src);
 PRIVATE json_t *cmd_authzs(hgobj gobj, const char *cmd, json_t *kw, hgobj src);
-PRIVATE json_t *cmd_allow_anonymous(hgobj gobj, const char *cmd, json_t *kw, hgobj src);
 
 PRIVATE sdata_desc_t pm_help[] = {
 /*-PM----type-----------name------------flag------------default-----description---------- */
@@ -58,12 +57,6 @@ SDATAPM (DTP_STRING,    "service",      0,              0,          "Service whe
 SDATA_END()
 };
 
-PRIVATE sdata_desc_t pm_allow_anonymous[] = {
-/*-PM----type-----------name------------flag------------default-----description---------- */
-SDATAPM (DTP_BOOLEAN,   "set",          0,              0,          "Allow anonymous: set 1 o 0"),
-SDATA_END()
-};
-
 PRIVATE const char *a_help[] = {"h", "?", 0};
 
 PRIVATE sdata_desc_t command_table[] = {
@@ -72,7 +65,6 @@ SDATACM (DTP_SCHEMA,    "help",             a_help, pm_help,    cmd_help,       
 
 /*-CMD2---type----------name----------------flag----alias---items---------------json_fn-------------description--*/
 SDATACM2 (DTP_SCHEMA,   "authzs",           0,      0,      pm_authzs,          cmd_authzs,         "Authorization's help"),
-SDATACM2 (DTP_SCHEMA,   "allow-anonymous",  0,      0,      pm_allow_anonymous, cmd_allow_anonymous,"Allow anonymous users (don't check user/password of CONNECT mqtt command)"),
 SDATA_END()
 };
 
@@ -87,8 +79,6 @@ SDATA (DTP_STRING,  "mqtt_tenant",      SDF_RD,     "",         "Used for multi-
 
 // TODO a 0 cuando funcionen bien los out schemas
 SDATA (DTP_BOOLEAN, "use_internal_schema",SDF_PERSIST, "1",     "Use internal (hardcoded) schema"),
-
-SDATA (DTP_BOOLEAN, "allow_anonymous",  SDF_PERSIST, "0",       "Boolean value that determines whether clients that connect without providing a username are allowed to connect. If set to TRUE  connections are only allowed from the local machine)."),
 
 SDATA (DTP_INTEGER, "on_critical_error",SDF_RD,     "2",        "LOG_OPT_EXIT_ZERO exit on error (Zero to avoid restart)"),
 SDATA (DTP_POINTER, "subscriber",       0,          0,          "Subscriber of output-events. If it's null then the subscriber is the parent."),
@@ -140,7 +130,6 @@ typedef struct _PRIVATE_DATA {
     char treedb_mqtt_broker_name[80];
     char msg2db_alarms_name[80];
 
-    BOOL allow_anonymous;
     char treedb_name[NAME_MAX];
 
 } PRIVATE_DATA;
@@ -258,7 +247,6 @@ PRIVATE void mt_create(hgobj gobj)
      *  HACK The writable attributes must be repeated in mt_writing method.
      */
     SET_PRIV(timeout,                   gobj_read_integer_attr)
-    SET_PRIV(allow_anonymous,           gobj_read_bool_attr)
 }
 
 /***************************************************************************
@@ -269,7 +257,6 @@ PRIVATE void mt_writing(hgobj gobj, const char *path)
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
     IF_EQ_SET_PRIV(timeout,                 gobj_read_integer_attr)
-    ELIF_EQ_SET_PRIV(allow_anonymous,       gobj_read_bool_attr)
     END_EQ_SET_PRIV()
 }
 
@@ -610,30 +597,6 @@ PRIVATE json_t *cmd_help(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
 PRIVATE json_t *cmd_authzs(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
 {
     return gobj_build_authzs_doc(gobj, cmd, kw);
-}
-
-/***************************************************************************
- *
- ***************************************************************************/
-PRIVATE json_t *cmd_allow_anonymous(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
-{
-    BOOL set = kw_get_bool(gobj, kw, "set", 0, KW_WILD_NUMBER);
-
-    if(set) {
-        gobj_write_bool_attr(gobj, "allow_anonymous", TRUE);
-    } else {
-        gobj_write_bool_attr(gobj, "allow_anonymous", FALSE);
-    }
-    gobj_save_persistent_attrs(gobj, json_string("allow_anonymous"));
-
-    return msg_iev_build_response(
-        gobj,
-        0,
-        json_sprintf("Set allow_anonymous %s", set?"true":"false"),
-        0,
-        0,
-        kw  // owned
-    );
 }
 
 
@@ -1079,9 +1042,13 @@ PRIVATE int ac_on_open(hgobj gobj, const char *event, json_t *kw, hgobj src)
         );
     }
 
-    /*---------------------------------------------*
+    /*--------------------------------------------------------------*
+     *  Create a client, must be checked in upper level.
+     *  This must be done *after* any security checks.
+     *  With assigned_id the id is random!, not a persistent id
      *  MQTT Client ID <==> topic in Timeranger
-     *---------------------------------------------*/
+     *  (HACK client_id is really a device_id)
+     *--------------------------------------------------------------*/
     BOOL clean_start = kw_get_bool(gobj, kw, "clean_start", 0, KW_REQUIRED);
     BOOL will = kw_get_bool(gobj, kw, "will", 0, KW_REQUIRED);
     if(will) {
