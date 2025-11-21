@@ -73,7 +73,6 @@ SDATA_END()
  *---------------------------------------------*/
 PRIVATE sdata_desc_t tattr_desc[] = {
 /*-ATTR-type--------name----------------flag--------default-----description---------- */
-SDATA (DTP_STRING,  "__username__",     SDF_RD,     "",         "Username"),
 SDATA (DTP_STRING,  "mqtt_service",     SDF_RD,     "",         "If mqtt_service is empty then it will be the yuno_role"),
 SDATA (DTP_STRING,  "mqtt_tenant",      SDF_RD,     "",         "Used for multi-tenant service"),
 
@@ -219,15 +218,6 @@ PRIVATE int load_record_callback(
 PRIVATE void mt_create(hgobj gobj)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
-
-    /*----------------------------------------*
-     *      Check user yuneta
-     *----------------------------------------*/
-    gobj_write_str_attr(
-        gobj,
-        "__username__",
-        gobj_read_str_attr(gobj_yuno(), "__username__")
-    );
 
     priv->timer = gobj_create_pure_child(gobj_name(gobj), C_TIMER, 0, gobj);
 

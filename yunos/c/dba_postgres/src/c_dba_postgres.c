@@ -70,8 +70,6 @@ SDATA_END()
  *---------------------------------------------*/
 PRIVATE sdata_desc_t tattr_desc[] = {
 /*-ATTR-type------------name------------flag--------------------default-----description--*/
-// TODO why __username__ here?
-SDATA (DTP_STRING,      "__username__", SDF_RD,                 "",         "Username"),
 SDATA (DTP_STRING,      "filename_mask",SDF_RD|SDF_REQUIRED,    "%Y-%m",    "System organization of tables (file name format, see strftime())"),
 SDATA (DTP_BOOLEAN,     "master",       SDF_RD,                 "1",       "the master is the only that can write"),
 SDATA (DTP_INTEGER,     "xpermission",  SDF_RD,                 "02770",    "Use in creation, default 02770"),
