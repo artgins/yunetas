@@ -4113,12 +4113,11 @@ PRIVATE int handle__connect(hgobj gobj, gbuffer_t *gbuf)
      *      Check user/password
      *---------------------------------------------*/
     int authorization = 0;
-    json_t *kw_auth = json_pack("{s:s, s:s, s:s, s:s, s:s}",
+    json_t *kw_auth = json_pack("{s:s, s:s, s:s, s:s}",
         "client_id", client_id,
         "username", username,
         "password", password,
-        "peername", peername,
-        "dst_service", "treedb_mqtt_broker"
+        "peername", peername
     );
     print_json2("XXX kw_auth", kw_auth); // TODO TEST
 
