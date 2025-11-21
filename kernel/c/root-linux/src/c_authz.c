@@ -149,6 +149,7 @@ PRIVATE json_t *cmd_check_user_passw(hgobj gobj, const char *cmd, json_t *kw, hg
 PRIVATE json_t *cmd_roles(hgobj gobj, const char *cmd, json_t *kw, hgobj src);
 PRIVATE json_t *cmd_user_roles(hgobj gobj, const char *cmd, json_t *kw, hgobj src);
 PRIVATE json_t *cmd_user_authzs(hgobj gobj, const char *cmd, json_t *kw, hgobj src);
+PRIVATE json_t *cmd_set_max_sessions(hgobj gobj, const char *cmd, json_t *kw, hgobj src);
 
 PRIVATE sdata_desc_t pm_help[] = {
 /*-PM----type-----------name------------flag----default-----description---------- */
@@ -240,6 +241,13 @@ SDATAPM (DTP_STRING,    "username",     0,      0,          "Username"),
 SDATA_END()
 };
 
+PRIVATE sdata_desc_t pm_max_sessions[] = {
+/*-PM----type-----------name------------flag----default-----description---------- */
+SDATAPM (DTP_STRING,    "username",     0,      0,          "Username, if empty then set gclass's attribute max_sessions_per_user"),
+SDATAPM (DTP_INTEGER,   "max_sessions", 0,     "1",         "Max sessions"),
+SDATA_END()
+};
+
 PRIVATE const char *a_help[] = {"h", "?", 0};
 PRIVATE const char *a_users[] = {"list-users", 0};
 
@@ -264,6 +272,7 @@ SDATACM2 (DTP_SCHEMA,   "set-user-pwd", SDF_AUTHZ_X,    0,      pm_set_passw,   
 SDATACM2(DTP_SCHEMA,    "roles",        SDF_AUTHZ_X,    0,      pm_roles,       cmd_roles,      "List roles"),
 SDATACM2(DTP_SCHEMA,    "user-roles",   SDF_AUTHZ_X,    0,      pm_user_roles,  cmd_user_roles, "Get roles of user"),
 SDATACM2(DTP_SCHEMA,    "user-authzs",  SDF_AUTHZ_X,    0,      pm_user_authzs, cmd_user_authzs,"Get permissions of user"),
+SDATACM2(DTP_SCHEMA,    "set-max-sessions", SDF_AUTHZ_X,0,      pm_max_sessions, cmd_set_max_sessions,"Set max session per user"),
 SDATA_END()
 };
 
@@ -1078,8 +1087,11 @@ PRIVATE json_t *mt_authenticate(hgobj gobj, json_t *kw, hgobj src)
         0,
         KW_REQUIRED
     );
-    if(max_sessions < 0) {
+    if(max_sessions <= 0) {
         max_sessions = priv->max_sessions_per_user;
+        if(max_sessions <= 0) {
+            max_sessions = 1;
+        }
     }
 
     json_t *sessions = kw_get_dict(gobj, user, "__sessions", 0, KW_REQUIRED);
@@ -1110,8 +1122,10 @@ PRIVATE json_t *mt_authenticate(hgobj gobj, json_t *kw, hgobj src)
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_AUTH,
             "msg",          "%s", "Drop session, max sessions reached",
+            "max_sessions", "%d", max_sessions,
             "username",     "%s", username,
             "service",      "%s", dst_service,
+            "session",      "%j", session,
             NULL
         );
         gobj_send_event(prev_channel_gobj, EV_DROP, 0, gobj);
@@ -2222,6 +2236,34 @@ PRIVATE json_t *cmd_user_authzs(hgobj gobj, const char *cmd, json_t *kw, hgobj s
         0,
         0,
         services_roles,
+        kw  // owned
+    );
+}
+
+/***************************************************************************
+ *
+ ***************************************************************************/
+PRIVATE json_t *cmd_set_max_sessions(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
+{
+    const char *username = kw_get_str(gobj, kw, "username", "", 0);
+    int max_sessions = (int)kw_get_int(gobj, kw, "max_sessions", "1", KW_WILD_NUMBER);
+
+    const char *dst;
+    if(empty_string(username)) {
+        dst = username;
+        gobj_write_integer_attr(gobj, "max_sessions_per_user", max_sessions);
+        gobj_save_persistent_attrs(gobj, 0);
+    } else {
+        // TODO
+        dst = gobj_short_name(gobj);
+    }
+
+    return msg_iev_build_response(
+        gobj,
+        0,
+        json_sprintf("Set max_sessions: %d in %s", max_sessions, dst),
+        0,
+        0,
         kw  // owned
     );
 }
