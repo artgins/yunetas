@@ -903,6 +903,12 @@ PRIVATE json_t *mt_authenticate(hgobj gobj, json_t *kw, hgobj src)
      *  Let it if no treedb
      *------------------------------*/
     if(!priv->gobj_treedb) {
+        /*--------------------------------------*
+         *  HACK save username in src,
+         *  some entry gate like (IEvent_srv)
+         *--------------------------------------*/
+        gobj_write_str_attr(src, "__username__", username);
+
         json_t *jn_resp = json_pack("{s:i, s:s, s:s, s:s}",
             "result", 0,
             "comment", comment,
@@ -918,7 +924,12 @@ PRIVATE json_t *mt_authenticate(hgobj gobj, json_t *kw, hgobj src)
      *      yuneta
      *------------------------------*/
     if(yuneta_by_local_ip) {
-        // TODO add the services_roles???
+        /*--------------------------------------*
+         *  HACK save username in src,
+         *  some entry gate like (IEvent_srv)
+         *--------------------------------------*/
+        gobj_write_str_attr(src, "__username__", username);
+
         json_t *jn_resp = json_pack("{s:i, s:s, s:s, s:s}",
             "result", 0,
             "comment", comment,
@@ -1107,10 +1118,10 @@ PRIVATE json_t *mt_authenticate(hgobj gobj, json_t *kw, hgobj src)
         json_object_del(sessions, k);
     }
 
-    /*------------------------------------------------*
-     *  HACK save username, jwt_payload, session_id
-     *  in src (IEvent_srv)
-     *------------------------------------------------*/
+    /*----------------------------------------------------------------------*
+     *  HACK save username,session_id,jwt_payload in src
+     *  some entry gate like (IEvent_srv)
+     *----------------------------------------------------------------------*/
     gobj_write_str_attr(src, "__username__", username);
     gobj_write_str_attr(src, "__session_id__", session_id);
     if(jwt_payload) {

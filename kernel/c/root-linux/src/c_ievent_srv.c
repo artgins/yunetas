@@ -529,6 +529,11 @@ PRIVATE int ac_on_open(hgobj gobj, const char *event, json_t *kw, hgobj src)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
+    /*-------------------------------*
+     *      Reset "client data"
+     *-------------------------------*/
+    gobj_reset_volatil_attrs(gobj);
+
     /*
      *  Route (channel) open.
      *  Wait Identity card
@@ -582,9 +587,9 @@ PRIVATE int ac_on_close(hgobj gobj, const char *event, json_t *kw, hgobj src)
         gobj_publish_event(gobj, EV_ON_CLOSE, kw_on_close);
     }
 
-    /*----------------------------*
+    /*-------------------------------*
      *      Reset "client data"
-     *----------------------------*/
+     *-------------------------------*/
     gobj_reset_volatil_attrs(gobj);
 
     KW_DECREF(kw)
@@ -742,8 +747,11 @@ PRIVATE int ac_identity_card(hgobj gobj, const char *event, json_t *kw, hgobj sr
      */
     KW_INCREF(kw)
     json_t *jn_resp = gobj_authenticate(gobj_service, kw, gobj);
+
+print_json2("XXX attrs", gobj_read_attrs(gobj, -1, gobj)); // TODO TEST
+
+    const char *comment = kw_get_str(gobj, jn_resp, "comment", "", 0);
     if(kw_get_int(gobj, jn_resp, "result", -1, KW_REQUIRED|KW_CREATE)<0) {
-        const char *comment = kw_get_str(gobj, jn_resp, "comment", "", 0);
         // TODO sacalo: const char *remote_addr = gobj_read_str_attr(get_bottom_gobj(src), "remote-addr");
         // TODO y en el cliente mete la ip de origen
         gobj_log_warning(gobj, 0,
