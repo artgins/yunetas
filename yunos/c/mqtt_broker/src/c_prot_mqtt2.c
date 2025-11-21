@@ -485,16 +485,22 @@ SDATA_END()
  *      Attributes - order affect to oid's
  *---------------------------------------------*/
 PRIVATE sdata_desc_t attrs_table[] = {
-/*-ATTR-type------------name----------------flag------------------------default-description---------- */
-SDATA (DTP_STRING,      "url",              SDF_PERSIST,                "",     "Url to connect"),
-SDATA (DTP_STRING,      "cert_pem",         SDF_PERSIST,                "",     "SSL server certificate, PEM format"),
-SDATA (DTP_BOOLEAN,     "in_session",       SDF_VOLATIL|SDF_STATS,      0,      "CONNECT mqtt done"),
-SDATA (DTP_BOOLEAN,     "send_disconnect",  SDF_VOLATIL,                0,      "send DISCONNECT"),
+/*-ATTR-type------------name----------------flag----------------default-description---------- */
 
-SDATA (DTP_INTEGER,     "timeout_handshake",SDF_PERSIST,                "5000",  "Timeout to handshake"),
-SDATA (DTP_INTEGER,     "timeout_payload",  SDF_PERSIST,                "5000",  "Timeout to payload"),
-SDATA (DTP_INTEGER,     "timeout_close",    SDF_PERSIST,                "3000",  "Timeout to close"),
-SDATA (DTP_INTEGER,     "pingT",            SDF_PERSIST,                "0",    "Ping interval. If value <= 0 then No ping"),
+// HACK set by c_authz, this gclass is an external entry gate!
+SDATA (DTP_STRING,      "__username__",     SDF_VOLATIL,        "",     "Username, WARNING set by c_authz"),
+SDATA (DTP_STRING,      "__session_id__",   SDF_VOLATIL,        "",     "Session ID, WARNING set by c_authz"),
+SDATA (DTP_JSON,        "jwt_payload",      SDF_VOLATIL,        0,      "JWT payload (decoded user data) of authenticated user, WARNING set by c_authz"),
+
+SDATA (DTP_STRING,      "url",              SDF_PERSIST,        "",     "Url to connect"),
+SDATA (DTP_STRING,      "cert_pem",         SDF_PERSIST,        "",     "SSL server certificate, PEM format"),
+SDATA (DTP_BOOLEAN,     "in_session",       SDF_VOLATIL|SDF_STATS,      0,      "CONNECT mqtt done"),
+SDATA (DTP_BOOLEAN,     "send_disconnect",  SDF_VOLATIL,        0,      "send DISCONNECT"),
+
+SDATA (DTP_INTEGER,     "timeout_handshake",SDF_PERSIST,        "5000",  "Timeout to handshake"),
+SDATA (DTP_INTEGER,     "timeout_payload",  SDF_PERSIST,        "5000",  "Timeout to payload"),
+SDATA (DTP_INTEGER,     "timeout_close",    SDF_PERSIST,        "3000",  "Timeout to close"),
+SDATA (DTP_INTEGER,     "pingT",            SDF_PERSIST,        "0",    "Ping interval. If value <= 0 then No ping"),
 
 /*
  *  Configuration
@@ -521,43 +527,36 @@ SDATA (DTP_INTEGER,     "max_topic_alias",  SDF_WR|SDF_PERSIST,         "10",   
 /*
  *  Dynamic Data
  */
-SDATA (DTP_STRING,      "protocol_name",    SDF_VOLATIL,                0,      "Protocol name"),
-SDATA (DTP_INTEGER,     "protocol_version", SDF_VOLATIL,                0,      "Protocol version"),
-SDATA (DTP_BOOLEAN,     "is_bridge",        SDF_VOLATIL,                0,      "Connexion is a bridge"),
-SDATA (DTP_BOOLEAN,     "assigned_id",      SDF_VOLATIL,                0,      "Auto client id"),
-SDATA (DTP_STRING,      "client_id",        SDF_VOLATIL,                0,      "Client id"),
-SDATA (DTP_STRING,      "username",         SDF_VOLATIL,                0,      "Username"),
-SDATA (DTP_STRING,      "password",         SDF_VOLATIL,                0,      "Password"),
+SDATA (DTP_STRING,      "protocol_name",    SDF_VOLATIL,        0,      "Protocol name"),
+SDATA (DTP_INTEGER,     "protocol_version", SDF_VOLATIL,        0,      "Protocol version"),
+SDATA (DTP_BOOLEAN,     "is_bridge",        SDF_VOLATIL,        0,      "Connexion is a bridge"),
+SDATA (DTP_BOOLEAN,     "assigned_id",      SDF_VOLATIL,        0,      "Auto client id"),
+SDATA (DTP_STRING,      "client_id",        SDF_VOLATIL,        0,      "Client id"),
+SDATA (DTP_STRING,      "username",         SDF_VOLATIL,        0,      "Username"),
+SDATA (DTP_STRING,      "password",         SDF_VOLATIL,        0,      "Password"),
 
+SDATA (DTP_BOOLEAN,     "clean_start",      SDF_VOLATIL,        0,      "New session"),
+SDATA (DTP_INTEGER,     "session_expiry_interval",SDF_VOLATIL,  0,      "Session expiry interval in ?"),
+SDATA (DTP_INTEGER,     "keepalive",        SDF_VOLATIL,        0,      "Keepalive in ?"),
+SDATA (DTP_STRING,      "auth_method",      SDF_VOLATIL,        0,      "Auth method"),
+SDATA (DTP_STRING,      "auth_data",        SDF_VOLATIL,        0,      "Auth data (in base64)"),
+SDATA (DTP_INTEGER,     "state",            SDF_VOLATIL,        0,      "State"),
 
+SDATA (DTP_INTEGER,     "msgs_out_inflight_maximum", SDF_VOLATIL,0,     "Connect property"),
+SDATA (DTP_INTEGER,     "msgs_out_inflight_quota", SDF_VOLATIL, 0,      "Connect property"),
+SDATA (DTP_INTEGER,     "maximum_packet_size", SDF_VOLATIL,     0,      "Connect property"),
 
-SDATA (DTP_STRING,      "__username__",         SDF_VOLATIL, "", "Username, WARNING set by c_authz"),
-SDATA (DTP_STRING,      "__session_id__",       SDF_VOLATIL, "", "Session ID, WARNING set by c_authz"),
+SDATA (DTP_BOOLEAN,     "will",             SDF_VOLATIL,        0,      "Will"),
+SDATA (DTP_STRING,      "will_topic",       SDF_VOLATIL,        0,      "Will property"),
+SDATA (DTP_BOOLEAN,     "will_retain",      SDF_VOLATIL,        0,      "Will retain"),
+SDATA (DTP_INTEGER,     "will_qos",         SDF_VOLATIL,        0,      "QoS"),
+SDATA (DTP_INTEGER,     "will_delay_interval", SDF_VOLATIL,     0,      "Will property"),
+SDATA (DTP_INTEGER,     "will_expiry_interval",SDF_VOLATIL,     0,      "Will property"),
 
-
-
-SDATA (DTP_BOOLEAN,     "clean_start",      SDF_VOLATIL,                0,      "New session"),
-SDATA (DTP_INTEGER,     "session_expiry_interval",SDF_VOLATIL,          0,      "Session expiry interval in ?"),
-SDATA (DTP_INTEGER,     "keepalive",        SDF_VOLATIL,                0,      "Keepalive in ?"),
-SDATA (DTP_STRING,      "auth_method",      SDF_VOLATIL,                0,      "Auth method"),
-SDATA (DTP_STRING,      "auth_data",        SDF_VOLATIL,                0,      "Auth data (in base64)"),
-SDATA (DTP_INTEGER,     "state",            SDF_VOLATIL,                0,      "State"),
-
-SDATA (DTP_INTEGER,     "msgs_out_inflight_maximum", SDF_VOLATIL,       0,      "Connect property"),
-SDATA (DTP_INTEGER,     "msgs_out_inflight_quota", SDF_VOLATIL,         0,      "Connect property"),
-SDATA (DTP_INTEGER,     "maximum_packet_size", SDF_VOLATIL,             0,      "Connect property"),
-
-SDATA (DTP_BOOLEAN,     "will",             SDF_VOLATIL,                0,      "Will"),
-SDATA (DTP_STRING,      "will_topic",       SDF_VOLATIL,                0,      "Will property"),
-SDATA (DTP_BOOLEAN,     "will_retain",      SDF_VOLATIL,                0,      "Will retain"),
-SDATA (DTP_INTEGER,     "will_qos",         SDF_VOLATIL,                0,      "QoS"),
-SDATA (DTP_INTEGER,     "will_delay_interval", SDF_VOLATIL,             0,      "Will property"),
-SDATA (DTP_INTEGER,     "will_expiry_interval",SDF_VOLATIL,             0,      "Will property"),
-
-SDATA (DTP_POINTER,     "user_data",        0,                          0,      "user data"),
-SDATA (DTP_POINTER,     "user_data2",       0,                          0,      "more user data"),
-SDATA (DTP_BOOLEAN,     "iamServer",        SDF_RD,                     0,      "What side? server or client"),
-SDATA (DTP_POINTER,     "subscriber",       0,                          0,      "subscriber of output-events. Default if null is parent."),
+SDATA (DTP_POINTER,     "user_data",        0,                  0,      "user data"),
+SDATA (DTP_POINTER,     "user_data2",       0,                  0,      "more user data"),
+SDATA (DTP_BOOLEAN,     "iamServer",        SDF_RD,             0,      "What side? server or client"),
+SDATA (DTP_POINTER,     "subscriber",       0,                  0,      "subscriber of output-events. Default if null is parent."),
 SDATA_END()
 };
 
@@ -5051,10 +5050,11 @@ PRIVATE int ac_disconnected(hgobj gobj, const char *event, json_t *kw, hgobj src
     if(priv->inform_on_close) {
         priv->inform_on_close = FALSE;
 
-        json_t *kw2 = json_pack("{s:s, s:s}",
-            "__username__", gobj_read_str_attr(gobj, "__username__"),
-            "__session_id__", gobj_read_str_attr(gobj, "__session_id__")
-        );
+        // json_t *kw2 = json_pack("{s:s, s:s}",
+        //     "__username__", gobj_read_str_attr(gobj, "__username__"),
+        //     "__session_id__", gobj_read_str_attr(gobj, "__session_id__")
+        // );
+        json_t *kw2 = json_object();
         gobj_publish_event(gobj, EV_ON_CLOSE, kw2);
     }
 

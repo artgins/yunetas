@@ -50,20 +50,19 @@ PRIVATE json_t *build_srv_ievent_request(
  *      Attributes - order affect to oid's
  *---------------------------------------------*/
 PRIVATE sdata_desc_t attrs_table[] = {
+/*-ATTR-type------------name--------------------flag---------default-description---------- */
+
+// HACK set by c_authz, this gclass is an external entry gate!
+SDATA (DTP_STRING,      "__username__",         SDF_VOLATIL, "", "Username, WARNING set by c_authz"),
+SDATA (DTP_STRING,      "__session_id__",       SDF_VOLATIL, "", "Session ID, WARNING set by c_authz"),
+SDATA (DTP_JSON,        "jwt_payload",          SDF_VOLATIL, 0, "JWT payload (decoded user data) of authenticated user, WARNING set by c_authz"),
+
 SDATA (DTP_STRING,      "client_yuno_role",     SDF_VOLATIL, 0, "yuno role of connected client"),
 SDATA (DTP_STRING,      "client_yuno_name",     SDF_VOLATIL, 0, "yuno name of connected client"),
 SDATA (DTP_STRING,      "client_yuno_service",  SDF_VOLATIL, 0, "yuno service of connected client"),
-
 SDATA (DTP_STRING,      "this_service",         SDF_VOLATIL, 0, "dst_service at identity_card"),
 SDATA (DTP_POINTER,     "gobj_service",         SDF_VOLATIL, 0, "gobj of identity_card dst_service"),
-
 SDATA (DTP_BOOLEAN,     "authenticated",        SDF_VOLATIL, 0, "True if entry was authenticated"),
-
-// HACK set by c_authz
-SDATA (DTP_JSON,        "jwt_payload",          SDF_VOLATIL, 0, "JWT payload (decoded user data) of authenticated user, WARNING set by c_authz"),
-SDATA (DTP_STRING,      "__username__",         SDF_VOLATIL, "", "Username, WARNING set by c_authz"),
-SDATA (DTP_STRING,      "__session_id__",       SDF_VOLATIL, "", "Session ID, WARNING set by c_authz"),
-
 SDATA (DTP_JSON,        "identity_card",        SDF_VOLATIL, "", "Identity Card of clisrv"),
 
 // TODO available_services for this gate
@@ -573,11 +572,10 @@ PRIVATE int ac_on_close(hgobj gobj, const char *event, json_t *kw, hgobj src)
      */
     if(priv->inform_on_close) {
         priv->inform_on_close = FALSE;
-        json_t *kw_on_close = json_pack("{s:s, s:s, s:s, s:s}",
+        json_t *kw_on_close = json_pack("{s:s, s:s, s:s}",
             "client_yuno_name", gobj_read_str_attr(gobj, "client_yuno_name"),
             "client_yuno_role", gobj_read_str_attr(gobj, "client_yuno_role"),
-            "client_yuno_service", gobj_read_str_attr(gobj, "client_yuno_service"),
-            "__username__", gobj_read_str_attr(gobj, "__username__")
+            "client_yuno_service", gobj_read_str_attr(gobj, "client_yuno_service")
         );
         json_object_update_missing(kw_on_close, kw);
 
