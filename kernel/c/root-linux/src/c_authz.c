@@ -3830,9 +3830,6 @@ PUBLIC BOOL authz_checker(hgobj gobj_to_check, const char *authz, json_t *kw, hg
         kw // not owned
     );
 
-trace_msg0("username: %s, service: %s", __username__, gobj_name(gobj_to_check));
-print_json2("XXX user_authzs", user_authzs); // TODO TEST
-
     BOOL allow = FALSE;
     const char *authz_; json_t *jn_allow;
     json_object_foreach(user_authzs, authz_, jn_allow) {
@@ -3843,8 +3840,9 @@ print_json2("XXX user_authzs", user_authzs); // TODO TEST
     }
 
     if(gobj_trace_level(gobj) & TRACE_MESSAGES) {
-        gobj_trace_json(gobj, user_authzs, "user '%s', authz '%s', allow -> %s",
+        gobj_trace_json(gobj, user_authzs, "user '%s', service: '%s', authz '%s', allow -> %s",
             __username__,
+            gobj_short_name(gobj_to_check),
             authz,
             allow?"YES":"NO"
         );

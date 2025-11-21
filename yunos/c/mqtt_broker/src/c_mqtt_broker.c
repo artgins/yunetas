@@ -30,8 +30,8 @@
 /***************************************************************************
  *              Prototypes
  ***************************************************************************/
-PRIVATE int open_devices_tracks(hgobj gobj);
-PRIVATE int close_devices_tracks(hgobj gobj);
+PRIVATE int open_devices_qmsgs(hgobj gobj);
+PRIVATE int close_devices_qmsgs(hgobj gobj);
 PRIVATE int process_msg(
     hgobj gobj,
     json_t *kw,  // NOT owned
@@ -118,9 +118,9 @@ typedef struct _PRIVATE_DATA {
     hgobj gobj_input_side;
     hgobj gobj_top_side;
 
-    hgobj gobj_tranger_tracks;
-    json_t *tranger_tracks;
-    json_t *realtime_tracks;
+    hgobj gobj_tranger_qmsgs;
+    json_t *tranger_qmsgs;
+    json_t *realtime_qmsgs;
     json_t *track_list;
 
     hgobj gobj_treedbs;
@@ -344,9 +344,9 @@ PRIVATE int mt_play(hgobj gobj)
     gobj_subscribe_event(priv->gobj_treedbs, 0, 0, gobj);
     gobj_start_tree(priv->gobj_treedbs);
 
-    /*---------------------------------------*
+    /*-------------------------------------------*
      *      Open treedb_mqtt_broker service
-     *---------------------------------------*/
+     *-------------------------------------------*/
     helper_quote2doublequote(treedb_schema_mqtt_broker);
     json_t *jn_treedb_schema_mqtt_broker = legalstring2json(treedb_schema_mqtt_broker, TRUE);
     if(parse_schema(jn_treedb_schema_mqtt_broker)<0) {
@@ -438,9 +438,9 @@ PRIVATE int mt_play(hgobj gobj)
         "persistent"
     );
 
-    /*----------------------------*
-     *  Open Tracks Timeranger
-     *----------------------------*/
+    /*---------------------------------------*
+     *      Open qmsgs Timeranger
+     *---------------------------------------*/
     yuneta_realm_store_dir(
         path,
         sizeof(path),
@@ -448,24 +448,24 @@ PRIVATE int mt_play(hgobj gobj)
         gobj_yuno_realm_owner(),
         gobj_yuno_realm_id(),
         mqtt_tenant,  // tenant
-        "tracks",
+        "qmsgs",
         TRUE
     );
 
-    json_t *kw_tranger_tracks = json_pack("{s:s, s:b, s:i}",
+    json_t *kw_tranger_qmsgs = json_pack("{s:s, s:b, s:i}",
         "path", path,
         "master", 1,
         "on_critical_error", (int)(LOG_OPT_EXIT_ZERO)
     );
-    priv->gobj_tranger_tracks = gobj_create_service(
-        "tranger_tracks",
+    priv->gobj_tranger_qmsgs = gobj_create_service(
+        "tranger_qmsgs",
         C_TRANGER,
-        kw_tranger_tracks,
+        kw_tranger_qmsgs,
         gobj
     );
-    gobj_start(priv->gobj_tranger_tracks);
+    gobj_start(priv->gobj_tranger_qmsgs);
 
-    priv->tranger_tracks = gobj_read_pointer_attr(priv->gobj_tranger_tracks, "tranger");
+    priv->tranger_qmsgs = gobj_read_pointer_attr(priv->gobj_tranger_qmsgs, "tranger");
 
     /*-------------------------*
      *      Start services
@@ -479,9 +479,9 @@ PRIVATE int mt_play(hgobj gobj)
     gobj_start_tree(priv->gobj_top_side);
 
     /*--------------------------------*
-     *  Open device tracks
+     *  Open device qmsgs
      *--------------------------------*/
-    //open_devices_tracks(gobj);
+    //open_devices_qmsgs(gobj);
 
     /*
      *  Periodic timer for tasks
@@ -490,7 +490,7 @@ PRIVATE int mt_play(hgobj gobj)
 
     // TODO
     // priv->trq_msgs = trq_open(
-    //     priv->tranger,
+    //     priv->tranger_qmsgs,
     //     topic_name,
     //     gobj_read_str_attr(gobj, "tkey"),
     //     tranger2_str2system_flag(gobj_read_str_attr(gobj, "system_flag")),
@@ -510,9 +510,9 @@ PRIVATE int mt_pause(hgobj gobj)
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
     /*---------------------------------*
-     *  Close device tracks
+     *  Close device qmsgs
      *---------------------------------*/
-    //close_devices_tracks(gobj);
+    //close_devices_qmsgs(gobj);
 
     /*---------------------------------------*
      *      Close Msg2db Alarms
@@ -543,11 +543,11 @@ PRIVATE int mt_pause(hgobj gobj)
     }
 
     /*-------------------------*
-     *  Stop tranger_tracks
+     *  Stop tranger_qmsgs
      *-------------------------*/
-    gobj_stop(priv->gobj_tranger_tracks);
-    EXEC_AND_RESET(gobj_destroy, priv->gobj_tranger_tracks)
-    priv->tranger_tracks = 0;
+    gobj_stop(priv->gobj_tranger_qmsgs);
+    EXEC_AND_RESET(gobj_destroy, priv->gobj_tranger_qmsgs)
+    priv->tranger_qmsgs = 0;
 
     /*-----------------------------*
      *      Stop top/input side
@@ -612,7 +612,7 @@ PRIVATE json_t *cmd_authzs(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
 /***************************************************************************
  *
  ***************************************************************************/
-PRIVATE int open_devices_tracks(hgobj gobj)
+PRIVATE int open_devices_qmsgs(hgobj gobj)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
@@ -623,9 +623,9 @@ PRIVATE int open_devices_tracks(hgobj gobj)
         "load_record_callback", (json_int_t)(size_t)load_record_callback
     );
 
-    priv->realtime_tracks = tranger2_open_list( // TODO esto puede tardar mucho
-        priv->tranger_tracks,
-        "raw_tracks",
+    priv->realtime_qmsgs = tranger2_open_list( // TODO esto puede tardar mucho
+        priv->tranger_qmsgs,
+        "raw_qmsgs",
         match_cond,     // owned
         json_pack("{s:I}",   // extra
             "gobj", (json_int_t)(size_t)gobj
@@ -634,21 +634,21 @@ PRIVATE int open_devices_tracks(hgobj gobj)
         TRUE,   // rt_by_disk
         ""      // creator
     );
-    if(!priv->realtime_tracks) {
+    if(!priv->realtime_qmsgs) {
         gobj_log_error(gobj, 0,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_TREEDB_ERROR,
             "msg",          "%s", "tranger2_open_list() failed",
-            "topic_name",   "%s", "raw_tracks",
+            "topic_name",   "%s", "raw_qmsgs",
             NULL
         );
     }
 
     priv->track_list = trmsg_open_list(
-        priv->tranger_tracks,
-        "raw_tracks",  // topic
+        priv->tranger_qmsgs,
+        "raw_qmsgs",  // topic
         json_pack("{s:i, s:i, s:i}",  // match_cond
-            "max_key_instances", 20,    /* sync with max_chart_tracks in ui_device_sonda.js */
+            "max_key_instances", 20,    /* sync with max_chart_qmsgs in ui_device_sonda.js */
             "from_rowid", -30,
             "to_rowid", 0
         ),
@@ -662,7 +662,7 @@ PRIVATE int open_devices_tracks(hgobj gobj)
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_TREEDB_ERROR,
             "msg",          "%s", "trmsg_open_list() failed",
-            "topic_name",   "%s", "raw_tracks",
+            "topic_name",   "%s", "raw_qmsgs",
             NULL
         );
     }
@@ -673,20 +673,20 @@ PRIVATE int open_devices_tracks(hgobj gobj)
 /***************************************************************************
  *
  ***************************************************************************/
-PRIVATE int close_devices_tracks(hgobj gobj)
+PRIVATE int close_devices_qmsgs(hgobj gobj)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
-    if(priv->realtime_tracks) {
+    if(priv->realtime_qmsgs) {
         tranger2_close_list(
-            priv->tranger_tracks,
-            priv->realtime_tracks
+            priv->tranger_qmsgs,
+            priv->realtime_qmsgs
         );
-        priv->realtime_tracks = 0;
+        priv->realtime_qmsgs = 0;
     }
 
     if(priv->track_list) {
-        trmsg_close_list(priv->tranger_tracks, priv->track_list);
+        trmsg_close_list(priv->tranger_qmsgs, priv->track_list);
         priv->track_list = 0;
     }
 
@@ -1065,7 +1065,7 @@ PRIVATE int ac_on_open(hgobj gobj, const char *event, json_t *kw, hgobj src)
      *  Open the topic (client_id) or create it if it doesn't exist
      *----------------------------------------------------------------*/
     json_t *jn_response = gobj_command(
-        priv->gobj_tranger_tracks,
+        priv->gobj_tranger_qmsgs,
         "open-topic",
         json_pack("{s:s, s:s}",
             "topic_name", client_id,
@@ -1078,7 +1078,7 @@ PRIVATE int ac_on_open(hgobj gobj, const char *event, json_t *kw, hgobj src)
     if(result < 0) {
         JSON_DECREF(jn_response)
         jn_response = gobj_command(
-            priv->gobj_tranger_tracks,
+            priv->gobj_tranger_qmsgs,
             "create-topic", // idempotent function
             json_pack("{s:s, s:s}",
                 "topic_name", client_id,
