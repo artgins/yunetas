@@ -390,7 +390,7 @@ PRIVATE json_t *mt_treedbs(
         return msg_iev_build_response(
             gobj,
             -1,
-            json_sprintf("No permission to '%s'", permission),
+            json_sprintf("No permission to '%s' in service '%s'", permission, gobj_name(gobj)),
             0,
             0,
             kw  // owned
@@ -466,7 +466,7 @@ PRIVATE json_t *cmd_open_treedb(hgobj gobj, const char *cmd, json_t *kw, hgobj s
         return msg_iev_build_response(
             gobj,
             -403,
-            json_sprintf("No permission to '%s'", permission),
+            json_sprintf("No permission to '%s' in service '%s'", permission, gobj_name(gobj)),
             0,
             0,
             kw  // owned
@@ -620,7 +620,7 @@ PRIVATE json_t *cmd_close_treedb(hgobj gobj, const char *cmd, json_t *kw, hgobj 
         return msg_iev_build_response(
             gobj,
             -403,
-            json_sprintf("No permission to '%s'", permission),
+            json_sprintf("No permission to '%s' in service '%s'", permission, gobj_name(gobj)),
             0,
             0,
             kw  // owned
@@ -689,7 +689,7 @@ PRIVATE json_t *cmd_delete_treedb(hgobj gobj, const char *cmd, json_t *kw, hgobj
         return msg_iev_build_response(
             gobj,
             -403,
-            json_sprintf("No permission to '%s'", permission),
+            json_sprintf("No permission to '%s' in service '%s'", permission, gobj_name(gobj)),
             0,
             0,
             kw  // owned
@@ -751,7 +751,7 @@ PRIVATE json_t *cmd_create_topic(hgobj gobj, const char *cmd, json_t *kw, hgobj 
         return msg_iev_build_response(
             gobj,
             -403,
-            json_sprintf("No permission to '%s'", permission),
+            json_sprintf("No permission to '%s' in service '%s'", permission, gobj_name(gobj)),
             0,
             0,
             kw  // owned
@@ -809,7 +809,7 @@ PRIVATE json_t *cmd_delete_topic(hgobj gobj, const char *cmd, json_t *kw, hgobj 
         return msg_iev_build_response(
             gobj,
             -403,
-            json_sprintf("No permission to '%s'", permission),
+            json_sprintf("No permission to '%s' in service '%s'", permission, gobj_name(gobj)),
             0,
             0,
             kw  // owned

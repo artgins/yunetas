@@ -6310,7 +6310,7 @@ PRIVATE json_t *cmd_list_consoles(hgobj gobj, const char *cmd, json_t *kw, hgobj
         return msg_iev_build_response(
             gobj,
             -1,
-            json_sprintf("No permission to '%s'", permission),
+            json_sprintf("No permission to '%s' in service '%s'", permission, gobj_name(gobj)),
             0,
             0,
             kw  // owned
@@ -6388,7 +6388,7 @@ PRIVATE json_t *cmd_open_console(hgobj gobj, const char *cmd, json_t *kw, hgobj 
         return msg_iev_build_response(
             gobj,
             -1,
-            json_sprintf("No permission to '%s'", permission),
+            json_sprintf("No permission to '%s' in service '%s'", permission, gobj_name(gobj)),
             0,
             0,
             kw  // owned
@@ -6554,7 +6554,7 @@ PRIVATE json_t *cmd_close_console(hgobj gobj, const char *cmd, json_t *kw, hgobj
         return msg_iev_build_response(
             gobj,
             -1,
-            json_sprintf("No permission to '%s'", permission),
+            json_sprintf("No permission to '%s' in service '%s'", permission, gobj_name(gobj)),
             0,
             0,
             kw  // owned

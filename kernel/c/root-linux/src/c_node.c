@@ -1916,7 +1916,7 @@ PRIVATE json_t *cmd_create_node(hgobj gobj, const char *cmd, json_t *kw, hgobj s
         return msg_iev_build_response(
             gobj,
             -403,
-            json_sprintf("No permission to '%s'", permission),
+            json_sprintf("No permission to '%s' in service '%s'", permission, gobj_name(gobj)),
             0,
             0,
             kw  // owned
@@ -2010,7 +2010,7 @@ PRIVATE json_t *cmd_update_node(hgobj gobj, const char *cmd, json_t *kw, hgobj s
         return msg_iev_build_response(
             gobj,
             -403,
-            json_sprintf("No permission to '%s'", permission),
+            json_sprintf("No permission to '%s' in service '%s'", permission, gobj_name(gobj)),
             0,
             0,
             kw  // owned
@@ -2073,7 +2073,7 @@ PRIVATE json_t *cmd_delete_node(hgobj gobj, const char *cmd, json_t *kw, hgobj s
         return msg_iev_build_response(
             gobj,
             -403,
-            json_sprintf("No permission to '%s'", permission),
+            json_sprintf("No permission to '%s' in service '%s'", permission, gobj_name(gobj)),
             0,
             0,
             kw  // owned
@@ -2800,7 +2800,7 @@ PRIVATE json_t *cmd_list_nodes(hgobj gobj, const char *cmd, json_t *kw, hgobj sr
         return msg_iev_build_response(
             gobj,
             -403,
-            json_sprintf("No permission to '%s'", permission),
+            json_sprintf("No permission to '%s' in service '%s'", permission, gobj_name(gobj)),
             0,
             0,
             kw  // owned
