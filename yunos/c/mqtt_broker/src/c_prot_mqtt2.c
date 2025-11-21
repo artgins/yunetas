@@ -4122,15 +4122,15 @@ PRIVATE int handle__connect(hgobj gobj, gbuffer_t *gbuf)
     );
     print_json2("XXX kw_auth", kw_auth); // TODO TEST
 
-    json_t *auth = gobj_authenticate(gobj, kw_auth, src);
+    json_t *auth = gobj_authenticate(gobj, kw_auth, gobj);
     authorization = COMMAND_RESULT(gobj, auth);
     print_json2("XXX authenticated", auth); // TODO TEST
     JSON_DECREF(auth)
 
-    if(authorization < 0) {
-        KW_DECREF(kw);
-        return authorization;
-    }
+    // if(authorization < 0) {
+    //     KW_DECREF(kw);
+    //     return authorization;
+    // }
 
     /*-------------------------*
      *  Do authentication

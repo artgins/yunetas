@@ -116,7 +116,7 @@ static int register_yuno_and_more(void)
     gobj_set_global_no_trace("timer_periodic", TRUE);
 
     // Samples of traces
-    // gobj_set_gclass_trace(gclass_find_by_name(C_IEVENT_SRV), "identity-card", TRUE);
+    gobj_set_gclass_trace(gclass_find_by_name(C_IEVENT_SRV), "identity-card", TRUE);
     // gobj_set_gclass_trace(gclass_find_by_name(C_IEVENT_CLI), "identity-card", TRUE);
 
     // gobj_set_gclass_trace(gclass_find_by_name(C_TCP), "traffic", TRUE);
