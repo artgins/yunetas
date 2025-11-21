@@ -899,6 +899,7 @@ SDATA_END()
  *---------------------------------------------*/
 PRIVATE sdata_desc_t tattr_desc[] = {
 /*-ATTR-type------------name----------------flag----------------default---------description---------- */
+SDATA (DTP_STRING,      "__username__",     SDF_RD,             "",             "Username 'yuneta', permission for all"),
 SDATA (DTP_STRING,      "startup_command",  SDF_RD,             0,              "Command to execute at startup"),
 SDATA (DTP_JSON,        "agent_environment",SDF_RD,             0,              "Agent environment. Override the yuno environment"),
 SDATA (DTP_JSON,        "node_variables",   SDF_RD,             0,              "Global to Node json config variables"),
@@ -1012,6 +1013,15 @@ PRIVATE void mt_create(hgobj gobj)
         );
         print_error(0, "yuneta_agent: node_owner EMPTY, setting none");
     }
+
+    /*----------------------------------------*
+     *      Check user yuneta
+     *----------------------------------------*/
+    gobj_write_str_attr(
+        gobj,
+        "__username__",
+        gobj_read_str_attr(gobj_yuno(), "__username__")
+    );
 
     /*---------------------------------------*
      *      Create timer to start yunos

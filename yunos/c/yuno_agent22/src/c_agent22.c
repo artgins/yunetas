@@ -119,6 +119,7 @@ SDATA_END()
  *---------------------------------------------*/
 PRIVATE sdata_desc_t tattr_desc[] = {
 /*-ATTR-type------------name----------------flag----------------default---------description---------- */
+SDATA (DTP_STRING,      "__username__",     SDF_RD,             "",             "Username 'yuneta', permission for all"),
 SDATA (DTP_INTEGER,     "max_consoles",     SDF_WR,             "30",           "Maximum consoles opened"),
 SDATA (DTP_POINTER,     "user_data",        0,                  0,              "User data"),
 SDATA (DTP_POINTER,     "user_data2",       0,                  0,              "More user data"),
@@ -198,6 +199,15 @@ PRIVATE void mt_create(hgobj gobj)
         print_error(0, "yuneta_agent22: node_owner EMPTY, exiting");
         exit(0);
     }
+
+    /*----------------------------------------*
+     *      Check user yuneta
+     *----------------------------------------*/
+    gobj_write_str_attr(
+        gobj,
+        "__username__",
+        gobj_read_str_attr(gobj_yuno(), "__username__")
+    );
 
     /*---------------------------------------*
      *      Check if already running
