@@ -42,8 +42,10 @@
             │                 roles [↖] │ ──┘n
             │                           │
             │  disabled                 │
-            │  properties               │
+            │  max_sessions             │
             │  time                     │
+            │  credentials              │
+            │  properties               │
             │                           │
             │  __sessions               │
             │  _geometry                │
@@ -56,7 +58,7 @@
 static char treedb_schema_authzs[]= "\
 {                                                                   \n\
     'id': 'treedb_authzs',                                          \n\
-    'schema_version': '16',                                         \n\
+    'schema_version': '17',                                         \n\
     'topics': [                                                     \n\
         {                                                           \n\
             'id': 'roles',                                          \n\
@@ -190,7 +192,7 @@ static char treedb_schema_authzs[]= "\
             'id': 'users',                                          \n\
             'pkey': 'id',                                           \n\
             'system_flag': 'sf_string_key',                         \n\
-            'topic_version': '10',                                   \n\
+            'topic_version': '11',                                  \n\
             'cols': {                                               \n\
                 'id': {                                             \n\
                     'header': 'User',                               \n\
@@ -223,7 +225,7 @@ static char treedb_schema_authzs[]= "\
                     'header': 'Max Sessions',                       \n\
                     'fillspace': 4,                                 \n\
                     'type': 'integer',                              \n\
-                    'default': 1,                                   \n\
+                    'default': 0,                                   \n\
                     'flag': [                                       \n\
                         'writable',                                 \n\
                         'persistent'                                \n\
