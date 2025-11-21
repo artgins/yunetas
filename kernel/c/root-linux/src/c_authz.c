@@ -244,7 +244,7 @@ SDATA_END()
 PRIVATE sdata_desc_t pm_max_sessions[] = {
 /*-PM----type-----------name------------flag----default-----description---------- */
 SDATAPM (DTP_STRING,    "username",     0,      0,          "Username, if empty then set gclass's attribute max_sessions_per_user"),
-SDATAPM (DTP_INTEGER,   "max_sessions", 0,     "1",         "Max sessions"),
+SDATAPM (DTP_INTEGER,   "max_sessions", 0,     "0",         "Max sessions"),
 SDATA_END()
 };
 
@@ -296,7 +296,7 @@ SDATA (DTP_STRING,  "authz_yuno_role",  SDF_RD,     "",         "If tranger_path
 SDATA (DTP_STRING,  "authz_tenant",     SDF_RD,     "",         "Used for multi-tenant service"),
 SDATA (DTP_BOOLEAN, "master",           SDF_RD,     "0",        "the master is the only that can write, if tranger_path is empty is set to TRUE internally"),
 
-SDATA (DTP_INTEGER, "max_sessions_per_user",SDF_PERSIST,    "1",        "Max sessions per user"),
+SDATA (DTP_INTEGER, "max_sessions_per_user",SDF_PERSIST,    "0",        "Max sessions per user (0 no limit)"),
 SDATA (DTP_JSON,    "jwks",                 SDF_WR|SDF_PERSIST, "[]",   "JWKS public keys, OLD jwt_public_keys, use the utility keycloak_pkey_to_jwks to create."),
 SDATA (DTP_JSON,    "initial_load",         SDF_RD,         "{}",       "Initial data for treedb"),
 
@@ -1084,14 +1084,11 @@ PRIVATE json_t *mt_authenticate(hgobj gobj, json_t *kw, hgobj src)
         gobj,
         user,
         "max_sessions",
-        0,
+        -1,
         KW_REQUIRED
     );
     if(max_sessions <= 0) {
         max_sessions = priv->max_sessions_per_user;
-        if(max_sessions <= 0) {
-            max_sessions = 1;
-        }
     }
 
     json_t *sessions = kw_get_dict(gobj, user, "__sessions", 0, KW_REQUIRED);
@@ -1105,31 +1102,34 @@ PRIVATE json_t *mt_authenticate(hgobj gobj, json_t *kw, hgobj src)
             NULL
         );
     }
+
     json_t *session;
-    void *n; const char *k;
-    json_object_foreach_safe(sessions, n, k, session) {
-        if(json_object_size(sessions) < max_sessions) {
-            break;
+    if(max_sessions > 0) {
+        void *n; const char *k;
+        json_object_foreach_safe(sessions, n, k, session) {
+            if(json_object_size(sessions) < max_sessions) {
+                break;
+            }
+            /*-------------------------------*
+             *  Check max sessions allowed
+             *  Drop the old sessions
+             *-------------------------------*/
+            hgobj prev_channel_gobj = (hgobj)(uintptr_t)kw_get_int(
+                gobj, session, "channel_gobj", 0, KW_REQUIRED
+            );
+            gobj_log_warning(gobj, 0,
+                "function",     "%s", __FUNCTION__,
+                "msgset",       "%s", MSGSET_AUTH,
+                "msg",          "%s", "Drop session, max sessions reached",
+                "max_sessions", "%d", max_sessions,
+                "username",     "%s", username,
+                "service",      "%s", dst_service,
+                "session",      "%j", session,
+                NULL
+            );
+            gobj_send_event(prev_channel_gobj, EV_DROP, 0, gobj);
+            json_object_del(sessions, k);
         }
-        /*-------------------------------*
-         *  Check max sessions allowed
-         *  Drop the old sessions
-         *-------------------------------*/
-        hgobj prev_channel_gobj = (hgobj)(uintptr_t)kw_get_int(
-            gobj, session, "channel_gobj", 0, KW_REQUIRED
-        );
-        gobj_log_warning(gobj, 0,
-            "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_AUTH,
-            "msg",          "%s", "Drop session, max sessions reached",
-            "max_sessions", "%d", max_sessions,
-            "username",     "%s", username,
-            "service",      "%s", dst_service,
-            "session",      "%j", session,
-            NULL
-        );
-        gobj_send_event(prev_channel_gobj, EV_DROP, 0, gobj);
-        json_object_del(sessions, k);
     }
 
     /*----------------------------------------------------------------------*
@@ -2246,7 +2246,7 @@ PRIVATE json_t *cmd_user_authzs(hgobj gobj, const char *cmd, json_t *kw, hgobj s
 PRIVATE json_t *cmd_set_max_sessions(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
 {
     const char *username = kw_get_str(gobj, kw, "username", "", 0);
-    int max_sessions = (int)kw_get_int(gobj, kw, "max_sessions", "1", KW_WILD_NUMBER);
+    int max_sessions = (int)kw_get_int(gobj, kw, "max_sessions", 0, KW_WILD_NUMBER);
 
     const char *dst;
     if(empty_string(username)) {
