@@ -387,21 +387,21 @@ int main(int argc, char *argv[])
         json_t *kw_utility = json_pack(
             "{s:{s:b, s:s, s:i, s:i, s:s, s:s, s:s, s:s, s:s, s:s, s:s, s:s, s:s, s:s, s:b}}",
             "global",
-            "C_YCOMMAND.verbose", arguments.verbose,
-            "C_YCOMMAND.command", arguments.command,
-            "C_YCOMMAND.interactive", arguments.interactive,
-            "C_YCOMMAND.wait", arguments.wait,
-            "C_YCOMMAND.auth_system", arguments.auth_system,
-            "C_YCOMMAND.auth_url", arguments.auth_url,
-            "C_YCOMMAND.user_id", arguments.user_id,
-            "C_YCOMMAND.user_passw", arguments.user_passw,
-            "C_YCOMMAND.jwt", arguments.jwt,
-            "C_YCOMMAND.url", arguments.url,
-            "C_YCOMMAND.azp", arguments.azp,
-            "C_YCOMMAND.yuno_role", arguments.yuno_role,
-            "C_YCOMMAND.yuno_name", arguments.yuno_name,
-            "C_YCOMMAND.yuno_service", arguments.yuno_service,
-            "C_YCOMMAND.print_with_metadata", arguments.print_with_metadata
+            "C_MQTT_CLIENT.verbose", arguments.verbose,
+            "C_MQTT_CLIENT.command", arguments.command,
+            "C_MQTT_CLIENT.interactive", arguments.interactive,
+            "C_MQTT_CLIENT.wait", arguments.wait,
+            "C_MQTT_CLIENT.auth_system", arguments.auth_system,
+            "C_MQTT_CLIENT.auth_url", arguments.auth_url,
+            "C_MQTT_CLIENT.user_id", arguments.user_id,
+            "C_MQTT_CLIENT.user_passw", arguments.user_passw,
+            "C_MQTT_CLIENT.jwt", arguments.jwt,
+            "C_MQTT_CLIENT.url", arguments.url,
+            "C_MQTT_CLIENT.azp", arguments.azp,
+            "C_MQTT_CLIENT.yuno_role", arguments.yuno_role,
+            "C_MQTT_CLIENT.yuno_name", arguments.yuno_name,
+            "C_MQTT_CLIENT.yuno_service", arguments.yuno_service,
+            "C_MQTT_CLIENT.print_with_metadata", arguments.print_with_metadata
         );
 
         char *param1_ = json_dumps(kw_utility, JSON_COMPACT);
@@ -451,7 +451,7 @@ int main(int argc, char *argv[])
     snprintf(my_variable_config, sizeof(my_variable_config), variable_config, log_handler_options);
 
     helper_quote2doublequote(fixed_config);
-    helper_quote2doublequote(variable_config);
+    helper_quote2doublequote(my_variable_config);
     yuneta_setup(
         NULL,       // persistent_attrs, default internal dbsimple
         NULL,       // command_parser, default internal command_parser
@@ -465,10 +465,10 @@ int main(int argc, char *argv[])
         MEM_SUPERBLOCK
     );
     return yuneta_entry_point(
-        argc, argv,
+        idx, argvs,
         APP_NAME, APP_VERSION, APP_SUPPORT, APP_DOC, APP_DATETIME,
         fixed_config,
-        variable_config,
+        my_variable_config,
         register_yuno_and_more,
         NULL
     );

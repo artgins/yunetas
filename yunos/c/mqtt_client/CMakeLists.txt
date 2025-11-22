@@ -58,6 +58,9 @@ target_link_libraries(${PROJECT_NAME}
     ${OPENSSL_LIBS}
     ${MBEDTLS_LIBS}
     ${DEBUG_LIBS}
+    libyunetas-c_console.a
+    panel.a
+    ncurses.a
 )
 
 ##############################################
@@ -69,8 +72,9 @@ install(
     OWNER_READ OWNER_WRITE OWNER_EXECUTE
     GROUP_READ GROUP_WRITE GROUP_EXECUTE
     WORLD_READ WORLD_EXECUTE
-    DESTINATION ${YUNOS_DEST_DIR}
+    DESTINATION "/yuneta/bin"
 )
+
 
 # compile in Release mode :
 #
