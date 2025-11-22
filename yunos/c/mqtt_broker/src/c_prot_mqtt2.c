@@ -532,8 +532,6 @@ SDATA (DTP_INTEGER,     "protocol_version", SDF_VOLATIL,        0,      "Protoco
 SDATA (DTP_BOOLEAN,     "is_bridge",        SDF_VOLATIL,        0,      "Connexion is a bridge"),
 SDATA (DTP_BOOLEAN,     "assigned_id",      SDF_VOLATIL,        0,      "Auto client id"),
 SDATA (DTP_STRING,      "client_id",        SDF_VOLATIL,        0,      "Client id"),
-SDATA (DTP_STRING,      "username",         SDF_VOLATIL,        0,      "Username"),
-SDATA (DTP_STRING,      "password",         SDF_VOLATIL,        0,      "Password"),
 
 SDATA (DTP_BOOLEAN,     "clean_start",      SDF_VOLATIL,        0,      "New session"),
 SDATA (DTP_INTEGER,     "session_expiry_interval",SDF_VOLATIL,  0,      "Session expiry interval in ?"),
@@ -622,8 +620,6 @@ typedef struct _PRIVATE_DATA {
     BOOL is_bridge;
     BOOL assigned_id;
     const char *client_id;
-    const char *username;
-    const char *password;
     BOOL clean_start;
     uint32_t session_expiry_interval;
     uint32_t keepalive;
@@ -716,8 +712,6 @@ PRIVATE void mt_create(hgobj gobj)
     SET_PRIV(is_bridge,                 gobj_read_bool_attr)
     SET_PRIV(assigned_id,               gobj_read_bool_attr)
     SET_PRIV(client_id,                 gobj_read_str_attr)
-    SET_PRIV(username,                  gobj_read_str_attr)
-    SET_PRIV(password,                  gobj_read_str_attr)
     SET_PRIV(clean_start,               gobj_read_bool_attr)
     SET_PRIV(session_expiry_interval,   gobj_read_integer_attr)
     SET_PRIV(keepalive,                 gobj_read_integer_attr)
@@ -768,8 +762,6 @@ PRIVATE void mt_writing(hgobj gobj, const char *path)
     ELIF_EQ_SET_PRIV(is_bridge,                 gobj_read_bool_attr)
     ELIF_EQ_SET_PRIV(assigned_id,               gobj_read_bool_attr)
     ELIF_EQ_SET_PRIV(client_id,                 gobj_read_str_attr)
-    ELIF_EQ_SET_PRIV(username,                  gobj_read_str_attr)
-    ELIF_EQ_SET_PRIV(password,                  gobj_read_str_attr)
     ELIF_EQ_SET_PRIV(clean_start,               gobj_read_bool_attr)
     ELIF_EQ_SET_PRIV(session_expiry_interval,   gobj_read_integer_attr)
     ELIF_EQ_SET_PRIV(keepalive,                 gobj_read_integer_attr)
@@ -3944,11 +3936,26 @@ PRIVATE int handle__connect(hgobj gobj, gbuffer_t *gbuf)
         return -1;
     }
 
-    if(username_len) {
-        gobj_write_strn_attr(gobj, "username", username, username_len);
-    }
-    if(password_len) {
-        gobj_write_strn_attr(gobj, "password", password, password_len);
+    if(gobj_read_bool_attr(gobj, "use_username_as_clientid")) {
+        if(!empty_string(username)) {
+            gobj_write_str_attr(gobj, "client_id", username);
+            gobj_write_bool_attr(gobj, "assigned_id", FALSE);
+        } else {
+            if(protocol_version == mosq_p_mqtt5) {
+                send__connack(gobj, 0, MQTT_RC_NOT_AUTHORIZED, NULL);
+            } else {
+                send__connack(gobj, 0, CONNACK_REFUSED_NOT_AUTHORIZED, NULL);
+            }
+            gobj_log_info(gobj, 0,
+                "function",     "%s", __FUNCTION__,
+                "msgset",       "%s", MSGSET_INFO,
+                "msg",          "%s", "Mqtt: not authorized, use_username_as_clientid and no username",
+                "client_id",    "%s", priv->client_id,
+                NULL
+            );
+            JSON_DECREF(connect_properties);
+            return -1;
+        }
     }
 
     if(gobj_trace_level(gobj) & SHOW_DECODE) {
@@ -3982,28 +3989,6 @@ PRIVATE int handle__connect(hgobj gobj, gbuffer_t *gbuf)
 
         if(priv->gbuf_will_payload) {
             gobj_trace_dump_gbuf(gobj, priv->gbuf_will_payload, "gbuf_will_payload");
-        }
-    }
-
-    if(gobj_read_bool_attr(gobj, "use_username_as_clientid")) {
-        const char *username2 = gobj_read_str_attr(gobj, "username");
-        if(!empty_string(username2)) {
-            gobj_write_str_attr(gobj, "client_id", username2);
-        } else {
-            if(protocol_version == mosq_p_mqtt5) {
-                send__connack(gobj, 0, MQTT_RC_NOT_AUTHORIZED, NULL);
-            } else {
-                send__connack(gobj, 0, CONNACK_REFUSED_NOT_AUTHORIZED, NULL);
-            }
-            gobj_log_info(gobj, 0,
-                "function",     "%s", __FUNCTION__,
-                "msgset",       "%s", MSGSET_INFO,
-                "msg",          "%s", "Mqtt: not authorized, use_username_as_clientid and no username",
-                "client_id",    "%s", priv->client_id,
-                NULL
-            );
-            JSON_DECREF(connect_properties);
-            return -1;
         }
     }
 
@@ -4068,7 +4053,7 @@ PRIVATE int handle__connect(hgobj gobj, gbuffer_t *gbuf)
     const char *dst_service = "treedb_mqtt_broker"; // TODO too much hardcoded
     int authorization = 0;
     json_t *kw_auth = json_pack("{s:s, s:s, s:s, s:s, s:s}",
-        "client_id", client_id,
+        "client_id", priv->client_id,
         "username", username,
         "password", password,
         "peername", peername,
@@ -4142,7 +4127,6 @@ PRIVATE int handle__connect(hgobj gobj, gbuffer_t *gbuf)
 
     //mosquitto__set_state(context, mosq_cs_active);
 
-
     /*--------------------------------------------------------------*
      *  Create a client, must be checked in upper level.
      *  This must be done *after* any security checks.
@@ -4150,9 +4134,9 @@ PRIVATE int handle__connect(hgobj gobj, gbuffer_t *gbuf)
      *  (HACK client_id is really a device_id)
      *--------------------------------------------------------------*/
     json_t *client = json_pack("{s:s, s:O, s:s, s:s, s:s, s:b, s:b, s:i, s:i, s:b}",
-        "username",                 priv->username,
+        "username",                 gobj_read_str_attr(gobj, "__username__"),
         "services_roles",           services_roles,
-        "session_id",               session_id,
+        "session_id",               gobj_read_str_attr(gobj, "__session_id__"),
         "peername",                 peername,
         "client_id",                priv->client_id,
         "assigned_id",              priv->assigned_id,
@@ -5424,28 +5408,16 @@ PRIVATE int ac_timeout_waiting_payload_data(hgobj gobj, const char *event, json_
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
-    // if(priv->timer_payload) {
-    //     if(test_sectimer(priv->timer_payload)) {
-    //         gobj_log_info(gobj, 0,
-    //             "msgset",       "%s", MSGSET_MQTT_ERROR,
-    //             "msg",          "%s", "Timeout waiting mqtt PAYLOAD data",
-    //             NULL
-    //         );
-    //         ws_close(gobj, MQTT_RC_PROTOCOL_ERROR);
-    //     }
-    // }
+    gobj_log_warning(gobj, 0,
+        "function",     "%s", __FUNCTION__,
+        "msgset",       "%s", MSGSET_MQTT_ERROR,
+        "msg",          "%s", "Timeout waiting mqtt PAYLOAD data",
+        "username",     "%s", gobj_read_str_attr(gobj, "__username__"),
+        "session_id",   "%s", gobj_read_str_attr(gobj, "__session_id__"),
+        NULL
+    );
+    ws_close(gobj, MQTT_RC_PROTOCOL_ERROR);
 
-    // mosquitto__check_keepalive()
-    // if(priv->timer_ping) {
-    //     if(test_sectimer(priv->timer_ping)) {
-    //         // TODO send send__pingreq(mosq); or close connection if not receive response
-    //         if(priv->keepalive > 0) {
-    //             priv->timer_ping = start_sectimer(priv->keepalive);
-    //         }
-    //     }
-    // }
-
-    ws_close(gobj, MOSQ_ERR_PROTOCOL);
     KW_DECREF(kw)
     return 0;
 }
