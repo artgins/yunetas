@@ -138,11 +138,11 @@ def main():
 
         p = extract_hexa(data_subscribe)
         s.sendall(bytearray(p))
-        print("Sending connect to %r:%r %r" % (ip, port, p))
+        print("Sending subscribe to %r:%r %r" % (ip, port, p))
 
-        # p = extract_hexa(data_subscribe2)
-        # s.sendall(bytearray(p))
-        # print("Sending connect to %r:%r %r" % (ip, port, p))
+        p = extract_hexa(data_subscribe2)
+        s.sendall(bytearray(p))
+        print("Sending subscribe2 to %r:%r %r" % (ip, port, p))
         rx = s.recv(1024)
         print("Received 2 len %d, %r" % (len(rx), rx))
 
