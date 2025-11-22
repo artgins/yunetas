@@ -756,7 +756,7 @@ PRIVATE json_t *mt_authenticate(hgobj gobj, json_t *kw, hgobj src)
                      */
                     json_t *jn_resp = json_pack("{s:i, s:s, s:s, s:s}",
                         "result", -1,
-                        "comment", "Wrong user/pwd",
+                        "comment", "Invalid username or password.",
                         "username", username,
                         "service", dst_service
                     );
