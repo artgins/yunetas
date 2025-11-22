@@ -4940,7 +4940,7 @@ PRIVATE int frame_completed(hgobj gobj)
         //     }
         //     ret = handle__subscribe(gobj, gbuf);
         //     break;
-        //
+
         // case CMD_UNSUBSCRIBE:
         //     if(!priv->iamServer) {
         //         ret = MOSQ_ERR_PROTOCOL;
@@ -4948,10 +4948,18 @@ PRIVATE int frame_completed(hgobj gobj)
         //     }
         //     ret  = handle__unsubscribe(gobj, gbuf);
         //     break;
-        //
-        // case CMD_RESERVED:
-        //     ret = MOSQ_ERR_PROTOCOL;
-        //     break;
+
+        case CMD_RESERVED:
+        default:
+            gobj_log_error(gobj, 0,
+                "function",     "%s", __FUNCTION__,
+                "msgset",       "%s", MSGSET_MQTT_ERROR,
+                "msg",          "%s", "Command unknown or not implemented",
+                "command",      "%s", get_command_name(frame->command),
+                NULL
+            );
+            ret = MOSQ_ERR_PROTOCOL;
+            break;
     }
 
     GBUFFER_DECREF(gbuf);
@@ -5334,6 +5342,7 @@ PRIVATE int ac_timeout_waiting_frame_header(hgobj gobj, const char *event, json_
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
+    // TODO implement ping
     // if(priv->timer_handshake) {
     //     if(test_sectimer(priv->timer_handshake)) {
     //         ws_close(gobj, MQTT_RC_PROTOCOL_ERROR);
