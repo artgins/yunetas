@@ -430,6 +430,9 @@ int main(int argc, char *argv[])
     unsigned long memory_check_list[] = {0, 0}; // WARNING: the list ended with 0
     set_memory_check_list(memory_check_list);
 
+    /*------------------------------------------------*
+     *          Start yuneta
+     *------------------------------------------------*/
     int log_handler_options = -1;
     if(arguments.verbose == 0) {
         log_handler_options = 7;
@@ -438,9 +441,6 @@ int main(int argc, char *argv[])
     static char my_variable_config[16*1024];
     snprintf(my_variable_config, sizeof(my_variable_config), variable_config, log_handler_options);
 
-    /*------------------------------------------------*
-     *          Start yuneta
-     *------------------------------------------------*/
     helper_quote2doublequote(fixed_config);
     helper_quote2doublequote(my_variable_config);
     yuneta_setup(
