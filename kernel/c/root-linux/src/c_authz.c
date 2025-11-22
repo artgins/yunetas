@@ -1087,6 +1087,12 @@ PRIVATE json_t *mt_authenticate(hgobj gobj, json_t *kw, hgobj src)
         -1,
         KW_REQUIRED
     );
+
+    // TODO if max_sessions is 0 then get the max_sessions of parent role
+
+    /*
+     *  If max_sessions continue being 0 get the value of this gclass
+     */
     if(max_sessions <= 0) {
         max_sessions = priv->max_sessions_per_user;
     }
@@ -2245,17 +2251,50 @@ PRIVATE json_t *cmd_user_authzs(hgobj gobj, const char *cmd, json_t *kw, hgobj s
  ***************************************************************************/
 PRIVATE json_t *cmd_set_max_sessions(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
 {
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
     const char *username = kw_get_str(gobj, kw, "username", "", 0);
     int max_sessions = (int)kw_get_int(gobj, kw, "max_sessions", 0, KW_WILD_NUMBER);
 
     const char *dst;
     if(empty_string(username)) {
-        dst = username;
-        gobj_write_integer_attr(gobj, "max_sessions_per_user", max_sessions);
-        gobj_save_persistent_attrs(gobj, 0);
-    } else {
-        // TODO
         dst = gobj_short_name(gobj);
+        gobj_write_integer_attr(gobj, "max_sessions_per_user", max_sessions);
+        gobj_save_persistent_attrs(gobj, json_string("max_sessions_per_user"));
+
+    } else {
+        dst = username;
+        json_t *user = gobj_get_node(
+            priv->gobj_treedb,
+            "users",
+            json_pack("{s:s}", "id", username),
+            json_pack("{s:b}",
+                "with_metadata", 1
+            ),
+            gobj
+        );
+        if(!user) {
+            return msg_iev_build_response(
+                gobj,
+                -1,
+                json_sprintf("User not found: %s", username),
+                0,
+                0,
+                kw  // owned
+            );
+        }
+
+        json_object_set_new(user, "max_sessions", json_integer(max_sessions));
+
+        json_decref(gobj_update_node(
+            priv->gobj_treedb,
+            "users",
+            user,
+            json_pack("{s:b}",
+                "with_metadata", 1
+            ),
+            src
+        ));
     }
 
     return msg_iev_build_response(
