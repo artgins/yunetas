@@ -5050,11 +5050,10 @@ PRIVATE int ac_disconnected(hgobj gobj, const char *event, json_t *kw, hgobj src
     if(priv->inform_on_close) {
         priv->inform_on_close = FALSE;
 
-        // json_t *kw2 = json_pack("{s:s, s:s}",
-        //     "__username__", gobj_read_str_attr(gobj, "__username__"),
-        //     "__session_id__", gobj_read_str_attr(gobj, "__session_id__")
-        // );
-        json_t *kw2 = json_object();
+        json_t *kw2 = json_pack("{s:s, s:s}",
+            "username", gobj_read_str_attr(gobj, "__username__"),
+            "session_id", gobj_read_str_attr(gobj, "__session_id__")
+        );
         gobj_publish_event(gobj, EV_ON_CLOSE, kw2);
     }
 

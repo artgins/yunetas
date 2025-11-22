@@ -1041,7 +1041,7 @@ PRIVATE int ac_on_open(hgobj gobj, const char *event, json_t *kw, hgobj src)
      *  This must be done *after* any security checks.
      *  With assigned_id the id is random!, not a persistent id
      *  MQTT Client ID <==> topic in Timeranger
-     *  (HACK client_id is really a device_id)
+     *  (HACK client_id is really a device_id in mqtt IoT devices)
      *--------------------------------------------------------------*/
     BOOL clean_start = kw_get_bool(gobj, kw, "clean_start", 0, KW_REQUIRED);
     BOOL will = kw_get_bool(gobj, kw, "will", 0, KW_REQUIRED);
@@ -1094,6 +1094,8 @@ PRIVATE int ac_on_open(hgobj gobj, const char *event, json_t *kw, hgobj src)
     }
 
     json_t *topic = COMMAND_DATA(gobj, jn_response);
+
+print_json2("XXX topic", topic); // TODO TEST
 
     // TODO if session already exists with below conditions return 1!
     // if(priv->clean_start == FALSE && prev_session_expiry_interval > 0) {
