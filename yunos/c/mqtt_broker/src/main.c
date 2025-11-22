@@ -17,15 +17,15 @@
 #define APP_NAME        "mqtt_broker"
 #define APP_DOC         "Mqtt broker"
 
-#define APP_VERSION     "1.0.0"
+#define APP_VERSION     YUNETA_VERSION
 #define APP_SUPPORT     "<support@artgins.com>"
 #define APP_DATETIME    __DATE__ " " __TIME__
 
 #define USE_OWN_SYSTEM_MEMORY   FALSE
 #define MEM_MIN_BLOCK           512
-#define MEM_MAX_BLOCK           (200*1024*1024L)     // 200*M
-#define MEM_SUPERBLOCK          (200*1024*1024L)     // 200*M
-#define MEM_MAX_SYSTEM_MEMORY   (2*1024*1024*1024L)    // 2*G
+#define MEM_MAX_BLOCK           (1*1024*1024*1024L)     // 1*G
+#define MEM_SUPERBLOCK          (1*1024*1024*1024L)     // 1*G
+#define MEM_MAX_SYSTEM_MEMORY   (16*1024*1024*1024L)    // 16*G
 
 /***************************************************************************
  *                      Default config

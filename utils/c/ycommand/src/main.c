@@ -457,7 +457,7 @@ int main(int argc, char *argv[])
         NULL,       // authentication_parser, default Monoclass C_AUTHZ
         MEM_MAX_BLOCK,
         MEM_MAX_SYSTEM_MEMORY,
-        FALSE, //USE_OWN_SYSTEM_MEMORY,
+        USE_OWN_SYSTEM_MEMORY,
         MEM_MIN_BLOCK,
         MEM_SUPERBLOCK
     );

@@ -12,29 +12,74 @@
 #include "c_mqtt_client.h"
 
 /***************************************************************************
+ *              Structures
+ ***************************************************************************/
+/*
+ *  Used by main to communicate with parse_opt.
+ */
+#define MIN_ARGS 0
+#define MAX_ARGS 0
+struct arguments
+{
+    char *args[MAX_ARGS+1];     /* positional args */
+
+    int print_role;
+    char *url;
+    char *azp;
+    char *yuno_role;
+    char *yuno_name;
+    char *yuno_service;
+    char *command;
+    int wait;
+
+    char *auth_system;
+    char *auth_url;
+    char *user_id;
+    char *user_passw;
+    char *jwt;
+
+    int verbose;                /* verbose */
+    int print;
+    int print_version;
+    int print_yuneta_version;
+    int interactive;
+    int print_with_metadata;
+};
+
+/***************************************************************************
+ *              Prototypes
+ ***************************************************************************/
+static error_t parse_opt (int key, char *arg, struct argp_state *state);
+
+/***************************************************************************
  *                      Names
  ***************************************************************************/
 #define APP_NAME        "mqtt_client"
 #define APP_DOC         "Mqtt client"
 
-#define APP_VERSION     "1.0.0"
+#define APP_VERSION     YUNETA_VERSION
 #define APP_SUPPORT     "<support@artgins.com>"
 #define APP_DATETIME    __DATE__ " " __TIME__
 
 #define USE_OWN_SYSTEM_MEMORY   FALSE
 #define MEM_MIN_BLOCK           512
-#define MEM_MAX_BLOCK           (200*1024*1024L)     // 200*M
-#define MEM_SUPERBLOCK          (200*1024*1024L)     // 200*M
-#define MEM_MAX_SYSTEM_MEMORY   (2*1024*1024*1024L)    // 2*G
+#define MEM_MAX_BLOCK           (1*1024*1024*1024L)     // 1*G
+#define MEM_SUPERBLOCK          (1*1024*1024*1024L)     // 1*G
+#define MEM_MAX_SYSTEM_MEMORY   (16*1024*1024*1024L)    // 16*G
 
 /***************************************************************************
  *                      Default config
  ***************************************************************************/
 PRIVATE char fixed_config[]= "\
 {                                                                   \n\
+    'environment': {                                                \n\
+        'realm_owner': 'agent',                                     \n\
+        'work_dir': '/yuneta',                                      \n\
+        'domain_dir': 'realms/agent/mqtt_client'                    \n\
+    },                                                              \n\
     'yuno': {                                                       \n\
-        'yuno_role': '"APP_NAME"',                                  \n\
-        'tags': ['yuneta', 'utils']                                 \n\
+        'yuno_role': 'mqtt_client',                                 \n\
+        'tags': ['yuneta', 'core']                                  \n\
     }                                                               \n\
 }                                                                   \n\
 ";

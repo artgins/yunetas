@@ -4521,9 +4521,9 @@ PRIVATE int handle__connack(hgobj gobj, gbuffer_t *gbuf)
 PRIVATE int handle__publish_s(hgobj gobj, gbuffer_t *gbuf)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
-
-    uint8_t dup;
     int rc = 0;
+#ifdef PEPE
+    uint8_t dup;
     struct mosquitto_msg_store *msg, *stored = NULL;
     uint16_t slen;
     json_t *properties = NULL;
@@ -4928,6 +4928,7 @@ process_bad_message:
         }
         db_free_msg_store(msg);
     }
+#endif
     return rc;
 }
 
