@@ -5413,6 +5413,7 @@ PRIVATE int ac_timeout_waiting_payload_data(hgobj gobj, const char *event, json_
         "msgset",       "%s", MSGSET_MQTT_ERROR,
         "msg",          "%s", "Timeout waiting mqtt PAYLOAD data",
         "username",     "%s", gobj_read_str_attr(gobj, "__username__"),
+        "client_id",    "%s", gobj_read_str_attr(gobj, "client_id"),
         "session_id",   "%s", gobj_read_str_attr(gobj, "__session_id__"),
         NULL
     );
@@ -5454,6 +5455,9 @@ PRIVATE int ac_send_message(hgobj gobj, const char *event, json_t *kw, hgobj src
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_MQTT_ERROR,
             "msg",          "%s", "Mqtt properties and not mqtt5",
+            "username",     "%s", gobj_read_str_attr(gobj, "__username__"),
+            "client_id",    "%s", gobj_read_str_attr(gobj, "client_id"),
+            "session_id",   "%s", gobj_read_str_attr(gobj, "__session_id__"),
             NULL
         );
         KW_DECREF(kw)
@@ -5479,6 +5483,9 @@ PRIVATE int ac_send_message(hgobj gobj, const char *event, json_t *kw, hgobj src
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_MQTT_ERROR,
             "msg",          "%s", "Mqtt malformed utf8",
+            "username",     "%s", gobj_read_str_attr(gobj, "__username__"),
+            "client_id",    "%s", gobj_read_str_attr(gobj, "client_id"),
+            "session_id",   "%s", gobj_read_str_attr(gobj, "__session_id__"),
             NULL
         );
         KW_DECREF(kw)
@@ -5489,6 +5496,9 @@ PRIVATE int ac_send_message(hgobj gobj, const char *event, json_t *kw, hgobj src
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_MQTT_ERROR,
             "msg",          "%s", "Mqtt payload size",
+            "username",     "%s", gobj_read_str_attr(gobj, "__username__"),
+            "client_id",    "%s", gobj_read_str_attr(gobj, "client_id"),
+            "session_id",   "%s", gobj_read_str_attr(gobj, "__session_id__"),
             NULL
         );
         KW_DECREF(kw)
@@ -5499,6 +5509,9 @@ PRIVATE int ac_send_message(hgobj gobj, const char *event, json_t *kw, hgobj src
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_MQTT_ERROR,
             "msg",          "%s", "Mqtt topic check failed",
+            "username",     "%s", gobj_read_str_attr(gobj, "__username__"),
+            "client_id",    "%s", gobj_read_str_attr(gobj, "client_id"),
+            "session_id",   "%s", gobj_read_str_attr(gobj, "__session_id__"),
             NULL
         );
         KW_DECREF(kw)
@@ -5516,6 +5529,9 @@ PRIVATE int ac_send_message(hgobj gobj, const char *event, json_t *kw, hgobj src
                 "function",     "%s", __FUNCTION__,
                 "msgset",       "%s", MSGSET_MQTT_ERROR,
                 "msg",          "%s", "Mqtt oversize packet",
+                "username",     "%s", gobj_read_str_attr(gobj, "__username__"),
+                "client_id",    "%s", gobj_read_str_attr(gobj, "client_id"),
+                "session_id",   "%s", gobj_read_str_attr(gobj, "__session_id__"),
                 NULL
             );
             KW_DECREF(kw)
