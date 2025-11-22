@@ -10,7 +10,6 @@
  ***********************************************************************/
 #include <sys/ioctl.h>
 #include <sys/wait.h>
-#include <pty.h>
 #include <fcntl.h>
 #include <string.h>
 #include <errno.h>
