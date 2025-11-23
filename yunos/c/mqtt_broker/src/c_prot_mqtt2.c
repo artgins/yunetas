@@ -315,10 +315,6 @@ typedef enum mosq_opt_t {
 /* MQTT specification restricts client ids to a maximum of 23 characters */
 #define MOSQ_MQTT_ID_MAX_LENGTH 23
 
-#define MQTT_PROTOCOL_V31 3
-#define MQTT_PROTOCOL_V311 4
-#define MQTT_PROTOCOL_V5 5
-
 enum mosquitto_msg_direction {
     mosq_md_in = 0,
     mosq_md_out = 1
@@ -492,41 +488,47 @@ SDATA (DTP_STRING,      "__username__",     SDF_VOLATIL,        "",     "Usernam
 SDATA (DTP_STRING,      "__session_id__",   SDF_VOLATIL,        "",     "Session ID, WARNING set by c_authz"),
 SDATA (DTP_JSON,        "jwt_payload",      SDF_VOLATIL,        0,      "JWT payload (decoded user data) of authenticated user, WARNING set by c_authz"),
 
-SDATA (DTP_STRING,      "url",              SDF_PERSIST,        "",     "Url to connect"),
-SDATA (DTP_STRING,      "cert_pem",         SDF_PERSIST,        "",     "SSL server certificate, PEM format"),
-SDATA (DTP_BOOLEAN,     "in_session",       SDF_VOLATIL|SDF_STATS,      0,      "CONNECT mqtt done"),
-SDATA (DTP_BOOLEAN,     "send_disconnect",  SDF_VOLATIL,        0,      "send DISCONNECT"),
-
-SDATA (DTP_INTEGER,     "timeout_handshake",SDF_PERSIST,        "5000",  "Timeout to handshake"),
-SDATA (DTP_INTEGER,     "timeout_payload",  SDF_PERSIST,        "5000",  "Timeout to payload"),
-SDATA (DTP_INTEGER,     "timeout_close",    SDF_PERSIST,        "3000",  "Timeout to close"),
-SDATA (DTP_INTEGER,     "pingT",            SDF_PERSIST,        "0",    "Ping interval. If value <= 0 then No ping"),
+/*
+ *  Used by mqtt client
+ */
+SDATA (DTP_STRING,      "mqtt_client_id",   SDF_RD,             "",     "MQTT Client id, use by mqtt client"),
+SDATA (DTP_STRING,      "mqtt_protocol",    SDF_RD,             "",     "MQTT protocol, use by mqtt client"),
 
 /*
  *  Configuration
  */
-SDATA (DTP_INTEGER,     "max_inflight_messages",SDF_WR|SDF_PERSIST,    "20",      "The maximum number of outgoing QoS 1 or 2 messages that can be in the process of being transmitted simultaneously. This includes messages currently going through handshakes and messages that are being retried. Defaults to 20. Set to 0 for no maximum. If set to 1, this will guarantee in-order delivery of messages"),
-SDATA (DTP_INTEGER,     "message_size_limit",SDF_WR|SDF_PERSIST,        0,      "This option sets the maximum publish payload size that the broker will allow. Received messages that exceed this size will not be accepted by the broker. This means that the message will not be forwarded on to subscribing clients, but the QoS flow will be completed for QoS 1 or QoS 2 messages. MQTT v5 clients using QoS 1 or QoS 2 will receive a PUBACK or PUBREC with the 'implementation specific error' reason code. The default value is 0, which means that all valid MQTT messages are accepted. MQTT imposes a maximum payload size of 268435455 bytes."),
+SDATA (DTP_STRING,      "url",              SDF_RD,             "",     "Url to connect"),
+SDATA (DTP_STRING,      "cert_pem",         SDF_RD,             "",     "SSL server certificate, PEM format"),
+SDATA (DTP_INTEGER,     "timeout_handshake",SDF_RD,         "5000",  "Timeout to handshake"),
+SDATA (DTP_INTEGER,     "timeout_payload",  SDF_RD,         "5000",  "Timeout to payload"),
+SDATA (DTP_INTEGER,     "timeout_close",    SDF_RD,         "3000",  "Timeout to close"),
+SDATA (DTP_INTEGER,     "pingT",            SDF_RD,         "0",    "Ping interval. If value <= 0 then No ping"),
 
-SDATA (DTP_INTEGER,     "max_keepalive",    SDF_WR|SDF_PERSIST,         "65535",  "For MQTT v5 clients, it is possible to have the server send a 'server keepalive' value that will override the keepalive value set by the client. This is intended to be used as a mechanism to say that the server will disconnect the client earlier than it anticipated, and that the client should use the new keepalive value. The max_keepalive option allows you to specify that clients may only connect with keepalive less than or equal to this value, otherwise they will be sent a server keepalive telling them to use max_keepalive. This only applies to MQTT v5 clients. The maximum value allowable, and default value, is 65535. Set to 0 to allow clients to set keepalive = 0, which means no keepalive checks are made and the client will never be disconnected by the broker if no messages are received. You should be very sure this is the behaviour that you want.For MQTT v3.1.1 and v3.1 clients, there is no mechanism to tell the client what keepalive value they should use. If an MQTT v3.1.1 or v3.1 client specifies a keepalive time greater than max_keepalive they will be sent a CONNACK message with the 'identifier rejected' reason code, and disconnected."),
+SDATA (DTP_INTEGER,     "max_inflight_messages",SDF_WR,    "20",      "The maximum number of outgoing QoS 1 or 2 messages that can be in the process of being transmitted simultaneously. This includes messages currently going through handshakes and messages that are being retried. Defaults to 20. Set to 0 for no maximum. If set to 1, this will guarantee in-order delivery of messages"),
+SDATA (DTP_INTEGER,     "message_size_limit",SDF_WR,        0,      "This option sets the maximum publish payload size that the broker will allow. Received messages that exceed this size will not be accepted by the broker. This means that the message will not be forwarded on to subscribing clients, but the QoS flow will be completed for QoS 1 or QoS 2 messages. MQTT v5 clients using QoS 1 or QoS 2 will receive a PUBACK or PUBREC with the 'implementation specific error' reason code. The default value is 0, which means that all valid MQTT messages are accepted. MQTT imposes a maximum payload size of 268435455 bytes."),
 
-SDATA (DTP_INTEGER,     "max_packet_size",  SDF_WR|SDF_PERSIST,         0,      "For MQTT v5 clients, it is possible to have the server send a 'maximum packet size' value that will instruct the client it will not accept MQTT packets with size greater than value bytes. This applies to the full MQTT packet, not just the payload. Setting this option to a positive value will set the maximum packet size to that number of bytes. If a client sends a packet which is larger than this value, it will be disconnected. This applies to all clients regardless of the protocol version they are using, but v3.1.1 and earlier clients will of course not have received the maximum packet size information. Defaults to no limit. This option applies to all clients, not just those using MQTT v5, but it is not possible to notify clients using MQTT v3.1.1 or MQTT v3.1 of the limit. Setting below 20 bytes is forbidden because it is likely to interfere with normal client operation even with small payloads."),
+SDATA (DTP_INTEGER,     "max_keepalive",    SDF_WR,         "65535",  "For MQTT v5 clients, it is possible to have the server send a 'server keepalive' value that will override the keepalive value set by the client. This is intended to be used as a mechanism to say that the server will disconnect the client earlier than it anticipated, and that the client should use the new keepalive value. The max_keepalive option allows you to specify that clients may only connect with keepalive less than or equal to this value, otherwise they will be sent a server keepalive telling them to use max_keepalive. This only applies to MQTT v5 clients. The maximum value allowable, and default value, is 65535. Set to 0 to allow clients to set keepalive = 0, which means no keepalive checks are made and the client will never be disconnected by the broker if no messages are received. You should be very sure this is the behaviour that you want.For MQTT v3.1.1 and v3.1 clients, there is no mechanism to tell the client what keepalive value they should use. If an MQTT v3.1.1 or v3.1 client specifies a keepalive time greater than max_keepalive they will be sent a CONNACK message with the 'identifier rejected' reason code, and disconnected."),
 
-SDATA (DTP_BOOLEAN,     "persistence",      SDF_WR|SDF_PERSIST,         "1",   "If TRUE, connection, subscription and message data will be written to the disk"), // TODO
+SDATA (DTP_INTEGER,     "max_packet_size",  SDF_WR,         0,      "For MQTT v5 clients, it is possible to have the server send a 'maximum packet size' value that will instruct the client it will not accept MQTT packets with size greater than value bytes. This applies to the full MQTT packet, not just the payload. Setting this option to a positive value will set the maximum packet size to that number of bytes. If a client sends a packet which is larger than this value, it will be disconnected. This applies to all clients regardless of the protocol version they are using, but v3.1.1 and earlier clients will of course not have received the maximum packet size information. Defaults to no limit. This option applies to all clients, not just those using MQTT v5, but it is not possible to notify clients using MQTT v3.1.1 or MQTT v3.1 of the limit. Setting below 20 bytes is forbidden because it is likely to interfere with normal client operation even with small payloads."),
 
-SDATA (DTP_BOOLEAN,     "retain_available", SDF_WR|SDF_PERSIST,         "1",   "If set to FALSE, then retained messages are not supported. Clients that send a message with the retain bit will be disconnected if this option is set to FALSE. Defaults to TRUE."),
+SDATA (DTP_BOOLEAN,     "persistence",      SDF_WR,         "1",   "If TRUE, connection, subscription and message data will be written to the disk"), // TODO
 
-SDATA (DTP_INTEGER,     "max_qos",          SDF_WR|SDF_PERSIST,         "2",      "Limit the QoS value allowed for clients connecting to this listener. Defaults to 2, which means any QoS can be used. Set to 0 or 1 to limit to those QoS values. This makes use of an MQTT v5 feature to notify clients of the limitation. MQTT v3.1.1 clients will not be aware of the limitation. Clients publishing to this listener with a too-high QoS will be disconnected."),
+SDATA (DTP_BOOLEAN,     "retain_available", SDF_WR,         "1",   "If set to FALSE, then retained messages are not supported. Clients that send a message with the retain bit will be disconnected if this option is set to FALSE. Defaults to TRUE."),
 
-SDATA (DTP_BOOLEAN,     "allow_zero_length_clientid",SDF_WR|SDF_PERSIST, "0",   "MQTT 3.1.1 and MQTT 5 allow clients to connect with a zero length client id and have the broker generate a client id for them. Use this option to allow/disallow this behaviour. Defaults to FALSE."),
+SDATA (DTP_INTEGER,     "max_qos",          SDF_WR,         "2",      "Limit the QoS value allowed for clients connecting to this listener. Defaults to 2, which means any QoS can be used. Set to 0 or 1 to limit to those QoS values. This makes use of an MQTT v5 feature to notify clients of the limitation. MQTT v3.1.1 clients will not be aware of the limitation. Clients publishing to this listener with a too-high QoS will be disconnected."),
 
-SDATA (DTP_BOOLEAN,     "use_username_as_clientid",SDF_WR|SDF_PERSIST,  "0",  "Set use_username_as_clientid to TRUE to replace the clientid that a client connected with its username. This allows authentication to be tied to the clientid, which means that it is possible to prevent one client disconnecting another by using the same clientid. Defaults to FALSE."),
+SDATA (DTP_BOOLEAN,     "allow_zero_length_clientid",SDF_WR, "0",   "MQTT 3.1.1 and MQTT 5 allow clients to connect with a zero length client id and have the broker generate a client id for them. Use this option to allow/disallow this behaviour. Defaults to FALSE."),
 
-SDATA (DTP_INTEGER,     "max_topic_alias",  SDF_WR|SDF_PERSIST,         "10",     "This option sets the maximum number topic aliases that an MQTT v5 client is allowed to create. This option applies per listener. Defaults to 10. Set to 0 to disallow topic aliases. The maximum value possible is 65535."),
+SDATA (DTP_BOOLEAN,     "use_username_as_clientid",SDF_WR,  "0",  "Set use_username_as_clientid to TRUE to replace the clientid that a client connected with its username. This allows authentication to be tied to the clientid, which means that it is possible to prevent one client disconnecting another by using the same clientid. Defaults to FALSE."),
+
+SDATA (DTP_INTEGER,     "max_topic_alias",  SDF_WR,         "10",     "This option sets the maximum number topic aliases that an MQTT v5 client is allowed to create. This option applies per listener. Defaults to 10. Set to 0 to disallow topic aliases. The maximum value possible is 65535."),
 
 /*
  *  Dynamic Data
  */
+SDATA (DTP_BOOLEAN,     "in_session",       SDF_VOLATIL|SDF_STATS,0,    "CONNECT mqtt done"),
+SDATA (DTP_BOOLEAN,     "send_disconnect",  SDF_VOLATIL,        0,      "send DISCONNECT"),
+
 SDATA (DTP_STRING,      "protocol_name",    SDF_VOLATIL,        0,      "Protocol name"),
 SDATA (DTP_INTEGER,     "protocol_version", SDF_VOLATIL,        0,      "Protocol version"),
 SDATA (DTP_BOOLEAN,     "is_bridge",        SDF_VOLATIL,        0,      "Connexion is a bridge"),
@@ -5414,12 +5416,186 @@ PRIVATE int frame_completed(hgobj gobj)
     return ret;
 }
 
+/***************************************************************************
+ *
+ ***************************************************************************/
+PRIVATE int send__connect(
+    hgobj gobj,
+    uint16_t keepalive,
+    BOOL clean_session,
+    json_t *properties
+) {
+    uint32_t payloadlen;
+    uint8_t will = 0;
+    uint8_t byte;
+    int rc;
+    uint8_t version;
+    char *clientid, *username, *password;
+    uint32_t headerlen;
+    uint32_t proplen = 0, varbytes;
+    json_t *local_props = NULL;
+    uint16_t receive_maximum;
+
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+//     if(priv->protocol == mosq_p_mqtt31 && !mosq->id) {
+//         return MOSQ_ERR_PROTOCOL;
+//     }
+//
+//     clientid = mosq->id;
+//     username = mosq->username;
+//     password = mosq->password;
+//
+//     if(mosq->protocol == mosq_p_mqtt5){
+//         /* Generate properties from options */
+//         if(!mosquitto_property_read_int16(properties, MQTT_PROP_RECEIVE_MAXIMUM, &receive_maximum, false)){
+//             rc = mosquitto_property_add_int16(&local_props, MQTT_PROP_RECEIVE_MAXIMUM, mosq->msgs_in.inflight_maximum);
+//             if(rc) return rc;
+//         }else{
+//             mosq->msgs_in.inflight_maximum = receive_maximum;
+//             mosq->msgs_in.inflight_quota = receive_maximum;
+//         }
+//
+//         version = MQTT_PROTOCOL_V5;
+//         headerlen = 10;
+//         proplen = 0;
+//         proplen += property__get_length_all(properties);
+//         proplen += property__get_length_all(local_props);
+//         varbytes = packet__varint_bytes(proplen);
+//         headerlen += proplen + varbytes;
+//     }else if(mosq->protocol == mosq_p_mqtt311){
+//         version = MQTT_PROTOCOL_V311;
+//         headerlen = 10;
+//     }else if(mosq->protocol == mosq_p_mqtt31){
+//         version = MQTT_PROTOCOL_V31;
+//         headerlen = 12;
+//     }else{
+//         return MOSQ_ERR_INVAL;
+//     }
+//
+//     packet = mosquitto__calloc(1, sizeof(struct mosquitto__packet));
+//     if(!packet) return MOSQ_ERR_NOMEM;
+//
+//     if(clientid){
+//         payloadlen = (uint32_t)(2U+strlen(clientid));
+//     }else{
+//         payloadlen = 2U;
+//     }
+// #ifdef WITH_BROKER
+//     if(mosq->will && (mosq->bridge == NULL || mosq->bridge->notifications_local_only == false)){
+// #else
+//     if(mosq->will){
+// #endif
+//         will = 1;
+//         assert(mosq->will->msg.topic);
+//
+//         payloadlen += (uint32_t)(2+strlen(mosq->will->msg.topic) + 2+(uint32_t)mosq->will->msg.payloadlen);
+//         if(mosq->protocol == mosq_p_mqtt5){
+//             payloadlen += property__get_remaining_length(mosq->will->properties);
+//         }
+//     }
+//
+//     /* After this check we can be sure that the username and password are
+//      * always valid for the current protocol, so there is no need to check
+//      * username before checking password. */
+//     if(mosq->protocol == mosq_p_mqtt31 || mosq->protocol == mosq_p_mqtt311){
+//         if(password != NULL && username == NULL){
+//             mosquitto__free(packet);
+//             return MOSQ_ERR_INVAL;
+//         }
+//     }
+//
+//     if(username){
+//         payloadlen += (uint32_t)(2+strlen(username));
+//     }
+//     if(password){
+//         payloadlen += (uint32_t)(2+strlen(password));
+//     }
+//
+//     packet->command = CMD_CONNECT;
+//     packet->remaining_length = headerlen + payloadlen;
+//     rc = packet__alloc(packet);
+//     if(rc){
+//         mosquitto__free(packet);
+//         return rc;
+//     }
+//
+//     /* Variable header */
+//     if(version == MQTT_PROTOCOL_V31){
+//         packet__write_string(packet, PROTOCOL_NAME_v31, (uint16_t)strlen(PROTOCOL_NAME_v31));
+//     }else{
+//         packet__write_string(packet, PROTOCOL_NAME, (uint16_t)strlen(PROTOCOL_NAME));
+//     }
+// #if defined(WITH_BROKER) && defined(WITH_BRIDGE)
+//     if(mosq->bridge && mosq->bridge->protocol_version != mosq_p_mqtt5 && mosq->bridge->try_private && mosq->bridge->try_private_accepted){
+//         version |= 0x80;
+//     }else{
+//     }
+// #endif
+//     packet__write_byte(packet, version);
+//     byte = (uint8_t)((clean_session&0x1)<<1);
+//     if(will){
+//         byte = byte | (uint8_t)(((mosq->will->msg.qos&0x3)<<3) | ((will&0x1)<<2));
+//         if(mosq->retain_available){
+//             byte |= (uint8_t)((mosq->will->msg.retain&0x1)<<5);
+//         }
+//     }
+//     if(username){
+//         byte = byte | 0x1<<7;
+//     }
+//     if(mosq->password){
+//         byte = byte | 0x1<<6;
+//     }
+//     packet__write_byte(packet, byte);
+//     packet__write_uint16(packet, keepalive);
+//
+//     if(mosq->protocol == mosq_p_mqtt5){
+//         /* Write properties */
+//         packet__write_varint(packet, proplen);
+//         property__write_all(packet, properties, false);
+//         property__write_all(packet, local_props, false);
+//     }
+//     mosquitto_property_free_all(&local_props);
+//
+//     /* Payload */
+//     if(clientid){
+//         packet__write_string(packet, clientid, (uint16_t)strlen(clientid));
+//     }else{
+//         packet__write_uint16(packet, 0);
+//     }
+//     if(will){
+//         if(mosq->protocol == mosq_p_mqtt5){
+//             /* Write will properties */
+//             property__write_all(packet, mosq->will->properties, true);
+//         }
+//         packet__write_string(packet, mosq->will->msg.topic, (uint16_t)strlen(mosq->will->msg.topic));
+//         packet__write_string(packet, (const char *)mosq->will->msg.payload, (uint16_t)mosq->will->msg.payloadlen);
+//     }
+//
+//     if(username){
+//         packet__write_string(packet, username, (uint16_t)strlen(username));
+//     }
+//     if(password){
+//         packet__write_string(packet, password, (uint16_t)strlen(password));
+//     }
+//
+//     mosq->keepalive = keepalive;
+// #ifdef WITH_BROKER
+// # ifdef WITH_BRIDGE
+//     log__printf(mosq, MOSQ_LOG_DEBUG, "Bridge %s sending CONNECT", SAFE_PRINT(clientid));
+// # endif
+// #else
+//     log__printf(mosq, MOSQ_LOG_DEBUG, "Client %s sending CONNECT", SAFE_PRINT(clientid));
+// #endif
+//     return packet__queue(mosq, packet);
+}
 
 
 
-            /***************************
-             *      Actions
-             ***************************/
+
+                    /***************************
+                     *      Actions
+                     ***************************/
 
 
 
@@ -5444,8 +5620,15 @@ PRIVATE int ac_connected(hgobj gobj, const char *event, json_t *kw, hgobj src)
          */
     } else {
         /*
+         * We are client
          * send the request
          */
+        send__connect(
+            gobj,
+            priv->keepalive,
+            priv->clean_start,
+            NULL // TODO outgoing_properties
+        );
     }
 
     KW_DECREF(kw)

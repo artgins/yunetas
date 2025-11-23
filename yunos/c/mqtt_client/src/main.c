@@ -38,6 +38,8 @@ struct arguments
 
     char *auth_system;
     char *auth_url;
+    char *mqtt_client_id;
+    char *mqtt_protocol;
     char *user_id;
     char *user_passw;
     char *jwt;
@@ -156,10 +158,12 @@ static struct argp_option options[] = {
 
 {0,                 0,      0,          0,      "OAuth2 keys", 20},
 {"auth_system",     'K',    "AUTH_SYSTEM",0,    "OpenID System(default: keycloak, to get now a jwt)", 20},
-{"auth_url",        'k',    "AUTH_URL", 0,      "OpenID Endpoint (to get now a jwt)", 20},
+{"auth_url",        'k',    "AUTH_URL", 0,      "OpenID Endpoint (to get now a jwt). If empty it will be used MQTT username/password", 20},
 {"azp",             'Z',    "AZP",      0,      "azp (Authorized Party, client_id in keycloak)", 20},
-{"user_id",         'x',    "USER_ID",  0,      "OAuth2 User Id (to get now a jwt)", 20},
-{"user_passw",      'X',    "USER_PASSW",0,     "OAuth2 User Password (to get now a jwt)", 20},
+{"mqtt_client_id",  'd',    "MQTT_CLIENT_ID",0, "MQTT Client ID", 20},
+{"mqtt_protocol",   'q',    "MQTT_PROTOCOL", 0, "MQTT Protocol. Can be mqttv5, mqttv311 or mqttv31. Defaults to mqttv311.", 20},
+{"user_id",         'x',    "USER_ID",  0,      "MQTT Username or OAuth2 User Id (to get now a jwt)", 20},
+{"user_passw",      'X',    "USER_PASSW",0,     "MQTT Password or OAuth2 User Password (to get now a jwt)", 20},
 {"jwt",             'j',    "JWT",      0,      "Jwt (previously got it)", 21},
 
 {0,                 0,      0,          0,      "Connection keys", 30},
@@ -206,6 +210,9 @@ static error_t parse_opt (int key, char *arg, struct argp_state *state)
         arguments->auth_url = arg;
         break;
 
+    case 'd':
+        arguments->mqtt_client_id = arg;
+        break;
     case 'x':
         arguments->user_id = arg;
         break;
@@ -349,6 +356,8 @@ int main(int argc, char *argv[])
     arguments.yuno_service = "__default_service__";
     arguments.auth_system = "keycloak";
     arguments.auth_url = "";
+    arguments.mqtt_protocol = "mqttv311";
+    arguments.mqtt_client_id = "";
     arguments.user_id = "";
     arguments.user_passw = "";
     arguments.jwt = "";
@@ -381,11 +390,32 @@ int main(int argc, char *argv[])
     }
 
     /*
+     *  Check configuration
+     */
+    int mqtt_protocol = MQTT_PROTOCOL_V311;
+    if(!strcmp(arguments.mqtt_protocol, "mqttv31") ||
+        !strcmp(arguments.mqtt_protocol, "31")
+    ) {
+        mqtt_protocol = MQTT_PROTOCOL_V31;
+    } else if(!strcmp(arguments.mqtt_protocol, "mqttv311") ||
+        !strcmp(arguments.mqtt_protocol, "311")
+    ) {
+        mqtt_protocol = MQTT_PROTOCOL_V311;
+    } else if(!strcmp(arguments.mqtt_protocol, "mqttv5") ||
+        !strcmp(arguments.mqtt_protocol, "5")
+    ) {
+        mqtt_protocol = MQTT_PROTOCOL_V5;
+    } else {
+        fprintf(stderr, "Error: Invalid protocol version argument given.\n\n");
+        exit(0);
+    }
+
+    /*
      *  Put configuration
      */
     {
         json_t *kw_utility = json_pack(
-            "{s:{s:b, s:s, s:i, s:i, s:s, s:s, s:s, s:s, s:s, s:s, s:s, s:s, s:s, s:s, s:b}}",
+            "{s:{s:b, s:s, s:i, s:i, s:s, s:s, s:s, s:i, s:s, s:s, s:s, s:s, s:s, s:s, s:s, s:s, s:b}}",
             "global",
             "C_MQTT_CLIENT.verbose", arguments.verbose,
             "C_MQTT_CLIENT.command", arguments.command,
@@ -393,6 +423,8 @@ int main(int argc, char *argv[])
             "C_MQTT_CLIENT.wait", arguments.wait,
             "C_MQTT_CLIENT.auth_system", arguments.auth_system,
             "C_MQTT_CLIENT.auth_url", arguments.auth_url,
+            "C_MQTT_CLIENT.mqtt_client_id", arguments.mqtt_client_id,
+            "C_MQTT_CLIENT.mqtt_protocol", mqtt_protocol,
             "C_MQTT_CLIENT.user_id", arguments.user_id,
             "C_MQTT_CLIENT.user_passw", arguments.user_passw,
             "C_MQTT_CLIENT.jwt", arguments.jwt,
