@@ -5650,6 +5650,8 @@ PRIVATE int ac_process_handshake(hgobj gobj, const char *event, json_t *kw, hgob
  ***************************************************************************/
 PRIVATE int ac_timeout_wait_handshake(hgobj gobj, const char *event, json_t *kw, hgobj src)
 {
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
     gobj_log_warning(gobj, 0,
         "function",     "%s", __FUNCTION__,
         "msgset",       "%s", MSGSET_MQTT_ERROR,
@@ -5657,6 +5659,7 @@ PRIVATE int ac_timeout_wait_handshake(hgobj gobj, const char *event, json_t *kw,
         NULL
     );
     ws_close(gobj, MQTT_RC_PROTOCOL_ERROR);
+
     KW_DECREF(kw)
     return 0;
 }
