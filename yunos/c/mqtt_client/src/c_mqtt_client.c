@@ -656,29 +656,32 @@ PRIVATE char agent_config[]= "\
     },                                          \n\
     'children': [                                 \n\
         {                                               \n\
-            'name': 'agent_client',                    \n\
-            'gclass': 'C_IOGATE',                         \n\
+            'name': 'agent_client',                     \n\
+            'gclass': 'C_IOGATE',                       \n\
             'kw': {                                     \n\
             },                                          \n\
-            'children': [                                 \n\
-                {                                               \n\
-                    'name': 'agent_client',                    \n\
-                    'gclass': 'C_CHANNEL',                        \n\
+            'children': [                               \n\
+                {                                       \n\
+                    'name': 'agent_client',             \n\
+                    'gclass': 'C_CHANNEL',              \n\
                     'kw': {                                     \n\
                     },                                          \n\
-                    'children': [                                 \n\
-                        {                                               \n\
-                            'name': 'agent_client',                    \n\
-                            'gclass': 'C_WEBSOCKET',                     \n\
-                            'children': [                           \n\
-                                {                                   \n\
-                                    'name': 'agent_client',         \n\
-                                    'gclass': 'C_TCP',              \n\
-                                    'kw': {                         \n\
-                                        'url':'(^^__url__^^)'       \n\
-                                    }                               \n\
-                                }                                   \n\
-                            ]                                       \n\
+                    'children': [                               \n\
+                        {                                       \n\
+                            'name': 'agent_client',             \n\
+                            'gclass': 'C_PROT_MQTT2',           \n\
+                            'kw': {                             \n\
+                                'iamServer': false              \n\
+                            },                                  \n\
+                            'children': [                       \n\
+                                {                               \n\
+                                    'name': 'agent_client',     \n\
+                                    'gclass': 'C_TCP',          \n\
+                                    'kw': {                     \n\
+                                        'url':'(^^__url__^^)'   \n\
+                                    }                           \n\
+                                }                               \n\
+                            ]                                   \n\
                         }                                       \n\
                     ]                                           \n\
                 }                                               \n\

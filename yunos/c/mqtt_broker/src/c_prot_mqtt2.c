@@ -5650,7 +5650,13 @@ PRIVATE int ac_process_handshake(hgobj gobj, const char *event, json_t *kw, hgob
  ***************************************************************************/
 PRIVATE int ac_timeout_wait_handshake(hgobj gobj, const char *event, json_t *kw, hgobj src)
 {
-    ws_close(gobj, MOSQ_ERR_PROTOCOL);
+    gobj_log_warning(gobj, 0,
+        "function",     "%s", __FUNCTION__,
+        "msgset",       "%s", MSGSET_MQTT_ERROR,
+        "msg",          "%s", "Timeout waiting mqtt HANDSHAKE data",
+        NULL
+    );
+    ws_close(gobj, MQTT_RC_PROTOCOL_ERROR);
     KW_DECREF(kw)
     return 0;
 }
@@ -5844,8 +5850,6 @@ PRIVATE int ac_process_payload_data(hgobj gobj, const char *event, json_t *kw, h
  ***************************************************************************/
 PRIVATE int ac_timeout_waiting_payload_data(hgobj gobj, const char *event, json_t *kw, hgobj src)
 {
-    PRIVATE_DATA *priv = gobj_priv_data(gobj);
-
     gobj_log_warning(gobj, 0,
         "function",     "%s", __FUNCTION__,
         "msgset",       "%s", MSGSET_MQTT_ERROR,
