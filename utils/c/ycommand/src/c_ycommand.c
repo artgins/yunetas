@@ -741,7 +741,6 @@ PRIVATE int cmd_connect(hgobj gobj)
     );
 
     gobj_start_tree(priv->gobj_remote_agent);
-    gobj_subscribe_event(priv->gobj_remote_agent, NULL, NULL, gobj); // TODO copy to similar yunos
 
     if(priv->verbose || priv->interactive) {
         printf("Connecting to %s...\n", url);
