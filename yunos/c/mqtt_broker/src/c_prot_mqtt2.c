@@ -5290,18 +5290,31 @@ PRIVATE int decode_head(hgobj gobj, FRAME_HEAD *frame, char *data)
     frame->command = byte1 & 0xF0;
     frame->flags = byte1 & 0x0F;
 
-    if(!priv->in_session) { // TODO remove when not needed
-        if(frame->command != CMD_CONNECT) {
-            gobj_log_error(gobj, 0,
-                "function",     "%s", __FUNCTION__,
-                "msgset",       "%s", MSGSET_MQTT_ERROR,
-                "msg",          "%s", "First command MUST be CONNECT",
-                "command",      "%s", get_command_name(frame->command),
-                NULL
-            );
-            return -1;
-        }
-    }
+    // if(!priv->in_session) { // TODO remove when not needed
+    //     if(priv->iamServer) {
+    //         if(frame->command != CMD_CONNECT) {
+    //             gobj_log_error(gobj, 0,
+    //                 "function",     "%s", __FUNCTION__,
+    //                 "msgset",       "%s", MSGSET_MQTT_ERROR,
+    //                 "msg",          "%s", "mqtt server: first command MUST be CONNECT",
+    //                 "command",      "%s", get_command_name(frame->command),
+    //                 NULL
+    //             );
+    //             return -1;
+    //         }
+    //     } else {
+    //         if(frame->command != CMD_CONNACK) {
+    //             gobj_log_error(gobj, 0,
+    //                 "function",     "%s", __FUNCTION__,
+    //                 "msgset",       "%s", MSGSET_MQTT_ERROR,
+    //                 "msg",          "%s", "mqtt client: first command MUST be CMD_CONNACK",
+    //                 "command",      "%s", get_command_name(frame->command),
+    //                 NULL
+    //             );
+    //             return -1;
+    //         }
+    //     }
+    // }
 
     /*
      *  decod byte2
@@ -5782,20 +5795,39 @@ PRIVATE int ac_process_handshake(hgobj gobj, const char *event, json_t *kw, hgob
                     (int)frame->frame_length
                 );
             }
-            if(frame->command != CMD_CONNECT) {
-                gobj_log_error(gobj, 0,
-                    "function",     "%s", __FUNCTION__,
-                    "msgset",       "%s", MSGSET_MQTT_ERROR,
-                    "msg",          "%s", "First command MUST be CONNECT",
-                    "command",      "%s", get_command_name(frame->command),
-                    NULL
-                );
-                gobj_trace_dump_full_gbuf(gobj, gbuf, "HANDSHAKE %s <== %s",
-                    gobj_short_name(gobj),
-                    gobj_short_name(src)
-                );
-                ws_close(gobj, MQTT_RC_PROTOCOL_ERROR);
-                break;
+
+            if(priv->iamServer) {
+                if(frame->command != CMD_CONNECT) {
+                    gobj_log_error(gobj, 0,
+                        "function",     "%s", __FUNCTION__,
+                        "msgset",       "%s", MSGSET_MQTT_ERROR,
+                        "msg",          "%s", "mqtt server: first command MUST be CONNECT",
+                        "command",      "%s", get_command_name(frame->command),
+                        NULL
+                    );
+                    gobj_trace_dump_full_gbuf(gobj, gbuf, "HANDSHAKE %s <== %s",
+                        gobj_short_name(gobj),
+                        gobj_short_name(src)
+                    );
+                    ws_close(gobj, MQTT_RC_PROTOCOL_ERROR);
+                    break;
+                }
+            } else {
+                if(frame->command != CMD_CONNACK) {
+                    gobj_log_error(gobj, 0,
+                        "function",     "%s", __FUNCTION__,
+                        "msgset",       "%s", MSGSET_MQTT_ERROR,
+                        "msg",          "%s", "mqtt client: first command MUST be CMD_CONNACK",
+                        "command",      "%s", get_command_name(frame->command),
+                        NULL
+                    );
+                    gobj_trace_dump_full_gbuf(gobj, gbuf, "HANDSHAKE %s <== %s",
+                        gobj_short_name(gobj),
+                        gobj_short_name(src)
+                    );
+                    ws_close(gobj, MQTT_RC_PROTOCOL_ERROR);
+                    break;
+                }
             }
 
             if(frame->frame_length) {
