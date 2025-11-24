@@ -493,8 +493,8 @@ SDATA (DTP_JSON,        "jwt_payload",      SDF_VOLATIL,        0,      "JWT pay
  */
 SDATA (DTP_STRING,      "mqtt_client_id",   SDF_RD,     "",     "MQTT Client id, used by mqtt client"),
 SDATA (DTP_STRING,      "mqtt_protocol",    SDF_RD,     "mqttv311", "MQTT Protocol. Can be mqttv5, mqttv311 or mqttv31. Defaults to mqttv311."),
-SDATA (DTP_STRING,      "user_id",          0,          "",             "MQTT Username or OAuth2 User Id (interactive jwt)"),
-SDATA (DTP_STRING,      "user_passw",       0,          "",             "MQTT Password or OAuth2 User password (interactive jwt)"),
+SDATA (DTP_STRING,      "user_id",          0,          "",     "MQTT Username or OAuth2 User Id (interactive jwt)"),
+SDATA (DTP_STRING,      "user_passw",       0,          "",     "MQTT Password or OAuth2 User password (interactive jwt)"),
 
 /*
  *  Configuration
@@ -1513,7 +1513,7 @@ PRIVATE int mqtt_property_add_byte(hgobj gobj, json_t *proplist, int identifier,
 
     const char *property_name = mqtt_property_identifier_to_string(identifier);
     json_object_set_new(proplist, property_name, json_integer(value));
-    //prop->client_generated = TRUE;
+    //proclient_generated = TRUE;
     return 0;
 }
 
@@ -1549,7 +1549,7 @@ PRIVATE int mqtt_property_add_int16(hgobj gobj, json_t *proplist, int identifier
 
     const char *property_name = mqtt_property_identifier_to_string(identifier);
     json_object_set_new(proplist, property_name, json_integer(value));
-    // prop->client_generated = TRUE; TODO vale para algo?
+    // proclient_generated = TRUE; TODO vale para algo?
     return 0;
 }
 
@@ -1585,7 +1585,7 @@ PRIVATE int mqtt_property_add_int32(hgobj gobj, json_t *proplist, int identifier
 
     const char *property_name = mqtt_property_identifier_to_string(identifier);
     json_object_set_new(proplist, property_name, json_integer(value));
-    // prop->client_generated = TRUE; TODO vale para algo?
+    // proclient_generated = TRUE; TODO vale para algo?
     return 0;
 }
 
@@ -1769,7 +1769,7 @@ PRIVATE int mqtt_property_add_string(
         return -1;
     }
 
-    //prop->client_generated = TRUE; // TODO
+    //proclient_generated = TRUE; // TODO
     const char *property_name = mqtt_property_identifier_to_string(identifier);
     json_object_set_new(proplist, property_name, json_string(value?value:""));
 
@@ -1968,7 +1968,7 @@ PRIVATE int mqtt_read_uint16(hgobj gobj, gbuffer_t *gbuf, uint16_t *word)
     uint8_t msb, lsb;
 
     if(gbuffer_leftbytes(gbuf) < 2) {
-        gobj_log_error(gobj, 0,
+        gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_MQTT_ERROR,
             "msg",          "%s", "Mqtt malformed packet, not enough data",
@@ -1994,7 +1994,7 @@ PRIVATE int mqtt_read_uint32(hgobj gobj, gbuffer_t *gbuf, uint32_t *word)
     uint32_t val = 0;
 
     if(gbuffer_leftbytes(gbuf) < 4) {
-        gobj_log_error(gobj, 0,
+        gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_MQTT_ERROR,
             "msg",          "%s", "Mqtt malformed packet, not enough data",
@@ -2084,7 +2084,7 @@ PRIVATE int mqtt_read_binary(hgobj gobj, gbuffer_t *gbuf, uint8_t **data, uint16
     }
 
     if(gbuffer_leftbytes(gbuf) < slen) {
-        gobj_log_error(gobj, 0,
+        gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_MQTT_ERROR,
             "msg",          "%s", "Mqtt malformed packet, not enough data",
@@ -2671,13 +2671,183 @@ PRIVATE json_t *property_get_property(json_t *properties, int identifier)
 }
 
 /***************************************************************************
- *  Use instead of: mosquitto_property_read_varint
+ *
  ***************************************************************************/
-PRIVATE json_int_t property_get_int(json_t *properties, int identifier)
+PRIVATE uint8_t property_read_byte(json_t *properties, int identifier)
 {
     hgobj gobj = 0;
+
+    if(identifier != MQTT_PROP_PAYLOAD_FORMAT_INDICATOR
+            && identifier != MQTT_PROP_REQUEST_PROBLEM_INFORMATION
+            && identifier != MQTT_PROP_REQUEST_RESPONSE_INFORMATION
+            && identifier != MQTT_PROP_MAXIMUM_QOS
+            && identifier != MQTT_PROP_RETAIN_AVAILABLE
+            && identifier != MQTT_PROP_WILDCARD_SUB_AVAILABLE
+            && identifier != MQTT_PROP_SUBSCRIPTION_ID_AVAILABLE
+            && identifier != MQTT_PROP_SHARED_SUB_AVAILABLE
+    ) {
+        gobj_log_error(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_MQTT_ERROR,
+            "msg",          "%s", "Bad byte property identifier",
+            "identifier",   "%d", identifier,
+            NULL
+        );
+    }
+
     json_t *property = property_get_property(properties, identifier);
-    return kw_get_int(gobj, property, "value", -1, 0);
+    return (uint8_t)kw_get_int(gobj, property, "value", 0, 0);
+}
+
+/***************************************************************************
+ *
+ ***************************************************************************/
+PRIVATE uint16_t property_read_int16(json_t *properties, int identifier)
+{
+    hgobj gobj = 0;
+
+    if(identifier != MQTT_PROP_SERVER_KEEP_ALIVE
+            && identifier != MQTT_PROP_RECEIVE_MAXIMUM
+            && identifier != MQTT_PROP_TOPIC_ALIAS_MAXIMUM
+            && identifier != MQTT_PROP_TOPIC_ALIAS
+    ) {
+        gobj_log_error(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_MQTT_ERROR,
+            "msg",          "%s", "Bad int16 property identifier",
+            "identifier",   "%d", identifier,
+            NULL
+        );
+    }
+
+    json_t *property = property_get_property(properties, identifier);
+    return (uint16_t)kw_get_int(gobj, property, "value", 0, 0);
+}
+
+/***************************************************************************
+ *
+ ***************************************************************************/
+PRIVATE uint32_t property_read_int32(json_t *properties, int identifier)
+{
+    hgobj gobj = 0;
+
+    if(identifier != MQTT_PROP_MESSAGE_EXPIRY_INTERVAL
+            && identifier != MQTT_PROP_SESSION_EXPIRY_INTERVAL
+            && identifier != MQTT_PROP_WILL_DELAY_INTERVAL
+            && identifier != MQTT_PROP_MAXIMUM_PACKET_SIZE
+    ) {
+        gobj_log_error(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_MQTT_ERROR,
+            "msg",          "%s", "Bad int32 property identifier",
+            "identifier",   "%d", identifier,
+            NULL
+        );
+    }
+
+    json_t *property = property_get_property(properties, identifier);
+    return (uint32_t)kw_get_int(gobj, property, "value", 0, 0);
+}
+
+/***************************************************************************
+ *
+ ***************************************************************************/
+PRIVATE uint32_t property_read_varint(json_t *properties, int identifier)
+{
+    hgobj gobj = 0;
+
+    if(identifier != MQTT_PROP_SUBSCRIPTION_IDENTIFIER
+    ) {
+        gobj_log_error(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_MQTT_ERROR,
+            "msg",          "%s", "Bad variant property identifier",
+            "identifier",   "%d", identifier,
+            NULL
+        );
+    }
+
+    json_t *property = property_get_property(properties, identifier);
+    return (uint32_t)kw_get_int(gobj, property, "value", 0, 0);
+}
+
+/***************************************************************************
+ *
+ ***************************************************************************/
+PRIVATE uint32_t property_read_binary(json_t *properties, int identifier) // TODO
+{
+    hgobj gobj = 0;
+
+    if(identifier != MQTT_PROP_CORRELATION_DATA
+            && identifier != MQTT_PROP_AUTHENTICATION_DATA
+    ) {
+        gobj_log_error(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_MQTT_ERROR,
+            "msg",          "%s", "Bad binary property identifier",
+            "identifier",   "%d", identifier,
+            NULL
+        );
+    }
+
+    json_t *property = property_get_property(properties, identifier);
+    return (uint32_t)kw_get_int(gobj, property, "value", 0, 0); // TODO
+}
+
+/***************************************************************************
+ *
+ ***************************************************************************/
+PRIVATE const char *property_read_string(json_t *properties, int identifier)
+{
+    hgobj gobj = 0;
+
+    if(identifier != MQTT_PROP_CONTENT_TYPE
+            && identifier != MQTT_PROP_RESPONSE_TOPIC
+            && identifier != MQTT_PROP_ASSIGNED_CLIENT_IDENTIFIER
+            && identifier != MQTT_PROP_AUTHENTICATION_METHOD
+            && identifier != MQTT_PROP_RESPONSE_INFORMATION
+            && identifier != MQTT_PROP_SERVER_REFERENCE
+            && identifier != MQTT_PROP_REASON_STRING
+    ) {
+        gobj_log_error(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_MQTT_ERROR,
+            "msg",          "%s", "Bad string property identifier",
+            "identifier",   "%d", identifier,
+            NULL
+        );
+    }
+
+    json_t *property = property_get_property(properties, identifier);
+    return kw_get_str(gobj, property, "value", "", 0);
+}
+
+/***************************************************************************
+ *
+ ***************************************************************************/
+PRIVATE const char *property_read_string_pair(json_t *properties, int identifier)
+{
+    hgobj gobj = 0;
+
+    if(identifier != MQTT_PROP_CONTENT_TYPE
+            && identifier != MQTT_PROP_RESPONSE_TOPIC
+            && identifier != MQTT_PROP_ASSIGNED_CLIENT_IDENTIFIER
+            && identifier != MQTT_PROP_AUTHENTICATION_METHOD
+            && identifier != MQTT_PROP_RESPONSE_INFORMATION
+            && identifier != MQTT_PROP_SERVER_REFERENCE
+            && identifier != MQTT_PROP_REASON_STRING
+    ) {
+        gobj_log_error(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_MQTT_ERROR,
+            "msg",          "%s", "Bad string property identifier",
+            "identifier",   "%d", identifier,
+            NULL
+        );
+    }
+
+    json_t *property = property_get_property(properties, identifier);
+    return kw_get_str(gobj, property, "value", "", 0);
 }
 
 /***************************************************************************
@@ -4511,9 +4681,99 @@ PRIVATE int handle__connect(hgobj gobj, gbuffer_t *gbuf)
 // }
 
 /***************************************************************************
- *
+ *  Only for clients
  ***************************************************************************/
-PRIVATE int handle__connack(hgobj gobj, gbuffer_t *gbuf)
+PRIVATE int handle__connack_c(hgobj gobj, gbuffer_t *gbuf)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+    uint8_t connect_flags;
+    uint8_t reason_code;
+    int ret = 0;
+    json_t *properties = NULL;
+
+    if(mqtt_read_byte(gobj, gbuf, &connect_flags)<0) {
+        gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_MQTT_ERROR,
+            "msg",          "%s", "Mqtt malformed packet, not enough data",
+            NULL
+        );
+        return -1;
+    }
+    if(mqtt_read_byte(gobj, gbuf, &reason_code)<0) {
+        gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_MQTT_ERROR,
+            "msg",          "%s", "Mqtt malformed packet, not enough data",
+            NULL
+        );
+        return -1;
+    }
+
+    if(priv->protocol_version == mosq_p_mqtt5) {
+        properties = property_read_all(gobj, gbuf, CMD_CONNACK, &ret);
+        if(ret == MOSQ_ERR_PROTOCOL && reason_code == CONNACK_REFUSED_PROTOCOL_VERSION) {
+            /* This could occur because we are connecting to a v3.x broker and
+             * it has replied with "unacceptable protocol version", but with a
+             * v3 CONNACK. */
+            // TODO connack_callback(mosq, MQTT_RC_UNSUPPORTED_PROTOCOL_VERSION, connect_flags, NULL);
+            return ret;
+        } else if(ret<0) {
+            gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
+                "function",     "%s", __FUNCTION__,
+                "msgset",       "%s", MSGSET_MQTT_ERROR,
+                "msg",          "%s", "Error in properties",
+                "command",      "%s", get_command_name(CMD_CONNACK),
+                NULL
+            );
+            return ret;
+        }
+    }
+
+    const char *clientid = property_read_string(properties, MQTT_PROP_ASSIGNED_CLIENT_IDENTIFIER);
+    if(!empty_string(clientid)) {
+        if(!empty_string(gobj_read_str_attr(gobj, "mqtt_client_id"))) {
+            /* We've been sent a client identifier but already have one. This
+             * shouldn't happen. */
+            JSON_DECREF(properties);
+            return MOSQ_ERR_PROTOCOL;
+        } else {
+            gobj_write_str_attr(gobj, "mqtt_client_id", clientid);
+            clientid = NULL;
+        }
+    }
+
+    uint8_t retain_available = property_read_byte(properties, MQTT_PROP_RETAIN_AVAILABLE);
+    uint8_t max_qos = property_read_byte(properties, MQTT_PROP_MAXIMUM_QOS);
+    uint16_t inflight_maximum = property_read_int16(properties, MQTT_PROP_RECEIVE_MAXIMUM);
+    uint16_t keepalive = property_read_int16(properties, MQTT_PROP_SERVER_KEEP_ALIVE);
+    uint32_t maximum_packet_size = property_read_int32(properties, MQTT_PROP_MAXIMUM_PACKET_SIZE);
+
+    // mosq->msgs_out.inflight_quota = mosq->msgs_out.inflight_maximum; TODO
+    // message__reconnect_reset(mosq, true); TODO important?!
+
+    // TODO connack_callback(mosq, reason_code, connect_flags, properties);
+    JSON_DECREF(properties);
+
+    switch(reason_code) {
+        case 0:
+            // TODO message__retry_check(mosq);
+            return MOSQ_ERR_SUCCESS;
+        case 1:
+        case 2:
+        case 3:
+        case 4:
+        case 5:
+            return MOSQ_ERR_CONN_REFUSED;
+        default:
+            return MOSQ_ERR_PROTOCOL;
+    }
+}
+
+/***************************************************************************
+ *  Only for server-bridge
+ ***************************************************************************/
+PRIVATE int handle__connack_s(hgobj gobj, gbuffer_t *gbuf)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
     uint8_t max_qos = 255;
@@ -4533,7 +4793,7 @@ PRIVATE int handle__connack(hgobj gobj, gbuffer_t *gbuf)
 
     uint8_t connect_acknowledge;
     if(mqtt_read_byte(gobj, gbuf, &connect_acknowledge)<0) {
-        gobj_log_error(gobj, 0,
+        gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_MQTT_ERROR,
             "msg",          "%s", "Mqtt malformed packet, not enough data",
@@ -4544,7 +4804,7 @@ PRIVATE int handle__connack(hgobj gobj, gbuffer_t *gbuf)
 
     uint8_t reason_code;
     if(mqtt_read_byte(gobj, gbuf, &reason_code)<0) {
-        gobj_log_error(gobj, 0,
+        gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_MQTT_ERROR,
             "msg",          "%s", "Mqtt malformed packet, not enough data",
@@ -5564,13 +5824,14 @@ PRIVATE int frame_completed(hgobj gobj)
         //     }
         // break;
 
-        // case CMD_CONNACK:                // NOT common to server(bridge)/client TODO
-        //     if(!priv->iamServer) {
-        //         ret = MOSQ_ERR_PROTOCOL;
-        //         break;
-        //     }
-        //     ret = handle__connack(gobj, gbuf);
-        //     break;
+        case CMD_CONNACK:                // NOT common to server(bridge)/client
+            if(priv->iamServer) {
+                ret = handle__connack_s(gobj, gbuf);
+            } else {
+                ret = handle__connack_c(gobj, gbuf);
+            }
+            break;
+
         // case CMD_SUBACK:                 // common to server(bridge)/client
         //     if(!priv->iamServer) {
         //         ret = MOSQ_ERR_PROTOCOL;
