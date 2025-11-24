@@ -5542,11 +5542,12 @@ PRIVATE int frame_completed(hgobj gobj)
                 ret = handle__publish_c(gobj, gbuf);
             }
             break;
-        // case CMD_PUBREC:
-        //     ret = handle__pubrec(gobj, gbuf);   // common to server/client
+
+        // case CMD_PUBREC:                            // common to server/client
+        //     ret = handle__pubrec(gobj, gbuf);
         //     break;
-        // case CMD_PUBREL:
-        //     ret = handle__pubrel(gobj, gbuf);   // common to server/client
+        // case CMD_PUBREL:                            // common to server/client
+        //     ret = handle__pubrel(gobj, gbuf);
         //     break;
         // case CMD_DISCONNECT: // NOT common to server/client TODO
         //     if(priv->iamServer) {
@@ -5563,29 +5564,26 @@ PRIVATE int frame_completed(hgobj gobj)
         //     }
         // break;
 
-        /*
-         *  If server only with BRIDGE
-         */
-        // case CMD_CONNACK:
+        // case CMD_CONNACK:                // NOT common to server(bridge)/client TODO
         //     if(!priv->iamServer) {
         //         ret = MOSQ_ERR_PROTOCOL;
         //         break;
         //     }
-        //     ret = handle__connack(gobj, gbuf);  // NOT common to server/client TODO
+        //     ret = handle__connack(gobj, gbuf);
         //     break;
-        // case CMD_SUBACK:
+        // case CMD_SUBACK:                 // common to server(bridge)/client
         //     if(!priv->iamServer) {
         //         ret = MOSQ_ERR_PROTOCOL;
         //         break;
         //     }
-        //     ret = handle__suback(gobj, gbuf);   // common to server/client
+        //     ret = handle__suback(gobj, gbuf);
         //     break;
         // case CMD_UNSUBACK:
-        //     if(!priv->iamServer) {
+        //     if(!priv->iamServer) {       // common to server(bridge)/client
         //         ret = MOSQ_ERR_PROTOCOL;
         //         break;
         //     }
-        //     ret = handle__unsuback(gobj, gbuf); // common to server/client
+        //     ret = handle__unsuback(gobj, gbuf);
         //     break;
 
         /*
