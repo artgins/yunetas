@@ -6822,3 +6822,37 @@ PUBLIC gbuffer_t *replace_cli_vars(
     gbmem_free(command_);
     return gbuf;
 }
+
+/***************************************************************************
+ *
+ ***************************************************************************/
+PUBLIC int get_number_from_nn_table(const number_name_table_t *table, const char *name)
+{
+    if(!table || !name) {
+        return -1;
+    }
+
+    for(size_t i=0; table[i].name; i++) {
+        if(strcmp(table[i].name, name)==0) {
+            return table[i].number;
+        }
+    }
+    return -1;  // not found
+}
+
+/***************************************************************************
+ *
+ ***************************************************************************/
+PUBLIC const char *get_name_from_nn_table(const number_name_table_t *table, int number)
+{
+    if(!table) {
+        return NULL;
+    }
+
+    for(size_t i=0; table[i].name; i++) {
+        if(table[i].number == number) {
+            return table[i].name;
+        }
+    }
+    return NULL;  // not found
+}

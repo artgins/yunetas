@@ -44,7 +44,7 @@ extern "C"{
 #define PROTOCOL_VERSION_v5 5
 
 /* Message types */
-typedef enum {
+typedef enum { // string names in command_name[]
     CMD_RESERVED    = 0x00U,
     CMD_CONNECT     = 0x10U,
     CMD_CONNACK     = 0x20U,
@@ -70,7 +70,7 @@ typedef enum {
  * Enum: mqtt311_connack_codes
  * The CONNACK results for MQTT v3.1.1, and v3.1.
  */
-enum mqtt311_connack_codes {
+enum mqtt311_connack_codes { // string names in mqtt311_connack_codes_s[]
     CONNACK_ACCEPTED = 0,
     CONNACK_REFUSED_PROTOCOL_VERSION = 1,
     CONNACK_REFUSED_IDENTIFIER_REJECTED = 2,
@@ -83,7 +83,7 @@ enum mqtt311_connack_codes {
  * Enum: mqtt5_return_codes
  * The reason codes returned in various MQTT commands.
  */
-enum mqtt5_return_codes {
+enum mqtt5_return_codes { // string names in mqtt5_return_codes_s[]
     MQTT_RC_SUCCESS = 0,    /* CONNACK, PUBACK, PUBREC, PUBREL, PUBCOMP, UNSUBACK, AUTH */
     MQTT_RC_NORMAL_DISCONNECTION = 0,           /* DISCONNECT */
     MQTT_RC_GRANTED_QOS0 = 0,                   /* SUBACK */

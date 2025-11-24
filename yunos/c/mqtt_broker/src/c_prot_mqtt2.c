@@ -282,6 +282,64 @@ PRIVATE char *command_name[] = {
     "CMD_AUTH"
 };
 
+PRIVATE number_string_table_t rc_mqtt311[] = {
+    {CONNACK_REFUSED_PROTOCOL_VERSION,      ""},
+    {CONNACK_REFUSED_IDENTIFIER_REJECTED,   ""},
+    {CONNACK_REFUSED_SERVER_UNAVAILABLE,    ""},
+    {CONNACK_REFUSED_BAD_USERNAME_PASSWORD, ""},
+    {CONNACK_REFUSED_NOT_AUTHORIZED,        ""},
+    {0,0}
+};
+
+PRIVATE number_string_table_t rc_mqtt5[] = {
+    {MQTT_RC_SUCCESS,                           ""},
+    {MQTT_RC_NORMAL_DISCONNECTION,              ""},
+    {MQTT_RC_GRANTED_QOS0,                      ""},
+    {MQTT_RC_GRANTED_QOS1,                      ""},
+    {MQTT_RC_GRANTED_QOS2,                      ""},
+    {MQTT_RC_DISCONNECT_WITH_WILL_MSG,          ""},
+    {MQTT_RC_NO_MATCHING_SUBSCRIBERS,           ""},
+    {MQTT_RC_NO_SUBSCRIPTION_EXISTED,           ""},
+    {MQTT_RC_CONTINUE_AUTHENTICATION,           ""},
+    {MQTT_RC_REAUTHENTICATE,                    ""},
+    {MQTT_RC_UNSPECIFIED,                       ""},
+    {MQTT_RC_MALFORMED_PACKET,                  ""},
+    {MQTT_RC_PROTOCOL_ERROR,                    ""},
+    {MQTT_RC_IMPLEMENTATION_SPECIFIC,           ""},
+    {MQTT_RC_UNSUPPORTED_PROTOCOL_VERSION,      ""},
+    {MQTT_RC_CLIENTID_NOT_VALID,                ""},
+    {MQTT_RC_BAD_USERNAME_OR_PASSWORD,          ""},
+    {MQTT_RC_NOT_AUTHORIZED,                    ""},
+    {MQTT_RC_SERVER_UNAVAILABLE,                ""},
+    {MQTT_RC_SERVER_BUSY,                       ""},
+    {MQTT_RC_BANNED,                            ""},
+    {MQTT_RC_SERVER_SHUTTING_DOWN,              ""},
+    {MQTT_RC_BAD_AUTHENTICATION_METHOD,         ""},
+    {MQTT_RC_KEEP_ALIVE_TIMEOUT,                ""},
+    {MQTT_RC_SESSION_TAKEN_OVER,                ""},
+    {MQTT_RC_TOPIC_FILTER_INVALID,              ""},
+    {MQTT_RC_TOPIC_NAME_INVALID,                ""},
+    {MQTT_RC_PACKET_ID_IN_USE,                  ""},
+    {MQTT_RC_PACKET_ID_NOT_FOUND,               ""},
+    {MQTT_RC_RECEIVE_MAXIMUM_EXCEEDED,          ""},
+    {MQTT_RC_TOPIC_ALIAS_INVALID,               ""},
+    {MQTT_RC_PACKET_TOO_LARGE,                  ""},
+    {MQTT_RC_MESSAGE_RATE_TOO_HIGH,             ""},
+    {MQTT_RC_QUOTA_EXCEEDED,                    ""},
+    {MQTT_RC_ADMINISTRATIVE_ACTION,             ""},
+    {MQTT_RC_PAYLOAD_FORMAT_INVALID,            ""},
+    {MQTT_RC_RETAIN_NOT_SUPPORTED,              ""},
+    {MQTT_RC_QOS_NOT_SUPPORTED,                 ""},
+    {MQTT_RC_USE_ANOTHER_SERVER,                ""},
+    {MQTT_RC_SERVER_MOVED,                      ""},
+    {MQTT_RC_SHARED_SUBS_NOT_SUPPORTED,         ""},
+    {MQTT_RC_CONNECTION_RATE_EXCEEDED,          ""},
+    {MQTT_RC_MAXIMUM_CONNECT_TIME,              ""},
+    {MQTT_RC_SUBSCRIPTION_IDS_NOT_SUPPORTED,    ""},
+    {MQTT_RC_WILDCARD_SUBS_NOT_SUPPORTED,       ""},
+    {0,0}
+};
+
 PRIVATE json_t *cmd_help(hgobj gobj, const char *cmd, json_t *kw, hgobj src);
 
 PRIVATE sdata_desc_t pm_help[] = {

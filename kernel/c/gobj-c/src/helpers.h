@@ -1099,3 +1099,11 @@ PUBLIC gbuffer_t *replace_cli_vars(
     char *comment,
     int commentlen
 );
+
+typedef struct { // WARNING the table must end with {0,0}
+    int number;
+    char *name;
+} number_name_table_t;
+
+PUBLIC int get_number_from_nn_table(const number_name_table_t *table, const char *name);
+PUBLIC const char *get_name_from_nn_table(const number_name_table_t *table, int number);

@@ -142,6 +142,9 @@ The documentation needs to be update with next changes
     PUBLIC BOOL set_trace_with_short_name(BOOL trace_with_short_name);
     PUBLIC BOOL set_trace_with_full_name(BOOL trace_with_full_name);
     tty_keyboard_init()
+    PUBLIC int get_number_from_nn_table(number_name_table_t number_string_table[], const char *name);
+    PUBLIC const char *get_name_from_nn_table(number_name_table_t number_string_table[], int number);
+
 
 # Delete API
 
