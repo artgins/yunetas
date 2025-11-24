@@ -282,7 +282,7 @@ PRIVATE char *command_name[] = {
     "CMD_AUTH"
 };
 
-PRIVATE number_string_table_t rc_mqtt311[] = {
+PRIVATE number_name_table_t mqtt311_connack_codes_s[] = {
     {CONNACK_REFUSED_PROTOCOL_VERSION,      ""},
     {CONNACK_REFUSED_IDENTIFIER_REJECTED,   ""},
     {CONNACK_REFUSED_SERVER_UNAVAILABLE,    ""},
@@ -291,7 +291,7 @@ PRIVATE number_string_table_t rc_mqtt311[] = {
     {0,0}
 };
 
-PRIVATE number_string_table_t rc_mqtt5[] = {
+PRIVATE number_name_table_t mqtt5_return_codes_s[] = {
     {MQTT_RC_SUCCESS,                           ""},
     {MQTT_RC_NORMAL_DISCONNECTION,              ""},
     {MQTT_RC_GRANTED_QOS0,                      ""},
@@ -4696,32 +4696,34 @@ PRIVATE int handle__connack_c(hgobj gobj, gbuffer_t *gbuf)
     // TODO connack_callback(mosq, reason_code, connect_flags, properties);
     JSON_DECREF(properties);
 
-    switch(reason_code) {
-        case 0:
-            // TODO message__retry_check(mosq); important!
-            return MOSQ_ERR_SUCCESS;
-        case 1:
-        case 2:
-        case 3:
-        case 4:
-        case 5:
-            gobj_log_error(gobj, 0,
-                "function",     "%s", __FUNCTION__,
-                "msgset",       "%s", MSGSET_MQTT_ERROR,
-                "msg",          "%s", "Mqtt connection refused",
-                "reason",       "%d", (int)reason_code,
-                NULL
-            );
-            return MOSQ_ERR_CONN_REFUSED;
-        default:
-            gobj_log_error(gobj, 0,
-                "function",     "%s", __FUNCTION__,
-                "msgset",       "%s", MSGSET_MQTT_ERROR,
-                "msg",          "%s", "Mqtt connection refused",
-                "reason",       "%d", (int)reason_code,
-                NULL
-            );
-            return MOSQ_ERR_PROTOCOL;
+    if(reason_code == 0) {
+        // TODO message__retry_check(mosq); important!
+        return MOSQ_ERR_SUCCESS;
+    }
+
+    const char *reason_code_s;
+    if(priv->protocol_version == mosq_p_mqtt5) {
+        reason_code_s = get_name_from_nn_table(mqtt5_return_codes_s, reason_code);
+        gobj_log_error(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_MQTT_ERROR,
+            "msg",          "%s", "Mqtt5 connection refused",
+            "reason_code",  "%d", (int)reason_code,
+            "reason",       "%s", reason_code_s,
+            NULL
+        );
+        return MOSQ_ERR_PROTOCOL;
+    } else {
+        reason_code_s = get_name_from_nn_table(mqtt311_connack_codes_s, reason_code);
+        gobj_log_error(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_MQTT_ERROR,
+            "msg",          "%s", "Mqtt3 connection refused",
+            "reason_code",  "%d", (int)reason_code,
+            "reason",       "%s", reason_code_s,
+            NULL
+        );
+        return MOSQ_ERR_CONN_REFUSED;
     }
 }
 

@@ -6832,11 +6832,15 @@ PUBLIC int get_number_from_nn_table(const number_name_table_t *table, const char
         return -1;
     }
 
-    for(size_t i=0; table[i].name; i++) {
-        if(strcmp(table[i].name, name)==0) {
-            return table[i].number;
+    const number_name_table_t *p = table;
+
+    while(p->name) {                    // table ends with name == NULL
+        if(strcmp(p->name, name)==0) {
+            return p->number;
         }
+        p++;                            // advance pointer
     }
+
     return -1;  // not found
 }
 
@@ -6849,10 +6853,14 @@ PUBLIC const char *get_name_from_nn_table(const number_name_table_t *table, int 
         return NULL;
     }
 
-    for(size_t i=0; table[i].name; i++) {
-        if(table[i].number == number) {
-            return table[i].name;
+    const number_name_table_t *p = table;
+
+    while(p->name) {
+        if(p->number == number) {
+            return p->name;
         }
+        p++;
     }
+
     return NULL;  // not found
 }
