@@ -4022,6 +4022,43 @@ PRIVATE int handle__connect(hgobj gobj, gbuffer_t *gbuf)
 
     /*-------------------------------------------*
      *      Connect flags
+        ## What is the purpose of `cleanSession`?
+
+        `cleanSession` (MQTT 3.1.1) controls whether the broker should create a **new session** or **resume a previous one** for a client.
+
+        ### `cleanSession = 1`
+        A **new, non-persistent session** is created:
+        - Previous session data is **discarded**.
+        - Broker does **not** store:
+          - Subscriptions
+          - Pending QoS 1/2 messages
+          - Inflight message state
+        - When the client disconnects, the session is **deleted**.
+
+        Use this when the client does not need message history or persistent subscriptions.
+
+        ### `cleanSession = 0`
+        A **persistent session** is used:
+        - Broker **keeps**:
+          - Subscriptions
+          - Pending QoS 1/2 messages for offline delivery
+          - Inflight message state
+        - If the client reconnects with the same Client ID, the broker **restores** the session.
+
+        Use this when the client must not lose messages during disconnections.
+
+        ### MQTT 5 equivalence
+        `cleanSession` was split into:
+        - `cleanStart`
+        - `sessionExpiryInterval`
+
+        Mapping:
+        - `cleanSession=1` → `cleanStart=true`, `sessionExpiry=0`
+        - `cleanSession=0` → `cleanStart=false`, `sessionExpiry>0`
+
+        ### Summary
+        `cleanSession` determines whether MQTT sessions are **temporary** or **persistent**, controlling how subscriptions and queued messages survive client disconnections.
+
      *-------------------------------------------*/
     uint8_t connect_flags;
     uint32_t session_expiry_interval;
@@ -4163,6 +4200,28 @@ PRIVATE int handle__connect(hgobj gobj, gbuffer_t *gbuf)
 
     /*-------------------------------------------*
      *      Client id
+        ## Is the Client ID required in the MQTT protocol?
+
+        ### MQTT 3.1.1
+        Yes — the Client ID **must** be included in the CONNECT packet.
+        However:
+        - It **may be empty** **only if** `cleanSession = 1`.
+        - If empty and the broker does not allow it, the connection is rejected.
+        - Some brokers auto-generate a Client ID when it is empty.
+
+        ### MQTT 5.0
+        Yes — the Client ID field is still required, **but it may be empty**.
+        If empty:
+        - The broker **may assign a Server-Generated Client ID**.
+        - Acceptance depends on broker configuration.
+
+        ### Summary
+        The Client ID is **always required by the protocol**, but:
+        - **3.1.1:** can be empty only with `cleanSession=1`.
+        - **5.0:** can be empty; broker may generate one.
+
+        For maximum compatibility, it is recommended to **always provide a unique Client ID**.
+     *
      *-------------------------------------------*/
     char uuid[60];
     char *client_id = NULL;
