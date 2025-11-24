@@ -491,8 +491,8 @@ SDATA (DTP_JSON,        "jwt_payload",      SDF_VOLATIL,        0,      "JWT pay
 /*
  *  Used by mqtt client
  */
-SDATA (DTP_STRING,      "mqtt_client_id",   SDF_RD,             "",     "MQTT Client id, used by mqtt client"),
-SDATA (DTP_INTEGER,     "mqtt_protocol",    SDF_RD,             "4",    "MQTT protocol, used by mqtt client, default 4=MQTT_PROTOCOL_V311"),
+SDATA (DTP_STRING,      "mqtt_client_id",   SDF_RD,     "",     "MQTT Client id, used by mqtt client"),
+SDATA (DTP_STRING,      "mqtt_protocol",    SDF_RD,     "mqttv311", "MQTT Protocol. Can be mqttv5, mqttv311 or mqttv31. Defaults to mqttv311."),
 SDATA (DTP_STRING,      "user_id",          0,          "",             "MQTT Username or OAuth2 User Id (interactive jwt)"),
 SDATA (DTP_STRING,      "user_passw",       0,          "",             "MQTT Password or OAuth2 User password (interactive jwt)"),
 
@@ -1942,8 +1942,12 @@ PRIVATE int property__write(hgobj gobj, gbuffer_t *gbuf, const char *property_na
 /***************************************************************************
  *
  ***************************************************************************/
-PRIVATE int property_write_all(hgobj gobj, gbuffer_t *gbuf, json_t *props, BOOL write_len)
-{
+PRIVATE int property_write_all(
+    hgobj gobj,
+    gbuffer_t *gbuf,
+    json_t *props, // not owned
+    BOOL write_len
+) {
     if(write_len) {
         mqtt_write_varint(gbuf, property_get_length_all(props));
     }
@@ -2848,7 +2852,7 @@ PRIVATE int send__connect(
     hgobj gobj,
     uint16_t keepalive,
     BOOL clean_session,
-    json_t *properties
+    json_t *properties // owned
 ) {
     uint32_t payloadlen;
     uint8_t will = 0;
@@ -2872,10 +2876,24 @@ PRIVATE int send__connect(
         }
     }
 
-    int protocol = (int)gobj_read_integer_attr(gobj, "mqtt_protocol");
-    const char *clientid = gobj_read_str_attr(gobj, "mqtt_client_id");
-    if(protocol == mosq_p_mqtt31 && empty_string(clientid)) {
-        // TODO log error and check error return
+    const char *mqtt_client_id = gobj_read_str_attr(gobj, "mqtt_client_id");
+    const char *mqtt_protocol = gobj_read_str_attr(gobj, "mqtt_protocol");
+
+    int protocol = mosq_p_mqtt311; // "mqttv31" default
+    if(strcasecmp(mqtt_protocol, "mqttv5")==0) {
+        protocol = mosq_p_mqtt5;
+    } else if(strcasecmp(mqtt_protocol, "mqttv311")==0) {
+        protocol = mosq_p_mqtt31;
+    }
+
+    if(protocol == mosq_p_mqtt31 && empty_string(mqtt_client_id)) {
+        gobj_log_error(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_MQTT_ERROR,
+            "msg",          "%s", "client_id required in mqtt31 protocol",
+            NULL
+        );
+        JSON_DECREF(properties);
         return MOSQ_ERR_PROTOCOL;
     }
 
@@ -2885,8 +2903,8 @@ PRIVATE int send__connect(
     /*
      *  Work with nulls
      */
-    if(empty_string(clientid)) {
-        clientid = NULL;
+    if(empty_string(mqtt_client_id)) {
+        mqtt_client_id = NULL;
     }
     if(empty_string(username)) {
         username = NULL;
@@ -2899,7 +2917,11 @@ PRIVATE int send__connect(
         /* Generate properties from options */
         // if(!mosquitto_property_read_int16(properties, MQTT_PROP_RECEIVE_MAXIMUM, &receive_maximum, false)) {
         //     rc = mosquitto_property_add_int16(&local_props, MQTT_PROP_RECEIVE_MAXIMUM, mosq->msgs_in.inflight_maximum);
-        //     if(rc) return rc;
+        //     if(rc) {
+        // log_error
+        // JSON_DECREF(properties);
+        //     return rc;
+    // }
         // }else{
         //     mosq->msgs_in.inflight_maximum = receive_maximum;
         //     mosq->msgs_in.inflight_quota = receive_maximum;
@@ -2912,18 +2934,26 @@ PRIVATE int send__connect(
         // proplen += property__get_length_all(local_props);
         // varbytes = packet__varint_bytes(proplen);
         headerlen += proplen + varbytes;
-    } else if(protocol == mosq_p_mqtt311){
+    } else if(protocol == mosq_p_mqtt311) {
         version = MQTT_PROTOCOL_V311;
         headerlen = 10;
-    } else if(protocol == mosq_p_mqtt31){
+    } else if(protocol == mosq_p_mqtt31) {
         version = MQTT_PROTOCOL_V31;
         headerlen = 12;
     } else {
+        gobj_log_error(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_MQTT_ERROR,
+            "msg",          "%s", "Protocol unknown",
+            "protocol",     "%d", protocol,
+            NULL
+        );
+        JSON_DECREF(properties);
         return MOSQ_ERR_INVAL;
     }
 
-    if(clientid) {
-        payloadlen = (uint32_t)(2U+strlen(clientid));
+    if(mqtt_client_id) {
+        payloadlen = (uint32_t)(2U+strlen(mqtt_client_id));
     } else {
         payloadlen = 2U;
     }
@@ -2943,6 +2973,13 @@ PRIVATE int send__connect(
      * username before checking password. */
     if(protocol == mosq_p_mqtt31 || protocol == mosq_p_mqtt311) {
         if(password != NULL && username == NULL) {
+            gobj_log_error(gobj, 0,
+                "function",     "%s", __FUNCTION__,
+                "msgset",       "%s", MSGSET_MQTT_ERROR,
+                "msg",          "%s", "Invalid combination of user/passw",
+                NULL
+            );
+            JSON_DECREF(properties);
             return MOSQ_ERR_INVAL;
         }
     }
@@ -2992,11 +3029,12 @@ PRIVATE int send__connect(
         property_write_all(gobj, gbuf, properties, FALSE);
         property_write_all(gobj, gbuf, local_props, FALSE);
     }
+    JSON_DECREF(properties);
     JSON_DECREF(local_props)
 
     /* Payload */
-    if(clientid) {
-        mqtt_write_string(gbuf, clientid);
+    if(mqtt_client_id) {
+        mqtt_write_string(gbuf, mqtt_client_id);
     } else {
         mqtt_write_uint16(gbuf, 0);
     }

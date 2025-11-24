@@ -122,7 +122,7 @@ SDATA (DTP_STRING,      "auth_url",         0,          "",             "OpenID 
 SDATA (DTP_STRING,      "azp",              0,          "",             "azp (OAuth2 Authorized Party)"),
 
 SDATA (DTP_STRING,      "mqtt_client_id",   0,          "",             "MQTT Client id, used by mqtt client"),
-SDATA (DTP_INTEGER,     "mqtt_protocol",    0,          "4",            "MQTT protocol, used by mqtt client, default 4=MQTT_PROTOCOL_V311"),
+SDATA (DTP_STRING,      "mqtt_protocol",    0,          "mqttv311",     "MQTT Protocol. Can be mqttv5, mqttv311 or mqttv31. Defaults to mqttv311."),
 
 SDATA (DTP_STRING,      "user_id",          0,          "",             "MQTT Username or OAuth2 User Id (interactive jwt)"),
 SDATA (DTP_STRING,      "user_passw",       0,          "",             "MQTT Password or OAuth2 User password (interactive jwt)"),
@@ -676,8 +676,8 @@ PRIVATE char mqtt_broker_config[]= "\
                             'name': 'mqtt_broker',             \n\
                             'gclass': 'C_PROT_MQTT2',           \n\
                             'kw': {                             \n\
-                                'mqtt_client_id':'(^^mqtt_client_id^^)',    \n\
-                                'mqtt_protocol':'(^^mqtt_protocol^^)',      \n\
+                                'mqtt_client_id':'(^^__mqtt_client_id__^^)',    \n\
+                                'mqtt_protocol':'(^^__mqtt_protocol__^^)',      \n\
                                 'iamServer': false              \n\
                             },                                  \n\
                             'children': [                       \n\
@@ -708,43 +708,22 @@ PRIVATE int cmd_connect(hgobj gobj)
     const char *yuno_role = gobj_read_str_attr(gobj, "yuno_role");
     const char *yuno_service = gobj_read_str_attr(gobj, "yuno_service");
 
+    const char *mqtt_client_id = gobj_read_str_attr(gobj, "mqtt_client_id");
+    const char *mqtt_protocol = gobj_read_str_attr(gobj, "mqtt_protocol");
+
     /*
      *  Each display window has a gobj to send the commands (saved in user_data).
      *  For external agents create a filter-chain of gobjs
      */
-    json_t * jn_config_variables = json_pack("{s:s, s:s, s:s, s:s, s:s, s:s, s:i}",
+    json_t * jn_config_variables = json_pack("{s:s, s:s, s:s, s:s, s:s, s:s, s:s}",
         "__jwt__", jwt,
         "__url__", url,
         "__yuno_name__", yuno_name,
         "__yuno_role__", yuno_role,
         "__yuno_service__", yuno_service,
-        "mqtt_client_id", gobj_read_str_attr(gobj, "mqtt_client_id"),
-        "mqtt_protocol", (int)gobj_read_integer_attr(gobj, "mqtt_protocol")
+        "__mqtt_client_id__", mqtt_client_id,
+        "__mqtt_protocol__", mqtt_protocol
     );
-
-    /*
-     *  Get schema to select tls or not
-     */
-    char schema[20]={0}, host[120]={0}, port[40]={0};
-    if(parse_url(
-        gobj,
-        url,
-        schema,
-        sizeof(schema),
-        host, sizeof(host),
-        port, sizeof(port),
-        0, 0,
-        0, 0,
-        FALSE
-    )<0) {
-        gobj_log_error(gobj, 0,
-            "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_PARAMETER_ERROR,
-            "msg",          "%s", "parse_http_url() FAILED",
-            "url",          "%s", url,
-            NULL
-        );
-    }
 
     priv->gobj_mqtt_broker = gobj_create_tree(
         gobj,

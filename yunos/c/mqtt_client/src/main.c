@@ -336,6 +336,9 @@ static int register_yuno_and_more(void)
         gobj_set_gclass_trace(gclass_find_by_name(C_TCP), "traffic", TRUE);
         gobj_set_gobj_trace(0, "ev_kw", TRUE, 0);
     }
+    if(arguments.verbose > 4) {
+        gobj_set_deep_tracing(1);
+    }
 
     return 0;
 }

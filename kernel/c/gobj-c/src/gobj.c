@@ -2187,6 +2187,14 @@ PUBLIC hgobj gobj_create_tree(
         json_config_variables   // owned
     );
 
+    if(__trace_gobj_create_delete2__(parent)) {
+        trace_machine("🔰 %s^%s => jn_tree_config2",
+            parent->gclass->gclass_name,
+            parent->gobj_name
+        );
+        gobj_trace_json(parent, jn_tree_config2, "jn_tree_config2");
+    }
+
     return gobj_create_tree0(parent, jn_tree_config2);
 }
 
