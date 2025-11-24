@@ -492,7 +492,9 @@ SDATA (DTP_JSON,        "jwt_payload",      SDF_VOLATIL,        0,      "JWT pay
  *  Used by mqtt client
  */
 SDATA (DTP_STRING,      "mqtt_client_id",   SDF_RD,             "",     "MQTT Client id, used by mqtt client"),
-SDATA (DTP_STRING,      "mqtt_protocol",    SDF_RD,             "",     "MQTT protocol, used by mqtt client"),
+SDATA (DTP_INTEGER,     "mqtt_protocol",    SDF_RD,             "4",    "MQTT protocol, used by mqtt client, default 4=MQTT_PROTOCOL_V311"),
+SDATA (DTP_STRING,      "user_id",          0,          "",             "MQTT Username or OAuth2 User Id (interactive jwt)"),
+SDATA (DTP_STRING,      "user_passw",       0,          "",             "MQTT Password or OAuth2 User password (interactive jwt)"),
 
 /*
  *  Configuration
@@ -646,9 +648,9 @@ typedef struct _PRIVATE_DATA {
 
 
 
-            /***************************
-             *      Framework Methods
-             ***************************/
+                    /***************************
+                     *      Framework Methods
+                     ***************************/
 
 
 
@@ -2830,9 +2832,10 @@ PRIVATE int send_simple_command(hgobj gobj, uint8_t command)
     }
 
     if(gobj_trace_level(gobj) & SHOW_DECODE) {
-        trace_msg0("👉👉 Sending %s to '%s'",
+        trace_msg0("👉👉 Sending simple command %s to '%s' %s",
             get_command_name(command),
-            priv->client_id
+            priv->client_id,
+            gobj_short_name(gobj_bottom_gobj(gobj))
         );
     }
     return send_packet(gobj, gbuf);

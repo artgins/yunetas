@@ -120,8 +120,13 @@ SDATA (DTP_STRING,      "yuno_service",     0,          "agent",        "Yuno se
 SDATA (DTP_STRING,      "auth_system",      0,          "",             "OpenID System(interactive jwt)"),
 SDATA (DTP_STRING,      "auth_url",         0,          "",             "OpenID Endpoint(interactive jwt)"),
 SDATA (DTP_STRING,      "azp",              0,          "",             "azp (OAuth2 Authorized Party)"),
-SDATA (DTP_STRING,      "user_id",          0,          "",             "OAuth2 User Id (interactive jwt)"),
-SDATA (DTP_STRING,      "user_passw",       0,          "",             "OAuth2 User password (interactive jwt)"),
+
+SDATA (DTP_STRING,      "mqtt_client_id",   0,          "",             "MQTT Client id, used by mqtt client"),
+SDATA (DTP_INTEGER,     "mqtt_protocol",    0,          "4",            "MQTT protocol, used by mqtt client, default 4=MQTT_PROTOCOL_V311"),
+
+SDATA (DTP_STRING,      "user_id",          0,          "",             "MQTT Username or OAuth2 User Id (interactive jwt)"),
+SDATA (DTP_STRING,      "user_passw",       0,          "",             "MQTT Password or OAuth2 User password (interactive jwt)"),
+
 SDATA (DTP_STRING,      "jwt",              0,          "",             "Jwt"),
 SDATA (DTP_POINTER,     "gobj_connector",   0,          0,              "connection gobj"),
 SDATA (DTP_STRING,      "display_mode",     0,          "table",        "Display mode: table or form"),
@@ -154,7 +159,7 @@ typedef struct _PRIVATE_DATA {
     hgobj gobj_connector;
     hgobj timer;
     hgobj gobj_editline;
-    hgobj gobj_remote_agent;
+    hgobj gobj_mqtt_broker;
 
     int tty_fd;
     yev_event_h yev_reading;
@@ -643,7 +648,7 @@ PRIVATE int do_authenticate_task(hgobj gobj)
 /***************************************************************************
  *
  ***************************************************************************/
-PRIVATE char agent_config[]= "\
+PRIVATE char mqtt_broker_config[]= "\
 {                                               \n\
     'name': '(^^__url__^^)',                    \n\
     'gclass': 'IEvent_cli',                     \n\
@@ -656,26 +661,28 @@ PRIVATE char agent_config[]= "\
     },                                          \n\
     'children': [                                 \n\
         {                                               \n\
-            'name': 'agent_client',                     \n\
+            'name': 'mqtt_broker',                     \n\
             'gclass': 'C_IOGATE',                       \n\
             'kw': {                                     \n\
             },                                          \n\
             'children': [                               \n\
                 {                                       \n\
-                    'name': 'agent_client',             \n\
+                    'name': 'mqtt_broker',             \n\
                     'gclass': 'C_CHANNEL',              \n\
                     'kw': {                                     \n\
                     },                                          \n\
                     'children': [                               \n\
                         {                                       \n\
-                            'name': 'agent_client',             \n\
+                            'name': 'mqtt_broker',             \n\
                             'gclass': 'C_PROT_MQTT2',           \n\
                             'kw': {                             \n\
+                                'mqtt_client_id':'(^^mqtt_client_id^^)',    \n\
+                                'mqtt_protocol':'(^^mqtt_protocol^^)',      \n\
                                 'iamServer': false              \n\
                             },                                  \n\
                             'children': [                       \n\
                                 {                               \n\
-                                    'name': 'agent_client',     \n\
+                                    'name': 'mqtt_broker',     \n\
                                     'gclass': 'C_TCP',          \n\
                                     'kw': {                     \n\
                                         'url':'(^^__url__^^)'   \n\
@@ -705,12 +712,14 @@ PRIVATE int cmd_connect(hgobj gobj)
      *  Each display window has a gobj to send the commands (saved in user_data).
      *  For external agents create a filter-chain of gobjs
      */
-    json_t * jn_config_variables = json_pack("{s:s, s:s, s:s, s:s, s:s}",
+    json_t * jn_config_variables = json_pack("{s:s, s:s, s:s, s:s, s:s, s:s, s:i}",
         "__jwt__", jwt,
         "__url__", url,
         "__yuno_name__", yuno_name,
         "__yuno_role__", yuno_role,
-        "__yuno_service__", yuno_service
+        "__yuno_service__", yuno_service,
+        "mqtt_client_id", gobj_read_str_attr(gobj, "mqtt_client_id"),
+        "mqtt_protocol", (int)gobj_read_integer_attr(gobj, "mqtt_protocol")
     );
 
     /*
@@ -737,13 +746,13 @@ PRIVATE int cmd_connect(hgobj gobj)
         );
     }
 
-    priv->gobj_remote_agent = gobj_create_tree(
+    priv->gobj_mqtt_broker = gobj_create_tree(
         gobj,
-        agent_config,
+        mqtt_broker_config,
         jn_config_variables
     );
 
-    gobj_start_tree(priv->gobj_remote_agent);
+    gobj_start_tree(priv->gobj_mqtt_broker);
 
     if(priv->verbose || priv->interactive) {
         printf("Connecting to %s...\n", url);
@@ -1141,7 +1150,7 @@ PRIVATE int ac_on_open(hgobj gobj, const char *event, json_t *kw, hgobj src)
     } else {
         if(empty_string(command)) {
             printf("What command?\n");
-            gobj_stop(priv->gobj_remote_agent);
+            gobj_stop(priv->gobj_mqtt_broker);
         } else {
             do_command(gobj, command);
         }
