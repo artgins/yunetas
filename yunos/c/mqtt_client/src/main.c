@@ -396,20 +396,9 @@ int main(int argc, char *argv[])
     /*
      *  Check configuration
      */
-    int mqtt_protocol = MQTT_PROTOCOL_V311;
-    if(!strcmp(arguments.mqtt_protocol, "mqttv31") ||
-        !strcmp(arguments.mqtt_protocol, "31")
-    ) {
-        mqtt_protocol = MQTT_PROTOCOL_V31;
-    } else if(!strcmp(arguments.mqtt_protocol, "mqttv311") ||
-        !strcmp(arguments.mqtt_protocol, "311")
-    ) {
-        mqtt_protocol = MQTT_PROTOCOL_V311;
-    } else if(!strcmp(arguments.mqtt_protocol, "mqttv5") ||
-        !strcmp(arguments.mqtt_protocol, "5")
-    ) {
-        mqtt_protocol = MQTT_PROTOCOL_V5;
-    } else {
+
+    const char *protocols[] = {"mqttv5", "mqttv311", "mqttv31", 0};
+    if(!str_in_list(protocols, arguments.mqtt_protocol, FALSE)) {
         fprintf(stderr, "Error: Invalid protocol version argument given.\n\n");
         exit(0);
     }
@@ -419,7 +408,7 @@ int main(int argc, char *argv[])
      */
     {
         json_t *kw_utility = json_pack(
-            "{s:{s:b, s:s, s:i, s:i, s:s, s:s, s:s, s:i, s:s, s:s, s:s, s:s, s:s, s:s, s:s, s:s, s:b}}",
+            "{s:{s:b, s:s, s:i, s:i, s:s, s:s, s:s, s:s, s:s, s:s, s:s, s:s, s:s, s:s, s:s, s:s, s:b}}",
             "global",
             "C_MQTT_CLIENT.verbose", arguments.verbose,
             "C_MQTT_CLIENT.command", arguments.command,
@@ -428,7 +417,7 @@ int main(int argc, char *argv[])
             "C_MQTT_CLIENT.auth_system", arguments.auth_system,
             "C_MQTT_CLIENT.auth_url", arguments.auth_url,
             "C_MQTT_CLIENT.mqtt_client_id", arguments.mqtt_client_id,
-            "C_MQTT_CLIENT.mqtt_protocol", mqtt_protocol,
+            "C_MQTT_CLIENT.mqtt_protocol", arguments.mqtt_protocol,
             "C_MQTT_CLIENT.user_id", arguments.user_id,
             "C_MQTT_CLIENT.user_passw", arguments.user_passw,
             "C_MQTT_CLIENT.jwt", arguments.jwt,
