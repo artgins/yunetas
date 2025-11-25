@@ -2940,19 +2940,6 @@ PRIVATE int send__connect(
     const char *username = gobj_read_str_attr(gobj, "user_id");
     const char *password = gobj_read_str_attr(gobj, "user_passw");
 
-    /*
-     *  Work with nulls
-     */
-    if(empty_string(mqtt_client_id)) {
-        mqtt_client_id = NULL;
-    }
-    if(empty_string(username)) {
-        username = NULL;
-    }
-    if(empty_string(password)) {
-        password = NULL;
-    }
-
     if(protocol == mosq_p_mqtt5) {
         /* Generate properties from options */
         // if(!mosquitto_property_read_int16(properties, MQTT_PROP_RECEIVE_MAXIMUM, &receive_maximum, false)) {
@@ -2992,7 +2979,7 @@ PRIVATE int send__connect(
         return MOSQ_ERR_INVAL;
     }
 
-    if(mqtt_client_id) {
+    if(!empty_string(mqtt_client_id)) {
         payloadlen = (uint32_t)(2U+strlen(mqtt_client_id));
     } else {
         payloadlen = 2U;
@@ -3012,7 +2999,7 @@ PRIVATE int send__connect(
      * always valid for the current protocol, so there is no need to check
      * username before checking password. */
     if(protocol == mosq_p_mqtt31 || protocol == mosq_p_mqtt311) {
-        if(password != NULL && username == NULL) {
+        if(!empty_string(password) && empty_string(username)) {
             gobj_log_error(gobj, 0,
                 "function",     "%s", __FUNCTION__,
                 "msgset",       "%s", MSGSET_MQTT_ERROR,
@@ -3024,10 +3011,10 @@ PRIVATE int send__connect(
         }
     }
 
-    if(username) {
+    if(!empty_string(username)) {
         payloadlen += (uint32_t)(2+strlen(username));
     }
-    if(password) {
+    if(!empty_string(password)) {
         payloadlen += (uint32_t)(2+strlen(password));
     }
 
@@ -3054,10 +3041,10 @@ PRIVATE int send__connect(
         //     byte |= (uint8_t)((mosq->will->msg.retain&0x1)<<5);
         // }
     }
-    if(username) {
+    if(!empty_string(username)) {
         byte = byte | 0x1<<7;
     }
-    if(password) {
+    if(!empty_string(password)) {
         byte = byte | 0x1<<6;
     }
     mqtt_write_byte(gbuf, byte);
@@ -3073,7 +3060,7 @@ PRIVATE int send__connect(
     JSON_DECREF(local_props)
 
     /* Payload */
-    if(mqtt_client_id) {
+    if(!empty_string(mqtt_client_id)) {
         mqtt_write_string(gbuf, mqtt_client_id);
     } else {
         mqtt_write_uint16(gbuf, 0);
@@ -3088,10 +3075,10 @@ PRIVATE int send__connect(
         // mqtt_write_string(gbuf, (const char *)mosq->will->msg.payload, (uint16_t)mosq->will->msg.payloadlen);
     }
 
-    if(username) {
+    if(!empty_string(username)) {
         mqtt_write_string(gbuf, username);
     }
-    if(password) {
+    if(!empty_string(password)) {
         mqtt_write_string(gbuf, password);
     }
 
