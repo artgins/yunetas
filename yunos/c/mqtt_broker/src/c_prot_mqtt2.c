@@ -398,7 +398,7 @@ SDATA (DTP_BOOLEAN,     "retain_available", SDF_WR,         "1",   "If set to FA
 
 SDATA (DTP_INTEGER,     "max_qos",          SDF_WR,         "2",      "Limit the QoS value allowed for clients connecting to this listener. Defaults to 2, which means any QoS can be used. Set to 0 or 1 to limit to those QoS values. This makes use of an MQTT v5 feature to notify clients of the limitation. MQTT v3.1.1 clients will not be aware of the limitation. Clients publishing to this listener with a too-high QoS will be disconnected."),
 
-SDATA (DTP_BOOLEAN,     "allow_zero_length_clientid",SDF_WR, "0",   "MQTT 3.1.1 and MQTT 5 allow clients to connect with a zero length client id and have the broker generate a client id for them. Use this option to allow/disallow this behaviour. Defaults to FALSE."),
+SDATA (DTP_BOOLEAN,     "allow_zero_length_clientid",SDF_WR, "1",   "MQTT 3.1.1 and MQTT 5 allow clients to connect with a zero length client id and have the broker generate a client id for them. Use this option to allow/disallow this behaviour. Defaults to TRUE."),
 
 SDATA (DTP_BOOLEAN,     "use_username_as_clientid",SDF_WR,  "0",  "Set use_username_as_clientid to TRUE to replace the clientid that a client connected with its username. This allows authentication to be tied to the clientid, which means that it is possible to prevent one client disconnecting another by using the same clientid. Defaults to FALSE."),
 
@@ -499,7 +499,7 @@ typedef struct _PRIVATE_DATA {
     BOOL in_session;
     BOOL send_disconnect;
     const char *protocol_name;
-    uint32_t protocol_version;
+    mosquitto_protocol_t protocol_version;
     BOOL is_bridge;
     BOOL assigned_id;
     const char *client_id;
@@ -4655,83 +4655,6 @@ PRIVATE int handle__connect(hgobj gobj, gbuffer_t *gbuf)
 }
 
 /***************************************************************************
- *
- ***************************************************************************/
-// PRIVATE int handle__disconnect_s(hgobj gobj, gbuffer_t *gbuf)
-// {
-//     PRIVATE_DATA *priv = gobj_priv_data(gobj);
-//     int ret = 0;
-//     json_t *properties = 0;
-//     uint8_t reason_code = 0;
-//
-//     if(priv->frame_head.flags != 0) {
-//         return MOSQ_ERR_MALFORMED_PACKET;
-//     }
-//     if(priv->protocol_version == mosq_p_mqtt5 && gbuf && gbuffer_leftbytes(gbuf) > 0) {
-//         if(mqtt_read_byte(gobj, gbuf, &reason_code)<0) {
-//             gobj_log_error(gobj, 0,
-//                 "function",     "%s", __FUNCTION__,
-//                 "msgset",       "%s", MSGSET_MQTT_ERROR,
-//                 "msg",          "%s", "Mqtt malformed packet, not enough data",
-//                 NULL
-//             );
-//             return MOSQ_ERR_MALFORMED_PACKET;
-//         }
-//
-//         if(gbuffer_leftbytes(gbuf) > 0) {
-//             properties = property_read_all(gobj, gbuf, CMD_DISCONNECT, &ret);
-//             if(!properties) {
-//                 return ret;
-//             }
-//         }
-//     }
-//     if(properties) {
-//         json_t *property = property_get_property(properties, MQTT_PROP_SESSION_EXPIRY_INTERVAL);
-//         int session_expiry_interval = kw_get_int(gobj, property, "value", -1, 0);
-//         if(session_expiry_interval != -1) {
-//             if(priv->session_expiry_interval == 0 && session_expiry_interval!= 0) {
-//                 JSON_DECREF(properties)
-//                 return MOSQ_ERR_PROTOCOL;
-//             }
-//             priv->session_expiry_interval = session_expiry_interval;
-//         }
-//         JSON_DECREF(properties)
-//     }
-//
-//     if(gbuf && gbuffer_leftbytes(gbuf)>0) {
-//         return MOSQ_ERR_PROTOCOL;
-//     }
-//     if(priv->protocol_version == mosq_p_mqtt311 || priv->protocol_version == mosq_p_mqtt5) {
-//         if(priv->frame_head.flags != 0x00) {
-//             do_disconnect(gobj, MOSQ_ERR_PROTOCOL);
-//             return MOSQ_ERR_PROTOCOL;
-//         }
-//     }
-//     if(reason_code == MQTT_RC_DISCONNECT_WITH_WILL_MSG) {
-//         // TODO mosquitto__set_state(context, mosq_cs_disconnect_with_will);
-//     } else {
-//         //will__clear(context);
-//         //mosquitto__set_state(context, mosq_cs_disconnecting);
-//     }
-//
-//     do_disconnect(gobj, MOSQ_ERR_SUCCESS);
-//     return ret;
-// }
-
-/***************************************************************************
- *
- ***************************************************************************/
-// PRIVATE int handle__disconnect_c(hgobj gobj, gbuffer_t *gbuf)
-// {
-//     // PRIVATE_DATA *priv = gobj_priv_data(gobj);
-//     int ret = 0;
-//
-//     // TODO
-//
-//     return ret;
-// }
-
-/***************************************************************************
  *  Only for clients
  ***************************************************************************/
 PRIVATE int handle__connack_c(hgobj gobj, gbuffer_t *gbuf)
@@ -5097,6 +5020,83 @@ PRIVATE int handle__connack_s(hgobj gobj, gbuffer_t *gbuf)
     }
     return -1;
 }
+
+/***************************************************************************
+ *
+ ***************************************************************************/
+// PRIVATE int handle__disconnect_s(hgobj gobj, gbuffer_t *gbuf)
+// {
+//     PRIVATE_DATA *priv = gobj_priv_data(gobj);
+//     int ret = 0;
+//     json_t *properties = 0;
+//     uint8_t reason_code = 0;
+//
+//     if(priv->frame_head.flags != 0) {
+//         return MOSQ_ERR_MALFORMED_PACKET;
+//     }
+//     if(priv->protocol_version == mosq_p_mqtt5 && gbuf && gbuffer_leftbytes(gbuf) > 0) {
+//         if(mqtt_read_byte(gobj, gbuf, &reason_code)<0) {
+//             gobj_log_error(gobj, 0,
+//                 "function",     "%s", __FUNCTION__,
+//                 "msgset",       "%s", MSGSET_MQTT_ERROR,
+//                 "msg",          "%s", "Mqtt malformed packet, not enough data",
+//                 NULL
+//             );
+//             return MOSQ_ERR_MALFORMED_PACKET;
+//         }
+//
+//         if(gbuffer_leftbytes(gbuf) > 0) {
+//             properties = property_read_all(gobj, gbuf, CMD_DISCONNECT, &ret);
+//             if(!properties) {
+//                 return ret;
+//             }
+//         }
+//     }
+//     if(properties) {
+//         json_t *property = property_get_property(properties, MQTT_PROP_SESSION_EXPIRY_INTERVAL);
+//         int session_expiry_interval = kw_get_int(gobj, property, "value", -1, 0);
+//         if(session_expiry_interval != -1) {
+//             if(priv->session_expiry_interval == 0 && session_expiry_interval!= 0) {
+//                 JSON_DECREF(properties)
+//                 return MOSQ_ERR_PROTOCOL;
+//             }
+//             priv->session_expiry_interval = session_expiry_interval;
+//         }
+//         JSON_DECREF(properties)
+//     }
+//
+//     if(gbuf && gbuffer_leftbytes(gbuf)>0) {
+//         return MOSQ_ERR_PROTOCOL;
+//     }
+//     if(priv->protocol_version == mosq_p_mqtt311 || priv->protocol_version == mosq_p_mqtt5) {
+//         if(priv->frame_head.flags != 0x00) {
+//             do_disconnect(gobj, MOSQ_ERR_PROTOCOL);
+//             return MOSQ_ERR_PROTOCOL;
+//         }
+//     }
+//     if(reason_code == MQTT_RC_DISCONNECT_WITH_WILL_MSG) {
+//         // TODO mosquitto__set_state(context, mosq_cs_disconnect_with_will);
+//     } else {
+//         //will__clear(context);
+//         //mosquitto__set_state(context, mosq_cs_disconnecting);
+//     }
+//
+//     do_disconnect(gobj, MOSQ_ERR_SUCCESS);
+//     return ret;
+// }
+
+/***************************************************************************
+ *
+ ***************************************************************************/
+// PRIVATE int handle__disconnect_c(hgobj gobj, gbuffer_t *gbuf)
+// {
+//     // PRIVATE_DATA *priv = gobj_priv_data(gobj);
+//     int ret = 0;
+//
+//     // TODO
+//
+//     return ret;
+// }
 
 /***************************************************************************
  *
