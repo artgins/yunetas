@@ -4739,10 +4739,19 @@ PRIVATE int handle__connack_c(hgobj gobj, gbuffer_t *gbuf)
             /* This could occur because we are connecting to a v3.x broker and
              * it has replied with "unacceptable protocol version", but with a
              * v3 CONNACK. */
+            gobj_log_error(gobj, 0,
+                "function",     "%s", __FUNCTION__,
+                "msgset",       "%s", MSGSET_MQTT_ERROR,
+                "msg",          "%s", "Error in properties",
+                "command",      "%s", get_command_name(CMD_CONNACK),
+                "reason",       "%s", mosquitto_reason_string(MQTT_RC_UNSUPPORTED_PROTOCOL_VERSION),
+                NULL
+            );
             // TODO connack_callback(mosq, MQTT_RC_UNSUPPORTED_PROTOCOL_VERSION, connect_flags, NULL);
             return ret;
+
         } else if(ret<0) {
-            gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
+            gobj_log_error(gobj, 0,
                 "function",     "%s", __FUNCTION__,
                 "msgset",       "%s", MSGSET_MQTT_ERROR,
                 "msg",          "%s", "Error in properties",
@@ -4759,6 +4768,14 @@ PRIVATE int handle__connack_c(hgobj gobj, gbuffer_t *gbuf)
             if(!empty_string(gobj_read_str_attr(gobj, "mqtt_client_id"))) {
                 /* We've been sent a client identifier but already have one. This
                  * shouldn't happen. */
+                gobj_log_error(gobj, 0,
+                    "function",     "%s", __FUNCTION__,
+                    "msgset",       "%s", MSGSET_MQTT_ERROR,
+                    "msg",          "%s", "assigned client identifier",
+                    "command",      "%s", get_command_name(CMD_CONNACK),
+                    NULL
+                );
+
                 JSON_DECREF(properties);
                 return MOSQ_ERR_PROTOCOL;
             } else {
@@ -4776,6 +4793,18 @@ PRIVATE int handle__connack_c(hgobj gobj, gbuffer_t *gbuf)
 
     // mosq->msgs_out.inflight_quota = mosq->msgs_out.inflight_maximum; TODO
     // message__reconnect_reset(mosq, true); TODO important?!
+
+    if(gobj_trace_level(gobj) & SHOW_DECODE) {
+        trace_msg0("👈👈 COMMAND=%s, reason code: %s",
+            get_command_name(CMD_CONNACK),
+            priv->protocol_version == mosq_p_mqtt5?
+                get_name_from_nn_table(mqtt5_return_codes_s, reason_code) :
+                get_name_from_nn_table(mqtt311_connack_codes_s, reason_code)
+        );
+        if(properties) {
+            print_json2("CONNACK properties", properties);
+        }
+    }
 
     // TODO connack_callback(mosq, reason_code, connect_flags, properties);
     JSON_DECREF(properties);
@@ -6089,7 +6118,7 @@ PRIVATE int ac_process_handshake(hgobj gobj, const char *event, json_t *kw, hgob
 
         if(frame->header_complete) {
             if(gobj_trace_level(gobj) & SHOW_DECODE) {
-                trace_msg0("👈👈rx COMMAND=%s (%d), FRAME_LEN=%d",
+                trace_msg0("👈👈rx HANDSHAKE COMMAND=%s (%d), FRAME_LEN=%d",
                     get_command_name(frame->command),
                     (int)frame->command,
                     (int)frame->frame_length
@@ -6262,7 +6291,7 @@ PRIVATE int ac_process_frame_header(hgobj gobj, const char *event, json_t *kw, h
 
         if(frame->header_complete) {
             if(gobj_trace_level(gobj) & SHOW_DECODE) {
-                trace_msg0("👈👈rx COMMAND=%s (%d), FRAME_LEN=%d",
+                trace_msg0("👈👈rx SESSION COMMAND=%s (%d), FRAME_LEN=%d",
                     get_command_name(frame->command),
                     (int)frame->command,
                     (int)frame->frame_length
