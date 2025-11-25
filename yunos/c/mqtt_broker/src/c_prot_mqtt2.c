@@ -3983,7 +3983,7 @@ PRIVATE int handle__connect(hgobj gobj, gbuffer_t *gbuf)
         gobj_log_error(gobj, 0,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_MQTT_ERROR,
-            "msg",          "%s", "Mqtt: Invalid Will QoS",
+            "msg",          "%s", "Mqtt: Invalid Will QoS in CONNECT",
             "connect_flags","%d", (int)connect_flags,
             NULL
         );
@@ -4165,14 +4165,30 @@ PRIVATE int handle__connect(hgobj gobj, gbuffer_t *gbuf)
         }
     }
 
-    gobj_write_bool_attr(gobj, "assigned_id", assigned_id);
     gobj_write_strn_attr(gobj, "client_id", client_id, client_id_len);
+    gobj_write_bool_attr(gobj, "assigned_id", assigned_id);
+
+    /*
+     *  TODO let entry of clients with a certain prefix!
+     *  clientid_prefixes check
+     */
+    // if(db.config->clientid_prefixes){
+    //     if(strncmp(db.config->clientid_prefixes, client_id, strlen(db.config->clientid_prefixes))){
+    //         if(context->protocol == mosq_p_mqtt5){
+    //             send__connack(context, 0, MQTT_RC_NOT_AUTHORIZED, NULL);
+    //         }else{
+    //             send__connack(context, 0, CONNACK_REFUSED_NOT_AUTHORIZED, NULL);
+    //         }
+    //         rc = MOSQ_ERR_AUTH;
+    //         goto handle_connect_error;
+    //     }
+    // }
 
     /*-------------------------------------------*
      *      Will
      *-------------------------------------------*/
     if(will) {
-        if(will__read(gobj, gbuf)<0) {
+        if(will__read(gobj, gbuf)<0) { // Write in gbuf_will_payload the will payload
             gobj_log_error(gobj, 0,
                 "function",     "%s", __FUNCTION__,
                 "msgset",       "%s", MSGSET_MQTT_ERROR,
@@ -4256,6 +4272,9 @@ PRIVATE int handle__connect(hgobj gobj, gbuffer_t *gbuf)
         }
     }
 
+    /*-------------------------------------------*
+     *      All data readn, cannot be more
+     *-------------------------------------------*/
     if(gbuffer_leftbytes(gbuf)>0) {
         gobj_log_error(gobj, 0,
             "function",     "%s", __FUNCTION__,
@@ -4271,7 +4290,6 @@ PRIVATE int handle__connect(hgobj gobj, gbuffer_t *gbuf)
     if(gobj_read_bool_attr(gobj, "use_username_as_clientid")) {
         if(!empty_string(username)) {
             gobj_write_str_attr(gobj, "client_id", username);
-            gobj_write_bool_attr(gobj, "assigned_id", FALSE);
         } else {
             if(protocol_version == mosq_p_mqtt5) {
                 send__connack(gobj, 0, MQTT_RC_NOT_AUTHORIZED, NULL);
@@ -4290,6 +4308,117 @@ PRIVATE int handle__connect(hgobj gobj, gbuffer_t *gbuf)
         }
     }
 
+    /*-------------------------------------------*
+     *      Authenticate
+     *-------------------------------------------*/
+    if(!empty_string(priv->auth_method)) {
+        // TODO implement JWT auth method
+        gobj_log_error(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_MQTT_ERROR,
+            "msg",          "%s", "Mqtt: AUTHORIZATION METHOD not supported",
+            "client_id",    "%s", priv->client_id,
+            NULL
+        );
+        send__connack(gobj, 0, MQTT_RC_BAD_AUTHENTICATION_METHOD, NULL); // por contestar algo
+        JSON_DECREF(connect_properties);
+        return -1;
+    }
+
+    /*---------------------------------------------*
+     *      Check user/password
+     *---------------------------------------------*/
+    // TODO join with auth_method
+    const char *peername = gobj_read_str_attr(gobj, "peername");
+    const char *dst_service = "treedb_mqtt_broker"; // TODO too much hardcoded
+    int authorization = 0;
+    json_t *kw_auth = json_pack("{s:s, s:s, s:s, s:s, s:s}",
+        "client_id", priv->client_id,
+        "username", username,
+        "password", password,
+        "peername", peername,
+        "dst_service", dst_service
+    );
+
+    json_t *auth = gobj_authenticate(gobj, kw_auth, gobj);
+    authorization = COMMAND_RESULT(gobj, auth);
+    print_json2("XXX authenticated", auth); // TODO TEST
+
+    if(authorization < 0) {
+        if(priv->protocol_version == mosq_p_mqtt5) {
+            send__connack(gobj, 0, MQTT_RC_NOT_AUTHORIZED, NULL);
+        } else {
+            send__connack(gobj, 0, CONNACK_REFUSED_NOT_AUTHORIZED, NULL);
+        }
+        JSON_DECREF(auth)
+        JSON_DECREF(connect_properties);
+        return -1;
+    }
+
+    /*-------------------------------------------*
+     *-------------------------------------------*
+     *      Here is connect__on_authorised
+     *-------------------------------------------*
+     *-------------------------------------------*/
+
+    /*
+     *  TODO Find if this client already has an entry.
+     *  This must be done *after* any security checks.
+     */
+    const char *session_id = kw_get_str(gobj, auth, "session_id", "", KW_REQUIRED);
+    json_t *services_roles = kw_get_dict(gobj, auth, "services_roles", NULL, KW_REQUIRED);
+
+    // TODO esto debe ir a new client in upper level
+    /* Client is already connected, disconnect old version. This is
+     * done in context__cleanup() below. */
+    // if(db.config->connection_messages == true){
+    //     log__printf(NULL, MOSQ_LOG_ERR, "Client %s already connected, closing old connection.", context->id);
+    // }
+
+    // if(priv->clean_start == FALSE && prev_session_expiry_interval > 0) {
+    //     if(priv->protocol_version == mosq_p_mqtt311 || priv->protocol_version == mosq_p_mqtt5) {
+    //         connect_ack |= 0x01;
+    //     }
+    //     // copia client session TODO
+    // }
+    //
+    // if(priv->clean_start == TRUE) {
+    //     // TODO new sub__clean_session(gobj, client);
+    // }
+    // if((prev_protocol_version == mosq_p_mqtt5 && prev_session_expiry_interval == 0)
+    //         || (prev_protocol_version != mosq_p_mqtt5 && prev_clean_start == TRUE)
+    //         || (priv->clean_start == TRUE)
+    //         ) {
+    //     // TODO context__send_will(found_context);
+    // }
+    //
+    // // TODO session_expiry__remove(found_context);
+    // // TODO will_delay__remove(found_context);
+    // // TODO will__clear(found_context);
+    //
+    // //found_context->clean_start = TRUE;
+    // //found_context->session_expiry_interval = 0;
+    // //mosquitto__set_state(found_context, mosq_cs_duplicate);
+    //
+    // if(isConnected) {
+    //     hgobj gobj_bottom = (hgobj)(size_t)kw_get_int(gobj, client, "_gobj_bottom", 0, KW_REQUIRED);
+    //     if(gobj_bottom) {
+    //         gobj_send_event(gobj_bottom, EV_DROP, 0, gobj);
+    //     }
+    // }
+
+    // TODO
+    // rc = acl__find_acls(context);
+    // if(rc){
+    //     free(auth_data_out);
+    // JSON_DECREF(auth)
+    // JSON_DECREF(connect_properties);
+    //     return rc;
+    // }
+
+    /*---------------------------------------------*
+     *      Print new client connected
+     *---------------------------------------------*/
     if(gobj_trace_level(gobj) & SHOW_DECODE) {
         trace_msg0(
         "  👈 CONNECT\n"
@@ -4324,19 +4453,32 @@ PRIVATE int handle__connect(hgobj gobj, gbuffer_t *gbuf)
         }
     }
 
-    if(!empty_string(priv->auth_method)) {
-        gobj_log_error(gobj, 0,
-            "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_MQTT_ERROR,
-            "msg",          "%s", "Mqtt: AUTHORIZATION METHOD not supported",
-            "client_id",    "%s", priv->client_id,
-            NULL
-        );
-        send__connack(gobj, 0, MQTT_RC_BAD_AUTHENTICATION_METHOD, NULL); // por contestar algo
-        JSON_DECREF(connect_properties);
-        return -1;
-    }
+    // context->ping_t = 0; TODO
+    // context->is_dropping = false;
+    // kw_set_dict_value(gobj, client, "ping_t", json_integer(0));
+    // kw_set_dict_value(gobj, client, "is_dropping", json_false());
 
+    /*-----------------------------*
+     *  Check acl acl__find_acls
+     *-----------------------------*/
+    // TODO
+    //connection_check_acl(context, &context->msgs_in.inflight);
+    //connection_check_acl(context, &context->msgs_in.queued);
+    //connection_check_acl(context, &context->msgs_out.inflight);
+    //connection_check_acl(context, &context->msgs_out.queued);
+
+    //context__add_to_by_id(context); TODO
+
+// // #ifdef WITH_PERSISTENCE TODO
+//     if(!context->clean_start){
+//         db.persistence_changes++;
+//     }
+// // #endif
+//     context->max_qos = context->listener->max_qos;
+
+    /*---------------------------------------------*
+     *      Prepare the response
+     *---------------------------------------------*/
     uint8_t connect_ack = 0;
     json_t *connack_props = json_object();
 
@@ -4346,6 +4488,7 @@ PRIVATE int handle__connect(hgobj gobj, gbuffer_t *gbuf)
             mqtt_property_add_int16(gobj, connack_props, MQTT_PROP_SERVER_KEEP_ALIVE, priv->keepalive);
         } else {
             send__connack(gobj, connect_ack, CONNACK_REFUSED_IDENTIFIER_REJECTED, NULL);
+            JSON_DECREF(auth)
             JSON_DECREF(connect_properties);
             JSON_DECREF(connack_props);
             return -1;
@@ -4358,6 +4501,7 @@ PRIVATE int handle__connect(hgobj gobj, gbuffer_t *gbuf)
                 gobj, connack_props, MQTT_PROP_TOPIC_ALIAS_MAXIMUM, priv->max_topic_alias)<0)
             {
                 // Error already logged
+                JSON_DECREF(auth)
                 JSON_DECREF(connect_properties);
                 JSON_DECREF(connack_props);
                 return -1;
@@ -4368,6 +4512,7 @@ PRIVATE int handle__connect(hgobj gobj, gbuffer_t *gbuf)
                 gobj, connack_props, MQTT_PROP_ASSIGNED_CLIENT_IDENTIFIER, priv->client_id)<0)
             {
                 // Error already logged
+                JSON_DECREF(auth)
                 JSON_DECREF(connect_properties);
                 JSON_DECREF(connack_props);
                 return -1;
@@ -4375,87 +4520,21 @@ PRIVATE int handle__connect(hgobj gobj, gbuffer_t *gbuf)
         }
         if(priv->auth_method) {
             // TODO No tenemos auth method
+            // if(mosquitto_property_add_string(&connack_props, MQTT_PROP_AUTHENTICATION_METHOD, context->auth_method)){
+            //     rc = MOSQ_ERR_NOMEM;
+            //     goto error;
+            // }
+            //
+            // if(auth_data_out && auth_data_out_len > 0){
+            //     if(mosquitto_property_add_binary(&connack_props, MQTT_PROP_AUTHENTICATION_DATA, auth_data_out, auth_data_out_len)){
+            //         rc = MOSQ_ERR_NOMEM;
+            //         goto error;
+            //     }
+            // }
         }
     }
-
-    /*---------------------------------------------*
-     *      Check user/password
-     *---------------------------------------------*/
-    const char *peername = gobj_read_str_attr(gobj, "peername");
-    const char *dst_service = "treedb_mqtt_broker"; // TODO too much hardcoded
-    int authorization = 0;
-    json_t *kw_auth = json_pack("{s:s, s:s, s:s, s:s, s:s}",
-        "client_id", priv->client_id,
-        "username", username,
-        "password", password,
-        "peername", peername,
-        "dst_service", dst_service
-    );
-
-    json_t *auth = gobj_authenticate(gobj, kw_auth, gobj);
-    authorization = COMMAND_RESULT(gobj, auth);
-    print_json2("XXX authenticated", auth); // TODO TEST
-
-    if(authorization < 0) {
-        if(priv->protocol_version == mosq_p_mqtt5) {
-            send__connack(gobj, 0, MQTT_RC_NOT_AUTHORIZED, NULL);
-        } else {
-            send__connack(gobj, 0, CONNACK_REFUSED_NOT_AUTHORIZED, NULL);
-        }
-        JSON_DECREF(auth)
-        JSON_DECREF(connect_properties);
-        JSON_DECREF(connack_props);
-        return -1;
-    }
-
-    const char *session_id = kw_get_str(gobj, auth, "session_id", "", KW_REQUIRED);
-    json_t *services_roles = kw_get_dict(gobj, auth, "services_roles", NULL, KW_REQUIRED);
-
-    // TODO esto debe ir a new client in upper level
-    // if(priv->clean_start == FALSE && prev_session_expiry_interval > 0) {
-    //     if(priv->protocol_version == mosq_p_mqtt311 || priv->protocol_version == mosq_p_mqtt5) {
-    //         connect_ack |= 0x01;
-    //     }
-    //     // copia client session TODO
-    // }
-    //
-    // if(priv->clean_start == TRUE) {
-    //     // TODO new sub__clean_session(gobj, client);
-    // }
-    // if((prev_protocol_version == mosq_p_mqtt5 && prev_session_expiry_interval == 0)
-    //         || (prev_protocol_version != mosq_p_mqtt5 && prev_clean_start == TRUE)
-    //         || (priv->clean_start == TRUE)
-    //         ) {
-    //     // TODO context__send_will(found_context);
-    // }
-    //
-    // // TODO session_expiry__remove(found_context);
-    // // TODO will_delay__remove(found_context);
-    // // TODO will__clear(found_context);
-    //
-    // //found_context->clean_start = TRUE;
-    // //found_context->session_expiry_interval = 0;
-    // //mosquitto__set_state(found_context, mosq_cs_duplicate);
-    //
-    // if(isConnected) {
-    //     hgobj gobj_bottom = (hgobj)(size_t)kw_get_int(gobj, client, "_gobj_bottom", 0, KW_REQUIRED);
-    //     if(gobj_bottom) {
-    //         gobj_send_event(gobj_bottom, EV_DROP, 0, gobj);
-    //     }
-    // }
-
-
-//     kw_set_dict_value(gobj, client, "ping_t", json_integer(0));
-//     kw_set_dict_value(gobj, client, "is_dropping", json_false());
-
-    /*-----------------------------*
-     *  Check acl acl__find_acls
-     *-----------------------------*/
-    //connection_check_acl(context, &context->msgs_in.inflight);
-    //connection_check_acl(context, &context->msgs_in.queued);
-    //connection_check_acl(context, &context->msgs_out.inflight);
-    //connection_check_acl(context, &context->msgs_out.queued);
-    //context__add_to_by_id(context); TODO
+    // free(auth_data_out);
+    // auth_data_out = NULL;
 
     //mosquitto__set_state(context, mosq_cs_active);
 
@@ -4506,7 +4585,7 @@ PRIVATE int handle__connect(hgobj gobj, gbuffer_t *gbuf)
     priv->inform_on_close = TRUE;
     int ret = gobj_publish_event(gobj, EV_ON_OPEN, client);
     if(ret < 0) {
-        if(ret == -2) {
+        if(ret == -2) { // TODO review
             if(priv->protocol_version == mosq_p_mqtt5) {
                 send__connack(gobj, 0, MQTT_RC_NOT_AUTHORIZED, NULL);
             } else {
@@ -4531,8 +4610,11 @@ PRIVATE int handle__connect(hgobj gobj, gbuffer_t *gbuf)
     gobj_write_bool_attr(gobj, "in_session", TRUE);
     gobj_write_bool_attr(gobj, "send_disconnect", TRUE);
 
-    // db__message_write_queued_out(context); TODO
-    //db__message_write_inflight_out_all(context); TODO
+    // TODO
+    // db__expire_all_messages(context);
+    // db__message_write_queued_out(context);
+    // db__message_write_inflight_out_all(context);
+
     if(priv->keepalive > 0) {
         // priv->timer_ping = start_sectimer(priv->keepalive);
     }
