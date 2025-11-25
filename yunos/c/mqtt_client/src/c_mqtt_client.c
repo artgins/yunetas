@@ -676,16 +676,19 @@ PRIVATE char mqtt_broker_config[]= "\
                             'name': 'mqtt_broker',             \n\
                             'gclass': 'C_PROT_MQTT2',           \n\
                             'kw': {                             \n\
-                                'mqtt_client_id':'(^^__mqtt_client_id__^^)',    \n\
-                                'mqtt_protocol':'(^^__mqtt_protocol__^^)',      \n\
-                                'iamServer': false              \n\
+                                'mqtt_client_id': '(^^__mqtt_client_id__^^)',   \n\
+                                'mqtt_protocol': '(^^__mqtt_protocol__^^)',     \n\
+                                'iamServer': false,                             \n\
+                                'url': '(^^__url__^^)',                         \n\
+                                'cert_pem': '(^^__cert_pem__^^)'                \n\
                             },                                  \n\
                             'children': [                       \n\
                                 {                               \n\
                                     'name': 'mqtt_broker',     \n\
                                     'gclass': 'C_TCP',          \n\
                                     'kw': {                     \n\
-                                        'url':'(^^__url__^^)'   \n\
+                                        'url': '(^^__url__^^)',                 \n\
+                                        'cert_pem': '(^^__cert_pem__^^)'        \n\
                                     }                           \n\
                                 }                               \n\
                             ]                                   \n\
@@ -715,9 +718,10 @@ PRIVATE int cmd_connect(hgobj gobj)
      *  Each display window has a gobj to send the commands (saved in user_data).
      *  For external agents create a filter-chain of gobjs
      */
-    json_t * jn_config_variables = json_pack("{s:s, s:s, s:s, s:s, s:s, s:s, s:s}",
+    json_t * jn_config_variables = json_pack("{s:s, s:s, s:s, s:s, s:s, s:s, s:s, s:s}",
         "__jwt__", jwt,
         "__url__", url,
+        "__cert_pem__", "",
         "__yuno_name__", yuno_name,
         "__yuno_role__", yuno_role,
         "__yuno_service__", yuno_service,

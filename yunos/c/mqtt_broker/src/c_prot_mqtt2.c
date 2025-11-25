@@ -377,12 +377,12 @@ SDATA (DTP_STRING,      "user_passw",       0,          "",     "MQTT Password o
 /*
  *  Configuration
  */
-SDATA (DTP_STRING,      "url",              SDF_RD,             "",     "Url to connect"),
-SDATA (DTP_STRING,      "cert_pem",         SDF_RD,             "",     "SSL server certificate, PEM format"),
-SDATA (DTP_INTEGER,     "timeout_handshake",SDF_RD,         "5000",  "Timeout to handshake"),
-SDATA (DTP_INTEGER,     "timeout_payload",  SDF_RD,         "5000",  "Timeout to payload"),
-SDATA (DTP_INTEGER,     "timeout_close",    SDF_RD,         "3000",  "Timeout to close"),
-SDATA (DTP_INTEGER,     "pingT",            SDF_RD,         "0",    "Ping interval. If value <= 0 then No ping"),
+SDATA (DTP_STRING,      "url",              SDF_RD,     "",     "Url to connect"),
+SDATA (DTP_STRING,      "cert_pem",         SDF_RD,     "",     "SSL server certificate, PEM format"),
+SDATA (DTP_INTEGER,     "timeout_handshake",SDF_RD,     "5000",  "Timeout to handshake"),
+SDATA (DTP_INTEGER,     "timeout_payload",  SDF_RD,     "5000",  "Timeout to payload"),
+SDATA (DTP_INTEGER,     "timeout_close",    SDF_RD,     "3000",  "Timeout to close"),
+SDATA (DTP_INTEGER,     "pingT",            SDF_RD,     "0",    "Ping interval. If value <= 0 then No ping"),
 
 SDATA (DTP_INTEGER,     "max_inflight_messages",SDF_WR,    "20",      "The maximum number of outgoing QoS 1 or 2 messages that can be in the process of being transmitted simultaneously. This includes messages currently going through handshakes and messages that are being retried. Defaults to 20. Set to 0 for no maximum. If set to 1, this will guarantee in-order delivery of messages"),
 SDATA (DTP_INTEGER,     "message_size_limit",SDF_WR,        0,      "This option sets the maximum publish payload size that the broker will allow. Received messages that exceed this size will not be accepted by the broker. This means that the message will not be forwarded on to subscribing clients, but the QoS flow will be completed for QoS 1 or QoS 2 messages. MQTT v5 clients using QoS 1 or QoS 2 will receive a PUBACK or PUBREC with the 'implementation specific error' reason code. The default value is 0, which means that all valid MQTT messages are accepted. MQTT imposes a maximum payload size of 268435455 bytes."),
@@ -2914,16 +2914,6 @@ PRIVATE int send__connect(
 
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
-    if(gobj_trace_level(gobj) & SHOW_DECODE) {
-        trace_msg0("👉👉 Sending CONNECT to '%s' %s",
-            priv->client_id,
-            gobj_short_name(gobj_bottom_gobj(gobj))
-        );
-        if(properties) {
-            gobj_trace_json(gobj, properties, "Sending CONNECT properties");
-        }
-    }
-
     const char *mqtt_client_id = gobj_read_str_attr(gobj, "mqtt_client_id");
     const char *mqtt_protocol = gobj_read_str_attr(gobj, "mqtt_protocol");
 
@@ -3106,6 +3096,32 @@ PRIVATE int send__connect(
     }
 
     // mosq->keepalive = keepalive; // TODO
+    const char *url = gobj_read_str_attr(gobj, "url");
+    if(gobj_trace_level(gobj) & SHOW_DECODE) {
+        trace_msg0(
+        "👉👉 Sending CONNECT to \n"
+        "   url '%s' \n"
+        "   client '%s' \n"
+        "   username '%s' \n"
+        "   protocol_version '%s' \n"
+        "   clean_start %d, session_expiry_interval ? \n"
+        "   will %d, will_retain ?, will_qos ? \n"
+        "   keepalive %d \n",
+            (char *)url,
+            (char *)mqtt_client_id,
+            (char *)username,
+            (char *)mqtt_protocol,
+            (int)clean_session,
+            // (int)session_expiry_interval,
+            (int)will,
+            // (int)will_retain,
+            // (int)will_qos,
+            (int)keepalive
+        );
+        if(properties) {
+            gobj_trace_json(gobj, properties, "Sending CONNECT properties");
+        }
+    }
 
     return send_packet(gobj, gbuf);
 }
