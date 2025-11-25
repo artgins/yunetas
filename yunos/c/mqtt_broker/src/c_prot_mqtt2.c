@@ -1204,7 +1204,7 @@ PRIVATE gbuffer_t *build_mqtt_packet(hgobj gobj, uint8_t command, uint32_t size)
 /***************************************************************************
  *
  ***************************************************************************/
-PRIVATE unsigned int packet_varint_bytes(uint32_t word)
+PRIVATE unsigned int packet__varint_bytes(uint32_t word)
 {
     if(word < 128) {
         return 1;
@@ -1222,7 +1222,7 @@ PRIVATE unsigned int packet_varint_bytes(uint32_t word)
 /***************************************************************************
  *
  ***************************************************************************/
-PRIVATE unsigned int property_get_length(const char *property_name, json_t *value)
+PRIVATE unsigned int property__get_length(const char *property_name, json_t *value)
 {
     hgobj gobj = 0;
     size_t str_len = 0;
@@ -1330,13 +1330,13 @@ PRIVATE unsigned int property_get_length(const char *property_name, json_t *valu
 /***************************************************************************
  *
  ***************************************************************************/
-PRIVATE unsigned int property_get_length_all(json_t *props)
+PRIVATE unsigned int property__get_length_all(json_t *props)
 {
     unsigned int len = 0;
 
     const char *property_name; json_t *value;
     json_object_foreach(props, property_name, value) {
-        len += property_get_length(property_name, value);
+        len += property__get_length(property_name, value);
     }
     return len;
 }
@@ -1345,12 +1345,12 @@ PRIVATE unsigned int property_get_length_all(json_t *props)
  * Return the number of bytes we need to add on to the remaining length when
  * encoding these properties.
  ***************************************************************************/
-PRIVATE unsigned int property_get_remaining_length(json_t *props)
+PRIVATE unsigned int property__get_remaining_length(json_t *props)
 {
     unsigned int proplen, varbytes;
 
-    proplen = property_get_length_all(props);
-    varbytes = packet_varint_bytes(proplen);
+    proplen = property__get_length_all(props);
+    varbytes = packet__varint_bytes(proplen);
     return proplen + varbytes;
 }
 
@@ -1827,7 +1827,7 @@ PRIVATE int property_write_all(
     BOOL write_len
 ) {
     if(write_len) {
-        mqtt_write_varint(gbuf, property_get_length_all(props));
+        mqtt_write_varint(gbuf, property__get_length_all(props));
     }
 
     const char *property_name; json_t *value;
@@ -2845,7 +2845,7 @@ PRIVATE int packet_check_oversize(hgobj gobj, uint32_t remaining_length)
         return 0;
     }
 
-    len = remaining_length + packet_varint_bytes(remaining_length);
+    len = remaining_length + packet__varint_bytes(remaining_length);
     if(len > priv->maximum_packet_size) {
         return -1;
     } else {
@@ -2980,9 +2980,9 @@ PRIVATE int send__connect(
         version = PROTOCOL_VERSION_v5;
         headerlen = 10;
         proplen = 0;
-        // proplen += property__get_length_all(properties);
-        // proplen += property__get_length_all(local_props);
-        // varbytes = packet__varint_bytes(proplen);
+        proplen += property__get_length_all(properties);
+        proplen += property__get_length_all(local_props);
+        varbytes = packet__varint_bytes(proplen);
         headerlen += proplen + varbytes;
     } else if(protocol == mosq_p_mqtt311) {
         version = PROTOCOL_VERSION_v311;
@@ -3105,7 +3105,8 @@ PRIVATE int send__connect(
         mqtt_write_string(gbuf, password);
     }
 
-    // mosq->keepalive = keepalive;
+    // mosq->keepalive = keepalive; // TODO
+
     return send_packet(gobj, gbuf);
 }
 
@@ -3151,7 +3152,7 @@ PRIVATE int send__connack(
             mqtt_property_add_byte(gobj, connack_props, MQTT_PROP_MAXIMUM_QOS, priv->max_qos);
         }
 
-        remaining_length += property_get_remaining_length(connack_props);
+        remaining_length += property__get_remaining_length(connack_props);
     }
 
     if(packet_check_oversize(gobj, remaining_length)) {
@@ -3212,7 +3213,7 @@ PRIVATE int send__disconnect(
     if(priv->protocol_version == mosq_p_mqtt5 && (reason_code != 0 || properties)) {
         remaining_length = 1;
         if(properties) {
-            remaining_length += property_get_remaining_length(properties);
+            remaining_length += property__get_remaining_length(properties);
         }
     } else {
         remaining_length = 0;
@@ -3245,7 +3246,7 @@ PRIVATE int send__suback(hgobj gobj, uint16_t mid, uint32_t payloadlen, const vo
 
     if(priv->protocol_version == mosq_p_mqtt5) {
         /* We don't use Reason String or User Property yet. */
-        remaining_length += property_get_remaining_length(properties);
+        remaining_length += property__get_remaining_length(properties);
     }
 
     if(gobj_trace_level(gobj) & SHOW_DECODE) {
@@ -3302,7 +3303,7 @@ PRIVATE int send__unsuback(
     uint32_t remaining_length = 2;
 
     if(priv->protocol_version == mosq_p_mqtt5) {
-        remaining_length += property_get_remaining_length(properties);
+        remaining_length += property__get_remaining_length(properties);
         remaining_length += (uint32_t)reason_code_count;
     }
 
@@ -3425,7 +3426,7 @@ PRIVATE int send_command_with_mid(
         }
 
         if(properties) {
-            remaining_length += property_get_remaining_length(properties);
+            remaining_length += property__get_remaining_length(properties);
         }
     }
     gbuffer_t *gbuf = build_mqtt_packet(gobj, command, remaining_length);
@@ -3541,8 +3542,8 @@ PRIVATE int send_publish(
     }
     if(priv->protocol_version == mosq_p_mqtt5) {
         proplen = 0;
-        proplen += property_get_length_all(cmsg_props);
-        proplen += property_get_length_all(store_props);
+        proplen += property__get_length_all(cmsg_props);
+        proplen += property__get_length_all(store_props);
         if(expiry_interval > 0) {
             expiry_prop = json_object();
 
@@ -3550,10 +3551,10 @@ PRIVATE int send_publish(
                 gobj, expiry_prop, MQTT_PROP_MESSAGE_EXPIRY_INTERVAL, expiry_interval
             );
             // expiry_prop.client_generated = FALSE;
-            proplen += property_get_length_all(expiry_prop);
+            proplen += property__get_length_all(expiry_prop);
         }
 
-        varbytes = packet_varint_bytes(proplen);
+        varbytes = packet__varint_bytes(proplen);
         if(varbytes > 4) {
             /* FIXME - Properties too big, don't publish any - should remove some first really */
             cmsg_props = NULL;
@@ -6525,7 +6526,7 @@ PRIVATE int ac_send_message(hgobj gobj, const char *event, json_t *kw, hgobj src
 
     if(priv->maximum_packet_size > 0) {
         remaining_length = 1 + 2+(uint32_t)tlen + (uint32_t)payloadlen +
-            property_get_length_all(outgoing_properties);
+            property__get_length_all(outgoing_properties);
         if(qos > 0) {
             remaining_length++;
         }

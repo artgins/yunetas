@@ -213,6 +213,9 @@ static error_t parse_opt (int key, char *arg, struct argp_state *state)
     case 'd':
         arguments->mqtt_client_id = arg;
         break;
+    case 'q':
+        arguments->mqtt_protocol = arg;
+        break;
     case 'x':
         arguments->user_id = arg;
         break;
