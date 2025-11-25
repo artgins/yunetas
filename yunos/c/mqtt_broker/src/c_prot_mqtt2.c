@@ -2928,11 +2928,11 @@ PRIVATE int send__connect(
     const char *mqtt_protocol = gobj_read_str_attr(gobj, "mqtt_protocol");
 
     int protocol = mosq_p_mqtt311; // "mqttv311" default
-    if(strcasecmp(mqtt_protocol, "mqttv5")==0) {
+    if(strcasecmp(mqtt_protocol, "mqttv5")==0 || strcasecmp(mqtt_protocol, "v5")==0) {
         protocol = mosq_p_mqtt5;
-    } else if(strcasecmp(mqtt_protocol, "mqttv311")==0) {
+    } else if(strcasecmp(mqtt_protocol, "mqttv311")==0 || strcasecmp(mqtt_protocol, "v311")==0) {
         protocol = mosq_p_mqtt311;
-    } else if(strcasecmp(mqtt_protocol, "mqttv31")==0) {
+    } else if(strcasecmp(mqtt_protocol, "mqttv31")==0 || strcasecmp(mqtt_protocol, "v31")==0) {
         protocol = mosq_p_mqtt31;
     }
 
