@@ -167,7 +167,7 @@ static struct argp_option options[] = {
 {"jwt",             'j',    "JWT",      0,      "Jwt (previously got it)", 21},
 
 {0,                 0,      0,          0,      "Connection keys", 30},
-{"url",             'u',    "URL",      0,      "Url to connect (default 'ws://127.0.0.1:1991').", 30},
+{"url",             'u',    "URL",      0,      "Url to connect (default 'mqtt://127.0.0.1:1883').", 30},
 {"yuno_role",       'O',    "ROLE",     0,      "Remote yuno role. Default: 'yuneta_agent'", 30},
 {"yuno_name",       'o',    "NAME",     0,      "Remote yuno name. Default: ''", 30},
 {"yuno_service",    'S',    "SERVICE",  0,      "Remote yuno service. Default: '__default_service__'", 30}, // TODO chequea todos, estaba solo como 'service'
@@ -352,7 +352,7 @@ int main(int argc, char *argv[])
      *  Default values
      */
     memset(&arguments, 0, sizeof(arguments));
-    arguments.url = "mqtt://127.0.0.1:1810";
+    arguments.url = "mqtt://127.0.0.1:1810"; // TODO cambia 1883 when done
     arguments.command = "";
     arguments.azp = "";
     arguments.yuno_role = "mqtt_broker";

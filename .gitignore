@@ -29,6 +29,7 @@ yunetas.egg-info/
 *.pyc
 
 x.sh
+xx.sh
 
 dist/
 docs/build
