@@ -2550,9 +2550,10 @@ PRIVATE json_t *property_get_property(json_t *properties, int identifier)
 }
 
 /***************************************************************************
- *
+ *  Return json_int_t, -1 is property not available
+ *  return value is an uint8_t
  ***************************************************************************/
-PRIVATE uint8_t property_read_byte(json_t *properties, int identifier)
+PRIVATE json_int_t property_read_byte(json_t *properties, int identifier)
 {
     hgobj gobj = 0;
 
@@ -2575,13 +2576,17 @@ PRIVATE uint8_t property_read_byte(json_t *properties, int identifier)
     }
 
     json_t *property = property_get_property(properties, identifier);
-    return (uint8_t)kw_get_int(gobj, property, "value", 0, 0);
+    if(!property) {
+        return -1;
+    }
+    return kw_get_int(gobj, property, "value", 0, 0);
 }
 
 /***************************************************************************
- *
+ *  Return json_int_t, -1 is property not available
+ *  return value is an uint16_t
  ***************************************************************************/
-PRIVATE uint16_t property_read_int16(json_t *properties, int identifier)
+PRIVATE json_int_t property_read_int16(json_t *properties, int identifier)
 {
     hgobj gobj = 0;
 
@@ -2600,13 +2605,17 @@ PRIVATE uint16_t property_read_int16(json_t *properties, int identifier)
     }
 
     json_t *property = property_get_property(properties, identifier);
-    return (uint16_t)kw_get_int(gobj, property, "value", 0, 0);
+    if(!property) {
+        return 0;
+    }
+    return kw_get_int(gobj, property, "value", 0, 0);
 }
 
 /***************************************************************************
- *
+ *  Return json_int_t, -1 is property not available
+ *  return value is an uint32_t
  ***************************************************************************/
-PRIVATE uint32_t property_read_int32(json_t *properties, int identifier)
+PRIVATE json_int_t property_read_int32(json_t *properties, int identifier)
 {
     hgobj gobj = 0;
 
@@ -2625,13 +2634,17 @@ PRIVATE uint32_t property_read_int32(json_t *properties, int identifier)
     }
 
     json_t *property = property_get_property(properties, identifier);
-    return (uint32_t)kw_get_int(gobj, property, "value", 0, 0);
+    if(!property) {
+        return 0;
+    }
+    return kw_get_int(gobj, property, "value", 0, 0);
 }
 
 /***************************************************************************
- *
+ *  Return json_int_t, -1 is property not available
+ *  return value is an uint32_t
  ***************************************************************************/
-PRIVATE uint32_t property_read_varint(json_t *properties, int identifier)
+PRIVATE json_int_t property_read_varint(json_t *properties, int identifier)
 {
     hgobj gobj = 0;
 
@@ -2647,13 +2660,17 @@ PRIVATE uint32_t property_read_varint(json_t *properties, int identifier)
     }
 
     json_t *property = property_get_property(properties, identifier);
-    return (uint32_t)kw_get_int(gobj, property, "value", 0, 0);
+    if(!property) {
+        return 0;
+    }
+    return kw_get_int(gobj, property, "value", 0, 0);
 }
 
 /***************************************************************************
- *
+ *  Return json_int_t, -1 is property not available
+ *  return value is an uint32_t
  ***************************************************************************/
-PRIVATE uint32_t property_read_binary(json_t *properties, int identifier) // TODO
+PRIVATE json_int_t property_read_binary(json_t *properties, int identifier) // TODO
 {
     hgobj gobj = 0;
 
@@ -2670,11 +2687,14 @@ PRIVATE uint32_t property_read_binary(json_t *properties, int identifier) // TOD
     }
 
     json_t *property = property_get_property(properties, identifier);
-    return (uint32_t)kw_get_int(gobj, property, "value", 0, 0); // TODO
+    if(!property) {
+        return 0;
+    }
+    return kw_get_int(gobj, property, "value", 0, 0); // TODO
 }
 
 /***************************************************************************
- *
+ *  Return NULL if property is not available
  ***************************************************************************/
 PRIVATE const char *property_read_string(json_t *properties, int identifier)
 {
@@ -2926,6 +2946,8 @@ PRIVATE int send__connect(
     } else if(strcasecmp(mqtt_protocol, "mqttv31")==0 || strcasecmp(mqtt_protocol, "v31")==0) {
         protocol = mosq_p_mqtt31;
     }
+
+    gobj_write_integer_attr(gobj, "protocol_version", protocol);
 
     if(protocol == mosq_p_mqtt31 && empty_string(mqtt_client_id)) {
         gobj_log_error(gobj, 0,
@@ -4106,7 +4128,7 @@ PRIVATE int handle__connect(hgobj gobj, gbuffer_t *gbuf)
         For maximum compatibility, it is recommended to **always provide a unique Client ID**.
      *
      *-------------------------------------------*/
-    char uuid[60];
+    char uuid[70];
     char *client_id = NULL;
     BOOL assigned_id = FALSE;
     uint16_t client_id_len;
@@ -4152,7 +4174,12 @@ PRIVATE int handle__connect(hgobj gobj, gbuffer_t *gbuf)
                 JSON_DECREF(connect_properties);
                 return -1;
             } else {
-                create_random_uuid(uuid, sizeof(uuid));
+                const char *auto_prefix = "auto-";
+                snprintf(uuid, sizeof(uuid), "%s", auto_prefix);
+                create_random_uuid(
+                    uuid + strlen(auto_prefix),
+                    (int)(sizeof(uuid) - strlen(auto_prefix))
+                );
                 client_id = uuid;
                 if(!client_id) {
                     gobj_log_error(gobj, 0,

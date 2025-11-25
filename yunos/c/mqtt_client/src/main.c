@@ -326,6 +326,7 @@ static int register_yuno_and_more(void)
         gobj_set_gclass_trace(gclass_find_by_name(C_IEVENT_SRV), "ievents2", TRUE);
         gobj_set_gclass_trace(gclass_find_by_name(C_IEVENT_CLI), "ievents2", TRUE);
         gobj_set_gclass_trace(gclass_find_by_name(C_PROT_MQTT2), "show-decode", TRUE);
+        gobj_set_gclass_trace(gclass_find_by_name(C_PROT_MQTT2), "traffic", TRUE);
     }
     if(arguments.verbose > 1) {
         gobj_set_gobj_trace(0, "machine", TRUE, 0);
