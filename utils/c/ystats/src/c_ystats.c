@@ -209,9 +209,9 @@ PRIVATE int do_authenticate_task(hgobj gobj)
  ***************************************************************************/
 PRIVATE char agent_config[]= "\
 {                                               \n\
-    'name': 'agent_client',                    \n\
-    'gclass': 'IEvent_cli',                     \n\
-    'as_service': true,                          \n\
+    'name': 'agent_client',                     \n\
+    'gclass': 'C_IEVENT_CLI',                   \n\
+    'as_service': true,                         \n\
     'kw': {                                     \n\
         'remote_yuno_name': '(^^__yuno_name__^^)',      \n\
         'remote_yuno_role': '(^^__yuno_role__^^)',      \n\

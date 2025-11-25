@@ -651,8 +651,8 @@ PRIVATE int do_authenticate_task(hgobj gobj)
 PRIVATE char mqtt_broker_config[]= "\
 {                                               \n\
     'name': '(^^__url__^^)',                    \n\
-    'gclass': 'IEvent_cli',                     \n\
-    'as_service': true,                          \n\
+    'gclass': 'C_IEVENT_CLI',                   \n\
+    'as_service': true,                         \n\
     'kw': {                                     \n\
         'jwt': '(^^__jwt__^^)',                         \n\
         'remote_yuno_name': '(^^__yuno_name__^^)',      \n\

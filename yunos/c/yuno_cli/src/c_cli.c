@@ -625,7 +625,7 @@ PRIVATE int mt_inject_event(hgobj gobj, const char *event, json_t *kw, hgobj src
 PRIVATE char agent_config[]= "\
 {                                               \n\
     'name': '(^^__service_name__^^)',           \n\
-    'gclass': 'IEvent_cli',                     \n\
+    'gclass': 'C_IEVENT_CLI',                   \n\
     'as_service': true,                         \n\
     'kw': {                                     \n\
         'jwt': '(^^__jwt__^^)',                         \n\
