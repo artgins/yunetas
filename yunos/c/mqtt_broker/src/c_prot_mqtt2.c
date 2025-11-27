@@ -845,7 +845,7 @@ PRIVATE const char *get_command_name(int cmd_)
 }
 
 /***************************************************************************
- *
+ *  get_name_from_nn_table(mqtt5_return_codes_s) is a slower alternative
  ***************************************************************************/
 PRIVATE const char *mosquitto_reason_string(int reason_code)
 {
