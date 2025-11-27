@@ -707,6 +707,7 @@ PRIVATE int cmd_connect(hgobj gobj)
 
     const char *jwt = gobj_read_str_attr(gobj, "jwt");
     const char *url = gobj_read_str_attr(gobj, "url");
+
     const char *yuno_name = gobj_read_str_attr(gobj, "yuno_name");
     const char *yuno_role = gobj_read_str_attr(gobj, "yuno_role");
     const char *yuno_service = gobj_read_str_attr(gobj, "yuno_service");
@@ -714,11 +715,14 @@ PRIVATE int cmd_connect(hgobj gobj)
     const char *mqtt_client_id = gobj_read_str_attr(gobj, "mqtt_client_id");
     const char *mqtt_protocol = gobj_read_str_attr(gobj, "mqtt_protocol");
 
+    const char *user_id = gobj_read_str_attr(gobj, "user_id");
+    const char *user_passw = gobj_read_str_attr(gobj, "user_passw");
+
     /*
      *  Each display window has a gobj to send the commands (saved in user_data).
      *  For external agents create a filter-chain of gobjs
      */
-    json_t * jn_config_variables = json_pack("{s:s, s:s, s:s, s:s, s:s, s:s, s:s, s:s}",
+    json_t * jn_config_variables = json_pack("{s:s, s:s, s:s, s:s, s:s, s:s, s:s, s:s, s:s, s:s}",
         "__jwt__", jwt,
         "__url__", url,
         "__cert_pem__", "",
@@ -726,7 +730,10 @@ PRIVATE int cmd_connect(hgobj gobj)
         "__yuno_role__", yuno_role,
         "__yuno_service__", yuno_service,
         "__mqtt_client_id__", mqtt_client_id,
-        "__mqtt_protocol__", mqtt_protocol
+        "__mqtt_protocol__", mqtt_protocol,
+        "__user_id__", user_id,
+        "__user_passw__", user_passw
+
     );
 
     priv->gobj_mqtt_broker = gobj_create_tree(
