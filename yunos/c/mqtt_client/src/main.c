@@ -366,7 +366,7 @@ int main(int argc, char *argv[])
     arguments.auth_url = "";
     arguments.mqtt_protocol = "mqttv311";
     arguments.mqtt_client_id = "";
-    arguments.user_id = "";
+    arguments.user_id = "yuneta";
     arguments.user_passw = "";
     arguments.jwt = "";
     arguments.wait = 2;
