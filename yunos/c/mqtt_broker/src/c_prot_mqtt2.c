@@ -2718,6 +2718,10 @@ PRIVATE const char *property_read_string(json_t *properties, int identifier)
     }
 
     json_t *property = property_get_property(properties, identifier);
+    if(!property) {
+        return NULL;
+    }
+
     return kw_get_str(gobj, property, "value", "", 0);
 }
 
@@ -2728,6 +2732,7 @@ PRIVATE const char *property_read_string_pair(json_t *properties, int identifier
 {
     hgobj gobj = 0;
 
+    // TODO what must to return?
     if(identifier != MQTT_PROP_CONTENT_TYPE
             && identifier != MQTT_PROP_RESPONSE_TOPIC
             && identifier != MQTT_PROP_ASSIGNED_CLIENT_IDENTIFIER
@@ -2746,6 +2751,9 @@ PRIVATE const char *property_read_string_pair(json_t *properties, int identifier
     }
 
     json_t *property = property_get_property(properties, identifier);
+    if(!property) {
+        return NULL;
+    }
     return kw_get_str(gobj, property, "value", "", 0);
 }
 
@@ -4665,6 +4673,12 @@ PRIVATE int handle__connack_c(hgobj gobj, gbuffer_t *gbuf)
     int ret = 0;
     json_t *properties = NULL;
 
+    uint8_t retain_available = 1;
+    uint8_t max_qos = 2;
+    uint16_t inflight_maximum = 20;
+    uint16_t keepalive = 60;
+    uint32_t maximum_packet_size = 0; // TODO use to check only if > 0
+
     if(mqtt_read_byte(gobj, gbuf, &connect_flags)<0) {
         gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
             "function",     "%s", __FUNCTION__,
@@ -4735,11 +4749,11 @@ PRIVATE int handle__connack_c(hgobj gobj, gbuffer_t *gbuf)
             }
         }
 
-        uint8_t retain_available = property_read_byte(properties, MQTT_PROP_RETAIN_AVAILABLE);
-        uint8_t max_qos = property_read_byte(properties, MQTT_PROP_MAXIMUM_QOS);
-        uint16_t inflight_maximum = property_read_int16(properties, MQTT_PROP_RECEIVE_MAXIMUM);
-        uint16_t keepalive = property_read_int16(properties, MQTT_PROP_SERVER_KEEP_ALIVE);
-        uint32_t maximum_packet_size = property_read_int32(properties, MQTT_PROP_MAXIMUM_PACKET_SIZE);
+        retain_available = property_read_byte(properties, MQTT_PROP_RETAIN_AVAILABLE);
+        max_qos = property_read_byte(properties, MQTT_PROP_MAXIMUM_QOS);
+        inflight_maximum = property_read_int16(properties, MQTT_PROP_RECEIVE_MAXIMUM);
+        keepalive = property_read_int16(properties, MQTT_PROP_SERVER_KEEP_ALIVE);
+        maximum_packet_size = property_read_int32(properties, MQTT_PROP_MAXIMUM_PACKET_SIZE);
     }
 
     // mosq->msgs_out.inflight_quota = mosq->msgs_out.inflight_maximum; TODO

@@ -654,7 +654,7 @@ PRIVATE char mqtt_broker_config[]= "\
     'gclass': 'C_IEVENT_CLI',                   \n\
     'as_service': true,                         \n\
     'kw': {                                     \n\
-        'jwt': '(^^__jwt__^^)',                         \n\
+        'jwt': '(^^__jwt__^^)',   #^^ TODO check, why not in mqtt2?                      \n\
         'remote_yuno_name': '(^^__yuno_name__^^)',      \n\
         'remote_yuno_role': '(^^__yuno_role__^^)',      \n\
         'remote_yuno_service': '(^^__yuno_service__^^)' \n\
@@ -678,9 +678,11 @@ PRIVATE char mqtt_broker_config[]= "\
                             'kw': {                             \n\
                                 'mqtt_client_id': '(^^__mqtt_client_id__^^)',   \n\
                                 'mqtt_protocol': '(^^__mqtt_protocol__^^)',     \n\
-                                'iamServer': false,                             \n\
                                 'url': '(^^__url__^^)',                         \n\
-                                'cert_pem': '(^^__cert_pem__^^)'                \n\
+                                'user_id': '(^^__user_id__^^)',                 \n\
+                                'user_passw': '(^^__user_passw__^^)',           \n\
+                                'cert_pem': '(^^__cert_pem__^^)',               \n\
+                                'iamServer': false                              \n\
                             },                                  \n\
                             'children': [                       \n\
                                 {                               \n\
