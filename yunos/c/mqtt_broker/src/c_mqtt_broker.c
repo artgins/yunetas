@@ -1055,6 +1055,7 @@ PRIVATE int ac_on_open(hgobj gobj, const char *event, json_t *kw, hgobj src)
     /*----------------------------------------------------------------*
      *  Open the topic (client_id) or create it if it doesn't exist
      *----------------------------------------------------------------*/
+int x; // TODO if assigned_id is true, you cannot create topics!!!???
     json_t *jn_response = gobj_command(
         priv->gobj_tranger_qmsgs,
         "open-topic",
