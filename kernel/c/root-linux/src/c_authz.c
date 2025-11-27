@@ -908,31 +908,10 @@ PRIVATE json_t *mt_authenticate(hgobj gobj, json_t *kw, hgobj src)
         comment = "User authenticated by jwt";
     }
 
-    /*------------------------------*
-     *  Let it if no treedb
-     *------------------------------*/
+    /*----------------------------------*
+     *  Let it in if there's no treedb
+     *----------------------------------*/
     if(!priv->gobj_treedb) {
-        /*--------------------------------------*
-         *  HACK save username in src,
-         *  some entry gate like (IEvent_srv)
-         *--------------------------------------*/
-        gobj_write_str_attr(src, "__username__", username);
-
-        json_t *jn_resp = json_pack("{s:i, s:s, s:s, s:s}",
-            "result", 0,
-            "comment", comment,
-            "username", username,
-            "dst_service", dst_service
-        );
-        JSON_DECREF(jwt_payload);
-        KW_DECREF(kw)
-        return jn_resp;
-    }
-
-    /*------------------------------*
-     *      yuneta
-     *------------------------------*/
-    if(yuneta_by_local_ip) {
         /*--------------------------------------*
          *  HACK save username in src,
          *  some entry gate like (IEvent_srv)
@@ -940,16 +919,13 @@ PRIVATE json_t *mt_authenticate(hgobj gobj, json_t *kw, hgobj src)
         gobj_write_str_attr(src, "__username__", username);
         gobj_write_str_attr(src, "__session_id__", "");
 
-        json_t *services_roles = json_pack("{s:s}",
-            dst_service, "*"
-        );
-        json_t *jn_resp = json_pack("{s:i, s:s, s:s, s:s, s:s, s:o}",
+        json_t *jn_resp = json_pack("{s:i, s:s, s:s, s:s, s:s, s:{s:[]}}",
             "result", 0,
             "comment", comment,
             "username", username,
             "session_id", "",
             "dst_service", dst_service,
-            "services_roles", services_roles
+            "services_roles", dst_service
         );
         JSON_DECREF(jwt_payload);
         KW_DECREF(kw)
