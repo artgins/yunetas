@@ -3813,7 +3813,7 @@ PRIVATE int set_client_disconnected(hgobj gobj)
 /***************************************************************************
  *
  ***************************************************************************/
-PRIVATE int handle__connect(hgobj gobj, gbuffer_t *gbuf)
+PRIVATE int handle__connect(hgobj gobj, gbuffer_t *gbuf, hgobj src)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
@@ -4369,15 +4369,17 @@ PRIVATE int handle__connect(hgobj gobj, gbuffer_t *gbuf)
      *      Check user/password
      *---------------------------------------------*/
     // TODO join with auth_method
-    const char *peername = gobj_read_str_attr(gobj, "peername");
+    const char *jwt = ""; // TODO
+    const char *peername = gobj_read_str_attr(src, "peername");
     const char *dst_service = "treedb_mqtt_broker"; // TODO too much hardcoded
     int authorization = 0;
-    json_t *kw_auth = json_pack("{s:s, s:s, s:s, s:s, s:s}",
-        "client_id", priv->client_id,
-        "username", username,
-        "password", password,
-        "peername", peername,
-        "dst_service", dst_service
+    json_t *kw_auth = json_pack("{s:s, s:s, s:s, s:s, s:s, s:s}",
+        "client_id", SAFE_PRINT(priv->client_id),
+        "username", SAFE_PRINT(username),
+        "password", SAFE_PRINT(password),
+        "jwt", SAFE_PRINT(jwt),
+        "peername", SAFE_PRINT(peername),
+        "dst_service", SAFE_PRINT(dst_service)
     );
 
     json_t *auth = gobj_authenticate(gobj, kw_auth, gobj);
@@ -4470,8 +4472,8 @@ PRIVATE int handle__connect(hgobj gobj, gbuffer_t *gbuf)
         "   username_flag %d, password_flag %d, keepalive %d\n",
             priv->client_id,
             priv->assigned_id,
-            SAFE_PRINT(username),
-            SAFE_PRINT(password),
+            username,
+            password,
             protocol_name,
             protocol_version_name(protocol_version),
             is_bridge,
@@ -5880,7 +5882,7 @@ PRIVATE int framehead_consume(
 /***************************************************************************
  *  Process the completed frame
  ***************************************************************************/
-PRIVATE int frame_completed(hgobj gobj)
+PRIVATE int frame_completed(hgobj gobj, hgobj src)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
     FRAME_HEAD *frame = &priv->frame_head;
@@ -5967,7 +5969,7 @@ PRIVATE int frame_completed(hgobj gobj)
                 ret = MOSQ_ERR_PROTOCOL;
                 break;
             }
-            ret = handle__connect(gobj, gbuf);
+            ret = handle__connect(gobj, gbuf, src);
             break;
 
         // case CMD_SUBSCRIBE:
@@ -6267,7 +6269,7 @@ PRIVATE int ac_process_handshake(hgobj gobj, const char *event, json_t *kw, hgob
                 return gobj_send_event(gobj, EV_RX_DATA, kw, gobj);
 
             } else {
-                if(frame_completed(gobj)<0) {
+                if(frame_completed(gobj, src)<0) {
                     //priv->send__disconnect = TRUE;
                     ws_close(gobj, MQTT_RC_PROTOCOL_ERROR);
                     break;
@@ -6394,7 +6396,7 @@ PRIVATE int ac_process_frame_header(hgobj gobj, const char *event, json_t *kw, h
                 return gobj_send_event(gobj, EV_RX_DATA, kw, gobj);
 
             } else {
-                if(frame_completed(gobj)<0) {
+                if(frame_completed(gobj, src)<0) {
                     //priv->send__disconnect = TRUE;
                     ws_close(gobj, MQTT_RC_PROTOCOL_ERROR);
                     break;
@@ -6462,7 +6464,7 @@ PRIVATE int ac_process_payload_data(hgobj gobj, const char *event, json_t *kw, h
     }
     if(istream_is_completed(priv->istream_payload)) {
         int ret;
-        if((ret=frame_completed(gobj))<0) {
+        if((ret=frame_completed(gobj, src))<0) {
             if(gobj_trace_level(gobj) & SHOW_DECODE) {
                 trace_msg0("❌❌ Mqtt error: disconnecting: %d", ret);
                 gobj_trace_dump_full_gbuf(gobj, gbuf, "Mqtt error: disconnecting");

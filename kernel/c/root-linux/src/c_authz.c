@@ -938,12 +938,18 @@ PRIVATE json_t *mt_authenticate(hgobj gobj, json_t *kw, hgobj src)
          *  some entry gate like (IEvent_srv)
          *--------------------------------------*/
         gobj_write_str_attr(src, "__username__", username);
+        gobj_write_str_attr(src, "__session_id__", "");
 
-        json_t *jn_resp = json_pack("{s:i, s:s, s:s, s:s}",
+        json_t *services_roles = json_pack("{s:s}",
+            dst_service, "*"
+        );
+        json_t *jn_resp = json_pack("{s:i, s:s, s:s, s:s, s:s, s:o}",
             "result", 0,
             "comment", comment,
             "username", username,
-            "dst_service", dst_service
+            "session_id", "",
+            "dst_service", dst_service,
+            "services_roles", services_roles
         );
         JSON_DECREF(jwt_payload);
         KW_DECREF(kw)
