@@ -1166,6 +1166,7 @@ PRIVATE json_t *mt_authenticate(hgobj gobj, json_t *kw, hgobj src)
         "msg",          "%s", "Login",
         "username",     "%s", username,
         "session_id",   "%s", session_id,
+        "peername",     "%s", peername,
         "service",      "%s", dst_service,
         "roles",        "%j", services_roles,
         NULL
@@ -3501,6 +3502,13 @@ PRIVATE int ac_on_close(hgobj gobj, const char *event, json_t *kw, hgobj src)
         return 0;
     }
 
+    const char *peername;
+    if(gobj_has_bottom_attr(src, "peername")) {
+        peername = gobj_read_str_attr(src, "peername");
+    } else {
+        peername = kw_get_str(gobj, kw, "peername", "", 0);
+    }
+
     /*--------------------------------------------*
      *  Add logout user
      *--------------------------------------------*/
@@ -3567,6 +3575,7 @@ PRIVATE int ac_on_close(hgobj gobj, const char *event, json_t *kw, hgobj src)
                 "msg",          "%s", "Logout",
                 "username",     "%s", username,
                 "session_id",   "%s", session_id,
+                "peername",     "%s", peername,
                 NULL
             );
         }
