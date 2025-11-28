@@ -161,7 +161,7 @@ static struct argp_option options[] = {
 {"auth_url",        'k',    "AUTH_URL", 0,      "OpenID Endpoint (to get now a jwt). If empty it will be used MQTT username/password", 20},
 {"azp",             'Z',    "AZP",      0,      "azp (Authorized Party, client_id in keycloak)", 20},
 {"mqtt_client_id",  'd',    "MQTT_CLIENT_ID",0, "MQTT Client ID", 20},
-{"mqtt_protocol",   'q',    "MQTT_PROTOCOL", 0, "MQTT Protocol. Can be mqttv5/v5, mqttv311/v311 or mqttv31/v31. Defaults to mqttv311.", 20},
+{"mqtt_protocol",   'q',    "MQTT_PROTOCOL", 0, "MQTT Protocol. Can be mqttv5/v5, mqttv311/v311 or mqttv31/v31. Defaults to mqttv5.", 20},
 {"user_id",         'x',    "USER_ID",  0,      "MQTT Username or OAuth2 User Id (to get now a jwt)", 20},
 {"user_passw",      'X',    "USER_PASSW",0,     "MQTT Password or OAuth2 User Password (to get now a jwt)", 20},
 {"jwt",             'j',    "JWT",      0,      "Jwt (previously got it)", 21},
@@ -364,7 +364,7 @@ int main(int argc, char *argv[])
     arguments.yuno_service = "__default_service__";
     arguments.auth_system = "keycloak";
     arguments.auth_url = "";
-    arguments.mqtt_protocol = "mqttv311";
+    arguments.mqtt_protocol = "mqttv5";
     arguments.mqtt_client_id = "";
     arguments.user_id = "yuneta";
     arguments.user_passw = "";

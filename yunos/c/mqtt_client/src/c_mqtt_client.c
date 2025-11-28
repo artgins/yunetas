@@ -122,7 +122,7 @@ SDATA (DTP_STRING,      "auth_url",         0,          "",             "OpenID 
 SDATA (DTP_STRING,      "azp",              0,          "",             "azp (OAuth2 Authorized Party)"),
 
 SDATA (DTP_STRING,      "mqtt_client_id",   0,          "",             "MQTT Client id, used by mqtt client"),
-SDATA (DTP_STRING,      "mqtt_protocol",    0,          "mqttv311",     "MQTT Protocol. Can be mqttv5, mqttv311 or mqttv31. Defaults to mqttv311."),
+SDATA (DTP_STRING,      "mqtt_protocol",    0,          "mqttv5",       "MQTT Protocol. Can be mqttv5, mqttv311 or mqttv31. Defaults to mqttv5."),
 
 SDATA (DTP_STRING,      "user_id",          0,          "",             "MQTT Username or OAuth2 User Id (interactive jwt)"),
 SDATA (DTP_STRING,      "user_passw",       0,          "",             "MQTT Password or OAuth2 User password (interactive jwt)"),

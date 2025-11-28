@@ -371,7 +371,7 @@ SDATA (DTP_JSON,        "jwt_payload",      SDF_VOLATIL,        0,      "JWT pay
  *  Used by mqtt client
  */
 SDATA (DTP_STRING,      "mqtt_client_id",   SDF_RD,     "",     "MQTT Client id, used by mqtt client"),
-SDATA (DTP_STRING,      "mqtt_protocol",    SDF_RD,     "mqttv311", "MQTT Protocol. Can be mqttv5, mqttv311 or mqttv31. Defaults to mqttv311."),
+SDATA (DTP_STRING,      "mqtt_protocol",    SDF_RD,     "mqttv5", "MQTT Protocol. Can be mqttv5, mqttv311 or mqttv31. Defaults to mqttv5."),
 SDATA (DTP_STRING,      "user_id",          0,          "",     "MQTT Username or OAuth2 User Id (interactive jwt)"),
 SDATA (DTP_STRING,      "user_passw",       0,          "",     "MQTT Password or OAuth2 User password (interactive jwt)"),
 
@@ -2946,7 +2946,7 @@ PRIVATE int send__connect(
     const char *mqtt_client_id = gobj_read_str_attr(gobj, "mqtt_client_id");
     const char *mqtt_protocol = gobj_read_str_attr(gobj, "mqtt_protocol");
 
-    int protocol = mosq_p_mqtt311; // "mqttv311" default
+    int protocol = mosq_p_mqtt5; // "mqttv5" default
     if(strcasecmp(mqtt_protocol, "mqttv5")==0 || strcasecmp(mqtt_protocol, "v5")==0) {
         protocol = mosq_p_mqtt5;
     } else if(strcasecmp(mqtt_protocol, "mqttv311")==0 || strcasecmp(mqtt_protocol, "v311")==0) {
