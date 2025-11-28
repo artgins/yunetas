@@ -156,7 +156,6 @@ typedef struct _PRIVATE_DATA {
     hgobj gobj_connector;
     hgobj timer;
     hgobj gobj_editline;
-    hgobj gobj_mqtt_broker;
 
     int tty_fd;
     yev_event_h yev_reading;
@@ -708,13 +707,13 @@ PRIVATE int cmd_connect(hgobj gobj)
 
     );
 
-    priv->gobj_mqtt_broker = gobj_create_tree(
+    priv->gobj_connector = gobj_create_tree(
         gobj,
         mqtt_broker_config,
         jn_config_variables
     );
 
-    gobj_start_tree(priv->gobj_mqtt_broker);
+    gobj_start_tree(priv->gobj_connector);
 
     if(priv->verbose || priv->interactive) {
         printf("Connecting to %s...\n", url);
@@ -1005,7 +1004,7 @@ PRIVATE int ac_on_open(hgobj gobj, const char *event, json_t *kw, hgobj src)
     } else {
         if(empty_string(command)) {
             printf("What command?\n");
-            gobj_stop(priv->gobj_mqtt_broker);
+            gobj_stop(priv->gobj_connector);
         } else {
             do_command(gobj, command);
         }
