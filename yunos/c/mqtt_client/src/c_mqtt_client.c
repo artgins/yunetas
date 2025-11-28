@@ -126,7 +126,6 @@ SDATA (DTP_STRING,      "user_id",          0,          "",             "MQTT Us
 SDATA (DTP_STRING,      "user_passw",       0,          "",             "MQTT Password or OAuth2 User password (interactive jwt)"),
 
 SDATA (DTP_STRING,      "jwt",              0,          "",             "Jwt"),
-SDATA (DTP_POINTER,     "gobj_connector",   0,          0,              "connection gobj"),
 SDATA (DTP_STRING,      "display_mode",     0,          "table",        "Display mode: table or form"),
 SDATA (DTP_STRING,      "editor",           0,          "vim",          "Editor"),
 SDATA (DTP_POINTER,     "user_data",        0,          0,              "user data"),
@@ -153,7 +152,7 @@ typedef struct _PRIVATE_DATA {
     int32_t verbose;
     int32_t interactive;
 
-    hgobj gobj_connector;
+    hgobj gobj_mqtt_connector;
     hgobj timer;
     hgobj gobj_editline;
 
@@ -229,7 +228,6 @@ PRIVATE void mt_create(hgobj gobj)
      *  Do copy of heavy used parameters, for quick access.
      *  HACK The writable attributes must be repeated in mt_writing method.
      */
-    SET_PRIV(gobj_connector,        gobj_read_pointer_attr)
     SET_PRIV(verbose,               gobj_read_bool_attr)
 
     priv->interactive = TRUE;
@@ -240,10 +238,10 @@ PRIVATE void mt_create(hgobj gobj)
  ***************************************************************************/
 PRIVATE void mt_writing(hgobj gobj, const char *path)
 {
-    PRIVATE_DATA *priv = gobj_priv_data(gobj);
-
-    IF_EQ_SET_PRIV(gobj_connector,     gobj_read_pointer_attr)
-    END_EQ_SET_PRIV()
+    // PRIVATE_DATA *priv = gobj_priv_data(gobj);
+    //
+    // IF_EQ_SET_PRIV(gobj_mqtt_connector,     gobj_read_pointer_attr)
+    // END_EQ_SET_PRIV()
 }
 
 /***************************************************************************
@@ -707,13 +705,13 @@ PRIVATE int cmd_connect(hgobj gobj)
 
     );
 
-    priv->gobj_connector = gobj_create_tree(
+    priv->gobj_mqtt_connector = gobj_create_tree(
         gobj,
         mqtt_broker_config,
         jn_config_variables
     );
 
-    gobj_start_tree(priv->gobj_connector);
+    gobj_start_tree(priv->gobj_mqtt_connector);
 
     if(priv->verbose || priv->interactive) {
         printf("Connecting to %s...\n", url);
@@ -728,7 +726,7 @@ PRIVATE int do_command(hgobj gobj, const char *command)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
-//     json_t *jn_resp = gobj_command(priv->gobj_connector, command, 0, gobj);
+//     json_t *jn_resp = gobj_command(priv->gobj_mqtt_connector, command, 0, gobj);
 //     json_decref(jn_resp);
 
     // Pass it through the event to do replace_cli_vars()
@@ -991,7 +989,6 @@ PRIVATE int ac_on_open(hgobj gobj, const char *event, json_t *kw, hgobj src)
             gobj_read_str_attr(gobj, "url")
         );
     }
-    gobj_write_pointer_attr(gobj, "gobj_connector", src);
 
     const char *command = gobj_read_str_attr(gobj, "command");
     if(gobj_read_bool_attr(gobj, "interactive")) {
@@ -1004,7 +1001,7 @@ PRIVATE int ac_on_open(hgobj gobj, const char *event, json_t *kw, hgobj src)
     } else {
         if(empty_string(command)) {
             printf("What command?\n");
-            gobj_stop(priv->gobj_connector);
+            gobj_stop(priv->gobj_mqtt_connector);
         } else {
             do_command(gobj, command);
         }
@@ -1021,7 +1018,6 @@ PRIVATE int ac_on_close(hgobj gobj, const char *event, json_t *kw, hgobj src)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
-    gobj_write_pointer_attr(gobj, "gobj_connector", 0);
     if(priv->verbose || priv->interactive) {
         const char *comment = kw_get_str(gobj, kw, "comment", 0, 0);
         if(comment) {
@@ -1086,8 +1082,8 @@ PRIVATE int ac_command(hgobj gobj, const char *event, json_t *kw, hgobj src)
     }
 
     json_t *webix = 0;
-    if(priv->gobj_connector) {
-        webix = gobj_command(priv->gobj_connector, xcmd, kw_command, gobj);
+    if(priv->gobj_mqtt_connector) {
+        webix = gobj_command(priv->gobj_mqtt_connector, xcmd, kw_command, gobj);
     } else {
         printf("\n%s%s%s\n", On_Red BWhite, "No connection", Color_Off);
         clear_input_line(gobj);
@@ -1105,7 +1101,7 @@ PRIVATE int ac_command(hgobj gobj, const char *event, json_t *kw, hgobj src)
         );
     } else {
         /* asynchronous responses return 0 */
-        if(priv->gobj_connector) {
+        if(priv->gobj_mqtt_connector) {
             printf("\n"); fflush(stdout);
         }
     }
