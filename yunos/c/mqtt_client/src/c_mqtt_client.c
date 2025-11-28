@@ -110,8 +110,6 @@ PRIVATE sdata_desc_t tattr_desc[] = {
 /*-ATTR-type------------name----------------flag--------default---------description---------- */
 SDATA (DTP_BOOLEAN,     "print_with_metadata",0,        0,              "Print response with metadata."),
 SDATA (DTP_BOOLEAN,     "verbose",          0,          "1",            "Verbose mode."),
-SDATA (DTP_BOOLEAN,     "interactive",      0,          0,              "Interactive."),
-SDATA (DTP_INTEGER,     "wait",             0,          "2",            "Wait n seconds until exit"),
 SDATA (DTP_STRING,      "command",          0,          "",             "Command."),
 SDATA (DTP_STRING,      "url",              0,          "ws://127.0.0.1:1991",  "Url to get Statistics. Can be a ip/hostname or a full url"),
 SDATA (DTP_STRING,      "yuno_name",        0,          "",             "Yuno name"),
@@ -154,7 +152,6 @@ PRIVATE const trace_level_t s_user_trace_level[16] = {
 typedef struct _PRIVATE_DATA {
     int32_t verbose;
     int32_t interactive;
-    uint32_t wait;
 
     hgobj gobj_connector;
     hgobj timer;
@@ -235,8 +232,8 @@ PRIVATE void mt_create(hgobj gobj)
      */
     SET_PRIV(gobj_connector,        gobj_read_pointer_attr)
     SET_PRIV(verbose,               gobj_read_bool_attr)
-    SET_PRIV(interactive,           gobj_read_bool_attr)
-    SET_PRIV(wait,                  gobj_read_integer_attr)
+
+    priv->interactive = TRUE;
 }
 
 /***************************************************************************
@@ -1156,7 +1153,7 @@ PRIVATE int ac_command_answer(hgobj gobj, const char *event, json_t *kw, hgobj s
         KW_DECREF(kw);
         gobj_set_exit_code(result);
 
-        set_timeout(priv->timer, priv->wait * 1000);
+        set_timeout(priv->timer, 1000);
     }
     return 0;
 }
