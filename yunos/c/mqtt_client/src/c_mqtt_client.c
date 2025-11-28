@@ -943,111 +943,6 @@ PRIVATE int list_history(hgobj gobj)
     return 0;
 }
 
-/***************************************************************************
- *
- ***************************************************************************/
-PRIVATE int save_local_json(hgobj gobj, char *path, int pathsize, const char *name, json_t *jn_content)
-{
-    const char *homedir;
-
-    if ((homedir = getenv("HOME")) == NULL) {
-        homedir = getpwuid(getuid())->pw_dir;
-    }
-    snprintf(path, pathsize, "%s/.yuneta/configs/", homedir);
-    if(access(path, 0)!=0) {
-        mkrdir(path, 0700);
-    }
-    if(strlen(name) > 5 && strstr(name + strlen(name) - strlen(".json"), ".json")) {
-        snprintf(path, pathsize, "%s/.yuneta/configs/%s", homedir, name);
-    } else {
-        snprintf(path, pathsize, "%s/.yuneta/configs/%s.json", homedir, name);
-    }
-    json_dump_file(jn_content, path, JSON_ENCODE_ANY | JSON_INDENT(4));
-    JSON_DECREF(jn_content);
-    return 0;
-}
-
-/***************************************************************************
- *
- ***************************************************************************/
-PRIVATE int edit_json(hgobj gobj, const char *path)
-{
-    const char *editor = gobj_read_str_attr(gobj, "editor");
-    char command[PATH_MAX];
-    snprintf(command, sizeof(command), "%s %s", editor, path);
-
-    return pty_sync_spawn(command);
-}
-
-/***************************************************************************
- *
- ***************************************************************************/
-PRIVATE int save_local_string(
-    hgobj gobj, char *path, int pathsize, const char *name, json_t *jn_content
-) {
-    const char *homedir;
-
-    if ((homedir = getenv("HOME")) == NULL) {
-        homedir = getpwuid(getuid())->pw_dir;
-    }
-    snprintf(path, pathsize, "%s/.yuneta/configs/", homedir);
-    if(access(path, 0)!=0) {
-        mkrdir(path, 0700);
-    }
-    snprintf(path, pathsize, "%s/.yuneta/configs/%s", homedir, name);
-    const char *s = json_string_value(jn_content);
-    if(s) {
-        FILE *file = fopen(path, "w");
-        if(file) {
-            fwrite(s, strlen(s), 1, file);
-            fclose(file);
-        }
-    }
-    JSON_DECREF(jn_content);
-    return 0;
-}
-
-/***************************************************************************
- *
- ***************************************************************************/
-PRIVATE int save_local_base64(
-    hgobj gobj,
-    char *path,
-    int pathsize,
-    const char *name,
-    json_t *jn_content
-) {
-    const char *homedir;
-
-    if ((homedir = getenv("HOME")) == NULL) {
-        homedir = getpwuid(getuid())->pw_dir;
-    }
-    snprintf(path, pathsize, "%s/.yuneta/configs/", homedir);
-    if(access(path, 0)!=0) {
-        mkrdir(path, 0700);
-    }
-    snprintf(path, pathsize, "%s/.yuneta/configs/%s", homedir, name);
-
-    const char *s = json_string_value(jn_content);
-    if(s) {
-        gbuffer_t *gbuf_bin = gbuffer_base64_to_string(s, strlen(s));
-        if(gbuf_bin) {
-            int fp = newfile(path, 0700, TRUE);
-            if(fp) {
-                ssize_t x = write(
-                    fp,
-                    gbuffer_cur_rd_pointer(gbuf_bin),
-                    gbuffer_leftbytes(gbuf_bin)
-                );
-                if(x) {} // avoid warning
-                close(fp);
-            }
-        }
-    }
-    JSON_DECREF(jn_content);
-    return 0;
-}
-
 
 
 
@@ -1200,6 +1095,7 @@ PRIVATE int ac_command(hgobj gobj, const char *event, json_t *kw, hgobj src)
     } else {
         printf("\n%s%s%s\n", On_Red BWhite, "No connection", Color_Off);
         clear_input_line(gobj);
+        JSON_DECREF(kw_command)
     }
     gbuffer_decref(gbuf_parsed_command);
 
@@ -1213,7 +1109,9 @@ PRIVATE int ac_command(hgobj gobj, const char *event, json_t *kw, hgobj src)
         );
     } else {
         /* asynchronous responses return 0 */
-        printf("\n"); fflush(stdout);
+        if(priv->gobj_connector) {
+            printf("\n"); fflush(stdout);
+        }
     }
     KW_DECREF(kw_input_command);
     KW_DECREF(kw);

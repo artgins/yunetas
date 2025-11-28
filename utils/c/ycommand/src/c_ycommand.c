@@ -1238,6 +1238,7 @@ PRIVATE int ac_command(hgobj gobj, const char *event, json_t *kw, hgobj src)
     } else {
         printf("\n%s%s%s\n", On_Red BWhite, "No connection", Color_Off);
         clear_input_line(gobj);
+        JSON_DECREF(kw_command)
     }
     gbuffer_decref(gbuf_parsed_command);
 
