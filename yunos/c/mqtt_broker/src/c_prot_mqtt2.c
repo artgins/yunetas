@@ -258,7 +258,6 @@ PRIVATE int send__disconnect(
     uint8_t reason_code,
     json_t *properties
 );
-PRIVATE int set_client_disconnected(hgobj gobj);
 
 /***************************************************************************
  *          Data: config, public data, private data
@@ -716,8 +715,6 @@ PRIVATE int mt_start(hgobj gobj)
 PRIVATE int mt_stop(hgobj gobj)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
-
-    set_client_disconnected(gobj);
 
     clear_timeout(priv->timer);
 
@@ -3798,21 +3795,6 @@ PRIVATE int will__read(
 /***************************************************************************
  *
  ***************************************************************************/
-PRIVATE int set_client_disconnected(hgobj gobj)
-{
-    // TODO
-    // PRIVATE_DATA *priv = gobj_priv_data(gobj);
-    // if(!empty_json(priv->client)) {
-    //     kw_set_dict_value(gobj, priv->client, "_gobj", json_integer(0));
-    //     kw_set_dict_value(gobj, priv->client, "_gobj_bottom", json_integer(0));
-    //     save_client(gobj);
-    // }
-    return 0;
-}
-
-/***************************************************************************
- *
- ***************************************************************************/
 PRIVATE int handle__connect(hgobj gobj, gbuffer_t *gbuf, hgobj src)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
@@ -6077,21 +6059,28 @@ PRIVATE int ac_disconnected(hgobj gobj, const char *event, json_t *kw, hgobj src
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
-    set_client_disconnected(gobj);
-
     JSON_DECREF(priv->jn_alias_list);
 
     if(priv->istream_payload) {
         istream_destroy(priv->istream_payload);
         priv->istream_payload = 0;
     }
+
     if(priv->inform_on_close) {
         priv->inform_on_close = FALSE;
 
-        json_t *kw2 = json_pack("{s:s, s:s, s:s}",
+        const char *peername;
+        if(gobj_has_bottom_attr(src, "peername")) {
+            peername = gobj_read_str_attr(src, "peername");
+        } else {
+            peername = kw_get_str(gobj, kw, "peername", "", 0);
+        }
+
+        json_t *kw2 = json_pack("{s:s, s:s, s:s, s:s}",
             "username", gobj_read_str_attr(gobj, "__username__"),
             "client_id", gobj_read_str_attr(gobj, "client_id"),
-            "session_id", gobj_read_str_attr(gobj, "__session_id__")
+            "session_id", gobj_read_str_attr(gobj, "__session_id__"),
+            "peername", peername
         );
         gobj_publish_event(gobj, EV_ON_CLOSE, kw2);
     }
