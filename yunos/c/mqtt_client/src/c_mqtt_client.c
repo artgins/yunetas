@@ -164,9 +164,6 @@ typedef struct _PRIVATE_DATA {
     int tty_fd;
     yev_event_h yev_reading;
 
-    BOOL on_mirror_tty;
-    char mirror_tty_name[NAME_MAX];
-    char mirror_tty_uuid[NAME_MAX];
 } PRIVATE_DATA;
 
 
@@ -217,7 +214,7 @@ PRIVATE void mt_create(hgobj gobj)
      *  Editline
      */
     json_t *kw_editline = json_pack("{s:s, s:s, s:b, s:i, s:i}",
-        "prompt", "ycommand> ",
+        "prompt", "mqtt> ",
         "history_file", history_file,
         "use_ncurses", 0,
         "cx", winsz.ws_col,
@@ -562,37 +559,13 @@ PRIVATE int on_read_cb(hgobj gobj, gbuffer_t *gbuf)
     }
 
     if(base[0] == 3) {
-        if(!priv->on_mirror_tty) {
-            gobj_shutdown();
-            return -1;
-        }
+        gobj_shutdown();
+        return -1;
     }
     uint8_t b[8] = {0}; // To search keys in keytable
     memmove(b, base, MIN(sizeof(b), nread));
 
     do {
-        if(priv->on_mirror_tty) {
-            hgobj gobj_cmd = gobj_read_pointer_attr(gobj, "gobj_connector");
-
-            gbuffer_t *gbuf2 = gbuffer_create(nread, nread);
-            gbuffer_append(gbuf2, base, nread);
-            gbuffer_t *gbuf_content64 = gbuffer_encode_base64(
-                gbuf2 // owned
-            );
-            char *content64 = gbuffer_cur_rd_pointer(gbuf_content64);
-
-            json_t *kw_command = json_pack("{s:s, s:s, s:s}",
-                "name", priv->mirror_tty_name,
-                "agent_id", priv->mirror_tty_uuid,
-                "content64", content64
-            );
-
-            json_decref(gobj_command(gobj_cmd, "write-tty", kw_command, gobj));
-
-            GBUFFER_DECREF(gbuf_content64)
-            break;
-        }
-
         struct keytable_s *kt = event_by_key(keytable, b);
         if(kt) {
             const char *dst = kt->dst_gobj;
@@ -925,11 +898,9 @@ PRIVATE int clear_input_line(hgobj gobj)
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
     printf("\n");
-    if(!priv->on_mirror_tty) {
-        json_t *kw_line = json_object();
-        json_object_set_new(kw_line, "text", json_string(""));
-        gobj_send_event(priv->gobj_editline, EV_SETTEXT, kw_line, gobj);
-    }
+    json_t *kw_line = json_object();
+    json_object_set_new(kw_line, "text", json_string(""));
+    gobj_send_event(priv->gobj_editline, EV_SETTEXT, kw_line, gobj);
 
     return 0;
 }
@@ -944,7 +915,7 @@ PRIVATE char *get_history_file(char *bf, int bfsize)
     if(home) {
         snprintf(bf, bfsize, "%s/.yuneta", home);
         mkdir(bf, 0700);
-        strcat(bf, "/history2.txt");
+        strcat(bf, "/mqtt.txt");
     }
     return bf;
 }
@@ -1191,13 +1162,9 @@ PRIVATE int ac_command(hgobj gobj, const char *event, json_t *kw, hgobj src)
         KW_DECREF(kw);
         return 0;
     }
-    if(priv->on_mirror_tty) {
-        KW_DECREF(kw_input_command);
-        KW_DECREF(kw);
-        return 0;
-    }
 
     if(strcasecmp(command, "exit")==0 || strcasecmp(command, "quit")==0) {
+        printf("\n");
         gobj_stop(gobj);
         KW_DECREF(kw_input_command);
         KW_DECREF(kw);
@@ -1225,15 +1192,6 @@ PRIVATE int ac_command(hgobj gobj, const char *event, json_t *kw, hgobj src)
     if(*xcmd == '*') {
         xcmd++;
         kw_set_subdict_value(gobj, kw_command, "__md_iev__", "display_mode", json_string("form"));
-    }
-    if(strstr(xcmd, "open-console")) {
-        struct winsize w;
-        ioctl(STDOUT_FILENO, TIOCGWINSZ, &w);
-
-        int cx = w.ws_col;
-        int cy = w.ws_row;
-        kw_set_dict_value(gobj, kw_command, "cx", json_integer(cx));
-        kw_set_dict_value(gobj, kw_command, "cy", json_integer(cy));
     }
 
     json_t *webix = 0;
@@ -1308,277 +1266,6 @@ PRIVATE int ac_command_answer(hgobj gobj, const char *event, json_t *kw, hgobj s
 /***************************************************************************
  *
  ***************************************************************************/
-PRIVATE int ac_edit_config(hgobj gobj, const char *event, json_t *kw, hgobj src)
-{
-    PRIVATE_DATA *priv = gobj_priv_data(gobj);
-
-    int result = (int)kw_get_int(gobj, kw, "result", -1, 0);
-    const char *comment = kw_get_str(gobj, kw, "comment", "", 0);
-    if(result != 0) {
-        printf("%sERROR %d: %s%s\n", On_Red BWhite, result, comment, Color_Off);
-        clear_input_line(gobj);
-        KW_DECREF(kw);
-        return 0;
-    }
-    json_t *record = json_array_get(kw_get_dict_value(gobj, kw, "data", 0, 0), 0);
-    if(!record) {
-        printf("%sERROR %d: %s:%s%s\n",
-            On_Red BWhite, result, __FUNCTION__, "Internal error, no data", Color_Off
-        );
-        clear_input_line(gobj);
-        KW_DECREF(kw);
-        return 0;
-    }
-
-    const char *id = kw_get_str(gobj, record, "id", 0, 0);
-    if(!id) {
-        printf("%sERROR %d: %s:%s%s\n",
-            On_Red BWhite, result, __FUNCTION__, "Internal error, no id", Color_Off
-        );
-        clear_input_line(gobj);
-        KW_DECREF(kw);
-        return 0;
-    }
-
-    json_t *jn_content = kw_get_dict_value(gobj, record, "zcontent", 0, 0);
-    if(!jn_content) {
-        printf("%sERROR %d: %s:%s%s\n",
-            On_Red BWhite, result, __FUNCTION__, "Internal error, no content", Color_Off
-        );
-        clear_input_line(gobj);
-        KW_DECREF(kw);
-        return 0;
-    }
-
-    JSON_INCREF(jn_content);
-    char path[NAME_MAX];
-
-    save_local_json(gobj, path, sizeof(path), id, jn_content);
-    //log_debug_printf("save_local_json %s", path);
-    edit_json(gobj, path);
-
-    size_t flags = 0;
-    json_error_t error;
-    json_t *jn_new_content = json_load_file(path, flags, &error);
-    if(!jn_new_content) {
-        printf("%sERROR %d: Bad json format in '%s' source. Line %d, Column %d, Error '%s'%s\n",
-            On_Red BWhite,
-            result,
-            path,
-            error.line,
-            error.column,
-            error.text,
-            Color_Off
-        );
-        clear_input_line(gobj);
-        KW_DECREF(kw);
-        return 0;
-    }
-    JSON_DECREF(jn_new_content);
-
-    char upgrade_command[512];
-    snprintf(upgrade_command, sizeof(upgrade_command),
-        "create-config id='%s' content64=$$(%s) ",
-        id,
-        path
-    );
-
-    json_t *kw_line = json_object();
-    json_object_set_new(kw_line, "text", json_string(upgrade_command));
-    gobj_send_event(priv->gobj_editline, EV_SETTEXT, kw_line, gobj);
-
-    KW_DECREF(kw);
-    return 0;
-}
-
-/***************************************************************************
- *
- ***************************************************************************/
-PRIVATE int ac_view_config(hgobj gobj, const char *event, json_t *kw, hgobj src)
-{
-    int result = (int)kw_get_int(gobj, kw, "result", -1, 0);
-    const char *comment = kw_get_str(gobj, kw, "comment", "", 0);
-    if(result != 0) {
-        printf("%sERROR %d: %s%s\n", On_Red BWhite, result, comment, Color_Off);
-        clear_input_line(gobj);
-        KW_DECREF(kw);
-        return 0;
-    }
-    json_t *record = json_array_get(kw_get_dict_value(gobj, kw, "data", 0, 0), 0);
-    if(!record) {
-        printf("%sERROR %d: %s:%s%s\n",
-            On_Red BWhite, result, __FUNCTION__, "Internal error, no data", Color_Off
-        );
-        clear_input_line(gobj);
-        KW_DECREF(kw);
-        return 0;
-    }
-
-    json_t *jn_content = kw_get_dict_value(gobj, record, "zcontent", 0, 0);
-    if(!jn_content) {
-        printf("%sERROR %d: %s:%s%s\n",
-            On_Red BWhite, result, __FUNCTION__, "Internal error, no content", Color_Off
-        );
-        clear_input_line(gobj);
-        KW_DECREF(kw);
-        return 0;
-    }
-
-    const char *name = kw_get_str(gobj, record, "name", "__temporal__", 0);
-    JSON_INCREF(jn_content);
-    char path[NAME_MAX];
-
-    save_local_json(gobj, path, sizeof(path), name, jn_content);
-    //log_debug_printf("save_local_json %s", path);
-    edit_json(gobj, path);
-
-    clear_input_line(gobj);
-
-    KW_DECREF(kw);
-    return 0;
-}
-
-/***************************************************************************
- *
- ***************************************************************************/
-PRIVATE int ac_read_json(hgobj gobj, const char *event, json_t *kw, hgobj src)
-{
-    int result = (int)kw_get_int(gobj, kw, "result", -1, 0);
-    const char *comment = kw_get_str(gobj, kw, "comment", "", 0);
-    if(result != 0) {
-        printf("%sERROR %d: %s%s\n", On_Red BWhite, result, comment, Color_Off);
-        clear_input_line(gobj);
-        KW_DECREF(kw);
-        return 0;
-    }
-    json_t *record = kw_get_dict_value(gobj, kw, "data", 0, 0);
-    if(!record) {
-        printf("%sERROR %d: %s:%s%s\n",
-            On_Red BWhite, result, __FUNCTION__, "Internal error, no data", Color_Off
-        );
-        clear_input_line(gobj);
-        KW_DECREF(kw);
-        return 0;
-    }
-
-    json_t *jn_content = kw_get_dict_value(gobj, record, "zcontent", 0, 0);
-    if(!jn_content) {
-        printf("%sERROR %d: %s:%s%s\n",
-            On_Red BWhite, result, __FUNCTION__, "Internal error, no content", Color_Off
-        );
-        clear_input_line(gobj);
-        KW_DECREF(kw);
-        return 0;
-    }
-
-    const char *name = kw_get_str(gobj, record, "name", "__temporal__", 0);
-    JSON_INCREF(jn_content);
-    char path[NAME_MAX];
-
-    save_local_json(gobj, path, sizeof(path), name, jn_content);
-    //log_debug_printf("save_local_json %s", path);
-    edit_json(gobj, path);
-
-    clear_input_line(gobj);
-
-    KW_DECREF(kw);
-    return 0;
-}
-
-/***************************************************************************
- *
- ***************************************************************************/
-PRIVATE int ac_read_file(hgobj gobj, const char *event, json_t *kw, hgobj src)
-{
-    int result = (int)kw_get_int(gobj, kw, "result", -1, 0);
-    const char *comment = kw_get_str(gobj, kw, "comment", "", 0);
-    if(result != 0) {
-        printf("%sERROR %d: %s%s\n", On_Red BWhite, result, comment, Color_Off);
-        clear_input_line(gobj);
-        KW_DECREF(kw);
-        return 0;
-    }
-    json_t *record = kw_get_dict_value(gobj, kw, "data", 0, 0);
-    if(!record) {
-        printf("%sERROR %d: %s:%s%s\n",
-            On_Red BWhite, result, __FUNCTION__, "Internal error, no data", Color_Off
-        );
-        clear_input_line(gobj);
-        KW_DECREF(kw);
-        return 0;
-    }
-
-    json_t *jn_content = kw_get_dict_value(gobj, record, "zcontent", 0, 0);
-    if(!jn_content) {
-        printf("%sERROR %d: %s:%s%s\n",
-            On_Red BWhite, result, __FUNCTION__, "Internal error, no content", Color_Off
-        );
-        clear_input_line(gobj);
-        KW_DECREF(kw);
-        return 0;
-    }
-
-    const char *name = kw_get_str(gobj, record, "name", "__temporal__", 0);
-    JSON_INCREF(jn_content);
-    char path[NAME_MAX];
-
-    save_local_string(gobj, path, sizeof(path), name, jn_content);
-    //log_debug_printf("save_local_json %s", path);
-    edit_json(gobj, path);
-
-    clear_input_line(gobj);
-
-    KW_DECREF(kw);
-    return 0;
-}
-
-/***************************************************************************
- *
- ***************************************************************************/
-PRIVATE int ac_read_binary_file(hgobj gobj, const char *event, json_t *kw, hgobj src)
-{
-    int result = (int)kw_get_int(gobj, kw, "result", -1, 0);
-    const char *comment = kw_get_str(gobj, kw, "comment", "", 0);
-    if(result != 0) {
-        printf("%sERROR %d: %s%s\n", On_Red BWhite, result, comment, Color_Off);
-        clear_input_line(gobj);
-        KW_DECREF(kw);
-        return 0;
-    }
-    json_t *record = kw_get_dict_value(gobj, kw, "data", 0, 0);
-    if(!record) {
-        printf("%sERROR %d: %s:%s%s\n",
-            On_Red BWhite, result, __FUNCTION__, "Internal error, no data", Color_Off
-        );
-        clear_input_line(gobj);
-        KW_DECREF(kw);
-        return 0;
-    }
-
-    json_t *jn_content = kw_get_dict_value(gobj, record, "content64", 0, 0);
-    if(!jn_content) {
-        printf("%sERROR %d: %s:%s%s\n",
-            On_Red BWhite, result, __FUNCTION__, "Internal error, no content", Color_Off
-        );
-        clear_input_line(gobj);
-        KW_DECREF(kw);
-        return 0;
-    }
-
-    const char *name = kw_get_str(gobj, record, "name", "__temporal__", 0);
-    JSON_INCREF(jn_content);
-    char path[NAME_MAX];
-    save_local_base64(gobj, path, sizeof(path), name, jn_content);
-
-    clear_input_line(gobj);
-
-    KW_DECREF(kw);
-    return 0;
-}
-
-/***************************************************************************
- *
- ***************************************************************************/
 PRIVATE int ac_screen_ctrl(hgobj gobj, const char *event, json_t *kw, hgobj src)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
@@ -1604,84 +1291,6 @@ PRIVATE int ac_screen_ctrl(hgobj gobj, const char *event, json_t *kw, hgobj src)
         DEFAULTS
             break;
     } SWITCHS_END;
-
-    KW_DECREF(kw);
-    return 0;
-}
-
-/***************************************************************************
- *
- ***************************************************************************/
-PRIVATE int ac_tty_mirror_open(hgobj gobj, const char *event, json_t *kw, hgobj src)
-{
-    PRIVATE_DATA *priv = gobj_priv_data(gobj);
-
-    json_t *jn_data = kw_get_dict(gobj, kw, "data", 0, KW_REQUIRED);
-    const char *tty_name = kw_get_str(gobj, jn_data, "name", "", KW_REQUIRED);
-    snprintf(priv->mirror_tty_name, sizeof(priv->mirror_tty_name), "%s", tty_name);
-
-    const char *tty_uuid = kw_get_str(gobj, jn_data, "uuid", "", KW_REQUIRED);
-    snprintf(priv->mirror_tty_uuid, sizeof(priv->mirror_tty_uuid), "%s", tty_uuid);
-
-    priv->on_mirror_tty = TRUE;
-
-    KW_DECREF(kw);
-    return 0;
-}
-
-/***************************************************************************
- *
- ***************************************************************************/
-PRIVATE int ac_tty_mirror_close(hgobj gobj, const char *event, json_t *kw, hgobj src)
-{
-    PRIVATE_DATA *priv = gobj_priv_data(gobj);
-
-    snprintf(priv->mirror_tty_name, sizeof(priv->mirror_tty_name), "%s", "");
-    snprintf(priv->mirror_tty_uuid, sizeof(priv->mirror_tty_uuid), "%s", "");
-    priv->on_mirror_tty = FALSE;
-    clear_input_line(gobj);
-
-    KW_DECREF(kw);
-    return 0;
-}
-
-/***************************************************************************
- *
- ***************************************************************************/
-PRIVATE int ac_tty_mirror_data(hgobj gobj, const char *event, json_t *kw, hgobj src)
-{
-    const char *agent_name = gobj_name(gobj_read_pointer_attr(src, "user_data"));
-
-    json_t *jn_data = kw_get_dict(gobj, kw, "data", 0, KW_REQUIRED);
-    if(jn_data) {
-        const char *tty_name = kw_get_str(gobj, jn_data, "name", 0, 0);
-        char mirror_tty_name[NAME_MAX];
-        snprintf(mirror_tty_name, sizeof(mirror_tty_name), "%s(%s)", agent_name, tty_name);
-
-        const char *content64 = kw_get_str(gobj, jn_data, "content64", 0, 0);
-        if(empty_string(content64)) {
-            gobj_log_error(gobj, 0,
-                "function",     "%s", __FUNCTION__,
-                "msgset",       "%s", MSGSET_INTERNAL_ERROR,
-                "msg",          "%s", "content64 empty",
-                NULL
-            );
-            JSON_DECREF(jn_data);
-            JSON_DECREF(kw);
-            return -1;
-        }
-
-        gbuffer_t *gbuf = gbuffer_base64_to_string(content64, strlen(content64));
-        char *p = gbuffer_cur_rd_pointer(gbuf);
-        int len = (int)gbuffer_leftbytes(gbuf);
-
-        if(gobj_trace_level(gobj) & TRACE_KB) {
-            gobj_trace_dump(gobj, p, len,  "write_tty");
-        }
-        fwrite(p, len, 1, stdout);
-        fflush(stdout);
-        GBUFFER_DECREF(gbuf);
-    }
 
     KW_DECREF(kw);
     return 0;
@@ -1811,16 +1420,6 @@ PRIVATE int create_gclass(gclass_name_t gclass_name)
         {EV_COMMAND,                ac_command,             0},
         {EV_MT_COMMAND_ANSWER,      ac_command_answer,      0},
         {EV_MT_STATS_ANSWER,        ac_command_answer,      0},
-        {EV_EDIT_CONFIG,            ac_edit_config,         0},
-        {EV_VIEW_CONFIG,            ac_view_config,         0},
-        {EV_EDIT_YUNO_CONFIG,       ac_edit_config,         0},
-        {EV_VIEW_YUNO_CONFIG,       ac_view_config,         0},
-        {EV_READ_JSON,              ac_read_json,           0},
-        {EV_READ_FILE,              ac_read_file,           0},
-        {EV_READ_BINARY_FILE,       ac_read_binary_file,    0},
-        {EV_TTY_OPEN,               ac_tty_mirror_open,     0},
-        {EV_TTY_CLOSE,              ac_tty_mirror_close,    0},
-        {EV_TTY_DATA,               ac_tty_mirror_data,     0},
         {EV_CLRSCR,                 ac_screen_ctrl,         0},
         {EV_SCROLL_PAGE_UP,         ac_screen_ctrl,         0},
         {EV_SCROLL_PAGE_DOWN,       ac_screen_ctrl,         0},
@@ -1848,16 +1447,6 @@ PRIVATE int create_gclass(gclass_name_t gclass_name)
     event_type_t event_types[] = {
         {EV_MT_COMMAND_ANSWER,      EVF_PUBLIC_EVENT},
         {EV_MT_STATS_ANSWER,        EVF_PUBLIC_EVENT},
-        {EV_EDIT_CONFIG,            EVF_PUBLIC_EVENT},
-        {EV_VIEW_CONFIG,            EVF_PUBLIC_EVENT},
-        {EV_EDIT_YUNO_CONFIG,       EVF_PUBLIC_EVENT},
-        {EV_VIEW_YUNO_CONFIG,       EVF_PUBLIC_EVENT},
-        {EV_READ_JSON,              EVF_PUBLIC_EVENT},
-        {EV_READ_FILE,              EVF_PUBLIC_EVENT},
-        {EV_READ_BINARY_FILE,       EVF_PUBLIC_EVENT},
-        {EV_TTY_OPEN,               EVF_PUBLIC_EVENT},
-        {EV_TTY_CLOSE,              EVF_PUBLIC_EVENT},
-        {EV_TTY_DATA,               EVF_PUBLIC_EVENT},
         {EV_COMMAND,                0},
         {EV_CLRSCR,                 0},
         {EV_SCROLL_PAGE_UP,         0},
