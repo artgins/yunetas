@@ -5931,8 +5931,7 @@ PRIVATE int frame_completed(hgobj gobj, hgobj src)
             } else {
                 json_t *jn_data = json_object();
                 ret = handle__connack_c(gobj, gbuf, jn_data);
-                json_object_set_new(jn_data, "result", json_integer(ret));
-                gobj_publish_event(gobj, EV_MQTT_CONNACK, jn_data);
+                gobj_publish_event(gobj, ret==0?EV_ON_ID:EV_ON_ID_NAK, jn_data);
             }
             break;
 
@@ -6713,8 +6712,6 @@ GOBJ_DEFINE_GCLASS(C_PROT_MQTT2);
 /*------------------------*
  *      Events
  *------------------------*/
-GOBJ_DEFINE_EVENT(EV_MQTT_CONNACK);
-
 
 /***************************************************************************
  *
@@ -6792,7 +6789,8 @@ PRIVATE int create_gclass(gclass_name_t gclass_name)
         {EV_ON_OPEN,            EVF_OUTPUT_EVENT},
         {EV_ON_CLOSE,           EVF_OUTPUT_EVENT},
         {EV_ON_MESSAGE,         EVF_OUTPUT_EVENT},
-        {EV_MQTT_CONNACK,       EVF_OUTPUT_EVENT},
+        {EV_ON_ID,              EVF_OUTPUT_EVENT},
+        {EV_ON_ID_NAK,          EVF_OUTPUT_EVENT},
         {0, 0}
     };
 
