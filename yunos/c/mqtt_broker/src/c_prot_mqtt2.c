@@ -4658,6 +4658,9 @@ PRIVATE int handle__connack_c(hgobj gobj, gbuffer_t *gbuf)
     int ret = 0;
     json_t *properties = NULL;
 
+    /*
+     *  Assume these defaults
+     */
     uint8_t retain_available = 1;
     uint8_t max_qos = 2;
     uint16_t inflight_maximum = 20;
