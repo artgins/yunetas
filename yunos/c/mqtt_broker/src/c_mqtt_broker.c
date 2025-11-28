@@ -992,6 +992,7 @@ PRIVATE int process_msg(
         "clean_start": true,
         "session_expiry_interval": 0,
         "max_qos": 2,
+        "protocol_version": 2,
         "will": true,
         "will_retain": true, #^^ these will fields are optionals
         "will_qos": 1,
@@ -1010,6 +1011,7 @@ PRIVATE int process_msg(
 PRIVATE int ac_on_open(hgobj gobj, const char *event, json_t *kw, hgobj src)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
+    int result = 0;
 
     if(src == priv->gobj_top_side) {
         KW_DECREF(kw);
@@ -1044,6 +1046,7 @@ PRIVATE int ac_on_open(hgobj gobj, const char *event, json_t *kw, hgobj src)
      *  (HACK client_id is really a device_id in mqtt IoT devices)
      *--------------------------------------------------------------*/
     BOOL clean_start = kw_get_bool(gobj, kw, "clean_start", 0, KW_REQUIRED);
+    BOOL assigned_id = kw_get_bool(gobj, kw, "assigned_id", 0, KW_REQUIRED);
     BOOL will = kw_get_bool(gobj, kw, "will", 0, KW_REQUIRED);
     if(will) {
         // TODO read the remain will fields
@@ -1055,48 +1058,51 @@ PRIVATE int ac_on_open(hgobj gobj, const char *event, json_t *kw, hgobj src)
     /*----------------------------------------------------------------*
      *  Open the topic (client_id) or create it if it doesn't exist
      *----------------------------------------------------------------*/
-int x; // TODO if assigned_id is true, you cannot create topics!!!???
-    json_t *jn_response = gobj_command(
-        priv->gobj_tranger_qmsgs,
-        "open-topic",
-        json_pack("{s:s, s:s}",
-            "topic_name", client_id,
-            "__username__", username
-        ),
-        gobj
-    );
-
-    int result = COMMAND_RESULT(gobj, jn_response);
-    if(result < 0) {
-        JSON_DECREF(jn_response)
-        jn_response = gobj_command(
+    if(!assigned_id) {
+        json_t *jn_response = gobj_command(
             priv->gobj_tranger_qmsgs,
-            "create-topic", // idempotent function
+            "open-topic",
             json_pack("{s:s, s:s}",
                 "topic_name", client_id,
                 "__username__", username
             ),
             gobj
         );
+
         result = COMMAND_RESULT(gobj, jn_response);
-    }
-    if(result < 0) {
-        const char *comment = COMMAND_COMMENT(gobj, jn_response);
-        gobj_log_warning(gobj, 0,
-            "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_AUTH,
-            "msg",          "%s", comment?comment:"cannot create/open topic (client)",
-            "username",     "%s", username,
-            NULL
-        );
+        if(result < 0) {
+            JSON_DECREF(jn_response)
+            jn_response = gobj_command(
+                priv->gobj_tranger_qmsgs,
+                "create-topic", // idempotent function
+                json_pack("{s:s, s:s}",
+                    "topic_name", client_id,
+                    "__username__", username
+                ),
+                gobj
+            );
+            result = COMMAND_RESULT(gobj, jn_response);
+        }
+        if(result < 0) {
+            const char *comment = COMMAND_COMMENT(gobj, jn_response);
+            gobj_log_warning(gobj, 0,
+                "function",     "%s", __FUNCTION__,
+                "msgset",       "%s", MSGSET_AUTH,
+                "msg",          "%s", comment?comment:"cannot create/open topic (client)",
+                "username",     "%s", username,
+                NULL
+            );
+            JSON_DECREF(jn_response)
+            KW_DECREF(kw);
+            return -1;
+        }
+
+        json_t *topic = COMMAND_DATA(gobj, jn_response);
+
+        print_json2("XXX topic", topic); // TODO TEST
+
         JSON_DECREF(jn_response)
-        KW_DECREF(kw);
-        return -1;
     }
-
-    json_t *topic = COMMAND_DATA(gobj, jn_response);
-
-print_json2("XXX topic", topic); // TODO TEST
 
     // TODO if session already exists with below conditions return 1!
     // if(priv->clean_start == FALSE && prev_session_expiry_interval > 0) {
@@ -1107,7 +1113,6 @@ print_json2("XXX topic", topic); // TODO TEST
     //     // copia client session TODO
     // }
 
-    JSON_DECREF(jn_response)
     KW_DECREF(kw);
     return result;
 }
