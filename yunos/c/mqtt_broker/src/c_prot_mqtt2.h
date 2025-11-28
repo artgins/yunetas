@@ -228,6 +228,7 @@ GOBJ_DECLARE_GCLASS(C_PROT_MQTT2);
 /*------------------------*
  *      Events
  *------------------------*/
+GOBJ_DECLARE_EVENT(EV_MQTT_CONNACK);
 
 /***************************************************************
  *              Prototypes

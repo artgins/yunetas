@@ -4650,22 +4650,13 @@ PRIVATE int handle__connect(hgobj gobj, gbuffer_t *gbuf, hgobj src)
 /***************************************************************************
  *  Only for clients
  ***************************************************************************/
-PRIVATE int handle__connack_c(hgobj gobj, gbuffer_t *gbuf)
+PRIVATE int handle__connack_c(hgobj gobj, gbuffer_t *gbuf, json_t *jn_data)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
     uint8_t connect_flags;
     uint8_t reason_code;
     int ret = 0;
     json_t *properties = NULL;
-
-    /*
-     *  Assume these defaults
-     */
-    uint8_t retain_available = 1;
-    uint8_t max_qos = 2;
-    uint16_t inflight_maximum = 20;
-    uint16_t keepalive = 60;
-    uint32_t maximum_packet_size = 0; // TODO use to check only if > 0
 
     if(mqtt_read_byte(gobj, gbuf, &connect_flags)<0) {
         gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
@@ -4674,7 +4665,7 @@ PRIVATE int handle__connack_c(hgobj gobj, gbuffer_t *gbuf)
             "msg",          "%s", "Mqtt malformed packet, not enough data",
             NULL
         );
-        return -1;
+        return MOSQ_ERR_PROTOCOL;
     }
     if(mqtt_read_byte(gobj, gbuf, &reason_code)<0) {
         gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
@@ -4683,8 +4674,11 @@ PRIVATE int handle__connack_c(hgobj gobj, gbuffer_t *gbuf)
             "msg",          "%s", "Mqtt malformed packet, not enough data",
             NULL
         );
-        return -1;
+        return MOSQ_ERR_PROTOCOL;
     }
+
+    json_object_set_new(jn_data, "reason_code", json_integer(reason_code));
+    json_object_set_new(jn_data, "connect_flags", json_integer(connect_flags));
 
     if(priv->protocol_version == mosq_p_mqtt5) {
         properties = property_read_all(gobj, gbuf, CMD_CONNACK, &ret);
@@ -4737,11 +4731,19 @@ PRIVATE int handle__connack_c(hgobj gobj, gbuffer_t *gbuf)
             }
         }
 
-        retain_available = property_read_byte(properties, MQTT_PROP_RETAIN_AVAILABLE);
-        max_qos = property_read_byte(properties, MQTT_PROP_MAXIMUM_QOS);
-        inflight_maximum = property_read_int16(properties, MQTT_PROP_RECEIVE_MAXIMUM);
-        keepalive = property_read_int16(properties, MQTT_PROP_SERVER_KEEP_ALIVE);
-        maximum_packet_size = property_read_int32(properties, MQTT_PROP_MAXIMUM_PACKET_SIZE);
+        const char *key; json_t *value;
+        json_object_foreach(properties, key, value) {
+            json_object_set_new(
+                jn_data,
+                kw_get_str(gobj, value, "name", "", KW_REQUIRED),
+                kw_get_dict_value(gobj, value, "value", 0, KW_REQUIRED)
+            );
+        }
+        // uint8_t retain_available = property_read_byte(properties, MQTT_PROP_RETAIN_AVAILABLE);
+        // uint8_t max_qos = property_read_byte(properties, MQTT_PROP_MAXIMUM_QOS);
+        // uint16_t inflight_maximum = property_read_int16(properties, MQTT_PROP_RECEIVE_MAXIMUM);
+        // uint16_t keepalive = property_read_int16(properties, MQTT_PROP_SERVER_KEEP_ALIVE);
+        // uint32_t maximum_packet_size = property_read_int32(properties, MQTT_PROP_MAXIMUM_PACKET_SIZE);
     }
 
     // mosq->msgs_out.inflight_quota = mosq->msgs_out.inflight_maximum; TODO
@@ -4759,7 +4761,6 @@ PRIVATE int handle__connack_c(hgobj gobj, gbuffer_t *gbuf)
         }
     }
 
-    // TODO connack_callback(mosq, reason_code, connect_flags, properties);
     JSON_DECREF(properties);
 
     if(reason_code == 0) {
@@ -5928,7 +5929,10 @@ PRIVATE int frame_completed(hgobj gobj, hgobj src)
             if(priv->iamServer) {
                 ret = handle__connack_s(gobj, gbuf);
             } else {
-                ret = handle__connack_c(gobj, gbuf);
+                json_t *jn_data = json_object();
+                ret = handle__connack_c(gobj, gbuf, jn_data);
+                json_object_set_new(jn_data, "result", json_integer(ret));
+                gobj_publish_event(gobj, EV_MQTT_CONNACK, jn_data);
             }
             break;
 
@@ -6709,6 +6713,7 @@ GOBJ_DEFINE_GCLASS(C_PROT_MQTT2);
 /*------------------------*
  *      Events
  *------------------------*/
+GOBJ_DEFINE_EVENT(EV_MQTT_CONNACK);
 
 
 /***************************************************************************
@@ -6787,6 +6792,7 @@ PRIVATE int create_gclass(gclass_name_t gclass_name)
         {EV_ON_OPEN,            EVF_OUTPUT_EVENT},
         {EV_ON_CLOSE,           EVF_OUTPUT_EVENT},
         {EV_ON_MESSAGE,         EVF_OUTPUT_EVENT},
+        {EV_MQTT_CONNACK,       EVF_OUTPUT_EVENT},
         {0, 0}
     };
 

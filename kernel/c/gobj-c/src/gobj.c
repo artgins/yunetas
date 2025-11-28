@@ -8403,6 +8403,7 @@ PUBLIC json_t *gobj_subscribe_event( // return not yours
                     "msgset",       "%s", MSGSET_PARAMETER_ERROR,
                     "msg",          "%s", "event NOT in output event list",
                     "event",        "%s", event,
+                    "gclass",       "%s", gobj_gclass_name(publisher),
                     NULL
                 );
                 KW_DECREF(kw)
@@ -8607,6 +8608,7 @@ PUBLIC int gobj_unsubscribe_event(
                     "msgset",       "%s", MSGSET_PARAMETER_ERROR,
                     "msg",          "%s", "event NOT in output event list",
                     "event",        "%s", event,
+                    "gclass",       "%s", gobj_gclass_name(publisher),
                     NULL
                 );
                 KW_DECREF(kw)
@@ -8884,6 +8886,7 @@ PUBLIC int gobj_publish_event(
                 "msgset",       "%s", MSGSET_PARAMETER_ERROR,
                 "msg",          "%s", "event NOT in output event list",
                 "event",        "%s", event,
+                "gclass",       "%s", gobj_gclass_name(publisher),
                 NULL
             );
             KW_DECREF(kw)
