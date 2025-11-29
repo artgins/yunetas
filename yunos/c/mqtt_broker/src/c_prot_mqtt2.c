@@ -338,23 +338,6 @@ PRIVATE number_name_table_t mqtt5_return_codes_s[] = {
 {0,0}
 };
 
-PRIVATE json_t *cmd_help(hgobj gobj, const char *cmd, json_t *kw, hgobj src);
-
-PRIVATE sdata_desc_t pm_help[] = {
-/*-PM----type-----------name------------flag------------default-----description---------- */
-SDATAPM (DTP_STRING,    "cmd",          0,              0,          "command about you want help."),
-SDATAPM (DTP_INTEGER,   "level",        0,              0,          "level=1: search in bottoms, level=2: search in all childs"),
-SDATA_END()
-};
-
-PRIVATE const char *a_help[] = {"h", "?", 0};
-
-PRIVATE sdata_desc_t command_table[] = {
-/*-CMD---type-----------name------------flag------------alias---items-----------json_fn---------description---------- */
-SDATACM2(DTP_SCHEMA,    "help",         0,              a_help, pm_help,        cmd_help,       "Command's help"),
-SDATA_END()
-};
-
 /*---------------------------------------------*
  *      Attributes - order affect to oid's
  *---------------------------------------------*/
@@ -757,26 +740,6 @@ PRIVATE void mt_destroy(hgobj gobj)
             /***************************
              *      Commands
              ***************************/
-
-
-
-
-/***************************************************************************
- *
- ***************************************************************************/
-PRIVATE json_t *cmd_help(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
-{
-    KW_INCREF(kw);
-    json_t *jn_resp = gobj_build_cmds_doc(gobj, kw);
-    return msg_iev_build_response(
-        gobj,
-        0,
-        jn_resp,
-        0,
-        0,
-        kw  // owned
-    );
-}
 
 
 
@@ -4651,8 +4614,11 @@ PRIVATE int handle__connect(hgobj gobj, gbuffer_t *gbuf, hgobj src)
 /***************************************************************************
  *  Only for clients
  ***************************************************************************/
-PRIVATE int handle__connack_c(hgobj gobj, gbuffer_t *gbuf, json_t *jn_data)
-{
+PRIVATE int handle__connack_c(
+    hgobj gobj,
+    gbuffer_t *gbuf,
+    json_t *jn_data  // not owned
+) {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
     uint8_t connect_flags;
     uint8_t reason_code;
@@ -4680,6 +4646,7 @@ PRIVATE int handle__connack_c(hgobj gobj, gbuffer_t *gbuf, json_t *jn_data)
 
     json_object_set_new(jn_data, "reason_code", json_integer(reason_code));
     json_object_set_new(jn_data, "connect_flags", json_integer(connect_flags));
+    json_object_set_new(jn_data, "protocol_version", json_integer(priv->protocol_version));
 
     if(priv->protocol_version == mosq_p_mqtt5) {
         properties = property_read_all(gobj, gbuf, CMD_CONNACK, &ret);
@@ -4734,7 +4701,7 @@ PRIVATE int handle__connack_c(hgobj gobj, gbuffer_t *gbuf, json_t *jn_data)
 
         const char *key; json_t *value;
         json_object_foreach(properties, key, value) {
-            json_object_set_new(
+            json_object_set(
                 jn_data,
                 kw_get_str(gobj, value, "name", "", KW_REQUIRED),
                 kw_get_dict_value(gobj, value, "value", 0, KW_REQUIRED)
@@ -6813,7 +6780,7 @@ PRIVATE int create_gclass(gclass_name_t gclass_name)
         attrs_table,
         sizeof(PRIVATE_DATA),
         0,  // authz_table,
-        command_table,
+        0, // command_table,
         s_user_trace_level,
         0   // gcflag_t
     );

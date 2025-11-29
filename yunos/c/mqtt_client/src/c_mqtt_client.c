@@ -103,6 +103,23 @@ typedef struct keytable_s {
 } keytable_t;
 keytable_t keytable[MAX_KEYS] = {0};
 
+PRIVATE json_t *cmd_help(hgobj gobj, const char *cmd, json_t *kw, hgobj src);
+
+PRIVATE sdata_desc_t pm_help[] = {
+/*-PM----type-----------name------------flag------------default-----description---------- */
+SDATAPM (DTP_STRING,    "cmd",          0,              0,          "command about you want help."),
+SDATAPM (DTP_INTEGER,   "level",        0,              0,          "level=1: search in bottoms, level=2: search in all childs"),
+SDATA_END()
+};
+
+PRIVATE const char *a_help[] = {"h", "?", 0};
+
+PRIVATE sdata_desc_t command_table[] = {
+/*-CMD---type-----------name------------flag------------alias---items-----------json_fn---------description---------- */
+SDATACM2(DTP_SCHEMA,    "help",         0,              a_help, pm_help,        cmd_help,       "Command's help"),
+SDATA_END()
+};
+
 /*---------------------------------------------*
  *      Attributes - order affect to oid's
  *---------------------------------------------*/
@@ -335,6 +352,31 @@ PRIVATE int mt_stop(hgobj gobj)
 }
 
 
+
+
+                    /***************************
+                     *      Commands
+                     ***************************/
+
+
+
+
+/***************************************************************************
+ *
+ ***************************************************************************/
+PRIVATE json_t *cmd_help(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
+{
+    KW_INCREF(kw);
+    json_t *jn_resp = gobj_build_cmds_doc(gobj, kw);
+    return msg_iev_build_response(
+        gobj,
+        0,
+        jn_resp,
+        0,
+        0,
+        kw  // owned
+    );
+}
 
 
 
@@ -957,9 +999,14 @@ PRIVATE int ac_on_open(hgobj gobj, const char *event, json_t *kw, hgobj src)
         printf("Connected to '%s'.\n",
             gobj_read_str_attr(gobj, "url")
         );
+        if(json_size(kw)) {
+            json_dumpf(kw, stdout, JSON_INDENT(4)|JSON_ENCODE_ANY);
+            printf("\n");
+        }
     }
 
     const char *command = gobj_read_str_attr(gobj, "command");
+    command="h";
     if(priv->interactive) {
         if(!empty_string(command)) {
             do_command(gobj, command);
@@ -1052,7 +1099,7 @@ PRIVATE int ac_command(hgobj gobj, const char *event, json_t *kw, hgobj src)
 
     json_t *webix = 0;
     if(priv->gobj_mqtt_connector) {
-        webix = gobj_command(priv->gobj_mqtt_connector, xcmd, kw_command, gobj);
+        webix = gobj_command(gobj, xcmd, kw_command, gobj);
     } else {
         printf("\n%s%s%s\n", On_Red BWhite, "No connection", Color_Off);
         clear_input_line(gobj);
@@ -1070,9 +1117,7 @@ PRIVATE int ac_command(hgobj gobj, const char *event, json_t *kw, hgobj src)
         );
     } else {
         /* asynchronous responses return 0 */
-        if(priv->gobj_mqtt_connector) {
-            printf("\n"); fflush(stdout);
-        }
+        printf("\n"); fflush(stdout);
     }
     KW_DECREF(kw_input_command);
     KW_DECREF(kw);
@@ -1335,7 +1380,7 @@ PRIVATE int create_gclass(gclass_name_t gclass_name)
         tattr_desc,
         sizeof(PRIVATE_DATA),
         0,  // Authorization table
-        0,  // Command table
+        command_table,  // Command table
         s_user_trace_level,
         0   // GClass flags
     );
