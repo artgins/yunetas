@@ -1128,7 +1128,7 @@ PRIVATE int ac_on_open(hgobj gobj, const char *event, json_t *kw, hgobj src)
     gobj_write_pointer_attr(gobj, "gobj_connector", src);
 
     const char *command = gobj_read_str_attr(gobj, "command");
-    if(gobj_read_bool_attr(gobj, "interactive")) {
+    if(priv->interactive) {
         if(!empty_string(command)) {
             do_command(gobj, command);
         } else {
@@ -1266,7 +1266,7 @@ PRIVATE int ac_command_answer(hgobj gobj, const char *event, json_t *kw, hgobj s
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
-    if(gobj_read_bool_attr(gobj, "interactive")) {
+    if(priv->interactive) {
         return display_webix_result(
             gobj,
             kw

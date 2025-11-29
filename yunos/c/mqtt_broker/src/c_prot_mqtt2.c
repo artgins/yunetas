@@ -5933,6 +5933,7 @@ PRIVATE int frame_completed(hgobj gobj, hgobj src)
                 json_t *jn_data = json_object();
                 ret = handle__connack_c(gobj, gbuf, jn_data);
                 if(ret == 0) {
+                    priv->inform_on_close = TRUE;
                     gobj_publish_event(gobj, EV_ON_OPEN, jn_data);
                 } else {
                     // Error already logged

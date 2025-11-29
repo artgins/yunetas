@@ -615,9 +615,9 @@ PRIVATE int do_authenticate_task(hgobj gobj)
 /***************************************************************************
  *
  ***************************************************************************/
-PRIVATE char mqtt_broker_config[]= "\
+PRIVATE char mqtt_connector_config[]= "\
 {                                                       \n\
-    'name': 'mqtt_broker',                              \n\
+    'name': 'mqtt_connector',                           \n\
     'as_service': true,                                 \n\
     'gclass': 'C_PROT_MQTT2',                           \n\
     'kw': {                                             \n\
@@ -632,7 +632,7 @@ PRIVATE char mqtt_broker_config[]= "\
     },                                                  \n\
     'children': [                                       \n\
         {                                               \n\
-            'name': 'mqtt_broker',                      \n\
+            'name': 'mqtt_connector',                   \n\
             'gclass': 'C_TCP',                          \n\
             'kw': {                                     \n\
                 'url': '(^^__url__^^)',                 \n\
@@ -680,7 +680,7 @@ PRIVATE int cmd_connect(hgobj gobj)
 
     priv->gobj_mqtt_connector = gobj_create_tree(
         gobj,
-        mqtt_broker_config,
+        mqtt_connector_config,
         jn_config_variables
     );
 
@@ -952,19 +952,15 @@ PRIVATE int ac_on_token(hgobj gobj, const char *event, json_t *kw, hgobj src)
 PRIVATE int ac_on_open(hgobj gobj, const char *event, json_t *kw, hgobj src)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
-    const char *yuno_role = kw_get_str(gobj, kw, "remote_yuno_role", "", 0);
-    const char *yuno_name = kw_get_str(gobj, kw, "remote_yuno_name", "", 0);
 
     if(priv->verbose || priv->interactive) {
-        printf("Connected to '%s^%s', url:'%s'.\n",
-            yuno_role,
-            yuno_name,
+        printf("Connected to '%s'.\n",
             gobj_read_str_attr(gobj, "url")
         );
     }
 
     const char *command = gobj_read_str_attr(gobj, "command");
-    if(gobj_read_bool_attr(gobj, "interactive")) {
+    if(priv->interactive) {
         if(!empty_string(command)) {
             do_command(gobj, command);
         } else {
@@ -1090,7 +1086,7 @@ PRIVATE int ac_command_answer(hgobj gobj, const char *event, json_t *kw, hgobj s
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
-    if(gobj_read_bool_attr(gobj, "interactive")) {
+    if(priv->interactive) {
         return display_webix_result(
             gobj,
             kw
