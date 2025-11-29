@@ -360,6 +360,7 @@ SDATA_END()
  *---------------------------------------------*/
 PRIVATE sdata_desc_t attrs_table[] = {
 /*-ATTR-type------------name----------------flag----------------default-description---------- */
+SDATA (DTP_BOOLEAN,     "iamServer",        SDF_RD,             0,      "What side? server or client"),
 
 // HACK set by c_authz, this gclass is an external entry gate!
 SDATA (DTP_STRING,      "__username__",     SDF_VOLATIL,        "",     "Username, WARNING set by c_authz"),
@@ -373,6 +374,7 @@ SDATA (DTP_STRING,      "mqtt_client_id",   SDF_RD,     "",     "MQTT Client id,
 SDATA (DTP_STRING,      "mqtt_protocol",    SDF_RD,     "mqttv5", "MQTT Protocol. Can be mqttv5, mqttv311 or mqttv31. Defaults to mqttv5."),
 SDATA (DTP_STRING,      "user_id",          0,          "",     "MQTT Username or OAuth2 User Id (interactive jwt)"),
 SDATA (DTP_STRING,      "user_passw",       0,          "",     "MQTT Password or OAuth2 User password (interactive jwt)"),
+SDATA (DTP_STRING,      "jwt",              0,          "",     "Jwt"),
 
 /*
  *  Configuration
@@ -435,7 +437,6 @@ SDATA (DTP_INTEGER,     "will_expiry_interval",SDF_VOLATIL,     0,      "Will pr
 
 SDATA (DTP_POINTER,     "user_data",        0,                  0,      "user data"),
 SDATA (DTP_POINTER,     "user_data2",       0,                  0,      "more user data"),
-SDATA (DTP_BOOLEAN,     "iamServer",        SDF_RD,             0,      "What side? server or client"),
 SDATA (DTP_POINTER,     "subscriber",       0,                  0,      "subscriber of output-events. Default if null is parent."),
 SDATA_END()
 };
@@ -5931,7 +5932,12 @@ PRIVATE int frame_completed(hgobj gobj, hgobj src)
             } else {
                 json_t *jn_data = json_object();
                 ret = handle__connack_c(gobj, gbuf, jn_data);
-                gobj_publish_event(gobj, ret==0?EV_ON_ID:EV_ON_ID_NAK, jn_data);
+                if(ret == 0) {
+                    gobj_publish_event(gobj, EV_ON_OPEN, jn_data);
+                } else {
+                    // Error already logged
+                    json_decref(jn_data);
+                }
             }
             break;
 

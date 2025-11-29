@@ -61,7 +61,7 @@ SDATA (DTP_STRING,  "remote_yuno_role", SDF_RD,         "",         "confirmed r
 SDATA (DTP_STRING,  "remote_yuno_name", SDF_RD,         "",         "confirmed remote yuno name"),
 SDATA (DTP_STRING,  "remote_yuno_service",SDF_RD,       "",         "confirmed remote yuno service"),
 SDATA (DTP_STRING,  "url",              SDF_PERSIST,    "",         "Url to connect"),
-SDATA (DTP_STRING,  "jwt",              SDF_PERSIST,    "",         "JWT"),
+SDATA (DTP_STRING,  "jwt",              SDF_PERSIST,    "",         "JWT"),// TODO persist???!!!
 SDATA (DTP_STRING,  "cert_pem",         SDF_PERSIST,    "",         "SSL server certification, PEM str format"),
 SDATA (DTP_JSON,    "extra_info",       SDF_RD,         "{}",       "dict data set by user, added to the identity card msg."),
 SDATA (DTP_INTEGER, "timeout_idack",    SDF_RD,         "5000",     "timeout waiting idAck"),

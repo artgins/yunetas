@@ -616,58 +616,31 @@ PRIVATE int do_authenticate_task(hgobj gobj)
  *
  ***************************************************************************/
 PRIVATE char mqtt_broker_config[]= "\
-{                                               \n\
-    'name': '(^^__url__^^)',                    \n\
-    'gclass': 'C_IEVENT_CLI',                   \n\
-    'as_service': true,                         \n\
-    'kw': {                                     \n\
-        'jwt': '(^^__jwt__^^)',   #^^ TODO check, why not in mqtt2?                      \n\
-        'remote_yuno_name': '(^^__yuno_name__^^)',      \n\
-        'remote_yuno_role': '(^^__yuno_role__^^)',      \n\
-        'remote_yuno_service': '(^^__yuno_service__^^)' \n\
-    },                                          \n\
-    'children': [                                 \n\
+{                                                       \n\
+    'name': 'mqtt_broker',                              \n\
+    'as_service': true,                                 \n\
+    'gclass': 'C_PROT_MQTT2',                           \n\
+    'kw': {                                             \n\
+        'mqtt_client_id': '(^^__mqtt_client_id__^^)',   \n\
+        'mqtt_protocol': '(^^__mqtt_protocol__^^)',     \n\
+        'url': '(^^__url__^^)',                         \n\
+        'user_id': '(^^__user_id__^^)',                 \n\
+        'user_passw': '(^^__user_passw__^^)',           \n\
+        'cert_pem': '(^^__cert_pem__^^)',               \n\
+        'jwt': '(^^__jwt__^^)',                         \n\
+        'iamServer': false                              \n\
+    },                                                  \n\
+    'children': [                                       \n\
         {                                               \n\
-            'name': 'mqtt_broker',                     \n\
-            'gclass': 'C_IOGATE',                       \n\
+            'name': 'mqtt_broker',                      \n\
+            'gclass': 'C_TCP',                          \n\
             'kw': {                                     \n\
-            },                                          \n\
-            'children': [                               \n\
-                {                                       \n\
-                    'name': 'mqtt_broker',             \n\
-                    'gclass': 'C_CHANNEL',              \n\
-                    'kw': {                                     \n\
-                    },                                          \n\
-                    'children': [                               \n\
-                        {                                       \n\
-                            'name': 'mqtt_broker',             \n\
-                            'gclass': 'C_PROT_MQTT2',           \n\
-                            'kw': {                             \n\
-                                'mqtt_client_id': '(^^__mqtt_client_id__^^)',   \n\
-                                'mqtt_protocol': '(^^__mqtt_protocol__^^)',     \n\
-                                'url': '(^^__url__^^)',                         \n\
-                                'user_id': '(^^__user_id__^^)',                 \n\
-                                'user_passw': '(^^__user_passw__^^)',           \n\
-                                'cert_pem': '(^^__cert_pem__^^)',               \n\
-                                'iamServer': false                              \n\
-                            },                                  \n\
-                            'children': [                       \n\
-                                {                               \n\
-                                    'name': 'mqtt_broker',     \n\
-                                    'gclass': 'C_TCP',          \n\
-                                    'kw': {                     \n\
-                                        'url': '(^^__url__^^)',                 \n\
-                                        'cert_pem': '(^^__cert_pem__^^)'        \n\
-                                    }                           \n\
-                                }                               \n\
-                            ]                                   \n\
-                        }                                       \n\
-                    ]                                           \n\
-                }                                               \n\
-            ]                                           \n\
+                'url': '(^^__url__^^)',                 \n\
+                'cert_pem': '(^^__cert_pem__^^)'        \n\
+            }                                           \n\
         }                                               \n\
-    ]                                           \n\
-}                                               \n\
+    ]                                                   \n\
+}                                                       \n\
 ";
 
 PRIVATE int cmd_connect(hgobj gobj)
