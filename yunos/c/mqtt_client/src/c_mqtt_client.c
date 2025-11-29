@@ -1066,8 +1066,9 @@ PRIVATE int ac_command(hgobj gobj, const char *event, json_t *kw, hgobj src)
         return 0;
     }
 
+    printf("\n");
+
     if(strcasecmp(command, "exit")==0 || strcasecmp(command, "quit")==0) {
-        printf("\n");
         gobj_stop(gobj);
         KW_DECREF(kw_input_command);
         KW_DECREF(kw);
