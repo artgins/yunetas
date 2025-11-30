@@ -1099,13 +1099,19 @@ PRIVATE int ac_command(hgobj gobj, const char *event, json_t *kw, hgobj src)
     }
 
     json_t *webix = 0;
-    if(priv->gobj_mqtt_connector) {
+    if(gobj_command_desc(gobj, command, FALSE)) {
         webix = gobj_command(gobj, xcmd, kw_command, gobj);
     } else {
-        printf("\n%s%s%s\n", On_Red BWhite, "No connection", Color_Off);
-        clear_input_line(gobj);
-        JSON_DECREF(kw_command)
+        if(gobj_in_this_state(gobj, ST_CONNECTED)) {
+            // gobj_command_desc
+            webix = gobj_command(priv->gobj_mqtt_connector, xcmd, kw_command, gobj);
+        } else {
+            printf("\n%s%s%s\n", On_Red BWhite, "No connection", Color_Off);
+            clear_input_line(gobj);
+            JSON_DECREF(kw_command)
+        }
     }
+
     gbuffer_decref(gbuf_parsed_command);
 
     /*

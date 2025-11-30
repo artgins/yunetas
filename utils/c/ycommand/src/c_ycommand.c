@@ -1233,7 +1233,7 @@ PRIVATE int ac_command(hgobj gobj, const char *event, json_t *kw, hgobj src)
     }
 
     json_t *webix = 0;
-    if(priv->gobj_connector) {
+    if(gobj_in_this_state(gobj, ST_CONNECTED)) {
         webix = gobj_command(priv->gobj_connector, xcmd, kw_command, gobj);
     } else {
         printf("\n%s%s%s\n", On_Red BWhite, "No connection", Color_Off);

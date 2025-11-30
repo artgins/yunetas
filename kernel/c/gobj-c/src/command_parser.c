@@ -141,7 +141,7 @@ PUBLIC json_t * command_parser(
 /***************************************************************************
  *  Find the command descriptor
  ***************************************************************************/
-PRIVATE const sdata_desc_t *command_get_cmd_desc(const sdata_desc_t *command_table, const char *cmd)
+PUBLIC const sdata_desc_t *command_get_cmd_desc(const sdata_desc_t *command_table, const char *cmd)
 {
     const sdata_desc_t *pcmd = command_table;
     while(pcmd->name) {

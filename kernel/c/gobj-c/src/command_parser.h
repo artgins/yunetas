@@ -9,7 +9,7 @@
  ****************************************************************************/
 #pragma once
 
-#include "gtypes.h"
+#include "gobj.h"
 
 #ifdef __cplusplus
 extern "C"{
@@ -18,6 +18,11 @@ extern "C"{
 /***************************************************
  *              Prototypes
  **************************************************/
+PUBLIC const sdata_desc_t *command_get_cmd_desc(
+    const sdata_desc_t *command_table,
+    const char *cmd
+);
+
 PUBLIC json_t *command_parser(
     hgobj gobj,
     const char *command,

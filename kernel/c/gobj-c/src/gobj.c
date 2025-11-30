@@ -4876,6 +4876,7 @@ PUBLIC json_t *gobj_command( // With AUTHZ
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_INTERNAL_ERROR,
             "msg",          "%s", "command table not available",
+            "cmd",          "%s", command,
             NULL
         );
         json_t *kw_response = build_command_response(
@@ -6380,15 +6381,27 @@ PUBLIC const sdata_desc_t *gclass_command_desc(hgclass gclass_, const char *name
         return 0;
     }
 
+    if(!gclass->command_table) {
+        if(verbose) {
+            gobj_log_error(0, LOG_OPT_TRACE_STACK,
+                "function",     "%s", __FUNCTION__,
+                "msgset",       "%s", MSGSET_INTERNAL_ERROR,
+                "msg",          "%s", "command table not available",
+                "gclass",       "%s", gclass->gclass_name,
+                "command",      "%s", name,
+                NULL
+            );
+        }
+        return 0;
+    }
+
     if(!name) {
         return gclass->command_table;
     }
-    const sdata_desc_t *it = gclass->command_table;
-    while(it->name) {
-        if(strcmp(it->name, name)==0) {
-            return it;
-        }
-        it++;
+
+    const sdata_desc_t *it = command_get_cmd_desc(gclass->command_table, name);
+    if(it) {
+        return it;
     }
 
     if(verbose) {
@@ -6397,7 +6410,7 @@ PUBLIC const sdata_desc_t *gclass_command_desc(hgclass gclass_, const char *name
             "msgset",       "%s", MSGSET_PARAMETER_ERROR,
             "msg",          "%s", "GClass command NOT FOUND",
             "gclass",       "%s", gclass->gclass_name,
-            "command",         "%s", name,
+            "command",      "%s", name,
             NULL
         );
     }
