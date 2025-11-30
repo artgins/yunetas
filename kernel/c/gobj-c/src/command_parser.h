@@ -43,7 +43,7 @@ PUBLIC json_t *build_command_response( // OLD build_webix()
 
 PUBLIC const sdata_desc_t *command_get_cmd_desc(
     const sdata_desc_t *command_table,
-    const char *cmd
+    const char *command
 );
 
 /*

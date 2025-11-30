@@ -141,8 +141,17 @@ PUBLIC json_t *command_parser(
 /***************************************************************************
  *  Find the command descriptor
  ***************************************************************************/
-PUBLIC const sdata_desc_t *command_get_cmd_desc(const sdata_desc_t *command_table, const char *cmd)
+PUBLIC const sdata_desc_t *command_get_cmd_desc(const sdata_desc_t *command_table, const char *command)
 {
+    char *str, *p;
+    str = p = gbmem_strdup(command);
+    char *cmd = get_parameter(p, &p);
+    if(empty_string(cmd)) {
+        GBMEM_FREE(str)
+        return NULL;
+    }
+
+
     const sdata_desc_t *pcmd = command_table;
     while(pcmd->name) {
         /*
@@ -161,6 +170,7 @@ PUBLIC const sdata_desc_t *command_get_cmd_desc(const sdata_desc_t *command_tabl
             }
         }
         if(strcasecmp(pcmd->name, cmd)==0) {
+            GBMEM_FREE(str)
             return pcmd;
         }
         if(!alias_checked) {
@@ -175,7 +185,9 @@ PUBLIC const sdata_desc_t *command_get_cmd_desc(const sdata_desc_t *command_tabl
 
         pcmd++;
     }
-    return 0;
+
+    GBMEM_FREE(str)
+    return NULL;
 }
 
 /***************************************************************************
