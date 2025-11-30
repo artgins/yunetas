@@ -164,6 +164,7 @@ PUBLIC const sdata_desc_t *command_get_cmd_desc(const sdata_desc_t *command_tabl
             const char **alias = pcmd->alias;
             while(alias && *alias) {
                 if(strcasecmp(*alias, cmd)==0) {
+                    GBMEM_FREE(str)
                     return pcmd;
                 }
                 alias++;
@@ -177,6 +178,7 @@ PUBLIC const sdata_desc_t *command_get_cmd_desc(const sdata_desc_t *command_tabl
             const char **alias = pcmd->alias;
             while(alias && *alias) {
                 if(strcasecmp(*alias, cmd)==0) {
+                    GBMEM_FREE(str)
                     return pcmd;
                 }
                 alias++;
@@ -242,8 +244,10 @@ PRIVATE json_t *expand_command(
         if(cmd_desc) {
             *cmd_desc = 0;
         }
+        GBMEM_FREE(str)
         return kw_cmd;
     }
+    GBMEM_FREE(str)
     return kw_cmd;
 }
 

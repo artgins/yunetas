@@ -726,6 +726,7 @@ PRIVATE int cmd_connect(hgobj gobj)
         jn_config_variables
     );
 
+    gobj_set_bottom_gobj(gobj, priv->gobj_mqtt_connector);
     gobj_start_tree(priv->gobj_mqtt_connector);
 
     if(priv->verbose || priv->interactive) {
