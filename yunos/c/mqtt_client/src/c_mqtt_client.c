@@ -689,6 +689,7 @@ PRIVATE char mqtt_broker_config[]= "\
     'as_service': true,                         \n\
     'kw': {                                     \n\
         'jwt': '(^^__jwt__^^)',                 \n\
+        'url': '(^^__url__^^)',                 \n\
         'remote_yuno_name': '(^^__yuno_name__^^)',      \n\
         'remote_yuno_role': '(^^__yuno_role__^^)',      \n\
         'remote_yuno_service': '(^^__yuno_service__^^)' \n\
@@ -1146,7 +1147,7 @@ PRIVATE int ac_on_close(hgobj gobj, const char *event, json_t *kw, hgobj src)
         if(comment) {
             printf("\nIdentity card refused, cause: %s", comment);
         }
-        printf("\nDisconnected from: %s.\n", gobj_read_str_attr(src, "peername"));
+        printf("\nDisconnected from: %s.\n", gobj_read_str_attr(src, "url"));
     }
 
     if(!gobj_is_running(gobj)) {
@@ -1209,7 +1210,19 @@ PRIVATE int ac_command(hgobj gobj, const char *event, json_t *kw, hgobj src)
         kw_set_subdict_value(gobj, kw_command, "__md_iev__", "display_mode", json_string("form"));
     }
 
-    json_t *webix = gobj_command(gobj, xcmd, kw_command, gobj);
+    json_t *webix = 0;
+    if(gobj_command_desc(gobj, command, FALSE)) {
+        webix = gobj_command(gobj, xcmd, kw_command, gobj);
+    } else {
+        if(gobj_read_bool_attr(priv->gobj_broker_connector, "opened")) {
+            // gobj_command_desc
+            webix = gobj_command(priv->gobj_broker_connector, xcmd, kw_command, gobj);
+        } else {
+            printf("\n%s%s%s\n", On_Red BWhite, "No connection with broker", Color_Off);
+            clear_input_line(gobj);
+            JSON_DECREF(kw_command)
+        }
+    }
 
     gbuffer_decref(gbuf_parsed_command);
 
