@@ -86,7 +86,8 @@
 PRIVATE void try_to_stop_yevents(hgobj gobj);  // IDEMPOTENT
 PRIVATE int yev_callback(yev_event_h yev_event);
 PRIVATE int on_read_cb(hgobj gobj, gbuffer_t *gbuf);
-PRIVATE int cmd_connect(hgobj gobj);
+PRIVATE int cmd_connect_broker(hgobj gobj);
+PRIVATE int cmd_connect_mqtt(hgobj gobj);
 PRIVATE int do_command(hgobj gobj, const char *command);
 PRIVATE int clear_input_line(hgobj gobj);
 PRIVATE char *get_history_file(char *bf, int bfsize);
@@ -170,6 +171,7 @@ typedef struct _PRIVATE_DATA {
     int32_t interactive;
 
     hgobj gobj_mqtt_connector;
+    hgobj gobj_broker_connector;
     hgobj timer;
     hgobj gobj_editline;
 
@@ -255,10 +257,6 @@ PRIVATE void mt_create(hgobj gobj)
  ***************************************************************************/
 PRIVATE void mt_writing(hgobj gobj, const char *path)
 {
-    // PRIVATE_DATA *priv = gobj_priv_data(gobj);
-    //
-    // IF_EQ_SET_PRIV(gobj_mqtt_connector,     gobj_read_pointer_attr)
-    // END_EQ_SET_PRIV()
 }
 
 /***************************************************************************
@@ -331,7 +329,8 @@ PRIVATE int mt_start(hgobj gobj)
          */
         do_authenticate_task(gobj);
     } else {
-        cmd_connect(gobj);
+        cmd_connect_broker(gobj);
+        cmd_connect_mqtt(gobj);
     }
     return 0;
 }
@@ -663,59 +662,45 @@ PRIVATE char mqtt_broker_config[]= "\
     'gclass': 'C_IEVENT_CLI',                   \n\
     'as_service': true,                         \n\
     'kw': {                                     \n\
-        'jwt': '(^^__jwt__^^)',   #^^ TODO check, why not in mqtt2?                      \n\
+        'jwt': '(^^__jwt__^^)',                 \n\
         'remote_yuno_name': '(^^__yuno_name__^^)',      \n\
         'remote_yuno_role': '(^^__yuno_role__^^)',      \n\
         'remote_yuno_service': '(^^__yuno_service__^^)' \n\
-    },                                          \n\
-    'children': [                                 \n\
+    },                                                  \n\
+    'children': [                                       \n\
         {                                               \n\
-            'name': 'mqtt_broker',                     \n\
+            'name': 'mqtt_broker',                      \n\
             'gclass': 'C_IOGATE',                       \n\
             'kw': {                                     \n\
             },                                          \n\
             'children': [                               \n\
                 {                                       \n\
-                    'name': 'mqtt_broker',             \n\
+                    'name': 'mqtt_broker',              \n\
                     'gclass': 'C_CHANNEL',              \n\
-                    'kw': {                                     \n\
-                    },                                          \n\
-                    'children': [                               \n\
-                        {                                       \n\
-                            'name': 'mqtt_broker',             \n\
-                            'gclass': 'C_PROT_MQTT2',           \n\
-                            'kw': {                             \n\
-                                'mqtt_client_id': '(^^__mqtt_client_id__^^)',   \n\
-                                'mqtt_protocol': '(^^__mqtt_protocol__^^)',     \n\
-                                'url': '(^^__url__^^)',                         \n\
-                                'user_id': '(^^__user_id__^^)',                 \n\
-                                'user_passw': '(^^__user_passw__^^)',           \n\
-                                'cert_pem': '(^^__cert_pem__^^)',               \n\
-                                'iamServer': false                              \n\
-                            },                                  \n\
-                            'children': [                       \n\
-                                {                               \n\
-                                    'name': 'mqtt_broker',     \n\
-                                    'gclass': 'C_TCP',          \n\
-                                    'kw': {                     \n\
-                                        'url': '(^^__url__^^)',                 \n\
-                                        'cert_pem': '(^^__cert_pem__^^)'        \n\
-                                    }                           \n\
-                                }                               \n\
-                            ]                                   \n\
-                        }                                       \n\
-                    ]                                           \n\
-                }                                               \n\
+                    'kw': {                             \n\
+                    },                                  \n\
+                    'children': [                       \n\
+                        {                               \n\
+                            'name': 'mqtt_broker',      \n\
+                            'gclass': 'C_TCP',          \n\
+                            'kw': {                     \n\
+                                'url': '(^^__url__^^)',                 \n\
+                                'cert_pem': '(^^__cert_pem__^^)'        \n\
+                            }                           \n\
+                        }                               \n\
+                    ]                                   \n\
+                }                                       \n\
             ]                                           \n\
         }                                               \n\
     ]                                           \n\
 }                                               \n\
 ";
 
-PRIVATE int cmd_connect(hgobj gobj)
+PRIVATE int cmd_connect_broker(hgobj gobj)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
+    return 0; // NOT used by now
     const char *jwt = gobj_read_str_attr(gobj, "jwt");
     const char *url = gobj_read_str_attr(gobj, "url");
 
@@ -723,37 +708,27 @@ PRIVATE int cmd_connect(hgobj gobj)
     const char *yuno_role = gobj_read_str_attr(gobj, "yuno_role");
     const char *yuno_service = gobj_read_str_attr(gobj, "yuno_service");
 
-    const char *mqtt_client_id = gobj_read_str_attr(gobj, "mqtt_client_id");
-    const char *mqtt_protocol = gobj_read_str_attr(gobj, "mqtt_protocol");
-
-    const char *user_id = gobj_read_str_attr(gobj, "user_id");
-    const char *user_passw = gobj_read_str_attr(gobj, "user_passw");
-
     /*
      *  Each display window has a gobj to send the commands (saved in user_data).
      *  For external agents create a filter-chain of gobjs
      */
-    json_t * jn_config_variables = json_pack("{s:s, s:s, s:s, s:s, s:s, s:s, s:s, s:s, s:s, s:s}",
+    json_t * jn_config_variables = json_pack("{s:s, s:s, s:s, s:s, s:s, s:s}",
         "__jwt__", jwt,
         "__url__", url,
         "__cert_pem__", "",
         "__yuno_name__", yuno_name,
         "__yuno_role__", yuno_role,
-        "__yuno_service__", yuno_service,
-        "__mqtt_client_id__", mqtt_client_id,
-        "__mqtt_protocol__", mqtt_protocol,
-        "__user_id__", user_id,
-        "__user_passw__", user_passw
+        "__yuno_service__", yuno_service
 
     );
 
-    priv->gobj_mqtt_connector = gobj_create_tree(
+    priv->gobj_broker_connector = gobj_create_tree(
         gobj,
         mqtt_broker_config,
         jn_config_variables
     );
 
-    gobj_start_tree(priv->gobj_mqtt_connector);
+    gobj_start_tree(priv->gobj_broker_connector);
 
     if(priv->verbose || priv->interactive) {
         printf("Connecting to %s...\n", url);
@@ -792,7 +767,7 @@ PRIVATE char mqtt_connector_config[]= "\
 }                                                       \n\
 ";
 
-PRIVATE int cmd_connect(hgobj gobj)
+PRIVATE int cmd_connect_mqtt(hgobj gobj)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
@@ -848,9 +823,6 @@ PRIVATE int cmd_connect(hgobj gobj)
 PRIVATE int do_command(hgobj gobj, const char *command)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
-
-//     json_t *jn_resp = gobj_command(priv->gobj_mqtt_connector, command, 0, gobj);
-//     json_decref(jn_resp);
 
     // Pass it through the event to do replace_cli_vars()
     json_t *kw_line = json_object();
@@ -1089,7 +1061,8 @@ PRIVATE int ac_on_token(hgobj gobj, const char *event, json_t *kw, hgobj src)
     } else {
         const char *jwt = kw_get_str(gobj, kw, "jwt", "", KW_REQUIRED);
         gobj_write_str_attr(gobj, "jwt", jwt);
-        cmd_connect(gobj);
+        cmd_connect_broker(gobj);
+        cmd_connect_mqtt(gobj);
     }
 
     KW_DECREF(kw);
@@ -1114,7 +1087,7 @@ PRIVATE int ac_on_open(hgobj gobj, const char *event, json_t *kw, hgobj src)
     }
 
     const char *command = gobj_read_str_attr(gobj, "command");
-    // command="h";
+    // command="h"; // TODO TEST
     if(priv->interactive) {
         if(!empty_string(command)) {
             do_command(gobj, command);
@@ -1125,7 +1098,6 @@ PRIVATE int ac_on_open(hgobj gobj, const char *event, json_t *kw, hgobj src)
     } else {
         if(empty_string(command)) {
             printf("What command?\n");
-            gobj_stop(priv->gobj_mqtt_connector);
         } else {
             do_command(gobj, command);
         }
