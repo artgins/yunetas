@@ -344,7 +344,7 @@ int main(int argc, char *argv[])
      *  Default values
      */
     memset(&arguments, 0, sizeof(arguments));
-    arguments.url = "mqtt://127.0.0.1:1810"; // TODO cambia 1883 when done
+    arguments.url = "mqtt://127.0.0.1:1810";
     arguments.command = "";
     arguments.azp = "";
     arguments.yuno_role = "mqtt_broker";
