@@ -129,7 +129,9 @@ PRIVATE sdata_desc_t tattr_desc[] = {
 SDATA (DTP_BOOLEAN,     "print_with_metadata",0,        0,              "Print response with metadata."),
 SDATA (DTP_BOOLEAN,     "verbose",          0,          "1",            "Verbose mode."),
 SDATA (DTP_STRING,      "command",          0,          "",             "Command."),
-SDATA (DTP_STRING,      "url",              0,          "ws://127.0.0.1:1991",  "Url to get Statistics. Can be a ip/hostname or a full url"),
+
+SDATA (DTP_STRING,      "url_mqtt",         SDF_RD,     "mqtt://127.0.0.1:1810", "Url of mqtt port"),
+SDATA (DTP_STRING,      "url_broker",       SDF_RD,     "ws://127.0.0.1:1800", "Url of broker port"),
 SDATA (DTP_STRING,      "yuno_name",        0,          "",             "Yuno name"),
 SDATA (DTP_STRING,      "yuno_role",        0,          "yuneta_agent", "Yuno role"),
 SDATA (DTP_STRING,      "yuno_service",     0,          "agent",        "Yuno service"),
@@ -377,6 +379,29 @@ PRIVATE json_t *cmd_help(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
     );
 }
 
+/***************************************************************************
+ *
+ ***************************************************************************/
+PRIVATE json_t *cmd_helpx(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
+{
+    // if(gobj_in_this_state(gobj, ST_CONNECTED)) { int x;
+    //     // gobj_command_desc
+    //     webix = gobj_command(priv->gobj_mqtt_connector, xcmd, kw_command, gobj);
+    // } else {
+    //     printf("\n%s%s%s\n", On_Red BWhite, "No connection", Color_Off);
+    //     clear_input_line(gobj);
+    //     JSON_DECREF(kw_command)
+    // }
+    // return msg_iev_build_response(
+    //     gobj,
+    //     0,
+    //     jn_resp,
+    //     0,
+    //     0,
+    //     kw  // owned
+    // );
+}
+
 
 
 
@@ -479,7 +504,8 @@ PRIVATE int yev_callback(yev_event_h yev_event)
                 "msgset",       "%s", MSGSET_SYSTEM_ERROR,
                 "msg",          "%s", "TCP: event type NOT IMPLEMENTED",
                 "msg2",         "%s", "🌐TCP: event type NOT IMPLEMENTED",
-                "url",          "%s", gobj_read_str_attr(gobj, "url"),
+                "url_mqtt",     "%s", gobj_read_str_attr(gobj, "url_mqtt"),
+                "url_broker",   "%s", gobj_read_str_attr(gobj, "url_broker"),
                 "remote-addr",  "%s", gobj_read_str_attr(gobj, "peername"),
                 "local-addr",   "%s", gobj_read_str_attr(gobj, "sockname"),
                 "event_type",   "%s", yev_event_type_name(yev_event),
@@ -700,9 +726,8 @@ PRIVATE int cmd_connect_broker(hgobj gobj)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
-    return 0; // NOT used by now
     const char *jwt = gobj_read_str_attr(gobj, "jwt");
-    const char *url = gobj_read_str_attr(gobj, "url");
+    const char *url = gobj_read_str_attr(gobj, "url_broker");
 
     const char *yuno_name = gobj_read_str_attr(gobj, "yuno_name");
     const char *yuno_role = gobj_read_str_attr(gobj, "yuno_role");
@@ -772,7 +797,7 @@ PRIVATE int cmd_connect_mqtt(hgobj gobj)
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
     const char *jwt = gobj_read_str_attr(gobj, "jwt");
-    const char *url = gobj_read_str_attr(gobj, "url");
+    const char *url = gobj_read_str_attr(gobj, "url_mqtt");
 
     const char *yuno_name = gobj_read_str_attr(gobj, "yuno_name");
     const char *yuno_role = gobj_read_str_attr(gobj, "yuno_role");
@@ -820,7 +845,7 @@ PRIVATE int cmd_connect_mqtt(hgobj gobj)
 /***************************************************************************
  *
  ***************************************************************************/
-PRIVATE int do_command(hgobj gobj, const char *command)
+PRIVATE int do_command(hgobj gobj, const char *command) // Not used
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
@@ -1078,7 +1103,7 @@ PRIVATE int ac_on_open(hgobj gobj, const char *event, json_t *kw, hgobj src)
 
     if(priv->verbose || priv->interactive) {
         printf("Connected to '%s'.\n",
-            gobj_read_str_attr(gobj, "url")
+            gobj_read_str_attr(src, "url")
         );
         if(json_size(kw)) {
             json_dumpf(kw, stdout, JSON_INDENT(4)|JSON_ENCODE_ANY);
@@ -1119,10 +1144,14 @@ PRIVATE int ac_on_close(hgobj gobj, const char *event, json_t *kw, hgobj src)
         if(comment) {
             printf("\nIdentity card refused, cause: %s", comment);
         }
-        printf("\nDisconnected.\n");
+        printf("\nDisconnected from: %s.\n", gobj_read_str_attr(src, "url"));
     }
 
-    try_to_stop_yevents(gobj);
+    if(!gobj_is_running(gobj)) {
+        try_to_stop_yevents(gobj);
+    }
+
+    clear_input_line(gobj);
 
     KW_DECREF(kw);
     return 0;
@@ -1178,19 +1207,7 @@ PRIVATE int ac_command(hgobj gobj, const char *event, json_t *kw, hgobj src)
         kw_set_subdict_value(gobj, kw_command, "__md_iev__", "display_mode", json_string("form"));
     }
 
-    json_t *webix = 0;
-    if(gobj_command_desc(gobj, command, FALSE)) {
-        webix = gobj_command(gobj, xcmd, kw_command, gobj);
-    } else {
-        if(gobj_in_this_state(gobj, ST_CONNECTED)) {
-            // gobj_command_desc
-            webix = gobj_command(priv->gobj_mqtt_connector, xcmd, kw_command, gobj);
-        } else {
-            printf("\n%s%s%s\n", On_Red BWhite, "No connection", Color_Off);
-            clear_input_line(gobj);
-            JSON_DECREF(kw_command)
-        }
-    }
+    json_t *webix = gobj_command(gobj, xcmd, kw_command, gobj);
 
     gbuffer_decref(gbuf_parsed_command);
 
@@ -1387,8 +1404,24 @@ PRIVATE int create_gclass(gclass_name_t gclass_name)
     /*------------------------*
      *      States
      *------------------------*/
-    ev_action_t st_stopped[] = {
+    ev_action_t st_idle[] = {
+        {EV_COMMAND,                ac_command,             0},
+        {EV_MT_COMMAND_ANSWER,      ac_command_answer,      0},
+        {EV_MT_STATS_ANSWER,        ac_command_answer,      0},
+        {EV_ON_OPEN,                ac_on_open,             0},
+        {EV_ON_TOKEN,               ac_on_token,            0},
+        {EV_ON_ID_NAK,              ac_on_close,            0},
+
         {EV_ON_CLOSE,               ac_on_close,            0},
+        {EV_CLRSCR,                 ac_screen_ctrl,         0},
+        {EV_SCROLL_PAGE_UP,         ac_screen_ctrl,         0},
+        {EV_SCROLL_PAGE_DOWN,       ac_screen_ctrl,         0},
+        {EV_SCROLL_LINE_UP,         ac_screen_ctrl,         0},
+        {EV_SCROLL_LINE_DOWN,       ac_screen_ctrl,         0},
+        {EV_SCROLL_TOP,             ac_screen_ctrl,         0},
+        {EV_SCROLL_BOTTOM,          ac_screen_ctrl,         0},
+        {EV_TIMEOUT,                ac_timeout,             0},
+        {EV_STOPPED,                0,                      0},
         {0,0,0}
     };
 
@@ -1397,38 +1430,15 @@ PRIVATE int create_gclass(gclass_name_t gclass_name)
         {0,0,0}
     };
 
-    ev_action_t st_disconnected[] = {
-        {EV_ON_TOKEN,               ac_on_token,            0},
-        {EV_ON_OPEN,                ac_on_open,             ST_CONNECTED},
+    ev_action_t st_stopped[] = {
         {EV_ON_CLOSE,               ac_on_close,            0},
-        {EV_ON_ID_NAK,              ac_on_close,            0},
-        {EV_COMMAND,                ac_command,             0}, // avoid traces
-        {EV_STOPPED,                0,                      0},
-        {0,0,0}
-    };
-
-    ev_action_t st_connected[] = {
-        {EV_COMMAND,                ac_command,             0},
-        {EV_MT_COMMAND_ANSWER,      ac_command_answer,      0},
-        {EV_MT_STATS_ANSWER,        ac_command_answer,      0},
-        {EV_CLRSCR,                 ac_screen_ctrl,         0},
-        {EV_SCROLL_PAGE_UP,         ac_screen_ctrl,         0},
-        {EV_SCROLL_PAGE_DOWN,       ac_screen_ctrl,         0},
-        {EV_SCROLL_LINE_UP,         ac_screen_ctrl,         0},
-        {EV_SCROLL_LINE_DOWN,       ac_screen_ctrl,         0},
-        {EV_SCROLL_TOP,             ac_screen_ctrl,         0},
-        {EV_SCROLL_BOTTOM,          ac_screen_ctrl,         0},
-        {EV_ON_CLOSE,               ac_on_close,            ST_WAIT_STOPPED},
-        {EV_TIMEOUT,                ac_timeout,             0},
-        {EV_STOPPED,                0,                      0},
         {0,0,0}
     };
 
     states_t states[] = {
-        {ST_DISCONNECTED,           st_disconnected},
-        {ST_STOPPED,                st_stopped},
+        {ST_IDLE,                   st_idle},
         {ST_WAIT_STOPPED,           st_wait_stopped},
-        {ST_CONNECTED,              st_connected},
+        {ST_STOPPED,                st_stopped},
         {0, 0}
     };
 

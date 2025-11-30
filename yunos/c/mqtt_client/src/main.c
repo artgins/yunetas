@@ -28,7 +28,8 @@ struct arguments
     char *args[MAX_ARGS+1];     /* positional args */
 
     int print_role;
-    char *url;
+    char *url_broker;
+    char *url_mqtt;
     char *azp;
     char *yuno_role;
     char *yuno_name;
@@ -163,7 +164,8 @@ static struct argp_option options[] = {
 {"jwt",             'j',    "JWT",      0,      "Jwt (previously got it)", 21},
 
 {0,                 0,      0,          0,      "Connection keys", 30},
-{"url",             'u',    "URL",      0,      "Url to connect (default 'mqtt://127.0.0.1:1883').", 30},
+{"url-mqtt",        'u',    "URL-MQTT", 0,      "Url of mqtt port (default 'mqtt://127.0.0.1:1810').", 30},
+{"url-broker",      'b',    "URL-BROKER",0,     "Url of broker port (default 'ws://127.0.0.1:1800').", 30},
 {"yuno_role",       'O',    "ROLE",     0,      "Remote yuno role. Default: 'yuneta_agent'", 30},
 {"yuno_name",       'o',    "NAME",     0,      "Remote yuno name. Default: ''", 30},
 {"yuno_service",    'S',    "SERVICE",  0,      "Remote yuno service. Default: '__default_service__'", 30}, // TODO chequea todos, estaba solo como 'service'
@@ -222,8 +224,11 @@ static error_t parse_opt (int key, char *arg, struct argp_state *state)
         arguments->jwt = arg;
         break;
 
+    case 'b':
+        arguments->url_broker = arg;
+        break;
     case 'u':
-        arguments->url = arg;
+        arguments->url_mqtt = arg;
         break;
 
     case 'c':
@@ -344,7 +349,8 @@ int main(int argc, char *argv[])
      *  Default values
      */
     memset(&arguments, 0, sizeof(arguments));
-    arguments.url = "mqtt://127.0.0.1:1810";
+    arguments.url_mqtt = "mqtt://127.0.0.1:1810";
+    arguments.url_broker = "ws://127.0.0.1:1800";
     arguments.command = "";
     arguments.azp = "";
     arguments.yuno_role = "mqtt_broker";
@@ -399,7 +405,7 @@ int main(int argc, char *argv[])
      */
     {
         json_t *kw_utility = json_pack(
-            "{s:{s:b, s:s, s:s, s:s, s:s, s:s, s:s, s:s, s:s, s:s, s:s, s:s, s:s, s:s, s:b}}",
+            "{s:{s:b, s:s, s:s, s:s, s:s, s:s, s:s, s:s, s:s, s:s, s:s, s:s, s:s, s:s, s:s, s:b}}",
             "global",
             "C_MQTT_CLIENT.verbose", arguments.verbose,
             "C_MQTT_CLIENT.command", arguments.command,
@@ -410,7 +416,8 @@ int main(int argc, char *argv[])
             "C_MQTT_CLIENT.user_id", arguments.user_id,
             "C_MQTT_CLIENT.user_passw", arguments.user_passw,
             "C_MQTT_CLIENT.jwt", arguments.jwt,
-            "C_MQTT_CLIENT.url", arguments.url,
+            "C_MQTT_CLIENT.url_mqtt", arguments.url_mqtt,
+            "C_MQTT_CLIENT.url_broker", arguments.url_broker,
             "C_MQTT_CLIENT.azp", arguments.azp,
             "C_MQTT_CLIENT.yuno_role", arguments.yuno_role,
             "C_MQTT_CLIENT.yuno_name", arguments.yuno_name,
