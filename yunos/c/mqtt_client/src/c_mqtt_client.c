@@ -369,9 +369,11 @@ PRIVATE json_t *cmd_help(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
-    if(gobj_read_bool_attr(priv->gobj_broker_connector, "opened")) {
-        json_t *webix = gobj_command(priv->gobj_broker_connector, cmd, kw_incref(kw), gobj);
-        JSON_DECREF(webix)
+    if(priv->gobj_broker_connector) {
+        if(gobj_read_bool_attr(priv->gobj_broker_connector, "opened")) {
+            json_t *webix = gobj_command(priv->gobj_broker_connector, cmd, kw_incref(kw), gobj);
+            JSON_DECREF(webix)
+        }
     }
 
     json_t *jn_resp = gobj_build_cmds_doc(gobj, kw_incref(kw));
@@ -737,7 +739,9 @@ PRIVATE int cmd_connect_broker(hgobj gobj)
 
     const char *jwt = gobj_read_str_attr(gobj, "jwt");
     const char *url = gobj_read_str_attr(gobj, "url_broker");
-
+    if(empty_string(url)) {
+        return 0;
+    }
     const char *yuno_name = gobj_read_str_attr(gobj, "yuno_name");
     const char *yuno_role = gobj_read_str_attr(gobj, "yuno_role");
     const char *yuno_service = gobj_read_str_attr(gobj, "yuno_service");
