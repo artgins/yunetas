@@ -697,23 +697,25 @@ PRIVATE char mqtt_broker_config[]= "\
         {                                               \n\
             'name': 'mqtt_broker',                      \n\
             'gclass': 'C_IOGATE',                       \n\
-            'kw': {                                     \n\
-            },                                          \n\
             'children': [                               \n\
                 {                                       \n\
                     'name': 'mqtt_broker',              \n\
                     'gclass': 'C_CHANNEL',              \n\
-                    'kw': {                             \n\
-                    },                                  \n\
                     'children': [                       \n\
-                        {                               \n\
-                            'name': 'mqtt_broker',      \n\
-                            'gclass': 'C_TCP',          \n\
-                            'kw': {                     \n\
-                                'url': '(^^__url__^^)',                 \n\
-                                'cert_pem': '(^^__cert_pem__^^)'        \n\
-                            }                           \n\
-                        }                               \n\
+                        {                                       \n\
+                            'name': 'mqtt_broker',              \n\
+                            'gclass': 'C_WEBSOCKET',            \n\
+                            'children': [                       \n\
+                                {                               \n\
+                                    'name': 'mqtt_broker',      \n\
+                                    'gclass': 'C_TCP',          \n\
+                                    'kw': {                     \n\
+                                        'url': '(^^__url__^^)',                 \n\
+                                        'cert_pem': '(^^__cert_pem__^^)'        \n\
+                                    }                           \n\
+                                }                               \n\
+                            ]                                   \n\
+                        }                                       \n\
                     ]                                   \n\
                 }                                       \n\
             ]                                           \n\
@@ -1102,8 +1104,8 @@ PRIVATE int ac_on_open(hgobj gobj, const char *event, json_t *kw, hgobj src)
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
     if(priv->verbose || priv->interactive) {
-        printf("Connected to '%s'.\n",
-            gobj_read_str_attr(src, "url")
+        printf("Connected to '%s':\n",
+            gobj_read_str_attr(src, "peername")
         );
         if(json_size(kw)) {
             json_dumpf(kw, stdout, JSON_INDENT(4)|JSON_ENCODE_ANY);
@@ -1144,7 +1146,7 @@ PRIVATE int ac_on_close(hgobj gobj, const char *event, json_t *kw, hgobj src)
         if(comment) {
             printf("\nIdentity card refused, cause: %s", comment);
         }
-        printf("\nDisconnected from: %s.\n", gobj_read_str_attr(src, "url"));
+        printf("\nDisconnected from: %s.\n", gobj_read_str_attr(src, "peername"));
     }
 
     if(!gobj_is_running(gobj)) {
