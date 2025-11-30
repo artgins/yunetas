@@ -144,6 +144,7 @@ The documentation needs to be update with next changes
     tty_keyboard_init()
     PUBLIC int get_number_from_nn_table(number_name_table_t number_string_table[], const char *name);
     PUBLIC const char *get_name_from_nn_table(number_name_table_t number_string_table[], int number);
+    search_command_desc
     command_get_cmd_desc
 
 # Delete API

@@ -4842,47 +4842,25 @@ PUBLIC json_t *gobj_command( // With AUTHZ
         return gobj->gclass->gmt->mt_command_parser(gobj, command, kw, src);
     }
 
-    /*-----------------------------------------------*
-     *  If it has command_table
-     *  then use the global command parser
-     *-----------------------------------------------*/
-    if(gobj->gclass->command_table) {
-        if(__audit_command_cb__) {
-            __audit_command_cb__(command, kw, __audit_command_user_data__);
-        }
-        if(__global_command_parser_fn__) {
-            return __global_command_parser_fn__(gobj, command, kw, src);
-        } else {
-            gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
-                "function",     "%s", __FUNCTION__,
-                "msgset",       "%s", MSGSET_INTERNAL_ERROR,
-                "msg",          "%s", "global command parser function not available",
-                NULL
-            );
-            json_t *kw_response = build_command_response(
-                gobj,
-                -1,     // result
-                json_sprintf("%s: global command parser function not available",
-                    gobj_short_name(gobj)
-                ),   // jn_comment
-                0,      // jn_schema
-                0       // jn_data
-            );
-            KW_DECREF(kw)
-            return kw_response;
-        }
+    /*------------------------------------------*
+     *      Use the global command parser
+     *------------------------------------------*/
+    if(__audit_command_cb__) {
+        __audit_command_cb__(command, kw, __audit_command_user_data__);
+    }
+    if(__global_command_parser_fn__) {
+        return __global_command_parser_fn__(gobj, command, kw, src);
     } else {
         gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_INTERNAL_ERROR,
-            "msg",          "%s", "command table not available",
-            "cmd",          "%s", command,
+            "msg",          "%s", "global command parser function not available",
             NULL
         );
         json_t *kw_response = build_command_response(
             gobj,
             -1,     // result
-            json_sprintf("%s: command table not available",
+            json_sprintf("%s: global command parser function not available",
                 gobj_short_name(gobj)
             ),   // jn_comment
             0,      // jn_schema

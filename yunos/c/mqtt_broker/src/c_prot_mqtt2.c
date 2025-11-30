@@ -338,6 +338,23 @@ PRIVATE number_name_table_t mqtt5_return_codes_s[] = {
 {0,0}
 };
 
+PRIVATE json_t *cmd_help(hgobj gobj, const char *cmd, json_t *kw, hgobj src);
+
+PRIVATE sdata_desc_t pm_help[] = {
+/*-PM----type-----------name------------flag------------default-----description---------- */
+SDATAPM (DTP_STRING,    "cmd",          0,              0,          "command about you want help."),
+SDATAPM (DTP_INTEGER,   "level",        0,              0,          "level=1: search in bottoms, level=2: search in all childs"),
+SDATA_END()
+};
+
+PRIVATE const char *a_help[] = {"h", "?", 0};
+
+PRIVATE sdata_desc_t command_table[] = {
+/*-CMD---type-----------name------------flag------------alias---items-----------json_fn---------description---------- */
+SDATACM2(DTP_SCHEMA,    "help",         0,              a_help, pm_help,        cmd_help,       "Command's help"),
+SDATA_END()
+};
+
 /*---------------------------------------------*
  *      Attributes - order affect to oid's
  *---------------------------------------------*/
@@ -737,16 +754,36 @@ PRIVATE void mt_destroy(hgobj gobj)
 
 
 
-            /***************************
-             *      Commands
-             ***************************/
+                    /***************************
+                     *      Commands
+                     ***************************/
 
 
 
 
-            /***************************
-             *      Local Methods
-             ***************************/
+/***************************************************************************
+ *
+ ***************************************************************************/
+PRIVATE json_t *cmd_help(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
+{
+    KW_INCREF(kw);
+    json_t *jn_resp = gobj_build_cmds_doc(gobj, kw);
+    return msg_iev_build_response(
+        gobj,
+        0,
+        jn_resp,
+        0,
+        0,
+        kw  // owned
+    );
+}
+
+
+
+
+                    /***************************
+                     *      Local Methods
+                     ***************************/
 
 
 
@@ -6780,7 +6817,7 @@ PRIVATE int create_gclass(gclass_name_t gclass_name)
         attrs_table,
         sizeof(PRIVATE_DATA),
         0,  // authz_table,
-        0, // command_table,
+        command_table,
         s_user_trace_level,
         0   // gcflag_t
     );
