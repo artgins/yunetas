@@ -367,8 +367,14 @@ PRIVATE int mt_stop(hgobj gobj)
  ***************************************************************************/
 PRIVATE json_t *cmd_help(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
 {
-    KW_INCREF(kw);
-    json_t *jn_resp = gobj_build_cmds_doc(gobj, kw);
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    if(gobj_read_bool_attr(priv->gobj_broker_connector, "opened")) {
+        json_t *webix = gobj_command(priv->gobj_broker_connector, cmd, kw_incref(kw), gobj);
+        JSON_DECREF(webix)
+    }
+
+    json_t *jn_resp = gobj_build_cmds_doc(gobj, kw_incref(kw));
     return msg_iev_build_response(
         gobj,
         0,
@@ -1249,6 +1255,8 @@ PRIVATE int ac_command(hgobj gobj, const char *event, json_t *kw, hgobj src)
 PRIVATE int ac_command_answer(hgobj gobj, const char *event, json_t *kw, hgobj src)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    printf("\n");
 
     if(priv->interactive) {
         return display_webix_result(
