@@ -3274,10 +3274,14 @@ PRIVATE int send__disconnect(
 /***************************************************************************
  *
  ***************************************************************************/
-PRIVATE int send__suback(hgobj gobj, uint16_t mid, uint32_t payloadlen, const void *payload)
-{
+PRIVATE int send__suback(
+    hgobj gobj,
+    uint16_t mid,
+    gbuffer_t *gbuf_payload // owned
+) {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
     json_t *properties = NULL;
+    uint32_t payloadlen = gbuffer_leftbytes(gbuf_payload);
     uint32_t remaining_length = 2 + payloadlen;
 
     if(priv->protocol_version == mosq_p_mqtt5) {
@@ -3291,16 +3295,17 @@ PRIVATE int send__suback(hgobj gobj, uint16_t mid, uint32_t payloadlen, const vo
             gobj_short_name(gobj_bottom_gobj(gobj))
         );
         if(payloadlen > 0) {
-            gobj_trace_dump(gobj, payload, payloadlen, "   SUBACK payload");
+            gobj_trace_dump_gbuf(gobj, gbuf_payload, "SUBACK payload");
         }
         if(properties) {
-            gobj_trace_json(gobj, properties, "   SUBACK properties");
+            gobj_trace_json(gobj, properties, "SUBACK properties");
         }
     }
 
     gbuffer_t *gbuf = build_mqtt_packet(gobj, CMD_SUBACK, remaining_length);
     if(!gbuf) {
         // Error already logged
+        GBUFFER_DECREF(gbuf_payload)
         return MOSQ_ERR_NOMEM;
     }
 
@@ -3311,9 +3316,10 @@ PRIVATE int send__suback(hgobj gobj, uint16_t mid, uint32_t payloadlen, const vo
     }
 
     if(payloadlen) {
-        mqtt_write_bytes(gbuf, payload, payloadlen);
+        mqtt_write_bytes(gbuf, gbuffer_cur_rd_pointer(gbuf_payload), payloadlen);
     }
 
+    GBUFFER_DECREF(gbuf_payload)
     return send_packet(gobj, gbuf);
 }
 
@@ -3323,8 +3329,7 @@ PRIVATE int send__suback(hgobj gobj, uint16_t mid, uint32_t payloadlen, const vo
 PRIVATE int send__unsuback(
     hgobj gobj,
     uint16_t mid,
-    int reason_code_count,
-    uint8_t *reason_codes,
+    gbuffer_t *gbuf_payload, // owned
     json_t *properties)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
@@ -3337,6 +3342,7 @@ PRIVATE int send__unsuback(
     }
 
     uint32_t remaining_length = 2;
+    uint32_t reason_code_count = gbuffer_leftbytes(gbuf_payload);
 
     if(priv->protocol_version == mosq_p_mqtt5) {
         remaining_length += property__get_remaining_length(properties);
@@ -3346,6 +3352,7 @@ PRIVATE int send__unsuback(
     gbuffer_t *gbuf = build_mqtt_packet(gobj, CMD_UNSUBACK, remaining_length);
     if(!gbuf) {
         // Error already logged
+        GBUFFER_DECREF(gbuf_payload)
         return MOSQ_ERR_NOMEM;
     }
 
@@ -3353,9 +3360,10 @@ PRIVATE int send__unsuback(
 
     if(priv->protocol_version == mosq_p_mqtt5) {
         property_write_all(gobj, gbuf, properties, TRUE);
-        mqtt_write_bytes(gbuf, reason_codes, (uint32_t)reason_code_count);
+        mqtt_write_bytes(gbuf, gbuffer_cur_rd_pointer(gbuf_payload), (uint32_t)reason_code_count);
     }
 
+    GBUFFER_DECREF(gbuf_payload)
     return send_packet(gobj, gbuf);
 }
 
@@ -5113,7 +5121,7 @@ PRIVATE int handle__connack_s(hgobj gobj, gbuffer_t *gbuf)
 /***************************************************************************
  *  Add a subscription, return MOSQ_ERR_SUB_EXISTS or MOSQ_ERR_SUCCESS
  ***************************************************************************/
-PRIVATE int add_subscription(
+PRIVATE int sub__add(
     hgobj gobj,
     const char *sub, // topic? TODO change name
     uint8_t qos,
@@ -5228,7 +5236,7 @@ PRIVATE int add_subscription(
 /***************************************************************************
  *  Remove a subscription
  ***************************************************************************/
-PRIVATE int remove_subscription(
+PRIVATE int sub__remove(
     hgobj gobj,
     const char *sub,// topic? TODO change name
     uint8_t *reason
@@ -5484,7 +5492,7 @@ PRIVATE int handle__subscribe(hgobj gobj, gbuffer_t *gbuf)
         }
 
         if(allowed) {
-            rc2 = add_subscription( // original sub__add
+            rc2 = sub__add(
                 gobj,
                 sub,
                 qos,
@@ -5539,7 +5547,6 @@ PRIVATE int handle__subscribe(hgobj gobj, gbuffer_t *gbuf)
     int rc = send__suback(
         gobj,
         mid,
-        payloadlen,
         gbuf_response_payload // owned
     );
 
@@ -5579,9 +5586,6 @@ PRIVATE int handle__unsubscribe(hgobj gobj, gbuffer_t *gbuf)
     int rc;
     uint8_t reason = 0;
     int reason_code_count = 0;
-    int reason_code_max;
-    uint8_t *reason_codes = NULL;
-    uint8_t *reason_tmp;
     json_t *properties = NULL;
     BOOL allowed;
 
@@ -5635,18 +5639,14 @@ PRIVATE int handle__unsubscribe(hgobj gobj, gbuffer_t *gbuf)
         }
     }
 
-    reason_code_max = 10;
-    reason_codes = GBMEM_MALLOC((size_t)reason_code_max);
-    if(!reason_codes) {
-        return MOSQ_ERR_NOMEM;
-    }
+    gbuffer_t *gbuf_response_payload = gbuffer_create(256, 12*1024);
 
     json_t *jn_list = json_array();
 
     while(gbuffer_leftbytes(gbuf)>0) {
         char *sub = NULL;
         if(mqtt_read_string(gobj, gbuf, &sub, &slen)<0) {
-            GBMEM_FREE(reason_codes)
+            GBUFFER_DECREF(gbuf_response_payload)
             JSON_DECREF(jn_list)
             return MOSQ_ERR_MALFORMED_PACKET;
         }
@@ -5659,7 +5659,7 @@ PRIVATE int handle__unsubscribe(hgobj gobj, gbuffer_t *gbuf)
                 "client_id",    "%s", priv->client_id,
                 NULL
             );
-            GBMEM_FREE(reason_codes);
+            GBUFFER_DECREF(gbuf_response_payload)
             JSON_DECREF(jn_list)
             return MOSQ_ERR_MALFORMED_PACKET;
         }
@@ -5671,7 +5671,7 @@ PRIVATE int handle__unsubscribe(hgobj gobj, gbuffer_t *gbuf)
                 "client_id",    "%s", priv->client_id,
                 NULL
             );
-            GBMEM_FREE(reason_codes);
+            GBUFFER_DECREF(gbuf_response_payload)
             JSON_DECREF(jn_list)
             return MOSQ_ERR_MALFORMED_PACKET;
         }
@@ -5688,7 +5688,7 @@ PRIVATE int handle__unsubscribe(hgobj gobj, gbuffer_t *gbuf)
                 reason = MQTT_RC_NOT_AUTHORIZED;
                 break;
             default:
-                GBMEM_FREE(reason_codes);
+                GBUFFER_DECREF(gbuf_response_payload)
                 JSON_DECREF(jn_list)
                 return rc;
         }
@@ -5700,36 +5700,30 @@ PRIVATE int handle__unsubscribe(hgobj gobj, gbuffer_t *gbuf)
             );
         }
         if(allowed) {
-            rc = remove_subscription(gobj, sub, &reason);
+            rc = sub__remove(gobj, sub, &reason);
         } else {
             rc = MOSQ_ERR_SUCCESS;
         }
 
         if(rc<0) {
-            GBMEM_FREE(reason_codes);
+            GBUFFER_DECREF(gbuf_response_payload)
             JSON_DECREF(jn_list)
             return rc;
         }
 
         json_array_append_new(jn_list, json_string(sub));
 
-        reason_codes[reason_code_count] = reason;
+        gbuffer_append_char(gbuf_response_payload, reason);
         reason_code_count++;
-        if(reason_code_count == reason_code_max) {
-            reason_tmp = GBMEM_REALLOC(reason_codes, (size_t)(reason_code_max*2));
-            if(!reason_tmp) {
-                GBMEM_FREE(reason_codes);
-                JSON_DECREF(jn_list)
-                return MOSQ_ERR_NOMEM;
-            }
-            reason_codes = reason_tmp;
-            reason_code_max *= 2;
-        }
     }
 
     /* We don't use Reason String or User Property yet. */
-    rc = send__unsuback(gobj, mid, reason_code_count, reason_codes, NULL);
-    GBMEM_FREE(reason_codes);
+    rc = send__unsuback(
+        gobj,
+        mid,
+        gbuf_response_payload, // owned
+        NULL
+    );
 
     // TODO save_client(gobj);
 

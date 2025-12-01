@@ -408,6 +408,7 @@ PRIVATE json_t *cmd_helpx(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
     //     0,
     //     kw  // owned
     // );
+    return NULL;
 }
 
 
