@@ -2068,7 +2068,7 @@ PRIVATE int mosquitto_property_check_command(hgobj gobj, int command, int identi
                     "identifier",   "%d", identifier,
                     NULL
                 );
-                return MOSQ_ERR_PROTOCOL;
+                return MOSQ_ERR_MALFORMED_PACKET;
             }
             break;
 
@@ -2082,7 +2082,7 @@ PRIVATE int mosquitto_property_check_command(hgobj gobj, int command, int identi
                     "identifier",   "%d", identifier,
                     NULL
                 );
-                return MOSQ_ERR_PROTOCOL;
+                return MOSQ_ERR_MALFORMED_PACKET;
             }
             break;
 
@@ -2096,7 +2096,7 @@ PRIVATE int mosquitto_property_check_command(hgobj gobj, int command, int identi
                     "identifier",   "%d", identifier,
                     NULL
                 );
-                return MOSQ_ERR_PROTOCOL;
+                return MOSQ_ERR_MALFORMED_PACKET;
             }
             break;
 
@@ -2111,7 +2111,7 @@ PRIVATE int mosquitto_property_check_command(hgobj gobj, int command, int identi
                     "identifier",   "%d", identifier,
                     NULL
                 );
-                return MOSQ_ERR_PROTOCOL;
+                return MOSQ_ERR_MALFORMED_PACKET;
             }
             break;
 
@@ -2132,7 +2132,7 @@ PRIVATE int mosquitto_property_check_command(hgobj gobj, int command, int identi
                     "identifier",   "%d", identifier,
                     NULL
                 );
-                return MOSQ_ERR_PROTOCOL;
+                return MOSQ_ERR_MALFORMED_PACKET;
             }
             break;
 
@@ -2146,7 +2146,7 @@ PRIVATE int mosquitto_property_check_command(hgobj gobj, int command, int identi
                     "identifier",   "%d", identifier,
                     NULL
                 );
-                return MOSQ_ERR_PROTOCOL;
+                return MOSQ_ERR_MALFORMED_PACKET;
             }
             break;
 
@@ -2161,7 +2161,7 @@ PRIVATE int mosquitto_property_check_command(hgobj gobj, int command, int identi
                     "identifier",   "%d", identifier,
                     NULL
                 );
-                return MOSQ_ERR_PROTOCOL;
+                return MOSQ_ERR_MALFORMED_PACKET;
             }
             break;
 
@@ -2175,7 +2175,7 @@ PRIVATE int mosquitto_property_check_command(hgobj gobj, int command, int identi
                     "identifier",   "%d", identifier,
                     NULL
                 );
-                return MOSQ_ERR_PROTOCOL;
+                return MOSQ_ERR_MALFORMED_PACKET;
             }
             break;
 
@@ -2190,7 +2190,7 @@ PRIVATE int mosquitto_property_check_command(hgobj gobj, int command, int identi
                     "identifier",   "%d", identifier,
                     NULL
                 );
-                return MOSQ_ERR_PROTOCOL;
+                return MOSQ_ERR_MALFORMED_PACKET;
             }
             break;
 
@@ -2206,7 +2206,7 @@ PRIVATE int mosquitto_property_check_command(hgobj gobj, int command, int identi
                     "identifier",   "%d", identifier,
                     NULL
                 );
-                return MOSQ_ERR_PROTOCOL;
+                return MOSQ_ERR_MALFORMED_PACKET;
             }
             break;
 
@@ -2220,7 +2220,7 @@ PRIVATE int mosquitto_property_check_command(hgobj gobj, int command, int identi
                     "identifier",   "%d", identifier,
                     NULL
                 );
-                return MOSQ_ERR_PROTOCOL;
+                return MOSQ_ERR_MALFORMED_PACKET;
             }
             break;
 
@@ -2236,7 +2236,7 @@ PRIVATE int mosquitto_property_check_command(hgobj gobj, int command, int identi
                 "identifier",   "%d", identifier,
                 NULL
             );
-            return MOSQ_ERR_PROTOCOL;
+            return MOSQ_ERR_MALFORMED_PACKET;
     }
     return 0;
 }
@@ -2448,7 +2448,7 @@ PRIVATE int mqtt_property_check_all(hgobj gobj, int command, json_t *all_propert
                     "property",     "%j", property,
                     NULL
                 );
-                return MOSQ_ERR_PROTOCOL;
+                return MOSQ_ERR_MALFORMED_PACKET;
             }
         } else if(identifier == MQTT_PROP_MAXIMUM_PACKET_SIZE) {
             int value = kw_get_int(gobj, property, "value", 0, KW_REQUIRED);
@@ -2460,7 +2460,7 @@ PRIVATE int mqtt_property_check_all(hgobj gobj, int command, json_t *all_propert
                     "property",     "%j", property,
                     NULL
                 );
-                return MOSQ_ERR_PROTOCOL;
+                return MOSQ_ERR_MALFORMED_PACKET;
             }
         } else if(identifier == MQTT_PROP_RECEIVE_MAXIMUM
                 || identifier == MQTT_PROP_TOPIC_ALIAS) {
@@ -2474,7 +2474,7 @@ PRIVATE int mqtt_property_check_all(hgobj gobj, int command, json_t *all_propert
                     "property",     "%j", property,
                     NULL
                 );
-                return MOSQ_ERR_PROTOCOL;
+                return MOSQ_ERR_MALFORMED_PACKET;
             }
         }
 
@@ -2499,9 +2499,12 @@ PRIVATE json_t *property_read_all(hgobj gobj, gbuffer_t *gbuf, int command, int 
         *error = 0;
     }
 
-    if(mqtt_read_varint(gobj, gbuf, &proplen, NULL)<0) {
+    if((ret=mqtt_read_varint(gobj, gbuf, &proplen, NULL))<0) {
         // Error already logged
-        return 0;
+        if(error) {
+            *error = ret;
+        }
+        return NULL;
     }
 
     json_t *all_properties = json_object();
@@ -2513,7 +2516,7 @@ PRIVATE json_t *property_read_all(hgobj gobj, gbuffer_t *gbuf, int command, int 
             if(error) {
                 *error = ret;
             }
-            return 0;
+            return NULL;
         }
     }
 
@@ -2523,11 +2526,15 @@ PRIVATE json_t *property_read_all(hgobj gobj, gbuffer_t *gbuf, int command, int 
         if(error) {
             *error = ret;
         }
-        return 0;
+        return NULL;
     }
 
     if(gobj_trace_level(gobj) & SHOW_DECODE) {
-        gobj_trace_json(gobj, all_properties, "all_properties, command %s", get_command_name(command));
+        gobj_trace_json(
+            gobj,
+            all_properties,
+            "all_properties, command %s", get_command_name(command)
+        );
     }
 
     return all_properties;
@@ -5106,6 +5113,371 @@ PRIVATE int handle__connack_s(hgobj gobj, gbuffer_t *gbuf)
 /***************************************************************************
  *
  ***************************************************************************/
+PRIVATE int handle__subscribe(hgobj gobj, gbuffer_t *gbuf)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    int rc = 0;
+    int rc2;
+    uint16_t mid;
+    uint8_t subscription_options;
+    json_int_t subscription_identifier = 0;
+    uint8_t qos;
+    uint8_t retain_handling = 0;
+    uint8_t *payload = NULL;
+    uint8_t *tmp_payload;
+    uint32_t payloadlen = 0;
+    uint16_t slen;
+    json_t *properties = NULL;
+    BOOL allowed;
+
+    if(priv->frame_head.flags != 2) {
+        return MOSQ_ERR_MALFORMED_PACKET;
+    }
+
+    if(mqtt_read_uint16(gobj, gbuf, &mid)) {
+        return MOSQ_ERR_MALFORMED_PACKET;
+    }
+    if(mid == 0) {
+        return MOSQ_ERR_MALFORMED_PACKET;
+    }
+
+    if(priv->protocol_version == mosq_p_mqtt5) {
+        properties = property_read_all(gobj, gbuf, CMD_SUBSCRIBE, &rc);
+        if(rc) {
+            return rc;
+        }
+
+        subscription_identifier = property_read_varint(properties, MQTT_PROP_SUBSCRIPTION_IDENTIFIER);
+        if(subscription_identifier != -1) {
+            /* If the identifier was force set to 0, this is an error */
+            if(subscription_identifier == 0) {
+                JSON_DECREF(properties)
+                return MOSQ_ERR_MALFORMED_PACKET;
+            }
+        }
+
+        JSON_DECREF(properties)
+        /* Note - User Property not handled */
+    }
+
+    json_t *jn_list = json_array();
+
+    while(gbuffer_leftbytes(gbuf)>0) {
+        char *sub_ = NULL;
+        char *sub = NULL;
+        if(mqtt_read_string(gobj, gbuf, &sub_, &slen)<0) {
+            GBMEM_FREE(payload)
+            JSON_DECREF(jn_list)
+            return MOSQ_ERR_MALFORMED_PACKET;
+        }
+        if(sub_) {
+            if(!slen) {
+                gobj_log_error(gobj, 0,
+                    "function",     "%s", __FUNCTION__,
+                    "msgset",       "%s", MSGSET_MQTT_ERROR,
+                    "msg",          "%s", "Empty subscription string, disconnecting",
+                    "client_id",    "%s", priv->client_id,
+                    NULL
+                );
+                GBMEM_FREE(payload)
+                JSON_DECREF(jn_list)
+                return MOSQ_ERR_MALFORMED_PACKET;
+            }
+            sub = gbmem_strndup(sub_, slen); // Por algún motivo es necesario
+            if(mosquitto_sub_topic_check(sub)) {
+                gobj_log_error(gobj, 0,
+                    "function",     "%s", __FUNCTION__,
+                    "msgset",       "%s", MSGSET_MQTT_ERROR,
+                    "msg",          "%s", "Invalid subscription string, disconnecting",
+                    "client_id",    "%s", priv->client_id,
+                    NULL
+                );
+                GBMEM_FREE(sub)
+                GBMEM_FREE(payload)
+                JSON_DECREF(jn_list)
+                return MOSQ_ERR_MALFORMED_PACKET;
+            }
+
+            if(mqtt_read_byte(gobj, gbuf, &subscription_options)) {
+                GBMEM_FREE(sub)
+                GBMEM_FREE(payload)
+                JSON_DECREF(jn_list)
+                return MOSQ_ERR_MALFORMED_PACKET;
+            }
+            if(priv->protocol_version == mosq_p_mqtt31 || priv->protocol_version == mosq_p_mqtt311) {
+                qos = subscription_options;
+                if(priv->is_bridge) {
+                    subscription_options = MQTT_SUB_OPT_RETAIN_AS_PUBLISHED | MQTT_SUB_OPT_NO_LOCAL;
+                }
+            } else {
+                qos = subscription_options & 0x03;
+                subscription_options &= 0xFC;
+
+                retain_handling = (subscription_options & 0x30);
+                if(retain_handling == 0x30 || (subscription_options & 0xC0) != 0) {
+                    GBMEM_FREE(sub)
+                    GBMEM_FREE(payload)
+                    JSON_DECREF(jn_list)
+                    return MOSQ_ERR_MALFORMED_PACKET;
+                }
+            }
+            if(qos > 2) {
+                gobj_log_error(gobj, 0,
+                    "function",     "%s", __FUNCTION__,
+                    "msgset",       "%s", MSGSET_MQTT_ERROR,
+                    "msg",          "%s", "Invalid QoS in subscription command, disconnecting",
+                    "client_id",    "%s", priv->client_id,
+                    NULL
+                );
+                GBMEM_FREE(sub)
+                GBMEM_FREE(payload)
+                JSON_DECREF(jn_list)
+                return MOSQ_ERR_MALFORMED_PACKET;
+            }
+            if(qos > priv->max_qos) {
+                qos = priv->max_qos;
+            }
+
+            if(gobj_trace_level(gobj) & SHOW_DECODE) {
+                trace_msg0("  👈 Received SUBSCRIBE from client '%s', topic '%s' (QoS %d)",
+                    priv->client_id,
+                    sub,
+                    qos
+                );
+            }
+
+            allowed = TRUE;
+            //rc2 = mosquitto_acl_check(context, sub, 0, NULL, qos, FALSE, MOSQ_ACL_SUBSCRIBE);
+
+            if(allowed) {
+                rc2 = add_subscription(
+                    gobj,
+                    sub,
+                    qos,
+                    subscription_identifier,
+                    subscription_options
+                );
+                if(rc2 < 0) {
+                    GBMEM_FREE(sub)
+                    GBMEM_FREE(payload)
+                    JSON_DECREF(jn_list)
+                    return rc2;
+                }
+
+                json_array_append_new(jn_list, json_string(sub));
+
+                if(priv->protocol_version == mosq_p_mqtt311 ||
+                    priv->protocol_version == mosq_p_mqtt31
+                ) {
+                    if(rc2 == MOSQ_ERR_SUCCESS || rc2 == MOSQ_ERR_SUB_EXISTS) {
+                        if(retain__queue(gobj, sub, qos, 0)) {
+                            rc = MOSQ_ERR_NOMEM;
+                        }
+                    }
+                } else {
+                    if((retain_handling == MQTT_SUB_OPT_SEND_RETAIN_ALWAYS)
+                            || (rc2 == MOSQ_ERR_SUCCESS && retain_handling == MQTT_SUB_OPT_SEND_RETAIN_NEW)
+                      ) {
+                        if(retain__queue(gobj, sub, qos, subscription_identifier)) {
+                            rc = MOSQ_ERR_NOMEM;
+                        }
+                    }
+                }
+            }
+
+            tmp_payload = GBMEM_REALLOC(payload, payloadlen + 1);
+            if(tmp_payload) {
+                payload = tmp_payload;
+                payload[payloadlen] = qos;
+                payloadlen++;
+            } else {
+                GBMEM_FREE(sub)
+                GBMEM_FREE(payload)
+                JSON_DECREF(jn_list)
+                return MOSQ_ERR_NOMEM;
+            }
+            GBMEM_FREE(sub)
+        }
+    }
+
+    if(priv->protocol_version != mosq_p_mqtt31) {
+        if(payloadlen == 0) {
+            /* No subscriptions specified, protocol error. */
+            JSON_DECREF(jn_list)
+            return MOSQ_ERR_MALFORMED_PACKET;
+        }
+    }
+    if(send__suback(gobj, mid, payloadlen, payload)!=0) {
+        rc = MOSQ_ERR_NOMEM;
+    }
+    GBMEM_FREE(payload)
+
+    save_client(gobj);
+
+    json_t *kw = json_pack("{s:s, s:s, s:o}",
+        "client_id", priv->client_id,
+        "mqtt_action", "subscribing",
+        "list", jn_list
+    );
+    gobj_publish_event(gobj, EV_ON_MESSAGE, kw);
+
+//     if(priv->current_out_packet == NULL) {
+//         db__message_write_queued_out(gobj);
+//         db__message_write_inflight_out_latest(gobj);
+//     }
+
+    return rc;
+}
+
+/***************************************************************************
+ *
+ ***************************************************************************/
+PRIVATE int handle__unsubscribe(hgobj gobj, gbuffer_t *gbuf)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    uint16_t mid;
+    uint16_t slen;
+    int rc;
+    uint8_t reason = 0;
+    int reason_code_count = 0;
+    int reason_code_max;
+    uint8_t *reason_codes = NULL, *reason_tmp;
+    json_t *properties = NULL;
+    BOOL allowed;
+
+    if(priv->frame_head.flags != 2) {
+        return MOSQ_ERR_MALFORMED_PACKET;
+    }
+
+    if(mqtt_read_uint16(gobj, gbuf, &mid)) {
+        return MOSQ_ERR_MALFORMED_PACKET;
+    }
+    if(mid == 0) {
+        return MOSQ_ERR_MALFORMED_PACKET;
+    }
+
+    if(priv->protocol_version == mosq_p_mqtt5) {
+        properties = property_read_all(gobj, gbuf, CMD_UNSUBSCRIBE, &rc);
+        if(rc) {
+            /* FIXME - it would be better if property__read_all() returned
+             * MOSQ_ERR_MALFORMED_PACKET, but this is would change the library
+             * return codes so needs doc changes as well. */
+            if(rc == MOSQ_ERR_PROTOCOL) {
+                return MOSQ_ERR_MALFORMED_PACKET;
+            } else {
+                return rc;
+            }
+        }
+        /* Immediately free, we don't do anything with User Property at the moment */
+        JSON_DECREF(properties)
+    }
+
+    if(priv->protocol_version == mosq_p_mqtt311 || priv->protocol_version == mosq_p_mqtt5) {
+        if(gbuffer_leftbytes(gbuf)==0) {
+            /* No topic specified, protocol error. */
+            return MOSQ_ERR_MALFORMED_PACKET;
+        }
+    }
+
+    reason_code_max = 10;
+    reason_codes = GBMEM_MALLOC((size_t)reason_code_max);
+    if(!reason_codes) {
+        return MOSQ_ERR_NOMEM;
+    }
+
+    json_t *jn_list = json_array();
+
+    while(gbuffer_leftbytes(gbuf)>0) {
+        char *sub = NULL;
+        if(mqtt_read_string(gobj, gbuf, &sub, &slen)<0) {
+            GBMEM_FREE(reason_codes)
+            JSON_DECREF(jn_list)
+            return MOSQ_ERR_MALFORMED_PACKET;
+        }
+
+        if(!slen) {
+            gobj_log_error(gobj, 0,
+                "function",     "%s", __FUNCTION__,
+                "msgset",       "%s", MSGSET_MQTT_ERROR,
+                "msg",          "%s", "Empty unsubscription string, disconnecting",
+                "client_id",    "%s", priv->client_id,
+                NULL
+            );
+            GBMEM_FREE(reason_codes);
+            JSON_DECREF(jn_list)
+            return MOSQ_ERR_MALFORMED_PACKET;
+        }
+        if(mosquitto_sub_topic_check(sub)) {
+            gobj_log_error(gobj, 0,
+                "function",     "%s", __FUNCTION__,
+                "msgset",       "%s", MSGSET_MQTT_ERROR,
+                "msg",          "%s", "Invalid unsubscription string, disconnecting",
+                "client_id",    "%s", priv->client_id,
+                NULL
+            );
+            GBMEM_FREE(reason_codes);
+            JSON_DECREF(jn_list)
+            return MOSQ_ERR_MALFORMED_PACKET;
+        }
+
+        /* ACL check */
+        allowed = TRUE;
+        //rc = mosquitto_acl_check(context, sub, 0, NULL, 0, FALSE, MOSQ_ACL_UNSUBSCRIBE);
+
+        if(gobj_trace_level(gobj) & SHOW_DECODE) {
+            trace_msg0("  👈 Received UNSUBSCRIBE from client '%s', topic '%s'",
+                priv->client_id,
+                sub
+            );
+        }
+        if(allowed) {
+            rc = remove_subscription(gobj, sub, &reason);
+        } else {
+            rc = MOSQ_ERR_SUCCESS;
+        }
+
+        if(rc<0) {
+            GBMEM_FREE(reason_codes);
+            JSON_DECREF(jn_list)
+            return rc;
+        }
+
+        json_array_append_new(jn_list, json_string(sub));
+
+        reason_codes[reason_code_count] = reason;
+        reason_code_count++;
+        if(reason_code_count == reason_code_max) {
+            reason_tmp = GBMEM_REALLOC(reason_codes, (size_t)(reason_code_max*2));
+            if(!reason_tmp) {
+                GBMEM_FREE(reason_codes);
+                JSON_DECREF(jn_list)
+                return MOSQ_ERR_NOMEM;
+            }
+            reason_codes = reason_tmp;
+            reason_code_max *= 2;
+        }
+    }
+
+    /* We don't use Reason String or User Property yet. */
+    rc = send__unsuback(gobj, mid, reason_code_count, reason_codes, NULL);
+    GBMEM_FREE(reason_codes);
+    save_client(gobj);
+
+    json_t *kw = json_pack("{s:s, s:s, s:o}",
+        "client_id", priv->client_id,
+        "mqtt_action", "unsubscribing",
+        "list", jn_list
+    );
+    gobj_publish_event(gobj, EV_ON_MESSAGE, kw);
+
+    return rc;
+}
+
+/***************************************************************************
+ *
+ ***************************************************************************/
 PRIVATE int handle__publish_s(hgobj gobj, gbuffer_t *gbuf)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
@@ -5970,20 +6342,20 @@ PRIVATE int frame_completed(hgobj gobj, hgobj src)
             }
             ret = handle__connect(gobj, gbuf, src);
             break;
-        // case CMD_SUBSCRIBE:     // Only Server
-        //     if(!priv->iamServer) {
-        //         ret = MOSQ_ERR_PROTOCOL;
-        //         break;
-        //     }
-        //     ret = handle__subscribe(gobj, gbuf);
-        //     break;
-        // case CMD_UNSUBSCRIBE:   // Only Server
-        //     if(!priv->iamServer) {
-        //         ret = MOSQ_ERR_PROTOCOL;
-        //         break;
-        //     }
-        //     ret  = handle__unsubscribe(gobj, gbuf);
-        //     break;
+        case CMD_SUBSCRIBE:     // Only Server
+            if(!priv->iamServer) {
+                ret = MOSQ_ERR_PROTOCOL;
+                break;
+            }
+            ret = handle__subscribe(gobj, gbuf);
+            break;
+        case CMD_UNSUBSCRIBE:   // Only Server
+            if(!priv->iamServer) {
+                ret = MOSQ_ERR_PROTOCOL;
+                break;
+            }
+            ret  = handle__unsubscribe(gobj, gbuf);
+            break;
 
         case CMD_RESERVED:
         default:
