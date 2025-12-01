@@ -70,20 +70,20 @@ typedef enum { // string names in command_name[]
  * Enum: mqtt311_connack_codes
  * The CONNACK results for MQTT v3.1.1, and v3.1.
  */
-enum mqtt311_connack_codes { // string names in mqtt311_connack_codes_s[]
+typedef enum mqtt311_connack_codes { // string names in mqtt311_connack_codes_s[]
     CONNACK_ACCEPTED = 0,
     CONNACK_REFUSED_PROTOCOL_VERSION = 1,
     CONNACK_REFUSED_IDENTIFIER_REJECTED = 2,
     CONNACK_REFUSED_SERVER_UNAVAILABLE = 3,
     CONNACK_REFUSED_BAD_USERNAME_PASSWORD = 4,
     CONNACK_REFUSED_NOT_AUTHORIZED = 5,
-};
+} mqtt311_connack_codes_t;
 
 /*
  * Enum: mqtt5_return_codes
  * The reason codes returned in various MQTT commands.
  */
-enum mqtt5_return_codes { // string names in mqtt5_return_codes_s[]
+typedef enum mqtt5_return_codes { // string names in mqtt5_return_codes_s[]
     MQTT_RC_SUCCESS = 0,    /* CONNACK, PUBACK, PUBREC, PUBREL, PUBCOMP, UNSUBACK, AUTH */
     MQTT_RC_NORMAL_DISCONNECTION = 0,           /* DISCONNECT */
     MQTT_RC_GRANTED_QOS0 = 0,                   /* SUBACK */
@@ -130,13 +130,13 @@ enum mqtt5_return_codes { // string names in mqtt5_return_codes_s[]
     MQTT_RC_MAXIMUM_CONNECT_TIME = 160,         /* DISCONNECT */
     MQTT_RC_SUBSCRIPTION_IDS_NOT_SUPPORTED = 161,   /* SUBACK, DISCONNECT */
     MQTT_RC_WILDCARD_SUBS_NOT_SUPPORTED = 162,      /* SUBACK, DISCONNECT */
-};
+} mqtt5_return_codes_t;
 
 /*
  * Enum: mqtt5_property
  * Options for use with MQTTv5 properties.
  */
-enum mqtt5_property {
+typedef enum mqtt5_property {
     MQTT_PROP_PAYLOAD_FORMAT_INDICATOR = 1,     /* Byte :               PUBLISH, Will Properties */
     MQTT_PROP_MESSAGE_EXPIRY_INTERVAL = 2,      /* 4 byte int :         PUBLISH, Will Properties */
     MQTT_PROP_CONTENT_TYPE = 3,                 /* UTF-8 string :       PUBLISH, Will Properties */
@@ -164,7 +164,7 @@ enum mqtt5_property {
     MQTT_PROP_WILDCARD_SUB_AVAILABLE = 40,      /* Byte :               CONNACK */
     MQTT_PROP_SUBSCRIPTION_ID_AVAILABLE = 41,   /* Byte :               CONNACK */
     MQTT_PROP_SHARED_SUB_AVAILABLE = 42,        /* Byte :               CONNACK */
-};
+} mqtt5_property_t;
 
 enum mqtt5_property_type {
     MQTT_PROP_TYPE_BYTE = 1,
@@ -205,13 +205,13 @@ enum mqtt5_property_type {
  * MQTT_SUB_OPT_SEND_RETAIN_NEVER - with this option set, pre-existing
  * retained messages will never be sent for this subscription.
  */
-enum mqtt5_sub_options {
+typedef enum mqtt5_sub_options {
     MQTT_SUB_OPT_NO_LOCAL = 0x04,
     MQTT_SUB_OPT_RETAIN_AS_PUBLISHED = 0x08,
     MQTT_SUB_OPT_SEND_RETAIN_ALWAYS = 0x00,
     MQTT_SUB_OPT_SEND_RETAIN_NEW = 0x10,
     MQTT_SUB_OPT_SEND_RETAIN_NEVER = 0x20,
-};
+} mqtt5_sub_options_t;
 
 /***************************************************************
  *              FSM

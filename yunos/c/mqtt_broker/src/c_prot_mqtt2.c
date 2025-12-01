@@ -5126,7 +5126,7 @@ PRIVATE int sub__add(
     const char *sub, // topic? TODO change name
     uint8_t qos,
     json_int_t identifier,
-    int options
+    mqtt5_sub_options_t options
 )
 {
 #ifdef PEPE
