@@ -2581,7 +2581,7 @@ PRIVATE json_int_t property_read_byte(json_t *properties, int identifier)
     if(!property) {
         return -1;
     }
-    return kw_get_int(gobj, property, "value", 0, 0);
+    return kw_get_int(gobj, property, "value", -1, KW_REQUIRED);
 }
 
 /***************************************************************************
@@ -2608,9 +2608,9 @@ PRIVATE json_int_t property_read_int16(json_t *properties, int identifier)
 
     json_t *property = property_get_property(properties, identifier);
     if(!property) {
-        return 0;
+        return -1;
     }
-    return kw_get_int(gobj, property, "value", 0, 0);
+    return kw_get_int(gobj, property, "value", -1, KW_REQUIRED);
 }
 
 /***************************************************************************
@@ -2637,9 +2637,9 @@ PRIVATE json_int_t property_read_int32(json_t *properties, int identifier)
 
     json_t *property = property_get_property(properties, identifier);
     if(!property) {
-        return 0;
+        return -1;
     }
-    return kw_get_int(gobj, property, "value", 0, 0);
+    return kw_get_int(gobj, property, "value", -1, KW_REQUIRED);
 }
 
 /***************************************************************************
@@ -2663,9 +2663,9 @@ PRIVATE json_int_t property_read_varint(json_t *properties, int identifier)
 
     json_t *property = property_get_property(properties, identifier);
     if(!property) {
-        return 0;
+        return -1;
     }
-    return kw_get_int(gobj, property, "value", 0, 0);
+    return kw_get_int(gobj, property, "value", -1, KW_REQUIRED);
 }
 
 /***************************************************************************
@@ -2690,9 +2690,9 @@ PRIVATE json_int_t property_read_binary(json_t *properties, int identifier) // T
 
     json_t *property = property_get_property(properties, identifier);
     if(!property) {
-        return 0;
+        return -1;
     }
-    return kw_get_int(gobj, property, "value", 0, 0); // TODO
+    return kw_get_int(gobj, property, "value", -1, KW_REQUIRED);
 }
 
 /***************************************************************************
@@ -2724,7 +2724,7 @@ PRIVATE const char *property_read_string(json_t *properties, int identifier)
         return NULL;
     }
 
-    return kw_get_str(gobj, property, "value", "", 0);
+    return kw_get_str(gobj, property, "value", "", KW_REQUIRED);
 }
 
 /***************************************************************************
@@ -5111,6 +5111,182 @@ PRIVATE int handle__connack_s(hgobj gobj, gbuffer_t *gbuf)
 // }
 
 /***************************************************************************
+ *  Add a subscription, return MOSQ_ERR_SUB_EXISTS or MOSQ_ERR_SUCCESS
+ ***************************************************************************/
+PRIVATE int add_subscription(
+    hgobj gobj,
+    const char *sub, // topic? TODO change name
+    uint8_t qos,
+    json_int_t identifier,
+    int options
+)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+    // "$share" TODO shared not implemented
+
+    int rc = MOSQ_ERR_SUCCESS;
+    BOOL no_local = ((options & MQTT_SUB_OPT_NO_LOCAL) != 0);
+    BOOL retain_as_published = ((options & MQTT_SUB_OPT_RETAIN_AS_PUBLISHED) != 0);
+
+    /*
+     *  Find client
+     */
+    json_t *client  = gobj_get_resource(priv->gobj_mqtt_clients, priv->client_id, 0, 0);
+    if(!client) {
+        gobj_log_error(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_INTERNAL_ERROR,
+            "msg",          "%s", "client not found",
+            "client_id",    "%s", SAFE_PRINT(priv->client_id),
+            NULL
+        );
+        return -1;
+    }
+
+    /*
+     *  Get subscriptions
+     */
+    json_t *subscriptions = kw_get_dict(gobj, client, "subscriptions", 0, KW_REQUIRED);
+    if(!subscriptions) {
+        // Error already logged
+        return -1;
+    }
+
+    json_t *subscription_record = kw_get_dict(gobj, subscriptions, sub, 0, 0);
+    if(subscription_record) {
+        /*
+         *  Client making a second subscription to same topic.
+         *  Only need to update QoS and identifier (TODO sure?)
+         *  Return MOSQ_ERR_SUB_EXISTS to indicate this to the calling function.
+         */
+        rc = MOSQ_ERR_SUB_EXISTS;
+        if(gobj_trace_level(gobj) & SHOW_DECODE) {
+            trace_msg0("  👈 🔴 subscription already exists: client '%s', topic '%s'",
+                priv->client_id,
+                sub
+            );
+        } else {
+            gobj_log_warning(gobj, 0,
+                "function",     "%s", __FUNCTION__,
+                "msgset",       "%s", MSGSET_INFO,
+                "msg",          "%s", "subscription already exists",
+                "client_id",    "%s", SAFE_PRINT(priv->client_id),
+                "sub",          "%s", sub,
+                NULL
+            );
+        }
+
+        json_t *kw_subscription = json_pack("{s:i, s:I}",
+            "qos", (int)qos,
+            "identifier", (json_int_t)identifier
+        );
+        if(!kw_subscription) {
+            gobj_log_error(gobj, 0,
+                "function",     "%s", __FUNCTION__,
+                "msgset",       "%s", MSGSET_INTERNAL_ERROR,
+                "msg",          "%s", "json_pack() FAILED",
+                NULL
+            );
+            return MOSQ_ERR_NOMEM;
+        }
+        json_object_update_new(subscription_record, kw_subscription);
+
+    } else {
+        /*
+         *  New subscription
+         */
+        subscription_record = json_pack("{s:s, s:i, s:I, s:b, s:b}",
+            "id", sub,
+            "qos", (int)qos,
+            "identifier", (json_int_t)identifier,
+            "no_local", no_local,
+            "retain_as_published", retain_as_published
+        );
+        if(!subscription_record) {
+            gobj_log_error(gobj, 0,
+                "function",     "%s", __FUNCTION__,
+                "msgset",       "%s", MSGSET_INTERNAL_ERROR,
+                "msg",          "%s", "json_pack() FAILED",
+                NULL
+            );
+            return MOSQ_ERR_NOMEM;
+        }
+        if(gobj_trace_level(gobj) & SHOW_DECODE) {
+            gobj_trace_json(gobj, subscription_record, "new subscription");
+        }
+        json_object_set_new(subscriptions, sub, subscription_record);
+    }
+
+    // TODO don't save if qos == 0
+    // ??? gobj_save_resource(priv->gobj_mqtt_topics, sub, subscription_record, 0);
+    return rc;
+}
+
+/***************************************************************************
+ *  Remove a subscription
+ ***************************************************************************/
+PRIVATE int remove_subscription(
+    hgobj gobj,
+    const char *sub,// topic? TODO change name
+    uint8_t *reason
+)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+    // "$share" TODO shared not implemented
+
+    *reason = 0;
+
+    /*
+     *  Find client
+     */
+    json_t *client  = gobj_get_resource(priv->gobj_mqtt_clients, priv->client_id, 0, 0);
+    if(!client) {
+        gobj_log_error(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_INTERNAL_ERROR,
+            "msg",          "%s", "client not found",
+            "client_id",    "%s", SAFE_PRINT(priv->client_id),
+            NULL
+        );
+        return -1;
+    }
+
+    /*
+     *  Get subscriptions
+     */
+    json_t *subscriptions = kw_get_dict(gobj, client, "subscriptions", 0, KW_REQUIRED);
+    if(!subscriptions) {
+        // Error already logged
+        return -1;
+    }
+
+    json_t *subs = kw_get_dict(gobj, subscriptions, sub, 0, KW_EXTRACT);
+    if(!subs) {
+        *reason = MQTT_RC_NO_SUBSCRIPTION_EXISTED;
+    }
+    JSON_DECREF(subs);
+
+    return 0;
+}
+
+/***************************************************************************
+ *  Subscription: search if the topic has a retain message and process
+ ***************************************************************************/
+PRIVATE int retain__queue(
+    hgobj gobj,
+    const char *sub,
+    uint8_t sub_qos,
+    uint32_t subscription_identifier
+)
+{
+    if(strncmp(sub, "$share/", strlen("$share/"))==0) {
+        return MOSQ_ERR_SUCCESS;
+    }
+    // TODO
+    return MOSQ_ERR_SUCCESS;
+}
+
+/***************************************************************************
  *
  ***************************************************************************/
 PRIVATE int handle__subscribe(hgobj gobj, gbuffer_t *gbuf)
@@ -5171,134 +5347,156 @@ PRIVATE int handle__subscribe(hgobj gobj, gbuffer_t *gbuf)
             JSON_DECREF(jn_list)
             return MOSQ_ERR_MALFORMED_PACKET;
         }
-        if(sub_) {
-            if(!slen) {
-                gobj_log_error(gobj, 0,
-                    "function",     "%s", __FUNCTION__,
-                    "msgset",       "%s", MSGSET_MQTT_ERROR,
-                    "msg",          "%s", "Empty subscription string, disconnecting",
-                    "client_id",    "%s", priv->client_id,
-                    NULL
-                );
-                GBMEM_FREE(payload)
-                JSON_DECREF(jn_list)
-                return MOSQ_ERR_MALFORMED_PACKET;
-            }
-            sub = gbmem_strndup(sub_, slen); // Por algún motivo es necesario
-            if(mosquitto_sub_topic_check(sub)) {
-                gobj_log_error(gobj, 0,
-                    "function",     "%s", __FUNCTION__,
-                    "msgset",       "%s", MSGSET_MQTT_ERROR,
-                    "msg",          "%s", "Invalid subscription string, disconnecting",
-                    "client_id",    "%s", priv->client_id,
-                    NULL
-                );
-                GBMEM_FREE(sub)
-                GBMEM_FREE(payload)
-                JSON_DECREF(jn_list)
-                return MOSQ_ERR_MALFORMED_PACKET;
-            }
-
-            if(mqtt_read_byte(gobj, gbuf, &subscription_options)) {
-                GBMEM_FREE(sub)
-                GBMEM_FREE(payload)
-                JSON_DECREF(jn_list)
-                return MOSQ_ERR_MALFORMED_PACKET;
-            }
-            if(priv->protocol_version == mosq_p_mqtt31 || priv->protocol_version == mosq_p_mqtt311) {
-                qos = subscription_options;
-                if(priv->is_bridge) {
-                    subscription_options = MQTT_SUB_OPT_RETAIN_AS_PUBLISHED | MQTT_SUB_OPT_NO_LOCAL;
-                }
-            } else {
-                qos = subscription_options & 0x03;
-                subscription_options &= 0xFC;
-
-                retain_handling = (subscription_options & 0x30);
-                if(retain_handling == 0x30 || (subscription_options & 0xC0) != 0) {
-                    GBMEM_FREE(sub)
-                    GBMEM_FREE(payload)
-                    JSON_DECREF(jn_list)
-                    return MOSQ_ERR_MALFORMED_PACKET;
-                }
-            }
-            if(qos > 2) {
-                gobj_log_error(gobj, 0,
-                    "function",     "%s", __FUNCTION__,
-                    "msgset",       "%s", MSGSET_MQTT_ERROR,
-                    "msg",          "%s", "Invalid QoS in subscription command, disconnecting",
-                    "client_id",    "%s", priv->client_id,
-                    NULL
-                );
-                GBMEM_FREE(sub)
-                GBMEM_FREE(payload)
-                JSON_DECREF(jn_list)
-                return MOSQ_ERR_MALFORMED_PACKET;
-            }
-            if(qos > priv->max_qos) {
-                qos = priv->max_qos;
-            }
-
-            if(gobj_trace_level(gobj) & SHOW_DECODE) {
-                trace_msg0("  👈 Received SUBSCRIBE from client '%s', topic '%s' (QoS %d)",
-                    priv->client_id,
-                    sub,
-                    qos
-                );
-            }
-
-            allowed = TRUE;
-            //rc2 = mosquitto_acl_check(context, sub, 0, NULL, qos, FALSE, MOSQ_ACL_SUBSCRIBE);
-
-            if(allowed) {
-                rc2 = add_subscription(
-                    gobj,
-                    sub,
-                    qos,
-                    subscription_identifier,
-                    subscription_options
-                );
-                if(rc2 < 0) {
-                    GBMEM_FREE(sub)
-                    GBMEM_FREE(payload)
-                    JSON_DECREF(jn_list)
-                    return rc2;
-                }
-
-                json_array_append_new(jn_list, json_string(sub));
-
-                if(priv->protocol_version == mosq_p_mqtt311 ||
-                    priv->protocol_version == mosq_p_mqtt31
-                ) {
-                    if(rc2 == MOSQ_ERR_SUCCESS || rc2 == MOSQ_ERR_SUB_EXISTS) {
-                        if(retain__queue(gobj, sub, qos, 0)) {
-                            rc = MOSQ_ERR_NOMEM;
-                        }
-                    }
-                } else {
-                    if((retain_handling == MQTT_SUB_OPT_SEND_RETAIN_ALWAYS)
-                            || (rc2 == MOSQ_ERR_SUCCESS && retain_handling == MQTT_SUB_OPT_SEND_RETAIN_NEW)
-                      ) {
-                        if(retain__queue(gobj, sub, qos, subscription_identifier)) {
-                            rc = MOSQ_ERR_NOMEM;
-                        }
-                    }
-                }
-            }
-
-            tmp_payload = GBMEM_REALLOC(payload, payloadlen + 1);
-            if(tmp_payload) {
-                payload = tmp_payload;
-                payload[payloadlen] = qos;
-                payloadlen++;
-            } else {
-                GBMEM_FREE(sub)
-                GBMEM_FREE(payload)
-                JSON_DECREF(jn_list)
-                return MOSQ_ERR_NOMEM;
-            }
-            GBMEM_FREE(sub)
+        if(!slen) {
+            gobj_log_error(gobj, 0,
+                "function",     "%s", __FUNCTION__,
+                "msgset",       "%s", MSGSET_MQTT_ERROR,
+                "msg",          "%s", "Empty subscription string, disconnecting",
+                "client_id",    "%s", priv->client_id,
+                NULL
+            );
+            GBMEM_FREE(payload)
+            JSON_DECREF(jn_list)
+            return MOSQ_ERR_MALFORMED_PACKET;
         }
+        sub = gbmem_strndup(sub_, slen); // Por algún motivo es necesario
+        if(mosquitto_sub_topic_check(sub)) {
+            gobj_log_error(gobj, 0,
+                "function",     "%s", __FUNCTION__,
+                "msgset",       "%s", MSGSET_MQTT_ERROR,
+                "msg",          "%s", "Invalid subscription string, disconnecting",
+                "client_id",    "%s", priv->client_id,
+                NULL
+            );
+            GBMEM_FREE(sub)
+            GBMEM_FREE(payload)
+            JSON_DECREF(jn_list)
+            return MOSQ_ERR_MALFORMED_PACKET;
+        }
+
+        if(mqtt_read_byte(gobj, gbuf, &subscription_options)) {
+            GBMEM_FREE(sub)
+            GBMEM_FREE(payload)
+            JSON_DECREF(jn_list)
+            return MOSQ_ERR_MALFORMED_PACKET;
+        }
+        if(priv->protocol_version == mosq_p_mqtt31 || priv->protocol_version == mosq_p_mqtt311) {
+            qos = subscription_options;
+            if(priv->is_bridge) {
+                subscription_options = MQTT_SUB_OPT_RETAIN_AS_PUBLISHED | MQTT_SUB_OPT_NO_LOCAL;
+            }
+        } else {
+            qos = subscription_options & 0x03;
+            subscription_options &= 0xFC;
+
+            if((subscription_options & MQTT_SUB_OPT_NO_LOCAL) && !strncmp(sub, "$share/", 7)){
+                GBMEM_FREE(sub)
+                GBMEM_FREE(payload)
+                JSON_DECREF(jn_list)
+                return MOSQ_ERR_PROTOCOL;
+            }
+
+            retain_handling = (subscription_options & 0x30);
+            if(retain_handling == 0x30 || (subscription_options & 0xC0) != 0) {
+                GBMEM_FREE(sub)
+                GBMEM_FREE(payload)
+                JSON_DECREF(jn_list)
+                return MOSQ_ERR_MALFORMED_PACKET;
+            }
+        }
+        if(qos > 2) {
+            gobj_log_error(gobj, 0,
+                "function",     "%s", __FUNCTION__,
+                "msgset",       "%s", MSGSET_MQTT_ERROR,
+                "msg",          "%s", "Invalid QoS in subscription command, disconnecting",
+                "client_id",    "%s", priv->client_id,
+                NULL
+            );
+            GBMEM_FREE(sub)
+            GBMEM_FREE(payload)
+            JSON_DECREF(jn_list)
+            return MOSQ_ERR_MALFORMED_PACKET;
+        }
+        if(qos > priv->max_qos) {
+            qos = priv->max_qos;
+        }
+
+        if(gobj_trace_level(gobj) & SHOW_DECODE) {
+            trace_msg0("  👈 Received SUBSCRIBE from client '%s', topic '%s' (QoS %d)",
+                priv->client_id,
+                sub,
+                qos
+            );
+        }
+
+        allowed = TRUE;
+        //rc2 = mosquitto_acl_check(context, sub, 0, NULL, qos, FALSE, MOSQ_ACL_SUBSCRIBE); TODO
+        rc2 = MOSQ_ERR_SUCCESS;
+        switch(rc2) {
+            case MOSQ_ERR_SUCCESS:
+                break;
+            case MOSQ_ERR_ACL_DENIED:
+                allowed = FALSE;
+                if(priv->protocol_version == mosq_p_mqtt5) {
+                    qos = MQTT_RC_NOT_AUTHORIZED;
+                } else if(priv->protocol_version == mosq_p_mqtt311) {
+                    qos = 0x80;
+                }
+                break;
+            default:
+                GBMEM_FREE(sub)
+                GBMEM_FREE(payload)
+                JSON_DECREF(jn_list)
+                return rc2;
+        }
+
+        if(allowed) {
+            rc2 = add_subscription( // original sub__add
+                gobj,
+                sub,
+                qos,
+                subscription_identifier,
+                subscription_options
+            );
+            if(rc2 < 0) {
+                GBMEM_FREE(sub)
+                GBMEM_FREE(payload)
+                JSON_DECREF(jn_list)
+                return rc2;
+            }
+
+            json_array_append_new(jn_list, json_string(sub));
+
+            if(priv->protocol_version == mosq_p_mqtt311 || priv->protocol_version == mosq_p_mqtt31) {
+                if(rc2 == MOSQ_ERR_SUCCESS || rc2 == MOSQ_ERR_SUB_EXISTS) {
+                    if(retain__queue(gobj, sub, qos, 0)) {
+                        rc = MOSQ_ERR_NOMEM;
+                    }
+                }
+            } else {
+                if((retain_handling == MQTT_SUB_OPT_SEND_RETAIN_ALWAYS)
+                        || (rc2 == MOSQ_ERR_SUCCESS && retain_handling == MQTT_SUB_OPT_SEND_RETAIN_NEW)
+                  ) {
+                    if(retain__queue(gobj, sub, qos, subscription_identifier)) {
+                        rc = MOSQ_ERR_NOMEM;
+                    }
+                }
+            }
+        }
+
+        tmp_payload = GBMEM_REALLOC(payload, payloadlen + 1);
+        if(tmp_payload) {
+            // TODO why adding qos to the tail of payload???
+            payload = tmp_payload;
+            payload[payloadlen] = qos;
+            payloadlen++;
+        } else {
+            GBMEM_FREE(sub)
+            GBMEM_FREE(payload)
+            JSON_DECREF(jn_list)
+            return MOSQ_ERR_NOMEM;
+        }
+        GBMEM_FREE(sub)
     }
 
     if(priv->protocol_version != mosq_p_mqtt31) {
@@ -5322,10 +5520,16 @@ PRIVATE int handle__subscribe(hgobj gobj, gbuffer_t *gbuf)
     );
     gobj_publish_event(gobj, EV_ON_MESSAGE, kw);
 
-//     if(priv->current_out_packet == NULL) {
-//         db__message_write_queued_out(gobj);
-//         db__message_write_inflight_out_latest(gobj);
-//     }
+    // if(priv->current_out_packet == NULL) {
+    //     rc = db__message_write_queued_out(gobj);
+    //     if(rc) {
+    //         return rc;
+    //     }
+    //     rc = db__message_write_inflight_out_latest(gobj);
+    //     if(rc) {
+    //         return rc;
+    //     }
+    // }
 
     return rc;
 }
@@ -5361,14 +5565,7 @@ PRIVATE int handle__unsubscribe(hgobj gobj, gbuffer_t *gbuf)
     if(priv->protocol_version == mosq_p_mqtt5) {
         properties = property_read_all(gobj, gbuf, CMD_UNSUBSCRIBE, &rc);
         if(rc) {
-            /* FIXME - it would be better if property__read_all() returned
-             * MOSQ_ERR_MALFORMED_PACKET, but this is would change the library
-             * return codes so needs doc changes as well. */
-            if(rc == MOSQ_ERR_PROTOCOL) {
-                return MOSQ_ERR_MALFORMED_PACKET;
-            } else {
-                return rc;
-            }
+            return rc;
         }
         /* Immediately free, we don't do anything with User Property at the moment */
         JSON_DECREF(properties)
@@ -5424,7 +5621,20 @@ PRIVATE int handle__unsubscribe(hgobj gobj, gbuffer_t *gbuf)
 
         /* ACL check */
         allowed = TRUE;
-        //rc = mosquitto_acl_check(context, sub, 0, NULL, 0, FALSE, MOSQ_ACL_UNSUBSCRIBE);
+        //rc = mosquitto_acl_check(context, sub, 0, NULL, 0, FALSE, MOSQ_ACL_UNSUBSCRIBE); TODO
+        rc = 0;
+        switch(rc) {
+            case MOSQ_ERR_SUCCESS:
+                break;
+            case MOSQ_ERR_ACL_DENIED:
+                allowed = FALSE;
+                reason = MQTT_RC_NOT_AUTHORIZED;
+                break;
+            default:
+                GBMEM_FREE(reason_codes);
+                JSON_DECREF(jn_list)
+                return rc;
+        }
 
         if(gobj_trace_level(gobj) & SHOW_DECODE) {
             trace_msg0("  👈 Received UNSUBSCRIBE from client '%s', topic '%s'",
