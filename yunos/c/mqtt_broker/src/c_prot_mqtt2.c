@@ -5275,6 +5275,7 @@ PRIVATE int remove_subscription(
 
 /***************************************************************************
  *  Subscription: search if the topic has a retain message and process
+ *  TODO study retain.c and implement it
  ***************************************************************************/
 PRIVATE int retain__queue(
     hgobj gobj,
@@ -5534,6 +5535,14 @@ PRIVATE int handle__subscribe(hgobj gobj, gbuffer_t *gbuf)
     if(priv->protocol_version != mosq_p_mqtt31) {
         if(payloadlen == 0) {
             /* No subscriptions specified, protocol error. */
+            gobj_log_error(gobj, 0,
+                "function",     "%s", __FUNCTION__,
+                "msgset",       "%s", MSGSET_MQTT_ERROR,
+                "msg",          "%s", "Mqtt subscribe: No subscriptions specified",
+                "client_id",    "%s", priv->client_id,
+                NULL
+            );
+            GBMEM_FREE(payload)
             JSON_DECREF(jn_list)
             return MOSQ_ERR_MALFORMED_PACKET;
         }
@@ -5552,6 +5561,7 @@ PRIVATE int handle__subscribe(hgobj gobj, gbuffer_t *gbuf)
     );
     gobj_publish_event(gobj, EV_ON_MESSAGE, kw);
 
+    // TODO
     // if(priv->current_out_packet == NULL) {
     //     rc = db__message_write_queued_out(gobj);
     //     if(rc) {
