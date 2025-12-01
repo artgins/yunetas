@@ -5886,19 +5886,20 @@ PRIVATE int frame_completed(hgobj gobj, hgobj src)
     int ret = 0;
 
     switch(frame->command) {
-        // case CMD_PINGREQ:
-        //     ret = handle__pingreq(gobj);        // common to server/client
+        case CMD_PINGREQ:       // common to server/client
+            ret = handle__pingreq(gobj);
+            break;
+        case CMD_PINGRESP:      // common to server/client
+            ret = handle__pingresp(gobj);
+            break;
+
+        // case CMD_PUBACK:        // common to server/client
+        //     ret = handle__pubackcomp(gobj, gbuf, "PUBACK");
         //     break;
-        // case CMD_PINGRESP:
-        //     ret = handle__pingresp(gobj);       // common to server/client
+        // case CMD_PUBCOMP:       // common to server/client
+        //     ret = handle__pubackcomp(gobj, gbuf, "PUBCOMP");
         //     break;
-        // case CMD_PUBACK:
-        //     ret = handle__pubackcomp(gobj, gbuf, "PUBACK"); // common to server/client
-        //     break;
-        // case CMD_PUBCOMP:
-        //     ret = handle__pubackcomp(gobj, gbuf, "PUBCOMP"); // common to server/client
-        //     break;
-        case CMD_PUBLISH: // NOT common to server/client
+        case CMD_PUBLISH:       // NOT common to server/client
             if(priv->iamServer) {
                 ret = handle__publish_s(gobj, gbuf);
             } else {
@@ -5906,28 +5907,29 @@ PRIVATE int frame_completed(hgobj gobj, hgobj src)
             }
             break;
 
-        // case CMD_PUBREC:                            // common to server/client
+        // case CMD_PUBREC:        // common to server/client
         //     ret = handle__pubrec(gobj, gbuf);
         //     break;
-        // case CMD_PUBREL:                            // common to server/client
+        // case CMD_PUBREL:        // common to server/client
         //     ret = handle__pubrel(gobj, gbuf);
         //     break;
-        // case CMD_DISCONNECT: // NOT common to server/client TODO
+
+        // case CMD_DISCONNECT:    // NOT common to server/client TODO
         //     if(priv->iamServer) {
         //         ret = handle__disconnect_s(gobj, gbuf);
         //     } else {
         //         ret = handle__disconnect_c(gobj, gbuf);
         //     }
         //     break;
-        // case CMD_AUTH: // NOT common to server/client TODO
+        // case CMD_AUTH:          // NOT common to server/client TODO
         //     if(priv->iamServer) {
         //         ret = handle__auth_s(gobj, gbuf);
         //     } else {
         //         ret = handle__auth_c(gobj, gbuf);
         //     }
-        // break;
+        //     break;
 
-        case CMD_CONNACK:                // NOT common to server(bridge)/client
+        case CMD_CONNACK:       // NOT common to server(bridge)/client
             if(priv->iamServer) {
                 ret = handle__connack_s(gobj, gbuf);
             } else {
@@ -5943,15 +5945,15 @@ PRIVATE int frame_completed(hgobj gobj, hgobj src)
             }
             break;
 
-        // case CMD_SUBACK:                 // common to server(bridge)/client
+        // case CMD_SUBACK:        // common to server(bridge)/client
         //     if(!priv->iamServer) {
         //         ret = MOSQ_ERR_PROTOCOL;
         //         break;
         //     }
         //     ret = handle__suback(gobj, gbuf);
         //     break;
-        // case CMD_UNSUBACK:
-        //     if(!priv->iamServer) {       // common to server(bridge)/client
+        // case CMD_UNSUBACK:      // common to server(bridge)/client
+        //     if(!priv->iamServer) {
         //         ret = MOSQ_ERR_PROTOCOL;
         //         break;
         //     }
@@ -5961,23 +5963,21 @@ PRIVATE int frame_completed(hgobj gobj, hgobj src)
         /*
          *  Only Server
          */
-        case CMD_CONNECT:
+        case CMD_CONNECT:       // Only Server
             if(!priv->iamServer) {
                 ret = MOSQ_ERR_PROTOCOL;
                 break;
             }
             ret = handle__connect(gobj, gbuf, src);
             break;
-
-        // case CMD_SUBSCRIBE:
+        // case CMD_SUBSCRIBE:     // Only Server
         //     if(!priv->iamServer) {
         //         ret = MOSQ_ERR_PROTOCOL;
         //         break;
         //     }
         //     ret = handle__subscribe(gobj, gbuf);
         //     break;
-
-        // case CMD_UNSUBSCRIBE:
+        // case CMD_UNSUBSCRIBE:   // Only Server
         //     if(!priv->iamServer) {
         //         ret = MOSQ_ERR_PROTOCOL;
         //         break;
@@ -6346,7 +6346,6 @@ PRIVATE int ac_process_frame_header(hgobj gobj, const char *event, json_t *kw, h
                 );
             }
             if(frame->frame_length) {
-            // TODO esto está mal, debería ir en framehead_consume() ????
                 /*
                  *
                  */
