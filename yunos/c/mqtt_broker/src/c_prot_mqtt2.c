@@ -5304,27 +5304,43 @@ PRIVATE int handle__subscribe(hgobj gobj, gbuffer_t *gbuf)
     json_int_t subscription_identifier = 0;
     uint8_t qos;
     uint8_t retain_handling = 0;
-    uint8_t *payload = NULL;
-    uint8_t *tmp_payload;
-    uint32_t payloadlen = 0;
+    uint8_t *payload = NULL;    // Used in response: send__suback()
+    uint8_t *tmp_payload;       // Used in response: send__suback()
+    uint32_t payloadlen = 0;    // Used in response: send__suback()
     uint16_t slen;
     json_t *properties = NULL;
     BOOL allowed;
 
     if(priv->frame_head.flags != 2) {
+        gobj_log_error(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_MQTT_ERROR,
+            "msg",          "%s", "Mqtt subscribe: flags != 2",
+            "client_id",    "%s", priv->client_id,
+            NULL
+        );
         return MOSQ_ERR_MALFORMED_PACKET;
     }
 
     if(mqtt_read_uint16(gobj, gbuf, &mid)) {
+        // Error already logged
         return MOSQ_ERR_MALFORMED_PACKET;
     }
     if(mid == 0) {
+        gobj_log_error(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_MQTT_ERROR,
+            "msg",          "%s", "Mqtt subscribe: mid == 0",
+            "client_id",    "%s", priv->client_id,
+            NULL
+        );
         return MOSQ_ERR_MALFORMED_PACKET;
     }
 
     if(priv->protocol_version == mosq_p_mqtt5) {
         properties = property_read_all(gobj, gbuf, CMD_SUBSCRIBE, &rc);
         if(rc) {
+            // Error already logged
             return rc;
         }
 
@@ -5332,6 +5348,13 @@ PRIVATE int handle__subscribe(hgobj gobj, gbuffer_t *gbuf)
         if(subscription_identifier != -1) {
             /* If the identifier was force set to 0, this is an error */
             if(subscription_identifier == 0) {
+                gobj_log_error(gobj, 0,
+                    "function",     "%s", __FUNCTION__,
+                    "msgset",       "%s", MSGSET_MQTT_ERROR,
+                    "msg",          "%s", "Mqtt subscribe: subscription_identifier == 0",
+                    "client_id",    "%s", priv->client_id,
+                    NULL
+                );
                 JSON_DECREF(properties)
                 return MOSQ_ERR_MALFORMED_PACKET;
             }
@@ -5344,9 +5367,9 @@ PRIVATE int handle__subscribe(hgobj gobj, gbuffer_t *gbuf)
     json_t *jn_list = json_array();
 
     while(gbuffer_leftbytes(gbuf)>0) {
-        char *sub_ = NULL;
         char *sub = NULL;
-        if(mqtt_read_string(gobj, gbuf, &sub_, &slen)<0) {
+        if(mqtt_read_string(gobj, gbuf, &sub, &slen)<0) {
+            // Error already logged
             GBMEM_FREE(payload)
             JSON_DECREF(jn_list)
             return MOSQ_ERR_MALFORMED_PACKET;
@@ -5355,7 +5378,7 @@ PRIVATE int handle__subscribe(hgobj gobj, gbuffer_t *gbuf)
             gobj_log_error(gobj, 0,
                 "function",     "%s", __FUNCTION__,
                 "msgset",       "%s", MSGSET_MQTT_ERROR,
-                "msg",          "%s", "Empty subscription string, disconnecting",
+                "msg",          "%s", "Mqtt subscribe: Empty subscription string",
                 "client_id",    "%s", priv->client_id,
                 NULL
             );
@@ -5363,23 +5386,21 @@ PRIVATE int handle__subscribe(hgobj gobj, gbuffer_t *gbuf)
             JSON_DECREF(jn_list)
             return MOSQ_ERR_MALFORMED_PACKET;
         }
-        sub = gbmem_strndup(sub_, slen); // Por algún motivo es necesario
         if(mosquitto_sub_topic_check(sub)) {
             gobj_log_error(gobj, 0,
                 "function",     "%s", __FUNCTION__,
                 "msgset",       "%s", MSGSET_MQTT_ERROR,
-                "msg",          "%s", "Invalid subscription string, disconnecting",
+                "msg",          "%s", "Mqtt subscribe: Invalid subscription string",
                 "client_id",    "%s", priv->client_id,
                 NULL
             );
-            GBMEM_FREE(sub)
             GBMEM_FREE(payload)
             JSON_DECREF(jn_list)
             return MOSQ_ERR_MALFORMED_PACKET;
         }
 
         if(mqtt_read_byte(gobj, gbuf, &subscription_options)) {
-            GBMEM_FREE(sub)
+            // Error already logged
             GBMEM_FREE(payload)
             JSON_DECREF(jn_list)
             return MOSQ_ERR_MALFORMED_PACKET;
@@ -5393,8 +5414,14 @@ PRIVATE int handle__subscribe(hgobj gobj, gbuffer_t *gbuf)
             qos = subscription_options & 0x03;
             subscription_options &= 0xFC;
 
-            if((subscription_options & MQTT_SUB_OPT_NO_LOCAL) && !strncmp(sub, "$share/", 7)){
-                GBMEM_FREE(sub)
+            if((subscription_options & MQTT_SUB_OPT_NO_LOCAL) && !strncmp(sub, "$share/", 7)) {
+                gobj_log_error(gobj, 0,
+                    "function",     "%s", __FUNCTION__,
+                    "msgset",       "%s", MSGSET_MQTT_ERROR,
+                    "msg",          "%s", "Mqtt subscribe: Invalid subscription options 1",
+                    "client_id",    "%s", priv->client_id,
+                    NULL
+                );
                 GBMEM_FREE(payload)
                 JSON_DECREF(jn_list)
                 return MOSQ_ERR_PROTOCOL;
@@ -5402,7 +5429,13 @@ PRIVATE int handle__subscribe(hgobj gobj, gbuffer_t *gbuf)
 
             retain_handling = (subscription_options & 0x30);
             if(retain_handling == 0x30 || (subscription_options & 0xC0) != 0) {
-                GBMEM_FREE(sub)
+                gobj_log_error(gobj, 0,
+                    "function",     "%s", __FUNCTION__,
+                    "msgset",       "%s", MSGSET_MQTT_ERROR,
+                    "msg",          "%s", "Mqtt subscribe: Invalid subscription options 2",
+                    "client_id",    "%s", priv->client_id,
+                    NULL
+                );
                 GBMEM_FREE(payload)
                 JSON_DECREF(jn_list)
                 return MOSQ_ERR_MALFORMED_PACKET;
@@ -5412,11 +5445,10 @@ PRIVATE int handle__subscribe(hgobj gobj, gbuffer_t *gbuf)
             gobj_log_error(gobj, 0,
                 "function",     "%s", __FUNCTION__,
                 "msgset",       "%s", MSGSET_MQTT_ERROR,
-                "msg",          "%s", "Invalid QoS in subscription command, disconnecting",
+                "msg",          "%s", "Mqtt subscribe: Invalid QoS in subscription command",
                 "client_id",    "%s", priv->client_id,
                 NULL
             );
-            GBMEM_FREE(sub)
             GBMEM_FREE(payload)
             JSON_DECREF(jn_list)
             return MOSQ_ERR_MALFORMED_PACKET;
@@ -5448,7 +5480,6 @@ PRIVATE int handle__subscribe(hgobj gobj, gbuffer_t *gbuf)
                 }
                 break;
             default:
-                GBMEM_FREE(sub)
                 GBMEM_FREE(payload)
                 JSON_DECREF(jn_list)
                 return rc2;
@@ -5463,7 +5494,6 @@ PRIVATE int handle__subscribe(hgobj gobj, gbuffer_t *gbuf)
                 subscription_options
             );
             if(rc2 < 0) {
-                GBMEM_FREE(sub)
                 GBMEM_FREE(payload)
                 JSON_DECREF(jn_list)
                 return rc2;
@@ -5495,12 +5525,10 @@ PRIVATE int handle__subscribe(hgobj gobj, gbuffer_t *gbuf)
             payload[payloadlen] = qos;
             payloadlen++;
         } else {
-            GBMEM_FREE(sub)
             GBMEM_FREE(payload)
             JSON_DECREF(jn_list)
             return MOSQ_ERR_NOMEM;
         }
-        GBMEM_FREE(sub)
     }
 
     if(priv->protocol_version != mosq_p_mqtt31) {
@@ -5551,24 +5579,41 @@ PRIVATE int handle__unsubscribe(hgobj gobj, gbuffer_t *gbuf)
     uint8_t reason = 0;
     int reason_code_count = 0;
     int reason_code_max;
-    uint8_t *reason_codes = NULL, *reason_tmp;
+    uint8_t *reason_codes = NULL;
+    uint8_t *reason_tmp;
     json_t *properties = NULL;
     BOOL allowed;
 
     if(priv->frame_head.flags != 2) {
+        gobj_log_error(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_MQTT_ERROR,
+            "msg",          "%s", "Mqtt unsubscribe: flags != 2",
+            "client_id",    "%s", priv->client_id,
+            NULL
+        );
         return MOSQ_ERR_MALFORMED_PACKET;
     }
 
     if(mqtt_read_uint16(gobj, gbuf, &mid)) {
+        // Error already logged
         return MOSQ_ERR_MALFORMED_PACKET;
     }
     if(mid == 0) {
+        gobj_log_error(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_MQTT_ERROR,
+            "msg",          "%s", "Mqtt unsubscribe: mid == 2",
+            "client_id",    "%s", priv->client_id,
+            NULL
+        );
         return MOSQ_ERR_MALFORMED_PACKET;
     }
 
     if(priv->protocol_version == mosq_p_mqtt5) {
         properties = property_read_all(gobj, gbuf, CMD_UNSUBSCRIBE, &rc);
         if(rc) {
+            // Error already logged
             return rc;
         }
         /* Immediately free, we don't do anything with User Property at the moment */
@@ -5578,6 +5623,13 @@ PRIVATE int handle__unsubscribe(hgobj gobj, gbuffer_t *gbuf)
     if(priv->protocol_version == mosq_p_mqtt311 || priv->protocol_version == mosq_p_mqtt5) {
         if(gbuffer_leftbytes(gbuf)==0) {
             /* No topic specified, protocol error. */
+            gobj_log_error(gobj, 0,
+                "function",     "%s", __FUNCTION__,
+                "msgset",       "%s", MSGSET_MQTT_ERROR,
+                "msg",          "%s", "Mqtt unsubscribe: no topic specified",
+                "client_id",    "%s", priv->client_id,
+                NULL
+            );
             return MOSQ_ERR_MALFORMED_PACKET;
         }
     }
@@ -5602,7 +5654,7 @@ PRIVATE int handle__unsubscribe(hgobj gobj, gbuffer_t *gbuf)
             gobj_log_error(gobj, 0,
                 "function",     "%s", __FUNCTION__,
                 "msgset",       "%s", MSGSET_MQTT_ERROR,
-                "msg",          "%s", "Empty unsubscription string, disconnecting",
+                "msg",          "%s", "Empty unsubscription string",
                 "client_id",    "%s", priv->client_id,
                 NULL
             );
@@ -5614,7 +5666,7 @@ PRIVATE int handle__unsubscribe(hgobj gobj, gbuffer_t *gbuf)
             gobj_log_error(gobj, 0,
                 "function",     "%s", __FUNCTION__,
                 "msgset",       "%s", MSGSET_MQTT_ERROR,
-                "msg",          "%s", "Invalid unsubscription string, disconnecting",
+                "msg",          "%s", "Invalid unsubscription string",
                 "client_id",    "%s", priv->client_id,
                 NULL
             );
