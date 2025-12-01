@@ -5305,8 +5305,6 @@ PRIVATE int retain__queue(
 PRIVATE int handle__subscribe(hgobj gobj, gbuffer_t *gbuf)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
-
-    int rc2;
     uint16_t mid;
     uint8_t subscription_options;
     json_int_t subscription_identifier = 0;
@@ -5473,7 +5471,7 @@ PRIVATE int handle__subscribe(hgobj gobj, gbuffer_t *gbuf)
 
         allowed = TRUE;
         //rc2 = mosquitto_acl_check(context, sub, 0, NULL, qos, FALSE, MOSQ_ACL_SUBSCRIBE); TODO
-        rc2 = MOSQ_ERR_SUCCESS;
+        int rc2 = MOSQ_ERR_SUCCESS;
         switch(rc2) {
             case MOSQ_ERR_SUCCESS:
                 break;
@@ -5580,10 +5578,8 @@ PRIVATE int handle__subscribe(hgobj gobj, gbuffer_t *gbuf)
 PRIVATE int handle__unsubscribe(hgobj gobj, gbuffer_t *gbuf)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
-
     uint16_t mid;
     uint16_t slen;
-    int rc;
     uint8_t reason = 0;
     int reason_code_count = 0;
     json_t *properties = NULL;
@@ -5616,6 +5612,7 @@ PRIVATE int handle__unsubscribe(hgobj gobj, gbuffer_t *gbuf)
     }
 
     if(priv->protocol_version == mosq_p_mqtt5) {
+        int rc;
         properties = property_read_all(gobj, gbuf, CMD_UNSUBSCRIBE, &rc);
         if(rc) {
             // Error already logged
@@ -5646,6 +5643,7 @@ PRIVATE int handle__unsubscribe(hgobj gobj, gbuffer_t *gbuf)
     while(gbuffer_leftbytes(gbuf)>0) {
         char *sub = NULL;
         if(mqtt_read_string(gobj, gbuf, &sub, &slen)<0) {
+            // Error already logged
             GBUFFER_DECREF(gbuf_response_payload)
             JSON_DECREF(jn_list)
             return MOSQ_ERR_MALFORMED_PACKET;
@@ -5679,8 +5677,8 @@ PRIVATE int handle__unsubscribe(hgobj gobj, gbuffer_t *gbuf)
         /* ACL check */
         allowed = TRUE;
         //rc = mosquitto_acl_check(context, sub, 0, NULL, 0, FALSE, MOSQ_ACL_UNSUBSCRIBE); TODO
-        rc = 0;
-        switch(rc) {
+        int rc2 = 0;
+        switch(rc2) {
             case MOSQ_ERR_SUCCESS:
                 break;
             case MOSQ_ERR_ACL_DENIED:
@@ -5690,7 +5688,7 @@ PRIVATE int handle__unsubscribe(hgobj gobj, gbuffer_t *gbuf)
             default:
                 GBUFFER_DECREF(gbuf_response_payload)
                 JSON_DECREF(jn_list)
-                return rc;
+                return rc2;
         }
 
         if(gobj_trace_level(gobj) & SHOW_DECODE) {
@@ -5700,15 +5698,15 @@ PRIVATE int handle__unsubscribe(hgobj gobj, gbuffer_t *gbuf)
             );
         }
         if(allowed) {
-            rc = sub__remove(gobj, sub, &reason);
+            rc2 = sub__remove(gobj, sub, &reason);
         } else {
-            rc = MOSQ_ERR_SUCCESS;
+            rc2 = MOSQ_ERR_SUCCESS;
         }
 
-        if(rc<0) {
+        if(rc2<0) {
             GBUFFER_DECREF(gbuf_response_payload)
             JSON_DECREF(jn_list)
-            return rc;
+            return rc2;
         }
 
         json_array_append_new(jn_list, json_string(sub));
@@ -5718,7 +5716,7 @@ PRIVATE int handle__unsubscribe(hgobj gobj, gbuffer_t *gbuf)
     }
 
     /* We don't use Reason String or User Property yet. */
-    rc = send__unsuback(
+    int rc = send__unsuback(
         gobj,
         mid,
         gbuf_response_payload, // owned
@@ -5732,7 +5730,7 @@ PRIVATE int handle__unsubscribe(hgobj gobj, gbuffer_t *gbuf)
         "mqtt_action", "unsubscribing",
         "list", jn_list
     );
-    gobj_publish_event(gobj, EV_ON_MESSAGE, kw);
+    rc += gobj_publish_event(gobj, EV_ON_MESSAGE, kw);
 
     return rc;
 }
