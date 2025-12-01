@@ -228,6 +228,8 @@ GOBJ_DECLARE_GCLASS(C_PROT_MQTT2);
 /*------------------------*
  *      Events
  *------------------------*/
+GOBJ_DECLARE_EVENT(EV_SEND_SUBACK);
+GOBJ_DECLARE_EVENT(EV_SEND_UNSUBACK);
 
 /***************************************************************
  *              Prototypes

@@ -7351,6 +7351,8 @@ GOBJ_DEFINE_GCLASS(C_PROT_MQTT2);
 /*------------------------*
  *      Events
  *------------------------*/
+GOBJ_DEFINE_EVENT(EV_SEND_SUBACK);
+GOBJ_DEFINE_EVENT(EV_SEND_UNSUBACK);
 
 /***************************************************************************
  *
