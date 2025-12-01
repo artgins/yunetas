@@ -5298,16 +5298,12 @@ PRIVATE int handle__subscribe(hgobj gobj, gbuffer_t *gbuf)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
-    int rc = 0;
     int rc2;
     uint16_t mid;
     uint8_t subscription_options;
     json_int_t subscription_identifier = 0;
     uint8_t qos;
     uint8_t retain_handling = 0;
-    uint8_t *payload = NULL;    // Used in response: send__suback()
-    uint8_t *tmp_payload;       // Used in response: send__suback()
-    uint32_t payloadlen = 0;    // Used in response: send__suback()
     uint16_t slen;
     json_t *properties = NULL;
     BOOL allowed;
@@ -5339,6 +5335,7 @@ PRIVATE int handle__subscribe(hgobj gobj, gbuffer_t *gbuf)
     }
 
     if(priv->protocol_version == mosq_p_mqtt5) {
+        int rc;
         properties = property_read_all(gobj, gbuf, CMD_SUBSCRIBE, &rc);
         if(rc) {
             // Error already logged
@@ -5366,12 +5363,12 @@ PRIVATE int handle__subscribe(hgobj gobj, gbuffer_t *gbuf)
     }
 
     json_t *jn_list = json_array();
-
+    gbuffer_t *gbuf_response_payload = gbuffer_create(256, 12*1024);
     while(gbuffer_leftbytes(gbuf)>0) {
         char *sub = NULL;
         if(mqtt_read_string(gobj, gbuf, &sub, &slen)<0) {
             // Error already logged
-            GBMEM_FREE(payload)
+            GBUFFER_DECREF(gbuf_response_payload)
             JSON_DECREF(jn_list)
             return MOSQ_ERR_MALFORMED_PACKET;
         }
@@ -5383,7 +5380,7 @@ PRIVATE int handle__subscribe(hgobj gobj, gbuffer_t *gbuf)
                 "client_id",    "%s", priv->client_id,
                 NULL
             );
-            GBMEM_FREE(payload)
+            GBUFFER_DECREF(gbuf_response_payload)
             JSON_DECREF(jn_list)
             return MOSQ_ERR_MALFORMED_PACKET;
         }
@@ -5395,14 +5392,14 @@ PRIVATE int handle__subscribe(hgobj gobj, gbuffer_t *gbuf)
                 "client_id",    "%s", priv->client_id,
                 NULL
             );
-            GBMEM_FREE(payload)
+            GBUFFER_DECREF(gbuf_response_payload)
             JSON_DECREF(jn_list)
             return MOSQ_ERR_MALFORMED_PACKET;
         }
 
         if(mqtt_read_byte(gobj, gbuf, &subscription_options)) {
             // Error already logged
-            GBMEM_FREE(payload)
+            GBUFFER_DECREF(gbuf_response_payload)
             JSON_DECREF(jn_list)
             return MOSQ_ERR_MALFORMED_PACKET;
         }
@@ -5423,7 +5420,7 @@ PRIVATE int handle__subscribe(hgobj gobj, gbuffer_t *gbuf)
                     "client_id",    "%s", priv->client_id,
                     NULL
                 );
-                GBMEM_FREE(payload)
+                GBUFFER_DECREF(gbuf_response_payload)
                 JSON_DECREF(jn_list)
                 return MOSQ_ERR_PROTOCOL;
             }
@@ -5437,7 +5434,7 @@ PRIVATE int handle__subscribe(hgobj gobj, gbuffer_t *gbuf)
                     "client_id",    "%s", priv->client_id,
                     NULL
                 );
-                GBMEM_FREE(payload)
+                GBUFFER_DECREF(gbuf_response_payload)
                 JSON_DECREF(jn_list)
                 return MOSQ_ERR_MALFORMED_PACKET;
             }
@@ -5450,7 +5447,7 @@ PRIVATE int handle__subscribe(hgobj gobj, gbuffer_t *gbuf)
                 "client_id",    "%s", priv->client_id,
                 NULL
             );
-            GBMEM_FREE(payload)
+            GBUFFER_DECREF(gbuf_response_payload)
             JSON_DECREF(jn_list)
             return MOSQ_ERR_MALFORMED_PACKET;
         }
@@ -5481,7 +5478,7 @@ PRIVATE int handle__subscribe(hgobj gobj, gbuffer_t *gbuf)
                 }
                 break;
             default:
-                GBMEM_FREE(payload)
+                GBUFFER_DECREF(gbuf_response_payload)
                 JSON_DECREF(jn_list)
                 return rc2;
         }
@@ -5495,7 +5492,7 @@ PRIVATE int handle__subscribe(hgobj gobj, gbuffer_t *gbuf)
                 subscription_options
             );
             if(rc2 < 0) {
-                GBMEM_FREE(payload)
+                GBUFFER_DECREF(gbuf_response_payload)
                 JSON_DECREF(jn_list)
                 return rc2;
             }
@@ -5505,7 +5502,7 @@ PRIVATE int handle__subscribe(hgobj gobj, gbuffer_t *gbuf)
             if(priv->protocol_version == mosq_p_mqtt311 || priv->protocol_version == mosq_p_mqtt31) {
                 if(rc2 == MOSQ_ERR_SUCCESS || rc2 == MOSQ_ERR_SUB_EXISTS) {
                     if(retain__queue(gobj, sub, qos, 0)) {
-                        rc = MOSQ_ERR_NOMEM;
+                        // rc = MOSQ_ERR_NOMEM;
                     }
                 }
             } else {
@@ -5513,24 +5510,16 @@ PRIVATE int handle__subscribe(hgobj gobj, gbuffer_t *gbuf)
                         || (rc2 == MOSQ_ERR_SUCCESS && retain_handling == MQTT_SUB_OPT_SEND_RETAIN_NEW)
                   ) {
                     if(retain__queue(gobj, sub, qos, subscription_identifier)) {
-                        rc = MOSQ_ERR_NOMEM;
+                        // rc = MOSQ_ERR_NOMEM;
                     }
                 }
             }
         }
 
-        tmp_payload = GBMEM_REALLOC(payload, payloadlen + 1);
-        if(tmp_payload) {
-            // TODO why adding qos to the tail of payload???
-            payload = tmp_payload;
-            payload[payloadlen] = qos;
-            payloadlen++;
-        } else {
-            GBMEM_FREE(payload)
-            JSON_DECREF(jn_list)
-            return MOSQ_ERR_NOMEM;
-        }
+        gbuffer_append_char(gbuf_response_payload, qos);
     }
+
+    size_t payloadlen = gbuffer_leftbytes(gbuf_response_payload);
 
     if(priv->protocol_version != mosq_p_mqtt31) {
         if(payloadlen == 0) {
@@ -5542,15 +5531,17 @@ PRIVATE int handle__subscribe(hgobj gobj, gbuffer_t *gbuf)
                 "client_id",    "%s", priv->client_id,
                 NULL
             );
-            GBMEM_FREE(payload)
+            GBUFFER_DECREF(gbuf_response_payload)
             JSON_DECREF(jn_list)
             return MOSQ_ERR_MALFORMED_PACKET;
         }
     }
-    if(send__suback(gobj, mid, payloadlen, payload)!=0) {
-        rc = MOSQ_ERR_NOMEM;
-    }
-    GBMEM_FREE(payload)
+    int rc = send__suback(
+        gobj,
+        mid,
+        payloadlen,
+        gbuf_response_payload // owned
+    );
 
     // TODO save_client(gobj);
 
@@ -5559,7 +5550,7 @@ PRIVATE int handle__subscribe(hgobj gobj, gbuffer_t *gbuf)
         "mqtt_action", "subscribing",
         "list", jn_list
     );
-    gobj_publish_event(gobj, EV_ON_MESSAGE, kw);
+    rc += gobj_publish_event(gobj, EV_ON_MESSAGE, kw);
 
     // TODO
     // if(priv->current_out_packet == NULL) {

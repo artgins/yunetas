@@ -181,7 +181,7 @@ static inline size_t gbuffer_append_string(gbuffer_t *gbuf, const char *s) /* re
 {
     return gbuffer_append(gbuf, (void *)s, strlen(s));
 }
-static inline size_t gbuffer_append_char(gbuffer_t *gbuf, char c) /* return bytes written */
+static inline size_t gbuffer_append_char(gbuffer_t *gbuf, uint8_t c) /* return bytes written */
 {
     return gbuffer_append(gbuf, &c, 1);
 }
