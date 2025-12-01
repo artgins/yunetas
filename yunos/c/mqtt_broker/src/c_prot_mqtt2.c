@@ -70,10 +70,9 @@
 
 typedef enum mosquitto_protocol {
     mosq_p_invalid = 0,
-    mosq_p_mqtt31 = 1,
-    mosq_p_mqtt311 = 2,
-    mosq_p_mqtts = 3,
-    mosq_p_mqtt5 = 5,
+    mosq_p_mqtt31 = PROTOCOL_VERSION_v31,
+    mosq_p_mqtt311 = PROTOCOL_VERSION_v311,
+    mosq_p_mqtt5 = PROTOCOL_VERSION_v5,
 } mosquitto_protocol_t ;
 
 /* Error values */
@@ -1137,8 +1136,6 @@ PRIVATE const char *protocol_version_name(mosquitto_protocol_t mosquitto_protoco
             return "mqtt31";
         case mosq_p_mqtt311:
             return "mqtt311";
-        case mosq_p_mqtts:
-            return "mqtts";
         case mosq_p_mqtt5:
             return "mqtt5";
         case mosq_p_invalid:
