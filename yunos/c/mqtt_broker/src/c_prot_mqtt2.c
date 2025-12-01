@@ -5121,6 +5121,7 @@ PRIVATE int add_subscription(
     int options
 )
 {
+#ifdef PEPE
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
     // "$share" TODO shared not implemented
 
@@ -5220,6 +5221,8 @@ PRIVATE int add_subscription(
     // TODO don't save if qos == 0
     // ??? gobj_save_resource(priv->gobj_mqtt_topics, sub, subscription_record, 0);
     return rc;
+#endif
+    return 0;
 }
 
 /***************************************************************************
@@ -5231,6 +5234,7 @@ PRIVATE int remove_subscription(
     uint8_t *reason
 )
 {
+#ifdef PEPE
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
     // "$share" TODO shared not implemented
 
@@ -5265,7 +5269,7 @@ PRIVATE int remove_subscription(
         *reason = MQTT_RC_NO_SUBSCRIPTION_EXISTED;
     }
     JSON_DECREF(subs);
-
+#endif
     return 0;
 }
 
@@ -5511,7 +5515,7 @@ PRIVATE int handle__subscribe(hgobj gobj, gbuffer_t *gbuf)
     }
     GBMEM_FREE(payload)
 
-    save_client(gobj);
+    // TODO save_client(gobj);
 
     json_t *kw = json_pack("{s:s, s:s, s:o}",
         "client_id", priv->client_id,
@@ -5673,7 +5677,8 @@ PRIVATE int handle__unsubscribe(hgobj gobj, gbuffer_t *gbuf)
     /* We don't use Reason String or User Property yet. */
     rc = send__unsuback(gobj, mid, reason_code_count, reason_codes, NULL);
     GBMEM_FREE(reason_codes);
-    save_client(gobj);
+
+    // TODO save_client(gobj);
 
     json_t *kw = json_pack("{s:s, s:s, s:o}",
         "client_id", priv->client_id,
