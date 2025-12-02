@@ -7027,16 +7027,6 @@ PRIVATE int ac_timeout_waiting_payload_data(hgobj gobj, const char *event, json_
 }
 
 /***************************************************************************
- *
- ***************************************************************************/
-PRIVATE int send__suback(
-    hgobj gobj,
-    uint16_t mid,
-    gbuffer_t *gbuf_payload // owned
-) {
-}
-
-/***************************************************************************
  *  Send subscribe ack
  ***************************************************************************/
 PRIVATE int ac_send__suback(hgobj gobj, const char *event, json_t *kw, hgobj src)
@@ -7081,7 +7071,11 @@ PRIVATE int ac_send__suback(hgobj gobj, const char *event, json_t *kw, hgobj src
     }
 
     if(payloadlen) {
-        mqtt_write_bytes(gbuf, gbuffer_cur_rd_pointer(gbuf_payload), payloadlen);
+        mqtt_write_bytes(
+            gbuf,
+            gbuffer_cur_rd_pointer(gbuf_payload),
+            payloadlen
+        );
     }
 
     return send_packet(gobj, gbuf);
@@ -7124,7 +7118,9 @@ PRIVATE int ac_send__unsuback(hgobj gobj, const char *event, json_t *kw, hgobj s
             property_write_all(gobj, gbuf, properties, TRUE);
         }
         mqtt_write_bytes(
-            gbuf, gbuffer_cur_rd_pointer(gbuf_payload), (uint32_t)reason_code_count
+            gbuf,
+            gbuffer_cur_rd_pointer(gbuf_payload),
+            (uint32_t)reason_code_count
         );
     }
 
