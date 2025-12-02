@@ -842,6 +842,49 @@ PRIVATE const char *get_command_name(int cmd_)
 }
 
 /***************************************************************************
+ *  get_name_from_nn_table(command_name) is a slower alternative
+ ***************************************************************************/
+PRIVATE const char *mosquitto_command_string(mqtt_message_t command)
+{
+    switch(command) {
+        case CMD_CONNECT:
+            return "CMD_CONNECT";
+        case CMD_CONNACK:
+            return "CMD_CONNACK";
+        case CMD_PUBLISH:
+            return "CMD_PUBLISH";
+        case CMD_PUBACK:
+            return "CMD_PUBACK";
+        case CMD_PUBREC:
+            return "CMD_PUBREC";
+        case CMD_PUBREL:
+            return "CMD_PUBREL";
+        case CMD_PUBCOMP:
+            return "CMD_PUBCOMP";
+        case CMD_SUBSCRIBE:
+            return "CMD_SUBSCRIBE";
+        case CMD_SUBACK:
+            return "CMD_SUBACK";
+        case CMD_UNSUBSCRIBE:
+            return "CMD_UNSUBSCRIBE";
+        case CMD_UNSUBACK:
+            return "CMD_UNSUBACK";
+        case CMD_PINGREQ:
+            return "CMD_PINGREQ";
+        case CMD_PINGRESP:
+            return "CMD_PINGRESP";
+        case CMD_DISCONNECT:
+            return "CMD_DISCONNECT";
+        case CMD_AUTH:
+            return "CMD_AUTH";
+
+        case CMD_RESERVED:
+        default:
+            return "Unknown command";
+    }
+}
+
+/***************************************************************************
  *  get_name_from_nn_table(mqtt5_return_codes_s) is a slower alternative
  ***************************************************************************/
 PRIVATE const char *mosquitto_reason_string(int reason_code)
@@ -5266,9 +5309,6 @@ PRIVATE int handle__subscribe(hgobj gobj, gbuffer_t *gbuf)
                 return MOSQ_ERR_MALFORMED_PACKET;
             }
         }
-
-        JSON_DECREF(properties)
-        /* Note - User Property not handled */
     }
 
     json_t *jn_list = json_array();
@@ -5442,11 +5482,16 @@ PRIVATE int handle__subscribe(hgobj gobj, gbuffer_t *gbuf)
         }
     }
 
-    json_t *kw = json_pack("{s:s, s:s, s:i, s:o}",
+    if(!properties) {
+        properties = json_object();
+    }
+    json_t *kw = json_pack("{s:s, s:s, s:i, s:i, s:o, s:o}",
         "client_id", priv->client_id,
-        "mqtt_action", "subscribing",
+        "mqtt_command_s", mosquitto_command_string(priv->frame_head.command),
+        "mqtt_command", (int)priv->frame_head.command,
         "mid", (int)mid,
-        "list", jn_list
+        "properties", properties,
+        "data", jn_list
     );
 
     return gobj_publish_event(gobj, EV_ON_MESSAGE, kw);
@@ -5508,8 +5553,6 @@ PRIVATE int handle__unsubscribe(hgobj gobj, gbuffer_t *gbuf)
             // Error already logged
             return rc;
         }
-        /* Immediately free, we don't do anything with User Property at the moment */
-        JSON_DECREF(properties)
     }
 
     if(priv->protocol_version == mosq_p_mqtt311 || priv->protocol_version == mosq_p_mqtt5) {
@@ -5603,11 +5646,16 @@ PRIVATE int handle__unsubscribe(hgobj gobj, gbuffer_t *gbuf)
         reason_code_count++;
     }
 
-    json_t *kw = json_pack("{s:s, s:s, s:i, s:o}",
+    if(!properties) {
+        properties = json_object();
+    }
+    json_t *kw = json_pack("{s:s, s:s, s:i, s:i, s:o, s:o}",
         "client_id", priv->client_id,
-        "mqtt_action", "unsubscribing",
+        "mqtt_command_s", mosquitto_command_string(priv->frame_head.command),
+        "mqtt_command", (int)priv->frame_head.command,
         "mid", (int)mid,
-        "list", jn_list
+        "properties", properties,
+        "data", jn_list
     );
 
     return gobj_publish_event(gobj, EV_ON_MESSAGE, kw);

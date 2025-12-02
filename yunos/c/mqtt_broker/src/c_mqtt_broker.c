@@ -19,6 +19,8 @@
 #include "c_mqtt_broker.h"
 #include "treedb_schema_mqtt_broker.c"
 
+#include "c_prot_mqtt2.h" // TODO remove when moved to kernel
+
 /***************************************************************************
  *              Constants
  ***************************************************************************/
@@ -1190,6 +1192,23 @@ PRIVATE int ac_on_message(hgobj gobj, const char *event, json_t *kw, hgobj src)
             kw, // not own
             "ON_MESSAGE %s", gobj_short_name(src)
         );
+    }
+
+    mqtt_message_t mqtt_message = kw_get_int(gobj, kw, "mqtt_command", 0, KW_REQUIRED);
+    switch(mqtt_message) {
+        case CMD_SUBSCRIBE:
+            break;
+        case CMD_UNSUBSCRIBE:
+            break;
+        default:
+            gobj_log_error(gobj, 0,
+               "function",     "%s", __FUNCTION__,
+               "msgset",       "%s", MSGSET_INTERNAL_ERROR,
+               "msg",          "%s", "mqtt command no available in broker",
+               "command",      "%s", kw_get_str(gobj, kw, "mqtt_command_s", "", KW_REQUIRED),
+               NULL
+           );
+        break;
     }
 
     KW_DECREF(kw);
