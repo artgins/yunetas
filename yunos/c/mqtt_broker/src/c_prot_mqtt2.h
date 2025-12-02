@@ -66,6 +66,13 @@ typedef enum { // string names in command_name[]
 /* Mosquitto only: for distinguishing CONNECT and WILL properties */
 #define CMD_WILL 0x100
 
+typedef enum mosquitto_protocol {
+    mosq_p_invalid = 0,
+    mosq_p_mqtt31 = PROTOCOL_VERSION_v31,
+    mosq_p_mqtt311 = PROTOCOL_VERSION_v311,
+    mosq_p_mqtt5 = PROTOCOL_VERSION_v5,
+} mosquitto_protocol_t ;
+
 /*
  * Enum: mqtt311_connack_codes
  * The CONNACK results for MQTT v3.1.1, and v3.1.

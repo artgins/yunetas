@@ -68,13 +68,6 @@
 
 #define MQTT_MAX_PAYLOAD 268435455U
 
-typedef enum mosquitto_protocol {
-    mosq_p_invalid = 0,
-    mosq_p_mqtt31 = PROTOCOL_VERSION_v31,
-    mosq_p_mqtt311 = PROTOCOL_VERSION_v311,
-    mosq_p_mqtt5 = PROTOCOL_VERSION_v5,
-} mosquitto_protocol_t ;
-
 /* Error values */
 typedef enum mosq_err_t {
     MOSQ_ERR_AUTH_CONTINUE = -44,
@@ -5312,7 +5305,7 @@ PRIVATE int handle__subscribe(hgobj gobj, gbuffer_t *gbuf)
     }
 
     json_t *jn_list = json_array();
-    // gbuffer_t *gbuf_response_payload = gbuffer_create(256, 12*1024); // TODO to high level
+
     while(gbuffer_leftbytes(gbuf)>0) {
         char *sub = NULL;
         if(mqtt_read_string(gobj, gbuf, &sub, &slen)<0) {
@@ -5416,56 +5409,6 @@ PRIVATE int handle__subscribe(hgobj gobj, gbuffer_t *gbuf)
             );
         }
 
-        // BOOL allowed = TRUE; // TODO to high level
-        // //rc2 = mosquitto_acl_check(context, sub, 0, NULL, qos, FALSE, MOSQ_ACL_SUBSCRIBE); TODO
-        // int rc2 = MOSQ_ERR_SUCCESS;
-        // switch(rc2) {
-        //     case MOSQ_ERR_SUCCESS:
-        //         break;
-        //     case MOSQ_ERR_ACL_DENIED:
-        //         allowed = FALSE;
-        //         if(priv->protocol_version == mosq_p_mqtt5) {
-        //             qos = MQTT_RC_NOT_AUTHORIZED;
-        //         } else if(priv->protocol_version == mosq_p_mqtt311) {
-        //             qos = 0x80;
-        //         }
-        //         break;
-        //     default:
-        //         JSON_DECREF(jn_list)
-        //         return rc2;
-        // }
-
-        // if(allowed) {
-        //     rc2 = sub__add(
-        //         gobj,
-        //         sub,
-        //         qos,
-        //         subscription_identifier,
-        //         subscription_options
-        //     );
-        //     if(rc2 < 0) {
-        //         JSON_DECREF(jn_list)
-        //         return rc2;
-        //     }
-        //
-        //     if(priv->protocol_version == mosq_p_mqtt311 || priv->protocol_version == mosq_p_mqtt31) {
-        //         if(rc2 == MOSQ_ERR_SUCCESS || rc2 == MOSQ_ERR_SUB_EXISTS) {
-        //             if(retain__queue(gobj, sub, qos, 0)) {
-        //                 // rc = MOSQ_ERR_NOMEM;
-        //             }
-        //         }
-        //     } else {
-        //         if((retain_handling == MQTT_SUB_OPT_SEND_RETAIN_ALWAYS)
-        //                 || (rc2 == MOSQ_ERR_SUCCESS && retain_handling == MQTT_SUB_OPT_SEND_RETAIN_NEW)
-        //           ) {
-        //             if(retain__queue(gobj, sub, qos, subscription_identifier)) {
-        //                 // rc = MOSQ_ERR_NOMEM;
-        //             }
-        //         }
-        //     }
-        // }
-
-        // gbuffer_append_char(gbuf_response_payload, qos); TODO to high level
     }
 
     if(priv->protocol_version != mosq_p_mqtt31) {
@@ -5497,18 +5440,6 @@ PRIVATE int handle__subscribe(hgobj gobj, gbuffer_t *gbuf)
     );
 
     return gobj_publish_event(gobj, EV_ON_MESSAGE, kw);
-
-    // TODO to high level
-    // if(priv->current_out_packet == NULL) {
-    //     rc = db__message_write_queued_out(gobj);
-    //     if(rc) {
-    //         return rc;
-    //     }
-    //     rc = db__message_write_inflight_out_latest(gobj);
-    //     if(rc) {
-    //         return rc;
-    //     }
-    // }
 }
 
 /***************************************************************************
@@ -5571,8 +5502,6 @@ PRIVATE int handle__unsubscribe(hgobj gobj, gbuffer_t *gbuf)
         }
     }
 
-    // gbuffer_t *gbuf_response_payload = gbuffer_create(256, 12*1024); // TODO to high level
-
     json_t *jn_list = json_array();
 
     while(gbuffer_leftbytes(gbuf)>0) {
@@ -5613,34 +5542,6 @@ PRIVATE int handle__unsubscribe(hgobj gobj, gbuffer_t *gbuf)
             );
         }
 
-        // /* ACL check */ TODO to high level
-        // BOOL allowed = TRUE;
-        // //rc = mosquitto_acl_check(context, sub, 0, NULL, 0, FALSE, MOSQ_ACL_UNSUBSCRIBE); TODO
-        // int rc2 = 0;
-        // switch(rc2) {
-        //     case MOSQ_ERR_SUCCESS:
-        //         break;
-        //     case MOSQ_ERR_ACL_DENIED:
-        //         allowed = FALSE;
-        //         reason = MQTT_RC_NOT_AUTHORIZED;
-        //         break;
-        //     default:
-        //         JSON_DECREF(jn_list)
-        //         return rc2;
-        // }
-        //
-        // if(allowed) {
-        //     rc2 = sub__remove(gobj, sub, &reason);
-        // } else {
-        //     rc2 = MOSQ_ERR_SUCCESS;
-        // }
-        //
-        // if(rc2<0) {
-        //     GBUFFER_DECREF(gbuf_response_payload)
-        //     JSON_DECREF(jn_list)
-        //     return rc2;
-        // }
-
         json_t *jn_sub = json_pack("{s:s}",
             "sub", sub
         );
@@ -5662,14 +5563,6 @@ PRIVATE int handle__unsubscribe(hgobj gobj, gbuffer_t *gbuf)
     );
 
     return gobj_publish_event(gobj, EV_ON_MESSAGE, kw);
-
-    // /* We don't use Reason String or User Property yet. */
-    // int rc = send__unsuback(
-    //     gobj,
-    //     mid,
-    //     gbuf_response_payload, // owned
-    //     NULL
-    // );
 }
 
 /***************************************************************************
@@ -7129,6 +7022,7 @@ PRIVATE int ac_send__suback(hgobj gobj, const char *event, json_t *kw, hgobj src
         );
     }
 
+    KW_DECREF(kw)
     return send_packet(gobj, gbuf);
 }
 
@@ -7175,6 +7069,7 @@ PRIVATE int ac_send__unsuback(hgobj gobj, const char *event, json_t *kw, hgobj s
         );
     }
 
+    KW_DECREF(kw)
     return send_packet(gobj, gbuf);
 }
 

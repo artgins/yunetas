@@ -968,136 +968,38 @@ PRIVATE int process_msg(
 /***************************************************************************
  *
  ***************************************************************************/
-PRIVATE int handle__subscribe(hgobj gobj, json_t *kw, hgobj src)
-{
+PRIVATE int handle__subscribe(
+    hgobj gobj,
+    json_t *kw, // not owned
+    hgobj src
+) {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
     const char *client_id = kw_get_str(gobj, kw, "client_id", "", KW_REQUIRED);
+    mosquitto_protocol_t protocol_version = kw_get_int(gobj, kw, "protocol_version", 0, KW_REQUIRED);
     uint16_t mid = kw_get_int(gobj, kw, "mid", 0, KW_REQUIRED);
     json_t *properties = kw_get_dict(gobj, kw, "properties", NULL, KW_REQUIRED);
-    json_t *data = kw_get_dict(gobj, kw, "data", NULL, KW_REQUIRED);
+    json_t *data = kw_get_list(gobj, kw, "data", NULL, KW_REQUIRED);
 
-    json_t *jn_list = json_array();
-    // gbuffer_t *gbuf_response_payload = gbuffer_create(256, 12*1024); // TODO to high level
-    while(gbuffer_leftbytes(gbuf)>0) {
-        char *sub = NULL;
-        if(mqtt_read_string(gobj, gbuf, &sub, &slen)<0) {
-            // Error already logged
-            JSON_DECREF(jn_list)
-            return MOSQ_ERR_MALFORMED_PACKET;
-        }
-        if(!slen) {
-            gobj_log_error(gobj, 0,
-                "function",     "%s", __FUNCTION__,
-                "msgset",       "%s", MSGSET_MQTT_ERROR,
-                "msg",          "%s", "Mqtt subscribe: Empty subscription string",
-                "client_id",    "%s", priv->client_id,
-                NULL
-            );
-            JSON_DECREF(jn_list)
-            return MOSQ_ERR_MALFORMED_PACKET;
-        }
-        if(mosquitto_sub_topic_check(sub)) {
-            gobj_log_error(gobj, 0,
-                "function",     "%s", __FUNCTION__,
-                "msgset",       "%s", MSGSET_MQTT_ERROR,
-                "msg",          "%s", "Mqtt subscribe: Invalid subscription string",
-                "client_id",    "%s", priv->client_id,
-                NULL
-            );
-            JSON_DECREF(jn_list)
-            return MOSQ_ERR_MALFORMED_PACKET;
-        }
+    gbuffer_t *gbuf_payload = gbuffer_create(256, 12*1024);
 
-        if(mqtt_read_byte(gobj, gbuf, &subscription_options)) {
-            // Error already logged
-            JSON_DECREF(jn_list)
-            return MOSQ_ERR_MALFORMED_PACKET;
-        }
-        if(priv->protocol_version == mosq_p_mqtt31 ||
-            priv->protocol_version == mosq_p_mqtt311
-        ) {
-            qos = subscription_options;
-            if(priv->is_bridge) {
-                subscription_options = MQTT_SUB_OPT_RETAIN_AS_PUBLISHED | MQTT_SUB_OPT_NO_LOCAL;
-            }
-        } else {
-            qos = subscription_options & 0x03;
-            subscription_options &= 0xFC;
+    int idx; json_t *jn_sub;
+    json_array_foreach(data, idx, jn_sub) {
+        const char *sub = kw_get_str(gobj, jn_sub, "sub", NULL, KW_REQUIRED);
+        int qos = kw_get_int(gobj, jn_sub, "qos", 0, KW_REQUIRED);
+        int subscription_identifier = kw_get_int(gobj, jn_sub, "subscription_identifier", 0, KW_REQUIRED);
+        int subscription_options = kw_get_int(gobj, jn_sub, "subscription_options", 0, KW_REQUIRED);
+        int retain_handling = kw_get_int(gobj, jn_sub, "retain_handling", 0, KW_REQUIRED);
 
-            if((subscription_options & MQTT_SUB_OPT_NO_LOCAL) && !strncmp(sub, "$share/", 7)) {
-                gobj_log_error(gobj, 0,
-                    "function",     "%s", __FUNCTION__,
-                    "msgset",       "%s", MSGSET_MQTT_ERROR,
-                    "msg",          "%s", "Mqtt subscribe: Invalid subscription options 1",
-                    "client_id",    "%s", priv->client_id,
-                    NULL
-                );
-                JSON_DECREF(jn_list)
-                return MOSQ_ERR_PROTOCOL;
+        BOOL allowed = TRUE;
+        // allowed = mosquitto_acl_check(context, sub, 0, NULL, qos, FALSE, MOSQ_ACL_SUBSCRIBE); TODO
+        if(!allowed) {
+            if(protocol_version == mosq_p_mqtt5) {
+                qos = MQTT_RC_NOT_AUTHORIZED;
+            } else if(protocol_version == mosq_p_mqtt311) {
+                qos = 0x80;
             }
 
-            retain_handling = (subscription_options & 0x30);
-            if(retain_handling == 0x30 || (subscription_options & 0xC0) != 0) {
-                gobj_log_error(gobj, 0,
-                    "function",     "%s", __FUNCTION__,
-                    "msgset",       "%s", MSGSET_MQTT_ERROR,
-                    "msg",          "%s", "Mqtt subscribe: Invalid subscription options 2",
-                    "client_id",    "%s", priv->client_id,
-                    NULL
-                );
-                JSON_DECREF(jn_list)
-                return MOSQ_ERR_MALFORMED_PACKET;
-            }
         }
-        if(qos > 2) {
-            gobj_log_error(gobj, 0,
-                "function",     "%s", __FUNCTION__,
-                "msgset",       "%s", MSGSET_MQTT_ERROR,
-                "msg",          "%s", "Mqtt subscribe: Invalid QoS in subscription command",
-                "client_id",    "%s", priv->client_id,
-                NULL
-            );
-            JSON_DECREF(jn_list)
-            return MOSQ_ERR_MALFORMED_PACKET;
-        }
-        if(qos > priv->max_qos) {
-            qos = priv->max_qos;
-        }
-
-        json_t *jn_sub = json_pack("{s:s, s:i, s:i, s:i}",
-            "sub", sub,
-            "qos", (int)qos,
-            "subscription_identifier", (int)subscription_identifier,
-            "subscription_options", (int)subscription_options
-        );
-        json_array_append_new(jn_list, jn_sub);
-
-        if(gobj_trace_level(gobj) & SHOW_DECODE) {
-            trace_msg0("  👈 Received SUBSCRIBE from client '%s', topic '%s' (QoS %d)",
-                priv->client_id,
-                sub,
-                qos
-            );
-        }
-
-        // BOOL allowed = TRUE; // TODO to high level
-        // //rc2 = mosquitto_acl_check(context, sub, 0, NULL, qos, FALSE, MOSQ_ACL_SUBSCRIBE); TODO
-        // int rc2 = MOSQ_ERR_SUCCESS;
-        // switch(rc2) {
-        //     case MOSQ_ERR_SUCCESS:
-        //         break;
-        //     case MOSQ_ERR_ACL_DENIED:
-        //         allowed = FALSE;
-        //         if(priv->protocol_version == mosq_p_mqtt5) {
-        //             qos = MQTT_RC_NOT_AUTHORIZED;
-        //         } else if(priv->protocol_version == mosq_p_mqtt311) {
-        //             qos = 0x80;
-        //         }
-        //         break;
-        //     default:
-        //         JSON_DECREF(jn_list)
-        //         return rc2;
-        // }
 
         // if(allowed) {
         //     rc2 = sub__add(
@@ -1129,37 +1031,8 @@ PRIVATE int handle__subscribe(hgobj gobj, json_t *kw, hgobj src)
         //     }
         // }
 
-        // gbuffer_append_char(gbuf_response_payload, qos); TODO to high level
+        gbuffer_append_char(gbuf_payload, qos);
     }
-
-    if(priv->protocol_version != mosq_p_mqtt31) {
-        if(!json_size(jn_list)) {
-            /* No subscriptions specified, protocol error. */
-            gobj_log_error(gobj, 0,
-                "function",     "%s", __FUNCTION__,
-                "msgset",       "%s", MSGSET_MQTT_ERROR,
-                "msg",          "%s", "Mqtt subscribe: No subscriptions specified",
-                "client_id",    "%s", priv->client_id,
-                NULL
-            );
-            JSON_DECREF(jn_list)
-            return MOSQ_ERR_MALFORMED_PACKET;
-        }
-    }
-
-    if(!properties) {
-        properties = json_object();
-    }
-    json_t *kw = json_pack("{s:s, s:s, s:i, s:i, s:o, s:o}",
-        "client_id", priv->client_id,
-        "mqtt_command_s", mosquitto_command_string(priv->frame_head.command),
-        "mqtt_command", (int)priv->frame_head.command,
-        "mid", (int)mid,
-        "properties", properties,
-        "data", jn_list
-    );
-
-    return gobj_publish_event(gobj, EV_ON_MESSAGE, kw);
 
     // TODO to high level
     // if(priv->current_out_packet == NULL) {
@@ -1172,166 +1045,74 @@ PRIVATE int handle__subscribe(hgobj gobj, json_t *kw, hgobj src)
     //         return rc;
     //     }
     // }
+
+    /* We don't use Reason String or User Property yet. */
+    json_t *jn_response = json_pack("{s:i, s:I, s:o}",
+        "mid", (int)mid,
+        "gbuffer", (json_int_t)(uintptr_t)gbuf_payload,
+        "properties", json_object()
+    );
+
+    json_t *kw_resp = iev_create2(
+        gobj,
+        EV_SEND_SUBACK,
+        jn_response,    // owned
+        kw_incref(kw)  // owned, used to get ONLY __temp__.
+    );
+
+    gobj_send_event(src, EV_SEND_IEV, kw_resp, gobj);
+    return 0;
 }
 
 /***************************************************************************
  *
  ***************************************************************************/
-PRIVATE int handle__unsubscribe(hgobj gobj, json_t *kw, hgobj src)
-{
+PRIVATE int handle__unsubscribe(
+    hgobj gobj,
+    json_t *kw, // not owned
+    hgobj src
+) {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
-    uint16_t mid;
-    uint16_t slen;
-    int reason_code_count = 0;
-    json_t *properties = NULL;
+    const char *client_id = kw_get_str(gobj, kw, "client_id", "", KW_REQUIRED);
+    mosquitto_protocol_t protocol_version = kw_get_int(gobj, kw, "protocol_version", 0, KW_REQUIRED);
+    uint16_t mid = kw_get_int(gobj, kw, "mid", 0, KW_REQUIRED);
+    json_t *properties = kw_get_dict(gobj, kw, "properties", NULL, KW_REQUIRED);
+    json_t *data = kw_get_list(gobj, kw, "data", NULL, KW_REQUIRED);
 
-    if(priv->frame_head.flags != 2) {
-        gobj_log_error(gobj, 0,
-            "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_MQTT_ERROR,
-            "msg",          "%s", "Mqtt unsubscribe: flags != 2",
-            "client_id",    "%s", priv->client_id,
-            NULL
-        );
-        return MOSQ_ERR_MALFORMED_PACKET;
-    }
+    gbuffer_t *gbuf_payload = gbuffer_create(256, 12*1024);
 
-    if(mqtt_read_uint16(gobj, gbuf, &mid)) {
-        // Error already logged
-        return MOSQ_ERR_MALFORMED_PACKET;
-    }
-    if(mid == 0) {
-        gobj_log_error(gobj, 0,
-            "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_MQTT_ERROR,
-            "msg",          "%s", "Mqtt unsubscribe: mid == 2",
-            "client_id",    "%s", priv->client_id,
-            NULL
-        );
-        return MOSQ_ERR_MALFORMED_PACKET;
-    }
+    int idx; json_t *jn_sub;
+    json_array_foreach(data, idx, jn_sub) {
+        const char *sub = kw_get_str(gobj, jn_sub, "sub", NULL, KW_REQUIRED);
 
-    if(priv->protocol_version == mosq_p_mqtt5) {
-        int rc;
-        properties = property_read_all(gobj, gbuf, CMD_UNSUBSCRIBE, &rc);
-        if(rc) {
-            // Error already logged
-            return rc;
+        // /* ACL check */
+        int reason = 0;
+        BOOL allowed = TRUE;
+        // allowed = mosquitto_acl_check(context, sub, 0, NULL, 0, FALSE, MOSQ_ACL_UNSUBSCRIBE); TODO
+        if(allowed) {
+            // sub__remove(gobj, sub, &reason);
+        } else {
+            reason = MQTT_RC_NOT_AUTHORIZED;
         }
+        gbuffer_append_char(gbuf_payload, reason);
     }
 
-    if(priv->protocol_version == mosq_p_mqtt311 || priv->protocol_version == mosq_p_mqtt5) {
-        if(gbuffer_leftbytes(gbuf)==0) {
-            /* No topic specified, protocol error. */
-            gobj_log_error(gobj, 0,
-                "function",     "%s", __FUNCTION__,
-                "msgset",       "%s", MSGSET_MQTT_ERROR,
-                "msg",          "%s", "Mqtt unsubscribe: no topic specified",
-                "client_id",    "%s", priv->client_id,
-                NULL
-            );
-            return MOSQ_ERR_MALFORMED_PACKET;
-        }
-    }
-
-    // gbuffer_t *gbuf_response_payload = gbuffer_create(256, 12*1024); // TODO to high level
-
-    json_t *jn_list = json_array();
-
-    while(gbuffer_leftbytes(gbuf)>0) {
-        char *sub = NULL;
-        if(mqtt_read_string(gobj, gbuf, &sub, &slen)<0) {
-            // Error already logged
-            JSON_DECREF(jn_list)
-            return MOSQ_ERR_MALFORMED_PACKET;
-        }
-
-        if(!slen) {
-            gobj_log_error(gobj, 0,
-                "function",     "%s", __FUNCTION__,
-                "msgset",       "%s", MSGSET_MQTT_ERROR,
-                "msg",          "%s", "Empty unsubscription string",
-                "client_id",    "%s", priv->client_id,
-                NULL
-            );
-            JSON_DECREF(jn_list)
-            return MOSQ_ERR_MALFORMED_PACKET;
-        }
-        if(mosquitto_sub_topic_check(sub)) {
-            gobj_log_error(gobj, 0,
-                "function",     "%s", __FUNCTION__,
-                "msgset",       "%s", MSGSET_MQTT_ERROR,
-                "msg",          "%s", "Invalid unsubscription string",
-                "client_id",    "%s", priv->client_id,
-                NULL
-            );
-            JSON_DECREF(jn_list)
-            return MOSQ_ERR_MALFORMED_PACKET;
-        }
-
-        if(gobj_trace_level(gobj) & SHOW_DECODE) {
-            trace_msg0("  👈 Received UNSUBSCRIBE from client '%s', topic '%s'",
-                priv->client_id,
-                sub
-            );
-        }
-
-        // /* ACL check */ TODO to high level
-        // BOOL allowed = TRUE;
-        // //rc = mosquitto_acl_check(context, sub, 0, NULL, 0, FALSE, MOSQ_ACL_UNSUBSCRIBE); TODO
-        // int rc2 = 0;
-        // switch(rc2) {
-        //     case MOSQ_ERR_SUCCESS:
-        //         break;
-        //     case MOSQ_ERR_ACL_DENIED:
-        //         allowed = FALSE;
-        //         reason = MQTT_RC_NOT_AUTHORIZED;
-        //         break;
-        //     default:
-        //         JSON_DECREF(jn_list)
-        //         return rc2;
-        // }
-        //
-        // if(allowed) {
-        //     rc2 = sub__remove(gobj, sub, &reason);
-        // } else {
-        //     rc2 = MOSQ_ERR_SUCCESS;
-        // }
-        //
-        // if(rc2<0) {
-        //     GBUFFER_DECREF(gbuf_response_payload)
-        //     JSON_DECREF(jn_list)
-        //     return rc2;
-        // }
-
-        json_t *jn_sub = json_pack("{s:s}",
-            "sub", sub
-        );
-        json_array_append_new(jn_list, jn_sub);
-        reason_code_count++;
-    }
-
-    if(!properties) {
-        properties = json_object();
-    }
-    json_t *kw = json_pack("{s:s, s:s, s:i, s:i, s:o, s:o}",
-        "client_id", priv->client_id,
-        "mqtt_command_s", mosquitto_command_string(priv->frame_head.command),
-        "mqtt_command", (int)priv->frame_head.command,
+    /* We don't use Reason String or User Property yet. */
+    json_t *jn_response = json_pack("{s:i, s:I, s:o}",
         "mid", (int)mid,
-        "properties", properties,
-        "data", jn_list
+        "gbuffer", (json_int_t)(uintptr_t)gbuf_payload,
+        "properties", json_object()
     );
 
-    return gobj_publish_event(gobj, EV_ON_MESSAGE, kw);
+    json_t *kw_resp = iev_create2(
+        gobj,
+        EV_SEND_UNSUBACK,
+        jn_response,    // owned
+        kw_incref(kw)  // owned, used to get ONLY __temp__.
+    );
 
-    // /* We don't use Reason String or User Property yet. */
-    // int rc = send__unsuback(
-    //     gobj,
-    //     mid,
-    //     gbuf_response_payload, // owned
-    //     NULL
-    // );
+    gobj_send_event(src, EV_SEND_IEV, kw_resp, gobj);
+    return 0;
 }
 
 
