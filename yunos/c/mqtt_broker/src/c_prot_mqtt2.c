@@ -5399,11 +5399,12 @@ PRIVATE int handle__subscribe(hgobj gobj, gbuffer_t *gbuf)
             qos = priv->max_qos;
         }
 
-        json_t *jn_sub = json_pack("{s:s, s:i, s:i, s:i}",
+        json_t *jn_sub = json_pack("{s:s, s:i, s:i, s:i, s:i}",
             "sub", sub,
             "qos", (int)qos,
             "subscription_identifier", (int)subscription_identifier,
-            "subscription_options", (int)subscription_options
+            "subscription_options", (int)subscription_options,
+            "retain_handling", retain_handling
         );
         json_array_append_new(jn_list, jn_sub);
 
@@ -5485,10 +5486,11 @@ PRIVATE int handle__subscribe(hgobj gobj, gbuffer_t *gbuf)
     if(!properties) {
         properties = json_object();
     }
-    json_t *kw = json_pack("{s:s, s:s, s:i, s:i, s:o, s:o}",
+    json_t *kw = json_pack("{s:s, s:s, s:i, s:i, s:i, s:o, s:o}",
         "client_id", priv->client_id,
         "mqtt_command_s", mosquitto_command_string(priv->frame_head.command),
         "mqtt_command", (int)priv->frame_head.command,
+        "protocol_version", (int)priv->protocol_version,
         "mid", (int)mid,
         "properties", properties,
         "data", jn_list
@@ -5649,10 +5651,11 @@ PRIVATE int handle__unsubscribe(hgobj gobj, gbuffer_t *gbuf)
     if(!properties) {
         properties = json_object();
     }
-    json_t *kw = json_pack("{s:s, s:s, s:i, s:i, s:o, s:o}",
+    json_t *kw = json_pack("{s:s, s:s, s:i, s:i, s:i, s:o, s:o}",
         "client_id", priv->client_id,
         "mqtt_command_s", mosquitto_command_string(priv->frame_head.command),
         "mqtt_command", (int)priv->frame_head.command,
+        "protocol_version", (int)priv->protocol_version,
         "mid", (int)mid,
         "properties", properties,
         "data", jn_list
