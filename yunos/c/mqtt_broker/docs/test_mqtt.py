@@ -124,7 +124,7 @@ def main():
 
 
     ip = "127.0.0.1"
-    port = int("1810")
+    port = int("1883")
 
     s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
     s.connect((ip, port))
