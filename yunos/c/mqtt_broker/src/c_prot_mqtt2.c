@@ -5987,10 +5987,140 @@ process_bad_message:
  ***************************************************************************/
 PRIVATE int handle__publish_c(hgobj gobj, gbuffer_t *gbuf)
 {
-    // PRIVATE_DATA *priv = gobj_priv_data(gobj);
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    uint8_t header;
+    struct mosquitto_message_all *message;
     int rc = 0;
-    // TODO
-    return rc;
+    uint16_t mid = 0;
+    uint16_t slen;
+    json_t *properties = NULL;
+
+    message = mosquitto__calloc(1, sizeof(struct mosquitto_message_all));
+    if(!message) return MOSQ_ERR_NOMEM;
+
+    header = mosq->in_packet.command;
+
+    message->dup = (header & 0x08)>>3;
+    message->msg.qos = (header & 0x06)>>1;
+    message->msg.retain = (header & 0x01);
+
+    rc = packet__read_string(&mosq->in_packet, &message->msg.topic, &slen);
+    if(rc){
+        message__cleanup(&message);
+        return rc;
+    }
+    if(!slen){
+        message__cleanup(&message);
+        return MOSQ_ERR_PROTOCOL;
+    }
+
+    if(message->msg.qos > 0){
+        if(mosq->protocol == mosq_p_mqtt5){
+            if(mosq->msgs_in.inflight_quota == 0){
+                message__cleanup(&message);
+                /* FIXME - should send a DISCONNECT here */
+                return MOSQ_ERR_PROTOCOL;
+            }
+        }
+
+        rc = packet__read_uint16(&mosq->in_packet, &mid);
+        if(rc){
+            message__cleanup(&message);
+            return rc;
+        }
+        if(mid == 0){
+            message__cleanup(&message);
+            return MOSQ_ERR_PROTOCOL;
+        }
+        message->msg.mid = (int)mid;
+    }
+
+    if(mosq->protocol == mosq_p_mqtt5){
+        rc = property__read_all(CMD_PUBLISH, &mosq->in_packet, &properties);
+        if(rc){
+            message__cleanup(&message);
+            return rc;
+        }
+    }
+
+    message->msg.payloadlen = (int)(mosq->in_packet.remaining_length - mosq->in_packet.pos);
+    if(message->msg.payloadlen){
+        message->msg.payload = mosquitto__calloc((size_t)message->msg.payloadlen+1, sizeof(uint8_t));
+        if(!message->msg.payload){
+            message__cleanup(&message);
+            mosquitto_property_free_all(&properties);
+            return MOSQ_ERR_NOMEM;
+        }
+        rc = packet__read_bytes(&mosq->in_packet, message->msg.payload, (uint32_t)message->msg.payloadlen);
+        if(rc){
+            message__cleanup(&message);
+            mosquitto_property_free_all(&properties);
+            return rc;
+        }
+    }
+    log__printf(mosq, MOSQ_LOG_DEBUG,
+            "Client %s received PUBLISH (d%d, q%d, r%d, m%d, '%s', ... (%ld bytes))",
+            SAFE_PRINT(mosq->id), message->dup, message->msg.qos, message->msg.retain,
+            message->msg.mid, message->msg.topic,
+            (long)message->msg.payloadlen);
+
+    message->timestamp = mosquitto_time();
+    void (*on_message)(struct mosquitto *, void *userdata, const struct mosquitto_message *message);
+    void (*on_message_v5)(struct mosquitto *, void *userdata, const struct mosquitto_message *message, const mosquitto_property *props);
+    switch(message->msg.qos){
+        case 0:
+            COMPAT_pthread_mutex_lock(&mosq->callback_mutex);
+            on_message = mosq->on_message;
+            on_message_v5 = mosq->on_message_v5;
+            COMPAT_pthread_mutex_unlock(&mosq->callback_mutex);
+            if(on_message){
+                mosq->in_callback = true;
+                on_message(mosq, mosq->userdata, &message->msg);
+                mosq->in_callback = false;
+            }
+            if(mosq->on_message_v5){
+                mosq->in_callback = true;
+                on_message_v5(mosq, mosq->userdata, &message->msg, properties);
+                mosq->in_callback = false;
+            }
+            message__cleanup(&message);
+            mosquitto_property_free_all(&properties);
+            return MOSQ_ERR_SUCCESS;
+        case 1:
+            util__decrement_receive_quota(mosq);
+            rc = send__puback(mosq, mid, 0, NULL);
+            COMPAT_pthread_mutex_lock(&mosq->callback_mutex);
+            on_message = mosq->on_message;
+            on_message_v5 = mosq->on_message_v5;
+            COMPAT_pthread_mutex_unlock(&mosq->callback_mutex);
+            if(on_message){
+                mosq->in_callback = true;
+                on_message(mosq, mosq->userdata, &message->msg);
+                mosq->in_callback = false;
+            }
+            if(on_message_v5){
+                mosq->in_callback = true;
+                on_message_v5(mosq, mosq->userdata, &message->msg, properties);
+                mosq->in_callback = false;
+            }
+            message__cleanup(&message);
+            mosquitto_property_free_all(&properties);
+            return rc;
+        case 2:
+            message->properties = properties;
+            util__decrement_receive_quota(mosq);
+            rc = send__pubrec(mosq, mid, 0, NULL);
+            COMPAT_pthread_mutex_lock(&mosq->msgs_in.mutex);
+            message->state = mosq_ms_wait_for_pubrel;
+            message__queue(mosq, message, mosq_md_in);
+            COMPAT_pthread_mutex_unlock(&mosq->msgs_in.mutex);
+            return rc;
+        default:
+            message__cleanup(&message);
+            mosquitto_property_free_all(&properties);
+            return MOSQ_ERR_PROTOCOL;
+    }
 }
 
 /***************************************************************************
