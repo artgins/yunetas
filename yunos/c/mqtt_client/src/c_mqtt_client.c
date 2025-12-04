@@ -105,6 +105,7 @@ typedef struct keytable_s {
 keytable_t keytable[MAX_KEYS] = {0};
 
 PRIVATE json_t *cmd_help(hgobj gobj, const char *cmd, json_t *kw, hgobj src);
+PRIVATE json_t *cmd_help_broker(hgobj gobj, const char *cmd, json_t *kw, hgobj src);
 PRIVATE json_t *cmd_subscribe(hgobj gobj, const char *cmd, json_t *kw, hgobj src);
 PRIVATE json_t *cmd_publish(hgobj gobj, const char *cmd, json_t *kw, hgobj src);
 
@@ -117,6 +118,10 @@ SDATA_END()
 
 PRIVATE sdata_desc_t pm_subscribe[] = {
 /*-PM----type-----------name------------flag------------default-----description---------- */
+SDATAPM (DTP_STRING,    "topic",        0,              0,          "the topic on which this message will be published"),
+SDATAPM (DTP_STRING,    "payload",      0,              "",         "payload of the message"),
+SDATAPM (DTP_INTEGER,   "qos",          0,              "0",        "QoS Quality of service (0,1,2)"),
+SDATAPM (DTP_BOOLEAN,   "retain",       0,              "0",        "retained message feature"),
 SDATA_END()
 };
 
@@ -130,6 +135,7 @@ PRIVATE const char *a_help[] = {"h", "?", 0};
 PRIVATE sdata_desc_t command_table[] = {
 /*-CMD---type-----------name------------alias---items-----------json_fn---------description---------- */
 SDATACM (DTP_SCHEMA,    "help",         a_help, pm_help,        cmd_help,       "Command's help"),
+SDATACM (DTP_SCHEMA,    "help-broker",  0,      pm_help,        cmd_help_broker,"Command's help of broker"),
 SDATACM (DTP_SCHEMA,    "subscribe",    0,      pm_subscribe,   cmd_subscribe,  "Subscribe"),
 SDATACM (DTP_SCHEMA,    "publish",      0,      pm_publish,     cmd_publish,    "Publish"),
 SDATA_END()
@@ -381,15 +387,6 @@ PRIVATE int mt_stop(hgobj gobj)
  ***************************************************************************/
 PRIVATE json_t *cmd_help(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
 {
-    PRIVATE_DATA *priv = gobj_priv_data(gobj);
-
-    if(priv->gobj_broker_connector) {
-        if(gobj_read_bool_attr(priv->gobj_broker_connector, "opened")) {
-            json_t *webix = gobj_command(priv->gobj_broker_connector, cmd, kw_incref(kw), gobj);
-            JSON_DECREF(webix)
-        }
-    }
-
     json_t *jn_resp = gobj_build_cmds_doc(gobj, kw_incref(kw));
     return msg_iev_build_response(
         gobj,
@@ -404,44 +401,70 @@ PRIVATE json_t *cmd_help(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
 /***************************************************************************
  *
  ***************************************************************************/
-PRIVATE json_t *cmd_subscribe(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
+PRIVATE json_t *cmd_help_broker(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
     if(priv->gobj_broker_connector) {
         if(gobj_read_bool_attr(priv->gobj_broker_connector, "opened")) {
-            json_t *webix = gobj_command(priv->gobj_broker_connector, cmd, kw_incref(kw), gobj);
+            json_t *webix = gobj_command(priv->gobj_broker_connector, "help", kw_incref(kw), gobj);
             JSON_DECREF(webix)
         }
     }
 
-    json_t *jn_resp = gobj_build_cmds_doc(gobj, kw_incref(kw));
-    return msg_iev_build_response(
-        gobj,
-        0,
-        jn_resp,
-        0,
-        0,
-        kw  // owned
-    );
-
-    // if(gobj_in_this_state(gobj, ST_CONNECTED)) { int x;
-    //     // gobj_command_desc
-    //     webix = gobj_command(priv->gobj_mqtt_connector, xcmd, kw_command, gobj);
-    // } else {
-    //     printf("\n%s%s%s\n", On_Red BWhite, "No connection", Color_Off);
-    //     clear_input_line(gobj);
-    //     JSON_DECREF(kw_command)
-    // }
-    // return msg_iev_build_response(
-    //     gobj,
-    //     0,
-    //     jn_resp,
-    //     0,
-    //     0,
-    //     kw  // owned
-    // );
+    KW_DECREF(kw)
     return NULL;
+}
+
+/***************************************************************************
+ *
+ ***************************************************************************/
+PRIVATE json_t *cmd_subscribe(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    const char *topic = kw_get_str(gobj, kw, "topic", "", 0);
+    const char *payload = kw_get_str(gobj, kw, "payload", NULL, 0);
+    int qos = (int)kw_get_int(gobj, kw, "qos", 0, 0);
+    BOOL retain = kw_get_bool(gobj, kw, "retain", 0, 0);
+
+    if(empty_string(topic)) {
+        return msg_iev_build_response(
+            gobj,
+            -1,
+            json_sprintf("What mqtt message topic?"),
+            0,
+            0,
+            kw  // owned
+        );
+    }
+
+    if(empty_string(payload)) {
+        return msg_iev_build_response(
+            gobj,
+            -1,
+            json_sprintf("What mqtt message payload?"),
+            0,
+            0,
+            kw  // owned
+        );
+    }
+
+    if(!priv->gobj_mqtt_connector || !gobj_read_bool_attr(priv->gobj_mqtt_connector, "opened")) {
+        return msg_iev_build_response(
+            gobj,
+            -1,
+            json_sprintf("No connected to mqtt broker"),
+            0,
+            0,
+            kw  // owned
+        );
+    }
+
+    json_t *webix = gobj_command(priv->gobj_broker_connector, cmd, kw_incref(kw), gobj);
+    /* asynchronous responses return 0 */
+    KW_DECREF(kw)
+    return webix;
 }
 
 /***************************************************************************
@@ -465,6 +488,8 @@ PRIVATE json_t *cmd_publish(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
     //     0,
     //     kw  // owned
     // );
+
+    KW_DECREF(kw)
     return NULL;
 }
 
@@ -839,28 +864,34 @@ PRIVATE char mqtt_connector_config[]= "\
 {                                                       \n\
     'name': 'mqtt_connector',                           \n\
     'as_service': true,                                 \n\
-    'gclass': 'C_PROT_MQTT2',                           \n\
-    'kw': {                                             \n\
-        'mqtt_client_id': '(^^__mqtt_client_id__^^)',   \n\
-        'mqtt_protocol': '(^^__mqtt_protocol__^^)',     \n\
-        'url': '(^^__url__^^)',                         \n\
-        'user_id': '(^^__user_id__^^)',                 \n\
-        'user_passw': '(^^__user_passw__^^)',           \n\
-        'cert_pem': '(^^__cert_pem__^^)',               \n\
-        'jwt': '(^^__jwt__^^)',                         \n\
-        'iamServer': false                              \n\
-    },                                                  \n\
+    'gclass': 'C_CHANNEL',                              \n\
     'children': [                                       \n\
         {                                               \n\
-            'name': 'mqtt_connector',                   \n\
-            'gclass': 'C_TCP',                          \n\
-            'kw': {                                     \n\
-                'url': '(^^__url__^^)',                 \n\
-                'cert_pem': '(^^__cert_pem__^^)'        \n\
-            }                                           \n\
-        }                                               \n\
-    ]                                                   \n\
-}                                                       \n\
+            'name': 'mqtt_connector',                           \n\
+            'gclass': 'C_PROT_MQTT2',                           \n\
+            'kw': {                                             \n\
+                'mqtt_client_id': '(^^__mqtt_client_id__^^)',   \n\
+                'mqtt_protocol': '(^^__mqtt_protocol__^^)',     \n\
+                'url': '(^^__url__^^)',                         \n\
+                'user_id': '(^^__user_id__^^)',                 \n\
+                'user_passw': '(^^__user_passw__^^)',           \n\
+                'cert_pem': '(^^__cert_pem__^^)',               \n\
+                'jwt': '(^^__jwt__^^)',                         \n\
+                'iamServer': false                              \n\
+            },                                                  \n\
+            'children': [                                       \n\
+                {                                               \n\
+                    'name': 'mqtt_connector',                   \n\
+                    'gclass': 'C_TCP',                          \n\
+                    'kw': {                                     \n\
+                        'url': '(^^__url__^^)',                 \n\
+                        'cert_pem': '(^^__cert_pem__^^)'        \n\
+                    }                                           \n\
+                }                                               \n\
+            ]                                                   \n\
+        }                                                   \n\
+    ]                                                       \n\
+}                                                           \n\
 ";
 
 PRIVATE int cmd_connect_mqtt(hgobj gobj)
@@ -1211,18 +1242,18 @@ PRIVATE int ac_on_close(hgobj gobj, const char *event, json_t *kw, hgobj src)
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
     if(priv->verbose || priv->interactive) {
-        const char *comment = kw_get_str(gobj, kw, "comment", 0, 0);
-        if(comment) {
-            printf("\nIdentity card refused, cause: %s", comment);
+        if(!gobj_is_shutdowning()) {
+            const char *comment = kw_get_str(gobj, kw, "comment", 0, 0);
+            printf("\nDisconnected from: %s. %s\n", gobj_read_str_attr(src, "url"), comment);
         }
-        printf("\nDisconnected from: %s.\n", gobj_read_str_attr(src, "url"));
     }
 
     if(!gobj_is_running(gobj)) {
         try_to_stop_yevents(gobj);
+        printf("\n");
+    } else {
+        clear_input_line(gobj);
     }
-
-    clear_input_line(gobj);
 
     KW_DECREF(kw);
     return 0;

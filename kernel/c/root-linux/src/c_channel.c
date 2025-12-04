@@ -11,7 +11,6 @@
 #include <g_ev_kernel.h>
 #include <g_st_kernel.h>
 #include <helpers.h>
-#include <command_parser.h>
 #include "msg_ievent.h"
 #include "c_channel.h"
 

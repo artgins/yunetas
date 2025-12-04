@@ -4728,7 +4728,7 @@ PRIVATE int handle__connack_c(
     const char *reason_code_s;
     if(priv->protocol_version == mosq_p_mqtt5) {
         reason_code_s = get_name_from_nn_table(mqtt5_return_codes_s, reason_code);
-        gobj_log_error(gobj, 0,
+        gobj_log_warning(gobj, 0,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_MQTT_ERROR,
             "msg",          "%s", "Mqtt5 connection refused",
@@ -4739,7 +4739,7 @@ PRIVATE int handle__connack_c(
         return MOSQ_ERR_PROTOCOL;
     } else {
         reason_code_s = get_name_from_nn_table(mqtt311_connack_codes_s, reason_code);
-        gobj_log_error(gobj, 0,
+        gobj_log_warning(gobj, 0,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_MQTT_ERROR,
             "msg",          "%s", "Mqtt3 connection refused",
