@@ -106,8 +106,8 @@ keytable_t keytable[MAX_KEYS] = {0};
 
 PRIVATE json_t *cmd_help(hgobj gobj, const char *cmd, json_t *kw, hgobj src);
 PRIVATE json_t *cmd_help_broker(hgobj gobj, const char *cmd, json_t *kw, hgobj src);
-PRIVATE json_t *cmd_subscribe(hgobj gobj, const char *cmd, json_t *kw, hgobj src);
 PRIVATE json_t *cmd_publish(hgobj gobj, const char *cmd, json_t *kw, hgobj src);
+PRIVATE json_t *cmd_subscribe(hgobj gobj, const char *cmd, json_t *kw, hgobj src);
 
 PRIVATE sdata_desc_t pm_help[] = {
 /*-PM----type-----------name------------flag------------default-----description---------- */
@@ -116,19 +116,22 @@ SDATAPM (DTP_INTEGER,   "level",        0,              0,          "level=1: se
 SDATA_END()
 };
 
-PRIVATE sdata_desc_t pm_subscribe[] = {
+PRIVATE sdata_desc_t pm_publish[] = {
 /*-PM----type-----------name------------flag------------default-----description---------- */
 SDATAPM (DTP_STRING,    "topic",        0,              0,          "the topic on which this message will be published"),
 SDATAPM (DTP_STRING,    "payload",      0,              "",         "payload of the message"),
+SDATAPM (DTP_INTEGER,   "mid",          0,              "0",        "Message Id, set internally if it's 0"),
 SDATAPM (DTP_INTEGER,   "qos",          0,              "0",        "QoS Quality of service (0,1,2)"),
 SDATAPM (DTP_BOOLEAN,   "retain",       0,              "0",        "retained message feature"),
+SDATAPM (DTP_JSON,      "properties",   0,              0,          "mqtt5 properties"),
 SDATA_END()
 };
 
-PRIVATE sdata_desc_t pm_publish[] = {
+PRIVATE sdata_desc_t pm_subscribe[] = {
 /*-PM----type-----------name------------flag------------default-----description---------- */
 SDATA_END()
 };
+
 
 PRIVATE const char *a_help[] = {"h", "?", 0};
 
@@ -136,8 +139,8 @@ PRIVATE sdata_desc_t command_table[] = {
 /*-CMD---type-----------name------------alias---items-----------json_fn---------description---------- */
 SDATACM (DTP_SCHEMA,    "help",         a_help, pm_help,        cmd_help,       "Command's help"),
 SDATACM (DTP_SCHEMA,    "help-broker",  0,      pm_help,        cmd_help_broker,"Command's help of broker"),
-SDATACM (DTP_SCHEMA,    "subscribe",    0,      pm_subscribe,   cmd_subscribe,  "Subscribe"),
 SDATACM (DTP_SCHEMA,    "publish",      0,      pm_publish,     cmd_publish,    "Publish"),
+SDATACM (DTP_SCHEMA,    "subscribe",    0,      pm_subscribe,   cmd_subscribe,  "Subscribe"),
 SDATA_END()
 };
 
@@ -416,17 +419,20 @@ PRIVATE json_t *cmd_help_broker(hgobj gobj, const char *cmd, json_t *kw, hgobj s
     return NULL;
 }
 
+
 /***************************************************************************
  *
  ***************************************************************************/
-PRIVATE json_t *cmd_subscribe(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
+PRIVATE json_t *cmd_publish(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
     const char *topic = kw_get_str(gobj, kw, "topic", "", 0);
-    const char *payload = kw_get_str(gobj, kw, "payload", NULL, 0);
+    const char *payload = kw_get_str(gobj, kw, "payload", "", 0);
+    int mid = (int)kw_get_int(gobj, kw, "mid", 0, 0);
     int qos = (int)kw_get_int(gobj, kw, "qos", 0, 0);
     BOOL retain = kw_get_bool(gobj, kw, "retain", 0, 0);
+    json_t *properties = kw_get_dict(gobj, kw, "properties", 0, 0);
 
     if(empty_string(topic)) {
         return msg_iev_build_response(
@@ -439,15 +445,28 @@ PRIVATE json_t *cmd_subscribe(hgobj gobj, const char *cmd, json_t *kw, hgobj src
         );
     }
 
-    if(empty_string(payload)) {
+    if(qos<0 || qos>2) {
         return msg_iev_build_response(
             gobj,
             -1,
-            json_sprintf("What mqtt message payload?"),
+            json_sprintf("QoS must be 0, 1 or 2"),
             0,
             0,
             kw  // owned
         );
+    }
+
+    if(properties) {
+        if(!json_is_object(properties)) {
+            return msg_iev_build_response(
+                gobj,
+                -1,
+                json_sprintf("Properties must be a dict"),
+                0,
+                0,
+                kw  // owned
+            );
+        }
     }
 
     if(!priv->gobj_mqtt_connector || !gobj_read_bool_attr(priv->gobj_mqtt_connector, "opened")) {
@@ -461,33 +480,29 @@ PRIVATE json_t *cmd_subscribe(hgobj gobj, const char *cmd, json_t *kw, hgobj src
         );
     }
 
-    json_t *webix = gobj_command(priv->gobj_broker_connector, cmd, kw_incref(kw), gobj);
-    /* asynchronous responses return 0 */
+    int x; // gbuffer_t
+    json_t *kw_publish = json_pack("{s:s, s:i, s:i, s:b, s:I}",
+        "topic", topic,
+        "mid", mid,
+        "qos", qos,
+        "retain", retain,
+        "payload", payload
+    );
+    if(properties) {
+        json_object_set(kw_publish, "properties", properties);
+    }
+
+    gobj_send_event(gobj, EV_SEND_MQTT_PUBLISH, kw_publish, gobj);
+
     KW_DECREF(kw)
-    return webix;
+    return 0;
 }
 
 /***************************************************************************
  *
  ***************************************************************************/
-PRIVATE json_t *cmd_publish(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
+PRIVATE json_t *cmd_subscribe(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
 {
-    // if(gobj_in_this_state(gobj, ST_CONNECTED)) { int x;
-    //     // gobj_command_desc
-    //     webix = gobj_command(priv->gobj_mqtt_connector, xcmd, kw_command, gobj);
-    // } else {
-    //     printf("\n%s%s%s\n", On_Red BWhite, "No connection", Color_Off);
-    //     clear_input_line(gobj);
-    //     JSON_DECREF(kw_command)
-    // }
-    // return msg_iev_build_response(
-    //     gobj,
-    //     0,
-    //     jn_resp,
-    //     0,
-    //     0,
-    //     kw  // owned
-    // );
 
     KW_DECREF(kw)
     return NULL;
@@ -1159,6 +1174,28 @@ PRIVATE int list_history(hgobj gobj)
     return 0;
 }
 
+/***************************************************************************
+ *
+ ***************************************************************************/
+PRIVATE uint16_t mosquitto__mid_generate(hgobj gobj)
+{
+    // PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    // TODO new
+    // json_t *client = gobj_get_resource(priv->gobj_mqtt_clients, client_id, 0, 0);
+    // uint16_t last_mid = (uint16_t)kw_get_int(gobj, client, "last_mid", 0, KW_REQUIRED);
+    static uint16_t last_mid = 0;
+    // TODO it seems that does nothing saving in resource
+    last_mid++;
+    if(last_mid == 0) {
+        last_mid++;
+    }
+    // TODO new
+    // gobj_save_resource(priv->gobj_mqtt_clients, client_id, client, 0);
+
+    return last_mid;
+}
+
 
 
 
@@ -1255,6 +1292,110 @@ PRIVATE int ac_on_close(hgobj gobj, const char *event, json_t *kw, hgobj src)
         clear_input_line(gobj);
     }
 
+    KW_DECREF(kw);
+    return 0;
+}
+
+/***************************************************************************
+ *
+ ***************************************************************************/
+PRIVATE int ac_send_mqtt_publish(hgobj gobj, const char *event, json_t *kw, hgobj src)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    const char *topic = kw_get_str(gobj, kw, "topic", "", 0);
+    const char *payload = kw_get_str(gobj, kw, "payload", NULL, 0);
+    int mid = (int)kw_get_int(gobj, kw, "mid", 0, 0);
+    int qos = (int)kw_get_int(gobj, kw, "qos", 0, 0);
+    BOOL retain = kw_get_bool(gobj, kw, "retain", 0, 0);
+    json_t *properties = kw_get_dict(gobj, kw, "properties", 0, 0);
+
+    uint16_t local_mid;
+    // BOOL have_topic_alias; TODO review what is topic alias
+    int rc;
+    size_t tlen = 0;
+    uint32_t remaining_length;
+
+    if(!mid) {
+        mid = mosquitto__mid_generate(gobj);
+    }
+
+    if(qos == 0) {
+        return send__publish(
+            mosq,
+            local_mid,
+            topic,
+            (uint32_t)payloadlen,
+            payload,
+            (uint8_t)qos,
+            retain,
+            false,
+            outgoing_properties,
+            NULL,
+            0
+        );
+    } else {
+        if(outgoing_properties){
+            rc = mosquitto_property_copy_all(&properties_copy, outgoing_properties);
+            if(rc) return rc;
+        }
+        message = mosquitto__calloc(1, sizeof(struct mosquitto_message_all));
+        if(!message){
+            mosquitto_property_free_all(&properties_copy);
+            return MOSQ_ERR_NOMEM;
+        }
+
+        message->next = NULL;
+        message->timestamp = mosquitto_time();
+        message->msg.mid = local_mid;
+        if(topic){
+            message->msg.topic = mosquitto__strdup(topic);
+            if(!message->msg.topic){
+                message__cleanup(&message);
+                mosquitto_property_free_all(&properties_copy);
+                return MOSQ_ERR_NOMEM;
+            }
+        }
+        if(payloadlen){
+            message->msg.payloadlen = payloadlen;
+            message->msg.payload = mosquitto__malloc((unsigned int)payloadlen*sizeof(uint8_t));
+            if(!message->msg.payload){
+                message__cleanup(&message);
+                mosquitto_property_free_all(&properties_copy);
+                return MOSQ_ERR_NOMEM;
+            }
+            memcpy(message->msg.payload, payload, (uint32_t)payloadlen*sizeof(uint8_t));
+        }else{
+            message->msg.payloadlen = 0;
+            message->msg.payload = NULL;
+        }
+        message->msg.qos = (uint8_t)qos;
+        message->msg.retain = retain;
+        message->dup = false;
+        message->properties = properties_copy;
+
+        COMPAT_pthread_mutex_lock(&mosq->msgs_out.mutex);
+        message->state = mosq_ms_invalid;
+        rc = message__queue(mosq, message, mosq_md_out);
+        COMPAT_pthread_mutex_unlock(&mosq->msgs_out.mutex);
+        return rc;
+    }
+
+
+
+
+    KW_DECREF(kw);
+    return 0;
+}
+
+/***************************************************************************
+ *
+ ***************************************************************************/
+PRIVATE int ac_send_mqtt_subscribe(hgobj gobj, const char *event, json_t *kw, hgobj src)
+{
+    // json_t *webix = gobj_command(priv->gobj_broker_connector, cmd, kw_incref(kw), gobj);
+    /* asynchronous responses return 0 */
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
     KW_DECREF(kw);
     return 0;
 }
@@ -1453,6 +1594,8 @@ GOBJ_DEFINE_GCLASS(C_MQTT_CLIENT);
 /*------------------------*
  *      Events
  *------------------------*/
+GOBJ_DEFINE_EVENT(EV_SEND_MQTT_PUBLISH);
+GOBJ_DEFINE_EVENT(EV_SEND_MQTT_SUBSCRIBE);
 
 /***************************************************************************
  *          Create the GClass
@@ -1522,6 +1665,8 @@ PRIVATE int create_gclass(gclass_name_t gclass_name)
      *------------------------*/
     ev_action_t st_idle[] = {
         {EV_COMMAND,                ac_command,             0},
+        {EV_SEND_MQTT_PUBLISH,      ac_send_mqtt_publish,   0},
+        {EV_SEND_MQTT_SUBSCRIBE,    ac_send_mqtt_subscribe, 0},
         {EV_MT_COMMAND_ANSWER,      ac_command_answer,      0},
         {EV_MT_STATS_ANSWER,        ac_command_answer,      0},
         {EV_ON_OPEN,                ac_on_open,             0},
@@ -1564,6 +1709,8 @@ PRIVATE int create_gclass(gclass_name_t gclass_name)
     event_type_t event_types[] = {
         {EV_MT_COMMAND_ANSWER,      EVF_PUBLIC_EVENT},
         {EV_MT_STATS_ANSWER,        EVF_PUBLIC_EVENT},
+        {EV_SEND_MQTT_PUBLISH,      0},
+        {EV_SEND_MQTT_SUBSCRIBE,    0},
         {EV_COMMAND,                0},
         {EV_CLRSCR,                 0},
         {EV_SCROLL_PAGE_UP,         0},

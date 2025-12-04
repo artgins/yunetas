@@ -1234,7 +1234,10 @@ PRIVATE gbuffer_t *build_mqtt_packet(hgobj gobj, uint8_t command, uint32_t size)
 }
 
 /***************************************************************************
- *
+    Protocol limit: 4 bytes for Remaining Length field (not 5)
+    Maximum value: 268,435,455 bytes (~256 MB)
+    Actual payload: Slightly less after subtracting headers
+    According to the MQTT specification - it's strictly limited to 4 bytes maximum.
  ***************************************************************************/
 PRIVATE unsigned int packet__varint_bytes(uint32_t word)
 {
@@ -3481,7 +3484,7 @@ PRIVATE int send__pubrel(hgobj gobj, uint16_t mid, json_t *properties)
 /***************************************************************************
  *
  ***************************************************************************/
-PRIVATE int send_publish(
+PRIVATE int send__publish(
     hgobj gobj,
     uint16_t mid,
     const char *topic,
@@ -3540,6 +3543,13 @@ PRIVATE int send_publish(
 
         varbytes = packet__varint_bytes(proplen);
         if(varbytes > 4) {
+            /*
+                Protocol limit: 4 bytes for Remaining Length field (not 5)
+                Maximum value: 268,435,455 bytes (~256 MB)
+                Actual payload: Slightly less after subtracting headers
+                According to the MQTT specification - it's strictly limited to 4 bytes maximum.
+             */
+            // TODO is error
             /* FIXME - Properties too big, don't publish any - should remove some first really */
             cmsg_props = NULL;
             store_props = NULL;
@@ -7246,6 +7256,10 @@ PRIVATE int ac_send_message(hgobj gobj, const char *event, json_t *kw, hgobj src
     BOOL retain = FALSE;
     json_t * properties = 0;
 
+
+
+
+
     // Local variables
     json_t *outgoing_properties = NULL;
     size_t tlen = 0;
@@ -7343,7 +7357,7 @@ PRIVATE int ac_send_message(hgobj gobj, const char *event, json_t *kw, hgobj src
     uint16_t mid = mosquitto__mid_generate(gobj, priv->client_id);
     json_object_set_new(kw, "mid", json_integer(mid));
 
-    send_publish(
+    send__publish(
         gobj,
         mid,
         topic_name,
