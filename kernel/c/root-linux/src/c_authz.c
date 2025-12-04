@@ -933,6 +933,30 @@ PRIVATE json_t *mt_authenticate(hgobj gobj, json_t *kw, hgobj src)
     }
 
     /*------------------------------*
+     *      yuneta
+     *------------------------------*/
+    if(yuneta_by_local_ip) {
+        /*--------------------------------------*
+         *  HACK save username in src,
+         *  some entry gate like (IEvent_srv)
+         *--------------------------------------*/
+        gobj_write_str_attr(src, "__username__", username);
+        gobj_write_str_attr(src, "__session_id__", "");
+
+        json_t *jn_resp = json_pack("{s:i, s:s, s:s, s:s, s:s, s:{s:[]}}",
+            "result", 0,
+            "comment", comment,
+            "username", username,
+            "session_id", "",
+            "dst_service", dst_service,
+            "services_roles", dst_service // TODO not need role?
+        );
+        JSON_DECREF(jwt_payload);
+        KW_DECREF(kw)
+        return jn_resp;
+    }
+
+    /*------------------------------*
      *      Check user
      *------------------------------*/
     json_t *user = gobj_get_node(

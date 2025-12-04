@@ -105,6 +105,8 @@ typedef struct keytable_s {
 keytable_t keytable[MAX_KEYS] = {0};
 
 PRIVATE json_t *cmd_help(hgobj gobj, const char *cmd, json_t *kw, hgobj src);
+PRIVATE json_t *cmd_subscribe(hgobj gobj, const char *cmd, json_t *kw, hgobj src);
+PRIVATE json_t *cmd_publish(hgobj gobj, const char *cmd, json_t *kw, hgobj src);
 
 PRIVATE sdata_desc_t pm_help[] = {
 /*-PM----type-----------name------------flag------------default-----description---------- */
@@ -113,11 +115,23 @@ SDATAPM (DTP_INTEGER,   "level",        0,              0,          "level=1: se
 SDATA_END()
 };
 
+PRIVATE sdata_desc_t pm_subscribe[] = {
+/*-PM----type-----------name------------flag------------default-----description---------- */
+SDATA_END()
+};
+
+PRIVATE sdata_desc_t pm_publish[] = {
+/*-PM----type-----------name------------flag------------default-----description---------- */
+SDATA_END()
+};
+
 PRIVATE const char *a_help[] = {"h", "?", 0};
 
 PRIVATE sdata_desc_t command_table[] = {
-/*-CMD---type-----------name------------flag------------alias---items-----------json_fn---------description---------- */
-SDATACM2(DTP_SCHEMA,    "help",         0,              a_help, pm_help,        cmd_help,       "Command's help"),
+/*-CMD---type-----------name------------alias---items-----------json_fn---------description---------- */
+SDATACM (DTP_SCHEMA,    "help",         a_help, pm_help,        cmd_help,       "Command's help"),
+SDATACM (DTP_SCHEMA,    "subscribe",    0,      pm_subscribe,   cmd_subscribe,  "Subscribe"),
+SDATACM (DTP_SCHEMA,    "publish",      0,      pm_publish,     cmd_publish,    "Publish"),
 SDATA_END()
 };
 
@@ -390,7 +404,50 @@ PRIVATE json_t *cmd_help(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
 /***************************************************************************
  *
  ***************************************************************************/
-PRIVATE json_t *cmd_helpx(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
+PRIVATE json_t *cmd_subscribe(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    if(priv->gobj_broker_connector) {
+        if(gobj_read_bool_attr(priv->gobj_broker_connector, "opened")) {
+            json_t *webix = gobj_command(priv->gobj_broker_connector, cmd, kw_incref(kw), gobj);
+            JSON_DECREF(webix)
+        }
+    }
+
+    json_t *jn_resp = gobj_build_cmds_doc(gobj, kw_incref(kw));
+    return msg_iev_build_response(
+        gobj,
+        0,
+        jn_resp,
+        0,
+        0,
+        kw  // owned
+    );
+
+    // if(gobj_in_this_state(gobj, ST_CONNECTED)) { int x;
+    //     // gobj_command_desc
+    //     webix = gobj_command(priv->gobj_mqtt_connector, xcmd, kw_command, gobj);
+    // } else {
+    //     printf("\n%s%s%s\n", On_Red BWhite, "No connection", Color_Off);
+    //     clear_input_line(gobj);
+    //     JSON_DECREF(kw_command)
+    // }
+    // return msg_iev_build_response(
+    //     gobj,
+    //     0,
+    //     jn_resp,
+    //     0,
+    //     0,
+    //     kw  // owned
+    // );
+    return NULL;
+}
+
+/***************************************************************************
+ *
+ ***************************************************************************/
+PRIVATE json_t *cmd_publish(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
 {
     // if(gobj_in_this_state(gobj, ST_CONNECTED)) { int x;
     //     // gobj_command_desc
