@@ -920,31 +920,37 @@ PRIVATE char mqtt_connector_config[]= "\
 {                                                       \n\
     'name': 'mqtt_connector',                           \n\
     'as_service': true,                                 \n\
-    'gclass': 'C_CHANNEL',                              \n\
+    'gclass': 'C_IOGATE',                               \n\
     'children': [                                       \n\
         {                                               \n\
-            'name': 'mqtt_connector',                           \n\
-            'gclass': 'C_PROT_MQTT2',                           \n\
-            'kw': {                                             \n\
-                'mqtt_client_id': '(^^__mqtt_client_id__^^)',   \n\
-                'mqtt_protocol': '(^^__mqtt_protocol__^^)',     \n\
-                'url': '(^^__url__^^)',                         \n\
-                'user_id': '(^^__user_id__^^)',                 \n\
-                'user_passw': '(^^__user_passw__^^)',           \n\
-                'cert_pem': '(^^__cert_pem__^^)',               \n\
-                'jwt': '(^^__jwt__^^)',                         \n\
-                'iamServer': false                              \n\
-            },                                                  \n\
+            'name': 'mqtt_connector',                   \n\
+            'gclass': 'C_CHANNEL',                      \n\
             'children': [                                       \n\
-                {                                               \n\
-                    'name': 'mqtt_connector',                   \n\
-                    'gclass': 'C_TCP',                          \n\
-                    'kw': {                                     \n\
-                        'url': '(^^__url__^^)',                 \n\
-                        'cert_pem': '(^^__cert_pem__^^)'        \n\
-                    }                                           \n\
-                }                                               \n\
-            ]                                                   \n\
+                {                                                       \n\
+                    'name': 'mqtt_connector',                           \n\
+                    'gclass': 'C_PROT_MQTT2',                           \n\
+                    'kw': {                                             \n\
+                        'mqtt_client_id': '(^^__mqtt_client_id__^^)',   \n\
+                        'mqtt_protocol': '(^^__mqtt_protocol__^^)',     \n\
+                        'url': '(^^__url__^^)',                         \n\
+                        'user_id': '(^^__user_id__^^)',                 \n\
+                        'user_passw': '(^^__user_passw__^^)',           \n\
+                        'cert_pem': '(^^__cert_pem__^^)',               \n\
+                        'jwt': '(^^__jwt__^^)',                         \n\
+                        'iamServer': false                              \n\
+                    },                                                  \n\
+                    'children': [                                       \n\
+                        {                                               \n\
+                            'name': 'mqtt_connector',                   \n\
+                            'gclass': 'C_TCP',                          \n\
+                            'kw': {                                     \n\
+                                'url': '(^^__url__^^)',                 \n\
+                                'cert_pem': '(^^__cert_pem__^^)'        \n\
+                            }                                           \n\
+                        }                                               \n\
+                    ]                                                   \n\
+                }                                           \n\
+            ]                                               \n\
         }                                                   \n\
     ]                                                       \n\
 }                                                           \n\
@@ -1319,7 +1325,7 @@ PRIVATE int ac_on_close(hgobj gobj, const char *event, json_t *kw, hgobj src)
 }
 
 /***************************************************************************
- *
+ *  Send publish command to the broker
  ***************************************************************************/
 PRIVATE int ac_mqtt_publish(hgobj gobj, const char *event, json_t *kw, hgobj src)
 {
@@ -1338,7 +1344,7 @@ PRIVATE int ac_mqtt_publish(hgobj gobj, const char *event, json_t *kw, hgobj src
 }
 
 /***************************************************************************
- *
+ *  Send subscribe command to the broker
  ***************************************************************************/
 PRIVATE int ac_mqtt_subscribe(hgobj gobj, const char *event, json_t *kw, hgobj src)
 {
@@ -1357,7 +1363,7 @@ PRIVATE int ac_mqtt_subscribe(hgobj gobj, const char *event, json_t *kw, hgobj s
 }
 
 /***************************************************************************
- *
+ *  Send unsubscribe command to the broker
  ***************************************************************************/
 PRIVATE int ac_mqtt_unsubscribe(hgobj gobj, const char *event, json_t *kw, hgobj src)
 {
@@ -1373,6 +1379,34 @@ PRIVATE int ac_mqtt_unsubscribe(hgobj gobj, const char *event, json_t *kw, hgobj
     );
 
     return gobj_send_event(priv->gobj_mqtt_connector, EV_SEND_IEV, kw_iev, gobj);
+}
+
+/***************************************************************************
+ *  Receive suback from the broker
+ ***************************************************************************/
+PRIVATE int ac_mqtt_suback(hgobj gobj, const char *event, json_t *kw, hgobj src)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    printf("suback\n");
+    clear_input_line(gobj);
+
+    KW_DECREF(kw)
+    return 0;
+}
+
+/***************************************************************************
+ *  Receive unsuback from the broker
+ ***************************************************************************/
+PRIVATE int ac_mqtt_unsuback(hgobj gobj, const char *event, json_t *kw, hgobj src)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    printf("unsuback\n");
+    clear_input_line(gobj);
+
+    KW_DECREF(kw)
+    return 0;
 }
 
 /***************************************************************************
@@ -1641,6 +1675,8 @@ PRIVATE int create_gclass(gclass_name_t gclass_name)
         {EV_MQTT_PUBLISH,           ac_mqtt_publish,        0},
         {EV_MQTT_SUBSCRIBE,         ac_mqtt_subscribe,      0},
         {EV_MQTT_UNSUBSCRIBE,       ac_mqtt_unsubscribe,    0},
+        {EV_MQTT_SUBACK,            ac_mqtt_suback,         0},
+        {EV_MQTT_UNSUBACK,          ac_mqtt_unsuback,       0},
         {EV_MT_COMMAND_ANSWER,      ac_command_answer,      0},
         {EV_MT_STATS_ANSWER,        ac_command_answer,      0},
         {EV_ON_OPEN,                ac_on_open,             0},
@@ -1685,6 +1721,8 @@ PRIVATE int create_gclass(gclass_name_t gclass_name)
         {EV_MQTT_PUBLISH,           0},
         {EV_MQTT_SUBSCRIBE,         0},
         {EV_MQTT_UNSUBSCRIBE,       0},
+        {EV_MQTT_SUBACK,            0},
+        {EV_MQTT_UNSUBACK,          0},
         {EV_COMMAND,                0},
         {EV_CLRSCR,                 0},
         {EV_SCROLL_PAGE_UP,         0},

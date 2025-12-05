@@ -5492,13 +5492,6 @@ PRIVATE int handle__suback(hgobj gobj, gbuffer_t *gbuf)
     int rc;
     json_t *properties = NULL;
 
-    if(gobj_trace_level(gobj) & SHOW_DECODE) {
-        trace_msg0("  👈 Received SUBACK from client '%s' (Mid: %d)",
-            SAFE_PRINT(priv->client_id),
-            mid
-        );
-    }
-
     rc = mqtt_read_uint16(gobj, gbuf, &mid);
     if(rc<0) {
         // Error already logged
@@ -5537,21 +5530,27 @@ PRIVATE int handle__suback(hgobj gobj, gbuffer_t *gbuf)
         json_array_append_new(granted_qos, json_integer(qos));
     }
 
+    if(gobj_trace_level(gobj) & SHOW_DECODE) {
+        trace_msg0("  👈 Received SUBACK from client '%s' (Mid: %d)",
+            SAFE_PRINT(priv->client_id),
+            mid
+        );
+        gobj_trace_json(gobj, granted_qos, "granted qos");
+    }
+
     json_t *kw_suback = json_pack("{s:i, s:o, s:o}",
         "mid", (int)mid,
         "granted_qos", granted_qos,
         "properties", properties?properties:json_object()
     );
 
-    // gobj_publish_event(gobj, EV_MQTT_SUBACK, kw_suback);
     json_t *kw_iev = iev_create(
         gobj,
         EV_MQTT_SUBACK,
         kw_suback // owned
     );
 
-    JSON_DECREF(kw_iev)
-    // gobj_publish_event(gobj, EV_SEND_IEV, kw_iev);
+    gobj_publish_event(gobj, EV_ON_IEV_MESSAGE, kw_iev);
 
     return 0;
 }
@@ -5609,7 +5608,7 @@ PRIVATE int handle__unsuback(hgobj gobj, gbuffer_t *gbuf)
         kw_suback // owned
     );
 
-    gobj_publish_event(gobj, EV_SEND_IEV, kw_iev);
+    gobj_publish_event(gobj, EV_ON_IEV_MESSAGE, kw_iev);
 
     return 0;
 }
@@ -7614,7 +7613,7 @@ PRIVATE int ac_send__suback(hgobj gobj, const char *event, json_t *kw, hgobj src
     );
     json_t *properties = kw_get_dict_value(gobj, kw, "properties", 0, 0);
 
-    uint32_t payloadlen = gbuffer_leftbytes(gbuf_payload);
+    uint32_t payloadlen = gbuf_payload?gbuffer_leftbytes(gbuf_payload):0;
     uint32_t remaining_length = 2 + payloadlen;
 
     if(priv->protocol_version == mosq_p_mqtt5) {
@@ -8008,6 +8007,7 @@ PRIVATE int create_gclass(gclass_name_t gclass_name)
         {EV_MQTT_PUBLISH,       0},
         {EV_MQTT_SUBSCRIBE,     0},
         {EV_MQTT_UNSUBSCRIBE,   0},
+        {EV_ON_IEV_MESSAGE,     EVF_OUTPUT_EVENT},
         {EV_MQTT_SUBACK,        EVF_OUTPUT_EVENT},
         {EV_MQTT_UNSUBACK,      EVF_OUTPUT_EVENT},
         // {EV_MQTT_MESSAGE,       EVF_OUTPUT_EVENT},
