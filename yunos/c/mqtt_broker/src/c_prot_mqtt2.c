@@ -5543,7 +5543,15 @@ PRIVATE int handle__suback(hgobj gobj, gbuffer_t *gbuf)
         "properties", properties?properties:json_object()
     );
 
-    gobj_publish_event(gobj, EV_MQTT_SUBACK, kw_suback);
+    // gobj_publish_event(gobj, EV_MQTT_SUBACK, kw_suback);
+    json_t *kw_iev = iev_create(
+        gobj,
+        EV_MQTT_SUBACK,
+        kw_suback // owned
+    );
+
+    JSON_DECREF(kw_iev)
+    // gobj_publish_event(gobj, EV_SEND_IEV, kw_iev);
 
     return 0;
 }
@@ -5595,7 +5603,13 @@ PRIVATE int handle__unsuback(hgobj gobj, gbuffer_t *gbuf)
         "properties", properties?properties:json_object()
     );
 
-    gobj_publish_event(gobj, EV_MQTT_UNSUBACK, kw_suback);
+    json_t *kw_iev = iev_create(
+        gobj,
+        EV_MQTT_UNSUBACK,
+        kw_suback // owned
+    );
+
+    gobj_publish_event(gobj, EV_SEND_IEV, kw_iev);
 
     return 0;
 }
@@ -5890,6 +5904,9 @@ PRIVATE int handle__publish_s(hgobj gobj, gbuffer_t *gbuf)
         reason_code = MQTT_RC_IMPLEMENTATION_SPECIFIC;
         goto process_bad_message;
     }
+
+    GBUFFER_DECREF(gbuf_payload)
+
     // plugin__handle_message(): No plugins in use
 
     // TODO to high level, WARNING some changed in mosquitto, review!
@@ -6121,6 +6138,9 @@ PRIVATE int handle__publish_c(hgobj gobj, gbuffer_t *gbuf)
             (long)payloadlen
         );
     }
+
+    GBUFFER_DECREF(gbuf_payload)
+    GBMEM_FREE(topic)
 
     // TODO to high level
     // message->timestamp = mosquitto_time();
