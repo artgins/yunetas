@@ -1273,6 +1273,7 @@ PRIVATE int ac_on_open(hgobj gobj, const char *event, json_t *kw, hgobj src)
             gobj_read_str_attr(src, "peername")
         );
         if(json_size(kw)) {
+            kw_delete_metadata_keys(kw);
             json_dumpf(kw, stdout, JSON_INDENT(4)|JSON_ENCODE_ANY);
             printf("\n");
         }
@@ -1389,7 +1390,8 @@ PRIVATE int ac_mqtt_suback(hgobj gobj, const char *event, json_t *kw, hgobj src)
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
     kw_delete_metadata_keys(kw);
-    print_json2("SUBSCRIBE ACK", kw);
+    printf("SUBSCRIBE ACK\n");
+    json_dumpf(kw, stdout, JSON_INDENT(4)|JSON_ENCODE_ANY);
     clear_input_line(gobj);
 
     KW_DECREF(kw)
@@ -1404,7 +1406,8 @@ PRIVATE int ac_mqtt_unsuback(hgobj gobj, const char *event, json_t *kw, hgobj sr
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
     kw_delete_metadata_keys(kw);
-    print_json2("UNSUBSCRIBE ACK", kw);
+    printf("UNSUBSCRIBE ACK\n");
+    json_dumpf(kw, stdout, JSON_INDENT(4)|JSON_ENCODE_ANY);
     clear_input_line(gobj);
 
     KW_DECREF(kw)
