@@ -7268,6 +7268,29 @@ PRIVATE int ac_mqtt_subscribe(hgobj gobj, const char *event, json_t *kw, hgobj s
 }
 
 /***************************************************************************
+ *  Entry of mqtt unsubscribing for clients
+ ***************************************************************************/
+PRIVATE int ac_mqtt_unsubscribe(hgobj gobj, const char *event, json_t *kw, hgobj src)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    if(priv->iamServer) {
+        gobj_log_error(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_MQTT_ERROR,
+            "msg",          "%s", "Mqtt publish: not client",
+            NULL
+        );
+        KW_DECREF(kw)
+        return -1;
+    }
+
+
+    KW_DECREF(kw)
+    return 0;
+}
+
+/***************************************************************************
  *  Send subscribe ack
  ***************************************************************************/
 PRIVATE int ac_send__suback(hgobj gobj, const char *event, json_t *kw, hgobj src)
@@ -7587,6 +7610,7 @@ GOBJ_DEFINE_GCLASS(C_PROT_MQTT2);
  *------------------------*/
 GOBJ_DEFINE_EVENT(EV_MQTT_PUBLISH);
 GOBJ_DEFINE_EVENT(EV_MQTT_SUBSCRIBE);
+GOBJ_DEFINE_EVENT(EV_MQTT_UNSUBSCRIBE);
 
 GOBJ_DEFINE_EVENT(EV_SEND_SUBACK);
 GOBJ_DEFINE_EVENT(EV_SEND_UNSUBACK);
@@ -7634,6 +7658,7 @@ PRIVATE int create_gclass(gclass_name_t gclass_name)
         {EV_SEND_MESSAGE,       ac_send_message,                    0},
         {EV_MQTT_PUBLISH,       ac_mqtt_publish,                    0},
         {EV_MQTT_SUBSCRIBE,     ac_mqtt_subscribe,                  0},
+        {EV_MQTT_UNSUBSCRIBE,   ac_mqtt_unsubscribe,                0},
 
         {EV_DISCONNECTED,       ac_disconnected,                    ST_DISCONNECTED},
         {EV_TIMEOUT,            ac_timeout_waiting_frame_header,    0},

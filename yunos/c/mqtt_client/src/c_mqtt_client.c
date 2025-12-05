@@ -109,6 +109,7 @@ PRIVATE json_t *cmd_help(hgobj gobj, const char *cmd, json_t *kw, hgobj src);
 PRIVATE json_t *cmd_help_broker(hgobj gobj, const char *cmd, json_t *kw, hgobj src);
 PRIVATE json_t *cmd_publish(hgobj gobj, const char *cmd, json_t *kw, hgobj src);
 PRIVATE json_t *cmd_subscribe(hgobj gobj, const char *cmd, json_t *kw, hgobj src);
+PRIVATE json_t *cmd_unsubscribe(hgobj gobj, const char *cmd, json_t *kw, hgobj src);
 
 PRIVATE sdata_desc_t pm_help[] = {
 /*-PM----type-----------name------------flag------------default-----description---------- */
@@ -119,20 +120,32 @@ SDATA_END()
 
 PRIVATE sdata_desc_t pm_publish[] = {
 /*-PM----type-----------name------------flag------------default-----description---------- */
-SDATAPM (DTP_STRING,    "topic",        0,              0,          "the topic on which this message will be published"),
-SDATAPM (DTP_STRING,    "payload",      0,              "",         "payload of the message"),
+SDATAPM (DTP_STRING,    "topic",        0,              "",         "Topic on which this message will be published"),
+SDATAPM (DTP_STRING,    "payload",      0,              "",         "Data to send"),
 SDATAPM (DTP_INTEGER,   "mid",          0,              "0",        "Message Id, set internally if it's 0"),
-SDATAPM (DTP_INTEGER,   "qos",          0,              "0",        "QoS Quality of service (0,1,2)"),
-SDATAPM (DTP_BOOLEAN,   "retain",       0,              "0",        "retained message feature"),
-SDATAPM (DTP_JSON,      "properties",   0,              0,          "mqtt5 properties"),
+SDATAPM (DTP_INTEGER,   "qos",          0,              "0",        "Quality of Service to be used for the message (0,1,2)"),
+SDATAPM (DTP_BOOLEAN,   "retain",       0,              "0",        "Set to true to make the message retained"),
+SDATAPM (DTP_JSON,      "properties",   0,              0,          "Mqtt5 publish properties"),
 SDATA_END()
 };
 
 PRIVATE sdata_desc_t pm_subscribe[] = {
 /*-PM----type-----------name------------flag------------default-----description---------- */
+SDATAPM (DTP_LIST,      "subs",         0,              "[]",       "List of subscription patterns"),
+SDATAPM (DTP_INTEGER,   "mid",          0,              "0",        "Message Id, set internally if it's 0"),
+SDATAPM (DTP_INTEGER,   "qos",          0,              "0",        "Quality of Service for this subscription (0,1,2)"),
+SDATAPM (DTP_INTEGER,   "options",      0,              "0",        "Mqtt5 options to apply to this subscription, OR'd together. See mqtt5_sub_options"),
+SDATAPM (DTP_JSON,      "properties",   0,              0,          "Mqtt5 suscribe properties"),
 SDATA_END()
 };
 
+PRIVATE sdata_desc_t pm_unsubscribe[] = {
+/*-PM----type-----------name------------flag------------default-----description---------- */
+SDATAPM (DTP_LIST,      "subs",         0,              "[]",       "List of subscription patterns"),
+SDATAPM (DTP_INTEGER,   "mid",          0,              "0",        "Message Id, set internally if it's 0"),
+SDATAPM (DTP_JSON,      "properties",   0,              0,          "Mqtt5 unsuscribe properties"),
+SDATA_END()
+};
 
 PRIVATE const char *a_help[] = {"h", "?", 0};
 
@@ -142,6 +155,7 @@ SDATACM (DTP_SCHEMA,    "help",         a_help, pm_help,        cmd_help,       
 SDATACM (DTP_SCHEMA,    "help-broker",  0,      pm_help,        cmd_help_broker,"Command's help of broker"),
 SDATACM (DTP_SCHEMA,    "publish",      0,      pm_publish,     cmd_publish,    "Publish"),
 SDATACM (DTP_SCHEMA,    "subscribe",    0,      pm_subscribe,   cmd_subscribe,  "Subscribe"),
+SDATACM (DTP_SCHEMA,    "unsubscribe",  0,      pm_unsubscribe, cmd_unsubscribe,"Unsubscribe"),
 SDATA_END()
 };
 
@@ -426,8 +440,6 @@ PRIVATE json_t *cmd_help_broker(hgobj gobj, const char *cmd, json_t *kw, hgobj s
  ***************************************************************************/
 PRIVATE json_t *cmd_publish(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
 {
-    PRIVATE_DATA *priv = gobj_priv_data(gobj);
-
     const char *topic = kw_get_str(gobj, kw, "topic", "", 0);
     const char *payload = kw_get_str(gobj, kw, "payload", "", 0);
     int mid = (int)kw_get_int(gobj, kw, "mid", 0, 0);
@@ -435,37 +447,13 @@ PRIVATE json_t *cmd_publish(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
     BOOL retain = kw_get_bool(gobj, kw, "retain", 0, 0);
     json_t *properties = kw_get_dict(gobj, kw, "properties", 0, 0);
 
-    /*
-     *  Let mqtt protocol check all
-     */
-    if(properties) {
-        if(!json_is_object(properties)) {
-            return msg_iev_build_response(
-                gobj,
-                -1,
-                json_sprintf("Properties must be a dict"),
-                0,
-                0,
-                kw  // owned
-            );
-        }
-    }
-
-    if(!priv->gobj_mqtt_connector || !gobj_read_bool_attr(priv->gobj_mqtt_connector, "opened")) {
-        return msg_iev_build_response(
-            gobj,
-            -1,
-            json_sprintf("No connected to mqtt broker"),
-            0,
-            0,
-            kw  // owned
-        );
-    }
-
     size_t payloadlen = strlen(payload);
     gbuffer_t *gbuf_payload = gbuffer_create(payloadlen, payloadlen);
     gbuffer_append_string(gbuf_payload, payload);
 
+    /*
+     *  Let mqtt protocol check all parameters
+     */
     json_t *kw_publish = json_pack("{s:s, s:i, s:i, s:b, s:I}",
         "topic", topic,
         "mid", mid,
@@ -473,7 +461,7 @@ PRIVATE json_t *cmd_publish(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
         "retain", retain,
         "gbuffer", (json_int_t)(uintptr_t)gbuf_payload
     );
-    if(properties) {
+    if(properties && json_is_object(properties)) {
         json_object_set(kw_publish, "properties", properties);
     }
 
@@ -488,9 +476,77 @@ PRIVATE json_t *cmd_publish(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
  ***************************************************************************/
 PRIVATE json_t *cmd_subscribe(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
 {
+    json_t *subs = kw_get_list(gobj, kw, "subs", 0, 0);
+    int mid = (int)kw_get_int(gobj, kw, "mid", 0, 0);
+    int qos = (int)kw_get_int(gobj, kw, "qos", 0, 0);
+    int options = (int)kw_get_int(gobj, kw, "options", 0, 0);
+    json_t *properties = kw_get_dict(gobj, kw, "properties", 0, 0);
+
+    if(!json_is_array(subs) || !json_size(subs)) {
+        return msg_iev_build_response(
+            gobj,
+            -1,
+            json_sprintf("Subscriptions must be a list of sub patterns"),
+            0,
+            0,
+            kw  // owned
+        );
+    }
+
+    /*
+     *  Let mqtt protocol check all parameters
+     */
+    json_t *kw_subscribe = json_pack("{s:O, s:i, s:i, s:i}",
+        "subs", subs,
+        "mid", mid,
+        "qos", qos,
+        "options", options
+    );
+    if(properties && json_is_object(properties)) {
+        json_object_set(kw_subscribe, "properties", properties);
+    }
+
+    gobj_send_event(gobj, EV_MQTT_SUBSCRIBE, kw_subscribe, gobj);
 
     KW_DECREF(kw)
-    return NULL;
+    return 0;
+}
+
+/***************************************************************************
+ *
+ ***************************************************************************/
+PRIVATE json_t *cmd_unsubscribe(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
+{
+    json_t *subs = kw_get_list(gobj, kw, "subs", 0, 0);
+    int mid = (int)kw_get_int(gobj, kw, "mid", 0, 0);
+    json_t *properties = kw_get_dict(gobj, kw, "properties", 0, 0);
+
+    if(!json_is_array(subs) || !json_size(subs)) {
+        return msg_iev_build_response(
+            gobj,
+            -1,
+            json_sprintf("Subscriptions must be a list of sub patterns"),
+            0,
+            0,
+            kw  // owned
+        );
+    }
+
+    /*
+     *  Let mqtt protocol check all parameters
+     */
+    json_t *kw_unsubscribe = json_pack("{s:O, s:i}",
+        "subs", subs,
+        "mid", mid
+    );
+    if(properties && json_is_object(properties)) {
+        json_object_set(kw_unsubscribe, "properties", properties);
+    }
+
+    gobj_send_event(gobj, EV_MQTT_UNSUBSCRIBE, kw_unsubscribe, gobj);
+
+    KW_DECREF(kw)
+    return 0;
 }
 
 
@@ -929,6 +985,9 @@ PRIVATE int cmd_connect_mqtt(hgobj gobj)
 
     );
 
+    /* TODO
+     * must be callbacks for: connect, disconnect, publish, message, subscribe, unsubscribe
+     */
     priv->gobj_mqtt_connector = gobj_create_tree(
         gobj,
         mqtt_connector_config,
@@ -1280,6 +1339,16 @@ PRIVATE int ac_mqtt_subscribe(hgobj gobj, const char *event, json_t *kw, hgobj s
 }
 
 /***************************************************************************
+ *
+ ***************************************************************************/
+PRIVATE int ac_mqtt_unsubscribe(hgobj gobj, const char *event, json_t *kw, hgobj src)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    return gobj_send_event(priv->gobj_mqtt_connector, event, kw, src);
+}
+
+/***************************************************************************
  *  HACK Este evento solo puede venir de GCLASS_EDITLINE
  ***************************************************************************/
 PRIVATE int ac_command(hgobj gobj, const char *event, json_t *kw, hgobj src)
@@ -1544,6 +1613,7 @@ PRIVATE int create_gclass(gclass_name_t gclass_name)
         {EV_COMMAND,                ac_command,             0},
         {EV_MQTT_PUBLISH,           ac_mqtt_publish,        0},
         {EV_MQTT_SUBSCRIBE,         ac_mqtt_subscribe,      0},
+        {EV_MQTT_UNSUBSCRIBE,       ac_mqtt_unsubscribe,    0},
         {EV_MT_COMMAND_ANSWER,      ac_command_answer,      0},
         {EV_MT_STATS_ANSWER,        ac_command_answer,      0},
         {EV_ON_OPEN,                ac_on_open,             0},
@@ -1585,8 +1655,9 @@ PRIVATE int create_gclass(gclass_name_t gclass_name)
     event_type_t event_types[] = {
         {EV_MT_COMMAND_ANSWER,      EVF_PUBLIC_EVENT},
         {EV_MT_STATS_ANSWER,        EVF_PUBLIC_EVENT},
-        {EV_MQTT_PUBLISH,           EVF_PUBLIC_EVENT},
-        {EV_MQTT_SUBSCRIBE,         EVF_PUBLIC_EVENT},
+        {EV_MQTT_PUBLISH,           0},
+        {EV_MQTT_SUBSCRIBE,         0},
+        {EV_MQTT_UNSUBSCRIBE,       0},
         {EV_COMMAND,                0},
         {EV_CLRSCR,                 0},
         {EV_SCROLL_PAGE_UP,         0},
