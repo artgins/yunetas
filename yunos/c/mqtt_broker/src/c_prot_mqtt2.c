@@ -7132,6 +7132,110 @@ PRIVATE int ac_timeout_waiting_payload_data(hgobj gobj, const char *event, json_
 }
 
 /***************************************************************************
+ *  Entry of mqtt publishing for clients
+ ***************************************************************************/
+PRIVATE int ac_mqtt_publish(hgobj gobj, const char *event, json_t *kw, hgobj src)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    const char *topic = kw_get_str(gobj, kw, "topic", "", 0);
+    int mid = (int)kw_get_int(gobj, kw, "mid", 0, 0);
+    int qos = (int)kw_get_int(gobj, kw, "qos", 0, 0);
+    BOOL retain = kw_get_bool(gobj, kw, "retain", 0, 0);
+    gbuffer_t *gbuf_payload = (gbuffer_t *)(uintptr_t)kw_get_int(gobj, kw, "gbuffer", 0, 0);
+    json_t *properties = kw_get_dict(gobj, kw, "properties", 0, 0);
+
+    uint16_t local_mid;
+    // BOOL have_topic_alias; TODO review what is topic alias
+    int rc;
+    size_t tlen = 0;
+    uint32_t remaining_length;
+
+    if(!mid) {
+        mid = mosquitto__mid_generate(gobj);
+    }
+
+    if(qos == 0) {
+        return send__publish(
+            mosq,
+            local_mid,
+            topic,
+            (uint32_t)payloadlen,
+            payload,
+            (uint8_t)qos,
+            retain,
+            false,
+            outgoing_properties,
+            NULL,
+            0
+        );
+    } else {
+        if(outgoing_properties){
+            rc = mosquitto_property_copy_all(&properties_copy, outgoing_properties);
+            if(rc) return rc;
+        }
+        message = mosquitto__calloc(1, sizeof(struct mosquitto_message_all));
+        if(!message){
+            mosquitto_property_free_all(&properties_copy);
+            return MOSQ_ERR_NOMEM;
+        }
+
+        message->next = NULL;
+        message->timestamp = mosquitto_time();
+        message->msg.mid = local_mid;
+        if(topic){
+            message->msg.topic = mosquitto__strdup(topic);
+            if(!message->msg.topic){
+                message__cleanup(&message);
+                mosquitto_property_free_all(&properties_copy);
+                return MOSQ_ERR_NOMEM;
+            }
+        }
+        if(payloadlen){
+            message->msg.payloadlen = payloadlen;
+            message->msg.payload = mosquitto__malloc((unsigned int)payloadlen*sizeof(uint8_t));
+            if(!message->msg.payload){
+                message__cleanup(&message);
+                mosquitto_property_free_all(&properties_copy);
+                return MOSQ_ERR_NOMEM;
+            }
+            memcpy(message->msg.payload, payload, (uint32_t)payloadlen*sizeof(uint8_t));
+        }else{
+            message->msg.payloadlen = 0;
+            message->msg.payload = NULL;
+        }
+        message->msg.qos = (uint8_t)qos;
+        message->msg.retain = retain;
+        message->dup = false;
+        message->properties = properties_copy;
+
+        COMPAT_pthread_mutex_lock(&mosq->msgs_out.mutex);
+        message->state = mosq_ms_invalid;
+        rc = message__queue(mosq, message, mosq_md_out);
+        COMPAT_pthread_mutex_unlock(&mosq->msgs_out.mutex);
+        return rc;
+    }
+
+
+
+
+
+
+    KW_DECREF(kw)
+    return 0;
+}
+
+/***************************************************************************
+ *  Entry of mqtt subscribing for clients
+ ***************************************************************************/
+PRIVATE int ac_mqtt_subscribe(hgobj gobj, const char *event, json_t *kw, hgobj src)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+    KW_DECREF(kw)
+    return 0;
+}
+
+/***************************************************************************
  *  Send subscribe ack
  ***************************************************************************/
 PRIVATE int ac_send__suback(hgobj gobj, const char *event, json_t *kw, hgobj src)
@@ -7449,6 +7553,9 @@ GOBJ_DEFINE_GCLASS(C_PROT_MQTT2);
 /*------------------------*
  *      Events
  *------------------------*/
+GOBJ_DEFINE_EVENT(EV_MQTT_PUBLISH);
+GOBJ_DEFINE_EVENT(EV_MQTT_SUBSCRIBE);
+
 GOBJ_DEFINE_EVENT(EV_SEND_SUBACK);
 GOBJ_DEFINE_EVENT(EV_SEND_UNSUBACK);
 
@@ -7493,6 +7600,9 @@ PRIVATE int create_gclass(gclass_name_t gclass_name)
         {EV_SEND_SUBACK,        ac_send__suback,                    0},
         {EV_SEND_UNSUBACK,      ac_send__unsuback,                  0},
         {EV_SEND_MESSAGE,       ac_send_message,                    0},
+        {EV_MQTT_PUBLISH,       ac_mqtt_publish,                    0},
+        {EV_MQTT_SUBSCRIBE,     ac_mqtt_subscribe,                  0},
+
         {EV_DISCONNECTED,       ac_disconnected,                    ST_DISCONNECTED},
         {EV_TIMEOUT,            ac_timeout_waiting_frame_header,    0},
         {EV_DROP,               ac_drop,                            0},
