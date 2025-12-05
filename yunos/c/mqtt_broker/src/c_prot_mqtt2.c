@@ -5543,7 +5543,7 @@ PRIVATE int handle__suback(hgobj gobj, gbuffer_t *gbuf)
         "properties", properties?properties:json_object()
     );
 
-    gobj_publish_event(gobj, "", kw_suback);
+    gobj_publish_event(gobj, EV_MQTT_SUBACK, kw_suback);
 
     return 0;
 }
@@ -5567,38 +5567,37 @@ PRIVATE int handle__unsuback(hgobj gobj, gbuffer_t *gbuf)
     }
 
     rc = mqtt_read_uint16(gobj, gbuf, &mid);
-    if(rc) {
+    if(rc<0) {
+        // Error already logged
         return rc;
     }
     if(mid == 0) {
+        gobj_log_error(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_MQTT_ERROR,
+            "msg",          "%s", "Unsuback with mid == 0",
+            "client_id",    "%s", priv->client_id,
+            NULL
+        );
         return MOSQ_ERR_PROTOCOL;
     }
 
     if(priv->protocol_version == mosq_p_mqtt5) {
         properties = property_read_all(gobj, gbuf, CMD_UNSUBACK, &rc);
-        if(rc) {
+        if(rc<0) {
+            // Error already logged
             return rc;
         }
     }
 
-    if(priv->iamServer) {
-        /* Immediately free, we don't do anything with Reason String or User Property at the moment */
-        JSON_DECREF(properties)
-    } else {
-        // TODO publish if(mosq->on_unsubscribe) {
-        //    mosq->in_callback = TRUE;
-        //    mosq->on_unsubscribe(mosq, mosq->userdata, mid);
-        //    mosq->in_callback = FALSE;
-        //}
-        //if(mosq->on_unsubscribe_v5) {
-        //    mosq->in_callback = TRUE;
-        //    mosq->on_unsubscribe_v5(mosq, mosq->userdata, mid, properties);
-        //    mosq->in_callback = FALSE;
-        //}
-        JSON_DECREF(properties)
-    }
+    json_t *kw_suback = json_pack("{s:i, s:o}",
+        "mid", (int)mid,
+        "properties", properties?properties:json_object()
+    );
 
-    return MOSQ_ERR_SUCCESS;
+    gobj_publish_event(gobj, EV_MQTT_UNSUBACK, kw_suback);
+
+    return 0;
 }
 
 /***************************************************************************
