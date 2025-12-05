@@ -7157,6 +7157,41 @@ PRIVATE int ac_mqtt_publish(hgobj gobj, const char *event, json_t *kw, hgobj src
         return -1;
     }
 
+    if(qos > priv->max_qos) {
+        gobj_log_error(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_MQTT_ERROR,
+            "msg",          "%s", "Mqtt publish: qos not supported",
+            "max_qos",      "%d", priv->max_qos,
+            "qos",          "%d", qos,
+            NULL
+        );
+        KW_DECREF(kw)
+        return -1;
+    }
+
+    if(priv->protocol_version != mosq_p_mqtt5 && json_size(properties)) {
+        gobj_log_error(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_MQTT_ERROR,
+            "msg",          "%s", "Mqtt publish: properties not supported",
+            NULL
+        );
+        KW_DECREF(kw)
+        return -1;
+    }
+    if(qos < 0 || qos > 2) {
+        gobj_log_error(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_MQTT_ERROR,
+            "msg",          "%s", "Mqtt publish: qos invalid",
+            "qos",          "%d", qos,
+            NULL
+        );
+        KW_DECREF(kw)
+        return -1;
+    }
+
     if(!priv->retain_available && retain) {
         retain = FALSE;
         json_object_set_new(kw, "retain", json_false());
@@ -7169,6 +7204,18 @@ PRIVATE int ac_mqtt_publish(hgobj gobj, const char *event, json_t *kw, hgobj src
 
     size_t payloadlen = gbuffer_leftbytes(gbuf_payload);
     void *payload = gbuffer_cur_wr_pointer(gbuf_payload);
+
+    if(priv->maximum_packet_size > 0 && payloadlen > priv->maximum_packet_size) {
+        gobj_log_error(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_MQTT_ERROR,
+            "msg",          "%s", "Mqtt publish: message too large",
+            "payloadlen",   "%d", (int)payloadlen,
+            NULL
+        );
+        KW_DECREF(kw)
+        return -1;
+    }
 
     if(qos == 0) {
         send__publish(
@@ -7250,6 +7297,11 @@ PRIVATE int ac_mqtt_publish(hgobj gobj, const char *event, json_t *kw, hgobj src
 PRIVATE int ac_mqtt_subscribe(hgobj gobj, const char *event, json_t *kw, hgobj src)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
+    json_t *subs = kw_get_list(gobj, kw, "subs", 0, 0);
+    int mid = (int)kw_get_int(gobj, kw, "mid", 0, 0);
+    int qos = (int)kw_get_int(gobj, kw, "qos", 0, 0);
+    int options = (int)kw_get_int(gobj, kw, "options", 0, 0);
+    json_t *properties = kw_get_dict(gobj, kw, "properties", 0, 0);
 
     if(priv->iamServer) {
         gobj_log_error(gobj, 0,
@@ -7261,6 +7313,85 @@ PRIVATE int ac_mqtt_subscribe(hgobj gobj, const char *event, json_t *kw, hgobj s
         KW_DECREF(kw)
         return -1;
     }
+
+    if(!json_is_array(subs) || !json_size(subs)) {
+        gobj_log_error(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_MQTT_ERROR,
+            "msg",          "%s", "Mqtt subscribe: subs must be a list of sub patterns",
+            NULL
+        );
+        KW_DECREF(kw)
+        return -1;
+    }
+
+    if(priv->protocol_version != mosq_p_mqtt5 && json_size(properties)) {
+        gobj_log_error(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_MQTT_ERROR,
+            "msg",          "%s", "Mqtt subscribe: properties not supported",
+            NULL
+        );
+        KW_DECREF(kw)
+        return -1;
+    }
+    if(qos < 0 || qos > 2) {
+        gobj_log_error(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_MQTT_ERROR,
+            "msg",          "%s", "Mqtt subscribe: qos invalid",
+            "qos",          "%d", qos,
+            NULL
+        );
+        KW_DECREF(kw)
+        return -1;
+    }
+    if((options & 0x30) == 0x30 || (options & 0xC0) != 0) {
+        gobj_log_error(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_MQTT_ERROR,
+            "msg",          "%s", "Mqtt subscribe: options invalid",
+            "options",      "%d", options,
+            NULL
+        );
+        KW_DECREF(kw)
+        return -1;
+    }
+    if(priv->maximum_packet_size > 0) {
+        // TODO
+    }
+
+    if(properties){
+        if(properties->client_generated){
+            outgoing_properties = properties;
+        }else{
+            memcpy(&local_property, properties, sizeof(mosquitto_property));
+            local_property.client_generated = true;
+            local_property.next = NULL;
+            outgoing_properties = &local_property;
+        }
+        rc = mosquitto_property_check_all(CMD_SUBSCRIBE, outgoing_properties);
+        if(rc) return rc;
+    }
+
+    for(i=0; i<sub_count; i++){
+        if(mosquitto_sub_topic_check(sub[i])) return MOSQ_ERR_INVAL;
+        slen = (int)strlen(sub[i]);
+        if(mosquitto_validate_utf8(sub[i], slen)) return MOSQ_ERR_MALFORMED_UTF8;
+        remaining_length += 2+(uint32_t)slen + 1;
+    }
+
+    if(mosq->maximum_packet_size > 0){
+        remaining_length += 2 + property__get_length_all(outgoing_properties);
+        if(packet__check_oversize(mosq, remaining_length)){
+            return MOSQ_ERR_OVERSIZE_PACKET;
+        }
+    }
+    if(mosq->protocol == mosq_p_mqtt311 || mosq->protocol == mosq_p_mqtt31){
+        options = 0;
+    }
+
+    return send__subscribe(mosq, mid, sub_count, sub, qos|options, outgoing_properties);
 
 
     KW_DECREF(kw)
@@ -7273,6 +7404,9 @@ PRIVATE int ac_mqtt_subscribe(hgobj gobj, const char *event, json_t *kw, hgobj s
 PRIVATE int ac_mqtt_unsubscribe(hgobj gobj, const char *event, json_t *kw, hgobj src)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
+    json_t *subs = kw_get_list(gobj, kw, "subs", 0, 0);
+    int mid = (int)kw_get_int(gobj, kw, "mid", 0, 0);
+    json_t *properties = kw_get_dict(gobj, kw, "properties", 0, 0);
 
     if(priv->iamServer) {
         gobj_log_error(gobj, 0,
@@ -7284,6 +7418,61 @@ PRIVATE int ac_mqtt_unsubscribe(hgobj gobj, const char *event, json_t *kw, hgobj
         KW_DECREF(kw)
         return -1;
     }
+
+    if(!json_is_array(subs) || !json_size(subs)) {
+        gobj_log_error(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_MQTT_ERROR,
+            "msg",          "%s", "Mqtt unsubscribe: subs must be a list of sub patterns",
+            NULL
+        );
+        KW_DECREF(kw)
+        return -1;
+    }
+
+    if(priv->protocol_version != mosq_p_mqtt5 && json_size(properties)) {
+        gobj_log_error(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_MQTT_ERROR,
+            "msg",          "%s", "Mqtt unsubscribe: properties not supported",
+            NULL
+        );
+        KW_DECREF(kw)
+        return -1;
+    }
+    if(priv->maximum_packet_size > 0) {
+        // TODO
+    }
+
+
+    if(properties){
+        if(properties->client_generated){
+            outgoing_properties = properties;
+        }else{
+            memcpy(&local_property, properties, sizeof(mosquitto_property));
+            local_property.client_generated = true;
+            local_property.next = NULL;
+            outgoing_properties = &local_property;
+        }
+        rc = mosquitto_property_check_all(CMD_UNSUBSCRIBE, outgoing_properties);
+        if(rc) return rc;
+    }
+
+    for(i=0; i<sub_count; i++){
+        if(mosquitto_sub_topic_check(sub[i])) return MOSQ_ERR_INVAL;
+        slen = (int)strlen(sub[i]);
+        if(mosquitto_validate_utf8(sub[i], slen)) return MOSQ_ERR_MALFORMED_UTF8;
+        remaining_length += 2U + (uint32_t)slen;
+    }
+
+    if(mosq->maximum_packet_size > 0){
+        remaining_length += 2U + property__get_length_all(outgoing_properties);
+        if(packet__check_oversize(mosq, remaining_length)){
+            return MOSQ_ERR_OVERSIZE_PACKET;
+        }
+    }
+
+    return send__unsubscribe(mosq, mid, sub_count, sub, outgoing_properties);
 
 
     KW_DECREF(kw)

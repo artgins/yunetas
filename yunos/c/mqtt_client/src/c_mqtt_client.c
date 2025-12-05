@@ -482,11 +482,11 @@ PRIVATE json_t *cmd_subscribe(hgobj gobj, const char *cmd, json_t *kw, hgobj src
     int options = (int)kw_get_int(gobj, kw, "options", 0, 0);
     json_t *properties = kw_get_dict(gobj, kw, "properties", 0, 0);
 
-    if(!json_is_array(subs) || !json_size(subs)) {
+    if(!json_is_array(subs)) {
         return msg_iev_build_response(
             gobj,
             -1,
-            json_sprintf("Subscriptions must be a list of sub patterns"),
+            json_sprintf("subs must be a list of sub patterns"),
             0,
             0,
             kw  // owned
@@ -521,11 +521,11 @@ PRIVATE json_t *cmd_unsubscribe(hgobj gobj, const char *cmd, json_t *kw, hgobj s
     int mid = (int)kw_get_int(gobj, kw, "mid", 0, 0);
     json_t *properties = kw_get_dict(gobj, kw, "properties", 0, 0);
 
-    if(!json_is_array(subs) || !json_size(subs)) {
+    if(!json_is_array(subs)) {
         return msg_iev_build_response(
             gobj,
             -1,
-            json_sprintf("Subscriptions must be a list of sub patterns"),
+            json_sprintf("subs must be a list of sub patterns"),
             0,
             0,
             kw  // owned
