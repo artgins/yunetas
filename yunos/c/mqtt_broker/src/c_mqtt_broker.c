@@ -1055,7 +1055,7 @@ PRIVATE int handle__subscribe(
 
     json_t *kw_resp = iev_create2(
         gobj,
-        EV_SEND_SUBACK,
+        EV_MQTT_SUBACK,
         jn_response,    // owned
         kw_incref(kw)  // owned, used to get ONLY __temp__.
     );
@@ -1106,7 +1106,7 @@ PRIVATE int handle__unsubscribe(
 
     json_t *kw_resp = iev_create2(
         gobj,
-        EV_SEND_UNSUBACK,
+        EV_MQTT_UNSUBACK,
         jn_response,    // owned
         kw_incref(kw)  // owned, used to get ONLY __temp__.
     );

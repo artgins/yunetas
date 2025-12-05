@@ -4898,236 +4898,6 @@ PRIVATE int handle__connack_c(
 }
 
 /***************************************************************************
- *  Only for server-bridge
- ***************************************************************************/
-PRIVATE int handle__connack_s(hgobj gobj, gbuffer_t *gbuf)
-{
-    PRIVATE_DATA *priv = gobj_priv_data(gobj);
-    uint8_t max_qos = 255;
-    int ret = 0;
-
-    // TODO bridge not tested
-
-    if(!priv->is_bridge) {
-        gobj_log_error(gobj, 0,
-            "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_MQTT_ERROR,
-            "msg",          "%s", "Mqtt CMD_CONNACK: i am not bridge",
-            NULL
-        );
-        return -1;
-    }
-
-    uint8_t connect_acknowledge;
-    if(mqtt_read_byte(gobj, gbuf, &connect_acknowledge)<0) {
-        gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
-            "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_MQTT_ERROR,
-            "msg",          "%s", "Mqtt malformed packet, not enough data",
-            NULL
-        );
-        return -1;
-    }
-
-    uint8_t reason_code;
-    if(mqtt_read_byte(gobj, gbuf, &reason_code)<0) {
-        gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
-            "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_MQTT_ERROR,
-            "msg",          "%s", "Mqtt malformed packet, not enough data",
-            NULL
-        );
-        return MOSQ_ERR_MALFORMED_PACKET;
-    }
-
-    if(priv->protocol_version == mosq_p_mqtt5) {
-        if(gbuffer_leftbytes(gbuf) == 2 && reason_code == CONNACK_REFUSED_PROTOCOL_VERSION) {
-            /* We have connected to a MQTT v3.x broker that doesn't support MQTT v5.0
-             * It has correctly replied with a CONNACK code of a bad protocol version.
-             */
-            gobj_log_error(gobj, 0,
-                "function",     "%s", __FUNCTION__,
-                "msgset",       "%s", MSGSET_MQTT_ERROR,
-                "msg",          "%s", "Remote bridge does not support MQTT v5.0, reconnecting using MQTT v3.1.1.",
-                //"bridge_name",  "%s", priv->bridge_name,
-                NULL
-            );
-            priv->protocol_version = mosq_p_mqtt311;
-            //priv->bridge->protocol_version = mosq_p_mqtt311;
-            return -1;
-        }
-
-        json_t *properties = property_read_all(gobj, gbuf, CMD_CONNACK, &ret);
-        if(!properties) {
-            return ret;
-        }
-        /* maximum-qos */
-        max_qos = kw_get_int(gobj,
-            properties, mqtt_property_identifier_to_string(MQTT_PROP_MAXIMUM_QOS), 0, 0
-        );
-
-        /* maximum-packet-size */
-        int maximum_packet_size = kw_get_int(gobj,
-            properties, mqtt_property_identifier_to_string(MQTT_PROP_MAXIMUM_PACKET_SIZE), -1, 0
-        );
-        if(maximum_packet_size != -1) {
-            if(priv->maximum_packet_size == 0 || priv->maximum_packet_size > maximum_packet_size) {
-                priv->maximum_packet_size = maximum_packet_size;
-            }
-        }
-
-        /* receive-maximum */
-        int inflight_maximum = kw_get_int(gobj,
-            properties,
-            mqtt_property_identifier_to_string(MQTT_PROP_RECEIVE_MAXIMUM),
-            priv->msgs_out_inflight_maximum, // TODO client->msgs_out.inflight_maximum;
-            0
-        );
-        if(priv->msgs_out_inflight_maximum != inflight_maximum) {
-            priv->msgs_out_inflight_maximum = inflight_maximum;
-            // TODO db__message_reconnect_reset(context);
-        }
-
-        /* retain-available */
-        int retain_available = kw_get_int(gobj,
-            properties,
-            mqtt_property_identifier_to_string(MQTT_PROP_RETAIN_AVAILABLE),
-            -1,
-            0
-        );
-        if(retain_available != -1) {
-            /* Only use broker provided value if the local config is set to available==TRUE */
-            if(priv->retain_available) {
-                priv->retain_available = retain_available;
-            }
-        }
-
-        /* server-keepalive */
-        int server_keepalive = kw_get_int(gobj,
-            properties,
-            mqtt_property_identifier_to_string(MQTT_PROP_SERVER_KEEP_ALIVE),
-            -1,
-            0
-        );
-        if(server_keepalive != -1) {
-            priv->keepalive = server_keepalive;
-        }
-        JSON_DECREF(properties)
-    }
-
-    if(reason_code == 0) {
-        if(priv->is_bridge) {
-            //if(bridge__on_connect(context)<0) {
-                return -1;
-            //}
-        }
-        if(max_qos != 255) {
-            priv->max_qos = max_qos;
-        }
-        //mosquitto__set_state(context, mosq_cs_active);
-        //rc = db__message_write_queued_out(context);
-        //if(rc) return rc;
-        //rc = db__message_write_inflight_out_all(context);
-        //return rc;
-        return -1;
-    } else {
-        if(priv->protocol_version == mosq_p_mqtt5) {
-            switch(reason_code) {
-                case MQTT_RC_RETAIN_NOT_SUPPORTED:
-                    priv->retain_available = 0;
-                    gobj_log_error(gobj, 0,
-                        "function",     "%s", __FUNCTION__,
-                        "msgset",       "%s", MSGSET_MQTT_ERROR,
-                        "msg",          "%s", "Connection Refused: retain not available (will retry)",
-                        NULL
-                    );
-                    return -1;
-                case MQTT_RC_QOS_NOT_SUPPORTED:
-                    if(max_qos == 255) {
-                        if(priv->max_qos != 0) {
-                            priv->max_qos--;
-                        }
-                    } else {
-                        priv->max_qos = max_qos;
-                    }
-                    gobj_log_error(gobj, 0,
-                        "function",     "%s", __FUNCTION__,
-                        "msgset",       "%s", MSGSET_MQTT_ERROR,
-                        "msg",          "%s", "Connection Refused: QoS not supported (will retry)",
-                        NULL
-                    );
-                    return -1;
-                default:
-                    gobj_log_error(gobj, 0,
-                        "function",     "%s", __FUNCTION__,
-                        "msgset",       "%s", MSGSET_MQTT_ERROR,
-                        "msg",          "%s", "Connection Refused",
-                        "reason",       "%s", mosquitto_reason_string(reason_code),
-                        NULL
-                    );
-                    return -1;
-            }
-        } else {
-            switch(reason_code) {
-                case CONNACK_REFUSED_PROTOCOL_VERSION:
-                    if(priv->is_bridge) {
-                        // TODO priv->bridge->try_private_accepted = FALSE;
-                    }
-                    gobj_log_error(gobj, 0,
-                        "function",     "%s", __FUNCTION__,
-                        "msgset",       "%s", MSGSET_MQTT_ERROR,
-                        "msg",          "%s", "Connection Refused: unacceptable protocol version",
-                        NULL
-                    );
-                    return -1;
-                case CONNACK_REFUSED_IDENTIFIER_REJECTED:
-                    gobj_log_error(gobj, 0,
-                        "function",     "%s", __FUNCTION__,
-                        "msgset",       "%s", MSGSET_MQTT_ERROR,
-                        "msg",          "%s", "Connection Refused: identifier rejected",
-                        NULL
-                    );
-                    return -1;
-                case CONNACK_REFUSED_SERVER_UNAVAILABLE:
-                    gobj_log_error(gobj, 0,
-                        "function",     "%s", __FUNCTION__,
-                        "msgset",       "%s", MSGSET_MQTT_ERROR,
-                        "msg",          "%s", "Connection Refused: broker unavailable",
-                        NULL
-                    );
-                    return -1;
-                case CONNACK_REFUSED_BAD_USERNAME_PASSWORD:
-                    gobj_log_error(gobj, 0,
-                        "function",     "%s", __FUNCTION__,
-                        "msgset",       "%s", MSGSET_MQTT_ERROR,
-                        "msg",          "%s", "Connection Refused: bad user/password",
-                        NULL
-                    );
-                    return -1;
-                case CONNACK_REFUSED_NOT_AUTHORIZED:
-                    gobj_log_error(gobj, 0,
-                        "function",     "%s", __FUNCTION__,
-                        "msgset",       "%s", MSGSET_MQTT_ERROR,
-                        "msg",          "%s", "Connection Refused: not authorised",
-                        NULL
-                    );
-                    return -1;
-                default:
-                    gobj_log_error(gobj, 0,
-                        "function",     "%s", __FUNCTION__,
-                        "msgset",       "%s", MSGSET_MQTT_ERROR,
-                        "msg",          "%s", "Connection Refused: unknown reason",
-                        "reason",       "%d", reason_code,
-                        NULL
-                    );
-                    return -1;
-            }
-        }
-    }
-    return -1;
-}
-
-/***************************************************************************
  *
  ***************************************************************************/
 // PRIVATE int handle__disconnect_s(hgobj gobj, gbuffer_t *gbuf)
@@ -5709,6 +5479,126 @@ PRIVATE int handle__unsubscribe(hgobj gobj, gbuffer_t *gbuf)
     );
 
     return gobj_publish_event(gobj, EV_ON_MESSAGE, kw);
+}
+
+/***************************************************************************
+ *  Only clients, bridge not implemented
+ ***************************************************************************/
+PRIVATE int handle__suback(hgobj gobj, gbuffer_t *gbuf)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    uint16_t mid = 0;
+    int rc;
+    json_t *properties = NULL;
+
+    if(gobj_trace_level(gobj) & SHOW_DECODE) {
+        trace_msg0("  👈 Received SUBACK from client '%s' (Mid: %d)",
+            SAFE_PRINT(priv->client_id),
+            mid
+        );
+    }
+
+    rc = mqtt_read_uint16(gobj, gbuf, &mid);
+    if(rc<0) {
+        // Error already logged
+        return rc;
+    }
+    if(mid == 0) {
+        gobj_log_error(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_MQTT_ERROR,
+            "msg",          "%s", "Suback with mid == 0",
+            "client_id",    "%s", priv->client_id,
+            NULL
+        );
+        return MOSQ_ERR_PROTOCOL;
+    }
+
+    if(priv->protocol_version == mosq_p_mqtt5) {
+        properties = property_read_all(gobj, gbuf, CMD_SUBACK, &rc);
+        if(rc<0) {
+            // Error already logged
+            return rc;
+        }
+    }
+
+    json_t *granted_qos = json_array();
+
+    while(gbuffer_leftbytes(gbuf)>0) {
+        uint8_t qos;
+        rc = mqtt_read_byte(gobj, gbuf, &qos);
+        if(rc<0) {
+            // Error already logged
+            JSON_DECREF(granted_qos)
+            JSON_DECREF(properties)
+            return rc;
+        }
+        json_array_append_new(granted_qos, json_integer(qos));
+    }
+
+    json_t *kw_suback = json_pack("{s:i, s:o, s:o}",
+        "mid", (int)mid,
+        "granted_qos", granted_qos,
+        "properties", properties?properties:json_object()
+    );
+
+    gobj_publish_event(gobj, "", kw_suback);
+
+    return 0;
+}
+
+/***************************************************************************
+ *  Only clients, bridge not implemented
+ ***************************************************************************/
+PRIVATE int handle__unsuback(hgobj gobj, gbuffer_t *gbuf)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    uint16_t mid = 0;
+    int rc;
+    json_t *properties = NULL;
+
+    if(gobj_trace_level(gobj) & SHOW_DECODE) {
+        trace_msg0("  👈 Received UNSUBACK from client '%s' (Mid: %d)",
+            SAFE_PRINT(priv->client_id),
+            mid
+        );
+    }
+
+    rc = mqtt_read_uint16(gobj, gbuf, &mid);
+    if(rc) {
+        return rc;
+    }
+    if(mid == 0) {
+        return MOSQ_ERR_PROTOCOL;
+    }
+
+    if(priv->protocol_version == mosq_p_mqtt5) {
+        properties = property_read_all(gobj, gbuf, CMD_UNSUBACK, &rc);
+        if(rc) {
+            return rc;
+        }
+    }
+
+    if(priv->iamServer) {
+        /* Immediately free, we don't do anything with Reason String or User Property at the moment */
+        JSON_DECREF(properties)
+    } else {
+        // TODO publish if(mosq->on_unsubscribe) {
+        //    mosq->in_callback = TRUE;
+        //    mosq->on_unsubscribe(mosq, mosq->userdata, mid);
+        //    mosq->in_callback = FALSE;
+        //}
+        //if(mosq->on_unsubscribe_v5) {
+        //    mosq->in_callback = TRUE;
+        //    mosq->on_unsubscribe_v5(mosq, mosq->userdata, mid, properties);
+        //    mosq->in_callback = FALSE;
+        //}
+        JSON_DECREF(properties)
+    }
+
+    return MOSQ_ERR_SUCCESS;
 }
 
 /***************************************************************************
@@ -6692,7 +6582,9 @@ PRIVATE int frame_completed(hgobj gobj, hgobj src)
 
         case CMD_CONNACK:       // NOT common to server(bridge)/client
             if(priv->iamServer) {
-                ret = handle__connack_s(gobj, gbuf);
+                // Bridge not implemented
+                ret = MOSQ_ERR_PROTOCOL;
+                break;
             } else {
                 json_t *jn_data = json_object();
                 ret = handle__connack_c(gobj, gbuf, jn_data);
@@ -6706,20 +6598,23 @@ PRIVATE int frame_completed(hgobj gobj, hgobj src)
             }
             break;
 
-        // case CMD_SUBACK:        // common to server(bridge)/client
-        //     if(!priv->iamServer) {
-        //         ret = MOSQ_ERR_PROTOCOL;
-        //         break;
-        //     }
-        //     ret = handle__suback(gobj, gbuf);
-        //     break;
-        // case CMD_UNSUBACK:      // common to server(bridge)/client
-        //     if(!priv->iamServer) {
-        //         ret = MOSQ_ERR_PROTOCOL;
-        //         break;
-        //     }
-        //     ret = handle__unsuback(gobj, gbuf);
-        //     break;
+        case CMD_SUBACK:        // common to server(bridge)/client
+            if(priv->iamServer) {
+                // Bridge not implemented
+                ret = MOSQ_ERR_PROTOCOL;
+                break;
+            }
+            ret = handle__suback(gobj, gbuf);
+            break;
+
+        case CMD_UNSUBACK:      // common to server(bridge)/client
+            if(priv->iamServer) {
+                // Bridge not implemented
+                ret = MOSQ_ERR_PROTOCOL;
+                break;
+            }
+            ret = handle__unsuback(gobj, gbuf);
+            break;
 
         /*
          *  Only Server
@@ -8009,9 +7904,10 @@ GOBJ_DEFINE_GCLASS(C_PROT_MQTT2);
 GOBJ_DEFINE_EVENT(EV_MQTT_PUBLISH);
 GOBJ_DEFINE_EVENT(EV_MQTT_SUBSCRIBE);
 GOBJ_DEFINE_EVENT(EV_MQTT_UNSUBSCRIBE);
+GOBJ_DEFINE_EVENT(EV_MQTT_MESSAGE);
 
-GOBJ_DEFINE_EVENT(EV_SEND_SUBACK);
-GOBJ_DEFINE_EVENT(EV_SEND_UNSUBACK);
+GOBJ_DEFINE_EVENT(EV_MQTT_SUBACK);
+GOBJ_DEFINE_EVENT(EV_MQTT_UNSUBACK);
 
 /***************************************************************************
  *
@@ -8051,9 +7947,9 @@ PRIVATE int create_gclass(gclass_name_t gclass_name)
     };
     ev_action_t st_wait_frame_header[] = {
         {EV_RX_DATA,            ac_process_frame_header,            0},
-        {EV_SEND_SUBACK,        ac_send__suback,                    0},
-        {EV_SEND_UNSUBACK,      ac_send__unsuback,                  0},
-        {EV_SEND_MESSAGE,       ac_send_message,                    0},
+        {EV_MQTT_SUBACK,        ac_send__suback,                    0},
+        {EV_MQTT_UNSUBACK,      ac_send__unsuback,                  0},
+        // {EV_MQTT_MESSAGE,       ac_send_message,                    0},
         {EV_MQTT_PUBLISH,       ac_mqtt_publish,                    0},
         {EV_MQTT_SUBSCRIBE,     ac_mqtt_subscribe,                  0},
         {EV_MQTT_UNSUBSCRIBE,   ac_mqtt_unsubscribe,                0},
@@ -8066,9 +7962,13 @@ PRIVATE int create_gclass(gclass_name_t gclass_name)
     };
     ev_action_t st_wait_payload[] = {
         {EV_RX_DATA,            ac_process_payload_data,            0},
-        {EV_SEND_SUBACK,        ac_send__suback,                    0},
-        {EV_SEND_UNSUBACK,      ac_send__unsuback,                  0},
-        {EV_SEND_MESSAGE,       ac_send_message,                    0},
+        {EV_MQTT_SUBACK,        ac_send__suback,                    0},
+        {EV_MQTT_UNSUBACK,      ac_send__unsuback,                  0},
+        // {EV_MQTT_MESSAGE,       ac_send_message,                    0},
+        {EV_MQTT_PUBLISH,       ac_mqtt_publish,                    0},
+        {EV_MQTT_SUBSCRIBE,     ac_mqtt_subscribe,                  0},
+        {EV_MQTT_UNSUBSCRIBE,   ac_mqtt_unsubscribe,                0},
+
         {EV_DISCONNECTED,       ac_disconnected,                    ST_DISCONNECTED},
         {EV_TIMEOUT,            ac_timeout_waiting_payload_data,    0},
         {EV_DROP,               ac_drop,                            0},
@@ -8089,9 +7989,9 @@ PRIVATE int create_gclass(gclass_name_t gclass_name)
         {EV_MQTT_PUBLISH,       0},
         {EV_MQTT_SUBSCRIBE,     0},
         {EV_MQTT_UNSUBSCRIBE,   0},
-        {EV_SEND_SUBACK,        0},
-        {EV_SEND_UNSUBACK,      0},
-        {EV_SEND_MESSAGE,       0},
+        {EV_MQTT_SUBACK,        EVF_OUTPUT_EVENT},
+        {EV_MQTT_UNSUBACK,      EVF_OUTPUT_EVENT},
+        // {EV_MQTT_MESSAGE,       EVF_OUTPUT_EVENT},
         {EV_TIMEOUT,            0},
         {EV_TX_READY,           0},
         {EV_CONNECTED,          0},
@@ -8101,9 +8001,9 @@ PRIVATE int create_gclass(gclass_name_t gclass_name)
 
         {EV_ON_OPEN,            EVF_OUTPUT_EVENT},
         {EV_ON_CLOSE,           EVF_OUTPUT_EVENT},
-        {EV_ON_MESSAGE,         EVF_OUTPUT_EVENT},
-        {EV_ON_ID,              EVF_OUTPUT_EVENT},
-        {EV_ON_ID_NAK,          EVF_OUTPUT_EVENT},
+        // {EV_ON_MESSAGE,         EVF_OUTPUT_EVENT},
+        // {EV_ON_ID,              EVF_OUTPUT_EVENT},
+        // {EV_ON_ID_NAK,          EVF_OUTPUT_EVENT},
         {0, 0}
     };
 
