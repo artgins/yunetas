@@ -1387,10 +1387,8 @@ PRIVATE int ac_mqtt_unsubscribe(hgobj gobj, const char *event, json_t *kw, hgobj
  ***************************************************************************/
 PRIVATE int ac_mqtt_suback(hgobj gobj, const char *event, json_t *kw, hgobj src)
 {
-    PRIVATE_DATA *priv = gobj_priv_data(gobj);
-
     kw_delete_metadata_keys(kw);
-    printf("SUBSCRIBE ACK\n");
+    printf("Subscribe ack\n");
     json_dumpf(kw, stdout, JSON_INDENT(4)|JSON_ENCODE_ANY);
     clear_input_line(gobj);
 
@@ -1403,10 +1401,8 @@ PRIVATE int ac_mqtt_suback(hgobj gobj, const char *event, json_t *kw, hgobj src)
  ***************************************************************************/
 PRIVATE int ac_mqtt_unsuback(hgobj gobj, const char *event, json_t *kw, hgobj src)
 {
-    PRIVATE_DATA *priv = gobj_priv_data(gobj);
-
     kw_delete_metadata_keys(kw);
-    printf("UNSUBSCRIBE ACK\n");
+    printf("Unsubscribe ack\n");
     json_dumpf(kw, stdout, JSON_INDENT(4)|JSON_ENCODE_ANY);
     clear_input_line(gobj);
 

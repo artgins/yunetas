@@ -5398,7 +5398,7 @@ PRIVATE int handle__unsubscribe(hgobj gobj, gbuffer_t *gbuf)
     if(priv->protocol_version == mosq_p_mqtt5) {
         int rc;
         properties = property_read_all(gobj, gbuf, CMD_UNSUBSCRIBE, &rc);
-        if(rc) {
+        if(rc<0) {
             // Error already logged
             return rc;
         }
@@ -5566,13 +5566,6 @@ PRIVATE int handle__unsuback(hgobj gobj, gbuffer_t *gbuf)
     int rc;
     json_t *properties = NULL;
 
-    if(gobj_trace_level(gobj) & SHOW_DECODE) {
-        trace_msg0("  👈 Received UNSUBACK from client '%s' (Mid: %d)",
-            SAFE_PRINT(priv->client_id),
-            mid
-        );
-    }
-
     rc = mqtt_read_uint16(gobj, gbuf, &mid);
     if(rc<0) {
         // Error already logged
@@ -5597,8 +5590,30 @@ PRIVATE int handle__unsuback(hgobj gobj, gbuffer_t *gbuf)
         }
     }
 
-    json_t *kw_suback = json_pack("{s:i, s:o}",
+    json_t *reason_codes = json_array();
+
+    while(gbuffer_leftbytes(gbuf)>0) {
+        uint8_t reason_code;
+        rc = mqtt_read_byte(gobj, gbuf, &reason_code);
+        if(rc<0) {
+            // Error already logged
+            JSON_DECREF(reason_codes)
+            JSON_DECREF(properties)
+            return rc;
+        }
+        json_array_append_new(reason_codes, json_integer(reason_code));
+    }
+
+    if(gobj_trace_level(gobj) & SHOW_DECODE) {
+        trace_msg0("  👈 Received UNSUBACK from client '%s' (Mid: %d)",
+            SAFE_PRINT(priv->client_id),
+            mid
+        );
+    }
+
+    json_t *kw_suback = json_pack("{s:i, s:o, s:o}",
         "mid", (int)mid,
+        "reason_codes", reason_codes,
         "properties", properties?properties:json_object()
     );
 
