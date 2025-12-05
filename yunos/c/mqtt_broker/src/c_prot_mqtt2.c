@@ -3496,8 +3496,7 @@ PRIVATE int send__publish(
     json_t *cmsg_props, // not owned
     json_t *store_props, // not owned
     uint32_t expiry_interval
-)
-{
+) {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
     if(!priv->retain_available) {
@@ -3505,7 +3504,8 @@ PRIVATE int send__publish(
     }
 
     if(gobj_trace_level(gobj) & SHOW_DECODE) {
-        trace_msg0("👉👉 Sending PUBLISH to '%s', topic '%s' (dup %d, qos %d, retain %d, mid %d)",
+        trace_msg0("👉👉 Sending %s PUBLISH to '%s', topic '%s' (dup %d, qos %d, retain %d, mid %d)",
+            priv->iamServer?"broker":"client",
             SAFE_PRINT(priv->client_id),
             topic,
             dup,
@@ -7138,6 +7138,7 @@ PRIVATE int ac_mqtt_publish(hgobj gobj, const char *event, json_t *kw, hgobj src
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
+    // TODO check: topic can be empty if using prot v5 and property MQTT_PROP_TOPIC_ALIAS
     const char *topic = kw_get_str(gobj, kw, "topic", "", 0);
     int mid = (int)kw_get_int(gobj, kw, "mid", 0, 0);
     int qos = (int)kw_get_int(gobj, kw, "qos", 0, 0);
@@ -7156,81 +7157,88 @@ PRIVATE int ac_mqtt_publish(hgobj gobj, const char *event, json_t *kw, hgobj src
         return -1;
     }
 
-    uint16_t local_mid;
-    // BOOL have_topic_alias; TODO review what is topic alias
-    int rc;
-    size_t tlen = 0;
-    uint32_t remaining_length;
+    if(!priv->retain_available && retain) {
+        retain = FALSE;
+        json_object_set_new(kw, "retain", json_false());
+    }
 
     if(!mid) {
         mid = mosquitto__mid_generate(gobj);
+        json_object_set_new(kw, "mid", json_integer(mid));
     }
 
+    size_t payloadlen = gbuffer_leftbytes(gbuf_payload);
+    void *payload = gbuffer_cur_wr_pointer(gbuf_payload);
+
     if(qos == 0) {
-        return send__publish(
-            mosq,
-            local_mid,
+        send__publish(
+            gobj,
+            mid,
             topic,
             (uint32_t)payloadlen,
             payload,
             (uint8_t)qos,
             retain,
-            false,
-            outgoing_properties,
+            FALSE,
+            properties,
             NULL,
             0
         );
     } else {
-        if(outgoing_properties){
-            rc = mosquitto_property_copy_all(&properties_copy, outgoing_properties);
-            if(rc) return rc;
-        }
-        message = mosquitto__calloc(1, sizeof(struct mosquitto_message_all));
-        if(!message){
-            mosquitto_property_free_all(&properties_copy);
-            return MOSQ_ERR_NOMEM;
-        }
 
-        message->next = NULL;
-        message->timestamp = mosquitto_time();
-        message->msg.mid = local_mid;
-        if(topic){
-            message->msg.topic = mosquitto__strdup(topic);
-            if(!message->msg.topic){
-                message__cleanup(&message);
-                mosquitto_property_free_all(&properties_copy);
-                return MOSQ_ERR_NOMEM;
-            }
-        }
-        if(payloadlen){
-            message->msg.payloadlen = payloadlen;
-            message->msg.payload = mosquitto__malloc((unsigned int)payloadlen*sizeof(uint8_t));
-            if(!message->msg.payload){
-                message__cleanup(&message);
-                mosquitto_property_free_all(&properties_copy);
-                return MOSQ_ERR_NOMEM;
-            }
-            memcpy(message->msg.payload, payload, (uint32_t)payloadlen*sizeof(uint8_t));
-        }else{
-            message->msg.payloadlen = 0;
-            message->msg.payload = NULL;
-        }
-        message->msg.qos = (uint8_t)qos;
-        message->msg.retain = retain;
-        message->dup = false;
-        message->properties = properties_copy;
+        gobj_log_error(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_MQTT_ERROR,
+            "msg",          "%s", "TODO !!!!!!!!!!!!",
+            NULL
+        );
 
-        COMPAT_pthread_mutex_lock(&mosq->msgs_out.mutex);
-        message->state = mosq_ms_invalid;
-        rc = message__queue(mosq, message, mosq_md_out);
-        COMPAT_pthread_mutex_unlock(&mosq->msgs_out.mutex);
-        return rc;
+        // TODO enqueue the message
+        // if(outgoing_properties){
+        //     rc = mosquitto_property_copy_all(&properties_copy, outgoing_properties);
+        //     if(rc) return rc;
+        // }
+        // message = mosquitto__calloc(1, sizeof(struct mosquitto_message_all));
+        // if(!message){
+        //     mosquitto_property_free_all(&properties_copy);
+        //     return MOSQ_ERR_NOMEM;
+        // }
+        //
+        // message->next = NULL;
+        // message->timestamp = mosquitto_time();
+        // message->msg.mid = local_mid;
+        // if(topic){
+        //     message->msg.topic = mosquitto__strdup(topic);
+        //     if(!message->msg.topic){
+        //         message__cleanup(&message);
+        //         mosquitto_property_free_all(&properties_copy);
+        //         return MOSQ_ERR_NOMEM;
+        //     }
+        // }
+        // if(payloadlen){
+        //     message->msg.payloadlen = payloadlen;
+        //     message->msg.payload = mosquitto__malloc((unsigned int)payloadlen*sizeof(uint8_t));
+        //     if(!message->msg.payload){
+        //         message__cleanup(&message);
+        //         mosquitto_property_free_all(&properties_copy);
+        //         return MOSQ_ERR_NOMEM;
+        //     }
+        //     memcpy(message->msg.payload, payload, (uint32_t)payloadlen*sizeof(uint8_t));
+        // }else{
+        //     message->msg.payloadlen = 0;
+        //     message->msg.payload = NULL;
+        // }
+        // message->msg.qos = (uint8_t)qos;
+        // message->msg.retain = retain;
+        // message->dup = false;
+        // message->properties = properties_copy;
+        //
+        // COMPAT_pthread_mutex_lock(&mosq->msgs_out.mutex);
+        // message->state = mosq_ms_invalid;
+        // rc = message__queue(mosq, message, mosq_md_out);
+        // COMPAT_pthread_mutex_unlock(&mosq->msgs_out.mutex);
+        // return rc;
     }
-
-
-
-
-
 
     KW_DECREF(kw)
     return 0;
@@ -7482,7 +7490,7 @@ PRIVATE int ac_send_message(hgobj gobj, const char *event, json_t *kw, hgobj src
         }
     }
 
-    uint16_t mid = mosquitto__mid_generate(gobj, priv->client_id);
+    uint16_t mid = mosquitto__mid_generate(gobj);
     json_object_set_new(kw, "mid", json_integer(mid));
 
     send__publish(

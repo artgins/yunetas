@@ -438,28 +438,6 @@ PRIVATE json_t *cmd_publish(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
     /*
      *  Let mqtt protocol check all
      */
-    // if(empty_string(topic)) {
-    //     return msg_iev_build_response(
-    //         gobj,
-    //         -1,
-    //         json_sprintf("What mqtt message topic?"),
-    //         0,
-    //         0,
-    //         kw  // owned
-    //     );
-    // }
-
-    // if(qos<0 || qos>2) {
-    //     return msg_iev_build_response(
-    //         gobj,
-    //         -1,
-    //         json_sprintf("QoS must be 0, 1 or 2"),
-    //         0,
-    //         0,
-    //         kw  // owned
-    //     );
-    // }
-
     if(properties) {
         if(!json_is_object(properties)) {
             return msg_iev_build_response(
@@ -1571,7 +1549,6 @@ PRIVATE int create_gclass(gclass_name_t gclass_name)
         {EV_ON_OPEN,                ac_on_open,             0},
         {EV_ON_TOKEN,               ac_on_token,            0},
         {EV_ON_ID_NAK,              ac_on_close,            0},
-
         {EV_ON_CLOSE,               ac_on_close,            0},
         {EV_CLRSCR,                 ac_screen_ctrl,         0},
         {EV_SCROLL_PAGE_UP,         ac_screen_ctrl,         0},
