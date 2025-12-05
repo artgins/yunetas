@@ -293,6 +293,8 @@ PRIVATE json_t *parameter2json(
 
     } else if(DTP_IS_JSON(type)) {
         return anystring2json(s, strlen(s), TRUE);
+    } else if(DTP_IS_LIST(type) || DTP_IS_DICT(type)) {
+        return string2json(s, TRUE);
     } else {
         *result = -1;
         json_t *jn_data = json_sprintf(

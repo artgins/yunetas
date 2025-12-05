@@ -1325,6 +1325,19 @@ PRIVATE int ac_mqtt_publish(hgobj gobj, const char *event, json_t *kw, hgobj src
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
+    /*
+     *  Using C_CHANNEL it must be a IEV
+     */
+    json_t *kw_resp = iev_create2(
+        gobj,
+        EV_SEND_UNSUBACK,
+        jn_response,    // owned
+        kw_incref(kw)  // owned, used to get ONLY __temp__.
+    );
+
+    gobj_send_event(src, EV_SEND_IEV, kw_resp, gobj);
+
+
     return gobj_send_event(priv->gobj_mqtt_connector, event, kw, src);
 }
 
