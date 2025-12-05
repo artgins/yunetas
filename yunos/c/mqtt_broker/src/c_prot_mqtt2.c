@@ -7192,6 +7192,14 @@ PRIVATE int ac_mqtt_publish(hgobj gobj, const char *event, json_t *kw, hgobj src
         return -1;
     }
 
+    if(json_size(properties)) {
+        if(mqtt_property_check_all(gobj, CMD_PUBLISH, properties)<0) {
+            // Error already logged
+            KW_DECREF(kw)
+            return -1;
+        }
+    }
+
     if(!priv->retain_available && retain) {
         retain = FALSE;
         json_object_set_new(kw, "retain", json_false());
@@ -7357,6 +7365,15 @@ PRIVATE int ac_mqtt_subscribe(hgobj gobj, const char *event, json_t *kw, hgobj s
         KW_DECREF(kw)
         return -1;
     }
+
+    if(json_size(properties)) {
+        if(mqtt_property_check_all(gobj, CMD_SUBSCRIBE, properties)<0) {
+            // Error already logged
+            KW_DECREF(kw)
+            return -1;
+        }
+    }
+
     if(priv->maximum_packet_size > 0) {
         // TODO
     }
@@ -7440,6 +7457,15 @@ PRIVATE int ac_mqtt_unsubscribe(hgobj gobj, const char *event, json_t *kw, hgobj
         KW_DECREF(kw)
         return -1;
     }
+
+    if(json_size(properties)) {
+        if(mqtt_property_check_all(gobj, CMD_UNSUBSCRIBE, properties)<0) {
+            // Error already logged
+            KW_DECREF(kw)
+            return -1;
+        }
+    }
+
     if(priv->maximum_packet_size > 0) {
         // TODO
     }
