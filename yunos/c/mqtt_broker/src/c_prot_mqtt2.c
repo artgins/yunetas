@@ -1855,7 +1855,7 @@ PRIVATE int property__write(hgobj gobj, gbuffer_t *gbuf, const char *property_na
 /***************************************************************************
  *
  ***************************************************************************/
-PRIVATE int property_write_all(
+PRIVATE int property__write_all(
     hgobj gobj,
     gbuffer_t *gbuf,
     json_t *props, // not owned
@@ -3125,8 +3125,8 @@ PRIVATE int send__connect(
     if(protocol == mosq_p_mqtt5) {
         /* Write properties */
         mqtt_write_varint(gbuf, proplen);
-        property_write_all(gobj, gbuf, properties, FALSE);
-        property_write_all(gobj, gbuf, local_props, FALSE);
+        property__write_all(gobj, gbuf, properties, FALSE);
+        property__write_all(gobj, gbuf, local_props, FALSE);
     }
     JSON_DECREF(properties);
     JSON_DECREF(local_props)
@@ -3141,7 +3141,7 @@ PRIVATE int send__connect(
         // TODO
         // if(protocol == mosq_p_mqtt5) {
         //     /* Write will properties */
-        //     property_write_all(gobj, gbuf, mosq->will->properties, true);
+        //     property__write_all(gobj, gbuf, mosq->will->properties, true);
         // }
         // mqtt_write_string(gbuf, mosq->will->msg.topic, (uint16_t)strlen(mosq->will->msg.topic));
         // mqtt_write_string(gbuf, (const char *)mosq->will->msg.payload, (uint16_t)mosq->will->msg.payloadlen);
@@ -3244,7 +3244,7 @@ PRIVATE int send__connack(
     gbuffer_append_char(gbuf, ack);
     gbuffer_append_char(gbuf, reason_code);
     if(priv->protocol_version == mosq_p_mqtt5) {
-        property_write_all(gobj, gbuf, connack_props, TRUE);
+        property__write_all(gobj, gbuf, connack_props, TRUE);
     }
     JSON_DECREF(connack_props);
     return send_packet(gobj, gbuf);
@@ -3303,7 +3303,7 @@ PRIVATE int send__disconnect(
     if(priv->protocol_version == mosq_p_mqtt5 && (reason_code != 0 || properties)) {
         gbuffer_append_char(gbuf, reason_code);
         if(properties) {
-            property_write_all(gobj, gbuf, properties, TRUE);
+            property__write_all(gobj, gbuf, properties, TRUE);
         }
     }
 
@@ -3429,7 +3429,7 @@ PRIVATE int send_command_with_mid(
             mqtt_write_byte(gbuf, reason_code);
         }
         if(properties) {
-            property_write_all(gobj, gbuf, properties, TRUE);
+            property__write_all(gobj, gbuf, properties, TRUE);
         }
     }
 
@@ -3441,7 +3441,7 @@ PRIVATE int send_command_with_mid(
 /***************************************************************************
  *
  ***************************************************************************/
-PRIVATE int send_puback(hgobj gobj, uint16_t mid, uint8_t reason_code, json_t *properties)
+PRIVATE int send__puback(hgobj gobj, uint16_t mid, uint8_t reason_code, json_t *properties)
 {
     //util__increment_receive_quota(mosq);
     /* We don't use Reason String or User Property yet. */
@@ -3451,7 +3451,7 @@ PRIVATE int send_puback(hgobj gobj, uint16_t mid, uint8_t reason_code, json_t *p
 /***************************************************************************
  *
  ***************************************************************************/
-PRIVATE int send_pubcomp(hgobj gobj, uint16_t mid, json_t *properties)
+PRIVATE int send__pubcomp(hgobj gobj, uint16_t mid, json_t *properties)
 {
     //util__increment_receive_quota(mosq);
     /* We don't use Reason String or User Property yet. */
@@ -3461,7 +3461,7 @@ PRIVATE int send_pubcomp(hgobj gobj, uint16_t mid, json_t *properties)
 /***************************************************************************
  *
  ***************************************************************************/
-PRIVATE int send_pubrec(hgobj gobj, uint16_t mid, uint8_t reason_code, json_t *properties)
+PRIVATE int send__pubrec(hgobj gobj, uint16_t mid, uint8_t reason_code, json_t *properties)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
@@ -3589,10 +3589,10 @@ PRIVATE int send__publish(
 
     if(priv->protocol_version == mosq_p_mqtt5) {
         mqtt_write_varint(gbuf, proplen);
-        property_write_all(gobj, gbuf, cmsg_props, FALSE);
-        property_write_all(gbuf, gbuf, store_props, FALSE);
+        property__write_all(gobj, gbuf, cmsg_props, FALSE);
+        property__write_all(gbuf, gbuf, store_props, FALSE);
         if(expiry_interval > 0) {
-            property_write_all(gobj, gbuf, expiry_prop, FALSE);
+            property__write_all(gobj, gbuf, expiry_prop, FALSE);
         }
     }
     JSON_DECREF(expiry_prop);
@@ -3600,6 +3600,148 @@ PRIVATE int send__publish(
     /* Payload */
     if(payloadlen) {
         mqtt_write_bytes(gbuf, payload, payloadlen);
+    }
+
+    return send_packet(gobj, gbuf);
+}
+
+/***************************************************************************
+ *
+ ***************************************************************************/
+PRIVATE int send__subscribe(
+    hgobj gobj,
+    int mid,
+    json_t *subs,
+    int qos,
+    json_t *properties // not owned
+) {
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+    uint32_t packetlen = 2;
+
+    int idx; json_t *jn_sub;
+    json_array_foreach(subs, idx, jn_sub) {
+        const char *sub = json_string_value(jn_sub);
+        size_t tlen = strlen(sub);
+        if(tlen > UINT16_MAX){
+            gobj_log_error(gobj, 0,
+                "function",     "%s", __FUNCTION__,
+                "msgset",       "%s", MSGSET_MQTT_ERROR,
+                "msg",          "%s", "Mqtt subscribe: sub TOO LARGE",
+                "subs",         "%j", subs,
+                NULL
+            );
+            return -1;
+        }
+        packetlen += 2U+(uint16_t)tlen + 1U;
+    }
+
+    if(priv->protocol_version == mosq_p_mqtt5){
+        packetlen += property__get_remaining_length(properties);
+    }
+
+    uint8_t command = CMD_SUBSCRIBE | (1<<1);
+    gbuffer_t *gbuf = build_mqtt_packet(gobj, command, packetlen);
+    if(!gbuf) {
+        // Error already logged
+        return MOSQ_ERR_NOMEM;
+    }
+
+    /* Variable header */
+    // local_mid = mosquitto__mid_generate(mosq);
+    // if(mid) *mid = (int)local_mid;
+    mqtt_write_uint16(gbuf, mid);
+
+    if(priv->protocol_version == mosq_p_mqtt5) {
+        property__write_all(gobj, gbuf, properties, TRUE);
+    }
+
+    /* Payload */
+    json_array_foreach(subs, idx, jn_sub) {
+        const char *sub = json_string_value(jn_sub);
+        mqtt_write_string(gbuf, sub);
+        mqtt_write_byte(gbuf, (uint8_t)qos);
+    }
+
+    if(gobj_trace_level(gobj) & SHOW_DECODE) {
+        char *topics = json2uglystr(subs);
+        trace_msg0("👉👉 Sending %s SUBSCRIBE client_id '%s', topic '%s' (qos %d, mid %d)",
+            priv->iamServer?"broker":"client",
+            SAFE_PRINT(priv->client_id),
+            topics,
+            qos,
+            mid
+        );
+        GBMEM_FREE(topics)
+    }
+
+    return send_packet(gobj, gbuf);
+}
+
+/***************************************************************************
+ *
+ ***************************************************************************/
+PRIVATE int send__unsubscribe(
+    hgobj gobj,
+    int mid,
+    json_t *subs,
+    json_t *properties
+) {
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+    uint32_t packetlen = 2;
+
+    int idx; json_t *jn_sub;
+    json_array_foreach(subs, idx, jn_sub) {
+        const char *sub = json_string_value(jn_sub);
+        size_t tlen = strlen(sub);
+        if(tlen > UINT16_MAX){
+            gobj_log_error(gobj, 0,
+                "function",     "%s", __FUNCTION__,
+                "msgset",       "%s", MSGSET_MQTT_ERROR,
+                "msg",          "%s", "Mqtt subscribe: sub TOO LARGE",
+                "subs",         "%j", subs,
+                NULL
+            );
+            return -1;
+        }
+        packetlen += 2U+(uint16_t)tlen;
+    }
+
+    if(priv->protocol_version == mosq_p_mqtt5){
+        packetlen += property__get_remaining_length(properties);
+    }
+
+    uint8_t command = CMD_UNSUBSCRIBE | (1<<1);
+    gbuffer_t *gbuf = build_mqtt_packet(gobj, command, packetlen);
+    if(!gbuf) {
+        // Error already logged
+        return MOSQ_ERR_NOMEM;
+    }
+
+    /* Variable header */
+    // local_mid = mosquitto__mid_generate(mosq); TODO
+    // if(mid) *mid = (int)local_mid;
+    mqtt_write_uint16(gbuf, mid);
+
+    if(priv->protocol_version == mosq_p_mqtt5) {
+        /* We don't use User Property yet. */
+        property__write_all(gobj, gbuf, properties, TRUE);
+    }
+
+    /* Payload */
+    json_array_foreach(subs, idx, jn_sub) {
+        const char *sub = json_string_value(jn_sub);
+        mqtt_write_string(gbuf, sub);
+    }
+
+    if(gobj_trace_level(gobj) & SHOW_DECODE) {
+        char *topics = json2uglystr(subs);
+        trace_msg0("👉👉 Sending %s UNSUBSCRIBE client_id '%s', topic '%s' (mid %d)",
+            priv->iamServer?"broker":"client",
+            SAFE_PRINT(priv->client_id),
+            topics,
+            mid
+        );
+        GBMEM_FREE(topics)
     }
 
     return send_packet(gobj, gbuf);
@@ -6152,6 +6294,8 @@ PRIVATE int handle__publish_c(hgobj gobj, gbuffer_t *gbuf)
     //         mosquitto_property_free_all(&properties);
     //         return MOSQ_ERR_PROTOCOL;
     // }
+
+    return rc;
 }
 
 /***************************************************************************
@@ -7205,11 +7349,6 @@ PRIVATE int ac_mqtt_publish(hgobj gobj, const char *event, json_t *kw, hgobj src
         json_object_set_new(kw, "retain", json_false());
     }
 
-    if(!mid) {
-        mid = mosquitto__mid_generate(gobj);
-        json_object_set_new(kw, "mid", json_integer(mid));
-    }
-
     size_t payloadlen = gbuffer_leftbytes(gbuf_payload);
     void *payload = gbuffer_cur_wr_pointer(gbuf_payload);
 
@@ -7223,6 +7362,11 @@ PRIVATE int ac_mqtt_publish(hgobj gobj, const char *event, json_t *kw, hgobj src
         );
         KW_DECREF(kw)
         return -1;
+    }
+
+    if(!mid) {
+        mid = mosquitto__mid_generate(gobj);
+        json_object_set_new(kw, "mid", json_integer(mid));
     }
 
     if(qos == 0) {
@@ -7374,42 +7518,61 @@ PRIVATE int ac_mqtt_subscribe(hgobj gobj, const char *event, json_t *kw, hgobj s
         }
     }
 
-    if(priv->maximum_packet_size > 0) {
-        // TODO
-    }
-
-    if(properties){
-        if(properties->client_generated){
-            outgoing_properties = properties;
-        }else{
-            memcpy(&local_property, properties, sizeof(mosquitto_property));
-            local_property.client_generated = true;
-            local_property.next = NULL;
-            outgoing_properties = &local_property;
+    uint32_t remaining_length = 0;
+    int idx; json_t *jn_sub;
+    json_array_foreach(subs, idx, jn_sub) {
+        const char *sub = json_string_value(jn_sub);
+        if(empty_string(sub)) {
+            gobj_log_error(gobj, 0,
+                "function",     "%s", __FUNCTION__,
+                "msgset",       "%s", MSGSET_MQTT_ERROR,
+                "msg",          "%s", "Mqtt subscribe: subscription empty",
+                "subs",         "%j", subs,
+                NULL
+            );
+            KW_DECREF(kw)
+            return -1;
         }
-        rc = mosquitto_property_check_all(CMD_SUBSCRIBE, outgoing_properties);
-        if(rc) return rc;
-    }
+        int slen = (int)strlen(sub);
+        if(mosquitto_validate_utf8(sub, slen)<0) {
+            gobj_log_error(gobj, 0,
+                "function",     "%s", __FUNCTION__,
+                "msgset",       "%s", MSGSET_MQTT_ERROR,
+                "msg",          "%s", "Mqtt subscribe: bad utf8",
+                "subs",         "%j", subs,
+                NULL
+            );
+            KW_DECREF(kw)
+            return -1;
+        }
 
-    for(i=0; i<sub_count; i++){
-        if(mosquitto_sub_topic_check(sub[i])) return MOSQ_ERR_INVAL;
-        slen = (int)strlen(sub[i]);
-        if(mosquitto_validate_utf8(sub[i], slen)) return MOSQ_ERR_MALFORMED_UTF8;
         remaining_length += 2+(uint32_t)slen + 1;
     }
 
-    if(mosq->maximum_packet_size > 0){
-        remaining_length += 2 + property__get_length_all(outgoing_properties);
-        if(packet__check_oversize(mosq, remaining_length)){
-            return MOSQ_ERR_OVERSIZE_PACKET;
-        }
+    if(priv->maximum_packet_size > 0) {
+        remaining_length += 2 + property__get_length_all(properties);
+        // TODO
+        // if(packet__check_oversize(mosq, remaining_length)) {
+        //     gobj_log_error(gobj, 0,
+        //         "function",     "%s", __FUNCTION__,
+        //         "msgset",       "%s", MSGSET_MQTT_ERROR,
+        //         "msg",          "%s", "Mqtt subscribe: message too big",
+        //         NULL
+        //     );
+        //     KW_DECREF(kw)
+        //     return -1;
+        // }
     }
-    if(mosq->protocol == mosq_p_mqtt311 || mosq->protocol == mosq_p_mqtt31){
+    if(priv->protocol_version != mosq_p_mqtt5) {
         options = 0;
     }
 
-    return send__subscribe(mosq, mid, sub_count, sub, qos|options, outgoing_properties);
+    if(!mid) {
+        mid = mosquitto__mid_generate(gobj);
+        json_object_set_new(kw, "mid", json_integer(mid));
+    }
 
+    send__subscribe(gobj, mid, subs, qos|options, properties);
 
     KW_DECREF(kw)
     return 0;
@@ -7466,40 +7629,66 @@ PRIVATE int ac_mqtt_unsubscribe(hgobj gobj, const char *event, json_t *kw, hgobj
         }
     }
 
-    if(priv->maximum_packet_size > 0) {
-        // TODO
-    }
-
-
-    if(properties){
-        if(properties->client_generated){
-            outgoing_properties = properties;
-        }else{
-            memcpy(&local_property, properties, sizeof(mosquitto_property));
-            local_property.client_generated = true;
-            local_property.next = NULL;
-            outgoing_properties = &local_property;
+    if(json_size(properties)) {
+        if(mqtt_property_check_all(gobj, CMD_UNSUBSCRIBE, properties)<0) {
+            // Error already logged
+            KW_DECREF(kw)
+            return -1;
         }
-        rc = mosquitto_property_check_all(CMD_UNSUBSCRIBE, outgoing_properties);
-        if(rc) return rc;
     }
 
-    for(i=0; i<sub_count; i++){
-        if(mosquitto_sub_topic_check(sub[i])) return MOSQ_ERR_INVAL;
-        slen = (int)strlen(sub[i]);
-        if(mosquitto_validate_utf8(sub[i], slen)) return MOSQ_ERR_MALFORMED_UTF8;
+    uint32_t remaining_length = 0;
+    int idx; json_t *jn_sub;
+    json_array_foreach(subs, idx, jn_sub) {
+        const char *sub = json_string_value(jn_sub);
+        if(empty_string(sub)) {
+            gobj_log_error(gobj, 0,
+                "function",     "%s", __FUNCTION__,
+                "msgset",       "%s", MSGSET_MQTT_ERROR,
+                "msg",          "%s", "Mqtt subscribe: subscription empty",
+                "subs",         "%j", subs,
+                NULL
+            );
+            KW_DECREF(kw)
+            return -1;
+        }
+        int slen = (int)strlen(sub);
+        if(mosquitto_validate_utf8(sub, slen)<0) {
+            gobj_log_error(gobj, 0,
+                "function",     "%s", __FUNCTION__,
+                "msgset",       "%s", MSGSET_MQTT_ERROR,
+                "msg",          "%s", "Mqtt subscribe: bad utf8",
+                "subs",         "%j", subs,
+                NULL
+            );
+            KW_DECREF(kw)
+            return -1;
+        }
+
         remaining_length += 2U + (uint32_t)slen;
     }
 
-    if(mosq->maximum_packet_size > 0){
-        remaining_length += 2U + property__get_length_all(outgoing_properties);
-        if(packet__check_oversize(mosq, remaining_length)){
-            return MOSQ_ERR_OVERSIZE_PACKET;
-        }
+    if(priv->maximum_packet_size > 0) {
+        remaining_length += 2U + property__get_length_all(properties);
+        // TODO
+        // if(packet__check_oversize(mosq, remaining_length)) {
+        //     gobj_log_error(gobj, 0,
+        //         "function",     "%s", __FUNCTION__,
+        //         "msgset",       "%s", MSGSET_MQTT_ERROR,
+        //         "msg",          "%s", "Mqtt subscribe: message too big",
+        //         NULL
+        //     );
+        //     KW_DECREF(kw)
+        //     return -1;
+        // }
     }
 
-    return send__unsubscribe(mosq, mid, sub_count, sub, outgoing_properties);
+    if(!mid) {
+        mid = mosquitto__mid_generate(gobj);
+        json_object_set_new(kw, "mid", json_integer(mid));
+    }
 
+    send__unsubscribe(gobj, mid, subs, properties);
 
     KW_DECREF(kw)
     return 0;
@@ -7545,7 +7734,7 @@ PRIVATE int ac_send__suback(hgobj gobj, const char *event, json_t *kw, hgobj src
 
     if(priv->protocol_version == mosq_p_mqtt5) {
         if(properties) {
-            property_write_all(gobj, gbuf, properties, TRUE);
+            property__write_all(gobj, gbuf, properties, TRUE);
         }
     }
 
@@ -7595,7 +7784,7 @@ PRIVATE int ac_send__unsuback(hgobj gobj, const char *event, json_t *kw, hgobj s
 
     if(priv->protocol_version == mosq_p_mqtt5) {
         if(properties) {
-            property_write_all(gobj, gbuf, properties, TRUE);
+            property__write_all(gobj, gbuf, properties, TRUE);
         }
         mqtt_write_bytes(
             gbuf,
