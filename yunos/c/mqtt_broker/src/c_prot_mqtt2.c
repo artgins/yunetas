@@ -3646,9 +3646,6 @@ PRIVATE int send__subscribe(
         return MOSQ_ERR_NOMEM;
     }
 
-    /* Variable header */
-    // local_mid = mosquitto__mid_generate(mosq);
-    // if(mid) *mid = (int)local_mid;
     mqtt_write_uint16(gbuf, mid);
 
     if(priv->protocol_version == mosq_p_mqtt5) {
@@ -3717,9 +3714,6 @@ PRIVATE int send__unsubscribe(
         return MOSQ_ERR_NOMEM;
     }
 
-    /* Variable header */
-    // local_mid = mosquitto__mid_generate(mosq); TODO
-    // if(mid) *mid = (int)local_mid;
     mqtt_write_uint16(gbuf, mid);
 
     if(priv->protocol_version == mosq_p_mqtt5) {
