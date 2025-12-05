@@ -3002,7 +3002,7 @@ PRIVATE int send__connect(
         gobj_log_error(gobj, 0,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_MQTT_ERROR,
-            "msg",          "%s", "client_id required in mqtt31 protocol",
+            "msg",          "%s", "client id required in mqtt31 protocol",
             NULL
         );
         JSON_DECREF(properties);
@@ -3661,7 +3661,7 @@ PRIVATE int send__subscribe(
 
     if(gobj_trace_level(gobj) & SHOW_DECODE) {
         char *topics = json2uglystr(subs);
-        trace_msg0("👉👉 Sending %s SUBSCRIBE client_id '%s', topic '%s' (qos %d, mid %d)",
+        trace_msg0("👉👉 Sending %s SUBSCRIBE client id '%s', topic '%s' (qos %d, mid %d)",
             priv->iamServer?"broker":"client",
             SAFE_PRINT(priv->client_id),
             topics,
@@ -3729,7 +3729,7 @@ PRIVATE int send__unsubscribe(
 
     if(gobj_trace_level(gobj) & SHOW_DECODE) {
         char *topics = json2uglystr(subs);
-        trace_msg0("👉👉 Sending %s UNSUBSCRIBE client_id '%s', topic '%s' (mid %d)",
+        trace_msg0("👉👉 Sending %s UNSUBSCRIBE client id '%s', topic '%s' (mid %d)",
             priv->iamServer?"broker":"client",
             SAFE_PRINT(priv->client_id),
             topics,
@@ -4226,7 +4226,7 @@ PRIVATE int handle__connect(hgobj gobj, gbuffer_t *gbuf, hgobj src)
         gobj_log_error(gobj, 0,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_MQTT_ERROR,
-            "msg",          "%s", "Mqtt: bad client_id",
+            "msg",          "%s", "Mqtt: bad client id",
             NULL
         );
         JSON_DECREF(connect_properties);
@@ -4238,7 +4238,7 @@ PRIVATE int handle__connect(hgobj gobj, gbuffer_t *gbuf, hgobj src)
             gobj_log_error(gobj, 0,
                 "function",     "%s", __FUNCTION__,
                 "msgset",       "%s", MSGSET_MQTT_ERROR,
-                "msg",          "%s", "Mqtt: no client_id",
+                "msg",          "%s", "Mqtt: no client id",
                 NULL
             );
             send__connack(gobj, 0, CONNACK_REFUSED_IDENTIFIER_REJECTED, NULL);
@@ -4868,6 +4868,7 @@ PRIVATE int handle__connack_c(
 
     if(reason_code == 0) {
         // TODO message__retry_check(mosq); important!
+        gobj_write_str_attr(gobj, "client_id", gobj_read_str_attr(gobj, "mqtt_client_id"));
         return MOSQ_ERR_SUCCESS;
     }
 
