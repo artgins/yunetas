@@ -4114,7 +4114,7 @@ PRIVATE int send__pubrel(hgobj gobj, uint16_t mid, json_t *properties)
 /***************************************************************************
  *
  ***************************************************************************/
-PRIVATE int send_publish(
+PRIVATE int send__publish(
     hgobj gobj,
     uint16_t mid,
     const char *topic,
@@ -4718,7 +4718,7 @@ PRIVATE int XXX_db__message_insert(
 
     switch(msg->state) {
         case mosq_ms_publish_qos0:
-            rc = send_publish(
+            rc = send__publish(
                 gobj,
                 mid,
                 stored->topic,
@@ -4735,7 +4735,7 @@ PRIVATE int XXX_db__message_insert(
             break;
 
         case mosq_ms_publish_qos1:
-            rc = send_publish(
+            rc = send__publish(
                 gobj,
                 mid,
                 stored->topic,
@@ -4758,7 +4758,7 @@ PRIVATE int XXX_db__message_insert(
             break;
 
         case mosq_ms_publish_qos2:
-            rc = send_publish(
+            rc = send__publish(
                 gobj,
                 mid,
                 stored->topic,
@@ -8414,7 +8414,7 @@ PRIVATE int ac_send_message(hgobj gobj, const char *event, json_t *kw, hgobj src
     uint16_t mid = mosquitto__mid_generate(gobj, priv->client_id);
     json_object_set_new(kw, "mid", json_integer(mid));
 
-    send_publish(
+    send__publish(
         gobj,
         mid,
         topic_name,
