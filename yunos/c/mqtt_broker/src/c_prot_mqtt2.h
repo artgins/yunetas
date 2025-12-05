@@ -291,6 +291,285 @@ GOBJ_DECLARE_EVENT(EV_MQTT_SUBACK);
  */
 GOBJ_DECLARE_EVENT(EV_MQTT_UNSUBACK);
 
+
+
+/*
+ * Function: mosquitto_connack_string
+ *
+ * Call to obtain a const string description of an MQTT connection result.
+ *
+ * Parameters:
+ *	connack_code - an MQTT connection result.
+ *
+ * Returns:
+ *	A constant string describing the result.
+ */
+const char *mosquitto_connack_string(int connack_code);
+
+/*
+ * Function: mosquitto_reason_string
+ *
+ * Call to obtain a const string description of an MQTT reason code.
+ *
+ * Parameters:
+ *	reason_code - an MQTT reason code.
+ *
+ * Returns:
+ *	A constant string describing the reason.
+ */
+const char *mosquitto_reason_string(int reason_code);
+
+
+/*
+ * Function: mosquitto_sub_topic_tokenise
+ *
+ * Tokenise a topic or subscription string into an array of strings
+ * representing the topic hierarchy.
+ *
+ * For example:
+ *
+ *    subtopic: "a/deep/topic/hierarchy"
+ *
+ *    Would result in:
+ *
+ *       topics[0] = "a"
+ *       topics[1] = "deep"
+ *       topics[2] = "topic"
+ *       topics[3] = "hierarchy"
+ *
+ *    and:
+ *
+ *    subtopic: "/a/deep/topic/hierarchy/"
+ *
+ *    Would result in:
+ *
+ *       topics[0] = NULL
+ *       topics[1] = "a"
+ *       topics[2] = "deep"
+ *       topics[3] = "topic"
+ *       topics[4] = "hierarchy"
+ *
+ * Parameters:
+ *	subtopic - the subscription/topic to tokenise
+ *	topics -   a pointer to store the array of strings
+ *	count -    an int pointer to store the number of items in the topics array.
+ *
+ * Returns:
+ *	MOSQ_ERR_SUCCESS -        on success
+ * 	MOSQ_ERR_NOMEM -          if an out of memory condition occurred.
+ * 	MOSQ_ERR_MALFORMED_UTF8 - if the topic is not valid UTF-8
+ *
+ * Example:
+ *
+ * > char **topics;
+ * > int topic_count;
+ * > int i;
+ * >
+ * > mosquitto_sub_topic_tokenise("$SYS/broker/uptime", &topics, &topic_count);
+ * >
+ * > for(i=0; i<token_count; i++){
+ * >     printf("%d: %s\n", i, topics[i]);
+ * > }
+ *
+ * See Also:
+ *	<mosquitto_sub_topic_tokens_free>
+ */
+int mosquitto_sub_topic_tokenise(const char *subtopic, char ***topics, int *count);
+
+/*
+ * Function: mosquitto_sub_topic_tokens_free
+ *
+ * Free memory that was allocated in <mosquitto_sub_topic_tokenise>.
+ *
+ * Parameters:
+ *	topics - pointer to string array.
+ *	count - count of items in string array.
+ *
+ * Returns:
+ *	MOSQ_ERR_SUCCESS - on success
+ * 	MOSQ_ERR_INVAL -   if the input parameters were invalid.
+ *
+ * See Also:
+ *	<mosquitto_sub_topic_tokenise>
+ */
+int mosquitto_sub_topic_tokens_free(char ***topics, int count);
+
+/*
+ * Function: mosquitto_topic_matches_sub
+ *
+ * Check whether a topic matches a subscription.
+ *
+ * For example:
+ *
+ * foo/bar would match the subscription foo/# or +/bar
+ * non/matching would not match the subscription non/+/+
+ *
+ * Parameters:
+ *	sub - subscription string to check topic against.
+ *	topic - topic to check.
+ *	result - bool pointer to hold result. Will be set to true if the topic
+ *	         matches the subscription.
+ *
+ * Returns:
+ *	MOSQ_ERR_SUCCESS - on success
+ * 	MOSQ_ERR_INVAL -   if the input parameters were invalid.
+ * 	MOSQ_ERR_NOMEM -   if an out of memory condition occurred.
+ */
+int mosquitto_topic_matches_sub(const char *sub, const char *topic, bool *result);
+
+
+/*
+ * Function: mosquitto_topic_matches_sub2
+ *
+ * Check whether a topic matches a subscription.
+ *
+ * For example:
+ *
+ * foo/bar would match the subscription foo/# or +/bar
+ * non/matching would not match the subscription non/+/+
+ *
+ * Parameters:
+ *	sub - subscription string to check topic against.
+ *	sublen - length in bytes of sub string
+ *	topic - topic to check.
+ *	topiclen - length in bytes of topic string
+ *	result - bool pointer to hold result. Will be set to true if the topic
+ *	         matches the subscription.
+ *
+ * Returns:
+ *	MOSQ_ERR_SUCCESS - on success
+ *	MOSQ_ERR_INVAL -   if the input parameters were invalid.
+ *	MOSQ_ERR_NOMEM -   if an out of memory condition occurred.
+ */
+int mosquitto_topic_matches_sub2(const char *sub, size_t sublen, const char *topic, size_t topiclen, bool *result);
+
+/*
+ * Function: mosquitto_pub_topic_check
+ *
+ * Check whether a topic to be used for publishing is valid.
+ *
+ * This searches for + or # in a topic and checks its length.
+ *
+ * This check is already carried out in <mosquitto_publish> and
+ * <mosquitto_will_set>, there is no need to call it directly before them. It
+ * may be useful if you wish to check the validity of a topic in advance of
+ * making a connection for example.
+ *
+ * Parameters:
+ *   topic - the topic to check
+ *
+ * Returns:
+ *   MOSQ_ERR_SUCCESS -        for a valid topic
+ *   MOSQ_ERR_INVAL -          if the topic contains a + or a #, or if it is too long.
+ *   MOSQ_ERR_MALFORMED_UTF8 - if topic is not valid UTF-8
+ *
+ * See Also:
+ *   <mosquitto_sub_topic_check>
+ */
+int mosquitto_pub_topic_check(const char *topic);
+
+/*
+ * Function: mosquitto_pub_topic_check2
+ *
+ * Check whether a topic to be used for publishing is valid.
+ *
+ * This searches for + or # in a topic and checks its length.
+ *
+ * This check is already carried out in <mosquitto_publish> and
+ * <mosquitto_will_set>, there is no need to call it directly before them. It
+ * may be useful if you wish to check the validity of a topic in advance of
+ * making a connection for example.
+ *
+ * Parameters:
+ *   topic - the topic to check
+ *   topiclen - length of the topic in bytes
+ *
+ * Returns:
+ *   MOSQ_ERR_SUCCESS -        for a valid topic
+ *   MOSQ_ERR_INVAL -          if the topic contains a + or a #, or if it is too long.
+ *   MOSQ_ERR_MALFORMED_UTF8 - if topic is not valid UTF-8
+ *
+ * See Also:
+ *   <mosquitto_sub_topic_check>
+ */
+int mosquitto_pub_topic_check2(const char *topic, size_t topiclen);
+
+/*
+ * Function: mosquitto_sub_topic_check
+ *
+ * Check whether a topic to be used for subscribing is valid.
+ *
+ * This searches for + or # in a topic and checks that they aren't in invalid
+ * positions, such as with foo/#/bar, foo/+bar or foo/bar#, and checks its
+ * length.
+ *
+ * This check is already carried out in <mosquitto_subscribe> and
+ * <mosquitto_unsubscribe>, there is no need to call it directly before them.
+ * It may be useful if you wish to check the validity of a topic in advance of
+ * making a connection for example.
+ *
+ * Parameters:
+ *   topic - the topic to check
+ *
+ * Returns:
+ *   MOSQ_ERR_SUCCESS -        for a valid topic
+ *   MOSQ_ERR_INVAL -          if the topic contains a + or a # that is in an
+ *                             invalid position, or if it is too long.
+ *   MOSQ_ERR_MALFORMED_UTF8 - if topic is not valid UTF-8
+ *
+ * See Also:
+ *   <mosquitto_sub_topic_check>
+ */
+int mosquitto_sub_topic_check(const char *topic);
+
+/*
+ * Function: mosquitto_sub_topic_check2
+ *
+ * Check whether a topic to be used for subscribing is valid.
+ *
+ * This searches for + or # in a topic and checks that they aren't in invalid
+ * positions, such as with foo/#/bar, foo/+bar or foo/bar#, and checks its
+ * length.
+ *
+ * This check is already carried out in <mosquitto_subscribe> and
+ * <mosquitto_unsubscribe>, there is no need to call it directly before them.
+ * It may be useful if you wish to check the validity of a topic in advance of
+ * making a connection for example.
+ *
+ * Parameters:
+ *   topic - the topic to check
+ *   topiclen - the length in bytes of the topic
+ *
+ * Returns:
+ *   MOSQ_ERR_SUCCESS -        for a valid topic
+ *   MOSQ_ERR_INVAL -          if the topic contains a + or a # that is in an
+ *                             invalid position, or if it is too long.
+ *   MOSQ_ERR_MALFORMED_UTF8 - if topic is not valid UTF-8
+ *
+ * See Also:
+ *   <mosquitto_sub_topic_check>
+ */
+int mosquitto_sub_topic_check2(const char *topic, size_t topiclen);
+
+
+/*
+ * Function: mosquitto_validate_utf8
+ *
+ * Helper function to validate whether a UTF-8 string is valid, according to
+ * the UTF-8 spec and the MQTT additions.
+ *
+ * Parameters:
+ *   str - a string to check
+ *   len - the length of the string in bytes
+ *
+ * Returns:
+ *   MOSQ_ERR_SUCCESS -        on success
+ *   MOSQ_ERR_INVAL -          if str is NULL or len<0 or len>65536
+ *   MOSQ_ERR_MALFORMED_UTF8 - if str is not valid UTF-8
+ */
+int mosquitto_validate_utf8(const char *str, int len);
+
+
 /***************************************************************
  *              Prototypes
  ***************************************************************/
