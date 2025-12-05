@@ -3370,7 +3370,7 @@ PRIVATE int handle__pingresp(hgobj gobj)
             gobj_log_error(gobj, 0,
                 "function",     "%s", __FUNCTION__,
                 "msgset",       "%s", MSGSET_MQTT_ERROR,
-                "msg",          "%s", "Mqtt CMD_PINGREQ: not server",
+                "msg",          "%s", "Mqtt CMD_PINGREQ: not bridge",
                 NULL
             );
             return MOSQ_ERR_PROTOCOL;
@@ -3776,7 +3776,7 @@ PRIVATE int handle__connect(hgobj gobj, gbuffer_t *gbuf, hgobj src)
         gobj_log_error(gobj, 0,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_MQTT_ERROR,
-            "msg",          "%s", "Mqtt CMD_CONNECT: i am not server",
+            "msg",          "%s", "Mqtt CMD_CONNECT: not server",
             NULL
         );
         return -1;
@@ -6157,7 +6157,7 @@ PRIVATE int handle__publish_c(hgobj gobj, gbuffer_t *gbuf)
 /***************************************************************************
  *
  ***************************************************************************/
-PRIVATE uint16_t mosquitto__mid_generate(hgobj gobj, const char *client_id)
+PRIVATE uint16_t mosquitto__mid_generate(hgobj gobj)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
@@ -7145,6 +7145,17 @@ PRIVATE int ac_mqtt_publish(hgobj gobj, const char *event, json_t *kw, hgobj src
     gbuffer_t *gbuf_payload = (gbuffer_t *)(uintptr_t)kw_get_int(gobj, kw, "gbuffer", 0, 0);
     json_t *properties = kw_get_dict(gobj, kw, "properties", 0, 0);
 
+    if(priv->iamServer) {
+        gobj_log_error(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_MQTT_ERROR,
+            "msg",          "%s", "Mqtt publish: not client",
+            NULL
+        );
+        KW_DECREF(kw)
+        return -1;
+    }
+
     uint16_t local_mid;
     // BOOL have_topic_alias; TODO review what is topic alias
     int rc;
@@ -7231,6 +7242,19 @@ PRIVATE int ac_mqtt_publish(hgobj gobj, const char *event, json_t *kw, hgobj src
 PRIVATE int ac_mqtt_subscribe(hgobj gobj, const char *event, json_t *kw, hgobj src)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    if(priv->iamServer) {
+        gobj_log_error(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_MQTT_ERROR,
+            "msg",          "%s", "Mqtt publish: not client",
+            NULL
+        );
+        KW_DECREF(kw)
+        return -1;
+    }
+
+
     KW_DECREF(kw)
     return 0;
 }

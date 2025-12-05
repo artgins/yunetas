@@ -1181,28 +1181,6 @@ PRIVATE int list_history(hgobj gobj)
     return 0;
 }
 
-/***************************************************************************
- *
- ***************************************************************************/
-PRIVATE uint16_t mosquitto__mid_generate(hgobj gobj)
-{
-    // PRIVATE_DATA *priv = gobj_priv_data(gobj);
-
-    // TODO new
-    // json_t *client = gobj_get_resource(priv->gobj_mqtt_clients, client_id, 0, 0);
-    // uint16_t last_mid = (uint16_t)kw_get_int(gobj, client, "last_mid", 0, KW_REQUIRED);
-    static uint16_t last_mid = 0;
-    // TODO it seems that does nothing saving in resource
-    last_mid++;
-    if(last_mid == 0) {
-        last_mid++;
-    }
-    // TODO new
-    // gobj_save_resource(priv->gobj_mqtt_clients, client_id, client, 0);
-
-    return last_mid;
-}
-
 
 
 
