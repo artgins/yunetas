@@ -1328,17 +1328,13 @@ PRIVATE int ac_mqtt_publish(hgobj gobj, const char *event, json_t *kw, hgobj src
     /*
      *  Using C_CHANNEL it must be a IEV
      */
-    json_t *kw_resp = iev_create2(
+    json_t *kw_iev = iev_create(
         gobj,
-        EV_SEND_UNSUBACK,
-        jn_response,    // owned
-        kw_incref(kw)  // owned, used to get ONLY __temp__.
+        event,
+        kw // owned
     );
 
-    gobj_send_event(src, EV_SEND_IEV, kw_resp, gobj);
-
-
-    return gobj_send_event(priv->gobj_mqtt_connector, event, kw, src);
+    return gobj_send_event(priv->gobj_mqtt_connector, EV_SEND_IEV, kw_iev, gobj);
 }
 
 /***************************************************************************
@@ -1348,7 +1344,16 @@ PRIVATE int ac_mqtt_subscribe(hgobj gobj, const char *event, json_t *kw, hgobj s
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
-    return gobj_send_event(priv->gobj_mqtt_connector, event, kw, src);
+    /*
+     *  Using C_CHANNEL it must be a IEV
+     */
+    json_t *kw_iev = iev_create(
+        gobj,
+        event,
+        kw // owned
+    );
+
+    return gobj_send_event(priv->gobj_mqtt_connector, EV_SEND_IEV, kw_iev, gobj);
 }
 
 /***************************************************************************
@@ -1358,7 +1363,16 @@ PRIVATE int ac_mqtt_unsubscribe(hgobj gobj, const char *event, json_t *kw, hgobj
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
-    return gobj_send_event(priv->gobj_mqtt_connector, event, kw, src);
+    /*
+     *  Using C_CHANNEL it must be a IEV
+     */
+    json_t *kw_iev = iev_create(
+        gobj,
+        event,
+        kw // owned
+    );
+
+    return gobj_send_event(priv->gobj_mqtt_connector, EV_SEND_IEV, kw_iev, gobj);
 }
 
 /***************************************************************************

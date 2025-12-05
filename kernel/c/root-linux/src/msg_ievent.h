@@ -128,13 +128,13 @@ GOBJ_DECLARE_EVENT(EV_SEND_COMMAND_ANSWER);
     }
  */
 
-PUBLIC json_t *iev_create( // To use in inside of yuno
+PUBLIC json_t *iev_create( // For use within Yuno
     hgobj gobj,
     gobj_event_t event,
     json_t *kw // owned
 );
 
-PUBLIC json_t *iev_create2( // To use in inside of yuno
+PUBLIC json_t *iev_create2( // For use within Yuno
     hgobj gobj,
     gobj_event_t event,
     json_t *jn_data,    // owned

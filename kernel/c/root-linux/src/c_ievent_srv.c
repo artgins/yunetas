@@ -1276,7 +1276,7 @@ PRIVATE int ac_on_message(hgobj gobj, const char *event, json_t *kw, hgobj src)
         /*
          *   Send inter-event to subscriber
          */
-        json_t *jn_iev = iev_create( // To use in inside of yuno
+        json_t *jn_iev = iev_create( // For use within Yuno
             gobj,
             iev_event,
             iev_kw // owned
