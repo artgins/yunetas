@@ -1195,6 +1195,7 @@ PRIVATE int clear_input_line(hgobj gobj)
     json_t *kw_line = json_object();
     json_object_set_new(kw_line, "text", json_string(""));
     gobj_send_event(priv->gobj_editline, EV_SETTEXT, kw_line, gobj);
+    fflush(stdout);
 
     return 0;
 }
@@ -1539,7 +1540,7 @@ PRIVATE int ac_command(hgobj gobj, const char *event, json_t *kw, hgobj src)
         );
     } else {
         /* asynchronous responses return 0 */
-        printf("\n"); fflush(stdout);
+        clear_input_line(gobj);
     }
     KW_DECREF(kw_input_command);
     KW_DECREF(kw);
