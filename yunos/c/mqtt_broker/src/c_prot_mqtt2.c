@@ -2868,7 +2868,8 @@ PRIVATE int send_simple_command(hgobj gobj, uint8_t command)
     }
 
     if(gobj_trace_level(gobj) & SHOW_DECODE) {
-        trace_msg0("👉👉 Sending simple command %s to '%s' %s",
+        trace_msg0("👉👉 %s Sending simple command %s to '%s' %s",
+            priv->iamServer?"broker":"client",
             get_command_name(command),
             priv->client_id,
             gobj_short_name(gobj_bottom_gobj(gobj))
@@ -3072,7 +3073,7 @@ PRIVATE int send__connect(
     const char *url = gobj_read_str_attr(gobj, "url");
     if(gobj_trace_level(gobj) & SHOW_DECODE) {
         trace_msg0(
-        "👉👉 Sending CONNECT to \n"
+        "👉👉 client Sending CONNECT to \n"
         "   url '%s' \n"
         "   client '%s' \n"
         "   username '%s' \n"
@@ -3114,11 +3115,13 @@ PRIVATE int send__connack(
     uint32_t remaining_length = 2;
 
     if(gobj_trace_level(gobj) & SHOW_DECODE) {
-        trace_msg0("👉👉 Sending CONNACK to '%s' %s (ack %d, reason code %d)",
+        trace_msg0("👉👉 %s Sending CONNACK to '%s' %s (ack %d, reason code %d '%s')",
+            priv->iamServer?"broker":"client",
             priv->client_id,
             gobj_short_name(gobj_bottom_gobj(gobj)),
             ack,
-            reason_code
+            reason_code,
+            mosquitto_reason_string(reason_code)
         );
         if(connack_props) {
             gobj_trace_json(gobj, connack_props, "Sending CONNACK properties");
@@ -3179,21 +3182,17 @@ PRIVATE int send__disconnect(
 
     if(gobj_trace_level(gobj) & SHOW_DECODE) {
         if(priv->iamServer) {
-            if(priv->is_bridge) {
-                trace_msg0("👉👉 Bridge Sending DISCONNECT to '%s' ('%s', %d)",
-                    priv->client_id,
-                    mosquitto_reason_string(reason_code),
-                    reason_code
-                );
-            } else  {
-                trace_msg0("👉👉 Sending DISCONNECT to '%s' ('%s', %d)",
-                    priv->client_id,
-                    mosquitto_reason_string(reason_code),
-                    reason_code
-                );
-            }
+            trace_msg0("👉👉 %s Sending DISCONNECT to '%s' (%d '%s')",
+                priv->iamServer?"broker":"client",
+                priv->client_id,
+                reason_code,
+                mosquitto_reason_string(reason_code)
+            );
         } else {
-            trace_msg0("👉👉 Sending client DISCONNECT to '%s'", priv->client_id);
+            trace_msg0("👉👉 %s Sending client DISCONNECT to '%s'",
+                priv->iamServer?"broker":"client",
+                priv->client_id
+            );
         }
     }
 
@@ -3286,12 +3285,13 @@ PRIVATE int send_command_with_mid(
     int remaining_length = 2;
 
     if(gobj_trace_level(gobj) & SHOW_DECODE) {
-        trace_msg0("👉👉 Sending %s to '%s', mid %ld ('%s', %d)",
+        trace_msg0("👉👉 %s Sending %s to '%s', mid %ld (%d '%s')",
+            priv->iamServer?"broker":"client",
             get_command_name(command & 0xF0),
             priv->client_id,
             (long)mid,
-            mosquitto_reason_string(reason_code),
-            reason_code
+            reason_code,
+            mosquitto_reason_string(reason_code)
         );
     }
 
@@ -3395,7 +3395,7 @@ PRIVATE int send__publish(
     }
 
     if(gobj_trace_level(gobj) & SHOW_DECODE) {
-        trace_msg0("👉👉 Sending %s PUBLISH to '%s', topic '%s' (dup %d, qos %d, retain %d, mid %d)",
+        trace_msg0("👉👉 %s Sending PUBLISH to '%s', topic '%s' (dup %d, qos %d, retain %d, mid %d)",
             priv->iamServer?"broker":"client",
             SAFE_PRINT(priv->client_id),
             topic,
@@ -3552,7 +3552,7 @@ PRIVATE int send__subscribe(
 
     if(gobj_trace_level(gobj) & SHOW_DECODE) {
         char *topics = json2uglystr(subs);
-        trace_msg0("👉👉 Sending %s SUBSCRIBE client id '%s', topic '%s' (qos %d, mid %d)",
+        trace_msg0("👉👉 %s Sending SUBSCRIBE client id '%s', topic '%s' (qos %d, mid %d)",
             priv->iamServer?"broker":"client",
             SAFE_PRINT(priv->client_id),
             topics,
@@ -3620,7 +3620,7 @@ PRIVATE int send__unsubscribe(
 
     if(gobj_trace_level(gobj) & SHOW_DECODE) {
         char *topics = json2uglystr(subs);
-        trace_msg0("👉👉 Sending %s UNSUBSCRIBE client id '%s', topic '%s' (mid %d)",
+        trace_msg0("👉👉 %s Sending UNSUBSCRIBE client id '%s', topic '%s' (mid %d)",
             priv->iamServer?"broker":"client",
             SAFE_PRINT(priv->client_id),
             topics,
@@ -3825,7 +3825,7 @@ PRIVATE int handle__connect(hgobj gobj, gbuffer_t *gbuf, hgobj src)
 
     gobj_write_str_attr(gobj, "protocol_name", protocol_name);
     gobj_write_integer_attr(gobj, "protocol_version", protocol_version);
-    gobj_write_bool_attr(gobj, "is_bridge", is_bridge);
+    gobj_write_bool_attr(gobj, "is_bridge", is_bridge); // TODO review and refuse bridge?
 
     /*-------------------------------------------*
      *      Connect flags
@@ -4671,10 +4671,11 @@ PRIVATE int handle__connack(
     // message__reconnect_reset(mosq, true); TODO important?!
 
     if(gobj_trace_level(gobj) & SHOW_DECODE) {
-        trace_msg0("👈👈 COMMAND=%s, reason code: %s",
+        trace_msg0("👈👈 COMMAND=%s, reason code: %d '%s'",
             get_command_name(CMD_CONNACK),
+            reason_code,
             priv->protocol_version == mosq_p_mqtt5?
-                get_name_from_nn_table(mqtt5_return_codes_s, reason_code) :
+                mosquitto_reason_string(reason_code) :
                 get_name_from_nn_table(mqtt311_connack_codes_s, reason_code)
         );
         if(properties) {
@@ -4755,9 +4756,10 @@ PRIVATE int handle__disconnect_s(hgobj gobj, gbuffer_t *gbuf)
     }
 
     if(gobj_trace_level(gobj) & SHOW_DECODE) {
-        trace_msg0("  👈 Received DISCONNECT from client '%s' (Reason code: %d)",
+        trace_msg0("  👈 Received DISCONNECT from client '%s' (%d '%s')",
             SAFE_PRINT(priv->client_id),
-            reason_code
+            reason_code,
+            mosquitto_reason_string(reason_code)
         );
         if(properties) {
             gobj_trace_json(gobj, properties, "properties");
@@ -4809,9 +4811,10 @@ PRIVATE int handle__disconnect_c(hgobj gobj, gbuffer_t *gbuf)
     }
 
     if(gobj_trace_level(gobj) & SHOW_DECODE) {
-        trace_msg0("  👈 Received DISCONNECT from client '%s' (Reason code: %d)",
+        trace_msg0("  👈 Received DISCONNECT from client '%s' (%d '%s')",
             SAFE_PRINT(priv->client_id),
-            reason_code
+            reason_code,
+            mosquitto_reason_string(reason_code)
         );
         if(properties) {
             gobj_trace_json(gobj, properties, "properties");
@@ -5288,7 +5291,8 @@ PRIVATE int send__suback(
     }
 
     if(gobj_trace_level(gobj) & SHOW_DECODE) {
-        trace_msg0("👉👉 Sending SUBACK to '%s' %s",
+        trace_msg0("👉👉 %s Sending SUBACK to '%s' %s",
+            priv->iamServer?"broker":"client",
             priv->client_id,
             gobj_short_name(gobj_bottom_gobj(gobj))
         );
@@ -5468,7 +5472,8 @@ PRIVATE int send__unsuback(
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
     if(gobj_trace_level(gobj) & SHOW_DECODE) {
-        trace_msg0("👉👉 Sending UNSUBACK to '%s' %s",
+        trace_msg0("👉👉 %s Sending UNSUBACK to '%s' %s",
+            priv->iamServer?"broker":"client",
             priv->client_id,
             gobj_short_name(gobj_bottom_gobj(gobj))
         );
