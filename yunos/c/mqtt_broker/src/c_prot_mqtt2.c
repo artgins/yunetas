@@ -5981,7 +5981,8 @@ PRIVATE int handle__publish_c(hgobj gobj, gbuffer_t *gbuf)
     switch(qos) {
         case 0:
             {
-                json_t *kw_message = json_pack("{s:i, s:b, s:i, s:i, s:o, s:I}",
+                json_t *kw_message = json_pack("{s:s, s:i, s:b, s:i, s:i, s:o, s:I}",
+                    "topic", topic,
                     "mid", (int)mid,
                     "dup", (int)dup,
                     "qos", (int)qos,
@@ -5989,6 +5990,7 @@ PRIVATE int handle__publish_c(hgobj gobj, gbuffer_t *gbuf)
                     "properties", properties?properties:json_object(),
                     "gbuffer", (gbuffer_t *)(uintptr_t)gbuf_payload
                 );
+                GBMEM_FREE(topic)
 
                 json_t *kw_iev = iev_create(
                     gobj,

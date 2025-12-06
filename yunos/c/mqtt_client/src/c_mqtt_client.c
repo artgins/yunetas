@@ -1383,6 +1383,27 @@ PRIVATE int ac_mqtt_unsubscribe(hgobj gobj, const char *event, json_t *kw, hgobj
 }
 
 /***************************************************************************
+ *  Receive message from the broker
+ ***************************************************************************/
+PRIVATE int ac_mqtt_message(hgobj gobj, const char *event, json_t *kw, hgobj src)
+{
+    kw_delete_metadata_keys(kw);
+    printf("Message from broker:\n");
+
+    gbuffer_t *gbuf = (gbuffer_t *)(uintptr_t)kw_get_int(gobj, kw, "gbuffer", 0, FALSE);
+    uint8_t *bf = gbuffer_cur_rd_pointer(gbuf);
+    size_t len = gbuffer_chunk(gbuf);
+    json_t *data = tdump2json(bf, len);
+    json_object_set_new(kw, "payload (gbuffer content)", data);
+    json_dumpf(kw, stdout, JSON_INDENT(4)|JSON_ENCODE_ANY);
+
+    clear_input_line(gobj);
+
+    KW_DECREF(kw)
+    return 0;
+}
+
+/***************************************************************************
  *  Receive suback from the broker
  ***************************************************************************/
 PRIVATE int ac_mqtt_suback(hgobj gobj, const char *event, json_t *kw, hgobj src)
@@ -1672,12 +1693,13 @@ PRIVATE int create_gclass(gclass_name_t gclass_name)
      *      States
      *------------------------*/
     ev_action_t st_idle[] = {
-        {EV_COMMAND,                ac_command,             0},
+        {EV_MQTT_MESSAGE,           ac_mqtt_message,        0},
         {EV_MQTT_PUBLISH,           ac_mqtt_publish,        0},
         {EV_MQTT_SUBSCRIBE,         ac_mqtt_subscribe,      0},
         {EV_MQTT_UNSUBSCRIBE,       ac_mqtt_unsubscribe,    0},
         {EV_MQTT_SUBACK,            ac_mqtt_suback,         0},
         {EV_MQTT_UNSUBACK,          ac_mqtt_unsuback,       0},
+        {EV_COMMAND,                ac_command,             0},
         {EV_MT_COMMAND_ANSWER,      ac_command_answer,      0},
         {EV_MT_STATS_ANSWER,        ac_command_answer,      0},
         {EV_ON_OPEN,                ac_on_open,             0},
@@ -1717,13 +1739,14 @@ PRIVATE int create_gclass(gclass_name_t gclass_name)
      *      Events
      *------------------------*/
     event_type_t event_types[] = {
-        {EV_MT_COMMAND_ANSWER,      EVF_PUBLIC_EVENT},
-        {EV_MT_STATS_ANSWER,        EVF_PUBLIC_EVENT},
+        {EV_MQTT_MESSAGE,           0},
         {EV_MQTT_PUBLISH,           0},
         {EV_MQTT_SUBSCRIBE,         0},
         {EV_MQTT_UNSUBSCRIBE,       0},
         {EV_MQTT_SUBACK,            0},
         {EV_MQTT_UNSUBACK,          0},
+        {EV_MT_COMMAND_ANSWER,      EVF_PUBLIC_EVENT},
+        {EV_MT_STATS_ANSWER,        EVF_PUBLIC_EVENT},
         {EV_COMMAND,                0},
         {EV_CLRSCR,                 0},
         {EV_SCROLL_PAGE_UP,         0},
