@@ -6427,41 +6427,16 @@ PRIVATE int frame_completed(hgobj gobj, hgobj src)
             ret = handle__pingresp(gobj);
             break;
 
-        // case CMD_PUBACK:        // common to server/client
-        //     ret = handle__pubackcomp(gobj, gbuf, "PUBACK");
-        //     break;
-        // case CMD_PUBCOMP:       // common to server/client
-        //     ret = handle__pubackcomp(gobj, gbuf, "PUBCOMP");
-        //     break;
-        case CMD_PUBLISH:       // NOT common to server/client
-            if(priv->iamServer) {
-                ret = handle__publish_s(gobj, gbuf);
-            } else {
-                ret = handle__publish_c(gobj, gbuf);
+        /*
+         *  Only Server
+         */
+        case CMD_CONNECT:       // Only Server
+            if(!priv->iamServer) {
+                ret = MOSQ_ERR_PROTOCOL;
+                break;
             }
+            ret = handle__connect(gobj, gbuf, src);
             break;
-
-        // case CMD_PUBREC:        // common to server/client
-        //     ret = handle__pubrec(gobj, gbuf);
-        //     break;
-        // case CMD_PUBREL:        // common to server/client
-        //     ret = handle__pubrel(gobj, gbuf);
-        //     break;
-
-        // case CMD_DISCONNECT:    // NOT common to server/client TODO
-        //     if(priv->iamServer) {
-        //         ret = handle__disconnect_s(gobj, gbuf);
-        //     } else {
-        //         ret = handle__disconnect_c(gobj, gbuf);
-        //     }
-        //     break;
-        // case CMD_AUTH:          // NOT common to server/client TODO
-        //     if(priv->iamServer) {
-        //         ret = handle__auth_s(gobj, gbuf);
-        //     } else {
-        //         ret = handle__auth_c(gobj, gbuf);
-        //     }
-        //     break;
 
         case CMD_CONNACK:       // NOT common to server(bridge)/client
             if(priv->iamServer) {
@@ -6481,6 +6456,49 @@ PRIVATE int frame_completed(hgobj gobj, hgobj src)
             }
             break;
 
+        // case CMD_DISCONNECT:    // NOT common to server/client TODO
+        //     if(priv->iamServer) {
+        //         ret = handle__disconnect_s(gobj, gbuf);
+        //     } else {
+        //         ret = handle__disconnect_c(gobj, gbuf);
+        //     }
+        //     break;
+        // case CMD_AUTH:          // NOT common to server/client TODO
+        //     if(priv->iamServer) {
+        //         ret = handle__auth_s(gobj, gbuf);
+        //     } else {
+        //         ret = handle__auth_c(gobj, gbuf);
+        //     }
+        //     break;
+
+        case CMD_PUBLISH:       // NOT common to server/client
+            if(priv->iamServer) {
+                ret = handle__publish_s(gobj, gbuf);
+            } else {
+                ret = handle__publish_c(gobj, gbuf);
+            }
+            break;
+
+        // case CMD_PUBACK:        // common to server/client
+        //     ret = handle__pubackcomp(gobj, gbuf, "PUBACK");
+        //     break;
+        // case CMD_PUBCOMP:       // common to server/client
+        //     ret = handle__pubackcomp(gobj, gbuf, "PUBCOMP");
+        //     break;
+        // case CMD_PUBREC:        // common to server/client
+        //     ret = handle__pubrec(gobj, gbuf);
+        //     break;
+        // case CMD_PUBREL:        // common to server/client
+        //     ret = handle__pubrel(gobj, gbuf);
+        //     break;
+
+        case CMD_SUBSCRIBE:     // Only Server
+            if(!priv->iamServer) {
+                ret = MOSQ_ERR_PROTOCOL;
+                break;
+            }
+            ret = handle__subscribe(gobj, gbuf);
+            break;
         case CMD_SUBACK:        // common to server(bridge)/client
             if(priv->iamServer) {
                 // Bridge not implemented
@@ -6490,6 +6508,14 @@ PRIVATE int frame_completed(hgobj gobj, hgobj src)
             ret = handle__suback(gobj, gbuf);
             break;
 
+        case CMD_UNSUBSCRIBE:   // Only Server
+            if(!priv->iamServer) {
+                ret = MOSQ_ERR_PROTOCOL;
+                break;
+            }
+            ret  = handle__unsubscribe(gobj, gbuf);
+            break;
+
         case CMD_UNSUBACK:      // common to server(bridge)/client
             if(priv->iamServer) {
                 // Bridge not implemented
@@ -6497,31 +6523,6 @@ PRIVATE int frame_completed(hgobj gobj, hgobj src)
                 break;
             }
             ret = handle__unsuback(gobj, gbuf);
-            break;
-
-        /*
-         *  Only Server
-         */
-        case CMD_CONNECT:       // Only Server
-            if(!priv->iamServer) {
-                ret = MOSQ_ERR_PROTOCOL;
-                break;
-            }
-            ret = handle__connect(gobj, gbuf, src);
-            break;
-        case CMD_SUBSCRIBE:     // Only Server
-            if(!priv->iamServer) {
-                ret = MOSQ_ERR_PROTOCOL;
-                break;
-            }
-            ret = handle__subscribe(gobj, gbuf);
-            break;
-        case CMD_UNSUBSCRIBE:   // Only Server
-            if(!priv->iamServer) {
-                ret = MOSQ_ERR_PROTOCOL;
-                break;
-            }
-            ret  = handle__unsubscribe(gobj, gbuf);
             break;
 
         case CMD_RESERVED:
