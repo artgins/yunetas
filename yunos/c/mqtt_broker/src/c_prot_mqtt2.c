@@ -5556,7 +5556,7 @@ PRIVATE int handle__suback(hgobj gobj, gbuffer_t *gbuf)
 
     json_t *kw_iev = iev_create(
         gobj,
-        EV_MQTT_SUBACK,
+        EV_MQTT_SUBSCRIBE,
         kw_suback // owned
     );
 
@@ -5629,7 +5629,7 @@ PRIVATE int handle__unsuback(hgobj gobj, gbuffer_t *gbuf)
 
     json_t *kw_iev = iev_create(
         gobj,
-        EV_MQTT_UNSUBACK,
+        EV_MQTT_UNSUBSCRIBE,
         kw_suback // owned
     );
 
@@ -7872,9 +7872,6 @@ GOBJ_DEFINE_EVENT(EV_MQTT_PUBLISH);
 GOBJ_DEFINE_EVENT(EV_MQTT_SUBSCRIBE);
 GOBJ_DEFINE_EVENT(EV_MQTT_UNSUBSCRIBE);
 GOBJ_DEFINE_EVENT(EV_MQTT_MESSAGE);
-
-GOBJ_DEFINE_EVENT(EV_MQTT_SUBACK);
-GOBJ_DEFINE_EVENT(EV_MQTT_UNSUBACK);
 
 /***************************************************************************
  *

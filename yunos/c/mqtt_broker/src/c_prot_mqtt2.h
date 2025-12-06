@@ -96,17 +96,6 @@ GOBJ_DECLARE_EVENT(EV_MQTT_SUBSCRIBE);
 GOBJ_DECLARE_EVENT(EV_MQTT_UNSUBSCRIBE);
 
 
-/*
- *  TODO remove ?
- */
-GOBJ_DECLARE_EVENT(EV_MQTT_SUBACK);
-
-/*
- *  TODO remove ?
- */
-GOBJ_DECLARE_EVENT(EV_MQTT_UNSUBACK);
-
-
 /***************************************************************
  *              Prototypes
  ***************************************************************/

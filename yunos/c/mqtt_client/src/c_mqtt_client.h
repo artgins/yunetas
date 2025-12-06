@@ -30,6 +30,9 @@ GOBJ_DECLARE_GCLASS(C_MQTT_CLIENT);
 /*------------------------*
  *      Events
  *------------------------*/
+GOBJ_DECLARE_EVENT(EV_SEND_MQTT_SUBSCRIBE);
+GOBJ_DECLARE_EVENT(EV_SEND_MQTT_UNSUBSCRIBE);
+GOBJ_DECLARE_EVENT(EV_SEND_MQTT_PUBLISH);
 
 /***************************************************************
  *              Prototypes
