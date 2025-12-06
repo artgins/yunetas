@@ -60,9 +60,9 @@ GOBJ_DECLARE_GCLASS(C_PROT_MQTT2);
  *  QoS 0: The PUBLISH was passed to the local operating system for delivery,
  *         there is no guarantee that it was delivered to the remote broker.
  *  QoS 1: The PUBLISH was sent to the remote broker and the corresponding
- *         PUBACK was received by the library.
+ *         PUBACK was received by the client.
  *  QoS 2: The PUBLISH was sent to the remote broker and the corresponding
- *         PUBCOMP was received by the library.
+ *         PUBCOMP was received by the client.
  */
 GOBJ_DECLARE_EVENT(EV_MQTT_PUBLISH);
 
@@ -73,13 +73,13 @@ GOBJ_DECLARE_EVENT(EV_MQTT_PUBLISH);
 GOBJ_DECLARE_EVENT(EV_MQTT_MESSAGE);
 
 /*
- *  Like the subscribe callback. This is called when the library receives a
+ *  Like the subscribe callback. This is called when the client receives a
  *  SUBACK message in response to a SUBSCRIBE
  */
 GOBJ_DECLARE_EVENT(EV_MQTT_SUBSCRIBE);
 
 /*
- *  Like the unsubscribe callback. This is called when the library receives a
+ *  Like the unsubscribe callback. This is called when the client receives a
  *  UNSUBACK message in response to an UNSUBSCRIBE.
  */
 GOBJ_DECLARE_EVENT(EV_MQTT_UNSUBSCRIBE);
