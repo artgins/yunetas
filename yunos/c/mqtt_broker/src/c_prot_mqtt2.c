@@ -261,6 +261,7 @@ PRIVATE int send__disconnect(
     uint8_t reason_code,
     json_t *properties
 );
+PRIVATE void do_disconnect(hgobj gobj, int reason);
 
 /***************************************************************************
  *          Data: config, public data, private data
@@ -3228,30 +3229,7 @@ PRIVATE int send__disconnect(
  ***************************************************************************/
 PRIVATE int handle__pingreq(hgobj gobj)
 {
-    PRIVATE_DATA *priv = gobj_priv_data(gobj);
-
-    if(!priv->in_session) {
-        gobj_log_error(gobj, 0,
-            "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_MQTT_ERROR,
-            "msg",          "%s", "Mqtt CMD_PINGREQ: not in session",
-            NULL
-        );
-        return MOSQ_ERR_PROTOCOL;
-    }
-    if(!priv->iamServer) {
-        gobj_log_error(gobj, 0,
-            "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_MQTT_ERROR,
-            "msg",          "%s", "Mqtt CMD_PINGREQ: not server",
-            NULL
-        );
-        return MOSQ_ERR_PROTOCOL;
-    }
-
-    if(priv->frame_head.flags != 0) {
-        return MOSQ_ERR_MALFORMED_PACKET;
-    }
+    // PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
     // TODO if mosq->keepalive then send__pingreq()
     // TODO mosq->ping_t = mosquitto_time(); esto no está en esta función!!
@@ -4584,7 +4562,7 @@ PRIVATE int handle__connect(hgobj gobj, gbuffer_t *gbuf, hgobj src)
 /***************************************************************************
  *  Only for clients
  ***************************************************************************/
-PRIVATE int handle__connack_c(
+PRIVATE int handle__connack(
     hgobj gobj,
     gbuffer_t *gbuf,
     json_t *jn_data  // not owned
@@ -4669,14 +4647,19 @@ PRIVATE int handle__connack_c(
             }
         }
 
-        const char *key; json_t *value;
-        json_object_foreach(properties, key, value) {
-            json_object_set(
-                jn_data,
-                kw_get_str(gobj, value, "name", "", KW_REQUIRED),
-                kw_get_dict_value(gobj, value, "value", 0, KW_REQUIRED)
-            );
-        }
+        // TODO review how save properties
+        // const char *key; json_t *value;
+        // json_object_foreach(properties, key, value) {
+        //     json_object_set(
+        //         jn_data,
+        //         kw_get_str(gobj, value, "name", "", KW_REQUIRED),
+        //         kw_get_dict_value(gobj, value, "value", 0, KW_REQUIRED)
+        //     );
+        // }
+
+        json_object_set_new(jn_data, "properties", properties);
+
+        // TODO integrate in session the properties
         // uint8_t retain_available = property_read_byte(properties, MQTT_PROP_RETAIN_AVAILABLE);
         // uint8_t max_qos = property_read_byte(properties, MQTT_PROP_MAXIMUM_QOS);
         // uint16_t inflight_maximum = property_read_int16(properties, MQTT_PROP_RECEIVE_MAXIMUM);
@@ -4699,116 +4682,146 @@ PRIVATE int handle__connack_c(
         }
     }
 
-    JSON_DECREF(properties);
+    // json_t *kw_iev = iev_create(
+    //     gobj,
+    //     EV_MQTT_CONNECTED,
+    //     json_incref(jn_data) // owned
+    // );
+    //
+    // gobj_publish_event(gobj, EV_ON_IEV_MESSAGE, kw_iev);
 
-    if(reason_code == 0) {
-        // TODO message__retry_check(mosq); important!
-        gobj_write_str_attr(gobj, "client_id", gobj_read_str_attr(gobj, "mqtt_client_id"));
-        return MOSQ_ERR_SUCCESS;
+    switch(reason_code){
+        case 0:
+            // TODO message__retry_check(mosq); important!
+            gobj_write_str_attr(gobj, "client_id", gobj_read_str_attr(gobj, "mqtt_client_id"));
+            return MOSQ_ERR_SUCCESS;
+        case 1:
+        case 2:
+        case 3:
+        case 4:
+        case 5:
+            // TODO don't retry connections?
+            return MOSQ_ERR_CONN_REFUSED;
+        default:
+            return MOSQ_ERR_PROTOCOL;
+    }
+}
+
+/***************************************************************************
+ *  Server: process disconnect from client
+ ***************************************************************************/
+PRIVATE int handle__disconnect_s(hgobj gobj, gbuffer_t *gbuf)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+    json_t *properties = 0;
+    uint8_t reason_code = 0;
+
+    if(priv->protocol_version == mosq_p_mqtt5 && gbuf && gbuffer_leftbytes(gbuf) > 0) {
+        /* FIXME - must handle reason code */
+        if(mqtt_read_byte(gobj, gbuf, &reason_code)<0) {
+            gobj_log_error(gobj, 0,
+                "function",     "%s", __FUNCTION__,
+                "msgset",       "%s", MSGSET_MQTT_ERROR,
+                "msg",          "%s", "Mqtt malformed packet, not enough data",
+                NULL
+            );
+            return MOSQ_ERR_MALFORMED_PACKET;
+        }
+
+        if(gbuffer_leftbytes(gbuf) > 0) {
+            int ret;
+            properties = property_read_all(gobj, gbuf, CMD_DISCONNECT, &ret);
+            if(!properties) {
+                return ret;
+            }
+        }
+    }
+    if(properties) {
+        json_t *property = property_get_property(properties, MQTT_PROP_SESSION_EXPIRY_INTERVAL);
+        int session_expiry_interval = (int)kw_get_int(gobj, property, "value", -1, 0);
+        if(session_expiry_interval != -1) {
+            // TODO review
+            if(priv->session_expiry_interval == 0 && session_expiry_interval!= 0) {
+                JSON_DECREF(properties)
+                return MOSQ_ERR_PROTOCOL;
+            }
+            priv->session_expiry_interval = session_expiry_interval;
+        }
+        JSON_DECREF(properties)
     }
 
-    const char *reason_code_s;
-    if(priv->protocol_version == mosq_p_mqtt5) {
-        reason_code_s = get_name_from_nn_table(mqtt5_return_codes_s, reason_code);
-        gobj_log_warning(gobj, 0,
-            "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_MQTT_ERROR,
-            "msg",          "%s", "Mqtt5 connection refused",
-            "reason_code",  "%d", (int)reason_code,
-            "reason",       "%s", reason_code_s,
-            NULL
-        );
+    if(gbuf && gbuffer_leftbytes(gbuf)>0) {
         return MOSQ_ERR_PROTOCOL;
-    } else {
-        reason_code_s = get_name_from_nn_table(mqtt311_connack_codes_s, reason_code);
-        gobj_log_warning(gobj, 0,
-            "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_MQTT_ERROR,
-            "msg",          "%s", "Mqtt3 connection refused",
-            "reason_code",  "%d", (int)reason_code,
-            "reason",       "%s", reason_code_s,
-            NULL
-        );
-        return MOSQ_ERR_CONN_REFUSED;
     }
+
+    if(gobj_trace_level(gobj) & SHOW_DECODE) {
+        trace_msg0("  👈 Received DISCONNECT from client '%s' (Reason code: %d)",
+            SAFE_PRINT(priv->client_id),
+            reason_code
+        );
+        if(properties) {
+            gobj_trace_json(gobj, properties, "properties");
+        }
+    }
+
+    if(priv->protocol_version == mosq_p_mqtt311 || priv->protocol_version == mosq_p_mqtt5) {
+        if(priv->frame_head.flags != 0x00) {
+            do_disconnect(gobj, MOSQ_ERR_PROTOCOL);
+            return MOSQ_ERR_PROTOCOL;
+        }
+    }
+    if(reason_code == MQTT_RC_DISCONNECT_WITH_WILL_MSG) {
+        // TODO mosquitto__set_state(context, mosq_cs_disconnect_with_will);
+    } else {
+        // TODO
+        //will__clear(context);
+        //mosquitto__set_state(context, mosq_cs_disconnecting);
+    }
+
+    do_disconnect(gobj, MOSQ_ERR_SUCCESS);
+    return 0;
 }
 
 /***************************************************************************
  *
  ***************************************************************************/
-// PRIVATE int handle__disconnect_s(hgobj gobj, gbuffer_t *gbuf)
-// {
-//     PRIVATE_DATA *priv = gobj_priv_data(gobj);
-//     int ret = 0;
-//     json_t *properties = 0;
-//     uint8_t reason_code = 0;
-//
-//     if(priv->frame_head.flags != 0) {
-//         return MOSQ_ERR_MALFORMED_PACKET;
-//     }
-//     if(priv->protocol_version == mosq_p_mqtt5 && gbuf && gbuffer_leftbytes(gbuf) > 0) {
-//         if(mqtt_read_byte(gobj, gbuf, &reason_code)<0) {
-//             gobj_log_error(gobj, 0,
-//                 "function",     "%s", __FUNCTION__,
-//                 "msgset",       "%s", MSGSET_MQTT_ERROR,
-//                 "msg",          "%s", "Mqtt malformed packet, not enough data",
-//                 NULL
-//             );
-//             return MOSQ_ERR_MALFORMED_PACKET;
-//         }
-//
-//         if(gbuffer_leftbytes(gbuf) > 0) {
-//             properties = property_read_all(gobj, gbuf, CMD_DISCONNECT, &ret);
-//             if(!properties) {
-//                 return ret;
-//             }
-//         }
-//     }
-//     if(properties) {
-//         json_t *property = property_get_property(properties, MQTT_PROP_SESSION_EXPIRY_INTERVAL);
-//         int session_expiry_interval = kw_get_int(gobj, property, "value", -1, 0);
-//         if(session_expiry_interval != -1) {
-//             if(priv->session_expiry_interval == 0 && session_expiry_interval!= 0) {
-//                 JSON_DECREF(properties)
-//                 return MOSQ_ERR_PROTOCOL;
-//             }
-//             priv->session_expiry_interval = session_expiry_interval;
-//         }
-//         JSON_DECREF(properties)
-//     }
-//
-//     if(gbuf && gbuffer_leftbytes(gbuf)>0) {
-//         return MOSQ_ERR_PROTOCOL;
-//     }
-//     if(priv->protocol_version == mosq_p_mqtt311 || priv->protocol_version == mosq_p_mqtt5) {
-//         if(priv->frame_head.flags != 0x00) {
-//             do_disconnect(gobj, MOSQ_ERR_PROTOCOL);
-//             return MOSQ_ERR_PROTOCOL;
-//         }
-//     }
-//     if(reason_code == MQTT_RC_DISCONNECT_WITH_WILL_MSG) {
-//         // TODO mosquitto__set_state(context, mosq_cs_disconnect_with_will);
-//     } else {
-//         //will__clear(context);
-//         //mosquitto__set_state(context, mosq_cs_disconnecting);
-//     }
-//
-//     do_disconnect(gobj, MOSQ_ERR_SUCCESS);
-//     return ret;
-// }
+PRIVATE int handle__disconnect_c(hgobj gobj, gbuffer_t *gbuf)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+    int ret = 0;
 
-/***************************************************************************
- *
- ***************************************************************************/
-// PRIVATE int handle__disconnect_c(hgobj gobj, gbuffer_t *gbuf)
-// {
-//     // PRIVATE_DATA *priv = gobj_priv_data(gobj);
-//     int ret = 0;
-//
-//     // TODO
-//
-//     return ret;
-// }
+    if(priv->protocol_version != mosq_p_mqtt5){
+        gobj_log_error(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_MQTT_ERROR,
+            "msg",          "%s", "Receiving cmd_disconnect and not mqtt v5",
+            NULL
+        );
+        return MOSQ_ERR_PROTOCOL;
+    }
+
+    uint8_t reason_code = 0;
+    mqtt_read_byte(gobj, gbuf, &reason_code);
+
+    json_t *properties = NULL;
+    if(gbuf && gbuffer_leftbytes(gbuf) > 2) {
+        properties = property_read_all(gobj, gbuf, CMD_DISCONNECT, &ret);
+    }
+
+    if(gobj_trace_level(gobj) & SHOW_DECODE) {
+        trace_msg0("  👈 Received DISCONNECT from client '%s' (Reason code: %d)",
+            SAFE_PRINT(priv->client_id),
+            reason_code
+        );
+        if(properties) {
+            gobj_trace_json(gobj, properties, "properties");
+        }
+    }
+
+    /* TODO Free data and reset values */
+    do_disconnect(gobj, reason_code);
+    return 0;
+}
 
 /***************************************************************************
  *  Add a subscription, return MOSQ_ERR_SUB_EXISTS or MOSQ_ERR_SUCCESS
@@ -6276,7 +6289,7 @@ PRIVATE uint16_t mosquitto__mid_generate(hgobj gobj)
 /***************************************************************************
  *
  ***************************************************************************/
-PRIVATE void do_disconnect(hgobj gobj, int reason) // TODO delete
+PRIVATE void do_disconnect(hgobj gobj, int reason)
 {
     gobj_send_event(gobj_bottom_gobj(gobj), EV_DROP, 0, gobj);
 }
@@ -6631,7 +6644,7 @@ PRIVATE int frame_completed(hgobj gobj, hgobj src)
                 break;
             } else {
                 json_t *jn_data = json_object();
-                ret = handle__connack_c(gobj, gbuf, jn_data);
+                ret = handle__connack(gobj, gbuf, jn_data);
                 if(ret == 0) {
                     priv->inform_on_close = TRUE;
                     gobj_publish_event(gobj, EV_ON_OPEN, jn_data);
@@ -6642,13 +6655,14 @@ PRIVATE int frame_completed(hgobj gobj, hgobj src)
             }
             break;
 
-        // case CMD_DISCONNECT:    // NOT common to server/client TODO
-        //     if(priv->iamServer) {
-        //         ret = handle__disconnect_s(gobj, gbuf);
-        //     } else {
-        //         ret = handle__disconnect_c(gobj, gbuf);
-        //     }
-        //     break;
+        case CMD_DISCONNECT:    // NOT common to server/client
+            if(priv->iamServer) {
+                ret = handle__disconnect_s(gobj, gbuf);
+            } else {
+                ret = handle__disconnect_c(gobj, gbuf);
+            }
+            break;
+
         // case CMD_AUTH:          // NOT common to server/client TODO
         //     if(priv->iamServer) {
         //         ret = handle__auth_s(gobj, gbuf);

@@ -53,17 +53,6 @@ GOBJ_DECLARE_GCLASS(C_PROT_MQTT2);
  *------------------------*/
 
 /*
- *  Like the connect callback. This is called when the client receives a CONNACK
- */
-GOBJ_DECLARE_EVENT(EV_MQTT_CONNECTED);
-
-/*
- *  Like the disconnect callback. This is called when the broker has received the
- *  DISCONNECT command and has disconnected the client.
- */
-GOBJ_DECLARE_EVENT(EV_MQTT_DISCONNECTED);
-
-/*
  *  Like the publish callback. This is called when a message initiated with
  *  cmd_publish has been sent to the broker. "Sent" means different
  *  things depending on the QoS of the message:
