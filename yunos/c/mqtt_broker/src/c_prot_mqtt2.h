@@ -52,57 +52,56 @@ GOBJ_DECLARE_GCLASS(C_PROT_MQTT2);
  *------------------------*/
 
 /*
- *  the connect callback. This is called when the library receives a CONNACK
+ *  Like the connect callback. This is called when the client receives a CONNACK
  */
 GOBJ_DECLARE_EVENT(EV_MQTT_CONNECTED);
 
 /*
- *  the disconnect callback. This is called when the broker has received the
+ *  Like the disconnect callback. This is called when the broker has received the
  *  DISCONNECT command and has disconnected the client.
  */
 GOBJ_DECLARE_EVENT(EV_MQTT_DISCONNECTED);
 
 /*
- * Set the publish callback. This is called when a message initiated with
- * <mosquitto_publish> has been sent to the broker. "Sent" means different
- * things depending on the QoS of the message:
+ *  Like the publish callback. This is called when a message initiated with
+ *  cmd_publish has been sent to the broker. "Sent" means different
+ *  things depending on the QoS of the message:
  *
- * QoS 0: The PUBLISH was passed to the local operating system for delivery,
- *        there is no guarantee that it was delivered to the remote broker.
- * QoS 1: The PUBLISH was sent to the remote broker and the corresponding
- *        PUBACK was received by the library.
- * QoS 2: The PUBLISH was sent to the remote broker and the corresponding
- *        PUBCOMP was received by the library.
+ *  QoS 0: The PUBLISH was passed to the local operating system for delivery,
+ *         there is no guarantee that it was delivered to the remote broker.
+ *  QoS 1: The PUBLISH was sent to the remote broker and the corresponding
+ *         PUBACK was received by the library.
+ *  QoS 2: The PUBLISH was sent to the remote broker and the corresponding
+ *         PUBCOMP was received by the library.
  */
 GOBJ_DECLARE_EVENT(EV_MQTT_PUBLISH);
 
 /*
- * the message callback. This is called when a message is received from the
- * broker and the required QoS flow has completed.
+ *  Like the message callback. This is called when a message is received from the
+ *  broker and the required QoS flow has completed.
  */
 GOBJ_DECLARE_EVENT(EV_MQTT_MESSAGE);
 
 /*
- * the subscribe callback. This is called when the library receives a
- * SUBACK message in response to a SUBSCRIBE
+ *  Like the subscribe callback. This is called when the library receives a
+ *  SUBACK message in response to a SUBSCRIBE
  */
 GOBJ_DECLARE_EVENT(EV_MQTT_SUBSCRIBE);
 
 /*
- *  the unsubscribe callback. This is called when the library receives a
+ *  Like the unsubscribe callback. This is called when the library receives a
  *  UNSUBACK message in response to an UNSUBSCRIBE.
  */
 GOBJ_DECLARE_EVENT(EV_MQTT_UNSUBSCRIBE);
 
-/*
- */
-GOBJ_DECLARE_EVENT(EV_MQTT_MESSAGE);
 
 /*
+ *  TODO remove ?
  */
 GOBJ_DECLARE_EVENT(EV_MQTT_SUBACK);
 
 /*
+ *  TODO remove ?
  */
 GOBJ_DECLARE_EVENT(EV_MQTT_UNSUBACK);
 
