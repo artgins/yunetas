@@ -1328,7 +1328,7 @@ PRIVATE int ac_on_close(hgobj gobj, const char *event, json_t *kw, hgobj src)
 /***************************************************************************
  *  Send publish command to the broker
  ***************************************************************************/
-PRIVATE int ac_mqtt_publish(hgobj gobj, const char *event, json_t *kw, hgobj src)
+PRIVATE int ac_send_mqtt_publish(hgobj gobj, const char *event, json_t *kw, hgobj src)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
@@ -1347,7 +1347,7 @@ PRIVATE int ac_mqtt_publish(hgobj gobj, const char *event, json_t *kw, hgobj src
 /***************************************************************************
  *  Send subscribe command to the broker
  ***************************************************************************/
-PRIVATE int ac_mqtt_subscribe(hgobj gobj, const char *event, json_t *kw, hgobj src)
+PRIVATE int ac_send_mqtt_subscribe(hgobj gobj, const char *event, json_t *kw, hgobj src)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
@@ -1366,7 +1366,7 @@ PRIVATE int ac_mqtt_subscribe(hgobj gobj, const char *event, json_t *kw, hgobj s
 /***************************************************************************
  *  Send unsubscribe command to the broker
  ***************************************************************************/
-PRIVATE int ac_mqtt_unsubscribe(hgobj gobj, const char *event, json_t *kw, hgobj src)
+PRIVATE int ac_send_mqtt_unsubscribe(hgobj gobj, const char *event, json_t *kw, hgobj src)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
@@ -1713,13 +1713,13 @@ PRIVATE int create_gclass(gclass_name_t gclass_name)
      *      States
      *------------------------*/
     ev_action_t st_idle[] = {
-        {EV_MQTT_MESSAGE,           ac_mqtt_message,        0}, // Message from broker
-        {EV_SEND_MQTT_PUBLISH,      ac_mqtt_publish,        0}, // Send publish to broker
-        {EV_MQTT_PUBLISH,           ac_mqtt_puback,         0}, // Ack to publish
-        {EV_SEND_MQTT_SUBSCRIBE,    ac_mqtt_subscribe,      0}, // Send subscribe to broker
-        {EV_MQTT_SUBSCRIBE,         ac_mqtt_suback,         0}, // Ack to subscribe
-        {EV_SEND_MQTT_UNSUBSCRIBE,  ac_mqtt_unsubscribe,    0}, // Send unsubscribe to broker
-        {EV_MQTT_UNSUBSCRIBE,       ac_mqtt_unsuback,       0}, // Ack to unsubscribe
+        {EV_MQTT_MESSAGE,           ac_mqtt_message,            0}, // Message from broker
+        {EV_SEND_MQTT_PUBLISH,      ac_send_mqtt_publish,       0}, // Send publish to broker
+        {EV_MQTT_PUBLISH,           ac_mqtt_puback,             0}, // Ack to publish
+        {EV_SEND_MQTT_SUBSCRIBE,    ac_send_mqtt_subscribe,     0}, // Send subscribe to broker
+        {EV_MQTT_SUBSCRIBE,         ac_mqtt_suback,             0}, // Ack to subscribe
+        {EV_SEND_MQTT_UNSUBSCRIBE,  ac_send_mqtt_unsubscribe,   0}, // Send unsubscribe to broker
+        {EV_MQTT_UNSUBSCRIBE,       ac_mqtt_unsuback,           0}, // Ack to unsubscribe
 
         {EV_COMMAND,                ac_command,             0},
         {EV_MT_COMMAND_ANSWER,      ac_command_answer,      0},
