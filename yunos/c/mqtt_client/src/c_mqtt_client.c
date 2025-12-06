@@ -1391,9 +1391,12 @@ PRIVATE int ac_mqtt_message(hgobj gobj, const char *event, json_t *kw, hgobj src
     printf("Message from broker:\n");
 
     gbuffer_t *gbuf = (gbuffer_t *)(uintptr_t)kw_get_int(gobj, kw, "gbuffer", 0, FALSE);
-    uint8_t *bf = gbuffer_cur_rd_pointer(gbuf);
+    const char *bf = gbuffer_cur_rd_pointer(gbuf);
     size_t len = gbuffer_chunk(gbuf);
-    json_t *data = tdump2json(bf, len);
+    json_t *data = anystring2json(bf, len, FALSE);
+    if(!data) {
+        data = tdump2json((const uint8_t *)bf, len);
+    }
     json_object_set_new(kw, "payload (gbuffer content)", data);
     json_dumpf(kw, stdout, JSON_INDENT(4)|JSON_ENCODE_ANY);
 
