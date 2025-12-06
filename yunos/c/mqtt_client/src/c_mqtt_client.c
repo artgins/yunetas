@@ -449,7 +449,20 @@ PRIVATE json_t *cmd_publish(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
 
     size_t payloadlen = strlen(payload);
     gbuffer_t *gbuf_payload = gbuffer_create(payloadlen, payloadlen);
-    gbuffer_append_string(gbuf_payload, payload);
+    if(payloadlen) {
+        gbuffer_append_string(gbuf_payload, payload);
+    }
+
+    if(empty_string(topic)) {
+        return msg_iev_build_response(
+            gobj,
+            -1,
+            json_sprintf("What topic?"),
+            0,
+            0,
+            kw  // owned
+        );
+    }
 
     /*
      *  Let mqtt protocol check all parameters
@@ -1391,13 +1404,15 @@ PRIVATE int ac_mqtt_message(hgobj gobj, const char *event, json_t *kw, hgobj src
     printf("Message from broker:\n");
 
     gbuffer_t *gbuf = (gbuffer_t *)(uintptr_t)kw_get_int(gobj, kw, "gbuffer", 0, FALSE);
-    const char *bf = gbuffer_cur_rd_pointer(gbuf);
-    size_t len = gbuffer_chunk(gbuf);
-    json_t *data = anystring2json(bf, len, FALSE);
-    if(!data) {
-        data = tdump2json((const uint8_t *)bf, len);
+    if(gbuf) {
+        const char *bf = gbuffer_cur_rd_pointer(gbuf);
+        size_t len = gbuffer_chunk(gbuf);
+        json_t *data = anystring2json(bf, len, FALSE);
+        if(!data) {
+            data = tdump2json((const uint8_t *)bf, len);
+        }
+        json_object_set_new(kw, "payload (gbuffer content)", data);
     }
-    json_object_set_new(kw, "payload (gbuffer content)", data);
     json_dumpf(kw, stdout, JSON_INDENT(4)|JSON_ENCODE_ANY);
 
     clear_input_line(gobj);
