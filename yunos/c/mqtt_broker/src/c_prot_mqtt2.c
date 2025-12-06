@@ -7328,7 +7328,7 @@ PRIVATE int ac_mqtt_publish(hgobj gobj, const char *event, json_t *kw, hgobj src
     }
 
     size_t payloadlen = gbuffer_leftbytes(gbuf_payload);
-    void *payload = gbuffer_cur_wr_pointer(gbuf_payload);
+    void *payload = gbuffer_cur_rd_pointer(gbuf_payload);
 
     if(priv->maximum_packet_size > 0 && payloadlen > priv->maximum_packet_size) {
         gobj_log_error(gobj, 0,
