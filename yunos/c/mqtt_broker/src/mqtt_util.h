@@ -1,11 +1,25 @@
-/****************************************************************************
+/***********************************************************************
  *          MQTT_UTIL.H
  *
- *          Mqtt utilities
+ *          MQTT utilities
  *
- *          Copyright (c) 2025, ArtGins.
+ *          Copyright (c) 2009-2020 Roger Light <roger@atchoo.org>
+ *
+ *          This file includes code from the Mosquitto project.
+ *          It is made available under the terms of the Eclipse Public License 2.0
+ *          and the Eclipse Distribution License v1.0 which accompany this distribution.
+ *
+ *          EPL: https://www.eclipse.org/legal/epl-2.0/
+ *          EDL: https://www.eclipse.org/org/documents/edl-v10.php
+ *
+ *          SPDX-License-Identifier: EPL-2.0 OR BSD-3-Clause
+ *
+ *          Modifications:
+ *              2025 ArtGins – refactoring, added new functions, structural changes.
+ *
+ *          Copyright (c) 2025 ArtGins.
  *          All Rights Reserved.
- ****************************************************************************/
+ ***********************************************************************/
 
 #pragma once
 
@@ -23,6 +37,10 @@ extern "C"{
 #define PROTOCOL_NAME "MQTT"
 #define PROTOCOL_VERSION_v311 4
 #define PROTOCOL_VERSION_v5 5
+
+#define TOPIC_HIERARCHY_LIMIT 200
+#define TOPIC_MAX 4000
+
 
 /* Message types */
 typedef enum { // string names in command_name[]

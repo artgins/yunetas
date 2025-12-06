@@ -59,11 +59,6 @@
 
 #define UNUSED(A) (void)(A)
 
-#define PW_DEFAULT_ITERATIONS 101
-
-#define TOPIC_HIERARCHY_LIMIT 200
-#define TOPIC_MAX 4000
-
 #define SAFE_PRINT(A) (A)?(A):""
 
 #define MQTT_MAX_PAYLOAD 268435455U
@@ -3641,84 +3636,6 @@ PRIVATE int send__unsubscribe(
     }
 
     return send_packet(gobj, gbuf);
-}
-
-/***************************************************************************
- * Check that a topic used for publishing is valid.
- * Search for + or # in a topic. Return MOSQ_ERR_INVAL if found.
- * Also returns MOSQ_ERR_INVAL if the topic string is too long.
- * Returns MOSQ_ERR_SUCCESS if everything is fine.
- ***************************************************************************/
-PUBLIC int mosquitto_pub_topic_check(const char *topic)
-{
-    int len = 0;
-    int hier_count = 0;
-
-    if(topic == NULL) {
-        return -1;
-    }
-    const char *str = topic;
-    while(str && *str) {
-        if(*str == '+' || *str == '#') {
-            return MOSQ_ERR_INVAL;
-        } else if(*str == '/') {
-            hier_count++;
-        }
-        len++;
-        str++;
-    }
-    if(len > TOPIC_MAX) {
-        return -1;
-    }
-    if(hier_count > TOPIC_HIERARCHY_LIMIT) {
-        return -1;
-    }
-
-    return 0;
-}
-
-/***************************************************************************
- * Check that a topic used for subscriptions is valid.
- * Search for + or # in a topic, check they aren't in invalid positions such as
- * foo/#/bar, foo/+bar or foo/bar#.
- * Return MOSQ_ERR_INVAL if invalid position found.
- * Also returns MOSQ_ERR_INVAL if the topic string is too long.
- * Returns MOSQ_ERR_SUCCESS if everything is fine.
- ***************************************************************************/
-PUBLIC int mosquitto_sub_topic_check(const char *str)
-{
-    char c = '\0';
-    int len = 0;
-    int hier_count = 0;
-
-    if(str == NULL) {
-        return MOSQ_ERR_INVAL;
-    }
-
-    while(str[0]) {
-        if(str[0] == '+') {
-            if((c != '\0' && c != '/') || (str[1] != '\0' && str[1] != '/')) {
-                return MOSQ_ERR_INVAL;
-            }
-        } else if(str[0] == '#') {
-            if((c != '\0' && c != '/')  || str[1] != '\0') {
-                return MOSQ_ERR_INVAL;
-            }
-        } else if(str[0] == '/') {
-            hier_count++;
-        }
-        len++;
-        c = str[0];
-        str = &str[1];
-    }
-    if(len > 65535) {
-        return MOSQ_ERR_INVAL;
-    }
-    if(hier_count > TOPIC_HIERARCHY_LIMIT) {
-        return MOSQ_ERR_INVAL;
-    }
-
-    return MOSQ_ERR_SUCCESS;
 }
 
 /***************************************************************************
