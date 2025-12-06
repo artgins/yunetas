@@ -965,156 +965,6 @@ PRIVATE int process_msg(
     return 0;
 }
 
-/***************************************************************************
- *
- ***************************************************************************/
-PRIVATE int handle__subscribe(
-    hgobj gobj,
-    json_t *kw, // not owned
-    hgobj src
-) {
-    PRIVATE_DATA *priv = gobj_priv_data(gobj);
-    const char *client_id = kw_get_str(gobj, kw, "client_id", "", KW_REQUIRED);
-    mosquitto_protocol_t protocol_version = kw_get_int(gobj, kw, "protocol_version", 0, KW_REQUIRED);
-    uint16_t mid = kw_get_int(gobj, kw, "mid", 0, KW_REQUIRED);
-    json_t *properties = kw_get_dict(gobj, kw, "properties", NULL, KW_REQUIRED);
-    json_t *data = kw_get_list(gobj, kw, "data", NULL, KW_REQUIRED);
-
-    gbuffer_t *gbuf_payload = gbuffer_create(256, 12*1024);
-
-    int idx; json_t *jn_sub;
-    json_array_foreach(data, idx, jn_sub) {
-        const char *sub = kw_get_str(gobj, jn_sub, "sub", NULL, KW_REQUIRED);
-        int qos = kw_get_int(gobj, jn_sub, "qos", 0, KW_REQUIRED);
-        int subscription_identifier = kw_get_int(gobj, jn_sub, "subscription_identifier", 0, KW_REQUIRED);
-        int subscription_options = kw_get_int(gobj, jn_sub, "subscription_options", 0, KW_REQUIRED);
-        int retain_handling = kw_get_int(gobj, jn_sub, "retain_handling", 0, KW_REQUIRED);
-
-        BOOL allowed = TRUE;
-        // allowed = mosquitto_acl_check(context, sub, 0, NULL, qos, FALSE, MOSQ_ACL_SUBSCRIBE); TODO
-        if(!allowed) {
-            if(protocol_version == mosq_p_mqtt5) {
-                qos = MQTT_RC_NOT_AUTHORIZED;
-            } else if(protocol_version == mosq_p_mqtt311) {
-                qos = 0x80;
-            }
-
-        }
-
-        // if(allowed) {
-        //     rc2 = sub__add(
-        //         gobj,
-        //         sub,
-        //         qos,
-        //         subscription_identifier,
-        //         subscription_options
-        //     );
-        //     if(rc2 < 0) {
-        //         JSON_DECREF(jn_list)
-        //         return rc2;
-        //     }
-        //
-        //     if(priv->protocol_version == mosq_p_mqtt311 || priv->protocol_version == mosq_p_mqtt31) {
-        //         if(rc2 == MOSQ_ERR_SUCCESS || rc2 == MOSQ_ERR_SUB_EXISTS) {
-        //             if(retain__queue(gobj, sub, qos, 0)) {
-        //                 // rc = MOSQ_ERR_NOMEM;
-        //             }
-        //         }
-        //     } else {
-        //         if((retain_handling == MQTT_SUB_OPT_SEND_RETAIN_ALWAYS)
-        //                 || (rc2 == MOSQ_ERR_SUCCESS && retain_handling == MQTT_SUB_OPT_SEND_RETAIN_NEW)
-        //           ) {
-        //             if(retain__queue(gobj, sub, qos, subscription_identifier)) {
-        //                 // rc = MOSQ_ERR_NOMEM;
-        //             }
-        //         }
-        //     }
-        // }
-
-        gbuffer_append_char(gbuf_payload, qos);
-    }
-
-    // TODO to high level
-    // if(priv->current_out_packet == NULL) {
-    //     rc = db__message_write_queued_out(gobj);
-    //     if(rc) {
-    //         return rc;
-    //     }
-    //     rc = db__message_write_inflight_out_latest(gobj);
-    //     if(rc) {
-    //         return rc;
-    //     }
-    // }
-
-    /* We don't use Reason String or User Property yet. */
-    json_t *jn_response = json_pack("{s:i, s:I, s:o}",
-        "mid", (int)mid,
-        "gbuffer", (json_int_t)(uintptr_t)gbuf_payload,
-        "properties", json_object()
-    );
-
-    json_t *kw_resp = iev_create2(
-        gobj,
-        EV_MQTT_SUBACK,
-        jn_response,    // owned
-        kw_incref(kw)  // owned, used to get ONLY __temp__.
-    );
-
-    gobj_send_event(src, EV_SEND_IEV, kw_resp, gobj);
-    return 0;
-}
-
-/***************************************************************************
- *
- ***************************************************************************/
-PRIVATE int handle__unsubscribe(
-    hgobj gobj,
-    json_t *kw, // not owned
-    hgobj src
-) {
-    PRIVATE_DATA *priv = gobj_priv_data(gobj);
-    const char *client_id = kw_get_str(gobj, kw, "client_id", "", KW_REQUIRED);
-    mosquitto_protocol_t protocol_version = kw_get_int(gobj, kw, "protocol_version", 0, KW_REQUIRED);
-    uint16_t mid = kw_get_int(gobj, kw, "mid", 0, KW_REQUIRED);
-    json_t *properties = kw_get_dict(gobj, kw, "properties", NULL, KW_REQUIRED);
-    json_t *data = kw_get_list(gobj, kw, "data", NULL, KW_REQUIRED);
-
-    gbuffer_t *gbuf_payload = gbuffer_create(256, 12*1024);
-
-    int idx; json_t *jn_sub;
-    json_array_foreach(data, idx, jn_sub) {
-        const char *sub = kw_get_str(gobj, jn_sub, "sub", NULL, KW_REQUIRED);
-
-        // /* ACL check */
-        int reason = 0;
-        BOOL allowed = TRUE;
-        // allowed = mosquitto_acl_check(context, sub, 0, NULL, 0, FALSE, MOSQ_ACL_UNSUBSCRIBE); TODO
-        if(allowed) {
-            // sub__remove(gobj, sub, &reason);
-        } else {
-            reason = MQTT_RC_NOT_AUTHORIZED;
-        }
-        gbuffer_append_char(gbuf_payload, reason);
-    }
-
-    /* We don't use Reason String or User Property yet. */
-    json_t *jn_response = json_pack("{s:i, s:I, s:o}",
-        "mid", (int)mid,
-        "gbuffer", (json_int_t)(uintptr_t)gbuf_payload,
-        "properties", json_object()
-    );
-
-    json_t *kw_resp = iev_create2(
-        gobj,
-        EV_MQTT_UNSUBACK,
-        jn_response,    // owned
-        kw_incref(kw)  // owned, used to get ONLY __temp__.
-    );
-
-    gobj_send_event(src, EV_SEND_IEV, kw_resp, gobj);
-    return 0;
-}
-
 
 
 
@@ -1166,6 +1016,14 @@ PRIVATE int ac_on_open(hgobj gobj, const char *event, json_t *kw, hgobj src)
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
     int result = 0;
 
+    if(gobj_trace_level(gobj) & TRACE_MESSAGES || 1) { // TODO remove || 1
+        gobj_trace_json(
+            gobj,
+            kw, // not own
+            "ON_OPEN %s", gobj_short_name(src)
+        );
+    }
+
     if(src == priv->gobj_top_side) {
         KW_DECREF(kw);
         return 0;
@@ -1181,14 +1039,6 @@ PRIVATE int ac_on_open(hgobj gobj, const char *event, json_t *kw, hgobj src)
         );
         KW_DECREF(kw);
         return -1;
-    }
-
-    if(gobj_trace_level(gobj) & TRACE_MESSAGES || 1) { // TODO remove || 1
-        gobj_trace_json(
-            gobj,
-            kw, // not own
-            "ON_OPEN %s", gobj_short_name(src)
-        );
     }
 
     /*--------------------------------------------------------------*
@@ -1279,6 +1129,14 @@ PRIVATE int ac_on_close(hgobj gobj, const char *event, json_t *kw, hgobj src)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
+    if(gobj_trace_level(gobj) & TRACE_MESSAGES || 1) { // TODO remove || 1
+        gobj_trace_json(
+            gobj,
+            kw, // not own
+            "ON_CLOSE %s", gobj_short_name(src)
+        );
+    }
+
     if(src == priv->gobj_top_side) {
         KW_DECREF(kw);
         return 0;
@@ -1294,14 +1152,6 @@ PRIVATE int ac_on_close(hgobj gobj, const char *event, json_t *kw, hgobj src)
        );
         KW_DECREF(kw);
         return -1;
-    }
-
-    if(gobj_trace_level(gobj) & TRACE_MESSAGES || 1) { // TODO remove || 1
-        gobj_trace_json(
-            gobj,
-            kw, // not own
-            "ON_CLOSE %s", gobj_short_name(src)
-        );
     }
 
     // TODO do will job ?
@@ -1319,6 +1169,14 @@ PRIVATE int ac_on_message(hgobj gobj, const char *event, json_t *kw, hgobj src)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
+    if(gobj_trace_level(gobj) & TRACE_MESSAGES || 1) { // TODO remove || 1
+        gobj_trace_json(
+            gobj,
+            kw, // not own
+            "ON_MESSAGE %s", gobj_short_name(src)
+        );
+    }
+
     if(src == priv->gobj_top_side) {
         KW_DECREF(kw);
         return 0;
@@ -1336,37 +1194,8 @@ PRIVATE int ac_on_message(hgobj gobj, const char *event, json_t *kw, hgobj src)
         return -1;
     }
 
-    if(gobj_trace_level(gobj) & TRACE_MESSAGES || 1) { // TODO remove || 1
-        gobj_trace_json(
-            gobj,
-            kw, // not own
-            "ON_MESSAGE %s", gobj_short_name(src)
-        );
-    }
-
-    int ret = 0;
-    mqtt_message_t mqtt_message = kw_get_int(gobj, kw, "mqtt_command", 0, KW_REQUIRED);
-    switch(mqtt_message) {
-        case CMD_SUBSCRIBE:
-            ret = handle__subscribe(gobj, kw, src);
-            break;
-        case CMD_UNSUBSCRIBE:
-            ret = handle__unsubscribe(gobj, kw, src);
-            break;
-        default:
-            gobj_log_error(gobj, 0,
-               "function",     "%s", __FUNCTION__,
-               "msgset",       "%s", MSGSET_INTERNAL_ERROR,
-               "msg",          "%s", "mqtt command no available in broker",
-               "command",      "%s", kw_get_str(gobj, kw, "mqtt_command_s", "", KW_REQUIRED),
-               NULL
-            );
-            ret = -1;
-            break;
-    }
-
     KW_DECREF(kw);
-    return ret;
+    return 0;
 }
 /***************************************************************************
  *

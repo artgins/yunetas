@@ -244,6 +244,18 @@ typedef struct _FRAME_HEAD {
 /***************************************************************************
  *              Prototypes
  ***************************************************************************/
+PRIVATE int send__suback(
+    hgobj gobj,
+    uint16_t mid,
+    gbuffer_t *gbuf_payload,  // owned
+    json_t *properties  // owned
+);
+PRIVATE int send__unsuback(
+    hgobj gobj,
+    uint16_t mid,
+    gbuffer_t *gbuf_payload,  // owned
+    json_t *properties  // owned
+);
 PRIVATE int send__disconnect(
     hgobj gobj,
     uint8_t reason_code,
@@ -4980,7 +4992,7 @@ PRIVATE int retain__queue(
 }
 
 /***************************************************************************
- *
+ *  Server
  ***************************************************************************/
 PRIVATE int handle__subscribe(hgobj gobj, gbuffer_t *gbuf)
 {
@@ -5166,20 +5178,136 @@ PRIVATE int handle__subscribe(hgobj gobj, gbuffer_t *gbuf)
         }
     }
 
-    if(!properties) {
-        properties = json_object();
-    }
-    json_t *kw = json_pack("{s:s, s:s, s:i, s:i, s:i, s:o, s:o}",
-        "client_id", priv->client_id,
-        "mqtt_command_s", mosquitto_command_string(priv->frame_head.command),
-        "mqtt_command", (int)priv->frame_head.command,
-        "protocol_version", (int)priv->protocol_version,
-        "mid", (int)mid,
-        "properties", properties,
-        "data", jn_list
-    );
 
-    return gobj_publish_event(gobj, EV_ON_MESSAGE, kw);
+    gbuffer_t *gbuf_payload = gbuffer_create(256, 12*1024);
+
+    int idx; json_t *jn_sub;
+    json_array_foreach(jn_list, idx, jn_sub) {
+        const char *sub = kw_get_str(gobj, jn_sub, "sub", NULL, KW_REQUIRED);
+        int qos = kw_get_int(gobj, jn_sub, "qos", 0, KW_REQUIRED);
+        int subscription_identifier = kw_get_int(gobj, jn_sub, "subscription_identifier", 0, KW_REQUIRED);
+        int subscription_options = kw_get_int(gobj, jn_sub, "subscription_options", 0, KW_REQUIRED);
+        int retain_handling = kw_get_int(gobj, jn_sub, "retain_handling", 0, KW_REQUIRED);
+
+        BOOL allowed = TRUE;
+        // allowed = mosquitto_acl_check(context, sub, 0, NULL, qos, FALSE, MOSQ_ACL_SUBSCRIBE); TODO
+        if(!allowed) {
+            if(priv->protocol_version == mosq_p_mqtt5) {
+                qos = MQTT_RC_NOT_AUTHORIZED;
+            } else if(priv->protocol_version == mosq_p_mqtt311) {
+                qos = 0x80;
+            }
+
+        }
+
+        // if(allowed) {
+        //     rc2 = sub__add(
+        //         gobj,
+        //         sub,
+        //         qos,
+        //         subscription_identifier,
+        //         subscription_options
+        //     );
+        //     if(rc2 < 0) {
+        //         JSON_DECREF(jn_list)
+        //         return rc2;
+        //     }
+        //
+        //     if(priv->protocol_version == mosq_p_mqtt311 || priv->protocol_version == mosq_p_mqtt31) {
+        //         if(rc2 == MOSQ_ERR_SUCCESS || rc2 == MOSQ_ERR_SUB_EXISTS) {
+        //             if(retain__queue(gobj, sub, qos, 0)) {
+        //                 // rc = MOSQ_ERR_NOMEM;
+        //             }
+        //         }
+        //     } else {
+        //         if((retain_handling == MQTT_SUB_OPT_SEND_RETAIN_ALWAYS)
+        //                 || (rc2 == MOSQ_ERR_SUCCESS && retain_handling == MQTT_SUB_OPT_SEND_RETAIN_NEW)
+        //           ) {
+        //             if(retain__queue(gobj, sub, qos, subscription_identifier)) {
+        //                 // rc = MOSQ_ERR_NOMEM;
+        //             }
+        //         }
+        //     }
+        // }
+
+        gbuffer_append_char(gbuf_payload, qos);
+    }
+
+    // if(priv->current_out_packet == NULL) {
+    //     rc = db__message_write_queued_out(gobj);
+    //     if(rc) {
+    //         return rc;
+    //     }
+    //     rc = db__message_write_inflight_out_latest(gobj);
+    //     if(rc) {
+    //         return rc;
+    //     }
+    // }
+
+
+    return send__suback(
+        gobj,
+        mid,
+        gbuf_payload, // owned
+        properties // owned
+    );
+}
+
+/***************************************************************************
+ *  Server: Send subscribe ack to client
+ ***************************************************************************/
+PRIVATE int send__suback(
+    hgobj gobj,
+    uint16_t mid,
+    gbuffer_t *gbuf_payload,
+    json_t *properties
+) {
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    uint32_t payloadlen = gbuf_payload?gbuffer_leftbytes(gbuf_payload):0;
+    uint32_t remaining_length = 2 + payloadlen;
+
+    if(priv->protocol_version == mosq_p_mqtt5) {
+        /* We don't use Reason String or User Property yet. */
+        if(properties) {
+            remaining_length += property__get_remaining_length(properties);
+        }
+    }
+
+    if(gobj_trace_level(gobj) & SHOW_DECODE) {
+        trace_msg0("👉👉 Sending SUBACK to '%s' %s",
+            priv->client_id,
+            gobj_short_name(gobj_bottom_gobj(gobj))
+        );
+        if(payloadlen > 0) {
+            gobj_trace_dump_gbuf(gobj, gbuf_payload, "SUBACK payload");
+        }
+        if(properties) {
+            gobj_trace_json(gobj, properties, "SUBACK properties");
+        }
+    }
+
+    gbuffer_t *gbuf = build_mqtt_packet(gobj, CMD_SUBACK, remaining_length);
+    mqtt_write_uint16(gbuf, mid);
+
+    if(priv->protocol_version == mosq_p_mqtt5) {
+        if(properties) {
+            property__write_all(gobj, gbuf, properties, TRUE);
+        }
+    }
+
+    if(payloadlen) {
+        mqtt_write_bytes(
+            gbuf,
+            gbuffer_cur_rd_pointer(gbuf_payload),
+            payloadlen
+        );
+    }
+
+    GBUFFER_DECREF(gbuf_payload)
+    JSON_DECREF(properties)
+
+    return send_packet(gobj, gbuf);
 }
 
 /***************************************************************************
@@ -5289,20 +5417,78 @@ PRIVATE int handle__unsubscribe(hgobj gobj, gbuffer_t *gbuf)
         reason_code_count++;
     }
 
-    if(!properties) {
-        properties = json_object();
-    }
-    json_t *kw = json_pack("{s:s, s:s, s:i, s:i, s:i, s:o, s:o}",
-        "client_id", priv->client_id,
-        "mqtt_command_s", mosquitto_command_string(priv->frame_head.command),
-        "mqtt_command", (int)priv->frame_head.command,
-        "protocol_version", (int)priv->protocol_version,
-        "mid", (int)mid,
-        "properties", properties,
-        "data", jn_list
-    );
+    gbuffer_t *gbuf_payload = gbuffer_create(256, 12*1024);
 
-    return gobj_publish_event(gobj, EV_ON_MESSAGE, kw);
+    int idx; json_t *jn_sub;
+    json_array_foreach(jn_list, idx, jn_sub) {
+        const char *sub = kw_get_str(gobj, jn_sub, "sub", NULL, KW_REQUIRED);
+
+        // /* ACL check */
+        int reason = 0;
+        BOOL allowed = TRUE;
+        // allowed = mosquitto_acl_check(context, sub, 0, NULL, 0, FALSE, MOSQ_ACL_UNSUBSCRIBE); TODO
+        if(allowed) {
+            // sub__remove(gobj, sub, &reason);
+        } else {
+            reason = MQTT_RC_NOT_AUTHORIZED;
+        }
+        gbuffer_append_char(gbuf_payload, reason);
+    }
+
+    return send__unsuback(
+        gobj,
+        mid,
+        gbuf_payload, // owned
+        properties // owned
+    );
+}
+
+/***************************************************************************
+ *  Server: Send unsubscribe ack to client
+ ***************************************************************************/
+PRIVATE int send__unsuback(
+    hgobj gobj,
+    uint16_t mid,
+    gbuffer_t *gbuf_payload,  // owned
+    json_t *properties  //  owned
+) {
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    if(gobj_trace_level(gobj) & SHOW_DECODE) {
+        trace_msg0("👉👉 Sending UNSUBACK to '%s' %s",
+            priv->client_id,
+            gobj_short_name(gobj_bottom_gobj(gobj))
+        );
+    }
+
+    uint32_t remaining_length = 2;
+    uint32_t reason_code_count = gbuffer_leftbytes(gbuf_payload);
+
+    if(priv->protocol_version == mosq_p_mqtt5) {
+        if(properties) {
+            remaining_length += property__get_remaining_length(properties);
+            remaining_length += (uint32_t)reason_code_count;
+        }
+    }
+
+    gbuffer_t *gbuf = build_mqtt_packet(gobj, CMD_UNSUBACK, remaining_length);
+    mqtt_write_uint16(gbuf, mid);
+
+    if(priv->protocol_version == mosq_p_mqtt5) {
+        if(properties) {
+            property__write_all(gobj, gbuf, properties, TRUE);
+        }
+        mqtt_write_bytes(
+            gbuf,
+            gbuffer_cur_rd_pointer(gbuf_payload),
+            (uint32_t)reason_code_count
+        );
+    }
+
+    GBUFFER_DECREF(gbuf_payload)
+    JSON_DECREF(properties)
+
+    return send_packet(gobj, gbuf);
 }
 
 /***************************************************************************
@@ -5453,7 +5639,7 @@ PRIVATE int handle__unsuback(hgobj gobj, gbuffer_t *gbuf)
 }
 
 /***************************************************************************
- *
+ *  Server: receive publish from client
  ***************************************************************************/
 PRIVATE int handle__publish_s(hgobj gobj, gbuffer_t *gbuf)
 {
@@ -5873,8 +6059,8 @@ process_bad_message:
 }
 
 /***************************************************************************
- *
- ***************************************************************************/
+ *  Client: receive publish from broker
+  ***************************************************************************/
 PRIVATE int handle__publish_c(hgobj gobj, gbuffer_t *gbuf)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
@@ -7468,109 +7654,6 @@ PRIVATE int ac_mqtt_unsubscribe(hgobj gobj, const char *event, json_t *kw, hgobj
 }
 
 /***************************************************************************
- *  Send subscribe ack
- ***************************************************************************/
-PRIVATE int ac_send__suback(hgobj gobj, const char *event, json_t *kw, hgobj src)
-{
-    PRIVATE_DATA *priv = gobj_priv_data(gobj);
-    uint16_t mid = kw_get_int(gobj, kw, "mid", 0, KW_REQUIRED);
-    gbuffer_t *gbuf_payload = (gbuffer_t *)(uintptr_t)kw_get_int(
-        gobj, kw, "gbuffer", 0, KW_REQUIRED
-    );
-    json_t *properties = kw_get_dict_value(gobj, kw, "properties", 0, 0);
-
-    uint32_t payloadlen = gbuf_payload?gbuffer_leftbytes(gbuf_payload):0;
-    uint32_t remaining_length = 2 + payloadlen;
-
-    if(priv->protocol_version == mosq_p_mqtt5) {
-        /* We don't use Reason String or User Property yet. */
-        if(properties) {
-            remaining_length += property__get_remaining_length(properties);
-        }
-    }
-
-    if(gobj_trace_level(gobj) & SHOW_DECODE) {
-        trace_msg0("👉👉 Sending SUBACK to '%s' %s",
-            priv->client_id,
-            gobj_short_name(gobj_bottom_gobj(gobj))
-        );
-        if(payloadlen > 0) {
-            gobj_trace_dump_gbuf(gobj, gbuf_payload, "SUBACK payload");
-        }
-        if(properties) {
-            gobj_trace_json(gobj, properties, "SUBACK properties");
-        }
-    }
-
-    gbuffer_t *gbuf = build_mqtt_packet(gobj, CMD_SUBACK, remaining_length);
-    mqtt_write_uint16(gbuf, mid);
-
-    if(priv->protocol_version == mosq_p_mqtt5) {
-        if(properties) {
-            property__write_all(gobj, gbuf, properties, TRUE);
-        }
-    }
-
-    if(payloadlen) {
-        mqtt_write_bytes(
-            gbuf,
-            gbuffer_cur_rd_pointer(gbuf_payload),
-            payloadlen
-        );
-    }
-
-    KW_DECREF(kw)
-    return send_packet(gobj, gbuf);
-}
-
-/***************************************************************************
- *  Send unsubscribe ack
- ***************************************************************************/
-PRIVATE int ac_send__unsuback(hgobj gobj, const char *event, json_t *kw, hgobj src)
-{
-    PRIVATE_DATA *priv = gobj_priv_data(gobj);
-    uint16_t mid = kw_get_int(gobj, kw, "mid", 0, KW_REQUIRED);
-    gbuffer_t *gbuf_payload = (gbuffer_t *)(uintptr_t)kw_get_int(
-        gobj, kw, "gbuffer", 0, KW_REQUIRED
-    );
-    json_t *properties = kw_get_dict_value(gobj, kw, "properties", 0, 0);
-
-    if(gobj_trace_level(gobj) & SHOW_DECODE) {
-        trace_msg0("👉👉 Sending UNSUBACK to '%s' %s",
-            priv->client_id,
-            gobj_short_name(gobj_bottom_gobj(gobj))
-        );
-    }
-
-    uint32_t remaining_length = 2;
-    uint32_t reason_code_count = gbuffer_leftbytes(gbuf_payload);
-
-    if(priv->protocol_version == mosq_p_mqtt5) {
-        if(properties) {
-            remaining_length += property__get_remaining_length(properties);
-            remaining_length += (uint32_t)reason_code_count;
-        }
-    }
-
-    gbuffer_t *gbuf = build_mqtt_packet(gobj, CMD_UNSUBACK, remaining_length);
-    mqtt_write_uint16(gbuf, mid);
-
-    if(priv->protocol_version == mosq_p_mqtt5) {
-        if(properties) {
-            property__write_all(gobj, gbuf, properties, TRUE);
-        }
-        mqtt_write_bytes(
-            gbuf,
-            gbuffer_cur_rd_pointer(gbuf_payload),
-            (uint32_t)reason_code_count
-        );
-    }
-
-    KW_DECREF(kw)
-    return send_packet(gobj, gbuf);
-}
-
-/***************************************************************************
  *  Send data
  ***************************************************************************/
 PRIVATE int ac_send_message(hgobj gobj, const char *event, json_t *kw, hgobj src)
@@ -7831,8 +7914,6 @@ PRIVATE int create_gclass(gclass_name_t gclass_name)
     };
     ev_action_t st_wait_frame_header[] = {
         {EV_RX_DATA,            ac_process_frame_header,            0},
-        {EV_MQTT_SUBACK,        ac_send__suback,                    0},
-        {EV_MQTT_UNSUBACK,      ac_send__unsuback,                  0},
         // {EV_MQTT_MESSAGE,       ac_send_message,                    0},
         {EV_MQTT_PUBLISH,       ac_mqtt_publish,                    0},
         {EV_MQTT_SUBSCRIBE,     ac_mqtt_subscribe,                  0},
@@ -7846,8 +7927,6 @@ PRIVATE int create_gclass(gclass_name_t gclass_name)
     };
     ev_action_t st_wait_payload[] = {
         {EV_RX_DATA,            ac_process_payload_data,            0},
-        {EV_MQTT_SUBACK,        ac_send__suback,                    0},
-        {EV_MQTT_UNSUBACK,      ac_send__unsuback,                  0},
         // {EV_MQTT_MESSAGE,       ac_send_message,                    0},
         {EV_MQTT_PUBLISH,       ac_mqtt_publish,                    0},
         {EV_MQTT_SUBSCRIBE,     ac_mqtt_subscribe,                  0},
@@ -7874,8 +7953,6 @@ PRIVATE int create_gclass(gclass_name_t gclass_name)
         {EV_MQTT_SUBSCRIBE,     0},
         {EV_MQTT_UNSUBSCRIBE,   0},
         {EV_ON_IEV_MESSAGE,     EVF_OUTPUT_EVENT},
-        {EV_MQTT_SUBACK,        EVF_OUTPUT_EVENT},
-        {EV_MQTT_UNSUBACK,      EVF_OUTPUT_EVENT},
         // {EV_MQTT_MESSAGE,       EVF_OUTPUT_EVENT},
         {EV_TIMEOUT,            0},
         {EV_TX_READY,           0},
