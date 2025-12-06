@@ -7348,7 +7348,7 @@ PRIVATE int ac_mqtt_publish(hgobj gobj, const char *event, json_t *kw, hgobj src
     }
 
     if(qos == 0) {
-        send__publish(
+        if(send__publish(
             gobj,
             mid,
             topic,
@@ -7360,7 +7360,20 @@ PRIVATE int ac_mqtt_publish(hgobj gobj, const char *event, json_t *kw, hgobj src
             properties,
             NULL,
             0
-        );
+        )==0) {
+            json_t *kw_publish = json_pack("{s:i}",
+                "mid", (int)mid
+            );
+
+            json_t *kw_iev = iev_create(
+                gobj,
+                EV_MQTT_PUBLISH,
+                kw_publish // owned
+            );
+
+            gobj_publish_event(gobj, EV_ON_IEV_MESSAGE, kw_iev);
+
+        }
     } else {
 
         gobj_log_error(gobj, 0,
