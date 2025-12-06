@@ -5,6 +5,7 @@
  *  Implementation of the MQTT protocol.
  *
 
+TODO review this schema
 
     Input Events                                Output Events
 

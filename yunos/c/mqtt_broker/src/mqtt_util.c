@@ -188,7 +188,7 @@ PUBLIC int mosquitto_pub_topic_check(const char *topic)
         len++;
         str++;
     }
-    if(len > TOPIC_MAX) {
+    if(len > TOPIC_MAX) { // TODO review with mosquitto code, it's modified!
         return -1;
     }
     if(hier_count > TOPIC_HIERARCHY_LIMIT) {

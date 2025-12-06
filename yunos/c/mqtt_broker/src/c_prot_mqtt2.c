@@ -5879,7 +5879,6 @@ PRIVATE int handle__publish_c(hgobj gobj, gbuffer_t *gbuf)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
-    int rc = 0;
     uint16_t mid = 0;
     uint16_t slen;
     json_t *properties = NULL;
@@ -5890,9 +5889,9 @@ PRIVATE int handle__publish_c(hgobj gobj, gbuffer_t *gbuf)
     BOOL retain = (header & 0x01);
 
     char *topic_;
-    if((rc=mqtt_read_string(gobj, gbuf, &topic_, &slen))<0) {
+    if((mqtt_read_string(gobj, gbuf, &topic_, &slen))<0) {
         // Error already logged
-        return rc;
+        return -1;
     }
     char *topic = gbmem_strndup(topic_, slen);
 
@@ -5905,7 +5904,7 @@ PRIVATE int handle__publish_c(hgobj gobj, gbuffer_t *gbuf)
             NULL
         );
         GBMEM_FREE(topic)
-        return MOSQ_ERR_PROTOCOL;
+        return -1;
     }
 
     if(qos > 0) {
@@ -5918,10 +5917,10 @@ PRIVATE int handle__publish_c(hgobj gobj, gbuffer_t *gbuf)
             // }
         }
 
-        if((rc=mqtt_read_uint16(gobj, gbuf, &mid))<0) {
+        if((mqtt_read_uint16(gobj, gbuf, &mid))<0) {
             // Error already logged
             GBMEM_FREE(topic)
-            return rc;
+            return -1;
         }
 
         if(mid == 0) {
@@ -5938,12 +5937,13 @@ PRIVATE int handle__publish_c(hgobj gobj, gbuffer_t *gbuf)
         }
     }
 
-    if(priv->protocol_version == mosq_p_mqtt5){
+    if(priv->protocol_version == mosq_p_mqtt5) {
+        int rc;
         properties = property_read_all(gobj, gbuf, CMD_PUBLISH, &rc);
         if(rc<0) {
             // Error already logged
             GBMEM_FREE(topic)
-            return rc;
+            return -1;
         }
     }
 
@@ -5977,66 +5977,90 @@ PRIVATE int handle__publish_c(hgobj gobj, gbuffer_t *gbuf)
         );
     }
 
-    GBUFFER_DECREF(gbuf_payload)
-    GBMEM_FREE(topic)
+    //message->timestamp = mosquitto_time();
+    switch(qos) {
+        case 0:
+            {
+                json_t *kw_message = json_pack("{s:i, s:b, s:i, s:i, s:o, s:I}",
+                    "mid", (int)mid,
+                    "dup", (int)dup,
+                    "qos", (int)qos,
+                    "retain", (int)retain,
+                    "properties", properties?properties:json_object(),
+                    "gbuffer", (gbuffer_t *)(uintptr_t)gbuf_payload
+                );
 
-    // TODO to high level
-    // message->timestamp = mosquitto_time();
-    // switch(qos) {
-    //     case 0:
-    //         COMPAT_pthread_mutex_lock(&mosq->callback_mutex);
-    //         on_message = mosq->on_message;
-    //         on_message_v5 = mosq->on_message_v5;
-    //         COMPAT_pthread_mutex_unlock(&mosq->callback_mutex);
-    //         if(on_message){
-    //             mosq->in_callback = true;
-    //             on_message(mosq, mosq->userdata, &message->msg);
-    //             mosq->in_callback = false;
-    //         }
-    //         if(mosq->on_message_v5){
-    //             mosq->in_callback = true;
-    //             on_message_v5(mosq, mosq->userdata, &message->msg, properties);
-    //             mosq->in_callback = false;
-    //         }
-    //         message__cleanup(&message);
-    //         mosquitto_property_free_all(&properties);
-    //         return MOSQ_ERR_SUCCESS;
-    //     case 1:
-    //         util__decrement_receive_quota(mosq);
-    //         rc = send__puback(mosq, mid, 0, NULL);
-    //         COMPAT_pthread_mutex_lock(&mosq->callback_mutex);
-    //         on_message = mosq->on_message;
-    //         on_message_v5 = mosq->on_message_v5;
-    //         COMPAT_pthread_mutex_unlock(&mosq->callback_mutex);
-    //         if(on_message){
-    //             mosq->in_callback = true;
-    //             on_message(mosq, mosq->userdata, &message->msg);
-    //             mosq->in_callback = false;
-    //         }
-    //         if(on_message_v5){
-    //             mosq->in_callback = true;
-    //             on_message_v5(mosq, mosq->userdata, &message->msg, properties);
-    //             mosq->in_callback = false;
-    //         }
-    //         message__cleanup(&message);
-    //         mosquitto_property_free_all(&properties);
-    //         return rc;
-    //     case 2:
-    //         message->properties = properties;
-    //         util__decrement_receive_quota(mosq);
-    //         rc = send__pubrec(mosq, mid, 0, NULL);
-    //         COMPAT_pthread_mutex_lock(&mosq->msgs_in.mutex);
-    //         message->state = mosq_ms_wait_for_pubrel;
-    //         message__queue(mosq, message, mosq_md_in);
-    //         COMPAT_pthread_mutex_unlock(&mosq->msgs_in.mutex);
-    //         return rc;
-    //     default:
-    //         message__cleanup(&message);
-    //         mosquitto_property_free_all(&properties);
-    //         return MOSQ_ERR_PROTOCOL;
-    // }
+                json_t *kw_iev = iev_create(
+                    gobj,
+                    EV_MQTT_MESSAGE,
+                    kw_message // owned
+                );
 
-    return rc;
+                gobj_publish_event(gobj, EV_ON_IEV_MESSAGE, kw_iev);
+            }
+
+            // COMPAT_pthread_mutex_lock(&mosq->callback_mutex);
+            // on_message = mosq->on_message;
+            // on_message_v5 = mosq->on_message_v5;
+            // COMPAT_pthread_mutex_unlock(&mosq->callback_mutex);
+            // if(on_message){
+            //     mosq->in_callback = true;
+            //     on_message(mosq, mosq->userdata, &message->msg);
+            //     mosq->in_callback = false;
+            // }
+            // if(mosq->on_message_v5){
+            //     mosq->in_callback = true;
+            //     on_message_v5(mosq, mosq->userdata, &message->msg, properties);
+            //     mosq->in_callback = false;
+            // }
+            // message__cleanup(&message);
+            // mosquitto_property_free_all(&properties);
+            return MOSQ_ERR_SUCCESS;
+
+        case 1:
+            GBUFFER_DECREF(gbuf_payload)
+            GBMEM_FREE(topic)
+            // util__decrement_receive_quota(mosq);
+            // rc = send__puback(mosq, mid, 0, NULL);
+            // COMPAT_pthread_mutex_lock(&mosq->callback_mutex);
+            // on_message = mosq->on_message;
+            // on_message_v5 = mosq->on_message_v5;
+            // COMPAT_pthread_mutex_unlock(&mosq->callback_mutex);
+            // if(on_message){
+            //     mosq->in_callback = true;
+            //     on_message(mosq, mosq->userdata, &message->msg);
+            //     mosq->in_callback = false;
+            // }
+            // if(on_message_v5){
+            //     mosq->in_callback = true;
+            //     on_message_v5(mosq, mosq->userdata, &message->msg, properties);
+            //     mosq->in_callback = false;
+            // }
+            // message__cleanup(&message);
+            // mosquitto_property_free_all(&properties);
+            // return rc;
+            return -1;
+
+        case 2:
+            GBUFFER_DECREF(gbuf_payload)
+            GBMEM_FREE(topic)
+            // message->properties = properties;
+            // util__decrement_receive_quota(mosq);
+            // rc = send__pubrec(mosq, mid, 0, NULL);
+            // COMPAT_pthread_mutex_lock(&mosq->msgs_in.mutex);
+            // message->state = mosq_ms_wait_for_pubrel;
+            // message__queue(mosq, message, mosq_md_in);
+            // COMPAT_pthread_mutex_unlock(&mosq->msgs_in.mutex);
+            // return rc;
+            return -1;
+
+        default:
+            GBUFFER_DECREF(gbuf_payload)
+            GBMEM_FREE(topic)
+            // message__cleanup(&message);
+            // mosquitto_property_free_all(&properties);
+            return -1;
+    }
 }
 
 /***************************************************************************
