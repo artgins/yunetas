@@ -1,5 +1,5 @@
 /***********************************************************************
- *          C_MQTT_CLIENT.C
+ *          C_MQTT_CLI.C
  *          Mqtt_client GClass.
  *
  *          Mqtt client
@@ -20,7 +20,7 @@
 #include <g_ev_console.h>
 #include <c_editline.h>
 #include "c_prot_mqtt2.h" // TODO change when moved to kernel
-#include "c_mqtt_client.h"
+#include "c_mqtt_cli.h"
 
 /***************************************************************************
  *              Constants
@@ -1653,7 +1653,7 @@ PRIVATE const GMETHODS gmt = {
 /*------------------------*
  *      GClass name
  *------------------------*/
-GOBJ_DEFINE_GCLASS(C_MQTT_CLIENT);
+GOBJ_DEFINE_GCLASS(C_MQTT_CLI);
 
 /*------------------------*
  *      Events
@@ -1832,5 +1832,5 @@ PRIVATE int create_gclass(gclass_name_t gclass_name)
  ***************************************************************************/
 PUBLIC int register_c_mqtt_client(void)
 {
-    return create_gclass(C_MQTT_CLIENT);
+    return create_gclass(C_MQTT_CLI);
 }

@@ -1,5 +1,5 @@
 /****************************************************************************
- *          C_MQTT_CLIENT.H
+ *          C_MQTT_CLI.H
  *          Mqtt_client GClass.
  *
  *          Mqtt client
@@ -21,7 +21,7 @@ extern "C"{
 /*------------------------*
  *      GClass name
  *------------------------*/
-GOBJ_DECLARE_GCLASS(C_MQTT_CLIENT);
+GOBJ_DECLARE_GCLASS(C_MQTT_CLI);
 
 /*------------------------*
  *      States
