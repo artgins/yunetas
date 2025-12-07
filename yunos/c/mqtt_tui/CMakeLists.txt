@@ -2,7 +2,7 @@
 #   CMake
 ##############################################
 cmake_minimum_required(VERSION 3.11)
-project(mqtt_cli C)
+project(mqtt_tui C)
 
 #-----------------------------------------------------#
 #   Resolve YUNETAS_BASE
