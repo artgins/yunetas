@@ -39,7 +39,7 @@ include("${_yunetas_project_cmake}")
 ##############################################
 SET (YUNO_SRCS
     src/main.c
-    src/c_mqtt_cli.c
+    src/c_mqtt_tui.c
     src/c_prot_mqtt2.c
     src/mqtt_util.c
 )

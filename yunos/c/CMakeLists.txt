@@ -18,7 +18,7 @@ add_subdirectory(yuno_cli)
 add_subdirectory(yuno_agent)
 add_subdirectory(yuno_agent22)
 add_subdirectory(mqtt_broker)
-add_subdirectory(mqtt_cli)
+add_subdirectory(mqtt_tui)
 
 # compile in Release mode :
 #

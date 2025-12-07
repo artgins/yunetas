@@ -13,7 +13,7 @@
 #include <yunetas.h>
 #include <c_editline.h>
 #include "c_prot_mqtt2.h"  // TODO remove when mqtt be migrated
-#include "c_mqtt_cli.h"
+#include "c_mqtt_tui.h"
 
 /***************************************************************************
  *              Structures
@@ -120,7 +120,7 @@ PRIVATE char variable_config[]= "\
     'services': [                                                   \n\
         {                                                           \n\
             'name': 'mqtt_client',                                  \n\
-            'gclass': 'C_MQTT_CLI',                              \n\
+            'gclass': 'C_MQTT_TUI',                              \n\
             'default_service': true,                                \n\
             'autostart': true,                                      \n\
             'autoplay': false                                       \n\
@@ -407,22 +407,22 @@ int main(int argc, char *argv[])
         json_t *kw_utility = json_pack(
             "{s:{s:b, s:s, s:s, s:s, s:s, s:s, s:s, s:s, s:s, s:s, s:s, s:s, s:s, s:s, s:s, s:b}}",
             "global",
-            "C_MQTT_CLI.verbose", arguments.verbose,
-            "C_MQTT_CLI.command", arguments.command,
-            "C_MQTT_CLI.auth_system", arguments.auth_system,
-            "C_MQTT_CLI.auth_url", arguments.auth_url,
-            "C_MQTT_CLI.mqtt_client_id", arguments.mqtt_client_id,
-            "C_MQTT_CLI.mqtt_protocol", arguments.mqtt_protocol,
-            "C_MQTT_CLI.user_id", arguments.user_id,
-            "C_MQTT_CLI.user_passw", arguments.user_passw,
-            "C_MQTT_CLI.jwt", arguments.jwt,
-            "C_MQTT_CLI.url_mqtt", arguments.url_mqtt,
-            "C_MQTT_CLI.url_broker", arguments.url_broker,
-            "C_MQTT_CLI.azp", arguments.azp,
-            "C_MQTT_CLI.yuno_role", arguments.yuno_role,
-            "C_MQTT_CLI.yuno_name", arguments.yuno_name,
-            "C_MQTT_CLI.yuno_service", arguments.yuno_service,
-            "C_MQTT_CLI.print_with_metadata", arguments.print_with_metadata
+            "C_MQTT_TUI.verbose", arguments.verbose,
+            "C_MQTT_TUI.command", arguments.command,
+            "C_MQTT_TUI.auth_system", arguments.auth_system,
+            "C_MQTT_TUI.auth_url", arguments.auth_url,
+            "C_MQTT_TUI.mqtt_client_id", arguments.mqtt_client_id,
+            "C_MQTT_TUI.mqtt_protocol", arguments.mqtt_protocol,
+            "C_MQTT_TUI.user_id", arguments.user_id,
+            "C_MQTT_TUI.user_passw", arguments.user_passw,
+            "C_MQTT_TUI.jwt", arguments.jwt,
+            "C_MQTT_TUI.url_mqtt", arguments.url_mqtt,
+            "C_MQTT_TUI.url_broker", arguments.url_broker,
+            "C_MQTT_TUI.azp", arguments.azp,
+            "C_MQTT_TUI.yuno_role", arguments.yuno_role,
+            "C_MQTT_TUI.yuno_name", arguments.yuno_name,
+            "C_MQTT_TUI.yuno_service", arguments.yuno_service,
+            "C_MQTT_TUI.print_with_metadata", arguments.print_with_metadata
         );
 
         char *param1_ = json_dumps(kw_utility, JSON_COMPACT);
