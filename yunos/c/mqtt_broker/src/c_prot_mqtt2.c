@@ -3343,7 +3343,7 @@ PRIVATE int send__publish(
                 Actual payload: Slightly less after subtracting headers
                 According to the MQTT specification - it's strictly limited to 4 bytes maximum.
              */
-            // TODO is error
+            // TODO is error?
             /* FIXME - Properties too big, don't publish any - should remove some first really */
             cmsg_props = NULL;
             store_props = NULL;

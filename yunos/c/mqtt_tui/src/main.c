@@ -1,8 +1,8 @@
 /****************************************************************************
  *          MAIN_MQTT_CLIENT.C
- *          mqtt_client main
+ *          mqtt_tui main
  *
- *          Mqtt client
+ *          Mqtt TUI (Terminal User Interface)
  *
  *          Copyright (c) 2025, ArtGins.
  *          All Rights Reserved.
@@ -59,7 +59,7 @@ static error_t parse_opt (int key, char *arg, struct argp_state *state);
 /***************************************************************************
  *                      Names
  ***************************************************************************/
-#define APP_NAME        "mqtt_client"
+#define APP_NAME        "mqtt_tui"
 #define APP_DOC         "Mqtt client"
 
 #define APP_VERSION     YUNETA_VERSION
@@ -80,10 +80,10 @@ PRIVATE char fixed_config[]= "\
     'environment': {                                                \n\
         'realm_owner': 'agent',                                     \n\
         'work_dir': '/yuneta',                                      \n\
-        'domain_dir': 'realms/agent/mqtt_client'                    \n\
+        'domain_dir': 'realms/agent/mqtt_tui'                       \n\
     },                                                              \n\
     'yuno': {                                                       \n\
-        'yuno_role': 'mqtt_client',                                 \n\
+        'yuno_role': 'mqtt_tui',                                    \n\
         'tags': ['yuneta', 'core']                                  \n\
     }                                                               \n\
 }                                                                   \n\
@@ -119,8 +119,8 @@ PRIVATE char variable_config[]= "\
     },                                                              \n\
     'services': [                                                   \n\
         {                                                           \n\
-            'name': 'mqtt_client',                                  \n\
-            'gclass': 'C_MQTT_TUI',                              \n\
+            'name': 'mqtt_tui',                                     \n\
+            'gclass': 'C_MQTT_TUI',                                 \n\
             'default_service': true,                                \n\
             'autostart': true,                                      \n\
             'autoplay': false                                       \n\
