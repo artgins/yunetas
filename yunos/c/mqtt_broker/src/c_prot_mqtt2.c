@@ -264,6 +264,23 @@ PRIVATE void do_disconnect(hgobj gobj, int reason);
 /***************************************************************************
  *          Data: config, public data, private data
  ***************************************************************************/
+static const json_desc_t mqtt_message[] = {
+// Name             Type        Defaults    Fillspace
+{"id",              "string",   "",         "40"},  // the mqtt 'topic'. First item is the pkey
+{"tm",              "time",     "",         "20"},
+{"mid",             "int",      "",         "20"},
+{"qos",             "int",      "",         "20"},
+{"retain",          "bool",     "",         "20"},
+{"properties",      "dict",     "{}",       "20"},
+{"data",            "string",   "",         "20"},
+
+// these are volatiles
+{"dup",             "bool",     "",         "20"},
+{"expiry_interval", "int",      "",         "20"},
+{"state",           "int",      "",         "20"},
+{0}
+};
+
 PRIVATE char *command_name[] = {
     "???",
     "CMD_CONNECT",
@@ -828,6 +845,25 @@ PRIVATE void print_queue(const char *name, dl_list_t *dl_list)
          */
         tail = dl_next(tail);
     }
+}
+
+/***************************************************************************
+ *
+ ***************************************************************************/
+PRIVATE int message__queue(hgobj gobj, json_t *message, enum mosquitto_msg_direction dir)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    if(dir == mosq_md_out) {
+        dl_add(priv->)
+        DL_APPEND(mosq->msgs_out.inflight, message);
+        mosq->msgs_out.queue_len++;
+    } else {
+        DL_APPEND(mosq->msgs_in.inflight, message);
+        mosq->msgs_in.queue_len++;
+    }
+
+    return message__release_to_inflight(mosq, dir);
 }
 
 /***************************************************************************
