@@ -2,27 +2,8 @@
  *          C_MQTT.H
  *          GClass of MQTT protocol.
  *
- *  Implementation of the MQTT protocol.
+ *          Implementation of the MQTT protocol.
  *
-
-TODO review this schema
-
-    Input Events                                Output Events
-
-                    ┌───────────────────────┐
-        start   ━━━▷│●                      │
-                    │-----------------------│
-                    │                       │
-                    │                       │====▷  EV_ON_OPEN
-                    │                       │====▷  EV_ON_MESSAGE
-                    │                       │====▷  EV_ON_CLOSE
-                    │                       │
-                    │-----------------------│
-        stop    ━━━▷│■  ◁--(auto) in clisrv │====▷  EV_STOPPED
-                    └───────────────────────┘
-
-
- *          Copyright (c) 2022 Niyamaka.
  *          Copyright (c) 2025, ArtGins.
  *          All Rights Reserved.
  ****************************************************************************/

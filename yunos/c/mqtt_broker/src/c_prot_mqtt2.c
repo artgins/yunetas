@@ -2,8 +2,6 @@
  *          C_MQTT.C
  *          GClass of MQTT protocol.
  *
- *          TODO move mosquitto code to mqtt_util.c
- *
  *          Copyright (c) 2009-2020 Roger Light <roger@atchoo.org>
  *
  *          This file includes code from the Mosquitto project.
