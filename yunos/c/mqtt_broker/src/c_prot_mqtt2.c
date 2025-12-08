@@ -634,6 +634,11 @@ PRIVATE void mt_create(hgobj gobj)
     dl_init(&priv->msgs_in.dl_inflight, gobj);
     dl_init(&priv->msgs_in.dl_queued, gobj);
 
+    priv->msgs_in.inflight_maximum = 20;
+    priv->msgs_out.inflight_maximum = 20;
+    priv->msgs_in.inflight_quota = 20;
+    priv->msgs_out.inflight_quota = 20;
+
     // The maximum size of a frame header is 5 bytes.
     priv->istream_frame = istream_create(gobj, 5, 5);
     if(!priv->istream_frame) {
@@ -947,7 +952,7 @@ PRIVATE int message__release_to_inflight(hgobj gobj, enum mosquitto_msg_directio
 
     if(dir == mosq_md_out) {
         DL_FOREACH_SAFE(&priv->msgs_out.dl_inflight, cur, tmp) {
-            if(priv->msgs_out.inflight_quota > 0) {
+            if(priv->msgs_out.inflight_quota > 0 || TRUE) { // TODO management quotas!
                 if(cur->msg.qos > 0 && cur->state == mosq_ms_invalid) {
                     if(cur->msg.qos == 1) {
                         cur->state = mosq_ms_wait_for_puback;
@@ -972,7 +977,7 @@ PRIVATE int message__release_to_inflight(hgobj gobj, enum mosquitto_msg_directio
                     }
                     // TODO util__decrement_send_quota(mosq);
                 }
-            }else{
+            } else {
                 return MOSQ_ERR_SUCCESS;
             }
         }
@@ -993,10 +998,10 @@ PRIVATE int message__queue(
 
     if(dir == mosq_md_out) {
         dl_add(&priv->msgs_out.dl_inflight, message);
-        // TODO mosq->msgs_out.queue_len++;
+        // TODO priv->msgs_out.queue_len++;
     } else {
         dl_add(&priv->msgs_in.dl_inflight, message);
-        // TODO mosq->msgs_in.queue_len++;
+        // TODO priv->msgs_in.queue_len++;
     }
 
     return message__release_to_inflight(gobj, dir);
@@ -3005,15 +3010,15 @@ PRIVATE int send__connect(
     if(protocol == mosq_p_mqtt5) {
         /* Generate properties from options */
         // if(!mosquitto_property_read_int16(properties, MQTT_PROP_RECEIVE_MAXIMUM, &receive_maximum, false)) {
-        //     rc = mosquitto_property_add_int16(&local_props, MQTT_PROP_RECEIVE_MAXIMUM, mosq->msgs_in.inflight_maximum);
+        //     rc = mosquitto_property_add_int16(&local_props, MQTT_PROP_RECEIVE_MAXIMUM, priv->msgs_in.inflight_maximum);
         //     if(rc) {
         // log_error
         // JSON_DECREF(properties);
         //     return rc;
     // }
         // }else{
-        //     mosq->msgs_in.inflight_maximum = receive_maximum;
-        //     mosq->msgs_in.inflight_quota = receive_maximum;
+        //     priv->msgs_in.inflight_maximum = receive_maximum;
+        //     priv->msgs_in.inflight_quota = receive_maximum;
         // }
 
         version = PROTOCOL_VERSION_v5;
@@ -4367,9 +4372,7 @@ PRIVATE int handle__connect(hgobj gobj, gbuffer_t *gbuf, hgobj src)
     }
 
     /*-------------------------------------------*
-     *-------------------------------------------*
      *      Here is connect__on_authorised
-     *-------------------------------------------*
      *-------------------------------------------*/
 
     /*
@@ -4742,7 +4745,7 @@ PRIVATE int handle__connack(
         // uint32_t maximum_packet_size = property_read_int32(properties, MQTT_PROP_MAXIMUM_PACKET_SIZE);
     }
 
-    // mosq->msgs_out.inflight_quota = mosq->msgs_out.inflight_maximum; TODO
+    priv->msgs_out.inflight_quota = priv->msgs_out.inflight_maximum;
     // message__reconnect_reset(mosq, true); TODO important?!
 
     if(gobj_trace_level(gobj) & SHOW_DECODE) {
@@ -6189,7 +6192,7 @@ PRIVATE int handle__publish_c(hgobj gobj, gbuffer_t *gbuf)
     if(qos > 0) {
         if(priv->protocol_version == mosq_p_mqtt5) {
             // TODO to high level?
-            // if(mosq->msgs_in.inflight_quota == 0){
+            // if(priv->msgs_in.inflight_quota == 0){
             //     /* FIXME - should send a DISCONNECT here */
             //     GBMEM_FREE(topic)
             //     return MOSQ_ERR_PROTOCOL;
@@ -6328,10 +6331,10 @@ PRIVATE int handle__publish_c(hgobj gobj, gbuffer_t *gbuf)
             // message->properties = properties;
             // util__decrement_receive_quota(mosq);
             // rc = send__pubrec(mosq, mid, 0, NULL);
-            // COMPAT_pthread_mutex_lock(&mosq->msgs_in.mutex);
+            // COMPAT_pthread_mutex_lock(&priv->msgs_in.mutex);
             // message->state = mosq_ms_wait_for_pubrel;
             // message__queue(mosq, message, mosq_md_in);
-            // COMPAT_pthread_mutex_unlock(&mosq->msgs_in.mutex);
+            // COMPAT_pthread_mutex_unlock(&priv->msgs_in.mutex);
             // return rc;
             return -1;
 
@@ -6342,6 +6345,393 @@ PRIVATE int handle__publish_c(hgobj gobj, gbuffer_t *gbuf)
             // mosquitto_property_free_all(&properties);
             return -1;
     }
+}
+
+/***************************************************************************
+ *
+ ***************************************************************************/
+PRIVATE int handle__pubackcomp(hgobj gobj, gbuffer_t *gbuf, const char *type)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    uint8_t reason_code = 0;
+    uint16_t mid;
+    int rc;
+    json_t *properties = NULL;
+    int qos;
+
+    if(priv->protocol_version != mosq_p_mqtt31) {
+        if((priv->frame_head.flags) != 0x00) {
+            return MOSQ_ERR_MALFORMED_PACKET;
+        }
+    }
+
+    //util__increment_send_quota(mosq);
+
+    rc = mqtt_read_uint16(gobj, gbuf, &mid);
+    if(rc<0) {
+        return rc;
+    }
+    if(type[3] == 'A') { /* pubAck or pubComp */
+        if(priv->frame_head.command != CMD_PUBACK) {
+            return MOSQ_ERR_MALFORMED_PACKET;
+        }
+        qos = 1;
+    } else {
+        if(priv->frame_head.command != CMD_PUBCOMP) {
+            return MOSQ_ERR_MALFORMED_PACKET;
+        }
+        qos = 2;
+    }
+    if(mid == 0) {
+        return MOSQ_ERR_PROTOCOL;
+    }
+
+    if(priv->protocol_version == mosq_p_mqtt5 && gbuffer_leftbytes(gbuf) > 0) {
+        rc = mqtt_read_byte(gobj, gbuf, &reason_code);
+        if(rc) {
+            return rc;
+        }
+
+        if(gbuffer_leftbytes(gbuf) > 0) {
+            properties = property_read_all(gobj, gbuf, CMD_PUBACK, &rc);
+            if(rc<0) {
+                JSON_DECREF(properties)
+                return rc;
+            }
+        }
+        if(type[3] == 'A') { /* pubAck or pubComp */
+            if(reason_code != MQTT_RC_SUCCESS
+                    && reason_code != MQTT_RC_NO_MATCHING_SUBSCRIBERS
+                    && reason_code != MQTT_RC_UNSPECIFIED
+                    && reason_code != MQTT_RC_IMPLEMENTATION_SPECIFIC
+                    && reason_code != MQTT_RC_NOT_AUTHORIZED
+                    && reason_code != MQTT_RC_TOPIC_NAME_INVALID
+                    && reason_code != MQTT_RC_PACKET_ID_IN_USE
+                    && reason_code != MQTT_RC_QUOTA_EXCEEDED
+                    && reason_code != MQTT_RC_PAYLOAD_FORMAT_INVALID
+            ) {
+                JSON_DECREF(properties)
+                return MOSQ_ERR_PROTOCOL;
+            }
+        } else {
+            if(reason_code != MQTT_RC_SUCCESS
+                    && reason_code != MQTT_RC_PACKET_ID_NOT_FOUND
+            ) {
+                JSON_DECREF(properties)
+                return MOSQ_ERR_PROTOCOL;
+            }
+        }
+    }
+    if(gbuffer_leftbytes(gbuf)) {
+        JSON_DECREF(properties)
+        return MOSQ_ERR_MALFORMED_PACKET;
+    }
+
+    if(gobj_trace_level(gobj) & SHOW_DECODE) {
+        if(strcmp(type, "PUBACK")==0) {
+            trace_msg0("  👈 Received PUBACK from client '%s' (Mid: %d, RC:%d)",
+                SAFE_PRINT(priv->client_id),
+                mid,
+                reason_code
+            );
+        } else {
+            trace_msg0("  👈 Received PUBCOMP from client '%s' (Mid: %d, RC:%d)",
+                SAFE_PRINT(priv->client_id),
+                mid,
+                reason_code
+            );
+        }
+    }
+
+    if(priv->iamServer) {
+        /* Immediately free, we don't do anything with Reason String or User Property at the moment */
+        JSON_DECREF(properties)
+
+        rc = db__message_delete_outgoing(gobj, mid, mosq_ms_wait_for_pubcomp, qos);
+        if(rc == MOSQ_ERR_NOT_FOUND) {
+            gobj_log_error(gobj, 0,
+                "function",     "%s", __FUNCTION__,
+                "msgset",       "%s", MSGSET_MQTT_ERROR,
+                "msg",          "%s", "Mqtt: Received for an unknown packet",
+                "client_id",    "%s", priv->client_id,
+                "type",         "%s", type,
+                "mid",          "%d", mid,
+                NULL
+            );
+            return MOSQ_ERR_SUCCESS;
+        } else {
+            return rc;
+        }
+    } else {
+        if(gobj_trace_level(gobj) & SHOW_DECODE) {
+            trace_msg0("Client %s received %s (Mid: %d, RC:%d)",
+                SAFE_PRINT(priv->client_id),
+                type,
+                mid,
+                reason_code
+            );
+        }
+
+        // rc = message__delete(gobj, mid, mosq_md_out, qos);
+        //
+        // if(rc == MOSQ_ERR_SUCCESS) {
+        //     // mosq->in_callback = TRUE;
+        //     on_publish_v5(gobj, mid, reason_code, properties);
+        //
+        //
+        //     gbuffer_t *gbuf_message = gbuffer_create(stored->payloadlen, stored->payloadlen);
+        //     if(gbuf_message) {
+        //         if(stored->payloadlen > 0) {
+        //             // Can become without payload
+        //             gbuffer_append(gbuf_message, stored->payload, stored->payloadlen);
+        //         }
+        //         json_t *kw = json_pack("{s:s, s:s, s:I}",
+        //             "mqtt_action", "publishing",
+        //             "topic", topic_name,
+        //             "gbuffer", (json_int_t)(uintptr_t)gbuf_message
+        //         );
+        //         gobj_publish_event(gobj, EV_ON_MESSAGE, kw);
+        //     }
+        //
+        //     // mosq->in_callback = FALSE;
+        // } else if(rc != MOSQ_ERR_NOT_FOUND){
+        //     JSON_DECREF(properties)
+        //     return rc;
+        // }
+        //
+        // message__release_to_inflight(gobj, mosq_md_out);
+
+        JSON_DECREF(properties)
+    	return MOSQ_ERR_SUCCESS;
+    }
+}
+
+/***************************************************************************
+ *
+ ***************************************************************************/
+PRIVATE int handle__pubrec(hgobj gobj, gbuffer_t *gbuf)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    uint8_t reason_code = 0;
+    uint16_t mid;
+    int rc;
+    json_t *properties = NULL;
+
+    if(priv->frame_head.flags != 0) {
+        return MOSQ_ERR_MALFORMED_PACKET;
+    }
+
+    rc = mqtt_read_uint16(gobj, gbuf, &mid);
+    if(rc<0) {
+        return rc;
+    }
+    if(mid == 0) {
+        return MOSQ_ERR_PROTOCOL;
+    }
+
+    if(priv->protocol_version == mosq_p_mqtt5 && gbuffer_leftbytes(gbuf) > 0) {
+        rc = mqtt_read_byte(gobj, gbuf, &reason_code);
+        if(rc<0) {
+            return rc;
+        }
+
+        if(reason_code != MQTT_RC_SUCCESS
+                && reason_code != MQTT_RC_NO_MATCHING_SUBSCRIBERS
+                && reason_code != MQTT_RC_UNSPECIFIED
+                && reason_code != MQTT_RC_IMPLEMENTATION_SPECIFIC
+                && reason_code != MQTT_RC_NOT_AUTHORIZED
+                && reason_code != MQTT_RC_TOPIC_NAME_INVALID
+                && reason_code != MQTT_RC_PACKET_ID_IN_USE
+                && reason_code != MQTT_RC_QUOTA_EXCEEDED
+                && reason_code != MQTT_RC_PAYLOAD_FORMAT_INVALID) {
+            return MOSQ_ERR_PROTOCOL;
+        }
+
+        if(gbuffer_leftbytes(gbuf) > 0) {
+            properties = property_read_all(gobj, gbuf, CMD_PUBREC, &rc);
+            if(rc<0) {
+                return rc;
+            }
+
+            /*
+             *  Immediately free, we don't do anything with Reason String or
+             *  User Property at the moment
+             */
+            JSON_DECREF(properties)
+        }
+    }
+
+    if(gbuffer_leftbytes(gbuf)>0) {
+        return MOSQ_ERR_MALFORMED_PACKET;
+    }
+
+    if(gobj_trace_level(gobj) & SHOW_DECODE) {
+        trace_msg0("  👈 Received PUBREC from client '%s' (Mid: %d, reason code: %02X)",
+            SAFE_PRINT(priv->client_id),
+            mid,
+            reason_code
+        );
+    }
+    printf("================> PUBREC OUT Client %s\n", priv->client_id);
+    print_queue("dl_msgs_out", &priv->dl_msgs_out);
+
+    if(priv->iamServer) {
+        if(reason_code < 0x80) {
+            rc = db__message_update_outgoing(gobj, mid, mosq_ms_wait_for_pubcomp, 2);
+        } else {
+            return db__message_delete_outgoing(gobj, mid, mosq_ms_wait_for_pubrec, 2);
+        }
+    } else {
+        gobj_log_error(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_MQTT_ERROR,
+            "msg",          "%s", "Mqtt: Received PUBREC being client",
+            "client_id",    "%s", priv->client_id,
+            NULL
+        );
+        return -1;
+        // Código con IFDEF solo en cliente
+        // if(reason_code < 0x80 || priv->protocol_version != mosq_p_mqtt5) {
+        //     rc = message__out_update(gobj, mid, mosq_ms_wait_for_pubcomp, 2);
+        // } else {
+        //     if(!message__delete(gobj, mid, mosq_md_out, 2)) {
+        //         /* Only inform the client the message has been sent once. */
+        //         if(mosq->on_publish_v5) {
+        //            mosq->in_callback = TRUE;
+        //            mosq->on_publish_v5(mosq, mosq->userdata, mid, reason_code, properties);
+        //            mosq->in_callback = FALSE;
+        //         }
+        //     }
+        //     //util__increment_send_quota(mosq);
+        //     message__release_to_inflight(gobj, mosq_md_out);
+        //     return MOSQ_ERR_SUCCESS;
+        // }
+    }
+
+    if(rc == MOSQ_ERR_NOT_FOUND) {
+        gobj_log_error(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_MQTT_ERROR,
+            "msg",          "%s", "Mqtt: Received for an unknown packet",
+            "client_id",    "%s", priv->client_id,
+            "mid",          "%d", mid,
+            NULL
+        );
+    } else if(rc != MOSQ_ERR_SUCCESS) {
+        return rc;
+    }
+    rc = send__pubrel(gobj, mid, NULL);
+    if(rc) {
+        return rc;
+    }
+
+    return MOSQ_ERR_SUCCESS;
+}
+
+/***************************************************************************
+ *
+ ***************************************************************************/
+PRIVATE int handle__pubrel(hgobj gobj, gbuffer_t *gbuf)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    uint8_t reason_code;
+    uint16_t mid;
+    int rc;
+    json_t *properties = NULL;
+
+    if(priv->protocol_version != mosq_p_mqtt31 && priv->frame_head.flags != 0x02) {
+        return MOSQ_ERR_MALFORMED_PACKET;
+    }
+    rc = mqtt_read_uint16(gobj, gbuf, &mid);
+    if(rc) {
+        return rc;
+    }
+    if(mid == 0) {
+        return MOSQ_ERR_PROTOCOL;
+    }
+
+    if(priv->protocol_version == mosq_p_mqtt5 && gbuffer_leftbytes(gbuf) > 0) {
+        rc = mqtt_read_byte(gobj, gbuf, &reason_code);
+        if(rc) {
+            return rc;
+        }
+
+        if(reason_code != MQTT_RC_SUCCESS && reason_code != MQTT_RC_PACKET_ID_NOT_FOUND) {
+            return MOSQ_ERR_PROTOCOL;
+        }
+
+        if(gbuffer_leftbytes(gbuf) > 0) {
+            properties = property_read_all(gobj, gbuf, CMD_PUBREL, &rc);
+            if(rc) {
+                return rc;
+            }
+        }
+    }
+
+    if(gbuffer_leftbytes(gbuf)>0) {
+        JSON_DECREF(properties)
+        return MOSQ_ERR_MALFORMED_PACKET;
+    }
+
+    if(gobj_trace_level(gobj) & SHOW_DECODE) {
+        trace_msg0("  👈 Received PUBREL from client '%s' (Mid: %d)",
+            SAFE_PRINT(priv->client_id),
+            mid
+        );
+    }
+
+    if(priv->iamServer) {
+        /* Immediately free, we don't do anything with Reason String or User Property at the moment */
+        JSON_DECREF(properties)
+
+        rc = db__message_release_incoming(gobj, mid);
+        if(rc == MOSQ_ERR_NOT_FOUND) {
+            /* Message not found. Still send a PUBCOMP anyway because this could be
+            * due to a repeated PUBREL after a client has reconnected. */
+        } else if(rc != MOSQ_ERR_SUCCESS) {
+            return rc;
+        }
+
+        rc = send_pubcomp(gobj, mid, NULL);
+        if(rc) {
+            return rc;
+        }
+    } else {
+        rc = -1; // original tiene un IFDEF codigo no incorporado al broker
+//         struct mosquitto_message_all *message = NULL;
+//         rc = send_pubcomp(gobj, mid, NULL);
+//         if(rc) {
+//             message__remove(gobj, mid, mosq_md_in, &message, 2);
+//             return rc;
+//         }
+//
+//         rc = message__remove(gobj, mid, mosq_md_in, &message, 2);
+//         if(rc == MOSQ_ERR_SUCCESS) {
+//             /* Only pass the message on if we have removed it from the queue - this
+//             * prevents multiple callbacks for the same message. */
+//             if(mosq->on_message) {
+//                mosq->in_callback = TRUE;
+//                mosq->on_message(mosq, mosq->userdata, &message->msg);
+//                mosq->in_callback = FALSE;
+//             }
+//             if(mosq->on_message_v5) {
+//                mosq->in_callback = TRUE;
+//                mosq->on_message_v5(mosq, mosq->userdata, &message->msg, message->properties);
+//                mosq->in_callback = FALSE;
+//             }
+//             JSON_DECREF(properties)
+//             message__cleanup(&message);
+//         } else if(rc == MOSQ_ERR_NOT_FOUND) {
+//             return MOSQ_ERR_SUCCESS;
+//         } else {
+//             return rc;
+//         }
+    }
+
+    return MOSQ_ERR_SUCCESS;
 }
 
 /***************************************************************************
@@ -6759,18 +7149,18 @@ PRIVATE int frame_completed(hgobj gobj, hgobj src)
             }
             break;
 
-        // case CMD_PUBACK:        // common to server/client
-        //     ret = handle__pubackcomp(gobj, gbuf, "PUBACK");
-        //     break;
-        // case CMD_PUBCOMP:       // common to server/client
-        //     ret = handle__pubackcomp(gobj, gbuf, "PUBCOMP");
-        //     break;
-        // case CMD_PUBREC:        // common to server/client
-        //     ret = handle__pubrec(gobj, gbuf);
-        //     break;
-        // case CMD_PUBREL:        // common to server/client
-        //     ret = handle__pubrel(gobj, gbuf);
-        //     break;
+        case CMD_PUBACK:        // common to server/client
+            ret = handle__pubackcomp(gobj, gbuf, "PUBACK");
+            break;
+        case CMD_PUBCOMP:       // common to server/client
+            ret = handle__pubackcomp(gobj, gbuf, "PUBCOMP");
+            break;
+        case CMD_PUBREC:        // common to server/client
+            ret = handle__pubrec(gobj, gbuf);
+            break;
+        case CMD_PUBREL:        // common to server/client
+            ret = handle__pubrel(gobj, gbuf);
+            break;
 
         case CMD_SUBSCRIBE:     // Only Server
             if(!priv->iamServer) {
