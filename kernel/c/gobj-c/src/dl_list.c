@@ -124,7 +124,7 @@ PUBLIC int dl_add(dl_list_t *dl, void *item)
 /***************************************************************
  *      dl_find - find forward
  ***************************************************************/
-PUBLIC void * dl_find(dl_list_t *dl, void *item)
+PUBLIC void *dl_find(dl_list_t *dl, void *item)
 {
     register dl_item_t * curr;
 

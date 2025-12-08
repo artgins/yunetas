@@ -173,6 +173,11 @@ enum mosquitto_msg_state {
     mosq_ms_queued = 11
 };
 
+enum mosquitto_msg_origin {
+    mosq_mo_client = 0,
+    mosq_mo_broker = 1
+};
+
 /* Struct: mosquitto_message
  *
  * Contains details of a PUBLISH message.
@@ -191,36 +196,83 @@ enum mosquitto_msg_state {
  *
  * bool retain - set to true for stale retained messages.
  */
-
-struct mosquitto_msg_store {
+typedef struct mosquitto_message {
+    int mid;
     char *topic;
     void *payload;
-    int payloadlen; // uint32_t
-    int mid;        // uint16_t
-    int qos;        // uint8_t
+    int payloadlen;
+    int qos;
     BOOL retain;
+} mosquitto_message_t;
 
-    time_t message_expiry_time;
-    char *source_id;
-    char *source_username;
-    int ref_count;
-    uint16_t source_mid;
-    json_t *properties;
-};
-
-struct mosquitto_client_msg {
+typedef struct mosquitto_msg_store { // Used in broker
     DL_ITEM_FIELDS
 
-    struct mosquitto_msg_store *store;
+    // dbid_t db_id;
+    char *source_id;
+    char *source_username;
+    // struct mosquitto__listener *source_listener;
+    char **dest_ids;
+    int dest_id_count;
+    int ref_count;
+    char *topic;
+    json_t *properties;
+    void *payload;
+    time_t message_expiry_time;
+    uint32_t payloadlen;
+    enum mosquitto_msg_origin origin;
+    uint16_t source_mid;
     uint16_t mid;
     uint8_t qos;
     BOOL retain;
+} mosquitto_msg_store_t;
+
+typedef struct mosquitto_client_msg { // Used in broker
+    DL_ITEM_FIELDS
+
+    struct mosquitto_msg_store *store;
+    json_t *properties;
     time_t timestamp;
+    uint16_t mid;
+    uint8_t qos;
+    BOOL retain;
     enum mosquitto_msg_direction direction;
     enum mosquitto_msg_state state;
-    BOOL dup;
+    uint8_t dup;
+} mosquitto_client_msg_t;
+
+typedef struct mosquitto_message_all { // Used in client
+    DL_ITEM_FIELDS
+
     json_t *properties;
-};
+    time_t timestamp;
+    enum mosquitto_msg_state state;
+    BOOL dup;
+    struct mosquitto_message msg;
+    uint32_t expiry_interval;
+} mosquitto_message_all_t;
+
+typedef struct mosquitto_msg_data { // Used in client/broker
+    // Used in broker
+    dl_list_t dl_inflight2;    // struct mosquitto_client_msg *inflight2;
+    dl_list_t dl_queued;       // struct mosquitto_client_msg *queued;
+    long inflight_bytes;
+    long inflight_bytes12;
+    int inflight_count;
+    int inflight_count12;
+    long queued_bytes;
+    long queued_bytes12;
+    int queued_count;
+    int queued_count12;
+
+    // Used in client
+    dl_list_t dl_inflight;         // struct mosquitto_message_all *inflight;
+    int queue_len;
+
+    int inflight_quota;
+    uint16_t inflight_maximum;
+} mosquitto_msg_data_t;
+
 
 typedef struct _FRAME_HEAD {
     // Information of the first two bytes header
@@ -242,6 +294,19 @@ typedef struct _FRAME_HEAD {
 /***************************************************************************
  *              Prototypes
  ***************************************************************************/
+PRIVATE int send__publish(
+    hgobj gobj,
+    uint16_t mid,
+    const char *topic,
+    uint32_t payloadlen,
+    const void *payload,
+    uint8_t qos,
+    BOOL retain,
+    BOOL dup,
+    json_t *cmsg_props, // not owned
+    json_t *store_props, // not owned
+    uint32_t expiry_interval
+);
 PRIVATE int send__suback(
     hgobj gobj,
     uint16_t mid,
@@ -495,8 +560,9 @@ typedef struct _PRIVATE_DATA {
 
     BOOL inform_on_close;
     json_t *jn_alias_list;
-    dl_list_t dl_msgs_out;  // Output queue of messages
-    dl_list_t dl_msgs_in;   // Input queue of messages (qos 2, waiting for pubrel)
+
+    struct mosquitto_msg_data msgs_in;
+    struct mosquitto_msg_data msgs_out;
 
     /*
      *  Config
@@ -563,8 +629,10 @@ PRIVATE void mt_create(hgobj gobj)
     priv->iamServer = gobj_read_bool_attr(gobj, "iamServer");
     priv->timer = gobj_create_pure_child(gobj_name(gobj), C_TIMER, 0, gobj);
 
-    dl_init(&priv->dl_msgs_out, gobj);
-    dl_init(&priv->dl_msgs_in, gobj);
+    dl_init(&priv->msgs_out.dl_inflight, gobj);
+    dl_init(&priv->msgs_out.dl_queued, gobj);
+    dl_init(&priv->msgs_in.dl_inflight, gobj);
+    dl_init(&priv->msgs_in.dl_queued, gobj);
 
     // The maximum size of a frame header is 5 bytes.
     priv->istream_frame = istream_create(gobj, 5, 5);
@@ -850,20 +918,88 @@ PRIVATE void print_queue(const char *name, dl_list_t *dl_list)
 /***************************************************************************
  *
  ***************************************************************************/
-PRIVATE int message__queue(hgobj gobj, json_t *message, enum mosquitto_msg_direction dir)
+PRIVATE void message__cleanup(struct mosquitto_message_all **message)
+{
+    struct mosquitto_message_all *msg;
+
+    if(!message || !*message) {
+        return;
+    }
+
+    msg = *message;
+
+    GBMEM_FREE(msg->msg.topic);
+    GBMEM_FREE(msg->msg.payload);
+    JSON_DECREF(msg->properties);
+    GBMEM_FREE(msg);
+}
+
+/***************************************************************************
+ *
+ ***************************************************************************/
+PRIVATE int message__release_to_inflight(hgobj gobj, enum mosquitto_msg_direction dir)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
+    /* mosq->*_message_mutex should be locked before entering this function */
+    struct mosquitto_message_all *cur, *tmp;
+    int rc = MOSQ_ERR_SUCCESS;
+
     if(dir == mosq_md_out) {
-        dl_add(priv->)
-        DL_APPEND(mosq->msgs_out.inflight, message);
-        mosq->msgs_out.queue_len++;
-    } else {
-        DL_APPEND(mosq->msgs_in.inflight, message);
-        mosq->msgs_in.queue_len++;
+        DL_FOREACH_SAFE(&priv->msgs_out.dl_inflight, cur, tmp) {
+            if(priv->msgs_out.inflight_quota > 0) {
+                if(cur->msg.qos > 0 && cur->state == mosq_ms_invalid) {
+                    if(cur->msg.qos == 1) {
+                        cur->state = mosq_ms_wait_for_puback;
+                    } else if(cur->msg.qos == 2) {
+                        cur->state = mosq_ms_wait_for_pubrec;
+                    }
+                    rc = send__publish(
+                        gobj,
+                        (uint16_t)cur->msg.mid,
+                        cur->msg.topic,
+                        (uint32_t)cur->msg.payloadlen,
+                        cur->msg.payload,
+                        (uint8_t)cur->msg.qos,
+                        cur->msg.retain,
+                        cur->dup,
+                        cur->properties,
+                        NULL,
+                        0
+                    );
+                    if(rc) {
+                        return rc;
+                    }
+                    // TODO util__decrement_send_quota(mosq);
+                }
+            }else{
+                return MOSQ_ERR_SUCCESS;
+            }
+        }
     }
 
-    return message__release_to_inflight(mosq, dir);
+    return rc;
+}
+
+/***************************************************************************
+ *  Used by client
+ ***************************************************************************/
+PRIVATE int message__queue(
+    hgobj gobj,
+    struct mosquitto_message_all *message,
+    enum mosquitto_msg_direction dir
+) {
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    if(dir == mosq_md_out) {
+        dl_add(&priv->msgs_out.dl_inflight, message);
+        // TODO mosq->msgs_out.queue_len++;
+    } else {
+        dl_add(&priv->msgs_in.dl_inflight, message);
+        // TODO mosq->msgs_in.queue_len++;
+    }
+
+    return message__release_to_inflight(gobj, dir);
 }
 
 /***************************************************************************
@@ -7193,7 +7329,7 @@ PRIVATE int ac_timeout_waiting_payload_data(hgobj gobj, const char *event, json_
 }
 
 /***************************************************************************
- *  Entry of mqtt publishing for clients
+ *  Entry of mqtt publishing for clients (mosquitto_publish_v5)
  ***************************************************************************/
 PRIVATE int ac_mqtt_publish(hgobj gobj, const char *event, json_t *kw, hgobj src)
 {
@@ -7383,76 +7519,96 @@ PRIVATE int ac_mqtt_publish(hgobj gobj, const char *event, json_t *kw, hgobj src
     } else {
         time_t t;
         time(&t);
-        json_t *jn_mqtt_msg = json_pack("{s:s, s:I, s:i, s:i, s:b, s:b}",
-            "id", topic,
-            "tm", (json_int_t)t,
-            "mid", (int)mid,
-            "qos", (int)qos,
-            "retain", retain,
-            "dup", FALSE
-        );
-        if(properties) {
-            json_object_set(jn_mqtt_msg, "properties", properties); // no new, owned by kw
-        }
-        if(!jn_mqtt_msg) {
-            gobj_log_error(gobj, 0,
-                "function",     "%s", __FUNCTION__,
-                "msgset",       "%s", MSGSET_MQTT_ERROR,
-                "msg",          "%s", "Mqtt publish: cannot create the message",
-                "topic",        "%s", topic,
-                NULL
-            );
-            KW_DECREF(kw)
-            return -1;
-        }
+        // json_t *jn_mqtt_msg = json_pack("{s:s, s:I, s:i, s:i, s:b, s:b}",
+        //     "id", topic,
+        //     "tm", (json_int_t)t,
+        //     "mid", (int)mid,
+        //     "qos", (int)qos,
+        //     "retain", retain,
+        //     "dup", FALSE
+        // );
+        // if(properties) {
+        //     json_object_set(jn_mqtt_msg, "properties", properties); // no new, owned by kw
+        // }
+        // if(!jn_mqtt_msg) {
+        //     gobj_log_error(gobj, 0,
+        //         "function",     "%s", __FUNCTION__,
+        //         "msgset",       "%s", MSGSET_MQTT_ERROR,
+        //         "msg",          "%s", "Mqtt publish: cannot create the message",
+        //         "topic",        "%s", topic,
+        //         NULL
+        //     );
+        //     KW_DECREF(kw)
+        //     return -1;
+        // }
+        //
+        // if(payloadlen) {
+        //     gbuffer_t *gbuf_base64 = gbuffer_string_to_base64(payload, payloadlen);
+        //     if(!gbuf_base64) {
+        //         gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
+        //             "function",     "%s", __FUNCTION__,
+        //             "msgset",       "%s", MSGSET_INTERNAL_ERROR,
+        //             "msg",          "%s", "Mqtt publish: No memory for gbuf_base64",
+        //             "topic",        "%s", topic,
+        //             "payloadlen",   "%d", (int)payloadlen,
+        //             NULL
+        //         );
+        //         KW_DECREF(kw)
+        //         return -1;
+        //     }
+        //     char *data = gbuffer_cur_rd_pointer(gbuf_base64);
+        //     json_t *jn_bf = json_string(data);
+        //     if(!jn_bf) {
+        //         gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
+        //             "function",     "%s", __FUNCTION__,
+        //             "msgset",       "%s", MSGSET_INTERNAL_ERROR,
+        //             "msg",          "%s", "Mqtt publish: Cannot jsonfy base64 data",
+        //             "topic",        "%s", topic,
+        //             "payloadlen",   "%d", (int)payloadlen,
+        //             NULL
+        //         );
+        //         gbuffer_decref(gbuf_base64);
+        //         KW_DECREF(kw)
+        //         return -1;
+        //     }
+        //     json_object_set_new(jn_mqtt_msg, "data", jn_bf);
+        //     gbuffer_decref(gbuf_base64);
+        // } else {
+        //     json_object_set_new(jn_mqtt_msg, "data", json_string(""));
+        // }
 
+        mosquitto_message_all_t *message = GBMEM_MALLOC(sizeof(mosquitto_message_all_t));
+
+        message->timestamp = t;
+        message->msg.mid = mid;
+        if(topic) {
+            message->msg.topic = gbmem_strdup(topic);
+            if(!message->msg.topic) {
+                message__cleanup(&message);
+                KW_DECREF(kw)
+                return -1;
+            }
+        }
         if(payloadlen) {
-            gbuffer_t *gbuf_base64 = gbuffer_string_to_base64(payload, payloadlen);
-            if(!gbuf_base64) {
-                gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
-                    "function",     "%s", __FUNCTION__,
-                    "msgset",       "%s", MSGSET_INTERNAL_ERROR,
-                    "msg",          "%s", "Mqtt publish: No memory for gbuf_base64",
-                    "topic",        "%s", topic,
-                    "payloadlen",   "%d", (int)payloadlen,
-                    NULL
-                );
+            message->msg.payloadlen = (int)payloadlen;
+            message->msg.payload = GBMEM_MALLOC((unsigned int)payloadlen*sizeof(uint8_t));
+            if(!message->msg.payload) {
+                message__cleanup(&message);
                 KW_DECREF(kw)
                 return -1;
             }
-            char *data = gbuffer_cur_rd_pointer(gbuf_base64);
-            json_t *jn_bf = json_string(data);
-            if(!jn_bf) {
-                gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
-                    "function",     "%s", __FUNCTION__,
-                    "msgset",       "%s", MSGSET_INTERNAL_ERROR,
-                    "msg",          "%s", "Mqtt publish: Cannot jsonfy base64 data",
-                    "topic",        "%s", topic,
-                    "payloadlen",   "%d", (int)payloadlen,
-                    NULL
-                );
-                gbuffer_decref(gbuf_base64);
-                KW_DECREF(kw)
-                return -1;
-            }
-            json_object_set_new(jn_mqtt_msg, "data", jn_bf);
-            gbuffer_decref(gbuf_base64);
+            memcpy(message->msg.payload, payload, (uint32_t)payloadlen*sizeof(uint8_t));
         } else {
-            json_object_set_new(jn_mqtt_msg, "data", json_string(""));
+            message->msg.payloadlen = 0;
+            message->msg.payload = NULL;
         }
+        message->msg.qos = (uint8_t)qos;
+        message->msg.retain = retain;
+        message->dup = FALSE;
+        message->properties = json_incref(properties);
 
-        if(message__queue(gobj, jn_mqtt_msg, mosq_md_out)<0) {
-            gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
-                "function",     "%s", __FUNCTION__,
-                "msgset",       "%s", MSGSET_INTERNAL_ERROR,
-                "msg",          "%s", "Mqtt publish: Cannot enqueue message",
-                "topic",        "%s", topic,
-                "payloadlen",   "%d", (int)payloadlen,
-                NULL
-            );
-            KW_DECREF(kw)
-            return -1;
-        }
+        message->state = mosq_ms_invalid;
+        message__queue(gobj, message, mosq_md_out);
     }
 
     KW_DECREF(kw)
