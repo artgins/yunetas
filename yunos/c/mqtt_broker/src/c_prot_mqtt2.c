@@ -6353,7 +6353,6 @@ PRIVATE int handle__publish_c(hgobj gobj, gbuffer_t *gbuf)
 PRIVATE int handle__pubackcomp(hgobj gobj, gbuffer_t *gbuf, const char *type)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
-
     uint8_t reason_code = 0;
     uint16_t mid;
     int rc;
@@ -6362,6 +6361,7 @@ PRIVATE int handle__pubackcomp(hgobj gobj, gbuffer_t *gbuf, const char *type)
 
     if(priv->protocol_version != mosq_p_mqtt31) {
         if((priv->frame_head.flags) != 0x00) {
+            // gobj_log_error() TODO
             return MOSQ_ERR_MALFORMED_PACKET;
         }
     }
@@ -6370,32 +6370,38 @@ PRIVATE int handle__pubackcomp(hgobj gobj, gbuffer_t *gbuf, const char *type)
 
     rc = mqtt_read_uint16(gobj, gbuf, &mid);
     if(rc<0) {
+        // Error already logged
         return rc;
     }
     if(type[3] == 'A') { /* pubAck or pubComp */
         if(priv->frame_head.command != CMD_PUBACK) {
+            // gobj_log_error() TODO
             return MOSQ_ERR_MALFORMED_PACKET;
         }
         qos = 1;
     } else {
         if(priv->frame_head.command != CMD_PUBCOMP) {
+            // gobj_log_error() TODO
             return MOSQ_ERR_MALFORMED_PACKET;
         }
         qos = 2;
     }
     if(mid == 0) {
+            // gobj_log_error() TODO
         return MOSQ_ERR_PROTOCOL;
     }
 
-    if(priv->protocol_version == mosq_p_mqtt5 && gbuffer_leftbytes(gbuf) > 0) {
+    if(priv->protocol_version == mosq_p_mqtt5 && gbuffer_leftbytes(gbuf) > 2) {
         rc = mqtt_read_byte(gobj, gbuf, &reason_code);
-        if(rc) {
+        if(rc<0) {
+            // Error already logged
             return rc;
         }
 
-        if(gbuffer_leftbytes(gbuf) > 0) {
+        if(gbuffer_leftbytes(gbuf) > 3) {
             properties = property_read_all(gobj, gbuf, CMD_PUBACK, &rc);
             if(rc<0) {
+                // Error already logged
                 JSON_DECREF(properties)
                 return rc;
             }
@@ -6411,6 +6417,7 @@ PRIVATE int handle__pubackcomp(hgobj gobj, gbuffer_t *gbuf, const char *type)
                     && reason_code != MQTT_RC_QUOTA_EXCEEDED
                     && reason_code != MQTT_RC_PAYLOAD_FORMAT_INVALID
             ) {
+                // gobj_log_error TODO
                 JSON_DECREF(properties)
                 return MOSQ_ERR_PROTOCOL;
             }
@@ -6418,26 +6425,32 @@ PRIVATE int handle__pubackcomp(hgobj gobj, gbuffer_t *gbuf, const char *type)
             if(reason_code != MQTT_RC_SUCCESS
                     && reason_code != MQTT_RC_PACKET_ID_NOT_FOUND
             ) {
+                // gobj_log_error TODO
                 JSON_DECREF(properties)
                 return MOSQ_ERR_PROTOCOL;
             }
         }
     }
     if(gbuffer_leftbytes(gbuf)) {
+        // gobj_log_error TODO
         JSON_DECREF(properties)
         return MOSQ_ERR_MALFORMED_PACKET;
     }
 
-    if(gobj_trace_level(gobj) & SHOW_DECODE) {
-        if(strcmp(type, "PUBACK")==0) {
-            trace_msg0("  👈 Received PUBACK from client '%s' (Mid: %d, RC:%d)",
+    if(priv->iamServer) {
+        if(gobj_trace_level(gobj) & SHOW_DECODE) {
+            trace_msg0("  👈 server Received %s from client '%s' (Mid: %d, RC:%d)",
+                type,
                 SAFE_PRINT(priv->client_id),
                 mid,
                 reason_code
             );
-        } else {
-            trace_msg0("  👈 Received PUBCOMP from client '%s' (Mid: %d, RC:%d)",
+        }
+    } else {
+        if(gobj_trace_level(gobj) & SHOW_DECODE) {
+            trace_msg0("  👈 client %s Received %s from server (Mid: %d, RC:%d)",
                 SAFE_PRINT(priv->client_id),
+                type,
                 mid,
                 reason_code
             );
@@ -6445,7 +6458,10 @@ PRIVATE int handle__pubackcomp(hgobj gobj, gbuffer_t *gbuf, const char *type)
     }
 
     if(priv->iamServer) {
-        /* Immediately free, we don't do anything with Reason String or User Property at the moment */
+        /*
+         *  Immediately free,
+         *  we don't do anything with Reason String or User Property at the moment
+         */
         JSON_DECREF(properties)
 
         rc = db__message_delete_outgoing(gobj, mid, mosq_ms_wait_for_pubcomp, qos);
@@ -6453,7 +6469,7 @@ PRIVATE int handle__pubackcomp(hgobj gobj, gbuffer_t *gbuf, const char *type)
             gobj_log_error(gobj, 0,
                 "function",     "%s", __FUNCTION__,
                 "msgset",       "%s", MSGSET_MQTT_ERROR,
-                "msg",          "%s", "Mqtt: Received for an unknown packet",
+                "msg",          "%s", "Mqtt: Received for an unknown packet identifier",
                 "client_id",    "%s", priv->client_id,
                 "type",         "%s", type,
                 "mid",          "%d", mid,
@@ -6463,47 +6479,38 @@ PRIVATE int handle__pubackcomp(hgobj gobj, gbuffer_t *gbuf, const char *type)
         } else {
             return rc;
         }
+
     } else {
-        if(gobj_trace_level(gobj) & SHOW_DECODE) {
-            trace_msg0("Client %s received %s (Mid: %d, RC:%d)",
-                SAFE_PRINT(priv->client_id),
-                type,
-                mid,
-                reason_code
-            );
+
+        rc = message__delete(gobj, mid, mosq_md_out, qos);
+
+        if(rc == MOSQ_ERR_SUCCESS) {
+            /* Only inform the client the message has been sent once. */
+            on_publish_v5(gobj, mid, reason_code, properties);
+
+            gbuffer_t *gbuf_message = gbuffer_create(stored->payloadlen, stored->payloadlen);
+            if(gbuf_message) {
+                if(stored->payloadlen > 0) {
+                    // Can become without payload
+                    gbuffer_append(gbuf_message, stored->payload, stored->payloadlen);
+                }
+                json_t *kw = json_pack("{s:s, s:s, s:I}",
+                    "mqtt_action", "publishing",
+                    "topic", topic_name,
+                    "gbuffer", (json_int_t)(uintptr_t)gbuf_message
+                );
+                gobj_publish_event(gobj, EV_ON_MESSAGE, kw);
+            }
+
+        } else if(rc != MOSQ_ERR_NOT_FOUND) {
+            JSON_DECREF(properties)
+            return rc;
         }
 
-        // rc = message__delete(gobj, mid, mosq_md_out, qos);
-        //
-        // if(rc == MOSQ_ERR_SUCCESS) {
-        //     // mosq->in_callback = TRUE;
-        //     on_publish_v5(gobj, mid, reason_code, properties);
-        //
-        //
-        //     gbuffer_t *gbuf_message = gbuffer_create(stored->payloadlen, stored->payloadlen);
-        //     if(gbuf_message) {
-        //         if(stored->payloadlen > 0) {
-        //             // Can become without payload
-        //             gbuffer_append(gbuf_message, stored->payload, stored->payloadlen);
-        //         }
-        //         json_t *kw = json_pack("{s:s, s:s, s:I}",
-        //             "mqtt_action", "publishing",
-        //             "topic", topic_name,
-        //             "gbuffer", (json_int_t)(uintptr_t)gbuf_message
-        //         );
-        //         gobj_publish_event(gobj, EV_ON_MESSAGE, kw);
-        //     }
-        //
-        //     // mosq->in_callback = FALSE;
-        // } else if(rc != MOSQ_ERR_NOT_FOUND){
-        //     JSON_DECREF(properties)
-        //     return rc;
-        // }
-        //
-        // message__release_to_inflight(gobj, mosq_md_out);
+        message__release_to_inflight(gobj, mosq_md_out);
 
         JSON_DECREF(properties)
-    	return MOSQ_ERR_SUCCESS;
+        return MOSQ_ERR_SUCCESS;
     }
 }
 
