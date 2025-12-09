@@ -5435,7 +5435,7 @@ PRIVATE int handle__unsubscribe(hgobj gobj, gbuffer_t *gbuf)
         gobj_log_error(gobj, 0,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_MQTT_ERROR,
-            "msg",          "%s", "Mqtt unsubscribe: mid == 2",
+            "msg",          "%s", "Mqtt unsubscribe: mid == 0",
             "client_id",    "%s", priv->client_id,
             NULL
         );
@@ -6387,7 +6387,13 @@ PRIVATE int handle__pubackcomp(hgobj gobj, gbuffer_t *gbuf, const char *type)
         qos = 2;
     }
     if(mid == 0) {
-            // gobj_log_error() TODO
+        gobj_log_error(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_MQTT_ERROR,
+            "msg",          "%s", "Mqtt pubackcomp: mid == 0",
+            "client_id",    "%s", priv->client_id,
+            NULL
+        );
         return MOSQ_ERR_PROTOCOL;
     }
 
@@ -6527,20 +6533,36 @@ PRIVATE int handle__pubrec(hgobj gobj, gbuffer_t *gbuf)
     json_t *properties = NULL;
 
     if(priv->frame_head.flags != 0) {
+        gobj_log_error(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_MQTT_ERROR,
+            "msg",          "%s", "Mqtt pubrec: malformed packet",
+            "client_id",    "%s", priv->client_id,
+            NULL
+        );
         return MOSQ_ERR_MALFORMED_PACKET;
     }
 
     rc = mqtt_read_uint16(gobj, gbuf, &mid);
     if(rc<0) {
+        // Error already logged
         return rc;
     }
     if(mid == 0) {
+        gobj_log_error(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_MQTT_ERROR,
+            "msg",          "%s", "Mqtt pubrec: mid == 0",
+            "client_id",    "%s", priv->client_id,
+            NULL
+        );
         return MOSQ_ERR_PROTOCOL;
     }
 
-    if(priv->protocol_version == mosq_p_mqtt5 && gbuffer_leftbytes(gbuf) > 0) {
+    if(priv->protocol_version == mosq_p_mqtt5 && gbuffer_leftbytes(gbuf) > 2) {
         rc = mqtt_read_byte(gobj, gbuf, &reason_code);
         if(rc<0) {
+            // Error already logged
             return rc;
         }
 
@@ -6553,12 +6575,21 @@ PRIVATE int handle__pubrec(hgobj gobj, gbuffer_t *gbuf)
                 && reason_code != MQTT_RC_PACKET_ID_IN_USE
                 && reason_code != MQTT_RC_QUOTA_EXCEEDED
                 && reason_code != MQTT_RC_PAYLOAD_FORMAT_INVALID) {
+            gobj_log_error(gobj, 0,
+                "function",     "%s", __FUNCTION__,
+                "msgset",       "%s", MSGSET_MQTT_ERROR,
+                "msg",          "%s", "Mqtt pubrec: wrong reason code",
+                "client_id",    "%s", priv->client_id,
+                "reason_code",  "%d", (int)reason_code
+                NULL
+            );
             return MOSQ_ERR_PROTOCOL;
         }
 
-        if(gbuffer_leftbytes(gbuf) > 0) {
+        if(gbuffer_leftbytes(gbuf) > 3) {
             properties = property_read_all(gobj, gbuf, CMD_PUBREC, &rc);
             if(rc<0) {
+                // Error already logged
                 return rc;
             }
 
@@ -6571,57 +6602,67 @@ PRIVATE int handle__pubrec(hgobj gobj, gbuffer_t *gbuf)
     }
 
     if(gbuffer_leftbytes(gbuf)>0) {
+        gobj_log_error(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_MQTT_ERROR,
+            "msg",          "%s", "Mqtt pubrec: too much data",
+            "client_id",    "%s", priv->client_id,
+            NULL
+        );
         return MOSQ_ERR_MALFORMED_PACKET;
     }
 
-    if(gobj_trace_level(gobj) & SHOW_DECODE) {
-        trace_msg0("  👈 Received PUBREC from client '%s' (Mid: %d, reason code: %02X)",
-            SAFE_PRINT(priv->client_id),
-            mid,
-            reason_code
-        );
-    }
-    printf("================> PUBREC OUT Client %s\n", priv->client_id);
-    print_queue("dl_msgs_out", &priv->dl_msgs_out);
+
+    // printf("================> PUBREC OUT Client %s\n", priv->client_id);
+    // print_queue("dl_msgs_out", &priv->dl_msgs_out);
 
     if(priv->iamServer) {
+        if(gobj_trace_level(gobj) & SHOW_DECODE) {
+            trace_msg0("  👈 server Received PUBREC from client '%s' (Mid: %d, reason code: %02X)",
+                SAFE_PRINT(priv->client_id),
+                mid,
+                reason_code
+            );
+        }
+
         if(reason_code < 0x80) {
             rc = db__message_update_outgoing(gobj, mid, mosq_ms_wait_for_pubcomp, 2);
         } else {
             return db__message_delete_outgoing(gobj, mid, mosq_ms_wait_for_pubrec, 2);
         }
+
     } else {
-        gobj_log_error(gobj, 0,
-            "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_MQTT_ERROR,
-            "msg",          "%s", "Mqtt: Received PUBREC being client",
-            "client_id",    "%s", priv->client_id,
-            NULL
-        );
-        return -1;
-        // Código con IFDEF solo en cliente
-        // if(reason_code < 0x80 || priv->protocol_version != mosq_p_mqtt5) {
-        //     rc = message__out_update(gobj, mid, mosq_ms_wait_for_pubcomp, 2);
-        // } else {
-        //     if(!message__delete(gobj, mid, mosq_md_out, 2)) {
-        //         /* Only inform the client the message has been sent once. */
-        //         if(mosq->on_publish_v5) {
-        //            mosq->in_callback = TRUE;
-        //            mosq->on_publish_v5(mosq, mosq->userdata, mid, reason_code, properties);
-        //            mosq->in_callback = FALSE;
-        //         }
-        //     }
-        //     //util__increment_send_quota(mosq);
-        //     message__release_to_inflight(gobj, mosq_md_out);
-        //     return MOSQ_ERR_SUCCESS;
-        // }
+        if(gobj_trace_level(gobj) & SHOW_DECODE) {
+            trace_msg0("  👈 client %s Received PUBREC from broker (Mid: %d, reason code: %02X)",
+                SAFE_PRINT(priv->client_id),
+                mid,
+                reason_code
+            );
+        }
+
+        if(reason_code < 0x80 || priv->protocol_version != mosq_p_mqtt5) {
+            rc = message__out_update(gobj, mid, mosq_ms_wait_for_pubcomp, 2);
+        } else {
+            if(!message__delete(gobj, mid, mosq_md_out, 2)) {
+                /* Only inform the client the message has been sent once. */
+                // TODO
+                // if(mosq->on_publish_v5) {
+                //    mosq->in_callback = TRUE;
+                //    mosq->on_publish_v5(mosq, mosq->userdata, mid, reason_code, properties);
+                //    mosq->in_callback = FALSE;
+                // }
+            }
+            //util__increment_send_quota(mosq); // TODO
+            message__release_to_inflight(gobj, mosq_md_out);
+            return MOSQ_ERR_SUCCESS;
+        }
     }
 
     if(rc == MOSQ_ERR_NOT_FOUND) {
         gobj_log_error(gobj, 0,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_MQTT_ERROR,
-            "msg",          "%s", "Mqtt: Received for an unknown packet",
+            "msg",          "%s", "Mqtt: Received PUBREC for an unknown packet ID",
             "client_id",    "%s", priv->client_id,
             "mid",          "%d", mid,
             NULL
@@ -6650,6 +6691,13 @@ PRIVATE int handle__pubrel(hgobj gobj, gbuffer_t *gbuf)
     json_t *properties = NULL;
 
     if(priv->protocol_version != mosq_p_mqtt31 && priv->frame_head.flags != 0x02) {
+        gobj_log_error(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_MQTT_ERROR,
+            "msg",          "%s", "Mqtt pubrel: malformed packet",
+            "client_id",    "%s", priv->client_id,
+            NULL
+        );
         return MOSQ_ERR_MALFORMED_PACKET;
     }
     rc = mqtt_read_uint16(gobj, gbuf, &mid);
@@ -6657,40 +6705,63 @@ PRIVATE int handle__pubrel(hgobj gobj, gbuffer_t *gbuf)
         return rc;
     }
     if(mid == 0) {
+        gobj_log_error(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_MQTT_ERROR,
+            "msg",          "%s", "Mqtt pubrel: mid == 0",
+            "client_id",    "%s", priv->client_id,
+            NULL
+        );
         return MOSQ_ERR_PROTOCOL;
     }
 
-    if(priv->protocol_version == mosq_p_mqtt5 && gbuffer_leftbytes(gbuf) > 0) {
+    if(priv->protocol_version == mosq_p_mqtt5 && gbuffer_leftbytes(gbuf) > 2) {
         rc = mqtt_read_byte(gobj, gbuf, &reason_code);
         if(rc) {
+            // Error already logged
             return rc;
         }
 
         if(reason_code != MQTT_RC_SUCCESS && reason_code != MQTT_RC_PACKET_ID_NOT_FOUND) {
+            gobj_log_error(gobj, 0,
+                "function",     "%s", __FUNCTION__,
+                "msgset",       "%s", MSGSET_MQTT_ERROR,
+                "msg",          "%s", "Mqtt pubrel: bad reason",
+                "client_id",    "%s", priv->client_id,
+                "reason_code",  "%d", (int)reason_code,
+                NULL
+            );
             return MOSQ_ERR_PROTOCOL;
         }
 
-        if(gbuffer_leftbytes(gbuf) > 0) {
+        if(gbuffer_leftbytes(gbuf) > 3) {
             properties = property_read_all(gobj, gbuf, CMD_PUBREL, &rc);
-            if(rc) {
+            if(rc<0) {
+                // Error already logged
                 return rc;
             }
         }
     }
 
     if(gbuffer_leftbytes(gbuf)>0) {
+        gobj_log_error(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_MQTT_ERROR,
+            "msg",          "%s", "Mqtt pubrel: too much data",
+            "client_id",    "%s", priv->client_id,
+            NULL
+        );
         JSON_DECREF(properties)
         return MOSQ_ERR_MALFORMED_PACKET;
     }
 
-    if(gobj_trace_level(gobj) & SHOW_DECODE) {
-        trace_msg0("  👈 Received PUBREL from client '%s' (Mid: %d)",
-            SAFE_PRINT(priv->client_id),
-            mid
-        );
-    }
-
     if(priv->iamServer) {
+        if(gobj_trace_level(gobj) & SHOW_DECODE) {
+            trace_msg0("  👈 server Received PUBREL from client '%s' (Mid: %d)",
+                SAFE_PRINT(priv->client_id),
+                mid
+            );
+        }
         /* Immediately free, we don't do anything with Reason String or User Property at the moment */
         JSON_DECREF(properties)
 
@@ -6699,45 +6770,54 @@ PRIVATE int handle__pubrel(hgobj gobj, gbuffer_t *gbuf)
             /* Message not found. Still send a PUBCOMP anyway because this could be
             * due to a repeated PUBREL after a client has reconnected. */
         } else if(rc != MOSQ_ERR_SUCCESS) {
+            // Error already logged
+            JSON_DECREF(properties)
             return rc;
         }
 
         rc = send_pubcomp(gobj, mid, NULL);
-        if(rc) {
+        if(rc<0) {
+            // Error already logged
+            JSON_DECREF(properties)
             return rc;
         }
     } else {
-        rc = -1; // original tiene un IFDEF codigo no incorporado al broker
-//         struct mosquitto_message_all *message = NULL;
-//         rc = send_pubcomp(gobj, mid, NULL);
-//         if(rc) {
-//             message__remove(gobj, mid, mosq_md_in, &message, 2);
-//             return rc;
-//         }
-//
-//         rc = message__remove(gobj, mid, mosq_md_in, &message, 2);
-//         if(rc == MOSQ_ERR_SUCCESS) {
-//             /* Only pass the message on if we have removed it from the queue - this
-//             * prevents multiple callbacks for the same message. */
-//             if(mosq->on_message) {
-//                mosq->in_callback = TRUE;
-//                mosq->on_message(mosq, mosq->userdata, &message->msg);
-//                mosq->in_callback = FALSE;
-//             }
-//             if(mosq->on_message_v5) {
-//                mosq->in_callback = TRUE;
-//                mosq->on_message_v5(mosq, mosq->userdata, &message->msg, message->properties);
-//                mosq->in_callback = FALSE;
-//             }
-//             JSON_DECREF(properties)
-//             message__cleanup(&message);
-//         } else if(rc == MOSQ_ERR_NOT_FOUND) {
-//             return MOSQ_ERR_SUCCESS;
-//         } else {
-//             return rc;
-//         }
+        if(gobj_trace_level(gobj) & SHOW_DECODE) {
+            trace_msg0("  👈 client %s Received PUBREL from broker (Mid: %d)",
+                SAFE_PRINT(priv->client_id),
+                mid
+            );
+        }
+         struct mosquitto_message_all *message = NULL;
+         rc = send__pubcomp(gobj, mid, NULL);
+         if(rc) {
+             message__remove(gobj, mid, mosq_md_in, &message, 2);
+             JSON_DECREF(properties)
+             return rc;
+         }
+
+         rc = message__remove(gobj, mid, mosq_md_in, &message, 2);
+         if(rc == MOSQ_ERR_SUCCESS) {
+             /* Only pass the message on if we have removed it from the queue - this
+             * prevents multiple callbacks for the same message. */
+             // TODO
+             // if(mosq->on_message_v5) {
+             //    mosq->in_callback = TRUE;
+             //    mosq->on_message_v5(mosq, mosq->userdata, &message->msg, message->properties);
+             //    mosq->in_callback = FALSE;
+             // }
+             JSON_DECREF(properties)
+             message__cleanup(&message);
+         } else if(rc == MOSQ_ERR_NOT_FOUND) {
+             JSON_DECREF(properties)
+             return MOSQ_ERR_SUCCESS;
+         } else {
+             JSON_DECREF(properties)
+             return rc;
+         }
     }
 
+    JSON_DECREF(properties)
     return MOSQ_ERR_SUCCESS;
 }
 
