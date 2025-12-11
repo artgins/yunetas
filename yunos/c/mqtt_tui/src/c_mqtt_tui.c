@@ -179,6 +179,7 @@ SDATA (DTP_STRING,      "azp",              0,          "",             "azp (OA
 
 SDATA (DTP_STRING,      "mqtt_client_id",   0,          "",             "MQTT Client id, used by mqtt client"),
 SDATA (DTP_STRING,      "mqtt_protocol",    0,          "mqttv5",       "MQTT Protocol. Can be mqttv5, mqttv311 or mqttv31. Defaults to mqttv5."),
+SDATA (DTP_STRING,     "mqtt_clean_session",0,         "1",            "MQTT clean_session. Default 1. Set to 0 enable persistent mode and the client id must be set. The broker will be instructed not to clean existing sessions for the same client id when the client connects, and sessions will never expire when the client disconnects. MQTT v5 clients can change their session expiry interval"),
 
 SDATA (DTP_STRING,      "user_id",          0,          "",             "MQTT Username or OAuth2 User Id (interactive jwt)"),
 SDATA (DTP_STRING,      "user_passw",       0,          "",             "MQTT Password or OAuth2 User password (interactive jwt)"),
@@ -945,6 +946,7 @@ PRIVATE char mqtt_connector_config[]= "\
                     'kw': {                                             \n\
                         'mqtt_client_id': '(^^__mqtt_client_id__^^)',   \n\
                         'mqtt_protocol': '(^^__mqtt_protocol__^^)',     \n\
+                        'mqtt_clean_session': '(^^__mqtt_clean_session__^^)',     \n\
                         'url': '(^^__url__^^)',                         \n\
                         'user_id': '(^^__user_id__^^)',                 \n\
                         'user_passw': '(^^__user_passw__^^)',           \n\
@@ -982,6 +984,7 @@ PRIVATE int cmd_connect_mqtt(hgobj gobj)
 
     const char *mqtt_client_id = gobj_read_str_attr(gobj, "mqtt_client_id");
     const char *mqtt_protocol = gobj_read_str_attr(gobj, "mqtt_protocol");
+    const char *mqtt_clean_session = gobj_read_str_attr(gobj, "mqtt_clean_session");
 
     const char *user_id = gobj_read_str_attr(gobj, "user_id");
     const char *user_passw = gobj_read_str_attr(gobj, "user_passw");
@@ -990,7 +993,7 @@ PRIVATE int cmd_connect_mqtt(hgobj gobj)
      *  Each display window has a gobj to send the commands (saved in user_data).
      *  For external agents create a filter-chain of gobjs
      */
-    json_t * jn_config_variables = json_pack("{s:s, s:s, s:s, s:s, s:s, s:s, s:s, s:s, s:s, s:s}",
+    json_t * jn_config_variables = json_pack("{s:s, s:s, s:s, s:s, s:s, s:s, s:s, s:s, s:s, s:s, s:s}",
         "__jwt__", jwt,
         "__url__", url,
         "__cert_pem__", "",
@@ -999,6 +1002,7 @@ PRIVATE int cmd_connect_mqtt(hgobj gobj)
         "__yuno_service__", yuno_service,
         "__mqtt_client_id__", mqtt_client_id,
         "__mqtt_protocol__", mqtt_protocol,
+        "__mqtt_clean_session__", mqtt_clean_session,
         "__user_id__", user_id,
         "__user_passw__", user_passw
 

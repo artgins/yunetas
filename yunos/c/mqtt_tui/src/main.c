@@ -34,11 +34,11 @@ struct arguments
     char *yuno_role;
     char *yuno_name;
     char *yuno_service;
-    char *command;
 
     char *auth_system;
     char *auth_url;
     char *mqtt_client_id;
+    int mqtt_clean_session;
     char *mqtt_protocol;
     char *user_id;
     char *user_passw;
@@ -151,7 +151,6 @@ static char args_doc[] = "";
 static struct argp_option options[] = {
 /*-name-------------key-----arg---------flags---doc-----------------group */
 {0,                 0,      0,          0,      "Remote Service keys", 10},
-{"command",         'c',    "COMMAND",  0,      "Command.", 10},
 
 {0,                 0,      0,          0,      "OAuth2 keys", 20},
 {"auth_system",     'K',    "AUTH_SYSTEM",0,    "OpenID System(default: keycloak, to get now a jwt)", 20},
@@ -159,6 +158,7 @@ static struct argp_option options[] = {
 {"azp",             'Z',    "AZP",      0,      "azp (Authorized Party, client_id in keycloak)", 20},
 {"mqtt_client_id",  'd',    "MQTT_CLIENT_ID",0, "MQTT Client ID", 20},
 {"mqtt_protocol",   'q',    "MQTT_PROTOCOL", 0, "MQTT Protocol. Can be mqttv5/v5, mqttv311/v311 or mqttv31/v31. Defaults to mqttv5.", 20},
+{"mqtt_clean_session",'c',  "MQTT_CLEAN_SESSION", 0, "MQTT clean_session. Default 1. Set to 0 enable persistent mode and the client id must be set. The broker will be instructed not to clean existing sessions for the same client id when the client connects, and sessions will never expire when the client disconnects. MQTT v5 clients can change their session expiry interval", 20},
 {"user_id",         'x',    "USER_ID",  0,      "MQTT Username or OAuth2 User Id (to get now a jwt)", 20},
 {"user_passw",      'X',    "USER_PASSW",0,     "MQTT Password or OAuth2 User Password (to get now a jwt)", 20},
 {"jwt",             'j',    "JWT",      0,      "Jwt (previously got it)", 21},
@@ -214,6 +214,10 @@ static error_t parse_opt (int key, char *arg, struct argp_state *state)
     case 'q':
         arguments->mqtt_protocol = arg;
         break;
+    case 'c':
+        arguments->mqtt_clean_session = atoi(arg)?1:0;
+        break;
+
     case 'x':
         arguments->user_id = arg;
         break;
@@ -229,10 +233,6 @@ static error_t parse_opt (int key, char *arg, struct argp_state *state)
         break;
     case 'u':
         arguments->url_mqtt = arg;
-        break;
-
-    case 'c':
-        arguments->command = arg;
         break;
 
     case 'Z':
@@ -351,7 +351,6 @@ int main(int argc, char *argv[])
     memset(&arguments, 0, sizeof(arguments));
     arguments.url_mqtt = "mqtt://127.0.0.1:1810";
     arguments.url_broker = "ws://127.0.0.1:1800";
-    arguments.command = "";
     arguments.azp = "";
     arguments.yuno_role = "mqtt_broker";
     arguments.yuno_name = "";
@@ -360,6 +359,7 @@ int main(int argc, char *argv[])
     arguments.auth_url = "";
     arguments.mqtt_protocol = "mqttv5";
     arguments.mqtt_client_id = "";
+    arguments.mqtt_clean_session = 1;
     arguments.user_id = "yuneta";
     arguments.user_passw = "";
     arguments.jwt = "";
@@ -400,6 +400,12 @@ int main(int argc, char *argv[])
         exit(0);
     }
 
+    if(!arguments.mqtt_clean_session && empty_string(arguments.mqtt_client_id)) {
+        fprintf(stderr, "Error: You must provide a client id if you are using the -c option (not a clean session).\n");
+        exit(0);
+    }
+
+
     /*
      *  Put configuration
      */
@@ -408,11 +414,11 @@ int main(int argc, char *argv[])
             "{s:{s:b, s:s, s:s, s:s, s:s, s:s, s:s, s:s, s:s, s:s, s:s, s:s, s:s, s:s, s:s, s:b}}",
             "global",
             "C_MQTT_TUI.verbose", arguments.verbose,
-            "C_MQTT_TUI.command", arguments.command,
             "C_MQTT_TUI.auth_system", arguments.auth_system,
             "C_MQTT_TUI.auth_url", arguments.auth_url,
             "C_MQTT_TUI.mqtt_client_id", arguments.mqtt_client_id,
             "C_MQTT_TUI.mqtt_protocol", arguments.mqtt_protocol,
+            "C_MQTT_TUI.mqtt_clean_session", arguments.mqtt_clean_session?"1":"0",
             "C_MQTT_TUI.user_id", arguments.user_id,
             "C_MQTT_TUI.user_passw", arguments.user_passw,
             "C_MQTT_TUI.jwt", arguments.jwt,

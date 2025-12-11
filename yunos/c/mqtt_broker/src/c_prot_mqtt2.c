@@ -467,6 +467,8 @@ SDATA (DTP_JSON,        "jwt_payload",      SDF_VOLATIL,        0,      "JWT pay
  */
 SDATA (DTP_STRING,      "mqtt_client_id",   SDF_RD,     "",     "MQTT Client id, used by mqtt client"),
 SDATA (DTP_STRING,      "mqtt_protocol",    SDF_RD,     "mqttv5", "MQTT Protocol. Can be mqttv5, mqttv311 or mqttv31. Defaults to mqttv5."),
+SDATA (DTP_STRING,      "mqtt_clean_session",0,         "1",            "MQTT clean_session. Default 1. Set to 0 enable persistent mode and the client id must be set. The broker will be instructed not to clean existing sessions for the same client id when the client connects, and sessions will never expire when the client disconnects. MQTT v5 clients can change their session expiry interval"),
+
 SDATA (DTP_STRING,      "user_id",          0,          "",     "MQTT Username or OAuth2 User Id (interactive jwt)"),
 SDATA (DTP_STRING,      "user_passw",       0,          "",     "MQTT Password or OAuth2 User password (interactive jwt)"),
 SDATA (DTP_STRING,      "jwt",              0,          "",     "Jwt"),
@@ -4052,6 +4054,7 @@ PRIVATE int send__connect(
 
     gobj_write_integer_attr(gobj, "protocol_version", protocol);
 
+    /* Only MQTT v3.1 requires a client id to be sent */
     if(protocol == mosq_p_mqtt31 && empty_string(mqtt_client_id)) {
         gobj_log_error(gobj, 0,
             "function",     "%s", __FUNCTION__,
@@ -5839,6 +5842,13 @@ PRIVATE int handle__connack(
         case 4:
         case 5:
             // TODO don't retry connections?
+            gobj_log_error(gobj, 0,
+                "function",     "%s", __FUNCTION__,
+                "msgset",       "%s", MSGSET_MQTT_ERROR,
+                "msg",          "%s", "Mqtt connection refused",
+                "reason",       "%s", mosquitto_connack_string(reason_code),
+                NULL
+            );
             return MOSQ_ERR_CONN_REFUSED;
         default:
             return MOSQ_ERR_PROTOCOL;
@@ -8470,8 +8480,8 @@ PRIVATE int ac_connected(hgobj gobj, const char *event, json_t *kw, hgobj src)
          */
         send__connect(
             gobj,
-            priv->keepalive,
-            priv->clean_start,
+            priv->keepalive,  // TODO get from client?
+            atoi(gobj_read_str_attr(gobj, "mqtt_clean_session"))?1:0,
             NULL // TODO outgoing_properties
         );
     }
