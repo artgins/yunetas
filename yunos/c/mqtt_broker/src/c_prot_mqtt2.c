@@ -634,6 +634,7 @@ typedef struct _PRIVATE_DATA {
 
     time_t db_now_s; // TODO
     time_t db_now_real_s; // TODO
+    BOOL allow_duplicate_messages; // TODO
 } PRIVATE_DATA;
 
 
@@ -1236,6 +1237,93 @@ PRIVATE int sub__messages_queue(
 }
 
 /***************************************************************************
+ *  This function requires topic to be allocated on the heap.
+ *  Once called, it owns topic and will free it on error.
+ *  Likewise payload and properties.
+ ***************************************************************************/
+PRIVATE int db__message_store(
+    hgobj gobj,
+    struct mosquitto_msg_store *stored,
+    uint32_t message_expiry_interval,
+    int store_id, // TODO dbid_t store_id,
+    enum mosquitto_msg_origin origin
+) {
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    // TODO
+    // if(source && source->id) {
+    //     stored->source_id = mosquitto__strdup(source->id);
+    // } else {
+    //     stored->source_id = mosquitto__strdup("");
+    // }
+    // if(!stored->source_id) {
+    //     log__printf(NULL, MOSQ_LOG_ERR, "Error: Out of memory.");
+    //     db__msg_store_free(stored);
+    //     return MOSQ_ERR_NOMEM;
+    // }
+    //
+    // if(source && source->username) {
+    //     stored->source_username = mosquitto__strdup(source->username);
+    //     if(!stored->source_username) {
+    //         db__msg_store_free(stored);
+    //         return MOSQ_ERR_NOMEM;
+    //     }
+    // }
+    // if(source) {
+    //     stored->source_listener = source->listener;
+    // }
+    // stored->mid = 0;
+    // stored->origin = origin;
+    // if(message_expiry_interval > 0) {
+    //     stored->message_expiry_time = db.now_real_s + message_expiry_interval;
+    // } else {
+    //     stored->message_expiry_time = 0;
+    // }
+    //
+    // stored->dest_ids = NULL;
+    // stored->dest_id_count = 0;
+    // db.msg_store_count++;
+    // db.msg_store_bytes += stored->payloadlen;
+    //
+    // if(!store_id) {
+    //     stored->db_id = ++db.last_db_id;
+    // } else {
+    //     stored->db_id = store_id;
+    // }
+    //
+    // db__msg_store_add(stored);
+
+    return MOSQ_ERR_SUCCESS;
+}
+
+/***************************************************************************
+ *
+ ***************************************************************************/
+PRIVATE int db__message_store_find(hgobj gobj, uint16_t mid, struct mosquitto_client_msg **client_msg)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+    struct mosquitto_client_msg *cmsg;
+
+    *client_msg = NULL;
+
+    DL_FOREACH(&priv->msgs_in.dl_inflight, cmsg) {
+        if(cmsg->store->source_mid == mid) {
+            *client_msg = cmsg;
+            return MOSQ_ERR_SUCCESS;
+        }
+    }
+
+    DL_FOREACH(&priv->msgs_in.dl_queued, cmsg) {
+        if(cmsg->store->source_mid == mid) {
+            *client_msg = cmsg;
+            return MOSQ_ERR_SUCCESS;
+        }
+    }
+
+    return 1;
+}
+
+/***************************************************************************
  *
  ***************************************************************************/
 PRIVATE void db__msg_add_to_queued_stats(
@@ -1300,8 +1388,8 @@ void db__msg_store_free(struct mosquitto_msg_store *store)
     //
     // mosquitto__free(store->source_id);
     // mosquitto__free(store->source_username);
-    // if(store->dest_ids){
-    //     for(i=0; i<store->dest_id_count; i++){
+    // if(store->dest_ids) {
+    //     for(i=0; i<store->dest_id_count; i++) {
     //         mosquitto__free(store->dest_ids[i]);
     //     }
     //     mosquitto__free(store->dest_ids);
@@ -1675,6 +1763,27 @@ PRIVATE int db__message_delete_outgoing(
 /***************************************************************************
  *
  ***************************************************************************/
+PRIVATE int db__message_remove_incoming(hgobj gobj, uint16_t mid)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+    struct mosquitto_client_msg *tail, *tmp;
+
+    DL_FOREACH_SAFE(&priv->msgs_in.dl_inflight, tail, tmp) {
+        if(tail->mid == mid) {
+            if(tail->store->qos != 2) {
+                return MOSQ_ERR_PROTOCOL;
+            }
+            db__message_remove_from_inflight(&priv->msgs_in, tail);
+            return MOSQ_ERR_SUCCESS;
+        }
+    }
+
+    return MOSQ_ERR_NOT_FOUND;
+}
+
+/***************************************************************************
+ *
+ ***************************************************************************/
 PRIVATE int db__message_release_incoming(hgobj gobj, uint16_t mid)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
@@ -1736,6 +1845,230 @@ PRIVATE int db__message_release_incoming(hgobj gobj, uint16_t mid)
 /***************************************************************************
  *
  ***************************************************************************/
+PRIVATE int db__message_insert(
+    hgobj gobj,
+    uint16_t mid,
+    enum mosquitto_msg_direction dir,
+    uint8_t qos,
+    BOOL retain,
+    struct mosquitto_msg_store *stored,
+    json_t *properties,
+    BOOL update
+) {
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+    struct mosquitto_client_msg *msg;
+    struct mosquitto_msg_data *msg_data;
+    enum mosquitto_msg_state state = mosq_ms_invalid;
+    int rc = 0;
+    int i;
+    char **dest_ids;
+
+    if(!priv->client_id) {
+        return MOSQ_ERR_SUCCESS; /* Protect against unlikely "client is disconnected but not entirely freed" scenario */
+    }
+
+    if(dir == mosq_md_out) {
+        msg_data = &priv->msgs_out;
+    } else {
+        msg_data = &priv->msgs_in;
+    }
+
+    /* Check whether we've already sent this message to this client
+     * for outgoing messages only.
+     * If retain==true then this is a stale retained message and so should be
+     * sent regardless. FIXME - this does mean retained messages will received
+     * multiple times for overlapping subscriptions, although this is only the
+     * case for SUBSCRIPTION with multiple subs in so is a minor concern.
+     */
+    if(priv->protocol_version != mosq_p_mqtt5
+            && priv->allow_duplicate_messages == FALSE
+            && dir == mosq_md_out && retain == FALSE && stored->dest_ids) {
+
+        for(i=0; i<stored->dest_id_count; i++) {
+            if(stored->dest_ids[i] && !strcmp(stored->dest_ids[i], priv->client_id)) {
+                /* We have already sent this message to this client. */
+                JSON_DECREF(properties);
+                return MOSQ_ERR_SUCCESS;
+            }
+        }
+    }
+
+    // TODO
+    // if(context->sock == INVALID_SOCKET) {
+    //     /* Client is not connected only queue messages with QoS>0. */
+    //     if(qos == 0 && !db.config->queue_qos0_messages) {
+    //         if(!context->bridge) {
+    //             mosquitto_property_free_all(&properties);
+    //             return 2;
+    //         } else {
+    //             if(context->bridge->start_type != bst_lazy) {
+    //                 mosquitto_property_free_all(&properties);
+    //                 return 2;
+    //             }
+    //         }
+    //     }
+    //     if(context->bridge && context->bridge->clean_start_local == true) {
+    //         mosquitto_property_free_all(&properties);
+    //         return 2;
+    //     }
+    // }
+
+    // TODO
+    // if(context->sock != INVALID_SOCKET) {
+    //     if(db__ready_for_flight(context, dir, qos)) {
+    //         if(dir == mosq_md_out) {
+    //             switch(qos) {
+    //                 case 0:
+    //                     state = mosq_ms_publish_qos0;
+    //                     break;
+    //                 case 1:
+    //                     state = mosq_ms_publish_qos1;
+    //                     break;
+    //                 case 2:
+    //                     state = mosq_ms_publish_qos2;
+    //                     break;
+    //             }
+    //         } else {
+    //             if(qos == 2) {
+    //                 state = mosq_ms_wait_for_pubrel;
+    //             } else {
+    //                 mosquitto_property_free_all(&properties);
+    //                 return 1;
+    //             }
+    //         }
+    //     } else if(qos != 0 && db__ready_for_queue(context, qos, msg_data)) {
+    //         state = mosq_ms_queued;
+    //         rc = 2;
+    //     } else {
+    //         /* Dropping message due to full queue. */
+    //         if(context->is_dropping == FALSE) {
+    //             context->is_dropping = true;
+    //             log__printf(NULL, MOSQ_LOG_NOTICE,
+    //                     "Outgoing messages are being dropped for client %s.",
+    //                     context->id);
+    //         }
+    //         G_MSGS_DROPPED_INC();
+    //         mosquitto_property_free_all(&properties);
+    //         return 2;
+    //     }
+    // } else {
+    //     if (db__ready_for_queue(context, qos, msg_data)) {
+    //         state = mosq_ms_queued;
+    //     } else {
+    //         G_MSGS_DROPPED_INC();
+    //         if(context->is_dropping == FALSE) {
+    //             context->is_dropping = true;
+    //             log__printf(NULL, MOSQ_LOG_NOTICE,
+    //                     "Outgoing messages are being dropped for client %s.",
+    //                     context->id);
+    //         }
+    //         mosquitto_property_free_all(&properties);
+    //         return 2;
+    //     }
+    // }
+    // assert(state != mosq_ms_invalid);
+
+#ifdef WITH_PERSISTENCE
+    if(state == mosq_ms_queued) {
+        db.persistence_changes++;
+    }
+#endif
+
+    // msg = mosquitto__calloc(1, sizeof(struct mosquitto_client_msg));
+    // if(!msg) return MOSQ_ERR_NOMEM;
+    // msg->prev = NULL;
+    // msg->next = NULL;
+    // msg->store = stored;
+    // db__msg_store_ref_inc(msg->store);
+    // msg->mid = mid;
+    // msg->timestamp = db.now_s;
+    // msg->direction = dir;
+    // msg->state = state;
+    // msg->dup = FALSE;
+    // if(qos > context->max_qos) {
+    //     msg->qos = context->max_qos;
+    // } else {
+    //     msg->qos = qos;
+    // }
+    // msg->retain = retain;
+    // msg->properties = properties;
+    //
+    // if(state == mosq_ms_queued) {
+    //     DL_APPEND(msg_data->queued, msg);
+    //     db__msg_add_to_queued_stats(msg_data, msg);
+    // } else {
+    //     DL_APPEND(msg_data->inflight, msg);
+    //     db__msg_add_to_inflight_stats(msg_data, msg);
+    // }
+    //
+    // if(db.config->allow_duplicate_messages == FALSE && dir == mosq_md_out && retain == FALSE) {
+    //     /* Record which client ids this message has been sent to so we can avoid duplicates.
+    //      * Outgoing messages only.
+    //      * If retain==true then this is a stale retained message and so should be
+    //      * sent regardless. FIXME - this does mean retained messages will received
+    //      * multiple times for overlapping subscriptions, although this is only the
+    //      * case for SUBSCRIPTION with multiple subs in so is a minor concern.
+    //      */
+    //     dest_ids = mosquitto__realloc(stored->dest_ids, sizeof(char *)*(size_t)(stored->dest_id_count+1));
+    //     if(dest_ids) {
+    //         stored->dest_ids = dest_ids;
+    //         stored->dest_id_count++;
+    //         stored->dest_ids[stored->dest_id_count-1] = mosquitto__strdup(context->id);
+    //         if(!stored->dest_ids[stored->dest_id_count-1]) {
+    //             return MOSQ_ERR_NOMEM;
+    //         }
+    //     } else {
+    //         return MOSQ_ERR_NOMEM;
+    //     }
+    // }
+    //
+    // if(dir == mosq_md_out && msg->qos > 0 && state != mosq_ms_queued) {
+    //     util__decrement_send_quota(context);
+    // } else if(dir == mosq_md_in && msg->qos > 0 && state != mosq_ms_queued) {
+    //     util__decrement_receive_quota(context);
+    // }
+    //
+    // if(dir == mosq_md_out && update) {
+    //     rc = db__message_write_inflight_out_latest(context);
+    //     if(rc) return rc;
+    //     rc = db__message_write_queued_out(context);
+    //     if(rc) return rc;
+    // }
+
+    return rc;
+}
+
+/***************************************************************************
+ *
+ ***************************************************************************/
+PRIVATE int db__message_write_queued_in(hgobj gobj)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+    struct mosquitto_client_msg *tail, *tmp;
+    int rc;
+
+    DL_FOREACH_SAFE(&priv->msgs_in.dl_queued, tail, tmp) {
+        if(priv->msgs_in.inflight_maximum != 0 && priv->msgs_in.inflight_quota == 0) {
+            break;
+        }
+
+        if(tail->qos == 2) {
+            tail->state = mosq_ms_send_pubrec;
+            db__message_dequeue_first(priv, &priv->msgs_in);
+            rc = send__pubrec(gobj, tail->mid, 0, NULL);
+            if(!rc) {
+                tail->state = mosq_ms_wait_for_pubrel;
+            } else {
+                return rc;
+            }
+        }
+    }
+    return MOSQ_ERR_SUCCESS;
+}
+
+/***************************************************************************
+ *
+ ***************************************************************************/
 PRIVATE const char *get_command_name(int cmd_)
 {
     int cmd = cmd_ >> 4;
@@ -1754,8 +2087,6 @@ PRIVATE const char *mosquitto_command_string(mqtt_message_t command)
 {
     switch(command) {
         case CMD_CONNECT:
-
-
             return "CMD_CONNECT";
         case CMD_CONNACK:
             return "CMD_CONNACK";
@@ -3737,7 +4068,7 @@ PRIVATE int send__connect(
 
     if(protocol == mosq_p_mqtt5) {
         /* Generate properties from options */
-        // if(!mosquitto_property_read_int16(properties, MQTT_PROP_RECEIVE_MAXIMUM, &receive_maximum, false)) {
+        // if(!mosquitto_property_read_int16(properties, MQTT_PROP_RECEIVE_MAXIMUM, &receive_maximum, FALSE)) {
         //     rc = mosquitto_property_add_int16(&local_props, MQTT_PROP_RECEIVE_MAXIMUM, priv->msgs_in.inflight_maximum);
         //     if(rc) {
         // log_error
@@ -4669,7 +5000,7 @@ PRIVATE int handle__connect(hgobj gobj, gbuffer_t *gbuf, hgobj src)
 
         Mapping:
         - `cleanSession=1` → `cleanStart=true`, `sessionExpiry=0`
-        - `cleanSession=0` → `cleanStart=false`, `sessionExpiry>0`
+        - `cleanSession=0` → `cleanStart=FALSE`, `sessionExpiry>0`
 
         ### Summary
         `cleanSession` determines whether MQTT sessions are **temporary** or **persistent**, controlling how subscriptions and queued messages survive client disconnections.
@@ -5196,7 +5527,7 @@ PRIVATE int handle__connect(hgobj gobj, gbuffer_t *gbuf, hgobj src)
     }
 
     // context->ping_t = 0; TODO
-    // context->is_dropping = false;
+    // context->is_dropping = FALSE;
     // kw_set_dict_value(gobj, client, "ping_t", json_integer(0));
     // kw_set_dict_value(gobj, client, "is_dropping", json_false());
 
@@ -7057,12 +7388,12 @@ PRIVATE int handle__publish_c(hgobj gobj, gbuffer_t *gbuf)
             // if(on_message) {
             //     mosq->in_callback = true;
             //     on_message(mosq, mosq->userdata, &message->msg);
-            //     mosq->in_callback = false;
+            //     mosq->in_callback = FALSE;
             // }
             // if(on_message_v5) {
             //     mosq->in_callback = true;
             //     on_message_v5(mosq, mosq->userdata, &message->msg, properties);
-            //     mosq->in_callback = false;
+            //     mosq->in_callback = FALSE;
             // }
             // message__cleanup(&message);
             // mosquitto_property_free_all(&properties);
