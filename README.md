@@ -12,8 +12,6 @@
 
 An Asynchronous Development Framework
 
-(this is version 7, version 6 [here](https://yuneta.com))
-
 For more details, see [doc.yuneta.io](https://doc.yuneta.io)
 
 To install use:

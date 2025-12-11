@@ -319,6 +319,17 @@ PRIVATE int send__unsuback(
     gbuffer_t *gbuf_payload,  // owned
     json_t *properties  // owned
 );
+PRIVATE int send__pubrel(
+    hgobj gobj,
+    uint16_t mid,
+    json_t *properties
+);
+PRIVATE int send__pubrec(
+    hgobj gobj,
+    uint16_t mid,
+    uint8_t reason_code,
+    json_t *properties
+);
 PRIVATE int send__disconnect(
     hgobj gobj,
     uint8_t reason_code,
@@ -470,7 +481,18 @@ SDATA (DTP_INTEGER,     "timeout_payload",  SDF_RD,     "5000",  "Timeout to pay
 SDATA (DTP_INTEGER,     "timeout_close",    SDF_RD,     "3000",  "Timeout to close"),
 SDATA (DTP_INTEGER,     "pingT",            SDF_RD,     "0",    "Ping interval. If value <= 0 then No ping"),
 
-SDATA (DTP_INTEGER,     "max_inflight_messages",SDF_WR,    "20",      "The maximum number of outgoing QoS 1 or 2 messages that can be in the process of being transmitted simultaneously. This includes messages currently going through handshakes and messages that are being retried. Defaults to 20. Set to 0 for no maximum. If set to 1, this will guarantee in-order delivery of messages"),
+/*
+ *  Configuration
+ */
+
+SDATA (DTP_INTEGER,     "max_inflight_bytes",SDF_WR,        0,      "Outgoing QoS 1 and 2 messages will be allowed in flight until this byte limit is reached. This allows control of outgoing message rate based on message size rather than message count. If the limit is set to 100, messages of over 100 bytes are still allowed, but only a single message can be in flight at once. Defaults to 0. (No limit)."),
+
+SDATA (DTP_INTEGER,     "max_inflight_messages",SDF_WR,     "20",   "The maximum number of outgoing QoS 1 or 2 messages that can be in the process of being transmitted simultaneously. This includes messages currently going through handshakes and messages that are being retried. Defaults to 20. Set to 0 for no maximum. If set to 1, this will guarantee in-order delivery of messages"),
+
+SDATA (DTP_INTEGER,     "max_queued_bytes", SDF_WR,         0,      "The number of outgoing QoS 1 and 2 messages above those currently in-flight will be queued (per client) by the broker. Once this limit has been reached, subsequent messages will be silently dropped. This is an important option if you are sending messages at a high rate and/or have clients who are slow to respond or may be offline for extended periods of time. Defaults to 0. (No maximum).See also the max_queued_messages option. If both max_queued_messages and max_queued_bytes are specified, packets will be queued until the first limit is reached."),
+
+SDATA (DTP_INTEGER,     "max_queued_messages",SDF_WR,       "1000",   "The maximum number of QoS 1 or 2 messages to hold in the queue (per client) above those messages that are currently in flight. Defaults to 1000. Set to 0 for no maximum (not recommended). See also the queue_qos0_messages and max_queued_bytes options."),
+
 SDATA (DTP_INTEGER,     "message_size_limit",SDF_WR,        0,      "This option sets the maximum publish payload size that the broker will allow. Received messages that exceed this size will not be accepted by the broker. This means that the message will not be forwarded on to subscribing clients, but the QoS flow will be completed for QoS 1 or QoS 2 messages. MQTT v5 clients using QoS 1 or QoS 2 will receive a PUBACK or PUBREC with the 'implementation specific error' reason code. The default value is 0, which means that all valid MQTT messages are accepted. MQTT imposes a maximum payload size of 268435455 bytes."),
 
 SDATA (DTP_INTEGER,     "max_keepalive",    SDF_WR,         "65535",  "For MQTT v5 clients, it is possible to have the server send a 'server keepalive' value that will override the keepalive value set by the client. This is intended to be used as a mechanism to say that the server will disconnect the client earlier than it anticipated, and that the client should use the new keepalive value. The max_keepalive option allows you to specify that clients may only connect with keepalive less than or equal to this value, otherwise they will be sent a server keepalive telling them to use max_keepalive. This only applies to MQTT v5 clients. The maximum value allowable, and default value, is 65535. Set to 0 to allow clients to set keepalive = 0, which means no keepalive checks are made and the client will never be disconnected by the broker if no messages are received. You should be very sure this is the behaviour that you want.For MQTT v3.1.1 and v3.1 clients, there is no mechanism to tell the client what keepalive value they should use. If an MQTT v3.1.1 or v3.1 client specifies a keepalive time greater than max_keepalive they will be sent a CONNACK message with the 'identifier rejected' reason code, and disconnected."),
@@ -567,7 +589,10 @@ typedef struct _PRIVATE_DATA {
     /*
      *  Config
      */
+    uint32_t max_inflight_bytes;
     uint32_t max_inflight_messages;
+    uint32_t max_queued_bytes;
+    uint32_t max_queued_messages;
     uint32_t max_keepalive;
     uint32_t max_packet_size;
     uint32_t message_size_limit;
@@ -605,7 +630,10 @@ typedef struct _PRIVATE_DATA {
     uint32_t will_delay_interval;
     uint32_t will_expiry_interval;
     gbuffer_t *gbuf_will_payload;
+    int out_packet_count;
 
+    time_t db_now_s; // TODO
+    time_t db_now_real_s; // TODO
 } PRIVATE_DATA;
 
 
@@ -671,7 +699,10 @@ PRIVATE void mt_create(hgobj gobj)
     SET_PRIV(in_session,                gobj_read_bool_attr)
     SET_PRIV(send_disconnect,           gobj_read_bool_attr)
 
+    SET_PRIV(max_inflight_bytes,        gobj_read_integer_attr)
     SET_PRIV(max_inflight_messages,     gobj_read_integer_attr)
+    SET_PRIV(max_queued_bytes,          gobj_read_integer_attr)
+    SET_PRIV(max_queued_messages,       gobj_read_integer_attr)
     SET_PRIV(max_keepalive,             gobj_read_integer_attr)
     SET_PRIV(max_packet_size,           gobj_read_integer_attr)
     SET_PRIV(message_size_limit,        gobj_read_integer_attr)
@@ -721,7 +752,10 @@ PRIVATE void mt_writing(hgobj gobj, const char *path)
     ELIF_EQ_SET_PRIV(in_session,                gobj_read_bool_attr)
     ELIF_EQ_SET_PRIV(send_disconnect,           gobj_read_bool_attr)
 
+    ELIF_EQ_SET_PRIV(max_inflight_bytes,        gobj_read_integer_attr)
     ELIF_EQ_SET_PRIV(max_inflight_messages,     gobj_read_integer_attr)
+    ELIF_EQ_SET_PRIV(max_queued_bytes,          gobj_read_integer_attr)
+    ELIF_EQ_SET_PRIV(max_queued_messages,       gobj_read_integer_attr)
     ELIF_EQ_SET_PRIV(max_keepalive,             gobj_read_integer_attr)
     ELIF_EQ_SET_PRIV(max_packet_size,           gobj_read_integer_attr)
     ELIF_EQ_SET_PRIV(message_size_limit,        gobj_read_integer_attr)
@@ -923,6 +957,38 @@ PRIVATE void print_queue(const char *name, dl_list_t *dl_list)
 /***************************************************************************
  *
  ***************************************************************************/
+PRIVATE time_t mosquitto_time(void)
+{
+#ifdef WIN32
+    return GetTickCount64()/1000;
+#elif _POSIX_TIMERS>0 && defined(_POSIX_MONOTONIC_CLOCK)
+    struct timespec tp;
+
+    if (clock_gettime(time_clock, &tp) == 0)
+        return tp.tv_sec;
+
+    return (time_t) -1;
+#elif defined(__APPLE__)
+    static mach_timebase_info_data_t tb;
+    uint64_t ticks;
+    uint64_t sec;
+
+    ticks = mach_absolute_time();
+
+    if(tb.denom == 0) {
+        mach_timebase_info(&tb);
+    }
+    sec = ticks*tb.numer/tb.denom/1000000000;
+
+    return (time_t)sec;
+#else
+    return time(NULL);
+#endif
+}
+
+/***************************************************************************
+ *
+ ***************************************************************************/
 PRIVATE void message__cleanup(struct mosquitto_message_all **message)
 {
     struct mosquitto_message_all *msg;
@@ -937,6 +1003,31 @@ PRIVATE void message__cleanup(struct mosquitto_message_all **message)
     GBMEM_FREE(msg->msg.payload);
     JSON_DECREF(msg->properties);
     GBMEM_FREE(msg);
+}
+
+/***************************************************************************
+ *
+ ***************************************************************************/
+PRIVATE int message__out_update(
+    hgobj gobj,
+    uint16_t mid,
+    enum mosquitto_msg_state state,
+    int qos
+) {
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+    struct mosquitto_message_all *message, *tmp;
+
+    DL_FOREACH_SAFE(&priv->msgs_out.dl_inflight, message, tmp) {
+        if(message->msg.mid == mid) {
+            if(message->msg.qos != qos) {
+                return MOSQ_ERR_PROTOCOL;
+            }
+            message->state = state;
+            message->timestamp = mosquitto_time();
+            return MOSQ_ERR_SUCCESS;
+        }
+    }
+    return MOSQ_ERR_NOT_FOUND;
 }
 
 /***************************************************************************
@@ -1010,6 +1101,620 @@ PRIVATE int message__queue(
 /***************************************************************************
  *
  ***************************************************************************/
+PRIVATE int message__remove(
+    hgobj gobj,
+    uint16_t mid,
+    enum mosquitto_msg_direction dir,
+    struct mosquitto_message_all **message,
+    int qos
+) {
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+    struct mosquitto_message_all *cur, *tmp;
+    BOOL found = FALSE;
+
+    if(dir == mosq_md_out) {
+
+        DL_FOREACH_SAFE(&priv->msgs_out.dl_inflight, cur, tmp) {
+            if(found == FALSE && cur->msg.mid == mid) {
+                if(cur->msg.qos != qos) {
+                    return MOSQ_ERR_PROTOCOL;
+                }
+                dl_delete(&priv->msgs_out.dl_inflight, cur, gbmem_free);
+
+                *message = cur;
+                // priv->msgs_out.queue_len--; TODO
+                found = TRUE;
+                break;
+            }
+        }
+        if(found) {
+            return MOSQ_ERR_SUCCESS;
+        } else {
+            return MOSQ_ERR_NOT_FOUND;
+        }
+    } else {
+        DL_FOREACH_SAFE(&priv->msgs_in.dl_inflight, cur, tmp) {
+            if(cur->msg.mid == mid) {
+                if(cur->msg.qos != qos) {
+                    return MOSQ_ERR_PROTOCOL;
+                }
+                dl_delete(&priv->msgs_in.dl_inflight, cur, gbmem_free);
+                *message = cur;
+                // TODO mosq->msgs_in.queue_len--;
+                found = TRUE;
+                break;
+            }
+        }
+
+        if(found) {
+            return MOSQ_ERR_SUCCESS;
+        } else {
+            return MOSQ_ERR_NOT_FOUND;
+        }
+    }
+}
+
+/***************************************************************************
+ *
+ ***************************************************************************/
+PRIVATE int message__delete(
+    hgobj gobj,
+    uint16_t mid,
+    enum mosquitto_msg_direction dir,
+    int qos
+) {
+    struct mosquitto_message_all *message;
+    int rc;
+
+    rc = message__remove(gobj, mid, dir, &message, qos);
+    if(rc == MOSQ_ERR_SUCCESS) {
+        message__cleanup(&message);
+    }
+    return rc;
+}
+
+/***************************************************************************
+ *
+ ***************************************************************************/
+PRIVATE int sub__messages_queue(
+    const char *source_id,
+    const char *topic,
+    uint8_t qos,
+    int retain,
+    struct mosquitto_msg_store **stored
+) {
+    int rc = MOSQ_ERR_SUCCESS, rc2;
+    // int rc_normal = MOSQ_ERR_NO_SUBSCRIBERS, rc_shared = MOSQ_ERR_NO_SUBSCRIBERS;
+    // struct mosquitto__subhier *subhier;
+    // char **split_topics = NULL;
+    // char *local_topic = NULL;
+    //
+    // assert(topic);
+    //
+    // if(sub__topic_tokenise(topic, &local_topic, &split_topics, NULL)) return 1;
+    //
+    // /* Protect this message until we have sent it to all
+    // clients - this is required because websockets client calls
+    // db__message_write(), which could remove the message if ref_count==0.
+    // */
+    // db__msg_store_ref_inc(*stored);
+    //
+    // HASH_FIND(hh, db.normal_subs, split_topics[0], strlen(split_topics[0]), subhier);
+    // if(subhier){
+    //     rc_normal = sub__search(subhier, split_topics, source_id, topic, qos, retain, *stored);
+    //     if(rc_normal > 0){
+    //         rc = rc_normal;
+    //         goto end;
+    //     }
+    // }
+    //
+    // HASH_FIND(hh, db.shared_subs, split_topics[0], strlen(split_topics[0]), subhier);
+    // if(subhier){
+    //     rc_shared = sub__search(subhier, split_topics, source_id, topic, qos, retain, *stored);
+    //     if(rc_shared > 0){
+    //         rc = rc_shared;
+    //         goto end;
+    //     }
+    // }
+    //
+    // if(rc_normal == MOSQ_ERR_NO_SUBSCRIBERS && rc_shared == MOSQ_ERR_NO_SUBSCRIBERS){
+    //     rc = MOSQ_ERR_NO_SUBSCRIBERS;
+    // }
+    //
+    // if(retain){
+    //     rc2 = retain__store(topic, *stored, split_topics);
+    //     if(rc2) rc = rc2;
+    // }
+    //
+    // end:
+    //     mosquitto__free(split_topics);
+    // mosquitto__free(local_topic);
+    // /* Remove our reference and free if needed. */
+    // db__msg_store_ref_dec(stored);
+
+    return rc;
+}
+
+/***************************************************************************
+ *
+ ***************************************************************************/
+PRIVATE void db__msg_add_to_queued_stats(
+    struct mosquitto_msg_data *msg_data,
+    struct mosquitto_client_msg *msg
+) {
+    msg_data->queued_count++;
+    msg_data->queued_bytes += msg->store->payloadlen;
+    if(msg->qos != 0) {
+        msg_data->queued_count12++;
+        msg_data->queued_bytes12 += msg->store->payloadlen;
+    }
+}
+
+/***************************************************************************
+ *
+ ***************************************************************************/
+PRIVATE void db__msg_remove_from_queued_stats(
+    struct mosquitto_msg_data *msg_data,
+    struct mosquitto_client_msg *msg
+) {
+    msg_data->queued_count--;
+    msg_data->queued_bytes -= msg->store->payloadlen;
+    if(msg->qos != 0) {
+        msg_data->queued_count12--;
+        msg_data->queued_bytes12 -= msg->store->payloadlen;
+    }
+}
+
+/***************************************************************************
+ *
+ ***************************************************************************/
+PRIVATE void db__msg_add_to_inflight_stats(struct mosquitto_msg_data *msg_data, struct mosquitto_client_msg *msg)
+{
+    msg_data->inflight_count++;
+    msg_data->inflight_bytes += msg->store->payloadlen;
+    if(msg->qos != 0) {
+        msg_data->inflight_count12++;
+        msg_data->inflight_bytes12 += msg->store->payloadlen;
+    }
+}
+
+/***************************************************************************
+ *
+ ***************************************************************************/
+PRIVATE void db__msg_remove_from_inflight_stats(struct mosquitto_msg_data *msg_data, struct mosquitto_client_msg *msg)
+{
+    msg_data->inflight_count--;
+    msg_data->inflight_bytes -= msg->store->payloadlen;
+    if(msg->qos != 0) {
+        msg_data->inflight_count12--;
+        msg_data->inflight_bytes12 -= msg->store->payloadlen;
+    }
+}
+
+/***************************************************************************
+ *
+ ***************************************************************************/
+PRIVATE void db__msg_store_remove(struct mosquitto_msg_store *store)
+{
+    // TODO
+    // if(store->prev) {
+    //     store->prev->next = store->next;
+    //     if(store->next) {
+    //         store->next->prev = store->prev;
+    //     }
+    // } else {
+    //     db.msg_store = store->next;
+    //     if(store->next) {
+    //         store->next->prev = NULL;
+    //     }
+    // }
+    // db.msg_store_count--;
+    // db.msg_store_bytes -= store->payloadlen;
+    //
+    // db__msg_store_free(store);
+}
+
+/***************************************************************************
+ *
+ ***************************************************************************/
+PRIVATE void db__msg_store_ref_dec(struct mosquitto_msg_store **store)
+{
+    (*store)->ref_count--;
+    if((*store)->ref_count == 0) {
+        db__msg_store_remove(*store);
+        *store = NULL;
+    }
+}
+
+/***************************************************************************
+ *
+ ***************************************************************************/
+PRIVATE void db__message_remove_from_inflight(
+    struct mosquitto_msg_data *msg_data,
+    struct mosquitto_client_msg *item
+) {
+    if(!msg_data || !item) {
+        return;
+    }
+
+    dl_delete(&msg_data->dl_inflight, item, gbmem_free);
+    if(item->store) {
+        db__msg_remove_from_inflight_stats(msg_data, item);
+        db__msg_store_ref_dec(&item->store);
+    }
+
+    // TODO mosquitto_property_free_all(&item->properties);
+    gbmem_free(item);
+}
+
+/***************************************************************************
+ * Is this context ready to take more in flight messages right now?
+ * @param context the client context of interest
+ * @param qos qos for the packet of interest
+ * @return true if more in flight are allowed.
+ ***************************************************************************/
+PRIVATE BOOL db__ready_for_flight(hgobj gobj, enum mosquitto_msg_direction dir, int qos)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+    struct mosquitto_msg_data *msgs;
+    BOOL valid_bytes;
+    BOOL valid_count;
+
+    if(dir == mosq_md_out) {
+        msgs = &priv->msgs_out;
+    } else {
+        msgs = &priv->msgs_in;
+    }
+
+    if(msgs->inflight_maximum == 0 && priv->max_inflight_bytes == 0) {
+        return TRUE;
+    }
+
+    if(qos == 0) {
+        /* Deliver QoS 0 messages unless the queue is already full.
+         * For QoS 0 messages the choice is either "inflight" or dropped.
+         * There is no queueing option, unless the client is offline and
+         * queue_qos0_messages is enabled.
+         */
+        if(priv->max_queued_messages == 0 && priv->max_inflight_bytes == 0) {
+            return TRUE;
+        }
+        valid_bytes = ((msgs->inflight_bytes - (ssize_t)priv->max_inflight_bytes) < (ssize_t)priv->max_queued_bytes);
+        if(dir == mosq_md_out) {
+            valid_count = priv->out_packet_count < priv->max_queued_messages;
+        } else {
+            valid_count = msgs->inflight_count - msgs->inflight_maximum < priv->max_queued_messages;
+        }
+
+        if(priv->max_queued_messages == 0) {
+            return valid_bytes;
+        }
+        if(priv->max_queued_bytes == 0) {
+            return valid_count;
+        }
+    } else {
+        valid_bytes = (ssize_t)msgs->inflight_bytes12 < (ssize_t)priv->max_inflight_bytes;
+        valid_count = msgs->inflight_quota > 0;
+
+        if(msgs->inflight_maximum == 0) {
+            return valid_bytes;
+        }
+        if(priv->max_inflight_bytes == 0) {
+            return valid_count;
+        }
+    }
+
+    return valid_bytes && valid_count;
+}
+
+/***************************************************************************
+ *
+ ***************************************************************************/
+PRIVATE void db__message_dequeue_first(
+    hgobj gobj,
+    struct mosquitto_msg_data *msg_data
+) {
+    struct mosquitto_client_msg *msg;
+
+    // TODO
+    // msg = msg_data->queued;
+    // DL_DELETE(msg_data->queued, msg);
+    // DL_APPEND(msg_data->inflight, msg);
+    // if(msg_data->inflight_quota > 0) {
+    //     msg_data->inflight_quota--;
+    // }
+
+    db__msg_remove_from_queued_stats(msg_data, msg);
+    db__msg_add_to_inflight_stats(msg_data, msg);
+}
+
+/***************************************************************************
+ *
+ ***************************************************************************/
+PRIVATE int db__message_write_inflight_out_single(
+    hgobj gobj,
+    struct mosquitto_client_msg *msg
+) {
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+    json_t *cmsg_props = NULL, *store_props = NULL;
+    int rc;
+    uint16_t mid;
+    int retries;
+    int retain;
+    const char *topic;
+    uint8_t qos;
+    uint32_t payloadlen;
+    const void *payload;
+    uint32_t expiry_interval;
+
+    expiry_interval = 0;
+    if(msg->store->message_expiry_time) {
+        if(priv->db_now_real_s > msg->store->message_expiry_time) {
+            /* Message is expired, must not send. */
+            if(msg->direction == mosq_md_out && msg->qos > 0) {
+                // TODO util__increment_send_quota(context);
+            }
+            db__message_remove_from_inflight(&priv->msgs_out, msg);
+            return MOSQ_ERR_SUCCESS;
+        } else {
+            expiry_interval = (uint32_t)(msg->store->message_expiry_time - priv->db_now_real_s);
+        }
+    }
+    mid = msg->mid;
+    retries = msg->dup;
+    retain = msg->retain;
+    topic = msg->store->topic;
+    qos = (uint8_t)msg->qos;
+    payloadlen = msg->store->payloadlen;
+    payload = msg->store->payload;
+    cmsg_props = msg->properties;
+    store_props = msg->store->properties;
+
+    switch(msg->state) {
+        case mosq_ms_publish_qos0:
+            rc = send__publish(gobj, mid, topic, payloadlen, payload, qos, retain, retries, cmsg_props, store_props, expiry_interval);
+            if(rc == MOSQ_ERR_SUCCESS || rc == MOSQ_ERR_OVERSIZE_PACKET) {
+                db__message_remove_from_inflight(&priv->msgs_out, msg);
+            } else {
+                return rc;
+            }
+            break;
+
+        case mosq_ms_publish_qos1:
+            rc = send__publish(gobj, mid, topic, payloadlen, payload, qos, retain, retries, cmsg_props, store_props, expiry_interval);
+            if(rc == MOSQ_ERR_SUCCESS) {
+                msg->timestamp = priv->db_now_s;
+                msg->dup = 1; /* Any retry attempts are a duplicate. */
+                msg->state = mosq_ms_wait_for_puback;
+            } else if(rc == MOSQ_ERR_OVERSIZE_PACKET) {
+                db__message_remove_from_inflight(&priv->msgs_out, msg);
+            } else {
+                return rc;
+            }
+            break;
+
+        case mosq_ms_publish_qos2:
+            rc = send__publish(gobj, mid, topic, payloadlen, payload, qos, retain, retries, cmsg_props, store_props, expiry_interval);
+            if(rc == MOSQ_ERR_SUCCESS) {
+                msg->timestamp = priv->db_now_s;
+                msg->dup = 1; /* Any retry attempts are a duplicate. */
+                msg->state = mosq_ms_wait_for_pubrec;
+            } else if(rc == MOSQ_ERR_OVERSIZE_PACKET) {
+                db__message_remove_from_inflight(&priv->msgs_out, msg);
+            } else {
+                return rc;
+            }
+            break;
+
+        case mosq_ms_resend_pubrel:
+            rc = send__pubrel(gobj, mid, NULL);
+            if(!rc) {
+                msg->state = mosq_ms_wait_for_pubcomp;
+            } else {
+                return rc;
+            }
+            break;
+
+        case mosq_ms_invalid:
+        case mosq_ms_send_pubrec:
+        case mosq_ms_resend_pubcomp:
+        case mosq_ms_wait_for_puback:
+        case mosq_ms_wait_for_pubrec:
+        case mosq_ms_wait_for_pubrel:
+        case mosq_ms_wait_for_pubcomp:
+        case mosq_ms_queued:
+            break;
+    }
+    return MOSQ_ERR_SUCCESS;
+}
+
+/***************************************************************************
+ *
+ ***************************************************************************/
+PRIVATE int db__message_write_inflight_out_latest(hgobj gobj)
+{
+    struct mosquitto_client_msg *tail, *next;
+    int rc;
+
+    // TODO
+    // if(context->state != mosq_cs_active
+    //         || context->sock == INVALID_SOCKET
+    //         || context->msgs_out.inflight == NULL) {
+    //
+    //     return MOSQ_ERR_SUCCESS;
+    //         }
+    //
+    // if(context->msgs_out.inflight->prev == context->msgs_out.inflight) {
+    //     /* Only one message */
+    //     return db__message_write_inflight_out_single(context, context->msgs_out.inflight);
+    // }
+    //
+    // /* Start at the end of the list and work backwards looking for the first
+    //  * message in a non-publish state */
+    // tail = context->msgs_out.inflight->prev;
+    // while(tail != context->msgs_out.inflight &&
+    //         (tail->state == mosq_ms_publish_qos0
+    //          || tail->state == mosq_ms_publish_qos1
+    //          || tail->state == mosq_ms_publish_qos2)) {
+    //
+    //     tail = tail->prev;
+    //          }
+    //
+    // /* Tail is now either the head of the list, if that message is waiting for
+    //  * publish, or the oldest message not waiting for a publish. In the latter
+    //  * case, any pending publishes should be next after this message. */
+    // if(tail != context->msgs_out.inflight) {
+    //     tail = tail->next;
+    // }
+    //
+    // while(tail) {
+    //     next = tail->next;
+    //     rc = db__message_write_inflight_out_single(context, tail);
+    //     if(rc) return rc;
+    //     tail = next;
+    // }
+    return MOSQ_ERR_SUCCESS;
+}
+
+/***************************************************************************
+ *
+ ***************************************************************************/
+PRIVATE int db__message_update_outgoing(
+    hgobj gobj,
+    uint16_t mid,
+    enum mosquitto_msg_state state,
+    int qos
+) {
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+    struct mosquitto_client_msg *tail;
+
+    DL_FOREACH(&priv->msgs_out.dl_inflight, tail) {
+        if(tail->mid == mid) {
+            if(tail->qos != qos) {
+                return MOSQ_ERR_PROTOCOL;
+            }
+            tail->state = state;
+            tail->timestamp = priv->db_now_s;
+            return MOSQ_ERR_SUCCESS;
+        }
+    }
+    return MOSQ_ERR_NOT_FOUND;
+}
+
+/***************************************************************************
+ *
+ ***************************************************************************/
+PRIVATE int db__message_delete_outgoing(
+    hgobj gobj,
+    uint16_t mid,
+    enum mosquitto_msg_state expect_state,
+    int qos
+) {
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+    struct mosquitto_client_msg *tail, *tmp;
+
+    DL_FOREACH_SAFE(&priv->msgs_out.dl_inflight, tail, tmp) {
+        if(tail->mid == mid) {
+            if(tail->qos != qos) {
+                return MOSQ_ERR_PROTOCOL;
+            } else if(qos == 2 && tail->state != expect_state) {
+                return MOSQ_ERR_PROTOCOL;
+            }
+            db__message_remove_from_inflight(&priv->msgs_out, tail);
+            break;
+        }
+    }
+
+    DL_FOREACH_SAFE(&priv->msgs_out.dl_queued, tail, tmp) {
+        if(!db__ready_for_flight(gobj, mosq_md_out, tail->qos)) {
+            break;
+        }
+
+        // tail->timestamp = priv->db_now_s; TODO
+        switch(tail->qos) {
+            case 0:
+                tail->state = mosq_ms_publish_qos0;
+            break;
+            case 1:
+                tail->state = mosq_ms_publish_qos1;
+            break;
+            case 2:
+                tail->state = mosq_ms_publish_qos2;
+            break;
+        }
+        db__message_dequeue_first(gobj, &priv->msgs_out);
+    }
+#ifdef WITH_PERSISTENCE
+    db.persistence_changes++;
+#endif
+
+    return db__message_write_inflight_out_latest(gobj);
+}
+
+/***************************************************************************
+ *
+ ***************************************************************************/
+PRIVATE int db__message_release_incoming(hgobj gobj, uint16_t mid)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+    struct mosquitto_client_msg *tail, *tmp;
+    int retain;
+    char *topic;
+    char *source_id;
+    BOOL deleted = FALSE;
+    int rc;
+
+    DL_FOREACH_SAFE(&priv->msgs_in.dl_inflight, tail, tmp) {
+        if(tail->mid == mid) {
+            if(tail->store->qos != 2) {
+                return MOSQ_ERR_PROTOCOL;
+            }
+            topic = tail->store->topic;
+            retain = tail->retain;
+            source_id = tail->store->source_id;
+
+            /* topic==NULL should be a QoS 2 message that was
+             * denied/dropped and is being processed so the client doesn't
+             * keep resending it. That means we don't send it to other
+             * clients. */
+            if(topic == NULL) {
+                db__message_remove_from_inflight(&priv->msgs_in, tail);
+                deleted = TRUE;
+            } else {
+                rc = sub__messages_queue(source_id, topic, 2, retain, &tail->store);
+                if(rc == MOSQ_ERR_SUCCESS || rc == MOSQ_ERR_NO_SUBSCRIBERS) {
+                    db__message_remove_from_inflight(&priv->msgs_in, tail);
+                    deleted = TRUE;
+                } else {
+                    return 1;
+                }
+            }
+        }
+    }
+
+    DL_FOREACH_SAFE(&priv->msgs_in.dl_queued, tail, tmp) {
+        if(db__ready_for_flight(gobj, mosq_md_in, tail->qos)) {
+            break;
+        }
+
+        tail->timestamp = priv->db_now_s;
+
+        if(tail->qos == 2) {
+            send__pubrec(gobj, tail->mid, 0, NULL);
+            tail->state = mosq_ms_wait_for_pubrel;
+            db__message_dequeue_first(gobj, &priv->msgs_in);
+        }
+    }
+    if(deleted) {
+        return MOSQ_ERR_SUCCESS;
+    } else {
+        return MOSQ_ERR_NOT_FOUND;
+    }
+}
+
+/***************************************************************************
+ *
+ ***************************************************************************/
 PRIVATE const char *get_command_name(int cmd_)
 {
     int cmd = cmd_ >> 4;
@@ -1028,6 +1733,8 @@ PRIVATE const char *mosquitto_command_string(mqtt_message_t command)
 {
     switch(command) {
         case CMD_CONNECT:
+
+
             return "CMD_CONNECT";
         case CMD_CONNACK:
             return "CMD_CONNACK";
@@ -3016,7 +3723,7 @@ PRIVATE int send__connect(
         // JSON_DECREF(properties);
         //     return rc;
     // }
-        // }else{
+        // } else {
         //     priv->msgs_in.inflight_maximum = receive_maximum;
         //     priv->msgs_in.inflight_quota = receive_maximum;
         // }
@@ -3057,7 +3764,7 @@ PRIVATE int send__connect(
     //     assert(mosq->will->msg.topic);
     //
     //     payloadlen += (uint32_t)(2+strlen(mosq->will->msg.topic) + 2+(uint32_t)mosq->will->msg.payloadlen);
-    //     if(protocol == mosq_p_mqtt5){
+    //     if(protocol == mosq_p_mqtt5) {
     //         payloadlen += property__get_remaining_length(mosq->will->properties);
     //     }
     // }
@@ -3096,7 +3803,7 @@ PRIVATE int send__connect(
     /* Variable header */
     if(version == PROTOCOL_VERSION_v31) {
         mqtt_write_string(gbuf, PROTOCOL_NAME_v31);
-    }else{
+    } else {
         mqtt_write_string(gbuf, PROTOCOL_NAME);
     }
     mqtt_write_byte(gbuf, version);
@@ -3593,7 +4300,7 @@ PRIVATE int send__subscribe(
     json_array_foreach(subs, idx, jn_sub) {
         const char *sub = json_string_value(jn_sub);
         size_t tlen = strlen(sub);
-        if(tlen > UINT16_MAX){
+        if(tlen > UINT16_MAX) {
             gobj_log_error(gobj, 0,
                 "function",     "%s", __FUNCTION__,
                 "msgset",       "%s", MSGSET_MQTT_ERROR,
@@ -3606,7 +4313,7 @@ PRIVATE int send__subscribe(
         packetlen += 2U+(uint16_t)tlen + 1U;
     }
 
-    if(priv->protocol_version == mosq_p_mqtt5){
+    if(priv->protocol_version == mosq_p_mqtt5) {
         packetlen += property__get_remaining_length(properties);
     }
 
@@ -3661,7 +4368,7 @@ PRIVATE int send__unsubscribe(
     json_array_foreach(subs, idx, jn_sub) {
         const char *sub = json_string_value(jn_sub);
         size_t tlen = strlen(sub);
-        if(tlen > UINT16_MAX){
+        if(tlen > UINT16_MAX) {
             gobj_log_error(gobj, 0,
                 "function",     "%s", __FUNCTION__,
                 "msgset",       "%s", MSGSET_MQTT_ERROR,
@@ -3674,7 +4381,7 @@ PRIVATE int send__unsubscribe(
         packetlen += 2U+(uint16_t)tlen;
     }
 
-    if(priv->protocol_version == mosq_p_mqtt5){
+    if(priv->protocol_version == mosq_p_mqtt5) {
         packetlen += property__get_remaining_length(properties);
     }
 
@@ -4023,7 +4730,7 @@ PRIVATE int handle__connect(hgobj gobj, gbuffer_t *gbuf, hgobj src)
     gobj_write_integer_attr(gobj, "will_qos", will_qos);
 
     // TODO do remove will if error (refuse connection)
-    // if(context->will){
+    // if(context->will) {
     //     mosquitto_property_free_all(&context->will->properties);
     //     mosquitto__free(context->will->msg.payload);
     //     mosquitto__free(context->will->msg.topic);
@@ -4186,11 +4893,11 @@ PRIVATE int handle__connect(hgobj gobj, gbuffer_t *gbuf, hgobj src)
      *  TODO let entry of clients with a certain prefix!
      *  clientid_prefixes check
      */
-    // if(db.config->clientid_prefixes){
-    //     if(strncmp(db.config->clientid_prefixes, client_id, strlen(db.config->clientid_prefixes))){
-    //         if(context->protocol == mosq_p_mqtt5){
+    // if(priv->clientid_prefixes) {
+    //     if(strncmp(priv->clientid_prefixes, client_id, strlen(priv->clientid_prefixes))) {
+    //         if(context->protocol == mosq_p_mqtt5) {
     //             send__connack(context, 0, MQTT_RC_NOT_AUTHORIZED, NULL);
-    //         }else{
+    //         } else {
     //             send__connack(context, 0, CONNACK_REFUSED_NOT_AUTHORIZED, NULL);
     //         }
     //         rc = MOSQ_ERR_AUTH;
@@ -4385,7 +5092,7 @@ PRIVATE int handle__connect(hgobj gobj, gbuffer_t *gbuf, hgobj src)
     // TODO esto debe ir a new client in upper level
     /* Client is already connected, disconnect old version. This is
      * done in context__cleanup() below. */
-    // if(db.config->connection_messages == true){
+    // if(priv->connection_messages == true) {
     //     log__printf(NULL, MOSQ_LOG_ERR, "Client %s already connected, closing old connection.", context->id);
     // }
 
@@ -4423,7 +5130,7 @@ PRIVATE int handle__connect(hgobj gobj, gbuffer_t *gbuf, hgobj src)
 
     // TODO
     // rc = acl__find_acls(context);
-    // if(rc){
+    // if(rc) {
     //     free(auth_data_out);
     // JSON_DECREF(auth)
     // JSON_DECREF(connect_properties);
@@ -4484,7 +5191,7 @@ PRIVATE int handle__connect(hgobj gobj, gbuffer_t *gbuf, hgobj src)
     //context__add_to_by_id(context); TODO
 
 // // #ifdef WITH_PERSISTENCE TODO
-//     if(!context->clean_start){
+//     if(!context->clean_start) {
 //         db.persistence_changes++;
 //     }
 // // #endif
@@ -4534,13 +5241,13 @@ PRIVATE int handle__connect(hgobj gobj, gbuffer_t *gbuf, hgobj src)
         }
         if(priv->auth_method) {
             // TODO No tenemos auth method
-            // if(mosquitto_property_add_string(&connack_props, MQTT_PROP_AUTHENTICATION_METHOD, context->auth_method)){
+            // if(mosquitto_property_add_string(&connack_props, MQTT_PROP_AUTHENTICATION_METHOD, context->auth_method)) {
             //     rc = MOSQ_ERR_NOMEM;
             //     goto error;
             // }
             //
-            // if(auth_data_out && auth_data_out_len > 0){
-            //     if(mosquitto_property_add_binary(&connack_props, MQTT_PROP_AUTHENTICATION_DATA, auth_data_out, auth_data_out_len)){
+            // if(auth_data_out && auth_data_out_len > 0) {
+            //     if(mosquitto_property_add_binary(&connack_props, MQTT_PROP_AUTHENTICATION_DATA, auth_data_out, auth_data_out_len)) {
             //         rc = MOSQ_ERR_NOMEM;
             //         goto error;
             //     }
@@ -4769,7 +5476,7 @@ PRIVATE int handle__connack(
     //
     // gobj_publish_event(gobj, EV_ON_IEV_MESSAGE, kw_iev);
 
-    switch(reason_code){
+    switch(reason_code) {
         case 0:
             // TODO message__retry_check(mosq); important!
             gobj_write_str_attr(gobj, "client_id", gobj_read_str_attr(gobj, "mqtt_client_id"));
@@ -4870,7 +5577,7 @@ PRIVATE int handle__disconnect_c(hgobj gobj, gbuffer_t *gbuf)
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
     int ret = 0;
 
-    if(priv->protocol_version != mosq_p_mqtt5){
+    if(priv->protocol_version != mosq_p_mqtt5) {
         gobj_log_error(gobj, 0,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_MQTT_ERROR,
@@ -5911,7 +6618,7 @@ PRIVATE int handle__publish_s(hgobj gobj, gbuffer_t *gbuf)
             // TODO
             //save_topic_alias(gobj, topic_alias, msg->topic);
             //rc = alias__add(context, msg->topic, (uint16_t)topic_alias);
-            //if(rc){
+            //if(rc) {
             //    db_free_msg_store(msg);
         // GBMEM_FREE(topic)
             //    return rc;
@@ -6192,7 +6899,7 @@ PRIVATE int handle__publish_c(hgobj gobj, gbuffer_t *gbuf)
     if(qos > 0) {
         if(priv->protocol_version == mosq_p_mqtt5) {
             // TODO to high level?
-            // if(priv->msgs_in.inflight_quota == 0){
+            // if(priv->msgs_in.inflight_quota == 0) {
             //     /* FIXME - should send a DISCONNECT here */
             //     GBMEM_FREE(topic)
             //     return MOSQ_ERR_PROTOCOL;
@@ -6283,20 +6990,6 @@ PRIVATE int handle__publish_c(hgobj gobj, gbuffer_t *gbuf)
                 gobj_publish_event(gobj, EV_ON_IEV_MESSAGE, kw_iev);
             }
 
-            // COMPAT_pthread_mutex_lock(&mosq->callback_mutex);
-            // on_message = mosq->on_message;
-            // on_message_v5 = mosq->on_message_v5;
-            // COMPAT_pthread_mutex_unlock(&mosq->callback_mutex);
-            // if(on_message){
-            //     mosq->in_callback = true;
-            //     on_message(mosq, mosq->userdata, &message->msg);
-            //     mosq->in_callback = false;
-            // }
-            // if(mosq->on_message_v5){
-            //     mosq->in_callback = true;
-            //     on_message_v5(mosq, mosq->userdata, &message->msg, properties);
-            //     mosq->in_callback = false;
-            // }
             // message__cleanup(&message);
             // mosquitto_property_free_all(&properties);
             return MOSQ_ERR_SUCCESS;
@@ -6310,12 +7003,12 @@ PRIVATE int handle__publish_c(hgobj gobj, gbuffer_t *gbuf)
             // on_message = mosq->on_message;
             // on_message_v5 = mosq->on_message_v5;
             // COMPAT_pthread_mutex_unlock(&mosq->callback_mutex);
-            // if(on_message){
+            // if(on_message) {
             //     mosq->in_callback = true;
             //     on_message(mosq, mosq->userdata, &message->msg);
             //     mosq->in_callback = false;
             // }
-            // if(on_message_v5){
+            // if(on_message_v5) {
             //     mosq->in_callback = true;
             //     on_message_v5(mosq, mosq->userdata, &message->msg, properties);
             //     mosq->in_callback = false;
@@ -6361,7 +7054,13 @@ PRIVATE int handle__pubackcomp(hgobj gobj, gbuffer_t *gbuf, const char *type)
 
     if(priv->protocol_version != mosq_p_mqtt31) {
         if((priv->frame_head.flags) != 0x00) {
-            // gobj_log_error() TODO
+            gobj_log_error(gobj, 0,
+                "function",     "%s", __FUNCTION__,
+                "msgset",       "%s", MSGSET_MQTT_ERROR,
+                "msg",          "%s", "Mqtt pubackcomp: flags != 0",
+                "client_id",    "%s", priv->client_id,
+                NULL
+            );
             return MOSQ_ERR_MALFORMED_PACKET;
         }
     }
@@ -6375,13 +7074,25 @@ PRIVATE int handle__pubackcomp(hgobj gobj, gbuffer_t *gbuf, const char *type)
     }
     if(type[3] == 'A') { /* pubAck or pubComp */
         if(priv->frame_head.command != CMD_PUBACK) {
-            // gobj_log_error() TODO
+            gobj_log_error(gobj, 0,
+                "function",     "%s", __FUNCTION__,
+                "msgset",       "%s", MSGSET_MQTT_ERROR,
+                "msg",          "%s", "Mqtt pubackcomp: 'A' and no CMD_PUBACK",
+                "client_id",    "%s", priv->client_id,
+                NULL
+            );
             return MOSQ_ERR_MALFORMED_PACKET;
         }
         qos = 1;
     } else {
         if(priv->frame_head.command != CMD_PUBCOMP) {
-            // gobj_log_error() TODO
+            gobj_log_error(gobj, 0,
+                "function",     "%s", __FUNCTION__,
+                "msgset",       "%s", MSGSET_MQTT_ERROR,
+                "msg",          "%s", "Mqtt pubackcomp: not 'A' and no CMD_PUBCOMP",
+                "client_id",    "%s", priv->client_id,
+                NULL
+            );
             return MOSQ_ERR_MALFORMED_PACKET;
         }
         qos = 2;
@@ -6423,7 +7134,14 @@ PRIVATE int handle__pubackcomp(hgobj gobj, gbuffer_t *gbuf, const char *type)
                     && reason_code != MQTT_RC_QUOTA_EXCEEDED
                     && reason_code != MQTT_RC_PAYLOAD_FORMAT_INVALID
             ) {
-                // gobj_log_error TODO
+                gobj_log_error(gobj, 0,
+                    "function",     "%s", __FUNCTION__,
+                    "msgset",       "%s", MSGSET_MQTT_ERROR,
+                    "msg",          "%s", "Mqtt pubackcomp: bad reason code",
+                    "client_id",    "%s", priv->client_id,
+                    "reason_code",  "%d", reason_code,
+                    NULL
+                );
                 JSON_DECREF(properties)
                 return MOSQ_ERR_PROTOCOL;
             }
@@ -6431,14 +7149,27 @@ PRIVATE int handle__pubackcomp(hgobj gobj, gbuffer_t *gbuf, const char *type)
             if(reason_code != MQTT_RC_SUCCESS
                     && reason_code != MQTT_RC_PACKET_ID_NOT_FOUND
             ) {
-                // gobj_log_error TODO
+                gobj_log_error(gobj, 0,
+                    "function",     "%s", __FUNCTION__,
+                    "msgset",       "%s", MSGSET_MQTT_ERROR,
+                    "msg",          "%s", "Mqtt pubackcomp: bad reason code",
+                    "client_id",    "%s", priv->client_id,
+                    "reason_code",  "%d", reason_code,
+                    NULL
+                );
                 JSON_DECREF(properties)
                 return MOSQ_ERR_PROTOCOL;
             }
         }
     }
     if(gbuffer_leftbytes(gbuf)) {
-        // gobj_log_error TODO
+        gobj_log_error(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_MQTT_ERROR,
+            "msg",          "%s", "Mqtt pubackcomp: packet too long",
+            "client_id",    "%s", priv->client_id,
+            NULL
+        );
         JSON_DECREF(properties)
         return MOSQ_ERR_MALFORMED_PACKET;
     }
@@ -6492,21 +7223,23 @@ PRIVATE int handle__pubackcomp(hgobj gobj, gbuffer_t *gbuf, const char *type)
 
         if(rc == MOSQ_ERR_SUCCESS) {
             /* Only inform the client the message has been sent once. */
-            on_publish_v5(gobj, mid, reason_code, properties);
 
-            gbuffer_t *gbuf_message = gbuffer_create(stored->payloadlen, stored->payloadlen);
-            if(gbuf_message) {
-                if(stored->payloadlen > 0) {
-                    // Can become without payload
-                    gbuffer_append(gbuf_message, stored->payload, stored->payloadlen);
-                }
-                json_t *kw = json_pack("{s:s, s:s, s:I}",
-                    "mqtt_action", "publishing",
-                    "topic", topic_name,
-                    "gbuffer", (json_int_t)(uintptr_t)gbuf_message
-                );
-                gobj_publish_event(gobj, EV_ON_MESSAGE, kw);
-            }
+            // on_publish_v5(gobj, mid, reason_code, properties); TODO
+
+            // TODO código viejo
+            // gbuffer_t *gbuf_message = gbuffer_create(stored->payloadlen, stored->payloadlen);
+            // if(gbuf_message) {
+            //     if(stored->payloadlen > 0) {
+            //         // Can become without payload
+            //         gbuffer_append(gbuf_message, stored->payload, stored->payloadlen);
+            //     }
+            //     json_t *kw = json_pack("{s:s, s:s, s:I}",
+            //         "mqtt_action", "publishing",
+            //         "topic", topic_name,
+            //         "gbuffer", (json_int_t)(uintptr_t)gbuf_message
+            //     );
+            //     gobj_publish_event(gobj, EV_ON_MESSAGE, kw);
+            // }
 
         } else if(rc != MOSQ_ERR_NOT_FOUND) {
             JSON_DECREF(properties)
@@ -6580,7 +7313,7 @@ PRIVATE int handle__pubrec(hgobj gobj, gbuffer_t *gbuf)
                 "msgset",       "%s", MSGSET_MQTT_ERROR,
                 "msg",          "%s", "Mqtt pubrec: wrong reason code",
                 "client_id",    "%s", priv->client_id,
-                "reason_code",  "%d", (int)reason_code
+                "reason_code",  "%d", (int)reason_code,
                 NULL
             );
             return MOSQ_ERR_PROTOCOL;
@@ -6702,6 +7435,7 @@ PRIVATE int handle__pubrel(hgobj gobj, gbuffer_t *gbuf)
     }
     rc = mqtt_read_uint16(gobj, gbuf, &mid);
     if(rc) {
+        // Error already logged
         return rc;
     }
     if(mid == 0) {
@@ -6775,7 +7509,7 @@ PRIVATE int handle__pubrel(hgobj gobj, gbuffer_t *gbuf)
             return rc;
         }
 
-        rc = send_pubcomp(gobj, mid, NULL);
+        rc = send__pubcomp(gobj, mid, NULL);
         if(rc<0) {
             // Error already logged
             JSON_DECREF(properties)
@@ -7883,7 +8617,7 @@ PRIVATE int ac_mqtt_publish(hgobj gobj, const char *event, json_t *kw, hgobj src
         if(priv->protocol_version == mosq_p_mqtt5) {
             BOOL have_topic_alias = FALSE;
             // TODO check property
-            // if(p->identifier == MQTT_PROP_TOPIC_ALIAS){
+            // if(p->identifier == MQTT_PROP_TOPIC_ALIAS) {
             //     have_topic_alias = true;
             //     break;
             // }
