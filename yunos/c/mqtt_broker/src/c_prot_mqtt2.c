@@ -5841,11 +5841,13 @@ PRIVATE int handle__connack(
         case 4:
         case 5:
             // TODO don't retry connections?
+            const char *reason = priv->protocol_version != mosq_p_mqtt5?
+                mosquitto_connack_string(reason_code):mosquitto_reason_string(reason_code);
             gobj_log_error(gobj, 0,
                 "function",     "%s", __FUNCTION__,
                 "msgset",       "%s", MSGSET_MQTT_ERROR,
                 "msg",          "%s", "Mqtt connection refused",
-                "reason",       "%s", mosquitto_connack_string(reason_code),
+                "reason",       "%s", reason,
                 NULL
             );
             return MOSQ_ERR_CONN_REFUSED;
