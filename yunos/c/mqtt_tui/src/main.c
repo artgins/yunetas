@@ -399,10 +399,9 @@ int main(int argc, char *argv[])
     }
 
     if(!arguments.mqtt_clean_session && empty_string(arguments.mqtt_client_id)) {
-        fprintf(stderr, "Error: You must provide a client id if you are using the -c option (not a clean session).\n");
+        fprintf(stderr, "\nError: You must provide a client id if you are using the -c option (not a clean session).\n\n");
         exit(0);
     }
-
 
     /*
      *  Put configuration
