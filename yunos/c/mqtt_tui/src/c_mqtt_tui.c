@@ -181,6 +181,8 @@ SDATA (DTP_STRING,      "mqtt_client_id",   0,          "",             "MQTT Cl
 SDATA (DTP_STRING,      "mqtt_protocol",    0,          "mqttv5",       "MQTT Protocol. Can be mqttv5, mqttv311 or mqttv31. Defaults to mqttv5."),
 SDATA (DTP_STRING,     "mqtt_clean_session",0,         "1",            "MQTT clean_session. Default 1. Set to 0 enable persistent mode and the client id must be set. The broker will be instructed not to clean existing sessions for the same client id when the client connects, and sessions will never expire when the client disconnects. MQTT v5 clients can change their session expiry interval"),
 
+// TODO missing connect properties, will and session_expiry_interval
+
 SDATA (DTP_STRING,      "user_id",          0,          "",             "MQTT Username or OAuth2 User Id (interactive jwt)"),
 SDATA (DTP_STRING,      "user_passw",       0,          "",             "MQTT Password or OAuth2 User password (interactive jwt)"),
 

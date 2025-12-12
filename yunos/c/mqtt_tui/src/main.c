@@ -40,7 +40,7 @@ struct arguments
 
     char *mqtt_connect_properties;
     char *mqtt_will;
-    char *mqtt_session_expiry_interval;
+    int mqtt_session_expiry_interval;
 
     char *user_id;
     char *user_passw;
@@ -223,7 +223,7 @@ static error_t parse_opt (int key, char *arg, struct argp_state *state)
         arguments->mqtt_connect_properties = arg;
         break;
     case 't':
-        arguments->mqtt_session_expiry_interval = arg;
+        arguments->mqtt_session_expiry_interval = atoi(arg);
         break;
     case 'w':
         arguments->mqtt_will = arg;
@@ -407,6 +407,7 @@ int main(int argc, char *argv[])
      *  Put configuration
      */
     {
+        // TODO missing connect properties, will and session_expiry_interval
         json_t *kw_utility = json_pack(
             "{s:{s:b, s:s, s:s, s:s, s:s, s:s, s:s, s:s, s:s, s:s, s:s, s:s, s:b}}",
             "global",
