@@ -1116,7 +1116,6 @@ PRIVATE int message__remove(
     BOOL found = FALSE;
 
     if(dir == mosq_md_out) {
-
         DL_FOREACH_SAFE(&priv->msgs_out.dl_inflight, cur, tmp) {
             if(found == FALSE && cur->msg.mid == mid) {
                 if(cur->msg.qos != qos) {
