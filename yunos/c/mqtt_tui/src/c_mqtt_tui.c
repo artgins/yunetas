@@ -171,8 +171,8 @@ SDATA (DTP_STRING,      "command",          0,          "",             "Command
 SDATA (DTP_STRING,      "url_mqtt",         SDF_RD,     "mqtt://127.0.0.1:1810", "Url of mqtt port"),
 SDATA (DTP_STRING,      "url_broker",       SDF_RD,     "ws://127.0.0.1:1800", "Url of broker port"),
 SDATA (DTP_STRING,      "yuno_name",        0,          "",             "Yuno name"),
-SDATA (DTP_STRING,      "yuno_role",        0,          "yuneta_agent", "Yuno role"),
-SDATA (DTP_STRING,      "yuno_service",     0,          "agent",        "Yuno service"),
+SDATA (DTP_STRING,      "yuno_role",        0,          "mqtt_broker",  "Yuno role"),
+SDATA (DTP_STRING,      "yuno_service",     0,          "__default_service","Yuno service"),
 SDATA (DTP_STRING,      "auth_system",      0,          "",             "OpenID System(interactive jwt)"),
 SDATA (DTP_STRING,      "auth_url",         0,          "",             "OpenID Endpoint(interactive jwt)"),
 SDATA (DTP_STRING,      "azp",              0,          "",             "azp (OAuth2 Authorized Party)"),
@@ -978,10 +978,6 @@ PRIVATE int cmd_connect_mqtt(hgobj gobj)
     const char *jwt = gobj_read_str_attr(gobj, "jwt");
     const char *url = gobj_read_str_attr(gobj, "url_mqtt");
 
-    const char *yuno_name = gobj_read_str_attr(gobj, "yuno_name");
-    const char *yuno_role = gobj_read_str_attr(gobj, "yuno_role");
-    const char *yuno_service = gobj_read_str_attr(gobj, "yuno_service");
-
     const char *mqtt_client_id = gobj_read_str_attr(gobj, "mqtt_client_id");
     const char *mqtt_protocol = gobj_read_str_attr(gobj, "mqtt_protocol");
     const char *mqtt_clean_session = gobj_read_str_attr(gobj, "mqtt_clean_session");
@@ -993,13 +989,10 @@ PRIVATE int cmd_connect_mqtt(hgobj gobj)
      *  Each display window has a gobj to send the commands (saved in user_data).
      *  For external agents create a filter-chain of gobjs
      */
-    json_t * jn_config_variables = json_pack("{s:s, s:s, s:s, s:s, s:s, s:s, s:s, s:s, s:s, s:s, s:s}",
+    json_t * jn_config_variables = json_pack("{s:s, s:s, s:s, s:s, s:s, s:s, s:s, s:s}",
         "__jwt__", jwt,
         "__url__", url,
         "__cert_pem__", "",
-        "__yuno_name__", yuno_name,
-        "__yuno_role__", yuno_role,
-        "__yuno_service__", yuno_service,
         "__mqtt_client_id__", mqtt_client_id,
         "__mqtt_protocol__", mqtt_protocol,
         "__mqtt_clean_session__", mqtt_clean_session,

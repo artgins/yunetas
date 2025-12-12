@@ -31,15 +31,17 @@ struct arguments
     char *url_broker;
     char *url_mqtt;
     char *azp;
-    char *yuno_role;
-    char *yuno_name;
-    char *yuno_service;
 
     char *auth_system;
     char *auth_url;
     char *mqtt_client_id;
     int mqtt_clean_session;
     char *mqtt_protocol;
+
+    char *mqtt_connect_properties;
+    char *mqtt_will;
+    char *mqtt_session_expiry_interval;
+
     char *user_id;
     char *user_passw;
     char *jwt;
@@ -150,15 +152,18 @@ static char args_doc[] = "";
  */
 static struct argp_option options[] = {
 /*-name-------------key-----arg---------flags---doc-----------------group */
-{0,                 0,      0,          0,      "Remote Service keys", 10},
+{0,                 0,      0,          0,      "MQTT keys", 10},
+{"mqtt_clean_session",'c',  "CLEAN_SESSION", 0, "MQTT clean_session. Default 1 (New session). Set to 0 enable persistent mode and the client id must be set. The broker will be instructed not to clean existing sessions for the same client id when the client connects, and sessions will never expire when the client disconnects. MQTT v5 clients can change their session expiry interval", 10},
+{"mqtt_client_id",  'i',    "CLIENT_ID",0,      "MQTT Client ID", 10},
+{"mqtt_protocol",   'q',    "PROTOCOL", 0,      "MQTT Protocol. Can be mqttv5 (v5), mqttv311 (v311) or mqttv31 (v31). Defaults to v5.", 10},
+{"mqtt_connect_properties", 'r',    "PROPERTIES",0,     "(TODO) MQTT CONNECT properties", 10},
+{"mqtt_session_expiry_interval", 't', "SECONDS", 0, "(TODO) Session expiry interval property on the CONNECT, applies to MQTT v5 clients only", 10},
+{"mqtt_will",       'w',    "WILL",     0,      "(TODO) MQTT Will (topic, retain, qos, payload)", 10},
 
 {0,                 0,      0,          0,      "OAuth2 keys", 20},
 {"auth_system",     'K',    "AUTH_SYSTEM",0,    "OpenID System(default: keycloak, to get now a jwt)", 20},
 {"auth_url",        'k',    "AUTH_URL", 0,      "OpenID Endpoint (to get now a jwt). If empty it will be used MQTT username/password", 20},
 {"azp",             'Z',    "AZP",      0,      "azp (Authorized Party, client_id in keycloak)", 20},
-{"mqtt_client_id",  'd',    "MQTT_CLIENT_ID",0, "MQTT Client ID", 20},
-{"mqtt_protocol",   'q',    "MQTT_PROTOCOL", 0, "MQTT Protocol. Can be mqttv5/v5, mqttv311/v311 or mqttv31/v31. Defaults to mqttv5.", 20},
-{"mqtt_clean_session",'c',  "MQTT_CLEAN_SESSION", 0, "MQTT clean_session. Default 1. Set to 0 enable persistent mode and the client id must be set. The broker will be instructed not to clean existing sessions for the same client id when the client connects, and sessions will never expire when the client disconnects. MQTT v5 clients can change their session expiry interval", 20},
 {"user_id",         'x',    "USER_ID",  0,      "MQTT Username or OAuth2 User Id (to get now a jwt)", 20},
 {"user_passw",      'X',    "USER_PASSW",0,     "MQTT Password or OAuth2 User Password (to get now a jwt)", 20},
 {"jwt",             'j',    "JWT",      0,      "Jwt (previously got it)", 21},
@@ -166,9 +171,6 @@ static struct argp_option options[] = {
 {0,                 0,      0,          0,      "Connection keys", 30},
 {"url-mqtt",        'u',    "URL-MQTT", 0,      "Url of mqtt port (default 'mqtt://127.0.0.1:1810').", 30},
 {"url-broker",      'b',    "URL-BROKER",0,     "Url of broker port (default 'ws://127.0.0.1:1800').", 30},
-{"yuno_role",       'O',    "ROLE",     0,      "Remote yuno role. Default: 'yuneta_agent'", 30},
-{"yuno_name",       'o',    "NAME",     0,      "Remote yuno name. Default: ''", 30},
-{"yuno_service",    'S',    "SERVICE",  0,      "Remote yuno service. Default: '__default_service__'", 30}, // TODO chequea todos, estaba solo como 'service'
 
 {0,                 0,      0,          0,      "Local keys.", 50},
 {"print",           'p',    0,          0,      "Print configuration.", 50},
@@ -208,14 +210,23 @@ static error_t parse_opt (int key, char *arg, struct argp_state *state)
         arguments->auth_url = arg;
         break;
 
-    case 'd':
+    case 'c':
+        arguments->mqtt_clean_session = atoi(arg)?1:0;
+        break;
+    case 'i':
         arguments->mqtt_client_id = arg;
         break;
     case 'q':
         arguments->mqtt_protocol = arg;
         break;
-    case 'c':
-        arguments->mqtt_clean_session = atoi(arg)?1:0;
+    case 'e':
+        arguments->mqtt_connect_properties = arg;
+        break;
+    case 't':
+        arguments->mqtt_session_expiry_interval = arg;
+        break;
+    case 'w':
+        arguments->mqtt_will = arg;
         break;
 
     case 'x':
@@ -237,16 +248,6 @@ static error_t parse_opt (int key, char *arg, struct argp_state *state)
 
     case 'Z':
         arguments->azp = arg;
-        break;
-    case 'O':
-        arguments->yuno_role = arg;
-        break;
-    case 'o':
-        arguments->yuno_name = arg;
-        break;
-
-    case 'S':
-        arguments->yuno_service = arg;
         break;
 
     case 'v':
@@ -352,9 +353,6 @@ int main(int argc, char *argv[])
     arguments.url_mqtt = "mqtt://127.0.0.1:1810";
     arguments.url_broker = "ws://127.0.0.1:1800";
     arguments.azp = "";
-    arguments.yuno_role = "mqtt_broker";
-    arguments.yuno_name = "";
-    arguments.yuno_service = "__default_service__";
     arguments.auth_system = "keycloak";
     arguments.auth_url = "";
     arguments.mqtt_protocol = "mqttv5";
@@ -411,7 +409,7 @@ int main(int argc, char *argv[])
      */
     {
         json_t *kw_utility = json_pack(
-            "{s:{s:b, s:s, s:s, s:s, s:s, s:s, s:s, s:s, s:s, s:s, s:s, s:s, s:s, s:s, s:s, s:b}}",
+            "{s:{s:b, s:s, s:s, s:s, s:s, s:s, s:s, s:s, s:s, s:s, s:s, s:s, s:b}}",
             "global",
             "C_MQTT_TUI.verbose", arguments.verbose,
             "C_MQTT_TUI.auth_system", arguments.auth_system,
@@ -425,9 +423,6 @@ int main(int argc, char *argv[])
             "C_MQTT_TUI.url_mqtt", arguments.url_mqtt,
             "C_MQTT_TUI.url_broker", arguments.url_broker,
             "C_MQTT_TUI.azp", arguments.azp,
-            "C_MQTT_TUI.yuno_role", arguments.yuno_role,
-            "C_MQTT_TUI.yuno_name", arguments.yuno_name,
-            "C_MQTT_TUI.yuno_service", arguments.yuno_service,
             "C_MQTT_TUI.print_with_metadata", arguments.print_with_metadata
         );
 
