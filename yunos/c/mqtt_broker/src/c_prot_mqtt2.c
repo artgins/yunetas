@@ -199,8 +199,7 @@ enum mosquitto_msg_origin {
 typedef struct mosquitto_message {
     int mid;
     char *topic;
-    void *payload;
-    int payloadlen;
+    gbuffer_t *payload;
     int qos;
     BOOL retain;
 } mosquitto_message_t;
@@ -219,7 +218,6 @@ typedef struct mosquitto_msg_store { // Used in broker
     json_t *properties;
     gbuffer_t *payload;
     time_t message_expiry_time;
-    uint32_t payloadlen;
     enum mosquitto_msg_origin origin;
     uint16_t source_mid;
     uint16_t mid;
@@ -260,8 +258,8 @@ typedef struct mosquitto_msg_data { // Used in client/broker
     long inflight_bytes12;
     int inflight_count;
     int inflight_count12;
-    long queued_bytes;
-    long queued_bytes12;
+    size_t queued_bytes;
+    size_t queued_bytes12;
     int queued_count;
     int queued_count12;
 
@@ -294,12 +292,12 @@ typedef struct _FRAME_HEAD {
 /***************************************************************************
  *              Prototypes
  ***************************************************************************/
+PRIVATE void message__cleanup_all(hgobj gobj);
 PRIVATE int send__publish(
     hgobj gobj,
     uint16_t mid,
     const char *topic,
-    uint32_t payloadlen,
-    const void *payload,
+    gbuffer_t *payload,
     uint8_t qos,
     BOOL retain,
     BOOL dup,
@@ -876,6 +874,8 @@ PRIVATE void mt_destroy(hgobj gobj)
 
     JSON_DECREF(priv->jn_alias_list)
 
+    message__cleanup_all(gobj);
+
     // TODO new dl_flush(&priv->dl_msgs_in, db_free_client_msg);
     // dl_flush(&priv->dl_msgs_out, db_free_client_msg);
 }
@@ -1038,7 +1038,6 @@ PRIVATE int message__release_to_inflight(hgobj gobj, enum mosquitto_msg_directio
                         gobj,
                         (uint16_t)cur->msg.mid,
                         cur->msg.topic,
-                        (uint32_t)cur->msg.payloadlen,
                         cur->msg.payload,
                         (uint8_t)cur->msg.qos,
                         cur->msg.retain,
@@ -1161,9 +1160,27 @@ PRIVATE int message__remove(
 PRIVATE void message__cleanup(struct mosquitto_message_all *msg)
 {
     GBMEM_FREE(msg->msg.topic);
-    GBMEM_FREE(msg->msg.payload);
+    GBUFFER_DECREF(msg->msg.payload);
     JSON_DECREF(msg->properties);
     GBMEM_FREE(msg);
+}
+
+/***************************************************************************
+ * Used by client
+ ***************************************************************************/
+PRIVATE void message__cleanup_all(hgobj gobj)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+    struct mosquitto_message_all *tail, *tmp;
+
+    DL_FOREACH_SAFE(&priv->msgs_in.dl_inflight, tail, tmp){
+        dl_delete(&priv->msgs_in.dl_inflight, tail, 0);
+        message__cleanup(tail);
+    }
+    DL_FOREACH_SAFE(&priv->msgs_out.dl_inflight, tail, tmp){
+        dl_delete(&priv->msgs_out.dl_inflight, tail, 0);
+        message__cleanup(tail);
+    }
 }
 
 /***************************************************************************
@@ -1341,10 +1358,10 @@ PRIVATE void db__msg_add_to_queued_stats(
     struct mosquitto_client_msg *msg
 ) {
     msg_data->queued_count++;
-    msg_data->queued_bytes += msg->store->payloadlen;
+    msg_data->queued_bytes += gbuffer_leftbytes(msg->store->payload);
     if(msg->qos != 0) {
         msg_data->queued_count12++;
-        msg_data->queued_bytes12 += msg->store->payloadlen;
+        msg_data->queued_bytes12 += gbuffer_leftbytes(msg->store->payload);
     }
 }
 
@@ -1356,10 +1373,10 @@ PRIVATE void db__msg_remove_from_queued_stats(
     struct mosquitto_client_msg *msg
 ) {
     msg_data->queued_count--;
-    msg_data->queued_bytes -= msg->store->payloadlen;
+    msg_data->queued_bytes -= gbuffer_leftbytes(msg->store->payload);
     if(msg->qos != 0) {
         msg_data->queued_count12--;
-        msg_data->queued_bytes12 -= msg->store->payloadlen;
+        msg_data->queued_bytes12 -= gbuffer_leftbytes(msg->store->payload);
     }
 }
 
@@ -1369,10 +1386,10 @@ PRIVATE void db__msg_remove_from_queued_stats(
 PRIVATE void db__msg_add_to_inflight_stats(struct mosquitto_msg_data *msg_data, struct mosquitto_client_msg *msg)
 {
     msg_data->inflight_count++;
-    msg_data->inflight_bytes += msg->store->payloadlen;
+    msg_data->inflight_bytes += gbuffer_leftbytes(msg->store->payload);
     if(msg->qos != 0) {
         msg_data->inflight_count12++;
-        msg_data->inflight_bytes12 += msg->store->payloadlen;
+        msg_data->inflight_bytes12 += gbuffer_leftbytes(msg->store->payload);
     }
 }
 
@@ -1382,10 +1399,10 @@ PRIVATE void db__msg_add_to_inflight_stats(struct mosquitto_msg_data *msg_data, 
 PRIVATE void db__msg_remove_from_inflight_stats(struct mosquitto_msg_data *msg_data, struct mosquitto_client_msg *msg)
 {
     msg_data->inflight_count--;
-    msg_data->inflight_bytes -= msg->store->payloadlen;
+    msg_data->inflight_bytes -= gbuffer_leftbytes(msg->store->payload);
     if(msg->qos != 0) {
         msg_data->inflight_count12--;
-        msg_data->inflight_bytes12 -= msg->store->payloadlen;
+        msg_data->inflight_bytes12 -= gbuffer_leftbytes(msg->store->payload);
     }
 }
 
@@ -1584,14 +1601,12 @@ PRIVATE int db__message_write_inflight_out_single(
     retain = msg->retain;
     topic = msg->store->topic;
     qos = (uint8_t)msg->qos;
-    payloadlen = msg->store->payloadlen;
-    payload = msg->store->payload;
     cmsg_props = msg->properties;
     store_props = msg->store->properties;
 
     switch(msg->state) {
         case mosq_ms_publish_qos0:
-            rc = send__publish(gobj, mid, topic, payloadlen, payload, qos, retain, retries, cmsg_props, store_props, expiry_interval);
+            rc = send__publish(gobj, mid, topic, msg->store->payload, qos, retain, retries, cmsg_props, store_props, expiry_interval);
             if(rc == MOSQ_ERR_SUCCESS || rc == MOSQ_ERR_OVERSIZE_PACKET) {
                 db__message_remove_from_inflight(&priv->msgs_out, msg);
             } else {
@@ -1600,7 +1615,7 @@ PRIVATE int db__message_write_inflight_out_single(
             break;
 
         case mosq_ms_publish_qos1:
-            rc = send__publish(gobj, mid, topic, payloadlen, payload, qos, retain, retries, cmsg_props, store_props, expiry_interval);
+            rc = send__publish(gobj, mid, topic, msg->store->payload, qos, retain, retries, cmsg_props, store_props, expiry_interval);
             if(rc == MOSQ_ERR_SUCCESS) {
                 msg->timestamp = priv->db_now_s;
                 msg->dup = 1; /* Any retry attempts are a duplicate. */
@@ -1613,7 +1628,7 @@ PRIVATE int db__message_write_inflight_out_single(
             break;
 
         case mosq_ms_publish_qos2:
-            rc = send__publish(gobj, mid, topic, payloadlen, payload, qos, retain, retries, cmsg_props, store_props, expiry_interval);
+            rc = send__publish(gobj, mid, topic, msg->store->payload, qos, retain, retries, cmsg_props, store_props, expiry_interval);
             if(rc == MOSQ_ERR_SUCCESS) {
                 msg->timestamp = priv->db_now_s;
                 msg->dup = 1; /* Any retry attempts are a duplicate. */
@@ -4529,8 +4544,7 @@ PRIVATE int send__publish(
     hgobj gobj,
     uint16_t mid,
     const char *topic,
-    uint32_t payloadlen,
-    const void *payload,
+    gbuffer_t *gbuf_payload, // not owned
     uint8_t qos,
     BOOL retain,
     BOOL dup,
@@ -4559,6 +4573,9 @@ PRIVATE int send__publish(
     unsigned int packetlen;
     unsigned int proplen = 0, varbytes;
     json_t *expiry_prop = 0;
+
+    char *payload = gbuf_payload?gbuffer_cur_rd_pointer(gbuf_payload):NULL;
+    int payloadlen = gbuf_payload?(int)gbuffer_leftbytes(gbuf_payload):0;
 
     if(topic) {
         packetlen = 2 + (unsigned int)strlen(topic) + payloadlen;
@@ -7043,7 +7060,7 @@ PRIVATE int handle__publish_s(
         return MOSQ_ERR_MALFORMED_PACKET;
     }
 
-    msg->payloadlen = gbuffer_leftbytes(gbuf);
+    json_int_t payloadlen = gbuffer_leftbytes(gbuf);
     // G_PUB_BYTES_RECEIVED_INC(msg->payloadlen);
 
     // if(context->listener->mount_point) {
@@ -7060,8 +7077,8 @@ PRIVATE int handle__publish_s(
     //     msg->topic = topic_mount;
     // }
 
-    if(msg->payloadlen) {
-        if(priv->message_size_limit && msg->payloadlen > priv->message_size_limit) {
+    if(payloadlen) {
+        if(priv->message_size_limit && payloadlen > priv->message_size_limit) {
             gobj_log_error(gobj, 0,
                 "function",         "%s", __FUNCTION__,
                 "msgset",           "%s", MSGSET_MQTT_ERROR,
@@ -7074,18 +7091,18 @@ PRIVATE int handle__publish_s(
             goto process_bad_message;
         }
 
-        msg->payload = gbuffer_create(msg->payloadlen, msg->payloadlen);
+        msg->payload = gbuffer_create(payloadlen, payloadlen);
         if(msg->payload == NULL) {
             // Error already logged
             db__msg_store_free(msg);
             return MOSQ_ERR_NOMEM;
         }
 
-        if(mqtt_read_bytes(gobj, gbuf, gbuffer_cur_wr_pointer(msg->payload), (int)msg->payloadlen)) {
+        if(mqtt_read_bytes(gobj, gbuf, gbuffer_cur_wr_pointer(msg->payload), (int)payloadlen)) {
             db__msg_store_free(msg);
             return MOSQ_ERR_MALFORMED_PACKET;
         }
-        gbuffer_set_wr(msg->payload, msg->payloadlen);
+        gbuffer_set_wr(msg->payload, payloadlen);
     }
 
     /* Check for topic access */
@@ -7116,7 +7133,7 @@ PRIVATE int handle__publish_s(
             msg->qos,
             msg->retain,
             msg->source_mid,
-            (long)msg->payloadlen
+            (long)payloadlen
         );
     }
 
@@ -7153,9 +7170,9 @@ PRIVATE int handle__publish_s(
 
     if(cmsg_stored && cmsg_stored->store && msg->source_mid != 0 &&
             (cmsg_stored->store->qos != msg->qos
-             || cmsg_stored->store->payloadlen != msg->payloadlen
+             || gbuffer_leftbytes(cmsg_stored->store->payload) != payloadlen
              || strcmp(cmsg_stored->store->topic, msg->topic)
-             || memcmp(cmsg_stored->store->payload, msg->payload, msg->payloadlen) )
+             || memcmp(cmsg_stored->store->payload, msg->payload, payloadlen) )
     ) {
         gobj_log_warning(gobj, 0,
             "function",         "%s", __FUNCTION__,
@@ -7339,20 +7356,20 @@ PRIVATE int handle__publish_c(
 
     size_t payloadlen = gbuffer_leftbytes(gbuf);
 
-    gbuffer_t *gbuf_payload = NULL;
     if(payloadlen) {
-        gbuf_payload = gbuffer_create(payloadlen, payloadlen);
-        if(!gbuf_payload) {
+        message->msg.payload = gbuffer_create(payloadlen, payloadlen);
+        if(!message->msg.payload) {
             // Error already logged
             message__cleanup(message);
             return MOSQ_ERR_NOMEM;
         }
 
-        if(mqtt_read_bytes(gobj, gbuf, gbuffer_cur_wr_pointer(gbuf_payload), (int)payloadlen)) {
+        void *pwr = gbuffer_cur_wr_pointer(message->msg.payload);
+        if(mqtt_read_bytes(gobj, gbuf, pwr, (int)payloadlen)) {
             message__cleanup(message);
             return MOSQ_ERR_MALFORMED_PACKET;
         }
-        gbuffer_set_wr(gbuf_payload, payloadlen);
+        gbuffer_set_wr(message->msg.payload, payloadlen);
     }
 
     if(gobj_trace_level(gobj) & SHOW_DECODE) {
@@ -7381,11 +7398,12 @@ PRIVATE int handle__publish_c(
                 if(properties) {
                     json_object_set(kw_message, "properties", properties);
                 }
-                if(gbuf_payload) {
+                if(message->msg.payload) {
+                    gbuffer_incref(message->msg.payload);
                     json_object_set_new(
                         kw_message,
                         "gbuffer",
-                        json_integer((json_int_t)(uintptr_t)gbuf_payload)
+                        json_integer((json_int_t)(uintptr_t)message->msg.payload)
                     );
                 }
 
@@ -7415,11 +7433,12 @@ PRIVATE int handle__publish_c(
                 if(properties) {
                     json_object_set(kw_message, "properties", properties);
                 }
-                if(gbuf_payload) {
+                if(message->msg.payload) {
+                    gbuffer_incref(message->msg.payload);
                     json_object_set_new(
                         kw_message,
                         "gbuffer",
-                        json_integer((json_int_t)(uintptr_t)gbuf_payload)
+                        json_integer((json_int_t)(uintptr_t)message->msg.payload)
                     );
                 }
 
@@ -9091,8 +9110,6 @@ PRIVATE int ac_mqtt_client_send_publish(hgobj gobj, const char *event, json_t *k
     }
 
     size_t payloadlen = gbuffer_leftbytes(gbuf_payload);
-    void *payload = gbuffer_cur_rd_pointer(gbuf_payload);
-
     if(payloadlen < 0 || payloadlen > (int)MQTT_MAX_PAYLOAD) {
         gobj_log_error(gobj, 0,
             "function",     "%s", __FUNCTION__,
@@ -9128,8 +9145,7 @@ PRIVATE int ac_mqtt_client_send_publish(hgobj gobj, const char *event, json_t *k
             gobj,
             mid,
             topic,
-            (uint32_t)payloadlen,
-            payload,
+            gbuf_payload,
             (uint8_t)qos,
             retain,
             FALSE,
@@ -9223,16 +9239,13 @@ PRIVATE int ac_mqtt_client_send_publish(hgobj gobj, const char *event, json_t *k
             }
         }
         if(payloadlen) {
-            message->msg.payloadlen = (int)payloadlen;
-            message->msg.payload = GBMEM_MALLOC((unsigned int)payloadlen*sizeof(uint8_t));
+            message->msg.payload = gbuffer_incref(gbuf_payload);
             if(!message->msg.payload) {
                 message__cleanup(message);
                 KW_DECREF(kw)
                 return -1;
             }
-            memcpy(message->msg.payload, payload, (uint32_t)payloadlen*sizeof(uint8_t));
         } else {
-            message->msg.payloadlen = 0;
             message->msg.payload = NULL;
         }
         message->msg.qos = (uint8_t)qos;
@@ -9618,8 +9631,7 @@ PRIVATE int ac_send_message(hgobj gobj, const char *event, json_t *kw, hgobj src
         gobj,
         mid,
         topic_name,
-        (uint32_t)payloadlen,
-        payload,
+        gbuf,
         (uint8_t)qos,
         retain,
         FALSE,

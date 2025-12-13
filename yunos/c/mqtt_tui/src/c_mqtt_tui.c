@@ -372,7 +372,7 @@ PRIVATE int mt_start(hgobj gobj)
          */
         do_authenticate_task(gobj);
     } else {
-        cmd_connect_broker(gobj);
+        // cmd_connect_broker(gobj);
         cmd_connect_mqtt(gobj);
     }
     return 0;
