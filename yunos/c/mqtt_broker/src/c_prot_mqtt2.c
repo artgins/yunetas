@@ -2,6 +2,8 @@
  *          C_MQTT.C
  *          GClass of MQTT protocol.
  *
+ *          This is an adaptation of mosquitto logic to Yunetas'GClass and TreeDB/Timeranger
+ *
  *          Copyright (c) 2009-2020 Roger Light <roger@atchoo.org>
  *
  *          This file includes code from the Mosquitto project.
@@ -7971,12 +7973,54 @@ PRIVATE int handle__pubrel(hgobj gobj, gbuffer_t *gbuf)
          if(rc == MOSQ_ERR_SUCCESS) {
              /* Only pass the message on if we have removed it from the queue - this
              * prevents multiple callbacks for the same message. */
+
+
+
+int x;
+            {
+                json_t *kw_message = json_pack("{s:s, s:i, s:b, s:i, s:i}",
+                    "topic", message->msg.topic,
+                    "mid", (int)message->msg.mid,
+                    "dup", (int)message->dup,
+                    "qos", (int)message->msg.qos,
+                    "retain", (int)message->msg.retain
+                );
+                if(properties) {
+                    json_object_set(kw_message, "properties", properties);
+                }
+                if(message->msg.payload) {
+                    gbuffer_incref(message->msg.payload);
+                    json_object_set_new(
+                        kw_message,
+                        "gbuffer",
+                        json_integer((json_int_t)(uintptr_t)message->msg.payload)
+                    );
+                }
+
+                json_t *kw_iev = iev_create(
+                    gobj,
+                    EV_MQTT_MESSAGE,
+                    kw_message // owned
+                );
+
+                gobj_publish_event(gobj, EV_ON_IEV_MESSAGE, kw_iev);
+            }
+
+
+
+
+
+
+
+
              // TODO
              // if(mosq->on_message_v5) {
              //    mosq->in_callback = TRUE;
              //    mosq->on_message_v5(mosq, mosq->userdata, &message->msg, message->properties);
              //    mosq->in_callback = FALSE;
              // }
+
+
              JSON_DECREF(properties)
              message__cleanup(message);
          } else if(rc == MOSQ_ERR_NOT_FOUND) {
