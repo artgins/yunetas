@@ -7961,24 +7961,21 @@ PRIVATE int handle__pubrel(hgobj gobj, gbuffer_t *gbuf)
                 mid
             );
         }
-         struct mosquitto_message_all *message = NULL;
-         rc = send__pubcomp(gobj, mid, NULL);
-         if(rc) {
-             message__remove(gobj, mid, mosq_md_in, &message, 2);
-             JSON_DECREF(properties)
-             return rc;
-         }
+        struct mosquitto_message_all *message = NULL;
+        rc = send__pubcomp(gobj, mid, NULL);
+        if(rc) {
+            message__remove(gobj, mid, mosq_md_in, &message, 2);
+            JSON_DECREF(properties)
+            return rc;
+        }
 
-         rc = message__remove(gobj, mid, mosq_md_in, &message, 2);
-         if(rc == MOSQ_ERR_SUCCESS) {
+        rc = message__remove(gobj, mid, mosq_md_in, &message, 2);
+        if(rc == MOSQ_ERR_SUCCESS) {
              /* Only pass the message on if we have removed it from the queue - this
-             * prevents multiple callbacks for the same message. */
-
-
-
-int x;
-            {
-                json_t *kw_message = json_pack("{s:s, s:i, s:b, s:i, s:i}",
+              * prevents multiple callbacks for the same message.
+              */
+            if(1) {
+                 json_t *kw_message = json_pack("{s:s, s:i, s:b, s:i, s:i}",
                     "topic", message->msg.topic,
                     "mid", (int)message->msg.mid,
                     "dup", (int)message->dup,
@@ -8006,30 +8003,15 @@ int x;
                 gobj_publish_event(gobj, EV_ON_IEV_MESSAGE, kw_iev);
             }
 
-
-
-
-
-
-
-
-             // TODO
-             // if(mosq->on_message_v5) {
-             //    mosq->in_callback = TRUE;
-             //    mosq->on_message_v5(mosq, mosq->userdata, &message->msg, message->properties);
-             //    mosq->in_callback = FALSE;
-             // }
-
-
              JSON_DECREF(properties)
              message__cleanup(message);
-         } else if(rc == MOSQ_ERR_NOT_FOUND) {
-             JSON_DECREF(properties)
-             return MOSQ_ERR_SUCCESS;
-         } else {
-             JSON_DECREF(properties)
-             return rc;
-         }
+        } else if(rc == MOSQ_ERR_NOT_FOUND) {
+            JSON_DECREF(properties)
+            return MOSQ_ERR_SUCCESS;
+        } else {
+            JSON_DECREF(properties)
+            return rc;
+        }
     }
 
     JSON_DECREF(properties)
