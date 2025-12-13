@@ -990,26 +990,7 @@ PRIVATE time_t mosquitto_time(void)
 }
 
 /***************************************************************************
- *
- ***************************************************************************/
-PRIVATE void message__cleanup(struct mosquitto_message_all **message)
-{
-    struct mosquitto_message_all *msg;
-
-    if(!message || !*message) {
-        return;
-    }
-
-    msg = *message;
-
-    GBMEM_FREE(msg->msg.topic);
-    GBMEM_FREE(msg->msg.payload);
-    JSON_DECREF(msg->properties);
-    GBMEM_FREE(msg);
-}
-
-/***************************************************************************
- *
+ * Used by client
  ***************************************************************************/
 PRIVATE int message__out_update(
     hgobj gobj,
@@ -1034,7 +1015,7 @@ PRIVATE int message__out_update(
 }
 
 /***************************************************************************
- *
+ *  Used by client
  ***************************************************************************/
 PRIVATE int message__release_to_inflight(hgobj gobj, enum mosquitto_msg_direction dir)
 {
@@ -1102,7 +1083,7 @@ PRIVATE int message__queue(
 }
 
 /***************************************************************************
- *
+ *  Used by client: find the message 'mid', dequeue and return in **message
  ***************************************************************************/
 PRIVATE int message__remove(
     hgobj gobj,
@@ -1119,6 +1100,12 @@ PRIVATE int message__remove(
         DL_FOREACH_SAFE(&priv->msgs_out.dl_inflight, cur, tmp) {
             if(found == FALSE && cur->msg.mid == mid) {
                 if(cur->msg.qos != qos) {
+                    gobj_log_error(gobj, 0,
+                        "function",     "%s", __FUNCTION__,
+                        "msgset",       "%s", MSGSET_MQTT_ERROR,
+                        "msg",          "%s", "Mqtt client: message not match qos",
+                        NULL
+                    );
                     return MOSQ_ERR_PROTOCOL;
                 }
                 dl_delete(&priv->msgs_out.dl_inflight, cur, gbmem_free);
@@ -1134,10 +1121,17 @@ PRIVATE int message__remove(
         } else {
             return MOSQ_ERR_NOT_FOUND;
         }
+
     } else {
         DL_FOREACH_SAFE(&priv->msgs_in.dl_inflight, cur, tmp) {
             if(cur->msg.mid == mid) {
                 if(cur->msg.qos != qos) {
+                    gobj_log_error(gobj, 0,
+                        "function",     "%s", __FUNCTION__,
+                        "msgset",       "%s", MSGSET_MQTT_ERROR,
+                        "msg",          "%s", "Mqtt client: message not match qos",
+                        NULL
+                    );
                     return MOSQ_ERR_PROTOCOL;
                 }
                 dl_delete(&priv->msgs_in.dl_inflight, cur, gbmem_free);
@@ -1157,7 +1151,18 @@ PRIVATE int message__remove(
 }
 
 /***************************************************************************
- *
+ *  Used by client
+ ***************************************************************************/
+PRIVATE void message__cleanup(struct mosquitto_message_all *msg)
+{
+    GBMEM_FREE(msg->msg.topic);
+    GBMEM_FREE(msg->msg.payload);
+    JSON_DECREF(msg->properties);
+    GBMEM_FREE(msg);
+}
+
+/***************************************************************************
+ *  Used by client
  ***************************************************************************/
 PRIVATE int message__delete(
     hgobj gobj,
@@ -1170,7 +1175,7 @@ PRIVATE int message__delete(
 
     rc = message__remove(gobj, mid, dir, &message, qos);
     if(rc == MOSQ_ERR_SUCCESS) {
-        message__cleanup(&message);
+        message__cleanup(message);
     }
     return rc;
 }
