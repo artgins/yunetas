@@ -8937,7 +8937,7 @@ PRIVATE int ac_timeout_waiting_payload_data(hgobj gobj, const char *event, json_
 /***************************************************************************
  *  Entry of mqtt publishing for clients (mosquitto_publish_v5)
  ***************************************************************************/
-PRIVATE int ac_mqtt_publish(hgobj gobj, const char *event, json_t *kw, hgobj src)
+PRIVATE int ac_mqtt_client_send_publish(hgobj gobj, const char *event, json_t *kw, hgobj src)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
@@ -9224,7 +9224,7 @@ PRIVATE int ac_mqtt_publish(hgobj gobj, const char *event, json_t *kw, hgobj src
 /***************************************************************************
  *  Entry of mqtt subscribing for clients
  ***************************************************************************/
-PRIVATE int ac_mqtt_subscribe(hgobj gobj, const char *event, json_t *kw, hgobj src)
+PRIVATE int ac_mqtt_client_send_subscribe(hgobj gobj, const char *event, json_t *kw, hgobj src)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
     json_t *subs = kw_get_list(gobj, kw, "subs", 0, 0);
@@ -9359,7 +9359,7 @@ PRIVATE int ac_mqtt_subscribe(hgobj gobj, const char *event, json_t *kw, hgobj s
 /***************************************************************************
  *  Entry of mqtt unsubscribing for clients
  ***************************************************************************/
-PRIVATE int ac_mqtt_unsubscribe(hgobj gobj, const char *event, json_t *kw, hgobj src)
+PRIVATE int ac_mqtt_client_send_unsubscribe(hgobj gobj, const char *event, json_t *kw, hgobj src)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
     json_t *subs = kw_get_list(gobj, kw, "subs", 0, 0);
@@ -9731,9 +9731,9 @@ PRIVATE int create_gclass(gclass_name_t gclass_name)
     ev_action_t st_wait_frame_header[] = {
         {EV_RX_DATA,            ac_process_frame_header,            0},
         // {EV_MQTT_MESSAGE,       ac_send_message,                    0},
-        {EV_MQTT_PUBLISH,       ac_mqtt_publish,                    0},
-        {EV_MQTT_SUBSCRIBE,     ac_mqtt_subscribe,                  0},
-        {EV_MQTT_UNSUBSCRIBE,   ac_mqtt_unsubscribe,                0},
+        {EV_MQTT_PUBLISH,       ac_mqtt_client_send_publish,        0},
+        {EV_MQTT_SUBSCRIBE,     ac_mqtt_client_send_subscribe,      0},
+        {EV_MQTT_UNSUBSCRIBE,   ac_mqtt_client_send_unsubscribe,    0},
 
         {EV_DISCONNECTED,       ac_disconnected,                    ST_DISCONNECTED},
         {EV_TIMEOUT,            ac_timeout_waiting_frame_header,    0},
@@ -9744,9 +9744,9 @@ PRIVATE int create_gclass(gclass_name_t gclass_name)
     ev_action_t st_wait_payload[] = {
         {EV_RX_DATA,            ac_process_payload_data,            0},
         // {EV_MQTT_MESSAGE,       ac_send_message,                    0},
-        {EV_MQTT_PUBLISH,       ac_mqtt_publish,                    0},
-        {EV_MQTT_SUBSCRIBE,     ac_mqtt_subscribe,                  0},
-        {EV_MQTT_UNSUBSCRIBE,   ac_mqtt_unsubscribe,                0},
+        {EV_MQTT_PUBLISH,       ac_mqtt_client_send_publish,        0},
+        {EV_MQTT_SUBSCRIBE,     ac_mqtt_client_send_subscribe,      0},
+        {EV_MQTT_UNSUBSCRIBE,   ac_mqtt_client_send_unsubscribe,    0},
 
         {EV_DISCONNECTED,       ac_disconnected,                    ST_DISCONNECTED},
         {EV_TIMEOUT,            ac_timeout_waiting_payload_data,    0},
