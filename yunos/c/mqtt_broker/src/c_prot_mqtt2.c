@@ -1083,7 +1083,11 @@ PRIVATE int message__queue(
 }
 
 /***************************************************************************
- *  Used by client: find the message 'mid', dequeue and return in **message
+ *  Used by client:
+ *      find the message 'mid',
+ *      dequeue
+ *      return in **message
+ *  but don't free!
  ***************************************************************************/
 PRIVATE int message__remove(
     hgobj gobj,
@@ -1108,7 +1112,7 @@ PRIVATE int message__remove(
                     );
                     return MOSQ_ERR_PROTOCOL;
                 }
-                dl_delete(&priv->msgs_out.dl_inflight, cur, gbmem_free);
+                dl_delete(&priv->msgs_out.dl_inflight, cur, 0);
 
                 *message = cur;
                 // priv->msgs_out.queue_len--; TODO
@@ -1134,7 +1138,7 @@ PRIVATE int message__remove(
                     );
                     return MOSQ_ERR_PROTOCOL;
                 }
-                dl_delete(&priv->msgs_in.dl_inflight, cur, gbmem_free);
+                dl_delete(&priv->msgs_in.dl_inflight, cur, 0);
                 *message = cur;
                 // TODO mosq->msgs_in.queue_len--;
                 found = TRUE;
@@ -1152,6 +1156,7 @@ PRIVATE int message__remove(
 
 /***************************************************************************
  *  Used by client
+ *  Free the message
  ***************************************************************************/
 PRIVATE void message__cleanup(struct mosquitto_message_all *msg)
 {
@@ -7941,7 +7946,7 @@ PRIVATE int handle__pubrel(hgobj gobj, gbuffer_t *gbuf)
              //    mosq->in_callback = FALSE;
              // }
              JSON_DECREF(properties)
-             message__cleanup(&message);
+             message__cleanup(message);
          } else if(rc == MOSQ_ERR_NOT_FOUND) {
              JSON_DECREF(properties)
              return MOSQ_ERR_SUCCESS;
@@ -9199,7 +9204,7 @@ PRIVATE int ac_mqtt_client_send_publish(hgobj gobj, const char *event, json_t *k
         if(topic) {
             message->msg.topic = gbmem_strdup(topic);
             if(!message->msg.topic) {
-                message__cleanup(&message);
+                message__cleanup(message);
                 KW_DECREF(kw)
                 return -1;
             }
@@ -9208,7 +9213,7 @@ PRIVATE int ac_mqtt_client_send_publish(hgobj gobj, const char *event, json_t *k
             message->msg.payloadlen = (int)payloadlen;
             message->msg.payload = GBMEM_MALLOC((unsigned int)payloadlen*sizeof(uint8_t));
             if(!message->msg.payload) {
-                message__cleanup(&message);
+                message__cleanup(message);
                 KW_DECREF(kw)
                 return -1;
             }
