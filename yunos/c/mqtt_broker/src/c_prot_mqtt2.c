@@ -7436,7 +7436,7 @@ PRIVATE int handle__publish_c(hgobj gobj, gbuffer_t *gbuf)
 }
 
 /***************************************************************************
- *
+ *  Handle PUBACK or PUBCOMP commands
  ***************************************************************************/
 PRIVATE int handle__pubackcomp(hgobj gobj, gbuffer_t *gbuf, const char *type)
 {
@@ -8997,6 +8997,12 @@ PRIVATE int ac_mqtt_client_send_publish(hgobj gobj, const char *event, json_t *k
     }
 
     if(!priv->retain_available && retain) {
+        gobj_log_warning(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_MQTT_ERROR,
+            "msg",          "%s", "Mqtt publish: retain not available",
+            NULL
+        );
         retain = FALSE;
     }
 
@@ -9123,8 +9129,6 @@ PRIVATE int ac_mqtt_client_send_publish(hgobj gobj, const char *event, json_t *k
             gobj_publish_event(gobj, EV_ON_IEV_MESSAGE, kw_iev);
         }
     } else {
-        time_t t;
-        time(&t);
         // json_t *jn_mqtt_msg = json_pack("{s:s, s:I, s:i, s:i, s:b, s:b}",
         //     "id", topic,
         //     "tm", (json_int_t)t,
@@ -9185,7 +9189,7 @@ PRIVATE int ac_mqtt_client_send_publish(hgobj gobj, const char *event, json_t *k
 
         mosquitto_message_all_t *message = GBMEM_MALLOC(sizeof(mosquitto_message_all_t));
 
-        message->timestamp = t;
+        message->timestamp = mosquitto_time();
         message->msg.mid = mid;
         if(topic) {
             message->msg.topic = gbmem_strdup(topic);
