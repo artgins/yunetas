@@ -8972,7 +8972,7 @@ PRIVATE int ac_mqtt_client_send_publish(hgobj gobj, const char *event, json_t *k
         return -1;
     }
 
-    if(priv->protocol_version != mosq_p_mqtt5 && json_size(properties)) {
+    if(priv->protocol_version != mosq_p_mqtt5 && json_size(properties)>0) {
         gobj_log_error(gobj, 0,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_MQTT_ERROR,
@@ -9000,7 +9000,7 @@ PRIVATE int ac_mqtt_client_send_publish(hgobj gobj, const char *event, json_t *k
         retain = FALSE;
     }
 
-    if(json_size(properties)) {
+    if(json_size(properties)>0) {
         if(mqtt_property_check_all(gobj, CMD_PUBLISH, properties)<0) {
             // Error already logged
             KW_DECREF(kw)
@@ -9255,7 +9255,7 @@ PRIVATE int ac_mqtt_client_send_subscribe(hgobj gobj, const char *event, json_t 
         return -1;
     }
 
-    if(priv->protocol_version != mosq_p_mqtt5 && json_size(properties)) {
+    if(priv->protocol_version != mosq_p_mqtt5 && json_size(properties)>0) {
         gobj_log_error(gobj, 0,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_MQTT_ERROR,
@@ -9288,7 +9288,7 @@ PRIVATE int ac_mqtt_client_send_subscribe(hgobj gobj, const char *event, json_t 
         return -1;
     }
 
-    if(json_size(properties)) {
+    if(json_size(properties)>0) {
         if(mqtt_property_check_all(gobj, CMD_SUBSCRIBE, properties)<0) {
             // Error already logged
             KW_DECREF(kw)
@@ -9388,7 +9388,7 @@ PRIVATE int ac_mqtt_client_send_unsubscribe(hgobj gobj, const char *event, json_
         return -1;
     }
 
-    if(priv->protocol_version != mosq_p_mqtt5 && json_size(properties)) {
+    if(priv->protocol_version != mosq_p_mqtt5 && json_size(properties)>0) {
         gobj_log_error(gobj, 0,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_MQTT_ERROR,
@@ -9399,15 +9399,7 @@ PRIVATE int ac_mqtt_client_send_unsubscribe(hgobj gobj, const char *event, json_
         return -1;
     }
 
-    if(json_size(properties)) {
-        if(mqtt_property_check_all(gobj, CMD_UNSUBSCRIBE, properties)<0) {
-            // Error already logged
-            KW_DECREF(kw)
-            return -1;
-        }
-    }
-
-    if(json_size(properties)) {
+    if(json_size(properties)>0) {
         if(mqtt_property_check_all(gobj, CMD_UNSUBSCRIBE, properties)<0) {
             // Error already logged
             KW_DECREF(kw)
