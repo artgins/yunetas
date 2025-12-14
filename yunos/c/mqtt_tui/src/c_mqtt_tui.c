@@ -270,8 +270,10 @@ PRIVATE void mt_create(hgobj gobj)
     /*
      *  Editline
      */
+    char prompt[NAME_MAX];
+    snprintf(prompt, sizeof(prompt), "mqtt (%s)> ", gobj_read_str_attr(gobj, "mqtt_client_id"));
     json_t *kw_editline = json_pack("{s:s, s:s, s:b, s:i, s:i}",
-        "prompt", "mqtt> ",
+        "prompt", prompt,
         "history_file", history_file,
         "use_ncurses", 0,
         "cx", winsz.ws_col,
