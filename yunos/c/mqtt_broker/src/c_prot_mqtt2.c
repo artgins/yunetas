@@ -472,6 +472,8 @@ SDATA (DTP_STRING,      "mqtt_clean_session",0,         "1",            "MQTT cl
 SDATA (DTP_STRING,      "mqtt_session_expiry_interval",0,"-1",          "MQTT session expiry interval.  This option allows the session of persistent clients (those with clean session set to false) that are not currently connected to be removed if they do not reconnect within a certain time frame. This is a non-standard option in MQTT v3.1. MQTT v3.1.1 and v5.0 allow brokers to remove client sessions.\n"
 "Badly designed clients may set clean session to false whilst using a randomly generated client id. This leads to persistent clients that connect once and never reconnect. This option allows these clients to be removed. This option allows persistent clients (those with clean session set to false) to be removed if they do not reconnect within a certain time frame.\nAs this is a non-standard option, the default if not set is to never expire persistent clients."),
 
+SDATA (DTP_STRING,      "mqtt_keepalive",   0,         "60",    "MQTT keepalive. The number of seconds between sending PING commands to the broker for the purposes of informing it we are still connected and functioning. Defaults to 60 seconds."),
+
 SDATA (DTP_STRING,      "user_id",          0,          "",     "MQTT Username or OAuth2 User Id (interactive jwt)"),
 SDATA (DTP_STRING,      "user_passw",       0,          "",     "MQTT Password or OAuth2 User password (interactive jwt)"),
 SDATA (DTP_STRING,      "jwt",              0,          "",     "Jwt"),
@@ -530,7 +532,7 @@ SDATA (DTP_STRING,      "client_id",        SDF_VOLATIL,        0,      "Client 
 
 SDATA (DTP_BOOLEAN,     "clean_start",      SDF_VOLATIL,        0,      "New session"),
 SDATA (DTP_INTEGER,     "session_expiry_interval",SDF_VOLATIL,  0,      "Session expiry interval in ?"),
-SDATA (DTP_INTEGER,     "keepalive",        SDF_VOLATIL,        0,      "Keepalive in ?"),
+SDATA (DTP_INTEGER,     "keepalive",        SDF_VOLATIL,        0,      "Keepalive"),
 SDATA (DTP_STRING,      "auth_method",      SDF_VOLATIL,        0,      "Auth method"),
 SDATA (DTP_STRING,      "auth_data",        SDF_VOLATIL,        0,      "Auth data (in base64)"),
 SDATA (DTP_INTEGER,     "state",            SDF_VOLATIL,        0,      "State"),
@@ -4066,6 +4068,7 @@ PRIVATE int send__connect(
     json_t *local_props = NULL;
     uint16_t receive_maximum;
     uint32_t mqtt_session_expiry_interval = 0;
+    uint32_t mqtt_keepalive = 0;
 
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
@@ -8563,9 +8566,9 @@ PRIVATE int ac_connected(hgobj gobj, const char *event, json_t *kw, hgobj src)
          */
         send__connect(
             gobj,
-            priv->keepalive,  // TODO get from client?
-            atoi(gobj_read_str_attr(gobj, "mqtt_clean_session"))?1:0,
-            json_object()   // outgoing_properties
+            atoi(gobj_read_str_attr(gobj, "mqtt_keepalive")),
+            (atoi(gobj_read_str_attr(gobj, "mqtt_clean_session")))?1:0,
+            json_object()   // outgoing_properties TODO get from client
         );
     }
 
