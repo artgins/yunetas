@@ -4103,6 +4103,7 @@ PRIVATE int send__connect(
 
     if(protocol == mosq_p_mqtt5) {
         /* Generate properties from options */
+        // TODO
         // if(!mosquitto_property_read_int16(properties, MQTT_PROP_RECEIVE_MAXIMUM, &receive_maximum, FALSE)) {
         //     rc = mosquitto_property_add_int16(&local_props, MQTT_PROP_RECEIVE_MAXIMUM, priv->msgs_in.inflight_maximum);
         //     if(rc) {
