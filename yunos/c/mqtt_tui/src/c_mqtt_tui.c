@@ -180,8 +180,10 @@ SDATA (DTP_STRING,      "azp",              0,          "",             "azp (OA
 SDATA (DTP_STRING,      "mqtt_client_id",   0,          "",             "MQTT Client id, used by mqtt client"),
 SDATA (DTP_STRING,      "mqtt_protocol",    0,          "mqttv5",       "MQTT Protocol. Can be mqttv5, mqttv311 or mqttv31. Defaults to mqttv5."),
 SDATA (DTP_STRING,      "mqtt_clean_session",0,         "1",            "MQTT clean_session. Default 1. Set to 0 enable persistent mode and the client id must be set. The broker will be instructed not to clean existing sessions for the same client id when the client connects, and sessions will never expire when the client disconnects. MQTT v5 clients can change their session expiry interval"),
+SDATA (DTP_STRING,      "mqtt_session_expiry_interval",0,"-1",          "MQTT session expiry interval.  This option allows the session of persistent clients (those with clean session set to false) that are not currently connected to be removed if they do not reconnect within a certain time frame. This is a non-standard option in MQTT v3.1. MQTT v3.1.1 and v5.0 allow brokers to remove client sessions.\n"
+"Badly designed clients may set clean session to false whilst using a randomly generated client id. This leads to persistent clients that connect once and never reconnect. This option allows these clients to be removed. This option allows persistent clients (those with clean session set to false) to be removed if they do not reconnect within a certain time frame.\nAs this is a non-standard option, the default if not set is to never expire persistent clients."),
 
-// TODO missing connect properties, will and session_expiry_interval
+// TODO missing connect properties and will
 
 SDATA (DTP_STRING,      "user_id",          0,          "",             "MQTT Username or OAuth2 User Id (interactive jwt)"),
 SDATA (DTP_STRING,      "user_passw",       0,          "",             "MQTT Password or OAuth2 User password (interactive jwt)"),
@@ -271,7 +273,11 @@ PRIVATE void mt_create(hgobj gobj)
      *  Editline
      */
     char prompt[NAME_MAX];
-    snprintf(prompt, sizeof(prompt), "mqtt (%s)> ", gobj_read_str_attr(gobj, "mqtt_client_id"));
+    snprintf(prompt, sizeof(prompt), "mqtt-%s-c%s (%s)> ",
+        gobj_read_str_attr(gobj, "mqtt_protocol"),
+        gobj_read_str_attr(gobj, "mqtt_clean_session"),
+        gobj_read_str_attr(gobj, "mqtt_client_id")
+    );
     json_t *kw_editline = json_pack("{s:s, s:s, s:b, s:i, s:i}",
         "prompt", prompt,
         "history_file", history_file,
@@ -951,6 +957,7 @@ PRIVATE char mqtt_connector_config[]= "\
                         'mqtt_client_id': '(^^__mqtt_client_id__^^)',   \n\
                         'mqtt_protocol': '(^^__mqtt_protocol__^^)',     \n\
                         'mqtt_clean_session': '(^^__mqtt_clean_session__^^)',     \n\
+                        'mqtt_session_expiry_interval': '(^^__mqtt_session_expiry_interval__^^)',     \n\
                         'url': '(^^__url__^^)',                         \n\
                         'user_id': '(^^__user_id__^^)',                 \n\
                         'user_passw': '(^^__user_passw__^^)',           \n\
@@ -985,6 +992,7 @@ PRIVATE int cmd_connect_mqtt(hgobj gobj)
     const char *mqtt_client_id = gobj_read_str_attr(gobj, "mqtt_client_id");
     const char *mqtt_protocol = gobj_read_str_attr(gobj, "mqtt_protocol");
     const char *mqtt_clean_session = gobj_read_str_attr(gobj, "mqtt_clean_session");
+    const char *mqtt_session_expiry_interval = gobj_read_str_attr(gobj, "mqtt_session_expiry_interval");
 
     const char *user_id = gobj_read_str_attr(gobj, "user_id");
     const char *user_passw = gobj_read_str_attr(gobj, "user_passw");
@@ -993,13 +1001,14 @@ PRIVATE int cmd_connect_mqtt(hgobj gobj)
      *  Each display window has a gobj to send the commands (saved in user_data).
      *  For external agents create a filter-chain of gobjs
      */
-    json_t * jn_config_variables = json_pack("{s:s, s:s, s:s, s:s, s:s, s:s, s:s, s:s}",
+    json_t * jn_config_variables = json_pack("{s:s, s:s, s:s, s:s, s:s, s:s, s:s, s:s, s:s}",
         "__jwt__", jwt,
         "__url__", url,
         "__cert_pem__", "",
         "__mqtt_client_id__", mqtt_client_id,
         "__mqtt_protocol__", mqtt_protocol,
         "__mqtt_clean_session__", mqtt_clean_session,
+        "__mqtt_session_expiry_interval__", mqtt_session_expiry_interval,
         "__user_id__", user_id,
         "__user_passw__", user_passw
 

@@ -40,7 +40,7 @@ struct arguments
 
     char *mqtt_connect_properties;
     char *mqtt_will;
-    int mqtt_session_expiry_interval;
+    char *mqtt_session_expiry_interval;
 
     char *user_id;
     char *user_passw;
@@ -157,9 +157,10 @@ static struct argp_option options[] = {
 "When a session is persisted on the broker, the subscriptions for the client will be maintained after it disconnects, along with subsequent QoS 1 and QoS 2 messages that arrive. When the client reconnects and does not clean the session, it will receive all of the queued messages.", 10},
 
 {"id",              'i',    "CLIENT_ID",0,      "MQTT Client ID", 10},
-{"mqtt_protocol",   'V',    "PROTOCOL", 0,      "MQTT Protocol. Can be mqttv5 (v5), mqttv311 (v311) or mqttv31 (v31). Defaults to v5.", 10},
+{"mqtt_protocol",   'q',    "PROTOCOL", 0,      "MQTT Protocol. Can be mqttv5 (v5), mqttv311 (v311) or mqttv31 (v31). Defaults to v5.", 10},
 {"mqtt_connect_properties", 'r',    "PROPERTIES",0,     "(TODO) MQTT CONNECT properties", 10},
-{"mqtt_session_expiry_interval", 'x', "SECONDS", 0, "(TODO) Session expiry interval property on the CONNECT, applies to MQTT v5 clients only", 10},
+{"mqtt_session_expiry_interval", 'x', "SECONDS", 0, "Set the session-expiry-interval property on the CONNECT packet. Applies to MQTT v5 clients only. Set to 0-4294967294 to specify the session will expire in that many seconds after the client disconnects, or use -1, 4294967295, or ∞ for a session that does not expire. Defaults to -1 if -c is also given, or 0 if -c not given."
+"If the session is set to never expire, either with -x or -c, then a client id must be provided", 10},
 {"mqtt_will",       'w',    "WILL",     0,      "(TODO) MQTT Will (topic, retain, qos, payload)", 10},
 
 {0,                 0,      0,          0,      "OAuth2 keys", 20},
@@ -225,7 +226,7 @@ static error_t parse_opt (int key, char *arg, struct argp_state *state)
         arguments->mqtt_connect_properties = arg;
         break;
     case 'x':
-        arguments->mqtt_session_expiry_interval = atoi(arg);
+        arguments->mqtt_session_expiry_interval = arg;
         break;
     case 'w':
         arguments->mqtt_will = arg;
@@ -360,6 +361,7 @@ int main(int argc, char *argv[])
     arguments.mqtt_protocol = "mqttv5";
     arguments.mqtt_client_id = "";
     arguments.mqtt_disable_clean_session = 0;
+    arguments.mqtt_session_expiry_interval = "-1";
     arguments.user_id = "yuneta";
     arguments.user_passw = "";
     arguments.jwt = "";
@@ -400,8 +402,16 @@ int main(int argc, char *argv[])
         exit(0);
     }
 
+    if(strstr(arguments.mqtt_protocol, "v5")) {
+        if(atoi(arguments.mqtt_session_expiry_interval) < 0) {
+            if(empty_string(arguments.mqtt_client_id)) {
+                fprintf(stderr, "Error: You must provide a client id if you are using an infinite session expiry interval.\n");
+                exit(0);
+            }
+        }
+    }
     if(arguments.mqtt_disable_clean_session && empty_string(arguments.mqtt_client_id)) {
-        fprintf(stderr, "\nError: You must provide a client id if you are using the -c option (not a clean session).\n\n");
+        fprintf(stderr, "\nError: You must provide a client id if you are using the -c option.\n\n");
         exit(0);
     }
 
@@ -409,9 +419,9 @@ int main(int argc, char *argv[])
      *  Put configuration
      */
     {
-        // TODO missing connect properties, will and session_expiry_interval
+        // TODO missing connect properties, will
         json_t *kw_utility = json_pack(
-            "{s:{s:b, s:s, s:s, s:s, s:s, s:s, s:s, s:s, s:s, s:s, s:s, s:s, s:b}}",
+            "{s:{s:b, s:s, s:s, s:s, s:s, s:s, s:s, s:s, s:s, s:s, s:s, s:s, s:s, s:b}}",
             "global",
             "C_MQTT_TUI.verbose", arguments.verbose,
             "C_MQTT_TUI.auth_system", arguments.auth_system,
@@ -419,6 +429,7 @@ int main(int argc, char *argv[])
             "C_MQTT_TUI.mqtt_client_id", arguments.mqtt_client_id,
             "C_MQTT_TUI.mqtt_protocol", arguments.mqtt_protocol,
             "C_MQTT_TUI.mqtt_clean_session", arguments.mqtt_disable_clean_session?"0":"1",
+            "C_MQTT_TUI.mqtt_session_expiry_interval", arguments.mqtt_session_expiry_interval,
             "C_MQTT_TUI.user_id", arguments.user_id,
             "C_MQTT_TUI.user_passw", arguments.user_passw,
             "C_MQTT_TUI.jwt", arguments.jwt,
@@ -427,7 +438,6 @@ int main(int argc, char *argv[])
             "C_MQTT_TUI.azp", arguments.azp,
             "C_MQTT_TUI.print_with_metadata", arguments.print_with_metadata
         );
-
         char *param1_ = json_dumps(kw_utility, JSON_COMPACT);
         if(!param1_) {
             printf("Some parameter is wrong\n");

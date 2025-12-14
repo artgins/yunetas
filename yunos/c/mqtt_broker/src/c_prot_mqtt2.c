@@ -469,6 +469,9 @@ SDATA (DTP_STRING,      "mqtt_client_id",   SDF_RD,     "",     "MQTT Client id,
 SDATA (DTP_STRING,      "mqtt_protocol",    SDF_RD,     "mqttv5", "MQTT Protocol. Can be mqttv5, mqttv311 or mqttv31. Defaults to mqttv5."),
 SDATA (DTP_STRING,      "mqtt_clean_session",0,         "1",            "MQTT clean_session. Default 1. Set to 0 enable persistent mode and the client id must be set. The broker will be instructed not to clean existing sessions for the same client id when the client connects, and sessions will never expire when the client disconnects. MQTT v5 clients can change their session expiry interval"),
 
+SDATA (DTP_STRING,      "mqtt_session_expiry_interval",0,"-1",          "MQTT session expiry interval.  This option allows the session of persistent clients (those with clean session set to false) that are not currently connected to be removed if they do not reconnect within a certain time frame. This is a non-standard option in MQTT v3.1. MQTT v3.1.1 and v5.0 allow brokers to remove client sessions.\n"
+"Badly designed clients may set clean session to false whilst using a randomly generated client id. This leads to persistent clients that connect once and never reconnect. This option allows these clients to be removed. This option allows persistent clients (those with clean session set to false) to be removed if they do not reconnect within a certain time frame.\nAs this is a non-standard option, the default if not set is to never expire persistent clients."),
+
 SDATA (DTP_STRING,      "user_id",          0,          "",     "MQTT Username or OAuth2 User Id (interactive jwt)"),
 SDATA (DTP_STRING,      "user_passw",       0,          "",     "MQTT Password or OAuth2 User password (interactive jwt)"),
 SDATA (DTP_STRING,      "jwt",              0,          "",     "Jwt"),
@@ -4229,6 +4232,16 @@ PRIVATE int send__connect(
         // mqtt_write_string(gbuf, (const char *)mosq->will->msg.payload, (uint16_t)mosq->will->msg.payloadlen);
     }
 
+
+    int mqtt_session_expiry_interval = atoi(gobj_read_str_attr(gobj, "mqtt_session_expiry_interval"));
+    // rc = mosquitto_property_add_int32(&cfg->connect_props, MQTT_PROP_SESSION_EXPIRY_INTERVAL, (uint32_t )cfg->session_expiry_interval);
+    // if(rc){
+    //     fprintf(stderr, "Error adding property session-expiry-interval\n");
+    // }
+
+
+
+
     if(!empty_string(username)) {
         mqtt_write_string(gbuf, username);
     }
@@ -4245,7 +4258,7 @@ PRIVATE int send__connect(
         "   client '%s' \n"
         "   username '%s' \n"
         "   protocol_version '%s' \n"
-        "   clean_start %d, session_expiry_interval ? \n"
+        "   clean_start %d, session_expiry_interval %d \n"
         "   will %d, will_retain ?, will_qos ? \n"
         "   keepalive %d \n",
             (char *)url,
@@ -4253,7 +4266,7 @@ PRIVATE int send__connect(
             (char *)username,
             (char *)mqtt_protocol,
             (int)clean_session,
-            // (int)session_expiry_interval,
+            (int)mqtt_session_expiry_interval,
             (int)will,
             // (int)will_retain,
             // (int)will_qos,
