@@ -4065,6 +4065,7 @@ PRIVATE int send__connect(
     uint32_t proplen = 0, varbytes = 0;
     json_t *local_props = NULL;
     uint16_t receive_maximum;
+    uint32_t mqtt_session_expiry_interval = 0;
 
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
@@ -4110,6 +4111,14 @@ PRIVATE int send__connect(
         //     priv->msgs_in.inflight_maximum = receive_maximum;
         //     priv->msgs_in.inflight_quota = receive_maximum;
         // }
+
+        mqtt_session_expiry_interval = atoi(gobj_read_str_attr(gobj, "mqtt_session_expiry_interval"));
+        mqtt_property_add_int32(
+            gobj,
+            properties,
+            MQTT_PROP_SESSION_EXPIRY_INTERVAL,
+            mqtt_session_expiry_interval
+        );
 
         version = PROTOCOL_VERSION_v5;
         headerlen = 10;
@@ -4231,16 +4240,6 @@ PRIVATE int send__connect(
         // mqtt_write_string(gbuf, mosq->will->msg.topic, (uint16_t)strlen(mosq->will->msg.topic));
         // mqtt_write_string(gbuf, (const char *)mosq->will->msg.payload, (uint16_t)mosq->will->msg.payloadlen);
     }
-
-
-    int mqtt_session_expiry_interval = atoi(gobj_read_str_attr(gobj, "mqtt_session_expiry_interval"));
-    // rc = mosquitto_property_add_int32(&cfg->connect_props, MQTT_PROP_SESSION_EXPIRY_INTERVAL, (uint32_t )cfg->session_expiry_interval);
-    // if(rc){
-    //     fprintf(stderr, "Error adding property session-expiry-interval\n");
-    // }
-
-
-
 
     if(!empty_string(username)) {
         mqtt_write_string(gbuf, username);
@@ -8566,7 +8565,7 @@ PRIVATE int ac_connected(hgobj gobj, const char *event, json_t *kw, hgobj src)
             gobj,
             priv->keepalive,  // TODO get from client?
             atoi(gobj_read_str_attr(gobj, "mqtt_clean_session"))?1:0,
-            NULL // TODO outgoing_properties
+            json_object()   // outgoing_properties
         );
     }
 
