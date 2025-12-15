@@ -120,8 +120,8 @@ typedef struct _PRIVATE_DATA {
     hgobj gobj_input_side;
     hgobj gobj_top_side;
 
-    hgobj gobj_tranger_qmsgs;
-    json_t *tranger_qmsgs;
+    hgobj gobj_tranger_queues;
+    json_t *tranger_queues;
     json_t *realtime_qmsgs;
     json_t *track_list;
 
@@ -397,15 +397,15 @@ PRIVATE int mt_play(hgobj gobj)
         "master", 1,
         "on_critical_error", (int)(LOG_OPT_EXIT_ZERO)
     );
-    priv->gobj_tranger_qmsgs = gobj_create_service(
-        "tranger_qmsgs",
+    priv->gobj_tranger_queues = gobj_create_service(
+        "tranger_queues",
         C_TRANGER,
         kw_tranger_qmsgs,
         gobj
     );
-    gobj_start(priv->gobj_tranger_qmsgs);
+    gobj_start(priv->gobj_tranger_queues);
 
-    priv->tranger_qmsgs = gobj_read_pointer_attr(priv->gobj_tranger_qmsgs, "tranger");
+    priv->tranger_queues = gobj_read_pointer_attr(priv->gobj_tranger_queues, "tranger");
 
     /*-------------------------*
      *      Start services
@@ -436,7 +436,7 @@ PRIVATE int mt_play(hgobj gobj)
 
     // TODO
     // priv->trq_msgs = trq_open(
-    //     priv->tranger_qmsgs,
+    //     priv->tranger_queues,
     //     topic_name,
     //     gobj_read_str_attr(gobj, "tkey"),
     //     tranger2_str2system_flag(gobj_read_str_attr(gobj, "system_flag")),
@@ -490,11 +490,11 @@ PRIVATE int mt_pause(hgobj gobj)
     }
 
     /*-------------------------*
-     *  Stop tranger_qmsgs
+     *  Stop tranger_queues
      *-------------------------*/
-    gobj_stop(priv->gobj_tranger_qmsgs);
-    EXEC_AND_RESET(gobj_destroy, priv->gobj_tranger_qmsgs)
-    priv->tranger_qmsgs = 0;
+    gobj_stop(priv->gobj_tranger_queues);
+    EXEC_AND_RESET(gobj_destroy, priv->gobj_tranger_queues)
+    priv->tranger_queues = 0;
 
     /*-----------------------------*
      *      Stop top/input side
@@ -645,8 +645,8 @@ PRIVATE int broadcast_queues_timeranger(hgobj gobj)
         priv->gobj_input_side,
         WALK_TOP2BOTTOM,
         cb_set_htopic_frame,
-        "tranger_qmsgs",
-        priv->tranger_qmsgs,
+        "tranger_queues",
+        priv->tranger_queues,
         NULL
     );
 
@@ -668,7 +668,7 @@ PRIVATE int open_devices_qmsgs(hgobj gobj)
     );
 
     priv->realtime_qmsgs = tranger2_open_list( // TODO esto puede tardar mucho
-        priv->tranger_qmsgs,
+        priv->tranger_queues,
         "raw_qmsgs",
         match_cond,     // owned
         json_pack("{s:I}",   // extra
@@ -689,7 +689,7 @@ PRIVATE int open_devices_qmsgs(hgobj gobj)
     }
 
     priv->track_list = trmsg_open_list(
-        priv->tranger_qmsgs,
+        priv->tranger_queues,
         "raw_qmsgs",  // topic
         json_pack("{s:i, s:i, s:i}",  // match_cond
             "max_key_instances", 20,    /* sync with max_chart_qmsgs in ui_device_sonda.js */
@@ -723,14 +723,14 @@ PRIVATE int close_devices_qmsgs(hgobj gobj)
 
     if(priv->realtime_qmsgs) {
         tranger2_close_list(
-            priv->tranger_qmsgs,
+            priv->tranger_queues,
             priv->realtime_qmsgs
         );
         priv->realtime_qmsgs = 0;
     }
 
     if(priv->track_list) {
-        trmsg_close_list(priv->tranger_qmsgs, priv->track_list);
+        trmsg_close_list(priv->tranger_queues, priv->track_list);
         priv->track_list = 0;
     }
 
@@ -1114,7 +1114,7 @@ PRIVATE int ac_on_open(hgobj gobj, const char *event, json_t *kw, hgobj src)
      *----------------------------------------------------------------*/
     if(!assigned_id) {
         json_t *jn_response = gobj_command(
-            priv->gobj_tranger_qmsgs,
+            priv->gobj_tranger_queues,
             "open-topic",
             json_pack("{s:s, s:s}",
                 "topic_name", client_id,
@@ -1127,7 +1127,7 @@ PRIVATE int ac_on_open(hgobj gobj, const char *event, json_t *kw, hgobj src)
         if(result < 0) {
             JSON_DECREF(jn_response)
             jn_response = gobj_command(
-                priv->gobj_tranger_qmsgs,
+                priv->gobj_tranger_queues,
                 "create-topic", // idempotent function
                 json_pack("{s:s, s:s}",
                     "topic_name", client_id,

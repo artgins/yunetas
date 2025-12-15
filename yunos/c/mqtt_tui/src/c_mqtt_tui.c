@@ -221,8 +221,8 @@ typedef struct _PRIVATE_DATA {
     int32_t interactive;
 
     hgobj gobj_treedbs;
-    hgobj gobj_tranger_qmsgs;
-    json_t *tranger_qmsgs;
+    hgobj gobj_tranger_queues;
+    json_t *tranger_queues;
 
     hgobj gobj_mqtt_connector;
     hgobj gobj_broker_connector;
@@ -421,15 +421,15 @@ PRIVATE int mt_start(hgobj gobj)
             "master", 1,
             "on_critical_error", (int)(LOG_OPT_EXIT_ZERO)
         );
-        priv->gobj_tranger_qmsgs = gobj_create_service(
-            "tranger_qmsgs",
+        priv->gobj_tranger_queues = gobj_create_service(
+            "tranger_queues",
             C_TRANGER,
             kw_tranger_qmsgs,
             gobj
         );
-        gobj_start(priv->gobj_tranger_qmsgs);
+        gobj_start(priv->gobj_tranger_queues);
 
-        priv->tranger_qmsgs = gobj_read_pointer_attr(priv->gobj_tranger_qmsgs, "tranger");
+        priv->tranger_queues = gobj_read_pointer_attr(priv->gobj_tranger_queues, "tranger");
 
         /*-----------------------------*
          *  Broadcast timeranger
@@ -721,8 +721,8 @@ PRIVATE int broadcast_queues_timeranger(hgobj gobj)
         priv->gobj_mqtt_connector,
         WALK_TOP2BOTTOM,
         cb_set_htopic_frame,
-        "tranger_qmsgs",
-        priv->tranger_qmsgs,
+        "tranger_queues",
+        priv->tranger_queues,
         NULL
     );
 

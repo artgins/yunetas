@@ -130,7 +130,7 @@ typedef struct _PRIVATE_DATA {
     hgobj timer;
 
     hgobj gobj_tranger_queues;
-    json_t *tranger;
+    json_t *tranger_queues;
     tr_queue_t *trq_msgs;
     int32_t alert_queue_size;
     BOOL with_metadata;
@@ -492,14 +492,14 @@ PRIVATE int open_queue(hgobj gobj)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
-    if(priv->tranger) {
+    if(priv->tranger_queues) {
         gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_INTERNAL_ERROR,
             "msg",          "%s", "tranger NOT NULL",
             NULL
         );
-        tranger2_shutdown(priv->tranger);
+        tranger2_shutdown(priv->tranger_queues);
     }
 
     const char *path = gobj_read_str_attr(gobj, "tranger_path");
@@ -558,10 +558,10 @@ PRIVATE int open_queue(hgobj gobj)
         gobj
     );
     gobj_start(priv->gobj_tranger_queues);
-    priv->tranger = gobj_read_pointer_attr(priv->gobj_tranger_queues, "tranger");
+    priv->tranger_queues = gobj_read_pointer_attr(priv->gobj_tranger_queues, "tranger");
 
     priv->trq_msgs = trq_open(
-        priv->tranger,
+        priv->tranger_queues,
         topic_name,
         gobj_read_str_attr(gobj, "tkey"),
         tranger2_str2system_flag(gobj_read_str_attr(gobj, "system_flag")),
@@ -585,7 +585,7 @@ PRIVATE int close_queue(hgobj gobj)
      *----------------------------------*/
     gobj_stop(priv->gobj_tranger_queues);
     EXEC_AND_RESET(gobj_destroy, priv->gobj_tranger_queues);
-    priv->tranger = 0;
+    priv->tranger_queues = 0;
 
     return 0;
 }

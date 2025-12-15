@@ -30,6 +30,7 @@
 #include <g_ev_kernel.h>
 #include <g_st_kernel.h>
 #include <helpers.h>
+#include <tr_queue.h>
 
 #ifdef __linux__
 #if defined(CONFIG_HAVE_OPENSSL)
