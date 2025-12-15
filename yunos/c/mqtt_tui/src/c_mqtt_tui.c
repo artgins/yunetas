@@ -84,7 +84,7 @@
 /***************************************************************************
  *              Prototypes
  ***************************************************************************/
-PRIVATE int broadcast_queues_timeranger(hgobj gobj);
+PRIVATE int broadcast_queues_tranger(hgobj gobj);
 PRIVATE void try_to_stop_yevents(hgobj gobj);  // IDEMPOTENT
 PRIVATE int yev_callback(yev_event_h yev_event);
 PRIVATE int on_read_cb(hgobj gobj, gbuffer_t *gbuf);
@@ -180,7 +180,7 @@ SDATA (DTP_STRING,  "auth_system",      0,      "",     "OpenID System(for inter
 SDATA (DTP_STRING,  "auth_url",         0,      "",     "OpenID Endpoint(for interactive jwt)"),
 SDATA (DTP_STRING,  "azp",              0,      "",     "azp (OAuth2 Authorized Party)"),
 
-SDATA (DTP_BOOLEAN, "mqtt_persistent_client_db",  0, "0",    "Set true if you want persistent database for Inflight and Queued Messages in mqtt client side"),
+SDATA (DTP_BOOLEAN, "mqtt_persistent_db",0,     "0",    "Set true if you want persistent database for Inflight and Queued Messages in mqtt client side"),
 SDATA (DTP_STRING,  "mqtt_client_id",   0,      "",     "MQTT Client id, used by mqtt client"),
 SDATA (DTP_STRING,  "mqtt_protocol",    0,      "v5",   "MQTT Protocol. Can be mqttv5, mqttv311 or mqttv31. Defaults to mqttv5."),
 SDATA (DTP_STRING,  "mqtt_clean_session",0,     "1",    "MQTT clean_session. Default 1. Set to 0 enable persistent mode and the client id must be set. The broker will be instructed not to clean existing sessions for the same client id when the client connects, and sessions will never expire when the client disconnects. MQTT v5 clients can change their session expiry interval"),
@@ -220,7 +220,6 @@ typedef struct _PRIVATE_DATA {
     int32_t verbose;
     int32_t interactive;
 
-    hgobj gobj_treedbs;
     hgobj gobj_tranger_queues;
     json_t *tranger_queues;
 
@@ -347,11 +346,14 @@ PRIVATE int mt_start(hgobj gobj)
      *  "/yuneta/store/mqtt-client-db/6a2561e2-ab5e-43ac-8454-c19064345b62"
     *------------------------------------------------------------------------*/
 
-    /*-------------------------------------------*
-     *          Create Treedb System
-     *-------------------------------------------*/
-    BOOL mqtt_persistent_client_db = gobj_read_bool_attr(gobj, "mqtt_persistent_client_db");
-    if(mqtt_persistent_client_db) {
+    /*---------------------------------------*
+     *      Persistent DB
+     *---------------------------------------*/
+    BOOL mqtt_persistent_db = gobj_read_bool_attr(gobj, "mqtt_persistent_db");
+    if(mqtt_persistent_db) {
+        /*---------------------------------------*
+         *      Get Path
+         *---------------------------------------*/
         const char *mqtt_service = gobj_read_str_attr(gobj, "mqtt_service");
         const char *mqtt_tenant = gobj_read_str_attr(gobj, "mqtt_tenant");
         if(empty_string(mqtt_service)) {
@@ -364,47 +366,10 @@ PRIVATE int mt_start(hgobj gobj)
             mqtt_tenant = node_uuid(); // WARNING use in console utility
         }
 
-        char path[PATH_MAX];
-        yuneta_realm_store_dir(
-            path,
-            sizeof(path),
-            mqtt_service,
-            gobj_yuno_realm_owner(),
-            gobj_yuno_realm_id(),
-            mqtt_tenant,  // tenant
-            "",  // gclass-treedb controls the directories
-            TRUE
-        );
-
-        json_t *kw_treedbs = json_pack("{s:s, s:s, s:b, s:i, s:i, s:i}",
-            "path", path,
-            "filename_mask", "%Y",  // to management treedbs we don't need multi-files (per day)
-            "master", 1,
-            "xpermission", 02770,
-            "rpermission", 0660,
-            "exit_on_error", LOG_OPT_EXIT_ZERO
-        );
-        priv->gobj_treedbs = gobj_create_service(
-            "treedbs",
-            C_TREEDB,
-            kw_treedbs,
-            gobj
-        );
-
-        /*
-         *  Start treedbs
-         */
-        gobj_subscribe_event(priv->gobj_treedbs, 0, 0, gobj);
-        gobj_start_tree(priv->gobj_treedbs);
-
-        /*-------------------------------------------*
-         *      Open treedb_mqtt_client service
-         *-------------------------------------------*/
-        // TODO
-
         /*---------------------------------------*
-         *      Open qmsgs Timeranger
+         *      Open timeranger queues
          *---------------------------------------*/
+        char path[PATH_MAX];
         yuneta_realm_store_dir(
             path,
             sizeof(path),
@@ -434,7 +399,7 @@ PRIVATE int mt_start(hgobj gobj)
         /*-----------------------------*
          *  Broadcast timeranger
          *-----------------------------*/
-        broadcast_queues_timeranger(gobj);
+        broadcast_queues_tranger(gobj);
     }
 
     /*-------------------------------*
@@ -713,7 +678,7 @@ PRIVATE int cb_set_htopic_frame(
     }
     return 0;
 }
-PRIVATE int broadcast_queues_timeranger(hgobj gobj)
+PRIVATE int broadcast_queues_tranger(hgobj gobj)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 

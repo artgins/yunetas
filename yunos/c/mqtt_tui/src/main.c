@@ -441,7 +441,7 @@ int main(int argc, char *argv[])
             "C_MQTT_TUI.mqtt_client_id", arguments.mqtt_client_id,
             "C_MQTT_TUI.mqtt_protocol", arguments.mqtt_protocol,
             "C_MQTT_TUI.mqtt_clean_session", arguments.mqtt_persistent_session?"0":"1",
-            "C_MQTT_TUI.mqtt_persistent_client_db", arguments.mqtt_persistent_client_db?1:0,
+            "C_MQTT_TUI.mqtt_persistent_db", arguments.mqtt_persistent_client_db?1:0,
             "C_MQTT_TUI.mqtt_session_expiry_interval", arguments.mqtt_session_expiry_interval,
             "C_MQTT_TUI.mqtt_keepalive", arguments.mqtt_keepalive,
             "C_MQTT_TUI.user_id", arguments.user_id,
