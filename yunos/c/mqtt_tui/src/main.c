@@ -83,7 +83,7 @@ static error_t parse_opt (int key, char *arg, struct argp_state *state);
 PRIVATE char fixed_config[]= "\
 {                                                                   \n\
     'environment': {                                                \n\
-        'realm_owner': 'agent',                                     \n\
+        'realm_owner': '',                                          \n\
         'work_dir': '/yuneta',                                      \n\
         'domain_dir': 'realms/agent/mqtt_tui'                       \n\
     },                                                              \n\
@@ -109,7 +109,7 @@ PRIVATE char variable_config[]= "\
             },                                                      \n\
             'to_file': {                                            \n\
                 'handler_type': 'file',                             \n\
-                'filename_mask': 'ycommand-W.log',                  \n\
+                'filename_mask': 'mqtt_tui-W.log',                  \n\
                 'handler_options': 255                              \n\
             }                                                       \n\
         }                                                           \n\
@@ -477,7 +477,7 @@ int main(int argc, char *argv[])
     /*------------------------------------------------*
      *      To check memory loss
      *------------------------------------------------*/
-    unsigned long memory_check_list[] = {4238, 0}; // WARNING: the list ended with 0
+    unsigned long memory_check_list[] = {0, 0}; // WARNING: the list ended with 0
     set_memory_check_list(memory_check_list);
 
     /*------------------------------------------------*
