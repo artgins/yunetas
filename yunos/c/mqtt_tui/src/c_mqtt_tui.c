@@ -84,6 +84,7 @@
 /***************************************************************************
  *              Prototypes
  ***************************************************************************/
+PRIVATE int broadcast_htopic_frame(hgobj gobj);
 PRIVATE void try_to_stop_yevents(hgobj gobj);  // IDEMPOTENT
 PRIVATE int yev_callback(yev_event_h yev_event);
 PRIVATE int on_read_cb(hgobj gobj, gbuffer_t *gbuf);
@@ -430,6 +431,7 @@ PRIVATE int mt_start(hgobj gobj)
 
         priv->tranger_qmsgs = gobj_read_pointer_attr(priv->gobj_tranger_qmsgs, "tranger");
 
+        broadcast_htopic_frame(gobj);
     }
 
     /*-------------------------------*
@@ -690,6 +692,46 @@ PRIVATE json_t *cmd_unsubscribe(hgobj gobj, const char *cmd, json_t *kw, hgobj s
 
 
 
+
+/***************************************************************************
+ *  Broadcast htopic frame
+ ***************************************************************************/
+PRIVATE int cb_set_htopic_frame(
+    hgobj child,
+    void *user_data,
+    void *user_data2,
+    void *user_data3)
+{
+    const char *attr = user_data;
+    void *value = user_data2;
+
+    if(gobj_has_attr(child, attr)) {
+        gobj_write_pointer_attr(child, attr, value);
+    }
+    return 0;
+}
+PRIVATE int broadcast_htopic_frame(hgobj gobj)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    gobj_walk_gobj_children_tree(
+        priv->gobj_input_side,
+        WALK_TOP2BOTTOM,
+        cb_set_htopic_frame,
+        "tranger_frame",
+        priv->tranger_frame,
+        NULL
+    );
+    gobj_walk_gobj_children_tree(
+        priv->gobj_input_side,
+        WALK_TOP2BOTTOM,
+        cb_set_htopic_frame,
+        "htopic_frame",
+        priv->htopic_frame,
+        NULL
+    );
+    return 0;
+}
 
 /***************************************************************************
  *
