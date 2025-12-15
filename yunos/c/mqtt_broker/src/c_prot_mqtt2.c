@@ -871,7 +871,7 @@ PRIVATE int mt_start(hgobj gobj)
         snprintf(
             topic_name,
             sizeof(topic_name),
-            "qmsg-%s-in",
+            "queue-%s-in",
             priv->client_id
         );
 
@@ -891,7 +891,7 @@ PRIVATE int mt_start(hgobj gobj)
         snprintf(
             topic_name,
             sizeof(topic_name),
-            "qmsg-%s-out",
+            "queue-%s-out",
             priv->client_id
         );
 
