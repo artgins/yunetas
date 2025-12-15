@@ -88,8 +88,8 @@ PRIVATE int broadcast_queues_tranger(hgobj gobj);
 PRIVATE void try_to_stop_yevents(hgobj gobj);  // IDEMPOTENT
 PRIVATE int yev_callback(yev_event_h yev_event);
 PRIVATE int on_read_cb(hgobj gobj, gbuffer_t *gbuf);
-PRIVATE int cmd_connect_broker(hgobj gobj);
-PRIVATE int cmd_connect_mqtt(hgobj gobj);
+PRIVATE int create_broker_connector(hgobj gobj);
+PRIVATE int create_mqtt_connector(hgobj gobj);
 PRIVATE int do_command(hgobj gobj, const char *command);
 PRIVATE int clear_input_line(hgobj gobj);
 PRIVATE char *get_history_file(char *bf, int bfsize);
@@ -395,11 +395,6 @@ PRIVATE int mt_start(hgobj gobj)
         gobj_start(priv->gobj_tranger_queues);
 
         priv->tranger_queues = gobj_read_pointer_attr(priv->gobj_tranger_queues, "tranger");
-
-        /*-----------------------------*
-         *  Broadcast timeranger
-         *-----------------------------*/
-        broadcast_queues_tranger(gobj);
     }
 
     /*-------------------------------*
@@ -458,8 +453,8 @@ PRIVATE int mt_start(hgobj gobj)
          */
         do_authenticate_task(gobj);
     } else {
-        // cmd_connect_broker(gobj);
-        cmd_connect_mqtt(gobj);
+        // create_broker_connector(gobj);
+        create_mqtt_connector(gobj);
     }
     return 0;
 }
@@ -1007,7 +1002,7 @@ PRIVATE char mqtt_broker_config[]= "\
 }                                               \n\
 ";
 
-PRIVATE int cmd_connect_broker(hgobj gobj)
+PRIVATE int create_broker_connector(hgobj gobj)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
@@ -1094,7 +1089,7 @@ PRIVATE char mqtt_connector_config[]= "\
 }                                                           \n\
 ";
 
-PRIVATE int cmd_connect_mqtt(hgobj gobj)
+PRIVATE int create_mqtt_connector(hgobj gobj)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
@@ -1137,7 +1132,15 @@ PRIVATE int cmd_connect_mqtt(hgobj gobj)
         jn_config_variables
     );
 
+    gobj_write_pointer_attr(priv->gobj_mqtt_connector, "tranger_queues", priv->tranger_queues);
+
     gobj_set_bottom_gobj(gobj, priv->gobj_mqtt_connector);
+
+    /*-----------------------------*
+     *  Broadcast timeranger
+     *-----------------------------*/
+    broadcast_queues_tranger(gobj);
+
     gobj_start_tree(priv->gobj_mqtt_connector);
 
     if(priv->verbose || priv->interactive) {
@@ -1391,8 +1394,8 @@ PRIVATE int ac_on_token(hgobj gobj, const char *event, json_t *kw, hgobj src)
     } else {
         const char *jwt = kw_get_str(gobj, kw, "jwt", "", KW_REQUIRED);
         gobj_write_str_attr(gobj, "jwt", jwt);
-        cmd_connect_broker(gobj);
-        cmd_connect_mqtt(gobj);
+        create_broker_connector(gobj);
+        create_mqtt_connector(gobj);
     }
 
     KW_DECREF(kw);
