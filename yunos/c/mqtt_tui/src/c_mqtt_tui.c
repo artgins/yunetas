@@ -1902,9 +1902,6 @@ PRIVATE int create_gclass(gclass_name_t gclass_name)
     /*------------------------*
      *      Events
      *------------------------*/
-    /* TODO
-     * must be callbacks for: connect, disconnect, publish, message, subscribe, unsubscribe
-     */
     event_type_t event_types[] = {
         {EV_MQTT_MESSAGE,           0}, // Message from broker, like MQTT MESSAGE CALLBACK
         {EV_SEND_MQTT_PUBLISH,      0}, // Send publish to broker
