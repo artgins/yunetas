@@ -420,38 +420,25 @@ PRIVATE int mt_play(hgobj gobj)
      *-------------------------*/
     priv->gobj_input_side = gobj_find_service("__input_side__", TRUE);
     gobj_subscribe_event(priv->gobj_input_side, 0, 0, gobj);
-    gobj_start_tree(priv->gobj_input_side);
 
     priv->gobj_top_side = gobj_find_service("__top_side__", TRUE);
     gobj_subscribe_event(priv->gobj_top_side, 0, 0, gobj);
-    gobj_start_tree(priv->gobj_top_side);
-
-    /*--------------------------------*
-     *  Open device qmsgs
-     *--------------------------------*/
-    //open_devices_qmsgs(gobj);
 
     /*-----------------------------*
      *  Broadcast timeranger
      *-----------------------------*/
-    // TODO first starting childs?
     broadcast_queues_tranger(gobj);
+
+    /*--------------------------------*
+     *      Start
+     *--------------------------------*/
+    gobj_start_tree(priv->gobj_input_side);
+    gobj_start_tree(priv->gobj_top_side);
 
     /*
      *  Periodic timer for tasks
      */
     set_timeout_periodic(priv->timer, priv->timeout); // La verdadera
-
-    // TODO
-    // priv->trq_msgs = trq_open(
-    //     priv->tranger_queues,
-    //     topic_name,
-    //     gobj_read_str_attr(gobj, "tkey"),
-    //     tranger2_str2system_flag(gobj_read_str_attr(gobj, "system_flag")),
-    //     gobj_read_integer_attr(gobj, "backup_queue_size")
-    // );
-
-    // TODO trq_load(priv->trq_msgs);
 
     return 0;
 }

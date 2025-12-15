@@ -848,6 +848,17 @@ PRIVATE int mt_start(hgobj gobj)
         gobj_start(bottom_gobj);
     }
 
+    // TODO
+    // priv->trq_msgs = trq_open(
+    //     priv->tranger_queues,
+    //     topic_name,
+    //     gobj_read_str_attr(gobj, "tkey"),
+    //     tranger2_str2system_flag(gobj_read_str_attr(gobj, "system_flag")),
+    //     gobj_read_integer_attr(gobj, "backup_queue_size")
+    // );
+
+    // TODO trq_load(priv->trq_msgs);
+
     return 0;
 }
 
@@ -857,6 +868,9 @@ PRIVATE int mt_start(hgobj gobj)
 PRIVATE int mt_stop(hgobj gobj)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    // TODO close queues
+    // EXEC_AND_RESET(trq_close, priv->trq_msgs);
 
     clear_timeout(priv->timer);
 
