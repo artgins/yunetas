@@ -295,6 +295,7 @@ typedef struct _FRAME_HEAD {
 /***************************************************************************
  *              Prototypes
  ***************************************************************************/
+PRIVATE void restore_client_attributes(hgobj gobj);
 PRIVATE void message__cleanup_all(hgobj gobj);
 PRIVATE int send__publish(
     hgobj gobj,
@@ -600,6 +601,10 @@ typedef struct _PRIVATE_DATA {
     struct mosquitto_msg_data msgs_in;
     struct mosquitto_msg_data msgs_out;
 
+    json_t *tranger_queues;
+    tr_queue_t *trq_in_msgs;
+    tr_queue_t *trq_out_msgs;
+
     /*
      *  Config
      */
@@ -751,6 +756,7 @@ PRIVATE void mt_create(hgobj gobj)
     SET_PRIV(will_delay_interval,       gobj_read_integer_attr)
     SET_PRIV(will_expiry_interval,      gobj_read_integer_attr)
 
+    SET_PRIV(tranger_queues,            gobj_read_pointer_attr)
 }
 
 /***************************************************************************
@@ -804,6 +810,8 @@ PRIVATE void mt_writing(hgobj gobj, const char *path)
     ELIF_EQ_SET_PRIV(will_delay_interval,       gobj_read_integer_attr)
     ELIF_EQ_SET_PRIV(will_expiry_interval,      gobj_read_integer_attr)
 
+    ELIF_EQ_SET_PRIV(tranger_queues,            gobj_read_pointer_attr)
+
     END_EQ_SET_PRIV()
 }
 
@@ -848,16 +856,55 @@ PRIVATE int mt_start(hgobj gobj)
         gobj_start(bottom_gobj);
     }
 
-    // TODO
-    // priv->trq_msgs = trq_open(
-    //     priv->tranger_queues,
-    //     topic_name,
-    //     gobj_read_str_attr(gobj, "tkey"),
-    //     tranger2_str2system_flag(gobj_read_str_attr(gobj, "system_flag")),
-    //     gobj_read_integer_attr(gobj, "backup_queue_size")
-    // );
+    restore_client_attributes(gobj);
 
-    // TODO trq_load(priv->trq_msgs);
+    // TODO
+    if(priv->tranger_queues) {
+        /*-----------------------------------*
+         *          With persistence
+         *-----------------------------------*/
+        char topic_name [NAME_MAX];
+
+        /*
+         *  In messages
+         */
+        snprintf(
+            topic_name,
+            sizeof(topic_name),
+            "qmsg-%s-in",
+            priv->client_id
+        );
+
+        priv->trq_in_msgs = trq_open(
+            priv->tranger_queues,
+            topic_name,
+            "tm",
+            sf_int_key, // TODO |sf_string_key?
+            gobj_read_integer_attr(gobj, "backup_queue_size")
+        );
+
+        trq_load(priv->trq_in_msgs);
+
+        /*
+         *  Out messages
+         */
+        snprintf(
+            topic_name,
+            sizeof(topic_name),
+            "qmsg-%s-out",
+            priv->client_id
+        );
+
+        priv->trq_out_msgs = trq_open(
+            priv->tranger_queues,
+            topic_name,
+            "tm",
+            sf_int_key, // TODO |sf_string_key?
+            gobj_read_integer_attr(gobj, "backup_queue_size")
+        );
+
+        trq_load(priv->trq_out_msgs);
+    }
 
     return 0;
 }
@@ -869,8 +916,8 @@ PRIVATE int mt_stop(hgobj gobj)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
-    // TODO close queues
-    // EXEC_AND_RESET(trq_close, priv->trq_msgs);
+    EXEC_AND_RESET(trq_close, priv->trq_in_msgs);
+    EXEC_AND_RESET(trq_close, priv->trq_out_msgs);
 
     clear_timeout(priv->timer);
 
@@ -983,6 +1030,19 @@ PRIVATE void print_queue(const char *name, dl_list_t *dl_list)
          */
         tail = dl_next(tail);
     }
+}
+
+/***************************************************************************
+ *
+ ***************************************************************************/
+PRIVATE void restore_client_attributes(hgobj gobj)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    if(priv->iamServer) {
+        return;
+    }
+    gobj_write_str_attr(gobj, "client_id", gobj_read_str_attr(gobj, "mqtt_client_id"));
 }
 
 /***************************************************************************
@@ -5897,7 +5957,6 @@ PRIVATE int handle__connack(
     switch(reason_code) {
         case 0:
             // TODO message__retry_check(mosq); important!
-            gobj_write_str_attr(gobj, "client_id", gobj_read_str_attr(gobj, "mqtt_client_id"));
             return MOSQ_ERR_SUCCESS;
         case 1:
         case 2:
@@ -8569,7 +8628,6 @@ PRIVATE int ac_connected(hgobj gobj, const char *event, json_t *kw, hgobj src)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
-    gobj_reset_volatil_attrs(gobj);
     priv->send_disconnect = FALSE;
     GBUFFER_DECREF(priv->gbuf_will_payload);
     priv->jn_alias_list = json_object();
@@ -8631,6 +8689,8 @@ PRIVATE int ac_disconnected(hgobj gobj, const char *event, json_t *kw, hgobj src
     }
 
     gobj_reset_volatil_attrs(gobj);
+    restore_client_attributes(gobj);
+
     GBUFFER_DECREF(priv->gbuf_will_payload);
 
     if(gobj_is_volatil(src)) {
