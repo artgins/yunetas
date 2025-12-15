@@ -297,7 +297,7 @@ PRIVATE int mt_play(hgobj gobj)
     /*-------------------------------------------*
      *      Path of Treedb/Timeranger System
      *
-     *  /yuneta/store/
+     *  {yuneta_root_dir}/"store"/
      *      {C_MQTT_BROKER.mqtt_service}/
      *          {agent.environment.node_owner}/
      *              {agent.realm_id}/

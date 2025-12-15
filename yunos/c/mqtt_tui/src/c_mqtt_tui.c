@@ -331,7 +331,7 @@ PRIVATE int mt_start(hgobj gobj)
     /*-------------------------------------------*
      *      Path of Treedb/Timeranger System
      *
-     *  /yuneta/store/
+     *  {yuneta_root_dir}/"store"/
      *      {C_MQTT_TUI.mqtt_service}/
      *          {node.uuid}
      *
