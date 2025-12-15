@@ -169,7 +169,7 @@ SDATA (DTP_BOOLEAN, "verbose",          0,      "1",    "Verbose mode."),
 SDATA (DTP_STRING,  "command",          0,      "",     "Command."),
 
 SDATA (DTP_STRING,  "mqtt_service",     SDF_RD, "",     "Mqtt service name, if it's empty then it will be the yuno_role"),
-SDATA (DTP_STRING,  "mqtt_tenant",      SDF_RD, "",     "Used for multi-tenant service, if it's empty then it will be the yuno_name"),
+SDATA (DTP_STRING,  "mqtt_tenant",      SDF_RD, "",     "Used for multi-tenant service, if it's empty then it will be the yuno_name, if continues empty then it will be the node_uuid()"),
 SDATA (DTP_STRING,  "url_mqtt",         SDF_RD, "mqtt://127.0.0.1:1810", "Url of remote mqtt port"),
 SDATA (DTP_STRING,  "url_broker",       SDF_RD, "ws://127.0.0.1:1800", "Url of remote broker port"),
 SDATA (DTP_STRING,  "yuno_name",        0,      "",     "Remote Yuno name"),
