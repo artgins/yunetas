@@ -1131,14 +1131,16 @@ PRIVATE int create_mqtt_connector(hgobj gobj)
         mqtt_connector_config,
         jn_config_variables
     );
-
-    gobj_write_pointer_attr(priv->gobj_mqtt_connector, "tranger_queues", priv->tranger_queues);
-
     gobj_set_bottom_gobj(gobj, priv->gobj_mqtt_connector);
 
     /*-----------------------------*
      *  Broadcast timeranger
      *-----------------------------*/
+    // gobj_write_pointer_attr( // Alternative to broadcast having only one mqtt2
+    //     priv->gobj_mqtt_connector,
+    //     "tranger_queues",
+    //     priv->tranger_queues
+    // );
     broadcast_queues_tranger(gobj);
 
     gobj_start_tree(priv->gobj_mqtt_connector);
