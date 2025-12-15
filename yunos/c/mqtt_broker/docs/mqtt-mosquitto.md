@@ -1,5 +1,109 @@
 # MQTT Mosquitto - Persistence and Client Management Discussion
 
+## Table of Contents
+
+### 📑 Quick Navigation
+
+#### I. Core Concepts & Architecture
+- [Q1: Mosquitto Bug - Payload Size Check with Empty Topic](#q1-mosquitto-bug---payload-size-check-with-empty-topic)
+- [Q2: Difference Between Inflight and Queued Messages](#q2-difference-between-inflight-and-queued-messages)
+- [Q3: When Does Mosquitto Store Messages to Disk?](#q3-when-does-mosquitto-store-messages-to-disk)
+- [Q4: Client-Side Persistence Management](#q4-client-side-persistence-management)
+
+#### II. MQTT Specification & Compliance
+- [Q5: MQTT Spec Compliance - Does Mosquitto Violate Requirements?](#q5-mqtt-spec-compliance---does-mosquitto-violate-requirements)
+- [Q6: MQTT Client Libraries in C with Persistence](#q6-mqtt-client-libraries-in-c-with-persistence)
+
+#### III. Client Libraries Comparison
+- [Q7: Other Libraries, Languages and State](#q7-other-libraries-language-and-state)
+- [Q8: What Does AWS Use?](#q8-what-does-aws-use)
+- [Q9: Who Offers Client Persistence?](#q9-who-offers-client-persistence)
+- [Q10: Entities and Services - Open Source vs Commercial](#q10-entities-and-services---commercials-opens)
+
+#### IV. Cloud Services & Integration
+- [Q11: Can You Use Any Client with Any Broker?](#q11-can-you-use-any-client-with-any-broker)
+- [Q12: Pricing of Commercial MQTT Services](#q12-pricing-of-commercial-mqtt-services)
+- [Q13: Client ID Limits by Service](#q13-client-id-limits-by-service)
+- [Q14: Final Pricing - Real-World Scenarios](#q14-final-pricing---real-world-scenarios)
+
+#### V. Summary
+- [Key Takeaways](#key-takeaways)
+
+---
+
+## 📊 Index by Topic
+
+### Message Management
+| Topic | Question | Key Points |
+|-------|----------|------------|
+| **Inflight vs Queued** | Q2 | Messages in transit vs waiting to send; Limits: 20/1000 |
+| **Broker Persistence** | Q3 | Custom binary format; 30min auto-save; `mosquitto.db` |
+| **Client Persistence** | Q4, Q5, Q6 | Memory-only by default; Spec compliance issues |
+
+### Client Libraries
+| Library | Language | Persistence | Question |
+|---------|----------|-------------|----------|
+| **Mosquitto** | C | ❌ No | Q5, Q6 |
+| **Eclipse Paho C/C++** | C/C++ | ✅ File-based | Q6, Q7 |
+| **Eclipse Paho Java** | Java | ✅ File/Custom | Q7, Q9 |
+| **Eclipse Paho Python** | Python | ✅ File-based | Q7, Q9 |
+| **Eclipse Paho Go** | Go | ✅ File-based | Q7, Q9 |
+| **HiveMQ Client** | Java | ✅ Automatic | Q7, Q9 |
+| **AWS IoT SDKs** | Multiple | ❌ No | Q8 |
+| **MQTT.js** | JavaScript | ❌ No | Q7 |
+
+### Cloud Services Pricing
+| Scale | Service | Monthly Cost | Question |
+|-------|---------|--------------|----------|
+| **Hobby (10 devices)** | Free tiers | $0-5 | Q14 |
+| **Small (100 devices)** | AWS IoT Core | $10-12 | Q12, Q14 |
+| **Medium (1K devices)** | AWS/Azure | $250-500 | Q14 |
+| **Large (10K devices)** | Self-hosted | $200-500 | Q14 |
+
+### Service Limits
+| Provider | Client ID Limit | Concurrent Connections | Question |
+|----------|----------------|------------------------|----------|
+| **AWS IoT Core** | Unlimited | 500K default | Q13 |
+| **Azure IoT Hub** | 500-400K (by tier) | Tied to tier | Q13 |
+| **HiveMQ Cloud** | Unlimited | 100-1K by plan | Q13 |
+| **Mosquitto** | Unlimited | Hardware limited | Q13 |
+
+---
+
+## 🔍 Quick Reference Guide
+
+### Need Persistence?
+- ✅ **Eclipse Paho** (C/C++, Java, Python, Go, Rust)
+- ✅ **HiveMQ Client** (Java only)
+- ❌ Mosquitto client, AWS SDKs, MQTT.js
+
+### Best Choice by Use Case
+| Use Case | Recommendation | See Question |
+|----------|----------------|--------------|
+| **Strict MQTT compliance** | Eclipse Paho C + persistence | Q5, Q6 |
+| **AWS ecosystem** | AWS SDK (convenience) or Paho C (persistence) | Q8, Q11 |
+| **Java development** | HiveMQ Client or Paho Java | Q7, Q9 |
+| **Cost optimization** | AWS IoT (small) / Self-hosted (large) | Q12, Q14 |
+| **Quick prototyping** | Mosquitto client (accept restart risk) | Q4, Q5 |
+
+### Critical Issues & Bugs
+| Issue | Location | Impact | Question |
+|-------|----------|--------|----------|
+| **Payload validation bypass** | `mosquitto_publish_v5` | Security risk with Topic Aliases | Q1 |
+| **No client persistence** | Mosquitto library | QoS guarantees lost on restart | Q5 |
+
+### Configuration Quick Reference
+```conf
+# Mosquitto Broker Configuration (Q3)
+persistence true                          # Enable disk storage
+persistence_location /var/lib/mosquitto/  # Storage path
+autosave_interval 300                     # Save every 5 minutes
+max_inflight_messages 20                  # Inflight limit (Q2)
+max_queued_messages 1000                  # Queue limit (Q2)
+```
+
+---
+
 ## Q1: Mosquitto Bug - Payload Size Check with Empty Topic
 
 **Question:** In mosquitto actions.c, in mosquitto_publish_v5 function, the payload > MQTT_MAX_PAYLOAD only is checked when topic name is not empty. Is that a bug?
@@ -59,9 +163,9 @@ if(topic && tlen > 0) {
 - **Active in transit**: These messages are currently "in flight" between client and broker
 - **QoS dependent**: Only relevant for QoS 1 and QoS 2 messages (QoS 0 has no acknowledgment)
 - **Limited by protocol**: There's a limit on how many can be in-flight simultaneously
-- **Waiting for ACK**: 
-  - QoS 1: Waiting for PUBACK
-  - QoS 2: Waiting for PUBREC, PUBREL, or PUBCOMP (4-way handshake)
+- **Waiting for ACK**:
+    - QoS 1: Waiting for PUBACK
+    - QoS 2: Waiting for PUBREC, PUBREL, or PUBCOMP (4-way handshake)
 
 **Example flow (QoS 1):**
 ```
@@ -82,9 +186,9 @@ Client ← PUBACK  ← Broker  [Message completes, no longer inflight]
 - **Storage-based**: Kept in broker's message store or client's internal queue
 - **Persistent sessions**: Especially important for clients with clean session = false
 - **Different types**:
-  - Messages queued for disconnected subscribers
-  - Messages waiting to be sent because inflight limit is reached
-  - Retained messages stored by the broker
+    - Messages queued for disconnected subscribers
+    - Messages waiting to be sent because inflight limit is reached
+    - Retained messages stored by the broker
 
 **When messages get queued:**
 1. **Subscriber is offline** (with persistent session)
@@ -675,9 +779,9 @@ Most people use AWS SDK for convenience, **sacrificing client persistence**. But
 
 #### AWS IoT Core
 - **Free tier**: 250,000 messages/month (first 12 months)
-- **After free tier**: 
-  - $1.00 per million messages
-  - $0.08 per million connection minutes
+- **After free tier**:
+    - $1.00 per million messages
+    - $0.08 per million connection minutes
 - **Example**: 10M messages/month ≈ $10-15/month
 
 #### Azure IoT Hub
@@ -707,9 +811,9 @@ Most people use AWS SDK for convenience, **sacrificing client persistence**. But
 #### Self-Hosted Mosquitto
 - **Cost**: $0 (open source)
 - **But you pay for**:
-  - Server hosting (AWS EC2, DigitalOcean, etc.) ≈ $5-50/month
-  - Your time for maintenance
-  - SSL certificates (Let's Encrypt = free)
+    - Server hosting (AWS EC2, DigitalOcean, etc.) ≈ $5-50/month
+    - Your time for maintenance
+    - SSL certificates (Let's Encrypt = free)
 
 ### Comparison Table
 
@@ -740,37 +844,37 @@ Most people use AWS SDK for convenience, **sacrificing client persistence**. But
 
 #### Azure IoT Hub
 - **Limit**: Tied to device registry
-  - Free tier: 500 devices (client IDs)
-  - Basic S1: 400,000 devices
-  - Standard S1: 400,000 devices
+    - Free tier: 500 devices (client IDs)
+    - Basic S1: 400,000 devices
+    - Standard S1: 400,000 devices
 - **Each tier has fixed device limits**
 
 #### HiveMQ Cloud
 - **Limit**: Based on plan's concurrent connections
-  - Free: 100 concurrent connections
-  - Starter: 100 concurrent
-  - Professional: 1,000 concurrent
+    - Free: 100 concurrent connections
+    - Starter: 100 concurrent
+    - Professional: 1,000 concurrent
 - **No limit on total client IDs**, only simultaneous connections
 
 #### CloudMQTT
 - **Limit**: Concurrent connections only
-  - Free: 5 concurrent
-  - Cat: 10 concurrent
-  - Tiger: 100 concurrent
+    - Free: 5 concurrent
+    - Cat: 10 concurrent
+    - Tiger: 100 concurrent
 - **Unlimited unique client IDs**, just limited concurrent connections
 
 #### EMQX Cloud
 - **Limit**: Concurrent connections
-  - Free: 25 concurrent
-  - Basic: 100 concurrent
-  - Professional: 1,000 concurrent
+    - Free: 25 concurrent
+    - Basic: 100 concurrent
+    - Professional: 1,000 concurrent
 - **No limit on unique client IDs**
 
 #### Self-Hosted Mosquitto
 - **Limit**: None by default - max_connections: -1 (unlimited)
 - **Only limited by**:
-  - Server RAM/CPU
-  - Config: `max_connections -1` (unlimited, default)
+    - Server RAM/CPU
+    - Config: `max_connections -1` (unlimited, default)
 - **Can track millions of client IDs** if hardware supports it
 
 ### Key Distinction
@@ -909,4 +1013,4 @@ Azure requires **pre-registering devices** in their device registry:
 
 ---
 
-*Conversation Date: December 2024*
+*Conversation Date: December 2025*

@@ -177,6 +177,7 @@ SDATA (DTP_STRING,      "auth_system",      0,          "",             "OpenID 
 SDATA (DTP_STRING,      "auth_url",         0,          "",             "OpenID Endpoint(for interactive jwt)"),
 SDATA (DTP_STRING,      "azp",              0,          "",             "azp (OAuth2 Authorized Party)"),
 
+SDATA (DTP_BOOLEAN,     "mqtt_persistent_client_db",  0, "0",            "Set true if you want persistent database for Inflight and Queued Messages in mqtt client side"),
 SDATA (DTP_STRING,      "mqtt_client_id",   0,          "",             "MQTT Client id, used by mqtt client"),
 SDATA (DTP_STRING,      "mqtt_protocol",    0,          "mqttv5",       "MQTT Protocol. Can be mqttv5, mqttv311 or mqttv31. Defaults to mqttv5."),
 SDATA (DTP_STRING,      "mqtt_clean_session",0,         "1",            "MQTT clean_session. Default 1. Set to 0 enable persistent mode and the client id must be set. The broker will be instructed not to clean existing sessions for the same client id when the client connects, and sessions will never expire when the client disconnects. MQTT v5 clients can change their session expiry interval"),
@@ -215,6 +216,8 @@ PRIVATE const trace_level_t s_user_trace_level[16] = {
 typedef struct _PRIVATE_DATA {
     int32_t verbose;
     int32_t interactive;
+
+    hgobj gobj_treedbs;
 
     hgobj gobj_mqtt_connector;
     hgobj gobj_broker_connector;
@@ -328,7 +331,7 @@ PRIVATE int mt_start(hgobj gobj)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
-    /*-------------------------------------------*
+    /*-----------------------------------------------------------------------*
      *      Path of Treedb/Timeranger System
      *
      *  {yuneta_root_dir}/"store"/
@@ -337,7 +340,50 @@ PRIVATE int mt_start(hgobj gobj)
      *
      *  Example:
      *  "/yuneta/store/mqtt-client-db/6a2561e2-ab5e-43ac-8454-c19064345b62"
+    *------------------------------------------------------------------------*/
+
+    /*-------------------------------------------*
+     *          Create Treedb System
      *-------------------------------------------*/
+    const char *mqtt_service = gobj_read_str_attr(gobj, "mqtt_service");
+    const char *mqtt_tenant = gobj_read_str_attr(gobj, "mqtt_tenant");
+    if(empty_string(mqtt_service)) {
+        mqtt_service = gobj_yuno_role();
+    }
+
+    char path[PATH_MAX];
+    yuneta_realm_store_dir(
+        path,
+        sizeof(path),
+        mqtt_service,
+        gobj_yuno_realm_owner(),
+        gobj_yuno_realm_id(),
+        mqtt_tenant,  // tenant
+        "",  // gclass-treedb controls the directories
+        TRUE
+    );
+
+    json_t *kw_treedbs = json_pack("{s:s, s:s, s:b, s:i, s:i, s:i}",
+        "path", path,
+        "filename_mask", "%Y",  // to management treedbs we don't need multi-files (per day)
+        "master", 1,
+        "xpermission", 02770,
+        "rpermission", 0660,
+        "exit_on_error", LOG_OPT_EXIT_ZERO
+    );
+    priv->gobj_treedbs = gobj_create_service(
+        "treedbs",
+        C_TREEDB,
+        kw_treedbs,
+        gobj
+    );
+
+    /*
+     *  Start treedbs
+     */
+    gobj_subscribe_event(priv->gobj_treedbs, 0, 0, gobj);
+    gobj_start_tree(priv->gobj_treedbs);
+
 
     gobj_start(priv->timer);
 

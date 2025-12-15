@@ -35,13 +35,15 @@ struct arguments
     char *auth_system;
     char *auth_url;
     char *mqtt_client_id;
-    int mqtt_disable_clean_session;
+    int mqtt_persistent_session;
+    int mqtt_persistent_client_db;
     char *mqtt_protocol;
 
     char *mqtt_connect_properties;
     char *mqtt_will;
     char *mqtt_session_expiry_interval;
     char *mqtt_keepalive;
+    int mqtt_persistent;
 
     char *user_id;
     char *user_passw;
@@ -154,9 +156,9 @@ static char args_doc[] = "";
 static struct argp_option options[] = {
 /*-name-------------key-----arg---------flags---doc-----------------group */
 {0,                 0,      0,          0,      "MQTT keys", 10},
-{"disable-clean-session",'c',  0,       0,      "Disable 'clean session' / enable persistent client mode. When this argument is used, the broker will be instructed not to clean existing sessions for the same client id when the client connects, and sessions will never expire when the client disconnects. MQTT v5 clients can change their session expiry interval with the -x argument.\n"
+{"mqtt-persistent-session",'c', 0,      0,      "Enable persistent client mode (Set 'clean_session' to 0). When this argument is used, the broker will be instructed not to clean existing sessions for the same client id when the client connects, and sessions will never expire when the client disconnects. MQTT v5 clients can change their session expiry interval with the -x argument.\n"
 "When a session is persisted on the broker, the subscriptions for the client will be maintained after it disconnects, along with subsequent QoS 1 and QoS 2 messages that arrive. When the client reconnects and does not clean the session, it will receive all of the queued messages.", 10},
-
+{"mqtt-persistent-db", 'd', 0,          0,      "Use persistent database for Inflight and Queued Messages", 10},
 {"id",              'i',    "CLIENT_ID",0,      "MQTT Client ID", 10},
 {"mqtt_protocol",   'q',    "PROTOCOL", 0,      "MQTT Protocol. Can be mqttv5 (v5), mqttv311 (v311) or mqttv31 (v31). Defaults to v5.", 10},
 {"mqtt_connect_properties", 'r',    "PROPERTIES",0,     "(TODO) MQTT CONNECT properties", 10},
@@ -215,8 +217,11 @@ static error_t parse_opt (int key, char *arg, struct argp_state *state)
         arguments->auth_url = arg;
         break;
 
+    case 'd':
+        arguments->mqtt_persistent_client_db = 1;
+        break;
     case 'c':
-        arguments->mqtt_disable_clean_session = 1;
+        arguments->mqtt_persistent_session = 1;
         break;
     case 'i':
         arguments->mqtt_client_id = arg;
@@ -365,7 +370,8 @@ int main(int argc, char *argv[])
     arguments.auth_url = "";
     arguments.mqtt_protocol = "mqttv5";
     arguments.mqtt_client_id = "";
-    arguments.mqtt_disable_clean_session = 0;
+    arguments.mqtt_persistent_client_db = 0;
+    arguments.mqtt_persistent_session = 0;
     arguments.mqtt_session_expiry_interval = "-1";
     arguments.mqtt_keepalive = "60";
     arguments.user_id = "yuneta";
@@ -416,7 +422,7 @@ int main(int argc, char *argv[])
             }
         }
     }
-    if(arguments.mqtt_disable_clean_session && empty_string(arguments.mqtt_client_id)) {
+    if(arguments.mqtt_persistent_session && empty_string(arguments.mqtt_client_id)) {
         fprintf(stderr, "\nError: You must provide a client id if you are using the -c option.\n\n");
         exit(0);
     }
@@ -427,14 +433,15 @@ int main(int argc, char *argv[])
     {
         // TODO missing connect properties, will
         json_t *kw_utility = json_pack(
-            "{s:{s:b, s:s, s:s, s:s, s:s, s:s, s:s, s:s, s:s, s:s, s:s, s:s, s:s, s:s, s:b}}",
+            "{s:{s:b, s:s, s:s, s:s, s:s, s:s, s:i, s:s, s:s, s:s, s:s, s:s, s:s, s:s, s:s, s:b}}",
             "global",
             "C_MQTT_TUI.verbose", arguments.verbose,
             "C_MQTT_TUI.auth_system", arguments.auth_system,
             "C_MQTT_TUI.auth_url", arguments.auth_url,
             "C_MQTT_TUI.mqtt_client_id", arguments.mqtt_client_id,
             "C_MQTT_TUI.mqtt_protocol", arguments.mqtt_protocol,
-            "C_MQTT_TUI.mqtt_clean_session", arguments.mqtt_disable_clean_session?"0":"1",
+            "C_MQTT_TUI.mqtt_clean_session", arguments.mqtt_persistent_session?"0":"1",
+            "C_MQTT_TUI.mqtt_persistent_client_db", arguments.mqtt_persistent_client_db?1:0,
             "C_MQTT_TUI.mqtt_session_expiry_interval", arguments.mqtt_session_expiry_interval,
             "C_MQTT_TUI.mqtt_keepalive", arguments.mqtt_keepalive,
             "C_MQTT_TUI.user_id", arguments.user_id,

@@ -294,7 +294,7 @@ PRIVATE int mt_play(hgobj gobj)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
-    /*-------------------------------------------*
+    /*--------------------------------------------------------------*
      *      Path of Treedb/Timeranger System
      *
      *  {yuneta_root_dir}/"store"/
@@ -305,7 +305,7 @@ PRIVATE int mt_play(hgobj gobj)
      *
      *  Example:
      *  "/yuneta/store/mqtt-broker-db/cia/demo.sample.com/tenant"
-     *-------------------------------------------*/
+     *--------------------------------------------------------------*/
 
     /*-------------------------------------------*
      *          Create Treedb System
