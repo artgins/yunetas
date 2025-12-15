@@ -1123,9 +1123,6 @@ PRIVATE int create_mqtt_connector(hgobj gobj)
 
     );
 
-    /* TODO
-     * must be callbacks for: connect, disconnect, publish, message, subscribe, unsubscribe
-     */
     priv->gobj_mqtt_connector = gobj_create_tree(
         gobj,
         mqtt_connector_config,
@@ -1905,14 +1902,17 @@ PRIVATE int create_gclass(gclass_name_t gclass_name)
     /*------------------------*
      *      Events
      *------------------------*/
+    /* TODO
+     * must be callbacks for: connect, disconnect, publish, message, subscribe, unsubscribe
+     */
     event_type_t event_types[] = {
-        {EV_MQTT_MESSAGE,           0},     // Message from broker
-        {EV_SEND_MQTT_PUBLISH,      0},     // Send publish to broker
-        {EV_MQTT_PUBLISH,           0},     // Ack to publish
-        {EV_SEND_MQTT_SUBSCRIBE,    0},     // Send subscribe to broker
-        {EV_MQTT_SUBSCRIBE,         0},     // Ack to subscribe
-        {EV_SEND_MQTT_UNSUBSCRIBE,  0},     // Send unsubscribe to broker
-        {EV_MQTT_UNSUBSCRIBE,       0},     // Ack to unsubscribe
+        {EV_MQTT_MESSAGE,           0}, // Message from broker, like MQTT MESSAGE CALLBACK
+        {EV_SEND_MQTT_PUBLISH,      0}, // Send publish to broker
+        {EV_MQTT_PUBLISH,           0}, // Ack to publish, like MQTT PUBLISH CALLBACK
+        {EV_SEND_MQTT_SUBSCRIBE,    0}, // Send subscribe to broker
+        {EV_MQTT_SUBSCRIBE,         0}, // Ack to subscribe, like MQTT SUBSCRIBE CALLBACK
+        {EV_SEND_MQTT_UNSUBSCRIBE,  0}, // Send unsubscribe to broker
+        {EV_MQTT_UNSUBSCRIBE,       0}, // Ack to unsubscribe, like MQTT UNSUBSCRIBE CALLBACK
 
         {EV_MT_COMMAND_ANSWER,      EVF_PUBLIC_EVENT},
         {EV_MT_STATS_ANSWER,        EVF_PUBLIC_EVENT},
@@ -1925,8 +1925,8 @@ PRIVATE int create_gclass(gclass_name_t gclass_name)
         {EV_SCROLL_TOP,             0},
         {EV_SCROLL_BOTTOM,          0},
         {EV_ON_TOKEN,               0},
-        {EV_ON_OPEN,                0},
-        {EV_ON_CLOSE,               0},
+        {EV_ON_OPEN,                0}, // like MQTT CONNECT CALLBACK
+        {EV_ON_CLOSE,               0}, // like MQTT DISCONNECT CALLBACK
         {EV_ON_ID_NAK,              0},
         {EV_TIMEOUT,                0},
         {EV_STOPPED,                0},
