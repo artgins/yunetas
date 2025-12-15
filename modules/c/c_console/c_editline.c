@@ -269,7 +269,7 @@ PRIVATE void mt_create(hgobj gobj)
     SET_PRIV(history_max_len,           gobj_read_integer_attr)
     SET_PRIV(use_ncurses,               gobj_read_bool_attr)
 
-    trace_msg0("CREATE USE_NCURSES %d", priv->use_ncurses);
+    trace_msg0("Editline use_ncurses: %d", priv->use_ncurses);
 
     int buffer_size = (int)gobj_read_integer_attr(gobj, "buffer_size");
     priv->buf = gbmem_malloc(buffer_size);

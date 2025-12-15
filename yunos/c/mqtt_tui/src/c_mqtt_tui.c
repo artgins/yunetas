@@ -220,6 +220,8 @@ typedef struct _PRIVATE_DATA {
     int32_t interactive;
 
     hgobj gobj_treedbs;
+    hgobj gobj_tranger_qmsgs;
+    json_t *tranger_qmsgs;
 
     hgobj gobj_mqtt_connector;
     hgobj gobj_broker_connector;
@@ -358,7 +360,7 @@ PRIVATE int mt_start(hgobj gobj)
             mqtt_tenant = gobj_yuno_name();
         }
         if(empty_string(mqtt_tenant)) {
-            mqtt_tenant = node_uuid();
+            mqtt_tenant = node_uuid(); // WARNING use in console utility
         }
 
         char path[PATH_MAX];
@@ -393,6 +395,41 @@ PRIVATE int mt_start(hgobj gobj)
          */
         gobj_subscribe_event(priv->gobj_treedbs, 0, 0, gobj);
         gobj_start_tree(priv->gobj_treedbs);
+
+        /*-------------------------------------------*
+         *      Open treedb_mqtt_client service
+         *-------------------------------------------*/
+        // TODO
+
+        /*---------------------------------------*
+         *      Open qmsgs Timeranger
+         *---------------------------------------*/
+        yuneta_realm_store_dir(
+            path,
+            sizeof(path),
+            mqtt_service,
+            gobj_yuno_realm_owner(),
+            gobj_yuno_realm_id(),
+            mqtt_tenant,  // tenant
+            "qmsgs",
+            TRUE
+        );
+
+        json_t *kw_tranger_qmsgs = json_pack("{s:s, s:b, s:i}",
+            "path", path,
+            "master", 1,
+            "on_critical_error", (int)(LOG_OPT_EXIT_ZERO)
+        );
+        priv->gobj_tranger_qmsgs = gobj_create_service(
+            "tranger_qmsgs",
+            C_TRANGER,
+            kw_tranger_qmsgs,
+            gobj
+        );
+        gobj_start(priv->gobj_tranger_qmsgs);
+
+        priv->tranger_qmsgs = gobj_read_pointer_attr(priv->gobj_tranger_qmsgs, "tranger");
+
     }
 
     /*-------------------------------*
