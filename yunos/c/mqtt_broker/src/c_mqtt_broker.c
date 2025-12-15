@@ -32,7 +32,7 @@
 /***************************************************************************
  *              Prototypes
  ***************************************************************************/
-PRIVATE int broadcast_htopic_frame(hgobj gobj);
+PRIVATE int broadcast_queues_timeranger(hgobj gobj);
 PRIVATE int open_devices_qmsgs(hgobj gobj);
 PRIVATE int close_devices_qmsgs(hgobj gobj);
 PRIVATE int process_msg(
@@ -135,75 +135,6 @@ typedef struct _PRIVATE_DATA {
     char treedb_name[NAME_MAX];
 
 } PRIVATE_DATA;
-
-
-
-
-                    /******************************
-                     *      Callbacks
-                     ******************************/
-
-
-
-
-/***************************************************************************
- *
- ***************************************************************************/
-PRIVATE int load_record_callback(
-    json_t *tranger,
-    json_t *topic,
-    const char *key,
-    json_t *list,       // iterator or rt_list/rt_disk id, don't own
-    json_int_t rowid,   // in a rt_mem will be the relative rowid, in rt_disk the absolute rowid
-    md2_record_ex_t *md_record,
-    json_t *jn_record   // must be owned, can be null if only_md
-)
-{
-    hgobj gobj = (hgobj)json_integer_value(json_object_get(list, "gobj"));
-
-//    char temp[128];
-//    tranger2_print_md1_record(temp, sizeof(temp), key, md_record, TRUE);
-//    printf("=================> load_record_callback():\n   %s\n", temp);
-
-    // if(gobj_gclass_name(gobj) != C_DB_HISTORY) {
-    //     gobj_log_error(gobj, 0,
-    //         "function",     "%s", __FUNCTION__,
-    //         "msgset",       "%s", MSGSET_INTERNAL_ERROR,
-    //         "msg",          "%s", "What gclass from?",
-    //         "src",          "%s", gobj_short_name(gobj),
-    //         NULL
-    //     );
-    //     return 0;
-    // }
-    //
-    // json_t *device_resource = load_device(gobj, key, TRUE);
-    //
-    // json_int_t last_saved_t = kw_get_int(gobj, device_resource, "__t__", 0, 0);
-    // json_int_t cur_t = (json_int_t)md_record->__t__;
-    // if(cur_t > last_saved_t) {
-    //     if(!jn_record) {
-    //         jn_record = tranger2_read_record_content( // return is yours
-    //             tranger,
-    //             topic,
-    //             key,
-    //             md_record
-    //         );
-    //     }
-    //     //printf("====> PROCESS %d > last_save_t %d\n", (int)cur_t, (int)last_saved_t);
-    //
-    //     process_msg(gobj, jn_record, device_resource);
-    //     json_object_set_new(device_resource, "__t__", json_integer(cur_t));
-    //     save_device(gobj, key, device_resource);
-    // } else {
-    //     // Message already processed
-    //     //printf("====> TRASH %d <= last_save_t %d\n", (int)cur_t, (int)last_saved_t);
-    // }
-    //
-    // json_decref(device_resource);
-
-    json_decref(jn_record);
-    return 0;
-}
 
 
 
@@ -491,7 +422,12 @@ PRIVATE int mt_play(hgobj gobj)
      *  Open device qmsgs
      *--------------------------------*/
     //open_devices_qmsgs(gobj);
-    broadcast_htopic_frame(gobj);
+
+    /*-----------------------------*
+     *  Broadcast timeranger
+     *-----------------------------*/
+    // TODO first starting childs?
+    broadcast_queues_timeranger(gobj);
 
     /*
      *  Periodic timer for tasks
@@ -559,7 +495,6 @@ PRIVATE int mt_pause(hgobj gobj)
     gobj_stop(priv->gobj_tranger_qmsgs);
     EXEC_AND_RESET(gobj_destroy, priv->gobj_tranger_qmsgs)
     priv->tranger_qmsgs = 0;
-    broadcast_htopic_frame(gobj);
 
     /*-----------------------------*
      *      Stop top/input side
@@ -569,6 +504,11 @@ PRIVATE int mt_pause(hgobj gobj)
 
     gobj_unsubscribe_event(priv->gobj_input_side, 0, 0, gobj);
     EXEC_AND_RESET(gobj_stop_tree, priv->gobj_input_side)
+
+    /*-----------------------------*
+     *  Broadcast timeranger
+     *-----------------------------*/
+    broadcast_queues_timeranger(gobj);
 
     clear_timeout(priv->timer);
 
@@ -622,6 +562,65 @@ PRIVATE json_t *cmd_authzs(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
 
 
 /***************************************************************************
+ *
+ ***************************************************************************/
+PRIVATE int load_record_callback(
+    json_t *tranger,
+    json_t *topic,
+    const char *key,
+    json_t *list,       // iterator or rt_list/rt_disk id, don't own
+    json_int_t rowid,   // in a rt_mem will be the relative rowid, in rt_disk the absolute rowid
+    md2_record_ex_t *md_record,
+    json_t *jn_record   // must be owned, can be null if only_md
+)
+{
+    hgobj gobj = (hgobj)json_integer_value(json_object_get(list, "gobj"));
+
+//    char temp[128];
+//    tranger2_print_md1_record(temp, sizeof(temp), key, md_record, TRUE);
+//    printf("=================> load_record_callback():\n   %s\n", temp);
+
+    // if(gobj_gclass_name(gobj) != C_DB_HISTORY) {
+    //     gobj_log_error(gobj, 0,
+    //         "function",     "%s", __FUNCTION__,
+    //         "msgset",       "%s", MSGSET_INTERNAL_ERROR,
+    //         "msg",          "%s", "What gclass from?",
+    //         "src",          "%s", gobj_short_name(gobj),
+    //         NULL
+    //     );
+    //     return 0;
+    // }
+    //
+    // json_t *device_resource = load_device(gobj, key, TRUE);
+    //
+    // json_int_t last_saved_t = kw_get_int(gobj, device_resource, "__t__", 0, 0);
+    // json_int_t cur_t = (json_int_t)md_record->__t__;
+    // if(cur_t > last_saved_t) {
+    //     if(!jn_record) {
+    //         jn_record = tranger2_read_record_content( // return is yours
+    //             tranger,
+    //             topic,
+    //             key,
+    //             md_record
+    //         );
+    //     }
+    //     //printf("====> PROCESS %d > last_save_t %d\n", (int)cur_t, (int)last_saved_t);
+    //
+    //     process_msg(gobj, jn_record, device_resource);
+    //     json_object_set_new(device_resource, "__t__", json_integer(cur_t));
+    //     save_device(gobj, key, device_resource);
+    // } else {
+    //     // Message already processed
+    //     //printf("====> TRASH %d <= last_save_t %d\n", (int)cur_t, (int)last_saved_t);
+    // }
+    //
+    // json_decref(device_resource);
+
+    json_decref(jn_record);
+    return 0;
+}
+
+/***************************************************************************
  *  Broadcast htopic frame
  ***************************************************************************/
 PRIVATE int cb_set_htopic_frame(
@@ -638,7 +637,7 @@ PRIVATE int cb_set_htopic_frame(
     }
     return 0;
 }
-PRIVATE int broadcast_htopic_frame(hgobj gobj)
+PRIVATE int broadcast_queues_timeranger(hgobj gobj)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
@@ -646,18 +645,11 @@ PRIVATE int broadcast_htopic_frame(hgobj gobj)
         priv->gobj_input_side,
         WALK_TOP2BOTTOM,
         cb_set_htopic_frame,
-        "tranger_frame",
-        priv->tranger_frame,
+        "tranger_qmsgs",
+        priv->tranger_qmsgs,
         NULL
     );
-    gobj_walk_gobj_children_tree(
-        priv->gobj_input_side,
-        WALK_TOP2BOTTOM,
-        cb_set_htopic_frame,
-        "htopic_frame",
-        priv->htopic_frame,
-        NULL
-    );
+
     return 0;
 }
 

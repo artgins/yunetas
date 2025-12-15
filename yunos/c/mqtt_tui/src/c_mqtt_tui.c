@@ -84,7 +84,7 @@
 /***************************************************************************
  *              Prototypes
  ***************************************************************************/
-PRIVATE int broadcast_htopic_frame(hgobj gobj);
+PRIVATE int broadcast_queues_timeranger(hgobj gobj);
 PRIVATE void try_to_stop_yevents(hgobj gobj);  // IDEMPOTENT
 PRIVATE int yev_callback(yev_event_h yev_event);
 PRIVATE int on_read_cb(hgobj gobj, gbuffer_t *gbuf);
@@ -431,7 +431,10 @@ PRIVATE int mt_start(hgobj gobj)
 
         priv->tranger_qmsgs = gobj_read_pointer_attr(priv->gobj_tranger_qmsgs, "tranger");
 
-        broadcast_htopic_frame(gobj);
+        /*-----------------------------*
+         *  Broadcast timeranger
+         *-----------------------------*/
+        broadcast_queues_timeranger(gobj);
     }
 
     /*-------------------------------*
@@ -710,26 +713,19 @@ PRIVATE int cb_set_htopic_frame(
     }
     return 0;
 }
-PRIVATE int broadcast_htopic_frame(hgobj gobj)
+PRIVATE int broadcast_queues_timeranger(hgobj gobj)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
     gobj_walk_gobj_children_tree(
-        priv->gobj_input_side,
+        priv->gobj_mqtt_connector,
         WALK_TOP2BOTTOM,
         cb_set_htopic_frame,
-        "tranger_frame",
-        priv->tranger_frame,
+        "tranger_qmsgs",
+        priv->tranger_qmsgs,
         NULL
     );
-    gobj_walk_gobj_children_tree(
-        priv->gobj_input_side,
-        WALK_TOP2BOTTOM,
-        cb_set_htopic_frame,
-        "htopic_frame",
-        priv->htopic_frame,
-        NULL
-    );
+
     return 0;
 }
 

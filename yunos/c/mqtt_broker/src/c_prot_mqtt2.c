@@ -456,6 +456,7 @@ SDATA_END()
 PRIVATE sdata_desc_t attrs_table[] = {
 /*-ATTR-type------------name----------------flag----------------default-description---------- */
 SDATA (DTP_BOOLEAN,     "iamServer",        SDF_RD,             0,      "What side? server or client"),
+SDATA (DTP_POINTER,     "tranger_qmsgs",    0,                  0,      "TimeRanger queues for mqtt messages with qos > 0"),
 
 // HACK set by c_authz, this gclass is an external entry gate!
 SDATA (DTP_STRING,      "__username__",     SDF_VOLATIL,        "",     "Username, WARNING set by c_authz"),
