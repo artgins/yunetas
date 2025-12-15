@@ -163,38 +163,40 @@ SDATA_END()
  *      Attributes - order affect to oid's
  *---------------------------------------------*/
 PRIVATE sdata_desc_t tattr_desc[] = {
-/*-ATTR-type------------name----------------flag--------default---------description---------- */
-SDATA (DTP_BOOLEAN,     "print_with_metadata",0,        0,              "Print response with metadata."),
-SDATA (DTP_BOOLEAN,     "verbose",          0,          "1",            "Verbose mode."),
-SDATA (DTP_STRING,      "command",          0,          "",             "Command."),
+/*-ATTR-type--------name----------------flag--------default-----description---------- */
+SDATA (DTP_BOOLEAN, "print_with_metadata",0,        0,          "Print response with metadata."),
+SDATA (DTP_BOOLEAN, "verbose",          0,          "1",        "Verbose mode."),
+SDATA (DTP_STRING,  "command",          0,          "",         "Command."),
 
-SDATA (DTP_STRING,      "url_mqtt",         SDF_RD,     "mqtt://127.0.0.1:1810", "Url of remote mqtt port"),
-SDATA (DTP_STRING,      "url_broker",       SDF_RD,     "ws://127.0.0.1:1800", "Url of remote broker port"),
-SDATA (DTP_STRING,      "yuno_name",        0,          "",             "Remote Yuno name"),
-SDATA (DTP_STRING,      "yuno_role",        0,          "mqtt_broker",  "Remote Yuno role"),
-SDATA (DTP_STRING,      "yuno_service",     0,          "__default_service","Remote Yuno service"),
-SDATA (DTP_STRING,      "auth_system",      0,          "",             "OpenID System(for interactive jwt)"),
-SDATA (DTP_STRING,      "auth_url",         0,          "",             "OpenID Endpoint(for interactive jwt)"),
-SDATA (DTP_STRING,      "azp",              0,          "",             "azp (OAuth2 Authorized Party)"),
+SDATA (DTP_STRING,  "mqtt_service",     SDF_RD,     "",         "Mqtt service name, if it's empty then it will be the yuno_role"),
+SDATA (DTP_STRING,  "mqtt_tenant",      SDF_RD,     "",         "Used for multi-tenant service, if it's empty then it will be the yuno_name"),
+SDATA (DTP_STRING,  "url_mqtt",         SDF_RD,     "mqtt://127.0.0.1:1810", "Url of remote mqtt port"),
+SDATA (DTP_STRING,  "url_broker",       SDF_RD,     "ws://127.0.0.1:1800", "Url of remote broker port"),
+SDATA (DTP_STRING,  "yuno_name",        0,          "",         "Remote Yuno name"),
+SDATA (DTP_STRING,  "yuno_role",        0,          "mqtt_broker","Remote Yuno role"),
+SDATA (DTP_STRING,  "yuno_service",     0,          "__default_service","Remote Yuno service"),
+SDATA (DTP_STRING,  "auth_system",      0,          "",         "OpenID System(for interactive jwt)"),
+SDATA (DTP_STRING,  "auth_url",         0,          "",         "OpenID Endpoint(for interactive jwt)"),
+SDATA (DTP_STRING,  "azp",              0,          "",         "azp (OAuth2 Authorized Party)"),
 
-SDATA (DTP_BOOLEAN,     "mqtt_persistent_client_db",  0, "0",            "Set true if you want persistent database for Inflight and Queued Messages in mqtt client side"),
-SDATA (DTP_STRING,      "mqtt_client_id",   0,          "",             "MQTT Client id, used by mqtt client"),
-SDATA (DTP_STRING,      "mqtt_protocol",    0,          "mqttv5",       "MQTT Protocol. Can be mqttv5, mqttv311 or mqttv31. Defaults to mqttv5."),
-SDATA (DTP_STRING,      "mqtt_clean_session",0,         "1",            "MQTT clean_session. Default 1. Set to 0 enable persistent mode and the client id must be set. The broker will be instructed not to clean existing sessions for the same client id when the client connects, and sessions will never expire when the client disconnects. MQTT v5 clients can change their session expiry interval"),
-SDATA (DTP_STRING,      "mqtt_session_expiry_interval",0,"-1",          "MQTT session expiry interval.  This option allows the session of persistent clients (those with clean session set to false) that are not currently connected to be removed if they do not reconnect within a certain time frame. This is a non-standard option in MQTT v3.1. MQTT v3.1.1 and v5.0 allow brokers to remove client sessions.\n"
+SDATA (DTP_BOOLEAN, "mqtt_persistent_client_db",  0, "0",        "Set true if you want persistent database for Inflight and Queued Messages in mqtt client side"),
+SDATA (DTP_STRING,  "mqtt_client_id",   0,          "",         "MQTT Client id, used by mqtt client"),
+SDATA (DTP_STRING,  "mqtt_protocol",    0,          "mqttv5",   "MQTT Protocol. Can be mqttv5, mqttv311 or mqttv31. Defaults to mqttv5."),
+SDATA (DTP_STRING,  "mqtt_clean_session",0,         "1",        "MQTT clean_session. Default 1. Set to 0 enable persistent mode and the client id must be set. The broker will be instructed not to clean existing sessions for the same client id when the client connects, and sessions will never expire when the client disconnects. MQTT v5 clients can change their session expiry interval"),
+SDATA (DTP_STRING,  "mqtt_session_expiry_interval",0,"-1",      "MQTT session expiry interval.  This option allows the session of persistent clients (those with clean session set to false) that are not currently connected to be removed if they do not reconnect within a certain time frame. This is a non-standard option in MQTT v3.1. MQTT v3.1.1 and v5.0 allow brokers to remove client sessions.\n"
 "Badly designed clients may set clean session to false whilst using a randomly generated client id. This leads to persistent clients that connect once and never reconnect. This option allows these clients to be removed. This option allows persistent clients (those with clean session set to false) to be removed if they do not reconnect within a certain time frame.\nAs this is a non-standard option, the default if not set is to never expire persistent clients."),
-SDATA (DTP_STRING,      "mqtt_keepalive",   0,         "60",            "MQTT keepalive. The number of seconds between sending PING commands to the broker for the purposes of informing it we are still connected and functioning. Defaults to 60 seconds."),
+SDATA (DTP_STRING,  "mqtt_keepalive",   0,         "60",        "MQTT keepalive. The number of seconds between sending PING commands to the broker for the purposes of informing it we are still connected and functioning. Defaults to 60 seconds."),
 
 // TODO missing connect properties and will
 
-SDATA (DTP_STRING,      "user_id",          0,          "",             "MQTT Username or OAuth2 User Id (interactive jwt)"),
-SDATA (DTP_STRING,      "user_passw",       0,          "",             "MQTT Password or OAuth2 User password (interactive jwt)"),
+SDATA (DTP_STRING,  "user_id",          0,          "",         "MQTT Username or OAuth2 User Id (interactive jwt)"),
+SDATA (DTP_STRING,  "user_passw",       0,          "",         "MQTT Password or OAuth2 User password (interactive jwt)"),
 
-SDATA (DTP_STRING,      "jwt",              0,          "",             "Jwt"),
-SDATA (DTP_STRING,      "display_mode",     0,          "table",        "Display mode: table or form"),
-SDATA (DTP_STRING,      "editor",           0,          "vim",          "Editor"),
-SDATA (DTP_POINTER,     "user_data",        0,          0,              "user data"),
-SDATA (DTP_POINTER,     "user_data2",       0,          0,              "more user data"),
+SDATA (DTP_STRING,  "jwt",              0,          "",         "Jwt"),
+SDATA (DTP_STRING,  "display_mode",     0,          "table",    "Display mode: table or form"),
+SDATA (DTP_STRING,  "editor",           0,          "vim",      "Editor"),
+SDATA (DTP_POINTER, "user_data",        0,          0,          "user data"),
+SDATA (DTP_POINTER, "user_data2",       0,          0,          "more user data"),
 SDATA_END()
 };
 
@@ -351,6 +353,9 @@ PRIVATE int mt_start(hgobj gobj)
         const char *mqtt_tenant = gobj_read_str_attr(gobj, "mqtt_tenant");
         if(empty_string(mqtt_service)) {
             mqtt_service = gobj_yuno_role();
+        }
+        if(empty_string(mqtt_tenant)) {
+            mqtt_tenant = gobj_yuno_name();
         }
 
         char path[PATH_MAX];
