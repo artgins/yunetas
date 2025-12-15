@@ -294,10 +294,18 @@ PRIVATE int mt_play(hgobj gobj)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
-
-    // TODO path job
-    // path client  "/yuneta/store/mqtt-client-db/localhost/6a2561e2-ab5e-43ac-8454-c19064345b62"
-    // path broker "/yuneta/store/mqtt-broker-db/artgins/demo.estadodelaire.com/1810"
+    /*-------------------------------------------*
+     *      Path of Treedb/Timeranger System
+     *
+     *  /yuneta/store/
+     *      {C_MQTT_BROKER.mqtt_service}/
+     *          {agent.environment.node_owner}/
+     *              {agent.realm_id}/
+     *                  {C_MQTT_BROKER.mqtt_tenant}
+     *
+     *  Example:
+     *  "/yuneta/store/mqtt-broker-db/cia/demo.sample.com/tenant"
+     *-------------------------------------------*/
 
     /*-------------------------------------------*
      *          Create Treedb System

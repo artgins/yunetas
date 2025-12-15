@@ -168,13 +168,13 @@ SDATA (DTP_BOOLEAN,     "print_with_metadata",0,        0,              "Print r
 SDATA (DTP_BOOLEAN,     "verbose",          0,          "1",            "Verbose mode."),
 SDATA (DTP_STRING,      "command",          0,          "",             "Command."),
 
-SDATA (DTP_STRING,      "url_mqtt",         SDF_RD,     "mqtt://127.0.0.1:1810", "Url of mqtt port"),
-SDATA (DTP_STRING,      "url_broker",       SDF_RD,     "ws://127.0.0.1:1800", "Url of broker port"),
-SDATA (DTP_STRING,      "yuno_name",        0,          "",             "Yuno name"),
-SDATA (DTP_STRING,      "yuno_role",        0,          "mqtt_broker",  "Yuno role"),
-SDATA (DTP_STRING,      "yuno_service",     0,          "__default_service","Yuno service"),
-SDATA (DTP_STRING,      "auth_system",      0,          "",             "OpenID System(interactive jwt)"),
-SDATA (DTP_STRING,      "auth_url",         0,          "",             "OpenID Endpoint(interactive jwt)"),
+SDATA (DTP_STRING,      "url_mqtt",         SDF_RD,     "mqtt://127.0.0.1:1810", "Url of remote mqtt port"),
+SDATA (DTP_STRING,      "url_broker",       SDF_RD,     "ws://127.0.0.1:1800", "Url of remote broker port"),
+SDATA (DTP_STRING,      "yuno_name",        0,          "",             "Remote Yuno name"),
+SDATA (DTP_STRING,      "yuno_role",        0,          "mqtt_broker",  "Remote Yuno role"),
+SDATA (DTP_STRING,      "yuno_service",     0,          "__default_service","Remote Yuno service"),
+SDATA (DTP_STRING,      "auth_system",      0,          "",             "OpenID System(for interactive jwt)"),
+SDATA (DTP_STRING,      "auth_url",         0,          "",             "OpenID Endpoint(for interactive jwt)"),
 SDATA (DTP_STRING,      "azp",              0,          "",             "azp (OAuth2 Authorized Party)"),
 
 SDATA (DTP_STRING,      "mqtt_client_id",   0,          "",             "MQTT Client id, used by mqtt client"),
@@ -327,6 +327,17 @@ PRIVATE void mt_destroy(hgobj gobj)
 PRIVATE int mt_start(hgobj gobj)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    /*-------------------------------------------*
+     *      Path of Treedb/Timeranger System
+     *
+     *  /yuneta/store/
+     *      {C_MQTT_TUI.mqtt_service}/
+     *          {node.uuid}
+     *
+     *  Example:
+     *  "/yuneta/store/mqtt-client-db/6a2561e2-ab5e-43ac-8454-c19064345b62"
+     *-------------------------------------------*/
 
     gobj_start(priv->timer);
 
