@@ -455,14 +455,19 @@ SDATA_END()
  *      Attributes - order affect to oid's
  *---------------------------------------------*/
 PRIVATE sdata_desc_t attrs_table[] = {
-/*-ATTR-type------------name----------------flag----------------default-description---------- */
-SDATA (DTP_BOOLEAN,     "iamServer",        SDF_RD,             0,      "What side? server or client"),
-SDATA (DTP_POINTER,     "tranger_queues",   0,                  0,      "Queues TimeRanger for mqtt messages with qos > 0"),
+/*-ATTR-type------------name----------------flag--------default-description---------- */
+SDATA (DTP_BOOLEAN,     "iamServer",        SDF_RD,     0,      "What side? server or client"),
+SDATA (DTP_POINTER,     "tranger_queues",   0,          0,      "Queues TimeRanger for mqtt messages with qos > 0"),
+SDATA (DTP_STRING,      "alert_message",    SDF_RD,     "ALERT Queuing", "Alert message"),
+SDATA (DTP_INTEGER,     "max_pending_acks", SDF_RD,     "10000",    "Maximum messages pending of ack"),
+SDATA (DTP_INTEGER,     "backup_queue_size",SDF_RD,     "1000000",  "Do backup at this size"),
+SDATA (DTP_INTEGER,     "alert_queue_size", SDF_RD,     "2000",     "Limit alert queue size"),
+SDATA (DTP_INTEGER,     "timeout_ack",      SDF_RD,     "60",       "Timeout ack in seconds"),
 
 // HACK set by c_authz, this gclass is an external entry gate!
-SDATA (DTP_STRING,      "__username__",     SDF_VOLATIL,        "",     "Username, WARNING set by c_authz"),
-SDATA (DTP_STRING,      "__session_id__",   SDF_VOLATIL,        "",     "Session ID, WARNING set by c_authz"),
-SDATA (DTP_JSON,        "jwt_payload",      SDF_VOLATIL,        0,      "JWT payload (decoded user data) of authenticated user, WARNING set by c_authz"),
+SDATA (DTP_STRING,      "__username__",     SDF_VOLATIL,"",     "Username, WARNING set by c_authz"),
+SDATA (DTP_STRING,      "__session_id__",   SDF_VOLATIL,"",     "Session ID, WARNING set by c_authz"),
+SDATA (DTP_JSON,        "jwt_payload",      SDF_VOLATIL,0,      "JWT payload (decoded user data) of authenticated user, WARNING set by c_authz"),
 
 /*
  *  Used by mqtt client
