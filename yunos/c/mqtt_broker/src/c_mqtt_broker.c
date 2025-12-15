@@ -76,7 +76,7 @@ SDATA_END()
 PRIVATE sdata_desc_t tattr_desc[] = {
 /*-ATTR-type--------name----------------flag--------default-----description---------- */
 SDATA (DTP_STRING,  "mqtt_service",     SDF_RD,     "",         "If mqtt_service is empty then it will be the yuno_role"),
-SDATA (DTP_STRING,  "mqtt_tenant",      SDF_RD,     "",         "Used for multi-tenant service"),
+SDATA (DTP_STRING,  "mqtt_tenant",      SDF_RD,     "",         "Used for multi-tenant service, if empty it will be the yuno_name"),
 
 // TODO a 0 cuando funcionen bien los out schemas
 SDATA (DTP_BOOLEAN, "use_internal_schema",SDF_PERSIST, "1",     "Use internal (hardcoded) schema"),
@@ -314,6 +314,9 @@ PRIVATE int mt_play(hgobj gobj)
     const char *mqtt_tenant = gobj_read_str_attr(gobj, "mqtt_tenant");
     if(empty_string(mqtt_service)) {
         mqtt_service = gobj_yuno_role();
+    }
+    if(empty_string(mqtt_tenant)) {
+        mqtt_tenant = gobj_yuno_name();
     }
 
     char path[PATH_MAX];

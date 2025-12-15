@@ -345,46 +345,51 @@ PRIVATE int mt_start(hgobj gobj)
     /*-------------------------------------------*
      *          Create Treedb System
      *-------------------------------------------*/
-    const char *mqtt_service = gobj_read_str_attr(gobj, "mqtt_service");
-    const char *mqtt_tenant = gobj_read_str_attr(gobj, "mqtt_tenant");
-    if(empty_string(mqtt_service)) {
-        mqtt_service = gobj_yuno_role();
+    BOOL mqtt_persistent_client_db = gobj_read_bool_attr(gobj, "mqtt_persistent_client_db");
+    if(mqtt_persistent_client_db) {
+        const char *mqtt_service = gobj_read_str_attr(gobj, "mqtt_service");
+        const char *mqtt_tenant = gobj_read_str_attr(gobj, "mqtt_tenant");
+        if(empty_string(mqtt_service)) {
+            mqtt_service = gobj_yuno_role();
+        }
+
+        char path[PATH_MAX];
+        yuneta_realm_store_dir(
+            path,
+            sizeof(path),
+            mqtt_service,
+            gobj_yuno_realm_owner(),
+            gobj_yuno_realm_id(),
+            mqtt_tenant,  // tenant
+            "",  // gclass-treedb controls the directories
+            TRUE
+        );
+
+        json_t *kw_treedbs = json_pack("{s:s, s:s, s:b, s:i, s:i, s:i}",
+            "path", path,
+            "filename_mask", "%Y",  // to management treedbs we don't need multi-files (per day)
+            "master", 1,
+            "xpermission", 02770,
+            "rpermission", 0660,
+            "exit_on_error", LOG_OPT_EXIT_ZERO
+        );
+        priv->gobj_treedbs = gobj_create_service(
+            "treedbs",
+            C_TREEDB,
+            kw_treedbs,
+            gobj
+        );
+
+        /*
+         *  Start treedbs
+         */
+        gobj_subscribe_event(priv->gobj_treedbs, 0, 0, gobj);
+        gobj_start_tree(priv->gobj_treedbs);
     }
 
-    char path[PATH_MAX];
-    yuneta_realm_store_dir(
-        path,
-        sizeof(path),
-        mqtt_service,
-        gobj_yuno_realm_owner(),
-        gobj_yuno_realm_id(),
-        mqtt_tenant,  // tenant
-        "",  // gclass-treedb controls the directories
-        TRUE
-    );
-
-    json_t *kw_treedbs = json_pack("{s:s, s:s, s:b, s:i, s:i, s:i}",
-        "path", path,
-        "filename_mask", "%Y",  // to management treedbs we don't need multi-files (per day)
-        "master", 1,
-        "xpermission", 02770,
-        "rpermission", 0660,
-        "exit_on_error", LOG_OPT_EXIT_ZERO
-    );
-    priv->gobj_treedbs = gobj_create_service(
-        "treedbs",
-        C_TREEDB,
-        kw_treedbs,
-        gobj
-    );
-
-    /*
-     *  Start treedbs
-     */
-    gobj_subscribe_event(priv->gobj_treedbs, 0, 0, gobj);
-    gobj_start_tree(priv->gobj_treedbs);
-
-
+    /*-------------------------------*
+     *      Setup tty
+     *-------------------------------*/
     gobj_start(priv->timer);
 
     priv->tty_fd = tty_keyboard_init();
