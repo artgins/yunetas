@@ -228,6 +228,10 @@ static inline uint64_t trq_msg_time(q_msg_t *msg)
 {
     return msg->md_record.__t__;
 }
+static inline uint16_t trq_msg_user_flag(q_msg_t *msg)
+{
+    return msg->md_record.user_flag;
+}
 
 /**
     Metadata
