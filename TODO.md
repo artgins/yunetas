@@ -90,6 +90,8 @@ The documentation needs to be update with next changes
     PUBLIC gbuffer_t *run_command(const char *command); // use popen(), synchronous
     yuneta_realm_store_dir
     treedb_list_parents
+    trq_append2
+
 
 # New API
 
