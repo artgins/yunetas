@@ -117,8 +117,9 @@ PUBLIC int trq_load_all_by_time(tr_queue_t * trq, int64_t from_t, int64_t to_t);
 */
 PUBLIC q_msg_t * trq_append2(
     tr_queue_t * trq,
-    json_int_t t,   // __t__
-    json_t *kw  // owned
+    json_int_t t,       // __t__ if 0 then the time will be set by TimeRanger with now time
+    json_t *kw,         // owned
+    uint16_t user_flag  // extra flags in addition to TRQ_MSG_PENDING
 );
 
 /**
@@ -129,7 +130,7 @@ static inline q_msg_t *trq_append(
     json_t *kw  // owned
 )
 {
-    return trq_append2(trq, 0, kw);
+    return trq_append2(trq, 0, kw, 0);
 }
 
 /**

@@ -374,7 +374,7 @@ PUBLIC int trq_load_all_by_time(tr_queue_t * trq, int64_t from_t, int64_t to_t)
 
 /***************************************************************************
     Append a new message to queue forcing t
-    If t is 0 then the time will be set by TimeRanger with now time.
+    If t (__t__) is 0 then the time will be set by TimeRanger with now time.
     The message (kw) is saved in disk with the user_flag TRQ_MSG_PENDING,
     leaving in q_msg_t only the metadata (to save memory).
     You can recover the message content with trq_msg_json().
@@ -383,8 +383,9 @@ PUBLIC int trq_load_all_by_time(tr_queue_t * trq, int64_t from_t, int64_t to_t)
  ***************************************************************************/
 PUBLIC q_msg_t *trq_append2(
     tr_queue_t * trq,
-    json_int_t t,   // __t__
-    json_t *kw  // owned
+    json_int_t t,   // __t__ if 0 then the time will be set by TimeRanger with now time
+    json_t *kw,     // owned
+    uint16_t user_flag  // extra flags in addition to TRQ_MSG_PENDING
 ) {
     hgobj gobj = 0;
 
@@ -403,8 +404,8 @@ PUBLIC q_msg_t *trq_append2(
     tranger2_append_record(
         trq->tranger,
         trq->topic_name,
-        t,      // __t__
-        TRQ_MSG_PENDING,    // __flag__
+        t,                              // __t__
+        user_flag | TRQ_MSG_PENDING,    // __flag__
         &md_record,
         kw_incref(kw) // owned
     );
