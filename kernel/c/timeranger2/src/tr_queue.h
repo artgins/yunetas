@@ -107,7 +107,13 @@ PUBLIC int trq_load_all(tr_queue_t * trq, int64_t from_rowid, int64_t to_rowid);
 PUBLIC int trq_load_all_by_time(tr_queue_t * trq, int64_t from_t, int64_t to_t);
 
 /**
-    Append a new message to queue simulating t
+    Append a new message to queue forcing t
+    If t is 0 then the time will be set by TimeRanger with now time.
+    The message (kw) is saved in disk with the user_flag TRQ_MSG_PENDING,
+    leaving in q_msg_t only the metadata (to save memory).
+    You can recover the message content with trq_msg_json().
+    To mark a message as processed, removing from memory and
+    resetting in disk the TRQ_MSG_PENDING user flag, you must use trq_unload_msg()
 */
 PUBLIC q_msg_t * trq_append2(
     tr_queue_t * trq,
@@ -116,7 +122,7 @@ PUBLIC q_msg_t * trq_append2(
 );
 
 /**
-    Append a new message to queue
+    Append a new message to queue with the current time.
 */
 static inline q_msg_t *trq_append(
     tr_queue_t * trq,
