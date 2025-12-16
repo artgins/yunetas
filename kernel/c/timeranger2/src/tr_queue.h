@@ -92,17 +92,20 @@ static inline json_t * trq_topic(tr_queue_t * trq)
 
 
 /**
-    Load pending messages
+    Load pending messages (with TRQ_MSG_PENDING flag)
+    Content is not loaded or is discarded
 */
 PUBLIC int trq_load(tr_queue_t * trq);
 
 /**
-    Load all messages, filtering by rowid
+    Load all messages, filtering by rowid (with or without TRQ_MSG_PENDING flag)
+    Content is not loaded or is discarded
 */
 PUBLIC int trq_load_all(tr_queue_t * trq, int64_t from_rowid, int64_t to_rowid);
 
 /**
-    Load all messages, filtering by time
+    Load all messages, filtering by time (with or without TRQ_MSG_PENDING flag)
+    Content is not loaded or is discarded
 */
 PUBLIC int trq_load_all_by_time(tr_queue_t * trq, int64_t from_t, int64_t to_t);
 
@@ -155,7 +158,7 @@ PUBLIC void trq_unload_msg(q_msg_t *msg, int32_t result);
 
 /**
     Mark a message.
-    You must flag a message after append to queue
+    You must flag a message with TRQ_MSG_PENDING after append it to queue
         if you want recover it in the next open
         with the flag used in trq_load()
 */

@@ -39,8 +39,7 @@ PUBLIC tr_queue_t *trq_open(
     const char *tkey,
     system_flag2_t system_flag, // KEY_TYPE_MASK2 forced to sf_rowid_key
     size_t backup_queue_size
-)
-{
+) {
     hgobj gobj = (hgobj)json_integer_value(json_object_get(tranger, "gobj"));
 
     /*-------------------------------*
@@ -143,8 +142,7 @@ PRIVATE q_msg_t *new_msg(
     json_int_t rowid,
     const md2_record_ex_t *md_record,
     json_t *jn_record // owned
-)
-{
+) {
     hgobj gobj = 0;
 
     /*
@@ -202,8 +200,7 @@ PRIVATE int load_record_callback(
     json_int_t rowid,   // global rowid of key
     md2_record_ex_t *md_record,
     json_t *jn_record // must be owned, can be null if only_md
-)
-{
+) {
     hgobj gobj = (hgobj)json_integer_value(json_object_get(tranger, "gobj"));
     tr_queue_t *trq = (tr_queue_t *)(uintptr_t)kw_get_int(gobj, list, "trq", 0, KW_REQUIRED);
 
@@ -443,8 +440,7 @@ PUBLIC int trq_check_pending_rowid(
     tr_queue_t * trq,
     uint64_t __t__,
     uint64_t rowid
-)
-{
+) {
     uint32_t __user_flag__ = tranger2_read_user_flag(
         trq->tranger,
         trq->topic_name,
@@ -548,8 +544,8 @@ PUBLIC json_t *trq_msg_json(q_msg_t *msg) // Load the message, Return json is YO
 PUBLIC int trq_set_metadata(
     json_t *kw,
     const char *key,
-    json_t *jn_value) // owned
-{
+    json_t *jn_value // owned
+) {
     hgobj gobj = 0;
     return kw_set_subdict_value(
         gobj,
@@ -562,8 +558,7 @@ PUBLIC int trq_set_metadata(
 
 PUBLIC json_t *trq_get_metadata( // WARNING The return json is not yours!
     json_t *kw
-)
-{
+) {
     hgobj gobj = 0;
     return kw_get_dict(gobj,
         kw,
@@ -579,8 +574,7 @@ PUBLIC json_t *trq_get_metadata( // WARNING The return json is not yours!
 PUBLIC json_t *trq_answer(
     json_t *jn_message,  // not owned, Gps message, to get only __MD_TRQ__
     int result
-)
-{
+) {
     hgobj gobj = 0;
 
     json_t *kw_response = json_object();
