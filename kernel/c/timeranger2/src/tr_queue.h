@@ -152,7 +152,7 @@ PUBLIC int trq_check_pending_rowid(
 );
 
 /**
-    Unload a message successfully from iter (TRQ_MSG_PENDING set to 0)
+    Unload a message successfully from iter (disk TRQ_MSG_PENDING set to 0)
 */
 PUBLIC void trq_unload_msg(q_msg_t *msg, int32_t result);
 
@@ -228,7 +228,7 @@ static inline uint64_t trq_msg_time(q_msg_t *msg)
 {
     return msg->md_record.__t__;
 }
-static inline uint16_t trq_msg_user_flag(q_msg_t *msg)
+static inline uint16_t trq_msg_hard_flag(q_msg_t *msg)
 {
     return msg->md_record.user_flag;
 }

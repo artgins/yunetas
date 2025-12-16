@@ -91,7 +91,7 @@ The documentation needs to be update with next changes
     yuneta_realm_store_dir
     treedb_list_parents
     trq_append2
-    static inline uint16_t trq_msg_user_flag(q_msg_t *msg)
+    trq_msg_hard_flag
 
 # New API
 
