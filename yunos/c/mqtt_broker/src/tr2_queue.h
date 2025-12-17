@@ -62,12 +62,12 @@ PUBLIC tr2_queue_t *tr2q_open(
 /**
     Close queue (After close the queue, remember do tranger2_shutdown())
 */
-PUBLIC void tr2q_close(tr2_queue_t * trq);
+PUBLIC void tr2q_close(tr2_queue_t *trq);
 
 /**
     Return size of queue (messages in queue)
 */
-static inline size_t tr2q_size(tr2_queue_t * trq)
+static inline size_t tr2q_size(tr2_queue_t *trq)
 {
     return dl_size(&trq->dl_q_msg);
 }
@@ -75,7 +75,7 @@ static inline size_t tr2q_size(tr2_queue_t * trq)
 /**
     Return tranger of queue
 */
-static inline json_t * tr2q_tranger(tr2_queue_t * trq)
+static inline json_t * tr2q_tranger(tr2_queue_t *trq)
 {
     return trq->tranger;
 }
@@ -84,75 +84,10 @@ static inline json_t * tr2q_tranger(tr2_queue_t * trq)
 /**
     Return topic of queue
 */
-static inline json_t * tr2q_topic(tr2_queue_t * trq)
+static inline json_t * tr2q_topic(tr2_queue_t *trq)
 {
     return trq->topic;
 }
-
-
-/**
-    Load pending messages (with TR2Q_MSG_PENDING flag)
-    Content is not loaded or is discarded
-*/
-PUBLIC int tr2q_load(tr2_queue_t * trq);
-
-/**
-    Load all messages, filtering by rowid (with or without TR2Q_MSG_PENDING flag)
-    Content is not loaded or is discarded
-*/
-PUBLIC int tr2q_load_all(tr2_queue_t * trq, int64_t from_rowid, int64_t to_rowid);
-
-/**
-    Load all messages, filtering by time (with or without TR2Q_MSG_PENDING flag)
-    Content is not loaded or is discarded
-*/
-PUBLIC int tr2q_load_all_by_time(tr2_queue_t * trq, int64_t from_t, int64_t to_t);
-
-/**
-    Append a new message to queue forcing t
-
-    If t (__t__) is 0 then the time will be set by TimeRanger with now time.
-
-    The message (kw) is saved in disk with the user_flag TR2Q_MSG_PENDING,
-    leaving in q2_msg_t only the metadata (to save memory).
-
-    You can recover the message content with tr2q_msg_json().
-
-    You must use tr2q_unload_msg() to mark a message as processed, removing from memory and
-    resetting in disk the TR2Q_MSG_PENDING user flag.
-*/
-PUBLIC q2_msg_t * tr2q_append2(
-    tr2_queue_t * trq,
-    json_int_t t,       // __t__ if 0 then the time will be set by TimeRanger with now time
-    json_t *kw,         // owned
-    uint16_t user_flag  // extra flags in addition to TR2Q_MSG_PENDING
-);
-
-/**
-    Append a new message to queue with the current time.
-*/
-static inline q2_msg_t *tr2q_append(
-    tr2_queue_t * trq,
-    json_t *kw  // owned
-)
-{
-    return tr2q_append2(trq, 0, kw, 0);
-}
-
-/**
-    Get a message from iter by his rowid
-*/
-PUBLIC q2_msg_t * tr2q_get_by_rowid(tr2_queue_t * trq, uint64_t rowid);
-
-/**
-    Check pending status of a rowid (low level)
-    Return -1 if rowid not exists, 1 if pending, 0 if not pending
-*/
-PUBLIC int tr2q_check_pending_rowid(
-    tr2_queue_t * trq,
-    uint64_t __t__,
-    uint64_t rowid
-);
 
 /**
     Unload a message successfully from iter (disk TR2Q_MSG_PENDING set to 0)
@@ -168,23 +103,23 @@ PUBLIC void tr2q_unload_msg(q2_msg_t *msg, int32_t result);
 PUBLIC int tr2q_set_hard_flag(q2_msg_t *msg, uint32_t hard_mark, BOOL set);
 
 /**
-    Set soft mark
+    Walk over instances
 */
-PUBLIC uint64_t tr2q_set_soft_mark(q2_msg_t *msg, uint64_t soft_mark, BOOL set);
+#define q2msg_foreach_forward(trq, msg) \
+    for(msg = tr2q_first_msg(trq); \
+        msg!=0 ; \
+        msg = tr2q_next_msg(msg))
 
-/**
-    Get if it's msg pending of ack
-*/
-static inline uint64_t tr2q_get_soft_mark(q2_msg_t *msg)
-{
-    return msg->mark;
-}
+#define q2msg_foreach_forward_safe(trq, msg, next) \
+    for(msg = tr2q_first_msg(trq), n = tr2q_next_msg(msg); \
+        msg!=0 ; \
+        msg = n, n = tr2q_next_msg(msg))
 
-static inline q2_msg_t *tr2q_first_msg(tr2_queue_t * trq)
+static inline q2_msg_t *tr2q_first_msg(tr2_queue_t *trq)
 {
     return dl_first(&((tr2_queue_t *)trq)->dl_q_msg);
 }
-static inline q2_msg_t *tr2q_last_msg(tr2_queue_t * trq)
+static inline q2_msg_t *tr2q_last_msg(tr2_queue_t *trq)
 {
     return dl_last(&((tr2_queue_t *)trq)->dl_q_msg);
 }
@@ -198,24 +133,91 @@ static inline q2_msg_t *tr2q_prev_msg(q2_msg_t *msg)
     return dl_prev(msg);
 }
 
+
+#ifdef PEPE
+
+/**
+    Load pending messages (with TR2Q_MSG_PENDING flag)
+    Content is not loaded or is discarded
+*/
+PUBLIC int tr2q_load(tr2_queue_t *trq);
+
+/**
+    Load all messages, filtering by rowid (with or without TR2Q_MSG_PENDING flag)
+    Content is not loaded or is discarded
+*/
+PUBLIC int tr2q_load_all(tr2_queue_t *trq, int64_t from_rowid, int64_t to_rowid);
+
+/**
+    Load all messages, filtering by time (with or without TR2Q_MSG_PENDING flag)
+    Content is not loaded or is discarded
+*/
+PUBLIC int tr2q_load_all_by_time(tr2_queue_t *trq, int64_t from_t, int64_t to_t);
+
+/**
+    Append a new message to queue forcing t
+
+    If t (__t__) is 0 then the time will be set by TimeRanger with now time.
+
+    The message (kw) is saved in disk with the user_flag TR2Q_MSG_PENDING,
+    leaving in q2_msg_t only the metadata (to save memory).
+
+    You can recover the message content with tr2q_msg_json().
+
+    You must use tr2q_unload_msg() to mark a message as processed, removing from memory and
+    resetting in disk the TR2Q_MSG_PENDING user flag.
+*/
+PUBLIC q2_msg_t * tr2q_append2(
+    tr2_queue_t *trq,
+    json_int_t t,       // __t__ if 0 then the time will be set by TimeRanger with now time
+    json_t *kw,         // owned
+    uint16_t user_flag  // extra flags in addition to TR2Q_MSG_PENDING
+);
+
+/**
+    Append a new message to queue with the current time.
+*/
+static inline q2_msg_t *tr2q_append(
+    tr2_queue_t *trq,
+    json_t *kw  // owned
+)
+{
+    return tr2q_append2(trq, 0, kw, 0);
+}
+
+/**
+    Get a message from iter by his rowid
+*/
+PUBLIC q2_msg_t * tr2q_get_by_rowid(tr2_queue_t *trq, uint64_t rowid);
+
+/**
+    Check pending status of a rowid (low level)
+    Return -1 if rowid not exists, 1 if pending, 0 if not pending
+*/
+PUBLIC int tr2q_check_pending_rowid(
+    tr2_queue_t *trq,
+    uint64_t __t__,
+    uint64_t rowid
+);
+
+/**
+    Set soft mark
+*/
+PUBLIC uint64_t tr2q_set_soft_mark(q2_msg_t *msg, uint64_t soft_mark, BOOL set);
+
+/**
+    Get if it's msg pending of ack
+*/
+static inline uint64_t tr2q_get_soft_mark(q2_msg_t *msg)
+{
+    return msg->mark;
+}
+
+
 static inline md2_record_ex_t *tr2q_msg_md(q2_msg_t *msg)
 {
     return &msg->md_record;
 }
-
-/**
-    Walk over instances
-*/
-#define q2msg_foreach_forward(trq, msg) \
-    for(msg = tr2q_first_msg(trq); \
-        msg!=0 ; \
-        msg = tr2q_next_msg(msg))
-
-#define q2msg_foreach_forward_safe(trq, msg, next) \
-    for(msg = tr2q_first_msg(trq), n = tr2q_next_msg(msg); \
-        msg!=0 ; \
-        msg = n, n = tr2q_next_msg(msg))
-
 
 /**
     Get info of message
@@ -259,7 +261,9 @@ PUBLIC json_t *tr2q_answer(
 /**
     Do backup if needed.
 */
-PUBLIC int tr2q_check_backup(tr2_queue_t * trq);
+PUBLIC int tr2q_check_backup(tr2_queue_t *trq);
+
+#endif /* PEPE */
 
 #ifdef __cplusplus
 }

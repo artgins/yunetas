@@ -102,7 +102,7 @@ PUBLIC tr2_queue_t *tr2q_open(
 /***************************************************************************
     Close queue (After close the queue remember tranger2_shutdown())
  ***************************************************************************/
-PUBLIC void tr2q_close(tr2_queue_t * trq)
+PUBLIC void tr2q_close(tr2_queue_t *trq)
 {
     dl_flush(&((tr2_queue_t *)trq)->dl_q_msg, free_msg);
     GBMEM_FREE(trq);
@@ -111,7 +111,7 @@ PUBLIC void tr2q_close(tr2_queue_t * trq)
 /***************************************************************************
     Set first rowid to search
  ***************************************************************************/
-PRIVATE void tr2q_set_first_rowid(tr2_queue_t * trq, uint64_t first_rowid)
+PRIVATE void tr2q_set_first_rowid(tr2_queue_t *trq, uint64_t first_rowid)
 {
     hgobj gobj = 0;
 
@@ -213,7 +213,7 @@ PRIVATE int load_record_callback(
     return 0;
 }
 
-PUBLIC int tr2q_load(tr2_queue_t * trq)
+PUBLIC int tr2q_load(tr2_queue_t *trq)
 {
     hgobj gobj = 0;
 
@@ -301,7 +301,7 @@ PUBLIC int tr2q_load(tr2_queue_t * trq)
 /***************************************************************************
 
  ***************************************************************************/
-PUBLIC int tr2q_load_all(tr2_queue_t * trq, int64_t from_rowid, int64_t to_rowid)
+PUBLIC int tr2q_load_all(tr2_queue_t *trq, int64_t from_rowid, int64_t to_rowid)
 {
     json_t *match_cond = json_object();
     if(from_rowid) {
@@ -333,7 +333,7 @@ PUBLIC int tr2q_load_all(tr2_queue_t * trq, int64_t from_rowid, int64_t to_rowid
 /***************************************************************************
 
  ***************************************************************************/
-PUBLIC int tr2q_load_all_by_time(tr2_queue_t * trq, int64_t from_t, int64_t to_t)
+PUBLIC int tr2q_load_all_by_time(tr2_queue_t *trq, int64_t from_t, int64_t to_t)
 {
     json_t *match_cond = json_object();
     if(from_t) {
@@ -382,7 +382,7 @@ PUBLIC int tr2q_load_all_by_time(tr2_queue_t * trq, int64_t from_t, int64_t to_t
     resetting in disk the TR2Q_MSG_PENDING user flag.
  ***************************************************************************/
 PUBLIC q2_msg_t *tr2q_append2(
-    tr2_queue_t * trq,
+    tr2_queue_t *trq,
     json_int_t t,   // __t__ if 0 then the time will be set by TimeRanger with now time
     json_t *kw,     // owned
     uint16_t user_flag  // extra flags in addition to TR2Q_MSG_PENDING
@@ -423,7 +423,7 @@ PUBLIC q2_msg_t *tr2q_append2(
 /***************************************************************************
     Get a message from iter by his rowid
  ***************************************************************************/
-PUBLIC q2_msg_t *tr2q_get_by_rowid(tr2_queue_t * trq, uint64_t rowid)
+PUBLIC q2_msg_t *tr2q_get_by_rowid(tr2_queue_t *trq, uint64_t rowid)
 {
     register q2_msg_t *msg;
 
@@ -440,7 +440,7 @@ PUBLIC q2_msg_t *tr2q_get_by_rowid(tr2_queue_t * trq, uint64_t rowid)
     Check pending status of a rowid (low level)
  ***************************************************************************/
 PUBLIC int tr2q_check_pending_rowid(
-    tr2_queue_t * trq,
+    tr2_queue_t *trq,
     uint64_t __t__,
     uint64_t rowid
 ) {
@@ -601,7 +601,7 @@ PUBLIC json_t *tr2q_answer(
 /***************************************************************************
  *  Do backup
  ***************************************************************************/
-PUBLIC int tr2q_check_backup(tr2_queue_t * trq)
+PUBLIC int tr2q_check_backup(tr2_queue_t *trq)
 {
     hgobj gobj = (hgobj)json_integer_value(json_object_get(trq->tranger, "gobj"));
     uint64_t backup_queue_size = kw_get_int(gobj, trq->topic, "backup_queue_size", 0, 0);
