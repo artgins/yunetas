@@ -7679,7 +7679,19 @@ PRIVATE int handle__pubackcomp(hgobj gobj, gbuffer_t *gbuf, const char *type)
         if(rc == MOSQ_ERR_SUCCESS) {
             /* Only inform the client the message has been sent once. */
 
-            // on_publish_v5(gobj, mid, reason_code, properties); TODO
+            /*
+             *  Callback to user
+             */
+            json_t *kw_publish = json_pack("{s:i}",
+                "mid", (int)mid
+            );
+            json_t *kw_iev = iev_create(
+                gobj,
+                EV_MQTT_PUBLISH,
+                kw_publish // owned
+            );
+
+            gobj_publish_event(gobj, EV_ON_IEV_MESSAGE, kw_iev);
 
             // TODO código viejo
             // gbuffer_t *gbuf_message = gbuffer_create(stored->payloadlen, stored->payloadlen);
@@ -7833,12 +7845,19 @@ PRIVATE int handle__pubrec(hgobj gobj, gbuffer_t *gbuf)
         } else {
             if(!message__delete(gobj, mid, mosq_md_out, 2)) {
                 /* Only inform the client the message has been sent once. */
-                // TODO
-                // if(mosq->on_publish_v5) {
-                //    mosq->in_callback = TRUE;
-                //    mosq->on_publish_v5(mosq, mosq->userdata, mid, reason_code, properties);
-                //    mosq->in_callback = FALSE;
-                // }
+                /*
+                 *  Callback to user
+                 */
+                json_t *kw_publish = json_pack("{s:i}",
+                    "mid", (int)mid
+                );
+                json_t *kw_iev = iev_create(
+                    gobj,
+                    EV_MQTT_PUBLISH,
+                    kw_publish // owned
+                );
+
+                gobj_publish_event(gobj, EV_ON_IEV_MESSAGE, kw_iev);
             }
             //util__increment_send_quota(mosq); // TODO
             message__release_to_inflight(gobj, mosq_md_out);
