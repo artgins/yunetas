@@ -858,7 +858,6 @@ PRIVATE int mt_start(hgobj gobj)
 
     restore_client_attributes(gobj);
 
-    // TODO
     if(priv->tranger_queues) {
         /*-----------------------------------*
          *          With persistence
