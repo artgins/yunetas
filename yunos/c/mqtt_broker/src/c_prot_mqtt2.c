@@ -112,36 +112,46 @@ typedef enum mosq_err_t {
 /* MQTT specification restricts client ids to a maximum of 23 characters */
 #define MOSQ_MQTT_ID_MAX_LENGTH 23
 
-enum mosquitto_msg_direction {
-    mosq_md_in = 0,
-    mosq_md_out = 1
+/*
+ *  Values (uint16_t) for q_msg_t->mark / md_record->user_flag
+ *  Save qos, retain, dup, message state
+ *  WARNING bit 1 is reserved for TRQ_MSG_PENDING
+ */
+#define TRQ_QOS_MASK        0x00F0
+#define TRQ_DIR_ORIG_MASK   0x0F00
+#define TRQ_STATE_MASK      0xF000
+
+enum mosquitto_msg_qos {
+    mosq_m_qos1     = 0x0010,
+    mosq_m_qos2     = 0x0020,
+    mosq_m_retain   = 0x0040,
+    mosq_m_dup      = 0x0080
 };
 
-enum mosquitto_msg_state {
-    mosq_ms_invalid = 0,
-    mosq_ms_publish_qos0 = 1,
-    mosq_ms_publish_qos1 = 2,
-    mosq_ms_wait_for_puback = 3,
-    mosq_ms_publish_qos2 = 4,
-    mosq_ms_wait_for_pubrec = 5,
-    mosq_ms_resend_pubrel = 6,
-    mosq_ms_wait_for_pubrel = 7,
-    mosq_ms_resend_pubcomp = 8,
-    mosq_ms_wait_for_pubcomp = 9,
-    mosq_ms_send_pubrec = 10,
-    mosq_ms_queued = 11
+enum mosquitto_msg_direction {
+    mosq_md_in      = 0x0100,
+    mosq_md_out     = 0x0200
 };
 
 enum mosquitto_msg_origin {
-    mosq_mo_client = 0,
-    mosq_mo_broker = 1
+    mosq_mo_client  = 0x0400,
+    mosq_mo_broker  = 0x0800
 };
 
-#define TRQ_QOS1        0x0001
-#define TRQ_QOS2        0x0002
-#define TRQ_RETAIN      0x0010
-#define TRQ_DUP         0x0020
-#define TRQ_STATE_1     0x0100
+enum mosquitto_msg_state {
+    mosq_ms_invalid             = 0x0000,
+    mosq_ms_publish_qos0        = 0x1000,
+    mosq_ms_publish_qos1        = 0x2000,
+    mosq_ms_wait_for_puback     = 0x3000,
+    mosq_ms_publish_qos2        = 0x4000,
+    mosq_ms_wait_for_pubrec     = 0x5000,
+    mosq_ms_resend_pubrel       = 0x6000,
+    mosq_ms_wait_for_pubrel     = 0x7000,
+    mosq_ms_resend_pubcomp      = 0x8000,
+    mosq_ms_wait_for_pubcomp    = 0x9000,
+    mosq_ms_send_pubrec         = 0xA000,
+    mosq_ms_queued              = 0xB000
+};
 
 /***************************************************************************
  *              Structures
