@@ -159,8 +159,8 @@ PRIVATE q2_msg_t *new_msg(
             "msg",          "%s", "Cannot create msg. GBMEM_MALLOC() FAILED",
             NULL
         );
-        kw_decref(jn_record);
-        return 0;
+        KW_DECREF(jn_record)
+        return NULL;
     }
     if(rowid != md_record->rowid) {
         gobj_log_error(gobj, 0,
@@ -181,7 +181,7 @@ PRIVATE q2_msg_t *new_msg(
         msg->jn_record = jn_record;
     } else {
         dl_add(&trq->dl_queued, msg);
-        kw_decref(jn_record);
+        KW_DECREF(jn_record)
     }
 
     return msg;

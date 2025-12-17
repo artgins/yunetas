@@ -107,22 +107,22 @@ PUBLIC int tr2q_set_hard_flag(q2_msg_t *msg, uint32_t hard_mark, BOOL set);
 /**
     Walk over instances
 */
-#define q2msg_inflight_foreach_forward(trq, msg) \
+#define Q2MSG_INFLIGHT_FOREACH_FORWARD(trq, msg) \
     for(msg = tr2q_first_inflight_msg(trq); \
         msg!=0 ; \
         msg = tr2q_next_msg(msg))
 
-#define q2msg_inflight_foreach_forward_safe(trq, msg, next) \
+#define Q2MSG_INFLIGHT_FOREACH_FORWARD_SAFE(trq, msg, next) \
     for(msg = tr2q_first_inflight_msg(trq), n = tr2q_next_msg(msg); \
         msg!=0 ; \
         msg = n, n = tr2q_next_msg(msg))
 
-#define q2msg_queued_foreach_forward(trq, msg) \
+#define Q2MSG_QUEUED_FOREACH_FORWARD(trq, msg) \
     for(msg = tr2q_first_queued_msg(trq); \
         msg!=0 ; \
         msg = tr2q_next_msg(msg))
 
-#define q2msg_queued_foreach_forward_safe(trq, msg, next) \
+#define Q2MSG_QUEUED_FOREACH_FORWARD_SAFE(trq, msg, next) \
     for(msg = tr2q_first_queued_msg(trq), n = tr2q_next_msg(msg); \
         msg!=0 ; \
         msg = n, n = tr2q_next_msg(msg))
