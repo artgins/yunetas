@@ -1662,15 +1662,27 @@ PUBLIC json_t *create_json_record(
                 json_object_set_new(jn, name, json_string(defaults));
                 break;
             CASES("time")
+                json_int_t v=0;
+                if(*defaults == '0') {
+                    v = strtol(defaults, 0, 8);
+                } else if(*defaults == 'x') {
+                    v = strtol(defaults, 0, 16);
+                } else if(strcasecmp(defaults, "now")==0) {
+                    v = time(NULL);
+                } else {
+                    v = strtol(defaults, 0, 10);
+                }
+                json_object_set_new(jn, name, json_integer(v));
+                break;
             CASES("int")
             CASES("integer")
-                unsigned long v=0;
+                json_int_t v=0;
                 if(*defaults == '0') {
-                    v = strtoul(defaults, 0, 8);
+                    v = strtol(defaults, 0, 8);
                 } else if(*defaults == 'x') {
-                    v = strtoul(defaults, 0, 16);
+                    v = strtol(defaults, 0, 16);
                 } else {
-                    v = strtoul(defaults, 0, 10);
+                    v = strtol(defaults, 0, 10);
                 }
                 json_object_set_new(jn, name, json_integer(v));
                 break;

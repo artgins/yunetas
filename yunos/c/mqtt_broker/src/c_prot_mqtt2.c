@@ -321,13 +321,13 @@ PRIVATE void do_disconnect(hgobj gobj, int reason);
 static const json_desc_t mqtt_message[] = {
 // Name             Type        Defaults    Fillspace
 {"topic",           "string",   "",         "40"},  // the mqtt 'topic'. First item is the pkey
-{"tm",              "time",     "",         "20"},  // timestamp
+{"tm",              "time",     "now",      "20"},  // timestamp
 {"mid",             "int",      "",         "20"},
 {"qos",             "int",      "",         "20"},
 {"expiry_interval", "int",      "",         "20"},
 {"retain",          "bool",     "",         "20"},
 {"properties",      "dict",     "{}",       "20"},
-{"data",            "string",   "",         "20"},  // payload
+{"gbuffer",         "int",      "",         "20"},  // payload
 
 // these are volatiles
 {"dup",             "bool",     "",         "20"},

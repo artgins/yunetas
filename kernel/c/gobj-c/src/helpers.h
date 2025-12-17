@@ -353,7 +353,7 @@ PUBLIC int save_json_to_file(
  *      null,
  *      dict|object,
  *      list|array,
- *      time
+ *      time            if default is "now" set the current time
  *
  *  Example:
 
