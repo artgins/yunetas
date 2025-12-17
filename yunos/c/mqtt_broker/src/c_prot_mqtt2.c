@@ -121,24 +121,24 @@ typedef enum mosq_err_t {
 #define TRQ_DIR_ORIG_MASK   0x0F00
 #define TRQ_STATE_MASK      0xF000
 
-enum mosquitto_msg_qos {
+typedef enum mosquitto_msg_qos {
     mosq_m_qos1     = 0x0010,
     mosq_m_qos2     = 0x0020,
     mosq_m_retain   = 0x0040,
     mosq_m_dup      = 0x0080
-};
+} mosquitto_msg_qos_t;
 
-enum mosquitto_msg_direction {
+typedef enum mosquitto_msg_direction {
     mosq_md_in      = 0x0100,
     mosq_md_out     = 0x0200
-};
+} mosquitto_msg_direction_t;
 
-enum mosquitto_msg_origin {
+typedef enum mosquitto_msg_origin {
     mosq_mo_client  = 0x0400,
     mosq_mo_broker  = 0x0800
-};
+} mosquitto_msg_origin_t;
 
-enum mosquitto_msg_state {
+typedef enum mosquitto_msg_state {
     mosq_ms_invalid             = 0x0000,
     mosq_ms_publish_qos0        = 0x1000,
     mosq_ms_publish_qos1        = 0x2000,
@@ -151,7 +151,7 @@ enum mosquitto_msg_state {
     mosq_ms_wait_for_pubcomp    = 0x9000,
     mosq_ms_send_pubrec         = 0xA000,
     mosq_ms_queued              = 0xB000
-};
+} mosquitto_msg_state_t;
 
 /***************************************************************************
  *              Structures
@@ -318,10 +318,10 @@ PRIVATE void do_disconnect(hgobj gobj, int reason);
 /***************************************************************************
  *          Data: config, public data, private data
  ***************************************************************************/
-static const json_desc_t mqtt_message[] = {
+static const json_desc_t json_mqtt_desc[] = {
 // Name             Type        Defaults    Fillspace
 {"topic",           "string",   "",         "40"},  // the mqtt 'topic'. First item is the pkey
-{"tm",              "time",     "now",      "20"},  // timestamp
+{"tm",              "time",     "",         "20"},  // timestamp
 {"mid",             "int",      "",         "20"},
 {"qos",             "int",      "",         "20"},
 {"expiry_interval", "int",      "",         "20"},
@@ -1084,6 +1084,60 @@ PRIVATE int message__queue(
         // TODO priv->msgs_out.queue_len++;
     } else {
         dl_add(&priv->msgs_in.dl_inflight, message);
+        // TODO priv->msgs_in.queue_len++;
+    }
+
+    return message__release_to_inflight(gobj, dir);
+}
+
+/***************************************************************************
+ *  Used by client
+ ***************************************************************************/
+PRIVATE int message_enqueue(
+    hgobj gobj,
+    json_t *kw,
+    json_int_t t,
+    enum mosquitto_msg_direction dir
+) {
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+    int qos = (int)kw_get_int(gobj, kw, "qos", 0, KW_REQUIRED);
+    BOOL retain = kw_get_bool(gobj, kw, "retain", 0, KW_REQUIRED);
+    BOOL dup = kw_get_bool(gobj, kw, "dup", 0, KW_REQUIRED);
+    mosquitto_msg_state_t state = kw_get_int(gobj, kw, "state", 0, KW_REQUIRED);
+
+    uint16_t user_flag = dir | mosq_mo_client;
+    if(qos == 1) {
+        user_flag |= mosq_m_qos1;
+    } else if(qos == 2) {
+        user_flag |= mosq_m_qos2;
+    }
+    if(retain) {
+        user_flag |= mosq_m_retain;
+    }
+    if(dup) {
+        user_flag |= mosq_m_dup;
+    }
+    user_flag |= state;
+
+    q_msg_t *qmsg = NULL;
+    if(dir == mosq_md_out) {
+        // dl_add(&priv->msgs_out.dl_inflight, message);
+        qmsg = trq_append2(
+            priv->trq_out_msgs,
+            t,      // __t__ if 0 then the time will be set by TimeRanger with now time
+            kw,     // owned
+            user_flag  // extra flags in addition to TRQ_MSG_PENDING
+        );
+        // TODO priv->msgs_out.queue_len++;
+
+    } else {
+        // dl_add(&priv->msgs_in.dl_inflight, message);
+        qmsg = trq_append2(
+            priv->trq_out_msgs,
+            t,   // __t__ if 0 then the time will be set by TimeRanger with now time
+            kw,     // owned
+            user_flag  // extra flags in addition to TRQ_MSG_PENDING
+        );
         // TODO priv->msgs_in.queue_len++;
     }
 
@@ -9234,29 +9288,43 @@ PRIVATE int ac_mqtt_client_send_publish(hgobj gobj, const char *event, json_t *k
             gobj_publish_event(gobj, EV_ON_IEV_MESSAGE, kw_iev);
         }
     } else {
-        // json_t *jn_mqtt_msg = json_pack("{s:s, s:I, s:i, s:i, s:b, s:b}",
-        //     "id", topic,
-        //     "tm", (json_int_t)t,
-        //     "mid", (int)mid,
-        //     "qos", (int)qos,
-        //     "retain", retain,
-        //     "dup", FALSE
-        // );
-        // if(properties) {
-        //     json_object_set(jn_mqtt_msg, "properties", properties); // no new, owned by kw
-        // }
-        // if(!jn_mqtt_msg) {
-        //     gobj_log_error(gobj, 0,
-        //         "function",     "%s", __FUNCTION__,
-        //         "msgset",       "%s", MSGSET_MQTT_ERROR,
-        //         "msg",          "%s", "Mqtt publish: cannot create the message",
-        //         "topic",        "%s", topic,
-        //         NULL
-        //     );
-        //     KW_DECREF(kw)
-        //     return -1;
-        // }
-        //
+        json_t *jn_mqtt_msg = create_json_record(gobj, json_mqtt_desc);
+        if(!jn_mqtt_msg) {
+            gobj_log_error(gobj, 0,
+                "function",     "%s", __FUNCTION__,
+                "msgset",       "%s", MSGSET_MQTT_ERROR,
+                "msg",          "%s", "Mqtt publish: cannot create the message",
+                "topic",        "%s", topic,
+                NULL
+            );
+            KW_DECREF(kw)
+            return -1;
+        }
+
+        json_object_set_new(jn_mqtt_msg, "topic", json_string(topic));
+        time_t t = mosquitto_time();
+        json_object_set_new(jn_mqtt_msg, "tm", json_integer(t));
+        // "mid" will set in enqueue
+        json_object_set_new(jn_mqtt_msg, "qos", json_integer(qos));
+        json_object_set_new(jn_mqtt_msg, "expiry_interval", json_integer(expiry_interval));
+        json_object_set_new(jn_mqtt_msg, "retain", json_boolean(retain));
+        if(properties) {
+            json_object_set(jn_mqtt_msg, "properties", properties); // no new, owned by kw
+        }
+        if(gbuf_payload) {
+            gbuffer_incref(gbuf_payload);
+            json_object_set_new(
+                jn_mqtt_msg,
+                "gbuffer",
+                json_integer((json_int_t)(uintptr_t)gbuf_payload)
+            );
+        }
+        json_object_set_new(jn_mqtt_msg, "dup", json_false());
+        json_object_set_new(jn_mqtt_msg, "state", json_integer(mosq_ms_invalid));
+
+        message_enqueue(gobj, jn_mqtt_msg, t, mosq_md_out);
+
+        // TODO this base64 to tr_queue.c
         // if(payloadlen) {
         //     gbuffer_t *gbuf_base64 = gbuffer_string_to_base64(payload, payloadlen);
         //     if(!gbuf_base64) {
@@ -9292,37 +9360,36 @@ PRIVATE int ac_mqtt_client_send_publish(hgobj gobj, const char *event, json_t *k
         //     json_object_set_new(jn_mqtt_msg, "data", json_string(""));
         // }
 
-        mosquitto_message_all_t *message = GBMEM_MALLOC(sizeof(mosquitto_message_all_t));
-
-        message->timestamp = mosquitto_time();
-        message->msg.mid = mid;
-        message->expiry_interval = expiry_interval;
-
-        if(topic) {
-            message->msg.topic = gbmem_strdup(topic);
-            if(!message->msg.topic) {
-                message__cleanup(message);
-                KW_DECREF(kw)
-                return -1;
-            }
-        }
-        if(payloadlen) {
-            message->msg.payload = gbuffer_incref(gbuf_payload);
-            if(!message->msg.payload) {
-                message__cleanup(message);
-                KW_DECREF(kw)
-                return -1;
-            }
-        } else {
-            message->msg.payload = NULL;
-        }
-        message->msg.qos = (uint8_t)qos;
-        message->msg.retain = retain;
-        message->dup = FALSE;
-        message->properties = json_incref(properties);
-
-        message->state = mosq_ms_invalid;
-        message__queue(gobj, message, mosq_md_out);
+        // mosquitto_message_all_t *message = GBMEM_MALLOC(sizeof(mosquitto_message_all_t));
+        // message->timestamp = mosquitto_time();
+        // message->msg.mid = mid;
+        // message->expiry_interval = expiry_interval;
+        //
+        // if(topic) {
+        //     message->msg.topic = gbmem_strdup(topic);
+        //     if(!message->msg.topic) {
+        //         message__cleanup(message);
+        //         KW_DECREF(kw)
+        //         return -1;
+        //     }
+        // }
+        // if(payloadlen) {
+        //     message->msg.payload = gbuffer_incref(gbuf_payload);
+        //     if(!message->msg.payload) {
+        //         message__cleanup(message);
+        //         KW_DECREF(kw)
+        //         return -1;
+        //     }
+        // } else {
+        //     message->msg.payload = NULL;
+        // }
+        // message->msg.qos = (uint8_t)qos;
+        // message->msg.retain = retain;
+        // message->dup = FALSE;
+        // message->properties = json_incref(properties);
+        //
+        // message->state = mosq_ms_invalid;
+        // message__queue(gobj, message, mosq_md_out);
     }
 
     KW_DECREF(kw)
