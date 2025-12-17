@@ -7679,7 +7679,7 @@ PRIVATE int handle__pubackcomp(hgobj gobj, gbuffer_t *gbuf, const char *type)
         if(rc == MOSQ_ERR_SUCCESS) {
             /*
              *  Callback to user
-             *  Only inform the client the message has been sent once, qos 1
+             *  Only inform the client the message has been sent once, qos 1/2
              */
             json_t *kw_publish = json_pack("{s:i, s:i}",
                 "mid", (int)mid,
@@ -7844,6 +7844,9 @@ PRIVATE int handle__pubrec(hgobj gobj, gbuffer_t *gbuf)
             rc = message__out_update(gobj, mid, mosq_ms_wait_for_pubcomp, 2);
         } else {
             if(!message__delete(gobj, mid, mosq_md_out, 2)) {
+                /*
+                 *  TODO If not exist it's because must be dup? What is this case?
+                 */
                 /*
                  *  Callback to user
                  *  Only inform the client the message has been sent once, qos 2
