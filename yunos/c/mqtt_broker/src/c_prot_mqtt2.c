@@ -362,63 +362,6 @@ PRIVATE char *command_name[] = {
     "CMD_AUTH"
 };
 
-PRIVATE number_name_table_t mqtt311_connack_codes_s[] = {
-{CONNACK_ACCEPTED,                      "Success"},
-{CONNACK_REFUSED_PROTOCOL_VERSION,      "protocol_version"},
-{CONNACK_REFUSED_IDENTIFIER_REJECTED,   "identifier_rejected"},
-{CONNACK_REFUSED_SERVER_UNAVAILABLE,    "server_unavailable"},
-{CONNACK_REFUSED_BAD_USERNAME_PASSWORD, "bad_username_password"},
-{CONNACK_REFUSED_NOT_AUTHORIZED,        "not_authorized"},
-{0,0}
-};
-
-PRIVATE number_name_table_t mqtt5_return_codes_s[] = {
-{MQTT_RC_SUCCESS,                           "Success"},
-{MQTT_RC_GRANTED_QOS1,                      "Granted QoS 1"},
-{MQTT_RC_GRANTED_QOS2,                      "Granted QoS 2"},
-{MQTT_RC_DISCONNECT_WITH_WILL_MSG,          "Disconnect with Will Message"},
-{MQTT_RC_NO_MATCHING_SUBSCRIBERS,           "No matching subscribers"},
-{MQTT_RC_NO_SUBSCRIPTION_EXISTED,           "No subscription existed"},
-{MQTT_RC_CONTINUE_AUTHENTICATION,           "Continue authentication"},
-{MQTT_RC_REAUTHENTICATE,                    "Re-authenticate"},
-{MQTT_RC_UNSPECIFIED,                       "Unspecified error"},
-{MQTT_RC_MALFORMED_PACKET,                  "Malformed Packet"},
-{MQTT_RC_PROTOCOL_ERROR,                    "Protocol Error"},
-{MQTT_RC_IMPLEMENTATION_SPECIFIC,           "Implementation specific error"},
-{MQTT_RC_UNSUPPORTED_PROTOCOL_VERSION,      "Unsupported Protocol Version"},
-{MQTT_RC_CLIENTID_NOT_VALID,                "Client Identifier not valid"},
-{MQTT_RC_BAD_USERNAME_OR_PASSWORD,          "Bad User Name or Password"},
-{MQTT_RC_NOT_AUTHORIZED,                    "Not authorized"},
-{MQTT_RC_SERVER_UNAVAILABLE,                "Server unavailable"},
-{MQTT_RC_SERVER_BUSY,                       "Server busy"},
-{MQTT_RC_BANNED,                            "Banned"},
-{MQTT_RC_SERVER_SHUTTING_DOWN,              "Server shutting down"},
-{MQTT_RC_BAD_AUTHENTICATION_METHOD,         "Bad authentication method"},
-{MQTT_RC_KEEP_ALIVE_TIMEOUT,                "Keep Alive timeout"},
-{MQTT_RC_SESSION_TAKEN_OVER,                "Session taken over"},
-{MQTT_RC_TOPIC_FILTER_INVALID,              "Topic Filter invalid"},
-{MQTT_RC_TOPIC_NAME_INVALID,                "Topic Name invalid"},
-{MQTT_RC_PACKET_ID_IN_USE,                  "Packet Identifier in use"},
-{MQTT_RC_PACKET_ID_NOT_FOUND,               "Packet Identifier not found"},
-{MQTT_RC_RECEIVE_MAXIMUM_EXCEEDED,          "Receive Maximum exceeded"},
-{MQTT_RC_TOPIC_ALIAS_INVALID,               "Topic Alias invalid"},
-{MQTT_RC_PACKET_TOO_LARGE,                  "Packet too large"},
-{MQTT_RC_MESSAGE_RATE_TOO_HIGH,             "Message rate too high"},
-{MQTT_RC_QUOTA_EXCEEDED,                    "Quota exceeded"},
-{MQTT_RC_ADMINISTRATIVE_ACTION,             "Administrative action"},
-{MQTT_RC_PAYLOAD_FORMAT_INVALID,            "Payload format invalid"},
-{MQTT_RC_RETAIN_NOT_SUPPORTED,              "Retain not supported"},
-{MQTT_RC_QOS_NOT_SUPPORTED,                 "QoS not supported"},
-{MQTT_RC_USE_ANOTHER_SERVER,                "Use another server"},
-{MQTT_RC_SERVER_MOVED,                      "Server moved"},
-{MQTT_RC_SHARED_SUBS_NOT_SUPPORTED,         "Shared Subscriptions not supported"},
-{MQTT_RC_CONNECTION_RATE_EXCEEDED,          "Connection rate exceeded"},
-{MQTT_RC_MAXIMUM_CONNECT_TIME,              "Maximum connect time"},
-{MQTT_RC_SUBSCRIPTION_IDS_NOT_SUPPORTED,    "Subscription identifiers not supported"},
-{MQTT_RC_WILDCARD_SUBS_NOT_SUPPORTED,       "Wildcard Subscriptions not supported"},
-{0,0}
-};
-
 PRIVATE json_t *cmd_help(hgobj gobj, const char *cmd, json_t *kw, hgobj src);
 
 PRIVATE sdata_desc_t pm_help[] = {
@@ -5925,7 +5868,7 @@ PRIVATE int handle__connack(
             reason_code,
             priv->protocol_version == mosq_p_mqtt5?
                 mosquitto_reason_string(reason_code) :
-                get_name_from_nn_table(mqtt311_connack_codes_s, reason_code)
+                mosquitto_connack_string(reason_code)
         );
         if(properties) {
             print_json2("CONNACK properties", properties);

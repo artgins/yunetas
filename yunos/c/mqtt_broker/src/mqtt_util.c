@@ -40,7 +40,7 @@
  ***************************************************************/
 
 /***************************************************************************
- *  get_name_from_nn_table(mqtt311_connack_codes_s, connack_code) is slower
+ *
  ***************************************************************************/
 PUBLIC const char *mosquitto_connack_string(int connack_code)
 {
@@ -63,7 +63,7 @@ PUBLIC const char *mosquitto_connack_string(int connack_code)
 }
 
 /***************************************************************************
- *  get_name_from_nn_table(mqtt5_return_codes_s) is a slower alternative
+ *
  ***************************************************************************/
 PUBLIC const char *mosquitto_reason_string(int reason_code)
 {
