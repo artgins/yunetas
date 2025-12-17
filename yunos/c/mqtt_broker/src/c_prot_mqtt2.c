@@ -344,7 +344,7 @@ PRIVATE void do_disconnect(hgobj gobj, int reason);
  ***************************************************************************/
 static const json_desc_t mqtt_message[] = {
 // Name             Type        Defaults    Fillspace
-{"id",              "string",   "",         "40"},  // the mqtt 'topic'. First item is the pkey
+{"topic",           "string",   "",         "40"},  // the mqtt 'topic'. First item is the pkey
 {"tm",              "time",     "",         "20"},  // timestamp
 {"mid",             "int",      "",         "20"},
 {"qos",             "int",      "",         "20"},

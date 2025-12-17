@@ -41,7 +41,7 @@ typedef struct {
     tr_queue_t *trq;
     md2_record_ex_t md_record;
     uint64_t mark;          // soft mark.
-    json_int_t rowid;
+    json_int_t rowid;       // global rowid that it must match the rowid in md_record
 } q_msg_t;
 
 
