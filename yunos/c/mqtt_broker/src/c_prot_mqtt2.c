@@ -348,13 +348,13 @@ static const json_desc_t mqtt_message[] = {
 {"tm",              "time",     "",         "20"},
 {"mid",             "int",      "",         "20"},
 {"qos",             "int",      "",         "20"},
+{"expiry_interval", "int",      "",         "20"},
 {"retain",          "bool",     "",         "20"},
 {"properties",      "dict",     "{}",       "20"},
 {"data",            "string",   "",         "20"},
 
 // these are volatiles
 {"dup",             "bool",     "",         "20"},
-{"expiry_interval", "int",      "",         "20"},
 {"state",           "int",      "",         "20"},
 {0}
 };
