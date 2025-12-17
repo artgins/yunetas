@@ -41,6 +41,7 @@ SET (YUNO_SRCS
     src/main.c
     src/c_mqtt_tui.c
     src/c_prot_mqtt2.c
+    src/tr2_queue.c
     src/mqtt_util.c
 )
 SET (YUNO_HDRS

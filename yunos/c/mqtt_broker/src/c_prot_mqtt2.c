@@ -1095,15 +1095,47 @@ PRIVATE int message__queue(
  ***************************************************************************/
 PRIVATE int message_enqueue(
     hgobj gobj,
-    json_t *kw,
-    json_int_t t,
+    uint16_t mid,
+    const char *topic,
+    gbuffer_t *gbuf_payload, // not owned
+    uint8_t qos,
+    BOOL retain,
+    BOOL dup,
+    json_t *properties, // not owned
+    uint32_t expiry_interval,
     enum mosquitto_msg_direction dir
 ) {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
-    int qos = (int)kw_get_int(gobj, kw, "qos", 0, KW_REQUIRED);
-    BOOL retain = kw_get_bool(gobj, kw, "retain", 0, KW_REQUIRED);
-    BOOL dup = kw_get_bool(gobj, kw, "dup", 0, KW_REQUIRED);
-    mosquitto_msg_state_t state = kw_get_int(gobj, kw, "state", 0, KW_REQUIRED);
+
+    json_t *jn_mqtt_msg = create_json_record(gobj, json_mqtt_desc);
+    if(!jn_mqtt_msg) {
+        gobj_log_error(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_MQTT_ERROR,
+            "msg",          "%s", "Mqtt publish: cannot create the message",
+            "topic",        "%s", topic,
+            NULL
+        );
+        return -1;
+    }
+
+    json_object_set_new(jn_mqtt_msg, "topic", json_string(topic));
+    time_t t = mosquitto_time();
+    json_object_set_new(jn_mqtt_msg, "tm", json_integer(t));
+    json_object_set_new(jn_mqtt_msg, "qos", json_integer(qos));
+    json_object_set_new(jn_mqtt_msg, "expiry_interval", json_integer(expiry_interval));
+    json_object_set_new(jn_mqtt_msg, "retain", json_boolean(retain));
+    if(properties) {
+        json_object_set(jn_mqtt_msg, "properties", properties); // no new, owned by kw
+    }
+    if(gbuf_payload) {
+        gbuffer_incref(gbuf_payload);
+        json_object_set_new(
+            jn_mqtt_msg,
+            "gbuffer",
+            json_integer((json_int_t)(uintptr_t)gbuf_payload)
+        );
+    }
 
     uint16_t user_flag = dir | mosq_mo_client;
     if(qos == 1) {
@@ -1117,16 +1149,16 @@ PRIVATE int message_enqueue(
     if(dup) {
         user_flag |= mosq_m_dup;
     }
-    user_flag |= state;
+    user_flag |= mosq_ms_invalid;
 
     q_msg_t *qmsg = NULL;
     if(dir == mosq_md_out) {
         // dl_add(&priv->msgs_out.dl_inflight, message);
         qmsg = trq_append2(
             priv->trq_out_msgs,
-            t,      // __t__ if 0 then the time will be set by TimeRanger with now time
-            kw,     // owned
-            user_flag  // extra flags in addition to TRQ_MSG_PENDING
+            t,              // __t__ if 0 then the time will be set by TimeRanger with now time
+            jn_mqtt_msg,    // owned
+            user_flag       // extra flags in addition to TRQ_MSG_PENDING
         );
         // TODO priv->msgs_out.queue_len++;
 
@@ -1134,9 +1166,9 @@ PRIVATE int message_enqueue(
         // dl_add(&priv->msgs_in.dl_inflight, message);
         qmsg = trq_append2(
             priv->trq_out_msgs,
-            t,   // __t__ if 0 then the time will be set by TimeRanger with now time
-            kw,     // owned
-            user_flag  // extra flags in addition to TRQ_MSG_PENDING
+            t,              // __t__ if 0 then the time will be set by TimeRanger with now time
+            jn_mqtt_msg,    // owned
+            user_flag       // extra flags in addition to TRQ_MSG_PENDING
         );
         // TODO priv->msgs_in.queue_len++;
     }
@@ -9288,41 +9320,18 @@ PRIVATE int ac_mqtt_client_send_publish(hgobj gobj, const char *event, json_t *k
             gobj_publish_event(gobj, EV_ON_IEV_MESSAGE, kw_iev);
         }
     } else {
-        json_t *jn_mqtt_msg = create_json_record(gobj, json_mqtt_desc);
-        if(!jn_mqtt_msg) {
-            gobj_log_error(gobj, 0,
-                "function",     "%s", __FUNCTION__,
-                "msgset",       "%s", MSGSET_MQTT_ERROR,
-                "msg",          "%s", "Mqtt publish: cannot create the message",
-                "topic",        "%s", topic,
-                NULL
-            );
-            KW_DECREF(kw)
-            return -1;
-        }
-
-        json_object_set_new(jn_mqtt_msg, "topic", json_string(topic));
-        time_t t = mosquitto_time();
-        json_object_set_new(jn_mqtt_msg, "tm", json_integer(t));
-        // "mid" will set in enqueue
-        json_object_set_new(jn_mqtt_msg, "qos", json_integer(qos));
-        json_object_set_new(jn_mqtt_msg, "expiry_interval", json_integer(expiry_interval));
-        json_object_set_new(jn_mqtt_msg, "retain", json_boolean(retain));
-        if(properties) {
-            json_object_set(jn_mqtt_msg, "properties", properties); // no new, owned by kw
-        }
-        if(gbuf_payload) {
-            gbuffer_incref(gbuf_payload);
-            json_object_set_new(
-                jn_mqtt_msg,
-                "gbuffer",
-                json_integer((json_int_t)(uintptr_t)gbuf_payload)
-            );
-        }
-        json_object_set_new(jn_mqtt_msg, "dup", json_false());
-        json_object_set_new(jn_mqtt_msg, "state", json_integer(mosq_ms_invalid));
-
-        message_enqueue(gobj, jn_mqtt_msg, t, mosq_md_out);
+        message_enqueue(
+            gobj,
+            mid,
+            topic,
+            gbuf_payload,
+            (uint8_t)qos,
+            retain,
+            FALSE,          // dup
+            properties,     // cmsg_props
+            expiry_interval, // expiry_interval
+            mosq_md_out
+        );
 
         // TODO this base64 to tr_queue.c
         // if(payloadlen) {
