@@ -7677,13 +7677,13 @@ PRIVATE int handle__pubackcomp(hgobj gobj, gbuffer_t *gbuf, const char *type)
         rc = message__delete(gobj, mid, mosq_md_out, qos);
 
         if(rc == MOSQ_ERR_SUCCESS) {
-            /* Only inform the client the message has been sent once. */
-
             /*
              *  Callback to user
+             *  Only inform the client the message has been sent once, qos 1
              */
-            json_t *kw_publish = json_pack("{s:i}",
-                "mid", (int)mid
+            json_t *kw_publish = json_pack("{s:i, s:i}",
+                "mid", (int)mid,
+                "qos", qos
             );
             json_t *kw_iev = iev_create(
                 gobj,
@@ -7844,12 +7844,13 @@ PRIVATE int handle__pubrec(hgobj gobj, gbuffer_t *gbuf)
             rc = message__out_update(gobj, mid, mosq_ms_wait_for_pubcomp, 2);
         } else {
             if(!message__delete(gobj, mid, mosq_md_out, 2)) {
-                /* Only inform the client the message has been sent once. */
                 /*
                  *  Callback to user
+                 *  Only inform the client the message has been sent once, qos 2
                  */
-                json_t *kw_publish = json_pack("{s:i}",
-                    "mid", (int)mid
+                json_t *kw_publish = json_pack("{s:i, s:i}",
+                    "mid", (int)mid,
+                    "qos", 2
                 );
                 json_t *kw_iev = iev_create(
                     gobj,
@@ -9215,9 +9216,11 @@ PRIVATE int ac_mqtt_client_send_publish(hgobj gobj, const char *event, json_t *k
         )==0) {
             /*
              *  Callback to user
+             *  Only inform the client the message has been sent once, qos 0
              */
-            json_t *kw_publish = json_pack("{s:i}",
-                "mid", (int)mid
+            json_t *kw_publish = json_pack("{s:i, s:i}",
+                "mid", (int)mid,
+                "qos", 0
             );
             json_t *kw_iev = iev_create(
                 gobj,
