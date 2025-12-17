@@ -139,7 +139,7 @@ PRIVATE void trq_set_first_rowid(tr_queue_t * trq, uint64_t first_rowid)
  ***************************************************************************/
 PRIVATE q_msg_t *new_msg(
     tr_queue_t *trq,
-    json_int_t rowid,
+    json_int_t rowid, // global rowid that must match with rowid in md_record
     const md2_record_ex_t *md_record,
     json_t *jn_record // owned
 ) {
