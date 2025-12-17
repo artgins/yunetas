@@ -108,23 +108,6 @@ typedef enum mosq_err_t {
     MOSQ_ERR_ALREADY_EXISTS = -31,
 } mosq_err_t;
 
-/* Option values */
-typedef enum mosq_opt_t {
-    MOSQ_OPT_PROTOCOL_VERSION = 1,
-    MOSQ_OPT_SSL_CTX = 2,
-    MOSQ_OPT_SSL_CTX_WITH_DEFAULTS = 3,
-    MOSQ_OPT_RECEIVE_MAXIMUM = 4,
-    MOSQ_OPT_SEND_MAXIMUM = 5,
-    MOSQ_OPT_TLS_KEYFORM = 6,
-    MOSQ_OPT_TLS_ENGINE = 7,
-    MOSQ_OPT_TLS_ENGINE_KPASS_SHA1 = 8,
-    MOSQ_OPT_TLS_OCSP_REQUIRED = 9,
-    MOSQ_OPT_TLS_ALPN = 10,
-    MOSQ_OPT_TCP_NODELAY = 11,
-    MOSQ_OPT_BIND_ADDRESS = 12,
-    MOSQ_OPT_TLS_USE_OS_CERTS = 13,
-} mosq_opt_t;
-
 
 /* MQTT specification restricts client ids to a maximum of 23 characters */
 #define MOSQ_MQTT_ID_MAX_LENGTH 23
@@ -134,9 +117,6 @@ enum mosquitto_msg_direction {
     mosq_md_out = 1
 };
 
-/***************************************************************************
- *              Structures
- ***************************************************************************/
 enum mosquitto_msg_state {
     mosq_ms_invalid = 0,
     mosq_ms_publish_qos0 = 1,
@@ -156,6 +136,16 @@ enum mosquitto_msg_origin {
     mosq_mo_client = 0,
     mosq_mo_broker = 1
 };
+
+#define TRQ_QOS1        0x0001
+#define TRQ_QOS2        0x0002
+#define TRQ_RETAIN      0x0010
+#define TRQ_DUP         0x0020
+#define TRQ_STATE_1     0x0100
+
+/***************************************************************************
+ *              Structures
+ ***************************************************************************/
 
 /* Struct: mosquitto_message
  *
@@ -334,14 +324,6 @@ static const json_desc_t mqtt_message[] = {
 {"state",           "int",      "",         "20"},
 {0}
 };
-
-
-#define TRQ_QOS1        0x0001
-#define TRQ_QOS2        0x0002
-#define TRQ_RETAIN      0x0010
-#define TRQ_DUP         0x0020
-#define TRQ_STATE_1     0x0100
-
 
 PRIVATE char *command_name[] = {
     "???",
