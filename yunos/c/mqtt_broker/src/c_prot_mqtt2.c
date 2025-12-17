@@ -134,30 +134,6 @@ enum mosquitto_msg_direction {
     mosq_md_out = 1
 };
 
-typedef enum mosquitto_client_state {
-    mosq_cs_new = 0,
-    mosq_cs_connected = 1,
-    mosq_cs_disconnecting = 2,
-    mosq_cs_active = 3,
-    mosq_cs_connect_pending = 4,
-    mosq_cs_connect_srv = 5,
-    mosq_cs_disconnect_ws = 6,
-    mosq_cs_disconnected = 7,
-    mosq_cs_socks5_new = 8,
-    mosq_cs_socks5_start = 9,
-    mosq_cs_socks5_request = 10,
-    mosq_cs_socks5_reply = 11,
-    mosq_cs_socks5_auth_ok = 12,
-    mosq_cs_socks5_userpass_reply = 13,
-    mosq_cs_socks5_send_userpass = 14,
-    mosq_cs_expiring = 15,
-    mosq_cs_duplicate = 17, /* client that has been taken over by another with the same id */
-    mosq_cs_disconnect_with_will = 18,
-    mosq_cs_disused = 19, /* client that has been added to the disused list to be freed */
-    mosq_cs_authenticating = 20, /* Client has sent CONNECT but is still undergoing extended authentication */
-    mosq_cs_reauthenticating = 21, /* Client is undergoing re-authentication and shouldn't do anything else until complete */
-} mosquitto_client_state_t;
-
 /***************************************************************************
  *              Structures
  ***************************************************************************/
@@ -359,6 +335,14 @@ static const json_desc_t mqtt_message[] = {
 {0}
 };
 
+
+#define TRQ_QOS1        0x0001
+#define TRQ_QOS2        0x0002
+#define TRQ_RETAIN      0x0010
+#define TRQ_DUP         0x0020
+#define TRQ_STATE_1     0x0100
+
+
 PRIVATE char *command_name[] = {
     "???",
     "CMD_CONNECT",
@@ -543,7 +527,6 @@ SDATA (DTP_INTEGER,     "session_expiry_interval",SDF_VOLATIL,  0,      "Session
 SDATA (DTP_INTEGER,     "keepalive",        SDF_VOLATIL,        0,      "Keepalive"),
 SDATA (DTP_STRING,      "auth_method",      SDF_VOLATIL,        0,      "Auth method"),
 SDATA (DTP_STRING,      "auth_data",        SDF_VOLATIL,        0,      "Auth data (in base64)"),
-SDATA (DTP_INTEGER,     "state",            SDF_VOLATIL,        0,      "State"),
 
 SDATA (DTP_INTEGER,     "msgs_out_inflight_maximum", SDF_VOLATIL,0,     "Connect property"),
 SDATA (DTP_INTEGER,     "msgs_out_inflight_quota", SDF_VOLATIL, 0,      "Connect property"),
@@ -637,7 +620,6 @@ typedef struct _PRIVATE_DATA {
     uint32_t keepalive;
     const char *auth_method;
     const char *auth_data;
-    mosquitto_client_state_t state;
     uint32_t msgs_out_inflight_maximum;
     uint32_t msgs_out_inflight_quota;
     uint32_t maximum_packet_size;
@@ -743,7 +725,6 @@ PRIVATE void mt_create(hgobj gobj)
     SET_PRIV(keepalive,                 gobj_read_integer_attr)
     SET_PRIV(auth_method,               gobj_read_str_attr)
     SET_PRIV(auth_data,                 gobj_read_str_attr)
-    SET_PRIV(state,                     gobj_read_integer_attr)
 
     SET_PRIV(msgs_out_inflight_maximum, gobj_read_integer_attr)
     SET_PRIV(msgs_out_inflight_quota,   gobj_read_integer_attr)
@@ -797,7 +778,6 @@ PRIVATE void mt_writing(hgobj gobj, const char *path)
     ELIF_EQ_SET_PRIV(keepalive,                 gobj_read_integer_attr)
     ELIF_EQ_SET_PRIV(auth_method,               gobj_read_str_attr)
     ELIF_EQ_SET_PRIV(auth_data,                 gobj_read_str_attr)
-    ELIF_EQ_SET_PRIV(state,                     gobj_read_integer_attr)
 
     ELIF_EQ_SET_PRIV(msgs_out_inflight_maximum, gobj_read_integer_attr)
     ELIF_EQ_SET_PRIV(msgs_out_inflight_quota,   gobj_read_integer_attr)
