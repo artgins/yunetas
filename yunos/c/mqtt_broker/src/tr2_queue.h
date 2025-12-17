@@ -29,8 +29,10 @@ typedef struct {
     json_t *tranger;
     json_t *topic;
     char topic_name[256];
-    int maximum_retries;
-    dl_list_t dl_q_msg;
+    size_t maximum_retries;
+    size_t max_inflight_messages;
+    dl_list_t dl_inflight;
+    dl_list_t dl_queued;
     uint64_t first_rowid;
 } tr2_queue_t;
 
@@ -41,6 +43,7 @@ typedef struct {
     md2_record_ex_t md_record;
     uint64_t mark;          // soft mark.
     json_int_t rowid;       // global rowid that it must match the rowid in md_record
+    json_t *jn_record;
 } q2_msg_t;
 
 
@@ -49,45 +52,21 @@ typedef struct {
  ***************************************************************/
 
 /**
-    Open queue (Remember previously open tranger2_startup())
+    Open queue (Remember before open to call tranger2_startup())
 */
 PUBLIC tr2_queue_t *tr2q_open(
     json_t *tranger,
     const char *topic_name,
     const char *tkey,
-    system_flag2_t system_flag, // KEY_TYPE_MASK2 forced to sf_rowid_key
+    system_flag2_t system_flag, // KEY_TYPE_MASK forced to sf_rowid_key
+    size_t max_inflight_messages,
     size_t backup_queue_size
 );
 
 /**
-    Close queue (After close the queue, remember do tranger2_shutdown())
+    Close queue (After close the queue, remember to do tranger2_shutdown())
 */
 PUBLIC void tr2q_close(tr2_queue_t *trq);
-
-/**
-    Return size of queue (messages in queue)
-*/
-static inline size_t tr2q_size(tr2_queue_t *trq)
-{
-    return dl_size(&trq->dl_q_msg);
-}
-
-/**
-    Return tranger of queue
-*/
-static inline json_t * tr2q_tranger(tr2_queue_t *trq)
-{
-    return trq->tranger;
-}
-
-
-/**
-    Return topic of queue
-*/
-static inline json_t * tr2q_topic(tr2_queue_t *trq)
-{
-    return trq->topic;
-}
 
 /**
     Append a new message to queue forcing t
@@ -95,7 +74,10 @@ static inline json_t * tr2q_topic(tr2_queue_t *trq)
     If t (__t__) is 0 then the time will be set by TimeRanger with now time.
 
     The message (kw) is saved in disk with the user_flag TR2Q_MSG_PENDING,
-    leaving in q2_msg_t only the metadata (to save memory).
+    and enqueued in inflight queue if it has space (until max_inflight_messages msgs)
+    otherwise it's enqueued in queued only with metadata (to save memory)
+    If max_inflight_messages is 0 then all messages are inflight
+    If max_inflight_messages is 1, the messages are sent in order and one by one.
 
     You can recover the message content with tr2q_msg_json().
 
@@ -125,23 +107,42 @@ PUBLIC int tr2q_set_hard_flag(q2_msg_t *msg, uint32_t hard_mark, BOOL set);
 /**
     Walk over instances
 */
-#define q2msg_foreach_forward(trq, msg) \
-    for(msg = tr2q_first_msg(trq); \
+#define q2msg_inflight_foreach_forward(trq, msg) \
+    for(msg = tr2q_first_inflight_msg(trq); \
         msg!=0 ; \
         msg = tr2q_next_msg(msg))
 
-#define q2msg_foreach_forward_safe(trq, msg, next) \
-    for(msg = tr2q_first_msg(trq), n = tr2q_next_msg(msg); \
+#define q2msg_inflight_foreach_forward_safe(trq, msg, next) \
+    for(msg = tr2q_first_inflight_msg(trq), n = tr2q_next_msg(msg); \
         msg!=0 ; \
         msg = n, n = tr2q_next_msg(msg))
 
-static inline q2_msg_t *tr2q_first_msg(tr2_queue_t *trq)
+#define q2msg_queued_foreach_forward(trq, msg) \
+    for(msg = tr2q_first_queued_msg(trq); \
+        msg!=0 ; \
+        msg = tr2q_next_msg(msg))
+
+#define q2msg_queued_foreach_forward_safe(trq, msg, next) \
+    for(msg = tr2q_first_queued_msg(trq), n = tr2q_next_msg(msg); \
+        msg!=0 ; \
+        msg = n, n = tr2q_next_msg(msg))
+
+static inline q2_msg_t *tr2q_first_inflight_msg(tr2_queue_t *trq)
 {
-    return dl_first(&((tr2_queue_t *)trq)->dl_q_msg);
+    return dl_first(&((tr2_queue_t *)trq)->dl_inflight);
 }
-static inline q2_msg_t *tr2q_last_msg(tr2_queue_t *trq)
+static inline q2_msg_t *tr2q_last_inflight_msg(tr2_queue_t *trq)
 {
-    return dl_last(&((tr2_queue_t *)trq)->dl_q_msg);
+    return dl_last(&((tr2_queue_t *)trq)->dl_inflight);
+}
+
+static inline q2_msg_t *tr2q_first_queued_msg(tr2_queue_t *trq)
+{
+    return dl_first(&((tr2_queue_t *)trq)->dl_queued);
+}
+static inline q2_msg_t *tr2q_last_queued_msg(tr2_queue_t *trq)
+{
+    return dl_last(&((tr2_queue_t *)trq)->dl_queued);
 }
 
 static inline q2_msg_t *tr2q_next_msg(q2_msg_t *msg)
@@ -151,6 +152,38 @@ static inline q2_msg_t *tr2q_next_msg(q2_msg_t *msg)
 static inline q2_msg_t *tr2q_prev_msg(q2_msg_t *msg)
 {
     return dl_prev(msg);
+}
+
+/**
+    Return number of inflight messages
+*/
+static inline size_t tr2q_inflight_size(tr2_queue_t *trq)
+{
+    return dl_size(&trq->dl_inflight);
+}
+
+/**
+    Return number of queued messages
+*/
+static inline size_t tr2q_queued_size(tr2_queue_t *trq)
+{
+    return dl_size(&trq->dl_queued);
+}
+
+/**
+    Return tranger of queue
+*/
+static inline json_t * tr2q_tranger(tr2_queue_t *trq)
+{
+    return trq->tranger;
+}
+
+/**
+    Return topic of queue
+*/
+static inline json_t * tr2q_topic(tr2_queue_t *trq)
+{
+    return trq->topic;
 }
 
 

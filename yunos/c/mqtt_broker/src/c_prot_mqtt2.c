@@ -793,7 +793,8 @@ PRIVATE int mt_start(hgobj gobj)
             priv->tranger_queues,
             topic_name,
             "tm",
-            0,
+            0,  // system_flag
+            0,  // max_inflight_messages
             gobj_read_integer_attr(gobj, "backup_queue_size")
         );
 
@@ -813,7 +814,8 @@ PRIVATE int mt_start(hgobj gobj)
             priv->tranger_queues,
             topic_name,
             "tm",
-            0,
+            0,  // system_flag
+            0,  // max_inflight_messages
             gobj_read_integer_attr(gobj, "backup_queue_size")
         );
 

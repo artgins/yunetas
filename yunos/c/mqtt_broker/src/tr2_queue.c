@@ -36,7 +36,8 @@ PUBLIC tr2_queue_t *tr2q_open(
     json_t *tranger,
     const char *topic_name,
     const char *tkey,
-    system_flag2_t system_flag, // KEY_TYPE_MASK2 forced to sf_rowid_key
+    system_flag2_t system_flag, // KEY_TYPE_MASK forced to sf_rowid_key
+    size_t max_inflight_messages,
     size_t backup_queue_size
 ) {
     hgobj gobj = (hgobj)json_integer_value(json_object_get(tranger, "gobj"));
@@ -55,6 +56,7 @@ PUBLIC tr2_queue_t *tr2q_open(
         return 0;
     }
     trq->tranger = tranger;
+    trq->max_inflight_messages = max_inflight_messages;
     snprintf(trq->topic_name, sizeof(trq->topic_name), "%s", topic_name);
 
     json_t *jn_topic_ext = json_object();
@@ -80,7 +82,8 @@ PUBLIC tr2_queue_t *tr2q_open(
         tr2q_close(trq);
         return 0;
     }
-    dl_init(&trq->dl_q_msg, 0);
+    dl_init(&trq->dl_inflight, 0);
+    dl_init(&trq->dl_queued, 0);
 
     if(backup_queue_size > 0 && kw_get_bool(gobj, trq->tranger, "master", 0, KW_REQUIRED)) {
         json_t *jn_topic_var = json_object();
@@ -104,7 +107,8 @@ PUBLIC tr2_queue_t *tr2q_open(
  ***************************************************************************/
 PUBLIC void tr2q_close(tr2_queue_t *trq)
 {
-    dl_flush(&((tr2_queue_t *)trq)->dl_q_msg, free_msg);
+    dl_flush(&((tr2_queue_t *)trq)->dl_inflight, free_msg);
+    dl_flush(&((tr2_queue_t *)trq)->dl_queued, free_msg);
     GBMEM_FREE(trq);
 }
 
@@ -134,7 +138,7 @@ PRIVATE void tr2q_set_first_rowid(tr2_queue_t *trq, uint64_t first_rowid)
 }
 
 /***************************************************************************
-    New msg
+    New msg in memory
  ***************************************************************************/
 PRIVATE q2_msg_t *new_msg(
     tr2_queue_t *trq,
@@ -169,11 +173,16 @@ PRIVATE q2_msg_t *new_msg(
         );
     }
     memmove(&msg->md_record, md_record, sizeof(md2_record_ex_t));
-    kw_decref(jn_record);
     msg->trq = trq;
     msg->rowid = rowid;
 
-    dl_add(&trq->dl_q_msg, msg);
+    if(trq->max_inflight_messages == 0 || tr2q_inflight_size(trq) < trq->max_inflight_messages) {
+        dl_add(&trq->dl_inflight, msg);
+        msg->jn_record = jn_record;
+    } else {
+        dl_add(&trq->dl_queued, msg);
+        kw_decref(jn_record);
+    }
 
     return msg;
 }
@@ -427,7 +436,7 @@ PUBLIC q2_msg_t *tr2q_get_by_rowid(tr2_queue_t *trq, uint64_t rowid)
 {
     register q2_msg_t *msg;
 
-    q2msg_foreach_forward(trq, msg) {
+    q2msg_inflight_foreach_forward(trq, msg) {
         if(msg->rowid == rowid) {
             return msg;
         }
@@ -466,7 +475,7 @@ PUBLIC void tr2q_unload_msg(q2_msg_t *msg, int32_t result)
 {
     tr2q_set_hard_flag(msg, TR2Q_MSG_PENDING, 0);
 
-    dl_delete(&msg->trq->dl_q_msg, msg, free_msg);
+    dl_delete(&msg->trq->dl_inflight, msg, free_msg);
 }
 
 /***************************************************************************
