@@ -123,7 +123,6 @@ PRIVATE sdata_desc_t pm_publish[] = {
 /*-PM----type-----------name------------flag----default-description---------- */
 SDATAPM (DTP_STRING,    "topic",        0,      "",     "Topic on which this message will be published"),
 SDATAPM (DTP_STRING,    "payload",      0,      "",     "Data to send"),
-SDATAPM (DTP_INTEGER,   "mid",          0,      "0",    "Message Id, set internally if it's 0"),
 SDATAPM (DTP_INTEGER,   "qos",          0,      "0",    "Quality of Service to be used for the message (0,1,2)"),
 SDATAPM (DTP_BOOLEAN,   "retain",       0,      "0",    "Set to true to make the message retained"),
 SDATAPM (DTP_JSON,      "properties",   0,      0,      "Mqtt5 publish properties"),
@@ -135,7 +134,6 @@ SDATA_END()
 PRIVATE sdata_desc_t pm_subscribe[] = {
 /*-PM----type-----------name------------flag----default-description---------- */
 SDATAPM (DTP_LIST,      "subs",         0,      "[]",   "List of subscription patterns"),
-SDATAPM (DTP_INTEGER,   "mid",          0,      "0",    "Message Id, set internally if it's 0"),
 SDATAPM (DTP_INTEGER,   "qos",          0,      "0",    "Quality of Service for this subscription (0,1,2)"),
 SDATAPM (DTP_INTEGER,   "options",      0,      "0",    "Mqtt5 options to apply to this subscription, OR'd together. See mqtt5_sub_options"),
 SDATAPM (DTP_JSON,      "properties",   0,      0,      "Mqtt5 suscribe properties"),
@@ -145,7 +143,6 @@ SDATA_END()
 PRIVATE sdata_desc_t pm_unsubscribe[] = {
 /*-PM----type-----------name------------flag----default-description---------- */
 SDATAPM (DTP_LIST,      "subs",         0,      "[]",   "List of subscription patterns"),
-SDATAPM (DTP_INTEGER,   "mid",          0,      "0",    "Message Id, set internally if it's 0"),
 SDATAPM (DTP_JSON,      "properties",   0,      0,      "Mqtt5 unsuscribe properties"),
 SDATA_END()
 };
@@ -527,7 +524,6 @@ PRIVATE json_t *cmd_help_broker(hgobj gobj, const char *cmd, json_t *kw, hgobj s
 PRIVATE json_t *cmd_publish(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
 {
     const char *topic = kw_get_str(gobj, kw, "topic", "", 0);
-    int mid = (int)kw_get_int(gobj, kw, "mid", 0, 0);
     int qos = (int)kw_get_int(gobj, kw, "qos", 0, 0);
     int expiry_interval = (int)kw_get_int(gobj, kw, "expiry_interval", 0, 0);
     BOOL retain = kw_get_bool(gobj, kw, "retain", 0, 0);
@@ -554,9 +550,8 @@ PRIVATE json_t *cmd_publish(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
     /*
      *  Let mqtt protocol check all parameters
      */
-    json_t *kw_publish = json_pack("{s:s, s:i, s:i, s:i, s:b, s:I}",
+    json_t *kw_publish = json_pack("{s:s, s:i, s:i, s:b, s:I}",
         "topic", topic,
-        "mid", mid,
         "qos", qos,
         "expiry_interval", expiry_interval,
         "retain", retain,
@@ -578,7 +573,6 @@ PRIVATE json_t *cmd_publish(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
 PRIVATE json_t *cmd_subscribe(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
 {
     json_t *subs = kw_get_list(gobj, kw, "subs", 0, 0);
-    int mid = (int)kw_get_int(gobj, kw, "mid", 0, 0);
     int qos = (int)kw_get_int(gobj, kw, "qos", 0, 0);
     int options = (int)kw_get_int(gobj, kw, "options", 0, 0);
     json_t *properties = kw_get_dict(gobj, kw, "properties", 0, 0);
@@ -597,9 +591,8 @@ PRIVATE json_t *cmd_subscribe(hgobj gobj, const char *cmd, json_t *kw, hgobj src
     /*
      *  Let mqtt protocol check all parameters
      */
-    json_t *kw_subscribe = json_pack("{s:O, s:i, s:i, s:i}",
+    json_t *kw_subscribe = json_pack("{s:O, s:i, s:i}",
         "subs", subs,
-        "mid", mid,
         "qos", qos,
         "options", options
     );
@@ -619,7 +612,6 @@ PRIVATE json_t *cmd_subscribe(hgobj gobj, const char *cmd, json_t *kw, hgobj src
 PRIVATE json_t *cmd_unsubscribe(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
 {
     json_t *subs = kw_get_list(gobj, kw, "subs", 0, 0);
-    int mid = (int)kw_get_int(gobj, kw, "mid", 0, 0);
     json_t *properties = kw_get_dict(gobj, kw, "properties", 0, 0);
 
     if(!json_is_array(subs)) {
@@ -636,9 +628,8 @@ PRIVATE json_t *cmd_unsubscribe(hgobj gobj, const char *cmd, json_t *kw, hgobj s
     /*
      *  Let mqtt protocol check all parameters
      */
-    json_t *kw_unsubscribe = json_pack("{s:O, s:i}",
-        "subs", subs,
-        "mid", mid
+    json_t *kw_unsubscribe = json_pack("{s:O}",
+        "subs", subs
     );
     if(properties && json_is_object(properties)) {
         json_object_set(kw_unsubscribe, "properties", properties);
