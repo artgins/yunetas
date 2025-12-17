@@ -381,7 +381,7 @@ PUBLIC int tr2q_load_all_by_time(tr2_queue_t *trq, int64_t from_t, int64_t to_t)
     You must use tr2q_unload_msg() to mark a message as processed, removing from memory and
     resetting in disk the TR2Q_MSG_PENDING user flag.
  ***************************************************************************/
-PUBLIC q2_msg_t *tr2q_append2(
+PUBLIC q2_msg_t *tr2q_append(
     tr2_queue_t *trq,
     json_int_t t,   // __t__ if 0 then the time will be set by TimeRanger with now time
     json_t *kw,     // owned

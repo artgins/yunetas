@@ -30,7 +30,7 @@
 #include <g_ev_kernel.h>
 #include <g_st_kernel.h>
 #include <helpers.h>
-#include <tr_queue.h>
+#include "tr2_queue.h"
 
 #ifdef __linux__
 #if defined(CONFIG_HAVE_OPENSSL)
@@ -520,8 +520,8 @@ typedef struct _PRIVATE_DATA {
     struct mosquitto_msg_data msgs_out;
 
     json_t *tranger_queues;
-    tr_queue_t *trq_in_msgs;
-    tr_queue_t *trq_out_msgs;
+    tr2_queue_t *trq_in_msgs;
+    tr2_queue_t *trq_out_msgs;
 
     /*
      *  Config
@@ -789,7 +789,7 @@ PRIVATE int mt_start(hgobj gobj)
             priv->client_id
         );
 
-        priv->trq_in_msgs = trq_open(
+        priv->trq_in_msgs = tr2q_open(
             priv->tranger_queues,
             topic_name,
             "tm",
@@ -797,7 +797,7 @@ PRIVATE int mt_start(hgobj gobj)
             gobj_read_integer_attr(gobj, "backup_queue_size")
         );
 
-        trq_load(priv->trq_in_msgs);
+        // TODO tr2q_load(priv->trq_in_msgs);
 
         /*
          *  Out messages
@@ -809,7 +809,7 @@ PRIVATE int mt_start(hgobj gobj)
             priv->client_id
         );
 
-        priv->trq_out_msgs = trq_open(
+        priv->trq_out_msgs = tr2q_open(
             priv->tranger_queues,
             topic_name,
             "tm",
@@ -817,7 +817,7 @@ PRIVATE int mt_start(hgobj gobj)
             gobj_read_integer_attr(gobj, "backup_queue_size")
         );
 
-        trq_load(priv->trq_out_msgs);
+        // TODO tr2q_load(priv->trq_out_msgs);
     }
 
     return 0;
@@ -830,8 +830,8 @@ PRIVATE int mt_stop(hgobj gobj)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
-    EXEC_AND_RESET(trq_close, priv->trq_in_msgs);
-    EXEC_AND_RESET(trq_close, priv->trq_out_msgs);
+    EXEC_AND_RESET(tr2q_close, priv->trq_in_msgs);
+    EXEC_AND_RESET(tr2q_close, priv->trq_out_msgs);
 
     clear_timeout(priv->timer);
 
@@ -1151,10 +1151,10 @@ PRIVATE int message_enqueue(
     }
     user_flag |= mosq_ms_invalid;
 
-    q_msg_t *qmsg = NULL;
+    q2_msg_t *qmsg = NULL;
     if(dir == mosq_md_out) {
         // dl_add(&priv->msgs_out.dl_inflight, message);
-        qmsg = trq_append2(
+        qmsg = tr2q_append(
             priv->trq_out_msgs,
             t,              // __t__ if 0 then the time will be set by TimeRanger with now time
             jn_mqtt_msg,    // owned
@@ -1164,7 +1164,7 @@ PRIVATE int message_enqueue(
 
     } else {
         // dl_add(&priv->msgs_in.dl_inflight, message);
-        qmsg = trq_append2(
+        qmsg = tr2q_append(
             priv->trq_out_msgs,
             t,              // __t__ if 0 then the time will be set by TimeRanger with now time
             jn_mqtt_msg,    // owned

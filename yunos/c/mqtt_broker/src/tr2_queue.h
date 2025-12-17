@@ -90,6 +90,26 @@ static inline json_t * tr2q_topic(tr2_queue_t *trq)
 }
 
 /**
+    Append a new message to queue forcing t
+
+    If t (__t__) is 0 then the time will be set by TimeRanger with now time.
+
+    The message (kw) is saved in disk with the user_flag TR2Q_MSG_PENDING,
+    leaving in q2_msg_t only the metadata (to save memory).
+
+    You can recover the message content with tr2q_msg_json().
+
+    You must use tr2q_unload_msg() to mark a message as processed, removing from memory and
+    resetting in disk the TR2Q_MSG_PENDING user flag.
+*/
+PUBLIC q2_msg_t * tr2q_append(
+    tr2_queue_t *trq,
+    json_int_t t,       // __t__ if 0 then the time will be set by TimeRanger with now time
+    json_t *kw,         // owned
+    uint16_t user_flag  // extra flags in addition to TR2Q_MSG_PENDING
+);
+
+/**
     Unload a message successfully from iter (disk TR2Q_MSG_PENDING set to 0)
 */
 PUBLIC void tr2q_unload_msg(q2_msg_t *msg, int32_t result);
