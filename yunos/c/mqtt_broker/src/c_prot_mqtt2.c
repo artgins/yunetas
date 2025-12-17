@@ -255,7 +255,7 @@ typedef struct mosquitto_message_all { // Used in client
 
 typedef struct mosquitto_msg_data { // Used in client/broker
     // Used in broker
-    dl_list_t dl_inflight2;    // struct mosquitto_client_msg *inflight2;
+    dl_list_t dl_inflight2;    // struct mosquitto_client_msg *inflight;
     dl_list_t dl_queued;       // struct mosquitto_client_msg *queued;
     long inflight_bytes;
     long inflight_bytes12;
