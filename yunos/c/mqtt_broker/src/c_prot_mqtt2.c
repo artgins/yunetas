@@ -9269,10 +9269,10 @@ PRIVATE int ac_mqtt_client_send_publish(hgobj gobj, const char *event, json_t *k
             gbuf_payload,
             (uint8_t)qos,
             retain,
-            FALSE,
-            properties,
-            NULL,
-            0
+            FALSE,      // dup
+            properties, // cmsg_props
+            NULL,       // store_props
+            0           // expiry_interval
         )==0) {
             /*
              *  Callback to user
