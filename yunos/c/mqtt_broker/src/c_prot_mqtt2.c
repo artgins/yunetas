@@ -9028,7 +9028,6 @@ PRIVATE int ac_mqtt_client_send_publish(hgobj gobj, const char *event, json_t *k
 
     // TODO check: topic can be empty if using prot v5 and property MQTT_PROP_TOPIC_ALIAS
     const char *topic = kw_get_str(gobj, kw, "topic", "", 0);
-    int mid = 0;
     int qos = (int)kw_get_int(gobj, kw, "qos", 0, 0);
     int expiry_interval = (int)kw_get_int(gobj, kw, "expiry_interval", 0, 0);
     BOOL retain = kw_get_bool(gobj, kw, "retain", 0, 0);
@@ -9180,9 +9179,7 @@ PRIVATE int ac_mqtt_client_send_publish(hgobj gobj, const char *event, json_t *k
         return -1;
     }
 
-    if(!mid) {
-        mid = mosquitto__mid_generate(gobj);
-    }
+    int mid = mosquitto__mid_generate(gobj);
 
     if(qos == 0) {
         if(send__publish(
