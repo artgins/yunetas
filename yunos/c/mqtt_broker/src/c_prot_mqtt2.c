@@ -879,7 +879,7 @@ PRIVATE int mt_start(hgobj gobj)
             priv->tranger_queues,
             topic_name,
             "tm",
-            sf_int_key, // TODO |sf_string_key?
+            sf_string_key,
             gobj_read_integer_attr(gobj, "backup_queue_size")
         );
 
@@ -899,7 +899,7 @@ PRIVATE int mt_start(hgobj gobj)
             priv->tranger_queues,
             topic_name,
             "tm",
-            sf_int_key, // TODO |sf_string_key?
+            sf_string_key,
             gobj_read_integer_attr(gobj, "backup_queue_size")
         );
 

@@ -61,7 +61,7 @@ PUBLIC tr_queue_t *trq_open(
     json_t *jn_topic_ext = json_object();
     json_object_set_new(jn_topic_ext, "filename_mask", json_string("queue"));
 
-    system_flag &= KEY_TYPE_MASK2;
+    system_flag &= ~KEY_TYPE_MASK2;
     system_flag |= sf_rowid_key;
 
     /*-------------------------------*
