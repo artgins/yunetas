@@ -1157,6 +1157,13 @@ PRIVATE int message__queue(
 ) {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
+        // q_msg_t *msg = trq_append2(
+        //     tr_queue_t * trq,
+        //     json_int_t t,   // __t__ if 0 then the time will be set by TimeRanger with now time
+        //     json_t *kw,     // owned
+        //     uint16_t user_flag  // extra flags in addition to TRQ_MSG_PENDING
+        // );
+
     if(dir == mosq_md_out) {
         dl_add(&priv->msgs_out.dl_inflight, message);
         // TODO priv->msgs_out.queue_len++;
@@ -9108,9 +9115,10 @@ PRIVATE int ac_mqtt_client_send_publish(hgobj gobj, const char *event, json_t *k
     const char *topic = kw_get_str(gobj, kw, "topic", "", 0);
     int mid = (int)kw_get_int(gobj, kw, "mid", 0, 0);
     int qos = (int)kw_get_int(gobj, kw, "qos", 0, 0);
+    int expiry_interval = (int)kw_get_int(gobj, kw, "expiry_interval", 0, 0);
     BOOL retain = kw_get_bool(gobj, kw, "retain", 0, 0);
-    gbuffer_t *gbuf_payload = (gbuffer_t *)(uintptr_t)kw_get_int(gobj, kw, "gbuffer", 0, 0);
     json_t *properties = kw_get_dict(gobj, kw, "properties", 0, 0);
+    gbuffer_t *gbuf_payload = (gbuffer_t *)(uintptr_t)kw_get_int(gobj, kw, "gbuffer", 0, 0);
 
     if(priv->iamServer) {
         gobj_log_error(gobj, 0,
@@ -9269,10 +9277,10 @@ PRIVATE int ac_mqtt_client_send_publish(hgobj gobj, const char *event, json_t *k
             gbuf_payload,
             (uint8_t)qos,
             retain,
-            FALSE,      // dup
-            properties, // cmsg_props
-            NULL,       // store_props
-            0           // expiry_interval
+            FALSE,          // dup
+            properties,     // cmsg_props
+            NULL,           // store_props
+            expiry_interval // expiry_interval
         )==0) {
             /*
              *  Callback to user
@@ -9351,6 +9359,8 @@ PRIVATE int ac_mqtt_client_send_publish(hgobj gobj, const char *event, json_t *k
 
         message->timestamp = mosquitto_time();
         message->msg.mid = mid;
+        message->expiry_interval = expiry_interval;
+
         if(topic) {
             message->msg.topic = gbmem_strdup(topic);
             if(!message->msg.topic) {
