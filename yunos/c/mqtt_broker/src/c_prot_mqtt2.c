@@ -8019,8 +8019,8 @@ PRIVATE int handle__pubrel(hgobj gobj, gbuffer_t *gbuf)
                 gobj_publish_event(gobj, EV_ON_IEV_MESSAGE, kw_iev);
             }
 
-             JSON_DECREF(properties)
-             message__cleanup(message);
+            JSON_DECREF(properties)
+            message__cleanup(message);
         } else if(rc == MOSQ_ERR_NOT_FOUND) {
             JSON_DECREF(properties)
             return MOSQ_ERR_SUCCESS;
