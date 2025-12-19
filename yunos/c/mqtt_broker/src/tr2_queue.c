@@ -414,7 +414,7 @@ PUBLIC q2_msg_t *tr2q_append(
         trq->tranger,
         trq->topic_name,
         t,                              // __t__
-        user_flag | TR2Q_MSG_PENDING,    // __flag__
+        user_flag | TR2Q_MSG_PENDING,   // __flag__
         &md_record,
         kw_incref(kw) // owned
     );
