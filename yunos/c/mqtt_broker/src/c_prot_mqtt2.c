@@ -880,7 +880,7 @@ PRIVATE int open_queues(hgobj gobj)
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
     /*-----------------------------------*
-     *          With persistence
+     *  TODO        With persistence
      *-----------------------------------*/
     char topic_name [NAME_MAX];
 
@@ -1504,7 +1504,8 @@ PRIVATE int db__message_store(
 }
 
 /***************************************************************************
- *  Using in handle__publish()
+ *  Using in handle__publish_s()
+ *  Broker: find a msg in input queues
  ***************************************************************************/
 PRIVATE int db__message_store_find(
     hgobj gobj,
@@ -1512,18 +1513,18 @@ PRIVATE int db__message_store_find(
     struct mosquitto_client_msg **client_msg
 ) {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
-    struct mosquitto_client_msg *cmsg;
+    q2_msg_t *cmsg;
 
     *client_msg = NULL;
 
-    DL_FOREACH(&priv->msgs_in.dl_inflight, cmsg) {
+    Q2MSG_INFLIGHT_FOREACH_FORWARD(priv->trq_srv_in_msgs, cmsg) {
         if(cmsg->store->source_mid == mid) {
             *client_msg = cmsg;
             return MOSQ_ERR_SUCCESS;
         }
     }
 
-    DL_FOREACH(&priv->msgs_in.dl_queued, cmsg) {
+    Q2MSG_QUEUED_FOREACH_FORWARD(priv->trq_srv_in_msgs, cmsg) {
         if(cmsg->store->source_mid == mid) {
             *client_msg = cmsg;
             return MOSQ_ERR_SUCCESS;
@@ -7333,7 +7334,7 @@ PRIVATE int handle__publish_s(
         retain,
         dup,
         properties, // not owned
-        0, // TODO expiry_interval,
+        message_expiry_interval,
         mosq_mo_client,
         mosq_md_in,
         &user_flag,

@@ -191,6 +191,15 @@ static inline json_t * tr2q_topic(tr2_queue_t *trq)
     return trq->topic;
 }
 
+/**
+    Get info of message
+*/
+static inline md2_record_ex_t *tr2q_msg_md(q2_msg_t *msg)
+{
+    return &msg->md_record;
+}
+
+PUBLIC json_t *tr2q_msg_json(q2_msg_t *msg); // Load the message, Return json is YOURS!!
 
 #ifdef PEPE
 
