@@ -1068,6 +1068,25 @@ int db__message_write_queued_in(struct mosquitto *context);
 // Using in handle__connack(), handle__connect(), handle__subscribe, websocket
 int db__message_write_queued_out(struct mosquitto *context);
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 /***************************************************************************
  * Used by client
  ***************************************************************************/
