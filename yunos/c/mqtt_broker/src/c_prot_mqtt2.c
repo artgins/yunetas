@@ -873,7 +873,8 @@ PRIVATE void restore_client_attributes(hgobj gobj)
 }
 
 /***************************************************************************
- *
+ *  HACK in queues will use only inflight messages
+ *       out queues will use both inflight and queued messages
  ***************************************************************************/
 PRIVATE int open_queues(hgobj gobj)
 {
@@ -1114,7 +1115,7 @@ PRIVATE int OLD_message__queue(
 }
 
 /***************************************************************************
- *  Used by client TODO and broker?
+ *  Used by client and broker
  ***************************************************************************/
 PRIVATE json_t *new_json_message(
     hgobj gobj,
@@ -7040,10 +7041,6 @@ PRIVATE int handle__publish_s(
     int rc = 0;
     int rc2;
     int res = 0;
-    // struct mosquitto_msg_store *msg = NULL;
-    struct mosquitto_msg_store *stored = NULL;
-    struct mosquitto_client_msg *cmsg_stored = NULL;
-    size_t len;
     uint16_t slen;
     json_t *properties = NULL;
     // mosquitto_property *p, *p_prev;
@@ -7367,6 +7364,8 @@ PRIVATE int handle__publish_s(
     GBMEM_FREE(topic)
     JSON_DECREF(properties)
 
+    struct mosquitto_msg_store *stored = NULL;
+    struct mosquitto_client_msg *cmsg_stored = NULL;
     if(qos > 0) {
         db__message_store_find(gobj, source_mid, &cmsg_stored);
     }
@@ -9404,7 +9403,7 @@ PRIVATE int ac_mqtt_client_send_publish(hgobj gobj, const char *event, json_t *k
             FALSE,      // dup,
             properties, // not owned
             0, // TODO expiry_interval,
-            0, // mosq_mo_client,
+            0, // origin
             mosq_md_out,
             &user_flag,
             t
