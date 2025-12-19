@@ -483,6 +483,8 @@ typedef struct _PRIVATE_DATA {
     json_t *tranger_queues;
     tr2_queue_t *trq_cli_in_msgs;
     tr2_queue_t *trq_cli_out_msgs;
+    tr2_queue_t *trq_srv_in_msgs;
+    tr2_queue_t *trq_srv_out_msgs;
 
     /*
      *  Config
@@ -734,55 +736,6 @@ PRIVATE int mt_start(hgobj gobj)
 
     restore_client_attributes(gobj);
 
-    if(priv->tranger_queues) {
-        /*-----------------------------------*
-         *          With persistence
-         *-----------------------------------*/
-        char topic_name [NAME_MAX];
-
-        /*
-         *  In messages
-         */
-        snprintf(
-            topic_name,
-            sizeof(topic_name),
-            "cli_queue-%s-in",
-            priv->client_id
-        );
-
-        priv->trq_cli_in_msgs = tr2q_open(
-            priv->tranger_queues,
-            topic_name,
-            "tm",
-            0,  // system_flag
-            0,  // max_inflight_messages
-            gobj_read_integer_attr(gobj, "backup_queue_size")
-        );
-
-        // TODO tr2q_load(priv->trq_in_msgs);
-
-        /*
-         *  Out messages
-         */
-        snprintf(
-            topic_name,
-            sizeof(topic_name),
-            "cli_queue-%s-out",
-            priv->client_id
-        );
-
-        priv->trq_cli_out_msgs = tr2q_open(
-            priv->tranger_queues,
-            topic_name,
-            "tm",
-            0,  // system_flag
-            0,  // max_inflight_messages
-            gobj_read_integer_attr(gobj, "backup_queue_size")
-        );
-
-        // TODO tr2q_load(priv->trq_out_msgs);
-    }
-
     return 0;
 }
 
@@ -917,6 +870,124 @@ PRIVATE void restore_client_attributes(hgobj gobj)
         return;
     }
     gobj_write_str_attr(gobj, "client_id", gobj_read_str_attr(gobj, "mqtt_client_id"));
+}
+
+/***************************************************************************
+ *
+ ***************************************************************************/
+PRIVATE int open_queues(hgobj gobj)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    /*-----------------------------------*
+     *          With persistence
+     *-----------------------------------*/
+    char topic_name [NAME_MAX];
+
+    if(priv->iamServer) {
+        /*
+         *  In messages
+         */
+        snprintf(
+            topic_name,
+            sizeof(topic_name),
+            "srv-queue-%s-in",
+            priv->client_id
+        );
+
+        priv->trq_srv_in_msgs = tr2q_open(
+            priv->tranger_queues,
+            topic_name,
+            "tm",
+            0,  // system_flag
+            0,  // max_inflight_messages
+            gobj_read_integer_attr(gobj, "backup_queue_size")
+        );
+
+        // TODO tr2q_load(priv->trq_in_msgs);
+
+        /*
+         *  Out messages
+         */
+        snprintf(
+            topic_name,
+            sizeof(topic_name),
+            "srv-queue-%s-out",
+            priv->client_id
+        );
+
+        priv->trq_srv_out_msgs = tr2q_open(
+            priv->tranger_queues,
+            topic_name,
+            "tm",
+            0,  // system_flag
+            0,  // max_inflight_messages
+            gobj_read_integer_attr(gobj, "backup_queue_size")
+        );
+
+        // TODO tr2q_load(priv->trq_out_msgs);
+
+    } else {
+        /*
+         *  In messages
+         */
+        snprintf(
+            topic_name,
+            sizeof(topic_name),
+            "cli-queue-%s-in",
+            priv->client_id
+        );
+
+        priv->trq_cli_in_msgs = tr2q_open(
+            priv->tranger_queues,
+            topic_name,
+            "tm",
+            0,  // system_flag
+            0,  // max_inflight_messages
+            gobj_read_integer_attr(gobj, "backup_queue_size")
+        );
+
+        // TODO tr2q_load(priv->trq_in_msgs);
+
+        /*
+         *  Out messages
+         */
+        snprintf(
+            topic_name,
+            sizeof(topic_name),
+            "cli-queue-%s-out",
+            priv->client_id
+        );
+
+        priv->trq_cli_out_msgs = tr2q_open(
+            priv->tranger_queues,
+            topic_name,
+            "tm",
+            0,  // system_flag
+            0,  // max_inflight_messages
+            gobj_read_integer_attr(gobj, "backup_queue_size")
+        );
+
+        // TODO tr2q_load(priv->trq_out_msgs);
+    }
+
+    return 0;
+}
+
+/***************************************************************************
+ *
+ ***************************************************************************/
+PRIVATE void close_queues(hgobj gobj)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    if(priv->iamServer) {
+        EXEC_AND_RESET(tr2q_close, priv->trq_srv_in_msgs);
+        EXEC_AND_RESET(tr2q_close, priv->trq_srv_out_msgs);
+    } else {
+        EXEC_AND_RESET(tr2q_close, priv->trq_cli_in_msgs);
+        EXEC_AND_RESET(tr2q_close, priv->trq_cli_out_msgs);
+    }
 }
 
 /***************************************************************************
@@ -5806,6 +5877,8 @@ PRIVATE int handle__connect(hgobj gobj, gbuffer_t *gbuf, hgobj src)
         connect_properties = NULL;
     }
 
+    open_queues(gobj);
+
     priv->inform_on_close = TRUE;
     int ret = gobj_publish_event(gobj, EV_ON_OPEN, client);
     if(ret < 0) {
@@ -5833,6 +5906,7 @@ PRIVATE int handle__connect(hgobj gobj, gbuffer_t *gbuf, hgobj src)
 
     gobj_write_bool_attr(gobj, "in_session", TRUE);
     gobj_write_bool_attr(gobj, "send_disconnect", TRUE);
+
 
     // TODO
     // db__expire_all_messages(context);
@@ -8741,8 +8815,7 @@ PRIVATE int ac_disconnected(hgobj gobj, const char *event, json_t *kw, hgobj src
 
     JSON_DECREF(priv->jn_alias_list)
 
-    EXEC_AND_RESET(tr2q_close, priv->trq_cli_in_msgs);
-    EXEC_AND_RESET(tr2q_close, priv->trq_cli_out_msgs);
+    close_queues(gobj);
 
     // TODO new dl_flush(&priv->dl_msgs_in, db_free_client_msg);
     // TODO new dl_flush(&priv->dl_msgs_out, db_free_client_msg);
