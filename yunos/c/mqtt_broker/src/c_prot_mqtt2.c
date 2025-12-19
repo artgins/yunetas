@@ -54,6 +54,7 @@
 #include "c_timer.h"
 #include "c_tcp.h"
 #include "istream.h"
+#include "tr2q_mqtt.h"
 #include "c_prot_mqtt2.h"
 
 /***************************************************************************
@@ -112,60 +113,6 @@ typedef enum mosq_err_t {
 /* MQTT specification restricts client ids to a maximum of 23 characters */
 #define MOSQ_MQTT_ID_MAX_LENGTH 23
 
-/*
- *  Values (uint16_t) for q_msg_t->mark / md_record->user_flag
- *  Save qos, retain, dup, message state
- *  WARNING bit 1 is reserved for TRQ_MSG_PENDING
- */
-#define TRQ_QOS_MASK        0x00F0
-#define TRQ_DIR_ORIG_MASK   0x0F00
-#define TRQ_STATE_MASK      0xF000
-
-typedef enum mosquitto_msg_qos {
-    mosq_m_qos1     = 0x0010,
-    mosq_m_qos2     = 0x0020,
-    mosq_m_retain   = 0x0040,
-    mosq_m_dup      = 0x0080
-} mosquitto_msg_qos_t;
-
-typedef enum mosquitto_msg_direction {
-    mosq_md_in      = 0x0100,
-    mosq_md_out     = 0x0200
-} mosquitto_msg_direction_t;
-
-typedef enum mosquitto_msg_origin {
-    mosq_mo_client  = 0x0400,
-    mosq_mo_broker  = 0x0800
-} mosquitto_msg_origin_t;
-
-typedef enum mosquitto_msg_state {
-    mosq_ms_invalid             = 0x0000,
-    mosq_ms_publish_qos0        = 0x1000,
-    mosq_ms_publish_qos1        = 0x2000,
-    mosq_ms_wait_for_puback     = 0x3000,
-    mosq_ms_publish_qos2        = 0x4000,
-    mosq_ms_wait_for_pubrec     = 0x5000,
-    mosq_ms_resend_pubrel       = 0x6000,
-    mosq_ms_wait_for_pubrel     = 0x7000,
-    mosq_ms_resend_pubcomp      = 0x8000,
-    mosq_ms_wait_for_pubcomp    = 0x9000,
-    mosq_ms_send_pubrec         = 0xA000,
-    mosq_ms_queued              = 0xB000
-} mosquitto_msg_state_t;
-
-typedef struct { // uint16_t md2_record.user_flag
-    uint16_t tr2q_msg_pending: 1;  // Bit 0: Message pending flag
-    uint16_t reserved: 3;           // Bits 1-3: Reserved for future use
-    uint16_t qos1: 1;               // Bit 4: QoS level 1
-    uint16_t qos2: 1;               // Bit 5: QoS level 2
-    uint16_t retain: 1;             // Bit 6: Retain flag
-    uint16_t dup: 1;                // Bit 7: Duplicate flag
-    uint16_t dir_in: 1;             // Bit 8: Direction incoming
-    uint16_t dir_out: 1;            // Bit 9: Direction outgoing
-    uint16_t origin_client: 1;      // Bit 10: Origin client
-    uint16_t origin_broker: 1;      // Bit 11: Origin broker
-    uint16_t state: 4;              // Bits 12-15: Message state (0x0-0xB)
-} user_flag_t;
 
 /***************************************************************************
  *              Structures
@@ -1113,7 +1060,7 @@ PRIVATE json_t *new_json_message(
     uint32_t expiry_interval,
     mosquitto_msg_origin_t origin,
     mosquitto_msg_direction_t dir,
-    uint16_t *p_user_flag,
+    user_flag_t *p_user_flag,
     json_int_t t
 ) {
     json_t *jn_mqtt_msg = create_json_record(gobj, json_mqtt_desc);
@@ -1145,7 +1092,7 @@ PRIVATE json_t *new_json_message(
         );
     }
 
-    uint16_t user_flag = dir | origin;
+    user_flag_t user_flag = {0};
     if(qos == 1) {
         user_flag |= mosq_m_qos1;
     } else if(qos == 2) {
@@ -1389,7 +1336,7 @@ PRIVATE int sub__messages_queue(
  ***************************************************************************/
 PRIVATE int db__messages_delete(hgobj gobj, BOOL force_free)
 {
-
+    return -1;
 }
 
 /***************************************************************************
@@ -1400,7 +1347,6 @@ PRIVATE int db__messages_delete(hgobj gobj, BOOL force_free)
  ***************************************************************************/
 PRIVATE void context__cleanup(hgobj gobj, BOOL force_free)
 {
-
 }
 
 /***************************************************************************
@@ -1408,7 +1354,7 @@ PRIVATE void context__cleanup(hgobj gobj, BOOL force_free)
  ***************************************************************************/
 PRIVATE int db__message_reconnect_reset(hgobj gobj)
 {
-
+    return -1;
 }
 
 /***************************************************************************
@@ -1416,7 +1362,6 @@ PRIVATE int db__message_reconnect_reset(hgobj gobj)
  ***************************************************************************/
 PRIVATE void db__expire_all_messages(hgobj gobj)
 {
-
 }
 
 /***************************************************************************
@@ -1424,7 +1369,7 @@ PRIVATE void db__expire_all_messages(hgobj gobj)
  ***************************************************************************/
 PRIVATE int db__message_write_inflight_out_all(hgobj gobj)
 {
-
+    return -1;
 }
 
 /***************************************************************************
@@ -1432,7 +1377,7 @@ PRIVATE int db__message_write_inflight_out_all(hgobj gobj)
  ***************************************************************************/
 PRIVATE int db__message_write_queued_out(hgobj gobj)
 {
-
+    return -1;
 }
 
 /***************************************************************************
@@ -7548,7 +7493,7 @@ PRIVATE int handle__publish_c(
     }
 
     time_t t = mosquitto_time();
-    uint16_t user_flag;
+    user_flag_t user_flag;
     json_t *jn_mqtt_msg = new_json_message(
         gobj,
         mid,
@@ -7610,7 +7555,7 @@ PRIVATE int handle__publish_c(
         case 2:
             // util__decrement_receive_quota(mosq);
             rc = send__pubrec(gobj, mid, 0, NULL);
-            message->state = mosq_ms_wait_for_pubrel;
+            user_flag_set_state(&user_flag, mosq_ms_wait_for_pubrel);
             message__queue(gobj, jn_mqtt_msg, mosq_md_in, user_flag, t);
             return rc;
 

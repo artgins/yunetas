@@ -1,7 +1,7 @@
 /****************************************************************************
  *          TR2Q_MQTT.C
  *
- *          Defines and functions for md2_record_ex_t.user_flag
+ *          Defines and functions for tr2_queue md2_record_ex_t.user_flag
  *
  *          Copyright (c) 2026, ArtGins.
  *          All Rights Reserved.
@@ -9,42 +9,10 @@
 #include "tr2q_mqtt.h"
 
 /********************************************************************
- *  Helper Functions for QoS Level
- ********************************************************************/
-
-PUBLIC int user_flag_get_qos_level(const user_flag_t *uf)
-{
-    uint16_t qos = uf->value & TR2Q_QOS_MASK;
-    if (qos & mosq_m_qos2) {
-        return 2;
-    }
-    if (qos & mosq_m_qos1) {
-        return 1;
-    }
-    return 0;
-}
-
-PUBLIC void user_flag_set_qos_level(user_flag_t *uf, int level)
-{
-    uf->value &= ~TR2Q_QOS_MASK;
-    switch (level) {
-        case 1:
-            uf->value |= mosq_m_qos1;
-            break;
-        case 2:
-            uf->value |= mosq_m_qos2;
-            break;
-        default:
-            // QoS 0, nothing to set
-            break;
-    }
-}
-
-/********************************************************************
  *  Debug/String Functions
  ********************************************************************/
 
-PUBLIC const char *user_flag_state_to_str(mosquitto_msg_state_t state)
+const char *user_flag_state_to_str(mosquitto_msg_state_t state)
 {
     switch (state) {
         case mosq_ms_invalid:
@@ -76,7 +44,7 @@ PUBLIC const char *user_flag_state_to_str(mosquitto_msg_state_t state)
     }
 }
 
-PUBLIC const char *user_flag_direction_to_str(uint16_t dir)
+const char *user_flag_direction_to_str(mosquitto_msg_direction_t dir)
 {
     switch (dir) {
         case mosq_md_in:
@@ -88,7 +56,7 @@ PUBLIC const char *user_flag_direction_to_str(uint16_t dir)
     }
 }
 
-PUBLIC const char *user_flag_origin_to_str(uint16_t orig)
+const char *user_flag_origin_to_str(mosquitto_msg_origin_t orig)
 {
     switch (orig) {
         case mosq_mo_client:
