@@ -7252,7 +7252,7 @@ PRIVATE int handle__publish_s(
     user_flag_t user_flag;
     json_t *jn_mqtt_msg = new_json_message(
         gobj,
-        mid,
+        source_mid,
         topic,
         payload, // not owned
         qos,
@@ -7321,7 +7321,7 @@ PRIVATE int handle__publish_s(
         gobj_log_warning(gobj, 0,
             "function",         "%s", __FUNCTION__,
             "msgset",           "%s", MSGSET_INFO,
-            "msg",              "%s", "Mqtt: Reused message ID",
+            "msg",              "%s", "Mqtt: Reused message ID. Clearing from storage.",
             "client_id",        "%s", priv->client_id,
             "mid",              "%d", (int)source_mid,
             NULL
