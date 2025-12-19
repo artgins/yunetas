@@ -7045,7 +7045,6 @@ PRIVATE int handle__publish_s(
     struct mosquitto_client_msg *cmsg_stored = NULL;
     size_t len;
     uint16_t slen;
-    char *topic_mount;
     json_t *properties = NULL;
     // mosquitto_property *p, *p_prev;
     // mosquitto_property *msg_properties_last;
@@ -7256,21 +7255,6 @@ PRIVATE int handle__publish_s(
 
     size_t payloadlen = gbuffer_leftbytes(gbuf);
     // G_PUB_BYTES_RECEIVED_INC(msg->payloadlen);
-
-    // if(context->listener->mount_point) {
-    //     len = strlen(context->listener->mount_point) + strlen(msg->topic) + 1;
-    //     topic_mount = mosquitto__malloc(len+1);
-    //     if(!topic_mount) {
-        // GBMEM_FREE(topic)
-        // JSON_DECREF(properties)
-    //         return MOSQ_ERR_NOMEM;
-    //     }
-    //     snprintf(topic_mount, len, "%s%s", context->listener->mount_point, msg->topic);
-    //     topic_mount[len] = '\0';
-    //
-    //     mosquitto__free(msg->topic);
-    //     msg->topic = topic_mount;
-    // }
 
     if(payloadlen) {
         if(priv->message_size_limit && payloadlen > priv->message_size_limit) {
