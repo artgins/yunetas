@@ -6965,7 +6965,7 @@ PRIVATE int handle__publish_s(
     int rc = 0;
     int rc2;
     int res = 0;
-    struct mosquitto_msg_store *msg = NULL;
+    // struct mosquitto_msg_store *msg = NULL;
     struct mosquitto_msg_store *stored = NULL;
     struct mosquitto_client_msg *cmsg_stored = NULL;
     size_t len;
@@ -6978,17 +6978,18 @@ PRIVATE int handle__publish_s(
     int topic_alias = -1;
     uint8_t reason_code = 0;
     uint16_t mid = 0;
-
-    msg = gbmem_calloc(1, sizeof(struct mosquitto_msg_store));
-    if(msg == NULL) {
-        // Error already logged
-        return MOSQ_ERR_NOMEM;
-    }
+    uint16_t source_mid = 0;
+    uint8_t qos;
+    BOOL retain;
+    BOOL dup;
+    gbuffer_t *payload = NULL;
 
     uint8_t header = priv->frame_head.flags;
-    uint8_t dup = (header & 0x08)>>3;
-    msg->qos = (header & 0x06)>>1;
-    if(dup == 1 && msg->qos == 0) {
+    dup = (header & 0x08)>>3;
+    qos = (header & 0x06)>>1;
+    retain = (header & 0x01);
+
+    if(dup == 1 && qos == 0) {
         gobj_log_error(gobj, 0,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_MQTT_ERROR,
@@ -6996,10 +6997,9 @@ PRIVATE int handle__publish_s(
             "client_id",    "%s", priv->client_id,
             NULL
         );
-        db__msg_store_free(msg);
         return MOSQ_ERR_MALFORMED_PACKET;
     }
-    if(msg->qos == 3) {
+    if(qos == 3) {
         gobj_log_error(gobj, 0,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_MQTT_ERROR,
@@ -7007,45 +7007,40 @@ PRIVATE int handle__publish_s(
             "client_id",    "%s", priv->client_id,
             NULL
         );
-        db__msg_store_free(msg);
         return MOSQ_ERR_MALFORMED_PACKET;
     }
-    if(msg->qos > priv->max_qos) {
+    if(qos > priv->max_qos) {
         gobj_log_error(gobj, 0,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_MQTT_ERROR,
             "msg",          "%s", "Mqtt: Too high QoS in PUBLISH, disconnecting",
             "client_id",    "%s", priv->client_id,
             "max_qos",      "%d", (int)priv->max_qos,
-            "qos",          "%d", msg->qos,
+            "qos",          "%d", (int)qos,
             NULL
         );
-        db__msg_store_free(msg);
         return MOSQ_ERR_QOS_NOT_SUPPORTED;
     }
-    msg->retain = (header & 0x01);
 
-    if(msg->retain && priv->retain_available == FALSE) {
+    if(retain && priv->retain_available == FALSE) {
         gobj_log_error(gobj, 0,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_MQTT_ERROR,
             "msg",          "%s", "Mqtt: Retain not supported in PUBLISH, disconnecting",
             "client_id",    "%s", priv->client_id,
             "max_qos",      "%d", (int)priv->max_qos,
-            "qos",          "%d", msg->qos,
+            "qos",          "%d", (int)qos,
             NULL
         );
-        db__msg_store_free(msg);
         return MOSQ_ERR_RETAIN_NOT_SUPPORTED;
     }
 
     char *topic_;
     if(mqtt_read_string(gobj, gbuf, &topic_, &slen)<0) {
         // Error already logged
-        db__msg_store_free(msg);
         return MOSQ_ERR_MALFORMED_PACKET;
     }
-    msg->topic = gbmem_strndup(topic_, slen);
+    char *topic = gbmem_strndup(topic_, slen);
 
     if(!slen && priv->protocol_version != mosq_p_mqtt5) {
         /* Invalid publish topic, disconnect client. */
@@ -7057,14 +7052,14 @@ PRIVATE int handle__publish_s(
             NULL
         );
 
-        db__msg_store_free(msg);
+        GBMEM_FREE(topic)
         return MOSQ_ERR_MALFORMED_PACKET;
     }
 
-    if(msg->qos > 0) {
+    if(qos > 0) {
         if(mqtt_read_uint16(gobj, gbuf, &mid)<0) {
             // Error already logged
-            db__msg_store_free(msg);
+            GBMEM_FREE(topic)
             return MOSQ_ERR_MALFORMED_PACKET;
         }
         if(mid == 0) {
@@ -7073,15 +7068,15 @@ PRIVATE int handle__publish_s(
                 "msgset",       "%s", MSGSET_MQTT_ERROR,
                 "msg",          "%s", "Mqtt: qos>0 and mid=0",
                 "client_id",    "%s", priv->client_id,
-                "topic",        "%s", msg->topic,
+                "topic",        "%s", topic,
                 NULL
             );
-            db__msg_store_free(msg);
+            GBMEM_FREE(topic)
             return MOSQ_ERR_PROTOCOL;
         }
         /* It is important to have a separate copy of mid, because msg may be
          * freed before we want to send a PUBACK/PUBREC. */
-        msg->source_mid = mid;
+        source_mid = mid;
     }
 
     /* Handle properties */
@@ -7089,7 +7084,7 @@ PRIVATE int handle__publish_s(
         properties = property_read_all(gobj, gbuf, CMD_PUBLISH, &rc);
         if(rc<0) {
             // Error already logged
-            db__msg_store_free(msg);
+            GBMEM_FREE(topic)
             return rc;
         }
 
@@ -7127,7 +7122,6 @@ PRIVATE int handle__publish_s(
             }
         }
     }
-    JSON_DECREF(properties);
 
     if(topic_alias == 0 || (topic_alias > priv->max_topic_alias)) {
         gobj_log_error(gobj, 0,
@@ -7139,14 +7133,16 @@ PRIVATE int handle__publish_s(
             "topic_alias",      "%d", topic_alias,
             NULL
         );
-        db__msg_store_free(msg);
+        GBMEM_FREE(topic)
+        JSON_DECREF(properties)
         return MOSQ_ERR_TOPIC_ALIAS_INVALID;
     } else if(topic_alias > 0) {
-        if(msg->topic) {
+        if(topic) {
             // TODO
             // rc = alias__add(context, msg->topic, (uint16_t)topic_alias);
             // if(rc) {
-            //     db__msg_store_free(msg);
+            // GBMEM_FREE(topic)
+        // JSON_DECREF(properties)
             //     return rc;
             // }
         } else {
@@ -7162,33 +7158,36 @@ PRIVATE int handle__publish_s(
             //         "topic_alias",      "%d", topic_alias,
             //         NULL
             //     );
-            //     db__msg_store_free(msg);
+            // GBMEM_FREE(topic)
+        // JSON_DECREF(properties)
             //     return MOSQ_ERR_PROTOCOL;
             // }
         }
     }
 
-    if(mosquitto_pub_topic_check(msg->topic) != MOSQ_ERR_SUCCESS) {
+    if(mosquitto_pub_topic_check(topic) != MOSQ_ERR_SUCCESS) {
         /* Invalid publish topic, just swallow it. */
         gobj_log_error(gobj, 0,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_MQTT_ERROR,
             "msg",          "%s", "Mqtt will: invalid topic",
-            "topic",        "%s", msg->topic,
+            "topic",        "%s", topic,
             NULL
         );
-        db__msg_store_free(msg);
+        GBMEM_FREE(topic)
+        JSON_DECREF(properties)
         return MOSQ_ERR_MALFORMED_PACKET;
     }
 
-    json_int_t payloadlen = gbuffer_leftbytes(gbuf);
+    size_t payloadlen = gbuffer_leftbytes(gbuf);
     // G_PUB_BYTES_RECEIVED_INC(msg->payloadlen);
 
     // if(context->listener->mount_point) {
     //     len = strlen(context->listener->mount_point) + strlen(msg->topic) + 1;
     //     topic_mount = mosquitto__malloc(len+1);
     //     if(!topic_mount) {
-    //         db__msg_store_free(msg);
+        // GBMEM_FREE(topic)
+        // JSON_DECREF(properties)
     //         return MOSQ_ERR_NOMEM;
     //     }
     //     snprintf(topic_mount, len, "%s%s", context->listener->mount_point, msg->topic);
@@ -7205,25 +7204,27 @@ PRIVATE int handle__publish_s(
                 "msgset",           "%s", MSGSET_MQTT_ERROR,
                 "msg",              "%s", "Mqtt: Dropped too large PUBLISH",
                 "client_id",        "%s", priv->client_id,
-                "topic",            "%d", msg->topic,
+                "topic",            "%d", topic,
                 NULL
             );
             reason_code = MQTT_RC_PACKET_TOO_LARGE;
             goto process_bad_message;
         }
 
-        msg->payload = gbuffer_create(payloadlen, payloadlen);
-        if(msg->payload == NULL) {
+        payload = gbuffer_create(payloadlen, payloadlen);
+        if(!payload) {
             // Error already logged
-            db__msg_store_free(msg);
+            GBMEM_FREE(topic)
+            JSON_DECREF(properties)
             return MOSQ_ERR_NOMEM;
         }
 
-        if(mqtt_read_bytes(gobj, gbuf, gbuffer_cur_wr_pointer(msg->payload), (int)payloadlen)) {
-            db__msg_store_free(msg);
+        if(mqtt_read_bytes(gobj, gbuf, gbuffer_cur_wr_pointer(payload), (int)payloadlen)) {
+            GBMEM_FREE(topic)
+            JSON_DECREF(properties)
             return MOSQ_ERR_MALFORMED_PACKET;
         }
-        gbuffer_set_wr(msg->payload, payloadlen);
+        gbuffer_set_wr(payload, payloadlen);
     }
 
     /* Check for topic access */
@@ -7242,23 +7243,42 @@ PRIVATE int handle__publish_s(
         reason_code = MQTT_RC_NOT_AUTHORIZED;
         goto process_bad_message;
     } else if(rc != MOSQ_ERR_SUCCESS) {
-        db__msg_store_free(msg);
+        GBMEM_FREE(topic)
+        JSON_DECREF(properties)
         return rc;
     }
+
+    time_t t = mosquitto_time();
+    user_flag_t user_flag;
+    json_t *jn_mqtt_msg = new_json_message(
+        gobj,
+        mid,
+        topic,
+        payload, // not owned
+        qos,
+        retain,
+        dup,
+        properties, // not owned
+        0, // TODO expiry_interval,
+        mosq_mo_client,
+        mosq_md_in,
+        &user_flag,
+        t
+    );
 
     if(gobj_trace_level(gobj) & SHOW_DECODE) {
         trace_msg0("  👈 Received PUBLISH from client '%s', topic '%s' (dup %d, qos %d, retain %d, mid %d, len %ld)",
             priv->client_id,
-            msg->topic,
+            topic,
             dup,
-            msg->qos,
-            msg->retain,
-            msg->source_mid,
+            (int)qos,
+            (int)retain,
+            (int)source_mid,
             (long)payloadlen
         );
     }
 
-    if(!strncmp(msg->topic, "$CONTROL/", 9)) {
+    if(!strncmp(topic_, "$CONTROL/", 9)) {
 #ifdef WITH_CONTROL
         rc = control__process(context, msg);
         db__msg_store_free(msg);
@@ -7285,14 +7305,14 @@ PRIVATE int handle__publish_s(
         // }
     }
 
-    if(msg->qos > 0) {
-        db__message_store_find(gobj, msg->source_mid, &cmsg_stored);
+    if(qos > 0) {
+        db__message_store_find(gobj, source_mid, &cmsg_stored);
     }
 
-    if(cmsg_stored && cmsg_stored->store && msg->source_mid != 0 &&
-            (cmsg_stored->store->qos != msg->qos
+    if(cmsg_stored && cmsg_stored->store && source_mid != 0 &&
+            (cmsg_stored->store->qos != qos
              || gbuffer_leftbytes(cmsg_stored->store->payload) != payloadlen
-             || strcmp(cmsg_stored->store->topic, msg->topic)
+             || strcmp(cmsg_stored->store->topic, topic)
              || memcmp(cmsg_stored->store->payload, msg->payload, payloadlen) )
     ) {
         gobj_log_warning(gobj, 0,
@@ -7396,6 +7416,9 @@ process_bad_message:
     if(priv->max_queued_messages > 0 && priv->out_packet_count >= priv->max_queued_messages) {
         rc = MQTT_RC_QUOTA_EXCEEDED;
     }
+
+    GBMEM_FREE(topic)
+    JSON_DECREF(properties);
 
     return rc;
 }
@@ -9319,7 +9342,7 @@ PRIVATE int ac_mqtt_client_send_publish(hgobj gobj, const char *event, json_t *k
             FALSE,      // dup,
             properties, // not owned
             0, // TODO expiry_interval,
-            mosq_mo_client,
+            0, // mosq_mo_client,
             mosq_md_out,
             &user_flag,
             t
