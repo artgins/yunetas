@@ -9126,6 +9126,9 @@ PRIVATE int ac_timeout_waiting_frame_header(hgobj gobj, const char *event, json_
     //     }
     // }
 
+    // TODO implement a cleaner of messages inflight with pending acks and timeout reached
+    // or remove all messages with same mid when receiving and ack
+
     KW_DECREF(kw)
     return 0;
 }
