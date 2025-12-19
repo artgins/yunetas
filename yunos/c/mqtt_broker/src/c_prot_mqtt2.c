@@ -7278,7 +7278,7 @@ PRIVATE int handle__publish_s(
         );
     }
 
-    if(!strncmp(topic_, "$CONTROL/", 9)) {
+    if(!strncmp(topic, "$CONTROL/", 9)) {
 #ifdef WITH_CONTROL
         rc = control__process(context, msg);
         db__msg_store_free(msg);
@@ -7305,6 +7305,9 @@ PRIVATE int handle__publish_s(
         // }
     }
 
+    GBMEM_FREE(topic)
+    JSON_DECREF(properties)
+
     if(qos > 0) {
         db__message_store_find(gobj, source_mid, &cmsg_stored);
     }
@@ -7313,26 +7316,22 @@ PRIVATE int handle__publish_s(
             (cmsg_stored->store->qos != qos
              || gbuffer_leftbytes(cmsg_stored->store->payload) != payloadlen
              || strcmp(cmsg_stored->store->topic, topic)
-             || memcmp(cmsg_stored->store->payload, msg->payload, payloadlen) )
+             || memcmp(cmsg_stored->store->payload, payload, payloadlen) )
     ) {
         gobj_log_warning(gobj, 0,
             "function",         "%s", __FUNCTION__,
             "msgset",           "%s", MSGSET_INFO,
             "msg",              "%s", "Mqtt: Reused message ID",
             "client_id",        "%s", priv->client_id,
-            "topic",            "%d", msg->topic,
-            "mid",              "%d", msg->source_mid,
+            "mid",              "%d", (int)source_mid,
             NULL
         );
-        db__message_remove_incoming(gobj, msg->source_mid);
+        db__message_remove_incoming(gobj, source_mid);
         cmsg_stored = NULL;
     }
 
     if(!cmsg_stored) {
-        if(msg->qos == 0
-                || db__ready_for_flight(gobj, mosq_md_in, msg->qos)
-                ) {
-
+        if(qos == 0 || db__ready_for_flight(gobj, mosq_md_in, qos) ) {
             dup = 0;
             rc = db__message_store(gobj, msg, message_expiry_interval, 0, mosq_mo_client);
             if(rc) return rc;
@@ -7498,12 +7497,14 @@ PRIVATE int handle__publish_c(
         if(!payload) {
             // Error already logged
             GBMEM_FREE(topic)
+            JSON_DECREF(properties)
             return MOSQ_ERR_NOMEM;
         }
 
         void *pwr = gbuffer_cur_wr_pointer(payload);
         if(mqtt_read_bytes(gobj, gbuf, pwr, (int)payloadlen)) {
             GBMEM_FREE(topic)
+            JSON_DECREF(properties)
             return MOSQ_ERR_MALFORMED_PACKET;
         }
         gbuffer_set_wr(payload, payloadlen);
