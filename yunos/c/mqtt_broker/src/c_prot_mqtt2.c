@@ -1093,18 +1093,12 @@ PRIVATE json_t *new_json_message(
     }
 
     user_flag_t user_flag = {0};
-    if(qos == 1) {
-        user_flag |= mosq_m_qos1;
-    } else if(qos == 2) {
-        user_flag |= mosq_m_qos2;
-    }
-    if(retain) {
-        user_flag |= mosq_m_retain;
-    }
-    if(dup) {
-        user_flag |= mosq_m_dup;
-    }
-    user_flag |= mosq_ms_invalid;
+    user_flag_set_origin(&user_flag, origin);
+    user_flag_set_direction(&user_flag, dir);
+    user_flag_set_qos_level(&user_flag, qos);
+    user_flag_set_retain(&user_flag, retain);
+    user_flag_set_dup(&user_flag, dup);
+    user_flag_set_state(&user_flag, mosq_ms_invalid);
 
     *p_user_flag = user_flag;
 
@@ -1118,7 +1112,7 @@ PRIVATE int message__queue(
     hgobj gobj,
     json_t *jn_mqtt_msg,
     mosquitto_msg_direction_t dir,
-    uint16_t user_flag,
+    user_flag_t user_flag,
     json_int_t t
 ) {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
@@ -1130,7 +1124,7 @@ PRIVATE int message__queue(
             priv->trq_out_msgs,
             t,              // __t__ if 0 then the time will be set by TimeRanger with now time
             jn_mqtt_msg,    // owned
-            user_flag       // extra flags in addition to TRQ_MSG_PENDING
+            user_flag.value // extra flags in addition to TRQ_MSG_PENDING
         );
         // TODO priv->msgs_out.queue_len++;
 
@@ -1140,7 +1134,7 @@ PRIVATE int message__queue(
             priv->trq_in_msgs,
             t,              // __t__ if 0 then the time will be set by TimeRanger with now time
             jn_mqtt_msg,    // owned
-            user_flag       // extra flags in addition to TRQ_MSG_PENDING
+            user_flag.value // extra flags in addition to TRQ_MSG_PENDING
         );
         // TODO priv->msgs_in.queue_len++;
     }
@@ -9312,17 +9306,31 @@ PRIVATE int ac_mqtt_client_send_publish(hgobj gobj, const char *event, json_t *k
             gobj_publish_event(gobj, EV_ON_IEV_MESSAGE, kw_iev);
         }
     } else {
-        message__queue(
+
+        time_t t = mosquitto_time();
+        user_flag_t user_flag;
+        json_t *jn_mqtt_msg = new_json_message(
             gobj,
             mid,
             topic,
-            gbuf_payload,
-            (uint8_t)qos,
+            gbuf_payload, // not owned
+            qos,
             retain,
-            FALSE,          // dup
-            properties,     // cmsg_props
-            expiry_interval, // expiry_interval
-            mosq_md_out
+            FALSE,      // dup,
+            properties, // not owned
+            0, // TODO expiry_interval,
+            mosq_mo_client,
+            mosq_md_out,
+            &user_flag,
+            t
+        );
+
+        message__queue(
+            gobj,
+            jn_mqtt_msg,
+            mosq_md_out,
+            user_flag,
+            t
         );
 
         // TODO this base64 to tr_queue.c
