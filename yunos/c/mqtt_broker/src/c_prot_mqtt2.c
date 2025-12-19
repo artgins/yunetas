@@ -153,6 +153,20 @@ typedef enum mosquitto_msg_state {
     mosq_ms_queued              = 0xB000
 } mosquitto_msg_state_t;
 
+typedef struct { // uint16_t md2_record.user_flag
+    uint16_t tr2q_msg_pending: 1;  // Bit 0: Message pending flag
+    uint16_t reserved: 3;           // Bits 1-3: Reserved for future use
+    uint16_t qos1: 1;               // Bit 4: QoS level 1
+    uint16_t qos2: 1;               // Bit 5: QoS level 2
+    uint16_t retain: 1;             // Bit 6: Retain flag
+    uint16_t dup: 1;                // Bit 7: Duplicate flag
+    uint16_t dir_in: 1;             // Bit 8: Direction incoming
+    uint16_t dir_out: 1;            // Bit 9: Direction outgoing
+    uint16_t origin_client: 1;      // Bit 10: Origin client
+    uint16_t origin_broker: 1;      // Bit 11: Origin broker
+    uint16_t state: 4;              // Bits 12-15: Message state (0x0-0xB)
+} user_flag_t;
+
 /***************************************************************************
  *              Structures
  ***************************************************************************/
@@ -1097,8 +1111,8 @@ PRIVATE json_t *new_json_message(
     BOOL dup,
     json_t *properties, // not owned
     uint32_t expiry_interval,
-    mosquitto_msg_direction_t dir,
     mosquitto_msg_origin_t origin,
+    mosquitto_msg_direction_t dir,
     uint16_t *p_user_flag,
     json_int_t t
 ) {
@@ -1155,40 +1169,12 @@ PRIVATE json_t *new_json_message(
  ***************************************************************************/
 PRIVATE int message__queue(
     hgobj gobj,
-    uint16_t mid,
-    const char *topic,
-    gbuffer_t *gbuf_payload, // not owned
-    uint8_t qos,
-    BOOL retain,
-    BOOL dup,
-    json_t *properties, // not owned
-    uint32_t expiry_interval,
-    mosquitto_msg_direction_t dir
+    json_t *jn_mqtt_msg,
+    mosquitto_msg_direction_t dir,
+    uint16_t user_flag,
+    json_int_t t
 ) {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
-
-    time_t t = mosquitto_time();
-    uint16_t user_flag;
-    json_t *jn_mqtt_msg = new_json_message(
-        gobj,
-        mid,
-        topic,
-        gbuf_payload, // not owned
-        qos,
-        retain,
-        dup,
-        properties, // not owned
-        expiry_interval,
-        dir,
-        mosq_mo_client,
-        &user_flag,
-        t
-    );
-
-    if(!jn_mqtt_msg) {
-        // Error already logged
-        return -1;
-    }
 
     q2_msg_t *qmsg = NULL;
     if(dir == mosq_md_out) {
@@ -1401,7 +1387,7 @@ PRIVATE int sub__messages_queue(
 /***************************************************************************
  *  Using in context context__cleanup()
  ***************************************************************************/
-PRIVATE int db__messages_delete(struct mosquitto *context, BOOL force_free)
+PRIVATE int db__messages_delete(hgobj gobj, BOOL force_free)
 {
 
 }
@@ -1412,7 +1398,7 @@ PRIVATE int db__messages_delete(struct mosquitto *context, BOOL force_free)
  * but it will mean that CONNACK messages will never get sent for bad protocol
  * versions for example.
  ***************************************************************************/
-PRIVATE void context__cleanup(struct mosquitto *context, BOOL force_free)
+PRIVATE void context__cleanup(hgobj gobj, BOOL force_free)
 {
 
 }
@@ -1420,7 +1406,7 @@ PRIVATE void context__cleanup(struct mosquitto *context, BOOL force_free)
 /***************************************************************************
  *  Using in handle__connack(), handle__connect()
  ***************************************************************************/
-PRIVATE int db__message_reconnect_reset(struct mosquitto *context)
+PRIVATE int db__message_reconnect_reset(hgobj gobj)
 {
 
 }
@@ -1428,7 +1414,7 @@ PRIVATE int db__message_reconnect_reset(struct mosquitto *context)
 /***************************************************************************
  *  Using in handle__connect()
  ***************************************************************************/
-PRIVATE void db__expire_all_messages(struct mosquitto *context)
+PRIVATE void db__expire_all_messages(hgobj gobj)
 {
 
 }
@@ -1436,7 +1422,7 @@ PRIVATE void db__expire_all_messages(struct mosquitto *context)
 /***************************************************************************
  *  Using in handle__connect() and handle__connack()
  ***************************************************************************/
-PRIVATE int db__message_write_inflight_out_all(struct mosquitto *context)
+PRIVATE int db__message_write_inflight_out_all(hgobj gobj)
 {
 
 }
@@ -1444,7 +1430,7 @@ PRIVATE int db__message_write_inflight_out_all(struct mosquitto *context)
 /***************************************************************************
  *  Using in handle__connack(), handle__connect(), handle__subscribe, websocket
  ***************************************************************************/
-PRIVATE int db__message_write_queued_out(struct mosquitto *context)
+PRIVATE int db__message_write_queued_out(hgobj gobj)
 {
 
 }
@@ -7483,31 +7469,25 @@ PRIVATE int handle__publish_c(
     gbuffer_t *gbuf // not owned
 ) {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
-
     int rc = 0;
     uint16_t mid = 0;
     uint16_t slen;
     json_t *properties = NULL;
-
-    mosquitto_message_all_t *message = GBMEM_MALLOC(sizeof(mosquitto_message_all_t));
-    if(!message) {
-        // Error already logged
-        return MOSQ_ERR_NOMEM;
-    }
+    uint8_t qos;
+    BOOL retain;
+    BOOL dup;
+    uint32_t expiry_interval;
 
     uint8_t header = priv->frame_head.flags;
-    message->dup = (header & 0x08)>>3;
-    message->msg.qos = (header & 0x06)>>1;
-    message->msg.retain = (header & 0x01);
+    dup = (header & 0x08)>>3;
+    qos = (header & 0x06)>>1;
+    retain = (header & 0x01);
 
     char *topic_;
     if(mqtt_read_string(gobj, gbuf, &topic_, &slen)<0) {
         // Error already logged
-        message__cleanup(message);
         return MOSQ_ERR_MALFORMED_PACKET;
     }
-    message->msg.topic = gbmem_strndup(topic_, slen);
-
     if(!slen) {
         gobj_log_error(gobj, 0,
             "function",     "%s", __FUNCTION__,
@@ -7516,14 +7496,14 @@ PRIVATE int handle__publish_c(
             "client_id",    "%s", priv->client_id,
             NULL
         );
-        message__cleanup(message);
         return MOSQ_ERR_PROTOCOL;
     }
+    char *topic = gbmem_strndup(topic_, slen);
 
-    if(message->msg.qos > 0) {
+    if(qos > 0) {
         if((rc=mqtt_read_uint16(gobj, gbuf, &mid))<0) {
             // Error already logged
-            message__cleanup(message);
+            GBMEM_FREE(topic)
             return rc;
         }
 
@@ -7535,127 +7515,103 @@ PRIVATE int handle__publish_c(
                 "client_id",    "%s", priv->client_id,
                 NULL
             );
-            message__cleanup(message);
+            GBMEM_FREE(topic)
             return MOSQ_ERR_PROTOCOL;
         }
-        message->msg.mid = (int)mid;
     }
 
     if(priv->protocol_version == mosq_p_mqtt5) {
         properties = property_read_all(gobj, gbuf, CMD_PUBLISH, &rc);
         if(rc<0) {
             // Error already logged
-            message__cleanup(message);
+            GBMEM_FREE(topic)
             return rc;
         }
     }
 
     size_t payloadlen = gbuffer_leftbytes(gbuf);
-
+    gbuffer_t *payload = NULL;
     if(payloadlen) {
-        message->msg.payload = gbuffer_create(payloadlen, payloadlen);
-        if(!message->msg.payload) {
+        payload = gbuffer_create(payloadlen, payloadlen);
+        if(!payload) {
             // Error already logged
-            message__cleanup(message);
+            GBMEM_FREE(topic)
             return MOSQ_ERR_NOMEM;
         }
 
-        void *pwr = gbuffer_cur_wr_pointer(message->msg.payload);
+        void *pwr = gbuffer_cur_wr_pointer(payload);
         if(mqtt_read_bytes(gobj, gbuf, pwr, (int)payloadlen)) {
-            message__cleanup(message);
+            GBMEM_FREE(topic)
             return MOSQ_ERR_MALFORMED_PACKET;
         }
-        gbuffer_set_wr(message->msg.payload, payloadlen);
+        gbuffer_set_wr(payload, payloadlen);
     }
+
+    time_t t = mosquitto_time();
+    uint16_t user_flag;
+    json_t *jn_mqtt_msg = new_json_message(
+        gobj,
+        mid,
+        topic,
+        payload, // not owned
+        qos,
+        retain,
+        dup,
+        properties, // not owned
+        0, // TODO expiry_interval,
+        mosq_mo_broker,
+        mosq_md_in,
+        &user_flag,
+        t
+    );
 
     if(gobj_trace_level(gobj) & SHOW_DECODE) {
         trace_msg0("  👈 Received PUBLISH from server '%s', topic '%s' (dup %d, qos %d, retain %d, mid %d, len %ld)",
             priv->client_id,
-            message->msg.topic,
-            message->dup,
-            message->msg.qos,
-            message->msg.retain,
-            message->msg.mid,
+            topic,
+            dup,
+            qos,
+            retain,
+            mid,
             (long)payloadlen
         );
     }
 
-    message->timestamp = mosquitto_time();
-    switch(message->msg.qos) {
+    GBMEM_FREE(topic)
+    JSON_DECREF(properties)
+
+    switch(qos) {
         case 0:
             {
-                json_t *kw_message = json_pack("{s:s, s:i, s:b, s:i, s:i}",
-                    "topic", message->msg.topic,
-                    "mid", (int)message->msg.mid,
-                    "dup", (int)message->dup,
-                    "qos", (int)message->msg.qos,
-                    "retain", (int)message->msg.retain
-                );
-                if(properties) {
-                    json_object_set(kw_message, "properties", properties);
-                }
-                if(message->msg.payload) {
-                    gbuffer_incref(message->msg.payload);
-                    json_object_set_new(
-                        kw_message,
-                        "gbuffer",
-                        json_integer((json_int_t)(uintptr_t)message->msg.payload)
-                    );
-                }
-
                 json_t *kw_iev = iev_create(
                     gobj,
                     EV_MQTT_MESSAGE,
-                    kw_message // owned
+                    jn_mqtt_msg // owned
                 );
 
                 gobj_publish_event(gobj, EV_ON_IEV_MESSAGE, kw_iev);
             }
-            message__cleanup(message);
-            JSON_DECREF(properties)
             return MOSQ_ERR_SUCCESS;
 
         case 1:
             // util__decrement_receive_quota(mosq);
             rc = send__puback(gobj, mid, 0, NULL);
             {
-                json_t *kw_message = json_pack("{s:s, s:i, s:b, s:i, s:i}",
-                    "topic", message->msg.topic,
-                    "mid", (int)message->msg.mid,
-                    "dup", (int)message->dup,
-                    "qos", (int)message->msg.qos,
-                    "retain", (int)message->msg.retain
-                );
-                if(properties) {
-                    json_object_set(kw_message, "properties", properties);
-                }
-                if(message->msg.payload) {
-                    gbuffer_incref(message->msg.payload);
-                    json_object_set_new(
-                        kw_message,
-                        "gbuffer",
-                        json_integer((json_int_t)(uintptr_t)message->msg.payload)
-                    );
-                }
-
                 json_t *kw_iev = iev_create(
                     gobj,
                     EV_MQTT_MESSAGE,
-                    kw_message // owned
+                    jn_mqtt_msg // owned
                 );
 
                 gobj_publish_event(gobj, EV_ON_IEV_MESSAGE, kw_iev);
             }
-            message__cleanup(message);
-            JSON_DECREF(properties)
             return rc;
 
         case 2:
-            message->properties = properties;
             // util__decrement_receive_quota(mosq);
             rc = send__pubrec(gobj, mid, 0, NULL);
             message->state = mosq_ms_wait_for_pubrel;
-            message__queue(gobj, message, mosq_md_in);
+            message__queue(gobj, jn_mqtt_msg, mosq_md_in, user_flag, t);
             return rc;
 
         default:
@@ -7664,11 +7620,10 @@ PRIVATE int handle__publish_c(
                 "msgset",       "%s", MSGSET_MQTT_ERROR,
                 "msg",          "%s", "Mqtt: discard message, qos invalid",
                 "client_id",    "%s", priv->client_id,
-                "qos",          "%d", message->msg.qos,
+                "qos",          "%d", qos,
                 NULL
             );
-            message__cleanup(message);
-            JSON_DECREF(properties)
+            JSON_DECREF(jn_mqtt_msg)
             return -1;
     }
 }
@@ -9412,7 +9367,7 @@ PRIVATE int ac_mqtt_client_send_publish(hgobj gobj, const char *event, json_t *k
             gobj_publish_event(gobj, EV_ON_IEV_MESSAGE, kw_iev);
         }
     } else {
-        message_enqueue(
+        message__queue(
             gobj,
             mid,
             topic,
