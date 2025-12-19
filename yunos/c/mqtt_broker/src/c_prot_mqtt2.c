@@ -1204,7 +1204,7 @@ PRIVATE int message__queue(
     } else {
         // dl_add(&priv->msgs_in.dl_inflight, message);
         qmsg = tr2q_append(
-            priv->trq_out_msgs,
+            priv->trq_in_msgs,
             t,              // __t__ if 0 then the time will be set by TimeRanger with now time
             jn_mqtt_msg,    // owned
             user_flag       // extra flags in addition to TRQ_MSG_PENDING
