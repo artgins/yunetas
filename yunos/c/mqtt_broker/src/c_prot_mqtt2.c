@@ -1438,8 +1438,11 @@ PRIVATE int db__message_store(
 /***************************************************************************
  *  Using in handle__publish()
  ***************************************************************************/
-PRIVATE int db__message_store_find(hgobj gobj, uint16_t mid, struct mosquitto_client_msg **client_msg)
-{
+PRIVATE int db__message_store_find(
+    hgobj gobj,
+    uint16_t mid,
+    struct mosquitto_client_msg **client_msg
+) {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
     struct mosquitto_client_msg *cmsg;
 
@@ -7333,19 +7336,19 @@ PRIVATE int handle__publish_s(
     if(!cmsg_stored) {
         if(qos == 0 || db__ready_for_flight(gobj, mosq_md_in, qos) ) {
             dup = 0;
-            rc = db__message_store(gobj, msg, message_expiry_interval, 0, mosq_mo_client);
+            rc = db__message_store(gobj, jn_mqtt_msg, message_expiry_interval, 0, mosq_mo_client);
             if(rc) return rc;
         } else {
             /* Client isn't allowed any more incoming messages, so fail early */
             reason_code = MQTT_RC_QUOTA_EXCEEDED;
             goto process_bad_message;
         }
-        stored = msg;
-        msg = NULL;
+        stored = jn_mqtt_msg;
+        jn_mqtt_msg = NULL;
         dup = 0;
     } else {
-        db__msg_store_free(msg);
-        msg = NULL;
+        db__msg_store_free(jn_mqtt_msg);
+        jn_mqtt_msg = NULL;
         stored = cmsg_stored->store;
         cmsg_stored->dup++;
         dup = cmsg_stored->dup;
@@ -7398,19 +7401,19 @@ PRIVATE int handle__publish_s(
 
 process_bad_message:
     rc = MOSQ_ERR_UNKNOWN;
-    if(msg) {
-        switch(msg->qos) {
+    if(jn_mqtt_msg) { // TODO get user_flag
+        switch(user_flag_get_qos_level(&user_flag)) {
             case 0:
                 rc = MOSQ_ERR_SUCCESS;
                 break;
             case 1:
-                rc = send__puback(gobj, msg->source_mid, reason_code, NULL);
+                rc = send__puback(gobj, source_mid, reason_code, NULL);
                 break;
             case 2:
-                rc = send__pubrec(gobj, msg->source_mid, reason_code, NULL);
+                rc = send__pubrec(gobj, source_mid, reason_code, NULL);
                 break;
         }
-        db__msg_store_free(msg);
+        db__msg_store_free(jn_mqtt_msg);
     }
     if(priv->max_queued_messages > 0 && priv->out_packet_count >= priv->max_queued_messages) {
         rc = MQTT_RC_QUOTA_EXCEEDED;
