@@ -29,8 +29,13 @@ typedef struct {
     json_t *tranger;
     json_t *topic;
     char topic_name[256];
-    size_t maximum_retries;
+
+    size_t max_inflight_bytes;
     size_t max_inflight_messages;
+    size_t max_queued_bytes;
+    size_t max_queued_messages;
+    size_t message_size_limit;
+
     dl_list_t dl_inflight;
     dl_list_t dl_queued;
     uint64_t first_rowid;

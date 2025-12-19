@@ -481,8 +481,8 @@ typedef struct _PRIVATE_DATA {
     struct mosquitto_msg_data msgs_out;
 
     json_t *tranger_queues;
-    tr2_queue_t *trq_in_msgs;
-    tr2_queue_t *trq_out_msgs;
+    tr2_queue_t *trq_cli_in_msgs;
+    tr2_queue_t *trq_cli_out_msgs;
 
     /*
      *  Config
@@ -746,11 +746,11 @@ PRIVATE int mt_start(hgobj gobj)
         snprintf(
             topic_name,
             sizeof(topic_name),
-            "queue-%s-in",
+            "cli_queue-%s-in",
             priv->client_id
         );
 
-        priv->trq_in_msgs = tr2q_open(
+        priv->trq_cli_in_msgs = tr2q_open(
             priv->tranger_queues,
             topic_name,
             "tm",
@@ -767,11 +767,11 @@ PRIVATE int mt_start(hgobj gobj)
         snprintf(
             topic_name,
             sizeof(topic_name),
-            "queue-%s-out",
+            "cli_queue-%s-out",
             priv->client_id
         );
 
-        priv->trq_out_msgs = tr2q_open(
+        priv->trq_cli_out_msgs = tr2q_open(
             priv->tranger_queues,
             topic_name,
             "tm",
@@ -792,9 +792,6 @@ PRIVATE int mt_start(hgobj gobj)
 PRIVATE int mt_stop(hgobj gobj)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
-
-    EXEC_AND_RESET(tr2q_close, priv->trq_in_msgs);
-    EXEC_AND_RESET(tr2q_close, priv->trq_out_msgs);
 
     clear_timeout(priv->timer);
 
@@ -1121,7 +1118,7 @@ PRIVATE int message__queue(
     if(dir == mosq_md_out) {
         // dl_add(&priv->msgs_out.dl_inflight, message);
         qmsg = tr2q_append(
-            priv->trq_out_msgs,
+            priv->trq_cli_out_msgs,
             t,              // __t__ if 0 then the time will be set by TimeRanger with now time
             jn_mqtt_msg,    // owned
             user_flag.value // extra flags in addition to TRQ_MSG_PENDING
@@ -1131,7 +1128,7 @@ PRIVATE int message__queue(
     } else {
         // dl_add(&priv->msgs_in.dl_inflight, message);
         qmsg = tr2q_append(
-            priv->trq_in_msgs,
+            priv->trq_cli_in_msgs,
             t,              // __t__ if 0 then the time will be set by TimeRanger with now time
             jn_mqtt_msg,    // owned
             user_flag.value // extra flags in addition to TRQ_MSG_PENDING
@@ -8743,6 +8740,9 @@ PRIVATE int ac_disconnected(hgobj gobj, const char *event, json_t *kw, hgobj src
     clear_timeout(priv->timer);
 
     JSON_DECREF(priv->jn_alias_list)
+
+    EXEC_AND_RESET(tr2q_close, priv->trq_cli_in_msgs);
+    EXEC_AND_RESET(tr2q_close, priv->trq_cli_out_msgs);
 
     // TODO new dl_flush(&priv->dl_msgs_in, db_free_client_msg);
     // TODO new dl_flush(&priv->dl_msgs_out, db_free_client_msg);
