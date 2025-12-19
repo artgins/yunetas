@@ -29,31 +29,31 @@
  *  Mosquitto Compatible Enums
  ********************************************************************/
 
-typedef enum mosquitto_msg_qos {
+typedef enum mqtt_msg_qos {
     mosq_m_qos0     = 0x0000,
     mosq_m_qos1     = 0x0010,
     mosq_m_qos2     = 0x0020
-} mosquitto_msg_qos_t;
+} mqtt_msg_qos_t;
 
-typedef enum mosquitto_msg_retain {
+typedef enum mqtt_msg_retain {
     mosq_m_retain   = 0x0040
-} mosquitto_msg_retain_t;
+} mqtt_msg_retain_t;
 
-typedef enum mosquitto_msg_dup {
+typedef enum mqtt_msg_dup {
     mosq_m_dup      = 0x0080
-} mosquitto_msg_dup_t;
+} mqtt_msg_dup_t;
 
-typedef enum mosquitto_msg_direction {
+typedef enum mqtt_msg_direction {
     mosq_md_in      = 0x0100,
     mosq_md_out     = 0x0200
-} mosquitto_msg_direction_t;
+} mqtt_msg_direction_t;
 
-typedef enum mosquitto_msg_origin {
+typedef enum mqtt_msg_origin {
     mosq_mo_client  = 0x0400,
     mosq_mo_broker  = 0x0800
-} mosquitto_msg_origin_t;
+} mqtt_msg_origin_t;
 
-typedef enum mosquitto_msg_state {
+typedef enum mqtt_msg_state {
     mosq_ms_invalid             = 0x0000,
     mosq_ms_publish_qos0        = 0x1000,
     mosq_ms_publish_qos1        = 0x2000,
@@ -66,7 +66,7 @@ typedef enum mosquitto_msg_state {
     mosq_ms_wait_for_pubcomp    = 0x9000,
     mosq_ms_send_pubrec         = 0xA000,
     mosq_ms_queued              = 0xB000
-} mosquitto_msg_state_t;
+} mqtt_msg_state_t;
 
 /********************************************************************
  *  User Flag Structure (md2_record.user_flag)
@@ -105,12 +105,12 @@ static inline int user_flag_get_pending(const user_flag_t *uf) {
  *  Inline Functions - QoS Level (0, 1, 2)
  ********************************************************************/
 
-static inline void user_flag_set_qos(user_flag_t *uf, mosquitto_msg_qos_t qos) {
+static inline void user_flag_set_qos(user_flag_t *uf, mqtt_msg_qos_t qos) {
     uf->value = (uf->value & ~TR2Q_QOS_MASK) | (qos & TR2Q_QOS_MASK);
 }
 
-static inline mosquitto_msg_qos_t user_flag_get_qos(const user_flag_t *uf) {
-    return (mosquitto_msg_qos_t)(uf->value & TR2Q_QOS_MASK);
+static inline mqtt_msg_qos_t user_flag_get_qos(const user_flag_t *uf) {
+    return (mqtt_msg_qos_t)(uf->value & TR2Q_QOS_MASK);
 }
 
 static inline int user_flag_get_qos_level(const user_flag_t *uf) {
@@ -171,36 +171,36 @@ static inline int user_flag_get_dup(const user_flag_t *uf) {
  *  Inline Functions - Direction
  ********************************************************************/
 
-static inline void user_flag_set_direction(user_flag_t *uf, mosquitto_msg_direction_t dir) {
+static inline void user_flag_set_direction(user_flag_t *uf, mqtt_msg_direction_t dir) {
     uf->value = (uf->value & ~TR2Q_DIR_MASK) | (dir & TR2Q_DIR_MASK);
 }
 
-static inline mosquitto_msg_direction_t user_flag_get_direction(const user_flag_t *uf) {
-    return (mosquitto_msg_direction_t)(uf->value & TR2Q_DIR_MASK);
+static inline mqtt_msg_direction_t user_flag_get_direction(const user_flag_t *uf) {
+    return (mqtt_msg_direction_t)(uf->value & TR2Q_DIR_MASK);
 }
 
 /********************************************************************
  *  Inline Functions - Origin
  ********************************************************************/
 
-static inline void user_flag_set_origin(user_flag_t *uf, mosquitto_msg_origin_t orig) {
+static inline void user_flag_set_origin(user_flag_t *uf, mqtt_msg_origin_t orig) {
     uf->value = (uf->value & ~TR2Q_ORIG_MASK) | (orig & TR2Q_ORIG_MASK);
 }
 
-static inline mosquitto_msg_origin_t user_flag_get_origin(const user_flag_t *uf) {
-    return (mosquitto_msg_origin_t)(uf->value & TR2Q_ORIG_MASK);
+static inline mqtt_msg_origin_t user_flag_get_origin(const user_flag_t *uf) {
+    return (mqtt_msg_origin_t)(uf->value & TR2Q_ORIG_MASK);
 }
 
 /********************************************************************
  *  Inline Functions - State
  ********************************************************************/
 
-static inline void user_flag_set_state(user_flag_t *uf, mosquitto_msg_state_t state) {
+static inline void user_flag_set_state(user_flag_t *uf, mqtt_msg_state_t state) {
     uf->value = (uf->value & ~TR2Q_STATE_MASK) | (state & TR2Q_STATE_MASK);
 }
 
-static inline mosquitto_msg_state_t user_flag_get_state(const user_flag_t *uf) {
-    return (mosquitto_msg_state_t)(uf->value & TR2Q_STATE_MASK);
+static inline mqtt_msg_state_t user_flag_get_state(const user_flag_t *uf) {
+    return (mqtt_msg_state_t)(uf->value & TR2Q_STATE_MASK);
 }
 
 /********************************************************************
@@ -219,6 +219,6 @@ static inline void user_flag_init(user_flag_t *uf, uint16_t value) {
  *  Function Prototypes (Implemented in .c file)
  ********************************************************************/
 
-PUBLIC const char *user_flag_state_to_str(mosquitto_msg_state_t state);
-PUBLIC const char *user_flag_direction_to_str(mosquitto_msg_direction_t dir);
-PUBLIC const char *user_flag_origin_to_str(mosquitto_msg_origin_t orig);
+PUBLIC const char *user_flag_state_to_str(mqtt_msg_state_t state);
+PUBLIC const char *user_flag_direction_to_str(mqtt_msg_direction_t dir);
+PUBLIC const char *user_flag_origin_to_str(mqtt_msg_origin_t orig);

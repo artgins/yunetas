@@ -158,7 +158,7 @@ typedef struct mosquitto_msg_store { // Used in broker
     json_t *properties;
     gbuffer_t *payload;
     time_t message_expiry_time;
-    enum mosquitto_msg_origin origin;
+    enum mqtt_msg_origin origin;
     uint16_t source_mid;
     uint16_t mid;
     uint8_t qos;
@@ -174,8 +174,8 @@ typedef struct mosquitto_client_msg { // Used in broker
     uint16_t mid;
     uint8_t qos;
     BOOL retain;
-    enum mosquitto_msg_direction direction;
-    enum mosquitto_msg_state state;
+    enum mqtt_msg_direction direction;
+    enum mqtt_msg_state state;
     uint8_t dup;
 } mosquitto_client_msg_t;
 
@@ -184,7 +184,7 @@ typedef struct mosquitto_message_all { // Used in client
 
     json_t *properties;
     time_t timestamp;
-    enum mosquitto_msg_state state;
+    enum mqtt_msg_state state;
     BOOL dup;
     struct mosquitto_message msg;
     uint32_t expiry_interval;
@@ -960,7 +960,7 @@ PRIVATE time_t mosquitto_time(void)
 PRIVATE int message__out_update(
     hgobj gobj,
     uint16_t mid,
-    enum mosquitto_msg_state state,
+    enum mqtt_msg_state state,
     int qos
 ) {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
@@ -982,7 +982,7 @@ PRIVATE int message__out_update(
 /***************************************************************************
  *  Used by client
  ***************************************************************************/
-PRIVATE int message__release_to_inflight(hgobj gobj, enum mosquitto_msg_direction dir)
+PRIVATE int message__release_to_inflight(hgobj gobj, enum mqtt_msg_direction dir)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
@@ -1031,7 +1031,7 @@ PRIVATE int message__release_to_inflight(hgobj gobj, enum mosquitto_msg_directio
 PRIVATE int OLD_message__queue(
     hgobj gobj,
     struct mosquitto_message_all *message,
-    enum mosquitto_msg_direction dir
+    enum mqtt_msg_direction dir
 ) {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
     if(dir == mosq_md_out) {
@@ -1058,8 +1058,8 @@ PRIVATE json_t *new_json_message(
     BOOL dup,
     json_t *properties, // not owned
     uint32_t expiry_interval,
-    mosquitto_msg_origin_t origin,
-    mosquitto_msg_direction_t dir,
+    mqtt_msg_origin_t origin,
+    mqtt_msg_direction_t dir,
     user_flag_t *p_user_flag,
     json_int_t t
 ) {
@@ -1111,7 +1111,7 @@ PRIVATE json_t *new_json_message(
 PRIVATE int message__queue(
     hgobj gobj,
     json_t *jn_mqtt_msg,
-    mosquitto_msg_direction_t dir,
+    mqtt_msg_direction_t dir,
     user_flag_t user_flag,
     json_int_t t
 ) {
@@ -1152,7 +1152,7 @@ PRIVATE int message__queue(
 PRIVATE int message__remove(
     hgobj gobj,
     uint16_t mid,
-    enum mosquitto_msg_direction dir,
+    enum mqtt_msg_direction dir,
     struct mosquitto_message_all **message,
     int qos
 ) {
@@ -1250,7 +1250,7 @@ PRIVATE void message__cleanup_all(hgobj gobj)
 PRIVATE int message__delete(
     hgobj gobj,
     uint16_t mid,
-    enum mosquitto_msg_direction dir,
+    enum mqtt_msg_direction dir,
     int qos
 ) {
     struct mosquitto_message_all *message;
@@ -1385,7 +1385,7 @@ PRIVATE int db__message_store(
     struct mosquitto_msg_store *stored,
     uint32_t message_expiry_interval,
     int store_id, // TODO dbid_t store_id,
-    enum mosquitto_msg_origin origin
+    enum mqtt_msg_origin origin
 ) {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
@@ -1601,7 +1601,7 @@ PRIVATE void db__message_remove_from_inflight(
  * @param qos qos for the packet of interest
  * @return true if more in flight are allowed.
  ***************************************************************************/
-PRIVATE BOOL db__ready_for_flight(hgobj gobj, enum mosquitto_msg_direction dir, int qos)
+PRIVATE BOOL db__ready_for_flight(hgobj gobj, enum mqtt_msg_direction dir, int qos)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
     struct mosquitto_msg_data *msgs;
@@ -1828,7 +1828,7 @@ PRIVATE int db__message_write_inflight_out_latest(hgobj gobj)
 PRIVATE int db__message_update_outgoing(
     hgobj gobj,
     uint16_t mid,
-    enum mosquitto_msg_state state,
+    enum mqtt_msg_state state,
     int qos
 ) {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
@@ -1853,7 +1853,7 @@ PRIVATE int db__message_update_outgoing(
 PRIVATE int db__message_delete_outgoing(
     hgobj gobj,
     uint16_t mid,
-    enum mosquitto_msg_state expect_state,
+    enum mqtt_msg_state expect_state,
     int qos
 ) {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
@@ -1985,7 +1985,7 @@ PRIVATE int db__message_release_incoming(hgobj gobj, uint16_t mid)
 PRIVATE int db__message_insert(
     hgobj gobj,
     uint16_t mid,
-    enum mosquitto_msg_direction dir,
+    enum mqtt_msg_direction dir,
     uint8_t qos,
     BOOL retain,
     struct mosquitto_msg_store *stored,
@@ -1995,7 +1995,7 @@ PRIVATE int db__message_insert(
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
     struct mosquitto_client_msg *msg;
     struct mosquitto_msg_data *msg_data;
-    enum mosquitto_msg_state state = mosq_ms_invalid;
+    enum mqtt_msg_state state = mosq_ms_invalid;
     int rc = 0;
     int i;
     char **dest_ids;

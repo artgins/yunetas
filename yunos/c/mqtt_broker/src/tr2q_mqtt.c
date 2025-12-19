@@ -12,7 +12,7 @@
  *  Debug/String Functions
  ********************************************************************/
 
-const char *user_flag_state_to_str(mosquitto_msg_state_t state)
+const char *user_flag_state_to_str(mqtt_msg_state_t state)
 {
     switch (state) {
         case mosq_ms_invalid:
@@ -44,7 +44,7 @@ const char *user_flag_state_to_str(mosquitto_msg_state_t state)
     }
 }
 
-const char *user_flag_direction_to_str(mosquitto_msg_direction_t dir)
+const char *user_flag_direction_to_str(mqtt_msg_direction_t dir)
 {
     switch (dir) {
         case mosq_md_in:
@@ -56,7 +56,7 @@ const char *user_flag_direction_to_str(mosquitto_msg_direction_t dir)
     }
 }
 
-const char *user_flag_origin_to_str(mosquitto_msg_origin_t orig)
+const char *user_flag_origin_to_str(mqtt_msg_origin_t orig)
 {
     switch (orig) {
         case mosq_mo_client:
