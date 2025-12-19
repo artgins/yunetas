@@ -1036,6 +1036,8 @@ void context__cleanup(struct mosquitto *context, BOOL force_free);
 
 ### Flow 5: Client Reconnection (Persistent Session)
 
+**Note**: This is the ONLY mechanism for message retransmission in modern Mosquitto. Messages are NOT retransmitted on timeout during active connections.
+
 ```
 ┌──────────────────────────┐
 │ Client reconnects        │
@@ -1068,6 +1070,7 @@ void context__cleanup(struct mosquitto *context, BOOL force_free);
 │ inflight_out_all()       │
 │ - Retransmit in-flight   │
 │ - Set DUP = 1            │
+│ ← ONLY RETRY MECHANISM   │
 └────────┬─────────────────┘
          │
          ▼
@@ -1211,15 +1214,42 @@ Saved at:
 - Message delete
 - Context disconnect
 
-### Timeout and Retry Logic
+### Message Retransmission (Modern Mosquitto 2.0+)
+
+**IMPORTANT: No Automatic Timeout-Based Retry During Active Connection**
+
+Mosquitto does NOT retransmit messages based on time intervals while a connection is active. The `retry_interval` configuration option is deprecated and largely non-functional in modern versions.
+
+**How Messages Are Actually Retransmitted**:
+
 ```c
-// In main loop (periodic check):
-for each client:
-    for each in-flight message:
-        if (now - msg->timestamp > retry_interval):
-            resend_with_dup_flag()
-            msg->timestamp = now
+// Messages are ONLY retransmitted on client reconnection
+// NOT on timeout during active connection
+
+Active Connection (No Retry):
+├─ PUBLISH sent → wait for PUBACK/PUBREC
+├─ No ACK received → message stays in-flight
+├─ Connection alive (PINGREQ/PINGRESP working)
+└─ Message NEVER retransmitted until client reconnects
+
+Reconnection Flow (Actual Retry):
+├─ Client disconnects (or connection lost)
+├─ Messages remain in persistent session storage
+├─ Client reconnects (clean_session=false)
+├─ handle__connect() or handle__connack() called
+├─ db__message_write_inflight_out_all() executed
+└─ ALL in-flight messages retransmitted with DUP=1
 ```
+
+**Why This Design**:
+- Timeout-based retries caused duplicate deliveries and message ordering issues
+- Modern approach relies on TCP's reliability for active connections
+- Reconnection-based retry ensures delivery without unnecessary network traffic
+- Simplifies broker logic and improves performance
+- Reduces bandwidth consumption
+
+**Configuration Note**:
+The `retry_interval` option may still appear in mosquitto.conf for backwards compatibility, but it has minimal effect in Mosquitto 2.0+. Roger Light (Mosquitto maintainer) stated it "causes more problems to no real benefit" and recommended ignoring it or setting it very high.
 
 ## Integration Points for Yunetas Implementation
 
@@ -1262,3 +1292,24 @@ This comprehensive analysis documents Mosquitto's complete message queue and dat
 - **Integration guidance** for Yunetas implementation
 
 The system ensures reliable message delivery through careful state management, flow control, persistence, and reference-counted memory management.
+
+---
+
+## Critical Implementation Note: Message Retransmission
+
+**IMPORTANT**: Modern Mosquitto (2.0+) does NOT retransmit unacknowledged messages based on timeout intervals during active connections. 
+
+**Key Points**:
+- The `retry_interval` configuration is deprecated and non-functional
+- In-flight messages remain queued indefinitely while connection is active
+- Messages are ONLY retransmitted when client reconnects (persistent session)
+- Retransmission happens via `db__message_write_inflight_out_all()` on reconnection
+- This design prevents duplicate deliveries and improves performance
+
+**For Yunetas Implementation**:
+When implementing similar MQTT functionality in Yunetas, you should follow this modern approach:
+1. Do NOT implement timeout-based message retransmission
+2. Rely on TCP reliability for active connections
+3. Implement reconnection-based retry via `db__message_write_inflight_out_all()` equivalent
+4. Use keepalive (PINGREQ/PINGRESP) to detect broken connections
+5. Retransmit all in-flight messages only on reconnection with persistent sessions
