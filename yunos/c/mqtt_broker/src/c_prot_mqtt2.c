@@ -1067,20 +1067,12 @@ PRIVATE int message__release_to_inflight(hgobj gobj, enum mosquitto_msg_directio
 /***************************************************************************
  *  Used by client
  ***************************************************************************/
-PRIVATE int message__queue(
+PRIVATE int OLD_message__queue(
     hgobj gobj,
     struct mosquitto_message_all *message,
     enum mosquitto_msg_direction dir
 ) {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
-
-        // q_msg_t *msg = trq_append2(
-        //     tr_queue_t * trq,
-        //     json_int_t t,   // __t__ if 0 then the time will be set by TimeRanger with now time
-        //     json_t *kw,     // owned
-        //     uint16_t user_flag  // extra flags in addition to TRQ_MSG_PENDING
-        // );
-
     if(dir == mosq_md_out) {
         dl_add(&priv->msgs_out.dl_inflight, message);
         // TODO priv->msgs_out.queue_len++;
@@ -1093,9 +1085,9 @@ PRIVATE int message__queue(
 }
 
 /***************************************************************************
- *  Used by client
+ *  Used by client TODO and broker?
  ***************************************************************************/
-PRIVATE int message_enqueue(
+PRIVATE json_t *new_json_message(
     hgobj gobj,
     uint16_t mid,
     const char *topic,
@@ -1105,10 +1097,11 @@ PRIVATE int message_enqueue(
     BOOL dup,
     json_t *properties, // not owned
     uint32_t expiry_interval,
-    enum mosquitto_msg_direction dir
+    mosquitto_msg_direction_t dir,
+    mosquitto_msg_origin_t origin,
+    uint16_t *p_user_flag,
+    json_int_t t
 ) {
-    PRIVATE_DATA *priv = gobj_priv_data(gobj);
-
     json_t *jn_mqtt_msg = create_json_record(gobj, json_mqtt_desc);
     if(!jn_mqtt_msg) {
         gobj_log_error(gobj, 0,
@@ -1118,11 +1111,10 @@ PRIVATE int message_enqueue(
             "topic",        "%s", topic,
             NULL
         );
-        return -1;
+        return NULL;
     }
 
     json_object_set_new(jn_mqtt_msg, "topic", json_string(topic));
-    time_t t = mosquitto_time();
     json_object_set_new(jn_mqtt_msg, "tm", json_integer(t));
     json_object_set_new(jn_mqtt_msg, "qos", json_integer(qos));
     json_object_set_new(jn_mqtt_msg, "expiry_interval", json_integer(expiry_interval));
@@ -1139,7 +1131,7 @@ PRIVATE int message_enqueue(
         );
     }
 
-    uint16_t user_flag = dir | mosq_mo_client;
+    uint16_t user_flag = dir | origin;
     if(qos == 1) {
         user_flag |= mosq_m_qos1;
     } else if(qos == 2) {
@@ -1152,6 +1144,51 @@ PRIVATE int message_enqueue(
         user_flag |= mosq_m_dup;
     }
     user_flag |= mosq_ms_invalid;
+
+    *p_user_flag = user_flag;
+
+    return jn_mqtt_msg;
+}
+
+/***************************************************************************
+ *  Used by client
+ ***************************************************************************/
+PRIVATE int message__queue(
+    hgobj gobj,
+    uint16_t mid,
+    const char *topic,
+    gbuffer_t *gbuf_payload, // not owned
+    uint8_t qos,
+    BOOL retain,
+    BOOL dup,
+    json_t *properties, // not owned
+    uint32_t expiry_interval,
+    mosquitto_msg_direction_t dir
+) {
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    time_t t = mosquitto_time();
+    uint16_t user_flag;
+    json_t *jn_mqtt_msg = new_json_message(
+        gobj,
+        mid,
+        topic,
+        gbuf_payload, // not owned
+        qos,
+        retain,
+        dup,
+        properties, // not owned
+        expiry_interval,
+        dir,
+        mosq_mo_client,
+        &user_flag,
+        t
+    );
+
+    if(!jn_mqtt_msg) {
+        // Error already logged
+        return -1;
+    }
 
     q2_msg_t *qmsg = NULL;
     if(dir == mosq_md_out) {
