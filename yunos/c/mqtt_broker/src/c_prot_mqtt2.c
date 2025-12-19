@@ -993,6 +993,81 @@ PRIVATE time_t mosquitto_time(void)
 #endif
 }
 
+
+
+
+/**
+ * Is this context ready to take more in flight messages right now?
+ * @param context the client context of interest
+ * @param qos qos for the packet of interest
+ * @return true if more in flight are allowed.
+ */
+// Using in handle__publish()
+BOOL db__ready_for_flight(struct mosquitto *context, enum mosquitto_msg_direction dir, int qos);
+
+// Using in persist_read()
+void db__msg_add_to_inflight_stats(struct mosquitto_msg_data *msg_data, struct mosquitto_client_msg *msg);
+
+// Using in persist_read()
+void db__msg_add_to_queued_stats(struct mosquitto_msg_data *msg_data, struct mosquitto_client_msg *msg);
+
+// Using in handle__publish()
+void db__msg_store_free(struct mosquitto_msg_store *store);
+
+// Using in handle__pubrec()
+int db__message_delete_outgoing(struct mosquitto *context, uint16_t mid, enum mosquitto_msg_state expect_state, int qos);
+
+// Using in handle__publish(), loop, retain
+int db__message_insert(struct mosquitto *context, uint16_t mid, enum mosquitto_msg_direction dir, uint8_t qos, BOOL retain, struct mosquitto_msg_store *stored, json_t *properties, BOOL update);
+
+// Using in handle__pubrec()
+int db__message_update_outgoing(struct mosquitto *context, uint16_t mid, enum mosquitto_msg_state state, int qos);
+
+// Using in context context__cleanup()
+int db__messages_delete(struct mosquitto *context, BOOL force_free);
+
+/*
+ * This will result in any outgoing packets going unsent. If we're disconnected
+ * forcefully then it is usually an error condition and shouldn't be a problem,
+ * but it will mean that CONNACK messages will never get sent for bad protocol
+ * versions for example.
+ */
+void context__cleanup(struct mosquitto *context, BOOL force_free);
+
+// Using in context context__send_will(), loop
+int db__messages_easy_queue(struct mosquitto *context, const char *topic, uint8_t qos, uint32_t payloadlen, const void *payload, int retain, uint32_t message_expiry_interval, json_t **properties);
+
+/* This function requires topic to be allocated on the heap. Once called, it owns topic and will free it on error. Likewise payload and properties. */
+// Using in handle__publish, loop, persist_read
+int db__message_store(const struct mosquitto *source, struct mosquitto_msg_store *stored, uint32_t message_expiry_interval, int store_id, enum mosquitto_msg_origin origin);
+
+// Using in handle__publish()
+int db__message_store_find(struct mosquitto *context, uint16_t mid, struct mosquitto_client_msg **client_msg);
+
+// Using in handle__connack(), handle__connect()
+int db__message_reconnect_reset(struct mosquitto *context);
+
+// Using in handle__publish()
+int db__message_remove_incoming(struct mosquitto* context, uint16_t mid);
+
+// Using in handle__pubrel()
+int db__message_release_incoming(struct mosquitto *context, uint16_t mid);
+
+// Using in handle__connect()
+void db__expire_all_messages(struct mosquitto *context);
+
+// Using in handle__connect() and handle__connack()
+int db__message_write_inflight_out_all(struct mosquitto *context);
+
+// Using in handle__subscribe() and websockets
+int db__message_write_inflight_out_latest(struct mosquitto *context);
+
+// Using in handle__subscribe()
+int db__message_write_queued_in(struct mosquitto *context);
+
+// Using in handle__connack(), handle__connect(), handle__subscribe, websocket
+int db__message_write_queued_out(struct mosquitto *context);
+
 /***************************************************************************
  * Used by client
  ***************************************************************************/
