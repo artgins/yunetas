@@ -483,6 +483,34 @@ PUBLIC q2_msg_t *tr2q_get_by_rowid(tr2_queue_t *trq, uint64_t rowid)
 }
 
 /***************************************************************************
+    Get info of message
+ ***************************************************************************/
+PUBLIC json_t *tr2q_msg_json(q2_msg_t *msg) // Load the message, Return json is YOURS!!
+{
+    if(msg->kw_record) {
+        return msg->kw_record;
+    }
+
+    msg->kw_record = tranger2_read_record_content( // return is yours
+        msg->trq->tranger,
+        msg->trq->topic,
+        "",
+        &msg->md_record
+    );
+    if(!msg->kw_record) {
+        hgobj gobj = (hgobj)json_integer_value(json_object_get(msg->trq->tranger, "gobj"));
+        gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_INTERNAL_ERROR,
+            "msg",          "%s", "jn_msg NULL",
+            "topic",        "%s", msg->trq->topic_name,
+            NULL
+        );
+    }
+    return msg->kw_record;
+}
+
+/***************************************************************************
     Check pending status of a rowid (low level)
  ***************************************************************************/
 PUBLIC int tr2q_check_pending_rowid(
@@ -540,30 +568,6 @@ PUBLIC uint64_t tr2q_set_soft_mark(q2_msg_t *msg, uint64_t soft_mark, BOOL set)
     }
 
     return ((q2_msg_t *)msg)->mark;
-}
-
-/***************************************************************************
-    Get info of message
- ***************************************************************************/
-PUBLIC json_t *tr2q_msg_json(q2_msg_t *msg) // Load the message, Return json is YOURS!!
-{
-    json_t *jn_record = tranger2_read_record_content( // return is yours
-        msg->trq->tranger,
-        msg->trq->topic,
-        "",
-        &msg->md_record
-    );
-    if(!jn_record) {
-        hgobj gobj = (hgobj)json_integer_value(json_object_get(msg->trq->tranger, "gobj"));
-        gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
-            "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_INTERNAL_ERROR,
-            "msg",          "%s", "jn_msg NULL",
-            "topic",        "%s", msg->trq->topic_name,
-            NULL
-        );
-    }
-    return jn_record;
 }
 
 /***************************************************************************

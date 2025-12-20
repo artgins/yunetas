@@ -112,6 +112,8 @@ PUBLIC q2_msg_t *tr2q_get_by_mid(tr2_queue_t *trq, json_int_t mid);
 */
 PUBLIC q2_msg_t *tr2q_get_by_rowid(tr2_queue_t *trq, uint64_t rowid);
 
+PUBLIC json_t *tr2q_msg_json(q2_msg_t *msg); // Load the message, Return json is YOURS!!
+
 /**
     Mark a message.
     You must flag a message with TR2Q_MSG_PENDING after append it to queue
@@ -229,8 +231,6 @@ static inline md2_record_ex_t *tr2q_msg_md(q2_msg_t *msg)
 /**
     Get info of message
 */
-PUBLIC json_t *tr2q_msg_json(q2_msg_t *msg); // Load the message, Return json is YOURS!!
-
 static inline json_int_t tr2q_msg_rowid(q2_msg_t *msg)
 {
     return msg->rowid;
