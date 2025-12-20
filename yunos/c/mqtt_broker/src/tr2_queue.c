@@ -447,6 +447,7 @@ PUBLIC q2_msg_t *tr2q_get_by_rowid(tr2_queue_t *trq, uint64_t rowid)
 {
     register q2_msg_t *msg;
 
+    q2msg_foreach_forward_inflight
     DL_FOREACH(trq, msg) {
         if(msg->rowid == rowid) {
             return msg;
