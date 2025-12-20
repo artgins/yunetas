@@ -1186,6 +1186,7 @@ PRIVATE int message__remove(
     if(msg) {
         json_t *kw = tr2q_msg_json(msg);
         *pmsg = kw_incref(kw);
+        tr2q_unload_msg(msg, 0);
         return MOSQ_ERR_SUCCESS;
     } else {
         return MOSQ_ERR_NOT_FOUND;
@@ -1200,11 +1201,11 @@ PRIVATE int message__delete(
     uint16_t mid,
     enum mqtt_msg_direction dir
 ) {
-    json_t *message;
+    json_t *kw_mqtt_msg;
 
-    int rc = message__remove(gobj, mid, dir, &message);
+    int rc = message__remove(gobj, mid, dir, &kw_mqtt_msg);
     if(rc == MOSQ_ERR_SUCCESS) {
-        KW_DECREF(message)
+        KW_DECREF(kw_mqtt_msg)
     }
     return rc;
 }
