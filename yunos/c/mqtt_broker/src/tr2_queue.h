@@ -105,7 +105,7 @@ PUBLIC void tr2q_unload_msg(q2_msg_t *msg, int32_t result);
 /**
     Get a message from iter by his rowid
 */
-PUBLIC q2_msg_t * tr2q_get_by_rowid(tr2_queue_t *trq, uint64_t rowid);
+PUBLIC q2_msg_t *tr2q_get_by_rowid(tr2_queue_t *trq, uint64_t rowid);
 
 /**
     Mark a message.
