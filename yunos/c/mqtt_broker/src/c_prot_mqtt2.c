@@ -7446,7 +7446,7 @@ PRIVATE int handle__publish_c(
     uint8_t qos;
     BOOL retain;
     BOOL dup;
-    uint32_t expiry_interval;
+    uint32_t expiry_interval = 0; // TODO get from properties although be client?
 
     /*-----------------------------------*
      *      Get and check the header
@@ -7544,7 +7544,7 @@ PRIVATE int handle__publish_c(
         retain,
         dup,
         properties, // not owned
-        0, // TODO expiry_interval,
+        expiry_interval,
         mosq_mo_broker,
         mosq_md_in,
         &user_flag,
