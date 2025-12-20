@@ -431,18 +431,27 @@ PUBLIC q2_msg_t *tr2q_append(
 }
 
 /***************************************************************************
+    Unload a message successfully from iter (TR2Q_MSG_PENDING set to 0)
+ ***************************************************************************/
+PUBLIC void tr2q_unload_msg(q2_msg_t *msg, int32_t result)
+{
+    tr2q_set_hard_flag(msg, TR2Q_MSG_PENDING, 0);
+
+    dl_delete(&msg->trq->dl_inflight, msg, free_msg);
+}
+
+/***************************************************************************
     Get a message from iter by his rowid
  ***************************************************************************/
 PUBLIC q2_msg_t *tr2q_get_by_rowid(tr2_queue_t *trq, uint64_t rowid)
 {
     register q2_msg_t *msg;
 
-    int x; // TODO
-    // DL_FOREACH(trq, msg) {
-    //     if(msg->rowid == rowid) {
-    //         return msg;
-    //     }
-    // }
+    DL_FOREACH(trq, msg) {
+        if(msg->rowid == rowid) {
+            return msg;
+        }
+    }
 
     return 0;
 }
@@ -468,16 +477,6 @@ PUBLIC int tr2q_check_pending_rowid(
     } else {
         return 0;
     }
-}
-
-/***************************************************************************
-    Unload a message successfully from iter (TR2Q_MSG_PENDING set to 0)
- ***************************************************************************/
-PUBLIC void tr2q_unload_msg(q2_msg_t *msg, int32_t result)
-{
-    tr2q_set_hard_flag(msg, TR2Q_MSG_PENDING, 0);
-
-    dl_delete(&msg->trq->dl_inflight, msg, free_msg);
 }
 
 /***************************************************************************

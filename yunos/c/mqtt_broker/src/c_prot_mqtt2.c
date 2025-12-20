@@ -1127,7 +1127,8 @@ PRIVATE json_t *new_json_message(
 }
 
 /***************************************************************************
- *  Used by client
+ *  Enqueue a message in the input or output queue
+ *  Used by client ???
  ***************************************************************************/
 PRIVATE int message__queue(
     hgobj gobj,
@@ -1164,20 +1165,18 @@ PRIVATE int message__queue(
 }
 
 /***************************************************************************
- *  Used by client:
- *      find the message 'mid',
+ *  Find the message with 'mid',
  *      dequeue
- *      return in **message
- *  but don't free!
+ *      return the message
+ *  Used by client ???
  ***************************************************************************/
-PRIVATE int message__remove(
+PRIVATE q2_msg_t *message__remove(
     hgobj gobj,
     uint16_t mid,
-    enum mqtt_msg_direction dir,
-    struct mosquitto_message_all **message,
-    int qos
+    mqtt_msg_direction_t dir
 ) {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
+    q2_msg_t *msg;
     struct mosquitto_message_all *cur, *tmp;
     BOOL found = FALSE;
 

@@ -208,15 +208,24 @@ static inline md2_record_ex_t *trq_msg_md(q_msg_t *msg)
     Walk over instances
 */
 #define qmsg_foreach_forward(trq, msg) \
-    for(msg = trq_first_msg(trq); \
-        msg!=0 ; \
-        msg = trq_next_msg(msg))
+    for((msg) = trq_first_msg(trq); \
+        (msg)!=0 ; \
+        (msg) = trq_next_msg(msg))
 
 #define qmsg_foreach_forward_safe(trq, msg, next) \
-    for(msg = trq_first_msg(trq), n = trq_next_msg(msg); \
-        msg!=0 ; \
-        msg = n, n = trq_next_msg(msg))
+   for((msg) = trq_first_msg(trq), (next) = (msg) ? trq_next_msg(msg) : 0; \
+       (msg)!=0 ; \
+       (msg) = (next), (next) = (msg) ? trq_next_msg(msg) : 0)
 
+#define qmsg_foreach_backward(trq, msg) \
+   for((msg) = trq_last_msg(trq); \
+       (msg)!=0 ; \
+       (msg) = trq_prev_msg(msg))
+
+#define qmsg_foreach_backward_safe(trq, msg, prev) \
+   for((msg) = trq_last_msg(trq), (prev) = trq_prev_msg(msg); \
+       (msg)!=0 ; \
+       (msg) = (prev), (prev) = trq_prev_msg(msg))
 
 /**
     Get info of message
