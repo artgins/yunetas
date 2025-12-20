@@ -440,7 +440,11 @@ PUBLIC void tr2q_unload_msg(q2_msg_t *msg, int32_t result)
 {
     tr2q_set_hard_flag(msg, TR2Q_MSG_PENDING, 0);
 
-    dl_delete(&msg->trq->dl_inflight, msg, free_msg);
+    if(msg->inflight) {
+        dl_delete(&msg->trq->dl_inflight, msg, free_msg);
+    } else {
+        dl_delete(&msg->trq->dl_queued, msg, free_msg);
+    }
 }
 
 /***************************************************************************
@@ -452,11 +456,13 @@ PUBLIC q2_msg_t *tr2q_get_by_mid(tr2_queue_t *trq, json_int_t mid)
 
     Q2MSG_FOREACH_FORWARD_INFLIGHT(trq, msg) {
         if(msg->mid == mid) {
+            msg->inflight = TRUE;
             return msg;
         }
     }
     Q2MSG_FOREACH_FORWARD_QUEUED(trq, msg) {
         if(msg->mid == mid) {
+            msg->inflight = FALSE;
             return msg;
         }
     }
@@ -473,11 +479,13 @@ PUBLIC q2_msg_t *tr2q_get_by_rowid(tr2_queue_t *trq, uint64_t rowid)
 
     Q2MSG_FOREACH_FORWARD_INFLIGHT(trq, msg) {
         if(msg->rowid == rowid) {
+            msg->inflight = TRUE;
             return msg;
         }
     }
     Q2MSG_FOREACH_FORWARD_QUEUED(trq, msg) {
         if(msg->rowid == rowid) {
+            msg->inflight = FALSE;
             return msg;
         }
     }
