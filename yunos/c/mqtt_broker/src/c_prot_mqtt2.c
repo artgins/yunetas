@@ -1132,8 +1132,8 @@ PRIVATE json_t *new_json_message(
     user_flag_t *p_user_flag,
     json_int_t t
 ) {
-    json_t *jn_mqtt_msg = create_json_record(gobj, json_mqtt_desc);
-    if(!jn_mqtt_msg) {
+    json_t *kw_mqtt_msg = create_json_record(gobj, json_mqtt_desc);
+    if(!kw_mqtt_msg) {
         gobj_log_error(gobj, 0,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_MQTT_ERROR,
@@ -1144,18 +1144,18 @@ PRIVATE json_t *new_json_message(
         return NULL;
     }
 
-    json_object_set_new(jn_mqtt_msg, "topic", json_string(topic));
-    json_object_set_new(jn_mqtt_msg, "tm", json_integer(t));
-    json_object_set_new(jn_mqtt_msg, "qos", json_integer(qos));
-    json_object_set_new(jn_mqtt_msg, "expiry_interval", json_integer(expiry_interval));
-    json_object_set_new(jn_mqtt_msg, "retain", json_boolean(retain));
+    json_object_set_new(kw_mqtt_msg, "topic", json_string(topic));
+    json_object_set_new(kw_mqtt_msg, "tm", json_integer(t));
+    json_object_set_new(kw_mqtt_msg, "qos", json_integer(qos));
+    json_object_set_new(kw_mqtt_msg, "expiry_interval", json_integer(expiry_interval));
+    json_object_set_new(kw_mqtt_msg, "retain", json_boolean(retain));
     if(properties) {
-        json_object_set(jn_mqtt_msg, "properties", properties); // no new, owned by kw
+        json_object_set(kw_mqtt_msg, "properties", properties); // no new, owned by kw
     }
     if(gbuf_payload) {
         gbuffer_incref(gbuf_payload);
         json_object_set_new(
-            jn_mqtt_msg,
+            kw_mqtt_msg,
             "gbuffer",
             json_integer((json_int_t)(uintptr_t)gbuf_payload)
         );
@@ -1171,7 +1171,7 @@ PRIVATE json_t *new_json_message(
 
     *p_user_flag = user_flag;
 
-    return jn_mqtt_msg;
+    return kw_mqtt_msg;
 }
 
 /***************************************************************************
@@ -1179,7 +1179,7 @@ PRIVATE json_t *new_json_message(
  ***************************************************************************/
 PRIVATE int message__queue(
     hgobj gobj,
-    json_t *jn_mqtt_msg,
+    json_t *kw_mqtt_msg,
     mqtt_msg_direction_t dir,
     user_flag_t user_flag,
     json_int_t t
@@ -1192,7 +1192,7 @@ PRIVATE int message__queue(
         qmsg = tr2q_append(
             priv->trq_cli_out_msgs,
             t,              // __t__ if 0 then the time will be set by TimeRanger with now time
-            jn_mqtt_msg,    // owned
+            kw_mqtt_msg,    // owned
             user_flag.value // extra flags in addition to TRQ_MSG_PENDING
         );
         // TODO priv->msgs_out.queue_len++;
@@ -1202,7 +1202,7 @@ PRIVATE int message__queue(
         qmsg = tr2q_append(
             priv->trq_cli_in_msgs,
             t,              // __t__ if 0 then the time will be set by TimeRanger with now time
-            jn_mqtt_msg,    // owned
+            kw_mqtt_msg,    // owned
             user_flag.value // extra flags in addition to TRQ_MSG_PENDING
         );
         // TODO priv->msgs_in.queue_len++;
@@ -1332,16 +1332,13 @@ PRIVATE int message__delete(
 }
 
 /***************************************************************************
- *
+ *  Enqueue message to subscribers
  ***************************************************************************/
 PRIVATE int sub__messages_queue(
-    const char *source_id,
-    const char *topic,
-    uint8_t qos,
-    int retain,
-    struct mosquitto_msg_store **stored
+    hgobj gobj,
+    json_t *kw_mqtt_msg
 ) {
-    int rc = MOSQ_ERR_SUCCESS, rc2;
+    int rc = MOSQ_ERR_SUCCESS;
     // int rc_normal = MOSQ_ERR_NO_SUBSCRIBERS, rc_shared = MOSQ_ERR_NO_SUBSCRIBERS;
     // struct mosquitto__subhier *subhier;
     // char **split_topics = NULL;
@@ -1620,21 +1617,20 @@ PRIVATE void db__msg_store_ref_dec(struct mosquitto_msg_store **store)
  *
  ***************************************************************************/
 PRIVATE void db__message_remove_from_inflight(
-    struct mosquitto_msg_data *msg_data,
-    struct mosquitto_client_msg *item
+    hgobj gobj,
+    tr2_queue_t *dl,
+    q2_msg_t *qmsg
 ) {
-    if(!msg_data || !item) {
-        return;
-    }
+    // TODO this must to delete from tr2q
+    // dl_delete(dl, kw_mqtt_msg, 0);
 
-    dl_delete(&msg_data->dl_inflight, item, gbmem_free);
-    if(item->store) {
-        db__msg_remove_from_inflight_stats(msg_data, item);
-        db__msg_store_ref_dec(&item->store);
-    }
+    // TODO
+    // if(item->store) {
+    //     db__msg_remove_from_inflight_stats(msg_data, item);
+    //     db__msg_store_ref_dec(&item->store);
+    // }
 
-    // TODO mosquitto_property_free_all(&item->properties);
-    gbmem_free(item);
+    // kw_decref(kw_mqtt_msg);
 }
 
 /***************************************************************************
@@ -1744,7 +1740,7 @@ PRIVATE int db__message_write_inflight_out_single(
             if(msg->direction == mosq_md_out && msg->qos > 0) {
                 // TODO util__increment_send_quota(context);
             }
-            db__message_remove_from_inflight(&priv->msgs_out, msg);
+            db__message_remove_from_inflight(gobj, &priv->msgs_out, msg);
             return MOSQ_ERR_SUCCESS;
         } else {
             expiry_interval = (uint32_t)(msg->store->message_expiry_time - priv->db_now_real_s);
@@ -1762,7 +1758,7 @@ PRIVATE int db__message_write_inflight_out_single(
         case mosq_ms_publish_qos0:
             rc = send__publish(gobj, mid, topic, msg->store->payload, qos, retain, retries, cmsg_props, store_props, expiry_interval);
             if(rc == MOSQ_ERR_SUCCESS || rc == MOSQ_ERR_OVERSIZE_PACKET) {
-                db__message_remove_from_inflight(&priv->msgs_out, msg);
+                db__message_remove_from_inflight(gobj, &priv->msgs_out, msg);
             } else {
                 return rc;
             }
@@ -1775,7 +1771,7 @@ PRIVATE int db__message_write_inflight_out_single(
                 msg->dup = 1; /* Any retry attempts are a duplicate. */
                 msg->state = mosq_ms_wait_for_puback;
             } else if(rc == MOSQ_ERR_OVERSIZE_PACKET) {
-                db__message_remove_from_inflight(&priv->msgs_out, msg);
+                db__message_remove_from_inflight(gobj, &priv->msgs_out, msg);
             } else {
                 return rc;
             }
@@ -1788,7 +1784,7 @@ PRIVATE int db__message_write_inflight_out_single(
                 msg->dup = 1; /* Any retry attempts are a duplicate. */
                 msg->state = mosq_ms_wait_for_pubrec;
             } else if(rc == MOSQ_ERR_OVERSIZE_PACKET) {
-                db__message_remove_from_inflight(&priv->msgs_out, msg);
+                db__message_remove_from_inflight(gobj, &priv->msgs_out, msg);
             } else {
                 return rc;
             }
@@ -1908,7 +1904,7 @@ PRIVATE int db__message_delete_outgoing(
             } else if(qos == 2 && tail->state != expect_state) {
                 return MOSQ_ERR_PROTOCOL;
             }
-            db__message_remove_from_inflight(&priv->msgs_out, tail);
+            db__message_remove_from_inflight(gobj, &priv->msgs_out, tail);
             break;
         }
     }
@@ -1941,8 +1937,9 @@ PRIVATE int db__message_delete_outgoing(
 
 /***************************************************************************
  *  Using in handle__publish_s()
+ *  Check if a mid already exists in inflight queue and remove it
  ***************************************************************************/
-PRIVATE int db__message_remove_incoming(hgobj gobj, uint16_t mid, BOOL verbose)
+PRIVATE int db__message_remove_incoming_dup(hgobj gobj, uint16_t mid)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
@@ -1950,22 +1947,24 @@ PRIVATE int db__message_remove_incoming(hgobj gobj, uint16_t mid, BOOL verbose)
 
     DL_FOREACH_SAFE(&priv->trq_srv_in_msgs->dl_inflight, qmsg, tmp) {
         if(qmsg->mid == mid) {
-            db__message_remove_from_inflight(&priv->msgs_in, qmsg);
+            gobj_log_warning(gobj, 0,
+                "function",     "%s", __FUNCTION__,
+                "msgset",       "%s", MSGSET_INTERNAL_ERROR,
+                "msg",          "%s", "removing an inflight qos2 dup message",
+                "client_id",    "%s", SAFE_PRINT(priv->client_id),
+                "mid",          "%d", (int)mid,
+                NULL
+            );
+            db__message_remove_from_inflight(
+                gobj,
+                priv->trq_srv_in_msgs,
+                qmsg
+            );
             return MOSQ_ERR_SUCCESS;
         }
     }
 
-    if(verbose) {
-        gobj_log_error(gobj, 0,
-            "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_INTERNAL_ERROR,
-            "msg",          "%s", "client not found",
-            "client_id",    "%s", SAFE_PRINT(priv->client_id),
-            "mid",          "%d", (int)mid,
-            NULL
-        );
-    }
-
+    // Silence please
     return MOSQ_ERR_NOT_FOUND;
 }
 
@@ -1975,54 +1974,54 @@ PRIVATE int db__message_remove_incoming(hgobj gobj, uint16_t mid, BOOL verbose)
 PRIVATE int db__message_release_incoming(hgobj gobj, uint16_t mid)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
-    struct mosquitto_client_msg *tail, *tmp;
+    q2_msg_t *tail, *tmp;
     int retain;
     char *topic;
     char *source_id;
     BOOL deleted = FALSE;
     int rc;
 
-    DL_FOREACH_SAFE(&priv->msgs_in.dl_inflight, tail, tmp) {
-        if(tail->mid == mid) {
-            if(tail->store->qos != 2) {
-                return MOSQ_ERR_PROTOCOL;
-            }
-            topic = tail->store->topic;
-            retain = tail->retain;
-            source_id = tail->store->source_id;
-
-            /* topic==NULL should be a QoS 2 message that was
-             * denied/dropped and is being processed so the client doesn't
-             * keep resending it. That means we don't send it to other
-             * clients. */
-            if(topic == NULL) {
-                db__message_remove_from_inflight(&priv->msgs_in, tail);
-                deleted = TRUE;
-            } else {
-                rc = sub__messages_queue(source_id, topic, 2, retain, &tail->store);
-                if(rc == MOSQ_ERR_SUCCESS || rc == MOSQ_ERR_NO_SUBSCRIBERS) {
-                    db__message_remove_from_inflight(&priv->msgs_in, tail);
-                    deleted = TRUE;
-                } else {
-                    return 1;
-                }
-            }
-        }
-    }
-
-    DL_FOREACH_SAFE(&priv->msgs_in.dl_queued, tail, tmp) {
-        if(db__ready_for_flight(gobj, mosq_md_in, tail->qos)) {
-            break;
-        }
-
-        tail->timestamp = priv->db_now_s;
-
-        if(tail->qos == 2) {
-            send__pubrec(gobj, tail->mid, 0, NULL);
-            tail->state = mosq_ms_wait_for_pubrel;
-            db__message_dequeue_first(gobj, &priv->msgs_in);
-        }
-    }
+    // DL_FOREACH_SAFE(&priv->trq_srv_in_msgs->dl_inflight, tail, tmp) {
+    //     if(tail->mid == mid) {
+    //         if(tail->store->qos != 2) {
+    //             return MOSQ_ERR_PROTOCOL;
+    //         }
+    //         topic = tail->store->topic;
+    //         retain = tail->retain;
+    //         source_id = tail->store->source_id;
+    //
+    //         /* topic==NULL should be a QoS 2 message that was
+    //          * denied/dropped and is being processed so the client doesn't
+    //          * keep resending it. That means we don't send it to other
+    //          * clients. */
+    //         if(topic == NULL) {
+    //             db__message_remove_from_inflight(gobj, &priv->msgs_in, tail);
+    //             deleted = TRUE;
+    //         } else {
+    //             rc = sub__messages_queue(source_id, topic, 2, retain, &tail->store);
+    //             if(rc == MOSQ_ERR_SUCCESS || rc == MOSQ_ERR_NO_SUBSCRIBERS) {
+    //                 db__message_remove_from_inflight(gobj, &priv->msgs_in, tail);
+    //                 deleted = TRUE;
+    //             } else {
+    //                 return 1;
+    //             }
+    //         }
+    //     }
+    // }
+    //
+    // DL_FOREACH_SAFE(&priv->msgs_in.dl_queued, tail, tmp) {
+    //     if(db__ready_for_flight(gobj, mosq_md_in, tail->qos)) {
+    //         break;
+    //     }
+    //
+    //     tail->timestamp = priv->db_now_s;
+    //
+    //     if(tail->qos == 2) {
+    //         send__pubrec(gobj, tail->mid, 0, NULL);
+    //         tail->state = mosq_ms_wait_for_pubrel;
+    //         db__message_dequeue_first(gobj, &priv->msgs_in);
+    //     }
+    // }
     if(deleted) {
         return MOSQ_ERR_SUCCESS;
     } else {
@@ -2035,51 +2034,52 @@ PRIVATE int db__message_release_incoming(hgobj gobj, uint16_t mid)
  ***************************************************************************/
 PRIVATE int db__message_insert(
     hgobj gobj,
-    uint16_t mid,
-    enum mqtt_msg_direction dir,
-    uint8_t qos,
-    BOOL retain,
-    struct mosquitto_msg_store *stored,
-    json_t *properties,
-    BOOL update
+    json_t *kw_mqtt_msg
+    // uint16_t mid,
+    // enum mqtt_msg_direction dir,
+    // uint8_t qos,
+    // BOOL retain,
+    // struct mosquitto_msg_store *stored,
+    // json_t *properties,
+    // BOOL update
 ) {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
-    struct mosquitto_client_msg *msg;
-    struct mosquitto_msg_data *msg_data;
-    enum mqtt_msg_state state = mosq_ms_invalid;
     int rc = 0;
-    int i;
-    char **dest_ids;
-
-    if(!priv->client_id) {
-        return MOSQ_ERR_SUCCESS; /* Protect against unlikely "client is disconnected but not entirely freed" scenario */
-    }
-
-    if(dir == mosq_md_out) {
-        msg_data = &priv->msgs_out;
-    } else {
-        msg_data = &priv->msgs_in;
-    }
-
-    /* Check whether we've already sent this message to this client
-     * for outgoing messages only.
-     * If retain==true then this is a stale retained message and so should be
-     * sent regardless. FIXME - this does mean retained messages will received
-     * multiple times for overlapping subscriptions, although this is only the
-     * case for SUBSCRIPTION with multiple subs in so is a minor concern.
-     */
-    if(priv->protocol_version != mosq_p_mqtt5
-            && priv->allow_duplicate_messages == FALSE
-            && dir == mosq_md_out && retain == FALSE && stored->dest_ids) {
-
-        for(i=0; i<stored->dest_id_count; i++) {
-            if(stored->dest_ids[i] && !strcmp(stored->dest_ids[i], priv->client_id)) {
-                /* We have already sent this message to this client. */
-                JSON_DECREF(properties);
-                return MOSQ_ERR_SUCCESS;
-            }
-        }
-    }
+    // struct mosquitto_client_msg *msg;
+    // struct mosquitto_msg_data *msg_data;
+    // enum mqtt_msg_state state = mosq_ms_invalid;
+    // int i;
+    // char **dest_ids;
+    //
+    // if(!priv->client_id) {
+    //     return MOSQ_ERR_SUCCESS; /* Protect against unlikely "client is disconnected but not entirely freed" scenario */
+    // }
+    //
+    // if(dir == mosq_md_out) {
+    //     msg_data = &priv->msgs_out;
+    // } else {
+    //     msg_data = &priv->msgs_in;
+    // }
+    //
+    // /* Check whether we've already sent this message to this client
+    //  * for outgoing messages only.
+    //  * If retain==true then this is a stale retained message and so should be
+    //  * sent regardless. FIXME - this does mean retained messages will received
+    //  * multiple times for overlapping subscriptions, although this is only the
+    //  * case for SUBSCRIPTION with multiple subs in so is a minor concern.
+    //  */
+    // if(priv->protocol_version != mosq_p_mqtt5
+    //         && priv->allow_duplicate_messages == FALSE
+    //         && dir == mosq_md_out && retain == FALSE && stored->dest_ids) {
+    //
+    //     for(i=0; i<stored->dest_id_count; i++) {
+    //         if(stored->dest_ids[i] && !strcmp(stored->dest_ids[i], priv->client_id)) {
+    //             /* We have already sent this message to this client. */
+    //             JSON_DECREF(properties);
+    //             return MOSQ_ERR_SUCCESS;
+    //         }
+    //     }
+    // }
 
     // TODO
     // if(context->sock == INVALID_SOCKET) {
@@ -7283,7 +7283,7 @@ PRIVATE int handle__publish_s(
 
     time_t t = mosquitto_time();
     user_flag_t user_flag;
-    json_t *jn_mqtt_msg = new_json_message(
+    json_t *kw_mqtt_msg = new_json_message(
         gobj,
         mid,
         topic,
@@ -7348,59 +7348,48 @@ PRIVATE int handle__publish_s(
      *  and searching in the inflight queue ONLY if the message has the DUP flag.
      */
     if(dup && qos==2) {
-        db__message_remove_incoming(gobj, mid, FALSE); // Search and remove without warning
+        db__message_remove_incoming_dup(gobj, mid); // Search and remove without warning
     }
-    if(qos == 0 || db__ready_for_flight(gobj, mosq_md_in, qos) ) {
-        dup = 0;
-        rc = db__message_store(gobj, jn_mqtt_msg, message_expiry_interval, 0, mosq_mo_client);
-        if(rc) return rc;
-    } else {
-        /* Client isn't allowed any more incoming messages, so fail early */
-        reason_code = MQTT_RC_QUOTA_EXCEEDED;
-        goto process_bad_message;
+    if(qos == 2) {
+        if(!db__ready_for_flight(gobj, mosq_md_in, qos)) {
+            /* Client isn't allowed any more incoming messages, so fail early */
+            reason_code = MQTT_RC_QUOTA_EXCEEDED;
+            goto process_bad_message;
+        }
     }
-    stored = jn_mqtt_msg;
-    jn_mqtt_msg = NULL;
-    dup = 0;
 
-    switch(stored->qos) {
+    switch(qos) {
         case 0:
-            rc2 = sub__messages_queue(priv->client_id, stored->topic, stored->qos, stored->retain, &stored);
-            if(rc2 > 0) rc = rc2;
+            rc = sub__messages_queue(
+                gobj,
+                kw_mqtt_msg // not owned
+            );
             break;
+
         case 1:
             // util__decrement_receive_quota(context);
-            rc2 = sub__messages_queue(priv->client_id, stored->topic, stored->qos, stored->retain, &stored);
+            rc = sub__messages_queue(
+                gobj,
+                kw_mqtt_msg // not owned
+            );
             /* stored may now be free, so don't refer to it */
-            if(rc2 == MOSQ_ERR_SUCCESS || priv->protocol_version != mosq_p_mqtt5) {
-                rc2 = send__puback(gobj, mid, 0, NULL);
-                if(rc2) rc = rc2;
-            } else if(rc2 == MOSQ_ERR_NO_SUBSCRIBERS) {
-                rc2 = send__puback(gobj, mid, MQTT_RC_NO_MATCHING_SUBSCRIBERS, NULL);
-                if(rc2) rc = rc2;
-            } else {
-                rc = rc2;
+            if(rc == MOSQ_ERR_SUCCESS || priv->protocol_version != mosq_p_mqtt5) {
+                send__puback(gobj, mid, 0, NULL);
+            } else if(rc == MOSQ_ERR_NO_SUBSCRIBERS) {
+                send__puback(gobj, mid, MQTT_RC_NO_MATCHING_SUBSCRIBERS, NULL);
             }
             break;
-        case 2:
-            if(dup == 0) {
-                res = db__message_insert(gobj, stored->source_mid, mosq_md_in, stored->qos, stored->retain, stored, NULL, FALSE);
-            } else {
-                res = 0;
-            }
 
-            /* db__message_insert() returns 2 to indicate dropped message
-             * due to queue. This isn't an error so don't disconnect them. */
-            /* FIXME - this is no longer necessary due to failing early above */
-            if(!res) {
-                if(dup == 0 || dup == 1) {
-                    rc2 = send__pubrec(gobj, stored->source_mid, 0, NULL);
-                    if(rc2) rc = rc2;
-                } else {
-                    return MOSQ_ERR_PROTOCOL;
-                }
-            } else {
-                rc = res;
+        case 2:
+            rc = db__message_insert(
+                gobj,
+                kw_mqtt_msg
+                // mosq_md_in,
+                // NULL,
+                // FALSE
+            );
+            if(rc == MOSQ_ERR_SUCCESS) {
+                send__pubrec(gobj, mid, 0, NULL);
             }
             break;
     }
@@ -7410,27 +7399,29 @@ PRIVATE int handle__publish_s(
 
 process_bad_message:
     rc = MOSQ_ERR_UNKNOWN;
-    if(jn_mqtt_msg) { // TODO get user_flag
+    if(kw_mqtt_msg) { // TODO get user_flag
         switch(user_flag_get_qos_level(&user_flag)) {
             case 0:
                 rc = MOSQ_ERR_SUCCESS;
                 break;
             case 1:
-                rc = send__puback(gobj, source_mid, reason_code, NULL);
+                rc = send__puback(gobj, mid, reason_code, NULL);
                 break;
             case 2:
-                rc = send__pubrec(gobj, source_mid, reason_code, NULL);
+                rc = send__pubrec(gobj, mid, reason_code, NULL);
                 break;
         }
-        db__msg_store_free(jn_mqtt_msg);
+        db__msg_store_free(kw_mqtt_msg);
     }
-    if(priv->max_queued_messages > 0 && priv->out_packet_count >= priv->max_queued_messages) {
-        rc = MQTT_RC_QUOTA_EXCEEDED;
-    }
+
+    // TODO review
+    // if(priv->max_queued_messages > 0 && priv->out_packet_count >= priv->max_queued_messages) {
+    //     rc = MQTT_RC_QUOTA_EXCEEDED;
+    // }
 
     GBMEM_FREE(topic)
-    JSON_DECREF(properties);
-
+    JSON_DECREF(properties)
+    KW_DECREF(kw_mqtt_msg)
     return rc;
 }
 
@@ -7524,7 +7515,7 @@ PRIVATE int handle__publish_c(
 
     time_t t = mosquitto_time();
     user_flag_t user_flag;
-    json_t *jn_mqtt_msg = new_json_message(
+    json_t *kw_mqtt_msg = new_json_message(
         gobj,
         mid,
         topic,
@@ -7561,7 +7552,7 @@ PRIVATE int handle__publish_c(
                 json_t *kw_iev = iev_create(
                     gobj,
                     EV_MQTT_MESSAGE,
-                    jn_mqtt_msg // owned
+                    kw_mqtt_msg // owned
                 );
 
                 gobj_publish_event(gobj, EV_ON_IEV_MESSAGE, kw_iev);
@@ -7575,7 +7566,7 @@ PRIVATE int handle__publish_c(
                 json_t *kw_iev = iev_create(
                     gobj,
                     EV_MQTT_MESSAGE,
-                    jn_mqtt_msg // owned
+                    kw_mqtt_msg // owned
                 );
 
                 gobj_publish_event(gobj, EV_ON_IEV_MESSAGE, kw_iev);
@@ -7586,7 +7577,7 @@ PRIVATE int handle__publish_c(
             // util__decrement_receive_quota(mosq);
             rc = send__pubrec(gobj, mid, 0, NULL);
             user_flag_set_state(&user_flag, mosq_ms_wait_for_pubrel);
-            message__queue(gobj, jn_mqtt_msg, mosq_md_in, user_flag, t);
+            message__queue(gobj, kw_mqtt_msg, mosq_md_in, user_flag, t);
             return rc;
 
         default:
@@ -7598,7 +7589,7 @@ PRIVATE int handle__publish_c(
                 "qos",          "%d", qos,
                 NULL
             );
-            JSON_DECREF(jn_mqtt_msg)
+            JSON_DECREF(kw_mqtt_msg)
             return -1;
     }
 }
@@ -9350,7 +9341,7 @@ PRIVATE int ac_mqtt_client_send_publish(hgobj gobj, const char *event, json_t *k
 
         time_t t = mosquitto_time();
         user_flag_t user_flag;
-        json_t *jn_mqtt_msg = new_json_message(
+        json_t *kw_mqtt_msg = new_json_message(
             gobj,
             mid,
             topic,
@@ -9368,7 +9359,7 @@ PRIVATE int ac_mqtt_client_send_publish(hgobj gobj, const char *event, json_t *k
 
         message__queue(
             gobj,
-            jn_mqtt_msg,
+            kw_mqtt_msg,
             mosq_md_out,
             user_flag,
             t
@@ -9404,10 +9395,10 @@ PRIVATE int ac_mqtt_client_send_publish(hgobj gobj, const char *event, json_t *k
         //         KW_DECREF(kw)
         //         return -1;
         //     }
-        //     json_object_set_new(jn_mqtt_msg, "data", jn_bf);
+        //     json_object_set_new(kw_mqtt_msg, "data", jn_bf);
         //     gbuffer_decref(gbuf_base64);
         // } else {
-        //     json_object_set_new(jn_mqtt_msg, "data", json_string(""));
+        //     json_object_set_new(kw_mqtt_msg, "data", json_string(""));
         // }
 
         // mosquitto_message_all_t *message = GBMEM_MALLOC(sizeof(mosquitto_message_all_t));

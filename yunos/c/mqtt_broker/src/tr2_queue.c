@@ -144,7 +144,7 @@ PRIVATE q2_msg_t *new_msg(
     tr2_queue_t *trq,
     json_int_t rowid, // global rowid that it must match the rowid in md_record
     const md2_record_ex_t *md_record,
-    json_t *jn_record // owned
+    json_t *kw_record // owned
 ) {
     hgobj gobj = 0;
 
@@ -159,7 +159,7 @@ PRIVATE q2_msg_t *new_msg(
             "msg",          "%s", "Cannot create msg. GBMEM_MALLOC() FAILED",
             NULL
         );
-        KW_DECREF(jn_record)
+        KW_DECREF(kw_record)
         return NULL;
     }
     if(rowid != md_record->rowid) {
@@ -178,10 +178,10 @@ PRIVATE q2_msg_t *new_msg(
 
     if(trq->max_inflight_messages == 0 || tr2q_inflight_size(trq) < trq->max_inflight_messages) {
         dl_add(&trq->dl_inflight, msg);
-        msg->jn_record = jn_record;
+        msg->kw_record =kw_record;
     } else {
         dl_add(&trq->dl_queued, msg);
-        KW_DECREF(jn_record)
+        KW_DECREF(kw_record)
     }
 
     return msg;
@@ -193,6 +193,7 @@ PRIVATE q2_msg_t *new_msg(
 PRIVATE void free_msg(void *msg_)
 {
     q2_msg_t *msg = msg_;
+    KW_DECREF(msg->kw_record)
     memset(msg, 0, sizeof(q2_msg_t));
     GBMEM_FREE(msg);
 }
@@ -436,7 +437,7 @@ PUBLIC q2_msg_t *tr2q_get_by_rowid(tr2_queue_t *trq, uint64_t rowid)
 {
     register q2_msg_t *msg;
 
-    Q2MSG_INFLIGHT_FOREACH_FORWARD(trq, msg) {
+    DL_FOREACH(trq, msg) {
         if(msg->rowid == rowid) {
             return msg;
         }
