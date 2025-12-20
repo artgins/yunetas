@@ -175,12 +175,15 @@ PRIVATE q2_msg_t *new_msg(
     memmove(&msg->md_record, md_record, sizeof(md2_record_ex_t));
     msg->trq = trq;
     msg->rowid = rowid;
+    msg->mid = json_integer_value(json_object_get(kw_record, "mid"));
 
     if(trq->max_inflight_messages == 0 || tr2q_inflight_size(trq) < trq->max_inflight_messages) {
         dl_add(&trq->dl_inflight, msg);
         msg->kw_record =kw_record;
+        msg->inflight = TRUE;
     } else {
         dl_add(&trq->dl_queued, msg);
+        msg->inflight = FALSE;
         KW_DECREF(kw_record)
     }
 

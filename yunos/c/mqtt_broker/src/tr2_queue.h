@@ -49,6 +49,7 @@ typedef struct {
     uint64_t mark;          // soft mark.
     json_int_t rowid;       // global rowid that it must match the rowid in md_record
     json_int_t mid;         // Yes, it's an ease for mqtt protocol
+    BOOL inflight;          // True if it's in inflight dl_list, otherwise in the queued dl_list
     json_t *kw_record;      // It may have gbuffer
 } q2_msg_t;
 
