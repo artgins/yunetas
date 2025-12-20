@@ -268,24 +268,24 @@ PUBLIC int tr2q_check_backup(tr2_queue_t *trq);
     Walk over instances
 */
 #define q2msg_foreach_forward(trq, msg) \
-    for((msg) = t2rq_first_msg(trq); \
+    for((msg) = tr2q_first_msg(trq); \
         (msg)!=0 ; \
-        (msg) = t2rq_next_msg(msg))
+        (msg) = tr2q_next_msg(msg))
 
 #define q2msg_foreach_forward_safe(trq, msg, next) \
-   for((msg) = t2rq_first_msg(trq), (next) = (msg) ? t2rq_next_msg(msg) : 0; \
+   for((msg) = tr2q_first_msg(trq), (next) = (msg) ? tr2q_next_msg(msg) : 0; \
        (msg)!=0 ; \
-       (msg) = (next), (next) = (msg) ? t2rq_next_msg(msg) : 0)
+       (msg) = (next), (next) = (msg) ? tr2q_next_msg(msg) : 0)
 
 #define q2msg_foreach_backward(trq, msg) \
-   for((msg) = t2rq_last_msg(trq); \
+   for((msg) = tr2q_last_msg(trq); \
        (msg)!=0 ; \
-       (msg) = t2rq_prev_msg(msg))
+       (msg) = tr2q_prev_msg(msg))
 
 #define q2msg_foreach_backward_safe(trq, msg, prev) \
-   for((msg) = t2rq_last_msg(trq), (prev) = t2rq_prev_msg(msg); \
+   for((msg) = tr2q_last_msg(trq), (prev) = tr2q_prev_msg(msg); \
        (msg)!=0 ; \
-       (msg) = (prev), (prev) = t2rq_prev_msg(msg))
+       (msg) = (prev), (prev) = tr2q_prev_msg(msg))
 
 #ifdef __cplusplus
 }
