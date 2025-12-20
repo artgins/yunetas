@@ -113,7 +113,10 @@ PUBLIC q2_msg_t *tr2q_get_by_mid(tr2_queue_t *trq, json_int_t mid);
 */
 PUBLIC q2_msg_t *tr2q_get_by_rowid(tr2_queue_t *trq, uint64_t rowid);
 
-PUBLIC json_t *tr2q_msg_json(q2_msg_t *msg); // Load the message, Return json is YOURS!!
+/**
+    Get the message content
+ */
+PUBLIC json_t *tr2q_msg_json(q2_msg_t *msg); // Return is not yours, free with tr2q_unload_msg()
 
 /**
     Mark a message.

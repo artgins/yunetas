@@ -494,9 +494,9 @@ PUBLIC q2_msg_t *tr2q_get_by_rowid(tr2_queue_t *trq, uint64_t rowid)
 }
 
 /***************************************************************************
-    Get info of message
+    Get the message content
  ***************************************************************************/
-PUBLIC json_t *tr2q_msg_json(q2_msg_t *msg) // Load the message, Return json is YOURS!!
+PUBLIC json_t *tr2q_msg_json(q2_msg_t *msg) // Return is not yours, free with tr2q_unload_msg()
 {
     if(msg->kw_record) {
         return msg->kw_record;

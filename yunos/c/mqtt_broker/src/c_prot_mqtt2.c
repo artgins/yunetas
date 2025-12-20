@@ -1170,67 +1170,29 @@ PRIVATE int message__queue(
  *      return the message
  *  Used by client ???
  ***************************************************************************/
-PRIVATE q2_msg_t *message__remove(
+PRIVATE int message__remove(
     hgobj gobj,
     uint16_t mid,
-    mqtt_msg_direction_t dir
+    mqtt_msg_direction_t dir,
+    json_t **pmsg
 ) {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
+    *pmsg = NULL;
     q2_msg_t *msg;
-    struct mosquitto_message_all *cur, *tmp;
-    BOOL found = FALSE;
 
     if(dir == mosq_md_out) {
-        DL_FOREACH_SAFE(&priv->msgs_out.dl_inflight, cur, tmp) {
-            if(found == FALSE && cur->msg.mid == mid) {
-                if(cur->msg.qos != qos) {
-                    gobj_log_error(gobj, 0,
-                        "function",     "%s", __FUNCTION__,
-                        "msgset",       "%s", MSGSET_MQTT_ERROR,
-                        "msg",          "%s", "Mqtt client: message not match qos",
-                        NULL
-                    );
-                    return MOSQ_ERR_PROTOCOL;
-                }
-                dl_delete(&priv->msgs_out.dl_inflight, cur, 0);
-
-                *message = cur;
-                // priv->msgs_out.queue_len--; TODO
-                found = TRUE;
-                break;
-            }
-        }
-        if(found) {
-            return MOSQ_ERR_SUCCESS;
-        } else {
-            return MOSQ_ERR_NOT_FOUND;
-        }
+        msg = tr2q_get_by_mid(priv->trq_out_msgs, mid);
 
     } else {
-        DL_FOREACH_SAFE(&priv->msgs_in.dl_inflight, cur, tmp) {
-            if(cur->msg.mid == mid) {
-                if(cur->msg.qos != qos) {
-                    gobj_log_error(gobj, 0,
-                        "function",     "%s", __FUNCTION__,
-                        "msgset",       "%s", MSGSET_MQTT_ERROR,
-                        "msg",          "%s", "Mqtt client: message not match qos",
-                        NULL
-                    );
-                    return MOSQ_ERR_PROTOCOL;
-                }
-                dl_delete(&priv->msgs_in.dl_inflight, cur, 0);
-                *message = cur;
-                // TODO mosq->msgs_in.queue_len--;
-                found = TRUE;
-                break;
-            }
-        }
+        msg = tr2q_get_by_mid(priv->trq_in_msgs, mid);
+    }
 
-        if(found) {
-            return MOSQ_ERR_SUCCESS;
-        } else {
-            return MOSQ_ERR_NOT_FOUND;
-        }
+    if(msg) {
+        json_t *kw = tr2q_msg_json(msg);
+        *pmsg = kw_incref(kw);
+        return MOSQ_ERR_SUCCESS;
+    } else {
+        return MOSQ_ERR_NOT_FOUND;
     }
 }
 
@@ -1273,11 +1235,11 @@ PRIVATE int message__delete(
     enum mqtt_msg_direction dir,
     int qos
 ) {
-    struct mosquitto_message_all *message;
+    json_t *message;
 
-    int rc = message__remove(gobj, mid, dir, &message, qos);
+    int rc = message__remove(gobj, mid, dir, &message);
     if(rc == MOSQ_ERR_SUCCESS) {
-        message__cleanup(message);
+        KW_DECREF(message)
     }
     return rc;
 }
@@ -8190,8 +8152,8 @@ PRIVATE int handle__pubrel(hgobj gobj, gbuffer_t *gbuf)
          */
         send__pubcomp(gobj, mid, NULL);
 
-
-        rc = message__remove(gobj, mid, mosq_md_in, &message, 2);
+        json_t *kw_mqtt_msg;
+        rc = message__remove(gobj, mid, mosq_md_in, &kw_mqtt_msg);
         if(rc == MOSQ_ERR_SUCCESS) {
              /* Only pass the message on if we have removed it from the queue - this
               * prevents multiple callbacks for the same message.
@@ -8201,45 +8163,16 @@ PRIVATE int handle__pubrel(hgobj gobj, gbuffer_t *gbuf)
                  *  Client
                  *  Callback the message to the user
                  */
-                json_t *kw_message = json_pack("{s:s, s:i, s:b, s:i, s:i}",
-                    "topic", message->msg.topic,
-                    "mid", (int)message->msg.mid,
-                    "dup", (int)message->dup,
-                    "qos", (int)message->msg.qos,
-                    "retain", (int)message->msg.retain
-                );
-                if(properties) {
-                    json_object_set(kw_message, "properties", properties);
-                }
-                if(message->msg.payload) {
-                    gbuffer_incref(message->msg.payload);
-                    json_object_set_new(
-                        kw_message,
-                        "gbuffer",
-                        json_integer((json_int_t)(uintptr_t)message->msg.payload)
-                    );
-                }
-
-                int x; // TODO crea our message
-                // json_t *kw_iev = iev_create(
-                //     gobj,
-                //     EV_MQTT_MESSAGE,
-                //     kw_mqtt_msg // owned
-                // );
-                //
-                // gobj_publish_event(gobj, EV_ON_IEV_MESSAGE, kw_iev);
-
                 json_t *kw_iev = iev_create(
                     gobj,
                     EV_MQTT_MESSAGE,
-                    kw_message // owned
+                    kw_mqtt_msg // owned
                 );
 
                 gobj_publish_event(gobj, EV_ON_IEV_MESSAGE, kw_iev);
             }
 
             JSON_DECREF(properties)
-            message__cleanup(message);
         } else if(rc == MOSQ_ERR_NOT_FOUND) {
             JSON_DECREF(properties)
             return MOSQ_ERR_SUCCESS;
