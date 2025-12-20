@@ -8157,7 +8157,7 @@ PRIVATE int handle__pubrel(hgobj gobj, gbuffer_t *gbuf)
  ***************************************************************************/
 PRIVATE uint16_t mosquitto__mid_generate(hgobj gobj)
 {
-    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+    // PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
     // TODO new
     // json_t *client = gobj_get_resource(priv->gobj_mqtt_clients, client_id, 0, 0);
@@ -8262,7 +8262,6 @@ PRIVATE int framehead_prepare_new_frame(FRAME_HEAD *frame)
  ***************************************************************************/
 PRIVATE int decode_head(hgobj gobj, FRAME_HEAD *frame, char *data)
 {
-    PRIVATE_DATA *priv = gobj_priv_data(gobj);
     unsigned char byte1, byte2;
 
     byte1 = *(data+0);
@@ -8322,8 +8321,6 @@ PRIVATE int framehead_consume(
     char *bf,
     size_t len
 ) {
-    PRIVATE_DATA *priv = gobj_priv_data(gobj);
-
     int total_consumed = 0;
     int consumed;
     char *data;
@@ -8922,8 +8919,6 @@ PRIVATE int ac_process_handshake(hgobj gobj, const char *event, json_t *kw, hgob
  ***************************************************************************/
 PRIVATE int ac_timeout_wait_handshake(hgobj gobj, const char *event, json_t *kw, hgobj src)
 {
-    PRIVATE_DATA *priv = gobj_priv_data(gobj);
-
     gobj_log_warning(gobj, 0,
         "function",     "%s", __FUNCTION__,
         "msgset",       "%s", MSGSET_MQTT_ERROR,
@@ -9048,8 +9043,6 @@ PRIVATE int ac_process_frame_header(hgobj gobj, const char *event, json_t *kw, h
  ***************************************************************************/
 PRIVATE int ac_timeout_waiting_frame_header(hgobj gobj, const char *event, json_t *kw, hgobj src)
 {
-    PRIVATE_DATA *priv = gobj_priv_data(gobj);
-
     // TODO implement ping
     // if(priv->timer_handshake) {
     //     if(test_sectimer(priv->timer_handshake)) {
@@ -9677,171 +9670,6 @@ PRIVATE int ac_mqtt_client_send_unsubscribe(hgobj gobj, const char *event, json_
 }
 
 /***************************************************************************
- *  Send data
- ***************************************************************************/
-PRIVATE int ac_send_message(hgobj gobj, const char *event, json_t *kw, hgobj src)
-{
-    PRIVATE_DATA *priv = gobj_priv_data(gobj);
-
-    /*---------------------------------------------*
-     *   Entry parameters
-     *---------------------------------------------*/
-    const char *topic_name = kw_get_str(gobj, kw, "topic_name", "", KW_REQUIRED);
-    gbuffer_t *gbuf = (gbuffer_t *)(uintptr_t)kw_get_int(gobj, kw, "gbuffer", 0, 0);
-    if(gobj_trace_level(gobj) & TRAFFIC) {
-        gobj_trace_dump_gbuf(gobj, gbuf, "%s, topic_name %s", gobj_short_name(gobj), topic_name);
-    }
-    char *payload = gbuffer_cur_rd_pointer(gbuf);
-    int payloadlen = (int)gbuffer_leftbytes(gbuf);
-    // These parameters are fixed by now
-    int qos = 0; // Only let 0
-    BOOL retain = FALSE;
-    json_t * properties = 0;
-
-
-
-
-
-    // Local variables
-    json_t *outgoing_properties = NULL;
-    size_t tlen = 0;
-    uint32_t remaining_length;
-
-    if(priv->protocol_version != mosq_p_mqtt5 && properties) {
-        gobj_log_error(gobj, 0,
-            "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_MQTT_ERROR,
-            "msg",          "%s", "Mqtt properties and not mqtt5",
-            "username",     "%s", gobj_read_str_attr(gobj, "__username__"),
-            "client_id",    "%s", gobj_read_str_attr(gobj, "client_id"),
-            "session_id",   "%s", gobj_read_str_attr(gobj, "__session_id__"),
-            NULL
-        );
-        KW_DECREF(kw)
-        return MOSQ_ERR_NOT_SUPPORTED;
-    }
-
-//    if(properties) {
-//        if(properties->client_generated) {
-//            outgoing_properties = properties;
-//        } else {
-//            memcpy(&local_property, properties, sizeof(mosquitto_property));
-//            local_property.client_generated = TRUE;
-//            local_property.next = NULL;
-//            outgoing_properties = &local_property;
-//        }
-//        int rc = mosquitto_property_check_all(CMD_PUBLISH, outgoing_properties);
-//        if(rc) return rc;
-//    }
-
-    tlen = strlen(topic_name);
-    if(mosquitto_validate_utf8(topic_name, (int)tlen)) {
-        gobj_log_error(gobj, 0,
-            "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_MQTT_ERROR,
-            "msg",          "%s", "Mqtt malformed utf8",
-            "username",     "%s", gobj_read_str_attr(gobj, "__username__"),
-            "client_id",    "%s", gobj_read_str_attr(gobj, "client_id"),
-            "session_id",   "%s", gobj_read_str_attr(gobj, "__session_id__"),
-            NULL
-        );
-        KW_DECREF(kw)
-        return MOSQ_ERR_MALFORMED_UTF8;
-    }
-    if(payloadlen < 0 || payloadlen > (int)MQTT_MAX_PAYLOAD) {
-        gobj_log_error(gobj, 0,
-            "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_MQTT_ERROR,
-            "msg",          "%s", "Mqtt payload size",
-            "username",     "%s", gobj_read_str_attr(gobj, "__username__"),
-            "client_id",    "%s", gobj_read_str_attr(gobj, "client_id"),
-            "session_id",   "%s", gobj_read_str_attr(gobj, "__session_id__"),
-            NULL
-        );
-        KW_DECREF(kw)
-        return MOSQ_ERR_PAYLOAD_SIZE;
-    }
-    if(mosquitto_pub_topic_check(topic_name) != MOSQ_ERR_SUCCESS) {
-        gobj_log_error(gobj, 0,
-            "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_MQTT_ERROR,
-            "msg",          "%s", "Mqtt topic check failed",
-            "username",     "%s", gobj_read_str_attr(gobj, "__username__"),
-            "client_id",    "%s", gobj_read_str_attr(gobj, "client_id"),
-            "session_id",   "%s", gobj_read_str_attr(gobj, "__session_id__"),
-            NULL
-        );
-        KW_DECREF(kw)
-        return MOSQ_ERR_INVAL;
-    }
-
-    if(priv->maximum_packet_size > 0) {
-        remaining_length = 1 + 2+(uint32_t)tlen + (uint32_t)payloadlen +
-            property__get_length_all(outgoing_properties);
-        if(qos > 0) {
-            remaining_length++;
-        }
-        if(packet_check_oversize(gobj, remaining_length)) {
-            gobj_log_error(gobj, 0,
-                "function",     "%s", __FUNCTION__,
-                "msgset",       "%s", MSGSET_MQTT_ERROR,
-                "msg",          "%s", "Mqtt oversize packet",
-                "username",     "%s", gobj_read_str_attr(gobj, "__username__"),
-                "client_id",    "%s", gobj_read_str_attr(gobj, "client_id"),
-                "session_id",   "%s", gobj_read_str_attr(gobj, "__session_id__"),
-                NULL
-            );
-            KW_DECREF(kw)
-            return MOSQ_ERR_OVERSIZE_PACKET;
-        }
-    }
-
-    uint16_t mid = mosquitto__mid_generate(gobj);
-    json_object_set_new(kw, "mid", json_integer(mid));
-
-    send__publish(
-        gobj,
-        mid,
-        topic_name,
-        gbuf,
-        (uint8_t)qos,
-        retain,
-        FALSE,
-        outgoing_properties,
-        NULL,
-        0
-    );
-
-// TODO esto en el nivel superior
-//    /*
-//     *  Search subscriptions in clients
-//     */
-//    json_t *jn_subscribers = sub_get_subscribers(gobj, topic_name);
-//
-//    const char *client_id; json_t *client;
-//    json_object_foreach(jn_subscribers, client_id, client) {
-//        json_t *jn_subscriptions = kw_get_dict(gobj, client, "subscriptions", 0, KW_REQUIRED);
-//        if(json_object_size(jn_subscriptions)==0) {
-//            continue;
-//        }
-//
-//        BOOL isConnected = kw_get_bool(gobj, client, "isConnected", 0, KW_REQUIRED);
-//        if(isConnected) {
-//            hgobj gobj_client = (hgobj)(size_t)kw_get_int(gobj, client, "_gobj", 0, KW_REQUIRED);
-//            if(gobj_client) {
-//                gobj_send_event(gobj_client, EV_SEND_MESSAGE, 0, gobj);
-//            }
-//        } else {
-//            // TODO save the message if qos > 0 ?
-//        }
-//    }
-//    JSON_DECREF(jn_subscribers)
-
-    KW_DECREF(kw)
-    return 0;
-}
-
-/***************************************************************************
  *
  ***************************************************************************/
 PRIVATE int ac_drop(hgobj gobj, const char *event, json_t *kw, hgobj src)
@@ -9933,7 +9761,6 @@ PRIVATE int create_gclass(gclass_name_t gclass_name)
     };
     ev_action_t st_wait_frame_header[] = {
         {EV_RX_DATA,            ac_process_frame_header,            0},
-        // {EV_MQTT_MESSAGE,       ac_send_message,                    0},
         {EV_MQTT_PUBLISH,       ac_mqtt_client_send_publish,        0},
         {EV_MQTT_SUBSCRIBE,     ac_mqtt_client_send_subscribe,      0},
         {EV_MQTT_UNSUBSCRIBE,   ac_mqtt_client_send_unsubscribe,    0},
@@ -9946,7 +9773,6 @@ PRIVATE int create_gclass(gclass_name_t gclass_name)
     };
     ev_action_t st_wait_payload[] = {
         {EV_RX_DATA,            ac_process_payload_data,            0},
-        // {EV_MQTT_MESSAGE,       ac_send_message,                    0},
         {EV_MQTT_PUBLISH,       ac_mqtt_client_send_publish,        0},
         {EV_MQTT_SUBSCRIBE,     ac_mqtt_client_send_subscribe,      0},
         {EV_MQTT_UNSUBSCRIBE,   ac_mqtt_client_send_unsubscribe,    0},
