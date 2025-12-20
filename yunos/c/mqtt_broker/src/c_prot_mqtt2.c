@@ -7306,7 +7306,6 @@ PRIVATE int handle__publish_s(
                     send__puback(gobj, mid, 0, NULL);
                 }
             }
-
             break;
 
         case 2:
@@ -7558,7 +7557,6 @@ PRIVATE int handle__publish_c(
                  */
                 send__puback(gobj, mid, 0, NULL);
             }
-
             break;
 
         case 2:
