@@ -8162,8 +8162,6 @@ PRIVATE int handle__pubrel(hgobj gobj, gbuffer_t *gbuf)
                 mid
             );
         }
-        /* Immediately free, we don't do anything with Reason String or User Property at the moment */
-        JSON_DECREF(properties)
 
         rc = db__message_release_incoming(gobj, mid);
         if(rc == MOSQ_ERR_NOT_FOUND) {
@@ -8175,12 +8173,11 @@ PRIVATE int handle__pubrel(hgobj gobj, gbuffer_t *gbuf)
             return rc;
         }
 
-        rc = send__pubcomp(gobj, mid, NULL);
-        if(rc<0) {
-            // Error already logged
-            JSON_DECREF(properties)
-            return rc;
-        }
+        /*
+         *  Response acknowledge
+         */
+        send__pubcomp(gobj, mid, NULL);
+
     } else {
         if(gobj_trace_level(gobj) & SHOW_DECODE) {
             trace_msg0("  👈 client %s Received PUBREL from broker (Mid: %d)",
@@ -8188,13 +8185,12 @@ PRIVATE int handle__pubrel(hgobj gobj, gbuffer_t *gbuf)
                 mid
             );
         }
-        struct mosquitto_message_all *message = NULL;
-        rc = send__pubcomp(gobj, mid, NULL);
-        if(rc) {
-            message__remove(gobj, mid, mosq_md_in, &message, 2);
-            JSON_DECREF(properties)
-            return rc;
-        }
+
+        /*
+         *  Response acknowledge
+         */
+        send__pubcomp(gobj, mid, NULL);
+
 
         rc = message__remove(gobj, mid, mosq_md_in, &message, 2);
         if(rc == MOSQ_ERR_SUCCESS) {

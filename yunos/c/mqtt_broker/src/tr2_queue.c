@@ -437,11 +437,12 @@ PUBLIC q2_msg_t *tr2q_get_by_rowid(tr2_queue_t *trq, uint64_t rowid)
 {
     register q2_msg_t *msg;
 
-    DL_FOREACH(trq, msg) {
-        if(msg->rowid == rowid) {
-            return msg;
-        }
-    }
+    int x; // TODO
+    // DL_FOREACH(trq, msg) {
+    //     if(msg->rowid == rowid) {
+    //         return msg;
+    //     }
+    // }
 
     return 0;
 }
@@ -539,17 +540,6 @@ PUBLIC json_t *tr2q_msg_json(q2_msg_t *msg) // Load the message, Return json is 
     }
     return jn_record;
 }
-
-
-//PUBLIC BOOL tr2q_msg_is_t_ms(q2_msg_t *msg)
-//{
-//    return (((q2_msg_t *)msg)->md_record.__system_flag__ & sf_t_ms)?true:FALSE;
-//}
-//PUBLIC BOOL tr2q_msg_is_tm_ms(q2_msg_t *msg)
-//{
-//    return (((q2_msg_t *)msg)->md_record.__system_flag__ & sf_tm_ms)?true:FALSE;
-//}
-
 
 /***************************************************************************
     Metadata

@@ -170,18 +170,6 @@ static inline json_t * tr2q_topic(tr2_queue_t *trq)
 }
 
 /**
-    Get info of message
-*/
-static inline md2_record_ex_t *tr2q_msg_md(q2_msg_t *msg)
-{
-    return &msg->md_record;
-}
-
-PUBLIC json_t *tr2q_msg_json(q2_msg_t *msg); // Load the message, Return json is YOURS!!
-
-#ifdef PEPE
-
-/**
     Load pending messages (with TR2Q_MSG_PENDING flag)
     Content is not loaded or is discarded
 */
@@ -198,37 +186,6 @@ PUBLIC int tr2q_load_all(tr2_queue_t *trq, int64_t from_rowid, int64_t to_rowid)
     Content is not loaded or is discarded
 */
 PUBLIC int tr2q_load_all_by_time(tr2_queue_t *trq, int64_t from_t, int64_t to_t);
-
-/**
-    Append a new message to queue forcing t
-
-    If t (__t__) is 0 then the time will be set by TimeRanger with now time.
-
-    The message (kw) is saved in disk with the user_flag TR2Q_MSG_PENDING,
-    leaving in q2_msg_t only the metadata (to save memory).
-
-    You can recover the message content with tr2q_msg_json().
-
-    You must use tr2q_unload_msg() to mark a message as processed, removing from memory and
-    resetting in disk the TR2Q_MSG_PENDING user flag.
-*/
-PUBLIC q2_msg_t * tr2q_append2(
-    tr2_queue_t *trq,
-    json_int_t t,       // __t__ if 0 then the time will be set by TimeRanger with now time
-    json_t *kw,         // owned
-    uint16_t user_flag  // extra flags in addition to TR2Q_MSG_PENDING
-);
-
-/**
-    Append a new message to queue with the current time.
-*/
-static inline q2_msg_t *tr2q_append(
-    tr2_queue_t *trq,
-    json_t *kw  // owned
-)
-{
-    return tr2q_append2(trq, 0, kw, 0);
-}
 
 /**
     Get a message from iter by his rowid
@@ -267,7 +224,6 @@ static inline md2_record_ex_t *tr2q_msg_md(q2_msg_t *msg)
 /**
     Get info of message
 */
-PUBLIC md2_record_ex_t *tr2q_msg_md(q2_msg_t *msg);
 PUBLIC json_t *tr2q_msg_json(q2_msg_t *msg); // Load the message, Return json is YOURS!!
 
 static inline json_int_t tr2q_msg_rowid(q2_msg_t *msg)
@@ -307,8 +263,6 @@ PUBLIC json_t *tr2q_answer(
     Do backup if needed.
 */
 PUBLIC int tr2q_check_backup(tr2_queue_t *trq);
-
-#endif /* PEPE */
 
 #ifdef __cplusplus
 }
