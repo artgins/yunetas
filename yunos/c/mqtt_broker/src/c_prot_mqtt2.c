@@ -7366,17 +7366,19 @@ PRIVATE int handle__publish_s(
             break;
 
         case 2:
-            /*
-             *  Append the message to the input queue
-             *  wait completion of the message
-             */
-            user_flag_set_state(&user_flag, mosq_ms_wait_for_pubrel);
-            message__queue(gobj, kw_mqtt_msg, mosq_md_in, user_flag, t);
+            {
+                /*
+                 *  Append the message to the input queue
+                 *  wait completion of the message
+                 */
+                user_flag_set_state(&user_flag, mosq_ms_wait_for_pubrel);
+                message__queue(gobj, kw_mqtt_msg, mosq_md_in, user_flag, t);
 
-            /*
-             *  Response acknowledge
-             */
-            send__pubrec(gobj, mid, 0, NULL);
+                /*
+                 *  Response acknowledge
+                 */
+                send__pubrec(gobj, mid, 0, NULL);
+            }
             break;
     }
 
@@ -7600,18 +7602,19 @@ PRIVATE int handle__publish_c(
 
         case 2:
             // util__decrement_receive_quota(mosq);
+            {
+                /*
+                 *  Append the message to the input queue
+                 *  wait completion of the message
+                 */
+                user_flag_set_state(&user_flag, mosq_ms_wait_for_pubrel);
+                message__queue(gobj, kw_mqtt_msg, mosq_md_in, user_flag, t);
 
-            /*
-             *  Append the message to the input queue
-             *  wait completion of the message
-             */
-            user_flag_set_state(&user_flag, mosq_ms_wait_for_pubrel);
-            message__queue(gobj, kw_mqtt_msg, mosq_md_in, user_flag, t);
-
-            /*
-             *  Response acknowledge
-             */
-            send__pubrec(gobj, mid, 0, NULL);
+                /*
+                 *  Response acknowledge
+                 */
+                send__pubrec(gobj, mid, 0, NULL);
+            }
             break;
     }
 
