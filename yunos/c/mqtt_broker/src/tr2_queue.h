@@ -103,6 +103,11 @@ PUBLIC q2_msg_t * tr2q_append(
 PUBLIC void tr2q_unload_msg(q2_msg_t *msg, int32_t result);
 
 /**
+    Get a message from iter by his rowid
+*/
+PUBLIC q2_msg_t * tr2q_get_by_rowid(tr2_queue_t *trq, uint64_t rowid);
+
+/**
     Mark a message.
     You must flag a message with TR2Q_MSG_PENDING after append it to queue
         if you want recover it in the next open
@@ -186,11 +191,6 @@ PUBLIC int tr2q_load_all(tr2_queue_t *trq, int64_t from_rowid, int64_t to_rowid)
     Content is not loaded or is discarded
 */
 PUBLIC int tr2q_load_all_by_time(tr2_queue_t *trq, int64_t from_t, int64_t to_t);
-
-/**
-    Get a message from iter by his rowid
-*/
-PUBLIC q2_msg_t * tr2q_get_by_rowid(tr2_queue_t *trq, uint64_t rowid);
 
 /**
     Check pending status of a rowid (low level)
