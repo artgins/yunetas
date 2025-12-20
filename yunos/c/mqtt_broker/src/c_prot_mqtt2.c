@@ -477,8 +477,8 @@ typedef struct _PRIVATE_DATA {
     BOOL inform_on_close;
     json_t *jn_alias_list;
 
-    struct mosquitto_msg_data msgs_in;
-    struct mosquitto_msg_data msgs_out;
+    struct mosquitto_msg_data msgs_in; // TODO to remove, use tr2_queue instead
+    struct mosquitto_msg_data msgs_out; // TODO to remove, use tr2_queue instead
 
     json_t *tranger_queues;
     tr2_queue_t *trq_cli_in_msgs;
@@ -1505,37 +1505,6 @@ PRIVATE int db__message_store(
 }
 
 /***************************************************************************
- *  Using in handle__publish_s()
- *  Broker: find a msg in input queues
- ***************************************************************************/
-PRIVATE int db__message_store_find(
-    hgobj gobj,
-    uint16_t mid,
-    struct mosquitto_client_msg **client_msg
-) {
-    PRIVATE_DATA *priv = gobj_priv_data(gobj);
-    q2_msg_t *cmsg;
-
-    *client_msg = NULL;
-
-    Q2MSG_INFLIGHT_FOREACH_FORWARD(priv->trq_srv_in_msgs, cmsg) {
-        if(cmsg->store->source_mid == mid) {
-            *client_msg = cmsg;
-            return MOSQ_ERR_SUCCESS;
-        }
-    }
-
-    Q2MSG_QUEUED_FOREACH_FORWARD(priv->trq_srv_in_msgs, cmsg) {
-        if(cmsg->store->source_mid == mid) {
-            *client_msg = cmsg;
-            return MOSQ_ERR_SUCCESS;
-        }
-    }
-
-    return 1;
-}
-
-/***************************************************************************
  *  Using in persist_read()
  ***************************************************************************/
 PRIVATE void db__msg_add_to_queued_stats(
@@ -1971,21 +1940,30 @@ PRIVATE int db__message_delete_outgoing(
 }
 
 /***************************************************************************
- *  Using in handle__publish()
+ *  Using in handle__publish_s()
  ***************************************************************************/
-PRIVATE int db__message_remove_incoming(hgobj gobj, uint16_t mid)
+PRIVATE int db__message_remove_incoming(hgobj gobj, uint16_t mid, BOOL verbose)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
-    struct mosquitto_client_msg *tail, *tmp;
 
-    DL_FOREACH_SAFE(&priv->msgs_in.dl_inflight, tail, tmp) {
-        if(tail->mid == mid) {
-            if(tail->store->qos != 2) {
-                return MOSQ_ERR_PROTOCOL;
-            }
-            db__message_remove_from_inflight(&priv->msgs_in, tail);
+    q2_msg_t *qmsg, *tmp;
+
+    DL_FOREACH_SAFE(&priv->trq_srv_in_msgs->dl_inflight, qmsg, tmp) {
+        if(qmsg->mid == mid) {
+            db__message_remove_from_inflight(&priv->msgs_in, qmsg);
             return MOSQ_ERR_SUCCESS;
         }
+    }
+
+    if(verbose) {
+        gobj_log_error(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_INTERNAL_ERROR,
+            "msg",          "%s", "client not found",
+            "client_id",    "%s", SAFE_PRINT(priv->client_id),
+            "mid",          "%d", (int)mid,
+            NULL
+        );
     }
 
     return MOSQ_ERR_NOT_FOUND;
@@ -7049,16 +7027,12 @@ PRIVATE int handle__publish_s(
     int topic_alias = -1;
     uint8_t reason_code = 0;
     uint16_t mid = 0;
-    uint16_t source_mid = 0;
-    uint8_t qos;
-    BOOL retain;
-    BOOL dup;
     gbuffer_t *payload = NULL;
 
     uint8_t header = priv->frame_head.flags;
-    dup = (header & 0x08)>>3;
-    qos = (header & 0x06)>>1;
-    retain = (header & 0x01);
+    BOOL dup = (header & 0x08)>>3;
+    uint8_t qos = (header & 0x06)>>1;
+    BOOL retain = (header & 0x01);
 
     if(dup == 1 && qos == 0) {
         gobj_log_error(gobj, 0,
@@ -7140,14 +7114,12 @@ PRIVATE int handle__publish_s(
                 "msg",          "%s", "Mqtt: qos>0 and mid=0",
                 "client_id",    "%s", priv->client_id,
                 "topic",        "%s", topic,
+                "mid",          "%d", (int)mid,
                 NULL
             );
             GBMEM_FREE(topic)
             return MOSQ_ERR_PROTOCOL;
         }
-        /* It is important to have a separate copy of mid, because msg may be
-         * freed before we want to send a PUBACK/PUBREC. */
-        source_mid = mid;
     }
 
     /* Handle properties */
@@ -7202,6 +7174,8 @@ PRIVATE int handle__publish_s(
             "client_id",        "%s", priv->client_id,
             "max_topic_alias",  "%d", priv->max_topic_alias,
             "topic_alias",      "%d", topic_alias,
+            "topic",            "%s", topic,
+            "mid",              "%d", (int)mid,
             NULL
         );
         GBMEM_FREE(topic)
@@ -7243,6 +7217,7 @@ PRIVATE int handle__publish_s(
             "msgset",       "%s", MSGSET_MQTT_ERROR,
             "msg",          "%s", "Mqtt will: invalid topic",
             "topic",        "%s", topic,
+            "mid",          "%d", (int)mid,
             NULL
         );
         GBMEM_FREE(topic)
@@ -7261,6 +7236,7 @@ PRIVATE int handle__publish_s(
                 "msg",              "%s", "Mqtt: Dropped too large PUBLISH",
                 "client_id",        "%s", priv->client_id,
                 "topic",            "%d", topic,
+                "mid",          "%d", (int)mid,
                 NULL
             );
             reason_code = MQTT_RC_PACKET_TOO_LARGE;
@@ -7294,6 +7270,7 @@ PRIVATE int handle__publish_s(
         //         "msg",              "%s", "Mqtt: Denied PUBLISH",
         //         "client_id",        "%s", priv->client_id,
         //         "topic",            "%d", msg->topic,
+            // "mid",          "%d", (int)mid,
         //         NULL
         //     );
         reason_code = MQTT_RC_NOT_AUTHORIZED;
@@ -7308,7 +7285,7 @@ PRIVATE int handle__publish_s(
     user_flag_t user_flag;
     json_t *jn_mqtt_msg = new_json_message(
         gobj,
-        source_mid,
+        mid,
         topic,
         payload, // not owned
         qos,
@@ -7329,7 +7306,7 @@ PRIVATE int handle__publish_s(
             dup,
             (int)qos,
             (int)retain,
-            (int)source_mid,
+            (int)mid,
             (long)payloadlen
         );
     }
@@ -7364,50 +7341,27 @@ PRIVATE int handle__publish_s(
     GBMEM_FREE(topic)
     JSON_DECREF(properties)
 
-    struct mosquitto_msg_store *stored = NULL;
-    struct mosquitto_client_msg *cmsg_stored = NULL;
-    if(qos > 0) {
-        db__message_store_find(gobj, source_mid, &cmsg_stored);
+    /*
+     *  Here mosquitto checked the inflight input queue to search repeated mid's
+     *  with db__message_store_find() and db__message_remove_incoming() functions.
+     *  Not good for performance, better to have a periodic timer that cleans incomplete mid's
+     *  and searching in the inflight queue ONLY if the message has the DUP flag.
+     */
+    if(dup && qos==2) {
+        db__message_remove_incoming(gobj, mid, FALSE); // Search and remove without warning
     }
-
-    if(cmsg_stored && cmsg_stored->store && source_mid != 0 &&
-            (cmsg_stored->store->qos != qos
-             || gbuffer_leftbytes(cmsg_stored->store->payload) != payloadlen
-             || strcmp(cmsg_stored->store->topic, topic)
-             || memcmp(cmsg_stored->store->payload, payload, payloadlen) )
-    ) {
-        gobj_log_warning(gobj, 0,
-            "function",         "%s", __FUNCTION__,
-            "msgset",           "%s", MSGSET_INFO,
-            "msg",              "%s", "Mqtt: Reused message ID. Clearing from storage.",
-            "client_id",        "%s", priv->client_id,
-            "mid",              "%d", (int)source_mid,
-            NULL
-        );
-        db__message_remove_incoming(gobj, source_mid);
-        cmsg_stored = NULL;
-    }
-
-    if(!cmsg_stored) {
-        if(qos == 0 || db__ready_for_flight(gobj, mosq_md_in, qos) ) {
-            dup = 0;
-            rc = db__message_store(gobj, jn_mqtt_msg, message_expiry_interval, 0, mosq_mo_client);
-            if(rc) return rc;
-        } else {
-            /* Client isn't allowed any more incoming messages, so fail early */
-            reason_code = MQTT_RC_QUOTA_EXCEEDED;
-            goto process_bad_message;
-        }
-        stored = jn_mqtt_msg;
-        jn_mqtt_msg = NULL;
+    if(qos == 0 || db__ready_for_flight(gobj, mosq_md_in, qos) ) {
         dup = 0;
+        rc = db__message_store(gobj, jn_mqtt_msg, message_expiry_interval, 0, mosq_mo_client);
+        if(rc) return rc;
     } else {
-        db__msg_store_free(jn_mqtt_msg);
-        jn_mqtt_msg = NULL;
-        stored = cmsg_stored->store;
-        cmsg_stored->dup++;
-        dup = cmsg_stored->dup;
+        /* Client isn't allowed any more incoming messages, so fail early */
+        reason_code = MQTT_RC_QUOTA_EXCEEDED;
+        goto process_bad_message;
     }
+    stored = jn_mqtt_msg;
+    jn_mqtt_msg = NULL;
+    dup = 0;
 
     switch(stored->qos) {
         case 0:
@@ -9127,7 +9081,7 @@ PRIVATE int ac_timeout_waiting_frame_header(hgobj gobj, const char *event, json_
     // }
 
     // TODO implement a cleaner of messages inflight with pending acks and timeout reached
-    // or remove all messages with same mid when receiving and ack
+    // TODO or remove all messages with same mid when receiving and ack
 
     KW_DECREF(kw)
     return 0;

@@ -48,6 +48,7 @@ typedef struct {
     md2_record_ex_t md_record;
     uint64_t mark;          // soft mark.
     json_int_t rowid;       // global rowid that it must match the rowid in md_record
+    json_int_t mid;         // Yes, it's an ease for mqtt protocol
     json_t *jn_record;
 } q2_msg_t;
 
@@ -108,29 +109,6 @@ PUBLIC void tr2q_unload_msg(q2_msg_t *msg, int32_t result);
         with the flag used in tr2q_load()
 */
 PUBLIC int tr2q_set_hard_flag(q2_msg_t *msg, uint32_t hard_mark, BOOL set);
-
-/**
-    Walk over instances
-*/
-#define Q2MSG_INFLIGHT_FOREACH_FORWARD(trq, msg) \
-    for(msg = tr2q_first_inflight_msg(trq); \
-        msg!=0 ; \
-        msg = tr2q_next_msg(msg))
-
-#define Q2MSG_INFLIGHT_FOREACH_FORWARD_SAFE(trq, msg, next) \
-    for(msg = tr2q_first_inflight_msg(trq), n = tr2q_next_msg(msg); \
-        msg!=0 ; \
-        msg = n, n = tr2q_next_msg(msg))
-
-#define Q2MSG_QUEUED_FOREACH_FORWARD(trq, msg) \
-    for(msg = tr2q_first_queued_msg(trq); \
-        msg!=0 ; \
-        msg = tr2q_next_msg(msg))
-
-#define Q2MSG_QUEUED_FOREACH_FORWARD_SAFE(trq, msg, next) \
-    for(msg = tr2q_first_queued_msg(trq), n = tr2q_next_msg(msg); \
-        msg!=0 ; \
-        msg = n, n = tr2q_next_msg(msg))
 
 static inline q2_msg_t *tr2q_first_inflight_msg(tr2_queue_t *trq)
 {
