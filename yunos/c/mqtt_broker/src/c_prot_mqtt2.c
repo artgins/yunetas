@@ -7358,8 +7358,19 @@ PRIVATE int handle__publish_s(
         }
     }
 
+    if(retain) {
+        /*-------------------------------------------*
+         *  Incoming Retain messages must be saved,
+         *  it's persistent
+         **-----------------------------------------*/
+        // TODO
+    }
+
     switch(qos) {
         case 0:
+            /*
+             *  dispatch the message to subscribers
+             */
             rc = sub__messages_queue(
                 gobj,
                 kw_mqtt_msg // not owned
@@ -7368,11 +7379,13 @@ PRIVATE int handle__publish_s(
 
         case 1:
             // util__decrement_receive_quota(context);
+            /*
+             *  dispatch the message to subscribers
+             */
             rc = sub__messages_queue(
                 gobj,
                 kw_mqtt_msg // not owned
             );
-            /* stored may now be free, so don't refer to it */
             if(rc == MOSQ_ERR_SUCCESS || priv->protocol_version != mosq_p_mqtt5) {
                 send__puback(gobj, mid, 0, NULL);
             } else if(rc == MOSQ_ERR_NO_SUBSCRIBERS) {
@@ -7381,6 +7394,10 @@ PRIVATE int handle__publish_s(
             break;
 
         case 2:
+            /*
+             *  wait completion of the message
+             *  insert in input inflight queue
+             */
             rc = db__message_insert(
                 gobj,
                 kw_mqtt_msg
