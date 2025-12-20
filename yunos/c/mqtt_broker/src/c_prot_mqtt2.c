@@ -8202,7 +8202,11 @@ PRIVATE int handle__pubrel(hgobj gobj, gbuffer_t *gbuf)
               * prevents multiple callbacks for the same message.
               */
             if(1) {
-                 json_t *kw_message = json_pack("{s:s, s:i, s:b, s:i, s:i}",
+                /*
+                 *  Client
+                 *  Callback the message to the user
+                 */
+                json_t *kw_message = json_pack("{s:s, s:i, s:b, s:i, s:i}",
                     "topic", message->msg.topic,
                     "mid", (int)message->msg.mid,
                     "dup", (int)message->dup,
@@ -8220,6 +8224,15 @@ PRIVATE int handle__pubrel(hgobj gobj, gbuffer_t *gbuf)
                         json_integer((json_int_t)(uintptr_t)message->msg.payload)
                     );
                 }
+
+                int x; // TODO crea our message
+                // json_t *kw_iev = iev_create(
+                //     gobj,
+                //     EV_MQTT_MESSAGE,
+                //     kw_mqtt_msg // owned
+                // );
+                //
+                // gobj_publish_event(gobj, EV_ON_IEV_MESSAGE, kw_iev);
 
                 json_t *kw_iev = iev_create(
                     gobj,
