@@ -233,7 +233,6 @@ typedef struct _FRAME_HEAD {
  *              Prototypes
  ***************************************************************************/
 PRIVATE void restore_client_attributes(hgobj gobj);
-PRIVATE void message__cleanup_all(hgobj gobj);
 PRIVATE int send__publish(
     hgobj gobj,
     uint16_t mid,
@@ -761,23 +760,6 @@ PRIVATE int mt_stop(hgobj gobj)
  ***************************************************************************/
 PRIVATE void mt_destroy(hgobj gobj)
 {
-    PRIVATE_DATA *priv = gobj_priv_data(gobj);
-
-    if(priv->istream_frame) {
-        istream_destroy(priv->istream_frame);
-        priv->istream_frame = 0;
-    }
-    if(priv->istream_payload) {
-        istream_destroy(priv->istream_payload);
-        priv->istream_payload = 0;
-    }
-
-    JSON_DECREF(priv->jn_alias_list)
-
-    message__cleanup_all(gobj);
-
-    // TODO new dl_flush(&priv->dl_msgs_in, db_free_client_msg);
-    // dl_flush(&priv->dl_msgs_out, db_free_client_msg);
 }
 
 
@@ -938,6 +920,20 @@ PRIVATE int open_queues(hgobj gobj)
 PRIVATE void close_queues(hgobj gobj)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    if(priv->istream_frame) {
+        istream_destroy(priv->istream_frame);
+        priv->istream_frame = 0;
+    }
+    if(priv->istream_payload) {
+        istream_destroy(priv->istream_payload);
+        priv->istream_payload = 0;
+    }
+
+    JSON_DECREF(priv->jn_alias_list)
+
+    // TODO new dl_flush(&priv->dl_msgs_in, db_free_client_msg);
+    // dl_flush(&priv->dl_msgs_out, db_free_client_msg);
 
     EXEC_AND_RESET(tr2q_close, priv->trq_in_msgs);
     EXEC_AND_RESET(tr2q_close, priv->trq_out_msgs);
@@ -1198,42 +1194,11 @@ PRIVATE int message__remove(
 
 /***************************************************************************
  *  Used by client
- *  Free the message
- ***************************************************************************/
-PRIVATE void message__cleanup(struct mosquitto_message_all *msg)
-{
-    GBMEM_FREE(msg->msg.topic);
-    GBUFFER_DECREF(msg->msg.payload);
-    JSON_DECREF(msg->properties);
-    GBMEM_FREE(msg);
-}
-
-/***************************************************************************
- * Used by client
- ***************************************************************************/
-PRIVATE void message__cleanup_all(hgobj gobj)
-{
-    PRIVATE_DATA *priv = gobj_priv_data(gobj);
-    struct mosquitto_message_all *tail, *tmp;
-
-    DL_FOREACH_SAFE(&priv->msgs_in.dl_inflight, tail, tmp){
-        dl_delete(&priv->msgs_in.dl_inflight, tail, 0);
-        message__cleanup(tail);
-    }
-    DL_FOREACH_SAFE(&priv->msgs_out.dl_inflight, tail, tmp){
-        dl_delete(&priv->msgs_out.dl_inflight, tail, 0);
-        message__cleanup(tail);
-    }
-}
-
-/***************************************************************************
- *  Used by client
  ***************************************************************************/
 PRIVATE int message__delete(
     hgobj gobj,
     uint16_t mid,
-    enum mqtt_msg_direction dir,
-    int qos
+    enum mqtt_msg_direction dir
 ) {
     json_t *message;
 
@@ -7823,7 +7788,7 @@ PRIVATE int handle__pubackcomp(hgobj gobj, gbuffer_t *gbuf, const char *type)
 
     } else {
 
-        rc = message__delete(gobj, mid, mosq_md_out, qos);
+        rc = message__delete(gobj, mid, mosq_md_out);
 
         if(rc == MOSQ_ERR_SUCCESS) {
             /*
@@ -7992,7 +7957,7 @@ PRIVATE int handle__pubrec(hgobj gobj, gbuffer_t *gbuf)
         if(reason_code < 0x80 || priv->protocol_version != mosq_p_mqtt5) {
             rc = message__out_update(gobj, mid, mosq_ms_wait_for_pubcomp, 2);
         } else {
-            if(!message__delete(gobj, mid, mosq_md_out, 2)) {
+            if(!message__delete(gobj, mid, mosq_md_out)) {
                 /*
                  *  TODO If not exist it's because must be dup? What is this case?
                  */
