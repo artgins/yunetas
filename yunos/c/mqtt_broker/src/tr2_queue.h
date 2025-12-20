@@ -103,6 +103,11 @@ PUBLIC q2_msg_t * tr2q_append(
 PUBLIC void tr2q_unload_msg(q2_msg_t *msg, int32_t result);
 
 /**
+    Get a message from iter by his mid
+*/
+PUBLIC q2_msg_t *tr2q_get_by_mid(tr2_queue_t *trq, json_int_t mid);
+
+/**
     Get a message from iter by his rowid
 */
 PUBLIC q2_msg_t *tr2q_get_by_rowid(tr2_queue_t *trq, uint64_t rowid);
@@ -270,12 +275,12 @@ PUBLIC int tr2q_check_backup(tr2_queue_t *trq);
 #define Q2MSG_FOREACH_FORWARD_INFLIGHT(trq, msg) \
     for((msg) = tr2q_first_inflight_msg(trq); \
         (msg)!=0 ; \
-        (msg) = tr2q_next_inflight_msg(msg))
+        (msg) = tr2q_next_msg(msg))
 
 #define Q2MSG_FOREACH_FORWARD_INFLIGHT_SAFE(trq, msg, next) \
-   for((msg) = tr2q_first_inflight_msg(trq), (next) = (msg) ? tr2q_next_inflight_msg(msg) : 0; \
+   for((msg) = tr2q_first_inflight_msg(trq), (next) = (msg) ? tr2q_next_msg(msg) : 0; \
        (msg)!=0 ; \
-       (msg) = (next), (next) = (msg) ? tr2q_next_inflight_msg(msg) : 0)
+       (msg) = (next), (next) = (msg) ? tr2q_next_msg(msg) : 0)
 
 #define Q2MSG_FOREACH_BACKWARD_INFLIGHT(trq, msg) \
    for((msg) = tr2q_last_inflight_msg(trq); \
@@ -290,22 +295,22 @@ PUBLIC int tr2q_check_backup(tr2_queue_t *trq);
 #define Q2MSG_FOREACH_FORWARD_QUEUED(trq, msg) \
     for((msg) = tr2q_first_queued_msg(trq); \
         (msg)!=0 ; \
-        (msg) = tr2q_next_queued_msg(msg))
+        (msg) = tr2q_next_msg(msg))
 
 #define Q2MSG_FOREACH_FORWARD_QUEUED_SAFE(trq, msg, next) \
-   for((msg) = tr2q_first_queued_msg(trq), (next) = (msg) ? tr2q_next_queued_msg(msg) : 0; \
+   for((msg) = tr2q_first_queued_msg(trq), (next) = (msg) ? tr2q_next_msg(msg) : 0; \
        (msg)!=0 ; \
-       (msg) = (next), (next) = (msg) ? tr2q_next_queued_msg(msg) : 0)
+       (msg) = (next), (next) = (msg) ? tr2q_next_msg(msg) : 0)
 
 #define Q2MSG_FOREACH_BACKWARD_QUEUED(trq, msg) \
    for((msg) = tr2q_last_queued_msg(trq); \
        (msg)!=0 ; \
-       (msg) = tr2q_prev_queued_msg(msg))
+       (msg) = tr2q_prev_msg(msg))
 
 #define Q2MSG_FOREACH_BACKWARD_QUEUED_SAFE(trq, msg, prev) \
-   for((msg) = tr2q_last_queued_msg(trq), (prev) = tr2q_prev_queued_msg(msg); \
+   for((msg) = tr2q_last_queued_msg(trq), (prev) = tr2q_prev_msg(msg); \
        (msg)!=0 ; \
-       (msg) = (prev), (prev) = tr2q_prev_queued_msg(msg))
+       (msg) = (prev), (prev) = tr2q_prev_msg(msg))
 
 #ifdef __cplusplus
 }
