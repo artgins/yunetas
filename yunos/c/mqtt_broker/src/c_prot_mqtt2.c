@@ -6988,6 +6988,9 @@ PRIVATE int handle__publish_s(
     uint16_t mid = 0;
     gbuffer_t *payload = NULL;
 
+    /*-----------------------------------*
+     *  Get and check the header
+     *-----------------------------------*/
     uint8_t header = priv->frame_head.flags;
     BOOL dup = (header & 0x08)>>3;
     uint8_t qos = (header & 0x06)>>1;
@@ -7184,6 +7187,9 @@ PRIVATE int handle__publish_s(
         return MOSQ_ERR_MALFORMED_PACKET;
     }
 
+    /*-----------------------------------*
+     *          Get the payload
+     *-----------------------------------*/
     size_t payloadlen = gbuffer_leftbytes(gbuf);
     // G_PUB_BYTES_RECEIVED_INC(msg->payloadlen);
 
@@ -7218,6 +7224,10 @@ PRIVATE int handle__publish_s(
         gbuffer_set_wr(payload, payloadlen);
     }
 
+    /*-----------------------------------*
+     *      Check permissions
+     *-----------------------------------*/
+
     /* Check for topic access */
     // TODO
     rc = 0;
@@ -7240,6 +7250,9 @@ PRIVATE int handle__publish_s(
         return rc;
     }
 
+    /*-----------------------------------*
+     *      Build our json message
+     *-----------------------------------*/
     time_t t = mosquitto_time();
     user_flag_t user_flag;
     json_t *kw_mqtt_msg = new_json_message(
@@ -7299,6 +7312,10 @@ PRIVATE int handle__publish_s(
 
     GBMEM_FREE(topic)
     JSON_DECREF(properties)
+
+    /*-----------------------------------*
+     *      Process the message
+     *-----------------------------------*/
 
     /*
      *  Here mosquitto checked the inflight input queue to search repeated mid's
@@ -7431,6 +7448,9 @@ PRIVATE int handle__publish_c(
     BOOL dup;
     uint32_t expiry_interval;
 
+    /*-----------------------------------*
+     *      Get and check the header
+     *-----------------------------------*/
     uint8_t header = priv->frame_head.flags;
     dup = (header & 0x08)>>3;
     qos = (header & 0x06)>>1;
@@ -7482,6 +7502,9 @@ PRIVATE int handle__publish_c(
         }
     }
 
+    /*-----------------------------------*
+     *          Get the payload
+     *-----------------------------------*/
     size_t payloadlen = gbuffer_leftbytes(gbuf);
     gbuffer_t *payload = NULL;
     if(payloadlen) {
@@ -7502,6 +7525,14 @@ PRIVATE int handle__publish_c(
         gbuffer_set_wr(payload, payloadlen);
     }
 
+    /*-----------------------------------*
+     *      Check permissions
+     *-----------------------------------*/
+    // TODO need it?
+
+    /*-----------------------------------*
+     *      Build our json message
+     *-----------------------------------*/
     time_t t = mosquitto_time();
     user_flag_t user_flag;
     json_t *kw_mqtt_msg = new_json_message(
@@ -7535,6 +7566,9 @@ PRIVATE int handle__publish_c(
     GBMEM_FREE(topic)
     JSON_DECREF(properties)
 
+    /*-----------------------------------*
+     *      Process the message
+     *-----------------------------------*/
 
     /*
      *  QoS 2: Discard incoming message with the same mid
@@ -7546,8 +7580,8 @@ PRIVATE int handle__publish_c(
 
         if(!db__ready_for_flight(gobj, mosq_md_in, qos)) {
             /* No more space for incoming messages, so fail early */
-            // reason_code = MQTT_RC_QUOTA_EXCEEDED;
-            // goto process_bad_message;
+            reason_code = MQTT_RC_QUOTA_EXCEEDED;
+            goto process_bad_message;
         }
     }
 
