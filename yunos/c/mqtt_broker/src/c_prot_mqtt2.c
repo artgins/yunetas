@@ -295,24 +295,6 @@ static const json_desc_t json_mqtt_desc[] = {
 {0}
 };
 
-PRIVATE char *command_name[] = {
-    "???",
-    "CMD_CONNECT",
-    "CMD_CONNACK",
-    "CMD_PUBLISH",
-    "CMD_PUBACK",
-    "CMD_PUBREC",
-    "CMD_PUBREL",
-    "CMD_PUBCOMP",
-    "CMD_SUBSCRIBE",
-    "CMD_SUBACK",
-    "CMD_UNSUBSCRIBE",
-    "CMD_UNSUBACK",
-    "CMD_PINGREQ",
-    "CMD_PINGRESP",
-    "CMD_DISCONNECT",
-    "CMD_AUTH"
-};
 
 PRIVATE json_t *cmd_help(hgobj gobj, const char *cmd, json_t *kw, hgobj src);
 
@@ -2129,94 +2111,6 @@ PRIVATE int db__message_write_queued_in(hgobj gobj)
 /***************************************************************************
  *
  ***************************************************************************/
-PRIVATE const char *get_command_name(int cmd_)
-{
-    int cmd = cmd_ >> 4;
-    int max_cmd = sizeof(command_name)/sizeof(command_name[0]);
-
-    if(cmd >= 0 && cmd < max_cmd) {
-        return command_name[cmd];
-    }
-    return "???";
-}
-
-/***************************************************************************
- *
- ***************************************************************************/
-PRIVATE const char *mqtt_property_identifier_to_string(int identifier)
-{
-    hgobj gobj = 0;
-
-    switch(identifier) {
-        case MQTT_PROP_PAYLOAD_FORMAT_INDICATOR:
-            return "payload-format-indicator";
-        case MQTT_PROP_MESSAGE_EXPIRY_INTERVAL:
-            return "message-expiry-interval";
-        case MQTT_PROP_CONTENT_TYPE:
-            return "content-type";
-        case MQTT_PROP_RESPONSE_TOPIC:
-            return "response-topic";
-        case MQTT_PROP_CORRELATION_DATA:
-            return "correlation-data";
-        case MQTT_PROP_SUBSCRIPTION_IDENTIFIER:
-            return "subscription-identifier";
-        case MQTT_PROP_SESSION_EXPIRY_INTERVAL:
-            return "session-expiry-interval";
-        case MQTT_PROP_ASSIGNED_CLIENT_IDENTIFIER:
-            return "assigned-client-identifier";
-        case MQTT_PROP_SERVER_KEEP_ALIVE:
-            return "server-keep-alive";
-        case MQTT_PROP_AUTHENTICATION_METHOD:
-            return "authentication-method";
-        case MQTT_PROP_AUTHENTICATION_DATA:
-            return "authentication-data";
-        case MQTT_PROP_REQUEST_PROBLEM_INFORMATION:
-            return "request-problem-information";
-        case MQTT_PROP_WILL_DELAY_INTERVAL:
-            return "will-delay-interval";
-        case MQTT_PROP_REQUEST_RESPONSE_INFORMATION:
-            return "request-response-information";
-        case MQTT_PROP_RESPONSE_INFORMATION:
-            return "response-information";
-        case MQTT_PROP_SERVER_REFERENCE:
-            return "server-reference";
-        case MQTT_PROP_REASON_STRING:
-            return "reason-string";
-        case MQTT_PROP_RECEIVE_MAXIMUM:
-            return "receive-maximum";
-        case MQTT_PROP_TOPIC_ALIAS_MAXIMUM:
-            return "topic-alias-maximum";
-        case MQTT_PROP_TOPIC_ALIAS:
-            return "topic-alias";
-        case MQTT_PROP_MAXIMUM_QOS:
-            return "maximum-qos";
-        case MQTT_PROP_RETAIN_AVAILABLE:
-            return "retain-available";
-        case MQTT_PROP_USER_PROPERTY:
-            return "user-property";
-        case MQTT_PROP_MAXIMUM_PACKET_SIZE:
-            return "maximum-packet-size";
-        case MQTT_PROP_WILDCARD_SUB_AVAILABLE:
-            return "wildcard-subscription-available";
-        case MQTT_PROP_SUBSCRIPTION_ID_AVAILABLE:
-            return "subscription-identifier-available";
-        case MQTT_PROP_SHARED_SUB_AVAILABLE:
-            return "shared-subscription-available";
-        default:
-            gobj_log_error(gobj, 0,
-                "function",     "%s", __FUNCTION__,
-                "msgset",       "%s", MSGSET_MQTT_ERROR,
-                "msg",          "%s", "Mqtt unknown property",
-                "identifier",   "%d", (int)identifier,
-                NULL
-            );
-            return 0;
-    }
-}
-
-/***************************************************************************
- *
- ***************************************************************************/
 PRIVATE int mosquitto_string_to_property_info(const char *propname, int *identifier, int *type)
 {
     hgobj gobj = 0;
@@ -3173,7 +3067,7 @@ PRIVATE int mosquitto_property_check_command(hgobj gobj, int command, int identi
                     "function",     "%s", __FUNCTION__,
                     "msgset",       "%s", MSGSET_MQTT_ERROR,
                     "msg",          "%s", "Mqtt invalid property of command",
-                    "command",      "%d", get_command_name(command),
+                    "command",      "%d", mosquitto_command_string(command),
                     "identifier",   "%d", identifier,
                     NULL
                 );
@@ -3187,7 +3081,7 @@ PRIVATE int mosquitto_property_check_command(hgobj gobj, int command, int identi
                     "function",     "%s", __FUNCTION__,
                     "msgset",       "%s", MSGSET_MQTT_ERROR,
                     "msg",          "%s", "Mqtt invalid property of command",
-                    "command",      "%d", get_command_name(command),
+                    "command",      "%d", mosquitto_command_string(command),
                     "identifier",   "%d", identifier,
                     NULL
                 );
@@ -3201,7 +3095,7 @@ PRIVATE int mosquitto_property_check_command(hgobj gobj, int command, int identi
                     "function",     "%s", __FUNCTION__,
                     "msgset",       "%s", MSGSET_MQTT_ERROR,
                     "msg",          "%s", "Mqtt invalid property of command",
-                    "command",      "%d", get_command_name(command),
+                    "command",      "%d", mosquitto_command_string(command),
                     "identifier",   "%d", identifier,
                     NULL
                 );
@@ -3216,7 +3110,7 @@ PRIVATE int mosquitto_property_check_command(hgobj gobj, int command, int identi
                     "function",     "%s", __FUNCTION__,
                     "msgset",       "%s", MSGSET_MQTT_ERROR,
                     "msg",          "%s", "Mqtt invalid property of command",
-                    "command",      "%d", get_command_name(command),
+                    "command",      "%d", mosquitto_command_string(command),
                     "identifier",   "%d", identifier,
                     NULL
                 );
@@ -3237,7 +3131,7 @@ PRIVATE int mosquitto_property_check_command(hgobj gobj, int command, int identi
                     "function",     "%s", __FUNCTION__,
                     "msgset",       "%s", MSGSET_MQTT_ERROR,
                     "msg",          "%s", "Mqtt invalid property of command",
-                    "command",      "%d", get_command_name(command),
+                    "command",      "%d", mosquitto_command_string(command),
                     "identifier",   "%d", identifier,
                     NULL
                 );
@@ -3251,7 +3145,7 @@ PRIVATE int mosquitto_property_check_command(hgobj gobj, int command, int identi
                     "function",     "%s", __FUNCTION__,
                     "msgset",       "%s", MSGSET_MQTT_ERROR,
                     "msg",          "%s", "Mqtt invalid property of command",
-                    "command",      "%d", get_command_name(command),
+                    "command",      "%d", mosquitto_command_string(command),
                     "identifier",   "%d", identifier,
                     NULL
                 );
@@ -3266,7 +3160,7 @@ PRIVATE int mosquitto_property_check_command(hgobj gobj, int command, int identi
                     "function",     "%s", __FUNCTION__,
                     "msgset",       "%s", MSGSET_MQTT_ERROR,
                     "msg",          "%s", "Mqtt invalid property of command",
-                    "command",      "%d", get_command_name(command),
+                    "command",      "%d", mosquitto_command_string(command),
                     "identifier",   "%d", identifier,
                     NULL
                 );
@@ -3280,7 +3174,7 @@ PRIVATE int mosquitto_property_check_command(hgobj gobj, int command, int identi
                     "function",     "%s", __FUNCTION__,
                     "msgset",       "%s", MSGSET_MQTT_ERROR,
                     "msg",          "%s", "Mqtt invalid property of command",
-                    "command",      "%d", get_command_name(command),
+                    "command",      "%d", mosquitto_command_string(command),
                     "identifier",   "%d", identifier,
                     NULL
                 );
@@ -3295,7 +3189,7 @@ PRIVATE int mosquitto_property_check_command(hgobj gobj, int command, int identi
                     "function",     "%s", __FUNCTION__,
                     "msgset",       "%s", MSGSET_MQTT_ERROR,
                     "msg",          "%s", "Mqtt invalid property of command",
-                    "command",      "%d", get_command_name(command),
+                    "command",      "%d", mosquitto_command_string(command),
                     "identifier",   "%d", identifier,
                     NULL
                 );
@@ -3311,7 +3205,7 @@ PRIVATE int mosquitto_property_check_command(hgobj gobj, int command, int identi
                     "function",     "%s", __FUNCTION__,
                     "msgset",       "%s", MSGSET_MQTT_ERROR,
                     "msg",          "%s", "Mqtt invalid property of command",
-                    "command",      "%d", get_command_name(command),
+                    "command",      "%d", mosquitto_command_string(command),
                     "identifier",   "%d", identifier,
                     NULL
                 );
@@ -3325,7 +3219,7 @@ PRIVATE int mosquitto_property_check_command(hgobj gobj, int command, int identi
                     "function",     "%s", __FUNCTION__,
                     "msgset",       "%s", MSGSET_MQTT_ERROR,
                     "msg",          "%s", "Mqtt invalid property of command",
-                    "command",      "%d", get_command_name(command),
+                    "command",      "%d", mosquitto_command_string(command),
                     "identifier",   "%d", identifier,
                     NULL
                 );
@@ -3341,7 +3235,7 @@ PRIVATE int mosquitto_property_check_command(hgobj gobj, int command, int identi
                 "function",     "%s", __FUNCTION__,
                 "msgset",       "%s", MSGSET_MQTT_ERROR,
                 "msg",          "%s", "Mqtt unknown property of command",
-                "command",      "%d", get_command_name(command),
+                "command",      "%d", mosquitto_command_string(command),
                 "identifier",   "%d", identifier,
                 NULL
             );
@@ -3642,7 +3536,7 @@ PRIVATE json_t *property_read_all(hgobj gobj, gbuffer_t *gbuf, int command, int 
         gobj_trace_json(
             gobj,
             all_properties,
-            "all_properties, command %s", get_command_name(command)
+            "all_properties, command %s", mosquitto_command_string(command)
         );
     }
 
@@ -4026,7 +3920,7 @@ PRIVATE int send_simple_command(hgobj gobj, uint8_t command)
     if(gobj_trace_level(gobj) & SHOW_DECODE) {
         trace_msg0("👉👉 %s Sending simple command %s to '%s' %s",
             priv->iamServer?"broker":"client",
-            get_command_name(command),
+            mosquitto_command_string(command),
             priv->client_id,
             gobj_short_name(gobj_bottom_gobj(gobj))
         );
@@ -4454,7 +4348,7 @@ PRIVATE int send_command_with_mid(
     if(gobj_trace_level(gobj) & SHOW_DECODE) {
         trace_msg0("👉👉 %s Sending %s to '%s', mid %ld (%d '%s')",
             priv->iamServer?"broker":"client",
-            get_command_name(command & 0xF0),
+            mosquitto_command_string(command & 0xF0),
             priv->client_id,
             (long)mid,
             reason_code,
@@ -5776,7 +5670,7 @@ PRIVATE int handle__connack(
                 "function",     "%s", __FUNCTION__,
                 "msgset",       "%s", MSGSET_MQTT_ERROR,
                 "msg",          "%s", "Error in properties",
-                "command",      "%s", get_command_name(CMD_CONNACK),
+                "command",      "%s", mosquitto_command_string(CMD_CONNACK),
                 "reason",       "%s", mosquitto_reason_string(MQTT_RC_UNSUPPORTED_PROTOCOL_VERSION),
                 NULL
             );
@@ -5788,7 +5682,7 @@ PRIVATE int handle__connack(
                 "function",     "%s", __FUNCTION__,
                 "msgset",       "%s", MSGSET_MQTT_ERROR,
                 "msg",          "%s", "Error in properties",
-                "command",      "%s", get_command_name(CMD_CONNACK),
+                "command",      "%s", mosquitto_command_string(CMD_CONNACK),
                 NULL
             );
             return ret;
@@ -5805,7 +5699,7 @@ PRIVATE int handle__connack(
                     "function",     "%s", __FUNCTION__,
                     "msgset",       "%s", MSGSET_MQTT_ERROR,
                     "msg",          "%s", "assigned client identifier",
-                    "command",      "%s", get_command_name(CMD_CONNACK),
+                    "command",      "%s", mosquitto_command_string(CMD_CONNACK),
                     NULL
                 );
 
@@ -5842,7 +5736,7 @@ PRIVATE int handle__connack(
 
     if(gobj_trace_level(gobj) & SHOW_DECODE) {
         trace_msg0("👈👈 COMMAND=%s, reason code: %d '%s'",
-            get_command_name(CMD_CONNACK),
+            mosquitto_command_string(CMD_CONNACK),
             reason_code,
             priv->protocol_version == mosq_p_mqtt5?
                 mosquitto_reason_string(reason_code) :
@@ -8206,7 +8100,7 @@ PRIVATE int decode_head(hgobj gobj, FRAME_HEAD *frame, char *data)
     //                 "function",     "%s", __FUNCTION__,
     //                 "msgset",       "%s", MSGSET_MQTT_ERROR,
     //                 "msg",          "%s", "mqtt server: first command MUST be CONNECT",
-    //                 "command",      "%s", get_command_name(frame->command),
+    //                 "command",      "%s", mosquitto_command_string(frame->command),
     //                 NULL
     //             );
     //             return -1;
@@ -8217,7 +8111,7 @@ PRIVATE int decode_head(hgobj gobj, FRAME_HEAD *frame, char *data)
     //                 "function",     "%s", __FUNCTION__,
     //                 "msgset",       "%s", MSGSET_MQTT_ERROR,
     //                 "msg",          "%s", "mqtt client: first command MUST be CMD_CONNACK",
-    //                 "command",      "%s", get_command_name(frame->command),
+    //                 "command",      "%s", mosquitto_command_string(frame->command),
     //                 NULL
     //             );
     //             return -1;
@@ -8542,7 +8436,7 @@ PRIVATE int frame_completed(hgobj gobj, hgobj src)
                 "function",     "%s", __FUNCTION__,
                 "msgset",       "%s", MSGSET_MQTT_ERROR,
                 "msg",          "%s", "Command unknown or not implemented",
-                "command",      "%s", get_command_name(frame->command),
+                "command",      "%s", mosquitto_command_string(frame->command),
                 NULL
             );
             ret = MOSQ_ERR_PROTOCOL;
@@ -8723,7 +8617,7 @@ PRIVATE int ac_process_handshake(hgobj gobj, const char *event, json_t *kw, hgob
         if(frame->header_complete) {
             if(gobj_trace_level(gobj) & SHOW_DECODE) {
                 trace_msg0("👈👈rx HANDSHAKE COMMAND=%s (%d), FRAME_LEN=%d",
-                    get_command_name(frame->command),
+                    mosquitto_command_string(frame->command),
                     (int)frame->command,
                     (int)frame->frame_length
                 );
@@ -8735,7 +8629,7 @@ PRIVATE int ac_process_handshake(hgobj gobj, const char *event, json_t *kw, hgob
                         "function",     "%s", __FUNCTION__,
                         "msgset",       "%s", MSGSET_MQTT_ERROR,
                         "msg",          "%s", "mqtt server: first command MUST be CONNECT",
-                        "command",      "%s", get_command_name(frame->command),
+                        "command",      "%s", mosquitto_command_string(frame->command),
                         NULL
                     );
                     gobj_trace_dump_full_gbuf(gobj, gbuf, "HANDSHAKE %s <== %s",
@@ -8751,7 +8645,7 @@ PRIVATE int ac_process_handshake(hgobj gobj, const char *event, json_t *kw, hgob
                         "function",     "%s", __FUNCTION__,
                         "msgset",       "%s", MSGSET_MQTT_ERROR,
                         "msg",          "%s", "mqtt client: first command MUST be CMD_CONNACK",
-                        "command",      "%s", get_command_name(frame->command),
+                        "command",      "%s", mosquitto_command_string(frame->command),
                         NULL
                     );
                     gobj_trace_dump_full_gbuf(gobj, gbuf, "HANDSHAKE %s <== %s",
@@ -8894,7 +8788,7 @@ PRIVATE int ac_process_frame_header(hgobj gobj, const char *event, json_t *kw, h
         if(frame->header_complete) {
             if(gobj_trace_level(gobj) & SHOW_DECODE) {
                 trace_msg0("👈👈rx SESSION COMMAND=%s (%d), FRAME_LEN=%d",
-                    get_command_name(frame->command),
+                    mosquitto_command_string(frame->command),
                     (int)frame->command,
                     (int)frame->frame_length
                 );

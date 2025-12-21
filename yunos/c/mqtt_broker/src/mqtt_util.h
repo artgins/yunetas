@@ -224,10 +224,9 @@ typedef enum mqtt5_sub_options {
  ***************************************************************/
 
 PUBLIC const char *mosquitto_connack_string(mqtt311_connack_codes_t connack_code);
-
 PUBLIC const char *mosquitto_reason_string(mqtt5_return_codes_t reason_code);
-
 PUBLIC const char *mosquitto_command_string(mqtt_message_t command);
+PUBLIC const char *mqtt_property_identifier_to_string(int identifier);
 
 /*
  * Function: mosquitto_sub_topic_tokenise
