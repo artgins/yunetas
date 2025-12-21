@@ -1,12 +1,12 @@
 /****************************************************************************
  *          topic_tokenise.h
  *
- *          Topic tokenisation functions using Yunetas split helpers
+ *          Topic tokenization functions using Yunetas split helpers
  *
  *          Rewrite of Mosquitto's sub__topic_tokenise() using Yunetas
  *          split* functions from helpers.h
  *
- *          Copyright (c) 2024, ArtGins.
+ *          Copyright (c) 2026, ArtGins.
  *          All Rights Reserved.
  ****************************************************************************/
 #pragma once

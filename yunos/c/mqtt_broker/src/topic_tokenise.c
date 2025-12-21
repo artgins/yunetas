@@ -15,7 +15,7 @@
  *          - "/a/b/"  must produce ["", "a", "b", ""]
  *          - "a//b"   must produce ["a", "", "b"]
  *
- *          Copyright (c) 2024, ArtGins.
+ *          Copyright (c) 2026, ArtGins.
  *          All Rights Reserved.
  ****************************************************************************/
 #include <string.h>
