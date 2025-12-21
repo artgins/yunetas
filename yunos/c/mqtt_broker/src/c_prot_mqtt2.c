@@ -1069,11 +1069,11 @@ PRIVATE json_t *new_json_message(
     hgobj gobj,
     uint16_t mid,
     const char *topic,
-    gbuffer_t *gbuf_payload, // not owned
+    gbuffer_t *gbuf_payload,    // owned
     uint8_t qos,
     BOOL retain,
     BOOL dup,
-    json_t *properties, // not owned
+    json_t *properties,         // owned
     uint32_t expiry_interval,
     mqtt_msg_origin_t origin,
     mqtt_msg_direction_t dir,
@@ -1099,10 +1099,9 @@ PRIVATE json_t *new_json_message(
     json_object_set_new(kw_mqtt_msg, "expiry_interval", json_integer(expiry_interval));
     json_object_set_new(kw_mqtt_msg, "retain", json_boolean(retain));
     if(properties) {
-        json_object_set(kw_mqtt_msg, "properties", properties); // no new, owned by kw
+        json_object_set_new(kw_mqtt_msg, "properties", properties);
     }
     if(gbuf_payload) {
-        gbuffer_incref(gbuf_payload);
         json_object_set_new(
             kw_mqtt_msg,
             "gbuffer",
@@ -7191,11 +7190,11 @@ PRIVATE int handle__publish_s(
         gobj,
         mid,
         topic,
-        payload, // not owned
+        payload, // owned
         qos,
         retain,
         dup,
-        properties, // not owned
+        properties, // owned
         message_expiry_interval,
         mosq_mo_client,
         mosq_md_in,
@@ -7243,7 +7242,6 @@ PRIVATE int handle__publish_s(
     }
 
     GBMEM_FREE(topic)
-    JSON_DECREF(properties)
 
     /*-----------------------------------*
      *      Process the message
@@ -7358,7 +7356,6 @@ process_bad_message:
     // }
 
     GBMEM_FREE(topic)
-    JSON_DECREF(properties)
     KW_DECREF(kw_mqtt_msg)
     return rc;
 }
@@ -7469,11 +7466,11 @@ PRIVATE int handle__publish_c(
         gobj,
         mid,
         topic,
-        payload, // not owned
+        payload, // owned
         qos,
         retain,
         dup,
-        properties, // not owned
+        properties, // owned
         expiry_interval,
         mosq_mo_broker,
         mosq_md_in,
@@ -7494,7 +7491,6 @@ PRIVATE int handle__publish_c(
     }
 
     GBMEM_FREE(topic)
-    JSON_DECREF(properties)
 
     /*-----------------------------------*
      *      Process the message
@@ -7607,7 +7603,6 @@ process_bad_message:
     // }
 
     GBMEM_FREE(topic)
-    JSON_DECREF(properties)
     KW_DECREF(kw_mqtt_msg)
     return rc;
 }
