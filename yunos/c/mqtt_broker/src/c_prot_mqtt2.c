@@ -1094,6 +1094,7 @@ PRIVATE json_t *new_json_message(
 
     json_object_set_new(kw_mqtt_msg, "topic", json_string(topic));
     json_object_set_new(kw_mqtt_msg, "tm", json_integer(t));
+    json_object_set_new(kw_mqtt_msg, "mid", json_integer(mid));
     json_object_set_new(kw_mqtt_msg, "qos", json_integer(qos));
     json_object_set_new(kw_mqtt_msg, "expiry_interval", json_integer(expiry_interval));
     json_object_set_new(kw_mqtt_msg, "retain", json_boolean(retain));
@@ -8680,6 +8681,8 @@ PRIVATE int ac_connected(hgobj gobj, const char *event, json_t *kw, hgobj src)
          * We are client
          * send the request
          */
+        open_queues(gobj); // TODO persistent only output queue
+
         send__connect(
             gobj,
             atoi(gobj_read_str_attr(gobj, "mqtt_keepalive")),
