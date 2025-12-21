@@ -4,9 +4,6 @@
  *          Rewrite of Mosquitto's sub__topic_tokenise() using Yunetas
  *          split* functions from helpers.h
  *
- *          Original Mosquitto function:
- *          int mosquitto_sub_topic_tokenise(const char *subtopic, char ***topics, int *count)
- *
  *          This version uses Yunetas split3() and split_free3() functions
  *          for cleaner, more maintainable code.
  *
@@ -15,9 +12,11 @@
  *          - split3() preserves empty tokens: "a//b" -> ["a", "", "b"]
  *
  *          For MQTT topics, empty segments ARE significant:
- *          - "/a/b/"  must produce [NULL, "a", "b", NULL]
- *          - "a//b"   must produce ["a", NULL, "b"]
+ *          - "/a/b/"  must produce ["", "a", "b", ""]
+ *          - "a//b"   must produce ["a", "", "b"]
  *
+ *          Copyright (c) 2024, ArtGins.
+ *          All Rights Reserved.
  ****************************************************************************/
 #include <string.h>
 #include <gobj.h>
@@ -36,25 +35,30 @@
  *          topics[1] = "deep"
  *          topics[2] = "topic"
  *          topics[3] = "hierarchy"
+ *          topics[4] = NULL (terminator)
  *
  *      subtopic: "/a/deep/topic/hierarchy/"
  *      Would result in:
- *          topics[0] = NULL (empty string before first /)
+ *          topics[0] = "" (empty string before first /)
  *          topics[1] = "a"
  *          topics[2] = "deep"
  *          topics[3] = "topic"
  *          topics[4] = "hierarchy"
- *          topics[5] = NULL (empty string after last /)
+ *          topics[5] = "" (empty string after last /)
+ *          topics[6] = NULL (terminator)
+ *
+ *  Note: Empty segments are stored as "" (empty strings), not NULL.
+ *        NULL is used only as the array terminator.
+ *        This allows sub__topic_tokens_free() to work without a count.
  *
  *  Parameters:
  *      subtopic - the subscription/topic to tokenise
- *      topics   - a pointer to store the array of strings
+ *      topics   - a pointer to store the array of strings (NULL-terminated)
  *      count    - an int pointer to store the number of items in the topics array
  *
  *  Returns:
- *      MOSQ_ERR_SUCCESS - on success
- *      -1   - if the input parameters were invalid
- *      -1   - if memory allocation failed
+ *      0  - on success
+ *      -1 - on error (invalid parameters or memory allocation failed)
  ***************************************************************************/
 int sub__topic_tokenise(const char *subtopic, char ***topics, int *count)
 {
@@ -88,48 +92,48 @@ int sub__topic_tokenise(const char *subtopic, char ***topics, int *count)
     }
 
     /*
-     *  Allocate the output array
-     *  We need to convert const char** to char** and handle empty strings as NULL
-     *  (Mosquitto convention: empty topic levels are represented as NULL)
+     *  Allocate the output array with one extra slot for NULL terminator
+     *
+     *  Note: We allocate nelements + 1 to have a sentinel NULL at the end
+     *  This allows sub__topic_tokens_free() to work without a count parameter
      */
-    char **result = gbmem_calloc(nelements, sizeof(char *));
+    char **result = gbmem_calloc(nelements + 1, sizeof(char *));
     if(!result) {
         split_free3(split_result);
         return -1;
     }
 
     /*
-     *  Copy each segment, converting empty strings to NULL
-     *  This matches Mosquitto's behavior where leading/trailing slashes
-     *  result in NULL entries
+     *  Copy each segment
+     *
+     *  Empty segments are stored as "" (empty strings), not NULL.
+     *  This allows the array to be NULL-terminated.
+     *
+     *  Empty segment detection: check if topics[i][0] == '\0'
      */
     for(int i = 0; i < nelements; i++) {
-        if(split_result[i] && split_result[i][0] != '\0') {
-            /*
-             *  Non-empty segment: duplicate the string
-             */
+        if(split_result[i]) {
             result[i] = gbmem_strdup(split_result[i]);
-            if(!result[i]) {
-                /*
-                 *  Memory allocation failed - clean up and return error
-                 */
-                for(int j = 0; j < i; j++) {
-                    if(result[j]) {
-                        gbmem_free(result[j]);
-                    }
-                }
-                gbmem_free(result);
-                split_free3(split_result);
-                return -1;
-            }
         } else {
+            result[i] = gbmem_strdup("");
+        }
+
+        if(!result[i]) {
             /*
-             *  Empty segment (from leading/trailing/consecutive slashes)
-             *  Mosquitto represents these as NULL
+             *  Memory allocation failed - clean up and return error
              */
-            result[i] = NULL;
+            for(int j = 0; j < i; j++) {
+                gbmem_free(result[j]);
+            }
+            gbmem_free(result);
+            split_free3(split_result);
+            return -1;
         }
     }
+
+    /*
+     *  result[nelements] is already NULL from gbmem_calloc (sentinel)
+     */
 
     /*
      *  Free the split result (we've copied what we need)
@@ -150,15 +154,17 @@ int sub__topic_tokenise(const char *subtopic, char ***topics, int *count)
  *
  *  Free memory that was allocated in sub__topic_tokenise
  *
+ *  The topics array is NULL-terminated. Empty segments are stored as ""
+ *  (empty strings), not NULL, so we can safely iterate until NULL.
+ *
  *  Parameters:
- *      topics - pointer to string array
- *      count  - count of items in string array
+ *      topics - pointer to string array (NULL-terminated)
  *
  *  Returns:
- *      MOSQ_ERR_SUCCESS - on success
- *      -1   - if the input parameters were invalid
+ *      0  - on success
+ *      -1 - on error (invalid parameters)
  ***************************************************************************/
-int sub__topic_tokens_free(char ***topics, int count)
+int sub__topic_tokens_free(char ***topics)
 {
     if(!topics || !(*topics)) {
         return -1;
@@ -166,10 +172,12 @@ int sub__topic_tokens_free(char ***topics, int count)
 
     char **t = *topics;
 
-    for(int i = 0; i < count; i++) {
-        if(t[i]) {
-            gbmem_free(t[i]);
-        }
+    /*
+     *  Iterate until we find the NULL terminator
+     *  All entries (including empty segments) are valid strings
+     */
+    for(int i = 0; t[i] != NULL; i++) {
+        gbmem_free(t[i]);
     }
 
     gbmem_free(t);
@@ -179,17 +187,28 @@ int sub__topic_tokens_free(char ***topics, int count)
 }
 
 /***************************************************************************
- *  Alternative version using split3() for more complex scenarios
+ *  sub__topic_tokenise_v2
  *
- *  split3() can handle shared subscriptions by detecting the $share/ prefix
- *  This is useful for MQTT v5 shared subscriptions
+ *  Extended version that handles MQTT v5 shared subscriptions.
+ *  Parses topics of the form: $share/<ShareName>/<TopicFilter>
+ *
+ *  Parameters:
+ *      subtopic  - the subscription/topic to tokenise
+ *      local_sub - output: the topic without $share/group/ prefix
+ *      topics    - output: array of topic segments (NULL-terminated)
+ *      count     - output: number of segments
+ *      sharename - output: share group name (NULL if not shared)
+ *
+ *  Returns:
+ *      0  - on success
+ *      -1 - on error (invalid parameters or memory allocation failed)
  ***************************************************************************/
 int sub__topic_tokenise_v2(
     const char *subtopic,
-    char **local_sub,       // Output: subscription without $share/group/ prefix
-    char ***topics,         // Output: array of topic segments
-    int *count,             // Output: number of segments
-    const char **sharename  // Output: share group name (NULL if not shared)
+    char **local_sub,
+    char ***topics,
+    int *count,
+    const char **sharename
 )
 {
     if(!subtopic || !topics || !count) {
@@ -199,8 +218,12 @@ int sub__topic_tokenise_v2(
     /*
      *  Initialize outputs
      */
-    if(local_sub) *local_sub = NULL;
-    if(sharename) *sharename = NULL;
+    if(local_sub) {
+        *local_sub = NULL;
+    }
+    if(sharename) {
+        *sharename = NULL;
+    }
     *topics = NULL;
     *count = 0;
 
@@ -220,7 +243,9 @@ int sub__topic_tokenise_v2(
         const char **parts = split3(subtopic, "/", &nelements);
 
         if(!parts || nelements < 3) {
-            if(parts) split_free3(parts);
+            if(parts) {
+                split_free3(parts);
+            }
             return -1;  // Invalid shared subscription format
         }
 
@@ -304,10 +329,10 @@ static void print_tokens(const char *topic, char **tokens, int count)
     printf("Topic: \"%s\"\n", topic);
     printf("  Count: %d\n", count);
     for(int i = 0; i < count; i++) {
-        if(tokens[i]) {
-            printf("  [%d] = \"%s\"\n", i, tokens[i]);
+        if(tokens[i][0] == '\0') {
+            printf("  [%d] = \"\" (empty segment)\n", i);
         } else {
-            printf("  [%d] = NULL\n", i);
+            printf("  [%d] = \"%s\"\n", i, tokens[i]);
         }
     }
     printf("\n");
@@ -339,9 +364,9 @@ int main(void)
 
     for(int i = 0; test_topics[i] != NULL; i++) {
         ret = sub__topic_tokenise(test_topics[i], &topics, &count);
-        if(ret == MOSQ_ERR_SUCCESS) {
+        if(ret == 0) {
             print_tokens(test_topics[i], topics, count);
-            sub__topic_tokens_free(&topics, count);
+            sub__topic_tokens_free(&topics);
         } else {
             printf("Topic: \"%s\" - ERROR: %d\n\n", test_topics[i], ret);
         }
@@ -357,15 +382,19 @@ int main(void)
     const char *sharename = NULL;
 
     ret = sub__topic_tokenise_v2(shared_topic, &local_sub, &topics, &count, &sharename);
-    if(ret == MOSQ_ERR_SUCCESS) {
+    if(ret == 0) {
         printf("Shared Topic: \"%s\"\n", shared_topic);
         printf("  ShareName: \"%s\"\n", sharename ? sharename : "(null)");
         printf("  LocalSub: \"%s\"\n", local_sub ? local_sub : "(null)");
         print_tokens(local_sub ? local_sub : shared_topic, topics, count);
 
-        sub__topic_tokens_free(&topics, count);
-        if(local_sub) gbmem_free(local_sub);
-        if(sharename) gbmem_free((char *)sharename);
+        sub__topic_tokens_free(&topics);
+        if(local_sub) {
+            gbmem_free(local_sub);
+        }
+        if(sharename) {
+            gbmem_free((char *)sharename);
+        }
     }
 
     return 0;

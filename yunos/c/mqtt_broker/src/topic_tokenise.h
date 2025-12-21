@@ -6,6 +6,8 @@
  *          Rewrite of Mosquitto's sub__topic_tokenise() using Yunetas
  *          split* functions from helpers.h
  *
+ *          Copyright (c) 2024, ArtGins.
+ *          All Rights Reserved.
  ****************************************************************************/
 #pragma once
 
@@ -26,25 +28,29 @@ extern "C" {
  *          topics[1] = "deep"
  *          topics[2] = "topic"
  *          topics[3] = "hierarchy"
+ *          topics[4] = NULL (terminator)
  *
  *      subtopic: "/a/deep/topic/hierarchy/"
  *      Would result in:
- *          topics[0] = NULL (empty segment)
+ *          topics[0] = "" (empty segment)
  *          topics[1] = "a"
  *          topics[2] = "deep"
  *          topics[3] = "topic"
  *          topics[4] = "hierarchy"
- *          topics[5] = NULL (empty segment)
+ *          topics[5] = "" (empty segment)
+ *          topics[6] = NULL (terminator)
+ *
+ *  Note: Empty segments are stored as "" (empty strings), not NULL.
+ *        NULL is used only as the array terminator.
  *
  *  Parameters:
  *      subtopic - the subscription/topic to tokenise
- *      topics   - a pointer to store the array of strings
+ *      topics   - a pointer to store the array of strings (NULL-terminated)
  *      count    - an int pointer to store the number of items
  *
  *  Returns:
- *      MOSQ_ERR_SUCCESS - on success
- *      MOSQ_ERR_INVAL   - if the input parameters were invalid
- *      MOSQ_ERR_NOMEM   - if memory allocation failed
+ *      0  - on success
+ *      -1 - on error (invalid parameters or memory allocation failed)
  ***************************************************************************/
 int sub__topic_tokenise(
     const char *subtopic,
@@ -57,17 +63,18 @@ int sub__topic_tokenise(
  *
  *  Free memory that was allocated in sub__topic_tokenise
  *
+ *  The topics array is NULL-terminated. Empty segments are stored as ""
+ *  (empty strings), not NULL.
+ *
  *  Parameters:
- *      topics - pointer to string array
- *      count  - count of items in string array
+ *      topics - pointer to string array (NULL-terminated)
  *
  *  Returns:
- *      0   - on success
- *     -1   - if the input parameters were invalid
+ *      0  - on success
+ *      -1 - on error (invalid parameters)
  ***************************************************************************/
 int sub__topic_tokens_free(
-    char ***topics,
-    int count
+    char ***topics
 );
 
 /***************************************************************************
@@ -79,13 +86,13 @@ int sub__topic_tokens_free(
  *  Parameters:
  *      subtopic  - the subscription/topic to tokenise
  *      local_sub - output: the topic without $share/group/ prefix
- *      topics    - output: array of topic segments
+ *      topics    - output: array of topic segments (NULL-terminated)
  *      count     - output: number of segments
  *      sharename - output: share group name (NULL if not shared)
  *
  *  Returns:
- *      0   - on success
- *     -1   - if the input parameters were invalid or no memory
+ *      0  - on success
+ *      -1 - on error (invalid parameters or memory allocation failed)
  ***************************************************************************/
 int sub__topic_tokenise_v2(
     const char *subtopic,

@@ -1202,40 +1202,45 @@ PRIVATE int sub__messages_queue(
     char *local_topic = NULL;
 
     const char *topic = kw_get_str(gobj, kw_mqtt_msg, "topic", "", KW_REQUIRED);
+    BOOL retain = kw_get_bool(gobj, kw_mqtt_msg, "retain", 0, KW_REQUIRED);
 
-    if(sub__topic_tokenise_v2(topic, &local_topic, &split_topics, NULL)) return 1;
-
-    /* Protect this message until we have sent it to all
-    clients - this is required because websockets client calls
-    db__message_write(), which could remove the message if ref_count==0.
-    */
-    db__msg_store_ref_inc(*stored);
-
-    HASH_FIND(hh, db.normal_subs, split_topics[0], strlen(split_topics[0]), subhier);
-    if(subhier) {
-        rc_normal = sub__search(subhier, split_topics, source_id, topic, qos, retain, *stored);
-        if(rc_normal > 0) {
-            rc = rc_normal;
-            goto end;
-        }
+    int nelements;
+    if(sub__topic_tokenise_v2(topic, &local_topic, &split_topics, &nelements, NULL)) {
+        gobj_log_error(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_MQTT_ERROR,
+            "msg",          "%s", "Mqtt topic tokenise fail",
+            "topic",        "%s", topic,
+            NULL
+        );
+        return -1;
     }
 
-    HASH_FIND(hh, db.shared_subs, split_topics[0], strlen(split_topics[0]), subhier);
-    if(subhier) {
-        rc_shared = sub__search(subhier, split_topics, source_id, topic, qos, retain, *stored);
-        if(rc_shared > 0) {
-            rc = rc_shared;
-            goto end;
-        }
-    }
-
-    if(rc_normal == MOSQ_ERR_NO_SUBSCRIBERS && rc_shared == MOSQ_ERR_NO_SUBSCRIBERS) {
-        rc = MOSQ_ERR_NO_SUBSCRIBERS;
-    }
+    // HASH_FIND(hh, db.normal_subs, split_topics[0], strlen(split_topics[0]), subhier);
+    // if(subhier) {
+    //     rc_normal = sub__search(subhier, split_topics, source_id, topic, qos, retain, *stored);
+    //     if(rc_normal > 0) {
+    //         rc = rc_normal;
+    //         goto end;
+    //     }
+    // }
+    //
+    // HASH_FIND(hh, db.shared_subs, split_topics[0], strlen(split_topics[0]), subhier);
+    // if(subhier) {
+    //     rc_shared = sub__search(subhier, split_topics, source_id, topic, qos, retain, *stored);
+    //     if(rc_shared > 0) {
+    //         rc = rc_shared;
+    //         goto end;
+    //     }
+    // }
+    //
+    // if(rc_normal == MOSQ_ERR_NO_SUBSCRIBERS && rc_shared == MOSQ_ERR_NO_SUBSCRIBERS) {
+    //     rc = MOSQ_ERR_NO_SUBSCRIBERS;
+    // }
 
     if(retain) {
-        rc2 = retain__store(topic, *stored, split_topics);
-        if(rc2) rc = rc2;
+        // rc2 = retain__store(topic, *stored, split_topics);
+        // if(rc2) rc = rc2;
     }
 
     end:
