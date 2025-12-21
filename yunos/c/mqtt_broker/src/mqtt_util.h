@@ -223,32 +223,11 @@ typedef enum mqtt5_sub_options {
  *              Prototypes
  ***************************************************************/
 
-/*
- * Function: mosquitto_connack_string
- *
- * Call to obtain a const string description of an MQTT connection result.
- *
- * Parameters:
- *	connack_code - an MQTT connection result.
- *
- * Returns:
- *	A constant string describing the result.
- */
-PUBLIC const char *mosquitto_connack_string(int connack_code);
+PUBLIC const char *mosquitto_connack_string(mqtt311_connack_codes_t connack_code);
 
-/*
- * Function: mosquitto_reason_string
- *
- * Call to obtain a const string description of an MQTT reason code.
- *
- * Parameters:
- *	reason_code - an MQTT reason code.
- *
- * Returns:
- *	A constant string describing the reason.
- */
-PUBLIC const char *mosquitto_reason_string(int reason_code);
+PUBLIC const char *mosquitto_reason_string(mqtt5_return_codes_t reason_code);
 
+PUBLIC const char *mosquitto_command_string(mqtt_message_t command);
 
 /*
  * Function: mosquitto_sub_topic_tokenise

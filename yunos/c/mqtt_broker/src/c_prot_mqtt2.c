@@ -2141,49 +2141,6 @@ PRIVATE const char *get_command_name(int cmd_)
 }
 
 /***************************************************************************
- *  get_name_from_nn_table(command_name) is a slower alternative
- ***************************************************************************/
-PRIVATE const char *mosquitto_command_string(mqtt_message_t command)
-{
-    switch(command) {
-        case CMD_CONNECT:
-            return "CMD_CONNECT";
-        case CMD_CONNACK:
-            return "CMD_CONNACK";
-        case CMD_PUBLISH:
-            return "CMD_PUBLISH";
-        case CMD_PUBACK:
-            return "CMD_PUBACK";
-        case CMD_PUBREC:
-            return "CMD_PUBREC";
-        case CMD_PUBREL:
-            return "CMD_PUBREL";
-        case CMD_PUBCOMP:
-            return "CMD_PUBCOMP";
-        case CMD_SUBSCRIBE:
-            return "CMD_SUBSCRIBE";
-        case CMD_SUBACK:
-            return "CMD_SUBACK";
-        case CMD_UNSUBSCRIBE:
-            return "CMD_UNSUBSCRIBE";
-        case CMD_UNSUBACK:
-            return "CMD_UNSUBACK";
-        case CMD_PINGREQ:
-            return "CMD_PINGREQ";
-        case CMD_PINGRESP:
-            return "CMD_PINGRESP";
-        case CMD_DISCONNECT:
-            return "CMD_DISCONNECT";
-        case CMD_AUTH:
-            return "CMD_AUTH";
-
-        case CMD_RESERVED:
-        default:
-            return "Unknown command";
-    }
-}
-
-/***************************************************************************
  *
  ***************************************************************************/
 PRIVATE const char *mqtt_property_identifier_to_string(int identifier)

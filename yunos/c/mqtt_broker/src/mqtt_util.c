@@ -42,20 +42,20 @@
 /***************************************************************************
  *
  ***************************************************************************/
-PUBLIC const char *mosquitto_connack_string(int connack_code)
+PUBLIC const char *mosquitto_connack_string(mqtt311_connack_codes_t connack_code)
 {
     switch(connack_code) {
-        case 0:
+        case CONNACK_ACCEPTED:
             return "Connection Accepted.";
-        case 1:
+        case CONNACK_REFUSED_PROTOCOL_VERSION:
             return "Connection Refused: unacceptable protocol version.";
-        case 2:
+        case CONNACK_REFUSED_IDENTIFIER_REJECTED:
             return "Connection Refused: identifier rejected.";
-        case 3:
+        case CONNACK_REFUSED_SERVER_UNAVAILABLE:
             return "Connection Refused: broker unavailable.";
-        case 4:
+        case CONNACK_REFUSED_BAD_USERNAME_PASSWORD:
             return "Connection Refused: bad user name or password.";
-        case 5:
+        case CONNACK_REFUSED_NOT_AUTHORIZED:
             return "Connection Refused: not authorised.";
         default:
             return "Connection Refused: unknown reason.";
@@ -65,7 +65,7 @@ PUBLIC const char *mosquitto_connack_string(int connack_code)
 /***************************************************************************
  *
  ***************************************************************************/
-PUBLIC const char *mosquitto_reason_string(int reason_code)
+PUBLIC const char *mosquitto_reason_string(mqtt5_return_codes_t reason_code)
 {
     switch(reason_code) {
         case MQTT_RC_SUCCESS:
@@ -157,6 +157,49 @@ PUBLIC const char *mosquitto_reason_string(int reason_code)
             return "Wildcard Subscriptions not supported";
         default:
             return "Unknown reason";
+    }
+}
+
+/***************************************************************************
+ *  get_name_from_nn_table(command_name) is a slower alternative
+ ***************************************************************************/
+PUBLIC const char *mosquitto_command_string(mqtt_message_t command)
+{
+    switch(command) {
+        case CMD_CONNECT:
+            return "CMD_CONNECT";
+        case CMD_CONNACK:
+            return "CMD_CONNACK";
+        case CMD_PUBLISH:
+            return "CMD_PUBLISH";
+        case CMD_PUBACK:
+            return "CMD_PUBACK";
+        case CMD_PUBREC:
+            return "CMD_PUBREC";
+        case CMD_PUBREL:
+            return "CMD_PUBREL";
+        case CMD_PUBCOMP:
+            return "CMD_PUBCOMP";
+        case CMD_SUBSCRIBE:
+            return "CMD_SUBSCRIBE";
+        case CMD_SUBACK:
+            return "CMD_SUBACK";
+        case CMD_UNSUBSCRIBE:
+            return "CMD_UNSUBSCRIBE";
+        case CMD_UNSUBACK:
+            return "CMD_UNSUBACK";
+        case CMD_PINGREQ:
+            return "CMD_PINGREQ";
+        case CMD_PINGRESP:
+            return "CMD_PINGRESP";
+        case CMD_DISCONNECT:
+            return "CMD_DISCONNECT";
+        case CMD_AUTH:
+            return "CMD_AUTH";
+
+        case CMD_RESERVED:
+        default:
+            return "Unknown command";
     }
 }
 
