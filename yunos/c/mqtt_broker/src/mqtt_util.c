@@ -17,7 +17,7 @@
  *          Modifications:
  *              2025 ArtGins – refactoring, added new functions, structural changes.
  *
- *          Copyright (c) 2025 ArtGins.
+ *          Copyright (c) 2026 ArtGins.
  *          All Rights Reserved.
  ***********************************************************************/
 #include "mqtt_util.h"

@@ -44,6 +44,7 @@ SET (YUNO_SRCS
     src/tr2_queue.c
     src/tr2q_mqtt.c
     src/mqtt_util.c
+    src/topic_tokenise.c
 )
 SET (YUNO_HDRS
     src/c_mqtt_broker.h

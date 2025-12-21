@@ -55,6 +55,7 @@
 #include "c_tcp.h"
 #include "istream.h"
 #include "tr2q_mqtt.h"
+#include "topic_tokenise.h"
 #include "c_prot_mqtt2.h"
 
 /***************************************************************************
@@ -1194,14 +1195,15 @@ PRIVATE int sub__messages_queue(
     json_t *kw_mqtt_msg // owned
 ) {
     int rc = MOSQ_ERR_SUCCESS;
-    int rc_normal = MOSQ_ERR_NO_SUBSCRIBERS, rc_shared = MOSQ_ERR_NO_SUBSCRIBERS;
+    int rc_normal = MOSQ_ERR_NO_SUBSCRIBERS;
+    int rc_shared = MOSQ_ERR_NO_SUBSCRIBERS;
     struct mosquitto__subhier *subhier;
     char **split_topics = NULL;
     char *local_topic = NULL;
 
-    assert(topic);
+    const char *topic = kw_get_str(gobj, kw_mqtt_msg, "topic", "", KW_REQUIRED);
 
-    if(sub__topic_tokenise(topic, &local_topic, &split_topics, NULL)) return 1;
+    if(sub__topic_tokenise_v2(topic, &local_topic, &split_topics, NULL)) return 1;
 
     /* Protect this message until we have sent it to all
     clients - this is required because websockets client calls
