@@ -1205,7 +1205,7 @@ PRIVATE int sub__messages_queue(
     BOOL retain = kw_get_bool(gobj, kw_mqtt_msg, "retain", 0, KW_REQUIRED);
 
     int nelements;
-    if(sub__topic_tokenise_v2(topic, &local_topic, &split_topics, &nelements, NULL)) {
+    if(sub__topic_tokenise_v2(topic, &local_topic, &split_topics, &nelements, NULL)<0) {
         gobj_log_error(gobj, 0,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_MQTT_ERROR,
@@ -6192,7 +6192,6 @@ PRIVATE int handle__subscribe(hgobj gobj, gbuffer_t *gbuf)
             return MOSQ_ERR_MALFORMED_PACKET;
         }
     }
-
 
     gbuffer_t *gbuf_payload = gbuffer_create(256, 12*1024);
 
