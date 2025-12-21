@@ -7849,33 +7849,28 @@ PRIVATE int handle__pubrel(hgobj gobj, gbuffer_t *gbuf)
         }
 
         json_t *kw_mqtt_msg;
-        rc = message__remove(gobj, mid, mosq_md_in, &kw_mqtt_msg);
-        if(rc == MOSQ_ERR_NOT_FOUND) {
-            /* Message not found. Still send a PUBCOMP anyway because this could be
-            * due to a repeated PUBREL after a client has reconnected. */
-        } else if(rc == MOSQ_ERR_SUCCESS) {
-            sub__messages_queue(
-                gobj,
-                kw_mqtt_msg // owned
-            );
-        } else {
-            // Error already logged
-            JSON_DECREF(properties)
-            return rc;
-        }
+        message__remove(gobj, mid, mosq_md_in, &kw_mqtt_msg);
 
         /*
          *  Response acknowledge
          */
         send__pubcomp(gobj, mid, NULL);
 
-        /*
-         *  Pull from input queued list
-         */
-        db__message_write_queued_in(gobj);
-
-        JSON_DECREF(properties)
-        return MOSQ_ERR_SUCCESS;
+        if(kw_mqtt_msg) {
+            /*
+             *  Broker
+             *  Dispatch the message to the subscribers
+             */
+            sub__messages_queue(
+                gobj,
+                kw_mqtt_msg // owned
+            );
+        } else {
+            /*
+             * Message not found. Still send a PUBCOMP anyway because this could be
+             * due to a repeated PUBREL after a client has reconnected.
+             */
+        }
 
     } else {
         /*------------------------------------*
@@ -7894,34 +7889,32 @@ PRIVATE int handle__pubrel(hgobj gobj, gbuffer_t *gbuf)
         send__pubcomp(gobj, mid, NULL);
 
         json_t *kw_mqtt_msg;
-        rc = message__remove(gobj, mid, mosq_md_in, &kw_mqtt_msg);
-        if(rc == MOSQ_ERR_SUCCESS) {
-             /* Only pass the message on if we have removed it from the queue - this
-              * prevents multiple callbacks for the same message.
-              */
-            if(1) {
-                /*
-                 *  Client
-                 *  Callback the message to the user
-                 */
-                json_t *kw_iev = iev_create(
-                    gobj,
-                    EV_MQTT_MESSAGE,
-                    kw_mqtt_msg // owned
-                );
+        message__remove(gobj, mid, mosq_md_in, &kw_mqtt_msg);
+        if(kw_mqtt_msg) {
+            /* Only pass the message on if we have removed it from the queue - this
+             * prevents multiple callbacks for the same message.
+             */
+            /*
+             *  Client
+             *  Callback the message to the user
+             */
+            json_t *kw_iev = iev_create(
+                gobj,
+                EV_MQTT_MESSAGE,
+                kw_mqtt_msg // owned
+            );
 
-                gobj_publish_event(gobj, EV_ON_IEV_MESSAGE, kw_iev);
-            }
-
-            JSON_DECREF(properties)
-        } else if(rc == MOSQ_ERR_NOT_FOUND) {
-            JSON_DECREF(properties)
-            return MOSQ_ERR_SUCCESS;
-        } else {
-            JSON_DECREF(properties)
-            return rc;
+            gobj_publish_event(gobj, EV_ON_IEV_MESSAGE, kw_iev);
         }
     }
+
+    /*
+     *  Pull from input queued list
+     */
+    db__message_write_queued_in(gobj);
+
+    JSON_DECREF(properties)
+    return MOSQ_ERR_SUCCESS;
 }
 
 /***************************************************************************
