@@ -1100,7 +1100,7 @@ PRIVATE json_t *new_json_message(
  ***************************************************************************/
 PRIVATE int message__queue(
     hgobj gobj,
-    json_t *kw_mqtt_msg,
+    json_t *kw_mqtt_msg, // owned
     mqtt_msg_direction_t dir,
     user_flag_t user_flag,
     json_int_t t
@@ -1191,7 +1191,7 @@ PRIVATE int message__delete(
  ***************************************************************************/
 PRIVATE int sub__messages_queue(
     hgobj gobj,
-    json_t *kw_mqtt_msg
+    json_t *kw_mqtt_msg // owned
 ) {
     int rc = MOSQ_ERR_SUCCESS;
     // int rc_normal = MOSQ_ERR_NO_SUBSCRIBERS, rc_shared = MOSQ_ERR_NO_SUBSCRIBERS;
@@ -1803,67 +1803,6 @@ PRIVATE int db__message_remove_incoming_dup(hgobj gobj, uint16_t mid)
 }
 
 /***************************************************************************
- *  Using in handle__pubrel()
- ***************************************************************************/
-PRIVATE int db__message_release_incoming(hgobj gobj, uint16_t mid)
-{
-    PRIVATE_DATA *priv = gobj_priv_data(gobj);
-    q2_msg_t *tail, *tmp;
-    int retain;
-    char *topic;
-    char *source_id;
-    BOOL deleted = FALSE;
-    int rc;
-
-    // DL_FOREACH_SAFE(&priv->trq_srv_in_msgs->dl_inflight, tail, tmp) {
-    //     if(tail->mid == mid) {
-    //         if(tail->store->qos != 2) {
-    //             return MOSQ_ERR_PROTOCOL;
-    //         }
-    //         topic = tail->store->topic;
-    //         retain = tail->retain;
-    //         source_id = tail->store->source_id;
-    //
-    //         /* topic==NULL should be a QoS 2 message that was
-    //          * denied/dropped and is being processed so the client doesn't
-    //          * keep resending it. That means we don't send it to other
-    //          * clients. */
-    //         if(topic == NULL) {
-    //             db__message_remove_from_inflight(gobj, &priv->msgs_in, tail);
-    //             deleted = TRUE;
-    //         } else {
-    //             rc = sub__messages_queue(source_id, topic, 2, retain, &tail->store);
-    //             if(rc == MOSQ_ERR_SUCCESS || rc == MOSQ_ERR_NO_SUBSCRIBERS) {
-    //                 db__message_remove_from_inflight(gobj, &priv->msgs_in, tail);
-    //                 deleted = TRUE;
-    //             } else {
-    //                 return 1;
-    //             }
-    //         }
-    //     }
-    // }
-    //
-    // DL_FOREACH_SAFE(&priv->msgs_in.dl_queued, tail, tmp) {
-    //     if(db__ready_for_flight(gobj, mosq_md_in, tail->qos)) {
-    //         break;
-    //     }
-    //
-    //     tail->timestamp = priv->db_now_s;
-    //
-    //     if(tail->qos == 2) {
-    //         send__pubrec(gobj, tail->mid, 0, NULL);
-    //         tail->state = mosq_ms_wait_for_pubrel;
-    //         db__message_dequeue_first(gobj, &priv->msgs_in);
-    //     }
-    // }
-    if(deleted) {
-        return MOSQ_ERR_SUCCESS;
-    } else {
-        return MOSQ_ERR_NOT_FOUND;
-    }
-}
-
-/***************************************************************************
  *  Using in handle__publish(), loop, retain
  *      wait completion of the input message qos 2
  *      insert in the input inflight queue
@@ -2072,7 +2011,6 @@ PRIVATE int db__message_insert(
 }
 
 /***************************************************************************
- *  Using in handle__publish_s() handle__publish_c
  *  Move input qos-2 messages from queued list to inflight queue
  *      and send its pubrec
  ***************************************************************************/
@@ -7092,7 +7030,7 @@ PRIVATE int handle__publish_s(
                  */
                 rc = sub__messages_queue(
                     gobj,
-                    kw_mqtt_msg // not owned
+                    kw_mqtt_msg // owned
                 );
 
             }
@@ -7107,7 +7045,7 @@ PRIVATE int handle__publish_s(
                  */
                 rc = sub__messages_queue(
                     gobj,
-                    kw_mqtt_msg // not owned
+                    kw_mqtt_msg // owned
                 );
 
                 /*
@@ -7128,7 +7066,13 @@ PRIVATE int handle__publish_s(
                  *  wait completion of the message
                  */
                 user_flag_set_state(&user_flag, mosq_ms_wait_for_pubrel);
-                message__queue(gobj, kw_mqtt_msg, mosq_md_in, user_flag, t);
+                message__queue(
+                    gobj,
+                    kw_mqtt_msg, // owned
+                    mosq_md_in,
+                    user_flag,
+                    t
+                );
 
                 /*
                  *  Response acknowledge
@@ -7138,6 +7082,9 @@ PRIVATE int handle__publish_s(
             break;
     }
 
+    /*
+     *  Pull from input queued list
+     */
     db__message_write_queued_in(gobj);
     return rc;
 
@@ -7372,7 +7319,13 @@ PRIVATE int handle__publish_c(
                  *  wait completion of the message
                  */
                 user_flag_set_state(&user_flag, mosq_ms_wait_for_pubrel);
-                message__queue(gobj, kw_mqtt_msg, mosq_md_in, user_flag, t);
+                message__queue(
+                    gobj,
+                    kw_mqtt_msg, // owned
+                    mosq_md_in,
+                    user_flag,
+                    t
+                );
 
                 /*
                  *  Response acknowledge
@@ -7382,6 +7335,9 @@ PRIVATE int handle__publish_c(
             break;
     }
 
+    /*
+     *  Pull from input queued list
+     */
     db__message_write_queued_in(gobj);
     return rc;
 
@@ -7882,6 +7838,9 @@ PRIVATE int handle__pubrel(hgobj gobj, gbuffer_t *gbuf)
     }
 
     if(priv->iamServer) {
+        /*------------------------------------*
+         *          Broker
+         *------------------------------------*/
         if(gobj_trace_level(gobj) & SHOW_DECODE) {
             trace_msg0("  👈 server Received PUBREL from client '%s' (Mid: %d)",
                 SAFE_PRINT(priv->client_id),
@@ -7889,11 +7848,17 @@ PRIVATE int handle__pubrel(hgobj gobj, gbuffer_t *gbuf)
             );
         }
 
-        rc = db__message_release_incoming(gobj, mid);
+        json_t *kw_mqtt_msg;
+        rc = message__remove(gobj, mid, mosq_md_in, &kw_mqtt_msg);
         if(rc == MOSQ_ERR_NOT_FOUND) {
             /* Message not found. Still send a PUBCOMP anyway because this could be
             * due to a repeated PUBREL after a client has reconnected. */
-        } else if(rc != MOSQ_ERR_SUCCESS) {
+        } else if(rc == MOSQ_ERR_SUCCESS) {
+            sub__messages_queue(
+                gobj,
+                kw_mqtt_msg // owned
+            );
+        } else {
             // Error already logged
             JSON_DECREF(properties)
             return rc;
@@ -7904,7 +7869,18 @@ PRIVATE int handle__pubrel(hgobj gobj, gbuffer_t *gbuf)
          */
         send__pubcomp(gobj, mid, NULL);
 
+        /*
+         *  Pull from input queued list
+         */
+        db__message_write_queued_in(gobj);
+
+        JSON_DECREF(properties)
+        return MOSQ_ERR_SUCCESS;
+
     } else {
+        /*------------------------------------*
+         *          Client
+         *------------------------------------*/
         if(gobj_trace_level(gobj) & SHOW_DECODE) {
             trace_msg0("  👈 client %s Received PUBREL from broker (Mid: %d)",
                 SAFE_PRINT(priv->client_id),
@@ -7946,9 +7922,6 @@ PRIVATE int handle__pubrel(hgobj gobj, gbuffer_t *gbuf)
             return rc;
         }
     }
-
-    JSON_DECREF(properties)
-    return MOSQ_ERR_SUCCESS;
 }
 
 /***************************************************************************
