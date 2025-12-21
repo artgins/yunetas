@@ -2100,7 +2100,9 @@ PRIVATE int db__message_insert(
 }
 
 /***************************************************************************
- *  Using in handle__subscribe()
+ *  Using in handle__publish_s() handle__publish_c
+ *  Move input qos-2 messages from queued list to inflight queue
+ *      and send its pubrec
  ***************************************************************************/
 PRIVATE int db__message_write_queued_in(hgobj gobj)
 {
@@ -2108,21 +2110,18 @@ PRIVATE int db__message_write_queued_in(hgobj gobj)
     struct mosquitto_client_msg *tail, *tmp;
     int rc;
 
-    DL_FOREACH_SAFE(&priv->msgs_in.dl_queued, tail, tmp) {
-        if(priv->msgs_in.inflight_maximum != 0 && priv->msgs_in.inflight_quota == 0) {
+    register q2_msg_t *msg;
+    Q2MSG_FOREACH_FORWARD_QUEUED(priv->trq_in_msgs, msg) {
+        // if(context->msgs_in.inflight_maximum != 0 && context->msgs_in.inflight_quota == 0){
+        if(priv->trq_in_msgs->max_inflight_messages > 0 && tr2q_inflight_size(priv->trq_in_msgs)==0) {
             break;
         }
 
-        if(tail->qos == 2) {
-            tail->state = mosq_ms_send_pubrec;
-            db__message_dequeue_first(priv, &priv->msgs_in);
-            rc = send__pubrec(gobj, tail->mid, 0, NULL);
-            if(!rc) {
-                tail->state = mosq_ms_wait_for_pubrel;
-            } else {
-                return rc;
-            }
+        if(tr2q_move_from_queued_to_inflight(msg)<0) {
+            break;
         }
+        //user_flag_set_state(&user_flag, mosq_ms_wait_for_pubrel); // TODO
+        send__pubrec(gobj, msg->mid, 0, NULL);
     }
     return MOSQ_ERR_SUCCESS;
 }

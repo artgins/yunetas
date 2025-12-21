@@ -99,7 +99,12 @@ PUBLIC q2_msg_t * tr2q_append(
 );
 
 /**
-    Unload a message successfully from iter (disk TR2Q_MSG_PENDING set to 0)
+    Move a message from queued list to inflight list
+*/
+PUBLIC int tr2q_move_from_queued_to_inflight(q2_msg_t *msg);
+
+/**
+    Unload a message from iter and hard mark with TR2Q_MSG_PENDING set to 0
 */
 PUBLIC void tr2q_unload_msg(q2_msg_t *msg, int32_t result);
 

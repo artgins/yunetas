@@ -179,7 +179,7 @@ PRIVATE q2_msg_t *new_msg(
 
     if(trq->max_inflight_messages == 0 || tr2q_inflight_size(trq) < trq->max_inflight_messages) {
         dl_add(&trq->dl_inflight, msg);
-        msg->kw_record =kw_record;
+        msg->kw_record = kw_record;
         msg->inflight = TRUE;
     } else {
         dl_add(&trq->dl_queued, msg);
@@ -434,7 +434,26 @@ PUBLIC q2_msg_t *tr2q_append(
 }
 
 /***************************************************************************
-    Unload a message successfully from iter (TR2Q_MSG_PENDING set to 0)
+    Move a message from queued list to inflight list
+ ***************************************************************************/
+PUBLIC int tr2q_move_from_queued_to_inflight(q2_msg_t *msg)
+{
+    tr2_queue_t *trq = msg->trq;
+    int ret = dl_delete(&trq->dl_queued, msg, NULL);
+    if(ret<0) {
+        // Error already logged
+        return ret;
+    }
+
+    dl_add(&trq->dl_inflight, msg);
+    json_t *kw_mqtt_msg = tr2q_msg_json(msg); // Load the message
+    msg->inflight = TRUE;
+
+    return kw_mqtt_msg?0:-1;
+}
+
+/***************************************************************************
+    Unload a message from iter and hard mark with TR2Q_MSG_PENDING set to 0
  ***************************************************************************/
 PUBLIC void tr2q_unload_msg(q2_msg_t *msg, int32_t result)
 {
@@ -508,16 +527,6 @@ PUBLIC json_t *tr2q_msg_json(q2_msg_t *msg) // Return is not yours, free with tr
         "",
         &msg->md_record
     );
-    if(!msg->kw_record) {
-        hgobj gobj = (hgobj)json_integer_value(json_object_get(msg->trq->tranger, "gobj"));
-        gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
-            "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_INTERNAL_ERROR,
-            "msg",          "%s", "jn_msg NULL",
-            "topic",        "%s", msg->trq->topic_name,
-            NULL
-        );
-    }
     return msg->kw_record;
 }
 
