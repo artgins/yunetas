@@ -1173,9 +1173,11 @@ PRIVATE int message__remove(
     json_t **pmsg
 ) {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
-    *pmsg = NULL;
-    q2_msg_t *msg;
+    if(pmsg) {
+        *pmsg = NULL;
+    }
 
+    q2_msg_t *msg;
     if(dir == mosq_md_out) {
         msg = tr2q_get_by_mid(priv->trq_out_msgs, mid);
 
@@ -1185,7 +1187,9 @@ PRIVATE int message__remove(
 
     if(msg) {
         json_t *kw = tr2q_msg_json(msg);
-        *pmsg = kw_incref(kw);
+        if(pmsg) {
+            *pmsg = kw_incref(kw);
+        }
         tr2q_unload_msg(msg, 0);
         return MOSQ_ERR_SUCCESS;
     } else {
@@ -7243,7 +7247,6 @@ PRIVATE int handle__publish_s(
     /*-----------------------------------*
      *      Process the message
      *-----------------------------------*/
-
     /*
      *  Here mosquitto checked the inflight input queue to search repeated mid's
      *  with db__message_store_find() and db__message_remove_incoming() functions.
@@ -7252,11 +7255,10 @@ PRIVATE int handle__publish_s(
      */
     if(qos == 2) {
         if(dup) {
-            json_t *kw_mqtt_msg_;
-x            rc = message__remove(gobj, mid, mosq_md_in, &kw_mqtt_msg_);
-
-
-            db__message_remove_incoming_dup(gobj, mid); // Search and remove without warning
+            /*
+             *  Delete possible msg with same mid
+             */
+            message__remove(gobj, mid, mosq_md_in, NULL);
         }
 
         if(!db__ready_for_flight(gobj, mosq_md_in, qos)) {
