@@ -1441,27 +1441,6 @@ PRIVATE void db__msg_remove_from_inflight_stats(struct mosquitto_msg_data *msg_d
 }
 
 /***************************************************************************
- *  Using in handle__publish()
- ***************************************************************************/
-void db__msg_store_free(struct mosquitto_msg_store *store)
-{
-    // int i;
-    //
-    // mosquitto__free(store->source_id);
-    // mosquitto__free(store->source_username);
-    // if(store->dest_ids) {
-    //     for(i=0; i<store->dest_id_count; i++) {
-    //         mosquitto__free(store->dest_ids[i]);
-    //     }
-    //     mosquitto__free(store->dest_ids);
-    // }
-    gbmem_free(store->topic);
-    // mosquitto_property_free_all(&store->properties);
-    // mosquitto__free(store->payload);
-    gbmem_free(store);
-}
-
-/***************************************************************************
  *
  ***************************************************************************/
 PRIVATE void db__msg_store_remove(struct mosquitto_msg_store *store)
@@ -1481,7 +1460,7 @@ PRIVATE void db__msg_store_remove(struct mosquitto_msg_store *store)
     // db.msg_store_count--;
     // db.msg_store_bytes -= store->payloadlen;
     //
-    db__msg_store_free(store);
+    // db__msg_store_free(store);
 }
 
 /***************************************************************************
@@ -7335,19 +7314,16 @@ PRIVATE int handle__publish_s(
 
 process_bad_message:
     rc = MOSQ_ERR_UNKNOWN;
-    if(kw_mqtt_msg) { // TODO get user_flag
-        switch(user_flag_get_qos_level(&user_flag)) {
-            case 0:
-                rc = MOSQ_ERR_SUCCESS;
-                break;
-            case 1:
-                rc = send__puback(gobj, mid, reason_code, NULL);
-                break;
-            case 2:
-                rc = send__pubrec(gobj, mid, reason_code, NULL);
-                break;
-        }
-        db__msg_store_free(kw_mqtt_msg);
+    switch(qos) {
+        case 0:
+            rc = MOSQ_ERR_SUCCESS;
+            break;
+        case 1:
+            rc = send__puback(gobj, mid, reason_code, NULL);
+            break;
+        case 2:
+            rc = send__pubrec(gobj, mid, reason_code, NULL);
+            break;
     }
 
     // TODO review
@@ -7582,19 +7558,16 @@ PRIVATE int handle__publish_c(
 
 process_bad_message:
     rc = MOSQ_ERR_UNKNOWN;
-    if(kw_mqtt_msg) { // TODO get user_flag
-        switch(user_flag_get_qos_level(&user_flag)) {
-            case 0:
-                rc = MOSQ_ERR_SUCCESS;
-                break;
-            case 1:
-                rc = send__puback(gobj, mid, reason_code, NULL);
-                break;
-            case 2:
-                rc = send__pubrec(gobj, mid, reason_code, NULL);
-                break;
-        }
-        db__msg_store_free(kw_mqtt_msg);
+    switch(qos) {
+        case 0:
+            rc = MOSQ_ERR_SUCCESS;
+            break;
+        case 1:
+            rc = send__puback(gobj, mid, reason_code, NULL);
+            break;
+        case 2:
+            rc = send__pubrec(gobj, mid, reason_code, NULL);
+            break;
     }
 
     // TODO review
