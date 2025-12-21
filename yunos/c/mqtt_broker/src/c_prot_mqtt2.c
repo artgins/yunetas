@@ -1194,53 +1194,53 @@ PRIVATE int sub__messages_queue(
     json_t *kw_mqtt_msg // owned
 ) {
     int rc = MOSQ_ERR_SUCCESS;
-    // int rc_normal = MOSQ_ERR_NO_SUBSCRIBERS, rc_shared = MOSQ_ERR_NO_SUBSCRIBERS;
-    // struct mosquitto__subhier *subhier;
-    // char **split_topics = NULL;
-    // char *local_topic = NULL;
-    //
-    // assert(topic);
-    //
-    // if(sub__topic_tokenise(topic, &local_topic, &split_topics, NULL)) return 1;
-    //
-    // /* Protect this message until we have sent it to all
-    // clients - this is required because websockets client calls
-    // db__message_write(), which could remove the message if ref_count==0.
-    // */
-    // db__msg_store_ref_inc(*stored);
-    //
-    // HASH_FIND(hh, db.normal_subs, split_topics[0], strlen(split_topics[0]), subhier);
-    // if(subhier) {
-    //     rc_normal = sub__search(subhier, split_topics, source_id, topic, qos, retain, *stored);
-    //     if(rc_normal > 0) {
-    //         rc = rc_normal;
-    //         goto end;
-    //     }
-    // }
-    //
-    // HASH_FIND(hh, db.shared_subs, split_topics[0], strlen(split_topics[0]), subhier);
-    // if(subhier) {
-    //     rc_shared = sub__search(subhier, split_topics, source_id, topic, qos, retain, *stored);
-    //     if(rc_shared > 0) {
-    //         rc = rc_shared;
-    //         goto end;
-    //     }
-    // }
-    //
-    // if(rc_normal == MOSQ_ERR_NO_SUBSCRIBERS && rc_shared == MOSQ_ERR_NO_SUBSCRIBERS) {
-    //     rc = MOSQ_ERR_NO_SUBSCRIBERS;
-    // }
-    //
-    // if(retain) {
-    //     rc2 = retain__store(topic, *stored, split_topics);
-    //     if(rc2) rc = rc2;
-    // }
-    //
-    // end:
-    //     mosquitto__free(split_topics);
-    // mosquitto__free(local_topic);
-    // /* Remove our reference and free if needed. */
-    // db__msg_store_ref_dec(stored);
+    int rc_normal = MOSQ_ERR_NO_SUBSCRIBERS, rc_shared = MOSQ_ERR_NO_SUBSCRIBERS;
+    struct mosquitto__subhier *subhier;
+    char **split_topics = NULL;
+    char *local_topic = NULL;
+
+    assert(topic);
+
+    if(sub__topic_tokenise(topic, &local_topic, &split_topics, NULL)) return 1;
+
+    /* Protect this message until we have sent it to all
+    clients - this is required because websockets client calls
+    db__message_write(), which could remove the message if ref_count==0.
+    */
+    db__msg_store_ref_inc(*stored);
+
+    HASH_FIND(hh, db.normal_subs, split_topics[0], strlen(split_topics[0]), subhier);
+    if(subhier) {
+        rc_normal = sub__search(subhier, split_topics, source_id, topic, qos, retain, *stored);
+        if(rc_normal > 0) {
+            rc = rc_normal;
+            goto end;
+        }
+    }
+
+    HASH_FIND(hh, db.shared_subs, split_topics[0], strlen(split_topics[0]), subhier);
+    if(subhier) {
+        rc_shared = sub__search(subhier, split_topics, source_id, topic, qos, retain, *stored);
+        if(rc_shared > 0) {
+            rc = rc_shared;
+            goto end;
+        }
+    }
+
+    if(rc_normal == MOSQ_ERR_NO_SUBSCRIBERS && rc_shared == MOSQ_ERR_NO_SUBSCRIBERS) {
+        rc = MOSQ_ERR_NO_SUBSCRIBERS;
+    }
+
+    if(retain) {
+        rc2 = retain__store(topic, *stored, split_topics);
+        if(rc2) rc = rc2;
+    }
+
+    end:
+        mosquitto__free(split_topics);
+    mosquitto__free(local_topic);
+    /* Remove our reference and free if needed. */
+    db__msg_store_ref_dec(stored);
 
     return rc;
 }

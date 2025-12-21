@@ -207,7 +207,7 @@ PUBLIC char *get_key_value_parameter(char *s, char **key, char **save_ptr);
     WARNING Remember free with split_free2().
     HACK: No, It does NOT include the empty strings!
 **rst**/
-PUBLIC const char ** split2(const char *str, const char *delim, int *list_size);
+PUBLIC const char **split2(const char *str, const char *delim, int *list_size);
 PUBLIC void split_free2(const char **list);
 
 /**rst**
@@ -223,8 +223,8 @@ PUBLIC void split_free3(const char **list);
     Concat two strings or three strings
     WARNING Remember free with str_concat_free().
 **rst**/
-PUBLIC char * str_concat(const char *str1, const char *str2);
-PUBLIC char * str_concat3(const char *str1, const char *str2, const char *str3);
+PUBLIC char *str_concat(const char *str1, const char *str2);
+PUBLIC char *str_concat3(const char *str1, const char *str2, const char *str3);
 PUBLIC void str_concat_free(char *s);
 
 /**rst**
