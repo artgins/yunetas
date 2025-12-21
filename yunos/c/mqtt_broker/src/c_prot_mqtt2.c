@@ -6919,9 +6919,9 @@ PRIVATE int handle__publish_s(
      *  Get and check the header
      *-----------------------------------*/
     uint8_t header = priv->frame_head.flags;
-    BOOL dup = (header & 0x08)>>3;
-    uint8_t qos = (header & 0x06)>>1;
-    BOOL retain = (header & 0x01);
+    BOOL dup = (header & 0x08)>>3;      // possible values of 0,1
+    uint8_t qos = (header & 0x06)>>1;   // shift of two bites -> possible values of 0,1,2,3
+    BOOL retain = (header & 0x01);      // possible values of 0,1
 
     if(dup == 1 && qos == 0) {
         gobj_log_error(gobj, 0,
@@ -7252,6 +7252,10 @@ PRIVATE int handle__publish_s(
      */
     if(qos == 2) {
         if(dup) {
+            json_t *kw_mqtt_msg_;
+x            rc = message__remove(gobj, mid, mosq_md_in, &kw_mqtt_msg_);
+
+
             db__message_remove_incoming_dup(gobj, mid); // Search and remove without warning
         }
 
@@ -7369,18 +7373,15 @@ PRIVATE int handle__publish_c(
     uint16_t mid = 0;
     uint16_t slen;
     json_t *properties = NULL;
-    uint8_t qos;
-    BOOL retain;
-    BOOL dup;
     uint32_t expiry_interval = 0; // TODO get from properties although be client?
 
     /*-----------------------------------*
      *      Get and check the header
      *-----------------------------------*/
     uint8_t header = priv->frame_head.flags;
-    dup = (header & 0x08)>>3;
-    qos = (header & 0x06)>>1;
-    retain = (header & 0x01);
+    BOOL dup = (header & 0x08)>>3;      // possible values of 0,1
+    uint8_t qos = (header & 0x06)>>1;   // shift of two bites -> possible values of 0,1,2,3
+    BOOL retain = (header & 0x01);      // possible values of 0,1
 
     char *topic_;
     if(mqtt_read_string(gobj, gbuf, &topic_, &slen)<0) {
