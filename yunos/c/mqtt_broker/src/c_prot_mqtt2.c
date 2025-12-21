@@ -5735,14 +5735,6 @@ PRIVATE int handle__connack(
         }
     }
 
-    // json_t *kw_iev = iev_create(
-    //     gobj,
-    //     EV_MQTT_CONNECTED,
-    //     json_incref(jn_data) // owned
-    // );
-    //
-    // gobj_publish_event(gobj, EV_ON_IEV_MESSAGE, kw_iev);
-
     switch(reason_code) {
         case 0:
             // TODO message__retry_check(mosq); important!
