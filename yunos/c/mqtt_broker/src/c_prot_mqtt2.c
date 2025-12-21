@@ -866,7 +866,7 @@ PRIVATE int open_queues(hgobj gobj)
         topic_name,
         "tm",
         0,  // system_flag
-        0,  // max_inflight_messages
+        0,  // max_inflight_messages TODO
         gobj_read_integer_attr(gobj, "backup_queue_size")
     );
 
@@ -887,7 +887,7 @@ PRIVATE int open_queues(hgobj gobj)
         topic_name,
         "tm",
         0,  // system_flag
-        0,  // max_inflight_messages
+        0,  // max_inflight_messages TODO
         gobj_read_integer_attr(gobj, "backup_queue_size")
     );
 
@@ -2089,8 +2089,6 @@ PRIVATE int db__message_insert(
 PRIVATE int db__message_write_queued_in(hgobj gobj)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
-    struct mosquitto_client_msg *tail, *tmp;
-    int rc;
 
     register q2_msg_t *msg;
     Q2MSG_FOREACH_FORWARD_QUEUED(priv->trq_in_msgs, msg) {
@@ -6951,7 +6949,6 @@ PRIVATE int handle__publish_s(
      *          Get the payload
      *-----------------------------------*/
     size_t payloadlen = gbuffer_leftbytes(gbuf);
-    // G_PUB_BYTES_RECEIVED_INC(msg->payloadlen);
 
     if(payloadlen) {
         if(priv->message_size_limit && payloadlen > priv->message_size_limit) {
