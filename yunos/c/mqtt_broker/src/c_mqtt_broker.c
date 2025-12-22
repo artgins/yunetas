@@ -765,7 +765,6 @@ PRIVATE int ac_on_open(hgobj gobj, const char *event, json_t *kw, hgobj src)
      *  Open the client session
      *      or create it if it doesn't exist (if has permission TODO)
      *----------------------------------------------------------------*/
-
     json_t *client = gobj_get_node(
         priv->gobj_treedb_mqtt_broker,
         "clients",
