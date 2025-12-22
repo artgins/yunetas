@@ -1,0 +1,537 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>TreeDB Data: MQTT Subscriptions Example</title>
+  <style>
+    body {
+      margin: 0;
+      padding: 20px;
+      background: #f0f4f8;
+      font-family: Arial, sans-serif;
+    }
+    .container {
+      background: white;
+      border-radius: 8px;
+      box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+      padding: 20px;
+      max-width: 1400px;
+      margin: 0 auto;
+    }
+    .controls {
+      position: absolute;
+      top: 30px;
+      right: 30px;
+      display: flex;
+      flex-direction: column;
+      gap: 5px;
+      z-index: 100;
+    }
+    .controls button {
+      width: 36px;
+      height: 36px;
+      font-size: 20px;
+      font-weight: bold;
+      border: 1px solid #cbd5e1;
+      border-radius: 6px;
+      background: white;
+      color: #334155;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+      transition: all 0.15s;
+    }
+    .controls button:hover {
+      background: #f1f5f9;
+      border-color: #94a3b8;
+    }
+    .controls button:active {
+      background: #e2e8f0;
+    }
+    .controls .zoom-label {
+      font-size: 11px;
+      text-align: center;
+      color: #64748b;
+      font-family: 'Courier New', monospace;
+    }
+    .svg-container {
+      position: relative;
+    }
+    svg {
+      width: 100%;
+      height: 700px;
+      border: 1px solid #e2e8f0;
+      border-radius: 4px;
+      background: #fafbfc;
+      cursor: grab;
+    }
+    svg:active {
+      cursor: grabbing;
+    }
+    svg.dragging-node {
+      cursor: move;
+    }
+    .node-client { 
+      fill: #dbeafe; 
+      stroke: #2563eb; 
+      stroke-width: 2; 
+      cursor: move; 
+    }
+    .node-client:hover { 
+      stroke-width: 3; 
+      fill: #bfdbfe;
+    }
+    .node-subscription { 
+      fill: #fef3c7; 
+      stroke: #d97706; 
+      stroke-width: 2; 
+      cursor: move; 
+    }
+    .node-subscription:hover { 
+      stroke-width: 3; 
+      fill: #fde68a;
+    }
+    .node-subscription.shared {
+      fill: #d1fae5;
+      stroke: #059669;
+    }
+    .node-subscription.shared:hover {
+      fill: #a7f3d0;
+    }
+    .node-header-client { 
+      fill: #2563eb; 
+      pointer-events: none; 
+    }
+    .node-header-subscription { 
+      fill: #d97706; 
+      pointer-events: none; 
+    }
+    .node-header-subscription.shared { 
+      fill: #059669; 
+      pointer-events: none; 
+    }
+    .node-title { 
+      font-family: 'Courier New', monospace; 
+      font-size: 12px; 
+      font-weight: bold; 
+      fill: white; 
+      pointer-events: none; 
+    }
+    .field-label { 
+      font-family: 'Courier New', monospace; 
+      font-size: 10px; 
+      fill: #64748b; 
+      pointer-events: none; 
+    }
+    .field-value { 
+      font-family: 'Courier New', monospace; 
+      font-size: 11px; 
+      fill: #1e293b; 
+      font-weight: bold;
+      pointer-events: none; 
+    }
+    .link-hook { 
+      stroke: #2563eb; 
+      stroke-width: 2; 
+      fill: none; 
+      pointer-events: none; 
+    }
+    .title { 
+      font-family: Arial, sans-serif; 
+      font-size: 18px; 
+      font-weight: bold; 
+      fill: #1e293b; 
+    }
+    .subtitle { 
+      font-family: Arial, sans-serif; 
+      font-size: 12px; 
+      fill: #64748b; 
+    }
+    .dragging { 
+      opacity: 0.7; 
+    }
+    .legend-box {
+      fill: #f8fafc;
+      stroke: #cbd5e1;
+    }
+    .legend-text {
+      font-family: 'Courier New', monospace;
+      font-size: 11px;
+      fill: #334155;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="svg-container">
+      <div class="controls">
+        <button id="zoom-in" title="Zoom In">+</button>
+        <button id="zoom-out" title="Zoom Out">−</button>
+        <button id="zoom-reset" title="Reset Zoom">⟲</button>
+        <div class="zoom-label" id="zoom-level">100%</div>
+        <div class="zoom-label" style="margin-top: 8px; font-size: 9px;">drag bg<br/>to pan</div>
+      </div>
+      <svg id="schema-svg" viewBox="0 0 1100 650">
+        <defs>
+          <marker id="arrowhead-blue" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto">
+            <polygon points="0 0, 10 3.5, 0 7" fill="#2563eb"/>
+          </marker>
+        </defs>
+
+        <!-- Title -->
+        <text x="550" y="30" text-anchor="middle" class="title">TreeDB Data Instance: MQTT Subscriptions</text>
+        <text x="550" y="50" text-anchor="middle" class="subtitle">(drag nodes to reposition • unique subscriptions, multiple client links)</text>
+
+        <!-- Legend -->
+        <g transform="translate(20, 70)">
+          <rect x="0" y="0" width="320" height="85" class="legend-box" rx="4"/>
+          <text x="10" y="18" class="legend-text" font-weight="bold">Legend:</text>
+          <rect x="10" y="28" width="16" height="12" fill="#dbeafe" stroke="#2563eb" stroke-width="1" rx="2"/>
+          <text x="32" y="38" class="legend-text">client</text>
+          <rect x="100" y="28" width="16" height="12" fill="#fef3c7" stroke="#d97706" stroke-width="1" rx="2"/>
+          <text x="122" y="38" class="legend-text">subscription (1 client)</text>
+          <rect x="10" y="48" width="16" height="12" fill="#d1fae5" stroke="#059669" stroke-width="1" rx="2"/>
+          <text x="32" y="58" class="legend-text">subscription (N clients)</text>
+          <line x1="10" y1="75" x2="30" y2="75" stroke="#2563eb" stroke-width="2" marker-end="url(#arrowhead-blue)"/>
+          <text x="36" y="78" class="legend-text">clients.subscriptions {} hook</text>
+        </g>
+
+        <!-- Links container -->
+        <g id="links"></g>
+
+        <!-- CLIENT 1: sensor-001 -->
+        <g id="node-client1" class="draggable" data-type="client" transform="translate(100, 250)">
+          <rect class="node-client" x="0" y="0" width="200" height="110" rx="8"/>
+          <rect class="node-header-client" x="0" y="0" width="200" height="24" rx="8"/>
+          <rect class="node-header-client" x="0" y="12" width="200" height="12"/>
+          <text x="100" y="17" text-anchor="middle" class="node-title">clients</text>
+          
+          <text x="10" y="42" class="field-label">id:</text>
+          <text x="30" y="42" class="field-value">"sensor-001"</text>
+          
+          <text x="10" y="62" class="field-label">username:</text>
+          <text x="75" y="62" class="field-value">"temp_monitor"</text>
+          
+          <text x="10" y="82" class="field-label">protocol_version:</text>
+          <text x="120" y="82" class="field-value">5</text>
+          
+          <text x="10" y="100" class="field-label">subscriptions:</text>
+          <text x="95" y="100" class="field-value">{3}</text>
+        </g>
+
+        <!-- CLIENT 2: sensor-002 -->
+        <g id="node-client2" class="draggable" data-type="client" transform="translate(100, 450)">
+          <rect class="node-client" x="0" y="0" width="200" height="110" rx="8"/>
+          <rect class="node-header-client" x="0" y="0" width="200" height="24" rx="8"/>
+          <rect class="node-header-client" x="0" y="12" width="200" height="12"/>
+          <text x="100" y="17" text-anchor="middle" class="node-title">clients</text>
+          
+          <text x="10" y="42" class="field-label">id:</text>
+          <text x="30" y="42" class="field-value">"sensor-002"</text>
+          
+          <text x="10" y="62" class="field-label">username:</text>
+          <text x="75" y="62" class="field-value">"humidity_mon"</text>
+          
+          <text x="10" y="82" class="field-label">protocol_version:</text>
+          <text x="120" y="82" class="field-value">5</text>
+          
+          <text x="10" y="100" class="field-label">subscriptions:</text>
+          <text x="95" y="100" class="field-value">{3}</text>
+        </g>
+
+        <!-- SUBSCRIPTION 1: home/temperature (only sensor-001) -->
+        <g id="node-sub1" class="draggable" data-type="subscription" transform="translate(500, 180)">
+          <rect class="node-subscription" x="0" y="0" width="220" height="70" rx="6"/>
+          <rect class="node-header-subscription" x="0" y="0" width="220" height="22" rx="6"/>
+          <rect class="node-header-subscription" x="0" y="11" width="220" height="11"/>
+          <text x="110" y="15" text-anchor="middle" class="node-title">subscriptions</text>
+          
+          <text x="10" y="40" class="field-label">id:</text>
+          <text x="30" y="40" class="field-value">"home/temperature"</text>
+          
+          <text x="10" y="58" class="field-label">qos:</text>
+          <text x="35" y="58" class="field-value">1</text>
+        </g>
+
+        <!-- SUBSCRIPTION 2: home/+/status (SHARED) -->
+        <g id="node-sub2" class="draggable" data-type="subscription" transform="translate(500, 300)">
+          <rect class="node-subscription shared" x="0" y="0" width="220" height="70" rx="6"/>
+          <rect class="node-header-subscription shared" x="0" y="0" width="220" height="22" rx="6"/>
+          <rect class="node-header-subscription shared" x="0" y="11" width="220" height="11"/>
+          <text x="110" y="15" text-anchor="middle" class="node-title">subscriptions</text>
+          
+          <text x="10" y="40" class="field-label">id:</text>
+          <text x="30" y="40" class="field-value">"home/+/status"</text>
+          
+          <text x="10" y="58" class="field-label">qos:</text>
+          <text x="35" y="58" class="field-value">1</text>
+        </g>
+
+        <!-- SUBSCRIPTION 3: system/commands (SHARED) -->
+        <g id="node-sub3" class="draggable" data-type="subscription" transform="translate(500, 420)">
+          <rect class="node-subscription shared" x="0" y="0" width="220" height="70" rx="6"/>
+          <rect class="node-header-subscription shared" x="0" y="0" width="220" height="22" rx="6"/>
+          <rect class="node-header-subscription shared" x="0" y="11" width="220" height="11"/>
+          <text x="110" y="15" text-anchor="middle" class="node-title">subscriptions</text>
+          
+          <text x="10" y="40" class="field-label">id:</text>
+          <text x="30" y="40" class="field-value">"system/commands"</text>
+          
+          <text x="10" y="58" class="field-label">qos:</text>
+          <text x="35" y="58" class="field-value">2</text>
+        </g>
+
+        <!-- SUBSCRIPTION 4: home/humidity (only sensor-002) -->
+        <g id="node-sub4" class="draggable" data-type="subscription" transform="translate(500, 540)">
+          <rect class="node-subscription" x="0" y="0" width="220" height="70" rx="6"/>
+          <rect class="node-header-subscription" x="0" y="0" width="220" height="22" rx="6"/>
+          <rect class="node-header-subscription" x="0" y="11" width="220" height="11"/>
+          <text x="110" y="15" text-anchor="middle" class="node-title">subscriptions</text>
+          
+          <text x="10" y="40" class="field-label">id:</text>
+          <text x="30" y="40" class="field-value">"home/humidity"</text>
+          
+          <text x="10" y="58" class="field-label">qos:</text>
+          <text x="35" y="58" class="field-value">1</text>
+        </g>
+
+      </svg>
+    </div>
+  </div>
+
+  <script>
+    (function() {
+      const svg = document.getElementById('schema-svg');
+      const linksContainer = document.getElementById('links');
+      let selectedNode = null;
+      let offset = { x: 0, y: 0 };
+
+      // Node dimensions
+      const nodeSizes = {
+        'node-client1': { w: 200, h: 110 },
+        'node-client2': { w: 200, h: 110 },
+        'node-sub1': { w: 220, h: 70 },
+        'node-sub2': { w: 220, h: 70 },
+        'node-sub3': { w: 220, h: 70 },
+        'node-sub4': { w: 220, h: 70 }
+      };
+
+      // Link definitions: [clientId, subId]
+      const linkDefs = [
+        ['node-client1', 'node-sub1'],  // sensor-001 -> home/temperature
+        ['node-client1', 'node-sub2'],  // sensor-001 -> home/+/status
+        ['node-client1', 'node-sub3'],  // sensor-001 -> system/commands
+        ['node-client2', 'node-sub2'],  // sensor-002 -> home/+/status
+        ['node-client2', 'node-sub3'],  // sensor-002 -> system/commands
+        ['node-client2', 'node-sub4']   // sensor-002 -> home/humidity
+      ];
+
+      function getNodePos(id) {
+        const node = document.getElementById(id);
+        const transform = node.getAttribute('transform');
+        const match = transform.match(/translate\(([^,]+),\s*([^)]+)\)/);
+        return {
+          x: parseFloat(match[1]),
+          y: parseFloat(match[2]),
+          w: nodeSizes[id].w,
+          h: nodeSizes[id].h
+        };
+      }
+
+      function setNodePos(node, x, y) {
+        node.setAttribute('transform', `translate(${x}, ${y})`);
+      }
+
+      function initLinks() {
+        linksContainer.innerHTML = '';
+        linkDefs.forEach((def, i) => {
+          const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+          path.setAttribute('id', `link-${i}`);
+          path.setAttribute('class', 'link-hook');
+          path.setAttribute('marker-end', 'url(#arrowhead-blue)');
+          linksContainer.appendChild(path);
+        });
+      }
+
+      function updateLinks() {
+        linkDefs.forEach((def, i) => {
+          const client = getNodePos(def[0]);
+          const sub = getNodePos(def[1]);
+          
+          const startX = client.x + client.w;
+          const startY = client.y + client.h / 2;
+          const endX = sub.x;
+          const endY = sub.y + sub.h / 2;
+          
+          const ctrlOffset = Math.min(100, Math.abs(endX - startX) / 2);
+          
+          const path = document.getElementById(`link-${i}`);
+          path.setAttribute('d', 
+            `M ${startX} ${startY} C ${startX + ctrlOffset} ${startY}, ${endX - ctrlOffset} ${endY}, ${endX} ${endY}`
+          );
+        });
+      }
+
+      // Zoom & Pan
+      let currentZoom = 1;
+      const zoomStep = 0.15;
+      const minZoom = 0.3;
+      const maxZoom = 3;
+      const viewBox = { x: 0, y: 0, w: 1100, h: 650 };
+      const originalViewBox = { x: 0, y: 0, w: 1100, h: 650 };
+      let isPanning = false;
+      let panStart = { x: 0, y: 0 };
+
+      function getMousePosition(evt) {
+        const rect = svg.getBoundingClientRect();
+        return {
+          x: viewBox.x + (evt.clientX - rect.left) / rect.width * viewBox.w,
+          y: viewBox.y + (evt.clientY - rect.top) / rect.height * viewBox.h
+        };
+      }
+
+      function updateViewBox() {
+        svg.setAttribute('viewBox', `${viewBox.x} ${viewBox.y} ${viewBox.w} ${viewBox.h}`);
+      }
+
+      function updateZoom(centerX, centerY) {
+        const newW = originalViewBox.w / currentZoom;
+        const newH = originalViewBox.h / currentZoom;
+        
+        if (centerX !== undefined && centerY !== undefined) {
+          const scaleChange = viewBox.w / newW;
+          viewBox.x = centerX - (centerX - viewBox.x) / scaleChange;
+          viewBox.y = centerY - (centerY - viewBox.y) / scaleChange;
+        }
+        
+        viewBox.w = newW;
+        viewBox.h = newH;
+        updateViewBox();
+        document.getElementById('zoom-level').textContent = Math.round(currentZoom * 100) + '%';
+      }
+
+      document.getElementById('zoom-in').addEventListener('click', function() {
+        currentZoom = Math.min(maxZoom, currentZoom + zoomStep);
+        updateZoom();
+      });
+
+      document.getElementById('zoom-out').addEventListener('click', function() {
+        currentZoom = Math.max(minZoom, currentZoom - zoomStep);
+        updateZoom();
+      });
+
+      document.getElementById('zoom-reset').addEventListener('click', function() {
+        currentZoom = 1;
+        viewBox.x = 0;
+        viewBox.y = 0;
+        viewBox.w = originalViewBox.w;
+        viewBox.h = originalViewBox.h;
+        updateViewBox();
+        document.getElementById('zoom-level').textContent = '100%';
+      });
+
+      svg.addEventListener('wheel', function(evt) {
+        evt.preventDefault();
+        const rect = svg.getBoundingClientRect();
+        const mouseX = viewBox.x + (evt.clientX - rect.left) / rect.width * viewBox.w;
+        const mouseY = viewBox.y + (evt.clientY - rect.top) / rect.height * viewBox.h;
+        
+        if (evt.deltaY < 0) {
+          currentZoom = Math.min(maxZoom, currentZoom + zoomStep);
+        } else {
+          currentZoom = Math.max(minZoom, currentZoom - zoomStep);
+        }
+        updateZoom(mouseX, mouseY);
+      }, { passive: false });
+
+      function startPan(evt) {
+        if (selectedNode) return;
+        isPanning = true;
+        panStart = getMousePosition(evt);
+        svg.style.cursor = 'grabbing';
+      }
+
+      function doPan(evt) {
+        if (!isPanning) return;
+        evt.preventDefault();
+        const pos = getMousePosition(evt);
+        viewBox.x += (panStart.x - pos.x);
+        viewBox.y += (panStart.y - pos.y);
+        updateViewBox();
+        panStart = getMousePosition(evt);
+      }
+
+      function endPan() {
+        if (isPanning) {
+          isPanning = false;
+          svg.style.cursor = 'grab';
+        }
+      }
+
+      function startDrag(evt) {
+        const target = evt.target;
+        if (target.classList.contains('node-client') || target.classList.contains('node-subscription')) {
+          selectedNode = target.parentNode;
+          selectedNode.classList.add('dragging');
+          svg.classList.add('dragging-node');
+          
+          const pos = getMousePosition(evt);
+          const nodePos = getNodePos(selectedNode.id);
+          offset.x = pos.x - nodePos.x;
+          offset.y = pos.y - nodePos.y;
+          
+          selectedNode.parentNode.appendChild(selectedNode);
+        } else {
+          startPan(evt);
+        }
+      }
+
+      function drag(evt) {
+        if (selectedNode) {
+          evt.preventDefault();
+          const pos = getMousePosition(evt);
+          setNodePos(selectedNode, pos.x - offset.x, pos.y - offset.y);
+          updateLinks();
+        } else if (isPanning) {
+          doPan(evt);
+        }
+      }
+
+      function endDrag() {
+        if (selectedNode) {
+          selectedNode.classList.remove('dragging');
+          svg.classList.remove('dragging-node');
+          selectedNode = null;
+        }
+        endPan();
+      }
+
+      svg.addEventListener('mousedown', startDrag);
+      svg.addEventListener('mousemove', drag);
+      svg.addEventListener('mouseup', endDrag);
+      svg.addEventListener('mouseleave', endDrag);
+
+      svg.addEventListener('touchstart', function(evt) {
+        if (evt.touches.length === 1) {
+          const touch = evt.touches[0];
+          startDrag({ target: document.elementFromPoint(touch.clientX, touch.clientY), clientX: touch.clientX, clientY: touch.clientY });
+        }
+      });
+      svg.addEventListener('touchmove', function(evt) {
+        if (evt.touches.length === 1) {
+          evt.preventDefault();
+          drag({ preventDefault: () => {}, clientX: evt.touches[0].clientX, clientY: evt.touches[0].clientY });
+        }
+      }, { passive: false });
+      svg.addEventListener('touchend', endDrag);
+      svg.addEventListener('touchcancel', endDrag);
+
+      initLinks();
+      updateLinks();
+    })();
+  </script>
+</body>
+</html>

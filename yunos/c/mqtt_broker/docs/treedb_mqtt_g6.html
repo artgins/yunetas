@@ -1,0 +1,541 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>TreeDB Data: MQTT Subscriptions (AntV G6)</title>
+  <style>
+    body {
+      margin: 0;
+      padding: 20px;
+      background: #f0f4f8;
+      font-family: Arial, sans-serif;
+    }
+    .container {
+      background: white;
+      border-radius: 8px;
+      box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+      padding: 20px;
+      max-width: 1200px;
+      margin: 0 auto;
+    }
+    h2 {
+      margin: 0 0 5px 0;
+      color: #1e293b;
+    }
+    .subtitle {
+      color: #64748b;
+      font-size: 14px;
+      margin-bottom: 15px;
+    }
+    #graph-container {
+      width: 100%;
+      height: 600px;
+      border: 1px solid #e2e8f0;
+      border-radius: 4px;
+      background: #fafbfc;
+    }
+    .legend {
+      display: flex;
+      gap: 20px;
+      margin-bottom: 15px;
+      flex-wrap: wrap;
+    }
+    .legend-item {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 13px;
+      color: #334155;
+    }
+    .legend-box {
+      width: 16px;
+      height: 16px;
+      border-radius: 3px;
+    }
+    .legend-line {
+      width: 24px;
+      height: 2px;
+    }
+    .controls {
+      margin-bottom: 15px;
+      display: flex;
+      gap: 10px;
+    }
+    .controls button {
+      padding: 8px 16px;
+      border: 1px solid #cbd5e1;
+      border-radius: 6px;
+      background: white;
+      color: #334155;
+      cursor: pointer;
+      font-size: 14px;
+      transition: all 0.15s;
+    }
+    .controls button:hover {
+      background: #f1f5f9;
+      border-color: #94a3b8;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h2>TreeDB Data Instance: MQTT Subscriptions</h2>
+    <p class="subtitle">AntV G6 visualization • drag nodes • scroll to zoom • drag background to pan</p>
+    
+    <div class="legend">
+      <div class="legend-item">
+        <div class="legend-box" style="background: #dbeafe; border: 2px solid #2563eb;"></div>
+        <span>client</span>
+      </div>
+      <div class="legend-item">
+        <div class="legend-box" style="background: #fef3c7; border: 2px solid #d97706;"></div>
+        <span>subscription (1 client)</span>
+      </div>
+      <div class="legend-item">
+        <div class="legend-box" style="background: #d1fae5; border: 2px solid #059669;"></div>
+        <span>subscription (N clients)</span>
+      </div>
+      <div class="legend-item">
+        <div class="legend-line" style="background: #2563eb;"></div>
+        <span>hook {}</span>
+      </div>
+    </div>
+
+    <div class="controls">
+      <button id="btn-zoom-in">Zoom In (+)</button>
+      <button id="btn-zoom-out">Zoom Out (−)</button>
+      <button id="btn-fit">Fit View</button>
+      <button id="btn-reset">Reset</button>
+    </div>
+
+    <div id="graph-container"><p style="padding:20px;color:#64748b;font-family:monospace;">Loading AntV G6 library...</p></div>
+  </div>
+
+  <script>
+    function loadScript(url) {
+      return new Promise((resolve, reject) => {
+        const script = document.createElement('script');
+        script.src = url;
+        script.onload = resolve;
+        script.onerror = reject;
+        document.head.appendChild(script);
+      });
+    }
+
+    async function loadG6() {
+      const cdnUrls = [
+        'https://cdn.jsdelivr.net/npm/@antv/g6@4.8.24/dist/g6.min.js',
+        'https://unpkg.com/@antv/g6@4.8.24/dist/g6.min.js',
+        'https://gw.alipayobjects.com/os/lib/antv/g6/4.8.24/dist/g6.min.js'
+      ];
+
+      for (const url of cdnUrls) {
+        try {
+          await loadScript(url);
+          if (typeof G6 !== 'undefined') {
+            console.log('G6 loaded from:', url);
+            return true;
+          }
+        } catch (e) {
+          console.warn('Failed to load from:', url);
+        }
+      }
+      return false;
+    }
+
+    async function init() {
+      const loaded = await loadG6();
+      if (!loaded || typeof G6 === 'undefined') {
+        document.getElementById('graph-container').innerHTML = 
+          '<p style="padding:20px;color:#dc2626;font-family:monospace;">Error: Could not load AntV G6 library.<br>Please check your internet connection or try a different browser.</p>';
+        return;
+      }
+
+      initGraph();
+    }
+
+    function initGraph() {
+      // Clear loading message
+      document.getElementById('graph-container').innerHTML = '';
+
+    const data = {
+      nodes: [
+        // Clients
+        {
+          id: 'client1',
+          nodeType: 'client',
+          label: 'clients',
+          data: {
+            id: 'sensor-001',
+            username: 'temp_monitor',
+            protocol_version: 5
+          }
+        },
+        {
+          id: 'client2',
+          nodeType: 'client',
+          label: 'clients',
+          data: {
+            id: 'sensor-002',
+            username: 'humidity_mon',
+            protocol_version: 5
+          }
+        },
+        // Subscriptions
+        {
+          id: 'sub1',
+          nodeType: 'subscription',
+          shared: false,
+          label: 'subscriptions',
+          data: {
+            id: 'home/temperature',
+            qos: 1
+          }
+        },
+        {
+          id: 'sub2',
+          nodeType: 'subscription',
+          shared: true,
+          label: 'subscriptions',
+          data: {
+            id: 'home/+/status',
+            qos: 1
+          }
+        },
+        {
+          id: 'sub3',
+          nodeType: 'subscription',
+          shared: true,
+          label: 'subscriptions',
+          data: {
+            id: 'system/commands',
+            qos: 2
+          }
+        },
+        {
+          id: 'sub4',
+          nodeType: 'subscription',
+          shared: false,
+          label: 'subscriptions',
+          data: {
+            id: 'home/humidity',
+            qos: 1
+          }
+        }
+      ],
+      edges: [
+        { source: 'client1', target: 'sub1', label: 'subscriptions {}' },
+        { source: 'client1', target: 'sub2', label: 'subscriptions {}' },
+        { source: 'client1', target: 'sub3', label: 'subscriptions {}' },
+        { source: 'client2', target: 'sub2', label: 'subscriptions {}' },
+        { source: 'client2', target: 'sub3', label: 'subscriptions {}' },
+        { source: 'client2', target: 'sub4', label: 'subscriptions {}' }
+      ]
+    };
+
+    // Register custom node for client
+    G6.registerNode('client-node', {
+      draw(cfg, group) {
+        const width = 180;
+        const height = 95;
+        
+        // Main box
+        const shape = group.addShape('rect', {
+          attrs: {
+            x: -width / 2,
+            y: -height / 2,
+            width,
+            height,
+            radius: 8,
+            fill: '#dbeafe',
+            stroke: '#2563eb',
+            lineWidth: 2,
+            cursor: 'move'
+          },
+          name: 'main-box'
+        });
+
+        // Header
+        group.addShape('rect', {
+          attrs: {
+            x: -width / 2,
+            y: -height / 2,
+            width,
+            height: 24,
+            radius: [8, 8, 0, 0],
+            fill: '#2563eb'
+          },
+          name: 'header'
+        });
+
+        // Title
+        group.addShape('text', {
+          attrs: {
+            x: 0,
+            y: -height / 2 + 16,
+            text: cfg.label,
+            fontSize: 12,
+            fontWeight: 'bold',
+            fontFamily: 'Courier New, monospace',
+            fill: '#ffffff',
+            textAlign: 'center',
+            textBaseline: 'middle'
+          },
+          name: 'title'
+        });
+
+        // Data fields
+        const startY = -height / 2 + 40;
+        const d = cfg.data;
+        
+        group.addShape('text', {
+          attrs: {
+            x: -width / 2 + 10,
+            y: startY,
+            text: `id: "${d.id}"`,
+            fontSize: 11,
+            fontFamily: 'Courier New, monospace',
+            fill: '#1e293b'
+          }
+        });
+
+        group.addShape('text', {
+          attrs: {
+            x: -width / 2 + 10,
+            y: startY + 18,
+            text: `username: "${d.username}"`,
+            fontSize: 11,
+            fontFamily: 'Courier New, monospace',
+            fill: '#1e293b'
+          }
+        });
+
+        group.addShape('text', {
+          attrs: {
+            x: -width / 2 + 10,
+            y: startY + 36,
+            text: `protocol_version: ${d.protocol_version}`,
+            fontSize: 11,
+            fontFamily: 'Courier New, monospace',
+            fill: '#1e293b'
+          }
+        });
+
+        return shape;
+      },
+      getAnchorPoints() {
+        return [
+          [0, 0.5],   // left
+          [1, 0.5],   // right
+          [0.5, 0],   // top
+          [0.5, 1]    // bottom
+        ];
+      }
+    });
+
+    // Register custom node for subscription
+    G6.registerNode('subscription-node', {
+      draw(cfg, group) {
+        const width = 180;
+        const height = 70;
+        const isShared = cfg.shared;
+        
+        const fillColor = isShared ? '#d1fae5' : '#fef3c7';
+        const strokeColor = isShared ? '#059669' : '#d97706';
+        const headerColor = isShared ? '#059669' : '#d97706';
+
+        // Main box
+        const shape = group.addShape('rect', {
+          attrs: {
+            x: -width / 2,
+            y: -height / 2,
+            width,
+            height,
+            radius: 6,
+            fill: fillColor,
+            stroke: strokeColor,
+            lineWidth: 2,
+            cursor: 'move'
+          },
+          name: 'main-box'
+        });
+
+        // Header
+        group.addShape('rect', {
+          attrs: {
+            x: -width / 2,
+            y: -height / 2,
+            width,
+            height: 22,
+            radius: [6, 6, 0, 0],
+            fill: headerColor
+          },
+          name: 'header'
+        });
+
+        // Title
+        group.addShape('text', {
+          attrs: {
+            x: 0,
+            y: -height / 2 + 14,
+            text: cfg.label,
+            fontSize: 11,
+            fontWeight: 'bold',
+            fontFamily: 'Courier New, monospace',
+            fill: '#ffffff',
+            textAlign: 'center',
+            textBaseline: 'middle'
+          },
+          name: 'title'
+        });
+
+        // Data fields
+        const startY = -height / 2 + 38;
+        const d = cfg.data;
+
+        group.addShape('text', {
+          attrs: {
+            x: -width / 2 + 10,
+            y: startY,
+            text: `id: "${d.id}"`,
+            fontSize: 11,
+            fontFamily: 'Courier New, monospace',
+            fill: '#1e293b'
+          }
+        });
+
+        group.addShape('text', {
+          attrs: {
+            x: -width / 2 + 10,
+            y: startY + 16,
+            text: `qos: ${d.qos}`,
+            fontSize: 11,
+            fontFamily: 'Courier New, monospace',
+            fill: '#1e293b'
+          }
+        });
+
+        return shape;
+      },
+      getAnchorPoints() {
+        return [
+          [0, 0.5],   // left
+          [1, 0.5],   // right
+          [0.5, 0],   // top
+          [0.5, 1]    // bottom
+        ];
+      }
+    });
+
+    // Set node types
+    data.nodes.forEach(node => {
+      if (node.nodeType === 'client') {
+        node.type = 'client-node';
+      } else {
+        node.type = 'subscription-node';
+      }
+    });
+
+    // Set edge styles
+    data.edges.forEach(edge => {
+      edge.style = {
+        stroke: '#2563eb',
+        lineWidth: 2,
+        endArrow: {
+          path: G6.Arrow.triangle(8, 10, 0),
+          fill: '#2563eb'
+        }
+      };
+    });
+
+    // Create graph
+    const container = document.getElementById('graph-container');
+    const width = container.offsetWidth;
+    const height = container.offsetHeight;
+
+    const graph = new G6.Graph({
+      container: 'graph-container',
+      width,
+      height,
+      fitView: true,
+      fitViewPadding: 50,
+      modes: {
+        default: [
+          'drag-canvas',
+          'zoom-canvas',
+          'drag-node'
+        ]
+      },
+      layout: {
+        type: 'dagre',
+        rankdir: 'LR',
+        nodesep: 40,
+        ranksep: 120
+      },
+      defaultEdge: {
+        type: 'cubic-horizontal',
+        style: {
+          stroke: '#2563eb',
+          lineWidth: 2
+        }
+      },
+      animate: true
+    });
+
+    graph.data(data);
+    graph.render();
+
+    // Controls
+    document.getElementById('btn-zoom-in').addEventListener('click', () => {
+      const zoom = graph.getZoom();
+      graph.zoomTo(zoom * 1.2, { x: width / 2, y: height / 2 });
+    });
+
+    document.getElementById('btn-zoom-out').addEventListener('click', () => {
+      const zoom = graph.getZoom();
+      graph.zoomTo(zoom / 1.2, { x: width / 2, y: height / 2 });
+    });
+
+    document.getElementById('btn-fit').addEventListener('click', () => {
+      graph.fitView(50);
+    });
+
+    document.getElementById('btn-reset').addEventListener('click', () => {
+      graph.fitView(50);
+      graph.zoomTo(1);
+    });
+
+    // Resize handler
+    window.addEventListener('resize', () => {
+      const newWidth = container.offsetWidth;
+      const newHeight = container.offsetHeight;
+      graph.changeSize(newWidth, newHeight);
+      graph.fitView(50);
+    });
+
+    // Hover effects
+    graph.on('node:mouseenter', (evt) => {
+      const node = evt.item;
+      graph.setItemState(node, 'hover', true);
+      const shape = node.get('group').find(e => e.get('name') === 'main-box');
+      if (shape) {
+        shape.attr('lineWidth', 3);
+      }
+    });
+
+    graph.on('node:mouseleave', (evt) => {
+      const node = evt.item;
+      graph.setItemState(node, 'hover', false);
+      const shape = node.get('group').find(e => e.get('name') === 'main-box');
+      if (shape) {
+        shape.attr('lineWidth', 2);
+      }
+    });
+    } // end initGraph
+
+    // Start loading
+    init();
+  </script>
+</body>
+</html>

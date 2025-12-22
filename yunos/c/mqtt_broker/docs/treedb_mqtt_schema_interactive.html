@@ -1,0 +1,385 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>TreeDB Schema: MQTT Subscriptions</title>
+  <style>
+    body {
+      margin: 0;
+      padding: 20px;
+      background: #f0f4f8;
+      font-family: Arial, sans-serif;
+    }
+    .container {
+      background: white;
+      border-radius: 8px;
+      box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+      padding: 20px;
+      max-width: 1200px;
+      margin: 0 auto;
+    }
+    svg {
+      width: 100%;
+      height: 700px;
+      border: 1px solid #e2e8f0;
+      border-radius: 4px;
+      background: #fafbfc;
+    }
+    .node-box { 
+      fill: #f8fafc; 
+      stroke: #334155; 
+      stroke-width: 2; 
+      cursor: move; 
+    }
+    .node-box:hover { 
+      stroke: #2563eb; 
+      stroke-width: 3; 
+    }
+    .node-header { 
+      fill: #1e40af; 
+      pointer-events: none; 
+    }
+    .node-title { 
+      font-family: 'Courier New', monospace; 
+      font-size: 16px; 
+      font-weight: bold; 
+      fill: white; 
+      pointer-events: none; 
+    }
+    .field { 
+      font-family: 'Courier New', monospace; 
+      font-size: 11px; 
+      fill: #334155; 
+      pointer-events: none; 
+    }
+    .field-required { 
+      font-family: 'Courier New', monospace; 
+      font-size: 11px; 
+      fill: #334155; 
+      font-weight: bold; 
+      pointer-events: none; 
+    }
+    .field-hook { 
+      font-family: 'Courier New', monospace; 
+      font-size: 11px; 
+      fill: #2563eb; 
+      font-weight: bold; 
+      pointer-events: none; 
+    }
+    .field-fkey { 
+      font-family: 'Courier New', monospace; 
+      font-size: 11px; 
+      fill: #dc2626; 
+      pointer-events: none; 
+    }
+    .link-hook { 
+      stroke: #2563eb; 
+      stroke-width: 2; 
+      fill: none; 
+      pointer-events: none; 
+    }
+    .link-fkey { 
+      stroke: #dc2626; 
+      stroke-width: 2; 
+      fill: none; 
+      stroke-dasharray: 5,3; 
+      pointer-events: none; 
+    }
+    .legend-text { 
+      font-family: 'Courier New', monospace; 
+      font-size: 11px; 
+      fill: #334155; 
+    }
+    .title { 
+      font-family: Arial, sans-serif; 
+      font-size: 18px; 
+      font-weight: bold; 
+      fill: #1e293b; 
+    }
+    .cardinality { 
+      font-family: 'Courier New', monospace; 
+      font-size: 12px; 
+      font-weight: bold; 
+      pointer-events: none; 
+    }
+    .dragging { 
+      opacity: 0.8; 
+    }
+    .separator { 
+      pointer-events: none; 
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <svg id="schema-svg" viewBox="0 0 1100 700">
+      <defs>
+        <marker id="arrowhead-hook" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto">
+          <polygon points="0 0, 10 3.5, 0 7" fill="#2563eb"/>
+        </marker>
+      </defs>
+
+      <!-- Title -->
+      <text x="550" y="30" text-anchor="middle" class="title">TreeDB Schema: MQTT Subscriptions Model (drag nodes to reposition)</text>
+
+      <!-- Legend -->
+      <g transform="translate(20, 50)">
+        <rect x="0" y="0" width="200" height="80" fill="#f1f5f9" stroke="#cbd5e1" rx="4"/>
+        <text x="10" y="18" class="legend-text" font-weight="bold">Legend:</text>
+        <line x1="10" y1="32" x2="40" y2="32" class="link-hook" marker-end="url(#arrowhead-hook)"/>
+        <text x="50" y="36" class="legend-text">{} hook (1:N)</text>
+        <line x1="10" y1="52" x2="40" y2="52" class="link-fkey"/>
+        <text x="50" y="56" class="legend-text">(↖) fkey (N:1)</text>
+        <text x="10" y="74" class="field-required">* required field</text>
+      </g>
+
+      <!-- Links container (rendered behind nodes) -->
+      <g id="links">
+        <path id="link-clients-subscriptions" class="link-hook" marker-end="url(#arrowhead-hook)"/>
+        <text id="card-clients-N" class="cardinality" fill="#2563eb">N</text>
+        
+        <path id="link-subscriptions-clients" class="link-fkey"/>
+        <text id="card-subscriptions-1" class="cardinality" fill="#dc2626">1</text>
+
+        <path id="link-shared-subscriptions" class="link-hook" marker-end="url(#arrowhead-hook)"/>
+        <text id="card-shared-N" class="cardinality" fill="#2563eb">N</text>
+
+        <path id="link-subscriptions-shared" class="link-fkey"/>
+        <text id="card-subscriptions-n" class="cardinality" fill="#dc2626">n</text>
+      </g>
+
+      <!-- CLIENTS NODE -->
+      <g id="node-clients" class="draggable" transform="translate(50, 140)">
+        <rect class="node-box" x="0" y="0" width="240" height="340" rx="8"/>
+        <rect class="node-header" x="0" y="0" width="240" height="28" rx="8"/>
+        <rect class="node-header" x="0" y="14" width="240" height="14"/>
+        <text x="120" y="20" text-anchor="middle" class="node-title">clients</text>
+        
+        <text x="15" y="50" class="field-required">* id (client_id)</text>
+        <text x="15" y="68" class="field-hook">  subscriptions {}</text>
+        
+        <text x="15" y="95" class="field">  protocol_version</text>
+        <text x="15" y="113" class="field">  clean_start</text>
+        <text x="15" y="131" class="field">  username</text>
+        <text x="15" y="149" class="field">  keep_alive</text>
+        <text x="15" y="167" class="field">  session_expiry_interval</text>
+        <text x="15" y="185" class="field">  connected</text>
+        
+        <line x1="15" y1="195" x2="225" y2="195" stroke="#e2e8f0" stroke-width="1" class="separator"/>
+        <text x="15" y="213" class="field" font-style="italic">  -- Will Message --</text>
+        <text x="15" y="231" class="field">  will_topic</text>
+        <text x="15" y="249" class="field">  will_payload</text>
+        <text x="15" y="267" class="field">  will_qos</text>
+        <text x="15" y="285" class="field">  will_retain</text>
+        <text x="15" y="303" class="field">  will_delay_interval</text>
+        
+        <line x1="15" y1="313" x2="225" y2="313" stroke="#e2e8f0" stroke-width="1" class="separator"/>
+        <text x="15" y="331" class="field">  _geometry</text>
+      </g>
+
+      <!-- SUBSCRIPTIONS NODE -->
+      <g id="node-subscriptions" class="draggable" transform="translate(420, 180)">
+        <rect class="node-box" x="0" y="0" width="240" height="260" rx="8"/>
+        <rect class="node-header" x="0" y="0" width="240" height="28" rx="8"/>
+        <rect class="node-header" x="0" y="14" width="240" height="14"/>
+        <text x="120" y="20" text-anchor="middle" class="node-title">subscriptions</text>
+        
+        <text x="15" y="50" class="field-required">* id (topic_filter)</text>
+        
+        <text x="15" y="77" class="field-fkey">  client_id (↖)</text>
+        
+        <text x="15" y="104" class="field-required">* qos</text>
+        <text x="15" y="122" class="field">  no_local</text>
+        <text x="15" y="140" class="field">  retain_as_published</text>
+        <text x="15" y="158" class="field">  retain_handling</text>
+        <text x="15" y="176" class="field">  identifier</text>
+        
+        <line x1="15" y1="186" x2="225" y2="186" stroke="#e2e8f0" stroke-width="1" class="separator"/>
+        <text x="15" y="204" class="field-fkey">  shared_group [↖]</text>
+        
+        <line x1="15" y1="222" x2="225" y2="222" stroke="#e2e8f0" stroke-width="1" class="separator"/>
+        <text x="15" y="240" class="field">  _geometry</text>
+      </g>
+
+      <!-- SHARED_GROUPS NODE -->
+      <g id="node-shared_groups" class="draggable" transform="translate(790, 140)">
+        <rect class="node-box" x="0" y="0" width="240" height="140" rx="8"/>
+        <rect class="node-header" x="0" y="0" width="240" height="28" rx="8"/>
+        <rect class="node-header" x="0" y="14" width="240" height="14"/>
+        <text x="120" y="20" text-anchor="middle" class="node-title">shared_groups</text>
+        
+        <text x="15" y="50" class="field-required">* id (group_name)</text>
+        <text x="15" y="68" class="field-hook">  subscriptions {}</text>
+        
+        <text x="15" y="95" class="field-required">* topic_filter</text>
+        
+        <line x1="15" y1="110" x2="225" y2="110" stroke="#e2e8f0" stroke-width="1" class="separator"/>
+        <text x="15" y="128" class="field">  _geometry</text>
+      </g>
+
+      <!-- RETAINED_MSGS NODE -->
+      <g id="node-retained_msgs" class="draggable" transform="translate(790, 360)">
+        <rect class="node-box" x="0" y="0" width="240" height="290" rx="8"/>
+        <rect class="node-header" x="0" y="0" width="240" height="28" rx="8"/>
+        <rect class="node-header" x="0" y="14" width="240" height="14"/>
+        <text x="120" y="20" text-anchor="middle" class="node-title">retained_msgs</text>
+        
+        <text x="15" y="50" class="field-required">* id (topic)</text>
+        
+        <text x="15" y="77" class="field">  payload</text>
+        <text x="15" y="95" class="field">  qos</text>
+        <text x="15" y="113" class="field">  time</text>
+        <text x="15" y="131" class="field">  message_expiry_interval</text>
+        
+        <line x1="15" y1="141" x2="225" y2="141" stroke="#e2e8f0" stroke-width="1" class="separator"/>
+        <text x="15" y="159" class="field" font-style="italic">  -- MQTT 5.0 Props --</text>
+        <text x="15" y="177" class="field">  payload_format_indicator</text>
+        <text x="15" y="195" class="field">  content_type</text>
+        <text x="15" y="213" class="field">  response_topic</text>
+        <text x="15" y="231" class="field">  correlation_data</text>
+        <text x="15" y="249" class="field">  user_properties</text>
+        
+        <line x1="15" y1="259" x2="225" y2="259" stroke="#e2e8f0" stroke-width="1" class="separator"/>
+        <text x="15" y="277" class="field">  _geometry</text>
+      </g>
+    </svg>
+  </div>
+
+  <script>
+    (function() {
+      const svg = document.getElementById('schema-svg');
+      let selectedNode = null;
+      let offset = { x: 0, y: 0 };
+
+      // Node dimensions
+      const nodeSizes = {
+        'node-clients': { w: 240, h: 340 },
+        'node-subscriptions': { w: 240, h: 260 },
+        'node-shared_groups': { w: 240, h: 140 },
+        'node-retained_msgs': { w: 240, h: 290 }
+      };
+
+      function getNodePos(id) {
+        const node = document.getElementById(id);
+        const transform = node.getAttribute('transform');
+        const match = transform.match(/translate\(([^,]+),\s*([^)]+)\)/);
+        return {
+          x: parseFloat(match[1]),
+          y: parseFloat(match[2]),
+          w: nodeSizes[id].w,
+          h: nodeSizes[id].h
+        };
+      }
+
+      function setNodePos(node, x, y) {
+        node.setAttribute('transform', `translate(${x}, ${y})`);
+      }
+
+      function updateLinks() {
+        const clients = getNodePos('node-clients');
+        const subs = getNodePos('node-subscriptions');
+        const shared = getNodePos('node-shared_groups');
+
+        // clients -> subscriptions (hook from subscriptions field)
+        const c1 = { x: clients.x + clients.w, y: clients.y + 68 };
+        const s1 = { x: subs.x, y: subs.y + 77 };
+        document.getElementById('link-clients-subscriptions').setAttribute('d',
+          `M ${c1.x} ${c1.y} C ${c1.x + 50} ${c1.y}, ${s1.x - 50} ${s1.y}, ${s1.x} ${s1.y}`);
+        document.getElementById('card-clients-N').setAttribute('x', c1.x + 8);
+        document.getElementById('card-clients-N').setAttribute('y', c1.y - 5);
+
+        // subscriptions -> clients (fkey)
+        const s2 = { x: subs.x, y: subs.y + 50 };
+        const c2 = { x: clients.x + clients.w, y: clients.y + 50 };
+        document.getElementById('link-subscriptions-clients').setAttribute('d',
+          `M ${s2.x} ${s2.y} C ${s2.x - 50} ${s2.y}, ${c2.x + 50} ${c2.y}, ${c2.x} ${c2.y}`);
+        document.getElementById('card-subscriptions-1').setAttribute('x', c2.x + 8);
+        document.getElementById('card-subscriptions-1').setAttribute('y', c2.y - 5);
+
+        // shared_groups -> subscriptions (hook)
+        const sh1 = { x: shared.x, y: shared.y + 68 };
+        const s3 = { x: subs.x + subs.w, y: subs.y + 204 };
+        document.getElementById('link-shared-subscriptions').setAttribute('d',
+          `M ${sh1.x} ${sh1.y} C ${sh1.x - 50} ${sh1.y}, ${s3.x + 50} ${s3.y}, ${s3.x} ${s3.y}`);
+        document.getElementById('card-shared-N').setAttribute('x', sh1.x - 20);
+        document.getElementById('card-shared-N').setAttribute('y', sh1.y - 5);
+
+        // subscriptions -> shared_groups (fkey)
+        const s4 = { x: subs.x + subs.w, y: subs.y + 180 };
+        const sh2 = { x: shared.x, y: shared.y + 50 };
+        document.getElementById('link-subscriptions-shared').setAttribute('d',
+          `M ${s4.x} ${s4.y} C ${s4.x + 50} ${s4.y}, ${sh2.x - 50} ${sh2.y}, ${sh2.x} ${sh2.y}`);
+        document.getElementById('card-subscriptions-n').setAttribute('x', s4.x + 8);
+        document.getElementById('card-subscriptions-n').setAttribute('y', s4.y - 5);
+      }
+
+      function getMousePosition(evt) {
+        const CTM = svg.getScreenCTM();
+        return {
+          x: (evt.clientX - CTM.e) / CTM.a,
+          y: (evt.clientY - CTM.f) / CTM.d
+        };
+      }
+
+      function startDrag(evt) {
+        const target = evt.target;
+        if (target.classList.contains('node-box')) {
+          selectedNode = target.parentNode;
+          selectedNode.classList.add('dragging');
+          
+          const pos = getMousePosition(evt);
+          const nodePos = getNodePos(selectedNode.id);
+          offset.x = pos.x - nodePos.x;
+          offset.y = pos.y - nodePos.y;
+          
+          // Bring to front
+          selectedNode.parentNode.appendChild(selectedNode);
+        }
+      }
+
+      function drag(evt) {
+        if (selectedNode) {
+          evt.preventDefault();
+          const pos = getMousePosition(evt);
+          const x = pos.x - offset.x;
+          const y = pos.y - offset.y;
+          setNodePos(selectedNode, x, y);
+          updateLinks();
+        }
+      }
+
+      function endDrag(evt) {
+        if (selectedNode) {
+          selectedNode.classList.remove('dragging');
+          selectedNode = null;
+        }
+      }
+
+      // Mouse events
+      svg.addEventListener('mousedown', startDrag);
+      svg.addEventListener('mousemove', drag);
+      svg.addEventListener('mouseup', endDrag);
+      svg.addEventListener('mouseleave', endDrag);
+
+      // Touch events
+      svg.addEventListener('touchstart', function(evt) {
+        if (evt.touches.length === 1) {
+          const touch = evt.touches[0];
+          startDrag({ target: document.elementFromPoint(touch.clientX, touch.clientY), clientX: touch.clientX, clientY: touch.clientY });
+        }
+      });
+      svg.addEventListener('touchmove', function(evt) {
+        if (evt.touches.length === 1 && selectedNode) {
+          evt.preventDefault();
+          drag({ preventDefault: () => {}, clientX: evt.touches[0].clientX, clientY: evt.touches[0].clientY });
+        }
+      }, { passive: false });
+      svg.addEventListener('touchend', endDrag);
+
+      // Initial link drawing
+      updateLinks();
+    })();
+  </script>
+</body>
+</html>
