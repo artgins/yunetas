@@ -503,7 +503,7 @@ PRIVATE int mt_pause(hgobj gobj)
     /*-----------------------------*
      *  Broadcast timeranger
      *-----------------------------*/
-    broadcast_queues_tranger(gobj);
+    // broadcast_queues_tranger(gobj); TODO fails
 
     clear_timeout(priv->timer);
 
@@ -633,12 +633,50 @@ PRIVATE int broadcast_queues_tranger(hgobj gobj)
         }
     }
 
+    {
+        "username": "yuneta",
+        "services_roles": {
+            "treedb_mqtt_broker": []
+        },
+        "session_id": "",
+        "peername": "127.0.0.1:49936",
+        "client_id": "client1",
+        "assigned_id": false,
+        "clean_start": false,
+        "session_expiry_interval": -1,
+        "max_qos": 2,
+        "protocol_version": 5,
+        "will": false,
+        "connect_properties": {
+            "session-expiry-interval": {
+                "identifier": 17,
+                "name": "session-expiry-interval",
+                "type": 3,
+                "value": 4294967295
+            },
+            "receive-maximum": {
+                "identifier": 33,
+                "name": "receive-maximum",
+                "type": 2,
+                "value": 20
+            }
+        },
+        "__temp__": {
+            "channel": "input-1",
+            "channel_gobj": 96323896190240
+        }
+    }
+
  *
  ***************************************************************************/
 PRIVATE int ac_on_open(hgobj gobj, const char *event, json_t *kw, hgobj src)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
     int result = 0;
+
+    hgobj gobj_channel = (hgobj)(uintptr_t)kw_get_int(
+        gobj, kw, "__temp__`channel_gobj", 0, KW_REQUIRED
+    );
 
     if(gobj_trace_level(gobj) & TRACE_MESSAGES || 1) { // TODO remove || 1
         gobj_trace_json(
@@ -672,63 +710,74 @@ PRIVATE int ac_on_open(hgobj gobj, const char *event, json_t *kw, hgobj src)
      *  MQTT Client ID <==> topic in Timeranger
      *  (HACK client_id is really a device_id in mqtt IoT devices)
      *--------------------------------------------------------------*/
-    BOOL clean_start = kw_get_bool(gobj, kw, "clean_start", 0, KW_REQUIRED);
+    const char *username = kw_get_str(gobj, kw, "username", "", KW_REQUIRED);
+    const char *session_id = kw_get_str(gobj, kw, "session_id", "", KW_REQUIRED);
+    const char *peername = kw_get_str(gobj, kw, "peername", "", KW_REQUIRED);
+    const char *client_id = kw_get_str(gobj, kw, "client_id", "", KW_REQUIRED);
     BOOL assigned_id = kw_get_bool(gobj, kw, "assigned_id", 0, KW_REQUIRED);
+    BOOL clean_start = kw_get_bool(gobj, kw, "clean_start", TRUE, KW_REQUIRED);
+    json_int_t session_expiry_interval = kw_get_int(
+        gobj, kw, "session_expiry_interval", 0, KW_REQUIRED
+    );
+    int max_qos = (int)kw_get_int(gobj, kw, "max_qos", 0, KW_REQUIRED);
+    int protocol_version = (int)kw_get_int(gobj, kw, "protocol_version", 0, KW_REQUIRED);
     BOOL will = kw_get_bool(gobj, kw, "will", 0, KW_REQUIRED);
     if(will) {
         // TODO read the remain will fields
     }
+    json_t *connect_properties = kw_get_dict(gobj, kw, "connect_properties", 0, 0);
 
-    const char *username = kw_get_str(gobj, kw, "username", "", KW_REQUIRED);
-    const char *client_id = kw_get_str(gobj, kw, "client_id", "", KW_REQUIRED);
+    if(assigned_id) {
+        clean_start = TRUE;
+    }
+
+
+    /*-----------------------------------------------------------*
+     *  Check if the client is already connected and disconnect
+     *-----------------------------------------------------------*/
+    {
+        json_t *jn_filter = json_pack("{s:s, s:s}",
+            "__gclass_name__", C_PROT_MQTT2,
+            "__state__", ST_CONNECTED
+        );
+        json_t *dl_children = gobj_match_children_tree(priv->gobj_input_side, jn_filter);
+
+        int idx; json_t *jn_child;
+        json_array_foreach(dl_children, idx, jn_child) {
+            hgobj child = (hgobj)(size_t)json_integer_value(jn_child);
+            if(gobj_parent(child) != gobj_channel) {
+                const char *client_id_ = gobj_read_str_attr(child, "client_id");
+                if(strcmp(client_id, client_id_)==0) {
+                    gobj_log_info(gobj, 0,
+                        "function",     "%s", __FUNCTION__,
+                        "msgset",       "%s", MSGSET_INFO,
+                        "msg",          "%s", "Client ALREADY CONNECTED, dropping connection",
+                        "client_id",    "%s", client_id,
+                        "child",        "%s", gobj_short_name(child),
+                        NULL
+                    );
+                    gobj_send_event(child, EV_DROP, 0, gobj);
+                }
+            }
+        }
+
+        gobj_free_iter(dl_children);
+    }
 
     /*----------------------------------------------------------------*
-     *  Open the topic (client_id) or create it if it doesn't exist
+     *  Open the client session
+     *      or create it if it doesn't exist (if has permission TODO)
      *----------------------------------------------------------------*/
-    if(!assigned_id) {
-        json_t *jn_response = gobj_command(
-            priv->gobj_tranger_queues,
-            "open-topic",
-            json_pack("{s:s, s:s}",
-                "topic_name", client_id,
-                "__username__", username
-            ),
-            gobj
-        );
 
-        result = COMMAND_RESULT(gobj, jn_response);
-        if(result < 0) {
-            JSON_DECREF(jn_response)
-            jn_response = gobj_command(
-                priv->gobj_tranger_queues,
-                "create-topic", // idempotent function
-                json_pack("{s:s, s:s}",
-                    "topic_name", client_id,
-                    "__username__", username
-                ),
-                gobj
-            );
-            result = COMMAND_RESULT(gobj, jn_response);
-        }
-        if(result < 0) {
-            const char *comment = COMMAND_COMMENT(gobj, jn_response);
-            gobj_log_warning(gobj, 0,
-                "function",     "%s", __FUNCTION__,
-                "msgset",       "%s", MSGSET_AUTH,
-                "msg",          "%s", comment?comment:"cannot create/open topic (client)",
-                "username",     "%s", username,
-                NULL
-            );
-            JSON_DECREF(jn_response)
-            KW_DECREF(kw);
-            return -1;
-        }
+    json_t *client = gobj_get_node(
+        priv->gobj_treedb_mqtt_broker,
+        "clients",
+        json_pack("{s:s}", "id", client_id),
+        NULL, //json_pack("{s:b, s:b}", "only_id", 1, "with_metadata", 1),
+        gobj
+    );
+    if(client) {
 
-        json_t *topic = COMMAND_DATA(gobj, jn_response);
-
-        print_json2("XXX topic", topic); // TODO TEST
-
-        JSON_DECREF(jn_response)
     }
 
     // TODO if session already exists with below conditions return 1!
