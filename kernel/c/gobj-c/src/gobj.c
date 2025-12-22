@@ -4829,7 +4829,9 @@ PUBLIC json_t *gobj_command( // With AUTHZ
             Color_Off,
             gobj_short_name(src)
         );
-        gobj_trace_json(gobj, kw, "command kw");
+        if(gobj_trace_level(gobj) & (TRACE_EV_KW)) {
+            gobj_trace_json(gobj, kw, "command kw");
+        }
     }
 
     /*-----------------------------------------------*
