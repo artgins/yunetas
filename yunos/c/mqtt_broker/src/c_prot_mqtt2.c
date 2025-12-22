@@ -733,6 +733,16 @@ PRIVATE int mt_stop(hgobj gobj)
  ***************************************************************************/
 PRIVATE void mt_destroy(hgobj gobj)
 {
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    if(priv->istream_frame) {
+        istream_destroy(priv->istream_frame);
+        priv->istream_frame = 0;
+    }
+    if(priv->istream_payload) {
+        istream_destroy(priv->istream_payload);
+        priv->istream_payload = 0;
+    }
 }
 
 
@@ -893,15 +903,6 @@ PRIVATE int open_queues(hgobj gobj)
 PRIVATE void close_queues(hgobj gobj)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
-
-    if(priv->istream_frame) {
-        istream_destroy(priv->istream_frame);
-        priv->istream_frame = 0;
-    }
-    if(priv->istream_payload) {
-        istream_destroy(priv->istream_payload);
-        priv->istream_payload = 0;
-    }
 
     JSON_DECREF(priv->jn_alias_list)
 
