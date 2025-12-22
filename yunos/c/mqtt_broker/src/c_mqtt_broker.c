@@ -618,7 +618,6 @@ PRIVATE int broadcast_queues_tranger(hgobj gobj)
         "assigned_id": false,       #^^ if assigned_id is true the client_id is temporary.
         "clean_start": true,
         "session_expiry_interval": 0,
-        "max_qos": 2,
         "protocol_version": 2,
         "will": true,
         "will_retain": true, #^^ these will fields are optionals
@@ -644,7 +643,6 @@ PRIVATE int broadcast_queues_tranger(hgobj gobj)
         "assigned_id": false,
         "clean_start": false,
         "session_expiry_interval": -1,
-        "max_qos": 2,
         "protocol_version": 5,
         "will": false,
         "connect_properties": {
@@ -719,7 +717,6 @@ PRIVATE int ac_on_open(hgobj gobj, const char *event, json_t *kw, hgobj src)
     json_int_t session_expiry_interval = kw_get_int(
         gobj, kw, "session_expiry_interval", 0, KW_REQUIRED
     );
-    int max_qos = (int)kw_get_int(gobj, kw, "max_qos", 0, KW_REQUIRED);
     int protocol_version = (int)kw_get_int(gobj, kw, "protocol_version", 0, KW_REQUIRED);
     BOOL will = kw_get_bool(gobj, kw, "will", 0, KW_REQUIRED);
     if(will) {

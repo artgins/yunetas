@@ -382,8 +382,6 @@ SDATA (DTP_BOOLEAN,     "retain_available", SDF_WR,         "1",   "If set to FA
 
 SDATA (DTP_BOOLEAN,     "allow_zero_length_clientid",SDF_WR, "1",   "MQTT 3.1.1 and MQTT 5 allow clients to connect with a zero length client id and have the broker generate a client id for them. Use this option to allow/disallow this behaviour. Defaults to TRUE."),
 
-SDATA (DTP_BOOLEAN,     "use_username_as_clientid",SDF_WR,  "0",  "Set use_username_as_clientid to TRUE to replace the clientid that a client connected with its username. This allows authentication to be tied to the clientid, which means that it is possible to prevent one client disconnecting another by using the same clientid. Defaults to FALSE."),
-
 SDATA (DTP_INTEGER,     "max_topic_alias",  SDF_WR,         "10",     "This option sets the maximum number topic aliases that an MQTT v5 client is allowed to create. This option applies per listener. Defaults to 10. Set to 0 to disallow topic aliases. The maximum value possible is 65535."),
 
 /*
@@ -477,7 +475,6 @@ typedef struct _PRIVATE_DATA {
     BOOL persistence;
     BOOL retain_available;
     BOOL allow_zero_length_clientid;
-    BOOL use_username_as_clientid;
     uint32_t max_topic_alias;
 
     /*
@@ -576,7 +573,6 @@ PRIVATE void mt_create(hgobj gobj)
     SET_PRIV(persistence,               gobj_read_bool_attr)
     SET_PRIV(retain_available,          gobj_read_bool_attr)
     SET_PRIV(allow_zero_length_clientid,gobj_read_bool_attr)
-    SET_PRIV(use_username_as_clientid,  gobj_read_bool_attr)
     SET_PRIV(max_topic_alias,           gobj_read_integer_attr)
 
     SET_PRIV(protocol_name,             gobj_read_str_attr)
@@ -628,7 +624,6 @@ PRIVATE void mt_writing(hgobj gobj, const char *path)
     ELIF_EQ_SET_PRIV(persistence,               gobj_read_bool_attr)
     ELIF_EQ_SET_PRIV(retain_available,          gobj_read_bool_attr)
     ELIF_EQ_SET_PRIV(allow_zero_length_clientid,gobj_read_bool_attr)
-    ELIF_EQ_SET_PRIV(use_username_as_clientid,  gobj_read_bool_attr)
     ELIF_EQ_SET_PRIV(max_topic_alias,           gobj_read_integer_attr)
 
     ELIF_EQ_SET_PRIV(protocol_name,             gobj_read_str_attr)
@@ -5189,27 +5184,6 @@ PRIVATE int handle__connect(hgobj gobj, gbuffer_t *gbuf, hgobj src)
         );
         JSON_DECREF(connect_properties);
         return -1;
-    }
-
-    if(gobj_read_bool_attr(gobj, "use_username_as_clientid")) {
-        if(!empty_string(username)) {
-            gobj_write_str_attr(gobj, "client_id", username);
-        } else {
-            if(protocol_version == mosq_p_mqtt5) {
-                send__connack(gobj, 0, MQTT_RC_NOT_AUTHORIZED, NULL);
-            } else {
-                send__connack(gobj, 0, CONNACK_REFUSED_NOT_AUTHORIZED, NULL);
-            }
-            gobj_log_info(gobj, 0,
-                "function",     "%s", __FUNCTION__,
-                "msgset",       "%s", MSGSET_INFO,
-                "msg",          "%s", "Mqtt: not authorized, use_username_as_clientid and no username",
-                "client_id",    "%s", priv->client_id,
-                NULL
-            );
-            JSON_DECREF(connect_properties);
-            return -1;
-        }
     }
 
     /*-------------------------------------------*
