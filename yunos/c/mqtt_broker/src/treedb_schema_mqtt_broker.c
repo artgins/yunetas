@@ -1041,7 +1041,7 @@ static char treedb_schema_mqtt_broker[]= "\
                     ]                                               \n\
                 }                                                   \n\
             }                                                       \n\
-        }                                                           \n\
+        },                                                          \n\
                                                                     \n\
         {                                                           \n\
             'id': 'users',                                          \n\
