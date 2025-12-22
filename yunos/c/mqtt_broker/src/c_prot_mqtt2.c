@@ -1237,17 +1237,17 @@ PRIVATE int sub__messages_queue(
     // if(rc_normal == MOSQ_ERR_NO_SUBSCRIBERS && rc_shared == MOSQ_ERR_NO_SUBSCRIBERS) {
     //     rc = MOSQ_ERR_NO_SUBSCRIBERS;
     // }
-
-    if(retain) {
-        // rc2 = retain__store(topic, *stored, split_topics);
-        // if(rc2) rc = rc2;
-    }
-
-    end:
-        mosquitto__free(split_topics);
-    mosquitto__free(local_topic);
-    /* Remove our reference and free if needed. */
-    db__msg_store_ref_dec(stored);
+    //
+    // if(retain) {
+    //     // rc2 = retain__store(topic, *stored, split_topics);
+    //     // if(rc2) rc = rc2;
+    // }
+    //
+    // end:
+    //     mosquitto__free(split_topics);
+    // mosquitto__free(local_topic);
+    // /* Remove our reference and free if needed. */
+    // db__msg_store_ref_dec(stored);
 
     return rc;
 }
