@@ -380,8 +380,6 @@ SDATA (DTP_BOOLEAN,     "persistence",      SDF_WR,         "1",   "If TRUE, con
 
 SDATA (DTP_BOOLEAN,     "retain_available", SDF_WR,         "1",   "If set to FALSE, then retained messages are not supported. Clients that send a message with the retain bit will be disconnected if this option is set to FALSE. Defaults to TRUE."),
 
-SDATA (DTP_INTEGER,     "max_qos",          SDF_WR,         "2",      "Limit the QoS value allowed for clients connecting to this listener. Defaults to 2, which means any QoS can be used. Set to 0 or 1 to limit to those QoS values. This makes use of an MQTT v5 feature to notify clients of the limitation. MQTT v3.1.1 clients will not be aware of the limitation. Clients publishing to this listener with a too-high QoS will be disconnected."),
-
 SDATA (DTP_BOOLEAN,     "allow_zero_length_clientid",SDF_WR, "1",   "MQTT 3.1.1 and MQTT 5 allow clients to connect with a zero length client id and have the broker generate a client id for them. Use this option to allow/disallow this behaviour. Defaults to TRUE."),
 
 SDATA (DTP_BOOLEAN,     "use_username_as_clientid",SDF_WR,  "0",  "Set use_username_as_clientid to TRUE to replace the clientid that a client connected with its username. This allows authentication to be tied to the clientid, which means that it is possible to prevent one client disconnecting another by using the same clientid. Defaults to FALSE."),
@@ -478,7 +476,6 @@ typedef struct _PRIVATE_DATA {
     uint32_t message_size_limit;
     BOOL persistence;
     BOOL retain_available;
-    uint32_t max_qos;
     BOOL allow_zero_length_clientid;
     BOOL use_username_as_clientid;
     uint32_t max_topic_alias;
@@ -578,7 +575,6 @@ PRIVATE void mt_create(hgobj gobj)
     SET_PRIV(message_size_limit,        gobj_read_integer_attr)
     SET_PRIV(persistence,               gobj_read_bool_attr)
     SET_PRIV(retain_available,          gobj_read_bool_attr)
-    SET_PRIV(max_qos,                   gobj_read_integer_attr)
     SET_PRIV(allow_zero_length_clientid,gobj_read_bool_attr)
     SET_PRIV(use_username_as_clientid,  gobj_read_bool_attr)
     SET_PRIV(max_topic_alias,           gobj_read_integer_attr)
@@ -631,7 +627,6 @@ PRIVATE void mt_writing(hgobj gobj, const char *path)
     ELIF_EQ_SET_PRIV(message_size_limit,        gobj_read_integer_attr)
     ELIF_EQ_SET_PRIV(persistence,               gobj_read_bool_attr)
     ELIF_EQ_SET_PRIV(retain_available,          gobj_read_bool_attr)
-    ELIF_EQ_SET_PRIV(max_qos,                   gobj_read_integer_attr)
     ELIF_EQ_SET_PRIV(allow_zero_length_clientid,gobj_read_bool_attr)
     ELIF_EQ_SET_PRIV(use_username_as_clientid,  gobj_read_bool_attr)
     ELIF_EQ_SET_PRIV(max_topic_alias,           gobj_read_integer_attr)
@@ -1965,11 +1960,7 @@ PRIVATE int db__message_insert(
     // msg->direction = dir;
     // msg->state = state;
     // msg->dup = FALSE;
-    // if(qos > context->max_qos) {
-    //     msg->qos = context->max_qos;
-    // } else {
     //     msg->qos = qos;
-    // }
     // msg->retain = retain;
     // msg->properties = properties;
     //
@@ -4135,9 +4126,6 @@ PRIVATE int send__connack(
                 gobj, connack_props, MQTT_PROP_RECEIVE_MAXIMUM, priv->max_inflight_messages
             );
         }
-        if(priv->max_qos != 2) {
-            mqtt_property_add_byte(gobj, connack_props, MQTT_PROP_MAXIMUM_QOS, priv->max_qos);
-        }
 
         remaining_length += property__get_remaining_length(connack_props);
     }
@@ -4971,21 +4959,6 @@ PRIVATE int handle__connect(hgobj gobj, gbuffer_t *gbuf, hgobj src)
         property_process_connect(gobj, connect_properties);
     }
 
-    if(will && will_qos > priv->max_qos) {
-        gobj_log_error(gobj, 0,
-            "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_MQTT_ERROR,
-            "msg",          "%s", "Mqtt: QoS not supported",
-            "will_qos",     "%d", (int)will_qos,
-            NULL
-        );
-        if(version_byte == mosq_p_mqtt5) {
-            send__connack(gobj, 0, MQTT_RC_QOS_NOT_SUPPORTED, NULL);
-        }
-        JSON_DECREF(connect_properties);
-        return -1;
-    }
-
     // TODO Auth method not supported
     //if(mosquitto_property_read_string(
     //    properties,
@@ -5405,7 +5378,6 @@ PRIVATE int handle__connect(hgobj gobj, gbuffer_t *gbuf, hgobj src)
 //         db.persistence_changes++;
 //     }
 // // #endif
-//     context->max_qos = context->listener->max_qos;
 
     /*---------------------------------------------*
      *      Prepare the response
@@ -5475,7 +5447,7 @@ PRIVATE int handle__connect(hgobj gobj, gbuffer_t *gbuf, hgobj src)
      *  With assigned_id the id is random!, not a persistent id
      *  (HACK client_id is really a device_id)
      *--------------------------------------------------------------*/
-    json_t *client = json_pack("{s:s, s:O, s:s, s:s, s:s, s:b, s:b, s:i, s:i, s:i, s:b}",
+    json_t *client = json_pack("{s:s, s:O, s:s, s:s, s:s, s:b, s:b, s:i, s:i, s:b}",
         "username",                 gobj_read_str_attr(gobj, "__username__"),
         "services_roles",           services_roles,
         "session_id",               gobj_read_str_attr(gobj, "__session_id__"),
@@ -5484,7 +5456,6 @@ PRIVATE int handle__connect(hgobj gobj, gbuffer_t *gbuf, hgobj src)
         "assigned_id",              priv->assigned_id,
         "clean_start",              priv->clean_start,
         "session_expiry_interval",  (int)priv->session_expiry_interval,
-        "max_qos",                  (int)priv->max_qos,
         "protocol_version",         (int)priv->protocol_version,
         "will",                     priv->will
     );
@@ -6156,9 +6127,6 @@ PRIVATE int handle__subscribe(hgobj gobj, gbuffer_t *gbuf)
             JSON_DECREF(jn_list)
             return MOSQ_ERR_MALFORMED_PACKET;
         }
-        if(qos > priv->max_qos) {
-            qos = priv->max_qos;
-        }
 
         json_t *jn_sub = json_pack("{s:s, s:i, s:i, s:i, s:i}",
             "sub", sub,
@@ -6701,18 +6669,6 @@ PRIVATE int handle__publish_s(
         );
         return MOSQ_ERR_MALFORMED_PACKET;
     }
-    if(qos > priv->max_qos) {
-        gobj_log_error(gobj, 0,
-            "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_MQTT_ERROR,
-            "msg",          "%s", "Mqtt: Too high QoS in PUBLISH, disconnecting",
-            "client_id",    "%s", priv->client_id,
-            "max_qos",      "%d", (int)priv->max_qos,
-            "qos",          "%d", (int)qos,
-            NULL
-        );
-        return MOSQ_ERR_QOS_NOT_SUPPORTED;
-    }
 
     if(retain && priv->retain_available == FALSE) {
         gobj_log_error(gobj, 0,
@@ -6720,7 +6676,6 @@ PRIVATE int handle__publish_s(
             "msgset",       "%s", MSGSET_MQTT_ERROR,
             "msg",          "%s", "Mqtt: Retain not supported in PUBLISH, disconnecting",
             "client_id",    "%s", priv->client_id,
-            "max_qos",      "%d", (int)priv->max_qos,
             "qos",          "%d", (int)qos,
             NULL
         );
@@ -8952,19 +8907,6 @@ PRIVATE int ac_mqtt_client_send_publish(hgobj gobj, const char *event, json_t *k
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_MQTT_ERROR,
             "msg",          "%s", "Mqtt publish: properties not supported",
-            NULL
-        );
-        KW_DECREF(kw)
-        return -1;
-    }
-
-    if(qos > priv->max_qos) {
-        gobj_log_error(gobj, 0,
-            "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_MQTT_ERROR,
-            "msg",          "%s", "Mqtt publish: qos not supported",
-            "max_qos",      "%d", priv->max_qos,
-            "qos",          "%d", qos,
             NULL
         );
         KW_DECREF(kw)
