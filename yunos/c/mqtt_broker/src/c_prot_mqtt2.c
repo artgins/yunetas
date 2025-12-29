@@ -6129,7 +6129,6 @@ PRIVATE int handle__subscribe(hgobj gobj, gbuffer_t *gbuf)
                 qos
             );
         }
-
     }
 
     if(priv->protocol_version != mosq_p_mqtt31) {
@@ -6211,7 +6210,6 @@ PRIVATE int handle__subscribe(hgobj gobj, gbuffer_t *gbuf)
     //         return rc;
     //     }
     // }
-
 
     return send__suback(
         gobj,
