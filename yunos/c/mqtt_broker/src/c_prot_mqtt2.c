@@ -5968,10 +5968,7 @@ PRIVATE int handle__subscribe(hgobj gobj, gbuffer_t *gbuf)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
     uint16_t mid;
-    uint8_t subscription_options;
     json_int_t subscription_identifier = 0;
-    uint8_t qos;
-    uint8_t retain_handling = 0;
     uint16_t slen;
     json_t *properties = NULL;
 
@@ -6030,6 +6027,10 @@ PRIVATE int handle__subscribe(hgobj gobj, gbuffer_t *gbuf)
 
     while(gbuffer_leftbytes(gbuf)>0) {
         char *sub = NULL;
+        uint8_t qos;
+        uint8_t subscription_options;
+        uint8_t retain_handling = 0;
+
         if(mqtt_read_string(gobj, gbuf, &sub, &slen)<0) {
             // Error already logged
             JSON_DECREF(jn_list)
@@ -6120,8 +6121,8 @@ PRIVATE int handle__subscribe(hgobj gobj, gbuffer_t *gbuf)
 
         json_t *jn_sub = json_pack("{s:s, s:i, s:i, s:i, s:i}",
             "sub", sub,
-            "qos", (int)qos,
             "subscription_identifier", (int)subscription_identifier,
+            "qos", (int)qos,
             "subscription_options", (int)subscription_options,
             "retain_handling", retain_handling
         );
