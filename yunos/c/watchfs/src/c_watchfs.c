@@ -25,6 +25,7 @@
 /***************************************************************************
  *              Prototypes
  ***************************************************************************/
+PRIVATE char *shell_escape(const char *str, char *dest, size_t dest_size);
 PRIVATE int exec_command(hgobj gobj, const char *path, const char *filename);
 
 
@@ -271,6 +272,50 @@ PRIVATE json_t *cmd_help(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
 
 
 /***************************************************************************
+ *      Escape shell argument to prevent command injection
+ *      Wraps the string in single quotes and escapes any single quotes
+ ***************************************************************************/
+PRIVATE char *shell_escape(const char *str, char *dest, size_t dest_size)
+{
+    if(!str || !dest || dest_size < 3) {
+        if(dest && dest_size > 0) {
+            dest[0] = '\0';
+        }
+        return dest;
+    }
+
+    size_t pos = 0;
+    dest[pos++] = '\''; // Opening single quote
+
+    for(const char *p = str; *p && pos < dest_size - 3; p++) {
+        if(*p == '\'') {
+            // Replace ' with '\'' (close quote, escaped quote, open quote)
+            if(pos + 4 < dest_size) {
+                dest[pos++] = '\'';
+                dest[pos++] = '\\';
+                dest[pos++] = '\'';
+                dest[pos++] = '\'';
+            } else {
+                break; // Not enough space
+            }
+        } else {
+            dest[pos++] = *p;
+        }
+    }
+
+    if(pos < dest_size - 1) {
+        dest[pos++] = '\''; // Closing single quote
+        dest[pos] = '\0';
+    } else {
+        // Truncate if necessary
+        dest[dest_size - 2] = '\'';
+        dest[dest_size - 1] = '\0';
+    }
+
+    return dest;
+}
+
+/***************************************************************************
  *      Execute command
  ***************************************************************************/
 PRIVATE int exec_command(hgobj gobj, const char *path, const char *filename)
@@ -281,8 +326,20 @@ PRIVATE int exec_command(hgobj gobj, const char *path, const char *filename)
 
     if(priv->use_parameter) {
         char temp[4*1014];
+        char escaped_path[1024];
+        char escaped_filename[1024];
+        char escaped_fullpath[2048];
 
-        snprintf(temp, sizeof(temp), "%s %s/%s", command, path, filename);
+        // Escape path and filename to prevent command injection
+        shell_escape(path, escaped_path, sizeof(escaped_path));
+        shell_escape(filename, escaped_filename, sizeof(escaped_filename));
+
+        // Construct full path: path/filename, then escape it
+        char fullpath[2048];
+        snprintf(fullpath, sizeof(fullpath), "%s/%s", path, filename);
+        shell_escape(fullpath, escaped_fullpath, sizeof(escaped_fullpath));
+
+        snprintf(temp, sizeof(temp), "%s %s", command, escaped_fullpath);
         return system(temp);
     } else {
         return system(command);
