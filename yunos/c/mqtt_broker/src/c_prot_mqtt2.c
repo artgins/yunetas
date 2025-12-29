@@ -836,7 +836,7 @@ PRIVATE int open_queues(hgobj gobj)
     /*-----------------------------------*
      *  TODO        With persistence
      *-----------------------------------*/
-    char topic_name [NAME_MAX];
+    char topic_name[NAME_MAX];
 
     if(priv->iamServer) {
     } else {
@@ -5459,6 +5459,9 @@ PRIVATE int handle__connect(hgobj gobj, gbuffer_t *gbuf, hgobj src)
         connect_properties = NULL;
     }
 
+    /*---------------------------*
+     *      Open queues
+     *---------------------------*/
     open_queues(gobj);
 
     priv->inform_on_close = TRUE;
@@ -8380,6 +8383,9 @@ PRIVATE int ac_connected(hgobj gobj, const char *event, json_t *kw, hgobj src)
          * We are client
          * send the request
          */
+        /*---------------------------*
+         *      Open queues
+         *---------------------------*/
         open_queues(gobj); // TODO persistent only output queue
 
         send__connect(
