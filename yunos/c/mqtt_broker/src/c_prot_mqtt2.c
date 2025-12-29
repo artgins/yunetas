@@ -389,6 +389,7 @@ SDATA (DTP_INTEGER,     "max_topic_alias",  SDF_WR,         "10",     "This opti
  */
 SDATA (DTP_BOOLEAN,     "in_session",       SDF_VOLATIL|SDF_STATS,0,    "CONNECT mqtt done"),
 SDATA (DTP_BOOLEAN,     "send_disconnect",  SDF_VOLATIL,        0,      "send DISCONNECT"),
+SDATA (DTP_INTEGER,     "last_mid",         SDF_VOLATIL,        0,      "Last mid"),
 
 SDATA (DTP_STRING,      "protocol_name",    SDF_VOLATIL,        0,      "Protocol name"),
 SDATA (DTP_INTEGER,     "protocol_version", SDF_VOLATIL,        0,      "Protocol version"),
@@ -495,6 +496,8 @@ typedef struct _PRIVATE_DATA {
     uint32_t msgs_out_inflight_maximum;
     uint32_t msgs_out_inflight_quota;
     uint32_t maximum_packet_size;
+    uint16_t last_mid;
+
 
     BOOL will;
     const char *will_topic;
@@ -557,6 +560,7 @@ PRIVATE void mt_create(hgobj gobj)
      *  HACK The writable attributes must be repeated in mt_writing method.
      */
     SET_PRIV(pingT,                     gobj_read_integer_attr)
+    SET_PRIV(last_mid,                  gobj_read_integer_attr)
     SET_PRIV(timeout_handshake,         gobj_read_integer_attr)
     SET_PRIV(timeout_payload,           gobj_read_integer_attr)
     SET_PRIV(timeout_close,             gobj_read_integer_attr)
@@ -608,6 +612,7 @@ PRIVATE void mt_writing(hgobj gobj, const char *path)
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
     IF_EQ_SET_PRIV(pingT,                       gobj_read_integer_attr)
+    ELIF_EQ_SET_PRIV(last_mid,                  gobj_read_integer_attr)
     ELIF_EQ_SET_PRIV(timeout_handshake,         gobj_read_integer_attr)
     ELIF_EQ_SET_PRIV(timeout_payload,           gobj_read_integer_attr)
     ELIF_EQ_SET_PRIV(timeout_close,             gobj_read_integer_attr)
@@ -5416,12 +5421,12 @@ PRIVATE int handle__connect(hgobj gobj, gbuffer_t *gbuf, hgobj src)
     //mosquitto__set_state(context, mosq_cs_active);
 
     /*--------------------------------------------------------------*
-     *  Create a client, must be checked in upper level.
+     *  Open/Create a client, done in upper level.
      *  This must be done *after* any security checks.
-     *  With assigned_id the id is random!, not a persistent id
+     *  With assigned_id == TRUE the id is random!, not a persistent id
      *  (HACK client_id is really a device_id)
      *--------------------------------------------------------------*/
-    json_t *client = json_pack("{s:s, s:O, s:s, s:s, s:s, s:b, s:b, s:i, s:i, s:b}",
+    json_t *client = json_pack("{s:s, s:O, s:s, s:s, s:s, s:b, s:b, s:i, s:i, s:i, s:b}",
         "username",                 gobj_read_str_attr(gobj, "__username__"),
         "services_roles",           services_roles,
         "session_id",               gobj_read_str_attr(gobj, "__session_id__"),
@@ -5429,8 +5434,9 @@ PRIVATE int handle__connect(hgobj gobj, gbuffer_t *gbuf, hgobj src)
         "client_id",                priv->client_id,
         "assigned_id",              priv->assigned_id,
         "clean_start",              priv->clean_start,
-        "session_expiry_interval",  (int)priv->session_expiry_interval,
         "protocol_version",         (int)priv->protocol_version,
+        "session_expiry_interval",  (int)priv->session_expiry_interval,
+        "keep_alive",               (int)priv->keepalive,
         "will",                     priv->will
     );
 
@@ -7861,21 +7867,20 @@ PRIVATE int handle__pubrel(hgobj gobj, gbuffer_t *gbuf)
  ***************************************************************************/
 PRIVATE uint16_t mosquitto__mid_generate(hgobj gobj)
 {
-    // PRIVATE_DATA *priv = gobj_priv_data(gobj);
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
     // TODO new
     // json_t *client = gobj_get_resource(priv->gobj_mqtt_clients, client_id, 0, 0);
     // uint16_t last_mid = (uint16_t)kw_get_int(gobj, client, "last_mid", 0, KW_REQUIRED);
-    static uint16_t last_mid = 0;
     // TODO it seems that does nothing saving in resource
-    last_mid++;
-    if(last_mid == 0) {
-        last_mid++;
+    priv->last_mid++;
+    if(priv->last_mid == 0) {
+        priv->last_mid++;
     }
     // TODO new
     // gobj_save_resource(priv->gobj_mqtt_clients, client_id, client, 0);
 
-    return last_mid;
+    return priv->last_mid;
 }
 
 /***************************************************************************
