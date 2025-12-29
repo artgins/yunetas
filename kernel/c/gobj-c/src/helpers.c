@@ -1966,27 +1966,17 @@ PUBLIC int json_list_int_index(json_t *jn_list, json_int_t value)
  *  Find a json value in the list.
  *  Return index or -1 if not found or the index relative to 0.
  ***************************************************************************/
-PUBLIC int json_list_find(json_t *list, json_t *value) // WARNING slow function
+PUBLIC int json_list_find(json_t *list, json_t *value)
 {
     int idx_found = -1;
-    size_t flags = JSON_COMPACT|JSON_ENCODE_ANY;
     int index;
     json_t *_value;
-    char *s_found_value = json_dumps(value, flags);
-    if(s_found_value) {
-        json_array_foreach(list, index, _value) {
-            char *s_value = json_dumps(_value, flags);
-            if(s_value) {
-                if(strcmp(s_value, s_found_value)==0) {
-                    idx_found = index;
-                    jsonp_free(s_value);
-                    break;
-                } else {
-                    jsonp_free(s_value);
-                }
-            }
+
+    json_array_foreach(list, index, _value) {
+        if(json_equal(_value, value)) {  // FAST: direct comparison
+            idx_found = index;
+            break;
         }
-        jsonp_free(s_found_value);
     }
     return idx_found;
 }
@@ -5472,7 +5462,8 @@ PUBLIC BOOL is_metadata_key(const char *key)
         return FALSE;
     }
     int i;
-    for(i = 0; i < strlen(key); i++) {
+    size_t len = strlen(key);
+    for(i = 0; i < len; i++) {
         if (key[i] != '_') {
             break;
         }
@@ -5492,7 +5483,8 @@ PUBLIC BOOL is_private_key(const char *key)
         return FALSE;
     }
     int i;
-    for(i = 0; i < strlen(key); i++) {
+    size_t len = strlen(key);
+    for(i = 0; i < len; i++) {
         if (key[i] != '_') {
             break;
         }
