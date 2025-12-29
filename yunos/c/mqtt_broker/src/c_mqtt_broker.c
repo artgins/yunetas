@@ -729,9 +729,9 @@ PRIVATE int ac_on_open(hgobj gobj, const char *event, json_t *kw, hgobj src)
     }
 
 
-    /*-----------------------------------------------------------*
-     *  Check if the client is already connected and disconnect
-     *-----------------------------------------------------------*/
+    /*--------------------------------------------------------------*
+     *  Check if the client is already connected and disconnect it
+     *--------------------------------------------------------------*/
     {
         json_t *jn_filter = json_pack("{s:s, s:s}",
             "__gclass_name__", C_PROT_MQTT2,
