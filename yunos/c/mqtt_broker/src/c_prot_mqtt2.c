@@ -6338,6 +6338,7 @@ PRIVATE int handle__unsubscribe(hgobj gobj, gbuffer_t *gbuf)
                 "client_id",    "%s", priv->client_id,
                 NULL
             );
+            JSON_DECREF(properties)
             return MOSQ_ERR_MALFORMED_PACKET;
         }
     }
@@ -6349,6 +6350,7 @@ PRIVATE int handle__unsubscribe(hgobj gobj, gbuffer_t *gbuf)
         if(mqtt_read_string(gobj, gbuf, &sub, &slen)<0) {
             // Error already logged
             JSON_DECREF(jn_list)
+            JSON_DECREF(properties)
             return MOSQ_ERR_MALFORMED_PACKET;
         }
 
@@ -6361,6 +6363,7 @@ PRIVATE int handle__unsubscribe(hgobj gobj, gbuffer_t *gbuf)
                 NULL
             );
             JSON_DECREF(jn_list)
+            JSON_DECREF(properties)
             return MOSQ_ERR_MALFORMED_PACKET;
         }
         if(mosquitto_sub_topic_check(sub)) {
@@ -6372,6 +6375,7 @@ PRIVATE int handle__unsubscribe(hgobj gobj, gbuffer_t *gbuf)
                 NULL
             );
             JSON_DECREF(jn_list)
+            JSON_DECREF(properties)
             return MOSQ_ERR_MALFORMED_PACKET;
         }
 
@@ -6406,6 +6410,9 @@ PRIVATE int handle__unsubscribe(hgobj gobj, gbuffer_t *gbuf)
         }
         gbuffer_append_char(gbuf_payload, reason);
     }
+
+    JSON_DECREF(jn_list)
+    JSON_DECREF(properties)
 
     return send__unsuback(
         gobj,
