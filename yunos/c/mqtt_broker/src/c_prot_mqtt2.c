@@ -4957,6 +4957,8 @@ PRIVATE int handle__connect(hgobj gobj, gbuffer_t *gbuf, hgobj src)
             return -1;
         }
         property_process_connect(gobj, connect_properties);
+        // In properties is getting session_expiry_interval
+        session_expiry_interval = priv->session_expiry_interval;
     }
 
     // TODO Auth method not supported
@@ -5319,7 +5321,7 @@ PRIVATE int handle__connect(hgobj gobj, gbuffer_t *gbuf, hgobj src)
             protocol_version_name(protocol_version),
             is_bridge,
             (int)clean_start,
-            (int)session_expiry_interval,
+            (int)priv->session_expiry_interval,
             (int)will,
             (int)will_retain,
             (int)will_qos,
