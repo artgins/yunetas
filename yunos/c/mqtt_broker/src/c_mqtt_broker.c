@@ -912,6 +912,11 @@ PRIVATE int ac_on_open(hgobj gobj, const char *event, json_t *kw, hgobj src)
         gobj_free_iter(dl_children);
     }
 
+    /*
+     *  Write the session in the mqtt gobj
+     */
+    gobj_write_pointer_attr(gobj, "session", session);
+
     JSON_DECREF(client)
     KW_DECREF(kw);
     return result;
