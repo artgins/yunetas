@@ -1055,7 +1055,6 @@ PUBLIC json_t *gobj_sdata_create(hgobj gobj, const sdata_desc_t* schema);
 PUBLIC const sdata_desc_t *gclass_attr_desc(hgclass gclass, const char *attr, BOOL verbose);
 PUBLIC const sdata_desc_t *gobj_attr_desc(hgobj gobj, const char *attr, BOOL verbose);
 PUBLIC data_type_t gobj_attr_type(hgobj gobj, const char *name);
-PUBLIC json_t *gobj_hsdata(hgobj gobj); // Return is NOT YOURS
 
 PUBLIC const sdata_desc_t *gclass_authz_desc(hgclass gclass);
 
@@ -1109,7 +1108,6 @@ PUBLIC int gobj_write_user_data(
  *  Acceso directo a la variable (con herencia de bottoms): puntero y descripción del atributo.
  *  ATTR: read the attr pointer, traversing inherited gobjs if need it.
  */
-PUBLIC json_t *gobj_hsdata2(hgobj gobj, const char *name, BOOL verbose); // Return is NOT YOURS
 PUBLIC BOOL gobj_has_bottom_attr(hgobj gobj_, const char *name);
 
 PUBLIC json_t *gobj_kw_get_user_data( // Return is NOT yours except using KW_EXTRACT

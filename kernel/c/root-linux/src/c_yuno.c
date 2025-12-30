@@ -768,8 +768,9 @@ PRIVATE void mt_create(hgobj gobj)
     /*--------------------------*
      *  Show attrs in start
      *--------------------------*/
-    json_t *attrs = gobj_hsdata(gobj);
+    json_t *attrs = gobj_read_attrs(gobj, -1, gobj);
     gobj_trace_json(gobj, attrs, "yuno's attrs"); // Show attributes of yuno
+    JSON_DECREF(attrs)
 
     /*--------------------------*
      *      Set i18n

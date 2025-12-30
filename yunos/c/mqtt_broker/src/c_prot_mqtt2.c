@@ -321,7 +321,6 @@ PRIVATE sdata_desc_t attrs_table[] = {
 /*-ATTR-type------------name----------------flag--------default-description---------- */
 SDATA (DTP_BOOLEAN,     "iamServer",        SDF_RD,     0,      "What side? server or client"),
 SDATA (DTP_POINTER,     "tranger_queues",   0,          0,      "Queues TimeRanger for mqtt messages with qos > 0"),
-SDATA (DTP_JSON,        "session",          SDF_RD,     0,      "Mqtt session of a client id"),
 SDATA (DTP_STRING,      "alert_message",    SDF_RD,     "ALERT Queuing", "Alert message"),
 SDATA (DTP_INTEGER,     "max_pending_acks", SDF_RD,     "10000",    "Maximum messages pending of ack"),
 SDATA (DTP_INTEGER,     "backup_queue_size",SDF_RD,     "1000000",  "Do backup at this size"),
@@ -388,6 +387,7 @@ SDATA (DTP_INTEGER,     "max_topic_alias",  SDF_WR,         "10",     "This opti
 /*
  *  Dynamic Data
  */
+SDATA (DTP_JSON,        "session",          SDF_VOLATIL,        0,"Mqtt session of a client id"),
 SDATA (DTP_BOOLEAN,     "in_session",       SDF_VOLATIL|SDF_STATS,0,    "CONNECT mqtt done"),
 SDATA (DTP_BOOLEAN,     "send_disconnect",  SDF_VOLATIL,        0,      "send DISCONNECT"),
 SDATA (DTP_INTEGER,     "last_mid",         SDF_VOLATIL,        0,      "Last mid"),

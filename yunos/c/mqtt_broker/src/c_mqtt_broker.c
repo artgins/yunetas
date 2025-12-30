@@ -915,7 +915,7 @@ PRIVATE int ac_on_open(hgobj gobj, const char *event, json_t *kw, hgobj src)
     /*
      *  Write the session in the mqtt gobj
      */
-    gobj_write_pointer_attr(gobj, "session", session);
+    gobj_write_json_attr(gobj_channel, "session", session);
 
     JSON_DECREF(client)
     KW_DECREF(kw);

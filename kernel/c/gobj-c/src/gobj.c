@@ -139,6 +139,8 @@ typedef struct gobj_s {
 /***************************************************************
  *              Prototypes
  ***************************************************************/
+PRIVATE json_t *gobj_hsdata(hgobj gobj); // Return is NOT YOURS
+PRIVATE json_t *gobj_hsdata2(hgobj gobj, const char *name, BOOL verbose); // Return is NOT YOURS
 PRIVATE state_t *_find_state(gclass_t *gclass, gobj_state_t state_name);
 PRIVATE int _register_service(gobj_t *gobj);
 PRIVATE int _deregister_service(gobj_t *gobj);
@@ -3221,7 +3223,7 @@ PRIVATE int json2item(
 /***************************************************************************
  *
  ***************************************************************************/
-PUBLIC json_t *gobj_hsdata(hgobj gobj_) // Return is NOT YOURS
+PRIVATE json_t *gobj_hsdata(hgobj gobj_) // Return is NOT YOURS
 {
     gobj_t *gobj = gobj_;
     return gobj?gobj->jn_attrs:NULL;
@@ -3554,7 +3556,7 @@ PUBLIC int gobj_write_user_data(
 /***************************************************************************
  *  ATTR: Get hsdata of inherited attribute.
  ***************************************************************************/
-PUBLIC json_t *gobj_hsdata2(hgobj gobj_, const char *name, BOOL verbose)
+PRIVATE json_t *gobj_hsdata2(hgobj gobj_, const char *name, BOOL verbose)
 {
     gobj_t *gobj = gobj_;
 
