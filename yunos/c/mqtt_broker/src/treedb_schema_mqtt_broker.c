@@ -592,6 +592,14 @@ static char treedb_schema_mqtt_broker[]= "\
                         'persistent'                                \n\
                     ]                                               \n\
                 },                                                  \n\
+                'peername': {                                       \n\
+                    'header': 'Peername',                           \n\
+                    'fillspace': 10,                                \n\
+                    'type': 'string',                               \n\
+                    'flag': [                                       \n\
+                        'persistent'                                \n\
+                    ]                                               \n\
+                },                                                  \n\
                 'time': {                                           \n\
                     'header': 'Update Time',                        \n\
                     'fillspace': 15,                                \n\
