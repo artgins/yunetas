@@ -5429,14 +5429,14 @@ PRIVATE int handle__connect(hgobj gobj, gbuffer_t *gbuf, hgobj src)
      *  With assigned_id == TRUE the id is random!, not a persistent id
      *  (HACK client_id is really a device_id)
      *--------------------------------------------------------------*/
-    json_t *client = json_pack("{s:s, s:O, s:s, s:s, s:s, s:b, s:b, s:i, s:i, s:i, s:b}",
+    json_t *client = json_pack("{s:s, s:b, s:b, s:s, s:O, s:s, s:s, s:i, s:i, s:i, s:b}",
+        "id",                       priv->client_id,
+        "assigned_id",              priv->assigned_id,
+        "clean_start",              priv->clean_start,
         "username",                 gobj_read_str_attr(gobj, "__username__"),
         "services_roles",           services_roles,
         "session_id",               gobj_read_str_attr(gobj, "__session_id__"),
         "peername",                 peername,
-        "client_id",                priv->client_id,
-        "assigned_id",              priv->assigned_id,
-        "clean_start",              priv->clean_start,
         "protocol_version",         (int)priv->protocol_version,
         "session_expiry_interval",  (int)priv->session_expiry_interval,
         "keep_alive",               (int)priv->keepalive,
