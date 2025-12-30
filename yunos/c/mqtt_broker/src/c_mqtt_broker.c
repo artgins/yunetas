@@ -827,52 +827,37 @@ PRIVATE int ac_on_open(hgobj gobj, const char *event, json_t *kw, hgobj src)
             KW_DECREF(kw);
             return result;
         }
-        json_t *kw_client = json_pack("{s:s, s:s, s:s, s:b, s:i, s:b, s:s, s:i, s:i, s:b}",
-            "id", client_id,
-            "name", client_id,
-            "description", "",
-            "enabled", TRUE,
-            "protocol_version", protocol_version, // TODO some fields must be in __session
-            "clean_start", clean_start,
-            "username", username,
-            "keep_alive", keep_alive,
-            "session_expiry_interval", session_expiry_interval,
-            "connected", TRUE
-        );
-        if(will) { // TODO some fields must be in __session ???
-            BOOL will_retain = kw_get_bool(gobj, kw, "will_retain", 0, KW_REQUIRED);
-            int will_qos = (int)kw_get_int(gobj, kw, "will_qos", 0, KW_REQUIRED);
-            const char *will_topic = kw_get_str(gobj, kw, "will_topic", "", KW_REQUIRED);
-            int will_delay_interval = (int)kw_get_int(
-                gobj, kw, "will_delay_interval", 0, KW_REQUIRED
-            );
-            int will_expiry_interval = (int)kw_get_int(
-                gobj, kw, "will_expiry_interval", 0, KW_REQUIRED
-            );
-            json_t *jn_will = json_pack("{s:b, s:i, s:s, s:i, s:i}",
-                "will_retain",          will_retain,
-                "will_qos",             will_qos,
-                "will_topic",           will_topic,
-                "will_delay_interval",  will_delay_interval,
-                "will_expiry_interval", will_expiry_interval
-            );
-            gbuffer_t *gbuf = (gbuffer_t *)(uintptr_t)kw_get_int(gobj, kw, "gbuffer", 0, 0);
-            if(gbuf) {
-                gbuffer_t *gbuf_base64 = gbuffer_encode_base64(gbuffer_incref(gbuf));
-                char *b64 = gbuffer_cur_rd_pointer(gbuf_base64);
-                json_object_set_new(jn_will, "will_payload", json_string(b64));
-                gbuffer_decref(gbuf_base64);
-            }
-            json_object_update_new(client, jn_will);
-        }
+
+        /*
+         *  Create new client as auto-create
+         */
+            // gbuffer_t *gbuf = (gbuffer_t *)(uintptr_t)kw_get_int(gobj, kw, "gbuffer", 0, 0);
+            // if(gbuf) {
+            //     gbuffer_t *gbuf_base64 = gbuffer_encode_base64(gbuffer_incref(gbuf));
+            //     char *b64 = gbuffer_cur_rd_pointer(gbuf_base64);
+            //     json_object_set_new(jn_will, "will_payload", json_string(b64));
+            //     gbuffer_decref(gbuf_base64);
+            // }
 
         client = gobj_create_node(
             priv->gobj_treedb_mqtt_broker,
             "clients",
-            kw_client,
+            kw_incref(kw),
             NULL,
             gobj
         );
+        if(!client) {
+            gobj_log_error(gobj, 0,
+                "function",     "%s", __FUNCTION__,
+                "msgset",       "%s", MSGSET_INFO,
+                "msg",          "%s", "Cannot create new client",
+                "client_id",    "%s", client_id,
+                NULL
+            );
+            result = -1;
+            KW_DECREF(kw);
+            return result;
+        }
 
     } else {
         /*
@@ -888,7 +873,7 @@ PRIVATE int ac_on_open(hgobj gobj, const char *event, json_t *kw, hgobj src)
         );
         if(clean_start == FALSE && prev_session_expiry_interval > 0) {
             if(protocol_version == mosq_p_mqtt311 || protocol_version == mosq_p_mqtt5) {
-                result = 1;
+                result = 1; // ack=1 Resume existing session
             }
             // copia client session, subs, ...  TODO
             gobj_write_integer_attr(gobj_channel, "last_mid", last_mid);

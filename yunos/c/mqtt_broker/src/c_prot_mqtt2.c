@@ -5361,7 +5361,6 @@ PRIVATE int handle__connect(hgobj gobj, gbuffer_t *gbuf, hgobj src)
     /*---------------------------------------------*
      *      Prepare the response
      *---------------------------------------------*/
-    uint8_t connect_ack = 0;
     json_t *connack_props = json_object();
 
     if(priv->max_keepalive && (priv->keepalive > priv->max_keepalive || priv->keepalive == 0)) {
@@ -5369,7 +5368,7 @@ PRIVATE int handle__connect(hgobj gobj, gbuffer_t *gbuf, hgobj src)
         if(priv->protocol_version == mosq_p_mqtt5) {
             mqtt_property_add_int16(gobj, connack_props, MQTT_PROP_SERVER_KEEP_ALIVE, priv->keepalive);
         } else {
-            send__connack(gobj, connect_ack, CONNACK_REFUSED_IDENTIFIER_REJECTED, NULL);
+            send__connack(gobj, 0, CONNACK_REFUSED_IDENTIFIER_REJECTED, NULL);
             JSON_DECREF(auth)
             JSON_DECREF(connect_properties);
             JSON_DECREF(connack_props);
@@ -5485,8 +5484,9 @@ PRIVATE int handle__connect(hgobj gobj, gbuffer_t *gbuf, hgobj src)
         return -1;
     }
 
+    uint8_t connect_ack = 0;
     if(ret == 1) {
-        connect_ack |= 0x01;
+        connect_ack |= 0x01; // ack=1 Resume existing session
     }
     send__connack(
         gobj,
