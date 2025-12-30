@@ -57,39 +57,35 @@
             │  description              │                   │
             │  enabled                  │                   │
             │  time                     │                   │
-            │           client_type [↖] │ ──┐ n     │       │
+            │           client_type [↖] │ ──┐ n             │
             │  properties               │   │               │
             │  coordinates              │   │               │
             │  settings             <----------------- using client_types.template_settings
             │  yuno                     │   │               │    TODO    make a shortcut to get it
             │                           │   │               │
-            │              sessions {}  │ ◀─────────┐ N     │
-            │                           │   │       │       │
-            │                           │   │       │       │
-            │  _geometry                │   │       │       │
-            └───────────────────────────┘   │       │       │
-                                            │       │       │
-                      client_types          │       │       │
-            ┌───────────────────────────┐   │       │       │
-            │* id                       │   │       │       │
-            │                           │   │       │       │
-            │                clients {} │ ◀─┘ N     │       │
-            │  name                     │           │       │
-            │  description              │           │       │
-            │  icon                     │           │       │
-            │  properties               │           │       │
-            │  time                     │           │       │
-            │  template_settings        │           │       │
-            │                           │           │       │
-            │  _geometry                │           │       │
-            └───────────────────────────┘           │       │
-                                                    │       │
-                       sessions                     │       │
-            ┌───────────────────────────┐           │       │
-            │* id (session_id)          │           │       │
-            │                           │           │       │
-            │              client_id (↖)│ ──────────┘1      │
+            │  _geometry                │   │               │
+            └───────────────────────────┘   │               │
+                                            │               │
+                      client_types          │               │
+            ┌───────────────────────────┐   │               │
+            │* id                       │   │               │
+            │                           │   │               │
+            │                clients {} │ ◀─┘ N             │
+            │  name                     │                   │
+            │  description              │                   │
+            │  icon                     │                   │
+            │  properties               │                   │
+            │  time                     │                   │
+            │  template_settings        │                   │
             │                           │                   │
+            │  _geometry                │                   │
+            └───────────────────────────┘                   │
+                                                            │
+                       sessions                             │
+            ┌───────────────────────────┐                   │
+            │* id (client_id)           │                   │
+            │                           │                   │
+            │  session_id               │                   │
             │  protocol_version         │                   │
             │  clean_start              │                   │
             │  keep_alive               │                   │
@@ -413,15 +409,6 @@ static char treedb_schema_mqtt_broker[]= "\
                     'flag': [                                       \n\
                         'persistent'                                \n\
                     ]                                               \n\
-                },                                                  \n\
-                'sessions': {                                       \n\
-                    'header': 'Sessions',                           \n\
-                    'fillspace': 10,                                \n\
-                    'type': 'dict',                                 \n\
-                    'flag': ['hook'],                               \n\
-                    'hook': {                                       \n\
-                        'sessions': 'client_id'                     \n\
-                    }                                               \n\
                 },                                                  \n\
                 '_geometry': {                                      \n\
                     'header': 'Geometry',                           \n\
