@@ -140,7 +140,7 @@ typedef struct gobj_s {
  *              Prototypes
  ***************************************************************/
 PRIVATE json_t *gobj_hsdata(hgobj gobj); // Return is NOT YOURS
-PRIVATE json_t *gobj_hsdata2(hgobj gobj, const char *name, BOOL verbose); // Return is NOT YOURS
+PRIVATE json_t *gobj_hsdata2(hgobj gobj, const char *name, gobj_t **gobj_found); // Return is NOT YOURS
 PRIVATE state_t *_find_state(gclass_t *gclass, gobj_state_t state_name);
 PRIVATE int _register_service(gobj_t *gobj);
 PRIVATE int _deregister_service(gobj_t *gobj);
@@ -3402,7 +3402,7 @@ PUBLIC json_t *gobj_read_attr( // Return is NOT yours!
 ) {
     gobj_t *gobj = gobj_;
 
-    json_t *hs = gobj_hsdata2(gobj, name, FALSE);
+    json_t *hs = gobj_hsdata2(gobj, name, &gobj);
     if(hs) {
         // TODO must be a item2json, to call mt_reading
         json_t *jn_value = json_object_get(hs, name);
@@ -3556,7 +3556,7 @@ PUBLIC int gobj_write_user_data(
 /***************************************************************************
  *  ATTR: Get hsdata of inherited attribute.
  ***************************************************************************/
-PRIVATE json_t *gobj_hsdata2(hgobj gobj_, const char *name, BOOL verbose)
+PRIVATE json_t *gobj_hsdata2(hgobj gobj_, const char *name, gobj_t **gobj_found)
 {
     gobj_t *gobj = gobj_;
 
@@ -3571,19 +3571,12 @@ PRIVATE json_t *gobj_hsdata2(hgobj gobj_, const char *name, BOOL verbose)
     }
 
     if(gobj_has_attr(gobj, name)) {
+        if(gobj_found) {
+            *gobj_found = gobj;
+        }
         return gobj_hsdata(gobj);
     } else if(gobj && gobj->bottom_gobj) {
-        return gobj_hsdata2(gobj->bottom_gobj, name, verbose);
-    }
-    if(verbose) {
-        gobj_log_warning(gobj, LOG_OPT_TRACE_STACK,
-            "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_PARAMETER_ERROR,
-            "msg",          "%s", "GClass Attribute NOT FOUND",
-            "gclass",       "%s", gobj_gclass_name(gobj),
-            "attr",         "%s", name,
-            NULL
-        );
+        return gobj_hsdata2(gobj->bottom_gobj, name, gobj_found);
     }
     return NULL;
 }
@@ -3632,7 +3625,7 @@ PUBLIC const char *gobj_read_str_attr(hgobj gobj_, const char *name)
         return gobj_current_state(gobj);
     }
 
-    json_t *hs = gobj_hsdata2(gobj, name, FALSE);
+    json_t *hs = gobj_hsdata2(gobj, name, &gobj);
     if(hs) {
         if(gobj->gclass->gmt->mt_reading) {
             if(!(gobj->obflag & obflag_destroyed)) {
@@ -3676,7 +3669,7 @@ PUBLIC BOOL gobj_read_bool_attr(hgobj gobj_, const char *name)
         }
     }
 
-    json_t *hs = gobj_hsdata2(gobj, name, FALSE);
+    json_t *hs = gobj_hsdata2(gobj, name, &gobj);
     if(hs) {
         if(gobj->gclass->gmt->mt_reading) {
             if(!(gobj->obflag & obflag_destroyed)) {
@@ -3712,7 +3705,7 @@ PUBLIC json_int_t gobj_read_integer_attr(hgobj gobj_, const char *name)
         return gobj_trace_level(gobj);
     }
 
-    json_t *hs = gobj_hsdata2(gobj, name, FALSE);
+    json_t *hs = gobj_hsdata2(gobj, name, &gobj);
     if(hs) {
         if(gobj->gclass->gmt->mt_reading) {
             if(!(gobj->obflag & obflag_destroyed)) {
@@ -3744,7 +3737,7 @@ PUBLIC double gobj_read_real_attr(hgobj gobj_, const char *name)
 {
     gobj_t *gobj = gobj_;
 
-    json_t *hs = gobj_hsdata2(gobj, name, FALSE);
+    json_t *hs = gobj_hsdata2(gobj, name, &gobj);
     if(hs) {
         if(gobj->gclass->gmt->mt_reading) {
             if(!(gobj->obflag & obflag_destroyed)) {
@@ -3776,7 +3769,7 @@ PUBLIC json_t *gobj_read_json_attr(hgobj gobj_, const char *name) // WARNING ret
 {
     gobj_t *gobj = gobj_;
 
-    json_t *hs = gobj_hsdata2(gobj, name, FALSE);
+    json_t *hs = gobj_hsdata2(gobj, name, &gobj);
     if(hs) {
         if(gobj->gclass->gmt->mt_reading) {
             if(!(gobj->obflag & obflag_destroyed)) {
@@ -3808,7 +3801,7 @@ PUBLIC void *gobj_read_pointer_attr(hgobj gobj_, const char *name)
 {
     gobj_t *gobj = gobj_;
 
-    json_t *hs = gobj_hsdata2(gobj, name, FALSE);
+    json_t *hs = gobj_hsdata2(gobj, name, &gobj);
     if(hs) {
         if(gobj->gclass->gmt->mt_reading) {
             if(!(gobj->obflag & obflag_destroyed)) {
@@ -3840,7 +3833,7 @@ PUBLIC int gobj_write_str_attr(hgobj gobj_, const char *name, const char *value)
 {
     gobj_t *gobj = gobj_;
 
-    json_t *hs = gobj_hsdata2(gobj, name, FALSE);
+    json_t *hs = gobj_hsdata2(gobj, name, &gobj);
     if(hs) {
         // WARNING value == 0  -> json_null()
         int ret = json_object_set_new(hs, name, value?json_string(value):json_null());
@@ -3871,7 +3864,7 @@ PUBLIC int gobj_write_strn_attr(hgobj gobj_, const char *name, const char *value
 {
     gobj_t *gobj = gobj_;
 
-    json_t *hs = gobj_hsdata2(gobj, name, FALSE);
+    json_t *hs = gobj_hsdata2(gobj, name, &gobj);
     if(hs) {
         char *value = gbmem_strndup(value_, len);
         if(!value) {
@@ -3918,7 +3911,7 @@ PUBLIC int gobj_write_bool_attr(hgobj gobj_, const char *name, BOOL value)
 {
     gobj_t *gobj = gobj_;
 
-    json_t *hs = gobj_hsdata2(gobj, name, FALSE);
+    json_t *hs = gobj_hsdata2(gobj, name, &gobj);
     if(hs) {
         int ret = json_object_set_new(hs, name, json_boolean(value));
         if(gobj->gclass->gmt->mt_writing) {
@@ -3948,7 +3941,7 @@ PUBLIC int gobj_write_integer_attr(hgobj gobj_, const char *name, json_int_t val
 {
     gobj_t *gobj = gobj_;
 
-    json_t *hs = gobj_hsdata2(gobj, name, FALSE);
+    json_t *hs = gobj_hsdata2(gobj, name, &gobj);
     if(hs) {
         int ret = json_object_set_new(hs, name, json_integer(value));
         if(gobj->gclass->gmt->mt_writing) {
@@ -3978,7 +3971,7 @@ PUBLIC int gobj_write_real_attr(hgobj gobj_, const char *name, double value)
 {
     gobj_t *gobj = gobj_;
 
-    json_t *hs = gobj_hsdata2(gobj, name, FALSE);
+    json_t *hs = gobj_hsdata2(gobj, name, &gobj);
     if(hs) {
         int ret = json_object_set_new(hs, name, json_real(value));
         if(gobj->gclass->gmt->mt_writing) {
@@ -4008,7 +4001,7 @@ PUBLIC int gobj_write_json_attr(hgobj gobj_, const char *name, json_t *jn_value)
 {
     gobj_t *gobj = gobj_;
 
-    json_t *hs = gobj_hsdata2(gobj, name, FALSE);
+    json_t *hs = gobj_hsdata2(gobj, name, &gobj);
     if(hs) {
         int ret = json_object_set(hs, name, jn_value);
         if(gobj->gclass->gmt->mt_writing) {
@@ -4039,7 +4032,7 @@ PUBLIC int gobj_write_new_json_attr(hgobj gobj_, const char *name, json_t *jn_va
 {
     gobj_t *gobj = gobj_;
 
-    json_t *hs = gobj_hsdata2(gobj, name, FALSE);
+    json_t *hs = gobj_hsdata2(gobj, name, &gobj);
     if(hs) {
         int ret = json_object_set_new(hs, name, jn_value);
         if(gobj->gclass->gmt->mt_writing) {
@@ -4070,7 +4063,7 @@ PUBLIC int gobj_write_pointer_attr(hgobj gobj_, const char *name, void *value)
 {
     gobj_t *gobj = gobj_;
 
-    json_t *hs = gobj_hsdata2(gobj, name, FALSE);
+    json_t *hs = gobj_hsdata2(gobj, name, &gobj);
     if(hs) {
         int ret = json_object_set_new(hs, name, json_integer((json_int_t)(uintptr_t)value));
         if(gobj->gclass->gmt->mt_writing) {
@@ -5456,7 +5449,7 @@ PUBLIC BOOL gobj_match_gobj(
 
     BOOL matched = TRUE;
     json_object_foreach(jn_filter, key, jn_value) {
-        json_t *hs = gobj_hsdata2(gobj, key, FALSE);
+        json_t *hs = gobj_hsdata2(gobj, key, NULL);
         if(hs) {
             json_t *jn_var1 = json_object_get(hs, key);
             int cmp = cmp_two_simple_json(jn_var1, jn_value);
