@@ -94,7 +94,7 @@
             │  clean_start              │                   │
             │  keep_alive               │                   │
             │  session_expiry_interval  │                   │
-            │  connected                │                   │
+            │  in_session               │                   │
             │  time                     │                   │
             │                           │                   │
             │  subscriptions            │  (json array)     │
@@ -591,7 +591,7 @@ static char treedb_schema_mqtt_broker[]= "\
                         'persistent'                                \n\
                     ]                                               \n\
                 },                                                  \n\
-                'connected': {                                      \n\
+                'in_session': {                                     \n\
                     'header': 'Connected',                          \n\
                     'fillspace': 4,                                 \n\
                     'type': 'boolean',                              \n\
