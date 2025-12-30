@@ -547,6 +547,14 @@ static char treedb_schema_mqtt_broker[]= "\
                         'fkey'                                      \n\
                     ]                                               \n\
                 },                                                  \n\
+                'username': {                                       \n\
+                    'header': 'User Name',                          \n\
+                    'fillspace': 20,                                \n\
+                    'type': 'string',                               \n\
+                    'flag': [                                       \n\
+                        'fkey'                                      \n\
+                    ]                                               \n\
+                },                                                  \n\
                 'protocol_version': {                               \n\
                     'header': 'Protocol',                           \n\
                     'fillspace': 4,                                 \n\
