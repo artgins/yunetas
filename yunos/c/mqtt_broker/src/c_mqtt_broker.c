@@ -617,7 +617,7 @@ PRIVATE int broadcast_queues_tranger(hgobj gobj)
                 "device"
             ]
         },
-        "session_id": "d1515457-f1a1-45d3-a7fd-3f335ae50037",
+        "session_id": "d1515457-f1a1-45d3-a7fd-3f335ae50037", TODO ???
         "peername": "127.0.0.1:47298",
         "client_id": "DVES_40AC66",
         "assigned_id": false,       #^^ if assigned_id is true the client_id is temporary.
@@ -739,6 +739,7 @@ PRIVATE int ac_on_open(hgobj gobj, const char *event, json_t *kw, hgobj src)
 
     /*--------------------------------------------------------------*
      *  Check if the client is already connected and disconnect it
+     *  TODO must search in sessions
      *--------------------------------------------------------------*/
     int last_mid = 0;
     hgobj gobj_found_context = NULL;
@@ -807,7 +808,7 @@ PRIVATE int ac_on_open(hgobj gobj, const char *event, json_t *kw, hgobj src)
         priv->gobj_treedb_mqtt_broker,
         "clients",
         json_pack("{s:s}", "id", client_id),
-        NULL, //json_pack("{s:b, s:b}", "only_id", 1, "with_metadata", 1),
+        NULL,
         gobj
     );
     if(!client) {
