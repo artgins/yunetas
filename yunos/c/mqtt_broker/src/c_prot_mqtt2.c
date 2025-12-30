@@ -321,6 +321,7 @@ PRIVATE sdata_desc_t attrs_table[] = {
 /*-ATTR-type------------name----------------flag--------default-description---------- */
 SDATA (DTP_BOOLEAN,     "iamServer",        SDF_RD,     0,      "What side? server or client"),
 SDATA (DTP_POINTER,     "tranger_queues",   0,          0,      "Queues TimeRanger for mqtt messages with qos > 0"),
+SDATA (DTP_JSON,        "session",          SDF_RD,     0,      "Mqtt session of a client id"),
 SDATA (DTP_STRING,      "alert_message",    SDF_RD,     "ALERT Queuing", "Alert message"),
 SDATA (DTP_INTEGER,     "max_pending_acks", SDF_RD,     "10000",    "Maximum messages pending of ack"),
 SDATA (DTP_INTEGER,     "backup_queue_size",SDF_RD,     "1000000",  "Do backup at this size"),
@@ -459,6 +460,7 @@ typedef struct _PRIVATE_DATA {
     // struct mosquitto_msg_data msgs_in; // TODO to remove, use tr2_queue instead
     // struct mosquitto_msg_data msgs_out; // TODO to remove, use tr2_queue instead
 
+    json_t *session;
     json_t *tranger_queues;
     tr2_queue_t *trq_in_msgs;
     tr2_queue_t *trq_out_msgs;
@@ -611,8 +613,10 @@ PRIVATE void mt_writing(hgobj gobj, const char *path)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
-    IF_EQ_SET_PRIV(pingT,                       gobj_read_integer_attr)
-    ELIF_EQ_SET_PRIV(last_mid,                  gobj_read_integer_attr)
+    IF_EQ_SET_PRIV(last_mid,                    gobj_read_integer_attr)
+    ELIF_EQ_SET_PRIV(session,                   gobj_read_json_attr)
+        gobj_write_attrs(gobj, priv->session, SDF_VOLATIL, gobj);
+    ELIF_EQ_SET_PRIV(pingT,                     gobj_read_integer_attr)
     ELIF_EQ_SET_PRIV(timeout_handshake,         gobj_read_integer_attr)
     ELIF_EQ_SET_PRIV(timeout_payload,           gobj_read_integer_attr)
     ELIF_EQ_SET_PRIV(timeout_close,             gobj_read_integer_attr)
