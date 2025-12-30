@@ -527,7 +527,7 @@ static char treedb_schema_mqtt_broker[]= "\
             'topic_version': '1',                                   \n\
             'cols': {                                               \n\
                 'id': {                                             \n\
-                    'header': 'Session Id',                         \n\
+                    'header': 'Client Id',                          \n\
                     'fillspace': 40,                                \n\
                     'type': 'string',                               \n\
                     'flag': [                                       \n\
@@ -535,12 +535,12 @@ static char treedb_schema_mqtt_broker[]= "\
                         'required'                                  \n\
                     ]                                               \n\
                 },                                                  \n\
-                'client_id': {                                      \n\
-                    'header': 'Client Id',                          \n\
+                'session_id': {                                     \n\
+                    'header': 'Session Id',                         \n\
                     'fillspace': 30,                                \n\
                     'type': 'string',                               \n\
                     'flag': [                                       \n\
-                        'fkey'                                      \n\
+                        'persistent'                                \n\
                     ]                                               \n\
                 },                                                  \n\
                 'username': {                                       \n\
@@ -548,11 +548,11 @@ static char treedb_schema_mqtt_broker[]= "\
                     'fillspace': 20,                                \n\
                     'type': 'string',                               \n\
                     'flag': [                                       \n\
-                        'fkey'                                      \n\
+                        'persistent'                                \n\
                     ]                                               \n\
                 },                                                  \n\
                 'mid': {                                            \n\
-                    'header': 'Protocol',                           \n\
+                    'header': 'Mid',                                \n\
                     'fillspace': 4,                                 \n\
                     'type': 'integer',                              \n\
                     'flag': [                                       \n\

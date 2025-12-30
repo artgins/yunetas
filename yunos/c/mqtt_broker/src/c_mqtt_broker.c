@@ -611,6 +611,9 @@ PRIVATE int broadcast_queues_tranger(hgobj gobj)
  *
 
     {
+        "id": "DVES_40AC66",
+        "assigned_id": false,       #^^ if assigned_id is true the client_id is temporary.
+        "clean_start": true,
         "username": "DVES_USER",
         "services_roles": {
             "treedb_mqtt_broker": [
@@ -619,9 +622,6 @@ PRIVATE int broadcast_queues_tranger(hgobj gobj)
         },
         "session_id": "d1515457-f1a1-45d3-a7fd-3f335ae50037", TODO ???
         "peername": "127.0.0.1:47298",
-        "client_id": "DVES_40AC66",
-        "assigned_id": false,       #^^ if assigned_id is true the client_id is temporary.
-        "clean_start": true,
         "protocol_version": 2,
         "session_expiry_interval": 0,
         "keep_alive": 60,
@@ -639,15 +639,15 @@ PRIVATE int broadcast_queues_tranger(hgobj gobj)
     }
 
     {
+        "id": "client1",
+        "assigned_id": false,
+        "clean_start": false,
         "username": "yuneta",
         "services_roles": {
             "treedb_mqtt_broker": []
         },
         "session_id": "",
         "peername": "127.0.0.1:49936",
-        "client_id": "client1",
-        "assigned_id": false,
-        "clean_start": false,
         "protocol_version": 5,
         "session_expiry_interval": -1,
         "keep_alive": 60,
@@ -719,7 +719,7 @@ PRIVATE int ac_on_open(hgobj gobj, const char *event, json_t *kw, hgobj src)
      *  MQTT Client ID <==> topic in Timeranger
      *  (HACK client_id is really a device_id in mqtt IoT devices)
      *--------------------------------------------------------------*/
-    const char *client_id = kw_get_str(gobj, kw, "client_id", "", KW_REQUIRED);
+    const char *client_id = kw_get_str(gobj, kw, "id", "", KW_REQUIRED);
 
     json_t *client = gobj_get_node(
         priv->gobj_treedb_mqtt_broker,
