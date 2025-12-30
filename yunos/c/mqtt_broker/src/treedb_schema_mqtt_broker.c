@@ -551,11 +551,18 @@ static char treedb_schema_mqtt_broker[]= "\
                         'fkey'                                      \n\
                     ]                                               \n\
                 },                                                  \n\
+                'mid': {                                            \n\
+                    'header': 'Protocol',                           \n\
+                    'fillspace': 4,                                 \n\
+                    'type': 'integer',                              \n\
+                    'flag': [                                       \n\
+                        'persistent'                                \n\
+                    ]                                               \n\
+                },                                                  \n\
                 'protocol_version': {                               \n\
                     'header': 'Protocol',                           \n\
                     'fillspace': 4,                                 \n\
                     'type': 'integer',                              \n\
-                    'default': 4,                                   \n\
                     'flag': [                                       \n\
                         'persistent'                                \n\
                     ]                                               \n\
@@ -564,7 +571,6 @@ static char treedb_schema_mqtt_broker[]= "\
                     'header': 'Clean Start',                        \n\
                     'fillspace': 4,                                 \n\
                     'type': 'boolean',                              \n\
-                    'default': true,                                \n\
                     'flag': [                                       \n\
                         'persistent'                                \n\
                     ]                                               \n\
@@ -573,7 +579,6 @@ static char treedb_schema_mqtt_broker[]= "\
                     'header': 'Keep Alive',                         \n\
                     'fillspace': 6,                                 \n\
                     'type': 'integer',                              \n\
-                    'default': 60,                                  \n\
                     'flag': [                                       \n\
                         'persistent'                                \n\
                     ]                                               \n\
@@ -582,7 +587,6 @@ static char treedb_schema_mqtt_broker[]= "\
                     'header': 'Session Expiry',                     \n\
                     'fillspace': 10,                                \n\
                     'type': 'integer',                              \n\
-                    'default': 0,                                   \n\
                     'flag': [                                       \n\
                         'persistent'                                \n\
                     ]                                               \n\
@@ -591,9 +595,7 @@ static char treedb_schema_mqtt_broker[]= "\
                     'header': 'Connected',                          \n\
                     'fillspace': 4,                                 \n\
                     'type': 'boolean',                              \n\
-                    'default': false,                               \n\
                     'flag': [                                       \n\
-                        'persistent'                                \n\
                     ]                                               \n\
                 },                                                  \n\
                 'peername': {                                       \n\
