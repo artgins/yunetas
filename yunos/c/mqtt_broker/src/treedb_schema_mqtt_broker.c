@@ -32,11 +32,11 @@
             │  description              │
             │  icon                     │
             │  enabled                  │
-            │  properties               │
             │  time                     │
-            │  coordinates              │
             │  language                 │
             │  cluster                  │
+            │  properties               │
+            │  coordinates              │
             │                           │
             │               managers {} │ ◀─────────────────┐N
             │                clients {} │ ◀─┐N              │
@@ -57,15 +57,15 @@
             │  description              │                   │
             │  enabled                  │                   │
             │  max_sessions             │                   │
-            │  properties               │                   │
             │  time                     │                   │
-            │  coordinates              │                   │
-            │  settings             <----------------- using client_types.template_settings
-            │  yuno                     │                   │    TODO    make a shortcut to get it
-            │                           │                   │
-            │              sessions {}  │ ◀─────────┐ N     │
-            │                           │           │       │
             │           client_type [↖] │ ──┐ n     │       │
+            │  properties               │   │               │
+            │  coordinates              │   │               │
+            │  settings             <----------------- using client_types.template_settings
+            │  yuno                     │   │               │    TODO    make a shortcut to get it
+            │                           │   │               │
+            │              sessions {}  │ ◀─────────┐ N     │
+            │                           │   │       │       │
             │                           │   │       │       │
             │  _geometry                │   │       │       │
             └───────────────────────────┘   │       │       │
@@ -226,14 +226,6 @@ static char treedb_schema_mqtt_broker[]= "\
                         'persistent'                                \n\
                     ]                                               \n\
                 },                                                  \n\
-                'properties': {                                     \n\
-                    'header': 'Properties',                         \n\
-                    'type': 'blob',                                 \n\
-                    'flag': [                                       \n\
-                        'writable',                                 \n\
-                        'persistent'                                \n\
-                    ]                                               \n\
-                },                                                  \n\
                 'time': {                                           \n\
                     'header': 'Update Time',                        \n\
                     'type': 'integer',                              \n\
@@ -241,21 +233,6 @@ static char treedb_schema_mqtt_broker[]= "\
                         'time',                                     \n\
                         'now',                                      \n\
                         'persistent'                                \n\
-                    ]                                               \n\
-                },                                                  \n\
-                'coordinates': {                                    \n\
-                    'header': 'Coordinates',                        \n\
-                    'type': 'dict',                                 \n\
-                    'default': {                                    \n\
-                        'geometry': {                               \n\
-                            'type': 'Point',                        \n\
-                            'coordinates': [0, 0]                   \n\
-                        }                                           \n\
-                    },                                              \n\
-                    'flag': [                                       \n\
-                        'persistent',                               \n\
-                        'writable',                                 \n\
-                        'coordinates'                               \n\
                     ]                                               \n\
                 },                                                  \n\
                 'language': {                                       \n\
@@ -279,6 +256,29 @@ static char treedb_schema_mqtt_broker[]= "\
                     'flag': [                                       \n\
                         'writable',                                 \n\
                         'persistent'                                \n\
+                    ]                                               \n\
+                },                                                  \n\
+                'properties': {                                     \n\
+                    'header': 'Properties',                         \n\
+                    'type': 'blob',                                 \n\
+                    'flag': [                                       \n\
+                        'writable',                                 \n\
+                        'persistent'                                \n\
+                    ]                                               \n\
+                },                                                  \n\
+                'coordinates': {                                    \n\
+                    'header': 'Coordinates',                        \n\
+                    'type': 'dict',                                 \n\
+                    'default': {                                    \n\
+                        'geometry': {                               \n\
+                            'type': 'Point',                        \n\
+                            'coordinates': [0, 0]                   \n\
+                        }                                           \n\
+                    },                                              \n\
+                    'flag': [                                       \n\
+                        'persistent',                               \n\
+                        'writable',                                 \n\
+                        'coordinates'                               \n\
                     ]                                               \n\
                 },                                                  \n\
                 'managers': {                                       \n\
@@ -364,20 +364,27 @@ static char treedb_schema_mqtt_broker[]= "\
                         'persistent'                                \n\
                     ]                                               \n\
                 },                                                  \n\
-                'properties': {                                     \n\
-                    'header': 'Properties',                         \n\
-                    'type': 'blob',                                 \n\
-                    'flag': [                                       \n\
-                        'writable',                                 \n\
-                        'persistent'                                \n\
-                    ]                                               \n\
-                },                                                  \n\
                 'time': {                                           \n\
                     'header': 'Update Time',                        \n\
                     'type': 'integer',                              \n\
                     'flag': [                                       \n\
                         'time',                                     \n\
                         'now',                                      \n\
+                        'persistent'                                \n\
+                    ]                                               \n\
+                },                                                  \n\
+                'client_type': {                                    \n\
+                    'header': 'Type',                               \n\
+                    'type': 'array',                                \n\
+                    'flag': [                                       \n\
+                        'fkey'                                      \n\
+                    ]                                               \n\
+                },                                                  \n\
+                'properties': {                                     \n\
+                    'header': 'Properties',                         \n\
+                    'type': 'blob',                                 \n\
+                    'flag': [                                       \n\
+                        'writable',                                 \n\
                         'persistent'                                \n\
                     ]                                               \n\
                 },                                                  \n\
@@ -419,13 +426,6 @@ static char treedb_schema_mqtt_broker[]= "\
                     'hook': {                                       \n\
                         'sessions': 'client_id'                     \n\
                     }                                               \n\
-                },                                                  \n\
-                'client_type': {                                    \n\
-                    'header': 'Type',                               \n\
-                    'type': 'array',                                \n\
-                    'flag': [                                       \n\
-                        'fkey'                                      \n\
-                    ]                                               \n\
                 },                                                  \n\
                 '_geometry': {                                      \n\
                     'header': 'Geometry',                           \n\
