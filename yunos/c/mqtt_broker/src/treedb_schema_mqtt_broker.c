@@ -56,28 +56,58 @@
             │  name                     │                   │
             │  description              │                   │
             │  enabled                  │                   │
-            │                           │                   │
-            │  settings             <----------------- using client_types.template_settings
-            │  properties               │                   │       TODO    make a shortcut to get it
-            │  time                     │                   │
-            │  yuno                     │                   │
-            │                           │                   │
-            │           client_type [↖] │ ──┐ n             │
-            │                           │   │               │
-            │  _geometry                │   │               │
-            └───────────────────────────┘   │               │
-                                            │               │
-                      client_types          │               │
-            ┌───────────────────────────┐   │               │
-            │* id                       │   │               │
-            │                           │   │               │
-            │                clients {} │ ◀─┘ N             │
-            │  name                     │                   │
-            │  description              │                   │
-            │  icon                     │                   │
+            │  max_sessions             │                   │
             │  properties               │                   │
             │  time                     │                   │
-            │  template_settings        │                   │
+            │  coordinates              │                   │
+            │  settings             <----------------- using client_types.template_settings
+            │  yuno                     │                   │    TODO    make a shortcut to get it
+            │                           │                   │
+            │              sessions {}  │ ◀─────────┐ N     │
+            │                           │           │       │
+            │           client_type [↖] │ ──┐ n     │       │
+            │                           │   │       │       │
+            │  _geometry                │   │       │       │
+            └───────────────────────────┘   │       │       │
+                                            │       │       │
+                      client_types          │       │       │
+            ┌───────────────────────────┐   │       │       │
+            │* id                       │   │       │       │
+            │                           │   │       │       │
+            │                clients {} │ ◀─┘ N     │       │
+            │  name                     │           │       │
+            │  description              │           │       │
+            │  icon                     │           │       │
+            │  properties               │           │       │
+            │  time                     │           │       │
+            │  template_settings        │           │       │
+            │                           │           │       │
+            │  _geometry                │           │       │
+            └───────────────────────────┘           │       │
+                                                    │       │
+                       sessions                     │       │
+            ┌───────────────────────────┐           │       │
+            │* id (session_id)          │           │       │
+            │                           │           │       │
+            │              client_id (↖)│ ──────────┘1      │
+            │                           │                   │
+            │  protocol_version         │                   │
+            │  clean_start              │                   │
+            │  keep_alive               │                   │
+            │  session_expiry_interval  │                   │
+            │  connected                │                   │
+            │  time                     │                   │
+            │                           │                   │
+            │  subscriptions            │  (json array)     │
+            │                           │                   │
+            │  will_topic               │                   │
+            │  will_payload             │                   │
+            │  will_qos                 │                   │
+            │  will_retain              │                   │
+            │  will_delay_interval      │                   │
+            │  will_properties          │                   │
+            │                           │                   │
+            │  inflight_msgs            │  (json array - QoS 1/2 pending)
             │                           │                   │
             │  _geometry                │                   │
             └───────────────────────────┘                   │
@@ -96,35 +126,6 @@
             │  properties               │
             │  time                     │
             │                           │
-            │  _geometry                │
-            └───────────────────────────┘
-
-
-                    subscriptions
-            ┌───────────────────────────┐
-            │* id (topic_filter)        │
-            │                           │
-            │              client_id (↖)│ ──────┘1
-            │                           │
-            │* qos                      │
-            │  no_local                 │
-            │  retain_as_published      │
-            │  retain_handling          │
-            │  identifier               │
-            │                           │
-            │          shared_group [↖] │ ──┐n
-            │                           │   │
-            │  _geometry                │   │
-            └───────────────────────────┘   │
-                                            │
-                                            │
-                    shared_groups           │
-            ┌───────────────────────────┐   │
-            │* id (group_name)          │   │
-            │                           │   │
-            │          subscriptions {} │ ◀─┘N
-            │                           │
-            │* topic_filter             │
             │  _geometry                │
             └───────────────────────────┘
 
@@ -280,20 +281,20 @@ static char treedb_schema_mqtt_broker[]= "\
                         'persistent'                                \n\
                     ]                                               \n\
                 },                                                  \n\
-                'clients': {                                        \n\
-                    'header': 'Clients',                            \n\
-                    'type': 'object',                               \n\
-                    'flag': ['hook'],                               \n\
-                    'hook': {                                       \n\
-                        'clients': 'client_groups'                  \n\
-                    }                                               \n\
-                },                                                  \n\
                 'managers': {                                       \n\
                     'header': 'Managers',                           \n\
                     'type': 'object',                               \n\
                     'flag': ['hook'],                               \n\
                     'hook': {                                       \n\
                         'users': 'user_groups'                      \n\
+                    }                                               \n\
+                },                                                  \n\
+                'clients': {                                        \n\
+                    'header': 'Clients',                            \n\
+                    'type': 'object',                               \n\
+                    'flag': ['hook'],                               \n\
+                    'hook': {                                       \n\
+                        'clients': 'client_groups'                  \n\
                     }                                               \n\
                 },                                                  \n\
                 '_geometry': {                                      \n\
@@ -353,50 +354,11 @@ static char treedb_schema_mqtt_broker[]= "\
                         'persistent'                                \n\
                     ]                                               \n\
                 },                                                  \n\
-                'sessions': {                                       \n\
-                    'header': 'Sessions',                           \n\
-                    'fillspace': 10,                                \n\
-                    'type': 'dict',                                 \n\
-                    'flag': ['hook'],                               \n\
-                    'hook': {                                       \n\
-                        'sessions': 'client_id'                     \n\
-                    }                                               \n\
-                },                                                  \n\
                 'max_sessions': {                                   \n\
                     'header': 'Max Sessions',                       \n\
                     'fillspace': 4,                                 \n\
                     'type': 'integer',                              \n\
                     'default': 1,                                   \n\
-                    'flag': [                                       \n\
-                        'writable',                                 \n\
-                        'persistent'                                \n\
-                    ]                                               \n\
-                },                                                  \n\
-                'coordinates': {                                    \n\
-                    'header': 'Coordinates',                        \n\
-                    'type': 'dict',                                 \n\
-                    'default': {                                    \n\
-                        'geometry': {                               \n\
-                            'type': 'Point',                        \n\
-                            'coordinates': [0, 0]                   \n\
-                        }                                           \n\
-                    },                                              \n\
-                    'flag': [                                       \n\
-                        'persistent',                               \n\
-                        'writable',                                 \n\
-                        'coordinates'                               \n\
-                    ]                                               \n\
-                },                                                  \n\
-                'client_type': {                                    \n\
-                    'header': 'Type',                               \n\
-                    'type': 'array',                                \n\
-                    'flag': [                                       \n\
-                        'fkey'                                      \n\
-                    ]                                               \n\
-                },                                                  \n\
-                'settings': {                                       \n\
-                    'header': 'Client Settings',                    \n\
-                    'type': 'dict',                                 \n\
                     'flag': [                                       \n\
                         'writable',                                 \n\
                         'persistent'                                \n\
@@ -419,11 +381,50 @@ static char treedb_schema_mqtt_broker[]= "\
                         'persistent'                                \n\
                     ]                                               \n\
                 },                                                  \n\
+                'coordinates': {                                    \n\
+                    'header': 'Coordinates',                        \n\
+                    'type': 'dict',                                 \n\
+                    'default': {                                    \n\
+                        'geometry': {                               \n\
+                            'type': 'Point',                        \n\
+                            'coordinates': [0, 0]                   \n\
+                        }                                           \n\
+                    },                                              \n\
+                    'flag': [                                       \n\
+                        'persistent',                               \n\
+                        'writable',                                 \n\
+                        'coordinates'                               \n\
+                    ]                                               \n\
+                },                                                  \n\
+                'settings': {                                       \n\
+                    'header': 'Client Settings',                    \n\
+                    'type': 'dict',                                 \n\
+                    'flag': [                                       \n\
+                        'writable',                                 \n\
+                        'persistent'                                \n\
+                    ]                                               \n\
+                },                                                  \n\
                 'yuno': {                                           \n\
                     'header': 'Yuno',                               \n\
                     'type': 'string',                               \n\
                     'flag': [                                       \n\
                         'persistent'                                \n\
+                    ]                                               \n\
+                },                                                  \n\
+                'sessions': {                                       \n\
+                    'header': 'Sessions',                           \n\
+                    'fillspace': 10,                                \n\
+                    'type': 'dict',                                 \n\
+                    'flag': ['hook'],                               \n\
+                    'hook': {                                       \n\
+                        'sessions': 'client_id'                     \n\
+                    }                                               \n\
+                },                                                  \n\
+                'client_type': {                                    \n\
+                    'header': 'Type',                               \n\
+                    'type': 'array',                                \n\
+                    'flag': [                                       \n\
+                        'fkey'                                      \n\
                     ]                                               \n\
                 },                                                  \n\
                 '_geometry': {                                      \n\
@@ -686,6 +687,177 @@ static char treedb_schema_mqtt_broker[]= "\
                 '_geometry': {                                      \n\
                     'header': 'Geometry',                           \n\
                     'type': 'blob',                                 \n\
+                    'flag': [                                       \n\
+                        'persistent'                                \n\
+                    ]                                               \n\
+                }                                                   \n\
+            }                                                       \n\
+        },                                                          \n\
+                                                                    \n\
+        {                                                           \n\
+            'id': 'sessions',                                       \n\
+            'pkey': 'id',                                           \n\
+            'system_flag': 'sf_string_key',                         \n\
+            'topic_version': '1',                                   \n\
+            'cols': {                                               \n\
+                'id': {                                             \n\
+                    'header': 'Session Id',                         \n\
+                    'fillspace': 40,                                \n\
+                    'type': 'string',                               \n\
+                    'flag': [                                       \n\
+                        'persistent',                               \n\
+                        'required'                                  \n\
+                    ]                                               \n\
+                },                                                  \n\
+                'client_id': {                                      \n\
+                    'header': 'Client Id',                          \n\
+                    'fillspace': 30,                                \n\
+                    'type': 'string',                               \n\
+                    'flag': [                                       \n\
+                        'fkey'                                      \n\
+                    ]                                               \n\
+                },                                                  \n\
+                'protocol_version': {                               \n\
+                    'header': 'Protocol',                           \n\
+                    'fillspace': 4,                                 \n\
+                    'type': 'integer',                              \n\
+                    'default': 4,                                   \n\
+                    'flag': [                                       \n\
+                        'writable',                                 \n\
+                        'persistent'                                \n\
+                    ]                                               \n\
+                },                                                  \n\
+                'clean_start': {                                    \n\
+                    'header': 'Clean Start',                        \n\
+                    'fillspace': 4,                                 \n\
+                    'type': 'boolean',                              \n\
+                    'default': true,                                \n\
+                    'flag': [                                       \n\
+                        'writable',                                 \n\
+                        'persistent'                                \n\
+                    ]                                               \n\
+                },                                                  \n\
+                'keep_alive': {                                     \n\
+                    'header': 'Keep Alive',                         \n\
+                    'fillspace': 6,                                 \n\
+                    'type': 'integer',                              \n\
+                    'default': 60,                                  \n\
+                    'flag': [                                       \n\
+                        'writable',                                 \n\
+                        'persistent'                                \n\
+                    ]                                               \n\
+                },                                                  \n\
+                'session_expiry_interval': {                        \n\
+                    'header': 'Session Expiry',                     \n\
+                    'fillspace': 10,                                \n\
+                    'type': 'integer',                              \n\
+                    'default': 0,                                   \n\
+                    'flag': [                                       \n\
+                        'writable',                                 \n\
+                        'persistent'                                \n\
+                    ]                                               \n\
+                },                                                  \n\
+                'connected': {                                      \n\
+                    'header': 'Connected',                          \n\
+                    'fillspace': 4,                                 \n\
+                    'type': 'boolean',                              \n\
+                    'default': false,                               \n\
+                    'flag': [                                       \n\
+                        'writable',                                 \n\
+                        'persistent'                                \n\
+                    ]                                               \n\
+                },                                                  \n\
+                'time': {                                           \n\
+                    'header': 'Update Time',                        \n\
+                    'fillspace': 15,                                \n\
+                    'type': 'integer',                              \n\
+                    'flag': [                                       \n\
+                        'time',                                     \n\
+                        'now',                                      \n\
+                        'persistent'                                \n\
+                    ]                                               \n\
+                },                                                  \n\
+                'subscriptions': {                                  \n\
+                    'header': 'Subscriptions',                      \n\
+                    'fillspace': 30,                                \n\
+                    'type': 'array',                                \n\
+                    'flag': [                                       \n\
+                        'writable',                                 \n\
+                        'persistent'                                \n\
+                    ],                                              \n\
+                    'description': 'Array of subscription objects: {topic_filter, qos, no_local, retain_as_published, retain_handling, identifier}' \n\
+                },                                                  \n\
+                'will_topic': {                                     \n\
+                    'header': 'Will Topic',                         \n\
+                    'fillspace': 30,                                \n\
+                    'type': 'string',                               \n\
+                    'flag': [                                       \n\
+                        'writable',                                 \n\
+                        'persistent'                                \n\
+                    ]                                               \n\
+                },                                                  \n\
+                'will_payload': {                                   \n\
+                    'header': 'Will Payload',                       \n\
+                    'fillspace': 20,                                \n\
+                    'type': 'blob',                                 \n\
+                    'flag': [                                       \n\
+                        'writable',                                 \n\
+                        'persistent'                                \n\
+                    ]                                               \n\
+                },                                                  \n\
+                'will_qos': {                                       \n\
+                    'header': 'Will QoS',                           \n\
+                    'fillspace': 4,                                 \n\
+                    'type': 'integer',                              \n\
+                    'default': 0,                                   \n\
+                    'flag': [                                       \n\
+                        'writable',                                 \n\
+                        'persistent'                                \n\
+                    ]                                               \n\
+                },                                                  \n\
+                'will_retain': {                                    \n\
+                    'header': 'Will Retain',                        \n\
+                    'fillspace': 4,                                 \n\
+                    'type': 'boolean',                              \n\
+                    'default': false,                               \n\
+                    'flag': [                                       \n\
+                        'writable',                                 \n\
+                        'persistent'                                \n\
+                    ]                                               \n\
+                },                                                  \n\
+                'will_delay_interval': {                            \n\
+                    'header': 'Will Delay',                         \n\
+                    'fillspace': 10,                                \n\
+                    'type': 'integer',                              \n\
+                    'default': 0,                                   \n\
+                    'flag': [                                       \n\
+                        'writable',                                 \n\
+                        'persistent'                                \n\
+                    ]                                               \n\
+                },                                                  \n\
+                'will_properties': {                                \n\
+                    'header': 'Will Props',                         \n\
+                    'fillspace': 20,                                \n\
+                    'type': 'dict',                                 \n\
+                    'flag': [                                       \n\
+                        'writable',                                 \n\
+                        'persistent'                                \n\
+                    ]                                               \n\
+                },                                                  \n\
+                'inflight_msgs': {                                  \n\
+                    'header': 'Inflight',                           \n\
+                    'fillspace': 20,                                \n\
+                    'type': 'array',                                \n\
+                    'flag': [                                       \n\
+                        'writable',                                 \n\
+                        'persistent'                                \n\
+                    ],                                              \n\
+                    'description': 'QoS 1/2 messages pending acknowledgment' \n\
+                },                                                  \n\
+                '_geometry': {                                      \n\
+                    'header': 'Geometry',                           \n\
+                    'type': 'blob',                                 \n\
+                    'fillspace': 10,                                \n\
                     'flag': [                                       \n\
                         'persistent'                                \n\
                     ]                                               \n\
