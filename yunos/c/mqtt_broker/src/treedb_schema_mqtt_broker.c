@@ -553,7 +553,6 @@ static char treedb_schema_mqtt_broker[]= "\
                     'type': 'integer',                              \n\
                     'default': 4,                                   \n\
                     'flag': [                                       \n\
-                        'writable',                                 \n\
                         'persistent'                                \n\
                     ]                                               \n\
                 },                                                  \n\
@@ -563,7 +562,6 @@ static char treedb_schema_mqtt_broker[]= "\
                     'type': 'boolean',                              \n\
                     'default': true,                                \n\
                     'flag': [                                       \n\
-                        'writable',                                 \n\
                         'persistent'                                \n\
                     ]                                               \n\
                 },                                                  \n\
@@ -573,7 +571,6 @@ static char treedb_schema_mqtt_broker[]= "\
                     'type': 'integer',                              \n\
                     'default': 60,                                  \n\
                     'flag': [                                       \n\
-                        'writable',                                 \n\
                         'persistent'                                \n\
                     ]                                               \n\
                 },                                                  \n\
@@ -583,7 +580,6 @@ static char treedb_schema_mqtt_broker[]= "\
                     'type': 'integer',                              \n\
                     'default': 0,                                   \n\
                     'flag': [                                       \n\
-                        'writable',                                 \n\
                         'persistent'                                \n\
                     ]                                               \n\
                 },                                                  \n\
@@ -593,7 +589,6 @@ static char treedb_schema_mqtt_broker[]= "\
                     'type': 'boolean',                              \n\
                     'default': false,                               \n\
                     'flag': [                                       \n\
-                        'writable',                                 \n\
                         'persistent'                                \n\
                     ]                                               \n\
                 },                                                  \n\
@@ -612,7 +607,6 @@ static char treedb_schema_mqtt_broker[]= "\
                     'fillspace': 30,                                \n\
                     'type': 'array',                                \n\
                     'flag': [                                       \n\
-                        'writable',                                 \n\
                         'persistent'                                \n\
                     ],                                              \n\
                     'description': 'Array of subscription objects: {topic_filter, qos, no_local, retain_as_published, retain_handling, identifier}' \n\
@@ -622,7 +616,6 @@ static char treedb_schema_mqtt_broker[]= "\
                     'fillspace': 30,                                \n\
                     'type': 'string',                               \n\
                     'flag': [                                       \n\
-                        'writable',                                 \n\
                         'persistent'                                \n\
                     ]                                               \n\
                 },                                                  \n\
@@ -631,7 +624,6 @@ static char treedb_schema_mqtt_broker[]= "\
                     'fillspace': 20,                                \n\
                     'type': 'blob',                                 \n\
                     'flag': [                                       \n\
-                        'writable',                                 \n\
                         'persistent'                                \n\
                     ]                                               \n\
                 },                                                  \n\
@@ -641,7 +633,6 @@ static char treedb_schema_mqtt_broker[]= "\
                     'type': 'integer',                              \n\
                     'default': 0,                                   \n\
                     'flag': [                                       \n\
-                        'writable',                                 \n\
                         'persistent'                                \n\
                     ]                                               \n\
                 },                                                  \n\
@@ -651,7 +642,6 @@ static char treedb_schema_mqtt_broker[]= "\
                     'type': 'boolean',                              \n\
                     'default': false,                               \n\
                     'flag': [                                       \n\
-                        'writable',                                 \n\
                         'persistent'                                \n\
                     ]                                               \n\
                 },                                                  \n\
@@ -661,7 +651,6 @@ static char treedb_schema_mqtt_broker[]= "\
                     'type': 'integer',                              \n\
                     'default': 0,                                   \n\
                     'flag': [                                       \n\
-                        'writable',                                 \n\
                         'persistent'                                \n\
                     ]                                               \n\
                 },                                                  \n\
@@ -670,7 +659,6 @@ static char treedb_schema_mqtt_broker[]= "\
                     'fillspace': 20,                                \n\
                     'type': 'dict',                                 \n\
                     'flag': [                                       \n\
-                        'writable',                                 \n\
                         'persistent'                                \n\
                     ]                                               \n\
                 },                                                  \n\
@@ -679,10 +667,112 @@ static char treedb_schema_mqtt_broker[]= "\
                     'fillspace': 20,                                \n\
                     'type': 'array',                                \n\
                     'flag': [                                       \n\
-                        'writable',                                 \n\
                         'persistent'                                \n\
                     ],                                              \n\
                     'description': 'QoS 1/2 messages pending acknowledgment' \n\
+                },                                                  \n\
+                '_geometry': {                                      \n\
+                    'header': 'Geometry',                           \n\
+                    'type': 'blob',                                 \n\
+                    'fillspace': 10,                                \n\
+                    'flag': [                                       \n\
+                        'persistent'                                \n\
+                    ]                                               \n\
+                }                                                   \n\
+            }                                                       \n\
+        },                                                          \n\
+                                                                    \n\
+        {                                                           \n\
+            'id': 'retained_msgs',                                  \n\
+            'pkey': 'id',                                           \n\
+            'system_flag': 'sf_string_key',                         \n\
+            'topic_version': '1',                                   \n\
+            'cols': {                                               \n\
+                'id': {                                             \n\
+                    'header': 'Topic',                              \n\
+                    'fillspace': 50,                                \n\
+                    'type': 'string',                               \n\
+                    'flag': [                                       \n\
+                        'persistent',                               \n\
+                        'required'                                  \n\
+                    ]                                               \n\
+                },                                                  \n\
+                'payload': {                                        \n\
+                    'header': 'Payload',                            \n\
+                    'fillspace': 30,                                \n\
+                    'type': 'blob',                                 \n\
+                    'flag': [                                       \n\
+                        'persistent'                                \n\
+                    ]                                               \n\
+                },                                                  \n\
+                'qos': {                                            \n\
+                    'header': 'QoS',                                \n\
+                    'fillspace': 4,                                 \n\
+                    'type': 'integer',                              \n\
+                    'default': 0,                                   \n\
+                    'flag': [                                       \n\
+                        'persistent'                                \n\
+                    ]                                               \n\
+                },                                                  \n\
+                'time': {                                           \n\
+                    'header': 'Update Time',                        \n\
+                    'fillspace': 15,                                \n\
+                    'type': 'integer',                              \n\
+                    'flag': [                                       \n\
+                        'time',                                     \n\
+                        'now',                                      \n\
+                        'persistent'                                \n\
+                    ]                                               \n\
+                },                                                  \n\
+                'message_expiry_interval': {                        \n\
+                    'header': 'Msg Expiry',                         \n\
+                    'fillspace': 10,                                \n\
+                    'type': 'integer',                              \n\
+                    'default': 0,                                   \n\
+                    'flag': [                                       \n\
+                        'persistent'                                \n\
+                    ]                                               \n\
+                },                                                  \n\
+                'payload_format_indicator': {                       \n\
+                    'header': 'Format',                             \n\
+                    'fillspace': 4,                                 \n\
+                    'type': 'integer',                              \n\
+                    'default': 0,                                   \n\
+                    'flag': [                                       \n\
+                        'persistent'                                \n\
+                    ]                                               \n\
+                },                                                  \n\
+                'content_type': {                                   \n\
+                    'header': 'Content Type',                       \n\
+                    'fillspace': 20,                                \n\
+                    'type': 'string',                               \n\
+                    'flag': [                                       \n\
+                        'persistent'                                \n\
+                    ]                                               \n\
+                },                                                  \n\
+                'response_topic': {                                 \n\
+                    'header': 'Response Topic',                     \n\
+                    'fillspace': 30,                                \n\
+                    'type': 'string',                               \n\
+                    'flag': [                                       \n\
+                        'persistent'                                \n\
+                    ]                                               \n\
+                },                                                  \n\
+                'correlation_data': {                               \n\
+                    'header': 'Correlation',                        \n\
+                    'fillspace': 20,                                \n\
+                    'type': 'blob',                                 \n\
+                    'flag': [                                       \n\
+                        'persistent'                                \n\
+                    ]                                               \n\
+                },                                                  \n\
+                'user_properties': {                                \n\
+                    'header': 'User Props',                         \n\
+                    'fillspace': 20,                                \n\
+                    'type': 'dict',                                 \n\
+                    'flag': [                                       \n\
+                        'persistent'                                \n\
+                    ]                                               \n\
                 },                                                  \n\
                 '_geometry': {                                      \n\
                     'header': 'Geometry',                           \n\
