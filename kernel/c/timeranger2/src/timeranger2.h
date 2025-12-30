@@ -134,22 +134,22 @@ typedef enum { /* WARNING table with name's strings in timeranger.c / sf_names *
 } system_flag2_t;
 
 typedef struct {
-    uint64_t __t__;
-    uint64_t __tm__;
+    uint64_t __t__;         // time when record is stored
+    uint64_t __tm__;        // time when record was created
 
-    uint64_t __offset__;
-    uint64_t __size__;
+    uint64_t __offset__;    // offset where the record is stored
+    uint64_t __size__;      // size of the record
 
-    uint16_t system_flag;
-    uint16_t user_flag;
-    uint64_t rowid;
+    uint16_t system_flag;   // system flags managed internally by timeranger
+    uint16_t user_flag;     // user flags managed by the user
+    uint64_t rowid;         // row id of the record in the flat file
 } md2_record_ex_t;
 
 typedef struct {
     const char *topic_name;
-    const char *pkey;   // Primary key
+    const char *pkey;   // Name of Primary key, usually "id"
     const system_flag2_t system_flag;
-    const char *tkey;   // Time key
+    const char *tkey;   // Name of Time key, usually "tm"
     const json_desc_t *jn_cols;
     const json_desc_t *jn_topic_ext;
 } topic_desc_t;
