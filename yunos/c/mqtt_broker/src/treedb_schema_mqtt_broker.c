@@ -56,7 +56,6 @@
             │  name                     │                   │
             │  description              │                   │
             │  enabled                  │                   │
-            │  max_sessions             │                   │
             │  time                     │                   │
             │           client_type [↖] │ ──┐ n     │       │
             │  properties               │   │               │
@@ -337,6 +336,13 @@ static char treedb_schema_mqtt_broker[]= "\
                         'persistent'                                \n\
                     ]                                               \n\
                 },                                                  \n\
+                'assigned_id': {                                    \n\
+                    'header': 'Assigned Id',                        \n\
+                    'type': 'boolean',                              \n\
+                    'flag': [                                       \n\
+                        'persistent'                                \n\
+                    ]                                               \n\
+                },                                                  \n\
                 'description': {                                    \n\
                     'header': 'Description',                        \n\
                     'type': 'string',                               \n\
@@ -349,16 +355,6 @@ static char treedb_schema_mqtt_broker[]= "\
                     'header': 'Enabled',                            \n\
                     'type': 'boolean',                              \n\
                     'default': true,                                \n\
-                    'flag': [                                       \n\
-                        'writable',                                 \n\
-                        'persistent'                                \n\
-                    ]                                               \n\
-                },                                                  \n\
-                'max_sessions': {                                   \n\
-                    'header': 'Max Sessions',                       \n\
-                    'fillspace': 4,                                 \n\
-                    'type': 'integer',                              \n\
-                    'default': 1,                                   \n\
                     'flag': [                                       \n\
                         'writable',                                 \n\
                         'persistent'                                \n\

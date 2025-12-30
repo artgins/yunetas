@@ -713,32 +713,119 @@ PRIVATE int ac_on_open(hgobj gobj, const char *event, json_t *kw, hgobj src)
      *--------------------------------------*/
 
     /*--------------------------------------------------------------*
-     *  Open/Create a client.
+     *              Open/Create CLIENT
+     *
      *  This must be done *after* any security checks.
      *  With assigned_id the id is random!, not a persistent id
      *  MQTT Client ID <==> topic in Timeranger
      *  (HACK client_id is really a device_id in mqtt IoT devices)
      *--------------------------------------------------------------*/
-    const char *username = kw_get_str(gobj, kw, "username", "", KW_REQUIRED);
-    const char *session_id = kw_get_str(gobj, kw, "session_id", "", KW_REQUIRED);
-    const char *peername = kw_get_str(gobj, kw, "peername", "", KW_REQUIRED);
     const char *client_id = kw_get_str(gobj, kw, "client_id", "", KW_REQUIRED);
+
+    json_t *client = gobj_get_node(
+        priv->gobj_treedb_mqtt_broker,
+        "clients",
+        json_pack("{s:s}", "id", client_id),
+        NULL,
+        gobj
+    );
+    if(!client) {
+        /*
+         *  Client NOT exist, refuse or create it if enable_new_clients is true
+         */
+        if(!priv->enable_new_clients) {
+            gobj_log_info(gobj, 0,
+                "function",     "%s", __FUNCTION__,
+                "msgset",       "%s", MSGSET_INFO,
+                "msg",          "%s", "Client not exist and no auto-create",
+                "client_id",    "%s", client_id,
+                NULL
+            );
+            result = -1;
+            KW_DECREF(kw);
+            return result;
+        }
+
+        /*
+         *  Create new client as auto-create
+         */
+            // gbuffer_t *gbuf = (gbuffer_t *)(uintptr_t)kw_get_int(gobj, kw, "gbuffer", 0, 0);
+            // if(gbuf) {
+            //     gbuffer_t *gbuf_base64 = gbuffer_encode_base64(gbuffer_incref(gbuf));
+            //     char *b64 = gbuffer_cur_rd_pointer(gbuf_base64);
+            //     json_object_set_new(jn_will, "will_payload", json_string(b64));
+            //     gbuffer_decref(gbuf_base64);
+            // }
+
+        client = gobj_create_node(
+            priv->gobj_treedb_mqtt_broker,
+            "clients",
+            kw_incref(kw),
+            NULL,
+            gobj
+        );
+        if(!client) {
+            gobj_log_error(gobj, 0,
+                "function",     "%s", __FUNCTION__,
+                "msgset",       "%s", MSGSET_INFO,
+                "msg",          "%s", "Cannot create new client",
+                "client_id",    "%s", client_id,
+                NULL
+            );
+            result = -1;
+            KW_DECREF(kw);
+            return result;
+        }
+    }
+
+    /*----------------------------------------------------------------*
+     *              Open/Create SESSION
+     *----------------------------------------------------------------*/
     BOOL assigned_id = kw_get_bool(gobj, kw, "assigned_id", 0, KW_REQUIRED);
     BOOL clean_start = kw_get_bool(gobj, kw, "clean_start", TRUE, KW_REQUIRED);
     int protocol_version = (int)kw_get_int(gobj, kw, "protocol_version", 0, KW_REQUIRED);
     json_int_t session_expiry_interval = kw_get_int(
         gobj, kw, "session_expiry_interval", 0, KW_REQUIRED
     );
-    int keep_alive = (int)kw_get_int(gobj, kw, "keep_alive", 0, KW_REQUIRED);
-    BOOL will = kw_get_bool(gobj, kw, "will", 0, KW_REQUIRED);
-    json_t *connect_properties = kw_get_dict(gobj, kw, "connect_properties", 0, 0);
 
     if(assigned_id) {
         clean_start = TRUE;
     }
 
+    json_t *session = gobj_get_node(
+        priv->gobj_treedb_mqtt_broker,
+        "sessions",
+        json_pack("{s:s}", "id", client_id),
+        NULL,
+        gobj
+    );
+    if(!session) {
+    }
+
+    {
+        /*
+         *  Client exists
+         *  if session already exists with below conditions return 1 !!!
+         */
+        json_int_t prev_session_expiry_interval = kw_get_int(
+            gobj,
+            client,
+            "session_expiry_interval",
+            0,
+            KW_REQUIRED
+        );
+        if(clean_start == FALSE && prev_session_expiry_interval > 0) {
+            if(protocol_version == mosq_p_mqtt311 || protocol_version == mosq_p_mqtt5) {
+                result = 1; // ack=1 Resume existing session
+            }
+            // copia client session, subs, ...  TODO
+            gobj_write_integer_attr(gobj_channel, "last_mid", last_mid);
+        }
+    }
+
     /*--------------------------------------------------------------*
      *  Check if the client is already connected and disconnect it
+     *  TODO use max_sessions attribute? in mqtt is always 1
      *  TODO must search in sessions
      *--------------------------------------------------------------*/
     int last_mid = 0;
@@ -798,86 +885,6 @@ PRIVATE int ac_on_open(hgobj gobj, const char *event, json_t *kw, hgobj src)
         }
 
         gobj_free_iter(dl_children);
-    }
-
-    /*----------------------------------------------------------------*
-     *  open client
-     *      or create it if it doesn't exist (if has permission TODO)
-     *----------------------------------------------------------------*/
-    json_t *client = gobj_get_node(
-        priv->gobj_treedb_mqtt_broker,
-        "clients",
-        json_pack("{s:s}", "id", client_id),
-        NULL,
-        gobj
-    );
-    if(!client) {
-        /*
-         *  Client NOT exist, refuse or create it if enable_new_clients is true
-         */
-        if(!priv->enable_new_clients) {
-            gobj_log_info(gobj, 0,
-                "function",     "%s", __FUNCTION__,
-                "msgset",       "%s", MSGSET_INFO,
-                "msg",          "%s", "Client not exist and no auto-create",
-                "client_id",    "%s", client_id,
-                NULL
-            );
-            result = -1;
-            KW_DECREF(kw);
-            return result;
-        }
-
-        /*
-         *  Create new client as auto-create
-         */
-            // gbuffer_t *gbuf = (gbuffer_t *)(uintptr_t)kw_get_int(gobj, kw, "gbuffer", 0, 0);
-            // if(gbuf) {
-            //     gbuffer_t *gbuf_base64 = gbuffer_encode_base64(gbuffer_incref(gbuf));
-            //     char *b64 = gbuffer_cur_rd_pointer(gbuf_base64);
-            //     json_object_set_new(jn_will, "will_payload", json_string(b64));
-            //     gbuffer_decref(gbuf_base64);
-            // }
-
-        client = gobj_create_node(
-            priv->gobj_treedb_mqtt_broker,
-            "clients",
-            kw_incref(kw),
-            NULL,
-            gobj
-        );
-        if(!client) {
-            gobj_log_error(gobj, 0,
-                "function",     "%s", __FUNCTION__,
-                "msgset",       "%s", MSGSET_INFO,
-                "msg",          "%s", "Cannot create new client",
-                "client_id",    "%s", client_id,
-                NULL
-            );
-            result = -1;
-            KW_DECREF(kw);
-            return result;
-        }
-
-    } else {
-        /*
-         *  Client exists
-         *  if session already exists with below conditions return 1 !!!
-         */
-        json_int_t prev_session_expiry_interval = kw_get_int(
-            gobj,
-            client,
-            "session_expiry_interval",
-            0,
-            KW_REQUIRED
-        );
-        if(clean_start == FALSE && prev_session_expiry_interval > 0) {
-            if(protocol_version == mosq_p_mqtt311 || protocol_version == mosq_p_mqtt5) {
-                result = 1; // ack=1 Resume existing session
-            }
-            // copia client session, subs, ...  TODO
-            gobj_write_integer_attr(gobj_channel, "last_mid", last_mid);
-        }
     }
 
     if(gobj_found_context) {
