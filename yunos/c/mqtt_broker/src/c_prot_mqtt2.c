@@ -466,17 +466,17 @@ typedef struct _PRIVATE_DATA {
     /*
      *  Config
      */
-    uint32_t max_inflight_bytes;
-    uint32_t max_inflight_messages;
-    uint32_t max_queued_bytes;
-    uint32_t max_queued_messages;
-    uint32_t max_keepalive;
-    uint32_t max_packet_size;
-    uint32_t message_size_limit;
+    int max_inflight_bytes;
+    int max_inflight_messages;
+    int max_queued_bytes;
+    int max_queued_messages;
+    int max_keepalive;
+    int max_packet_size;
+    int message_size_limit;
     BOOL persistence;
     BOOL retain_available;
     BOOL allow_zero_length_clientid;
-    uint32_t max_topic_alias;
+    int max_topic_alias;
 
     /*
      *  Dynamic data (reset per connection)
