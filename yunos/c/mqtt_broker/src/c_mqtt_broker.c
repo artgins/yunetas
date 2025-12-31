@@ -800,20 +800,7 @@ PRIVATE int ac_on_open(hgobj gobj, const char *event, json_t *kw, hgobj src)
         /*-------------------------------------------------------------*
          *              Exists a previous session
          *-------------------------------------------------------------*/
-        if(clean_start) {
-            /*-----------------------------------*
-             *  Delete it if clean_start TRUE
-             *-----------------------------------*/
-            gobj_delete_node(
-                priv->gobj_treedb_mqtt_broker,
-                "sessions",
-                session,  // owned
-                json_pack("{s:b}", "force", 1),
-                gobj
-            );
-            session = NULL;
-
-        } else {
+        if(!clean_start) {
             /*-----------------------------------*
              *      Reuse the session
              *-----------------------------------*/
@@ -832,6 +819,21 @@ PRIVATE int ac_on_open(hgobj gobj, const char *event, json_t *kw, hgobj src)
             }
 
             // TODO update fields updatable
+
+        } else {
+            /*-----------------------------------*
+             *  Delete it if clean_start TRUE
+             *-----------------------------------*/
+            gobj_delete_node(
+                priv->gobj_treedb_mqtt_broker,
+                "sessions",
+                session,  // owned
+                json_pack("{s:b}", "force", 1),
+                gobj
+            );
+            // TODO clean queues
+            session = NULL;
+
         }
     }
 
