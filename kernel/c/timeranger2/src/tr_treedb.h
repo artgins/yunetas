@@ -324,7 +324,8 @@ PUBLIC int set_volatil_values(
     json_t *tranger,
     const char *topic_name,
     json_t *record,  // NOT owned
-    json_t *kw // NOT owned
+    json_t *kw, // NOT owned
+    BOOL broadcast // if true treedb_callback EV_TREEDB_NODE_UPDATED
 );
 
 /**rst**

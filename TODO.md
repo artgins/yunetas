@@ -92,6 +92,7 @@ The documentation needs to be update with next changes
     treedb_list_parents
     trq_append2
     trq_msg_hard_flag
+    set_volatil_values
 
 # New API
 

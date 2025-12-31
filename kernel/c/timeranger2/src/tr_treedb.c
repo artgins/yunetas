@@ -2967,8 +2967,9 @@ PRIVATE int set_volatil_field_value(
 PUBLIC int set_volatil_values(
     json_t *tranger,
     const char *topic_name,
-    json_t *record,  // NOT owned
-    json_t *kw // NOT owned
+    json_t *node,  // NOT owned
+    json_t *kw, // NOT owned
+    BOOL broadcast
 )
 {
     hgobj gobj = (hgobj)json_integer_value(json_object_get(tranger, "gobj"));
@@ -3017,9 +3018,54 @@ PUBLIC int set_volatil_values(
         set_volatil_field_value(
             type,
             field_,
-            record, // NOT owned
+            node,   // NOT owned
             value   // NOT owned
         );
+    }
+
+    if(broadcast) {
+        /*-------------------------------*
+         *      Get node info
+         *-------------------------------*/
+        const char *treedb_name = kw_get_str(gobj, node, "__md_treedb__`treedb_name", 0, 0);
+
+        /*-------------------------------*
+         *  Get callback
+         *-------------------------------*/
+        json_t *treedb = kwid_get(gobj, tranger, 0, "treedbs`%s", treedb_name);
+        treedb_callback_t treedb_callback =
+            (treedb_callback_t)(size_t)kw_get_int(gobj,
+            treedb,
+            "__treedb_callback__",
+            0,
+            0
+        );
+        void *user_data =
+            (void *)(uintptr_t)kw_get_int(gobj,
+            treedb,
+            "__treedb_callback_user_data__",
+            0,
+            0
+        );
+
+        /*----------------------------------*
+         *  Call Callback
+         *----------------------------------*/
+        if(treedb_callback) {
+            /*
+             *  Inform user in real time
+             */
+            JSON_INCREF(node)
+            treedb_callback(
+                user_data,
+                tranger,
+                treedb_name,
+                topic_name,
+                EV_TREEDB_NODE_UPDATED,
+                node
+            );
+            treedb_callback = 0; // Not inform more
+        }
     }
 
     JSON_DECREF(cols)
@@ -4551,7 +4597,8 @@ PUBLIC json_t *treedb_create_node( // WARNING Return is NOT YOURS, pure node
         tranger,
         topic_name,
         record,  // NOT owned
-        kw // NOT owned
+        kw, // NOT owned
+        FALSE
     );
 
     /*--------------------------------------------*
