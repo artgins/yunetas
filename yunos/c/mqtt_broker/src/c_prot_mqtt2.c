@@ -387,6 +387,7 @@ SDATA (DTP_INTEGER,     "max_topic_alias",  SDF_WR,         "10",     "This opti
 /*
  *  Dynamic Data
  */
+SDATA (DTP_JSON,        "session",          SDF_VOLATIL,        0,      "Session node"),
 SDATA (DTP_BOOLEAN,     "in_session",       SDF_VOLATIL|SDF_STATS,0,    "CONNECT mqtt done"),
 SDATA (DTP_BOOLEAN,     "send_disconnect",  SDF_VOLATIL,        0,      "send DISCONNECT"),
 SDATA (DTP_INTEGER,     "last_mid",         SDF_VOLATIL,        0,      "Last mid"),

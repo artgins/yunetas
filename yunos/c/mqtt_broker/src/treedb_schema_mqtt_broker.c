@@ -162,7 +162,7 @@
 static char treedb_schema_mqtt_broker[]= "\
 {                                                                   \n\
     'id': 'treedb_mqtt_broker',                                     \n\
-    'schema_version': '2',                                         	\n\
+    'schema_version': '3',                                         	\n\
     'topics': [                                                     \n\
         {                                                           \n\
             'id': 'client_groups',                                  \n\
@@ -511,7 +511,7 @@ static char treedb_schema_mqtt_broker[]= "\
             'id': 'sessions',                                       \n\
             'pkey': 'id',                                           \n\
             'system_flag': 'sf_string_key',                         \n\
-            'topic_version': '2',                                   \n\
+            'topic_version': '3',                                   \n\
             'cols': {                                               \n\
                 'id': {                                             \n\
                     'header': 'Client Id',                          \n\
@@ -585,7 +585,7 @@ static char treedb_schema_mqtt_broker[]= "\
                     'flag': [                                       \n\
                     ]                                               \n\
                 },                                                  \n\
-                'gobj_channel': {                                   \n\
+                '_gobj_channel': {                                   \n\
                     'header': 'Channel',                            \n\
                     'fillspace': 4,                                 \n\
                     'type': 'integer',                              \n\

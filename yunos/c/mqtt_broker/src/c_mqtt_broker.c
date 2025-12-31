@@ -832,7 +832,7 @@ PRIVATE int ac_on_open(hgobj gobj, const char *event, json_t *kw, hgobj src)
         hgobj prev_gobj_channel = (hgobj)(uintptr_t)kw_get_int(
             gobj,
             session,
-            "gobj_channel",
+            "_gobj_channel",
             0,
             KW_REQUIRED
         );
@@ -897,7 +897,8 @@ PRIVATE int ac_on_open(hgobj gobj, const char *event, json_t *kw, hgobj src)
     if(prev_subscriptions) {
         json_object_set_new(kw, "subscriptions", prev_subscriptions);
     }
-    json_object_set_new(kw, "gobj_channel", json_integer((json_int_t)gobj_channel));
+    json_object_set_new(kw, "_gobj_channel", json_integer((json_int_t)gobj_channel));
+    json_object_set_new(kw, "in_session", json_true());
 
     session = gobj_update_node(
         priv->gobj_treedb_mqtt_broker,
@@ -978,7 +979,7 @@ PRIVATE int ac_on_open(hgobj gobj, const char *event, json_t *kw, hgobj src)
     /*
      *  Write the session in the mqtt gobj
      */
-    //gobj_write_json_attr(gobj_channel, "session", session);
+    gobj_write_json_attr(gobj_channel, "session", session);
 
     JSON_DECREF(session)
     JSON_DECREF(client)
@@ -994,6 +995,10 @@ PRIVATE int ac_on_open(hgobj gobj, const char *event, json_t *kw, hgobj src)
 PRIVATE int ac_on_close(hgobj gobj, const char *event, json_t *kw, hgobj src)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    hgobj gobj_channel = (hgobj)(uintptr_t)kw_get_int(
+        gobj, kw, "__temp__`channel_gobj", 0, KW_REQUIRED
+    );
 
     if(gobj_trace_level(gobj) & TRACE_MESSAGES || 1) { // TODO remove || 1
         gobj_trace_json(
@@ -1018,6 +1023,34 @@ PRIVATE int ac_on_close(hgobj gobj, const char *event, json_t *kw, hgobj src)
        );
         KW_DECREF(kw);
         return -1;
+    }
+
+    json_t *session = gobj_read_json_attr(gobj_channel, "session");
+    BOOL clean_start = (int)kw_get_bool(
+        gobj,
+        session,
+        "clean_start",
+        TRUE,
+        KW_REQUIRED
+    );
+    if(clean_start) {
+        gobj_delete_node(
+            priv->gobj_treedb_mqtt_broker,
+            "sessions",
+            json_incref(session),  // owned
+            json_pack("{s:b}", "force", 1),
+            gobj
+        );
+    } else {
+        json_object_set_new(session, "_gobj_channel", json_integer((json_int_t)0));
+        json_object_set_new(session, "in_session", json_false());
+        gobj_update_node(
+            priv->gobj_treedb_mqtt_broker,
+            "sessions",
+            json_incref(session),  // owned
+            json_pack("{s:b}", "volatil", 1),
+            gobj
+        );
     }
 
     // TODO do will job ?
