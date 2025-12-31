@@ -780,10 +780,11 @@ PRIVATE int ac_on_open(hgobj gobj, const char *event, json_t *kw, hgobj src)
      *              Open/Create SESSION
      *----------------------------------------------------------------*/
     int result = 0;
+    json_t *prev_subscriptions = NULL;
+    int prev_mid = 0;
     BOOL assigned_id = kw_get_bool(gobj, kw, "assigned_id", 0, KW_REQUIRED);
     BOOL clean_start = kw_get_bool(gobj, kw, "clean_start", TRUE, KW_REQUIRED);
     int protocol_version = (int)kw_get_int(gobj, kw, "protocol_version", 0, KW_REQUIRED);
-
     if(assigned_id) {
         clean_start = TRUE;
     }
@@ -800,25 +801,65 @@ PRIVATE int ac_on_open(hgobj gobj, const char *event, json_t *kw, hgobj src)
         /*-------------------------------------------------------------*
          *              Exists a previous session
          *-------------------------------------------------------------*/
+        int prev_protocol_version = (int)kw_get_int(
+            gobj,
+            session,
+            "protocol_version",
+            0,
+            KW_REQUIRED
+        );
+        json_int_t prev_session_expiry_interval = kw_get_int(
+            gobj,
+            session,
+            "session_expiry_interval",
+            0,
+            KW_REQUIRED
+        );
+        int prev_clean_start = (int)kw_get_int(
+            gobj,
+            session,
+            "clean_start",
+            TRUE,
+            KW_REQUIRED
+        );
+        prev_mid = (int)kw_get_int(
+            gobj,
+            session,
+            "mid",
+            0,
+            KW_REQUIRED
+        );
+        hgobj prev_gobj_channel = (hgobj)(uintptr_t)kw_get_int(
+            gobj,
+            session,
+            "gobj_channel",
+            0,
+            KW_REQUIRED
+        );
+
+        prev_subscriptions = kw_get_list(gobj, session, "subscriptions", 0, KW_REQUIRED);
+
+        if((prev_protocol_version == mosq_p_mqtt5 && prev_session_expiry_interval == 0) ||
+            (prev_protocol_version != mosq_p_mqtt5 && prev_clean_start == TRUE) ||
+            (clean_start == TRUE)
+        ) {
+            // TODO context__send_will(found_context);
+        }
+
+        // TODO
+        // session_expiry__remove(found_context);
+        // will_delay__remove(found_context);
+        // will__clear(found_context);
+
         if(!clean_start) {
             /*-----------------------------------*
              *      Reuse the session
              *-----------------------------------*/
-            json_int_t prev_session_expiry_interval = kw_get_int(
-                gobj,
-                session,
-                "session_expiry_interval",
-                0,
-                KW_REQUIRED
-            );
-
             if(prev_session_expiry_interval > 0) {
                 if(protocol_version == mosq_p_mqtt311 || protocol_version == mosq_p_mqtt5) {
                     result = 1; // ack=1 Resume existing session
                 }
             }
-
-            // TODO update fields updatable
 
         } else {
             /*-----------------------------------*
@@ -827,42 +868,61 @@ PRIVATE int ac_on_open(hgobj gobj, const char *event, json_t *kw, hgobj src)
             gobj_delete_node(
                 priv->gobj_treedb_mqtt_broker,
                 "sessions",
-                session,  // owned
+                json_incref(session),  // owned
                 json_pack("{s:b}", "force", 1),
                 gobj
             );
             // TODO clean queues
-            session = NULL;
+        }
 
+        JSON_DECREF(session);
+
+        /*
+         *  Disconnect previous session
+         */
+        if(prev_protocol_version == mosq_p_mqtt5) {
+            if(prev_gobj_channel) {
+                // TODO send__disconnect(prev_gobj_channel, MQTT_RC_SESSION_TAKEN_OVER, NULL);
+            }
+        }
+
+        if(prev_gobj_channel) {
+            gobj_send_event(prev_gobj_channel, EV_DROP, 0, gobj);
         }
     }
 
+    if(prev_mid) {
+        json_object_set_new(kw, "mid", json_integer(prev_mid));
+    }
+    if(prev_subscriptions) {
+        json_object_set_new(kw, "subscriptions", prev_subscriptions);
+    }
+    json_object_set_new(kw, "gobj_channel", json_integer((json_int_t)gobj_channel));
+
+    session = gobj_update_node(
+        priv->gobj_treedb_mqtt_broker,
+        "sessions",
+        kw_incref(kw),
+        json_pack("{s:b}", "create", 1),
+        gobj
+    );
     if(!session) {
-        session = gobj_create_node(
-            priv->gobj_treedb_mqtt_broker,
-            "sessions",
-            kw_incref(kw),
-            NULL,
-            gobj
+        gobj_log_error(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_INFO,
+            "msg",          "%s", "Cannot create new session",
+            "client_id",    "%s", client_id,
+            NULL
         );
-        if(!session) {
-            gobj_log_error(gobj, 0,
-                "function",     "%s", __FUNCTION__,
-                "msgset",       "%s", MSGSET_INFO,
-                "msg",          "%s", "Cannot create new session",
-                "client_id",    "%s", client_id,
-                NULL
-            );
-            KW_DECREF(kw);
-            return -1;
-        }
+        KW_DECREF(kw);
+        return -1;
     }
 
     /*----------------------------------------------*
      *  Check if the client is already connected
      *  and disconnect them unless it is this
      *----------------------------------------------*/
-    {
+    if(0) {
         json_t *jn_filter = json_pack("{s:s, s:s, s:s}",
             "__gclass_name__", C_PROT_MQTT2,
             "__state__", ST_CONNECTED,

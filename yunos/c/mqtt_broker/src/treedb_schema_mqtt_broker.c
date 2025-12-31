@@ -670,15 +670,6 @@ static char treedb_schema_mqtt_broker[]= "\
                         'persistent'                                \n\
                     ]                                               \n\
                 },                                                  \n\
-                'inflight_msgs': {                                  \n\
-                    'header': 'Inflight',                           \n\
-                    'fillspace': 20,                                \n\
-                    'type': 'array',                                \n\
-                    'flag': [                                       \n\
-                        'persistent'                                \n\
-                    ],                                              \n\
-                    'description': 'QoS 1/2 messages pending acknowledgment' \n\
-                },                                                  \n\
                 '_geometry': {                                      \n\
                     'header': 'Geometry',                           \n\
                     'type': 'blob',                                 \n\
