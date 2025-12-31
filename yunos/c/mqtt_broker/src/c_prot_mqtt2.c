@@ -1188,7 +1188,7 @@ PRIVATE int message__delete(
  ***************************************************************************/
 PRIVATE int sub__messages_queue(
     hgobj gobj,
-    json_t *kw_mqtt_msg // owned
+    json_t *kw // owned
 ) {
     int rc = MOSQ_ERR_SUCCESS;
     int rc_normal = MOSQ_ERR_NO_SUBSCRIBERS;
@@ -1197,8 +1197,8 @@ PRIVATE int sub__messages_queue(
     char **split_topics = NULL;
     char *local_topic = NULL;
 
-    const char *topic = kw_get_str(gobj, kw_mqtt_msg, "topic", "", KW_REQUIRED);
-    BOOL retain = kw_get_bool(gobj, kw_mqtt_msg, "retain", 0, KW_REQUIRED);
+    const char *topic = kw_get_str(gobj, kw, "topic", "", KW_REQUIRED);
+    BOOL retain = kw_get_bool(gobj, kw, "retain", 0, KW_REQUIRED);
 
     int nelements;
     if(sub__topic_tokenise_v2(topic, &local_topic, &split_topics, &nelements, NULL)<0) {
@@ -1209,6 +1209,7 @@ PRIVATE int sub__messages_queue(
             "topic",        "%s", topic,
             NULL
         );
+        KW_DECREF(kw)
         return -1;
     }
 
@@ -1244,6 +1245,9 @@ PRIVATE int sub__messages_queue(
     // mosquitto__free(local_topic);
     // /* Remove our reference and free if needed. */
     // db__msg_store_ref_dec(stored);
+
+    sub__topic_tokens_free(&split_topics);
+    KW_DECREF(kw)
 
     return rc;
 }

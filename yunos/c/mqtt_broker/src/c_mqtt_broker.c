@@ -815,7 +815,7 @@ PRIVATE int ac_on_open(hgobj gobj, const char *event, json_t *kw, hgobj src)
             0,
             KW_REQUIRED
         );
-        int prev_clean_start = (int)kw_get_int(
+        BOOL prev_clean_start = (int)kw_get_bool(
             gobj,
             session,
             "clean_start",
