@@ -858,7 +858,8 @@ PRIVATE json_t *mt_update_node( // Return is YOURS
             priv->tranger,
             topic_name,
             node,  // NOT owned
-            kw // NOT owned
+            kw, // NOT owned
+            TRUE
         );
 
     } else {
