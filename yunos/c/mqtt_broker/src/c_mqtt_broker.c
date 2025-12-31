@@ -612,7 +612,7 @@ PRIVATE int broadcast_queues_tranger(hgobj gobj)
 
     {
         "id": "DVES_40AC66",
-        "assigned_id": false,       #^^ if assigned_id is true the client_id is temporary.
+        "assigned_id": false, #^^ if assigned_id is true the client_id is temporary.
         "clean_start": true,
         "username": "DVES_USER",
         "services_roles": {
@@ -620,21 +620,21 @@ PRIVATE int broadcast_queues_tranger(hgobj gobj)
                 "device"
             ]
         },
-        "session_id": "d1515457-f1a1-45d3-a7fd-3f335ae50037", TODO ???
-        "peername": "127.0.0.1:47298",
-        "protocol_version": 2,
+        "session_id": "2107a4a7-1ebb-4aba-85e8-a8ce9310528e",
+        "peername": "127.0.0.1:44990",
+        "protocol_version": 4,
         "session_expiry_interval": 0,
-        "keep_alive": 60,
+        "keep_alive": 30,
         "will": true,
-        "will_retain": true, #^^ these will fields are optionals
+        "will_retain": true,
         "will_qos": 1,
         "will_topic": "tele/tasmota_40AC66/LWT",
         "will_delay_interval": 0,
         "will_expiry_interval": 0,
-        "gbuffer": 95091873745312,  #^^ it contents the will payload
+        "gbuffer": 104300976196336,  #^^ it contents the will payload
         "__temp__": {
             "channel": "input-1",
-            "channel_gobj": 98214347824800
+            "channel_gobj": 104300975960288
         }
     }
 
@@ -647,7 +647,7 @@ PRIVATE int broadcast_queues_tranger(hgobj gobj)
             "treedb_mqtt_broker": []
         },
         "session_id": "",
-        "peername": "127.0.0.1:49936",
+        "peername": "127.0.0.1:56770",
         "protocol_version": 5,
         "session_expiry_interval": -1,
         "keep_alive": 60,
@@ -668,9 +668,10 @@ PRIVATE int broadcast_queues_tranger(hgobj gobj)
         },
         "__temp__": {
             "channel": "input-1",
-            "channel_gobj": 96323896190240
+            "channel_gobj": 107416771591136
         }
     }
+
 
  *
  ***************************************************************************/
@@ -857,7 +858,7 @@ PRIVATE int ac_on_open(hgobj gobj, const char *event, json_t *kw, hgobj src)
 
     /*----------------------------------------------*
      *  Check if the client is already connected
-     *  and disconnect it unless is this
+     *  and disconnect them unless it is this
      *----------------------------------------------*/
     {
         json_t *jn_filter = json_pack("{s:s, s:s, s:s}",
