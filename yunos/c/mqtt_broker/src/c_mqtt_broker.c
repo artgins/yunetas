@@ -1044,13 +1044,13 @@ PRIVATE int ac_on_close(hgobj gobj, const char *event, json_t *kw, hgobj src)
     } else {
         json_object_set_new(session, "_gobj_channel", json_integer((json_int_t)0));
         json_object_set_new(session, "in_session", json_false());
-        gobj_update_node(
+        json_decref(gobj_update_node(
             priv->gobj_treedb_mqtt_broker,
             "sessions",
             json_incref(session),  // owned
             json_pack("{s:b}", "volatil", 1),
             gobj
-        );
+        ));
     }
 
     // TODO do will job ?
