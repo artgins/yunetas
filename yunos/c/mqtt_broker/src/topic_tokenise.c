@@ -218,6 +218,7 @@ int sub__topic_tokenise_v2(
     /*
      *  Initialize outputs
      */
+    // TODO review refactorize this function, many returned pointers
     if(local_sub) {
         *local_sub = NULL;
     }
@@ -313,7 +314,13 @@ int sub__topic_tokenise_v2(
             }
         }
 
-        return sub__topic_tokenise(subtopic, topics, count);
+        if(sub__topic_tokenise(subtopic, topics, count)<0) {
+            if(local_sub && *local_sub) {
+                GBMEM_FREE(*local_sub)
+            }
+            return -1;
+        }
+        return 0;
     }
 }
 

@@ -1248,6 +1248,8 @@ PRIVATE int sub__messages_queue(
     // db__msg_store_ref_dec(stored);
 
     sub__topic_tokens_free(&split_topics);
+
+    GBMEM_FREE(local_topic)
     KW_DECREF(kw)
 
     return rc;
@@ -6726,6 +6728,7 @@ PRIVATE int handle__publish_s(
         properties = property_read_all(gobj, gbuf, CMD_PUBLISH, &rc);
         if(rc<0) {
             // Error already logged
+            JSON_DECREF(properties)
             GBMEM_FREE(topic)
             return rc;
         }
@@ -6991,7 +6994,6 @@ PRIVATE int handle__publish_s(
                     gobj,
                     kw_mqtt_msg // owned
                 );
-
             }
             break;
 
