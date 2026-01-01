@@ -2006,6 +2006,8 @@ PRIVATE int get_topic_wr_fd( // optimized
         }
 
         snprintf(relative_path, sizeof(relative_path), "%s`%s", key, filename);
+
+        // TODO change to native jansson functions
         kw_set_dict_value(
             gobj,
             kw_get_dict(
@@ -2101,6 +2103,8 @@ PRIVATE int get_topic_rd_fd(
         }
 
         snprintf(relative_path, sizeof(relative_path), "%s`%s", key, filename);
+
+        // TODO change to native jansson functions
         kw_set_dict_value(
             gobj,
             kw_get_dict(
@@ -2679,6 +2683,14 @@ PUBLIC int tranger2_delete_record(
         return -1;
     }
 
+    /*
+     *  Close opened files
+     */
+    close_fd_opened_files(gobj, topic, key);
+
+    /*
+     *  Remove directory of topic's key
+     */
     const char *topic_dir = json_string_value(json_object_get(topic, "directory"));
 
     char path_key[PATH_MAX];
