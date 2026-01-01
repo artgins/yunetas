@@ -376,11 +376,11 @@ typedef SData_Value_t (*mt_reading_fn)(
 );
 typedef int (*mt_subscription_added_fn)( // Negative return -> subscription deleted ???
     hgobj gobj,
-    json_t * subs // NOT owned
+    json_t *subs // NOT owned
 );
 typedef int (*mt_subscription_deleted_fn)(
     hgobj gobj,
-    json_t * subs // NOT owned
+    json_t *subs // NOT owned
 );
 
 /*

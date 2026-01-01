@@ -6162,6 +6162,26 @@ PRIVATE int handle__subscribe(hgobj gobj, gbuffer_t *gbuf)
 
     gbuffer_t *gbuf_payload = gbuffer_create(256, 12*1024);
 
+    json_t *kw_subscribe = json_pack("{s:s, s:o, s:I}",
+        "client_id", priv->client_id,
+        "subs", jn_list, // owned
+        "gbuffer", (json_int_t)(uintptr_t)gbuf_payload
+    );
+
+    json_t *kw_iev = iev_create(
+        gobj,
+        EV_MQTT_SUBSCRIBE,
+        kw_subscribe // owned
+    );
+
+    gobj_publish_event(
+        gobj,
+        EV_ON_IEV_MESSAGE,
+        kw_incref(kw_iev)
+    );
+
+
+
     int idx; json_t *jn_sub;
     json_array_foreach(jn_list, idx, jn_sub) {
         const char *sub = kw_get_str(gobj, jn_sub, "sub", NULL, KW_REQUIRED);
