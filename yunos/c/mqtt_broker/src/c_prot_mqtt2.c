@@ -7469,18 +7469,7 @@ PRIVATE int handle__pubackcomp(hgobj gobj, gbuffer_t *gbuf, const char *type)
                 reason_code
             );
         }
-    } else {
-        if(gobj_trace_level(gobj) & SHOW_DECODE) {
-            trace_msg0("  👈 client %s Received %s from server (Mid: %d, RC:%d)",
-                SAFE_PRINT(priv->client_id),
-                type,
-                mid,
-                reason_code
-            );
-        }
-    }
 
-    if(priv->iamServer) {
         /*
          *  Immediately free,
          *  we don't do anything with Reason String or User Property at the moment
@@ -7504,6 +7493,14 @@ PRIVATE int handle__pubackcomp(hgobj gobj, gbuffer_t *gbuf, const char *type)
         }
 
     } else {
+        if(gobj_trace_level(gobj) & SHOW_DECODE) {
+            trace_msg0("  👈 client %s Received %s from server (Mid: %d, RC:%d)",
+                SAFE_PRINT(priv->client_id),
+                type,
+                mid,
+                reason_code
+            );
+        }
 
         rc = message__delete(gobj, mid, mosq_md_out);
 
