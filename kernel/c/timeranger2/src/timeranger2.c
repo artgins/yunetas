@@ -1941,9 +1941,10 @@ PRIVATE int get_topic_wr_fd( // optimized
         (system_flag & sf_t_ms)? __t__/1000:__t__
     );
 
-    /*-----------------------------*
-     *      Open content file
-     *-----------------------------*/
+    /*------------------------------------------*
+     *  Open content file fd,
+     *  look if already opened else create it
+     *------------------------------------------*/
     int fd = (int)json_integer_value(
         json_object_get(
             json_object_get(
