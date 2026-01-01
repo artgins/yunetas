@@ -1060,7 +1060,71 @@ PRIVATE int ac_on_close(hgobj gobj, const char *event, json_t *kw, hgobj src)
 }
 
 /***************************************************************************
- *  Messasge from
+ *  Message from
+ *      mqtt clients (__input_side__)
+ ***************************************************************************/
+PRIVATE int ac_mqtt_subscribe(hgobj gobj, const char *event, json_t *kw, hgobj src)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    if(gobj_trace_level(gobj) & TRACE_MESSAGES || 1) { // TODO remove || 1
+        gobj_trace_json(
+            gobj,
+            kw, // not own
+            "ON_MESSAGE %s", gobj_short_name(src)
+        );
+    }
+
+    if(src != priv->gobj_input_side) {
+        gobj_log_error(gobj, 0,
+           "function",     "%s", __FUNCTION__,
+           "msgset",       "%s", MSGSET_INTERNAL_ERROR,
+           "msg",          "%s", "on_close NOT from input_size",
+           "src",          "%s", gobj_full_name(src),
+           NULL
+       );
+        KW_DECREF(kw);
+        return -1;
+    }
+
+    KW_DECREF(kw);
+    return 0;
+}
+
+/***************************************************************************
+ *  Message from
+ *      mqtt clients (__input_side__)
+ ***************************************************************************/
+PRIVATE int ac_mqtt_unsubscribe(hgobj gobj, const char *event, json_t *kw, hgobj src)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    if(gobj_trace_level(gobj) & TRACE_MESSAGES || 1) { // TODO remove || 1
+        gobj_trace_json(
+            gobj,
+            kw, // not own
+            "ON_MESSAGE %s", gobj_short_name(src)
+        );
+    }
+
+    if(src != priv->gobj_input_side) {
+        gobj_log_error(gobj, 0,
+           "function",     "%s", __FUNCTION__,
+           "msgset",       "%s", MSGSET_INTERNAL_ERROR,
+           "msg",          "%s", "on_close NOT from input_size",
+           "src",          "%s", gobj_full_name(src),
+           NULL
+       );
+        KW_DECREF(kw);
+        return -1;
+    }
+
+    KW_DECREF(kw);
+    return 0;
+}
+
+/***************************************************************************
+ *  Message from
  *      mqtt clients (__input_side__)
  *      top clients (__top_side__)
  ***************************************************************************/
@@ -1096,6 +1160,7 @@ PRIVATE int ac_on_message(hgobj gobj, const char *event, json_t *kw, hgobj src)
     KW_DECREF(kw);
     return 0;
 }
+
 /***************************************************************************
  *
  ***************************************************************************/
@@ -1395,6 +1460,8 @@ PRIVATE int create_gclass(gclass_name_t gclass_name)
      *------------------------*/
     ev_action_t st_idle[] = {
         {EV_ON_MESSAGE,             ac_on_message,          0},
+        {EV_MQTT_SUBSCRIBE,         ac_mqtt_subscribe,      0},
+        {EV_MQTT_UNSUBSCRIBE,       ac_mqtt_unsubscribe,    0},
         {EV_ON_OPEN,                ac_on_open,             0},
         {EV_ON_CLOSE,               ac_on_close,            0},
         {EV_TREEDB_NODE_CREATED,    ac_treedb_node_create,  0},
@@ -1418,10 +1485,12 @@ PRIVATE int create_gclass(gclass_name_t gclass_name)
      *------------------------*/
     event_type_t event_types[] = {
         {EV_ON_MESSAGE,             0},
+        {EV_MQTT_SUBSCRIBE,         0},
         {EV_ON_OPEN,                0},
         {EV_ON_CLOSE,               0},
-        {EV_TREEDB_NODE_CREATED,    0},
+        {EV_MQTT_UNSUBSCRIBE,       0},
         {EV_TREEDB_NODE_UPDATED,    0},
+        {EV_TREEDB_NODE_CREATED,    0},
         {EV_TREEDB_NODE_DELETED,    0},
         {EV_AUTHZ_USER_LOGIN,       0},
         {EV_AUTHZ_USER_LOGOUT,      0},

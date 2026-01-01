@@ -6173,12 +6173,8 @@ PRIVATE int handle__subscribe(hgobj gobj, gbuffer_t *gbuf)
         EV_MQTT_SUBSCRIBE,
         kw_subscribe // owned
     );
-
-    gobj_publish_event(
-        gobj,
-        EV_ON_IEV_MESSAGE,
-        kw_incref(kw_iev)
-    );
+    gbuffer_incref(gbuf_payload); // Avoid be destroyed, get it the response
+    gobj_publish_event(gobj, EV_ON_IEV_MESSAGE, kw_iev);
 
 
 
