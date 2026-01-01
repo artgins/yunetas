@@ -2007,7 +2007,7 @@ PRIVATE int get_topic_wr_fd( // optimized
 
         snprintf(relative_path, sizeof(relative_path), "%s`%s", key, filename);
 
-        // TODO change to native jansson functions
+        // change to native jansson functions
         // kw_set_dict_value(
         //     gobj,
         //     kw_get_dict(
@@ -2111,7 +2111,7 @@ PRIVATE int get_topic_rd_fd(
 
         snprintf(relative_path, sizeof(relative_path), "%s`%s", key, filename);
 
-        // TODO change to native jansson functions
+        // change to native jansson functions
         // kw_set_dict_value(
         //     gobj,
         //     kw_get_dict(
