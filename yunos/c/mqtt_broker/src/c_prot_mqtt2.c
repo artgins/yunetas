@@ -6183,7 +6183,6 @@ PRIVATE int handle__subscribe(hgobj gobj, gbuffer_t *gbuf)
         kw_iev // owned but gbuf_payload survives
     );
 
-    JSON_DECREF(jn_list)
     JSON_DECREF(properties)
 
     return send__suback(
@@ -6382,7 +6381,6 @@ PRIVATE int handle__unsubscribe(hgobj gobj, gbuffer_t *gbuf)
         kw_iev // owned but gbuf_payload survives
     );
 
-    JSON_DECREF(jn_list)
     JSON_DECREF(properties)
 
     return send__unsuback(
