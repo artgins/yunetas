@@ -2008,18 +2008,25 @@ PRIVATE int get_topic_wr_fd( // optimized
         snprintf(relative_path, sizeof(relative_path), "%s`%s", key, filename);
 
         // TODO change to native jansson functions
-        kw_set_dict_value(
-            gobj,
-            kw_get_dict(
-                gobj,
-                topic,
-                "wr_fd_files",
-                0,
-                KW_REQUIRED
-            ),
-            relative_path,
-            json_integer(fd)
-        );
+        // kw_set_dict_value(
+        //     gobj,
+        //     kw_get_dict(
+        //         gobj,
+        //         topic,
+        //         "wr_fd_files",
+        //         0,
+        //         KW_REQUIRED
+        //     ),
+        //     relative_path,
+        //     json_integer(fd)
+        // );
+        json_t *wr_fd_files = json_object_get(topic, "wr_fd_files");
+        json_t *key_dict = json_object_get(wr_fd_files, key);
+        if(!key_dict) {
+            key_dict = json_object();
+            json_object_set_new(wr_fd_files, key, key_dict);
+        }
+        json_object_set_new(key_dict, filename, json_integer(fd));
     }
 
     return fd;
@@ -2105,18 +2112,25 @@ PRIVATE int get_topic_rd_fd(
         snprintf(relative_path, sizeof(relative_path), "%s`%s", key, filename);
 
         // TODO change to native jansson functions
-        kw_set_dict_value(
-            gobj,
-            kw_get_dict(
-                gobj,
-                topic,
-                "rd_fd_files",
-                0,
-                KW_REQUIRED
-            ),
-            relative_path,
-            json_integer(fd)
-        );
+        // kw_set_dict_value(
+        //     gobj,
+        //     kw_get_dict(
+        //         gobj,
+        //         topic,
+        //         "rd_fd_files",
+        //         0,
+        //         KW_REQUIRED
+        //     ),
+        //     relative_path,
+        //     json_integer(fd)
+        // );
+        json_t *rd_fd_files = json_object_get(topic, "rd_fd_files");
+        json_t *key_dict = json_object_get(rd_fd_files, key);
+        if(!key_dict) {
+            key_dict = json_object();
+            json_object_set_new(rd_fd_files, key, key_dict);
+        }
+        json_object_set_new(key_dict, filename, json_integer(fd));
     }
 
     return fd;
