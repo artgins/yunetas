@@ -1087,6 +1087,74 @@ PRIVATE int ac_mqtt_subscribe(hgobj gobj, const char *event, json_t *kw, hgobj s
         return -1;
     }
 
+    const char *client_id = kw_get_str(gobj, kw, "client_id", "", KW_REQUIRED);
+    mosquitto_protocol_t protocol_version = kw_get_int(gobj, kw, "protocol_version", 0, KW_REQUIRED);
+    json_t *jn_list = kw_get_dict(gobj, kw, "subs", NULL, KW_REQUIRED);
+    gbuffer_t *gbuf_payload = (gbuffer_t *)(uintptr_t)kw_get_int(gobj, kw, "gbuffer", 0, KW_REQUIRED);
+
+    int idx; json_t *jn_sub;
+    json_array_foreach(jn_list, idx, jn_sub) {
+        const char *sub = kw_get_str(gobj, jn_sub, "sub", NULL, KW_REQUIRED);
+        int qos = kw_get_int(gobj, jn_sub, "qos", 0, KW_REQUIRED);
+        int subscription_identifier = kw_get_int(gobj, jn_sub, "subscription_identifier", 0, KW_REQUIRED);
+        int subscription_options = kw_get_int(gobj, jn_sub, "subscription_options", 0, KW_REQUIRED);
+        int retain_handling = kw_get_int(gobj, jn_sub, "retain_handling", 0, KW_REQUIRED);
+
+        BOOL allowed = TRUE;
+        // allowed = mosquitto_acl_check(context, sub, 0, NULL, qos, FALSE, MOSQ_ACL_SUBSCRIBE); TODO
+        if(!allowed) {
+            if(protocol_version == mosq_p_mqtt5) {
+                qos = MQTT_RC_NOT_AUTHORIZED;
+            } else if(protocol_version == mosq_p_mqtt311) {
+                qos = 0x80;
+            }
+        }
+
+        // if(allowed) {
+        //     rc2 = sub__add(
+        //         gobj,
+        //         sub,
+        //         qos,
+        //         subscription_identifier,
+        //         subscription_options
+        //     );
+        //     if(rc2 < 0) {
+        //         JSON_DECREF(jn_list)
+        //         return rc2;
+        //     }
+        //
+        //     if(priv->protocol_version == mosq_p_mqtt311 || priv->protocol_version == mosq_p_mqtt31) {
+        //         if(rc2 == MOSQ_ERR_SUCCESS || rc2 == MOSQ_ERR_SUB_EXISTS) {
+        //             if(retain__queue(gobj, sub, qos, 0)) {
+        //                 // rc = MOSQ_ERR_NOMEM;
+        //             }
+        //         }
+        //     } else {
+        //         if((retain_handling == MQTT_SUB_OPT_SEND_RETAIN_ALWAYS)
+        //                 || (rc2 == MOSQ_ERR_SUCCESS && retain_handling == MQTT_SUB_OPT_SEND_RETAIN_NEW)
+        //           ) {
+        //             if(retain__queue(gobj, sub, qos, subscription_identifier)) {
+        //                 // rc = MOSQ_ERR_NOMEM;
+        //             }
+        //         }
+        //     }
+        // }
+
+        gbuffer_append_char(gbuf_payload, qos);
+    }
+
+    // TODO
+    // if(priv->current_out_packet == NULL) {
+    //     rc = db__message_write_queued_out(gobj);
+    //     if(rc) {
+    //         return rc;
+    //     }
+    //     rc = db__message_write_inflight_out_latest(gobj);
+    //     if(rc) {
+    //         return rc;
+    //     }
+    // }
+
     KW_DECREF(kw);
     return 0;
 }
@@ -1117,6 +1185,26 @@ PRIVATE int ac_mqtt_unsubscribe(hgobj gobj, const char *event, json_t *kw, hgobj
        );
         KW_DECREF(kw);
         return -1;
+    }
+
+    const char *client_id = kw_get_str(gobj, kw, "client_id", "", KW_REQUIRED);
+    json_t *jn_list = kw_get_dict(gobj, kw, "subs", NULL, KW_REQUIRED);
+    gbuffer_t *gbuf_payload = (gbuffer_t *)(uintptr_t)kw_get_int(gobj, kw, "gbuffer", 0, KW_REQUIRED);
+
+    int idx; json_t *jn_sub;
+    json_array_foreach(jn_list, idx, jn_sub) {
+        const char *sub = kw_get_str(gobj, jn_sub, "sub", NULL, KW_REQUIRED);
+
+        // /* ACL check */
+        int reason = 0;
+        BOOL allowed = TRUE;
+        // allowed = mosquitto_acl_check(context, sub, 0, NULL, 0, FALSE, MOSQ_ACL_UNSUBSCRIBE); TODO
+        if(allowed) {
+            // sub__remove(gobj, sub, &reason);
+        } else {
+            reason = MQTT_RC_NOT_AUTHORIZED;
+        }
+        gbuffer_append_char(gbuf_payload, reason);
     }
 
     KW_DECREF(kw);

@@ -6162,8 +6162,9 @@ PRIVATE int handle__subscribe(hgobj gobj, gbuffer_t *gbuf)
 
     gbuffer_t *gbuf_payload = gbuffer_create(256, 12*1024);
 
-    json_t *kw_subscribe = json_pack("{s:s, s:o, s:I}",
+    json_t *kw_subscribe = json_pack("{s:s, s:i, s:o, s:I}",
         "client_id", priv->client_id,
+        "protocol_version", (int)priv->protocol_version,
         "subs", jn_list, // owned
         "gbuffer", (json_int_t)(uintptr_t)gbuf_payload
     );
@@ -6173,73 +6174,14 @@ PRIVATE int handle__subscribe(hgobj gobj, gbuffer_t *gbuf)
         EV_MQTT_SUBSCRIBE,
         kw_subscribe // owned
     );
+
     gbuffer_incref(gbuf_payload); // Avoid be destroyed, get it the response
-    gobj_publish_event(gobj, EV_ON_IEV_MESSAGE, kw_iev);
 
-
-
-    int idx; json_t *jn_sub;
-    json_array_foreach(jn_list, idx, jn_sub) {
-        const char *sub = kw_get_str(gobj, jn_sub, "sub", NULL, KW_REQUIRED);
-        int qos = kw_get_int(gobj, jn_sub, "qos", 0, KW_REQUIRED);
-        int subscription_identifier = kw_get_int(gobj, jn_sub, "subscription_identifier", 0, KW_REQUIRED);
-        int subscription_options = kw_get_int(gobj, jn_sub, "subscription_options", 0, KW_REQUIRED);
-        int retain_handling = kw_get_int(gobj, jn_sub, "retain_handling", 0, KW_REQUIRED);
-
-        BOOL allowed = TRUE;
-        // allowed = mosquitto_acl_check(context, sub, 0, NULL, qos, FALSE, MOSQ_ACL_SUBSCRIBE); TODO
-        if(!allowed) {
-            if(priv->protocol_version == mosq_p_mqtt5) {
-                qos = MQTT_RC_NOT_AUTHORIZED;
-            } else if(priv->protocol_version == mosq_p_mqtt311) {
-                qos = 0x80;
-            }
-        }
-
-        // if(allowed) {
-        //     rc2 = sub__add(
-        //         gobj,
-        //         sub,
-        //         qos,
-        //         subscription_identifier,
-        //         subscription_options
-        //     );
-        //     if(rc2 < 0) {
-        //         JSON_DECREF(jn_list)
-        //         return rc2;
-        //     }
-        //
-        //     if(priv->protocol_version == mosq_p_mqtt311 || priv->protocol_version == mosq_p_mqtt31) {
-        //         if(rc2 == MOSQ_ERR_SUCCESS || rc2 == MOSQ_ERR_SUB_EXISTS) {
-        //             if(retain__queue(gobj, sub, qos, 0)) {
-        //                 // rc = MOSQ_ERR_NOMEM;
-        //             }
-        //         }
-        //     } else {
-        //         if((retain_handling == MQTT_SUB_OPT_SEND_RETAIN_ALWAYS)
-        //                 || (rc2 == MOSQ_ERR_SUCCESS && retain_handling == MQTT_SUB_OPT_SEND_RETAIN_NEW)
-        //           ) {
-        //             if(retain__queue(gobj, sub, qos, subscription_identifier)) {
-        //                 // rc = MOSQ_ERR_NOMEM;
-        //             }
-        //         }
-        //     }
-        // }
-
-        gbuffer_append_char(gbuf_payload, qos);
-    }
-
-    // TODO
-    // if(priv->current_out_packet == NULL) {
-    //     rc = db__message_write_queued_out(gobj);
-    //     if(rc) {
-    //         return rc;
-    //     }
-    //     rc = db__message_write_inflight_out_latest(gobj);
-    //     if(rc) {
-    //         return rc;
-    //     }
-    // }
+    gobj_publish_event(
+        gobj,
+        EV_ON_IEV_MESSAGE,
+        kw_iev // owned but gbuf_payload survives
+    );
 
     JSON_DECREF(jn_list)
     JSON_DECREF(properties)
@@ -6419,21 +6361,26 @@ PRIVATE int handle__unsubscribe(hgobj gobj, gbuffer_t *gbuf)
 
     gbuffer_t *gbuf_payload = gbuffer_create(256, 12*1024);
 
-    int idx; json_t *jn_sub;
-    json_array_foreach(jn_list, idx, jn_sub) {
-        const char *sub = kw_get_str(gobj, jn_sub, "sub", NULL, KW_REQUIRED);
+    json_t *kw_unsubscribe = json_pack("{s:s, s:i, s:o, s:I}",
+        "client_id", priv->client_id,
+        "protocol_version", (int)priv->protocol_version,
+        "subs", jn_list, // owned
+        "gbuffer", (json_int_t)(uintptr_t)gbuf_payload
+    );
 
-        // /* ACL check */
-        int reason = 0;
-        BOOL allowed = TRUE;
-        // allowed = mosquitto_acl_check(context, sub, 0, NULL, 0, FALSE, MOSQ_ACL_UNSUBSCRIBE); TODO
-        if(allowed) {
-            // sub__remove(gobj, sub, &reason);
-        } else {
-            reason = MQTT_RC_NOT_AUTHORIZED;
-        }
-        gbuffer_append_char(gbuf_payload, reason);
-    }
+    json_t *kw_iev = iev_create(
+        gobj,
+        EV_MQTT_UNSUBSCRIBE,
+        kw_unsubscribe // owned
+    );
+
+    gbuffer_incref(gbuf_payload); // Avoid be destroyed, get it the response
+
+    gobj_publish_event(
+        gobj,
+        EV_ON_IEV_MESSAGE,
+        kw_iev // owned but gbuf_payload survives
+    );
 
     JSON_DECREF(jn_list)
     JSON_DECREF(properties)
