@@ -306,10 +306,12 @@ SDATA_END()
  *      GClass trace levels
  *---------------------------------------------*/
 enum {
-    TRACE_MESSAGES = 0x0001,
+    TRACE_MESSAGES  = 0x0001,
+    TRACE_METHODS   = 0x0002,
 };
 PRIVATE const trace_level_t s_user_trace_level[16] = {
 {"messages",        "Trace messages"},
+{"methods",         "Trace methods create/update/delete/link/unlink"},
 {0, 0},
 };
 
@@ -728,6 +730,19 @@ PRIVATE json_t *mt_create_node( // Return is YOURS
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
+    if(gobj_trace_level(gobj) & TRACE_METHODS) {
+        trace_machine("🗳 %s method: %s%s%s, src: %s",
+            gobj_short_name(gobj),
+            On_Yellow BIWhite,
+            "create_node",
+            Color_Off,
+            gobj_short_name(src)
+        );
+        if(gobj_trace_level(gobj) & (TRACE_EV_KW)) {
+            gobj_trace_json(gobj, kw, "method create_node kw");
+        }
+    }
+
     /*-----------------------------------*
      *      Check appropriate topic
      *-----------------------------------*/
@@ -800,6 +815,19 @@ PRIVATE json_t *mt_update_node( // Return is YOURS
     BOOL volatil = kw_get_bool(gobj, jn_options, "volatil", 0, KW_WILD_NUMBER);
     BOOL create = kw_get_bool(gobj, jn_options, "create", 0, KW_WILD_NUMBER);
     BOOL autolink = kw_get_bool(gobj, jn_options, "autolink", 0, KW_WILD_NUMBER);
+
+    if(gobj_trace_level(gobj) & TRACE_METHODS) {
+        trace_machine("🗳 %s method: %s%s%s, src: %s",
+            gobj_short_name(gobj),
+            On_Yellow BIWhite,
+            "update_node",
+            Color_Off,
+            gobj_short_name(src)
+        );
+        if(gobj_trace_level(gobj) & (TRACE_EV_KW)) {
+            gobj_trace_json(gobj, kw, "method update_node kw");
+        }
+    }
 
     /*-----------------------------------*
      *      Check appropriate topic
@@ -899,6 +927,19 @@ PRIVATE int mt_delete_node(
 )
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    if(gobj_trace_level(gobj) & TRACE_METHODS) {
+        trace_machine("🗳 %s method: %s%s%s, src: %s",
+            gobj_short_name(gobj),
+            On_Yellow BIWhite,
+            "delete_node",
+            Color_Off,
+            gobj_short_name(src)
+        );
+        if(gobj_trace_level(gobj) & (TRACE_EV_KW)) {
+            gobj_trace_json(gobj, kw, "method delete_node kw");
+        }
+    }
 
     /*-----------------------------------*
      *      Check appropriate topic
@@ -1018,6 +1059,20 @@ PRIVATE int mt_link_nodes(
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
+    if(gobj_trace_level(gobj) & TRACE_METHODS) {
+        trace_machine("🗳 %s method: %s%s%s, src: %s",
+            gobj_short_name(gobj),
+            On_Yellow BIWhite,
+            "link_nodes",
+            Color_Off,
+            gobj_short_name(src)
+        );
+        if(gobj_trace_level(gobj) & (TRACE_EV_KW)) {
+            gobj_trace_json(gobj, parent_record, "method link_nodes parent");
+            gobj_trace_json(gobj, child_record, "method link_nodes child");
+        }
+    }
+
     /*-----------------------------------*
      *      Check appropriate topic
      *-----------------------------------*/
@@ -1123,6 +1178,20 @@ PRIVATE int mt_unlink_nodes(
 )
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    if(gobj_trace_level(gobj) & TRACE_METHODS) {
+        trace_machine("🗳 %s method: %s%s%s, src: %s",
+            gobj_short_name(gobj),
+            On_Yellow BIWhite,
+            "unlink_nodes",
+            Color_Off,
+            gobj_short_name(src)
+        );
+        if(gobj_trace_level(gobj) & (TRACE_EV_KW)) {
+            gobj_trace_json(gobj, parent_record, "method unlink_nodes parent");
+            gobj_trace_json(gobj, child_record, "method unlink_nodes child");
+        }
+    }
 
     /*-----------------------------------*
      *      Check appropriate topic
