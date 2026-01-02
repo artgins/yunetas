@@ -18,12 +18,12 @@
 
 #include "c_mqtt_broker.h"
 #include "treedb_schema_mqtt_broker.c"
-#include "topic_tokenise.h"
 #include "c_prot_mqtt2.h" // TODO remove when moved to kernel
 
 /***************************************************************************
  *              Constants
  ***************************************************************************/
+#define SUBS_KEY    "@subs"     /* Key for subscribers array in tree nodes */
 
 /***************************************************************************
  *              Structures
@@ -131,6 +131,9 @@ typedef struct _PRIVATE_DATA {
     hgobj gobj_treedb_mqtt_broker;      // service of treedb_mqtt_broker (create in gobj_treedbs)
     json_t *tranger_treedb_mqtt_broker;
 
+    json_t *normal_subs;
+    json_t *shared_subs;
+
     char treedb_mqtt_broker_name[80];
     char msg2db_alarms_name[80];
 
@@ -168,6 +171,9 @@ PRIVATE void mt_create(hgobj gobj)
         gobj_subscribe_event(gobj, NULL, NULL, subscriber);
     }
 
+    priv->normal_subs = json_object();
+    priv->shared_subs = json_object();
+
     /*
      *  Do copy of heavy used parameters, for quick access.
      *  HACK The writable attributes must be repeated in mt_writing method.
@@ -193,6 +199,10 @@ PRIVATE void mt_writing(hgobj gobj, const char *path)
  ***************************************************************************/
 PRIVATE void mt_destroy(hgobj gobj)
 {
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    JSON_DECREF(priv->normal_subs)
+    JSON_DECREF(priv->shared_subs)
 }
 
 /***************************************************************************
@@ -594,173 +604,1099 @@ PRIVATE int broadcast_queues_tranger(hgobj gobj)
     return 0;
 }
 
+// /***************************************************************************
+//  *  Add a subscription
+//  *  return 1 SUB_EXISTS, 0 SUCCESS, -1 ERROR
+//  ***************************************************************************/
+// PRIVATE int sub__add(
+//     hgobj gobj,
+//     const char *sub,
+//     uint8_t qos,
+//     json_int_t identifier,
+//     mqtt5_sub_options_t options
+// )
+// {
+//     PRIVATE_DATA *priv = gobj_priv_data(gobj);
+//     int rc = 0;
+//     const char *sharename = NULL;
+//     char *local_sub;
+//     char **topics;
+//
+//     rc = sub__topic_tokenise(sub, &local_sub, &topics, &sharename);
+//     if(rc<0) {
+//         return rc;
+//     }
+//
+//     size_t topiclen = strlen(topics[0]);
+//     if(topiclen > UINT16_MAX) {
+//         /*
+//          *  If topiclen > 65535, the cast (uint16_t)topiclen would truncate
+//          *  and cause incorrect behavior (buffer overflows, wrong hash lookups, etc.)
+//          */
+//
+//         gbmem_free(local_sub);
+//         gbmem_free(topics);
+//         return -1;
+//     }
+//
+//     if(sharename) {
+//         HASH_FIND(hh, db.shared_subs, topics[0], topiclen, subhier);
+//         if(!subhier) {
+//             subhier = sub__add_hier_entry(NULL, &db.shared_subs, topics[0], (uint16_t)topiclen);
+//             if(!subhier) {
+//                 gbmem_free(local_sub);
+//                 gbmem_free(topics);
+//                 log__printf(NULL, MOSQ_LOG_ERR, "Error: Out of memory.");
+//                 return MOSQ_ERR_NOMEM;
+//             }
+//         }
+//     } else {
+//         HASH_FIND(hh, db.normal_subs, topics[0], topiclen, subhier);
+//         if(!subhier) {
+//             subhier = sub__add_hier_entry(NULL, &db.normal_subs, topics[0], (uint16_t)topiclen);
+//             if(!subhier) {
+//                 gbmem_free(local_sub);
+//                 gbmem_free(topics);
+//                 log__printf(NULL, MOSQ_LOG_ERR, "Error: Out of memory.");
+//                 return MOSQ_ERR_NOMEM;
+//             }
+//         }
+//     }
+//     rc = sub__add_context(context, sub, qos, identifier, options, subhier, topics, sharename);
+//
+//     gbmem_free(local_sub);
+//     gbmem_free(topics);
+//
+//     return rc;
+// }
+//
+// /***************************************************************************
+//  *  Remove a subscription
+//  ***************************************************************************/
+// PRIVATE int sub__remove(
+//     hgobj gobj,
+//     const char *sub,// topic? TODO change name
+//     uint8_t *reason
+// )
+// {
+// #ifdef PEPE
+//     PRIVATE_DATA *priv = gobj_priv_data(gobj);
+//     // "$share" TODO shared not implemented
+//
+//     *reason = 0;
+//
+//     /*
+//      *  Find client
+//      */
+//     json_t *client  = gobj_get_resource(priv->gobj_mqtt_clients, priv->client_id, 0, 0);
+//     if(!client) {
+//         gobj_log_error(gobj, 0,
+//             "function",     "%s", __FUNCTION__,
+//             "msgset",       "%s", MSGSET_INTERNAL_ERROR,
+//             "msg",          "%s", "client not found",
+//             "client_id",    "%s", SAFE_PRINT(priv->client_id),
+//             NULL
+//         );
+//         return -1;
+//     }
+//
+//     /*
+//      *  Get subscriptions
+//      */
+//     json_t *subscriptions = kw_get_dict(gobj, client, "subscriptions", 0, KW_REQUIRED);
+//     if(!subscriptions) {
+//         // Error already logged
+//         return -1;
+//     }
+//
+//     json_t *subs = kw_get_dict(gobj, subscriptions, sub, 0, KW_EXTRACT);
+//     if(!subs) {
+//         *reason = MQTT_RC_NO_SUBSCRIPTION_EXISTED;
+//     }
+//     JSON_DECREF(subs);
+// #endif
+//     return 0;
+// }
+
 /***************************************************************************
- *  Add a subscription
- *  return 1 SUB_EXISTS, 0 SUCCESS, -1 ERROR
+ *  MQTT Subscription Management for Yunetas
+ ***************************************************************************
+ *  Local functions for managing MQTT subscriptions using JSON trees.
+ *  Provides add, remove, and search operations with wildcard support.
+ *
+ *  Tree structure:
+ *  {
+ *    "topic_level": {
+ *      "subtopic": {
+ *        "@subs": [{"client_id": "xxx", "qos": 1}, ...]
+ *      }
+ *    }
+ *  }
  ***************************************************************************/
-PRIVATE int sub__add(
-    hgobj gobj,
-    const char *sub,
-    uint8_t qos,
-    json_int_t identifier,
-    mqtt5_sub_options_t options
-)
+
+/***************************************************************************
+ *  strtok_hier - Hierarchical Topic Tokenizer
+ *
+ *  Splits strings by '/' (MQTT topic separator).
+ *  Modifies the original string by inserting '\0' at '/' positions.
+ ***************************************************************************/
+PRIVATE char *strtok_hier(char *str, char **saveptr)
 {
-    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+    char *c;
 
-    int rc = 0;
-    const char *sharename = NULL;
-    char *local_sub;
-    char **topics;
-
-    rc = sub__topic_tokenise(sub, &local_sub, &topics, &sharename);
-    if(rc<0) {
-        return rc;
+    if(str != NULL) {
+        *saveptr = str;
     }
 
-    BOOL no_local = ((options & MQTT_SUB_OPT_NO_LOCAL) != 0);
-    BOOL retain_as_published = ((options & MQTT_SUB_OPT_RETAIN_AS_PUBLISHED) != 0);
-
-    /*
-     *  Find client
-     */
-    json_t *client  = gobj_get_resource(priv->gobj_mqtt_clients, priv->client_id, 0, 0);
-    if(!client) {
-        gobj_log_error(gobj, 0,
-            "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_INTERNAL_ERROR,
-            "msg",          "%s", "client not found",
-            "client_id",    "%s", SAFE_PRINT(priv->client_id),
-            NULL
-        );
-        return -1;
+    if(*saveptr == NULL) {
+        return NULL;
     }
 
-    /*
-     *  Get subscriptions
-     */
-    json_t *subscriptions = kw_get_dict(gobj, client, "subscriptions", 0, KW_REQUIRED);
-    if(!subscriptions) {
-        // Error already logged
-        return -1;
+    c = strchr(*saveptr, '/');
+
+    if(c) {
+        str = *saveptr;
+        *saveptr = c + 1;
+        c[0] = '\0';
+    } else if(*saveptr) {
+        str = *saveptr;
+        *saveptr = NULL;
     }
 
-    json_t *subscription_record = kw_get_dict(gobj, subscriptions, sub, 0, 0);
-    if(subscription_record) {
-        /*
-         *  Client making a second subscription to same topic.
-         *  Only need to update QoS and identifier (TODO sure?)
-         *  Return MOSQ_ERR_SUB_EXISTS to indicate this to the calling function.
-         */
-        rc = MOSQ_ERR_SUB_EXISTS;
-        if(gobj_trace_level(gobj) & SHOW_DECODE) {
-            trace_msg0("  👈 🔴 subscription already exists: client '%s', topic '%s'",
-                priv->client_id,
-                sub
-            );
-        } else {
-            gobj_log_warning(gobj, 0,
-                "function",     "%s", __FUNCTION__,
-                "msgset",       "%s", MSGSET_INFO,
-                "msg",          "%s", "subscription already exists",
-                "client_id",    "%s", SAFE_PRINT(priv->client_id),
-                "sub",          "%s", sub,
-                NULL
-            );
-        }
-
-        json_t *kw_subscription = json_pack("{s:i, s:I}",
-            "qos", (int)qos,
-            "identifier", (json_int_t)identifier
-        );
-        if(!kw_subscription) {
-            gobj_log_error(gobj, 0,
-                "function",     "%s", __FUNCTION__,
-                "msgset",       "%s", MSGSET_INTERNAL_ERROR,
-                "msg",          "%s", "json_pack() FAILED",
-                NULL
-            );
-            return MOSQ_ERR_NOMEM;
-        }
-        json_object_update_new(subscription_record, kw_subscription);
-
-    } else {
-        /*
-         *  New subscription
-         */
-        subscription_record = json_pack("{s:s, s:i, s:I, s:b, s:b}",
-            "id", sub,
-            "qos", (int)qos,
-            "identifier", (json_int_t)identifier,
-            "no_local", no_local,
-            "retain_as_published", retain_as_published
-        );
-        if(!subscription_record) {
-            gobj_log_error(gobj, 0,
-                "function",     "%s", __FUNCTION__,
-                "msgset",       "%s", MSGSET_INTERNAL_ERROR,
-                "msg",          "%s", "json_pack() FAILED",
-                NULL
-            );
-            return MOSQ_ERR_NOMEM;
-        }
-        if(gobj_trace_level(gobj) & SHOW_DECODE) {
-            gobj_trace_json(gobj, subscription_record, "new subscription");
-        }
-        json_object_set_new(subscriptions, sub, subscription_record);
-    }
-
-    // TODO don't save if qos == 0
-    // ??? gobj_save_resource(priv->gobj_mqtt_topics, sub, subscription_record, 0);
-    return rc;
+    return str;
 }
 
 /***************************************************************************
- *  Remove a subscription
+ *  topic_tokenize - Parse MQTT topic into array of levels
+ *
+ *  Parameters:
+ *      topic       - Input topic string (e.g., "sport/tennis/#")
+ *      local_topic - Output: duplicated string (caller must free with gbmem_free)
+ *      levels      - Output: NULL-terminated array (caller must free with gbmem_free)
+ *      sharename   - Output: shared subscription name (NULL if not shared)
+ *
+ *  Returns:
+ *      0 on success, -1 on error
+ *
+ *  Output Examples:
+ *  +-----------------------------+--------------------------------+-----------+
+ *  | Input topic                 | levels[] array                 | sharename |
+ *  +-----------------------------+--------------------------------+-----------+
+ *  | "sport/tennis"              | ["", "sport", "tennis", NULL]  | NULL      |
+ *  | "$SYS/broker/load"          | ["$SYS", "broker", "load",     | NULL      |
+ *  |                             |  NULL]                         |           |
+ *  | "$share/group1/sport/tennis"| ["", "sport", "tennis", NULL]  | "group1"  |
+ *  +-----------------------------+--------------------------------+-----------+
  ***************************************************************************/
-PRIVATE int sub__remove(
-    hgobj gobj,
-    const char *sub,// topic? TODO change name
-    uint8_t *reason
+static int topic_tokenize(
+    const char *topic,
+    char **local_topic,
+    char ***levels,
+    const char **sharename
 )
 {
-#ifdef PEPE
-    PRIVATE_DATA *priv = gobj_priv_data(gobj);
-    // "$share" TODO shared not implemented
+    char *saveptr = NULL;
+    char *token;
+    int count;
+    int level_index = 0;
+    int i;
+    size_t len;
 
-    *reason = 0;
+    /*----------------------------------------------------------------------*
+     *  Validate input
+     *----------------------------------------------------------------------*/
+    if(!topic || !local_topic || !levels) {
+        return -1;
+    }
+
+    len = strlen(topic);
+    if(len == 0) {
+        return -1;
+    }
+
+    /*----------------------------------------------------------------------*
+     *  Duplicate the input string
+     *----------------------------------------------------------------------*/
+    *local_topic = gbmem_strdup(topic);
+    if((*local_topic) == NULL) {
+        return -1;
+    }
+
+    /*----------------------------------------------------------------------*
+     *  Count topic levels
+     *----------------------------------------------------------------------*/
+    count = 0;
+    saveptr = *local_topic;
+    while(saveptr) {
+        saveptr = strchr(&saveptr[1], '/');
+        count++;
+    }
+
+    /*----------------------------------------------------------------------*
+     *  Allocate levels array
+     *----------------------------------------------------------------------*/
+    *levels = gbmem_malloc((size_t)(count + 3) * sizeof(char *));
+    if((*levels) == NULL) {
+        gbmem_free(*local_topic);
+        *local_topic = NULL;
+        return -1;
+    }
+    memset(*levels, 0, (size_t)(count + 3) * sizeof(char *));
+
+    /*----------------------------------------------------------------------*
+     *  Add empty string prefix for regular topics
+     *----------------------------------------------------------------------*/
+    if((*local_topic)[0] != '$') {
+        (*levels)[level_index] = "";
+        level_index++;
+    }
+
+    /*----------------------------------------------------------------------*
+     *  Tokenize the topic string
+     *----------------------------------------------------------------------*/
+    token = strtok_hier((*local_topic), &saveptr);
+    while(token) {
+        (*levels)[level_index] = token;
+        level_index++;
+        token = strtok_hier(NULL, &saveptr);
+    }
+
+    /*----------------------------------------------------------------------*
+     *  Handle shared subscriptions
+     *----------------------------------------------------------------------*/
+    if(strcmp((*levels)[0], "$share") == 0) {
+        if(count < 3 || (count == 3 && strlen((*levels)[2]) == 0)) {
+            gbmem_free(*local_topic);
+            gbmem_free(*levels);
+            *local_topic = NULL;
+            *levels = NULL;
+            return -1;
+        }
+
+        if(sharename) {
+            (*sharename) = (*levels)[1];
+        }
+
+        for(i = 1; i < count - 1; i++) {
+            (*levels)[i] = (*levels)[i + 1];
+        }
+        (*levels)[0] = "";
+        (*levels)[count - 1] = NULL;
+    }
+
+    return 0;
+}
+
+/***************************************************************************
+ *  get_or_create_node - Navigate/create tree path
+ *
+ *  Traverses the JSON tree following the levels array.
+ *  Creates intermediate nodes if they don't exist.
+ *
+ *  Parameters:
+ *      root   - Root JSON object of the tree
+ *      levels - NULL-terminated array of topic levels
+ *
+ *  Returns:
+ *      JSON object at the leaf node, or NULL on error
+ ***************************************************************************/
+static json_t *get_or_create_node(json_t *root, char **levels)
+{
+    json_t *current = root;
+    json_t *child;
+    int i;
+
+    if(!root || !levels) {
+        return NULL;
+    }
 
     /*
-     *  Find client
+     *  Skip levels[0] (empty string for regular topics, "$SYS" for system)
+     *  The root selection (normal_subs vs shared_subs) is done by caller
      */
-    json_t *client  = gobj_get_resource(priv->gobj_mqtt_clients, priv->client_id, 0, 0);
-    if(!client) {
+    for(i = 1; levels[i] != NULL; i++) {
+        child = json_object_get(current, levels[i]);
+        if(!child) {
+            /*
+             *  Node doesn't exist, create it
+             */
+            child = json_object();
+            if(!child) {
+                return NULL;
+            }
+            if(json_object_set_new(current, levels[i], child) < 0) {
+                json_decref(child);
+                return NULL;
+            }
+        }
+        current = child;
+    }
+
+    return current;
+}
+
+/***************************************************************************
+ *  get_node - Navigate tree path (read-only)
+ *
+ *  Traverses the JSON tree following the levels array.
+ *  Does NOT create nodes if they don't exist.
+ *
+ *  Parameters:
+ *      root   - Root JSON object of the tree
+ *      levels - NULL-terminated array of topic levels
+ *
+ *  Returns:
+ *      JSON object at the leaf node, or NULL if path doesn't exist
+ ***************************************************************************/
+static json_t *get_node(json_t *root, char **levels)
+{
+    json_t *current = root;
+    json_t *child;
+    int i;
+
+    if(!root || !levels) {
+        return NULL;
+    }
+
+    for(i = 1; levels[i] != NULL; i++) {
+        child = json_object_get(current, levels[i]);
+        if(!child) {
+            return NULL;
+        }
+        current = child;
+    }
+
+    return current;
+}
+
+/***************************************************************************
+ *  find_subscriber_index - Find subscriber in @subs array
+ *
+ *  Parameters:
+ *      subs_array - JSON array of subscriber objects
+ *      client_id  - Client ID to find
+ *
+ *  Returns:
+ *      Index of subscriber (>= 0), or -1 if not found
+ ***************************************************************************/
+static int find_subscriber_index(json_t *subs_array, const char *client_id)
+{
+    size_t index;
+    json_t *sub;
+    const char *id;
+
+    if(!subs_array || !client_id) {
+        return -1;
+    }
+
+    json_array_foreach(subs_array, index, sub) {
+        id = json_string_value(json_object_get(sub, "client_id"));
+        if(id && strcmp(id, client_id) == 0) {
+            return (int)index;
+        }
+    }
+
+    return -1;
+}
+
+/***************************************************************************
+ *  prune_empty_branches - Remove empty nodes from tree
+ *
+ *  Walks back up the tree removing nodes that have no children
+ *  and no subscribers.
+ *
+ *  Parameters:
+ *      root   - Root JSON object of the tree
+ *      levels - NULL-terminated array of topic levels
+ ***************************************************************************/
+static void prune_empty_branches(json_t *root, char **levels)
+{
+    json_t *node;
+    json_t *parent;
+    json_t *subs;
+    int depth;
+    int i;
+
+    if(!root || !levels) {
+        return;
+    }
+
+    /*
+     *  Count depth
+     */
+    for(depth = 1; levels[depth] != NULL; depth++);
+
+    /*
+     *  Walk backwards from leaf to root
+     */
+    for(i = depth - 1; i >= 1; i--) {
+        /*
+         *  Get parent node
+         */
+        parent = root;
+        for(int j = 1; j < i; j++) {
+            parent = json_object_get(parent, levels[j]);
+            if(!parent) {
+                return;
+            }
+        }
+
+        /*
+         *  Get current node
+         */
+        node = json_object_get(parent, levels[i]);
+        if(!node) {
+            return;
+        }
+
+        /*
+         *  Check if node is empty (no children except @subs, and @subs is empty or missing)
+         */
+        subs = json_object_get(node, SUBS_KEY);
+        size_t child_count = json_object_size(node);
+
+        if(subs) {
+            child_count--;  /* Don't count @subs as a child */
+        }
+
+        if(child_count == 0 && (!subs || json_array_size(subs) == 0)) {
+            json_object_del(parent, levels[i]);
+        } else {
+            /*
+             *  Node has children or subscribers, stop pruning
+             */
+            break;
+        }
+    }
+}
+
+/***************************************************************************
+ *  collect_subscribers - Collect client_ids from @subs array
+ *
+ *  Parameters:
+ *      node       - JSON node that may contain @subs
+ *      result     - JSON array to append client_ids to
+ ***************************************************************************/
+static void collect_subscribers(json_t *node, json_t *result)
+{
+    json_t *subs;
+    json_t *sub;
+    size_t index;
+    const char *client_id;
+
+    if(!node || !result) {
+        return;
+    }
+
+    subs = json_object_get(node, SUBS_KEY);
+    if(!subs) {
+        return;
+    }
+
+    json_array_foreach(subs, index, sub) {
+        client_id = json_string_value(json_object_get(sub, "client_id"));
+        if(client_id) {
+            /*
+             *  Add client_id if not already in result
+             */
+            BOOL found = FALSE;
+            size_t i;
+            json_t *existing;
+            json_array_foreach(result, i, existing) {
+                if(strcmp(json_string_value(existing), client_id) == 0) {
+                    found = TRUE;
+                    break;
+                }
+            }
+            if(!found) {
+                json_array_append_new(result, json_string(client_id));
+            }
+        }
+    }
+}
+
+/***************************************************************************
+ *  collect_all_subscribers_recursive - Collect from node and all descendants
+ *
+ *  Used when '#' wildcard matches - collects all subscribers
+ *  from current node and ALL children recursively.
+ *
+ *  Parameters:
+ *      node   - Current JSON node
+ *      result - JSON array to append client_ids to
+ ***************************************************************************/
+static void collect_all_subscribers_recursive(json_t *node, json_t *result)
+{
+    const char *key;
+    json_t *child;
+
+    if(!node || !result) {
+        return;
+    }
+
+    /*
+     *  Collect from current node
+     */
+    collect_subscribers(node, result);
+
+    /*
+     *  Recurse into children (skip @subs key)
+     */
+    json_object_foreach(node, key, child) {
+        if(strcmp(key, SUBS_KEY) != 0) {
+            collect_all_subscribers_recursive(child, result);
+        }
+    }
+}
+
+/***************************************************************************
+ *  search_recursive - Recursive wildcard-aware search
+ *
+ *  Searches the subscription tree matching against published topic levels.
+ *  Handles '+' (single-level) and '#' (multi-level) wildcards.
+ *
+ *  Parameters:
+ *      node        - Current JSON node in subscription tree
+ *      pub_levels  - Array of published topic levels (NOT wildcards)
+ *      level_index - Current index in pub_levels
+ *      result      - JSON array to append matching client_ids
+ ***************************************************************************/
+static void search_recursive(
+    json_t *node,
+    char **pub_levels,
+    int level_index,
+    json_t *result
+)
+{
+    json_t *child;
+    json_t *wildcard_child;
+    json_t *multi_wildcard;
+    const char *current_level;
+
+    if(!node || !pub_levels || !result) {
+        return;
+    }
+
+    current_level = pub_levels[level_index];
+
+    /*----------------------------------------------------------------------*
+     *  Check '#' wildcard (matches rest of topic at any point)
+     *----------------------------------------------------------------------*/
+    multi_wildcard = json_object_get(node, "#");
+    if(multi_wildcard) {
+        collect_subscribers(multi_wildcard, result);
+    }
+
+    /*----------------------------------------------------------------------*
+     *  End of published topic - collect subscribers from current node
+     *----------------------------------------------------------------------*/
+    if(current_level == NULL) {
+        collect_subscribers(node, result);
+        return;
+    }
+
+    /*----------------------------------------------------------------------*
+     *  Check '+' wildcard (matches single level)
+     *----------------------------------------------------------------------*/
+    wildcard_child = json_object_get(node, "+");
+    if(wildcard_child) {
+        search_recursive(wildcard_child, pub_levels, level_index + 1, result);
+    }
+
+    /*----------------------------------------------------------------------*
+     *  Check exact match
+     *----------------------------------------------------------------------*/
+    child = json_object_get(node, current_level);
+    if(child) {
+        search_recursive(child, pub_levels, level_index + 1, result);
+    }
+}
+
+/***************************************************************************
+ *  sub_add - Add a subscription to the tree
+ *
+ *  Parameters:
+ *      gobj        - GObj instance (for PRIVATE_DATA access)
+ *      topic       - Subscription topic (may contain wildcards)
+ *      client_id   - Client identifier
+ *      qos         - Quality of Service level (0, 1, or 2)
+ *
+ *  Returns:
+ *      0 on success, -1 on error
+ *
+ *  Example:
+ *      sub_add(gobj, "home/+/temperature", "client_001", 1);
+ ***************************************************************************/
+static int sub_add(
+    hgobj gobj,
+    const char *topic,
+    const char *client_id,
+    uint8_t qos,
+    subscription_identifier,
+    subscription_options
+) {
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    char *local_topic = NULL;
+    char **levels = NULL;
+    const char *sharename = NULL;
+    json_t *root;
+    json_t *node;
+    json_t *subs;
+    json_t *sub_entry;
+    int idx;
+    int ret = -1;
+
+    /*----------------------------------------------------------------------*
+     *  Validate input
+     *----------------------------------------------------------------------*/
+    if(!topic || !client_id) {
         gobj_log_error(gobj, 0,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_INTERNAL_ERROR,
-            "msg",          "%s", "client not found",
-            "client_id",    "%s", SAFE_PRINT(priv->client_id),
+            "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+            "msg",          "%s", "topic or client_id is NULL",
+            NULL
+        );
+        return -1;
+    }
+
+    /*----------------------------------------------------------------------*
+     *  Tokenize topic
+     *----------------------------------------------------------------------*/
+    if(topic_tokenize(topic, &local_topic, &levels, &sharename) < 0) {
+        gobj_log_error(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+            "msg",          "%s", "Failed to tokenize topic",
+            "client_id",    "%s", client_id,
+            "topic",        "%s", topic,
+            NULL
+        );
+        return -1;
+    }
+
+    /*----------------------------------------------------------------------*
+     *  Select root based on subscription type
+     *----------------------------------------------------------------------*/
+    if(sharename) {
+        root = priv->shared_subs;
+    } else {
+        root = priv->normal_subs;
+    }
+
+    /*----------------------------------------------------------------------*
+     *  Navigate/create tree path
+     *----------------------------------------------------------------------*/
+    node = get_or_create_node(root, levels);
+    if(!node) {
+        gobj_log_error(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_MEMORY_ERROR,
+            "msg",          "%s", "Failed to create tree node",
+            "client_id",    "%s", client_id,
+            "topic",        "%s", topic,
+            NULL
+        );
+        goto cleanup;
+    }
+
+    /*----------------------------------------------------------------------*
+     *  Get or create @subs array
+     *----------------------------------------------------------------------*/
+    subs = json_object_get(node, SUBS_KEY);
+    if(!subs) {
+        subs = json_array();
+        if(!subs) {
+            gobj_log_error(gobj, 0,
+                "function",     "%s", __FUNCTION__,
+                "msgset",       "%s", MSGSET_MEMORY_ERROR,
+                "msg",          "%s", "Failed to create subs array",
+                "client_id",    "%s", client_id,
+                "topic",        "%s", topic,
+                NULL
+            );
+            goto cleanup;
+        }
+        if(json_object_set_new(node, SUBS_KEY, subs) < 0) {
+            json_decref(subs);
+            goto cleanup;
+        }
+    }
+
+    /*----------------------------------------------------------------------*
+     *  Check if subscriber already exists
+     *----------------------------------------------------------------------*/
+    idx = find_subscriber_index(subs, client_id);
+    if(idx >= 0) {
+        /*
+         *  Update existing subscription (QoS may have changed)
+         */
+        sub_entry = json_array_get(subs, idx);
+        json_object_set_new(sub_entry, "qos", json_integer(qos));
+    } else {
+        /*
+         *  Add new subscription
+         */
+        sub_entry = json_pack("{s:s, s:i}",
+            "client_id", client_id,
+            "qos", (int)qos
+        );
+        if(!sub_entry) {
+            gobj_log_error(gobj, 0,
+                "function",     "%s", __FUNCTION__,
+                "msgset",       "%s", MSGSET_MEMORY_ERROR,
+                "msg",          "%s", "Failed to create subscription entry",
+                "client_id",    "%s", client_id,
+                "topic",        "%s", topic,
+                NULL
+            );
+            goto cleanup;
+        }
+        if(json_array_append_new(subs, sub_entry) < 0) {
+            json_decref(sub_entry);
+            goto cleanup;
+        }
+    }
+
+    ret = 0;
+
+cleanup:
+    if(local_topic) {
+        gbmem_free(local_topic);
+    }
+    if(levels) {
+        gbmem_free(levels);
+    }
+
+    return ret;
+}
+
+/***************************************************************************
+ *  sub_remove - Remove a subscription from the tree
+ *
+ *  Parameters:
+ *      gobj        - GObj instance (for PRIVATE_DATA access)
+ *      topic       - Subscription topic to remove
+ *      client_id   - Client identifier
+ *
+ *  Returns:
+ *      0 on success (or if subscription didn't exist), -1 on error
+ *
+ *  Example:
+ *      sub_remove(gobj, "home/+/temperature", "client_001");
+ ***************************************************************************/
+static int sub_remove(hgobj gobj, const char *topic, const char *client_id)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    char *local_topic = NULL;
+    char **levels = NULL;
+    const char *sharename = NULL;
+    json_t *root;
+    json_t *node;
+    json_t *subs;
+    int idx;
+    int ret = -1;
+
+    /*----------------------------------------------------------------------*
+     *  Validate input
+     *----------------------------------------------------------------------*/
+    if(!topic || !client_id) {
+        gobj_log_error(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+            "msg",          "%s", "topic or client_id is NULL",
+            NULL
+        );
+        return -1;
+    }
+
+    /*----------------------------------------------------------------------*
+     *  Tokenize topic
+     *----------------------------------------------------------------------*/
+    if(topic_tokenize(topic, &local_topic, &levels, &sharename) < 0) {
+        gobj_log_error(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+            "msg",          "%s", "Failed to tokenize topic",
+            "topic",        "%s", topic,
+            NULL
+        );
+        return -1;
+    }
+
+    /*----------------------------------------------------------------------*
+     *  Select root based on subscription type
+     *----------------------------------------------------------------------*/
+    if(sharename) {
+        root = priv->shared_subs;
+    } else {
+        root = priv->normal_subs;
+    }
+
+    /*----------------------------------------------------------------------*
+     *  Navigate to node (don't create if not exists)
+     *----------------------------------------------------------------------*/
+    node = get_node(root, levels);
+    if(!node) {
+        /*
+         *  Topic path doesn't exist, nothing to remove
+         */
+        ret = 0;
+        goto cleanup;
+    }
+
+    /*----------------------------------------------------------------------*
+     *  Get @subs array
+     *----------------------------------------------------------------------*/
+    subs = json_object_get(node, SUBS_KEY);
+    if(!subs) {
+        /*
+         *  No subscribers at this node
+         */
+        ret = 0;
+        goto cleanup;
+    }
+
+    /*----------------------------------------------------------------------*
+     *  Find and remove subscriber
+     *----------------------------------------------------------------------*/
+    idx = find_subscriber_index(subs, client_id);
+    if(idx >= 0) {
+        json_array_remove(subs, idx);
+
+        /*
+         *  If @subs is now empty, remove the key
+         */
+        if(json_array_size(subs) == 0) {
+            json_object_del(node, SUBS_KEY);
+        }
+
+        /*
+         *  Prune empty branches
+         */
+        prune_empty_branches(root, levels);
+    }
+
+    ret = 0;
+
+cleanup:
+    if(local_topic) {
+        gbmem_free(local_topic);
+    }
+    if(levels) {
+        gbmem_free(levels);
+    }
+
+    return ret;
+}
+
+/***************************************************************************
+ *  sub_search - Find all subscribers matching a published topic
+ *
+ *  Searches for all subscriptions that match the given published topic.
+ *  The published topic must NOT contain wildcards.
+ *  Subscription wildcards ('+' and '#') are matched appropriately.
+ *
+ *  Parameters:
+ *      gobj        - GObj instance (for PRIVATE_DATA access)
+ *      topic       - Published topic (NO wildcards allowed)
+ *
+ *  Returns:
+ *      JSON array of client_id strings (caller must json_decref)
+ *      Empty array if no matches
+ *      NULL on error
+ *
+ *  Example:
+ *      json_t *clients = sub_search(gobj, "home/livingroom/temperature");
+ *      // Returns clients subscribed to:
+ *      //   "home/livingroom/temperature" (exact match)
+ *      //   "home/+/temperature"          (single-level wildcard)
+ *      //   "home/#"                      (multi-level wildcard)
+ *      //   "#"                           (all topics)
+ *      json_decref(clients);
+ ***************************************************************************/
+static json_t *sub_search(hgobj gobj, const char *topic)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    char *local_topic = NULL;
+    char **levels = NULL;
+    const char *sharename = NULL;
+    json_t *result = NULL;
+
+    /*----------------------------------------------------------------------*
+     *  Validate input
+     *----------------------------------------------------------------------*/
+    if(!topic) {
+        gobj_log_error(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+            "msg",          "%s", "topic is NULL",
+            NULL
+        );
+        return NULL;
+    }
+
+    /*----------------------------------------------------------------------*
+     *  Published topics must not contain wildcards
+     *----------------------------------------------------------------------*/
+    if(strchr(topic, '+') || strchr(topic, '#')) {
+        gobj_log_error(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+            "msg",          "%s", "Published topic cannot contain wildcards",
+            "topic",        "%s", topic,
+            NULL
+        );
+        return NULL;
+    }
+
+    /*----------------------------------------------------------------------*
+     *  Tokenize topic
+     *----------------------------------------------------------------------*/
+    if(topic_tokenize(topic, &local_topic, &levels, &sharename) < 0) {
+        gobj_log_error(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+            "msg",          "%s", "Failed to tokenize topic",
+            "topic",        "%s", topic,
+            NULL
+        );
+        return NULL;
+    }
+
+    /*----------------------------------------------------------------------*
+     *  Create result array
+     *----------------------------------------------------------------------*/
+    result = json_array();
+    if(!result) {
+        gobj_log_error(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_MEMORY_ERROR,
+            "msg",          "%s", "Failed to create result array",
+            NULL
+        );
+        goto cleanup;
+    }
+
+    /*----------------------------------------------------------------------*
+     *  Search in normal_subs (non-shared subscriptions)
+     *----------------------------------------------------------------------*/
+    search_recursive(priv->normal_subs, levels, 1, result);
+
+    /*----------------------------------------------------------------------*
+     *  Search in shared_subs (shared subscriptions)
+     *  Note: For shared subs, only one client per group receives the message
+     *  This function returns ALL matching clients; the caller should
+     *  implement the "select one per group" logic if needed
+     *----------------------------------------------------------------------*/
+    search_recursive(priv->shared_subs, levels, 1, result);
+
+cleanup:
+    if(local_topic) {
+        gbmem_free(local_topic);
+    }
+    if(levels) {
+        gbmem_free(levels);
+    }
+
+    return result;
+}
+
+/***************************************************************************
+ *  sub_remove_client - Remove ALL subscriptions for a client
+ *
+ *  Used when a client disconnects to clean up all its subscriptions.
+ *
+ *  Parameters:
+ *      gobj        - GObj instance (for PRIVATE_DATA access)
+ *      client_id   - Client identifier to remove
+ *
+ *  Returns:
+ *      Number of subscriptions removed, -1 on error
+ *
+ *  Example:
+ *      int removed = sub_remove_client(gobj, "client_001");
+ ***************************************************************************/
+static int sub_remove_client_recursive(json_t *node, const char *client_id, int *count)
+{
+    const char *key;
+    json_t *child;
+    json_t *subs;
+    int idx;
+    void *tmp;
+
+    if(!node || !client_id || !count) {
+        return -1;
+    }
+
+    /*
+     *  Check @subs in current node
+     */
+    subs = json_object_get(node, SUBS_KEY);
+    if(subs) {
+        idx = find_subscriber_index(subs, client_id);
+        if(idx >= 0) {
+            json_array_remove(subs, idx);
+            (*count)++;
+
+            if(json_array_size(subs) == 0) {
+                json_object_del(node, SUBS_KEY);
+            }
+        }
+    }
+
+    /*
+     *  Recurse into children (use safe iteration for potential deletion)
+     */
+    json_object_foreach_safe(node, tmp, key, child) {
+        if(strcmp(key, SUBS_KEY) != 0) {
+            sub_remove_client_recursive(child, client_id, count);
+
+            /*
+             *  Remove empty child nodes
+             */
+            subs = json_object_get(child, SUBS_KEY);
+            size_t child_count = json_object_size(child);
+            if(subs) {
+                child_count--;
+            }
+            if(child_count == 0 && (!subs || json_array_size(subs) == 0)) {
+                json_object_del(node, key);
+            }
+        }
+    }
+
+    return 0;
+}
+
+static int sub_remove_client(hgobj gobj, const char *client_id)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+    int count = 0;
+
+    if(!client_id) {
+        gobj_log_error(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+            "msg",          "%s", "client_id is NULL",
             NULL
         );
         return -1;
     }
 
     /*
-     *  Get subscriptions
+     *  Remove from normal_subs
      */
-    json_t *subscriptions = kw_get_dict(gobj, client, "subscriptions", 0, KW_REQUIRED);
-    if(!subscriptions) {
-        // Error already logged
-        return -1;
-    }
+    sub_remove_client_recursive(priv->normal_subs, client_id, &count);
 
-    json_t *subs = kw_get_dict(gobj, subscriptions, sub, 0, KW_EXTRACT);
-    if(!subs) {
-        *reason = MQTT_RC_NO_SUBSCRIPTION_EXISTED;
-    }
-    JSON_DECREF(subs);
-#endif
-    return 0;
+    /*
+     *  Remove from shared_subs
+     */
+    sub_remove_client_recursive(priv->shared_subs, client_id, &count);
+
+    return count;
 }
 
 /***************************************************************************
@@ -1132,13 +2068,13 @@ PRIVATE int ac_on_open(hgobj gobj, const char *event, json_t *kw, hgobj src)
                 );
 
                 // TODO
-                // if(context->clean_start == true){
+                // if(context->clean_start == true) {
                 //     sub__clean_session(found_context);
                 // }
                 // if((found_context->protocol == mosq_p_mqtt5 && found_context->session_expiry_interval == 0)
                 //         || (found_context->protocol != mosq_p_mqtt5 && found_context->clean_start == true)
                 //         || (context->clean_start == true)
-                //         ){
+                //         ) {
                 //
                 //     context__send_will(found_context);
                 //         }
@@ -1151,7 +2087,7 @@ PRIVATE int ac_on_open(hgobj gobj, const char *event, json_t *kw, hgobj src)
                 // found_context->session_expiry_interval = 0;
                 // mosquitto__set_state(found_context, mosq_cs_duplicate);
                 // TODO
-                // if(found_context->protocol == mosq_p_mqtt5){
+                // if(found_context->protocol == mosq_p_mqtt5) {
                 //     send__disconnect(found_context, MQTT_RC_SESSION_TAKEN_OVER, NULL);
                 // }
 
@@ -1299,9 +2235,10 @@ PRIVATE int ac_mqtt_subscribe(hgobj gobj, const char *event, json_t *kw, hgobj s
         }
 
         if(allowed) {
-            rc = sub__add(
+            rc = sub_add(
                 gobj,
                 sub,
+                client_id,
                 qos,
                 subscription_identifier,
                 subscription_options
@@ -1389,7 +2326,7 @@ PRIVATE int ac_mqtt_unsubscribe(hgobj gobj, const char *event, json_t *kw, hgobj
         BOOL allowed = TRUE;
         // allowed = mosquitto_acl_check(context, sub, 0, NULL, 0, FALSE, MOSQ_ACL_UNSUBSCRIBE); TODO
         if(allowed) {
-            // TODO rc += sub__remove(gobj, sub, &reason);
+            rc += sub_remove(gobj, sub, &reason);
         } else {
             reason = MQTT_RC_NOT_AUTHORIZED;
         }
