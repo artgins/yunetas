@@ -1443,12 +1443,14 @@ cleanup:
  *      client_id   - Client identifier
  *
  *  Returns:
- *      0 on success (or if subscription didn't exist), -1 on error
+ *      0 on success,
+ *      MQTT_RC_NO_SUBSCRIPTION_EXISTED if subscription didn't exist,
+ *      -1 on error
  *
  *  Example:
  *      sub_remove(gobj, "home/+/temperature", "client_001");
  ***************************************************************************/
-static int sub_remove(hgobj gobj, const char *topic, const char *client_id)
+static int sub_remove(hgobj gobj, const char *topic, const char *client_id, int *reason)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
@@ -1504,7 +1506,7 @@ static int sub_remove(hgobj gobj, const char *topic, const char *client_id)
         /*
          *  Topic path doesn't exist, nothing to remove
          */
-        ret = 0;
+        ret = MQTT_RC_NO_SUBSCRIPTION_EXISTED;
         goto cleanup;
     }
 
@@ -2464,7 +2466,7 @@ PRIVATE int ac_mqtt_unsubscribe(hgobj gobj, const char *event, json_t *kw, hgobj
         BOOL allowed = TRUE;
         // allowed = mosquitto_acl_check(context, sub, 0, NULL, 0, FALSE, MOSQ_ACL_UNSUBSCRIBE); TODO
         if(allowed) {
-            rc += sub_remove(gobj, sub, &reason);
+            rc += sub_remove(gobj, sub, client_id, &reason);
         } else {
             reason = MQTT_RC_NOT_AUTHORIZED;
         }
