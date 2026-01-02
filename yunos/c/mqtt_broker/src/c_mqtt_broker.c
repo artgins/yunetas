@@ -1315,10 +1315,6 @@ static int sub_add(
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
-    char *local_topic = NULL;
-    char **levels = NULL;
-    const char *sharename = NULL;
-    json_t *root;
     json_t *node;
     json_t *subs;
     json_t *sub_info;
@@ -1340,6 +1336,9 @@ static int sub_add(
     /*----------------------------------------------------------------------*
      *  Tokenize topic
      *----------------------------------------------------------------------*/
+    char *local_topic = NULL;
+    char **levels = NULL;
+    const char *sharename = NULL;
     if(topic_tokenize(topic, &local_topic, &levels, &sharename) < 0) {
         gobj_log_error(gobj, 0,
             "function",     "%s", __FUNCTION__,
@@ -1355,6 +1354,7 @@ static int sub_add(
     /*----------------------------------------------------------------------*
      *  Select root based on subscription type
      *----------------------------------------------------------------------*/
+    json_t *root;
     if(sharename) {
         root = priv->shared_subs;
     } else {
@@ -1585,14 +1585,9 @@ cleanup:
  *      //   "#"                           (all topics)
  *      json_decref(clients);
  ***************************************************************************/
-static json_t *sub_search(hgobj gobj, const char *topic)
+PRIVATE json_t *sub_search(hgobj gobj, const char *topic)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
-
-    char *local_topic = NULL;
-    char **levels = NULL;
-    const char *sharename = NULL;
-    json_t *result = NULL;
 
     /*----------------------------------------------------------------------*
      *  Validate input
@@ -1624,6 +1619,9 @@ static json_t *sub_search(hgobj gobj, const char *topic)
     /*----------------------------------------------------------------------*
      *  Tokenize topic
      *----------------------------------------------------------------------*/
+    char *local_topic = NULL;
+    char **levels = NULL;
+    const char *sharename = NULL;
     if(topic_tokenize(topic, &local_topic, &levels, &sharename) < 0) {
         gobj_log_error(gobj, 0,
             "function",     "%s", __FUNCTION__,
@@ -1638,7 +1636,7 @@ static json_t *sub_search(hgobj gobj, const char *topic)
     /*----------------------------------------------------------------------*
      *  Create result array
      *----------------------------------------------------------------------*/
-    result = json_array();
+    json_t *result = json_array();
     if(!result) {
         gobj_log_error(gobj, 0,
             "function",     "%s", __FUNCTION__,
@@ -1657,7 +1655,7 @@ static json_t *sub_search(hgobj gobj, const char *topic)
     /*----------------------------------------------------------------------*
      *  Search in shared_subs (shared subscriptions)
      *  Note: For shared subs, only one client per group receives the message
-     *  This function returns ALL matching clients; the caller should
+     *  TODO This function returns ALL matching clients; the caller should
      *  implement the "select one per group" logic if needed
      *----------------------------------------------------------------------*/
     search_recursive(priv->shared_subs, levels, 1, result);
@@ -1862,6 +1860,26 @@ PRIVATE int retain__queue(
         return 0;
     }
     // TODO
+    return 0;
+}
+
+/***************************************************************************
+ *  Enqueue message to subscribers
+ ***************************************************************************/
+PRIVATE int sub__messages_queue(
+    hgobj gobj,
+    json_t *kw_mqtt_msg // not owned
+) {
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    const char *topic = kw_get_str(gobj, kw_mqtt_msg, "topic", "", KW_REQUIRED);
+
+    json_t *clients = sub_search(gobj, topic);
+
+    int idx; json_t *client;
+    json_array_foreach(clients, idx, client) {
+        print_json2("ENVIA mqtt msg to client", client);
+    }
     return 0;
 }
 
@@ -2522,6 +2540,15 @@ PRIVATE int ac_on_message(hgobj gobj, const char *event, json_t *kw, hgobj src)
         KW_DECREF(kw);
         return -1;
     }
+
+    /*-----------------------------------*
+     *      Mqtt message
+     *-----------------------------------*/
+    sub__messages_queue(
+        gobj,
+        kw // not owned
+    );
+
 
     KW_DECREF(kw);
     return 0;

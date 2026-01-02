@@ -55,7 +55,6 @@
 #include "c_tcp.h"
 #include "istream.h"
 #include "tr2q_mqtt.h"
-#include "topic_tokenise.h"
 #include "c_prot_mqtt2.h"
 
 /***************************************************************************
@@ -1035,7 +1034,7 @@ PRIVATE int OLD_message__queue(
 /***************************************************************************
  *  Used by client and broker
  ***************************************************************************/
-PRIVATE json_t *new_json_message(
+PRIVATE json_t *new_mqtt_message(
     hgobj gobj,
     uint16_t mid,
     const char *topic,
@@ -1045,9 +1044,9 @@ PRIVATE json_t *new_json_message(
     BOOL dup,
     json_t *properties,         // owned
     uint32_t expiry_interval,
-    mqtt_msg_origin_t origin,
-    mqtt_msg_direction_t dir,
-    user_flag_t *p_user_flag,
+    // mqtt_msg_origin_t origin,
+    // mqtt_msg_direction_t dir,
+    // user_flag_t *p_user_flag,
     json_int_t t
 ) {
     json_t *kw_mqtt_msg = create_json_record(gobj, json_mqtt_desc);
@@ -1079,15 +1078,15 @@ PRIVATE json_t *new_json_message(
         );
     }
 
-    user_flag_t user_flag = {0};
-    user_flag_set_origin(&user_flag, origin);
-    user_flag_set_direction(&user_flag, dir);
-    user_flag_set_qos_level(&user_flag, qos);
-    user_flag_set_retain(&user_flag, retain);
-    user_flag_set_dup(&user_flag, dup);
-    user_flag_set_state(&user_flag, mosq_ms_invalid);
-
-    *p_user_flag = user_flag;
+    // user_flag_t user_flag = {0};
+    // user_flag_set_origin(&user_flag, origin);
+    // user_flag_set_direction(&user_flag, dir);
+    // user_flag_set_qos_level(&user_flag, qos);
+    // user_flag_set_retain(&user_flag, retain);
+    // user_flag_set_dup(&user_flag, dup);
+    // user_flag_set_state(&user_flag, mosq_ms_invalid);
+    //
+    // *p_user_flag = user_flag;
 
     return kw_mqtt_msg;
 }
@@ -1183,78 +1182,6 @@ PRIVATE int message__delete(
     }
     return rc;
 }
-
-/***************************************************************************
- *  Enqueue message to subscribers
- ***************************************************************************/
-PRIVATE int sub__messages_queue(
-    hgobj gobj,
-    json_t *kw // owned
-) {
-    int rc = MOSQ_ERR_SUCCESS;
-    int rc_normal = MOSQ_ERR_NO_SUBSCRIBERS;
-    int rc_shared = MOSQ_ERR_NO_SUBSCRIBERS;
-    struct mosquitto__subhier *subhier;
-    char **split_topics = NULL;
-    char *local_topic = NULL;
-
-    const char *topic = kw_get_str(gobj, kw, "topic", "", KW_REQUIRED);
-    BOOL retain = kw_get_bool(gobj, kw, "retain", 0, KW_REQUIRED);
-
-    // int nelements;
-    // if(sub__topic_tokenise_v2(topic, &local_topic, &split_topics, &nelements, NULL)<0) {
-    //     gobj_log_error(gobj, 0,
-    //         "function",     "%s", __FUNCTION__,
-    //         "msgset",       "%s", MSGSET_MQTT_ERROR,
-    //         "msg",          "%s", "Mqtt topic tokenise fail",
-    //         "topic",        "%s", topic,
-    //         NULL
-    //     );
-    //     KW_DECREF(kw)
-    //     return -1;
-    // }
-    //
-    // HASH_FIND(hh, db.normal_subs, split_topics[0], strlen(split_topics[0]), subhier);
-    // if(subhier) {
-    //     rc_normal = sub__search(subhier, split_topics, source_id, topic, qos, retain, *stored);
-    //     if(rc_normal > 0) {
-    //         rc = rc_normal;
-    //         goto end;
-    //     }
-    // }
-    //
-    // HASH_FIND(hh, db.shared_subs, split_topics[0], strlen(split_topics[0]), subhier);
-    // if(subhier) {
-    //     rc_shared = sub__search(subhier, split_topics, source_id, topic, qos, retain, *stored);
-    //     if(rc_shared > 0) {
-    //         rc = rc_shared;
-    //         goto end;
-    //     }
-    // }
-    //
-    // if(rc_normal == MOSQ_ERR_NO_SUBSCRIBERS && rc_shared == MOSQ_ERR_NO_SUBSCRIBERS) {
-    //     rc = MOSQ_ERR_NO_SUBSCRIBERS;
-    // }
-    //
-    // if(retain) {
-    //     // rc2 = retain__store(topic, *stored, split_topics);
-    //     // if(rc2) rc = rc2;
-    // }
-    //
-    // end:
-    //     mosquitto__free(split_topics);
-    // mosquitto__free(local_topic);
-    // /* Remove our reference and free if needed. */
-    // db__msg_store_ref_dec(stored);
-    //
-    // sub__topic_tokens_free(&split_topics);
-
-    GBMEM_FREE(local_topic)
-    KW_DECREF(kw)
-
-    return rc;
-}
-
 
 /***************************************************************************
  *  Using in context context__cleanup()
@@ -6679,8 +6606,7 @@ PRIVATE int handle__publish_s(
      *      Build our json message
      *-----------------------------------*/
     time_t t = mosquitto_time();
-    user_flag_t user_flag;
-    json_t *kw_mqtt_msg = new_json_message(
+    json_t *kw_mqtt_msg = new_mqtt_message( // broker, message from client
         gobj,
         mid,
         topic,
@@ -6690,11 +6616,16 @@ PRIVATE int handle__publish_s(
         dup,
         properties, // owned
         message_expiry_interval,
-        mosq_mo_client,
-        mosq_md_in,
-        &user_flag,
         t
     );
+
+    user_flag_t user_flag = {0};
+    user_flag_set_origin(&user_flag, mosq_mo_client);
+    user_flag_set_direction(&user_flag, mosq_md_in);
+    user_flag_set_qos_level(&user_flag, qos);
+    user_flag_set_retain(&user_flag, retain);
+    user_flag_set_dup(&user_flag, dup);
+    user_flag_set_state(&user_flag, mosq_ms_invalid);
 
     if(gobj_trace_level(gobj) & SHOW_DECODE) {
         trace_msg0("  👈 Received PUBLISH from client '%s', topic '%s' (dup %d, qos %d, retain %d, mid %d, len %ld)",
@@ -6776,10 +6707,15 @@ PRIVATE int handle__publish_s(
                  *  Broker
                  *  Dispatch the message to the subscribers
                  */
-                rc = sub__messages_queue(
+                rc = gobj_publish_event(
                     gobj,
+                    EV_ON_MESSAGE,
                     kw_mqtt_msg // owned
                 );
+                // rc = sub__messages_queue(
+                //     gobj,
+                //     kw_mqtt_msg // owned
+                // );
             }
             break;
 
@@ -6790,10 +6726,15 @@ PRIVATE int handle__publish_s(
                  *  Broker
                  *  Dispatch the message to subscribers
                  */
-                rc = sub__messages_queue(
+                rc = gobj_publish_event(
                     gobj,
+                    EV_ON_MESSAGE,
                     kw_mqtt_msg // owned
                 );
+                // rc = sub__messages_queue(
+                //     gobj,
+                //     kw_mqtt_msg // owned
+                // );
 
                 /*
                  *  Response acknowledge
@@ -6960,8 +6901,7 @@ PRIVATE int handle__publish_c(
      *      Build our json message
      *-----------------------------------*/
     time_t t = mosquitto_time();
-    user_flag_t user_flag;
-    json_t *kw_mqtt_msg = new_json_message(
+    json_t *kw_mqtt_msg = new_mqtt_message( // client, message from broker
         gobj,
         mid,
         topic,
@@ -6971,11 +6911,16 @@ PRIVATE int handle__publish_c(
         dup,
         properties, // owned
         expiry_interval,
-        mosq_mo_broker,
-        mosq_md_in,
-        &user_flag,
         t
     );
+
+    user_flag_t user_flag = {0};
+    user_flag_set_origin(&user_flag, mosq_mo_broker);
+    user_flag_set_direction(&user_flag, mosq_md_in);
+    user_flag_set_qos_level(&user_flag, qos);
+    user_flag_set_retain(&user_flag, retain);
+    user_flag_set_dup(&user_flag, dup);
+    user_flag_set_state(&user_flag, mosq_ms_invalid);
 
     if(gobj_trace_level(gobj) & SHOW_DECODE) {
         trace_msg0("  👈 Received PUBLISH from server '%s', topic '%s' (dup %d, qos %d, retain %d, mid %d, len %ld)",
@@ -7605,10 +7550,15 @@ PRIVATE int handle__pubrel(hgobj gobj, gbuffer_t *gbuf)
              *  Broker
              *  Dispatch the message to the subscribers
              */
-            sub__messages_queue(
+            gobj_publish_event(
                 gobj,
+                EV_ON_MESSAGE,
                 kw_mqtt_msg // owned
             );
+            // sub__messages_queue(
+            //     gobj,
+            //     kw_mqtt_msg // owned
+            // );
         } else {
             /*
              * Message not found. Still send a PUBCOMP anyway because this could be
@@ -8829,8 +8779,7 @@ PRIVATE int ac_mqtt_client_send_publish(hgobj gobj, const char *event, json_t *k
     } else {
 
         time_t t = mosquitto_time();
-        user_flag_t user_flag;
-        json_t *kw_mqtt_msg = new_json_message(
+        json_t *kw_mqtt_msg = new_mqtt_message( // client sending message to broker
             gobj,
             mid,
             topic,
@@ -8840,11 +8789,16 @@ PRIVATE int ac_mqtt_client_send_publish(hgobj gobj, const char *event, json_t *k
             FALSE,      // dup,
             properties, // not owned
             0, // TODO expiry_interval,
-            0, // origin
-            mosq_md_out,
-            &user_flag,
             t
         );
+
+        user_flag_t user_flag = {0};
+        user_flag_set_origin(&user_flag, mosq_mo_client);
+        user_flag_set_direction(&user_flag, mosq_md_out);
+        user_flag_set_qos_level(&user_flag, qos);
+        user_flag_set_retain(&user_flag, retain);
+        user_flag_set_dup(&user_flag, 0);
+        user_flag_set_state(&user_flag, mosq_ms_invalid);
 
         message__queue(
             gobj,
