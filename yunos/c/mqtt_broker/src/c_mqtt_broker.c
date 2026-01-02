@@ -1192,6 +1192,7 @@ PRIVATE int ac_mqtt_unsubscribe(hgobj gobj, const char *event, json_t *kw, hgobj
     json_t *jn_list = kw_get_list(gobj, kw, "subs", NULL, KW_REQUIRED);
     gbuffer_t *gbuf_payload = (gbuffer_t *)(uintptr_t)kw_get_int(gobj, kw, "gbuffer", 0, KW_REQUIRED);
 
+    int rc = 0;
     int idx; json_t *jn_sub;
     json_array_foreach(jn_list, idx, jn_sub) {
         const char *sub = kw_get_str(gobj, jn_sub, "sub", NULL, KW_REQUIRED);
@@ -1201,7 +1202,7 @@ PRIVATE int ac_mqtt_unsubscribe(hgobj gobj, const char *event, json_t *kw, hgobj
         BOOL allowed = TRUE;
         // allowed = mosquitto_acl_check(context, sub, 0, NULL, 0, FALSE, MOSQ_ACL_UNSUBSCRIBE); TODO
         if(allowed) {
-            sub__remove(gobj, sub, &reason);
+            rc += sub__remove(gobj, sub, &reason);
         } else {
             reason = MQTT_RC_NOT_AUTHORIZED;
         }
@@ -1209,7 +1210,7 @@ PRIVATE int ac_mqtt_unsubscribe(hgobj gobj, const char *event, json_t *kw, hgobj
     }
 
     KW_DECREF(kw);
-    return 0;
+    return rc;
 }
 
 /***************************************************************************
