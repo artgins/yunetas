@@ -1241,10 +1241,7 @@ static int sub_add(
     char **levels = NULL;
     const char *sharename = NULL;
     json_t *root;
-    json_t *node;
-    json_t *subs;
     json_t *sub_entry;
-    int idx;
     int ret = -1;
 
     /*----------------------------------------------------------------------*
@@ -1287,7 +1284,7 @@ static int sub_add(
     /*----------------------------------------------------------------------*
      *  Navigate/create tree path
      *----------------------------------------------------------------------*/
-    node = get_or_create_node(root, levels);
+    json_t *node = get_or_create_node(root, levels);
     if(!node) {
         gobj_log_error(gobj, 0,
             "function",     "%s", __FUNCTION__,
@@ -1303,7 +1300,7 @@ static int sub_add(
     /*----------------------------------------------------------------------*
      *  Get or create @subs array
      *----------------------------------------------------------------------*/
-    subs = json_object_get(node, SUBS_KEY);
+    json_t *subs = json_object_get(node, SUBS_KEY);
     if(!subs) {
         subs = json_array();
         if(!subs) {
@@ -1326,7 +1323,7 @@ static int sub_add(
     /*----------------------------------------------------------------------*
      *  Check if subscriber already exists
      *----------------------------------------------------------------------*/
-    idx = find_subscriber_index(subs, client_id);
+    int idx = find_subscriber_index(subs, client_id);
     if(idx >= 0) {
         /*
          *  Update existing subscription (QoS may have changed)
