@@ -1202,7 +1202,7 @@ PRIVATE int ac_mqtt_unsubscribe(hgobj gobj, const char *event, json_t *kw, hgobj
         BOOL allowed = TRUE;
         // allowed = mosquitto_acl_check(context, sub, 0, NULL, 0, FALSE, MOSQ_ACL_UNSUBSCRIBE); TODO
         if(allowed) {
-            rc += sub__remove(gobj, sub, &reason);
+            // TODO rc += sub__remove(gobj, sub, &reason);
         } else {
             reason = MQTT_RC_NOT_AUTHORIZED;
         }
