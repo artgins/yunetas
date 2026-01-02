@@ -2089,6 +2089,8 @@ PRIVATE int ac_on_open(hgobj gobj, const char *event, json_t *kw, hgobj src)
         gobj
     );
 
+    // TODO process WILL
+
     if(session) {
         /*-------------------------------------------------------------*
          *              Exists a previous session
