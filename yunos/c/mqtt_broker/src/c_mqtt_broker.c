@@ -728,7 +728,9 @@ PRIVATE int broadcast_queues_tranger(hgobj gobj)
  *  {
  *    "topic_level": {
  *      "subtopic": {
- *        "@subs": [{"client_id": "xxx", "qos": 1}, ...]
+ *        "@subs": {
+ *          "client_id_1": {"qos": 1, "id": 123, "options": 0},
+ *          "client_id_2": {"qos": 2, "id": 456, "options": 1}
  *      }
  *    }
  *  }
@@ -1055,36 +1057,6 @@ static json_t *get_node(json_t *root, char **levels)
 }
 
 /***************************************************************************
- *  find_subscriber_index - Find subscriber in @subs array
- *
- *  Parameters:
- *      subs_array - JSON array of subscriber objects
- *      client_id  - Client ID to find
- *
- *  Returns:
- *      Index of subscriber (>= 0), or -1 if not found
- ***************************************************************************/
-static int find_subscriber_index(json_t *subs_array, const char *client_id)
-{
-    size_t index;
-    json_t *sub;
-    const char *id;
-
-    if(!subs_array || !client_id) {
-        return -1;
-    }
-
-    json_array_foreach(subs_array, index, sub) {
-        id = json_string_value(json_object_get(sub, "client_id"));
-        if(id && strcmp(id, client_id) == 0) {
-            return (int)index;
-        }
-    }
-
-    return -1;
-}
-
-/***************************************************************************
  *  prune_empty_branches - Remove empty nodes from tree
  *
  *  Walks back up the tree removing nodes that have no children
@@ -1135,7 +1107,9 @@ static void prune_empty_branches(json_t *root, char **levels)
         }
 
         /*
-         *  Check if node is empty (no children except @subs, and @subs is empty or missing)
+         *  Check if node is empty:
+         *  - No children except @subs
+         *  - @subs is empty or missing
          */
         subs = json_object_get(node, SUBS_KEY);
         size_t child_count = json_object_size(node);
@@ -1144,7 +1118,7 @@ static void prune_empty_branches(json_t *root, char **levels)
             child_count--;  /* Don't count @subs as a child */
         }
 
-        if(child_count == 0 && (!subs || json_array_size(subs) == 0)) {
+        if(child_count == 0 && (!subs || json_object_size(subs) == 0)) {
             json_object_del(parent, levels[i]);
         } else {
             /*
@@ -1156,16 +1130,16 @@ static void prune_empty_branches(json_t *root, char **levels)
 }
 
 /***************************************************************************
- *  collect_subscribers - Collect client_ids from @subs array
+ *  collect_subscribers - Collect client_ids from @subs dict
  *
  *  Parameters:
- *      node       - JSON node that may contain @subs
- *      result     - JSON array to append client_ids to
+ *      node   - JSON node that may contain @subs
+ *      result - JSON array to append client_ids to
  ***************************************************************************/
 static void collect_subscribers(json_t *node, json_t *result)
 {
     json_t *subs;
-    json_t *sub;
+    json_t *sub_info;
     size_t index;
     const char *client_id;
 
@@ -1178,24 +1152,22 @@ static void collect_subscribers(json_t *node, json_t *result)
         return;
     }
 
-    json_array_foreach(subs, index, sub) {
-        client_id = json_string_value(json_object_get(sub, "client_id"));
-        if(client_id) {
-            /*
-             *  Add client_id if not already in result
-             */
-            BOOL found = FALSE;
-            size_t i;
-            json_t *existing;
-            json_array_foreach(result, i, existing) {
-                if(strcmp(json_string_value(existing), client_id) == 0) {
-                    found = TRUE;
-                    break;
-                }
+    json_object_foreach(subs, client_id, sub_info) {
+        /*
+         *  Check if client_id already in result (avoid duplicates)
+         *  This is O(n) but result set is typically small
+         */
+        BOOL found = FALSE;
+        size_t i;
+        json_t *existing;
+        json_array_foreach(result, i, existing) {
+            if(strcmp(json_string_value(existing), client_id) == 0) {
+                found = TRUE;
+                break;
             }
-            if(!found) {
-                json_array_append_new(result, json_string(client_id));
-            }
+        }
+        if(!found) {
+            json_array_append_new(result, json_string(client_id));
         }
     }
 }
@@ -1299,34 +1271,55 @@ static void search_recursive(
 
 /***************************************************************************
  *  sub_add - Add a subscription to the tree
- *
  *  Parameters:
- *      gobj        - GObj instance (for PRIVATE_DATA access)
- *      topic       - Subscription topic (may contain wildcards)
- *      client_id   - Client identifier
- *      qos         - Quality of Service level (0, 1, or 2)
+ *      gobj                    - GObj instance (for PRIVATE_DATA access)
+ *      topic                   - Subscription topic (may contain wildcards)
+ *      client_id               - Client identifier
+ *      qos                     - Quality of Service level (0, 1, or 2)
+ *      subscription_id         - MQTT 5.0 subscription identifier (0 if not used)
+ *      subscription_options    - MQTT 5.0 subscription options:
+ *                                  Bit 0-1: Max QoS
+ *                                  Bit 2:   No Local
+ *                                  Bit 3:   Retain As Published
+ *                                  Bit 4-5: Retain Handling
  *
  *  Returns:
  *      0 on success, -1 on error
  *
  *  Example:
- *      sub_add(gobj, "home/+/temperature", "client_001", 1);
+ *      sub_add(gobj, "home/+/temperature", "client_001", 1, 123, 0);
+ *
+ *  Tree Result:
+ *      {
+ *        "home": {
+ *          "+": {
+ *            "temperature": {
+ *              "@subs": {
+ *                "client_001": {"qos": 1, "id": 123, "options": 0}
+ *              }
+ *            }
+ *          }
+ *        }
+ *      }
  ***************************************************************************/
 static int sub_add(
     hgobj gobj,
     const char *topic,
     const char *client_id,
     uint8_t qos,
-    subscription_identifier,
-    subscription_options
-) {
+    uint32_t subscription_id,
+    uint8_t subscription_options
+)
+{
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
     char *local_topic = NULL;
     char **levels = NULL;
     const char *sharename = NULL;
     json_t *root;
-    json_t *sub_entry;
+    json_t *node;
+    json_t *subs;
+    json_t *sub_info;
     int ret = -1;
 
     /*----------------------------------------------------------------------*
@@ -1350,7 +1343,6 @@ static int sub_add(
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_PARAMETER_ERROR,
             "msg",          "%s", "Failed to tokenize topic",
-            "client_id",    "%s", client_id,
             "topic",        "%s", topic,
             NULL
         );
@@ -1369,13 +1361,12 @@ static int sub_add(
     /*----------------------------------------------------------------------*
      *  Navigate/create tree path
      *----------------------------------------------------------------------*/
-    json_t *node = get_or_create_node(root, levels);
+    node = get_or_create_node(root, levels);
     if(!node) {
         gobj_log_error(gobj, 0,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_MEMORY_ERROR,
             "msg",          "%s", "Failed to create tree node",
-            "client_id",    "%s", client_id,
             "topic",        "%s", topic,
             NULL
         );
@@ -1383,18 +1374,16 @@ static int sub_add(
     }
 
     /*----------------------------------------------------------------------*
-     *  Get or create @subs array
+     *  Get or create @subs dict
      *----------------------------------------------------------------------*/
-    json_t *subs = json_object_get(node, SUBS_KEY);
+    subs = json_object_get(node, SUBS_KEY);
     if(!subs) {
-        subs = json_array();
+        subs = json_object();
         if(!subs) {
             gobj_log_error(gobj, 0,
                 "function",     "%s", __FUNCTION__,
                 "msgset",       "%s", MSGSET_MEMORY_ERROR,
-                "msg",          "%s", "Failed to create subs array",
-                "client_id",    "%s", client_id,
-                "topic",        "%s", topic,
+                "msg",          "%s", "Failed to create subs dict",
                 NULL
             );
             goto cleanup;
@@ -1406,38 +1395,30 @@ static int sub_add(
     }
 
     /*----------------------------------------------------------------------*
-     *  Check if subscriber already exists
+     *  Add or update subscriber (O(1) operation with dict)
      *----------------------------------------------------------------------*/
-    int idx = find_subscriber_index(subs, client_id);
-    if(idx >= 0) {
-        /*
-         *  Update existing subscription (QoS may have changed)
-         */
-        sub_entry = json_array_get(subs, idx);
-        json_object_set_new(sub_entry, "qos", json_integer(qos));
-    } else {
-        /*
-         *  Add new subscription
-         */
-        sub_entry = json_pack("{s:s, s:i}",
-            "client_id", client_id,
-            "qos", (int)qos
+    sub_info = json_pack("{s:i, s:I, s:i}",
+        "qos", (int)qos,
+        "id", (json_int_t)subscription_id,
+        "options", (int)subscription_options
+    );
+    if(!sub_info) {
+        gobj_log_error(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_MEMORY_ERROR,
+            "msg",          "%s", "Failed to create subscription info",
+            NULL
         );
-        if(!sub_entry) {
-            gobj_log_error(gobj, 0,
-                "function",     "%s", __FUNCTION__,
-                "msgset",       "%s", MSGSET_MEMORY_ERROR,
-                "msg",          "%s", "Failed to create subscription entry",
-                "client_id",    "%s", client_id,
-                "topic",        "%s", topic,
-                NULL
-            );
-            goto cleanup;
-        }
-        if(json_array_append_new(subs, sub_entry) < 0) {
-            json_decref(sub_entry);
-            goto cleanup;
-        }
+        goto cleanup;
+    }
+
+    /*
+     *  json_object_set_new replaces if key exists (update case)
+     *  or adds new entry (new subscription case)
+     */
+    if(json_object_set_new(subs, client_id, sub_info) < 0) {
+        json_decref(sub_info);
+        goto cleanup;
     }
 
     ret = 0;
@@ -1477,7 +1458,6 @@ static int sub_remove(hgobj gobj, const char *topic, const char *client_id)
     json_t *root;
     json_t *node;
     json_t *subs;
-    int idx;
     int ret = -1;
 
     /*----------------------------------------------------------------------*
@@ -1529,7 +1509,7 @@ static int sub_remove(hgobj gobj, const char *topic, const char *client_id)
     }
 
     /*----------------------------------------------------------------------*
-     *  Get @subs array
+     *  Get @subs dict
      *----------------------------------------------------------------------*/
     subs = json_object_get(node, SUBS_KEY);
     if(!subs) {
@@ -1541,24 +1521,21 @@ static int sub_remove(hgobj gobj, const char *topic, const char *client_id)
     }
 
     /*----------------------------------------------------------------------*
-     *  Find and remove subscriber
+     *  Remove subscriber (O(1) operation with dict)
      *----------------------------------------------------------------------*/
-    idx = find_subscriber_index(subs, client_id);
-    if(idx >= 0) {
-        json_array_remove(subs, idx);
+    json_object_del(subs, client_id);
 
-        /*
-         *  If @subs is now empty, remove the key
-         */
-        if(json_array_size(subs) == 0) {
-            json_object_del(node, SUBS_KEY);
-        }
-
-        /*
-         *  Prune empty branches
-         */
-        prune_empty_branches(root, levels);
+    /*----------------------------------------------------------------------*
+     *  If @subs is now empty, remove the key
+     *----------------------------------------------------------------------*/
+    if(json_object_size(subs) == 0) {
+        json_object_del(node, SUBS_KEY);
     }
+
+    /*----------------------------------------------------------------------*
+     *  Prune empty branches
+     *----------------------------------------------------------------------*/
+    prune_empty_branches(root, levels);
 
     ret = 0;
 
@@ -1687,8 +1664,89 @@ cleanup:
 }
 
 /***************************************************************************
- *  sub_remove_client - Remove ALL subscriptions for a client
+ *  sub_get_info - Get subscription info for a specific client/topic
  *
+ *  Parameters:
+ *      gobj        - GObj instance (for PRIVATE_DATA access)
+ *      topic       - Subscription topic
+ *      client_id   - Client identifier
+ *
+ *  Returns:
+ *      JSON object with {qos, id, options} (borrowed reference, do NOT decref)
+ *      NULL if subscription doesn't exist
+ *
+ *  Example:
+ *      json_t *info = sub_get_info(gobj, "home/+/temperature", "client_001");
+ *      if(info) {
+ *          int qos = json_integer_value(json_object_get(info, "qos"));
+ *          uint32_t sub_id = json_integer_value(json_object_get(info, "id"));
+ *      }
+ ***************************************************************************/
+static json_t *sub_get_info(hgobj gobj, const char *topic, const char *client_id)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    char *local_topic = NULL;
+    char **levels = NULL;
+    const char *sharename = NULL;
+    json_t *root;
+    json_t *node;
+    json_t *subs;
+    json_t *sub_info = NULL;
+
+    /*----------------------------------------------------------------------*
+     *  Validate input
+     *----------------------------------------------------------------------*/
+    if(!topic || !client_id) {
+        return NULL;
+    }
+
+    /*----------------------------------------------------------------------*
+     *  Tokenize topic
+     *----------------------------------------------------------------------*/
+    if(topic_tokenize(topic, &local_topic, &levels, &sharename) < 0) {
+        return NULL;
+    }
+
+    /*----------------------------------------------------------------------*
+     *  Select root based on subscription type
+     *----------------------------------------------------------------------*/
+    if(sharename) {
+        root = priv->shared_subs;
+    } else {
+        root = priv->normal_subs;
+    }
+
+    /*----------------------------------------------------------------------*
+     *  Navigate to node
+     *----------------------------------------------------------------------*/
+    node = get_node(root, levels);
+    if(!node) {
+        goto cleanup;
+    }
+
+    /*----------------------------------------------------------------------*
+     *  Get @subs dict and find client (O(1))
+     *----------------------------------------------------------------------*/
+    subs = json_object_get(node, SUBS_KEY);
+    if(subs) {
+        sub_info = json_object_get(subs, client_id);
+    }
+
+cleanup:
+    if(local_topic) {
+        gbmem_free(local_topic);
+    }
+    if(levels) {
+        gbmem_free(levels);
+    }
+
+    return sub_info;  /* Borrowed reference */
+}
+
+/***************************************************************************
+ *  sub_remove_client - Remove ALL subscriptions for a client
+ ***************************************************************************
  *  Used when a client disconnects to clean up all its subscriptions.
  *
  *  Parameters:
@@ -1706,7 +1764,6 @@ static int sub_remove_client_recursive(json_t *node, const char *client_id, int 
     const char *key;
     json_t *child;
     json_t *subs;
-    int idx;
     void *tmp;
 
     if(!node || !client_id || !count) {
@@ -1714,16 +1771,15 @@ static int sub_remove_client_recursive(json_t *node, const char *client_id, int 
     }
 
     /*
-     *  Check @subs in current node
+     *  Check @subs in current node (O(1) lookup in dict)
      */
     subs = json_object_get(node, SUBS_KEY);
     if(subs) {
-        idx = find_subscriber_index(subs, client_id);
-        if(idx >= 0) {
-            json_array_remove(subs, idx);
+        if(json_object_get(subs, client_id)) {
+            json_object_del(subs, client_id);
             (*count)++;
 
-            if(json_array_size(subs) == 0) {
+            if(json_object_size(subs) == 0) {
                 json_object_del(node, SUBS_KEY);
             }
         }
@@ -1744,7 +1800,7 @@ static int sub_remove_client_recursive(json_t *node, const char *client_id, int 
             if(subs) {
                 child_count--;
             }
-            if(child_count == 0 && (!subs || json_array_size(subs) == 0)) {
+            if(child_count == 0 && (!subs || json_object_size(subs) == 0)) {
                 json_object_del(node, key);
             }
         }

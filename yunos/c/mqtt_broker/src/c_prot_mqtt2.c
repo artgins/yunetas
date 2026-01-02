@@ -1201,19 +1201,19 @@ PRIVATE int sub__messages_queue(
     const char *topic = kw_get_str(gobj, kw, "topic", "", KW_REQUIRED);
     BOOL retain = kw_get_bool(gobj, kw, "retain", 0, KW_REQUIRED);
 
-    int nelements;
-    if(sub__topic_tokenise_v2(topic, &local_topic, &split_topics, &nelements, NULL)<0) {
-        gobj_log_error(gobj, 0,
-            "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_MQTT_ERROR,
-            "msg",          "%s", "Mqtt topic tokenise fail",
-            "topic",        "%s", topic,
-            NULL
-        );
-        KW_DECREF(kw)
-        return -1;
-    }
-
+    // int nelements;
+    // if(sub__topic_tokenise_v2(topic, &local_topic, &split_topics, &nelements, NULL)<0) {
+    //     gobj_log_error(gobj, 0,
+    //         "function",     "%s", __FUNCTION__,
+    //         "msgset",       "%s", MSGSET_MQTT_ERROR,
+    //         "msg",          "%s", "Mqtt topic tokenise fail",
+    //         "topic",        "%s", topic,
+    //         NULL
+    //     );
+    //     KW_DECREF(kw)
+    //     return -1;
+    // }
+    //
     // HASH_FIND(hh, db.normal_subs, split_topics[0], strlen(split_topics[0]), subhier);
     // if(subhier) {
     //     rc_normal = sub__search(subhier, split_topics, source_id, topic, qos, retain, *stored);
@@ -1246,8 +1246,8 @@ PRIVATE int sub__messages_queue(
     // mosquitto__free(local_topic);
     // /* Remove our reference and free if needed. */
     // db__msg_store_ref_dec(stored);
-
-    sub__topic_tokens_free(&split_topics);
+    //
+    // sub__topic_tokens_free(&split_topics);
 
     GBMEM_FREE(local_topic)
     KW_DECREF(kw)
