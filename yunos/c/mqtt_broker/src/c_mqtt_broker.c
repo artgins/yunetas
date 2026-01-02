@@ -1284,7 +1284,9 @@ static void search_recursive(
  *                                  Bit 4-5: Retain Handling
  *
  *  Returns:
- *      0 on success, -1 on error
+ *      0 on success,
+ *      1 already exists,
+ *      -1 on error
  *
  *  Example:
  *      sub_add(gobj, "home/+/temperature", "client_001", 1, 123, 0);
@@ -1418,12 +1420,15 @@ static int sub_add(
      *  json_object_set_new replaces if key exists (update case)
      *  or adds new entry (new subscription case)
      */
+    ret = 0;
+
+    if(json_object_get(subs, client_id)) {
+        ret = 1;
+    }
     if(json_object_set_new(subs, client_id, sub_info) < 0) {
         json_decref(sub_info);
-        goto cleanup;
+        ret = -1;
     }
-
-    ret = 0;
 
 cleanup:
     if(local_topic) {
@@ -2387,7 +2392,8 @@ PRIVATE int ac_mqtt_subscribe(hgobj gobj, const char *event, json_t *kw, hgobj s
                 subscription_options
             );
 
-print_json2("subs", priv->normal_subs); // TODO
+print_json2("subs-normal", priv->normal_subs); // TODO TEST
+print_json2("subs-shared", priv->shared_subs); // TODO TEST
 
             if(rc < 0) {
                 KW_DECREF(kw);
