@@ -910,7 +910,7 @@ PRIVATE json_t *mt_update_node( // Return is YOURS
         }
     }
 
-    json_decref(kw);
+    KW_DECREF(kw)
 
     return node_collapsed_view( // Return MUST be decref
         priv->tranger,

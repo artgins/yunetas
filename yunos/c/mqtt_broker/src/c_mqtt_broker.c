@@ -2003,6 +2003,9 @@ PRIVATE int ac_on_open(hgobj gobj, const char *event, json_t *kw, hgobj src)
     /*--------------------------------------*
      *  From here it's a mqtt2 connection
      *--------------------------------------*/
+// TODO TEST
+gbuffer_t *gbuf = (gbuffer_t *)(uintptr_t)json_integer_value(json_object_get(kw, "gbuffer"));
+if(gbuf) gobj_trace_dump_gbuf(gobj, gbuf, "XXX");
 
     /*--------------------------------------------------------------*
      *              Open/Create CLIENT

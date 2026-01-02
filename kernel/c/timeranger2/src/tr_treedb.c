@@ -4442,7 +4442,7 @@ PUBLIC json_t *treedb_create_node( // WARNING Return is NOT YOURS, pure node
             "topic_name",   "%s", topic_name,
             NULL
         );
-        JSON_DECREF(kw)
+        KW_DECREF(kw)
         return 0;
     }
 
@@ -4476,7 +4476,7 @@ PUBLIC json_t *treedb_create_node( // WARNING Return is NOT YOURS, pure node
                 NULL
             );
             gobj_trace_json(gobj, kw, "Field 'id' required");
-            JSON_DECREF(kw)
+            KW_DECREF(kw)
             return 0;
         }
     }
@@ -4540,7 +4540,7 @@ PUBLIC json_t *treedb_create_node( // WARNING Return is NOT YOURS, pure node
             NULL
         );
         JSON_DECREF(pkey2_list)
-        JSON_DECREF(kw)
+        KW_DECREF(kw)
         return 0;
     }
 
@@ -4551,7 +4551,7 @@ PUBLIC json_t *treedb_create_node( // WARNING Return is NOT YOURS, pure node
     if(!record) {
         // Error already logged
         JSON_DECREF(pkey2_list)
-        JSON_DECREF(kw)
+        KW_DECREF(kw)
         return 0;
     }
     BOOL links_inherited = FALSE;
@@ -4583,7 +4583,7 @@ PUBLIC json_t *treedb_create_node( // WARNING Return is NOT YOURS, pure node
     if(ret < 0) {
         // Error already logged
         JSON_DECREF(pkey2_list)
-        JSON_DECREF(kw)
+        KW_DECREF(kw)
         JSON_DECREF(record)
         return 0;
     }
@@ -4754,7 +4754,7 @@ PUBLIC json_t *treedb_create_node( // WARNING Return is NOT YOURS, pure node
 
     json_decref(record);
     JSON_DECREF(pkey2_list)
-    JSON_DECREF(kw)
+    KW_DECREF(kw)
     return record;
 }
 
@@ -4927,7 +4927,7 @@ PUBLIC json_t *treedb_update_node( // WARNING Return is NOT YOURS, pure node
             "topic_name",   "%s", topic_name,
             NULL
         );
-        JSON_DECREF(kw)
+        KW_DECREF(kw)
         return 0;
     }
 
@@ -6627,7 +6627,7 @@ PUBLIC int treedb_autolink( // use fkeys fields of kw to auto-link
             NULL
         );
         gobj_trace_json(gobj, node, "Not a pure node");
-        JSON_DECREF(kw)
+        KW_DECREF(kw)
         return -1;
     }
 
@@ -6646,7 +6646,7 @@ PUBLIC int treedb_autolink( // use fkeys fields of kw to auto-link
             "topic_name",   "%s", topic_name,
             NULL
         );
-        JSON_DECREF(kw)
+        KW_DECREF(kw)
         return -1;
     }
 
@@ -6690,7 +6690,7 @@ PUBLIC int treedb_autolink( // use fkeys fields of kw to auto-link
         if(!jn_fkeys) {
             // Error already logged
             JSON_DECREF(cols)
-            JSON_DECREF(kw)
+            KW_DECREF(kw)
             return -1;
         }
 
@@ -6724,7 +6724,7 @@ PUBLIC int treedb_autolink( // use fkeys fields of kw to auto-link
                 );
                 json_decref(jn_fkeys);
                 json_decref(cols);
-                JSON_DECREF(kw)
+                KW_DECREF(kw)
                 return -1;
             }
 
@@ -6746,7 +6746,7 @@ PUBLIC int treedb_autolink( // use fkeys fields of kw to auto-link
                 );
                 json_decref(jn_fkeys);
                 json_decref(cols);
-                JSON_DECREF(kw)
+                KW_DECREF(kw)
                 return -1;
             }
 
@@ -6763,7 +6763,7 @@ PUBLIC int treedb_autolink( // use fkeys fields of kw to auto-link
                 // Error already logged
                 json_decref(jn_fkeys);
                 json_decref(cols);
-                JSON_DECREF(kw)
+                KW_DECREF(kw)
                 return -1;
             }
         }
@@ -6777,7 +6777,7 @@ PUBLIC int treedb_autolink( // use fkeys fields of kw to auto-link
     }
 
     JSON_DECREF(cols)
-    JSON_DECREF(kw)
+    KW_DECREF(kw)
     return 0;
 }
 
@@ -8905,7 +8905,7 @@ PUBLIC json_t *create_template_record(
         );
     }
 
-    JSON_DECREF(kw)
+    KW_DECREF(kw)
 
     return new_record;
 }

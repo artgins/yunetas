@@ -5404,7 +5404,11 @@ PRIVATE int handle__connect(hgobj gobj, gbuffer_t *gbuf, hgobj src)
     open_queues(gobj);
 
     priv->inform_on_close = TRUE;
-    int ret = gobj_publish_event(gobj, EV_ON_OPEN, client);
+    int ret = gobj_publish_event(
+        gobj,
+        EV_ON_OPEN,
+        client  // owned
+    );
     if(ret < 0) {
         if(ret == -2) { // TODO review
             if(priv->protocol_version == mosq_p_mqtt5) {
