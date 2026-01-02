@@ -5846,6 +5846,8 @@ PRIVATE int handle__subscribe(hgobj gobj, gbuffer_t *gbuf)
                 JSON_DECREF(properties)
                 return MOSQ_ERR_MALFORMED_PACKET;
             }
+        } else {
+            subscription_identifier = 0; // reset to 0 if not used
         }
     }
 

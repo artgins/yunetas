@@ -2386,6 +2386,9 @@ PRIVATE int ac_mqtt_subscribe(hgobj gobj, const char *event, json_t *kw, hgobj s
                 subscription_identifier,
                 subscription_options
             );
+
+print_json2("subs", priv->normal_subs); // TODO
+
             if(rc < 0) {
                 KW_DECREF(kw);
                 return rc;
