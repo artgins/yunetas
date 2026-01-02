@@ -6177,7 +6177,7 @@ PRIVATE int handle__subscribe(hgobj gobj, gbuffer_t *gbuf)
 
     gbuffer_incref(gbuf_payload); // Avoid be destroyed, get it the response
 
-    gobj_publish_event(
+    int rc = gobj_publish_event(
         gobj,
         EV_ON_IEV_MESSAGE,
         kw_iev // owned but gbuf_payload survives
@@ -6185,12 +6185,14 @@ PRIVATE int handle__subscribe(hgobj gobj, gbuffer_t *gbuf)
 
     JSON_DECREF(properties)
 
-    return send__suback(
+    rc += send__suback(
         gobj,
         mid,
         gbuf_payload, // owned
         properties // owned
     );
+
+    return rc;
 }
 
 /***************************************************************************
@@ -6375,7 +6377,7 @@ PRIVATE int handle__unsubscribe(hgobj gobj, gbuffer_t *gbuf)
 
     gbuffer_incref(gbuf_payload); // Avoid be destroyed, get it the response
 
-    gobj_publish_event(
+    int rc = gobj_publish_event(
         gobj,
         EV_ON_IEV_MESSAGE,
         kw_iev // owned but gbuf_payload survives
@@ -6383,12 +6385,14 @@ PRIVATE int handle__unsubscribe(hgobj gobj, gbuffer_t *gbuf)
 
     JSON_DECREF(properties)
 
-    return send__unsuback(
+    rc += send__unsuback(
         gobj,
         mid,
         gbuf_payload, // owned
         properties // owned
     );
+
+    return rc;
 }
 
 /***************************************************************************

@@ -1095,8 +1095,8 @@ PRIVATE int ac_mqtt_subscribe(hgobj gobj, const char *event, json_t *kw, hgobj s
     int idx; json_t *jn_sub;
     json_array_foreach(jn_list, idx, jn_sub) {
         const char *sub = kw_get_str(gobj, jn_sub, "sub", NULL, KW_REQUIRED);
-        int qos = kw_get_int(gobj, jn_sub, "qos", 0, KW_REQUIRED);
         int subscription_identifier = kw_get_int(gobj, jn_sub, "subscription_identifier", 0, KW_REQUIRED);
+        int qos = kw_get_int(gobj, jn_sub, "qos", 0, KW_REQUIRED);
         int subscription_options = kw_get_int(gobj, jn_sub, "subscription_options", 0, KW_REQUIRED);
         int retain_handling = kw_get_int(gobj, jn_sub, "retain_handling", 0, KW_REQUIRED);
 
@@ -1110,35 +1110,36 @@ PRIVATE int ac_mqtt_subscribe(hgobj gobj, const char *event, json_t *kw, hgobj s
             }
         }
 
-        // if(allowed) {
-        //     rc2 = sub__add(
-        //         gobj,
-        //         sub,
-        //         qos,
-        //         subscription_identifier,
-        //         subscription_options
-        //     );
-        //     if(rc2 < 0) {
-        //         JSON_DECREF(jn_list)
-        //         return rc2;
-        //     }
-        //
-        //     if(priv->protocol_version == mosq_p_mqtt311 || priv->protocol_version == mosq_p_mqtt31) {
-        //         if(rc2 == MOSQ_ERR_SUCCESS || rc2 == MOSQ_ERR_SUB_EXISTS) {
-        //             if(retain__queue(gobj, sub, qos, 0)) {
-        //                 // rc = MOSQ_ERR_NOMEM;
-        //             }
-        //         }
-        //     } else {
-        //         if((retain_handling == MQTT_SUB_OPT_SEND_RETAIN_ALWAYS)
-        //                 || (rc2 == MOSQ_ERR_SUCCESS && retain_handling == MQTT_SUB_OPT_SEND_RETAIN_NEW)
-        //           ) {
-        //             if(retain__queue(gobj, sub, qos, subscription_identifier)) {
-        //                 // rc = MOSQ_ERR_NOMEM;
-        //             }
-        //         }
-        //     }
-        // }
+        if(allowed) {
+            int rc = sub__add(
+                gobj,
+                sub,
+                qos,
+                subscription_identifier,
+                subscription_options
+            );
+            if(rc < 0) {
+                KW_DECREF(kw);
+                return rc;
+            }
+
+            // TODO
+            // if(protocol_version == mosq_p_mqtt311 || protocol_version == mosq_p_mqtt31) {
+            //     if(rc == 0 || rc == 1) { // rc = 1 -> MOSQ_ERR_SUB_EXISTS
+            //         if(retain__queue(gobj, sub, qos, 0)) {
+            //             rc = -1;
+            //         }
+            //     }
+            // } else {
+            //     if((retain_handling == MQTT_SUB_OPT_SEND_RETAIN_ALWAYS) ||
+            //         (rc == 0 && retain_handling == MQTT_SUB_OPT_SEND_RETAIN_NEW)
+            //     ) {
+            //         if(retain__queue(gobj, sub, qos, subscription_identifier)) {
+            //             rc = -1;
+            //         }
+            //     }
+            // }
+        }
 
         gbuffer_append_char(gbuf_payload, qos);
     }
@@ -1200,7 +1201,7 @@ PRIVATE int ac_mqtt_unsubscribe(hgobj gobj, const char *event, json_t *kw, hgobj
         BOOL allowed = TRUE;
         // allowed = mosquitto_acl_check(context, sub, 0, NULL, 0, FALSE, MOSQ_ACL_UNSUBSCRIBE); TODO
         if(allowed) {
-            // sub__remove(gobj, sub, &reason);
+            sub__remove(gobj, sub, &reason);
         } else {
             reason = MQTT_RC_NOT_AUTHORIZED;
         }
