@@ -1,19 +1,29 @@
 /****************************************************************************
  *          topic_tokenise.c
+ *          MQTT Subscription Topic Tokenizer
  *
- *          Rewrite of Mosquitto's sub__topic_tokenise() using Yunetas
- *          split* functions from helpers.h
+ *  Implementation of MQTT subscription topic parsing utilities.
+ *  Provides functions to tokenize MQTT topics into hierarchical levels
+ *  with support for regular topics, system topics ($SYS), and
+ *  shared subscriptions ($share).
  *
- *          This version uses Yunetas split3() and split_free3() functions
- *          for cleaner, more maintainable code.
- *
- *          NOTE: We use split3() instead of split2() because:
- *          - split2() removes empty tokens:  "a//b" -> ["a", "b"]
- *          - split3() preserves empty tokens: "a//b" -> ["a", "", "b"]
- *
- *          For MQTT topics, empty segments ARE significant:
- *          - "/a/b/"  must produce ["", "a", "b", ""]
- *          - "a//b"   must produce ["a", "", "b"]
+ *  Port of the Mosquitto MQTT broker implementation.
+
+    Copyright (c) 2010-2019 Roger Light <roger@atchoo.org>
+
+    All rights reserved. This program and the accompanying materials
+    are made available under the terms of the Eclipse Public License 2.0
+    and Eclipse Distribution License v1.0 which accompany this distribution.
+
+    The Eclipse Public License is available at
+       https://www.eclipse.org/legal/epl-2.0/
+    and the Eclipse Distribution License is available at
+      http://www.eclipse.org/org/documents/edl-v10.php.
+
+    SPDX-License-Identifier: EPL-2.0 OR BSD-3-Clause
+
+    Contributors:
+       Roger Light - initial implementation and documentation.
  *
  *          Copyright (c) 2026, ArtGins.
  *          All Rights Reserved.
@@ -23,388 +33,283 @@
 #include "topic_tokenise.h"
 
 /***************************************************************************
- *  sub__topic_tokenise
+ *  strtok_hier - Hierarchical Topic Tokenizer
  *
- *  Tokenise a topic or subscription string into an array of strings
- *  representing the topic hierarchy.
- *
- *  For example:
- *      subtopic: "a/deep/topic/hierarchy"
- *      Would result in:
- *          topics[0] = "a"
- *          topics[1] = "deep"
- *          topics[2] = "topic"
- *          topics[3] = "hierarchy"
- *          topics[4] = NULL (terminator)
- *
- *      subtopic: "/a/deep/topic/hierarchy/"
- *      Would result in:
- *          topics[0] = "" (empty string before first /)
- *          topics[1] = "a"
- *          topics[2] = "deep"
- *          topics[3] = "topic"
- *          topics[4] = "hierarchy"
- *          topics[5] = "" (empty string after last /)
- *          topics[6] = NULL (terminator)
- *
- *  Note: Empty segments are stored as "" (empty strings), not NULL.
- *        NULL is used only as the array terminator.
- *        This allows sub__topic_tokens_free() to work without a count.
+ *  Custom strtok-like function that splits strings by '/' (MQTT topic separator).
+ *  Unlike standard strtok, this is designed specifically for MQTT topic hierarchy.
  *
  *  Parameters:
- *      subtopic - the subscription/topic to tokenise
- *      topics   - a pointer to store the array of strings (NULL-terminated)
- *      count    - an int pointer to store the number of items in the topics array
+ *      str      - String to tokenize (pass NULL after first call)
+ *      saveptr  - Pointer to maintain state between calls
  *
  *  Returns:
- *      0  - on success
- *      -1 - on error (invalid parameters or memory allocation failed)
+ *      Pointer to next token, or NULL when exhausted
+ *
+ *  Example usage:
+ *      char *saveptr = NULL;
+ *      char topic[] = "sport/tennis/player";
+ *
+ *      token = strtok_hier(topic, &saveptr);   // Returns "sport"
+ *      token = strtok_hier(NULL, &saveptr);    // Returns "tennis"
+ *      token = strtok_hier(NULL, &saveptr);    // Returns "player"
+ *      token = strtok_hier(NULL, &saveptr);    // Returns NULL
+ *
+ *  Note: Modifies the original string by inserting '\0' at '/' positions
  ***************************************************************************/
-int sub__topic_tokenise(const char *subtopic, char ***topics, int *count)
+static char *strtok_hier(char *str, char **saveptr)
 {
+    char *c;
+
     /*
-     *  Input validation
+     *  First call: initialize saveptr with the input string
+     *  Subsequent calls: str is NULL, we continue from saveptr
      */
-    if(!subtopic || !topics || !count) {
-        return -1;
+    if(str != NULL) {
+        *saveptr = str;
     }
 
     /*
-     *  Use Yunetas split3() to split the topic by '/' delimiter
-     *
-     *  split3() signature:
-     *      const char **split3(const char *str, const char *delim, int *nelements)
-     *
-     *  - Returns a NULL-terminated array of strings
-     *  - PRESERVES empty segments (critical for MQTT topics!)
-     *  - nelements receives the count of elements
-     *  - Memory must be freed with split_free3()
-     *
-     *  Why split3() and not split2():
-     *  - split2() removes empty tokens:  "/a/b/" -> ["a", "b"]     (WRONG for MQTT)
-     *  - split3() keeps empty tokens:    "/a/b/" -> ["", "a", "b", ""]  (CORRECT)
+     *  No more data to process
      */
-    int nelements = 0;
-    const char **split_result = split3(subtopic, "/", &nelements);
-
-    if(!split_result) {
-        return -1;
+    if(*saveptr == NULL) {
+        return NULL;
     }
 
     /*
-     *  Allocate the output array with one extra slot for NULL terminator
-     *
-     *  Note: We allocate nelements + 1 to have a sentinel NULL at the end
-     *  This allows sub__topic_tokens_free() to work without a count parameter
+     *  Search for the next '/' separator
      */
-    char **result = gbmem_calloc(nelements + 1, sizeof(char *));
-    if(!result) {
-        split_free3(split_result);
-        return -1;
+    c = strchr(*saveptr, '/');
+
+    if(c) {
+        /*
+         *  Found a separator:
+         *  - Save current position as the token to return
+         *  - Advance saveptr past the '/'
+         *  - Null-terminate current token by replacing '/' with '\0'
+         *
+         *  Before: saveptr -> "sport/tennis/player"
+         *  After:  saveptr -> "tennis/player", returns "sport\0"
+         */
+        str = *saveptr;
+        *saveptr = c + 1;
+        c[0] = '\0';
+    } else if(*saveptr) {
+        /*
+         *  No separator found, but we have remaining string:
+         *  - Return the final segment
+         *  - Set saveptr to NULL (signals completion on next call)
+         *
+         *  Before: saveptr -> "player"
+         *  After:  saveptr = NULL, returns "player"
+         */
+        str = *saveptr;
+        *saveptr = NULL;
     }
 
-    /*
-     *  Copy each segment
-     *
-     *  Empty segments are stored as "" (empty strings), not NULL.
-     *  This allows the array to be NULL-terminated.
-     *
-     *  Empty segment detection: check if topics[i][0] == '\0'
-     */
-    for(int i = 0; i < nelements; i++) {
-        if(split_result[i]) {
-            result[i] = gbmem_strdup(split_result[i]);
-        } else {
-            result[i] = gbmem_strdup("");
-        }
-
-        if(!result[i]) {
-            /*
-             *  Memory allocation failed - clean up and return error
-             */
-            for(int j = 0; j < i; j++) {
-                gbmem_free(result[j]);
-            }
-            gbmem_free(result);
-            split_free3(split_result);
-            return -1;
-        }
-    }
-
-    /*
-     *  result[nelements] is already NULL from gbmem_calloc (sentinel)
-     */
-
-    /*
-     *  Free the split result (we've copied what we need)
-     */
-    split_free3(split_result);
-
-    /*
-     *  Set output parameters
-     */
-    *topics = result;
-    *count = nelements;
-
-    return 0;
+    return str;
 }
 
 /***************************************************************************
- *  sub__topic_tokens_free
+ *  sub__topic_tokenise - MQTT Subscription Topic Tokenizer
  *
- *  Free memory that was allocated in sub__topic_tokenise
- *
- *  The topics array is NULL-terminated. Empty segments are stored as ""
- *  (empty strings), not NULL, so we can safely iterate until NULL.
+ *  Parses an MQTT subscription topic into an array of topic levels.
+ *  Handles regular topics, system topics ($SYS), and shared subscriptions ($share).
  *
  *  Parameters:
- *      topics - pointer to string array (NULL-terminated)
+ *      subtopic   - Input: subscription topic string (e.g., "sport/tennis/#")
+ *      local_sub  - Output: duplicated string (caller must free)
+ *      topics     - Output: NULL-terminated array of topic level pointers
+ *      sharename  - Output: shared subscription group name (NULL if not shared)
  *
  *  Returns:
- *      0  - on success
- *      -1 - on error (invalid parameters)
+ *      MOSQ_ERR_SUCCESS  - Success
+ *      MOSQ_ERR_INVAL    - Invalid (empty) topic
+ *      MOSQ_ERR_NOMEM    - Memory allocation failed
+ *      MOSQ_ERR_PROTOCOL - Invalid shared subscription format
+ *
+ *  Output Examples:
+ *  +-----------------------------+--------------------------------+-----------+
+ *  | Input subtopic              | topics[] array                 | sharename |
+ *  +-----------------------------+--------------------------------+-----------+
+ *  | "sport/tennis"              | ["", "sport", "tennis", NULL]  | NULL      |
+ *  | "sport/tennis/#"            | ["", "sport", "tennis", "#",   | NULL      |
+ *  |                             |  NULL]                         |           |
+ *  | "$SYS/broker/load"          | ["$SYS", "broker", "load",     | NULL      |
+ *  |                             |  NULL]                         |           |
+ *  | "$share/group1/sport/tennis"| ["", "sport", "tennis", NULL]  | "group1"  |
+ *  +-----------------------------+--------------------------------+-----------+
+ *
+ *  Key Design Notes:
+ *  - Regular topics get an empty string "" prefix for uniform tree traversal
+ *  - System topics ($SYS, etc.) do NOT get the prefix (start with '$')
+ *  - Shared subscriptions ($share/name/topic) extract the group name and
+ *    return the actual topic with the "" prefix
+ *
+ *  Memory Management:
+ *  - Caller must free both *local_sub and *topics on success
+ *  - topics[] pointers reference memory inside local_sub (don't free individually)
  ***************************************************************************/
-int sub__topic_tokens_free(char ***topics)
-{
-    if(!topics || !(*topics)) {
-        return -1;
-    }
-
-    char **t = *topics;
-
-    /*
-     *  Iterate until we find the NULL terminator
-     *  All entries (including empty segments) are valid strings
-     */
-    for(int i = 0; t[i] != NULL; i++) {
-        gbmem_free(t[i]);
-    }
-
-    gbmem_free(t);
-    *topics = NULL;
-
-    return 0;
-}
-
-/***************************************************************************
- *  sub__topic_tokenise_v2
- *
- *  Extended version that handles MQTT v5 shared subscriptions.
- *  Parses topics of the form: $share/<ShareName>/<TopicFilter>
- *
- *  Parameters:
- *      subtopic  - the subscription/topic to tokenise
- *      local_sub - output: the topic without $share/group/ prefix
- *      topics    - output: array of topic segments (NULL-terminated)
- *      count     - output: number of segments
- *      sharename - output: share group name (NULL if not shared)
- *
- *  Returns:
- *      0  - on success
- *      -1 - on error (invalid parameters or memory allocation failed)
- ***************************************************************************/
-int sub__topic_tokenise_v2(
+int sub__topic_tokenise(
     const char *subtopic,
     char **local_sub,
     char ***topics,
-    int *count,
     const char **sharename
-)
-{
-    if(!subtopic || !topics || !count) {
+) {
+    char *saveptr = NULL;
+    char *token;
+    int count;
+    int topic_index = 0;
+    int i;
+    size_t len;
+
+    /*----------------------------------------------------------------------*
+     *  STEP 1: Validate input
+     *          Empty topics are not allowed in MQTT
+     *----------------------------------------------------------------------*/
+    len = strlen(subtopic);
+    if(len == 0) {
         return -1;
     }
 
-    /*
-     *  Initialize outputs
-     */
-    // TODO review refactorize this function, many returned pointers
-    if(local_sub) {
-        *local_sub = NULL;
+    /*----------------------------------------------------------------------*
+     *  STEP 2: Duplicate the input string
+     *          We need a working copy because strtok_hier modifies it
+     *          in-place by inserting '\0' characters at '/' positions
+     *----------------------------------------------------------------------*/
+    *local_sub = gbmem_strdup(subtopic);
+    if((*local_sub) == NULL) {
+        return -1;
     }
-    if(sharename) {
-        *sharename = NULL;
+
+    /*----------------------------------------------------------------------*
+     *  STEP 3: Count topic levels
+     *          Count '/' separators to determine array size needed
+     *
+     *          Example: "sport/tennis/player"
+     *                         ^      ^
+     *                         |      +-- 2nd '/'
+     *                         +-- 1st '/'
+     *                   count = 3 (two separators + 1)
+     *----------------------------------------------------------------------*/
+    count = 0;
+    saveptr = *local_sub;
+    while(saveptr) {
+        saveptr = strchr(&saveptr[1], '/');  /* Start search from position 1 */
+        count++;
     }
-    *topics = NULL;
-    *count = 0;
 
-    /*
-     *  Check for shared subscription prefix: $share/groupname/topic
-     */
-    const char *topic_start = subtopic;
+    /*----------------------------------------------------------------------*
+     *  STEP 4: Allocate topics array
+     *          Size = count + 3 to accommodate:
+     *            - Potential empty string prefix for regular topics
+     *            - Potential $share and sharename slots
+     *            - NULL terminator
+     *----------------------------------------------------------------------*/
+    *topics = gbmem_calloc((size_t)(count + 3), sizeof(char *));
+    if((*topics) == NULL) {
+        gbmem_free(*local_sub);
+        return -1;
+    }
 
-    if(strncmp(subtopic, "$share/", 7) == 0) {
+    /*----------------------------------------------------------------------*
+     *  STEP 5: Add empty string prefix for regular topics
+     *
+     *          Regular topics (not starting with '$') get an empty string
+     *          prepended. This normalizes the array structure so that
+     *          subscription tree traversal works uniformly.
+     *
+     *          Why? The subscription tree root has children for:
+     *            - "" (empty) -> regular topics branch
+     *            - "$SYS"     -> system topics branch
+     *            - "$share"   -> shared subscriptions (processed later)
+     *
+     *          Example results:
+     *            "sport/tennis"    -> ["", "sport", "tennis", NULL]
+     *            "$SYS/broker"     -> ["$SYS", "broker", NULL]
+     *----------------------------------------------------------------------*/
+    if((*local_sub)[0] != '$') {
+        (*topics)[topic_index] = "";
+        topic_index++;
+    }
+
+    /*----------------------------------------------------------------------*
+     *  STEP 6: Tokenize the topic string
+     *          Split by '/' and store pointers in the topics array
+     *
+     *          After this loop for "sport/tennis/player":
+     *            topics[0] = ""        (from step 5)
+     *            topics[1] = "sport"
+     *            topics[2] = "tennis"
+     *            topics[3] = "player"
+     *            topics[4] = NULL      (from calloc initialization)
+     *----------------------------------------------------------------------*/
+    token = strtok_hier((*local_sub), &saveptr);
+    while(token) {
+        (*topics)[topic_index] = token;
+        topic_index++;
+        token = strtok_hier(NULL, &saveptr);
+    }
+
+    /*----------------------------------------------------------------------*
+     *  STEP 7: Handle shared subscriptions ($share/groupname/topic/...)
+     *
+     *          MQTT 5.0 shared subscriptions format:
+     *            $share/{ShareName}/{TopicFilter}
+     *
+     *          Example: "$share/consumer-group/sport/tennis/#"
+     *            - ShareName: "consumer-group"
+     *            - TopicFilter: "sport/tennis/#"
+     *
+     *          Processing:
+     *            1. Validate format (minimum 3 levels, non-empty topic)
+     *            2. Extract sharename
+     *            3. Remove $share and sharename from array
+     *            4. Add empty prefix (treat as regular topic)
+     *
+     *          Before: ["$share", "consumer-group", "sport", "tennis", "#"]
+     *          After:  ["", "sport", "tennis", "#", NULL]
+     *                  sharename = "consumer-group"
+     *----------------------------------------------------------------------*/
+    if(!strcmp((*topics)[0], "$share")) {
         /*
-         *  This is a shared subscription
-         *  Format: $share/<ShareName>/<TopicFilter>
-         *
-         *  Use split3() to get all segments (preserving empty ones)
+         *  Validate shared subscription format:
+         *  - Must have at least 3 parts: $share, sharename, topic
+         *  - Topic filter cannot be empty (count==3 with empty [2])
          */
-        int nelements = 0;
-        const char **parts = split3(subtopic, "/", &nelements);
-
-        if(!parts || nelements < 3) {
-            if(parts) {
-                split_free3(parts);
-            }
-            return -1;  // Invalid shared subscription format
-        }
-
-        /*
-         *  parts[0] = "$share"
-         *  parts[1] = ShareName
-         *  parts[2...] = TopicFilter segments
-         */
-
-        if(sharename) {
-            *sharename = gbmem_strdup(parts[1]);
-            if(!(*sharename)) {
-                split_free3(parts);
-                return -1;
-            }
-        }
-
-        /*
-         *  Build local_sub: the topic without $share/groupname/
-         *  Skip "$share" and ShareName, join the rest with /
-         */
-        if(local_sub) {
-            size_t len = strlen(subtopic) - 7 - strlen(parts[1]) - 1;
-            if(len > 0) {
-                /*
-                 *  Find the start of the actual topic filter
-                 */
-                const char *p = subtopic + 7;  // Skip "$share/"
-                p = strchr(p, '/');            // Skip to after ShareName
-                if(p) {
-                    p++;  // Skip the '/'
-                    *local_sub = gbmem_strdup(p);
-                    if(!(*local_sub)) {
-                        if(sharename && *sharename) {
-                            gbmem_free((char *)*sharename);
-                            *sharename = NULL;
-                        }
-                        split_free3(parts);
-                        return -1;
-                    }
-                    topic_start = *local_sub;
-                }
-            }
-        }
-
-        split_free3(parts);
-
-        /*
-         *  Now tokenise the actual topic filter
-         */
-        if(topic_start) {
-            return sub__topic_tokenise(topic_start, topics, count);
-        }
-
-        return 0;
-
-    } else {
-        /*
-         *  Not a shared subscription - just tokenise normally
-         */
-        if(local_sub) {
-            *local_sub = gbmem_strdup(subtopic);
-            if(!(*local_sub)) {
-                return -1;
-            }
-        }
-
-        if(sub__topic_tokenise(subtopic, topics, count)<0) {
-            if(local_sub && *local_sub) {
-                GBMEM_FREE(*local_sub)
-            }
+        if(count < 3 || (count == 3 && strlen((*topics)[2]) == 0)) {
+            gbmem_free(*local_sub);
+            gbmem_free(*topics);
             return -1;
         }
-        return 0;
-    }
-}
 
-/***************************************************************************
- *  Example usage / test code
- ***************************************************************************/
-#ifdef TEST_TOPIC_TOKENISE
-
-#include <stdio.h>
-
-static void print_tokens(const char *topic, char **tokens, int count)
-{
-    printf("Topic: \"%s\"\n", topic);
-    printf("  Count: %d\n", count);
-    for(int i = 0; i < count; i++) {
-        if(tokens[i][0] == '\0') {
-            printf("  [%d] = \"\" (empty segment)\n", i);
-        } else {
-            printf("  [%d] = \"%s\"\n", i, tokens[i]);
-        }
-    }
-    printf("\n");
-}
-
-int main(void)
-{
-    char **topics;
-    int count;
-    int ret;
-
-    /*
-     *  Test cases
-     */
-    const char *test_topics[] = {
-        "a/deep/topic/hierarchy",
-        "/a/deep/topic/hierarchy/",
-        "simple",
-        "/",
-        "//",
-        "a//b",
-        "$SYS/broker/uptime",
-        "+/temperature/#",
-        "$share/group1/sensor/+/temperature",
-        NULL
-    };
-
-    printf("=== Testing sub__topic_tokenise with Yunetas split3 ===\n\n");
-
-    for(int i = 0; test_topics[i] != NULL; i++) {
-        ret = sub__topic_tokenise(test_topics[i], &topics, &count);
-        if(ret == 0) {
-            print_tokens(test_topics[i], topics, count);
-            sub__topic_tokens_free(&topics);
-        } else {
-            printf("Topic: \"%s\" - ERROR: %d\n\n", test_topics[i], ret);
-        }
-    }
-
-    /*
-     *  Test the v2 version with shared subscriptions
-     */
-    printf("=== Testing sub__topic_tokenise_v2 (shared subscriptions) ===\n\n");
-
-    const char *shared_topic = "$share/mygroup/sensor/+/temperature";
-    char *local_sub = NULL;
-    const char *sharename = NULL;
-
-    ret = sub__topic_tokenise_v2(shared_topic, &local_sub, &topics, &count, &sharename);
-    if(ret == 0) {
-        printf("Shared Topic: \"%s\"\n", shared_topic);
-        printf("  ShareName: \"%s\"\n", sharename ? sharename : "(null)");
-        printf("  LocalSub: \"%s\"\n", local_sub ? local_sub : "(null)");
-        print_tokens(local_sub ? local_sub : shared_topic, topics, count);
-
-        sub__topic_tokens_free(&topics);
-        if(local_sub) {
-            gbmem_free(local_sub);
-        }
+        /*
+         *  Extract the share group name if caller wants it
+         */
         if(sharename) {
-            gbmem_free((char *)sharename);
+            (*sharename) = (*topics)[1];
         }
+
+        /*
+         *  Shift array to remove $share and sharename:
+         *
+         *  Before: [0]="$share" [1]="group" [2]="sport" [3]="tennis" [4]=NULL
+         *
+         *  Shift loop (i from 1 to count-2):
+         *    i=1: [1] = [2] -> [1]="sport"
+         *    i=2: [2] = [3] -> [2]="tennis"
+         *    i=3: [3] = [4] -> [3]=NULL
+         *
+         *  After:  [0]="$share" [1]="sport" [2]="tennis" [3]=NULL
+         *
+         *  Then fix [0] and ensure NULL termination:
+         *  Final:  [0]="" [1]="sport" [2]="tennis" [3]=NULL
+         */
+        for(i = 1; i < count - 1; i++) {
+            (*topics)[i] = (*topics)[i + 1];
+        }
+        (*topics)[0] = "";
+        (*topics)[count - 1] = NULL;
     }
 
     return 0;
 }
-
-#endif /* TEST_TOPIC_TOKENISE */

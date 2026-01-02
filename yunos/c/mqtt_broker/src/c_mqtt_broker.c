@@ -18,7 +18,7 @@
 
 #include "c_mqtt_broker.h"
 #include "treedb_schema_mqtt_broker.c"
-
+#include "topic_tokenise.h"
 #include "c_prot_mqtt2.h" // TODO remove when moved to kernel
 
 /***************************************************************************
@@ -595,21 +595,31 @@ PRIVATE int broadcast_queues_tranger(hgobj gobj)
 }
 
 /***************************************************************************
- *  Add a subscription, return MOSQ_ERR_SUB_EXISTS or MOSQ_ERR_SUCCESS
+ *  Add a subscription
+ *  return 1 SUB_EXISTS, 0 SUCCESS, -1 ERROR
  ***************************************************************************/
 PRIVATE int sub__add(
     hgobj gobj,
-    const char *sub, // topic? TODO change name
+    const char *sub,
     uint8_t qos,
     json_int_t identifier,
     mqtt5_sub_options_t options
 )
 {
-#ifdef PEPE
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
-    // "$share" TODO shared not implemented
 
-    int rc = MOSQ_ERR_SUCCESS;
+    int rc = 0;
+    const char *sharename = NULL;
+    char *local_sub;
+    char **topics;
+    size_t topiclen;
+
+    rc = sub__topic_tokenise_v2(sub, &local_sub, &topics, &topiclen, &sharename);
+    if(rc<0) {
+        return rc;
+    }
+
+    int rc = 0;
     BOOL no_local = ((options & MQTT_SUB_OPT_NO_LOCAL) != 0);
     BOOL retain_as_published = ((options & MQTT_SUB_OPT_RETAIN_AS_PUBLISHED) != 0);
 
@@ -705,8 +715,6 @@ PRIVATE int sub__add(
     // TODO don't save if qos == 0
     // ??? gobj_save_resource(priv->gobj_mqtt_topics, sub, subscription_record, 0);
     return rc;
-#endif
-    return 0;
 }
 
 /***************************************************************************

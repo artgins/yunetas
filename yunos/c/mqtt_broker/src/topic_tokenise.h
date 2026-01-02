@@ -1,10 +1,29 @@
 /****************************************************************************
  *          topic_tokenise.h
+ *          MQTT Subscription Topic Tokenizer
  *
- *          Topic tokenization functions using Yunetas split helpers
+ *  Header file for MQTT subscription topic parsing utilities.
+ *  Provides functions to tokenize MQTT topics into hierarchical levels
+ *  with support for regular topics, system topics ($SYS), and
+ *  shared subscriptions ($share).
  *
- *          Rewrite of Mosquitto's sub__topic_tokenise() using Yunetas
- *          split* functions from helpers.h
+ *  Port of the Mosquitto MQTT broker implementation.
+ *
+    Copyright (c) 2010-2019 Roger Light <roger@atchoo.org>
+
+    All rights reserved. This program and the accompanying materials
+    are made available under the terms of the Eclipse Public License 2.0
+    and Eclipse Distribution License v1.0 which accompany this distribution.
+
+    The Eclipse Public License is available at
+       https://www.eclipse.org/legal/epl-2.0/
+    and the Eclipse Distribution License is available at
+      http://www.eclipse.org/org/documents/edl-v10.php.
+
+    SPDX-License-Identifier: EPL-2.0 OR BSD-3-Clause
+
+    Contributors:
+       Roger Light - initial implementation and documentation.
  *
  *          Copyright (c) 2026, ArtGins.
  *          All Rights Reserved.
@@ -16,98 +35,71 @@ extern "C" {
 #endif
 
 /***************************************************************************
- *  Function: sub__topic_tokenise
+ *  sub__topic_tokenise - MQTT Subscription Topic Tokenizer
  *
- *  Tokenise a topic or subscription string into an array of strings
- *  representing the topic hierarchy.
- *
- *  For example:
- *      subtopic: "a/deep/topic/hierarchy"
- *      Would result in:
- *          topics[0] = "a"
- *          topics[1] = "deep"
- *          topics[2] = "topic"
- *          topics[3] = "hierarchy"
- *          topics[4] = NULL (terminator)
- *
- *      subtopic: "/a/deep/topic/hierarchy/"
- *      Would result in:
- *          topics[0] = "" (empty segment)
- *          topics[1] = "a"
- *          topics[2] = "deep"
- *          topics[3] = "topic"
- *          topics[4] = "hierarchy"
- *          topics[5] = "" (empty segment)
- *          topics[6] = NULL (terminator)
- *
- *  Note: Empty segments are stored as "" (empty strings), not NULL.
- *        NULL is used only as the array terminator.
+ *  Parses an MQTT subscription topic into an array of topic levels.
+ *  Handles regular topics, system topics ($SYS), and shared subscriptions ($share).
  *
  *  Parameters:
- *      subtopic - the subscription/topic to tokenise
- *      topics   - a pointer to store the array of strings (NULL-terminated)
- *      count    - an int pointer to store the number of items
+ *      subtopic   - Input: subscription topic string (e.g., "sport/tennis/#")
+ *      local_sub  - Output: duplicated string (caller must free)
+ *      topics     - Output: NULL-terminated array of topic level pointers
+ *      sharename  - Output: shared subscription group name (NULL if not shared)
+ *                   Can be NULL if caller doesn't need the share name.
  *
  *  Returns:
- *      0  - on success
- *      -1 - on error (invalid parameters or memory allocation failed)
+ *      MOSQ_ERR_SUCCESS  - Success
+ *      MOSQ_ERR_INVAL    - Invalid (empty) topic
+ *      MOSQ_ERR_NOMEM    - Memory allocation failed
+ *      MOSQ_ERR_PROTOCOL - Invalid shared subscription format
  *
- *  WARNING: returned 'topics' (***topics) must be free with sub__topic_tokens_free(topics)
+ *  Output Examples:
+ *  +-----------------------------+------------------------------------+-----------+
+ *  | Input subtopic              | topics[] array                     | sharename |
+ *  +-----------------------------+------------------------------------+-----------+
+ *  | "sport/tennis"              | ["", "sport", "tennis", NULL]      | NULL      |
+ *  | "sport/tennis/#"            | ["", "sport", "tennis", "#", NULL] | NULL      |
+ *  | "$SYS/broker/load"          | ["$SYS", "broker", "load", NULL]   | NULL      |
+ *  | "$share/group1/sport/tennis"| ["", "sport", "tennis", NULL]      | "group1"  |
+ *  +-----------------------------+------------------------------------+-----------+
  *
+ *  Key Design Notes:
+ *  - Regular topics get an empty string "" prefix for uniform tree traversal
+ *  - System topics ($SYS, etc.) do NOT get the prefix (start with '$')
+ *  - Shared subscriptions ($share/name/topic) extract the group name and
+ *    return the actual topic with the "" prefix
+ *
+ *  Memory Management:
+ *  - Caller must free both *local_sub and *topics on success
+ *  - topics[] pointers reference memory inside local_sub (don't free individually)
+ *
+ *  Example Usage:
+ *      char *local_sub = NULL;
+ *      char **topics = NULL;
+ *      const char *sharename = NULL;
+ *      int rc;
+ *
+ *      rc = sub__topic_tokenise("sport/tennis/#", &local_sub, &topics, &sharename);
+ *      if(rc == MOSQ_ERR_SUCCESS) {
+ *          // Use topics array...
+ *          // topics[0] = ""
+ *          // topics[1] = "sport"
+ *          // topics[2] = "tennis"
+ *          // topics[3] = "#"
+ *          // topics[4] = NULL
+ *
+ *          // Cleanup
+ *          mosquitto__free(local_sub);
+ *          mosquitto__free(topics);
+ *      }
  ***************************************************************************/
 int sub__topic_tokenise(
     const char *subtopic,
-    char ***topics,
-    int *count
-);
-
-/***************************************************************************
- *  Function: sub__topic_tokens_free
- *
- *  Free memory that was allocated in sub__topic_tokenise
- *
- *  The topics array is NULL-terminated. Empty segments are stored as ""
- *  (empty strings), not NULL.
- *
- *  Parameters:
- *      topics - pointer to string array (NULL-terminated)
- *
- *  Returns:
- *      0  - on success
- *      -1 - on error (invalid parameters)
- ***************************************************************************/
-int sub__topic_tokens_free(
-    char ***topics
-);
-
-/***************************************************************************
- *  Function: sub__topic_tokenise_v2
- *
- *  Extended version that handles MQTT v5 shared subscriptions.
- *  Parses topics of the form: $share/<ShareName>/<TopicFilter>
- *
- *  Parameters:
- *      subtopic  - the subscription/topic to tokenise
- *      local_sub - output: the topic without $share/group/ prefix
- *      topics    - output: array of topic segments (NULL-terminated)
- *      count     - output: number of segments
- *      sharename - output: share group name (NULL if not shared)
- *
- *  Returns:
- *      0  - on success
- *      -1 - on error (invalid parameters or memory allocation failed)
- *
- *  WARNING: returned 'topics' (***topics) must be free with sub__topic_tokens_free(topics)
- *           returned 'local_sub' and 'sharename' must be free wih gbmem_free()
- *
- ***************************************************************************/
-int sub__topic_tokenise_v2(
-    const char *subtopic,
     char **local_sub,
     char ***topics,
-    int *count,
     const char **sharename
 );
+
 
 #ifdef __cplusplus
 }
