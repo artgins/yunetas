@@ -89,14 +89,14 @@ extern "C" {
  *          // topics[4] = NULL
  *
  *          // Cleanup
- *          mosquitto__free(local_sub);
- *          mosquitto__free(topics);
+ *          gbmem_free(local_sub);
+ *          gbmem_free(topics);
  *      }
  ***************************************************************************/
 int sub__topic_tokenise(
     const char *subtopic,
-    char **local_sub,
-    char ***topics,
+    char **local_sub,       // remember free with gbmem_free()
+    char ***topics,         // remember free with gbmem_free()
     const char **sharename
 );
 

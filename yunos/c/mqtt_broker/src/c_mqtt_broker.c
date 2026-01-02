@@ -612,14 +612,12 @@ PRIVATE int sub__add(
     const char *sharename = NULL;
     char *local_sub;
     char **topics;
-    size_t topiclen;
 
-    rc = sub__topic_tokenise_v2(sub, &local_sub, &topics, &topiclen, &sharename);
+    rc = sub__topic_tokenise(sub, &local_sub, &topics, &sharename);
     if(rc<0) {
         return rc;
     }
 
-    int rc = 0;
     BOOL no_local = ((options & MQTT_SUB_OPT_NO_LOCAL) != 0);
     BOOL retain_as_published = ((options & MQTT_SUB_OPT_RETAIN_AS_PUBLISHED) != 0);
 
