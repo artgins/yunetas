@@ -780,13 +780,25 @@ PRIVATE char *strtok_hier(char *str, char **saveptr)
  *
  *  Output Examples:
  *  +-----------------------------+--------------------------------+-----------+
- *  | Input topic                 | levels[] array                 | sharename |
+ *  | Input subtopic              | topics[] array                 | sharename |
  *  +-----------------------------+--------------------------------+-----------+
  *  | "sport/tennis"              | ["", "sport", "tennis", NULL]  | NULL      |
+ *  | "sport/tennis/#"            | ["", "sport", "tennis", "#",   | NULL      |
+ *  |                             |  NULL]                         |           |
  *  | "$SYS/broker/load"          | ["$SYS", "broker", "load",     | NULL      |
  *  |                             |  NULL]                         |           |
  *  | "$share/group1/sport/tennis"| ["", "sport", "tennis", NULL]  | "group1"  |
  *  +-----------------------------+--------------------------------+-----------+
+ *
+ *  Key Design Notes:
+ *  - Regular topics get an empty string "" prefix for uniform tree traversal
+ *  - System topics ($SYS, etc.) do NOT get the prefix (start with '$')
+ *  - Shared subscriptions ($share/name/topic) extract the group name and
+ *    return the actual topic with the "" prefix
+ *
+ *  Memory Management:
+ *  - Caller must free both *local_sub and *topics on success
+ *  - topics[] pointers reference memory inside local_sub (don't free individually)
  ***************************************************************************/
 static int topic_tokenize(
     const char *topic,
@@ -816,6 +828,8 @@ static int topic_tokenize(
 
     /*----------------------------------------------------------------------*
      *  Duplicate the input string
+     *  We need a working copy because strtok_hier modifies it
+     *  in-place by inserting '\0' characters at '/' positions
      *----------------------------------------------------------------------*/
     *local_topic = gbmem_strdup(topic);
     if((*local_topic) == NULL) {
@@ -824,16 +838,27 @@ static int topic_tokenize(
 
     /*----------------------------------------------------------------------*
      *  Count topic levels
+     *          Count '/' separators to determine array size needed
+     *
+     *          Example: "sport/tennis/player"
+     *                         ^      ^
+     *                         |      +-- 2nd '/'
+     *                         +-- 1st '/'
+     *                   count = 3 (two separators + 1)
      *----------------------------------------------------------------------*/
     count = 0;
     saveptr = *local_topic;
     while(saveptr) {
-        saveptr = strchr(&saveptr[1], '/');
+        saveptr = strchr(&saveptr[1], '/'); /* Start search from position 1 */
         count++;
     }
 
     /*----------------------------------------------------------------------*
      *  Allocate levels array
+     *          Size = count + 3 to accommodate:
+     *            - Potential empty string prefix for regular topics
+     *            - Potential $share and sharename slots
+     *            - NULL terminator
      *----------------------------------------------------------------------*/
     *levels = gbmem_malloc((size_t)(count + 3) * sizeof(char *));
     if((*levels) == NULL) {
@@ -845,6 +870,18 @@ static int topic_tokenize(
 
     /*----------------------------------------------------------------------*
      *  Add empty string prefix for regular topics
+     *          Regular topics (not starting with '$') get an empty string
+     *          prepended. This normalizes the array structure so that
+     *          subscription tree traversal works uniformly.
+     *
+     *          Why? The subscription tree root has children for:
+     *            - "" (empty) -> regular topics branch
+     *            - "$SYS"     -> system topics branch
+     *            - "$share"   -> shared subscriptions (processed later)
+     *
+     *          Example results:
+     *            "sport/tennis"    -> ["", "sport", "tennis", NULL]
+     *            "$SYS/broker"     -> ["$SYS", "broker", NULL]
      *----------------------------------------------------------------------*/
     if((*local_topic)[0] != '$') {
         (*levels)[level_index] = "";
@@ -853,6 +890,14 @@ static int topic_tokenize(
 
     /*----------------------------------------------------------------------*
      *  Tokenize the topic string
+     *          Split by '/' and store pointers in the topics array
+     *
+     *          After this loop for "sport/tennis/player":
+     *            topics[0] = ""        (from step 5)
+     *            topics[1] = "sport"
+     *            topics[2] = "tennis"
+     *            topics[3] = "player"
+     *            topics[4] = NULL      (from calloc initialization)
      *----------------------------------------------------------------------*/
     token = strtok_hier((*local_topic), &saveptr);
     while(token) {
@@ -862,9 +907,31 @@ static int topic_tokenize(
     }
 
     /*----------------------------------------------------------------------*
-     *  Handle shared subscriptions
+     *  Handle shared subscriptions ($share/groupname/topic/...)
+     *
+     *          MQTT 5.0 shared subscriptions format:
+     *            $share/{ShareName}/{TopicFilter}
+     *
+     *          Example: "$share/consumer-group/sport/tennis/#"
+     *            - ShareName: "consumer-group"
+     *            - TopicFilter: "sport/tennis/#"
+     *
+     *          Processing:
+     *            1. Validate format (minimum 3 levels, non-empty topic)
+     *            2. Extract sharename
+     *            3. Remove $share and sharename from array
+     *            4. Add empty prefix (treat as regular topic)
+     *
+     *          Before: ["$share", "consumer-group", "sport", "tennis", "#"]
+     *          After:  ["", "sport", "tennis", "#", NULL]
+     *                  sharename = "consumer-group"
      *----------------------------------------------------------------------*/
     if(strcmp((*levels)[0], "$share") == 0) {
+        /*
+         *  Validate shared subscription format:
+         *  - Must have at least 3 parts: $share, sharename, topic
+         *  - Topic filter cannot be empty (count==3 with empty [2])
+         */
         if(count < 3 || (count == 3 && strlen((*levels)[2]) == 0)) {
             gbmem_free(*local_topic);
             gbmem_free(*levels);
@@ -873,10 +940,28 @@ static int topic_tokenize(
             return -1;
         }
 
+        /*
+         *  Extract the share group name if caller wants it
+         */
         if(sharename) {
             (*sharename) = (*levels)[1];
         }
 
+        /*
+         *  Shift array to remove $share and sharename:
+         *
+         *  Before: [0]="$share" [1]="group" [2]="sport" [3]="tennis" [4]=NULL
+         *
+         *  Shift loop (i from 1 to count-2):
+         *    i=1: [1] = [2] -> [1]="sport"
+         *    i=2: [2] = [3] -> [2]="tennis"
+         *    i=3: [3] = [4] -> [3]=NULL
+         *
+         *  After:  [0]="$share" [1]="sport" [2]="tennis" [3]=NULL
+         *
+         *  Then fix [0] and ensure NULL termination:
+         *  Final:  [0]="" [1]="sport" [2]="tennis" [3]=NULL
+         */
         for(i = 1; i < count - 1; i++) {
             (*levels)[i] = (*levels)[i + 1];
         }
