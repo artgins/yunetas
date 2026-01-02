@@ -1343,6 +1343,7 @@ static int sub_add(
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_PARAMETER_ERROR,
             "msg",          "%s", "Failed to tokenize topic",
+            "client_id",    "%s", client_id,
             "topic",        "%s", topic,
             NULL
         );
@@ -1367,6 +1368,7 @@ static int sub_add(
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_MEMORY_ERROR,
             "msg",          "%s", "Failed to create tree node",
+            "client_id",    "%s", client_id,
             "topic",        "%s", topic,
             NULL
         );
@@ -1483,6 +1485,7 @@ static int sub_remove(hgobj gobj, const char *topic, const char *client_id, int 
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_PARAMETER_ERROR,
             "msg",          "%s", "Failed to tokenize topic",
+            "client_id",    "%s", client_id,
             "topic",        "%s", topic,
             NULL
         );
