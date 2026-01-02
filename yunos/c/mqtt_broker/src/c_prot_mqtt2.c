@@ -6707,11 +6707,12 @@ PRIVATE int handle__publish_s(
                  *  Broker
                  *  Dispatch the message to the subscribers
                  */
-                rc = gobj_publish_event(
+                json_t *kw_iev = iev_create(
                     gobj,
-                    EV_ON_MESSAGE,
+                    EV_MQTT_MESSAGE,
                     kw_mqtt_msg // owned
                 );
+                rc = gobj_publish_event(gobj, EV_ON_IEV_MESSAGE, kw_iev);
                 // rc = sub__messages_queue(
                 //     gobj,
                 //     kw_mqtt_msg // owned
@@ -6726,11 +6727,12 @@ PRIVATE int handle__publish_s(
                  *  Broker
                  *  Dispatch the message to subscribers
                  */
-                rc = gobj_publish_event(
+                json_t *kw_iev = iev_create(
                     gobj,
-                    EV_ON_MESSAGE,
+                    EV_MQTT_MESSAGE,
                     kw_mqtt_msg // owned
                 );
+                rc = gobj_publish_event(gobj, EV_ON_IEV_MESSAGE, kw_iev);
                 // rc = sub__messages_queue(
                 //     gobj,
                 //     kw_mqtt_msg // owned
@@ -7550,11 +7552,12 @@ PRIVATE int handle__pubrel(hgobj gobj, gbuffer_t *gbuf)
              *  Broker
              *  Dispatch the message to the subscribers
              */
-            gobj_publish_event(
+            json_t *kw_iev = iev_create(
                 gobj,
-                EV_ON_MESSAGE,
+                EV_MQTT_MESSAGE,
                 kw_mqtt_msg // owned
             );
+            gobj_publish_event(gobj, EV_ON_IEV_MESSAGE, kw_iev);
             // sub__messages_queue(
             //     gobj,
             //     kw_mqtt_msg // owned
