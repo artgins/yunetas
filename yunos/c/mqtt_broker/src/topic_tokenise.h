@@ -51,6 +51,9 @@ extern "C" {
  *  Returns:
  *      0  - on success
  *      -1 - on error (invalid parameters or memory allocation failed)
+ *
+ *  WARNING: returned 'topics' (***topics) must be free with sub__topic_tokens_free(topics)
+ *
  ***************************************************************************/
 int sub__topic_tokenise(
     const char *subtopic,
@@ -93,6 +96,10 @@ int sub__topic_tokens_free(
  *  Returns:
  *      0  - on success
  *      -1 - on error (invalid parameters or memory allocation failed)
+ *
+ *  WARNING: returned 'topics' (***topics) must be free with sub__topic_tokens_free(topics)
+ *           returned 'local_sub' and 'sharename' must be free wih gbmem_free()
+ *
  ***************************************************************************/
 int sub__topic_tokenise_v2(
     const char *subtopic,
