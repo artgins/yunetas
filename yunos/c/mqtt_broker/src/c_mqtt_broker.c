@@ -1875,11 +1875,14 @@ PRIVATE int sub__messages_queue(
     const char *topic = kw_get_str(gobj, kw_mqtt_msg, "topic", "", KW_REQUIRED);
 
     json_t *clients = sub_search(gobj, topic);
+    print_json2("ENVIA mqtt clients", clients);
 
     int idx; json_t *client;
     json_array_foreach(clients, idx, client) {
         print_json2("ENVIA mqtt msg to client", client);
     }
+
+    JSON_DECREF(clients)
     return 0;
 }
 
@@ -2551,7 +2554,7 @@ PRIVATE int ac_mqtt_message(hgobj gobj, const char *event, json_t *kw, hgobj src
         gobj_trace_json(
             gobj,
             kw, // not own
-            "ON_MESSAGE %s", gobj_short_name(src)
+            "MQTT_MESSAGE %s", gobj_short_name(src)
         );
     }
 

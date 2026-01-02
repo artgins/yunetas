@@ -9251,9 +9251,9 @@ PRIVATE int create_gclass(gclass_name_t gclass_name)
 
     event_type_t event_types[] = {
         {EV_RX_DATA,            0},
-        {EV_MQTT_PUBLISH,       EVF_OUTPUT_EVENT},
-        {EV_MQTT_SUBSCRIBE,     EVF_OUTPUT_EVENT},
-        {EV_MQTT_UNSUBSCRIBE,   EVF_OUTPUT_EVENT},
+        {EV_MQTT_PUBLISH,       0},
+        {EV_MQTT_SUBSCRIBE,     0},
+        {EV_MQTT_UNSUBSCRIBE,   0},
         {EV_ON_IEV_MESSAGE,     EVF_OUTPUT_EVENT},
         // {EV_MQTT_MESSAGE,       EVF_OUTPUT_EVENT},
         {EV_TIMEOUT,            0},
