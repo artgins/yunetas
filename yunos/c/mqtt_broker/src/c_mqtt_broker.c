@@ -1846,6 +1846,7 @@ PRIVATE int retain__queue(
 
 /***************************************************************************
  *  Enqueue message to subscribers
+ *  Return # of subscribers
  ***************************************************************************/
 PRIVATE int sub__messages_queue(
     hgobj gobj,
@@ -1854,6 +1855,7 @@ PRIVATE int sub__messages_queue(
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
     const char *topic = kw_get_str(gobj, kw_mqtt_msg, "topic", "", KW_REQUIRED);
+    BOOL retain = kw_get_bool(gobj, kw_mqtt_msg, "retain", 0, KW_REQUIRED);
 
     json_t *clients = sub__search(gobj, topic);
     print_json2("ENVIA mqtt clients", clients);
@@ -1863,8 +1865,18 @@ PRIVATE int sub__messages_queue(
         print_json2("ENVIA mqtt msg to client", client);
     }
 
+    int ret = 0; // TODO Return # of subscribers
+
+    if(retain) { // TODO implement retain
+    //     if(retain__store(topic, *stored, split_topics)<0) {
+    //         ret = -1;
+    //     }
+    }
+
+    // TODO Return # of subscribers
+
     JSON_DECREF(clients)
-    return 0;
+    return ret;
 }
 
 

@@ -6692,14 +6692,6 @@ PRIVATE int handle__publish_s(
         }
     }
 
-    if(retain) {
-        /*-------------------------------------------*
-         *  Incoming Retain messages must be saved,
-         *  it's persistent
-         **-----------------------------------------*/
-        // TODO
-    }
-
     switch(qos) {
         case 0:
             {
