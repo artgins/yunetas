@@ -33,13 +33,6 @@
  *              Prototypes
  ***************************************************************************/
 PRIVATE int broadcast_queues_tranger(hgobj gobj);
-PRIVATE int open_devices_qmsgs(hgobj gobj);
-PRIVATE int close_devices_qmsgs(hgobj gobj);
-PRIVATE int process_msg(
-    hgobj gobj,
-    json_t *kw,  // NOT owned
-    json_t *device_resource // NOT owned
-);
 
 /***************************************************************************
  *          Data: config, public data, private data
@@ -464,11 +457,6 @@ PRIVATE int mt_play(hgobj gobj)
 PRIVATE int mt_pause(hgobj gobj)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
-
-    /*---------------------------------*
-     *  Close device qmsgs
-     *---------------------------------*/
-    //close_devices_qmsgs(gobj);
 
     /*---------------------------------------*
      *      Close Msg2db Alarms
