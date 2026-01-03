@@ -1207,27 +1207,23 @@ PRIVATE void collect_all_subscribers_recursive(json_t *node, json_t *result)
  *      result      - JSON array to append matching client_ids
  ***************************************************************************/
 PRIVATE void search_recursive(
+    hgobj gobj,
     json_t *node,
     char **pub_levels,
     int level_index,
     json_t *result
 )
 {
-    json_t *child;
-    json_t *wildcard_child;
-    json_t *multi_wildcard;
-    const char *current_level;
-
     if(!node || !pub_levels || !result) {
         return;
     }
 
-    current_level = pub_levels[level_index];
+    const char *current_level = pub_levels[level_index];
 
     /*----------------------------------------------------------------------*
      *  Check '#' wildcard (matches rest of topic at any point)
      *----------------------------------------------------------------------*/
-    multi_wildcard = json_object_get(node, "#");
+    json_t *multi_wildcard = json_object_get(node, "#");
     if(multi_wildcard) {
         collect_subscribers(multi_wildcard, result);
     }
@@ -1243,17 +1239,17 @@ PRIVATE void search_recursive(
     /*----------------------------------------------------------------------*
      *  Check '+' wildcard (matches single level)
      *----------------------------------------------------------------------*/
-    wildcard_child = json_object_get(node, "+");
+    json_t *wildcard_child = json_object_get(node, "+");
     if(wildcard_child) {
-        search_recursive(wildcard_child, pub_levels, level_index + 1, result);
+        search_recursive(gobj, wildcard_child, pub_levels, level_index + 1, result);
     }
 
     /*----------------------------------------------------------------------*
      *  Check exact match
      *----------------------------------------------------------------------*/
-    child = json_object_get(node, current_level);
+    json_t *child = json_object_get(node, current_level);
     if(child) {
-        search_recursive(child, pub_levels, level_index + 1, result);
+        search_recursive(gobj, child, pub_levels, level_index + 1, result);
     }
 }
 
@@ -1638,7 +1634,7 @@ PRIVATE json_t *sub_search(hgobj gobj, const char *topic)
     /*----------------------------------------------------------------------*
      *  Search in normal_subs (non-shared subscriptions)
      *----------------------------------------------------------------------*/
-    search_recursive(priv->normal_subs, levels, 1, result);
+    search_recursive(gobj, priv->normal_subs, levels, 1, result);
 
     /*----------------------------------------------------------------------*
      *  Search in shared_subs (shared subscriptions)
@@ -1646,7 +1642,7 @@ PRIVATE json_t *sub_search(hgobj gobj, const char *topic)
      *  TODO This function returns ALL matching clients; the caller should
      *  implement the "select one per group" logic if needed
      *----------------------------------------------------------------------*/
-    search_recursive(priv->shared_subs, levels, 1, result);
+    search_recursive(gobj, priv->shared_subs, levels, 1, result);
 
 cleanup:
     if(local_topic) {
