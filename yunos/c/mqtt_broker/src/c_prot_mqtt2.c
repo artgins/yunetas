@@ -6716,11 +6716,7 @@ PRIVATE int handle__publish_s(
                     EV_MQTT_MESSAGE,
                     kw_mqtt_msg // owned
                 );
-                rc = gobj_publish_event(gobj, EV_ON_IEV_MESSAGE, kw_iev);
-                // rc = sub__messages_queue(
-                //     gobj,
-                //     kw_mqtt_msg // owned
-                // );
+                rc = gobj_publish_event(gobj, EV_ON_IEV_MESSAGE, kw_iev); // sub__messages_queue
             }
             break;
 
@@ -6736,11 +6732,8 @@ PRIVATE int handle__publish_s(
                     EV_MQTT_MESSAGE,
                     kw_mqtt_msg // owned
                 );
-                rc = gobj_publish_event(gobj, EV_ON_IEV_MESSAGE, kw_iev); // return # subscribers
-                // rc = sub__messages_queue(
-                //     gobj,
-                //     kw_mqtt_msg // owned
-                // );
+                rc = gobj_publish_event(gobj, EV_ON_IEV_MESSAGE, kw_iev); // sub__messages_queue
+                // return # subscribers
 
                 /*
                  *  Response acknowledge
@@ -7556,11 +7549,8 @@ PRIVATE int handle__pubrel(hgobj gobj, gbuffer_t *gbuf)
                 EV_MQTT_MESSAGE,
                 kw_mqtt_msg // owned
             );
-            gobj_publish_event(gobj, EV_ON_IEV_MESSAGE, kw_iev);
-            // sub__messages_queue(
-            //     gobj,
-            //     kw_mqtt_msg // owned
-            // );
+            gobj_publish_event(gobj, EV_ON_IEV_MESSAGE, kw_iev); // sub__messages_queue
+
         } else {
             /*
              * Message not found. Still send a PUBCOMP anyway because this could be
