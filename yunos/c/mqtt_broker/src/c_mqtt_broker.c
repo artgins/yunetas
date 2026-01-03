@@ -1299,9 +1299,6 @@ PRIVATE int sub__add(
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
-    json_t *node;
-    json_t *subs;
-    json_t *sub_info;
     int ret = -1;
 
     /*----------------------------------------------------------------------*
@@ -1348,7 +1345,7 @@ PRIVATE int sub__add(
     /*----------------------------------------------------------------------*
      *  Navigate/create tree path
      *----------------------------------------------------------------------*/
-    node = get_or_create_node(root, levels);
+    json_t *node = get_or_create_node(root, levels);
     if(!node) {
         gobj_log_error(gobj, 0,
             "function",     "%s", __FUNCTION__,
@@ -1364,7 +1361,7 @@ PRIVATE int sub__add(
     /*----------------------------------------------------------------------*
      *  Get or create @subs dict
      *----------------------------------------------------------------------*/
-    subs = json_object_get(node, SUBS_KEY);
+    json_t *subs = json_object_get(node, SUBS_KEY);
     if(!subs) {
         subs = json_object();
         if(!subs) {
@@ -1385,7 +1382,7 @@ PRIVATE int sub__add(
     /*----------------------------------------------------------------------*
      *  Add or update subscriber (O(1) operation with dict)
      *----------------------------------------------------------------------*/
-    sub_info = json_pack("{s:i, s:I, s:i}",
+    json_t *sub_info = json_pack("{s:i, s:I, s:i}",
         "qos", (int)qos,
         "id", (json_int_t)subscription_id,
         "options", (int)subscription_options
