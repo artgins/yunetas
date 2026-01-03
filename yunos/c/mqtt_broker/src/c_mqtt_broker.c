@@ -2531,6 +2531,7 @@ PRIVATE int ac_on_message(hgobj gobj, const char *event, json_t *kw, hgobj src)
 /***************************************************************************
  *  Message from
  *      mqtt clients (__input_side__)
+ *  Must returns the number of subscribers found
  ***************************************************************************/
 PRIVATE int ac_mqtt_message(hgobj gobj, const char *event, json_t *kw, hgobj src)
 {
@@ -2559,13 +2560,13 @@ PRIVATE int ac_mqtt_message(hgobj gobj, const char *event, json_t *kw, hgobj src
     /*-----------------------------------*
      *      Mqtt message
      *-----------------------------------*/
-    sub__messages_queue(
+    int subscribers_found = sub__messages_queue(
         gobj,
         kw // not owned
     );
 
     KW_DECREF(kw);
-    return 0;
+    return subscribers_found;
 }
 
 /***************************************************************************

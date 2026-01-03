@@ -6736,7 +6736,7 @@ PRIVATE int handle__publish_s(
                     EV_MQTT_MESSAGE,
                     kw_mqtt_msg // owned
                 );
-                rc = gobj_publish_event(gobj, EV_ON_IEV_MESSAGE, kw_iev);
+                rc = gobj_publish_event(gobj, EV_ON_IEV_MESSAGE, kw_iev); // return # subscribers
                 // rc = sub__messages_queue(
                 //     gobj,
                 //     kw_mqtt_msg // owned
@@ -6745,10 +6745,10 @@ PRIVATE int handle__publish_s(
                 /*
                  *  Response acknowledge
                  */
-                if(rc == MOSQ_ERR_NO_SUBSCRIBERS && priv->protocol_version == mosq_p_mqtt5) {
-                    send__puback(gobj, mid, MQTT_RC_NO_MATCHING_SUBSCRIBERS, NULL);
-                } else {
+                if(rc > 0 || priv->protocol_version != mosq_p_mqtt5) {
                     send__puback(gobj, mid, 0, NULL);
+                } else if(rc == 0) {
+                    send__puback(gobj, mid, MQTT_RC_NO_MATCHING_SUBSCRIBERS, NULL);
                 }
             }
             break;
@@ -7546,11 +7546,6 @@ PRIVATE int handle__pubrel(hgobj gobj, gbuffer_t *gbuf)
         json_t *kw_mqtt_msg;
         message__remove(gobj, mid, mosq_md_in, &kw_mqtt_msg);
 
-        /*
-         *  Response acknowledge
-         */
-        send__pubcomp(gobj, mid, NULL);
-
         if(kw_mqtt_msg) {
             /*
              *  Broker
@@ -7572,6 +7567,11 @@ PRIVATE int handle__pubrel(hgobj gobj, gbuffer_t *gbuf)
              * due to a repeated PUBREL after a client has reconnected.
              */
         }
+
+        /*
+         *  Response acknowledge
+         */
+        send__pubcomp(gobj, mid, NULL);
 
     } else {
         /*------------------------------------*
