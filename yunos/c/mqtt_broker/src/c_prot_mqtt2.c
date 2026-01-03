@@ -6772,7 +6772,7 @@ PRIVATE int handle__publish_s(
     /*
      *  Pull from input queued list
      */
-    db__message_write_queued_in(gobj);
+    db__message_write_queued_in(gobj); // TODO review
     return rc;
 
 process_bad_message:
