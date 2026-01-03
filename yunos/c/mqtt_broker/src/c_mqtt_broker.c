@@ -1542,7 +1542,7 @@ cleanup:
 }
 
 /***************************************************************************
- *  sub_search - Find all subscribers matching a published topic
+ *  sub__search - Find all subscribers matching a published topic
  *
  *  Searches for all subscriptions that match the given published topic.
  *  The published topic must NOT contain wildcards.
@@ -1558,7 +1558,7 @@ cleanup:
  *      NULL on error
  *
  *  Example:
- *      json_t *clients = sub_search(gobj, "home/livingroom/temperature");
+ *      json_t *clients = sub__search(gobj, "home/livingroom/temperature");
  *      // Returns clients subscribed to:
  *      //   "home/livingroom/temperature" (exact match)
  *      //   "home/+/temperature"          (single-level wildcard)
@@ -1566,7 +1566,7 @@ cleanup:
  *      //   "#"                           (all topics)
  *      json_decref(clients);
  ***************************************************************************/
-PRIVATE json_t *sub_search(hgobj gobj, const char *topic)
+PRIVATE json_t *sub__search(hgobj gobj, const char *topic)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
@@ -1855,7 +1855,7 @@ PRIVATE int sub__messages_queue(
 
     const char *topic = kw_get_str(gobj, kw_mqtt_msg, "topic", "", KW_REQUIRED);
 
-    json_t *clients = sub_search(gobj, topic);
+    json_t *clients = sub__search(gobj, topic);
     print_json2("ENVIA mqtt clients", clients);
 
     int idx; json_t *client;
