@@ -70,7 +70,7 @@
 #define MQTT_MAX_PAYLOAD 268435455U
 
 /* Error values */
-typedef enum mosq_err_t {
+typedef enum mosq_err_s {
     MOSQ_ERR_AUTH_CONTINUE = -44,
     MOSQ_ERR_NO_SUBSCRIBERS = -43,
     MOSQ_ERR_SUB_EXISTS = -42,

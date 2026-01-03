@@ -1254,7 +1254,7 @@ PRIVATE void search_recursive(
 }
 
 /***************************************************************************
- *  sub_add - Add a subscription to the tree
+ *  sub__add - Add a subscription to the tree
  *  Parameters:
  *      gobj                    - GObj instance (for PRIVATE_DATA access)
  *      topic                   - Subscription topic (may contain wildcards)
@@ -1273,7 +1273,7 @@ PRIVATE void search_recursive(
  *      -1 on error
  *
  *  Example:
- *      sub_add(gobj, "home/+/temperature", "client_001", 1, 123, 0);
+ *      sub__add(gobj, "home/+/temperature", "client_001", 1, 123, 0);
  *
  *  Tree Result:
  *      {
@@ -1288,7 +1288,7 @@ PRIVATE void search_recursive(
  *        }
  *      }
  ***************************************************************************/
-PRIVATE int sub_add(
+PRIVATE int sub__add(
     hgobj gobj,
     const char *topic,
     const char *client_id,
@@ -1426,7 +1426,7 @@ cleanup:
 }
 
 /***************************************************************************
- *  sub_remove - Remove a subscription from the tree
+ *  sub__remove - Remove a subscription from the tree
  *
  *  Parameters:
  *      gobj        - GObj instance (for PRIVATE_DATA access)
@@ -1439,9 +1439,9 @@ cleanup:
  *      -1 on error
  *
  *  Example:
- *      sub_remove(gobj, "home/+/temperature", "client_001");
+ *      sub__remove(gobj, "home/+/temperature", "client_001");
  ***************************************************************************/
-PRIVATE int sub_remove(hgobj gobj, const char *topic, const char *client_id, int *reason)
+PRIVATE int sub__remove(hgobj gobj, const char *topic, const char *client_id, int *reason)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
@@ -1737,7 +1737,7 @@ cleanup:
 }
 
 /***************************************************************************
- *  sub_remove_client - Remove ALL subscriptions for a client
+ *  sub__remove_client - Remove ALL subscriptions for a client
  ***************************************************************************
  *  Used when a client disconnects to clean up all its subscriptions.
  *
@@ -1749,9 +1749,9 @@ cleanup:
  *      Number of subscriptions removed, -1 on error
  *
  *  Example:
- *      int removed = sub_remove_client(gobj, "client_001");
+ *      int removed = sub__remove_client(gobj, "client_001");
  ***************************************************************************/
-PRIVATE int sub_remove_client_recursive(json_t *node, const char *client_id, int *count)
+PRIVATE int sub__remove_client_recursive(json_t *node, const char *client_id, int *count)
 {
     const char *key;
     json_t *child;
@@ -1782,7 +1782,7 @@ PRIVATE int sub_remove_client_recursive(json_t *node, const char *client_id, int
      */
     json_object_foreach_safe(node, tmp, key, child) {
         if(strcmp(key, SUBS_KEY) != 0) {
-            sub_remove_client_recursive(child, client_id, count);
+            sub__remove_client_recursive(child, client_id, count);
 
             /*
              *  Remove empty child nodes
@@ -1801,7 +1801,7 @@ PRIVATE int sub_remove_client_recursive(json_t *node, const char *client_id, int
     return 0;
 }
 
-PRIVATE int sub_remove_client(hgobj gobj, const char *client_id)
+PRIVATE int sub__remove_client(hgobj gobj, const char *client_id)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
     int count = 0;
@@ -1819,12 +1819,12 @@ PRIVATE int sub_remove_client(hgobj gobj, const char *client_id)
     /*
      *  Remove from normal_subs
      */
-    sub_remove_client_recursive(priv->normal_subs, client_id, &count);
+    sub__remove_client_recursive(priv->normal_subs, client_id, &count);
 
     /*
      *  Remove from shared_subs
      */
-    sub_remove_client_recursive(priv->shared_subs, client_id, &count);
+    sub__remove_client_recursive(priv->shared_subs, client_id, &count);
 
     return count;
 }
@@ -2390,7 +2390,7 @@ PRIVATE int ac_mqtt_subscribe(hgobj gobj, const char *event, json_t *kw, hgobj s
         }
 
         if(allowed) {
-            rc = sub_add(
+            rc = sub__add(
                 gobj,
                 sub,
                 client_id,
@@ -2485,7 +2485,7 @@ PRIVATE int ac_mqtt_unsubscribe(hgobj gobj, const char *event, json_t *kw, hgobj
         BOOL allowed = TRUE;
         // allowed = mosquitto_acl_check(context, sub, 0, NULL, 0, FALSE, MOSQ_ACL_UNSUBSCRIBE); TODO
         if(allowed) {
-            rc += sub_remove(gobj, sub, client_id, &reason);
+            rc += sub__remove(gobj, sub, client_id, &reason);
         } else {
             reason = MQTT_RC_NOT_AUTHORIZED;
         }
