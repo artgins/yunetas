@@ -802,7 +802,7 @@ PRIVATE char *strtok_hier(char *str, char **saveptr)
  *  - Caller must free both *local_sub and *topics on success
  *  - topics[] pointers reference memory inside local_sub (don't free individually)
  ***************************************************************************/
-static int topic_tokenize(
+PRIVATE int topic_tokenize(
     const char *topic,
     char **local_topic,
     char ***levels,
@@ -987,7 +987,7 @@ static int topic_tokenize(
  *  Returns:
  *      JSON object at the leaf node, or NULL on error
  ***************************************************************************/
-static json_t *get_or_create_node(json_t *root, char **levels)
+PRIVATE json_t *get_or_create_node(json_t *root, char **levels)
 {
     json_t *current = root;
     json_t *child;
@@ -1035,7 +1035,7 @@ static json_t *get_or_create_node(json_t *root, char **levels)
  *  Returns:
  *      JSON object at the leaf node, or NULL if path doesn't exist
  ***************************************************************************/
-static json_t *get_node(json_t *root, char **levels)
+PRIVATE json_t *get_node(json_t *root, char **levels)
 {
     json_t *current = root;
     json_t *child;
@@ -1066,7 +1066,7 @@ static json_t *get_node(json_t *root, char **levels)
  *      root   - Root JSON object of the tree
  *      levels - NULL-terminated array of topic levels
  ***************************************************************************/
-static void prune_empty_branches(json_t *root, char **levels)
+PRIVATE void prune_empty_branches(json_t *root, char **levels)
 {
     json_t *node;
     json_t *parent;
@@ -1136,7 +1136,7 @@ static void prune_empty_branches(json_t *root, char **levels)
  *      node   - JSON node that may contain @subs
  *      result - JSON array to append client_ids to
  ***************************************************************************/
-static void collect_subscribers(json_t *node, json_t *result)
+PRIVATE void collect_subscribers(json_t *node, json_t *result)
 {
     json_t *subs;
     json_t *sub_info;
@@ -1182,7 +1182,7 @@ static void collect_subscribers(json_t *node, json_t *result)
  *      node   - Current JSON node
  *      result - JSON array to append client_ids to
  ***************************************************************************/
-static void collect_all_subscribers_recursive(json_t *node, json_t *result)
+PRIVATE void collect_all_subscribers_recursive(json_t *node, json_t *result)
 {
     const char *key;
     json_t *child;
@@ -1218,7 +1218,7 @@ static void collect_all_subscribers_recursive(json_t *node, json_t *result)
  *      level_index - Current index in pub_levels
  *      result      - JSON array to append matching client_ids
  ***************************************************************************/
-static void search_recursive(
+PRIVATE void search_recursive(
     json_t *node,
     char **pub_levels,
     int level_index,
@@ -1304,7 +1304,7 @@ static void search_recursive(
  *        }
  *      }
  ***************************************************************************/
-static int sub_add(
+PRIVATE int sub_add(
     hgobj gobj,
     const char *topic,
     const char *client_id,
@@ -1457,7 +1457,7 @@ cleanup:
  *  Example:
  *      sub_remove(gobj, "home/+/temperature", "client_001");
  ***************************************************************************/
-static int sub_remove(hgobj gobj, const char *topic, const char *client_id, int *reason)
+PRIVATE int sub_remove(hgobj gobj, const char *topic, const char *client_id, int *reason)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
@@ -1690,7 +1690,7 @@ cleanup:
  *          uint32_t sub_id = json_integer_value(json_object_get(info, "id"));
  *      }
  ***************************************************************************/
-static json_t *sub_get_info(hgobj gobj, const char *topic, const char *client_id)
+PRIVATE json_t *sub_get_info(hgobj gobj, const char *topic, const char *client_id)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
@@ -1767,7 +1767,7 @@ cleanup:
  *  Example:
  *      int removed = sub_remove_client(gobj, "client_001");
  ***************************************************************************/
-static int sub_remove_client_recursive(json_t *node, const char *client_id, int *count)
+PRIVATE int sub_remove_client_recursive(json_t *node, const char *client_id, int *count)
 {
     const char *key;
     json_t *child;
@@ -1817,7 +1817,7 @@ static int sub_remove_client_recursive(json_t *node, const char *client_id, int 
     return 0;
 }
 
-static int sub_remove_client(hgobj gobj, const char *client_id)
+PRIVATE int sub_remove_client(hgobj gobj, const char *client_id)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
     int count = 0;
