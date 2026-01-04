@@ -1096,6 +1096,64 @@ PRIVATE void sub__search(
  *          }
  *        }
  *      }
+ *
+ *  share messages
+ *  --------------
+ *  The $share/groupname/ prefix is only for subscriptions, never for publishing.
+ *
+ *  How It Works
+ *
+
+    +------------------+----------------------------------------+
+    | Action           | Topic                                  |
+    +------------------+----------------------------------------+
+    | SUBSCRIBE        | $share/sensors/home/+/temperature      |
+    | PUBLISH          | home/livingroom/temperature            |
+    +------------------+----------------------------------------+
+
+┌─────────────────────────────────────────────────────────────────────────┐
+│                            MQTT BROKER                                  │
+│                                                                         │
+│  Subscription Tree (shared_subs):                                       │
+│    "sensors" ──► "home" ──► "+" ──► "temperature"                       │
+│                                         │                               │
+│                                         └──► @subs: {client_A, client_B}│
+└─────────────────────────────────────────────────────────────────────────┘
+         ▲                                           │
+         │ SUBSCRIBE                                 │ DELIVER (to ONE)
+         │ $share/sensors/home/+/temperature         │
+         │                                           ▼
+    ┌─────────┐                               ┌─────────────┐
+    │Client A │                               │Client A OR B│
+    │Client B │                               └─────────────┘
+    └─────────┘
+
+         ▲
+         │ PUBLISH
+         │ home/livingroom/temperature
+         │
+    ┌─────────┐
+    │Publisher│  (knows nothing about $share)
+    └─────────┘
+
+    Test Commands
+
+        # Terminal 1: Subscribe (WITH $share)
+        mosquitto_sub -h localhost -t "\$share/sensors/home/+/temperature" -v
+
+        # Terminal 2: Subscribe (WITH $share)
+        mosquitto_sub -h localhost -t "\$share/sensors/home/+/temperature" -v
+
+        # Terminal 3: Publish (WITHOUT $share - just the actual topic)
+        mosquitto_pub -h localhost -t "home/livingroom/temperature" -m "22.5"
+
+    Summary
+
+    Packet Type     Uses $share/group/?     Example
+    SUBSCRIBE       Yes                     $share/sensors/home/+/temperature
+    UNSUBSCRIBE     Yes                     $share/sensors/home/+/temperature
+    PUBLISH         No                      home/livingroom/temperature
+
  ***************************************************************************/
 PRIVATE int sub__add(
     hgobj gobj,
