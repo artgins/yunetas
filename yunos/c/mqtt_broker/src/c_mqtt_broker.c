@@ -1218,17 +1218,16 @@ PRIVATE void sub__search(
     json_t *subs;
     const char *current_level = pub_levels[level_index];
 
+print_json2("NODE", node);// TODO TEST
     /*-----------------------------------------------------------*
      *  Check '#' wildcard (matches rest of topic at any point)
      *-----------------------------------------------------------*/
     json_t *multi_wildcard = json_object_get(node, "#");
     if(multi_wildcard) {
-        subs = json_object_get(node, SUBS_KEY);
+        subs = json_object_get(multi_wildcard, SUBS_KEY);
+print_json2("SUBS_KEY", subs);// TODO TEST
         if(subs) {
-            json_object_set(subscribers,
-                json_string_value(json_object_get(subs, "client_id")),
-                subs
-            );
+            json_object_update(subscribers, subs);
         }
     }
 
@@ -1237,11 +1236,9 @@ PRIVATE void sub__search(
      *----------------------------------------------------------------------*/
     if(current_level == NULL) {
         subs = json_object_get(node, SUBS_KEY);
+print_json2("SUBS_KEY", subs);// TODO TEST
         if(subs) {
-            json_object_set(subscribers,
-                json_string_value(json_object_get(subs, "client_id")),
-                subs
-            );
+            json_object_update(subscribers, subs);
         }
         return;
     }
