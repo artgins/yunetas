@@ -1124,8 +1124,9 @@ PRIVATE void prune_empty_branches(json_t *root, char **levels)
  *      node   - JSON node that may contain @subs
  *      result - JSON array to append client_ids to
  ***************************************************************************/
-PRIVATE void collect_subscribers(json_t *node, json_t *result)
-{
+PRIVATE void collect_subscribers(
+    json_t *node, json_t *result
+) {
     json_t *subs;
     json_t *sub_info;
     size_t index;
@@ -1195,7 +1196,7 @@ PRIVATE void collect_all_subscribers_recursive(json_t *node, json_t *result)
 }
 
 /***************************************************************************
- *  search_recursive - Recursive wildcard-aware search
+ *  sub__search - Recursive wildcard-aware search
  *
  *  Searches the subscription tree matching against published topic levels.
  *  Handles '+' (single-level) and '#' (multi-level) wildcards.
@@ -1204,35 +1205,44 @@ PRIVATE void collect_all_subscribers_recursive(json_t *node, json_t *result)
  *      node        - Current JSON node in subscription tree
  *      pub_levels  - Array of published topic levels (NOT wildcards)
  *      level_index - Current index in pub_levels
- *      result      - JSON array to append matching client_ids
+ *      subscribers - Collect the subscribers
  ***************************************************************************/
-PRIVATE void search_recursive(
+PRIVATE void sub__search(
     hgobj gobj,
     json_t *node,
     char **pub_levels,
     int level_index,
-    json_t *result
+    json_t *subscribers
 )
 {
-    if(!node || !pub_levels || !result) {
-        return;
-    }
-
+    json_t *subs;
     const char *current_level = pub_levels[level_index];
 
-    /*----------------------------------------------------------------------*
+    /*-----------------------------------------------------------*
      *  Check '#' wildcard (matches rest of topic at any point)
-     *----------------------------------------------------------------------*/
+     *-----------------------------------------------------------*/
     json_t *multi_wildcard = json_object_get(node, "#");
     if(multi_wildcard) {
-        collect_subscribers(multi_wildcard, result);
+        subs = json_object_get(node, SUBS_KEY);
+        if(subs) {
+            json_object_set(subscribers,
+                json_string_value(json_object_get(subs, "client_id")),
+                subs
+            );
+        }
     }
 
     /*----------------------------------------------------------------------*
      *  End of published topic - collect subscribers from current node
      *----------------------------------------------------------------------*/
     if(current_level == NULL) {
-        collect_subscribers(node, result);
+        subs = json_object_get(node, SUBS_KEY);
+        if(subs) {
+            json_object_set(subscribers,
+                json_string_value(json_object_get(subs, "client_id")),
+                subs
+            );
+        }
         return;
     }
 
@@ -1241,7 +1251,7 @@ PRIVATE void search_recursive(
      *----------------------------------------------------------------------*/
     json_t *wildcard_child = json_object_get(node, "+");
     if(wildcard_child) {
-        search_recursive(gobj, wildcard_child, pub_levels, level_index + 1, result);
+        sub__search(gobj, wildcard_child, pub_levels, level_index + 1, subscribers);
     }
 
     /*----------------------------------------------------------------------*
@@ -1249,7 +1259,7 @@ PRIVATE void search_recursive(
      *----------------------------------------------------------------------*/
     json_t *child = json_object_get(node, current_level);
     if(child) {
-        search_recursive(gobj, child, pub_levels, level_index + 1, result);
+        sub__search(gobj, child, pub_levels, level_index + 1, subscribers);
     }
 }
 
@@ -1542,117 +1552,6 @@ cleanup:
 }
 
 /***************************************************************************
- *  sub__search - Find all subscribers matching a published topic
- *
- *  Searches for all subscriptions that match the given published topic.
- *  The published topic must NOT contain wildcards.
- *  Subscription wildcards ('+' and '#') are matched appropriately.
- *
- *  Parameters:
- *      gobj        - GObj instance (for PRIVATE_DATA access)
- *      topic       - Published topic (NO wildcards allowed)
- *
- *  Returns:
- *      JSON array of client_id strings (caller must json_decref)
- *      Empty array if no matches
- *      NULL on error
- *
- *  Example:
- *      json_t *clients = sub__search(gobj, "home/livingroom/temperature");
- *      // Returns clients subscribed to:
- *      //   "home/livingroom/temperature" (exact match)
- *      //   "home/+/temperature"          (single-level wildcard)
- *      //   "home/#"                      (multi-level wildcard)
- *      //   "#"                           (all topics)
- *      json_decref(clients);
- ***************************************************************************/
-PRIVATE json_t *sub__search(hgobj gobj, const char *topic)
-{
-    PRIVATE_DATA *priv = gobj_priv_data(gobj);
-
-    /*----------------------------------------------------------------------*
-     *  Validate input
-     *----------------------------------------------------------------------*/
-    if(!topic) {
-        gobj_log_error(gobj, 0,
-            "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_PARAMETER_ERROR,
-            "msg",          "%s", "topic is NULL",
-            NULL
-        );
-        return NULL;
-    }
-
-    /*----------------------------------------------------------------------*
-     *  Published topics must not contain wildcards
-     *----------------------------------------------------------------------*/
-    if(strchr(topic, '+') || strchr(topic, '#')) {
-        gobj_log_error(gobj, 0,
-            "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_PARAMETER_ERROR,
-            "msg",          "%s", "Published topic cannot contain wildcards",
-            "topic",        "%s", topic,
-            NULL
-        );
-        return NULL;
-    }
-
-    /*----------------------------------------------------------------------*
-     *  Tokenize topic
-     *----------------------------------------------------------------------*/
-    char *local_topic = NULL;
-    char **levels = NULL;
-    const char *sharename = NULL;
-    if(topic_tokenize(topic, &local_topic, &levels, &sharename) < 0) {
-        gobj_log_error(gobj, 0,
-            "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_PARAMETER_ERROR,
-            "msg",          "%s", "Failed to tokenize topic",
-            "topic",        "%s", topic,
-            NULL
-        );
-        return NULL;
-    }
-
-    /*----------------------------------------------------------------------*
-     *  Create result array
-     *----------------------------------------------------------------------*/
-    json_t *result = json_array();
-    if(!result) {
-        gobj_log_error(gobj, 0,
-            "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_MEMORY_ERROR,
-            "msg",          "%s", "Failed to create result array",
-            NULL
-        );
-        goto cleanup;
-    }
-
-    /*----------------------------------------------------------------------*
-     *  Search in normal_subs (non-shared subscriptions)
-     *----------------------------------------------------------------------*/
-    search_recursive(gobj, priv->normal_subs, levels, 1, result);
-
-    /*----------------------------------------------------------------------*
-     *  Search in shared_subs (shared subscriptions)
-     *  Note: For shared subs, only one client per group receives the message
-     *  TODO This function returns ALL matching clients; the caller should
-     *  implement the "select one per group" logic if needed
-     *----------------------------------------------------------------------*/
-    search_recursive(gobj, priv->shared_subs, levels, 1, result);
-
-cleanup:
-    if(local_topic) {
-        gbmem_free(local_topic);
-    }
-    if(levels) {
-        gbmem_free(levels);
-    }
-
-    return result;
-}
-
-/***************************************************************************
  *  sub_get_info - Get subscription info for a specific client/topic
  *
  *  Parameters:
@@ -1846,37 +1745,100 @@ PRIVATE int retain__queue(
 
 /***************************************************************************
  *  Enqueue message to subscribers
+ *
+ *  Searches for all subscriptions that match the given published topic.
+ *  The published topic must NOT contain wildcards.
+ *  Subscription wildcards ('+' and '#') are matched appropriately.
+ *
  *  Return # of subscribers
  ***************************************************************************/
-PRIVATE int sub__messages_queue(
+PRIVATE size_t sub__messages_queue(
     hgobj gobj,
     json_t *kw_mqtt_msg // not owned
 ) {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
+    size_t subscribers = 0;
 
     const char *topic = kw_get_str(gobj, kw_mqtt_msg, "topic", "", KW_REQUIRED);
     BOOL retain = kw_get_bool(gobj, kw_mqtt_msg, "retain", 0, KW_REQUIRED);
 
-    json_t *clients = sub__search(gobj, topic);
-    print_json2("ENVIA mqtt clients", clients);
-
-    int idx; json_t *client;
-    json_array_foreach(clients, idx, client) {
-        print_json2("ENVIA mqtt msg to client", client);
+    if(empty_string(topic)) {
+        gobj_log_error(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+            "msg",          "%s", "topic is NULL",
+            NULL
+        );
+        return -1;
     }
 
-    int ret = 0; // TODO Return # of subscribers
+    /*------------------------------------------------*
+     *  Published topics must not contain wildcards
+     *------------------------------------------------*/
+    if(strchr(topic, '+') || strchr(topic, '#')) {
+        gobj_log_error(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+            "msg",          "%s", "Published topic cannot contain wildcards",
+            "topic",        "%s", topic,
+            NULL
+        );
+        return -1;
+    }
+
+    /*-------------------*
+     *  Tokenize topic
+     *-------------------*/
+    char *local_topic = NULL;
+    char **levels = NULL;
+    const char *sharename = NULL;
+    if(topic_tokenize(topic, &local_topic, &levels, &sharename) < 0) {
+        gobj_log_error(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+            "msg",          "%s", "Failed to tokenize topic",
+            "topic",        "%s", topic,
+            NULL
+        );
+        return -1;
+    }
+
+    /*----------------------------------------------------------------------*
+     *  Search in normal_subs (non-shared subscriptions)
+     *----------------------------------------------------------------------*/
+    json_t *no_shared_subscribers = json_object();
+    sub__search(gobj, priv->normal_subs, levels, 1, no_shared_subscribers);
+print_json2("no_shared_subscribers", no_shared_subscribers); // TODO TEST
+json_decref(no_shared_subscribers);
+    subscribers += json_object_size(no_shared_subscribers);
+
+    /*----------------------------------------------------------------------*
+     *  Search in shared_subs (shared subscriptions)
+     *  Note: For shared subs, only one client per group receives the message
+     *  TODO This function returns ALL matching clients; the caller should
+     *  implement the "select one per group" logic if needed
+     *----------------------------------------------------------------------*/
+    json_t *shared_subscribers = json_object();
+    sub__search(gobj, priv->shared_subs, levels, 1, shared_subscribers);
+print_json2("shared_subscribers", shared_subscribers); // TODO TEST
+json_decref(shared_subscribers);
+    subscribers += json_object_size(shared_subscribers);
 
     if(retain) { // TODO implement retain
-    //     if(retain__store(topic, *stored, split_topics)<0) {
-    //         ret = -1;
-    //     }
+        //     if(retain__store(topic, *stored, split_topics)<0) {
+        //         ret = -1;
+        //     }
     }
 
-    // TODO Return # of subscribers
+cleanup:
+    if(local_topic) {
+        gbmem_free(local_topic);
+    }
+    if(levels) {
+        gbmem_free(levels);
+    }
 
-    JSON_DECREF(clients)
-    return ret;
+    return subscribers;
 }
 
 
