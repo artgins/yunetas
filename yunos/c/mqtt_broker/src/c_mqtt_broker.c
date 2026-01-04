@@ -1001,116 +1001,6 @@ PRIVATE json_t *get_or_create_node(json_t *root, char **levels)
 }
 
 /***************************************************************************
- *  get_node - Navigate tree path (read-only)
- *
- *  Traverses the JSON tree following the levels array.
- *  Does NOT create nodes if they don't exist.
- *
- *  Parameters:
- *      root   - Root JSON object of the tree
- *      levels - NULL-terminated array of topic levels
- *
- *  Returns:
- *      JSON object at the leaf node, or NULL if path doesn't exist
- ***************************************************************************/
-PRIVATE json_t *get_node(json_t *root, char **levels)
-{
-    json_t *current = root;
-
-    if(!root || !levels) {
-        return NULL;
-    }
-
-    for(int i = 1; levels[i] != NULL; i++) {
-        json_t *child = json_object_get(current, levels[i]);
-        if(!child) {
-            return NULL;
-        }
-        current = child;
-    }
-
-    return current;
-}
-
-/***************************************************************************
- *  collect_subscribers - Collect client_ids from @subs dict
- *
- *  Parameters:
- *      node   - JSON node that may contain @subs
- *      result - JSON array to append client_ids to
- ***************************************************************************/
-PRIVATE void collect_subscribers(
-    json_t *node, json_t *result
-) {
-    json_t *subs;
-    json_t *sub_info;
-    size_t index;
-    const char *client_id;
-
-    if(!node || !result) {
-        return;
-    }
-
-    subs = json_object_get(node, SUBS_KEY);
-    if(!subs) {
-        return;
-    }
-
-    json_object_foreach(subs, client_id, sub_info) {
-        /*
-         *  Check if client_id already in result (avoid duplicates)
-         *  This is O(n) but result set is typically small
-         */
-        BOOL found = FALSE;
-        size_t i;
-        json_t *existing;
-        json_array_foreach(result, i, existing) {
-            if(strcmp(json_string_value(existing), client_id) == 0) {
-                found = TRUE;
-                break;
-            }
-        }
-        if(!found) {
-            json_array_append_new(result, json_string(client_id));
-        }
-    }
-}
-
-/***************************************************************************
- *  collect_all_subscribers_recursive - Collect from node and all descendants
- *
- *  Used when '#' wildcard matches - collects all subscribers
- *  from current node and ALL children recursively.
- *
- *  Parameters:
- *      node   - Current JSON node
- *      result - JSON array to append client_ids to
- ***************************************************************************/
-PRIVATE void collect_all_subscribers_recursive(json_t *node, json_t *result)
-{
-    const char *key;
-    json_t *child;
-
-    if(!node || !result) {
-        return;
-    }
-
-    /*
-     *  Collect from current node
-     */
-    collect_subscribers(node, result);
-
-    /*
-     *  Recurse into children (skip @subs key)
-     */
-    json_object_foreach(node, key, child) {
-        if(strcmp(key, SUBS_KEY) != 0) {
-            collect_all_subscribers_recursive(child, result);
-        }
-    }
-}
-
-/***************************************************************************
  *  sub__search - Recursive wildcard-aware search
  *
  *  Searches the subscription tree matching against published topic levels.
@@ -1218,8 +1108,6 @@ PRIVATE int sub__add(
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
-    int ret = -1;
-
     if(!topic || !client_id) {
         gobj_log_error(gobj, 0,
             "function",     "%s", __FUNCTION__,
@@ -1317,10 +1205,10 @@ PRIVATE int sub__add(
      *  json_object_set_new replaces if key exists (update case)
      *  or adds new entry (new subscription case)
      */
-    ret = 0;
+    int ret = 0;
 
     if(json_object_get(subs, client_id)) {
-        ret = 1;
+        ret = 1; // already exists
     }
     if(json_object_set_new(subs, client_id, sub_info) < 0) {
         json_decref(sub_info);
@@ -1338,78 +1226,144 @@ cleanup:
     return ret;
 }
 
-/***************************************************************************
- *  prune_empty_branches - Remove empty nodes from tree
- *
- *  Walks back up the tree removing nodes that have no children
- *  and no subscribers.
- *
- *  Parameters:
- *      root   - Root JSON object of the tree
- *      levels - NULL-terminated array of topic levels
- ***************************************************************************/
-PRIVATE void prune_empty_branches(json_t *root, char **levels)
-{
-    json_t *node;
-    json_t *parent;
-    json_t *subs;
-    int depth;
-    int i;
-
-    if(!root || !levels) {
-        return;
-    }
-
-    /*
-     *  Count depth
-     */
-    for(depth = 1; levels[depth] != NULL; depth++);
-
-    /*
-     *  Walk backwards from leaf to root
-     */
-    for(i = depth - 1; i >= 1; i--) {
-        /*
-         *  Get parent node
-         */
-        parent = root;
-        for(int j = 1; j < i; j++) {
-            parent = json_object_get(parent, levels[j]);
-            if(!parent) {
-                return;
-            }
-        }
-
-        /*
-         *  Get current node
-         */
-        node = json_object_get(parent, levels[i]);
-        if(!node) {
-            return;
-        }
-
-        /*
-         *  Check if node is empty:
-         *  - No children except @subs
-         *  - @subs is empty or missing
-         */
-        subs = json_object_get(node, SUBS_KEY);
-        size_t child_count = json_object_size(node);
-
-        if(subs) {
-            child_count--;  /* Don't count @subs as a child */
-        }
-
-        if(child_count == 0 && (!subs || json_object_size(subs) == 0)) {
-            json_object_del(parent, levels[i]);
-        } else {
-            /*
-             *  Node has children or subscribers, stop pruning
-             */
-            break;
-        }
-    }
-}
+// /***************************************************************************
+//  *  get_node - Navigate tree path (read-only)
+//  *
+//  *  Traverses the JSON tree following the levels array.
+//  *  Does NOT create nodes if they don't exist.
+//  *
+//  *  Parameters:
+//  *      root   - Root JSON object of the tree
+//  *      levels - NULL-terminated array of topic levels
+//  *
+//  *  Returns:
+//  *      JSON object at the leaf node, or NULL if path doesn't exist
+//  ***************************************************************************/
+// PRIVATE json_t *get_node(json_t *root, char **levels)
+// {
+//     json_t *current = root;
+//
+//     if(!root || !levels) {
+//         return NULL;
+//     }
+//
+//     for(int i = 1; levels[i] != NULL; i++) {
+//         json_t *child = json_object_get(current, levels[i]);
+//         if(!child) {
+//             return NULL;
+//         }
+//         current = child;
+//     }
+//
+//     return current;
+// }
+//
+// /***************************************************************************
+//  *  collect_all_subscribers_recursive - Collect from node and all descendants
+//  *
+//  *  Used when '#' wildcard matches - collects all subscribers
+//  *  from current node and ALL children recursively.
+//  *
+//  *  Parameters:
+//  *      node   - Current JSON node
+//  *      result - JSON array to append client_ids to
+//  ***************************************************************************/
+// PRIVATE void collect_all_subscribers_recursive(json_t *node, json_t *result)
+// {
+//     const char *key;
+//     json_t *child;
+//
+//     if(!node || !result) {
+//         return;
+//     }
+//
+//     /*
+//      *  Collect from current node
+//      */
+//     collect_subscribers(node, result);
+//
+//     /*
+//      *  Recurse into children (skip @subs key)
+//      */
+//     json_object_foreach(node, key, child) {
+//         if(strcmp(key, SUBS_KEY) != 0) {
+//             collect_all_subscribers_recursive(child, result);
+//         }
+//     }
+// }
+//
+// /***************************************************************************
+//  *  prune_empty_branches - Remove empty nodes from tree
+//  *
+//  *  Walks back up the tree removing nodes that have no children
+//  *  and no subscribers.
+//  *
+//  *  Parameters:
+//  *      root   - Root JSON object of the tree
+//  *      levels - NULL-terminated array of topic levels
+//  ***************************************************************************/
+// PRIVATE void prune_empty_branches(json_t *root, char **levels)
+// {
+//     json_t *node;
+//     json_t *parent;
+//     json_t *subs;
+//     int depth;
+//     int i;
+//
+//     if(!root || !levels) {
+//         return;
+//     }
+//
+//     /*
+//      *  Count depth
+//      */
+//     for(depth = 1; levels[depth] != NULL; depth++);
+//
+//     /*
+//      *  Walk backwards from leaf to root
+//      */
+//     for(i = depth - 1; i >= 1; i--) {
+//         /*
+//          *  Get parent node
+//          */
+//         parent = root;
+//         for(int j = 1; j < i; j++) {
+//             parent = json_object_get(parent, levels[j]);
+//             if(!parent) {
+//                 return;
+//             }
+//         }
+//
+//         /*
+//          *  Get current node
+//          */
+//         node = json_object_get(parent, levels[i]);
+//         if(!node) {
+//             return;
+//         }
+//
+//         /*
+//          *  Check if node is empty:
+//          *  - No children except @subs
+//          *  - @subs is empty or missing
+//          */
+//         subs = json_object_get(node, SUBS_KEY);
+//         size_t child_count = json_object_size(node);
+//
+//         if(subs) {
+//             child_count--;  /* Don't count @subs as a child */
+//         }
+//
+//         if(child_count == 0 && (!subs || json_object_size(subs) == 0)) {
+//             json_object_del(parent, levels[i]);
+//         } else {
+//             /*
+//              *  Node has children or subscribers, stop pruning
+//              */
+//             break;
+//         }
+//     }
+// }
 
 /***************************************************************************
  *  sub__remove - Remove a subscription from the tree
@@ -1530,98 +1484,98 @@ PRIVATE int sub__remove(hgobj gobj, const char *topic, const char *client_id, in
     return ret;
 }
 
-/***************************************************************************
- *  sub__remove_client - Remove ALL subscriptions for a client
- ***************************************************************************
- *  Used when a client disconnects to clean up all its subscriptions.
- *
- *  Parameters:
- *      gobj        - GObj instance (for PRIVATE_DATA access)
- *      client_id   - Client identifier to remove
- *
- *  Returns:
- *      Number of subscriptions removed, -1 on error
- *
- *  Example:
- *      int removed = sub__remove_client(gobj, "client_001");
- ***************************************************************************/
-PRIVATE int sub__remove_client_recursive(json_t *node, const char *client_id, int *count)
-{
-    const char *key;
-    json_t *child;
-    json_t *subs;
-    void *tmp;
-
-    if(!node || !client_id || !count) {
-        return -1;
-    }
-
-    /*
-     *  Check @subs in current node (O(1) lookup in dict)
-     */
-    subs = json_object_get(node, SUBS_KEY);
-    if(subs) {
-        if(json_object_get(subs, client_id)) {
-            json_object_del(subs, client_id);
-            (*count)++;
-
-            if(json_object_size(subs) == 0) {
-                json_object_del(node, SUBS_KEY);
-            }
-        }
-    }
-
-    /*
-     *  Recurse into children (use safe iteration for potential deletion)
-     */
-    json_object_foreach_safe(node, tmp, key, child) {
-        if(strcmp(key, SUBS_KEY) != 0) {
-            sub__remove_client_recursive(child, client_id, count);
-
-            /*
-             *  Remove empty child nodes
-             */
-            subs = json_object_get(child, SUBS_KEY);
-            size_t child_count = json_object_size(child);
-            if(subs) {
-                child_count--;
-            }
-            if(child_count == 0 && (!subs || json_object_size(subs) == 0)) {
-                json_object_del(node, key);
-            }
-        }
-    }
-
-    return 0;
-}
-
-PRIVATE int sub__remove_client(hgobj gobj, const char *client_id)
-{
-    PRIVATE_DATA *priv = gobj_priv_data(gobj);
-    int count = 0;
-
-    if(!client_id) {
-        gobj_log_error(gobj, 0,
-            "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_PARAMETER_ERROR,
-            "msg",          "%s", "client_id is NULL",
-            NULL
-        );
-        return -1;
-    }
-
-    /*
-     *  Remove from normal_subs
-     */
-    sub__remove_client_recursive(priv->normal_subs, client_id, &count);
-
-    /*
-     *  Remove from shared_subs
-     */
-    sub__remove_client_recursive(priv->shared_subs, client_id, &count);
-
-    return count;
-}
+// /***************************************************************************
+//  *  sub__remove_client - Remove ALL subscriptions for a client
+//  ***************************************************************************
+//  *  Used when a client disconnects to clean up all its subscriptions.
+//  *
+//  *  Parameters:
+//  *      gobj        - GObj instance (for PRIVATE_DATA access)
+//  *      client_id   - Client identifier to remove
+//  *
+//  *  Returns:
+//  *      Number of subscriptions removed, -1 on error
+//  *
+//  *  Example:
+//  *      int removed = sub__remove_client(gobj, "client_001");
+//  ***************************************************************************/
+// PRIVATE int sub__remove_client_recursive(json_t *node, const char *client_id, int *count)
+// {
+//     const char *key;
+//     json_t *child;
+//     json_t *subs;
+//     void *tmp;
+//
+//     if(!node || !client_id || !count) {
+//         return -1;
+//     }
+//
+//     /*
+//      *  Check @subs in current node (O(1) lookup in dict)
+//      */
+//     subs = json_object_get(node, SUBS_KEY);
+//     if(subs) {
+//         if(json_object_get(subs, client_id)) {
+//             json_object_del(subs, client_id);
+//             (*count)++;
+//
+//             if(json_object_size(subs) == 0) {
+//                 json_object_del(node, SUBS_KEY);
+//             }
+//         }
+//     }
+//
+//     /*
+//      *  Recurse into children (use safe iteration for potential deletion)
+//      */
+//     json_object_foreach_safe(node, tmp, key, child) {
+//         if(strcmp(key, SUBS_KEY) != 0) {
+//             sub__remove_client_recursive(child, client_id, count);
+//
+//             /*
+//              *  Remove empty child nodes
+//              */
+//             subs = json_object_get(child, SUBS_KEY);
+//             size_t child_count = json_object_size(child);
+//             if(subs) {
+//                 child_count--;
+//             }
+//             if(child_count == 0 && (!subs || json_object_size(subs) == 0)) {
+//                 json_object_del(node, key);
+//             }
+//         }
+//     }
+//
+//     return 0;
+// }
+//
+// PRIVATE int sub__remove_client(hgobj gobj, const char *client_id)
+// {
+//     PRIVATE_DATA *priv = gobj_priv_data(gobj);
+//     int count = 0;
+//
+//     if(!client_id) {
+//         gobj_log_error(gobj, 0,
+//             "function",     "%s", __FUNCTION__,
+//             "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+//             "msg",          "%s", "client_id is NULL",
+//             NULL
+//         );
+//         return -1;
+//     }
+//
+//     /*
+//      *  Remove from normal_subs
+//      */
+//     sub__remove_client_recursive(priv->normal_subs, client_id, &count);
+//
+//     /*
+//      *  Remove from shared_subs
+//      */
+//     sub__remove_client_recursive(priv->shared_subs, client_id, &count);
+//
+//     return count;
+// }
 
 /***************************************************************************
  *  Subscription: search if the topic has a retain message and process
