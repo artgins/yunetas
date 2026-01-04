@@ -1218,14 +1218,12 @@ PRIVATE void sub__search(
     json_t *subs;
     const char *current_level = pub_levels[level_index];
 
-print_json2("NODE", node);// TODO TEST
     /*-----------------------------------------------------------*
      *  Check '#' wildcard (matches rest of topic at any point)
      *-----------------------------------------------------------*/
     json_t *multi_wildcard = json_object_get(node, "#");
     if(multi_wildcard) {
         subs = json_object_get(multi_wildcard, SUBS_KEY);
-print_json2("SUBS_KEY", subs);// TODO TEST
         if(subs) {
             json_object_update(subscribers, subs);
         }
@@ -1236,7 +1234,6 @@ print_json2("SUBS_KEY", subs);// TODO TEST
      *----------------------------------------------------------------------*/
     if(current_level == NULL) {
         subs = json_object_get(node, SUBS_KEY);
-print_json2("SUBS_KEY", subs);// TODO TEST
         if(subs) {
             json_object_update(subscribers, subs);
         }
@@ -1754,7 +1751,6 @@ PRIVATE size_t sub__messages_queue(
     json_t *kw_mqtt_msg // not owned
 ) {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
-    size_t subscribers = 0;
 
     const char *topic = kw_get_str(gobj, kw_mqtt_msg, "topic", "", KW_REQUIRED);
     BOOL retain = kw_get_bool(gobj, kw_mqtt_msg, "retain", 0, KW_REQUIRED);
@@ -1803,11 +1799,9 @@ PRIVATE size_t sub__messages_queue(
     /*----------------------------------------------------------------------*
      *  Search in normal_subs (non-shared subscriptions)
      *----------------------------------------------------------------------*/
-    json_t *no_shared_subscribers = json_object();
-    sub__search(gobj, priv->normal_subs, levels, 1, no_shared_subscribers);
-print_json2("no_shared_subscribers", no_shared_subscribers); // TODO TEST
-json_decref(no_shared_subscribers);
-    subscribers += json_object_size(no_shared_subscribers);
+    json_t *subscribers = json_object();
+    sub__search(gobj, priv->normal_subs, levels, 1, subscribers);
+print_json2("NO_SHARED_SUBSCRIBERS", subscribers); // TODO TEST
 
     /*----------------------------------------------------------------------*
      *  Search in shared_subs (shared subscriptions)
@@ -1817,9 +1811,13 @@ json_decref(no_shared_subscribers);
      *----------------------------------------------------------------------*/
     json_t *shared_subscribers = json_object();
     sub__search(gobj, priv->shared_subs, levels, 1, shared_subscribers);
-print_json2("shared_subscribers", shared_subscribers); // TODO TEST
-json_decref(shared_subscribers);
-    subscribers += json_object_size(shared_subscribers);
+print_json2("SHARED_SUBSCRIBERS", shared_subscribers); // TODO TEST
+    json_object_update_new(subscribers, shared_subscribers);
+
+print_json2("SUBSCRIBERS", subscribers); // TODO TEST
+    size_t ret = json_object_size(subscribers);
+
+    json_decref(subscribers);
 
     if(retain) { // TODO implement retain
         //     if(retain__store(topic, *stored, split_topics)<0) {
@@ -1835,7 +1833,7 @@ cleanup:
         gbmem_free(levels);
     }
 
-    return subscribers;
+    return ret;
 }
 
 
