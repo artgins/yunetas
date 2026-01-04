@@ -1664,13 +1664,16 @@ print_json2("NO_SHARED_SUBSCRIBERS", subscribers); // TODO TEST
     /*----------------------------------------------------------------------*
      *  Search in shared_subs (shared subscriptions)
      *  Note: For shared subs, only one client per group receives the message
-     *  TODO This function returns ALL matching clients; the caller should
-     *  implement the "select one per group" logic if needed
      *----------------------------------------------------------------------*/
     json_t *shared_subscribers = json_object();
     sub__search(gobj, priv->shared_subs, levels, 1, shared_subscribers);
 print_json2("SHARED_SUBSCRIBERS", shared_subscribers); // TODO TEST
-    json_object_update_new(subscribers, shared_subscribers);
+    const char *key; json_t *sub;
+    json_object_foreach(shared_subscribers, key, sub) {
+        json_object_set(subscribers, key, sub);
+        break;
+    }
+    json_decref(shared_subscribers);
 
 print_json2("SUBSCRIBERS", subscribers); // TODO TEST
     size_t ret = json_object_size(subscribers);
@@ -2143,6 +2146,7 @@ PRIVATE int ac_on_close(hgobj gobj, const char *event, json_t *kw, hgobj src)
             json_pack("{s:b}", "force", 1),
             gobj
         );
+        // TODO delete queues too
     } else {
         json_object_set_new(session, "_gobj_channel", json_integer((json_int_t)0));
         json_object_set_new(session, "in_session", json_false());
