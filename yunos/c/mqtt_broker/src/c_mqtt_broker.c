@@ -717,8 +717,8 @@ PRIVATE int broadcast_queues_tranger(hgobj gobj)
  *    "topic_level": {
  *      "subtopic": {
  *        "@subs": {
- *          "client_id_1": {"qos": 1, "id": 123, "options": 0},
- *          "client_id_2": {"qos": 2, "id": 456, "options": 1}
+ *          "client_id_1": {"qos": 1, "ids": [123], "options": 0},
+ *          "client_id_2": {"qos": 2, "ids": [100,200], "options": 1}
  *      }
  *    }
  *  }
@@ -1001,7 +1001,62 @@ PRIVATE json_t *get_or_create_node(json_t *root, char **levels)
 }
 
 /***************************************************************************
- *  sub__search - Recursive wildcard-aware search
+ *  collect_subscribers - Collect client_ids from @subs dict
+ *
+ *  Parameters:
+ *      node        - JSON node that may contain @subs
+ *      subscribers - JSON dict to append client_ids to
+ ***************************************************************************/
+PRIVATE void collect_subscribers(json_t *node, json_t *subscribers)
+{
+    json_t *subs = json_object_get(node, SUBS_KEY);
+    if(!subs) {
+        return;
+    }
+
+    const char *client_id;
+    json_t *sub_info;
+    json_object_foreach(subs, client_id, sub_info) {
+        json_t *existing = json_object_get(subscribers, client_id);
+        if(existing) {
+            /*
+             *  Client already matched another subscription
+             *  - Keep highest QoS
+             *  - Append subscription ID to list
+             */
+            int existing_qos = json_integer_value(json_object_get(existing, "qos"));
+            int new_qos = json_integer_value(json_object_get(sub_info, "qos"));
+            if(new_qos > existing_qos) {
+                json_object_set(existing, "qos", json_object_get(sub_info, "qos"));
+            }
+
+            json_int_t new_id = json_integer_value(json_object_get(sub_info, "id"));
+            if(new_id > 0) {
+                json_t *ids = json_object_get(existing, "ids");
+                if(!ids) {
+                    ids = json_array();
+                    json_object_set_new(existing, "ids", ids);
+                }
+                json_array_append_new(ids, json_integer(new_id));
+            }
+        } else {
+            /*
+             *  First match for this client
+             */
+            json_t *entry = json_deep_copy(sub_info);
+            json_int_t id = json_integer_value(json_object_get(sub_info, "id"));
+            if(id > 0) {
+                json_t *ids = json_array();
+                json_array_append_new(ids, json_integer(id));
+                json_object_set_new(entry, "ids", ids);
+            }
+            json_object_set_new(subscribers, client_id, entry);
+        }
+    }
+}
+
+/***************************************************************************
+ *  search_recursive - Recursive wildcard-aware search
  *
  *  Searches the subscription tree matching against published topic levels.
  *  Handles '+' (single-level) and '#' (multi-level) wildcards.
@@ -1012,7 +1067,7 @@ PRIVATE json_t *get_or_create_node(json_t *root, char **levels)
  *      level_index - Current index in pub_levels
  *      subscribers - Collect the subscribers
  ***************************************************************************/
-PRIVATE void sub__search(
+PRIVATE void search_recursive( // sub__search
     hgobj gobj,
     json_t *node,
     char **pub_levels,
@@ -1028,20 +1083,14 @@ PRIVATE void sub__search(
      *-----------------------------------------------------------*/
     json_t *multi_wildcard = json_object_get(node, "#");
     if(multi_wildcard) {
-        subs = json_object_get(multi_wildcard, SUBS_KEY);
-        if(subs) {
-            json_object_update(subscribers, subs);
-        }
+        collect_subscribers(multi_wildcard, subscribers);
     }
 
     /*------------------------------------------------------------------*
      *  End of published topic - collect subscribers from current node
      *------------------------------------------------------------------*/
     if(current_level == NULL) {
-        subs = json_object_get(node, SUBS_KEY);
-        if(subs) {
-            json_object_update(subscribers, subs);
-        }
+        collect_subscribers(multi_wildcard, subscribers);
         return;
     }
 
@@ -1050,7 +1099,7 @@ PRIVATE void sub__search(
      *---------------------------------------------*/
     json_t *wildcard_child = json_object_get(node, "+");
     if(wildcard_child) {
-        sub__search(gobj, wildcard_child, pub_levels, level_index + 1, subscribers);
+        search_recursive(gobj, wildcard_child, pub_levels, level_index + 1, subscribers);
     }
 
     /*---------------------*
@@ -1058,7 +1107,7 @@ PRIVATE void sub__search(
      *---------------------*/
     json_t *child = json_object_get(node, current_level);
     if(child) {
-        sub__search(gobj, child, pub_levels, level_index + 1, subscribers);
+        search_recursive(gobj, child, pub_levels, level_index + 1, subscribers);
     }
 }
 
@@ -1715,28 +1764,23 @@ PRIVATE size_t sub__messages_queue(
     /*----------------------------------------------------------------------*
      *  Search in normal_subs (non-shared subscriptions)
      *----------------------------------------------------------------------*/
-    json_t *subscribers = json_object();
-    sub__search(gobj, priv->normal_subs, levels, 1, subscribers);
-print_json2("NO_SHARED_SUBSCRIBERS", subscribers); // TODO TEST
+    json_t *normal_subscribers = json_object();
+    search_recursive(gobj, priv->normal_subs, levels, 1, normal_subscribers);
+print_json2("NO_SHARED_SUBSCRIBERS", normal_subscribers); // TODO TEST
 
     /*----------------------------------------------------------------------*
      *  Search in shared_subs (shared subscriptions)
      *  Note: For shared subs, only one client per group receives the message
      *----------------------------------------------------------------------*/
     json_t *shared_subscribers = json_object();
-    sub__search(gobj, priv->shared_subs, levels, 1, shared_subscribers);
+    search_recursive(gobj, priv->shared_subs, levels, 1, shared_subscribers);
 print_json2("SHARED_SUBSCRIBERS", shared_subscribers); // TODO TEST
-    const char *key; json_t *sub;
-    json_object_foreach(shared_subscribers, key, sub) {
-        json_object_set(subscribers, key, sub);
-        break;
-    }
+
+
+    size_t ret = json_object_size(normal_subscribers) + json_object_size(shared_subscribers);
+
+    json_decref(normal_subscribers);
     json_decref(shared_subscribers);
-
-print_json2("SUBSCRIBERS", subscribers); // TODO TEST
-    size_t ret = json_object_size(subscribers);
-
-    json_decref(subscribers);
 
     if(retain) { // TODO implement retain
         //     if(retain__store(topic, *stored, split_topics)<0) {
@@ -2415,7 +2459,7 @@ PRIVATE int ac_on_message(hgobj gobj, const char *event, json_t *kw, hgobj src)
 }
 
 /***************************************************************************
- *  Message from
+ *  Broker, message from
  *      mqtt clients (__input_side__)
  *  Must returns the number of subscribers found
  ***************************************************************************/
