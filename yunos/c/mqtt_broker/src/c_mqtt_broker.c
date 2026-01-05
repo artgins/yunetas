@@ -211,28 +211,6 @@ PRIVATE int mt_start(hgobj gobj)
     priv->gobj_authz =  gobj_find_service("authz", TRUE);
     gobj_subscribe_event(priv->gobj_authz, 0, 0, gobj);
 
-    return 0;
-}
-
-/***************************************************************************
- *      Framework Method stop
- ***************************************************************************/
-PRIVATE int mt_stop(hgobj gobj)
-{
-    PRIVATE_DATA *priv = gobj_priv_data(gobj);
-
-    gobj_unsubscribe_event(priv->gobj_authz, 0, 0, gobj);
-
-    return 0;
-}
-
-/***************************************************************************
- *      Framework Method play
- ***************************************************************************/
-PRIVATE int mt_play(hgobj gobj)
-{
-    PRIVATE_DATA *priv = gobj_priv_data(gobj);
-
     /*--------------------------------------------------------------*
      *      Path of Treedb/Timeranger System
      *
@@ -423,6 +401,69 @@ PRIVATE int mt_play(hgobj gobj)
         priv->tranger_queues = gobj_read_pointer_attr(priv->gobj_tranger_queues, "tranger");
     }
 
+    return 0;
+}
+
+/***************************************************************************
+ *      Framework Method stop
+ ***************************************************************************/
+PRIVATE int mt_stop(hgobj gobj)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    gobj_unsubscribe_event(priv->gobj_authz, 0, 0, gobj);
+
+    /*---------------------------------------*
+     *      Close Msg2db Alarms
+     *---------------------------------------*/
+    msg2db_close_db(
+        priv->tranger_treedb_mqtt_broker,
+        priv->msg2db_alarms_name
+    );
+
+    /*---------------------------------------*
+     *      Close treedb
+     *---------------------------------------*/
+    json_decref(gobj_command(priv->gobj_treedbs,
+        "close-treedb",
+        json_pack("{s:s, s:s}",
+            "__username__", gobj_read_str_attr(gobj_yuno(), "__username__"),
+            "treedb_name", priv->treedb_mqtt_broker_name
+        ),
+        gobj
+    ));
+
+    /*-------------------------*
+     *      Stop treedbs
+     *-------------------------*/
+    if(priv->gobj_treedbs) {
+        gobj_stop_tree(priv->gobj_treedbs);
+        gobj_unsubscribe_event(priv->gobj_treedbs, 0, 0, gobj);
+        EXEC_AND_RESET(gobj_destroy, priv->gobj_treedbs)
+    }
+
+    /*-------------------------*
+     *  Stop tranger_queues
+     *-------------------------*/
+    gobj_stop(priv->gobj_tranger_queues);
+    EXEC_AND_RESET(gobj_destroy, priv->gobj_tranger_queues)
+    priv->tranger_queues = 0;
+
+    /*-----------------------------*
+     *  Broadcast timeranger
+     *-----------------------------*/
+    // broadcast_queues_tranger(gobj); TODO fails
+
+    return 0;
+}
+
+/***************************************************************************
+ *      Framework Method play
+ ***************************************************************************/
+PRIVATE int mt_play(hgobj gobj)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
     /*-------------------------*
      *      Start services
      *-------------------------*/
@@ -458,58 +499,13 @@ PRIVATE int mt_pause(hgobj gobj)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
-    /*---------------------------------------*
-     *      Close Msg2db Alarms
-     *---------------------------------------*/
-    msg2db_close_db(
-        priv->tranger_treedb_mqtt_broker,
-        priv->msg2db_alarms_name
-    );
-
-    /*---------------------------------------*
-     *      Close treedb
-     *---------------------------------------*/
-    json_decref(gobj_command(priv->gobj_treedbs,
-        "close-treedb",
-        json_pack("{s:s, s:s}",
-            "__username__", gobj_read_str_attr(gobj_yuno(), "__username__"),
-            "treedb_name", priv->treedb_mqtt_broker_name
-        ),
-        gobj
-    ));
-
-    /*-------------------------*
-     *      Stop treedbs
-     *-------------------------*/
-    if(priv->gobj_treedbs) {
-        gobj_unsubscribe_event(priv->gobj_treedbs, 0, 0, gobj);
-        gobj_stop_tree(priv->gobj_treedbs);
-        EXEC_AND_RESET(gobj_destroy, priv->gobj_treedbs)
-    }
-
-    /*-------------------------*
-     *  Stop tranger_queues
-     *-------------------------*/
-    gobj_stop(priv->gobj_tranger_queues);
-    EXEC_AND_RESET(gobj_destroy, priv->gobj_tranger_queues)
-    priv->tranger_queues = 0;
-
     /*-----------------------------*
      *      Stop top/input side
      *-----------------------------*/
-    gobj_unsubscribe_event(priv->gobj_top_side, 0, 0, gobj);
-    EXEC_AND_RESET(gobj_stop_tree, priv->gobj_top_side)
-
-    gobj_unsubscribe_event(priv->gobj_input_side, 0, 0, gobj);
-    EXEC_AND_RESET(gobj_stop_tree, priv->gobj_input_side)
-
-    /*-----------------------------*
-     *  Broadcast timeranger
-     *-----------------------------*/
-    // broadcast_queues_tranger(gobj); TODO fails
+    gobj_stop_tree(priv->gobj_top_side);
+    gobj_stop_tree(priv->gobj_input_side);
 
     clear_timeout(priv->timer);
-
 
     return 0;
 }
@@ -1777,7 +1773,7 @@ print_json2("NORMAL_SUBSCRIBERS", normal_subscribers); // TODO TEST
 print_json2("SHARED_SUBSCRIBERS", shared_subscribers); // TODO TEST
 
 
-    size_t ret = json_object_size(normal_subscribers) + json_object_size(shared_subscribers);
+    size_t ret = json_object_size(normal_subscribers) + json_object_size(shared_subscribers)?1:0;
 
     json_decref(normal_subscribers);
     json_decref(shared_subscribers);

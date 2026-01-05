@@ -36,3 +36,7 @@ mosquitto_pub -i client2 -h localhost -t "test/topic" -m "{client2:3}" -q 2 -c
 
 mosquitto_pub -p 1810 -u yuneta -i client2 -t "test/topic" -m "{client2:1}" -q 0
 mosquitto_pub -p 1810 -u yuneta -i client2 -t "test/topic" -m "{client2:1}" -q 2
+
+
+mosquitto_sub -v -p 1810 -u yuneta -t "home/+/temperature" -q 1
+mosquitto_sub -v -p 1810 -u yuneta -t "home/livingroom/+" -q 2
