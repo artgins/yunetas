@@ -1197,7 +1197,6 @@ PUBLIC hgobj gobj_set_bottom_gobj(hgobj gobj, hgobj bottom_gobj); // return prev
 PUBLIC hgobj gobj_last_bottom_gobj(hgobj gobj); // inherit attributes
 PUBLIC hgobj gobj_bottom_gobj(hgobj gobj);
 
-PUBLIC json_t *gobj_services(void); // return list of strings, must be owned
 PUBLIC hgobj gobj_default_service(void);
 PUBLIC hgobj gobj_find_service(const char *service, BOOL verbose);
 PUBLIC hgobj gobj_find_service_by_gclass(const char *gclass_name, BOOL verbose); // OLD gobj_find_gclass_service

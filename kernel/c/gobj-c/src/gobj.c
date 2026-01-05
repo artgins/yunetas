@@ -315,7 +315,7 @@ PRIVATE int (*__global_remove_persistent_attrs_fn__)(hgobj gobj, json_t *keys) =
 PRIVATE json_t * (*__global_list_persistent_attrs_fn__)(hgobj gobj, json_t *keys) = 0;
 
 PRIVATE dl_list_t dl_gclass = {0};
-PRIVATE json_t *__jn_services__ = 0;        // Dict service:(json_int_t)(uintptr_t)gobj
+PRIVATE json_t *__jn_services__ = 0;        // Dict "service": (json_int_t)(uintptr_t)gobj
 PRIVATE dl_list_t dl_trans_filter = {0};
 PRIVATE int trace_machine_format = 1;       // 0 legacy, 1 simpler
 /*
@@ -1367,7 +1367,7 @@ PRIVATE const char *old_to_new_gclass_name(const char *gclass_name)
 }
 
 /***************************************************************************
- *
+ *  Return a list of services information
  ***************************************************************************/
 PUBLIC json_t *gobj_service_register(void)
 {
@@ -5035,24 +5035,6 @@ PUBLIC hgobj gobj_bottom_gobj(hgobj gobj_)
         return 0;
     }
     return gobj->bottom_gobj;
-}
-
-/***************************************************************************
- *
- ***************************************************************************/
-PUBLIC json_t *gobj_services(void)
-{
-    json_t *jn_register = json_array();
-
-    const char *key; json_t *jn_service;
-    json_object_foreach(__jn_services__, key, jn_service) {
-        json_array_append_new(
-            jn_register,
-            json_string(key)
-        );
-    }
-
-    return jn_register;
 }
 
 /***************************************************************************
@@ -9467,10 +9449,8 @@ PUBLIC json_t *gobj_build_authzs_doc(
     json_t *jn_global_list = sdataauth2json(gobj_get_global_authz_table());
     json_object_set_new(jn_authzs, "global authzs", jn_global_list);
 
-    json_t *jn_services = gobj_services();
-    int idx; json_t *jn_service;
-    json_array_foreach(jn_services, idx, jn_service) {
-        const char *service_ = json_string_value(jn_service);
+    const char *service_; json_t *jn_service;
+    json_object_foreach(__jn_services__, service_, jn_service) {
         hgobj gobj_service = gobj_find_service(service_, TRUE);
         if(gobj_service) {
             if(gclass_authz_desc(gobj_gclass(gobj_service))) {
@@ -9479,8 +9459,6 @@ PUBLIC json_t *gobj_build_authzs_doc(
             }
         }
     }
-
-    json_decref(jn_services);
 
     return jn_authzs;
 }

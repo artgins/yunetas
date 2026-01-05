@@ -77,18 +77,18 @@ PRIVATE char variable_config[]= "\
     },                                                              \n\
     'services': [                                                   \n\
         {                                                           \n\
-            'name': 'controlcenter',                                \n\
-            'gclass': 'C_CONTROLCENTER',                            \n\
-            'default_service': true,                                \n\
-            'autostart': true,                                      \n\
-            'autoplay': false                                       \n\
-        },                                                          \n\
-        {                                                           \n\
             'name': 'authz',                                        \n\
             'gclass': 'C_AUTHZ',                                    \n\
             'default_service': false,                               \n\
             'autostart': true,                                      \n\
             'autoplay': true                                        \n\
+        },                                                          \n\
+        {                                                           \n\
+            'name': 'controlcenter',                                \n\
+            'gclass': 'C_CONTROLCENTER',                            \n\
+            'default_service': true,                                \n\
+            'autostart': true,                                      \n\
+            'autoplay': false                                       \n\
         }                                                           \n\
     ]                                                               \n\
 }                                                                   \n\

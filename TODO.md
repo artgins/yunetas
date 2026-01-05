@@ -156,3 +156,4 @@ The documentation needs to be update with next changes
     get_sdata_flag_desc
     yev_create_inotify_event
     gobj_trace_buffer
+    gobj_services
