@@ -4735,14 +4735,23 @@ PUBLIC int gobj_autoplay_services(void)
  ***************************************************************************/
 PUBLIC int gobj_pause_autoplay_services(void)
 {
+    /*
+     *  Pause backward order
+     */
+    json_t *jn_services = json_array();
     const char *key; json_t *jn_service;
     json_object_foreach(__jn_services__, key, jn_service) {
+        json_array_append(jn_services, jn_service);
+    }
+
+    int idx;
+    json_array_backward(jn_services, idx, jn_service) {
         gobj_t *gobj = (gobj_t *)(uintptr_t)json_integer_value(jn_service);
         if(gobj->gobj_flag & gobj_flag_yuno) {
             continue;
         }
 
-        if(gobj_is_playing(gobj)) {
+        if((gobj->gobj_flag & gobj_flag_autoplay) && gobj_is_playing(gobj)) {
             if(gobj_is_level_tracing(0, TRACE_START_STOP)) {
                 gobj_log_debug(0,0,
                     "function",     "%s", __FUNCTION__,
@@ -4756,6 +4765,8 @@ PUBLIC int gobj_pause_autoplay_services(void)
         }
     }
 
+    json_decref(jn_services);
+
     return 0;
 }
 
@@ -4764,14 +4775,23 @@ PUBLIC int gobj_pause_autoplay_services(void)
  ***************************************************************************/
 PUBLIC int gobj_stop_autostart_services(void)
 {
+    /*
+     *  Pause backward order
+     */
+    json_t *jn_services = json_array();
     const char *key; json_t *jn_service;
     json_object_foreach(__jn_services__, key, jn_service) {
+        json_array_append(jn_services, jn_service);
+    }
+
+    int idx;
+    json_array_backward(jn_services, idx, jn_service) {
         gobj_t *gobj = (gobj_t *)(uintptr_t)json_integer_value(jn_service);
         if(gobj->gobj_flag & gobj_flag_yuno) {
             continue;
         }
 
-        if(gobj_is_running(gobj)) {
+        if((gobj->gobj_flag & gobj_flag_autostart) && gobj_is_running(gobj)) {
             if(gobj_is_level_tracing(0, TRACE_START_STOP)) {
                 gobj_log_debug(0,0,
                     "function",     "%s", __FUNCTION__,
@@ -4781,9 +4801,16 @@ PUBLIC int gobj_stop_autostart_services(void)
                     NULL
                 );
             }
-            gobj_stop_tree(gobj);
+
+            if(gobj->gclass->gmt->mt_stop) { // HACK checking mt_stop because if exists he has the power on!
+                gobj_stop(gobj);
+            } else {
+                gobj_stop_tree(gobj); // WARNING old versions all doing stop_tree
+            }
         }
     }
+
+    json_decref(jn_services);
 
     return 0;
 }
