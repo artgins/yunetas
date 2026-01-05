@@ -17,6 +17,10 @@
 #include <helpers.h>
 
 #include "c_mqtt_broker.h"
+
+#include <fcntl.h>
+#include <unistd.h>
+
 #include "treedb_schema_mqtt_broker.c"
 #include "c_prot_mqtt2.h" // TODO remove when moved to kernel
 
@@ -33,6 +37,8 @@
  *              Prototypes
  ***************************************************************************/
 PRIVATE int broadcast_queues_tranger(hgobj gobj);
+PRIVATE int open_database(hgobj gobj);
+PRIVATE int close_database(hgobj gobj);
 
 /***************************************************************************
  *          Data: config, public data, private data
@@ -210,6 +216,130 @@ PRIVATE int mt_start(hgobj gobj)
      *-----------------------------*/
     priv->gobj_authz =  gobj_find_service("authz", TRUE);
     gobj_subscribe_event(priv->gobj_authz, 0, 0, gobj);
+
+    open_database(gobj);
+
+    return 0;
+}
+
+/***************************************************************************
+ *      Framework Method stop
+ ***************************************************************************/
+PRIVATE int mt_stop(hgobj gobj)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    close_database(gobj);
+
+    gobj_unsubscribe_event(priv->gobj_authz, 0, 0, gobj);
+
+    return 0;
+}
+
+/***************************************************************************
+ *      Framework Method play
+ ***************************************************************************/
+PRIVATE int mt_play(hgobj gobj)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    /*-------------------------*
+     *      Start services
+     *-------------------------*/
+    priv->gobj_input_side = gobj_find_service("__input_side__", TRUE);
+    gobj_subscribe_event(priv->gobj_input_side, 0, 0, gobj);
+
+    priv->gobj_top_side = gobj_find_service("__top_side__", TRUE);
+    gobj_subscribe_event(priv->gobj_top_side, 0, 0, gobj);
+
+    /*-----------------------------*
+     *  Broadcast timeranger
+     *-----------------------------*/
+    broadcast_queues_tranger(gobj);
+
+    /*--------------------------------*
+     *      Start
+     *--------------------------------*/
+    gobj_start_tree(priv->gobj_input_side);
+    gobj_start_tree(priv->gobj_top_side);
+
+    /*
+     *  Periodic timer for tasks
+     */
+    set_timeout_periodic(priv->timer, priv->timeout); // La verdadera
+
+    return 0;
+}
+
+/***************************************************************************
+ *      Framework Method pause
+ ***************************************************************************/
+PRIVATE int mt_pause(hgobj gobj)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    /*-----------------------------*
+     *      Stop top/input side
+     *-----------------------------*/
+    gobj_stop_tree(priv->gobj_top_side);
+    gobj_stop_tree(priv->gobj_input_side);
+
+    clear_timeout(priv->timer);
+
+    return 0;
+}
+
+
+
+
+                    /***************************
+                     *      Commands
+                     ***************************/
+
+
+
+
+/***************************************************************************
+ *
+ ***************************************************************************/
+PRIVATE json_t *cmd_help(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
+{
+    KW_INCREF(kw);
+    json_t *jn_resp = gobj_build_cmds_doc(gobj, kw);
+    return msg_iev_build_response(
+        gobj,
+        0,
+        jn_resp,
+        0,
+        0,
+        kw  // owned
+    );
+}
+
+/***************************************************************************
+ *
+ ***************************************************************************/
+PRIVATE json_t *cmd_authzs(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
+{
+    return gobj_build_authzs_doc(gobj, cmd, kw);
+}
+
+
+
+
+                    /***************************
+                     *      Local Methods
+                     ***************************/
+
+
+
+
+/***************************************************************************
+ *
+ ***************************************************************************/
+PRIVATE int open_database(hgobj gobj)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
     /*--------------------------------------------------------------*
      *      Path of Treedb/Timeranger System
@@ -405,13 +535,11 @@ PRIVATE int mt_start(hgobj gobj)
 }
 
 /***************************************************************************
- *      Framework Method stop
+ *
  ***************************************************************************/
-PRIVATE int mt_stop(hgobj gobj)
+PRIVATE int close_database(hgobj gobj)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
-
-    gobj_unsubscribe_event(priv->gobj_authz, 0, 0, gobj);
 
     /*---------------------------------------*
      *      Close Msg2db Alarms
@@ -437,8 +565,8 @@ PRIVATE int mt_stop(hgobj gobj)
      *      Stop treedbs
      *-------------------------*/
     if(priv->gobj_treedbs) {
-        gobj_stop_tree(priv->gobj_treedbs);
         gobj_unsubscribe_event(priv->gobj_treedbs, 0, 0, gobj);
+        gobj_stop_tree(priv->gobj_treedbs);
         EXEC_AND_RESET(gobj_destroy, priv->gobj_treedbs)
     }
 
@@ -456,104 +584,6 @@ PRIVATE int mt_stop(hgobj gobj)
 
     return 0;
 }
-
-/***************************************************************************
- *      Framework Method play
- ***************************************************************************/
-PRIVATE int mt_play(hgobj gobj)
-{
-    PRIVATE_DATA *priv = gobj_priv_data(gobj);
-
-    /*-------------------------*
-     *      Start services
-     *-------------------------*/
-    priv->gobj_input_side = gobj_find_service("__input_side__", TRUE);
-    gobj_subscribe_event(priv->gobj_input_side, 0, 0, gobj);
-
-    priv->gobj_top_side = gobj_find_service("__top_side__", TRUE);
-    gobj_subscribe_event(priv->gobj_top_side, 0, 0, gobj);
-
-    /*-----------------------------*
-     *  Broadcast timeranger
-     *-----------------------------*/
-    broadcast_queues_tranger(gobj);
-
-    /*--------------------------------*
-     *      Start
-     *--------------------------------*/
-    gobj_start_tree(priv->gobj_input_side);
-    gobj_start_tree(priv->gobj_top_side);
-
-    /*
-     *  Periodic timer for tasks
-     */
-    set_timeout_periodic(priv->timer, priv->timeout); // La verdadera
-
-    return 0;
-}
-
-/***************************************************************************
- *      Framework Method pause
- ***************************************************************************/
-PRIVATE int mt_pause(hgobj gobj)
-{
-    PRIVATE_DATA *priv = gobj_priv_data(gobj);
-
-    /*-----------------------------*
-     *      Stop top/input side
-     *-----------------------------*/
-    gobj_stop_tree(priv->gobj_top_side);
-    gobj_stop_tree(priv->gobj_input_side);
-
-    clear_timeout(priv->timer);
-
-    return 0;
-}
-
-
-
-
-                    /***************************
-                     *      Commands
-                     ***************************/
-
-
-
-
-/***************************************************************************
- *
- ***************************************************************************/
-PRIVATE json_t *cmd_help(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
-{
-    KW_INCREF(kw);
-    json_t *jn_resp = gobj_build_cmds_doc(gobj, kw);
-    return msg_iev_build_response(
-        gobj,
-        0,
-        jn_resp,
-        0,
-        0,
-        kw  // owned
-    );
-}
-
-/***************************************************************************
- *
- ***************************************************************************/
-PRIVATE json_t *cmd_authzs(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
-{
-    return gobj_build_authzs_doc(gobj, cmd, kw);
-}
-
-
-
-
-                    /***************************
-                     *      Local Methods
-                     ***************************/
-
-
-
 
 /***************************************************************************
  *  Broadcast htopic frame
