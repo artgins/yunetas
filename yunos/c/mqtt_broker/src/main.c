@@ -88,7 +88,7 @@ PRIVATE char variable_config[]= "\
             'name': 'mqtt_broker',                                  \n\
             'gclass': 'C_MQTT_BROKER',                              \n\
             'default_service': true,                                \n\
-            'autostart': true,                                      \n\
+            'autostart': false,                                     \n\
             'autoplay': false                                       \n\
         }                                                           \n\
     ]                                                           \n\
@@ -156,7 +156,7 @@ int main(int argc, char *argv[])
      *      To check
      *------------------------------------------------*/
     // gobj_set_deep_tracing(1);
-    set_auto_kill_time(4);
+    // set_auto_kill_time(4);
     // set_measure_times(-1 & ~YEV_TIMER_TYPE);
 
     /*------------------------------------------------*
