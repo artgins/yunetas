@@ -1021,11 +1021,11 @@ PRIVATE void collect_subscribers(json_t *node, json_t *subscribers)
         if(existing) {
             /*
              *  Client already matched another subscription
-             *  - Keep highest QoS
+             *  - Keep the highest QoS
              *  - Append subscription ID to list
              */
-            int existing_qos = json_integer_value(json_object_get(existing, "qos"));
-            int new_qos = json_integer_value(json_object_get(sub_info, "qos"));
+            int existing_qos = (int)json_integer_value(json_object_get(existing, "qos"));
+            int new_qos = (int)json_integer_value(json_object_get(sub_info, "qos"));
             if(new_qos > existing_qos) {
                 json_object_set(existing, "qos", json_object_get(sub_info, "qos"));
             }
@@ -1766,7 +1766,7 @@ PRIVATE size_t sub__messages_queue(
      *----------------------------------------------------------------------*/
     json_t *normal_subscribers = json_object();
     search_recursive(gobj, priv->normal_subs, levels, 1, normal_subscribers);
-print_json2("NO_SHARED_SUBSCRIBERS", normal_subscribers); // TODO TEST
+print_json2("NORMAL_SUBSCRIBERS", normal_subscribers); // TODO TEST
 
     /*----------------------------------------------------------------------*
      *  Search in shared_subs (shared subscriptions)
