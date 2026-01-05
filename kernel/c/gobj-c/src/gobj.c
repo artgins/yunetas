@@ -4702,8 +4702,10 @@ PUBLIC int gobj_autostart_services(void)
             continue;
         }
         if(gobj->gobj_flag & gobj_flag_autostart) {
-            if(gobj->gclass->gmt->mt_play) { // HACK checking mt_play because if exists he has the power on!
-                gobj_start(gobj);
+            if(gobj->gclass->gmt->mt_play) { // HACK checking mt_play because if it exists he has the power on!
+                if(!gobj_is_running(gobj)) {
+                    gobj_start(gobj);
+                }
             } else {
                 gobj_start_tree(gobj);
             }
