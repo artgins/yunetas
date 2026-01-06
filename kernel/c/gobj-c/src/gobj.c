@@ -2202,7 +2202,7 @@ PUBLIC hgobj gobj_create_tree(
         gobj_trace_json(parent, jn_tree_config2, "jn_tree_config2");
     }
 
-    return gobj_create_tree0(parent, jn_tree_config2);
+    return gobj_create_tree0(parent, jn_tree_config2, TRUE);
 }
 
 /***************************************************************************
