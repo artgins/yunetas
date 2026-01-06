@@ -1404,6 +1404,28 @@ PUBLIC json_t *gobj_services(void)
 }
 
 /***************************************************************************
+ *  Return a list of top service's gobjs and his priorities
+ ***************************************************************************/
+PUBLIC json_t *gobj_top_services(void)
+{
+    json_t *jn_register = json_array();
+
+    const char *key; json_t *jn_service;
+    json_object_foreach(__jn_services__, key, jn_service) {
+        gobj_t *gobj = (gobj_t *)(uintptr_t)json_integer_value(jn_service);
+        if(gobj->gobj_flag & (gobj_flag_top_service)) {
+            json_t *jn_srv = json_object();
+            json_object_set_new(jn_srv, "gobj", json_integer((json_int_t)(uintptr_t)gobj));
+            int priority = 0;
+            json_object_set_new(jn_srv, "priority", json_integer(priority));
+            json_array_append_new(jn_register, jn_srv);
+        }
+    }
+
+    return jn_register;
+}
+
+/***************************************************************************
  *
  ***************************************************************************/
 PUBLIC hgobj gobj_create2(

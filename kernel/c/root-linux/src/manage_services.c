@@ -26,8 +26,6 @@ PRIVATE int autoplay_services(void);
 PRIVATE int stop_autostart_services(void);
 PRIVATE int pause_autoplay_services(void);
 
-
-
 /***************************************************************
  *              Data
  ***************************************************************/
