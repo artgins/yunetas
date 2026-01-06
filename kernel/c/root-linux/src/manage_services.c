@@ -21,10 +21,10 @@
 /***************************************************************
  *              Prototypes
  ***************************************************************/
-PRIVATE int autostart_services(void);
-PRIVATE int autoplay_services(void);
-PRIVATE int stop_autostart_services(void);
-PRIVATE int pause_autoplay_services(void);
+PRIVATE int autostart_services(json_t *top_services);
+PRIVATE int autoplay_services(json_t *top_services);
+PRIVATE int stop_autostart_services(json_t *top_services);
+PRIVATE int pause_autoplay_services(json_t *top_services);
 
 /***************************************************************
  *              Data
@@ -37,6 +37,8 @@ PUBLIC void run_services(void)
 {
     hgobj yuno = gobj_yuno();
 
+    json_t *top_services = gobj_top_services(); /* Get list of top services {gobj, priority} */
+
     /*------------------------*
      *      Start main
      *------------------------*/
@@ -45,11 +47,13 @@ PUBLIC void run_services(void)
     /*---------------------------------*
      *      Auto services
      *---------------------------------*/
-    autostart_services();
+    autostart_services(top_services);
     if(gobj_read_bool_attr(yuno, "autoplay")) {
         gobj_play(yuno);    /* will play default_service */
     }
-    autoplay_services();
+    autoplay_services(top_services);
+
+    json_decref(top_services);
 }
 
 /***************************************************************************
@@ -62,27 +66,22 @@ PUBLIC void stop_services(void)
      */
     gobj_set_shutdown();
 
+    json_t *top_services = gobj_top_services(); /* Get list of top services {gobj, priority} */
+
     hgobj yuno = gobj_yuno();
-    if(yuno) { // TODO && !(yuno->obflag & obflag_destroying)) {
+    if(yuno && !gobj_is_destroying(yuno)) {
         if(gobj_is_playing(yuno)) {
             // It will pause default_service, WARNING too slow for big configurations!!
             gobj_pause(yuno);
         }
 
-        pause_autoplay_services();
-        stop_autostart_services();
+        pause_autoplay_services(top_services);
+        stop_autostart_services(top_services);
         gobj_stop(yuno);
     }
 
-    yev_loop_run_once(yuno_event_loop());  // Give an opportunity to close
     yev_loop_stop(yuno_event_loop());
     yev_loop_run_once(yuno_event_loop());  // Give an opportunity to close
-
-    // yev_loop_run_once(yuno_event_loop());  // Give an opportunity to close
-    // yev_loop_stop(yuno_event_loop());
-    // yev_loop_run_once(yuno_event_loop());  // Give an opportunity to close
-
-
 }
 
 /***************************************************************************
@@ -90,91 +89,105 @@ PUBLIC void stop_services(void)
  *      (Let mt_play be responsible to start their tree)
  *  If service has not mt_play then start the tree with gobj_start_tree().
  ***************************************************************************/
-PRIVATE int autostart_services(void)
+PRIVATE int autostart_services(json_t *top_services)
 {
-    const char *key; json_t *jn_service;
-//     json_object_foreach(__jn_services__, key, jn_service) {
-//         gobj_t *gobj = (gobj_t *)(uintptr_t)json_integer_value(jn_service);
-//         if(gobj->gobj_flag & gobj_flag_yuno) {
-//             continue;
-//         }
-//
-//         if(gobj->gobj_flag & gobj_flag_autostart) {
-// printf("\n=============> START AUTOSTART jn_services forward %s\n\n", gobj_short_name(gobj));// TODO TEST
-//
-//             if(gobj->gclass->gmt->mt_play) { // HACK checking mt_play because if it exists he has the power on!
-//                 if(!gobj_is_running(gobj)) {
-//                     gobj_start(gobj);
-//                 }
-//             } else {
-//                 gobj_start_tree(gobj);
-//             }
-//         }
-//     }
+    for(int priority=0; priority<9; priority++) {
+        int idx; json_t *srv;
+        json_array_foreach(top_services, idx, srv) {
+            int priority_ = (int)kw_get_int(0, srv, "priority", 9, KW_REQUIRED);
+            if(priority == priority_) {
+                hgobj gobj = (hgobj)kw_get_int(0, srv, "gobj", 0, KW_REQUIRED);
+                gobj_flag_t gobj_flag = kw_get_int(0, srv, "gobj_flag", 0, KW_REQUIRED);
+                if(gobj_flag & gobj_flag_autostart) {
+                    // HACK checking mt_play because if it exists he has the power on!
+                    gobj_log_debug(0,0,
+                        "function",     "%s", __FUNCTION__,
+                        "msgset",       "%s", MSGSET_STARTUP,
+                        "msg",          "%s", "START service",
+                        "service",      "%s", gobj_short_name(gobj),
+                        NULL
+                    );
+                    if(gclass_with_mt_play(gobj_gclass(gobj))) {
+                        if(!gobj_is_running(gobj)) {
+                            gobj_start(gobj);
+                        }
+                    } else {
+                        gobj_start_tree(gobj);
+                    }
+                }
+            }
+        }
+    }
+
     return 0;
 }
 
 /***************************************************************************
  *
  ***************************************************************************/
-PRIVATE int autoplay_services(void)
+PRIVATE int autoplay_services(json_t *top_services)
 {
-    const char *key; json_t *jn_service;
-//     json_object_foreach(__jn_services__, key, jn_service) {
-//         gobj_t *gobj = (gobj_t *)(uintptr_t)json_integer_value(jn_service);
-//         if(gobj->gobj_flag & gobj_flag_yuno) {
-//             continue;
-//         }
-//
-//         if(gobj->gobj_flag & gobj_flag_autoplay) {
-// printf("\n=============> PLAY AUTOPLAY jn_services forward %s\n\n", gobj_short_name(gobj));// TODO TEST
-//
-//             if(!gobj_is_playing(gobj)) {
-//                 gobj_play(gobj);
-//             }
-//         }
-//     }
+    for(int priority=0; priority<9; priority++) {
+        int idx; json_t *srv;
+        json_array_foreach(top_services, idx, srv) {
+            int priority_ = (int)kw_get_int(0, srv, "priority", 9, KW_REQUIRED);
+            if(priority == priority_) {
+                hgobj gobj = (hgobj)kw_get_int(0, srv, "gobj", 0, KW_REQUIRED);
+                gobj_flag_t gobj_flag = kw_get_int(0, srv, "gobj_flag", 0, KW_REQUIRED);
+                if(gobj_flag & gobj_flag_autoplay) {
+                    if(!gobj_is_playing(gobj)) {
+                        if(gobj_is_level_tracing(0, TRACE_START_STOP)) {
+                            gobj_log_debug(0,0,
+                                "function",     "%s", __FUNCTION__,
+                                "msgset",       "%s", MSGSET_STARTUP,
+                                "msg",          "%s", "PLAY service",
+                                "service",      "%s", gobj_short_name(gobj),
+                                NULL
+                            );
+                        }
+                        gobj_play(gobj);
+                    }
+                }
+            }
+        }
+    }
+
     return 0;
 }
 
 /***************************************************************************
  *
  ***************************************************************************/
-PRIVATE int pause_autoplay_services(void)
+PRIVATE int pause_autoplay_services(json_t *top_services)
 {
     /*
-     *  Pause backward order
+     *  Pause backward priority order
      */
-//     json_t *jn_services = json_array();
-//     const char *key; json_t *jn_service;
-//     json_object_foreach(__jn_services__, key, jn_service) {
-//         json_array_append(jn_services, jn_service);
-//     }
-//
-//     int idx;
-//     json_array_backward(jn_services, idx, jn_service) {
-//         gobj_t *gobj = (gobj_t *)(uintptr_t)json_integer_value(jn_service);
-//         if(gobj->gobj_flag & gobj_flag_yuno) {
-//             continue;
-//         }
-//
-//         if((gobj->gobj_flag & gobj_flag_autoplay) && gobj_is_playing(gobj)) {
-// printf("\n=============> PAUSE AUTOPLAY jn_services backward %s\n\n", gobj_short_name(gobj));// TODO TEST
-//
-//             if(gobj_is_level_tracing(0, TRACE_START_STOP)) {
-//                 gobj_log_debug(0,0,
-//                     "function",     "%s", __FUNCTION__,
-//                     "msgset",       "%s", MSGSET_STARTUP,
-//                     "msg",          "%s", "PAUSE service",
-//                     "service",      "%s", gobj_short_name(gobj),
-//                     NULL
-//                 );
-//             }
-//             gobj_pause(gobj);
-//         }
-//     }
-//
-//     json_decref(jn_services);
+    for(int priority=9; priority>=0; priority--) {
+        int idx; json_t *srv;
+        json_array_foreach(top_services, idx, srv) {
+            int priority_ = (int)kw_get_int(0, srv, "priority", 9, KW_REQUIRED);
+            if(priority == priority_) {
+                hgobj gobj = (hgobj)kw_get_int(0, srv, "gobj", 0, KW_REQUIRED);
+                gobj_flag_t gobj_flag = kw_get_int(0, srv, "gobj_flag", 0, KW_REQUIRED);
+                if(gobj_flag & gobj_flag_autoplay) {
+                    if(gobj_is_playing(gobj)) {
+                        if(gobj_is_level_tracing(0, TRACE_START_STOP)) {
+                            gobj_log_debug(0,0,
+                                "function",     "%s", __FUNCTION__,
+                                "msgset",       "%s", MSGSET_STARTUP,
+                                "msg",          "%s", "PAUSE service",
+                                "service",      "%s", gobj_short_name(gobj),
+                                NULL
+                            );
+                        }
+                        gobj_pause(gobj);
+                        yev_loop_run_once(yuno_event_loop());
+                    }
+                }
+            }
+        }
+    }
 
     return 0;
 }
@@ -182,47 +195,36 @@ PRIVATE int pause_autoplay_services(void)
 /***************************************************************************
  *
  ***************************************************************************/
-PRIVATE int stop_autostart_services(void)
+PRIVATE int stop_autostart_services(json_t *top_services)
 {
     /*
-     *  Pause backward order
+     *  Stop backward priority order
      */
-//     json_t *jn_services = json_array();
-//     const char *key; json_t *jn_service;
-//     json_object_foreach(__jn_services__, key, jn_service) {
-//         json_array_append(jn_services, jn_service);
-//     }
-//
-//     int idx;
-//     json_array_backward(jn_services, idx, jn_service) {
-//         gobj_t *gobj = (gobj_t *)(uintptr_t)json_integer_value(jn_service);
-//         if(gobj->gobj_flag & gobj_flag_yuno) {
-//             continue;
-//         }
-//
-//         if((gobj->gobj_flag & gobj_flag_autostart) && gobj_is_running(gobj)) {
-// printf("\n=============> STOP AUTOSTART jn_services backward %s\n\n", gobj_short_name(gobj));// TODO TEST
-//
-//
-//             if(gobj_is_level_tracing(0, TRACE_START_STOP)) {
-//                 gobj_log_debug(0,0,
-//                     "function",     "%s", __FUNCTION__,
-//                     "msgset",       "%s", MSGSET_STARTUP,
-//                     "msg",          "%s", "STOP service",
-//                     "service",      "%s", gobj_short_name(gobj),
-//                     NULL
-//                 );
-//             }
-//
-//             if(gobj->gclass->gmt->mt_stop) { // HACK checking mt_stop because if exists he has the power on!
-//                 gobj_stop(gobj);
-//             } else {
-//                 gobj_stop_tree(gobj); // WARNING old versions all doing stop_tree
-//             }
-//         }
-//     }
-//
-//     json_decref(jn_services);
+    for(int priority=9; priority>=0; priority--) {
+        int idx; json_t *srv;
+        json_array_foreach(top_services, idx, srv) {
+            int priority_ = (int)kw_get_int(0, srv, "priority", 9, KW_REQUIRED);
+            if(priority == priority_) {
+                hgobj gobj = (hgobj)kw_get_int(0, srv, "gobj", 0, KW_REQUIRED);
+                gobj_flag_t gobj_flag = kw_get_int(0, srv, "gobj_flag", 0, KW_REQUIRED);
+                if(gobj_flag & gobj_flag_autostart) {
+                    if(gobj_is_running(gobj)) {
+                        if(gobj_is_level_tracing(0, TRACE_START_STOP)) {
+                            gobj_log_debug(0,0,
+                                "function",     "%s", __FUNCTION__,
+                                "msgset",       "%s", MSGSET_STARTUP,
+                                "msg",          "%s", "STOP service",
+                                "service",      "%s", gobj_short_name(gobj),
+                                NULL
+                            );
+                        }
+                        gobj_stop(gobj);
+                        yev_loop_run_once(yuno_event_loop());
+                    }
+                }
+            }
+        }
+    }
 
     return 0;
 }

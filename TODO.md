@@ -154,6 +154,7 @@ The documentation needs to be update with next changes
     stop_services
     gobj_set_shutdown
     gobj_is_top_service
+    gobj_top_services
 
 # Delete API
 

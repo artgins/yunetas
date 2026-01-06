@@ -871,6 +871,7 @@ PUBLIC gobj_event_t gclass_find_public_event(const char *event, BOOL verbose); /
 PUBLIC void gclass_unregister(hgclass hgclass);
 PUBLIC gclass_name_t gclass_gclass_name(hgclass gclass);
 PUBLIC BOOL gclass_has_attr(hgclass gclass, const char* name);
+BOOL gclass_with_mt_play(hgclass gclass);
 
 PUBLIC json_t *gclass_gclass_register(void); /* Get registered gclasses: Return [gclass:s}] */
 PUBLIC hgclass gclass_find_by_name(gclass_name_t gclass_name); // gclass_name can be 'char *' or gclass_name_t
@@ -886,8 +887,8 @@ PUBLIC const sdata_desc_t *gclass_command_desc(hgclass gclass, const char *name,
 /*---------------------------------*
  *      GObj creation functions
  *---------------------------------*/
-PUBLIC json_t * gobj_services(void); /* Get list of registered services (gclass, service name, has-commands)*/
-PUBLIC json_t *gobj_top_services(void);
+PUBLIC json_t *gobj_services(void); /* Get list of registered services {gclass, service name, top-service, priority, has-commands} */
+PUBLIC json_t *gobj_top_services(void); /* Get list of top services {gobj, priority, gobj_flag} */
 
 PUBLIC hgobj gobj_create(
     const char *gobj_name,

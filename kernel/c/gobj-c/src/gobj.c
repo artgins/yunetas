@@ -134,6 +134,7 @@ typedef struct gobj_s {
 
     uint32_t trace_level;
     uint32_t no_trace_level;
+    uint8_t priority;
 } gobj_t;
 
 /***************************************************************
@@ -1101,6 +1102,19 @@ BOOL gclass_has_attr(hgclass gclass, const char* name)
 /***************************************************************************
  *
  ***************************************************************************/
+BOOL gclass_with_mt_play(hgclass gclass_)
+{
+    gclass_t *gclass = gclass_;
+    if(gclass->gmt->mt_play) {
+        return TRUE;
+    } else {
+        return FALSE;
+    }
+}
+
+/***************************************************************************
+ *
+ ***************************************************************************/
 PUBLIC json_t *gclass_gclass_register(void)
 {
     json_t *jn_register = json_array();
@@ -1384,11 +1398,10 @@ PUBLIC json_t *gobj_services(void)
             json_boolean(top_service)
         );
 
-        int priority = 1;
         json_object_set_new(
             jn_srv,
             "priority",
-            json_integer(priority)
+            json_integer(gobj->priority)
         );
 
         BOOL with_cmds = gobj->gclass->command_table?TRUE:FALSE;
@@ -1416,8 +1429,8 @@ PUBLIC json_t *gobj_top_services(void)
         if(gobj->gobj_flag & (gobj_flag_top_service)) {
             json_t *jn_srv = json_object();
             json_object_set_new(jn_srv, "gobj", json_integer((json_int_t)(uintptr_t)gobj));
-            int priority = 0;
-            json_object_set_new(jn_srv, "priority", json_integer(priority));
+            json_object_set_new(jn_srv, "priority", json_integer(gobj->priority));
+            json_object_set_new(jn_srv, "gobj_flag", json_integer(gobj->gobj_flag));
             json_array_append_new(jn_register, jn_srv);
         }
     }
@@ -1875,7 +1888,10 @@ PRIVATE hgobj gobj_create_tree0(
     BOOL autoplay = kw_get_bool(parent, jn_tree, "autoplay", 0, 0);
     BOOL disabled = kw_get_bool(parent, jn_tree, "disabled", 0, 0);
     BOOL pure_child = kw_get_bool(parent, jn_tree, "pure_child", 0, 0);
-    int priority = kw_get_int(parent, jn_tree, "priority", 5, 0);
+    int priority = (int)kw_get_int(parent, jn_tree, "priority", 5, 0);
+    if(priority < 0 || priority > 9) {
+        priority = 5;
+    }
 
     // TODO IEvent_cli=C_IEVENT_CLI remove when agent is migrated to YunetaS V7
     gclass_name = old_to_new_gclass_name(gclass_name);
@@ -1963,7 +1979,7 @@ PRIVATE hgobj gobj_create_tree0(
         gobj_flag |= gobj_flag_pure_child;
     }
 
-    hgobj gobj = gobj_create2(name, gclass_name, kw, parent, gobj_flag);
+    gobj_t *gobj = gobj_create2(name, gclass_name, kw, parent, gobj_flag);
     if(!gobj) {
         gobj_log_error(parent, 0,
             "function",     "%s", __FUNCTION__,
@@ -1976,6 +1992,8 @@ PRIVATE hgobj gobj_create_tree0(
         JSON_DECREF(jn_tree);
         return 0;
     }
+    gobj->priority = priority;
+
     if(disabled) {
         gobj_disable(gobj);
     }
