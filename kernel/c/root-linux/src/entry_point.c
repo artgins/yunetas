@@ -33,6 +33,7 @@
 #include "ydaemon.h"
 #include "c_authz.h"        // the grandmother
 #include "c_yuno.h"         // the grandmother
+#include "gobj_services.h"
 #include "entry_point.h"
 
 /***************************************************************************
@@ -894,14 +895,10 @@ PRIVATE void process(
      */
     yev_loop_run(yuno_event_loop(), -1);
 
-    /*
-     *  Shutdown
-     */
-    gobj_shutdown(); // This pause and stop services and yuno
-
-    yev_loop_run_once(yuno_event_loop());  // Give an opportunity to close
-    yev_loop_stop(yuno_event_loop());
-    yev_loop_run_once(yuno_event_loop());  // Give an opportunity to close
+    /*------------------*
+     *  Stop services
+     *------------------*/
+    gobj_stop_services();
 
     /*---------------------------*
      *      End

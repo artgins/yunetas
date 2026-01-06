@@ -823,8 +823,7 @@ PUBLIC int gobj_start_up(       /* Initialize the gobj's system */
     authentication_parser_fn    global_authentication_parser  /* authentication parser function */
 );
 
-PUBLIC void gobj_run_services(void); /* Start/Play services and yuno */
-PUBLIC void gobj_shutdown(void); /* Pause/Stop services and yuno */
+PUBLIC void gobj_shutdown(void); /* Mark shutdowning */
 PUBLIC BOOL gobj_is_shutdowning(void);  /* Check if yuno is shutdowning */
 PUBLIC void gobj_set_exit_code(int exit_code); // set return code to exit when running as daemon
 PUBLIC int gobj_get_exit_code(void);

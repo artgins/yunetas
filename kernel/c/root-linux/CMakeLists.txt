@@ -81,6 +81,7 @@ set (SRCS
     src/yunetas_register.c
     src/ydaemon.c
     src/run_command.c
+    src/gobj_services.c
 )
 
 set (HDRS
@@ -126,6 +127,7 @@ set (HDRS
     src/yunetas_register.h
     src/ydaemon.h
     src/run_command.h
+    src/gobj_services.h
 
     src/yunetas.h  # TODO tiene que ser generado por menuconfig
 )

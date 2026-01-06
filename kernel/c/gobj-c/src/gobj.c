@@ -573,29 +573,7 @@ PUBLIC int gobj_start_up(
 }
 
 /***************************************************************************
- *  Start/Play services and yuno
- ***************************************************************************/
-PUBLIC void gobj_run_services(void)
-{
-    hgobj yuno = gobj_yuno();
-
-    /*------------------------*
-     *      Start main
-     *------------------------*/
-    gobj_start(yuno);
-
-    /*---------------------------------*
-     *      Auto services
-     *---------------------------------*/
-    gobj_autostart_services();
-    if(gobj_read_bool_attr(yuno, "autoplay")) {
-        gobj_play(yuno);    /* will play default_service */
-    }
-    gobj_autoplay_services();
-}
-
-/***************************************************************************
- *  Pause/Stop services and yuno
+ *  Mark shutdowning
  ***************************************************************************/
 PUBLIC void gobj_shutdown(void)
 {
@@ -604,22 +582,16 @@ PUBLIC void gobj_shutdown(void)
     }
     __shutdowning__ = 1;
 
-    if(__yuno__ && !(__yuno__->obflag & obflag_destroying)) {
-        if(gobj_is_playing(__yuno__)) {
-            // It will pause default_service, WARNING too slow for big configurations!!
-            gobj_pause(__yuno__);
-        }
-
-        gobj_pause_autoplay_services();
-        gobj_stop_autostart_services();
-        gobj_stop(__yuno__);
-    }
-
-    // yev_loop_run_once(yuno_event_loop());  // Give an opportunity to close
-    // yev_loop_stop(yuno_event_loop());
-    // yev_loop_run_once(yuno_event_loop());  // Give an opportunity to close
-
-
+    // if(__yuno__ && !(__yuno__->obflag & obflag_destroying)) {
+    //     if(gobj_is_playing(__yuno__)) {
+    //         // It will pause default_service, WARNING too slow for big configurations!!
+    //         gobj_pause(__yuno__);
+    //     }
+    //
+    //     gobj_pause_autoplay_services();
+    //     gobj_stop_autostart_services();
+    //     gobj_stop(__yuno__);
+    // }
 }
 
 /***************************************************************************
