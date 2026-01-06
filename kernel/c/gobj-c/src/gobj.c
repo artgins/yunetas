@@ -573,7 +573,29 @@ PUBLIC int gobj_start_up(
 }
 
 /***************************************************************************
- *  shutdown the yuno
+ *  Start/Play services and yuno
+ ***************************************************************************/
+PUBLIC void gobj_run_services(void)
+{
+    hgobj yuno = gobj_yuno();
+
+    /*------------------------*
+     *      Start main
+     *------------------------*/
+    gobj_start(yuno);
+
+    /*---------------------------------*
+     *      Auto services
+     *---------------------------------*/
+    gobj_autostart_services();
+    if(gobj_read_bool_attr(yuno, "autoplay")) {
+        gobj_play(yuno);    /* will play default_service */
+    }
+    gobj_autoplay_services();
+}
+
+/***************************************************************************
+ *  Pause/Stop services and yuno
  ***************************************************************************/
 PUBLIC void gobj_shutdown(void)
 {

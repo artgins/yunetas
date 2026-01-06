@@ -935,18 +935,9 @@ PRIVATE void process(
     }
 
     /*------------------------*
-     *      Start main
+     *  Run services and yuno
      *------------------------*/
-    gobj_start(yuno);
-
-    /*---------------------------------*
-     *      Auto services
-     *---------------------------------*/
-    gobj_autostart_services();
-    if(gobj_read_bool_attr(yuno, "autoplay")) {
-        gobj_play(yuno);    /* will play default_service */
-    }
-    gobj_autoplay_services();
+    gobj_run_services(yuno);
 
     /*-----------------------------------*
      *      Run main event loop
