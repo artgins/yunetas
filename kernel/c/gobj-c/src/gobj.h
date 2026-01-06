@@ -1161,11 +1161,6 @@ PUBLIC int gobj_disable(hgobj gobj); // exec own mt_disable() or gobj_stop_tree(
 
 PUBLIC int gobj_change_parent(hgobj gobj, hgobj gobj_new_parent); // TODO already implemented in js
 
-PUBLIC int gobj_autostart_services(void);
-PUBLIC int gobj_autoplay_services(void);
-PUBLIC int gobj_stop_autostart_services(void);
-PUBLIC int gobj_pause_autoplay_services(void);
-
 /*
  *  mt_command must return a webix json or 0 on asynchronous responses.
  */
