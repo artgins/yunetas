@@ -82,6 +82,8 @@ PUBLIC void stop_services(void)
 
     yev_loop_stop(yuno_event_loop());
     yev_loop_run_once(yuno_event_loop());  // Give an opportunity to close
+
+    json_decref(top_services);
 }
 
 /***************************************************************************

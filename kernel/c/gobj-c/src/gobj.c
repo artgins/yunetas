@@ -1391,7 +1391,7 @@ PUBLIC json_t *gobj_services(void)
             json_string(key)
         );
 
-        BOOL top_service = TRUE;
+        BOOL top_service = (gobj->gobj_flag & (gobj_flag_top_service))?TRUE:FALSE;
         json_object_set_new(
             jn_srv,
             "top-service",
@@ -1428,6 +1428,17 @@ PUBLIC json_t *gobj_top_services(void)
         gobj_t *gobj = (gobj_t *)(uintptr_t)json_integer_value(jn_service);
         if(gobj->gobj_flag & (gobj_flag_top_service)) {
             json_t *jn_srv = json_object();
+            json_object_set_new(
+                jn_srv,
+                "gclass",
+                json_string(gobj_gclass_name(gobj))
+            );
+            json_object_set_new(
+                jn_srv,
+                "service",
+                json_string(key)
+            );
+
             json_object_set_new(jn_srv, "gobj", json_integer((json_int_t)(uintptr_t)gobj));
             json_object_set_new(jn_srv, "priority", json_integer(gobj->priority));
             json_object_set_new(jn_srv, "gobj_flag", json_integer(gobj->gobj_flag));
@@ -1604,6 +1615,7 @@ PUBLIC hgobj gobj_create2(
     gobj->current_state = dl_first(&gclass->dl_states);
     gobj->last_state = 0;
     gobj->obflag = 0;
+    gobj->priority = 9;
     gobj->gobj_flag = gobj_flag;
 
     if(__trace_gobj_create_delete__(gobj)) {

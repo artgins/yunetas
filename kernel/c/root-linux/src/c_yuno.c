@@ -85,7 +85,8 @@ PRIVATE int set_limit_open_files(hgobj gobj, json_int_t limit_open_files);
 
 PRIVATE json_t *cmd_help(hgobj gobj, const char *cmd, json_t *kw, hgobj src);
 PRIVATE json_t *cmd_view_gclass_register(hgobj gobj, const char *cmd, json_t *kw, hgobj src);
-PRIVATE json_t *cmd_view_service_register(hgobj gobj, const char *cmd, json_t *kw, hgobj src);
+PRIVATE json_t *cmd_view_services(hgobj gobj, const char *cmd, json_t *kw, hgobj src);
+PRIVATE json_t *cmd_view_top_services(hgobj gobj, const char *cmd, json_t *kw, hgobj src);
 PRIVATE json_t *cmd_write_attr(hgobj gobj, const char *cmd, json_t *kw, hgobj src);
 PRIVATE json_t *cmd_view_attrs(hgobj gobj, const char *cmd, json_t *kw, hgobj src);
 PRIVATE json_t *cmd_attrs_schema(hgobj gobj, const char *cmd, json_t *kw, hgobj src);
@@ -327,7 +328,6 @@ SDATA_END()
 };
 
 PRIVATE const char *a_help[] = {"h", "?", 0};
-PRIVATE const char *a_services[] = {"services", "list-services", 0};
 PRIVATE const char *a_read_attrs[] = {"read-attrs", 0};
 PRIVATE const char *a_read_attrs2[] = {"read-attrs2", 0};
 PRIVATE const char *a_pers_attrs[] = {"persistent-attrs", 0};
@@ -360,8 +360,8 @@ SDATACM2(DTP_SCHEMA,    "delete-log-handler",       SDF_AUTHZ_X, 0,      pm_del_
 SDATACM2(DTP_SCHEMA,    "list-log-handlers",        SDF_AUTHZ_X, 0,      0,          cmd_list_log_handlers,      "List log handlers"),
 
 SDATACM2(DTP_SCHEMA,    "view-gclass-register",     SDF_AUTHZ_X, 0,      0,          cmd_view_gclass_register,   "View gclass's register"),
-SDATACM2(DTP_SCHEMA,    "view-service-register",    SDF_AUTHZ_X, a_services,0,cmd_view_service_register,         "View service's register"),
-
+SDATACM2(DTP_SCHEMA,    "services",                 SDF_AUTHZ_X, 0,     0,cmd_view_services,         "View services"),
+SDATACM2(DTP_SCHEMA,    "top-services",             SDF_AUTHZ_X, 0,     0,cmd_view_top_services,         "View top services"),
 SDATACM2(DTP_SCHEMA,    "write-attr",               SDF_AUTHZ_X, 0,      pm_wr_attr, cmd_write_attr,             "Write a writable attribute)"),
 SDATACM2(DTP_SCHEMA,    "view-attrs",               SDF_AUTHZ_X, a_read_attrs,pm_rd_attr, cmd_view_attrs,  "View gobj's attrs"),
 SDATACM2(DTP_SCHEMA,    "view-attrs-schema",        SDF_AUTHZ_X, a_read_attrs2,pm_gobj_def_name, cmd_attrs_schema,"View gobj's attrs schema"),
@@ -1042,7 +1042,7 @@ static const json_desc_t services_desc[] = { // HACK must match with gobj_servic
 {"cmds",            "boolean",  "",         "10"},
 {0}
 };
-PRIVATE json_t *cmd_view_service_register(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
+PRIVATE json_t *cmd_view_services(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
 {
     json_t *jn_schema = json_desc_to_schema(services_desc);
     json_t *jn_response = build_command_response(
@@ -1051,6 +1051,30 @@ PRIVATE json_t *cmd_view_service_register(hgobj gobj, const char *cmd, json_t *k
         0,
         jn_schema,
         gobj_services()
+    );
+    JSON_DECREF(kw)
+    return jn_response;
+}
+
+/***************************************************************************
+ *  Show register
+ ***************************************************************************/
+static const json_desc_t top_services_desc[] = { // HACK must match with gobj_services()
+// Name             Type        Defaults    Fillspace
+{"service",         "string",   "",         "40"},  // First item is the pkey
+{"gclass",          "string",   "",         "20"},
+{"priority",        "int",      "",         "10"},
+{0}
+};
+PRIVATE json_t *cmd_view_top_services(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
+{
+    json_t *jn_schema = json_desc_to_schema(top_services_desc);
+    json_t *jn_response = build_command_response(
+        gobj,
+        0,
+        0,
+        jn_schema,
+        gobj_top_services()
     );
     JSON_DECREF(kw)
     return jn_response;
