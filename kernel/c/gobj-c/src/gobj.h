@@ -1327,6 +1327,7 @@ PUBLIC BOOL gobj_is_destroying(hgobj gobj);
 PUBLIC BOOL gobj_is_running(hgobj gobj);
 PUBLIC BOOL gobj_is_playing(hgobj gobj);
 PUBLIC BOOL gobj_is_service(hgobj gobj);
+PUBLIC BOOL gobj_is_top_service(hgobj gobj);
 PUBLIC BOOL gobj_is_disabled(hgobj gobj);
 PUBLIC BOOL gobj_is_volatil(hgobj gobj);
 PUBLIC int gobj_set_volatil(hgobj gobj, BOOL set);

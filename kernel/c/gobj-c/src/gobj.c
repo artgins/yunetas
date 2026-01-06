@@ -6298,6 +6298,20 @@ PUBLIC BOOL gobj_is_service(hgobj gobj_)
 /***************************************************************************
  *
  ***************************************************************************/
+PUBLIC BOOL gobj_is_top_service(hgobj gobj_)
+{
+    gobj_t *gobj = gobj_;
+
+    if(gobj && (gobj->gobj_flag & (gobj_flag_top_service))) {
+        return TRUE;
+    } else {
+        return FALSE;
+    }
+}
+
+/***************************************************************************
+ *
+ ***************************************************************************/
 PUBLIC BOOL gobj_is_disabled(hgobj gobj)
 {
     if(gobj_is_destroying(gobj)) {

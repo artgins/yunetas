@@ -152,6 +152,7 @@ The documentation needs to be update with next changes
     command_get_cmd_desc
     PUBLIC void gobj_run_services(void); /* Start/Play services and yuno */
     gobj_set_shutdown
+    gobj_is_top_service
 
 # Delete API
 
