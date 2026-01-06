@@ -332,6 +332,7 @@ PRIVATE char agent_config[]= "\
     'name': 'agent_client',                     \n\
     'gclass': 'C_IEVENT_CLI',                   \n\
     'as_service': true,                         \n\
+    'priority': 2,                              \n\
     'kw': {                                     \n\
         'jwt': '(^^__jwt__^^)',                         \n\
         'remote_yuno_name': '(^^__yuno_name__^^)',      \n\

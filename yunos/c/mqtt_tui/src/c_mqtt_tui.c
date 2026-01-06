@@ -958,6 +958,7 @@ PRIVATE char mqtt_broker_config[]= "\
 {                                               \n\
     'name': '(^^__url__^^)',                    \n\
     'gclass': 'C_IEVENT_CLI',                   \n\
+    'priority': 2,                              \n\
     'as_service': true,                         \n\
     'kw': {                                     \n\
         'jwt': '(^^__jwt__^^)',                 \n\
@@ -1044,8 +1045,9 @@ PRIVATE int create_broker_connector(hgobj gobj)
 PRIVATE char mqtt_connector_config[]= "\
 {                                                       \n\
     'name': 'mqtt_connector',                           \n\
-    'as_service': true,                                 \n\
     'gclass': 'C_IOGATE',                               \n\
+    'priority': 2,                                      \n\
+    'as_service': true,                                 \n\
     'children': [                                       \n\
         {                                               \n\
             'name': 'mqtt_connector',                   \n\

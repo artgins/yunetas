@@ -626,6 +626,7 @@ PRIVATE char agent_config[]= "\
 {                                               \n\
     'name': '(^^__service_name__^^)',           \n\
     'gclass': 'C_IEVENT_CLI',                   \n\
+    'priority': 2,                              \n\
     'as_service': true,                         \n\
     'kw': {                                     \n\
         'jwt': '(^^__jwt__^^)',                         \n\
