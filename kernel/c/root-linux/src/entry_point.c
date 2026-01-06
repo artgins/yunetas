@@ -33,7 +33,7 @@
 #include "ydaemon.h"
 #include "c_authz.h"
 #include "c_yuno.h"         // the grandmother
-#include "gobj_services.h"
+#include "manage_services.h"
 #include "entry_point.h"
 
 /***************************************************************************

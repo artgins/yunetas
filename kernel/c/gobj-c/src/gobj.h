@@ -886,7 +886,7 @@ PUBLIC const sdata_desc_t *gclass_command_desc(hgclass gclass, const char *name,
 /*---------------------------------*
  *      GObj creation functions
  *---------------------------------*/
-PUBLIC json_t * gobj_service_register(void); /* Get list of registered services (gclass, service name, has-commands)*/
+PUBLIC json_t * gobj_services(void); /* Get list of registered services (gclass, service name, has-commands)*/
 
 PUBLIC hgobj gobj_create(
     const char *gobj_name,

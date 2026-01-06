@@ -1037,7 +1037,7 @@ PRIVATE json_t *cmd_view_gclass_register(hgobj gobj, const char *cmd, json_t *kw
 /***************************************************************************
  *  Show register
  ***************************************************************************/
-static const json_desc_t services_desc[] = { // HACK must match with gobj_service_register()
+static const json_desc_t services_desc[] = { // HACK must match with gobj_services()
 // Name             Type        Defaults    Fillspace
 {"service",         "string",   "",         "40"},  // First item is the pkey
 {"gclass",          "string",   "",         "40"},
@@ -1052,7 +1052,7 @@ PRIVATE json_t *cmd_view_service_register(hgobj gobj, const char *cmd, json_t *k
         0,
         0,
         jn_schema,
-        gobj_service_register()
+        gobj_services()
     );
     JSON_DECREF(kw)
     return jn_response;

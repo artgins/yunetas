@@ -1,5 +1,5 @@
 /***********************************************************************
- *          GOBJ_SERVICES.C
+ *          MANAGE_SERVICES.C
  *
  *          Manage services
  *
@@ -8,7 +8,7 @@
 ***********************************************************************/
 #include <yev_loop.h>
 #include "c_yuno.h"
-#include "gobj_services.h"
+#include "manage_services.h"
 
 /***************************************************************
  *              Constants

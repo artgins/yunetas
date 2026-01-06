@@ -93,6 +93,7 @@ The documentation needs to be update with next changes
     trq_append2
     trq_msg_hard_flag
     set_volatil_values
+    gobj_service_register -> gobj_services
 
 # New API
 

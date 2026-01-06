@@ -1368,7 +1368,7 @@ PRIVATE const char *old_to_new_gclass_name(const char *gclass_name)
 /***************************************************************************
  *  Return a list of services information
  ***************************************************************************/
-PUBLIC json_t *gobj_service_register(void)
+PUBLIC json_t *gobj_services(void)
 {
     json_t *jn_register = json_array();
 
@@ -5138,7 +5138,7 @@ PUBLIC hgobj gobj_find_service(const char *service, BOOL verbose)
             );
             gobj_trace_json(0, __jn_services__, "service NOT FOUND");
 
-            json_t *jn_services = gobj_service_register();
+            json_t *jn_services = gobj_services();
             gobj_trace_json(0, jn_services, "service NOT FOUND");
             json_decref(jn_services);
         }
@@ -5170,7 +5170,7 @@ PUBLIC hgobj gobj_find_service_by_gclass(const char *gclass_name, BOOL verbose) 
             "gclass",       "%s", gclass_name,
             NULL
         );
-        json_t *jn_services = gobj_service_register();
+        json_t *jn_services = gobj_services();
         gobj_trace_json(0, jn_services, "service NOT FOUND");
         json_decref(jn_services);
     }
