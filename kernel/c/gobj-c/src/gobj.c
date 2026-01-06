@@ -612,10 +612,7 @@ PUBLIC void gobj_shutdown(void)
 
         gobj_pause_autoplay_services();
         gobj_stop_autostart_services();
-
-        if(gobj_is_running(__yuno__)) {
-            gobj_stop(__yuno__);
-        }
+        gobj_stop(__yuno__);
     }
 }
 

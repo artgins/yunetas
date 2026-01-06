@@ -216,6 +216,7 @@ PRIVATE int mt_start(hgobj gobj)
      *-----------------------------*/
     priv->gobj_authz =  gobj_find_service("authz", TRUE);
     gobj_subscribe_event(priv->gobj_authz, 0, 0, gobj);
+    gobj_subscribe_event(gobj_yuno(), EV_SHUTDOWN, NULL, gobj);
 
     open_database(gobj);
 
@@ -2767,7 +2768,7 @@ PRIVATE int ac_user_new(hgobj gobj, const char *event, json_t *kw, hgobj src)
 /***************************************************************************
  *
  ***************************************************************************/
-PRIVATE int ac_stopped(hgobj gobj, const char *event, json_t *kw, hgobj src)
+PRIVATE int ac_shutdown(hgobj gobj, const char *event, json_t *kw, hgobj src)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
@@ -2847,7 +2848,7 @@ PRIVATE int create_gclass(gclass_name_t gclass_name)
         {EV_AUTHZ_USER_LOGIN,       ac_user_login,          0},
         {EV_AUTHZ_USER_LOGOUT,      ac_user_logout,         0},
         {EV_AUTHZ_USER_NEW,         ac_user_new,            0},
-        {EV_STOPPED,                ac_stopped,             0},
+        {EV_SHUTDOWN,               ac_shutdown,            0},
         {EV_TIMEOUT_PERIODIC,       ac_timeout,             0},
         {0,0,0}
     };
