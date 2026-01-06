@@ -454,7 +454,7 @@ PRIVATE int execute_command(hgobj gobj, json_t *kw_command)
     if(!gbuf_parsed_command) {
         printf("Error %s.\n", empty_string(comment)?"replace_cli_vars() FAILED":comment),
         gobj_set_exit_code(-1);
-        gobj_stop_services();
+        stop_services();
         return 0;
     }
     char *xcmd = gbuffer_cur_rd_pointer(gbuf_parsed_command);
@@ -500,7 +500,7 @@ PRIVATE int tira_dela_cola(hgobj gobj)
         printf("\n==> All done!\n\n");
     }
     gobj_set_exit_code(0);
-    gobj_stop_services();
+    stop_services();
 
     return 0;
 }
@@ -528,7 +528,7 @@ PRIVATE int ac_on_token(hgobj gobj, const char *event, json_t *kw, hgobj src)
             printf("\nAbort.\n");
         }
         gobj_set_exit_code(-1);
-        gobj_stop_services();
+        stop_services();
     } else {
         const char *jwt = kw_get_str(gobj, kw, "jwt", "", KW_REQUIRED);
         gobj_write_str_attr(gobj, "jwt", jwt);
@@ -573,7 +573,7 @@ PRIVATE int ac_on_close(hgobj gobj, const char *event, json_t *kw, hgobj src)
     printf("Disconnected.\n"),
 
     gobj_set_exit_code(-1);
-    gobj_stop_services();
+    stop_services();
 
     // No puedo parar y destruir con libuv.
     // De momento conexiones indestructibles, destruibles solo con la salida del yuno.
@@ -632,7 +632,7 @@ PRIVATE int ac_mt_command_answer(hgobj gobj, const char *event, json_t *kw, hgob
             if(!ignore_fail) {
                 KW_DECREF(kw);
                 printf("\n");
-                gobj_stop_services();
+                stop_services();
                 return -1;
             }
 
@@ -663,7 +663,7 @@ PRIVATE int ac_mt_command_answer(hgobj gobj, const char *event, json_t *kw, hgob
             if(!ignore_fail) {
                 KW_DECREF(kw);
                 printf("\n");
-                gobj_stop_services();
+                stop_services();
                 return -1;
             }
         } else {
@@ -692,7 +692,7 @@ PRIVATE int ac_timeout(hgobj gobj, const char *event, json_t *kw, hgobj src)
 {
     printf("Timeout \n"),
     gobj_set_exit_code(-1);
-    gobj_stop_services();
+    stop_services();
 
     KW_DECREF(kw);
     return 0;

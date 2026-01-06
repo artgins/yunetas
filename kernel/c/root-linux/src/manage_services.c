@@ -47,11 +47,11 @@ PUBLIC void run_services(void)
     /*---------------------------------*
      *      Auto services
      *---------------------------------*/
-    gobj_autostart_services();
+    autostart_services();
     if(gobj_read_bool_attr(yuno, "autoplay")) {
         gobj_play(yuno);    /* will play default_service */
     }
-    gobj_autoplay_services();
+    autoplay_services();
 }
 
 /***************************************************************************
@@ -71,8 +71,8 @@ PUBLIC void stop_services(void)
             gobj_pause(yuno);
         }
 
-        gobj_pause_autoplay_services();
-        gobj_stop_autostart_services();
+        pause_autoplay_services();
+        stop_autostart_services();
         gobj_stop(yuno);
     }
 
