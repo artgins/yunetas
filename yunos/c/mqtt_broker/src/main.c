@@ -88,7 +88,7 @@ PRIVATE char variable_config[]= "\
             'name': 'mqtt_broker',                                  \n\
             'gclass': 'C_MQTT_BROKER',                              \n\
             'default_service': true,                                \n\
-            'autostart': false,                                     \n\
+            'autostart': true,                                      \n\
             'autoplay': false                                       \n\
         }                                                           \n\
     ]                                                           \n\

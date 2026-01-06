@@ -898,11 +898,6 @@ PRIVATE int mt_start(hgobj gobj)
 
     yev_start_event(priv->yev_signal);
 
-    if(!gobj_is_running(gobj_default_service())) {
-        // It must have no autostart
-        gobj_start(gobj_default_service());
-    }
-
     return 0;
 }
 
@@ -943,6 +938,12 @@ PRIVATE int mt_play(hgobj gobj)
     /*
      *  This play order can come from yuneta_agent or autoplay config option or programmatic sentence
      */
+
+    if(!gobj_is_running(gobj_default_service())) {
+        // It must have no autostart
+        gobj_start(gobj_default_service());
+    }
+
     if(!gobj_is_playing(gobj_default_service())) {
         gobj_play(gobj_default_service());
     }

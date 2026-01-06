@@ -1919,7 +1919,9 @@ PRIVATE hgobj gobj_create_tree0(
         gobj_flag |= gobj_flag_service;
     }
     if(autoplay) {
-        gobj_flag |= gobj_flag_autoplay;
+        if(gclass->gmt->mt_play) {
+            gobj_flag |= gobj_flag_autoplay;
+        }
     }
     if(autostart) {
         gobj_flag |= gobj_flag_autostart;
@@ -4701,7 +4703,10 @@ PUBLIC int gobj_autostart_services(void)
         if(gobj->gobj_flag & gobj_flag_yuno) {
             continue;
         }
+
         if(gobj->gobj_flag & gobj_flag_autostart) {
+printf("\n=============> START AUTOSTART jn_services forward %s\n\n", gobj_short_name(gobj));// TODO TEST
+
             if(gobj->gclass->gmt->mt_play) { // HACK checking mt_play because if it exists he has the power on!
                 if(!gobj_is_running(gobj)) {
                     gobj_start(gobj);
@@ -4725,8 +4730,13 @@ PUBLIC int gobj_autoplay_services(void)
         if(gobj->gobj_flag & gobj_flag_yuno) {
             continue;
         }
+
         if(gobj->gobj_flag & gobj_flag_autoplay) {
-            gobj_play(gobj);
+printf("\n=============> PLAY AUTOPLAY jn_services forward %s\n\n", gobj_short_name(gobj));// TODO TEST
+
+            if(!gobj_is_playing(gobj)) {
+                gobj_play(gobj);
+            }
         }
     }
     return 0;
@@ -4754,6 +4764,8 @@ PUBLIC int gobj_pause_autoplay_services(void)
         }
 
         if((gobj->gobj_flag & gobj_flag_autoplay) && gobj_is_playing(gobj)) {
+printf("\n=============> PAUSE AUTOPLAY jn_services backward %s\n\n", gobj_short_name(gobj));// TODO TEST
+
             if(gobj_is_level_tracing(0, TRACE_START_STOP)) {
                 gobj_log_debug(0,0,
                     "function",     "%s", __FUNCTION__,
@@ -4794,6 +4806,9 @@ PUBLIC int gobj_stop_autostart_services(void)
         }
 
         if((gobj->gobj_flag & gobj_flag_autostart) && gobj_is_running(gobj)) {
+printf("\n=============> STOP AUTOSTART jn_services backward %s\n\n", gobj_short_name(gobj));// TODO TEST
+
+
             if(gobj_is_level_tracing(0, TRACE_START_STOP)) {
                 gobj_log_debug(0,0,
                     "function",     "%s", __FUNCTION__,
