@@ -775,6 +775,7 @@ typedef enum { // HACK strict ascendant value!, strings in gobj_flag_names
     gobj_flag_pure_child        = 0x0010,   // Pure child sends events directly to parent, others publish them
     gobj_flag_autostart         = 0x0020,   // Set by gobj_create_tree/gobj_service_factory too
     gobj_flag_autoplay          = 0x0040,   // Set by gobj_create_tree/gobj_service_factory too
+    gobj_flag_top_service       = 0x0080,   // Interface (events, attrs, commands, stats) available to external access
 } gobj_flag_t;
 
 

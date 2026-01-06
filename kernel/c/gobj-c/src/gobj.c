@@ -281,6 +281,7 @@ PRIVATE const char *gobj_flag_names[] = {
     "gobj_flag_pure_child",
     "gobj_flag_autostart",
     "gobj_flag_autoplay",
+    "gobj_flag_top_service",
     0
 };
 
@@ -1458,7 +1459,7 @@ PUBLIC hgobj gobj_create2(
         }
     }
 
-    if(gobj_flag & (gobj_flag_service)) {
+    if(gobj_flag & (gobj_flag_service|gobj_flag_top_service)) {
         if(gobj_find_service(gobj_name, FALSE)) {
             gobj_log_error(0, LOG_OPT_TRACE_STACK,
                 "function",     "%s", __FUNCTION__,
@@ -1486,7 +1487,7 @@ PUBLIC hgobj gobj_create2(
             JSON_DECREF(kw)
             return NULL;
         }
-        gobj_flag |= gobj_flag_service;
+        gobj_flag |= gobj_flag_service|gobj_flag_top_service;
     }
 
     if(empty_string(gclass_name)) {
@@ -1567,10 +1568,11 @@ PUBLIC hgobj gobj_create2(
     gobj->gobj_flag = gobj_flag;
 
     if(__trace_gobj_create_delete__(gobj)) {
-         trace_machine("💙💙⏩ creating: %s^%s (%s%s%s%s%s%s)",
+         trace_machine("💙💙⏩ creating: %s^%s (%s%s%s%s%s%s%s)",
             gclass->gclass_name,
             gobj_name,
             (gobj_flag & gobj_flag_default_service)? "DefaultService,":"",
+            (gobj_flag & gobj_flag_top_service)? "Top Service,":"",
             (gobj_flag & gobj_flag_service)? "Service,":"",
             (gobj_flag & gobj_flag_volatil)? "Volatil,":"",
             (gobj_flag & gobj_flag_pure_child)? "PureChild,":"",
@@ -1603,7 +1605,7 @@ PUBLIC hgobj gobj_create2(
     /*--------------------------*
      *  Register service
      *--------------------------*/
-    if(gobj->gobj_flag & (gobj_flag_service)) {
+    if(gobj->gobj_flag & (gobj_flag_service|gobj_flag_top_service)) {
         _register_service(gobj);
     }
     if(gobj->gobj_flag & (gobj_flag_yuno)) {
@@ -1637,7 +1639,7 @@ PUBLIC hgobj gobj_create2(
      *  Load writable and persistent attrs
      *  of services and __root__
      *--------------------------------------*/
-    if(gobj->gobj_flag & (gobj_flag_service)) {
+    if(gobj->gobj_flag & (gobj_flag_service|gobj_flag_top_service)) {
         if(__global_load_persistent_attrs_fn__) {
             __global_load_persistent_attrs_fn__(gobj, 0);
         }
@@ -1842,11 +1844,12 @@ PRIVATE hgobj gobj_create_tree0(
     const char *name = kw_get_str(parent, jn_tree, "name", "", 0);
     BOOL default_service = kw_get_bool(parent, jn_tree, "default_service", 0, 0);
     BOOL as_service = kw_get_bool(parent, jn_tree, "as_service", 0, 0) ||
-        kw_get_bool(parent, jn_tree, "service", 0, 0);
+        kw_get_bool(parent, jn_tree, "service", 0, 0) || top_service;
     BOOL autostart = kw_get_bool(parent, jn_tree, "autostart", 0, 0);
     BOOL autoplay = kw_get_bool(parent, jn_tree, "autoplay", 0, 0);
     BOOL disabled = kw_get_bool(parent, jn_tree, "disabled", 0, 0);
     BOOL pure_child = kw_get_bool(parent, jn_tree, "pure_child", 0, 0);
+    int priority = kw_get_int(parent, jn_tree, "priority", 5, 0);
 
     // TODO IEvent_cli=C_IEVENT_CLI remove when agent is migrated to YunetaS V7
     gclass_name = old_to_new_gclass_name(gclass_name);
@@ -1918,6 +1921,9 @@ PRIVATE hgobj gobj_create_tree0(
     }
     if(as_service) {
         gobj_flag |= gobj_flag_service;
+    }
+    if(top_service) {
+        gobj_flag |= gobj_flag_top_service;
     }
     if(autoplay) {
         if(gclass->gmt->mt_play) {
@@ -2275,7 +2281,7 @@ PUBLIC void gobj_destroy(hgobj hgobj)
     /*--------------------------------*
      *  Deregister if service
      *--------------------------------*/
-    if(gobj->gobj_flag & gobj_flag_service) {
+    if(gobj->gobj_flag & (gobj_flag_service|gobj_flag_top_service)) {
         _deregister_service(gobj);
     }
 
@@ -2703,7 +2709,7 @@ PRIVATE int write_json_parameters(
         return -1;
     }
 
-    if(gobj->gobj_flag & (gobj_flag_service)) {
+    if(gobj->gobj_flag & (gobj_flag_service|gobj_flag_top_service)) {
         /*
          *  Services only
          */
@@ -2838,7 +2844,7 @@ PUBLIC int gobj_load_persistent_attrs(  // str, list or dict. Only gobj services
 {
     gobj_t *gobj = gobj_;
 
-    if(!(gobj->gobj_flag & (gobj_flag_service))) {
+    if(!(gobj->gobj_flag & (gobj_flag_service|gobj_flag_top_service))) {
         gobj_log_warning(gobj, LOG_OPT_TRACE_STACK,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_PARAMETER_ERROR,
@@ -2867,7 +2873,7 @@ PUBLIC int gobj_save_persistent_attrs(
 {
     gobj_t *gobj = gobj_;
 
-    if(!(gobj->gobj_flag & (gobj_flag_service))) {
+    if(!(gobj->gobj_flag & (gobj_flag_service|gobj_flag_top_service))) {
         gobj_log_warning(gobj, LOG_OPT_TRACE_STACK,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_PARAMETER_ERROR,
@@ -5189,7 +5195,7 @@ PUBLIC hgobj gobj_nearest_top_service(hgobj gobj_)
     }
     gobj = gobj->parent;
     while(gobj) {
-        if(gobj->gobj_flag & (gobj_flag_service|gobj_flag_yuno)) {
+        if(gobj->gobj_flag & (gobj_flag_service|gobj_flag_top_service|gobj_flag_yuno)) {
             break;
         }
         gobj = gobj->parent;
@@ -6267,7 +6273,7 @@ PUBLIC BOOL gobj_is_service(hgobj gobj_)
 {
     gobj_t *gobj = gobj_;
 
-    if(gobj && (gobj->gobj_flag & (gobj_flag_service))) {
+    if(gobj && (gobj->gobj_flag & (gobj_flag_service|gobj_flag_top_service))) {
         return TRUE;
     } else {
         return FALSE;
