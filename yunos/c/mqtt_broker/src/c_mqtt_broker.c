@@ -2874,7 +2874,7 @@ PRIVATE int create_gclass(gclass_name_t gclass_name)
         {EV_AUTHZ_USER_LOGIN,       0},
         {EV_AUTHZ_USER_LOGOUT,      0},
         {EV_AUTHZ_USER_NEW,         0},
-        {EV_STOPPED,                0},
+        {EV_SHUTDOWN,               0},
         {EV_TIMEOUT_PERIODIC,       0},
         {NULL, 0}
     };
