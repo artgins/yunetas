@@ -914,13 +914,11 @@ PRIVATE int mt_stop(hgobj gobj)
     yev_stop_event(priv->yev_signal);
 
     gobj_stop(priv->gobj_timer);
-    gobj_stop_children(gobj);
+    // gobj_stop_children(gobj);
 
-    yev_loop_run_once(priv->yev_loop);  // Give an opportunity to close
-    yev_loop_stop(priv->yev_loop);
-    yev_loop_run_once(priv->yev_loop);  // Give an opportunity to close
-
-    gobj_publish_event(gobj, EV_SHUTDOWN, NULL);
+    // yev_loop_run_once(priv->yev_loop);  // Give an opportunity to close
+    // yev_loop_stop(priv->yev_loop);
+    // yev_loop_run_once(priv->yev_loop);  // Give an opportunity to close
 
     return 0;
 }
@@ -5121,7 +5119,6 @@ PRIVATE int create_gclass(gclass_name_t gclass_name)
 
     event_type_t event_types[] = {
         {EV_TIMEOUT_PERIODIC,       EVF_OUTPUT_EVENT|EVF_NO_WARN_SUBS},
-        {EV_SHUTDOWN,               EVF_OUTPUT_EVENT|EVF_NO_WARN_SUBS},
         {EV_STOPPED,                0},
         {0, 0}
     };

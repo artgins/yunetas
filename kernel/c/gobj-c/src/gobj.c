@@ -614,6 +614,12 @@ PUBLIC void gobj_shutdown(void)
         gobj_stop_autostart_services();
         gobj_stop(__yuno__);
     }
+
+    // yev_loop_run_once(yuno_event_loop());  // Give an opportunity to close
+    // yev_loop_stop(yuno_event_loop());
+    // yev_loop_run_once(yuno_event_loop());  // Give an opportunity to close
+
+
 }
 
 /***************************************************************************
