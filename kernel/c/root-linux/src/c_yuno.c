@@ -1040,7 +1040,9 @@ PRIVATE json_t *cmd_view_gclass_register(hgobj gobj, const char *cmd, json_t *kw
 static const json_desc_t services_desc[] = { // HACK must match with gobj_services()
 // Name             Type        Defaults    Fillspace
 {"service",         "string",   "",         "40"},  // First item is the pkey
-{"gclass",          "string",   "",         "40"},
+{"gclass",          "string",   "",         "20"},
+{"top-service",     "boolean",  "",         "11"},
+{"priority",        "int",      "",         "10"},
 {"cmds",            "boolean",  "",         "10"},
 {0}
 };

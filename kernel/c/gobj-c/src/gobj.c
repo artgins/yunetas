@@ -1387,6 +1387,21 @@ PUBLIC json_t *gobj_services(void)
             "service",
             json_string(key)
         );
+
+        BOOL top_service = TRUE;
+        json_object_set_new(
+            jn_srv,
+            "top-service",
+            json_boolean(top_service)
+        );
+
+        int priority = 1;
+        json_object_set_new(
+            jn_srv,
+            "priority",
+            json_integer(priority)
+        );
+
         BOOL with_cmds = gobj->gclass->command_table?TRUE:FALSE;
         json_object_set_new(
             jn_srv,
