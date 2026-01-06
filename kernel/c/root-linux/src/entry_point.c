@@ -31,7 +31,7 @@
 #include "yunetas_environment.h"
 #include "dbsimple.h"
 #include "ydaemon.h"
-#include "c_authz.h"        // the grandmother
+#include "c_authz.h"
 #include "c_yuno.h"         // the grandmother
 #include "gobj_services.h"
 #include "entry_point.h"
