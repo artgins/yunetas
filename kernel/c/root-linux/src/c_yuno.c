@@ -914,7 +914,7 @@ PRIVATE int mt_stop(hgobj gobj)
     yev_stop_event(priv->yev_signal);
 
     gobj_stop(priv->gobj_timer);
-    // gobj_stop_children(gobj);
+    gobj_stop_children(gobj);
 
     // yev_loop_run_once(priv->yev_loop);  // Give an opportunity to close
     // yev_loop_stop(priv->yev_loop);
