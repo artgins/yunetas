@@ -410,7 +410,7 @@ PRIVATE int mt_start(hgobj gobj)
             NULL
         );
         gobj_set_exit_code(-1);
-        gobj_shutdown();
+        gobj_stop_services();
         return -1;
     }
 
@@ -765,7 +765,7 @@ PRIVATE int yev_callback(yev_event_h yev_event)
                             NULL
                         );
                     }
-                    gobj_shutdown();
+                    gobj_stop_services();
                 }
             }
             break;
@@ -801,7 +801,7 @@ PRIVATE void try_to_stop_yevents(hgobj gobj)  // IDEMPOTENT
 
     if(gobj_current_state(gobj)==ST_STOPPED) {
         gobj_set_exit_code(-1);
-        gobj_shutdown();
+        gobj_stop_services();
         return;
     }
 
@@ -846,7 +846,7 @@ PRIVATE void try_to_stop_yevents(hgobj gobj)  // IDEMPOTENT
     } else {
         gobj_change_state(gobj, ST_STOPPED);
         gobj_set_exit_code(-1);
-        gobj_shutdown();
+        gobj_stop_services();
     }
 }
 
@@ -892,7 +892,7 @@ PRIVATE int on_read_cb(hgobj gobj, gbuffer_t *gbuf)
     }
 
     if(base[0] == 3) {
-        gobj_shutdown();
+        gobj_stop_services();
         return -1;
     }
     uint8_t b[8] = {0}; // To search keys in keytable
@@ -1384,7 +1384,7 @@ PRIVATE int ac_on_token(hgobj gobj, const char *event, json_t *kw, hgobj src)
             printf("\nAbort.\n");
         }
         gobj_set_exit_code(-1);
-        gobj_shutdown();
+        gobj_stop_services();
     } else {
         const char *jwt = kw_get_str(gobj, kw, "jwt", "", KW_REQUIRED);
         gobj_write_str_attr(gobj, "jwt", jwt);
@@ -1751,7 +1751,7 @@ PRIVATE int ac_screen_ctrl(hgobj gobj, const char *event, json_t *kw, hgobj src)
  ***************************************************************************/
 PRIVATE int ac_timeout(hgobj gobj, const char *event, json_t *kw, hgobj src)
 {
-    gobj_shutdown();
+    gobj_stop_services();
 
     KW_DECREF(kw);
     return 0;

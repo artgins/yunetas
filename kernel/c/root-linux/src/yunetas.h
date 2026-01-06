@@ -78,6 +78,7 @@ extern "C"{
 #include <yev_loop.h>
 #include <run_command.h>
 #include <yunetas_register.h>
+#include <gobj_services.h>
 
 #include <fs_watcher.h>
 #include <timeranger2.h>

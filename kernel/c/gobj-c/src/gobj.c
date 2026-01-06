@@ -507,10 +507,10 @@ PUBLIC int gobj_start_up(
     }
     argc = argc_;
     argv = argv_;
-    if (!atexit_registered) {
-        atexit(gobj_shutdown);
-        atexit_registered = 1;
-    }
+    // if (!atexit_registered) {
+    //     atexit(gobj_shutdown);
+    //     atexit_registered = 1;
+    // }
 
     glog_init();
 
@@ -575,7 +575,7 @@ PUBLIC int gobj_start_up(
 /***************************************************************************
  *  Mark shutdowning
  ***************************************************************************/
-PUBLIC void gobj_shutdown(void)
+PUBLIC void gobj_set_shutdown(void)
 {
     if(__shutdowning__) {
         return;

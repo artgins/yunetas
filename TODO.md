@@ -150,6 +150,7 @@ The documentation needs to be update with next changes
     search_command_desc
     command_get_cmd_desc
     PUBLIC void gobj_run_services(void); /* Start/Play services and yuno */
+    gobj_set_shutdown
 
 # Delete API
 
@@ -158,3 +159,4 @@ The documentation needs to be update with next changes
     yev_create_inotify_event
     gobj_trace_buffer
     gobj_services
+    gobj_shutdown

@@ -56,7 +56,7 @@ PUBLIC void gobj_stop_services(void)
     /*
      *  Shutdown
      */
-    gobj_shutdown();
+    gobj_set_shutdown();
 
     hgobj yuno = gobj_yuno();
     if(yuno) { // TODO && !(yuno->obflag & obflag_destroying)) {

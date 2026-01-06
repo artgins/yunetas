@@ -519,7 +519,7 @@ PRIVATE int mt_start(hgobj gobj)
                 NULL
             );
             gobj_set_exit_code(-1);
-            gobj_shutdown();
+            gobj_stop_services();
             return -1;
         }
 
@@ -1384,7 +1384,7 @@ PRIVATE int yev_callback(yev_event_h yev_event)
                             NULL
                         );
                     }
-                    gobj_shutdown();
+                    gobj_stop_services();
                 }
             }
             break;
@@ -1419,7 +1419,7 @@ PRIVATE void try_to_stop_yevents(hgobj gobj)  // IDEMPOTENT
 
     if(gobj_current_state(gobj)==ST_STOPPED) {
         gobj_set_exit_code(-1);
-        gobj_shutdown();
+        gobj_stop_services();
         return;
     }
 
@@ -1464,7 +1464,7 @@ PRIVATE void try_to_stop_yevents(hgobj gobj)  // IDEMPOTENT
     } else {
         gobj_change_state(gobj, ST_STOPPED);
         gobj_set_exit_code(-1);
-        gobj_shutdown();
+        gobj_stop_services();
     }
 }
 
@@ -1551,7 +1551,7 @@ PRIVATE int process_read(hgobj gobj, char *base, size_t nread)
 
     if(base[0] == 3) {
         if(!priv->on_mirror_tty) {
-            gobj_shutdown();
+            gobj_stop_services();
             return -1;
         }
     }
