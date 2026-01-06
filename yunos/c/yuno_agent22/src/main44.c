@@ -113,10 +113,9 @@ PRIVATE char variable_config[]= "\
         {                                                           \n\
             'name': 'authz',                                        \n\
             'gclass': 'C_AUTHZ',                                    \n\
+            'priority': 0,                                          \n\
             'autostart': true,                                      \n\
-            'autoplay': true,                                       \n\
-            'kw': {                                                 \n\
-            }                                                       \n\
+            'autoplay': true                                        \n\
         },                                              \n\
         {                                               \n\
             'name': 'agent44',                          \n\

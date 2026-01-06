@@ -80,6 +80,7 @@ PRIVATE char variable_config[]= "\
         {                                                           \n\
             'name': 'authz',                                        \n\
             'gclass': 'C_AUTHZ',                                    \n\
+            'priority': 0,                                          \n\
             'default_service': false,                               \n\
             'autostart': true,                                      \n\
             'autoplay': true                                        \n\
@@ -89,7 +90,8 @@ PRIVATE char variable_config[]= "\
             'gclass': 'C_MQTT_BROKER',                              \n\
             'default_service': true,                                \n\
             'autostart': true,                                      \n\
-            'autoplay': false                                       \n\
+            'autoplay': false,                                      \n\
+            'priority': 1                                           \n\
         }                                                           \n\
     ]                                                           \n\
 }                                                               \n\

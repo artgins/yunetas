@@ -35,6 +35,7 @@
 
 #include <testing.h>
 #include <helpers.h>
+#include <gobj.h>
 #include "yev_loop.h"
 
 
