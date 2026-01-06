@@ -214,7 +214,8 @@ PRIVATE int json2item(
 
 PRIVATE hgobj gobj_create_tree0(
     hgobj parent_,
-    json_t *jn_tree // owned
+    json_t *jn_tree, // owned
+    BOOL top_service
 );
 
 /***************************************************************
@@ -1794,7 +1795,8 @@ PRIVATE int expand_children_list(hgobj gobj, json_t *kw)
             if(jn_child_tree) {
                 gobj_create_tree0(
                     gobj,
-                    jn_child_tree  // owned
+                    jn_child_tree,  // owned
+                    FALSE
                 );
             }
         }
@@ -1808,7 +1810,8 @@ PRIVATE int expand_children_list(hgobj gobj, json_t *kw)
             if(jn_child_tree) {
                 gobj_create_tree0(
                     gobj,
-                    jn_child_tree  // owned
+                    jn_child_tree,  // owned
+                    FALSE
                 );
             }
         }
@@ -1829,7 +1832,8 @@ PRIVATE int expand_children_list(hgobj gobj, json_t *kw)
  ***************************************************************************/
 PRIVATE hgobj gobj_create_tree0(
     hgobj parent__,
-    json_t *jn_tree // owned
+    json_t *jn_tree, // owned
+    BOOL top_service
 )
 {
     gobj_t *parent = parent__;
@@ -1973,7 +1977,8 @@ PRIVATE hgobj gobj_create_tree0(
         json_incref(jn_child);
         last_child = gobj_create_tree0(
             gobj,
-            jn_child
+            jn_child,
+            FALSE
         );
         if(!last_child) {
             gobj_log_error(parent, 0,
@@ -2141,7 +2146,8 @@ PUBLIC hgobj gobj_service_factory(
 
     hgobj gobj = gobj_create_tree0(
         __yuno__,
-        new_kw  // owned
+        new_kw,  // owned
+        TRUE
     );
 
     return gobj;
