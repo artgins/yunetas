@@ -227,11 +227,11 @@ PRIVATE int mt_start(hgobj gobj)
  ***************************************************************************/
 PRIVATE int mt_stop(hgobj gobj)
 {
-    PRIVATE_DATA *priv = gobj_priv_data(gobj);
-
-    close_database(gobj);
-
-    gobj_unsubscribe_event(priv->gobj_authz, 0, 0, gobj);
+    // PRIVATE_DATA *priv = gobj_priv_data(gobj);
+    //
+    // close_database(gobj);
+    //
+    // gobj_unsubscribe_event(priv->gobj_authz, 0, 0, gobj);
 
     return 0;
 }
@@ -2767,12 +2767,23 @@ PRIVATE int ac_user_new(hgobj gobj, const char *event, json_t *kw, hgobj src)
 /***************************************************************************
  *
  ***************************************************************************/
+PRIVATE int ac_stopped(hgobj gobj, const char *event, json_t *kw, hgobj src)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    close_database(gobj);
+
+    gobj_unsubscribe_event(priv->gobj_authz, 0, 0, gobj);
+
+    KW_DECREF(kw);
+    return 0;
+}
+
+/***************************************************************************
+ *
+ ***************************************************************************/
 PRIVATE int ac_timeout(hgobj gobj, const char *event, json_t *kw, hgobj src)
 {
-//    PRIVATE_DATA *priv = gobj_priv_data(gobj);
-
-    // printf("Timeout\n");
-
     KW_DECREF(kw);
     return 0;
 }
@@ -2836,6 +2847,7 @@ PRIVATE int create_gclass(gclass_name_t gclass_name)
         {EV_AUTHZ_USER_LOGIN,       ac_user_login,          0},
         {EV_AUTHZ_USER_LOGOUT,      ac_user_logout,         0},
         {EV_AUTHZ_USER_NEW,         ac_user_new,            0},
+        {EV_STOPPED,                ac_stopped,             0},
         {EV_TIMEOUT_PERIODIC,       ac_timeout,             0},
         {0,0,0}
     };
@@ -2861,6 +2873,7 @@ PRIVATE int create_gclass(gclass_name_t gclass_name)
         {EV_AUTHZ_USER_LOGIN,       0},
         {EV_AUTHZ_USER_LOGOUT,      0},
         {EV_AUTHZ_USER_NEW,         0},
+        {EV_STOPPED,                0},
         {EV_TIMEOUT_PERIODIC,       0},
         {NULL, 0}
     };

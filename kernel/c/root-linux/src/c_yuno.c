@@ -939,15 +939,6 @@ PRIVATE int mt_play(hgobj gobj)
      *  This play order can come from yuneta_agent or autoplay config option or programmatic sentence
      */
 
-    if(!gobj_is_running(gobj_default_service())) {
-        // It must have no autostart
-        gobj_start(gobj_default_service());
-    }
-
-    if(!gobj_is_playing(gobj_default_service())) {
-        gobj_play(gobj_default_service());
-    }
-
     gobj_log_info(gobj, 0,
         "function",         "%s", __FUNCTION__,
         "msgset",           "%s", MSGSET_STARTUP,
@@ -957,6 +948,15 @@ PRIVATE int mt_play(hgobj gobj)
         "yuno_role",        "%s", gobj_read_str_attr(gobj, "yuno_role"),
         NULL
     );
+
+    if(!gobj_is_running(gobj_default_service())) {
+        // It could be defined as no autostart
+        gobj_start(gobj_default_service());
+    }
+
+    if(!gobj_is_playing(gobj_default_service())) {
+        gobj_play(gobj_default_service());
+    }
 
     return 0;
 }
@@ -978,7 +978,10 @@ PRIVATE int mt_pause(hgobj gobj)
         "yuno_role",        "%s", gobj_read_str_attr(gobj, "yuno_role"),
         NULL
     );
-    gobj_pause(gobj_default_service());
+
+    if(gobj_is_playing(gobj_default_service())) {
+        gobj_pause(gobj_default_service());
+    }
 
     return 0;
 }

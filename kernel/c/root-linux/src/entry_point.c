@@ -959,7 +959,7 @@ PRIVATE void process(
     /*
      *  Shutdown
      */
-    gobj_shutdown();
+    gobj_shutdown(); // This pause and stop services and yuno
 
     yev_loop_run_once(yuno_event_loop());  // Give an opportunity to close
     yev_loop_stop(yuno_event_loop());
@@ -969,6 +969,7 @@ PRIVATE void process(
      *      End
      *---------------------------*/
     gobj_end(); // This destroy yuno
+
     rotatory_end();
     json_decref(__jn_config__);
     if(cleaning_fn) {
