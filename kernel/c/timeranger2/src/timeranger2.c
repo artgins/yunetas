@@ -21,7 +21,7 @@
 #include <sys/stat.h>
 
 #include <testing.h>
-#include <kwid.h>
+#include <gobj.h>
 #include "fs_watcher.h"
 #include "timeranger2.h"
 

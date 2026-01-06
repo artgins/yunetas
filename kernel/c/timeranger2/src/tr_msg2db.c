@@ -15,7 +15,7 @@
 #include <stdio.h>
 #include <limits.h>
 
-#include <kwid.h>
+#include <gobj.h>
 #include "tr_treedb.h"
 #include "tr_msg2db.h"
 

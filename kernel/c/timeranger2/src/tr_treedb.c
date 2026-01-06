@@ -13,8 +13,7 @@
 #include <stdio.h>
 #include <limits.h>
 
-#include <kwid.h>
-#include <helpers.h>
+#include <gobj.h>
 #include "timeranger2.h"
 #include "tr_treedb.h"
 

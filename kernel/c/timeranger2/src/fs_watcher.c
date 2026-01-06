@@ -18,8 +18,7 @@
 #include <errno.h>
 
 #include <testing.h>
-#include <helpers.h>
-#include <kwid.h>
+#include <gobj.h>
 #include "fs_watcher.h"
 
 /***************************************************************************
