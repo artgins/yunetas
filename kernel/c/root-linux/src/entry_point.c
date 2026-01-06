@@ -208,59 +208,6 @@ PRIVATE error_t parse_opt(int key, char *arg, struct argp_state *state)
     return 0;
 }
 
-// TODO pass to c_yuno.c
-// /***************************************************************************
-//  *      Signal handlers
-//  ***************************************************************************/
-// PRIVATE void quit_sighandler(int sig)
-// {
-//     static int tries = 0;
-//
-//     /*
-//      *  __yuno_gobj__ is 0 for watcher fork if we are running --stop
-//      */
-//     hgobj gobj = __yuno_gobj__;
-//
-//     if(gobj) {
-//         tries++;
-//         set_yuno_must_die();
-//
-//         if(!__auto_kill_time__) {
-//             if(__assure_kill_time__ > 0)
-//                 alarm(__assure_kill_time__); // maximum time to be killed
-//         }
-//         if(tries > 1) {
-//             // exit with 0 to avoid the watcher to relaunch the daemon
-//             _exit(0);
-//         }
-//         return;
-//     }
-//
-//     print_error(PEF_SYSLOG, "Signal handler without __yuno_gobj__, signal %d, pid %d", sig, getpid());
-// }
-//
-// /***************************************************************************
-//  *      Signal handlers
-//  ***************************************************************************/
-// PRIVATE void raise_sighandler(int sig)
-// {
-//     /*
-//      *  __yuno_gobj__ is 0 for watcher fork, if we are running --stop
-//      */
-//     hgobj gobj = __yuno_gobj__;
-//
-//     if(gobj) {
-//         gobj_set_deep_tracing(-1);
-//         gobj_log_error(0, LOG_OPT_TRACE_STACK,
-//             "gobj",         "%s", __FILE__,
-//             "function",     "%s", __FUNCTION__,
-//             "msgset",       "%s", MSGSET_RUNTIME_ERROR,
-//             "msg",          "%s", "Kill -10",
-//             NULL
-//         );
-//     }
-// }
-
 /***************************************************************************
  *
  ***************************************************************************/
