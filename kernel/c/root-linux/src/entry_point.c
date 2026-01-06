@@ -885,7 +885,7 @@ PRIVATE void process(
     /*------------------------*
      *  Run services and yuno
      *------------------------*/
-    gobj_run_services();
+    run_services();
 
     /*-----------------------------------*
      *      Run main event loop
@@ -898,7 +898,7 @@ PRIVATE void process(
     /*------------------*
      *  Stop services
      *------------------*/
-    gobj_stop_services();
+    stop_services();
 
     /*---------------------------*
      *      End

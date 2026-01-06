@@ -21,6 +21,12 @@
 /***************************************************************
  *              Prototypes
  ***************************************************************/
+PRIVATE int autostart_services(void);
+PRIVATE int autoplay_services(void);
+PRIVATE int stop_autostart_services(void);
+PRIVATE int pause_autoplay_services(void);
+
+
 
 /***************************************************************
  *              Data
@@ -29,7 +35,7 @@
 /***************************************************************************
  *  Start/Play services and yuno
  ***************************************************************************/
-PUBLIC void gobj_run_services(void)
+PUBLIC void run_services(void)
 {
     hgobj yuno = gobj_yuno();
 
@@ -51,7 +57,7 @@ PUBLIC void gobj_run_services(void)
 /***************************************************************************
  *  Pause/Stop services and yuno
  ***************************************************************************/
-PUBLIC void gobj_stop_services(void)
+PUBLIC void stop_services(void)
 {
     /*
      *  Shutdown
@@ -86,7 +92,7 @@ PUBLIC void gobj_stop_services(void)
  *      (Let mt_play be responsible to start their tree)
  *  If service has not mt_play then start the tree with gobj_start_tree().
  ***************************************************************************/
-PUBLIC int gobj_autostart_services(void)
+PRIVATE int autostart_services(void)
 {
     const char *key; json_t *jn_service;
 //     json_object_foreach(__jn_services__, key, jn_service) {
@@ -113,7 +119,7 @@ PUBLIC int gobj_autostart_services(void)
 /***************************************************************************
  *
  ***************************************************************************/
-PUBLIC int gobj_autoplay_services(void)
+PRIVATE int autoplay_services(void)
 {
     const char *key; json_t *jn_service;
 //     json_object_foreach(__jn_services__, key, jn_service) {
@@ -136,7 +142,7 @@ PUBLIC int gobj_autoplay_services(void)
 /***************************************************************************
  *
  ***************************************************************************/
-PUBLIC int gobj_pause_autoplay_services(void)
+PRIVATE int pause_autoplay_services(void)
 {
     /*
      *  Pause backward order
@@ -178,7 +184,7 @@ PUBLIC int gobj_pause_autoplay_services(void)
 /***************************************************************************
  *
  ***************************************************************************/
-PUBLIC int gobj_stop_autostart_services(void)
+PRIVATE int stop_autostart_services(void)
 {
     /*
      *  Pause backward order

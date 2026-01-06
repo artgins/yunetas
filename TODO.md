@@ -150,7 +150,8 @@ The documentation needs to be update with next changes
     PUBLIC const char *get_name_from_nn_table(number_name_table_t number_string_table[], int number);
     search_command_desc
     command_get_cmd_desc
-    PUBLIC void gobj_run_services(void); /* Start/Play services and yuno */
+    run_services
+    stop_services
     gobj_set_shutdown
     gobj_is_top_service
 
