@@ -945,7 +945,7 @@ PUBLIC hgobj gobj_create_pure_child(
         'gclass': 'X',
         'name': 'x',
         'default_service': false,
-        'priority': 5,  // 0-9, 0 is highest priority (first running, last in stopping)
+        'priority': 5,  // 0-9, 0 is highest priority (first running, last in stopping), default 5
         'as_service': false, || 'service': false,
         'autostart': true,
         'autoplay': true,
