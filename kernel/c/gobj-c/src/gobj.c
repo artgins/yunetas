@@ -620,7 +620,7 @@ PUBLIC int gobj_get_exit_code(void)
 }
 
 /***************************************************************************
- *  De-initialize the yuno
+ *  De-initialize the gobj's system, destroy yuno and free resources
  ***************************************************************************/
 PUBLIC void gobj_end(void)
 {

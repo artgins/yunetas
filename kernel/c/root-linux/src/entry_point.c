@@ -903,7 +903,7 @@ PRIVATE void process(
     /*---------------------------*
      *      End
      *---------------------------*/
-    gobj_end(); // This destroy yuno
+    gobj_end(); // De-initialize the gobj's system, destroy yuno and free resources
 
     rotatory_end();
     json_decref(__jn_config__);
