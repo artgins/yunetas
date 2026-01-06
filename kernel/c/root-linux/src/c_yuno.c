@@ -914,7 +914,6 @@ PRIVATE int mt_stop(hgobj gobj)
     yev_stop_event(priv->yev_signal);
 
     gobj_stop(priv->gobj_timer);
-    // gobj_stop_children(gobj); TODO WARNING efectos colaterales
 
     return 0;
 }
