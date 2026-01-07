@@ -80,9 +80,6 @@ PUBLIC void stop_services(void)
         gobj_stop(yuno);
     }
 
-    yev_loop_stop(yuno_event_loop());
-    yev_loop_run_once(yuno_event_loop());  // Give an opportunity to close
-
     json_decref(top_services);
 }
 
@@ -190,6 +187,7 @@ PRIVATE int pause_autoplay_services(json_t *top_services)
             }
         }
     }
+    yev_loop_run_once(yuno_event_loop());
 
     return 0;
 }
@@ -227,6 +225,7 @@ PRIVATE int stop_autostart_services(json_t *top_services)
             }
         }
     }
+    yev_loop_run_once(yuno_event_loop());
 
     return 0;
 }

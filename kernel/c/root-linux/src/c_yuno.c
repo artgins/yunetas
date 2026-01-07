@@ -151,6 +151,8 @@ PRIVATE json_t* cmd_list_gobj_commands(hgobj gobj, const char* cmd, json_t* kw, 
 /***************************************************************
  *              Data
  ***************************************************************/
+PRIVATE yev_loop_h yev_loop = NULL;
+
 PRIVATE int atexit_registered = 0; /* Register atexit just 1 time. */
 PRIVATE char pidfile[PATH_MAX] = {0};
 
@@ -518,7 +520,6 @@ SDATA_END()
  *---------------------------------------------*/
 typedef struct _PRIVATE_DATA {
     hgobj gobj_timer;
-    yev_loop_h yev_loop;
 
     uint64_t last_cpu_ticks;
     uint64_t last_ms;
@@ -727,7 +728,7 @@ PRIVATE void mt_create(hgobj gobj)
         (unsigned)gobj_read_integer_attr(gobj, "io_uring_entries"),
         (int) gobj_read_integer_attr(gobj, "keep_alive"),
         yev_loop_callback,
-        &priv->yev_loop
+        &yev_loop
     );
 
     if (!atexit_registered) {
@@ -914,6 +915,7 @@ PRIVATE int mt_stop(hgobj gobj)
     yev_stop_event(priv->yev_signal);
 
     gobj_stop(priv->gobj_timer);
+    gobj_stop_children(gobj); //TODO WARNING efectos colaterales
 
     return 0;
 }
@@ -927,7 +929,6 @@ PRIVATE void mt_destroy(hgobj gobj)
 
     yev_destroy_event(priv->yev_signal);
     priv->yev_signal = 0;
-    yev_loop_destroy(priv->yev_loop);
 }
 
 /***************************************************************************
@@ -4497,7 +4498,7 @@ PRIVATE int capture_signals(hgobj gobj)
     gbuffer_t *gbuf = gbuffer_create(len, len);
 
     priv->yev_signal = yev_create_read_event(
-        priv->yev_loop,
+        yev_loop,
         yev_loop_callback,
         gobj,
         sfd,
@@ -5046,7 +5047,7 @@ PRIVATE int ac_timeout_periodic(hgobj gobj, gobj_event_t event, json_t *kw, hgob
         rotatory_flush(0);
         gobj_set_exit_code(-1);
         JSON_DECREF(kw)
-        yev_loop_reset_running(priv->yev_loop);
+        yev_loop_reset_running(yev_loop);
         return 0;
     }
 
@@ -5181,9 +5182,18 @@ PUBLIC int register_c_yuno(void)
  ***************************************************************************/
 PUBLIC void *yuno_event_loop(void)
 {
-    hgobj gobj = gobj_yuno();
-    PRIVATE_DATA *priv = gobj_priv_data(gobj);
-    return priv->yev_loop;
+    return yev_loop;
+}
+
+/***************************************************************************
+ *
+ ***************************************************************************/
+PUBLIC void yuno_event_detroy(void)
+{
+    if(yev_loop) {
+        yev_loop_destroy(yev_loop);
+        yev_loop = NULL;
+    }
 }
 
 /***************************************************************************
@@ -5202,7 +5212,7 @@ PUBLIC void set_yuno_must_die(void)
     );
     gobj_set_exit_code(0);
     rotatory_flush(0);
-    yev_loop_reset_running(priv->yev_loop);
+    yev_loop_reset_running(yev_loop);
 }
 
 /***************************************************************************

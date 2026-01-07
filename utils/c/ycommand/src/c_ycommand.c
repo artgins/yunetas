@@ -477,6 +477,7 @@ PRIVATE void try_to_stop_yevents(hgobj gobj)  // IDEMPOTENT
             "msgset",       "%s", MSGSET_YEV_LOOP,
             "msg",          "%s", "try_to_stop_yevents",
             "msg2",         "%s", "🟥🟥 try_to_stop_yevents",
+            "gobj_",        "%s", gobj?gobj_short_name(gobj):"",
             NULL
         );
     }

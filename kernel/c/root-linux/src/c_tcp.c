@@ -403,18 +403,6 @@ PRIVATE int mt_stop(hgobj gobj)
 
     try_to_stop_yevents(gobj);
 
-    gobj_reset_volatil_attrs(gobj);
-
-    return 0;
-}
-
-/***************************************************************************
- *      Framework Method destroy
- ***************************************************************************/
-PRIVATE void mt_destroy(hgobj gobj)
-{
-    PRIVATE_DATA *priv = gobj_priv_data(gobj);
-
     EXEC_AND_RESET(yev_destroy_event, priv->yev_connect)
     EXEC_AND_RESET(yev_destroy_event, priv->yev_reading)
     EXEC_AND_RESET(yev_destroy_event, priv->yev_poll)
@@ -429,6 +417,19 @@ PRIVATE void mt_destroy(hgobj gobj)
 
     GBUFFER_DECREF(priv->gbuf_txing)
     dl_flush(&priv->dl_tx, (fnfree)gbuffer_decref);
+
+    gobj_reset_volatil_attrs(gobj);
+
+    return 0;
+}
+
+/***************************************************************************
+ *      Framework Method destroy
+ ***************************************************************************/
+PRIVATE void mt_destroy(hgobj gobj)
+{
+    // PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
 }
 
 /***************************************************************************
@@ -957,6 +958,7 @@ PRIVATE void try_to_stop_yevents(hgobj gobj)  // IDEMPOTENT
             "msgset",       "%s", MSGSET_YEV_LOOP,
             "msg",          "%s", "try_to_stop_yevents",
             "msg2",         "%s", "🟥🟥 try_to_stop_yevents",
+            "gobj_",        "%s", gobj?gobj_short_name(gobj):"",
             NULL
         );
     }

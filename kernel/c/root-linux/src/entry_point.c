@@ -905,6 +905,10 @@ PRIVATE void process(
      *---------------------------*/
     gobj_end(); // De-initialize the gobj's system, destroy yuno and free resources
 
+    yev_loop_stop(yuno_event_loop());
+    // yev_loop_run_once(yuno_event_loop());  // Give an opportunity to close
+    yuno_event_detroy();
+
     rotatory_end();
     json_decref(__jn_config__);
     if(cleaning_fn) {
