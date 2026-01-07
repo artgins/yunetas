@@ -1222,14 +1222,15 @@ PRIVATE void discover(hgobj gobj, hgen_t hgen)
         "pid"
     };
 
-    if(gobj_is_shutdowning()) {
+    if(gobj_is_destroying(gobj)) {
         // NO discover in shutdown
         return;
     }
     for(size_t i=0; i<ARRAY_SIZE(yuno_attrs); i++) {
         const char *attr = yuno_attrs[i];
-        if(gobj_has_attr(gobj_yuno(), attr)) { // WARNING Check that attr exists: avoid recursive loop
-            json_t *value = gobj_read_attr(gobj_yuno(), attr, 0);
+        hgobj yuno = gobj_yuno();
+        if(yuno && gobj_has_attr(yuno, attr)) { // WARNING Check that attr exists: avoid recursive loop
+            json_t *value = gobj_read_attr(yuno, attr, 0);
             if(value) {
                 if(json_is_integer(value)) {
                     xjson_add_integer(hgen, attr, json_integer_value(value));

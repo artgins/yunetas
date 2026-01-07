@@ -259,21 +259,22 @@ PRIVATE int callback_cqe(yev_loop_t *yev_loop, struct io_uring_cqe *cqe)
              *      first receives cqe_res 0
              *      after receives ECANCELED
              */
-            if(cqe_res < 0) {
-                /*
-                 *  HACK this error is information of disconnection cause.
-                 */
-                yev_set_state(yev_event, YEV_ST_STOPPED);
-
-            } else if(cqe_res >= 0) {
+            if(cqe_res >= 0) {
                 /*
                  *  When canceling it could arrive events type with res >= 0
+                 *  -2 ENOENT is because the cancelling has failed
                  *  Wait to one negative
                  */
                 /*
                  *  Mark this request as processed
                  */
                 return 0;
+            }
+            if(cqe_res < 0 ) {
+                /*
+                 *  HACK this error is information of disconnection cause.
+                 */
+                yev_set_state(yev_event, YEV_ST_STOPPED);
             }
             break;
 
@@ -825,7 +826,7 @@ PUBLIC int yev_loop_stop(yev_loop_h yev_loop_)
         struct io_uring_sqe *sqe;
         sqe = io_uring_get_sqe(&yev_loop->ring);
         io_uring_sqe_set_data(sqe, NULL);  // HACK CQE event without data is loop ending
-        io_uring_prep_cancel(sqe, 0, IORING_ASYNC_CANCEL_ANY);
+        io_uring_prep_cancel(sqe, 0, IORING_ASYNC_CANCEL_ALL|IORING_ASYNC_CANCEL_ANY);
         io_uring_submit(&yev_loop->ring);
     }
 

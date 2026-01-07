@@ -169,7 +169,9 @@ PRIVATE void mt_destroy(hgobj gobj)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
+    // WARNING It must be in mt_destroy, the childs tcp are using in mt_stop
     EXEC_AND_RESET(ytls_cleanup, priv->ytls)
+
     EXEC_AND_RESET(yev_destroy_event, priv->yev_server_accept)
 
     if(priv->yev_dups) {
