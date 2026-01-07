@@ -277,6 +277,7 @@ PRIVATE int mt_start(hgobj gobj)
             "msg",          "%s", "cannot open a tty window",
             NULL
         );
+        printf("\n");
         exit(-1);
     }
 
@@ -429,6 +430,7 @@ PRIVATE int yev_callback(yev_event_h yev_event)
                             NULL
                         );
                     }
+                    printf("\n");
                     exit(0);
                 }
             }
@@ -463,6 +465,7 @@ PRIVATE void try_to_stop_yevents(hgobj gobj)  // IDEMPOTENT
     BOOL to_wait_stopped = FALSE;
 
     if(gobj_current_state(gobj)==ST_STOPPED) {
+        printf("\n");
         exit(-1);
     }
 
@@ -507,6 +510,7 @@ PRIVATE void try_to_stop_yevents(hgobj gobj)  // IDEMPOTENT
         gobj_change_state(gobj, ST_WAIT_STOPPED);
     } else {
         gobj_change_state(gobj, ST_STOPPED);
+        printf("\n");
         exit(-1);
     }
 }
@@ -554,6 +558,7 @@ PRIVATE int on_read_cb(hgobj gobj, gbuffer_t *gbuf)
 
     if(base[0] == 3) {
         if(!priv->on_mirror_tty) {
+            printf("\n");
             exit(-1);
         }
     }
@@ -1093,6 +1098,7 @@ PRIVATE int ac_on_token(hgobj gobj, const char *event, json_t *kw, hgobj src)
             printf("\n%s", comment);
             printf("\nAbort.\n");
         }
+        printf("\n");
         exit(-1);
     } else {
         const char *jwt = kw_get_str(gobj, kw, "jwt", "", KW_REQUIRED);
@@ -1684,6 +1690,7 @@ PRIVATE int ac_tty_mirror_data(hgobj gobj, const char *event, json_t *kw, hgobj 
  ***************************************************************************/
 PRIVATE int ac_timeout(hgobj gobj, const char *event, json_t *kw, hgobj src)
 {
+    printf("\n");
     exit(-1);
 
     KW_DECREF(kw);
