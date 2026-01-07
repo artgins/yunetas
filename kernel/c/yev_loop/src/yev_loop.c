@@ -19,6 +19,37 @@
         cqe->flags & IORING_CQE_F_NOTIF
         or sometimes IORING_CQE_F_MORE.
 
+# io_uring Cancel CQEs
+
+You **always** receive two CQEs (at minimum) when a cancellation succeeds:
+
+1. **Cancel operation CQE** — result of the cancel request itself
+2. **Cancelled operation CQE** — the original operation completes with `-ECANCELED`
+
+---
+
+## Race Condition
+
+When the read fails on its own before the cancel takes effect:
+
+| Order | CQE              | res  | errno        | Meaning |
+|-------|------------------|------|--------------|---------|
+| 1st   | Read operation   | -104 | `ECONNRESET` | Connection was reset by peer |
+| 2nd   | Cancel operation | -2   | `ENOENT`     | Nothing to cancel (already completed) |
+
+**Explanation:**
+
+1. The **read** failed because the remote peer closed/reset the connection (`ECONNRESET`)
+2. The **cancel** arrived too late — the read had already completed (with an error), so there was nothing to cancel → `ENOENT`
+
+This is **not** a cancelled operation. A truly cancelled read would show:
+
+```
+Read CQE:   res = -125 (ECANCELED)
+Cancel CQE: res = 0    (success)
+```
+
+
  *          Copyright (c) 2023 Niyamaka.
  *          Copyright (c) 2024-2025, ArtGins.
  *          All Rights Reserved.
