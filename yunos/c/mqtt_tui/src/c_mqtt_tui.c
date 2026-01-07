@@ -409,8 +409,7 @@ PRIVATE int mt_start(hgobj gobj)
             "msg",          "%s", "cannot open a tty window",
             NULL
         );
-        gobj_set_exit_code(-1);
-        stop_services();
+        exit(-1);
         return -1;
     }
 
@@ -765,7 +764,7 @@ PRIVATE int yev_callback(yev_event_h yev_event)
                             NULL
                         );
                     }
-                    stop_services();
+                    exit(-1);
                 }
             }
             break;
@@ -800,8 +799,7 @@ PRIVATE void try_to_stop_yevents(hgobj gobj)  // IDEMPOTENT
     BOOL to_wait_stopped = FALSE;
 
     if(gobj_current_state(gobj)==ST_STOPPED) {
-        gobj_set_exit_code(-1);
-        stop_services();
+        exit(-1);
         return;
     }
 
@@ -846,8 +844,7 @@ PRIVATE void try_to_stop_yevents(hgobj gobj)  // IDEMPOTENT
         gobj_change_state(gobj, ST_WAIT_STOPPED);
     } else {
         gobj_change_state(gobj, ST_STOPPED);
-        gobj_set_exit_code(-1);
-        stop_services();
+        exit(-1);
     }
 }
 
@@ -893,8 +890,7 @@ PRIVATE int on_read_cb(hgobj gobj, gbuffer_t *gbuf)
     }
 
     if(base[0] == 3) {
-        stop_services();
-        return -1;
+        exit(-1);
     }
     uint8_t b[8] = {0}; // To search keys in keytable
     memmove(b, base, MIN(sizeof(b), nread));
@@ -1386,8 +1382,7 @@ PRIVATE int ac_on_token(hgobj gobj, const char *event, json_t *kw, hgobj src)
             printf("\n%s", comment);
             printf("\nAbort.\n");
         }
-        gobj_set_exit_code(-1);
-        stop_services();
+        exit(-1);
     } else {
         const char *jwt = kw_get_str(gobj, kw, "jwt", "", KW_REQUIRED);
         gobj_write_str_attr(gobj, "jwt", jwt);
@@ -1754,7 +1749,7 @@ PRIVATE int ac_screen_ctrl(hgobj gobj, const char *event, json_t *kw, hgobj src)
  ***************************************************************************/
 PRIVATE int ac_timeout(hgobj gobj, const char *event, json_t *kw, hgobj src)
 {
-    stop_services();
+    exit(-1);
 
     KW_DECREF(kw);
     return 0;

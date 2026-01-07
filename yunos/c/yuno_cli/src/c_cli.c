@@ -518,9 +518,7 @@ PRIVATE int mt_start(hgobj gobj)
                 "msg",          "%s", "cannot open a tty window",
                 NULL
             );
-            gobj_set_exit_code(-1);
-            stop_services();
-            return -1;
+            exit(-1);
         }
 
         /*-------------------------------*
@@ -1385,7 +1383,7 @@ PRIVATE int yev_callback(yev_event_h yev_event)
                             NULL
                         );
                     }
-                    stop_services();
+                    exit(0);
                 }
             }
             break;
@@ -1419,9 +1417,7 @@ PRIVATE void try_to_stop_yevents(hgobj gobj)  // IDEMPOTENT
     BOOL to_wait_stopped = FALSE;
 
     if(gobj_current_state(gobj)==ST_STOPPED) {
-        gobj_set_exit_code(-1);
-        stop_services();
-        return;
+        exit(-1);
     }
 
     uint32_t trace_level = gobj_trace_level(gobj);
@@ -1465,8 +1461,7 @@ PRIVATE void try_to_stop_yevents(hgobj gobj)  // IDEMPOTENT
         gobj_change_state(gobj, ST_WAIT_STOPPED);
     } else {
         gobj_change_state(gobj, ST_STOPPED);
-        gobj_set_exit_code(-1);
-        stop_services();
+        exit(-1);
     }
 }
 
@@ -1553,8 +1548,7 @@ PRIVATE int process_read(hgobj gobj, char *base, size_t nread)
 
     if(base[0] == 3) {
         if(!priv->on_mirror_tty) {
-            stop_services();
-            return -1;
+            exit(-1);
         }
     }
 

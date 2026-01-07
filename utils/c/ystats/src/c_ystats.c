@@ -418,8 +418,7 @@ PRIVATE int ac_on_token(hgobj gobj, const char *event, json_t *kw, hgobj src)
             printf("\n%s", comment);
             printf("\nAbort.\n");
         }
-        gobj_set_exit_code(-1);
-        stop_services();
+        exit(-1);
     } else {
         const char *jwt = kw_get_str(gobj, kw, "jwt", "", KW_REQUIRED);
         gobj_write_str_attr(gobj, "jwt", jwt);
@@ -449,8 +448,7 @@ PRIVATE int ac_on_open(hgobj gobj, const char *event, json_t *kw, hgobj src)
     if(!empty_string(attribute)) {
         if(empty_string(gobj_name_)) {
             printf("Please, the gobj_name of attribute to ask.\n");
-            gobj_set_exit_code(-1);
-            stop_services();
+            exit(-1);
         } else {
             // if(!priv->verbose) {
             //     set_timeout(priv->timer, priv->refresh_time * 1000);
@@ -503,8 +501,7 @@ PRIVATE int ac_on_close(hgobj gobj, const char *event, json_t *kw, hgobj src)
         printf("Disconnected.\n");
     }
 
-    gobj_set_exit_code(-1);
-    stop_services();
+    exit(-1);
 
     KW_DECREF(kw);
     return 0;
@@ -521,8 +518,7 @@ PRIVATE int ac_stats(hgobj gobj, const char *event, json_t *kw, hgobj src)
     const char *comment = kw_get_str(gobj, kw, "comment", "", 0);
     if(result != 0){
         printf("Error %d: %s\n", result, comment);
-        gobj_set_exit_code(-1);
-        stop_services();
+        exit(-1);
     } else {
         BOOL to_free = FALSE;
         json_t *jn_data = kw_get_dict_value(gobj, kw, "data", 0, 0);

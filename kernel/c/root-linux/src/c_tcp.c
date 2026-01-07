@@ -403,22 +403,24 @@ PRIVATE int mt_stop(hgobj gobj)
 
     try_to_stop_yevents(gobj);
 
-    EXEC_AND_RESET(yev_destroy_event, priv->yev_connect)
-    EXEC_AND_RESET(yev_destroy_event, priv->yev_reading)
-    EXEC_AND_RESET(yev_destroy_event, priv->yev_poll)
-    EXEC_AND_RESET(yev_destroy_event, priv->yev_accept)
-    if(priv->sskt) {
-        ytls_free_secure_filter(priv->ytls, priv->sskt);
-        priv->sskt = 0;
-    }
-    if(IS_CLI) {
-        EXEC_AND_RESET(ytls_cleanup, priv->ytls)
-    }
+    if(gobj_current_state(gobj)==ST_STOPPED) {
+        EXEC_AND_RESET(yev_destroy_event, priv->yev_connect)
+        EXEC_AND_RESET(yev_destroy_event, priv->yev_reading)
+        EXEC_AND_RESET(yev_destroy_event, priv->yev_poll)
+        EXEC_AND_RESET(yev_destroy_event, priv->yev_accept)
+        if(priv->sskt) {
+            ytls_free_secure_filter(priv->ytls, priv->sskt);
+            priv->sskt = 0;
+        }
+        if(IS_CLI) {
+            EXEC_AND_RESET(ytls_cleanup, priv->ytls)
+        }
 
-    GBUFFER_DECREF(priv->gbuf_txing)
-    dl_flush(&priv->dl_tx, (fnfree)gbuffer_decref);
+        GBUFFER_DECREF(priv->gbuf_txing)
+        dl_flush(&priv->dl_tx, (fnfree)gbuffer_decref);
 
-    gobj_reset_volatil_attrs(gobj);
+        gobj_reset_volatil_attrs(gobj);
+    }
 
     return 0;
 }
@@ -428,8 +430,6 @@ PRIVATE int mt_stop(hgobj gobj)
  ***************************************************************************/
 PRIVATE void mt_destroy(hgobj gobj)
 {
-    // PRIVATE_DATA *priv = gobj_priv_data(gobj);
-
 }
 
 /***************************************************************************

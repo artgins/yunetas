@@ -219,6 +219,7 @@ PRIVATE int callback_cqe(yev_loop_t *yev_loop, struct io_uring_cqe *cqe)
                 "msg",          "%s", "callback_cqe",
                 "msg2",         "%s", "💥💥💥💥⏪ callback_cqe",
                 "type",         "%s", yev_event_type_name(yev_event),
+                "type_",        "%d", (int)yev_event->type,
                 "yev_state",    "%s", yev_get_state_name(yev_event),
                 "loop_running", "%d", yev_loop->running?1:0,
                 "p",            "%p", yev_event,
