@@ -749,6 +749,13 @@ PRIVATE int broadcast_queues_tranger(hgobj gobj)
  *    }
  *  }
  ***************************************************************************/
+PRIVATE void print_levels(char *prefix, char **levels)
+{
+    printf("==> %s\n", prefix);
+    for(int i = 0; levels[i] != NULL; i++) {
+        printf("level %d: %s\n", i, levels[i]);
+    }
+}
 
 /***************************************************************************
  *  strtok_hier - Hierarchical Topic Tokenizer
@@ -1101,7 +1108,6 @@ PRIVATE void search_recursive( // sub__search
     json_t *subscribers
 )
 {
-    json_t *subs;
     const char *current_level = pub_levels[level_index];
 
     /*-----------------------------------------------------------*
@@ -1116,7 +1122,7 @@ PRIVATE void search_recursive( // sub__search
      *  End of published topic - collect subscribers from current node
      *------------------------------------------------------------------*/
     if(current_level == NULL) {
-        collect_subscribers(multi_wildcard, subscribers);
+        collect_subscribers(node, subscribers);
         return;
     }
 
