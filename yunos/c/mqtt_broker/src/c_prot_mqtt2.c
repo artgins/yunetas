@@ -3219,7 +3219,7 @@ PRIVATE int property_read(hgobj gobj, gbuffer_t *gbuf, uint32_t *len, json_t *al
                 return MOSQ_ERR_MALFORMED_PACKET;
             }
             *len = (*len) - 2 - slen1; /* uint16, string len */
-            json_object_set_new(property, "value", json_sprintf("%*.*s", slen1, slen1, str1));
+            json_object_set_new(property, "value", json_stringn(str1, slen1));
             json_object_set_new(property, "value_length", json_integer(slen1));
             break;
 
@@ -3255,10 +3255,10 @@ PRIVATE int property_read(hgobj gobj, gbuffer_t *gbuf, uint32_t *len, json_t *al
 
             *len = (*len) - 2 - slen2; /* uint16, string len */
 
-            json_object_set_new(property, "name", json_sprintf("%*.*s", slen1, slen1, str1));
+            json_object_set_new(property, "name", json_stringn(str1, slen1));
             json_object_set_new(property, "name_length", json_integer(slen1));
 
-            json_object_set_new(property, "value", json_sprintf("%*.*s", slen2, slen2, str2));
+            json_object_set_new(property, "value", json_stringn(str2, slen2));
             json_object_set_new(property, "value_length", json_integer(slen2));
             break;
 
@@ -5146,14 +5146,18 @@ PRIVATE int handle__connect(hgobj gobj, gbuffer_t *gbuf, hgobj src)
     const char *peername = gobj_read_str_attr(src, "peername");
     const char *dst_service = "treedb_mqtt_broker"; // TODO too much hardcoded
     int authorization = 0;
-    json_t *kw_auth = json_pack("{s:s, s:s, s:s, s:s, s:s, s:s}",
+    json_t *kw_auth = json_pack("{s:s, s:s, s:s, s:s}",
         "client_id", SAFE_PRINT(priv->client_id),
-        "username", SAFE_PRINT(username),
-        "password", SAFE_PRINT(password),
         "jwt", SAFE_PRINT(jwt),
         "peername", SAFE_PRINT(peername),
         "dst_service", SAFE_PRINT(dst_service)
     );
+    if(username_flag) {
+        json_object_set_new(kw_auth, "username", json_stringn(username, username_len));
+    }
+    if(password_flag) {
+        json_object_set_new(kw_auth, "password", json_stringn(password, password_len));
+    }
 
     json_t *auth = gobj_authenticate(gobj, kw_auth, gobj);
     authorization = COMMAND_RESULT(gobj, auth);
@@ -5722,7 +5726,6 @@ PRIVATE int handle__subscribe(hgobj gobj, gbuffer_t *gbuf)
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
     uint16_t mid;
     json_int_t subscription_identifier = 0;
-    uint16_t slen;
     json_t *properties = NULL;
 
     if(priv->frame_head.flags != 2) {
@@ -5781,6 +5784,7 @@ PRIVATE int handle__subscribe(hgobj gobj, gbuffer_t *gbuf)
     json_t *jn_list = json_array();
 
     while(gbuffer_leftbytes(gbuf)>0) {
+        uint16_t slen;
         char *sub = NULL;
         uint8_t qos;
         uint8_t subscription_options;
@@ -5875,8 +5879,8 @@ PRIVATE int handle__subscribe(hgobj gobj, gbuffer_t *gbuf)
             return MOSQ_ERR_MALFORMED_PACKET;
         }
 
-        json_t *jn_sub = json_pack("{s:s, s:i, s:i, s:i, s:i}",
-            "sub", sub,
+        json_t *jn_sub = json_pack("{s:s#, s:i, s:i, s:i, s:i}",
+            "sub", sub, (int)slen,
             "subscription_identifier", (int)subscription_identifier,
             "qos", (int)qos,
             "subscription_options", (int)subscription_options,
@@ -6005,7 +6009,6 @@ PRIVATE int handle__unsubscribe(hgobj gobj, gbuffer_t *gbuf)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
     uint16_t mid;
-    uint16_t slen;
     int reason_code_count = 0;
     json_t *properties = NULL;
 
@@ -6062,6 +6065,7 @@ PRIVATE int handle__unsubscribe(hgobj gobj, gbuffer_t *gbuf)
     json_t *jn_list = json_array();
 
     while(gbuffer_leftbytes(gbuf)>0) {
+        uint16_t slen;
         char *sub = NULL;
         if(mqtt_read_string(gobj, gbuf, &sub, &slen)<0) {
             // Error already logged
@@ -6102,8 +6106,8 @@ PRIVATE int handle__unsubscribe(hgobj gobj, gbuffer_t *gbuf)
             );
         }
 
-        json_t *jn_sub = json_pack("{s:s}",
-            "sub", sub
+        json_t *jn_sub = json_pack("{s:s#}",
+            "sub", sub, (int)slen
         );
         json_array_append_new(jn_list, jn_sub);
         reason_code_count++;
