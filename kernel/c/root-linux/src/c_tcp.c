@@ -426,6 +426,10 @@ PRIVATE void mt_destroy(hgobj gobj)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
+    // TODO someday review stopping
+    // This would be in mt_stop, but by now not full control of stopping uring events
+    // Other gclass's managing io_uring events with the same problem
+
     EXEC_AND_RESET(yev_destroy_event, priv->yev_connect)
     EXEC_AND_RESET(yev_destroy_event, priv->yev_reading)
     EXEC_AND_RESET(yev_destroy_event, priv->yev_poll)
@@ -942,6 +946,7 @@ PRIVATE int enqueue_write(hgobj gobj, gbuffer_t *gbuf)
  *  Stop all events, is someone is running go to WAIT_STOPPED else STOPPED
  *  IMPORTANT this is the only place to set ST_WAIT_STOPPED state
  ***************************************************************************/
+#include <liburing.h> // TODO someday review stopping
 PRIVATE void try_to_stop_yevents(hgobj gobj)  // IDEMPOTENT
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
@@ -1018,6 +1023,16 @@ PRIVATE void try_to_stop_yevents(hgobj gobj)  // IDEMPOTENT
     if(priv->tx_in_progress > 0) {
         to_wait_stopped = TRUE;
     }
+
+    // TODO someday review stopping
+    // unsigned x = io_uring_cq_ready(yuno_event_loop());
+    // unsigned xx = io_uring_sq_ready(yuno_event_loop());
+    // printf("💥💥💥 %s state %s, cq_ready %d\n",
+    //     gobj_short_name(gobj), gobj_current_state(gobj), x
+    // );
+    // printf("💥💥💥 %s state %s, sq_ready %d\n",
+    //     gobj_short_name(gobj), gobj_current_state(gobj), xx
+    // );
 
     if(to_wait_stopped) {
         gobj_change_state(gobj, ST_WAIT_STOPPED);
