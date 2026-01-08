@@ -5827,9 +5827,10 @@ PRIVATE int handle__subscribe(hgobj gobj, gbuffer_t *gbuf)
             priv->protocol_version == mosq_p_mqtt311
         ) {
             qos = subscription_options;
-            if(priv->is_bridge) {
-                subscription_options = MQTT_SUB_OPT_RETAIN_AS_PUBLISHED | MQTT_SUB_OPT_NO_LOCAL;
-            }
+            subscription_options = 0;
+            // if(priv->is_bridge) {
+            //     subscription_options = MQTT_SUB_OPT_RETAIN_AS_PUBLISHED | MQTT_SUB_OPT_NO_LOCAL;
+            // }
         } else {
             qos = subscription_options & 0x03;
             subscription_options &= 0xFC;

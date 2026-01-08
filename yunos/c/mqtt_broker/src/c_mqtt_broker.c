@@ -1066,28 +1066,28 @@ PRIVATE void collect_subscribers(hgobj gobj, json_t *node, json_t *subscribers)
             int existing_qos = (int)json_integer_value(json_object_get(existing, "qos"));
             int new_qos = (int)json_integer_value(json_object_get(sub_info, "qos"));
             if(new_qos > existing_qos) {
-                json_object_set(existing, "qos", json_object_get(sub_info, "qos"));
+                json_object_set_new(existing, "qos", json_integer(new_qos));
             }
-
             json_int_t new_id = json_integer_value(json_object_get(sub_info, "id"));
             if(new_id > 0) {
                 json_t *ids = json_object_get(existing, "ids");
-                if(!ids) {
-                    ids = json_array();
-                    json_object_set_new(existing, "ids", ids);
-                }
                 json_array_append_new(ids, json_integer(new_id));
             }
         } else {
             /*
              *  First match for this client
              */
-            json_t *entry = json_deep_copy(sub_info);
-            json_int_t id = json_integer_value(json_object_get(sub_info, "id"));
+            json_t *entry = json_object();
+            int qos = (int)json_integer_value(json_object_get(sub_info, "qos"));
+            int options = (int)json_integer_value(json_object_get(sub_info, "options"));
+            json_object_set_new(entry, "qos", json_integer(qos));
+            json_object_set_new(entry, "options", json_integer(options));
+            json_t *ids = json_array();
+            json_object_set_new(entry, "ids", ids);
+
+            int id = (int)json_integer_value(json_object_get(sub_info, "id"));
             if(id > 0) {
-                json_t *ids = json_array();
                 json_array_append_new(ids, json_integer(id));
-                json_object_set_new(entry, "ids", ids);
             }
             json_object_set_new(subscribers, client_id, entry);
         }
@@ -2352,6 +2352,7 @@ PRIVATE int ac_mqtt_subscribe(hgobj gobj, const char *event, json_t *kw, hgobj s
         BOOL allowed = TRUE;
         // allowed = mosquitto_acl_check(context, sub, 0, NULL, qos, FALSE, MOSQ_ACL_SUBSCRIBE); TODO
         if(!allowed) {
+            // TODO
             if(protocol_version == mosq_p_mqtt5) {
                 qos = MQTT_RC_NOT_AUTHORIZED;
             } else if(protocol_version == mosq_p_mqtt311) {
