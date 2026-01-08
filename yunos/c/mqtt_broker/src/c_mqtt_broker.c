@@ -1040,10 +1040,16 @@ PRIVATE json_t *get_or_create_node(json_t *root, char **levels)
  *      node        - JSON node that may contain @subs
  *      subscribers - JSON dict to append client_ids to
  ***************************************************************************/
-PRIVATE void collect_subscribers(json_t *node, json_t *subscribers)
+PRIVATE void collect_subscribers(hgobj gobj, json_t *node, json_t *subscribers)
 {
     json_t *subs = json_object_get(node, SUBS_KEY);
     if(!subs) {
+        gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+            "msg",          "%s", "@subs is NULL",
+            NULL
+        );
         return;
     }
 
@@ -1115,14 +1121,14 @@ PRIVATE void search_recursive( // sub__search
      *-----------------------------------------------------------*/
     json_t *multi_wildcard = json_object_get(node, "#");
     if(multi_wildcard) {
-        collect_subscribers(multi_wildcard, subscribers);
+        collect_subscribers(gobj, multi_wildcard, subscribers);
     }
 
     /*------------------------------------------------------------------*
      *  End of published topic - collect subscribers from current node
      *------------------------------------------------------------------*/
     if(current_level == NULL) {
-        collect_subscribers(node, subscribers);
+        collect_subscribers(gobj, node, subscribers);
         return;
     }
 
@@ -1810,6 +1816,8 @@ print_json2("SHARED_SUBSCRIBERS", shared_subscribers); // TODO TEST
 
 
     size_t ret = json_object_size(normal_subscribers) + json_object_size(shared_subscribers)?1:0;
+
+printf("TOTAL===========> %d\n", (int)ret);
 
     json_decref(normal_subscribers);
     json_decref(shared_subscribers);
