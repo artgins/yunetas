@@ -280,128 +280,6 @@ PUBLIC const char *mqtt_property_identifier_to_string(int identifier)
 /***************************************************************************
  *
  ***************************************************************************/
-PUBLIC int mosquitto_sub_topic_tokenise(
-    const char *subtopic,
-    char ***topics,
-    int *count
-) {
-    size_t len;
-    size_t hier_count = 1;
-    size_t start, stop;
-    size_t hier;
-    size_t tlen;
-    size_t i, j;
-
-    if(!subtopic || !topics || !count) {
-        return -1;
-    }
-
-    len = strlen(subtopic);
-
-    for(i=0; i<len; i++) {
-        if(subtopic[i] == '/') {
-            if(i > len-1) {
-                /* Separator at end of line */
-            }else{
-                hier_count++;
-            }
-        }
-    }
-
-    (*topics) = gbmem_calloc(hier_count, sizeof(char *));
-    if(!(*topics)) {
-        return -1;
-    }
-
-    start = 0;
-    hier = 0;
-
-    for(i=0; i<len+1; i++) {
-        if(subtopic[i] == '/' || subtopic[i] == '\0') {
-            stop = i;
-            if(start != stop) {
-                tlen = stop-start + 1;
-                (*topics)[hier] = gbmem_calloc(tlen, sizeof(char));
-                if(!(*topics)[hier]) {
-                    for(j=0; j<hier; j++) {
-                        gbmem_free((*topics)[j]);
-                    }
-                    gbmem_free((*topics));
-                    return -1;
-                }
-                for(j=start; j<stop; j++) {
-                    (*topics)[hier][j-start] = subtopic[j];
-                }
-            }
-            start = i+1;
-            hier++;
-        }
-    }
-
-    *count = (int)hier_count;
-
-    return 0;
-}
-
-/***************************************************************************
- *
- ***************************************************************************/
-PUBLIC int mosquitto_sub_topic_tokens_free(char ***topics, int count)
-{
-    int i;
-
-    if(!topics || !(*topics) || count<1) {
-        return -1;
-    }
-
-    for(i=0; i<count; i++) {
-        gbmem_free((*topics)[i]);
-    }
-    gbmem_free(*topics);
-
-    return 0;
-}
-
-/***************************************************************************
- * Check that a topic used for publishing is valid.
- * Search for + or # in a topic. Return -1 if found.
- * Also returns -1 if the topic string is too long.
- * Returns 0 if everything is fine.
- ***************************************************************************/
-PUBLIC int mosquitto_pub_topic_check(const char *str)
-{
-    int len = 0;
-#ifdef WITH_BROKER
-    int hier_count = 0;
-#endif
-
-    if(str == NULL) {
-		return -1;
-    }
-
-    while(str && str[0]) {
-		if(str[0] == '+' || str[0] == '#') {
-			return -1;
-		}
-#ifdef WITH_BROKER
-		else if(str[0] == '/') {
-			hier_count++;
-		}
-#endif
-		len++;
-		str = &str[1];
-    }
-    if(len == 0 || len > 65535) return -1;
-#ifdef WITH_BROKER
-    if(hier_count > TOPIC_HIERARCHY_LIMIT) return -1;
-#endif
-
-    return 0;
-}
-
-/***************************************************************************
- *
- ***************************************************************************/
 PUBLIC int mosquitto_pub_topic_check2(const char *str, size_t len)
 {
     size_t i;
@@ -410,66 +288,19 @@ PUBLIC int mosquitto_pub_topic_check2(const char *str, size_t len)
 #endif
 
     if(str == NULL || len == 0 || len > 65535) {
-		return -1;
+        return -1;
     }
 
     for(i=0; i<len; i++) {
-		if(str[i] == '+' || str[i] == '#') {
-			return -1;
-		}
+        if(str[i] == '+' || str[i] == '#') {
+            return -1;
+        }
 #ifdef WITH_BROKER
-		else if(str[i] == '/') {
-			hier_count++;
-		}
+        else if(str[i] == '/') {
+            hier_count++;
+        }
 #endif
     }
-#ifdef WITH_BROKER
-    if(hier_count > TOPIC_HIERARCHY_LIMIT) return -1;
-#endif
-
-    return 0;
-}
-
-/***************************************************************************
- * Check that a topic used for subscriptions is valid.
- * Search for + or # in a topic, check they aren't in invalid positions such as
- * foo/#/bar, foo/+bar or foo/bar#.
- * Return -1 if invalid position found.
- * Also returns -1 if the topic string is too long.
- * Returns 0 if everything is fine.
- ***************************************************************************/
-PUBLIC int mosquitto_sub_topic_check(const char *str)
-{
-    char c = '\0';
-    int len = 0;
-#ifdef WITH_BROKER
-    int hier_count = 0;
-#endif
-
-    if(str == NULL) {
-		return -1;
-    }
-
-    while(str[0]) {
-		if(str[0] == '+') {
-			if((c != '\0' && c != '/') || (str[1] != '\0' && str[1] != '/')){
-				return -1;
-			}
-		}else if(str[0] == '#') {
-			if((c != '\0' && c != '/')  || str[1] != '\0') {
-				return -1;
-			}
-		}
-#ifdef WITH_BROKER
-		else if(str[0] == '/') {
-			hier_count++;
-		}
-#endif
-		len++;
-		c = str[0];
-		str = &str[1];
-    }
-    if(len == 0 || len > 65535) return -1;
 #ifdef WITH_BROKER
     if(hier_count > TOPIC_HIERARCHY_LIMIT) return -1;
 #endif
@@ -489,289 +320,29 @@ PUBLIC int mosquitto_sub_topic_check2(const char *str, size_t len)
 #endif
 
     if(str == NULL || len == 0 || len > 65535) {
-		return -1;
+        return -1;
     }
 
     for(i=0; i<len; i++) {
-		if(str[i] == '+') {
-			if((c != '\0' && c != '/') || (i<len-1 && str[i+1] != '/')){
-				return -1;
-			}
-		}else if(str[i] == '#') {
-			if((c != '\0' && c != '/')  || i<len-1) {
-				return -1;
-			}
-		}
+        if(str[i] == '+') {
+            if((c != '\0' && c != '/') || (i<len-1 && str[i+1] != '/')){
+                return -1;
+            }
+        }else if(str[i] == '#') {
+            if((c != '\0' && c != '/')  || i<len-1) {
+                return -1;
+            }
+        }
 #ifdef WITH_BROKER
-		else if(str[i] == '/') {
-			hier_count++;
-		}
+        else if(str[i] == '/') {
+            hier_count++;
+        }
 #endif
-		c = str[i];
+        c = str[i];
     }
 #ifdef WITH_BROKER
     if(hier_count > TOPIC_HIERARCHY_LIMIT) return -1;
 #endif
-
-    return 0;
-}
-
-/***************************************************************************
- *  Does a topic match a subscription?
- ***************************************************************************/
-PUBLIC int mosquitto_topic_matches_sub(const char *sub, const char *topic, BOOL *result)
-{
-    size_t spos;
-
-    if(!result) return -1;
-    *result = FALSE;
-
-    if(!sub || !topic || sub[0] == 0 || topic[0] == 0) {
-		return -1;
-    }
-
-    if((sub[0] == '$' && topic[0] != '$')
-			|| (topic[0] == '$' && sub[0] != '$')){
-
-		return 0;
-    }
-
-    spos = 0;
-
-    while(sub[0] != 0) {
-		if(topic[0] == '+' || topic[0] == '#') {
-			return -1;
-		}
-		if(sub[0] != topic[0] || topic[0] == 0) { /* Check for wildcard matches */
-			if(sub[0] == '+') {
-				/* Check for bad "+foo" or "a/+foo" subscription */
-				if(spos > 0 && sub[-1] != '/') {
-					return -1;
-				}
-				/* Check for bad "foo+" or "foo+/a" subscription */
-				if(sub[1] != 0 && sub[1] != '/') {
-					return -1;
-				}
-				spos++;
-				sub++;
-				while(topic[0] != 0 && topic[0] != '/') {
-					if(topic[0] == '+' || topic[0] == '#') {
-						return -1;
-					}
-					topic++;
-				}
-				if(topic[0] == 0 && sub[0] == 0) {
-					*result = TRUE;
-					return 0;
-				}
-			}else if(sub[0] == '#') {
-				/* Check for bad "foo#" subscription */
-				if(spos > 0 && sub[-1] != '/') {
-					return -1;
-				}
-				/* Check for # not the final character of the sub, e.g. "#foo" */
-				if(sub[1] != 0) {
-					return -1;
-				}else{
-					while(topic[0] != 0) {
-						if(topic[0] == '+' || topic[0] == '#') {
-							return -1;
-						}
-						topic++;
-					}
-					*result = TRUE;
-					return 0;
-				}
-			}else{
-				/* Check for e.g. foo/bar matching foo/+/# */
-				if(topic[0] == 0
-						&& spos > 0
-						&& sub[-1] == '+'
-						&& sub[0] == '/'
-						&& sub[1] == '#')
-				{
-					*result = TRUE;
-					return 0;
-				}
-
-				/* There is no match at this point, but is the sub invalid? */
-				while(sub[0] != 0) {
-					if(sub[0] == '#' && sub[1] != 0) {
-						return -1;
-					}
-					spos++;
-					sub++;
-				}
-
-				/* Valid input, but no match */
-				return 0;
-			}
-		}else{
-			/* sub[spos] == topic[tpos] */
-			if(topic[1] == 0) {
-				/* Check for e.g. foo matching foo/# */
-				if(sub[1] == '/'
-						&& sub[2] == '#'
-						&& sub[3] == 0) {
-					*result = TRUE;
-					return 0;
-				}
-			}
-			spos++;
-			sub++;
-			topic++;
-			if(sub[0] == 0 && topic[0] == 0) {
-				*result = TRUE;
-				return 0;
-			}else if(topic[0] == 0 && sub[0] == '+' && sub[1] == 0) {
-				if(spos > 0 && sub[-1] != '/') {
-					return -1;
-				}
-				spos++;
-				sub++;
-				*result = TRUE;
-				return 0;
-			}
-		}
-    }
-    if((topic[0] != 0 || sub[0] != 0)){
-		*result = FALSE;
-    }
-    while(topic[0] != 0) {
-		if(topic[0] == '+' || topic[0] == '#') {
-			return -1;
-		}
-		topic++;
-    }
-
-    return 0;
-}
-
-/***************************************************************************
- *  Does a topic match a subscription?
- ***************************************************************************/
-PUBLIC int mosquitto_topic_matches_sub2(const char *sub, size_t sublen, const char *topic, size_t topiclen, BOOL *result)
-{
-    size_t spos, tpos;
-
-    if(!result) return -1;
-    *result = FALSE;
-
-    if(!sub || !topic || !sublen || !topiclen) {
-		return -1;
-    }
-
-    if((sub[0] == '$' && topic[0] != '$')
-			|| (topic[0] == '$' && sub[0] != '$')){
-
-		return 0;
-    }
-
-    spos = 0;
-    tpos = 0;
-
-    while(spos < sublen) {
-		if(tpos < topiclen && (topic[tpos] == '+' || topic[tpos] == '#')){
-			return -1;
-		}
-		if(tpos == topiclen || sub[spos] != topic[tpos]) {
-			if(sub[spos] == '+') {
-				/* Check for bad "+foo" or "a/+foo" subscription */
-				if(spos > 0 && sub[spos-1] != '/') {
-					return -1;
-				}
-				/* Check for bad "foo+" or "foo+/a" subscription */
-				if(spos+1 < sublen && sub[spos+1] != '/') {
-					return -1;
-				}
-				spos++;
-				while(tpos < topiclen && topic[tpos] != '/') {
-					if(topic[tpos] == '+' || topic[tpos] == '#') {
-						return -1;
-					}
-					tpos++;
-				}
-				if(tpos == topiclen && spos == sublen) {
-					*result = TRUE;
-					return 0;
-				}
-			}else if(sub[spos] == '#') {
-				/* Check for bad "foo#" subscription */
-				if(spos > 0 && sub[spos-1] != '/') {
-					return -1;
-				}
-				/* Check for # not the final character of the sub, e.g. "#foo" */
-				if(spos+1 < sublen) {
-					return -1;
-				}else{
-					while(tpos < topiclen) {
-						if(topic[tpos] == '+' || topic[tpos] == '#') {
-							return -1;
-						}
-						tpos++;
-					}
-					*result = TRUE;
-					return 0;
-				}
-			}else{
-				/* Check for e.g. foo/bar matching foo/+/# */
-				if(tpos == topiclen
-						&& spos > 0
-						&& sub[spos-1] == '+'
-						&& sub[spos] == '/'
-						&& spos+1 < sublen
-						&& sub[spos+1] == '#')
-				{
-					*result = TRUE;
-					return 0;
-				}
-
-				/* There is no match at this point, but is the sub invalid? */
-				while(spos < sublen) {
-					if(sub[spos] == '#' && spos+1 < sublen) {
-						return -1;
-					}
-					spos++;
-				}
-
-				/* Valid input, but no match */
-				return 0;
-			}
-		}else{
-			/* sub[spos] == topic[tpos] */
-			if(tpos+1 == topiclen) {
-				/* Check for e.g. foo matching foo/# */
-				if(spos+3 == sublen
-						&& sub[spos+1] == '/'
-						&& sub[spos+2] == '#') {
-					*result = TRUE;
-					return 0;
-				}
-			}
-			spos++;
-			tpos++;
-			if(spos == sublen && tpos == topiclen) {
-				*result = TRUE;
-				return 0;
-			}else if(tpos == topiclen && sub[spos] == '+' && spos+1 == sublen) {
-				if(spos > 0 && sub[spos-1] != '/') {
-					return -1;
-				}
-				spos++;
-				*result = TRUE;
-				return 0;
-			}
-		}
-    }
-    if(tpos < topiclen || spos < sublen) {
-		*result = FALSE;
-    }
-    while(tpos < topiclen) {
-		if(topic[tpos] == '+' || topic[tpos] == '#') {
-			return -1;
-		}
-		tpos++;
-    }
 
     return 0;
 }
