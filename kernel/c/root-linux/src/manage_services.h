@@ -20,6 +20,7 @@ extern "C"{
  ***************************************************************/
 PUBLIC void run_services(void); /* Start/Play services and yuno, by priority */
 PUBLIC void stop_services(void); /* Pause/Stop services and yuno, by priority */
+PUBLIC void yuno_shutdown(void); /* Shutdown yuno, mark gobj as shutdown and exit of event loop */
 
 #ifdef __cplusplus
 }

@@ -51,6 +51,8 @@
 #include "entry_point.h"
 #include "c_yuno.h"
 
+#include "manage_services.h"
+
 /***************************************************************
  *              Constants
  ***************************************************************/
@@ -5047,7 +5049,7 @@ PRIVATE int ac_timeout_periodic(hgobj gobj, gobj_event_t event, json_t *kw, hgob
         rotatory_flush(0);
         gobj_set_exit_code(-1);
         JSON_DECREF(kw)
-        yev_loop_reset_running(yev_loop);
+        yuno_shutdown();
         return 0;
     }
 
@@ -5212,7 +5214,7 @@ PUBLIC void set_yuno_must_die(void)
     );
     gobj_set_exit_code(0);
     rotatory_flush(0);
-    yev_loop_reset_running(yev_loop);
+    yuno_shutdown();
 }
 
 /***************************************************************************

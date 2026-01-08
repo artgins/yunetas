@@ -155,6 +155,7 @@ The documentation needs to be update with next changes
     gobj_set_shutdown
     gobj_is_top_service
     gobj_top_services
+    yuno_shutdown
 
 # Delete API
 

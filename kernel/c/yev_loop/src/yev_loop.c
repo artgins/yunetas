@@ -621,7 +621,7 @@ PUBLIC int yev_loop_run(yev_loop_h yev_loop_, int timeout_in_seconds)
         gobj_log_error(yev_loop->yuno, LOG_OPT_TRACE_STACK,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_LIBURING_ERROR,
-            "msg",          "%s", "ALREADY running a event loop",
+            "msg",          "%s", "ALREADY running the main event loop",
             NULL
         );
         return -1;
@@ -766,7 +766,7 @@ PUBLIC int yev_loop_run_once(yev_loop_h yev_loop_)
         gobj_log_error(yev_loop->yuno, LOG_OPT_TRACE_STACK,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_LIBURING_ERROR,
-            "msg",          "%s", "ALREADY running a event loop",
+            "msg",          "%s", "ALREADY running the once event loop",
             NULL
         );
         return -1;
@@ -865,7 +865,7 @@ PUBLIC int yev_loop_stop(yev_loop_h yev_loop_)
 }
 
 /***************************************************************************
- *
+ *  Exit of the main event loop
  ***************************************************************************/
 PUBLIC void yev_loop_reset_running(yev_loop_h yev_loop)
 {

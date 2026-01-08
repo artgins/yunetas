@@ -61,10 +61,12 @@ PUBLIC void run_services(void)
  ***************************************************************************/
 PUBLIC void stop_services(void)
 {
-    /*
-     *  Shutdown
-     */
-    gobj_set_shutdown();
+    static char __stopping__ = FALSE;
+
+    if(__stopping__) {
+        return;
+    }
+    __stopping__ = TRUE;
 
     json_t *top_services = gobj_top_services(); /* Get list of top services {gobj, priority} */
 
@@ -81,6 +83,16 @@ PUBLIC void stop_services(void)
     }
 
     json_decref(top_services);
+    __stopping__ = FALSE;
+}
+
+/***************************************************************************
+ *  Shutdown yuno, mark gobj as shutdown and exit of event loop
+ ***************************************************************************/
+PUBLIC void yuno_shutdown(void)
+{
+    gobj_set_shutdown();
+    yev_loop_reset_running(yuno_event_loop());
 }
 
 /***************************************************************************
