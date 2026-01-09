@@ -228,14 +228,12 @@ PUBLIC const char *mosquitto_command_string(mqtt_message_t command);
 PUBLIC const char *mqtt_property_identifier_to_string(int identifier);
 
 /*
- * Function: mosquitto_pub_topic_check2
- *
  * Check whether a topic to be used for publishing is valid.
  *
  * This searches for + or # in a topic and checks its length.
  *
- * This check is already carried out in <mosquitto_publish> and
- * <mosquitto_will_set>, there is no need to call it directly before them. It
+ * This check is already carried out in <publish> and <will_set>,
+ * there is no need to call it directly before them. It
  * may be useful if you wish to check the validity of a topic in advance of
  * making a connection for example.
  *
@@ -244,26 +242,20 @@ PUBLIC const char *mqtt_property_identifier_to_string(int identifier);
  *   topiclen - length of the topic in bytes
  *
  * Returns:
- *   MOSQ_ERR_SUCCESS -        for a valid topic
- *   MOSQ_ERR_INVAL -          if the topic contains a + or a #, or if it is too long.
- *   MOSQ_ERR_MALFORMED_UTF8 - if topic is not valid UTF-8
- *
- * See Also:
- *   <mosquitto_sub_topic_check>
+ *   0  for a valid topic
+ *   -1 invalid topic
  */
 PUBLIC int mosquitto_pub_topic_check2(const char *topic, size_t topiclen);
 
 /*
- * Function: mosquitto_sub_topic_check2
- *
  * Check whether a topic to be used for subscribing is valid.
  *
  * This searches for + or # in a topic and checks that they aren't in invalid
  * positions, such as with foo/#/bar, foo/+bar or foo/bar#, and checks its
  * length.
  *
- * This check is already carried out in <mosquitto_subscribe> and
- * <mosquitto_unsubscribe>, there is no need to call it directly before them.
+ * This check is already carried out in <subscribe> and <unsubscribe>,
+ * there is no need to call it directly before them.
  * It may be useful if you wish to check the validity of a topic in advance of
  * making a connection for example.
  *
@@ -272,16 +264,10 @@ PUBLIC int mosquitto_pub_topic_check2(const char *topic, size_t topiclen);
  *   topiclen - the length in bytes of the topic
  *
  * Returns:
- *   MOSQ_ERR_SUCCESS -        for a valid topic
- *   MOSQ_ERR_INVAL -          if the topic contains a + or a # that is in an
- *                             invalid position, or if it is too long.
- *   MOSQ_ERR_MALFORMED_UTF8 - if topic is not valid UTF-8
- *
- * See Also:
- *   <mosquitto_sub_topic_check>
+ *   0  for a valid topic
+ *   -1 invalid topic
  */
 PUBLIC int mosquitto_sub_topic_check2(const char *topic, size_t topiclen);
-
 
 /*
  * Function: mosquitto_validate_utf8
