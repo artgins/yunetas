@@ -18,7 +18,7 @@
  *          Modifications:
  *              2025 ArtGins – refactoring, added new functions, structural changes.
  *
- *          Copyright (c) 2025 ArtGins.
+ *          Copyright (c) 2025,2026 ArtGins.
  *          All Rights Reserved.
  ***********************************************************************/
 #include <string.h>
@@ -5808,7 +5808,7 @@ PRIVATE int handle__subscribe(hgobj gobj, gbuffer_t *gbuf)
             JSON_DECREF(properties)
             return MOSQ_ERR_MALFORMED_PACKET;
         }
-        if(mosquitto_sub_topic_check2(sub, slen)) {
+        if(mosquitto_sub_topic_check2(sub, slen)<0) {
             gobj_log_error(gobj, 0,
                 "function",     "%s", __FUNCTION__,
                 "msgset",       "%s", MSGSET_MQTT_ERROR,
@@ -6086,7 +6086,7 @@ PRIVATE int handle__unsubscribe(hgobj gobj, gbuffer_t *gbuf)
             JSON_DECREF(properties)
             return MOSQ_ERR_MALFORMED_PACKET;
         }
-        if(mosquitto_sub_topic_check2(sub, slen)) {
+        if(mosquitto_sub_topic_check2(sub, slen)<0) {
             gobj_log_error(gobj, 0,
                 "function",     "%s", __FUNCTION__,
                 "msgset",       "%s", MSGSET_MQTT_ERROR,
@@ -6530,7 +6530,7 @@ PRIVATE int handle__publish_s(
         }
     }
 
-    if(mosquitto_pub_topic_check2(topic, slen) != MOSQ_ERR_SUCCESS) {
+    if(mosquitto_pub_topic_check2(topic, slen)<0) {
         /* Invalid publish topic, just swallow it. */
         gobj_log_error(gobj, 0,
             "function",     "%s", __FUNCTION__,
@@ -8695,7 +8695,7 @@ PRIVATE int ac_mqtt_client_send_publish(hgobj gobj, const char *event, json_t *k
             KW_DECREF(kw)
             return -1;
         }
-        if(mosquitto_pub_topic_check2(topic, strlen(topic)) != 0) {
+        if(mosquitto_pub_topic_check2(topic, strlen(topic))<0) {
             gobj_log_error(gobj, 0,
                 "function",     "%s", __FUNCTION__,
                 "msgset",       "%s", MSGSET_MQTT_ERROR,

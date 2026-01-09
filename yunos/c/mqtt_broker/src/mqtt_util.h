@@ -280,9 +280,8 @@ PUBLIC int mosquitto_sub_topic_check2(const char *topic, size_t topiclen);
  *   len - the length of the string in bytes
  *
  * Returns:
- *   MOSQ_ERR_SUCCESS -        on success
- *   MOSQ_ERR_INVAL -          if str is NULL or len<0 or len>65536
- *   MOSQ_ERR_MALFORMED_UTF8 - if str is not valid UTF-8
+ *   0      on success
+ *   -1     on error
  */
 PUBLIC int mosquitto_validate_utf8(const char *str, int len);
 
