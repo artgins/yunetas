@@ -1582,6 +1582,42 @@ PRIVATE int retain__queue(
 }
 
 /***************************************************************************
+ *
+ ***************************************************************************/
+PRIVATE void session_expiry__check(void) //TODO
+{
+    // struct session_expiry_list *item, *tmp;
+    // struct mosquitto *context;
+    //
+    // if(db.now_real_s <= last_check) return;
+    //
+    // last_check = db.now_real_s;
+    //
+    // DL_FOREACH_SAFE(expiry_list, item, tmp){
+    //     if(item->context->session_expiry_time < db.now_real_s){
+    //
+    //         context = item->context;
+    //         session_expiry__remove(context);
+    //
+    //         if(context->id){
+    //             log__printf(NULL, MOSQ_LOG_NOTICE, "Expiring client %s due to timeout.", context->id);
+    //         }
+    //         G_CLIENTS_EXPIRED_INC();
+    //
+    //         /* Session has now expired, so clear interval */
+    //         context->session_expiry_interval = 0;
+    //         /* Session has expired, so will delay should be cleared. */
+    //         context->will_delay_interval = 0;
+    //         will_delay__remove(context);
+    //         context__send_will(context);
+    //         context__add_to_disused(context);
+    //     }else{
+    //         return;
+    //     }
+    // }
+}
+
+/***************************************************************************
  *  Enqueue message to subscribers
  *
  *  Searches for all subscriptions that match the given published topic.
@@ -2625,6 +2661,15 @@ PRIVATE int ac_user_new(hgobj gobj, const char *event, json_t *kw, hgobj src)
  ***************************************************************************/
 PRIVATE int ac_timeout(hgobj gobj, const char *event, json_t *kw, hgobj src)
 {
+    // TODO
+    // retain__expire();
+    // queue_plugin_msgs();
+    // context__free_disused();
+    // keepalive__check();
+
+    // session_expiry__check();
+    // will_delay__check();
+
     KW_DECREF(kw);
     return 0;
 }

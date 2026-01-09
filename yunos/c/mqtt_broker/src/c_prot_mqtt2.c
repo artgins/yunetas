@@ -7605,6 +7605,19 @@ PRIVATE uint16_t mosquitto__mid_generate(hgobj gobj)
  ***************************************************************************/
 PRIVATE void do_disconnect(hgobj gobj, int reason)
 {
+    // TODO
+    // context__send_will(context);
+    // if(context->session_expiry_interval == 0){
+    //     /* Client session is due to be expired now */
+    //     if(context->will_delay_interval == 0){
+    //         /* This will be done later, after the will is published for delay>0. */
+    //         context__add_to_disused(context);
+    //     }
+    // }else{
+    //     session_expiry__add(context);
+    // }
+    // keepalive__remove(context);
+
     gobj_send_event(gobj_bottom_gobj(gobj), EV_DROP, 0, gobj);
 }
 
