@@ -283,9 +283,7 @@ PUBLIC const char *mqtt_property_identifier_to_string(int identifier)
 PUBLIC int mosquitto_pub_topic_check2(const char *str, size_t len)
 {
     size_t i;
-#ifdef WITH_BROKER
     int hier_count = 0;
-#endif
 
     if(str == NULL || len == 0 || len > 65535) {
         return -1;
@@ -295,15 +293,13 @@ PUBLIC int mosquitto_pub_topic_check2(const char *str, size_t len)
         if(str[i] == '+' || str[i] == '#') {
             return -1;
         }
-#ifdef WITH_BROKER
         else if(str[i] == '/') {
             hier_count++;
         }
-#endif
     }
-#ifdef WITH_BROKER
-    if(hier_count > TOPIC_HIERARCHY_LIMIT) return -1;
-#endif
+    if(hier_count > TOPIC_HIERARCHY_LIMIT) {
+        return -1;
+    }
 
     return 0;
 }
@@ -315,9 +311,7 @@ PUBLIC int mosquitto_sub_topic_check2(const char *str, size_t len)
 {
     char c = '\0';
     size_t i;
-#ifdef WITH_BROKER
     int hier_count = 0;
-#endif
 
     if(str == NULL || len == 0 || len > 65535) {
         return -1;
@@ -333,16 +327,14 @@ PUBLIC int mosquitto_sub_topic_check2(const char *str, size_t len)
                 return -1;
             }
         }
-#ifdef WITH_BROKER
         else if(str[i] == '/') {
             hier_count++;
         }
-#endif
         c = str[i];
     }
-#ifdef WITH_BROKER
-    if(hier_count > TOPIC_HIERARCHY_LIMIT) return -1;
-#endif
+    if(hier_count > TOPIC_HIERARCHY_LIMIT) {
+        return -1;
+    }
 
     return 0;
 }
