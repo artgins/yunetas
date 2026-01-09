@@ -319,7 +319,7 @@ PUBLIC int mosquitto_sub_topic_check2(const char *str, size_t len)
 
     for(i=0; i<len; i++) {
         if(str[i] == '+') {
-            if((c != '\0' && c != '/') || (i<len-1 && str[i+1] != '/')){
+            if((c != '\0' && c != '/') || (i<len-1 && str[i+1] != '/')) {
                 return -1;
             }
         }else if(str[i] == '#') {
