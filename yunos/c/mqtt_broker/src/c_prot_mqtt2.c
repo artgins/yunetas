@@ -86,10 +86,8 @@ typedef enum mosq_err_s {
     MOSQ_ERR_ADMINISTRATIVE_ACTION = -12,
 } mosq_err_t;
 
-
 /* MQTT specification restricts client ids to a maximum of 23 characters */
 #define MOSQ_MQTT_ID_MAX_LENGTH 23
-
 
 /***************************************************************************
  *              Structures
