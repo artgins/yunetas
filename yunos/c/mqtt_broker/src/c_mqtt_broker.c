@@ -2340,6 +2340,9 @@ PRIVATE int ac_mqtt_unsubscribe(hgobj gobj, const char *event, json_t *kw, hgobj
         gbuffer_append_char(gbuf_payload, reason);
     }
 
+    print_json2("subs-normal", priv->normal_subs); // TODO TEST
+    print_json2("subs-shared", priv->shared_subs); // TODO TEST
+
     KW_DECREF(kw);
     return rc;
 }

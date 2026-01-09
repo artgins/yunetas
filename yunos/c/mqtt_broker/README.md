@@ -22,7 +22,7 @@ mosquitto_sub -v  -p 1810 -t '#' -d -u yuneta
 mosquitto_sub -v  -p 1810 -t '#' -d -u yuneta -V mqttv5 
 
 mosquitto_sub -i client1 -v  -p 1810 -t '#' -d -u yuneta -V mqttv5 -c
-mosquitto_sub -i client1 -v  -p 1810 -t '#' -U '#' -d -u yuneta -V mqttv5 -c # required dummy subscribe!
+mosquitto_sub -i client1 -v  -p 1810 -t 'home/+/temperature' -U 'home/+/temperature' -d -u yuneta -V mqttv5 -c # required dummy subscribe!
 
 mosquitto_sub -v  -p 1883 -t '#' -d -u yuneta
 mosquitto_sub -v  -p 1883 -t '#' -d -u yuneta -V mqttv5
