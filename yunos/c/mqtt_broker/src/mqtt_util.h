@@ -210,6 +210,59 @@ enum mqtt5_property_type {
  *
  * MQTT_SUB_OPT_SEND_RETAIN_NEVER - with this option set, pre-existing
  * retained messages will never be sent for this subscription.
+
+    # MQTT v5 Subscription Options
+
+    They can be **combined**, but with care — it's a **bitmask** in a single byte:
+
+    ```
+    Subscription Options Byte (MQTT v5):
+
+      Bit 7   Bit 6      Bit 5   Bit 4    Bit 3   Bit 2   Bit 1   Bit 0
+    ┌────────┬────────┬────────┬────────┬───────┬───────┬───────┬───────┐
+    │Reserved│Reserved│ Retain Handling │Retain │  No   │    QoS        │
+    │  (0)   │  (0)   │  (2 bits)       │As Pub │ Local │   (2 bits)    │
+    └────────┴────────┴────────┴────────┴───────┴───────┴───────┴───────┘
+    ```
+
+    ## Independent flags (can combine):
+
+    - `NO_LOCAL` (0x04) — bit 2
+    - `RETAIN_AS_PUBLISHED` (0x08) — bit 3
+
+    ## Mutually exclusive (pick ONE):
+
+    The **Retain Handling** options use bits 4-5, so only one value:
+
+    - `SEND_RETAIN_ALWAYS` (0x00) — value 0
+    - `SEND_RETAIN_NEW` (0x10) — value 1
+    - `SEND_RETAIN_NEVER` (0x20) — value 2
+
+    ## Example valid combinations:
+
+    ```c
+    // QoS 1 + No Local + Retain As Published + Send Retain on New sub
+    uint8_t options = 0x01 | MQTT_SUB_OPT_NO_LOCAL | MQTT_SUB_OPT_RETAIN_AS_PUBLISHED | MQTT_SUB_OPT_SEND_RETAIN_NEW;
+    // = 0x01 | 0x04 | 0x08 | 0x10 = 0x1D
+    ```
+
+    ## Invalid:
+
+    ```c
+    // WRONG: two Retain Handling values
+    uint8_t options = MQTT_SUB_OPT_SEND_RETAIN_NEW | MQTT_SUB_OPT_SEND_RETAIN_NEVER;  // nonsense
+    ```
+
+    ## Extracting fields in your broker:
+
+    ```c
+    uint8_t qos = options & 0x03;
+    BOOL no_local = options & 0x04;
+    BOOL retain_as_published = options & 0x08;
+    uint8_t retain_handling = (options >> 4) & 0x03;
+    ```
+
+
  */
 typedef enum mqtt5_sub_options {
     MQTT_SUB_OPT_NO_LOCAL = 0x04,
