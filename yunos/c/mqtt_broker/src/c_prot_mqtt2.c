@@ -8580,6 +8580,153 @@ PRIVATE int ac_timeout_waiting_payload_data(hgobj gobj, const char *event, json_
 }
 
 /***************************************************************************
+ *  From broker, send message (publish) to client
+ ***************************************************************************/
+PRIVATE int ac_send_message(hgobj gobj, const char *event, json_t *kw, hgobj src)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+#ifdef PEPE
+    /*---------------------------------------------*
+     *   Entry parameters
+     *---------------------------------------------*/
+    const char *topic_name = kw_get_str(gobj, kw, "topic_name", "", KW_REQUIRED);
+    gbuffer_t *gbuf = (gbuffer_t *)(uintptr_t)kw_get_int(gobj, kw, "gbuffer", 0, 0);
+    if(gobj_trace_level(gobj) & TRAFFIC) {
+        gobj_trace_dump_gbuf(gobj, gbuf, "%s, topic_name %s", gobj_short_name(gobj), topic_name);
+    }
+    char *payload = gbuffer_cur_rd_pointer(gbuf);
+    int payloadlen = (int)gbuffer_leftbytes(gbuf);
+    // These parameters are fixed by now
+    int qos = 0; // Only let 0
+    BOOL retain = FALSE;
+    json_t * properties = 0;
+
+    // Local variables
+    json_t *outgoing_properties = NULL;
+    size_t tlen = 0;
+    uint32_t remaining_length;
+
+    if(priv->protocol_version != mosq_p_mqtt5 && properties) {
+        gobj_log_error(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_MQTT_ERROR,
+            "msg",          "%s", "Mqtt properties and not mqtt5",
+            NULL
+        );
+        KW_DECREF(kw)
+        return MOSQ_ERR_NOT_SUPPORTED;
+    }
+
+//    if(properties) {
+//        if(properties->client_generated) {
+//            outgoing_properties = properties;
+//        } else {
+//            memcpy(&local_property, properties, sizeof(mosquitto_property));
+//            local_property.client_generated = TRUE;
+//            local_property.next = NULL;
+//            outgoing_properties = &local_property;
+//        }
+//        int rc = mosquitto_property_check_all(CMD_PUBLISH, outgoing_properties);
+//        if(rc) return rc;
+//    }
+
+    tlen = strlen(topic_name);
+    if(mosquitto_validate_utf8(topic_name, (int)tlen)) {
+        gobj_log_error(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_MQTT_ERROR,
+            "msg",          "%s", "Mqtt malformed utf8",
+            NULL
+        );
+        KW_DECREF(kw)
+        return MOSQ_ERR_MALFORMED_UTF8;
+    }
+    if(payloadlen < 0 || payloadlen > (int)MQTT_MAX_PAYLOAD) {
+        gobj_log_error(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_MQTT_ERROR,
+            "msg",          "%s", "Mqtt payload size",
+            NULL
+        );
+        KW_DECREF(kw)
+        return MOSQ_ERR_PAYLOAD_SIZE;
+    }
+    if(mosquitto_pub_topic_check(topic_name) != MOSQ_ERR_SUCCESS) {
+        gobj_log_error(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_MQTT_ERROR,
+            "msg",          "%s", "Mqtt topic check failed",
+            NULL
+        );
+        KW_DECREF(kw)
+        return MOSQ_ERR_INVAL;
+    }
+
+    if(priv->maximum_packet_size > 0) {
+        remaining_length = 1 + 2+(uint32_t)tlen + (uint32_t)payloadlen +
+            property_get_length_all(outgoing_properties);
+        if(qos > 0) {
+            remaining_length++;
+        }
+        if(packet_check_oversize(gobj, remaining_length)) {
+            gobj_log_error(gobj, 0,
+                "function",     "%s", __FUNCTION__,
+                "msgset",       "%s", MSGSET_MQTT_ERROR,
+                "msg",          "%s", "Mqtt oversize packet",
+                NULL
+            );
+            KW_DECREF(kw)
+            return MOSQ_ERR_OVERSIZE_PACKET;
+        }
+    }
+
+    uint16_t mid = mosquitto__mid_generate(gobj, priv->client_id);
+    json_object_set_new(kw, "mid", json_integer(mid));
+
+    send__publish(
+        gobj,
+        mid,
+        topic_name,
+        (uint32_t)payloadlen,
+        payload,
+        (uint8_t)qos,
+        retain,
+        FALSE,
+        outgoing_properties,
+        NULL,
+        0
+    );
+
+// TODO esto en el nivel superior
+//    /*
+//     *  Search subscriptions in clients
+//     */
+//    json_t *jn_subscribers = sub_get_subscribers(gobj, topic_name);
+//
+//    const char *client_id; json_t *client;
+//    json_object_foreach(jn_subscribers, client_id, client) {
+//        json_t *jn_subscriptions = kw_get_dict(gobj, client, "subscriptions", 0, KW_REQUIRED);
+//        if(json_object_size(jn_subscriptions)==0) {
+//            continue;
+//        }
+//
+//        BOOL isConnected = kw_get_bool(gobj, client, "isConnected", 0, KW_REQUIRED);
+//        if(isConnected) {
+//            hgobj gobj_client = (hgobj)(size_t)kw_get_int(gobj, client, "_gobj", 0, KW_REQUIRED);
+//            if(gobj_client) {
+//                gobj_send_event(gobj_client, EV_SEND_MESSAGE, 0, gobj);
+//            }
+//        } else {
+//            // TODO save the message if qos > 0 ?
+//        }
+//    }
+//    JSON_DECREF(jn_subscribers)
+#endif
+    KW_DECREF(kw)
+    return 0;
+}
+
+/***************************************************************************
  *  Entry of mqtt publishing for clients (mosquitto_publish_v5)
  ***************************************************************************/
 PRIVATE int ac_mqtt_client_send_publish(hgobj gobj, const char *event, json_t *kw, hgobj src)
@@ -9188,6 +9335,7 @@ PRIVATE int create_gclass(gclass_name_t gclass_name)
     };
     ev_action_t st_wait_handshake[] = {
         {EV_RX_DATA,            ac_process_handshake,               0},
+        {EV_SEND_MESSAGE,       ac_send_message,                    0},
         {EV_DISCONNECTED,       ac_disconnected,                    ST_DISCONNECTED},
         {EV_TIMEOUT,            ac_timeout_wait_handshake,          0},
         {EV_DROP,               ac_drop,                            0},
@@ -9196,6 +9344,7 @@ PRIVATE int create_gclass(gclass_name_t gclass_name)
     };
     ev_action_t st_wait_frame_header[] = {
         {EV_RX_DATA,            ac_process_frame_header,            0},
+        {EV_SEND_MESSAGE,       ac_send_message,                    0},
         {EV_MQTT_PUBLISH,       ac_mqtt_client_send_publish,        0},
         {EV_MQTT_SUBSCRIBE,     ac_mqtt_client_send_subscribe,      0},
         {EV_MQTT_UNSUBSCRIBE,   ac_mqtt_client_send_unsubscribe,    0},
@@ -9208,6 +9357,7 @@ PRIVATE int create_gclass(gclass_name_t gclass_name)
     };
     ev_action_t st_wait_payload[] = {
         {EV_RX_DATA,            ac_process_payload_data,            0},
+        {EV_SEND_MESSAGE,       ac_send_message,                    0},
         {EV_MQTT_PUBLISH,       ac_mqtt_client_send_publish,        0},
         {EV_MQTT_SUBSCRIBE,     ac_mqtt_client_send_subscribe,      0},
         {EV_MQTT_UNSUBSCRIBE,   ac_mqtt_client_send_unsubscribe,    0},

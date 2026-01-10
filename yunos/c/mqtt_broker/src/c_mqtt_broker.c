@@ -1264,39 +1264,35 @@ PRIVATE json_t *get_node(json_t *root, char **levels)
     return current;
 }
 
-// /***************************************************************************
-//  *  collect_all_subscribers_recursive - Collect from node and all descendants
-//  *
-//  *  Used when '#' wildcard matches - collects all subscribers
-//  *  from current node and ALL children recursively.
-//  *
-//  *  Parameters:
-//  *      node   - Current JSON node
-//  *      result - JSON array to append client_ids to
-//  ***************************************************************************/
-// PRIVATE void collect_all_subscribers_recursive(json_t *node, json_t *result)
-// {
-//     const char *key;
-//     json_t *child;
-//
-//     if(!node || !result) {
-//         return;
-//     }
-//
-//     /*
-//      *  Collect from current node
-//      */
-//     collect_subscribers(node, result);
-//
-//     /*
-//      *  Recurse into children (skip @subs key)
-//      */
-//     json_object_foreach(node, key, child) {
-//         if(strcmp(key, SUBS_KEY) != 0) {
-//             collect_all_subscribers_recursive(child, result);
-//         }
-//     }
-// }
+/***************************************************************************
+ *  collect_all_subscribers_recursive - Collect from node and all descendants
+ *
+ *  Used when '#' wildcard matches - collects all subscribers
+ *  from current node and ALL children recursively.
+ *
+ *  Parameters:
+ *      node   - Current JSON node
+ *      result - JSON array to append client_ids to
+ ***************************************************************************/
+PRIVATE void collect_all_subscribers_recursive(hgobj gobj, json_t *node, json_t *result)
+{
+    const char *key;
+    json_t *child;
+
+    /*
+     *  Collect from current node
+     */
+    collect_subscribers(gobj, node, result);
+
+    /*
+     *  Recurse into children (skip @subs key)
+     */
+    json_object_foreach(node, key, child) {
+        if(strcmp(key, SUBS_KEY) != 0) {
+            collect_all_subscribers_recursive(gobj, child, result);
+        }
+    }
+}
 
 /***************************************************************************
  *  prune_empty_branches - Remove empty nodes from tree
@@ -1618,6 +1614,47 @@ PRIVATE void session_expiry__check(void) //TODO
 }
 
 /***************************************************************************
+ *  Send a message to client because his subscription
+
+    Example of sub:
+        {
+            "qos": 2,
+            "options": 0,
+            "ids": [
+                123
+            ]
+        }
+
+    Example of msg:
+        {
+            "topic": "home/DEV/temperature",
+            "tm": 1768037018,
+            "mid": 1,
+            "qos": 1,
+            "expiry_interval": 0,
+            "retain": false,
+            "properties": {},
+            "gbuffer": 107924988703504,
+            "dup": false,
+            "state": 0,
+            "__temp__": {
+                "channel": "input-2",
+                "channel_gobj": 107924988772496
+            }
+        }
+
+ ***************************************************************************/
+PRIVATE int subs__send(
+    hgobj gobj,
+    const char *client_id,
+    json_t *sub,        // not owned
+    json_t *kw_mqtt_msg // not owned
+) {
+
+    return 0;
+}
+
+/***************************************************************************
  *  Enqueue message to subscribers
  *
  *  Searches for all subscriptions that match the given published topic.
@@ -1683,6 +1720,11 @@ PRIVATE size_t sub__messages_queue(
     search_recursive(gobj, priv->normal_subs, levels, 1, normal_subscribers);
 print_json2("NORMAL_SUBSCRIBERS", normal_subscribers); // TODO TEST
 
+    const char *client_id; json_t *sub;
+    json_object_foreach(normal_subscribers, client_id, sub) {
+        subs__send(gobj, client_id, sub, kw_mqtt_msg);
+    }
+
     /*----------------------------------------------------------------------*
      *  Search in shared_subs (shared subscriptions)
      *  Note: For shared subs, only one client per group receives the message
@@ -1691,10 +1733,16 @@ print_json2("NORMAL_SUBSCRIBERS", normal_subscribers); // TODO TEST
     search_recursive(gobj, priv->shared_subs, levels, 1, shared_subscribers);
 print_json2("SHARED_SUBSCRIBERS", shared_subscribers); // TODO TEST
 
+    json_object_foreach(shared_subscribers, client_id, sub) {
+        // TODO envia solo a uno, pero cíclicamente, no siempre al mismo, así hace mosquitto
+        subs__send(gobj, client_id, sub, kw_mqtt_msg);
+        break;
+    }
 
-    size_t ret = json_object_size(normal_subscribers) + json_object_size(shared_subscribers)?1:0;
+    size_t total_subscribers = json_object_size(normal_subscribers);
+    total_subscribers += json_object_size(shared_subscribers)?1:0;
 
-printf("TOTAL===========> %d\n", (int)ret);
+printf("TOTAL===========> %d\n", (int)total_subscribers);
 
     json_decref(normal_subscribers);
     json_decref(shared_subscribers);
@@ -1713,7 +1761,7 @@ cleanup:
         gbmem_free(levels);
     }
 
-    return ret;
+    return total_subscribers;
 }
 
 
