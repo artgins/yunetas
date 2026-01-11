@@ -1650,6 +1650,25 @@ PRIVATE int subs__send(
     json_t *sub,        // not owned
     json_t *kw_mqtt_msg // not owned
 ) {
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    /*----------------------------*
+     *  Find the client session
+     *----------------------------*/
+    json_t *session = gobj_get_node(
+        priv->gobj_treedb_mqtt_broker,
+        "sessions",
+        json_pack("{s:s}", "id", client_id),
+        NULL,
+        gobj
+    );
+    if(!session) {
+        return -1;
+    }
+
+    /*----------------------------------------------*
+     *  Get parameters of message and subscription
+     *----------------------------------------------*/
     const char *topic = kw_get_str(gobj, kw_mqtt_msg, "topic", "", KW_REQUIRED);
     BOOL retain = kw_get_bool(gobj, kw_mqtt_msg, "retain", 0, KW_REQUIRED);
     BOOL qos = kw_get_bool(gobj, kw_mqtt_msg, "qos", 0, KW_REQUIRED);
@@ -1664,13 +1683,9 @@ PRIVATE int subs__send(
     uint8_t client_qos = kw_get_bool(gobj, sub, "qos", 0, KW_REQUIRED);
     json_t *ids = kw_get_list(gobj, sub, "ids", 0, 0); // TODO don't save ids if no id, save mem/perf
 
-    BOOL client_retain;
-    uint16_t mid;
-    uint8_t msg_qos;
-    // mosquitto_property *properties = NULL;
-    int rc2 = 0;
-
-    /* Check for ACL topic access. */
+    /*------------------------------*
+     *  Check for ACL topic access
+     *------------------------------*/
     // TODO
     // rc2 = mosquitto_acl_check(
     //     leaf->context,
@@ -1684,6 +1699,13 @@ PRIVATE int subs__send(
     // if(rc2 == MOSQ_ERR_ACL_DENIED) {
     //     return MOSQ_ERR_SUCCESS;
     // }
+
+    /*------------------------------*
+     *  Fix parameters of sent msg
+     *------------------------------*/
+    BOOL client_retain;
+    uint16_t mid;
+    uint8_t msg_qos;
 
     if(qos > client_qos) {
         msg_qos = client_qos;
@@ -1804,6 +1826,11 @@ PRIVATE size_t sub__messages_queue(
         return -1;
     }
 
+    /*---------------------------*
+     *  Count the messages sent
+     *---------------------------*/
+    size_t total_sent = 0;
+
     /*----------------------------------------------------------------------*
      *  Search in normal_subs (non-shared subscriptions)
      *----------------------------------------------------------------------*/
@@ -1813,7 +1840,9 @@ print_json2("NORMAL_SUBSCRIBERS", normal_subscribers); // TODO TEST
 
     const char *client_id; json_t *sub;
     json_object_foreach(normal_subscribers, client_id, sub) {
-        subs__send(gobj, client_id, sub, kw_mqtt_msg);
+        if(subs__send(gobj, client_id, sub, kw_mqtt_msg)==0) {
+            total_sent++;
+        }
     }
 
     /*----------------------------------------------------------------------*
@@ -1826,14 +1855,13 @@ print_json2("SHARED_SUBSCRIBERS", shared_subscribers); // TODO TEST
 
     json_object_foreach(shared_subscribers, client_id, sub) {
         // TODO envia solo a uno, pero cíclicamente, no siempre al mismo, así hace mosquitto
-        subs__send(gobj, client_id, sub, kw_mqtt_msg);
-        break;
+        if(subs__send(gobj, client_id, sub, kw_mqtt_msg)==0) {
+            total_sent++;
+            break;
+        }
     }
 
-    size_t total_subscribers = json_object_size(normal_subscribers);
-    total_subscribers += json_object_size(shared_subscribers)?1:0;
-
-printf("TOTAL===========> %d\n", (int)total_subscribers);
+printf("TOTAL===========> %d\n", (int)total_sent);
 
     json_decref(normal_subscribers);
     json_decref(shared_subscribers);
@@ -1852,7 +1880,7 @@ cleanup:
         gbmem_free(levels);
     }
 
-    return total_subscribers;
+    return total_sent;
 }
 
 
