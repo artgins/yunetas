@@ -22,6 +22,8 @@
 #include <unistd.h>
 
 #include "treedb_schema_mqtt_broker.c"
+#include "tr2_queue.h"
+#include "tr2q_mqtt.h"
 #include "c_prot_mqtt2.h" // TODO remove when moved to kernel
 
 /***************************************************************************
@@ -1663,8 +1665,19 @@ PRIVATE int subs__send(
         gobj
     );
     if(!session) {
+        gobj_log_error(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+            "msg",          "%s", "Session of client subscription not found",
+            "client",       "%s", client_id,
+            NULL
+        );
         return -1;
     }
+
+    hgobj _gobj_channel = (hgobj)(uintptr_t)kw_get_int(
+        gobj, session, "_gobj_channel", 0, KW_REQUIRED
+    );
 
     /*----------------------------------------------*
      *  Get parameters of message and subscription
@@ -1741,10 +1754,10 @@ PRIVATE int subs__send(
 
     json_t *new_msg = new_mqtt_message(
         gobj,
-        mid,
+        mid,    // TODO out of here? it must be the __rowid__ ???
         topic,
         gbuffer_incref(gbuf),    // owned
-        client_qos,
+        msg_qos,
         client_retain,
         FALSE, // dup,
         properties,         // owned
@@ -1752,6 +1765,37 @@ PRIVATE int subs__send(
         tm
     );
 
+    kw_set_subdict_value(
+        gobj,
+        new_msg,
+        "__temp__",
+        "channel_gobj",
+        json_integer((json_int_t)(uintptr_t)_gobj_channel)
+    );
+
+    user_flag_t user_flag = {0};
+    user_flag_set_origin(&user_flag, mosq_mo_client);
+    user_flag_set_direction(&user_flag, mosq_md_out);
+    user_flag_set_qos_level(&user_flag, qos);
+    user_flag_set_retain(&user_flag, retain);
+    user_flag_set_dup(&user_flag, 0);
+    user_flag_set_state(&user_flag, mosq_ms_invalid);
+
+    // message__queue(
+    //     gobj,
+    //     kw_mqtt_msg,
+    //     mosq_md_out,
+    //     user_flag,
+    //     t
+    // );
+
+    // qmsg = tr2q_append(
+    //     priv->trq_out_msgs,
+    //     t,              // __t__ if 0 then the time will be set by TimeRanger with now time
+    //     kw_mqtt_msg,    // owned
+    //     user_flag.value // extra flags in addition to TRQ_MSG_PENDING
+    // );
+    // message__release_to_inflight(gobj, mosq_md_out)
 
     // db__message_insert(
     //     leaf->context,
