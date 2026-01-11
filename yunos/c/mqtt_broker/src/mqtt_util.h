@@ -275,9 +275,9 @@ typedef enum mqtt5_sub_options {
 /***************************************************************
  *              Prototypes
  ***************************************************************/
-PUBLIC const char *mosquitto_connack_string(mqtt311_connack_codes_t connack_code);
-PUBLIC const char *mosquitto_reason_string(mqtt5_return_codes_t reason_code);
-PUBLIC const char *mosquitto_command_string(mqtt_message_t command);
+PUBLIC const char *mqtt_connack_string(mqtt311_connack_codes_t connack_code);
+PUBLIC const char *mqtt_reason_string(mqtt5_return_codes_t reason_code);
+PUBLIC const char *mqtt_command_string(mqtt_message_t command);
 PUBLIC const char *mqtt_property_identifier_to_string(int identifier);
 
 /*
@@ -290,15 +290,11 @@ PUBLIC const char *mqtt_property_identifier_to_string(int identifier);
  * may be useful if you wish to check the validity of a topic in advance of
  * making a connection for example.
  *
- * Parameters:
- *   topic - the topic to check
- *   topiclen - length of the topic in bytes
- *
  * Returns:
  *   0  for a valid topic
  *   -1 invalid topic
  */
-PUBLIC int mosquitto_pub_topic_check2(const char *topic, size_t topiclen);
+PUBLIC int mqtt_pub_topic_check2(const char *topic, size_t topiclen);
 
 /*
  * Check whether a topic to be used for subscribing is valid.
@@ -312,18 +308,14 @@ PUBLIC int mosquitto_pub_topic_check2(const char *topic, size_t topiclen);
  * It may be useful if you wish to check the validity of a topic in advance of
  * making a connection for example.
  *
- * Parameters:
- *   topic - the topic to check
- *   topiclen - the length in bytes of the topic
- *
  * Returns:
  *   0  for a valid topic
  *   -1 invalid topic
  */
-PUBLIC int mosquitto_sub_topic_check2(const char *topic, size_t topiclen);
+PUBLIC int mqtt_sub_topic_check2(const char *topic, size_t topiclen);
 
 /*
- * Function: mosquitto_validate_utf8
+ * Function: mqtt_validate_utf8
  *
  * Helper function to validate whether a UTF-8 string is valid, according to
  * the UTF-8 spec and the MQTT additions.
@@ -336,8 +328,20 @@ PUBLIC int mosquitto_sub_topic_check2(const char *topic, size_t topiclen);
  *   0      on success
  *   -1     on error
  */
-PUBLIC int mosquitto_validate_utf8(const char *str, int len);
+PUBLIC int mqtt_validate_utf8(const char *str, int len);
 
+PUBLIC json_t *new_mqtt_message(
+    hgobj gobj,
+    uint16_t mid,
+    const char *topic,
+    gbuffer_t *gbuf_payload,    // owned
+    uint8_t qos,
+    BOOL retain,
+    BOOL dup,
+    json_t *properties,         // owned
+    uint32_t expiry_interval,
+    json_int_t t
+);
 
 #ifdef __cplusplus
 }

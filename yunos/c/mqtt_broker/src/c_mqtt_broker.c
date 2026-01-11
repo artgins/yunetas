@@ -1744,6 +1744,11 @@ PRIVATE int subs__send(
         }
 
         if(retain_as_published) {
+            /*
+             *  Subscription option RETAIN_AS_PUBLISHED
+             *  It controls whether the broker preserves the original retain flag
+             *  when forwarding to subscribers, or clears it
+             */
             client_retain = retain;
         } else {
             client_retain = FALSE;

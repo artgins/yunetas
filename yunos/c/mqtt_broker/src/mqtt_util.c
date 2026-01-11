@@ -38,11 +38,27 @@
 /***************************************************************
  *              Data
  ***************************************************************/
+static const json_desc_t json_mqtt_desc[] = {
+// Name             Type        Defaults    Fillspace
+{"topic",           "string",   "",         "40"},  // the mqtt 'topic'. First item is the pkey
+{"tm",              "time",     "",         "20"},  // timestamp
+{"mid",             "int",      "",         "20"},
+{"qos",             "int",      "",         "20"},
+{"expiry_interval", "int",      "",         "20"},
+{"retain",          "bool",     "",         "20"},
+{"properties",      "dict",     "{}",       "20"},
+{"gbuffer",         "int",      "",         "20"},  // payload
+
+// these are volatiles
+{"dup",             "bool",     "",         "20"},
+{"state",           "int",      "",         "20"},
+{0}
+};
 
 /***************************************************************************
  *
  ***************************************************************************/
-PUBLIC const char *mosquitto_connack_string(mqtt311_connack_codes_t connack_code)
+PUBLIC const char *mqtt_connack_string(mqtt311_connack_codes_t connack_code)
 {
     switch(connack_code) {
         case CONNACK_ACCEPTED:
@@ -65,7 +81,7 @@ PUBLIC const char *mosquitto_connack_string(mqtt311_connack_codes_t connack_code
 /***************************************************************************
  *
  ***************************************************************************/
-PUBLIC const char *mosquitto_reason_string(mqtt5_return_codes_t reason_code)
+PUBLIC const char *mqtt_reason_string(mqtt5_return_codes_t reason_code)
 {
     switch(reason_code) {
         case MQTT_RC_SUCCESS:
@@ -163,7 +179,7 @@ PUBLIC const char *mosquitto_reason_string(mqtt5_return_codes_t reason_code)
 /***************************************************************************
  *  get_name_from_nn_table(command_name) is a slower alternative
  ***************************************************************************/
-PUBLIC const char *mosquitto_command_string(mqtt_message_t command)
+PUBLIC const char *mqtt_command_string(mqtt_message_t command)
 {
     switch(command) {
         case CMD_CONNECT:
@@ -280,7 +296,7 @@ PUBLIC const char *mqtt_property_identifier_to_string(int identifier)
 /***************************************************************************
  *
  ***************************************************************************/
-PUBLIC int mosquitto_pub_topic_check2(const char *str, size_t len)
+PUBLIC int mqtt_pub_topic_check2(const char *str, size_t len)
 {
     size_t i;
     int hier_count = 0;
@@ -307,7 +323,7 @@ PUBLIC int mosquitto_pub_topic_check2(const char *str, size_t len)
 /***************************************************************************
  *
  ***************************************************************************/
-PUBLIC int mosquitto_sub_topic_check2(const char *str, size_t len)
+PUBLIC int mqtt_sub_topic_check2(const char *str, size_t len)
 {
     char c = '\0';
     size_t i;
@@ -342,7 +358,7 @@ PUBLIC int mosquitto_sub_topic_check2(const char *str, size_t len)
 /***************************************************************************
  *
  ***************************************************************************/
-PUBLIC int mosquitto_validate_utf8(const char *str, int len)
+PUBLIC int mqtt_validate_utf8(const char *str, int len)
 {
     int i;
     int j;
@@ -432,4 +448,64 @@ PUBLIC int mosquitto_validate_utf8(const char *str, int len)
         }
     }
     return 0;
+}
+
+/***************************************************************************
+ *  Used by client and broker
+ ***************************************************************************/
+PUBLIC json_t *new_mqtt_message(
+    hgobj gobj,
+    uint16_t mid,
+    const char *topic,
+    gbuffer_t *gbuf_payload,    // owned
+    uint8_t qos,
+    BOOL retain,
+    BOOL dup,
+    json_t *properties,         // owned
+    uint32_t expiry_interval,
+    // mqtt_msg_origin_t origin,
+    // mqtt_msg_direction_t dir,
+    // user_flag_t *p_user_flag,
+    json_int_t t
+) {
+    json_t *kw_mqtt_msg = create_json_record(gobj, json_mqtt_desc);
+    if(!kw_mqtt_msg) {
+        gobj_log_error(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_MQTT_ERROR,
+            "msg",          "%s", "Mqtt publish: cannot create the message",
+            "topic",        "%s", topic,
+            NULL
+        );
+        return NULL;
+    }
+
+    json_object_set_new(kw_mqtt_msg, "topic", json_string(topic));
+    json_object_set_new(kw_mqtt_msg, "tm", json_integer(t));
+    json_object_set_new(kw_mqtt_msg, "mid", json_integer(mid));
+    json_object_set_new(kw_mqtt_msg, "qos", json_integer(qos));
+    json_object_set_new(kw_mqtt_msg, "expiry_interval", json_integer(expiry_interval));
+    json_object_set_new(kw_mqtt_msg, "retain", json_boolean(retain));
+    if(properties) {
+        json_object_set_new(kw_mqtt_msg, "properties", properties);
+    }
+    if(gbuf_payload) {
+        json_object_set_new(
+            kw_mqtt_msg,
+            "gbuffer",
+            json_integer((json_int_t)(uintptr_t)gbuf_payload)
+        );
+    }
+
+    // user_flag_t user_flag = {0};
+    // user_flag_set_origin(&user_flag, origin);
+    // user_flag_set_direction(&user_flag, dir);
+    // user_flag_set_qos_level(&user_flag, qos);
+    // user_flag_set_retain(&user_flag, retain);
+    // user_flag_set_dup(&user_flag, dup);
+    // user_flag_set_state(&user_flag, mosq_ms_invalid);
+    //
+    // *p_user_flag = user_flag;
+
+    return kw_mqtt_msg;
 }
