@@ -798,7 +798,7 @@ PRIVATE int open_queues(hgobj gobj)
     /*-----------------------------------*
      *  TODO        With persistence
      *-----------------------------------*/
-    char topic_name[NAME_MAX];
+    char queue_name[NAME_MAX];
 
     if(priv->iamServer) {
     } else {
@@ -808,15 +808,15 @@ PRIVATE int open_queues(hgobj gobj)
      *  Input messages
      */
     snprintf(
-        topic_name,
-        sizeof(topic_name),
+        queue_name,
+        sizeof(queue_name),
         "queue-%s-in",
         priv->client_id
     );
 
     priv->trq_in_msgs = tr2q_open(
         priv->tranger_queues,
-        topic_name,
+        queue_name,
         "tm",
         0,  // system_flag
         0,  // max_inflight_messages TODO
@@ -829,15 +829,15 @@ PRIVATE int open_queues(hgobj gobj)
      *  Output messages
      */
     snprintf(
-        topic_name,
-        sizeof(topic_name),
+        queue_name,
+        sizeof(queue_name),
         "queue-%s-out",
         priv->client_id
     );
 
     priv->trq_out_msgs = tr2q_open(
         priv->tranger_queues,
-        topic_name,
+        queue_name,
         "tm",
         0,  // system_flag
         0,  // max_inflight_messages TODO

@@ -1713,9 +1713,9 @@ PRIVATE int subs__send(
     //     return MOSQ_ERR_SUCCESS;
     // }
 
-    /*------------------------------*
-     *  Fix parameters of sent msg
-     *------------------------------*/
+    /*---------------------------------*
+     *  Fix parameters of msg to send
+     *---------------------------------*/
     BOOL client_retain;
     uint16_t mid;
     uint8_t msg_qos;
@@ -1742,6 +1742,9 @@ PRIVATE int subs__send(
         client_retain = FALSE;
     }
 
+    /*-----------------------*
+     *  Create the message
+     *-----------------------*/
     json_t *properties = NULL;
     if(json_array_size(ids)) {
         // TODO
@@ -1765,14 +1768,6 @@ PRIVATE int subs__send(
         tm
     );
 
-    kw_set_subdict_value(
-        gobj,
-        new_msg,
-        "__temp__",
-        "channel_gobj",
-        json_integer((json_int_t)(uintptr_t)_gobj_channel)
-    );
-
     user_flag_t user_flag = {0};
     user_flag_set_origin(&user_flag, mosq_mo_client);
     user_flag_set_direction(&user_flag, mosq_md_out);
@@ -1781,6 +1776,55 @@ PRIVATE int subs__send(
     user_flag_set_dup(&user_flag, 0);
     user_flag_set_state(&user_flag, mosq_ms_invalid);
 
+    /*--------------------------------------------------------*
+     *  Dispatch the message:
+     *  If a client is in a subscription, possibilities are:
+     *      - not connected and with a persistent session
+     *      - connected, with or without a persistent session
+     *
+     *  Solution:
+     *      - append the message to the queue of client
+     *      - if the client is connected, send a wake up (EV_SEND_MESSAGE???)
+     *--------------------------------------------------------*/
+
+   char queue_name[NAME_MAX];
+    /*
+      *  Output messages
+      */
+    snprintf(
+        queue_name,
+        sizeof(queue_name),
+        "queue-%s-out",
+        client_id
+    );
+
+    tr2_queue_t *trq_out_msgs = tr2q_open(
+        priv->tranger_queues,
+        queue_name,
+        "tm",
+        0,  // system_flag
+        0,  // max_inflight_messages TODO
+        gobj_read_integer_attr(gobj, "backup_queue_size")
+    );
+
+    q2_msg_t *qmsg = NULL;
+    qmsg = tr2q_append(
+        trq_out_msgs,
+        tm,              // __t__ if 0 then the time will be set by TimeRanger with now time
+        kw_mqtt_msg,    // owned
+        user_flag.value // extra flags in addition to TRQ_MSG_PENDING
+    );
+    //message__release_to_inflight(gobj, mosq_md_out);
+
+    // kw_set_subdict_value(
+    //     gobj,
+    //     new_msg,
+    //     "__temp__",
+    //     "channel_gobj",
+    //     json_integer((json_int_t)(uintptr_t)_gobj_channel)
+    // );
+
+
     // message__queue(
     //     gobj,
     //     kw_mqtt_msg,
@@ -1788,14 +1832,6 @@ PRIVATE int subs__send(
     //     user_flag,
     //     t
     // );
-
-    // qmsg = tr2q_append(
-    //     priv->trq_out_msgs,
-    //     t,              // __t__ if 0 then the time will be set by TimeRanger with now time
-    //     kw_mqtt_msg,    // owned
-    //     user_flag.value // extra flags in addition to TRQ_MSG_PENDING
-    // );
-    // message__release_to_inflight(gobj, mosq_md_out)
 
     // db__message_insert(
     //     leaf->context,
