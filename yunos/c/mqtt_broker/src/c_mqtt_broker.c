@@ -1643,57 +1643,6 @@ PRIVATE void session_expiry__check(void) //TODO
             }
         }
 
-    # MQTT v5 Subscription Options
-
-    They can be **combined**, but with care — it's a **bitmask** in a single byte:
-
-    ```
-    Subscription Options Byte (MQTT v5):
-
-      Bit 7   Bit 6      Bit 5   Bit 4    Bit 3   Bit 2   Bit 1   Bit 0
-    ┌────────┬────────┬────────┬────────┬───────┬───────┬───────┬───────┐
-    │Reserved│Reserved│ Retain Handling │Retain │  No   │    QoS        │
-    │  (0)   │  (0)   │  (2 bits)       │As Pub │ Local │   (2 bits)    │
-    └────────┴────────┴────────┴────────┴───────┴───────┴───────┴───────┘
-    ```
-
-    ## Independent flags (can combine):
-
-    - `NO_LOCAL` (0x04) — bit 2
-    - `RETAIN_AS_PUBLISHED` (0x08) — bit 3
-
-    ## Mutually exclusive (pick ONE):
-
-    The **Retain Handling** options use bits 4-5, so only one value:
-
-    - `SEND_RETAIN_ALWAYS` (0x00) — value 0
-    - `SEND_RETAIN_NEW` (0x10) — value 1
-    - `SEND_RETAIN_NEVER` (0x20) — value 2
-
-    ## Example valid combinations:
-
-    ```c
-    // QoS 1 + No Local + Retain As Published + Send Retain on New sub
-    uint8_t options = 0x01 | MQTT_SUB_OPT_NO_LOCAL | MQTT_SUB_OPT_RETAIN_AS_PUBLISHED | MQTT_SUB_OPT_SEND_RETAIN_NEW;
-    // = 0x01 | 0x04 | 0x08 | 0x10 = 0x1D
-    ```
-
-    ## Invalid:
-
-    ```c
-    // WRONG: two Retain Handling values
-    uint8_t options = MQTT_SUB_OPT_SEND_RETAIN_NEW | MQTT_SUB_OPT_SEND_RETAIN_NEVER;  // nonsense
-    ```
-
-    ## Extracting fields in your broker:
-
-    ```c
-    uint8_t qos = options & 0x03;
-    BOOL no_local = options & 0x04;
-    BOOL retain_as_published = options & 0x08;
-    uint8_t retain_handling = (options >> 4) & 0x03;
-    ```
-
  ***************************************************************************/
 PRIVATE int subs__send(
     hgobj gobj,
@@ -1704,6 +1653,11 @@ PRIVATE int subs__send(
     const char *topic = kw_get_str(gobj, kw_mqtt_msg, "topic", "", KW_REQUIRED);
     BOOL retain = kw_get_bool(gobj, kw_mqtt_msg, "retain", 0, KW_REQUIRED);
     BOOL qos = kw_get_bool(gobj, kw_mqtt_msg, "qos", 0, KW_REQUIRED);
+    json_int_t tm = kw_get_bool(gobj, kw_mqtt_msg, "tm", 0, KW_REQUIRED);
+    json_int_t expiry_interval = kw_get_bool(gobj, kw_mqtt_msg, "expiry_interval", 0, KW_REQUIRED);
+    gbuffer_t *gbuf = (gbuffer_t *)(uintptr_t)kw_get_int(
+        gobj, kw_mqtt_msg, "gbuffer", 0, KW_REQUIRED
+    );
 
     int options = (int)kw_get_int(gobj, sub, "options", 0, KW_REQUIRED);
     BOOL retain_as_published = options & 0x08;
@@ -1731,50 +1685,62 @@ PRIVATE int subs__send(
     //     return MOSQ_ERR_SUCCESS;
     // }
 
-    if(rc2 == 0) {
-        if(qos > client_qos) {
-            msg_qos = client_qos;
-        } else {
-            msg_qos = qos;
-        }
-        if(msg_qos) {
-            mid = 1; // TODO mqtt__mid_generate(leaf->context);
-        } else {
-            mid = 0;
-        }
-
-        if(retain_as_published) {
-            /*
-             *  Subscription option RETAIN_AS_PUBLISHED
-             *  It controls whether the broker preserves the original retain flag
-             *  when forwarding to subscribers, or clears it
-             */
-            client_retain = retain;
-        } else {
-            client_retain = FALSE;
-        }
-
-        if(json_array_size(ids)) {
-            // TODO
-            // mosquitto_property_add_varint(
-            //     &properties,
-            //     MQTT_PROP_SUBSCRIPTION_IDENTIFIER,
-            //     leaf->identifier
-            // );
-        }
-        // db__message_insert(
-        //     leaf->context,
-        //     mid,
-        //     mosq_md_out,
-        //     msg_qos,
-        //     client_retain,
-        //     stored,
-        //     properties,
-        //     true
-        // );
+    if(qos > client_qos) {
+        msg_qos = client_qos;
     } else {
-        return 1; /* Application error */
+        msg_qos = qos;
     }
+    if(msg_qos) {
+        mid = 1; // TODO mqtt__mid_generate(leaf->context);
+    } else {
+        mid = 0;
+    }
+
+    if(retain_as_published) {
+        /*
+         *  Subscription option RETAIN_AS_PUBLISHED
+         *  It controls whether the broker preserves the original retain flag
+         *  when forwarding to subscribers, or clears it
+         */
+        client_retain = retain;
+    } else {
+        client_retain = FALSE;
+    }
+
+    json_t *properties = NULL;
+    if(json_array_size(ids)) {
+        // TODO
+        // mosquitto_property_add_varint(
+        //     &properties,
+        //     MQTT_PROP_SUBSCRIPTION_IDENTIFIER,
+        //     leaf->identifier
+        // );
+    }
+
+    json_t *new_msg = new_mqtt_message(
+        gobj,
+        mid,
+        topic,
+        gbuffer_incref(gbuf),    // owned
+        client_qos,
+        client_retain,
+        FALSE, // dup,
+        properties,         // owned
+        expiry_interval,
+        tm
+    );
+
+
+    // db__message_insert(
+    //     leaf->context,
+    //     mid,
+    //     mosq_md_out,
+    //     msg_qos,
+    //     client_retain,
+    //     stored,
+    //     properties,
+    //     true
+    // );
 
     return 0;
 }

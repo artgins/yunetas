@@ -463,9 +463,6 @@ PUBLIC json_t *new_mqtt_message(
     BOOL dup,
     json_t *properties,         // owned
     uint32_t expiry_interval,
-    // mqtt_msg_origin_t origin,
-    // mqtt_msg_direction_t dir,
-    // user_flag_t *p_user_flag,
     json_int_t t
 ) {
     json_t *kw_mqtt_msg = create_json_record(gobj, json_mqtt_desc);
