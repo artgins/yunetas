@@ -795,23 +795,16 @@ PRIVATE int open_queues(hgobj gobj)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
-    /*-----------------------------------*
-     *  TODO        With persistence
-     *-----------------------------------*/
     char queue_name[NAME_MAX];
-
-    if(priv->iamServer) {
-    } else {
-    }
 
     /*
      *  Input messages
      */
-    snprintf(
+    build_queue_name(
         queue_name,
         sizeof(queue_name),
-        "queue-%s-in",
-        priv->client_id
+        priv->client_id,
+        mosq_md_in
     );
 
     priv->trq_in_msgs = tr2q_open(
@@ -828,11 +821,11 @@ PRIVATE int open_queues(hgobj gobj)
     /*
      *  Output messages
      */
-    snprintf(
+    build_queue_name(
         queue_name,
         sizeof(queue_name),
-        "queue-%s-out",
-        priv->client_id
+        priv->client_id,
+        mosq_md_out
     );
 
     priv->trq_out_msgs = tr2q_open(
@@ -863,6 +856,35 @@ PRIVATE void close_queues(hgobj gobj)
 
     EXEC_AND_RESET(tr2q_close, priv->trq_in_msgs);
     EXEC_AND_RESET(tr2q_close, priv->trq_out_msgs);
+
+    if(priv->clean_start) {
+        /*
+         *  Delete the queues if it's not a persistent session
+         */
+        char queue_name[NAME_MAX];
+
+        /*
+         *  Input messages
+         */
+        build_queue_name(
+            queue_name,
+            sizeof(queue_name),
+            priv->client_id,
+            mosq_md_in
+        );
+        rmrdir(queue_name);
+
+        /*
+         *  Output messages
+         */
+        build_queue_name(
+            queue_name,
+            sizeof(queue_name),
+            priv->client_id,
+            mosq_md_out
+        );
+        rmrdir(queue_name);
+    }
 }
 
 /***************************************************************************
@@ -5299,10 +5321,8 @@ PRIVATE int handle__connect(hgobj gobj, gbuffer_t *gbuf, hgobj src)
     }
 
     /*---------------------------*
-     *      Open queues
+     *      Open session
      *---------------------------*/
-    open_queues(gobj);
-
     priv->inform_on_close = TRUE;
     int ret = gobj_publish_event(
         gobj,
@@ -5336,6 +5356,10 @@ PRIVATE int handle__connect(hgobj gobj, gbuffer_t *gbuf, hgobj src)
     gobj_write_bool_attr(gobj, "in_session", TRUE);
     gobj_write_bool_attr(gobj, "send_disconnect", TRUE);
 
+    /*----------------*
+     *  Open queues
+     *----------------*/
+    open_queues(gobj);
 
     // TODO
     // db__expire_all_messages(context);
@@ -7893,7 +7917,17 @@ PRIVATE int frame_completed(hgobj gobj, hgobj src)
                 ret = handle__connack(gobj, gbuf, jn_data);
                 if(ret == 0) {
                     priv->inform_on_close = TRUE;
-                    gobj_publish_event(gobj, EV_ON_OPEN, jn_data);
+                    gobj_publish_event(
+                        gobj,
+                        EV_ON_OPEN,
+                        jn_data
+                    );
+
+                    /*----------------*
+                     *  Open queues
+                     *----------------*/
+                    open_queues(gobj);
+
                 } else {
                     // Error already logged
                     json_decref(jn_data);
@@ -8040,11 +8074,6 @@ PRIVATE int ac_connected(hgobj gobj, const char *event, json_t *kw, hgobj src)
          * We are client
          * send the request
          */
-        /*---------------------------*
-         *      Open queues
-         *---------------------------*/
-        open_queues(gobj); // TODO persistent only output queue
-
         send__connect(
             gobj,
             atoi(gobj_read_str_attr(gobj, "mqtt_keepalive")),
@@ -8074,6 +8103,11 @@ PRIVATE int ac_disconnected(hgobj gobj, const char *event, json_t *kw, hgobj src
     if(priv->inform_on_close) {
         priv->inform_on_close = FALSE;
 
+        /*----------------*
+         *  Close queues
+         *----------------*/
+        close_queues(gobj);
+
         const char *peername;
         if(gobj_has_bottom_attr(src, "peername")) {
             peername = gobj_read_str_attr(src, "peername");
@@ -8102,8 +8136,6 @@ PRIVATE int ac_disconnected(hgobj gobj, const char *event, json_t *kw, hgobj src
     clear_timeout(priv->timer);
 
     JSON_DECREF(priv->jn_alias_list)
-
-    close_queues(gobj);
 
     // TODO new dl_flush(&priv->dl_msgs_in, db_free_client_msg);
     // TODO new dl_flush(&priv->dl_msgs_out, db_free_client_msg);

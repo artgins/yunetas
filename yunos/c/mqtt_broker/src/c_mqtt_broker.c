@@ -2460,6 +2460,10 @@ PRIVATE int ac_on_close(hgobj gobj, const char *event, json_t *kw, hgobj src)
             json_pack("{s:b}", "force", 1), // owned
             gobj
         );
+
+        /*
+         *  Dynamic client
+         */
         if(assigned_id) {
             gobj_delete_node(
                 priv->gobj_treedb_mqtt_broker,
@@ -2469,7 +2473,6 @@ PRIVATE int ac_on_close(hgobj gobj, const char *event, json_t *kw, hgobj src)
                 gobj
             );
         }
-        // TODO delete queues too
 
     } else {
         /*
