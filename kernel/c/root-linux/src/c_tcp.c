@@ -88,7 +88,6 @@ PRIVATE const sdata_desc_t attrs_table[] = { // WARNING repeated in c_tcp/c_esp_
 SDATA (DTP_BOOLEAN, "__clisrv__",       SDF_STATS,      "FALSE",    "Client of tcp server. This tcp obj is created or configured by C_TCP_S, Check if the '__clisrv__' is TRUE to know if this is a server (client channel) tcp gobj."),
 SDATA (DTP_STRING,  "url",              SDF_RD,         "",         "Url to connect in the case of tcp gobj client. Check if the 'url' is not empty to know if this is a client tcp gobj."),
 SDATA (DTP_BOOLEAN, "manual",           SDF_RD,         "FALSE",    "Set TRUE if you want connect manually"),
-SDATA (DTP_BOOLEAN, "use_close_poll",   SDF_PERSIST,    "TRUE",     "Set TRUE if you want check early disconnections with POLLHUP"),
 SDATA (DTP_BOOLEAN, "use_ssl",          SDF_RD,         "FALSE",    "True if schema is secure. Set internally if client, externally is clisrv"),
 SDATA (DTP_JSON,    "crypto",           SDF_RD,         "{}",       "Crypto config"),
 SDATA (DTP_POINTER, "ytls",             0,              0,          "TLS handler"),
@@ -150,13 +149,11 @@ typedef struct _PRIVATE_DATA {
     const char *url;
     yev_event_h yev_connect; // Used if not __clisrv__ (pure tcp client)
     yev_event_h yev_reading;
-    yev_event_h yev_poll;
     yev_event_h yev_accept;
     int fd_clisrv;
     int fd_listen;
     int timeout_inactivity;
     BOOL inform_disconnection;
-    BOOL use_close_poll;
 
     json_int_t connxs;
     json_int_t txMsgs;
@@ -217,7 +214,6 @@ PRIVATE void mt_create(hgobj gobj)
     SET_PRIV(fd_clisrv,             (int)gobj_read_integer_attr)
     SET_PRIV(fd_listen,             (int)gobj_read_integer_attr)
     SET_PRIV(url,                   gobj_read_str_attr)
-    SET_PRIV(use_close_poll,        gobj_read_bool_attr)
     SET_PRIV(no_tx_ready_event,     gobj_read_bool_attr)
     SET_PRIV(max_tx_queue,          gobj_read_integer_attr)
 }
@@ -236,7 +232,6 @@ PRIVATE void mt_writing(hgobj gobj, const char *path)
     ELIF_EQ_SET_PRIV(fd_clisrv,             (int)gobj_read_integer_attr)
     ELIF_EQ_SET_PRIV(fd_listen,             (int)gobj_read_integer_attr)
     ELIF_EQ_SET_PRIV(url,                   gobj_read_str_attr)
-    ELIF_EQ_SET_PRIV(use_close_poll,        gobj_read_bool_attr)
     ELIF_EQ_SET_PRIV(no_tx_ready_event,     gobj_read_bool_attr)
     ELIF_EQ_SET_PRIV(max_tx_queue,          gobj_read_integer_attr)
     END_EQ_SET_PRIV()
@@ -432,7 +427,6 @@ PRIVATE void mt_destroy(hgobj gobj)
 
     EXEC_AND_RESET(yev_destroy_event, priv->yev_connect)
     EXEC_AND_RESET(yev_destroy_event, priv->yev_reading)
-    EXEC_AND_RESET(yev_destroy_event, priv->yev_poll)
     EXEC_AND_RESET(yev_destroy_event, priv->yev_accept)
 }
 
@@ -562,26 +556,6 @@ PRIVATE void set_connected(hgobj gobj, int fd)
         }
 
         yev_start_event(priv->yev_reading);
-    }
-
-    /*--------------------------------------------------*
-     *  Setup poll event to detect half-closed sockets
-     *--------------------------------------------------*/
-    if(priv->use_close_poll) {
-        if(!priv->yev_poll) {
-            priv->yev_poll = yev_create_poll_event(
-                yuno_event_loop(),
-                yev_callback,
-                gobj,
-                fd,
-                POLLHUP
-            );
-        }
-
-        if(priv->yev_poll) {
-            yev_set_fd(priv->yev_poll, fd);
-            yev_start_event(priv->yev_poll);
-        }
     }
 
     /*---------------------------*
@@ -737,10 +711,6 @@ PRIVATE void set_disconnected(hgobj gobj)
 
     if(priv->yev_reading) {
         yev_set_fd(priv->yev_reading, -1);
-    }
-
-    if(priv->yev_poll) {
-        yev_set_fd(priv->yev_poll, -1);
     }
 
     if(priv->sskt) {
@@ -997,15 +967,6 @@ PRIVATE void try_to_stop_yevents(hgobj gobj)  // IDEMPOTENT
         if(!yev_event_is_stopped(priv->yev_reading)) {
             yev_stop_event(priv->yev_reading);
             if(!yev_event_is_stopped(priv->yev_reading)) {
-                to_wait_stopped = TRUE;
-            }
-        }
-    }
-
-    if(priv->yev_poll) {
-        if(!yev_event_is_stopped(priv->yev_poll)) {
-            yev_stop_event(priv->yev_poll);
-            if(!yev_event_is_stopped(priv->yev_poll)) {
                 to_wait_stopped = TRUE;
             }
         }
