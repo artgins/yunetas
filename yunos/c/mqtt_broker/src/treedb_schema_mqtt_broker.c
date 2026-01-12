@@ -85,7 +85,6 @@
             ┌───────────────────────────┐                   │
             │* id (client_id)           │                   │
             │                           │                   │
-            │  session_id               │                   │
             │  protocol_version         │                   │
             │  clean_start              │                   │
             │  keep_alive               │                   │
@@ -162,7 +161,7 @@
 static char treedb_schema_mqtt_broker[]= "\
 {                                                                   \n\
     'id': 'treedb_mqtt_broker',                                     \n\
-    'schema_version': '3',                                         	\n\
+    'schema_version': '4',                                         	\n\
     'topics': [                                                     \n\
         {                                                           \n\
             'id': 'client_groups',                                  \n\
@@ -511,7 +510,7 @@ static char treedb_schema_mqtt_broker[]= "\
             'id': 'sessions',                                       \n\
             'pkey': 'id',                                           \n\
             'system_flag': 'sf_string_key',                         \n\
-            'topic_version': '3',                                   \n\
+            'topic_version': '4',                                   \n\
             'cols': {                                               \n\
                 'id': {                                             \n\
                     'header': 'Client Id',                          \n\
@@ -520,14 +519,6 @@ static char treedb_schema_mqtt_broker[]= "\
                     'flag': [                                       \n\
                         'persistent',                               \n\
                         'required'                                  \n\
-                    ]                                               \n\
-                },                                                  \n\
-                'session_id': {                                     \n\
-                    'header': 'Session Id',                         \n\
-                    'fillspace': 30,                                \n\
-                    'type': 'string',                               \n\
-                    'flag': [                                       \n\
-                        'persistent'                                \n\
                     ]                                               \n\
                 },                                                  \n\
                 'username': {                                       \n\

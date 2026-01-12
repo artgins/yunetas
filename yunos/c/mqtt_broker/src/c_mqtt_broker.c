@@ -2288,6 +2288,17 @@ PRIVATE int ac_on_open(hgobj gobj, const char *event, json_t *kw, hgobj src)
         }
     }
 
+    // TODO
+    // rc = acl__find_acls(context);
+    /*-----------------------------*
+     *  Check acl acl__find_acls
+     *-----------------------------*/
+    // TODO
+    //connection_check_acl(context, &context->msgs_in.inflight);
+    //connection_check_acl(context, &context->msgs_in.queued);
+    //connection_check_acl(context, &context->msgs_out.inflight);
+    //connection_check_acl(context, &context->msgs_out.queued);
+
     if(prev_mid) {
         json_object_set_new(kw, "mid", json_integer(prev_mid));
     }
@@ -2426,7 +2437,7 @@ PRIVATE int ac_on_close(hgobj gobj, const char *event, json_t *kw, hgobj src)
      *  Recover session and client
      *------------------------------*/
     json_t *session = gobj_read_json_attr(gobj_channel, "session");
-    const char *client_id = kw_get_str(gobj, session, "client_id", "", KW_REQUIRED);
+    const char *client_id = kw_get_str(gobj, session, "id", "", KW_REQUIRED);
 
     json_t *client = gobj_get_node(
         priv->gobj_treedb_mqtt_broker,

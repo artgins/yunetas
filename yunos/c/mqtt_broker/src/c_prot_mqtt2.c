@@ -5096,64 +5096,11 @@ PRIVATE int handle__connect(hgobj gobj, gbuffer_t *gbuf, hgobj src)
         return -1;
     }
 
-    /*-------------------------------------------*
+    /*--------------------------------------------------*
      *      Here is connect__on_authorised
-     *-------------------------------------------*/
-
-    /*
-     *  TODO Find if this client already has an entry.
-     *  This must be done *after* any security checks.
-     */
-    const char *session_id = kw_get_str(gobj, auth, "session_id", "", KW_REQUIRED);
+     *  This must be done *after* any security checks
+     *--------------------------------------------------*/
     json_t *services_roles = kw_get_dict(gobj, auth, "services_roles", NULL, KW_REQUIRED);
-
-    // TODO esto debe ir a new client in upper level
-    /* Client is already connected, disconnect old version. This is
-     * done in context__cleanup() below. */
-    // if(priv->connection_messages == true) {
-    //     log__printf(NULL, MOSQ_LOG_ERR, "Client %s already connected, closing old connection.", context->id);
-    // }
-
-    // if(priv->clean_start == FALSE && prev_session_expiry_interval > 0) {
-    //     if(priv->protocol_version == mosq_p_mqtt311 || priv->protocol_version == mosq_p_mqtt5) {
-    //         connect_ack |= 0x01;
-    //     }
-    //     // copia client session TODO
-    // }
-    //
-    // if(priv->clean_start == TRUE) {
-    //     // TODO new sub__clean_session(gobj, client);
-    // }
-    // if((prev_protocol_version == mosq_p_mqtt5 && prev_session_expiry_interval == 0)
-    //         || (prev_protocol_version != mosq_p_mqtt5 && prev_clean_start == TRUE)
-    //         || (priv->clean_start == TRUE)
-    //         ) {
-    //     // TODO context__send_will(found_context);
-    // }
-    //
-    // // TODO session_expiry__remove(found_context);
-    // // TODO will_delay__remove(found_context);
-    // // TODO will__clear(found_context);
-    //
-    // //found_context->clean_start = TRUE;
-    // //found_context->session_expiry_interval = 0;
-    // //mosquitto__set_state(found_context, mosq_cs_duplicate);
-    //
-    // if(isConnected) {
-    //     hgobj gobj_bottom = (hgobj)(size_t)kw_get_int(gobj, client, "_gobj_bottom", 0, KW_REQUIRED);
-    //     if(gobj_bottom) {
-    //         gobj_send_event(gobj_bottom, EV_DROP, 0, gobj);
-    //     }
-    // }
-
-    // TODO
-    // rc = acl__find_acls(context);
-    // if(rc) {
-    //     free(auth_data_out);
-    // JSON_DECREF(auth)
-    // JSON_DECREF(connect_properties);
-    //     return rc;
-    // }
 
     /*---------------------------------------------*
      *      Print new client connected
@@ -5196,23 +5143,6 @@ PRIVATE int handle__connect(hgobj gobj, gbuffer_t *gbuf, hgobj src)
     // context->is_dropping = FALSE;
     // kw_set_dict_value(gobj, client, "ping_t", json_integer(0));
     // kw_set_dict_value(gobj, client, "is_dropping", json_false());
-
-    /*-----------------------------*
-     *  Check acl acl__find_acls
-     *-----------------------------*/
-    // TODO
-    //connection_check_acl(context, &context->msgs_in.inflight);
-    //connection_check_acl(context, &context->msgs_in.queued);
-    //connection_check_acl(context, &context->msgs_out.inflight);
-    //connection_check_acl(context, &context->msgs_out.queued);
-
-    //context__add_to_by_id(context); TODO
-
-// // #ifdef WITH_PERSISTENCE TODO
-//     if(!context->clean_start) {
-//         db.persistence_changes++;
-//     }
-// // #endif
 
     /*---------------------------------------------*
      *      Prepare the response
