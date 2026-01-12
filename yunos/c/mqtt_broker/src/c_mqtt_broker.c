@@ -1692,16 +1692,16 @@ PRIVATE int subs__send(
      *----------------------------------------------*/
     const char *topic = kw_get_str(gobj, kw_mqtt_msg, "topic", "", KW_REQUIRED);
     BOOL retain = kw_get_bool(gobj, kw_mqtt_msg, "retain", 0, KW_REQUIRED);
-    BOOL qos = kw_get_bool(gobj, kw_mqtt_msg, "qos", 0, KW_REQUIRED);
-    json_int_t tm = kw_get_bool(gobj, kw_mqtt_msg, "tm", 0, KW_REQUIRED);
-    json_int_t expiry_interval = kw_get_bool(gobj, kw_mqtt_msg, "expiry_interval", 0, KW_REQUIRED);
+    int qos = (int)kw_get_int(gobj, kw_mqtt_msg, "qos", 0, KW_REQUIRED);
+    json_int_t tm = kw_get_int(gobj, kw_mqtt_msg, "tm", 0, KW_REQUIRED);
+    json_int_t expiry_interval = kw_get_int(gobj, kw_mqtt_msg, "expiry_interval", 0, KW_REQUIRED);
     gbuffer_t *gbuf = (gbuffer_t *)(uintptr_t)kw_get_int(
         gobj, kw_mqtt_msg, "gbuffer", 0, KW_REQUIRED
     );
 
     int options = (int)kw_get_int(gobj, sub, "options", 0, KW_REQUIRED);
     BOOL retain_as_published = options & 0x08;
-    uint8_t client_qos = kw_get_bool(gobj, sub, "qos", 0, KW_REQUIRED);
+    uint8_t client_qos = (int)kw_get_int(gobj, sub, "qos", 0, KW_REQUIRED);
     json_t *ids = kw_get_list(gobj, sub, "ids", 0, 0); // TODO don't save ids if no id, save mem/perf
 
     /*------------------------------*
@@ -1792,7 +1792,8 @@ PRIVATE int subs__send(
             /*
              *  If qos is 0 and client is disconnected, the message is lost
              */
-            kw_decref(new_msg);
+            KW_DECREF(new_msg)
+            JSON_DECREF(session)
             return 0;
         }
 
@@ -1831,6 +1832,8 @@ PRIVATE int subs__send(
             user_flag.value // extra flags in addition to TRQ_MSG_PENDING
         );
 
+        tr2q_close(trq_out_msgs);
+        JSON_DECREF(session)
         return 0;
     }
 
@@ -1870,6 +1873,7 @@ PRIVATE int subs__send(
     //     true
     // );
 
+    JSON_DECREF(session)
     return 0;
 }
 
@@ -2479,7 +2483,7 @@ PRIVATE int ac_on_close(hgobj gobj, const char *event, json_t *kw, hgobj src)
             gobj_delete_node(
                 priv->gobj_treedb_mqtt_broker,
                 "clients",
-                client,  // owned
+                json_pack("{s:s}", "id", client_id),  // owned
                 json_pack("{s:b}", "force", 1), // owned
                 gobj
             );
@@ -2502,7 +2506,8 @@ PRIVATE int ac_on_close(hgobj gobj, const char *event, json_t *kw, hgobj src)
 
     // TODO do will job ?
 
-    KW_DECREF(kw);
+    JSON_DECREF(client)
+    KW_DECREF(kw)
     return 0;
 }
 
