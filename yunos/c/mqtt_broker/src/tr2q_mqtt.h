@@ -222,3 +222,10 @@ static inline void user_flag_init(user_flag_t *uf, uint16_t value) {
 PUBLIC const char *user_flag_state_to_str(mqtt_msg_state_t state);
 PUBLIC const char *user_flag_direction_to_str(mqtt_msg_direction_t dir);
 PUBLIC const char *user_flag_origin_to_str(mqtt_msg_origin_t orig);
+
+PUBLIC int build_queue_name(
+    char *bf,
+    size_t bfsize,
+    const char *client_id,
+    mqtt_msg_direction_t mqtt_msg_direction
+);

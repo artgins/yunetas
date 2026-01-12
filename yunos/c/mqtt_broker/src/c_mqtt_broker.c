@@ -1796,15 +1796,15 @@ PRIVATE int subs__send(
             return 0;
         }
 
-        char queue_name[NAME_MAX];
         /*
-          *  Output messages
-          */
-        snprintf(
+         *  Output messages
+         */
+        char queue_name[NAME_MAX];
+        build_queue_name(
             queue_name,
             sizeof(queue_name),
-            "queue-%s-out",
-            client_id
+            client_id,
+            mosq_md_out
         );
 
         tr2_queue_t *trq_out_msgs = tr2q_open(
@@ -2422,7 +2422,21 @@ PRIVATE int ac_on_close(hgobj gobj, const char *event, json_t *kw, hgobj src)
         return -1;
     }
 
+    /*------------------------------*
+     *  Recover session and client
+     *------------------------------*/
     json_t *session = gobj_read_json_attr(gobj_channel, "session");
+    const char *client_id = kw_get_str(gobj, session, "client_id", "", KW_REQUIRED);
+
+    json_t *client = gobj_get_node(
+        priv->gobj_treedb_mqtt_broker,
+        "clients",
+        json_pack("{s:s}", "id", client_id),
+        NULL,
+        gobj
+    );
+    BOOL assigned_id = kw_get_bool(gobj, client, "assigned_id", FALSE, KW_REQUIRED);
+
     BOOL clean_start = (int)kw_get_bool(
         gobj,
         session,
@@ -2430,16 +2444,37 @@ PRIVATE int ac_on_close(hgobj gobj, const char *event, json_t *kw, hgobj src)
         TRUE,
         KW_REQUIRED
     );
+
+    /*-----------------------------------------*
+     *  If not persistent session delete it
+     *  and if it's dynamic client delete too
+     *-----------------------------------------*/
     if(clean_start) {
+        /*
+         *  Not persistent session
+         */
         gobj_delete_node(
             priv->gobj_treedb_mqtt_broker,
             "sessions",
-            json_incref(session),  // owned
-            json_pack("{s:b}", "force", 1),
+            json_pack("{s:s}", "id", client_id),  // owned
+            json_pack("{s:b}", "force", 1), // owned
             gobj
         );
+        if(assigned_id) {
+            gobj_delete_node(
+                priv->gobj_treedb_mqtt_broker,
+                "clients",
+                client,  // owned
+                json_pack("{s:b}", "force", 1), // owned
+                gobj
+            );
+        }
         // TODO delete queues too
+
     } else {
+        /*
+         *  Persistent session
+         */
         json_object_set_new(session, "_gobj_channel", json_integer((json_int_t)0));
         json_object_set_new(session, "in_session", json_false());
         json_decref(gobj_update_node(

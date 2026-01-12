@@ -9,9 +9,8 @@
 #include "tr2q_mqtt.h"
 
 /********************************************************************
- *  Debug/String Functions
+ * String Functions
  ********************************************************************/
-
 const char *user_flag_state_to_str(mqtt_msg_state_t state)
 {
     switch (state) {
@@ -44,6 +43,9 @@ const char *user_flag_state_to_str(mqtt_msg_state_t state)
     }
 }
 
+/********************************************************************
+ * String Functions
+ ********************************************************************/
 const char *user_flag_direction_to_str(mqtt_msg_direction_t dir)
 {
     switch (dir) {
@@ -56,6 +58,9 @@ const char *user_flag_direction_to_str(mqtt_msg_direction_t dir)
     }
 }
 
+/********************************************************************
+ * String Functions
+ ********************************************************************/
 const char *user_flag_origin_to_str(mqtt_msg_origin_t orig)
 {
     switch (orig) {
@@ -66,4 +71,21 @@ const char *user_flag_origin_to_str(mqtt_msg_origin_t orig)
         default:
             return "NONE";
     }
+}
+
+/********************************************************************
+ *  Build queue name
+ ********************************************************************/
+PUBLIC int build_queue_name(
+    char *bf,
+    size_t bfsize,
+    const char *client_id,
+    mqtt_msg_direction_t mqtt_msg_direction
+) {
+    return snprintf(
+        bf,
+        bfsize,
+        "queue-%s-out",
+        client_id
+    );
 }
