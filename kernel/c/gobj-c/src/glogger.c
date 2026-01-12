@@ -1222,7 +1222,7 @@ PRIVATE void discover(hgobj gobj, hgen_t hgen)
         "pid"
     };
 
-    if(gobj_is_destroying(gobj)) {
+    if(gobj_is_shutdowning()) {
         // NO discover in shutdown
         return;
     }

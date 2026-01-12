@@ -2470,13 +2470,14 @@ PRIVATE int ac_on_close(hgobj gobj, const char *event, json_t *kw, hgobj src)
          *  Dynamic client
          */
         if(assigned_id) {
-            gobj_delete_node(
-                priv->gobj_treedb_mqtt_broker,
-                "clients",
-                json_pack("{s:s}", "id", client_id),  // owned
-                json_pack("{s:b}", "force", 1), // owned
-                gobj
-            );
+            // TODO repon
+            // gobj_delete_node(
+            //     priv->gobj_treedb_mqtt_broker,
+            //     "clients",
+            //     json_pack("{s:s}", "id", client_id),  // owned
+            //     json_pack("{s:b}", "force", 1), // owned
+            //     gobj
+            // );
         }
 
     } else {
