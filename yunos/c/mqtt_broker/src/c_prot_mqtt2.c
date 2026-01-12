@@ -9127,7 +9127,7 @@ PRIVATE int create_gclass(gclass_name_t gclass_name)
     };
     ev_action_t st_wait_frame_header[] = {
         {EV_RX_DATA,            ac_process_frame_header,            0},
-        // {EV_SEND_MESSAGE,       ac_send_message,                    0},
+        {EV_SEND_MESSAGE,       ac_send_message,                    0},
         {EV_MQTT_PUBLISH,       ac_mqtt_client_send_publish,        0},
         {EV_MQTT_SUBSCRIBE,     ac_mqtt_client_send_subscribe,      0},
         {EV_MQTT_UNSUBSCRIBE,   ac_mqtt_client_send_unsubscribe,    0},
@@ -9140,7 +9140,7 @@ PRIVATE int create_gclass(gclass_name_t gclass_name)
     };
     ev_action_t st_wait_payload[] = {
         {EV_RX_DATA,            ac_process_payload_data,            0},
-        // {EV_SEND_MESSAGE,       ac_send_message,                    0},
+        {EV_SEND_MESSAGE,       ac_send_message,                    0},
         {EV_MQTT_PUBLISH,       ac_mqtt_client_send_publish,        0},
         {EV_MQTT_SUBSCRIBE,     ac_mqtt_client_send_subscribe,      0},
         {EV_MQTT_UNSUBSCRIBE,   ac_mqtt_client_send_unsubscribe,    0},
@@ -9162,7 +9162,7 @@ PRIVATE int create_gclass(gclass_name_t gclass_name)
 
     event_type_t event_types[] = {
         {EV_RX_DATA,            0},
-        // {EV_SEND_MESSAGE,       0},
+        {EV_SEND_MESSAGE,       0},
         {EV_MQTT_PUBLISH,       0},
         {EV_MQTT_SUBSCRIBE,     0},
         {EV_MQTT_UNSUBSCRIBE,   0},
