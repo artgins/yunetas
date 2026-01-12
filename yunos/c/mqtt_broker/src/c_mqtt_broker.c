@@ -1654,6 +1654,18 @@ PRIVATE int subs__send(
 ) {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
+    /*--------------------------------------------------------*
+     *  Dispatch the message:
+     *  If a client is in a subscription, possibilities are:
+     *      - not connected and with a persistent session
+     *      - connected, with or without a persistent session
+     *
+     *  Solution:
+     *      - if session does not exit, it's an internal error
+     *      - if session exists and disconnected: open the queue and append the message
+     *      - if session exists and connected: send the message through an event
+     *--------------------------------------------------------*/
+
     /*----------------------------*
      *  Find the client session
      *----------------------------*/
@@ -1668,16 +1680,12 @@ PRIVATE int subs__send(
         gobj_log_error(gobj, 0,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_PARAMETER_ERROR,
-            "msg",          "%s", "Session of client subscription not found",
+            "msg",          "%s", "Session of subs's client not found",
             "client",       "%s", client_id,
             NULL
         );
         return -1;
     }
-
-    hgobj _gobj_channel = (hgobj)(uintptr_t)kw_get_int(
-        gobj, session, "_gobj_channel", 0, KW_REQUIRED
-    );
 
     /*----------------------------------------------*
      *  Get parameters of message and subscription
@@ -1768,62 +1776,80 @@ PRIVATE int subs__send(
         tm
     );
 
-    user_flag_t user_flag = {0};
-    user_flag_set_origin(&user_flag, mosq_mo_client);
-    user_flag_set_direction(&user_flag, mosq_md_out);
-    user_flag_set_qos_level(&user_flag, qos);
-    user_flag_set_retain(&user_flag, retain);
-    user_flag_set_dup(&user_flag, 0);
-    user_flag_set_state(&user_flag, mosq_ms_invalid);
-
-    /*--------------------------------------------------------*
-     *  Dispatch the message:
-     *  If a client is in a subscription, possibilities are:
-     *      - not connected and with a persistent session
-     *      - connected, with or without a persistent session
-     *
-     *  Solution:
-     *      - append the message to the queue of client
-     *      - if the client is connected, send a wake up (EV_SEND_MESSAGE???)
-     *--------------------------------------------------------*/
-
-   char queue_name[NAME_MAX];
-    /*
-      *  Output messages
-      */
-    snprintf(
-        queue_name,
-        sizeof(queue_name),
-        "queue-%s-out",
-        client_id
+    /*------------------------------------------------------------*
+     *  Get the channel, if NULL then the client is disconnected
+     *------------------------------------------------------------*/
+    hgobj _gobj_channel = (hgobj)(uintptr_t)kw_get_int(
+        gobj, session, "_gobj_channel", 0, KW_REQUIRED
     );
 
-    tr2_queue_t *trq_out_msgs = tr2q_open(
-        priv->tranger_queues,
-        queue_name,
-        "tm",
-        0,  // system_flag
-        0,  // max_inflight_messages TODO
-        gobj_read_integer_attr(gobj, "backup_queue_size")
-    );
+    /*------------------------------------------------*
+     *  If client/session is disconnected
+     *      open queue, append message, close queue
+     *------------------------------------------------*/
+    if(!_gobj_channel) {
+        if(msg_qos == 0) {
+            /*
+             *  If qos is 0 and client is disconnected, the message is lost
+             */
+            kw_decref(new_msg);
+            return 0;
+        }
 
-    q2_msg_t *qmsg = NULL;
-    qmsg = tr2q_append(
-        trq_out_msgs,
-        tm,              // __t__ if 0 then the time will be set by TimeRanger with now time
-        kw_mqtt_msg,    // owned
-        user_flag.value // extra flags in addition to TRQ_MSG_PENDING
-    );
+        char queue_name[NAME_MAX];
+        /*
+          *  Output messages
+          */
+        snprintf(
+            queue_name,
+            sizeof(queue_name),
+            "queue-%s-out",
+            client_id
+        );
+
+        tr2_queue_t *trq_out_msgs = tr2q_open(
+            priv->tranger_queues,
+            queue_name,
+            "tm",
+            0,  // system_flag
+            0,  // max_inflight_messages TODO
+            gobj_read_integer_attr(gobj, "backup_queue_size")
+        );
+
+        user_flag_t user_flag = {0};
+        user_flag_set_origin(&user_flag, mosq_mo_client);
+        user_flag_set_direction(&user_flag, mosq_md_out);
+        user_flag_set_qos_level(&user_flag, msg_qos);
+        user_flag_set_retain(&user_flag, client_retain);
+        user_flag_set_dup(&user_flag, 0);
+        user_flag_set_state(&user_flag, mosq_ms_invalid);
+
+        tr2q_append(
+            trq_out_msgs,
+            tm,             // __t__ if 0 then the time will be set by TimeRanger with now time
+            new_msg,        // owned
+            user_flag.value // extra flags in addition to TRQ_MSG_PENDING
+        );
+
+        return 0;
+    }
+
+    /*---------------------------------*
+     *  client/session is connected
+     *      Send it the message
+     *---------------------------------*/
+
     //message__release_to_inflight(gobj, mosq_md_out);
 
-    // kw_set_subdict_value(
-    //     gobj,
-    //     new_msg,
-    //     "__temp__",
-    //     "channel_gobj",
-    //     json_integer((json_int_t)(uintptr_t)_gobj_channel)
-    // );
+    kw_set_subdict_value(
+        gobj,
+        new_msg,
+        "__temp__",
+        "channel_gobj",
+        json_integer((json_int_t)(uintptr_t)_gobj_channel)
+    );
 
+    gobj_send_event(priv->gobj_input_side, EV_SEND_MESSAGE, new_msg, gobj);
 
     // message__queue(
     //     gobj,
