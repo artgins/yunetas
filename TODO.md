@@ -156,6 +156,7 @@ The documentation needs to be update with next changes
     gobj_is_top_service
     gobj_top_services
     yuno_shutdown
+    tranger2_topic_path
 
 # Delete API
 

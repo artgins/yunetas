@@ -1104,6 +1104,22 @@ PUBLIC json_t *tranger2_topic( // WARNING returned JSON IS NOT YOURS
 }
 
 /***************************************************************************
+ *  Return in bf the path of topic
+ ***************************************************************************/
+PUBLIC int tranger2_topic_path(
+    char *bf,
+    size_t bfsize,
+    json_t *tranger,
+    const char *topic_name
+) {
+    snprintf(bf, bfsize, "%s/%s",
+        kw_get_str(0, tranger, "directory", "", KW_REQUIRED),
+        topic_name
+    );
+    return 0;
+}
+
+/***************************************************************************
  *  Return a list of topic names
  ***************************************************************************/
 PUBLIC json_t *tranger2_list_topics( // return is yours

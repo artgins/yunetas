@@ -872,6 +872,9 @@ PRIVATE void close_queues(hgobj gobj)
             priv->client_id,
             mosq_md_in
         );
+
+        priv->tranger_queues,
+
         rmrdir(queue_name);
 
         /*
