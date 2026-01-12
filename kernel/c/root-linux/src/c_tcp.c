@@ -10,7 +10,7 @@
  ****************************************************************************/
 #include <string.h>
 #include <unistd.h>
-#include <sys/epoll.h>
+#include <poll.h>
 
 #include <gobj.h>
 #include <g_ev_kernel.h>
@@ -88,7 +88,7 @@ PRIVATE const sdata_desc_t attrs_table[] = { // WARNING repeated in c_tcp/c_esp_
 SDATA (DTP_BOOLEAN, "__clisrv__",       SDF_STATS,      "FALSE",    "Client of tcp server. This tcp obj is created or configured by C_TCP_S, Check if the '__clisrv__' is TRUE to know if this is a server (client channel) tcp gobj."),
 SDATA (DTP_STRING,  "url",              SDF_RD,         "",         "Url to connect in the case of tcp gobj client. Check if the 'url' is not empty to know if this is a client tcp gobj."),
 SDATA (DTP_BOOLEAN, "manual",           SDF_RD,         "FALSE",    "Set TRUE if you want connect manually"),
-SDATA (DTP_BOOLEAN, "use_close_poll",   SDF_PERSIST,    "FALSE",    "Set TRUE if you want check early disconnections with EPOLLRDHUP"),
+SDATA (DTP_BOOLEAN, "use_close_poll",   SDF_PERSIST,    "TRUE",     "Set TRUE if you want check early disconnections with POLLHUP"),
 SDATA (DTP_BOOLEAN, "use_ssl",          SDF_RD,         "FALSE",    "True if schema is secure. Set internally if client, externally is clisrv"),
 SDATA (DTP_JSON,    "crypto",           SDF_RD,         "{}",       "Crypto config"),
 SDATA (DTP_POINTER, "ytls",             0,              0,          "TLS handler"),
@@ -574,7 +574,7 @@ PRIVATE void set_connected(hgobj gobj, int fd)
                 yev_callback,
                 gobj,
                 fd,
-                EPOLLRDHUP
+                POLLHUP
             );
         }
 
@@ -1415,14 +1415,14 @@ PRIVATE int yev_callback(yev_event_h yev_event)
                  */
                 // int result = yev_get_result(yev_event);
                 { // if(result > 0)
-                    gobj_log_set_last_message("%s", "EPOLLRDHUP Peer shutdown");
+                    gobj_log_set_last_message("%s", "POLLHUP Peer shutdown");
 
                     if(trace) {
                         gobj_log_debug(gobj, 0,
                             "function",     "%s", __FUNCTION__,
                             "msgset",       "%s", MSGSET_CONNECT_DISCONNECT,
-                            "msg",          "%s", "TCP: POLL EPOLLRDHUP",
-                            "msg2",         "%s", "🌐TCP: POLL EPOLLRDHUP",
+                            "msg",          "%s", "TCP: POLL POLLHUP",
+                            "msg2",         "%s", "🌐TCP: POLL POLLHUP",
                             "url",          "%s", gobj_read_str_attr(gobj, "url"),
                             "remote-addr",  "%s", gobj_read_str_attr(gobj, "peername"),
                             "local-addr",   "%s", gobj_read_str_attr(gobj, "sockname"),
