@@ -1963,8 +1963,6 @@ print_json2("SHARED_SUBSCRIBERS", shared_subscribers); // TODO TEST
         }
     }
 
-printf("TOTAL===========> %d\n", (int)total_sent);
-
     json_decref(normal_subscribers);
     json_decref(shared_subscribers);
 
