@@ -9226,7 +9226,6 @@ PRIVATE int create_gclass(gclass_name_t gclass_name)
     };
     ev_action_t st_wait_handshake[] = {
         {EV_RX_DATA,            ac_process_handshake,               0},
-        // {EV_SEND_MESSAGE,       ac_send_message,                    0},
         {EV_DISCONNECTED,       ac_disconnected,                    ST_DISCONNECTED},
         {EV_TIMEOUT,            ac_timeout_wait_handshake,          0},
         {EV_DROP,               ac_drop,                            0},
@@ -9235,7 +9234,7 @@ PRIVATE int create_gclass(gclass_name_t gclass_name)
     };
     ev_action_t st_wait_frame_header[] = {
         {EV_RX_DATA,            ac_process_frame_header,            0},
-        // {EV_SEND_MESSAGE,       ac_send_message,                    0},
+        {EV_SEND_MESSAGE,       ac_send_message,                    0},
         {EV_MQTT_PUBLISH,       ac_mqtt_client_send_publish,        0},
         {EV_MQTT_SUBSCRIBE,     ac_mqtt_client_send_subscribe,      0},
         {EV_MQTT_UNSUBSCRIBE,   ac_mqtt_client_send_unsubscribe,    0},
@@ -9248,7 +9247,7 @@ PRIVATE int create_gclass(gclass_name_t gclass_name)
     };
     ev_action_t st_wait_payload[] = {
         {EV_RX_DATA,            ac_process_payload_data,            0},
-        // {EV_SEND_MESSAGE,       ac_send_message,                    0},
+        {EV_SEND_MESSAGE,       ac_send_message,                    0},
         {EV_MQTT_PUBLISH,       ac_mqtt_client_send_publish,        0},
         {EV_MQTT_SUBSCRIBE,     ac_mqtt_client_send_subscribe,      0},
         {EV_MQTT_UNSUBSCRIBE,   ac_mqtt_client_send_unsubscribe,    0},
@@ -9270,11 +9269,11 @@ PRIVATE int create_gclass(gclass_name_t gclass_name)
 
     event_type_t event_types[] = {
         {EV_RX_DATA,            0},
+        {EV_SEND_MESSAGE,       0},
         {EV_MQTT_PUBLISH,       0},
         {EV_MQTT_SUBSCRIBE,     0},
         {EV_MQTT_UNSUBSCRIBE,   0},
         {EV_ON_IEV_MESSAGE,     EVF_OUTPUT_EVENT},
-        // {EV_MQTT_MESSAGE,       EVF_OUTPUT_EVENT},
         {EV_TIMEOUT,            0},
         {EV_TX_READY,           0},
         {EV_CONNECTED,          0},
@@ -9284,9 +9283,6 @@ PRIVATE int create_gclass(gclass_name_t gclass_name)
 
         {EV_ON_OPEN,            EVF_OUTPUT_EVENT},
         {EV_ON_CLOSE,           EVF_OUTPUT_EVENT},
-        // {EV_ON_MESSAGE,         EVF_OUTPUT_EVENT},
-        // {EV_ON_ID,              EVF_OUTPUT_EVENT},
-        // {EV_ON_ID_NAK,          EVF_OUTPUT_EVENT},
         {0, 0}
     };
 

@@ -1783,11 +1783,11 @@ PRIVATE int subs__send(
         gobj, session, "_gobj_channel", 0, KW_REQUIRED
     );
 
-    /*------------------------------------------------*
-     *  If client/session is disconnected
-     *      open queue, append message, close queue
-     *------------------------------------------------*/
     if(!_gobj_channel) {
+        /*------------------------------------------------*
+         *  client/session is disconnected
+         *      open queue, append message, close queue
+         *------------------------------------------------*/
         if(msg_qos == 0) {
             /*
              *  If qos is 0 and client is disconnected, the message is lost
@@ -1853,14 +1853,6 @@ PRIVATE int subs__send(
     );
 
     gobj_send_event(priv->gobj_input_side, EV_SEND_MESSAGE, new_msg, gobj);
-
-    // message__queue(
-    //     gobj,
-    //     kw_mqtt_msg,
-    //     mosq_md_out,
-    //     user_flag,
-    //     t
-    // );
 
     // db__message_insert(
     //     leaf->context,
