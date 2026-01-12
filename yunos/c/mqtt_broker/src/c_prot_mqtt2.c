@@ -873,9 +873,10 @@ PRIVATE void close_queues(hgobj gobj)
             mosq_md_in
         );
 
-        priv->tranger_queues,
-
-        rmrdir(queue_name);
+        tranger2_delete_topic(
+            priv->tranger_queues,
+            queue_name
+        );
 
         /*
          *  Output messages
@@ -886,7 +887,10 @@ PRIVATE void close_queues(hgobj gobj)
             priv->client_id,
             mosq_md_out
         );
-        rmrdir(queue_name);
+        tranger2_delete_topic(
+            priv->tranger_queues,
+            queue_name
+        );
     }
 }
 
