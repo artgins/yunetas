@@ -8480,13 +8480,11 @@ PRIVATE int ac_send_message(hgobj gobj, const char *event, json_t *kw, hgobj src
     /*----------------------*
      *   Entry parameters
      *----------------------*/
-    const char *topic_name = kw_get_str(gobj, kw, "topic_name", "", KW_REQUIRED);
+    const char *topic_name = kw_get_str(gobj, kw, "topic", "", KW_REQUIRED);
     gbuffer_t *gbuf = (gbuffer_t *)(uintptr_t)kw_get_int(gobj, kw, "gbuffer", 0, KW_REQUIRED);
     if(gobj_trace_level(gobj) & TRAFFIC) {
         gobj_trace_dump_gbuf(gobj, gbuf, "%s, topic_name %s", gobj_short_name(gobj), topic_name);
     }
-    char *payload = gbuffer_cur_rd_pointer(gbuf);
-    int payloadlen = (int)gbuffer_leftbytes(gbuf);
     int qos = (int)kw_get_int(gobj, kw, "qos", 0, KW_REQUIRED);
     BOOL retain = kw_get_bool(gobj, kw, "retain", 0, KW_REQUIRED);
 
