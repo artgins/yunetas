@@ -54,6 +54,8 @@
             │         client_groups [↖] │ ──┘               │
             │                           │                   │
             │  name                     │                   │
+            │  assigned_id              │                   │
+            │  dynamic_id               │                   │
             │  description              │                   │
             │  enabled                  │                   │
             │  time                     │                   │
@@ -161,7 +163,7 @@
 static char treedb_schema_mqtt_broker[]= "\
 {                                                                   \n\
     'id': 'treedb_mqtt_broker',                                     \n\
-    'schema_version': '5',                                         	\n\
+    'schema_version': '7',                                         	\n\
     'topics': [                                                     \n\
         {                                                           \n\
             'id': 'client_groups',                                  \n\
@@ -305,7 +307,7 @@ static char treedb_schema_mqtt_broker[]= "\
             'id': 'clients',                                        \n\
             'pkey': 'id',                                           \n\
             'system_flag': 'sf_string_key',                         \n\
-            'topic_version': '2',                                   \n\
+            'topic_version': '4',                                   \n\
             'cols': {                                               \n\
                 'id': {                                             \n\
                     'header': 'Client Id',                          \n\
