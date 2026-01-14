@@ -2455,7 +2455,7 @@ PRIVATE int ac_on_close(hgobj gobj, const char *event, json_t *kw, hgobj src)
      *-----------------------------------------*/
     if(clean_start) {
         /*
-         *  Not persistent session
+         *  Delete not persistent session
          */
         gobj_delete_node(
             priv->gobj_treedb_mqtt_broker,
@@ -2469,6 +2469,9 @@ PRIVATE int ac_on_close(hgobj gobj, const char *event, json_t *kw, hgobj src)
          *  Dynamic client
          */
         if(assigned_id) {
+            /*
+             *  Delete volatil client
+             */
             gobj_delete_node(
                 priv->gobj_treedb_mqtt_broker,
                 "clients",
@@ -2477,6 +2480,8 @@ PRIVATE int ac_on_close(hgobj gobj, const char *event, json_t *kw, hgobj src)
                 gobj
             );
         }
+
+        sub__remove_client(gobj, client_id);
 
     } else {
         /*
