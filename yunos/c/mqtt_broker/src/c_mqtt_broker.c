@@ -2741,6 +2741,11 @@ PRIVATE int ac_mqtt_message(hgobj gobj, const char *event, json_t *kw, hgobj src
         kw // not owned
     );
 
+    /*-----------------------------------*
+     *      Publish to yuneta gobjs
+     *-----------------------------------*/
+    gobj_publish_event(gobj, EV_MQTT_MESSAGE, kw_incref(kw));
+
     KW_DECREF(kw);
     return subscribers_found;
 }
@@ -3075,7 +3080,7 @@ PRIVATE int create_gclass(gclass_name_t gclass_name)
      *------------------------*/
     event_type_t event_types[] = {
         {EV_ON_MESSAGE,             0},
-        {EV_MQTT_MESSAGE,           0},
+        {EV_MQTT_MESSAGE,           EVF_OUTPUT_EVENT|EVF_NO_WARN_SUBS},
         {EV_MQTT_SUBSCRIBE,         0},
         {EV_ON_OPEN,                0},
         {EV_ON_CLOSE,               0},
