@@ -32,7 +32,7 @@ and [Object-oriented](https://en.wikipedia.org/wiki/Object-oriented_programming)
 programming paradigms. 
 Heavy use of JSON, **serie-time**, **key-value**, **flat-files** and **graphs** concepts.
 
-[Yuneta Simplified](https://yuneta.io) is a **real-time system** RTS that includes **development**, **testing**, and **deployment** features. Built for Linux, and **deployable** on any **bare-metal** server. Too it has been ported successfully to [ESP-IDF](https://www.espressif.com/en/products/sdks/esp-idf), a basic version.
+[Yuneta Simplified](https://yuneta.io) is a **real-time system** RTS that includes **development**, **testing**, and **deployment** features. Built for Linux, and **deployable** on any **bare-metal** server.
 
 Specialized in IoT data collection, all types of devices, and data exchange and protocol adaptation between systems, including collection, **publication/subscription**, and querying of **messages** in **real time**, with **historical** data storage. 
 
@@ -40,7 +40,7 @@ The messages (**encrypted** or plain text) circulating within the Yuneta system 
 
 For [Linux](https://en.wikipedia.org/wiki/Linux) and [RTOS/ESP32](https://www.espressif.com/en/products/sdks/esp-idf). 
 
-Versions in C, partially in JavaScript. Todo in Python.
+Versions in C, partially in JavaScript.
 
 ---
 
