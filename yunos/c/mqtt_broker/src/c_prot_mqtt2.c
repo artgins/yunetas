@@ -4928,6 +4928,13 @@ PRIVATE int handle__connect(hgobj gobj, gbuffer_t *gbuf, hgobj src)
         }
     }
 
+    if(strncmp(client_id, "auto-", strlen("auto-"))==0) {
+        /*
+         *  Particular case: Mosquito client without client_id
+         */
+        assigned_id = TRUE;
+    }
+
     gobj_write_strn_attr(gobj, "client_id", client_id, client_id_len);
     gobj_write_bool_attr(gobj, "assigned_id", assigned_id);
 

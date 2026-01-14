@@ -2145,6 +2145,8 @@ PRIVATE int ac_on_open(hgobj gobj, const char *event, json_t *kw, hgobj src)
             //     gbuffer_decref(gbuf_base64);
             // }
 
+        json_object_set_new(kw, "dynamic_id", json_true());
+
         client = gobj_create_node(
             priv->gobj_treedb_mqtt_broker,
             "clients",
