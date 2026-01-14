@@ -2110,6 +2110,14 @@ PRIVATE int ac_on_open(hgobj gobj, const char *event, json_t *kw, hgobj src)
      *  (HACK client_id is really a device_id in mqtt IoT devices)
      *--------------------------------------------------------------*/
     const char *client_id = kw_get_str(gobj, kw, "id", "", KW_REQUIRED);
+    BOOL assigned_id = kw_get_bool(gobj, kw, "assigned_id", 0, KW_REQUIRED);
+    if(strncmp(client_id, "auto-", strlen("auto-"))==0) {
+        /*
+         *  Particular case: Mosquito client without client_id
+         */
+        assigned_id = TRUE;
+        json_object_set_new(kw, "assigned_id", json_true());
+    }
 
     json_t *client = gobj_get_node(
         priv->gobj_treedb_mqtt_broker,
@@ -2173,7 +2181,6 @@ PRIVATE int ac_on_open(hgobj gobj, const char *event, json_t *kw, hgobj src)
     int result = 0;
     json_t *prev_subscriptions = NULL;
     int prev_mid = 0;
-    BOOL assigned_id = kw_get_bool(gobj, kw, "assigned_id", 0, KW_REQUIRED);
     BOOL clean_start = kw_get_bool(gobj, kw, "clean_start", TRUE, KW_REQUIRED);
     int protocol_version = (int)kw_get_int(gobj, kw, "protocol_version", 0, KW_REQUIRED);
     if(assigned_id) {
