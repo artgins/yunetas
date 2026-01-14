@@ -7,23 +7,18 @@
  *          Copyright (c) 2025,2026, ArtGins.
  *          All Rights Reserved.
  ***********************************************************************/
-#include <stdio.h>
 #include <limits.h>
-#include <string.h>
 
 #include <gobj.h>
 #include <g_ev_kernel.h>
 #include <g_st_kernel.h>
 #include <helpers.h>
 
-#include "c_mqtt_broker.h"
-
-#include <fcntl.h>
-#include <unistd.h>
-
 #include "treedb_schema_mqtt_broker.c"
 #include "tr2_queue.h"
 #include "tr2q_mqtt.h"
+#include "c_mqtt_broker.h"
+
 #include "c_prot_mqtt2.h" // TODO remove when moved to kernel
 
 /***************************************************************************
@@ -136,7 +131,7 @@ typedef struct _PRIVATE_DATA {
     json_t *shared_subs;
 
     char treedb_mqtt_broker_name[80];
-    char msg2db_alarms_name[80];
+    char msg2db_alarms_name[80]; // TODO review, is used?
 
     char treedb_name[NAME_MAX];
 
@@ -637,7 +632,7 @@ PRIVATE int broadcast_queues_tranger(hgobj gobj)
  *    }
  *  }
  ***************************************************************************/
-PRIVATE void print_levels(char *prefix, char **levels)
+PRIVATE void print_levels(char *prefix, char **levels) // For debugging
 {
     printf("==> %s\n", prefix);
     for(int i = 0; levels[i] != NULL; i++) {
@@ -728,6 +723,7 @@ PRIVATE int topic_tokenize(
      *----------------------------------------------------------------------*/
     *local_topic = gbmem_strdup(topic);
     if((*local_topic) == NULL) {
+        // Error already logged
         return -1;
     }
 
@@ -757,6 +753,7 @@ PRIVATE int topic_tokenize(
      *----------------------------------------------------------------------*/
     *levels = gbmem_malloc((size_t)(count + 3) * sizeof(char *));
     if((*levels) == NULL) {
+        // Error already logged
         gbmem_free(*local_topic);
         *local_topic = NULL;
         return -1;
@@ -1542,7 +1539,6 @@ PRIVATE int sub__remove_client_recursive(json_t *node, const char *client_id, in
 
     return 0;
 }
-
 PRIVATE int sub__remove_client(hgobj gobj, const char *client_id)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
@@ -1938,7 +1934,7 @@ PRIVATE size_t sub__messages_queue(
      *----------------------------------------------------------------------*/
     json_t *normal_subscribers = json_object();
     search_recursive(gobj, priv->normal_subs, levels, 1, normal_subscribers);
-print_json2("NORMAL_SUBSCRIBERS", normal_subscribers); // TODO TEST
+//print_json2("NORMAL_SUBSCRIBERS", normal_subscribers); // TODO TEST
 
     const char *client_id; json_t *sub;
     json_object_foreach(normal_subscribers, client_id, sub) {
@@ -1953,7 +1949,7 @@ print_json2("NORMAL_SUBSCRIBERS", normal_subscribers); // TODO TEST
      *----------------------------------------------------------------------*/
     json_t *shared_subscribers = json_object();
     search_recursive(gobj, priv->shared_subs, levels, 1, shared_subscribers);
-print_json2("SHARED_SUBSCRIBERS", shared_subscribers); // TODO TEST
+//print_json2("SHARED_SUBSCRIBERS", shared_subscribers); // TODO TEST
 
     json_object_foreach(shared_subscribers, client_id, sub) {
         // TODO envia solo a uno, pero cíclicamente, no siempre al mismo, así hace mosquitto
@@ -2449,8 +2445,6 @@ PRIVATE int ac_on_close(hgobj gobj, const char *event, json_t *kw, hgobj src)
         NULL,
         gobj
     );
-print_json2("SESSION====>", session); // TODO TEST
-print_json2("CLIENT====>", client); // TODO TEST
 
     BOOL assigned_id = kw_get_bool(gobj, client, "assigned_id", FALSE, KW_REQUIRED);
 
