@@ -1305,11 +1305,7 @@ PRIVATE void collect_all_subscribers_recursive(hgobj gobj, json_t *node, json_t 
  ***************************************************************************/
 PRIVATE void prune_empty_branches(json_t *root, char **levels)
 {
-    json_t *node;
-    json_t *parent;
-    json_t *subs;
     int depth;
-    int i;
 
     /*
      *  Count depth
@@ -1320,11 +1316,11 @@ PRIVATE void prune_empty_branches(json_t *root, char **levels)
     /*
      *  Walk backwards from leaf to root
      */
-    for(i = depth - 1; i >= 1; i--) {
+    for(int i = depth - 1; i >= 1; i--) {
         /*
          *  Get parent node
          */
-        parent = root;
+        json_t *parent = root;
         for(int j = 1; j < i; j++) {
             parent = json_object_get(parent, levels[j]);
             if(!parent) {
@@ -1335,7 +1331,7 @@ PRIVATE void prune_empty_branches(json_t *root, char **levels)
         /*
          *  Get current node
          */
-        node = json_object_get(parent, levels[i]);
+        json_t *node = json_object_get(parent, levels[i]);
         if(!node) {
             return;
         }
@@ -1345,7 +1341,7 @@ PRIVATE void prune_empty_branches(json_t *root, char **levels)
          *  - No children except @subs
          *  - @subs is empty or missing
          */
-        subs = json_object_get(node, SUBS_KEY);
+        json_t *subs = json_object_get(node, SUBS_KEY);
         size_t child_count = json_object_size(node);
 
         if(subs) {
@@ -1388,8 +1384,6 @@ PRIVATE int sub__remove(hgobj gobj, const char *topic, const char *client_id, in
     char **levels = NULL;
     const char *sharename = NULL;
     json_t *root;
-    json_t *node;
-    json_t *subs;
 
     if(!topic || !client_id) {
         gobj_log_error(gobj, 0,
@@ -1428,7 +1422,7 @@ PRIVATE int sub__remove(hgobj gobj, const char *topic, const char *client_id, in
     /*--------------------------------------------------*
      *  Navigate to node (don't create if not exists)
      *--------------------------------------------------*/
-    node = get_node(root, levels);
+    json_t *node = get_node(root, levels);
     if(!node) {
         /*
          *  Topic path doesn't exist, nothing to remove
@@ -1440,7 +1434,7 @@ PRIVATE int sub__remove(hgobj gobj, const char *topic, const char *client_id, in
     /*-------------------*
      *  Get @subs dict
      *-------------------*/
-    subs = json_object_get(node, SUBS_KEY);
+    json_t *subs = json_object_get(node, SUBS_KEY);
     if(!subs || !json_object_get(subs, client_id)) {
         /*
          *  No subscribers at this node
@@ -1498,13 +1492,12 @@ PRIVATE int sub__remove_client_recursive(json_t *node, const char *client_id, in
 {
     const char *key;
     json_t *child;
-    json_t *subs;
     void *tmp;
 
     /*
      *  Check @subs in current node (O(1) lookup in dict)
      */
-    subs = json_object_get(node, SUBS_KEY);
+    json_t *subs = json_object_get(node, SUBS_KEY);
     if(subs) {
         if(json_object_get(subs, client_id)) {
             json_object_del(subs, client_id);
@@ -2544,10 +2537,14 @@ PRIVATE int ac_mqtt_subscribe(hgobj gobj, const char *event, json_t *kw, hgobj s
     int idx; json_t *jn_sub;
     json_array_foreach(jn_list, idx, jn_sub) {
         const char *sub = kw_get_str(gobj, jn_sub, "sub", NULL, KW_REQUIRED);
-        int subscription_identifier = kw_get_int(gobj, jn_sub, "subscription_identifier", 0, KW_REQUIRED);
-        int qos = kw_get_int(gobj, jn_sub, "qos", 0, KW_REQUIRED);
-        int subscription_options = kw_get_int(gobj, jn_sub, "subscription_options", 0, KW_REQUIRED);
-        int retain_handling = kw_get_int(gobj, jn_sub, "retain_handling", 0, KW_REQUIRED);
+        int subscription_identifier = (int)kw_get_int(
+            gobj, jn_sub, "subscription_identifier", 0, KW_REQUIRED
+        );
+        int qos = (int)kw_get_int(gobj, jn_sub, "qos", 0, KW_REQUIRED);
+        int subscription_options = (int)kw_get_int(
+            gobj, jn_sub, "subscription_options", 0, KW_REQUIRED
+        );
+        int retain_handling = (int)kw_get_int(gobj, jn_sub, "retain_handling", 0, KW_REQUIRED);
 
         BOOL allowed = TRUE;
         // allowed = mosquitto_acl_check(context, sub, 0, NULL, qos, FALSE, MOSQ_ACL_SUBSCRIBE); TODO
@@ -2734,7 +2731,7 @@ PRIVATE int ac_mqtt_message(hgobj gobj, const char *event, json_t *kw, hgobj src
     /*-----------------------------------*
      *      Mqtt message
      *-----------------------------------*/
-    int subscribers_found = sub__messages_queue(
+    int subscribers_found = (int)sub__messages_queue(
         gobj,
         kw // not owned
     );
