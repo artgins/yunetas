@@ -38,7 +38,7 @@ Specialized in IoT data collection, all types of devices, and data exchange and 
 
 The messages (**encrypted** or plain text) circulating within the Yuneta system can be persistent in disk or exist only while in transit or in the memory of a service. All data in JSON.
 
-For [Linux](https://en.wikipedia.org/wiki/Linux) and [RTOS/ESP32](https://www.espressif.com/en/products/sdks/esp-idf). 
+For [Linux](https://en.wikipedia.org/wiki/Linux).
 
 Versions in C, partially in JavaScript.
 
