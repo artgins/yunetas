@@ -2440,6 +2440,9 @@ PRIVATE int ac_on_close(hgobj gobj, const char *event, json_t *kw, hgobj src)
         NULL,
         gobj
     );
+print_json2("SESSION====>", session); // TODO TEST
+print_json2("CLIENT====>", client); // TODO TEST
+
     BOOL assigned_id = kw_get_bool(gobj, client, "assigned_id", FALSE, KW_REQUIRED);
 
     BOOL clean_start = (int)kw_get_bool(

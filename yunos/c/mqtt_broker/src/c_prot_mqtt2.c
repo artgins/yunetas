@@ -8480,10 +8480,10 @@ PRIVATE int ac_send_message(hgobj gobj, const char *event, json_t *kw, hgobj src
     /*----------------------*
      *   Entry parameters
      *----------------------*/
-    const char *topic_name = kw_get_str(gobj, kw, "topic", "", KW_REQUIRED);
+    const char *topic = kw_get_str(gobj, kw, "topic", "", KW_REQUIRED);
     gbuffer_t *gbuf = (gbuffer_t *)(uintptr_t)kw_get_int(gobj, kw, "gbuffer", 0, KW_REQUIRED);
     if(gobj_trace_level(gobj) & TRAFFIC) {
-        gobj_trace_dump_gbuf(gobj, gbuf, "%s, topic_name %s", gobj_short_name(gobj), topic_name);
+        gobj_trace_dump_gbuf(gobj, gbuf, "%s, topic %s", gobj_short_name(gobj), topic);
     }
     int qos = (int)kw_get_int(gobj, kw, "qos", 0, KW_REQUIRED);
     BOOL retain = kw_get_bool(gobj, kw, "retain", 0, KW_REQUIRED);
@@ -8494,7 +8494,7 @@ PRIVATE int ac_send_message(hgobj gobj, const char *event, json_t *kw, hgobj src
     send__publish(
         gobj,
         mid,
-        topic_name,
+        topic,
         gbuf,
         (uint8_t)qos,
         retain,
@@ -8503,6 +8503,52 @@ PRIVATE int ac_send_message(hgobj gobj, const char *event, json_t *kw, hgobj src
         NULL, // TODO properties,
         0
     );
+
+    if(qos == 0) {
+        send__publish(
+            gobj,
+            mid,
+            topic,
+            gbuf,
+            (uint8_t)qos,
+            retain,
+            FALSE,      // dup
+            NULL,       // TODO properties cmsg_props
+            NULL,       // TODO properties store_props
+            0           // TODO expiry_interval
+        );
+    } else {
+
+        time_t t = mosquitto_time();
+        json_t *kw_mqtt_msg = new_mqtt_message( // client sending message to broker
+            gobj,
+            mid,
+            topic,
+            gbuf,       // not owned // TODO this base64 to tr_queue.c
+            qos,
+            retain,
+            FALSE,      // dup,
+            NULL,       // TODO properties, // not owned
+            0,          // TODO expiry_interval,
+            t           // TODO ???
+        );
+
+        user_flag_t user_flag = {0};
+        user_flag_set_origin(&user_flag, mosq_mo_broker);
+        user_flag_set_direction(&user_flag, mosq_md_out);
+        user_flag_set_qos_level(&user_flag, qos);
+        user_flag_set_retain(&user_flag, retain);
+        user_flag_set_dup(&user_flag, 0);
+        user_flag_set_state(&user_flag, mosq_ms_invalid);
+
+        message__queue(
+            gobj,
+            kw_mqtt_msg,
+            mosq_md_out,
+            user_flag,
+            t
+        );
+    }
 
     KW_DECREF(kw)
     return 0;

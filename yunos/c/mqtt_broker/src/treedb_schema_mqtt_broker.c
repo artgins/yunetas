@@ -161,7 +161,7 @@
 static char treedb_schema_mqtt_broker[]= "\
 {                                                                   \n\
     'id': 'treedb_mqtt_broker',                                     \n\
-    'schema_version': '4',                                         	\n\
+    'schema_version': '5',                                         	\n\
     'topics': [                                                     \n\
         {                                                           \n\
             'id': 'client_groups',                                  \n\
@@ -305,7 +305,7 @@ static char treedb_schema_mqtt_broker[]= "\
             'id': 'clients',                                        \n\
             'pkey': 'id',                                           \n\
             'system_flag': 'sf_string_key',                         \n\
-            'topic_version': '1',                                   \n\
+            'topic_version': '2',                                   \n\
             'cols': {                                               \n\
                 'id': {                                             \n\
                     'header': 'Client Id',                          \n\
@@ -333,6 +333,14 @@ static char treedb_schema_mqtt_broker[]= "\
                 },                                                  \n\
                 'assigned_id': {                                    \n\
                     'header': 'Assigned Id',                        \n\
+                    'type': 'boolean',                              \n\
+                    'flag': [                                       \n\
+                        'persistent'                                \n\
+                    ]                                               \n\
+                },                                                  \n\
+                'dynamic_id': {                                     \n\
+                    'header': 'Dynamic Id',                         \n\
+                    'description': 'True if client was not created by config',\n\
                     'type': 'boolean',                              \n\
                     'flag': [                                       \n\
                         'persistent'                                \n\
