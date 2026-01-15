@@ -675,12 +675,28 @@ PUBLIC BOOL kwid_match_nid(
     int max_id_size
 );
 
-/**rst**
-    Flatten a nested json dict into a non-nested dict
-    Keys become paths separated by '`'
-    Return a new json object (caller must decref)
-**rst**/
+/***************************************************************************
+ *  Flatten a nested json dict into a non-nested dict
+ *  Keys become paths separated by '`'
+ *
+ *  WARNING: Keys consisting only of digits (e.g., "0", "123") are reserved
+ *           for array indices. Do not use numeric-only keys in your data
+ *           as they will be interpreted as array positions when unflattening.
+ *
+ *  Return a new json object (caller must decref)
+ ***************************************************************************/
 PUBLIC json_t *json_flatten_dict(json_t *jn_nested);
+
+/***************************************************************************
+ *  Unflatten a dict with path keys (separated by '`') into a nested dict
+ *
+ *  WARNING: Keys consisting only of digits (e.g., "0", "123") are reserved
+ *           for array indices. Do not use numeric-only keys in your data
+ *           as they will be interpreted as array positions.
+ *
+ *  Return a new json object (caller must decref)
+ ***************************************************************************/
+PUBLIC json_t *json_unflatten_dict(json_t *jn_flat);
 
 #ifdef __cplusplus
 }

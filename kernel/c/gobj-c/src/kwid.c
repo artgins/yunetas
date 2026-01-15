@@ -11,6 +11,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <limits.h>
+#include <ctype.h>
 
 #include "kwid.h"
 
@@ -3687,8 +3688,166 @@ PRIVATE void flatten_recursive(
 }
 
 /***************************************************************************
+ *  Check if string is a valid array index (all digits)
+ ***************************************************************************/
+PRIVATE BOOL is_array_index(const char *s)
+{
+    if(!s || !s[0]) {
+        return FALSE;
+    }
+    for(const char *p = s; *p; p++) {
+        if(!isdigit((unsigned char)*p)) {
+            return FALSE;
+        }
+    }
+    return TRUE;
+}
+
+/***************************************************************************
+ *  Ensure array has enough elements (fill with null)
+ ***************************************************************************/
+PRIVATE void ensure_array_size(json_t *jn_array, size_t index)
+{
+    while(json_array_size(jn_array) <= index) {
+        json_array_append_new(jn_array, json_null());
+    }
+}
+
+/***************************************************************************
+ *  Set value at path, creating intermediate objects/arrays as needed
+ ***************************************************************************/
+PRIVATE int set_path_value(
+    json_t *root,
+    const char *path,
+    json_t *jn_value
+)
+{
+    char *path_copy = strdup(path);
+    if(!path_copy) {
+        return -1;
+    }
+
+    // Tokenize path by '`'
+    char *tokens[256];  // Max depth
+    int token_count = 0;
+
+    char *saveptr;
+    char *token = strtok_r(path_copy, "`", &saveptr);
+    while(token && token_count < 256) {
+        tokens[token_count++] = token;
+        token = strtok_r(NULL, "`", &saveptr);
+    }
+
+    if(token_count == 0) {
+        free(path_copy);
+        return -1;
+    }
+
+    // Navigate/create path
+    json_t *current = root;
+
+    for(int i = 0; i < token_count - 1; i++) {
+        const char *key = tokens[i];
+        const char *next_key = tokens[i + 1];
+        BOOL next_is_array = is_array_index(next_key);
+
+        if(json_is_object(current)) {
+            json_t *child = json_object_get(current, key);
+            if(!child || json_is_null(child)) {
+                // Create new container based on next key type
+                child = next_is_array ? json_array() : json_object();
+                json_object_set_new(current, key, child);
+            }
+            current = child;
+        } else if(json_is_array(current)) {
+            size_t index = (size_t)atol(key);
+            ensure_array_size(current, index);
+            json_t *child = json_array_get(current, index);
+            if(!child || json_is_null(child)) {
+                // Create new container based on next key type
+                child = next_is_array ? json_array() : json_object();
+                json_array_set_new(current, index, child);
+            }
+            current = child;
+        } else {
+            free(path_copy);
+            return -1;
+        }
+    }
+
+    // Set final value
+    const char *final_key = tokens[token_count - 1];
+
+    if(json_is_object(current)) {
+        json_object_set(current, final_key, jn_value);
+    } else if(json_is_array(current)) {
+        size_t index = (size_t)atol(final_key);
+        ensure_array_size(current, index);
+        json_array_set(current, index, jn_value);
+    } else {
+        free(path_copy);
+        return -1;
+    }
+
+    free(path_copy);
+    return 0;
+}
+
+/***************************************************************************
+ *  Unflatten a dict with path keys (separated by '`') into a nested dict
+ *
+ *  WARNING: Keys consisting only of digits (e.g., "0", "123") are reserved
+ *           for array indices. Do not use numeric-only keys in your data
+ *           as they will be interpreted as array positions.
+ *
+ *  Return a new json object (caller must decref)
+ ***************************************************************************/
+PUBLIC json_t *json_unflatten_dict(json_t *jn_flat)
+{
+    if(!jn_flat || !json_is_object(jn_flat)) {
+        return json_object();
+    }
+
+    // Determine if root should be array or object
+    // by checking the first component of the first key
+    const char *first_key = NULL;
+    json_object_foreach(jn_flat, first_key, json_t *_) {
+        break;
+    }
+
+    json_t *result;
+    if(first_key && is_array_index(first_key)) {
+        // First path component is numeric, root is array
+        char *copy = strdup(first_key);
+        char *first_token = strtok(copy, "`");
+        BOOL root_is_array = first_token && is_array_index(first_token);
+        free(copy);
+        result = root_is_array ? json_array() : json_object();
+    } else {
+        result = json_object();
+    }
+
+    if(!result) {
+        return NULL;
+    }
+
+    const char *path;
+    json_t *jn_value;
+    json_object_foreach(jn_flat, path, jn_value) {
+        set_path_value(result, path, jn_value);
+    }
+
+    return result;
+}
+
+/***************************************************************************
  *  Flatten a nested json dict into a non-nested dict
  *  Keys become paths separated by '`'
+ *
+ *  WARNING: Keys consisting only of digits (e.g., "0", "123") are reserved
+ *           for array indices. Do not use numeric-only keys in your data
+ *           as they will be interpreted as array positions when unflattening.
+ *
  *  Return a new json object (caller must decref)
  ***************************************************************************/
 PUBLIC json_t *json_flatten_dict(json_t *jn_nested)
