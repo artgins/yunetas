@@ -4,7 +4,7 @@
  *              kw helpers
  *
  *              Copyright (c) 2014,2023 Niyamaka.
- *              Copyright (c) 2024, ArtGins.
+ *              Copyright (c) 2024,2026 ArtGins.
  *              All Rights Reserved.
  ****************************************************************************/
 #include <stdio.h>
@@ -3624,4 +3624,85 @@ PUBLIC BOOL kwid_match_nid(hgobj gobj, json_t *ids, const char *id, int max_id_s
         break;
     }
     return FALSE;
+}
+
+/***************************************************************************
+ *  Recursively flatten a nested json object
+ ***************************************************************************/
+PRIVATE void flatten_recursive(
+    json_t *result,
+    json_t *jn_value,
+    const char *current_path
+)
+{
+    if(json_is_object(jn_value)) {
+        const char *key;
+        json_t *child;
+        json_object_foreach(jn_value, key, child) {
+            char *new_path;
+            if(current_path && current_path[0]) {
+                size_t len = strlen(current_path) + 1 + strlen(key) + 1;
+                new_path = malloc(len);
+                if(new_path) {
+                    snprintf(new_path, len, "%s`%s", current_path, key);
+                }
+            } else {
+                new_path = strdup(key);
+            }
+
+            if(new_path) {
+                flatten_recursive(result, child, new_path);
+                free(new_path);
+            }
+        }
+    } else if(json_is_array(jn_value)) {
+        size_t index;
+        json_t *child;
+        json_array_foreach(jn_value, index, child) {
+            char idx_str[32];
+            snprintf(idx_str, sizeof(idx_str), "%zu", index);
+
+            char *new_path;
+            if(current_path && current_path[0]) {
+                size_t len = strlen(current_path) + 1 + strlen(idx_str) + 1;
+                new_path = malloc(len);
+                if(new_path) {
+                    snprintf(new_path, len, "%s`%s", current_path, idx_str);
+                }
+            } else {
+                new_path = strdup(idx_str);
+            }
+
+            if(new_path) {
+                flatten_recursive(result, child, new_path);
+                free(new_path);
+            }
+        }
+    } else {
+        // Leaf value: add to result with current path as key
+        if(current_path && current_path[0]) {
+            json_object_set(result, current_path, jn_value);
+        }
+    }
+}
+
+/***************************************************************************
+ *  Flatten a nested json dict into a non-nested dict
+ *  Keys become paths separated by '`'
+ *  Return a new json object (caller must decref)
+ ***************************************************************************/
+PUBLIC json_t *json_flatten_dict(json_t *jn_nested)
+{
+    if(!jn_nested) {
+        return json_object();
+    }
+
+    json_t *result = json_object();
+    if(!result) {
+        return NULL;
+    }
+
+    flatten_recursive(result, jn_nested, "");
+
+    return result;
 }

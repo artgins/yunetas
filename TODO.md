@@ -157,6 +157,7 @@ The documentation needs to be update with next changes
     gobj_top_services
     yuno_shutdown
     tranger2_topic_path
+    json_flatten_dict
 
 # Delete API
 

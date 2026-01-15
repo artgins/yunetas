@@ -4,7 +4,7 @@
  *              kw helpers
  *
  *              Copyright (c) 2014,2023 Niyamaka.
- *              Copyright (c) 2024, ArtGins.
+ *              Copyright (c) 2024,2026 ArtGins.
  *              All Rights Reserved.
  ****************************************************************************/
 #pragma once
@@ -675,6 +675,12 @@ PUBLIC BOOL kwid_match_nid(
     int max_id_size
 );
 
+/**rst**
+    Flatten a nested json dict into a non-nested dict
+    Keys become paths separated by '`'
+    Return a new json object (caller must decref)
+**rst**/
+PUBLIC json_t *json_flatten_dict(json_t *jn_nested);
 
 #ifdef __cplusplus
 }
