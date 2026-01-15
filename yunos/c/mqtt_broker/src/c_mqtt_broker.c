@@ -42,6 +42,8 @@ PRIVATE int close_database(hgobj gobj);
  ***************************************************************************/
 PRIVATE json_t *cmd_help(hgobj gobj, const char *cmd, json_t *kw, hgobj src);
 PRIVATE json_t *cmd_authzs(hgobj gobj, const char *cmd, json_t *kw, hgobj src);
+PRIVATE json_t *cmd_list_devices(hgobj gobj, const char *cmd, json_t *kw, hgobj src);
+PRIVATE json_t *cmd_command_device(hgobj gobj, const char *cmd, json_t *kw, hgobj src);
 
 PRIVATE sdata_desc_t pm_help[] = {
 /*-PM----type-----------name------------flag------------default-----description---------- */
@@ -55,12 +57,19 @@ SDATAPM (DTP_STRING,    "authz",        0,              0,          "permission 
 SDATAPM (DTP_STRING,    "service",      0,              0,          "Service where to search the permission. If empty print all service's permissions"),
 SDATA_END()
 };
+PRIVATE sdata_desc_t pm_device[] = {
+/*-PM----type-----------name------------flag------------default-----description---------- */
+SDATAPM (DTP_STRING,    "device_id",    0,              0,          "Device ID"),
+SDATAPM (DTP_BOOLEAN,   "opened",       0,              "1",        "List only connected devices"),
+SDATA_END()
+};
 
 PRIVATE const char *a_help[] = {"h", "?", 0};
 
 PRIVATE sdata_desc_t command_table[] = {
 /*-CMD---type-----------name----------------alias---items-------json_fn-------------description---------- */
 SDATACM (DTP_SCHEMA,    "help",             a_help, pm_help,    cmd_help,           "Command's help"),
+SDATACM (DTP_SCHEMA,    "list-devices",     0,      pm_device,  cmd_list_devices,   "List devices"),
 
 /*-CMD2---type----------name----------------flag----alias---items---------------json_fn-------------description--*/
 SDATACM2 (DTP_SCHEMA,   "authzs",           0,      0,      pm_authzs,          cmd_authzs,         "Authorization's help"),
@@ -331,6 +340,54 @@ PRIVATE json_t *cmd_help(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
 PRIVATE json_t *cmd_authzs(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
 {
     return gobj_build_authzs_doc(gobj, cmd, kw);
+}
+
+/***************************************************************************
+ *
+ ***************************************************************************/
+PRIVATE json_t *cmd_list_devices(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+    const char *device_id = kw_get_str(gobj, kw, "device_id", "", 0);
+    BOOL opened = kw_get_bool(gobj, kw, "opened", 0, 0);
+
+    json_t *jn_data = json_array();
+
+    json_t *jn_filter = json_pack("{s:s}",
+        "__gclass_name__", C_CHANNEL
+    );
+    if(opened) {
+        json_object_set_new(jn_filter, "__state__", json_string(ST_OPENED));
+    }
+
+    json_t *dl_children = gobj_match_children_tree(priv->gobj_input_side, jn_filter);
+
+    int idx; json_t *jn_child;
+    json_array_foreach(dl_children, idx, jn_child) {
+        hgobj child = (hgobj)(size_t)json_integer_value(jn_child);
+        const char *id = gobj_read_str_attr(child, "client_id");
+        char temp[256];
+        snprintf(temp, sizeof(temp), "id=%s,",
+            id
+        );
+        if(empty_string(device_id)) {
+            json_array_append_new(jn_data, json_string(temp));
+        } else {
+            if(strcmp(device_id, id)==0) {
+                json_array_append_new(jn_data, json_string(temp));
+            }
+        }
+    }
+
+    gobj_free_iter(dl_children);
+
+    return msg_iev_build_response(gobj,
+        0,
+        0,
+        0,
+        jn_data,
+        kw  // owned
+    );
 }
 
 
