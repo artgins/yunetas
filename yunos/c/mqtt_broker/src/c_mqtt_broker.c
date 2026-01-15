@@ -215,7 +215,7 @@ PRIVATE int mt_start(hgobj gobj)
     gobj_subscribe_event(priv->gobj_authz, 0, 0, gobj);
 
     /*-----------------*
-     *  Persistent DB
+     *  Persistent DB TODO move this to play? checkit when all done
      *-----------------*/
     BOOL mqtt_persistent_db = gobj_read_bool_attr(gobj, "mqtt_persistent_db");
     if(mqtt_persistent_db) {
