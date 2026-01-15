@@ -2330,6 +2330,7 @@ PRIVATE int ac_on_open(hgobj gobj, const char *event, json_t *kw, hgobj src)
      *  and disconnect them unless it is this
      *----------------------------------------------*/
     if(0) {
+        // TODO delete when checked only one session by client
         json_t *jn_filter = json_pack("{s:s, s:s, s:s}",
             "__gclass_name__", C_PROT_MQTT2,
             "__state__", ST_CONNECTED,
