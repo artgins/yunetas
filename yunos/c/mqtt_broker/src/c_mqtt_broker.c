@@ -356,11 +356,22 @@ PRIVATE json_t *cmd_authzs(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
 /***************************************************************************
  *
  ***************************************************************************/
+static const json_desc_t devices_desc[] = { // HACK must match with gobj_services()
+// Name             Type        Defaults    Fillspace
+{"client_id",       "string",   "",         "44"},  // First item is the pkey
+{"peername",        "string",   "",         "24"},
+{"clean_start",     "boolean",  "",         "7"},
+{"protocol_name",   "string",   "",         "10"},
+{"protocol_version","integer",  "",         "10"},
+{0}
+};
+
 PRIVATE json_t *cmd_list_devices(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
     const char *device_id = kw_get_str(gobj, kw, "device_id", "", 0);
     BOOL opened = kw_get_bool(gobj, kw, "opened", 0, 0);
+    json_t *jn_schema = json_desc_to_schema(devices_desc);
 
     json_t *jn_data = json_array();
 
@@ -377,16 +388,18 @@ PRIVATE json_t *cmd_list_devices(hgobj gobj, const char *cmd, json_t *kw, hgobj 
     json_array_foreach(dl_children, idx, jn_child) {
         hgobj child = (hgobj)(size_t)json_integer_value(jn_child);
         const char *id = gobj_read_str_attr(child, "client_id");
-        char temp[256];
-        snprintf(temp, sizeof(temp), "id=%s,",
-            id
-        );
-        if(empty_string(device_id)) {
-            json_array_append_new(jn_data, json_string(temp));
-        } else {
-            if(strcmp(device_id, id)==0) {
-                json_array_append_new(jn_data, json_string(temp));
+        if(empty_string(device_id) || strcmp(device_id, id)==0) {
+            json_t *record = json_object();
+            for(int i=0; devices_desc[i].name!=NULL; i++) {
+                const char *name = devices_desc[i].name;
+                json_object_set(
+                    record,
+                    name,
+                    gobj_read_attr(child, name, gobj)
+                );
             }
+
+            json_array_append_new(jn_data, record);
         }
     }
 
@@ -395,7 +408,7 @@ PRIVATE json_t *cmd_list_devices(hgobj gobj, const char *cmd, json_t *kw, hgobj 
     return msg_iev_build_response(gobj,
         0,
         0,
-        0,
+        jn_schema,
         jn_data,
         kw  // owned
     );
