@@ -75,12 +75,12 @@ SDATA_END()
 PRIVATE const char *a_help[] = {"h", "?", 0};
 
 PRIVATE sdata_desc_t command_table[] = {
-/*-CMD---type-----------name----------------alias---items-------json_fn-------------description---------- */
-SDATACM (DTP_SCHEMA,    "help",             a_help, pm_help,    cmd_help,           "Command's help"),
-SDATACM (DTP_SCHEMA,    "list-devices",     0,      pm_device,  cmd_list_devices,   "List devices"),
-SDATACM (DTP_SCHEMA,    "normal-subscribers", 0,    0,          cmd_normal_subscribers, "List normal subscribers"),
-SDATACM (DTP_SCHEMA,    "shared-subscribers", 0,    0,          cmd_shared_subscribers, "List shared subscribers"),
-SDATACM (DTP_SCHEMA,    "flatten-subscribers", 0,    pm_subscribers, cmd_flatten_subscribers, "Flatten subscribers"),
+/*-CMD---type-----------name------------alias---items-------json_fn-------------description---------- */
+SDATACM (DTP_SCHEMA,    "help",         a_help, pm_help,    cmd_help,           "Command's help"),
+SDATACM (DTP_SCHEMA,    "list-devices", 0,      pm_device,  cmd_list_devices,   "List devices"),
+SDATACM (DTP_SCHEMA,    "normal-subs",  0,      0,          cmd_normal_subscribers, "List normal subscribers"),
+SDATACM (DTP_SCHEMA,    "shared-subs",  0,      0,          cmd_shared_subscribers, "List shared subscribers"),
+SDATACM (DTP_SCHEMA,    "flatten-subs", 0,      pm_subscribers, cmd_flatten_subscribers, "Flatten subscribers"),
 
 /*-CMD2---type----------name----------------flag----alias---items---------------json_fn-------------description--*/
 SDATACM2 (DTP_SCHEMA,   "authzs",           0,      0,      pm_authzs,          cmd_authzs,         "Authorization's help"),
