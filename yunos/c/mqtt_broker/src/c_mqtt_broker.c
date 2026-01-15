@@ -36,6 +36,7 @@
 PRIVATE int broadcast_queues_tranger(hgobj gobj);
 PRIVATE int open_database(hgobj gobj);
 PRIVATE int close_database(hgobj gobj);
+PRIVATE void collect_all_subscribers_recursive(hgobj gobj, json_t *node, json_t *result);
 
 /***************************************************************************
  *          Data: config, public data, private data
@@ -43,7 +44,7 @@ PRIVATE int close_database(hgobj gobj);
 PRIVATE json_t *cmd_help(hgobj gobj, const char *cmd, json_t *kw, hgobj src);
 PRIVATE json_t *cmd_authzs(hgobj gobj, const char *cmd, json_t *kw, hgobj src);
 PRIVATE json_t *cmd_list_devices(hgobj gobj, const char *cmd, json_t *kw, hgobj src);
-PRIVATE json_t *cmd_command_device(hgobj gobj, const char *cmd, json_t *kw, hgobj src);
+PRIVATE json_t *cmd_list_subscribers(hgobj gobj, const char *cmd, json_t *kw, hgobj src);
 
 PRIVATE sdata_desc_t pm_help[] = {
 /*-PM----type-----------name------------flag------------default-----description---------- */
@@ -63,6 +64,11 @@ SDATAPM (DTP_STRING,    "device_id",    0,              0,          "Device ID")
 SDATAPM (DTP_BOOLEAN,   "opened",       0,              "1",        "List only connected devices"),
 SDATA_END()
 };
+PRIVATE sdata_desc_t pm_subscribers[] = {
+/*-PM----type-----------name------------flag------------default-----description---------- */
+SDATAPM (DTP_STRING,    "device_id",    0,              0,          "Device ID"),
+SDATA_END()
+};
 
 PRIVATE const char *a_help[] = {"h", "?", 0};
 
@@ -70,6 +76,7 @@ PRIVATE sdata_desc_t command_table[] = {
 /*-CMD---type-----------name----------------alias---items-------json_fn-------------description---------- */
 SDATACM (DTP_SCHEMA,    "help",             a_help, pm_help,    cmd_help,           "Command's help"),
 SDATACM (DTP_SCHEMA,    "list-devices",     0,      pm_device,  cmd_list_devices,   "List devices"),
+SDATACM (DTP_SCHEMA,    "list-subscribers", 0,      pm_subscribers,  cmd_list_subscribers,   "List subscribers"),
 
 /*-CMD2---type----------name----------------flag----alias---items---------------json_fn-------------description--*/
 SDATACM2 (DTP_SCHEMA,   "authzs",           0,      0,      pm_authzs,          cmd_authzs,         "Authorization's help"),
@@ -380,6 +387,28 @@ PRIVATE json_t *cmd_list_devices(hgobj gobj, const char *cmd, json_t *kw, hgobj 
     }
 
     gobj_free_iter(dl_children);
+
+    return msg_iev_build_response(gobj,
+        0,
+        0,
+        0,
+        jn_data,
+        kw  // owned
+    );
+}
+
+/***************************************************************************
+ *
+ ***************************************************************************/
+PRIVATE json_t *cmd_list_subscribers(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+    const char *device_id = kw_get_str(gobj, kw, "device_id", "", 0);
+
+    json_t *jn_data = json_object();
+
+    collect_all_subscribers_recursive(gobj, priv->normal_subs, jn_data);
+    collect_all_subscribers_recursive(gobj, priv->shared_subs, jn_data);
 
     return msg_iev_build_response(gobj,
         0,

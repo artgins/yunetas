@@ -249,6 +249,11 @@ PRIVATE sdata_desc_t pm_save[] = {
 SDATAPM (DTP_STRING,    "filename",     0,              "",         "Filename to save display output"),
 SDATA_END()
 };
+PRIVATE sdata_desc_t pm_history[] = {
+/*-PM----type-----------name------------flag------------default-----description---------- */
+SDATAPM (DTP_STRING,    "command",      0,              0,          "Command"),
+SDATA_END()
+};
 PRIVATE sdata_desc_t pm_shortkey[] = {
 /*-PM----type-----------name------------flag------------default-----description---------- */
 SDATAPM (DTP_STRING,    "key",          0,              0,          "Shortkey"),
@@ -310,7 +315,7 @@ SDATACM (DTP_STRING,    "close-output",     0,                  0,          cmd_
 SDATACM (DTP_STRING,    "add-shortkey",     0,                  pm_shortkey,cmd_add_shortkey, "Add new shortkey."),
 SDATACM (DTP_STRING,    "remove-shortkey",  0,                  pm_shortkey,cmd_remove_shortkey, "Remove shortkey."),
 SDATACM (DTP_STRING,    "shortkeys",        0,                  0,          cmd_list_shortkey, "List shortkeys."),
-SDATACM (DTP_STRING,    "history",          0,                  0,          cmd_list_history, "List command history."),
+SDATACM (DTP_STRING,    "history",          0,                  pm_history, cmd_list_history, "List command history."),
 SDATACM (DTP_STRING,    "clear-history",    0,                  0,          cmd_clear_history, "Delete command history."),
 SDATACM (DTP_STRING,    "authenticate",     0,                  pm_authenticate,cmd_do_authenticate_task, "Authenticate to get a jwt to do remote connection."),
 SDATACM (DTP_STRING,    "",                 0,                  0,          0,          ""),
@@ -1160,6 +1165,7 @@ PRIVATE json_t *cmd_list_shortkey(hgobj gobj, const char *cmd, json_t *kw, hgobj
  ***************************************************************************/
 PRIVATE json_t *cmd_list_history(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
 {
+    const char *command = kw_get_str(gobj, kw, "command", 0, 0);
     json_t *jn_data = json_array();
 
     char history_file[PATH_MAX];
@@ -1169,9 +1175,11 @@ PRIVATE json_t *cmd_list_history(hgobj gobj, const char *cmd, json_t *kw, hgobj 
     if(file) {
         char temp[1024];
         while(fgets(temp, sizeof(temp), file)) {
-            left_justify(temp);
-            if(strlen(temp)>0) {
-                json_array_append_new(jn_data, json_string(temp));
+            if(!command || strstr(temp, command)) {
+                left_justify(temp);
+                if(strlen(temp)>0) {
+                    json_array_append_new(jn_data, json_string(temp));
+                }
             }
         }
         fclose(file);
