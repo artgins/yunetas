@@ -46,6 +46,7 @@ PRIVATE json_t *cmd_authzs(hgobj gobj, const char *cmd, json_t *kw, hgobj src);
 PRIVATE json_t *cmd_list_devices(hgobj gobj, const char *cmd, json_t *kw, hgobj src);
 PRIVATE json_t *cmd_normal_subscribers(hgobj gobj, const char *cmd, json_t *kw, hgobj src);
 PRIVATE json_t *cmd_shared_subscribers(hgobj gobj, const char *cmd, json_t *kw, hgobj src);
+PRIVATE json_t *cmd_flatten_subscribers(hgobj gobj, const char *cmd, json_t *kw, hgobj src);
 
 PRIVATE sdata_desc_t pm_help[] = {
 /*-PM----type-----------name------------flag------------default-----description---------- */
@@ -67,7 +68,7 @@ SDATA_END()
 };
 PRIVATE sdata_desc_t pm_subscribers[] = {
 /*-PM----type-----------name------------flag------------default-----description---------- */
-SDATAPM (DTP_STRING,    "device_id",    0,              0,          "Device ID"),
+SDATAPM (DTP_BOOLEAN,   "shared",       0,              "0",        "List shared subscribers, else normal"),
 SDATA_END()
 };
 
@@ -77,8 +78,9 @@ PRIVATE sdata_desc_t command_table[] = {
 /*-CMD---type-----------name----------------alias---items-------json_fn-------------description---------- */
 SDATACM (DTP_SCHEMA,    "help",             a_help, pm_help,    cmd_help,           "Command's help"),
 SDATACM (DTP_SCHEMA,    "list-devices",     0,      pm_device,  cmd_list_devices,   "List devices"),
-SDATACM (DTP_SCHEMA,    "normal-subscribers", 0,    0,          cmd_normal_subscribers,   "List normal subscribers"),
-SDATACM (DTP_SCHEMA,    "shared-subscribers", 0,    0,          cmd_shared_subscribers,   "List shared subscribers"),
+SDATACM (DTP_SCHEMA,    "normal-subscribers", 0,    0,          cmd_normal_subscribers, "List normal subscribers"),
+SDATACM (DTP_SCHEMA,    "shared-subscribers", 0,    0,          cmd_shared_subscribers, "List shared subscribers"),
+SDATACM (DTP_SCHEMA,    "flatten-subscribers", 0,    pm_subscribers, cmd_flatten_subscribers, "Flatten subscribers"),
 
 /*-CMD2---type----------name----------------flag----alias---items---------------json_fn-------------description--*/
 SDATACM2 (DTP_SCHEMA,   "authzs",           0,      0,      pm_authzs,          cmd_authzs,         "Authorization's help"),
@@ -430,6 +432,31 @@ PRIVATE json_t *cmd_shared_subscribers(hgobj gobj, const char *cmd, json_t *kw, 
         0,
         0,
         json_incref(priv->shared_subs),
+        kw  // owned
+    );
+}
+
+/***************************************************************************
+ *
+ ***************************************************************************/
+PRIVATE json_t *cmd_flatten_subscribers(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+    BOOL shared = kw_get_bool(gobj, kw, "shared", 0, 0);
+
+    json_t *flatten = NULL;
+    if(shared) {
+        flatten = json_flatten_dict(priv->shared_subs);
+
+    } else {
+        flatten = json_flatten_dict(priv->normal_subs);
+
+    }
+    return msg_iev_build_response(gobj,
+        0,
+        0,
+        0,
+        flatten,
         kw  // owned
     );
 }
