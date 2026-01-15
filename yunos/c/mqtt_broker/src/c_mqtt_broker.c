@@ -214,7 +214,13 @@ PRIVATE int mt_start(hgobj gobj)
     priv->gobj_authz =  gobj_find_service("authz", TRUE);
     gobj_subscribe_event(priv->gobj_authz, 0, 0, gobj);
 
-    open_database(gobj);
+    /*-----------------*
+     *  Persistent DB
+     *-----------------*/
+    BOOL mqtt_persistent_db = gobj_read_bool_attr(gobj, "mqtt_persistent_db");
+    if(mqtt_persistent_db) {
+        open_database(gobj);
+    }
 
     return 0;
 }
@@ -226,7 +232,13 @@ PRIVATE int mt_stop(hgobj gobj)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
-    close_database(gobj);
+    /*-----------------*
+     *  Persistent DB
+     *-----------------*/
+    BOOL mqtt_persistent_db = gobj_read_bool_attr(gobj, "mqtt_persistent_db");
+    if(mqtt_persistent_db) {
+        close_database(gobj);
+    }
 
     gobj_unsubscribe_event(priv->gobj_authz, 0, 0, gobj);
 
@@ -352,181 +364,175 @@ PRIVATE int open_database(hgobj gobj)
      *--------------------------------------------------------------*/
 
     /*---------------------------------------*
-     *      Persistent DB
+     *      Get Path
      *---------------------------------------*/
-    BOOL mqtt_persistent_db = gobj_read_bool_attr(gobj, "mqtt_persistent_db");
-    if(mqtt_persistent_db) {
-        /*---------------------------------------*
-         *      Get Path
-         *---------------------------------------*/
-        const char *mqtt_service = gobj_read_str_attr(gobj, "mqtt_service");
-        const char *mqtt_tenant = gobj_read_str_attr(gobj, "mqtt_tenant");
-        if(empty_string(mqtt_service)) {
-            mqtt_service = gobj_yuno_role();
-        }
-        if(empty_string(mqtt_tenant)) {
-            mqtt_tenant = gobj_yuno_name();
-        }
-
-        char path[PATH_MAX];
-        yuneta_realm_store_dir(
-            path,
-            sizeof(path),
-            mqtt_service,
-            gobj_yuno_realm_owner(),
-            gobj_yuno_realm_id(),
-            mqtt_tenant,  // tenant
-            "",  // gclass-treedb controls the directories
-            TRUE
-        );
-
-        /*-------------------------------------------*
-         *          Create Treedb System
-         *-------------------------------------------*/
-        json_t *kw_treedbs = json_pack("{s:s, s:s, s:b, s:i, s:i, s:i}",
-            "path", path,
-            "filename_mask", "%Y",  // to management treedbs we don't need multi-files (per day)
-            "master", 1,
-            "xpermission", 02770,
-            "rpermission", 0660,
-            "exit_on_error", LOG_OPT_EXIT_ZERO
-        );
-        priv->gobj_treedbs = gobj_create_service(
-            "treedbs",
-            C_TREEDB,
-            kw_treedbs,
-            gobj
-        );
-
-        /*
-         *  Start treedbs
-         */
-        gobj_subscribe_event(priv->gobj_treedbs, 0, 0, gobj);
-        gobj_start_tree(priv->gobj_treedbs);
-
-        /*-------------------------------------------*
-         *      Open treedb_mqtt_broker service
-         *-------------------------------------------*/
-        helper_quote2doublequote(treedb_schema_mqtt_broker);
-        json_t *jn_treedb_schema_mqtt_broker = legalstring2json(treedb_schema_mqtt_broker, TRUE);
-        if(parse_schema(jn_treedb_schema_mqtt_broker)<0) {
-            /*
-             *  Exit if schema fails
-             */
-            gobj_log_error(gobj, 0,
-                "function",     "%s", __FUNCTION__,
-                "msgset",       "%s", MSGSET_APP_ERROR,
-                "msg",          "%s", "Parse schema fails",
-                NULL
-            );
-            exit(-1);
-        }
-
-        BOOL use_internal_schema = gobj_read_bool_attr(gobj, "use_internal_schema");
-
-        const char *treedb_name_ = kw_get_str(gobj,
-            jn_treedb_schema_mqtt_broker,
-            "id",
-            "treedb_mqtt_broker",
-            KW_REQUIRED
-        );
-        snprintf(priv->treedb_mqtt_broker_name, sizeof(priv->treedb_mqtt_broker_name), "%s", treedb_name_);
-
-        json_t *jn_resp = gobj_command(priv->gobj_treedbs,
-            "open-treedb",
-            json_pack("{s:s, s:s, s:i, s:s, s:o, s:b}",
-                "__username__", gobj_read_str_attr(gobj_yuno(), "__username__"),
-                "filename_mask", "%Y",
-                "exit_on_error", 0,
-                "treedb_name", priv->treedb_mqtt_broker_name,
-                "treedb_schema", jn_treedb_schema_mqtt_broker,
-                "use_internal_schema", use_internal_schema
-            ),
-            gobj
-        );
-        int result = (int)kw_get_int(gobj, jn_resp, "result", -1, KW_REQUIRED);
-        if(result < 0) {
-            const char *comment = kw_get_str(gobj, jn_resp, "comment", "", KW_REQUIRED);
-            gobj_log_error(gobj, 0,
-                "function",     "%s", __FUNCTION__,
-                "msgset",       "%s", MSGSET_APP_ERROR,
-                "msg",          "%s", comment,
-                NULL
-            );
-        }
-        json_decref(jn_resp);
-
-        priv->gobj_treedb_mqtt_broker = gobj_find_service(priv->treedb_mqtt_broker_name, TRUE);
-        gobj_subscribe_event(priv->gobj_treedb_mqtt_broker, 0, 0, gobj);
-
-        // Get timeranger of treedb_mqtt_broker, will be used for alarms too
-        priv->tranger_treedb_mqtt_broker = gobj_read_pointer_attr(priv->gobj_treedb_mqtt_broker, "tranger");
-
-        /*---------------------------------------*
-         *      Open Msg2db (ALARMS)
-         *---------------------------------------*/
-        helper_quote2doublequote(msg2db_schema_alarms);
-        json_t *jn_msg2db_schema_alarms = legalstring2json(msg2db_schema_alarms, TRUE);
-        if(parse_schema(jn_msg2db_schema_alarms)<0) {
-            /*
-             *  Exit if schema fails
-             */
-            gobj_log_error(gobj, 0,
-                "function",     "%s", __FUNCTION__,
-                "msgset",       "%s", MSGSET_APP_ERROR,
-                "msg",          "%s", "Parse schema fails",
-                NULL
-            );
-            exit(-1);
-        }
-
-        /*
-         *  Use the same tranger as treedb_airedb, a "%Y" based.
-         */
-        const char *msg2db_name_ = kw_get_str(gobj,
-            jn_msg2db_schema_alarms,
-            "id",
-            "msg2db_alarms",
-            KW_REQUIRED
-        );
-        snprintf(priv->msg2db_alarms_name, sizeof(priv->msg2db_alarms_name), "%s", msg2db_name_);
-
-        msg2db_open_db(
-            priv->tranger_treedb_mqtt_broker,
-            priv->msg2db_alarms_name,   // msg2db_name, got from jn_schema
-            jn_msg2db_schema_alarms,    // owned
-            "persistent"
-        );
-
-        /*---------------------------------------*
-         *      Open qmsgs Timeranger
-         *---------------------------------------*/
-        yuneta_realm_store_dir(
-            path,
-            sizeof(path),
-            mqtt_service,
-            gobj_yuno_realm_owner(),
-            gobj_yuno_realm_id(),
-            mqtt_tenant,  // tenant
-            "qmsgs",
-            TRUE
-        );
-
-        json_t *kw_tranger_qmsgs = json_pack("{s:s, s:b, s:i}",
-            "path", path,
-            "master", 1,
-            "on_critical_error", (int)(LOG_OPT_EXIT_ZERO)
-        );
-        priv->gobj_tranger_queues = gobj_create_service(
-            "tranger_queues",
-            C_TRANGER,
-            kw_tranger_qmsgs,
-            gobj
-        );
-        gobj_start(priv->gobj_tranger_queues);
-
-        priv->tranger_queues = gobj_read_pointer_attr(priv->gobj_tranger_queues, "tranger");
+    const char *mqtt_service = gobj_read_str_attr(gobj, "mqtt_service");
+    const char *mqtt_tenant = gobj_read_str_attr(gobj, "mqtt_tenant");
+    if(empty_string(mqtt_service)) {
+        mqtt_service = gobj_yuno_role();
     }
+    if(empty_string(mqtt_tenant)) {
+        mqtt_tenant = gobj_yuno_name();
+    }
+
+    char path[PATH_MAX];
+    yuneta_realm_store_dir(
+        path,
+        sizeof(path),
+        mqtt_service,
+        gobj_yuno_realm_owner(),
+        gobj_yuno_realm_id(),
+        mqtt_tenant,  // tenant
+        "",  // gclass-treedb controls the directories
+        TRUE
+    );
+
+    /*-------------------------------------------*
+     *          Create Treedb System
+     *-------------------------------------------*/
+    json_t *kw_treedbs = json_pack("{s:s, s:s, s:b, s:i, s:i, s:i}",
+        "path", path,
+        "filename_mask", "%Y",  // to management treedbs we don't need multi-files (per day)
+        "master", 1,
+        "xpermission", 02770,
+        "rpermission", 0660,
+        "exit_on_error", LOG_OPT_EXIT_ZERO
+    );
+    priv->gobj_treedbs = gobj_create_service(
+        "treedbs",
+        C_TREEDB,
+        kw_treedbs,
+        gobj
+    );
+
+    /*
+     *  Start treedbs
+     */
+    gobj_subscribe_event(priv->gobj_treedbs, 0, 0, gobj);
+    gobj_start_tree(priv->gobj_treedbs);
+
+    /*-------------------------------------------*
+     *      Open treedb_mqtt_broker service
+     *-------------------------------------------*/
+    helper_quote2doublequote(treedb_schema_mqtt_broker);
+    json_t *jn_treedb_schema_mqtt_broker = legalstring2json(treedb_schema_mqtt_broker, TRUE);
+    if(parse_schema(jn_treedb_schema_mqtt_broker)<0) {
+        /*
+         *  Exit if schema fails
+         */
+        gobj_log_error(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_APP_ERROR,
+            "msg",          "%s", "Parse schema fails",
+            NULL
+        );
+        exit(-1);
+    }
+
+    BOOL use_internal_schema = gobj_read_bool_attr(gobj, "use_internal_schema");
+
+    const char *treedb_name_ = kw_get_str(gobj,
+        jn_treedb_schema_mqtt_broker,
+        "id",
+        "treedb_mqtt_broker",
+        KW_REQUIRED
+    );
+    snprintf(priv->treedb_mqtt_broker_name, sizeof(priv->treedb_mqtt_broker_name), "%s", treedb_name_);
+
+    json_t *jn_resp = gobj_command(priv->gobj_treedbs,
+        "open-treedb",
+        json_pack("{s:s, s:s, s:i, s:s, s:o, s:b}",
+            "__username__", gobj_read_str_attr(gobj_yuno(), "__username__"),
+            "filename_mask", "%Y",
+            "exit_on_error", 0,
+            "treedb_name", priv->treedb_mqtt_broker_name,
+            "treedb_schema", jn_treedb_schema_mqtt_broker,
+            "use_internal_schema", use_internal_schema
+        ),
+        gobj
+    );
+    int result = (int)kw_get_int(gobj, jn_resp, "result", -1, KW_REQUIRED);
+    if(result < 0) {
+        const char *comment = kw_get_str(gobj, jn_resp, "comment", "", KW_REQUIRED);
+        gobj_log_error(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_APP_ERROR,
+            "msg",          "%s", comment,
+            NULL
+        );
+    }
+    json_decref(jn_resp);
+
+    priv->gobj_treedb_mqtt_broker = gobj_find_service(priv->treedb_mqtt_broker_name, TRUE);
+    gobj_subscribe_event(priv->gobj_treedb_mqtt_broker, 0, 0, gobj);
+
+    // Get timeranger of treedb_mqtt_broker, will be used for alarms too
+    priv->tranger_treedb_mqtt_broker = gobj_read_pointer_attr(priv->gobj_treedb_mqtt_broker, "tranger");
+
+    /*---------------------------------------*
+     *      Open Msg2db (ALARMS)
+     *---------------------------------------*/
+    helper_quote2doublequote(msg2db_schema_alarms);
+    json_t *jn_msg2db_schema_alarms = legalstring2json(msg2db_schema_alarms, TRUE);
+    if(parse_schema(jn_msg2db_schema_alarms)<0) {
+        /*
+         *  Exit if schema fails
+         */
+        gobj_log_error(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_APP_ERROR,
+            "msg",          "%s", "Parse schema fails",
+            NULL
+        );
+        exit(-1);
+    }
+
+    /*
+     *  Use the same tranger as treedb_airedb, a "%Y" based.
+     */
+    const char *msg2db_name_ = kw_get_str(gobj,
+        jn_msg2db_schema_alarms,
+        "id",
+        "msg2db_alarms",
+        KW_REQUIRED
+    );
+    snprintf(priv->msg2db_alarms_name, sizeof(priv->msg2db_alarms_name), "%s", msg2db_name_);
+
+    msg2db_open_db(
+        priv->tranger_treedb_mqtt_broker,
+        priv->msg2db_alarms_name,   // msg2db_name, got from jn_schema
+        jn_msg2db_schema_alarms,    // owned
+        "persistent"
+    );
+
+    /*---------------------------------------*
+     *      Open qmsgs Timeranger
+     *---------------------------------------*/
+    yuneta_realm_store_dir(
+        path,
+        sizeof(path),
+        mqtt_service,
+        gobj_yuno_realm_owner(),
+        gobj_yuno_realm_id(),
+        mqtt_tenant,  // tenant
+        "qmsgs",
+        TRUE
+    );
+
+    json_t *kw_tranger_qmsgs = json_pack("{s:s, s:b, s:i}",
+        "path", path,
+        "master", 1,
+        "on_critical_error", (int)(LOG_OPT_EXIT_ZERO)
+    );
+    priv->gobj_tranger_queues = gobj_create_service(
+        "tranger_queues",
+        C_TRANGER,
+        kw_tranger_qmsgs,
+        gobj
+    );
+    gobj_start(priv->gobj_tranger_queues);
+
+    priv->tranger_queues = gobj_read_pointer_attr(priv->gobj_tranger_queues, "tranger");
 
     return 0;
 }
