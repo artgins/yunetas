@@ -3687,6 +3687,33 @@ PRIVATE void flatten_recursive(
     }
 }
 
+
+/***************************************************************************
+ *  Flatten a nested json dict into a non-nested dict
+ *  Keys become paths separated by '`'
+ *
+ *  WARNING: Keys consisting only of digits (e.g., "0", "123") are reserved
+ *           for array indices. Do not use numeric-only keys in your data
+ *           as they will be interpreted as array positions when unflattening.
+ *
+ *  Return a new json object (caller must decref)
+ ***************************************************************************/
+PUBLIC json_t *json_flatten_dict(json_t *jn_nested)
+{
+    if(!jn_nested) {
+        return json_object();
+    }
+
+    json_t *result = json_object();
+    if(!result) {
+        return NULL;
+    }
+
+    flatten_recursive(result, jn_nested, "");
+
+    return result;
+}
+
 /***************************************************************************
  *  Check if string is a valid array index (all digits)
  ***************************************************************************/
@@ -3810,14 +3837,10 @@ PUBLIC json_t *json_unflatten_dict(json_t *jn_flat)
 
     // Determine if root should be array or object
     // by checking the first component of the first key
-    const char *first_key = NULL;
-    json_object_foreach(jn_flat, first_key, json_t *_) {
-        break;
-    }
-
     json_t *result;
-    if(first_key && is_array_index(first_key)) {
-        // First path component is numeric, root is array
+    const char *first_key = json_object_iter_key(json_object_iter(jn_flat));
+
+    if(first_key) {
         char *copy = strdup(first_key);
         char *first_token = strtok(copy, "`");
         BOOL root_is_array = first_token && is_array_index(first_token);
@@ -3836,32 +3859,6 @@ PUBLIC json_t *json_unflatten_dict(json_t *jn_flat)
     json_object_foreach(jn_flat, path, jn_value) {
         set_path_value(result, path, jn_value);
     }
-
-    return result;
-}
-
-/***************************************************************************
- *  Flatten a nested json dict into a non-nested dict
- *  Keys become paths separated by '`'
- *
- *  WARNING: Keys consisting only of digits (e.g., "0", "123") are reserved
- *           for array indices. Do not use numeric-only keys in your data
- *           as they will be interpreted as array positions when unflattening.
- *
- *  Return a new json object (caller must decref)
- ***************************************************************************/
-PUBLIC json_t *json_flatten_dict(json_t *jn_nested)
-{
-    if(!jn_nested) {
-        return json_object();
-    }
-
-    json_t *result = json_object();
-    if(!result) {
-        return NULL;
-    }
-
-    flatten_recursive(result, jn_nested, "");
 
     return result;
 }
