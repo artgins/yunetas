@@ -1373,7 +1373,9 @@ PRIVATE void collect_all_subscribers_recursive(hgobj gobj, json_t *node, json_t 
     /*
      *  Collect from current node
      */
-    collect_subscribers(gobj, node, result);
+    if(kw_has_key(node, SUBS_KEY)) {
+        collect_subscribers(gobj, node, result);
+    }
 
     /*
      *  Recurse into children (skip @subs key)
