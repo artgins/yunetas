@@ -2422,18 +2422,19 @@ PRIVATE int ac_on_open(hgobj gobj, const char *event, json_t *kw, hgobj src)
         /*
          *  Disconnect previous session
          */
-        json_t *kw_disconnect = json_object();
-        int reason_code = 0;
-        if(delete_prev_session) {
-            reason_code = (prev_protocol_version == mosq_p_mqtt5)?MQTT_RC_SESSION_TAKEN_OVER:0;
+        if(prev_gobj_channel) {
+            json_t *kw_disconnect = json_object();
+            int reason_code = 0;
+            if(delete_prev_session) {
+                reason_code = (prev_protocol_version == mosq_p_mqtt5)?MQTT_RC_SESSION_TAKEN_OVER:0;
+            }
+            json_object_set_new(
+                kw_disconnect,
+                "reason_code",
+                json_integer(reason_code)
+            );
+            gobj_send_event(prev_gobj_channel, EV_DROP, kw_disconnect, gobj);
         }
-        json_object_set_new(
-            kw_disconnect,
-            "reason_code",
-            json_integer(reason_code)
-        );
-        // gobj_write_json_attr(prev_gobj_channel, "session", json_null());
-        gobj_send_event(prev_gobj_channel, EV_DROP, kw_disconnect, gobj);
     }
 
     // TODO
@@ -2536,11 +2537,6 @@ print_json2("=====> KW", kw); // TODO TEST
 
         gobj_free_iter(dl_children);
     }
-
-    /*
-     *  Write the session in the mqtt gobj
-     */
-    gobj_write_json_attr(gobj_channel, "session", session);
 
     JSON_DECREF(session)
     JSON_DECREF(client)
