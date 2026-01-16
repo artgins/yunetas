@@ -2432,7 +2432,7 @@ PRIVATE int ac_on_open(hgobj gobj, const char *event, json_t *kw, hgobj src)
             "reason_code",
             json_integer(reason_code)
         );
-        gobj_write_json_attr(prev_gobj_channel, "session", json_null());
+        // gobj_write_json_attr(prev_gobj_channel, "session", json_null());
         gobj_send_event(prev_gobj_channel, EV_DROP, kw_disconnect, gobj);
     }
 
@@ -2666,6 +2666,7 @@ PRIVATE int ac_on_close(hgobj gobj, const char *event, json_t *kw, hgobj src)
 
     // TODO do will job ?
 
+    JSON_DECREF(session)
     JSON_DECREF(client)
     KW_DECREF(kw)
     return 0;
