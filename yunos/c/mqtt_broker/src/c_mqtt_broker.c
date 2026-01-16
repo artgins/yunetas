@@ -2398,7 +2398,6 @@ PRIVATE int ac_on_open(hgobj gobj, const char *event, json_t *kw, hgobj src)
                     result = 1; // ack=1 Resume existing session
                 }
             }
-
         } else {
             /*-----------------------------------*
              *  Delete it if clean_start TRUE
@@ -2418,15 +2417,15 @@ PRIVATE int ac_on_open(hgobj gobj, const char *event, json_t *kw, hgobj src)
         /*
          *  Disconnect previous session
          */
-        if(prev_protocol_version == mosq_p_mqtt5) {
-            if(prev_gobj_channel) {
-                // TODO send__disconnect(prev_gobj_channel, MQTT_RC_SESSION_TAKEN_OVER, NULL);
-            }
-        }
-
-        if(prev_gobj_channel) {
-            gobj_send_event(prev_gobj_channel, EV_DROP, 0, gobj);
-        }
+        json_t *kw_disconnect = json_object();
+        int reason_code =(prev_protocol_version == mosq_p_mqtt5)?MQTT_RC_SESSION_TAKEN_OVER:0;
+        json_object_set_new(
+            kw_disconnect,
+            "reason_code",
+            json_integer(reason_code)
+        );
+        gobj_write_json_attr(prev_gobj_channel, "session", json_null());
+        gobj_send_event(prev_gobj_channel, EV_DROP, kw_disconnect, gobj);
     }
 
     // TODO
@@ -2576,11 +2575,9 @@ PRIVATE int ac_on_close(hgobj gobj, const char *event, json_t *kw, hgobj src)
     }
 
     /*------------------------------*
-     *  Recover session and client
+     *  Recover client and session
      *------------------------------*/
-    json_t *session = gobj_read_json_attr(gobj_channel, "session");
-    const char *client_id = kw_get_str(gobj, session, "id", "", KW_REQUIRED);
-
+    const char *client_id = gobj_read_str_attr(gobj_channel, "client_id");
     json_t *client = gobj_get_node(
         priv->gobj_treedb_mqtt_broker,
         "clients",
@@ -2591,6 +2588,13 @@ PRIVATE int ac_on_close(hgobj gobj, const char *event, json_t *kw, hgobj src)
 
     BOOL assigned_id = kw_get_bool(gobj, client, "assigned_id", FALSE, KW_REQUIRED);
 
+    json_t *session = gobj_get_node(
+        priv->gobj_treedb_mqtt_broker,
+        "sessions",
+        json_pack("{s:s}", "id", client_id),
+        NULL,
+        gobj
+    );
     BOOL clean_start = (int)kw_get_bool(
         gobj,
         session,
