@@ -2291,7 +2291,7 @@ PRIVATE int ac_on_open(hgobj gobj, const char *event, json_t *kw, hgobj src)
             //     gbuffer_decref(gbuf_base64);
             // }
 
-        json_object_set_new(kw, "dynamic_id", json_true());
+        json_object_set_new(kw, "auto_created", json_true());
 
         client = gobj_create_node(
             priv->gobj_treedb_mqtt_broker,
@@ -3013,6 +3013,7 @@ PRIVATE int ac_treedb_node_deleted(hgobj gobj, const char *event, json_t *kw, hg
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
+    // TODO search sessions of a client deleted, disconnect and delete them
     const char *treedb_name = kw_get_str(gobj, kw, "treedb_name", "", KW_REQUIRED);
     const char *topic_name = kw_get_str(gobj, kw, "topic_name", "", KW_REQUIRED);
     json_t *node_ = kw_get_dict(gobj, kw, "node", 0, KW_REQUIRED);
