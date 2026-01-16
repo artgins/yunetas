@@ -46,3 +46,5 @@ mosquitto_sub -d -p 1810 -u yuneta -V 5 -t "home/#" -D SUBSCRIBE subscription-id
 
 mosquitto_sub -i client2 -d  -p 1810 -t '#' -d -u DVES_USER -P DVES_PASS -V mqttv5 -c -q 2
 mosquitto_sub -i client3 -d  -p 1810 -t '#' -d -u DVES_USER -P DVES_PASS -V mqttv5 -c -q 2
+
+mqtt_tui -i client2 -c -u DVES_USER -P DVES_PASS

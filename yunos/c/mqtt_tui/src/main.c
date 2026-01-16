@@ -172,7 +172,8 @@ static struct argp_option options[] = {
 {"auth_url",        'k',    "AUTH_URL", 0,      "OpenID Endpoint (to get now a jwt). If empty it will be used MQTT username/password", 20},
 {"azp",             'Z',    "AZP",      0,      "azp (Authorized Party, client_id in keycloak)", 20},
 {"user_id",         'u',    "USER_ID",  0,      "MQTT Username or OAuth2 User Id (to get now a jwt)", 20},
-{"user_passw",      'U',    "USER_PASSW",0,     "MQTT Password or OAuth2 User Password (to get now a jwt)", 20},
+{"user_passw",      'U',    "USER_PASSW",0,     "OAuth2 User Password (to get now a jwt)", 20},
+{"mqtt_passw",      'P',    "MQTT_PASSW",0,     "MQTT Password", 20},
 {"jwt",             'j',    "JWT",      0,      "Jwt (previously got it)", 21},
 
 {0,                 0,      0,          0,      "Connection keys", 30},
@@ -246,6 +247,9 @@ static error_t parse_opt (int key, char *arg, struct argp_state *state)
         arguments->user_id = arg;
         break;
     case 'U':
+        arguments->user_passw = arg;
+        break;
+    case 'P':
         arguments->user_passw = arg;
         break;
     case 'j':

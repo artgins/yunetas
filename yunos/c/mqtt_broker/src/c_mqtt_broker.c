@@ -2389,16 +2389,21 @@ PRIVATE int ac_on_open(hgobj gobj, const char *event, json_t *kw, hgobj src)
         // will_delay__remove(found_context);
         // will__clear(found_context);
 
+        BOOL delete_prev_session = TRUE;
+
         if(!clean_start) {
             /*-----------------------------------*
              *      Reuse the session
              *-----------------------------------*/
-            if(prev_session_expiry_interval > 0) {
+            if(prev_session_expiry_interval > 0) { // TODO && no expired
+                // TODO check if prev_session_expiry_interval expired
                 if(protocol_version == mosq_p_mqtt311 || protocol_version == mosq_p_mqtt5) {
                     result = 1; // ack=1 Resume existing session
+                    delete_prev_session = FALSE;
                 }
             }
-        } else {
+        }
+        if(delete_prev_session) {
             /*-----------------------------------*
              *  Delete it if clean_start TRUE
              *-----------------------------------*/
@@ -2418,7 +2423,10 @@ PRIVATE int ac_on_open(hgobj gobj, const char *event, json_t *kw, hgobj src)
          *  Disconnect previous session
          */
         json_t *kw_disconnect = json_object();
-        int reason_code =(prev_protocol_version == mosq_p_mqtt5)?MQTT_RC_SESSION_TAKEN_OVER:0;
+        int reason_code = 0;
+        if(delete_prev_session) {
+            reason_code = (prev_protocol_version == mosq_p_mqtt5)?MQTT_RC_SESSION_TAKEN_OVER:0;
+        }
         json_object_set_new(
             kw_disconnect,
             "reason_code",
@@ -2448,6 +2456,9 @@ PRIVATE int ac_on_open(hgobj gobj, const char *event, json_t *kw, hgobj src)
     json_object_set_new(kw, "_gobj_channel", json_integer((json_int_t)gobj_channel));
     json_object_set_new(kw, "in_session", json_true());
 
+print_json2("=====> SESSION", session); // TODO TEST
+print_json2("=====> KW", kw); // TODO TEST
+
     session = gobj_update_node(
         priv->gobj_treedb_mqtt_broker,
         "sessions",
@@ -2455,6 +2466,7 @@ PRIVATE int ac_on_open(hgobj gobj, const char *event, json_t *kw, hgobj src)
         json_pack("{s:b}", "create", 1),
         gobj
     );
+
     if(!session) {
         gobj_log_error(gobj, 0,
             "function",     "%s", __FUNCTION__,
