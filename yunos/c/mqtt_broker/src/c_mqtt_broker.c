@@ -2317,7 +2317,6 @@ PRIVATE int ac_on_open(hgobj gobj, const char *event, json_t *kw, hgobj src)
      *              Open/Create SESSION
      *----------------------------------------------------------------*/
     int result = 0;
-    json_t *prev_subscriptions = NULL;
     int prev_mid = 0;
     BOOL clean_start = kw_get_bool(gobj, kw, "clean_start", TRUE, KW_REQUIRED);
     int protocol_version = (int)kw_get_int(gobj, kw, "protocol_version", 0, KW_REQUIRED);
@@ -2374,8 +2373,6 @@ PRIVATE int ac_on_open(hgobj gobj, const char *event, json_t *kw, hgobj src)
             0,
             KW_REQUIRED
         );
-
-        prev_subscriptions = kw_get_list(gobj, session, "subscriptions", 0, KW_REQUIRED);
 
         if((prev_protocol_version == mosq_p_mqtt5 && prev_session_expiry_interval == 0) ||
             (prev_protocol_version != mosq_p_mqtt5 && prev_clean_start == TRUE) ||
@@ -2450,9 +2447,6 @@ PRIVATE int ac_on_open(hgobj gobj, const char *event, json_t *kw, hgobj src)
 
     if(prev_mid) {
         json_object_set_new(kw, "mid", json_integer(prev_mid));
-    }
-    if(prev_subscriptions) {
-        json_object_set_new(kw, "subscriptions", prev_subscriptions);
     }
     json_object_set_new(kw, "_gobj_channel", json_integer((json_int_t)gobj_channel));
     json_object_set_new(kw, "in_session", json_true());
