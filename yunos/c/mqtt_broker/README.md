@@ -43,3 +43,5 @@ mosquitto_sub -d -p 1810 -u yuneta -t "home/livingroom/+" -q 2
 mosquitto_pub -p 1810 -u yuneta -t "home/DEV/temperature" -m "{client2:3}" -q 1
 
 mosquitto_sub -d -p 1810 -u yuneta -V 5 -t "home/#" -D SUBSCRIBE subscription-identifier 123 -t "home/+/temperature" 
+
+mosquitto_sub -i client2 -d  -p 1810 -t '#' -d -u DVES_USER -P DVES_PASS -V mqttv5 -c -q 2

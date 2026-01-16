@@ -55,7 +55,7 @@
             │                           │                   │
             │  name                     │                   │
             │  assigned_id              │                   │
-            │  dynamic_id               │                   │
+            │  auto_created             │                   │
             │  description              │                   │
             │  enabled                  │                   │
             │  time                     │                   │
@@ -163,7 +163,7 @@
 static char treedb_schema_mqtt_broker[]= "\
 {                                                                   \n\
     'id': 'treedb_mqtt_broker',                                     \n\
-    'schema_version': '7',                                         	\n\
+    'schema_version': '8',                                         	\n\
     'topics': [                                                     \n\
         {                                                           \n\
             'id': 'client_groups',                                  \n\
@@ -307,7 +307,7 @@ static char treedb_schema_mqtt_broker[]= "\
             'id': 'clients',                                        \n\
             'pkey': 'id',                                           \n\
             'system_flag': 'sf_string_key',                         \n\
-            'topic_version': '4',                                   \n\
+            'topic_version': '5',                                   \n\
             'cols': {                                               \n\
                 'id': {                                             \n\
                     'header': 'Client Id',                          \n\
@@ -340,9 +340,9 @@ static char treedb_schema_mqtt_broker[]= "\
                         'persistent'                                \n\
                     ]                                               \n\
                 },                                                  \n\
-                'dynamic_id': {                                     \n\
-                    'header': 'Dynamic Id',                         \n\
-                    'description': 'True if client was not created by config',\n\
+                'auto_created': {                                   \n\
+                    'header': 'Auto Created',                       \n\
+                    'description': 'True if client was auto created (not created by config)',\n\
                     'type': 'boolean',                              \n\
                     'flag': [                                       \n\
                         'persistent'                                \n\
