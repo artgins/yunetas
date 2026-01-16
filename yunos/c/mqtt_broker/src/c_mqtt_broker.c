@@ -2335,6 +2335,7 @@ PRIVATE int ac_on_open(hgobj gobj, const char *event, json_t *kw, hgobj src)
     // TODO process WILL
 
     if(session) {
+print_json2("=====>1 SESSION", session); // TODO TEST
         /*-------------------------------------------------------------*
          *              Exists a previous session
          *-------------------------------------------------------------*/
@@ -2420,6 +2421,8 @@ PRIVATE int ac_on_open(hgobj gobj, const char *event, json_t *kw, hgobj src)
          *  Disconnect previous session
          */
         if(prev_gobj_channel) {
+printf("======================> disconnect %s\n", gobj_short_name(prev_gobj_channel)); // TODO TEST
+
             json_t *kw_disconnect = json_object();
             int reason_code = 0;
             if(delete_prev_session) {
@@ -2451,9 +2454,6 @@ PRIVATE int ac_on_open(hgobj gobj, const char *event, json_t *kw, hgobj src)
     json_object_set_new(kw, "_gobj_channel", json_integer((json_int_t)gobj_channel));
     json_object_set_new(kw, "in_session", json_true());
 
-print_json2("=====> SESSION", session); // TODO TEST
-print_json2("=====> KW", kw); // TODO TEST
-
     session = gobj_update_node(
         priv->gobj_treedb_mqtt_broker,
         "sessions",
@@ -2461,6 +2461,7 @@ print_json2("=====> KW", kw); // TODO TEST
         json_pack("{s:b}", "create", 1),
         gobj
     );
+print_json2("=====>2 SESSION", session); // TODO TEST
 
     if(!session) {
         gobj_log_error(gobj, 0,
@@ -2643,15 +2644,27 @@ PRIVATE int ac_on_close(hgobj gobj, const char *event, json_t *kw, hgobj src)
         /*
          *  Persistent session
          */
-        json_object_set_new(session, "_gobj_channel", json_integer((json_int_t)0));
-        json_object_set_new(session, "in_session", json_false());
-        json_decref(gobj_update_node(
-            priv->gobj_treedb_mqtt_broker,
-            "sessions",
-            json_incref(session),  // owned
-            json_pack("{s:b}", "volatil", 1),
-            gobj
-        ));
+        hgobj prev_gobj_channel = (hgobj)(uintptr_t)kw_get_int(
+            gobj,
+            session,
+            "_gobj_channel",
+            0,
+            KW_REQUIRED
+        );
+        if(gobj_channel == prev_gobj_channel) {
+            /*
+             *  Session can be connected by other channel
+             */
+            json_object_set_new(session, "_gobj_channel", json_integer((json_int_t)0));
+            json_object_set_new(session, "in_session", json_false());
+            json_decref(gobj_update_node(
+                priv->gobj_treedb_mqtt_broker,
+                "sessions",
+                json_incref(session),  // owned
+                json_pack("{s:b}", "volatil", 1),
+                gobj
+            ));
+        }
     }
 
     // TODO do will job ?
