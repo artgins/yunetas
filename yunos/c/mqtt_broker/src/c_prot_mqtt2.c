@@ -959,11 +959,11 @@ PRIVATE int message__release_to_inflight(hgobj gobj, enum mqtt_msg_direction dir
 /***************************************************************************
  *  Used by client
  ***************************************************************************/
-PRIVATE int OLD_message__queue(
-    hgobj gobj,
-    struct mosquitto_message_all *message,
-    enum mqtt_msg_direction dir
-) {
+// PRIVATE int OLD_message__queue(
+//     hgobj gobj,
+//     struct mosquitto_message_all *message,
+//     enum mqtt_msg_direction dir
+// ) {
     // PRIVATE_DATA *priv = gobj_priv_data(gobj);
     // if(dir == mosq_md_out) {
     //     dl_add(&priv->msgs_out.dl_inflight, message);
@@ -972,9 +972,9 @@ PRIVATE int OLD_message__queue(
     //     dl_add(&priv->msgs_in.dl_inflight, message);
     //     // TODO priv->msgs_in.queue_len++;
     // }
-
-    return message__release_to_inflight(gobj, dir);
-}
+//
+//     return message__release_to_inflight(gobj, dir);
+// }
 
 /***************************************************************************
  *  Enqueue a message in the input or output queue
@@ -1123,15 +1123,15 @@ PRIVATE int db__message_write_queued_out(hgobj gobj)
  *  Likewise payload and properties.
  *  Using in handle__publish, loop, persist_read
  ***************************************************************************/
-PRIVATE int db__message_store(
-    hgobj gobj,
-    struct mosquitto_msg_store *stored,
-    uint32_t message_expiry_interval,
-    int store_id, // TODO dbid_t store_id,
-    enum mqtt_msg_origin origin
-) {
-    PRIVATE_DATA *priv = gobj_priv_data(gobj);
-
+// PRIVATE int db__message_store(
+//     hgobj gobj,
+//     struct mosquitto_msg_store *stored,
+//     uint32_t message_expiry_interval,
+//     int store_id, // TODO dbid_t store_id,
+//     enum mqtt_msg_origin origin
+// ) {
+//     PRIVATE_DATA *priv = gobj_priv_data(gobj);
+//
     // TODO
     // if(source && source->id) {
     //     stored->source_id = mosquitto__strdup(source->id);
@@ -1174,15 +1174,15 @@ PRIVATE int db__message_store(
     // }
     //
     // db__msg_store_add(stored);
-
-    return MOSQ_ERR_SUCCESS;
-}
+//
+//     return MOSQ_ERR_SUCCESS;
+// }
 
 /***************************************************************************
  *
  ***************************************************************************/
-PRIVATE void db__msg_store_remove(struct mosquitto_msg_store *store)
-{
+// PRIVATE void db__msg_store_remove(struct mosquitto_msg_store *store)
+// {
     // TODO
     // if(store->prev) {
     //     store->prev->next = store->next;
@@ -1199,7 +1199,7 @@ PRIVATE void db__msg_store_remove(struct mosquitto_msg_store *store)
     // db.msg_store_bytes -= store->payloadlen;
     //
     // db__msg_store_free(store);
-}
+// }
 
 /***************************************************************************
  *
@@ -1284,12 +1284,12 @@ PRIVATE BOOL db__ready_for_flight(hgobj gobj, enum mqtt_msg_direction dir, int q
 /***************************************************************************
  *
  ***************************************************************************/
-PRIVATE void db__message_dequeue_first(
-    hgobj gobj,
-    struct mosquitto_msg_data *msg_data
-) {
-    struct mosquitto_client_msg *msg;
-
+// PRIVATE void db__message_dequeue_first(
+//     hgobj gobj,
+//     struct mosquitto_msg_data *msg_data
+// ) {
+//     struct mosquitto_client_msg *msg;
+//
     // TODO
     // msg = msg_data->queued;
     // DL_DELETE(msg_data->queued, msg);
@@ -1300,7 +1300,7 @@ PRIVATE void db__message_dequeue_first(
 
     // db__msg_remove_from_queued_stats(msg_data, msg);
     // db__msg_add_to_inflight_stats(msg_data, msg);
-}
+// }
 
 /***************************************************************************
  *
