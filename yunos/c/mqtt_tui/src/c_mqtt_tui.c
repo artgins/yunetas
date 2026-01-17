@@ -890,6 +890,7 @@ PRIVATE int on_read_cb(hgobj gobj, gbuffer_t *gbuf)
     }
 
     if(base[0] == 3) {
+        printf("\n\n");
         exit(-1);
     }
     uint8_t b[8] = {0}; // To search keys in keytable

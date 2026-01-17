@@ -48,3 +48,4 @@ mosquitto_sub -i client2 -d  -p 1810 -t '#' -d -u DVES_USER -P DVES_PASS -V mqtt
 mosquitto_sub -i client3 -d  -p 1810 -t '#' -d -u DVES_USER -P DVES_PASS -V mqttv5 -c -q 2
 
 mqtt_tui -i client2 -c -u DVES_USER -P DVES_PASS
+./mqtt_tui --url-mqtt=mqtt://127.0.0.1:1810 --url-broker=ws://127.0.0.1:1800 --mqtt_protocol=v5 -i client2 -u DVES_USER -P DVES_PASS -c $1
