@@ -1120,7 +1120,7 @@ PRIVATE int db__message_write_queued_out(hgobj gobj)
 /***************************************************************************
  *  This function requires topic to be allocated on the heap.
  *  Once called, it owns topic and will free it on error.
- *  Likewise payload and properties.
+ *  Likewise, payload and properties.
  *  Using in handle__publish, loop, persist_read
  ***************************************************************************/
 // PRIVATE int db__message_store(
