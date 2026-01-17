@@ -2461,7 +2461,6 @@ printf("======================> disconnect %s\n", gobj_short_name(prev_gobj_chan
         json_pack("{s:b}", "create", 1),
         gobj
     );
-print_json2("=====>2 SESSION", session); // TODO TEST
 
     if(!session) {
         gobj_log_error(gobj, 0,
@@ -2473,64 +2472,6 @@ print_json2("=====>2 SESSION", session); // TODO TEST
         );
         KW_DECREF(kw);
         return -1;
-    }
-
-    /*----------------------------------------------*
-     *  Check if the client is already connected
-     *  and disconnect them unless it is this
-     *----------------------------------------------*/
-    if(0) {
-        // TODO delete when checked only one session by client
-        json_t *jn_filter = json_pack("{s:s, s:s, s:s}",
-            "__gclass_name__", C_PROT_MQTT2,
-            "__state__", ST_CONNECTED,
-            "client_id", client_id
-        );
-        json_t *dl_children = gobj_match_children_tree(priv->gobj_input_side, jn_filter);
-
-        int idx; json_t *jn_child;
-        json_array_foreach(dl_children, idx, jn_child) {
-            hgobj child = (hgobj)(size_t)json_integer_value(jn_child);
-            if(gobj_parent(child) != gobj_channel) {
-                gobj_log_info(gobj, 0,
-                    "function",     "%s", __FUNCTION__,
-                    "msgset",       "%s", MSGSET_INFO,
-                    "msg",          "%s", "Client ALREADY CONNECTED, dropping connection",
-                    "client_id",    "%s", client_id,
-                    "child",        "%s", gobj_short_name(child),
-                    NULL
-                );
-
-                // TODO
-                // if(context->clean_start == true) {
-                //     sub__clean_session(found_context);
-                // }
-                // if((found_context->protocol == mosq_p_mqtt5 && found_context->session_expiry_interval == 0)
-                //         || (found_context->protocol != mosq_p_mqtt5 && found_context->clean_start == true)
-                //         || (context->clean_start == true)
-                //         ) {
-                //
-                //     context__send_will(found_context);
-                //         }
-                //
-                // session_expiry__remove(found_context);
-                // will_delay__remove(found_context);
-                // will__clear(found_context);
-                //
-                // found_context->clean_start = true;
-                // found_context->session_expiry_interval = 0;
-                // mosquitto__set_state(found_context, mosq_cs_duplicate);
-                // TODO
-                // if(found_context->protocol == mosq_p_mqtt5) {
-                //     send__disconnect(found_context, MQTT_RC_SESSION_TAKEN_OVER, NULL);
-                // }
-
-                // TODO don't disconnect until done above tasks
-                gobj_send_event(child, EV_DROP, 0, gobj);
-            }
-        }
-
-        gobj_free_iter(dl_children);
     }
 
     JSON_DECREF(session)
