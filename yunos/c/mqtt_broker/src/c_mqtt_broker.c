@@ -2346,7 +2346,7 @@ print_json2("=====>1 SESSION", session); // TODO TEST
             0,
             KW_REQUIRED
         );
-        json_int_t prev_session_expiry_interval = kw_get_int(
+        uint32_t prev_session_expiry_interval = (uint32_t)kw_get_int(
             gobj,
             session,
             "session_expiry_interval",

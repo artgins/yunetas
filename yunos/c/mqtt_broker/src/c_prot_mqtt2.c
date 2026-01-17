@@ -3729,13 +3729,14 @@ PRIVATE int send__connect(
     uint32_t proplen = 0, varbytes = 0;
     json_t *local_props = NULL;
     uint16_t receive_maximum;
-    uint32_t mqtt_session_expiry_interval = 0;
 
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
     const char *mqtt_client_id = gobj_read_str_attr(gobj, "mqtt_client_id");
     const char *mqtt_protocol = gobj_read_str_attr(gobj, "mqtt_protocol");
-    mqtt_session_expiry_interval = atoi(gobj_read_str_attr(gobj, "mqtt_session_expiry_interval"));
+    uint32_t mqtt_session_expiry_interval = (uint32_t)atoi(
+        gobj_read_str_attr(gobj, "mqtt_session_expiry_interval")
+    );
 
     int protocol = mosq_p_mqtt5; // "mqttv5" default
     if(strcasecmp(mqtt_protocol, "mqttv5")==0 || strcasecmp(mqtt_protocol, "v5")==0) {
