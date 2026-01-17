@@ -111,80 +111,80 @@ typedef enum mosq_err_s {
  *
  * bool retain - set to true for stale retained messages.
  */
-typedef struct mosquitto_message {
-    int mid;
-    char *topic;
-    gbuffer_t *payload;
-    int qos;
-    BOOL retain;
-} mosquitto_message_t;
-
-typedef struct mosquitto_msg_store { // Used in broker
-    DL_ITEM_FIELDS
-
-    // dbid_t db_id;
-    char *source_id;
-    char *source_username;
-    // struct mosquitto__listener *source_listener;
-    char **dest_ids;
-    int dest_id_count;
-    int ref_count;
-    char *topic;
-    json_t *properties;
-    gbuffer_t *payload;
-    time_t message_expiry_time;
-    enum mqtt_msg_origin origin;
-    uint16_t source_mid;
-    uint16_t mid;
-    uint8_t qos;
-    BOOL retain;
-} mosquitto_msg_store_t;
-
-typedef struct mosquitto_client_msg { // Used in broker
-    DL_ITEM_FIELDS
-
-    struct mosquitto_msg_store *store;
-    json_t *properties;
-    time_t timestamp;
-    uint16_t mid;
-    uint8_t qos;
-    BOOL retain;
-    enum mqtt_msg_direction direction;
-    enum mqtt_msg_state state;
-    uint8_t dup;
-} mosquitto_client_msg_t;
-
-typedef struct mosquitto_message_all { // Used in client
-    DL_ITEM_FIELDS
-
-    json_t *properties;
-    time_t timestamp;
-    enum mqtt_msg_state state;
-    BOOL dup;
-    struct mosquitto_message msg;
-    uint32_t expiry_interval;
-} mosquitto_message_all_t;
-
-typedef struct mosquitto_msg_data { // Used in client/broker
-    // Used in broker
-    dl_list_t dl_inflight2;    // struct mosquitto_client_msg *inflight;
-    dl_list_t dl_queued;       // struct mosquitto_client_msg *queued;
-    long inflight_bytes;
-    long inflight_bytes12;
-    int inflight_count;
-    int inflight_count12;
-    size_t queued_bytes;
-    size_t queued_bytes12;
-    int queued_count;
-    int queued_count12;
-
-    // Used in client
-    dl_list_t dl_inflight;         // struct mosquitto_message_all *inflight;
-    int queue_len;
-
-    int inflight_quota;
-    uint16_t inflight_maximum;
-} mosquitto_msg_data_t;
+// typedef struct mosquitto_message {
+//     int mid;
+//     char *topic;
+//     gbuffer_t *payload;
+//     int qos;
+//     BOOL retain;
+// } mosquitto_message_t;
+//
+// typedef struct mosquitto_msg_store { // Used in broker
+//     DL_ITEM_FIELDS
+//
+//     // dbid_t db_id;
+//     char *source_id;
+//     char *source_username;
+//     // struct mosquitto__listener *source_listener;
+//     char **dest_ids;
+//     int dest_id_count;
+//     int ref_count;
+//     char *topic;
+//     json_t *properties;
+//     gbuffer_t *payload;
+//     time_t message_expiry_time;
+//     enum mqtt_msg_origin origin;
+//     uint16_t source_mid;
+//     uint16_t mid;
+//     uint8_t qos;
+//     BOOL retain;
+// } mosquitto_msg_store_t;
+//
+// typedef struct mosquitto_client_msg { // Used in broker
+//     DL_ITEM_FIELDS
+//
+//     struct mosquitto_msg_store *store;
+//     json_t *properties;
+//     time_t timestamp;
+//     uint16_t mid;
+//     uint8_t qos;
+//     BOOL retain;
+//     enum mqtt_msg_direction direction;
+//     enum mqtt_msg_state state;
+//     uint8_t dup;
+// } mosquitto_client_msg_t;
+//
+// typedef struct mosquitto_message_all { // Used in client
+//     DL_ITEM_FIELDS
+//
+//     json_t *properties;
+//     time_t timestamp;
+//     enum mqtt_msg_state state;
+//     BOOL dup;
+//     struct mosquitto_message msg;
+//     uint32_t expiry_interval;
+// } mosquitto_message_all_t;
+//
+// typedef struct mosquitto_msg_data { // Used in client/broker
+//     // Used in broker
+//     dl_list_t dl_inflight2;    // struct mosquitto_client_msg *inflight;
+//     dl_list_t dl_queued;       // struct mosquitto_client_msg *queued;
+//     long inflight_bytes;
+//     long inflight_bytes12;
+//     int inflight_count;
+//     int inflight_count12;
+//     size_t queued_bytes;
+//     size_t queued_bytes12;
+//     int queued_count;
+//     int queued_count12;
+//
+//     // Used in client
+//     dl_list_t dl_inflight;         // struct mosquitto_message_all *inflight;
+//     int queue_len;
+//
+//     int inflight_quota;
+//     uint16_t inflight_maximum;
+// } mosquitto_msg_data_t;
 
 
 typedef struct _FRAME_HEAD {
@@ -736,46 +736,6 @@ PRIVATE json_t *cmd_help(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
 /***************************************************************************
  *
  ***************************************************************************/
-PRIVATE void print_queue(const char *name, dl_list_t *dl_list)
-{
-    printf("====================> Queue: %s\n", name);
-    int idx = 0;
-    struct mosquitto_client_msg *tail = dl_first(dl_list);
-    while(tail) {
-        printf("  client %d\n", idx++);
-        printf("    mid %d\n", tail->mid);
-        printf("    qos %d\n", tail->qos);
-        printf("    retain %d\n", tail->retain);
-        printf("    timestamp %ld\n", (long)tail->timestamp);
-        printf("    direction %d\n", tail->direction);
-        printf("    state %d\n", tail->state);
-        printf("    dup %d\n", tail->dup);
-        //print_json(tail->properties);
-
-        printf("  store\n");
-        printf("    topic %s\n", tail->store->topic);
-        printf("    mid %d\n", tail->store->mid);
-        printf("    qos %d\n", tail->store->qos);
-        printf("    retain %d\n", tail->store->retain);
-        printf("    message_expiry_time %ld\n", (long)tail->store->message_expiry_time);
-        printf("    source_id %s\n", tail->store->source_id);
-        printf("    source_username %s\n", tail->store->source_username);
-        printf("    source_mid %d\n", tail->store->source_mid);
-
-        //log_debug_dump(0, tail->store->payload, tail->store->payloadlen, "store");
-        //print_json(tail->store->properties);
-        printf("\n");
-
-        /*
-         *  Next
-         */
-        tail = dl_next(tail);
-    }
-}
-
-/***************************************************************************
- *
- ***************************************************************************/
 PRIVATE void restore_client_attributes(hgobj gobj)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
@@ -1219,62 +1179,6 @@ PRIVATE int db__message_store(
 }
 
 /***************************************************************************
- *  Using in persist_read()
- ***************************************************************************/
-PRIVATE void db__msg_add_to_queued_stats(
-    struct mosquitto_msg_data *msg_data,
-    struct mosquitto_client_msg *msg
-) {
-    msg_data->queued_count++;
-    msg_data->queued_bytes += gbuffer_leftbytes(msg->store->payload);
-    if(msg->qos != 0) {
-        msg_data->queued_count12++;
-        msg_data->queued_bytes12 += gbuffer_leftbytes(msg->store->payload);
-    }
-}
-
-/***************************************************************************
- *
- ***************************************************************************/
-PRIVATE void db__msg_remove_from_queued_stats(
-    struct mosquitto_msg_data *msg_data,
-    struct mosquitto_client_msg *msg
-) {
-    msg_data->queued_count--;
-    msg_data->queued_bytes -= gbuffer_leftbytes(msg->store->payload);
-    if(msg->qos != 0) {
-        msg_data->queued_count12--;
-        msg_data->queued_bytes12 -= gbuffer_leftbytes(msg->store->payload);
-    }
-}
-
-/***************************************************************************
- *  Using in persist_read()
- ***************************************************************************/
-PRIVATE void db__msg_add_to_inflight_stats(struct mosquitto_msg_data *msg_data, struct mosquitto_client_msg *msg)
-{
-    msg_data->inflight_count++;
-    msg_data->inflight_bytes += gbuffer_leftbytes(msg->store->payload);
-    if(msg->qos != 0) {
-        msg_data->inflight_count12++;
-        msg_data->inflight_bytes12 += gbuffer_leftbytes(msg->store->payload);
-    }
-}
-
-/***************************************************************************
- *
- ***************************************************************************/
-PRIVATE void db__msg_remove_from_inflight_stats(struct mosquitto_msg_data *msg_data, struct mosquitto_client_msg *msg)
-{
-    msg_data->inflight_count--;
-    msg_data->inflight_bytes -= gbuffer_leftbytes(msg->store->payload);
-    if(msg->qos != 0) {
-        msg_data->inflight_count12--;
-        msg_data->inflight_bytes12 -= gbuffer_leftbytes(msg->store->payload);
-    }
-}
-
-/***************************************************************************
  *
  ***************************************************************************/
 PRIVATE void db__msg_store_remove(struct mosquitto_msg_store *store)
@@ -1295,18 +1199,6 @@ PRIVATE void db__msg_store_remove(struct mosquitto_msg_store *store)
     // db.msg_store_bytes -= store->payloadlen;
     //
     // db__msg_store_free(store);
-}
-
-/***************************************************************************
- *
- ***************************************************************************/
-PRIVATE void db__msg_store_ref_dec(struct mosquitto_msg_store **store)
-{
-    (*store)->ref_count--;
-    if((*store)->ref_count == 0) {
-        db__msg_store_remove(*store);
-        *store = NULL;
-    }
 }
 
 /***************************************************************************
@@ -1406,116 +1298,116 @@ PRIVATE void db__message_dequeue_first(
     //     msg_data->inflight_quota--;
     // }
 
-    db__msg_remove_from_queued_stats(msg_data, msg);
-    db__msg_add_to_inflight_stats(msg_data, msg);
+    // db__msg_remove_from_queued_stats(msg_data, msg);
+    // db__msg_add_to_inflight_stats(msg_data, msg);
 }
 
 /***************************************************************************
  *
  ***************************************************************************/
-PRIVATE int db__message_write_inflight_out_single(
-    hgobj gobj,
-    struct mosquitto_client_msg *msg
-) {
-    PRIVATE_DATA *priv = gobj_priv_data(gobj);
-    json_t *cmsg_props = NULL, *store_props = NULL;
-    int rc;
-    uint16_t mid;
-    int retries;
-    int retain;
-    const char *topic;
-    uint8_t qos;
-    uint32_t payloadlen;
-    const void *payload;
-    uint32_t expiry_interval;
-
-    // expiry_interval = 0;
-    // if(msg->store->message_expiry_time) {
-    //     if(priv->db_now_real_s > msg->store->message_expiry_time) {
-    //         /* Message is expired, must not send. */
-    //         if(msg->direction == mosq_md_out && msg->qos > 0) {
-    //             // TODO util__increment_send_quota(context);
-    //         }
-    //         db__message_remove_from_inflight(gobj, &priv->msgs_out, msg);
-    //         return MOSQ_ERR_SUCCESS;
-    //     } else {
-    //         expiry_interval = (uint32_t)(msg->store->message_expiry_time - priv->db_now_real_s);
-    //     }
-    // }
-    // mid = msg->mid;
-    // retries = msg->dup;
-    // retain = msg->retain;
-    // topic = msg->store->topic;
-    // qos = (uint8_t)msg->qos;
-    // cmsg_props = msg->properties;
-    // store_props = msg->store->properties;
-    //
-    // switch(msg->state) {
-    //     case mosq_ms_publish_qos0:
-    //         rc = send__publish(gobj, mid, topic, msg->store->payload, qos, retain, retries, cmsg_props, store_props, expiry_interval);
-    //         if(rc == MOSQ_ERR_SUCCESS || rc == MOSQ_ERR_OVERSIZE_PACKET) {
-    //             db__message_remove_from_inflight(gobj, &priv->msgs_out, msg);
-    //         } else {
-    //             return rc;
-    //         }
-    //         break;
-    //
-    //     case mosq_ms_publish_qos1:
-    //         rc = send__publish(gobj, mid, topic, msg->store->payload, qos, retain, retries, cmsg_props, store_props, expiry_interval);
-    //         if(rc == MOSQ_ERR_SUCCESS) {
-    //             msg->timestamp = priv->db_now_s;
-    //             msg->dup = 1; /* Any retry attempts are a duplicate. */
-    //             msg->state = mosq_ms_wait_for_puback;
-    //         } else if(rc == MOSQ_ERR_OVERSIZE_PACKET) {
-    //             db__message_remove_from_inflight(gobj, &priv->msgs_out, msg);
-    //         } else {
-    //             return rc;
-    //         }
-    //         break;
-    //
-    //     case mosq_ms_publish_qos2:
-    //         rc = send__publish(gobj, mid, topic, msg->store->payload, qos, retain, retries, cmsg_props, store_props, expiry_interval);
-    //         if(rc == MOSQ_ERR_SUCCESS) {
-    //             msg->timestamp = priv->db_now_s;
-    //             msg->dup = 1; /* Any retry attempts are a duplicate. */
-    //             msg->state = mosq_ms_wait_for_pubrec;
-    //         } else if(rc == MOSQ_ERR_OVERSIZE_PACKET) {
-    //             db__message_remove_from_inflight(gobj, &priv->msgs_out, msg);
-    //         } else {
-    //             return rc;
-    //         }
-    //         break;
-    //
-    //     case mosq_ms_resend_pubrel:
-    //         rc = send__pubrel(gobj, mid, NULL);
-    //         if(!rc) {
-    //             msg->state = mosq_ms_wait_for_pubcomp;
-    //         } else {
-    //             return rc;
-    //         }
-    //         break;
-    //
-    //     case mosq_ms_invalid:
-    //     case mosq_ms_send_pubrec:
-    //     case mosq_ms_resend_pubcomp:
-    //     case mosq_ms_wait_for_puback:
-    //     case mosq_ms_wait_for_pubrec:
-    //     case mosq_ms_wait_for_pubrel:
-    //     case mosq_ms_wait_for_pubcomp:
-    //     case mosq_ms_queued:
-    //         break;
-    // }
-    return MOSQ_ERR_SUCCESS;
-}
+// PRIVATE int db__message_write_inflight_out_single(
+//     hgobj gobj,
+//     struct mosquitto_client_msg *msg
+// ) {
+//     PRIVATE_DATA *priv = gobj_priv_data(gobj);
+//     json_t *cmsg_props = NULL, *store_props = NULL;
+//     int rc;
+//     uint16_t mid;
+//     int retries;
+//     int retain;
+//     const char *topic;
+//     uint8_t qos;
+//     uint32_t payloadlen;
+//     const void *payload;
+//     uint32_t expiry_interval;
+//
+//     expiry_interval = 0;
+//     if(msg->store->message_expiry_time) {
+//         if(priv->db_now_real_s > msg->store->message_expiry_time) {
+//             /* Message is expired, must not send. */
+//             if(msg->direction == mosq_md_out && msg->qos > 0) {
+//                 // TODO util__increment_send_quota(context);
+//             }
+//             db__message_remove_from_inflight(gobj, &priv->msgs_out, msg);
+//             return MOSQ_ERR_SUCCESS;
+//         } else {
+//             expiry_interval = (uint32_t)(msg->store->message_expiry_time - priv->db_now_real_s);
+//         }
+//     }
+//     mid = msg->mid;
+//     retries = msg->dup;
+//     retain = msg->retain;
+//     topic = msg->store->topic;
+//     qos = (uint8_t)msg->qos;
+//     cmsg_props = msg->properties;
+//     store_props = msg->store->properties;
+//
+//     switch(msg->state) {
+//         case mosq_ms_publish_qos0:
+//             rc = send__publish(gobj, mid, topic, msg->store->payload, qos, retain, retries, cmsg_props, store_props, expiry_interval);
+//             if(rc == MOSQ_ERR_SUCCESS || rc == MOSQ_ERR_OVERSIZE_PACKET) {
+//                 db__message_remove_from_inflight(gobj, &priv->msgs_out, msg);
+//             } else {
+//                 return rc;
+//             }
+//             break;
+//
+//         case mosq_ms_publish_qos1:
+//             rc = send__publish(gobj, mid, topic, msg->store->payload, qos, retain, retries, cmsg_props, store_props, expiry_interval);
+//             if(rc == MOSQ_ERR_SUCCESS) {
+//                 msg->timestamp = priv->db_now_s;
+//                 msg->dup = 1; /* Any retry attempts are a duplicate. */
+//                 msg->state = mosq_ms_wait_for_puback;
+//             } else if(rc == MOSQ_ERR_OVERSIZE_PACKET) {
+//                 db__message_remove_from_inflight(gobj, &priv->msgs_out, msg);
+//             } else {
+//                 return rc;
+//             }
+//             break;
+//
+//         case mosq_ms_publish_qos2:
+//             rc = send__publish(gobj, mid, topic, msg->store->payload, qos, retain, retries, cmsg_props, store_props, expiry_interval);
+//             if(rc == MOSQ_ERR_SUCCESS) {
+//                 msg->timestamp = priv->db_now_s;
+//                 msg->dup = 1; /* Any retry attempts are a duplicate. */
+//                 msg->state = mosq_ms_wait_for_pubrec;
+//             } else if(rc == MOSQ_ERR_OVERSIZE_PACKET) {
+//                 db__message_remove_from_inflight(gobj, &priv->msgs_out, msg);
+//             } else {
+//                 return rc;
+//             }
+//             break;
+//
+//         case mosq_ms_resend_pubrel:
+//             rc = send__pubrel(gobj, mid, NULL);
+//             if(!rc) {
+//                 msg->state = mosq_ms_wait_for_pubcomp;
+//             } else {
+//                 return rc;
+//             }
+//             break;
+//
+//         case mosq_ms_invalid:
+//         case mosq_ms_send_pubrec:
+//         case mosq_ms_resend_pubcomp:
+//         case mosq_ms_wait_for_puback:
+//         case mosq_ms_wait_for_pubrec:
+//         case mosq_ms_wait_for_pubrel:
+//         case mosq_ms_wait_for_pubcomp:
+//         case mosq_ms_queued:
+//             break;
+//     }
+//     return MOSQ_ERR_SUCCESS;
+// }
 
 /***************************************************************************
  *  Using in handle__subscribe() and websockets
  ***************************************************************************/
 PRIVATE int db__message_write_inflight_out_latest(hgobj gobj)
 {
-    struct mosquitto_client_msg *tail, *next;
-    int rc;
-
+    // struct mosquitto_client_msg *tail, *next;
+    // int rc;
+    //
     // TODO
     // if(context->state != mosq_cs_active
     //         || context->sock == INVALID_SOCKET
@@ -1565,9 +1457,9 @@ PRIVATE int db__message_update_outgoing(
     enum mqtt_msg_state state,
     int qos
 ) {
-    PRIVATE_DATA *priv = gobj_priv_data(gobj);
-    struct mosquitto_client_msg *tail;
-
+    // PRIVATE_DATA *priv = gobj_priv_data(gobj);
+    // struct mosquitto_client_msg *tail;
+    //
     // DL_FOREACH(&priv->msgs_out.dl_inflight, tail) {
     //     if(tail->mid == mid) {
     //         if(tail->qos != qos) {
@@ -1590,9 +1482,9 @@ PRIVATE int db__message_delete_outgoing(
     enum mqtt_msg_state expect_state,
     int qos
 ) {
-    PRIVATE_DATA *priv = gobj_priv_data(gobj);
-    struct mosquitto_client_msg *tail, *tmp;
-
+    // PRIVATE_DATA *priv = gobj_priv_data(gobj);
+    // struct mosquitto_client_msg *tail, *tmp;
+    //
 //     DL_FOREACH_SAFE(&priv->msgs_out.dl_inflight, tail, tmp) {
 //         if(tail->mid == mid) {
 //             if(tail->qos != qos) {
