@@ -5212,6 +5212,8 @@ PRIVATE int handle__connect(hgobj gobj, gbuffer_t *gbuf, hgobj src)
      *----------------*/
     if(priv->tranger_queues) {
         open_queues(gobj);
+    } else {
+        gobj_write_integer_attr(gobj, "max_qos", 0);
     }
 
     // TODO
@@ -7795,6 +7797,8 @@ PRIVATE int frame_completed(hgobj gobj, hgobj src)
                      *----------------*/
                     if(priv->tranger_queues) {
                         open_queues(gobj);
+                    } else {
+                        gobj_write_integer_attr(gobj, "max_qos", 0);
                     }
 
                 } else {
