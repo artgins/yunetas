@@ -33,7 +33,7 @@
 /***************************************************************************
  *              Prototypes
  ***************************************************************************/
-PRIVATE int broadcast_queues_tranger(hgobj gobj);
+PRIVATE int broadcast_tranger_queues(hgobj gobj);
 PRIVATE int open_database(hgobj gobj);
 PRIVATE int close_database(hgobj gobj);
 PRIVATE void collect_all_subscribers_recursive(hgobj gobj, json_t *node, json_t *result);
@@ -284,7 +284,7 @@ PRIVATE int mt_play(hgobj gobj)
     /*-----------------------------*
      *  Broadcast timeranger
      *-----------------------------*/
-    broadcast_queues_tranger(gobj);
+    broadcast_tranger_queues(gobj);
 
     /*--------------------------------*
      *      Start
@@ -724,7 +724,7 @@ PRIVATE int close_database(hgobj gobj)
     /*-----------------------------*
      *  Broadcast timeranger
      *-----------------------------*/
-    // broadcast_queues_tranger(gobj); TODO fails
+    // broadcast_tranger_queues(gobj); TODO fails
 
     return 0;
 }
@@ -746,7 +746,7 @@ PRIVATE int cb_set_htopic_frame(
     }
     return 0;
 }
-PRIVATE int broadcast_queues_tranger(hgobj gobj)
+PRIVATE int broadcast_tranger_queues(hgobj gobj)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 

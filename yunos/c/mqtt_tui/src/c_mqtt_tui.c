@@ -84,7 +84,7 @@
 /***************************************************************************
  *              Prototypes
  ***************************************************************************/
-PRIVATE int broadcast_queues_tranger(hgobj gobj);
+PRIVATE int broadcast_tranger_queues(hgobj gobj);
 PRIVATE void try_to_stop_yevents(hgobj gobj);  // IDEMPOTENT
 PRIVATE int yev_callback(yev_event_h yev_event);
 PRIVATE int on_read_cb(hgobj gobj, gbuffer_t *gbuf);
@@ -667,7 +667,7 @@ PRIVATE int cb_set_htopic_frame(
     }
     return 0;
 }
-PRIVATE int broadcast_queues_tranger(hgobj gobj)
+PRIVATE int broadcast_tranger_queues(hgobj gobj)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
@@ -1133,7 +1133,7 @@ PRIVATE int create_mqtt_connector(hgobj gobj)
     //     "tranger_queues",
     //     priv->tranger_queues
     // );
-    broadcast_queues_tranger(gobj);
+    broadcast_tranger_queues(gobj);
 
     gobj_start_tree(priv->gobj_mqtt_connector);
 
