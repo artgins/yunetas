@@ -2098,10 +2098,9 @@ PRIVATE size_t sub__messages_queue(
     search_recursive(gobj, priv->shared_subs, levels, 1, shared_subscribers);
 
     json_object_foreach(shared_subscribers, client_id, sub) {
-        // TODO envia solo a uno, pero cíclicamente, no siempre al mismo, así hace mosquitto
         if(subs__send(gobj, client_id, sub, kw_mqtt_msg)==0) {
             total_sent++;
-            break;
+            break; // shared subs, only one sent (always the first, sorry)
         }
     }
 
