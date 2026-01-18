@@ -276,7 +276,7 @@ SDATA_END()
 PRIVATE sdata_desc_t attrs_table[] = {
 /*-ATTR-type------------name----------------flag--------default-description---------- */
 SDATA (DTP_BOOLEAN,     "iamServer",        SDF_RD,     0,      "What side? server or client"),
-SDATA (DTP_POINTER,     "tranger_queues",   0,          0,      "Queues TimeRanger for mqtt messages with qos > 0"),
+SDATA (DTP_POINTER,     "tranger_queues",   0,          0,      "Queues TimeRanger for mqtt messages with qos > 0. If null then no persistence queues are used and max qos is limited to 1"),
 SDATA (DTP_STRING,      "alert_message",    SDF_RD,     "ALERT Queuing", "Alert message"),
 SDATA (DTP_INTEGER,     "max_pending_acks", SDF_RD,     "10000",    "Maximum messages pending of ack"),
 SDATA (DTP_INTEGER,     "backup_queue_size",SDF_RD,     "1000000",  "Do backup at this size"),
@@ -453,7 +453,7 @@ typedef struct _PRIVATE_DATA {
     uint32_t msgs_out_inflight_quota;
     uint32_t maximum_packet_size;
     uint16_t last_mid;
-
+    uint8_t max_qos;
 
     BOOL will;
     const char *will_topic;
@@ -807,8 +807,6 @@ PRIVATE int open_queues(hgobj gobj)
 PRIVATE void close_queues(hgobj gobj)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
-
-    JSON_DECREF(priv->jn_alias_list)
 
     // TODO new dl_flush(&priv->dl_msgs_in, db_free_client_msg);
     // dl_flush(&priv->dl_msgs_out, db_free_client_msg);
@@ -3878,6 +3876,12 @@ PRIVATE int send__connack(
             );
         }
 
+        if(priv->max_qos != 2){
+            mqtt_property_add_int16(
+                gobj, connack_props, MQTT_PROP_MAXIMUM_QOS, priv->max_qos
+            );
+        }
+
         remaining_length += property__get_remaining_length(connack_props);
     }
 
@@ -4710,6 +4714,20 @@ PRIVATE int handle__connect(hgobj gobj, gbuffer_t *gbuf, hgobj src)
         session_expiry_interval = priv->session_expiry_interval;
     }
 
+    if(will && will_qos > priv->max_qos){
+        if(protocol_version == mosq_p_mqtt5){
+            send__connack(gobj, 0, MQTT_RC_QOS_NOT_SUPPORTED, NULL);
+        }
+        gobj_log_error(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_MQTT_ERROR,
+            "msg",          "%s", "Mqtt: Unsupporred Will QoS in CONNECT",
+            "connect_flags","%d", (int)connect_flags,
+            NULL
+        );
+        return -1;
+    }
+
     // TODO Auth method not supported
     //if(mosquitto_property_read_string(
     //    properties,
@@ -5188,7 +5206,9 @@ PRIVATE int handle__connect(hgobj gobj, gbuffer_t *gbuf, hgobj src)
     /*----------------*
      *  Open queues
      *----------------*/
-    open_queues(gobj);
+    if(priv->tranger_queues) {
+        open_queues(gobj);
+    }
 
     // TODO
     // db__expire_all_messages(context);
@@ -5630,6 +5650,9 @@ PRIVATE int handle__subscribe(hgobj gobj, gbuffer_t *gbuf)
             JSON_DECREF(jn_list)
             JSON_DECREF(properties)
             return MOSQ_ERR_MALFORMED_PACKET;
+        }
+        if(qos > priv->max_qos) {
+            qos = priv->max_qos;
         }
 
         json_t *jn_sub = json_pack("{s:s#, s:i, s:i, s:i, s:i}",
@@ -6138,6 +6161,17 @@ PRIVATE int handle__publish_s(
             NULL
         );
         return MOSQ_ERR_MALFORMED_PACKET;
+    }
+
+    if(qos > priv->max_qos) {
+        gobj_log_error(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_MQTT_ERROR,
+            "msg",          "%s", "Mqtt: Too high QoS in PUBLISH, disconnecting",
+            "client_id",    "%s", priv->client_id,
+            NULL
+        );
+        return MOSQ_ERR_QOS_NOT_SUPPORTED;
     }
 
     if(retain && priv->retain_available == FALSE) {
@@ -7755,7 +7789,9 @@ PRIVATE int frame_completed(hgobj gobj, hgobj src)
                     /*----------------*
                      *  Open queues
                      *----------------*/
-                    open_queues(gobj);
+                    if(priv->tranger_queues) {
+                        open_queues(gobj);
+                    }
 
                 } else {
                     // Error already logged
@@ -7922,8 +7958,6 @@ PRIVATE int ac_disconnected(hgobj gobj, const char *event, json_t *kw, hgobj src
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
-    JSON_DECREF(priv->jn_alias_list);
-
     if(priv->istream_payload) {
         istream_destroy(priv->istream_payload);
         priv->istream_payload = 0;
@@ -7935,7 +7969,9 @@ PRIVATE int ac_disconnected(hgobj gobj, const char *event, json_t *kw, hgobj src
         /*----------------*
          *  Close queues
          *----------------*/
-        close_queues(gobj);
+        if(priv->tranger_queues) {
+            close_queues(gobj);
+        }
 
         const char *peername;
         if(gobj_has_bottom_attr(src, "peername")) {
@@ -8489,6 +8525,19 @@ PRIVATE int ac_mqtt_client_send_publish(hgobj gobj, const char *event, json_t *k
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_MQTT_ERROR,
             "msg",          "%s", "Mqtt publish: properties not supported",
+            NULL
+        );
+        KW_DECREF(kw)
+        return -1;
+    }
+
+    if(qos > priv->max_qos) {
+        gobj_log_error(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_MQTT_ERROR,
+            "msg",          "%s", "Mqtt publish: qos not supported",
+            "qos",          "%d", (int)qos,
+            "max_qos",      "%d", (int)priv->max_qos,
             NULL
         );
         KW_DECREF(kw)
