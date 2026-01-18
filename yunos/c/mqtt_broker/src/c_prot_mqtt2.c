@@ -8427,19 +8427,6 @@ PRIVATE int ac_send_message(hgobj gobj, const char *event, json_t *kw, hgobj src
     uint16_t mid = mosquitto__mid_generate(gobj);
     json_object_set_new(kw, "mid", json_integer(mid));
 
-    send__publish(
-        gobj,
-        mid,
-        topic,
-        gbuf,
-        (uint8_t)qos,
-        retain,
-        FALSE,
-        NULL, // TODO properties,
-        NULL, // TODO properties,
-        0
-    );
-
     if(qos == 0) {
         send__publish(
             gobj,
