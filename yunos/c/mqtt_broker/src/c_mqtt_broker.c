@@ -1998,17 +1998,6 @@ PRIVATE int subs__send(
 
     gobj_send_event(priv->gobj_input_side, EV_SEND_MESSAGE, new_msg, gobj);
 
-    // db__message_insert(
-    //     leaf->context,
-    //     mid,
-    //     mosq_md_out,
-    //     msg_qos,
-    //     client_retain,
-    //     stored,
-    //     properties,
-    //     true
-    // );
-
     JSON_DECREF(session)
     return 0;
 }
