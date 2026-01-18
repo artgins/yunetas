@@ -336,6 +336,8 @@ SDATA (DTP_BOOLEAN,     "persistence",      SDF_WR,         "1",   "If TRUE, con
 
 SDATA (DTP_BOOLEAN,     "retain_available", SDF_WR,         "1",   "If set to FALSE, then retained messages are not supported. Clients that send a message with the retain bit will be disconnected if this option is set to FALSE. Defaults to TRUE."),
 
+SDATA (DTP_INTEGER,     "max_qos",          SDF_WR,         "2",      "Limit the QoS value allowed for clients connecting to this listener. Defaults to 2, which means any QoS can be used. Set to 0 or 1 to limit to those QoS values. This makes use of an MQTT v5 feature to notify clients of the limitation. MQTT v3.1.1 clients will not be aware of the limitation. Clients publishing to this listener with a too-high QoS will be disconnected."),
+
 SDATA (DTP_BOOLEAN,     "allow_zero_length_clientid",SDF_WR, "1",   "MQTT 3.1.1 and MQTT 5 allow clients to connect with a zero length client id and have the broker generate a client id for them. Use this option to allow/disallow this behaviour. Defaults to TRUE."),
 
 SDATA (DTP_INTEGER,     "max_topic_alias",  SDF_WR,         "10",     "This option sets the maximum number topic aliases that an MQTT v5 client is allowed to create. This option applies per listener. Defaults to 10. Set to 0 to disallow topic aliases. The maximum value possible is 65535."),
@@ -453,7 +455,7 @@ typedef struct _PRIVATE_DATA {
     uint32_t msgs_out_inflight_quota;
     uint32_t maximum_packet_size;
     uint16_t last_mid;
-    uint8_t max_qos;
+    uint32_t max_qos;
 
     BOOL will;
     const char *will_topic;
@@ -532,6 +534,7 @@ PRIVATE void mt_create(hgobj gobj)
     SET_PRIV(message_size_limit,        gobj_read_integer_attr)
     SET_PRIV(persistence,               gobj_read_bool_attr)
     SET_PRIV(retain_available,          gobj_read_bool_attr)
+    SET_PRIV(max_qos,                   gobj_read_integer_attr)
     SET_PRIV(allow_zero_length_clientid,gobj_read_bool_attr)
     SET_PRIV(max_topic_alias,           gobj_read_integer_attr)
 
@@ -584,6 +587,7 @@ PRIVATE void mt_writing(hgobj gobj, const char *path)
     ELIF_EQ_SET_PRIV(message_size_limit,        gobj_read_integer_attr)
     ELIF_EQ_SET_PRIV(persistence,               gobj_read_bool_attr)
     ELIF_EQ_SET_PRIV(retain_available,          gobj_read_bool_attr)
+    ELIF_EQ_SET_PRIV(max_qos,                   gobj_read_integer_attr)
     ELIF_EQ_SET_PRIV(allow_zero_length_clientid,gobj_read_bool_attr)
     ELIF_EQ_SET_PRIV(max_topic_alias,           gobj_read_integer_attr)
 
