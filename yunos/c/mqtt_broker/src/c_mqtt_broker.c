@@ -730,7 +730,7 @@ PRIVATE int close_database(hgobj gobj)
     /*-----------------------------*
      *  Broadcast timeranger
      *-----------------------------*/
-    // broadcast_tranger_queues(gobj); TODO fails
+    broadcast_tranger_queues(gobj);
 
     return 0;
 }
@@ -2082,7 +2082,6 @@ PRIVATE size_t sub__messages_queue(
      *----------------------------------------------------------------------*/
     json_t *normal_subscribers = json_object();
     search_recursive(gobj, priv->normal_subs, levels, 1, normal_subscribers);
-//print_json2("NORMAL_SUBSCRIBERS", normal_subscribers); // TODO TEST
 
     const char *client_id; json_t *sub;
     json_object_foreach(normal_subscribers, client_id, sub) {
@@ -2097,7 +2096,6 @@ PRIVATE size_t sub__messages_queue(
      *----------------------------------------------------------------------*/
     json_t *shared_subscribers = json_object();
     search_recursive(gobj, priv->shared_subs, levels, 1, shared_subscribers);
-//print_json2("SHARED_SUBSCRIBERS", shared_subscribers); // TODO TEST
 
     json_object_foreach(shared_subscribers, client_id, sub) {
         // TODO envia solo a uno, pero cíclicamente, no siempre al mismo, así hace mosquitto
@@ -2216,7 +2214,7 @@ PRIVATE int ac_on_open(hgobj gobj, const char *event, json_t *kw, hgobj src)
         gobj, kw, "__temp__`channel_gobj", 0, KW_REQUIRED
     );
 
-    if(gobj_trace_level(gobj) & TRACE_MESSAGES || 1) { // TODO remove || 1
+    if(gobj_trace_level(gobj) & TRACE_MESSAGES) {
         gobj_trace_json(
             gobj,
             kw, // not own
@@ -2399,7 +2397,7 @@ print_json2("=====>1 SESSION", session); // TODO TEST
             /*-----------------------------------*
              *      Reuse the session
              *-----------------------------------*/
-            if(prev_session_expiry_interval > 0) { // TODO && no expired
+            if(prev_session_expiry_interval > 0) {
                 // TODO check if prev_session_expiry_interval expired
                 if(protocol_version == mosq_p_mqtt311 || protocol_version == mosq_p_mqtt5) {
                     result = 1; // ack=1 Resume existing session
@@ -2427,8 +2425,6 @@ print_json2("=====>1 SESSION", session); // TODO TEST
          *  Disconnect previous session
          */
         if(prev_gobj_channel) {
-printf("======================> disconnect %s\n", gobj_short_name(prev_gobj_channel)); // TODO TEST
-
             json_t *kw_disconnect = json_object();
             int reason_code = 0;
             if(delete_prev_session) {
@@ -2499,7 +2495,7 @@ PRIVATE int ac_on_close(hgobj gobj, const char *event, json_t *kw, hgobj src)
         gobj, kw, "__temp__`channel_gobj", 0, KW_REQUIRED
     );
 
-    if(gobj_trace_level(gobj) & TRACE_MESSAGES || 1) { // TODO remove || 1
+    if(gobj_trace_level(gobj) & TRACE_MESSAGES) {
         gobj_trace_json(
             gobj,
             kw, // not own
@@ -2630,7 +2626,7 @@ PRIVATE int ac_mqtt_subscribe(hgobj gobj, const char *event, json_t *kw, hgobj s
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
-    if(gobj_trace_level(gobj) & TRACE_MESSAGES || 1) { // TODO remove || 1
+    if(gobj_trace_level(gobj) & TRACE_MESSAGES) {
         gobj_trace_json(
             gobj,
             kw, // not own
@@ -2689,9 +2685,6 @@ PRIVATE int ac_mqtt_subscribe(hgobj gobj, const char *event, json_t *kw, hgobj s
                 subscription_options
             );
 
-print_json2("subs-normal", priv->normal_subs); // TODO TEST
-print_json2("subs-shared", priv->shared_subs); // TODO TEST
-
             if(rc < 0) {
                 KW_DECREF(kw);
                 return rc;
@@ -2715,6 +2708,11 @@ print_json2("subs-shared", priv->shared_subs); // TODO TEST
         }
 
         gbuffer_append_char(gbuf_payload, qos);
+    }
+
+    if(gobj_trace_level(gobj) & TRACE_MESSAGES) {
+        gobj_trace_json(gobj, priv->normal_subs, "subs-normal");
+        gobj_trace_json(gobj, priv->shared_subs, "subs-shared");
     }
 
     // TODO
@@ -2741,7 +2739,7 @@ PRIVATE int ac_mqtt_unsubscribe(hgobj gobj, const char *event, json_t *kw, hgobj
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
-    if(gobj_trace_level(gobj) & TRACE_MESSAGES || 1) { // TODO remove || 1
+    if(gobj_trace_level(gobj) & TRACE_MESSAGES) {
         gobj_trace_json(
             gobj,
             kw, // not own
@@ -2782,8 +2780,10 @@ PRIVATE int ac_mqtt_unsubscribe(hgobj gobj, const char *event, json_t *kw, hgobj
         gbuffer_append_char(gbuf_payload, reason);
     }
 
-    print_json2("subs-normal", priv->normal_subs); // TODO TEST
-    print_json2("subs-shared", priv->shared_subs); // TODO TEST
+    if(gobj_trace_level(gobj) & TRACE_MESSAGES) {
+        gobj_trace_json(gobj, priv->normal_subs, "subs-normal");
+        gobj_trace_json(gobj, priv->shared_subs, "subs-shared");
+    }
 
     KW_DECREF(kw);
     return rc;
@@ -2797,7 +2797,7 @@ PRIVATE int ac_on_message(hgobj gobj, const char *event, json_t *kw, hgobj src)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
-    if(gobj_trace_level(gobj) & TRACE_MESSAGES || 1) { // TODO remove || 1
+    if(gobj_trace_level(gobj) & TRACE_MESSAGES) {
         gobj_trace_json(
             gobj,
             kw, // not own
@@ -2830,7 +2830,7 @@ PRIVATE int ac_mqtt_message(hgobj gobj, const char *event, json_t *kw, hgobj src
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
-    if(gobj_trace_level(gobj) & TRACE_MESSAGES || 1) { // TODO remove || 1
+    if(gobj_trace_level(gobj) & TRACE_MESSAGES) {
         gobj_trace_json(
             gobj,
             kw, // not own
