@@ -234,9 +234,12 @@ PRIVATE int mt_start(hgobj gobj)
     priv->gobj_authz =  gobj_find_service("authz", TRUE);
     gobj_subscribe_event(priv->gobj_authz, 0, 0, gobj);
 
-    /*-----------------*
-     *  Persistent DB TODO move this to play? checkit when all done
-     *-----------------*/
+    /*-----------------------------------------*
+     *  Persistent DB
+     *  open_database cannot be in play/pause,
+     *  EV_ON_CLOSE events are important
+     *  to clear sessions/clients: yuno crash
+     *-----------------------------------------*/
     BOOL mqtt_persistent_db = gobj_read_bool_attr(gobj, "mqtt_persistent_db");
     if(mqtt_persistent_db) {
         open_database(gobj);
@@ -252,9 +255,12 @@ PRIVATE int mt_stop(hgobj gobj)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
-    /*-----------------*
+    /*-----------------------------------------*
      *  Persistent DB
-     *-----------------*/
+     *  close_database cannot be in play/pause,
+     *  EV_ON_CLOSE events are important
+     *  to clear sessions/clients: yuno crash
+     *-----------------------------------------*/
     BOOL mqtt_persistent_db = gobj_read_bool_attr(gobj, "mqtt_persistent_db");
     if(mqtt_persistent_db) {
         close_database(gobj);
