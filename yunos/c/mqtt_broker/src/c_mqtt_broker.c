@@ -2634,9 +2634,13 @@ PRIVATE int ac_mqtt_subscribe(hgobj gobj, const char *event, json_t *kw, hgobj s
     }
 
     const char *client_id = kw_get_str(gobj, kw, "client_id", "", KW_REQUIRED);
-    mosquitto_protocol_t protocol_version = kw_get_int(gobj, kw, "protocol_version", 0, KW_REQUIRED);
+    mosquitto_protocol_t protocol_version = kw_get_int(
+        gobj, kw, "protocol_version", 0, KW_REQUIRED
+    );
     json_t *jn_list = kw_get_list(gobj, kw, "subs", NULL, KW_REQUIRED);
-    gbuffer_t *gbuf_payload = (gbuffer_t *)(uintptr_t)kw_get_int(gobj, kw, "gbuffer", 0, KW_REQUIRED);
+    gbuffer_t *gbuf_payload = (gbuffer_t *)(uintptr_t)kw_get_int(
+        gobj, kw, "gbuffer", 0, KW_REQUIRED
+    );
 
     int rc = 0;
     int idx; json_t *jn_sub;
