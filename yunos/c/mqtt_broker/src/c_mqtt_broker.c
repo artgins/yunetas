@@ -1350,7 +1350,6 @@ PRIVATE int sub__add(
                 "msg",          "%s", "Failed to create subs",
                 NULL
             );
-            JSON_DECREF(subs)
             GBMEM_FREE(local_topic)
             GBMEM_FREE(levels)
             return -1;
@@ -1635,13 +1634,8 @@ PRIVATE int sub__remove(
     prune_empty_branches(root, levels);
 
 cleanup:
-    if(local_topic) {
-        gbmem_free(local_topic);
-    }
-    if(levels) {
-        gbmem_free(levels);
-    }
-
+    GBMEM_FREE(local_topic)
+    GBMEM_FREE(levels)
     return 0;
 }
 
