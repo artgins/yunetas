@@ -5694,6 +5694,7 @@ PRIVATE int handle__subscribe(hgobj gobj, gbuffer_t *gbuf)
     }
 
     gbuffer_t *gbuf_payload = gbuffer_create(256, 12*1024);
+    gbuffer_incref(gbuf_payload); // Avoid be destroyed, get it the response
 
     json_t *kw_subscribe = json_pack("{s:s, s:i, s:o, s:I}",
         "client_id", priv->client_id,
@@ -5707,8 +5708,6 @@ PRIVATE int handle__subscribe(hgobj gobj, gbuffer_t *gbuf)
         EV_MQTT_SUBSCRIBE,
         kw_subscribe // owned
     );
-
-    gbuffer_incref(gbuf_payload); // Avoid be destroyed, get it the response
 
     int rc = gobj_publish_event(
         gobj,
@@ -5894,6 +5893,7 @@ PRIVATE int handle__unsubscribe(hgobj gobj, gbuffer_t *gbuf)
     }
 
     gbuffer_t *gbuf_payload = gbuffer_create(256, 12*1024);
+    gbuffer_incref(gbuf_payload); // Avoid be destroyed, get it the response
 
     json_t *kw_unsubscribe = json_pack("{s:s, s:i, s:o, s:I}",
         "client_id", priv->client_id,
@@ -5907,8 +5907,6 @@ PRIVATE int handle__unsubscribe(hgobj gobj, gbuffer_t *gbuf)
         EV_MQTT_UNSUBSCRIBE,
         kw_unsubscribe // owned
     );
-
-    gbuffer_incref(gbuf_payload); // Avoid be destroyed, get it the response
 
     int rc = gobj_publish_event(
         gobj,
