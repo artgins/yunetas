@@ -1707,7 +1707,6 @@ PRIVATE int sub__remove_client(hgobj gobj, const char *client_id)
 
 /***************************************************************************
  *  Subscription: search if the topic has a retain message and process
- *  TODO study retain.c and implement it
  ***************************************************************************/
 PRIVATE int retain__queue(
     hgobj gobj,
