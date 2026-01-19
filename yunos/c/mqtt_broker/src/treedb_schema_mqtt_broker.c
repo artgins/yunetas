@@ -133,7 +133,7 @@
             │  payload                  │
             │  qos                      │
             │  time                     │
-            │  message_expiry_interval  │
+            │  message_expiry_time      │
             │  payload_format_indicator │
             │  content_type             │
             │  response_topic           │
@@ -163,7 +163,7 @@
 static char treedb_schema_mqtt_broker[]= "\
 {                                                                   \n\
     'id': 'treedb_mqtt_broker',                                     \n\
-    'schema_version': '8',                                         	\n\
+    'schema_version': '9',                                         	\n\
     'topics': [                                                     \n\
         {                                                           \n\
             'id': 'client_groups',                                  \n\
@@ -686,7 +686,7 @@ static char treedb_schema_mqtt_broker[]= "\
             'id': 'retained_msgs',                                  \n\
             'pkey': 'id',                                           \n\
             'system_flag': 'sf_string_key',                         \n\
-            'topic_version': '1',                                   \n\
+            'topic_version': '2',                                   \n\
             'cols': {                                               \n\
                 'id': {                                             \n\
                     'header': 'Topic',                              \n\
@@ -724,7 +724,7 @@ static char treedb_schema_mqtt_broker[]= "\
                         'persistent'                                \n\
                     ]                                               \n\
                 },                                                  \n\
-                'message_expiry_interval': {                        \n\
+                'message_expiry_time': {                            \n\
                     'header': 'Msg Expiry',                         \n\
                     'fillspace': 10,                                \n\
                     'type': 'integer',                              \n\
