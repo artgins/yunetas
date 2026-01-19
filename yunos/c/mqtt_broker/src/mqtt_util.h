@@ -89,7 +89,7 @@ typedef enum mqtt311_connack_codes { // string names in mqtt311_connack_codes_s[
  * Enum: mqtt5_return_codes
  * The reason codes returned in various MQTT commands.
  */
-typedef enum mqtt5_return_codes { // string names in mqtt5_return_codes_s[]
+typedef enum mqtt5_reason_codes { // string names in mqtt_reason_string()
     MQTT_RC_SUCCESS = 0,    /* CONNACK, PUBACK, PUBREC, PUBREL, PUBCOMP, UNSUBACK, AUTH */
     MQTT_RC_NORMAL_DISCONNECTION = 0,           /* DISCONNECT */
     MQTT_RC_GRANTED_QOS0 = 0,                   /* SUBACK */
@@ -136,7 +136,7 @@ typedef enum mqtt5_return_codes { // string names in mqtt5_return_codes_s[]
     MQTT_RC_MAXIMUM_CONNECT_TIME = 160,         /* DISCONNECT */
     MQTT_RC_SUBSCRIPTION_IDS_NOT_SUPPORTED = 161,   /* SUBACK, DISCONNECT */
     MQTT_RC_WILDCARD_SUBS_NOT_SUPPORTED = 162,      /* SUBACK, DISCONNECT */
-} mqtt5_return_codes_t;
+} mqtt5_reason_codes_t;
 
 /*
  * Enum: mqtt5_property
@@ -276,7 +276,7 @@ typedef enum mqtt5_sub_options {
  *              Prototypes
  ***************************************************************/
 PUBLIC const char *mqtt_connack_string(mqtt311_connack_codes_t connack_code);
-PUBLIC const char *mqtt_reason_string(mqtt5_return_codes_t reason_code);
+PUBLIC const char *mqtt_reason_string(mqtt5_reason_codes_t reason_code);
 PUBLIC const char *mqtt_command_string(mqtt_message_t command);
 PUBLIC const char *mqtt_property_identifier_to_string(int identifier);
 

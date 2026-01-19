@@ -81,7 +81,7 @@ PUBLIC const char *mqtt_connack_string(mqtt311_connack_codes_t connack_code)
 /***************************************************************************
  *
  ***************************************************************************/
-PUBLIC const char *mqtt_reason_string(mqtt5_return_codes_t reason_code)
+PUBLIC const char *mqtt_reason_string(mqtt5_reason_codes_t reason_code)
 {
     switch(reason_code) {
         case MQTT_RC_SUCCESS:

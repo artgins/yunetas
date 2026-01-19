@@ -1321,7 +1321,9 @@ PRIVATE int sub__add(
             "topic",        "%s", topic,
             NULL
         );
-        goto cleanup;
+        GBMEM_FREE(local_topic)
+        GBMEM_FREE(levels)
+        return -1;
     }
 
     /*----------------------------*
@@ -1337,11 +1339,21 @@ PRIVATE int sub__add(
                 "msg",          "%s", "Failed to create subs dict",
                 NULL
             );
-            goto cleanup;
+            GBMEM_FREE(local_topic)
+            GBMEM_FREE(levels)
+            return -1;
         }
         if(json_object_set_new(node, SUBS_KEY, subs) < 0) {
-            json_decref(subs);
-            goto cleanup;
+            gobj_log_error(gobj, 0,
+                "function",     "%s", __FUNCTION__,
+                "msgset",       "%s", MSGSET_MEMORY_ERROR,
+                "msg",          "%s", "Failed to create subs",
+                NULL
+            );
+            JSON_DECREF(subs)
+            GBMEM_FREE(local_topic)
+            GBMEM_FREE(levels)
+            return -1;
         }
     }
 
@@ -1360,7 +1372,9 @@ PRIVATE int sub__add(
             "msg",          "%s", "Failed to create subscription info",
             NULL
         );
-        goto cleanup;
+        GBMEM_FREE(local_topic)
+        GBMEM_FREE(levels)
+        return -1;
     }
 
     /*
@@ -1374,17 +1388,19 @@ PRIVATE int sub__add(
     }
     if(json_object_set_new(subs, client_id, sub_info) < 0) {
         json_decref(sub_info);
-        ret = -1;
+        gobj_log_error(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_MEMORY_ERROR,
+            "msg",          "%s", "Failed to create sub_info",
+            NULL
+        );
+        GBMEM_FREE(local_topic)
+        GBMEM_FREE(levels)
+        return -1;
     }
 
-cleanup:
-    if(local_topic) {
-        gbmem_free(local_topic);
-    }
-    if(levels) {
-        gbmem_free(levels);
-    }
-
+    GBMEM_FREE(local_topic);
+    GBMEM_FREE(levels);
     return ret;
 }
 
@@ -1530,11 +1546,14 @@ PRIVATE void prune_empty_branches(json_t *root, char **levels)
  *  Example:
  *      sub__remove(gobj, "home/+/temperature", "client_001");
  ***************************************************************************/
-PRIVATE int sub__remove(hgobj gobj, const char *topic, const char *client_id, int *reason)
-{
+PRIVATE int sub__remove(
+    hgobj gobj,
+    const char *topic,
+    const char *client_id,
+    mqtt5_reason_codes_t *reason
+) {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
-    int ret = -1;
     char *local_topic = NULL;
     char **levels = NULL;
     const char *sharename = NULL;
@@ -1582,7 +1601,7 @@ PRIVATE int sub__remove(hgobj gobj, const char *topic, const char *client_id, in
         /*
          *  Topic path doesn't exist, nothing to remove
          */
-        ret = MQTT_RC_NO_SUBSCRIPTION_EXISTED;
+        *reason = MQTT_RC_NO_SUBSCRIPTION_EXISTED;
         goto cleanup;
     }
 
@@ -1594,7 +1613,7 @@ PRIVATE int sub__remove(hgobj gobj, const char *topic, const char *client_id, in
         /*
          *  No subscribers at this node
          */
-        ret = MQTT_RC_NO_SUBSCRIPTION_EXISTED;
+        *reason = MQTT_RC_NO_SUBSCRIPTION_EXISTED;
         goto cleanup;
     }
 
@@ -1615,8 +1634,6 @@ PRIVATE int sub__remove(hgobj gobj, const char *topic, const char *client_id, in
      *-------------------------*/
     prune_empty_branches(root, levels);
 
-    ret = 0;
-
 cleanup:
     if(local_topic) {
         gbmem_free(local_topic);
@@ -1625,7 +1642,7 @@ cleanup:
         gbmem_free(levels);
     }
 
-    return ret;
+    return 0;
 }
 
 /***************************************************************************
@@ -2642,7 +2659,6 @@ PRIVATE int ac_mqtt_subscribe(hgobj gobj, const char *event, json_t *kw, hgobj s
         gobj, kw, "gbuffer", 0, KW_REQUIRED
     );
 
-    int rc = 0;
     int idx; json_t *jn_sub;
     json_array_foreach(jn_list, idx, jn_sub) {
         const char *sub = kw_get_str(gobj, jn_sub, "sub", NULL, KW_REQUIRED);
@@ -2655,19 +2671,18 @@ PRIVATE int ac_mqtt_subscribe(hgobj gobj, const char *event, json_t *kw, hgobj s
         );
         int retain_handling = (int)kw_get_int(gobj, jn_sub, "retain_handling", 0, KW_REQUIRED);
 
+        mqtt5_reason_codes_t reason = qos;
         BOOL allowed = TRUE;
         // allowed = mosquitto_acl_check(context, sub, 0, NULL, qos, FALSE, MOSQ_ACL_SUBSCRIBE); TODO
         if(!allowed) {
             // TODO
             if(protocol_version == mosq_p_mqtt5) {
-                qos = MQTT_RC_NOT_AUTHORIZED;
+                reason = MQTT_RC_NOT_AUTHORIZED;
             } else if(protocol_version == mosq_p_mqtt311) {
-                qos = 0x80;
+                reason = 0x80;
             }
-        }
-
-        if(allowed) {
-            rc = sub__add(
+        } else {
+            int rc = sub__add( // WARNING return 1 if subs already exists
                 gobj,
                 sub,
                 client_id,
@@ -2675,30 +2690,26 @@ PRIVATE int ac_mqtt_subscribe(hgobj gobj, const char *event, json_t *kw, hgobj s
                 subscription_identifier,
                 subscription_options
             );
-
-            if(rc < 0) {
+            if(rc<0) {
                 KW_DECREF(kw);
-                return rc;
+                return -1;
             }
 
             if(protocol_version == mosq_p_mqtt311 || protocol_version == mosq_p_mqtt31) {
-                if(rc == 0 || rc == 1) { // rc = 1 -> MOSQ_ERR_SUB_EXISTS
-                    if(retain__queue(gobj, sub, qos, 0)) {
-                        rc = -1;
-                    }
-                }
+                retain__queue(gobj, sub, qos, 0);
             } else {
                 if((retain_handling == MQTT_SUB_OPT_SEND_RETAIN_ALWAYS) ||
                     (rc == 0 && retain_handling == MQTT_SUB_OPT_SEND_RETAIN_NEW)
                 ) {
-                    if(retain__queue(gobj, sub, qos, subscription_identifier)) {
-                        rc = -1;
-                    }
+                    retain__queue(gobj, sub, qos, subscription_identifier);
                 }
             }
         }
 
-        gbuffer_append_char(gbuf_payload, qos);
+        /*
+         *  Add the reason code to response
+         */
+        gbuffer_append_char(gbuf_payload, reason);
     }
 
     if(gobj_trace_level(gobj) & TRACE_MESSAGES) {
@@ -2719,7 +2730,7 @@ PRIVATE int ac_mqtt_subscribe(hgobj gobj, const char *event, json_t *kw, hgobj s
     // }
 
     KW_DECREF(kw);
-    return rc;
+    return 0;
 }
 
 /***************************************************************************
@@ -2754,20 +2765,27 @@ PRIVATE int ac_mqtt_unsubscribe(hgobj gobj, const char *event, json_t *kw, hgobj
     json_t *jn_list = kw_get_list(gobj, kw, "subs", NULL, KW_REQUIRED);
     gbuffer_t *gbuf_payload = (gbuffer_t *)(uintptr_t)kw_get_int(gobj, kw, "gbuffer", 0, KW_REQUIRED);
 
-    int rc = 0;
     int idx; json_t *jn_sub;
     json_array_foreach(jn_list, idx, jn_sub) {
         const char *sub = kw_get_str(gobj, jn_sub, "sub", NULL, KW_REQUIRED);
 
         // /* ACL check */
-        int reason = 0;
+        mqtt5_reason_codes_t reason = 0;
         BOOL allowed = TRUE;
         // allowed = mosquitto_acl_check(context, sub, 0, NULL, 0, FALSE, MOSQ_ACL_UNSUBSCRIBE); TODO
-        if(allowed) {
-            rc += sub__remove(gobj, sub, client_id, &reason);
-        } else {
+        if(!allowed) {
             reason = MQTT_RC_NOT_AUTHORIZED;
+        } else {
+            if(sub__remove(gobj, sub, client_id, &reason)<0) {
+                // Error already logged
+                KW_DECREF(kw);
+                return -1;
+            }
         }
+
+        /*
+         *  Add the reason code to response, but it will be used only in mqtt5 version
+         */
         gbuffer_append_char(gbuf_payload, reason);
     }
 
@@ -2777,7 +2795,7 @@ PRIVATE int ac_mqtt_unsubscribe(hgobj gobj, const char *event, json_t *kw, hgobj
     }
 
     KW_DECREF(kw);
-    return rc;
+    return 0;
 }
 
 /***************************************************************************
