@@ -5693,6 +5693,8 @@ PRIVATE int handle__subscribe(hgobj gobj, gbuffer_t *gbuf)
         }
     }
 
+    JSON_DECREF(properties); // Free subscribe command properties
+
     gbuffer_t *gbuf_payload = gbuffer_create(256, 12*1024);
     gbuffer_incref(gbuf_payload); // Avoid be destroyed, get it the response
 
@@ -5714,17 +5716,17 @@ PRIVATE int handle__subscribe(hgobj gobj, gbuffer_t *gbuf)
         EV_ON_IEV_MESSAGE,
         kw_iev // owned but gbuf_payload survives
     );
+    if(rc < 0) {
+        gbuffer_decref(gbuf_payload);
+        return -1;
+    }
 
-    JSON_DECREF(properties)
-
-    rc += send__suback(
+    return send__suback(
         gobj,
         mid,
         gbuf_payload, // owned
-        properties // owned
+        NULL // owned (properties suback not used)
     );
-
-    return rc;
 }
 
 /***************************************************************************
@@ -5892,6 +5894,8 @@ PRIVATE int handle__unsubscribe(hgobj gobj, gbuffer_t *gbuf)
         reason_code_count++;
     }
 
+    JSON_DECREF(properties); // Free unsubscribe command properties
+
     gbuffer_t *gbuf_payload = gbuffer_create(256, 12*1024);
     gbuffer_incref(gbuf_payload); // Avoid be destroyed, get it the response
 
@@ -5913,17 +5917,17 @@ PRIVATE int handle__unsubscribe(hgobj gobj, gbuffer_t *gbuf)
         EV_ON_IEV_MESSAGE,
         kw_iev // owned but gbuf_payload survives
     );
+    if(rc < 0) {
+        gbuffer_decref(gbuf_payload);
+        return -1;
+    }
 
-    JSON_DECREF(properties)
-
-    rc += send__unsuback(
+    return send__unsuback(
         gobj,
         mid,
         gbuf_payload, // owned
-        properties // owned
+        NULL // owned (properties unsuback not used)
     );
-
-    return rc;
 }
 
 /***************************************************************************
