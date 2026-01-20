@@ -58,7 +58,7 @@ PRIVATE const char *sf_names[16+1] = {
     "",                         // 0x0080
     "sf_t_ms",                  // 0x0100
     "sf_tm_ms",                 // 0x0200
-    "sf_deleted_record",        // 0x0400
+    "",                         // 0x0400
     "",                         // 0x0800
 
     // Non-inherited
@@ -4854,7 +4854,6 @@ PRIVATE json_t *load_key_cache_from_disk(
  *  Only the master can write or delete, non-master only can read.
  *  The metadata `md2_record_t` can be updated only in two cases:
  *    - any bit in `user_flag`
- *    - `sf_deleted_record` bit in `system_flag` field when the record is deleted
  ***************************************************************************/
 PRIVATE json_t *update_cache_cell(
     json_t *file_cache,
@@ -7045,9 +7044,6 @@ PRIVATE json_t *read_record_content(
 )
 {
     hgobj gobj = (hgobj)json_integer_value(json_object_get(tranger, "gobj"));
-//// TODO   if(system_flag & sf_deleted_record) {
-////        return 0;
-////    }
 
     /*
      *  Get file handler

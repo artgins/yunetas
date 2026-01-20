@@ -996,9 +996,8 @@ PUBLIC json_t *treedb_open_db( // WARNING Return IS NOT YOURS!
             "rkey", "",
             "load_record_callback", (json_int_t)(uintptr_t)load_id_callback
         );
-        json_t *jn_extra = json_pack("{s:s, s:{}}",
-            "treedb_name", treedb_name,
-            "deleted_records"
+        json_t *jn_extra = json_pack("{s:s}",
+            "treedb_name", treedb_name
         );
         if(!tranger2_open_list(
             tranger,
@@ -1048,9 +1047,8 @@ PUBLIC json_t *treedb_open_db( // WARNING Return IS NOT YOURS!
             "rkey", "",
             "load_record_callback", (json_int_t)(uintptr_t)load_id_callback
         );
-        json_t *jn_extra = json_pack("{s:s, s:{}}",
-            "treedb_name", treedb_name,
-            "deleted_records"
+        json_t *jn_extra = json_pack("{s:s}",
+            "treedb_name", treedb_name
         );
         if(!tranger2_open_list(
             tranger,
@@ -1441,10 +1439,9 @@ PUBLIC json_t *treedb_create_topic(  // WARNING Return is NOT YOURS
             json_integer(snap_tag)
         );
     }
-    json_t *jn_extra = json_pack("{s:i, s:s, s:{}}",
+    json_t *jn_extra = json_pack("{s:i, s:s}",
         "snap_tag", (int)snap_tag,
-        "treedb_name", treedb_name,
-        "deleted_records"
+        "treedb_name", treedb_name
     );
     json_t *rt = tranger2_open_list(
         tranger,
@@ -1514,11 +1511,10 @@ PUBLIC json_t *treedb_create_topic(  // WARNING Return is NOT YOURS
 //            );
 //        }
 
-        json_t *jn_extra_ = json_pack("{s:i, s:s, s:s, s:{}}",
+        json_t *jn_extra_ = json_pack("{s:i, s:s, s:s}",
             "snap_tag", (int)snap_tag,
             "treedb_name", treedb_name,
-            "pkey2_name", pkey2_name,
-            "deleted_records"
+            "pkey2_name", pkey2_name
         );
 
         if(!tranger2_open_list(
@@ -3235,10 +3231,6 @@ PRIVATE int load_id_callback(
 {
     hgobj gobj = (hgobj)json_integer_value(json_object_get(tranger, "gobj"));
 
-    json_t *deleted_records = kw_get_dict(
-        gobj,
-        list, "deleted_records", 0, KW_REQUIRED
-    );
     const char *treedb_name = kw_get_str(
         gobj,
         list, "treedb_name", 0, KW_REQUIRED
@@ -3265,76 +3257,52 @@ PRIVATE int load_id_callback(
     }
 
     system_flag2_t system_flag = md_record->system_flag;
-    if(system_flag & sf_loading_from_disk) {
+    if(system_flag & (sf_loading_from_disk)) {
         /*---------------------------------*
          *  Loading treedb from disk
          *---------------------------------*/
-        if(system_flag & (sf_deleted_record)) {
-            /*---------------------------------*
-             *      Record deleted
-             *---------------------------------*/
-            json_object_set_new(
-                deleted_records,
-                key,
-                json_true()
-            );
+        /*-------------------------------*
+         *  Exists already the node?
+         *-------------------------------*/
+        if(exist_primary_node(indexx, key)) {
+            // Ignore
+            // The node with this key already exists
+            // HACK using backward, the first record is the last record
         } else {
-            /*-------------------------------------*
-             *  If not deleted record append node
-             *-------------------------------------*/
-            if(!json_object_get(deleted_records, key)) {
-                /*-------------------------------*
-                 *  Exists already the node?
-                 *-------------------------------*/
-                if(exist_primary_node(indexx, key)) {
-                    // Ignore
-                    // The node with this key already exists
-                    // HACK using backward, the first record is the last record
-                } else {
-                    /*-------------------------------*
-                     *  Append new node
-                     *-------------------------------*/
-                    /*---------------------------------------------*
-                     *  Build metadata, loading node from disk
-                     *---------------------------------------------*/
-                    json_t *jn_record_md = md2json(
-                        treedb_name,
-                        topic_name,
-                        md_record,
-                        rowid
-                    );
-                    json_object_set_new(jn_record_md, "pending_links", json_true());
-                    json_object_set_new(jn_record, "__md_treedb__", jn_record_md);
-                    json_object_del(jn_record, "__md_tranger__");
+            /*-------------------------------*
+             *  Append new node
+             *-------------------------------*/
+            /*---------------------------------------------*
+             *  Build metadata, loading node from disk
+             *---------------------------------------------*/
+            json_t *jn_record_md = md2json(
+                treedb_name,
+                topic_name,
+                md_record,
+                rowid
+            );
+            json_object_set_new(jn_record_md, "pending_links", json_true());
+            json_object_set_new(jn_record, "__md_treedb__", jn_record_md);
+            json_object_del(jn_record, "__md_tranger__");
 
-                    /*--------------------------------------------*
-                     *  Set missing data
-                     *--------------------------------------------*/
-                    set_missing_values( // fill empty fields
-                        gobj,
-                        tranger,
-                        topic_name,
-                        jn_record  // NOT owned
-                    );
+            /*--------------------------------------------*
+             *  Set missing data
+             *--------------------------------------------*/
+            set_missing_values( // fill empty fields
+                gobj,
+                tranger,
+                topic_name,
+                jn_record  // NOT owned
+            );
 
-                    /*-------------------------------*
-                     *  Write node in memory: id
-                     *-------------------------------*/
-                    add_primary_node(
-                        indexx,
-                        key,
-                        jn_record
-                    );
-                }
-            }
-        }
-    } else {
-        /*---------------------------------*
-         *      Working in memory
-         *---------------------------------*/
-        if(json_object_get(deleted_records, key)) {
-            // This key is operative again
-            json_object_del(deleted_records, key);
+            /*-------------------------------*
+             *  Write node in memory: id
+             *-------------------------------*/
+            add_primary_node(
+                indexx,
+                key,
+                jn_record
+            );
         }
     }
 
@@ -3358,10 +3326,6 @@ PRIVATE int load_pkey2_callback(
 {
     hgobj gobj = (hgobj)json_integer_value(json_object_get(tranger, "gobj"));
 
-    json_t *deleted_records = kw_get_dict(
-        gobj,
-        list, "deleted_records", 0, KW_REQUIRED
-    );
     const char *treedb_name = kw_get_str(
         gobj,
         list, "treedb_name", 0, KW_REQUIRED
@@ -3402,79 +3366,55 @@ PRIVATE int load_pkey2_callback(
         /*---------------------------------*
          *  Loading treedb from disk
          *---------------------------------*/
-        if(system_flag & (sf_deleted_record)) {
-            /*---------------------------------*
-             *      Record deleted
-             *---------------------------------*/
-            json_object_set_new(
-                deleted_records,
-                key,
-                json_true()
-            );
+        /*-------------------------------*
+         *  Exists already the node?
+         *-------------------------------*/
+        const char *pkey2_value = get_key2_value(
+            tranger,
+            topic_name,
+            pkey2_name,
+            jn_record
+        );
+        if(exist_secondary_node(indexy, key, pkey2_value)) {
+            // Ignore
+            // The node with this key already exists
+            // HACK using backward, the first record is the last record
         } else {
-            /*-------------------------------------*
-             *  If not deleted record append node
-             *-------------------------------------*/
-            if(!json_object_get(deleted_records, key)) {
-                /*-------------------------------*
-                 *  Exists already the node?
-                 *-------------------------------*/
-                const char *pkey2_value = get_key2_value(
-                    tranger,
-                    topic_name,
-                    pkey2_name,
-                    jn_record
-                );
-                if(exist_secondary_node(indexy, key, pkey2_value)) {
-                    // Ignore
-                    // The node with this key already exists
-                    // HACK using backward, the first record is the last record
-                } else {
-                    /*-------------------------------*
-                     *  Append new node
-                     *-------------------------------*/
-                    /*---------------------------------------------*
-                     *  Build metadata, loading node from disk
-                     *---------------------------------------------*/
-                    json_t *jn_record_md = md2json(
-                        treedb_name,
-                        topic_name,
-                        md_record,
-                        rowid
-                    );
-                    // json_object_set_new(jn_record_md, "pending_links", json_true());
-                    json_object_set_new(jn_record, "__md_treedb__", jn_record_md);
-                    json_object_del(jn_record, "__md_tranger__");
+            /*-------------------------------*
+             *  Append new node
+             *-------------------------------*/
+            /*---------------------------------------------*
+             *  Build metadata, loading node from disk
+             *---------------------------------------------*/
+            json_t *jn_record_md = md2json(
+                treedb_name,
+                topic_name,
+                md_record,
+                rowid
+            );
+            // json_object_set_new(jn_record_md, "pending_links", json_true());
+            json_object_set_new(jn_record, "__md_treedb__", jn_record_md);
+            json_object_del(jn_record, "__md_tranger__");
 
-                    /*--------------------------------------------*
-                     *  Set missing data
-                     *--------------------------------------------*/
-                    set_missing_values( // fill empty fields
-                        gobj,
-                        tranger,
-                        topic_name,
-                        jn_record // NOT owned
-                    );
+            /*--------------------------------------------*
+             *  Set missing data
+             *--------------------------------------------*/
+            set_missing_values( // fill empty fields
+                gobj,
+                tranger,
+                topic_name,
+                jn_record // NOT owned
+            );
 
-                    /*-------------------------------*
-                     *  Write node in memory: pkey2
-                     *-------------------------------*/
-                    add_secondary_node(
-                        indexy,
-                        key,
-                        pkey2_value,
-                        jn_record
-                    );
-                }
-            }
-        }
-    } else {
-        /*---------------------------------*
-         *      Working in memory
-         *---------------------------------*/
-        if(json_object_get(deleted_records, key)) {
-            // This key is operative again
-            json_object_del(deleted_records, key);
+            /*-------------------------------*
+             *  Write node in memory: pkey2
+             *-------------------------------*/
+            add_secondary_node(
+                indexy,
+                key,
+                pkey2_value,
+                jn_record
+            );
         }
     }
 
