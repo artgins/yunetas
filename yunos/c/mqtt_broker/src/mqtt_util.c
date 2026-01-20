@@ -222,7 +222,7 @@ PUBLIC const char *mqtt_command_string(mqtt_message_t command)
 /***************************************************************************
  *
  ***************************************************************************/
-PUBLIC const char *mqtt_property_identifier_to_string(int identifier)
+PUBLIC const char *mqtt_property_identifier_to_string(uint32_t identifier)
 {
     hgobj gobj = 0;
 

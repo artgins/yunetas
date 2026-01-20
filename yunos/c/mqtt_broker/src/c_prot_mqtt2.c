@@ -2920,8 +2920,18 @@ PRIVATE int mosquitto_property_check_command(hgobj gobj, int command, int identi
 }
 
 /***************************************************************************
- *
- ***************************************************************************/
+ *  Structure of a property:
+
+    "property-name": {
+        "identifier": 17,
+        "name": "property-name",
+        "type": 3,
+        "value": 4294967295     // can be integer or string or base64-string
+    },
+
+    "user-property" is a special case
+
+***************************************************************************/
 PRIVATE int property_read(hgobj gobj, gbuffer_t *gbuf, uint32_t *len, json_t *all_properties)
 {
     uint8_t byte;
@@ -3040,7 +3050,6 @@ PRIVATE int property_read(hgobj gobj, gbuffer_t *gbuf, uint32_t *len, json_t *al
             }
             *len = (*len) - 2 - slen1; /* uint16, string len */
             json_object_set_new(property, "value", json_stringn(str1, slen1));
-            json_object_set_new(property, "value_length", json_integer(slen1));
             break;
 
         case MQTT_PROP_AUTHENTICATION_DATA:
@@ -3055,7 +3064,6 @@ PRIVATE int property_read(hgobj gobj, gbuffer_t *gbuf, uint32_t *len, json_t *al
             // Save binary data in base64
             gbuffer_t *gbuf_b64 = gbuffer_string_to_base64(str1, slen1);
             json_object_set_new(property, "value", json_string(gbuffer_cur_rd_pointer(gbuf_b64)));
-            json_object_set_new(property, "value_length", json_integer(slen1));
             GBUFFER_DECREF(gbuf_b64);
             break;
 
@@ -3076,10 +3084,9 @@ PRIVATE int property_read(hgobj gobj, gbuffer_t *gbuf, uint32_t *len, json_t *al
             *len = (*len) - 2 - slen2; /* uint16, string len */
 
             json_object_set_new(property, "name", json_stringn(str1, slen1));
-            json_object_set_new(property, "name_length", json_integer(slen1));
-
             json_object_set_new(property, "value", json_stringn(str2, slen2));
-            json_object_set_new(property, "value_length", json_integer(slen2));
+            // using original MQTT_PROP_USER_PROPERTY implies save only one user property
+            property_name = kw_get_str(gobj, property, "name", NULL, KW_REQUIRED);
             break;
 
         default:
@@ -3107,7 +3114,7 @@ PRIVATE int mqtt_property_check_all(hgobj gobj, int command, json_t *all_propert
     const char *property_name; json_t *property;
     json_object_foreach(all_properties, property_name, property) {
         /* Validity checks */
-        int identifier = kw_get_int(gobj, property, "identifier", 0, KW_REQUIRED);
+        int identifier = (int)kw_get_int(gobj, property, "identifier", 0, KW_REQUIRED);
         if(identifier == MQTT_PROP_REQUEST_PROBLEM_INFORMATION
                 || identifier == MQTT_PROP_PAYLOAD_FORMAT_INDICATOR
                 || identifier == MQTT_PROP_REQUEST_RESPONSE_INFORMATION
@@ -3117,7 +3124,7 @@ PRIVATE int mqtt_property_check_all(hgobj gobj, int command, json_t *all_propert
                 || identifier == MQTT_PROP_SUBSCRIPTION_ID_AVAILABLE
                 || identifier == MQTT_PROP_SHARED_SUB_AVAILABLE) {
 
-            int value = kw_get_int(gobj, property, "value", 0, KW_REQUIRED);
+            int value = (int)kw_get_int(gobj, property, "value", 0, KW_REQUIRED);
             if(value > 1) {
                 gobj_log_error(gobj, 0,
                     "function",     "%s", __FUNCTION__,
@@ -3129,7 +3136,7 @@ PRIVATE int mqtt_property_check_all(hgobj gobj, int command, json_t *all_propert
                 return MOSQ_ERR_MALFORMED_PACKET;
             }
         } else if(identifier == MQTT_PROP_MAXIMUM_PACKET_SIZE) {
-            int value = kw_get_int(gobj, property, "value", 0, KW_REQUIRED);
+            int value = (int)kw_get_int(gobj, property, "value", 0, KW_REQUIRED);
             if(value == 0) {
                 gobj_log_error(gobj, 0,
                     "function",     "%s", __FUNCTION__,
@@ -3143,7 +3150,7 @@ PRIVATE int mqtt_property_check_all(hgobj gobj, int command, json_t *all_propert
         } else if(identifier == MQTT_PROP_RECEIVE_MAXIMUM
                 || identifier == MQTT_PROP_TOPIC_ALIAS) {
 
-            int value = kw_get_int(gobj, property, "value", 0, KW_REQUIRED);
+            int value = (int)kw_get_int(gobj, property, "value", 0, KW_REQUIRED);
             if(value == 0) {
                 gobj_log_error(gobj, 0,
                     "function",     "%s", __FUNCTION__,

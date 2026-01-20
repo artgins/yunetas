@@ -278,7 +278,7 @@ typedef enum mqtt5_sub_options {
 PUBLIC const char *mqtt_connack_string(mqtt311_connack_codes_t connack_code);
 PUBLIC const char *mqtt_reason_string(mqtt5_reason_codes_t reason_code);
 PUBLIC const char *mqtt_command_string(mqtt_message_t command);
-PUBLIC const char *mqtt_property_identifier_to_string(int identifier);
+PUBLIC const char *mqtt_property_identifier_to_string(uint32_t identifier);
 
 /*
  * Check whether a topic to be used for publishing is valid.
