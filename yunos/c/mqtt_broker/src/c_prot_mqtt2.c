@@ -429,7 +429,6 @@ typedef struct _PRIVATE_DATA {
     int max_keepalive;
     int max_packet_size;
     int message_size_limit;
-    BOOL persistence;
     BOOL retain_available;
     BOOL allow_zero_length_clientid;
     int max_topic_alias;
@@ -530,7 +529,6 @@ PRIVATE void mt_create(hgobj gobj)
     SET_PRIV(max_keepalive,             gobj_read_integer_attr)
     SET_PRIV(max_packet_size,           gobj_read_integer_attr)
     SET_PRIV(message_size_limit,        gobj_read_integer_attr)
-    SET_PRIV(persistence,               gobj_read_bool_attr)
     SET_PRIV(retain_available,          gobj_read_bool_attr)
     SET_PRIV(max_qos,                   gobj_read_integer_attr)
     SET_PRIV(allow_zero_length_clientid,gobj_read_bool_attr)
@@ -583,7 +581,6 @@ PRIVATE void mt_writing(hgobj gobj, const char *path)
     ELIF_EQ_SET_PRIV(max_keepalive,             gobj_read_integer_attr)
     ELIF_EQ_SET_PRIV(max_packet_size,           gobj_read_integer_attr)
     ELIF_EQ_SET_PRIV(message_size_limit,        gobj_read_integer_attr)
-    ELIF_EQ_SET_PRIV(persistence,               gobj_read_bool_attr)
     ELIF_EQ_SET_PRIV(retain_available,          gobj_read_bool_attr)
     ELIF_EQ_SET_PRIV(max_qos,                   gobj_read_integer_attr)
     ELIF_EQ_SET_PRIV(allow_zero_length_clientid,gobj_read_bool_attr)
