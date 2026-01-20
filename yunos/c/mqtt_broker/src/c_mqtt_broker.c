@@ -1721,15 +1721,36 @@ PRIVATE int sub__remove_client(hgobj gobj, const char *client_id)
  ***************************************************************************/
 PRIVATE int retain__queue(
     hgobj gobj,
-    const char *sub,
+    const char *topic,
     uint8_t sub_qos,
     uint32_t subscription_identifier
 )
 {
-    if(strncmp(sub, "$share/", strlen("$share/"))==0) {
+    if(strncmp(topic, "$share/", strlen("$share/"))==0) {
         return 0;
     }
+
+    /*------------------*
+     *  Tokenize topic
+     *------------------*/
+    char *local_topic = NULL;
+    char **levels = NULL;
+    const char *sharename = NULL;
+    if(topic_tokenize(topic, &local_topic, &levels, &sharename) < 0) {
+        gobj_log_error(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+            "msg",          "%s", "Failed to tokenize topic",
+            "topic",        "%s", topic,
+            NULL
+        );
+        return -1;
+    }
+
+
     // TODO
+    GBMEM_FREE(local_topic)
+    GBMEM_FREE(levels)
     return 0;
 }
 
@@ -2113,13 +2134,8 @@ PRIVATE size_t sub__messages_queue(
     }
 
 cleanup:
-    if(local_topic) {
-        gbmem_free(local_topic);
-    }
-    if(levels) {
-        gbmem_free(levels);
-    }
-
+    GBMEM_FREE(local_topic)
+    GBMEM_FREE(levels)
     return total_sent;
 }
 
