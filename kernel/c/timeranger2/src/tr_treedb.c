@@ -2866,14 +2866,49 @@ PRIVATE int set_tranger_field_value(
 /***************************************************************************
  *
  ***************************************************************************/
-PRIVATE int set_field_value(
-    const char *type,
+PRIVATE int set_mem_field_value(
+    const char *topic_name, // used only for log
     const char *field,
+    json_t *col,    // NOT owned
     json_t *record, // NOT owned
     json_t *value   // NOT owned
 )
 {
     hgobj gobj = 0;
+
+    if(!field) {
+        field = kw_get_str(gobj, col, "id", 0, KW_REQUIRED);
+    }
+    if(!field) {
+        gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_TREEDB_ERROR,
+            "msg",          "%s", "Col desc without 'id'",
+            "topic_name",   "%s", topic_name,
+            "col",          "%j", col,
+            NULL
+        );
+        return -1;
+    }
+    const char *type = kw_get_str(gobj, col, "type", 0, KW_REQUIRED);
+    if(!type) {
+        gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_TREEDB_ERROR,
+            "msg",          "%s", "Col desc without 'type'",
+            "topic_name",   "%s", topic_name,
+            "col",          "%j", col,
+            "field",        "%s", field,
+            NULL
+        );
+        return -1;
+    }
+
+    const char *real_type = type;
+    json_t *desc_flag = kw_get_dict_value(gobj, col, "flag", 0, 0);
+    if(kw_has_word(gobj, desc_flag, "enum", 0)) {
+        type = "enum";
+    }
 
     SWITCHS(type) {
         CASES("enum")
@@ -3010,9 +3045,10 @@ PUBLIC int set_volatil_values(
             continue;
         }
 
-        set_field_value(
-            type,
+        set_mem_field_value(
+            topic_name,
             field_,
+            col,
             node,   // NOT owned
             value   // NOT owned
         );
@@ -3107,15 +3143,14 @@ PRIVATE json_t *tranger2record(
 
         // json_t *desc_flag = kw_get_dict_value(gobj, col, "flag", 0, 0);
         // BOOL is_persistent = kw_has_word(gobj, desc_flag, "persistent", 0)?TRUE:FALSE;
-        // BOOL is_hook = kw_has_word(gobj, desc_flag, "hook", 0)?TRUE:FALSE;
-        // BOOL is_fkey = kw_has_word(gobj, desc_flag, "fkey", 0)?TRUE:FALSE;
-        // if((is_persistent || is_hook || is_fkey)) {
+        // if(!(is_persistent || is_hook || is_fkey)) {
         //     continue;
         // }
 
-        set_field_value(
-            type,
+        set_mem_field_value(
+            topic_name,
             field_,
+            col,
             new_record, // NOT owned
             value   // NOT owned
         );
@@ -3268,6 +3303,9 @@ PRIVATE int load_id_callback(
              *-------------------------------*/
             /*--------------------------------------------*
              *  Convert tranger record to memory record
+             *  In previous version:
+             *      jn_record2 = jn_record, so simple
+             *      plus set_missing_values()
              *--------------------------------------------*/
             json_t *jn_record2 = tranger2record(gobj, tranger, topic_name, jn_record);
 
@@ -3374,6 +3412,9 @@ PRIVATE int load_pkey2_callback(
              *-------------------------------*/
             /*--------------------------------------------*
              *  Convert tranger record to memory record
+             *  In previous version:
+             *      jn_record2 = jn_record, so simple
+             *      plus set_missing_values()
              *--------------------------------------------*/
             json_t *jn_record2 = tranger2record(gobj, tranger, topic_name, jn_record);
 
