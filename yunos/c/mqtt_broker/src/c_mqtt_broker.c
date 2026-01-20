@@ -1269,7 +1269,7 @@ PRIVATE void search_recursive( // sub__search
     PUBLISH         No                      home/livingroom/temperature
 
  ***************************************************************************/
-PRIVATE int sub__add(
+PRIVATE int sub__add( // WARNING return 1 if subs already exists
     hgobj gobj,
     const char *topic,
     const char *client_id,
@@ -1536,10 +1536,10 @@ PRIVATE void prune_empty_branches(json_t *root, char **levels)
  *      gobj        - GObj instance (for PRIVATE_DATA access)
  *      topic       - Subscription topic to remove
  *      client_id   - Client identifier
+ *      reason      - MQTT_RC_NO_SUBSCRIPTION_EXISTED if subscription didn't exist,
  *
  *  Returns:
  *      0 on success,
- *      MQTT_RC_NO_SUBSCRIPTION_EXISTED if subscription didn't exist,
  *      -1 on error
  *
  *  Example:
