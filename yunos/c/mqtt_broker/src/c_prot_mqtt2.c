@@ -2929,7 +2929,7 @@ PRIVATE int mosquitto_property_check_command(hgobj gobj, int command, int identi
         "value": 4294967295     // can be integer or string or base64-string
     },
 
-    "user-property" is a special case
+    "user-property" is a special case, it's saved with the user-property-name
 
 ***************************************************************************/
 PRIVATE int property_read(hgobj gobj, gbuffer_t *gbuf, uint32_t *len, json_t *all_properties)
@@ -2949,20 +2949,18 @@ PRIVATE int property_read(hgobj gobj, gbuffer_t *gbuf, uint32_t *len, json_t *al
     }
     const char *property_name = mqtt_property_identifier_to_string(property_identifier);
 
-    /* Check for duplicates (only if not MQTT_PROP_USER_PROPERTY, why?)*/
-    if(property_identifier != MQTT_PROP_USER_PROPERTY) {
-        if(kw_has_key(all_properties, property_name)) {
-            gobj_log_warning(gobj, 0,
-                "function",     "%s", __FUNCTION__,
-                "msgset",       "%s", MSGSET_MQTT_ERROR,
-                "msg",          "%s", "Mqtt duplicate property",
-                "property_type","%d", (int)property_identifier,
-                "property_name","%s", property_name,
-                "mqtt_error",   "%d", MOSQ_ERR_DUPLICATE_PROPERTY,
-                NULL
-            );
-            return MOSQ_ERR_DUPLICATE_PROPERTY;
-        }
+    /* Check for duplicates */
+    if(kw_has_key(all_properties, property_name)) {
+        gobj_log_warning(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_MQTT_ERROR,
+            "msg",          "%s", "Mqtt duplicate property",
+            "property_type","%d", (int)property_identifier,
+            "property_name","%s", property_name,
+            "mqtt_error",   "%d", MOSQ_ERR_DUPLICATE_PROPERTY,
+            NULL
+        );
+        return MOSQ_ERR_DUPLICATE_PROPERTY;
     }
 
     json_t *property = json_object();
