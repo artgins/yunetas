@@ -126,7 +126,7 @@ PUBLIC int treedb_set_callback(
         "real"
         "boolean"
         "blob"
-        "number" ("integer" or "real")
+        "number" ("integer" or "real") ??? used only in js ???
 
     "flag" enum
     -----------
