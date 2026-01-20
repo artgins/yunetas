@@ -132,13 +132,9 @@
             │                           │
             │  payload                  │
             │  qos                      │
-            │  time                     │
+            │  tm                       │
             │  message_expiry_time      │
-            │  payload_format_indicator │
-            │  content_type             │
-            │  response_topic           │
-            │  correlation_data         │
-            │  user_properties          │
+            │  properties               │
             │                           │
             │  _geometry                │
             └───────────────────────────┘
@@ -163,7 +159,7 @@
 static char treedb_schema_mqtt_broker[]= "\
 {                                                                   \n\
     'id': 'treedb_mqtt_broker',                                     \n\
-    'schema_version': '9',                                         	\n\
+    'schema_version': '10',                                         \n\
     'topics': [                                                     \n\
         {                                                           \n\
             'id': 'client_groups',                                  \n\
@@ -685,8 +681,9 @@ static char treedb_schema_mqtt_broker[]= "\
         {                                                           \n\
             'id': 'retained_msgs',                                  \n\
             'pkey': 'id',                                           \n\
+            'tkey': 'tm',                                           \n\
             'system_flag': 'sf_string_key',                         \n\
-            'topic_version': '2',                                   \n\
+            'topic_version': '3',                                   \n\
             'cols': {                                               \n\
                 'id': {                                             \n\
                     'header': 'Topic',                              \n\
@@ -697,11 +694,13 @@ static char treedb_schema_mqtt_broker[]= "\
                         'required'                                  \n\
                     ]                                               \n\
                 },                                                  \n\
-                'payload': {                                        \n\
-                    'header': 'Payload',                            \n\
-                    'fillspace': 30,                                \n\
-                    'type': 'blob',                                 \n\
+                'tm': {                                             \n\
+                    'header': 'Time',                               \n\
+                    'fillspace': 15,                                \n\
+                    'type': 'integer',                              \n\
                     'flag': [                                       \n\
+                        'time',                                     \n\
+                        'now',                                      \n\
                         'persistent'                                \n\
                     ]                                               \n\
                 },                                                  \n\
@@ -714,62 +713,28 @@ static char treedb_schema_mqtt_broker[]= "\
                         'persistent'                                \n\
                     ]                                               \n\
                 },                                                  \n\
-                'time': {                                           \n\
-                    'header': 'Update Time',                        \n\
-                    'fillspace': 15,                                \n\
-                    'type': 'integer',                              \n\
-                    'flag': [                                       \n\
-                        'time',                                     \n\
-                        'now',                                      \n\
-                        'persistent'                                \n\
-                    ]                                               \n\
-                },                                                  \n\
-                'message_expiry_time': {                            \n\
+                'expiry_interval': {                                \n\
                     'header': 'Msg Expiry',                         \n\
                     'fillspace': 10,                                \n\
                     'type': 'integer',                              \n\
                     'default': 0,                                   \n\
                     'flag': [                                       \n\
+                        'time',                                     \n\
                         'persistent'                                \n\
                     ]                                               \n\
                 },                                                  \n\
-                'payload_format_indicator': {                       \n\
-                    'header': 'Format',                             \n\
-                    'fillspace': 4,                                 \n\
-                    'type': 'integer',                              \n\
-                    'default': 0,                                   \n\
-                    'flag': [                                       \n\
-                        'persistent'                                \n\
-                    ]                                               \n\
-                },                                                  \n\
-                'content_type': {                                   \n\
-                    'header': 'Content Type',                       \n\
-                    'fillspace': 20,                                \n\
-                    'type': 'string',                               \n\
-                    'flag': [                                       \n\
-                        'persistent'                                \n\
-                    ]                                               \n\
-                },                                                  \n\
-                'response_topic': {                                 \n\
-                    'header': 'Response Topic',                     \n\
-                    'fillspace': 30,                                \n\
-                    'type': 'string',                               \n\
-                    'flag': [                                       \n\
-                        'persistent'                                \n\
-                    ]                                               \n\
-                },                                                  \n\
-                'correlation_data': {                               \n\
-                    'header': 'Correlation',                        \n\
-                    'fillspace': 20,                                \n\
-                    'type': 'blob',                                 \n\
-                    'flag': [                                       \n\
-                        'persistent'                                \n\
-                    ]                                               \n\
-                },                                                  \n\
-                'user_properties': {                                \n\
+                'properties': {                                     \n\
                     'header': 'User Props',                         \n\
                     'fillspace': 20,                                \n\
                     'type': 'dict',                                 \n\
+                    'flag': [                                       \n\
+                        'persistent'                                \n\
+                    ]                                               \n\
+                },                                                  \n\
+                'payload': {                                        \n\
+                    'header': 'Payload',                            \n\
+                    'fillspace': 30,                                \n\
+                    'type': 'blob',                                 \n\
                     'flag': [                                       \n\
                         'persistent'                                \n\
                     ]                                               \n\

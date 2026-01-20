@@ -6259,12 +6259,6 @@ PRIVATE int handle__publish_s(
                 case MQTT_PROP_PAYLOAD_FORMAT_INDICATOR:
                 case MQTT_PROP_RESPONSE_TOPIC:
                 case MQTT_PROP_USER_PROPERTY:
-                    {
-                        // if(!msg->properties) {
-                        //     msg->properties = json_object();
-                        // }
-                        // json_object_set(msg->properties, property_name, property);
-                    }
                     break;
 
                 case MQTT_PROP_TOPIC_ALIAS:
