@@ -1755,6 +1755,90 @@ PRIVATE int retain__queue(
 }
 
 /***************************************************************************
+ *  Store the message in retain store
+    {
+        "topic": "pepe/juan",
+        "tm": 1768892301,
+        "mid": 0,
+        "qos": 0,
+        "expiry_interval": 0,
+        "retain": false,
+        "properties": {},
+        "gbuffer": 97153787810752,
+        "dup": false,
+        "state": 0,
+        "__temp__": {
+            "channel": "input-2",
+            "channel_gobj": 97153785925984
+        }
+    }
+
+ ***************************************************************************/
+PRIVATE int retain__store(
+    hgobj gobj,
+    const char *topic,
+    json_t *kw_mqtt_msg // not owned
+) {
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    if(strncmp(topic, "$SYS", 4)==0) {
+        /*
+         *  Don't save $SYS messages
+         */
+        return 0;
+    }
+
+    /*----------------------------------*
+     *      Get parameters
+     *----------------------------------*/
+    int qos = (int)kw_get_int(gobj, kw_mqtt_msg, "qos", 0, KW_REQUIRED);
+    json_int_t tm = kw_get_int(gobj, kw_mqtt_msg, "tm", 0, KW_REQUIRED);
+    json_int_t expiry_interval = kw_get_int(gobj, kw_mqtt_msg, "expiry_interval", 0, KW_REQUIRED);
+    gbuffer_t *gbuf = (gbuffer_t *)(uintptr_t)kw_get_int(
+        gobj, kw_mqtt_msg, "gbuffer", 0, KW_REQUIRED
+    );
+
+    /*-----------------------------------*
+     *  No payload -> delete retain msg
+     *-----------------------------------*/
+    size_t payloadlen = gbuffer_leftbytes(gbuf);
+    if(payloadlen == 0) {
+        gobj_delete_node(
+            priv->gobj_treedb_mqtt_broker,
+            "retained_msgs",
+            json_pack("{s:s}", "id", topic),
+            json_pack("{s:b}", "no_verbose", 1),
+            gobj
+        );
+        return 0;
+    }
+
+    /*----------------------------*
+     *      Save retain msg
+     *----------------------------*/
+    json_t *retain_node = gobj_update_node(
+        priv->gobj_treedb_mqtt_broker,
+        "sessions",
+        kw_incref(kw_mqtt_msg),
+        json_pack("{s:b}", "create", 1),
+        gobj
+    );
+
+    if(!retain_node) {
+        gobj_log_error(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_INFO,
+            "msg",          "%s", "Cannot create retain node",
+            NULL
+        );
+        return -1;
+    }
+
+    JSON_DECREF(retain_node)
+    return 0;
+}
+
+/***************************************************************************
  *
  ***************************************************************************/
 PRIVATE void session_expiry__check(void) //TODO
@@ -2124,13 +2208,11 @@ PRIVATE size_t sub__messages_queue(
         }
     }
 
-    json_decref(normal_subscribers);
-    json_decref(shared_subscribers);
+    JSON_DECREF(normal_subscribers)
+    JSON_DECREF(shared_subscribers)
 
-    if(retain) { // TODO implement retain
-        //     if(retain__store(topic, *stored, split_topics)<0) {
-        //         ret = -1;
-        //     }
+    if(retain) {
+        retain__store(gobj, topic, kw_mqtt_msg);
     }
 
 cleanup:
@@ -2843,7 +2925,26 @@ PRIVATE int ac_on_message(hgobj gobj, const char *event, json_t *kw, hgobj src)
 /***************************************************************************
  *  Broker, message from
  *      mqtt clients (__input_side__)
- *  Must returns the number of subscribers found
+ *  It returns the number of subscribers found
+ *      or -1 if errror
+
+    {
+        "topic": "pepe/juan",
+        "tm": 1768892301,
+        "mid": 0,
+        "qos": 0,
+        "expiry_interval": 0,
+        "retain": false,
+        "properties": {},
+        "gbuffer": 97153787810752,
+        "dup": false,
+        "state": 0,
+        "__temp__": {
+            "channel": "input-2",
+            "channel_gobj": 97153785925984
+        }
+    }
+
  ***************************************************************************/
 PRIVATE int ac_mqtt_message(hgobj gobj, const char *event, json_t *kw, hgobj src)
 {

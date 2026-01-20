@@ -926,7 +926,7 @@ PRIVATE int mt_delete_node(
     hgobj gobj,
     const char *topic_name,
     json_t *kw,         // 'id' and pkey2s fields are used to find the node
-    json_t *jn_options, // "force"
+    json_t *jn_options, // "force" "no_verbose"
     hgobj src
 )
 {
@@ -990,15 +990,18 @@ PRIVATE int mt_delete_node(
         id
     );
     if(!main_node) {
-        gobj_log_error(gobj, 0,
-            "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_TREEDB_ERROR,
-            "msg",          "%s", "node not found",
-            "treedb_name",  "%s", priv->treedb_name,
-            "topic_name",   "%s", topic_name,
-            "id",           "%s", id,
-            NULL
-        );
+        BOOL no_verbose = kw_get_bool(gobj, jn_options, "no_verbose", 0, KW_WILD_NUMBER);
+        if(!no_verbose) {
+            gobj_log_error(gobj, 0,
+                "function",     "%s", __FUNCTION__,
+                "msgset",       "%s", MSGSET_TREEDB_ERROR,
+                "msg",          "%s", "node not found",
+                "treedb_name",  "%s", priv->treedb_name,
+                "topic_name",   "%s", topic_name,
+                "id",           "%s", id,
+                NULL
+            );
+        }
         JSON_DECREF(kw)
         JSON_DECREF(jn_options)
         return -1;

@@ -10036,7 +10036,7 @@ PUBLIC int gobj_delete_node(
     hgobj gobj_,
     const char *topic_name,
     json_t *kw,         // 'id' and pkey2s fields are used to find the node
-    json_t *jn_options, // "force"
+    json_t *jn_options, // "force" "no_verbose"
     hgobj src
 )
 {

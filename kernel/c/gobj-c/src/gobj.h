@@ -1739,7 +1739,7 @@ PUBLIC int gobj_delete_node(
     hgobj gobj,
     const char *topic_name,
     json_t *kw,         // 'id' and pkey2s fields are used to find the node
-    json_t *jn_options, // "force"
+    json_t *jn_options, // "force" "no_verbose"
     hgobj src
 );
 
@@ -1764,8 +1764,11 @@ PUBLIC int gobj_unlink_nodes(
 );
 
 /**rst**
+
+    fkey,hook options
+
     Meaning of parent and child 'references' (fkeys, hooks)
-    -----------------------------------------------------
+    -------------------------------------------------------
     'fkey ref'
         The parent's references (link to up) have 3 ^ fields:
 
@@ -1777,7 +1780,7 @@ PUBLIC int gobj_unlink_nodes(
             "topic_name^id"
 
     fkey options
-    -------------
+    ------------
     "refs"
     "fkey_refs"
         Return 'fkey ref'

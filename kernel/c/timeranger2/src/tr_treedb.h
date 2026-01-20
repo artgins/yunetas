@@ -374,8 +374,11 @@ PUBLIC int treedb_unlink_nodes(
 );
 
 /**rst**
+
+    fkey,hook options
+
     Meaning of parent and child 'references' (fkeys, hooks)
-    -----------------------------------------------------
+    -------------------------------------------------------
     'fkey ref'
         The parent's references (link to up) have 3 ^ fields:
 
@@ -387,7 +390,7 @@ PUBLIC int treedb_unlink_nodes(
             "topic_name^id"
 
     fkey options
-    -------------
+    ------------
     "refs"
     "fkey_refs"
         Return 'fkey ref'
