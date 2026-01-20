@@ -1757,14 +1757,14 @@ PRIVATE int retain__queue(
 /***************************************************************************
  *  Store the message in retain store
     {
-        "topic": "pepe/juan",
-        "tm": 1768892301,
+        "topic": "pepe/juan",           // "id"
+        "tm": 1768892301,               // "tm"
         "mid": 0,
-        "qos": 0,
-        "expiry_interval": 0,
+        "qos": 0,                       // "qos"
+        "expiry_interval": 0,           // "expiry_interval"
         "retain": false,
-        "properties": {},
-        "gbuffer": 97153787810752,
+        "properties": {},               // "properties"
+        "gbuffer": 97153787810752,      // "payload"
         "dup": false,
         "state": 0,
         "__temp__": {
