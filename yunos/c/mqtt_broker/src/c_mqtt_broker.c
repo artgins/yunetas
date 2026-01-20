@@ -1824,6 +1824,8 @@ PRIVATE int retain__store(
         gobj
     );
 
+print_json2("XXXXX", retain_node); // TODO TEST
+
     if(!retain_node) {
         gobj_log_error(gobj, 0,
             "function",     "%s", __FUNCTION__,

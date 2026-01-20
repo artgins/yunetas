@@ -167,3 +167,4 @@ The documentation needs to be update with next changes
     gobj_trace_buffer
     gobj_services
     gobj_shutdown
+    create_template_record
