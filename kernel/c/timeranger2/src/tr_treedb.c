@@ -2866,7 +2866,7 @@ PRIVATE int set_tranger_field_value(
 /***************************************************************************
  *
  ***************************************************************************/
-PRIVATE int set_volatil_field_value(
+PRIVATE int set_field_value(
     const char *type,
     const char *field,
     json_t *record, // NOT owned
@@ -3010,7 +3010,7 @@ PUBLIC int set_volatil_values(
             continue;
         }
 
-        set_volatil_field_value(
+        set_field_value(
             type,
             field_,
             node,   // NOT owned
@@ -3070,11 +3070,11 @@ PUBLIC int set_volatil_values(
 /***************************************************************************
  *
  ***************************************************************************/
-PRIVATE int set_missing_values(
+PRIVATE json_t *tranger2record(
     hgobj gobj,
     json_t *tranger,
     const char *topic_name,
-    json_t *record  // NOT owned
+    json_t *kw  // NOT owned
 )
 {
     json_t *cols = tranger2_dict_topic_desc_cols(tranger, topic_name);
@@ -3088,6 +3088,8 @@ PRIVATE int set_missing_values(
         );
         return 0;
     }
+    json_t *new_record = json_object();
+
     const char *field; json_t *col;
     json_object_foreach(cols, field, col) {
         const char *field_ = kw_get_str(gobj, col, "id", 0, KW_REQUIRED);
@@ -3098,37 +3100,29 @@ PRIVATE int set_missing_values(
         if(!type) {
             continue;
         }
-        json_t *desc_flag = kw_get_dict_value(gobj, col, "flag", 0, 0);
-        BOOL is_hook = kw_has_word(gobj, desc_flag, "hook", 0)?TRUE:FALSE;
-        BOOL is_fkey = kw_has_word(gobj, desc_flag, "fkey", 0)?TRUE:FALSE;
-        if((is_hook || is_fkey)) {
-            continue;
+        json_t *value = kw_get_dict_value(gobj, kw, field, 0, 0);
+        if(!value) {
+            value = kw_get_dict_value(gobj, col, "default", 0, 0);
         }
 
-        json_t *value = kw_get_dict_value(
-            gobj,
-            record,
-            field_,
-            0,
-            0
-        );
+        // json_t *desc_flag = kw_get_dict_value(gobj, col, "flag", 0, 0);
+        // BOOL is_persistent = kw_has_word(gobj, desc_flag, "persistent", 0)?TRUE:FALSE;
+        // BOOL is_hook = kw_has_word(gobj, desc_flag, "hook", 0)?TRUE:FALSE;
+        // BOOL is_fkey = kw_has_word(gobj, desc_flag, "fkey", 0)?TRUE:FALSE;
+        // if((is_persistent || is_hook || is_fkey)) {
+        //     continue;
+        // }
 
-        if(value) {
-            continue;
-        }
-
-        value = kw_get_dict_value(gobj, col, "default", 0, 0);
-
-        set_volatil_field_value(
+        set_field_value(
             type,
             field_,
-            record, // NOT owned
+            new_record, // NOT owned
             value   // NOT owned
         );
     }
 
     JSON_DECREF(cols)
-    return 0;
+    return new_record;
 }
 
 /***************************************************************************
@@ -3272,6 +3266,11 @@ PRIVATE int load_id_callback(
             /*-------------------------------*
              *  Append new node
              *-------------------------------*/
+            /*--------------------------------------------*
+             *  Convert tranger record to memory record
+             *--------------------------------------------*/
+            json_t *jn_record2 = tranger2record(gobj, tranger, topic_name, jn_record);
+
             /*---------------------------------------------*
              *  Build metadata, loading node from disk
              *---------------------------------------------*/
@@ -3282,18 +3281,7 @@ PRIVATE int load_id_callback(
                 rowid
             );
             json_object_set_new(jn_record_md, "pending_links", json_true());
-            json_object_set_new(jn_record, "__md_treedb__", jn_record_md);
-            json_object_del(jn_record, "__md_tranger__");
-
-            /*--------------------------------------------*
-             *  Set missing data
-             *--------------------------------------------*/
-            set_missing_values( // fill empty fields
-                gobj,
-                tranger,
-                topic_name,
-                jn_record  // NOT owned
-            );
+            json_object_set_new(jn_record2, "__md_treedb__", jn_record_md);
 
             /*-------------------------------*
              *  Write node in memory: id
@@ -3301,8 +3289,9 @@ PRIVATE int load_id_callback(
             add_primary_node(
                 indexx,
                 key,
-                jn_record
+                jn_record2 // incref
             );
+            JSON_DECREF(jn_record2)
         }
     }
 
@@ -3383,6 +3372,11 @@ PRIVATE int load_pkey2_callback(
             /*-------------------------------*
              *  Append new node
              *-------------------------------*/
+            /*--------------------------------------------*
+             *  Convert tranger record to memory record
+             *--------------------------------------------*/
+            json_t *jn_record2 = tranger2record(gobj, tranger, topic_name, jn_record);
+
             /*---------------------------------------------*
              *  Build metadata, loading node from disk
              *---------------------------------------------*/
@@ -3392,19 +3386,8 @@ PRIVATE int load_pkey2_callback(
                 md_record,
                 rowid
             );
-            // json_object_set_new(jn_record_md, "pending_links", json_true());
-            json_object_set_new(jn_record, "__md_treedb__", jn_record_md);
-            json_object_del(jn_record, "__md_tranger__");
-
-            /*--------------------------------------------*
-             *  Set missing data
-             *--------------------------------------------*/
-            set_missing_values( // fill empty fields
-                gobj,
-                tranger,
-                topic_name,
-                jn_record // NOT owned
-            );
+            // json_object_set_new(jn_record_md, "pending_links", json_true()); // TODO ???
+            json_object_set_new(jn_record2, "__md_treedb__", jn_record_md);
 
             /*-------------------------------*
              *  Write node in memory: pkey2
@@ -3413,8 +3396,9 @@ PRIVATE int load_pkey2_callback(
                 indexy,
                 key,
                 pkey2_value,
-                jn_record
+                jn_record2  // incref
             );
+            JSON_DECREF(jn_record2)
         }
     }
 
