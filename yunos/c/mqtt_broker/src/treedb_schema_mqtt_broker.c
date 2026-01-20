@@ -130,11 +130,11 @@
             ┌───────────────────────────┐
             │* id (topic)               │
             │                           │
-            │  payload                  │
-            │  qos                      │
             │  tm                       │
-            │  message_expiry_time      │
+            │  qos                      │
+            │  expiry_interval          │
             │  properties               │
+            │  gbuffer                  │
             │                           │
             │  _geometry                │
             └───────────────────────────┘
@@ -731,11 +731,12 @@ static char treedb_schema_mqtt_broker[]= "\
                         'persistent'                                \n\
                     ]                                               \n\
                 },                                                  \n\
-                'payload': {                                        \n\
+                'gbuffer': {                                        \n\
                     'header': 'Payload',                            \n\
                     'fillspace': 30,                                \n\
-                    'type': 'blob',                                 \n\
+                    'type': 'string',                               \n\
                     'flag': [                                       \n\
+                        'base64',                                   \n\
                         'persistent'                                \n\
                     ]                                               \n\
                 },                                                  \n\
