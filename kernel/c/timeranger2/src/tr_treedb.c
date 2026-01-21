@@ -2716,6 +2716,9 @@ PRIVATE int set_tranger_field_value(
             } SWITCHS_END;
             break;
 
+        CASES("gbuffer")
+            break;
+
         CASES("list")
         CASES("array")
             if(JSON_TYPEOF(value, JSON_ARRAY)) {
@@ -2818,6 +2821,7 @@ PRIVATE int set_tranger_field_value(
                 );
             }
             break;
+
         CASES("real")
             if(!value) {
                 json_object_set_new(record, field, json_real(0.0));

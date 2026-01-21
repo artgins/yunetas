@@ -128,7 +128,7 @@ endif()
 #   Default if not specified
 #----------------------------------------#
 if(NOT CMAKE_BUILD_TYPE)
-#    message(FATAL_ERROR "No build type defined")
+    #    message(FATAL_ERROR "No build type defined")
     set(CMAKE_BUILD_TYPE "RelWithDebInfo")
 endif()
 
@@ -146,18 +146,20 @@ set(COMMON_C_FLAGS
     -funsigned-char
 )
 
-
-if(NOT ESP_PLATFORM)
-    # desktop / linux / glibc
-    add_link_options(${COMPILER_LINK_FLAGS})
-endif()
+# Apply the compile flags globally
+add_compile_options(${COMMON_C_FLAGS})
 
 #----------------------------------------#
 #   Compiler link flags
 #----------------------------------------#
 set(COMPILER_LINK_FLAGS
-#    -no-pie # it seems that with this is getting slower
+    #    -no-pie # it seems that with this is getting slower
 )
+
+if(NOT ESP_PLATFORM)
+    # desktop / linux / glibc
+    add_link_options(${COMPILER_LINK_FLAGS})
+endif()
 
 #----------------------------------------#
 #   Libraries
