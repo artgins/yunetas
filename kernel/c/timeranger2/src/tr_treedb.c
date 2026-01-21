@@ -3106,6 +3106,59 @@ PUBLIC int set_volatil_values(
 /***************************************************************************
  *
  ***************************************************************************/
+PRIVATE json_t *record2tranger(
+    hgobj gobj,
+    json_t *tranger,
+    const char *topic_name,
+    json_t *kw,  // NOT owned
+    BOOL create // create or update
+)
+{
+    json_t *cols = tranger2_dict_topic_desc_cols(tranger, topic_name);
+    if(!cols) {
+        gobj_log_error(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_TREEDB_ERROR,
+            "msg",          "%s", "Topic without cols",
+            "topic_name",   "%s", topic_name,
+            NULL
+        );
+        return 0;
+    }
+    json_t *new_record = json_object();
+
+    const char *field; json_t *col;
+    json_object_foreach(cols, field, col) {
+        json_t *value = kw_get_dict_value(gobj, kw, field, 0, 0);
+        if(!value) {
+            if(create) {
+                value = kw_get_dict_value(gobj, col, "default", 0, 0);
+            }
+        }
+        if(set_tranger_field_value(
+                topic_name,
+                field,
+                col,
+                new_record,
+                value,
+                create
+            )<0) {
+            // Error already logged
+            JSON_DECREF(new_record)
+            JSON_DECREF(cols)
+            return 0;
+        }
+    }
+
+    json_object_del(new_record, "__md_treedb__");
+
+    JSON_DECREF(cols)
+    return new_record;
+}
+
+/***************************************************************************
+ *
+ ***************************************************************************/
 PRIVATE json_t *tranger2record(
     hgobj gobj,
     json_t *tranger,
@@ -3155,59 +3208,6 @@ PRIVATE json_t *tranger2record(
             value   // NOT owned
         );
     }
-
-    JSON_DECREF(cols)
-    return new_record;
-}
-
-/***************************************************************************
- *
- ***************************************************************************/
-PRIVATE json_t *record2tranger(
-    hgobj gobj,
-    json_t *tranger,
-    const char *topic_name,
-    json_t *kw,  // NOT owned
-    BOOL create // create or update
-)
-{
-    json_t *cols = tranger2_dict_topic_desc_cols(tranger, topic_name);
-    if(!cols) {
-        gobj_log_error(gobj, 0,
-            "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_TREEDB_ERROR,
-            "msg",          "%s", "Topic without cols",
-            "topic_name",   "%s", topic_name,
-            NULL
-        );
-        return 0;
-    }
-    json_t *new_record = json_object();
-
-    const char *field; json_t *col;
-    json_object_foreach(cols, field, col) {
-        json_t *value = kw_get_dict_value(gobj, kw, field, 0, 0);
-        if(!value) {
-            if(create) {
-                value = kw_get_dict_value(gobj, col, "default", 0, 0);
-            }
-        }
-        if(set_tranger_field_value(
-                topic_name,
-                field,
-                col,
-                new_record,
-                value,
-                create
-            )<0) {
-            // Error already logged
-            JSON_DECREF(new_record)
-            JSON_DECREF(cols)
-            return 0;
-        }
-    }
-
-    json_object_del(new_record, "__md_treedb__");
 
     JSON_DECREF(cols)
     return new_record;
