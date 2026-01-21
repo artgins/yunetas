@@ -872,8 +872,6 @@ PRIVATE int delete_console(hgobj gobj, const char *name)
  ***************************************************************************/
 PRIVATE int delete_consoles_on_disconnection(hgobj gobj, json_t *kw, hgobj src_)
 {
-    PRIVATE_DATA *priv = gobj_priv_data(gobj);
-
     hgobj gobj_channel = (hgobj)(size_t)kw_get_int(gobj, kw, "__temp__`channel_gobj", 0, KW_REQUIRED);
     json_t *consoles = gobj_kw_get_user_data(gobj_channel, "consoles", 0, 0);
     if(!consoles) {

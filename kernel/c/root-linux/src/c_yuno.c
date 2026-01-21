@@ -5204,7 +5204,6 @@ PUBLIC void yuno_event_detroy(void)
 PUBLIC void set_yuno_must_die(void)
 {
     hgobj gobj = gobj_yuno();
-    PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
     gobj_log_info(gobj, 0,
         "msgset",       "%s", MSGSET_STARTUP,

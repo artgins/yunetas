@@ -69,12 +69,12 @@ PRIVATE int add_user_login(
     const char *peername
 );
 
-PRIVATE json_t *identify_system_user(
-    hgobj gobj,
-    const char **username,
-    BOOL include_groups,
-    BOOL verbose
-);
+// PRIVATE json_t *identify_system_user(
+//     hgobj gobj,
+//     const char **username,
+//     BOOL include_groups,
+//     BOOL verbose
+// );
 
 PRIVATE json_t *get_user_roles(
     hgobj gobj,
@@ -2580,77 +2580,77 @@ PRIVATE BOOL verify_token(
 /***************************************************************************
  *
  ***************************************************************************/
-PRIVATE json_t *identify_system_user(
-    hgobj gobj,
-    const char **username,
-    BOOL include_groups,
-    BOOL verbose
-)
-{
-    PRIVATE_DATA *priv = gobj_priv_data(gobj);
-
-    json_t *user = gobj_get_node(
-        priv->gobj_treedb,
-        "users",
-        json_pack("{s:s, s:b}",
-            "id", *username,
-            "disabled", 0
-        ),
-        json_pack("{s:b}",
-            "with_metadata", 1
-        ),
-        gobj
-    );
-    if(user) {
-        return user;
-    }
-
-    if(include_groups) {
-        /*-------------------------------*
-         *  HACK user's group is valid
-         *-------------------------------*/
-        static gid_t groups[30]; // HACK to use outside
-        int ngroups = sizeof(groups)/sizeof(groups[0]);
-        getgrouplist(*username, 0, groups, &ngroups);
-        for(int i=0; i<ngroups; i++) {
-            struct group *gr = getgrgid(groups[i]);
-            if(gr) {
-                user = gobj_get_node(
-                    priv->gobj_treedb,
-                    "users",
-                    json_pack("{s:s}", "id", gr->gr_name),
-                    json_pack("{s:b}",
-                        "with_metadata", 1
-                    ),
-                    gobj
-                );
-                if(user) {
-                    gobj_log_warning(gobj, 0,
-                        "function",     "%s", __FUNCTION__,
-                        "msgset",       "%s", MSGSET_INFO,
-                        "msg",          "%s", "Using groupname instead of username",
-                        "username",     "%s", *username,
-                        "groupname",    "%s", gr->gr_name,
-                        NULL
-                    );
-                    *username = gr->gr_name;
-                    return user;
-                }
-            }
-        }
-    }
-
-    if(verbose) {
-        gobj_log_warning(gobj, 0,
-            "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_INFO,
-            "msg",          "%s", "username not found in system",
-            "username",     "%s", *username,
-            NULL
-        );
-    }
-    return 0; // username as user or group not found
-}
+// PRIVATE json_t *identify_system_user(
+//     hgobj gobj,
+//     const char **username,
+//     BOOL include_groups,
+//     BOOL verbose
+// )
+// {
+//     PRIVATE_DATA *priv = gobj_priv_data(gobj);
+//
+//     json_t *user = gobj_get_node(
+//         priv->gobj_treedb,
+//         "users",
+//         json_pack("{s:s, s:b}",
+//             "id", *username,
+//             "disabled", 0
+//         ),
+//         json_pack("{s:b}",
+//             "with_metadata", 1
+//         ),
+//         gobj
+//     );
+//     if(user) {
+//         return user;
+//     }
+//
+//     if(include_groups) {
+//         /*-------------------------------*
+//          *  HACK user's group is valid
+//          *-------------------------------*/
+//         static gid_t groups[30]; // HACK to use outside
+//         int ngroups = sizeof(groups)/sizeof(groups[0]);
+//         getgrouplist(*username, 0, groups, &ngroups);
+//         for(int i=0; i<ngroups; i++) {
+//             struct group *gr = getgrgid(groups[i]);
+//             if(gr) {
+//                 user = gobj_get_node(
+//                     priv->gobj_treedb,
+//                     "users",
+//                     json_pack("{s:s}", "id", gr->gr_name),
+//                     json_pack("{s:b}",
+//                         "with_metadata", 1
+//                     ),
+//                     gobj
+//                 );
+//                 if(user) {
+//                     gobj_log_warning(gobj, 0,
+//                         "function",     "%s", __FUNCTION__,
+//                         "msgset",       "%s", MSGSET_INFO,
+//                         "msg",          "%s", "Using groupname instead of username",
+//                         "username",     "%s", *username,
+//                         "groupname",    "%s", gr->gr_name,
+//                         NULL
+//                     );
+//                     *username = gr->gr_name;
+//                     return user;
+//                 }
+//             }
+//         }
+//     }
+//
+//     if(verbose) {
+//         gobj_log_warning(gobj, 0,
+//             "function",     "%s", __FUNCTION__,
+//             "msgset",       "%s", MSGSET_INFO,
+//             "msg",          "%s", "username not found in system",
+//             "username",     "%s", *username,
+//             NULL
+//         );
+//     }
+//     return 0; // username as user or group not found
+// }
 
 /***************************************************************************
  *  Constant-time comparison

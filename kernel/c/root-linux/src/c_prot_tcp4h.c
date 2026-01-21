@@ -307,18 +307,18 @@ PRIVATE void ws_close(hgobj gobj, int reason)
 /***************************************************************************
  *  Start to wait handshake
  ***************************************************************************/
-PRIVATE void start_wait_handshake(hgobj gobj)
-{
-    PRIVATE_DATA *priv = gobj_priv_data(gobj);
-
-    if(!gobj_is_running(gobj)) {
-        return;
-    }
-    gobj_change_state(gobj, ST_WAIT_HANDSHAKE);
-    istream_reset_wr(priv->istream_frame);  // Reset buffer for next frame
-    memset(&priv->frame_head, 0, sizeof(priv->frame_head));
-    set_timeout(priv->timer, priv->timeout_handshake);
-}
+// PRIVATE void start_wait_handshake(hgobj gobj)
+// {
+//     PRIVATE_DATA *priv = gobj_priv_data(gobj);
+//
+//     if(!gobj_is_running(gobj)) {
+//         return;
+//     }
+//     gobj_change_state(gobj, ST_WAIT_HANDSHAKE);
+//     istream_reset_wr(priv->istream_frame);  // Reset buffer for next frame
+//     memset(&priv->frame_head, 0, sizeof(priv->frame_head));
+//     set_timeout(priv->timer, priv->timeout_handshake);
+// }
 
 /***************************************************************************
  *  Start to wait frame header

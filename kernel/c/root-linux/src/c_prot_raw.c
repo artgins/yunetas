@@ -79,8 +79,6 @@ typedef struct _PRIVATE_DATA {
  ***************************************************************************/
 PRIVATE void mt_create(hgobj gobj)
 {
-    PRIVATE_DATA *priv = gobj_priv_data(gobj);
-
     /*
      *  CHILD subscription model
      */
