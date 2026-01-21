@@ -736,7 +736,7 @@ static char treedb_schema_mqtt_broker[]= "\
                     'fillspace': 30,                                \n\
                     'type': 'string',                               \n\
                     'flag': [                                       \n\
-                        'base64',                                   \n\
+                        'gbuffer',                                  \n\
                         'persistent'                                \n\
                     ]                                               \n\
                 },                                                  \n\

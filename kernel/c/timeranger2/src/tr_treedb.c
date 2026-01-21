@@ -511,10 +511,10 @@ PUBLIC json_t *_treedb_create_topic_cols_desc(void)
                 "hook",         // special field types
                 "fkey",
                 "enum",
-                "template",
                 "gbuffer",
 
                 // normal field types (some of them not processed or checked by tranger2)
+                "template",
                 "uuid",
                 "rowid",
                 "password",
@@ -2508,7 +2508,7 @@ PRIVATE int set_tranger_field_value(
     BOOL is_fkey = kw_has_word(gobj, desc_flag, "fkey", 0)?TRUE:FALSE;
     BOOL is_now = kw_has_word(gobj, desc_flag, "now", 0)?TRUE:FALSE;
     BOOL is_time = kw_has_word(gobj, desc_flag, "time", 0)?TRUE:FALSE;
-    BOOL is_template = kw_has_word(gobj, desc_flag, "template", 0)?TRUE:FALSE;
+    BOOL is_gbuffer = kw_has_word(gobj, desc_flag, "gbuffer", 0)?TRUE:FALSE;
     if(!(is_persistent || is_hook || is_fkey)) {
         // Not save to tranger
         return 0;
@@ -2544,8 +2544,8 @@ PRIVATE int set_tranger_field_value(
         type = "fkey";
     } else if(is_enum) {
         type = "enum";
-    } else if(is_template) {
-        type = "template";
+    } else if(is_gbuffer) {
+        type = "gbuffer";
     }
 
     SWITCHS(type) {
@@ -2734,7 +2734,6 @@ PRIVATE int set_tranger_field_value(
             }
             break;
 
-        CASES("template")
         CASES("dict")
         CASES("object")
             if(JSON_TYPEOF(value, JSON_OBJECT)) {
