@@ -94,6 +94,8 @@ The documentation needs to be update with next changes
     trq_msg_hard_flag
     set_volatil_values
     gobj_service_register -> gobj_services
+    gbuffer_base64_to_string -> gbuffer_base64_to_binary
+    gbuffer_string_to_base64 -> gbuffer_binary_to_base64 
 
 # New API
 

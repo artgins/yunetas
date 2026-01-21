@@ -2852,8 +2852,8 @@ PRIVATE json_t *hash_password(
         return NULL;
     }
 
-    gbuffer_t *gbuf_hash = gbuffer_string_to_base64((const char *)hash, hash_len);
-    gbuffer_t *gbuf_salt = gbuffer_string_to_base64((const char *)salt, sizeof(salt));
+    gbuffer_t *gbuf_hash = gbuffer_binary_to_base64((const char *)hash, hash_len);
+    gbuffer_t *gbuf_salt = gbuffer_binary_to_base64((const char *)salt, sizeof(salt));
     char *hash_b64 = gbuffer_cur_rd_pointer(gbuf_hash);
     char *salt_b64 = gbuffer_cur_rd_pointer(gbuf_salt);
 
@@ -2948,8 +2948,8 @@ PRIVATE int match_hash(
     json_int_t iterations
 )
 {
-    gbuffer_t *gbuf_hash = gbuffer_base64_to_string((const char *)hash_b64, strlen(hash_b64));
-    gbuffer_t *gbuf_salt = gbuffer_base64_to_string((const char *)salt_b64, strlen(salt_b64));
+    gbuffer_t *gbuf_hash = gbuffer_base64_to_binary((const char *)hash_b64, strlen(hash_b64));
+    gbuffer_t *gbuf_salt = gbuffer_base64_to_binary((const char *)salt_b64, strlen(salt_b64));
     uint8_t *hash = gbuffer_cur_rd_pointer(gbuf_hash);
     uint8_t *salt = gbuffer_cur_rd_pointer(gbuf_salt);
     size_t hash_len = gbuffer_leftbytes(gbuf_hash);

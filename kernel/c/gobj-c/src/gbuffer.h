@@ -281,21 +281,23 @@ PUBLIC gbuffer_t *gbuffer_deserialize(
 
 /*
  *  Encode to base64
- *  Old gbuf_string2base64
+ *  Old gbuf_string2base64, gbuffer_string_to_base64
+ *  binary will be usually string
  */
-PUBLIC gbuffer_t *gbuffer_string_to_base64(const char* src, size_t len); // base64 without newlines
+PUBLIC gbuffer_t *gbuffer_binary_to_base64(const char *src, size_t len); // base64 without newlines
 PUBLIC gbuffer_t *gbuffer_file2base64(const char *path);
 
 /*
  *  Decode from base64
- *  Old gbuf_decodebase64string(), gbuf_decodebase64stringn()
+ *  Old gbuf_decodebase64string(), gbuf_decodebase64stringn(), gbuffer_base64_to_string()
+ *  binary will be usually string
  */
-PUBLIC gbuffer_t *gbuffer_base64_to_string(const char* base64, size_t base64_len);
+PUBLIC gbuffer_t *gbuffer_base64_to_binary(const char *base64, size_t base64_len);
 
 /*
- *  Return new gbuffer using gbuffer_string_to_base64() to encode string in gbuf_input
+ *  Return new gbuffer using gbuffer_binary_to_base64() to encode string in gbuf_input
  */
-PUBLIC gbuffer_t *gbuffer_encode_base64( // return new gbuffer using gbuffer_string_to_base64()
+PUBLIC gbuffer_t *gbuffer_encode_base64( // return new gbuffer using gbuffer_binary_to_base64()
     gbuffer_t *gbuf_input  // decref
 );
 

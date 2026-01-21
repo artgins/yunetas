@@ -1056,7 +1056,7 @@ PRIVATE int save_local_base64(
 
     const char *s = json_string_value(jn_content);
     if(s) {
-        gbuffer_t *gbuf_bin = gbuffer_base64_to_string(s, strlen(s));
+        gbuffer_t *gbuf_bin = gbuffer_base64_to_binary(s, strlen(s));
         if(gbuf_bin) {
             int fp = newfile(path, 0700, TRUE);
             if(fp) {
@@ -1669,7 +1669,7 @@ PRIVATE int ac_tty_mirror_data(hgobj gobj, const char *event, json_t *kw, hgobj 
             return -1;
         }
 
-        gbuffer_t *gbuf = gbuffer_base64_to_string(content64, strlen(content64));
+        gbuffer_t *gbuf = gbuffer_base64_to_binary(content64, strlen(content64));
         char *p = gbuffer_cur_rd_pointer(gbuf);
         int len = (int)gbuffer_leftbytes(gbuf);
 

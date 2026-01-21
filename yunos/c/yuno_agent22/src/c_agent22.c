@@ -1116,7 +1116,7 @@ PRIVATE int ac_write_tty(hgobj gobj, const char *event, json_t *kw, hgobj src)
         return 0;
     }
 
-    gbuffer_t *gbuf = gbuffer_base64_to_string(content64, strlen(content64));
+    gbuffer_t *gbuf = gbuffer_base64_to_binary(content64, strlen(content64));
     if(!gbuf) {
         gobj_log_error(gobj, 0,
             "function",     "%s", __FUNCTION__,

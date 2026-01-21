@@ -609,7 +609,7 @@ PUBLIC json_t *gbuffer_serialize(
     // TODO use chunks!!
     char *p = gbuffer_cur_rd_pointer(gbuf);
     size_t len = gbuffer_leftbytes(gbuf);
-    gbuffer_t *gbuf_base64 = gbuffer_string_to_base64(p, len);
+    gbuffer_t *gbuf_base64 = gbuffer_binary_to_base64(p, len);
 
     char *data = gbuffer_cur_rd_pointer(gbuf_base64);
     json_t *jn_bf = json_string(data);
@@ -643,32 +643,9 @@ PUBLIC gbuffer_t *gbuffer_deserialize(
     size_t mark = (size_t)json_integer_value(json_object_get(__gbuffer__, "mark"));
     const char *base64 = json_string_value(json_object_get(__gbuffer__, "data"));
 
-    gbuffer_t *gbuf_decoded = gbuffer_base64_to_string(base64, strlen(base64));
-    const char *data = gbuffer_cur_rd_pointer(gbuf_decoded);
-
-    size_t len = strlen(data);
-    gbuffer_t *gbuf;
-    if(!len) {
-        gbuf = gbuffer_create(1, 1);
-    } else {
-        gbuf = gbuffer_create(len, len);
-    }
-    if(!gbuf) {
-        gbuffer_decref(gbuf_decoded);
-        gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
-            "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_INTERNAL_ERROR,
-            "msg",          "%s", "cannot deserialize gbuffer",
-            NULL
-        );
-        return 0;
-    }
-    if(len) {
-        gbuffer_append(gbuf, (void *)data, len);
-    }
+    gbuffer_t *gbuf = gbuffer_base64_to_binary(base64, strlen(base64));
     gbuffer_setlabel(gbuf, label);
     gbuffer_setmark(gbuf, mark);
-    gbuffer_decref(gbuf_decoded);
     return gbuf;
 }
 
@@ -741,7 +718,7 @@ static const char Pad64 = '=';
        characters followed by one "=" padding character.
    */
 
-PRIVATE size_t b64_encode(const char* src, size_t srclength, char* target, size_t targsize)
+PRIVATE size_t b64_encode(const char *src, size_t srclength, char *target, size_t targsize)
 {
     size_t datalength = 0;
     uint8_t input[3];
@@ -943,7 +920,7 @@ PRIVATE size_t b64_output_decode_len(size_t input_length)
 /*****************************************************************
  *
  *****************************************************************/
-PUBLIC gbuffer_t *gbuffer_string_to_base64(const char *src, size_t len)
+PUBLIC gbuffer_t *gbuffer_binary_to_base64(const char *src, size_t len)
 {
     size_t output_len = b64_output_encode_len(len);
 
@@ -1012,7 +989,7 @@ PUBLIC gbuffer_t *gbuffer_file2base64(const char *path)
 
     fclose(infile);
 
-    gbuffer_t *gbuf_output = gbuffer_string_to_base64(bf, len);
+    gbuffer_t *gbuf_output = gbuffer_binary_to_base64(bf, len);
     gbmem_free(bf);
     return gbuf_output;
 }
@@ -1020,8 +997,18 @@ PUBLIC gbuffer_t *gbuffer_file2base64(const char *path)
 /*****************************************************************
  *
  *****************************************************************/
-PUBLIC gbuffer_t *gbuffer_base64_to_string(const char* base64, size_t base64_len)
+PUBLIC gbuffer_t *gbuffer_base64_to_binary(const char *base64, size_t base64_len)
 {
+    if(!base64) {
+        gobj_log_error(0, LOG_OPT_TRACE_STACK,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+            "msg",          "%s", "base64 NULL",
+            NULL
+        );
+        return NULL;
+    }
+
     size_t output_len = b64_output_decode_len(base64_len);
 
     gbuffer_t *gbuf_output = gbuffer_create(output_len, output_len);
@@ -1060,9 +1047,18 @@ PUBLIC gbuffer_t *gbuffer_encode_base64( // return new gbuffer
     gbuffer_t *gbuf_input  // decref
 )
 {
+    if(!gbuf_input) {
+        gobj_log_error(0, LOG_OPT_TRACE_STACK,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+            "msg",          "%s", "gbuf_input NULL",
+            NULL
+        );
+        return NULL;
+    }
     char *src = gbuffer_cur_rd_pointer(gbuf_input);
     size_t len = gbuffer_leftbytes(gbuf_input);
-    gbuffer_t *gbuf_output = gbuffer_string_to_base64(src, len);
+    gbuffer_t *gbuf_output = gbuffer_binary_to_base64(src, len);
     gbuffer_decref(gbuf_input);
     return gbuf_output;
 }

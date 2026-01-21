@@ -626,12 +626,12 @@ PRIVATE int on_read_cb(hgobj gobj, gbuffer_t *gbuf)
         );
     }
 
-    gbuffer_t *gbuf_base64 = gbuffer_string_to_base64(base, nread);
+    gbuffer_t *gbuf_base64 = gbuffer_binary_to_base64(base, nread);
     if(!gbuf_base64) {
         gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_MEMORY_ERROR,
-            "msg",          "%s", "gbuffer_string_to_base64() FAILED",
+            "msg",          "%s", "gbuffer_binary_to_base64() FAILED",
             NULL
         );
         return -1;

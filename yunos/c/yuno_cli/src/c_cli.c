@@ -2527,7 +2527,7 @@ PRIVATE int save_local_base64(
 
     const char *s = json_string_value(jn_content);
     if(s) {
-        gbuffer_t *gbuf_bin = gbuffer_base64_to_string(s, strlen(s));
+        gbuffer_t *gbuf_bin = gbuffer_base64_to_binary(s, strlen(s));
         if(gbuf_bin) {
             int fp = newfile(path, 0700, TRUE);
             if(fp) {

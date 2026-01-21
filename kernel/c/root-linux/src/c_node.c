@@ -1961,7 +1961,7 @@ PRIVATE json_t *cmd_create_node(hgobj gobj, const char *cmd, json_t *kw, hgobj s
         /*
          *  Get content in base64 and decode
          */
-        gbuffer_t *gbuf_content = gbuffer_base64_to_string(content64, strlen(content64));
+        gbuffer_t *gbuf_content = gbuffer_base64_to_binary(content64, strlen(content64));
         jn_content = legalstring2json(gbuffer_cur_rd_pointer(gbuf_content), TRUE);
         GBUFFER_DECREF(gbuf_content);
         if(!jn_content) {
@@ -2055,7 +2055,7 @@ PRIVATE json_t *cmd_update_node(hgobj gobj, const char *cmd, json_t *kw, hgobj s
         /*
          *  Get content in base64 and decode
          */
-        gbuffer_t *gbuf_content = gbuffer_base64_to_string(content64, strlen(content64));
+        gbuffer_t *gbuf_content = gbuffer_base64_to_binary(content64, strlen(content64));
         jn_content = legalstring2json(gbuffer_cur_rd_pointer(gbuf_content), TRUE);
         GBUFFER_DECREF(gbuf_content)
         if(!jn_content) {
@@ -3347,7 +3347,7 @@ PRIVATE json_t *cmd_import_db(hgobj gobj, const char *cmd, json_t *kw, hgobj src
         );
     }
 
-    gbuffer_t *gbuf_content = gbuffer_base64_to_string(content64, strlen(content64));
+    gbuffer_t *gbuf_content = gbuffer_base64_to_binary(content64, strlen(content64));
     jn_db = gbuf2json(
         gbuf_content,  // owned
         2

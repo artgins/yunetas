@@ -2010,7 +2010,7 @@ PRIVATE unsigned int property__get_length(const char *property_name, json_t *val
         ) {
             gbuffer_t *gbuf_correlation_data = 0;
             const char *b64 = json_string_value(value);
-            gbuf_correlation_data = gbuffer_string_to_base64(b64, strlen(b64));
+            gbuf_correlation_data = gbuffer_binary_to_base64(b64, strlen(b64));
             str_len += gbuffer_leftbytes(gbuf_correlation_data);
             GBUFFER_DECREF(gbuf_correlation_data);
 
@@ -2457,7 +2457,7 @@ PRIVATE int property__write(hgobj gobj, gbuffer_t *gbuf, const char *property_na
         case MQTT_PROP_CORRELATION_DATA:
             {
                 const char *b64 = json_string_value(value);
-                gbuffer_t *gbuf_binary_data = gbuffer_base64_to_string(b64, strlen(b64));
+                gbuffer_t *gbuf_binary_data = gbuffer_base64_to_binary(b64, strlen(b64));
                 void *p = gbuffer_cur_rd_pointer(gbuf_binary_data);
                 uint16_t len = gbuffer_leftbytes(gbuf_binary_data);
                 mqtt_write_uint16(gbuf, len);
@@ -3057,7 +3057,7 @@ PRIVATE int property_read(hgobj gobj, gbuffer_t *gbuf, uint32_t *len, json_t *al
             *len = (*len) - 2 - slen1; /* uint16, binary len */
 
             // Save binary data in base64
-            gbuffer_t *gbuf_b64 = gbuffer_string_to_base64(str1, slen1);
+            gbuffer_t *gbuf_b64 = gbuffer_binary_to_base64(str1, slen1);
             json_object_set_new(property, "value", json_string(gbuffer_cur_rd_pointer(gbuf_b64)));
             GBUFFER_DECREF(gbuf_b64);
             break;
@@ -8699,7 +8699,7 @@ PRIVATE int ac_mqtt_client_send_publish(hgobj gobj, const char *event, json_t *k
 
         // TODO this base64 to tr_queue.c
         // if(payloadlen) {
-        //     gbuffer_t *gbuf_base64 = gbuffer_string_to_base64(payload, payloadlen);
+        //     gbuffer_t *gbuf_base64 = gbuffer_binary_to_base64(payload, payloadlen);
         //     if(!gbuf_base64) {
         //         gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
         //             "function",     "%s", __FUNCTION__,

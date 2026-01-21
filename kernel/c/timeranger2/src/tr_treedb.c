@@ -2716,6 +2716,27 @@ PRIVATE int set_tranger_field_value(
             break;
 
         CASES("gbuffer")
+            {
+                // Convert gbuffer to base64 and save as base64 string
+                gbuffer_t *gbuf = (gbuffer_t *)(uintptr_t)json_integer_value(value);
+                gbuffer_t *gbuf_b64 = gbuffer_encode_base64(gbuffer_incref(gbuf));
+                if(gbuf_b64) {
+                    char *b64 = gbuffer_cur_rd_pointer(gbuf_b64);
+                    json_object_set_new(record, field, json_string(b64));
+                } else {
+                    json_object_set_new(record, field, json_string(""));
+                    gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
+                        "function",     "%s", __FUNCTION__,
+                        "msgset",       "%s", MSGSET_TREEDB_ERROR,
+                        "msg",          "%s", "Conversion to base64 failed",
+                        "topic_name",   "%s", topic_name,
+                        "col",          "%j", col,
+                        "field",        "%s", field,
+                        "value",        "%j", value,
+                        NULL
+                    );
+                }
+            }
             break;
 
         CASES("list")
@@ -2978,6 +2999,15 @@ PRIVATE int set_mem_field_value(
                 json_object_set(record, field, value);
             } else {
                 json_object_set_new(record, field, json_object());
+            }
+            break;
+
+        CASES("gbuffer")
+            {
+                // Convert base64 string to gbuffer
+                const char *content64 = json_string_value(value);
+                gbuffer_t *gbuf = gbuffer_base64_to_binary(content64, strlen(content64));
+                json_object_set_new(record, field, json_integer((json_int_t)(uintptr_t)gbuf));
             }
             break;
 
