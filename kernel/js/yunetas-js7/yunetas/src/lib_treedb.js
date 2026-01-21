@@ -324,15 +324,14 @@ function treedb_decoder_hook(col, hook)
  *  in other will define a subform.
  *
  ************************************************************/
-const treedb_real_types = [ // WARNING check 31_tr_treedb.h to update new real types
+const treedb_real_types = [ // WARNING check tr_treedb.h to update new real types
     "string",
     "integer",
     "object", "dict",
     "array","list",
     "real",
     "boolean",
-    "blob",
-    "number"
+    "blob"
 ];
 
 const treedb_field_attributes = [
@@ -349,10 +348,13 @@ const treedb_field_attributes = [
     "pstats"        // implicit stats
 ];
 
-const treedb_field_types = [ // WARNING check 31_tr_treedb.h to update new types
-    "fkey",
+const treedb_field_types = [ // WARNING check tr_treedb.h to update new types
     "hook",
+    "fkey",
     "enum",
+    "gbuffer",
+
+    "template",
     "uuid",
     "rowid",
     "password",
@@ -364,7 +366,6 @@ const treedb_field_types = [ // WARNING check 31_tr_treedb.h to update new types
     "color",
     "image",
     "tel",
-    "template",
     "table",
     "id",
     "currency",

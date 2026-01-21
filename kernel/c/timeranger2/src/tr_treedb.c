@@ -450,7 +450,7 @@ PUBLIC json_t *_treedb_create_topic_cols_desc(void)
     );
     json_array_append_new(
         topic_cols_desc,
-        json_pack("{s:s, s:s, s:i, s:s, s:[s,s,s,s,s,s,s,s,s,s], s:[s,s,s,s,s]}",
+        json_pack("{s:s, s:s, s:i, s:s, s:[s,s,s,s,s,s,s,s,s], s:[s,s,s,s,s]}",
             "id", "type",
             "header", "Type",
             "fillspace", 5,
@@ -465,7 +465,6 @@ PUBLIC json_t *_treedb_create_topic_cols_desc(void)
                 "real",
                 "boolean",
                 "blob",
-                "number",
             "flag",
                 "enum",
                 "required",
@@ -2441,7 +2440,7 @@ PRIVATE json_t *filtra_fkeys(
 }
 
 /***************************************************************************
- *
+ *  Convert field values from memory to disk
  ***************************************************************************/
 PRIVATE int set_tranger_field_value(
     const char *topic_name, // used only for log
@@ -2870,7 +2869,7 @@ PRIVATE int set_tranger_field_value(
 }
 
 /***************************************************************************
- *
+ *  Convert field values from disk to memory
  ***************************************************************************/
 PRIVATE int set_mem_field_value(
     const char *topic_name, // used only for log
