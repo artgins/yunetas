@@ -1228,8 +1228,8 @@ PRIVATE BOOL db__ready_for_flight(hgobj gobj, enum mqtt_msg_direction dir, int q
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
     struct mosquitto_msg_data *msgs;
-    BOOL valid_bytes;
-    BOOL valid_count;
+    BOOL valid_bytes = 0;
+    BOOL valid_count = 0;
 
     // if(dir == mosq_md_out) {
     //     msgs = &priv->msgs_out;
@@ -2268,7 +2268,7 @@ PRIVATE int mosquitto_property_add_varint(hgobj gobj, json_t *proplist, int iden
 /***************************************************************************
  *
  ***************************************************************************/
-PUBLIC int mqtt_property_add_string(
+PRIVATE int mqtt_property_add_string(
     hgobj gobj,
     json_t *proplist,
     int identifier,
@@ -6141,6 +6141,7 @@ PRIVATE int handle__publish_s(
     int topic_alias = -1;
     uint16_t mid = 0;
     gbuffer_t *payload = NULL;
+    json_t *kw_mqtt_msg = NULL;
 
     /*-----------------------------------*
      *  Get and check the header
@@ -6400,7 +6401,7 @@ PRIVATE int handle__publish_s(
      *      Build our json message
      *-----------------------------------*/
     time_t t = mosquitto_time();
-    json_t *kw_mqtt_msg = new_mqtt_message( // broker, message from client in handle__publish_s
+    kw_mqtt_msg = new_mqtt_message( // broker, message from client in handle__publish_s
         gobj,
         mid,
         topic,
