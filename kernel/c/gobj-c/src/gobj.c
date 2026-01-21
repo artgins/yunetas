@@ -226,7 +226,6 @@ PRIVATE int argc;
 PRIVATE char **argv;
 
 PRIVATE char __initialized__ = 0;
-PRIVATE int atexit_registered = 0; /* Register atexit just 1 time. */
 
 #ifdef __linux__
 PRIVATE struct utsname sys;
@@ -510,10 +509,6 @@ PUBLIC int gobj_start_up(
     }
     argc = argc_;
     argv = argv_;
-    // if (!atexit_registered) {
-    //     atexit(gobj_shutdown);
-    //     atexit_registered = 1;
-    // }
 
     glog_init();
 
@@ -4781,7 +4776,7 @@ PUBLIC json_t *gobj_command( // With AUTHZ
      *  Trace
      *-----------------------------------------------*/
     BOOL tracea = is_commands_tracing(gobj) ||
-        is_machine_tracing(gobj, 0) && !is_machine_not_tracing(src, 0);
+        (is_machine_tracing(gobj, 0) && !is_machine_not_tracing(src, 0));
     if(tracea) {
         trace_machine("🌀🌀 mach(%s%s), cmd: %s%s%s, src: %s",
             (!gobj->running)?"!!":"",

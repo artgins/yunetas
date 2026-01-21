@@ -2910,7 +2910,7 @@ PRIVATE int set_mem_field_value(
         return -1;
     }
 
-    const char *real_type = type;
+    //const char *real_type = type;
     json_t *desc_flag = kw_get_dict_value(gobj, col, "flag", 0, 0);
     if(kw_has_word(gobj, desc_flag, "enum", 0)) {
         type = "enum";
@@ -3241,7 +3241,7 @@ PRIVATE json_t *md2json(
         json_string(topic_name)
     );
     json_object_set_new(jn_md, "g_rowid", json_integer(g_rowid));
-    json_object_set_new(jn_md, "i_rowid", json_integer(md_record->rowid));
+    json_object_set_new(jn_md, "i_rowid", json_integer((json_int_t)md_record->rowid));
     json_object_set_new(jn_md, "t", json_integer((json_int_t)md_record->__t__));
     json_object_set_new(jn_md, "tm", json_integer((json_int_t)md_record->__tm__));
     json_object_set_new(jn_md, "tag", json_integer((json_int_t)md_record->user_flag));
