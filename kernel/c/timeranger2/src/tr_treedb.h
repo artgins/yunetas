@@ -148,9 +148,14 @@ PUBLIC int treedb_set_callback(
 
         // Field types
 
+        "hook"          // special field types
         "fkey"
-        "hook"
         "enum"
+        "template"
+        "gbuffer"
+
+        // normal field types (some of them not processed or checked by tranger2)
+
         "uuid"
         "rowid"
         "password"
@@ -162,7 +167,6 @@ PUBLIC int treedb_set_callback(
         "color"
         "image"
         "tel"
-        "template"
         "table"
         "id"
         "currency"
