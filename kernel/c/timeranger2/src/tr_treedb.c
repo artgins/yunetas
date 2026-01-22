@@ -761,7 +761,6 @@ PUBLIC json_t *treedb_open_db( // WARNING Return IS NOT YOURS!
     /*
      *  At least 'topics' must be.
      */
-    //json_t *jn_schema_topics = kw_get_list(jn_schema, "topics", 0, KW_REQUIRED);
     json_t *jn_schema_topics = kwid_new_list(gobj, jn_schema, 0, "topics");
     if(!jn_schema_topics) {
         gobj_log_error(gobj,0,
@@ -1774,7 +1773,7 @@ PRIVATE int check_desc_field(json_t *desc, json_t *dato)
     json_t *desc_type = kw_get_dict_value(gobj, desc, "type", 0, 0);
     json_t *desc_flag = kw_get_dict_value(gobj, desc, "flag", 0, 0);
 
-    if(!desc_id) {
+    if(empty_string(desc_id)) {
         gobj_log_error(gobj, 0,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_TREEDB_ERROR,
@@ -2453,20 +2452,6 @@ PRIVATE int set_tranger_field_value(
 {
     hgobj gobj = 0;
 
-    if(!field) {
-        field = kw_get_str(gobj, col, "id", 0, KW_REQUIRED);
-    }
-    if(!field) {
-        gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
-            "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_TREEDB_ERROR,
-            "msg",          "%s", "Col desc without 'id'",
-            "topic_name",   "%s", topic_name,
-            "col",          "%j", col,
-            NULL
-        );
-        return -1;
-    }
     const char *type = kw_get_str(gobj, col, "type", 0, KW_REQUIRED);
     if(!type) {
         gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
@@ -2902,20 +2887,6 @@ PRIVATE int set_mem_field_value(
 {
     hgobj gobj = 0;
 
-    if(!field) {
-        field = kw_get_str(gobj, col, "id", 0, KW_REQUIRED);
-    }
-    if(!field) {
-        gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
-            "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_TREEDB_ERROR,
-            "msg",          "%s", "Col desc without 'id'",
-            "topic_name",   "%s", topic_name,
-            "col",          "%j", col,
-            NULL
-        );
-        return -1;
-    }
     const char *type = kw_get_str(gobj, col, "type", 0, KW_REQUIRED);
     if(!type) {
         gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
