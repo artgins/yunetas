@@ -3334,7 +3334,7 @@ PRIVATE int load_id_callback(
             // HACK using backward, the first record is the last record
         } else {
             /*-------------------------------*
-             *  Append new node
+             *  Append new node from disk
              *-------------------------------*/
             /*--------------------------------------------*
              *  Convert tranger record to memory record
@@ -3443,7 +3443,7 @@ PRIVATE int load_pkey2_callback(
             // HACK using backward, the first record is the last record
         } else {
             /*-------------------------------*
-             *  Append new node
+             *  Append new node from disk
              *-------------------------------*/
             /*--------------------------------------------*
              *  Convert tranger record to memory record
@@ -4488,7 +4488,7 @@ PUBLIC json_t *treedb_create_node( // WARNING Return is NOT YOURS, pure node
     /*-----------------------------------*
      *  Single: exists already the id?
      *-----------------------------------*/
-    BOOL save_pkey = FALSE;
+    BOOL save_pkey2 = FALSE;
     BOOL save_id = FALSE;
     json_t *pkey2_list = json_array(); // collect pkeys to save
 
@@ -4496,6 +4496,7 @@ PUBLIC json_t *treedb_create_node( // WARNING Return is NOT YOURS, pure node
     if(!prev_record) {
         save_id = TRUE;
     }
+
     /*-----------------------------------*
      *  Look for a secondary key change
      *-----------------------------------*/
@@ -4523,13 +4524,13 @@ PUBLIC json_t *treedb_create_node( // WARNING Return is NOT YOURS, pure node
         );
         if(!exist_secondary_node(indexy, id, pkey2_value)) {
             // Not exist
-            save_pkey = TRUE;
+            save_pkey2 = TRUE;
             json_array_append_new(pkey2_list, json_string(pkey2_name));
         }
     }
     JSON_DECREF(iter_pkey2s)
 
-    if(!save_id && !save_pkey) {
+    if(!save_id && !save_pkey2) {
         gobj_log_warning(gobj, 0,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_TREEDB_ERROR,
@@ -4554,7 +4555,7 @@ PUBLIC json_t *treedb_create_node( // WARNING Return is NOT YOURS, pure node
         return 0;
     }
     BOOL links_inherited = FALSE;
-    if(save_pkey && prev_record) {
+    if(save_pkey2 && prev_record) {
         /*
          *  Si es un nodo secundario, copia los links del primario.
          */
@@ -4688,7 +4689,7 @@ PUBLIC json_t *treedb_create_node( // WARNING Return is NOT YOURS, pure node
     /*-------------------------------*
      *  Write node in memory: pkey2
      *-------------------------------*/
-    if(save_pkey) {
+    if(save_pkey2) {
         int idx2; json_t *jn_pkey2;
         json_array_foreach(pkey2_list, idx2, jn_pkey2) {
             const char *pkey2_name = json_string_value(jn_pkey2);
