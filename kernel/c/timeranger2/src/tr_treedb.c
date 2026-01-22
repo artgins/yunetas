@@ -3141,7 +3141,7 @@ PUBLIC int set_volatil_values(
 /***************************************************************************
  *  Convert from memory to disk
  ***************************************************************************/
-PRIVATE json_t *record2tranger(
+PRIVATE json_t *convert_record2tranger(
     hgobj gobj,
     json_t *tranger,
     const char *topic_name,
@@ -3194,7 +3194,7 @@ PRIVATE json_t *record2tranger(
 /***************************************************************************
  *  Convert from disk to memory
  ***************************************************************************/
-PRIVATE json_t *tranger2record(
+PRIVATE json_t *convert_tranger2record(
     hgobj gobj,
     json_t *tranger,
     const char *topic_name,
@@ -3342,7 +3342,7 @@ PRIVATE int load_id_callback(
              *      jn_record2 = jn_record, so simple
              *      plus set_missing_values()
              *--------------------------------------------*/
-            json_t *jn_record2 = tranger2record(gobj, tranger, topic_name, jn_record);
+            json_t *jn_record2 = convert_tranger2record(gobj, tranger, topic_name, jn_record);
 
             /*---------------------------------------------*
              *  Build metadata, loading node from disk
@@ -3451,7 +3451,7 @@ PRIVATE int load_pkey2_callback(
              *      jn_record2 = jn_record, so simple
              *      plus set_missing_values()
              *--------------------------------------------*/
-            json_t *jn_record2 = tranger2record(gobj, tranger, topic_name, jn_record);
+            json_t *jn_record2 = convert_tranger2record(gobj, tranger, topic_name, jn_record);
 
             /*---------------------------------------------*
              *  Build metadata, loading node from disk
@@ -4547,7 +4547,7 @@ PUBLIC json_t *treedb_create_node( // WARNING Return is NOT YOURS, pure node
     /*----------------------------------------*
      *  Create the tranger record to create
      *----------------------------------------*/
-    json_t *record = record2tranger(gobj, tranger, topic_name, kw, TRUE);
+    json_t *record = convert_record2tranger(gobj, tranger, topic_name, kw, TRUE);
     if(!record) {
         // Error already logged
         JSON_DECREF(pkey2_list)
@@ -4792,7 +4792,7 @@ PUBLIC int treedb_save_node(
     /*---------------------------------------*
      *  Create the tranger record to update
      *---------------------------------------*/
-    json_t *record = record2tranger(gobj, tranger, topic_name, node, FALSE);
+    json_t *record = convert_record2tranger(gobj, tranger, topic_name, node, FALSE);
     if(!record) {
         // Error already logged
         return -1;
