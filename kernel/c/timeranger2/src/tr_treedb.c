@@ -3171,13 +3171,13 @@ PRIVATE json_t *convert_record2tranger(
             }
         }
         if(set_tranger_field_value(
-                topic_name,
-                field,
-                col,
-                new_record,
-                value,
-                create
-            )<0) {
+            topic_name,
+            field,
+            col,
+            new_record,
+            value,
+            create
+        )<0) {
             // Error already logged
             JSON_DECREF(new_record)
             JSON_DECREF(cols)
