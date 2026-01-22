@@ -3139,7 +3139,7 @@ PUBLIC int set_volatil_values(
 }
 
 /***************************************************************************
- *
+ *  Convert from memory to disk
  ***************************************************************************/
 PRIVATE json_t *record2tranger(
     hgobj gobj,
@@ -3192,7 +3192,7 @@ PRIVATE json_t *record2tranger(
 }
 
 /***************************************************************************
- *
+ *  Convert from disk to memory
  ***************************************************************************/
 PRIVATE json_t *tranger2record(
     hgobj gobj,
