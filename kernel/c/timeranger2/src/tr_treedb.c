@@ -2471,7 +2471,7 @@ PRIVATE int set_tranger_field_value(
      *  Required
      */
     if(kw_has_word(gobj, desc_flag, "required", 0)) {
-        if(!value) { // WARNING efecto colateral? 16-oct-2020 || json_is_null(value)) {
+        if(!value) {
             gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
                 "function",     "%s", __FUNCTION__,
                 "msgset",       "%s", MSGSET_TREEDB_ERROR,
@@ -2486,17 +2486,19 @@ PRIVATE int set_tranger_field_value(
     }
 
     BOOL is_persistent = kw_has_word(gobj, desc_flag, "persistent", 0)?TRUE:FALSE;
-    BOOL wild_conversion = kw_has_word(gobj, desc_flag, "wild", 0)?TRUE:FALSE;
-    BOOL is_enum = kw_has_word(gobj, desc_flag, "enum", 0)?TRUE:FALSE;
     BOOL is_hook = kw_has_word(gobj, desc_flag, "hook", 0)?TRUE:FALSE;
     BOOL is_fkey = kw_has_word(gobj, desc_flag, "fkey", 0)?TRUE:FALSE;
+    if(!(is_persistent || is_hook || is_fkey)) {
+        // Not save to tranger
+        // Save to tranger only persistent or hooks or fkeys
+        return 0;
+    }
+
+    BOOL wild_conversion = kw_has_word(gobj, desc_flag, "wild", 0)?TRUE:FALSE;
+    BOOL is_enum = kw_has_word(gobj, desc_flag, "enum", 0)?TRUE:FALSE;
     BOOL is_now = kw_has_word(gobj, desc_flag, "now", 0)?TRUE:FALSE;
     BOOL is_time = kw_has_word(gobj, desc_flag, "time", 0)?TRUE:FALSE;
     BOOL is_gbuffer = kw_has_word(gobj, desc_flag, "gbuffer", 0)?TRUE:FALSE;
-    if(!(is_persistent || is_hook || is_fkey)) {
-        // Not save to tranger
-        return 0;
-    }
 
     /*
      *  Null
@@ -2544,13 +2546,11 @@ PRIVATE int set_tranger_field_value(
                     json_object_set_new(record, field, json_string(""));
                     break;
 
-                CASES("list")   // re-enable lists for hooks
+                CASES("list")
                 CASES("array")
                     json_object_set_new(record, field, json_array());
                     break;
 
-                //CASES("list")  // HACK disable lists for hooks TODO si dejo esto fallan los test!!
-                //CASES("array")
                 DEFAULTS
                     gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
                         "function",     "%s", __FUNCTION__,
