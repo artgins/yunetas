@@ -3194,6 +3194,8 @@ PRIVATE json_t *convert_node2tranger(
                     CASES("array")
                         json_object_set_new(record, field, json_array());
                         break;
+                    DEFAULTS
+                        break;
                 } SWITCHS_END;
                 break;
 
@@ -3241,6 +3243,9 @@ PRIVATE json_t *convert_node2tranger(
                             break;
                         }
                         json_object_set_new(record, field, mix_ids);
+                        break;
+
+                    DEFAULTS
                         break;
 
                 } SWITCHS_END;
