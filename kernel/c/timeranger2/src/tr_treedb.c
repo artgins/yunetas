@@ -2260,7 +2260,7 @@ PUBLIC json_t *topic_desc_fkey_names(
 
 
 /***************************************************************************
- *  Usado en set_tranger_field_value(), to write the fkey in tranger file
+ *  Usado en convert_node2tranger(), to write the fkey in tranger file
  *  type: "list", "dict", "string"
  ***************************************************************************/
 PRIVATE json_t *filtra_fkeys(
@@ -2439,15 +2439,14 @@ PRIVATE json_t *filtra_fkeys(
 }
 
 /***************************************************************************
- *  Convert field values from memory to disk
+ *  Normalize a new treedb node field
  ***************************************************************************/
-PRIVATE int set_tranger_field_value(
+PRIVATE int normalize_node_field_value(
     const char *topic_name, // used only for log
     const char *field,
     json_t *col,    // NOT owned
     json_t *record, // NOT owned
-    json_t *value,  // NOT owned
-    BOOL create
+    json_t *value   // NOT owned
 )
 {
     hgobj gobj = 0;
@@ -2570,60 +2569,19 @@ PRIVATE int set_tranger_field_value(
             SWITCHS(real_type) {
                 CASES("list")
                 CASES("array")
-                    if(create || !value) {
-                        json_object_set_new(record, field, json_array());
-                    } else {
-                        json_t *mix_ids = filtra_fkeys(
-                            topic_name,
-                            field,
-                            "list",
-                            value
-                        );
-                        if(!mix_ids) {
-                            // Error already logged
-                            return -1;
-                        }
-                        json_object_set_new(record, field, mix_ids);
-                    }
+                    // Do not allow data to be entered during creation.
+                    json_object_set_new(record, field, json_array());
                     break;
 
                 CASES("dict")
                 CASES("object")
-                    if(create || !value) {
-                        // No dejes poner datos en la creación.
-                        json_object_set_new(record, field, json_object());
-                    } else {
-                        json_t *mix_ids = filtra_fkeys(
-                            topic_name,
-                            field,
-                            "dict",
-                            value
-                        );
-                        if(!mix_ids) {
-                            // Error already logged
-                            return -1;
-                        }
-                        json_object_set_new(record, field, mix_ids);
-                    }
+                    // Do not allow data to be entered during creation.
+                    json_object_set_new(record, field, json_object());
                     break;
 
                 CASES("string")
-                    if(create || !value) {
-                        // No dejes poner datos en la creación.
-                        json_object_set_new(record, field, json_string(""));
-                    } else {
-                        json_t *mix_ids = filtra_fkeys(
-                            topic_name,
-                            field,
-                            "string",
-                            value
-                        );
-                        if(!mix_ids) {
-                            // Error already logged
-                            return -1;
-                        }
-                        json_object_set_new(record, field, mix_ids);
-                    }
+                    // Do not allow data to be entered during creation.
+                    json_object_set_new(record, field, json_string(""));
                     break;
 
                 DEFAULTS
@@ -2701,26 +2659,22 @@ PRIVATE int set_tranger_field_value(
             break;
 
         CASES("gbuffer")
-            {
-                // Convert gbuffer to base64 and save as base64 string
+            if(json_is_integer(value)) {
                 gbuffer_t *gbuf = (gbuffer_t *)(uintptr_t)json_integer_value(value);
-                gbuffer_t *gbuf_b64 = gbuffer_encode_base64(gbuffer_incref(gbuf));
-                if(gbuf_b64) {
-                    char *b64 = gbuffer_cur_rd_pointer(gbuf_b64);
-                    json_object_set_new(record, field, json_string(b64));
-                } else {
-                    json_object_set_new(record, field, json_string(""));
-                    gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
-                        "function",     "%s", __FUNCTION__,
-                        "msgset",       "%s", MSGSET_TREEDB_ERROR,
-                        "msg",          "%s", "Conversion to base64 failed",
-                        "topic_name",   "%s", topic_name,
-                        "col",          "%j", col,
-                        "field",        "%s", field,
-                        "value",        "%j", value,
-                        NULL
-                    );
-                }
+                gbuffer_incref(gbuf);
+                json_object_set_new(record, field, json_integer((json_int_t)(uintptr_t)gbuf));
+            } else {
+                gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
+                    "function",     "%s", __FUNCTION__,
+                    "msgset",       "%s", MSGSET_TREEDB_ERROR,
+                    "msg",          "%s", "Value must be integer",
+                    "topic_name",   "%s", topic_name,
+                    "col",          "%j", col,
+                    "field",        "%s", field,
+                    "value",        "%j", value,
+                    NULL
+                );
+                return -1;
             }
             break;
 
@@ -3110,14 +3064,13 @@ PUBLIC int set_volatil_values(
 }
 
 /***************************************************************************
- *  Convert from memory to disk
+ *  Create pure treedb record
  ***************************************************************************/
-PRIVATE json_t *convert_record2tranger(
+PRIVATE json_t *create_pure_record(
     hgobj gobj,
     json_t *tranger,
     const char *topic_name,
-    json_t *kw,  // NOT owned
-    BOOL create // create or update
+    json_t *kw  // NOT owned
 )
 {
     json_t *cols = tranger2_dict_topic_desc_cols(tranger, topic_name);
@@ -3137,29 +3090,194 @@ PRIVATE json_t *convert_record2tranger(
     json_object_foreach(cols, field, col) {
         json_t *value = kw_get_dict_value(gobj, kw, field, 0, 0);
         if(!value) {
-            if(create) {
-                value = kw_get_dict_value(gobj, col, "default", 0, 0);
-            }
+            value = kw_get_dict_value(gobj, col, "default", 0, 0);
         }
-        if(set_tranger_field_value(
+        if(normalize_node_field_value(
             topic_name,
             field,
             col,
             new_record,
-            value,
-            create
+            value
         )<0) {
             // Error already logged
             JSON_DECREF(new_record)
             JSON_DECREF(cols)
-            return 0;
+            return NULL;
         }
     }
 
-    json_object_del(new_record, "__md_treedb__");
-
     JSON_DECREF(cols)
     return new_record;
+}
+
+/***************************************************************************
+ *  Convert from memory to disk
+ ***************************************************************************/
+PRIVATE json_t *convert_node2tranger(
+    hgobj gobj,
+    json_t *tranger,
+    const char *topic_name,
+    json_t *node  // NOT owned
+)
+{
+    json_t *cols = tranger2_dict_topic_desc_cols(tranger, topic_name);
+    if(!cols) {
+        gobj_log_error(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_TREEDB_ERROR,
+            "msg",          "%s", "Topic without cols",
+            "topic_name",   "%s", topic_name,
+            NULL
+        );
+        return 0;
+    }
+    json_t *record = json_object();
+
+    const char *field; json_t *col;
+    json_object_foreach(cols, field, col) {
+        json_t *desc_flag = kw_get_dict_value(gobj, col, "flag", 0, 0);
+        BOOL is_persistent = kw_has_word(gobj, desc_flag, "persistent", 0)?TRUE:FALSE;
+        BOOL is_hook = kw_has_word(gobj, desc_flag, "hook", 0)?TRUE:FALSE;
+        BOOL is_fkey = kw_has_word(gobj, desc_flag, "fkey", 0)?TRUE:FALSE;
+        if(!(is_persistent || is_hook || is_fkey)) {
+            // Save to tranger only persistent or fkeys
+            continue;
+        }
+
+        json_t *value = kw_get_dict_value(gobj, node, field, 0, 0);
+
+        /*
+         *  Required
+         */
+        if(kw_has_word(gobj, desc_flag, "required", 0)) {
+            if(!value) {
+                gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
+                    "function",     "%s", __FUNCTION__,
+                    "msgset",       "%s", MSGSET_TREEDB_ERROR,
+                    "msg",          "%s", "Field required",
+                    "topic_name",   "%s", topic_name,
+                    "field",        "%s", field,
+                    "value",        "%j", value,
+                    NULL
+                );
+                JSON_DECREF(record)
+                return NULL;
+            }
+        }
+
+        const char *type = kw_get_str(gobj, col, "type", 0, KW_REQUIRED);
+        BOOL is_gbuffer = kw_has_word(gobj, desc_flag, "gbuffer", 0)?TRUE:FALSE;
+
+        const char *real_type = type;
+        if(is_hook) {
+            type = "hook";
+        } else if(is_fkey) {
+            type = "fkey";
+        } else if(is_gbuffer) {
+            type = "gbuffer";
+        }
+
+
+        SWITCHS(type) {
+            CASES("hook")
+                SWITCHS(real_type) {
+                    CASES("dict")
+                    CASES("object")
+                        json_object_set_new(record, field, json_object());
+                        break;
+
+                    CASES("string")
+                        json_object_set_new(record, field, json_string(""));
+                        break;
+
+                    CASES("list")
+                    CASES("array")
+                        json_object_set_new(record, field, json_array());
+                        break;
+                } SWITCHS_END;
+                break;
+
+            CASES("fkey")
+                SWITCHS(real_type) {
+                    CASES("list")
+                    CASES("array")
+                        json_t *mix_ids = filtra_fkeys(
+                            topic_name,
+                            field,
+                            "list",
+                            value
+                        );
+                        if(!mix_ids) {
+                            // Error already logged
+                            break;
+                        }
+                        json_object_set_new(record, field, mix_ids);
+                        break;
+
+                    CASES("dict")
+                    CASES("object")
+                        json_t *mix_ids = filtra_fkeys(
+                            topic_name,
+                            field,
+                            "dict",
+                            value
+                        );
+                        if(!mix_ids) {
+                            // Error already logged
+                            break;
+                        }
+                        json_object_set_new(record, field, mix_ids);
+                        break;
+
+                    CASES("string")
+                        json_t *mix_ids = filtra_fkeys(
+                            topic_name,
+                            field,
+                            "string",
+                            value
+                        );
+                        if(!mix_ids) {
+                            // Error already logged
+                            break;
+                        }
+                        json_object_set_new(record, field, mix_ids);
+                        break;
+
+                } SWITCHS_END;
+                break;
+
+            CASES("gbuffer")
+                {
+                    // Convert gbuffer to base64 and save as base64 string
+                    gbuffer_t *gbuf = (gbuffer_t *)(uintptr_t)json_integer_value(value);
+                    gbuffer_t *gbuf_b64 = gbuffer_encode_base64(gbuffer_incref(gbuf));
+                    if(gbuf_b64) {
+                        char *b64 = gbuffer_cur_rd_pointer(gbuf_b64);
+                        json_object_set_new(record, field, json_string(b64));
+                    } else {
+                        json_object_set_new(record, field, json_string(""));
+                        gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
+                            "function",     "%s", __FUNCTION__,
+                            "msgset",       "%s", MSGSET_TREEDB_ERROR,
+                            "msg",          "%s", "Conversion to base64 failed",
+                            "topic_name",   "%s", topic_name,
+                            "col",          "%j", col,
+                            "field",        "%s", field,
+                            "value",        "%j", value,
+                            NULL
+                        );
+                    }
+                }
+                break;
+
+            DEFAULTS
+                json_object_set(record, field, value);
+                break;
+        } SWITCHS_END
+    }
+
+    JSON_DECREF(cols)
+    return record;
 }
 
 /***************************************************************************
@@ -3220,7 +3338,7 @@ PRIVATE json_t *convert_tranger2record(
 }
 
 /***************************************************************************
- *  Return json object with record metadata
+ *  Return json object with record metadata and marked as pure_node
  ***************************************************************************/
 PRIVATE json_t *md2json(
     const char *treedb_name,
@@ -4516,9 +4634,9 @@ PUBLIC json_t *treedb_create_node( // WARNING Return is NOT YOURS, pure node
     }
 
     /*----------------------------------------*
-     *  Create the tranger record to create
+     *      Create a new treedb record
      *----------------------------------------*/
-    json_t *record = convert_record2tranger(gobj, tranger, topic_name, kw, TRUE);
+    json_t *record = create_pure_record(gobj, tranger, topic_name, kw);
     if(!record) {
         // Error already logged
         JSON_DECREF(pkey2_list)
@@ -4564,7 +4682,7 @@ PUBLIC json_t *treedb_create_node( // WARNING Return is NOT YOURS, pure node
      *  HACK set volatil after append record:
      *      Volatil data must not be save in file!
      *--------------------------------------------------*/
-    set_volatil_values( // crea campos vacios o con los valores de kw
+    set_volatil_values( // create non-persistent fields
         tranger,
         topic_name,
         record,  // NOT owned
@@ -4763,7 +4881,7 @@ PUBLIC int treedb_save_node(
     /*---------------------------------------*
      *  Create the tranger record to update
      *---------------------------------------*/
-    json_t *record = convert_record2tranger(gobj, tranger, topic_name, node, FALSE);
+    json_t *record = convert_node2tranger(gobj, tranger, topic_name, node);
     if(!record) {
         // Error already logged
         return -1;
@@ -8866,13 +8984,12 @@ PUBLIC json_t *create_template_record(
         if(!value || strcmp(field, "template_version")==0) {
             value = kw_get_dict_value(gobj, col, "default", 0, 0);
         }
-        set_tranger_field_value(
+        normalize_node_field_value(
             template_name,
             field,
             col,
             new_record,
-            value,
-            TRUE
+            value
         );
     }
 
