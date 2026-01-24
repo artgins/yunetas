@@ -159,7 +159,7 @@
 static char treedb_schema_mqtt_broker[]= "\
 {                                                                   \n\
     'id': 'treedb_mqtt_broker',                                     \n\
-    'schema_version': '12',                                         \n\
+    'schema_version': '13',                                         \n\
     'topics': [                                                     \n\
         {                                                           \n\
             'id': 'client_groups',                                  \n\
@@ -683,7 +683,7 @@ static char treedb_schema_mqtt_broker[]= "\
             'pkey': 'id',                                           \n\
             'tkey': 'tm',                                           \n\
             'system_flag': 'sf_string_key',                         \n\
-            'topic_version': '5',                                   \n\
+            'topic_version': '6',                                   \n\
             'cols': {                                               \n\
                 'id': {                                             \n\
                     'header': 'Topic',                              \n\
@@ -738,6 +738,14 @@ static char treedb_schema_mqtt_broker[]= "\
                     'flag': [                                       \n\
                         'gbuffer',                                  \n\
                         'persistent'                                \n\
+                    ]                                               \n\
+                },                                                  \n\
+                'test_volatil': {                                   \n\
+                    'header': 'Volatil',                            \n\
+                    'fillspace': 30,                                \n\
+                    'default': 'Pepe',                              \n\
+                    'type': 'string',                               \n\
+                    'flag': [                                       \n\
                     ]                                               \n\
                 },                                                  \n\
                 '_geometry': {                                      \n\
