@@ -54,7 +54,10 @@ Mosquitto with retain
 ---------------------
 mosquitto_sub -i client1 -h localhost -t "#" -q 2 -c -V mqttv5
 mosquitto_sub -i client2 -h localhost -t "#" -q 2 -c -V mqttv5
-mosquitto_pub -i client3 -h localhost -t "test/topic" -m "{client3:3333}" -q 2  -r
+mosquitto_pub -i client3 -h localhost -t "test/client3/topic" -m "{client3:3333}" -q 2  -r
+mosquitto_pub -i client4 -h localhost -t "test/client4/topic" -m "{client4:4444}" -q 2  -r
+
+./mqtt_tui -i client3 -c  --url-mqtt=mqtt://127.0.0.1:1883
 
 Yuneta with retain
 ------------------

@@ -1765,18 +1765,20 @@ PRIVATE int db__message_write_queued_in(hgobj gobj)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
-    register q2_msg_t *msg;
-    Q2MSG_FOREACH_FORWARD_QUEUED(priv->trq_in_msgs, msg) {
-        // if(context->msgs_in.inflight_maximum != 0 && context->msgs_in.inflight_quota == 0){
-        if(priv->trq_in_msgs->max_inflight_messages > 0 && tr2q_inflight_size(priv->trq_in_msgs)==0) {
-            break;
-        }
+    if(priv->trq_in_msgs) {
+        register q2_msg_t *msg;
+        Q2MSG_FOREACH_FORWARD_QUEUED(priv->trq_in_msgs, msg) {
+            // if(context->msgs_in.inflight_maximum != 0 && context->msgs_in.inflight_quota == 0){
+            if(priv->trq_in_msgs->max_inflight_messages > 0 && tr2q_inflight_size(priv->trq_in_msgs)==0) {
+                break;
+            }
 
-        if(tr2q_move_from_queued_to_inflight(msg)<0) {
-            break;
+            if(tr2q_move_from_queued_to_inflight(msg)<0) {
+                break;
+            }
+            //user_flag_set_state(&user_flag, mosq_ms_wait_for_pubrel); // TODO
+            send__pubrec(gobj, msg->mid, 0, NULL);
         }
-        //user_flag_set_state(&user_flag, mosq_ms_wait_for_pubrel); // TODO
-        send__pubrec(gobj, msg->mid, 0, NULL);
     }
     return MOSQ_ERR_SUCCESS;
 }
@@ -8418,9 +8420,12 @@ PRIVATE int ac_send_message(hgobj gobj, const char *event, json_t *kw, hgobj src
     if(gobj_trace_level(gobj) & TRAFFIC) {
         gobj_trace_dump_gbuf(gobj, gbuf, "%s, topic %s", gobj_short_name(gobj), topic);
     }
-    int qos = (int)kw_get_int(gobj, kw, "qos", 0, KW_REQUIRED);
+    uint32_t qos = (uint32_t)kw_get_int(gobj, kw, "qos", 0, KW_REQUIRED);
     BOOL retain = kw_get_bool(gobj, kw, "retain", 0, KW_REQUIRED);
 
+    if(qos > priv->max_qos) {
+        qos = priv->max_qos;
+    }
     uint16_t mid = mosquitto__mid_generate(gobj);
     json_object_set_new(kw, "mid", json_integer(mid));
 

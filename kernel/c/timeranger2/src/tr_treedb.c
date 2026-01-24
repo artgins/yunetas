@@ -4527,7 +4527,7 @@ PUBLIC json_t *treedb_create_node( // WARNING Return is NOT YOURS, pure node
      *      Check appropriate topic
      *-----------------------------------*/
     if(!treedb_is_treedbs_topic(tranger, treedb_name, topic_name)) {
-        gobj_log_error(gobj, 0,
+        gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_TREEDB_ERROR,
             "msg",          "%s", "Topic name not found in treedbs",
@@ -4561,7 +4561,7 @@ PUBLIC json_t *treedb_create_node( // WARNING Return is NOT YOURS, pure node
             json_object_set_new(kw, "id", json_sprintf("%"JSON_INTEGER_FORMAT, rowid));
             id = kw_get_str(gobj, kw, "id", 0, 0);
         } else {
-            gobj_log_error(gobj, 0,
+            gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
                 "function",     "%s", __FUNCTION__,
                 "msgset",       "%s", MSGSET_TREEDB_ERROR,
                 "msg",          "%s", "Field 'id' required",
@@ -4625,7 +4625,7 @@ PUBLIC json_t *treedb_create_node( // WARNING Return is NOT YOURS, pure node
     JSON_DECREF(iter_pkey2s)
 
     if(!save_id && !save_pkey2) {
-        gobj_log_warning(gobj, 0,
+        gobj_log_warning(gobj, LOG_OPT_TRACE_STACK,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_TREEDB_ERROR,
             "msg",          "%s", "Node already exists",
@@ -4796,7 +4796,7 @@ PUBLIC json_t *treedb_create_node( // WARNING Return is NOT YOURS, pure node
                 pkey2_name
             );
             if(!indexy) {
-                gobj_log_error(gobj, 0,
+                gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
                     "function",     "%s", __FUNCTION__,
                     "msgset",       "%s", MSGSET_TREEDB_ERROR,
                     "msg",          "%s", "TreeDb Topic indexy NOT FOUND",
@@ -4864,7 +4864,7 @@ PUBLIC int treedb_save_node(
      *      Check original node
      *------------------------------*/
     if(!kw_get_bool(gobj, node, "__md_treedb__`pure_node", 0, 0)) {
-        gobj_log_error(gobj, 0,
+        gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_TREEDB_ERROR,
             "msg",          "%s", "Not a pure node",
@@ -4992,7 +4992,7 @@ PUBLIC json_t *treedb_update_node( // WARNING Return is NOT YOURS, pure node
      *      Check original node
      *------------------------------*/
     if(!kw_get_bool(gobj, node, "__md_treedb__`pure_node", 0, 0)) {
-        gobj_log_error(gobj, 0,
+        gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_TREEDB_ERROR,
             "msg",          "%s", "Not a pure node",
@@ -5074,7 +5074,7 @@ PUBLIC int treedb_delete_node(
      *      Check original node
      *------------------------------*/
     if(!kw_get_bool(gobj, node, "__md_treedb__`pure_node", 0, 0)) {
-        gobj_log_error(gobj, 0,
+        gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_TREEDB_ERROR,
             "msg",          "%s", "Not a pure node",
@@ -5100,7 +5100,7 @@ PUBLIC int treedb_delete_node(
     json_int_t __tag__ = kw_get_int(gobj, node, "__md_treedb__`tag", 0, KW_REQUIRED);
     if(__tag__ && !force) {
         // añade opción de borrar un snap que desmarque los nodos?
-        gobj_log_error(gobj, 0,
+        gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_TREEDB_ERROR,
             "msg",          "%s", "cannot delete node, it has a tag",
@@ -5152,7 +5152,7 @@ PUBLIC int treedb_delete_node(
             json_t *down_refs_ = get_node_down_refs(gobj, tranger, node);
             if(json_array_size(down_refs_)>0) {
                 to_delete = FALSE;
-                gobj_log_error(gobj, 0,
+                gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
                     "function",     "%s", __FUNCTION__,
                     "msgset",       "%s", MSGSET_TREEDB_ERROR,
                     "msg",          "%s", "Cannot delete node: still has down links",
@@ -5165,7 +5165,7 @@ PUBLIC int treedb_delete_node(
 
         } else {
             to_delete = FALSE;
-            gobj_log_warning(gobj, 0,
+            gobj_log_warning(gobj, LOG_OPT_TRACE_STACK,
                 "function",     "%s", __FUNCTION__,
                 "msgset",       "%s", MSGSET_TREEDB_ERROR,
                 "msg",          "%s", "Cannot delete node: has down links",
@@ -5188,7 +5188,7 @@ PUBLIC int treedb_delete_node(
             }
         } else {
             to_delete = FALSE;
-            gobj_log_warning(gobj, 0,
+            gobj_log_warning(gobj, LOG_OPT_TRACE_STACK,
                 "function",     "%s", __FUNCTION__,
                 "msgset",       "%s", MSGSET_TREEDB_ERROR,
                 "msg",          "%s", "Cannot delete node: has up links",
@@ -5231,7 +5231,7 @@ PUBLIC int treedb_delete_node(
          *-------------------------------*/
         json_t *indexx = treedb_get_id_index(tranger, treedb_name, topic_name);
         if(delete_primary_node(indexx, id)<0) { // node owned
-            gobj_log_error(gobj, 0,
+            gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
                 "function",     "%s", __FUNCTION__,
                 "msgset",       "%s", MSGSET_TREEDB_ERROR,
                 "msg",          "%s", "delete_primary_node() FAILED",
@@ -5262,7 +5262,7 @@ PUBLIC int treedb_delete_node(
                 pkey2_name
             );
             if(!indexy) {
-                gobj_log_error(gobj, 0,
+                gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
                     "function",     "%s", __FUNCTION__,
                     "msgset",       "%s", MSGSET_TREEDB_ERROR,
                     "msg",          "%s", "TreeDb Topic indexy NOT FOUND",
@@ -5337,7 +5337,7 @@ PUBLIC int treedb_delete_node(
         JSON_DECREF(node)
 
     } else {
-        gobj_log_error(gobj, 0,
+        gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_TREEDB_ERROR,
             "msg",          "%s", "Cannot delete node",
@@ -5377,7 +5377,7 @@ PUBLIC int treedb_delete_instance(
      *      Check original node
      *------------------------------*/
     if(!kw_get_bool(gobj, node, "__md_treedb__`pure_node", 0, 0)) {
-        gobj_log_error(gobj, 0,
+        gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_TREEDB_ERROR,
             "msg",          "%s", "Not a pure node",
@@ -5765,7 +5765,7 @@ PRIVATE int _link_nodes(
      *      Check original node
      *------------------------------*/
     if(!kw_get_bool(gobj, parent_node, "__md_treedb__`pure_node", 0, 0)) {
-        gobj_log_error(gobj, 0,
+        gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_TREEDB_ERROR,
             "msg",          "%s", "Cannot link nodes, Not a pure node",
@@ -5779,7 +5779,7 @@ PRIVATE int _link_nodes(
      *      Check original node
      *------------------------------*/
     if(!kw_get_bool(gobj, child_node, "__md_treedb__`pure_node", 0, 0)) {
-        gobj_log_error(gobj, 0,
+        gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_TREEDB_ERROR,
             "msg",          "%s", "Cannot link nodes, Not a pure node",
@@ -6146,7 +6146,7 @@ PRIVATE int _unlink_nodes(
      *      Check original node
      *------------------------------*/
     if(!kw_get_bool(gobj, parent_node, "__md_treedb__`pure_node", 0, 0)) {
-        gobj_log_error(gobj, 0,
+        gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_TREEDB_ERROR,
             "msg",          "%s", "Cannot unlink nodes, Not a pure node",
@@ -6160,7 +6160,7 @@ PRIVATE int _unlink_nodes(
      *      Check original node
      *------------------------------*/
     if(!kw_get_bool(gobj, child_node, "__md_treedb__`pure_node", 0, 0)) {
-        gobj_log_error(gobj, 0,
+        gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_TREEDB_ERROR,
             "msg",          "%s", "Cannot unlink nodes, Not a pure node",
@@ -6592,7 +6592,7 @@ PUBLIC int treedb_clean_node(
      *      Check original node
      *------------------------------*/
     if(!kw_get_bool(gobj, node, "__md_treedb__`pure_node", 0, 0)) {
-        gobj_log_error(gobj, 0,
+        gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_TREEDB_ERROR,
             "msg",          "%s", "Not a pure node",
@@ -6713,7 +6713,7 @@ PUBLIC int treedb_autolink( // use fkeys fields of kw to auto-link
      *      Check original node
      *------------------------------*/
     if(!kw_get_bool(gobj, node, "__md_treedb__`pure_node", 0, 0)) {
-        gobj_log_error(gobj, 0,
+        gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_TREEDB_ERROR,
             "msg",          "%s", "Not a pure node",
@@ -7326,7 +7326,7 @@ PUBLIC json_t *node_collapsed_view( // Return MUST be decref
      *      Check original node
      *------------------------------*/
     if(!kw_get_bool(gobj, node, "__md_treedb__`pure_node", 0, 0)) {
-        gobj_log_error(gobj, 0,
+        gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_TREEDB_ERROR,
             "msg",          "%s", "Not a pure node",
@@ -7981,7 +7981,7 @@ PUBLIC json_t *treedb_parent_refs( // Return MUST be decref
      *      Check original node
      *------------------------------*/
     if(!kw_get_bool(gobj, node, "__md_treedb__`pure_node", 0, 0)) {
-        gobj_log_error(gobj, 0,
+        gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_TREEDB_ERROR,
             "msg",          "%s", "Not a pure node",
@@ -8070,7 +8070,7 @@ PUBLIC json_t *treedb_list_parents( // Return MUST be decref
      *      Check original node
      *------------------------------*/
     if(!kw_get_bool(gobj, node, "__md_treedb__`pure_node", 0, 0)) {
-        gobj_log_error(gobj, 0,
+        gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_TREEDB_ERROR,
             "msg",          "%s", "Not a pure node",
@@ -8161,7 +8161,7 @@ PRIVATE json_t *_list_children(
      *      Check original node
      *------------------------------*/
     if(!kw_get_bool(gobj, node, "__md_treedb__`pure_node", 0, 0)) {
-        gobj_log_error(gobj, 0,
+        gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_TREEDB_ERROR,
             "msg",          "%s", "Not a pure node",
@@ -8281,7 +8281,7 @@ PUBLIC json_t *treedb_node_children(
      *      Check original node
      *------------------------------*/
     if(!kw_get_bool(gobj, node, "__md_treedb__`pure_node", 0, 0)) {
-        gobj_log_error(gobj, 0,
+        gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_TREEDB_ERROR,
             "msg",          "%s", "Not a pure node",
@@ -8442,7 +8442,7 @@ PUBLIC json_t *treedb_node_jtree(
      *      Check original node
      *------------------------------*/
     if(!kw_get_bool(gobj, node, "__md_treedb__`pure_node", 0, 0)) {
-        gobj_log_error(gobj, 0,
+        gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_TREEDB_ERROR,
             "msg",          "%s", "Not a pure node",
