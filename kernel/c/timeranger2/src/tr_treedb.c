@@ -2484,14 +2484,14 @@ PRIVATE int normalize_node_field_value(
         }
     }
 
-    BOOL is_persistent = kw_has_word(gobj, desc_flag, "persistent", 0)?TRUE:FALSE;
     BOOL is_hook = kw_has_word(gobj, desc_flag, "hook", 0)?TRUE:FALSE;
     BOOL is_fkey = kw_has_word(gobj, desc_flag, "fkey", 0)?TRUE:FALSE;
-    if(!(is_persistent || is_hook || is_fkey)) {
-        // Not save to tranger
-        // Save to tranger only persistent or hooks or fkeys
-        return 0;
-    }
+    // BOOL is_persistent = kw_has_word(gobj, desc_flag, "persistent", 0)?TRUE:FALSE;
+    // if(!(is_persistent || is_hook || is_fkey)) {
+    //     // Not save to tranger
+    //     // Save to tranger only persistent or hooks or fkeys
+    //     return 0;
+    // }
 
     BOOL wild_conversion = kw_has_word(gobj, desc_flag, "wild", 0)?TRUE:FALSE;
     BOOL is_enum = kw_has_word(gobj, desc_flag, "enum", 0)?TRUE:FALSE;
@@ -3842,7 +3842,7 @@ PRIVATE int link_child_to_parent(
 PRIVATE int load_links(
     hgobj gobj,
     json_t *tranger,
-    json_t *child_node
+    json_t *child_node // not owned
 )
 {
     int ret = 0;
@@ -4661,6 +4661,18 @@ PUBLIC json_t *treedb_create_node( // WARNING Return is NOT YOURS, pure node
         copy_inherit_fields(gobj, tranger, topic_name, node, prev_node);
     }
 
+    /*---------------------------------------*
+     *  Create the tranger record to save
+     *---------------------------------------*/
+    json_t *record = convert_node2tranger(gobj, tranger, topic_name, node);
+    if(!record) {
+        // Error already logged
+        JSON_DECREF(pkey2_list)
+        KW_DECREF(kw)
+        JSON_DECREF(node)
+        return NULL;
+    }
+
     /*-------------------------------*
      *  Write to tranger (Creating)
      *-------------------------------*/
@@ -4671,46 +4683,35 @@ PUBLIC json_t *treedb_create_node( // WARNING Return is NOT YOURS, pure node
         0, // __t__,         // if 0 then the time will be set by TimeRanger with now time
         0, // user_flag,
         &md_record, // md_record,
-        json_incref(node) // owned
+        json_incref(record) // owned
     );
     if(ret < 0) {
         // Error already logged
         JSON_DECREF(pkey2_list)
         KW_DECREF(kw)
         JSON_DECREF(node)
-        return 0;
+        JSON_DECREF(record)
+        return NULL;
     }
 
-    /*--------------------------------------------------*
-     *  Set volatil data
-     *  HACK set volatil after append record:
-     *      Volatil data must not be save in file!
-     *--------------------------------------------------*/
-    set_volatil_values( // create non-persistent fields
-        tranger,
-        topic_name,
-        node,  // NOT owned
-        kw, // NOT owned
-        FALSE
-    );
-
-    /*--------------------------------------------*
-     *  Build metadata, creating node in memory
-     *--------------------------------------------*/
-    json_int_t rowid = json_integer_value(
+    /*-------------------*
+     *  Build metadata
+     *-------------------*/
+    json_int_t g_rowid = json_integer_value(
         json_object_get(
-            json_object_get(node, "__md_tranger__"),
+            json_object_get(record, "__md_tranger__"),
             "g_rowid"
         )
     );
-    json_t *jn_record_md = md2json(
+    json_t *jn_node_md = md2json(
         treedb_name,
         topic_name,
         &md_record,
-        rowid
+        g_rowid
     );
-    json_object_set_new(node, "__md_treedb__", jn_record_md);
-    json_object_del(node, "__md_tranger__");
+    json_object_set_new(node, "__md_treedb__", jn_node_md);
+
+    JSON_DECREF(record)
 
     /*---------------------------------------------------*
      *  Si tienes la marca grupo, pasas, eres el activo.
@@ -4754,7 +4755,7 @@ PUBLIC json_t *treedb_create_node( // WARNING Return is NOT YOURS, pure node
     );
 
     /*-------------------------------*
-     *  Write node in memory: id
+     *  Create node in memory: id
      *-------------------------------*/
     if(save_id) {
         add_primary_node(indexx, id, node);
@@ -4779,7 +4780,7 @@ PUBLIC json_t *treedb_create_node( // WARNING Return is NOT YOURS, pure node
     }
 
     /*-------------------------------*
-     *  Write node in memory: pkey2
+     *  Create node in memory: pkey2
      *-------------------------------*/
     if(save_pkey2) {
         int idx2; json_t *jn_pkey2;
@@ -4843,7 +4844,6 @@ PUBLIC json_t *treedb_create_node( // WARNING Return is NOT YOURS, pure node
         gobj_trace_json(gobj, node, "treedb_create_node: Ok (%s, %s)", treedb_name, topic_name);
     }
 
-    json_decref(node);
     JSON_DECREF(pkey2_list)
     KW_DECREF(kw)
     return node;
@@ -4881,7 +4881,7 @@ PUBLIC int treedb_save_node(
     const char *topic_name = kw_get_str(gobj, node, "__md_treedb__`topic_name", 0, 0);
 
     /*---------------------------------------*
-     *  Create the tranger record to update
+     *  Create the tranger record to save
      *---------------------------------------*/
     json_t *record = convert_node2tranger(gobj, tranger, topic_name, node);
     if(!record) {
@@ -4894,7 +4894,6 @@ PUBLIC int treedb_save_node(
      *-------------------------------------*/
     uint32_t tag = kw_get_int(gobj, node, "__md_treedb__`tag", 0, KW_REQUIRED);
 
-    JSON_INCREF(record)
     md2_record_ex_t md_record;
     int ret = tranger2_append_record(
         tranger,
@@ -4902,26 +4901,29 @@ PUBLIC int treedb_save_node(
         0, // __t__,         // if 0 then the time will be set by TimeRanger with now time
         tag, // user_flag,
         &md_record, // md_record,
-        record // owned
+        json_incref(record) // owned
     );
     if(ret < 0) {
         // Error already logged
+        JSON_DECREF(record)
         return -1;
     }
 
     /*--------------------------------------------*
-     *  Build metadata, update node in memory
+     *  Build metadata
      *  HACK only numeric fields! strings cannot
      *--------------------------------------------*/
+    json_int_t g_rowid = json_integer_value(
+        json_object_get(
+            json_object_get(record, "__md_tranger__"),
+            "g_rowid"
+        )
+    );
     json_t *__md_treedb__ = json_object_get(node, "__md_treedb__");
-    json_object_set_new(__md_treedb__,
-        "t",
-        json_integer(md_record.__t__)
-    );
-    json_object_set_new(__md_treedb__,
-        "tm",
-        json_integer(md_record.__tm__)
-    );
+    json_object_set_new(__md_treedb__, "g_rowid", json_integer(g_rowid));
+    json_object_set_new(__md_treedb__, "i_rowid", json_integer((json_int_t)md_record.rowid));
+    json_object_set_new(__md_treedb__, "t", json_integer((json_int_t)md_record.__t__));
+    json_object_set_new(__md_treedb__, "tm", json_integer((json_int_t)md_record.__tm__));
 
     /*-------------------------------*
      *  Get callback
