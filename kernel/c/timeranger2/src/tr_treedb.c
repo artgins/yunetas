@@ -4586,8 +4586,8 @@ PUBLIC json_t *treedb_create_node( // WARNING Return is NOT YOURS, pure node
     BOOL save_id = FALSE;
     json_t *pkey2_list = json_array(); // collect pkeys to save
 
-    json_t *prev_record = exist_primary_node(indexx, id);
-    if(!prev_record) {
+    json_t *prev_node = exist_primary_node(indexx, id);
+    if(!prev_node) {
         save_id = TRUE;
     }
 
@@ -4641,44 +4641,43 @@ PUBLIC json_t *treedb_create_node( // WARNING Return is NOT YOURS, pure node
     /*----------------------------------------*
      *      Create a new treedb record
      *----------------------------------------*/
-    json_t *record = create_pure_record(gobj, tranger, topic_name, kw);
-    if(!record) {
+    json_t *node = create_pure_record(gobj, tranger, topic_name, kw);
+    if(!node) {
         // Error already logged
         JSON_DECREF(pkey2_list)
         KW_DECREF(kw)
         return 0;
     }
     BOOL links_inherited = FALSE;
-    if(save_pkey2 && prev_record) {
+    if(save_pkey2 && prev_node) {
         /*
          *  Si es un nodo secundario, copia los links del primario.
          */
-        links_inherited = inherit_links(gobj, tranger, topic_name, record, prev_record);
+        links_inherited = inherit_links(gobj, tranger, topic_name, node, prev_node);
 
         /*
          *  Si es un nodo secundario, copia los inherit fields
          */
-        copy_inherit_fields(gobj, tranger, topic_name, record, prev_record);
+        copy_inherit_fields(gobj, tranger, topic_name, node, prev_node);
     }
 
     /*-------------------------------*
      *  Write to tranger (Creating)
      *-------------------------------*/
     md2_record_ex_t md_record;
-    JSON_INCREF(record)
     int ret = tranger2_append_record(
         tranger,
         topic_name,
         0, // __t__,         // if 0 then the time will be set by TimeRanger with now time
         0, // user_flag,
         &md_record, // md_record,
-        record // owned
+        json_incref(node) // owned
     );
     if(ret < 0) {
         // Error already logged
         JSON_DECREF(pkey2_list)
         KW_DECREF(kw)
-        JSON_DECREF(record)
+        JSON_DECREF(node)
         return 0;
     }
 
@@ -4690,7 +4689,7 @@ PUBLIC json_t *treedb_create_node( // WARNING Return is NOT YOURS, pure node
     set_volatil_values( // create non-persistent fields
         tranger,
         topic_name,
-        record,  // NOT owned
+        node,  // NOT owned
         kw, // NOT owned
         FALSE
     );
@@ -4700,7 +4699,7 @@ PUBLIC json_t *treedb_create_node( // WARNING Return is NOT YOURS, pure node
      *--------------------------------------------*/
     json_int_t rowid = json_integer_value(
         json_object_get(
-            json_object_get(record, "__md_tranger__"),
+            json_object_get(node, "__md_tranger__"),
             "g_rowid"
         )
     );
@@ -4710,8 +4709,8 @@ PUBLIC json_t *treedb_create_node( // WARNING Return is NOT YOURS, pure node
         &md_record,
         rowid
     );
-    json_object_set_new(record, "__md_treedb__", jn_record_md);
-    json_object_del(record, "__md_tranger__");
+    json_object_set_new(node, "__md_treedb__", jn_record_md);
+    json_object_del(node, "__md_tranger__");
 
     /*---------------------------------------------------*
      *  Si tienes la marca grupo, pasas, eres el activo.
@@ -4732,7 +4731,7 @@ PUBLIC json_t *treedb_create_node( // WARNING Return is NOT YOURS, pure node
      *  Build links to hooks
      *-------------------------------*/
     if(links_inherited) {
-        load_links(gobj, tranger, record);
+        load_links(gobj, tranger, node);
     }
 
     /*-------------------------------*
@@ -4758,7 +4757,7 @@ PUBLIC json_t *treedb_create_node( // WARNING Return is NOT YOURS, pure node
      *  Write node in memory: id
      *-------------------------------*/
     if(save_id) {
-        add_primary_node(indexx, id, record);
+        add_primary_node(indexx, id, node);
 
         /*----------------------------------*
          *  Call Callback
@@ -4767,14 +4766,13 @@ PUBLIC json_t *treedb_create_node( // WARNING Return is NOT YOURS, pure node
             /*
              *  Inform user in real time
              */
-            JSON_INCREF(record)
             treedb_callback(
                 user_data,
                 tranger,
                 treedb_name,
                 topic_name,
                 EV_TREEDB_NODE_CREATED,
-                record
+                json_incref(node)
             );
             treedb_callback = 0; // Not inform more
         }
@@ -4817,7 +4815,7 @@ PUBLIC json_t *treedb_create_node( // WARNING Return is NOT YOURS, pure node
             /*-------------------------------*
              *  Write node in memory: pkey2
              *-------------------------------*/
-            add_secondary_node(indexy, id, pkey2_value, record);
+            add_secondary_node(indexy, id, pkey2_value, node);
 
             /*----------------------------------*
              *  Call Callback
@@ -4826,14 +4824,13 @@ PUBLIC json_t *treedb_create_node( // WARNING Return is NOT YOURS, pure node
                 /*
                  *  Inform user in real time
                  */
-                JSON_INCREF(record)
                 treedb_callback(
                     user_data,
                     tranger,
                     treedb_name,
                     topic_name,
                     EV_TREEDB_NODE_CREATED,
-                    record
+                    json_incref(node)
                 );
             }
         }
@@ -4843,13 +4840,13 @@ PUBLIC json_t *treedb_create_node( // WARNING Return is NOT YOURS, pure node
      *  Trace
      *-------------------------------*/
     if(treedb_trace) {
-        gobj_trace_json(gobj, record, "treedb_create_node: Ok (%s, %s)", treedb_name, topic_name);
+        gobj_trace_json(gobj, node, "treedb_create_node: Ok (%s, %s)", treedb_name, topic_name);
     }
 
-    json_decref(record);
+    json_decref(node);
     JSON_DECREF(pkey2_list)
     KW_DECREF(kw)
-    return record;
+    return node;
 }
 
 /***************************************************************************
