@@ -301,13 +301,13 @@ PRIVATE json_t *exist_primary_node(
 PRIVATE int add_primary_node(
     json_t *indexx,
     const char *key,
-    json_t *node // decref
+    json_t *node // incref
 )
 {
     // HACK tranger keys have a maximum length
     char key_[RECORD_KEY_VALUE_MAX];
     snprintf(key_, sizeof(key_), "%s", key);
-    return json_object_set_new(indexx, key_, node);
+    return json_object_set(indexx, key_, node);
 }
 
 /***************************************************************************
@@ -354,19 +354,20 @@ PRIVATE int add_secondary_node(
     json_t *indexy,
     const char *key,
     const char *key2,
-    json_t *node // decref
+    json_t *node // incref
 )
 {
     // HACK tranger keys have a maximum length
     char key_[RECORD_KEY_VALUE_MAX];
     snprintf(key_, sizeof(key_), "%s", key);
 
+    JSON_INCREF(node)
     return kw_set_subdict_value(
         0,
         indexy,
         key_,
         key2,
-        node // owned
+        node
     );
 }
 
@@ -3455,8 +3456,9 @@ PRIVATE int load_id_callback(
             add_primary_node(
                 indexx,
                 key,
-                jn_record2 // decref
+                jn_record2 // incref
             );
+            JSON_DECREF(jn_record2)
         }
     }
 
@@ -3564,8 +3566,9 @@ PRIVATE int load_pkey2_callback(
                 indexy,
                 key,
                 pkey2_value,
-                jn_record2  // decref
+                jn_record2  // incref
             );
+            JSON_DECREF(jn_record2)
         }
     }
 
@@ -4754,12 +4757,14 @@ PUBLIC json_t *treedb_create_node( // WARNING Return is NOT YOURS, pure node
     /*-------------------------------*
      *  Create node in memory: id
      *-------------------------------*/
+    int node_incref = 0;
     if(save_id) {
         add_primary_node(
             indexx,
             id,
-            json_incref(node) // decref
+            node // incref
         );
+        node_incref++;
 
         /*----------------------------------*
          *  Call Callback
@@ -4821,8 +4826,9 @@ PUBLIC json_t *treedb_create_node( // WARNING Return is NOT YOURS, pure node
                 indexy,
                 id,
                 pkey2_value,
-                json_incref(node) // decref
+                node // incref
             );
+            node_incref++;
 
             /*----------------------------------*
              *  Call Callback
@@ -4850,6 +4856,10 @@ PUBLIC json_t *treedb_create_node( // WARNING Return is NOT YOURS, pure node
         gobj_trace_json(gobj, node, "treedb_create_node: Ok (%s, %s)", treedb_name, topic_name);
     }
 
+    while(node_incref>0) {
+        json_decref(node);
+        node_incref--;
+    }
     JSON_DECREF(pkey2_list)
     KW_DECREF(kw)
     return node;
