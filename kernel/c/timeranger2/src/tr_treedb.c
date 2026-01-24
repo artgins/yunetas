@@ -4589,6 +4589,8 @@ PUBLIC json_t *treedb_create_node( // WARNING Return is NOT YOURS, pure node
     json_t *prev_node = exist_primary_node(indexx, id);
     if(!prev_node) {
         save_id = TRUE;
+    } else {
+        // TODO are some case where primary key exists and to create a node for a secondary key?
     }
 
     /*-----------------------------------*
@@ -4779,7 +4781,7 @@ PUBLIC json_t *treedb_create_node( // WARNING Return is NOT YOURS, pure node
                 EV_TREEDB_NODE_CREATED,
                 json_incref(node)
             );
-            treedb_callback = 0; // Not inform more
+            treedb_callback = 0; // Don't inform more
         }
     }
 
@@ -4842,6 +4844,7 @@ PUBLIC json_t *treedb_create_node( // WARNING Return is NOT YOURS, pure node
                     EV_TREEDB_NODE_CREATED,
                     json_incref(node)
                 );
+                treedb_callback = 0; // Don't inform more
             }
         }
     }
