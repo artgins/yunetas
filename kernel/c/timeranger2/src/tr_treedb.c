@@ -4757,14 +4757,12 @@ PUBLIC json_t *treedb_create_node( // WARNING Return is NOT YOURS, pure node
     /*-------------------------------*
      *  Create node in memory: id
      *-------------------------------*/
-    int node_incref = 0;
     if(save_id) {
         add_primary_node(
             indexx,
             id,
             node // incref
         );
-        node_incref++;
 
         /*----------------------------------*
          *  Call Callback
@@ -4828,7 +4826,6 @@ PUBLIC json_t *treedb_create_node( // WARNING Return is NOT YOURS, pure node
                 pkey2_value,
                 node // incref
             );
-            node_incref++;
 
             /*----------------------------------*
              *  Call Callback
@@ -4856,10 +4853,11 @@ PUBLIC json_t *treedb_create_node( // WARNING Return is NOT YOURS, pure node
         gobj_trace_json(gobj, node, "treedb_create_node: Ok (%s, %s)", treedb_name, topic_name);
     }
 
-    while(node_incref>0) {
-        json_decref(node);
-        node_incref--;
-    }
+    /*
+     *  Here or save_id or save_pkey2 are true, the node is in the tree, return only one copy
+     */
+    json_decref(node);
+
     JSON_DECREF(pkey2_list)
     KW_DECREF(kw)
     return node;
