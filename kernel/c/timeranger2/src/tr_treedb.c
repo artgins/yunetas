@@ -4757,8 +4757,14 @@ PUBLIC json_t *treedb_create_node( // WARNING Return is NOT YOURS, pure node
     /*-------------------------------*
      *  Create node in memory: id
      *-------------------------------*/
+    int node_incref = 0;
     if(save_id) {
-        add_primary_node(indexx, id, node);
+        add_primary_node(
+            indexx,
+            id,
+            node // incref
+        );
+        node_incref++;
 
         /*----------------------------------*
          *  Call Callback
@@ -4816,7 +4822,13 @@ PUBLIC json_t *treedb_create_node( // WARNING Return is NOT YOURS, pure node
             /*-------------------------------*
              *  Write node in memory: pkey2
              *-------------------------------*/
-            add_secondary_node(indexy, id, pkey2_value, node);
+            add_secondary_node(
+                indexy,
+                id,
+                pkey2_value,
+                node // incref
+            );
+            node_incref++;
 
             /*----------------------------------*
              *  Call Callback
@@ -4844,6 +4856,10 @@ PUBLIC json_t *treedb_create_node( // WARNING Return is NOT YOURS, pure node
         gobj_trace_json(gobj, node, "treedb_create_node: Ok (%s, %s)", treedb_name, topic_name);
     }
 
+    while(node_incref>0) {
+        json_decref(node);
+        node_incref--;
+    }
     JSON_DECREF(pkey2_list)
     KW_DECREF(kw)
     return node;
