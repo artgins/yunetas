@@ -4857,7 +4857,7 @@ PUBLIC json_t *treedb_create_node( // WARNING Return is NOT YOURS, pure node
     }
 
     /*
-     *  Here or save_id or save_pkey2 are true, the node is in the tree, return only one copy
+     *  Here: save_id or save_pkey2 are true, the node is in the tree, return only one copy
      */
     json_decref(node);
 
