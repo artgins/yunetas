@@ -1818,7 +1818,7 @@ PRIVATE int retain__store(
      *----------------------------*/
     json_t *retain_node = gobj_update_node(
         priv->gobj_treedb_mqtt_broker,
-        "sessions",
+        "retained_msgs",
         kw_incref(kw_mqtt_msg),
         json_pack("{s:b}", "create", 1),
         gobj
