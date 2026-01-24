@@ -279,7 +279,7 @@ PRIVATE int mt_play(hgobj gobj)
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
     /*-------------------------*
-     *      Start services
+     *      Get services
      *-------------------------*/
     priv->gobj_input_side = gobj_find_service("__input_side__", TRUE);
     gobj_subscribe_event(priv->gobj_input_side, 0, 0, gobj);
@@ -314,7 +314,7 @@ PRIVATE int mt_pause(hgobj gobj)
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
     /*-----------------------------*
-     *      Stop top/input side
+     *      Stop services
      *-----------------------------*/
     gobj_stop_tree(priv->gobj_top_side);
     gobj_stop_tree(priv->gobj_input_side);

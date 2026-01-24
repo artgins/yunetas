@@ -1293,6 +1293,9 @@ PRIVATE int mt_play(hgobj gobj)
     }
     json_decref(jn_resp);
 
+    /*-------------------------*
+     *      Get services
+     *-------------------------*/
     priv->resource = gobj_find_service(priv->treedb_agentdb_name, TRUE);
 
     // Get timeranger of treedb_agentdb, will be used for alarms too
@@ -1301,7 +1304,11 @@ PRIVATE int mt_play(hgobj gobj)
     priv->gobj_input_side = gobj_find_service("__input_side__", TRUE);
     gobj_subscribe_event(priv->gobj_input_side, NULL, 0, gobj);
 
+    /*--------------------------------*
+     *      Start
+     *--------------------------------*/
     get_last_public_port(gobj);
+    gobj_start_tree(priv->gobj_input_side);
 
     set_timeout(priv->timer, 3000); // for util_yunos_running
 
@@ -1314,6 +1321,11 @@ PRIVATE int mt_play(hgobj gobj)
 PRIVATE int mt_pause(hgobj gobj)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    /*-----------------------------*
+     *      Stop services
+     *-----------------------------*/
+    gobj_stop_tree(priv->gobj_input_side);
 
     /*---------------------------------------*
      *      Close treedb airedb
