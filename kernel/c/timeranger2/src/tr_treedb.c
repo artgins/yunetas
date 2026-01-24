@@ -488,7 +488,7 @@ PUBLIC json_t *_treedb_create_topic_cols_desc(void)
     );
     json_array_append_new(
         topic_cols_desc,
-        json_pack("{s:s, s:s, s:i, s:s, s:[s,s,s,s,s,s,s,s,s,s,s,s,s,s,s,s,s,s,s,s,s,s,s,s,s,s,s,s,s,s,s,s,s,s,s,s], s:[s,s,s]}",
+        json_pack("{s:s, s:s, s:i, s:s, s:[s,s,s,s,s,s,s,s,s,s,s,s,s,s,s,s,s,s,s,s,s,s,s,s,s,s,s,s,s,s,s,s,s,s,s], s:[s,s,s]}",
             "id", "flag",
             "header", "Flag",
             "fillspace", 14,
@@ -510,7 +510,6 @@ PUBLIC json_t *_treedb_create_topic_cols_desc(void)
                 "hook",         // special field types
                 "fkey",
                 "enum",
-                "gbuffer",
 
                 // normal field types (some of them not processed or checked by tranger2)
                 "template",
@@ -2497,7 +2496,6 @@ PRIVATE int normalize_node_field_value(
     BOOL is_enum = kw_has_word(gobj, desc_flag, "enum", 0)?TRUE:FALSE;
     BOOL is_now = kw_has_word(gobj, desc_flag, "now", 0)?TRUE:FALSE;
     BOOL is_time = kw_has_word(gobj, desc_flag, "time", 0)?TRUE:FALSE;
-    BOOL is_gbuffer = kw_has_word(gobj, desc_flag, "gbuffer", 0)?TRUE:FALSE;
 
     /*
      *  Null
@@ -2529,8 +2527,6 @@ PRIVATE int normalize_node_field_value(
         type = "fkey";
     } else if(is_enum) {
         type = "enum";
-    } else if(is_gbuffer) {
-        type = "gbuffer";
     }
 
     SWITCHS(type) {
@@ -2656,26 +2652,6 @@ PRIVATE int normalize_node_field_value(
                     );
                     return -1;
             } SWITCHS_END;
-            break;
-
-        CASES("gbuffer")
-            if(json_is_integer(value)) {
-                gbuffer_t *gbuf = (gbuffer_t *)(uintptr_t)json_integer_value(value);
-                gbuffer_incref(gbuf);
-                json_object_set_new(record, field, json_integer((json_int_t)(uintptr_t)gbuf));
-            } else {
-                gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
-                    "function",     "%s", __FUNCTION__,
-                    "msgset",       "%s", MSGSET_TREEDB_ERROR,
-                    "msg",          "%s", "Value must be integer",
-                    "topic_name",   "%s", topic_name,
-                    "col",          "%j", col,
-                    "field",        "%s", field,
-                    "value",        "%j", value,
-                    NULL
-                );
-                return -1;
-            }
             break;
 
         CASES("list")
@@ -2927,15 +2903,6 @@ PRIVATE int set_mem_field_value(
             }
             break;
 
-        CASES("gbuffer")
-            {
-                // Convert base64 string to gbuffer
-                const char *content64 = json_string_value(value);
-                gbuffer_t *gbuf = gbuffer_base64_to_binary(content64, strlen(content64));
-                json_object_set_new(record, field, json_integer((json_int_t)(uintptr_t)gbuf));
-            }
-            break;
-
         DEFAULTS
             gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
                 "function",     "%s", __FUNCTION__,
@@ -3166,15 +3133,12 @@ PRIVATE json_t *convert_node2tranger(
         }
 
         const char *type = kw_get_str(gobj, col, "type", 0, KW_REQUIRED);
-        BOOL is_gbuffer = kw_has_word(gobj, desc_flag, "gbuffer", 0)?TRUE:FALSE;
 
         const char *real_type = type;
         if(is_hook) {
             type = "hook";
         } else if(is_fkey) {
             type = "fkey";
-        } else if(is_gbuffer) {
-            type = "gbuffer";
         }
 
 
@@ -3249,30 +3213,6 @@ PRIVATE json_t *convert_node2tranger(
                         break;
 
                 } SWITCHS_END;
-                break;
-
-            CASES("gbuffer")
-                {
-                    // Convert gbuffer to base64 and save as base64 string
-                    gbuffer_t *gbuf = (gbuffer_t *)(uintptr_t)json_integer_value(value);
-                    gbuffer_t *gbuf_b64 = gbuffer_encode_base64(gbuffer_incref(gbuf));
-                    if(gbuf_b64) {
-                        char *b64 = gbuffer_cur_rd_pointer(gbuf_b64);
-                        json_object_set_new(record, field, json_string(b64));
-                    } else {
-                        json_object_set_new(record, field, json_string(""));
-                        gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
-                            "function",     "%s", __FUNCTION__,
-                            "msgset",       "%s", MSGSET_TREEDB_ERROR,
-                            "msg",          "%s", "Conversion to base64 failed",
-                            "topic_name",   "%s", topic_name,
-                            "col",          "%j", col,
-                            "field",        "%s", field,
-                            "value",        "%j", value,
-                            NULL
-                        );
-                    }
-                }
                 break;
 
             DEFAULTS
