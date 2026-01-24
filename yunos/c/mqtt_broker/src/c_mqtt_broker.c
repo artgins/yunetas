@@ -1816,6 +1816,8 @@ PRIVATE int retain__store(
     /*----------------------------*
      *      Save retain msg
      *----------------------------*/
+    json_object_set_new(kw_mqtt_msg, "id", json_string(topic));
+print_json2("XXXXX", kw_mqtt_msg); // TODO TEST
     json_t *retain_node = gobj_update_node(
         priv->gobj_treedb_mqtt_broker,
         "retained_msgs",

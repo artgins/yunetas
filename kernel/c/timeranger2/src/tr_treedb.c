@@ -4679,6 +4679,7 @@ PUBLIC json_t *treedb_create_node( // WARNING Return is NOT YOURS, pure node
      *  Write to tranger (Creating)
      *-------------------------------*/
     md2_record_ex_t md_record;
+print_json2("XXXX before tr2 append record", record); // TODO TEST
     int ret = tranger2_append_record(
         tranger,
         topic_name,
