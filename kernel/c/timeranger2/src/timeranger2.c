@@ -2646,6 +2646,7 @@ printf("\n%s\n", srecord); // TODO TEST
      *      FEED the lists
      *      Call callbacks of realtime lists
      *--------------------------------------------*/
+debug_json("XXXX before callback lists", kw, TRUE); // TODO TEST
     json_t *lists = json_object_get(topic, "lists");
     int idx;
     json_t *list;
@@ -2672,6 +2673,7 @@ printf("\n%s\n", srecord); // TODO TEST
         }
     }
 
+debug_json("XXXX after callback lists", kw, TRUE); // TODO TEST
     KW_DECREF(kw)
     return 0;
 }

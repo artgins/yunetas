@@ -4624,7 +4624,7 @@ debug_json("XXXX before tr2 append record", record, TRUE); // TODO TEST
         0, // __t__,         // if 0 then the time will be set by TimeRanger with now time
         0, // user_flag,
         &md_record, // md_record,
-        json_incref(record) // owned
+        kw_incref(record) // owned
     );
     if(ret < 0) {
         // Error already logged
@@ -4857,7 +4857,7 @@ PUBLIC int treedb_save_node(
         0, // __t__,         // if 0 then the time will be set by TimeRanger with now time
         tag, // user_flag,
         &md_record, // md_record,
-        json_incref(record) // owned
+        kw_incref(record) // owned
     );
     if(ret < 0) {
         // Error already logged
