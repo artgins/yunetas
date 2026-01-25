@@ -2470,8 +2470,10 @@ PUBLIC int tranger2_append_record(
         // json_t *kw_ = json_deep_copy(kw);
         // kw_ = kw_serialize(gobj, kw_); // HACK external/internal conversion
         // char *srecord = json_dumps(kw_, JSON_COMPACT|JSON_ENCODE_ANY);
-print_json2("XXXX before serialize", kw); // TODO TEST
+debug_json("XXXX before serialize", kw, TRUE); // TODO TEST
         char *srecord = kw_serialize_to_string(gobj, kw);
+debug_json("XXXX after serialize", kw, TRUE); // TODO TEST
+printf("\n%s\n", srecord); // TODO TEST
         if(!srecord) {
             gobj_log_error(gobj, 0,
                 "function",     "%s", __FUNCTION__,
@@ -2664,7 +2666,7 @@ print_json2("XXXX before serialize", kw); // TODO TEST
                     list,
                     g_rowid,
                     md_record_ex,
-                    json_incref(kw)
+                    kw_incref(kw)
                 );
             }
         }
@@ -4513,7 +4515,7 @@ PRIVATE json_int_t publish_new_rt_disk_records( // return # of new records
                         disk,
                         rowid,
                         &md_record_ex,
-                        json_incref(record)
+                        kw_incref(record)
                     );
                 }
             }
@@ -4539,7 +4541,7 @@ PRIVATE json_int_t publish_new_rt_disk_records( // return # of new records
                             list,
                             rowid,
                             &md_record_ex,
-                            json_incref(record)
+                            kw_incref(record)
                         );
                     }
                 }

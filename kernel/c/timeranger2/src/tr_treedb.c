@@ -361,13 +361,12 @@ PRIVATE int add_secondary_node(
     char key_[RECORD_KEY_VALUE_MAX];
     snprintf(key_, sizeof(key_), "%s", key);
 
-    JSON_INCREF(node)
     return kw_set_subdict_value(
         0,
         indexy,
         key_,
         key2,
-        node
+        kw_incref(node)
     );
 }
 
@@ -395,7 +394,7 @@ PRIVATE int delete_secondary_node(
     if(!node) {
         return -1;
     }
-    json_decref(node);
+    kw_decref(node);
     return 0;
 }
 
@@ -3013,14 +3012,13 @@ PUBLIC int set_volatil_values(
             /*
              *  Inform user in real time
              */
-            JSON_INCREF(node)
             treedb_callback(
                 user_data,
                 tranger,
                 treedb_name,
                 topic_name,
                 EV_TREEDB_NODE_UPDATED,
-                node
+                kw_incref(node)
             );
             treedb_callback = 0; // Not inform more
         }
@@ -3398,11 +3396,11 @@ PRIVATE int load_id_callback(
                 key,
                 jn_record2 // incref
             );
-            JSON_DECREF(jn_record2)
+            KW_DECREF(jn_record2)
         }
     }
 
-    JSON_DECREF(jn_record)
+    KW_DECREF(jn_record)
     return 0;  // Timeranger: does not load the record, it's mine.
 }
 
@@ -3453,7 +3451,7 @@ PRIVATE int load_pkey2_callback(
             "pkey2_name",   "%s", pkey2_name,
             NULL
         );
-        JSON_DECREF(jn_record)
+        KW_DECREF(jn_record)
         return 0;  // Timeranger: does not load the record, it's mine.
     }
 
@@ -3508,11 +3506,11 @@ PRIVATE int load_pkey2_callback(
                 pkey2_value,
                 jn_record2  // incref
             );
-            JSON_DECREF(jn_record2)
+            KW_DECREF(jn_record2)
         }
     }
 
-    JSON_DECREF(jn_record)
+    KW_DECREF(jn_record)
     return 0;  // Timeranger: does not load the record, it's mine.
 }
 
@@ -4611,7 +4609,7 @@ PUBLIC json_t *treedb_create_node( // WARNING Return is NOT YOURS, pure node
         // Error already logged
         JSON_DECREF(pkey2_list)
         KW_DECREF(kw)
-        JSON_DECREF(node)
+        KW_DECREF(node)
         return NULL;
     }
 
@@ -4619,7 +4617,7 @@ PUBLIC json_t *treedb_create_node( // WARNING Return is NOT YOURS, pure node
      *  Write to tranger (Creating)
      *-------------------------------*/
     md2_record_ex_t md_record;
-print_json2("XXXX before tr2 append record", record); // TODO TEST
+debug_json("XXXX before tr2 append record", record, TRUE); // TODO TEST
     int ret = tranger2_append_record(
         tranger,
         topic_name,
@@ -4632,7 +4630,7 @@ print_json2("XXXX before tr2 append record", record); // TODO TEST
         // Error already logged
         JSON_DECREF(pkey2_list)
         KW_DECREF(kw)
-        JSON_DECREF(node)
+        KW_DECREF(node)
         JSON_DECREF(record)
         return NULL;
     }
@@ -4654,7 +4652,7 @@ print_json2("XXXX before tr2 append record", record); // TODO TEST
     );
     json_object_set_new(node, "__md_treedb__", jn_node_md);
 
-    JSON_DECREF(record)
+    KW_DECREF(record)
 
     /*---------------------------------------------------*
      *  Si tienes la marca grupo, pasas, eres el activo.
@@ -4720,7 +4718,7 @@ print_json2("XXXX before tr2 append record", record); // TODO TEST
                 treedb_name,
                 topic_name,
                 EV_TREEDB_NODE_CREATED,
-                json_incref(node)
+                kw_incref(node)
             );
             treedb_callback = 0; // Don't inform more
         }
@@ -4783,7 +4781,7 @@ print_json2("XXXX before tr2 append record", record); // TODO TEST
                     treedb_name,
                     topic_name,
                     EV_TREEDB_NODE_CREATED,
-                    json_incref(node)
+                    kw_incref(node)
                 );
                 treedb_callback = 0; // Don't inform more
             }
@@ -4800,7 +4798,7 @@ print_json2("XXXX before tr2 append record", record); // TODO TEST
     /*
      *  Here: save_id or save_pkey2 are true, the node is in the tree, return only one copy
      */
-    json_decref(node);
+    kw_decref(node);
 
     JSON_DECREF(pkey2_list)
     KW_DECREF(kw)
@@ -4863,7 +4861,7 @@ PUBLIC int treedb_save_node(
     );
     if(ret < 0) {
         // Error already logged
-        JSON_DECREF(record)
+        KW_DECREF(record)
         return -1;
     }
 
@@ -4909,14 +4907,13 @@ PUBLIC int treedb_save_node(
         /*
          *  Inform user in real time
          */
-        JSON_INCREF(node)
         treedb_callback(
             user_data,
             tranger,
             treedb_name,
             topic_name,
             EV_TREEDB_NODE_UPDATED,
-            node
+            kw_incref(node)
         );
         treedb_callback = 0; // Not inform more
     }
@@ -4928,7 +4925,7 @@ PUBLIC int treedb_save_node(
         gobj_trace_json(gobj, node, "treedb_save_node: Ok");
     }
 
-    JSON_DECREF(record)
+    KW_DECREF(record)
 
     return 0;
 }
@@ -5040,7 +5037,7 @@ PUBLIC int treedb_delete_node(
         );
         gobj_trace_json(gobj, node, "Not a pure node");
         JSON_DECREF(jn_options)
-        JSON_DECREF(node)
+        KW_DECREF(node)
         return -1;
     }
 
@@ -5100,7 +5097,7 @@ PUBLIC int treedb_delete_node(
                 json_array_foreach(children, idx3, child) {
                     _unlink_nodes(gobj, tranger, hook, node, child, TRUE);
                 }
-                JSON_DECREF(children)
+                KW_DECREF(children)
             }
             JSON_DECREF(jn_hooks)
 
@@ -5182,7 +5179,7 @@ PUBLIC int treedb_delete_node(
         /*-------------------------------*
          *  Maintain node live
          *-------------------------------*/
-        JSON_INCREF(node)
+        KW_INCREF(node)
 
         /*-------------------------------*
          *  Get indexx: to delete node
@@ -5278,21 +5275,20 @@ PUBLIC int treedb_delete_node(
                 0,
                 0
             );
-            JSON_INCREF(node)
             treedb_callback(
                 user_data,
                 tranger,
                 treedb_name,
                 topic_name,
                 EV_TREEDB_NODE_DELETED,
-                node
+                kw_incref(node)
             );
         }
 
         /*-------------------------------*
          *  Kill the node
          *-------------------------------*/
-        JSON_DECREF(node)
+        KW_DECREF(node)
 
     } else {
         gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
@@ -5343,7 +5339,7 @@ PUBLIC int treedb_delete_instance(
         );
         gobj_trace_json(gobj, node, "Not a pure node");
         JSON_DECREF(jn_options)
-        JSON_DECREF(node)
+        KW_DECREF(node)
         return -1;
     }
 
@@ -5372,7 +5368,7 @@ PUBLIC int treedb_delete_instance(
             NULL
         );
         JSON_DECREF(jn_options)
-        JSON_DECREF(node)
+        KW_DECREF(node)
         return -1;
     }
 
@@ -5466,7 +5462,7 @@ PUBLIC int treedb_delete_instance(
     if(!to_delete) {
         // Error already logged
         JSON_DECREF(jn_options)
-        JSON_DECREF(node)
+        KW_DECREF(node)
         return -1;
     }
 
@@ -5487,7 +5483,7 @@ PUBLIC int treedb_delete_instance(
         /*-------------------------------*
          *  Maintain node live
          *-------------------------------*/
-        JSON_INCREF(node)
+        KW_INCREF(node)
 
         /*---------------------------------*
             *  Get indexy: to delete node
@@ -5540,21 +5536,20 @@ PUBLIC int treedb_delete_instance(
                 0,
                 0
             );
-            JSON_INCREF(node)
             treedb_callback(
                 user_data,
                 tranger,
                 treedb_name,
                 topic_name,
                 EV_TREEDB_NODE_DELETED,
-                node
+                kw_incref(node)
             );
         }
 
         /*-------------------------------*
          *  Kill the node
          *-------------------------------*/
-        JSON_DECREF(node)
+        KW_DECREF(node)
 
     } else {
         gobj_log_error(gobj, 0,
@@ -5566,7 +5561,7 @@ PUBLIC int treedb_delete_instance(
             NULL
         );
         JSON_DECREF(jn_options)
-        JSON_DECREF(node)
+        KW_DECREF(node)
         return -1;
     }
 
@@ -6070,14 +6065,13 @@ PRIVATE int _link_nodes(
                 0
             );
 
-        JSON_INCREF(parent_node);
         treedb_callback(
             user_data,
             tranger,
             treedb_name,
             parent_topic_name,
             EV_TREEDB_NODE_UPDATED,
-            parent_node
+            kw_incref(parent_node)
         );
     }
 
@@ -6517,14 +6511,13 @@ PRIVATE int _unlink_nodes(
                 0
             );
 
-        JSON_INCREF(parent_node)
         treedb_callback(
             user_data,
             tranger,
             treedb_name,
             parent_topic_name,
             EV_TREEDB_NODE_UPDATED,
-            parent_node
+            kw_incref(parent_node)
         );
     }
 

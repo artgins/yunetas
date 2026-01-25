@@ -1797,6 +1797,8 @@ PRIVATE int retain__store(
     gbuffer_t *gbuf = (gbuffer_t *)(uintptr_t)kw_get_int(
         gobj, kw_mqtt_msg, "gbuffer", 0, KW_REQUIRED
     );
+    char *topic2disk = gbmem_strdup(topic);
+    change_char(topic2disk, '/', '#');
 
     /*-----------------------------------*
      *  No payload -> delete retain msg
@@ -1806,18 +1808,19 @@ PRIVATE int retain__store(
         gobj_delete_node(
             priv->gobj_treedb_mqtt_broker,
             "retained_msgs",
-            json_pack("{s:s}", "id", topic),
-            json_pack("{s:b}", "no_verbose", 1),
+            json_pack("{s:s}", "id", topic2disk),
+            json_pack("{s:b}", "no_verbose", 1), // ignore if node doesn't exist
             gobj
         );
+        GBMEM_FREE(topic2disk)
         return 0;
     }
 
     /*----------------------------*
      *      Save retain msg
      *----------------------------*/
-    json_object_set_new(kw_mqtt_msg, "id", json_string(topic));
-print_json2("XXXXX", kw_mqtt_msg); // TODO TEST
+    json_object_set_new(kw_mqtt_msg, "id", json_string(topic2disk));
+debug_json("XXXXX before update_node", kw_mqtt_msg, TRUE);
     json_t *retain_node = gobj_update_node(
         priv->gobj_treedb_mqtt_broker,
         "retained_msgs",
@@ -1826,7 +1829,8 @@ print_json2("XXXXX", kw_mqtt_msg); // TODO TEST
         gobj
     );
 
-print_json2("XXXXX", retain_node); // TODO TEST
+debug_json("XXXXX after update_node, kw_mqtt_msg", kw_mqtt_msg, TRUE); // TODO TEST
+debug_json("XXXXX after update_node, retain_node", retain_node, TRUE); // TODO TEST
 
     if(!retain_node) {
         gobj_log_error(gobj, 0,
@@ -1835,10 +1839,12 @@ print_json2("XXXXX", retain_node); // TODO TEST
             "msg",          "%s", "Cannot create retain node",
             NULL
         );
+        GBMEM_FREE(topic2disk)
         return -1;
     }
 
-    JSON_DECREF(retain_node)
+    GBMEM_FREE(topic2disk)
+    KW_DECREF(retain_node)
     return 0;
 }
 

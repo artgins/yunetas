@@ -4879,6 +4879,12 @@ PRIVATE int _debug_json(int deep, json_t *jn, BOOL inside_list, BOOL inside_dict
         json_object_foreach(jn, key, jn_value) {
             _trace_json(deep, verbose, "\"%s\": ", key);
             ret += _debug_json(deep, jn_value, 0, 1, verbose);
+            if(strcmp(key, "gbuffer")==0) {
+                gbuffer_t *gbuf = (gbuffer_t *)(uintptr_t)json_integer_value(jn_value);
+                _trace_json(0, verbose, ", gbuf->refcount(%d)",
+                    (int)(gbuf->refcount)
+                );
+            }
             idx++;
             if(idx < max_idx) {
                 _trace_json(0, verbose, ",\n");
@@ -4889,11 +4895,17 @@ PRIVATE int _debug_json(int deep, json_t *jn, BOOL inside_list, BOOL inside_dict
         deep--;
         _trace_json(deep, verbose, "}");
     } else if(json_is_string(jn)) {
-        _trace_json(inside_list?deep:0, verbose, "\"%s\" (%d)", json_string_value(jn), (int)(jn->refcount));
+        _trace_json(inside_list?deep:0, verbose, "\"%s\" (%d)",
+            json_string_value(jn), (int)(jn->refcount)
+        );
     } else if(json_is_integer(jn)) {
-        _trace_json(inside_list?deep:0, verbose, "%"JSON_INTEGER_FORMAT" (%d)", json_integer_value(jn), (int)(jn->refcount));
+        _trace_json(inside_list?deep:0, verbose, "%"JSON_INTEGER_FORMAT" (%d)",
+            json_integer_value(jn), (int)(jn->refcount)
+        );
     } else if(json_is_real(jn)) {
-        _trace_json(inside_list?deep:0, verbose, "%.2f (%d)", json_real_value(jn), (int)(jn->refcount));
+        _trace_json(inside_list?deep:0, verbose, "%.2f (%d)",
+            json_real_value(jn), (int)(jn->refcount)
+        );
     } else if(json_is_true(jn))  {
         _trace_json(inside_list?deep:0, verbose, "TRUE");
     } else if(json_is_false(jn)) {
