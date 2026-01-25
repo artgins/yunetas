@@ -4927,7 +4927,8 @@ PRIVATE int _debug_json(int deep, json_t *jn, BOOL inside_list, BOOL inside_dict
 PUBLIC int debug_json(const char *label, json_t *jn, BOOL verbose)
 {
     if(!jn || jn->refcount <= 0) {
-        fprintf(stdout, "%sERROR debug_json()%s: json NULL or refcount is 0\n",
+        fprintf(stdout, "%s%sERROR debug_json()%s: json NULL or refcount is 0\n",
+            label,
             On_Red BWhite, Color_Off);
         return -1;
     }

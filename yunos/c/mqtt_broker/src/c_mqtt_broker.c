@@ -1814,13 +1814,12 @@ PRIVATE int retain__store(
         );
         GBMEM_FREE(topic2disk)
         return 0;
-    }
+     }
 
-    /*----------------------------*
-     *      Save retain msg
-     *----------------------------*/
-    json_object_set_new(kw_mqtt_msg, "id", json_string(topic2disk));
-debug_json("XXXXX before update_node", kw_mqtt_msg, TRUE);
+     /*----------------------------*
+      *      Save retain msg
+      *----------------------------*/
+     json_object_set_new(kw_mqtt_msg, "id", json_string(topic2disk));
     json_t *retain_node = gobj_update_node(
         priv->gobj_treedb_mqtt_broker,
         "retained_msgs",
@@ -1828,20 +1827,6 @@ debug_json("XXXXX before update_node", kw_mqtt_msg, TRUE);
         json_pack("{s:b}", "create", 1),
         gobj
     );
-
-debug_json("XXXXX after update_node, kw_mqtt_msg", kw_mqtt_msg, TRUE); // TODO TEST
-debug_json("XXXXX after update_node, retain_node", retain_node, TRUE); // TODO TEST
-
-    if(!retain_node) {
-        gobj_log_error(gobj, 0,
-            "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_INFO,
-            "msg",          "%s", "Cannot create retain node",
-            NULL
-        );
-        GBMEM_FREE(topic2disk)
-        return -1;
-    }
 
     GBMEM_FREE(topic2disk)
     KW_DECREF(retain_node)

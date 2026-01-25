@@ -487,7 +487,7 @@ PUBLIC json_t *_treedb_create_topic_cols_desc(void)
     );
     json_array_append_new(
         topic_cols_desc,
-        json_pack("{s:s, s:s, s:i, s:s, s:[s,s,s,s,s,s,s,s,s,s,s,s,s,s,s,s,s,s,s,s,s,s,s,s,s,s,s,s,s,s,s,s,s,s,s], s:[s,s,s]}",
+        json_pack("{s:s, s:s, s:i, s:s, s:[s,s,s,s,s,s,s,s,s,s,s,s,s,s,s,s,s,s,s,s,s,s,s,s,s,s,s,s,s,s,s,s,s,s,s,s], s:[s,s,s]}",
             "id", "flag",
             "header", "Flag",
             "fillspace", 14,
@@ -509,6 +509,7 @@ PUBLIC json_t *_treedb_create_topic_cols_desc(void)
                 "hook",         // special field types
                 "fkey",
                 "enum",
+                "gbuffer"
 
                 // normal field types (some of them not processed or checked by tranger2)
                 "template",
@@ -1994,7 +1995,7 @@ PUBLIC int parse_schema_cols(
             "cols_desc",    "%j", cols_desc,
             NULL
         );
-        JSON_DECREF(dato);
+        KW_DECREF(dato);
         return -1;
     }
 
@@ -2014,7 +2015,7 @@ PUBLIC int parse_schema_cols(
         }
     }
 
-    JSON_DECREF(dato);
+    KW_DECREF(dato);
 
     return ret;
 }
@@ -2484,6 +2485,8 @@ PRIVATE int normalize_node_field_value(
 
     BOOL is_hook = kw_has_word(gobj, desc_flag, "hook", 0)?TRUE:FALSE;
     BOOL is_fkey = kw_has_word(gobj, desc_flag, "fkey", 0)?TRUE:FALSE;
+    BOOL is_enum = kw_has_word(gobj, desc_flag, "enum", 0)?TRUE:FALSE;
+    BOOL is_gbuffer = kw_has_word(gobj, desc_flag, "gbuffer", 0)?TRUE:FALSE;
     // BOOL is_persistent = kw_has_word(gobj, desc_flag, "persistent", 0)?TRUE:FALSE;
     // if(!(is_persistent || is_hook || is_fkey)) {
     //     // Not save to tranger
@@ -2492,7 +2495,6 @@ PRIVATE int normalize_node_field_value(
     // }
 
     BOOL wild_conversion = kw_has_word(gobj, desc_flag, "wild", 0)?TRUE:FALSE;
-    BOOL is_enum = kw_has_word(gobj, desc_flag, "enum", 0)?TRUE:FALSE;
     BOOL is_now = kw_has_word(gobj, desc_flag, "now", 0)?TRUE:FALSE;
     BOOL is_time = kw_has_word(gobj, desc_flag, "time", 0)?TRUE:FALSE;
 
@@ -2526,6 +2528,8 @@ PRIVATE int normalize_node_field_value(
         type = "fkey";
     } else if(is_enum) {
         type = "enum";
+    } else if(is_gbuffer) {
+        type = "gbuffer";
     }
 
     SWITCHS(type) {
@@ -2651,6 +2655,28 @@ PRIVATE int normalize_node_field_value(
                     );
                     return -1;
             } SWITCHS_END;
+            break;
+
+        CASES("gbuffer")
+            if(json_is_integer(value)) {
+                gbuffer_t *gbuf = (gbuffer_t *)(uintptr_t)json_integer_value(value);
+                if(gbuf) {
+                    gbuffer_incref(gbuf);
+                }
+                json_object_set_new(record, field, json_integer((json_int_t)(uintptr_t)gbuf));
+            } else {
+                gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
+                    "function",     "%s", __FUNCTION__,
+                    "msgset",       "%s", MSGSET_TREEDB_ERROR,
+                    "msg",          "%s", "Value of gbuffer must be integer",
+                    "topic_name",   "%s", topic_name,
+                    "col",          "%j", col,
+                    "field",        "%s", field,
+                    "value",        "%j", value,
+                    NULL
+                );
+                return -1;
+            }
             break;
 
         CASES("list")
@@ -3065,7 +3091,7 @@ PRIVATE json_t *create_pure_record(
             value
         )<0) {
             // Error already logged
-            JSON_DECREF(new_record)
+            KW_DECREF(new_record)
             JSON_DECREF(cols)
             return NULL;
         }
@@ -3104,31 +3130,13 @@ PRIVATE json_t *convert_node2tranger(
         BOOL is_persistent = kw_has_word(gobj, desc_flag, "persistent", 0)?TRUE:FALSE;
         BOOL is_hook = kw_has_word(gobj, desc_flag, "hook", 0)?TRUE:FALSE;
         BOOL is_fkey = kw_has_word(gobj, desc_flag, "fkey", 0)?TRUE:FALSE;
+        BOOL is_gbuffer = kw_has_word(gobj, desc_flag, "gbuffer", 0)?TRUE:FALSE;
         if(!(is_persistent || is_hook || is_fkey)) {
             // Save to tranger only persistent or fkeys
             continue;
         }
 
         json_t *value = kw_get_dict_value(gobj, node, field, 0, 0);
-
-        /*
-         *  Required
-         */
-        if(kw_has_word(gobj, desc_flag, "required", 0)) {
-            if(!value) {
-                gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
-                    "function",     "%s", __FUNCTION__,
-                    "msgset",       "%s", MSGSET_TREEDB_ERROR,
-                    "msg",          "%s", "Field required",
-                    "topic_name",   "%s", topic_name,
-                    "field",        "%s", field,
-                    "value",        "%j", value,
-                    NULL
-                );
-                JSON_DECREF(record)
-                return NULL;
-            }
-        }
 
         const char *type = kw_get_str(gobj, col, "type", 0, KW_REQUIRED);
 
@@ -3137,8 +3145,9 @@ PRIVATE json_t *convert_node2tranger(
             type = "hook";
         } else if(is_fkey) {
             type = "fkey";
+        } else if(is_gbuffer) {
+            type = "gbuffer";
         }
-
 
         SWITCHS(type) {
             CASES("hook")
@@ -3211,6 +3220,14 @@ PRIVATE json_t *convert_node2tranger(
                         break;
 
                 } SWITCHS_END;
+                break;
+
+            CASES("gbuffer")
+                gbuffer_t *gbuf = (gbuffer_t *)(uintptr_t)json_integer_value(value);
+                if(gbuf) {
+                    gbuffer_incref(gbuf);
+                }
+                json_object_set_new(record, field, json_integer((json_int_t)(uintptr_t)gbuf));
                 break;
 
             DEFAULTS
@@ -3348,7 +3365,7 @@ PRIVATE int load_id_callback(
             "topic_name",   "%s", topic_name,
             NULL
         );
-        JSON_DECREF(jn_record)
+        KW_DECREF(jn_record)
         return 0;  // Timeranger: does not load the record, it's mine.
     }
 
@@ -4604,7 +4621,7 @@ PUBLIC json_t *treedb_create_node( // WARNING Return is NOT YOURS, pure node
     /*---------------------------------------*
      *  Create the tranger record to save
      *---------------------------------------*/
-    json_t *record = convert_node2tranger(gobj, tranger, topic_name, node);
+    json_t *record = convert_node2tranger(gobj, tranger, topic_name, node); int x; // incref gbuf?
     if(!record) {
         // Error already logged
         JSON_DECREF(pkey2_list)
@@ -4617,7 +4634,6 @@ PUBLIC json_t *treedb_create_node( // WARNING Return is NOT YOURS, pure node
      *  Write to tranger (Creating)
      *-------------------------------*/
     md2_record_ex_t md_record;
-debug_json("XXXX before tr2 append record", record, TRUE); // TODO TEST
     int ret = tranger2_append_record(
         tranger,
         topic_name,
@@ -4631,7 +4647,7 @@ debug_json("XXXX before tr2 append record", record, TRUE); // TODO TEST
         JSON_DECREF(pkey2_list)
         KW_DECREF(kw)
         KW_DECREF(node)
-        JSON_DECREF(record)
+        KW_DECREF(record)
         return NULL;
     }
 
@@ -4801,7 +4817,8 @@ debug_json("XXXX before tr2 append record", record, TRUE); // TODO TEST
     kw_decref(node);
 
     JSON_DECREF(pkey2_list)
-    KW_DECREF(kw)
+    kw_decref(kw);
+
     return node;
 }
 
@@ -7306,10 +7323,13 @@ PUBLIC json_t *node_collapsed_view( // Return MUST be decref
         json_t *desc_flag = kw_get_dict_value(gobj, col, "flag", 0, 0);
         BOOL is_hook = kw_has_word(gobj, desc_flag, "hook", 0)?TRUE:FALSE;
         BOOL is_fkey = kw_has_word(gobj, desc_flag, "fkey", 0)?TRUE:FALSE;
+        BOOL is_gbuffer = kw_has_word(gobj, desc_flag, "gbuffer", 0)?TRUE:FALSE;
         BOOL is_rowid = kw_has_word(gobj, desc_flag, "rowid", 0)?TRUE:FALSE;
         BOOL is_required = kw_has_word(gobj, desc_flag, "required", 0)?TRUE:FALSE;
         BOOL is_hidden = kw_has_word(gobj, desc_flag, "hidden", 0)?TRUE:FALSE;
-        json_t *field_data = kw_get_dict_value(gobj, node, col_name, 0, is_required?KW_REQUIRED:0);
+        json_t *field_data = kw_get_dict_value(
+            gobj, node, col_name, 0, is_required?KW_REQUIRED:0
+        );
         if(!field_data) {
             // Something wrong?
             continue;
@@ -7355,6 +7375,17 @@ PUBLIC json_t *node_collapsed_view( // Return MUST be decref
             json_array_extend(list, parents);
             json_decref(parents);
             json_decref(refs);
+
+        } else if(is_gbuffer) {
+            gbuffer_t *gbuf = (gbuffer_t *)(uintptr_t)json_integer_value(field_data);
+            if(gbuf) {
+                gbuffer_incref(gbuf);
+            }
+            json_object_set_new(
+                node_view,
+                col_name,
+                json_integer((json_int_t)(uintptr_t)gbuf)
+            );
 
         } else if(is_hidden && !show_hidden) {
             json_object_set_new(

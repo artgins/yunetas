@@ -884,8 +884,6 @@ PRIVATE json_t *mt_update_node( // Return is YOURS
          */
         create = 0;
     }
-debug_json("c_node before update node", node, TRUE); // TODO TEST
-debug_json("c_node before update kw", kw, TRUE); // TODO TEST
 
     if(volatil) {
         set_volatil_values(
@@ -911,12 +909,8 @@ debug_json("c_node before update kw", kw, TRUE); // TODO TEST
             treedb_save_node(priv->tranger, node);
         }
     }
-debug_json("c_node after update node", node, TRUE); // TODO TEST
-debug_json("c_node after update kw", kw, TRUE); // TODO TEST
 
-    //KW_DECREF(kw) TODO repon
     kw_decref(kw);
-debug_json("c_node after update kw", kw, TRUE); // TODO TEST
 
     return node_collapsed_view( // Return MUST be decref
         priv->tranger,

@@ -159,7 +159,7 @@
 static char treedb_schema_mqtt_broker[]= "\
 {                                                                   \n\
     'id': 'treedb_mqtt_broker',                                     \n\
-    'schema_version': '14',                                         \n\
+    'schema_version': '15',                                         \n\
     'topics': [                                                     \n\
         {                                                           \n\
             'id': 'client_groups',                                  \n\
@@ -683,7 +683,7 @@ static char treedb_schema_mqtt_broker[]= "\
             'pkey': 'id',                                           \n\
             'tkey': 'tm',                                           \n\
             'system_flag': 'sf_string_key',                         \n\
-            'topic_version': '7',                                   \n\
+            'topic_version': '8',                                   \n\
             'cols': {                                               \n\
                 'id': {                                             \n\
                     'header': 'Topic',                              \n\
@@ -736,6 +736,7 @@ static char treedb_schema_mqtt_broker[]= "\
                     'fillspace': 30,                                \n\
                     'type': 'integer',                              \n\
                     'flag': [                                       \n\
+                        'gbuffer',                                  \n\
                         'persistent'                                \n\
                     ]                                               \n\
                 },                                                  \n\
