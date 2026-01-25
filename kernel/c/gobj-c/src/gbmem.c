@@ -317,11 +317,18 @@ PUBLIC void print_track_mem(void)
 PRIVATE void check_failed_list(track_mem_t *track_mem)
 {
     for(int xx=0; memory_check_list && memory_check_list[xx]!=0; xx++) {
-        if(track_mem->ref  == memory_check_list[xx]) {
+        if(memory_check_list[xx] == track_mem->ref) {
             gobj_log_debug(0, LOG_OPT_TRACE_STACK,
                 "msgset",       "%s", MSGSET_STATISTICS,
-                "msg",          "%s", "mem-not-free",
+                "msg",          "%s", "mem-not-free by ref",
                 "ref",          "%ul", (unsigned long)track_mem->ref,
+                NULL
+            );
+        } else if(memory_check_list[xx] == track_mem->size) {
+            gobj_log_debug(0, LOG_OPT_TRACE_STACK,
+                "msgset",       "%s", MSGSET_STATISTICS,
+                "msg",          "%s", "mem-not-free by size",
+                "size",         "%ul", (unsigned long)track_mem->size,
                 NULL
             );
         }
