@@ -4621,7 +4621,7 @@ PUBLIC json_t *treedb_create_node( // WARNING Return is NOT YOURS, pure node
     /*---------------------------------------*
      *  Create the tranger record to save
      *---------------------------------------*/
-    json_t *record = convert_node2tranger(gobj, tranger, topic_name, node); int x; // incref gbuf?
+    json_t *record = convert_node2tranger(gobj, tranger, topic_name, node);
     if(!record) {
         // Error already logged
         JSON_DECREF(pkey2_list)
