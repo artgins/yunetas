@@ -47,7 +47,7 @@ GOBJ_DEFINE_EVENT(EV_SEND_COMMAND_ANSWER);
 PUBLIC json_t *iev_create( // For use within Yuno
     hgobj gobj,
     gobj_event_t event,
-    json_t *kw // owned
+    json_t *kw // like owned, return same kw
 )
 {
     if(empty_string(event)) {
@@ -61,21 +61,16 @@ PUBLIC json_t *iev_create( // For use within Yuno
     }
 
     if(!kw) {
-        kw = json_object();
-    }
-    json_t *jn_iev = json_pack("{s:I, s:o}",
-        "event", (json_int_t)(uintptr_t)event,
-        "kw", kw
-    );
-    if(!jn_iev) {
-        gobj_log_error(gobj, 0,
+        gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_PARAMETER_ERROR,
-            "msg",          "%s", "json_pack() FAILED",
+            "msg",          "%s", "kw NULL",
             NULL
         );
+        return 0;
     }
-    return jn_iev;
+    json_object_set_new(kw, "__iev_event__", json_integer((json_int_t)(uintptr_t)event));
+    return kw;
 }
 
 /***************************************************************************
@@ -84,14 +79,14 @@ PUBLIC json_t *iev_create( // For use within Yuno
 PUBLIC json_t *iev_create2( // For use within Yuno
     hgobj gobj,
     gobj_event_t event,
-    json_t *jn_data,    // owned
+    json_t *kw, // like owned, return same kw
     json_t *kw_request  // owned, used to get ONLY __temp__.
 )
 {
     json_t* iev = iev_create(
         gobj,
         event,
-        jn_data // owned
+        kw // like owned, return same kw
     );
     json_t *__temp__ = kw_get_dict_value(gobj, kw_request, "__temp__", 0, KW_REQUIRED);
     json_object_set(iev, "__temp__", __temp__);  // Set the channel

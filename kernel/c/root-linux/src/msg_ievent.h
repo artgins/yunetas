@@ -123,21 +123,23 @@ GOBJ_DECLARE_EVENT(EV_SEND_COMMAND_ANSWER);
 /*
  *  Return an inter-event object
     {
-        "event": event,
-        "kw": kw
+        __iev_event__: event
+
+        remain of kw
+        ...
     }
  */
 
 PUBLIC json_t *iev_create( // For use within Yuno
     hgobj gobj,
     gobj_event_t event,
-    json_t *kw // owned
+    json_t *kw // like owned, return same kw
 );
 
 PUBLIC json_t *iev_create2( // For use within Yuno
     hgobj gobj,
     gobj_event_t event,
-    json_t *jn_data,    // owned
+    json_t *kw, // like owned, return same kw
     json_t *kw_request  // owned, used to get ONLY __temp__.
 );
 

@@ -1063,13 +1063,8 @@ PRIVATE int ac_on_iev_message(hgobj gobj, const char *event, json_t *kw, hgobj s
     // gobj_event_t iev_event = gclass_find_public_event(iev_event_, TRUE);
 
     gobj_event_t iev_event = (gobj_event_t)(uintptr_t)kw_get_int(
-        gobj, kw, "event", 0, KW_REQUIRED
+        gobj, kw, "__iev_event__", 0, KW_REQUIRED|KW_EXTRACT
     );
-debug_json2(kw, "======> ac_on_iev_message kw %s", gobj_short_name(gobj)); // TODO TEST
-
-    json_t *iev_kw = kw_get_dict(gobj, kw, "kw", 0, KW_REQUIRED);
-
-debug_json2(iev_kw, "======> ac_on_iev_message iev_kw %s", gobj_short_name(gobj)); // TODO TEST
 
     if(gobj_trace_level(gobj) & TRACE_MESSAGES) {
         gbuffer_t *gbuf = (gbuffer_t *)(uintptr_t)kw_get_int(gobj, kw, "gbuffer", 0, 0);
@@ -1098,28 +1093,20 @@ debug_json2(iev_kw, "======> ac_on_iev_message iev_kw %s", gobj_short_name(gobj)
 
     kw_set_subdict_value(
         gobj,
-        iev_kw,
+        kw,
         "__temp__",
         "channel",
         json_string(gobj_name(src))
     );
     kw_set_subdict_value(
         gobj,
-        iev_kw,
+        kw,
         "__temp__",
         "channel_gobj",
         json_integer((json_int_t)(uintptr_t)src)
     );
 
-debug_json2(iev_kw, "======>2 ac_on_iev_message iev_kw %s", gobj_short_name(gobj)); // TODO TEST
-    kw_incref(iev_kw);
-debug_json2(iev_kw, "======>3 ac_on_iev_message iev_kw %s", gobj_short_name(gobj)); // TODO TEST
-    int ret = gobj_publish_event(gobj, iev_event, iev_kw);
-debug_json2(iev_kw, "<====== ac_on_iev_message iev_kw %s", gobj_short_name(gobj)); // TODO TEST
-
-    kw_decref(kw);
-debug_json2(kw, "<====== ac_on_iev_message kw %s", gobj_short_name(gobj)); // TODO TEST
-    return ret;
+    return gobj_publish_event(gobj, iev_event, kw);
 }
 
 /***************************************************************************

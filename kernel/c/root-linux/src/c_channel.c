@@ -344,8 +344,6 @@ PRIVATE int ac_on_iev_message(hgobj gobj, const char *event, json_t *kw, hgobj s
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
-debug_json("======> ac_on_iev_message", kw, TRUE); // TODO TEST
-
     if(gobj_trace_level(gobj) & TRACE_MESSAGES) {
         gobj_trace_json(
             gobj,
@@ -355,9 +353,7 @@ debug_json("======> ac_on_iev_message", kw, TRUE); // TODO TEST
     }
     priv->rxMsgs++;
 
-    int ret = gobj_publish_event(gobj, event, kw);  // reuse kw
-    debug_json("<====== ac_on_iev_message", kw, TRUE); // TODO TEST
-    return ret;
+    return gobj_publish_event(gobj, event, kw);  // reuse kw
 }
 
 /***************************************************************************
