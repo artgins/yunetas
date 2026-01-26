@@ -307,7 +307,8 @@ PRIVATE int add_primary_node(
     // HACK tranger keys have a maximum length
     char key_[RECORD_KEY_VALUE_MAX];
     snprintf(key_, sizeof(key_), "%s", key);
-    return json_object_set(indexx, key_, node);
+
+    return json_object_set_new(indexx, key_, kw_incref(node));
 }
 
 /***************************************************************************
@@ -321,7 +322,19 @@ PRIVATE int delete_primary_node(
     // HACK tranger keys have a maximum length
     char key_[RECORD_KEY_VALUE_MAX];
     snprintf(key_, sizeof(key_), "%s", key);
-    return json_object_del(indexx, key_);
+
+    json_t *node = kw_get_dict_value(
+        0,
+        indexx,
+        key_,
+        0,
+        KW_EXTRACT|KW_REQUIRED
+    );
+    if(!node) {
+        return -1;
+    }
+    kw_decref(node);
+    return 0;
 }
 
 /***************************************************************************
@@ -389,7 +402,7 @@ PRIVATE int delete_secondary_node(
         key_,
         key2,
         0,
-        KW_EXTRACT
+        KW_EXTRACT|KW_REQUIRED
     );
     if(!node) {
         return -1;
