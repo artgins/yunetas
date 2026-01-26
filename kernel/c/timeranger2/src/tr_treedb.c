@@ -2676,7 +2676,7 @@ PRIVATE int normalize_node_field_value(
                 if(gbuf) {
                     gbuffer_incref(gbuf);
                 }
-                json_object_set_new(record, field, json_integer((json_int_t)(uintptr_t)gbuf));
+                json_object_set(record, field, value);
             } else {
                 gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
                     "function",     "%s", __FUNCTION__,
@@ -3240,7 +3240,7 @@ PRIVATE json_t *convert_node2tranger(
                 if(gbuf) {
                     gbuffer_incref(gbuf);
                 }
-                json_object_set_new(record, field, json_integer((json_int_t)(uintptr_t)gbuf));
+                json_object_set(record, field, value);
                 break;
 
             DEFAULTS
@@ -7394,10 +7394,10 @@ PUBLIC json_t *node_collapsed_view( // Return MUST be decref
             if(gbuf) {
                 gbuffer_incref(gbuf);
             }
-            json_object_set_new(
+            json_object_set(
                 node_view,
                 col_name,
-                json_integer((json_int_t)(uintptr_t)gbuf)
+                field_data
             );
 
         } else if(is_hidden && !show_hidden) {

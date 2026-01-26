@@ -1816,10 +1816,10 @@ PRIVATE int retain__store(
         return 0;
      }
 
-     /*----------------------------*
-      *      Save retain msg
-      *----------------------------*/
-     json_object_set_new(kw_mqtt_msg, "id", json_string(topic2disk));
+    /*----------------------------*
+     *      Save retain msg
+     *----------------------------*/
+    json_object_set_new(kw_mqtt_msg, "id", json_string(topic2disk));
     json_t *retain_node = gobj_update_node(
         priv->gobj_treedb_mqtt_broker,
         "retained_msgs",
@@ -1827,9 +1827,11 @@ PRIVATE int retain__store(
         json_pack("{s:b}", "create", 1),
         gobj
     );
+debug_json("XXXX1", kw_mqtt_msg, TRUE); // TODO TEST
 
     GBMEM_FREE(topic2disk)
-    KW_DECREF(retain_node)
+    kw_decref(retain_node);
+debug_json("XXXX2", kw_mqtt_msg, TRUE); // TODO TEST
     return 0;
 }
 
