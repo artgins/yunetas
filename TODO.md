@@ -160,6 +160,7 @@ The documentation needs to be update with next changes
     yuno_shutdown
     tranger2_topic_path
     json_flatten_dict
+    debug_json2
 
 # Delete API
 
