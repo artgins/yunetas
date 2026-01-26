@@ -4882,7 +4882,7 @@ PRIVATE int _debug_json(int deep, json_t *jn, BOOL inside_list, BOOL inside_dict
             if(strcmp(key, "gbuffer")==0) {
                 gbuffer_t *gbuf = (gbuffer_t *)(uintptr_t)json_integer_value(jn_value);
                 _trace_json(0, verbose, ", gbuf->refcount(%d)",
-                    (int)(gbuf->refcount)
+                    (int)(gbuf?gbuf->refcount:0)
                 );
             }
             idx++;

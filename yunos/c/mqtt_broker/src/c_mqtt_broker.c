@@ -1820,18 +1820,25 @@ PRIVATE int retain__store(
      *      Save retain msg
      *----------------------------*/
     json_object_set_new(kw_mqtt_msg, "id", json_string(topic2disk));
-//     json_t *retain_node = gobj_update_node(
-//         priv->gobj_treedb_mqtt_broker,
-//         "retained_msgs",
-//         kw_incref(kw_mqtt_msg),
-//         json_pack("{s:b}", "create", 1),
-//         gobj
-//     );
-// debug_json("XXXX1", kw_mqtt_msg, TRUE); // TODO TEST
-//     kw_decref(retain_node);
+    json_t *retain_node = gobj_update_node(
+        priv->gobj_treedb_mqtt_broker,
+        "retained_msgs",
+        kw_incref(kw_mqtt_msg),
+        json_pack("{s:b}", "create", 1),
+        gobj
+    );
+
+debug_json("XXXX retain_node", retain_node, TRUE); // TODO TEST
+debug_json("XXXX kw_mqtt_msg", kw_mqtt_msg, TRUE); // TODO TEST
+debug_json("XXXX tranger_treedb_mqtt_broker", priv->tranger_treedb_mqtt_broker, TRUE); // TODO TEST
+
+    kw_decref(retain_node);
+
+debug_json("XXXX2 retain_node", retain_node, TRUE); // TODO TEST
+debug_json("XXXX2 kw_mqtt_msg", kw_mqtt_msg, TRUE); // TODO TEST
+debug_json("XXXX2 tranger_treedb_mqtt_broker", priv->tranger_treedb_mqtt_broker, TRUE); // TODO TEST
 
     GBMEM_FREE(topic2disk)
-debug_json("XXXX2", kw_mqtt_msg, TRUE); // TODO TEST
     return 0;
 }
 
@@ -2946,8 +2953,6 @@ PRIVATE int ac_mqtt_message(hgobj gobj, const char *event, json_t *kw, hgobj src
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
-debug_json("======> ac_mqtt_message", kw, TRUE); // TODO TEST
-
     if(gobj_trace_level(gobj) & TRACE_MESSAGES) {
         gobj_trace_json(
             gobj,
@@ -2971,20 +2976,15 @@ debug_json("======> ac_mqtt_message", kw, TRUE); // TODO TEST
     /*-----------------------------------*
      *      Mqtt message
      *-----------------------------------*/
-    int subscribers_found =0;
-    // int subscribers_found = (int)sub__messages_queue(
-    //     gobj,
-    //     kw // not owned
-    // );
-    //
-    // /*-----------------------------------*
-    //  *      Publish to yuneta gobjs
-    //  *-----------------------------------*/
-    // gobj_publish_event(gobj, EV_MQTT_MESSAGE, kw_incref(kw));
+    int subscribers_found = (int)sub__messages_queue(
+        gobj,
+        kw // not owned
+    );
 
-    kw_decref(kw);
-
-debug_json("<====== ac_mqtt_message", kw, TRUE); // TODO TEST
+    /*-----------------------------------*
+     *      Publish to yuneta gobjs
+     *-----------------------------------*/
+    gobj_publish_event(gobj, EV_MQTT_MESSAGE, kw);
 
     return subscribers_found;
 }
