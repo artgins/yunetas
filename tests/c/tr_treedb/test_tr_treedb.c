@@ -838,9 +838,9 @@ PRIVATE int do_test(void)
      *      Shutdown
      *---------------------------------------*/
     if(print_tranger) {
-        print_json2("tranger", tranger);
+        print_json("tranger", tranger);
     } else if(print_treedb) {
-        print_json2("print_treedb", kw_get_dict(0, tranger, "treedbs", 0, KW_REQUIRED));
+        print_json("print_treedb", kw_get_dict(0, tranger, "treedbs", 0, KW_REQUIRED));
     }
 
     if(1) {

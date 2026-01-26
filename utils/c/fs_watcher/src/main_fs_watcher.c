@@ -61,7 +61,7 @@ PRIVATE int do_test(char *path)
     yev_loop_run(yev_loop, -1);
     gobj_trace_msg(0, "Quiting of main yev_loop_run()");
 
-    print_json2("tracked_paths", fs_event_h->jn_tracked_paths);
+    print_json("tracked_paths", fs_event_h->jn_tracked_paths);
 
     fs_stop_watcher_event(fs_event_h);
     yev_loop_run_once(yev_loop);

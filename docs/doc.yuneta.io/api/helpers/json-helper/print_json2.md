@@ -1,6 +1,6 @@
 <!-- ============================================================== -->
-(print_json2())=
-# `print_json2()`
+(print_json())=
+# `print_json()`
 <!-- ============================================================== -->
 
 Prints a JSON object to stdout with indentation and a label.
@@ -20,7 +20,7 @@ Prints a JSON object to stdout with indentation and a label.
 **Prototype**
 
 ```C
-int print_json2(
+int print_json(
     const char *label,
     json_t *jn
 );

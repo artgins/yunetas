@@ -64,7 +64,7 @@ PRIVATE int search_page(
     );
 
     if(pinta_records) {
-        print_json2("page", page);
+        print_json("page", page);
     }
     uint64_t rows_found = json_array_size(json_object_get(page, "data"));
     if(rows_found != rows_expected) {

@@ -5006,7 +5006,7 @@ PRIVATE int handle__connect(hgobj gobj, gbuffer_t *gbuf, hgobj src)
 
     json_t *auth = gobj_authenticate(gobj, kw_auth, gobj);
     authorization = COMMAND_RESULT(gobj, auth);
-    print_json2("XXX authenticated", auth); // TODO TEST
+    print_json("XXX authenticated", auth); // TODO TEST
 
     if(authorization < 0) {
         if(priv->protocol_version == mosq_p_mqtt5) {
@@ -5054,7 +5054,7 @@ PRIVATE int handle__connect(hgobj gobj, gbuffer_t *gbuf, hgobj src)
             (int)keepalive
         );
         if(connect_properties) {
-            print_json2("CONNECT_PROPERTIES", connect_properties);
+            print_json("CONNECT_PROPERTIES", connect_properties);
         }
 
         if(priv->gbuf_will_payload) {
@@ -5350,7 +5350,7 @@ PRIVATE int handle__connack(
                 mqtt_connack_string(reason_code)
         );
         if(properties) {
-            print_json2("CONNACK properties", properties);
+            print_json("CONNACK properties", properties);
         }
     }
 

@@ -1285,10 +1285,10 @@ PRIVATE int ac_command_answer(hgobj gobj, const char *event, json_t *kw, hgobj s
             } else {
                 if(!gobj_read_bool_attr(gobj, "print_with_metadata")) {
                     json_t *jn_data2 = kw_filter_metadata(gobj, json_incref(jn_data));
-                    print_json2("", jn_data2);
+                    print_json("", jn_data2);
                     JSON_DECREF(jn_data2);
                 } else {
-                    print_json2("", jn_data);
+                    print_json("", jn_data);
                 }
             }
             if(!empty_string(comment)) {

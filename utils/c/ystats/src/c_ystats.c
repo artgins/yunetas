@@ -532,7 +532,7 @@ PRIVATE int ac_stats(hgobj gobj, const char *event, json_t *kw, hgobj src)
             time(&t);
             printf("\033c");
             printf("Time %llu\n", (unsigned long long)t);
-            print_json2("", jn_data);
+            print_json("", jn_data);
         }
         if(to_free) {
             JSON_DECREF(jn_data);

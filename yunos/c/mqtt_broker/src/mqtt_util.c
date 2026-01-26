@@ -504,5 +504,7 @@ PUBLIC json_t *new_mqtt_message(
     //
     // *p_user_flag = user_flag;
 
+debug_json("NEW KW_MQTT_MSG", kw_mqtt_msg, TRUE); // TODO TEST
+
     return kw_mqtt_msg;
 }

@@ -484,7 +484,7 @@ PRIVATE int load_record_callback(
         }
 
     } else {
-        print_json2(title, jn_record);
+        print_json(title, jn_record);
     }
 
     JSON_DECREF(jn_record)

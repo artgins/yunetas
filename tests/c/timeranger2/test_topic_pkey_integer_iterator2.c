@@ -247,7 +247,7 @@ PRIVATE int do_test(void)
      */
     if(leidos != MAX_KEYS*MAX_RECORDS) {
         printf("%sERROR%s --> %s\n", On_Red BWhite, Color_Off, "BAD count leidos of message");
-        //print_json2("BAD count leidos of message", tranger);
+        //print_json("BAD count leidos of message", tranger);
         result += -1;
     }
 

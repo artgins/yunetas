@@ -272,7 +272,7 @@ PRIVATE int list_queue_msgs(struct arguments *arguments)
                 arguments->print_local_time
             );
 
-            print_json2(temp, (json_t *)jn_gate_msg);
+            print_json(temp, (json_t *)jn_gate_msg);
         }
     }
 

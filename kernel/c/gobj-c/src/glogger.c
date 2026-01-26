@@ -1127,7 +1127,7 @@ PUBLIC void trace_vjson(
         _log_bf(priority, opt, s, strlen(s));
         jsonp_free(s);
     } else {
-        print_json2(On_Red BWhite "ERROR json_dumps()" Color_Off, jn_log);
+        print_json(On_Red BWhite "ERROR json_dumps()" Color_Off, jn_log);
         if(show_backtrace_fn) {
             show_backtrace_fn(stdout_fwrite, stdout);
         }

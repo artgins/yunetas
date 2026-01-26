@@ -69,7 +69,7 @@ PRIVATE int load_rango_callback(
         printf("%s\n", temp);
     }
     if(pinta_records) {
-        print_json2("record", record);
+        print_json("record", record);
     }
 
     json_t *md = json_object();

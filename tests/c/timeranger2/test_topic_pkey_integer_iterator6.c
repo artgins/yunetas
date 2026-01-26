@@ -212,7 +212,7 @@ PRIVATE int rt_disk_record_callback(
         //printf("BY DISK: %s\n", temp);
     }
     if(pinta_records) {
-        print_json2("DISK record", record);
+        print_json("DISK record", record);
     }
 
     JSON_DECREF(record)

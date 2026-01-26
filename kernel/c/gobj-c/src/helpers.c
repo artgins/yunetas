@@ -4770,13 +4770,13 @@ PUBLIC json_t *tdump2json(const uint8_t *s, size_t len)
 /***************************************************************************
  *  Print json to stdout
  ***************************************************************************/
-PUBLIC int print_json2(const char *label, json_t *jn)
+PUBLIC int print_json(const char *label, json_t *jn)
 {
     if(!label) {
         label = "";
     }
     if(!jn || jn->refcount <= 0) {
-        fprintf(stdout, "%s (%p) ERROR print_json2(): json %s %d, type %d\n",
+        fprintf(stdout, "%s (%p) ERROR print_json(): json %s %d, type %d\n",
             label,
             jn,
             jn?"NULL":"or refcount is",

@@ -32,7 +32,7 @@ json-helper/json_str_in_list
 json-helper/legalstring2json
 json-helper/load_json_from_file
 json-helper/load_persistent_json
-json-helper/print_json2
+json-helper/print_json
 json-helper/save_json_to_file
 json-helper/set_real_precision
 json-helper/string2json

@@ -619,8 +619,8 @@ PRIVATE int ac_mt_command_answer(hgobj gobj, const char *event, json_t *kw, hgob
             if(priv->verbose) {
                 printf("%s  --> ERROR: %s %s\n", On_Red BWhite, "response not match", Color_Off);
                 if(priv->verbose > 1) {
-                    print_json2("received", kw);
-                    print_json2("expected", jn_response);
+                    print_json("received", kw);
+                    print_json("expected", jn_response);
                 }
             } else {
                 printf("%sX%s", On_Red BWhite,Color_Off);
@@ -635,7 +635,7 @@ PRIVATE int ac_mt_command_answer(hgobj gobj, const char *event, json_t *kw, hgob
             if(priv->verbose) {
                 printf("  --> OK\n");
                 if(priv->verbose > 1) {
-                    print_json2("received", kw);
+                    print_json("received", kw);
                 }
             } else {
                 printf(".");
@@ -650,7 +650,7 @@ PRIVATE int ac_mt_command_answer(hgobj gobj, const char *event, json_t *kw, hgob
             if(priv->verbose) {
                 printf("%s  --> ERROR: %s %s\n", On_Red BWhite, comment, Color_Off);
                 if(priv->verbose > 1) {
-                    print_json2("received", kw);
+                    print_json("received", kw);
                 }
             } else {
                 printf("%sX%s", On_Red BWhite,Color_Off);
@@ -664,7 +664,7 @@ PRIVATE int ac_mt_command_answer(hgobj gobj, const char *event, json_t *kw, hgob
             if(priv->verbose) {
                 printf("  --> OK\n");
                 if(priv->verbose > 1) {
-                    print_json2("received", kw);
+                    print_json("received", kw);
                 }
             } else {
                 printf(".");

@@ -180,7 +180,7 @@ PRIVATE void handle_inotify_event(struct inotify_event *event)
             printf("  %s-> Directory deleted:%s %d %s\n", On_Green BWhite, Color_Off, event->wd, path);
 
             remove_watch(event->wd);
-            print_json2("PATHS", jn_tracked_paths);
+            print_json("PATHS", jn_tracked_paths);
         }
         return;
     }
@@ -207,7 +207,7 @@ PRIVATE void handle_inotify_event(struct inotify_event *event)
             snprintf(full_path, PATH_MAX, "%s/%s", path, event->len? event->name:"");
             printf("  %s-> Directory created:%s %s\n", On_Green BWhite, Color_Off, full_path);
             add_watch(full_path);
-            print_json2("PATHS", jn_tracked_paths);
+            print_json("PATHS", jn_tracked_paths);
         }
         if (event->mask & (IN_DELETE)) {
             snprintf(full_path, PATH_MAX, "%s/%s", path, event->len? event->name:"");
@@ -303,7 +303,7 @@ int main(int argc, char *argv[]) {
     // Add watch recursively on the root directory and its subdirectories
     add_watch_recursive(path);
 
-    print_json2("PATHS", jn_tracked_paths);
+    print_json("PATHS", jn_tracked_paths);
 
     // Initialize io_uring
     struct io_uring ring;

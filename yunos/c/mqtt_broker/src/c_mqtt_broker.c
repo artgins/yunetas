@@ -2432,7 +2432,7 @@ PRIVATE int ac_on_open(hgobj gobj, const char *event, json_t *kw, hgobj src)
     // TODO process WILL
 
     if(session) {
-print_json2("=====>1 SESSION", session); // TODO TEST
+print_json("=====>1 SESSION", session); // TODO TEST
         /*-------------------------------------------------------------*
          *              Exists a previous session
          *-------------------------------------------------------------*/
@@ -2947,6 +2947,8 @@ PRIVATE int ac_mqtt_message(hgobj gobj, const char *event, json_t *kw, hgobj src
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
+debug_json("======> ac_mqtt_message", kw, TRUE); // TODO TEST
+
     if(gobj_trace_level(gobj) & TRACE_MESSAGES) {
         gobj_trace_json(
             gobj,
@@ -2980,7 +2982,10 @@ PRIVATE int ac_mqtt_message(hgobj gobj, const char *event, json_t *kw, hgobj src
      *-----------------------------------*/
     gobj_publish_event(gobj, EV_MQTT_MESSAGE, kw_incref(kw));
 
-    KW_DECREF(kw);
+    kw_decref(kw);
+
+debug_json("<====== ac_mqtt_message", kw, TRUE); // TODO TEST
+
     return subscribers_found;
 }
 
