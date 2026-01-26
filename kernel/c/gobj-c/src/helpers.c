@@ -4943,6 +4943,40 @@ PUBLIC int debug_json(const char *label, json_t *jn, BOOL verbose)
     return ret;
 }
 
+/***************************************************************************
+ *  Print json with refcounts
+ ***************************************************************************/
+PUBLIC int debug_json2(json_t *jn, const char *fmt, ...)
+{
+    va_list ap;
+    char prefix[1024];
+
+    if(!fmt) {
+        fmt = "";
+    }
+
+    va_start(ap, fmt);
+    vsnprintf(prefix, sizeof(prefix), fmt, ap);
+    va_end(ap);
+
+    int verbose = TRUE;
+    if(!jn || jn->refcount <= 0) {
+        fprintf(stdout, "%s%sERROR debug_json()%s: json NULL or refcount is 0\n",
+            prefix,
+            On_Red BWhite, Color_Off);
+        return -1;
+    }
+    if(verbose) {
+        fprintf(stdout, "%s\n", prefix);
+    }
+    int ret = _debug_json(0, jn, 0, 0, verbose);
+    if(verbose) {
+        fprintf(stdout, "\n");
+        fflush(stdout);
+    }
+    return ret;
+}
+
 /*****************************************************************
  *  timestamp with usec resolution
  *  `bf` must be 90 bytes minimum
