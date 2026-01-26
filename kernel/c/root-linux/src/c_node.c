@@ -910,13 +910,19 @@ PRIVATE json_t *mt_update_node( // Return is YOURS
         }
     }
 
+debug_json2(kw, "c_node mt_update 1"); // TODO TEST
     kw_decref(kw);
+debug_json2(kw, "c_node mt_update 2"); // TODO TEST
 
-    return node_collapsed_view( // Return MUST be decref
+    json_t *r = node_collapsed_view( // Return MUST be decref
         priv->tranger,
         node, // not owned
         jn_options // owned fkey,hook options
     );
+debug_json2(kw, "c_node mt_update 3"); // TODO TEST
+debug_json2(kw, "c_node mt_update r"); // TODO TEST
+
+    return r;
 }
 
 /***************************************************************************
