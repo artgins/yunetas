@@ -2663,13 +2663,13 @@ PUBLIC int tranger2_append_record(
                     list,
                     g_rowid,
                     md_record_ex,
-                    kw_incref(kw)
+                    json_incref(kw)
                 );
             }
         }
     }
 
-    kw_decref(kw);
+    KW_DECREF(kw)
     return 0;
 }
 
@@ -4512,7 +4512,7 @@ PRIVATE json_int_t publish_new_rt_disk_records( // return # of new records
                         disk,
                         rowid,
                         &md_record_ex,
-                        kw_incref(record)
+                        json_incref(record)
                     );
                 }
             }
@@ -4538,7 +4538,7 @@ PRIVATE json_int_t publish_new_rt_disk_records( // return # of new records
                             list,
                             rowid,
                             &md_record_ex,
-                            kw_incref(record)
+                            json_incref(record)
                         );
                     }
                 }

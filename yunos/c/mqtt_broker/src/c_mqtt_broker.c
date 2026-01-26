@@ -1831,13 +1831,13 @@ debug_json("XXXX0 kw_mqtt_msg", kw_mqtt_msg, TRUE); // TODO TEST
 
 debug_json("XXXX retain_node", retain_node, TRUE); // TODO TEST
 debug_json("XXXX kw_mqtt_msg", kw_mqtt_msg, TRUE); // TODO TEST
-debug_json("XXXX tranger_treedb_mqtt_broker", priv->tranger_treedb_mqtt_broker, TRUE); // TODO TEST
+// debug_json("XXXX tranger_treedb_mqtt_broker", priv->tranger_treedb_mqtt_broker, TRUE); // TODO TEST
 
     kw_decref(retain_node);
 
 debug_json("XXXX2 retain_node", retain_node, TRUE); // TODO TEST
 debug_json("XXXX2 kw_mqtt_msg", kw_mqtt_msg, TRUE); // TODO TEST
-debug_json("XXXX2 tranger_treedb_mqtt_broker", priv->tranger_treedb_mqtt_broker, TRUE); // TODO TEST
+// debug_json("XXXX2 tranger_treedb_mqtt_broker", priv->tranger_treedb_mqtt_broker, TRUE); // TODO TEST
 
     GBMEM_FREE(topic2disk)
     return 0;

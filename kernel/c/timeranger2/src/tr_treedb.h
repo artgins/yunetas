@@ -150,7 +150,6 @@ PUBLIC int treedb_set_callback(
         "hook"          // special field types
         "fkey"
         "enum"
-        "gbuffer"
 
         // normal field types (some of them not processed or checked by tranger2)
 
