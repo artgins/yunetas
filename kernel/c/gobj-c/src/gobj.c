@@ -8962,7 +8962,6 @@ PUBLIC int gobj_publish_event(
              *  NOW always shared
              */
             json_t *kw2publish = kw_incref(kw);
-debug_json("======> kw2publish", kw2publish, TRUE); // TODO TEST
 
             /*-------------------------------------*
              *  User filter method or filter parameter

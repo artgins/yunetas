@@ -315,7 +315,7 @@ PUBLIC json_t *kw_incref(json_t *kw)
 
         pf++;
     }
-    JSON_INCREF(kw);
+    json_incref(kw);
     return kw;
 }
 
@@ -359,7 +359,7 @@ PUBLIC json_t *kw_decref(json_t* kw)
 
         pf++;
     }
-    JSON_DECREF(kw)
+    json_decref(kw);
     return kw;
 }
 
@@ -1669,7 +1669,7 @@ PUBLIC json_t *kw_get_list_value(
 
     json_t *v = json_array_get(kw, idx);
     if(v && (flag & KW_EXTRACT)) {
-        JSON_INCREF(v);
+        json_incref(v);
         json_array_remove(kw, idx);
     }
     return v;

@@ -45,6 +45,7 @@
         DL_ITEM_FIELDS
         size_t size;
         size_t ref;
+        void *p;
     } track_mem_t;
 
     unsigned long *memory_check_list = 0;
@@ -302,6 +303,7 @@ PUBLIC void print_track_mem(void)
             "msg",          "%s", "mem-not-free",
             "ref",          "%lu", (unsigned long)track_mem->ref,
             "size",         "%lu", (unsigned long)track_mem->size,
+            "p",            "%lu", (unsigned long)track_mem->p,
             NULL
         );
 
@@ -322,6 +324,7 @@ PRIVATE void check_failed_list(track_mem_t *track_mem)
                 "msgset",       "%s", MSGSET_STATISTICS,
                 "msg",          "%s", "mem-not-free by ref",
                 "ref",          "%ul", (unsigned long)track_mem->ref,
+                "p",            "%ul", (unsigned long)track_mem->p,
                 NULL
             );
         } else if(memory_check_list[xx] == track_mem->size) {
@@ -329,6 +332,7 @@ PRIVATE void check_failed_list(track_mem_t *track_mem)
                 "msgset",       "%s", MSGSET_STATISTICS,
                 "msg",          "%s", "mem-not-free by size",
                 "size",         "%ul", (unsigned long)track_mem->size,
+                "p",            "%ul", (unsigned long)track_mem->p,
                 NULL
             );
         }
@@ -396,6 +400,7 @@ PRIVATE void *_mem_malloc(size_t size)
 
     check_failed_list(pm_);
     pm += extra;
+    pm_->p = pm;
 #endif
 
     return pm;
@@ -499,6 +504,7 @@ PRIVATE void *_mem_realloc(void *p, size_t new_size)
     pm_->ref = ++mem_ref;
     dl_add(&dl_busy_mem, pm_);
     pm += extra;
+    pm_->p = pm;
     return pm;
 #else
     return pm__;

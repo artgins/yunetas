@@ -1820,17 +1820,17 @@ PRIVATE int retain__store(
      *      Save retain msg
      *----------------------------*/
     json_object_set_new(kw_mqtt_msg, "id", json_string(topic2disk));
-    json_t *retain_node = gobj_update_node(
-        priv->gobj_treedb_mqtt_broker,
-        "retained_msgs",
-        kw_incref(kw_mqtt_msg),
-        json_pack("{s:b}", "create", 1),
-        gobj
-    );
-debug_json("XXXX1", kw_mqtt_msg, TRUE); // TODO TEST
+//     json_t *retain_node = gobj_update_node(
+//         priv->gobj_treedb_mqtt_broker,
+//         "retained_msgs",
+//         kw_incref(kw_mqtt_msg),
+//         json_pack("{s:b}", "create", 1),
+//         gobj
+//     );
+// debug_json("XXXX1", kw_mqtt_msg, TRUE); // TODO TEST
+//     kw_decref(retain_node);
 
     GBMEM_FREE(topic2disk)
-    kw_decref(retain_node);
 debug_json("XXXX2", kw_mqtt_msg, TRUE); // TODO TEST
     return 0;
 }
@@ -2128,7 +2128,6 @@ PRIVATE size_t sub__messages_queue(
     json_t *kw_mqtt_msg // not owned
 ) {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
-
     const char *topic = kw_get_str(gobj, kw_mqtt_msg, "topic", "", KW_REQUIRED);
     BOOL retain = kw_get_bool(gobj, kw_mqtt_msg, "retain", 0, KW_REQUIRED);
 
@@ -2972,15 +2971,16 @@ debug_json("======> ac_mqtt_message", kw, TRUE); // TODO TEST
     /*-----------------------------------*
      *      Mqtt message
      *-----------------------------------*/
-    int subscribers_found = (int)sub__messages_queue(
-        gobj,
-        kw // not owned
-    );
-
-    /*-----------------------------------*
-     *      Publish to yuneta gobjs
-     *-----------------------------------*/
-    gobj_publish_event(gobj, EV_MQTT_MESSAGE, kw_incref(kw));
+    int subscribers_found =0;
+    // int subscribers_found = (int)sub__messages_queue(
+    //     gobj,
+    //     kw // not owned
+    // );
+    //
+    // /*-----------------------------------*
+    //  *      Publish to yuneta gobjs
+    //  *-----------------------------------*/
+    // gobj_publish_event(gobj, EV_MQTT_MESSAGE, kw_incref(kw));
 
     kw_decref(kw);
 
