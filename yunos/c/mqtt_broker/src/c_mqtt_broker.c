@@ -1803,7 +1803,7 @@ PRIVATE int retain__store(
     /*-----------------------------------*
      *  No payload -> delete retain msg
      *-----------------------------------*/
-    size_t payloadlen = gbuffer_leftbytes(gbuf);
+    size_t payloadlen = gbuf?gbuffer_leftbytes(gbuf):0;
     if(payloadlen == 0) {
         gobj_delete_node(
             priv->gobj_treedb_mqtt_broker,
