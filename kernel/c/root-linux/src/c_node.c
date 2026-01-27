@@ -770,12 +770,15 @@ PRIVATE json_t *mt_create_node( // Return is YOURS
         priv->tranger,
         priv->treedb_name,
         topic_name,
-        kw // owned
+        json_incref(kw) // Don't use kw_incref for tranger
     );
     if(!node) {
         JSON_DECREF(jn_options)
+        KW_DECREF(kw)
         return 0;
     }
+
+    KW_DECREF(kw)
 
     return node_collapsed_view( // Return MUST be decref
         priv->tranger,
@@ -861,7 +864,7 @@ PRIVATE json_t *mt_update_node( // Return is YOURS
                 priv->tranger,
                 priv->treedb_name,
                 topic_name,
-                kw_incref(kw)
+                json_incref(kw) // Don't use kw_incref for tranger
             );
         }
         if(!node) {
@@ -899,7 +902,7 @@ PRIVATE json_t *mt_update_node( // Return is YOURS
             treedb_update_node( // Return is NOT YOURS
                 priv->tranger,
                 node,
-                json_incref(kw),
+                json_incref(kw), // Don't use kw_incref for tranger
                 autolink?FALSE:TRUE
             );
         }

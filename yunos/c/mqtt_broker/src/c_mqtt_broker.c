@@ -2982,7 +2982,13 @@ PRIVATE int ac_mqtt_message(hgobj gobj, const char *event, json_t *kw, hgobj src
     /*-----------------------------------*
      *      Publish to yuneta gobjs
      *-----------------------------------*/
-    gobj_publish_event(gobj, EV_MQTT_MESSAGE, kw);
+debug_json2(kw, "============> 1");
+    gobj_publish_event(
+        gobj,
+        EV_MQTT_MESSAGE,
+        kw // owned
+    );
+debug_json2(kw, "============> 2");
 
     return subscribers_found;
 }
