@@ -2467,7 +2467,6 @@ PUBLIC int tranger2_append_record(
         /*--------------------------------------------*
          *  Get the record's content, always json
          *--------------------------------------------*/
-        // char *srecord = kw_serialize_to_string(gobj, kw); // HACK external/internal conversion
         char *srecord = json_dumps(kw, JSON_COMPACT|JSON_ENCODE_ANY);
         if(!srecord) {
             gobj_log_error(gobj, 0,
@@ -7156,8 +7155,6 @@ PRIVATE json_t *read_record_content(
         );
         return NULL;
     }
-
-    // kw = kw_deserialize(gobj, kw); // HACK external/internal conversion
 
     return kw;
 }
