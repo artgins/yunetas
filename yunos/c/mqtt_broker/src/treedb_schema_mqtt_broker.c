@@ -159,7 +159,7 @@
 static char treedb_schema_mqtt_broker[]= "\
 {                                                                   \n\
     'id': 'treedb_mqtt_broker',                                     \n\
-    'schema_version': '15',                                         \n\
+    'schema_version': '16',                                         \n\
     'topics': [                                                     \n\
         {                                                           \n\
             'id': 'client_groups',                                  \n\
@@ -683,7 +683,7 @@ static char treedb_schema_mqtt_broker[]= "\
             'pkey': 'id',                                           \n\
             'tkey': 'tm',                                           \n\
             'system_flag': 'sf_string_key',                         \n\
-            'topic_version': '8',                                   \n\
+            'topic_version': '9',                                   \n\
             'cols': {                                               \n\
                 'id': {                                             \n\
                     'header': 'Topic',                              \n\
@@ -731,21 +731,13 @@ static char treedb_schema_mqtt_broker[]= "\
                         'persistent'                                \n\
                     ]                                               \n\
                 },                                                  \n\
-                'gbuffer': {                                        \n\
+                'payload': {                                        \n\
                     'header': 'Payload',                            \n\
                     'fillspace': 30,                                \n\
                     'type': 'integer',                              \n\
                     'flag': [                                       \n\
                         'gbuffer',                                  \n\
                         'persistent'                                \n\
-                    ]                                               \n\
-                },                                                  \n\
-                'test_volatil': {                                   \n\
-                    'header': 'Volatil',                            \n\
-                    'fillspace': 30,                                \n\
-                    'default': 'Pepe',                              \n\
-                    'type': 'string',                               \n\
-                    'flag': [                                       \n\
                     ]                                               \n\
                 },                                                  \n\
                 '_geometry': {                                      \n\
