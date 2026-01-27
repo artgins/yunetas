@@ -334,27 +334,28 @@ const treedb_real_types = [ // WARNING check tr_treedb.h to update new real type
     "blob"
 ];
 
-const treedb_field_attributes = [
+const treedb_field_attributes = [ // WARNING check tr_treedb.h to update new types
     "persistent",   // implicit readable
     "required",
     "notnull",
     "wild",
     "inherit",
-    "readable",
-    "writable",     // implicit readable
-    "hidden",
-    "stats",        // implicit readable
-    "rstats",       // implicit stats
-    "pstats"        // implicit stats
+
+    // For use in gobj attributes
+    "readable",     // Field readable by user
+    "writable",     // Field writable by user implicit "readable"
+    "hidden",       // Field hidden to user
+    "stats",        // field with stats implicit "readable"
+    "rstats",       // field with resettable stats implicit "stats"
+    "pstats"        // field with persistent stats implicit "stats"
 ];
 
 const treedb_field_types = [ // WARNING check tr_treedb.h to update new types
-    "hook",
+    "hook",     // special field types
     "fkey",
     "enum",
-    "gbuffer",
 
-    "template",
+    "template", // normal field types
     "uuid",
     "rowid",
     "password",
@@ -373,7 +374,8 @@ const treedb_field_types = [ // WARNING check tr_treedb.h to update new types
     "binary",
     "percent",
     "base64",
-    "coordinates"
+    "coordinates",
+    "gbuffer"
 ];
 
 function treedb_get_field_desc(col)

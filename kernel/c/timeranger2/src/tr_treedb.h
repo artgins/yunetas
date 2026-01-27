@@ -130,7 +130,7 @@ PUBLIC int treedb_set_callback(
     "flag" enum
     -----------
 
-        // Field attributes
+        // Field attributes  (WARNING duplicated in lib_treedb.js)
 
         "persistent"    // implicit "readable"
         "required"
@@ -151,7 +151,9 @@ PUBLIC int treedb_set_callback(
         "fkey"
         "enum"
 
-        // normal field types (some of them not processed or checked by tranger2)
+        // normal field types
+        // (WARNING some of them not processed or checked by tranger2)
+        // for example by js in frontend apps
 
         "template"
         "uuid"
@@ -173,6 +175,7 @@ PUBLIC int treedb_set_callback(
         "percent"
         "base64"
         "coordinates"
+        "gbuffer"
 
  ***************************************************************************/
 PUBLIC json_t *treedb_create_topic( // WARNING Return is NOT YOURS
