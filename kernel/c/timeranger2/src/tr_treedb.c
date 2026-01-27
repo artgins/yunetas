@@ -4534,7 +4534,7 @@ PUBLIC json_t *treedb_create_node( // WARNING Return is NOT YOURS, pure node
     if(!prev_node) {
         save_id = TRUE;
     } else {
-        // TODO are some case where primary key exists and to create a node for a secondary key?
+        // TODO are there some cases where primary key exists and to create a node for a secondary key?
     }
 
     /*-----------------------------------*
