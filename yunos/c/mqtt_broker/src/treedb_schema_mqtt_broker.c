@@ -134,7 +134,7 @@
             │  qos                      │
             │  expiry_interval          │
             │  properties               │
-            │  gbuffer                  │
+            │  payload                  │
             │                           │
             │  _geometry                │
             └───────────────────────────┘
@@ -159,7 +159,7 @@
 static char treedb_schema_mqtt_broker[]= "\
 {                                                                   \n\
     'id': 'treedb_mqtt_broker',                                     \n\
-    'schema_version': '16',                                         \n\
+    'schema_version': '17',                                         \n\
     'topics': [                                                     \n\
         {                                                           \n\
             'id': 'client_groups',                                  \n\
@@ -683,7 +683,7 @@ static char treedb_schema_mqtt_broker[]= "\
             'pkey': 'id',                                           \n\
             'tkey': 'tm',                                           \n\
             'system_flag': 'sf_string_key',                         \n\
-            'topic_version': '9',                                   \n\
+            'topic_version': '10',                                   \n\
             'cols': {                                               \n\
                 'id': {                                             \n\
                     'header': 'Topic',                              \n\
@@ -734,7 +734,7 @@ static char treedb_schema_mqtt_broker[]= "\
                 'payload': {                                        \n\
                     'header': 'Payload',                            \n\
                     'fillspace': 30,                                \n\
-                    'type': 'integer',                              \n\
+                    'type': 'dict',                                 \n\
                     'flag': [                                       \n\
                         'gbuffer',                                  \n\
                         'persistent'                                \n\

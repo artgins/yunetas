@@ -1820,6 +1820,7 @@ PRIVATE int retain__store(
      *      Save retain msg
      *----------------------------*/
     json_object_set_new(kw_mqtt_msg, "id", json_string(topic2disk));
+    json_object_set_new(kw_mqtt_msg, "payload", gbuffer_serialize(gobj, gbuf));
 //     json_t *retain_node = gobj_update_node(
 //         priv->gobj_treedb_mqtt_broker,
 //         "retained_msgs",
