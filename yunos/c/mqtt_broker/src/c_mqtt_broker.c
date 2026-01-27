@@ -1819,23 +1819,19 @@ PRIVATE int retain__store(
     /*----------------------------*
      *      Save retain msg
      *----------------------------*/
-debug_json("XXXX0 kw_mqtt_msg", kw_mqtt_msg, TRUE); // TODO TEST
     json_object_set_new(kw_mqtt_msg, "id", json_string(topic2disk));
-    json_t *retain_node = gobj_update_node(
-        priv->gobj_treedb_mqtt_broker,
-        "retained_msgs",
-        kw_incref(kw_mqtt_msg),
-        json_pack("{s:b}", "create", 1),
-        gobj
-    );
+//     json_t *retain_node = gobj_update_node(
+//         priv->gobj_treedb_mqtt_broker,
+//         "retained_msgs",
+//         kw_incref(kw_mqtt_msg),
+//         json_pack("{s:b}", "create", 1),
+//         gobj
+//     );
+//
+// debug_json("XXXX2 retain_node", retain_node, TRUE); // TODO TEST
+//
+//     kw_decref(retain_node);
 
-debug_json("XXXX retain_node", retain_node, TRUE); // TODO TEST
-debug_json("XXXX kw_mqtt_msg", kw_mqtt_msg, TRUE); // TODO TEST
-// debug_json("XXXX tranger_treedb_mqtt_broker", priv->tranger_treedb_mqtt_broker, TRUE); // TODO TEST
-
-    kw_decref(retain_node);
-
-debug_json("XXXX2 retain_node", retain_node, TRUE); // TODO TEST
 debug_json("XXXX2 kw_mqtt_msg", kw_mqtt_msg, TRUE); // TODO TEST
 // debug_json("XXXX2 tranger_treedb_mqtt_broker", priv->tranger_treedb_mqtt_broker, TRUE); // TODO TEST
 

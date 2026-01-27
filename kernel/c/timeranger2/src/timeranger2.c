@@ -2292,7 +2292,7 @@ PUBLIC int tranger2_append_record(
             NULL
         );
         gobj_trace_json(gobj, kw, "Cannot append record, NO master");
-        KW_DECREF(kw)
+        JSON_DECREF(kw)
         return -1;
     }
 
@@ -2306,7 +2306,7 @@ PUBLIC int tranger2_append_record(
             NULL
         );
         gobj_trace_json(gobj, kw, "Cannot append record, topic not found");
-        KW_DECREF(kw)
+        JSON_DECREF(kw)
         return -1;
     }
 
@@ -2354,7 +2354,7 @@ PUBLIC int tranger2_append_record(
                         NULL
                     );
                     gobj_trace_json(gobj, kw, "Cannot append record, no pkey");
-                    KW_DECREF(kw)
+                    JSON_DECREF(kw)
                     return -1;
                 }
                 if(strlen(key_value) > NAME_MAX) {
@@ -2370,7 +2370,7 @@ PUBLIC int tranger2_append_record(
                         NULL
                     );
                     gobj_trace_json(gobj, kw, "Cannot append record, pkey too long");
-                    KW_DECREF(kw)
+                    JSON_DECREF(kw)
                     return -1;
                 }
             }
@@ -2402,7 +2402,7 @@ PUBLIC int tranger2_append_record(
                 NULL
             );
             gobj_trace_json(gobj, kw, "Cannot append record, no pkey type");
-            KW_DECREF(kw)
+            JSON_DECREF(kw)
             return -1;
     }
 
@@ -2459,7 +2459,7 @@ PUBLIC int tranger2_append_record(
                 NULL
             );
             gobj_trace_json(gobj, kw, "Cannot append record, lseek() FAILED");
-            KW_DECREF(kw)
+            JSON_DECREF(kw)
             return -1;
         }
         md_record.__offset__ = __offset__;
@@ -2477,7 +2477,7 @@ PUBLIC int tranger2_append_record(
                 NULL
             );
             gobj_trace_json(gobj, kw, "Cannot append record, json_dumps() FAILED");
-            KW_DECREF(kw)
+            JSON_DECREF(kw)
             // JSON_DECREF(kw_)
             return -1;
         }
@@ -2527,7 +2527,7 @@ PUBLIC int tranger2_append_record(
                 NULL
             );
             gobj_trace_json(gobj, kw, "Cannot append record, write FAILED");
-            KW_DECREF(kw)
+            JSON_DECREF(kw)
             jsonp_free(srecord);
             return -1;
         }
@@ -2560,7 +2560,7 @@ PUBLIC int tranger2_append_record(
                 NULL
             );
             gobj_trace_json(gobj, kw, "Cannot append record, lseek() FAILED");
-            KW_DECREF(kw)
+            JSON_DECREF(kw)
             return -1;
         }
 
@@ -2590,7 +2590,7 @@ PUBLIC int tranger2_append_record(
                 "serrno",       "%s", strerror(errno),
                 NULL
             );
-            KW_DECREF(kw)
+            JSON_DECREF(kw)
             return -1;
         }
 
@@ -2666,7 +2666,7 @@ PUBLIC int tranger2_append_record(
         }
     }
 
-    KW_DECREF(kw)
+    JSON_DECREF(kw)
     return 0;
 }
 
@@ -4030,7 +4030,7 @@ PRIVATE int master_to_update_client_load_record_callback(
         }
     }
 
-    KW_DECREF(kw)
+    JSON_DECREF(kw)
     return 0;
 }
 
@@ -5511,7 +5511,7 @@ PUBLIC json_t *tranger2_open_iterator( // LOADING: load data from disk, APPENDIN
                         iterator,
                         rowid,  // rowid
                         &md_record_ex,
-                        kw_incref(kw) // must be owned
+                        json_incref(kw) // must be owned
                     );
                     /*
                      *  Return:
@@ -5519,14 +5519,14 @@ PUBLIC json_t *tranger2_open_iterator( // LOADING: load data from disk, APPENDIN
                      *      -1 break the load
                      */
                     if(ret < 0) {
-                        KW_DECREF(kw)
+                        JSON_DECREF(kw)
                         break;
                     }
                 }
                 if(data) {
                     json_array_append(data, kw);
                 }
-                KW_DECREF(kw)
+                JSON_DECREF(kw)
             }
 
             cur_segment = next_segment_row(
