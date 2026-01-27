@@ -466,15 +466,17 @@ PRIVATE int ac_send_iev(hgobj gobj, const char *event, json_t *kw, hgobj src)
         return -1;
     }
 
+    // gobj_event_t iev_event = (gobj_event_t)(uintptr_t)kw_get_int(
+    //     gobj, kw, "event", 0, KW_REQUIRED
+    // );
     gobj_event_t iev_event = (gobj_event_t)(uintptr_t)kw_get_int(
-        gobj, kw, "event", 0, KW_REQUIRED
+        gobj, kw, "__iev_event__", 0, KW_REQUIRED|KW_EXTRACT
     );
-    json_t *iev_kw = kw_get_dict(gobj, kw, "kw", 0, KW_REQUIRED|KW_EXTRACT);
 
     if(gobj_trace_level(gobj) & TRACE_MESSAGES) {
         gobj_trace_json(
             gobj,
-            iev_kw, // not own
+            kw, // not own
             "%s: %s => %s",
             iev_event,
             gobj_short_name(gobj),
@@ -482,13 +484,8 @@ PRIVATE int ac_send_iev(hgobj gobj, const char *event, json_t *kw, hgobj src)
         );
     }
 
-    int ret = 0;
-
     priv->txMsgs++;
-    ret = gobj_send_event(gobj_bottom, iev_event, iev_kw, gobj);
-
-    KW_DECREF(kw)
-    return ret;
+    return gobj_send_event(gobj_bottom, iev_event, kw, gobj);
 }
 
 /***************************************************************************
