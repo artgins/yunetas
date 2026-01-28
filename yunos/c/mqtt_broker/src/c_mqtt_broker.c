@@ -49,6 +49,7 @@ PRIVATE json_t *cmd_shared_subscribers(hgobj gobj, const char *cmd, json_t *kw, 
 PRIVATE json_t *cmd_flatten_subscribers(hgobj gobj, const char *cmd, json_t *kw, hgobj src);
 PRIVATE json_t *cmd_list_retains(hgobj gobj, const char *cmd, json_t *kw, hgobj src);
 PRIVATE json_t *cmd_remove_retains(hgobj gobj, const char *cmd, json_t *kw, hgobj src);
+PRIVATE json_t *cmd_list_sessions(hgobj gobj, const char *cmd, json_t *kw, hgobj src);
 
 PRIVATE sdata_desc_t pm_help[] = {
 /*-PM----type-----------name------------flag------------default-----description---------- */
@@ -79,6 +80,11 @@ SDATAPM (DTP_STRING,    "topic",        0,              0,          "Retain Topi
 SDATAPM (DTP_STRING,    "client_id",    0,              0,          "Client id"),
 SDATA_END()
 };
+PRIVATE sdata_desc_t pm_sessions[] = {
+/*-PM----type-----------name------------flag------------default-----description---------- */
+SDATAPM (DTP_STRING,    "client_id",    0,              0,          "Client id"),
+SDATA_END()
+};
 
 PRIVATE const char *a_help[] = {"h", "?", 0};
 
@@ -86,6 +92,7 @@ PRIVATE sdata_desc_t command_table[] = {
 /*-CMD---type-----------name------------alias---items-------json_fn-------------description---------- */
 SDATACM (DTP_SCHEMA,    "help",         a_help, pm_help,    cmd_help,           "Command's help"),
 SDATACM (DTP_SCHEMA,    "list-devices", 0,      pm_device,  cmd_list_devices,   "List devices"),
+SDATACM (DTP_SCHEMA,    "list-sessions",0,      pm_sessions,cmd_list_sessions,  "List sessions"),
 SDATACM (DTP_SCHEMA,    "normal-subs",  0,      0,          cmd_normal_subscribers, "List normal subscribers"),
 SDATACM (DTP_SCHEMA,    "shared-subs",  0,      0,          cmd_shared_subscribers, "List shared subscribers"),
 SDATACM (DTP_SCHEMA,    "flatten-subs", 0,      pm_subscribers, cmd_flatten_subscribers, "Flatten subscribers"),
@@ -584,6 +591,41 @@ PRIVATE json_t *cmd_remove_retains(hgobj gobj, const char *cmd, json_t *kw, hgob
             "retained_msgs"
         ),
         retains,
+        kw  // owned
+    );
+}
+
+/***************************************************************************
+ *
+ ***************************************************************************/
+PRIVATE json_t *cmd_list_sessions(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+    const char *client_id = kw_get_str(gobj, kw, "client_id", "", 0);
+
+    json_t *jn_filter = NULL;
+    if(!empty_string(client_id)) {
+        jn_filter = json_object();
+        if(!empty_string(client_id)) {
+            json_object_set_new(jn_filter, "client_id", json_string(client_id));
+        }
+    }
+    json_t *sessions = gobj_list_nodes(
+        priv->gobj_treedb_mqtt_broker,
+        "sessions",
+        jn_filter,
+        NULL,
+        gobj
+    );
+
+    return msg_iev_build_response(gobj,
+        0,
+        0,
+        tranger2_list_topic_desc_cols(
+            priv->tranger_treedb_mqtt_broker,
+            "sessions"
+        ),
+        sessions,
         kw  // owned
     );
 }
