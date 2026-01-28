@@ -455,7 +455,7 @@ PUBLIC int mqtt_validate_utf8(const char *str, int len)
  ***************************************************************************/
 PUBLIC json_t *new_mqtt_message(
     hgobj gobj,
-    uint16_t mid,
+    const char *client_id,
     const char *topic,
     gbuffer_t *gbuf_payload,    // owned
     uint8_t qos,
@@ -479,7 +479,7 @@ PUBLIC json_t *new_mqtt_message(
 
     json_object_set_new(kw_mqtt_msg, "topic", json_string(topic));
     json_object_set_new(kw_mqtt_msg, "tm", json_integer(t));
-    json_object_set_new(kw_mqtt_msg, "mid", json_integer(mid));
+    json_object_set_new(kw_mqtt_msg, "client_id", json_string(client_id));
     json_object_set_new(kw_mqtt_msg, "qos", json_integer(qos));
     json_object_set_new(kw_mqtt_msg, "expiry_interval", json_integer(expiry_interval));
     json_object_set_new(kw_mqtt_msg, "retain", json_boolean(retain));

@@ -130,6 +130,7 @@
             ┌───────────────────────────┐
             │* id (topic)               │
             │                           │
+            │  client_id                │
             │  tm                       │
             │  qos                      │
             │  expiry_interval          │
@@ -159,7 +160,7 @@
 static char treedb_schema_mqtt_broker[]= "\
 {                                                                   \n\
     'id': 'treedb_mqtt_broker',                                     \n\
-    'schema_version': '17',                                         \n\
+    'schema_version': '18',                                         \n\
     'topics': [                                                     \n\
         {                                                           \n\
             'id': 'client_groups',                                  \n\
@@ -683,15 +684,23 @@ static char treedb_schema_mqtt_broker[]= "\
             'pkey': 'id',                                           \n\
             'tkey': 'tm',                                           \n\
             'system_flag': 'sf_string_key',                         \n\
-            'topic_version': '10',                                   \n\
+            'topic_version': '11',                                  \n\
             'cols': {                                               \n\
                 'id': {                                             \n\
                     'header': 'Topic',                              \n\
-                    'fillspace': 50,                                \n\
+                    'fillspace': 40,                                \n\
                     'type': 'string',                               \n\
                     'flag': [                                       \n\
-                        'persistent',                               \n\
-                        'required'                                  \n\
+                        'required',                                 \n\
+                        'persistent'                                \n\
+                    ]                                               \n\
+                },                                                  \n\
+                'client_id': {                                      \n\
+                    'header': 'Client',                             \n\
+                    'fillspace': 30,                                \n\
+                    'type': 'string',                               \n\
+                    'flag': [                                       \n\
+                        'persistent'                                \n\
                     ]                                               \n\
                 },                                                  \n\
                 'tm': {                                             \n\

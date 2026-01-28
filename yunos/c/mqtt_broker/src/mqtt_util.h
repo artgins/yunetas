@@ -332,7 +332,7 @@ PUBLIC int mqtt_validate_utf8(const char *str, int len);
 
 PUBLIC json_t *new_mqtt_message(
     hgobj gobj,
-    uint16_t mid,
+    const char *client_id,
     const char *topic,
     gbuffer_t *gbuf_payload,    // owned
     uint8_t qos,

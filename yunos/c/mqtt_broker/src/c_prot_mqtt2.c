@@ -6405,7 +6405,7 @@ PRIVATE int handle__publish_s(
     time_t t = mosquitto_time();
     kw_mqtt_msg = new_mqtt_message( // broker, message from client in handle__publish_s
         gobj,
-        mid,
+        priv->client_id,
         topic,
         payload, // owned
         qos,
@@ -6687,7 +6687,7 @@ PRIVATE int handle__publish_c(
     time_t t = mosquitto_time();
     json_t *kw_mqtt_msg = new_mqtt_message( // client, message from broker in handle__publish_c
         gobj,
-        mid,
+        priv->client_id,
         topic,
         payload, // owned
         qos,
@@ -8447,7 +8447,7 @@ PRIVATE int ac_send_message(hgobj gobj, const char *event, json_t *kw, hgobj src
         time_t t = mosquitto_time();
         json_t *kw_mqtt_msg = new_mqtt_message( // client sending message to broker
             gobj,
-            mid,
+            priv->client_id,
             topic,
             gbuf,       // not owned // TODO this base64 to tr_queue.c
             qos,
@@ -8675,7 +8675,7 @@ PRIVATE int ac_mqtt_client_send_publish(hgobj gobj, const char *event, json_t *k
         time_t t = mosquitto_time();
         json_t *kw_mqtt_msg = new_mqtt_message( // client sending message to broker
             gobj,
-            mid,
+            priv->client_id,
             topic,
             gbuf_payload, // not owned
             qos,

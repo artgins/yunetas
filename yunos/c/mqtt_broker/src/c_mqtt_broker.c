@@ -73,9 +73,10 @@ PRIVATE sdata_desc_t pm_subscribers[] = {
 SDATAPM (DTP_BOOLEAN,   "shared",       0,              "0",        "List shared subscribers, else normal"),
 SDATA_END()
 };
-PRIVATE sdata_desc_t pm_topic[] = {
+PRIVATE sdata_desc_t pm_retain[] = {
 /*-PM----type-----------name------------flag------------default-----description---------- */
-SDATAPM (DTP_STRING,    "topic",        0,              0,          "Topic"),
+SDATAPM (DTP_STRING,    "topic",        0,              0,          "Retain Topic (remember: '#' is '/')"),
+SDATAPM (DTP_STRING,    "client_id",    0,              0,          "Client id"),
 SDATA_END()
 };
 
@@ -88,8 +89,8 @@ SDATACM (DTP_SCHEMA,    "list-devices", 0,      pm_device,  cmd_list_devices,   
 SDATACM (DTP_SCHEMA,    "normal-subs",  0,      0,          cmd_normal_subscribers, "List normal subscribers"),
 SDATACM (DTP_SCHEMA,    "shared-subs",  0,      0,          cmd_shared_subscribers, "List shared subscribers"),
 SDATACM (DTP_SCHEMA,    "flatten-subs", 0,      pm_subscribers, cmd_flatten_subscribers, "Flatten subscribers"),
-SDATACM (DTP_SCHEMA,    "list-retains", 0,      pm_topic,   cmd_list_retains,   "List retain messages (remember: '#' is '/')"),
-SDATACM (DTP_SCHEMA,    "remove-retains", 0,    pm_topic,   cmd_remove_retains, "Remove retain messages (remember: '#' is '/')"),
+SDATACM (DTP_SCHEMA,    "list-retains", 0,      pm_retain,  cmd_list_retains,   "List retain messages (remember: '#' is '/')"),
+SDATACM (DTP_SCHEMA,    "remove-retains", 0,    pm_retain,  cmd_remove_retains, "Remove retain messages (remember: '#' is '/')"),
 
 /*-CMD2---type----------name----------------flag----alias---items---------------json_fn-------------description--*/
 SDATACM2 (DTP_SCHEMA,   "authzs",           0,      0,      pm_authzs,          cmd_authzs,         "Authorization's help"),
@@ -495,11 +496,22 @@ PRIVATE json_t *cmd_list_retains(hgobj gobj, const char *cmd, json_t *kw, hgobj 
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
     const char *topic = kw_get_str(gobj, kw, "topic", "", 0);
+    const char *client_id = kw_get_str(gobj, kw, "client_id", "", 0);
 
+    json_t *jn_filter = NULL;
+    if(!empty_string(topic) || !empty_string(client_id)) {
+        jn_filter = json_object();
+        if(!empty_string(topic)) {
+            json_object_set_new(jn_filter, "id", json_string(topic));
+        }
+        if(!empty_string(client_id)) {
+            json_object_set_new(jn_filter, "client_id", json_string(client_id));
+        }
+    }
     json_t *retains = gobj_list_nodes(
         priv->gobj_treedb_mqtt_broker,
         "retained_msgs",
-        empty_string(topic)?NULL:json_pack("{s:s}", "id", topic),
+        jn_filter,
         NULL,
         gobj
     );
@@ -523,11 +535,23 @@ PRIVATE json_t *cmd_remove_retains(hgobj gobj, const char *cmd, json_t *kw, hgob
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
     const char *topic = kw_get_str(gobj, kw, "topic", "", 0);
+    const char *client_id = kw_get_str(gobj, kw, "client_id", "", 0);
+
+    json_t *jn_filter = NULL;
+    if(!empty_string(topic) || !empty_string(client_id)) {
+        jn_filter = json_object();
+        if(!empty_string(topic)) {
+            json_object_set_new(jn_filter, "id", json_string(topic));
+        }
+        if(!empty_string(client_id)) {
+            json_object_set_new(jn_filter, "client_id", json_string(client_id));
+        }
+    }
 
     json_t *retains = gobj_list_nodes(
         priv->gobj_treedb_mqtt_broker,
         "retained_msgs",
-        empty_string(topic)?NULL:json_pack("{s:s}", "id", topic),
+        jn_filter,
         NULL,
         gobj
     );
@@ -1843,7 +1867,7 @@ PRIVATE int retain__queue(
     {
         "topic": "pepe/juan",           // "id"
         "tm": 1768892301,               // "tm"
-        "mid": 0,
+        "client_id": "",
         "qos": 0,                       // "qos"
         "expiry_interval": 0,           // "expiry_interval"
         "retain": false,
@@ -1971,7 +1995,7 @@ PRIVATE void session_expiry__check(void) //TODO
         {
             "topic": "home/DEV/temperature",
             "tm": 1768037018,
-            "mid": 1,
+            "client_id": "client1",
             "qos": 1,
             "expiry_interval": 0,
             "retain": false,
@@ -2073,11 +2097,6 @@ PRIVATE int subs__send(
     } else {
         msg_qos = qos;
     }
-    if(msg_qos) {
-        mid = 1; // TODO mqtt__mid_generate(leaf->context);
-    } else {
-        mid = 0;
-    }
 
     if(retain_as_published) {
         /*
@@ -2105,7 +2124,7 @@ PRIVATE int subs__send(
 
     json_t *new_msg = new_mqtt_message(
         gobj,
-        mid,    // TODO out of here? it must be the __rowid__ ???
+        client_id,
         topic,
         gbuffer_incref(gbuf),    // owned
         msg_qos,
@@ -3006,12 +3025,12 @@ PRIVATE int ac_on_message(hgobj gobj, const char *event, json_t *kw, hgobj src)
  *  Broker, message from
  *      mqtt clients (__input_side__)
  *  It returns the number of subscribers found
- *      or -1 if errror
+ *      or -1 if error
 
     {
         "topic": "pepe/juan",
         "tm": 1768892301,
-        "mid": 0,
+        "client_id": "client1",
         "qos": 0,
         "expiry_interval": 0,
         "retain": false,
