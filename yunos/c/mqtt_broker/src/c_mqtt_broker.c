@@ -2287,16 +2287,18 @@ PRIVATE int will__send(hgobj gobj, json_t *session)
         gbuf = gbuffer_deserialize(gobj, jn_will_payload);
     }
 
-    gobj_log_info(gobj, 0,
-        "function",     "%s", __FUNCTION__,
-        "msgset",       "%s", MSGSET_INFO,
-        "msg",          "%s", "Sending will message",
-        "client_id",    "%s", client_id,
-        "will_topic",   "%s", will_topic,
-        "will_qos",     "%d", will_qos,
-        "will_retain",  "%d", (int)will_retain,
-        NULL
-    );
+    if(gobj_trace_level(gobj) & TRACE_MESSAGES) {
+        gobj_log_info(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_INFO,
+            "msg",          "%s", "Sending will message",
+            "client_id",    "%s", client_id,
+            "will_topic",   "%s", will_topic,
+            "will_qos",     "%d", will_qos,
+            "will_retain",  "%d", (int)will_retain,
+            NULL
+        );
+    }
 
     /*
      *  Create the will message
