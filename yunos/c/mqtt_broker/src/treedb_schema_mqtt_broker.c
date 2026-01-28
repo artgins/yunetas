@@ -102,7 +102,7 @@
             │  will_retain              │                   │
             │  will_delay_interval      │                   │
             │  will_properties          │                   │
-            │  _will_delay_time         │                   │
+            │  will_delay_time          │                   │
             │                           │                   │
             │  inflight_msgs            │  (json array - QoS 1/2 pending)
             │                           │                   │
@@ -161,7 +161,7 @@
 static char treedb_schema_mqtt_broker[]= "\
 {                                                                   \n\
     'id': 'treedb_mqtt_broker',                                     \n\
-    'schema_version': '18',                                         \n\
+    'schema_version': '19',                                         \n\
     'topics': [                                                     \n\
         {                                                           \n\
             'id': 'client_groups',                                  \n\
@@ -670,7 +670,7 @@ static char treedb_schema_mqtt_broker[]= "\
                         'persistent'                                \n\
                     ]                                               \n\
                 },                                                  \n\
-                '_will_delay_time': {                               \n\
+                'will_delay_time': {                                \n\
                     'header': 'Will Delay Time',                    \n\
                     'fillspace': 15,                                \n\
                     'type': 'integer',                              \n\

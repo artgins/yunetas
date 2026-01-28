@@ -2367,11 +2367,12 @@ PRIVATE int will__clear(hgobj gobj, json_t *session)
      *  Clear will fields
      */
     json_object_set_new(session, "will_topic", json_string(""));
-    json_object_set_new(session, "will_payload", json_null());
+    json_object_set_new(session, "will_payload", json_object());
     json_object_set_new(session, "will_qos", json_integer(0));
     json_object_set_new(session, "will_retain", json_false());
     json_object_set_new(session, "will_delay_interval", json_integer(0));
-    json_object_set_new(session, "will_properties", json_null());
+    json_object_set_new(session, "will_properties", json_object());
+    json_object_set_new(session, "will_delay_time", json_integer(0));
 
     /*
      *  Update session in database (only if session exists in db)
@@ -2440,7 +2441,7 @@ PRIVATE int will__process_disconnect(hgobj gobj, json_t *session, BOOL send_will
          */
         time_t t;
         time(&t);
-        json_object_set_new(session, "_will_delay_time", json_integer((json_int_t)t));
+        json_object_set_new(session, "will_delay_time", json_integer((json_int_t)t));
         return 0;
     }
 
@@ -2507,7 +2508,7 @@ PRIVATE void will_delay__check(hgobj gobj)
             continue;
         }
 
-        json_int_t will_delay_time = kw_get_int(gobj, session, "_will_delay_time", 0, 0);
+        json_int_t will_delay_time = kw_get_int(gobj, session, "will_delay_time", 0, 0);
         if(will_delay_time == 0) {
             continue;
         }
@@ -3108,11 +3109,11 @@ PRIVATE int ac_on_open(hgobj gobj, const char *event, json_t *kw, hgobj src)
          *  No will - ensure will fields are cleared
          */
         json_object_set_new(kw, "will_topic", json_string(""));
-        json_object_set_new(kw, "will_payload", json_null());
+        json_object_set_new(kw, "will_payload", json_object());
         json_object_set_new(kw, "will_qos", json_integer(0));
         json_object_set_new(kw, "will_retain", json_false());
         json_object_set_new(kw, "will_delay_interval", json_integer(0));
-        json_object_set_new(kw, "will_properties", json_null());
+        json_object_set_new(kw, "will_properties", json_object());
     }
 
     if(session) {
@@ -3171,7 +3172,7 @@ print_json("=====>1 SESSION", session); // TODO TEST
         /*
          *  Clear will delay timer since session is being replaced
          */
-        json_object_del(session, "_will_delay_time");
+        json_object_set_new(session, "will_delay_time", json_integer(0));
 
         BOOL delete_prev_session = TRUE;
 
