@@ -1864,9 +1864,11 @@ PRIVATE int retain__queue(
         return -1;
     }
 
-int x;
+    /*------------------------------*
+     *  Search in retained topics
+     *------------------------------*/
+    // TODO Claude
 
-    // TODO
     GBMEM_FREE(local_topic)
     GBMEM_FREE(levels)
     return 0;
@@ -2286,9 +2288,9 @@ PRIVATE size_t sub__messages_queue(
      *---------------------------*/
     size_t total_sent = 0;
 
-    /*----------------------------------------------------------------------*
+    /*----------------------------------------------------*
      *  Search in normal_subs (non-shared subscriptions)
-     *----------------------------------------------------------------------*/
+     *----------------------------------------------------*/
     json_t *normal_subscribers = json_object();
     search_recursive(gobj, priv->normal_subs, levels, 1, normal_subscribers);
 
