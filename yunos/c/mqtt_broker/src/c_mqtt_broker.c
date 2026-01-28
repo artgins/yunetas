@@ -48,6 +48,7 @@ PRIVATE json_t *cmd_normal_subscribers(hgobj gobj, const char *cmd, json_t *kw, 
 PRIVATE json_t *cmd_shared_subscribers(hgobj gobj, const char *cmd, json_t *kw, hgobj src);
 PRIVATE json_t *cmd_flatten_subscribers(hgobj gobj, const char *cmd, json_t *kw, hgobj src);
 PRIVATE json_t *cmd_list_retains(hgobj gobj, const char *cmd, json_t *kw, hgobj src);
+PRIVATE json_t *cmd_remove_retains(hgobj gobj, const char *cmd, json_t *kw, hgobj src);
 
 PRIVATE sdata_desc_t pm_help[] = {
 /*-PM----type-----------name------------flag------------default-----description---------- */
@@ -72,6 +73,11 @@ PRIVATE sdata_desc_t pm_subscribers[] = {
 SDATAPM (DTP_BOOLEAN,   "shared",       0,              "0",        "List shared subscribers, else normal"),
 SDATA_END()
 };
+PRIVATE sdata_desc_t pm_topic[] = {
+/*-PM----type-----------name------------flag------------default-----description---------- */
+SDATAPM (DTP_STRING,    "topic",        0,              0,          "Topic"),
+SDATA_END()
+};
 
 PRIVATE const char *a_help[] = {"h", "?", 0};
 
@@ -82,7 +88,8 @@ SDATACM (DTP_SCHEMA,    "list-devices", 0,      pm_device,  cmd_list_devices,   
 SDATACM (DTP_SCHEMA,    "normal-subs",  0,      0,          cmd_normal_subscribers, "List normal subscribers"),
 SDATACM (DTP_SCHEMA,    "shared-subs",  0,      0,          cmd_shared_subscribers, "List shared subscribers"),
 SDATACM (DTP_SCHEMA,    "flatten-subs", 0,      pm_subscribers, cmd_flatten_subscribers, "Flatten subscribers"),
-SDATACM (DTP_SCHEMA,    "list-retains", 0,      0,          cmd_list_retains,   "List retain messages"),
+SDATACM (DTP_SCHEMA,    "list-retains", 0,      pm_topic,   cmd_list_retains,   "List retain messages (remember: '#' is '/')"),
+SDATACM (DTP_SCHEMA,    "remove-retains", 0,    pm_topic,   cmd_remove_retains, "Remove retain messages (remember: '#' is '/')"),
 
 /*-CMD2---type----------name----------------flag----alias---items---------------json_fn-------------description--*/
 SDATACM2 (DTP_SCHEMA,   "authzs",           0,      0,      pm_authzs,          cmd_authzs,         "Authorization's help"),
@@ -487,8 +494,57 @@ PRIVATE json_t *cmd_flatten_subscribers(hgobj gobj, const char *cmd, json_t *kw,
 PRIVATE json_t *cmd_list_retains(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
+    const char *topic = kw_get_str(gobj, kw, "topic", "", 0);
 
     json_t *retains = gobj_list_nodes(
+        priv->gobj_treedb_mqtt_broker,
+        "retained_msgs",
+        empty_string(topic)?NULL:json_pack("{s:s}", "id", topic),
+        NULL,
+        gobj
+    );
+
+    return msg_iev_build_response(gobj,
+        0,
+        0,
+        tranger2_list_topic_desc_cols(
+            priv->tranger_treedb_mqtt_broker,
+            "retained_msgs"
+        ),
+        retains,
+        kw  // owned
+    );
+}
+
+/***************************************************************************
+ *
+ ***************************************************************************/
+PRIVATE json_t *cmd_remove_retains(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+    const char *topic = kw_get_str(gobj, kw, "topic", "", 0);
+
+    json_t *retains = gobj_list_nodes(
+        priv->gobj_treedb_mqtt_broker,
+        "retained_msgs",
+        empty_string(topic)?NULL:json_pack("{s:s}", "id", topic),
+        NULL,
+        gobj
+    );
+
+    int idx; json_t *retain;
+    json_array_foreach(retains, idx, retain) {
+        gobj_delete_node(
+            priv->gobj_treedb_mqtt_broker,
+            "retained_msgs",
+            json_incref(retain),
+            NULL,
+            gobj
+        );
+    }
+    JSON_DECREF(retains)
+
+    retains = gobj_list_nodes(
         priv->gobj_treedb_mqtt_broker,
         "retained_msgs",
         NULL,
@@ -498,7 +554,7 @@ PRIVATE json_t *cmd_list_retains(hgobj gobj, const char *cmd, json_t *kw, hgobj 
 
     return msg_iev_build_response(gobj,
         0,
-        0,
+        json_sprintf("Delete %d retained messages", idx),
         tranger2_list_topic_desc_cols(
             priv->tranger_treedb_mqtt_broker,
             "retained_msgs"
