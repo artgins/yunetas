@@ -152,3 +152,88 @@ Then periodically purge expired messages, or check expiry on access.
 - Without Message Expiry Interval, retained messages are essentially **immortal** — a design limitation of v3.1.1 that v5 addressed.
 - Retained messages are global to the broker, not tied to any client session.
 - MQTT v5 provides much better control over retain behavior through Subscription Options and Message Expiry.
+
+
+
+
+
+# MQTT Retained Messages vs Persistent Sessions
+
+## Scenario
+
+1. client1 connects to the broker with permanent session (`clean_start=0`)
+2. client1 subscribes to `#` topic
+3. client1 disconnects
+4. client2 connects and publishes a message with `retain=1`
+5. client1 reconnects
+
+**Question:** Will client1 receive the retained message when it reconnects?
+
+---
+
+## The Answer
+
+**It depends on QoS, not on the retain flag.**
+
+---
+
+## The Key Distinction
+
+Retained messages are delivered **at SUBSCRIBE time**, not at CONNECT time.
+
+When client1 reconnects with `clean_start=0`:
+
+- Broker finds existing session with `#` subscription
+- Client1 does **not** re-subscribe
+- Therefore, **no retained message delivery is triggered**
+
+---
+
+## What Actually Happens
+
+When client2 publishes with `retain=1`, two things occur:
+
+1. Message is **stored** in retain store (for future subscribers)
+2. Message is **delivered** to all current matching subscribers
+
+Since client1 has an active subscription in its persistent session:
+
+| Publish QoS | Result for disconnected client1 |
+|-------------|--------------------------------|
+| QoS 0       | Message lost — not queued |
+| QoS 1       | Message queued — delivered on reconnect |
+| QoS 2       | Message queued — delivered on reconnect |
+
+---
+
+## So the Answer
+
+- **QoS 0 publish**: client1 receives **nothing** on reconnect
+- **QoS 1/2 publish**: client1 receives the message as a **queued message** (not because of retain, but because of the active subscription + QoS guarantee)
+
+---
+
+## If client1 Wants the Retained Message
+
+client1 would need to re-subscribe after connecting. In MQTT v5, it could use:
+
+```
+SUBSCRIBE
+  Topic: #
+  Retain Handling: 0  (send retained messages)
+```
+
+But this creates a potential duplicate if the message was also queued.
+
+---
+
+## Summary
+
+The **retain flag** ensures the message is stored for **future subscribers**. It doesn't automatically deliver to reconnecting clients with existing sessions — that's the job of **QoS and message queuing**.
+
+| Mechanism | Purpose |
+|-----------|---------|
+| Retain flag | Store message for future subscribers |
+| QoS 1/2 + Session | Queue messages for disconnected clients with active subscriptions |
+
+These are **independent mechanisms** that can work together but serve different purposes.
