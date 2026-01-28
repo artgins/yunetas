@@ -3099,11 +3099,6 @@ PRIVATE int ac_on_open(hgobj gobj, const char *event, json_t *kw, hgobj src)
         if(gbuf_will) {
             json_object_set_new(kw, "will_payload", gbuffer_serialize(gobj, gbuf_will));
         }
-        /*
-         *  Remove the gbuffer from kw as it's now serialized to will_payload
-         *  (the gbuffer is a runtime pointer, not for storage)
-         */
-        json_object_del(kw, "gbuffer");
     } else {
         /*
          *  No will - ensure will fields are cleared
