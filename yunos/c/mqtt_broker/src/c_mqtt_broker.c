@@ -36,7 +36,6 @@
 PRIVATE int broadcast_tranger_queues(hgobj gobj);
 PRIVATE int open_database(hgobj gobj);
 PRIVATE int close_database(hgobj gobj);
-PRIVATE void collect_all_subscribers_recursive(hgobj gobj, json_t *node, json_t *result);
 
 /***************************************************************************
  *          Data: config, public data, private data
@@ -935,13 +934,13 @@ PRIVATE int broadcast_tranger_queues(hgobj gobj)
  *    }
  *  }
  ***************************************************************************/
-PRIVATE void print_levels(char *prefix, char **levels) // For debugging
-{
-    printf("==> %s\n", prefix);
-    for(int i = 0; levels[i] != NULL; i++) {
-        printf("level %d: %s\n", i, levels[i]);
-    }
-}
+// PRIVATE void print_levels(char *prefix, char **levels) // For debugging
+// {
+//     printf("==> %s\n", prefix);
+//     for(int i = 0; levels[i] != NULL; i++) {
+//         printf("level %d: %s\n", i, levels[i]);
+//     }
+// }
 
 /***************************************************************************
  *  strtok_hier - Hierarchical Topic Tokenizer
@@ -1582,38 +1581,6 @@ PRIVATE json_t *get_node(json_t *root, char **levels)
 }
 
 /***************************************************************************
- *  collect_all_subscribers_recursive - Collect from node and all descendants
- *
- *  Used when '#' wildcard matches - collects all subscribers
- *  from current node and ALL children recursively.
- *
- *  Parameters:
- *      node   - Current JSON node
- *      result - JSON array to append client_ids to
- ***************************************************************************/
-PRIVATE void collect_all_subscribers_recursive(hgobj gobj, json_t *node, json_t *result)
-{
-    const char *key;
-    json_t *child;
-
-    /*
-     *  Collect from current node
-     */
-    if(kw_has_key(node, SUBS_KEY)) {
-        collect_subscribers(gobj, node, result);
-    }
-
-    /*
-     *  Recurse into children (skip @subs key)
-     */
-    json_object_foreach(node, key, child) {
-        if(strcmp(key, SUBS_KEY) != 0) {
-            collect_all_subscribers_recursive(gobj, child, result);
-        }
-    }
-}
-
-/***************************************************************************
  *  prune_empty_branches - Remove empty nodes from tree
  *
  *  Walks back up the tree removing nodes that have no children
@@ -1897,6 +1864,7 @@ PRIVATE int retain__queue(
         return -1;
     }
 
+int x;
 
     // TODO
     GBMEM_FREE(local_topic)
@@ -1939,11 +1907,8 @@ PRIVATE int retain__store(
     }
 
     /*----------------------------------*
-     *      Get parameters
+     *      Get payload
      *----------------------------------*/
-    int qos = (int)kw_get_int(gobj, kw_mqtt_msg, "qos", 0, KW_REQUIRED);
-    json_int_t tm = kw_get_int(gobj, kw_mqtt_msg, "tm", 0, KW_REQUIRED);
-    json_int_t expiry_interval = kw_get_int(gobj, kw_mqtt_msg, "expiry_interval", 0, KW_REQUIRED);
     gbuffer_t *gbuf = (gbuffer_t *)(uintptr_t)kw_get_int(
         gobj, kw_mqtt_msg, "gbuffer", 0, KW_REQUIRED
     );
@@ -2131,7 +2096,6 @@ PRIVATE int subs__send(
      *  Fix parameters of msg to send
      *---------------------------------*/
     BOOL client_retain;
-    uint16_t mid;
     uint8_t msg_qos;
 
     if(qos > client_qos) {
@@ -2356,7 +2320,6 @@ PRIVATE size_t sub__messages_queue(
         retain__store(gobj, topic, kw_mqtt_msg);
     }
 
-cleanup:
     GBMEM_FREE(local_topic)
     GBMEM_FREE(levels)
     return total_sent;
@@ -3384,7 +3347,7 @@ PRIVATE int ac_timeout(hgobj gobj, const char *event, json_t *kw, hgobj src)
     // context__free_disused();
     // keepalive__check();
 
-    // session_expiry__check();
+    session_expiry__check();
     // will_delay__check();
 
     KW_DECREF(kw);
