@@ -36,6 +36,7 @@
 PRIVATE int broadcast_tranger_queues(hgobj gobj);
 PRIVATE int open_database(hgobj gobj);
 PRIVATE int close_database(hgobj gobj);
+PRIVATE size_t sub__messages_queue(hgobj gobj, json_t *kw_mqtt_msg);
 
 /***************************************************************************
  *          Data: config, public data, private data
@@ -2242,6 +2243,295 @@ PRIVATE void session_expiry__check(void) //TODO
 }
 
 /***************************************************************************
+ *  will__send - Publish the will message to subscribers
+ *
+ *  Called when:
+ *  - Client disconnects unexpectedly (without DISCONNECT)
+ *  - Client sends DISCONNECT with reason code 0x04 (Disconnect with Will Message)
+ *  - Session expires with pending will
+ *  - Will delay interval expires
+ *
+ *  Parameters:
+ *      gobj    - GObj instance
+ *      session - Session containing will data (not owned)
+ *
+ *  Returns:
+ *      0 on success or if no will, -1 on error
+ ***************************************************************************/
+PRIVATE int will__send(hgobj gobj, json_t *session)
+{
+    if(!session) {
+        return 0;
+    }
+
+    const char *client_id = kw_get_str(gobj, session, "id", "", KW_REQUIRED);
+    const char *will_topic = kw_get_str(gobj, session, "will_topic", "", 0);
+
+    /*
+     *  No will topic means no will to send
+     */
+    if(empty_string(will_topic)) {
+        return 0;
+    }
+
+    int will_qos = (int)kw_get_int(gobj, session, "will_qos", 0, 0);
+    BOOL will_retain = kw_get_bool(gobj, session, "will_retain", FALSE, 0);
+    json_t *will_properties = kw_get_dict(gobj, session, "will_properties", 0, 0);
+
+    /*
+     *  Deserialize the will payload
+     */
+    json_t *jn_will_payload = kw_get_dict_value(gobj, session, "will_payload", 0, 0);
+    gbuffer_t *gbuf = NULL;
+    if(jn_will_payload) {
+        gbuf = gbuffer_deserialize(gobj, jn_will_payload);
+    }
+
+    gobj_log_info(gobj, 0,
+        "function",     "%s", __FUNCTION__,
+        "msgset",       "%s", MSGSET_INFO,
+        "msg",          "%s", "Sending will message",
+        "client_id",    "%s", client_id,
+        "will_topic",   "%s", will_topic,
+        "will_qos",     "%d", will_qos,
+        "will_retain",  "%d", (int)will_retain,
+        NULL
+    );
+
+    /*
+     *  Create the will message
+     */
+    time_t t;
+    time(&t);
+
+    json_t *kw_mqtt_msg = new_mqtt_message(
+        gobj,
+        client_id,
+        will_topic,
+        gbuf,                           // owned
+        will_qos,
+        will_retain,
+        FALSE,                          // dup
+        json_incref(will_properties),   // owned
+        0,                              // expiry_interval
+        (json_int_t)t
+    );
+
+    if(!kw_mqtt_msg) {
+        return -1;
+    }
+
+    /*
+     *  Publish the will message to all matching subscribers
+     */
+    sub__messages_queue(gobj, kw_mqtt_msg);
+
+    JSON_DECREF(kw_mqtt_msg)
+    return 0;
+}
+
+/***************************************************************************
+ *  will__clear - Clear will data from session
+ *
+ *  Called when:
+ *  - Client sends a normal DISCONNECT (MQTT 3.1.1)
+ *  - Client sends DISCONNECT with reason code 0x00 (Normal disconnection, MQTT 5.0)
+ *  - After will message is sent
+ *
+ *  Parameters:
+ *      gobj    - GObj instance
+ *      session - Session to clear will from (not owned)
+ *
+ *  Returns:
+ *      0 on success, -1 on error
+ ***************************************************************************/
+PRIVATE int will__clear(hgobj gobj, json_t *session)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    if(!session) {
+        return 0;
+    }
+
+    const char *will_topic = kw_get_str(gobj, session, "will_topic", "", 0);
+    if(empty_string(will_topic)) {
+        /*
+         *  No will to clear
+         */
+        return 0;
+    }
+
+    /*
+     *  Clear will fields
+     */
+    json_object_set_new(session, "will_topic", json_string(""));
+    json_object_set_new(session, "will_payload", json_null());
+    json_object_set_new(session, "will_qos", json_integer(0));
+    json_object_set_new(session, "will_retain", json_false());
+    json_object_set_new(session, "will_delay_interval", json_integer(0));
+    json_object_set_new(session, "will_properties", json_null());
+
+    /*
+     *  Update session in database (only if session exists in db)
+     */
+    json_decref(gobj_update_node(
+        priv->gobj_treedb_mqtt_broker,
+        "sessions",
+        json_incref(session),
+        json_pack("{s:b}", "volatil", 1),
+        gobj
+    ));
+
+    return 0;
+}
+
+/***************************************************************************
+ *  will__process_disconnect - Process will on client disconnect
+ *
+ *  Determines whether to send the will message based on:
+ *  - Protocol version
+ *  - Reason for disconnect
+ *  - Will delay interval (MQTT 5.0)
+ *
+ *  Parameters:
+ *      gobj            - GObj instance
+ *      session         - Session data (not owned)
+ *      send_will       - TRUE if will should be sent (unexpected disconnect)
+ *
+ *  Returns:
+ *      0 on success, -1 on error
+ ***************************************************************************/
+PRIVATE int will__process_disconnect(hgobj gobj, json_t *session, BOOL send_will)
+{
+    if(!session) {
+        return 0;
+    }
+
+    const char *will_topic = kw_get_str(gobj, session, "will_topic", "", 0);
+    if(empty_string(will_topic)) {
+        /*
+         *  No will configured
+         */
+        return 0;
+    }
+
+    if(!send_will) {
+        /*
+         *  Normal disconnect - clear will without sending
+         */
+        will__clear(gobj, session);
+        return 0;
+    }
+
+    /*
+     *  Check for will delay (MQTT 5.0)
+     */
+    uint32_t will_delay_interval = (uint32_t)kw_get_int(
+        gobj, session, "will_delay_interval", 0, 0
+    );
+
+    if(will_delay_interval > 0) {
+        /*
+         *  Will is delayed - don't send now
+         *  The will_delay__check() function will send it later
+         *  Store the disconnect time in session for later check
+         */
+        time_t t;
+        time(&t);
+        json_object_set_new(session, "_will_delay_time", json_integer((json_int_t)t));
+        return 0;
+    }
+
+    /*
+     *  Send will immediately
+     */
+    will__send(gobj, session);
+    will__clear(gobj, session);
+
+    return 0;
+}
+
+/***************************************************************************
+ *  will_delay__check - Check for expired will delays and send will messages
+ *
+ *  Called periodically from ac_timeout to check if any disconnected sessions
+ *  have will delays that have expired.
+ *
+ *  Parameters:
+ *      gobj - GObj instance
+ ***************************************************************************/
+PRIVATE void will_delay__check(hgobj gobj)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    time_t now;
+    time(&now);
+
+    /*
+     *  Get all sessions that are disconnected (no channel)
+     */
+    json_t *sessions = gobj_list_nodes(
+        priv->gobj_treedb_mqtt_broker,
+        "sessions",
+        NULL,
+        NULL,
+        gobj
+    );
+
+    int idx; json_t *session;
+    json_array_foreach(sessions, idx, session) {
+        /*
+         *  Skip sessions that are connected
+         */
+        hgobj channel = (hgobj)(uintptr_t)kw_get_int(
+            gobj, session, "_gobj_channel", 0, 0
+        );
+        if(channel) {
+            continue;
+        }
+
+        /*
+         *  Check if session has a pending will with delay
+         */
+        const char *will_topic = kw_get_str(gobj, session, "will_topic", "", 0);
+        if(empty_string(will_topic)) {
+            continue;
+        }
+
+        uint32_t will_delay_interval = (uint32_t)kw_get_int(
+            gobj, session, "will_delay_interval", 0, 0
+        );
+        if(will_delay_interval == 0) {
+            continue;
+        }
+
+        json_int_t will_delay_time = kw_get_int(gobj, session, "_will_delay_time", 0, 0);
+        if(will_delay_time == 0) {
+            continue;
+        }
+
+        /*
+         *  Check if will delay has expired
+         */
+        if((now - will_delay_time) >= will_delay_interval) {
+            const char *client_id = kw_get_str(gobj, session, "id", "", KW_REQUIRED);
+            gobj_log_info(gobj, 0,
+                "function",     "%s", __FUNCTION__,
+                "msgset",       "%s", MSGSET_INFO,
+                "msg",          "%s", "Will delay expired, sending will",
+                "client_id",    "%s", client_id,
+                NULL
+            );
+
+            will__send(gobj, session);
+            will__clear(gobj, session);
+        }
+    }
+
+    JSON_DECREF(sessions)
+}
+
+/***************************************************************************
  *  Send a message to client because his subscription
 
     Example of sub:
@@ -2791,7 +3081,35 @@ PRIVATE int ac_on_open(hgobj gobj, const char *event, json_t *kw, hgobj src)
         gobj
     );
 
-    // TODO process WILL
+    /*--------------------------------------------------------------*
+     *  Process WILL data from CONNECT packet
+     *  If client has will=true, serialize the will payload for storage
+     *--------------------------------------------------------------*/
+    BOOL has_will = kw_get_bool(gobj, kw, "will", FALSE, 0);
+    if(has_will) {
+        /*
+         *  Serialize will payload gbuffer for persistent storage
+         */
+        gbuffer_t *gbuf_will = (gbuffer_t *)(uintptr_t)kw_get_int(gobj, kw, "gbuffer", 0, 0);
+        if(gbuf_will) {
+            json_object_set_new(kw, "will_payload", gbuffer_serialize(gobj, gbuf_will));
+        }
+        /*
+         *  Remove the gbuffer from kw as it's now serialized to will_payload
+         *  (the gbuffer is a runtime pointer, not for storage)
+         */
+        json_object_del(kw, "gbuffer");
+    } else {
+        /*
+         *  No will - ensure will fields are cleared
+         */
+        json_object_set_new(kw, "will_topic", json_string(""));
+        json_object_set_new(kw, "will_payload", json_null());
+        json_object_set_new(kw, "will_qos", json_integer(0));
+        json_object_set_new(kw, "will_retain", json_false());
+        json_object_set_new(kw, "will_delay_interval", json_integer(0));
+        json_object_set_new(kw, "will_properties", json_null());
+    }
 
     if(session) {
 print_json("=====>1 SESSION", session); // TODO TEST
@@ -2838,13 +3156,18 @@ print_json("=====>1 SESSION", session); // TODO TEST
             (prev_protocol_version != mosq_p_mqtt5 && prev_clean_start == TRUE) ||
             (clean_start == TRUE)
         ) {
-            // TODO context__send_will(found_context);
+            /*
+             *  Session is being replaced - send will from previous session
+             *  This handles session takeover scenario per MQTT spec
+             */
+            will__send(gobj, session);
+            will__clear(gobj, session);
         }
 
-        // TODO
-        // session_expiry__remove(found_context);
-        // will_delay__remove(found_context);
-        // will__clear(found_context);
+        /*
+         *  Clear will delay timer since session is being replaced
+         */
+        json_object_del(session, "_will_delay_time");
 
         BOOL delete_prev_session = TRUE;
 
@@ -3010,6 +3333,14 @@ PRIVATE int ac_on_close(hgobj gobj, const char *event, json_t *kw, hgobj src)
      *-----------------------------------------*/
     if(clean_start) {
         /*
+         *  Non-persistent session: send will before deleting session
+         *
+         *  The will is sent on unexpected disconnect. For clean disconnect,
+         *  the protocol layer should have already cleared the will topic.
+         */
+        will__send(gobj, session);
+
+        /*
          *  Delete not persistent session
          */
         gobj_delete_node(
@@ -3040,8 +3371,16 @@ PRIVATE int ac_on_close(hgobj gobj, const char *event, json_t *kw, hgobj src)
 
     } else {
         /*
-         *  Persistent session
+         *  Persistent session: process will based on will_delay_interval
+         *
+         *  The will is sent on unexpected disconnect. For clean disconnect,
+         *  the protocol layer should have already cleared the will topic.
+         *
+         *  If will_delay_interval > 0 (MQTT 5.0), the will is delayed.
+         *  will_delay__check() will send it later if the client doesn't reconnect.
          */
+        will__process_disconnect(gobj, session, TRUE);
+
         hgobj prev_gobj_channel = (hgobj)(uintptr_t)kw_get_int(
             gobj,
             session,
@@ -3064,8 +3403,6 @@ PRIVATE int ac_on_close(hgobj gobj, const char *event, json_t *kw, hgobj src)
             ));
         }
     }
-
-    // TODO do will job ?
 
     JSON_DECREF(session)
     JSON_DECREF(client)
@@ -3603,7 +3940,7 @@ PRIVATE int ac_timeout(hgobj gobj, const char *event, json_t *kw, hgobj src)
     // keepalive__check();
 
     session_expiry__check();
-    // will_delay__check();
+    will_delay__check(gobj);
 
     KW_DECREF(kw);
     return 0;

@@ -628,8 +628,9 @@ static char treedb_schema_mqtt_broker[]= "\
                 'will_payload': {                                   \n\
                     'header': 'Will Payload',                       \n\
                     'fillspace': 20,                                \n\
-                    'type': 'blob',                                 \n\
+                    'type': 'dict',                                 \n\
                     'flag': [                                       \n\
+                        'gbuffer',                                  \n\
                         'persistent'                                \n\
                     ]                                               \n\
                 },                                                  \n\
