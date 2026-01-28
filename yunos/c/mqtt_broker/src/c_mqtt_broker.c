@@ -2517,13 +2517,15 @@ PRIVATE void will_delay__check(hgobj gobj)
          */
         if((now - will_delay_time) >= will_delay_interval) {
             const char *client_id = kw_get_str(gobj, session, "id", "", KW_REQUIRED);
-            gobj_log_info(gobj, 0,
-                "function",     "%s", __FUNCTION__,
-                "msgset",       "%s", MSGSET_INFO,
-                "msg",          "%s", "Will delay expired, sending will",
-                "client_id",    "%s", client_id,
-                NULL
-            );
+            if(gobj_trace_level(gobj) & TRACE_MESSAGES) {
+                gobj_log_info(gobj, 0,
+                    "function",     "%s", __FUNCTION__,
+                    "msgset",       "%s", MSGSET_INFO,
+                    "msg",          "%s", "Will delay expired, sending will",
+                    "client_id",    "%s", client_id,
+                    NULL
+                );
+            }
 
             will__send(gobj, session);
             will__clear(gobj, session);
