@@ -47,6 +47,7 @@ PRIVATE json_t *cmd_list_devices(hgobj gobj, const char *cmd, json_t *kw, hgobj 
 PRIVATE json_t *cmd_normal_subscribers(hgobj gobj, const char *cmd, json_t *kw, hgobj src);
 PRIVATE json_t *cmd_shared_subscribers(hgobj gobj, const char *cmd, json_t *kw, hgobj src);
 PRIVATE json_t *cmd_flatten_subscribers(hgobj gobj, const char *cmd, json_t *kw, hgobj src);
+PRIVATE json_t *cmd_list_retains(hgobj gobj, const char *cmd, json_t *kw, hgobj src);
 
 PRIVATE sdata_desc_t pm_help[] = {
 /*-PM----type-----------name------------flag------------default-----description---------- */
@@ -81,6 +82,7 @@ SDATACM (DTP_SCHEMA,    "list-devices", 0,      pm_device,  cmd_list_devices,   
 SDATACM (DTP_SCHEMA,    "normal-subs",  0,      0,          cmd_normal_subscribers, "List normal subscribers"),
 SDATACM (DTP_SCHEMA,    "shared-subs",  0,      0,          cmd_shared_subscribers, "List shared subscribers"),
 SDATACM (DTP_SCHEMA,    "flatten-subs", 0,      pm_subscribers, cmd_flatten_subscribers, "Flatten subscribers"),
+SDATACM (DTP_SCHEMA,    "list-retains", 0,      0,          cmd_list_retains,   "List retain messages"),
 
 /*-CMD2---type----------name----------------flag----alias---items---------------json_fn-------------description--*/
 SDATACM2 (DTP_SCHEMA,   "authzs",           0,      0,      pm_authzs,          cmd_authzs,         "Authorization's help"),
@@ -466,16 +468,42 @@ PRIVATE json_t *cmd_flatten_subscribers(hgobj gobj, const char *cmd, json_t *kw,
     json_t *flatten = NULL;
     if(shared) {
         flatten = json_flatten_dict(priv->shared_subs);
-
     } else {
         flatten = json_flatten_dict(priv->normal_subs);
-
     }
+
     return msg_iev_build_response(gobj,
         0,
         0,
         0,
         flatten,
+        kw  // owned
+    );
+}
+
+/***************************************************************************
+ *
+ ***************************************************************************/
+PRIVATE json_t *cmd_list_retains(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    json_t *retains = gobj_list_nodes(
+        priv->gobj_treedb_mqtt_broker,
+        "retained_msgs",
+        NULL,
+        NULL,
+        gobj
+    );
+
+    return msg_iev_build_response(gobj,
+        0,
+        0,
+        tranger2_list_topic_desc_cols(
+            priv->tranger_treedb_mqtt_broker,
+            "retained_msgs"
+        ),
+        retains,
         kw  // owned
     );
 }
@@ -1829,12 +1857,7 @@ PRIVATE int retain__store(
         gobj
     );
 
-debug_json("XXXX2 retain_node", retain_node, TRUE); // TODO TEST
-
     json_decref(retain_node);
-
-debug_json("XXXX2 kw_mqtt_msg", kw_mqtt_msg, TRUE); // TODO TEST
-// debug_json("XXXX2 tranger_treedb_mqtt_broker", priv->tranger_treedb_mqtt_broker, TRUE); // TODO TEST
 
     GBMEM_FREE(topic2disk)
     return 0;
