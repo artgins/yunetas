@@ -1787,6 +1787,17 @@ PRIVATE int check_desc_field(json_t *desc, json_t *dato)
         );
         return -1;
     }
+    if(strcmp(desc_id, "gbuffer")==0) {
+        gobj_log_error(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_TREEDB_ERROR,
+            "msg",          "%s", "key 'gbuffer' forbidden, is a reserved key",
+            "desc",         "%j", desc,
+            "dato",         "%j", dato,
+            NULL
+        );
+        return -1;
+    }
     if(!desc_type) {
         gobj_log_error(gobj, 0,
             "function",     "%s", __FUNCTION__,

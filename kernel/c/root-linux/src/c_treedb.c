@@ -1128,7 +1128,7 @@ PRIVATE json_t *get_client_treedb_schema(
 )
 {
     /*
-     *  Check input schema althoug is not used
+     *  Check input schema although is not used
      */
     if(parse_schema(jn_client_treedb_schema)<0) {
         gobj_log_error(gobj, 0,
