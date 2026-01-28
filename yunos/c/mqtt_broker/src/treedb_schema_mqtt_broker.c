@@ -102,6 +102,7 @@
             │  will_retain              │                   │
             │  will_delay_interval      │                   │
             │  will_properties          │                   │
+            │  _will_delay_time         │                   │
             │                           │                   │
             │  inflight_msgs            │  (json array - QoS 1/2 pending)
             │                           │                   │
@@ -517,7 +518,7 @@ static char treedb_schema_mqtt_broker[]= "\
             'id': 'sessions',                                       \n\
             'pkey': 'id',                                           \n\
             'system_flag': 'sf_string_key',                         \n\
-            'topic_version': '4',                                   \n\
+            'topic_version': '5',                                   \n\
             'cols': {                                               \n\
                 'id': {                                             \n\
                     'header': 'Client Id',                          \n\
@@ -668,6 +669,16 @@ static char treedb_schema_mqtt_broker[]= "\
                     'flag': [                                       \n\
                         'persistent'                                \n\
                     ]                                               \n\
+                },                                                  \n\
+                '_will_delay_time': {                               \n\
+                    'header': 'Will Delay Time',                    \n\
+                    'fillspace': 15,                                \n\
+                    'type': 'integer',                              \n\
+                    'flag': [                                       \n\
+                        'time',                                     \n\
+                        'persistent'                                \n\
+                    ],                                              \n\
+                    'description': 'Timestamp when client disconnected, used to calculate will delay expiry' \n\
                 },                                                  \n\
                 '_geometry': {                                      \n\
                     'header': 'Geometry',                           \n\
