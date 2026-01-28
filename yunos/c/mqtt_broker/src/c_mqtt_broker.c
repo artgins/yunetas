@@ -1834,43 +1834,296 @@ PRIVATE int sub__remove_client(hgobj gobj, const char *client_id)
 }
 
 /***************************************************************************
+ *  topic_matches_sub - Check if exact topic matches subscription pattern
+ *
+ *  Parameters:
+ *      sub_levels      - Tokenized subscription pattern (may have '+' or '#')
+ *      topic_levels    - Tokenized exact topic (no wildcards)
+ *
+ *  Returns:
+ *      TRUE if topic matches subscription pattern, FALSE otherwise
+ *
+ *  Examples:
+ *      sub: "sport/+/player"  topic: "sport/tennis/player" -> TRUE
+ *      sub: "sport/#"         topic: "sport/tennis/player" -> TRUE
+ *      sub: "sport/tennis"    topic: "sport/tennis"        -> TRUE
+ *      sub: "sport/+"         topic: "sport/tennis/player" -> FALSE
+ ***************************************************************************/
+PRIVATE BOOL topic_matches_sub(
+    char **sub_levels,
+    char **topic_levels
+)
+{
+    int si = 0;  // subscription index
+    int ti = 0;  // topic index
+
+    while(sub_levels[si] != NULL) {
+        const char *sub_level = sub_levels[si];
+
+        /*---------------------------------------------------*
+         *  '#' wildcard matches everything from here on
+         *---------------------------------------------------*/
+        if(strcmp(sub_level, "#") == 0) {
+            return TRUE;
+        }
+
+        /*---------------------------------------------------*
+         *  Topic ended but subscription still has levels
+         *---------------------------------------------------*/
+        if(topic_levels[ti] == NULL) {
+            return FALSE;
+        }
+
+        /*---------------------------------------------------*
+         *  '+' wildcard matches any single level
+         *---------------------------------------------------*/
+        if(strcmp(sub_level, "+") == 0) {
+            si++;
+            ti++;
+            continue;
+        }
+
+        /*---------------------------------------------------*
+         *  Exact match required
+         *---------------------------------------------------*/
+        if(strcmp(sub_level, topic_levels[ti]) != 0) {
+            return FALSE;
+        }
+
+        si++;
+        ti++;
+    }
+
+    /*---------------------------------------------------*
+     *  Both must end at the same point for exact match
+     *---------------------------------------------------*/
+    return (topic_levels[ti] == NULL);
+}
+
+/***************************************************************************
  *  Subscription: search if the topic has a retain message and process
  ***************************************************************************/
 PRIVATE int retain__queue(
     hgobj gobj,
+    const char *client_id,
     const char *topic,
     uint8_t sub_qos,
     uint32_t subscription_identifier
 )
 {
-    if(strncmp(topic, "$share/", strlen("$share/"))==0) {
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    /*---------------------------------------------------*
+     *  Shared subscriptions don't receive retained msgs
+     *---------------------------------------------------*/
+    if(strncmp(topic, "$share/", strlen("$share/")) == 0) {
         return 0;
     }
 
-    /*------------------*
-     *  Tokenize topic
-     *------------------*/
-    char *local_topic = NULL;
-    char **levels = NULL;
+    /*------------------------------------------*
+     *  Tokenize subscription topic (pattern)
+     *------------------------------------------*/
+    char *local_sub = NULL;
+    char **sub_levels = NULL;
     const char *sharename = NULL;
-    if(topic_tokenize(topic, &local_topic, &levels, &sharename) < 0) {
+    if(topic_tokenize(topic, &local_sub, &sub_levels, &sharename) < 0) {
         gobj_log_error(gobj, 0,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_PARAMETER_ERROR,
-            "msg",          "%s", "Failed to tokenize topic",
+            "msg",          "%s", "Failed to tokenize subscription topic",
             "topic",        "%s", topic,
             NULL
         );
         return -1;
     }
 
-    /*------------------------------*
-     *  Search in retained topics
-     *------------------------------*/
-    // TODO Claude
+    /*------------------------------------------*
+     *  Get the client's session
+     *------------------------------------------*/
+    json_t *session = gobj_get_node(
+        priv->gobj_treedb_mqtt_broker,
+        "sessions",
+        json_pack("{s:s}", "id", client_id),
+        NULL,
+        gobj
+    );
+    if(!session) {
+        gobj_log_error(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+            "msg",          "%s", "Session not found for retain queue",
+            "client_id",    "%s", client_id,
+            NULL
+        );
+        GBMEM_FREE(local_sub)
+        GBMEM_FREE(sub_levels)
+        return -1;
+    }
 
-    GBMEM_FREE(local_topic)
-    GBMEM_FREE(levels)
+    /*------------------------------------------*
+     *  Get the channel (NULL if disconnected)
+     *------------------------------------------*/
+    hgobj _gobj_channel = (hgobj)(uintptr_t)kw_get_int(
+        gobj, session, "_gobj_channel", 0, KW_REQUIRED
+    );
+
+    /*------------------------------------------*
+     *  Get all retained messages
+     *------------------------------------------*/
+    json_t *retains = gobj_list_nodes(
+        priv->gobj_treedb_mqtt_broker,
+        "retained_msgs",
+        NULL,   // no filter - get all
+        NULL,
+        gobj
+    );
+
+    /*------------------------------------------*
+     *  Iterate through retained messages
+     *------------------------------------------*/
+    int idx; json_t *retain;
+    json_array_foreach(retains, idx, retain) {
+        /*
+         *  Get stored topic (with '/' converted to '#')
+         */
+        const char *retain_topic_stored = kw_get_str(gobj, retain, "id", "", KW_REQUIRED);
+
+        /*
+         *  Convert back to original topic format
+         */
+        char *retain_topic = gbmem_strdup(retain_topic_stored);
+        change_char(retain_topic, '#', '/');
+
+        /*
+         *  Tokenize the retained message topic
+         */
+        char *local_retain = NULL;
+        char **retain_levels = NULL;
+        const char *retain_sharename = NULL;
+        if(topic_tokenize(retain_topic, &local_retain, &retain_levels, &retain_sharename) < 0) {
+            GBMEM_FREE(retain_topic)
+            continue;
+        }
+
+        /*
+         *  Check if retained topic matches subscription pattern
+         */
+        if(topic_matches_sub(sub_levels, retain_levels)) {
+            /*------------------------------------------*
+             *  Match found - send retained message
+             *------------------------------------------*/
+            int qos = (int)kw_get_int(gobj, retain, "qos", 0, 0);
+            json_int_t tm = kw_get_int(gobj, retain, "tm", 0, 0);
+            json_int_t expiry_interval = kw_get_int(gobj, retain, "expiry_interval", 0, 0);
+
+            /*
+             *  Adjust QoS to minimum of message and subscription QoS
+             */
+            uint8_t msg_qos = (qos > sub_qos) ? sub_qos : qos;
+
+            /*
+             *  Deserialize the payload
+             */
+            json_t *jn_payload = kw_get_dict_value(gobj, retain, "payload", 0, 0);
+            gbuffer_t *gbuf = gbuffer_deserialize(gobj, jn_payload);
+
+            if(gbuf) {
+                /*
+                 *  Create properties with subscription identifier if present
+                 */
+                json_t *properties = NULL;
+                if(subscription_identifier > 0) {
+                    properties = json_object();
+                    json_object_set_new(properties,
+                        "subscription_identifier",
+                        json_integer(subscription_identifier)
+                    );
+                }
+
+                /*
+                 *  Create the MQTT message
+                 */
+                json_t *new_msg = new_mqtt_message(
+                    gobj,
+                    client_id,
+                    retain_topic,       // original topic
+                    gbuf,               // owned
+                    msg_qos,
+                    TRUE,               // retain flag is TRUE for retained messages
+                    FALSE,              // dup
+                    properties,         // owned
+                    expiry_interval,
+                    tm
+                );
+
+                if(_gobj_channel) {
+                    /*
+                     *  Client is connected - send directly
+                     */
+                    kw_set_subdict_value(
+                        gobj,
+                        new_msg,
+                        "__temp__",
+                        "channel_gobj",
+                        json_integer((json_int_t)(uintptr_t)_gobj_channel)
+                    );
+                    gobj_send_event(priv->gobj_input_side, EV_SEND_MESSAGE, new_msg, gobj);
+
+                } else if(msg_qos > 0) {
+                    /*
+                     *  Client is disconnected and QoS > 0 - queue the message
+                     */
+                    char queue_name[NAME_MAX];
+                    build_queue_name(
+                        queue_name,
+                        sizeof(queue_name),
+                        client_id,
+                        mosq_md_out
+                    );
+
+                    tr2_queue_t *trq_out_msgs = tr2q_open(
+                        priv->tranger_queues,
+                        queue_name,
+                        "tm",
+                        0,  // system_flag
+                        0,  // max_inflight_messages
+                        gobj_read_integer_attr(gobj, "backup_queue_size")
+                    );
+
+                    user_flag_t user_flag = {0};
+                    user_flag_set_origin(&user_flag, mosq_mo_client);
+                    user_flag_set_direction(&user_flag, mosq_md_out);
+                    user_flag_set_qos_level(&user_flag, msg_qos);
+                    user_flag_set_retain(&user_flag, TRUE);
+                    user_flag_set_dup(&user_flag, 0);
+                    user_flag_set_state(&user_flag, mosq_ms_invalid);
+
+                    tr2q_append(
+                        trq_out_msgs,
+                        tm,             // __t__
+                        new_msg,        // owned
+                        user_flag.value
+                    );
+
+                    tr2q_close(trq_out_msgs);
+                } else {
+                    /*
+                     *  QoS 0 and disconnected - discard
+                     */
+                    KW_DECREF(new_msg)
+                }
+            }
+        }
+
+        GBMEM_FREE(local_retain)
+        GBMEM_FREE(retain_levels)
+        GBMEM_FREE(retain_topic)
+    }
+
+    JSON_DECREF(retains)
+    JSON_DECREF(session)
+    GBMEM_FREE(local_sub)
+    GBMEM_FREE(sub_levels)
     return 0;
 }
 
@@ -2894,12 +3147,12 @@ PRIVATE int ac_mqtt_subscribe(hgobj gobj, const char *event, json_t *kw, hgobj s
             }
 
             if(protocol_version == mosq_p_mqtt311 || protocol_version == mosq_p_mqtt31) {
-                retain__queue(gobj, sub, qos, 0);
+                retain__queue(gobj, client_id, sub, qos, 0);
             } else {
                 if((retain_handling == MQTT_SUB_OPT_SEND_RETAIN_ALWAYS) ||
                     (rc == 0 && retain_handling == MQTT_SUB_OPT_SEND_RETAIN_NEW)
                 ) {
-                    retain__queue(gobj, sub, qos, subscription_identifier);
+                    retain__queue(gobj, client_id, sub, qos, subscription_identifier);
                 }
             }
         }
