@@ -87,6 +87,7 @@
             ┌───────────────────────────┐                   │
             │* id (client_id)           │                   │
             │                           │                   │
+            │  username                 │                   │
             │  protocol_version         │                   │
             │  clean_start              │                   │
             │  keep_alive               │                   │
@@ -161,7 +162,7 @@
 static char treedb_schema_mqtt_broker[]= "\
 {                                                                   \n\
     'id': 'treedb_mqtt_broker',                                     \n\
-    'schema_version': '19',                                         \n\
+    'schema_version': '20',                                         \n\
     'topics': [                                                     \n\
         {                                                           \n\
             'id': 'client_groups',                                  \n\
@@ -518,7 +519,7 @@ static char treedb_schema_mqtt_broker[]= "\
             'id': 'sessions',                                       \n\
             'pkey': 'id',                                           \n\
             'system_flag': 'sf_string_key',                         \n\
-            'topic_version': '5',                                   \n\
+            'topic_version': '6',                                   \n\
             'cols': {                                               \n\
                 'id': {                                             \n\
                     'header': 'Client Id',                          \n\
@@ -533,14 +534,6 @@ static char treedb_schema_mqtt_broker[]= "\
                     'header': 'User Name',                          \n\
                     'fillspace': 20,                                \n\
                     'type': 'string',                               \n\
-                    'flag': [                                       \n\
-                        'persistent'                                \n\
-                    ]                                               \n\
-                },                                                  \n\
-                'mid': {                                            \n\
-                    'header': 'Mid',                                \n\
-                    'fillspace': 4,                                 \n\
-                    'type': 'integer',                              \n\
                     'flag': [                                       \n\
                         'persistent'                                \n\
                     ]                                               \n\

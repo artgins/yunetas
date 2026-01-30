@@ -3078,10 +3078,10 @@ PRIVATE int ac_on_open(hgobj gobj, const char *event, json_t *kw, hgobj src)
         gobj
     );
 
-    /*--------------------------------------------------------------*
+    /*-------------------------------------------------------------------*
      *  Process WILL data from CONNECT packet
      *  If client has will=true, serialize the will payload for storage
-     *--------------------------------------------------------------*/
+     *-------------------------------------------------------------------*/
     BOOL has_will = kw_get_bool(gobj, kw, "will", FALSE, 0);
     if(has_will) {
         /*
