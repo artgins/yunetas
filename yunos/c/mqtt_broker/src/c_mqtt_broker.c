@@ -3063,7 +3063,6 @@ PRIVATE int ac_on_open(hgobj gobj, const char *event, json_t *kw, hgobj src)
      *              Open/Create SESSION
      *----------------------------------------------------------------*/
     int result = 0;
-    int prev_mid = 0;
     BOOL clean_start = kw_get_bool(gobj, kw, "clean_start", TRUE, KW_REQUIRED);
     int protocol_version = (int)kw_get_int(gobj, kw, "protocol_version", 0, KW_REQUIRED);
     if(assigned_id) {
@@ -3127,13 +3126,6 @@ print_json("=====>1 SESSION", session); // TODO TEST
             session,
             "clean_start",
             TRUE,
-            KW_REQUIRED
-        );
-        prev_mid = (int)kw_get_int(
-            gobj,
-            session,
-            "mid",
-            0,
             KW_REQUIRED
         );
         hgobj prev_gobj_channel = (hgobj)(uintptr_t)kw_get_int(
@@ -3220,9 +3212,6 @@ print_json("=====>1 SESSION", session); // TODO TEST
     //connection_check_acl(context, &context->msgs_out.inflight);
     //connection_check_acl(context, &context->msgs_out.queued);
 
-    if(prev_mid) {
-        json_object_set_new(kw, "mid", json_integer(prev_mid));
-    }
     json_object_set_new(kw, "_gobj_channel", json_integer((json_int_t)gobj_channel));
     json_object_set_new(kw, "in_session", json_true());
 
