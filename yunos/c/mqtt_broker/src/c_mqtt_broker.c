@@ -1902,7 +1902,7 @@ PRIVATE BOOL topic_matches_sub(
 }
 
 /***************************************************************************
- *  Subscription: search if the sub matches a retain message and process
+ *  Queue retained messages matching subscription pattern to client
  ***************************************************************************/
 PRIVATE int retain__queue(
     hgobj gobj,
@@ -1922,7 +1922,7 @@ PRIVATE int retain__queue(
     }
 
     /*------------------------------------------*
-     *  Tokenize subscription topic (pattern)
+     *  Tokenize subscription pattern
      *------------------------------------------*/
     char *local_sub = NULL;
     char **sub_levels = NULL;
@@ -1931,8 +1931,8 @@ PRIVATE int retain__queue(
         gobj_log_error(gobj, 0,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_PARAMETER_ERROR,
-            "msg",          "%s", "Failed to tokenize subscription topic",
-            "topic",        "%s", sub,
+            "msg",          "%s", "Failed to tokenize subscription",
+            "sub",          "%s", sub,
             NULL
         );
         return -1;
