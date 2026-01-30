@@ -1902,12 +1902,12 @@ PRIVATE BOOL topic_matches_sub(
 }
 
 /***************************************************************************
- *  Subscription: search if the topic has a retain message and process
+ *  Subscription: search if the sub matches a retain message and process
  ***************************************************************************/
 PRIVATE int retain__queue(
     hgobj gobj,
     const char *client_id,
-    const char *topic,
+    const char *sub,
     uint8_t sub_qos,
     uint32_t subscription_identifier
 )
@@ -1917,7 +1917,7 @@ PRIVATE int retain__queue(
     /*---------------------------------------------------*
      *  Shared subscriptions don't receive retained msgs
      *---------------------------------------------------*/
-    if(strncmp(topic, "$share/", strlen("$share/")) == 0) {
+    if(strncmp(sub, "$share/", strlen("$share/")) == 0) {
         return 0;
     }
 
@@ -1927,12 +1927,12 @@ PRIVATE int retain__queue(
     char *local_sub = NULL;
     char **sub_levels = NULL;
     const char *sharename = NULL;
-    if(topic_tokenize(topic, &local_sub, &sub_levels, &sharename) < 0) {
+    if(topic_tokenize(sub, &local_sub, &sub_levels, &sharename) < 0) {
         gobj_log_error(gobj, 0,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_PARAMETER_ERROR,
             "msg",          "%s", "Failed to tokenize subscription topic",
-            "topic",        "%s", topic,
+            "topic",        "%s", sub,
             NULL
         );
         return -1;
