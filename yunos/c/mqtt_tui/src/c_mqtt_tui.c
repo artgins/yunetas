@@ -451,7 +451,7 @@ PRIVATE int mt_start(hgobj gobj)
          */
         do_authenticate_task(gobj);
     } else {
-        //create_broker_connector(gobj);
+        //create_broker_connector(gobj); // TODO Not ready to use?
         create_mqtt_connector(gobj);
     }
     return 0;
