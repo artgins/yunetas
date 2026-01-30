@@ -451,7 +451,7 @@ PRIVATE int mt_start(hgobj gobj)
          */
         do_authenticate_task(gobj);
     } else {
-        // create_broker_connector(gobj);
+        //create_broker_connector(gobj);
         create_mqtt_connector(gobj);
     }
     return 0;
@@ -1638,7 +1638,9 @@ PRIVATE int ac_command(hgobj gobj, const char *event, json_t *kw, hgobj src)
     if(gobj_command_desc(gobj, command, FALSE)) {
         webix = gobj_command(gobj, xcmd, kw_command, gobj);
     } else {
-        if(gobj_read_bool_attr(priv->gobj_broker_connector, "opened")) {
+        if(priv->gobj_broker_connector &&
+            gobj_read_bool_attr(priv->gobj_broker_connector, "opened")
+        ) {
             // gobj_command_desc
             webix = gobj_command(priv->gobj_broker_connector, xcmd, kw_command, gobj);
         } else {

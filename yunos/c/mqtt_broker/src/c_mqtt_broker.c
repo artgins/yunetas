@@ -3037,14 +3037,6 @@ PRIVATE int ac_on_open(hgobj gobj, const char *event, json_t *kw, hgobj src)
         /*
          *  Create new client as auto-create
          */
-            // gbuffer_t *gbuf = (gbuffer_t *)(uintptr_t)kw_get_int(gobj, kw, "gbuffer", 0, 0);
-            // if(gbuf) {
-            //     gbuffer_t *gbuf_base64 = gbuffer_encode_base64(gbuffer_incref(gbuf));
-            //     char *b64 = gbuffer_cur_rd_pointer(gbuf_base64);
-            //     json_object_set_new(jn_will, "will_payload", json_string(b64));
-            //     gbuffer_decref(gbuf_base64);
-            // }
-
         json_object_set_new(kw, "auto_created", json_true());
 
         client = gobj_create_node(
