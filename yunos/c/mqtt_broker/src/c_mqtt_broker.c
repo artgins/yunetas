@@ -112,8 +112,8 @@ PRIVATE sdata_desc_t tattr_desc[] = {
 SDATA (DTP_BOOLEAN, "enable_new_clients",0,         "0",        "Set true if you want auto-create new clients if they don't exist"),
 
 SDATA (DTP_BOOLEAN, "mqtt_persistent_db",0,         "1",        "Set true if you want persistent database for Clients, Topics, Inflight and Queued Messages in mqtt broker side"),
-SDATA (DTP_STRING,  "mqtt_service",     SDF_RD,     "",         "Mqtt service name, if it's empty then it will be the yuno_role"),
-SDATA (DTP_STRING,  "mqtt_tenant",      SDF_RD,     "",         "Used for multi-tenant service, if it's empty then it will be the yuno_name"),
+SDATA (DTP_STRING,  "mqtt_service",     SDF_RD,     "",         "Mqtt service name, if it's empty then it'll be used the yuno_role"),
+SDATA (DTP_STRING,  "mqtt_tenant",      SDF_RD,     "",         "Used for multi-tenant service, if it's empty then it'll be used the yuno_name"),
 
 // TODO a 0 cuando funcionen bien los out schemas
 SDATA (DTP_BOOLEAN, "use_internal_schema",SDF_PERSIST, "1",     "Use internal (hardcoded) schema"),
@@ -763,7 +763,7 @@ PRIVATE int open_database(hgobj gobj)
     priv->gobj_treedb_mqtt_broker = gobj_find_service(priv->treedb_mqtt_broker_name, TRUE);
     gobj_subscribe_event(priv->gobj_treedb_mqtt_broker, 0, 0, gobj);
 
-    // Get timeranger of treedb_mqtt_broker, will be used for alarms too
+    // Get timeranger of treedb_mqtt_broker, it'll be used for alarms too
     priv->tranger_treedb_mqtt_broker = gobj_read_pointer_attr(priv->gobj_treedb_mqtt_broker, "tranger");
 
     /*---------------------------------------*
@@ -2742,7 +2742,7 @@ PRIVATE int subs__send(
 
         tr2q_append(
             trq_out_msgs,
-            tm,             // __t__ if 0 then the time will be set by TimeRanger with now time
+            tm,             // __t__ if 0 then the time it'll be set by TimeRanger with now time
             new_msg,        // owned
             user_flag.value // extra flags in addition to TRQ_MSG_PENDING
         );
