@@ -205,7 +205,9 @@ PRIVATE json_t * x_legalstring2json(const char *reference, const char *bf, pe_fl
              */
             *f = 0;
         }
-        gbuffer_append_string(gbuf_dst, s);
+        if(!empty_string(s)) {
+            gbuffer_append_string(gbuf_dst, s);
+        }
     }
 
     /*

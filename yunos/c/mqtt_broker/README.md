@@ -72,6 +72,13 @@ Yuneta with retain
     > publish topic=pepe/juan payload='{"client3":3333}' qos=0
 
 
+Mosquitto with will
+----------------
+
+mosquitto_sub -i client1 -p 1883 -t "#" -q 2 -c -V mqttv5 --will-topic tasmota/device1/exit --will-payload offline --will-qos 2 --will-retain
+
+mosquitto_sub -i client1 -p 1810 -t "#" -q 2 -c -u DVES_USER -P DVES_PASS -V mqttv5 --will-topic tasmota/device1/exit --will-payload offline --will-qos 2 --will-retain
+
 Yuneta with will
 ----------------
 

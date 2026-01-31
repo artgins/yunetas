@@ -2208,7 +2208,7 @@ PRIVATE int retain__store(
  ***************************************************************************/
 PRIVATE void session_expiry__check(void) //TODO
 {
-    int x;
+    // TODO int x;
     // struct session_expiry_list *item, *tmp;
     // struct mosquitto *context;
     //
@@ -2258,9 +2258,7 @@ PRIVATE void session_expiry__check(void) //TODO
  ***************************************************************************/
 PRIVATE int will__send(hgobj gobj, json_t *session)
 {
-    if(!session) {
-        return 0;
-    }
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
     const char *client_id = kw_get_str(gobj, session, "id", "", KW_REQUIRED);
     const char *will_topic = kw_get_str(gobj, session, "will_topic", "", 0);
@@ -2326,7 +2324,7 @@ PRIVATE int will__send(hgobj gobj, json_t *session)
      */
     sub__messages_queue(gobj, kw_mqtt_msg);
 
-    JSON_DECREF(kw_mqtt_msg)
+    KW_DECREF(kw_mqtt_msg) // HACK if it has gbuffer then it must use kw_decref, not json_decref
     return 0;
 }
 
