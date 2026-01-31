@@ -3620,7 +3620,6 @@ PRIVATE int send__connect(
     json_t *properties // owned
 ) {
     uint32_t payloadlen;
-    uint8_t will = 0;
     uint8_t byte;
     int rc;
     uint8_t version;
@@ -3638,6 +3637,12 @@ PRIVATE int send__connect(
     );
     uint16_t keepalive = atoi(gobj_read_str_attr(gobj, "mqtt_keepalive"));
     BOOL clean_session = (atoi(gobj_read_str_attr(gobj, "mqtt_clean_session")))?1:0;
+
+    const char *mqtt_will_topic = gobj_read_str_attr(gobj, "mqtt_will_topic");
+    const char *mqtt_will_payload = gobj_read_str_attr(gobj, "mqtt_will_payload");
+    int mqtt_will_qos = atoi(gobj_read_str_attr(gobj, "mqtt_will_qos"));
+    BOOL mqtt_will_retain = (atoi(gobj_read_str_attr(gobj, "mqtt_will_retain")))?1:0;
+    BOOL will = !empty_string(mqtt_will_topic);
 
     int protocol = mosq_p_mqtt5; // "mqttv5" default
     if(strcasecmp(mqtt_protocol, "mqttv5")==0 || strcasecmp(mqtt_protocol, "v5")==0) {
@@ -3718,15 +3723,12 @@ PRIVATE int send__connect(
         payloadlen = 2U;
     }
 
-    // if(mosq->will) { TODO
-    //     will = 1;
-    //     assert(mosq->will->msg.topic);
-    //
-    //     payloadlen += (uint32_t)(2+strlen(mosq->will->msg.topic) + 2+(uint32_t)mosq->will->msg.payloadlen);
-    //     if(protocol == mosq_p_mqtt5) {
-    //         payloadlen += property__get_remaining_length(mosq->will->properties);
-    //     }
-    // }
+    if(will) {
+        payloadlen += (uint32_t)(2+strlen(mqtt_will_topic) + 2+(uint32_t)strlen(mqtt_will_payload));
+        if(protocol == mosq_p_mqtt5) {
+            // TODO payloadlen += property__get_remaining_length(mosq->will->properties);
+        }
+    }
 
     /* After this check we can be sure that the username and password are
      * always valid for the current protocol, so there is no need to check
@@ -3751,7 +3753,7 @@ PRIVATE int send__connect(
         payloadlen += (uint32_t)(2+strlen(password));
     }
 
-    int remaining_length = headerlen + payloadlen;
+    int remaining_length = (int)headerlen + (int)payloadlen;
     gbuffer_t *gbuf = build_mqtt_packet(gobj, CMD_CONNECT, remaining_length);
     if(!gbuf) {
         // Error already logged
@@ -3768,11 +3770,10 @@ PRIVATE int send__connect(
     mqtt_write_byte(gbuf, version);
     byte = (uint8_t)((clean_session&0x1)<<1);
     if(will) {
-        // TODO
-        // byte = byte | (uint8_t)(((mosq->will->msg.qos&0x3)<<3) | ((will&0x1)<<2));
-        // if(mosq->retain_available) {
-        //     byte |= (uint8_t)((mosq->will->msg.retain&0x1)<<5);
-        // }
+        byte = byte | (uint8_t)(((mqtt_will_qos&0x3)<<3) | ((will&0x1)<<2));
+        if(priv->retain_available) {
+            byte |= (uint8_t)((mqtt_will_retain&0x1)<<5);
+        }
     }
     if(!empty_string(username)) {
         byte = byte | 0x1<<7;
@@ -3799,13 +3800,12 @@ PRIVATE int send__connect(
         mqtt_write_uint16(gbuf, 0);
     }
     if(will) {
-        // TODO
-        // if(protocol == mosq_p_mqtt5) {
-        //     /* Write will properties */
-        //     property__write_all(gobj, gbuf, mosq->will->properties, true);
-        // }
-        // mqtt_write_string(gbuf, mosq->will->msg.topic, (uint16_t)strlen(mosq->will->msg.topic));
-        // mqtt_write_string(gbuf, (const char *)mosq->will->msg.payload, (uint16_t)mosq->will->msg.payloadlen);
+        if(protocol == mosq_p_mqtt5) {
+            /* Write will properties */
+            // TODO property__write_all(gobj, gbuf, mosq->will->properties, true);
+        }
+        mqtt_write_string(gbuf, mqtt_will_topic);
+        mqtt_write_string(gbuf, mqtt_will_payload);
     }
 
     if(!empty_string(username)) {
@@ -3825,7 +3825,7 @@ PRIVATE int send__connect(
         "   username '%s' \n"
         "   protocol_version '%s' \n"
         "   clean_start %d, session_expiry_interval %d \n"
-        "   will %d, will_retain ?, will_qos ? \n"
+        "   will-topic %s, will-payload %s, will_retain %d, will_qos %d \n"
         "   keepalive %d \n",
             (char *)url,
             (char *)mqtt_client_id,
@@ -3833,9 +3833,10 @@ PRIVATE int send__connect(
             (char *)mqtt_protocol,
             (int)clean_session,
             (int)mqtt_session_expiry_interval,
-            (int)will,
-            // (int)will_retain,
-            // (int)will_qos,
+            mqtt_will_topic,
+            mqtt_will_payload,
+            (int)mqtt_will_retain,
+            (int)mqtt_will_qos,
             (int)keepalive
         );
         if(properties) {
