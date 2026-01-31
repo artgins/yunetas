@@ -44,8 +44,8 @@ struct arguments
     char *mqtt_keepalive;
     char *mqtt_will_topic;
     char *mqtt_will_payload;
-    int mqtt_will_qos;
-    int mqtt_will_retain;
+    char *mqtt_will_qos;
+    char *mqtt_will_retain;
 
     char *user_id;
     char *user_passw;
@@ -252,14 +252,10 @@ static error_t parse_opt(int key, char *arg, struct argp_state *state)
         arguments->mqtt_will_payload = arg;
         break;
     case 4:
-        if(arg) {
-            arguments->mqtt_will_qos = atoi(arg);
-        }
+        arguments->mqtt_will_qos = arg;
         break;
     case 5:
-        if(arg) {
-            arguments->mqtt_will_retain = atoi(arg)?1:0;
-        }
+        arguments->mqtt_will_retain = arg;
         break;
 
     case 'u':
@@ -399,8 +395,8 @@ int main(int argc, char *argv[])
     arguments.jwt = "";
     arguments.mqtt_will_topic = "";
     arguments.mqtt_will_payload = "";
-    arguments.mqtt_will_qos = 0;
-    arguments.mqtt_will_retain = 0;
+    arguments.mqtt_will_qos = "";
+    arguments.mqtt_will_retain = "";
 
     /*
      *  Save args
@@ -457,7 +453,7 @@ int main(int argc, char *argv[])
     {
         // TODO missing connect properties, will
         json_t *kw_utility = json_pack(
-            "{s:{s:b, s:s, s:s, s:s, s:s, s:s, s:i, s:s, s:s, s:s, s:s, s:i, s:i, s:s, s:s, s:s, s:s, s:s, s:s, s:b}}",
+            "{s:{s:b, s:s, s:s, s:s, s:s, s:s, s:b, s:s, s:s, s:s, s:s, s:s, s:s, s:s, s:s, s:s, s:s, s:s, s:s, s:b}}",
             "global",
             "C_MQTT_TUI.verbose", arguments.verbose,
             "C_MQTT_TUI.auth_system", arguments.auth_system,

@@ -300,6 +300,11 @@ SDATA (DTP_STRING,      "mqtt_session_expiry_interval",0,"-1",          "MQTT se
 
 SDATA (DTP_STRING,      "mqtt_keepalive",   0,         "60",    "MQTT keepalive. The number of seconds between sending PING commands to the broker for the purposes of informing it we are still connected and functioning. Defaults to 60 seconds."),
 
+SDATA (DTP_STRING,      "mqtt_will_topic",  0,          "",     "MQTT will topic"),
+SDATA (DTP_STRING,      "mqtt_will_payload",0,          "",     "MQTT will payload"),
+SDATA (DTP_STRING,      "mqtt_will_qos",    0,          "",     "MQTT will qos"),
+SDATA (DTP_STRING,      "mqtt_will_retain", 0,          "",     "MQTT will retain"),
+
 SDATA (DTP_STRING,      "user_id",          0,          "",     "MQTT Username or OAuth2 User Id (interactive jwt)"),
 SDATA (DTP_STRING,      "user_passw",       0,          "",     "MQTT Password or OAuth2 User password (interactive jwt)"),
 SDATA (DTP_STRING,      "jwt",              0,          "",     "Jwt"),
@@ -3612,8 +3617,6 @@ PRIVATE int send_simple_command(hgobj gobj, uint8_t command)
  ***************************************************************************/
 PRIVATE int send__connect(
     hgobj gobj,
-    uint16_t keepalive,
-    BOOL clean_session,
     json_t *properties // owned
 ) {
     uint32_t payloadlen;
@@ -3633,6 +3636,8 @@ PRIVATE int send__connect(
     uint32_t mqtt_session_expiry_interval = (uint32_t)atoi(
         gobj_read_str_attr(gobj, "mqtt_session_expiry_interval")
     );
+    uint16_t keepalive = atoi(gobj_read_str_attr(gobj, "mqtt_keepalive"));
+    BOOL clean_session = (atoi(gobj_read_str_attr(gobj, "mqtt_clean_session")))?1:0;
 
     int protocol = mosq_p_mqtt5; // "mqttv5" default
     if(strcasecmp(mqtt_protocol, "mqttv5")==0 || strcasecmp(mqtt_protocol, "v5")==0) {
@@ -7948,8 +7953,6 @@ PRIVATE int ac_connected(hgobj gobj, const char *event, json_t *kw, hgobj src)
          */
         send__connect(
             gobj,
-            atoi(gobj_read_str_attr(gobj, "mqtt_keepalive")),
-            (atoi(gobj_read_str_attr(gobj, "mqtt_clean_session")))?1:0,
             json_object()   // outgoing_properties TODO get from client
         );
     }
