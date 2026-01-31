@@ -40,10 +40,12 @@ struct arguments
     char *mqtt_protocol;
 
     char *mqtt_connect_properties;
-    char *mqtt_will;
     char *mqtt_session_expiry_interval;
     char *mqtt_keepalive;
-    int mqtt_persistent;
+    char *mqtt_will_topic;
+    char *mqtt_will_payload;
+    int mqtt_will_qos;
+    int mqtt_will_retain;
 
     char *user_id;
     char *user_passw;
@@ -164,8 +166,11 @@ static struct argp_option options[] = {
 {"mqtt_connect_properties", 'r',    "PROPERTIES",0,     "(TODO) MQTT CONNECT properties", 10},
 {"mqtt_session_expiry_interval", 'x', "SECONDS", 0, "Set the session-expiry-interval property on the CONNECT packet. Applies to MQTT v5 clients only. Set to 0-4294967294 to specify the session will expire in that many seconds after the client disconnects, or use -1, 4294967295, or ∞ for a session that does not expire. Defaults to -1 if -c is also given, or 0 if -c not given."
 "If the session is set to never expire, either with -x or -c, then a client id must be provided", 10},
-{"mqtt_will",       'w',    "WILL",     0,      "(TODO) MQTT Will (topic, retain, qos, payload)", 10},
 {"mqtt_keepalive",  'a',    "SECONDS",  0,      "MQTT keepalive in seconds for this client, default 60", 10},
+{"will-topic",      2,    "TOPIC",      0,      "MQTT Will Topic", 10},
+{"will-payload",    3,    "PAYLOAD",    0,      "MQTT Will Payload", 10},
+{"will-qos",        4,    "QOS",        0,      "MQTT Will QoS", 10},
+{"will-retain",     5,    "RETAIN",     0,      "MQTT Will Retain", 10},
 
 {0,                 0,      0,          0,      "OAuth2 keys", 20},
 {"auth_system",     'K',    "AUTH_SYSTEM",0,    "OpenID System(default: keycloak, to get now a jwt)", 20},
@@ -202,7 +207,7 @@ static struct argp argp = {
 /***************************************************************************
  *  Parse a single option
  ***************************************************************************/
-static error_t parse_opt (int key, char *arg, struct argp_state *state)
+static error_t parse_opt(int key, char *arg, struct argp_state *state)
 {
     /*
      *  Get the input argument from argp_parse,
@@ -236,19 +241,31 @@ static error_t parse_opt (int key, char *arg, struct argp_state *state)
     case 'x':
         arguments->mqtt_session_expiry_interval = arg;
         break;
-    case 'w':
-        arguments->mqtt_will = arg;
-        break;
     case 'a':
         arguments->mqtt_keepalive = arg;
+        break;
+
+    case 2:
+        arguments->mqtt_will_topic = arg;
+        break;
+    case 3:
+        arguments->mqtt_will_payload = arg;
+        break;
+    case 4:
+        if(arg) {
+            arguments->mqtt_will_qos = atoi(arg);
+        }
+        break;
+    case 5:
+        if(arg) {
+            arguments->mqtt_will_retain = atoi(arg)?1:0;
+        }
         break;
 
     case 'u':
         arguments->user_id = arg;
         break;
     case 'U':
-        arguments->user_passw = arg;
-        break;
     case 'P':
         arguments->user_passw = arg;
         break;
@@ -380,6 +397,10 @@ int main(int argc, char *argv[])
     arguments.user_id = "yuneta";
     arguments.user_passw = "";
     arguments.jwt = "";
+    arguments.mqtt_will_topic = "";
+    arguments.mqtt_will_payload = "";
+    arguments.mqtt_will_qos = 0;
+    arguments.mqtt_will_retain = 0;
 
     /*
      *  Save args
@@ -436,7 +457,7 @@ int main(int argc, char *argv[])
     {
         // TODO missing connect properties, will
         json_t *kw_utility = json_pack(
-            "{s:{s:b, s:s, s:s, s:s, s:s, s:s, s:i, s:s, s:s, s:s, s:s, s:s, s:s, s:s, s:s, s:b}}",
+            "{s:{s:b, s:s, s:s, s:s, s:s, s:s, s:i, s:s, s:s, s:s, s:s, s:i, s:i, s:s, s:s, s:s, s:s, s:s, s:s, s:b}}",
             "global",
             "C_MQTT_TUI.verbose", arguments.verbose,
             "C_MQTT_TUI.auth_system", arguments.auth_system,
@@ -447,6 +468,12 @@ int main(int argc, char *argv[])
             "C_MQTT_TUI.mqtt_persistent_db", arguments.mqtt_persistent_client_db?1:0,
             "C_MQTT_TUI.mqtt_session_expiry_interval", arguments.mqtt_session_expiry_interval,
             "C_MQTT_TUI.mqtt_keepalive", arguments.mqtt_keepalive,
+
+            "C_MQTT_TUI.mqtt_will_topic", arguments.mqtt_will_topic,
+            "C_MQTT_TUI.mqtt_will_payload", arguments.mqtt_will_payload,
+            "C_MQTT_TUI.mqtt_will_qos", arguments.mqtt_will_qos,
+            "C_MQTT_TUI.mqtt_will_retain", arguments.mqtt_will_retain,
+
             "C_MQTT_TUI.user_id", arguments.user_id,
             "C_MQTT_TUI.user_passw", arguments.user_passw,
             "C_MQTT_TUI.jwt", arguments.jwt,

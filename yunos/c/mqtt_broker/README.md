@@ -61,6 +61,7 @@ mosquitto_pub -i client4 -h localhost -t "test/client4/topic" -m "{client4:4444}
 
 Yuneta with retain
 ------------------
+
 ./mqtt_tui -i client1 -c -u DVES_USER -P DVES_PASS
     > subscribe subs=["#"] qos=2
 
@@ -69,3 +70,13 @@ Yuneta with retain
 
 ./mqtt_tui -i client3 -u DVES_USER -P DVES_PASS
     > publish topic=pepe/juan payload='{"client3":3333}' qos=0
+
+
+Yuneta with will
+----------------
+
+./mqtt_tui -i client1 -c -u DVES_USER -P DVES_PASS --will-topic=tasmota/device1/exit --will-payload=offline --will-qos=2 --will-retain=1
+    > 
+
+./mqtt_tui -i client2 -c -u DVES_USER -P DVES_PASS --will-topic=tasmota/device2/exit --will-payload=offline
+    > 
