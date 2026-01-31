@@ -364,7 +364,7 @@ SDATA (DTP_INTEGER,     "msgs_out_inflight_quota", SDF_VOLATIL, 0,      "Connect
 SDATA (DTP_INTEGER,     "maximum_packet_size", SDF_VOLATIL,     0,      "Connect property"),
 
 SDATA (DTP_BOOLEAN,     "will",             SDF_VOLATIL,        0,      "Will"),
-SDATA (DTP_STRING,      "will_topic",       SDF_VOLATIL,        0,      "Will property"),
+SDATA (DTP_STRING,      "will_topic",       SDF_VOLATIL,        0,      "Will topic"),
 SDATA (DTP_BOOLEAN,     "will_retain",      SDF_VOLATIL,        0,      "Will retain"),
 SDATA (DTP_INTEGER,     "will_qos",         SDF_VOLATIL,        0,      "QoS"),
 SDATA (DTP_INTEGER,     "will_delay_interval", SDF_VOLATIL,     0,      "Will property"),
