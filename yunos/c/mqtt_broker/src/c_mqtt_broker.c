@@ -443,9 +443,6 @@ PRIVATE json_t *cmd_list_devices(hgobj gobj, const char *cmd, json_t *kw, hgobj 
 PRIVATE json_t *cmd_normal_subscribers(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
-    // const char *device_id = kw_get_str(gobj, kw, "device_id", "", 0);
-
-    // collect_all_subscribers_recursive(gobj, priv->normal_subs, jn_data);
 
     return msg_iev_build_response(gobj,
         0,
@@ -2211,6 +2208,7 @@ PRIVATE int retain__store(
  ***************************************************************************/
 PRIVATE void session_expiry__check(void) //TODO
 {
+    int x;
     // struct session_expiry_list *item, *tmp;
     // struct mosquitto *context;
     //
@@ -2351,10 +2349,6 @@ PRIVATE int will__clear(hgobj gobj, json_t *session)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
-    if(!session) {
-        return 0;
-    }
-
     const char *will_topic = kw_get_str(gobj, session, "will_topic", "", 0);
     if(empty_string(will_topic)) {
         /*
@@ -2406,10 +2400,6 @@ PRIVATE int will__clear(hgobj gobj, json_t *session)
  ***************************************************************************/
 PRIVATE int will__process_disconnect(hgobj gobj, json_t *session, BOOL send_will)
 {
-    if(!session) {
-        return 0;
-    }
-
     const char *will_topic = kw_get_str(gobj, session, "will_topic", "", 0);
     if(empty_string(will_topic)) {
         /*
@@ -3300,6 +3290,18 @@ PRIVATE int ac_on_close(hgobj gobj, const char *event, json_t *kw, hgobj src)
         NULL,
         gobj
     );
+    if(!session) {
+        gobj_log_error(gobj, 0,
+           "function",     "%s", __FUNCTION__,
+           "msgset",       "%s", MSGSET_INTERNAL_ERROR,
+           "msg",          "%s", "session NULL",
+           "client_id",    "%s", client_id,
+           NULL
+       );
+        KW_DECREF(kw);
+        return -1;
+    }
+
     BOOL clean_start = (int)kw_get_bool(
         gobj,
         session,
@@ -3680,15 +3682,12 @@ PRIVATE int ac_treedb_node_create(hgobj gobj, const char *event, json_t *kw, hgo
     const char *topic_name = kw_get_str(gobj, kw, "topic_name", "", KW_REQUIRED);
     json_t *node_ = kw_get_dict(gobj, kw, "node", 0, KW_REQUIRED);
 
-    // TODO wtf purezadb?
-    if(strcmp(treedb_name, "treedb_purezadb")==0 &&
+    if(strcmp(treedb_name, priv->treedb_mqtt_broker_name)==0 &&
         strcmp(topic_name, "users")==0) {
-        /*--------------------------------*
-         *  Get user
-         *  Create it if not exist
-         *  Han creado el user en la tabla users de treedb_purezadb
-         *  Puede que exista o no en la users de authzs
-         *--------------------------------*/
+        /*------------------------------------------------*
+         *  User managed through topic 'users' of treedb
+         *  Sync with 'users' of authzs
+         *------------------------------------------------*/
         const char *username = kw_get_str(gobj, node_, "id", "", KW_REQUIRED);
         json_t *webix = gobj_command(
             priv->gobj_authz,
@@ -3704,7 +3703,7 @@ PRIVATE int ac_treedb_node_create(hgobj gobj, const char *event, json_t *kw, hgo
                 EV_ADD_USER,
                 json_pack("{s:s, s:s}",
                     "username", username,
-                    "role", "roles^user-purezadb^users"
+                    "role", "roles^user-mqtt_broker^users" // TODO ^user-mqtt_broker^ is hardcoded
                 ),
                 gobj
             );
@@ -3727,14 +3726,12 @@ PRIVATE int ac_treedb_node_updated(hgobj gobj, const char *event, json_t *kw, hg
     const char *topic_name = kw_get_str(gobj, kw, "topic_name", "", KW_REQUIRED);
     json_t *node_ = kw_get_dict(gobj, kw, "node", 0, KW_REQUIRED);
 
-    if(strcmp(treedb_name, "treedb_purezadb")==0 &&
+    if(strcmp(treedb_name, priv->treedb_mqtt_broker_name)==0 &&
         strcmp(topic_name, "users")==0) {
-        /*--------------------------------*
-         *  Get user
-         *  Create it if not exist
-         *  Han creado el user en la tabla users de treedb_purezadb
-         *  Puede que exista o no en la users de authzs
-         *--------------------------------*/
+        /*------------------------------------------------*
+         *  User managed through topic 'users' of treedb
+         *  Sync with 'users' of authzs
+         *------------------------------------------------*/
         BOOL enabled = kw_get_bool(gobj, node_, "enabled", 0, KW_REQUIRED);
         const char *username = kw_get_str(gobj, node_, "id", "", KW_REQUIRED);
         json_t *webix = gobj_command(
@@ -3752,7 +3749,7 @@ PRIVATE int ac_treedb_node_updated(hgobj gobj, const char *event, json_t *kw, hg
                 EV_ADD_USER,
                 json_pack("{s:s, s:s, s:b}",
                     "username", username,
-                    "role", "roles^user-purezadb^users",
+                    "role", "roles^user-mqtt_broker^users", // TODO ^user-mqtt_broker^ is hardcoded
                     "disabled", enabled?0:1
                 ),
                 gobj
@@ -3787,14 +3784,12 @@ PRIVATE int ac_treedb_node_deleted(hgobj gobj, const char *event, json_t *kw, hg
     const char *topic_name = kw_get_str(gobj, kw, "topic_name", "", KW_REQUIRED);
     json_t *node_ = kw_get_dict(gobj, kw, "node", 0, KW_REQUIRED);
 
-    if(strcmp(treedb_name, "treedb_purezadb")==0 &&
+    if(strcmp(treedb_name, priv->treedb_mqtt_broker_name)==0 &&
         strcmp(topic_name, "users")==0) {
-        /*--------------------------------*
-         *  Get user
-         *  Create it if not exist
-         *  Han creado el user en la tabla users de treedb_purezadb
-         *  Puede que exista o no en la users de authzs
-         *--------------------------------*/
+        /*------------------------------------------------*
+         *  User managed through topic 'users' of treedb
+         *  Sync with 'users' of authzs
+         *------------------------------------------------*/
         const char *username = kw_get_str(gobj, node_, "id", "", KW_REQUIRED);
         gobj_send_event(
             priv->gobj_authz,
