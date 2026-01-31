@@ -187,7 +187,10 @@ SDATA (DTP_STRING,  "mqtt_session_expiry_interval",0,"-1",  "MQTT session expiry
 "Badly designed clients may set clean session to false whilst using a randomly generated client id. This leads to persistent clients that connect once and never reconnect. This option allows these clients to be removed. This option allows persistent clients (those with clean session set to false) to be removed if they do not reconnect within a certain time frame.\nAs this is a non-standard option, the default if not set is to never expire persistent clients."),
 SDATA (DTP_STRING,  "mqtt_keepalive",   0,         "60",    "MQTT keepalive. The number of seconds between sending PING commands to the broker for the purposes of informing it we are still connected and functioning. Defaults to 60 seconds."),
 
-// TODO missing connect properties and will
+SDATA (DTP_STRING,  "mqtt_will_topic",  0,      "",     "MQTT will topic"),
+SDATA (DTP_STRING,  "mqtt_will_payload",0,      "",     "MQTT will payload"),
+SDATA (DTP_INTEGER, "mqtt_will_qos",    0,      "0",    "MQTT will qos"),
+SDATA (DTP_BOOLEAN, "mqtt_will_retain", 0,      "0",    "MQTT will retain"),
 
 SDATA (DTP_STRING,  "user_id",          0,      "",     "MQTT Username or OAuth2 User Id (interactive jwt)"),
 SDATA (DTP_STRING,  "user_passw",       0,      "",     "MQTT Password or OAuth2 User password (interactive jwt)"),
