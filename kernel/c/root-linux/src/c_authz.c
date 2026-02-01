@@ -768,27 +768,29 @@ PRIVATE json_t *mt_authenticate(hgobj gobj, json_t *kw, hgobj src)
                 break;
             }
 
-            if(strcmp(username, "yuneta")!=0) {
-                /*
-                 *  Only yuneta is allowed without jwt/passw
-                 */
-                gobj_log_warning(gobj, 0,
-                    "function",     "%s", __FUNCTION__,
-                    "msgset",       "%s", MSGSET_AUTH,
-                    "msg",          "%s", "Without JWT/passw only yuneta is allowed",
-                    "username",     "%s", username,
-                    "service",      "%s", dst_service,
-                    NULL
-                );
-                json_t *jn_resp = json_pack("{s:i, s:s, s:s, s:s}",
-                    "result", -1,
-                    "comment", "Without JWT/passw only yuneta is allowed",
-                    "username", username,
-                    "service", dst_service
-                );
-                KW_DECREF(kw)
-                return jn_resp;
-            }
+            int x;
+            // TODO repon
+            // if(strcmp(username, "yuneta")!=0) {
+            //     /*
+            //      *  Only yuneta is allowed without jwt/passw
+            //      */
+            //     gobj_log_warning(gobj, 0,
+            //         "function",     "%s", __FUNCTION__,
+            //         "msgset",       "%s", MSGSET_AUTH,
+            //         "msg",          "%s", "Without JWT/passw only yuneta is allowed",
+            //         "username",     "%s", username,
+            //         "service",      "%s", dst_service,
+            //         NULL
+            //     );
+            //     json_t *jn_resp = json_pack("{s:i, s:s, s:s, s:s}",
+            //         "result", -1,
+            //         "comment", "Without JWT/passw only yuneta is allowed",
+            //         "username", username,
+            //         "service", dst_service
+            //     );
+            //     KW_DECREF(kw)
+            //     return jn_resp;
+            // }
 
             if(is_ip_allowed(peername)) {
                 /*

@@ -333,8 +333,6 @@ SDATA (DTP_INTEGER,     "max_queued_messages",SDF_WR,       "1000",   "The maxim
 
 SDATA (DTP_INTEGER,     "message_size_limit",SDF_WR,        0,      "This option sets the maximum publish payload size that the broker will allow. Received messages that exceed this size will not be accepted by the broker. This means that the message will not be forwarded on to subscribing clients, but the QoS flow will be completed for QoS 1 or QoS 2 messages. MQTT v5 clients using QoS 1 or QoS 2 will receive a PUBACK or PUBREC with the 'implementation specific error' reason code. The default value is 0, which means that all valid MQTT messages are accepted. MQTT imposes a maximum payload size of 268435455 bytes."),
 
-SDATA (DTP_INTEGER,     "max_keepalive",    SDF_WR,         "65535",  "For MQTT v5 clients, it is possible to have the server send a 'server keepalive' value that will override the keepalive value set by the client. This is intended to be used as a mechanism to say that the server will disconnect the client earlier than it anticipated, and that the client should use the new keepalive value. The max_keepalive option allows you to specify that clients may only connect with keepalive less than or equal to this value, otherwise they will be sent a server keepalive telling them to use max_keepalive. This only applies to MQTT v5 clients. The maximum value allowable, and default value, is 65535. Set to 0 to allow clients to set keepalive = 0, which means no keepalive checks are made and the client will never be disconnected by the broker if no messages are received. You should be very sure this is the behaviour that you want.For MQTT v3.1.1 and v3.1 clients, there is no mechanism to tell the client what keepalive value they should use. If an MQTT v3.1.1 or v3.1 client specifies a keepalive time greater than max_keepalive they will be sent a CONNACK message with the 'identifier rejected' reason code, and disconnected."),
-
 SDATA (DTP_INTEGER,     "max_packet_size",  SDF_WR,         0,      "For MQTT v5 clients, it is possible to have the server send a 'maximum packet size' value that will instruct the client it will not accept MQTT packets with size greater than value bytes. This applies to the full MQTT packet, not just the payload. Setting this option to a positive value will set the maximum packet size to that number of bytes. If a client sends a packet which is larger than this value, it will be disconnected. This applies to all clients regardless of the protocol version they are using, but v3.1.1 and earlier clients will of course not have received the maximum packet size information. Defaults to no limit. This option applies to all clients, not just those using MQTT v5, but it is not possible to notify clients using MQTT v3.1.1 or MQTT v3.1 of the limit. Setting below 20 bytes is forbidden because it is likely to interfere with normal client operation even with small payloads."),
 
 SDATA (DTP_BOOLEAN,     "retain_available", SDF_WR,         "1",   "If set to FALSE, then retained messages are not supported. Clients that send a message with the retain bit will be disconnected if this option is set to FALSE. Defaults to TRUE."),
@@ -431,7 +429,6 @@ typedef struct _PRIVATE_DATA {
     int max_inflight_messages;
     int max_queued_bytes;
     int max_queued_messages;
-    int max_keepalive;
     int max_packet_size;
     int message_size_limit;
     BOOL retain_available;
@@ -531,7 +528,6 @@ PRIVATE void mt_create(hgobj gobj)
     SET_PRIV(max_inflight_messages,     gobj_read_integer_attr)
     SET_PRIV(max_queued_bytes,          gobj_read_integer_attr)
     SET_PRIV(max_queued_messages,       gobj_read_integer_attr)
-    SET_PRIV(max_keepalive,             gobj_read_integer_attr)
     SET_PRIV(max_packet_size,           gobj_read_integer_attr)
     SET_PRIV(message_size_limit,        gobj_read_integer_attr)
     SET_PRIV(retain_available,          gobj_read_bool_attr)
@@ -583,7 +579,6 @@ PRIVATE void mt_writing(hgobj gobj, const char *path)
     ELIF_EQ_SET_PRIV(max_inflight_messages,     gobj_read_integer_attr)
     ELIF_EQ_SET_PRIV(max_queued_bytes,          gobj_read_integer_attr)
     ELIF_EQ_SET_PRIV(max_queued_messages,       gobj_read_integer_attr)
-    ELIF_EQ_SET_PRIV(max_keepalive,             gobj_read_integer_attr)
     ELIF_EQ_SET_PRIV(max_packet_size,           gobj_read_integer_attr)
     ELIF_EQ_SET_PRIV(message_size_limit,        gobj_read_integer_attr)
     ELIF_EQ_SET_PRIV(retain_available,          gobj_read_bool_attr)
@@ -5078,19 +5073,6 @@ PRIVATE int handle__connect(hgobj gobj, gbuffer_t *gbuf, hgobj src)
      *---------------------------------------------*/
     json_t *connack_props = json_object();
 
-    if(priv->max_keepalive && (priv->keepalive > priv->max_keepalive || priv->keepalive == 0)) {
-        priv->keepalive = priv->max_keepalive;
-        if(priv->protocol_version == mosq_p_mqtt5) {
-            mqtt_property_add_int16(gobj, connack_props, MQTT_PROP_SERVER_KEEP_ALIVE, priv->keepalive);
-        } else {
-            send__connack(gobj, 0, CONNACK_REFUSED_IDENTIFIER_REJECTED, NULL);
-            JSON_DECREF(auth)
-            JSON_DECREF(connect_properties);
-            JSON_DECREF(connack_props);
-            return -1;
-        }
-    }
-
     if(priv->protocol_version == mosq_p_mqtt5) {
         if(priv->max_topic_alias > 0) {
             if(mqtt_property_add_int16 (
@@ -5229,9 +5211,11 @@ PRIVATE int handle__connect(hgobj gobj, gbuffer_t *gbuf, hgobj src)
     // db__message_write_queued_out(context);
     // db__message_write_inflight_out_all(context);
 
-    if(priv->keepalive > 0) {
-        // priv->timer_ping = start_sectimer(priv->keepalive);
+    if(priv->keepalive == 0) {
+        priv->keepalive = 60*5; // avoid clients stay connected indefinitely TODO make configurable?
     }
+    // TODO
+    // priv->timer_ping = start_sectimer((priv->keepalive*3)/2);
 
     return 0;
 }
