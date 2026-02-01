@@ -73,7 +73,7 @@ Yuneta with retain
 
 
 Mosquitto with will
-----------------
+-------------------
 
 mosquitto_sub -i client1 -p 1883 -t "#" -q 2 -c -V mqttv5 --will-topic tasmota/device1/exit --will-payload offline --will-qos 2 --will-retain
 
@@ -87,3 +87,9 @@ Yuneta with will
 
 ./mqtt_tui -i client2 -c -u DVES_USER -P DVES_PASS --will-topic=tasmota/device2/exit --will-payload=offline
     > 
+
+Other test with will
+--------------------
+
+./mqtt_tui -i client2 -c -u DVES_USER -P DVES_PASS
+    > subscribe subs=["#"] qos=0

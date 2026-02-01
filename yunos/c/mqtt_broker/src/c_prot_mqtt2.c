@@ -5012,7 +5012,7 @@ PRIVATE int handle__connect(hgobj gobj, gbuffer_t *gbuf, hgobj src)
 
     json_t *auth = gobj_authenticate(gobj, kw_auth, gobj);
     authorization = COMMAND_RESULT(gobj, auth);
-    print_json("XXX authenticated", auth); // TODO TEST
+    //print_json("XXX authenticated", auth); // TODO TEST
 
     if(authorization < 0) {
         if(priv->protocol_version == mosq_p_mqtt5) {

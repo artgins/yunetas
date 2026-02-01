@@ -3091,7 +3091,6 @@ PRIVATE int ac_on_open(hgobj gobj, const char *event, json_t *kw, hgobj src)
     }
 
     if(session) {
-print_json("=====>1 SESSION", session); // TODO TEST
         /*-------------------------------------------------------------*
          *              Exists a previous session
          *-------------------------------------------------------------*/
@@ -3658,13 +3657,11 @@ PRIVATE int ac_mqtt_message(hgobj gobj, const char *event, json_t *kw, hgobj src
     /*-----------------------------------*
      *      Publish to yuneta gobjs
      *-----------------------------------*/
-debug_json2(kw, "============> 1");
     gobj_publish_event(
         gobj,
         EV_MQTT_MESSAGE,
         kw // owned
     );
-debug_json2(kw, "============> 2");
 
     return subscribers_found;
 }
