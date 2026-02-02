@@ -120,7 +120,7 @@ static inline int user_flag_get_qos_level(const user_flag_t *uf) {
     return 0;
 }
 
-static inline void user_flag_set_qos_level(user_flag_t *uf, int level) {
+static inline void user_flag_set_qos_level(user_flag_t *uf, uint8_t level) {
     uf->value &= ~TR2Q_QOS_MASK;
     switch (level) {
         case 1:
@@ -130,7 +130,7 @@ static inline void user_flag_set_qos_level(user_flag_t *uf, int level) {
             uf->value |= mosq_m_qos2;
             break;
         default:
-            // QoS 0, nothing to set
+            uf->value |= mosq_m_qos0;
             break;
     }
 }

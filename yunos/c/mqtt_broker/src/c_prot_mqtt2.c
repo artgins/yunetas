@@ -8408,7 +8408,7 @@ PRIVATE int ac_send_message(hgobj gobj, const char *event, json_t *kw, hgobj src
     if(gobj_trace_level(gobj) & TRAFFIC) {
         gobj_trace_dump_gbuf(gobj, gbuf, "%s, topic %s", gobj_short_name(gobj), topic);
     }
-    uint32_t qos = (uint32_t)kw_get_int(gobj, kw, "qos", 0, KW_REQUIRED);
+    uint8_t qos = (uint8_t)kw_get_int(gobj, kw, "qos", 0, KW_REQUIRED);
     BOOL retain = kw_get_bool(gobj, kw, "retain", 0, KW_REQUIRED);
 
     if(qos > priv->max_qos) {
@@ -8677,7 +8677,7 @@ PRIVATE int ac_mqtt_client_send_publish(hgobj gobj, const char *event, json_t *k
         user_flag_t user_flag = {0};
         user_flag_set_origin(&user_flag, mosq_mo_client);
         user_flag_set_direction(&user_flag, mosq_md_out);
-        user_flag_set_qos_level(&user_flag, qos);
+        user_flag_set_qos_level(&user_flag, (uint8_t)qos);
         user_flag_set_retain(&user_flag, retain);
         user_flag_set_dup(&user_flag, 0);
         user_flag_set_state(&user_flag, mosq_ms_invalid);
