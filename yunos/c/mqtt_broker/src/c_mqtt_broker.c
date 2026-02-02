@@ -3258,7 +3258,7 @@ PRIVATE int ac_on_close(hgobj gobj, const char *event, json_t *kw, hgobj src)
         gobj_log_error(gobj, 0,
            "function",     "%s", __FUNCTION__,
            "msgset",       "%s", MSGSET_INTERNAL_ERROR,
-           "msg",          "%s", "on_close NOT from input_size",
+           "msg",          "%s", "event NOT from input_side",
            "src",          "%s", gobj_full_name(src),
            NULL
        );
@@ -3410,7 +3410,7 @@ PRIVATE int ac_mqtt_subscribe(hgobj gobj, const char *event, json_t *kw, hgobj s
         gobj_log_error(gobj, 0,
            "function",     "%s", __FUNCTION__,
            "msgset",       "%s", MSGSET_INTERNAL_ERROR,
-           "msg",          "%s", "on_close NOT from input_size",
+           "msg",          "%s", "event NOT from input_side",
            "src",          "%s", gobj_full_name(src),
            NULL
        );
@@ -3521,7 +3521,7 @@ PRIVATE int ac_mqtt_unsubscribe(hgobj gobj, const char *event, json_t *kw, hgobj
         gobj_log_error(gobj, 0,
            "function",     "%s", __FUNCTION__,
            "msgset",       "%s", MSGSET_INTERNAL_ERROR,
-           "msg",          "%s", "on_close NOT from input_size",
+           "msg",          "%s", "event NOT from input_side",
            "src",          "%s", gobj_full_name(src),
            NULL
        );
@@ -3586,7 +3586,7 @@ PRIVATE int ac_on_message(hgobj gobj, const char *event, json_t *kw, hgobj src)
         gobj_log_error(gobj, 0,
            "function",     "%s", __FUNCTION__,
            "msgset",       "%s", MSGSET_INTERNAL_ERROR,
-           "msg",          "%s", "on_close NOT from input_size",
+           "msg",          "%s", "event NOT from input_side",
            "src",          "%s", gobj_full_name(src),
            NULL
        );
@@ -3638,7 +3638,7 @@ PRIVATE int ac_mqtt_message(hgobj gobj, const char *event, json_t *kw, hgobj src
         gobj_log_error(gobj, 0,
            "function",     "%s", __FUNCTION__,
            "msgset",       "%s", MSGSET_INTERNAL_ERROR,
-           "msg",          "%s", "on_close NOT from input_size",
+           "msg",          "%s", "event NOT from input_side",
            "src",          "%s", gobj_full_name(src),
            NULL
        );
