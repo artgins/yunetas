@@ -4046,7 +4046,7 @@ PRIVATE int will__read(
 }
 
 /***************************************************************************
- *
+ *  Server
  ***************************************************************************/
 PRIVATE int handle__connect(hgobj gobj, gbuffer_t *gbuf, hgobj src)
 {
@@ -4761,7 +4761,7 @@ PRIVATE int handle__connect(hgobj gobj, gbuffer_t *gbuf, hgobj src)
      *      Open session
      *---------------------------*/
     priv->inform_on_close = TRUE;
-    int ret = gobj_publish_event(
+    int ret = gobj_publish_event( // To broker
         gobj,
         EV_ON_OPEN,
         client  // owned
@@ -5301,7 +5301,7 @@ PRIVATE int handle__subscribe(hgobj gobj, gbuffer_t *gbuf)
         kw_subscribe // owned
     );
 
-    int rc = gobj_publish_event(
+    int rc = gobj_publish_event( // To broker
         gobj,
         EV_ON_IEV_MESSAGE,
         kw_iev // owned but gbuf_payload survives
@@ -5374,7 +5374,7 @@ PRIVATE int send__suback(
 }
 
 /***************************************************************************
- *
+ *  Server
  ***************************************************************************/
 PRIVATE int handle__unsubscribe(hgobj gobj, gbuffer_t *gbuf)
 {
@@ -5500,7 +5500,7 @@ PRIVATE int handle__unsubscribe(hgobj gobj, gbuffer_t *gbuf)
         kw_unsubscribe // owned
     );
 
-    int rc = gobj_publish_event(
+    int rc = gobj_publish_event( // To broker
         gobj,
         EV_ON_IEV_MESSAGE,
         kw_iev // owned but gbuf_payload survives
@@ -5632,7 +5632,11 @@ PRIVATE int handle__suback(hgobj gobj, gbuffer_t *gbuf)
         kw_suback // owned
     );
 
-    gobj_publish_event(gobj, EV_ON_IEV_MESSAGE, kw_iev);
+    gobj_publish_event( // To client user
+        gobj,
+        EV_ON_IEV_MESSAGE,
+        kw_iev
+    );
 
     return 0;
 }
@@ -5705,7 +5709,11 @@ PRIVATE int handle__unsuback(hgobj gobj, gbuffer_t *gbuf)
         kw_suback // owned
     );
 
-    gobj_publish_event(gobj, EV_ON_IEV_MESSAGE, kw_iev);
+    gobj_publish_event( // To client user
+        gobj,
+        EV_ON_IEV_MESSAGE,
+        kw_iev
+    );
 
     return 0;
 }
@@ -6087,7 +6095,11 @@ PRIVATE int handle__publish_s(
                     EV_MQTT_MESSAGE,
                     kw_incref(kw_mqtt_msg) // owned
                 );
-                rc = gobj_publish_event(gobj, EV_ON_IEV_MESSAGE, kw_iev); // sub__messages_queue
+                rc = gobj_publish_event( // To broker, sub__messages_queue
+                    gobj,
+                    EV_ON_IEV_MESSAGE,
+                    kw_iev
+                );
             }
             break;
 
@@ -6103,8 +6115,11 @@ PRIVATE int handle__publish_s(
                     EV_MQTT_MESSAGE,
                     kw_incref(kw_mqtt_msg) // owned
                 );
-                rc = gobj_publish_event(gobj, EV_ON_IEV_MESSAGE, kw_iev); // sub__messages_queue
-                // return # subscribers
+                rc = gobj_publish_event( // To broker, sub__messages_queue, return # subscribers
+                    gobj,
+                    EV_ON_IEV_MESSAGE,
+                    kw_iev
+                );
 
                 /*
                  *  Response acknowledge
@@ -6349,7 +6364,11 @@ PRIVATE int handle__publish_c(
                     kw_incref(kw_mqtt_msg) // owned
                 );
 
-                gobj_publish_event(gobj, EV_ON_IEV_MESSAGE, kw_iev);
+                gobj_publish_event( // To client user
+                    gobj,
+                    EV_ON_IEV_MESSAGE,
+                    kw_iev
+                );
             }
             break;
 
@@ -6367,7 +6386,11 @@ PRIVATE int handle__publish_c(
                     kw_incref(kw_mqtt_msg) // owned
                 );
 
-                gobj_publish_event(gobj, EV_ON_IEV_MESSAGE, kw_iev);
+                gobj_publish_event( // To client user
+                    gobj,
+                    EV_ON_IEV_MESSAGE,
+                    kw_iev
+                );
 
                 /*
                  *  Response acknowledge
@@ -6624,7 +6647,11 @@ PRIVATE int handle__pubackcomp(hgobj gobj, gbuffer_t *gbuf, const char *type)
                 kw_publish // owned
             );
 
-            gobj_publish_event(gobj, EV_ON_IEV_MESSAGE, kw_iev);
+            gobj_publish_event( // To client user
+                gobj,
+                EV_ON_IEV_MESSAGE,
+                kw_iev
+            );
 
             // TODO código viejo
             // gbuffer_t *gbuf_message = gbuffer_create(stored->payloadlen, stored->payloadlen);
@@ -6794,10 +6821,15 @@ PRIVATE int handle__pubrec(hgobj gobj, gbuffer_t *gbuf)
                     kw_publish // owned
                 );
 
-                gobj_publish_event(gobj, EV_ON_IEV_MESSAGE, kw_iev);
+                gobj_publish_event( // To client user
+                    gobj,
+                    EV_ON_IEV_MESSAGE,
+                    kw_iev
+                );
             }
-            //util__increment_send_quota(mosq); // TODO
+
             message__release_to_inflight(gobj, mosq_md_out);
+
             return MOSQ_ERR_SUCCESS;
         }
     }
@@ -6924,7 +6956,11 @@ PRIVATE int handle__pubrel(hgobj gobj, gbuffer_t *gbuf)
                 EV_MQTT_MESSAGE,
                 kw_mqtt_msg // owned
             );
-            gobj_publish_event(gobj, EV_ON_IEV_MESSAGE, kw_iev); // sub__messages_queue
+            gobj_publish_event( // To broker, sub__messages_queue
+                gobj,
+                EV_ON_IEV_MESSAGE,
+                kw_iev
+            );
 
         } else {
             /*
@@ -6970,7 +7006,11 @@ PRIVATE int handle__pubrel(hgobj gobj, gbuffer_t *gbuf)
                 kw_mqtt_msg // owned
             );
 
-            gobj_publish_event(gobj, EV_ON_IEV_MESSAGE, kw_iev);
+            gobj_publish_event( // To client user
+                gobj,
+                EV_ON_IEV_MESSAGE,
+                kw_iev
+            );
         }
     }
 
@@ -7372,7 +7412,7 @@ PRIVATE int frame_completed(hgobj gobj, hgobj src)
                 ret = handle__connack(gobj, gbuf, jn_data);
                 if(ret == 0) {
                     priv->inform_on_close = TRUE;
-                    gobj_publish_event(
+                    gobj_publish_event( // To client user
                         gobj,
                         EV_ON_OPEN,
                         jn_data
@@ -7581,7 +7621,12 @@ PRIVATE int ac_disconnected(hgobj gobj, const char *event, json_t *kw, hgobj src
             "session_id", gobj_read_str_attr(gobj, "__session_id__"),
             "peername", peername
         );
-        gobj_publish_event(gobj, EV_ON_CLOSE, kw2);
+
+        gobj_publish_event( // To broker and client user?
+            gobj,
+            EV_ON_CLOSE,
+            kw2
+        );
     }
 
     gobj_reset_volatil_attrs(gobj);
@@ -8256,7 +8301,11 @@ PRIVATE int ac_mqtt_client_send_publish(hgobj gobj, const char *event, json_t *k
                 kw_publish // owned
             );
 
-            gobj_publish_event(gobj, EV_ON_IEV_MESSAGE, kw_iev);
+            gobj_publish_event( // To client user
+                gobj,
+                EV_ON_IEV_MESSAGE,
+                kw_iev
+            );
         }
     } else {
 
