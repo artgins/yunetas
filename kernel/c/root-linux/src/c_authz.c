@@ -768,7 +768,7 @@ PRIVATE json_t *mt_authenticate(hgobj gobj, json_t *kw, hgobj src)
                 break;
             }
 
-            int x;
+            int todo_repon;
             // TODO repon
             // if(strcmp(username, "yuneta")!=0) {
             //     /*

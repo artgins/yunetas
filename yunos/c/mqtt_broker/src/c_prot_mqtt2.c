@@ -7477,9 +7477,6 @@ PRIVATE void start_wait_frame_header(hgobj gobj)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
-    if(!gobj_is_running(gobj)) {
-        return;
-    }
     gobj_change_state(gobj, ST_WAIT_FRAME_HEADER);
 
     istream_reset_wr(priv->istream_frame);  // Reset buffer for next frame
@@ -7900,7 +7897,10 @@ PRIVATE int frame_completed(hgobj gobj, hgobj src)
         }
     }
 
-    start_wait_frame_header(gobj);
+    if(gobj_is_running(gobj) && !gobj_in_this_state(gobj, ST_DISCONNECTED)) {
+        start_wait_frame_header(gobj);
+    }
+
     return ret;
 }
 
