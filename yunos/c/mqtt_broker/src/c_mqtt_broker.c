@@ -2014,6 +2014,8 @@ PRIVATE int retain__queue(
             json_int_t tm = kw_get_int(gobj, retain, "tm", 0, 0);
             json_int_t expiry_interval = kw_get_int(gobj, retain, "expiry_interval", 0, 0);
 
+            // TODO check if time is expired?
+
             /*
              *  Adjust QoS to minimum of message and subscription QoS
              */
@@ -2296,9 +2298,6 @@ PRIVATE int will__send(hgobj gobj, json_t *session)
         );
     }
 
-    time_t t;
-    time(&t);
-
     /*
      *  Create the MQTT message for will
      */
@@ -2312,7 +2311,7 @@ PRIVATE int will__send(hgobj gobj, json_t *session)
         FALSE,                          // dup
         json_incref(will_properties),   // owned
         0,                              // expiry_interval
-        (json_int_t)t
+        mosquitto_time()
     );
 
     if(!kw_mqtt_msg) {

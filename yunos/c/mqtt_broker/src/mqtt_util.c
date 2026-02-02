@@ -506,3 +506,35 @@ PUBLIC json_t *new_mqtt_message(
 
     return kw_mqtt_msg;
 }
+
+/***************************************************************************
+ *
+ ***************************************************************************/
+PUBLIC time_t mosquitto_time(void)
+{
+#ifdef WIN32
+    return GetTickCount64()/1000;
+#elif _POSIX_TIMERS>0 && defined(_POSIX_MONOTONIC_CLOCK)
+    struct timespec tp;
+
+    if (clock_gettime(time_clock, &tp) == 0)
+        return tp.tv_sec;
+
+    return (time_t) -1;
+#elif defined(__APPLE__)
+    static mach_timebase_info_data_t tb;
+    uint64_t ticks;
+    uint64_t sec;
+
+    ticks = mach_absolute_time();
+
+    if(tb.denom == 0) {
+        mach_timebase_info(&tb);
+    }
+    sec = ticks*tb.numer/tb.denom/1000000000;
+
+    return (time_t)sec;
+#else
+    return time(NULL);
+#endif
+}

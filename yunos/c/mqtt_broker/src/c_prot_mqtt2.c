@@ -851,38 +851,6 @@ PRIVATE void close_queues(hgobj gobj)
 }
 
 /***************************************************************************
- *
- ***************************************************************************/
-PRIVATE time_t mosquitto_time(void)
-{
-#ifdef WIN32
-    return GetTickCount64()/1000;
-#elif _POSIX_TIMERS>0 && defined(_POSIX_MONOTONIC_CLOCK)
-    struct timespec tp;
-
-    if (clock_gettime(time_clock, &tp) == 0)
-        return tp.tv_sec;
-
-    return (time_t) -1;
-#elif defined(__APPLE__)
-    static mach_timebase_info_data_t tb;
-    uint64_t ticks;
-    uint64_t sec;
-
-    ticks = mach_absolute_time();
-
-    if(tb.denom == 0) {
-        mach_timebase_info(&tb);
-    }
-    sec = ticks*tb.numer/tb.denom/1000000000;
-
-    return (time_t)sec;
-#else
-    return time(NULL);
-#endif
-}
-
-/***************************************************************************
  * Used by client
  ***************************************************************************/
 PRIVATE int message__out_update(
@@ -982,7 +950,7 @@ PRIVATE int message__queue(
     json_t *kw_mqtt_msg, // owned
     mqtt_msg_direction_t dir,
     user_flag_t user_flag,
-    json_int_t t
+    json_int_t t // TODO sobra?
 ) {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
@@ -6392,7 +6360,6 @@ PRIVATE int handle__publish_s(
     /*-----------------------------------*
      *      Build our json message
      *-----------------------------------*/
-    time_t t = mosquitto_time();
     /*
      *  Create the MQTT message for published message received in broker
      */
@@ -6406,7 +6373,7 @@ PRIVATE int handle__publish_s(
         dup,
         properties, // owned
         message_expiry_interval,
-        t
+        mosquitto_time()
     );
 
     user_flag_t user_flag = {0};
@@ -6536,7 +6503,7 @@ PRIVATE int handle__publish_s(
                     kw_mqtt_msg, // owned
                     mosq_md_in,
                     user_flag,
-                    t
+                    0
                 );
 
                 /*
@@ -6677,7 +6644,6 @@ PRIVATE int handle__publish_c(
     /*-----------------------------------*
      *      Build our json message
      *-----------------------------------*/
-    time_t t = mosquitto_time();
     /*
      *  Create the MQTT message for published message received in client
      */
@@ -6691,7 +6657,7 @@ PRIVATE int handle__publish_c(
         dup,
         properties, // owned
         expiry_interval,
-        t
+        mosquitto_time()
     );
 
     user_flag_t user_flag = {0};
@@ -6796,7 +6762,7 @@ PRIVATE int handle__publish_c(
                     kw_mqtt_msg, // owned
                     mosq_md_in,
                     user_flag,
-                    t
+                    0
                 );
 
                 /*
@@ -8439,9 +8405,6 @@ PRIVATE int ac_send_message(hgobj gobj, const char *event, json_t *kw_mqtt_msg, 
             0           // TODO expiry_interval
         );
     } else {
-
-        time_t t = mosquitto_time();
-
         user_flag_t user_flag = {0};
         user_flag_set_origin(&user_flag, mosq_mo_broker);
         user_flag_set_direction(&user_flag, mosq_md_out);
@@ -8455,7 +8418,7 @@ PRIVATE int ac_send_message(hgobj gobj, const char *event, json_t *kw_mqtt_msg, 
             kw_mqtt_msg,
             mosq_md_out,
             user_flag,
-            t
+            0
         );
     }
 
@@ -8625,9 +8588,24 @@ PRIVATE int ac_mqtt_client_send_publish(hgobj gobj, const char *event, json_t *k
         return -1;
     }
 
-    int mid = mosquitto__mid_generate(gobj);
+    /*
+     *  Create the MQTT message for client publishing message to broker
+     */
+    json_t *kw_mqtt_msg = new_mqtt_message( // client sending message to broker
+        gobj,
+        priv->client_id,
+        topic,
+        gbuf_payload, // not owned
+        qos,
+        retain,
+        FALSE,      // dup,
+        properties, // not owned
+        expiry_interval,
+        mosquitto_time()
+    );
 
     if(qos == 0) {
+        int mid = mosquitto__mid_generate(gobj);
         if(send__publish(
             gobj,
             mid,
@@ -8646,7 +8624,7 @@ PRIVATE int ac_mqtt_client_send_publish(hgobj gobj, const char *event, json_t *k
              */
             json_t *kw_publish = json_pack("{s:i, s:i}",
                 "mid", (int)mid,
-                "qos", 0
+                "qos", qos
             );
             json_t *kw_iev = iev_create(
                 gobj,
@@ -8657,23 +8635,6 @@ PRIVATE int ac_mqtt_client_send_publish(hgobj gobj, const char *event, json_t *k
             gobj_publish_event(gobj, EV_ON_IEV_MESSAGE, kw_iev);
         }
     } else {
-
-        time_t t = mosquitto_time();
-        /*
-         *  Create the MQTT message for publishing message by client
-         */
-        json_t *kw_mqtt_msg = new_mqtt_message( // client sending message to broker
-            gobj,
-            priv->client_id,
-            topic,
-            gbuf_payload, // not owned
-            qos,
-            retain,
-            FALSE,      // dup,
-            properties, // not owned
-            0, // TODO expiry_interval,
-            t
-        );
 
         user_flag_t user_flag = {0};
         user_flag_set_origin(&user_flag, mosq_mo_client);
@@ -8688,7 +8649,7 @@ PRIVATE int ac_mqtt_client_send_publish(hgobj gobj, const char *event, json_t *k
             kw_mqtt_msg,
             mosq_md_out,
             user_flag,
-            t
+            0
         );
 
         // TODO this base64 to tr_queue.c

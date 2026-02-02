@@ -343,6 +343,8 @@ PUBLIC json_t *new_mqtt_message(
     json_int_t t
 );
 
+PUBLIC time_t mosquitto_time(void);
+
 #ifdef __cplusplus
 }
 #endif
