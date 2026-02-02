@@ -3883,7 +3883,7 @@ PRIVATE int send__connack(
             );
         }
 
-        if(priv->max_qos != 2){
+        if(priv->max_qos != 2) {
             mqtt_property_add_int16(
                 gobj, connack_props, MQTT_PROP_MAXIMUM_QOS, priv->max_qos
             );
@@ -6393,7 +6393,10 @@ PRIVATE int handle__publish_s(
      *      Build our json message
      *-----------------------------------*/
     time_t t = mosquitto_time();
-    kw_mqtt_msg = new_mqtt_message( // broker, message from client in handle__publish_s
+    /*
+     *  Create the MQTT message for published message received in broker
+     */
+    kw_mqtt_msg = new_mqtt_message( // broker, message from client
         gobj,
         priv->client_id,
         topic,
@@ -6675,7 +6678,10 @@ PRIVATE int handle__publish_c(
      *      Build our json message
      *-----------------------------------*/
     time_t t = mosquitto_time();
-    json_t *kw_mqtt_msg = new_mqtt_message( // client, message from broker in handle__publish_c
+    /*
+     *  Create the MQTT message for published message received in client
+     */
+    json_t *kw_mqtt_msg = new_mqtt_message( // client, message from broker
         gobj,
         priv->client_id,
         topic,
@@ -8396,28 +8402,30 @@ PRIVATE int ac_timeout_waiting_payload_data(hgobj gobj, const char *event, json_
 /***************************************************************************
  *  From broker, send message (publish) to client
  ***************************************************************************/
-PRIVATE int ac_send_message(hgobj gobj, const char *event, json_t *kw, hgobj src)
+PRIVATE int ac_send_message(hgobj gobj, const char *event, json_t *kw_mqtt_msg, hgobj src)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
     /*----------------------*
      *   Entry parameters
      *----------------------*/
-    const char *topic = kw_get_str(gobj, kw, "topic", "", KW_REQUIRED);
-    gbuffer_t *gbuf = (gbuffer_t *)(uintptr_t)kw_get_int(gobj, kw, "gbuffer", 0, KW_REQUIRED);
+    const char *topic = kw_get_str(gobj, kw_mqtt_msg, "topic", "", KW_REQUIRED);
+    gbuffer_t *gbuf = (gbuffer_t *)(uintptr_t)kw_get_int(
+        gobj, kw_mqtt_msg, "gbuffer", 0, KW_REQUIRED
+    );
     if(gobj_trace_level(gobj) & TRAFFIC) {
         gobj_trace_dump_gbuf(gobj, gbuf, "%s, topic %s", gobj_short_name(gobj), topic);
     }
-    uint8_t qos = (uint8_t)kw_get_int(gobj, kw, "qos", 0, KW_REQUIRED);
-    BOOL retain = kw_get_bool(gobj, kw, "retain", 0, KW_REQUIRED);
+    uint8_t qos = (uint8_t)kw_get_int(gobj, kw_mqtt_msg, "qos", 0, KW_REQUIRED);
+    BOOL retain = kw_get_bool(gobj, kw_mqtt_msg, "retain", 0, KW_REQUIRED);
 
     if(qos > priv->max_qos) {
         qos = priv->max_qos;
     }
-    uint16_t mid = mosquitto__mid_generate(gobj);
-    json_object_set_new(kw, "mid", json_integer(mid));
 
     if(qos == 0) {
+        uint16_t mid = mosquitto__mid_generate(gobj);
+        json_object_set_new(kw_mqtt_msg, "mid", json_integer(mid));
         send__publish(
             gobj,
             mid,
@@ -8433,18 +8441,6 @@ PRIVATE int ac_send_message(hgobj gobj, const char *event, json_t *kw, hgobj src
     } else {
 
         time_t t = mosquitto_time();
-        json_t *kw_mqtt_msg = new_mqtt_message( // client sending message to broker
-            gobj,
-            priv->client_id,
-            topic,
-            gbuf,       // not owned // TODO this base64 to tr_queue.c
-            qos,
-            retain,
-            FALSE,      // dup,
-            NULL,       // TODO properties, // not owned
-            0,          // TODO expiry_interval,
-            t           // TODO ???
-        );
 
         user_flag_t user_flag = {0};
         user_flag_set_origin(&user_flag, mosq_mo_broker);
@@ -8465,8 +8461,7 @@ PRIVATE int ac_send_message(hgobj gobj, const char *event, json_t *kw, hgobj src
 
     //message__release_to_inflight(gobj, mosq_md_out);
 
-
-    KW_DECREF(kw)
+    KW_DECREF(kw_mqtt_msg)
     return 0;
 }
 
@@ -8664,6 +8659,9 @@ PRIVATE int ac_mqtt_client_send_publish(hgobj gobj, const char *event, json_t *k
     } else {
 
         time_t t = mosquitto_time();
+        /*
+         *  Create the MQTT message for publishing message by client
+         */
         json_t *kw_mqtt_msg = new_mqtt_message( // client sending message to broker
             gobj,
             priv->client_id,

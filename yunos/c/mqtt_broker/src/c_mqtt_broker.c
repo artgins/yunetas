@@ -2039,7 +2039,7 @@ PRIVATE int retain__queue(
                 }
 
                 /*
-                 *  Create the MQTT message
+                 *  Create the MQTT message for retain
                  */
                 json_t *new_msg = new_mqtt_message(
                     gobj,
@@ -2296,12 +2296,12 @@ PRIVATE int will__send(hgobj gobj, json_t *session)
         );
     }
 
-    /*
-     *  Create the will message
-     */
     time_t t;
     time(&t);
 
+    /*
+     *  Create the MQTT message for will
+     */
     json_t *kw_mqtt_msg = new_mqtt_message(
         gobj,
         client_id,
@@ -2666,6 +2666,9 @@ PRIVATE int subs__send(
         // );
     }
 
+    /*
+     *  Create the MQTT message for subscription matched
+     */
     json_t *new_msg = new_mqtt_message(
         gobj,
         client_id,
