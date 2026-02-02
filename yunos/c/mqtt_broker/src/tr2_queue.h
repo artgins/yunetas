@@ -36,8 +36,8 @@ typedef struct {
     size_t max_queued_messages;
     size_t message_size_limit;
 
-    dl_list_t dl_inflight;
-    dl_list_t dl_queued;
+    dl_list_t dl_inflight;  // Queue with messages in memory (and in disk of course)
+    dl_list_t dl_queued;    // Queue with messages in disk, avoiding overload of memory.
     uint64_t first_rowid;
 } tr2_queue_t;
 
