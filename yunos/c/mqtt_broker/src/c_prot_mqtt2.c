@@ -875,7 +875,7 @@ PRIVATE int message__out_update(
 }
 
 /***************************************************************************
- *  Used by client
+ *
  ***************************************************************************/
 PRIVATE int message__release_to_inflight(hgobj gobj, enum mqtt_msg_direction dir)
 {
@@ -921,35 +921,13 @@ PRIVATE int message__release_to_inflight(hgobj gobj, enum mqtt_msg_direction dir
 }
 
 /***************************************************************************
- *  Used by client
- ***************************************************************************/
-// PRIVATE int OLD_message__queue(
-//     hgobj gobj,
-//     struct mosquitto_message_all *message,
-//     enum mqtt_msg_direction dir
-// ) {
-    // PRIVATE_DATA *priv = gobj_priv_data(gobj);
-    // if(dir == mosq_md_out) {
-    //     dl_add(&priv->msgs_out.dl_inflight, message);
-    //     // TODO priv->msgs_out.queue_len++;
-    // } else {
-    //     dl_add(&priv->msgs_in.dl_inflight, message);
-    //     // TODO priv->msgs_in.queue_len++;
-    // }
-//
-//     return message__release_to_inflight(gobj, dir);
-// }
-
-/***************************************************************************
  *  Enqueue a message in the input or output queue
- *  Used by client ???
  ***************************************************************************/
 PRIVATE int message__queue(
     hgobj gobj,
     json_t *kw_mqtt_msg, // owned
     mqtt_msg_direction_t dir,
-    user_flag_t user_flag,
-    json_int_t t // TODO sobra?
+    user_flag_t user_flag
 ) {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
@@ -958,7 +936,7 @@ PRIVATE int message__queue(
         // dl_add(&priv->msgs_out.dl_inflight, message);
         qmsg = tr2q_append(
             priv->trq_out_msgs,
-            t,              // __t__ if 0 then the time will be set by TimeRanger with now time
+            0,              // __t__ if 0 then the time will be set by TimeRanger with now time
             kw_mqtt_msg,    // owned
             user_flag.value // extra flags in addition to TRQ_MSG_PENDING
         );
@@ -968,7 +946,7 @@ PRIVATE int message__queue(
         // dl_add(&priv->msgs_in.dl_inflight, message);
         qmsg = tr2q_append(
             priv->trq_in_msgs,
-            t,              // __t__ if 0 then the time will be set by TimeRanger with now time
+            0,              // __t__ if 0 then the time will be set by TimeRanger with now time
             kw_mqtt_msg,    // owned
             user_flag.value // extra flags in addition to TRQ_MSG_PENDING
         );
@@ -6497,8 +6475,7 @@ PRIVATE int handle__publish_s(
                     gobj,
                     kw_mqtt_msg, // owned
                     mosq_md_in,
-                    user_flag,
-                    0
+                    user_flag
                 );
 
                 /*
@@ -6756,8 +6733,7 @@ PRIVATE int handle__publish_c(
                     gobj,
                     kw_mqtt_msg, // owned
                     mosq_md_in,
-                    user_flag,
-                    0
+                    user_flag
                 );
 
                 /*
@@ -8412,8 +8388,7 @@ PRIVATE int ac_send_message(hgobj gobj, const char *event, json_t *kw_mqtt_msg, 
             gobj,
             kw_mqtt_msg,
             mosq_md_out,
-            user_flag,
-            0
+            user_flag
         );
     }
 
@@ -8642,8 +8617,7 @@ PRIVATE int ac_mqtt_client_send_publish(hgobj gobj, const char *event, json_t *k
             gobj,
             kw_mqtt_msg,
             mosq_md_out,
-            user_flag,
-            0
+            user_flag
         );
 
         // TODO this base64 to tr_queue.c
