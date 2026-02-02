@@ -414,9 +414,6 @@ typedef struct _PRIVATE_DATA {
     BOOL inform_on_close;
     json_t *jn_alias_list;
 
-    // struct mosquitto_msg_data msgs_in; // TODO to remove, use tr2_queue instead
-    // struct mosquitto_msg_data msgs_out; // TODO to remove, use tr2_queue instead
-
     json_t *tranger_queues;
     tr2_queue_t *trq_in_msgs;
     tr2_queue_t *trq_out_msgs;
@@ -769,7 +766,7 @@ PRIVATE int open_queues(hgobj gobj)
         queue_name,
         "tm",
         0,  // system_flag
-        0,  // max_inflight_messages TODO
+        priv->max_inflight_messages,
         gobj_read_integer_attr(gobj, "backup_queue_size")
     );
 
@@ -790,7 +787,7 @@ PRIVATE int open_queues(hgobj gobj)
         queue_name,
         "tm",
         0,  // system_flag
-        0,  // max_inflight_messages TODO
+        priv->max_inflight_messages,
         gobj_read_integer_attr(gobj, "backup_queue_size")
     );
 
@@ -805,9 +802,6 @@ PRIVATE int open_queues(hgobj gobj)
 PRIVATE void close_queues(hgobj gobj)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
-
-    // TODO new dl_flush(&priv->dl_msgs_in, db_free_client_msg);
-    // dl_flush(&priv->dl_msgs_out, db_free_client_msg);
 
     EXEC_AND_RESET(tr2q_close, priv->trq_in_msgs);
     EXEC_AND_RESET(tr2q_close, priv->trq_out_msgs);
@@ -1838,7 +1832,7 @@ PRIVATE int mqtt_property_add_int32(hgobj gobj, json_t *proplist, int identifier
 /***************************************************************************
  *
  ***************************************************************************/
-// PRIVATE int mosquitto_property_add_varint(hgobj gobj, json_t *proplist, int identifier, uint32_t value) // TODO
+// PRIVATE int mosquitto_property_add_varint(hgobj gobj, json_t *proplist, int identifier, uint32_t value)
 // {
 //     if(!proplist || value > 268435455) {
 //         gobj_log_error(gobj, 0,
@@ -2837,7 +2831,7 @@ PRIVATE json_t *property_get_property(json_t *properties, int identifier)
  *  Return json_int_t, -1 is property not available
  *  return value is an uint8_t
  ***************************************************************************/
-// PRIVATE json_int_t property_read_byte(json_t *properties, int identifier) // TODO
+// PRIVATE json_int_t property_read_byte(json_t *properties, int identifier)
 // {
 //     hgobj gobj = 0;
 //
@@ -2870,7 +2864,7 @@ PRIVATE json_t *property_get_property(json_t *properties, int identifier)
  *  Return json_int_t, -1 is property not available
  *  return value is an uint16_t
  ***************************************************************************/
-// PRIVATE json_int_t property_read_int16(json_t *properties, int identifier) // TODO
+// PRIVATE json_int_t property_read_int16(json_t *properties, int identifier)
 // {
 //     hgobj gobj = 0;
 //
@@ -2899,7 +2893,7 @@ PRIVATE json_t *property_get_property(json_t *properties, int identifier)
  *  Return json_int_t, -1 is property not available
  *  return value is an uint32_t
  ***************************************************************************/
-// PRIVATE json_int_t property_read_int32(json_t *properties, int identifier) // TODO
+// PRIVATE json_int_t property_read_int32(json_t *properties, int identifier)
 // {
 //     hgobj gobj = 0;
 //
@@ -2954,7 +2948,7 @@ PRIVATE json_int_t property_read_varint(json_t *properties, int identifier)
  *  Return json_int_t, -1 is property not available
  *  return value is an uint32_t
  ***************************************************************************/
-// PRIVATE json_int_t property_read_binary(json_t *properties, int identifier) // TODO
+// PRIVATE json_int_t property_read_binary(json_t *properties, int identifier)
 // {
 //     hgobj gobj = 0;
 //
@@ -3012,7 +3006,7 @@ PRIVATE const char *property_read_string(json_t *properties, int identifier)
 /***************************************************************************
  *
  ***************************************************************************/
-// PRIVATE const char *property_read_string_pair(json_t *properties, int identifier) // TODO
+// PRIVATE const char *property_read_string_pair(json_t *properties, int identifier)
 // {
 //     hgobj gobj = 0;
 //
@@ -4282,15 +4276,6 @@ PRIVATE int handle__connect(hgobj gobj, gbuffer_t *gbuf, hgobj src)
     gobj_write_bool_attr(gobj, "will", will);
     gobj_write_bool_attr(gobj, "will_retain", will_retain);
     gobj_write_integer_attr(gobj, "will_qos", will_qos);
-
-    // TODO do remove will if error (refuse connection)
-    // if(context->will) {
-    //     mosquitto_property_free_all(&context->will->properties);
-    //     mosquitto__free(context->will->msg.payload);
-    //     mosquitto__free(context->will->msg.topic);
-    //     mosquitto__free(context->will);
-    //     context->will = NULL;
-    // }
 
     /*-------------------------------------------*
      *      Keepalive
