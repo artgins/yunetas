@@ -1518,7 +1518,7 @@ PRIVATE int db__message_insert(
 
     // message__queue(
     //     hgobj gobj,
-    //     json_t *kw_mqtt_msg,
+    //     json_t *kw_mqtt_msg,  // owned
     //     mqtt_msg_direction_t dir,
     //     user_flag_t user_flag,
     //     json_int_t t
@@ -6431,7 +6431,7 @@ PRIVATE int handle__publish_s(
                 json_t *kw_iev = iev_create(
                     gobj,
                     EV_MQTT_MESSAGE,
-                    kw_mqtt_msg // owned
+                    kw_incref(kw_mqtt_msg) // owned
                 );
                 rc = gobj_publish_event(gobj, EV_ON_IEV_MESSAGE, kw_iev); // sub__messages_queue
             }
@@ -6447,7 +6447,7 @@ PRIVATE int handle__publish_s(
                 json_t *kw_iev = iev_create(
                     gobj,
                     EV_MQTT_MESSAGE,
-                    kw_mqtt_msg // owned
+                    kw_incref(kw_mqtt_msg) // owned
                 );
                 rc = gobj_publish_event(gobj, EV_ON_IEV_MESSAGE, kw_iev); // sub__messages_queue
                 // return # subscribers
@@ -6472,7 +6472,7 @@ PRIVATE int handle__publish_s(
                 user_flag_set_state(&user_flag, mosq_ms_wait_for_pubrel);
                 message__queue(
                     gobj,
-                    kw_mqtt_msg, // owned
+                    kw_incref(kw_mqtt_msg), // owned
                     mosq_md_in,
                     user_flag
                 );
@@ -6484,6 +6484,8 @@ PRIVATE int handle__publish_s(
             }
             break;
     }
+
+    KW_DECREF(kw_mqtt_msg)
 
     /*
      *  Pull from input queued list
@@ -6690,7 +6692,7 @@ PRIVATE int handle__publish_c(
                 json_t *kw_iev = iev_create(
                     gobj,
                     EV_MQTT_MESSAGE,
-                    kw_mqtt_msg // owned
+                    kw_incref(kw_mqtt_msg) // owned
                 );
 
                 gobj_publish_event(gobj, EV_ON_IEV_MESSAGE, kw_iev);
@@ -6708,7 +6710,7 @@ PRIVATE int handle__publish_c(
                 json_t *kw_iev = iev_create(
                     gobj,
                     EV_MQTT_MESSAGE,
-                    kw_mqtt_msg // owned
+                    kw_incref(kw_mqtt_msg) // owned
                 );
 
                 gobj_publish_event(gobj, EV_ON_IEV_MESSAGE, kw_iev);
@@ -6730,7 +6732,7 @@ PRIVATE int handle__publish_c(
                 user_flag_set_state(&user_flag, mosq_ms_wait_for_pubrel);
                 message__queue(
                     gobj,
-                    kw_mqtt_msg, // owned
+                    kw_incref(kw_mqtt_msg), // owned
                     mosq_md_in,
                     user_flag
                 );
@@ -6742,6 +6744,8 @@ PRIVATE int handle__publish_c(
             }
             break;
     }
+
+    KW_DECREF(kw_mqtt_msg)
 
     /*
      *  Pull from input queued list
@@ -8342,9 +8346,9 @@ PRIVATE int ac_send_message(hgobj gobj, const char *event, json_t *kw_mqtt_msg, 
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
-    /*----------------------*
-     *   Entry parameters
-     *----------------------*/
+    /*------------------------*
+     *   Get info of message
+     *------------------------*/
     const char *topic = kw_get_str(gobj, kw_mqtt_msg, "topic", "", KW_REQUIRED);
     gbuffer_t *gbuf = (gbuffer_t *)(uintptr_t)kw_get_int(
         gobj, kw_mqtt_msg, "gbuffer", 0, KW_REQUIRED
@@ -8385,13 +8389,12 @@ PRIVATE int ac_send_message(hgobj gobj, const char *event, json_t *kw_mqtt_msg, 
 
         message__queue(
             gobj,
-            kw_mqtt_msg,
+            kw_incref(kw_mqtt_msg), // owned
             mosq_md_out,
             user_flag
         );
+        message__release_to_inflight(gobj, mosq_md_out);
     }
-
-    //message__release_to_inflight(gobj, mosq_md_out);
 
     KW_DECREF(kw_mqtt_msg)
     return 0;
@@ -8614,79 +8617,13 @@ PRIVATE int ac_mqtt_client_send_publish(hgobj gobj, const char *event, json_t *k
 
         message__queue(
             gobj,
-            kw_mqtt_msg,
+            kw_incref(kw_mqtt_msg),
             mosq_md_out,
             user_flag
         );
-
-        // TODO this base64 to tr_queue.c
-        // if(payloadlen) {
-        //     gbuffer_t *gbuf_base64 = gbuffer_binary_to_base64(payload, payloadlen);
-        //     if(!gbuf_base64) {
-        //         gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
-        //             "function",     "%s", __FUNCTION__,
-        //             "msgset",       "%s", MSGSET_INTERNAL_ERROR,
-        //             "msg",          "%s", "Mqtt publish: No memory for gbuf_base64",
-        //             "topic",        "%s", topic,
-        //             "payloadlen",   "%d", (int)payloadlen,
-        //             NULL
-        //         );
-        //         KW_DECREF(kw)
-        //         return -1;
-        //     }
-        //     char *data = gbuffer_cur_rd_pointer(gbuf_base64);
-        //     json_t *jn_bf = json_string(data);
-        //     if(!jn_bf) {
-        //         gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
-        //             "function",     "%s", __FUNCTION__,
-        //             "msgset",       "%s", MSGSET_INTERNAL_ERROR,
-        //             "msg",          "%s", "Mqtt publish: Cannot jsonfy base64 data",
-        //             "topic",        "%s", topic,
-        //             "payloadlen",   "%d", (int)payloadlen,
-        //             NULL
-        //         );
-        //         gbuffer_decref(gbuf_base64);
-        //         KW_DECREF(kw)
-        //         return -1;
-        //     }
-        //     json_object_set_new(kw_mqtt_msg, "data", jn_bf);
-        //     gbuffer_decref(gbuf_base64);
-        // } else {
-        //     json_object_set_new(kw_mqtt_msg, "data", json_string(""));
-        // }
-
-        // mosquitto_message_all_t *message = GBMEM_MALLOC(sizeof(mosquitto_message_all_t));
-        // message->timestamp = mosquitto_time();
-        // message->msg.mid = mid;
-        // message->expiry_interval = expiry_interval;
-        //
-        // if(topic) {
-        //     message->msg.topic = gbmem_strdup(topic);
-        //     if(!message->msg.topic) {
-        //         message__cleanup(message);
-        //         KW_DECREF(kw)
-        //         return -1;
-        //     }
-        // }
-        // if(payloadlen) {
-        //     message->msg.payload = gbuffer_incref(gbuf_payload);
-        //     if(!message->msg.payload) {
-        //         message__cleanup(message);
-        //         KW_DECREF(kw)
-        //         return -1;
-        //     }
-        // } else {
-        //     message->msg.payload = NULL;
-        // }
-        // message->msg.qos = (uint8_t)qos;
-        // message->msg.retain = retain;
-        // message->dup = FALSE;
-        // message->properties = json_incref(properties);
-        //
-        // message->state = mosq_ms_invalid;
-        // message__queue(gobj, message, mosq_md_out);
     }
 
+    KW_DECREF(kw_mqtt_msg)
     KW_DECREF(kw)
     return 0;
 }
