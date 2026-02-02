@@ -8463,6 +8463,9 @@ PRIVATE int ac_send_message(hgobj gobj, const char *event, json_t *kw, hgobj src
         );
     }
 
+    //message__release_to_inflight(gobj, mosq_md_out);
+
+
     KW_DECREF(kw)
     return 0;
 }

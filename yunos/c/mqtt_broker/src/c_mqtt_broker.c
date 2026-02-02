@@ -2744,9 +2744,6 @@ PRIVATE int subs__send(
      *  client/session is connected
      *      Send it the message
      *---------------------------------*/
-
-    //message__release_to_inflight(gobj, mosq_md_out);
-
     kw_set_subdict_value(
         gobj,
         new_msg,
