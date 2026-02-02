@@ -858,8 +858,8 @@ PRIVATE int message__out_update(
     enum mqtt_msg_state state,
     int qos
 ) {
-    PRIVATE_DATA *priv = gobj_priv_data(gobj);
-    struct mosquitto_message_all *message, *tmp;
+    // PRIVATE_DATA *priv = gobj_priv_data(gobj);
+    // struct mosquitto_message_all *message, *tmp;
 
     // DL_FOREACH_SAFE(&priv->msgs_out.dl_inflight, message, tmp) {
     //     if(message->msg.mid == mid) {
@@ -882,7 +882,6 @@ PRIVATE int message__release_to_inflight(hgobj gobj, enum mqtt_msg_direction dir
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
     /* mosq->*_message_mutex should be locked before entering this function */
-    struct mosquitto_message_all *cur, *tmp;
     int rc = MOSQ_ERR_SUCCESS;
 
     if(dir == mosq_md_out) {
@@ -931,26 +930,21 @@ PRIVATE int message__queue(
 ) {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
-    q2_msg_t *qmsg = NULL;
     if(dir == mosq_md_out) {
-        // dl_add(&priv->msgs_out.dl_inflight, message);
-        qmsg = tr2q_append(
+        tr2q_append(
             priv->trq_out_msgs,
             0,              // __t__ if 0 then the time will be set by TimeRanger with now time
             kw_mqtt_msg,    // owned
             user_flag.value // extra flags in addition to TRQ_MSG_PENDING
         );
-        // TODO priv->msgs_out.queue_len++;
 
     } else {
-        // dl_add(&priv->msgs_in.dl_inflight, message);
-        qmsg = tr2q_append(
+        tr2q_append(
             priv->trq_in_msgs,
             0,              // __t__ if 0 then the time will be set by TimeRanger with now time
             kw_mqtt_msg,    // owned
             user_flag.value // extra flags in addition to TRQ_MSG_PENDING
         );
-        // TODO priv->msgs_in.queue_len++;
     }
 
     return message__release_to_inflight(gobj, dir);
@@ -1010,139 +1004,6 @@ PRIVATE int message__delete(
 }
 
 /***************************************************************************
- *  Using in context context__cleanup()
- ***************************************************************************/
-PRIVATE int db__messages_delete(hgobj gobj, BOOL force_free)
-{
-    return -1;
-}
-
-/***************************************************************************
- * This will result in any outgoing packets going unsent. If we're disconnected
- * forcefully then it is usually an error condition and shouldn't be a problem,
- * but it will mean that CONNACK messages will never get sent for bad protocol
- * versions for example.
- ***************************************************************************/
-PRIVATE void context__cleanup(hgobj gobj, BOOL force_free)
-{
-}
-
-/***************************************************************************
- *  Using in handle__connack(), handle__connect()
- ***************************************************************************/
-PRIVATE int db__message_reconnect_reset(hgobj gobj)
-{
-    return -1;
-}
-
-/***************************************************************************
- *  Using in handle__connect()
- ***************************************************************************/
-PRIVATE void db__expire_all_messages(hgobj gobj)
-{
-}
-
-/***************************************************************************
- *  Using in handle__connect() and handle__connack()
- ***************************************************************************/
-PRIVATE int db__message_write_inflight_out_all(hgobj gobj)
-{
-    return -1;
-}
-
-/***************************************************************************
- *  Using in handle__connack(), handle__connect(), handle__subscribe, websocket
- ***************************************************************************/
-PRIVATE int db__message_write_queued_out(hgobj gobj)
-{
-    return -1;
-}
-
-/***************************************************************************
- *  This function requires topic to be allocated on the heap.
- *  Once called, it owns topic and will free it on error.
- *  Likewise, payload and properties.
- *  Using in handle__publish, loop, persist_read
- ***************************************************************************/
-// PRIVATE int db__message_store(
-//     hgobj gobj,
-//     struct mosquitto_msg_store *stored,
-//     uint32_t message_expiry_interval,
-//     int store_id, // TODO dbid_t store_id,
-//     enum mqtt_msg_origin origin
-// ) {
-//     PRIVATE_DATA *priv = gobj_priv_data(gobj);
-//
-    // TODO
-    // if(source && source->id) {
-    //     stored->source_id = mosquitto__strdup(source->id);
-    // } else {
-    //     stored->source_id = mosquitto__strdup("");
-    // }
-    // if(!stored->source_id) {
-    //     log__printf(NULL, MOSQ_LOG_ERR, "Error: Out of memory.");
-    //     db__msg_store_free(stored);
-    //     return MOSQ_ERR_NOMEM;
-    // }
-    //
-    // if(source && source->username) {
-    //     stored->source_username = mosquitto__strdup(source->username);
-    //     if(!stored->source_username) {
-    //         db__msg_store_free(stored);
-    //         return MOSQ_ERR_NOMEM;
-    //     }
-    // }
-    // if(source) {
-    //     stored->source_listener = source->listener;
-    // }
-    // stored->mid = 0;
-    // stored->origin = origin;
-    // if(message_expiry_interval > 0) {
-    //     stored->message_expiry_time = db.now_real_s + message_expiry_interval;
-    // } else {
-    //     stored->message_expiry_time = 0;
-    // }
-    //
-    // stored->dest_ids = NULL;
-    // stored->dest_id_count = 0;
-    // db.msg_store_count++;
-    // db.msg_store_bytes += stored->payloadlen;
-    //
-    // if(!store_id) {
-    //     stored->db_id = ++db.last_db_id;
-    // } else {
-    //     stored->db_id = store_id;
-    // }
-    //
-    // db__msg_store_add(stored);
-//
-//     return MOSQ_ERR_SUCCESS;
-// }
-
-/***************************************************************************
- *
- ***************************************************************************/
-// PRIVATE void db__msg_store_remove(struct mosquitto_msg_store *store)
-// {
-    // TODO
-    // if(store->prev) {
-    //     store->prev->next = store->next;
-    //     if(store->next) {
-    //         store->next->prev = store->prev;
-    //     }
-    // } else {
-    //     db.msg_store = store->next;
-    //     if(store->next) {
-    //         store->next->prev = NULL;
-    //     }
-    // }
-    // db.msg_store_count--;
-    // db.msg_store_bytes -= store->payloadlen;
-    //
-    // db__msg_store_free(store);
-// }
-
-/***************************************************************************
  *
  ***************************************************************************/
 PRIVATE void db__message_remove_from_inflight(
@@ -1170,8 +1031,7 @@ PRIVATE void db__message_remove_from_inflight(
  ***************************************************************************/
 PRIVATE BOOL db__ready_for_flight(hgobj gobj, enum mqtt_msg_direction dir, int qos)
 {
-    PRIVATE_DATA *priv = gobj_priv_data(gobj);
-    struct mosquitto_msg_data *msgs;
+    // PRIVATE_DATA *priv = gobj_priv_data(gobj);
     BOOL valid_bytes = 0;
     BOOL valid_count = 0;
 
@@ -1495,210 +1355,6 @@ PRIVATE int db__message_remove_incoming_dup(hgobj gobj, uint16_t mid)
 
     // Silence please
     return MOSQ_ERR_NOT_FOUND;
-}
-
-/***************************************************************************
- *  Using in handle__publish(), loop, retain
- *      wait completion of the input message qos 2
- *      insert in the input inflight queue
- ***************************************************************************/
-PRIVATE int db__message_insert(
-    hgobj gobj,
-    json_t *kw_mqtt_msg
-    // uint16_t mid,
-    // enum mqtt_msg_direction dir,
-    // uint8_t qos,
-    // BOOL retain,
-    // struct mosquitto_msg_store *stored,
-    // json_t *properties,
-    // BOOL update
-) {
-    PRIVATE_DATA *priv = gobj_priv_data(gobj);
-    int rc = 0;
-
-    // message__queue(
-    //     hgobj gobj,
-    //     json_t *kw_mqtt_msg,  // owned
-    //     mqtt_msg_direction_t dir,
-    //     user_flag_t user_flag,
-    //     json_int_t t
-    // ) {
-
-    // struct mosquitto_client_msg *msg;
-    // struct mosquitto_msg_data *msg_data;
-    // enum mqtt_msg_state state = mosq_ms_invalid;
-    // int i;
-    // char **dest_ids;
-    //
-    // if(!priv->client_id) {
-    //     return MOSQ_ERR_SUCCESS; /* Protect against unlikely "client is disconnected but not entirely freed" scenario */
-    // }
-    //
-    // if(dir == mosq_md_out) {
-    //     msg_data = &priv->msgs_out;
-    // } else {
-    //     msg_data = &priv->msgs_in;
-    // }
-    //
-    // /* Check whether we've already sent this message to this client
-    //  * for outgoing messages only.
-    //  * If retain==true then this is a stale retained message and so should be
-    //  * sent regardless. FIXME - this does mean retained messages will received
-    //  * multiple times for overlapping subscriptions, although this is only the
-    //  * case for SUBSCRIPTION with multiple subs in so is a minor concern.
-    //  */
-    // if(priv->protocol_version != mosq_p_mqtt5
-    //         && priv->allow_duplicate_messages == FALSE
-    //         && dir == mosq_md_out && retain == FALSE && stored->dest_ids) {
-    //
-    //     for(i=0; i<stored->dest_id_count; i++) {
-    //         if(stored->dest_ids[i] && !strcmp(stored->dest_ids[i], priv->client_id)) {
-    //             /* We have already sent this message to this client. */
-    //             JSON_DECREF(properties);
-    //             return MOSQ_ERR_SUCCESS;
-    //         }
-    //     }
-    // }
-
-    // TODO
-    // if(context->sock == INVALID_SOCKET) {
-    //     /* Client is not connected only queue messages with QoS>0. */
-    //     if(qos == 0 && !db.config->queue_qos0_messages) {
-    //         if(!context->bridge) {
-    //             mosquitto_property_free_all(&properties);
-    //             return 2;
-    //         } else {
-    //             if(context->bridge->start_type != bst_lazy) {
-    //                 mosquitto_property_free_all(&properties);
-    //                 return 2;
-    //             }
-    //         }
-    //     }
-    //     if(context->bridge && context->bridge->clean_start_local == true) {
-    //         mosquitto_property_free_all(&properties);
-    //         return 2;
-    //     }
-    // }
-
-    // TODO
-    // if(context->sock != INVALID_SOCKET) {
-    //     if(db__ready_for_flight(context, dir, qos)) {
-    //         if(dir == mosq_md_out) {
-    //             switch(qos) {
-    //                 case 0:
-    //                     state = mosq_ms_publish_qos0;
-    //                     break;
-    //                 case 1:
-    //                     state = mosq_ms_publish_qos1;
-    //                     break;
-    //                 case 2:
-    //                     state = mosq_ms_publish_qos2;
-    //                     break;
-    //             }
-    //         } else {
-    //             if(qos == 2) {
-    //                 state = mosq_ms_wait_for_pubrel;
-    //             } else {
-    //                 mosquitto_property_free_all(&properties);
-    //                 return 1;
-    //             }
-    //         }
-    //     } else if(qos != 0 && db__ready_for_queue(context, qos, msg_data)) {
-    //         state = mosq_ms_queued;
-    //         rc = 2;
-    //     } else {
-    //         /* Dropping message due to full queue. */
-    //         if(context->is_dropping == FALSE) {
-    //             context->is_dropping = true;
-    //             log__printf(NULL, MOSQ_LOG_NOTICE,
-    //                     "Outgoing messages are being dropped for client %s.",
-    //                     context->id);
-    //         }
-    //         G_MSGS_DROPPED_INC();
-    //         mosquitto_property_free_all(&properties);
-    //         return 2;
-    //     }
-    // } else {
-    //     if (db__ready_for_queue(context, qos, msg_data)) {
-    //         state = mosq_ms_queued;
-    //     } else {
-    //         G_MSGS_DROPPED_INC();
-    //         if(context->is_dropping == FALSE) {
-    //             context->is_dropping = true;
-    //             log__printf(NULL, MOSQ_LOG_NOTICE,
-    //                     "Outgoing messages are being dropped for client %s.",
-    //                     context->id);
-    //         }
-    //         mosquitto_property_free_all(&properties);
-    //         return 2;
-    //     }
-    // }
-    // assert(state != mosq_ms_invalid);
-
-#ifdef WITH_PERSISTENCE
-    if(state == mosq_ms_queued) {
-        db.persistence_changes++;
-    }
-#endif
-
-    // msg = mosquitto__calloc(1, sizeof(struct mosquitto_client_msg));
-    // if(!msg) return MOSQ_ERR_NOMEM;
-    // msg->prev = NULL;
-    // msg->next = NULL;
-    // msg->store = stored;
-    // db__msg_store_ref_inc(msg->store);
-    // msg->mid = mid;
-    // msg->timestamp = db.now_s;
-    // msg->direction = dir;
-    // msg->state = state;
-    // msg->dup = FALSE;
-    //     msg->qos = qos;
-    // msg->retain = retain;
-    // msg->properties = properties;
-    //
-    // if(state == mosq_ms_queued) {
-    //     DL_APPEND(msg_data->queued, msg);
-    //     db__msg_add_to_queued_stats(msg_data, msg);
-    // } else {
-    //     DL_APPEND(msg_data->inflight, msg);
-    //     db__msg_add_to_inflight_stats(msg_data, msg);
-    // }
-    //
-    // if(db.config->allow_duplicate_messages == FALSE && dir == mosq_md_out && retain == FALSE) {
-    //     /* Record which client ids this message has been sent to so we can avoid duplicates.
-    //      * Outgoing messages only.
-    //      * If retain==true then this is a stale retained message and so should be
-    //      * sent regardless. FIXME - this does mean retained messages will received
-    //      * multiple times for overlapping subscriptions, although this is only the
-    //      * case for SUBSCRIPTION with multiple subs in so is a minor concern.
-    //      */
-    //     dest_ids = mosquitto__realloc(stored->dest_ids, sizeof(char *)*(size_t)(stored->dest_id_count+1));
-    //     if(dest_ids) {
-    //         stored->dest_ids = dest_ids;
-    //         stored->dest_id_count++;
-    //         stored->dest_ids[stored->dest_id_count-1] = mosquitto__strdup(context->id);
-    //         if(!stored->dest_ids[stored->dest_id_count-1]) {
-    //             return MOSQ_ERR_NOMEM;
-    //         }
-    //     } else {
-    //         return MOSQ_ERR_NOMEM;
-    //     }
-    // }
-    //
-    // if(dir == mosq_md_out && msg->qos > 0 && state != mosq_ms_queued) {
-    //     util__decrement_send_quota(context);
-    // } else if(dir == mosq_md_in && msg->qos > 0 && state != mosq_ms_queued) {
-    //     util__decrement_receive_quota(context);
-    // }
-    //
-    // if(dir == mosq_md_out && update) {
-    //     rc = db__message_write_inflight_out_latest(context);
-    //     if(rc) return rc;
-    //     rc = db__message_write_queued_out(context);
-    //     if(rc) return rc;
-    // }
-
-    return rc;
 }
 
 /***************************************************************************
@@ -2182,34 +1838,34 @@ PRIVATE int mqtt_property_add_int32(hgobj gobj, json_t *proplist, int identifier
 /***************************************************************************
  *
  ***************************************************************************/
-PRIVATE int mosquitto_property_add_varint(hgobj gobj, json_t *proplist, int identifier, uint32_t value)
-{
-    if(!proplist || value > 268435455) {
-        gobj_log_error(gobj, 0,
-            "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_MQTT_ERROR,
-            "msg",          "%s", "Mqtt proplist NULL or value too big",
-            "identifier",   "%d", identifier,
-            NULL
-        );
-        return -1;
-    }
-    if(identifier != MQTT_PROP_SUBSCRIPTION_IDENTIFIER) {
-        gobj_log_error(gobj, 0,
-            "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_MQTT_ERROR,
-            "msg",          "%s", "No MQTT_PROP_SUBSCRIPTION_IDENTIFIER",
-            "identifier",   "%d", identifier,
-            NULL
-        );
-        return -1;
-    }
-
-    const char *property_name = mqtt_property_identifier_to_string(identifier);
-    json_object_set_new(proplist, property_name, json_integer(value));
-
-    return MOSQ_ERR_SUCCESS;
-}
+// PRIVATE int mosquitto_property_add_varint(hgobj gobj, json_t *proplist, int identifier, uint32_t value) // TODO
+// {
+//     if(!proplist || value > 268435455) {
+//         gobj_log_error(gobj, 0,
+//             "function",     "%s", __FUNCTION__,
+//             "msgset",       "%s", MSGSET_MQTT_ERROR,
+//             "msg",          "%s", "Mqtt proplist NULL or value too big",
+//             "identifier",   "%d", identifier,
+//             NULL
+//         );
+//         return -1;
+//     }
+//     if(identifier != MQTT_PROP_SUBSCRIPTION_IDENTIFIER) {
+//         gobj_log_error(gobj, 0,
+//             "function",     "%s", __FUNCTION__,
+//             "msgset",       "%s", MSGSET_MQTT_ERROR,
+//             "msg",          "%s", "No MQTT_PROP_SUBSCRIPTION_IDENTIFIER",
+//             "identifier",   "%d", identifier,
+//             NULL
+//         );
+//         return -1;
+//     }
+//
+//     const char *property_name = mqtt_property_identifier_to_string(identifier);
+//     json_object_set_new(proplist, property_name, json_integer(value));
+//
+//     return MOSQ_ERR_SUCCESS;
+// }
 
 /***************************************************************************
  *
@@ -3181,92 +2837,92 @@ PRIVATE json_t *property_get_property(json_t *properties, int identifier)
  *  Return json_int_t, -1 is property not available
  *  return value is an uint8_t
  ***************************************************************************/
-PRIVATE json_int_t property_read_byte(json_t *properties, int identifier)
-{
-    hgobj gobj = 0;
-
-    if(identifier != MQTT_PROP_PAYLOAD_FORMAT_INDICATOR
-            && identifier != MQTT_PROP_REQUEST_PROBLEM_INFORMATION
-            && identifier != MQTT_PROP_REQUEST_RESPONSE_INFORMATION
-            && identifier != MQTT_PROP_MAXIMUM_QOS
-            && identifier != MQTT_PROP_RETAIN_AVAILABLE
-            && identifier != MQTT_PROP_WILDCARD_SUB_AVAILABLE
-            && identifier != MQTT_PROP_SUBSCRIPTION_ID_AVAILABLE
-            && identifier != MQTT_PROP_SHARED_SUB_AVAILABLE
-    ) {
-        gobj_log_error(gobj, 0,
-            "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_MQTT_ERROR,
-            "msg",          "%s", "Bad byte property identifier",
-            "identifier",   "%d", identifier,
-            NULL
-        );
-    }
-
-    json_t *property = property_get_property(properties, identifier);
-    if(!property) {
-        return -1;
-    }
-    return kw_get_int(gobj, property, "value", -1, KW_REQUIRED);
-}
+// PRIVATE json_int_t property_read_byte(json_t *properties, int identifier) // TODO
+// {
+//     hgobj gobj = 0;
+//
+//     if(identifier != MQTT_PROP_PAYLOAD_FORMAT_INDICATOR
+//             && identifier != MQTT_PROP_REQUEST_PROBLEM_INFORMATION
+//             && identifier != MQTT_PROP_REQUEST_RESPONSE_INFORMATION
+//             && identifier != MQTT_PROP_MAXIMUM_QOS
+//             && identifier != MQTT_PROP_RETAIN_AVAILABLE
+//             && identifier != MQTT_PROP_WILDCARD_SUB_AVAILABLE
+//             && identifier != MQTT_PROP_SUBSCRIPTION_ID_AVAILABLE
+//             && identifier != MQTT_PROP_SHARED_SUB_AVAILABLE
+//     ) {
+//         gobj_log_error(gobj, 0,
+//             "function",     "%s", __FUNCTION__,
+//             "msgset",       "%s", MSGSET_MQTT_ERROR,
+//             "msg",          "%s", "Bad byte property identifier",
+//             "identifier",   "%d", identifier,
+//             NULL
+//         );
+//     }
+//
+//     json_t *property = property_get_property(properties, identifier);
+//     if(!property) {
+//         return -1;
+//     }
+//     return kw_get_int(gobj, property, "value", -1, KW_REQUIRED);
+// }
 
 /***************************************************************************
  *  Return json_int_t, -1 is property not available
  *  return value is an uint16_t
  ***************************************************************************/
-PRIVATE json_int_t property_read_int16(json_t *properties, int identifier)
-{
-    hgobj gobj = 0;
-
-    if(identifier != MQTT_PROP_SERVER_KEEP_ALIVE
-            && identifier != MQTT_PROP_RECEIVE_MAXIMUM
-            && identifier != MQTT_PROP_TOPIC_ALIAS_MAXIMUM
-            && identifier != MQTT_PROP_TOPIC_ALIAS
-    ) {
-        gobj_log_error(gobj, 0,
-            "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_MQTT_ERROR,
-            "msg",          "%s", "Bad int16 property identifier",
-            "identifier",   "%d", identifier,
-            NULL
-        );
-    }
-
-    json_t *property = property_get_property(properties, identifier);
-    if(!property) {
-        return -1;
-    }
-    return kw_get_int(gobj, property, "value", -1, KW_REQUIRED);
-}
+// PRIVATE json_int_t property_read_int16(json_t *properties, int identifier) // TODO
+// {
+//     hgobj gobj = 0;
+//
+//     if(identifier != MQTT_PROP_SERVER_KEEP_ALIVE
+//             && identifier != MQTT_PROP_RECEIVE_MAXIMUM
+//             && identifier != MQTT_PROP_TOPIC_ALIAS_MAXIMUM
+//             && identifier != MQTT_PROP_TOPIC_ALIAS
+//     ) {
+//         gobj_log_error(gobj, 0,
+//             "function",     "%s", __FUNCTION__,
+//             "msgset",       "%s", MSGSET_MQTT_ERROR,
+//             "msg",          "%s", "Bad int16 property identifier",
+//             "identifier",   "%d", identifier,
+//             NULL
+//         );
+//     }
+//
+//     json_t *property = property_get_property(properties, identifier);
+//     if(!property) {
+//         return -1;
+//     }
+//     return kw_get_int(gobj, property, "value", -1, KW_REQUIRED);
+// }
 
 /***************************************************************************
  *  Return json_int_t, -1 is property not available
  *  return value is an uint32_t
  ***************************************************************************/
-PRIVATE json_int_t property_read_int32(json_t *properties, int identifier)
-{
-    hgobj gobj = 0;
-
-    if(identifier != MQTT_PROP_MESSAGE_EXPIRY_INTERVAL
-            && identifier != MQTT_PROP_SESSION_EXPIRY_INTERVAL
-            && identifier != MQTT_PROP_WILL_DELAY_INTERVAL
-            && identifier != MQTT_PROP_MAXIMUM_PACKET_SIZE
-    ) {
-        gobj_log_error(gobj, 0,
-            "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_MQTT_ERROR,
-            "msg",          "%s", "Bad int32 property identifier",
-            "identifier",   "%d", identifier,
-            NULL
-        );
-    }
-
-    json_t *property = property_get_property(properties, identifier);
-    if(!property) {
-        return -1;
-    }
-    return kw_get_int(gobj, property, "value", -1, KW_REQUIRED);
-}
+// PRIVATE json_int_t property_read_int32(json_t *properties, int identifier) // TODO
+// {
+//     hgobj gobj = 0;
+//
+//     if(identifier != MQTT_PROP_MESSAGE_EXPIRY_INTERVAL
+//             && identifier != MQTT_PROP_SESSION_EXPIRY_INTERVAL
+//             && identifier != MQTT_PROP_WILL_DELAY_INTERVAL
+//             && identifier != MQTT_PROP_MAXIMUM_PACKET_SIZE
+//     ) {
+//         gobj_log_error(gobj, 0,
+//             "function",     "%s", __FUNCTION__,
+//             "msgset",       "%s", MSGSET_MQTT_ERROR,
+//             "msg",          "%s", "Bad int32 property identifier",
+//             "identifier",   "%d", identifier,
+//             NULL
+//         );
+//     }
+//
+//     json_t *property = property_get_property(properties, identifier);
+//     if(!property) {
+//         return -1;
+//     }
+//     return kw_get_int(gobj, property, "value", -1, KW_REQUIRED);
+// }
 
 /***************************************************************************
  *  Return json_int_t, -1 is property not available
@@ -3298,28 +2954,28 @@ PRIVATE json_int_t property_read_varint(json_t *properties, int identifier)
  *  Return json_int_t, -1 is property not available
  *  return value is an uint32_t
  ***************************************************************************/
-PRIVATE json_int_t property_read_binary(json_t *properties, int identifier) // TODO
-{
-    hgobj gobj = 0;
-
-    if(identifier != MQTT_PROP_CORRELATION_DATA
-            && identifier != MQTT_PROP_AUTHENTICATION_DATA
-    ) {
-        gobj_log_error(gobj, 0,
-            "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_MQTT_ERROR,
-            "msg",          "%s", "Bad binary property identifier",
-            "identifier",   "%d", identifier,
-            NULL
-        );
-    }
-
-    json_t *property = property_get_property(properties, identifier);
-    if(!property) {
-        return -1;
-    }
-    return kw_get_int(gobj, property, "value", -1, KW_REQUIRED);
-}
+// PRIVATE json_int_t property_read_binary(json_t *properties, int identifier) // TODO
+// {
+//     hgobj gobj = 0;
+//
+//     if(identifier != MQTT_PROP_CORRELATION_DATA
+//             && identifier != MQTT_PROP_AUTHENTICATION_DATA
+//     ) {
+//         gobj_log_error(gobj, 0,
+//             "function",     "%s", __FUNCTION__,
+//             "msgset",       "%s", MSGSET_MQTT_ERROR,
+//             "msg",          "%s", "Bad binary property identifier",
+//             "identifier",   "%d", identifier,
+//             NULL
+//         );
+//     }
+//
+//     json_t *property = property_get_property(properties, identifier);
+//     if(!property) {
+//         return -1;
+//     }
+//     return kw_get_int(gobj, property, "value", -1, KW_REQUIRED);
+// }
 
 /***************************************************************************
  *  Return NULL if property is not available
@@ -3356,34 +3012,34 @@ PRIVATE const char *property_read_string(json_t *properties, int identifier)
 /***************************************************************************
  *
  ***************************************************************************/
-PRIVATE const char *property_read_string_pair(json_t *properties, int identifier)
-{
-    hgobj gobj = 0;
-
-    // TODO what must to return?
-    if(identifier != MQTT_PROP_CONTENT_TYPE
-            && identifier != MQTT_PROP_RESPONSE_TOPIC
-            && identifier != MQTT_PROP_ASSIGNED_CLIENT_IDENTIFIER
-            && identifier != MQTT_PROP_AUTHENTICATION_METHOD
-            && identifier != MQTT_PROP_RESPONSE_INFORMATION
-            && identifier != MQTT_PROP_SERVER_REFERENCE
-            && identifier != MQTT_PROP_REASON_STRING
-    ) {
-        gobj_log_error(gobj, 0,
-            "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_MQTT_ERROR,
-            "msg",          "%s", "Bad string property identifier",
-            "identifier",   "%d", identifier,
-            NULL
-        );
-    }
-
-    json_t *property = property_get_property(properties, identifier);
-    if(!property) {
-        return NULL;
-    }
-    return kw_get_str(gobj, property, "value", "", 0);
-}
+// PRIVATE const char *property_read_string_pair(json_t *properties, int identifier) // TODO
+// {
+//     hgobj gobj = 0;
+//
+//     // TODO what must to return?
+//     if(identifier != MQTT_PROP_CONTENT_TYPE
+//             && identifier != MQTT_PROP_RESPONSE_TOPIC
+//             && identifier != MQTT_PROP_ASSIGNED_CLIENT_IDENTIFIER
+//             && identifier != MQTT_PROP_AUTHENTICATION_METHOD
+//             && identifier != MQTT_PROP_RESPONSE_INFORMATION
+//             && identifier != MQTT_PROP_SERVER_REFERENCE
+//             && identifier != MQTT_PROP_REASON_STRING
+//     ) {
+//         gobj_log_error(gobj, 0,
+//             "function",     "%s", __FUNCTION__,
+//             "msgset",       "%s", MSGSET_MQTT_ERROR,
+//             "msg",          "%s", "Bad string property identifier",
+//             "identifier",   "%d", identifier,
+//             NULL
+//         );
+//     }
+//
+//     json_t *property = property_get_property(properties, identifier);
+//     if(!property) {
+//         return NULL;
+//     }
+//     return kw_get_str(gobj, property, "value", "", 0);
+// }
 
 /***************************************************************************
  *
@@ -3492,7 +3148,7 @@ PRIVATE int property_process_will(hgobj gobj, json_t *all_properties)
 /***************************************************************************
  *
  ***************************************************************************/
-PRIVATE int packet_check_oversize(hgobj gobj, uint32_t remaining_length)
+PRIVATE int packet__check_oversize(hgobj gobj, uint32_t remaining_length)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
@@ -3560,12 +3216,12 @@ PRIVATE int send__connect(
 ) {
     uint32_t payloadlen;
     uint8_t byte;
-    int rc;
     uint8_t version;
     uint32_t headerlen;
-    uint32_t proplen = 0, varbytes = 0;
+    uint32_t proplen = 0;
+    uint32_t varbytes = 0;
     json_t *local_props = NULL;
-    uint16_t receive_maximum;
+    // uint16_t receive_maximum; TODO
 
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
@@ -3836,7 +3492,7 @@ PRIVATE int send__connack(
         remaining_length += property__get_remaining_length(connack_props);
     }
 
-    if(packet_check_oversize(gobj, remaining_length)) {
+    if(packet__check_oversize(gobj, remaining_length)<0) {
         JSON_DECREF(connack_props);
         return -1;
     }
@@ -4135,7 +3791,7 @@ PRIVATE int send__publish(
             packetlen += proplen + varbytes;
         }
     }
-    if(packet_check_oversize(gobj, packetlen)) {
+    if(packet__check_oversize(gobj, packetlen)<0) {
         gobj_log_error(gobj, 0,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_INTERNAL_ERROR,
@@ -5724,7 +5380,6 @@ PRIVATE int handle__unsubscribe(hgobj gobj, gbuffer_t *gbuf)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
     uint16_t mid;
-    int reason_code_count = 0;
     json_t *properties = NULL;
 
     if(priv->frame_head.flags != 2) {
@@ -5825,7 +5480,6 @@ PRIVATE int handle__unsubscribe(hgobj gobj, gbuffer_t *gbuf)
             "sub", sub, (int)slen
         );
         json_array_append_new(jn_list, jn_sub);
-        reason_code_count++;
     }
 
     JSON_DECREF(properties); // Free unsubscribe command properties
@@ -8393,7 +8047,6 @@ PRIVATE int ac_send_message(hgobj gobj, const char *event, json_t *kw_mqtt_msg, 
             mosq_md_out,
             user_flag
         );
-        message__release_to_inflight(gobj, mosq_md_out);
     }
 
     KW_DECREF(kw_mqtt_msg)
@@ -8735,17 +8388,16 @@ PRIVATE int ac_mqtt_client_send_subscribe(hgobj gobj, const char *event, json_t 
 
     if(priv->maximum_packet_size > 0) {
         remaining_length += 2 + property__get_length_all(properties);
-        // TODO
-        // if(packet__check_oversize(mosq, remaining_length)) {
-        //     gobj_log_error(gobj, 0,
-        //         "function",     "%s", __FUNCTION__,
-        //         "msgset",       "%s", MSGSET_MQTT_ERROR,
-        //         "msg",          "%s", "Mqtt subscribe: message too big",
-        //         NULL
-        //     );
-        //     KW_DECREF(kw)
-        //     return -1;
-        // }
+        if(packet__check_oversize(gobj, remaining_length)<0) {
+            gobj_log_error(gobj, 0,
+                "function",     "%s", __FUNCTION__,
+                "msgset",       "%s", MSGSET_MQTT_ERROR,
+                "msg",          "%s", "Mqtt subscribe: message too big",
+                NULL
+            );
+            KW_DECREF(kw)
+            return -1;
+        }
     }
     if(priv->protocol_version != mosq_p_mqtt5) {
         options = 0;
@@ -8846,17 +8498,16 @@ PRIVATE int ac_mqtt_client_send_unsubscribe(hgobj gobj, const char *event, json_
 
     if(priv->maximum_packet_size > 0) {
         remaining_length += 2U + property__get_length_all(properties);
-        // TODO
-        // if(packet__check_oversize(mosq, remaining_length)) {
-        //     gobj_log_error(gobj, 0,
-        //         "function",     "%s", __FUNCTION__,
-        //         "msgset",       "%s", MSGSET_MQTT_ERROR,
-        //         "msg",          "%s", "Mqtt subscribe: message too big",
-        //         NULL
-        //     );
-        //     KW_DECREF(kw)
-        //     return -1;
-        // }
+        if(packet__check_oversize(gobj, remaining_length)<0) {
+            gobj_log_error(gobj, 0,
+                "function",     "%s", __FUNCTION__,
+                "msgset",       "%s", MSGSET_MQTT_ERROR,
+                "msg",          "%s", "Mqtt subscribe: message too big",
+                NULL
+            );
+            KW_DECREF(kw)
+            return -1;
+        }
     }
 
     send__unsubscribe(
