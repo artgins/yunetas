@@ -2067,6 +2067,7 @@ PRIVATE int retain__queue(
                         "channel_gobj",
                         json_integer((json_int_t)(uintptr_t)_gobj_channel)
                     );
+                    // Sending a retained message
                     gobj_send_event(priv->gobj_input_side, EV_SEND_MESSAGE, new_msg, gobj);
 
                 } else if(msg_qos > 0) {
@@ -2754,6 +2755,7 @@ PRIVATE int subs__send(
         json_integer((json_int_t)(uintptr_t)_gobj_channel)
     );
 
+    // Sending a subscribed message
     gobj_send_event(priv->gobj_input_side, EV_SEND_MESSAGE, new_msg, gobj);
 
     JSON_DECREF(session)

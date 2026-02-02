@@ -8391,7 +8391,6 @@ PRIVATE int ac_send_message(hgobj gobj, const char *event, json_t *kw_mqtt_msg, 
 
     if(qos == 0) {
         uint16_t mid = mosquitto__mid_generate(gobj);
-        json_object_set_new(kw_mqtt_msg, "mid", json_integer(mid));
         send__publish(
             gobj,
             mid,
@@ -8731,7 +8730,6 @@ PRIVATE int ac_mqtt_client_send_subscribe(hgobj gobj, const char *event, json_t 
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
     json_t *subs = kw_get_list(gobj, kw, "subs", 0, 0);
-    int mid = (int)kw_get_int(gobj, kw, "mid", 0, 0);
     int qos = (int)kw_get_int(gobj, kw, "qos", 0, 0);
     int options = (int)kw_get_int(gobj, kw, "options", 0, 0);
     json_t *properties = kw_get_dict(gobj, kw, "properties", 0, 0);
@@ -8848,12 +8846,13 @@ PRIVATE int ac_mqtt_client_send_subscribe(hgobj gobj, const char *event, json_t 
         options = 0;
     }
 
-    if(!mid) {
-        mid = mosquitto__mid_generate(gobj);
-        json_object_set_new(kw, "mid", json_integer(mid));
-    }
-
-    send__subscribe(gobj, mid, subs, qos|options, properties);
+    send__subscribe(
+        gobj,
+        mosquitto__mid_generate(gobj),
+        subs,
+        qos|options,
+        properties
+    );
 
     KW_DECREF(kw)
     return 0;
@@ -8866,7 +8865,6 @@ PRIVATE int ac_mqtt_client_send_unsubscribe(hgobj gobj, const char *event, json_
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
     json_t *subs = kw_get_list(gobj, kw, "subs", 0, 0);
-    int mid = (int)kw_get_int(gobj, kw, "mid", 0, 0);
     json_t *properties = kw_get_dict(gobj, kw, "properties", 0, 0);
 
     if(priv->iamServer) {
@@ -8956,12 +8954,12 @@ PRIVATE int ac_mqtt_client_send_unsubscribe(hgobj gobj, const char *event, json_
         // }
     }
 
-    if(!mid) {
-        mid = mosquitto__mid_generate(gobj);
-        json_object_set_new(kw, "mid", json_integer(mid));
-    }
-
-    send__unsubscribe(gobj, mid, subs, properties);
+    send__unsubscribe(
+        gobj,
+        mosquitto__mid_generate(gobj),
+        subs,
+        properties
+    );
 
     KW_DECREF(kw)
     return 0;
