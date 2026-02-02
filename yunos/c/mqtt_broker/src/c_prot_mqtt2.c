@@ -960,7 +960,6 @@ PRIVATE int message__queue(
  *  Find the message with 'mid',
  *      dequeue
  *      return the message
- *  Used by client ???
  ***************************************************************************/
 PRIVATE int message__remove(
     hgobj gobj,
@@ -994,7 +993,7 @@ PRIVATE int message__remove(
 }
 
 /***************************************************************************
- *  Used by client
+ *
  ***************************************************************************/
 PRIVATE int message__delete(
     hgobj gobj,
