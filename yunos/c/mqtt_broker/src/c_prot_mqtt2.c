@@ -216,8 +216,7 @@ PRIVATE int send__publish(
     uint8_t qos,
     BOOL retain,
     BOOL dup,
-    json_t *cmsg_props, // not owned
-    json_t *store_props, // not owned
+    json_t *properties, // not owned
     uint32_t expiry_interval
 );
 PRIVATE int send__suback(
@@ -4094,8 +4093,7 @@ PRIVATE int send__publish(
     uint8_t qos,
     BOOL retain,
     BOOL dup,
-    json_t *cmsg_props, // not owned
-    json_t *store_props, // not owned
+    json_t *properties, // not owned
     uint32_t expiry_interval
 ) {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
@@ -4133,8 +4131,7 @@ PRIVATE int send__publish(
     }
     if(priv->protocol_version == mosq_p_mqtt5) {
         proplen = 0;
-        proplen += property__get_length_all(cmsg_props);
-        proplen += property__get_length_all(store_props);
+        proplen += property__get_length_all(properties);
         if(expiry_interval > 0) {
             expiry_prop = json_object();
 
@@ -4155,8 +4152,7 @@ PRIVATE int send__publish(
              */
             // TODO is error?
             /* FIXME - Properties too big, don't publish any - should remove some first really */
-            cmsg_props = NULL;
-            store_props = NULL;
+            properties = NULL;
             expiry_interval = 0;
         } else {
             packetlen += proplen + varbytes;
@@ -4193,8 +4189,7 @@ PRIVATE int send__publish(
 
     if(priv->protocol_version == mosq_p_mqtt5) {
         mqtt_write_varint(gbuf, proplen);
-        property__write_all(gobj, gbuf, cmsg_props, FALSE);
-        property__write_all(gbuf, gbuf, store_props, FALSE);
+        property__write_all(gobj, gbuf, properties, FALSE);
         if(expiry_interval > 0) {
             property__write_all(gobj, gbuf, expiry_prop, FALSE);
         }
@@ -8384,6 +8379,8 @@ PRIVATE int ac_send_message(hgobj gobj, const char *event, json_t *kw_mqtt_msg, 
     }
     uint8_t qos = (uint8_t)kw_get_int(gobj, kw_mqtt_msg, "qos", 0, KW_REQUIRED);
     BOOL retain = kw_get_bool(gobj, kw_mqtt_msg, "retain", 0, KW_REQUIRED);
+    json_t *properties = kw_get_dict(gobj, kw_mqtt_msg, "properties", 0, 0);
+    int expiry_interval = (int)kw_get_int(gobj, kw_mqtt_msg, "expiry_interval", 0, 0);
 
     if(qos > priv->max_qos) {
         qos = priv->max_qos;
@@ -8399,9 +8396,8 @@ PRIVATE int ac_send_message(hgobj gobj, const char *event, json_t *kw_mqtt_msg, 
             (uint8_t)qos,
             retain,
             FALSE,      // dup
-            NULL,       // TODO properties cmsg_props
-            NULL,       // TODO properties store_props
-            0           // TODO expiry_interval
+            properties,
+            expiry_interval
         );
     } else {
         user_flag_t user_flag = {0};
@@ -8614,7 +8610,6 @@ PRIVATE int ac_mqtt_client_send_publish(hgobj gobj, const char *event, json_t *k
             retain,
             FALSE,          // dup
             properties,     // cmsg_props
-            NULL,           // store_props
             expiry_interval // expiry_interval
         )==0) {
             /*
