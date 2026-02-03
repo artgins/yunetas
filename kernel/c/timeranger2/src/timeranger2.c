@@ -2921,7 +2921,7 @@ PUBLIC int tranger2_write_user_flag(
     const char *key,        // In tranger2 ('key', '__t__', 'rowid') is required
     uint64_t __t__,
     uint64_t rowid,         // Must be real rowid in the file, not in topic global rowid
-    uint32_t user_flag
+    uint16_t user_flag
 )
 {
     hgobj gobj = (hgobj)json_integer_value(json_object_get(tranger, "gobj"));
@@ -2989,7 +2989,7 @@ PUBLIC int tranger2_set_user_flag(
     const char *key,        // In tranger2 ('key', '__t__', 'rowid') is required
     uint64_t __t__,
     uint64_t i_rowid,         // Must be real rowid in the file, not in topic global rowid
-    uint32_t mask,
+    uint16_t mask,
     BOOL set
 )
 {

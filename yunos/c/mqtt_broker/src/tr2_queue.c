@@ -24,6 +24,13 @@
  *              Prototypes
  ***************************************************************/
 PRIVATE void free_msg(void *msg_);
+/**
+    Mark a message.
+    You must flag a message with TR2Q_MSG_PENDING after append it to queue
+        if you want to recover it in the next open
+        with the flag used in tr2q_load()
+*/
+PRIVATE int tr2q_set_hard_flag(q2_msg_t *msg, uint16_t hard_mark, BOOL set);
 
 /***************************************************************
  *              Data
@@ -79,6 +86,7 @@ PUBLIC tr2_queue_t *tr2q_open(
         0
     );
     if(!trq->topic) {
+        // Error already logged
         tr2q_close(trq);
         return NULL;
     }
@@ -538,7 +546,7 @@ PUBLIC int tr2q_check_pending_rowid(
     uint64_t __t__,
     uint64_t rowid
 ) {
-    uint32_t __user_flag__ = tranger2_read_user_flag(
+    uint16_t __user_flag__ = tranger2_read_user_flag(
         trq->tranger,
         trq->topic_name,
         "",
@@ -557,7 +565,7 @@ PUBLIC int tr2q_check_pending_rowid(
     Put a hard flag in a message.
     You must flag a message after append it if you want recover it in the next open.
  ***************************************************************************/
-PUBLIC int tr2q_set_hard_flag(q2_msg_t *msg, uint32_t hard_mark, BOOL set)
+PRIVATE int tr2q_set_hard_flag(q2_msg_t *msg, uint16_t hard_mark, BOOL set)
 {
     return tranger2_set_user_flag(
         msg->trq->tranger,
@@ -567,6 +575,22 @@ PUBLIC int tr2q_set_hard_flag(q2_msg_t *msg, uint32_t hard_mark, BOOL set)
         msg->md_record.rowid,
         hard_mark,
         set
+    );
+}
+
+/***************************************************************************
+    Save hard_mark (user_flag of timeranger2 metadata)
+    Return the new value
+ ***************************************************************************/
+PUBLIC int tr2q_save_hard_mark(q2_msg_t *msg, uint16_t value)
+{
+    return tranger2_write_user_flag(
+        msg->trq->tranger,
+        tranger2_topic_name(msg->trq->topic),
+        "",
+        msg->md_record.__t__,
+        msg->md_record.rowid,
+        value | TR2Q_MSG_PENDING   // __flag__
     );
 }
 

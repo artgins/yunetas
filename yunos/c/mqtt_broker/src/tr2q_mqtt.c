@@ -11,7 +11,7 @@
 /********************************************************************
  * String Functions
  ********************************************************************/
-const char *user_flag_state_to_str(mqtt_msg_state_t state)
+const char *msg_flag_state_to_str(mqtt_msg_state_t state)
 {
     switch (state) {
         case mosq_ms_invalid:
@@ -46,7 +46,7 @@ const char *user_flag_state_to_str(mqtt_msg_state_t state)
 /********************************************************************
  * String Functions
  ********************************************************************/
-const char *user_flag_direction_to_str(mqtt_msg_direction_t dir)
+const char *msg_flag_direction_to_str(mqtt_msg_direction_t dir)
 {
     switch (dir) {
         case mosq_md_in:
@@ -61,7 +61,7 @@ const char *user_flag_direction_to_str(mqtt_msg_direction_t dir)
 /********************************************************************
  * String Functions
  ********************************************************************/
-const char *user_flag_origin_to_str(mqtt_msg_origin_t orig)
+const char *msg_flag_origin_to_str(mqtt_msg_origin_t orig)
 {
     switch (orig) {
         case mosq_mo_client:
@@ -87,6 +87,6 @@ PUBLIC int build_queue_name(
         bfsize,
         "%s-%s",
         client_id,
-        user_flag_direction_to_str(mqtt_msg_direction)
+        msg_flag_direction_to_str(mqtt_msg_direction)
     );
 }

@@ -123,13 +123,6 @@ PUBLIC q2_msg_t *tr2q_get_by_rowid(tr2_queue_t *trq, uint64_t rowid);
  */
 PUBLIC json_t *tr2q_msg_json(q2_msg_t *msg); // Return is not yours, free with tr2q_unload_msg()
 
-/**
-    Mark a message.
-    You must flag a message with TR2Q_MSG_PENDING after append it to queue
-        if you want recover it in the next open
-        with the flag used in tr2q_load()
-*/
-PUBLIC int tr2q_set_hard_flag(q2_msg_t *msg, uint32_t hard_mark, BOOL set);
 
 static inline q2_msg_t *tr2q_first_inflight_msg(tr2_queue_t *trq)
 {
@@ -217,6 +210,11 @@ PUBLIC int tr2q_check_pending_rowid(
     uint64_t __t__,
     uint64_t rowid
 );
+
+/**
+    Save hard_mark (user_flag of timeranger2 metadata)
+*/
+PUBLIC int tr2q_save_hard_mark(q2_msg_t *msg, uint16_t value);
 
 /**
     Set soft mark
