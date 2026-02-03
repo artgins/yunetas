@@ -4810,11 +4810,7 @@ PRIVATE int handle__connect(hgobj gobj, gbuffer_t *gbuf, hgobj src)
      *  Start timer keepalive/ping
      */
     if(priv->keepalive > 0) {
-        if(priv->iamServer) {
-            priv->timer_ping = start_sectimer((priv->keepalive*3)/2);
-        } else {
-            priv->timer_ping = start_sectimer(priv->keepalive);
-        }
+        priv->timer_ping = start_sectimer((priv->keepalive*3)/2);
     }
 
     return 0;
