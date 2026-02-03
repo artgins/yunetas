@@ -30,7 +30,7 @@ PRIVATE void free_msg(void *msg_);
         if you want to recover it in the next open
         with the flag used in tr2q_load()
 */
-PUBLIC int tr2q_set_hard_flag(q2_msg_t *msg, uint16_t hard_mark, BOOL set);
+PRIVATE int tr2q_set_hard_flag(q2_msg_t *msg, uint16_t hard_mark, BOOL set);
 
 /***************************************************************
  *              Data

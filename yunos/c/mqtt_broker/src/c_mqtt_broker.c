@@ -2091,13 +2091,13 @@ PRIVATE int retain__queue(
                         gobj_read_integer_attr(gobj, "backup_queue_size")
                     );
 
-                    user_flag_t user_flag = {0};
-                    user_flag_set_origin(&user_flag, mosq_mo_client);
-                    user_flag_set_direction(&user_flag, mosq_md_out);
-                    user_flag_set_qos_level(&user_flag, msg_qos);
-                    user_flag_set_retain(&user_flag, TRUE);
-                    user_flag_set_dup(&user_flag, 0);
-                    user_flag_set_state(&user_flag, mosq_ms_invalid);
+                    msg_flag_t user_flag = {0};
+                    msg_flag_set_origin(&user_flag, mosq_mo_client);
+                    msg_flag_set_direction(&user_flag, mosq_md_out);
+                    msg_flag_set_qos_level(&user_flag, msg_qos);
+                    msg_flag_set_retain(&user_flag, TRUE);
+                    msg_flag_set_dup(&user_flag, 0);
+                    msg_flag_set_state(&user_flag, mosq_ms_invalid);
 
                     tr2q_append(
                         trq_out_msgs,
@@ -2723,13 +2723,13 @@ PRIVATE int subs__send(
             gobj_read_integer_attr(gobj, "backup_queue_size")
         );
 
-        user_flag_t user_flag = {0};
-        user_flag_set_origin(&user_flag, mosq_mo_client);
-        user_flag_set_direction(&user_flag, mosq_md_out);
-        user_flag_set_qos_level(&user_flag, msg_qos);
-        user_flag_set_retain(&user_flag, client_retain);
-        user_flag_set_dup(&user_flag, 0);
-        user_flag_set_state(&user_flag, mosq_ms_invalid);
+        msg_flag_t user_flag = {0};
+        msg_flag_set_origin(&user_flag, mosq_mo_client);
+        msg_flag_set_direction(&user_flag, mosq_md_out);
+        msg_flag_set_qos_level(&user_flag, msg_qos);
+        msg_flag_set_retain(&user_flag, client_retain);
+        msg_flag_set_dup(&user_flag, 0);
+        msg_flag_set_state(&user_flag, mosq_ms_invalid);
 
         tr2q_append(
             trq_out_msgs,

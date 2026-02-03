@@ -870,8 +870,8 @@ PRIVATE int message__out_update(
 
     q2_msg_t *qmsg = tr2q_get_by_mid(trq, mid);
     if(qmsg) {
-        user_flag_t uf = {.value = tr2q_msg_hard_flag(qmsg)};
-        int msg_qos = user_flag_get_qos_level(&uf);
+        msg_flag_t uf = {.value = tr2q_msg_hard_flag(qmsg)};
+        int msg_qos = msg_flag_get_qos_level(&uf);
         if(msg_qos != qos) {
             gobj_log_error(gobj, 0,
                 "function",     "%s", __FUNCTION__,
@@ -909,9 +909,9 @@ PRIVATE int message__release_to_inflight(hgobj gobj, enum mqtt_msg_direction dir
 
         q2_msg_t *qmsg, *next;
         Q2MSG_FOREACH_FORWARD_INFLIGHT_SAFE(trq, qmsg, next) {
-            user_flag_t uf = {.value = tr2q_msg_hard_flag(qmsg)};
-            int qos = user_flag_get_qos_level(&uf);
-            mqtt_msg_state_t state = user_flag_get_state(&uf);
+            msg_flag_t uf = {.value = tr2q_msg_hard_flag(qmsg)};
+            int qos = msg_flag_get_qos_level(&uf);
+            mqtt_msg_state_t state = msg_flag_get_state(&uf);
 
             if(qos > 0 && state == mosq_ms_invalid) {
                 /*
@@ -926,7 +926,7 @@ PRIVATE int message__release_to_inflight(hgobj gobj, enum mqtt_msg_direction dir
                 } else {
                     new_state = mosq_ms_wait_for_pubrec;
                 }
-                user_flag_set_state(&uf, new_state);
+                msg_flag_set_state(&uf, new_state);
                 tr2q_save_hard_mark(qmsg, uf.value);
 
                 /*
@@ -948,7 +948,7 @@ PRIVATE int message__release_to_inflight(hgobj gobj, enum mqtt_msg_direction dir
                     gobj, kw_msg, "gbuffer", 0, 0
                 );
                 BOOL retain = kw_get_bool(gobj, kw_msg, "retain", 0, 0);
-                BOOL dup = user_flag_get_dup(&uf);
+                BOOL dup = msg_flag_get_dup(&uf);
                 json_t *properties = kw_get_dict(gobj, kw_msg, "properties", 0, 0);
                 uint32_t expiry_interval = (uint32_t)kw_get_int(
                     gobj, kw_msg, "expiry_interval", 0, 0
@@ -982,7 +982,7 @@ PRIVATE int message__queue(
     hgobj gobj,
     json_t *kw_mqtt_msg, // owned
     mqtt_msg_direction_t dir,
-    user_flag_t user_flag
+    msg_flag_t user_flag
 ) {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
@@ -1319,8 +1319,8 @@ PRIVATE int db__message_update_outgoing(
 
     q2_msg_t *qmsg = tr2q_get_by_mid(trq, mid);
     if(qmsg) {
-        user_flag_t uf = {.value = tr2q_msg_hard_flag(qmsg)};
-        int msg_qos = user_flag_get_qos_level(&uf);
+        msg_flag_t uf = {.value = tr2q_msg_hard_flag(qmsg)};
+        int msg_qos = msg_flag_get_qos_level(&uf);
         if(msg_qos != qos) {
             gobj_log_error(gobj, 0,
                 "function",     "%s", __FUNCTION__,
@@ -1364,8 +1364,8 @@ PRIVATE int db__message_delete_outgoing(
 
     q2_msg_t *qmsg = tr2q_get_by_mid(trq, mid);
     if(qmsg) {
-        user_flag_t uf = {.value = tr2q_msg_hard_flag(qmsg)};
-        int msg_qos = user_flag_get_qos_level(&uf);
+        msg_flag_t uf = {.value = tr2q_msg_hard_flag(qmsg)};
+        int msg_qos = msg_flag_get_qos_level(&uf);
         if(msg_qos != qos) {
             gobj_log_error(gobj, 0,
                 "function",     "%s", __FUNCTION__,
@@ -1379,15 +1379,15 @@ PRIVATE int db__message_delete_outgoing(
             return MOSQ_ERR_PROTOCOL;
         }
         if(qos == 2) {
-            mqtt_msg_state_t msg_state = user_flag_get_state(&uf);
+            mqtt_msg_state_t msg_state = msg_flag_get_state(&uf);
             if(msg_state != expect_state) {
                 gobj_log_error(gobj, 0,
                     "function",     "%s", __FUNCTION__,
                     "msgset",       "%s", MSGSET_MQTT_ERROR,
                     "msg",          "%s", "Unexpected message state for QoS 2",
                     "mid",          "%d", (int)mid,
-                    "state",        "%s", user_flag_state_to_str(msg_state),
-                    "expected",     "%s", user_flag_state_to_str(expect_state),
+                    "state",        "%s", msg_flag_state_to_str(msg_state),
+                    "expected",     "%s", msg_flag_state_to_str(expect_state),
                     NULL
                 );
                 return MOSQ_ERR_PROTOCOL;
@@ -1454,7 +1454,7 @@ PRIVATE int db__message_write_queued_in(hgobj gobj)
             if(tr2q_move_from_queued_to_inflight(msg)<0) {
                 break;
             }
-            //user_flag_set_state(&user_flag, mosq_ms_wait_for_pubrel); // TODO
+            //msg_flag_set_state(&user_flag, mosq_ms_wait_for_pubrel); // TODO
             send__pubrec(gobj, msg->mid, 0, NULL);
         }
     }
@@ -6109,13 +6109,13 @@ PRIVATE int handle__publish_s(
         mosquitto_time()
     );
 
-    user_flag_t user_flag = {0};
-    user_flag_set_origin(&user_flag, mosq_mo_client);
-    user_flag_set_direction(&user_flag, mosq_md_in);
-    user_flag_set_qos_level(&user_flag, qos);
-    user_flag_set_retain(&user_flag, retain);
-    user_flag_set_dup(&user_flag, dup);
-    user_flag_set_state(&user_flag, mosq_ms_invalid);
+    msg_flag_t user_flag = {0};
+    msg_flag_set_origin(&user_flag, mosq_mo_client);
+    msg_flag_set_direction(&user_flag, mosq_md_in);
+    msg_flag_set_qos_level(&user_flag, qos);
+    msg_flag_set_retain(&user_flag, retain);
+    msg_flag_set_dup(&user_flag, dup);
+    msg_flag_set_state(&user_flag, mosq_ms_invalid);
 
     if(gobj_trace_level(gobj) & SHOW_DECODE) {
         trace_msg0("  👈 Received PUBLISH from client '%s', topic '%s' (dup %d, qos %d, retain %d, mid %d, len %ld)",
@@ -6237,7 +6237,7 @@ PRIVATE int handle__publish_s(
                  *  Append the message to the input queue
                  *  wait completion of the message
                  */
-                user_flag_set_state(&user_flag, mosq_ms_wait_for_pubrel);
+                msg_flag_set_state(&user_flag, mosq_ms_wait_for_pubrel);
                 message__queue(
                     gobj,
                     kw_incref(kw_mqtt_msg), // owned
@@ -6401,13 +6401,13 @@ PRIVATE int handle__publish_c(
         mosquitto_time()
     );
 
-    user_flag_t user_flag = {0};
-    user_flag_set_origin(&user_flag, mosq_mo_broker);
-    user_flag_set_direction(&user_flag, mosq_md_in);
-    user_flag_set_qos_level(&user_flag, qos);
-    user_flag_set_retain(&user_flag, retain);
-    user_flag_set_dup(&user_flag, dup);
-    user_flag_set_state(&user_flag, mosq_ms_invalid);
+    msg_flag_t user_flag = {0};
+    msg_flag_set_origin(&user_flag, mosq_mo_broker);
+    msg_flag_set_direction(&user_flag, mosq_md_in);
+    msg_flag_set_qos_level(&user_flag, qos);
+    msg_flag_set_retain(&user_flag, retain);
+    msg_flag_set_dup(&user_flag, dup);
+    msg_flag_set_state(&user_flag, mosq_ms_invalid);
 
     if(gobj_trace_level(gobj) & SHOW_DECODE) {
         trace_msg0("  👈 Received PUBLISH from server '%s', topic '%s' (dup %d, qos %d, retain %d, mid %d, len %ld)",
@@ -6505,7 +6505,7 @@ PRIVATE int handle__publish_c(
                  *  Append the message to the input queue
                  *  wait completion of the message
                  */
-                user_flag_set_state(&user_flag, mosq_ms_wait_for_pubrel);
+                msg_flag_set_state(&user_flag, mosq_ms_wait_for_pubrel);
                 message__queue(
                     gobj,
                     kw_incref(kw_mqtt_msg), // owned
@@ -8171,13 +8171,13 @@ PRIVATE int ac_send_message(hgobj gobj, const char *event, json_t *kw_mqtt_msg, 
             expiry_interval
         );
     } else {
-        user_flag_t user_flag = {0};
-        user_flag_set_origin(&user_flag, mosq_mo_broker);
-        user_flag_set_direction(&user_flag, mosq_md_out);
-        user_flag_set_qos_level(&user_flag, qos);
-        user_flag_set_retain(&user_flag, retain);
-        user_flag_set_dup(&user_flag, 0);
-        user_flag_set_state(&user_flag, mosq_ms_invalid);
+        msg_flag_t user_flag = {0};
+        msg_flag_set_origin(&user_flag, mosq_mo_broker);
+        msg_flag_set_direction(&user_flag, mosq_md_out);
+        msg_flag_set_qos_level(&user_flag, qos);
+        msg_flag_set_retain(&user_flag, retain);
+        msg_flag_set_dup(&user_flag, 0);
+        msg_flag_set_state(&user_flag, mosq_ms_invalid);
 
         message__queue(
             gobj,
@@ -8402,13 +8402,13 @@ PRIVATE int ac_mqtt_client_send_publish(hgobj gobj, const char *event, json_t *k
         }
     } else {
 
-        user_flag_t user_flag = {0};
-        user_flag_set_origin(&user_flag, mosq_mo_client);
-        user_flag_set_direction(&user_flag, mosq_md_out);
-        user_flag_set_qos_level(&user_flag, (uint8_t)qos);
-        user_flag_set_retain(&user_flag, retain);
-        user_flag_set_dup(&user_flag, 0);
-        user_flag_set_state(&user_flag, mosq_ms_invalid);
+        msg_flag_t user_flag = {0};
+        msg_flag_set_origin(&user_flag, mosq_mo_client);
+        msg_flag_set_direction(&user_flag, mosq_md_out);
+        msg_flag_set_qos_level(&user_flag, (uint8_t)qos);
+        msg_flag_set_retain(&user_flag, retain);
+        msg_flag_set_dup(&user_flag, 0);
+        msg_flag_set_state(&user_flag, mosq_ms_invalid);
 
         message__queue(
             gobj,
