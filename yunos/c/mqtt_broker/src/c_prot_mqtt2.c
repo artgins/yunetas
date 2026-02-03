@@ -464,8 +464,6 @@ typedef struct _PRIVATE_DATA {
     gbuffer_t *gbuf_will_payload;
     int out_packet_count;
 
-    time_t db_now_s; // TODO
-    time_t db_now_real_s; // TODO
     BOOL allow_duplicate_messages; // TODO
 } PRIVATE_DATA;
 
