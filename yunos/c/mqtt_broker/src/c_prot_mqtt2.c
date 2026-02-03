@@ -915,21 +915,12 @@ PRIVATE int message__release_to_inflight(hgobj gobj, enum mqtt_msg_direction dir
                 uint16_t mid = mosquitto__mid_generate(gobj);
                 qmsg->mid = mid;
 
-                mqtt_msg_state_t new_state;
-                if(qos == 1) {
-                    new_state = mosq_ms_wait_for_puback;
-                } else {
-                    new_state = mosq_ms_wait_for_pubrec;
-                }
-                msg_flag_set_state(&uf, new_state);
-                tr2q_save_hard_mark(qmsg, uf.value);
-
                 /*
                  *  Get message content and send PUBLISH
                  */
                 json_t *kw_msg = tr2q_msg_json(qmsg);
                 if(!kw_msg) {
-                    gobj_log_error(gobj, 0,
+                    gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
                         "function",     "%s", __FUNCTION__,
                         "msgset",       "%s", MSGSET_INTERNAL_ERROR,
                         "msg",          "%s", "No message content in queue entry",
@@ -949,7 +940,7 @@ PRIVATE int message__release_to_inflight(hgobj gobj, enum mqtt_msg_direction dir
                     gobj, kw_msg, "expiry_interval", 0, 0
                 );
 
-                send__publish(
+                if(send__publish(
                     gobj,
                     mid,
                     topic,
@@ -959,7 +950,17 @@ PRIVATE int message__release_to_inflight(hgobj gobj, enum mqtt_msg_direction dir
                     dup,
                     properties,
                     expiry_interval
-                );
+                ) == 0) {
+                    // Message sent, save state
+                    mqtt_msg_state_t new_state;
+                    if(qos == 1) {
+                        new_state = mosq_ms_wait_for_puback;
+                    } else {
+                        new_state = mosq_ms_wait_for_pubrec;
+                    }
+                    msg_flag_set_state(&uf, new_state);
+                    tr2q_save_hard_mark(qmsg, uf.value);
+                }
             }
         }
     }
