@@ -53,7 +53,7 @@ PUBLIC tr2_queue_t *tr2q_open(
             "msg",          "%s", "Cannot create tr_queue. GBMEM_MALLOC() FAILED",
             NULL
         );
-        return 0;
+        return NULL;
     }
     trq->tranger = tranger;
     trq->max_inflight_messages = max_inflight_messages;
@@ -80,7 +80,7 @@ PUBLIC tr2_queue_t *tr2q_open(
     );
     if(!trq->topic) {
         tr2q_close(trq);
-        return 0;
+        return NULL;
     }
     dl_init(&trq->dl_inflight, 0);
     dl_init(&trq->dl_queued, 0);
@@ -410,7 +410,7 @@ PUBLIC q2_msg_t *tr2q_append(
             "topic",        "%s", trq->topic_name,
             NULL
         );
-        return 0;
+        return NULL;
     }
 
     md2_record_ex_t md_record;
@@ -486,7 +486,7 @@ PUBLIC q2_msg_t *tr2q_get_by_mid(tr2_queue_t *trq, json_int_t mid)
         }
     }
 
-    return 0;
+    return NULL;
 }
 
 /***************************************************************************
@@ -509,7 +509,7 @@ PUBLIC q2_msg_t *tr2q_get_by_rowid(tr2_queue_t *trq, uint64_t rowid)
         }
     }
 
-    return 0;
+    return NULL;
 }
 
 /***************************************************************************
