@@ -940,6 +940,9 @@ PRIVATE int message__release_to_inflight(hgobj gobj, enum mqtt_msg_direction dir
                     gobj, kw_msg, "expiry_interval", 0, 0
                 );
 
+                /*
+                 *  What is first? send the message or save his state in disk
+                 */
                 if(send__publish(
                     gobj,
                     mid,
