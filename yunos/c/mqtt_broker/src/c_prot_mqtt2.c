@@ -248,6 +248,7 @@ PRIVATE int send__disconnect(
     json_t *properties
 );
 PRIVATE void do_disconnect(hgobj gobj, int reason);
+PRIVATE uint16_t mosquitto__mid_generate(hgobj gobj);
 
 /***************************************************************************
  *          Data: config, public data, private data
@@ -858,6 +859,12 @@ PRIVATE int message__out_update(
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
     tr2_queue_t *trq = priv->trq_out_msgs;
     if(!trq) {
+        gobj_log_error(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_INTERNAL_ERROR,
+            "msg",          "%s", "No output queue",
+            NULL
+        );
         return MOSQ_ERR_NOT_FOUND;
     }
 
@@ -867,6 +874,15 @@ PRIVATE int message__out_update(
         user_flag_init(&uf, tr2q_msg_hard_flag(qmsg));
         int msg_qos = user_flag_get_qos_level(&uf);
         if(msg_qos != qos) {
+            gobj_log_error(gobj, 0,
+                "function",     "%s", __FUNCTION__,
+                "msgset",       "%s", MSGSET_MQTT_ERROR,
+                "msg",          "%s", "QoS mismatch",
+                "mid",          "%d", (int)mid,
+                "msg_qos",      "%d", msg_qos,
+                "expected_qos", "%d", qos,
+                NULL
+            );
             return MOSQ_ERR_PROTOCOL;
         }
         user_flag_set_state(&uf, state);
@@ -874,6 +890,7 @@ PRIVATE int message__out_update(
         return MOSQ_ERR_SUCCESS;
     }
 
+    // Silence please
     return MOSQ_ERR_NOT_FOUND;
 }
 
@@ -918,6 +935,13 @@ PRIVATE int message__release_to_inflight(hgobj gobj, enum mqtt_msg_direction dir
                  */
                 json_t *kw_msg = tr2q_msg_json(qmsg);
                 if(!kw_msg) {
+                    gobj_log_error(gobj, 0,
+                        "function",     "%s", __FUNCTION__,
+                        "msgset",       "%s", MSGSET_INTERNAL_ERROR,
+                        "msg",          "%s", "No message content in queue entry",
+                        "mid",          "%d", (int)mid,
+                        NULL
+                    );
                     continue;
                 }
                 const char *topic = kw_get_str(gobj, kw_msg, "topic", "", 0);
@@ -943,7 +967,7 @@ PRIVATE int message__release_to_inflight(hgobj gobj, enum mqtt_msg_direction dir
                     expiry_interval
                 );
                 if(rc) {
-                    return rc;
+                    return rc; // Error already logged
                 }
             }
         }
@@ -1285,6 +1309,12 @@ PRIVATE int db__message_update_outgoing(
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
     tr2_queue_t *trq = priv->trq_out_msgs;
     if(!trq) {
+        gobj_log_error(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_INTERNAL_ERROR,
+            "msg",          "%s", "No output queue",
+            NULL
+        );
         return MOSQ_ERR_NOT_FOUND;
     }
 
@@ -1294,6 +1324,15 @@ PRIVATE int db__message_update_outgoing(
         user_flag_init(&uf, tr2q_msg_hard_flag(qmsg));
         int msg_qos = user_flag_get_qos_level(&uf);
         if(msg_qos != qos) {
+            gobj_log_error(gobj, 0,
+                "function",     "%s", __FUNCTION__,
+                "msgset",       "%s", MSGSET_MQTT_ERROR,
+                "msg",          "%s", "QoS mismatch",
+                "mid",          "%d", (int)mid,
+                "msg_qos",      "%d", msg_qos,
+                "expected_qos", "%d", qos,
+                NULL
+            );
             return MOSQ_ERR_PROTOCOL;
         }
         user_flag_set_state(&uf, state);
@@ -1301,6 +1340,7 @@ PRIVATE int db__message_update_outgoing(
         return MOSQ_ERR_SUCCESS;
     }
 
+    // Silence please
     return MOSQ_ERR_NOT_FOUND;
 }
 
@@ -1316,6 +1356,12 @@ PRIVATE int db__message_delete_outgoing(
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
     tr2_queue_t *trq = priv->trq_out_msgs;
     if(!trq) {
+        gobj_log_error(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_INTERNAL_ERROR,
+            "msg",          "%s", "No output queue",
+            NULL
+        );
         return MOSQ_ERR_NOT_FOUND;
     }
 
@@ -1325,11 +1371,29 @@ PRIVATE int db__message_delete_outgoing(
         user_flag_init(&uf, tr2q_msg_hard_flag(qmsg));
         int msg_qos = user_flag_get_qos_level(&uf);
         if(msg_qos != qos) {
+            gobj_log_error(gobj, 0,
+                "function",     "%s", __FUNCTION__,
+                "msgset",       "%s", MSGSET_MQTT_ERROR,
+                "msg",          "%s", "QoS mismatch",
+                "mid",          "%d", (int)mid,
+                "msg_qos",      "%d", msg_qos,
+                "expected_qos", "%d", qos,
+                NULL
+            );
             return MOSQ_ERR_PROTOCOL;
         }
         if(qos == 2) {
             mqtt_msg_state_t msg_state = user_flag_get_state(&uf);
             if(msg_state != expect_state) {
+                gobj_log_error(gobj, 0,
+                    "function",     "%s", __FUNCTION__,
+                    "msgset",       "%s", MSGSET_MQTT_ERROR,
+                    "msg",          "%s", "Unexpected message state for QoS 2",
+                    "mid",          "%d", (int)mid,
+                    "state",        "%s", user_flag_state_to_str(msg_state),
+                    "expected",     "%s", user_flag_state_to_str(expect_state),
+                    NULL
+                );
                 return MOSQ_ERR_PROTOCOL;
             }
         }
