@@ -3605,8 +3605,6 @@ PRIVATE int handle__pingresp(hgobj gobj)
         return MOSQ_ERR_PROTOCOL;
     }
 
-    priv->timer_check_ping = 0; /* No longer waiting for a PINGRESP. */
-
     if(priv->iamServer) {
         if(!priv->is_bridge) {
             // It seems the broker shouldn't receive pingresp, only if it's bridged.
@@ -3618,7 +3616,14 @@ PRIVATE int handle__pingresp(hgobj gobj)
             );
             return MOSQ_ERR_PROTOCOL;
         }
+    } else {
+        /*
+         *  Client
+         *  Reset ping check timer
+         */
+        priv->timer_check_ping = 0;
     }
+
     return MOSQ_ERR_SUCCESS;
 }
 
@@ -4943,8 +4948,22 @@ PRIVATE int handle__connack(
     switch(reason_code) {
         case 0:
             // TODO message__retry_check(mosq); important!
+            /*
+             *  Set in session
+             */
+            gobj_write_bool_attr(gobj, "in_session", TRUE);
+            gobj_write_bool_attr(gobj, "send_disconnect", TRUE); // TODO necessary?
+
+            /*
+             *  Start the periodic timer and begin ping timer
+             */
             set_timeout_periodic(priv->gobj_timer_periodic, priv->timeout_periodic);
+            if(priv->keepalive > 0) {
+                priv->timer_ping = start_sectimer(priv->keepalive);
+            }
+
             return MOSQ_ERR_SUCCESS;
+
         case 1:
         case 2:
         case 3:
@@ -8575,7 +8594,7 @@ PRIVATE int ac_timeout_periodic(hgobj gobj, const char *event, json_t *kw, hgobj
     /*
      *  Check keepalive/ping timer
      */
-    if(priv->timer_ping) {
+    if(priv->timer_ping > 0) {
         if(test_sectimer(priv->timer_ping)) {
             if(priv->iamServer) {
                 /*
@@ -8601,10 +8620,11 @@ PRIVATE int ac_timeout_periodic(hgobj gobj, const char *event, json_t *kw, hgobj
                 send_simple_command(gobj, CMD_PINGREQ);
 
                 /*
+                 *  Client
                  *  Start timer to check PINGRESP arrives
-                 *  Give the server keepalive/2 seconds to respond
+                 *  Give the client keepalive 3/2 seconds to check
                  */
-                time_t check_timeout = priv->keepalive / 2;
+                time_t check_timeout = (priv->keepalive * 3) / 2;
                 if(check_timeout < 1) {
                     check_timeout = 1;
                 }
@@ -8623,7 +8643,7 @@ PRIVATE int ac_timeout_periodic(hgobj gobj, const char *event, json_t *kw, hgobj
     /*
      *  Check ping response timer (client only)
      */
-    if(priv->timer_check_ping) {
+    if(priv->timer_check_ping > 0) {
         if(test_sectimer(priv->timer_check_ping)) {
             /*
              *  No PINGRESP received in time. Close the connection.
