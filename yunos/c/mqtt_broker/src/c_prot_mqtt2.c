@@ -870,8 +870,7 @@ PRIVATE int message__out_update(
 
     q2_msg_t *qmsg = tr2q_get_by_mid(trq, mid);
     if(qmsg) {
-        user_flag_t uf;
-        user_flag_init(&uf, tr2q_msg_hard_flag(qmsg));
+        user_flag_t uf = {.value = tr2q_msg_hard_flag(qmsg)};
         int msg_qos = user_flag_get_qos_level(&uf);
         if(msg_qos != qos) {
             gobj_log_error(gobj, 0,
@@ -885,8 +884,8 @@ PRIVATE int message__out_update(
             );
             return MOSQ_ERR_PROTOCOL;
         }
-        user_flag_set_state(&uf, state);
-        tr2q_set_hard_flag(qmsg, uf.value, TRUE);
+        tr2q_set_hard_flag(qmsg, TR2Q_STATE_MASK, FALSE);  // Clear old state
+        tr2q_set_hard_flag(qmsg, state, TRUE);              // Set new state
         return MOSQ_ERR_SUCCESS;
     }
 
@@ -911,8 +910,7 @@ PRIVATE int message__release_to_inflight(hgobj gobj, enum mqtt_msg_direction dir
 
         q2_msg_t *qmsg, *next;
         Q2MSG_FOREACH_FORWARD_INFLIGHT_SAFE(trq, qmsg, next) {
-            user_flag_t uf;
-            user_flag_init(&uf, tr2q_msg_hard_flag(qmsg));
+            user_flag_t uf = {.value = tr2q_msg_hard_flag(qmsg)};
             int qos = user_flag_get_qos_level(&uf);
             mqtt_msg_state_t state = user_flag_get_state(&uf);
 
@@ -923,12 +921,14 @@ PRIVATE int message__release_to_inflight(hgobj gobj, enum mqtt_msg_direction dir
                 uint16_t mid = mosquitto__mid_generate(gobj);
                 qmsg->mid = mid;
 
+                mqtt_msg_state_t new_state;
                 if(qos == 1) {
-                    user_flag_set_state(&uf, mosq_ms_wait_for_puback);
-                } else if(qos == 2) {
-                    user_flag_set_state(&uf, mosq_ms_wait_for_pubrec);
+                    new_state = mosq_ms_wait_for_puback;
+                } else {
+                    new_state = mosq_ms_wait_for_pubrec;
                 }
-                tr2q_set_hard_flag(qmsg, uf.value, TRUE);
+                tr2q_set_hard_flag(qmsg, TR2Q_STATE_MASK, FALSE);  // Clear old state
+                tr2q_set_hard_flag(qmsg, new_state, TRUE);          // Set new state
 
                 /*
                  *  Get message content and send PUBLISH
@@ -1320,8 +1320,7 @@ PRIVATE int db__message_update_outgoing(
 
     q2_msg_t *qmsg = tr2q_get_by_mid(trq, mid);
     if(qmsg) {
-        user_flag_t uf;
-        user_flag_init(&uf, tr2q_msg_hard_flag(qmsg));
+        user_flag_t uf = {.value = tr2q_msg_hard_flag(qmsg)};
         int msg_qos = user_flag_get_qos_level(&uf);
         if(msg_qos != qos) {
             gobj_log_error(gobj, 0,
@@ -1335,8 +1334,8 @@ PRIVATE int db__message_update_outgoing(
             );
             return MOSQ_ERR_PROTOCOL;
         }
-        user_flag_set_state(&uf, state);
-        tr2q_set_hard_flag(qmsg, uf.value, TRUE);
+        tr2q_set_hard_flag(qmsg, TR2Q_STATE_MASK, FALSE);  // Clear old state
+        tr2q_set_hard_flag(qmsg, state, TRUE);              // Set new state
         return MOSQ_ERR_SUCCESS;
     }
 
@@ -1367,8 +1366,7 @@ PRIVATE int db__message_delete_outgoing(
 
     q2_msg_t *qmsg = tr2q_get_by_mid(trq, mid);
     if(qmsg) {
-        user_flag_t uf;
-        user_flag_init(&uf, tr2q_msg_hard_flag(qmsg));
+        user_flag_t uf = {.value = tr2q_msg_hard_flag(qmsg)};
         int msg_qos = user_flag_get_qos_level(&uf);
         if(msg_qos != qos) {
             gobj_log_error(gobj, 0,
