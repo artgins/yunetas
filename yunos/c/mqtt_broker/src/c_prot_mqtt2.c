@@ -899,13 +899,8 @@ PRIVATE int message__release_to_inflight(hgobj gobj, enum mqtt_msg_direction dir
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
-    int rc = MOSQ_ERR_SUCCESS;
-
     if(dir == mosq_md_out) {
         tr2_queue_t *trq = priv->trq_out_msgs;
-        if(!trq) {
-            return rc;
-        }
 
         q2_msg_t *qmsg, *next;
         Q2MSG_FOREACH_FORWARD_INFLIGHT_SAFE(trq, qmsg, next) {
@@ -954,7 +949,7 @@ PRIVATE int message__release_to_inflight(hgobj gobj, enum mqtt_msg_direction dir
                     gobj, kw_msg, "expiry_interval", 0, 0
                 );
 
-                rc = send__publish(
+                send__publish(
                     gobj,
                     mid,
                     topic,
@@ -965,14 +960,11 @@ PRIVATE int message__release_to_inflight(hgobj gobj, enum mqtt_msg_direction dir
                     properties,
                     expiry_interval
                 );
-                if(rc) {
-                    return rc; // Error already logged
-                }
             }
         }
     }
 
-    return rc;
+    return 0;
 }
 
 /***************************************************************************
