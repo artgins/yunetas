@@ -317,7 +317,6 @@ SDATA (DTP_INTEGER,     "timeout_handshake",SDF_RD,     "5000",  "Timeout to han
 SDATA (DTP_INTEGER,     "timeout_payload",  SDF_RD,     "5000",  "Timeout to payload"),
 SDATA (DTP_INTEGER,     "timeout_close",    SDF_RD,     "3000",  "Timeout to close"),
 SDATA (DTP_INTEGER,     "timeout_periodic", SDF_RD,     "1000",  "Timeout periodic"),
-SDATA (DTP_INTEGER,     "pingT",            SDF_RD,     "0",    "Ping interval. If value <= 0 then No ping"),
 
 /*
  *  Configuration
@@ -401,7 +400,7 @@ typedef struct _PRIVATE_DATA {
     hgobj gobj_timer;
     hgobj gobj_timer_periodic;
     BOOL iamServer;         // What side? server or client
-    int pingT;
+    time_t timer_ping;
 
     json_int_t timeout_handshake;
     json_int_t timeout_payload;
@@ -516,7 +515,6 @@ PRIVATE void mt_create(hgobj gobj)
      *  Do copy of heavy used parameters, for quick access.
      *  HACK The writable attributes must be repeated in mt_writing method.
      */
-    SET_PRIV(pingT,                     gobj_read_integer_attr)
     SET_PRIV(last_mid,                  gobj_read_integer_attr)
     SET_PRIV(timeout_handshake,         gobj_read_integer_attr)
     SET_PRIV(timeout_payload,           gobj_read_integer_attr)
@@ -569,7 +567,6 @@ PRIVATE void mt_writing(hgobj gobj, const char *path)
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
     IF_EQ_SET_PRIV(last_mid,                    gobj_read_integer_attr)
-    ELIF_EQ_SET_PRIV(pingT,                     gobj_read_integer_attr)
     ELIF_EQ_SET_PRIV(timeout_handshake,         gobj_read_integer_attr)
     ELIF_EQ_SET_PRIV(timeout_payload,           gobj_read_integer_attr)
     ELIF_EQ_SET_PRIV(timeout_close,             gobj_read_integer_attr)
@@ -3411,7 +3408,8 @@ PRIVATE int send__connect(
         mqtt_write_string(gbuf, password);
     }
 
-    // mosq->keepalive = keepalive; // TODO
+    gobj_write_integer_attr(gobj, "keepalive", keepalive);
+
     const char *url = gobj_read_str_attr(gobj, "url");
     if(gobj_trace_level(gobj) & SHOW_DECODE) {
         trace_msg0(
@@ -3574,11 +3572,19 @@ PRIVATE int send__disconnect(
  ***************************************************************************/
 PRIVATE int handle__pingreq(hgobj gobj)
 {
-    // PRIVATE_DATA *priv = gobj_priv_data(gobj);
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
-    // TODO if mosq->keepalive then send__pingreq()
-    // TODO mosq->ping_t = mosquitto_time(); esto no está en esta función!!
-    return send_simple_command(gobj, CMD_PINGRESP);
+    if(priv->iamServer) {
+        return send_simple_command(gobj, CMD_PINGRESP);
+    } else {
+        gobj_log_error(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_MQTT_ERROR,
+            "msg",          "%s", "Mqtt CMD_PINGREQ and not broker",
+            NULL
+        );
+        return MOSQ_ERR_PROTOCOL;
+    }
 }
 
 /***************************************************************************
@@ -3598,11 +3604,11 @@ PRIVATE int handle__pingresp(hgobj gobj)
         return MOSQ_ERR_PROTOCOL;
     }
 
-    // priv->ping_t = 0; TODO /* No longer waiting for a PINGRESP. */
+    priv->ping_t = 0; /* No longer waiting for a PINGRESP. */
 
     if(priv->iamServer) {
         if(!priv->is_bridge) {
-            // Parece que el broker no debe recibir pingresp, solo si es bridge
+            // It seems the broker shouldn't receive pingresp, only if it's bridged.
             gobj_log_error(gobj, 0,
                 "function",     "%s", __FUNCTION__,
                 "msgset",       "%s", MSGSET_MQTT_ERROR,
@@ -4801,9 +4807,15 @@ PRIVATE int handle__connect(hgobj gobj, gbuffer_t *gbuf, hgobj src)
 
     set_timeout_periodic(priv->gobj_timer_periodic, priv->timeout_periodic);
 
+    /*
+     *  Start timer keepalive/ping
+     */
     if(priv->keepalive > 0) {
-        // TODO
-        // priv->timer_ping = start_sectimer((priv->keepalive*3)/2);
+        if(priv->iamServer) {
+            priv->timer_ping = start_sectimer((priv->keepalive*3)/2);
+        } else {
+            priv->timer_ping = start_sectimer(priv->keepalive);
+        }
     }
 
     return 0;
@@ -7941,26 +7953,7 @@ PRIVATE int ac_process_frame_header(hgobj gobj, const char *event, json_t *kw, h
  ***************************************************************************/
 PRIVATE int ac_timeout_waiting_frame_header(hgobj gobj, const char *event, json_t *kw, hgobj src)
 {
-    // TODO implement ping
-    // if(priv->timer_handshake) {
-    //     if(test_sectimer(priv->timer_handshake)) {
-    //         ws_close(gobj, MQTT_RC_PROTOCOL_ERROR);
-    //     }
-    // }
-
-    // mosquitto__check_keepalive()
-    // if(priv->timer_ping) {
-    //     if(test_sectimer(priv->timer_ping)) {
-    //         // TODO send send__pingreq(mosq); or close connection if not receive response
-    //         if(priv->keepalive > 0) {
-    //             priv->timer_ping = start_sectimer(priv->keepalive);
-    //         }
-    //     }
-    // }
-
-    // TODO implement a cleaner of messages inflight with pending acks and timeout reached
-    // TODO or remove all messages with same mid when receiving and ack
-
+    // We wait forever, if it has done the login.
     KW_DECREF(kw)
     return 0;
 }
@@ -8570,7 +8563,31 @@ PRIVATE int ac_mqtt_client_send_unsubscribe(hgobj gobj, const char *event, json_
  ***************************************************************************/
 PRIVATE int ac_timeout_periodic(hgobj gobj, const char *event, json_t *kw, hgobj src)
 {
-    printf("Periodic\n"); // TODO
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    // check_keepalive(gobj);
+
+    if(priv->timer_ping) {
+        if(test_sectimer(priv->timer_ping)) {
+            if(priv->iamServer) {
+                // Server
+            } else {
+                // Client
+                send_simple_command(gobj, CMD_PINGREQ);
+            }
+
+            /*
+             *  Start timer keepalive/ping
+             */
+            if(priv->keepalive > 0) {
+                priv->timer_ping = start_sectimer(priv->keepalive);
+            }
+        }
+    }
+
+    // TODO implement a cleaner of messages inflight with pending acks and timeout reached
+    // TODO or remove all messages with same mid when receiving and ack
+
     KW_DECREF(kw)
     return 0;
 }
