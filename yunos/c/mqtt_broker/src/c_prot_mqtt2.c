@@ -884,8 +884,7 @@ PRIVATE int message__out_update(
             );
             return MOSQ_ERR_PROTOCOL;
         }
-        tr2q_set_hard_flag(qmsg, TR2Q_STATE_MASK, FALSE);  // Clear old state
-        tr2q_set_hard_flag(qmsg, state, TRUE);              // Set new state
+        tr2q_save_hard_mark(qmsg, uf.value);
         return MOSQ_ERR_SUCCESS;
     }
 
@@ -927,8 +926,8 @@ PRIVATE int message__release_to_inflight(hgobj gobj, enum mqtt_msg_direction dir
                 } else {
                     new_state = mosq_ms_wait_for_pubrec;
                 }
-                tr2q_set_hard_flag(qmsg, TR2Q_STATE_MASK, FALSE);  // Clear old state
-                tr2q_set_hard_flag(qmsg, new_state, TRUE);          // Set new state
+                user_flag_set_state(&uf, new_state);
+                tr2q_save_hard_mark(qmsg, uf.value);
 
                 /*
                  *  Get message content and send PUBLISH
@@ -1334,8 +1333,7 @@ PRIVATE int db__message_update_outgoing(
             );
             return MOSQ_ERR_PROTOCOL;
         }
-        tr2q_set_hard_flag(qmsg, TR2Q_STATE_MASK, FALSE);  // Clear old state
-        tr2q_set_hard_flag(qmsg, state, TRUE);              // Set new state
+        tr2q_save_hard_mark(qmsg, uf.value);
         return MOSQ_ERR_SUCCESS;
     }
 
