@@ -400,7 +400,8 @@ typedef struct _PRIVATE_DATA {
     hgobj gobj_timer;
     hgobj gobj_timer_periodic;
     BOOL iamServer;         // What side? server or client
-    time_t timer_ping;
+    time_t timer_ping;          // Timer to send ping (client) or check keepalive timeout (server)
+    time_t timer_check_ping;    // Timer to check ping response (client only)
 
     json_int_t timeout_handshake;
     json_int_t timeout_payload;
@@ -3604,7 +3605,7 @@ PRIVATE int handle__pingresp(hgobj gobj)
         return MOSQ_ERR_PROTOCOL;
     }
 
-    priv->ping_t = 0; /* No longer waiting for a PINGRESP. */
+    priv->timer_check_ping = 0; /* No longer waiting for a PINGRESP. */
 
     if(priv->iamServer) {
         if(!priv->is_bridge) {
@@ -4657,10 +4658,8 @@ PRIVATE int handle__connect(hgobj gobj, gbuffer_t *gbuf, hgobj src)
         }
     }
 
-    // context->ping_t = 0; TODO
-    // context->is_dropping = FALSE;
-    // kw_set_dict_value(gobj, client, "ping_t", json_integer(0));
-    // kw_set_dict_value(gobj, client, "is_dropping", json_false());
+    priv->timer_ping = 0;
+    priv->timer_check_ping = 0;
 
     /*---------------------------------------------*
      *      Prepare the response
@@ -7387,6 +7386,14 @@ PRIVATE int frame_completed(hgobj gobj, hgobj src)
         priv->istream_payload = 0;
     }
 
+    /*
+     *  Server: reset keepalive timer on every received packet from client
+     *  Per MQTT spec, the server must track all Control Packets, not just PINGREQ
+     */
+    if(priv->iamServer && priv->keepalive > 0 && priv->timer_ping) {
+        priv->timer_ping = start_sectimer((priv->keepalive * 3) / 2);
+    }
+
     int ret = 0;
 
     switch(frame->command) {
@@ -7646,6 +7653,8 @@ PRIVATE int ac_disconnected(hgobj gobj, const char *event, json_t *kw, hgobj src
 
     clear_timeout(priv->gobj_timer);
     clear_timeout(priv->gobj_timer_periodic);
+    priv->timer_ping = 0;
+    priv->timer_check_ping = 0;
 
     JSON_DECREF(priv->jn_alias_list)
 
@@ -8565,23 +8574,72 @@ PRIVATE int ac_timeout_periodic(hgobj gobj, const char *event, json_t *kw, hgobj
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
-    // check_keepalive(gobj);
-
+    /*
+     *  Check keepalive/ping timer
+     */
     if(priv->timer_ping) {
         if(test_sectimer(priv->timer_ping)) {
             if(priv->iamServer) {
-                // Server
+                /*
+                 *  Server: keepalive timeout, no packet received from client
+                 *  within 1.5 * keepalive seconds. Close the connection.
+                 */
+                gobj_log_warning(gobj, 0,
+                    "function",     "%s", __FUNCTION__,
+                    "msgset",       "%s", MSGSET_MQTT_ERROR,
+                    "msg",          "%s", "Client keepalive timeout, closing connection",
+                    "client_id",    "%s", SAFE_PRINT(priv->client_id),
+                    "keepalive",    "%d", (int)priv->keepalive,
+                    NULL
+                );
+                priv->timer_ping = 0;
+                ws_close(gobj, MOSQ_ERR_PROTOCOL);
+                KW_DECREF(kw)
+                return 0;
             } else {
-                // Client
+                /*
+                 *  Client: time to send a PINGREQ
+                 */
                 send_simple_command(gobj, CMD_PINGREQ);
-            }
 
-            /*
-             *  Start timer keepalive/ping
-             */
-            if(priv->keepalive > 0) {
-                priv->timer_ping = start_sectimer(priv->keepalive);
+                /*
+                 *  Start timer to check PINGRESP arrives
+                 *  Give the server keepalive/2 seconds to respond
+                 */
+                time_t check_timeout = priv->keepalive / 2;
+                if(check_timeout < 1) {
+                    check_timeout = 1;
+                }
+                priv->timer_check_ping = start_sectimer(check_timeout);
+
+                /*
+                 *  Restart timer for next ping
+                 */
+                if(priv->keepalive > 0) {
+                    priv->timer_ping = start_sectimer(priv->keepalive);
+                }
             }
+        }
+    }
+
+    /*
+     *  Check ping response timer (client only)
+     */
+    if(priv->timer_check_ping) {
+        if(test_sectimer(priv->timer_check_ping)) {
+            /*
+             *  No PINGRESP received in time. Close the connection.
+             */
+            gobj_log_warning(gobj, 0,
+                "function",     "%s", __FUNCTION__,
+                "msgset",       "%s", MSGSET_MQTT_ERROR,
+                "msg",          "%s", "PINGRESP timeout, closing connection",
+                NULL
+            );
+            priv->timer_check_ping = 0;
+            ws_close(gobj, MOSQ_ERR_PROTOCOL);
+            KW_DECREF(kw)
+            return 0;
         }
     }
 
