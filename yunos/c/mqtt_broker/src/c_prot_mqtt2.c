@@ -316,6 +316,7 @@ SDATA (DTP_STRING,      "cert_pem",         SDF_RD,     "",     "SSL server cert
 SDATA (DTP_INTEGER,     "timeout_handshake",SDF_RD,     "5000",  "Timeout to handshake"),
 SDATA (DTP_INTEGER,     "timeout_payload",  SDF_RD,     "5000",  "Timeout to payload"),
 SDATA (DTP_INTEGER,     "timeout_close",    SDF_RD,     "3000",  "Timeout to close"),
+SDATA (DTP_INTEGER,     "timeout_periodic", SDF_RD,     "1000",  "Timeout periodic"),
 SDATA (DTP_INTEGER,     "pingT",            SDF_RD,     "0",    "Ping interval. If value <= 0 then No ping"),
 
 /*
@@ -398,12 +399,14 @@ PRIVATE const trace_level_t s_user_trace_level[16] = {
  *---------------------------------------------*/
 typedef struct _PRIVATE_DATA {
     hgobj gobj_timer;
+    hgobj gobj_timer_periodic;
     BOOL iamServer;         // What side? server or client
     int pingT;
 
     json_int_t timeout_handshake;
     json_int_t timeout_payload;
     json_int_t timeout_close;
+    json_int_t timeout_periodic;
 
     FRAME_HEAD frame_head;
     istream_h istream_frame;
@@ -486,6 +489,7 @@ PRIVATE void mt_create(hgobj gobj)
 
     priv->iamServer = gobj_read_bool_attr(gobj, "iamServer");
     priv->gobj_timer = gobj_create_pure_child(gobj_name(gobj), C_TIMER, 0, gobj);
+    priv->gobj_timer_periodic = gobj_create_pure_child(gobj_name(gobj), C_TIMER, 0, gobj);
 
     // The maximum size of a frame header is 5 bytes.
     priv->istream_frame = istream_create(gobj, 5, 5);
@@ -517,6 +521,7 @@ PRIVATE void mt_create(hgobj gobj)
     SET_PRIV(timeout_handshake,         gobj_read_integer_attr)
     SET_PRIV(timeout_payload,           gobj_read_integer_attr)
     SET_PRIV(timeout_close,             gobj_read_integer_attr)
+    SET_PRIV(timeout_periodic,          gobj_read_integer_attr)
     SET_PRIV(in_session,                gobj_read_bool_attr)
     SET_PRIV(send_disconnect,           gobj_read_bool_attr)
 
@@ -568,6 +573,7 @@ PRIVATE void mt_writing(hgobj gobj, const char *path)
     ELIF_EQ_SET_PRIV(timeout_handshake,         gobj_read_integer_attr)
     ELIF_EQ_SET_PRIV(timeout_payload,           gobj_read_integer_attr)
     ELIF_EQ_SET_PRIV(timeout_close,             gobj_read_integer_attr)
+    ELIF_EQ_SET_PRIV(timeout_periodic,          gobj_read_integer_attr)
     ELIF_EQ_SET_PRIV(in_session,                gobj_read_bool_attr)
     ELIF_EQ_SET_PRIV(send_disconnect,           gobj_read_bool_attr)
 
@@ -663,6 +669,7 @@ PRIVATE int mt_stop(hgobj gobj)
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
     clear_timeout(priv->gobj_timer);
+    clear_timeout(priv->gobj_timer_periodic);
 
     hgobj tcp0 = gobj_bottom_gobj(gobj);
     if(tcp0) {
@@ -4792,6 +4799,8 @@ PRIVATE int handle__connect(hgobj gobj, gbuffer_t *gbuf, hgobj src)
     // db__message_write_queued_out(context);
     // db__message_write_inflight_out_all(context);
 
+    set_timeout_periodic(priv->gobj_timer_periodic, priv->timeout_periodic);
+
     if(priv->keepalive > 0) {
         // TODO
         // priv->timer_ping = start_sectimer((priv->keepalive*3)/2);
@@ -4927,6 +4936,7 @@ PRIVATE int handle__connack(
     switch(reason_code) {
         case 0:
             // TODO message__retry_check(mosq); important!
+            set_timeout_periodic(priv->gobj_timer_periodic, priv->timeout_periodic);
             return MOSQ_ERR_SUCCESS;
         case 1:
         case 2:
@@ -7623,6 +7633,7 @@ PRIVATE int ac_disconnected(hgobj gobj, const char *event, json_t *kw, hgobj src
     }
 
     clear_timeout(priv->gobj_timer);
+    clear_timeout(priv->gobj_timer_periodic);
 
     JSON_DECREF(priv->jn_alias_list)
 
@@ -8699,6 +8710,7 @@ PRIVATE int create_gclass(gclass_name_t gclass_name)
         {EV_MQTT_UNSUBSCRIBE,   0},
         {EV_ON_IEV_MESSAGE,     EVF_OUTPUT_EVENT},
         {EV_TIMEOUT,            0},
+        {EV_TIMEOUT_PERIODIC,   0},
         {EV_TX_READY,           0},
         {EV_CONNECTED,          0},
         {EV_DISCONNECTED,       0},
