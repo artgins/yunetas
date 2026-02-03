@@ -855,19 +855,25 @@ PRIVATE int message__out_update(
     enum mqtt_msg_state state,
     int qos
 ) {
-    // PRIVATE_DATA *priv = gobj_priv_data(gobj);
-    // struct mosquitto_message_all *message, *tmp;
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+    tr2_queue_t *trq = priv->trq_out_msgs;
+    if(!trq) {
+        return MOSQ_ERR_NOT_FOUND;
+    }
 
-    // DL_FOREACH_SAFE(&priv->msgs_out.dl_inflight, message, tmp) {
-    //     if(message->msg.mid == mid) {
-    //         if(message->msg.qos != qos) {
-    //             return MOSQ_ERR_PROTOCOL;
-    //         }
-    //         message->state = state;
-    //         message->timestamp = mosquitto_time();
-    //         return MOSQ_ERR_SUCCESS;
-    //     }
-    // }
+    q2_msg_t *qmsg = tr2q_get_by_mid(trq, mid);
+    if(qmsg) {
+        user_flag_t uf;
+        user_flag_init(&uf, tr2q_msg_hard_flag(qmsg));
+        int msg_qos = user_flag_get_qos_level(&uf);
+        if(msg_qos != qos) {
+            return MOSQ_ERR_PROTOCOL;
+        }
+        user_flag_set_state(&uf, state);
+        tr2q_set_hard_flag(qmsg, uf.value, TRUE);
+        return MOSQ_ERR_SUCCESS;
+    }
+
     return MOSQ_ERR_NOT_FOUND;
 }
 
@@ -878,39 +884,69 @@ PRIVATE int message__release_to_inflight(hgobj gobj, enum mqtt_msg_direction dir
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
-    /* mosq->*_message_mutex should be locked before entering this function */
     int rc = MOSQ_ERR_SUCCESS;
 
     if(dir == mosq_md_out) {
-        // DL_FOREACH_SAFE(&priv->msgs_out.dl_inflight, cur, tmp) {
-        //     if(priv->msgs_out.inflight_quota > 0 || TRUE) { // TODO management quotas!
-        //         if(cur->msg.qos > 0 && cur->state == mosq_ms_invalid) {
-        //             if(cur->msg.qos == 1) {
-        //                 cur->state = mosq_ms_wait_for_puback;
-        //             } else if(cur->msg.qos == 2) {
-        //                 cur->state = mosq_ms_wait_for_pubrec;
-        //             }
-        //             rc = send__publish(
-        //                 gobj,
-        //                 (uint16_t)cur->msg.mid,
-        //                 cur->msg.topic,
-        //                 cur->msg.payload,
-        //                 (uint8_t)cur->msg.qos,
-        //                 cur->msg.retain,
-        //                 cur->dup,
-        //                 cur->properties,
-        //                 NULL,
-        //                 0
-        //             );
-        //             if(rc) {
-        //                 return rc;
-        //             }
-        //             // TODO util__decrement_send_quota(mosq);
-        //         }
-        //     } else {
-        //         return MOSQ_ERR_SUCCESS;
-        //     }
-        // }
+        tr2_queue_t *trq = priv->trq_out_msgs;
+        if(!trq) {
+            return rc;
+        }
+
+        q2_msg_t *qmsg, *next;
+        Q2MSG_FOREACH_FORWARD_INFLIGHT_SAFE(trq, qmsg, next) {
+            user_flag_t uf;
+            user_flag_init(&uf, tr2q_msg_hard_flag(qmsg));
+            int qos = user_flag_get_qos_level(&uf);
+            mqtt_msg_state_t state = user_flag_get_state(&uf);
+
+            if(qos > 0 && state == mosq_ms_invalid) {
+                /*
+                 *  Assign mid and update state
+                 */
+                uint16_t mid = mosquitto__mid_generate(gobj);
+                qmsg->mid = mid;
+
+                if(qos == 1) {
+                    user_flag_set_state(&uf, mosq_ms_wait_for_puback);
+                } else if(qos == 2) {
+                    user_flag_set_state(&uf, mosq_ms_wait_for_pubrec);
+                }
+                tr2q_set_hard_flag(qmsg, uf.value, TRUE);
+
+                /*
+                 *  Get message content and send PUBLISH
+                 */
+                json_t *kw_msg = tr2q_msg_json(qmsg);
+                if(!kw_msg) {
+                    continue;
+                }
+                const char *topic = kw_get_str(gobj, kw_msg, "topic", "", 0);
+                gbuffer_t *gbuf = (gbuffer_t *)(uintptr_t)kw_get_int(
+                    gobj, kw_msg, "gbuffer", 0, 0
+                );
+                BOOL retain = kw_get_bool(gobj, kw_msg, "retain", 0, 0);
+                BOOL dup = user_flag_get_dup(&uf);
+                json_t *properties = kw_get_dict(gobj, kw_msg, "properties", 0, 0);
+                uint32_t expiry_interval = (uint32_t)kw_get_int(
+                    gobj, kw_msg, "expiry_interval", 0, 0
+                );
+
+                rc = send__publish(
+                    gobj,
+                    mid,
+                    topic,
+                    gbuf,
+                    (uint8_t)qos,
+                    retain,
+                    dup,
+                    properties,
+                    expiry_interval
+                );
+                if(rc) {
+                    return rc;
+                }
+            }
+        }
     }
 
     return rc;
@@ -1005,19 +1041,10 @@ PRIVATE int message__delete(
  ***************************************************************************/
 PRIVATE void db__message_remove_from_inflight(
     hgobj gobj,
-    tr2_queue_t *dl,
+    tr2_queue_t *trq,
     q2_msg_t *qmsg
 ) {
-    // TODO this must to delete from tr2q
-    // dl_delete(dl, kw_mqtt_msg, 0);
-
-    // TODO
-    // if(item->store) {
-    //     db__msg_remove_from_inflight_stats(msg_data, item);
-    //     db__msg_store_ref_dec(&item->store);
-    // }
-
-    // kw_decref(kw_mqtt_msg);
+    tr2q_unload_msg(qmsg, 0);
 }
 
 /***************************************************************************
@@ -1255,19 +1282,25 @@ PRIVATE int db__message_update_outgoing(
     enum mqtt_msg_state state,
     int qos
 ) {
-    // PRIVATE_DATA *priv = gobj_priv_data(gobj);
-    // struct mosquitto_client_msg *tail;
-    //
-    // DL_FOREACH(&priv->msgs_out.dl_inflight, tail) {
-    //     if(tail->mid == mid) {
-    //         if(tail->qos != qos) {
-    //             return MOSQ_ERR_PROTOCOL;
-    //         }
-    //         tail->state = state;
-    //         tail->timestamp = priv->db_now_s;
-    //         return MOSQ_ERR_SUCCESS;
-    //     }
-    // }
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+    tr2_queue_t *trq = priv->trq_out_msgs;
+    if(!trq) {
+        return MOSQ_ERR_NOT_FOUND;
+    }
+
+    q2_msg_t *qmsg = tr2q_get_by_mid(trq, mid);
+    if(qmsg) {
+        user_flag_t uf;
+        user_flag_init(&uf, tr2q_msg_hard_flag(qmsg));
+        int msg_qos = user_flag_get_qos_level(&uf);
+        if(msg_qos != qos) {
+            return MOSQ_ERR_PROTOCOL;
+        }
+        user_flag_set_state(&uf, state);
+        tr2q_set_hard_flag(qmsg, uf.value, TRUE);
+        return MOSQ_ERR_SUCCESS;
+    }
+
     return MOSQ_ERR_NOT_FOUND;
 }
 
@@ -1280,45 +1313,33 @@ PRIVATE int db__message_delete_outgoing(
     enum mqtt_msg_state expect_state,
     int qos
 ) {
-    // PRIVATE_DATA *priv = gobj_priv_data(gobj);
-    // struct mosquitto_client_msg *tail, *tmp;
-    //
-//     DL_FOREACH_SAFE(&priv->msgs_out.dl_inflight, tail, tmp) {
-//         if(tail->mid == mid) {
-//             if(tail->qos != qos) {
-//                 return MOSQ_ERR_PROTOCOL;
-//             } else if(qos == 2 && tail->state != expect_state) {
-//                 return MOSQ_ERR_PROTOCOL;
-//             }
-//             db__message_remove_from_inflight(gobj, &priv->msgs_out, tail);
-//             break;
-//         }
-//     }
-//
-//     DL_FOREACH_SAFE(&priv->msgs_out.dl_queued, tail, tmp) {
-//         if(!db__ready_for_flight(gobj, mosq_md_out, tail->qos)) {
-//             break;
-//         }
-//
-//         // tail->timestamp = priv->db_now_s; TODO
-//         switch(tail->qos) {
-//             case 0:
-//                 tail->state = mosq_ms_publish_qos0;
-//             break;
-//             case 1:
-//                 tail->state = mosq_ms_publish_qos1;
-//             break;
-//             case 2:
-//                 tail->state = mosq_ms_publish_qos2;
-//             break;
-//         }
-//         db__message_dequeue_first(gobj, &priv->msgs_out);
-//     }
-// #ifdef WITH_PERSISTENCE
-//     db.persistence_changes++;
-// #endif
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+    tr2_queue_t *trq = priv->trq_out_msgs;
+    if(!trq) {
+        return MOSQ_ERR_NOT_FOUND;
+    }
 
-    return db__message_write_inflight_out_latest(gobj);
+    q2_msg_t *qmsg = tr2q_get_by_mid(trq, mid);
+    if(qmsg) {
+        user_flag_t uf;
+        user_flag_init(&uf, tr2q_msg_hard_flag(qmsg));
+        int msg_qos = user_flag_get_qos_level(&uf);
+        if(msg_qos != qos) {
+            return MOSQ_ERR_PROTOCOL;
+        }
+        if(qos == 2) {
+            mqtt_msg_state_t msg_state = user_flag_get_state(&uf);
+            if(msg_state != expect_state) {
+                return MOSQ_ERR_PROTOCOL;
+            }
+        }
+        db__message_remove_from_inflight(gobj, trq, qmsg);
+    }
+
+    /*
+     *  Move queued messages to inflight and send them
+     */
+    return message__release_to_inflight(gobj, mosq_md_out);
 }
 
 /***************************************************************************
