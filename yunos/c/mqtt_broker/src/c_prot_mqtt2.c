@@ -8620,11 +8620,10 @@ PRIVATE int ac_timeout_periodic(hgobj gobj, const char *event, json_t *kw, hgobj
                 send_simple_command(gobj, CMD_PINGREQ);
 
                 /*
-                 *  Client
                  *  Start timer to check PINGRESP arrives
-                 *  Give the client keepalive 3/2 seconds to check
+                 *  Give the client keepalive / 2 seconds to check
                  */
-                time_t check_timeout = (priv->keepalive * 3) / 2;
+                time_t check_timeout = (priv->keepalive) / 2;
                 if(check_timeout < 1) {
                     check_timeout = 1;
                 }
