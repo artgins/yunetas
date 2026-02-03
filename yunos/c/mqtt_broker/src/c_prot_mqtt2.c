@@ -399,7 +399,7 @@ PRIVATE const trace_level_t s_user_trace_level[16] = {
 typedef struct _PRIVATE_DATA {
     hgobj gobj_timer;
     hgobj gobj_timer_periodic;
-    BOOL iamServer;         // What side? server or client
+    BOOL iamServer;             // What side? server or client
     time_t timer_ping;          // Timer to send ping (client) or check keepalive timeout (server)
     time_t timer_check_ping;    // Timer to check ping response (client only)
 
@@ -7390,8 +7390,10 @@ PRIVATE int frame_completed(hgobj gobj, hgobj src)
      *  Server: reset keepalive timer on every received packet from client
      *  Per MQTT spec, the server must track all Control Packets, not just PINGREQ
      */
-    if(priv->iamServer && priv->keepalive > 0 && priv->timer_ping) {
-        priv->timer_ping = start_sectimer((priv->keepalive * 3) / 2);
+    if(priv->iamServer) {
+        if(priv->keepalive > 0) {
+            priv->timer_ping = start_sectimer((priv->keepalive * 3) / 2);
+        }
     }
 
     int ret = 0;
