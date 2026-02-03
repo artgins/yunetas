@@ -86,6 +86,7 @@ PUBLIC tr2_queue_t *tr2q_open(
         0
     );
     if(!trq->topic) {
+        // Error already logged
         tr2q_close(trq);
         return NULL;
     }
