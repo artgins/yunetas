@@ -1065,9 +1065,8 @@ PRIVATE void db__message_remove_from_inflight(
 
 /***************************************************************************
  * Is this context ready to take more in flight messages right now?
- * @param context the client context of interest
- * @param qos qos for the packet of interest
- * @return true if more in flight are allowed.
+ *  'qos' qos for the packet of interest
+ *  Return true if more in flight are allowed.
  ***************************************************************************/
 PRIVATE BOOL db__ready_for_flight(hgobj gobj, enum mqtt_msg_direction dir, int qos)
 {
