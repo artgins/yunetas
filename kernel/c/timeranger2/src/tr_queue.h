@@ -166,7 +166,7 @@ PUBLIC void trq_unload_msg(q_msg_t *msg, int32_t result);
         if you want recover it in the next open
         with the flag used in trq_load()
 */
-PUBLIC int trq_set_hard_flag(q_msg_t *msg, uint32_t hard_mark, BOOL set);
+PUBLIC int trq_set_hard_flag(q_msg_t *msg, uint16_t hard_mark, BOOL set);
 
 /**
     Set soft mark

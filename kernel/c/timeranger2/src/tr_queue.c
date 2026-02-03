@@ -445,7 +445,7 @@ PUBLIC int trq_check_pending_rowid(
     uint64_t __t__,
     uint64_t rowid
 ) {
-    uint32_t __user_flag__ = tranger2_read_user_flag(
+    uint16_t __user_flag__ = tranger2_read_user_flag(
         trq->tranger,
         trq->topic_name,
         "",
@@ -474,7 +474,7 @@ PUBLIC void trq_unload_msg(q_msg_t *msg, int32_t result)
     Put a hard flag in a message.
     You must flag a message after append it if you want recover it in the next open.
  ***************************************************************************/
-PUBLIC int trq_set_hard_flag(q_msg_t *msg, uint32_t hard_mark, BOOL set)
+PUBLIC int trq_set_hard_flag(q_msg_t *msg, uint16_t hard_mark, BOOL set)
 {
     return tranger2_set_user_flag(
         msg->trq->tranger,

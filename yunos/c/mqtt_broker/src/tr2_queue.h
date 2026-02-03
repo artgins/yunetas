@@ -129,7 +129,7 @@ PUBLIC json_t *tr2q_msg_json(q2_msg_t *msg); // Return is not yours, free with t
         if you want recover it in the next open
         with the flag used in tr2q_load()
 */
-PUBLIC int tr2q_set_hard_flag(q2_msg_t *msg, uint32_t hard_mark, BOOL set);
+PUBLIC int tr2q_set_hard_flag(q2_msg_t *msg, uint16_t hard_mark, BOOL set);
 
 static inline q2_msg_t *tr2q_first_inflight_msg(tr2_queue_t *trq)
 {
