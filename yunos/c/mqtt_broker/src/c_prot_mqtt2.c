@@ -4153,7 +4153,7 @@ PRIVATE int handle__connect(hgobj gobj, gbuffer_t *gbuf, hgobj src)
         gobj_log_error(gobj, 0,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_MQTT_ERROR,
-            "msg",          "%s", "Mqtt CMD_CONNECT: MQTT bad length",
+            "msg",          "%s", "Mqtt CMD_CONNECT: MQTT protocol name length",
             NULL
         );
         return -1;
@@ -7124,11 +7124,12 @@ PRIVATE void ws_close(hgobj gobj, int reason)
 
     // Change firstly for avoid new messages from client
     gobj_change_state(gobj, ST_DISCONNECTED);
+    clear_timeout(priv->gobj_timer_periodic);
 
     if(priv->in_session) {
         if(priv->send_disconnect) {
             // Fallan los test con el send__disconnect
-            //send__disconnect(gobj, code, NULL);
+            send__disconnect(gobj, reason, NULL);
         }
     }
 
@@ -7658,15 +7659,22 @@ PRIVATE int ac_disconnected(hgobj gobj, const char *event, json_t *kw, hgobj src
         priv->istream_payload = 0;
     }
 
+    /*----------------*
+     *  Close queues
+     *----------------*/
+    if(priv->tranger_queues) {
+        close_queues(gobj);
+    }
+
+    GBUFFER_DECREF(priv->gbuf_will_payload);
+
+    clear_timeout(priv->gobj_timer);
+    clear_timeout(priv->gobj_timer_periodic);
+    priv->timer_ping = 0;
+    priv->timer_check_ping = 0;
+
     if(priv->inform_on_close) {
         priv->inform_on_close = FALSE;
-
-        /*----------------*
-         *  Close queues
-         *----------------*/
-        if(priv->tranger_queues) {
-            close_queues(gobj);
-        }
 
         const char *peername;
         if(gobj_has_bottom_attr(src, "peername")) {
@@ -7689,21 +7697,13 @@ PRIVATE int ac_disconnected(hgobj gobj, const char *event, json_t *kw, hgobj src
         );
     }
 
-    gobj_reset_volatil_attrs(gobj);
-    restore_client_attributes(gobj);
-
-    GBUFFER_DECREF(priv->gbuf_will_payload);
-
     if(gobj_is_volatil(src)) {
         gobj_set_bottom_gobj(gobj, 0);
     }
 
-    clear_timeout(priv->gobj_timer);
-    clear_timeout(priv->gobj_timer_periodic);
-    priv->timer_ping = 0;
-    priv->timer_check_ping = 0;
-
     JSON_DECREF(priv->jn_alias_list)
+    gobj_reset_volatil_attrs(gobj);
+    restore_client_attributes(gobj);
 
     // TODO new dl_flush(&priv->dl_msgs_in, db_free_client_msg);
     // TODO new dl_flush(&priv->dl_msgs_out, db_free_client_msg);
