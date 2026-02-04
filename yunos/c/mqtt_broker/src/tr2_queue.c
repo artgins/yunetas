@@ -497,6 +497,29 @@ PUBLIC q2_msg_t *tr2q_get_by_rowid(tr2_queue_t *trq, uint64_t rowid)
 }
 
 /***************************************************************************
+    Get a message from iter by his mid
+ ***************************************************************************/
+PUBLIC q2_msg_t *tr2q_get_by_mid(tr2_queue_t *trq, json_int_t mid)
+{
+    register q2_msg_t *msg;
+
+    Q2MSG_FOREACH_FORWARD_INFLIGHT(trq, msg) {
+        if(msg->mid == mid) {
+            msg->inflight = TRUE;
+            return msg;
+        }
+    }
+    Q2MSG_FOREACH_FORWARD_QUEUED(trq, msg) {
+        if(msg->mid == mid) {
+            msg->inflight = FALSE;
+            return msg;
+        }
+    }
+
+    return NULL;
+}
+
+/***************************************************************************
     Get the message content
  ***************************************************************************/
 PUBLIC json_t *tr2q_msg_json(q2_msg_t *msg) // Return is not yours, free with tr2q_unload_msg()
