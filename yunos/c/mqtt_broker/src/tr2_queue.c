@@ -183,7 +183,6 @@ PRIVATE q2_msg_t *new_msg(
     memmove(&msg->md_record, md_record, sizeof(md2_record_ex_t));
     msg->trq = trq;
     msg->rowid = rowid;
-    msg->mid = json_integer_value(json_object_get(kw_record, "mid"));
 
     if(trq->max_inflight_messages == 0 || tr2q_inflight_size(trq) < trq->max_inflight_messages) {
         dl_add(&trq->dl_inflight, msg);
@@ -472,29 +471,6 @@ PUBLIC void tr2q_unload_msg(q2_msg_t *msg, int32_t result)
     } else {
         dl_delete(&msg->trq->dl_queued, msg, free_msg);
     }
-}
-
-/***************************************************************************
-    Get a message from iter by his mid
- ***************************************************************************/
-PUBLIC q2_msg_t *tr2q_get_by_mid(tr2_queue_t *trq, json_int_t mid)
-{
-    register q2_msg_t *msg;
-
-    Q2MSG_FOREACH_FORWARD_INFLIGHT(trq, msg) {
-        if(msg->mid == mid) {
-            msg->inflight = TRUE;
-            return msg;
-        }
-    }
-    Q2MSG_FOREACH_FORWARD_QUEUED(trq, msg) {
-        if(msg->mid == mid) {
-            msg->inflight = FALSE;
-            return msg;
-        }
-    }
-
-    return NULL;
 }
 
 /***************************************************************************

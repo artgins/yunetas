@@ -48,7 +48,6 @@ typedef struct {
     md2_record_ex_t md_record;
     uint64_t mark;          // soft mark.
     json_int_t rowid;       // global rowid that it must match the rowid in md_record
-    json_int_t mid;         // Yes, it's an ease for mqtt protocol
     BOOL inflight;          // True if it's in inflight dl_list, otherwise in the queued dl_list
     json_t *kw_record;      // It may have gbuffer
 } q2_msg_t;
@@ -107,11 +106,6 @@ PUBLIC int tr2q_move_from_queued_to_inflight(q2_msg_t *msg);
     Unload a message from iter and hard mark with TR2Q_MSG_PENDING set to 0
 */
 PUBLIC void tr2q_unload_msg(q2_msg_t *msg, int32_t result);
-
-/**
-    Get a message from iter by his mid
-*/
-PUBLIC q2_msg_t *tr2q_get_by_mid(tr2_queue_t *trq, json_int_t mid);
 
 /**
     Get a message from iter by his rowid

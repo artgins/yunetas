@@ -153,7 +153,6 @@ PRIVATE int send__disconnect(
     json_t *properties
 );
 PRIVATE void do_disconnect(hgobj gobj, int reason);
-PRIVATE uint16_t mosquitto__mid_generate(hgobj gobj);
 
 /***************************************************************************
  *          Data: config, public data, private data
@@ -183,7 +182,7 @@ PRIVATE sdata_desc_t attrs_table[] = {
 SDATA (DTP_BOOLEAN,     "iamServer",        SDF_RD,     0,      "What side? server or client"),
 SDATA (DTP_POINTER,     "tranger_queues",   0,          0,      "Queues TimeRanger for mqtt messages with qos > 0. If null then no persistence queues are used and max qos is limited to 0"),
 SDATA (DTP_STRING,      "alert_message",    SDF_RD,     "ALERT Queuing", "Alert message"),
-SDATA (DTP_INTEGER,     "max_pending_acks", SDF_RD,     "10000","Maximum messages pending of ack"), // TODO this is really like max_inflight_messages, TODO unify
+SDATA (DTP_INTEGER,     "max_pending_acks", SDF_RD,     "10000","Maximum messages pending of ack, mid is an uint16_t, max_pending_acks cannot be greater than 65535"), // TODO this is really like max_inflight_messages, TODO unify
 SDATA (DTP_INTEGER,     "backup_queue_size",SDF_RD,     "65500","Do backup at this size, using rowid as mid therefore backup_queue_size cannot be greater than 65535"),
 SDATA (DTP_INTEGER,     "alert_queue_size", SDF_RD,     "2000", "Limit alert queue size"),
 SDATA (DTP_INTEGER,     "timeout_ack",      SDF_RD,     "60",   "Timeout ack in seconds"),
@@ -231,7 +230,7 @@ SDATA (DTP_INTEGER,     "timeout_backup",   SDF_RD,     "1",     "Timeout to che
 
 SDATA (DTP_INTEGER,     "max_inflight_bytes",SDF_WR,        0,      "Outgoing QoS 1 and 2 messages will be allowed in flight until this byte limit is reached. This allows control of outgoing message rate based on message size rather than message count. If the limit is set to 100, messages of over 100 bytes are still allowed, but only a single message can be in flight at once. Defaults to 0. (No limit)."),
 
-SDATA (DTP_INTEGER,     "max_inflight_messages",SDF_WR,     "20",   "The maximum number of outgoing QoS 1 or 2 messages that can be in the process of being transmitted simultaneously. This includes messages currently going through handshakes and messages that are being retried. Defaults to 20. Set to 0 for no maximum. If set to 1, this will guarantee in-order delivery of messages"),
+SDATA (DTP_INTEGER,     "max_inflight_messages",SDF_WR,     "20",   "The maximum number of outgoing QoS 1 or 2 messages that can be in the process of being transmitted simultaneously. This includes messages currently going through handshakes and messages that are being retried. Defaults to 20. Set to 0 for no maximum. If set to 1, this will guarantee in-order delivery of messages. mid is an uint16_t, max_inflight_messages (max_pending_acks) cannot be greater than 65535"),
 
 SDATA (DTP_INTEGER,     "max_queued_bytes", SDF_WR,         0,      "The number of outgoing QoS 1 and 2 messages above those currently in-flight will be queued (per client) by the broker. Once this limit has been reached, subsequent messages will be silently dropped. This is an important option if you are sending messages at a high rate and/or have clients who are slow to respond or may be offline for extended periods of time. Defaults to 0. (No maximum).See also the max_queued_messages option. If both max_queued_messages and max_queued_bytes are specified, packets will be queued until the first limit is reached."),
 
@@ -768,17 +767,8 @@ PRIVATE int message__out_update(
 ) {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
     tr2_queue_t *trq = priv->trq_out_msgs;
-    if(!trq) {
-        gobj_log_error(gobj, 0,
-            "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_INTERNAL_ERROR,
-            "msg",          "%s", "No output queue",
-            NULL
-        );
-        return MOSQ_ERR_NOT_FOUND;
-    }
 
-    q2_msg_t *qmsg = tr2q_get_by_mid(trq, mid);
+    q2_msg_t *qmsg = tr2q_get_by_rowid(trq, mid);
     if(qmsg) {
         msg_flag_t uf = {.value = tr2q_msg_hard_flag(qmsg)};
         int msg_qos = msg_flag_get_qos_level(&uf);
@@ -796,10 +786,18 @@ PRIVATE int message__out_update(
         }
         tr2q_save_hard_mark(qmsg, uf.value);
         return MOSQ_ERR_SUCCESS;
+    } else {
+        // Trace by now, see use cases
+        gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_MQTT_ERROR,
+            "msg",          "%s", "Message not found",
+            "mid",          "%d", (int)mid,
+            "qos",          "%d", qos,
+            NULL
+        );
+        return MOSQ_ERR_NOT_FOUND;
     }
-
-    // Silence please
-    return MOSQ_ERR_NOT_FOUND;
 }
 
 /***************************************************************************
@@ -822,8 +820,7 @@ PRIVATE int message__release_to_inflight(hgobj gobj, enum mqtt_msg_direction dir
                 /*
                  *  Assign mid and update state
                  */
-                uint16_t mid = mosquitto__mid_generate(gobj);
-                qmsg->mid = mid;
+                uint16_t mid = qmsg->rowid & 0xFFFF;
 
                 /*
                  *  Get message content and send PUBLISH
@@ -931,10 +928,10 @@ PRIVATE int message__remove(
 
     q2_msg_t *msg;
     if(dir == mosq_md_out) {
-        msg = tr2q_get_by_mid(priv->trq_out_msgs, mid);
+        msg = tr2q_get_by_rowid(priv->trq_out_msgs, mid);
 
     } else {
-        msg = tr2q_get_by_mid(priv->trq_in_msgs, mid);
+        msg = tr2q_get_by_rowid(priv->trq_in_msgs, mid);
     }
 
     if(msg) {
@@ -1218,7 +1215,7 @@ PRIVATE int db__message_update_outgoing(
         return MOSQ_ERR_NOT_FOUND;
     }
 
-    q2_msg_t *qmsg = tr2q_get_by_mid(trq, mid);
+    q2_msg_t *qmsg = tr2q_get_by_rowid(trq, mid);
     if(qmsg) {
         msg_flag_t uf = {.value = tr2q_msg_hard_flag(qmsg)};
         int msg_qos = msg_flag_get_qos_level(&uf);
@@ -1254,7 +1251,7 @@ PRIVATE int db__message_delete_outgoing(
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
     tr2_queue_t *trq = priv->trq_out_msgs;
 
-    q2_msg_t *qmsg = tr2q_get_by_mid(trq, mid);
+    q2_msg_t *qmsg = tr2q_get_by_rowid(trq, mid);
     if(qmsg) {
         msg_flag_t uf = {.value = tr2q_msg_hard_flag(qmsg)};
         int msg_qos = msg_flag_get_qos_level(&uf);
@@ -1316,7 +1313,7 @@ PRIVATE int db__message_release_incoming(hgobj gobj, uint16_t mid)
 
     BOOL deleted = FALSE;
 
-    q2_msg_t *qmsg = tr2q_get_by_mid(priv->trq_in_msgs, mid);
+    q2_msg_t *qmsg = tr2q_get_by_rowid(priv->trq_in_msgs, mid);
     if(qmsg) {
         msg_flag_t uf = {.value = tr2q_msg_hard_flag(qmsg)};
         int msg_qos = msg_flag_get_qos_level(&uf);
@@ -1385,7 +1382,7 @@ PRIVATE int db__message_remove_incoming_dup(hgobj gobj, uint16_t mid)
     q2_msg_t *qmsg, *tmp;
 
     DL_FOREACH_SAFE(&priv->trq_in_msgs->dl_inflight, qmsg, tmp) {
-        if(qmsg->mid == mid) {
+        if(qmsg->rowid == (uint64_t)mid) {
             gobj_log_warning(gobj, 0,
                 "function",     "%s", __FUNCTION__,
                 "msgset",       "%s", MSGSET_INTERNAL_ERROR,
@@ -1416,18 +1413,21 @@ PRIVATE int db__message_write_queued_in(hgobj gobj)
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
     if(priv->trq_in_msgs) {
-        register q2_msg_t *msg;
-        Q2MSG_FOREACH_FORWARD_QUEUED(priv->trq_in_msgs, msg) {
+        register q2_msg_t *qmsg;
+        Q2MSG_FOREACH_FORWARD_QUEUED(priv->trq_in_msgs, qmsg) {
             // if(context->msgs_in.inflight_maximum != 0 && context->msgs_in.inflight_quota == 0){
             if(priv->trq_in_msgs->max_inflight_messages > 0 && tr2q_inflight_size(priv->trq_in_msgs)==0) {
                 break;
             }
 
-            if(tr2q_move_from_queued_to_inflight(msg)<0) {
+            if(tr2q_move_from_queued_to_inflight(qmsg)<0) {
                 break;
             }
-            //msg_flag_set_state(&user_flag, mosq_ms_wait_for_pubrel); // TODO
-            send__pubrec(gobj, msg->mid, 0, NULL);
+            msg_flag_t uf = {.value = tr2q_msg_hard_flag(qmsg)};
+            msg_flag_set_state(&uf, mosq_ms_wait_for_pubrel);
+            uint16_t mid = qmsg->rowid & 0xFFFF;
+            send__pubrec(gobj, mid, 0, NULL);
+            tr2q_save_hard_mark(qmsg, uf.value);
         }
     }
     return MOSQ_ERR_SUCCESS;
