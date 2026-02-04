@@ -1011,6 +1011,7 @@ PRIVATE int message__remove(
     hgobj gobj,
     uint16_t mid,
     mqtt_msg_direction_t dir,
+    int qos, // TODO what checks mosquitto does with qos? review
     json_t **pmsg
 ) {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
@@ -1044,11 +1045,12 @@ PRIVATE int message__remove(
 PRIVATE int message__delete(
     hgobj gobj,
     uint16_t mid,
-    enum mqtt_msg_direction dir
+    enum mqtt_msg_direction dir,
+    int qos
 ) {
     json_t *kw_mqtt_msg;
 
-    int rc = message__remove(gobj, mid, dir, &kw_mqtt_msg);
+    int rc = message__remove(gobj, mid, dir, qos, &kw_mqtt_msg);
     if(rc == MOSQ_ERR_SUCCESS) {
         KW_DECREF(kw_mqtt_msg)
     }
@@ -1127,23 +1129,17 @@ PRIVATE BOOL db__ready_for_flight(hgobj gobj, enum mqtt_msg_direction dir, int q
 /***************************************************************************
  *
  ***************************************************************************/
-// PRIVATE void db__message_dequeue_first(
-//     hgobj gobj,
-//     struct mosquitto_msg_data *msg_data
-// ) {
-//     struct mosquitto_client_msg *msg;
-//
-    // TODO
+PRIVATE void db__message_dequeue_first(
+    hgobj gobj,
+    struct mosquitto_msg_data *msg_data
+) {
+    struct mosquitto_client_msg *msg;
+
+    int todo; // TODO let Claude implement
     // msg = msg_data->queued;
     // DL_DELETE(msg_data->queued, msg);
     // DL_APPEND(msg_data->inflight, msg);
-    // if(msg_data->inflight_quota > 0) {
-    //     msg_data->inflight_quota--;
-    // }
-
-    // db__msg_remove_from_queued_stats(msg_data, msg);
-    // db__msg_add_to_inflight_stats(msg_data, msg);
-// }
+}
 
 /***************************************************************************
  *
@@ -1337,7 +1333,7 @@ PRIVATE int db__message_update_outgoing(
 }
 
 /***************************************************************************
- *  Using in handle__pubrec()
+ *  Using in handle__pubrec() and handle__pubackcomp()
  ***************************************************************************/
 PRIVATE int db__message_delete_outgoing(
     hgobj gobj,
@@ -1347,15 +1343,6 @@ PRIVATE int db__message_delete_outgoing(
 ) {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
     tr2_queue_t *trq = priv->trq_out_msgs;
-    if(!trq) {
-        gobj_log_error(gobj, 0,
-            "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_INTERNAL_ERROR,
-            "msg",          "%s", "No output queue",
-            NULL
-        );
-        return MOSQ_ERR_NOT_FOUND;
-    }
 
     q2_msg_t *qmsg = tr2q_get_by_mid(trq, mid);
     if(qmsg) {
@@ -1391,10 +1378,89 @@ PRIVATE int db__message_delete_outgoing(
         db__message_remove_from_inflight(gobj, trq, qmsg);
     }
 
+    int todo; // TODO let Claude implement
+    // DL_FOREACH_SAFE(context->msgs_out.queued, tail, tmp){
+    //     if(!db__ready_for_flight(context, mosq_md_out, tail->qos)){
+    //         break;
+    //     }
+    //
+    //     tail->timestamp = db.now_s;
+    //     switch(tail->qos){
+    //         case 0:
+    //             tail->state = mosq_ms_publish_qos0;
+    //         break;
+    //         case 1:
+    //             tail->state = mosq_ms_publish_qos1;
+    //         break;
+    //         case 2:
+    //             tail->state = mosq_ms_publish_qos2;
+    //         break;
+    //     }
+    //     db__message_dequeue_first(context, &context->msgs_out);
+    // }
+
     /*
      *  Move queued messages to inflight and send them
      */
     return message__release_to_inflight(gobj, mosq_md_out);
+}
+
+/***************************************************************************
+ *  Entrega mensajes con qos 2
+ ***************************************************************************/
+PRIVATE int db__message_release_incoming(hgobj gobj, uint16_t mid)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    char *topic;
+    BOOL deleted = FALSE;
+
+    int todo; // TODO let Claude implement
+    // struct mosquitto_client_msg *tail = dl_first(&priv->dl_msgs_in);
+    // while(tail) {
+    //     if(tail->mid == mid) {
+    //         if(tail->store->qos != 2) {
+    //             return MOSQ_ERR_PROTOCOL;
+    //         }
+    //         topic = tail->store->topic;
+    //
+    //         /* topic==NULL should be a QoS 2 message that was
+    //          * denied/dropped and is being processed so the client doesn't
+    //          * keep resending it. That means we don't send it to other
+    //          * clients. */
+    //         if(topic == NULL) {
+    //             dl_delete(&priv->dl_msgs_in, tail, db_free_client_msg);
+    //             deleted = TRUE;
+    //         } else {
+    //             struct mosquitto_msg_store *stored = tail->store;
+    //             json_t *jn_subscribers = sub_get_subscribers(gobj, stored->topic);
+    //             // Old method, now publish the message to up (broker)
+    //             XXX_sub__messages_queue(
+    //                 gobj,
+    //                 jn_subscribers,
+    //                 stored->topic,
+    //                 2,
+    //                 stored->retain,
+    //                 stored
+    //             );
+    //
+    //             dl_delete(&priv->dl_msgs_in, tail, db_free_client_msg);
+    //             deleted = TRUE;
+    //         }
+    //         break;
+    //     }
+    //
+    //     /*
+    //      *  Next
+    //      */
+    //     tail = dl_next(tail);
+    // }
+
+    if(deleted) {
+        return MOSQ_ERR_SUCCESS;
+    } else {
+        return MOSQ_ERR_NOT_FOUND;
+    }
 }
 
 /***************************************************************************
@@ -6167,7 +6233,7 @@ PRIVATE int handle__publish_s(
             /*
              *  Delete possible msg with same mid
              */
-            message__remove(gobj, mid, mosq_md_in, NULL);
+            message__remove(gobj, mid, mosq_md_in, 2, NULL);
         }
 
         if(!db__ready_for_flight(gobj, mosq_md_in, qos)) {
@@ -6724,7 +6790,7 @@ PRIVATE int handle__pubackcomp(hgobj gobj, gbuffer_t *gbuf, const char *type)
             );
         }
 
-        rc = message__delete(gobj, mid, mosq_md_out);
+        rc = message__delete(gobj, mid, mosq_md_out, qos);
 
         if(rc == MOSQ_ERR_SUCCESS) {
             /*
@@ -6746,21 +6812,6 @@ PRIVATE int handle__pubackcomp(hgobj gobj, gbuffer_t *gbuf, const char *type)
                 EV_ON_IEV_MESSAGE,
                 kw_iev
             );
-
-            // TODO código viejo
-            // gbuffer_t *gbuf_message = gbuffer_create(stored->payloadlen, stored->payloadlen);
-            // if(gbuf_message) {
-            //     if(stored->payloadlen > 0) {
-            //         // Can become without payload
-            //         gbuffer_append(gbuf_message, stored->payload, stored->payloadlen);
-            //     }
-            //     json_t *kw = json_pack("{s:s, s:s, s:I}",
-            //         "mqtt_action", "publishing",
-            //         "topic", topic_name,
-            //         "gbuffer", (json_int_t)(uintptr_t)gbuf_message
-            //     );
-            //     gobj_publish_event(gobj, EV_ON_MESSAGE, kw);
-            // }
 
         } else if(rc != MOSQ_ERR_NOT_FOUND) {
             JSON_DECREF(properties)
@@ -6897,7 +6948,7 @@ PRIVATE int handle__pubrec(hgobj gobj, gbuffer_t *gbuf)
         if(reason_code < 0x80 || priv->protocol_version != mosq_p_mqtt5) {
             rc = message__out_update(gobj, mid, mosq_ms_wait_for_pubcomp, 2);
         } else {
-            if(!message__delete(gobj, mid, mosq_md_out)) {
+            if(!message__delete(gobj, mid, mosq_md_out, 2)) {
                 /*
                  *  TODO If not exist it's because must be dup? What is this case?
                  */
@@ -7037,30 +7088,12 @@ PRIVATE int handle__pubrel(hgobj gobj, gbuffer_t *gbuf)
             );
         }
 
-        json_t *kw_mqtt_msg;
-        message__remove(gobj, mid, mosq_md_in, &kw_mqtt_msg);
-
-        if(kw_mqtt_msg) {
-            /*
-             *  Broker
-             *  Dispatch the message to the subscribers
-             */
-            json_t *kw_iev = iev_create(
-                gobj,
-                EV_MQTT_MESSAGE,
-                kw_mqtt_msg // owned
-            );
-            gobj_publish_event( // To broker, sub__messages_queue
-                gobj,
-                EV_ON_IEV_MESSAGE,
-                kw_iev
-            );
-
-        } else {
-            /*
-             * Message not found. Still send a PUBCOMP anyway because this could be
-             * due to a repeated PUBREL after a client has reconnected.
-             */
+        rc = db__message_release_incoming(gobj, mid);
+        if(rc == MOSQ_ERR_NOT_FOUND) {
+            /* Message not found. Still send a PUBCOMP anyway because this could be
+            * due to a repeated PUBREL after a client has reconnected. */
+        } else if(rc != MOSQ_ERR_SUCCESS) {
+            return rc;
         }
 
         /*
@@ -7085,7 +7118,7 @@ PRIVATE int handle__pubrel(hgobj gobj, gbuffer_t *gbuf)
         send__pubcomp(gobj, mid, NULL);
 
         json_t *kw_mqtt_msg;
-        message__remove(gobj, mid, mosq_md_in, &kw_mqtt_msg);
+        message__remove(gobj, mid, mosq_md_in, 2, &kw_mqtt_msg);
         if(kw_mqtt_msg) {
             /* Only pass the message on if we have removed it from the queue - this
              * prevents multiple callbacks for the same message.
