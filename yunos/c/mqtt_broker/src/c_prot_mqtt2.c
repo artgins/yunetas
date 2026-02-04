@@ -395,7 +395,9 @@ PRIVATE void mt_create(hgobj gobj)
 
     priv->iamServer = gobj_read_bool_attr(gobj, "iamServer");
     priv->gobj_timer = gobj_create_pure_child(gobj_name(gobj), C_TIMER, 0, gobj);
-    priv->gobj_timer_periodic = gobj_create_pure_child(gobj_name(gobj), C_TIMER, 0, gobj);
+    char timer_name[NAME_MAX];
+    snprintf(timer_name, sizeof(timer_name), "%s-PERIODIC", gobj_name(gobj));
+    priv->gobj_timer_periodic = gobj_create_pure_child(timer_name, C_TIMER, 0, gobj);
 
     // The maximum size of a frame header is 5 bytes.
     priv->istream_frame = istream_create(gobj, 5, 5);
@@ -7125,18 +7127,19 @@ PRIVATE void ws_close(hgobj gobj, int reason)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
-    // Change firstly for avoid new messages from client
-    gobj_change_state(gobj, ST_DISCONNECTED);
-    clear_timeout(priv->gobj_timer_periodic);
+    if(!gobj_in_this_state(gobj, ST_DISCONNECTED)) {
+        gobj_change_state(gobj, ST_DISCONNECTED);
+        clear_timeout(priv->gobj_timer_periodic);
 
-    if(priv->in_session) {
-        if(priv->send_disconnect) {
-            send__disconnect(gobj, reason, NULL);
+        if(priv->in_session) {
+            if(priv->send_disconnect) {
+                send__disconnect(gobj, reason, NULL);
+            }
         }
-    }
 
-    do_disconnect(gobj, reason);
-    set_timeout(priv->gobj_timer, priv->timeout_close);
+        do_disconnect(gobj, reason);
+        set_timeout(priv->gobj_timer, priv->timeout_close);
+    }
 }
 
 /***************************************************************************
