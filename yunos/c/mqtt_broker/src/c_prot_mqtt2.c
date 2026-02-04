@@ -7135,7 +7135,10 @@ PRIVATE void ws_close(hgobj gobj, int reason)
         gobj_change_state(gobj, ST_DISCONNECTED);
         clear_timeout(priv->gobj_timer_periodic);
 
-        // Set timer close before send drop, could be event disconnect come immediately
+        /*
+         *  WARNING: feedback, retroalimentación
+         *  Set timer close before send drop, could be event disconnect come immediately
+         */
         set_timeout(priv->gobj_timer, priv->timeout_close);
 
         if(priv->in_session) {
@@ -7144,7 +7147,7 @@ PRIVATE void ws_close(hgobj gobj, int reason)
             }
         }
 
-        do_disconnect(gobj, reason);
+        do_disconnect(gobj, reason); // sending event EV_DROP, feedback of events.
     }
 }
 
