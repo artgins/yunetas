@@ -7147,7 +7147,8 @@ PRIVATE void ws_close(hgobj gobj, int reason)
             }
         }
 
-        do_disconnect(gobj, reason); // sending event EV_DROP, feedback of events.
+        // sending event EV_DROP, case of event's feedback (EV_DISCONNECTED)
+        do_disconnect(gobj, reason);
     }
 }
 
