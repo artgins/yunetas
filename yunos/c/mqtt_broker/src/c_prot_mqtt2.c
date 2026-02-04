@@ -3510,7 +3510,7 @@ PRIVATE int send__connack(
     uint32_t remaining_length = 2;
 
     if(gobj_trace_level(gobj) & SHOW_DECODE) {
-        trace_msg0("👉👉 Sending CONNACK as %s to '%s' %s (ack %d, reason code %d '%s')",
+        trace_msg0("👉👉 Sending CONNACK as %s to '%s' %s (ack %d, reason: %d '%s')",
             priv->iamServer?"broker":"client",
             priv->client_id,
             gobj_short_name(gobj_bottom_gobj(gobj)),
@@ -3696,7 +3696,7 @@ PRIVATE int send_command_with_mid(
     int remaining_length = 2;
 
     if(gobj_trace_level(gobj) & SHOW_DECODE) {
-        trace_msg0("👉👉 Sending as %s, %s to '%s' (mid %ld, reason %d '%s')",
+        trace_msg0("👉👉 Sending as %s, %s to '%s' (mid %ld, reason: %d '%s')",
             priv->iamServer?"broker":"client",
             mqtt_command_string(command & 0xF0),
             priv->client_id,
@@ -4991,7 +4991,7 @@ PRIVATE int handle__connack(
     // message__reconnect_reset(mosq, true); TODO important?!
 
     if(gobj_trace_level(gobj) & SHOW_DECODE) {
-        trace_msg0("👈👈 COMMAND=%s, reason code: %d '%s'",
+        trace_msg0("👈👈 COMMAND=%s, reason: %d '%s'",
             mqtt_command_string(CMD_CONNACK),
             reason_code,
             priv->protocol_version == mosq_p_mqtt5?
@@ -6675,11 +6675,12 @@ PRIVATE int handle__pubackcomp(hgobj gobj, gbuffer_t *gbuf, const char *type)
 
     if(priv->iamServer) {
         if(gobj_trace_level(gobj) & SHOW_DECODE) {
-            trace_msg0("  👈 server Received %s from client '%s' (mid: %d, reason: %d)",
+            trace_msg0("  👈 server Received %s from client '%s' (mid: %d, reason: %d '%s')",
                 type,
                 SAFE_PRINT(priv->client_id),
                 mid,
-                reason_code
+                reason_code,
+                mqtt_reason_string(reason_code)
             );
         }
 
@@ -6707,11 +6708,12 @@ PRIVATE int handle__pubackcomp(hgobj gobj, gbuffer_t *gbuf, const char *type)
 
     } else {
         if(gobj_trace_level(gobj) & SHOW_DECODE) {
-            trace_msg0("  👈 client %s Received %s from server (mid: %d, reason: %d)",
+            trace_msg0("  👈 client %s Received %s from server (mid: %d, reason: %d '%s')",
                 SAFE_PRINT(priv->client_id),
                 type,
                 mid,
-                reason_code
+                reason_code,
+                mqtt_reason_string(reason_code)
             );
         }
 
@@ -6848,10 +6850,11 @@ PRIVATE int handle__pubrec(hgobj gobj, gbuffer_t *gbuf)
 
     if(priv->iamServer) {
         if(gobj_trace_level(gobj) & SHOW_DECODE) {
-            trace_msg0("  👈 server Received PUBREC from client '%s' (mid: %d, reason: %d)",
+            trace_msg0("  👈 server Received PUBREC from client '%s' (mid: %d, reason: %d '%s')",
                 SAFE_PRINT(priv->client_id),
                 mid,
-                reason_code
+                reason_code,
+                mqtt_reason_string(reason_code)
             );
         }
 
@@ -6863,10 +6866,11 @@ PRIVATE int handle__pubrec(hgobj gobj, gbuffer_t *gbuf)
 
     } else {
         if(gobj_trace_level(gobj) & SHOW_DECODE) {
-            trace_msg0("  👈 client %s Received PUBREC from broker (mid: %d, reason: %d)",
+            trace_msg0("  👈 client %s Received PUBREC from broker (mid: %d, reason: %d '%s')",
                 SAFE_PRINT(priv->client_id),
                 mid,
-                reason_code
+                reason_code,
+                mqtt_reason_string(reason_code)
             );
         }
 
