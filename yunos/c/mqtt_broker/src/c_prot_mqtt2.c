@@ -1129,16 +1129,16 @@ PRIVATE BOOL db__ready_for_flight(hgobj gobj, enum mqtt_msg_direction dir, int q
 /***************************************************************************
  *
  ***************************************************************************/
-PRIVATE void db__message_dequeue_first(
+PRIVATE int db__message_dequeue_first(
     hgobj gobj,
-    struct mosquitto_msg_data *msg_data
+    tr2_queue_t *trq
 ) {
-    struct mosquitto_client_msg *msg;
-
-    int todo; // TODO let Claude implement
-    // msg = msg_data->queued;
-    // DL_DELETE(msg_data->queued, msg);
-    // DL_APPEND(msg_data->inflight, msg);
+    q2_msg_t *msg = tr2q_first_queued_msg(trq);
+    if(!msg) {
+        // Silence please
+        return -1;
+    }
+    return tr2q_move_from_queued_to_inflight(msg);
 }
 
 /***************************************************************************
@@ -1378,29 +1378,21 @@ PRIVATE int db__message_delete_outgoing(
         db__message_remove_from_inflight(gobj, trq, qmsg);
     }
 
-    int todo; // TODO let Claude implement
-    // DL_FOREACH_SAFE(context->msgs_out.queued, tail, tmp){
-    //     if(!db__ready_for_flight(context, mosq_md_out, tail->qos)){
-    //         break;
-    //     }
-    //
-    //     tail->timestamp = db.now_s;
-    //     switch(tail->qos){
-    //         case 0:
-    //             tail->state = mosq_ms_publish_qos0;
-    //         break;
-    //         case 1:
-    //             tail->state = mosq_ms_publish_qos1;
-    //         break;
-    //         case 2:
-    //             tail->state = mosq_ms_publish_qos2;
-    //         break;
-    //     }
-    //     db__message_dequeue_first(context, &context->msgs_out);
-    // }
+    /*
+     *  Move queued messages to inflight while ready for flight
+     */
+    q2_msg_t *tail, *tmp;
+    Q2MSG_FOREACH_FORWARD_QUEUED_SAFE(trq, tail, tmp) {
+        msg_flag_t tf = {.value = tr2q_msg_hard_flag(tail)};
+        int tail_qos = msg_flag_get_qos_level(&tf);
+        if(!db__ready_for_flight(gobj, mosq_md_out, tail_qos)) {
+            break;
+        }
+        db__message_dequeue_first(gobj, trq);
+    }
 
     /*
-     *  Move queued messages to inflight and send them
+     *  Send inflight messages
      */
     return message__release_to_inflight(gobj, mosq_md_out);
 }
@@ -1412,53 +1404,59 @@ PRIVATE int db__message_release_incoming(hgobj gobj, uint16_t mid)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
-    char *topic;
     BOOL deleted = FALSE;
 
-    int todo; // TODO let Claude implement
-    // struct mosquitto_client_msg *tail = dl_first(&priv->dl_msgs_in);
-    // while(tail) {
-    //     if(tail->mid == mid) {
-    //         if(tail->store->qos != 2) {
-    //             return MOSQ_ERR_PROTOCOL;
-    //         }
-    //         topic = tail->store->topic;
-    //
-    //         /* topic==NULL should be a QoS 2 message that was
-    //          * denied/dropped and is being processed so the client doesn't
-    //          * keep resending it. That means we don't send it to other
-    //          * clients. */
-    //         if(topic == NULL) {
-    //             dl_delete(&priv->dl_msgs_in, tail, db_free_client_msg);
-    //             deleted = TRUE;
-    //         } else {
-    //             struct mosquitto_msg_store *stored = tail->store;
-    //             json_t *jn_subscribers = sub_get_subscribers(gobj, stored->topic);
-    //             // Old method, now publish the message to up (broker)
-    //             XXX_sub__messages_queue(
-    //                 gobj,
-    //                 jn_subscribers,
-    //                 stored->topic,
-    //                 2,
-    //                 stored->retain,
-    //                 stored
-    //             );
-    //
-    //             dl_delete(&priv->dl_msgs_in, tail, db_free_client_msg);
-    //             deleted = TRUE;
-    //         }
-    //         break;
-    //     }
-    //
-    //     /*
-    //      *  Next
-    //      */
-    //     tail = dl_next(tail);
-    // }
+    q2_msg_t *qmsg = tr2q_get_by_mid(priv->trq_in_msgs, mid);
+    if(qmsg) {
+        msg_flag_t uf = {.value = tr2q_msg_hard_flag(qmsg)};
+        int msg_qos = msg_flag_get_qos_level(&uf);
+        if(msg_qos != 2) {
+            gobj_log_error(gobj, 0,
+                "function",     "%s", __FUNCTION__,
+                "msgset",       "%s", MSGSET_MQTT_ERROR,
+                "msg",          "%s", "Expected QoS 2 message",
+                "mid",          "%d", (int)mid,
+                "msg_qos",      "%d", msg_qos,
+                NULL
+            );
+            return MOSQ_ERR_PROTOCOL;
+        }
+
+        json_t *kw_mqtt_msg = tr2q_msg_json(qmsg);
+        if(kw_mqtt_msg) {
+            const char *topic = kw_get_str(gobj, kw_mqtt_msg, "topic", "", 0);
+
+            if(empty_string(topic)) {
+                /*
+                 *  topic==NULL/empty: QoS 2 message that was denied/dropped,
+                 *  being processed so the client doesn't keep resending it.
+                 *  Don't send it to other clients.
+                 */
+            } else {
+                /*
+                 *  Dispatch the message to the broker (subscribers)
+                 */
+                json_t *kw_iev = iev_create(
+                    gobj,
+                    EV_MQTT_MESSAGE,
+                    kw_incref(kw_mqtt_msg) // owned
+                );
+                gobj_publish_event( // To broker, sub__messages_queue
+                    gobj,
+                    EV_ON_IEV_MESSAGE,
+                    kw_iev
+                );
+            }
+        }
+
+        tr2q_unload_msg(qmsg, 0);
+        deleted = TRUE;
+    }
 
     if(deleted) {
         return MOSQ_ERR_SUCCESS;
     } else {
+        // Silence please
         return MOSQ_ERR_NOT_FOUND;
     }
 }
