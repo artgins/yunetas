@@ -2049,6 +2049,7 @@ PRIVATE int retain__queue(
                     retain_topic,       // original topic
                     gbuf,               // owned
                     msg_qos,
+                    0,
                     TRUE,               // retain flag is TRUE for retained messages
                     FALSE,              // dup
                     properties,         // owned
@@ -2261,8 +2262,6 @@ PRIVATE void session_expiry__check(void) //TODO
  ***************************************************************************/
 PRIVATE int will__send(hgobj gobj, json_t *session)
 {
-    PRIVATE_DATA *priv = gobj_priv_data(gobj);
-
     const char *client_id = kw_get_str(gobj, session, "id", "", KW_REQUIRED);
     const char *will_topic = kw_get_str(gobj, session, "will_topic", "", 0);
 
@@ -2308,6 +2307,7 @@ PRIVATE int will__send(hgobj gobj, json_t *session)
         will_topic,
         gbuf,                           // owned
         will_qos,
+        0,
         will_retain,
         FALSE,                          // dup
         json_incref(will_properties),   // owned
@@ -2675,6 +2675,7 @@ PRIVATE int subs__send(
         topic,
         gbuffer_incref(gbuf),    // owned
         msg_qos,
+        0,
         client_retain,
         FALSE, // dup,
         properties,         // owned

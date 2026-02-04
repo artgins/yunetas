@@ -336,6 +336,7 @@ PUBLIC json_t *new_mqtt_message(
     const char *topic,
     gbuffer_t *gbuf_payload,    // owned
     uint8_t qos,
+    uint16_t mid,
     BOOL retain,
     BOOL dup,
     json_t *properties,         // owned

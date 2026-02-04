@@ -459,6 +459,7 @@ PUBLIC json_t *new_mqtt_message(
     const char *topic,
     gbuffer_t *gbuf_payload,    // owned
     uint8_t qos,
+    uint16_t mid,
     BOOL retain,
     BOOL dup,
     json_t *properties,         // owned
@@ -481,6 +482,7 @@ PUBLIC json_t *new_mqtt_message(
     json_object_set_new(kw_mqtt_msg, "tm", json_integer(t));
     json_object_set_new(kw_mqtt_msg, "client_id", json_string(client_id));
     json_object_set_new(kw_mqtt_msg, "qos", json_integer(qos));
+    json_object_set_new(kw_mqtt_msg, "mid", json_integer(mid));
     json_object_set_new(kw_mqtt_msg, "expiry_interval", json_integer(expiry_interval));
     json_object_set_new(kw_mqtt_msg, "retain", json_boolean(retain));
     if(properties) {
@@ -493,16 +495,6 @@ PUBLIC json_t *new_mqtt_message(
             json_integer((json_int_t)(uintptr_t)gbuf_payload)
         );
     }
-
-    // user_flag_t user_flag = {0};
-    // user_flag_set_origin(&user_flag, origin);
-    // user_flag_set_direction(&user_flag, dir);
-    // user_flag_set_qos_level(&user_flag, qos);
-    // user_flag_set_retain(&user_flag, retain);
-    // user_flag_set_dup(&user_flag, dup);
-    // user_flag_set_state(&user_flag, mosq_ms_invalid);
-    //
-    // *p_user_flag = user_flag;
 
     return kw_mqtt_msg;
 }

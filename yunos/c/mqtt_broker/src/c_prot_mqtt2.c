@@ -1242,8 +1242,8 @@ PRIVATE int db__message_dequeue_first(
 /***************************************************************************
  *  Using in handle__subscribe() and websockets
  ***************************************************************************/
-PRIVATE int db__message_write_inflight_out_latest(hgobj gobj)
-{
+// PRIVATE int db__message_write_inflight_out_latest(hgobj gobj)
+// {
     // struct mosquitto_client_msg *tail, *next;
     // int rc;
     //
@@ -1284,8 +1284,8 @@ PRIVATE int db__message_write_inflight_out_latest(hgobj gobj)
     //     if(rc) return rc;
     //     tail = next;
     // }
-    return MOSQ_ERR_SUCCESS;
-}
+//     return MOSQ_ERR_SUCCESS;
+// }
 
 /***************************************************************************
  *  Using in handle__pubrec()
@@ -6164,6 +6164,7 @@ PRIVATE int handle__publish_s(
         topic,
         payload, // owned
         qos,
+        mid,
         retain,
         dup,
         properties, // owned
@@ -6456,6 +6457,7 @@ PRIVATE int handle__publish_c(
         topic,
         payload, // owned
         qos,
+        mid,
         retain,
         dup,
         properties, // owned
@@ -8389,6 +8391,7 @@ PRIVATE int ac_mqtt_client_send_publish(hgobj gobj, const char *event, json_t *k
         topic,
         gbuf_payload, // not owned
         qos,
+        0,
         retain,
         FALSE,      // dup,
         properties, // not owned
