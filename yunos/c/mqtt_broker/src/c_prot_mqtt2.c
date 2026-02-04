@@ -3696,7 +3696,7 @@ PRIVATE int send_command_with_mid(
     int remaining_length = 2;
 
     if(gobj_trace_level(gobj) & SHOW_DECODE) {
-        trace_msg0("👉👉 Sending as %s, %s to '%s', mid %ld (%d '%s')",
+        trace_msg0("👉👉 Sending as %s, %s to '%s' (mid %ld, reason %d '%s')",
             priv->iamServer?"broker":"client",
             mqtt_command_string(command & 0xF0),
             priv->client_id,
@@ -5696,7 +5696,7 @@ PRIVATE int handle__suback(hgobj gobj, gbuffer_t *gbuf)
     }
 
     if(gobj_trace_level(gobj) & SHOW_DECODE) {
-        trace_msg0("  👈 Received SUBACK from client '%s' (Mid: %d)",
+        trace_msg0("  👈 Received SUBACK from client '%s' (mid: %d)",
             SAFE_PRINT(priv->client_id),
             mid
         );
@@ -5774,7 +5774,7 @@ PRIVATE int handle__unsuback(hgobj gobj, gbuffer_t *gbuf)
     }
 
     if(gobj_trace_level(gobj) & SHOW_DECODE) {
-        trace_msg0("  👈 Received UNSUBACK from client '%s' (Mid: %d)",
+        trace_msg0("  👈 Received UNSUBACK from client '%s' (mid: %d)",
             SAFE_PRINT(priv->client_id),
             mid
         );
@@ -6675,7 +6675,7 @@ PRIVATE int handle__pubackcomp(hgobj gobj, gbuffer_t *gbuf, const char *type)
 
     if(priv->iamServer) {
         if(gobj_trace_level(gobj) & SHOW_DECODE) {
-            trace_msg0("  👈 server Received %s from client '%s' (Mid: %d, RC:%d)",
+            trace_msg0("  👈 server Received %s from client '%s' (mid: %d, reason: %d)",
                 type,
                 SAFE_PRINT(priv->client_id),
                 mid,
@@ -6707,7 +6707,7 @@ PRIVATE int handle__pubackcomp(hgobj gobj, gbuffer_t *gbuf, const char *type)
 
     } else {
         if(gobj_trace_level(gobj) & SHOW_DECODE) {
-            trace_msg0("  👈 client %s Received %s from server (Mid: %d, RC:%d)",
+            trace_msg0("  👈 client %s Received %s from server (mid: %d, reason: %d)",
                 SAFE_PRINT(priv->client_id),
                 type,
                 mid,
@@ -6848,7 +6848,7 @@ PRIVATE int handle__pubrec(hgobj gobj, gbuffer_t *gbuf)
 
     if(priv->iamServer) {
         if(gobj_trace_level(gobj) & SHOW_DECODE) {
-            trace_msg0("  👈 server Received PUBREC from client '%s' (Mid: %d, reason code: %02X)",
+            trace_msg0("  👈 server Received PUBREC from client '%s' (mid: %d, reason: %d)",
                 SAFE_PRINT(priv->client_id),
                 mid,
                 reason_code
@@ -6863,7 +6863,7 @@ PRIVATE int handle__pubrec(hgobj gobj, gbuffer_t *gbuf)
 
     } else {
         if(gobj_trace_level(gobj) & SHOW_DECODE) {
-            trace_msg0("  👈 client %s Received PUBREC from broker (Mid: %d, reason code: %02X)",
+            trace_msg0("  👈 client %s Received PUBREC from broker (mid: %d, reason: %d)",
                 SAFE_PRINT(priv->client_id),
                 mid,
                 reason_code
@@ -7007,7 +7007,7 @@ PRIVATE int handle__pubrel(hgobj gobj, gbuffer_t *gbuf)
          *          Broker
          *------------------------------------*/
         if(gobj_trace_level(gobj) & SHOW_DECODE) {
-            trace_msg0("  👈 server Received PUBREL from client '%s' (Mid: %d)",
+            trace_msg0("  👈 server Received PUBREL from client '%s' (mid: %d)",
                 SAFE_PRINT(priv->client_id),
                 mid
             );
@@ -7031,7 +7031,7 @@ PRIVATE int handle__pubrel(hgobj gobj, gbuffer_t *gbuf)
          *          Client
          *------------------------------------*/
         if(gobj_trace_level(gobj) & SHOW_DECODE) {
-            trace_msg0("  👈 client %s Received PUBREL from broker (Mid: %d)",
+            trace_msg0("  👈 client %s Received PUBREL from broker (mid: %d)",
                 SAFE_PRINT(priv->client_id),
                 mid
             );
