@@ -3337,7 +3337,7 @@ PRIVATE int send_simple_command(hgobj gobj, uint8_t command)
     }
 
     if(gobj_trace_level(gobj) & SHOW_DECODE) {
-        trace_msg0("👉👉 %s Sending simple command %s to '%s' %s",
+        trace_msg0("👉👉 Sending simple command %s %s to '%s' %s",
             priv->iamServer?"broker":"client",
             mqtt_command_string(command),
             priv->client_id,
@@ -3598,7 +3598,7 @@ PRIVATE int send__connack(
     uint32_t remaining_length = 2;
 
     if(gobj_trace_level(gobj) & SHOW_DECODE) {
-        trace_msg0("👉👉 %s Sending CONNACK to '%s' %s (ack %d, reason code %d '%s')",
+        trace_msg0("👉👉 Sending CONNACK %s to '%s' %s (ack %d, reason code %d '%s')",
             priv->iamServer?"broker":"client",
             priv->client_id,
             gobj_short_name(gobj_bottom_gobj(gobj)),
@@ -3668,14 +3668,14 @@ PRIVATE int send__disconnect(
 
     if(gobj_trace_level(gobj) & SHOW_DECODE) {
         if(priv->iamServer) {
-            trace_msg0("👉👉 %s Sending DISCONNECT to '%s' (%d '%s')",
+            trace_msg0("👉👉 Sending DISCONNECT %s to '%s' (%d '%s')",
                 priv->iamServer?"broker":"client",
                 priv->client_id,
                 reason_code,
                 mqtt_reason_string(reason_code)
             );
         } else {
-            trace_msg0("👉👉 %s Sending client DISCONNECT to '%s'",
+            trace_msg0("👉👉 Sending client DISCONNECT %s to '%s'",
                 priv->iamServer?"broker":"client",
                 priv->client_id
             );
@@ -3784,7 +3784,7 @@ PRIVATE int send_command_with_mid(
     int remaining_length = 2;
 
     if(gobj_trace_level(gobj) & SHOW_DECODE) {
-        trace_msg0("👉👉 %s Sending %s to '%s', mid %ld (%d '%s')",
+        trace_msg0("👉👉 Sending %s %s to '%s', mid %ld (%d '%s')",
             priv->iamServer?"broker":"client",
             mqtt_command_string(command & 0xF0),
             priv->client_id,
@@ -3890,7 +3890,7 @@ PRIVATE int send__publish(
     }
 
     if(gobj_trace_level(gobj) & SHOW_DECODE) {
-        trace_msg0("👉👉 %s Sending PUBLISH to '%s', topic '%s' (dup %d, qos %d, retain %d, mid %d)",
+        trace_msg0("👉👉 Sending PUBLISH %s to '%s', topic '%s' (dup %d, qos %d, retain %d, mid %d)",
             priv->iamServer?"broker":"client",
             SAFE_PRINT(priv->client_id),
             topic,
@@ -4047,7 +4047,7 @@ PRIVATE int send__subscribe(
 
     if(gobj_trace_level(gobj) & SHOW_DECODE) {
         char *topics = json2uglystr(subs);
-        trace_msg0("👉👉 %s Sending SUBSCRIBE client id '%s', topic '%s' (qos %d, mid %d)",
+        trace_msg0("👉👉 Sending SUBSCRIBE %s client id '%s', topic '%s' (qos %d, mid %d)",
             priv->iamServer?"broker":"client",
             SAFE_PRINT(priv->client_id),
             topics,
@@ -4115,7 +4115,7 @@ PRIVATE int send__unsubscribe(
 
     if(gobj_trace_level(gobj) & SHOW_DECODE) {
         char *topics = json2uglystr(subs);
-        trace_msg0("👉👉 %s Sending UNSUBSCRIBE client id '%s', topic '%s' (mid %d)",
+        trace_msg0("👉👉 Sending UNSUBSCRIBE %s client id '%s', topic '%s' (mid %d)",
             priv->iamServer?"broker":"client",
             SAFE_PRINT(priv->client_id),
             topics,
@@ -5500,7 +5500,7 @@ PRIVATE int send__suback(
     }
 
     if(gobj_trace_level(gobj) & SHOW_DECODE) {
-        trace_msg0("👉👉 %s Sending SUBACK to '%s' %s",
+        trace_msg0("👉👉 Sending SUBACK %s to '%s' %s",
             priv->iamServer?"broker":"client",
             priv->client_id,
             gobj_short_name(gobj_bottom_gobj(gobj))
@@ -5691,7 +5691,7 @@ PRIVATE int send__unsuback(
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
     if(gobj_trace_level(gobj) & SHOW_DECODE) {
-        trace_msg0("👉👉 %s Sending UNSUBACK to '%s' %s",
+        trace_msg0("👉👉 Sending UNSUBACK %s to '%s' %s",
             priv->iamServer?"broker":"client",
             priv->client_id,
             gobj_short_name(gobj_bottom_gobj(gobj))
