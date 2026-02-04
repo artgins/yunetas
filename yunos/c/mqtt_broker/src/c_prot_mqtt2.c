@@ -92,101 +92,6 @@ typedef enum mosq_err_s {
 /***************************************************************************
  *              Structures
  ***************************************************************************/
-
-/* Struct: mosquitto_message
- *
- * Contains details of a PUBLISH message.
- *
- * int mid - the message/packet ID of the PUBLISH message, assuming this is a
- *           QoS 1 or 2 message. Will be set to 0 for QoS 0 messages.
- *
- * char *topic - the topic the message was delivered on.
- *
- * void *payload - the message payload. This will be payloadlen bytes long, and
- *                 may be NULL if a zero length payload was sent.
- *
- * int payloadlen - the length of the payload, in bytes.
- *
- * int qos - the quality of service of the message, 0, 1, or 2.
- *
- * bool retain - set to true for stale retained messages.
- */
-// typedef struct mosquitto_message {
-//     int mid;
-//     char *topic;
-//     gbuffer_t *payload;
-//     int qos;
-//     BOOL retain;
-// } mosquitto_message_t;
-//
-// typedef struct mosquitto_msg_store { // Used in broker
-//     DL_ITEM_FIELDS
-//
-//     // dbid_t db_id;
-//     char *source_id;
-//     char *source_username;
-//     // struct mosquitto__listener *source_listener;
-//     char **dest_ids;
-//     int dest_id_count;
-//     int ref_count;
-//     char *topic;
-//     json_t *properties;
-//     gbuffer_t *payload;
-//     time_t message_expiry_time;
-//     enum mqtt_msg_origin origin;
-//     uint16_t source_mid;
-//     uint16_t mid;
-//     uint8_t qos;
-//     BOOL retain;
-// } mosquitto_msg_store_t;
-//
-// typedef struct mosquitto_client_msg { // Used in broker
-//     DL_ITEM_FIELDS
-//
-//     struct mosquitto_msg_store *store;
-//     json_t *properties;
-//     time_t timestamp;
-//     uint16_t mid;
-//     uint8_t qos;
-//     BOOL retain;
-//     enum mqtt_msg_direction direction;
-//     enum mqtt_msg_state state;
-//     uint8_t dup;
-// } mosquitto_client_msg_t;
-//
-// typedef struct mosquitto_message_all { // Used in client
-//     DL_ITEM_FIELDS
-//
-//     json_t *properties;
-//     time_t timestamp;
-//     enum mqtt_msg_state state;
-//     BOOL dup;
-//     struct mosquitto_message msg;
-//     uint32_t expiry_interval;
-// } mosquitto_message_all_t;
-//
-// typedef struct mosquitto_msg_data { // Used in client/broker
-//     // Used in broker
-//     dl_list_t dl_inflight2;    // struct mosquitto_client_msg *inflight;
-//     dl_list_t dl_queued;       // struct mosquitto_client_msg *queued;
-//     long inflight_bytes;
-//     long inflight_bytes12;
-//     int inflight_count;
-//     int inflight_count12;
-//     size_t queued_bytes;
-//     size_t queued_bytes12;
-//     int queued_count;
-//     int queued_count12;
-//
-//     // Used in client
-//     dl_list_t dl_inflight;         // struct mosquitto_message_all *inflight;
-//     int queue_len;
-//
-//     int inflight_quota;
-//     uint16_t inflight_maximum;
-// } mosquitto_msg_data_t;
-
-
 typedef struct _FRAME_HEAD {
     // Information of the first two bytes header
     mqtt_message_t command; // byte1 & 0xF0;
@@ -278,10 +183,10 @@ PRIVATE sdata_desc_t attrs_table[] = {
 SDATA (DTP_BOOLEAN,     "iamServer",        SDF_RD,     0,      "What side? server or client"),
 SDATA (DTP_POINTER,     "tranger_queues",   0,          0,      "Queues TimeRanger for mqtt messages with qos > 0. If null then no persistence queues are used and max qos is limited to 0"),
 SDATA (DTP_STRING,      "alert_message",    SDF_RD,     "ALERT Queuing", "Alert message"),
-SDATA (DTP_INTEGER,     "max_pending_acks", SDF_RD,     "10000",    "Maximum messages pending of ack"),
-SDATA (DTP_INTEGER,     "backup_queue_size",SDF_RD,     "1000000",  "Do backup at this size"),
-SDATA (DTP_INTEGER,     "alert_queue_size", SDF_RD,     "2000",     "Limit alert queue size"),
-SDATA (DTP_INTEGER,     "timeout_ack",      SDF_RD,     "60",       "Timeout ack in seconds"),
+SDATA (DTP_INTEGER,     "max_pending_acks", SDF_RD,     "10000","Maximum messages pending of ack"), // TODO this is really like max_inflight_messages, TODO unify
+SDATA (DTP_INTEGER,     "backup_queue_size",SDF_RD,     "65500","Do backup at this size, using rowid as mid therefore backup_queue_size cannot be greater than 65535"),
+SDATA (DTP_INTEGER,     "alert_queue_size", SDF_RD,     "2000", "Limit alert queue size"),
+SDATA (DTP_INTEGER,     "timeout_ack",      SDF_RD,     "60",   "Timeout ack in seconds"),
 
 // HACK set by c_authz, this gclass is an external entry gate!
 SDATA (DTP_STRING,      "__username__",     SDF_VOLATIL,"",     "Username, WARNING set by c_authz"),
@@ -318,6 +223,7 @@ SDATA (DTP_INTEGER,     "timeout_handshake",SDF_RD,     "5000",  "Timeout to han
 SDATA (DTP_INTEGER,     "timeout_payload",  SDF_RD,     "5000",  "Timeout to payload"),
 SDATA (DTP_INTEGER,     "timeout_close",    SDF_RD,     "3000",  "Timeout to close"),
 SDATA (DTP_INTEGER,     "timeout_periodic", SDF_RD,     "1000",  "Timeout periodic"),
+SDATA (DTP_INTEGER,     "timeout_backup",   SDF_RD,     "1",     "Timeout to check backup, in seconds"),
 
 /*
  *  Configuration
@@ -408,6 +314,8 @@ typedef struct _PRIVATE_DATA {
     json_int_t timeout_payload;
     json_int_t timeout_close;
     json_int_t timeout_periodic;
+    json_int_t timeout_backup;
+    time_t t_backup;
 
     FRAME_HEAD frame_head;
     istream_h istream_frame;
@@ -520,6 +428,7 @@ PRIVATE void mt_create(hgobj gobj)
     SET_PRIV(timeout_payload,           gobj_read_integer_attr)
     SET_PRIV(timeout_close,             gobj_read_integer_attr)
     SET_PRIV(timeout_periodic,          gobj_read_integer_attr)
+    SET_PRIV(timeout_backup,            gobj_read_integer_attr)
     SET_PRIV(in_session,                gobj_read_bool_attr)
     SET_PRIV(send_disconnect,           gobj_read_bool_attr)
 
@@ -571,6 +480,7 @@ PRIVATE void mt_writing(hgobj gobj, const char *path)
     ELIF_EQ_SET_PRIV(timeout_payload,           gobj_read_integer_attr)
     ELIF_EQ_SET_PRIV(timeout_close,             gobj_read_integer_attr)
     ELIF_EQ_SET_PRIV(timeout_periodic,          gobj_read_integer_attr)
+    ELIF_EQ_SET_PRIV(timeout_backup,            gobj_read_integer_attr)
     ELIF_EQ_SET_PRIV(in_session,                gobj_read_bool_attr)
     ELIF_EQ_SET_PRIV(send_disconnect,           gobj_read_bool_attr)
 
@@ -4951,6 +4861,11 @@ PRIVATE int handle__connect(hgobj gobj, gbuffer_t *gbuf, hgobj src)
     // db__message_write_inflight_out_all(context);
 
     set_timeout_periodic(priv->gobj_timer_periodic, priv->timeout_periodic);
+    if(priv->timeout_backup > 0) {
+        priv->t_backup = start_sectimer(priv->timeout_backup);
+    } else {
+        priv->t_backup = 0;
+    }
 
     /*
      *  Start timer keepalive/ping
@@ -5099,7 +5014,12 @@ PRIVATE int handle__connack(
              *  Start the periodic timer and begin ping timer
              */
             set_timeout_periodic(priv->gobj_timer_periodic, priv->timeout_periodic);
-            if(priv->keepalive > 0) {
+            if(priv->timeout_backup > 0) {
+                priv->t_backup = start_sectimer(priv->timeout_backup);
+            } else {
+                priv->t_backup = 0;
+            }
+        if(priv->keepalive > 0) {
                 priv->timer_ping = start_sectimer(priv->keepalive);
             }
 
@@ -8769,6 +8689,18 @@ PRIVATE int ac_timeout_periodic(hgobj gobj, const char *event, json_t *kw, hgobj
             KW_DECREF(kw)
             return 0;
         }
+    }
+
+    if(priv->timeout_backup > 0 && test_sectimer(priv->t_backup)) {
+        if(tr2q_inflight_size(priv->trq_in_msgs)==0) { // && priv->pending_acks==0) {
+            // Check and do backup only when no message
+            tr2q_check_backup(priv->trq_in_msgs);
+        }
+        if(tr2q_inflight_size(priv->trq_out_msgs)==0) { // && priv->pending_acks==0) {
+            // Check and do backup only when no message
+            tr2q_check_backup(priv->trq_out_msgs);
+        }
+        priv->t_backup = start_sectimer(priv->timeout_backup);
     }
 
     // TODO implement a cleaner of messages inflight with pending acks and timeout reached
