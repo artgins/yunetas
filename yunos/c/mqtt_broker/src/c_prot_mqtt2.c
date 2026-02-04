@@ -5019,7 +5019,7 @@ PRIVATE int handle__connack(
             } else {
                 priv->t_backup = 0;
             }
-        if(priv->keepalive > 0) {
+            if(priv->keepalive > 0) {
                 priv->timer_ping = start_sectimer(priv->keepalive);
             }
 
