@@ -1398,7 +1398,7 @@ PRIVATE int db__message_delete_outgoing(
 }
 
 /***************************************************************************
- *  Entrega mensajes con qos 2
+ *  Used by handle__pubrel()
  ***************************************************************************/
 PRIVATE int db__message_release_incoming(hgobj gobj, uint16_t mid)
 {
@@ -1423,30 +1423,28 @@ PRIVATE int db__message_release_incoming(hgobj gobj, uint16_t mid)
         }
 
         json_t *kw_mqtt_msg = tr2q_msg_json(qmsg);
-        if(kw_mqtt_msg) {
-            const char *topic = kw_get_str(gobj, kw_mqtt_msg, "topic", "", 0);
+        const char *topic = kw_get_str(gobj, kw_mqtt_msg, "topic", "", 0);
 
-            if(empty_string(topic)) {
-                /*
-                 *  topic==NULL/empty: QoS 2 message that was denied/dropped,
-                 *  being processed so the client doesn't keep resending it.
-                 *  Don't send it to other clients.
-                 */
-            } else {
-                /*
-                 *  Dispatch the message to the broker (subscribers)
-                 */
-                json_t *kw_iev = iev_create(
-                    gobj,
-                    EV_MQTT_MESSAGE,
-                    kw_incref(kw_mqtt_msg) // owned
-                );
-                gobj_publish_event( // To broker, sub__messages_queue
-                    gobj,
-                    EV_ON_IEV_MESSAGE,
-                    kw_iev
-                );
-            }
+        if(empty_string(topic)) {
+            /*
+             *  topic==NULL/empty: QoS 2 message that was denied/dropped,
+             *  being processed so the client doesn't keep resending it.
+             *  Don't send it to other clients.
+             */
+        } else {
+            /*
+             *  Dispatch the message to the broker (subscribers)
+             */
+            json_t *kw_iev = iev_create(
+                gobj,
+                EV_MQTT_MESSAGE,
+                kw_incref(kw_mqtt_msg) // owned
+            );
+            gobj_publish_event( // To broker, sub__messages_queue
+                gobj,
+                EV_ON_IEV_MESSAGE,
+                kw_iev
+            );
         }
 
         tr2q_unload_msg(qmsg, 0);
