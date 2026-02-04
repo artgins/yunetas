@@ -1065,7 +1065,7 @@ PRIVATE void db__message_remove_from_inflight(
     tr2_queue_t *trq,
     q2_msg_t *qmsg
 ) {
-    tr2q_unload_msg(qmsg, 0);
+    tr2q_unload_msg(qmsg, 0); // TODO must check that message is in inflight list, not in queued list
 }
 
 /***************************************************************************
@@ -1427,6 +1427,7 @@ PRIVATE int db__message_release_incoming(hgobj gobj, uint16_t mid)
 
         if(empty_string(topic)) {
             /*
+             *  TODO review, I don't know if this a real use case
              *  topic==NULL/empty: QoS 2 message that was denied/dropped,
              *  being processed so the client doesn't keep resending it.
              *  Don't send it to other clients.
@@ -1440,14 +1441,18 @@ PRIVATE int db__message_release_incoming(hgobj gobj, uint16_t mid)
                 EV_MQTT_MESSAGE,
                 kw_incref(kw_mqtt_msg) // owned
             );
-            gobj_publish_event( // To broker, sub__messages_queue
+            gobj_publish_event( // To broker, sub__messages_queue, return # subscribers
                 gobj,
                 EV_ON_IEV_MESSAGE,
                 kw_iev
             );
         }
 
-        tr2q_unload_msg(qmsg, 0);
+        db__message_remove_from_inflight(
+            gobj,
+            priv->trq_in_msgs,
+            qmsg
+        );
         deleted = TRUE;
     }
 
@@ -6251,7 +6256,7 @@ PRIVATE int handle__publish_s(
                     EV_MQTT_MESSAGE,
                     kw_incref(kw_mqtt_msg) // owned
                 );
-                rc = gobj_publish_event( // To broker, sub__messages_queue
+                rc = gobj_publish_event( // To broker, sub__messages_queue, return # subscribers
                     gobj,
                     EV_ON_IEV_MESSAGE,
                     kw_iev
