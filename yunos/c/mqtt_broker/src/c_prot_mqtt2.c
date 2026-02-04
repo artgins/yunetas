@@ -7099,6 +7099,9 @@ PRIVATE uint16_t mosquitto__mid_generate(hgobj gobj)
  ***************************************************************************/
 PRIVATE void do_disconnect(hgobj gobj, int reason)
 {
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+    if(priv->iamServer) {
+    }
     // TODO
     // context__send_will(context);
     // if(context->session_expiry_interval == 0) {
@@ -7128,19 +7131,11 @@ PRIVATE void ws_close(hgobj gobj, int reason)
 
     if(priv->in_session) {
         if(priv->send_disconnect) {
-            // Fallan los test con el send__disconnect
             send__disconnect(gobj, reason, NULL);
         }
     }
 
     do_disconnect(gobj, reason);
-
-    if(priv->iamServer) {
-        hgobj tcp0 = gobj_bottom_gobj(gobj);
-        if(gobj_is_running(tcp0)) {
-            gobj_send_event(tcp0, EV_DROP, 0, gobj);
-        }
-    }
     set_timeout(priv->gobj_timer, priv->timeout_close);
 }
 
