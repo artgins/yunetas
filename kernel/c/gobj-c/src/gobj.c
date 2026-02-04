@@ -7467,7 +7467,7 @@ PUBLIC int gobj_send_event(
      *----------------------------------*/
     if(tracea) {
         if(trace_machine_format) {
-            trace_machine("🔄 %s%s%s %s%s %s%s%s",
+            trace_machine("🔄 %s%s%s %s%s %s%s%s from %s%s",
                 On_Black RBlue,
                 event?event:"",
                 Color_Off,
@@ -7475,7 +7475,9 @@ PUBLIC int gobj_send_event(
                 gobj_short_name(dst),
                 On_Black RGreen,
                 state->state_name,
-                Color_Off
+                Color_Off,
+                (src && !src->running)?"!!":"",
+                gobj_short_name(src)
             );
         } else {
             trace_machine("🔄 mach(%s%s), st: %s, ev: %s%s%s, from(%s%s^%s)",
