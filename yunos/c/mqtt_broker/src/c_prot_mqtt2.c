@@ -8144,6 +8144,8 @@ PRIVATE int ac_send_message(hgobj gobj, const char *event, json_t *kw_mqtt_msg, 
         msg_flag_set_dup(&user_flag, 0);
         msg_flag_set_state(&user_flag, mosq_ms_invalid);
 
+        kw_delete_metadata_keys(kw_mqtt_msg);  // don't save __temp__
+
         message__queue(
             gobj,
             kw_incref(kw_mqtt_msg), // owned
