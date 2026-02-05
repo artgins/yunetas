@@ -420,6 +420,16 @@ PUBLIC q2_msg_t *tr2q_append(
         return NULL;
     }
 
+    /*
+     *  Remove gbuffer from kw, serialize to save in tranger2, and restore later
+     */
+    gbuffer_t *gbuf = (gbuffer_t *)(uintptr_t)kw_get_int(
+        gobj, kw, "gbuffer", 0, KW_REQUIRED|KW_EXTRACT
+    );
+    if(gbuf) {
+        json_object_set_new(kw, "payload", gbuffer_serialize(gobj, gbuf));
+    }
+
     md2_record_ex_t md_record;
     tranger2_append_record(
         trq->tranger,
@@ -427,8 +437,10 @@ PUBLIC q2_msg_t *tr2q_append(
         t,                              // __t__
         user_flag | TR2Q_MSG_PENDING,   // __flag__
         &md_record,
-        kw_incref(kw) // owned
+        json_incref(kw) // owned
     );
+
+    json_object_set_new(kw, "gbuffer", json_integer((json_int_t)(uintptr_t)gbuf));
 
     q2_msg_t *msg = new_msg(
         trq,

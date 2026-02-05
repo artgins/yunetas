@@ -856,11 +856,11 @@ PRIVATE int message__release_to_inflight(hgobj gobj, enum mqtt_msg_direction dir
                     gobj,
                     mid,
                     topic,
-                    gbuf,
+                    gbuf,       // notowned
                     (uint8_t)qos,
                     retain,
                     dup,
-                    properties,
+                    properties, // not owned
                     expiry_interval
                 ) == 0) {
                     // Message sent, save state
@@ -1267,7 +1267,7 @@ PRIVATE int db__message_delete_outgoing(
                 "expected_qos", "%d", qos,
                 NULL
             );
-            return MOSQ_ERR_PROTOCOL;
+            //return MOSQ_ERR_PROTOCOL;
         }
         if(qos == 2) {
             mqtt_msg_state_t msg_state = msg_flag_get_state(&uf);
@@ -1281,10 +1281,21 @@ PRIVATE int db__message_delete_outgoing(
                     "expected",     "%s", msg_flag_state_to_str(expect_state),
                     NULL
                 );
-                return MOSQ_ERR_PROTOCOL;
+                //return MOSQ_ERR_PROTOCOL;
             }
         }
+
         db__message_remove_from_inflight(gobj, trq, qmsg);
+
+    } else {
+        gobj_log_error(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_MQTT_ERROR,
+            "msg",          "%s", "Message not found in trq_out_msgs",
+            "client_id",    "%s", priv->client_id,
+            "mid",          "%d", mid,
+            NULL
+        );
     }
 
     /*
@@ -1303,7 +1314,9 @@ PRIVATE int db__message_delete_outgoing(
     /*
      *  Send inflight messages
      */
-    return message__release_to_inflight(gobj, mosq_md_out);
+    message__release_to_inflight(gobj, mosq_md_out);
+
+    return MOSQ_ERR_SUCCESS;
 }
 
 /***************************************************************************
@@ -6243,7 +6256,7 @@ PRIVATE int handle__publish_s(
             break;
     }
 
-    KW_DECREF(kw_mqtt_msg)
+    kw_decref(kw_mqtt_msg);
 
     /*
      *  Pull from input queued list
@@ -6681,7 +6694,7 @@ PRIVATE int handle__pubackcomp(hgobj gobj, gbuffer_t *gbuf, const char *type)
 
     if(priv->iamServer) {
         if(gobj_trace_level(gobj) & SHOW_DECODE) {
-            trace_msg0("  👈 server Received %s from client '%s' (mid: %d, reason: %d '%s')",
+            trace_msg0("  👈 Received %s as server from client '%s' (mid: %d, reason: %d '%s')",
                 type,
                 SAFE_PRINT(priv->client_id),
                 mid,
@@ -6696,27 +6709,14 @@ PRIVATE int handle__pubackcomp(hgobj gobj, gbuffer_t *gbuf, const char *type)
          */
         JSON_DECREF(properties)
 
-        rc = db__message_delete_outgoing(gobj, mid, mosq_ms_wait_for_pubcomp, qos);
-        if(rc == MOSQ_ERR_NOT_FOUND) {
-            gobj_log_error(gobj, 0,
-                "function",     "%s", __FUNCTION__,
-                "msgset",       "%s", MSGSET_MQTT_ERROR,
-                "msg",          "%s", "Mqtt: Received for an unknown packet identifier",
-                "client_id",    "%s", priv->client_id,
-                "type",         "%s", type,
-                "mid",          "%d", mid,
-                NULL
-            );
-            return MOSQ_ERR_SUCCESS;
-        } else {
-            return rc;
-        }
+        db__message_delete_outgoing(gobj, mid, mosq_ms_wait_for_pubcomp, qos);
+        return MOSQ_ERR_SUCCESS;
 
     } else {
         if(gobj_trace_level(gobj) & SHOW_DECODE) {
-            trace_msg0("  👈 client %s Received %s from server (mid: %d, reason: %d '%s')",
-                SAFE_PRINT(priv->client_id),
+            trace_msg0("  👈 Received %s as client %s from server (mid: %d, reason: %d '%s')",
                 type,
+                SAFE_PRINT(priv->client_id),
                 mid,
                 reason_code,
                 mqtt_reason_string(reason_code)

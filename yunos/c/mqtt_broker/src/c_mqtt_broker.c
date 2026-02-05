@@ -2603,7 +2603,9 @@ PRIVATE int subs__send(
     BOOL retain = kw_get_bool(gobj, kw_mqtt_msg, "retain", 0, KW_REQUIRED);
     int qos = (int)kw_get_int(gobj, kw_mqtt_msg, "qos", 0, KW_REQUIRED);
     json_int_t tm = kw_get_int(gobj, kw_mqtt_msg, "tm", 0, KW_REQUIRED);
-    json_int_t expiry_interval = kw_get_int(gobj, kw_mqtt_msg, "expiry_interval", 0, KW_REQUIRED);
+    json_int_t expiry_interval = kw_get_int(
+        gobj, kw_mqtt_msg, "expiry_interval", 0, KW_REQUIRED
+    );
     gbuffer_t *gbuf = (gbuffer_t *)(uintptr_t)kw_get_int(
         gobj, kw_mqtt_msg, "gbuffer", 0, KW_REQUIRED
     );
