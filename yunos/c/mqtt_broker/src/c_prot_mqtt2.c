@@ -6042,9 +6042,10 @@ PRIVATE int handle__publish_s(
             return MOSQ_ERR_NOMEM;
         }
 
-        if(mqtt_read_bytes(gobj, gbuf, gbuffer_cur_wr_pointer(payload), (int)payloadlen)) {
+        if(mqtt_read_bytes(gobj, gbuf, gbuffer_cur_wr_pointer(payload), (int)payloadlen)<0) {
             GBMEM_FREE(topic)
             JSON_DECREF(properties)
+            GBUFFER_DECREF(payload)
             return MOSQ_ERR_MALFORMED_PACKET;
         }
         gbuffer_set_wr(payload, payloadlen);
@@ -6073,6 +6074,7 @@ PRIVATE int handle__publish_s(
     } else if(rc != MOSQ_ERR_SUCCESS) {
         GBMEM_FREE(topic)
         JSON_DECREF(properties)
+        GBUFFER_DECREF(payload)
         return rc;
     }
 
@@ -6095,6 +6097,7 @@ PRIVATE int handle__publish_s(
         message_expiry_interval,
         mosquitto_time()
     );
+    payload = NULL; // owned by kw_mqtt_msg
 
     msg_flag_t user_flag = {0};
     msg_flag_set_origin(&user_flag, mosq_mo_client);
@@ -6267,6 +6270,7 @@ process_bad_message:
     //     rc = MQTT_RC_QUOTA_EXCEEDED;
     // }
 
+    GBUFFER_DECREF(payload)
     GBMEM_FREE(topic)
     KW_DECREF(kw_mqtt_msg)
     return rc;
