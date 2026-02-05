@@ -4863,10 +4863,12 @@ PRIVATE int handle__connect(hgobj gobj, gbuffer_t *gbuf, hgobj src)
     // db__message_write_inflight_out_all(context);
 
     set_timeout_periodic(priv->gobj_timer_periodic, priv->timeout_periodic);
-    if(priv->timeout_backup > 0) {
-        priv->t_backup = start_sectimer(priv->timeout_backup);
-    } else {
-        priv->t_backup = 0;
+    if(priv->tranger_queues) {
+        if(priv->timeout_backup > 0) {
+            priv->t_backup = start_sectimer(priv->timeout_backup);
+        } else {
+            priv->t_backup = 0;
+        }
     }
 
     /*
@@ -8700,13 +8702,17 @@ PRIVATE int ac_timeout_periodic(hgobj gobj, const char *event, json_t *kw, hgobj
     }
 
     if(priv->timeout_backup > 0 && test_sectimer(priv->t_backup)) {
-        if(tr2q_inflight_size(priv->trq_in_msgs)==0) { // && priv->pending_acks==0) {
-            // Check and do backup only when no message
-            tr2q_check_backup(priv->trq_in_msgs);
+        if(priv->trq_in_msgs) {
+            if(tr2q_inflight_size(priv->trq_in_msgs)==0) { // && priv->pending_acks==0) {
+                // Check and do backup only when no message
+                tr2q_check_backup(priv->trq_in_msgs);
+            }
         }
-        if(tr2q_inflight_size(priv->trq_out_msgs)==0) { // && priv->pending_acks==0) {
-            // Check and do backup only when no message
-            tr2q_check_backup(priv->trq_out_msgs);
+        if(priv->trq_out_msgs) {
+            if(tr2q_inflight_size(priv->trq_out_msgs)==0) { // && priv->pending_acks==0) {
+                // Check and do backup only when no message
+                tr2q_check_backup(priv->trq_out_msgs);
+            }
         }
         priv->t_backup = start_sectimer(priv->timeout_backup);
     }
