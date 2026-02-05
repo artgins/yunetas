@@ -547,6 +547,7 @@ PUBLIC json_t *tr2q_msg_json(q2_msg_t *msg) // Return is not yours, free with tr
         &msg->md_record
     );
     // TODO deserialize gbuffer payload
+    int todo_deserialize;
     return msg->kw_record;
 }
 
