@@ -984,55 +984,37 @@ PRIVATE void db__message_remove_from_inflight(
  ***************************************************************************/
 PRIVATE BOOL db__ready_for_flight(hgobj gobj, enum mqtt_msg_direction dir, int qos)
 {
-    // PRIVATE_DATA *priv = gobj_priv_data(gobj);
-    BOOL valid_bytes = 0;
-    BOOL valid_count = 0;
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+    tr2_queue_t *trq;
+    if(dir == mosq_md_out) {
+        trq = priv->trq_out_msgs;
+    } else {
+        trq = priv->trq_in_msgs;
+    }
 
-    // if(dir == mosq_md_out) {
-    //     msgs = &priv->msgs_out;
-    // } else {
-    //     msgs = &priv->msgs_in;
-    // }
-    //
-    // if(msgs->inflight_maximum == 0 && priv->max_inflight_bytes == 0) {
-    //     return TRUE;
-    // }
-    //
-    // if(qos == 0) {
-    //     /* Deliver QoS 0 messages unless the queue is already full.
-    //      * For QoS 0 messages the choice is either "inflight" or dropped.
-    //      * There is no queueing option, unless the client is offline and
-    //      * queue_qos0_messages is enabled.
-    //      */
-    //     if(priv->max_queued_messages == 0 && priv->max_inflight_bytes == 0) {
-    //         return TRUE;
-    //     }
-    //     valid_bytes = ((msgs->inflight_bytes - (ssize_t)priv->max_inflight_bytes) < (ssize_t)priv->max_queued_bytes);
-    //     if(dir == mosq_md_out) {
-    //         valid_count = priv->out_packet_count < priv->max_queued_messages;
-    //     } else {
-    //         valid_count = msgs->inflight_count - msgs->inflight_maximum < priv->max_queued_messages;
-    //     }
-    //
-    //     if(priv->max_queued_messages == 0) {
-    //         return valid_bytes;
-    //     }
-    //     if(priv->max_queued_bytes == 0) {
-    //         return valid_count;
-    //     }
-    // } else {
-    //     valid_bytes = (ssize_t)msgs->inflight_bytes12 < (ssize_t)priv->max_inflight_bytes;
-    //     valid_count = msgs->inflight_quota > 0;
-    //
-    //     if(msgs->inflight_maximum == 0) {
-    //         return valid_bytes;
-    //     }
-    //     if(priv->max_inflight_bytes == 0) {
-    //         return valid_count;
-    //     }
-    // }
+    if(priv->max_inflight_messages == 0 && priv->max_inflight_bytes == 0) {
+        return TRUE;
+    }
 
-    return valid_bytes && valid_count;
+    if(qos == 0) {
+        // TODO check bytes or msgs?
+        return TRUE;
+    } else {
+        if(trq->max_inflight_messages == 0) {
+            return TRUE;
+        }
+        if(trq->max_inflight_messages > 0 &&
+            tr2q_inflight_size(trq) < trq->max_inflight_messages
+        ) {
+            return TRUE;
+        }
+
+        if(priv->max_inflight_bytes > 0) {
+            // TODO check bytes
+        }
+    }
+
+    return FALSE;
 }
 
 /***************************************************************************
