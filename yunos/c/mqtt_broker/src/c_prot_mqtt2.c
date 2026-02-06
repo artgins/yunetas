@@ -908,6 +908,15 @@ PRIVATE int message__queue(
         );
     }
 
+// TODO esto está en db__message_insert(), similar a message__queue?
+// if(dir == mosq_md_out && update){
+//     rc = db__message_write_inflight_out_latest(context);
+//     if(rc) return rc;
+//     rc = db__message_write_queued_out(context);
+//     if(rc) return rc;
+// }
+
+
     return message__release_to_inflight(gobj, dir);
 }
 
@@ -1215,6 +1224,7 @@ PRIVATE int db__message_update_outgoing(
             );
             return MOSQ_ERR_PROTOCOL;
         }
+        // tail->timestamp = db.now_s; TODO
         tr2q_save_hard_mark(qmsg, uf.value);
         return MOSQ_ERR_SUCCESS;
     }
@@ -1340,6 +1350,7 @@ PRIVATE int db__message_release_incoming(hgobj gobj, uint16_t mid)
             /*
              *  Dispatch the message to the broker (subscribers)
              */
+            int todo_pubrel; // TODO este es el punto donde se libera un qos 2 ???!!!
             json_t *kw_iev = iev_create(
                 gobj,
                 EV_MQTT_MESSAGE,
@@ -1358,6 +1369,20 @@ PRIVATE int db__message_release_incoming(hgobj gobj, uint16_t mid)
             qmsg
         );
         deleted = TRUE;
+    }
+
+    DL_FOREACH_SAFE(context->msgs_in.queued, tail, tmp){
+        if(db__ready_for_flight(context, mosq_md_in, tail->qos)){
+            break;
+        }
+
+        tail->timestamp = db.now_s;
+
+        if(tail->qos == 2){
+            send__pubrec(context, tail->mid, 0, NULL);
+            tail->state = mosq_ms_wait_for_pubrel;
+            db__message_dequeue_first(context, &context->msgs_in);
+        }
     }
 
     if(deleted) {
@@ -4853,9 +4878,9 @@ PRIVATE int handle__connect(hgobj gobj, gbuffer_t *gbuf, hgobj src)
     }
 
     // TODO
-    // db__expire_all_messages(context);
-    // db__message_write_queued_out(context);
-    // db__message_write_inflight_out_all(context);
+    db__expire_all_messages(gobj);
+    db__message_write_queued_out(gobj);
+    db__message_write_inflight_out_all(gobj);
 
     set_timeout_periodic(priv->gobj_timer_periodic, priv->timeout_periodic);
     if(priv->tranger_queues) {
@@ -4877,7 +4902,7 @@ PRIVATE int handle__connect(hgobj gobj, gbuffer_t *gbuf, hgobj src)
 }
 
 /***************************************************************************
- *  Only for clients
+ *  Only for clients, not implemented for bridge
  ***************************************************************************/
 PRIVATE int handle__connack(
     hgobj gobj,
@@ -5205,8 +5230,15 @@ PRIVATE int handle__subscribe(hgobj gobj, gbuffer_t *gbuf)
         int rc;
         properties = property_read_all(gobj, gbuf, CMD_SUBSCRIBE, &rc);
         if(rc) {
-            // Error already logged
-            return rc;
+            // TODO review
+            /* FIXME - it would be better if property__read_all() returned
+             * MOSQ_ERR_MALFORMED_PACKET, but this is would change the library
+             * return codes so needs doc changes as well. */
+            if(rc == MOSQ_ERR_PROTOCOL){
+                return MOSQ_ERR_MALFORMED_PACKET;
+            } else {
+                return rc;
+            }
         }
 
         subscription_identifier = property_read_varint(properties, MQTT_PROP_SUBSCRIPTION_IDENTIFIER);
@@ -5391,12 +5423,19 @@ PRIVATE int handle__subscribe(hgobj gobj, gbuffer_t *gbuf)
         return -1;
     }
 
-    return send__suback(
+    send__suback(
         gobj,
         mid,
         gbuf_payload, // owned
         NULL // owned (properties suback not used)
     );
+
+    int todo_xxx; // TODO
+    if(priv->current_out_packet == NULL){
+        db__message_write_queued_out(gobj);
+        db__message_write_inflight_out_latest(gobj);
+    }
+    return MOSQ_ERR_SUCCESS;
 }
 
 /***************************************************************************
@@ -6908,10 +6947,8 @@ PRIVATE int handle__pubrec(hgobj gobj, gbuffer_t *gbuf)
     } else if(rc != MOSQ_ERR_SUCCESS) {
         return rc;
     }
-    rc = send__pubrel(gobj, mid, NULL);
-    if(rc) {
-        return rc;
-    }
+
+    send__pubrel(gobj, mid, NULL);
 
     return MOSQ_ERR_SUCCESS;
 }
