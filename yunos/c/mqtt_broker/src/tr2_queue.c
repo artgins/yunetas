@@ -601,6 +601,8 @@ PRIVATE int tr2q_set_hard_flag(q2_msg_t *msg, uint16_t hard_mark, BOOL set)
  ***************************************************************************/
 PUBLIC int tr2q_save_hard_mark(q2_msg_t *msg, uint16_t value)
 {
+    msg->md_record.user_flag = value | TR2Q_MSG_PENDING;
+
     return tranger2_write_user_flag(
         msg->trq->tranger,
         tranger2_topic_name(msg->trq->topic),
