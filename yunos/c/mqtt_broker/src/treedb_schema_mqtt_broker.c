@@ -105,6 +105,8 @@
             │  will_properties          │                   │
             │  will_delay_time          │                   │
             │                           │                   │
+            │  mid                      │  (last mid used)  │
+            │                           │                   │
             │  inflight_msgs            │  (json array - QoS 1/2 pending)
             │                           │                   │
             │  _geometry                │                   │
@@ -162,7 +164,7 @@
 static char treedb_schema_mqtt_broker[]= "\
 {                                                                   \n\
     'id': 'treedb_mqtt_broker',                                     \n\
-    'schema_version': '20',                                         \n\
+    'schema_version': '21',                                         \n\
     'topics': [                                                     \n\
         {                                                           \n\
             'id': 'client_groups',                                  \n\
@@ -519,7 +521,7 @@ static char treedb_schema_mqtt_broker[]= "\
             'id': 'sessions',                                       \n\
             'pkey': 'id',                                           \n\
             'system_flag': 'sf_string_key',                         \n\
-            'topic_version': '6',                                   \n\
+            'topic_version': '7',                                   \n\
             'cols': {                                               \n\
                 'id': {                                             \n\
                     'header': 'Client Id',                          \n\
@@ -672,6 +674,16 @@ static char treedb_schema_mqtt_broker[]= "\
                         'persistent'                                \n\
                     ],                                              \n\
                     'description': 'Timestamp when client disconnected, used to calculate will delay expiry' \n\
+                },                                                  \n\
+                'mid': {                                            \n\
+                    'header': 'Mid',                                \n\
+                    'fillspace': 6,                                 \n\
+                    'type': 'integer',                              \n\
+                    'default': 0,                                   \n\
+                    'flag': [                                       \n\
+                        'persistent'                                \n\
+                    ],                                              \n\
+                    'description': 'Last message id used in the session' \n\
                 },                                                  \n\
                 '_geometry': {                                      \n\
                     'header': 'Geometry',                           \n\
