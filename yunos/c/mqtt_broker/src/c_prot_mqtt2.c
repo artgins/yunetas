@@ -7114,11 +7114,6 @@ PRIVATE int handle__pubrel(hgobj gobj, gbuffer_t *gbuf)
         }
     }
 
-    /*
-     *  Pull from input queued list
-     */
-    db__message_write_queued_in(gobj);
-
     JSON_DECREF(properties)
     return MOSQ_ERR_SUCCESS;
 }
