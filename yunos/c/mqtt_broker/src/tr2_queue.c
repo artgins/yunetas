@@ -151,6 +151,7 @@ PRIVATE void tr2q_set_first_rowid(tr2_queue_t *trq, uint64_t first_rowid)
 PRIVATE q2_msg_t *new_msg(
     tr2_queue_t *trq,
     json_int_t rowid, // global rowid that it must match the rowid in md_record
+    uint16_t mid,
     const md2_record_ex_t *md_record,
     json_t *kw_record // owned
 ) {
@@ -182,6 +183,7 @@ PRIVATE q2_msg_t *new_msg(
     }
     memmove(&msg->md_record, md_record, sizeof(md2_record_ex_t));
     msg->trq = trq;
+    msg->mid = mid;
     msg->rowid = rowid;
 
     if(trq->max_inflight_messages == 0 || tr2q_inflight_size(trq) < trq->max_inflight_messages) {
@@ -227,8 +229,8 @@ PRIVATE int load_record_callback(
         // The first record called is the first pending record
         trq->first_rowid = rowid;
     }
-
-    new_msg(trq, rowid, md_record, jn_record);
+    uint16_t mid = kw_get_int(gobj, jn_record, "mid", 0, KW_REQUIRED);
+    new_msg(trq, rowid, mid, md_record, jn_record);
 
     return 0;
 }
@@ -429,6 +431,7 @@ PUBLIC q2_msg_t *tr2q_append(
     if(gbuf) {
         json_object_set_new(kw, "payload", gbuffer_serialize(gobj, gbuf));
     }
+    uint16_t mid = kw_get_int(gobj, kw, "mid", 0, KW_REQUIRED);
 
     md2_record_ex_t md_record;
     tranger2_append_record(
@@ -445,6 +448,7 @@ PUBLIC q2_msg_t *tr2q_append(
     q2_msg_t *msg = new_msg(
         trq,
         (json_int_t)md_record.rowid,
+        mid,
         &md_record,
         kw  // owned
     );
