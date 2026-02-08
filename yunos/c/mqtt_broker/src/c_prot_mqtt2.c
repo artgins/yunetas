@@ -5015,8 +5015,10 @@ PRIVATE int handle__connack(
     // message__reconnect_reset(mosq, true); TODO important?!
 
     if(gobj_trace_level(gobj) & SHOW_DECODE) {
-        trace_msg0("👈👈 COMMAND=%s, reason: %d '%s'",
+        trace_msg0("👈👈 COMMAND=%s, as %s, client %s, reason: %d '%s'",
             mqtt_command_string(CMD_CONNACK),
+            priv->iamServer? "server":"client",
+            SAFE_PRINT(priv->client_id),
             reason_code,
             priv->protocol_version == mosq_p_mqtt5?
                 mqtt_reason_string(reason_code) :
@@ -5122,7 +5124,8 @@ PRIVATE int handle__disconnect_s(hgobj gobj, gbuffer_t *gbuf)
     }
 
     if(gobj_trace_level(gobj) & SHOW_DECODE) {
-        trace_msg0("  👈 Received DISCONNECT from client '%s' (%d '%s')",
+        trace_msg0("  👈 Received DISCONNECT, as %s, client '%s' (%d '%s')",
+            priv->iamServer? "server":"client",
             SAFE_PRINT(priv->client_id),
             reason_code,
             mqtt_reason_string(reason_code)
@@ -5177,7 +5180,8 @@ PRIVATE int handle__disconnect_c(hgobj gobj, gbuffer_t *gbuf)
     }
 
     if(gobj_trace_level(gobj) & SHOW_DECODE) {
-        trace_msg0("  👈 Received DISCONNECT from client '%s' (%d '%s')",
+        trace_msg0("  👈 Received DISCONNECT, as %s, client '%s' (%d '%s')",
+            priv->iamServer? "server":"client",
             SAFE_PRINT(priv->client_id),
             reason_code,
             mqtt_reason_string(reason_code)
@@ -5373,8 +5377,9 @@ PRIVATE int handle__subscribe(hgobj gobj, gbuffer_t *gbuf)
         json_array_append_new(jn_list, jn_sub);
 
         if(gobj_trace_level(gobj) & SHOW_DECODE) {
-            trace_msg0("  👈 Received SUBSCRIBE from client '%s', topic '%s' (QoS %d)",
-                priv->client_id,
+            trace_msg0("  👈 Received SUBSCRIBE, as %s, client '%s', topic '%s' (QoS %d)",
+                priv->iamServer? "server":"client",
+                SAFE_PRINT(priv->client_id),
                 sub,
                 qos
             );
@@ -5592,8 +5597,9 @@ PRIVATE int handle__unsubscribe(hgobj gobj, gbuffer_t *gbuf)
         }
 
         if(gobj_trace_level(gobj) & SHOW_DECODE) {
-            trace_msg0("  👈 Received UNSUBSCRIBE from client '%s', topic '%s'",
-                priv->client_id,
+            trace_msg0("  👈 Received UNSUBSCRIBE, as %s, client '%s', topic '%s'",
+                priv->iamServer? "server":"client",
+                SAFE_PRINT(priv->client_id),
                 sub
             );
         }
@@ -5735,7 +5741,8 @@ PRIVATE int handle__suback(hgobj gobj, gbuffer_t *gbuf)
     }
 
     if(gobj_trace_level(gobj) & SHOW_DECODE) {
-        trace_msg0("  👈 Received SUBACK from client '%s' (mid: %d)",
+        trace_msg0("  👈 Received SUBACK, as %s, client '%s' (mid: %d)",
+            priv->iamServer? "server":"client",
             SAFE_PRINT(priv->client_id),
             mid
         );
@@ -5813,7 +5820,8 @@ PRIVATE int handle__unsuback(hgobj gobj, gbuffer_t *gbuf)
     }
 
     if(gobj_trace_level(gobj) & SHOW_DECODE) {
-        trace_msg0("  👈 Received UNSUBACK from client '%s' (mid: %d)",
+        trace_msg0("  👈 Received UNSUBACK as %s, client '%s' (mid: %d)",
+            priv->iamServer? "server":"client",
             SAFE_PRINT(priv->client_id),
             mid
         );
@@ -6145,8 +6153,9 @@ PRIVATE int handle__publish_s(
     msg_flag_set_state(&user_flag, mosq_ms_invalid);
 
     if(gobj_trace_level(gobj) & SHOW_DECODE) {
-        trace_msg0("  👈 Received PUBLISH from client '%s', topic '%s' (dup %d, qos %d, retain %d, mid %d, len %ld)",
-            priv->client_id,
+        trace_msg0("  👈 Received PUBLISH, as %s, client '%s', topic '%s' (dup %d, qos %d, retain %d, mid %d, len %ld)",
+            priv->iamServer? "server":"client",
+            SAFE_PRINT(priv->client_id),
             topic,
             dup,
             (int)qos,
@@ -6439,8 +6448,9 @@ PRIVATE int handle__publish_c(
     msg_flag_set_state(&user_flag, mosq_ms_invalid);
 
     if(gobj_trace_level(gobj) & SHOW_DECODE) {
-        trace_msg0("  👈 Received PUBLISH from server '%s', topic '%s' (dup %d, qos %d, retain %d, mid %d, len %ld)",
-            priv->client_id,
+        trace_msg0("  👈 Received PUBLISH, as '%s', client %s, topic '%s' (dup %d, qos %d, retain %d, mid %d, len %ld)",
+            priv->iamServer? "server":"client",
+            SAFE_PRINT(priv->client_id),
             topic,
             dup,
             qos,
@@ -6718,8 +6728,9 @@ PRIVATE int handle__pubackcomp(hgobj gobj, gbuffer_t *gbuf, const char *type)
 
     if(priv->iamServer) {
         if(gobj_trace_level(gobj) & SHOW_DECODE) {
-            trace_msg0("  👈 Received %s as server from client '%s' (mid: %d, reason: %d '%s')",
+            trace_msg0("  👈 Received %s, as %s, client '%s' (mid: %d, reason: %d '%s')",
                 type,
+                priv->iamServer? "server":"client",
                 SAFE_PRINT(priv->client_id),
                 mid,
                 reason_code,
@@ -6738,8 +6749,9 @@ PRIVATE int handle__pubackcomp(hgobj gobj, gbuffer_t *gbuf, const char *type)
 
     } else {
         if(gobj_trace_level(gobj) & SHOW_DECODE) {
-            trace_msg0("  👈 Received %s as client %s from server (mid: %d, reason: %d '%s')",
+            trace_msg0("  👈 Received %s, as %s, client %s (mid: %d, reason: %d '%s')",
                 type,
+                priv->iamServer? "server":"client",
                 SAFE_PRINT(priv->client_id),
                 mid,
                 reason_code,
@@ -6880,7 +6892,8 @@ PRIVATE int handle__pubrec(hgobj gobj, gbuffer_t *gbuf)
 
     if(priv->iamServer) {
         if(gobj_trace_level(gobj) & SHOW_DECODE) {
-            trace_msg0("  👈 server Received PUBREC from client '%s' (mid: %d, reason: %d '%s')",
+            trace_msg0("  👈 Received PUBREC, as %s, client '%s' (mid: %d, reason: %d '%s')",
+                priv->iamServer? "server":"client",
                 SAFE_PRINT(priv->client_id),
                 mid,
                 reason_code,
@@ -6896,7 +6909,8 @@ PRIVATE int handle__pubrec(hgobj gobj, gbuffer_t *gbuf)
 
     } else {
         if(gobj_trace_level(gobj) & SHOW_DECODE) {
-            trace_msg0("  👈 client %s Received PUBREC from broker (mid: %d, reason: %d '%s')",
+            trace_msg0("  👈 Received PUBREC, as %s, client %s (mid: %d, reason: %d '%s')",
+                priv->iamServer? "server":"client",
                 SAFE_PRINT(priv->client_id),
                 mid,
                 reason_code,
@@ -7039,7 +7053,8 @@ PRIVATE int handle__pubrel(hgobj gobj, gbuffer_t *gbuf)
          *          Broker
          *------------------------------------*/
         if(gobj_trace_level(gobj) & SHOW_DECODE) {
-            trace_msg0("  👈 server Received PUBREL from client '%s' (mid: %d)",
+            trace_msg0("  👈 Received PUBREL, as %s, client '%s' (mid: %d)",
+                priv->iamServer? "server":"client",
                 SAFE_PRINT(priv->client_id),
                 mid
             );
@@ -7063,7 +7078,8 @@ PRIVATE int handle__pubrel(hgobj gobj, gbuffer_t *gbuf)
          *          Client
          *------------------------------------*/
         if(gobj_trace_level(gobj) & SHOW_DECODE) {
-            trace_msg0("  👈 client %s Received PUBREL from broker (mid: %d)",
+            trace_msg0("  👈 Received PUBREL, as %s, client %s (mid: %d)",
+                priv->iamServer? "server":"client",
                 SAFE_PRINT(priv->client_id),
                 mid
             );
