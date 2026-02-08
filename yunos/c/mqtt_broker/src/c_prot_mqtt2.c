@@ -92,101 +92,6 @@ typedef enum mosq_err_s {
 /***************************************************************************
  *              Structures
  ***************************************************************************/
-
-/* Struct: mosquitto_message
- *
- * Contains details of a PUBLISH message.
- *
- * int mid - the message/packet ID of the PUBLISH message, assuming this is a
- *           QoS 1 or 2 message. Will be set to 0 for QoS 0 messages.
- *
- * char *topic - the topic the message was delivered on.
- *
- * void *payload - the message payload. This will be payloadlen bytes long, and
- *                 may be NULL if a zero length payload was sent.
- *
- * int payloadlen - the length of the payload, in bytes.
- *
- * int qos - the quality of service of the message, 0, 1, or 2.
- *
- * bool retain - set to true for stale retained messages.
- */
-// typedef struct mosquitto_message {
-//     int mid;
-//     char *topic;
-//     gbuffer_t *payload;
-//     int qos;
-//     BOOL retain;
-// } mosquitto_message_t;
-//
-// typedef struct mosquitto_msg_store { // Used in broker
-//     DL_ITEM_FIELDS
-//
-//     // dbid_t db_id;
-//     char *source_id;
-//     char *source_username;
-//     // struct mosquitto__listener *source_listener;
-//     char **dest_ids;
-//     int dest_id_count;
-//     int ref_count;
-//     char *topic;
-//     json_t *properties;
-//     gbuffer_t *payload;
-//     time_t message_expiry_time;
-//     enum mqtt_msg_origin origin;
-//     uint16_t source_mid;
-//     uint16_t mid;
-//     uint8_t qos;
-//     BOOL retain;
-// } mosquitto_msg_store_t;
-//
-// typedef struct mosquitto_client_msg { // Used in broker
-//     DL_ITEM_FIELDS
-//
-//     struct mosquitto_msg_store *store;
-//     json_t *properties;
-//     time_t timestamp;
-//     uint16_t mid;
-//     uint8_t qos;
-//     BOOL retain;
-//     enum mqtt_msg_direction direction;
-//     enum mqtt_msg_state state;
-//     uint8_t dup;
-// } mosquitto_client_msg_t;
-//
-// typedef struct mosquitto_message_all { // Used in client
-//     DL_ITEM_FIELDS
-//
-//     json_t *properties;
-//     time_t timestamp;
-//     enum mqtt_msg_state state;
-//     BOOL dup;
-//     struct mosquitto_message msg;
-//     uint32_t expiry_interval;
-// } mosquitto_message_all_t;
-//
-// typedef struct mosquitto_msg_data { // Used in client/broker
-//     // Used in broker
-//     dl_list_t dl_inflight2;    // struct mosquitto_client_msg *inflight;
-//     dl_list_t dl_queued;       // struct mosquitto_client_msg *queued;
-//     long inflight_bytes;
-//     long inflight_bytes12;
-//     int inflight_count;
-//     int inflight_count12;
-//     size_t queued_bytes;
-//     size_t queued_bytes12;
-//     int queued_count;
-//     int queued_count12;
-//
-//     // Used in client
-//     dl_list_t dl_inflight;         // struct mosquitto_message_all *inflight;
-//     int queue_len;
-//
-//     int inflight_quota;
-//     uint16_t inflight_maximum;
-// } mosquitto_msg_data_t;
-
-
 typedef struct _FRAME_HEAD {
     // Information of the first two bytes header
     mqtt_message_t command; // byte1 & 0xF0;
@@ -248,7 +153,6 @@ PRIVATE int send__disconnect(
     json_t *properties
 );
 PRIVATE void do_disconnect(hgobj gobj, int reason);
-PRIVATE uint16_t mosquitto__mid_generate(hgobj gobj);
 
 /***************************************************************************
  *          Data: config, public data, private data
@@ -278,10 +182,10 @@ PRIVATE sdata_desc_t attrs_table[] = {
 SDATA (DTP_BOOLEAN,     "iamServer",        SDF_RD,     0,      "What side? server or client"),
 SDATA (DTP_POINTER,     "tranger_queues",   0,          0,      "Queues TimeRanger for mqtt messages with qos > 0. If null then no persistence queues are used and max qos is limited to 0"),
 SDATA (DTP_STRING,      "alert_message",    SDF_RD,     "ALERT Queuing", "Alert message"),
-SDATA (DTP_INTEGER,     "max_pending_acks", SDF_RD,     "10000",    "Maximum messages pending of ack"),
-SDATA (DTP_INTEGER,     "backup_queue_size",SDF_RD,     "1000000",  "Do backup at this size"),
-SDATA (DTP_INTEGER,     "alert_queue_size", SDF_RD,     "2000",     "Limit alert queue size"),
-SDATA (DTP_INTEGER,     "timeout_ack",      SDF_RD,     "60",       "Timeout ack in seconds"),
+SDATA (DTP_INTEGER,     "max_pending_acks", SDF_RD,     "10000","Maximum messages pending of ack, mid is an uint16_t, max_pending_acks cannot be greater than 65535"), // TODO this is really like max_inflight_messages, TODO unify
+SDATA (DTP_INTEGER,     "backup_queue_size",SDF_RD,     "65500","Do backup at this size, using rowid as mid therefore backup_queue_size cannot be greater than 65535"),
+SDATA (DTP_INTEGER,     "alert_queue_size", SDF_RD,     "2000", "Limit alert queue size"),
+SDATA (DTP_INTEGER,     "timeout_ack",      SDF_RD,     "60",   "Timeout ack in seconds"),
 
 // HACK set by c_authz, this gclass is an external entry gate!
 SDATA (DTP_STRING,      "__username__",     SDF_VOLATIL,"",     "Username, WARNING set by c_authz"),
@@ -318,6 +222,7 @@ SDATA (DTP_INTEGER,     "timeout_handshake",SDF_RD,     "5000",  "Timeout to han
 SDATA (DTP_INTEGER,     "timeout_payload",  SDF_RD,     "5000",  "Timeout to payload"),
 SDATA (DTP_INTEGER,     "timeout_close",    SDF_RD,     "3000",  "Timeout to close"),
 SDATA (DTP_INTEGER,     "timeout_periodic", SDF_RD,     "1000",  "Timeout periodic"),
+SDATA (DTP_INTEGER,     "timeout_backup",   SDF_RD,     "1",     "Timeout to check backup, in seconds"),
 
 /*
  *  Configuration
@@ -325,7 +230,7 @@ SDATA (DTP_INTEGER,     "timeout_periodic", SDF_RD,     "1000",  "Timeout period
 
 SDATA (DTP_INTEGER,     "max_inflight_bytes",SDF_WR,        0,      "Outgoing QoS 1 and 2 messages will be allowed in flight until this byte limit is reached. This allows control of outgoing message rate based on message size rather than message count. If the limit is set to 100, messages of over 100 bytes are still allowed, but only a single message can be in flight at once. Defaults to 0. (No limit)."),
 
-SDATA (DTP_INTEGER,     "max_inflight_messages",SDF_WR,     "20",   "The maximum number of outgoing QoS 1 or 2 messages that can be in the process of being transmitted simultaneously. This includes messages currently going through handshakes and messages that are being retried. Defaults to 20. Set to 0 for no maximum. If set to 1, this will guarantee in-order delivery of messages"),
+SDATA (DTP_INTEGER,     "max_inflight_messages",SDF_WR,     "20",   "The maximum number of outgoing QoS 1 or 2 messages that can be in the process of being transmitted simultaneously. This includes messages currently going through handshakes and messages that are being retried. Defaults to 20. Set to 0 for no maximum. If set to 1, this will guarantee in-order delivery of messages. mid is an uint16_t, max_inflight_messages (max_pending_acks) cannot be greater than 65535"),
 
 SDATA (DTP_INTEGER,     "max_queued_bytes", SDF_WR,         0,      "The number of outgoing QoS 1 and 2 messages above those currently in-flight will be queued (per client) by the broker. Once this limit has been reached, subsequent messages will be silently dropped. This is an important option if you are sending messages at a high rate and/or have clients who are slow to respond or may be offline for extended periods of time. Defaults to 0. (No maximum).See also the max_queued_messages option. If both max_queued_messages and max_queued_bytes are specified, packets will be queued until the first limit is reached."),
 
@@ -408,6 +313,8 @@ typedef struct _PRIVATE_DATA {
     json_int_t timeout_payload;
     json_int_t timeout_close;
     json_int_t timeout_periodic;
+    json_int_t timeout_backup;
+    time_t t_backup;
 
     FRAME_HEAD frame_head;
     istream_h istream_frame;
@@ -488,7 +395,9 @@ PRIVATE void mt_create(hgobj gobj)
 
     priv->iamServer = gobj_read_bool_attr(gobj, "iamServer");
     priv->gobj_timer = gobj_create_pure_child(gobj_name(gobj), C_TIMER, 0, gobj);
-    priv->gobj_timer_periodic = gobj_create_pure_child(gobj_name(gobj), C_TIMER, 0, gobj);
+    char timer_name[NAME_MAX];
+    snprintf(timer_name, sizeof(timer_name), "%s-PERIODIC", gobj_name(gobj));
+    priv->gobj_timer_periodic = gobj_create_pure_child(timer_name, C_TIMER, 0, gobj);
 
     // The maximum size of a frame header is 5 bytes.
     priv->istream_frame = istream_create(gobj, 5, 5);
@@ -520,6 +429,7 @@ PRIVATE void mt_create(hgobj gobj)
     SET_PRIV(timeout_payload,           gobj_read_integer_attr)
     SET_PRIV(timeout_close,             gobj_read_integer_attr)
     SET_PRIV(timeout_periodic,          gobj_read_integer_attr)
+    SET_PRIV(timeout_backup,            gobj_read_integer_attr)
     SET_PRIV(in_session,                gobj_read_bool_attr)
     SET_PRIV(send_disconnect,           gobj_read_bool_attr)
 
@@ -571,6 +481,7 @@ PRIVATE void mt_writing(hgobj gobj, const char *path)
     ELIF_EQ_SET_PRIV(timeout_payload,           gobj_read_integer_attr)
     ELIF_EQ_SET_PRIV(timeout_close,             gobj_read_integer_attr)
     ELIF_EQ_SET_PRIV(timeout_periodic,          gobj_read_integer_attr)
+    ELIF_EQ_SET_PRIV(timeout_backup,            gobj_read_integer_attr)
     ELIF_EQ_SET_PRIV(in_session,                gobj_read_bool_attr)
     ELIF_EQ_SET_PRIV(send_disconnect,           gobj_read_bool_attr)
 
@@ -858,15 +769,6 @@ PRIVATE int message__out_update(
 ) {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
     tr2_queue_t *trq = priv->trq_out_msgs;
-    if(!trq) {
-        gobj_log_error(gobj, 0,
-            "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_INTERNAL_ERROR,
-            "msg",          "%s", "No output queue",
-            NULL
-        );
-        return MOSQ_ERR_NOT_FOUND;
-    }
 
     q2_msg_t *qmsg = tr2q_get_by_mid(trq, mid);
     if(qmsg) {
@@ -886,10 +788,18 @@ PRIVATE int message__out_update(
         }
         tr2q_save_hard_mark(qmsg, uf.value);
         return MOSQ_ERR_SUCCESS;
+    } else {
+        // Trace by now, see use cases
+        gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_MQTT_ERROR,
+            "msg",          "%s", "Message not found",
+            "mid",          "%d", (int)mid,
+            "qos",          "%d", qos,
+            NULL
+        );
+        return MOSQ_ERR_NOT_FOUND;
     }
-
-    // Silence please
-    return MOSQ_ERR_NOT_FOUND;
 }
 
 /***************************************************************************
@@ -912,8 +822,7 @@ PRIVATE int message__release_to_inflight(hgobj gobj, enum mqtt_msg_direction dir
                 /*
                  *  Assign mid and update state
                  */
-                uint16_t mid = mosquitto__mid_generate(gobj);
-                qmsg->mid = mid;
+                uint16_t mid = qmsg->rowid & 0xFFFF;
 
                 /*
                  *  Get message content and send PUBLISH
@@ -947,11 +856,11 @@ PRIVATE int message__release_to_inflight(hgobj gobj, enum mqtt_msg_direction dir
                     gobj,
                     mid,
                     topic,
-                    gbuf,
+                    gbuf,       // notowned
                     (uint8_t)qos,
                     retain,
                     dup,
-                    properties,
+                    properties, // not owned
                     expiry_interval
                 ) == 0) {
                     // Message sent, save state
@@ -998,6 +907,15 @@ PRIVATE int message__queue(
             user_flag.value // extra flags in addition to TRQ_MSG_PENDING
         );
     }
+
+// TODO esto está en db__message_insert(), similar a message__queue?
+// if(dir == mosq_md_out && update){
+//     rc = db__message_write_inflight_out_latest(context);
+//     if(rc) return rc;
+//     rc = db__message_write_queued_out(context);
+//     if(rc) return rc;
+// }
+
 
     return message__release_to_inflight(gobj, dir);
 }
@@ -1065,7 +983,7 @@ PRIVATE void db__message_remove_from_inflight(
     tr2_queue_t *trq,
     q2_msg_t *qmsg
 ) {
-    tr2q_unload_msg(qmsg, 0);
+    tr2q_unload_msg(qmsg, 0); // TODO must check that message is in inflight list, not in queued list
 }
 
 /***************************************************************************
@@ -1075,70 +993,52 @@ PRIVATE void db__message_remove_from_inflight(
  ***************************************************************************/
 PRIVATE BOOL db__ready_for_flight(hgobj gobj, enum mqtt_msg_direction dir, int qos)
 {
-    // PRIVATE_DATA *priv = gobj_priv_data(gobj);
-    BOOL valid_bytes = 0;
-    BOOL valid_count = 0;
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+    tr2_queue_t *trq;
+    if(dir == mosq_md_out) {
+        trq = priv->trq_out_msgs;
+    } else {
+        trq = priv->trq_in_msgs;
+    }
 
-    // if(dir == mosq_md_out) {
-    //     msgs = &priv->msgs_out;
-    // } else {
-    //     msgs = &priv->msgs_in;
-    // }
-    //
-    // if(msgs->inflight_maximum == 0 && priv->max_inflight_bytes == 0) {
-    //     return TRUE;
-    // }
-    //
-    // if(qos == 0) {
-    //     /* Deliver QoS 0 messages unless the queue is already full.
-    //      * For QoS 0 messages the choice is either "inflight" or dropped.
-    //      * There is no queueing option, unless the client is offline and
-    //      * queue_qos0_messages is enabled.
-    //      */
-    //     if(priv->max_queued_messages == 0 && priv->max_inflight_bytes == 0) {
-    //         return TRUE;
-    //     }
-    //     valid_bytes = ((msgs->inflight_bytes - (ssize_t)priv->max_inflight_bytes) < (ssize_t)priv->max_queued_bytes);
-    //     if(dir == mosq_md_out) {
-    //         valid_count = priv->out_packet_count < priv->max_queued_messages;
-    //     } else {
-    //         valid_count = msgs->inflight_count - msgs->inflight_maximum < priv->max_queued_messages;
-    //     }
-    //
-    //     if(priv->max_queued_messages == 0) {
-    //         return valid_bytes;
-    //     }
-    //     if(priv->max_queued_bytes == 0) {
-    //         return valid_count;
-    //     }
-    // } else {
-    //     valid_bytes = (ssize_t)msgs->inflight_bytes12 < (ssize_t)priv->max_inflight_bytes;
-    //     valid_count = msgs->inflight_quota > 0;
-    //
-    //     if(msgs->inflight_maximum == 0) {
-    //         return valid_bytes;
-    //     }
-    //     if(priv->max_inflight_bytes == 0) {
-    //         return valid_count;
-    //     }
-    // }
+    if(priv->max_inflight_messages == 0 && priv->max_inflight_bytes == 0) {
+        return TRUE;
+    }
 
-    return valid_bytes && valid_count;
+    if(qos == 0) {
+        // TODO check bytes or msgs?
+        return TRUE;
+    } else {
+        if(trq->max_inflight_messages == 0) {
+            return TRUE;
+        }
+        if(trq->max_inflight_messages > 0 &&
+            tr2q_inflight_size(trq) < trq->max_inflight_messages
+        ) {
+            return TRUE;
+        }
+
+        if(priv->max_inflight_bytes > 0) {
+            // TODO check bytes
+        }
+    }
+
+    return FALSE;
 }
 
 /***************************************************************************
  *
  ***************************************************************************/
-PRIVATE void db__message_dequeue_first(
+PRIVATE int db__message_dequeue_first(
     hgobj gobj,
-    struct mosquitto_msg_data *msg_data
+    tr2_queue_t *trq
 ) {
-    struct mosquitto_client_msg *msg;
-
-    int todo; // TODO let Claude implement
-    // msg = msg_data->queued;
-    // DL_DELETE(msg_data->queued, msg);
-    // DL_APPEND(msg_data->inflight, msg);
+    q2_msg_t *msg = tr2q_first_queued_msg(trq);
+    if(!msg) {
+        // Silence please
+        return -1;
+    }
+    return tr2q_move_from_queued_to_inflight(msg);
 }
 
 /***************************************************************************
@@ -1242,8 +1142,8 @@ PRIVATE void db__message_dequeue_first(
 /***************************************************************************
  *  Using in handle__subscribe() and websockets
  ***************************************************************************/
-PRIVATE int db__message_write_inflight_out_latest(hgobj gobj)
-{
+// PRIVATE int db__message_write_inflight_out_latest(hgobj gobj)
+// {
     // struct mosquitto_client_msg *tail, *next;
     // int rc;
     //
@@ -1284,8 +1184,8 @@ PRIVATE int db__message_write_inflight_out_latest(hgobj gobj)
     //     if(rc) return rc;
     //     tail = next;
     // }
-    return MOSQ_ERR_SUCCESS;
-}
+//     return MOSQ_ERR_SUCCESS;
+// }
 
 /***************************************************************************
  *  Using in handle__pubrec()
@@ -1324,6 +1224,7 @@ PRIVATE int db__message_update_outgoing(
             );
             return MOSQ_ERR_PROTOCOL;
         }
+        // tail->timestamp = db.now_s; TODO
         tr2q_save_hard_mark(qmsg, uf.value);
         return MOSQ_ERR_SUCCESS;
     }
@@ -1358,7 +1259,7 @@ PRIVATE int db__message_delete_outgoing(
                 "expected_qos", "%d", qos,
                 NULL
             );
-            return MOSQ_ERR_PROTOCOL;
+            //return MOSQ_ERR_PROTOCOL;
         }
         if(qos == 2) {
             mqtt_msg_state_t msg_state = msg_flag_get_state(&uf);
@@ -1372,93 +1273,131 @@ PRIVATE int db__message_delete_outgoing(
                     "expected",     "%s", msg_flag_state_to_str(expect_state),
                     NULL
                 );
-                return MOSQ_ERR_PROTOCOL;
+                //return MOSQ_ERR_PROTOCOL;
             }
         }
+
         db__message_remove_from_inflight(gobj, trq, qmsg);
+
+    } else {
+        gobj_log_error(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_MQTT_ERROR,
+            "msg",          "%s", "Message not found in trq_out_msgs",
+            "client_id",    "%s", priv->client_id,
+            "mid",          "%d", mid,
+            NULL
+        );
     }
 
-    int todo; // TODO let Claude implement
-    // DL_FOREACH_SAFE(context->msgs_out.queued, tail, tmp){
-    //     if(!db__ready_for_flight(context, mosq_md_out, tail->qos)){
-    //         break;
-    //     }
-    //
-    //     tail->timestamp = db.now_s;
-    //     switch(tail->qos){
-    //         case 0:
-    //             tail->state = mosq_ms_publish_qos0;
-    //         break;
-    //         case 1:
-    //             tail->state = mosq_ms_publish_qos1;
-    //         break;
-    //         case 2:
-    //             tail->state = mosq_ms_publish_qos2;
-    //         break;
-    //     }
-    //     db__message_dequeue_first(context, &context->msgs_out);
-    // }
+    /*
+     *  Move queued messages to inflight while ready for flight
+     */
+    q2_msg_t *tail, *tmp;
+    Q2MSG_FOREACH_FORWARD_QUEUED_SAFE(trq, tail, tmp) {
+        msg_flag_t tf = {.value = tr2q_msg_hard_flag(tail)};
+        int tail_qos = msg_flag_get_qos_level(&tf);
+        if(!db__ready_for_flight(gobj, mosq_md_out, tail_qos)) {
+            break;
+        }
+        db__message_dequeue_first(gobj, trq);
+    }
 
     /*
-     *  Move queued messages to inflight and send them
+     *  Send inflight messages
      */
-    return message__release_to_inflight(gobj, mosq_md_out);
+    message__release_to_inflight(gobj, mosq_md_out);
+
+    return MOSQ_ERR_SUCCESS;
 }
 
 /***************************************************************************
- *  Entrega mensajes con qos 2
+ *  Used by handle__pubrel()
  ***************************************************************************/
 PRIVATE int db__message_release_incoming(hgobj gobj, uint16_t mid)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
-    char *topic;
     BOOL deleted = FALSE;
 
-    int todo; // TODO let Claude implement
-    // struct mosquitto_client_msg *tail = dl_first(&priv->dl_msgs_in);
-    // while(tail) {
-    //     if(tail->mid == mid) {
-    //         if(tail->store->qos != 2) {
-    //             return MOSQ_ERR_PROTOCOL;
-    //         }
-    //         topic = tail->store->topic;
-    //
-    //         /* topic==NULL should be a QoS 2 message that was
-    //          * denied/dropped and is being processed so the client doesn't
-    //          * keep resending it. That means we don't send it to other
-    //          * clients. */
-    //         if(topic == NULL) {
-    //             dl_delete(&priv->dl_msgs_in, tail, db_free_client_msg);
-    //             deleted = TRUE;
-    //         } else {
-    //             struct mosquitto_msg_store *stored = tail->store;
-    //             json_t *jn_subscribers = sub_get_subscribers(gobj, stored->topic);
-    //             // Old method, now publish the message to up (broker)
-    //             XXX_sub__messages_queue(
-    //                 gobj,
-    //                 jn_subscribers,
-    //                 stored->topic,
-    //                 2,
-    //                 stored->retain,
-    //                 stored
-    //             );
-    //
-    //             dl_delete(&priv->dl_msgs_in, tail, db_free_client_msg);
-    //             deleted = TRUE;
-    //         }
+    q2_msg_t *qmsg = tr2q_get_by_mid(priv->trq_in_msgs, mid);
+    if(qmsg) {
+        msg_flag_t uf = {.value = tr2q_msg_hard_flag(qmsg)};
+        int msg_qos = msg_flag_get_qos_level(&uf);
+        if(msg_qos != 2) {
+            gobj_log_error(gobj, 0,
+                "function",     "%s", __FUNCTION__,
+                "msgset",       "%s", MSGSET_MQTT_ERROR,
+                "msg",          "%s", "Expected QoS 2 message",
+                "mid",          "%d", (int)mid,
+                "msg_qos",      "%d", msg_qos,
+                NULL
+            );
+            return MOSQ_ERR_PROTOCOL;
+        }
+
+        json_t *kw_mqtt_msg = tr2q_msg_json(qmsg);
+        const char *topic = kw_get_str(gobj, kw_mqtt_msg, "topic", "", 0);
+
+        if(empty_string(topic)) {
+            /*
+             *  TODO review, I don't know if this a real use case
+             *  topic==NULL/empty: QoS 2 message that was denied/dropped,
+             *  being processed so the client doesn't keep resending it.
+             *  Don't send it to other clients.
+             */
+        } else {
+            /*
+             *  Dispatch the message to the broker (subscribers)
+             */
+            int todo_pubrel; // TODO este es el punto donde se libera un qos 2 ???!!!
+            json_t *kw_iev = iev_create(
+                gobj,
+                EV_MQTT_MESSAGE,
+                kw_incref(kw_mqtt_msg) // owned
+            );
+            gobj_publish_event( // To broker, sub__messages_queue, return # subscribers
+                gobj,
+                EV_ON_IEV_MESSAGE,
+                kw_iev
+            );
+        }
+
+        db__message_remove_from_inflight(
+            gobj,
+            priv->trq_in_msgs,
+            qmsg
+        );
+        deleted = TRUE;
+    } else {
+        gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_MQTT_ERROR,
+            "msg",          "%s", "Message not found",
+            "mid",          "%d", (int)mid,
+            NULL
+        );
+    }
+
+    int todo_x;
+    // DL_FOREACH_SAFE(context->msgs_in.queued, tail, tmp){
+    //     if(db__ready_for_flight(context, mosq_md_in, tail->qos)){
     //         break;
     //     }
     //
-    //     /*
-    //      *  Next
-    //      */
-    //     tail = dl_next(tail);
+    //     tail->timestamp = db.now_s;
+    //
+    //     if(tail->qos == 2){
+    //         send__pubrec(context, tail->mid, 0, NULL);
+    //         tail->state = mosq_ms_wait_for_pubrel;
+    //         db__message_dequeue_first(context, &context->msgs_in);
+    //     }
     // }
 
     if(deleted) {
         return MOSQ_ERR_SUCCESS;
     } else {
+        // Silence please
         return MOSQ_ERR_NOT_FOUND;
     }
 }
@@ -1474,7 +1413,7 @@ PRIVATE int db__message_remove_incoming_dup(hgobj gobj, uint16_t mid)
     q2_msg_t *qmsg, *tmp;
 
     DL_FOREACH_SAFE(&priv->trq_in_msgs->dl_inflight, qmsg, tmp) {
-        if(qmsg->mid == mid) {
+        if(qmsg->rowid == (uint64_t)mid) {
             gobj_log_warning(gobj, 0,
                 "function",     "%s", __FUNCTION__,
                 "msgset",       "%s", MSGSET_INTERNAL_ERROR,
@@ -1505,18 +1444,21 @@ PRIVATE int db__message_write_queued_in(hgobj gobj)
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
     if(priv->trq_in_msgs) {
-        register q2_msg_t *msg;
-        Q2MSG_FOREACH_FORWARD_QUEUED(priv->trq_in_msgs, msg) {
+        register q2_msg_t *qmsg;
+        Q2MSG_FOREACH_FORWARD_QUEUED(priv->trq_in_msgs, qmsg) {
             // if(context->msgs_in.inflight_maximum != 0 && context->msgs_in.inflight_quota == 0){
             if(priv->trq_in_msgs->max_inflight_messages > 0 && tr2q_inflight_size(priv->trq_in_msgs)==0) {
                 break;
             }
 
-            if(tr2q_move_from_queued_to_inflight(msg)<0) {
+            if(tr2q_move_from_queued_to_inflight(qmsg)<0) {
                 break;
             }
-            //msg_flag_set_state(&user_flag, mosq_ms_wait_for_pubrel); // TODO
-            send__pubrec(gobj, msg->mid, 0, NULL);
+            msg_flag_t uf = {.value = tr2q_msg_hard_flag(qmsg)};
+            msg_flag_set_state(&uf, mosq_ms_wait_for_pubrel);
+            uint16_t mid = qmsg->rowid & 0xFFFF;
+            send__pubrec(gobj, mid, 0, NULL);
+            tr2q_save_hard_mark(qmsg, uf.value);
         }
     }
     return MOSQ_ERR_SUCCESS;
@@ -3336,7 +3278,7 @@ PRIVATE int send_simple_command(hgobj gobj, uint8_t command)
     }
 
     if(gobj_trace_level(gobj) & SHOW_DECODE) {
-        trace_msg0("👉👉 %s Sending simple command %s to '%s' %s",
+        trace_msg0("👉👉 Sending simple command as %s %s to '%s' %s",
             priv->iamServer?"broker":"client",
             mqtt_command_string(command),
             priv->client_id,
@@ -3597,7 +3539,7 @@ PRIVATE int send__connack(
     uint32_t remaining_length = 2;
 
     if(gobj_trace_level(gobj) & SHOW_DECODE) {
-        trace_msg0("👉👉 %s Sending CONNACK to '%s' %s (ack %d, reason code %d '%s')",
+        trace_msg0("👉👉 Sending CONNACK as %s to '%s' %s (ack %d, reason: %d '%s')",
             priv->iamServer?"broker":"client",
             priv->client_id,
             gobj_short_name(gobj_bottom_gobj(gobj)),
@@ -3667,14 +3609,14 @@ PRIVATE int send__disconnect(
 
     if(gobj_trace_level(gobj) & SHOW_DECODE) {
         if(priv->iamServer) {
-            trace_msg0("👉👉 %s Sending DISCONNECT to '%s' (%d '%s')",
+            trace_msg0("👉👉 Sending DISCONNECT as %s to '%s' (%d '%s')",
                 priv->iamServer?"broker":"client",
                 priv->client_id,
                 reason_code,
                 mqtt_reason_string(reason_code)
             );
         } else {
-            trace_msg0("👉👉 %s Sending client DISCONNECT to '%s'",
+            trace_msg0("👉👉 Sending client DISCONNECT as %s to '%s'",
                 priv->iamServer?"broker":"client",
                 priv->client_id
             );
@@ -3783,7 +3725,7 @@ PRIVATE int send_command_with_mid(
     int remaining_length = 2;
 
     if(gobj_trace_level(gobj) & SHOW_DECODE) {
-        trace_msg0("👉👉 %s Sending %s to '%s', mid %ld (%d '%s')",
+        trace_msg0("👉👉 Sending as %s, %s to '%s' (mid %ld, reason: %d '%s')",
             priv->iamServer?"broker":"client",
             mqtt_command_string(command & 0xF0),
             priv->client_id,
@@ -3889,7 +3831,7 @@ PRIVATE int send__publish(
     }
 
     if(gobj_trace_level(gobj) & SHOW_DECODE) {
-        trace_msg0("👉👉 %s Sending PUBLISH to '%s', topic '%s' (dup %d, qos %d, retain %d, mid %d)",
+        trace_msg0("👉👉 Sending PUBLISH as %s to '%s', topic '%s' (dup %d, qos %d, retain %d, mid %d)",
             priv->iamServer?"broker":"client",
             SAFE_PRINT(priv->client_id),
             topic,
@@ -4046,7 +3988,7 @@ PRIVATE int send__subscribe(
 
     if(gobj_trace_level(gobj) & SHOW_DECODE) {
         char *topics = json2uglystr(subs);
-        trace_msg0("👉👉 %s Sending SUBSCRIBE client id '%s', topic '%s' (qos %d, mid %d)",
+        trace_msg0("👉👉 Sending SUBSCRIBE as %s client id '%s', topic '%s' (qos %d, mid %d)",
             priv->iamServer?"broker":"client",
             SAFE_PRINT(priv->client_id),
             topics,
@@ -4114,7 +4056,7 @@ PRIVATE int send__unsubscribe(
 
     if(gobj_trace_level(gobj) & SHOW_DECODE) {
         char *topics = json2uglystr(subs);
-        trace_msg0("👉👉 %s Sending UNSUBSCRIBE client id '%s', topic '%s' (mid %d)",
+        trace_msg0("👉👉 Sending UNSUBSCRIBE as %s client id '%s', topic '%s' (mid %d)",
             priv->iamServer?"broker":"client",
             SAFE_PRINT(priv->client_id),
             topics,
@@ -4242,7 +4184,7 @@ PRIVATE int handle__connect(hgobj gobj, gbuffer_t *gbuf, hgobj src)
         gobj_log_error(gobj, 0,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_MQTT_ERROR,
-            "msg",          "%s", "Mqtt CMD_CONNECT: MQTT bad length",
+            "msg",          "%s", "Mqtt CMD_CONNECT: MQTT protocol name length",
             NULL
         );
         return -1;
@@ -4945,11 +4887,19 @@ PRIVATE int handle__connect(hgobj gobj, gbuffer_t *gbuf, hgobj src)
     }
 
     // TODO
-    // db__expire_all_messages(context);
-    // db__message_write_queued_out(context);
-    // db__message_write_inflight_out_all(context);
+    int todo_x;
+    // db__expire_all_messages(gobj);
+    // db__message_write_queued_out(gobj);
+    // db__message_write_inflight_out_all(gobj);
 
     set_timeout_periodic(priv->gobj_timer_periodic, priv->timeout_periodic);
+    if(priv->tranger_queues) {
+        if(priv->timeout_backup > 0) {
+            priv->t_backup = start_sectimer(priv->timeout_backup);
+        } else {
+            priv->t_backup = 0;
+        }
+    }
 
     /*
      *  Start timer keepalive/ping
@@ -4962,7 +4912,7 @@ PRIVATE int handle__connect(hgobj gobj, gbuffer_t *gbuf, hgobj src)
 }
 
 /***************************************************************************
- *  Only for clients
+ *  Only for clients, not implemented for bridge
  ***************************************************************************/
 PRIVATE int handle__connack(
     hgobj gobj,
@@ -5073,8 +5023,10 @@ PRIVATE int handle__connack(
     // message__reconnect_reset(mosq, true); TODO important?!
 
     if(gobj_trace_level(gobj) & SHOW_DECODE) {
-        trace_msg0("👈👈 COMMAND=%s, reason code: %d '%s'",
+        trace_msg0("👈👈 COMMAND=%s, as %s, client %s, reason: %d '%s'",
             mqtt_command_string(CMD_CONNACK),
+            priv->iamServer? "server":"client",
+            SAFE_PRINT(priv->client_id),
             reason_code,
             priv->protocol_version == mosq_p_mqtt5?
                 mqtt_reason_string(reason_code) :
@@ -5098,6 +5050,11 @@ PRIVATE int handle__connack(
              *  Start the periodic timer and begin ping timer
              */
             set_timeout_periodic(priv->gobj_timer_periodic, priv->timeout_periodic);
+            if(priv->timeout_backup > 0) {
+                priv->t_backup = start_sectimer(priv->timeout_backup);
+            } else {
+                priv->t_backup = 0;
+            }
             if(priv->keepalive > 0) {
                 priv->timer_ping = start_sectimer(priv->keepalive);
             }
@@ -5175,7 +5132,8 @@ PRIVATE int handle__disconnect_s(hgobj gobj, gbuffer_t *gbuf)
     }
 
     if(gobj_trace_level(gobj) & SHOW_DECODE) {
-        trace_msg0("  👈 Received DISCONNECT from client '%s' (%d '%s')",
+        trace_msg0("  👈 Received DISCONNECT, as %s, client '%s' (%d '%s')",
+            priv->iamServer? "server":"client",
             SAFE_PRINT(priv->client_id),
             reason_code,
             mqtt_reason_string(reason_code)
@@ -5230,7 +5188,8 @@ PRIVATE int handle__disconnect_c(hgobj gobj, gbuffer_t *gbuf)
     }
 
     if(gobj_trace_level(gobj) & SHOW_DECODE) {
-        trace_msg0("  👈 Received DISCONNECT from client '%s' (%d '%s')",
+        trace_msg0("  👈 Received DISCONNECT, as %s, client '%s' (%d '%s')",
+            priv->iamServer? "server":"client",
             SAFE_PRINT(priv->client_id),
             reason_code,
             mqtt_reason_string(reason_code)
@@ -5285,8 +5244,15 @@ PRIVATE int handle__subscribe(hgobj gobj, gbuffer_t *gbuf)
         int rc;
         properties = property_read_all(gobj, gbuf, CMD_SUBSCRIBE, &rc);
         if(rc) {
-            // Error already logged
-            return rc;
+            // TODO review
+            /* FIXME - it would be better if property__read_all() returned
+             * MOSQ_ERR_MALFORMED_PACKET, but this is would change the library
+             * return codes so needs doc changes as well. */
+            if(rc == MOSQ_ERR_PROTOCOL){
+                return MOSQ_ERR_MALFORMED_PACKET;
+            } else {
+                return rc;
+            }
         }
 
         subscription_identifier = property_read_varint(properties, MQTT_PROP_SUBSCRIPTION_IDENTIFIER);
@@ -5419,8 +5385,9 @@ PRIVATE int handle__subscribe(hgobj gobj, gbuffer_t *gbuf)
         json_array_append_new(jn_list, jn_sub);
 
         if(gobj_trace_level(gobj) & SHOW_DECODE) {
-            trace_msg0("  👈 Received SUBSCRIBE from client '%s', topic '%s' (QoS %d)",
-                priv->client_id,
+            trace_msg0("  👈 Received SUBSCRIBE, as %s, client '%s', topic '%s' (QoS %d)",
+                priv->iamServer? "server":"client",
+                SAFE_PRINT(priv->client_id),
                 sub,
                 qos
             );
@@ -5471,12 +5438,20 @@ PRIVATE int handle__subscribe(hgobj gobj, gbuffer_t *gbuf)
         return -1;
     }
 
-    return send__suback(
+    send__suback(
         gobj,
         mid,
         gbuf_payload, // owned
         NULL // owned (properties suback not used)
     );
+
+    int todo_xxx; // TODO
+    // if(priv->current_out_packet == NULL){
+    //     db__message_write_queued_out(gobj);
+    //     db__message_write_inflight_out_latest(gobj);
+    // }
+
+    return MOSQ_ERR_SUCCESS;
 }
 
 /***************************************************************************
@@ -5499,7 +5474,7 @@ PRIVATE int send__suback(
     }
 
     if(gobj_trace_level(gobj) & SHOW_DECODE) {
-        trace_msg0("👉👉 %s Sending SUBACK to '%s' %s",
+        trace_msg0("👉👉 Sending SUBACK as %s to '%s' %s",
             priv->iamServer?"broker":"client",
             priv->client_id,
             gobj_short_name(gobj_bottom_gobj(gobj))
@@ -5630,8 +5605,9 @@ PRIVATE int handle__unsubscribe(hgobj gobj, gbuffer_t *gbuf)
         }
 
         if(gobj_trace_level(gobj) & SHOW_DECODE) {
-            trace_msg0("  👈 Received UNSUBSCRIBE from client '%s', topic '%s'",
-                priv->client_id,
+            trace_msg0("  👈 Received UNSUBSCRIBE, as %s, client '%s', topic '%s'",
+                priv->iamServer? "server":"client",
+                SAFE_PRINT(priv->client_id),
                 sub
             );
         }
@@ -5690,7 +5666,7 @@ PRIVATE int send__unsuback(
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
     if(gobj_trace_level(gobj) & SHOW_DECODE) {
-        trace_msg0("👉👉 %s Sending UNSUBACK to '%s' %s",
+        trace_msg0("👉👉 Sending UNSUBACK as %s to '%s' %s",
             priv->iamServer?"broker":"client",
             priv->client_id,
             gobj_short_name(gobj_bottom_gobj(gobj))
@@ -5773,7 +5749,8 @@ PRIVATE int handle__suback(hgobj gobj, gbuffer_t *gbuf)
     }
 
     if(gobj_trace_level(gobj) & SHOW_DECODE) {
-        trace_msg0("  👈 Received SUBACK from client '%s' (Mid: %d)",
+        trace_msg0("  👈 Received SUBACK, as %s, client '%s' (mid: %d)",
+            priv->iamServer? "server":"client",
             SAFE_PRINT(priv->client_id),
             mid
         );
@@ -5851,7 +5828,8 @@ PRIVATE int handle__unsuback(hgobj gobj, gbuffer_t *gbuf)
     }
 
     if(gobj_trace_level(gobj) & SHOW_DECODE) {
-        trace_msg0("  👈 Received UNSUBACK from client '%s' (Mid: %d)",
+        trace_msg0("  👈 Received UNSUBACK as %s, client '%s' (mid: %d)",
+            priv->iamServer? "server":"client",
             SAFE_PRINT(priv->client_id),
             mid
         );
@@ -6117,9 +6095,10 @@ PRIVATE int handle__publish_s(
             return MOSQ_ERR_NOMEM;
         }
 
-        if(mqtt_read_bytes(gobj, gbuf, gbuffer_cur_wr_pointer(payload), (int)payloadlen)) {
+        if(mqtt_read_bytes(gobj, gbuf, gbuffer_cur_wr_pointer(payload), (int)payloadlen)<0) {
             GBMEM_FREE(topic)
             JSON_DECREF(properties)
+            GBUFFER_DECREF(payload)
             return MOSQ_ERR_MALFORMED_PACKET;
         }
         gbuffer_set_wr(payload, payloadlen);
@@ -6148,6 +6127,7 @@ PRIVATE int handle__publish_s(
     } else if(rc != MOSQ_ERR_SUCCESS) {
         GBMEM_FREE(topic)
         JSON_DECREF(properties)
+        GBUFFER_DECREF(payload)
         return rc;
     }
 
@@ -6163,12 +6143,14 @@ PRIVATE int handle__publish_s(
         topic,
         payload, // owned
         qos,
+        mid,
         retain,
         dup,
         properties, // owned
         message_expiry_interval,
         mosquitto_time()
     );
+    payload = NULL; // owned by kw_mqtt_msg
 
     msg_flag_t user_flag = {0};
     msg_flag_set_origin(&user_flag, mosq_mo_client);
@@ -6179,8 +6161,9 @@ PRIVATE int handle__publish_s(
     msg_flag_set_state(&user_flag, mosq_ms_invalid);
 
     if(gobj_trace_level(gobj) & SHOW_DECODE) {
-        trace_msg0("  👈 Received PUBLISH from client '%s', topic '%s' (dup %d, qos %d, retain %d, mid %d, len %ld)",
-            priv->client_id,
+        trace_msg0("  👈 Received PUBLISH, as %s, client '%s', topic '%s' (dup %d, qos %d, retain %d, mid %d, len %ld)",
+            priv->iamServer? "server":"client",
+            SAFE_PRINT(priv->client_id),
             topic,
             dup,
             (int)qos,
@@ -6255,7 +6238,7 @@ PRIVATE int handle__publish_s(
                     EV_MQTT_MESSAGE,
                     kw_incref(kw_mqtt_msg) // owned
                 );
-                rc = gobj_publish_event( // To broker, sub__messages_queue
+                rc = gobj_publish_event( // To broker, sub__messages_queue, return # subscribers
                     gobj,
                     EV_ON_IEV_MESSAGE,
                     kw_iev
@@ -6314,7 +6297,7 @@ PRIVATE int handle__publish_s(
             break;
     }
 
-    KW_DECREF(kw_mqtt_msg)
+    kw_decref(kw_mqtt_msg);
 
     /*
      *  Pull from input queued list
@@ -6341,6 +6324,7 @@ process_bad_message:
     //     rc = MQTT_RC_QUOTA_EXCEEDED;
     // }
 
+    GBUFFER_DECREF(payload)
     GBMEM_FREE(topic)
     KW_DECREF(kw_mqtt_msg)
     return rc;
@@ -6455,6 +6439,7 @@ PRIVATE int handle__publish_c(
         topic,
         payload, // owned
         qos,
+        mid,
         retain,
         dup,
         properties, // owned
@@ -6471,8 +6456,9 @@ PRIVATE int handle__publish_c(
     msg_flag_set_state(&user_flag, mosq_ms_invalid);
 
     if(gobj_trace_level(gobj) & SHOW_DECODE) {
-        trace_msg0("  👈 Received PUBLISH from server '%s', topic '%s' (dup %d, qos %d, retain %d, mid %d, len %ld)",
-            priv->client_id,
+        trace_msg0("  👈 Received PUBLISH, as '%s', client %s, topic '%s' (dup %d, qos %d, retain %d, mid %d, len %ld)",
+            priv->iamServer? "server":"client",
+            SAFE_PRINT(priv->client_id),
             topic,
             dup,
             qos,
@@ -6750,11 +6736,13 @@ PRIVATE int handle__pubackcomp(hgobj gobj, gbuffer_t *gbuf, const char *type)
 
     if(priv->iamServer) {
         if(gobj_trace_level(gobj) & SHOW_DECODE) {
-            trace_msg0("  👈 server Received %s from client '%s' (Mid: %d, RC:%d)",
+            trace_msg0("  👈 Received %s, as %s, client '%s' (mid: %d, reason: %d '%s')",
                 type,
+                priv->iamServer? "server":"client",
                 SAFE_PRINT(priv->client_id),
                 mid,
-                reason_code
+                reason_code,
+                mqtt_reason_string(reason_code)
             );
         }
 
@@ -6764,29 +6752,18 @@ PRIVATE int handle__pubackcomp(hgobj gobj, gbuffer_t *gbuf, const char *type)
          */
         JSON_DECREF(properties)
 
-        rc = db__message_delete_outgoing(gobj, mid, mosq_ms_wait_for_pubcomp, qos);
-        if(rc == MOSQ_ERR_NOT_FOUND) {
-            gobj_log_error(gobj, 0,
-                "function",     "%s", __FUNCTION__,
-                "msgset",       "%s", MSGSET_MQTT_ERROR,
-                "msg",          "%s", "Mqtt: Received for an unknown packet identifier",
-                "client_id",    "%s", priv->client_id,
-                "type",         "%s", type,
-                "mid",          "%d", mid,
-                NULL
-            );
-            return MOSQ_ERR_SUCCESS;
-        } else {
-            return rc;
-        }
+        db__message_delete_outgoing(gobj, mid, mosq_ms_wait_for_pubcomp, qos);
+        return MOSQ_ERR_SUCCESS;
 
     } else {
         if(gobj_trace_level(gobj) & SHOW_DECODE) {
-            trace_msg0("  👈 client %s Received %s from server (Mid: %d, RC:%d)",
-                SAFE_PRINT(priv->client_id),
+            trace_msg0("  👈 Received %s, as %s, client %s (mid: %d, reason: %d '%s')",
                 type,
+                priv->iamServer? "server":"client",
+                SAFE_PRINT(priv->client_id),
                 mid,
-                reason_code
+                reason_code,
+                mqtt_reason_string(reason_code)
             );
         }
 
@@ -6923,10 +6900,12 @@ PRIVATE int handle__pubrec(hgobj gobj, gbuffer_t *gbuf)
 
     if(priv->iamServer) {
         if(gobj_trace_level(gobj) & SHOW_DECODE) {
-            trace_msg0("  👈 server Received PUBREC from client '%s' (Mid: %d, reason code: %02X)",
+            trace_msg0("  👈 Received PUBREC, as %s, client '%s' (mid: %d, reason: %d '%s')",
+                priv->iamServer? "server":"client",
                 SAFE_PRINT(priv->client_id),
                 mid,
-                reason_code
+                reason_code,
+                mqtt_reason_string(reason_code)
             );
         }
 
@@ -6938,10 +6917,12 @@ PRIVATE int handle__pubrec(hgobj gobj, gbuffer_t *gbuf)
 
     } else {
         if(gobj_trace_level(gobj) & SHOW_DECODE) {
-            trace_msg0("  👈 client %s Received PUBREC from broker (Mid: %d, reason code: %02X)",
+            trace_msg0("  👈 Received PUBREC, as %s, client %s (mid: %d, reason: %d '%s')",
+                priv->iamServer? "server":"client",
                 SAFE_PRINT(priv->client_id),
                 mid,
-                reason_code
+                reason_code,
+                mqtt_reason_string(reason_code)
             );
         }
 
@@ -6991,10 +6972,8 @@ PRIVATE int handle__pubrec(hgobj gobj, gbuffer_t *gbuf)
     } else if(rc != MOSQ_ERR_SUCCESS) {
         return rc;
     }
-    rc = send__pubrel(gobj, mid, NULL);
-    if(rc) {
-        return rc;
-    }
+
+    send__pubrel(gobj, mid, NULL);
 
     return MOSQ_ERR_SUCCESS;
 }
@@ -7082,7 +7061,8 @@ PRIVATE int handle__pubrel(hgobj gobj, gbuffer_t *gbuf)
          *          Broker
          *------------------------------------*/
         if(gobj_trace_level(gobj) & SHOW_DECODE) {
-            trace_msg0("  👈 server Received PUBREL from client '%s' (Mid: %d)",
+            trace_msg0("  👈 Received PUBREL, as %s, client '%s' (mid: %d)",
+                priv->iamServer? "server":"client",
                 SAFE_PRINT(priv->client_id),
                 mid
             );
@@ -7106,7 +7086,8 @@ PRIVATE int handle__pubrel(hgobj gobj, gbuffer_t *gbuf)
          *          Client
          *------------------------------------*/
         if(gobj_trace_level(gobj) & SHOW_DECODE) {
-            trace_msg0("  👈 client %s Received PUBREL from broker (Mid: %d)",
+            trace_msg0("  👈 Received PUBREL, as %s, client %s (mid: %d)",
+                priv->iamServer? "server":"client",
                 SAFE_PRINT(priv->client_id),
                 mid
             );
@@ -7141,11 +7122,6 @@ PRIVATE int handle__pubrel(hgobj gobj, gbuffer_t *gbuf)
         }
     }
 
-    /*
-     *  Pull from input queued list
-     */
-    db__message_write_queued_in(gobj);
-
     JSON_DECREF(properties)
     return MOSQ_ERR_SUCCESS;
 }
@@ -7176,6 +7152,9 @@ PRIVATE uint16_t mosquitto__mid_generate(hgobj gobj)
  ***************************************************************************/
 PRIVATE void do_disconnect(hgobj gobj, int reason)
 {
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+    if(priv->iamServer) {
+    }
     // TODO
     // context__send_will(context);
     // if(context->session_expiry_interval == 0) {
@@ -7199,25 +7178,25 @@ PRIVATE void ws_close(hgobj gobj, int reason)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
-    // Change firstly for avoid new messages from client
-    gobj_change_state(gobj, ST_DISCONNECTED);
+    if(!gobj_in_this_state(gobj, ST_DISCONNECTED)) {
+        gobj_change_state(gobj, ST_DISCONNECTED);
+        clear_timeout(priv->gobj_timer_periodic);
 
-    if(priv->in_session) {
-        if(priv->send_disconnect) {
-            // Fallan los test con el send__disconnect
-            //send__disconnect(gobj, code, NULL);
+        /*
+         *  WARNING: feedback, retroalimentación
+         *  Set timer close before send drop, could be event disconnect come immediately
+         */
+        set_timeout(priv->gobj_timer, priv->timeout_close);
+
+        if(priv->in_session) {
+            if(priv->send_disconnect) {
+                send__disconnect(gobj, reason, NULL);
+            }
         }
-    }
 
-    do_disconnect(gobj, reason);
-
-    if(priv->iamServer) {
-        hgobj tcp0 = gobj_bottom_gobj(gobj);
-        if(gobj_is_running(tcp0)) {
-            gobj_send_event(tcp0, EV_DROP, 0, gobj);
-        }
+        // sending event EV_DROP, case of event's feedback (EV_DISCONNECTED)
+        do_disconnect(gobj, reason);
     }
-    set_timeout(priv->gobj_timer, priv->timeout_close);
 }
 
 /***************************************************************************
@@ -7735,15 +7714,22 @@ PRIVATE int ac_disconnected(hgobj gobj, const char *event, json_t *kw, hgobj src
         priv->istream_payload = 0;
     }
 
+    /*----------------*
+     *  Close queues
+     *----------------*/
+    if(priv->tranger_queues) {
+        close_queues(gobj);
+    }
+
+    GBUFFER_DECREF(priv->gbuf_will_payload);
+
+    clear_timeout(priv->gobj_timer);
+    clear_timeout(priv->gobj_timer_periodic);
+    priv->timer_ping = 0;
+    priv->timer_check_ping = 0;
+
     if(priv->inform_on_close) {
         priv->inform_on_close = FALSE;
-
-        /*----------------*
-         *  Close queues
-         *----------------*/
-        if(priv->tranger_queues) {
-            close_queues(gobj);
-        }
 
         const char *peername;
         if(gobj_has_bottom_attr(src, "peername")) {
@@ -7766,21 +7752,13 @@ PRIVATE int ac_disconnected(hgobj gobj, const char *event, json_t *kw, hgobj src
         );
     }
 
-    gobj_reset_volatil_attrs(gobj);
-    restore_client_attributes(gobj);
-
-    GBUFFER_DECREF(priv->gbuf_will_payload);
-
     if(gobj_is_volatil(src)) {
         gobj_set_bottom_gobj(gobj, 0);
     }
 
-    clear_timeout(priv->gobj_timer);
-    clear_timeout(priv->gobj_timer_periodic);
-    priv->timer_ping = 0;
-    priv->timer_check_ping = 0;
-
     JSON_DECREF(priv->jn_alias_list)
+    gobj_reset_volatil_attrs(gobj);
+    restore_client_attributes(gobj);
 
     // TODO new dl_flush(&priv->dl_msgs_in, db_free_client_msg);
     // TODO new dl_flush(&priv->dl_msgs_out, db_free_client_msg);
@@ -8207,6 +8185,8 @@ PRIVATE int ac_send_message(hgobj gobj, const char *event, json_t *kw_mqtt_msg, 
         msg_flag_set_dup(&user_flag, 0);
         msg_flag_set_state(&user_flag, mosq_ms_invalid);
 
+        kw_delete_metadata_keys(kw_mqtt_msg);  // don't save __temp__
+
         message__queue(
             gobj,
             kw_incref(kw_mqtt_msg), // owned
@@ -8388,6 +8368,7 @@ PRIVATE int ac_mqtt_client_send_publish(hgobj gobj, const char *event, json_t *k
         topic,
         gbuf_payload, // not owned
         qos,
+        0,
         retain,
         FALSE,      // dup,
         properties, // not owned
@@ -8765,6 +8746,22 @@ PRIVATE int ac_timeout_periodic(hgobj gobj, const char *event, json_t *kw, hgobj
             KW_DECREF(kw)
             return 0;
         }
+    }
+
+    if(priv->timeout_backup > 0 && test_sectimer(priv->t_backup)) {
+        if(priv->trq_in_msgs) {
+            if(tr2q_inflight_size(priv->trq_in_msgs)==0) { // && priv->pending_acks==0) {
+                // Check and do backup only when no message
+                tr2q_check_backup(priv->trq_in_msgs);
+            }
+        }
+        if(priv->trq_out_msgs) {
+            if(tr2q_inflight_size(priv->trq_out_msgs)==0) { // && priv->pending_acks==0) {
+                // Check and do backup only when no message
+                tr2q_check_backup(priv->trq_out_msgs);
+            }
+        }
+        priv->t_backup = start_sectimer(priv->timeout_backup);
     }
 
     // TODO implement a cleaner of messages inflight with pending acks and timeout reached

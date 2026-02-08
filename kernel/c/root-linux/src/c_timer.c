@@ -309,13 +309,13 @@ PUBLIC void set_timeout(hgobj gobj, json_int_t msec)
     uint32_t level = TRACE_TIMER;
     BOOL tracea = gobj_is_level_tracing(gobj, level) && !gobj_is_level_not_tracing(gobj, level);
     if(tracea) {
-        gobj_log_info(gobj, 0,
+        gobj_log_info(gobj, LOG_OPT_TRACE_STACK,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_YEV_LOOP,
             "msg",          "%s", "set_timeout",
             "msg2",         "%s", "⏰⏰ 🟦 set_timeout",
-            "periodic",     "%d", priv->periodic?1:0,
-            "msec",         "%ld", (long)priv->msec,
+            "periodic",     "%d", 0,
+            "msec",         "%ld", (long)msec,
             NULL
         );
     }
@@ -363,8 +363,8 @@ PUBLIC void set_timeout_periodic(hgobj gobj, json_int_t msec)
             "msgset",       "%s", MSGSET_YEV_LOOP,
             "msg",          "%s", "set_timeout_periodic",
             "msg2",         "%s", "⏰⏰ 🟦🟦 set_timeout_periodic",
-            "periodic",     "%d", priv->periodic?1:0,
-            "msec",         "%ld", (long)priv->msec,
+            "periodic",     "%d", 1,
+            "msec",         "%ld", (long)msec,
             NULL
         );
     }

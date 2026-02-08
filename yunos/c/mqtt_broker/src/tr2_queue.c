@@ -183,7 +183,6 @@ PRIVATE q2_msg_t *new_msg(
     memmove(&msg->md_record, md_record, sizeof(md2_record_ex_t));
     msg->trq = trq;
     msg->rowid = rowid;
-    msg->mid = json_integer_value(json_object_get(kw_record, "mid"));
 
     if(trq->max_inflight_messages == 0 || tr2q_inflight_size(trq) < trq->max_inflight_messages) {
         dl_add(&trq->dl_inflight, msg);
@@ -421,6 +420,16 @@ PUBLIC q2_msg_t *tr2q_append(
         return NULL;
     }
 
+    /*
+     *  Remove gbuffer from kw, serialize to save in tranger2, and restore later
+     */
+    gbuffer_t *gbuf = (gbuffer_t *)(uintptr_t)kw_get_int(
+        gobj, kw, "gbuffer", 0, KW_REQUIRED|KW_EXTRACT
+    );
+    if(gbuf) {
+        json_object_set_new(kw, "payload", gbuffer_serialize(gobj, gbuf));
+    }
+
     md2_record_ex_t md_record;
     tranger2_append_record(
         trq->tranger,
@@ -428,8 +437,10 @@ PUBLIC q2_msg_t *tr2q_append(
         t,                              // __t__
         user_flag | TR2Q_MSG_PENDING,   // __flag__
         &md_record,
-        kw_incref(kw) // owned
+        json_incref(kw) // owned
     );
+
+    json_object_set_new(kw, "gbuffer", json_integer((json_int_t)(uintptr_t)gbuf));
 
     q2_msg_t *msg = new_msg(
         trq,
@@ -475,29 +486,6 @@ PUBLIC void tr2q_unload_msg(q2_msg_t *msg, int32_t result)
 }
 
 /***************************************************************************
-    Get a message from iter by his mid
- ***************************************************************************/
-PUBLIC q2_msg_t *tr2q_get_by_mid(tr2_queue_t *trq, json_int_t mid)
-{
-    register q2_msg_t *msg;
-
-    Q2MSG_FOREACH_FORWARD_INFLIGHT(trq, msg) {
-        if(msg->mid == mid) {
-            msg->inflight = TRUE;
-            return msg;
-        }
-    }
-    Q2MSG_FOREACH_FORWARD_QUEUED(trq, msg) {
-        if(msg->mid == mid) {
-            msg->inflight = FALSE;
-            return msg;
-        }
-    }
-
-    return NULL;
-}
-
-/***************************************************************************
     Get a message from iter by his rowid
  ***************************************************************************/
 PUBLIC q2_msg_t *tr2q_get_by_rowid(tr2_queue_t *trq, uint64_t rowid)
@@ -521,6 +509,29 @@ PUBLIC q2_msg_t *tr2q_get_by_rowid(tr2_queue_t *trq, uint64_t rowid)
 }
 
 /***************************************************************************
+    Get a message from iter by his mid
+ ***************************************************************************/
+PUBLIC q2_msg_t *tr2q_get_by_mid(tr2_queue_t *trq, json_int_t mid)
+{
+    register q2_msg_t *msg;
+
+    Q2MSG_FOREACH_FORWARD_INFLIGHT(trq, msg) {
+        if(msg->mid == mid) {
+            msg->inflight = TRUE;
+            return msg;
+        }
+    }
+    Q2MSG_FOREACH_FORWARD_QUEUED(trq, msg) {
+        if(msg->mid == mid) {
+            msg->inflight = FALSE;
+            return msg;
+        }
+    }
+
+    return NULL;
+}
+
+/***************************************************************************
     Get the message content
  ***************************************************************************/
 PUBLIC json_t *tr2q_msg_json(q2_msg_t *msg) // Return is not yours, free with tr2q_unload_msg()
@@ -535,6 +546,8 @@ PUBLIC json_t *tr2q_msg_json(q2_msg_t *msg) // Return is not yours, free with tr
         "",
         &msg->md_record
     );
+    // TODO deserialize gbuffer payload
+    int todo_deserialize;
     return msg->kw_record;
 }
 

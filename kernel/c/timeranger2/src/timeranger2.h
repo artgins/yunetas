@@ -402,7 +402,7 @@ PUBLIC int tranger2_append_record(
     uint64_t __t__,         // if 0 then the time will be set by TimeRanger with now time
     uint16_t user_flag,
     md2_record_ex_t *md_record_ex, // required, to return the metadata
-    json_t *jn_record       // owned
+    json_t *jn_record       // JSON owned
 );
 
 /*
@@ -476,7 +476,7 @@ typedef int (*tranger2_load_record_callback_t)(
     json_t *list,       // iterator or rt_mem/rt_disk, don't own
     json_int_t rowid,   // in a rt_mem will be the relative rowid, in rt_disk the absolute rowid
     md2_record_ex_t *md_record_ex,
-    json_t *jn_record  // must be owned
+    json_t *jn_record  // must be JSON owned
 );
 
 /*

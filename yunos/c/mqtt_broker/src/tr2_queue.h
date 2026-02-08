@@ -109,14 +109,14 @@ PUBLIC int tr2q_move_from_queued_to_inflight(q2_msg_t *msg);
 PUBLIC void tr2q_unload_msg(q2_msg_t *msg, int32_t result);
 
 /**
-    Get a message from iter by his mid
-*/
-PUBLIC q2_msg_t *tr2q_get_by_mid(tr2_queue_t *trq, json_int_t mid);
-
-/**
     Get a message from iter by his rowid
 */
 PUBLIC q2_msg_t *tr2q_get_by_rowid(tr2_queue_t *trq, uint64_t rowid);
+
+/**
+    Get a message from iter by his mid
+*/
+PUBLIC q2_msg_t *tr2q_get_by_mid(tr2_queue_t *trq, json_int_t mid);
 
 /**
     Get the message content

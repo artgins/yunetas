@@ -938,7 +938,7 @@ PRIVATE void try_to_stop_yevents(hgobj gobj)  // IDEMPOTENT
         );
     }
 
-    if(priv->fd_clisrv > 0) {
+    if(priv->fd_clisrv > 0 && !priv->tx_in_progress) {
         if(trace_level & TRACE_URING) {
             gobj_log_debug(gobj, 0,
                 "function",     "%s", __FUNCTION__,
