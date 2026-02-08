@@ -1371,19 +1371,20 @@ PRIVATE int db__message_release_incoming(hgobj gobj, uint16_t mid)
         deleted = TRUE;
     }
 
-    DL_FOREACH_SAFE(context->msgs_in.queued, tail, tmp){
-        if(db__ready_for_flight(context, mosq_md_in, tail->qos)){
-            break;
-        }
-
-        tail->timestamp = db.now_s;
-
-        if(tail->qos == 2){
-            send__pubrec(context, tail->mid, 0, NULL);
-            tail->state = mosq_ms_wait_for_pubrel;
-            db__message_dequeue_first(context, &context->msgs_in);
-        }
-    }
+    int todo_x;
+    // DL_FOREACH_SAFE(context->msgs_in.queued, tail, tmp){
+    //     if(db__ready_for_flight(context, mosq_md_in, tail->qos)){
+    //         break;
+    //     }
+    //
+    //     tail->timestamp = db.now_s;
+    //
+    //     if(tail->qos == 2){
+    //         send__pubrec(context, tail->mid, 0, NULL);
+    //         tail->state = mosq_ms_wait_for_pubrel;
+    //         db__message_dequeue_first(context, &context->msgs_in);
+    //     }
+    // }
 
     if(deleted) {
         return MOSQ_ERR_SUCCESS;
@@ -4878,9 +4879,10 @@ PRIVATE int handle__connect(hgobj gobj, gbuffer_t *gbuf, hgobj src)
     }
 
     // TODO
-    db__expire_all_messages(gobj);
-    db__message_write_queued_out(gobj);
-    db__message_write_inflight_out_all(gobj);
+    int todo_x;
+    // db__expire_all_messages(gobj);
+    // db__message_write_queued_out(gobj);
+    // db__message_write_inflight_out_all(gobj);
 
     set_timeout_periodic(priv->gobj_timer_periodic, priv->timeout_periodic);
     if(priv->tranger_queues) {
@@ -5431,10 +5433,11 @@ PRIVATE int handle__subscribe(hgobj gobj, gbuffer_t *gbuf)
     );
 
     int todo_xxx; // TODO
-    if(priv->current_out_packet == NULL){
-        db__message_write_queued_out(gobj);
-        db__message_write_inflight_out_latest(gobj);
-    }
+    // if(priv->current_out_packet == NULL){
+    //     db__message_write_queued_out(gobj);
+    //     db__message_write_inflight_out_latest(gobj);
+    // }
+
     return MOSQ_ERR_SUCCESS;
 }
 
