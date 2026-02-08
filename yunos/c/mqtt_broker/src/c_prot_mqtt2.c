@@ -770,7 +770,7 @@ PRIVATE int message__out_update(
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
     tr2_queue_t *trq = priv->trq_out_msgs;
 
-    q2_msg_t *qmsg = tr2q_get_by_rowid(trq, mid);
+    q2_msg_t *qmsg = tr2q_get_by_mid(trq, mid);
     if(qmsg) {
         msg_flag_t uf = {.value = tr2q_msg_hard_flag(qmsg)};
         int msg_qos = msg_flag_get_qos_level(&uf);
@@ -939,10 +939,10 @@ PRIVATE int message__remove(
 
     q2_msg_t *msg;
     if(dir == mosq_md_out) {
-        msg = tr2q_get_by_rowid(priv->trq_out_msgs, mid);
+        msg = tr2q_get_by_mid(priv->trq_out_msgs, mid);
 
     } else {
-        msg = tr2q_get_by_rowid(priv->trq_in_msgs, mid);
+        msg = tr2q_get_by_mid(priv->trq_in_msgs, mid);
     }
 
     if(msg) {
@@ -1208,7 +1208,7 @@ PRIVATE int db__message_update_outgoing(
         return MOSQ_ERR_NOT_FOUND;
     }
 
-    q2_msg_t *qmsg = tr2q_get_by_rowid(trq, mid);
+    q2_msg_t *qmsg = tr2q_get_by_mid(trq, mid);
     if(qmsg) {
         msg_flag_t uf = {.value = tr2q_msg_hard_flag(qmsg)};
         int msg_qos = msg_flag_get_qos_level(&uf);
@@ -1245,7 +1245,7 @@ PRIVATE int db__message_delete_outgoing(
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
     tr2_queue_t *trq = priv->trq_out_msgs;
 
-    q2_msg_t *qmsg = tr2q_get_by_rowid(trq, mid);
+    q2_msg_t *qmsg = tr2q_get_by_mid(trq, mid);
     if(qmsg) {
         msg_flag_t uf = {.value = tr2q_msg_hard_flag(qmsg)};
         int msg_qos = msg_flag_get_qos_level(&uf);
@@ -1320,7 +1320,7 @@ PRIVATE int db__message_release_incoming(hgobj gobj, uint16_t mid)
 
     BOOL deleted = FALSE;
 
-    q2_msg_t *qmsg = tr2q_get_by_rowid(priv->trq_in_msgs, mid);
+    q2_msg_t *qmsg = tr2q_get_by_mid(priv->trq_in_msgs, mid);
     if(qmsg) {
         msg_flag_t uf = {.value = tr2q_msg_hard_flag(qmsg)};
         int msg_qos = msg_flag_get_qos_level(&uf);
@@ -1369,6 +1369,14 @@ PRIVATE int db__message_release_incoming(hgobj gobj, uint16_t mid)
             qmsg
         );
         deleted = TRUE;
+    } else {
+        gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_MQTT_ERROR,
+            "msg",          "%s", "Message not found",
+            "mid",          "%d", (int)mid,
+            NULL
+        );
     }
 
     int todo_x;
