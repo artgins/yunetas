@@ -96,6 +96,7 @@
             │  time                     │                   │
             │                           │                   │
             │  subscriptions            │  (json array)     │
+            │  mid                      │  (last mid used)  │
             │                           │                   │
             │  will_topic               │                   │
             │  will_payload             │                   │
@@ -104,8 +105,6 @@
             │  will_delay_interval      │                   │
             │  will_properties          │                   │
             │  will_delay_time          │                   │
-            │                           │                   │
-            │  mid                      │  (last mid used)  │
             │                           │                   │
             │  inflight_msgs            │  (json array - QoS 1/2 pending)
             │                           │                   │
@@ -613,6 +612,16 @@ static char treedb_schema_mqtt_broker[]= "\
                     ],                                              \n\
                     'description': 'Array of subscription objects: {topic_filter, qos, no_local, retain_as_published, retain_handling, identifier}' \n\
                 },                                                  \n\
+                'mid': {                                            \n\
+                    'header': 'Mid',                                \n\
+                    'fillspace': 6,                                 \n\
+                    'type': 'integer',                              \n\
+                    'default': 0,                                   \n\
+                    'flag': [                                       \n\
+                        'persistent'                                \n\
+                    ],                                              \n\
+                    'description': 'Last message id used in the session' \n\
+                },                                                  \n\
                 'will_topic': {                                     \n\
                     'header': 'Will Topic',                         \n\
                     'fillspace': 30,                                \n\
@@ -674,16 +683,6 @@ static char treedb_schema_mqtt_broker[]= "\
                         'persistent'                                \n\
                     ],                                              \n\
                     'description': 'Timestamp when client disconnected, used to calculate will delay expiry' \n\
-                },                                                  \n\
-                'mid': {                                            \n\
-                    'header': 'Mid',                                \n\
-                    'fillspace': 6,                                 \n\
-                    'type': 'integer',                              \n\
-                    'default': 0,                                   \n\
-                    'flag': [                                       \n\
-                        'persistent'                                \n\
-                    ],                                              \n\
-                    'description': 'Last message id used in the session' \n\
                 },                                                  \n\
                 '_geometry': {                                      \n\
                     'header': 'Geometry',                           \n\
