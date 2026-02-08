@@ -63,7 +63,7 @@
             │  properties               │   │               │
             │  coordinates              │   │               │
             │  settings             <----------------- using client_types.template_settings
-            │  yuno                     │   │               │    TODO    make a shortcut to get it
+            │  yuno                     │   │               │    TODO make a shortcut to get it
             │                           │   │               │
             │  _geometry                │   │               │
             └───────────────────────────┘   │               │
