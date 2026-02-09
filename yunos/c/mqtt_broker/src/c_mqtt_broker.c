@@ -2091,8 +2091,11 @@ PRIVATE int retain__queue(
                     );
 
                     uint16_t user_flag = mosq_mo_client | mosq_md_out | mosq_m_retain;
-                    if(msg_qos == 1) user_flag |= mosq_m_qos1;
-                    else if(msg_qos == 2) user_flag |= mosq_m_qos2;
+                    if(msg_qos == 1) {
+                        user_flag |= mosq_m_qos1;
+                    } else if(msg_qos == 2) {
+                        user_flag |= mosq_m_qos2;
+                    }
 
                     tr2q_append(
                         trq_out_msgs,
@@ -2721,9 +2724,14 @@ PRIVATE int subs__send(
         );
 
         uint16_t user_flag = mosq_mo_client | mosq_md_out;
-        if(msg_qos == 1) user_flag |= mosq_m_qos1;
-        else if(msg_qos == 2) user_flag |= mosq_m_qos2;
-        if(client_retain) user_flag |= mosq_m_retain;
+        if(msg_qos == 1) {
+            user_flag |= mosq_m_qos1;
+        } else if(msg_qos == 2) {
+            user_flag |= mosq_m_qos2;
+        }
+        if(client_retain) {
+            user_flag |= mosq_m_retain;
+        }
 
         tr2q_append(
             trq_out_msgs,

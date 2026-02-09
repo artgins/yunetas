@@ -6150,10 +6150,17 @@ PRIVATE int handle__publish_s(
     payload = NULL; // owned by kw_mqtt_msg
 
     uint16_t user_flag = mosq_mo_client | mosq_md_in;
-    if(qos == 1) user_flag |= mosq_m_qos1;
-    else if(qos == 2) user_flag |= mosq_m_qos2;
-    if(retain) user_flag |= mosq_m_retain;
-    if(dup) user_flag |= mosq_m_dup;
+    if(qos == 1) {
+        user_flag |= mosq_m_qos1;
+    } else if(qos == 2) {
+        user_flag |= mosq_m_qos2;
+    }
+    if(retain) {
+        user_flag |= mosq_m_retain;
+    }
+    if(dup) {
+        user_flag |= mosq_m_dup;
+    }
 
     if(gobj_trace_level(gobj) & SHOW_DECODE) {
         trace_msg0("  👈 Received PUBLISH, as %s, client '%s', topic '%s' (dup %d, qos %d, retain %d, mid %d, len %ld)",
@@ -6443,10 +6450,17 @@ PRIVATE int handle__publish_c(
     );
 
     uint16_t user_flag = mosq_mo_broker | mosq_md_in;
-    if(qos == 1) user_flag |= mosq_m_qos1;
-    else if(qos == 2) user_flag |= mosq_m_qos2;
-    if(retain) user_flag |= mosq_m_retain;
-    if(dup) user_flag |= mosq_m_dup;
+    if(qos == 1) {
+        user_flag |= mosq_m_qos1;
+    } else if(qos == 2) {
+        user_flag |= mosq_m_qos2;
+    }
+    if(retain) {
+        user_flag |= mosq_m_retain;
+    }
+    if(dup) {
+        user_flag |= mosq_m_dup;
+    }
 
     if(gobj_trace_level(gobj) & SHOW_DECODE) {
         trace_msg0("  👈 Received PUBLISH, as '%s', client %s, topic '%s' (dup %d, qos %d, retain %d, mid %d, len %ld)",
@@ -8171,9 +8185,14 @@ PRIVATE int ac_send_message(hgobj gobj, const char *event, json_t *kw_mqtt_msg, 
         );
     } else {
         uint16_t user_flag = mosq_mo_broker | mosq_md_out;
-        if(qos == 1) user_flag |= mosq_m_qos1;
-        else if(qos == 2) user_flag |= mosq_m_qos2;
-        if(retain) user_flag |= mosq_m_retain;
+        if(qos == 1) {
+            user_flag |= mosq_m_qos1;
+        } else if(qos == 2) {
+            user_flag |= mosq_m_qos2;
+        }
+        if(retain) {
+            user_flag |= mosq_m_retain;
+        }
 
         kw_delete_metadata_keys(kw_mqtt_msg);  // don't save __temp__
 
@@ -8402,9 +8421,14 @@ PRIVATE int ac_mqtt_client_send_publish(hgobj gobj, const char *event, json_t *k
     } else {
 
         uint16_t user_flag = mosq_mo_client | mosq_md_out;
-        if(qos == 1) user_flag |= mosq_m_qos1;
-        else if(qos == 2) user_flag |= mosq_m_qos2;
-        if(retain) user_flag |= mosq_m_retain;
+        if(qos == 1) {
+            user_flag |= mosq_m_qos1;
+        } else if(qos == 2) {
+            user_flag |= mosq_m_qos2;
+        }
+        if(retain) {
+            user_flag |= mosq_m_retain;
+        }
 
         message__queue(
             gobj,
