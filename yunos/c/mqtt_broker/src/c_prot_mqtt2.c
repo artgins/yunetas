@@ -822,6 +822,7 @@ PRIVATE int message__release_to_inflight(hgobj gobj, enum mqtt_msg_direction dir
                 /*
                  *  Assign mid and update state
                  */
+                int todo_xxx; // TODO don't use rowid as mid
                 uint16_t mid = qmsg->rowid & 0xFFFF;
                 qmsg->mid = mid;
 
@@ -1225,7 +1226,7 @@ PRIVATE int db__message_update_outgoing(
             );
             return MOSQ_ERR_PROTOCOL;
         }
-        // tail->timestamp = db.now_s; TODO
+        int todo_xxx; // tail->timestamp = db.now_s; TODO
         msg_flag_set_state(&uf, state);
         tr2q_save_hard_mark(qmsg, uf.value);
         return MOSQ_ERR_SUCCESS;
