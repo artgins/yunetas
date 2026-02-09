@@ -632,6 +632,37 @@ PRIVATE json_t *cmd_list_sessions(hgobj gobj, const char *cmd, json_t *kw, hgobj
 }
 
 /***************************************************************************
+ *  Callback to collect queue records for cmd_list_queues
+ ***************************************************************************/
+PRIVATE int list_queue_record_callback(
+    json_t *tranger,
+    json_t *topic,
+    const char *key,
+    json_t *list,       // iterator or rt_list/rt_disk id, don't own
+    json_int_t rowid,
+    md2_record_ex_t *md_record,
+    json_t *jn_record   // must be owned, can be null if only_md
+) {
+    hgobj gobj = (hgobj)json_integer_value(json_object_get(tranger, "gobj"));
+    json_t *jn_data = (json_t *)(uintptr_t)kw_get_int(gobj, list, "jn_data", 0, KW_REQUIRED);
+
+    if(!jn_record) {
+        jn_record = json_object();
+    }
+
+    json_object_set_new(jn_record, "__rowid__", json_integer(rowid));
+    json_object_set_new(jn_record, "__t__", json_integer((json_int_t)md_record->__t__));
+    json_object_set_new(jn_record, "__tm__", json_integer((json_int_t)md_record->__tm__));
+    json_object_set_new(jn_record, "__size__", json_integer((json_int_t)md_record->__size__));
+    json_object_set_new(jn_record, "__user_flag__", json_integer(md_record->user_flag));
+    json_object_set_new(jn_record, "__topic_name__", json_string(tranger2_topic_name(topic)));
+
+    json_array_append_new(jn_data, jn_record);
+
+    return 0;
+}
+
+/***************************************************************************
  *
  ***************************************************************************/
 PRIVATE json_t *cmd_list_queues(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
@@ -641,11 +672,45 @@ PRIVATE json_t *cmd_list_queues(hgobj gobj, const char *cmd, json_t *kw, hgobj s
 
     json_t *jn_data = NULL;
     if(empty_string(client_id)) {
-        // TODO get list of current queue names, same as tr2keys.c
-        jn_data = NULL; // TODO
+        // Get list of current queue names, same as tr2keys.c
+        jn_data = tranger2_list_topics(priv->tranger_queues);
     } else {
-        // TODO get list of messages of client_id queues (Input/Output), same as tr2list.c, -l1 by default
-        jn_data = NULL; // TODO
+        // Get list of messages of client_id queues (Input/Output), same as tr2list.c, -l1 by default
+        jn_data = json_array();
+
+        mqtt_msg_direction_t directions[] = {mosq_md_in, mosq_md_out};
+        for(int i = 0; i < 2; i++) {
+            char queue_name[NAME_MAX];
+            build_queue_name(queue_name, sizeof(queue_name), client_id, directions[i]);
+
+            // Check if topic exists without logging error
+            json_t *topics = json_object_get(priv->tranger_queues, "topics");
+            if(!json_object_get(topics, queue_name)) {
+                continue;
+            }
+
+            json_t *match_cond = json_object();
+            json_object_set_new(
+                match_cond,
+                "load_record_callback",
+                json_integer((json_int_t)(uintptr_t)list_queue_record_callback)
+            );
+
+            json_t *jn_extra = json_pack("{s:I}",
+                "jn_data", (json_int_t)(uintptr_t)jn_data
+            );
+
+            json_t *tr_list = tranger2_open_list(
+                priv->tranger_queues,
+                queue_name,
+                match_cond,     // owned
+                jn_extra,       // owned
+                NULL,           // rt_id
+                FALSE,          // rt_by_disk
+                NULL            // creator
+            );
+            tranger2_close_list(priv->tranger_queues, tr_list);
+        }
     }
 
     return msg_iev_build_response(gobj,
