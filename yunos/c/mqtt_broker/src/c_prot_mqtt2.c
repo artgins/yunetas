@@ -153,6 +153,7 @@ PRIVATE int send__disconnect(
     json_t *properties
 );
 PRIVATE void do_disconnect(hgobj gobj, int reason);
+PRIVATE uint16_t mqtt_mid_generate(hgobj gobj);
 
 /***************************************************************************
  *          Data: config, public data, private data
@@ -7140,10 +7141,11 @@ PRIVATE uint16_t mqtt_mid_generate(hgobj gobj)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
-    priv->last_mid++;
-    if(priv->last_mid == 0) {
-        priv->last_mid++;
+    uint16_t mid = priv->last_mid + 1;
+    if(mid == 0) {
+        mid = 1;
     }
+    gobj_write_integer_attr(gobj, "last_mid", mid);
 
     return priv->last_mid;
 }
