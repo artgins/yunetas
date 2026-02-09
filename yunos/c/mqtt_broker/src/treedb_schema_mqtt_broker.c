@@ -96,7 +96,7 @@
             │  time                     │                   │
             │                           │                   │
             │  subscriptions            │  (json array)     │
-            │  mid                      │  (last mid used)  │
+            │  last_mid                 │  (last mid used)  │
             │                           │                   │
             │  will_topic               │                   │
             │  will_payload             │                   │
@@ -612,8 +612,8 @@ static char treedb_schema_mqtt_broker[]= "\
                     ],                                              \n\
                     'description': 'Array of subscription objects: {topic_filter, qos, no_local, retain_as_published, retain_handling, identifier}' \n\
                 },                                                  \n\
-                'mid': {                                            \n\
-                    'header': 'Mid',                                \n\
+                'last_mid': {                                       \n\
+                    'header': 'Last Mid',                           \n\
                     'fillspace': 6,                                 \n\
                     'type': 'integer',                              \n\
                     'default': 0,                                   \n\

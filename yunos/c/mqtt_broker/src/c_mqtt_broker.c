@@ -3228,7 +3228,7 @@ PRIVATE int ac_on_open(hgobj gobj, const char *event, json_t *kw, hgobj src)
     /*
      *  Restore last_mid from persistent session
      */
-    uint16_t last_mid = (uint16_t)kw_get_int(gobj, session, "mid", 0, KW_REQUIRED);
+    uint16_t last_mid = (uint16_t)kw_get_int(gobj, session, "last_mid", 0, KW_REQUIRED);
     gobj_write_integer_attr(gobj_channel, "last_mid", last_mid);
 
     JSON_DECREF(session)
@@ -3382,7 +3382,7 @@ PRIVATE int ac_on_close(hgobj gobj, const char *event, json_t *kw, hgobj src)
              *  Save last_mid and mark session as disconnected
              */
             uint16_t last_mid = (uint16_t)gobj_read_integer_attr(gobj_channel, "last_mid");
-            json_object_set_new(session, "mid", json_integer(last_mid));
+            json_object_set_new(session, "last_mid", json_integer(last_mid));
             json_object_set_new(session, "_gobj_channel", json_integer((json_int_t)0));
             json_object_set_new(session, "in_session", json_false());
             json_decref(gobj_update_node(
