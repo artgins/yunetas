@@ -100,23 +100,6 @@ typedef enum mqtt_msg_state {
     mosq_ms_queued              = 0xB000
 } mqtt_msg_state_t;
 
-/********************************************************************
- *  User Flag Structure (md2_record.user_flag)
- ********************************************************************/
-
-typedef struct {
-    uint16_t tr2q_msg_pending: 1;
-    uint16_t reserved: 3;
-    uint16_t qos: 4;
-    uint16_t dir_orig: 4;
-    uint16_t state: 4;
-} msg_flag_bitfield_t;
-
-typedef union {
-    uint16_t value;
-    msg_flag_bitfield_t bits;
-} msg_flag_t;
-
 /***************************************************************
  *              Prototypes queues
  ***************************************************************/
@@ -280,10 +263,6 @@ static inline uint64_t tr2q2_msg_time(q2_msg_t *msg)
 {
     return msg->md_record.__t__;
 }
-static inline uint16_t tr2q_msg_hard_flag(q2_msg_t *msg)
-{
-    return msg->md_record.user_flag;
-}
 
 /**
     Do backup if needed.
@@ -317,48 +296,48 @@ PUBLIC int tr2q_check_backup(tr2_queue_t *trq);
  *  Inline Functions - Pending
  ********************************************************************/
 
-static inline void msg_flag_set_pending(msg_flag_t *uf, int pending) {
+static inline void msg_flag_set_pending(uint16_t *user_flag, int pending) {
     if (pending) {
-        uf->value |= TR2Q_MSG_PENDING;
+        *user_flag |= TR2Q_MSG_PENDING;
     } else {
-        uf->value &= ~TR2Q_MSG_PENDING;
+        *user_flag &= ~TR2Q_MSG_PENDING;
     }
 }
 
-static inline int msg_flag_get_pending(const msg_flag_t *uf) {
-    return (uf->value & TR2Q_MSG_PENDING) ? 1 : 0;
+static inline int msg_flag_get_pending(uint16_t user_flag) {
+    return (user_flag & TR2Q_MSG_PENDING) ? 1 : 0;
 }
 
 /********************************************************************
  *  Inline Functions - QoS Level (0, 1, 2)
  ********************************************************************/
 
-static inline void msg_flag_set_qos(msg_flag_t *uf, mqtt_msg_qos_t qos) {
-    uf->value = (uf->value & ~TR2Q_QOS_MASK) | (qos & TR2Q_QOS_MASK);
+static inline void msg_flag_set_qos(uint16_t *user_flag, mqtt_msg_qos_t qos) {
+    *user_flag = (*user_flag & ~TR2Q_QOS_MASK) | (qos & TR2Q_QOS_MASK);
 }
 
-static inline mqtt_msg_qos_t msg_flag_get_qos(const msg_flag_t *uf) {
-    return (mqtt_msg_qos_t)(uf->value & TR2Q_QOS_MASK);
+static inline mqtt_msg_qos_t msg_flag_get_qos(uint16_t user_flag) {
+    return (mqtt_msg_qos_t)(user_flag & TR2Q_QOS_MASK);
 }
 
-static inline int msg_flag_get_qos_level(const msg_flag_t *uf) {
-    uint16_t qos = uf->value & TR2Q_QOS_MASK;
+static inline int msg_flag_get_qos_level(uint16_t user_flag) {
+    uint16_t qos = user_flag & TR2Q_QOS_MASK;
     if (qos == mosq_m_qos2) return 2;
     if (qos == mosq_m_qos1) return 1;
     return 0;
 }
 
-static inline void msg_flag_set_qos_level(msg_flag_t *uf, uint8_t level) {
-    uf->value &= ~TR2Q_QOS_MASK;
+static inline void msg_flag_set_qos_level(uint16_t *user_flag, uint8_t level) {
+    *user_flag &= ~TR2Q_QOS_MASK;
     switch (level) {
         case 1:
-            uf->value |= mosq_m_qos1;
+            *user_flag |= mosq_m_qos1;
             break;
         case 2:
-            uf->value |= mosq_m_qos2;
+            *user_flag |= mosq_m_qos2;
             break;
         default:
-            uf->value |= mosq_m_qos0;
+            *user_flag |= mosq_m_qos0;
             break;
     }
 }
@@ -367,80 +346,68 @@ static inline void msg_flag_set_qos_level(msg_flag_t *uf, uint8_t level) {
  *  Inline Functions - Retain Flag
  ********************************************************************/
 
-static inline void msg_flag_set_retain(msg_flag_t *uf, int retain) {
+static inline void msg_flag_set_retain(uint16_t *user_flag, int retain) {
     if (retain) {
-        uf->value |= TR2Q_RETAIN_MASK;
+        *user_flag |= TR2Q_RETAIN_MASK;
     } else {
-        uf->value &= ~TR2Q_RETAIN_MASK;
+        *user_flag &= ~TR2Q_RETAIN_MASK;
     }
 }
 
-static inline int msg_flag_get_retain(const msg_flag_t *uf) {
-    return (uf->value & TR2Q_RETAIN_MASK) ? 1 : 0;
+static inline int msg_flag_get_retain(uint16_t user_flag) {
+    return (user_flag & TR2Q_RETAIN_MASK) ? 1 : 0;
 }
 
 /********************************************************************
  *  Inline Functions - Dup Flag
  ********************************************************************/
 
-static inline void msg_flag_set_dup(msg_flag_t *uf, int dup) {
+static inline void msg_flag_set_dup(uint16_t *user_flag, int dup) {
     if (dup) {
-        uf->value |= TR2Q_DUP_MASK;
+        *user_flag |= TR2Q_DUP_MASK;
     } else {
-        uf->value &= ~TR2Q_DUP_MASK;
+        *user_flag &= ~TR2Q_DUP_MASK;
     }
 }
 
-static inline int msg_flag_get_dup(const msg_flag_t *uf) {
-    return (uf->value & TR2Q_DUP_MASK) ? 1 : 0;
+static inline int msg_flag_get_dup(uint16_t user_flag) {
+    return (user_flag & TR2Q_DUP_MASK) ? 1 : 0;
 }
 
 /********************************************************************
  *  Inline Functions - Direction
  ********************************************************************/
 
-static inline void msg_flag_set_direction(msg_flag_t *uf, mqtt_msg_direction_t dir) {
-    uf->value = (uf->value & ~TR2Q_DIR_MASK) | (dir & TR2Q_DIR_MASK);
+static inline void msg_flag_set_direction(uint16_t *user_flag, mqtt_msg_direction_t dir) {
+    *user_flag = (*user_flag & ~TR2Q_DIR_MASK) | (dir & TR2Q_DIR_MASK);
 }
 
-static inline mqtt_msg_direction_t msg_flag_get_direction(const msg_flag_t *uf) {
-    return (mqtt_msg_direction_t)(uf->value & TR2Q_DIR_MASK);
+static inline mqtt_msg_direction_t msg_flag_get_direction(uint16_t user_flag) {
+    return (mqtt_msg_direction_t)(user_flag & TR2Q_DIR_MASK);
 }
 
 /********************************************************************
  *  Inline Functions - Origin
  ********************************************************************/
 
-static inline void msg_flag_set_origin(msg_flag_t *uf, mqtt_msg_origin_t orig) {
-    uf->value = (uf->value & ~TR2Q_ORIG_MASK) | (orig & TR2Q_ORIG_MASK);
+static inline void msg_flag_set_origin(uint16_t *user_flag, mqtt_msg_origin_t orig) {
+    *user_flag = (*user_flag & ~TR2Q_ORIG_MASK) | (orig & TR2Q_ORIG_MASK);
 }
 
-static inline mqtt_msg_origin_t msg_flag_get_origin(const msg_flag_t *uf) {
-    return (mqtt_msg_origin_t)(uf->value & TR2Q_ORIG_MASK);
+static inline mqtt_msg_origin_t msg_flag_get_origin(uint16_t user_flag) {
+    return (mqtt_msg_origin_t)(user_flag & TR2Q_ORIG_MASK);
 }
 
 /********************************************************************
  *  Inline Functions - State
  ********************************************************************/
 
-static inline void msg_flag_set_state(msg_flag_t *uf, mqtt_msg_state_t state) {
-    uf->value = (uf->value & ~TR2Q_STATE_MASK) | (state & TR2Q_STATE_MASK);
+static inline void msg_flag_set_state(uint16_t *user_flag, mqtt_msg_state_t state) {
+    *user_flag = (*user_flag & ~TR2Q_STATE_MASK) | (state & TR2Q_STATE_MASK);
 }
 
-static inline mqtt_msg_state_t msg_flag_get_state(const msg_flag_t *uf) {
-    return (mqtt_msg_state_t)(uf->value & TR2Q_STATE_MASK);
-}
-
-/********************************************************************
- *  Inline Functions - Utility
- ********************************************************************/
-
-static inline void msg_flag_clear(msg_flag_t *uf) {
-    uf->value = 0;
-}
-
-static inline void msg_flag_init(msg_flag_t *uf, uint16_t value) {
-    uf->value = value;
+static inline mqtt_msg_state_t msg_flag_get_state(uint16_t user_flag) {
+    return (mqtt_msg_state_t)(user_flag & TR2Q_STATE_MASK);
 }
 
 /********************************************************************

@@ -2090,7 +2090,7 @@ PRIVATE int retain__queue(
                         gobj_read_integer_attr(gobj, "backup_queue_size")
                     );
 
-                    msg_flag_t user_flag = {0};
+                    uint16_t user_flag = 0;
                     msg_flag_set_origin(&user_flag, mosq_mo_client);
                     msg_flag_set_direction(&user_flag, mosq_md_out);
                     msg_flag_set_qos_level(&user_flag, msg_qos);
@@ -2102,7 +2102,7 @@ PRIVATE int retain__queue(
                         trq_out_msgs,
                         tm,             // __t__
                         new_msg,        // owned
-                        user_flag.value
+                        user_flag
                     );
 
                     tr2q_close(trq_out_msgs);
@@ -2724,7 +2724,7 @@ PRIVATE int subs__send(
             gobj_read_integer_attr(gobj, "backup_queue_size")
         );
 
-        msg_flag_t user_flag = {0};
+        uint16_t user_flag = 0;
         msg_flag_set_origin(&user_flag, mosq_mo_client);
         msg_flag_set_direction(&user_flag, mosq_md_out);
         msg_flag_set_qos_level(&user_flag, msg_qos);
@@ -2736,7 +2736,7 @@ PRIVATE int subs__send(
             trq_out_msgs,
             tm,             // __t__ if 0 then the time it'll be set by TimeRanger with now time
             new_msg,        // owned
-            user_flag.value // extra flags in addition to TRQ_MSG_PENDING
+            user_flag       // extra flags in addition to TRQ_MSG_PENDING
         );
 
         tr2q_close(trq_out_msgs);
