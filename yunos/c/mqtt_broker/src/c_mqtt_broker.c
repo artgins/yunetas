@@ -63,7 +63,7 @@ SDATA_END()
 };
 PRIVATE sdata_desc_t pm_device[] = {
 /*-PM----type-----------name------------flag------------default-----description---------- */
-SDATAPM (DTP_STRING,    "device_id",    0,              0,          "Device ID"),
+SDATAPM (DTP_STRING,    "device_id",    0,              0,          "Device ID (client ID)"),
 SDATAPM (DTP_BOOLEAN,   "opened",       0,              "0",        "List only connected devices"),
 SDATA_END()
 };
