@@ -639,6 +639,15 @@ PRIVATE json_t *cmd_list_queues(hgobj gobj, const char *cmd, json_t *kw, hgobj s
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
     const char *client_id = kw_get_str(gobj, kw, "client_id", "", 0);
 
+    json_t *jn_data = NULL;
+    if(empty_string(client_id)) {
+        // TODO get list of current queue names, same as tr2keys.c
+        jn_data = NULL; // TODO
+    } else {
+        // TODO get list of messages of client_id queues (Input/Output), same as tr2list.c, -l1 by default
+        jn_data = NULL; // TODO
+    }
+
     /*
      *
      */
@@ -647,11 +656,8 @@ PRIVATE json_t *cmd_list_queues(hgobj gobj, const char *cmd, json_t *kw, hgobj s
     return msg_iev_build_response(gobj,
         0,
         0,
-        tranger2_list_topic_desc_cols(
-            priv->tranger_treedb_mqtt_broker,
-            "sessions"
-        ),
-        queues,
+        NULL,
+        jn_data,
         kw  // owned
     );
 }
