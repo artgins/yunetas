@@ -10,6 +10,7 @@
 #pragma once
 
 #include <gobj.h>
+#include "tr2q_mqtt.h"
 #include "mqtt_util.h"
 
 #ifdef __cplusplus

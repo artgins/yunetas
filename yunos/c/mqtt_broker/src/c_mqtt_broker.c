@@ -15,8 +15,6 @@
 #include <helpers.h>
 
 #include "treedb_schema_mqtt_broker.c"
-#include "tr2_queue.h"
-#include "tr2q_mqtt.h"
 #include "c_mqtt_broker.h"
 
 #include "c_prot_mqtt2.h" // TODO remove when moved to kernel

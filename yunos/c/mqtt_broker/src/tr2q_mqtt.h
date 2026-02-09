@@ -2,6 +2,7 @@
  *          TR2Q_MQTT.H
  *
  *          Defines and functions for tr2_queue md2_record_ex_t.user_flag
+ *          and manage Persistent mqtt queues based in TimeRanger
  *
  *          Copyright (c) 2026, ArtGins.
  *          All Rights Reserved.
@@ -9,6 +10,37 @@
 #pragma once
 
 #include <gobj.h>
+#include "timeranger2.h"
+
+/***************************************************************
+ *              Structures
+ ***************************************************************/
+typedef struct {
+    json_t *tranger;
+    json_t *topic;
+    char topic_name[256];
+
+    size_t max_inflight_bytes;
+    size_t max_inflight_messages;
+    size_t max_queued_bytes;
+    size_t max_queued_messages;
+    size_t message_size_limit;
+
+    dl_list_t dl_inflight;  // Queue with messages in memory (and in disk of course)
+    dl_list_t dl_queued;    // Queue with messages in disk, avoiding overload of memory.
+    uint64_t first_rowid;
+} tr2_queue_t;
+
+typedef struct {
+    DL_ITEM_FIELDS
+
+    tr2_queue_t *trq;
+    md2_record_ex_t md_record;
+    json_int_t rowid;       // global rowid that it must match the rowid in md_record
+    uint16_t mid;           // Yes, it's an ease for mqtt protocol
+    BOOL inflight;          // True if it's in inflight dl_list, otherwise in the queued dl_list
+    json_t *kw_record;      // It may have gbuffer
+} q2_msg_t;
 
 /********************************************************************
  *  Bit Masks
@@ -229,3 +261,204 @@ PUBLIC int build_queue_name(
     const char *client_id,
     mqtt_msg_direction_t mqtt_msg_direction
 );
+
+/***************************************************************
+ *              Prototypes queues
+ ***************************************************************/
+
+/**
+    Open queue (Remember before open to call tranger2_startup())
+*/
+PUBLIC tr2_queue_t *tr2q_open(
+    json_t *tranger,
+    const char *topic_name,
+    const char *tkey,
+    system_flag2_t system_flag, // KEY_TYPE_MASK forced to sf_rowid_key
+    size_t max_inflight_messages,
+    size_t backup_queue_size
+);
+
+/**
+    Close queue (After close the queue, remember to do tranger2_shutdown())
+*/
+PUBLIC void tr2q_close(tr2_queue_t *trq);
+
+/**
+    Append a new message to queue forcing t
+
+    If t (__t__) is 0 then the time will be set by TimeRanger with now time.
+
+    The message (kw) is saved in disk with the user_flag TR2Q_MSG_PENDING,
+    and enqueued in inflight queue if it has space (until max_inflight_messages msgs)
+    otherwise it's enqueued in queued only with metadata (to save memory)
+    If max_inflight_messages is 0 then all messages are inflight
+    If max_inflight_messages is 1, the messages are sent in order and one by one.
+
+    You can recover the message content with tr2q_msg_json().
+
+    You must use tr2q_unload_msg() to mark a message as processed, removing from memory and
+    resetting in disk the TR2Q_MSG_PENDING user flag.
+*/
+PUBLIC q2_msg_t * tr2q_append(
+    tr2_queue_t *trq,
+    json_int_t t,       // __t__ if 0 then the time will be set by TimeRanger with now time
+    json_t *kw,         // owned
+    uint16_t user_flag  // extra flags in addition to TR2Q_MSG_PENDING
+);
+
+/**
+    Move a message from queued list to inflight list
+*/
+PUBLIC int tr2q_move_from_queued_to_inflight(q2_msg_t *msg);
+
+/**
+    Unload a message from iter and hard mark with TR2Q_MSG_PENDING set to 0
+*/
+PUBLIC void tr2q_unload_msg(q2_msg_t *msg, int32_t result);
+
+/**
+    Get a message from iter by his rowid
+*/
+PUBLIC q2_msg_t *tr2q_get_by_rowid(tr2_queue_t *trq, uint64_t rowid);
+
+/**
+    Get a message from iter by his mid
+*/
+PUBLIC q2_msg_t *tr2q_get_by_mid(tr2_queue_t *trq, json_int_t mid);
+
+/**
+    Get the message content
+ */
+PUBLIC json_t *tr2q_msg_json(q2_msg_t *msg); // Return is not yours, free with tr2q_unload_msg()
+
+
+static inline q2_msg_t *tr2q_first_inflight_msg(tr2_queue_t *trq)
+{
+    return dl_first(&((tr2_queue_t *)trq)->dl_inflight);
+}
+static inline q2_msg_t *tr2q_last_inflight_msg(tr2_queue_t *trq)
+{
+    return dl_last(&((tr2_queue_t *)trq)->dl_inflight);
+}
+
+static inline q2_msg_t *tr2q_first_queued_msg(tr2_queue_t *trq)
+{
+    return dl_first(&((tr2_queue_t *)trq)->dl_queued);
+}
+static inline q2_msg_t *tr2q_last_queued_msg(tr2_queue_t *trq)
+{
+    return dl_last(&((tr2_queue_t *)trq)->dl_queued);
+}
+
+static inline q2_msg_t *tr2q_next_msg(q2_msg_t *msg)
+{
+    return dl_next(msg);
+}
+static inline q2_msg_t *tr2q_prev_msg(q2_msg_t *msg)
+{
+    return dl_prev(msg);
+}
+
+/**
+    Return number of inflight messages
+*/
+static inline size_t tr2q_inflight_size(tr2_queue_t *trq)
+{
+    return dl_size(&trq->dl_inflight);
+}
+
+/**
+    Return number of queued messages
+*/
+static inline size_t tr2q_queued_size(tr2_queue_t *trq)
+{
+    return dl_size(&trq->dl_queued);
+}
+
+/**
+    Return tranger of queue
+*/
+static inline json_t * tr2q_tranger(tr2_queue_t *trq)
+{
+    return trq->tranger;
+}
+
+/**
+    Return topic of queue
+*/
+static inline json_t * tr2q_topic(tr2_queue_t *trq)
+{
+    return trq->topic;
+}
+
+/**
+    Load pending messages (with TR2Q_MSG_PENDING flag)
+    Content is not loaded or is discarded
+*/
+PUBLIC int tr2q_load(tr2_queue_t *trq);
+
+/**
+    Load all messages, filtering by rowid (with or without TR2Q_MSG_PENDING flag)
+    Content is not loaded or is discarded
+*/
+PUBLIC int tr2q_load_all(tr2_queue_t *trq, int64_t from_rowid, int64_t to_rowid);
+
+/**
+    Load all messages, filtering by time (with or without TR2Q_MSG_PENDING flag)
+    Content is not loaded or is discarded
+*/
+PUBLIC int tr2q_load_all_by_time(tr2_queue_t *trq, int64_t from_t, int64_t to_t);
+
+/**
+    Save hard_mark (user_flag of timeranger2 metadata)
+*/
+PUBLIC int tr2q_save_hard_mark(q2_msg_t *msg, uint16_t value);
+
+static inline md2_record_ex_t *tr2q_msg_md(q2_msg_t *msg)
+{
+    return &msg->md_record;
+}
+
+/**
+    Get info of message
+*/
+static inline json_int_t tr2q_msg_rowid(q2_msg_t *msg)
+{
+    return msg->rowid;
+}
+static inline uint64_t tr2q2_msg_time(q2_msg_t *msg)
+{
+    return msg->md_record.__t__;
+}
+static inline uint16_t tr2q_msg_hard_flag(q2_msg_t *msg)
+{
+    return msg->md_record.user_flag;
+}
+
+/**
+    Do backup if needed.
+*/
+PUBLIC int tr2q_check_backup(tr2_queue_t *trq);
+
+/**
+    Walk over instances
+*/
+#define Q2MSG_FOREACH_FORWARD_INFLIGHT(trq, msg) \
+    for((msg) = tr2q_first_inflight_msg(trq); \
+        (msg)!=0 ; \
+        (msg) = tr2q_next_msg(msg))
+
+#define Q2MSG_FOREACH_FORWARD_INFLIGHT_SAFE(trq, msg, next) \
+   for((msg) = tr2q_first_inflight_msg(trq), (next) = (msg) ? tr2q_next_msg(msg) : 0; \
+       (msg)!=0 ; \
+       (msg) = (next), (next) = (msg) ? tr2q_next_msg(msg) : 0)
+
+#define Q2MSG_FOREACH_FORWARD_QUEUED(trq, msg) \
+    for((msg) = tr2q_first_queued_msg(trq); \
+        (msg)!=0 ; \
+        (msg) = tr2q_next_msg(msg))
+
+#define Q2MSG_FOREACH_FORWARD_QUEUED_SAFE(trq, msg, next) \
+   for((msg) = tr2q_first_queued_msg(trq), (next) = (msg) ? tr2q_next_msg(msg) : 0; \
+       (msg)!=0 ; \
+       (msg) = (next), (next) = (msg) ? tr2q_next_msg(msg) : 0)
