@@ -54,6 +54,7 @@
 #include "c_tcp.h"
 #include "istream.h"
 #include "tr2q_mqtt.h"
+#include "mqtt_util.h"
 #include "c_prot_mqtt2.h"
 
 /***************************************************************************
