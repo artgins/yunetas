@@ -8,6 +8,7 @@
  *          All Rights Reserved.
  ***********************************************************************/
 #include <limits.h>
+#include <dirent.h>
 
 #include <gobj.h>
 #include <g_ev_kernel.h>
@@ -670,10 +671,29 @@ PRIVATE json_t *cmd_list_queues(hgobj gobj, const char *cmd, json_t *kw, hgobj s
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
     const char *client_id = kw_get_str(gobj, kw, "client_id", "", 0);
 
+    const char *directory = kw_get_str(
+        gobj, priv->tranger_queues, "directory", "", KW_REQUIRED
+    );
+
     json_t *jn_data = NULL;
     if(empty_string(client_id)) {
-        // Get list of current queue names, same as tr2keys.c
-        jn_data = tranger2_list_topics(priv->tranger_queues);
+        // Get list of current queue names (scan topic directories on disk)
+        jn_data = json_array();
+        DIR *dir = opendir(directory);
+        if(dir) {
+            struct dirent *entry;
+            while((entry = readdir(dir)) != NULL) {
+                if(entry->d_name[0] == '.') {
+                    continue;
+                }
+                char full_path[PATH_MAX];
+                snprintf(full_path, sizeof(full_path), "%s/%s", directory, entry->d_name);
+                if(is_directory(full_path)) {
+                    json_array_append_new(jn_data, json_string(entry->d_name));
+                }
+            }
+            closedir(dir);
+        }
     } else {
         // Get list of messages of client_id queues (Input/Output), same as tr2list.c, -l1 by default
         jn_data = json_array();
@@ -683,9 +703,8 @@ PRIVATE json_t *cmd_list_queues(hgobj gobj, const char *cmd, json_t *kw, hgobj s
             char queue_name[NAME_MAX];
             build_queue_name(queue_name, sizeof(queue_name), client_id, directions[i]);
 
-            // Check if topic exists without logging error
-            json_t *topics = json_object_get(priv->tranger_queues, "topics");
-            if(!json_object_get(topics, queue_name)) {
+            // Check if topic directory exists on disk without logging error
+            if(!subdir_exists(directory, queue_name)) {
                 continue;
             }
 
