@@ -4,12 +4,13 @@
  *
  *          Implementation of the MQTT protocol.
  *
- *          Copyright (c) 2025, ArtGins.
+ *          Copyright (c) 2025,2026, ArtGins.
  *          All Rights Reserved.
  ****************************************************************************/
 #pragma once
 
 #include <gobj.h>
+#include "tr2q_mqtt.h"
 #include "mqtt_util.h"
 
 #ifdef __cplusplus

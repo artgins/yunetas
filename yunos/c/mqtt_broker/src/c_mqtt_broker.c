@@ -15,8 +15,6 @@
 #include <helpers.h>
 
 #include "treedb_schema_mqtt_broker.c"
-#include "tr2_queue.h"
-#include "tr2q_mqtt.h"
 #include "c_mqtt_broker.h"
 
 #include "c_prot_mqtt2.h" // TODO remove when moved to kernel
@@ -2092,19 +2090,15 @@ PRIVATE int retain__queue(
                         gobj_read_integer_attr(gobj, "backup_queue_size")
                     );
 
-                    msg_flag_t user_flag = {0};
-                    msg_flag_set_origin(&user_flag, mosq_mo_client);
-                    msg_flag_set_direction(&user_flag, mosq_md_out);
-                    msg_flag_set_qos_level(&user_flag, msg_qos);
-                    msg_flag_set_retain(&user_flag, TRUE);
-                    msg_flag_set_dup(&user_flag, 0);
-                    msg_flag_set_state(&user_flag, mosq_ms_invalid);
+                    uint16_t user_flag = mosq_mo_client | mosq_md_out | mosq_m_retain;
+                    if(msg_qos == 1) user_flag |= mosq_m_qos1;
+                    else if(msg_qos == 2) user_flag |= mosq_m_qos2;
 
                     tr2q_append(
                         trq_out_msgs,
                         tm,             // __t__
                         new_msg,        // owned
-                        user_flag.value
+                        user_flag
                     );
 
                     tr2q_close(trq_out_msgs);
@@ -2726,19 +2720,16 @@ PRIVATE int subs__send(
             gobj_read_integer_attr(gobj, "backup_queue_size")
         );
 
-        msg_flag_t user_flag = {0};
-        msg_flag_set_origin(&user_flag, mosq_mo_client);
-        msg_flag_set_direction(&user_flag, mosq_md_out);
-        msg_flag_set_qos_level(&user_flag, msg_qos);
-        msg_flag_set_retain(&user_flag, client_retain);
-        msg_flag_set_dup(&user_flag, 0);
-        msg_flag_set_state(&user_flag, mosq_ms_invalid);
+        uint16_t user_flag = mosq_mo_client | mosq_md_out;
+        if(msg_qos == 1) user_flag |= mosq_m_qos1;
+        else if(msg_qos == 2) user_flag |= mosq_m_qos2;
+        if(client_retain) user_flag |= mosq_m_retain;
 
         tr2q_append(
             trq_out_msgs,
             tm,             // __t__ if 0 then the time it'll be set by TimeRanger with now time
             new_msg,        // owned
-            user_flag.value // extra flags in addition to TRQ_MSG_PENDING
+            user_flag       // extra flags in addition to TRQ_MSG_PENDING
         );
 
         tr2q_close(trq_out_msgs);
