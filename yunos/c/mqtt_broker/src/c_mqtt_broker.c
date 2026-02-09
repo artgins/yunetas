@@ -2087,7 +2087,7 @@ PRIVATE int retain__queue(
                         "tm",
                         0,  // system_flag
                         0,  // max_inflight_messages
-                        gobj_read_integer_attr(gobj, "backup_queue_size")
+                        0   // backup_queue_size
                     );
 
                     uint16_t user_flag = mosq_mo_client | mosq_md_out | mosq_m_retain;
@@ -2720,7 +2720,7 @@ PRIVATE int subs__send(
             "tm",
             0,  // system_flag
             0,  // max_inflight_messages TODO
-            gobj_read_integer_attr(gobj, "backup_queue_size")
+            0   // backup_queue_size
         );
 
         uint16_t user_flag = mosq_mo_client | mosq_md_out;
