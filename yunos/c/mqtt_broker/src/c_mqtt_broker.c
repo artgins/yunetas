@@ -3225,6 +3225,12 @@ PRIVATE int ac_on_open(hgobj gobj, const char *event, json_t *kw, hgobj src)
         return -1;
     }
 
+    /*
+     *  Restore last_mid from persistent session
+     */
+    uint16_t last_mid = (uint16_t)kw_get_int(gobj, session, "mid", 0, KW_REQUIRED);
+    gobj_write_integer_attr(gobj_channel, "last_mid", last_mid);
+
     JSON_DECREF(session)
     JSON_DECREF(client)
     KW_DECREF(kw);
@@ -3373,8 +3379,10 @@ PRIVATE int ac_on_close(hgobj gobj, const char *event, json_t *kw, hgobj src)
         );
         if(gobj_channel == prev_gobj_channel) {
             /*
-             *  Session can be connected by other channel
+             *  Save last_mid and mark session as disconnected
              */
+            uint16_t last_mid = (uint16_t)gobj_read_integer_attr(gobj_channel, "last_mid");
+            json_object_set_new(session, "mid", json_integer(last_mid));
             json_object_set_new(session, "_gobj_channel", json_integer((json_int_t)0));
             json_object_set_new(session, "in_session", json_false());
             json_decref(gobj_update_node(
