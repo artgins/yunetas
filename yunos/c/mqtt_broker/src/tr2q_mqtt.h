@@ -296,48 +296,48 @@ PUBLIC int tr2q_check_backup(tr2_queue_t *trq);
  *  Inline Functions - Pending
  ********************************************************************/
 
-static inline void msg_flag_set_pending(uint16_t *user_flag, int pending) {
+static inline void msg_flag_set_pending(q2_msg_t *qmsg, int pending) {
     if (pending) {
-        *user_flag |= TR2Q_MSG_PENDING;
+        qmsg->md_record.user_flag |= TR2Q_MSG_PENDING;
     } else {
-        *user_flag &= ~TR2Q_MSG_PENDING;
+        qmsg->md_record.user_flag &= ~TR2Q_MSG_PENDING;
     }
 }
 
-static inline int msg_flag_get_pending(uint16_t user_flag) {
-    return (user_flag & TR2Q_MSG_PENDING) ? 1 : 0;
+static inline int msg_flag_get_pending(q2_msg_t *qmsg) {
+    return (qmsg->md_record.user_flag & TR2Q_MSG_PENDING) ? 1 : 0;
 }
 
 /********************************************************************
  *  Inline Functions - QoS Level (0, 1, 2)
  ********************************************************************/
 
-static inline void msg_flag_set_qos(uint16_t *user_flag, mqtt_msg_qos_t qos) {
-    *user_flag = (*user_flag & ~TR2Q_QOS_MASK) | (qos & TR2Q_QOS_MASK);
+static inline void msg_flag_set_qos(q2_msg_t *qmsg, mqtt_msg_qos_t qos) {
+    qmsg->md_record.user_flag = (qmsg->md_record.user_flag & ~TR2Q_QOS_MASK) | (qos & TR2Q_QOS_MASK);
 }
 
-static inline mqtt_msg_qos_t msg_flag_get_qos(uint16_t user_flag) {
-    return (mqtt_msg_qos_t)(user_flag & TR2Q_QOS_MASK);
+static inline mqtt_msg_qos_t msg_flag_get_qos(q2_msg_t *qmsg) {
+    return (mqtt_msg_qos_t)(qmsg->md_record.user_flag & TR2Q_QOS_MASK);
 }
 
-static inline int msg_flag_get_qos_level(uint16_t user_flag) {
-    uint16_t qos = user_flag & TR2Q_QOS_MASK;
+static inline int msg_flag_get_qos_level(q2_msg_t *qmsg) {
+    uint16_t qos = qmsg->md_record.user_flag & TR2Q_QOS_MASK;
     if (qos == mosq_m_qos2) return 2;
     if (qos == mosq_m_qos1) return 1;
     return 0;
 }
 
-static inline void msg_flag_set_qos_level(uint16_t *user_flag, uint8_t level) {
-    *user_flag &= ~TR2Q_QOS_MASK;
+static inline void msg_flag_set_qos_level(q2_msg_t *qmsg, uint8_t level) {
+    qmsg->md_record.user_flag &= ~TR2Q_QOS_MASK;
     switch (level) {
         case 1:
-            *user_flag |= mosq_m_qos1;
+            qmsg->md_record.user_flag |= mosq_m_qos1;
             break;
         case 2:
-            *user_flag |= mosq_m_qos2;
+            qmsg->md_record.user_flag |= mosq_m_qos2;
             break;
         default:
-            *user_flag |= mosq_m_qos0;
+            qmsg->md_record.user_flag |= mosq_m_qos0;
             break;
     }
 }
@@ -346,68 +346,68 @@ static inline void msg_flag_set_qos_level(uint16_t *user_flag, uint8_t level) {
  *  Inline Functions - Retain Flag
  ********************************************************************/
 
-static inline void msg_flag_set_retain(uint16_t *user_flag, int retain) {
+static inline void msg_flag_set_retain(q2_msg_t *qmsg, int retain) {
     if (retain) {
-        *user_flag |= TR2Q_RETAIN_MASK;
+        qmsg->md_record.user_flag |= TR2Q_RETAIN_MASK;
     } else {
-        *user_flag &= ~TR2Q_RETAIN_MASK;
+        qmsg->md_record.user_flag &= ~TR2Q_RETAIN_MASK;
     }
 }
 
-static inline int msg_flag_get_retain(uint16_t user_flag) {
-    return (user_flag & TR2Q_RETAIN_MASK) ? 1 : 0;
+static inline int msg_flag_get_retain(q2_msg_t *qmsg) {
+    return (qmsg->md_record.user_flag & TR2Q_RETAIN_MASK) ? 1 : 0;
 }
 
 /********************************************************************
  *  Inline Functions - Dup Flag
  ********************************************************************/
 
-static inline void msg_flag_set_dup(uint16_t *user_flag, int dup) {
+static inline void msg_flag_set_dup(q2_msg_t *qmsg, int dup) {
     if (dup) {
-        *user_flag |= TR2Q_DUP_MASK;
+        qmsg->md_record.user_flag |= TR2Q_DUP_MASK;
     } else {
-        *user_flag &= ~TR2Q_DUP_MASK;
+        qmsg->md_record.user_flag &= ~TR2Q_DUP_MASK;
     }
 }
 
-static inline int msg_flag_get_dup(uint16_t user_flag) {
-    return (user_flag & TR2Q_DUP_MASK) ? 1 : 0;
+static inline int msg_flag_get_dup(q2_msg_t *qmsg) {
+    return (qmsg->md_record.user_flag & TR2Q_DUP_MASK) ? 1 : 0;
 }
 
 /********************************************************************
  *  Inline Functions - Direction
  ********************************************************************/
 
-static inline void msg_flag_set_direction(uint16_t *user_flag, mqtt_msg_direction_t dir) {
-    *user_flag = (*user_flag & ~TR2Q_DIR_MASK) | (dir & TR2Q_DIR_MASK);
+static inline void msg_flag_set_direction(q2_msg_t *qmsg, mqtt_msg_direction_t dir) {
+    qmsg->md_record.user_flag = (qmsg->md_record.user_flag & ~TR2Q_DIR_MASK) | (dir & TR2Q_DIR_MASK);
 }
 
-static inline mqtt_msg_direction_t msg_flag_get_direction(uint16_t user_flag) {
-    return (mqtt_msg_direction_t)(user_flag & TR2Q_DIR_MASK);
+static inline mqtt_msg_direction_t msg_flag_get_direction(q2_msg_t *qmsg) {
+    return (mqtt_msg_direction_t)(qmsg->md_record.user_flag & TR2Q_DIR_MASK);
 }
 
 /********************************************************************
  *  Inline Functions - Origin
  ********************************************************************/
 
-static inline void msg_flag_set_origin(uint16_t *user_flag, mqtt_msg_origin_t orig) {
-    *user_flag = (*user_flag & ~TR2Q_ORIG_MASK) | (orig & TR2Q_ORIG_MASK);
+static inline void msg_flag_set_origin(q2_msg_t *qmsg, mqtt_msg_origin_t orig) {
+    qmsg->md_record.user_flag = (qmsg->md_record.user_flag & ~TR2Q_ORIG_MASK) | (orig & TR2Q_ORIG_MASK);
 }
 
-static inline mqtt_msg_origin_t msg_flag_get_origin(uint16_t user_flag) {
-    return (mqtt_msg_origin_t)(user_flag & TR2Q_ORIG_MASK);
+static inline mqtt_msg_origin_t msg_flag_get_origin(q2_msg_t *qmsg) {
+    return (mqtt_msg_origin_t)(qmsg->md_record.user_flag & TR2Q_ORIG_MASK);
 }
 
 /********************************************************************
  *  Inline Functions - State
  ********************************************************************/
 
-static inline void msg_flag_set_state(uint16_t *user_flag, mqtt_msg_state_t state) {
-    *user_flag = (*user_flag & ~TR2Q_STATE_MASK) | (state & TR2Q_STATE_MASK);
+static inline void msg_flag_set_state(q2_msg_t *qmsg, mqtt_msg_state_t state) {
+    qmsg->md_record.user_flag = (qmsg->md_record.user_flag & ~TR2Q_STATE_MASK) | (state & TR2Q_STATE_MASK);
 }
 
-static inline mqtt_msg_state_t msg_flag_get_state(uint16_t user_flag) {
-    return (mqtt_msg_state_t)(user_flag & TR2Q_STATE_MASK);
+static inline mqtt_msg_state_t msg_flag_get_state(q2_msg_t *qmsg) {
+    return (mqtt_msg_state_t)(qmsg->md_record.user_flag & TR2Q_STATE_MASK);
 }
 
 /********************************************************************
