@@ -41,7 +41,7 @@ PRIVATE size_t sub__messages_queue(hgobj gobj, json_t *kw_mqtt_msg);
  ***************************************************************************/
 PRIVATE json_t *cmd_help(hgobj gobj, const char *cmd, json_t *kw, hgobj src);
 PRIVATE json_t *cmd_authzs(hgobj gobj, const char *cmd, json_t *kw, hgobj src);
-PRIVATE json_t *cmd_list_devices(hgobj gobj, const char *cmd, json_t *kw, hgobj src);
+PRIVATE json_t *cmd_list_channels(hgobj gobj, const char *cmd, json_t *kw, hgobj src);
 PRIVATE json_t *cmd_normal_subscribers(hgobj gobj, const char *cmd, json_t *kw, hgobj src);
 PRIVATE json_t *cmd_shared_subscribers(hgobj gobj, const char *cmd, json_t *kw, hgobj src);
 PRIVATE json_t *cmd_flatten_subscribers(hgobj gobj, const char *cmd, json_t *kw, hgobj src);
@@ -64,7 +64,7 @@ SDATA_END()
 PRIVATE sdata_desc_t pm_device[] = {
 /*-PM----type-----------name------------flag------------default-----description---------- */
 SDATAPM (DTP_STRING,    "device_id",    0,              0,          "Device ID"),
-SDATAPM (DTP_BOOLEAN,   "opened",       0,              "1",        "List only connected devices"),
+SDATAPM (DTP_BOOLEAN,   "opened",       0,              "0",        "List only connected devices"),
 SDATA_END()
 };
 PRIVATE sdata_desc_t pm_subscribers[] = {
@@ -89,7 +89,7 @@ PRIVATE const char *a_help[] = {"h", "?", 0};
 PRIVATE sdata_desc_t command_table[] = {
 /*-CMD---type-----------name------------alias---items-------json_fn-------------description---------- */
 SDATACM (DTP_SCHEMA,    "help",         a_help, pm_help,    cmd_help,           "Command's help"),
-SDATACM (DTP_SCHEMA,    "list-devices", 0,      pm_device,  cmd_list_devices,   "List devices"),
+SDATACM (DTP_SCHEMA,    "list-channels", 0,     pm_device,  cmd_list_channels,   "List input channels of devices"),
 SDATACM (DTP_SCHEMA,    "list-sessions",0,      pm_sessions,cmd_list_sessions,  "List sessions"),
 SDATACM (DTP_SCHEMA,    "normal-subs",  0,      0,          cmd_normal_subscribers, "List normal subscribers"),
 SDATACM (DTP_SCHEMA,    "shared-subs",  0,      0,          cmd_shared_subscribers, "List shared subscribers"),
@@ -387,11 +387,11 @@ static const json_desc_t devices_desc[] = { // HACK must match with gobj_service
 {0}
 };
 
-PRIVATE json_t *cmd_list_devices(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
+PRIVATE json_t *cmd_list_channels(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
     const char *device_id = kw_get_str(gobj, kw, "device_id", "", 0);
-    BOOL opened = kw_get_bool(gobj, kw, "opened", 0, 0);
+    BOOL opened = kw_get_bool(gobj, kw, "opened", 0, KW_WILD_NUMBER);
     json_t *jn_schema = json_desc_to_schema(devices_desc);
 
     json_t *jn_data = json_array();
@@ -404,7 +404,6 @@ PRIVATE json_t *cmd_list_devices(hgobj gobj, const char *cmd, json_t *kw, hgobj 
     }
 
     json_t *dl_children = gobj_match_children_tree(priv->gobj_input_side, jn_filter);
-
     int idx; json_t *jn_child;
     json_array_foreach(dl_children, idx, jn_child) {
         hgobj child = (hgobj)(size_t)json_integer_value(jn_child);
