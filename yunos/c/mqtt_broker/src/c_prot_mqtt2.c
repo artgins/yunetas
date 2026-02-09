@@ -821,8 +821,7 @@ PRIVATE int message__release_to_inflight(hgobj gobj, enum mqtt_msg_direction dir
                 /*
                  *  Assign mid and update state
                  */
-                int todo_xxx; // TODO don't use rowid as mid
-                uint16_t mid = qmsg->rowid & 0xFFFF;
+                uint16_t mid = mqtt_mid_generate(gobj);
                 qmsg->mid = mid;
 
                 /*
@@ -1453,7 +1452,8 @@ PRIVATE int db__message_write_queued_in(hgobj gobj)
                 break;
             }
             msg_flag_set_state(qmsg, mosq_ms_wait_for_pubrel);
-            uint16_t mid = qmsg->rowid & 0xFFFF;
+            uint16_t mid = mqtt_mid_generate(gobj);
+            qmsg->mid = mid;
             send__pubrec(gobj, mid, 0, NULL);
             tr2q_save_hard_mark(qmsg, qmsg->md_record.user_flag);
         }
@@ -7136,20 +7136,14 @@ PRIVATE int handle__pubrel(hgobj gobj, gbuffer_t *gbuf)
 /***************************************************************************
  *
  ***************************************************************************/
-PRIVATE uint16_t mosquitto__mid_generate(hgobj gobj)
+PRIVATE uint16_t mqtt_mid_generate(hgobj gobj)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
-    // TODO new
-    // json_t *client = gobj_get_resource(priv->gobj_mqtt_clients, client_id, 0, 0);
-    // uint16_t last_mid = (uint16_t)kw_get_int(gobj, client, "last_mid", 0, KW_REQUIRED);
-    // TODO it seems that does nothing saving in resource
     priv->last_mid++;
     if(priv->last_mid == 0) {
         priv->last_mid++;
     }
-    // TODO new
-    // gobj_save_resource(priv->gobj_mqtt_clients, client_id, client, 0);
 
     return priv->last_mid;
 }
@@ -8171,7 +8165,7 @@ PRIVATE int ac_send_message(hgobj gobj, const char *event, json_t *kw_mqtt_msg, 
     }
 
     if(qos == 0) {
-        uint16_t mid = mosquitto__mid_generate(gobj);
+        uint16_t mid = mqtt_mid_generate(gobj);
         send__publish(
             gobj,
             mid,
@@ -8386,7 +8380,7 @@ PRIVATE int ac_mqtt_client_send_publish(hgobj gobj, const char *event, json_t *k
     );
 
     if(qos == 0) {
-        int mid = mosquitto__mid_generate(gobj);
+        int mid = mqtt_mid_generate(gobj);
         if(send__publish(
             gobj,
             mid,
@@ -8567,7 +8561,7 @@ PRIVATE int ac_mqtt_client_send_subscribe(hgobj gobj, const char *event, json_t 
 
     send__subscribe(
         gobj,
-        mosquitto__mid_generate(gobj),
+        mqtt_mid_generate(gobj),
         subs,
         qos|options,
         properties
@@ -8674,7 +8668,7 @@ PRIVATE int ac_mqtt_client_send_unsubscribe(hgobj gobj, const char *event, json_
 
     send__unsubscribe(
         gobj,
-        mosquitto__mid_generate(gobj),
+        mqtt_mid_generate(gobj),
         subs,
         properties
     );
