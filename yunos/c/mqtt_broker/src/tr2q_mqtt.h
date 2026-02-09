@@ -269,11 +269,6 @@ PUBLIC int tr2q_load_all_by_time(tr2_queue_t *trq, int64_t from_t, int64_t to_t)
 */
 PUBLIC int tr2q_save_hard_mark(q2_msg_t *msg, uint16_t value);
 
-static inline md2_record_ex_t *tr2q_msg_md(q2_msg_t *msg)
-{
-    return &msg->md_record;
-}
-
 /**
     Get info of message
 */

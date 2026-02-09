@@ -650,8 +650,7 @@ PRIVATE int tr2q_set_hard_flag(q2_msg_t *msg, uint16_t hard_mark, BOOL set)
  ***************************************************************************/
 PUBLIC int tr2q_save_hard_mark(q2_msg_t *msg, uint16_t value)
 {
-    int todo_xxx; // TODO TR2Q_MSG_PENDING is an internal value, why don't use user_flag directly instead of value?
-    msg->md_record.user_flag = value;// | TR2Q_MSG_PENDING;
+    msg->md_record.user_flag = value | TR2Q_MSG_PENDING;
 
     return tranger2_write_user_flag(
         msg->trq->tranger,
@@ -659,7 +658,7 @@ PUBLIC int tr2q_save_hard_mark(q2_msg_t *msg, uint16_t value)
         "",
         msg->md_record.__t__,
         msg->md_record.rowid,
-        value | TR2Q_MSG_PENDING   // __flag__
+        msg->md_record.user_flag   // __flag__
     );
 }
 
