@@ -648,11 +648,6 @@ PRIVATE json_t *cmd_list_queues(hgobj gobj, const char *cmd, json_t *kw, hgobj s
         jn_data = NULL; // TODO
     }
 
-    /*
-     *
-     */
-    json_t *queues = json_array();
-
     return msg_iev_build_response(gobj,
         0,
         0,
