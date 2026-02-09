@@ -48,6 +48,7 @@ PRIVATE json_t *cmd_flatten_subscribers(hgobj gobj, const char *cmd, json_t *kw,
 PRIVATE json_t *cmd_list_retains(hgobj gobj, const char *cmd, json_t *kw, hgobj src);
 PRIVATE json_t *cmd_remove_retains(hgobj gobj, const char *cmd, json_t *kw, hgobj src);
 PRIVATE json_t *cmd_list_sessions(hgobj gobj, const char *cmd, json_t *kw, hgobj src);
+PRIVATE json_t *cmd_list_queues(hgobj gobj, const char *cmd, json_t *kw, hgobj src);
 
 PRIVATE sdata_desc_t pm_help[] = {
 /*-PM----type-----------name------------flag------------default-----description---------- */
@@ -83,6 +84,11 @@ PRIVATE sdata_desc_t pm_sessions[] = {
 SDATAPM (DTP_STRING,    "client_id",    0,              0,          "Client id"),
 SDATA_END()
 };
+PRIVATE sdata_desc_t pm_queues[] = {
+/*-PM----type-----------name------------flag------------default-----description---------- */
+SDATAPM (DTP_STRING,    "client_id",    0,              0,          "Client id"),
+SDATA_END()
+};
 
 PRIVATE const char *a_help[] = {"h", "?", 0};
 
@@ -91,6 +97,7 @@ PRIVATE sdata_desc_t command_table[] = {
 SDATACM (DTP_SCHEMA,    "help",         a_help, pm_help,    cmd_help,           "Command's help"),
 SDATACM (DTP_SCHEMA,    "list-channels", 0,     pm_device,  cmd_list_channels,   "List input channels of devices"),
 SDATACM (DTP_SCHEMA,    "list-sessions",0,      pm_sessions,cmd_list_sessions,  "List sessions"),
+SDATACM (DTP_SCHEMA,    "list-queues",  0,      pm_queues,  cmd_list_queues,    "List queues"),
 SDATACM (DTP_SCHEMA,    "normal-subs",  0,      0,          cmd_normal_subscribers, "List normal subscribers"),
 SDATACM (DTP_SCHEMA,    "shared-subs",  0,      0,          cmd_shared_subscribers, "List shared subscribers"),
 SDATACM (DTP_SCHEMA,    "flatten-subs", 0,      pm_subscribers, cmd_flatten_subscribers, "Flatten subscribers"),
@@ -620,6 +627,31 @@ PRIVATE json_t *cmd_list_sessions(hgobj gobj, const char *cmd, json_t *kw, hgobj
             "sessions"
         ),
         sessions,
+        kw  // owned
+    );
+}
+
+/***************************************************************************
+ *
+ ***************************************************************************/
+PRIVATE json_t *cmd_list_queues(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+    const char *client_id = kw_get_str(gobj, kw, "client_id", "", 0);
+
+    /*
+     *
+     */
+    json_t *queues = json_array();
+
+    return msg_iev_build_response(gobj,
+        0,
+        0,
+        tranger2_list_topic_desc_cols(
+            priv->tranger_treedb_mqtt_broker,
+            "sessions"
+        ),
+        queues,
         kw  // owned
     );
 }
