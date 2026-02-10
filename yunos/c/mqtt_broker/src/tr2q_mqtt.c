@@ -71,7 +71,7 @@ const char *msg_flag_direction_to_str(mqtt_msg_direction_t dir)
         case mosq_md_out:
             return "OUT";
         default:
-            return "NONE";
+            return "";
     }
 }
 
@@ -102,8 +102,9 @@ PUBLIC int build_queue_name(
     return snprintf(
         bf,
         bfsize,
-        "%s-%s",
+        "%s%s%s",
         client_id,
+        mqtt_msg_direction?"-":"",
         msg_flag_direction_to_str(mqtt_msg_direction)
     );
 }
