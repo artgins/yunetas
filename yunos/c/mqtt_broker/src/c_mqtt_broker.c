@@ -86,7 +86,7 @@ SDATA_END()
 };
 PRIVATE sdata_desc_t pm_queues[] = {
 /*-PM----type-----------name------------flag------------default-----description---------- */
-SDATAPM (DTP_STRING,    "client_id",    0,              0,          "Client id"),
+SDATAPM (DTP_STRING,    "queue_name",   0,              0,          "Queue name"),
 SDATAPM (DTP_INTEGER,   "level",        0,              "1",        "Print level"),
 SDATAPM (DTP_BOOLEAN,   "pending",      0,              "1",        "Get pending messages"),
 SDATAPM (DTP_INTEGER,   "qos",          0,              "",         "QoS Quality of Service"),
@@ -699,7 +699,7 @@ static const json_desc_t queues_desc[] = {
 PRIVATE json_t *cmd_list_queues(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
-    const char *client_id = kw_get_str(gobj, kw, "client_id", "", 0);
+    const char *queue_name = kw_get_str(gobj, kw, "queue_name", "", 0);
     json_int_t level = kw_get_int(gobj, kw, "level", 1, KW_WILD_NUMBER);
     BOOL pending = kw_get_bool(gobj, kw, "pending", 1, KW_WILD_NUMBER);
     json_int_t qos = kw_get_int(gobj, kw, "qos", 0, KW_WILD_NUMBER);
@@ -710,14 +710,14 @@ PRIVATE json_t *cmd_list_queues(hgobj gobj, const char *cmd, json_t *kw, hgobj s
     );
 
     json_t *jn_data = NULL;
-    if(empty_string(client_id)) {
+    if(empty_string(queue_name)) {
         // Get list of queue names (topic directories on disk)
         jn_data = tranger2_list_topic_names(priv->tranger_queues);
     } else {
-        if(!subdir_exists(directory, client_id)) {
+        if(!subdir_exists(directory, queue_name)) {
             return msg_iev_build_response(gobj,
                 -1,
-                json_sprintf("Queue not found: %s", client_id),
+                json_sprintf("Queue not found: %s", queue_name),
                 jn_schema,
                 jn_data,
                 kw  // owned
@@ -760,7 +760,7 @@ PRIVATE json_t *cmd_list_queues(hgobj gobj, const char *cmd, json_t *kw, hgobj s
 
         json_t *tr_list = tranger2_open_list( // WARNING the topic will be opened if not yet.
             priv->tranger_queues,
-            client_id,
+            queue_name,
             match_cond,     // owned
             jn_extra,       // owned
             NULL,           // rt_id
