@@ -87,6 +87,7 @@ SDATA_END()
 PRIVATE sdata_desc_t pm_queues[] = {
 /*-PM----type-----------name------------flag------------default-----description---------- */
 SDATAPM (DTP_STRING,    "client_id",    0,              0,          "Client id"),
+SDATAPM (DTP_INTEGER,   "level",        0,              "1",        "Print level"),
 SDATA_END()
 };
 
@@ -632,20 +633,101 @@ PRIVATE json_t *cmd_list_sessions(hgobj gobj, const char *cmd, json_t *kw, hgobj
 }
 
 /***************************************************************************
+ *  Callback to collect queue records for cmd_list_queues
+ ***************************************************************************/
+PRIVATE int list_queue_record_callback(
+    json_t *tranger,
+    json_t *topic,
+    const char *key,
+    json_t *list,       // iterator or rt_list/rt_disk id, don't own
+    json_int_t rowid,
+    md2_record_ex_t *md_record,
+    json_t *jn_record   // must be owned, can be null if only_md
+) {
+    hgobj gobj = (hgobj)json_integer_value(json_object_get(tranger, "gobj"));
+    json_t *jn_list = (json_t *)(uintptr_t)kw_get_int(gobj, list, "jn_list", 0, KW_REQUIRED);
+    json_int_t level = kw_get_int(gobj, list, "level", 0, 0);
+
+    if(level == 3) {
+        json_array_append_new(jn_list, jn_record);
+    } else {
+        char bf[PATH_MAX];
+        switch(level) {
+            case 0:
+                tranger2_print_md0_record(bf, sizeof(bf), key, rowid, md_record, FALSE);
+                break;
+            case 2:
+                tranger2_print_md2_record(
+                    bf, sizeof(bf), tranger, topic, key, rowid, md_record, FALSE
+                );
+                break;
+            case 1:
+            default:
+                tranger2_print_md1_record(bf, sizeof(bf), key, rowid, md_record, FALSE);
+                break;
+        }
+        json_array_append_new(jn_list, json_string(bf));
+        JSON_DECREF(jn_record)
+    }
+    return 0;
+}
+
+/***************************************************************************
  *
  ***************************************************************************/
 PRIVATE json_t *cmd_list_queues(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
     const char *client_id = kw_get_str(gobj, kw, "client_id", "", 0);
+    json_int_t level = kw_get_int(gobj, kw, "level", 1, KW_WILD_NUMBER);
+
+    const char *directory = kw_get_str(
+        gobj, priv->tranger_queues, "directory", "", KW_REQUIRED
+    );
 
     json_t *jn_data = NULL;
     if(empty_string(client_id)) {
-        // TODO get list of current queue names, same as tr2keys.c
-        jn_data = NULL; // TODO
+        // Get list of queue names (topic directories on disk)
+        jn_data = tranger2_list_topic_names(priv->tranger_queues);
     } else {
-        // TODO get list of messages of client_id queues (Input/Output), same as tr2list.c, -l1 by default
-        jn_data = NULL; // TODO
+        // Get list of messages of client_id queues (Input/Output), same as tr2list.c, -l1 by default
+        jn_data = json_object();
+
+        mqtt_msg_direction_t directions[] = {mosq_md_in, mosq_md_out};
+        for(int i = 0; i < 2; i++) {
+            char queue_name[NAME_MAX];
+            build_queue_name(queue_name, sizeof(queue_name), client_id, directions[i]);
+
+            // Check if topic directory exists on disk without logging error
+            if(!subdir_exists(directory, queue_name)) {
+                continue;
+            }
+            json_t *jn_list = json_array();
+            json_t *match_cond = json_object();
+            json_object_set_new(
+                match_cond,
+                "load_record_callback",
+                json_integer((json_int_t)(uintptr_t)list_queue_record_callback)
+            );
+
+            json_t *jn_extra = json_pack("{s:I, s:I}",
+                "jn_list", (json_int_t)(uintptr_t)jn_list,
+                "level", level
+            );
+
+            json_t *tr_list = tranger2_open_list(
+                priv->tranger_queues,
+                queue_name,
+                match_cond,     // owned
+                jn_extra,       // owned
+                NULL,           // rt_id
+                FALSE,          // rt_by_disk
+                NULL            // creator
+            );
+            tranger2_close_list(priv->tranger_queues, tr_list);
+
+            json_object_set_new(jn_data, queue_name, jn_list);
+        }
     }
 
     return msg_iev_build_response(gobj,

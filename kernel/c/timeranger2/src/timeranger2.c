@@ -1140,6 +1140,48 @@ PUBLIC json_t *tranger2_list_topics( // return is yours
 }
 
 /***************************************************************************
+ *  Return a list of topic names found in the tranger database directory
+ *  on disk (subdirectories of the tranger directory)
+ ***************************************************************************/
+PUBLIC json_t *tranger2_list_topic_names( // return is yours
+    json_t *tranger
+)
+{
+    hgobj gobj = (hgobj)json_integer_value(
+        json_object_get(tranger, "gobj")
+    );
+
+    const char *directory = kw_get_str(
+        gobj, tranger, "directory", "", KW_REQUIRED
+    );
+
+    json_t *jn_list = json_array();
+
+    DIR *dir = opendir(directory);
+    if(dir) {
+        struct dirent *entry;
+        while((entry = readdir(dir)) != NULL) {
+            if(entry->d_name[0] == '.') {
+                continue;
+            }
+            char full_path[PATH_MAX];
+            snprintf(
+                full_path, sizeof(full_path),
+                "%s/%s", directory, entry->d_name
+            );
+            if(is_directory(full_path)) {
+                json_array_append_new(
+                    jn_list, json_string(entry->d_name)
+                );
+            }
+        }
+        closedir(dir);
+    }
+
+    return jn_list;
+}
+
+/***************************************************************************
    Return list of keys of the topic
  ***************************************************************************/
 PUBLIC json_t *tranger2_list_keys(// return is yours, WARNING fn slow for thousands of keys!
