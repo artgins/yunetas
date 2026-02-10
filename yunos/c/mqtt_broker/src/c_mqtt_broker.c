@@ -8,7 +8,6 @@
  *          All Rights Reserved.
  ***********************************************************************/
 #include <limits.h>
-#include <dirent.h>
 
 #include <gobj.h>
 #include <g_ev_kernel.h>
@@ -688,23 +687,8 @@ PRIVATE json_t *cmd_list_queues(hgobj gobj, const char *cmd, json_t *kw, hgobj s
 
     json_t *jn_data = NULL;
     if(empty_string(client_id)) {
-        // Get list of current queue names (scan topic directories on disk)
-        jn_data = json_array();
-        DIR *dir = opendir(directory);
-        if(dir) {
-            struct dirent *entry;
-            while((entry = readdir(dir)) != NULL) {
-                if(entry->d_name[0] == '.') {
-                    continue;
-                }
-                char full_path[PATH_MAX];
-                snprintf(full_path, sizeof(full_path), "%s/%s", directory, entry->d_name);
-                if(is_directory(full_path)) {
-                    json_array_append_new(jn_data, json_string(entry->d_name));
-                }
-            }
-            closedir(dir);
-        }
+        // Get list of queue names (topic directories on disk)
+        jn_data = tranger2_list_topic_names(priv->tranger_queues);
     } else {
         // Get list of messages of client_id queues (Input/Output), same as tr2list.c, -l1 by default
         jn_data = json_array();

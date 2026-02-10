@@ -287,6 +287,13 @@ PUBLIC json_t *tranger2_list_topics( // return is yours
 );
 
 /*
+   Return a list of topic names found in the tranger database directory on disk
+*/
+PUBLIC json_t *tranger2_list_topic_names( // return is yours
+    json_t *tranger
+);
+
+/*
    Return list of keys of the topic
 */
 PUBLIC json_t *tranger2_list_keys(// return is yours, WARNING fn slow for thousands of keys!
