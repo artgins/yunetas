@@ -4884,11 +4884,14 @@ PRIVATE int handle__connect(hgobj gobj, gbuffer_t *gbuf, hgobj src)
         gobj_write_integer_attr(gobj, "max_qos", 0);
     }
 
-    // TODO
-    int todo_x;
-    // db__expire_all_messages(gobj);
-    // db__message_write_queued_out(gobj);
-    // db__message_write_inflight_out_all(gobj);
+    // TODO db__expire_all_messages(gobj);
+
+    /*
+     *  Send queued messages to the reconnecting client
+     */
+    if(priv->tranger_queues) {
+        message__release_to_inflight(gobj, mosq_md_out);
+    }
 
     set_timeout_periodic(priv->gobj_timer_periodic, priv->timeout_periodic);
     if(priv->tranger_queues) {
