@@ -647,7 +647,7 @@ PRIVATE int list_queue_record_callback(
     json_t *jn_record   // must be owned, can be null if only_md
 ) {
     hgobj gobj = (hgobj)json_integer_value(json_object_get(tranger, "gobj"));
-    json_t *jn_list = (json_t *)(uintptr_t)kw_get_int(gobj, list, "jn_list", 0, KW_REQUIRED);
+    json_t *jn_data = (json_t *)(uintptr_t)kw_get_int(gobj, list, "jn_data", 0, KW_REQUIRED);
     json_int_t level = kw_get_int(gobj, list, "level", 0, 0);
 
     mqtt_msg_state_t state_ = md_record->user_flag & TR2Q_STATE_MASK;
@@ -655,7 +655,7 @@ PRIVATE int list_queue_record_callback(
 
     if(level == 3) {
         json_object_set_new(jn_record, "state_name", json_string(state));
-        json_array_append_new(jn_list, jn_record);
+        json_array_append_new(jn_data, jn_record);
     } else {
         char bf[PATH_MAX];
         switch(level) {
@@ -672,7 +672,7 @@ PRIVATE int list_queue_record_callback(
                 tranger2_print_md1_record(bf, sizeof(bf), key, rowid, md_record, FALSE);
                 break;
         }
-        json_array_append_new(jn_list, json_string(bf));
+        json_array_append_new(jn_data, json_string(bf));
         JSON_DECREF(jn_record)
     }
     return 0;
@@ -681,6 +681,21 @@ PRIVATE int list_queue_record_callback(
 /***************************************************************************
  *
  ***************************************************************************/
+static const json_desc_t queues_desc[] = {
+// Name             Type        Defaults    Fillspace
+{"topic",           "string",   "",         "30"},  // First item is the pkey
+{"state_name",      "string",   "",         "17"},
+{"client_id",       "string",   "",         "20"},
+{"tm",              "time",     "",         "10"},
+{"mid",             "integer",  "",         "6"},
+{"qos",             "integer",  "",         "3"},
+{"expiry_interval", "integer",  "",         "10"},
+{"retain",          "boolean",  "",         "6"},
+{"dup",             "boolean",  "",         "5"},
+{"properties",      "dict",     "",         "10"},
+{0}
+};
+
 PRIVATE json_t *cmd_list_queues(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
@@ -688,6 +703,7 @@ PRIVATE json_t *cmd_list_queues(hgobj gobj, const char *cmd, json_t *kw, hgobj s
     json_int_t level = kw_get_int(gobj, kw, "level", 1, KW_WILD_NUMBER);
     BOOL pending = kw_get_bool(gobj, kw, "pending", 1, KW_WILD_NUMBER);
     json_int_t qos = kw_get_int(gobj, kw, "qos", 0, KW_WILD_NUMBER);
+    json_t *jn_schema = NULL;
 
     const char *directory = kw_get_str(
         gobj, priv->tranger_queues, "directory", "", KW_REQUIRED
@@ -698,70 +714,66 @@ PRIVATE json_t *cmd_list_queues(hgobj gobj, const char *cmd, json_t *kw, hgobj s
         // Get list of queue names (topic directories on disk)
         jn_data = tranger2_list_topic_names(priv->tranger_queues);
     } else {
-        // Get list of messages of client_id queues (Input/Output), same as tr2list.c, -l1 by default
-        jn_data = json_object();
-
-        mqtt_msg_direction_t directions[] = {mosq_md_in, mosq_md_out, 0};
-        for(int i = 0; i < 3; i++) {
-            char queue_name[NAME_MAX];
-            build_queue_name(queue_name, sizeof(queue_name), client_id, directions[i]);
-
-            // Check if topic directory exists on disk without logging error
-            if(!subdir_exists(directory, queue_name)) {
-                continue;
-            }
-
-            json_t *jn_list = json_array();
-
-            json_t *match_cond = json_object();
-            json_object_set_new(
-                match_cond,
-                "load_record_callback",
-                json_integer((json_int_t)(uintptr_t)list_queue_record_callback)
+        if(!subdir_exists(directory, client_id)) {
+            return msg_iev_build_response(gobj,
+                -1,
+                json_sprintf("Queue not found: %s", client_id),
+                jn_schema,
+                jn_data,
+                kw  // owned
             );
-
-            json_object_set_new(
-                match_cond,
-                pending?"user_flag_mask_set":"user_flag_mask_notset",
-                json_integer(TR2Q_MSG_PENDING)
-            );
-
-            if(qos) {
-                json_object_set_new(
-                    match_cond,
-                    "user_flag_mask_set",
-                    json_integer(qos==1?mosq_m_qos1:mosq_m_qos2)
-                );
-            }
-
-            if(level < 3) {
-                json_object_set_new(match_cond, "only_md", json_true());
-            }
-
-            json_t *jn_extra = json_pack("{s:I, s:I}",
-                "jn_list", (json_int_t)(uintptr_t)jn_list,
-                "level", level
-            );
-
-            json_t *tr_list = tranger2_open_list( // WARNING the topic will be opened if not yet.
-                priv->tranger_queues,
-                queue_name,
-                match_cond,     // owned
-                jn_extra,       // owned
-                NULL,           // rt_id
-                FALSE,          // rt_by_disk
-                NULL            // creator
-            );
-            tranger2_close_list(priv->tranger_queues, tr_list);
-
-            json_object_set_new(jn_data, queue_name, jn_list);
         }
+
+        jn_data = json_array();
+
+        json_t *match_cond = json_object();
+        json_object_set_new(
+            match_cond,
+            "load_record_callback",
+            json_integer((json_int_t)(uintptr_t)list_queue_record_callback)
+        );
+
+        json_object_set_new(
+            match_cond,
+            pending?"user_flag_mask_set":"user_flag_mask_notset",
+            json_integer(TR2Q_MSG_PENDING)
+        );
+
+        if(qos) {
+            json_object_set_new(
+                match_cond,
+                "user_flag_mask_set",
+                json_integer(qos==1?mosq_m_qos1:mosq_m_qos2)
+            );
+        }
+
+        if(level < 3) {
+            json_object_set_new(match_cond, "only_md", json_true());
+        } else {
+            jn_schema = json_desc_to_schema(queues_desc);
+        }
+
+        json_t *jn_extra = json_pack("{s:I, s:I}",
+            "jn_data", (json_int_t)(uintptr_t)jn_data,
+            "level", level
+        );
+
+        json_t *tr_list = tranger2_open_list( // WARNING the topic will be opened if not yet.
+            priv->tranger_queues,
+            client_id,
+            match_cond,     // owned
+            jn_extra,       // owned
+            NULL,           // rt_id
+            FALSE,          // rt_by_disk
+            NULL            // creator
+        );
+        tranger2_close_list(priv->tranger_queues, tr_list);
     }
 
     return msg_iev_build_response(gobj,
         0,
         0,
-        NULL,
+        jn_schema,
         jn_data,
         kw  // owned
     );

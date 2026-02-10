@@ -32,31 +32,31 @@ const char *msg_flag_state_to_str(mqtt_msg_state_t state)
 {
     switch (state) {
         case mosq_ms_invalid:
-            return "INVALID";
+            return "invalid";
         case mosq_ms_publish_qos0:
-            return "PUBLISH_QOS0";
+            return "publish_qos0";
         case mosq_ms_publish_qos1:
-            return "PUBLISH_QOS1";
+            return "publish_qos1";
         case mosq_ms_wait_for_puback:
-            return "WAIT_PUBACK";
+            return "wait_for_puback";
         case mosq_ms_publish_qos2:
-            return "PUBLISH_QOS2";
+            return "publish_qos2";
         case mosq_ms_wait_for_pubrec:
-            return "WAIT_PUBREC";
+            return "wait_for_pubrec";
         case mosq_ms_resend_pubrel:
-            return "RESEND_PUBREL";
+            return "resend_pubrel";
         case mosq_ms_wait_for_pubrel:
-            return "WAIT_PUBREL";
+            return "wait_for_pubrel";
         case mosq_ms_resend_pubcomp:
-            return "RESEND_PUBCOMP";
+            return "resend_pubcomp";
         case mosq_ms_wait_for_pubcomp:
-            return "WAIT_PUBCOMP";
+            return "wait_for_pubcomp";
         case mosq_ms_send_pubrec:
-            return "SEND_PUBREC";
+            return "send_pubrec";
         case mosq_ms_queued:
-            return "QUEUED";
+            return "queued";
         default:
-            return "UNKNOWN";
+            return "unknown";
     }
 }
 
@@ -67,9 +67,9 @@ const char *msg_flag_direction_to_str(mqtt_msg_direction_t dir)
 {
     switch (dir) {
         case mosq_md_in:
-            return "IN";
+            return "in";
         case mosq_md_out:
-            return "OUT";
+            return "out";
         default:
             return "";
     }
@@ -82,11 +82,11 @@ const char *msg_flag_origin_to_str(mqtt_msg_origin_t orig)
 {
     switch (orig) {
         case mosq_mo_client:
-            return "CLIENT";
+            return "Client";
         case mosq_mo_broker:
-            return "BROKER";
+            return "Broker";
         default:
-            return "NONE";
+            return "None";
     }
 }
 
