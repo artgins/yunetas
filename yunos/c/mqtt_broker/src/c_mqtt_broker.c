@@ -90,6 +90,7 @@ SDATAPM (DTP_STRING,    "queue_name",   0,              0,          "Queue name"
 SDATAPM (DTP_INTEGER,   "level",        0,              "1",        "Print level"),
 SDATAPM (DTP_BOOLEAN,   "pending",      0,              "1",        "Get pending messages"),
 SDATAPM (DTP_INTEGER,   "qos",          0,              "",         "QoS Quality of Service"),
+SDATAPM (DTP_BOOLEAN,   "local_time",   0,              "1",        "Print tm/t in local time"),
 SDATA_END()
 };
 
@@ -649,6 +650,7 @@ PRIVATE int list_queue_record_callback(
     hgobj gobj = (hgobj)json_integer_value(json_object_get(tranger, "gobj"));
     json_t *jn_data = (json_t *)(uintptr_t)kw_get_int(gobj, list, "jn_data", 0, KW_REQUIRED);
     json_int_t level = kw_get_int(gobj, list, "level", 0, 0);
+    BOOL local_time = kw_get_bool(gobj, list, "local_time", 0, 0);
 
     mqtt_msg_state_t state_ = md_record->user_flag & TR2Q_STATE_MASK;
     const char *state = msg_flag_state_to_str(state_);
@@ -660,16 +662,16 @@ PRIVATE int list_queue_record_callback(
         char bf[PATH_MAX];
         switch(level) {
             case 0:
-                tranger2_print_md0_record(bf, sizeof(bf), key, rowid, md_record, FALSE);
+                tranger2_print_md0_record(bf, sizeof(bf), key, rowid, md_record, local_time);
                 break;
             case 2:
                 tranger2_print_md2_record(
-                    bf, sizeof(bf), tranger, topic, key, rowid, md_record, FALSE
+                    bf, sizeof(bf), tranger, topic, key, rowid, md_record, local_time
                 );
                 break;
             case 1:
             default:
-                tranger2_print_md1_record(bf, sizeof(bf), key, rowid, md_record, FALSE);
+                tranger2_print_md1_record(bf, sizeof(bf), key, rowid, md_record, local_time);
                 break;
         }
         json_array_append_new(jn_data, json_string(bf));
@@ -703,6 +705,7 @@ PRIVATE json_t *cmd_list_queues(hgobj gobj, const char *cmd, json_t *kw, hgobj s
     json_int_t level = kw_get_int(gobj, kw, "level", 1, KW_WILD_NUMBER);
     BOOL pending = kw_get_bool(gobj, kw, "pending", 1, KW_WILD_NUMBER);
     json_int_t qos = kw_get_int(gobj, kw, "qos", 0, KW_WILD_NUMBER);
+    BOOL local_time = kw_get_bool(gobj, kw, "local_time", 1, KW_WILD_NUMBER);
     json_t *jn_schema = NULL;
 
     const char *directory = kw_get_str(
@@ -753,9 +756,10 @@ PRIVATE json_t *cmd_list_queues(hgobj gobj, const char *cmd, json_t *kw, hgobj s
             jn_schema = json_desc_to_schema(queues_desc);
         }
 
-        json_t *jn_extra = json_pack("{s:I, s:I}",
+        json_t *jn_extra = json_pack("{s:I, s:I, s:b}",
             "jn_data", (json_int_t)(uintptr_t)jn_data,
-            "level", level
+            "level", level,
+            "local_time", local_time
         );
 
         json_t *tr_list = tranger2_open_list( // WARNING the topic will be opened if not yet.
