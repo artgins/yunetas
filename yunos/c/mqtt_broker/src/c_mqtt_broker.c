@@ -88,6 +88,7 @@ SDATA_END()
 PRIVATE sdata_desc_t pm_queues[] = {
 /*-PM----type-----------name------------flag------------default-----description---------- */
 SDATAPM (DTP_STRING,    "client_id",    0,              0,          "Client id"),
+SDATAPM (DTP_INTEGER,   "level",        0,              "1",        "Print level"),
 SDATA_END()
 };
 
@@ -646,20 +647,28 @@ PRIVATE int list_queue_record_callback(
 ) {
     hgobj gobj = (hgobj)json_integer_value(json_object_get(tranger, "gobj"));
     json_t *jn_data = (json_t *)(uintptr_t)kw_get_int(gobj, list, "jn_data", 0, KW_REQUIRED);
+    json_int_t level = kw_get_int(gobj, list, "level", 0, 0);
 
-    if(!jn_record) {
-        jn_record = json_object();
+    char bf[PATH_MAX];
+    switch(level) {
+        case 0:
+            tranger2_print_md0_record(bf, sizeof(bf), key, rowid, md_record, FALSE);
+            break;
+        case 2:
+            tranger2_print_md2_record(bf, sizeof(bf), tranger, topic, key, rowid, md_record, FALSE);
+            break;
+        case 3:
+            json_array_append(jn_data, jn_record);
+            break;
+        case 1:
+        default:
+            tranger2_print_md1_record(bf, sizeof(bf), key, rowid, md_record, FALSE);
+            break;
     }
 
-    json_object_set_new(jn_record, "__rowid__", json_integer(rowid));
-    json_object_set_new(jn_record, "__t__", json_integer((json_int_t)md_record->__t__));
-    json_object_set_new(jn_record, "__tm__", json_integer((json_int_t)md_record->__tm__));
-    json_object_set_new(jn_record, "__size__", json_integer((json_int_t)md_record->__size__));
-    json_object_set_new(jn_record, "__user_flag__", json_integer(md_record->user_flag));
-    json_object_set_new(jn_record, "__topic_name__", json_string(tranger2_topic_name(topic)));
+    json_array_append_new(jn_data, json_string(bf));
 
-    json_array_append_new(jn_data, jn_record);
-
+    JSON_DECREF(jn_record)
     return 0;
 }
 
@@ -670,6 +679,7 @@ PRIVATE json_t *cmd_list_queues(hgobj gobj, const char *cmd, json_t *kw, hgobj s
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
     const char *client_id = kw_get_str(gobj, kw, "client_id", "", 0);
+    json_int_t level = kw_get_int(gobj, kw, "level", 1, KW_WILD_NUMBER);
 
     const char *directory = kw_get_str(
         gobj, priv->tranger_queues, "directory", "", KW_REQUIRED
@@ -715,8 +725,9 @@ PRIVATE json_t *cmd_list_queues(hgobj gobj, const char *cmd, json_t *kw, hgobj s
                 json_integer((json_int_t)(uintptr_t)list_queue_record_callback)
             );
 
-            json_t *jn_extra = json_pack("{s:I}",
-                "jn_data", (json_int_t)(uintptr_t)jn_data
+            json_t *jn_extra = json_pack("{s:I, s:I}",
+                "jn_data", (json_int_t)(uintptr_t)jn_data,
+                "level", level
             );
 
             json_t *tr_list = tranger2_open_list(
