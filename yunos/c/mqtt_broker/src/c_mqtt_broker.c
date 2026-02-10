@@ -645,11 +645,11 @@ PRIVATE int list_queue_record_callback(
     json_t *jn_record   // must be owned, can be null if only_md
 ) {
     hgobj gobj = (hgobj)json_integer_value(json_object_get(tranger, "gobj"));
-    json_t *jn_data = (json_t *)(uintptr_t)kw_get_int(gobj, list, "jn_data", 0, KW_REQUIRED);
+    json_t *jn_list = (json_t *)(uintptr_t)kw_get_int(gobj, list, "jn_list", 0, KW_REQUIRED);
     json_int_t level = kw_get_int(gobj, list, "level", 0, 0);
 
     if(level == 3) {
-        json_array_append_new(jn_data, jn_record);
+        json_array_append_new(jn_list, jn_record);
     } else {
         char bf[PATH_MAX];
         switch(level) {
@@ -666,7 +666,7 @@ PRIVATE int list_queue_record_callback(
                 tranger2_print_md1_record(bf, sizeof(bf), key, rowid, md_record, FALSE);
                 break;
         }
-        json_array_append_new(jn_data, json_string(bf));
+        json_array_append_new(jn_list, json_string(bf));
         JSON_DECREF(jn_record)
     }
     return 0;
@@ -691,7 +691,7 @@ PRIVATE json_t *cmd_list_queues(hgobj gobj, const char *cmd, json_t *kw, hgobj s
         jn_data = tranger2_list_topic_names(priv->tranger_queues);
     } else {
         // Get list of messages of client_id queues (Input/Output), same as tr2list.c, -l1 by default
-        jn_data = json_array();
+        jn_data = json_object();
 
         mqtt_msg_direction_t directions[] = {mosq_md_in, mosq_md_out};
         for(int i = 0; i < 2; i++) {
@@ -702,7 +702,7 @@ PRIVATE json_t *cmd_list_queues(hgobj gobj, const char *cmd, json_t *kw, hgobj s
             if(!subdir_exists(directory, queue_name)) {
                 continue;
             }
-
+            json_t *jn_list = json_array();
             json_t *match_cond = json_object();
             json_object_set_new(
                 match_cond,
@@ -711,7 +711,7 @@ PRIVATE json_t *cmd_list_queues(hgobj gobj, const char *cmd, json_t *kw, hgobj s
             );
 
             json_t *jn_extra = json_pack("{s:I, s:I}",
-                "jn_data", (json_int_t)(uintptr_t)jn_data,
+                "jn_list", (json_int_t)(uintptr_t)jn_list,
                 "level", level
             );
 
@@ -725,6 +725,8 @@ PRIVATE json_t *cmd_list_queues(hgobj gobj, const char *cmd, json_t *kw, hgobj s
                 NULL            // creator
             );
             tranger2_close_list(priv->tranger_queues, tr_list);
+
+            json_object_set_new(jn_data, queue_name, jn_list);
         }
     }
 
