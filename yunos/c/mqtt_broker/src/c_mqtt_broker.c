@@ -696,11 +696,7 @@ PRIVATE json_t *cmd_list_queues(hgobj gobj, const char *cmd, json_t *kw, hgobj s
         mqtt_msg_direction_t directions[] = {mosq_md_in, mosq_md_out, 0};
         for(int i = 0; i < 3; i++) {
             char queue_name[NAME_MAX];
-            if(directions[i]) {
-                build_queue_name(queue_name, sizeof(queue_name), client_id, directions[i]);
-            } else {
-                snprintf(queue_name, sizeof(queue_name), "%s", client_id);
-            }
+            build_queue_name(queue_name, sizeof(queue_name), client_id, directions[i]);
 
             // Check if topic directory exists on disk without logging error
             if(!subdir_exists(directory, queue_name)) {

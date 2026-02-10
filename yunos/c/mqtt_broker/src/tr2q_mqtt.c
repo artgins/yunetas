@@ -102,8 +102,9 @@ PUBLIC int build_queue_name(
     return snprintf(
         bf,
         bfsize,
-        "%s-%s",
+        "%s%s%s",
         client_id,
+        mqtt_msg_direction?"-":"",
         msg_flag_direction_to_str(mqtt_msg_direction)
     );
 }
