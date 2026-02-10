@@ -649,26 +649,25 @@ PRIVATE int list_queue_record_callback(
     json_t *jn_data = (json_t *)(uintptr_t)kw_get_int(gobj, list, "jn_data", 0, KW_REQUIRED);
     json_int_t level = kw_get_int(gobj, list, "level", 0, 0);
 
-    char bf[PATH_MAX];
-    switch(level) {
-        case 0:
-            tranger2_print_md0_record(bf, sizeof(bf), key, rowid, md_record, FALSE);
-            break;
-        case 2:
-            tranger2_print_md2_record(bf, sizeof(bf), tranger, topic, key, rowid, md_record, FALSE);
-            break;
-        case 3:
-            json_array_append(jn_data, jn_record);
-            break;
-        case 1:
-        default:
-            tranger2_print_md1_record(bf, sizeof(bf), key, rowid, md_record, FALSE);
-            break;
+    if(level == 3) {
+        json_array_append_new(jn_data, jn_record);
+    } else {
+        char bf[PATH_MAX];
+        switch(level) {
+            case 0:
+                tranger2_print_md0_record(bf, sizeof(bf), key, rowid, md_record, FALSE);
+                break;
+            case 2:
+                tranger2_print_md2_record(bf, sizeof(bf), tranger, topic, key, rowid, md_record, FALSE);
+                break;
+            case 1:
+            default:
+                tranger2_print_md1_record(bf, sizeof(bf), key, rowid, md_record, FALSE);
+                break;
+        }
+        json_array_append_new(jn_data, json_string(bf));
+        JSON_DECREF(jn_record)
     }
-
-    json_array_append_new(jn_data, json_string(bf));
-
-    JSON_DECREF(jn_record)
     return 0;
 }
 
