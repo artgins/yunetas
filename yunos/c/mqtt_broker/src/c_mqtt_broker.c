@@ -88,6 +88,8 @@ PRIVATE sdata_desc_t pm_queues[] = {
 /*-PM----type-----------name------------flag------------default-----description---------- */
 SDATAPM (DTP_STRING,    "client_id",    0,              0,          "Client id"),
 SDATAPM (DTP_INTEGER,   "level",        0,              "1",        "Print level"),
+SDATAPM (DTP_BOOLEAN,   "pending",      0,              "1",        "Get pending messages"),
+SDATAPM (DTP_INTEGER,   "qos",          0,              "",         "QoS Quality of Service"),
 SDATA_END()
 };
 
@@ -648,7 +650,11 @@ PRIVATE int list_queue_record_callback(
     json_t *jn_list = (json_t *)(uintptr_t)kw_get_int(gobj, list, "jn_list", 0, KW_REQUIRED);
     json_int_t level = kw_get_int(gobj, list, "level", 0, 0);
 
+    mqtt_msg_state_t state_ = md_record->user_flag & TR2Q_STATE_MASK;
+    const char *state = msg_flag_state_to_str(state_);
+
     if(level == 3) {
+        json_object_set_new(jn_record, "state_name", json_string(state));
         json_array_append_new(jn_list, jn_record);
     } else {
         char bf[PATH_MAX];
@@ -680,6 +686,8 @@ PRIVATE json_t *cmd_list_queues(hgobj gobj, const char *cmd, json_t *kw, hgobj s
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
     const char *client_id = kw_get_str(gobj, kw, "client_id", "", 0);
     json_int_t level = kw_get_int(gobj, kw, "level", 1, KW_WILD_NUMBER);
+    BOOL pending = kw_get_bool(gobj, kw, "pending", 1, KW_WILD_NUMBER);
+    json_int_t qos = kw_get_int(gobj, kw, "qos", 0, KW_WILD_NUMBER);
 
     const char *directory = kw_get_str(
         gobj, priv->tranger_queues, "directory", "", KW_REQUIRED
@@ -702,7 +710,9 @@ PRIVATE json_t *cmd_list_queues(hgobj gobj, const char *cmd, json_t *kw, hgobj s
             if(!subdir_exists(directory, queue_name)) {
                 continue;
             }
+
             json_t *jn_list = json_array();
+
             json_t *match_cond = json_object();
             json_object_set_new(
                 match_cond,
@@ -710,12 +720,30 @@ PRIVATE json_t *cmd_list_queues(hgobj gobj, const char *cmd, json_t *kw, hgobj s
                 json_integer((json_int_t)(uintptr_t)list_queue_record_callback)
             );
 
+            json_object_set_new(
+                match_cond,
+                pending?"user_flag_mask_set":"user_flag_mask_notset",
+                json_integer(TR2Q_MSG_PENDING)
+            );
+
+            if(qos) {
+                json_object_set_new(
+                    match_cond,
+                    "user_flag_mask_set",
+                    json_integer(qos==1?mosq_m_qos1:mosq_m_qos2)
+                );
+            }
+
+            if(level < 3) {
+                json_object_set_new(match_cond, "only_md", json_true());
+            }
+
             json_t *jn_extra = json_pack("{s:I, s:I}",
                 "jn_list", (json_int_t)(uintptr_t)jn_list,
                 "level", level
             );
 
-            json_t *tr_list = tranger2_open_list(
+            json_t *tr_list = tranger2_open_list( // WARNING the topic will be opened if not yet.
                 priv->tranger_queues,
                 queue_name,
                 match_cond,     // owned

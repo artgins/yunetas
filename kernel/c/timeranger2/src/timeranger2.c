@@ -7237,7 +7237,7 @@ PUBLIC json_t *tranger2_open_list( // WARNING loading all records causes delay i
 {
     hgobj gobj = (hgobj)json_integer_value(json_object_get(tranger, "gobj"));
 
-    json_t *topic = tranger2_topic(tranger, topic_name);
+    json_t *topic = tranger2_topic(tranger, topic_name); // HACK will open the topic if not yet.
     if(!topic) {
         gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
             "function",     "%s", __FUNCTION__,

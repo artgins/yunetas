@@ -340,7 +340,11 @@ PUBLIC int tr2q_load(tr2_queue_t *trq)
     );
     if(last_first_rowid) {
         if(last_first_rowid <= tranger2_topic_size(trq->tranger, trq->topic_name)) {
-            json_object_set_new(match_cond, "from_rowid", json_integer((json_int_t)last_first_rowid));
+            json_object_set_new(
+                match_cond,
+                "from_rowid",
+                json_integer((json_int_t)last_first_rowid)
+            );
         }
     }
 
