@@ -658,7 +658,9 @@ PRIVATE int list_queue_record_callback(
                 tranger2_print_md0_record(bf, sizeof(bf), key, rowid, md_record, FALSE);
                 break;
             case 2:
-                tranger2_print_md2_record(bf, sizeof(bf), tranger, topic, key, rowid, md_record, FALSE);
+                tranger2_print_md2_record(
+                    bf, sizeof(bf), tranger, topic, key, rowid, md_record, FALSE
+                );
                 break;
             case 1:
             default:
