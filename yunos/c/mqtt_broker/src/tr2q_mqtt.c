@@ -71,7 +71,7 @@ const char *msg_flag_direction_to_str(mqtt_msg_direction_t dir)
         case mosq_md_out:
             return "OUT";
         default:
-            return "NONE";
+            return "";
     }
 }
 
