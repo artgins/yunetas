@@ -460,16 +460,6 @@ PUBLIC json_t *tranger2_startup(
         kw_get_str(gobj, jn_tranger_, "filename_mask", filename_mask, KW_CREATE);
         kw_get_int(gobj, jn_tranger_, "rpermission", rpermission, KW_CREATE);
         kw_get_int(gobj, jn_tranger_, "xpermission", xpermission, KW_CREATE);
-
-        if(gobj_global_trace_level() & TRACE_FS) {
-            gobj_log_info(gobj, 0,
-                "function",     "%s", __FUNCTION__,
-                "msgset",       "%s", MSGSET_INFO,
-                "msg",          "%s", "Creating __timeranger2__.json",
-                "path",         "%s", directory,
-                NULL
-            );
-        }
         save_json_to_file(
             gobj,
             directory,
@@ -505,6 +495,14 @@ PUBLIC json_t *tranger2_startup(
 
         json_object_update_existing(tranger, jn_disk_tranger);
         json_decref(jn_disk_tranger);
+
+        gobj_log_info(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_INFO,
+            "msg",          "%s", "Creating __timeranger2__.json",
+            "path",         "%s", directory,
+            NULL
+        );
     }
 
     /*
@@ -693,16 +691,14 @@ PUBLIC json_t *tranger2_create_topic( // WARNING returned json IS NOT YOURS
             );
         }
 
-        if(gobj_global_trace_level() & TRACE_FS) {
-            gobj_log_info(gobj, 0,
-                "function",     "%s", __FUNCTION__,
-                "msgset",       "%s", MSGSET_INFO,
-                "msg",          "%s", "Creating topic",
-                "path",         "%s", directory,
-                "topic",        "%s", topic_name,
-                NULL
-            );
-        }
+        gobj_log_info(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_INFO,
+            "msg",          "%s", "Creating topic",
+            "topic",        "%s", topic_name,
+            "path",         "%s", directory,
+            NULL
+        );
 
         /*----------------------------------------*
          *      Create topic_desc.json
@@ -1358,6 +1354,15 @@ PUBLIC int tranger2_delete_topic(
     snprintf(directory, sizeof(directory), "%s/%s",
         kw_get_str(gobj, tranger, "directory", "", KW_REQUIRED),
         topic_name
+    );
+
+    gobj_log_info(gobj, 0,
+        "function",     "%s", __FUNCTION__,
+        "msgset",       "%s", MSGSET_INFO,
+        "msg",          "%s", "Deleting topic",
+        "topic",        "%s", topic_name,
+        "directory",    "%s", directory,
+        NULL
     );
 
     /*
