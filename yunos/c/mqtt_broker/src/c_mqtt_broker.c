@@ -1344,10 +1344,12 @@ PRIVATE json_t *get_or_create_node(json_t *root, char **levels)
     json_t *current = root;
 
     /*
-     *  Skip levels[0] (empty string for regular topics, "$SYS" for system)
-     *  The root selection (normal_subs vs shared_subs) is done by caller
+     *  Skip levels[0] for regular topics (empty string prefix "")
+     *  Start at levels[0] for $ topics ($SYS, $TopicA, etc.) since
+     *  they don't have the empty prefix and levels[0] is the actual first level
      */
-    for(int i = 1; levels[i] != NULL; i++) {
+    int start = (levels[0][0] == '$') ? 0 : 1;
+    for(int i = start; levels[i] != NULL; i++) {
         json_t *child = json_object_get(current, levels[i]);
         if(!child) {
             /*
@@ -1379,12 +1381,7 @@ PRIVATE void collect_subscribers(hgobj gobj, json_t *node, json_t *subscribers)
 {
     json_t *subs = json_object_get(node, SUBS_KEY);
     if(!subs) {
-        gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
-            "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_PARAMETER_ERROR,
-            "msg",          "%s", "@subs is NULL",
-            NULL
-        );
+        // Normal case: intermediate nodes in the subscription tree don't have @subs
         return;
     }
 
@@ -1728,7 +1725,8 @@ PRIVATE json_t *get_node(json_t *root, char **levels)
 {
     json_t *current = root;
 
-    for(int i = 1; levels[i] != NULL; i++) {
+    int start = (levels[0][0] == '$') ? 0 : 1;
+    for(int i = start; levels[i] != NULL; i++) {
         json_t *child = json_object_get(current, levels[i]);
         if(!child) {
             return NULL;
@@ -1751,23 +1749,24 @@ PRIVATE json_t *get_node(json_t *root, char **levels)
  ***************************************************************************/
 PRIVATE void prune_empty_branches(json_t *root, char **levels)
 {
+    int start = (levels[0][0] == '$') ? 0 : 1;
     int depth;
 
     /*
      *  Count depth
      */
-    for(depth = 1; levels[depth] != NULL; depth++) {
+    for(depth = start; levels[depth] != NULL; depth++) {
     }
 
     /*
      *  Walk backwards from leaf to root
      */
-    for(int i = depth - 1; i >= 1; i--) {
+    for(int i = depth - 1; i >= start; i--) {
         /*
          *  Get parent node
          */
         json_t *parent = root;
-        for(int j = 1; j < i; j++) {
+        for(int j = start; j < i; j++) {
             parent = json_object_get(parent, levels[j]);
             if(!parent) {
                 return;
@@ -2994,7 +2993,24 @@ PRIVATE size_t sub__messages_queue(
      *  Search in normal_subs (non-shared subscriptions)
      *----------------------------------------------------*/
     json_t *normal_subscribers = json_object();
-    search_recursive(gobj, priv->normal_subs, levels, 1, normal_subscribers);
+
+    if(topic[0] == '$') {
+        /*------------------------------------------------------------------*
+         *  MQTT-4.7.2-1: The Server MUST NOT match Topic Filters starting
+         *  with a wildcard character (# or +) with Topic Names beginning
+         *  with a $ character.
+         *
+         *  For $ topics: do exact match on first level (the $ prefix),
+         *  then search recursively from there. This avoids wildcard
+         *  matching at the root level.
+         *------------------------------------------------------------------*/
+        json_t *dollar_branch = json_object_get(priv->normal_subs, levels[0]);
+        if(dollar_branch) {
+            search_recursive(gobj, dollar_branch, levels, 1, normal_subscribers);
+        }
+    } else {
+        search_recursive(gobj, priv->normal_subs, levels, 1, normal_subscribers);
+    }
 
     const char *client_id; json_t *sub;
     json_object_foreach(normal_subscribers, client_id, sub) {
@@ -3008,7 +3024,15 @@ PRIVATE size_t sub__messages_queue(
      *  Note: For shared subs, only one client per group receives the message
      *----------------------------------------------------------------------*/
     json_t *shared_subscribers = json_object();
-    search_recursive(gobj, priv->shared_subs, levels, 1, shared_subscribers);
+
+    if(topic[0] == '$') {
+        json_t *dollar_branch = json_object_get(priv->shared_subs, levels[0]);
+        if(dollar_branch) {
+            search_recursive(gobj, dollar_branch, levels, 1, shared_subscribers);
+        }
+    } else {
+        search_recursive(gobj, priv->shared_subs, levels, 1, shared_subscribers);
+    }
 
     json_object_foreach(shared_subscribers, client_id, sub) {
         if(subs__send(gobj, client_id, sub, kw_mqtt_msg)==0) {
