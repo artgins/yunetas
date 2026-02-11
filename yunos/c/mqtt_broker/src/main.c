@@ -91,7 +91,6 @@ PRIVATE char variable_config[]= "\
             'default_service': true,                                \n\
             'autostart': true,                                      \n\
             'autoplay': false,                                      \n\
-            'priority': 1,                                          \n\
             'kw': {                                                 \n\
                 'deny_subscribes': ['test/nosubscribe']             \n\
             }                                                       \n\
