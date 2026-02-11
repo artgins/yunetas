@@ -806,7 +806,7 @@ PRIVATE int message__out_update(
 /***************************************************************************
  *
  ***************************************************************************/
-PRIVATE int message__release_to_inflight(hgobj gobj, enum mqtt_msg_direction dir)
+PRIVATE int message__release_to_inflight(hgobj gobj, enum mqtt_msg_direction dir, BOOL redeliver)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
@@ -875,7 +875,7 @@ PRIVATE int message__release_to_inflight(hgobj gobj, enum mqtt_msg_direction dir
                     tr2q_save_hard_mark(qmsg, qmsg->md_record.user_flag);
                 }
 
-            } else if(state == mosq_ms_wait_for_puback || state == mosq_ms_wait_for_pubrec) {
+            } else if(redeliver && (state == mosq_ms_wait_for_puback || state == mosq_ms_wait_for_pubrec)) {
                 /*
                  *  [MQTT-4.4.0-1] Redeliver unacknowledged PUBLISH on reconnect
                  *  Assign new mid (original was not persisted) and resend with DUP=1
@@ -917,7 +917,7 @@ PRIVATE int message__release_to_inflight(hgobj gobj, enum mqtt_msg_direction dir
                 );
                 tr2q_save_hard_mark(qmsg, qmsg->md_record.user_flag);
 
-            } else if(state == mosq_ms_wait_for_pubcomp) {
+            } else if(redeliver && state == mosq_ms_wait_for_pubcomp) {
                 /*
                  *  [MQTT-4.4.0-1] Redeliver PUBREL on reconnect
                  */
@@ -970,7 +970,7 @@ int todo_xxx;
 // }
 
 
-    return message__release_to_inflight(gobj, dir);
+    return message__release_to_inflight(gobj, dir, FALSE);
 }
 
 /***************************************************************************
@@ -1357,7 +1357,7 @@ PRIVATE int db__message_delete_outgoing(
     /*
      *  Send inflight messages
      */
-    message__release_to_inflight(gobj, mosq_md_out);
+    message__release_to_inflight(gobj, mosq_md_out, FALSE);
 
     return MOSQ_ERR_SUCCESS;
 }
@@ -4945,7 +4945,7 @@ int todo_xxx;
      *  Send queued messages to the reconnecting client
      */
     if(priv->tranger_queues) {
-        message__release_to_inflight(gobj, mosq_md_out);
+        message__release_to_inflight(gobj, mosq_md_out, TRUE);
     }
 
     set_timeout_periodic(priv->gobj_timer_periodic, priv->timeout_periodic);
@@ -6861,7 +6861,7 @@ PRIVATE int handle__pubackcomp(hgobj gobj, gbuffer_t *gbuf, const char *type)
             return rc;
         }
 
-        message__release_to_inflight(gobj, mosq_md_out);
+        message__release_to_inflight(gobj, mosq_md_out, FALSE);
 
         JSON_DECREF(properties)
         return MOSQ_ERR_SUCCESS;
@@ -7020,7 +7020,7 @@ PRIVATE int handle__pubrec(hgobj gobj, gbuffer_t *gbuf)
                 );
             }
 
-            message__release_to_inflight(gobj, mosq_md_out);
+            message__release_to_inflight(gobj, mosq_md_out, FALSE);
 
             return MOSQ_ERR_SUCCESS;
         }
