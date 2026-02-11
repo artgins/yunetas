@@ -329,8 +329,6 @@ PUBLIC int tr2q_load(tr2_queue_t *trq)
         json_integer(TR2Q_MSG_PENDING)
     );
 
-    json_object_set_new(match_cond, "only_md", json_true());
-
     uint64_t last_first_rowid = kw_get_int(
         gobj,
         trq->topic,
@@ -446,8 +444,6 @@ PUBLIC int tr2q_load_all_by_time(tr2_queue_t *trq, int64_t from_t, int64_t to_t)
         "load_record_callback",
         json_integer((json_int_t)(uintptr_t)load_record_callback)
     );
-
-    json_object_set_new(match_cond, "only_md", json_true());
 
     json_t *jn_extra = json_pack("{s:s, s:I}",
         "topic_name", trq->topic_name,
@@ -621,14 +617,33 @@ PUBLIC json_t *tr2q_msg_json(q2_msg_t *msg) // Return is not yours, free with tr
         return msg->kw_record;
     }
 
+    hgobj gobj = (hgobj)json_integer_value(json_object_get(msg->trq->tranger, "gobj"));
+
     msg->kw_record = tranger2_read_record_content( // return is yours
         msg->trq->tranger,
         msg->trq->topic,
         "",
         &msg->md_record
     );
-    // TODO deserialize gbuffer payload
-    int todo_deserialize;
+
+    /*
+     *  Deserialize payload back to gbuffer
+     */
+    if(msg->kw_record) {
+        json_t *jn_payload = kw_get_dict_value(gobj, msg->kw_record, "payload", 0, 0);
+        if(jn_payload) {
+            gbuffer_t *gbuf = gbuffer_deserialize(gobj, jn_payload);
+            if(gbuf) {
+                json_object_del(msg->kw_record, "payload");
+                json_object_set_new(
+                    msg->kw_record,
+                    "gbuffer",
+                    json_integer((json_int_t)(uintptr_t)gbuf)
+                );
+            }
+        }
+    }
+
     return msg->kw_record;
 }
 

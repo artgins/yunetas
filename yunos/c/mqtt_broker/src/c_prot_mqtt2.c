@@ -908,7 +908,7 @@ PRIVATE int message__queue(
             user_flag       // extra flags in addition to TRQ_MSG_PENDING
         );
     }
-
+int todo_xxx;
 // TODO esto está en db__message_insert(), similar a message__queue?
 // if(dir == mosq_md_out && update){
 //     rc = db__message_write_inflight_out_latest(context);
@@ -1347,8 +1347,8 @@ PRIVATE int db__message_release_incoming(hgobj gobj, uint16_t mid)
         } else {
             /*
              *  Dispatch the message to the broker (subscribers)
+             *  Here a qos 2 message is released to their subscribers
              */
-            int todo_pubrel; // TODO este es el punto donde se libera un qos 2 ???!!!
             json_t *kw_iev = iev_create(
                 gobj,
                 EV_MQTT_MESSAGE,
@@ -1377,7 +1377,7 @@ PRIVATE int db__message_release_incoming(hgobj gobj, uint16_t mid)
         );
     }
 
-    int todo_x;
+    int todo_pop_queued;
     // DL_FOREACH_SAFE(context->msgs_in.queued, tail, tmp){
     //     if(db__ready_for_flight(context, mosq_md_in, tail->qos)){
     //         break;
@@ -4884,11 +4884,17 @@ PRIVATE int handle__connect(hgobj gobj, gbuffer_t *gbuf, hgobj src)
         gobj_write_integer_attr(gobj, "max_qos", 0);
     }
 
-    // TODO
-    int todo_x;
-    // db__expire_all_messages(gobj);
+int todo_xxx;
+    // TODO db__expire_all_messages(gobj);
     // db__message_write_queued_out(gobj);
     // db__message_write_inflight_out_all(gobj);
+
+    /*
+     *  Send queued messages to the reconnecting client
+     */
+    if(priv->tranger_queues) {
+        message__release_to_inflight(gobj, mosq_md_out);
+    }
 
     set_timeout_periodic(priv->gobj_timer_periodic, priv->timeout_periodic);
     if(priv->tranger_queues) {
