@@ -460,6 +460,16 @@ PUBLIC json_t *tranger2_startup(
         kw_get_str(gobj, jn_tranger_, "filename_mask", filename_mask, KW_CREATE);
         kw_get_int(gobj, jn_tranger_, "rpermission", rpermission, KW_CREATE);
         kw_get_int(gobj, jn_tranger_, "xpermission", xpermission, KW_CREATE);
+
+        if(gobj_global_trace_level() & TRACE_FS) {
+            gobj_log_info(gobj, 0,
+                "function",     "%s", __FUNCTION__,
+                "msgset",       "%s", MSGSET_INFO,
+                "msg",          "%s", "Creating __timeranger2__.json",
+                "path",         "%s", directory,
+                NULL
+            );
+        }
         save_json_to_file(
             gobj,
             directory,
@@ -495,14 +505,6 @@ PUBLIC json_t *tranger2_startup(
 
         json_object_update_existing(tranger, jn_disk_tranger);
         json_decref(jn_disk_tranger);
-
-        gobj_log_info(gobj, 0,
-            "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_INFO,
-            "msg",          "%s", "Creating __timeranger2__.json",
-            "path",         "%s", directory,
-            NULL
-        );
     }
 
     /*
@@ -691,14 +693,16 @@ PUBLIC json_t *tranger2_create_topic( // WARNING returned json IS NOT YOURS
             );
         }
 
-        gobj_log_info(gobj, 0,
-            "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_INFO,
-            "msg",          "%s", "Creating topic",
-            "path",         "%s", directory,
-            "topic",        "%s", topic_name,
-            NULL
-        );
+        if(gobj_global_trace_level() & TRACE_FS) {
+            gobj_log_info(gobj, 0,
+                "function",     "%s", __FUNCTION__,
+                "msgset",       "%s", MSGSET_INFO,
+                "msg",          "%s", "Creating topic",
+                "path",         "%s", directory,
+                "topic",        "%s", topic_name,
+                NULL
+            );
+        }
 
         /*----------------------------------------*
          *      Create topic_desc.json
@@ -751,14 +755,16 @@ PUBLIC json_t *tranger2_create_topic( // WARNING returned json IS NOT YOURS
             topic_desc  // owned
         );
 
-        gobj_log_info(gobj, 0,
-            "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_INFO,
-            "msg",          "%s", "Creating topic_desc.json",
-            "path",         "%s", directory,
-            "topic",        "%s", topic_name,
-            NULL
-        );
+        if(gobj_global_trace_level() & TRACE_FS) {
+            gobj_log_info(gobj, 0,
+                "function",     "%s", __FUNCTION__,
+                "msgset",       "%s", MSGSET_INFO,
+                "msg",          "%s", "Creating topic_desc.json",
+                "path",         "%s", directory,
+                "topic",        "%s", topic_name,
+                NULL
+            );
+        }
 
         /*----------------------------------------*
          *      Create topic_cols.json
@@ -769,14 +775,16 @@ PUBLIC json_t *tranger2_create_topic( // WARNING returned json IS NOT YOURS
             topic_name,
             jn_cols
         );
-        gobj_log_info(gobj, 0,
-            "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_INFO,
-            "msg",          "%s", "Creating topic_cols.json",
-            "path",         "%s", directory,
-            "topic",        "%s", topic_name,
-            NULL
-        );
+        if(gobj_global_trace_level() & TRACE_FS) {
+            gobj_log_info(gobj, 0,
+                "function",     "%s", __FUNCTION__,
+                "msgset",       "%s", MSGSET_INFO,
+                "msg",          "%s", "Creating topic_cols.json",
+                "path",         "%s", directory,
+                "topic",        "%s", topic_name,
+                NULL
+            );
+        }
 
         /*----------------------------------------*
          *      Create topic_var.json
@@ -787,14 +795,16 @@ PUBLIC json_t *tranger2_create_topic( // WARNING returned json IS NOT YOURS
             topic_name,
             jn_var
         );
-        gobj_log_info(gobj, 0,
-            "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_INFO,
-            "msg",          "%s", "Creating topic_var.json",
-            "path",         "%s", directory,
-            "topic",        "%s", topic_name,
-            NULL
-        );
+        if(gobj_global_trace_level() & TRACE_FS) {
+            gobj_log_info(gobj, 0,
+                "function",     "%s", __FUNCTION__,
+                "msgset",       "%s", MSGSET_INFO,
+                "msg",          "%s", "Creating topic_var.json",
+                "path",         "%s", directory,
+                "topic",        "%s", topic_name,
+                NULL
+            );
+        }
 
         /*----------------------------------------*
          *      Create data directory
