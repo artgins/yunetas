@@ -203,7 +203,7 @@ SDATA (DTP_STRING,      "mqtt_clean_session",0,         "1",            "MQTT cl
 SDATA (DTP_STRING,      "mqtt_session_expiry_interval",0,"-1",          "MQTT session expiry interval.  This option allows the session of persistent clients (those with clean session set to false) that are not currently connected to be removed if they do not reconnect within a certain time frame. This is a non-standard option in MQTT v3.1. MQTT v3.1.1 and v5.0 allow brokers to remove client sessions.\n"
 "Badly designed clients may set clean session to false whilst using a randomly generated client id. This leads to persistent clients that connect once and never reconnect. This option allows these clients to be removed. This option allows persistent clients (those with clean session set to false) to be removed if they do not reconnect within a certain time frame.\nAs this is a non-standard option, the default if not set is to never expire persistent clients."),
 
-SDATA (DTP_STRING,      "mqtt_keepalive",   0,         "60",    "MQTT keepalive. The number of seconds between sending PING commands to the broker for the purposes of informing it we are still connected and functioning. Defaults to 60 seconds."),
+SDATA (DTP_STRING,      "mqtt_keepalive",   0,         "10",    "MQTT keepalive. The number of seconds between sending PING commands to the broker for the purposes of informing it we are still connected and functioning. Defaults to 60 seconds."), // TODO repon 60
 
 SDATA (DTP_STRING,      "mqtt_will_topic",  0,          "",     "MQTT will topic"),
 SDATA (DTP_STRING,      "mqtt_will_payload",0,          "",     "MQTT will payload"),
@@ -677,6 +677,8 @@ PRIVATE int open_queues(hgobj gobj)
         mosq_md_in
     );
 
+    printf("CLIENT_ID QUEUE OPEN %s %s %s\n", priv->client_id, queue_name, gobj_full_name(gobj)); // TODO TEST
+
     priv->trq_in_msgs = tr2q_open(
         priv->tranger_queues,
         queue_name,
@@ -737,6 +739,8 @@ PRIVATE void close_queues(hgobj gobj)
             priv->client_id,
             mosq_md_in
         );
+
+printf("CLIENT_ID QUEUE CLOSE %s %s %s\n", priv->client_id, queue_name, gobj_full_name(gobj)); // TODO TEST
 
         tranger2_delete_topic(
             priv->tranger_queues,
@@ -8815,7 +8819,7 @@ PRIVATE int ac_timeout_periodic(hgobj gobj, const char *event, json_t *kw, hgobj
 
     if(priv->timeout_backup > 0 && test_sectimer(priv->t_backup)) {
 
-        debug_json2(priv->trq_in_msgs->topic, "TOPIC %s %s", priv->client_id, gobj_full_name(gobj)); // TODO TEST
+        debug_json2(priv->trq_in_msgs->topic, "CLIENT_ID QUEUE TOPIC %s %s", priv->client_id, gobj_full_name(gobj)); // TODO TEST
 
         if(priv->trq_in_msgs) {
             if(tr2q_inflight_size(priv->trq_in_msgs)==0) { // && priv->pending_acks==0) {
