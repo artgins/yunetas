@@ -4198,7 +4198,7 @@ PRIVATE int handle__connect(hgobj gobj, gbuffer_t *gbuf, hgobj src)
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
     if(priv->in_session) {
-        gobj_log_error(gobj, 0,
+        gobj_log_warning(gobj, 0,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_MQTT_ERROR,
             "msg",          "%s", "Mqtt CMD_CONNECT: already in session",
@@ -4231,7 +4231,7 @@ PRIVATE int handle__connect(hgobj gobj, gbuffer_t *gbuf, hgobj src)
         return -1;
     }
     if(slen != 4 /* MQTT */ && slen != 6 /* MQIsdp */) {
-        gobj_log_error(gobj, 0,
+        gobj_log_warning(gobj, 0,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_MQTT_ERROR,
             "msg",          "%s", "Mqtt CMD_CONNECT: MQTT protocol name length",
