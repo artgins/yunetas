@@ -2830,7 +2830,7 @@ PRIVATE int subs__send(
         gobj,
         client_id,
         topic,
-        gbuffer_incref(gbuf),    // owned
+        gbuf ? gbuffer_incref(gbuf) : NULL,    // owned
         msg_qos,
         0,
         client_retain,
