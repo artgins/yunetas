@@ -127,6 +127,8 @@ SDATA (DTP_STRING,  "mqtt_tenant",      SDF_RD,     "",         "Used for multi-
 // TODO a 0 cuando funcionen bien los out schemas
 SDATA (DTP_BOOLEAN, "use_internal_schema",SDF_PERSIST, "1",     "Use internal (hardcoded) schema"),
 
+SDATA (DTP_JSON,    "deny_subscribes",  0,          0,          "JSON list of topic strings to deny subscription"),
+
 SDATA (DTP_INTEGER, "on_critical_error",SDF_RD,     "2",        "LOG_OPT_EXIT_ZERO exit on error (Zero to avoid restart)"),
 SDATA (DTP_POINTER, "subscriber",       0,          0,          "Subscriber of output-events. If it's null then the subscriber is the parent."),
 SDATA (DTP_INTEGER, "timeout",          SDF_RD,     "1000",     "Timeout"),
@@ -175,6 +177,7 @@ typedef struct _PRIVATE_DATA {
 
     json_t *normal_subs;
     json_t *shared_subs;
+    json_t *deny_subscribes;
 
     char treedb_mqtt_broker_name[80];
     char msg2db_alarms_name[80]; // TODO review, is used?
@@ -222,6 +225,7 @@ PRIVATE void mt_create(hgobj gobj)
      */
     SET_PRIV(timeout,                   gobj_read_integer_attr)
     SET_PRIV(enable_new_clients,        gobj_read_bool_attr)
+    SET_PRIV(deny_subscribes,           gobj_read_json_attr)
 }
 
 /***************************************************************************
@@ -233,6 +237,7 @@ PRIVATE void mt_writing(hgobj gobj, const char *path)
 
     IF_EQ_SET_PRIV(timeout,                 gobj_read_integer_attr)
     ELIF_EQ_SET_PRIV(enable_new_clients,    gobj_read_bool_attr)
+    ELIF_EQ_SET_PRIV(deny_subscribes,       gobj_read_json_attr)
     END_EQ_SET_PRIV()
 }
 
@@ -3610,9 +3615,21 @@ PRIVATE int ac_mqtt_subscribe(hgobj gobj, const char *event, json_t *kw, hgobj s
 
         mqtt5_reason_codes_t reason = qos;
         BOOL allowed = TRUE;
-        // allowed = mosquitto_acl_check(context, sub, 0, NULL, qos, FALSE, MOSQ_ACL_SUBSCRIBE); TODO
+
+        /*
+         *  Check deny_subscribes list
+         */
+        if(json_is_array(priv->deny_subscribes)) {
+            int deny_idx; json_t *jn_deny;
+            json_array_foreach(priv->deny_subscribes, deny_idx, jn_deny) {
+                const char *deny_topic = json_string_value(jn_deny);
+                if(!empty_string(deny_topic) && strcmp(sub, deny_topic) == 0) {
+                    allowed = FALSE;
+                    break;
+                }
+            }
+        }
         if(!allowed) {
-            // TODO
             if(protocol_version == mosq_p_mqtt5) {
                 reason = MQTT_RC_NOT_AUTHORIZED;
             } else if(protocol_version == mosq_p_mqtt311) {
