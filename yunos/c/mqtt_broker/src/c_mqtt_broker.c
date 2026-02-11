@@ -3492,8 +3492,25 @@ PRIVATE int ac_on_close(hgobj gobj, const char *event, json_t *kw, hgobj src)
            "client_id",    "%s", client_id,
            NULL
        );
+        JSON_DECREF(client)
         KW_DECREF(kw);
         return -1;
+    }
+
+    /*----------------------------------------------------------*
+     *  Check if this session belongs to the closing connection.
+     *  If the session was taken over by a new connection,
+     *  _gobj_channel will point to the new channel.
+     *  In that case, don't touch the session.
+     *----------------------------------------------------------*/
+    hgobj session_gobj_channel = (hgobj)(uintptr_t)kw_get_int(
+        gobj, session, "_gobj_channel", 0, KW_REQUIRED
+    );
+    if(session_gobj_channel != gobj_channel) {
+        JSON_DECREF(session)
+        JSON_DECREF(client)
+        KW_DECREF(kw);
+        return 0;
     }
 
     BOOL clean_start = (int)kw_get_bool(
