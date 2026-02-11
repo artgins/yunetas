@@ -1251,8 +1251,11 @@ PRIVATE int yev_callback(yev_event_h yev_event)
                         }
 
                         yev_destroy_event(yev_event);
-                        if(gobj_in_this_state(gobj, ST_CONNECTED)) { // Avoid while doing handshaking
+                        if(gobj_in_this_state(gobj, ST_CONNECTED)) {
+                            // Avoid while doing handshaking
                             try_more_writes(gobj);
+                        } else if(gobj_in_this_state(gobj, ST_WAIT_STOPPED)) {
+                            try_to_stop_yevents(gobj);
                         }
                     } else {
                         yev_destroy_event(yev_event);
@@ -1283,7 +1286,6 @@ PRIVATE int yev_callback(yev_event_h yev_event)
                     }
 
                     yev_destroy_event(yev_event);
-
                     try_to_stop_yevents(gobj);
                 }
 

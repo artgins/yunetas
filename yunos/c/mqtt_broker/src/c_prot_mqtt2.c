@@ -8159,7 +8159,7 @@ PRIVATE int ac_process_payload_data(hgobj gobj, const char *event, json_t *kw, h
         int ret;
         if((ret=frame_completed(gobj, src))<0) {
             if(gobj_trace_level(gobj) & SHOW_DECODE) {
-                trace_msg0("❌❌ Mqtt error: disconnecting: %d", ret);
+                trace_msg0("❌❌ Mqtt error: disconnecting: %s", priv->client_id);
                 gobj_trace_dump_full_gbuf(gobj, gbuf, "Mqtt error: disconnecting");
             }
             ws_close(gobj, MQTT_RC_PROTOCOL_ERROR);

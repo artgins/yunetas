@@ -3331,6 +3331,7 @@ PRIVATE int ac_on_open(hgobj gobj, const char *event, json_t *kw, hgobj src)
                 json_pack("{s:b}", "force", 1),
                 gobj
             );
+            // TODO clean queues ???
             sub__remove_client(gobj, client_id);
         }
 
