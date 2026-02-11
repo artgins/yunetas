@@ -874,6 +874,58 @@ PRIVATE int message__release_to_inflight(hgobj gobj, enum mqtt_msg_direction dir
                     msg_flag_set_state(qmsg, new_state);
                     tr2q_save_hard_mark(qmsg, qmsg->md_record.user_flag);
                 }
+
+            } else if(state == mosq_ms_wait_for_puback || state == mosq_ms_wait_for_pubrec) {
+                /*
+                 *  [MQTT-4.4.0-1] Redeliver unacknowledged PUBLISH on reconnect
+                 *  Assign new mid (original was not persisted) and resend with DUP=1
+                 */
+                uint16_t mid = mqtt_mid_generate(gobj);
+                qmsg->mid = mid;
+
+                json_t *kw_msg = tr2q_msg_json(qmsg);
+                if(!kw_msg) {
+                    gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
+                        "function",     "%s", __FUNCTION__,
+                        "msgset",       "%s", MSGSET_INTERNAL_ERROR,
+                        "msg",          "%s", "No message content for redelivery",
+                        "mid",          "%d", (int)mid,
+                        NULL
+                    );
+                    continue;
+                }
+                const char *topic = kw_get_str(gobj, kw_msg, "topic", "", 0);
+                gbuffer_t *gbuf = (gbuffer_t *)(uintptr_t)kw_get_int(
+                    gobj, kw_msg, "gbuffer", 0, 0
+                );
+                BOOL retain = kw_get_bool(gobj, kw_msg, "retain", 0, 0);
+                json_t *properties = kw_get_dict(gobj, kw_msg, "properties", 0, 0);
+                uint32_t expiry_interval = (uint32_t)kw_get_int(
+                    gobj, kw_msg, "expiry_interval", 0, 0
+                );
+
+                send__publish(
+                    gobj,
+                    mid,
+                    topic,
+                    gbuf,       // notowned
+                    (uint8_t)qos,
+                    retain,
+                    TRUE,       // DUP=1 for redelivery
+                    properties, // not owned
+                    expiry_interval
+                );
+                tr2q_save_hard_mark(qmsg, qmsg->md_record.user_flag);
+
+            } else if(state == mosq_ms_wait_for_pubcomp) {
+                /*
+                 *  [MQTT-4.4.0-1] Redeliver PUBREL on reconnect
+                 */
+                if(qmsg->mid == 0) {
+                    qmsg->mid = mqtt_mid_generate(gobj);
+                }
+                send__pubrel(gobj, qmsg->mid, NULL);
+                tr2q_save_hard_mark(qmsg, qmsg->md_record.user_flag);
             }
         }
     }
