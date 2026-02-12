@@ -3409,7 +3409,7 @@ PRIVATE int send__connect(
 
     /* Only MQTT v3.1 requires a client id to be sent */
     if(protocol == mosq_p_mqtt31 && empty_string(mqtt_client_id)) {
-        gobj_log_error(gobj, 0,
+        gobj_log_warning(gobj, 0,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_MQTT_ERROR,
             "msg",          "%s", "client id required in mqtt31 protocol",
@@ -4566,7 +4566,7 @@ PRIVATE int handle__connect(hgobj gobj, gbuffer_t *gbuf, hgobj src)
             client_id = NULL;
             if((protocol_version == mosq_p_mqtt311 && clean_start == 0) ||
                     priv->allow_zero_length_clientid == FALSE) {
-                gobj_log_error(gobj, 0,
+                gobj_log_warning(gobj, 0,
                     "function",     "%s", __FUNCTION__,
                     "msgset",       "%s", MSGSET_MQTT_ERROR,
                     "msg",          "%s", "Mqtt: refuse empty client id",
