@@ -505,10 +505,7 @@ PRIVATE int ac_drop(hgobj gobj, const char *event, json_t *kw, hgobj src)
         return -1;
     }
 
-    gobj_send_event(gobj_bottom, EV_DROP, 0, gobj);
-
-    JSON_DECREF(kw)
-    return 0;
+    return gobj_send_event(gobj_bottom, EV_DROP, kw, gobj);
 }
 
 /***************************************************************************
