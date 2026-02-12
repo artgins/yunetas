@@ -263,7 +263,7 @@ SDATA (DTP_BOOLEAN,     "assigned_id",      SDF_VOLATIL,        0,      "Auto cl
 SDATA (DTP_STRING,      "client_id",        SDF_VOLATIL,        0,      "Client id"),
 
 SDATA (DTP_BOOLEAN,     "clean_start",      SDF_VOLATIL,        0,      "New session"),
-SDATA (DTP_BOOLEAN,     "session_take_over",SDF_VOLATIL,        0,      "Session taken over"),
+SDATA (DTP_BOOLEAN,     "session_taken_over",SDF_VOLATIL,       0,      "Session taken over"),
 SDATA (DTP_INTEGER,     "session_expiry_interval",SDF_VOLATIL,  0,      "Session expiry interval in ?"),
 SDATA (DTP_INTEGER,     "keepalive",        SDF_VOLATIL,        0,      "Keepalive"),
 SDATA (DTP_STRING,      "auth_method",      SDF_VOLATIL,        0,      "Auth method"),
