@@ -3344,6 +3344,17 @@ PRIVATE int ac_on_open(hgobj gobj, const char *event, json_t *kw, hgobj src)
                 }
             }
         }
+
+        /*
+         *  Disconnect previous session before close session
+         */
+        if(prev_gobj_channel) {
+            json_t *kw_disconnect = json_pack("{s:b}",
+                "session_take_over", !delete_prev_session
+            );
+            gobj_send_event(prev_gobj_channel, EV_DROP, kw_disconnect, gobj);
+        }
+
         if(delete_prev_session) {
             /*-----------------------------------*
              *  Delete it if clean_start TRUE
@@ -3360,23 +3371,6 @@ PRIVATE int ac_on_open(hgobj gobj, const char *event, json_t *kw, hgobj src)
         }
 
         JSON_DECREF(session);
-
-        /*
-         *  Disconnect previous session
-         */
-        if(prev_gobj_channel) {
-            json_t *kw_disconnect = json_object();
-            int reason_code = 0;
-            if(delete_prev_session) {
-                reason_code = (prev_protocol_version == mosq_p_mqtt5)?MQTT_RC_SESSION_TAKEN_OVER:0;
-            }
-            json_object_set_new(
-                kw_disconnect,
-                "reason_code",
-                json_integer(reason_code)
-            );
-            gobj_send_event(prev_gobj_channel, EV_DROP, kw_disconnect, gobj);
-        }
     }
 
     // TODO
@@ -3503,13 +3497,18 @@ PRIVATE int ac_on_close(hgobj gobj, const char *event, json_t *kw, hgobj src)
      *  _gobj_channel will point to the new channel.
      *  In that case, don't touch the session.
      *----------------------------------------------------------*/
-    hgobj session_gobj_channel = (hgobj)(uintptr_t)kw_get_int(
-        gobj, session, "_gobj_channel", 0, KW_REQUIRED
+    hgobj prev_gobj_channel = (hgobj)(uintptr_t)kw_get_int(
+        gobj,
+        session,
+        "_gobj_channel",
+        0,
+        KW_REQUIRED
     );
-    if(session_gobj_channel != gobj_channel) {
+
+    if(prev_gobj_channel != gobj_channel) { // TODO is necessary?
         JSON_DECREF(session)
         JSON_DECREF(client)
-        KW_DECREF(kw);
+        KW_DECREF(kw)
         return 0;
     }
 
@@ -3575,13 +3574,6 @@ PRIVATE int ac_on_close(hgobj gobj, const char *event, json_t *kw, hgobj src)
          */
         will__process_disconnect(gobj, session, TRUE);
 
-        hgobj prev_gobj_channel = (hgobj)(uintptr_t)kw_get_int(
-            gobj,
-            session,
-            "_gobj_channel",
-            0,
-            KW_REQUIRED
-        );
         if(gobj_channel == prev_gobj_channel) {
             /*
              *  Save last_mid and mark session as disconnected
