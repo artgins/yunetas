@@ -374,6 +374,7 @@ typedef struct _PRIVATE_DATA {
     int out_packet_count;
 
     BOOL allow_duplicate_messages; // TODO
+    BOOL session_taken_over;        // Set when EV_DROP received (session takeover by another connection)
 } PRIVATE_DATA;
 
 
@@ -724,14 +725,11 @@ PRIVATE void close_queues(hgobj gobj)
     EXEC_AND_RESET(tr2q_close, priv->trq_in_msgs);
     EXEC_AND_RESET(tr2q_close, priv->trq_out_msgs);
 
-    char queue_name[NAME_MAX];
-
-    if(priv->clean_start) {
+    if(priv->clean_start && !priv->session_taken_over) {
         /*
-         *  Delete the queues if it's not a persistent session.
-         *  Topic refcount protects against deleting topics still in use
-         *  by another connection (e.g. session takeover with same client_id).
+         *  Delete the queues if it's not a persistent session
          */
+        char queue_name[NAME_MAX];
 
         /*
          *  Input messages
@@ -760,32 +758,6 @@ printf("CLIENT_ID QUEUE CLOSE %s %s %s\n", priv->client_id, queue_name, gobj_ful
             mosq_md_out
         );
         tranger2_delete_topic(
-            priv->tranger_queues,
-            queue_name
-        );
-    } else {
-        /*
-         *  Persistent session: close topics (decrement refcount)
-         *  but keep data on disk for session resumption.
-         */
-        build_queue_name(
-            queue_name,
-            sizeof(queue_name),
-            priv->client_id,
-            mosq_md_in
-        );
-        tranger2_close_topic(
-            priv->tranger_queues,
-            queue_name
-        );
-
-        build_queue_name(
-            queue_name,
-            sizeof(queue_name),
-            priv->client_id,
-            mosq_md_out
-        );
-        tranger2_close_topic(
             priv->tranger_queues,
             queue_name
         );
@@ -8877,6 +8849,17 @@ PRIVATE int ac_timeout_periodic(hgobj gobj, const char *event, json_t *kw, hgobj
  ***************************************************************************/
 PRIVATE int ac_drop(hgobj gobj, const char *event, json_t *kw, hgobj src)
 {
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    /*
+     *  Session taken over by another connection with the same client_id.
+     *  The broker has already cleaned up the old session and created a new one.
+     *  Don't delete queue topics (the new connection is using them)
+     *  and don't notify the broker on close (cleanup already done in ac_on_open).
+     */
+    priv->session_taken_over = TRUE;
+    priv->inform_on_close = FALSE;
+
     gobj_send_event(gobj_bottom_gobj(gobj), EV_DROP, 0, gobj);
 
     KW_DECREF(kw)

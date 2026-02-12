@@ -529,8 +529,6 @@ PUBLIC int tranger2_stop(json_t *tranger)
     void *temp;
     json_t *jn_topics = kw_get_dict(gobj, tranger, "topics", 0, KW_REQUIRED);
     json_object_foreach_safe(jn_topics, temp, key, jn_value) {
-        // Force refcount to 1 so close_topic actually closes
-        json_object_set_new(jn_value, "__refcount__", json_integer(1));
         tranger2_close_topic(tranger, key);
     }
 
@@ -949,9 +947,6 @@ PUBLIC json_t *tranger2_open_topic( // WARNING returned json IS NOT YOURS
 
     json_t *topic = kw_get_subdict_value(gobj, tranger, "topics", topic_name, 0, 0);
     if(topic) {
-        // Topic already opened, increment refcount
-        json_int_t refcount = kw_get_int(gobj, topic, "__refcount__", 1, 0);
-        json_object_set_new(topic, "__refcount__", json_integer(refcount + 1));
         return topic;
     }
 
@@ -1083,9 +1078,6 @@ PUBLIC json_t *tranger2_open_topic( // WARNING returned json IS NOT YOURS
             );
         }
     }
-
-    // Set initial refcount
-    json_object_set_new(topic, "__refcount__", json_integer(1));
 
     return topic;
 }
@@ -1300,15 +1292,6 @@ PUBLIC int tranger2_close_topic(
         return -1;
     }
 
-    /*
-     *  Decrement refcount. Only actually close when it reaches 0.
-     */
-    json_int_t refcount = kw_get_int(gobj, topic, "__refcount__", 1, 0);
-    if(refcount > 1) {
-        json_object_set_new(topic, "__refcount__", json_integer(refcount - 1));
-        return 0;
-    }
-
     close_fd_opened_files(gobj, topic, NULL);
 
     // MONITOR Master Unwatching (MI) topic /disks/
@@ -1365,16 +1348,6 @@ PUBLIC int tranger2_delete_topic(
     }
 
     /*
-     *  Check refcount: if topic is still in use by others, just decrement.
-     *  The last user to delete/close will actually remove it.
-     */
-    json_int_t refcount = kw_get_int(gobj, topic, "__refcount__", 1, 0);
-    if(refcount > 1) {
-        json_object_set_new(topic, "__refcount__", json_integer(refcount - 1));
-        return 0;
-    }
-
-    /*
      *  Get directory
      */
     char directory[PATH_MAX];
@@ -1398,7 +1371,7 @@ PUBLIC int tranger2_delete_topic(
     tranger2_close_topic(tranger, topic_name);
 
     /*
-     *  Delete from disk
+     *  Check if the topic already exists
      */
     return rmrdir(directory);
 }
@@ -1422,12 +1395,8 @@ PUBLIC json_t *tranger2_backup_topic(
     hgobj gobj = (hgobj)json_integer_value(json_object_get(tranger, "gobj"));
 
     /*
-     *  Force close topic (backup needs exclusive access)
+     *  Close topic
      */
-    json_t *topic = kw_get_subdict_value(gobj, tranger, "topics", topic_name, 0, 0);
-    if(topic) {
-        json_object_set_new(topic, "__refcount__", json_integer(1));
-    }
     tranger2_close_topic(tranger, topic_name);
 
     /*-------------------------------*
