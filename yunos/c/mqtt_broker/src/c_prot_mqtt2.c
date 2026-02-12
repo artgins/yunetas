@@ -263,7 +263,6 @@ SDATA (DTP_BOOLEAN,     "assigned_id",      SDF_VOLATIL,        0,      "Auto cl
 SDATA (DTP_STRING,      "client_id",        SDF_VOLATIL,        0,      "Client id"),
 
 SDATA (DTP_BOOLEAN,     "clean_start",      SDF_VOLATIL,        0,      "New session"),
-SDATA (DTP_BOOLEAN,     "session_taken_over",SDF_VOLATIL,       0,      "Session taken over"),
 SDATA (DTP_INTEGER,     "session_expiry_interval",SDF_VOLATIL,  0,      "Session expiry interval in ?"),
 SDATA (DTP_INTEGER,     "keepalive",        SDF_VOLATIL,        0,      "Keepalive"),
 SDATA (DTP_STRING,      "auth_method",      SDF_VOLATIL,        0,      "Auth method"),
@@ -375,7 +374,6 @@ typedef struct _PRIVATE_DATA {
     int out_packet_count;
 
     BOOL allow_duplicate_messages; // TODO
-    BOOL session_taken_over; // Set when EV_DROP received (session takeover by another connection)
 } PRIVATE_DATA;
 
 
@@ -453,7 +451,6 @@ PRIVATE void mt_create(hgobj gobj)
     SET_PRIV(assigned_id,               gobj_read_bool_attr)
     SET_PRIV(client_id,                 gobj_read_str_attr)
     SET_PRIV(clean_start,               gobj_read_bool_attr)
-    SET_PRIV(session_taken_over,        gobj_read_bool_attr)
     SET_PRIV(session_expiry_interval,   gobj_read_integer_attr)
     SET_PRIV(keepalive,                 gobj_read_integer_attr)
     SET_PRIV(auth_method,               gobj_read_str_attr)
@@ -506,7 +503,6 @@ PRIVATE void mt_writing(hgobj gobj, const char *path)
     ELIF_EQ_SET_PRIV(assigned_id,               gobj_read_bool_attr)
     ELIF_EQ_SET_PRIV(client_id,                 gobj_read_str_attr)
     ELIF_EQ_SET_PRIV(clean_start,               gobj_read_bool_attr)
-    ELIF_EQ_SET_PRIV(session_taken_over,        gobj_read_bool_attr)
     ELIF_EQ_SET_PRIV(session_expiry_interval,   gobj_read_integer_attr)
     ELIF_EQ_SET_PRIV(keepalive,                 gobj_read_integer_attr)
     ELIF_EQ_SET_PRIV(auth_method,               gobj_read_str_attr)
@@ -8854,7 +8850,6 @@ PRIVATE int ac_drop(hgobj gobj, const char *event, json_t *kw, hgobj src)
      *  WARNING The broker could have cleaned up the old session and created a new one.
      */
     BOOL session_take_over = kw_get_bool(gobj, kw, "session_take_over", 0, KW_REQUIRED);
-    gobj_write_bool_attr(gobj, "session_taken_over", session_take_over);
 
     int reason_code = 0;
     if(session_take_over) {
