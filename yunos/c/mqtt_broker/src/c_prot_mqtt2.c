@@ -1415,6 +1415,13 @@ PRIVATE int db__message_release_incoming(hgobj gobj, uint16_t mid)
              *  being processed so the client doesn't keep resending it.
              *  Don't send it to other clients.
              */
+            gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
+                "function",     "%s", __FUNCTION__,
+                "msgset",       "%s", MSGSET_MQTT_ERROR,
+                "msg",          "%s", "What's that?",
+                "mid",          "%d", (int)mid,
+                NULL
+            );
         } else {
             /*
              *  Dispatch the message to the broker (subscribers)
@@ -7180,11 +7187,13 @@ PRIVATE int handle__pubrel(hgobj gobj, gbuffer_t *gbuf)
             );
         }
 
+        // HACK Dispatch the message to the broker (subscribers), sub__messages_queue
         rc = db__message_release_incoming(gobj, mid);
         if(rc == MOSQ_ERR_NOT_FOUND) {
             /* Message not found. Still send a PUBCOMP anyway because this could be
             * due to a repeated PUBREL after a client has reconnected. */
         } else if(rc != MOSQ_ERR_SUCCESS) {
+            // Error already loged
             return rc;
         }
 
