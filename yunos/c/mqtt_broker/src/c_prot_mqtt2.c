@@ -5098,8 +5098,7 @@ PRIVATE int handle__connack(
     // message__reconnect_reset(mosq, true); TODO important?!
 
     if(gobj_trace_level(gobj) & SHOW_DECODE) {
-        trace_msg0("👈👈 COMMAND=%s, as %s, client %s, reason: %d '%s'",
-            mqtt_command_string(CMD_CONNACK),
+        trace_msg0("  👈 CONNACK, as %s, client %s, reason: %d '%s'",
             priv->iamServer? "server":"client",
             SAFE_PRINT(priv->client_id),
             reason_code,
@@ -5207,7 +5206,7 @@ PRIVATE int handle__disconnect_s(hgobj gobj, gbuffer_t *gbuf)
     }
 
     if(gobj_trace_level(gobj) & SHOW_DECODE) {
-        trace_msg0("  👈 Received DISCONNECT, as %s, client '%s' (%d '%s')",
+        trace_msg0("  👈 DISCONNECT, as %s, client '%s' (%d '%s')",
             priv->iamServer? "server":"client",
             SAFE_PRINT(priv->client_id),
             reason_code,
@@ -5263,7 +5262,7 @@ PRIVATE int handle__disconnect_c(hgobj gobj, gbuffer_t *gbuf)
     }
 
     if(gobj_trace_level(gobj) & SHOW_DECODE) {
-        trace_msg0("  👈 Received DISCONNECT, as %s, client '%s' (%d '%s')",
+        trace_msg0("  👈 DISCONNECT, as %s, client '%s' (%d '%s')",
             priv->iamServer? "server":"client",
             SAFE_PRINT(priv->client_id),
             reason_code,
@@ -5465,7 +5464,7 @@ PRIVATE int handle__subscribe(hgobj gobj, gbuffer_t *gbuf)
         json_array_append_new(jn_list, jn_sub);
 
         if(gobj_trace_level(gobj) & SHOW_DECODE) {
-            trace_msg0("  👈 Received SUBSCRIBE, as %s, client '%s', topic '%s' (QoS %d, mid %d)",
+            trace_msg0("    👈 SUBSCRIBE subs, as %s, client '%s', topic '%s' (QoS %d, mid %d)",
                 priv->iamServer? "server":"client",
                 SAFE_PRINT(priv->client_id),
                 sub,
@@ -5490,6 +5489,14 @@ PRIVATE int handle__subscribe(hgobj gobj, gbuffer_t *gbuf)
             JSON_DECREF(properties)
             return MOSQ_ERR_MALFORMED_PACKET;
         }
+    }
+
+    if(gobj_trace_level(gobj) & SHOW_DECODE) {
+        trace_msg0("  👈 SUBSCRIBE, as %s, client '%s'(mid %d)",
+            priv->iamServer? "server":"client",
+            SAFE_PRINT(priv->client_id),
+            (int)mid
+        );
     }
 
     JSON_DECREF(properties); // Free subscribe command properties
@@ -5692,7 +5699,7 @@ PRIVATE int handle__unsubscribe(hgobj gobj, gbuffer_t *gbuf)
         }
 
         if(gobj_trace_level(gobj) & SHOW_DECODE) {
-            trace_msg0("  👈 Received UNSUBSCRIBE, as %s, client '%s', topic '%s' (mid %d)",
+            trace_msg0("    👈 UNSUBSCRIBE subs, as %s, client '%s', topic '%s' (mid %d)",
                 priv->iamServer? "server":"client",
                 SAFE_PRINT(priv->client_id),
                 sub,
@@ -5704,6 +5711,14 @@ PRIVATE int handle__unsubscribe(hgobj gobj, gbuffer_t *gbuf)
             "sub", sub, (int)slen
         );
         json_array_append_new(jn_list, jn_sub);
+    }
+
+    if(gobj_trace_level(gobj) & SHOW_DECODE) {
+        trace_msg0("  👈 UNSUBSCRIBE, as %s, client '%s', (mid %d)",
+            priv->iamServer? "server":"client",
+            SAFE_PRINT(priv->client_id),
+            (int)mid
+        );
     }
 
     JSON_DECREF(properties); // Free unsubscribe command properties
@@ -5838,7 +5853,7 @@ PRIVATE int handle__suback(hgobj gobj, gbuffer_t *gbuf)
     }
 
     if(gobj_trace_level(gobj) & SHOW_DECODE) {
-        trace_msg0("  👈 Received SUBACK, as %s, client '%s' (mid: %d)",
+        trace_msg0("  👈 SUBACK, as %s, client '%s' (mid: %d)",
             priv->iamServer? "server":"client",
             SAFE_PRINT(priv->client_id),
             mid
@@ -5917,7 +5932,7 @@ PRIVATE int handle__unsuback(hgobj gobj, gbuffer_t *gbuf)
     }
 
     if(gobj_trace_level(gobj) & SHOW_DECODE) {
-        trace_msg0("  👈 Received UNSUBACK as %s, client '%s' (mid: %d)",
+        trace_msg0("  👈 UNSUBACK as %s, client '%s' (mid: %d)",
             priv->iamServer? "server":"client",
             SAFE_PRINT(priv->client_id),
             mid
@@ -6255,7 +6270,7 @@ PRIVATE int handle__publish_s(
     }
 
     if(gobj_trace_level(gobj) & SHOW_DECODE) {
-        trace_msg0("  👈 Received PUBLISH, as %s, client '%s', topic '%s' (dup %d, qos %d, retain %d, mid %d, len %ld)",
+        trace_msg0("  👈 PUBLISH, as %s, client '%s', topic '%s' (dup %d, qos %d, retain %d, mid %d, len %ld)",
             priv->iamServer? "server":"client",
             SAFE_PRINT(priv->client_id),
             topic,
@@ -6555,7 +6570,7 @@ PRIVATE int handle__publish_c(
     }
 
     if(gobj_trace_level(gobj) & SHOW_DECODE) {
-        trace_msg0("  👈 Received PUBLISH, as '%s', client %s, topic '%s' (dup %d, qos %d, retain %d, mid %d, len %ld)",
+        trace_msg0("  👈 PUBLISH, as '%s', client %s, topic '%s' (dup %d, qos %d, retain %d, mid %d, len %ld)",
             priv->iamServer? "server":"client",
             SAFE_PRINT(priv->client_id),
             topic,
@@ -6702,7 +6717,7 @@ process_bad_message:
 /***************************************************************************
  *  Handle PUBACK or PUBCOMP commands
  ***************************************************************************/
-PRIVATE int handle__pubackcomp(hgobj gobj, gbuffer_t *gbuf, const char *type)
+PRIVATE int handle__pubackcomp(hgobj gobj, gbuffer_t *gbuf, mqtt_message_t command)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
     uint8_t reason_code = 0;
@@ -6731,29 +6746,9 @@ PRIVATE int handle__pubackcomp(hgobj gobj, gbuffer_t *gbuf, const char *type)
         // Error already logged
         return rc;
     }
-    if(type[3] == 'A') { /* pubAck or pubComp */
-        if(priv->frame_head.command != CMD_PUBACK) {
-            gobj_log_error(gobj, 0,
-                "function",     "%s", __FUNCTION__,
-                "msgset",       "%s", MSGSET_MQTT_ERROR,
-                "msg",          "%s", "Mqtt pubackcomp: 'A' and no CMD_PUBACK",
-                "client_id",    "%s", priv->client_id,
-                NULL
-            );
-            return MOSQ_ERR_MALFORMED_PACKET;
-        }
+    if(command == CMD_PUBACK) { /* pubAck or pubComp */
         qos = 1;
     } else {
-        if(priv->frame_head.command != CMD_PUBCOMP) {
-            gobj_log_error(gobj, 0,
-                "function",     "%s", __FUNCTION__,
-                "msgset",       "%s", MSGSET_MQTT_ERROR,
-                "msg",          "%s", "Mqtt pubackcomp: not 'A' and no CMD_PUBCOMP",
-                "client_id",    "%s", priv->client_id,
-                NULL
-            );
-            return MOSQ_ERR_MALFORMED_PACKET;
-        }
         qos = 2;
     }
     if(mid == 0) {
@@ -6782,7 +6777,7 @@ PRIVATE int handle__pubackcomp(hgobj gobj, gbuffer_t *gbuf, const char *type)
                 return rc;
             }
         }
-        if(type[3] == 'A') { /* pubAck or pubComp */
+        if(command == CMD_PUBACK) { /* pubAck or pubComp */
             if(reason_code != MQTT_RC_SUCCESS
                     && reason_code != MQTT_RC_NO_MATCHING_SUBSCRIBERS
                     && reason_code != MQTT_RC_UNSPECIFIED
@@ -6796,7 +6791,7 @@ PRIVATE int handle__pubackcomp(hgobj gobj, gbuffer_t *gbuf, const char *type)
                 gobj_log_error(gobj, 0,
                     "function",     "%s", __FUNCTION__,
                     "msgset",       "%s", MSGSET_MQTT_ERROR,
-                    "msg",          "%s", "Mqtt pubackcomp: bad reason code",
+                    "msg",          "%s", "Mqtt puback: bad reason code",
                     "client_id",    "%s", priv->client_id,
                     "reason_code",  "%d", reason_code,
                     NULL
@@ -6811,7 +6806,7 @@ PRIVATE int handle__pubackcomp(hgobj gobj, gbuffer_t *gbuf, const char *type)
                 gobj_log_error(gobj, 0,
                     "function",     "%s", __FUNCTION__,
                     "msgset",       "%s", MSGSET_MQTT_ERROR,
-                    "msg",          "%s", "Mqtt pubackcomp: bad reason code",
+                    "msg",          "%s", "Mqtt pubcomp: bad reason code",
                     "client_id",    "%s", priv->client_id,
                     "reason_code",  "%d", reason_code,
                     NULL
@@ -6835,14 +6830,23 @@ PRIVATE int handle__pubackcomp(hgobj gobj, gbuffer_t *gbuf, const char *type)
 
     if(priv->iamServer) {
         if(gobj_trace_level(gobj) & SHOW_DECODE) {
-            trace_msg0("  👈 Received %s, as %s, client '%s' (mid: %d, reason: %d '%s')",
-                type,
-                priv->iamServer? "server":"client",
-                SAFE_PRINT(priv->client_id),
-                mid,
-                reason_code,
-                mqtt_reason_string(reason_code)
-            );
+            if(command == CMD_PUBACK) {
+                trace_msg0("  👈 PUBACK, as %s, client '%s' (mid: %d, reason: %d '%s')",
+                    priv->iamServer? "server":"client",
+                    SAFE_PRINT(priv->client_id),
+                    mid,
+                    reason_code,
+                    mqtt_reason_string(reason_code)
+                );
+            } else {
+                trace_msg0("  👈 PUBCOMP, as %s, client '%s' (mid: %d, reason: %d '%s')",
+                    priv->iamServer? "server":"client",
+                    SAFE_PRINT(priv->client_id),
+                    mid,
+                    reason_code,
+                    mqtt_reason_string(reason_code)
+                );
+            }
         }
 
         /*
@@ -6856,14 +6860,23 @@ PRIVATE int handle__pubackcomp(hgobj gobj, gbuffer_t *gbuf, const char *type)
 
     } else {
         if(gobj_trace_level(gobj) & SHOW_DECODE) {
-            trace_msg0("  👈 Received %s, as %s, client %s (mid: %d, reason: %d '%s')",
-                type,
-                priv->iamServer? "server":"client",
-                SAFE_PRINT(priv->client_id),
-                mid,
-                reason_code,
-                mqtt_reason_string(reason_code)
-            );
+            if(command == CMD_PUBACK) {
+                trace_msg0("  👈 PUBACK, as %s, client %s (mid: %d, reason: %d '%s')",
+                    priv->iamServer? "server":"client",
+                    SAFE_PRINT(priv->client_id),
+                    mid,
+                    reason_code,
+                    mqtt_reason_string(reason_code)
+                );
+            } else {
+                trace_msg0("  👈 PUBCOMP, as %s, client %s (mid: %d, reason: %d '%s')",
+                    priv->iamServer? "server":"client",
+                    SAFE_PRINT(priv->client_id),
+                    mid,
+                    reason_code,
+                    mqtt_reason_string(reason_code)
+                );
+            }
         }
 
         rc = message__delete(gobj, mid, mosq_md_out, qos);
@@ -6999,7 +7012,7 @@ PRIVATE int handle__pubrec(hgobj gobj, gbuffer_t *gbuf)
 
     if(priv->iamServer) {
         if(gobj_trace_level(gobj) & SHOW_DECODE) {
-            trace_msg0("  👈 Received PUBREC, as %s, client '%s' (mid: %d, reason: %d '%s')",
+            trace_msg0("  👈 PUBREC, as %s, client '%s' (mid: %d, reason: %d '%s')",
                 priv->iamServer? "server":"client",
                 SAFE_PRINT(priv->client_id),
                 mid,
@@ -7016,7 +7029,7 @@ PRIVATE int handle__pubrec(hgobj gobj, gbuffer_t *gbuf)
 
     } else {
         if(gobj_trace_level(gobj) & SHOW_DECODE) {
-            trace_msg0("  👈 Received PUBREC, as %s, client %s (mid: %d, reason: %d '%s')",
+            trace_msg0("  👈 PUBREC, as %s, client %s (mid: %d, reason: %d '%s')",
                 priv->iamServer? "server":"client",
                 SAFE_PRINT(priv->client_id),
                 mid,
@@ -7160,7 +7173,7 @@ PRIVATE int handle__pubrel(hgobj gobj, gbuffer_t *gbuf)
          *          Broker
          *------------------------------------*/
         if(gobj_trace_level(gobj) & SHOW_DECODE) {
-            trace_msg0("  👈 Received PUBREL, as %s, client '%s' (mid: %d)",
+            trace_msg0("  👈 PUBREL, as %s, client '%s' (mid: %d)",
                 priv->iamServer? "server":"client",
                 SAFE_PRINT(priv->client_id),
                 mid
@@ -7185,7 +7198,7 @@ PRIVATE int handle__pubrel(hgobj gobj, gbuffer_t *gbuf)
          *          Client
          *------------------------------------*/
         if(gobj_trace_level(gobj) & SHOW_DECODE) {
-            trace_msg0("  👈 Received PUBREL, as %s, client %s (mid: %d)",
+            trace_msg0("  👈 PUBREL, as %s, client %s (mid: %d)",
                 priv->iamServer? "server":"client",
                 SAFE_PRINT(priv->client_id),
                 mid
@@ -7575,6 +7588,13 @@ PRIVATE int frame_completed(hgobj gobj, hgobj src)
         }
     }
 
+    if(gobj_trace_level(gobj) & SHOW_DECODE) {
+        trace_msg0("👈👈rx COMMAND COMPLETED '%s' (%d)",
+            mqtt_command_string(frame->command),
+            (int)frame->command
+        );
+    }
+
     int ret = 0;
 
     switch(frame->command) {
@@ -7653,10 +7673,10 @@ PRIVATE int frame_completed(hgobj gobj, hgobj src)
             break;
 
         case CMD_PUBACK:        // common to server/client
-            ret = handle__pubackcomp(gobj, gbuf, "PUBACK");
+            ret = handle__pubackcomp(gobj, gbuf, CMD_PUBACK);
             break;
         case CMD_PUBCOMP:       // common to server/client
-            ret = handle__pubackcomp(gobj, gbuf, "PUBCOMP");
+            ret = handle__pubackcomp(gobj, gbuf, CMD_PUBCOMP);
             break;
         case CMD_PUBREC:        // common to server/client
             ret = handle__pubrec(gobj, gbuf);
@@ -7890,10 +7910,9 @@ PRIVATE int ac_process_handshake(hgobj gobj, const char *event, json_t *kw, hgob
 
         if(frame->header_complete) {
             if(gobj_trace_level(gobj) & SHOW_DECODE) {
-                trace_msg0("👈👈rx HANDSHAKE COMMAND=%s (%d), FRAME_LEN=%d",
+                trace_msg0("👈👈rx COMMAND HANDSHAKE '%s' (%d)",
                     mqtt_command_string(frame->command),
-                    (int)frame->command,
-                    (int)frame->frame_length
+                    (int)frame->command
                 );
             }
 
@@ -8061,10 +8080,9 @@ PRIVATE int ac_process_frame_header(hgobj gobj, const char *event, json_t *kw, h
 
         if(frame->header_complete) {
             if(gobj_trace_level(gobj) & SHOW_DECODE) {
-                trace_msg0("👈👈rx SESSION COMMAND=%s (%d), FRAME_LEN=%d",
+                trace_msg0("👈👈rx COMMAND HEADER '%s' (%d)",
                     mqtt_command_string(frame->command),
-                    (int)frame->command,
-                    (int)frame->frame_length
+                    (int)frame->command
                 );
             }
             if(frame->frame_length) {
