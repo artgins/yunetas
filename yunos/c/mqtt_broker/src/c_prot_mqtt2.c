@@ -5338,6 +5338,7 @@ PRIVATE int handle__subscribe(hgobj gobj, gbuffer_t *gbuf)
                     "msgset",       "%s", MSGSET_MQTT_ERROR,
                     "msg",          "%s", "Mqtt subscribe: subscription_identifier == 0",
                     "client_id",    "%s", priv->client_id,
+                    "mid",          "%d", (int)mid,
                     NULL
                 );
                 JSON_DECREF(properties)
@@ -5369,6 +5370,7 @@ PRIVATE int handle__subscribe(hgobj gobj, gbuffer_t *gbuf)
                 "msgset",       "%s", MSGSET_MQTT_ERROR,
                 "msg",          "%s", "Mqtt subscribe: Empty subscription string",
                 "client_id",    "%s", priv->client_id,
+                "mid",          "%d", (int)mid,
                 NULL
             );
             JSON_DECREF(jn_list)
@@ -5381,6 +5383,7 @@ PRIVATE int handle__subscribe(hgobj gobj, gbuffer_t *gbuf)
                 "msgset",       "%s", MSGSET_MQTT_ERROR,
                 "msg",          "%s", "Mqtt subscribe: Invalid subscription string",
                 "client_id",    "%s", priv->client_id,
+                "mid",          "%d", (int)mid,
                 NULL
             );
             JSON_DECREF(jn_list)
@@ -5412,6 +5415,7 @@ PRIVATE int handle__subscribe(hgobj gobj, gbuffer_t *gbuf)
                     "msgset",       "%s", MSGSET_MQTT_ERROR,
                     "msg",          "%s", "Mqtt subscribe: Invalid subscription options 1",
                     "client_id",    "%s", priv->client_id,
+                    "mid",          "%d", (int)mid,
                     NULL
                 );
                 JSON_DECREF(jn_list)
@@ -5426,6 +5430,7 @@ PRIVATE int handle__subscribe(hgobj gobj, gbuffer_t *gbuf)
                     "msgset",       "%s", MSGSET_MQTT_ERROR,
                     "msg",          "%s", "Mqtt subscribe: Invalid subscription options 2",
                     "client_id",    "%s", priv->client_id,
+                    "mid",          "%d", (int)mid,
                     NULL
                 );
                 JSON_DECREF(jn_list)
@@ -5439,6 +5444,7 @@ PRIVATE int handle__subscribe(hgobj gobj, gbuffer_t *gbuf)
                 "msgset",       "%s", MSGSET_MQTT_ERROR,
                 "msg",          "%s", "Mqtt subscribe: Invalid QoS in subscription command",
                 "client_id",    "%s", priv->client_id,
+                "mid",          "%d", (int)mid,
                 NULL
             );
             JSON_DECREF(jn_list)
@@ -5459,11 +5465,12 @@ PRIVATE int handle__subscribe(hgobj gobj, gbuffer_t *gbuf)
         json_array_append_new(jn_list, jn_sub);
 
         if(gobj_trace_level(gobj) & SHOW_DECODE) {
-            trace_msg0("  👈 Received SUBSCRIBE, as %s, client '%s', topic '%s' (QoS %d)",
+            trace_msg0("  👈 Received SUBSCRIBE, as %s, client '%s', topic '%s' (QoS %d, mid %d)",
                 priv->iamServer? "server":"client",
                 SAFE_PRINT(priv->client_id),
                 sub,
-                qos
+                (int)qos,
+                (int)mid
             );
         }
     }
@@ -5476,6 +5483,7 @@ PRIVATE int handle__subscribe(hgobj gobj, gbuffer_t *gbuf)
                 "msgset",       "%s", MSGSET_MQTT_ERROR,
                 "msg",          "%s", "Mqtt subscribe: No subscriptions specified",
                 "client_id",    "%s", priv->client_id,
+                "mid",          "%d", (int)mid,
                 NULL
             );
             JSON_DECREF(jn_list)
@@ -5489,11 +5497,12 @@ PRIVATE int handle__subscribe(hgobj gobj, gbuffer_t *gbuf)
     gbuffer_t *gbuf_payload = gbuffer_create(256, 12*1024);
     gbuffer_incref(gbuf_payload); // Avoid be destroyed, get it the response
 
-    json_t *kw_subscribe = json_pack("{s:s, s:i, s:o, s:I}",
+    json_t *kw_subscribe = json_pack("{s:s, s:i, s:o, s:I, s:i}",
         "client_id", priv->client_id,
         "protocol_version", (int)priv->protocol_version,
         "subs", jn_list, // owned
-        "gbuffer", (json_int_t)(uintptr_t)gbuf_payload
+        "gbuffer", (json_int_t)(uintptr_t)gbuf_payload,
+        "mid", (int)mid
     );
 
     json_t *kw_iev = iev_create(
@@ -5548,10 +5557,11 @@ PRIVATE int send__suback(
     }
 
     if(gobj_trace_level(gobj) & SHOW_DECODE) {
-        trace_msg0("👉👉 Sending SUBACK as %s to '%s' %s",
+        trace_msg0("👉👉 Sending SUBACK as %s to '%s' %s (mid %d)",
             priv->iamServer?"broker":"client",
             priv->client_id,
-            gobj_short_name(gobj_bottom_gobj(gobj))
+            gobj_short_name(gobj_bottom_gobj(gobj)),
+            (int)mid
         );
         if(payloadlen > 0) {
             gobj_trace_dump_gbuf(gobj, gbuf_payload, "SUBACK payload");
@@ -5634,6 +5644,7 @@ PRIVATE int handle__unsubscribe(hgobj gobj, gbuffer_t *gbuf)
                 "msgset",       "%s", MSGSET_MQTT_ERROR,
                 "msg",          "%s", "Mqtt unsubscribe: no topic specified",
                 "client_id",    "%s", priv->client_id,
+                "mid",          "%d", (int)mid,
                 NULL
             );
             JSON_DECREF(properties)
@@ -5659,6 +5670,7 @@ PRIVATE int handle__unsubscribe(hgobj gobj, gbuffer_t *gbuf)
                 "msgset",       "%s", MSGSET_MQTT_ERROR,
                 "msg",          "%s", "Empty unsubscription string",
                 "client_id",    "%s", priv->client_id,
+                "mid",          "%d", (int)mid,
                 NULL
             );
             JSON_DECREF(jn_list)
@@ -5671,6 +5683,7 @@ PRIVATE int handle__unsubscribe(hgobj gobj, gbuffer_t *gbuf)
                 "msgset",       "%s", MSGSET_MQTT_ERROR,
                 "msg",          "%s", "Invalid unsubscription string",
                 "client_id",    "%s", priv->client_id,
+                "mid",          "%d", (int)mid,
                 NULL
             );
             JSON_DECREF(jn_list)
@@ -5679,10 +5692,11 @@ PRIVATE int handle__unsubscribe(hgobj gobj, gbuffer_t *gbuf)
         }
 
         if(gobj_trace_level(gobj) & SHOW_DECODE) {
-            trace_msg0("  👈 Received UNSUBSCRIBE, as %s, client '%s', topic '%s'",
+            trace_msg0("  👈 Received UNSUBSCRIBE, as %s, client '%s', topic '%s' (mid %d)",
                 priv->iamServer? "server":"client",
                 SAFE_PRINT(priv->client_id),
-                sub
+                sub,
+                (int)mid
             );
         }
 
@@ -5697,11 +5711,12 @@ PRIVATE int handle__unsubscribe(hgobj gobj, gbuffer_t *gbuf)
     gbuffer_t *gbuf_payload = gbuffer_create(256, 12*1024);
     gbuffer_incref(gbuf_payload); // Avoid be destroyed, get it the response
 
-    json_t *kw_unsubscribe = json_pack("{s:s, s:i, s:o, s:I}",
+    json_t *kw_unsubscribe = json_pack("{s:s, s:i, s:o, s:I, s:i}",
         "client_id", priv->client_id,
         "protocol_version", (int)priv->protocol_version,
         "subs", jn_list, // owned
-        "gbuffer", (json_int_t)(uintptr_t)gbuf_payload
+        "gbuffer", (json_int_t)(uintptr_t)gbuf_payload,
+        "mid", (int)mid
     );
 
     json_t *kw_iev = iev_create(
