@@ -67,12 +67,9 @@ PRIVATE int do_test(void)
      *-------------------------------------------------*/
     set_expected_results(
         "tr__check_tranger_startup", // test name
-        json_pack("[{s:s},{s:s},{s:s},{s:s},{s:s}]", // error's list
+        json_pack("[{s:s},{s:s}]", // error's list
             "msg", "Creating __timeranger2__.json",
-            "msg", "Creating topic",
-            "msg", "Creating topic_desc.json",
-            "msg", "Creating topic_cols.json",
-            "msg", "Creating topic_var.json"
+            "msg", "Creating topic"
         ),
         NULL,   // expected, NULL: we want to check only the logs
         NULL,   // ignore_keys

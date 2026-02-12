@@ -572,8 +572,8 @@ int main(int argc, char *argv[])
        "{s:s},{s:s},{s:s},{s:s},{s:s},{s:s},{s:s},{s:s},{s:s},{s:s},"
        "{s:s},{s:s},{s:s},{s:s},{s:s},{s:s},{s:s},{s:s},{s:s},{s:s}"
         "]",  // error_list
-        "msg", "Client: Connection Accepted",
         "msg", "Server: Listen Connection Accepted",
+        "msg", "Client: Connection Accepted",
         "msg", "client: send request 1",
         "msg", "ERROR <-- No message received in loop 1",
         "msg", "cannot start event: is RUNNING",

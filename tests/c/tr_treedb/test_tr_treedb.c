@@ -409,33 +409,13 @@ PRIVATE int do_test(void)
         const char *test = "open treedb";
 
         json_t *error_list = json_pack(
-            "[{s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}"
-            "{s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}"
-            "{s:s}, {s:s}, {s:s}, {s:s}]",
+            "[{s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}",
             "msg", "Creating topic",
-            "msg", "Creating topic_desc.json",
-            "msg", "Creating topic_cols.json",
-            "msg", "Creating topic_var.json",
             "msg", "Creating topic",
-            "msg", "Creating topic_desc.json",
-            "msg", "Creating topic_cols.json",
-            "msg", "Creating topic_var.json",
             "msg", "Creating topic",
-            "msg", "Creating topic_desc.json",
-            "msg", "Creating topic_cols.json",
-            "msg", "Creating topic_var.json",
             "msg", "Creating topic",
-            "msg", "Creating topic_desc.json",
-            "msg", "Creating topic_cols.json",
-            "msg", "Creating topic_var.json",
             "msg", "Creating topic",
-            "msg", "Creating topic_desc.json",
-            "msg", "Creating topic_cols.json",
-            "msg", "Creating topic_var.json",
-            "msg", "Creating topic",
-            "msg", "Creating topic_desc.json",
-            "msg", "Creating topic_cols.json",
-            "msg", "Creating topic_var.json"
+            "msg", "Creating topic"
         );
 
         set_expected_results( // Check that no logs happen

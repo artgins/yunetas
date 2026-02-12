@@ -218,24 +218,25 @@ static int register_yuno_and_more(void)
         "msg", "Starting yuno",
         "msg", "Listening...",
         "msg", "Playing yuno",
-        "msg", "Connected To",
         "msg", "Clisrv accepted",
         "msg", "Connected From",
+        "msg", "Connected To",
         "msg", "Disconnected To",
         "msg", "Disconnected From",
-        "msg", "Connected To",
         "msg", "Clisrv accepted",
         "msg", "Connected From",
+        "msg", "Connected To",
         "msg", "Disconnected To",
         "msg", "Disconnected From",
-        "msg", "Connected To",
         "msg", "Clisrv accepted",
         "msg", "Connected From",
+        "msg", "Connected To",
         "msg", "Disconnected To",
         "msg", "Exit to die",
         "msg", "Pausing yuno",
         "msg", "Yuno stopped, gobj end"
     );
+
     set_expected_results( // Check that no logs happen
         APP_NAME, // test name
         errors_list, // errors_list,

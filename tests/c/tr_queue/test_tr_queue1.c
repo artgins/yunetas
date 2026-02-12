@@ -50,12 +50,9 @@ static int test(tr_queue_t *trq_msgs, int caso)
             json_int_t initial_time = 946684799; // 1999-12-31T23:59:59+0000
             const char *key = "00001";
 
-            json_t *error_list = json_pack("[{s:s},{s:s},{s:s},{s:s},{s:s}]", // error's list
+            json_t *error_list = json_pack("[{s:s},{s:s}]", // error's list
                 "msg", "Backup timeranger topic, moving",
-                "msg", "Creating topic",
-                "msg", "Creating topic_desc.json",
-                "msg", "Creating topic_cols.json",
-                "msg", "Creating topic_var.json"
+                "msg", "Creating topic"
             );
 
             set_expected_results( // Check that no logs happen

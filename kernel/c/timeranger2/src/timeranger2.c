@@ -1356,14 +1356,14 @@ PUBLIC int tranger2_delete_topic(
         topic_name
     );
 
-    gobj_log_info(gobj, 0,
-        "function",     "%s", __FUNCTION__,
-        "msgset",       "%s", MSGSET_INFO,
-        "msg",          "%s", "Deleting topic",
-        "topic",        "%s", topic_name,
-        "directory",    "%s", directory,
-        NULL
-    );
+    // gobj_log_info(gobj, 0,
+    //     "function",     "%s", __FUNCTION__,
+    //     "msgset",       "%s", MSGSET_INFO,
+    //     "msg",          "%s", "Deleting topic",
+    //     "topic",        "%s", topic_name,
+    //     "directory",    "%s", directory,
+    //     NULL
+    // );
 
     /*
      *  Close topic
