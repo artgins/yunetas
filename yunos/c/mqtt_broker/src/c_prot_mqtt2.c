@@ -152,7 +152,7 @@ PRIVATE int send__disconnect(
     uint8_t reason_code,
     json_t *properties
 );
-PRIVATE void do_disconnect(hgobj gobj, int reason);
+PRIVATE void send_drop(hgobj gobj, int reason);
 PRIVATE uint16_t mqtt_mid_generate(hgobj gobj);
 
 /***************************************************************************
@@ -720,46 +720,61 @@ PRIVATE int open_queues(hgobj gobj)
 PRIVATE void close_queues(hgobj gobj)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
+    char queue_name[NAME_MAX];
 
-    EXEC_AND_RESET(tr2q_close, priv->trq_in_msgs);
-    EXEC_AND_RESET(tr2q_close, priv->trq_out_msgs);
+    if(priv->trq_in_msgs) {
+        printf("CLIENT_ID QUEUE CLOSE %s %s %s\n", priv->client_id, queue_name, gobj_full_name(gobj)); // TODO TEST
 
-    if(priv->clean_start) {
-        /*
-         *  Delete the queues if it's not a persistent session
-         */
-        char queue_name[NAME_MAX];
+        tr2q_close(priv->trq_in_msgs);
 
-        /*
-         *  Input messages
-         */
-        build_queue_name(
-            queue_name,
-            sizeof(queue_name),
-            priv->client_id,
-            mosq_md_in
-        );
+        if(priv->clean_start) {
+            /*
+             *  Delete the queues if it's not a persistent session
+             */
 
-printf("CLIENT_ID QUEUE CLOSE %s %s %s\n", priv->client_id, queue_name, gobj_full_name(gobj)); // TODO TEST
+            /*
+             *  Input messages
+             */
+            build_queue_name(
+                queue_name,
+                sizeof(queue_name),
+                priv->client_id,
+                mosq_md_in
+            );
 
-        tranger2_delete_topic(
-            priv->tranger_queues,
-            queue_name
-        );
+            tranger2_delete_topic(
+                priv->tranger_queues,
+                queue_name
+            );
+        }
 
-        /*
-         *  Output messages
-         */
-        build_queue_name(
-            queue_name,
-            sizeof(queue_name),
-            priv->client_id,
-            mosq_md_out
-        );
-        tranger2_delete_topic(
-            priv->tranger_queues,
-            queue_name
-        );
+        priv->trq_in_msgs = NULL;
+    }
+
+    if(priv->trq_out_msgs) {
+        tr2q_close(priv->trq_out_msgs);
+
+        if(priv->clean_start) {
+            /*
+             *  Delete the queues if it's not a persistent session
+             */
+
+            /*
+             *  Output messages
+             */
+            build_queue_name(
+                queue_name,
+                sizeof(queue_name),
+                priv->client_id,
+                mosq_md_out
+            );
+            tranger2_delete_topic(
+                priv->tranger_queues,
+                queue_name
+            );
+        }
+
+        priv->trq_out_msgs = NULL;
     }
 }
 
@@ -5205,7 +5220,7 @@ PRIVATE int handle__disconnect_s(hgobj gobj, gbuffer_t *gbuf)
 
     if(priv->protocol_version == mosq_p_mqtt311 || priv->protocol_version == mosq_p_mqtt5) {
         if(priv->frame_head.flags != 0x00) {
-            do_disconnect(gobj, MOSQ_ERR_PROTOCOL);
+            send_drop(gobj, MOSQ_ERR_PROTOCOL);
             return MOSQ_ERR_PROTOCOL;
         }
     }
@@ -5217,7 +5232,7 @@ PRIVATE int handle__disconnect_s(hgobj gobj, gbuffer_t *gbuf)
         //mosquitto__set_state(context, mosq_cs_disconnecting);
     }
 
-    do_disconnect(gobj, MOSQ_ERR_SUCCESS);
+    send_drop(gobj, MOSQ_ERR_SUCCESS);
     return 0;
 }
 
@@ -5259,8 +5274,7 @@ PRIVATE int handle__disconnect_c(hgobj gobj, gbuffer_t *gbuf)
         }
     }
 
-    /* TODO Free data and reset values */
-    do_disconnect(gobj, reason_code);
+    send_drop(gobj, reason_code);
     return 0;
 }
 
@@ -7215,24 +7229,8 @@ PRIVATE uint16_t mqtt_mid_generate(hgobj gobj)
 /***************************************************************************
  *
  ***************************************************************************/
-PRIVATE void do_disconnect(hgobj gobj, int reason)
+PRIVATE void send_drop(hgobj gobj, int reason) // old do_disconnect()
 {
-    PRIVATE_DATA *priv = gobj_priv_data(gobj);
-    if(priv->iamServer) {
-    }
-    // TODO
-    // context__send_will(context);
-    // if(context->session_expiry_interval == 0) {
-    //     /* Client session is due to be expired now */
-    //     if(context->will_delay_interval == 0) {
-    //         /* This will be done later, after the will is published for delay>0. */
-    //         context__add_to_disused(context);
-    //     }
-    // }else{
-    //     session_expiry__add(context);
-    // }
-    // keepalive__remove(context);
-
     gobj_send_event(gobj_bottom_gobj(gobj), EV_DROP, 0, gobj);
 }
 
@@ -7259,8 +7257,8 @@ PRIVATE void ws_close(hgobj gobj, int reason)
             }
         }
 
-        // sending event EV_DROP, case of event's feedback (EV_DISCONNECTED)
-        do_disconnect(gobj, reason);
+        // sending event EV_DROP, WARNING case of event's feedback (EV_DISCONNECTED)
+        send_drop(gobj, reason);
     }
 }
 
@@ -7824,9 +7822,6 @@ PRIVATE int ac_disconnected(hgobj gobj, const char *event, json_t *kw, hgobj src
     JSON_DECREF(priv->jn_alias_list)
     gobj_reset_volatil_attrs(gobj);
     restore_client_attributes(gobj);
-
-    // TODO new dl_flush(&priv->dl_msgs_in, db_free_client_msg);
-    // TODO new dl_flush(&priv->dl_msgs_out, db_free_client_msg);
 
     KW_DECREF(kw)
     return 0;
@@ -8848,7 +8843,22 @@ PRIVATE int ac_timeout_periodic(hgobj gobj, const char *event, json_t *kw, hgobj
  ***************************************************************************/
 PRIVATE int ac_drop(hgobj gobj, const char *event, json_t *kw, hgobj src)
 {
-    gobj_send_event(gobj_bottom_gobj(gobj), EV_DROP, 0, gobj);
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    /*
+     *  Session taken over by another connection with the same client_id.
+     *  WARNING The broker could have cleaned up the old session and created a new one.
+     */
+    BOOL session_take_over = kw_get_bool(gobj, kw, "session_take_over", 0, KW_REQUIRED);
+
+    int reason_code = 0;
+    if(session_take_over) {
+        reason_code = (priv->protocol_version == mosq_p_mqtt5)?MQTT_RC_SESSION_TAKEN_OVER:0;
+    } else {
+        close_queues(gobj);
+    }
+
+    ws_close(gobj, reason_code); // this send drop
 
     KW_DECREF(kw)
     return 0;
