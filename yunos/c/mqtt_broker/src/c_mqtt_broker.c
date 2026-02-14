@@ -2230,6 +2230,11 @@ PRIVATE int retain__queue(
                         "channel_gobj",
                         json_integer((json_int_t)(uintptr_t)_gobj_channel)
                     );
+
+                    trace_machine2("🔶🔷 ==> session '%s', topic '%s', qos %d, retain %d",
+                        client_id, retain_topic, msg_qos, 1
+                    ); // ♥🔵🔴💙🔷🔶
+
                     // Sending a retained message
                     gobj_send_event(priv->gobj_input_side, EV_SEND_MESSAGE, new_msg, gobj);
 
@@ -2921,7 +2926,9 @@ PRIVATE int subs__send(
         json_integer((json_int_t)(uintptr_t)_gobj_channel)
     );
 
-    trace_machine2("🔶🔷 ==> session '%s', topic '%s', retain %d", client_id, topic, retain); // ♥🔵🔴💙🔷🔶
+    trace_machine2("🔶🔷 ==> session '%s', topic '%s', qos %d, retain %d",
+        client_id, topic, qos, retain
+    ); // ♥🔵🔴💙🔷🔶
 
     // Sending a subscribed message
     gobj_send_event(priv->gobj_input_side, EV_SEND_MESSAGE, new_msg, gobj);
@@ -2946,6 +2953,7 @@ PRIVATE size_t sub__messages_queue(
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
     const char *topic = kw_get_str(gobj, kw_mqtt_msg, "topic", "", KW_REQUIRED);
     BOOL retain = kw_get_bool(gobj, kw_mqtt_msg, "retain", 0, KW_REQUIRED);
+    int qos = (int)kw_get_int(gobj, kw_mqtt_msg, "qos", 0, KW_REQUIRED);
 
     if(empty_string(topic)) {
         gobj_log_error(gobj, 0,
@@ -2994,8 +3002,18 @@ PRIVATE size_t sub__messages_queue(
     size_t total_sent = 0;
 
     if(gobj_trace_level(gobj) & TRACE_MESSAGES2) {
+        gbuffer_t *gbuf = (gbuffer_t *)(uintptr_t)kw_get_int(
+            gobj, kw_mqtt_msg, "gbuffer", 0, KW_REQUIRED
+        );
+        int msg_len = gbuf?(int)gbuffer_leftbytes(gbuf):0;
         const char *client_id = kw_get_str(gobj, kw_mqtt_msg, "client_id", "0", KW_REQUIRED);
-        trace_machine2("🔶🔶 <== session '%s', topic '%s', retain %d", client_id, topic, retain); // ♥🔵🔴💙🔷🔶
+        trace_machine2("🔶🔶 <== session '%s', topic '%s', msg_len %d, qos %d, retain %d",
+            client_id,
+            topic,
+            msg_len,
+            qos,
+            retain
+        ); // ♥🔵🔴💙🔷🔶
     }
 
     /*----------------------------------------------------*
