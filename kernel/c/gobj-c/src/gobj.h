@@ -2065,6 +2065,7 @@ PUBLIC int gobj_set_gobj_no_trace(hgobj gobj, const char *level, BOOL set);
 
 /*
  *  Machine trace
+ *  trace_machine2() is like trace_machine() but without printing time
  */
 PUBLIC void trace_machine(const char *fmt, ...) JANSSON_ATTRS((format(printf, 1, 2)));
 PUBLIC void trace_machine2(const char *fmt, ...) JANSSON_ATTRS((format(printf, 1, 2)));

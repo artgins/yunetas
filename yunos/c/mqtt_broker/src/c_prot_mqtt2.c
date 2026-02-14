@@ -8856,7 +8856,7 @@ PRIVATE int ac_timeout_periodic(hgobj gobj, const char *event, json_t *kw, hgobj
 
     if(priv->timeout_backup > 0 && test_sectimer(priv->t_backup)) {
 
-        debug_json2(priv->trq_in_msgs->topic, "CLIENT_ID QUEUE TOPIC %s %s", priv->client_id, gobj_full_name(gobj)); // TODO TEST
+        // debug_json2(priv->trq_in_msgs->topic, "CLIENT_ID QUEUE TOPIC %s %s", priv->client_id, gobj_full_name(gobj)); // TODO TEST
 
         if(priv->trq_in_msgs) {
             if(tr2q_inflight_size(priv->trq_in_msgs)==0) { // && priv->pending_acks==0) {
