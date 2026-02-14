@@ -141,10 +141,12 @@ SDATA_END()
  *      GClass trace levels
  *---------------------------------------------*/
 enum {
-    TRACE_MESSAGES = 0x0001,
+    TRACE_MESSAGES  = 0x0001,
+    TRACE_MESSAGES2 = 0x0002,
 };
 PRIVATE const trace_level_t s_user_trace_level[16] = {
 {"messages",        "Trace messages"},
+{"messages2",       "Trace messages more simple"},
 {0, 0},
 };
 
@@ -2919,6 +2921,8 @@ PRIVATE int subs__send(
         json_integer((json_int_t)(uintptr_t)_gobj_channel)
     );
 
+    trace_machine2("🔶🔷 ==> session '%s', topic '%s', retain %d", client_id, topic, retain); // ♥🔵🔴💙🔷🔶
+
     // Sending a subscribed message
     gobj_send_event(priv->gobj_input_side, EV_SEND_MESSAGE, new_msg, gobj);
 
@@ -2988,6 +2992,11 @@ PRIVATE size_t sub__messages_queue(
      *  Count the messages sent
      *---------------------------*/
     size_t total_sent = 0;
+
+    if(gobj_trace_level(gobj) & TRACE_MESSAGES2) {
+        const char *client_id = kw_get_str(gobj, kw_mqtt_msg, "client_id", "0", KW_REQUIRED);
+        trace_machine2("🔶🔶 <== session '%s', topic '%s', retain %d", client_id, topic, retain); // ♥🔵🔴💙🔷🔶
+    }
 
     /*----------------------------------------------------*
      *  Search in normal_subs (non-shared subscriptions)
@@ -3359,6 +3368,9 @@ PRIVATE int ac_on_open(hgobj gobj, const char *event, json_t *kw, hgobj src)
             /*-----------------------------------*
              *  Delete it if clean_start TRUE
              *-----------------------------------*/
+            if(gobj_trace_level(gobj) & TRACE_MESSAGES2) {
+                trace_machine2("🔴 session take over '%s', clean %d", client_id, clean_start); // ♥🔵🔴💙🔷🔶
+            }
             gobj_delete_node(
                 priv->gobj_treedb_mqtt_broker,
                 "sessions",
@@ -3366,7 +3378,6 @@ PRIVATE int ac_on_open(hgobj gobj, const char *event, json_t *kw, hgobj src)
                 json_pack("{s:b}", "force", 1),
                 gobj
             );
-            // TODO clean queues ???
             sub__remove_client(gobj, client_id);
         }
 
@@ -3412,6 +3423,10 @@ PRIVATE int ac_on_open(hgobj gobj, const char *event, json_t *kw, hgobj src)
      */
     uint16_t last_mid = (uint16_t)kw_get_int(gobj, session, "last_mid", 0, KW_REQUIRED);
     gobj_write_integer_attr(gobj_channel, "last_mid", last_mid);
+
+    if(gobj_trace_level(gobj) & TRACE_MESSAGES2) {
+        trace_machine2("🔵 session '%s', clean %d", client_id, clean_start); // ♥🔵🔴💙🔷🔶
+    }
 
     JSON_DECREF(session)
     JSON_DECREF(client)
@@ -3505,7 +3520,7 @@ PRIVATE int ac_on_close(hgobj gobj, const char *event, json_t *kw, hgobj src)
         KW_REQUIRED
     );
 
-    if(prev_gobj_channel != gobj_channel) { // TODO is necessary?
+    if(prev_gobj_channel != gobj_channel) {
         JSON_DECREF(session)
         JSON_DECREF(client)
         KW_DECREF(kw)
@@ -3519,6 +3534,10 @@ PRIVATE int ac_on_close(hgobj gobj, const char *event, json_t *kw, hgobj src)
         TRUE,
         KW_REQUIRED
     );
+
+    if(gobj_trace_level(gobj) & TRACE_MESSAGES2) {
+        trace_machine2("🔴 session '%s', clean %d", client_id, clean_start); // ♥🔵🔴💙🔷🔶
+    }
 
     /*-----------------------------------------*
      *  If not persistent session delete it
@@ -3683,6 +3702,10 @@ PRIVATE int ac_mqtt_subscribe(hgobj gobj, const char *event, json_t *kw, hgobj s
                 return -1;
             }
 
+            if(gobj_trace_level(gobj) & TRACE_MESSAGES2) {
+                trace_machine2("💙 session '%s', sub '%s'", client_id, sub); // ♥🔵🔴💙🔷🔶
+            }
+
             if(protocol_version == mosq_p_mqtt311 || protocol_version == mosq_p_mqtt31) {
                 retain__queue(gobj, client_id, sub, qos, 0);
             } else {
@@ -3764,6 +3787,10 @@ PRIVATE int ac_mqtt_unsubscribe(hgobj gobj, const char *event, json_t *kw, hgobj
         if(!allowed) {
             reason = MQTT_RC_NOT_AUTHORIZED;
         } else {
+            if(gobj_trace_level(gobj) & TRACE_MESSAGES2) {
+                trace_machine2("♥ session '%s', sub '%s'", client_id, sub); // ♥🔵🔴💙🔷🔶
+            }
+
             if(sub__remove(gobj, sub, client_id, &reason)<0) {
                 // Error already logged
                 KW_DECREF(kw);
@@ -3846,14 +3873,6 @@ PRIVATE int ac_mqtt_message(hgobj gobj, const char *event, json_t *kw, hgobj src
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
-    if(gobj_trace_level(gobj) & TRACE_MESSAGES) {
-        gobj_trace_json(
-            gobj,
-            kw, // not own
-            "MQTT_MESSAGE %s", gobj_short_name(src)
-        );
-    }
-
     if(src != priv->gobj_input_side) {
         gobj_log_error(gobj, 0,
            "function",     "%s", __FUNCTION__,
@@ -3864,6 +3883,14 @@ PRIVATE int ac_mqtt_message(hgobj gobj, const char *event, json_t *kw, hgobj src
        );
         KW_DECREF(kw);
         return -1;
+    }
+
+    if(gobj_trace_level(gobj) & TRACE_MESSAGES) {
+        gobj_trace_json(
+            gobj,
+            kw, // not own
+            "MQTT_MESSAGE %s", gobj_short_name(src)
+        );
     }
 
     /*-----------------------------------*

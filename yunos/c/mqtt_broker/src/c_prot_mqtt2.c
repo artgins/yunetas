@@ -677,7 +677,7 @@ PRIVATE int open_queues(hgobj gobj)
         mosq_md_in
     );
 
-    printf("CLIENT_ID QUEUE OPEN %s %s %s\n", priv->client_id, queue_name, gobj_full_name(gobj)); // TODO TEST
+    // printf("CLIENT_ID QUEUE OPEN %s %s %s\n", priv->client_id, queue_name, gobj_full_name(gobj)); // TODO TEST
 
     priv->trq_in_msgs = tr2q_open(
         priv->tranger_queues,
@@ -723,7 +723,7 @@ PRIVATE void close_queues(hgobj gobj)
     char queue_name[NAME_MAX];
 
     if(priv->trq_in_msgs) {
-        printf("CLIENT_ID QUEUE CLOSE %s %s %s\n", priv->client_id, queue_name, gobj_full_name(gobj)); // TODO TEST
+        // printf("CLIENT_ID QUEUE CLOSE %s %s %s\n", priv->client_id, queue_name, gobj_full_name(gobj)); // TODO TEST
 
         tr2q_close(priv->trq_in_msgs);
 
