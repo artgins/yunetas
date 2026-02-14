@@ -66,7 +66,7 @@ PRIVATE int yev_callback(yev_event_h yev_event)
 
                 yev_state_t yev_state = yev_get_state(yev_event);
                 if(yev_state == YEV_ST_IDLE) {
-                    msg = "Listen Connection Accepted";
+                    msg = "Connection Accepted";
                 } else if(yev_state == YEV_ST_STOPPED) {
                     msg = "Listen socket failed or stopped";
                 } else {

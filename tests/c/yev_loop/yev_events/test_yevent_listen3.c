@@ -68,7 +68,7 @@ PRIVATE int yev_callback(yev_event_h yev_event)
 
                 yev_state_t yev_state = yev_get_state(yev_event);
                 if(yev_state == YEV_ST_IDLE) {
-                    msg = "Listen Connection Accepted";
+                    msg = "Connection Accepted";
                 } else {
                     msg = "Listen socket failed or stopped";
                 }
@@ -241,7 +241,7 @@ int main(int argc, char *argv[])
     const char *test = APP;
     json_t *error_list = json_pack("[{s:s}, {s:s}]",  // error_list
         "msg", "closing the socket",
-        "msg", "Listen Connection Accepted"
+        "msg", "Connection Accepted"
     );
 
     set_expected_results( // Check that no logs happen
