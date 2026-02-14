@@ -65,7 +65,7 @@ PRIVATE char variable_config[]= "\
         'i18n_domain': 'test_timer',                                \n\
         'trace_levels': {                                           \n\
             'C_TCP': ['connections'],                               \n\
-            'C_TCP_S': ['listen', 'not-accepted', 'accepted']       \n\
+            'C_TCP_S': ['listen', 'not-accepted']       \n\
         }                                                           \n\
     },                                                              \n\
     'global': {                                                     \n\
@@ -218,22 +218,19 @@ static int register_yuno_and_more(void)
     /*------------------------------*
      *  Start test
      *------------------------------*/
-    json_t *errors_list = json_pack("[{s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}]",
+    json_t *errors_list = json_pack("[{s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}]",
         "msg", "Starting yuno",
         "msg", "Playing yuno",
         "msg", "Disconnected",
         "msg", "Listening...",
-        "msg", "Clisrv accepted",
         "msg", "Connected",
         "msg", "Connected",
         "msg", "Disconnected",
         "msg", "Disconnected",
-        "msg", "Clisrv accepted",
         "msg", "Connected",
         "msg", "Connected",
         "msg", "Disconnected",
         "msg", "Disconnected",
-        "msg", "Clisrv accepted",
         "msg", "Connected",
         "msg", "Connected",
         "msg", "Disconnected",

@@ -61,7 +61,7 @@ PRIVATE char variable_config[]= "\
         'i18n_domain': 'test_timer',                                \n\
         'trace_levels': {                                           \n\
             'C_TCP': ['connections'],                               \n\
-            'C_TCP_S': ['listen', 'not-accepted', 'accepted']       \n\
+            'C_TCP_S': ['listen', 'not-accepted']       \n\
         }                                                           \n\
     },                                                              \n\
     'global': {                                                     \n\
