@@ -413,7 +413,7 @@ PRIVATE int yev_client_callback(yev_event_h yev_event)
                     );
                     yev_start_event(yev_client_reader_msg);
 
-                    //msg = "Client: Connection Accepted";
+                    //msg = "Connection Accepted";
                     // Set connected
                     sskt_client = ytls_new_secure_filter(
                         ytls_client,

@@ -214,7 +214,7 @@ PRIVATE int yev_client_callback(yev_event_h yev_event)
         case YEV_CONNECT_TYPE:
             {
                 if(yev_state == YEV_ST_IDLE) {
-                    msg = "Client: Connection Accepted";
+                    msg = "Connection Accepted";
                 } else if(yev_state == YEV_ST_STOPPED) {
                     if(yev_get_result(yev_event) == -125) {
                         msg = "Client: Connect canceled";
@@ -538,7 +538,7 @@ int main(int argc, char *argv[])
      *--------------------------------*/
     const char *test = APP;
     json_t *error_list = json_pack("[{s:s}, {s:s}, {s:s}, {s:s}, {s:s}]",  // error_list
-        "msg", "Client: Connection Accepted",
+        "msg", "Connection Accepted",
         "msg", "client: send request",
         "msg", "Server: Message from the client",
         "msg", "Server: Tx ready",

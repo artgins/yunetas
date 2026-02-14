@@ -79,7 +79,7 @@ PRIVATE int yev_server_callback(yev_event_h yev_event)
         case YEV_ACCEPT_TYPE:
             {
                 if(yev_state == YEV_ST_IDLE) {
-                    msg = "Server: Listen Connection Accepted";
+                    msg = "Connection Accepted";
                     ret = 0; // re-arm
                 } else if(yev_state == YEV_ST_STOPPED) {
                     msg = "Server: Listen socket failed or stopped";
@@ -223,7 +223,7 @@ PRIVATE int yev_client_callback(yev_event_h yev_event)
         case YEV_CONNECT_TYPE:
             {
                 if(yev_state == YEV_ST_IDLE) {
-                    msg = "Client: Connection Accepted";
+                    msg = "Connection Accepted";
                 } else if(yev_state == YEV_ST_STOPPED) {
                     if(yev_get_result(yev_event) == -125) {
                         msg = "Client: Connect canceled";
@@ -572,8 +572,8 @@ int main(int argc, char *argv[])
        "{s:s},{s:s},{s:s},{s:s},{s:s},{s:s},{s:s},{s:s},{s:s},{s:s},"
        "{s:s},{s:s},{s:s},{s:s},{s:s},{s:s},{s:s},{s:s},{s:s},{s:s}"
         "]",  // error_list
-        "msg", "Server: Listen Connection Accepted",
-        "msg", "Client: Connection Accepted",
+        "msg", "Connection Accepted",
+        "msg", "Connection Accepted",
         "msg", "client: send request 1",
         "msg", "ERROR <-- No message received in loop 1",
         "msg", "cannot start event: is RUNNING",
