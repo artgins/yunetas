@@ -3835,11 +3835,8 @@ PRIVATE int send_command_with_mid(
     }
     if(priv->protocol_version == mosq_p_mqtt5) {
         if(reason_code != 0 || properties) {
-            remaining_length += 1;
-        }
-
-        if(properties) {
-            remaining_length += property__get_remaining_length(properties);
+            remaining_length += 1; // reason code byte
+            remaining_length += property__get_remaining_length(properties); // property length varint + properties
         }
     }
     gbuffer_t *gbuf = build_mqtt_packet(gobj, command, remaining_length);
@@ -3853,14 +3850,14 @@ PRIVATE int send_command_with_mid(
     if(priv->protocol_version == mosq_p_mqtt5) {
         if(reason_code != 0 || properties) {
             mqtt_write_byte(gbuf, reason_code);
-        }
-        if(property__write_all(gobj, gbuf, properties, TRUE)<0) {
-            gobj_log_error(gobj, 0,
-                "function",     "%s", __FUNCTION__,
-                "msgset",       "%s", MSGSET_INTERNAL_ERROR,
-                "msg",          "%s", "property__write_all() failed",
-                NULL
-            );
+            if(property__write_all(gobj, gbuf, properties, TRUE)<0) {
+                gobj_log_error(gobj, 0,
+                    "function",     "%s", __FUNCTION__,
+                    "msgset",       "%s", MSGSET_INTERNAL_ERROR,
+                    "msg",          "%s", "property__write_all() failed",
+                    NULL
+                );
+            }
         }
     }
 
