@@ -3619,16 +3619,43 @@ PRIVATE int ac_on_close(hgobj gobj, const char *event, json_t *kw, hgobj src)
         TRUE,
         KW_REQUIRED
     );
+    int protocol_version = (int)kw_get_int(
+        gobj,
+        session,
+        "protocol_version",
+        0,
+        KW_REQUIRED
+    );
+    uint32_t session_expiry_interval = (uint32_t)kw_get_int(
+        gobj,
+        session,
+        "session_expiry_interval",
+        0,
+        KW_REQUIRED
+    );
+
+    /*
+     *  Determine if session is temporary (should be deleted on close):
+     *  - MQTT 5.0: session is temporary if session_expiry_interval == 0
+     *    (clean_start only controls clearing old state at CONNECT time)
+     *  - MQTT 3.1.x: session is temporary if clean_start (clean_session) is set
+     */
+    BOOL session_is_temporary;
+    if(protocol_version == mosq_p_mqtt5) {
+        session_is_temporary = (session_expiry_interval == 0);
+    } else {
+        session_is_temporary = clean_start;
+    }
 
     if(gobj_trace_level(gobj) & TRACE_MESSAGES2) {
-        trace_machine2("🔴 session '%s', clean %d", client_id, clean_start); // ♥🔵🔴💙🔷🔶🔀💾
+        trace_machine2("🔴 session '%s', clean %d", client_id, session_is_temporary); // ♥🔵🔴💙🔷🔶🔀💾
     }
 
     /*-----------------------------------------*
      *  If not persistent session delete it
      *  and if it's dynamic client delete too
      *-----------------------------------------*/
-    if(clean_start) {
+    if(session_is_temporary) {
         /*
          *  Non-persistent session: send will before deleting session
          *
