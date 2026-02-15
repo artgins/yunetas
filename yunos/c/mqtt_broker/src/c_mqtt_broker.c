@@ -3115,7 +3115,7 @@ PRIVATE size_t sub__messages_queue(
         json_t *retains = gobj_list_nodes(
             priv->gobj_treedb_mqtt_broker,
             "retained_msgs",
-            kw_incref(kw_mqtt_msg),
+            json_incref(kw_mqtt_msg),
             NULL,
             gobj
         );

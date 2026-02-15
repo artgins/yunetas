@@ -746,7 +746,7 @@ PUBLIC int tr2q_list_msgs(tr2_queue_t *trq)
             gobj, msg->kw_record, "gbuffer", 0, KW_REQUIRED
         );
         int msg_len = gbuf?(int)gbuffer_leftbytes(gbuf):0;
-        trace_machine2("💾 INFLIGHT TR2Q, session '%s', topic '%s', qos %d, retain %d %s, msg_len %d",
+        trace_machine2("💾 TR2Q INFLIGHT, session '%s', topic '%s', qos %d, retain %d %s, msg_len %d",
             client_id,
             trq->topic_name,
             qos,
@@ -756,7 +756,7 @@ PUBLIC int tr2q_list_msgs(tr2_queue_t *trq)
         ); // ♥🔵🔴💙🔷🔶🔀💾
     }
     Q2MSG_FOREACH_FORWARD_QUEUED(trq, msg) {
-        trace_machine2("💾 QUEUED TR2Q, session '%s', topic '%s', qos %d, retain %d %s",
+        trace_machine2("💾 TR2Q QUEUED, session '%s', topic '%s', qos %d, retain %d %s",
             "",
             trq->topic_name,
             -1,
