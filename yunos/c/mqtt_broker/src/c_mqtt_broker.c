@@ -2846,7 +2846,7 @@ PRIVATE int subs__send(
     /*-----------------------*
      *  Create the message
      *-----------------------*/
-    json_t *properties = NULL;
+    json_t *properties = json_incref(kw_get_dict(gobj, kw_mqtt_msg, "properties", 0, 0));
     if(json_array_size(ids)) {
         // TODO
         // mosquitto_property_add_varint(
