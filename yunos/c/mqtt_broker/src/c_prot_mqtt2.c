@@ -373,6 +373,7 @@ typedef struct _PRIVATE_DATA {
     uint32_t will_delay_interval;
     uint32_t will_expiry_interval;
     gbuffer_t *gbuf_will_payload;
+    json_t *jn_will_properties;
     int out_packet_count;
 
     BOOL allow_duplicate_messages; // TODO
@@ -4218,7 +4219,14 @@ PRIVATE int will__read(
             JSON_DECREF(properties)
             return -1;
         };
-        JSON_DECREF(properties)
+        /*
+         *  Save will properties for forwarding with will message
+         *  (user properties, content-type, etc.)
+         *  Remove will-delay-interval as it's not a valid PUBLISH property
+         */
+        json_object_del(properties, "will-delay-interval");
+        JSON_DECREF(priv->jn_will_properties)
+        priv->jn_will_properties = properties; // owned
     }
     char *will_topic; uint16_t tlen;
     if((ret=mqtt_read_string(gobj, gbuf, &will_topic, &tlen))<0) {
@@ -4961,6 +4969,14 @@ PRIVATE int handle__connect(hgobj gobj, gbuffer_t *gbuf, hgobj src)
                 json_integer((json_int_t)(uintptr_t)priv->gbuf_will_payload)
             );
             priv->gbuf_will_payload = NULL;
+        }
+        if(priv->jn_will_properties && json_object_size(priv->jn_will_properties) > 0) {
+            json_object_set_new(
+                jn_will,
+                "will_properties",
+                priv->jn_will_properties
+            );
+            priv->jn_will_properties = NULL;
         }
         json_object_update_new(client, jn_will);
     }
@@ -7840,6 +7856,7 @@ PRIVATE int ac_connected(hgobj gobj, const char *event, json_t *kw, hgobj src)
 
     priv->send_disconnect = FALSE;
     GBUFFER_DECREF(priv->gbuf_will_payload);
+    JSON_DECREF(priv->jn_will_properties)
     priv->jn_alias_list = json_object();
 
     start_wait_handshake(gobj); // include the start of the timeout of handshake
@@ -7883,6 +7900,7 @@ PRIVATE int ac_disconnected(hgobj gobj, const char *event, json_t *kw, hgobj src
     }
 
     GBUFFER_DECREF(priv->gbuf_will_payload);
+    JSON_DECREF(priv->jn_will_properties)
 
     clear_timeout(priv->gobj_timer);
     clear_timeout(priv->gobj_timer_periodic);
@@ -8858,7 +8876,7 @@ PRIVATE int ac_timeout_periodic(hgobj gobj, const char *event, json_t *kw, hgobj
                     NULL
                 );
                 priv->timer_ping = 0;
-                ws_close(gobj, MOSQ_ERR_PROTOCOL);
+                ws_close(gobj, MQTT_RC_KEEP_ALIVE_TIMEOUT);
                 KW_DECREF(kw)
                 return 0;
             } else {
