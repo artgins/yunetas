@@ -693,9 +693,7 @@ PRIVATE int open_queues(hgobj gobj)
     if(gobj_trace_level(gobj) & MESSAGES2) {
         tr2q_set_verbose(priv->trq_in_msgs, TRUE);
     }
-    if(!priv->clean_start) {
-        tr2q_load(priv->trq_in_msgs);
-    }
+    tr2q_load(priv->trq_in_msgs);
 
     /*
      *  Output messages
@@ -719,9 +717,7 @@ PRIVATE int open_queues(hgobj gobj)
     if(gobj_trace_level(gobj) & MESSAGES2) {
         tr2q_set_verbose(priv->trq_out_msgs, TRUE);
     }
-    if(!priv->clean_start) {
-        tr2q_load(priv->trq_out_msgs);
-    }
+    tr2q_load(priv->trq_out_msgs);
 
     return 0;
 }

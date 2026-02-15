@@ -3039,11 +3039,12 @@ PRIVATE size_t sub__messages_queue(
      *---------------------------*/
     size_t total_sent = 0;
 
+    gbuffer_t *gbuf = (gbuffer_t *)(uintptr_t)kw_get_int(
+        gobj, kw_mqtt_msg, "gbuffer", 0, KW_REQUIRED
+    );
+    int msg_len = gbuf?(int)gbuffer_leftbytes(gbuf):0;
+
     if(gobj_trace_level(gobj) & TRACE_MESSAGES2) {
-        gbuffer_t *gbuf = (gbuffer_t *)(uintptr_t)kw_get_int(
-            gobj, kw_mqtt_msg, "gbuffer", 0, KW_REQUIRED
-        );
-        int msg_len = gbuf?(int)gbuffer_leftbytes(gbuf):0;
         const char *client_id = kw_get_str(gobj, kw_mqtt_msg, "client_id", "0", KW_REQUIRED);
         trace_machine2("🔶🔶 <== RECEIVE PUBLISH session '%s', topic '%s', qos %d, retain %d %s, msg_len %d",
             client_id,
@@ -3053,6 +3054,17 @@ PRIVATE size_t sub__messages_queue(
             retain?(msg_len?"🔀📘":"🔀📕"):"",
             msg_len
         ); // ♥🔵🔴💙🔷🔶🔀💾
+    }
+
+    /*--------------------------------------------------------------------*
+     *  A retain message with empty payload is only to clear the retain
+     *  store, don't forward to subscribers.
+     *--------------------------------------------------------------------*/
+    if(retain && msg_len == 0) {
+        retain__store(gobj, topic, kw_mqtt_msg);
+        GBMEM_FREE(local_topic)
+        GBMEM_FREE(levels)
+        return 0;
     }
 
     /*----------------------------------------------------*
@@ -3446,6 +3458,17 @@ PRIVATE int ac_on_open(hgobj gobj, const char *event, json_t *kw, hgobj src)
                 gobj
             );
             sub__remove_client(gobj, client_id);
+
+            /*-------------------------------------------*
+             *  Delete queued messages of prev session
+             *-------------------------------------------*/
+            if(priv->tranger_queues) {
+                char queue_name[NAME_MAX];
+                build_queue_name(queue_name, sizeof(queue_name), client_id, mosq_md_in);
+                tranger2_delete_topic(priv->tranger_queues, queue_name);
+                build_queue_name(queue_name, sizeof(queue_name), client_id, mosq_md_out);
+                tranger2_delete_topic(priv->tranger_queues, queue_name);
+            }
         }
 
         JSON_DECREF(session);
