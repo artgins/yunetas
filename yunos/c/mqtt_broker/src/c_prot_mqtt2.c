@@ -679,8 +679,6 @@ PRIVATE int open_queues(hgobj gobj)
         mosq_md_in
     );
 
-    // printf("CLIENT_ID QUEUE OPEN %s %s %s\n", priv->client_id, queue_name, gobj_full_name(gobj)); // TODO TEST
-
     priv->trq_in_msgs = tr2q_open(
         priv->tranger_queues,
         queue_name,
@@ -731,8 +729,6 @@ PRIVATE void close_queues(hgobj gobj)
     char queue_name[NAME_MAX];
 
     if(priv->trq_in_msgs) {
-        // printf("CLIENT_ID QUEUE CLOSE %s %s %s\n", priv->client_id, queue_name, gobj_full_name(gobj)); // TODO TEST
-
         tr2q_close(priv->trq_in_msgs);
 
         if(priv->clean_start) {
@@ -8873,9 +8869,6 @@ PRIVATE int ac_timeout_periodic(hgobj gobj, const char *event, json_t *kw, hgobj
     }
 
     if(priv->timeout_backup > 0 && test_sectimer(priv->t_backup)) {
-
-        // debug_json2(priv->trq_in_msgs->topic, "CLIENT_ID QUEUE TOPIC %s %s", priv->client_id, gobj_full_name(gobj)); // TODO TEST
-
         if(priv->trq_in_msgs) {
             if(tr2q_inflight_size(priv->trq_in_msgs)==0) { // && priv->pending_acks==0) {
                 // Check and do backup only when no message

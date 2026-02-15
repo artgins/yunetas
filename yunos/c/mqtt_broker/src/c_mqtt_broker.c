@@ -2375,7 +2375,6 @@ PRIVATE int retain__store(
      *----------------------------*/
     json_object_set_new(kw_mqtt_msg, "id", json_string(topic2disk));
     json_object_set_new(kw_mqtt_msg, "payload", gbuffer_serialize(gobj, gbuf));
-print_json("XXXXXXXXXX", kw_mqtt_msg);// TODO TEST
     json_t *retain_node = gobj_update_node(
         priv->gobj_treedb_mqtt_broker,
         "retained_msgs",
@@ -2383,7 +2382,6 @@ print_json("XXXXXXXXXX", kw_mqtt_msg);// TODO TEST
         json_pack("{s:b}", "create", 1),
         gobj
     );
-print_json("XXXXXXXXXX2", kw_mqtt_msg);// TODO TEST
 
     json_decref(retain_node);
 
@@ -3124,16 +3122,6 @@ PRIVATE size_t sub__messages_queue(
 
     if(retain) {
         retain__store(gobj, topic, kw_mqtt_msg);
-        // // TODO TEST
-        json_t *retains = gobj_list_nodes(
-            priv->gobj_treedb_mqtt_broker,
-            "retained_msgs",
-            NULL,
-            NULL,
-            gobj
-        );
-        print_json("LIST OF RETAINS", retains);
-        json_decref(retains);
     }
 
     GBMEM_FREE(local_topic)
