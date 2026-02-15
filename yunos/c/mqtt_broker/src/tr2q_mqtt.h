@@ -276,6 +276,11 @@ static inline uint64_t tr2q2_msg_time(q2_msg_t *msg)
 PUBLIC int tr2q_check_backup(tr2_queue_t *trq);
 
 /**
+    List messages
+*/
+PUBLIC int tr2q_list_msgs(tr2_queue_t *trq);
+
+/**
     Walk over instances
 */
 #define Q2MSG_FOREACH_FORWARD_INFLIGHT(trq, msg) \

@@ -323,7 +323,7 @@ PRIVATE int load_record_callback(
             (int)kw_get_int(gobj, jn_record, "qos", 0, KW_REQUIRED),
             retain,
             retain?"🔀🔀":""
-        ); // ♥🔵🔴💙🔷🔶
+        ); // ♥🔵🔴💙🔷🔶🔀💾
     }
 
     return 0;
@@ -725,6 +725,44 @@ PUBLIC int tr2q_check_backup(tr2_queue_t *trq)
             );
             tr2q_set_first_rowid(trq, 0);
         }
+    }
+
+    return 0;
+}
+
+/***************************************************************************
+    List messages
+ ***************************************************************************/
+PUBLIC int tr2q_list_msgs(tr2_queue_t *trq)
+{
+    hgobj gobj = (hgobj)json_integer_value(json_object_get(trq->tranger, "gobj"));
+    register q2_msg_t *msg;
+
+    Q2MSG_FOREACH_FORWARD_INFLIGHT(trq, msg) {
+        BOOL retain = kw_get_bool(gobj, msg->kw_record, "retain", 0, KW_REQUIRED);
+        int qos = (int)kw_get_int(gobj, msg->kw_record, "qos", 0, KW_REQUIRED);
+        const char *client_id = kw_get_str(gobj, msg->kw_record, "client_id", "0", KW_REQUIRED);
+        gbuffer_t *gbuf = (gbuffer_t *)(uintptr_t)kw_get_int(
+            gobj, msg->kw_record, "gbuffer", 0, KW_REQUIRED
+        );
+        int msg_len = gbuf?(int)gbuffer_leftbytes(gbuf):0;
+        trace_machine2("💾 INFLIGHT TR2Q, session '%s', topic '%s', qos %d, retain %d %s, msg_len %d",
+            client_id,
+            trq->topic_name,
+            qos,
+            retain,
+            retain?"🔀🔀":"",
+            msg_len
+        ); // ♥🔵🔴💙🔷🔶🔀💾
+    }
+    Q2MSG_FOREACH_FORWARD_QUEUED(trq, msg) {
+        trace_machine2("💾 QUEUED TR2Q, session '%s', topic '%s', qos %d, retain %d %s",
+            "",
+            trq->topic_name,
+            -1,
+            -1,
+            ""
+        ); // ♥🔵🔴💙🔷🔶🔀💾
     }
 
     return 0;

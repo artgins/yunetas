@@ -298,7 +298,7 @@ PRIVATE const trace_level_t s_user_trace_level[16] = {
 {"traffic",         "Trace input/output data (without payload"},
 {"show-decode",     "Print decode"},
 {"traffic-payload", "Trace payload data"},
-{"messages",        "Trace messages"},
+{"messages2",       "Trace messages more simple (with icons)"},
 {0, 0},
 };
 
@@ -3933,7 +3933,7 @@ PRIVATE int send__publish(
             qos,
             retain,
             retain?"🔀🔀":""
-        ); // ♥🔵🔴💙🔷🔶
+        ); // ♥🔵🔴💙🔷🔶🔀💾
     }
 
     unsigned int packetlen;

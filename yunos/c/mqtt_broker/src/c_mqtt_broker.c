@@ -146,7 +146,7 @@ enum {
 };
 PRIVATE const trace_level_t s_user_trace_level[16] = {
 {"messages",        "Trace messages"},
-{"messages2",       "Trace messages more simple"},
+{"messages2",       "Trace messages more simple (with icons)"},
 {0, 0},
 };
 
@@ -2231,13 +2231,15 @@ PRIVATE int retain__queue(
                         json_integer((json_int_t)(uintptr_t)_gobj_channel)
                     );
 
-                    trace_machine2("🔶🔷 ==> SEND RETAIN cause a subscription, session '%s', topic '%s', qos %d, retain %d %s",
-                        client_id,
-                        retain_topic,
-                        msg_qos,
-                        1,
-                        "🔀🔀" // 🔀📘📕
-                    ); // ♥🔵🔴💙🔷🔶
+                    if(gobj_trace_level(gobj) & TRACE_MESSAGES2) {
+                        trace_machine2("🔶🔷 ==> SEND RETAIN cause a subscription, session '%s', topic '%s', qos %d, retain %d %s",
+                            client_id,
+                            retain_topic,
+                            msg_qos,
+                            1,
+                            "🔀🔀"
+                        ); // ♥🔵🔴💙🔷🔶🔀💾
+                    }
 
                     // Sending a retained message
                     gobj_send_event(priv->gobj_input_side, EV_SEND_MESSAGE, new_msg, gobj);
@@ -2254,13 +2256,15 @@ PRIVATE int retain__queue(
                         mosq_md_out
                     );
 
-                    trace_machine2("🔶🔷 ==> SEND/SAVE RETAIN cause a subscription, session '%s', topic '%s', qos %d, retain %d %s",
-                        client_id,
-                        retain_topic,
-                        msg_qos,
-                        1,
-                        "🔀🔀💾💾" // 🔀📘📕
-                    ); // ♥🔵🔴💙🔷🔶
+                    if(gobj_trace_level(gobj) & TRACE_MESSAGES2) {
+                        trace_machine2("🔶🔷 ==> SEND/SAVE RETAIN cause a subscription, session '%s', topic '%s', qos %d, retain %d %s",
+                            client_id,
+                            retain_topic,
+                            msg_qos,
+                            1,
+                            "🔀🔀💾💾"
+                        ); // ♥🔵🔴💙🔷🔶🔀💾
+                    }
 
                     tr2_queue_t *trq_out_msgs = tr2q_open(
                         priv->tranger_queues,
@@ -2895,13 +2899,15 @@ PRIVATE int subs__send(
             mosq_md_out
         );
 
-        trace_machine2("🔶🔷 ==> SEND/SAVE SUBSCRIPTION session '%s', topic '%s', qos %d, retain %d %s",
-            client_id,
-            topic,
-            qos,
-            retain,
-            retain?"🔀🔀💾💾":""
-        ); // ♥🔵🔴💙🔷🔶
+        if(gobj_trace_level(gobj) & TRACE_MESSAGES2) {
+            trace_machine2("🔶🔷 ==> SEND/SAVE SUBSCRIPTION session '%s', topic '%s', qos %d, retain %d %s",
+                client_id,
+                topic,
+                qos,
+                retain,
+                retain?"🔀🔀💾💾":""
+            ); // ♥🔵🔴💙🔷🔶🔀💾
+        }
 
         tr2_queue_t *trq_out_msgs = tr2q_open(
             priv->tranger_queues,
@@ -2929,6 +2935,10 @@ PRIVATE int subs__send(
             user_flag       // extra flags in addition to TRQ_MSG_PENDING
         );
 
+        if(gobj_trace_level(gobj) & TRACE_MESSAGES2) {
+            tr2q_list_msgs(trq_out_msgs);
+        }
+
         tr2q_close(trq_out_msgs);
         JSON_DECREF(session)
         return 0;
@@ -2946,13 +2956,15 @@ PRIVATE int subs__send(
         json_integer((json_int_t)(uintptr_t)_gobj_channel)
     );
 
-    trace_machine2("🔶🔷 ==> SEND SUBSCRIPTION session '%s', topic '%s', qos %d, retain %d %s",
-        client_id,
-        topic,
-        qos,
-        retain,
-        retain?"🔀🔀":""
-    ); // ♥🔵🔴💙🔷🔶
+    if(gobj_trace_level(gobj) & TRACE_MESSAGES2) {
+        trace_machine2("🔶🔷 ==> SEND SUBSCRIPTION session '%s', topic '%s', qos %d, retain %d %s",
+            client_id,
+            topic,
+            qos,
+            retain,
+            retain?"🔀🔀":""
+        ); // ♥🔵🔴💙🔷🔶🔀💾
+    }
 
     // Sending a subscribed message
     gobj_send_event(priv->gobj_input_side, EV_SEND_MESSAGE, new_msg, gobj);
@@ -3038,7 +3050,7 @@ PRIVATE size_t sub__messages_queue(
             retain,
             retain?(msg_len?"🔀📘":"🔀📕"):"",
             msg_len
-        ); // ♥🔵🔴💙🔷🔶
+        ); // ♥🔵🔴💙🔷🔶🔀💾
     }
 
     /*----------------------------------------------------*
@@ -3423,7 +3435,7 @@ PRIVATE int ac_on_open(hgobj gobj, const char *event, json_t *kw, hgobj src)
              *  Delete it if clean_start TRUE
              *-----------------------------------*/
             if(gobj_trace_level(gobj) & TRACE_MESSAGES2) {
-                trace_machine2("🔴 session take over '%s', clean %d", client_id, clean_start); // ♥🔵🔴💙🔷🔶
+                trace_machine2("🔴 session take over '%s', clean %d", client_id, clean_start); // ♥🔵🔴💙🔷🔶🔀💾
             }
             gobj_delete_node(
                 priv->gobj_treedb_mqtt_broker,
@@ -3479,7 +3491,7 @@ PRIVATE int ac_on_open(hgobj gobj, const char *event, json_t *kw, hgobj src)
     gobj_write_integer_attr(gobj_channel, "last_mid", last_mid);
 
     if(gobj_trace_level(gobj) & TRACE_MESSAGES2) {
-        trace_machine2("🔵 session '%s', clean %d", client_id, clean_start); // ♥🔵🔴💙🔷🔶
+        trace_machine2("🔵 session '%s', clean %d", client_id, clean_start); // ♥🔵🔴💙🔷🔶🔀💾
     }
 
     JSON_DECREF(session)
@@ -3590,7 +3602,7 @@ PRIVATE int ac_on_close(hgobj gobj, const char *event, json_t *kw, hgobj src)
     );
 
     if(gobj_trace_level(gobj) & TRACE_MESSAGES2) {
-        trace_machine2("🔴 session '%s', clean %d", client_id, clean_start); // ♥🔵🔴💙🔷🔶
+        trace_machine2("🔴 session '%s', clean %d", client_id, clean_start); // ♥🔵🔴💙🔷🔶🔀💾
     }
 
     /*-----------------------------------------*
@@ -3757,7 +3769,7 @@ PRIVATE int ac_mqtt_subscribe(hgobj gobj, const char *event, json_t *kw, hgobj s
             }
 
             if(gobj_trace_level(gobj) & TRACE_MESSAGES2) {
-                trace_machine2("💙 session '%s', sub '%s'", client_id, sub); // ♥🔵🔴💙🔷🔶
+                trace_machine2("💙 session '%s', sub '%s'", client_id, sub); // ♥🔵🔴💙🔷🔶🔀💾
             }
 
             if(protocol_version == mosq_p_mqtt311 || protocol_version == mosq_p_mqtt31) {
@@ -3842,7 +3854,7 @@ PRIVATE int ac_mqtt_unsubscribe(hgobj gobj, const char *event, json_t *kw, hgobj
             reason = MQTT_RC_NOT_AUTHORIZED;
         } else {
             if(gobj_trace_level(gobj) & TRACE_MESSAGES2) {
-                trace_machine2("♥ session '%s', sub '%s'", client_id, sub); // ♥🔵🔴💙🔷🔶
+                trace_machine2("♥ session '%s', sub '%s'", client_id, sub); // ♥🔵🔴💙🔷🔶🔀💾
             }
 
             if(sub__remove(gobj, sub, client_id, &reason)<0) {
