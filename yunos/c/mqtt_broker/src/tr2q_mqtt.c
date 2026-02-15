@@ -24,6 +24,7 @@ PRIVATE int tr2q_set_hard_flag(q2_msg_t *msg, uint16_t hard_mark, BOOL set);
 /***************************************************************
  *              Data
  ***************************************************************/
+PRIVATE BOOL verbose = FALSE;
 
 /********************************************************************
  * String Functions
@@ -194,6 +195,14 @@ PUBLIC void tr2q_close(tr2_queue_t *trq)
 }
 
 /***************************************************************************
+    Set verbose
+ ***************************************************************************/
+PUBLIC void tr2q_set_verbose(tr2_queue_t *trq, BOOL verbose)
+{
+    trq->verbose = verbose;
+}
+
+/***************************************************************************
     Set first rowid to search
  ***************************************************************************/
 PRIVATE void tr2q_set_first_rowid(tr2_queue_t *trq, uint64_t first_rowid)
@@ -304,6 +313,18 @@ PRIVATE int load_record_callback(
     }
     uint16_t mid = kw_get_int(gobj, jn_record, "mid", 0, KW_REQUIRED);
     new_msg(trq, rowid, mid, md_record, jn_record);
+
+    if(trq->verbose) {
+        BOOL retain = (int)kw_get_bool(gobj, jn_record, "retain", 0, KW_REQUIRED);
+        trace_machine2("💾💾 ==> LOAD MSG queue %s, session '%s', topic '%s', qos %d, retain %d %s",
+            tranger2_topic_name(topic),
+            kw_get_str(gobj, jn_record, "client_id", "", KW_REQUIRED),
+            kw_get_str(gobj, jn_record, "topic", "", KW_REQUIRED),
+            (int)kw_get_int(gobj, jn_record, "qos", 0, KW_REQUIRED),
+            retain,
+            retain?"🔀🔀":""
+        ); // ♥🔵🔴💙🔷🔶
+    }
 
     return 0;
 }

@@ -29,6 +29,7 @@ typedef struct {
     dl_list_t dl_inflight;  // Queue with messages in memory (and in disk of course)
     dl_list_t dl_queued;    // Queue with messages in disk, avoiding overload of memory.
     uint64_t first_rowid;
+    BOOL verbose;
 } tr2_queue_t;
 
 typedef struct {
@@ -120,6 +121,11 @@ PUBLIC tr2_queue_t *tr2q_open(
     Close queue (After close the queue, remember to do tranger2_shutdown())
 */
 PUBLIC void tr2q_close(tr2_queue_t *trq);
+
+/**
+    Set verbose
+*/
+PUBLIC void tr2q_set_verbose(tr2_queue_t *trq, BOOL verbose);
 
 /**
     Append a new message to queue forcing t

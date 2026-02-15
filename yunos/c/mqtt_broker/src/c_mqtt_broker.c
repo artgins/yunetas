@@ -3209,7 +3209,7 @@ PRIVATE int ac_on_open(hgobj gobj, const char *event, json_t *kw, hgobj src)
         gobj_trace_json(
             gobj,
             kw, // not own
-            "ON_OPEN %s", gobj_short_name(src)
+            "ON OPEN %s", gobj_short_name(src)
         );
     }
 
@@ -3505,7 +3505,7 @@ PRIVATE int ac_on_close(hgobj gobj, const char *event, json_t *kw, hgobj src)
         gobj_trace_json(
             gobj,
             kw, // not own
-            "ON_CLOSE %s", gobj_short_name(src)
+            "ON CLOSE %s", gobj_short_name(src)
         );
     }
 
@@ -3683,7 +3683,7 @@ PRIVATE int ac_mqtt_subscribe(hgobj gobj, const char *event, json_t *kw, hgobj s
         gobj_trace_json(
             gobj,
             kw, // not own
-            "ON_MESSAGE %s", gobj_short_name(src)
+            "MQTT SUBSCRIBE %s", gobj_short_name(src)
         );
     }
 
@@ -3810,7 +3810,7 @@ PRIVATE int ac_mqtt_unsubscribe(hgobj gobj, const char *event, json_t *kw, hgobj
         gobj_trace_json(
             gobj,
             kw, // not own
-            "ON_MESSAGE %s", gobj_short_name(src)
+            "MQTT UNSUBSCRIBE %s", gobj_short_name(src)
         );
     }
 
@@ -3879,7 +3879,7 @@ PRIVATE int ac_on_message(hgobj gobj, const char *event, json_t *kw, hgobj src)
         gobj_trace_json(
             gobj,
             kw, // not own
-            "ON_MESSAGE %s", gobj_short_name(src)
+            "TOP MESSAGE %s", gobj_short_name(src)
         );
     }
 
@@ -3943,7 +3943,7 @@ PRIVATE int ac_mqtt_message(hgobj gobj, const char *event, json_t *kw, hgobj src
         gobj_trace_json(
             gobj,
             kw, // not own
-            "MQTT_MESSAGE %s", gobj_short_name(src)
+            "MQTT MESSAGE %s", gobj_short_name(src)
         );
     }
 

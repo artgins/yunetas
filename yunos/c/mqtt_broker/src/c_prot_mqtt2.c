@@ -292,11 +292,13 @@ enum {
     TRAFFIC                     = 0x0001,
     SHOW_DECODE                 = 0x0002,
     TRAFFIC_PAYLOAD             = 0x0004,
+    MESSAGES2                   = 0x0008,
 };
 PRIVATE const trace_level_t s_user_trace_level[16] = {
 {"traffic",         "Trace input/output data (without payload"},
 {"show-decode",     "Print decode"},
 {"traffic-payload", "Trace payload data"},
+{"messages",        "Trace messages"},
 {0, 0},
 };
 
@@ -688,6 +690,9 @@ PRIVATE int open_queues(hgobj gobj)
         gobj_read_integer_attr(gobj, "backup_queue_size")
     );
 
+    if(gobj_trace_level(gobj) & MESSAGES2) {
+        tr2q_set_verbose(priv->trq_in_msgs, TRUE);
+    }
     tr2q_load(priv->trq_in_msgs);
 
     /*
@@ -709,6 +714,9 @@ PRIVATE int open_queues(hgobj gobj)
         gobj_read_integer_attr(gobj, "backup_queue_size")
     );
 
+    if(gobj_trace_level(gobj) & MESSAGES2) {
+        tr2q_set_verbose(priv->trq_out_msgs, TRUE);
+    }
     tr2q_load(priv->trq_out_msgs);
 
     return 0;
@@ -3916,6 +3924,16 @@ PRIVATE int send__publish(
             retain,
             mid
         );
+    }
+
+    if(gobj_trace_level(gobj) & MESSAGES2) {
+        trace_machine2("🔶🔷🔷 ==> SEND PUBLISH, session '%s', topic '%s', qos %d, retain %d %s",
+            priv->client_id,
+            topic,
+            qos,
+            retain,
+            retain?"🔀🔀":""
+        ); // ♥🔵🔴💙🔷🔶
     }
 
     unsigned int packetlen;
