@@ -3428,7 +3428,7 @@ PRIVATE int ac_on_open(hgobj gobj, const char *event, json_t *kw, hgobj src)
             json_t *kw_disconnect = json_pack("{s:b}",
                 "session_take_over", !delete_prev_session
             );
-            gobj_send_event(prev_gobj_channel, EV_DROP, kw_disconnect, gobj);
+            gobj_send_event(prev_gobj_channel, EV_DROP, kw_disconnect, gobj); // will close queues
         }
 
         if(delete_prev_session) {
@@ -3449,8 +3449,9 @@ PRIVATE int ac_on_open(hgobj gobj, const char *event, json_t *kw, hgobj src)
 
             /*-------------------------------------------*
              *  Delete queued messages of prev session
+             *  if not connected
              *-------------------------------------------*/
-            if(priv->tranger_queues) {
+            if(priv->tranger_queues && !prev_gobj_channel) {
                 char queue_name[NAME_MAX];
                 build_queue_name(queue_name, sizeof(queue_name), client_id, mosq_md_in);
                 tranger2_delete_topic(priv->tranger_queues, queue_name);
