@@ -3407,11 +3407,6 @@ PRIVATE int ac_on_open(hgobj gobj, const char *event, json_t *kw, hgobj src)
             will__clear(gobj, session);
         }
 
-        /*
-         *  Clear will delay timer since session is being replaced
-         */
-        json_object_set_new(session, "will_delay_time", json_integer(0));
-
         BOOL delete_prev_session = TRUE;
 
         if(!clean_start) {
@@ -3421,6 +3416,7 @@ PRIVATE int ac_on_open(hgobj gobj, const char *event, json_t *kw, hgobj src)
             if(prev_session_expiry_interval > 0) {
                 /*
                  *  Check if session has expired since disconnect
+                 *  Read will_delay_time before it gets cleared below
                  */
                 json_int_t disconnect_time = kw_get_int(
                     gobj, session, "will_delay_time", 0, 0
@@ -3450,6 +3446,11 @@ PRIVATE int ac_on_open(hgobj gobj, const char *event, json_t *kw, hgobj src)
                 }
             }
         }
+
+        /*
+         *  Clear will delay timer since session is being replaced/reused
+         */
+        json_object_set_new(session, "will_delay_time", json_integer(0));
 
         /*
          *  Disconnect previous session before close session
