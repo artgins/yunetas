@@ -315,8 +315,10 @@ PRIVATE int load_record_callback(
     new_msg(trq, rowid, mid, md_record, jn_record);
 
     if(trq->verbose) {
+        static int x = 0;
+        x++;
         BOOL retain = (int)kw_get_bool(gobj, jn_record, "retain", 0, KW_REQUIRED);
-        trace_machine2("💾💾 ==> LOAD MSG queue %s, session '%s', topic '%s', qos %d, retain %d %s",
+        trace_machine2("💾💾 ==> LOAD MSG tr2q %s, session '%s', topic '%s', qos %d, retain %d %s",
             tranger2_topic_name(topic),
             kw_get_str(gobj, jn_record, "client_id", "", KW_REQUIRED),
             kw_get_str(gobj, jn_record, "topic", "", KW_REQUIRED),
@@ -324,6 +326,8 @@ PRIVATE int load_record_callback(
             retain,
             retain?"🔀🔀":""
         ); // ♥🔵🔴💙🔷🔶🔀💾
+        // if(x==4) {exit(0);}
+        print_json("💾💾 ==> LOAD MSG tr2q", jn_record);
     }
 
     return 0;
@@ -741,14 +745,15 @@ PUBLIC int tr2q_list_msgs(tr2_queue_t *trq)
     Q2MSG_FOREACH_FORWARD_INFLIGHT(trq, msg) {
         BOOL retain = kw_get_bool(gobj, msg->kw_record, "retain", 0, KW_REQUIRED);
         int qos = (int)kw_get_int(gobj, msg->kw_record, "qos", 0, KW_REQUIRED);
-        const char *client_id = kw_get_str(gobj, msg->kw_record, "client_id", "0", KW_REQUIRED);
+        const char *topic = kw_get_str(gobj, msg->kw_record, "topic", "", KW_REQUIRED);
+        const char *client_id = kw_get_str(gobj, msg->kw_record, "client_id", "", KW_REQUIRED);
         gbuffer_t *gbuf = (gbuffer_t *)(uintptr_t)kw_get_int(
             gobj, msg->kw_record, "gbuffer", 0, KW_REQUIRED
         );
         int msg_len = gbuf?(int)gbuffer_leftbytes(gbuf):0;
         trace_machine2("💾 TR2Q INFLIGHT, session '%s', topic '%s', qos %d, retain %d %s, msg_len %d",
             client_id,
-            trq->topic_name,
+            topic,
             qos,
             retain,
             retain?"🔀🔀":"",
