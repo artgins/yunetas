@@ -3419,10 +3419,34 @@ PRIVATE int ac_on_open(hgobj gobj, const char *event, json_t *kw, hgobj src)
              *      Reuse the session
              *-----------------------------------*/
             if(prev_session_expiry_interval > 0) {
-                // TODO check if prev_session_expiry_interval expired
-                if(protocol_version == mosq_p_mqtt311 || protocol_version == mosq_p_mqtt5) {
-                    result = 1; // ack=1 Resume existing session
-                    delete_prev_session = FALSE;
+                /*
+                 *  Check if session has expired since disconnect
+                 */
+                json_int_t disconnect_time = kw_get_int(
+                    gobj, session, "will_delay_time", 0, 0
+                );
+                time_t now;
+                time(&now);
+                BOOL session_expired = (disconnect_time > 0 &&
+                    (now - disconnect_time) >= prev_session_expiry_interval);
+
+                if(!session_expired) {
+                    if(protocol_version == mosq_p_mqtt311 || protocol_version == mosq_p_mqtt5) {
+                        result = 1; // ack=1 Resume existing session
+                        delete_prev_session = FALSE;
+                    }
+                } else {
+                    if(gobj_trace_level(gobj) & TRACE_MESSAGES) {
+                        gobj_log_info(gobj, 0,
+                            "function",     "%s", __FUNCTION__,
+                            "msgset",       "%s", MSGSET_INFO,
+                            "msg",          "%s", "Session expired",
+                            "client_id",    "%s", client_id,
+                            "elapsed",      "%ld", (long)(now - disconnect_time),
+                            "expiry",       "%ld", (long)prev_session_expiry_interval,
+                            NULL
+                        );
+                    }
                 }
             }
         }
@@ -3707,12 +3731,19 @@ PRIVATE int ac_on_close(hgobj gobj, const char *event, json_t *kw, hgobj src)
 
         if(gobj_channel == prev_gobj_channel) {
             /*
-             *  Save last_mid and mark session as disconnected
+             *  Save last_mid, disconnect time, and mark session as disconnected
              */
             uint16_t last_mid = (uint16_t)gobj_read_integer_attr(gobj_channel, "last_mid");
             json_object_set_new(session, "last_mid", json_integer(last_mid));
             json_object_set_new(session, "_gobj_channel", json_integer((json_int_t)0));
             json_object_set_new(session, "in_session", json_false());
+
+            /*
+             *  Store disconnect time for session expiry checking on reconnect
+             */
+            time_t t;
+            time(&t);
+            json_object_set_new(session, "will_delay_time", json_integer((json_int_t)t));
             json_decref(gobj_update_node(
                 priv->gobj_treedb_mqtt_broker,
                 "sessions",
