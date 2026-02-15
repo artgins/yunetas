@@ -2191,11 +2191,17 @@ PRIVATE int retain__queue(
 
             if(gbuf) {
                 /*
-                 *  Create properties with subscription identifier if present
+                 *  Retrieve stored properties and add subscription identifier if present
                  */
+                json_t *stored_props = kw_get_dict(gobj, retain, "properties", 0, 0);
                 json_t *properties = NULL;
+                if(stored_props && json_object_size(stored_props) > 0) {
+                    properties = json_deep_copy(stored_props);
+                }
                 if(subscription_identifier > 0) {
-                    properties = json_object();
+                    if(!properties) {
+                        properties = json_object();
+                    }
                     json_object_set_new(properties,
                         "subscription_identifier",
                         json_integer(subscription_identifier)
