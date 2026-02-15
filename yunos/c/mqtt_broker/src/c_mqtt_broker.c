@@ -3796,7 +3796,7 @@ PRIVATE int ac_mqtt_subscribe(hgobj gobj, const char *event, json_t *kw, hgobj s
         }
         if(!allowed) {
             if(protocol_version == mosq_p_mqtt5) {
-                reason = MQTT_RC_NOT_AUTHORIZED;
+                reason = MQTT_RC_UNSPECIFIED;
             } else if(protocol_version == mosq_p_mqtt311) {
                 reason = 0x80;
             }
