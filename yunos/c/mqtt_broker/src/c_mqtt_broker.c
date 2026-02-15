@@ -2203,7 +2203,7 @@ PRIVATE int retain__queue(
                         properties = json_object();
                     }
                     json_object_set_new(properties,
-                        "subscription_identifier",
+                        "subscription-identifier",
                         json_integer(subscription_identifier)
                     );
                 }

@@ -1758,9 +1758,18 @@ PRIVATE unsigned int property__get_length(const char *property_name, json_t *val
     size_t str_len = 0;
     unsigned long v = 0;
     const char *name = 0;
-    int identifier;
-    int type;
-    mosquitto_string_to_property_info(property_name, &identifier, &type);
+    int identifier = 0;
+    int type = 0;
+    if(mosquitto_string_to_property_info(property_name, &identifier, &type) < 0) {
+        // Not a standard property name; check if value has stored identifier/type (e.g. user properties)
+        if(json_is_object(value)) {
+            identifier = (int)kw_get_int(gobj, value, "identifier", 0, 0);
+            type = (int)kw_get_int(gobj, value, "type", 0, 0);
+        }
+        if(identifier == 0) {
+            return 0;
+        }
+    }
 
     if(json_is_object(value)) {
         name = kw_get_str(gobj, value, "name", "", KW_REQUIRED);
@@ -1768,18 +1777,14 @@ PRIVATE unsigned int property__get_length(const char *property_name, json_t *val
     }
 
     if(json_is_string(value)) {
-        if(strcmp(
-            property_name, mqtt_property_identifier_to_string(MQTT_PROP_CORRELATION_DATA))==0
-        ) {
+        if(identifier == MQTT_PROP_CORRELATION_DATA) {
             gbuffer_t *gbuf_correlation_data = 0;
             const char *b64 = json_string_value(value);
             gbuf_correlation_data = gbuffer_binary_to_base64(b64, strlen(b64));
             str_len += gbuffer_leftbytes(gbuf_correlation_data);
             GBUFFER_DECREF(gbuf_correlation_data);
 
-        } else if(strcmp(
-            property_name, mqtt_property_identifier_to_string(MQTT_PROP_USER_PROPERTY))==0
-        ) {
+        } else if(identifier == MQTT_PROP_USER_PROPERTY) {
             str_len += strlen(name);
             str_len += strlen(json_string_value(value));
 
@@ -2179,9 +2184,25 @@ PRIVATE int mqtt_write_string(gbuffer_t *gbuf, const char *str)
 PRIVATE int property__write(hgobj gobj, gbuffer_t *gbuf, const char *property_name, json_t *value_)
 {
     json_t *value;
-    int identifier;
-    int type;
-    mosquitto_string_to_property_info(property_name, &identifier, &type);
+    int identifier = 0;
+    int type = 0;
+    if(mosquitto_string_to_property_info(property_name, &identifier, &type) < 0) {
+        // Not a standard property name; check if value has stored identifier/type (e.g. user properties)
+        if(json_is_object(value_)) {
+            identifier = (int)kw_get_int(gobj, value_, "identifier", 0, 0);
+            type = (int)kw_get_int(gobj, value_, "type", 0, 0);
+        }
+        if(identifier == 0) {
+            gobj_log_error(gobj, 0,
+                "function",     "%s", __FUNCTION__,
+                "msgset",       "%s", MSGSET_MQTT_ERROR,
+                "msg",          "%s", "Mqtt unknown property",
+                "property",     "%s", property_name,
+                NULL
+            );
+            return -1;
+        }
+    }
 
     if(json_is_object(value_)) {
         value = kw_get_dict_value(gobj, value_, "value", 0, KW_REQUIRED);
