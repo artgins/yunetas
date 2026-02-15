@@ -2231,8 +2231,12 @@ PRIVATE int retain__queue(
                         json_integer((json_int_t)(uintptr_t)_gobj_channel)
                     );
 
-                    trace_machine2("🔶🔷 ==> session '%s', topic '%s', qos %d, retain %d",
-                        client_id, retain_topic, msg_qos, 1
+                    trace_machine2("🔶🔷 ==> SEND RETAIN cause a subscription, session '%s', topic '%s', qos %d, retain %d %s",
+                        client_id,
+                        retain_topic,
+                        msg_qos,
+                        1,
+                        "🔀🔀" // 🔀📘📕
                     ); // ♥🔵🔴💙🔷🔶
 
                     // Sending a retained message
@@ -2249,6 +2253,14 @@ PRIVATE int retain__queue(
                         client_id,
                         mosq_md_out
                     );
+
+                    trace_machine2("🔶🔷 ==> SEND/SAVE RETAIN cause a subscription, session '%s', topic '%s', qos %d, retain %d %s",
+                        client_id,
+                        retain_topic,
+                        msg_qos,
+                        1,
+                        "🔀🔀💾💾" // 🔀📘📕
+                    ); // ♥🔵🔴💙🔷🔶
 
                     tr2_queue_t *trq_out_msgs = tr2q_open(
                         priv->tranger_queues,
@@ -2883,6 +2895,14 @@ PRIVATE int subs__send(
             mosq_md_out
         );
 
+        trace_machine2("🔶🔷 ==> SEND/SAVE SUBSCRIPTION session '%s', topic '%s', qos %d, retain %d %s",
+            client_id,
+            topic,
+            qos,
+            retain,
+            retain?"🔀🔀💾💾":""
+        ); // ♥🔵🔴💙🔷🔶
+
         tr2_queue_t *trq_out_msgs = tr2q_open(
             priv->tranger_queues,
             queue_name,
@@ -2926,8 +2946,12 @@ PRIVATE int subs__send(
         json_integer((json_int_t)(uintptr_t)_gobj_channel)
     );
 
-    trace_machine2("🔶🔷 ==> session '%s', topic '%s', qos %d, retain %d",
-        client_id, topic, qos, retain
+    trace_machine2("🔶🔷 ==> SEND SUBSCRIPTION session '%s', topic '%s', qos %d, retain %d %s",
+        client_id,
+        topic,
+        qos,
+        retain,
+        retain?"🔀🔀":""
     ); // ♥🔵🔴💙🔷🔶
 
     // Sending a subscribed message
@@ -3007,12 +3031,13 @@ PRIVATE size_t sub__messages_queue(
         );
         int msg_len = gbuf?(int)gbuffer_leftbytes(gbuf):0;
         const char *client_id = kw_get_str(gobj, kw_mqtt_msg, "client_id", "0", KW_REQUIRED);
-        trace_machine2("🔶🔶 <== session '%s', topic '%s', msg_len %d, qos %d, retain %d",
+        trace_machine2("🔶🔶 <== RECEIVE PUBLISH session '%s', topic '%s', qos %d, retain %d %s, msg_len %d",
             client_id,
             topic,
-            msg_len,
             qos,
-            retain
+            retain,
+            retain?(msg_len?"🔀📘":"🔀📕"):"",
+            msg_len
         ); // ♥🔵🔴💙🔷🔶
     }
 
@@ -3073,6 +3098,17 @@ PRIVATE size_t sub__messages_queue(
 
     if(retain) {
         retain__store(gobj, topic, kw_mqtt_msg);
+
+        // TODO TEST
+        json_t *retains = gobj_list_nodes(
+            priv->gobj_treedb_mqtt_broker,
+            "retained_msgs",
+            kw_incref(kw_mqtt_msg),
+            NULL,
+            gobj
+        );
+        print_json("LIST OF RETAINS", retains);
+        json_decref(retains);
     }
 
     GBMEM_FREE(local_topic)
