@@ -2091,29 +2091,36 @@ PRIVATE int mqtt_property_add_string(
 /***************************************************************************
  *
  ***************************************************************************/
-PRIVATE void mqtt_write_byte(gbuffer_t *gbuf, uint8_t byte)
+PRIVATE int mqtt_write_byte(gbuffer_t *gbuf, uint8_t byte)
 {
-    gbuffer_append_char(gbuf, byte);
+    if(gbuffer_append_char(gbuf, byte) != 1) {
+        return -1;
+    }
+    return 0;
 }
 
 /***************************************************************************
  *
  ***************************************************************************/
-PRIVATE void mqtt_write_uint16(gbuffer_t *gbuf, uint16_t word)
+PRIVATE int mqtt_write_uint16(gbuffer_t *gbuf, uint16_t word)
 {
-    gbuffer_append_char(gbuf, MOSQ_MSB(word));
-    gbuffer_append_char(gbuf, MOSQ_LSB(word));
+    size_t ret = 0;
+    ret += gbuffer_append_char(gbuf, MOSQ_MSB(word));
+    ret += gbuffer_append_char(gbuf, MOSQ_LSB(word));
+    return (ret==2)?0:-1;
 }
 
 /***************************************************************************
  *
  ***************************************************************************/
-PRIVATE void mqtt_write_uint32(gbuffer_t *gbuf, uint32_t word)
+PRIVATE int mqtt_write_uint32(gbuffer_t *gbuf, uint32_t word)
 {
-    gbuffer_append_char(gbuf, (uint8_t)((word & 0xFF000000) >> 24));
-    gbuffer_append_char(gbuf, (uint8_t)((word & 0x00FF0000) >> 16));
-    gbuffer_append_char(gbuf, (uint8_t)((word & 0x0000FF00) >> 8));
-    gbuffer_append_char(gbuf, (uint8_t)((word & 0x000000FF)));
+    size_t ret = 0;
+    ret += gbuffer_append_char(gbuf, (uint8_t)((word & 0xFF000000) >> 24));
+    ret += gbuffer_append_char(gbuf, (uint8_t)((word & 0x00FF0000) >> 16));
+    ret += gbuffer_append_char(gbuf, (uint8_t)((word & 0x0000FF00) >> 8));
+    ret += gbuffer_append_char(gbuf, (uint8_t)((word & 0x000000FF)));
+    return (ret==4)?0:-1;
 }
 
 /***************************************************************************
@@ -2131,7 +2138,9 @@ PRIVATE int mqtt_write_varint(gbuffer_t *gbuf, uint32_t word)
         if(word > 0) {
             byte = byte | 0x80;
         }
-        mqtt_write_byte(gbuf, byte);
+        if(mqtt_write_byte(gbuf, byte)<0) {
+            return -1;
+        }
         count++;
     } while(word > 0 && count < 5);
 
@@ -2144,19 +2153,24 @@ PRIVATE int mqtt_write_varint(gbuffer_t *gbuf, uint32_t word)
 /***************************************************************************
  *
  ***************************************************************************/
-PRIVATE void mqtt_write_bytes(gbuffer_t *gbuf, const void *bytes, uint32_t count)
+PRIVATE int mqtt_write_bytes(gbuffer_t *gbuf, const void *bytes, uint32_t count)
 {
-    gbuffer_append(gbuf, (void *)bytes, count);
+    if(gbuffer_append(gbuf, (void *)bytes, count)!=count) {
+        return -1;
+    }
+    return 0;
 }
 
 /***************************************************************************
  *
  ***************************************************************************/
-PRIVATE void mqtt_write_string(gbuffer_t *gbuf, const char *str)
+PRIVATE int mqtt_write_string(gbuffer_t *gbuf, const char *str)
 {
+    size_t ret = 0;
     uint16_t length = strlen(str);
-    mqtt_write_uint16(gbuf, length);
-    mqtt_write_bytes(gbuf, str, length);
+    ret += mqtt_write_uint16(gbuf, length);
+    ret += mqtt_write_bytes(gbuf, str, length);
+    return (ret==(length+2))?0:-1;
 }
 
 /***************************************************************************
@@ -2260,16 +2274,17 @@ PRIVATE int property__write_all(
     json_t *props, // not owned
     BOOL write_len
 ) {
+    int ret = 0;
     if(write_len) {
-        mqtt_write_varint(gbuf, property__get_length_all(props));
+        ret = mqtt_write_varint(gbuf, property__get_length_all(props));
     }
 
     const char *property_name; json_t *value;
     json_object_foreach(props, property_name, value) {
-        property__write(gobj, gbuf, property_name, value);
+        ret += property__write(gobj, gbuf, property_name, value);
     }
 
-    return 0;
+    return ret;
 }
 
 /***************************************************************************
@@ -3839,7 +3854,14 @@ PRIVATE int send_command_with_mid(
         if(reason_code != 0 || properties) {
             mqtt_write_byte(gbuf, reason_code);
         }
-        property__write_all(gobj, gbuf, properties, TRUE);
+        if(property__write_all(gobj, gbuf, properties, TRUE)<0) {
+            gobj_log_error(gobj, 0,
+                "function",     "%s", __FUNCTION__,
+                "msgset",       "%s", MSGSET_INTERNAL_ERROR,
+                "msg",          "%s", "property__write_all() failed",
+                NULL
+            );
+        }
     }
 
     JSON_DECREF(properties)
