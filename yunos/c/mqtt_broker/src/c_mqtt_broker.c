@@ -3660,6 +3660,22 @@ PRIVATE int ac_on_close(hgobj gobj, const char *event, json_t *kw, hgobj src)
     );
 
     /*
+     *  MQTT 5.0: DISCONNECT packet may override session_expiry_interval.
+     *  Read the current value from the channel (protocol layer) which
+     *  reflects any DISCONNECT property updates, and sync to session.
+     */
+    if(protocol_version == mosq_p_mqtt5) {
+        uint32_t channel_session_expiry = (uint32_t)gobj_read_integer_attr(
+            gobj_channel, "session_expiry_interval"
+        );
+        if(channel_session_expiry != session_expiry_interval) {
+            session_expiry_interval = channel_session_expiry;
+            json_object_set_new(session, "session_expiry_interval",
+                json_integer(session_expiry_interval));
+        }
+    }
+
+    /*
      *  Determine if session is temporary (should be deleted on close):
      *  - MQTT 5.0: session is temporary if session_expiry_interval == 0
      *    (clean_start only controls clearing old state at CONNECT time)

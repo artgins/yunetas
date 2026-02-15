@@ -5274,6 +5274,7 @@ PRIVATE int handle__disconnect_s(hgobj gobj, gbuffer_t *gbuf)
                 return MOSQ_ERR_PROTOCOL;
             }
             priv->session_expiry_interval = session_expiry_interval;
+            gobj_write_integer_attr(gobj, "session_expiry_interval", session_expiry_interval);
         }
         JSON_DECREF(properties)
     }
