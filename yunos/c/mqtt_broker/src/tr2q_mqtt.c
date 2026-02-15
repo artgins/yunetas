@@ -327,7 +327,7 @@ PRIVATE int load_record_callback(
             retain?"🔀🔀":""
         ); // ♥🔵🔴💙🔷🔶🔀💾
         // if(x==4) {exit(0);}
-        print_json("💾💾 ==> LOAD MSG tr2q", jn_record);
+        gobj_trace_json(gobj, jn_record, "💾💾 ==> LOAD MSG tr2q");
     }
 
     return 0;
