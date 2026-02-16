@@ -2861,14 +2861,18 @@ PRIVATE int subs__send(
     /*-----------------------*
      *  Create the message
      *-----------------------*/
-    json_t *properties = json_incref(kw_get_dict(gobj, kw_mqtt_msg, "properties", 0, 0));
+    json_t *properties;
     if(json_array_size(ids)) {
-        // TODO
-        // mosquitto_property_add_varint(
-        //     &properties,
-        //     MQTT_PROP_SUBSCRIPTION_IDENTIFIER,
-        //     leaf->identifier
-        // );
+        /*
+         *  Copy properties and add subscription identifiers
+         *  [MQTT-3.3.4-3] Each subscriber may have different subscription IDs,
+         *  so we must make a copy before adding them.
+         */
+        json_t *orig_properties = kw_get_dict(gobj, kw_mqtt_msg, "properties", 0, 0);
+        properties = orig_properties ? json_copy(orig_properties) : json_object();
+        json_object_set(properties, "subscription-identifier", ids);
+    } else {
+        properties = json_incref(kw_get_dict(gobj, kw_mqtt_msg, "properties", 0, 0));
     }
 
     /*

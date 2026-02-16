@@ -1856,8 +1856,22 @@ PRIVATE unsigned int property__get_length(const char *property_name, json_t *val
         case MQTT_PROP_SESSION_EXPIRY_INTERVAL:
             return 5; /* 1 (identifier) + 4 bytes */
 
-        /* varint */
+        /* varint - may be an array when multiple subscription IDs match */
         case MQTT_PROP_SUBSCRIPTION_IDENTIFIER:
+            if(json_is_array(value)) {
+                unsigned int total = 0;
+                size_t idx;
+                json_t *item;
+                json_array_foreach(value, idx, item) {
+                    json_int_t id_val = json_integer_value(item);
+                    total += 1; /* identifier byte */
+                    if(id_val < 128) total += 1;
+                    else if(id_val < 16384) total += 2;
+                    else if(id_val < 2097152) total += 3;
+                    else if(id_val < 268435456) total += 4;
+                }
+                return total;
+            }
             if(v < 128) {
                 return 2;
             } else if(v < 16384) {
@@ -2273,6 +2287,19 @@ PRIVATE int property__write(hgobj gobj, gbuffer_t *gbuf, const char *property_na
             break;
 
         case MQTT_PROP_SUBSCRIPTION_IDENTIFIER:
+            if(json_is_array(value_)) {
+                /* Multiple subscription identifiers: write each as a separate property */
+                int ret = 0;
+                size_t idx;
+                json_t *item;
+                json_array_foreach(value_, idx, item) {
+                    if(idx > 0) {
+                        ret += mqtt_write_varint(gbuf, identifier);
+                    }
+                    ret += mqtt_write_varint(gbuf, json_integer_value(item));
+                }
+                return ret;
+            }
             return mqtt_write_varint(gbuf, json_integer_value(value));
 
         case MQTT_PROP_CONTENT_TYPE:
