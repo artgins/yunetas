@@ -2803,6 +2803,20 @@ PRIVATE int subs__send(
     uint8_t client_qos = (int)kw_get_int(gobj, sub, "qos", 0, KW_REQUIRED);
     json_t *ids = kw_get_list(gobj, sub, "ids", 0, 0); // TODO don't save ids if no id, save mem/perf
 
+    /*-------------------------------------------------*
+     *  [MQTT-3.8.3-3] noLocal: if set, the Server
+     *  MUST NOT forward messages to a connection
+     *  with a ClientID equal to the publishing one
+     *-------------------------------------------------*/
+    if(options & MQTT_SUB_OPT_NO_LOCAL) {
+        const char *publisher_client_id = kw_get_str(
+            gobj, kw_mqtt_msg, "client_id", "", KW_REQUIRED
+        );
+        if(strcmp(client_id, publisher_client_id) == 0) {
+            return 0; // Skip: noLocal prevents self-delivery
+        }
+    }
+
     /*------------------------------*
      *  Check for ACL topic access
      *------------------------------*/
