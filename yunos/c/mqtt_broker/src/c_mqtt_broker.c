@@ -3765,7 +3765,7 @@ PRIVATE int ac_on_close(hgobj gobj, const char *event, json_t *kw, hgobj src)
                 priv->gobj_treedb_mqtt_broker,
                 "sessions",
                 json_incref(session),  // owned
-                json_pack("{s:b}", "volatil", 1),
+                json_pack("{}"),
                 gobj
             ));
         }
