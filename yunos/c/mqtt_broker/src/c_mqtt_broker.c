@@ -2813,6 +2813,7 @@ PRIVATE int subs__send(
             gobj, kw_mqtt_msg, "client_id", "", KW_REQUIRED
         );
         if(strcmp(client_id, publisher_client_id) == 0) {
+            JSON_DECREF(session)
             return 0; // Skip: noLocal prevents self-delivery
         }
     }
