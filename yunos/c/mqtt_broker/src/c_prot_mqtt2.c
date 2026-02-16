@@ -326,7 +326,10 @@ typedef struct _PRIVATE_DATA {
     FRAME_HEAD message_head;
 
     BOOL inform_on_close;
-    json_t *jn_alias_list;
+    json_t *jn_alias_list;              // client-to-server topic alias map (alias_id -> topic)
+    json_t *jn_outgoing_alias_map;      // server-to-client topic alias map (topic -> alias_id)
+    int client_topic_alias_max;         // max topic aliases the client accepts (from CONNECT)
+    int next_outgoing_alias;            // next alias number to assign for server-to-client
 
     json_t *tranger_queues;
     tr2_queue_t *trq_in_msgs;
@@ -3353,6 +3356,14 @@ PRIVATE int property_process_connect(hgobj gobj, json_t *all_properties)
                     gobj_write_str_attr(gobj, "auth_data", value);
                 }
                 break;
+
+            case MQTT_PROP_TOPIC_ALIAS_MAXIMUM:
+                {
+                    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+                    json_int_t value = kw_get_int(gobj, property, "value", 0, KW_REQUIRED);
+                    priv->client_topic_alias_max = (int)value;
+                }
+                break;
         }
     }
 
@@ -4049,6 +4060,8 @@ PRIVATE int send__publish(
     if(qos > 0) {
         packetlen += 2; /* For message id */
     }
+    json_t *topic_alias_prop = NULL;
+
     if(priv->protocol_version == mosq_p_mqtt5) {
         proplen = 0;
         /*
@@ -4068,6 +4081,33 @@ PRIVATE int send__publish(
             );
             // expiry_prop.client_generated = FALSE;
             proplen += property__get_length_all(expiry_prop);
+        }
+
+        /*
+         *  Server-to-client topic alias: assign alias when client supports it
+         */
+        if(priv->iamServer && topic && priv->client_topic_alias_max > 0) {
+            json_t *jn_existing = json_object_get(priv->jn_outgoing_alias_map, topic);
+            if(jn_existing) {
+                /*
+                 *  Topic already has an alias assigned, use it
+                 */
+                int alias_id = (int)json_integer_value(jn_existing);
+                topic_alias_prop = json_object();
+                mqtt_property_add_int16(gobj, topic_alias_prop, MQTT_PROP_TOPIC_ALIAS, alias_id);
+                proplen += property__get_length_all(topic_alias_prop);
+            } else if(priv->next_outgoing_alias <= priv->client_topic_alias_max) {
+                /*
+                 *  Assign a new alias for this topic
+                 */
+                int alias_id = priv->next_outgoing_alias++;
+                json_object_set_new(
+                    priv->jn_outgoing_alias_map, topic, json_integer(alias_id)
+                );
+                topic_alias_prop = json_object();
+                mqtt_property_add_int16(gobj, topic_alias_prop, MQTT_PROP_TOPIC_ALIAS, alias_id);
+                proplen += property__get_length_all(topic_alias_prop);
+            }
         }
 
         varbytes = packet__varint_bytes(proplen);
@@ -4121,8 +4161,12 @@ PRIVATE int send__publish(
         if(expiry_interval > 0) {
             property__write_all(gobj, gbuf, expiry_prop, FALSE);
         }
+        if(topic_alias_prop) {
+            property__write_all(gobj, gbuf, topic_alias_prop, FALSE);
+        }
     }
     JSON_DECREF(expiry_prop);
+    JSON_DECREF(topic_alias_prop);
 
     /* Payload */
     if(payloadlen) {
@@ -7937,6 +7981,10 @@ PRIVATE int ac_connected(hgobj gobj, const char *event, json_t *kw, hgobj src)
     GBUFFER_DECREF(priv->gbuf_will_payload);
     JSON_DECREF(priv->jn_will_properties)
     priv->jn_alias_list = json_object();
+    JSON_DECREF(priv->jn_outgoing_alias_map)
+    priv->jn_outgoing_alias_map = json_object();
+    priv->client_topic_alias_max = 0;
+    priv->next_outgoing_alias = 1;
 
     start_wait_handshake(gobj); // include the start of the timeout of handshake
 
@@ -8015,6 +8063,7 @@ PRIVATE int ac_disconnected(hgobj gobj, const char *event, json_t *kw, hgobj src
     }
 
     JSON_DECREF(priv->jn_alias_list)
+    JSON_DECREF(priv->jn_outgoing_alias_map)
     gobj_reset_volatil_attrs(gobj);
     restore_client_attributes(gobj);
 
