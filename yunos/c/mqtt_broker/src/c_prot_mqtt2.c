@@ -6183,7 +6183,7 @@ PRIVATE int handle__publish_s(
         // Error already logged
         return MOSQ_ERR_MALFORMED_PACKET;
     }
-    char *topic = gbmem_strndup(topic_, slen);
+    char *topic = (slen > 0) ? gbmem_strndup(topic_, slen) : NULL;
 
     if(!slen && priv->protocol_version != mosq_p_mqtt5) {
         /* Invalid publish topic, disconnect client. */
@@ -6275,32 +6275,41 @@ PRIVATE int handle__publish_s(
         JSON_DECREF(properties)
         return MOSQ_ERR_TOPIC_ALIAS_INVALID;
     } else if(topic_alias > 0) {
+        char alias_key[16];
+        snprintf(alias_key, sizeof(alias_key), "%d", topic_alias);
+
         if(topic) {
-            // TODO
-            // rc = alias__add(context, msg->topic, (uint16_t)topic_alias);
-            // if(rc) {
-            // GBMEM_FREE(topic)
-        // JSON_DECREF(properties)
-            //     return rc;
-            // }
+            /*
+             *  Topic present with alias: create/update the alias mapping
+             */
+            json_object_set_new(priv->jn_alias_list, alias_key, json_string(topic));
         } else {
-            // TODO
-            // rc = alias__find(context, &msg->topic, (uint16_t)topic_alias);
-            // if(rc) {
-            //     gobj_log_error(gobj, 0,
-            //         "function",         "%s", __FUNCTION__,
-            //         "msgset",           "%s", MSGSET_MQTT_ERROR,
-            //         "msg",              "%s", "Mqtt: topic alias NOT FOUND",
-            //         "client_id",        "%s", priv->client_id,
-            //         "max_topic_alias",  "%d", priv->max_topic_alias,
-            //         "topic_alias",      "%d", topic_alias,
-            //         NULL
-            //     );
-            // GBMEM_FREE(topic)
-        // JSON_DECREF(properties)
-            //     return MOSQ_ERR_PROTOCOL;
-            // }
+            /*
+             *  Empty topic with alias: look up the stored mapping
+             */
+            json_t *jn_alias_topic = json_object_get(priv->jn_alias_list, alias_key);
+            if(!jn_alias_topic) {
+                gobj_log_error(gobj, 0,
+                    "function",         "%s", __FUNCTION__,
+                    "msgset",           "%s", MSGSET_MQTT_ERROR,
+                    "msg",              "%s", "Mqtt: topic alias NOT FOUND",
+                    "client_id",        "%s", priv->client_id,
+                    "max_topic_alias",  "%d", priv->max_topic_alias,
+                    "topic_alias",      "%d", topic_alias,
+                    NULL
+                );
+                JSON_DECREF(properties)
+                return MOSQ_ERR_PROTOCOL;
+            }
+            topic = gbmem_strdup(json_string_value(jn_alias_topic));
+            slen = strlen(topic);
         }
+
+        /*
+         *  Remove topic-alias from properties: it's a hop-by-hop property,
+         *  must not be forwarded to subscribers.
+         */
+        json_object_del(properties, "topic-alias");
     }
 
     if(mqtt_pub_topic_check2(topic, slen)<0) {
