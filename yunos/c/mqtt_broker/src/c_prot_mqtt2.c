@@ -3362,6 +3362,9 @@ PRIVATE int property_process_connect(hgobj gobj, json_t *all_properties)
                     PRIVATE_DATA *priv = gobj_priv_data(gobj);
                     json_int_t value = kw_get_int(gobj, property, "value", 0, KW_REQUIRED);
                     priv->client_topic_alias_max = (int)value;
+                    if(gobj_trace_level(gobj) & SHOW_DECODE) {
+                        trace_msg0("         client topic-alias-maximum: %d", (int)value);
+                    }
                 }
                 break;
         }
@@ -4108,6 +4111,17 @@ PRIVATE int send__publish(
                 mqtt_property_add_int16(gobj, topic_alias_prop, MQTT_PROP_TOPIC_ALIAS, alias_id);
                 proplen += property__get_length_all(topic_alias_prop);
             }
+        }
+
+        if(gobj_trace_level(gobj) & SHOW_DECODE) {
+            trace_msg0("         send__publish topic_alias: iamServer=%d, topic='%s', "
+                "client_topic_alias_max=%d, topic_alias_prop=%p, proplen=%d",
+                priv->iamServer,
+                topic ? topic : "(null)",
+                priv->client_topic_alias_max,
+                topic_alias_prop,
+                proplen
+            );
         }
 
         varbytes = packet__varint_bytes(proplen);
