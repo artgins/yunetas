@@ -1811,12 +1811,13 @@ PRIVATE unsigned int property__get_length(const char *property_name, json_t *val
     }
 
     if(json_is_string(value)) {
-        if(identifier == MQTT_PROP_CORRELATION_DATA) {
-            gbuffer_t *gbuf_correlation_data = 0;
+        if(identifier == MQTT_PROP_CORRELATION_DATA
+            || identifier == MQTT_PROP_AUTHENTICATION_DATA) {
+            gbuffer_t *gbuf_binary_data = 0;
             const char *b64 = json_string_value(value);
-            gbuf_correlation_data = gbuffer_binary_to_base64(b64, strlen(b64));
-            str_len += gbuffer_leftbytes(gbuf_correlation_data);
-            GBUFFER_DECREF(gbuf_correlation_data);
+            gbuf_binary_data = gbuffer_base64_to_binary(b64, strlen(b64));
+            str_len += gbuffer_leftbytes(gbuf_binary_data);
+            GBUFFER_DECREF(gbuf_binary_data);
 
         } else if(identifier == MQTT_PROP_USER_PROPERTY) {
             str_len += strlen(name);
