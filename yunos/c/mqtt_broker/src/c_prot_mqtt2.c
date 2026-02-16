@@ -875,6 +875,24 @@ PRIVATE int message__release_to_inflight(hgobj gobj, enum mqtt_msg_direction dir
                 );
 
                 /*
+                 *  [MQTT-3.3.2-18] Check message expiry and adjust interval.
+                 *  The Server MUST delete the message if the expiry has passed.
+                 *  The Server MUST set the Message Expiry Interval to the received
+                 *  value minus the time that the message has been waiting in the Server.
+                 */
+                if(expiry_interval > 0) {
+                    time_t msg_time = (time_t)kw_get_int(gobj, kw_msg, "tm", 0, 0);
+                    time_t now = mosquitto_time();
+                    time_t elapsed = now - msg_time;
+                    if(elapsed >= (time_t)expiry_interval) {
+                        // Message has expired, discard it
+                        tr2q_unload_msg(qmsg, 0);
+                        continue;
+                    }
+                    expiry_interval = expiry_interval - (uint32_t)elapsed;
+                }
+
+                /*
                  *  What is first? send the message or save his state in disk
                  */
                 if(send__publish(
@@ -927,6 +945,21 @@ PRIVATE int message__release_to_inflight(hgobj gobj, enum mqtt_msg_direction dir
                 uint32_t expiry_interval = (uint32_t)kw_get_int(
                     gobj, kw_msg, "expiry_interval", 0, 0
                 );
+
+                /*
+                 *  Check message expiry and adjust interval for redelivery
+                 */
+                if(expiry_interval > 0) {
+                    time_t msg_time = (time_t)kw_get_int(gobj, kw_msg, "tm", 0, 0);
+                    time_t now = mosquitto_time();
+                    time_t elapsed = now - msg_time;
+                    if(elapsed >= (time_t)expiry_interval) {
+                        // Message has expired, discard it
+                        tr2q_unload_msg(qmsg, 0);
+                        continue;
+                    }
+                    expiry_interval = expiry_interval - (uint32_t)elapsed;
+                }
 
                 send__publish(
                     gobj,
@@ -3990,6 +4023,14 @@ PRIVATE int send__publish(
     }
     if(priv->protocol_version == mosq_p_mqtt5) {
         proplen = 0;
+        /*
+         *  Remove message-expiry-interval from properties to avoid duplication;
+         *  it's handled separately via the expiry_interval parameter,
+         *  which may have been adjusted for elapsed time.
+         */
+        if(properties) {
+            json_object_del(properties, "message-expiry-interval");
+        }
         proplen += property__get_length_all(properties);
         if(expiry_interval > 0) {
             expiry_prop = json_object();
