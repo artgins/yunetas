@@ -2555,13 +2555,13 @@ PRIVATE int will__clear(hgobj gobj, json_t *session)
     json_object_set_new(session, "will_delay_time", json_integer(0));
 
     /*
-     *  Update session in database (only if session exists in db)
+     *  Update session in database to persist cleared will data
      */
     json_decref(gobj_update_node(
         priv->gobj_treedb_mqtt_broker,
         "sessions",
         json_incref(session),
-        json_pack("{s:b}", "volatil", 1),
+        json_pack("{}"),
         gobj
     ));
 
@@ -2608,6 +2608,20 @@ PRIVATE int will__process_disconnect(hgobj gobj, json_t *session, BOOL send_will
     uint32_t will_delay_interval = (uint32_t)kw_get_int(
         gobj, session, "will_delay_interval", 0, 0
     );
+
+    /*
+     *  [MQTT-3.1.3.9.2] If the Will Delay Interval is greater than the
+     *  Session Expiry Interval, the will message is published when the
+     *  session expires. Clamp will_delay to session_expiry.
+     */
+    uint32_t session_expiry_interval = (uint32_t)kw_get_int(
+        gobj, session, "session_expiry_interval", 0, 0
+    );
+    if(session_expiry_interval > 0 && will_delay_interval > session_expiry_interval) {
+        will_delay_interval = session_expiry_interval;
+        json_object_set_new(session, "will_delay_interval",
+            json_integer(will_delay_interval));
+    }
 
     if(will_delay_interval > 0) {
         /*
