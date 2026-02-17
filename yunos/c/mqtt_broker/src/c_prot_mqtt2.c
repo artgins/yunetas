@@ -712,12 +712,23 @@ PRIVATE int open_queues(hgobj gobj)
         mosq_md_out
     );
 
+    /*
+     *  Use client's receive-maximum if set, otherwise server's max_inflight_messages.
+     *  If both are set, use the smaller of the two.
+     */
+    int out_max_inflight = priv->max_inflight_messages;
+    if(priv->msgs_out_inflight_maximum > 0) {
+        if(out_max_inflight == 0 || (int)priv->msgs_out_inflight_maximum < out_max_inflight) {
+            out_max_inflight = (int)priv->msgs_out_inflight_maximum;
+        }
+    }
+
     priv->trq_out_msgs = tr2q_open(
         priv->tranger_queues,
         queue_name,
         "tm",
         0,  // system_flag
-        priv->max_inflight_messages,
+        out_max_inflight,
         gobj_read_integer_attr(gobj, "backup_queue_size")
     );
 
@@ -3328,7 +3339,8 @@ PRIVATE int property_process_connect(hgobj gobj, json_t *all_properties)
             case MQTT_PROP_RECEIVE_MAXIMUM:
                 {
                     json_int_t value = kw_get_int(gobj, property, "value", 0, KW_REQUIRED);
-                    if(value != 0) {
+                    if(value == 0) {
+                        // Protocol error: receive-maximum must not be 0
                         //return -1;
                     } else {
                         gobj_write_integer_attr(gobj, "msgs_out_inflight_maximum", value);
