@@ -4093,12 +4093,15 @@ PRIVATE int send__publish(
             json_t *jn_existing = json_object_get(priv->jn_outgoing_alias_map, topic);
             if(jn_existing) {
                 /*
-                 *  Topic already has an alias assigned, use it
+                 *  Topic already has an alias assigned, reuse it with empty topic
                  */
                 int alias_id = (int)json_integer_value(jn_existing);
                 topic_alias_prop = json_object();
                 mqtt_property_add_int16(gobj, topic_alias_prop, MQTT_PROP_TOPIC_ALIAS, alias_id);
                 proplen += property__get_length_all(topic_alias_prop);
+                /* Send empty topic: subtract topic length from packetlen */
+                packetlen -= (unsigned int)strlen(topic);
+                topic = NULL;
             } else if(priv->next_outgoing_alias <= priv->client_topic_alias_max) {
                 /*
                  *  Assign a new alias for this topic
