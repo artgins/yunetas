@@ -7530,14 +7530,20 @@ PRIVATE void ws_close(hgobj gobj, int reason)
          */
         set_timeout(priv->gobj_timer, priv->timeout_close);
 
+        BOOL disconnect_sent = FALSE;
         if(priv->in_session) {
             if(priv->send_disconnect) {
                 send__disconnect(gobj, reason, NULL);
+                disconnect_sent = TRUE;
             }
         }
 
-        // sending event EV_DROP, WARNING case of event's feedback (EV_DISCONNECTED)
-        send_drop(gobj, reason);
+        if(!disconnect_sent) {
+            // No DISCONNECT packet to flush, drop immediately
+            // sending event EV_DROP, WARNING case of event's feedback (EV_DISCONNECTED)
+            send_drop(gobj, reason);
+        }
+        // else: timeout_close timer will handle the drop after DISCONNECT is flushed
     }
 }
 
