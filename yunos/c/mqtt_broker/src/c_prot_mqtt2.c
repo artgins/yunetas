@@ -153,6 +153,7 @@ PRIVATE int send__disconnect(
     json_t *properties
 );
 PRIVATE void send_drop(hgobj gobj, int reason);
+PRIVATE void ws_close(hgobj gobj, int reason);
 PRIVATE uint16_t mqtt_mid_generate(hgobj gobj);
 
 /***************************************************************************
@@ -6571,9 +6572,12 @@ PRIVATE int handle__publish_s(
         }
 
         if(!db__ready_for_flight(gobj, mosq_md_in, qos)) {
-            /* Client isn't allowed any more incoming messages, so fail early */
-            reason_code = MQTT_RC_QUOTA_EXCEEDED;
-            goto process_bad_message;
+            /* Client exceeded the server's receive-maximum, disconnect */
+            GBUFFER_DECREF(payload)
+            GBMEM_FREE(topic)
+            KW_DECREF(kw_mqtt_msg)
+            ws_close(gobj, MQTT_RC_RECEIVE_MAXIMUM_EXCEEDED);
+            return MOSQ_ERR_OVERSIZE_PACKET;
         }
     }
 
@@ -6839,9 +6843,12 @@ PRIVATE int handle__publish_c(
         }
 
         if(!db__ready_for_flight(gobj, mosq_md_in, qos)) {
-            /* No more space for incoming messages, so fail early */
-            reason_code = MQTT_RC_QUOTA_EXCEEDED;
-            goto process_bad_message;
+            /* Client exceeded the server's receive-maximum, disconnect */
+            GBUFFER_DECREF(payload)
+            GBMEM_FREE(topic)
+            KW_DECREF(kw_mqtt_msg)
+            ws_close(gobj, MQTT_RC_RECEIVE_MAXIMUM_EXCEEDED);
+            return MOSQ_ERR_OVERSIZE_PACKET;
         }
     }
 
