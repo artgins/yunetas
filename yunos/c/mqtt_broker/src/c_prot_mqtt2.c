@@ -247,6 +247,8 @@ SDATA (DTP_INTEGER,     "max_qos",          SDF_WR,         "2",      "Limit the
 
 SDATA (DTP_BOOLEAN,     "allow_zero_length_clientid",SDF_WR, "1",   "MQTT 3.1.1 and MQTT 5 allow clients to connect with a zero length client id and have the broker generate a client id for them. Use this option to allow/disallow this behaviour. Defaults to TRUE."),
 
+SDATA (DTP_INTEGER,     "max_keepalive",    SDF_WR,         "60",     "For MQTT v5 clients, the server will send a 'server keepalive' value that will override the keepalive value set by the client. Clients may only connect with keepalive less than or equal to this value, otherwise they will be sent a server keepalive telling them to use max_keepalive. Set to 0 to allow clients to set keepalive = 0 (no keepalive checks). The maximum value allowable is 65535. Defaults to 60."),
+
 SDATA (DTP_INTEGER,     "max_topic_alias",  SDF_WR,         "10",     "This option sets the maximum number topic aliases that an MQTT v5 client is allowed to create. This option applies per listener. Defaults to 10. Set to 0 to disallow topic aliases. The maximum value possible is 65535."),
 
 /*
@@ -346,6 +348,7 @@ typedef struct _PRIVATE_DATA {
     int message_size_limit;
     BOOL retain_available;
     BOOL allow_zero_length_clientid;
+    int max_keepalive;
     int max_topic_alias;
 
     /*
@@ -449,6 +452,7 @@ PRIVATE void mt_create(hgobj gobj)
     SET_PRIV(retain_available,          gobj_read_bool_attr)
     SET_PRIV(max_qos,                   gobj_read_integer_attr)
     SET_PRIV(allow_zero_length_clientid,gobj_read_bool_attr)
+    SET_PRIV(max_keepalive,             gobj_read_integer_attr)
     SET_PRIV(max_topic_alias,           gobj_read_integer_attr)
 
     SET_PRIV(protocol_name,             gobj_read_str_attr)
@@ -501,6 +505,7 @@ PRIVATE void mt_writing(hgobj gobj, const char *path)
     ELIF_EQ_SET_PRIV(retain_available,          gobj_read_bool_attr)
     ELIF_EQ_SET_PRIV(max_qos,                   gobj_read_integer_attr)
     ELIF_EQ_SET_PRIV(allow_zero_length_clientid,gobj_read_bool_attr)
+    ELIF_EQ_SET_PRIV(max_keepalive,             gobj_read_integer_attr)
     ELIF_EQ_SET_PRIV(max_topic_alias,           gobj_read_integer_attr)
 
     ELIF_EQ_SET_PRIV(protocol_name,             gobj_read_str_attr)
@@ -5033,7 +5038,10 @@ PRIVATE int handle__connect(hgobj gobj, gbuffer_t *gbuf, hgobj src)
                 return -1;
             }
         }
-        if(priv->keepalive > 0) {
+        if(priv->max_keepalive > 0 &&
+                (priv->keepalive > priv->max_keepalive || priv->keepalive == 0)) {
+            priv->keepalive = priv->max_keepalive;
+            gobj_write_integer_attr(gobj, "keepalive", priv->keepalive);
             mqtt_property_add_int16(
                 gobj, connack_props, MQTT_PROP_SERVER_KEEP_ALIVE, priv->keepalive
             );
