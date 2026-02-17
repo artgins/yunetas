@@ -1,0 +1,96 @@
+{
+    "__json_config_variables__": {
+    },
+    "environment": {
+        "console_log_handlers": {
+            "to_stdout": {
+                "handler_type": "stdout",
+                "handler_options": 255
+            }
+        },
+        "daemon_log_handlers": {
+            "to_file": {
+                "handler_type": "file",
+                "filename_mask": "mqtt_broker-W.log",
+                "handler_options": 255
+            }
+        }
+    },
+    "yuno": {
+        "required_services": [],
+        "public_services": [],
+        "service_descriptor": {
+        },
+        "trace_levels": {
+        }
+    },
+    "global": {
+        "Authz.max_sessions_per_user": 100,
+        "__input_side__.__json_config_variables__": {
+            "__input_url__": "mqtt://0.0.0.0:1883",
+            "__input_host__": "0.0.0.0",
+            "__input_port__": "1883"
+        }
+    },
+    "services": [
+        {
+            "name": "authz",
+            "gclass": "C_AUTHZ",
+            "priority": 0,
+            "default_service": false,
+            "autostart": true,
+            "autoplay": true
+        },
+        {
+            "name": "mqtt_broker",
+            "gclass": "C_MQTT_BROKER",
+            "default_service": true,
+            "autostart": true,
+            "autoplay": false,
+            "kw": {
+                "deny_subscribes": ["test/nosubscribe"]
+            }
+        },
+        {
+            "name": "__input_side__",
+            "gclass": "C_IOGATE",
+            "autostart": true,
+            "autoplay": false,
+            "kw": {
+            },
+            "children": [
+                {
+                    "name": "server_port",
+                    "gclass": "C_TCP_S",
+                    "kw": {
+                        "url": "(^^__input_url__^^)",
+                        "backlog": 100,
+                        "use_dups": 0
+                    }
+                }
+            ],
+            "[^^children^^]": {
+                "__range__": [1, 20],
+                "__vars__": {
+                },
+                "__content__": {
+                    "name": "(^^__input_port__^^)-(^^__range__^^)",
+                    "gclass": "C_CHANNEL",
+                    "children": [
+                        {
+                            "name": "(^^__input_port__^^)-(^^__range__^^)",
+                            "gclass": "C_PROT_MQTT2",
+                            "kw": {
+                            },
+                            "children": [
+                                {
+                                    "gclass": "C_TCP"
+                                }
+                            ]
+                        }
+                    ]
+                }
+            }
+        }
+    ]
+}

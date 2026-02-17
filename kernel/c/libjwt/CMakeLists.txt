@@ -52,8 +52,11 @@ set (SRCS
 
     src/openssl/jwk-parse.c
     src/openssl/sign-verify.c
-    src/mbedtls/sign-verify.c
 )
+
+if(CONFIG_HAVE_MBEDTLS)
+    list(APPEND SRCS src/mbedtls/sign-verify.c)
+endif()
 
 set (HDRS
     src/jwt.h
