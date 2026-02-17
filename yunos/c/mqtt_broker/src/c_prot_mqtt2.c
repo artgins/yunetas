@@ -5033,6 +5033,11 @@ PRIVATE int handle__connect(hgobj gobj, gbuffer_t *gbuf, hgobj src)
                 return -1;
             }
         }
+        if(priv->keepalive > 0) {
+            mqtt_property_add_int16(
+                gobj, connack_props, MQTT_PROP_SERVER_KEEP_ALIVE, priv->keepalive
+            );
+        }
         if(priv->assigned_id) {
             if(mqtt_property_add_string(
                 gobj, connack_props, MQTT_PROP_ASSIGNED_CLIENT_IDENTIFIER, priv->client_id)<0)
