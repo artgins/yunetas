@@ -2705,8 +2705,11 @@ PRIVATE void will_delay__check(hgobj gobj)
 
         /*
          *  Check if will delay has expired
+         *  Use > instead of >= to ensure at least will_delay_interval
+         *  full seconds have elapsed (time_t has 1-second resolution,
+         *  so >= can fire up to 1 second too early)
          */
-        if((now - will_delay_time) >= will_delay_interval) {
+        if((now - will_delay_time) > will_delay_interval) {
             const char *client_id = kw_get_str(gobj, session, "id", "", KW_REQUIRED);
             if(gobj_trace_level(gobj) & TRACE_MESSAGES) {
                 gobj_log_info(gobj, 0,
