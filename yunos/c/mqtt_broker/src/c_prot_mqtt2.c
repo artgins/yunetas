@@ -9223,6 +9223,7 @@ PRIVATE int create_gclass(gclass_name_t gclass_name)
      *----------------------------------------*/
     ev_action_t st_disconnected[] = {
         {EV_CONNECTED,          ac_connected,                       ST_WAIT_HANDSHAKE},
+        {EV_RX_DATA,            0,                                  0},
         {EV_DISCONNECTED,       ac_disconnected,                    0},
         {EV_TIMEOUT,            ac_timeout_waiting_disconnected,    0},
         {EV_STOPPED,            ac_stopped,                         0},
