@@ -153,6 +153,7 @@ PRIVATE int send__disconnect(
     json_t *properties
 );
 PRIVATE void send_drop(hgobj gobj, int reason);
+PRIVATE void ws_close(hgobj gobj, int reason);
 PRIVATE uint16_t mqtt_mid_generate(hgobj gobj);
 
 /***************************************************************************
@@ -247,6 +248,8 @@ SDATA (DTP_INTEGER,     "max_qos",          SDF_WR,         "2",      "Limit the
 
 SDATA (DTP_BOOLEAN,     "allow_zero_length_clientid",SDF_WR, "1",   "MQTT 3.1.1 and MQTT 5 allow clients to connect with a zero length client id and have the broker generate a client id for them. Use this option to allow/disallow this behaviour. Defaults to TRUE."),
 
+SDATA (DTP_INTEGER,     "max_keepalive",    SDF_WR,         "60",     "For MQTT v5 clients, the server will send a 'server keepalive' value that will override the keepalive value set by the client. Clients may only connect with keepalive less than or equal to this value, otherwise they will be sent a server keepalive telling them to use max_keepalive. Set to 0 to allow clients to set keepalive = 0 (no keepalive checks). The maximum value allowable is 65535. Defaults to 60."),
+
 SDATA (DTP_INTEGER,     "max_topic_alias",  SDF_WR,         "10",     "This option sets the maximum number topic aliases that an MQTT v5 client is allowed to create. This option applies per listener. Defaults to 10. Set to 0 to disallow topic aliases. The maximum value possible is 65535."),
 
 /*
@@ -326,7 +329,10 @@ typedef struct _PRIVATE_DATA {
     FRAME_HEAD message_head;
 
     BOOL inform_on_close;
-    json_t *jn_alias_list;
+    json_t *jn_alias_list;              // client-to-server topic alias map (alias_id -> topic)
+    json_t *jn_outgoing_alias_map;      // server-to-client topic alias map (topic -> alias_id)
+    int client_topic_alias_max;         // max topic aliases the client accepts (from CONNECT)
+    int next_outgoing_alias;            // next alias number to assign for server-to-client
 
     json_t *tranger_queues;
     tr2_queue_t *trq_in_msgs;
@@ -343,6 +349,7 @@ typedef struct _PRIVATE_DATA {
     int message_size_limit;
     BOOL retain_available;
     BOOL allow_zero_length_clientid;
+    int max_keepalive;
     int max_topic_alias;
 
     /*
@@ -373,6 +380,7 @@ typedef struct _PRIVATE_DATA {
     uint32_t will_delay_interval;
     uint32_t will_expiry_interval;
     gbuffer_t *gbuf_will_payload;
+    json_t *jn_will_properties;
     int out_packet_count;
 
     BOOL allow_duplicate_messages; // TODO
@@ -445,6 +453,7 @@ PRIVATE void mt_create(hgobj gobj)
     SET_PRIV(retain_available,          gobj_read_bool_attr)
     SET_PRIV(max_qos,                   gobj_read_integer_attr)
     SET_PRIV(allow_zero_length_clientid,gobj_read_bool_attr)
+    SET_PRIV(max_keepalive,             gobj_read_integer_attr)
     SET_PRIV(max_topic_alias,           gobj_read_integer_attr)
 
     SET_PRIV(protocol_name,             gobj_read_str_attr)
@@ -497,6 +506,7 @@ PRIVATE void mt_writing(hgobj gobj, const char *path)
     ELIF_EQ_SET_PRIV(retain_available,          gobj_read_bool_attr)
     ELIF_EQ_SET_PRIV(max_qos,                   gobj_read_integer_attr)
     ELIF_EQ_SET_PRIV(allow_zero_length_clientid,gobj_read_bool_attr)
+    ELIF_EQ_SET_PRIV(max_keepalive,             gobj_read_integer_attr)
     ELIF_EQ_SET_PRIV(max_topic_alias,           gobj_read_integer_attr)
 
     ELIF_EQ_SET_PRIV(protocol_name,             gobj_read_str_attr)
@@ -679,8 +689,6 @@ PRIVATE int open_queues(hgobj gobj)
         mosq_md_in
     );
 
-    // printf("CLIENT_ID QUEUE OPEN %s %s %s\n", priv->client_id, queue_name, gobj_full_name(gobj)); // TODO TEST
-
     priv->trq_in_msgs = tr2q_open(
         priv->tranger_queues,
         queue_name,
@@ -705,12 +713,23 @@ PRIVATE int open_queues(hgobj gobj)
         mosq_md_out
     );
 
+    /*
+     *  Use client's receive-maximum if set, otherwise server's max_inflight_messages.
+     *  If both are set, use the smaller of the two.
+     */
+    int out_max_inflight = priv->max_inflight_messages;
+    if(priv->msgs_out_inflight_maximum > 0) {
+        if(out_max_inflight == 0 || (int)priv->msgs_out_inflight_maximum < out_max_inflight) {
+            out_max_inflight = (int)priv->msgs_out_inflight_maximum;
+        }
+    }
+
     priv->trq_out_msgs = tr2q_open(
         priv->tranger_queues,
         queue_name,
         "tm",
         0,  // system_flag
-        priv->max_inflight_messages,
+        out_max_inflight,
         gobj_read_integer_attr(gobj, "backup_queue_size")
     );
 
@@ -731,8 +750,6 @@ PRIVATE void close_queues(hgobj gobj)
     char queue_name[NAME_MAX];
 
     if(priv->trq_in_msgs) {
-        // printf("CLIENT_ID QUEUE CLOSE %s %s %s\n", priv->client_id, queue_name, gobj_full_name(gobj)); // TODO TEST
-
         tr2q_close(priv->trq_in_msgs);
 
         if(priv->clean_start) {
@@ -878,6 +895,24 @@ PRIVATE int message__release_to_inflight(hgobj gobj, enum mqtt_msg_direction dir
                 );
 
                 /*
+                 *  [MQTT-3.3.2-18] Check message expiry and adjust interval.
+                 *  The Server MUST delete the message if the expiry has passed.
+                 *  The Server MUST set the Message Expiry Interval to the received
+                 *  value minus the time that the message has been waiting in the Server.
+                 */
+                if(expiry_interval > 0) {
+                    time_t msg_time = (time_t)kw_get_int(gobj, kw_msg, "tm", 0, 0);
+                    time_t now = mosquitto_time();
+                    time_t elapsed = now - msg_time;
+                    if(elapsed >= (time_t)expiry_interval) {
+                        // Message has expired, discard it
+                        tr2q_unload_msg(qmsg, 0);
+                        continue;
+                    }
+                    expiry_interval = expiry_interval - (uint32_t)elapsed;
+                }
+
+                /*
                  *  What is first? send the message or save his state in disk
                  */
                 if(send__publish(
@@ -930,6 +965,21 @@ PRIVATE int message__release_to_inflight(hgobj gobj, enum mqtt_msg_direction dir
                 uint32_t expiry_interval = (uint32_t)kw_get_int(
                     gobj, kw_msg, "expiry_interval", 0, 0
                 );
+
+                /*
+                 *  Check message expiry and adjust interval for redelivery
+                 */
+                if(expiry_interval > 0) {
+                    time_t msg_time = (time_t)kw_get_int(gobj, kw_msg, "tm", 0, 0);
+                    time_t now = mosquitto_time();
+                    time_t elapsed = now - msg_time;
+                    if(elapsed >= (time_t)expiry_interval) {
+                        // Message has expired, discard it
+                        tr2q_unload_msg(qmsg, 0);
+                        continue;
+                    }
+                    expiry_interval = expiry_interval - (uint32_t)elapsed;
+                }
 
                 send__publish(
                     gobj,
@@ -1762,9 +1812,18 @@ PRIVATE unsigned int property__get_length(const char *property_name, json_t *val
     size_t str_len = 0;
     unsigned long v = 0;
     const char *name = 0;
-    int identifier;
-    int type;
-    mosquitto_string_to_property_info(property_name, &identifier, &type);
+    int identifier = 0;
+    int type = 0;
+    if(mosquitto_string_to_property_info(property_name, &identifier, &type) < 0) {
+        // Not a standard property name; check if value has stored identifier/type (e.g. user properties)
+        if(json_is_object(value)) {
+            identifier = (int)kw_get_int(gobj, value, "identifier", 0, 0);
+            type = (int)kw_get_int(gobj, value, "type", 0, 0);
+        }
+        if(identifier == 0) {
+            return 0;
+        }
+    }
 
     if(json_is_object(value)) {
         name = kw_get_str(gobj, value, "name", "", KW_REQUIRED);
@@ -1772,18 +1831,15 @@ PRIVATE unsigned int property__get_length(const char *property_name, json_t *val
     }
 
     if(json_is_string(value)) {
-        if(strcmp(
-            property_name, mqtt_property_identifier_to_string(MQTT_PROP_CORRELATION_DATA))==0
-        ) {
-            gbuffer_t *gbuf_correlation_data = 0;
+        if(identifier == MQTT_PROP_CORRELATION_DATA
+            || identifier == MQTT_PROP_AUTHENTICATION_DATA) {
+            gbuffer_t *gbuf_binary_data = 0;
             const char *b64 = json_string_value(value);
-            gbuf_correlation_data = gbuffer_binary_to_base64(b64, strlen(b64));
-            str_len += gbuffer_leftbytes(gbuf_correlation_data);
-            GBUFFER_DECREF(gbuf_correlation_data);
+            gbuf_binary_data = gbuffer_base64_to_binary(b64, strlen(b64));
+            str_len += gbuffer_leftbytes(gbuf_binary_data);
+            GBUFFER_DECREF(gbuf_binary_data);
 
-        } else if(strcmp(
-            property_name, mqtt_property_identifier_to_string(MQTT_PROP_USER_PROPERTY))==0
-        ) {
+        } else if(identifier == MQTT_PROP_USER_PROPERTY) {
             str_len += strlen(name);
             str_len += strlen(json_string_value(value));
 
@@ -1821,8 +1877,22 @@ PRIVATE unsigned int property__get_length(const char *property_name, json_t *val
         case MQTT_PROP_SESSION_EXPIRY_INTERVAL:
             return 5; /* 1 (identifier) + 4 bytes */
 
-        /* varint */
+        /* varint - may be an array when multiple subscription IDs match */
         case MQTT_PROP_SUBSCRIPTION_IDENTIFIER:
+            if(json_is_array(value)) {
+                unsigned int total = 0;
+                size_t idx;
+                json_t *item;
+                json_array_foreach(value, idx, item) {
+                    json_int_t id_val = json_integer_value(item);
+                    total += 1; /* identifier byte */
+                    if(id_val < 128) total += 1;
+                    else if(id_val < 16384) total += 2;
+                    else if(id_val < 2097152) total += 3;
+                    else if(id_val < 268435456) total += 4;
+                }
+                return total;
+            }
             if(v < 128) {
                 return 2;
             } else if(v < 16384) {
@@ -2095,29 +2165,36 @@ PRIVATE int mqtt_property_add_string(
 /***************************************************************************
  *
  ***************************************************************************/
-PRIVATE void mqtt_write_byte(gbuffer_t *gbuf, uint8_t byte)
+PRIVATE int mqtt_write_byte(gbuffer_t *gbuf, uint8_t byte)
 {
-    gbuffer_append_char(gbuf, byte);
+    if(gbuffer_append_char(gbuf, byte) != 1) {
+        return -1;
+    }
+    return 0;
 }
 
 /***************************************************************************
  *
  ***************************************************************************/
-PRIVATE void mqtt_write_uint16(gbuffer_t *gbuf, uint16_t word)
+PRIVATE int mqtt_write_uint16(gbuffer_t *gbuf, uint16_t word)
 {
-    gbuffer_append_char(gbuf, MOSQ_MSB(word));
-    gbuffer_append_char(gbuf, MOSQ_LSB(word));
+    size_t ret = 0;
+    ret += gbuffer_append_char(gbuf, MOSQ_MSB(word));
+    ret += gbuffer_append_char(gbuf, MOSQ_LSB(word));
+    return (ret==2)?0:-1;
 }
 
 /***************************************************************************
  *
  ***************************************************************************/
-PRIVATE void mqtt_write_uint32(gbuffer_t *gbuf, uint32_t word)
+PRIVATE int mqtt_write_uint32(gbuffer_t *gbuf, uint32_t word)
 {
-    gbuffer_append_char(gbuf, (uint8_t)((word & 0xFF000000) >> 24));
-    gbuffer_append_char(gbuf, (uint8_t)((word & 0x00FF0000) >> 16));
-    gbuffer_append_char(gbuf, (uint8_t)((word & 0x0000FF00) >> 8));
-    gbuffer_append_char(gbuf, (uint8_t)((word & 0x000000FF)));
+    size_t ret = 0;
+    ret += gbuffer_append_char(gbuf, (uint8_t)((word & 0xFF000000) >> 24));
+    ret += gbuffer_append_char(gbuf, (uint8_t)((word & 0x00FF0000) >> 16));
+    ret += gbuffer_append_char(gbuf, (uint8_t)((word & 0x0000FF00) >> 8));
+    ret += gbuffer_append_char(gbuf, (uint8_t)((word & 0x000000FF)));
+    return (ret==4)?0:-1;
 }
 
 /***************************************************************************
@@ -2135,7 +2212,9 @@ PRIVATE int mqtt_write_varint(gbuffer_t *gbuf, uint32_t word)
         if(word > 0) {
             byte = byte | 0x80;
         }
-        mqtt_write_byte(gbuf, byte);
+        if(mqtt_write_byte(gbuf, byte)<0) {
+            return -1;
+        }
         count++;
     } while(word > 0 && count < 5);
 
@@ -2148,19 +2227,24 @@ PRIVATE int mqtt_write_varint(gbuffer_t *gbuf, uint32_t word)
 /***************************************************************************
  *
  ***************************************************************************/
-PRIVATE void mqtt_write_bytes(gbuffer_t *gbuf, const void *bytes, uint32_t count)
+PRIVATE int mqtt_write_bytes(gbuffer_t *gbuf, const void *bytes, uint32_t count)
 {
-    gbuffer_append(gbuf, (void *)bytes, count);
+    if(gbuffer_append(gbuf, (void *)bytes, count)!=count) {
+        return -1;
+    }
+    return 0;
 }
 
 /***************************************************************************
  *
  ***************************************************************************/
-PRIVATE void mqtt_write_string(gbuffer_t *gbuf, const char *str)
+PRIVATE int mqtt_write_string(gbuffer_t *gbuf, const char *str)
 {
+    size_t ret = 0;
     uint16_t length = strlen(str);
-    mqtt_write_uint16(gbuf, length);
-    mqtt_write_bytes(gbuf, str, length);
+    ret += mqtt_write_uint16(gbuf, length);
+    ret += mqtt_write_bytes(gbuf, str, length);
+    return (ret==(length+2))?0:-1;
 }
 
 /***************************************************************************
@@ -2169,9 +2253,25 @@ PRIVATE void mqtt_write_string(gbuffer_t *gbuf, const char *str)
 PRIVATE int property__write(hgobj gobj, gbuffer_t *gbuf, const char *property_name, json_t *value_)
 {
     json_t *value;
-    int identifier;
-    int type;
-    mosquitto_string_to_property_info(property_name, &identifier, &type);
+    int identifier = 0;
+    int type = 0;
+    if(mosquitto_string_to_property_info(property_name, &identifier, &type) < 0) {
+        // Not a standard property name; check if value has stored identifier/type (e.g. user properties)
+        if(json_is_object(value_)) {
+            identifier = (int)kw_get_int(gobj, value_, "identifier", 0, 0);
+            type = (int)kw_get_int(gobj, value_, "type", 0, 0);
+        }
+        if(identifier == 0) {
+            gobj_log_error(gobj, 0,
+                "function",     "%s", __FUNCTION__,
+                "msgset",       "%s", MSGSET_MQTT_ERROR,
+                "msg",          "%s", "Mqtt unknown property",
+                "property",     "%s", property_name,
+                NULL
+            );
+            return -1;
+        }
+    }
 
     if(json_is_object(value_)) {
         value = kw_get_dict_value(gobj, value_, "value", 0, KW_REQUIRED);
@@ -2208,6 +2308,19 @@ PRIVATE int property__write(hgobj gobj, gbuffer_t *gbuf, const char *property_na
             break;
 
         case MQTT_PROP_SUBSCRIPTION_IDENTIFIER:
+            if(json_is_array(value_)) {
+                /* Multiple subscription identifiers: write each as a separate property */
+                int ret = 0;
+                size_t idx;
+                json_t *item;
+                json_array_foreach(value_, idx, item) {
+                    if(idx > 0) {
+                        ret += mqtt_write_varint(gbuf, identifier);
+                    }
+                    ret += mqtt_write_varint(gbuf, json_integer_value(item));
+                }
+                return ret;
+            }
             return mqtt_write_varint(gbuf, json_integer_value(value));
 
         case MQTT_PROP_CONTENT_TYPE:
@@ -2264,16 +2377,17 @@ PRIVATE int property__write_all(
     json_t *props, // not owned
     BOOL write_len
 ) {
+    int ret = 0;
     if(write_len) {
-        mqtt_write_varint(gbuf, property__get_length_all(props));
+        ret = mqtt_write_varint(gbuf, property__get_length_all(props));
     }
 
     const char *property_name; json_t *value;
     json_object_foreach(props, property_name, value) {
-        property__write(gobj, gbuf, property_name, value);
+        ret += property__write(gobj, gbuf, property_name, value);
     }
 
-    return 0;
+    return ret;
 }
 
 /***************************************************************************
@@ -3226,7 +3340,8 @@ PRIVATE int property_process_connect(hgobj gobj, json_t *all_properties)
             case MQTT_PROP_RECEIVE_MAXIMUM:
                 {
                     json_int_t value = kw_get_int(gobj, property, "value", 0, KW_REQUIRED);
-                    if(value != 0) {
+                    if(value == 0) {
+                        // Protocol error: receive-maximum must not be 0
                         //return -1;
                     } else {
                         gobj_write_integer_attr(gobj, "msgs_out_inflight_maximum", value);
@@ -3257,6 +3372,17 @@ PRIVATE int property_process_connect(hgobj gobj, json_t *all_properties)
                 {
                     const char *value = kw_get_str(gobj, property, "value", "", KW_REQUIRED);
                     gobj_write_str_attr(gobj, "auth_data", value);
+                }
+                break;
+
+            case MQTT_PROP_TOPIC_ALIAS_MAXIMUM:
+                {
+                    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+                    json_int_t value = kw_get_int(gobj, property, "value", 0, KW_REQUIRED);
+                    priv->client_topic_alias_max = (int)value;
+                    if(gobj_trace_level(gobj) & SHOW_DECODE) {
+                        trace_msg0("         client topic-alias-maximum: %d", (int)value);
+                    }
                 }
                 break;
         }
@@ -3824,11 +3950,8 @@ PRIVATE int send_command_with_mid(
     }
     if(priv->protocol_version == mosq_p_mqtt5) {
         if(reason_code != 0 || properties) {
-            remaining_length += 1;
-        }
-
-        if(properties) {
-            remaining_length += property__get_remaining_length(properties);
+            remaining_length += 1; // reason code byte
+            remaining_length += property__get_remaining_length(properties); // property length varint + properties
         }
     }
     gbuffer_t *gbuf = build_mqtt_packet(gobj, command, remaining_length);
@@ -3842,8 +3965,15 @@ PRIVATE int send_command_with_mid(
     if(priv->protocol_version == mosq_p_mqtt5) {
         if(reason_code != 0 || properties) {
             mqtt_write_byte(gbuf, reason_code);
+            if(property__write_all(gobj, gbuf, properties, TRUE)<0) {
+                gobj_log_error(gobj, 0,
+                    "function",     "%s", __FUNCTION__,
+                    "msgset",       "%s", MSGSET_INTERNAL_ERROR,
+                    "msg",          "%s", "property__write_all() failed",
+                    NULL
+                );
+            }
         }
-        property__write_all(gobj, gbuf, properties, TRUE);
     }
 
     JSON_DECREF(properties)
@@ -3951,8 +4081,18 @@ PRIVATE int send__publish(
     if(qos > 0) {
         packetlen += 2; /* For message id */
     }
+    json_t *topic_alias_prop = NULL;
+
     if(priv->protocol_version == mosq_p_mqtt5) {
         proplen = 0;
+        /*
+         *  Remove message-expiry-interval from properties to avoid duplication;
+         *  it's handled separately via the expiry_interval parameter,
+         *  which may have been adjusted for elapsed time.
+         */
+        if(properties) {
+            json_object_del(properties, "message-expiry-interval");
+        }
         proplen += property__get_length_all(properties);
         if(expiry_interval > 0) {
             expiry_prop = json_object();
@@ -3962,6 +4102,47 @@ PRIVATE int send__publish(
             );
             // expiry_prop.client_generated = FALSE;
             proplen += property__get_length_all(expiry_prop);
+        }
+
+        /*
+         *  Server-to-client topic alias: assign alias when client supports it
+         */
+        if(priv->iamServer && topic && priv->client_topic_alias_max > 0) {
+            json_t *jn_existing = json_object_get(priv->jn_outgoing_alias_map, topic);
+            if(jn_existing) {
+                /*
+                 *  Topic already has an alias assigned, reuse it with empty topic
+                 */
+                int alias_id = (int)json_integer_value(jn_existing);
+                topic_alias_prop = json_object();
+                mqtt_property_add_int16(gobj, topic_alias_prop, MQTT_PROP_TOPIC_ALIAS, alias_id);
+                proplen += property__get_length_all(topic_alias_prop);
+                /* Send empty topic: subtract topic length from packetlen */
+                packetlen -= (unsigned int)strlen(topic);
+                topic = NULL;
+            } else if(priv->next_outgoing_alias <= priv->client_topic_alias_max) {
+                /*
+                 *  Assign a new alias for this topic
+                 */
+                int alias_id = priv->next_outgoing_alias++;
+                json_object_set_new(
+                    priv->jn_outgoing_alias_map, topic, json_integer(alias_id)
+                );
+                topic_alias_prop = json_object();
+                mqtt_property_add_int16(gobj, topic_alias_prop, MQTT_PROP_TOPIC_ALIAS, alias_id);
+                proplen += property__get_length_all(topic_alias_prop);
+            }
+        }
+
+        if(gobj_trace_level(gobj) & SHOW_DECODE) {
+            trace_msg0("         send__publish topic_alias: iamServer=%d, topic='%s', "
+                "client_topic_alias_max=%d, topic_alias_prop=%p, proplen=%d",
+                priv->iamServer,
+                topic ? topic : "(null)",
+                priv->client_topic_alias_max,
+                topic_alias_prop,
+                proplen
+            );
         }
 
         varbytes = packet__varint_bytes(proplen);
@@ -4015,8 +4196,12 @@ PRIVATE int send__publish(
         if(expiry_interval > 0) {
             property__write_all(gobj, gbuf, expiry_prop, FALSE);
         }
+        if(topic_alias_prop) {
+            property__write_all(gobj, gbuf, topic_alias_prop, FALSE);
+        }
     }
     JSON_DECREF(expiry_prop);
+    JSON_DECREF(topic_alias_prop);
 
     /* Payload */
     if(payloadlen) {
@@ -4182,7 +4367,14 @@ PRIVATE int will__read(
             JSON_DECREF(properties)
             return -1;
         };
-        JSON_DECREF(properties)
+        /*
+         *  Save will properties for forwarding with will message
+         *  (user properties, content-type, etc.)
+         *  Remove will-delay-interval as it's not a valid PUBLISH property
+         */
+        json_object_del(properties, "will-delay-interval");
+        JSON_DECREF(priv->jn_will_properties)
+        priv->jn_will_properties = properties; // owned
     }
     char *will_topic; uint16_t tlen;
     if((ret=mqtt_read_string(gobj, gbuf, &will_topic, &tlen))<0) {
@@ -4859,6 +5051,14 @@ PRIVATE int handle__connect(hgobj gobj, gbuffer_t *gbuf, hgobj src)
                 return -1;
             }
         }
+        if(priv->max_keepalive > 0 &&
+                (priv->keepalive > priv->max_keepalive || priv->keepalive == 0)) {
+            priv->keepalive = priv->max_keepalive;
+            gobj_write_integer_attr(gobj, "keepalive", priv->keepalive);
+            mqtt_property_add_int16(
+                gobj, connack_props, MQTT_PROP_SERVER_KEEP_ALIVE, priv->keepalive
+            );
+        }
         if(priv->assigned_id) {
             if(mqtt_property_add_string(
                 gobj, connack_props, MQTT_PROP_ASSIGNED_CLIENT_IDENTIFIER, priv->client_id)<0)
@@ -4925,6 +5125,14 @@ PRIVATE int handle__connect(hgobj gobj, gbuffer_t *gbuf, hgobj src)
                 json_integer((json_int_t)(uintptr_t)priv->gbuf_will_payload)
             );
             priv->gbuf_will_payload = NULL;
+        }
+        if(priv->jn_will_properties && json_object_size(priv->jn_will_properties) > 0) {
+            json_object_set_new(
+                jn_will,
+                "will_properties",
+                priv->jn_will_properties
+            );
+            priv->jn_will_properties = NULL;
         }
         json_object_update_new(client, jn_will);
     }
@@ -5222,6 +5430,7 @@ PRIVATE int handle__disconnect_s(hgobj gobj, gbuffer_t *gbuf)
                 return MOSQ_ERR_PROTOCOL;
             }
             priv->session_expiry_interval = session_expiry_interval;
+            gobj_write_integer_attr(gobj, "session_expiry_interval", session_expiry_interval);
         }
         JSON_DECREF(properties)
     }
@@ -6061,7 +6270,7 @@ PRIVATE int handle__publish_s(
         // Error already logged
         return MOSQ_ERR_MALFORMED_PACKET;
     }
-    char *topic = gbmem_strndup(topic_, slen);
+    char *topic = (slen > 0) ? gbmem_strndup(topic_, slen) : NULL;
 
     if(!slen && priv->protocol_version != mosq_p_mqtt5) {
         /* Invalid publish topic, disconnect client. */
@@ -6153,32 +6362,41 @@ PRIVATE int handle__publish_s(
         JSON_DECREF(properties)
         return MOSQ_ERR_TOPIC_ALIAS_INVALID;
     } else if(topic_alias > 0) {
+        char alias_key[16];
+        snprintf(alias_key, sizeof(alias_key), "%d", topic_alias);
+
         if(topic) {
-            // TODO
-            // rc = alias__add(context, msg->topic, (uint16_t)topic_alias);
-            // if(rc) {
-            // GBMEM_FREE(topic)
-        // JSON_DECREF(properties)
-            //     return rc;
-            // }
+            /*
+             *  Topic present with alias: create/update the alias mapping
+             */
+            json_object_set_new(priv->jn_alias_list, alias_key, json_string(topic));
         } else {
-            // TODO
-            // rc = alias__find(context, &msg->topic, (uint16_t)topic_alias);
-            // if(rc) {
-            //     gobj_log_error(gobj, 0,
-            //         "function",         "%s", __FUNCTION__,
-            //         "msgset",           "%s", MSGSET_MQTT_ERROR,
-            //         "msg",              "%s", "Mqtt: topic alias NOT FOUND",
-            //         "client_id",        "%s", priv->client_id,
-            //         "max_topic_alias",  "%d", priv->max_topic_alias,
-            //         "topic_alias",      "%d", topic_alias,
-            //         NULL
-            //     );
-            // GBMEM_FREE(topic)
-        // JSON_DECREF(properties)
-            //     return MOSQ_ERR_PROTOCOL;
-            // }
+            /*
+             *  Empty topic with alias: look up the stored mapping
+             */
+            json_t *jn_alias_topic = json_object_get(priv->jn_alias_list, alias_key);
+            if(!jn_alias_topic) {
+                gobj_log_error(gobj, 0,
+                    "function",         "%s", __FUNCTION__,
+                    "msgset",           "%s", MSGSET_MQTT_ERROR,
+                    "msg",              "%s", "Mqtt: topic alias NOT FOUND",
+                    "client_id",        "%s", priv->client_id,
+                    "max_topic_alias",  "%d", priv->max_topic_alias,
+                    "topic_alias",      "%d", topic_alias,
+                    NULL
+                );
+                JSON_DECREF(properties)
+                return MOSQ_ERR_PROTOCOL;
+            }
+            topic = gbmem_strdup(json_string_value(jn_alias_topic));
+            slen = strlen(topic);
         }
+
+        /*
+         *  Remove topic-alias from properties: it's a hop-by-hop property,
+         *  must not be forwarded to subscribers.
+         */
+        json_object_del(properties, "topic-alias");
     }
 
     if(mqtt_pub_topic_check2(topic, slen)<0) {
@@ -6354,9 +6572,12 @@ PRIVATE int handle__publish_s(
         }
 
         if(!db__ready_for_flight(gobj, mosq_md_in, qos)) {
-            /* Client isn't allowed any more incoming messages, so fail early */
-            reason_code = MQTT_RC_QUOTA_EXCEEDED;
-            goto process_bad_message;
+            /* Client exceeded the server's receive-maximum, disconnect */
+            GBUFFER_DECREF(payload)
+            GBMEM_FREE(topic)
+            KW_DECREF(kw_mqtt_msg)
+            ws_close(gobj, MQTT_RC_RECEIVE_MAXIMUM_EXCEEDED);
+            return 0; // ws_close already sent DISCONNECT, don't trigger another
         }
     }
 
@@ -6622,9 +6843,12 @@ PRIVATE int handle__publish_c(
         }
 
         if(!db__ready_for_flight(gobj, mosq_md_in, qos)) {
-            /* No more space for incoming messages, so fail early */
-            reason_code = MQTT_RC_QUOTA_EXCEEDED;
-            goto process_bad_message;
+            /* Client exceeded the server's receive-maximum, disconnect */
+            GBUFFER_DECREF(payload)
+            GBMEM_FREE(topic)
+            KW_DECREF(kw_mqtt_msg)
+            ws_close(gobj, MQTT_RC_RECEIVE_MAXIMUM_EXCEEDED);
+            return 0; // ws_close already sent DISCONNECT, don't trigger another
         }
     }
 
@@ -7306,14 +7530,20 @@ PRIVATE void ws_close(hgobj gobj, int reason)
          */
         set_timeout(priv->gobj_timer, priv->timeout_close);
 
+        BOOL disconnect_sent = FALSE;
         if(priv->in_session) {
             if(priv->send_disconnect) {
                 send__disconnect(gobj, reason, NULL);
+                disconnect_sent = TRUE;
             }
         }
 
-        // sending event EV_DROP, WARNING case of event's feedback (EV_DISCONNECTED)
-        send_drop(gobj, reason);
+        if(!disconnect_sent) {
+            // No DISCONNECT packet to flush, drop immediately
+            // sending event EV_DROP, WARNING case of event's feedback (EV_DISCONNECTED)
+            send_drop(gobj, reason);
+        }
+        // else: timeout_close timer will handle the drop after DISCONNECT is flushed
     }
 }
 
@@ -7804,7 +8034,12 @@ PRIVATE int ac_connected(hgobj gobj, const char *event, json_t *kw, hgobj src)
 
     priv->send_disconnect = FALSE;
     GBUFFER_DECREF(priv->gbuf_will_payload);
+    JSON_DECREF(priv->jn_will_properties)
     priv->jn_alias_list = json_object();
+    JSON_DECREF(priv->jn_outgoing_alias_map)
+    priv->jn_outgoing_alias_map = json_object();
+    priv->client_topic_alias_max = 0;
+    priv->next_outgoing_alias = 1;
 
     start_wait_handshake(gobj); // include the start of the timeout of handshake
 
@@ -7847,6 +8082,7 @@ PRIVATE int ac_disconnected(hgobj gobj, const char *event, json_t *kw, hgobj src
     }
 
     GBUFFER_DECREF(priv->gbuf_will_payload);
+    JSON_DECREF(priv->jn_will_properties)
 
     clear_timeout(priv->gobj_timer);
     clear_timeout(priv->gobj_timer_periodic);
@@ -7882,6 +8118,7 @@ PRIVATE int ac_disconnected(hgobj gobj, const char *event, json_t *kw, hgobj src
     }
 
     JSON_DECREF(priv->jn_alias_list)
+    JSON_DECREF(priv->jn_outgoing_alias_map)
     gobj_reset_volatil_attrs(gobj);
     restore_client_attributes(gobj);
 
@@ -8822,7 +9059,7 @@ PRIVATE int ac_timeout_periodic(hgobj gobj, const char *event, json_t *kw, hgobj
                     NULL
                 );
                 priv->timer_ping = 0;
-                ws_close(gobj, MOSQ_ERR_PROTOCOL);
+                ws_close(gobj, MQTT_RC_KEEP_ALIVE_TIMEOUT);
                 KW_DECREF(kw)
                 return 0;
             } else {
@@ -8873,9 +9110,6 @@ PRIVATE int ac_timeout_periodic(hgobj gobj, const char *event, json_t *kw, hgobj
     }
 
     if(priv->timeout_backup > 0 && test_sectimer(priv->t_backup)) {
-
-        // debug_json2(priv->trq_in_msgs->topic, "CLIENT_ID QUEUE TOPIC %s %s", priv->client_id, gobj_full_name(gobj)); // TODO TEST
-
         if(priv->trq_in_msgs) {
             if(tr2q_inflight_size(priv->trq_in_msgs)==0) { // && priv->pending_acks==0) {
                 // Check and do backup only when no message
@@ -8989,6 +9223,7 @@ PRIVATE int create_gclass(gclass_name_t gclass_name)
      *----------------------------------------*/
     ev_action_t st_disconnected[] = {
         {EV_CONNECTED,          ac_connected,                       ST_WAIT_HANDSHAKE},
+        {EV_RX_DATA,            0,                                  0},
         {EV_DISCONNECTED,       ac_disconnected,                    0},
         {EV_TIMEOUT,            ac_timeout_waiting_disconnected,    0},
         {EV_STOPPED,            ac_stopped,                         0},

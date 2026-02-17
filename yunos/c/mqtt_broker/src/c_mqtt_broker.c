@@ -2191,13 +2191,19 @@ PRIVATE int retain__queue(
 
             if(gbuf) {
                 /*
-                 *  Create properties with subscription identifier if present
+                 *  Retrieve stored properties and add subscription identifier if present
                  */
+                json_t *stored_props = kw_get_dict(gobj, retain, "properties", 0, 0);
                 json_t *properties = NULL;
+                if(stored_props && json_object_size(stored_props) > 0) {
+                    properties = json_deep_copy(stored_props);
+                }
                 if(subscription_identifier > 0) {
-                    properties = json_object();
+                    if(!properties) {
+                        properties = json_object();
+                    }
                     json_object_set_new(properties,
-                        "subscription_identifier",
+                        "subscription-identifier",
                         json_integer(subscription_identifier)
                     );
                 }
@@ -2375,7 +2381,6 @@ PRIVATE int retain__store(
      *----------------------------*/
     json_object_set_new(kw_mqtt_msg, "id", json_string(topic2disk));
     json_object_set_new(kw_mqtt_msg, "payload", gbuffer_serialize(gobj, gbuf));
-print_json("XXXXXXXXXX", kw_mqtt_msg);// TODO TEST
     json_t *retain_node = gobj_update_node(
         priv->gobj_treedb_mqtt_broker,
         "retained_msgs",
@@ -2383,7 +2388,6 @@ print_json("XXXXXXXXXX", kw_mqtt_msg);// TODO TEST
         json_pack("{s:b}", "create", 1),
         gobj
     );
-print_json("XXXXXXXXXX2", kw_mqtt_msg);// TODO TEST
 
     json_decref(retain_node);
 
@@ -2551,13 +2555,13 @@ PRIVATE int will__clear(hgobj gobj, json_t *session)
     json_object_set_new(session, "will_delay_time", json_integer(0));
 
     /*
-     *  Update session in database (only if session exists in db)
+     *  Update session in database to persist cleared will data
      */
     json_decref(gobj_update_node(
         priv->gobj_treedb_mqtt_broker,
         "sessions",
         json_incref(session),
-        json_pack("{s:b}", "volatil", 1),
+        json_pack("{}"),
         gobj
     ));
 
@@ -2604,6 +2608,20 @@ PRIVATE int will__process_disconnect(hgobj gobj, json_t *session, BOOL send_will
     uint32_t will_delay_interval = (uint32_t)kw_get_int(
         gobj, session, "will_delay_interval", 0, 0
     );
+
+    /*
+     *  [MQTT-3.1.3.9.2] If the Will Delay Interval is greater than the
+     *  Session Expiry Interval, the will message is published when the
+     *  session expires. Clamp will_delay to session_expiry.
+     */
+    uint32_t session_expiry_interval = (uint32_t)kw_get_int(
+        gobj, session, "session_expiry_interval", 0, 0
+    );
+    if(session_expiry_interval > 0 && will_delay_interval > session_expiry_interval) {
+        will_delay_interval = session_expiry_interval;
+        json_object_set_new(session, "will_delay_interval",
+            json_integer(will_delay_interval));
+    }
 
     if(will_delay_interval > 0) {
         /*
@@ -2687,8 +2705,11 @@ PRIVATE void will_delay__check(hgobj gobj)
 
         /*
          *  Check if will delay has expired
+         *  Use > instead of >= to ensure at least will_delay_interval
+         *  full seconds have elapsed (time_t has 1-second resolution,
+         *  so >= can fire up to 1 second too early)
          */
-        if((now - will_delay_time) >= will_delay_interval) {
+        if((now - will_delay_time) > will_delay_interval) {
             const char *client_id = kw_get_str(gobj, session, "id", "", KW_REQUIRED);
             if(gobj_trace_level(gobj) & TRACE_MESSAGES) {
                 gobj_log_info(gobj, 0,
@@ -2799,6 +2820,21 @@ PRIVATE int subs__send(
     uint8_t client_qos = (int)kw_get_int(gobj, sub, "qos", 0, KW_REQUIRED);
     json_t *ids = kw_get_list(gobj, sub, "ids", 0, 0); // TODO don't save ids if no id, save mem/perf
 
+    /*-------------------------------------------------*
+     *  [MQTT-3.8.3-3] noLocal: if set, the Server
+     *  MUST NOT forward messages to a connection
+     *  with a ClientID equal to the publishing one
+     *-------------------------------------------------*/
+    if(options & MQTT_SUB_OPT_NO_LOCAL) {
+        const char *publisher_client_id = kw_get_str(
+            gobj, kw_mqtt_msg, "client_id", "", KW_REQUIRED
+        );
+        if(strcmp(client_id, publisher_client_id) == 0) {
+            JSON_DECREF(session)
+            return 0; // Skip: noLocal prevents self-delivery
+        }
+    }
+
     /*------------------------------*
      *  Check for ACL topic access
      *------------------------------*/
@@ -2842,14 +2878,18 @@ PRIVATE int subs__send(
     /*-----------------------*
      *  Create the message
      *-----------------------*/
-    json_t *properties = NULL;
+    json_t *properties;
     if(json_array_size(ids)) {
-        // TODO
-        // mosquitto_property_add_varint(
-        //     &properties,
-        //     MQTT_PROP_SUBSCRIPTION_IDENTIFIER,
-        //     leaf->identifier
-        // );
+        /*
+         *  Copy properties and add subscription identifiers
+         *  [MQTT-3.3.4-3] Each subscriber may have different subscription IDs,
+         *  so we must make a copy before adding them.
+         */
+        json_t *orig_properties = kw_get_dict(gobj, kw_mqtt_msg, "properties", 0, 0);
+        properties = orig_properties ? json_copy(orig_properties) : json_object();
+        json_object_set(properties, "subscription-identifier", ids);
+    } else {
+        properties = json_incref(kw_get_dict(gobj, kw_mqtt_msg, "properties", 0, 0));
     }
 
     /*
@@ -3039,11 +3079,12 @@ PRIVATE size_t sub__messages_queue(
      *---------------------------*/
     size_t total_sent = 0;
 
+    gbuffer_t *gbuf = (gbuffer_t *)(uintptr_t)kw_get_int(
+        gobj, kw_mqtt_msg, "gbuffer", 0, KW_REQUIRED
+    );
+    int msg_len = gbuf?(int)gbuffer_leftbytes(gbuf):0;
+
     if(gobj_trace_level(gobj) & TRACE_MESSAGES2) {
-        gbuffer_t *gbuf = (gbuffer_t *)(uintptr_t)kw_get_int(
-            gobj, kw_mqtt_msg, "gbuffer", 0, KW_REQUIRED
-        );
-        int msg_len = gbuf?(int)gbuffer_leftbytes(gbuf):0;
         const char *client_id = kw_get_str(gobj, kw_mqtt_msg, "client_id", "0", KW_REQUIRED);
         trace_machine2("🔶🔶 <== RECEIVE PUBLISH session '%s', topic '%s', qos %d, retain %d %s, msg_len %d",
             client_id,
@@ -3053,6 +3094,17 @@ PRIVATE size_t sub__messages_queue(
             retain?(msg_len?"🔀📘":"🔀📕"):"",
             msg_len
         ); // ♥🔵🔴💙🔷🔶🔀💾
+    }
+
+    /*--------------------------------------------------------------------*
+     *  A retain message with empty payload is only to clear the retain
+     *  store, don't forward to subscribers.
+     *--------------------------------------------------------------------*/
+    if(retain && msg_len == 0) {
+        retain__store(gobj, topic, kw_mqtt_msg);
+        GBMEM_FREE(local_topic)
+        GBMEM_FREE(levels)
+        return 0;
     }
 
     /*----------------------------------------------------*
@@ -3112,16 +3164,6 @@ PRIVATE size_t sub__messages_queue(
 
     if(retain) {
         retain__store(gobj, topic, kw_mqtt_msg);
-        // // TODO TEST
-        json_t *retains = gobj_list_nodes(
-            priv->gobj_treedb_mqtt_broker,
-            "retained_msgs",
-            NULL,
-            NULL,
-            gobj
-        );
-        print_json("LIST OF RETAINS", retains);
-        json_decref(retains);
     }
 
     GBMEM_FREE(local_topic)
@@ -3401,11 +3443,6 @@ PRIVATE int ac_on_open(hgobj gobj, const char *event, json_t *kw, hgobj src)
             will__clear(gobj, session);
         }
 
-        /*
-         *  Clear will delay timer since session is being replaced
-         */
-        json_object_set_new(session, "will_delay_time", json_integer(0));
-
         BOOL delete_prev_session = TRUE;
 
         if(!clean_start) {
@@ -3413,13 +3450,43 @@ PRIVATE int ac_on_open(hgobj gobj, const char *event, json_t *kw, hgobj src)
              *      Reuse the session
              *-----------------------------------*/
             if(prev_session_expiry_interval > 0) {
-                // TODO check if prev_session_expiry_interval expired
-                if(protocol_version == mosq_p_mqtt311 || protocol_version == mosq_p_mqtt5) {
-                    result = 1; // ack=1 Resume existing session
-                    delete_prev_session = FALSE;
+                /*
+                 *  Check if session has expired since disconnect
+                 *  Read will_delay_time before it gets cleared below
+                 */
+                json_int_t disconnect_time = kw_get_int(
+                    gobj, session, "will_delay_time", 0, 0
+                );
+                time_t now;
+                time(&now);
+                BOOL session_expired = (disconnect_time > 0 &&
+                    (now - disconnect_time) >= prev_session_expiry_interval);
+
+                if(!session_expired) {
+                    if(protocol_version == mosq_p_mqtt311 || protocol_version == mosq_p_mqtt5) {
+                        result = 1; // ack=1 Resume existing session
+                        delete_prev_session = FALSE;
+                    }
+                } else {
+                    if(gobj_trace_level(gobj) & TRACE_MESSAGES) {
+                        gobj_log_info(gobj, 0,
+                            "function",     "%s", __FUNCTION__,
+                            "msgset",       "%s", MSGSET_INFO,
+                            "msg",          "%s", "Session expired",
+                            "client_id",    "%s", client_id,
+                            "elapsed",      "%ld", (long)(now - disconnect_time),
+                            "expiry",       "%ld", (long)prev_session_expiry_interval,
+                            NULL
+                        );
+                    }
                 }
             }
         }
+
+        /*
+         *  Clear will delay timer since session is being replaced/reused
+         */
+        json_object_set_new(session, "will_delay_time", json_integer(0));
 
         /*
          *  Disconnect previous session before close session
@@ -3428,7 +3495,7 @@ PRIVATE int ac_on_open(hgobj gobj, const char *event, json_t *kw, hgobj src)
             json_t *kw_disconnect = json_pack("{s:b}",
                 "session_take_over", !delete_prev_session
             );
-            gobj_send_event(prev_gobj_channel, EV_DROP, kw_disconnect, gobj);
+            gobj_send_event(prev_gobj_channel, EV_DROP, kw_disconnect, gobj); // will close queues
         }
 
         if(delete_prev_session) {
@@ -3446,6 +3513,18 @@ PRIVATE int ac_on_open(hgobj gobj, const char *event, json_t *kw, hgobj src)
                 gobj
             );
             sub__remove_client(gobj, client_id);
+
+            /*-------------------------------------------*
+             *  Delete queued messages of prev session
+             *  if not connected
+             *-------------------------------------------*/
+            if(priv->tranger_queues && !prev_gobj_channel) {
+                char queue_name[NAME_MAX];
+                build_queue_name(queue_name, sizeof(queue_name), client_id, mosq_md_in);
+                tranger2_delete_topic(priv->tranger_queues, queue_name);
+                build_queue_name(queue_name, sizeof(queue_name), client_id, mosq_md_out);
+                tranger2_delete_topic(priv->tranger_queues, queue_name);
+            }
         }
 
         JSON_DECREF(session);
@@ -3601,16 +3680,59 @@ PRIVATE int ac_on_close(hgobj gobj, const char *event, json_t *kw, hgobj src)
         TRUE,
         KW_REQUIRED
     );
+    int protocol_version = (int)kw_get_int(
+        gobj,
+        session,
+        "protocol_version",
+        0,
+        KW_REQUIRED
+    );
+    uint32_t session_expiry_interval = (uint32_t)kw_get_int(
+        gobj,
+        session,
+        "session_expiry_interval",
+        0,
+        KW_REQUIRED
+    );
+
+    /*
+     *  MQTT 5.0: DISCONNECT packet may override session_expiry_interval.
+     *  Read the current value from the channel (protocol layer) which
+     *  reflects any DISCONNECT property updates, and sync to session.
+     */
+    if(protocol_version == mosq_p_mqtt5) {
+        uint32_t channel_session_expiry = (uint32_t)gobj_read_integer_attr(
+            gobj_channel, "session_expiry_interval"
+        );
+        if(channel_session_expiry != session_expiry_interval) {
+            session_expiry_interval = channel_session_expiry;
+            json_object_set_new(session, "session_expiry_interval",
+                json_integer(session_expiry_interval));
+        }
+    }
+
+    /*
+     *  Determine if session is temporary (should be deleted on close):
+     *  - MQTT 5.0: session is temporary if session_expiry_interval == 0
+     *    (clean_start only controls clearing old state at CONNECT time)
+     *  - MQTT 3.1.x: session is temporary if clean_start (clean_session) is set
+     */
+    BOOL session_is_temporary;
+    if(protocol_version == mosq_p_mqtt5) {
+        session_is_temporary = (session_expiry_interval == 0);
+    } else {
+        session_is_temporary = clean_start;
+    }
 
     if(gobj_trace_level(gobj) & TRACE_MESSAGES2) {
-        trace_machine2("🔴 session '%s', clean %d", client_id, clean_start); // ♥🔵🔴💙🔷🔶🔀💾
+        trace_machine2("🔴 session '%s', clean %d", client_id, session_is_temporary); // ♥🔵🔴💙🔷🔶🔀💾
     }
 
     /*-----------------------------------------*
      *  If not persistent session delete it
      *  and if it's dynamic client delete too
      *-----------------------------------------*/
-    if(clean_start) {
+    if(session_is_temporary) {
         /*
          *  Non-persistent session: send will before deleting session
          *
@@ -3662,17 +3784,24 @@ PRIVATE int ac_on_close(hgobj gobj, const char *event, json_t *kw, hgobj src)
 
         if(gobj_channel == prev_gobj_channel) {
             /*
-             *  Save last_mid and mark session as disconnected
+             *  Save last_mid, disconnect time, and mark session as disconnected
              */
             uint16_t last_mid = (uint16_t)gobj_read_integer_attr(gobj_channel, "last_mid");
             json_object_set_new(session, "last_mid", json_integer(last_mid));
             json_object_set_new(session, "_gobj_channel", json_integer((json_int_t)0));
             json_object_set_new(session, "in_session", json_false());
+
+            /*
+             *  Store disconnect time for session expiry checking on reconnect
+             */
+            time_t t;
+            time(&t);
+            json_object_set_new(session, "will_delay_time", json_integer((json_int_t)t));
             json_decref(gobj_update_node(
                 priv->gobj_treedb_mqtt_broker,
                 "sessions",
                 json_incref(session),  // owned
-                json_pack("{s:b}", "volatil", 1),
+                json_pack("{}"),
                 gobj
             ));
         }
@@ -3751,7 +3880,7 @@ PRIVATE int ac_mqtt_subscribe(hgobj gobj, const char *event, json_t *kw, hgobj s
         }
         if(!allowed) {
             if(protocol_version == mosq_p_mqtt5) {
-                reason = MQTT_RC_NOT_AUTHORIZED;
+                reason = MQTT_RC_UNSPECIFIED;
             } else if(protocol_version == mosq_p_mqtt311) {
                 reason = 0x80;
             }
