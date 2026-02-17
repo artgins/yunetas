@@ -6577,7 +6577,7 @@ PRIVATE int handle__publish_s(
             GBMEM_FREE(topic)
             KW_DECREF(kw_mqtt_msg)
             ws_close(gobj, MQTT_RC_RECEIVE_MAXIMUM_EXCEEDED);
-            return MOSQ_ERR_OVERSIZE_PACKET;
+            return 0; // ws_close already sent DISCONNECT, don't trigger another
         }
     }
 
@@ -6848,7 +6848,7 @@ PRIVATE int handle__publish_c(
             GBMEM_FREE(topic)
             KW_DECREF(kw_mqtt_msg)
             ws_close(gobj, MQTT_RC_RECEIVE_MAXIMUM_EXCEEDED);
-            return MOSQ_ERR_OVERSIZE_PACKET;
+            return 0; // ws_close already sent DISCONNECT, don't trigger another
         }
     }
 
