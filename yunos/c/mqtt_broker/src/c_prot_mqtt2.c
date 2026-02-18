@@ -1143,7 +1143,7 @@ PRIVATE BOOL db__ready_for_flight(hgobj gobj, enum mqtt_msg_direction dir, int q
         return TRUE;
     }
 
-    // TODO no maximum of messages or bytes done by now
+    // WARNING no maximum of messages or bytes done by now
 
     if(qos == 0) {
         return TRUE;
