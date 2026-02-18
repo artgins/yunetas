@@ -296,6 +296,7 @@ SDATA (DTP_STRING,  "authz_yuno_role",  SDF_RD,     "",         "If tranger_path
 SDATA (DTP_STRING,  "authz_tenant",     SDF_RD,     "",         "Used for multi-tenant service"),
 SDATA (DTP_BOOLEAN, "master",           SDF_RD,     "0",        "the master is the only that can write, if tranger_path is empty is set to TRUE internally"),
 
+SDATA (DTP_BOOLEAN, "allow_anonymous_in_localhost",SDF_RD,"0",  "Allow no user in local connections"),
 SDATA (DTP_INTEGER, "max_sessions_per_user",SDF_PERSIST,    "0",        "Max sessions per user (0 no limit)"),
 SDATA (DTP_JSON,    "jwks",                 SDF_WR|SDF_PERSIST, "[]",   "JWKS public keys, OLD jwt_public_keys, use the utility keycloak_pkey_to_jwks to create."),
 SDATA (DTP_JSON,    "initial_load",         SDF_RD,         "{}",       "Initial data for treedb"),
@@ -768,26 +769,31 @@ PRIVATE json_t *mt_authenticate(hgobj gobj, json_t *kw, hgobj src)
                 break;
             }
 
-            if(strcmp(username, "yuneta")!=0) {
-                /*
-                 *  Only yuneta is allowed without jwt/passw
-                 */
-                gobj_log_warning(gobj, 0,
-                    "function",     "%s", __FUNCTION__,
-                    "msgset",       "%s", MSGSET_AUTH,
-                    "msg",          "%s", "Without JWT/passw only yuneta is allowed",
-                    "username",     "%s", username,
-                    "service",      "%s", dst_service,
-                    NULL
-                );
-                json_t *jn_resp = json_pack("{s:i, s:s, s:s, s:s}",
-                    "result", -1,
-                    "comment", "Without JWT/passw only yuneta is allowed",
-                    "username", username,
-                    "service", dst_service
-                );
-                KW_DECREF(kw)
-                return jn_resp;
+            BOOL allow_anonymous_in_localhost = gobj_read_bool_attr(
+                gobj, "allow_anonymous_in_localhost"
+            );
+            if(!allow_anonymous_in_localhost) {
+                if(strcmp(username, "yuneta")!=0) {
+                    /*
+                     *  Only yuneta is allowed without jwt/passw
+                     */
+                    gobj_log_warning(gobj, 0,
+                        "function",     "%s", __FUNCTION__,
+                        "msgset",       "%s", MSGSET_AUTH,
+                        "msg",          "%s", "Without JWT/passw only yuneta is allowed",
+                        "username",     "%s", username,
+                        "service",      "%s", dst_service,
+                        NULL
+                    );
+                    json_t *jn_resp = json_pack("{s:i, s:s, s:s, s:s}",
+                        "result", -1,
+                        "comment", "Without JWT/passw only yuneta is allowed",
+                        "username", username,
+                        "service", dst_service
+                    );
+                    KW_DECREF(kw)
+                    return jn_resp;
+                }
             }
 
             if(is_ip_allowed(peername)) {
