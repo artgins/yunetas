@@ -1143,8 +1143,9 @@ PRIVATE BOOL db__ready_for_flight(hgobj gobj, enum mqtt_msg_direction dir, int q
         return TRUE;
     }
 
+    // TODO no maximum of messages or bytes done by now
+
     if(qos == 0) {
-        // TODO check bytes or msgs?
         return TRUE;
     } else {
         if(trq->max_inflight_messages == 0) {
@@ -1157,7 +1158,6 @@ PRIVATE BOOL db__ready_for_flight(hgobj gobj, enum mqtt_msg_direction dir, int q
         }
 
         if(priv->max_inflight_bytes > 0) {
-            // TODO check bytes
         }
     }
 
