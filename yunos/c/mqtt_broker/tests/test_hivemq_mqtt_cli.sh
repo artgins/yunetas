@@ -37,7 +37,7 @@ FAIL_COUNT=0
 SKIP_COUNT=0
 TEST_START=0
 TEST_END=0
-NUM_TESTS=20
+NUM_TESTS=24
 
 # =============================================================================
 # Colors
@@ -85,6 +85,10 @@ TEST_NAMES=(
     [18]="Persistent Session (Clean Session = false, MQTT v3.1.1)"
     [19]="MQTT v5.0 Session Expiry"
     [20]="High-volume Publish (burst 50 messages)"
+    [21]="Perf: Concurrent Connections (100 simultaneous)"
+    [22]="Perf: Message Throughput (500 messages, sequential)"
+    [23]="Perf: Fan-out Scalability (1 pub to 20 subs)"
+    [24]="Perf: Burst Publish (200 messages, batched)"
 )
 
 # =============================================================================
@@ -968,7 +972,7 @@ log_section "20. ${TEST_NAMES[20]}"
 TOPIC="test/burst/$$"
 OUT=$(mktemp)
 EXPECTED=50
-BATCH_SIZE=5
+BATCH_SIZE=25
 
 SUB_PID=$(run_sub_bg "${OUT}" \
     --topic "${TOPIC}" \
@@ -997,6 +1001,217 @@ elif [[ ${RECEIVED} -gt 0 ]]; then
     log_fail "Burst publish: only ${RECEIVED}/${EXPECTED} messages received"
 else
     log_fail "Burst publish: no messages received"
+fi
+rm -f "${OUT}"
+fi
+
+# =============================================================================
+# 21. Perf: Concurrent Connections (100 simultaneous)
+# =============================================================================
+if should_run 21; then
+log_section "21. ${TEST_NAMES[21]}"
+
+TOPIC="test/perf/conn/$$"
+OUT=$(mktemp)
+NUM_CONNS=100
+BATCH_SIZE=50
+
+SUB_PID=$(run_sub_bg "${OUT}" \
+    --topic "${TOPIC}" \
+    --identifier "perf-sub-$$")
+sleep 0.5
+
+T_START=$(date +%s%N)
+
+for i in $(seq 1 ${NUM_CONNS}); do
+    run_pub \
+        --topic "${TOPIC}" \
+        --message "conn-${i}" \
+        --identifier "perf-conn-${i}-$$" &
+    if (( i % BATCH_SIZE == 0 )); then
+        wait
+    fi
+done
+wait
+
+T_END=$(date +%s%N)
+ELAPSED_MS=$(( (T_END - T_START) / 1000000 ))
+
+sleep 2
+kill "${SUB_PID}" 2>/dev/null || true
+wait "${SUB_PID}" 2>/dev/null || true
+
+RECEIVED=$(grep -c "conn-" "${OUT}" 2>/dev/null || echo 0)
+if [[ ${RECEIVED} -eq ${NUM_CONNS} ]]; then
+    log_ok "Concurrent connections: ${NUM_CONNS}/${NUM_CONNS} messages received (${ELAPSED_MS}ms for ${NUM_CONNS} connect+pub+disconnect cycles)"
+elif [[ ${RECEIVED} -ge $(( NUM_CONNS * 90 / 100 )) ]]; then
+    log_ok "Concurrent connections: ${RECEIVED}/${NUM_CONNS} messages received (${ELAPSED_MS}ms, >=90%)"
+else
+    log_fail "Concurrent connections: only ${RECEIVED}/${NUM_CONNS} messages received (${ELAPSED_MS}ms)"
+fi
+rm -f "${OUT}"
+fi
+
+# =============================================================================
+# 22. Perf: Message Throughput (500 messages, sequential)
+# =============================================================================
+if should_run 22; then
+log_section "22. ${TEST_NAMES[22]}"
+
+TOPIC="test/perf/throughput/$$"
+OUT=$(mktemp)
+NUM_MSGS=500
+BATCH_SIZE=50
+
+SUB_PID=$(run_sub_bg "${OUT}" \
+    --topic "${TOPIC}" \
+    --identifier "perf-tp-sub-$$")
+sleep 0.5
+
+T_START=$(date +%s%N)
+
+for i in $(seq 1 ${NUM_MSGS}); do
+    run_pub \
+        --topic "${TOPIC}" \
+        --message "tp-${i}" \
+        --identifier "perf-tp-${i}-$$" &
+    if (( i % BATCH_SIZE == 0 )); then
+        wait
+    fi
+done
+wait
+
+T_END=$(date +%s%N)
+ELAPSED_MS=$(( (T_END - T_START) / 1000000 ))
+
+sleep 4
+kill "${SUB_PID}" 2>/dev/null || true
+wait "${SUB_PID}" 2>/dev/null || true
+
+RECEIVED=$(grep -c "tp-" "${OUT}" 2>/dev/null || echo 0)
+if [[ ${ELAPSED_MS} -gt 0 ]]; then
+    RATE=$(( RECEIVED * 1000 / ELAPSED_MS ))
+else
+    RATE=${RECEIVED}
+fi
+
+if [[ ${RECEIVED} -eq ${NUM_MSGS} ]]; then
+    log_ok "Throughput: ${RECEIVED}/${NUM_MSGS} delivered in ${ELAPSED_MS}ms (~${RATE} msg/s pub rate)"
+elif [[ ${RECEIVED} -ge $(( NUM_MSGS * 90 / 100 )) ]]; then
+    log_ok "Throughput: ${RECEIVED}/${NUM_MSGS} delivered in ${ELAPSED_MS}ms (~${RATE} msg/s pub rate, >=90%)"
+else
+    log_fail "Throughput: only ${RECEIVED}/${NUM_MSGS} delivered in ${ELAPSED_MS}ms (~${RATE} msg/s pub rate)"
+fi
+rm -f "${OUT}"
+fi
+
+# =============================================================================
+# 23. Perf: Fan-out Scalability (1 pub to 20 subs)
+# =============================================================================
+if should_run 23; then
+log_section "23. ${TEST_NAMES[23]}"
+
+TOPIC="test/perf/fanout/$$"
+NUM_SUBS=20
+NUM_MSGS=10
+TOTAL_EXPECTED=$(( NUM_SUBS * NUM_MSGS ))
+
+declare -a SUB_PIDS
+declare -a SUB_OUTS
+for s in $(seq 1 ${NUM_SUBS}); do
+    SUB_OUTS[$s]=$(mktemp)
+    SUB_PIDS[$s]=$(run_sub_bg "${SUB_OUTS[$s]}" \
+        --topic "${TOPIC}" \
+        --identifier "perf-fan-sub-${s}-$$")
+done
+sleep 1
+
+T_START=$(date +%s%N)
+
+for i in $(seq 1 ${NUM_MSGS}); do
+    run_pub \
+        --topic "${TOPIC}" \
+        --message "fan-${i}" \
+        --identifier "perf-fan-pub-${i}-$$" &
+done
+wait
+
+T_END=$(date +%s%N)
+ELAPSED_MS=$(( (T_END - T_START) / 1000000 ))
+
+sleep 3
+
+TOTAL_RECEIVED=0
+ALL_SUBS_OK=1
+for s in $(seq 1 ${NUM_SUBS}); do
+    kill "${SUB_PIDS[$s]}" 2>/dev/null || true
+    wait "${SUB_PIDS[$s]}" 2>/dev/null || true
+    COUNT=$(grep -c "fan-" "${SUB_OUTS[$s]}" 2>/dev/null || echo 0)
+    TOTAL_RECEIVED=$(( TOTAL_RECEIVED + COUNT ))
+    if [[ ${COUNT} -ne ${NUM_MSGS} ]]; then
+        ALL_SUBS_OK=0
+    fi
+    rm -f "${SUB_OUTS[$s]}"
+done
+
+if [[ ${ALL_SUBS_OK} -eq 1 ]]; then
+    log_ok "Fan-out: all ${NUM_SUBS} subs received all ${NUM_MSGS} msgs (${TOTAL_RECEIVED}/${TOTAL_EXPECTED} total, ${ELAPSED_MS}ms pub time)"
+elif [[ ${TOTAL_RECEIVED} -ge $(( TOTAL_EXPECTED * 90 / 100 )) ]]; then
+    log_ok "Fan-out: ${TOTAL_RECEIVED}/${TOTAL_EXPECTED} total messages delivered (${ELAPSED_MS}ms, >=90%)"
+else
+    log_fail "Fan-out: only ${TOTAL_RECEIVED}/${TOTAL_EXPECTED} total messages delivered (${ELAPSED_MS}ms)"
+fi
+fi
+
+# =============================================================================
+# 24. Perf: Burst Publish (200 messages, batched)
+# =============================================================================
+if should_run 24; then
+log_section "24. ${TEST_NAMES[24]}"
+
+TOPIC="test/perf/burst/$$"
+OUT=$(mktemp)
+EXPECTED=200
+BATCH_SIZE=50
+
+SUB_PID=$(run_sub_bg "${OUT}" \
+    --topic "${TOPIC}" \
+    --identifier "perf-burst-sub-$$")
+sleep 0.5
+
+T_START=$(date +%s%N)
+
+for i in $(seq 1 ${EXPECTED}); do
+    run_pub \
+        --topic "${TOPIC}" \
+        --message "pburst-${i}" \
+        --identifier "perf-burst-${i}-$$" &
+    if (( i % BATCH_SIZE == 0 )); then
+        wait
+    fi
+done
+wait
+
+T_END=$(date +%s%N)
+ELAPSED_MS=$(( (T_END - T_START) / 1000000 ))
+
+sleep 4
+kill "${SUB_PID}" 2>/dev/null || true
+wait "${SUB_PID}" 2>/dev/null || true
+
+RECEIVED=$(grep -c "pburst-" "${OUT}" 2>/dev/null || echo 0)
+if [[ ${ELAPSED_MS} -gt 0 ]]; then
+    RATE=$(( RECEIVED * 1000 / ELAPSED_MS ))
+else
+    RATE=${RECEIVED}
+fi
+
+if [[ ${RECEIVED} -eq ${EXPECTED} ]]; then
+    log_ok "Burst 200: all ${EXPECTED} messages received (${ELAPSED_MS}ms, ~${RATE} msg/s)"
+elif [[ ${RECEIVED} -ge $(( EXPECTED * 90 / 100 )) ]]; then
+    log_ok "Burst 200: ${RECEIVED}/${EXPECTED} messages received (${ELAPSED_MS}ms, ~${RATE} msg/s, >=90%)"
+else
+    log_fail "Burst 200: only ${RECEIVED}/${EXPECTED} messages received (${ELAPSED_MS}ms, ~${RATE} msg/s)"
 fi
 rm -f "${OUT}"
 fi
