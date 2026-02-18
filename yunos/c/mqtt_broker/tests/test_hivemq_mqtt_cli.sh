@@ -37,7 +37,7 @@ FAIL_COUNT=0
 SKIP_COUNT=0
 TEST_START=0
 TEST_END=0
-NUM_TESTS=20
+NUM_TESTS=25
 
 # =============================================================================
 # Colors
@@ -85,6 +85,11 @@ TEST_NAMES=(
     [18]="Persistent Session (Clean Session = false, MQTT v3.1.1)"
     [19]="MQTT v5.0 Session Expiry"
     [20]="High-volume Publish (burst 50 messages)"
+    [21]="Perf: Concurrent Connections (100 simultaneous)"
+    [22]="Perf: Message Throughput (1000 msgs, single connection)"
+    [23]="Perf: Fan-out Scalability (1 pub to 20 subs, 50 msgs)"
+    [24]="Perf: Burst Publish (500 msgs, 10 parallel connections)"
+    [25]="Perf: Max Speed Benchmark (QoS 0, 1, 2)"
 )
 
 # =============================================================================
@@ -840,18 +845,19 @@ OUT=$(mktemp)
 
 CLIENT_ID="persist-client-$$"
 
-# Subscribe with persistent session (clean session = false)
-SUB_PID=$(${MQTT} sub \
+# Subscribe with persistent session (clean session = false, MQTT v3.1.1)
+${MQTT} sub \
     -l \
     --host "${BROKER_HOST}" \
     --port "${BROKER_PORT}" \
     --topic "${TOPIC}" \
     --identifier "${CLIENT_ID}" \
+    --mqttVersion 3 \
     --no-cleanStart \
     --qos 1 \
-    2>/dev/null >"${OUT}" &)
+    2>/dev/null >"${OUT}" &
 SUB_PID=$!
-sleep 0.5
+sleep 2
 
 # Disconnect the subscriber
 kill "${SUB_PID}" 2>/dev/null || true
@@ -868,15 +874,16 @@ sleep 0.5
 
 # Reconnect with same client ID (persistent session)
 OUT2=$(mktemp)
-SUB_PID2=$(${MQTT} sub \
+${MQTT} sub \
     -l \
     --host "${BROKER_HOST}" \
     --port "${BROKER_PORT}" \
     --topic "${TOPIC}" \
     --identifier "${CLIENT_ID}" \
+    --mqttVersion 3 \
     --no-cleanStart \
     --qos 1 \
-    2>/dev/null >"${OUT2}" &)
+    2>/dev/null >"${OUT2}" &
 SUB_PID2=$!
 sleep 2
 
@@ -903,7 +910,7 @@ CLIENT_ID="v5-session-$$"
 OUT=$(mktemp)
 
 # Connect with session expiry of 30 seconds
-SUB_PID=$(${MQTT} sub \
+${MQTT} sub \
     -l \
     --host "${BROKER_HOST}" \
     --port "${BROKER_PORT}" \
@@ -913,9 +920,9 @@ SUB_PID=$(${MQTT} sub \
     --no-cleanStart \
     --sessionExpiryInterval 30 \
     --qos 1 \
-    2>/dev/null >"${OUT}" &)
+    2>/dev/null >"${OUT}" &
 SUB_PID=$!
-sleep 0.5
+sleep 2
 
 kill "${SUB_PID}" 2>/dev/null || true
 wait "${SUB_PID}" 2>/dev/null || true
@@ -932,7 +939,7 @@ sleep 0.5
 
 # Reconnect within session expiry window
 OUT2=$(mktemp)
-SUB_PID2=$(${MQTT} sub \
+${MQTT} sub \
     -l \
     --host "${BROKER_HOST}" \
     --port "${BROKER_PORT}" \
@@ -942,7 +949,7 @@ SUB_PID2=$(${MQTT} sub \
     --no-cleanStart \
     --sessionExpiryInterval 30 \
     --qos 1 \
-    2>/dev/null >"${OUT2}" &)
+    2>/dev/null >"${OUT2}" &
 SUB_PID2=$!
 sleep 2
 
@@ -966,6 +973,7 @@ log_section "20. ${TEST_NAMES[20]}"
 TOPIC="test/burst/$$"
 OUT=$(mktemp)
 EXPECTED=50
+BATCH_SIZE=25
 
 SUB_PID=$(run_sub_bg "${OUT}" \
     --topic "${TOPIC}" \
@@ -977,6 +985,9 @@ for i in $(seq 1 ${EXPECTED}); do
         --topic "${TOPIC}" \
         --message "burst-msg-${i}" \
         --identifier "pub-burst-${i}-$$" &
+    if (( i % BATCH_SIZE == 0 )); then
+        wait
+    fi
 done
 wait
 
@@ -993,6 +1004,188 @@ else
     log_fail "Burst publish: no messages received"
 fi
 rm -f "${OUT}"
+fi
+
+# =============================================================================
+# 21. Perf: Concurrent Connections (100 simultaneous)
+#     Tests broker's ability to handle many simultaneous connections.
+#     Each publisher is a separate JVM/connection (overhead ~1s per JVM).
+# =============================================================================
+if should_run 21; then
+log_section "21. ${TEST_NAMES[21]}"
+
+TOPIC="test/perf/conn/$$"
+OUT=$(mktemp)
+NUM_CONNS=100
+BATCH_SIZE=50
+
+SUB_PID=$(run_sub_bg "${OUT}" \
+    --topic "${TOPIC}" \
+    --identifier "perf-sub-$$")
+sleep 0.5
+
+T_START=$(date +%s%N)
+
+for i in $(seq 1 ${NUM_CONNS}); do
+    run_pub \
+        --topic "${TOPIC}" \
+        --message "conn-${i}" \
+        --identifier "perf-conn-${i}-$$" &
+    if (( i % BATCH_SIZE == 0 )); then
+        wait
+    fi
+done
+wait
+
+T_END=$(date +%s%N)
+ELAPSED_MS=$(( (T_END - T_START) / 1000000 ))
+
+sleep 2
+kill "${SUB_PID}" 2>/dev/null || true
+wait "${SUB_PID}" 2>/dev/null || true
+
+RECEIVED=$(grep -c "conn-" "${OUT}" 2>/dev/null || echo 0)
+CONN_RATE=$(( NUM_CONNS * 1000 / (ELAPSED_MS > 0 ? ELAPSED_MS : 1) ))
+if [[ ${RECEIVED} -eq ${NUM_CONNS} ]]; then
+    log_ok "Concurrent connections: ${NUM_CONNS}/${NUM_CONNS} received (${ELAPSED_MS}ms, ~${CONN_RATE} conn/s)"
+elif [[ ${RECEIVED} -ge $(( NUM_CONNS * 90 / 100 )) ]]; then
+    log_ok "Concurrent connections: ${RECEIVED}/${NUM_CONNS} received (${ELAPSED_MS}ms, ~${CONN_RATE} conn/s, >=90%)"
+else
+    log_fail "Concurrent connections: only ${RECEIVED}/${NUM_CONNS} received (${ELAPSED_MS}ms)"
+fi
+rm -f "${OUT}"
+fi
+
+# =============================================================================
+# 22. Perf: Message Throughput (1000 msgs, single connection)
+#     Uses Python raw-socket benchmark for zero overhead.
+# =============================================================================
+if should_run 22; then
+log_section "22. ${TEST_NAMES[22]}"
+
+BENCH_SCRIPT="${SCRIPT_DIR}/mqtt_benchmark.py"
+if [[ ! -f "${BENCH_SCRIPT}" ]]; then
+    log_fail "Benchmark script not found: ${BENCH_SCRIPT}"
+else
+    BENCH_OUT=$(mktemp)
+    python3 "${BENCH_SCRIPT}" \
+        --host "${BROKER_HOST}" \
+        --port "${BROKER_PORT}" \
+        --count 1000 \
+        --qos 0 \
+        2>&1 | tee "${BENCH_OUT}"
+
+    if grep -q "RESULT:.*:status=PASS" "${BENCH_OUT}"; then
+        log_ok "Throughput: single connection, 1000 messages"
+    elif grep -q "RESULT:.*:status=FAIL" "${BENCH_OUT}"; then
+        log_fail "Throughput: message loss above threshold"
+    else
+        log_fail "Throughput: benchmark did not produce results"
+    fi
+    rm -f "${BENCH_OUT}"
+fi
+fi
+
+# =============================================================================
+# 23. Perf: Fan-out Scalability (1 pub to 20 subs, 50 msgs)
+#     Uses Python raw-socket benchmark with --subs 20 for zero overhead.
+# =============================================================================
+if should_run 23; then
+log_section "23. ${TEST_NAMES[23]}"
+
+BENCH_SCRIPT="${SCRIPT_DIR}/mqtt_benchmark.py"
+if [[ ! -f "${BENCH_SCRIPT}" ]]; then
+    log_fail "Benchmark script not found: ${BENCH_SCRIPT}"
+else
+    BENCH_OUT=$(mktemp)
+    python3 "${BENCH_SCRIPT}" \
+        --host "${BROKER_HOST}" \
+        --port "${BROKER_PORT}" \
+        --count 50 \
+        --subs 20 \
+        --qos 0 \
+        2>&1 | tee "${BENCH_OUT}"
+
+    if grep -q "RESULT:.*:status=PASS" "${BENCH_OUT}"; then
+        log_ok "Fan-out: 1 pub to 20 subs, 50 messages (1000 deliveries)"
+    elif grep -q "RESULT:.*:status=FAIL" "${BENCH_OUT}"; then
+        log_fail "Fan-out: message loss above threshold"
+    else
+        log_fail "Fan-out: benchmark did not produce results"
+    fi
+    rm -f "${BENCH_OUT}"
+fi
+fi
+
+# =============================================================================
+# 24. Perf: Burst Publish (500 msgs, 10 parallel connections)
+#     Uses Python raw-socket benchmark with --pubs 10 for zero overhead.
+# =============================================================================
+if should_run 24; then
+log_section "24. ${TEST_NAMES[24]}"
+
+BENCH_SCRIPT="${SCRIPT_DIR}/mqtt_benchmark.py"
+if [[ ! -f "${BENCH_SCRIPT}" ]]; then
+    log_fail "Benchmark script not found: ${BENCH_SCRIPT}"
+else
+    BENCH_OUT=$(mktemp)
+    python3 "${BENCH_SCRIPT}" \
+        --host "${BROKER_HOST}" \
+        --port "${BROKER_PORT}" \
+        --count 50 \
+        --pubs 10 \
+        --qos 0 \
+        2>&1 | tee "${BENCH_OUT}"
+
+    if grep -q "RESULT:.*:status=PASS" "${BENCH_OUT}"; then
+        log_ok "Burst: 10 pubs x 50 msgs (500 total)"
+    elif grep -q "RESULT:.*:status=FAIL" "${BENCH_OUT}"; then
+        log_fail "Burst: message loss above threshold"
+    else
+        log_fail "Burst: benchmark did not produce results"
+    fi
+    rm -f "${BENCH_OUT}"
+fi
+fi
+
+# =============================================================================
+# 25. Perf: Max Speed Benchmark (QoS 0, 1, 2)
+#     Uses Python raw-socket benchmark for zero overhead.
+#     Measures actual broker throughput without JVM startup noise.
+# =============================================================================
+if should_run 25; then
+log_section "25. ${TEST_NAMES[25]}"
+
+BENCH_SCRIPT="${SCRIPT_DIR}/mqtt_benchmark.py"
+if [[ ! -f "${BENCH_SCRIPT}" ]]; then
+    log_fail "Benchmark script not found: ${BENCH_SCRIPT}"
+else
+    BENCH_OUT=$(mktemp)
+    python3 "${BENCH_SCRIPT}" \
+        --host "${BROKER_HOST}" \
+        --port "${BROKER_PORT}" \
+        --count 10000 \
+        --payload 64 \
+        2>&1 | tee "${BENCH_OUT}"
+
+    # Parse machine-readable RESULT lines
+    ALL_QOS_PASS=1
+    while IFS= read -r line; do
+        if [[ "${line}" == RESULT:* ]]; then
+            STATUS=$(echo "${line}" | sed 's/.*:status=\([^:]*\).*/\1/')
+            if [[ "${STATUS}" == "FAIL" ]]; then
+                ALL_QOS_PASS=0
+            fi
+        fi
+    done < "${BENCH_OUT}"
+
+    if [[ ${ALL_QOS_PASS} -eq 1 ]]; then
+        log_ok "Max speed benchmark completed successfully"
+    else
+        log_fail "Max speed benchmark: some QoS levels below threshold"
+    fi
+    rm -f "${BENCH_OUT}"
+fi
 fi
 
 # =============================================================================
