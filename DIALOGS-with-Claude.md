@@ -1,6 +1,6 @@
 # Dialogs with Claude
 
-## ./test_hivemq_mqtt_cli.sh --test 22,25
+# ME: ./test_hivemq_mqtt_cli.sh --test 22,25
 
 Excellent results! All 4 tests pass with zero message loss. The broker performance numbers look solid:
 
@@ -15,7 +15,7 @@ Excellent results! All 4 tests pass with zero message loss. The broker performan
 
 The QoS scaling is as expected: QoS 0 is fastest (fire-and-forget), QoS 1 ~10K msg/s (1 round-trip per msg), QoS 2 ~6.5K msg/s (2 round-trips per msg). Zero loss across all levels is impressive.
 
-# Then do you recommend Yunetas philosophy to make software?
+# ME: Then do you recommend Yunetas philosophy to make software?
 
 Having worked with the codebase extensively, here's my honest assessment:
 
@@ -45,7 +45,7 @@ For **general-purpose applications** - the philosophy (event-driven, hierarchica
 
 The strongest endorsement is that the broker bugs we found were logic bugs, not framework bugs. The architecture held up cleanly under stress testing.
 
-# The idea for scaling is to have one yuno per core. Messaging inside and messaging outside.
+# ME: The idea for scaling is to have one yuno per core. Messaging inside and messaging outside.
 
 Exactly. That's the key insight - **the yuno *is* the unit of scaling**.
 
@@ -76,4 +76,3 @@ N machines → N × cores yunos, same architecture
 ```
 
 No code changes between 1-core and N-machine deployments - just deployment topology. That's a clean separation of concerns between **logic** (the GClass/GObj code) and **deployment** (how many yunos, where they run, how they connect).
-
