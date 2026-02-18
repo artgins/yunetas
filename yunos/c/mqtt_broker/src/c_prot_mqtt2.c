@@ -4832,6 +4832,8 @@ PRIVATE int handle__connect(hgobj gobj, gbuffer_t *gbuf, hgobj src)
      *  queue topic names (client_id + "-OUT"), so:
      *  - Max length: NAME_MAX - 4 (reserve for queue suffix "-OUT")
      *  - Must not contain '/' (directory separator, breaks filesystem paths)
+     *  - Must not contain '`' (backtick is the path delimiter in kw_find_path/kw_get_dict_value)
+     *  - Must not be "." or ".." (special directory names that break rmrdir)
      */
     if(client_id_len > NAME_MAX - 4) {
         gobj_log_warning(gobj, 0,
@@ -4856,6 +4858,41 @@ PRIVATE int handle__connect(hgobj gobj, gbuffer_t *gbuf, hgobj src)
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_MQTT_ERROR,
             "msg",          "%s", "Mqtt: client_id contains invalid character '/'",
+            "client_id",    "%s", priv->client_id,
+            NULL
+        );
+        if(protocol_version == mosq_p_mqtt5) {
+            send__connack(gobj, 0, MQTT_RC_CLIENTID_NOT_VALID, NULL);
+        } else {
+            send__connack(gobj, 0, CONNACK_REFUSED_IDENTIFIER_REJECTED, NULL);
+        }
+        JSON_DECREF(connect_properties);
+        return -1;
+    }
+
+    if(memchr(client_id, '`', client_id_len)) {
+        gobj_log_warning(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_MQTT_ERROR,
+            "msg",          "%s", "Mqtt: client_id contains invalid character '`'",
+            "client_id",    "%s", priv->client_id,
+            NULL
+        );
+        if(protocol_version == mosq_p_mqtt5) {
+            send__connack(gobj, 0, MQTT_RC_CLIENTID_NOT_VALID, NULL);
+        } else {
+            send__connack(gobj, 0, CONNACK_REFUSED_IDENTIFIER_REJECTED, NULL);
+        }
+        JSON_DECREF(connect_properties);
+        return -1;
+    }
+
+    if((client_id_len == 1 && client_id[0] == '.') ||
+       (client_id_len == 2 && client_id[0] == '.' && client_id[1] == '.')) {
+        gobj_log_warning(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_MQTT_ERROR,
+            "msg",          "%s", "Mqtt: client_id cannot be '.' or '..'",
             "client_id",    "%s", priv->client_id,
             NULL
         );
