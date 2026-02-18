@@ -984,9 +984,14 @@ PRIVATE void try_to_stop_yevents(hgobj gobj)  // IDEMPOTENT
     } else {
         /*
          *  Close fd only after all io_uring events are stopped.
-         *  Closing fd_clisrv while a pending io_uring recv is active causes the
-         *  kernel to RST the connection instead of sending a graceful FIN.
          *  tx_in_progress==0 is guaranteed here (it sets to_wait_stopped above).
+         *
+         *  Call shutdown(SHUT_WR) before close() to send a graceful FIN instead
+         *  of RST.  Linux sends RST when close() is called with unread data in
+         *  the receive buffer (e.g. the peer's FIN arrived just after we read
+         *  the last application data).  shutdown(SHUT_WR) transitions the socket
+         *  to FIN_WAIT_1 first, so the subsequent close() follows the graceful
+         *  TCP teardown path and the peer can complete its own shutdown().
          */
         if(priv->fd_clisrv > 0) {
             if(trace_level & TRACE_URING) {
@@ -999,6 +1004,7 @@ PRIVATE void try_to_stop_yevents(hgobj gobj)  // IDEMPOTENT
                     NULL
                 );
             }
+            shutdown(priv->fd_clisrv, SHUT_WR);
             close(priv->fd_clisrv);
             priv->fd_clisrv = -1;
         }
