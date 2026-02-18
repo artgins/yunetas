@@ -103,6 +103,7 @@
 
 #pragma once
 
+#include <limits.h>
 #include <yev_loop.h>
 
 #ifdef __cplusplus
@@ -112,7 +113,13 @@ extern "C"{
 /***************************************************************
  *              Constants
  ***************************************************************/
-#define RECORD_KEY_VALUE_MAX   (48)
+/*
+ *  In timeranger2 the key is stored as a directory name,
+ *  so the maximum key size is NAME_MAX (255 on Linux).
+ *  (In old timeranger the key was stored inline in the metadata record,
+ *  limited to 48 bytes.)
+ */
+#define RECORD_KEY_VALUE_MAX   (NAME_MAX+1)
 #define tranger2_max_key_size() (RECORD_KEY_VALUE_MAX-1)
 
 /***************************************************************
