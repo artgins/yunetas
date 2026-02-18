@@ -28,7 +28,7 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 MQTT_CLI_JAR="${SCRIPT_DIR}/mqtt-cli.jar"
 BROKER_HOST="${BROKER_HOST:-127.0.0.1}"
-BROKER_PORT="${BROKER_PORT:-1883}"
+BROKER_PORT="${BROKER_PORT:-1810}"
 TIMEOUT="${TIMEOUT:-5}"
 BROKER_PID=""
 BROKER_BIN=""
