@@ -25,8 +25,9 @@ python mqtt_connect_disconnect_test.py --host 127.0.0.1 --port 1810
 
 | File | Description |
 |------|-------------|
-| `test_hivemq_mqtt_cli.sh` | Main test suite (24 tests) using HiveMQ MQTT CLI |
+| `test_hivemq_mqtt_cli.sh` | Main test suite (25 tests) using HiveMQ MQTT CLI |
 | `run_hivemq_tests.sh` | Wrapper that checks prerequisites before running tests |
+| `mqtt_benchmark.py` | Python raw-socket performance benchmark (used by tests 22-25) |
 | `mqtt_connect_disconnect_test.py` | Low-level CONNECT/DISCONNECT protocol tests (Python) |
 | `test_connect_disconnect.sh` | Simple wrapper for the Python tests |
 | `mqtt_broker.json` | Broker configuration used for testing |
@@ -73,30 +74,33 @@ Defaults: `--host 127.0.0.1 --port 1810 --timeout 5`
 
 | # | Test | What it measures |
 |---|------|-----------------|
-| 21 | Concurrent Connections | 100 simultaneous connect+pub+disconnect cycles |
-| 22 | Message Throughput | 1000 messages through single connection (stdin mode) |
-| 23 | Fan-out Scalability | 1 publisher to 20 subscribers, 50 messages (1000 deliveries) |
-| 24 | Burst Publish | 500 messages from 10 parallel connections |
-| 25 | **Max Speed Benchmark** | 5000 messages per QoS level (0, 1, 2), reports msg/s |
+| 21 | Concurrent Connections | 100 simultaneous connect+pub+disconnect cycles (JVM per connection) |
+| 22 | Message Throughput | 1000 messages, 1 pub, 1 sub (Python raw sockets) |
+| 23 | Fan-out Scalability | 1 pub to 20 subs, 50 messages = 1000 deliveries (Python raw sockets) |
+| 24 | Burst Publish | 10 parallel pubs x 50 msgs = 500 total (Python raw sockets) |
+| 25 | **Max Speed Benchmark** | 10000 messages per QoS level (0, 1, 2) (Python raw sockets) |
 
-Performance tests 22-25 use HiveMQ CLI's stdin line-reader mode (`-l`) to pipe many messages through a single connection, avoiding JVM startup overhead and measuring actual broker throughput.
+Test 21 uses HiveMQ CLI (one JVM per connection). Tests 22-25 use `mqtt_benchmark.py` with raw TCP sockets for zero overhead, measuring actual broker throughput.
 
-#### Test 25: Max Speed Benchmark
+#### Performance Benchmark (mqtt_benchmark.py)
 
-Measures maximum end-to-end message throughput for each QoS level:
+Python raw-socket MQTT v3.1.1 benchmark supporting configurable publishers, subscribers, QoS, and message count:
 
-- **Setup**: 1 publisher, 1 subscriber, single connection each
-- **Messages**: 5000 per QoS level
-- **Reports**: publish rate (msg/s), receive count, loss %, end-to-end rate
+```bash
+# Single connection throughput (test 22)
+python3 mqtt_benchmark.py --count 1000 --qos 0
 
+# Fan-out: 1 pub to 20 subs (test 23)
+python3 mqtt_benchmark.py --count 50 --subs 20 --qos 0
+
+# Burst: 10 parallel pubs (test 24)
+python3 mqtt_benchmark.py --count 50 --pubs 10 --qos 0
+
+# Full benchmark: all QoS levels (test 25)
+python3 mqtt_benchmark.py --count 10000 --payload 64
 ```
-./test_hivemq_mqtt_cli.sh --test 25,25
 
-  QoS 0: pub rate | recv count/5000 (loss%) | e2e msg/s
-  QoS 1: pub rate | recv count/5000 (loss%) | e2e msg/s
-  QoS 2: pub rate | recv count/5000 (loss%) | e2e msg/s
-```
-
+Reports: publish rate (msg/s), receive count, loss %, end-to-end rate.
 Pass thresholds: QoS 0 >=80% (fire-and-forget may drop), QoS 1/2 >=95%.
 
 ## Python Protocol Tests (mqtt_connect_disconnect_test.py)

@@ -1,11 +1,18 @@
 #!/usr/bin/env python3
 """
-MQTT Broker Speed Benchmark
-Measures maximum message throughput for QoS 0, 1, and 2.
+MQTT Broker Performance Test
+Measures message throughput with configurable publishers, subscribers, and QoS.
 Uses raw sockets for zero overhead — measures actual broker performance.
+
+Scenarios:
+    Single connection throughput:  --count 1000 --qos 0
+    Fan-out (1 pub to N subs):    --count 50 --subs 20 --qos 0
+    Burst (N pubs to 1 sub):      --count 50 --pubs 10 --qos 0
+    Full benchmark (all QoS):     --count 5000  (default: iterates QoS 0,1,2)
 
 Usage:
     python3 mqtt_benchmark.py [--host HOST] [--port PORT] [--count N]
+                              [--pubs N] [--subs N] [--qos Q] [--payload N]
 """
 
 import socket
@@ -143,10 +150,11 @@ def mqtt_connect(host, port, client_id):
     return sock
 
 
-def run_subscriber(host, port, topic, qos, count, result, stop_event):
+def run_subscriber(host, port, topic, qos, result, stop_event, idx=0):
     """Subscriber thread: connects, subscribes, counts received messages."""
     try:
-        sock = mqtt_connect(host, port, f'bench-sub-{qos}-{int(time.time())}')
+        cid = f'bench-sub-{idx}-{qos}-{int(time.time()*1000) % 100000}'
+        sock = mqtt_connect(host, port, cid)
         sock.sendall(build_subscribe(1, topic, qos))
         pkt_type, data = recv_packet(sock)
         if pkt_type != SUBACK:
@@ -183,7 +191,6 @@ def run_subscriber(host, port, topic, qos, count, result, stop_event):
 
                     # Handle QoS acknowledgments
                     if msg_qos == 1:
-                        # Extract mid from publish
                         topic_len = struct.unpack('!H', data[0:2])[0]
                         mid = struct.unpack('!H', data[2 + topic_len:4 + topic_len])[0]
                         sock.sendall(build_puback(mid))
@@ -210,10 +217,11 @@ def run_subscriber(host, port, topic, qos, count, result, stop_event):
         result['error'] = str(e)
 
 
-def run_publisher(host, port, topic, qos, count, payload_data, result):
+def run_publisher(host, port, topic, qos, count, payload_data, result, idx=0):
     """Publisher: connects, publishes count messages, measures time."""
     try:
-        sock = mqtt_connect(host, port, f'bench-pub-{qos}-{int(time.time())}')
+        cid = f'bench-pub-{idx}-{qos}-{int(time.time()*1000) % 100000}'
+        sock = mqtt_connect(host, port, cid)
         sock.settimeout(5.0)
 
         mid = 0
@@ -256,35 +264,74 @@ def run_publisher(host, port, topic, qos, count, payload_data, result):
         result['error'] = str(e)
 
 
-def run_benchmark(host, port, topic, qos, count, payload_size):
+def run_benchmark(host, port, topic_base, qos, count, payload_size,
+                  num_pubs=1, num_subs=1):
+    """Run a benchmark with configurable publishers and subscribers."""
     payload_data = (b'X' * payload_size)
+    topic = f"{topic_base}/q{qos}/{int(time.time())}"
+    total_msgs = count * num_pubs  # total messages published
 
-    sub_result = {'received': 0, 'ready': False}
-    pub_result = {}
+    # Start subscribers
+    sub_results = []
+    sub_threads = []
     stop_event = threading.Event()
 
-    # Start subscriber
-    sub_thread = threading.Thread(
-        target=run_subscriber,
-        args=(host, port, topic, qos, count, sub_result, stop_event)
-    )
-    sub_thread.start()
+    for i in range(num_subs):
+        sub_result = {'received': 0, 'ready': False}
+        sub_results.append(sub_result)
+        t = threading.Thread(
+            target=run_subscriber,
+            args=(host, port, topic, qos, sub_result, stop_event, i)
+        )
+        t.start()
+        sub_threads.append(t)
 
-    # Wait for subscriber to be ready
-    deadline = time.monotonic() + 5.0
-    while not sub_result.get('ready') and time.monotonic() < deadline:
+    # Wait for all subscribers to be ready
+    deadline = time.monotonic() + 10.0
+    while time.monotonic() < deadline:
+        if all(r.get('ready') for r in sub_results):
+            break
         time.sleep(0.05)
-    if not sub_result.get('ready'):
+
+    not_ready = [i for i, r in enumerate(sub_results) if not r.get('ready')]
+    if not_ready:
         stop_event.set()
-        sub_thread.join(timeout=3)
-        return {'error': 'Subscriber failed to connect'}
+        for t in sub_threads:
+            t.join(timeout=3)
+        return {'error': f'Subscribers {not_ready} failed to connect',
+                'qos': qos, 'count': count, 'num_pubs': num_pubs,
+                'num_subs': num_subs}
 
     time.sleep(0.2)  # brief settle
 
-    # Run publisher (blocking)
-    run_publisher(host, port, topic, qos, count, payload_data, pub_result)
+    # Start publishers
+    pub_results = []
+    pub_threads = []
+    t_wall_start = time.monotonic()
 
-    # Wait for subscriber to finish receiving
+    for i in range(num_pubs):
+        pub_result = {}
+        pub_results.append(pub_result)
+        if num_pubs == 1:
+            # Single publisher: run blocking (no thread overhead)
+            run_publisher(host, port, topic, qos, count, payload_data,
+                          pub_result, i)
+        else:
+            t = threading.Thread(
+                target=run_publisher,
+                args=(host, port, topic, qos, count, payload_data,
+                      pub_result, i)
+            )
+            t.start()
+            pub_threads.append(t)
+
+    for t in pub_threads:
+        t.join(timeout=60)
+
+    t_wall_end = time.monotonic()
+    wall_time = t_wall_end - t_wall_start
+
+    # Wait for subscribers to receive remaining messages
     if qos == 0:
         time.sleep(2)
     elif qos == 1:
@@ -293,35 +340,68 @@ def run_benchmark(host, port, topic, qos, count, payload_size):
         time.sleep(4)
 
     stop_event.set()
-    sub_thread.join(timeout=5)
+    for t in sub_threads:
+        t.join(timeout=5)
+
+    # Aggregate results
+    total_published = sum(r.get('published', 0) for r in pub_results)
+    total_received = sum(r.get('received', 0) for r in sub_results)
+    total_expected = total_msgs * num_subs  # each sub should get all msgs
+
+    pub_errors = [r.get('error') for r in pub_results if r.get('error')]
+    sub_errors = [r.get('error') for r in sub_results if r.get('error')]
+
+    # Compute e2e timing across all subscribers
+    first_recv = None
+    last_recv = None
+    for r in sub_results:
+        ft = r.get('first_recv_time')
+        lt = r.get('last_recv_time')
+        if ft and (first_recv is None or ft < first_recv):
+            first_recv = ft
+        if lt and (last_recv is None or lt > last_recv):
+            last_recv = lt
 
     return {
         'qos': qos,
         'count': count,
+        'num_pubs': num_pubs,
+        'num_subs': num_subs,
         'payload_size': payload_size,
-        'published': pub_result.get('published', 0),
-        'pub_time': pub_result.get('pub_time', 0),
-        'received': sub_result.get('received', 0),
-        'first_recv': sub_result.get('first_recv_time'),
-        'last_recv': sub_result.get('last_recv_time'),
-        'pub_error': pub_result.get('error'),
-        'sub_error': sub_result.get('error'),
+        'total_published': total_published,
+        'total_expected': total_expected,
+        'total_received': total_received,
+        'wall_time': wall_time,
+        'first_recv': first_recv,
+        'last_recv': last_recv,
+        'pub_errors': pub_errors,
+        'sub_errors': sub_errors,
     }
 
 
 def main():
-    parser = argparse.ArgumentParser(description='MQTT Broker Speed Benchmark')
+    parser = argparse.ArgumentParser(description='MQTT Broker Performance Test')
     parser.add_argument('--host', default='127.0.0.1', help='Broker host')
     parser.add_argument('--port', type=int, default=1810, help='Broker port')
-    parser.add_argument('--count', type=int, default=5000, help='Messages per QoS level')
-    parser.add_argument('--payload', type=int, default=64, help='Payload size in bytes')
-    parser.add_argument('--qos', type=int, default=-1, help='Test only this QoS (-1 = all)')
+    parser.add_argument('--count', type=int, default=5000,
+                        help='Messages per publisher')
+    parser.add_argument('--payload', type=int, default=64,
+                        help='Payload size in bytes')
+    parser.add_argument('--qos', type=int, default=-1,
+                        help='Test only this QoS (-1 = all 0,1,2)')
+    parser.add_argument('--pubs', type=int, default=1,
+                        help='Number of publisher connections')
+    parser.add_argument('--subs', type=int, default=1,
+                        help='Number of subscriber connections')
     args = parser.parse_args()
 
-    print(f"MQTT Broker Speed Benchmark")
+    print(f"MQTT Broker Performance Test")
     print(f"  Broker  : {args.host}:{args.port}")
-    print(f"  Messages: {args.count} per QoS level")
+    print(f"  Messages: {args.count} per publisher")
     print(f"  Payload : {args.payload} bytes")
+    if args.pubs > 1 or args.subs > 1:
+        print(f"  Pubs    : {args.pubs}")
+        print(f"  Subs    : {args.subs}")
     print()
 
     qos_levels = [args.qos] if args.qos >= 0 else [0, 1, 2]
@@ -329,64 +409,83 @@ def main():
     results = []
 
     for qos in qos_levels:
-        topic = f"bench/speed/q{qos}/{int(time.time())}"
-        r = run_benchmark(args.host, args.port, topic, qos, args.count, args.payload)
+        topic = f"bench/perf/{int(time.time())}"
+        r = run_benchmark(args.host, args.port, topic, qos, args.count,
+                          args.payload, num_pubs=args.pubs, num_subs=args.subs)
         results.append(r)
 
-        if r.get('pub_error') or r.get('sub_error'):
-            err = r.get('pub_error') or r.get('sub_error')
-            print(f"  QoS {qos}: ERROR - {err}")
+        if r.get('error'):
+            print(f"  QoS {qos}: ERROR - {r['error']}")
             all_pass = False
             continue
 
-        pub_time_ms = r['pub_time'] * 1000
-        pub_rate = int(r['published'] / r['pub_time']) if r['pub_time'] > 0 else 0
-        received = r['received']
-        loss = r['count'] - received
-        loss_pct = (loss * 100 // r['count']) if r['count'] > 0 else 0
+        if r.get('pub_errors') or r.get('sub_errors'):
+            errs = r.get('pub_errors', []) + r.get('sub_errors', [])
+            print(f"  QoS {qos}: ERROR - {'; '.join(str(e) for e in errs)}")
+            all_pass = False
+            continue
 
-        # End-to-end rate based on subscriber receive window
-        e2e_time = 0
+        total_received = r['total_received']
+        total_expected = r['total_expected']
+        wall_ms = r['wall_time'] * 1000
+        pub_rate = int(r['total_published'] / r['wall_time']) \
+            if r['wall_time'] > 0 else 0
+        loss = total_expected - total_received
+        loss_pct = (loss * 100 // total_expected) if total_expected > 0 else 0
+
+        # End-to-end rate
         e2e_rate = 0
-        if r.get('first_recv') and r.get('last_recv') and received > 1:
+        if r.get('first_recv') and r.get('last_recv') and total_received > 1:
             e2e_time = r['last_recv'] - r['first_recv']
-            e2e_rate = int(received / e2e_time) if e2e_time > 0 else received
+            e2e_rate = int(total_received / e2e_time) if e2e_time > 0 \
+                else total_received
 
         # Pass/fail thresholds
         if qos == 0:
-            passed = received >= (r['count'] * 80 // 100)
+            passed = total_received >= (total_expected * 80 // 100)
         else:
-            passed = received >= (r['count'] * 95 // 100)
+            passed = total_received >= (total_expected * 95 // 100)
 
         status = "PASS" if passed else "FAIL"
         if not passed:
             all_pass = False
 
         print(f"  [{status}] QoS {qos}: "
-              f"pub {pub_rate:,} msg/s ({pub_time_ms:,.0f} ms) | "
-              f"recv {received:,}/{r['count']:,} ({loss_pct}% loss) | "
+              f"pub {pub_rate:,} msg/s ({wall_ms:,.0f} ms) | "
+              f"recv {total_received:,}/{total_expected:,} "
+              f"({loss_pct}% loss) | "
               f"e2e {e2e_rate:,} msg/s")
 
     print()
 
     # Machine-readable summary for the shell test
     for r in results:
-        qos = r['qos']
-        pub_rate = int(r.get('published', 0) / r['pub_time']) if r.get('pub_time', 0) > 0 else 0
-        received = r.get('received', 0)
-        loss_pct = ((r['count'] - received) * 100 // r['count']) if r['count'] > 0 else 0
+        qos = r.get('qos', -1)
+        if r.get('error'):
+            print(f"RESULT:qos={qos}:status=ERROR:error={r['error']}")
+            continue
+
+        total_received = r['total_received']
+        total_expected = r['total_expected']
+        pub_rate = int(r['total_published'] / r['wall_time']) \
+            if r.get('wall_time', 0) > 0 else 0
+        loss_pct = ((total_expected - total_received) * 100 // total_expected) \
+            if total_expected > 0 else 0
         e2e_rate = 0
-        if r.get('first_recv') and r.get('last_recv') and received > 1:
+        if r.get('first_recv') and r.get('last_recv') and total_received > 1:
             e2e_time = r['last_recv'] - r['first_recv']
-            e2e_rate = int(received / e2e_time) if e2e_time > 0 else 0
+            e2e_rate = int(total_received / e2e_time) if e2e_time > 0 else 0
+
         if qos == 0:
-            passed = received >= (r['count'] * 80 // 100)
+            passed = total_received >= (total_expected * 80 // 100)
         else:
-            passed = received >= (r['count'] * 95 // 100)
+            passed = total_received >= (total_expected * 95 // 100)
         status = "PASS" if passed else "FAIL"
         print(f"RESULT:qos={qos}:status={status}:pub_rate={pub_rate}:"
-              f"received={received}:count={r['count']}:loss_pct={loss_pct}:"
-              f"e2e_rate={e2e_rate}:pub_ms={int(r.get('pub_time', 0) * 1000)}")
+              f"received={total_received}:expected={total_expected}:"
+              f"loss_pct={loss_pct}:e2e_rate={e2e_rate}:"
+              f"wall_ms={int(r.get('wall_time', 0) * 1000)}:"
+              f"pubs={r['num_pubs']}:subs={r['num_subs']}")
 
     sys.exit(0 if all_pass else 1)
 

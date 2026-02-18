@@ -1058,165 +1058,94 @@ fi
 
 # =============================================================================
 # 22. Perf: Message Throughput (1000 msgs, single connection)
-#     Uses stdin line-reader mode (-l) to publish many messages from a single
-#     JVM/connection, measuring real broker throughput without JVM startup noise.
+#     Uses Python raw-socket benchmark for zero overhead.
 # =============================================================================
 if should_run 22; then
 log_section "22. ${TEST_NAMES[22]}"
 
-TOPIC="test/perf/throughput/$$"
-OUT=$(mktemp)
-NUM_MSGS=1000
-
-SUB_PID=$(run_sub_bg "${OUT}" \
-    --topic "${TOPIC}" \
-    --identifier "perf-tp-sub-$$")
-sleep 0.5
-
-T_START=$(date +%s%N)
-
-# Publish all messages from a single connection using stdin line-reader mode
-seq 1 ${NUM_MSGS} | sed "s/^/tp-/" | ${MQTT} pub \
-    -l \
-    --host "${BROKER_HOST}" \
-    --port "${BROKER_PORT}" \
-    --topic "${TOPIC}" \
-    --identifier "perf-tp-pub-$$" \
-    2>/dev/null
-
-T_END=$(date +%s%N)
-ELAPSED_MS=$(( (T_END - T_START) / 1000000 ))
-
-sleep 3
-kill "${SUB_PID}" 2>/dev/null || true
-wait "${SUB_PID}" 2>/dev/null || true
-
-RECEIVED=$(grep -c "tp-" "${OUT}" 2>/dev/null || echo 0)
-RATE=$(( RECEIVED * 1000 / (ELAPSED_MS > 0 ? ELAPSED_MS : 1) ))
-
-if [[ ${RECEIVED} -eq ${NUM_MSGS} ]]; then
-    log_ok "Throughput: ${RECEIVED}/${NUM_MSGS} delivered in ${ELAPSED_MS}ms (~${RATE} msg/s)"
-elif [[ ${RECEIVED} -ge $(( NUM_MSGS * 90 / 100 )) ]]; then
-    log_ok "Throughput: ${RECEIVED}/${NUM_MSGS} delivered in ${ELAPSED_MS}ms (~${RATE} msg/s, >=90%)"
+BENCH_SCRIPT="${SCRIPT_DIR}/mqtt_benchmark.py"
+if [[ ! -f "${BENCH_SCRIPT}" ]]; then
+    log_fail "Benchmark script not found: ${BENCH_SCRIPT}"
 else
-    log_fail "Throughput: only ${RECEIVED}/${NUM_MSGS} delivered in ${ELAPSED_MS}ms (~${RATE} msg/s)"
+    BENCH_OUT=$(mktemp)
+    python3 "${BENCH_SCRIPT}" \
+        --host "${BROKER_HOST}" \
+        --port "${BROKER_PORT}" \
+        --count 1000 \
+        --qos 0 \
+        2>&1 | tee "${BENCH_OUT}"
+
+    if grep -q "RESULT:.*:status=PASS" "${BENCH_OUT}"; then
+        log_ok "Throughput: single connection, 1000 messages"
+    elif grep -q "RESULT:.*:status=FAIL" "${BENCH_OUT}"; then
+        log_fail "Throughput: message loss above threshold"
+    else
+        log_fail "Throughput: benchmark did not produce results"
+    fi
+    rm -f "${BENCH_OUT}"
 fi
-rm -f "${OUT}"
 fi
 
 # =============================================================================
 # 23. Perf: Fan-out Scalability (1 pub to 20 subs, 50 msgs)
-#     Tests message fan-out: single publisher sends 50 messages that must
-#     be delivered to 20 subscribers (1000 total deliveries).
+#     Uses Python raw-socket benchmark with --subs 20 for zero overhead.
 # =============================================================================
 if should_run 23; then
 log_section "23. ${TEST_NAMES[23]}"
 
-TOPIC="test/perf/fanout/$$"
-NUM_SUBS=20
-NUM_MSGS=50
-TOTAL_EXPECTED=$(( NUM_SUBS * NUM_MSGS ))
-
-declare -a SUB_PIDS
-declare -a SUB_OUTS
-for s in $(seq 1 ${NUM_SUBS}); do
-    SUB_OUTS[$s]=$(mktemp)
-    SUB_PIDS[$s]=$(run_sub_bg "${SUB_OUTS[$s]}" \
-        --topic "${TOPIC}" \
-        --identifier "perf-fan-sub-${s}-$$")
-done
-sleep 2
-
-T_START=$(date +%s%N)
-
-# Single publisher sends all messages via stdin line-reader mode
-seq 1 ${NUM_MSGS} | sed "s/^/fan-/" | ${MQTT} pub \
-    -l \
-    --host "${BROKER_HOST}" \
-    --port "${BROKER_PORT}" \
-    --topic "${TOPIC}" \
-    --identifier "perf-fan-pub-$$" \
-    2>/dev/null
-
-T_END=$(date +%s%N)
-ELAPSED_MS=$(( (T_END - T_START) / 1000000 ))
-
-sleep 3
-
-TOTAL_RECEIVED=0
-ALL_SUBS_OK=1
-for s in $(seq 1 ${NUM_SUBS}); do
-    kill "${SUB_PIDS[$s]}" 2>/dev/null || true
-    wait "${SUB_PIDS[$s]}" 2>/dev/null || true
-    COUNT=$(grep -c "fan-" "${SUB_OUTS[$s]}" 2>/dev/null || echo 0)
-    TOTAL_RECEIVED=$(( TOTAL_RECEIVED + COUNT ))
-    if [[ ${COUNT} -ne ${NUM_MSGS} ]]; then
-        ALL_SUBS_OK=0
-    fi
-    rm -f "${SUB_OUTS[$s]}"
-done
-
-FANOUT_RATE=$(( TOTAL_RECEIVED * 1000 / (ELAPSED_MS > 0 ? ELAPSED_MS : 1) ))
-if [[ ${ALL_SUBS_OK} -eq 1 ]]; then
-    log_ok "Fan-out: ${TOTAL_RECEIVED}/${TOTAL_EXPECTED} delivered (${NUM_SUBS} subs x ${NUM_MSGS} msgs, ${ELAPSED_MS}ms, ~${FANOUT_RATE} deliveries/s)"
-elif [[ ${TOTAL_RECEIVED} -ge $(( TOTAL_EXPECTED * 90 / 100 )) ]]; then
-    log_ok "Fan-out: ${TOTAL_RECEIVED}/${TOTAL_EXPECTED} delivered (${ELAPSED_MS}ms, ~${FANOUT_RATE} deliveries/s, >=90%)"
+BENCH_SCRIPT="${SCRIPT_DIR}/mqtt_benchmark.py"
+if [[ ! -f "${BENCH_SCRIPT}" ]]; then
+    log_fail "Benchmark script not found: ${BENCH_SCRIPT}"
 else
-    log_fail "Fan-out: only ${TOTAL_RECEIVED}/${TOTAL_EXPECTED} delivered (${ELAPSED_MS}ms, ~${FANOUT_RATE} deliveries/s)"
+    BENCH_OUT=$(mktemp)
+    python3 "${BENCH_SCRIPT}" \
+        --host "${BROKER_HOST}" \
+        --port "${BROKER_PORT}" \
+        --count 50 \
+        --subs 20 \
+        --qos 0 \
+        2>&1 | tee "${BENCH_OUT}"
+
+    if grep -q "RESULT:.*:status=PASS" "${BENCH_OUT}"; then
+        log_ok "Fan-out: 1 pub to 20 subs, 50 messages (1000 deliveries)"
+    elif grep -q "RESULT:.*:status=FAIL" "${BENCH_OUT}"; then
+        log_fail "Fan-out: message loss above threshold"
+    else
+        log_fail "Fan-out: benchmark did not produce results"
+    fi
+    rm -f "${BENCH_OUT}"
 fi
 fi
 
 # =============================================================================
 # 24. Perf: Burst Publish (500 msgs, 10 parallel connections)
-#     Tests broker under parallel load: 10 concurrent publishers each send
-#     50 messages via stdin line-reader mode (500 total from 10 connections).
+#     Uses Python raw-socket benchmark with --pubs 10 for zero overhead.
 # =============================================================================
 if should_run 24; then
 log_section "24. ${TEST_NAMES[24]}"
 
-TOPIC="test/perf/burst/$$"
-OUT=$(mktemp)
-NUM_PUBS=10
-MSGS_PER_PUB=50
-EXPECTED=$(( NUM_PUBS * MSGS_PER_PUB ))
-
-SUB_PID=$(run_sub_bg "${OUT}" \
-    --topic "${TOPIC}" \
-    --identifier "perf-burst-sub-$$")
-sleep 0.5
-
-T_START=$(date +%s%N)
-
-# Launch parallel publishers, each sending MSGS_PER_PUB messages via stdin
-for p in $(seq 1 ${NUM_PUBS}); do
-    seq 1 ${MSGS_PER_PUB} | sed "s/^/burst-p${p}-m/" | ${MQTT} pub \
-        -l \
+BENCH_SCRIPT="${SCRIPT_DIR}/mqtt_benchmark.py"
+if [[ ! -f "${BENCH_SCRIPT}" ]]; then
+    log_fail "Benchmark script not found: ${BENCH_SCRIPT}"
+else
+    BENCH_OUT=$(mktemp)
+    python3 "${BENCH_SCRIPT}" \
         --host "${BROKER_HOST}" \
         --port "${BROKER_PORT}" \
-        --topic "${TOPIC}" \
-        --identifier "perf-burst-pub-${p}-$$" \
-        2>/dev/null &
-done
-wait
+        --count 50 \
+        --pubs 10 \
+        --qos 0 \
+        2>&1 | tee "${BENCH_OUT}"
 
-T_END=$(date +%s%N)
-ELAPSED_MS=$(( (T_END - T_START) / 1000000 ))
-
-sleep 3
-kill "${SUB_PID}" 2>/dev/null || true
-wait "${SUB_PID}" 2>/dev/null || true
-
-RECEIVED=$(grep -c "burst-p" "${OUT}" 2>/dev/null || echo 0)
-RATE=$(( RECEIVED * 1000 / (ELAPSED_MS > 0 ? ELAPSED_MS : 1) ))
-
-if [[ ${RECEIVED} -eq ${EXPECTED} ]]; then
-    log_ok "Burst: ${RECEIVED}/${EXPECTED} delivered (${NUM_PUBS} pubs x ${MSGS_PER_PUB} msgs, ${ELAPSED_MS}ms, ~${RATE} msg/s)"
-elif [[ ${RECEIVED} -ge $(( EXPECTED * 90 / 100 )) ]]; then
-    log_ok "Burst: ${RECEIVED}/${EXPECTED} delivered (${ELAPSED_MS}ms, ~${RATE} msg/s, >=90%)"
-else
-    log_fail "Burst: only ${RECEIVED}/${EXPECTED} delivered (${ELAPSED_MS}ms, ~${RATE} msg/s)"
+    if grep -q "RESULT:.*:status=PASS" "${BENCH_OUT}"; then
+        log_ok "Burst: 10 pubs x 50 msgs (500 total)"
+    elif grep -q "RESULT:.*:status=FAIL" "${BENCH_OUT}"; then
+        log_fail "Burst: message loss above threshold"
+    else
+        log_fail "Burst: benchmark did not produce results"
+    fi
+    rm -f "${BENCH_OUT}"
 fi
-rm -f "${OUT}"
 fi
 
 # =============================================================================
