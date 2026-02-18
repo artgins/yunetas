@@ -16,13 +16,13 @@
 #
 # Environment:
 #   BROKER_HOST  - Broker hostname (default: 127.0.0.1)
-#   BROKER_PORT  - Broker port (default: 1883)
+#   BROKER_PORT  - Broker port (default: 1810)
 #   MQTT_BROKER  - Path to mqtt_broker binary
 # =============================================================================
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 BROKER_HOST="${BROKER_HOST:-127.0.0.1}"
-BROKER_PORT="${BROKER_PORT:-1883}"
+BROKER_PORT="${BROKER_PORT:-1810}"
 # Default binary location (relative to repo root)
 REPO_ROOT="$(cd "${SCRIPT_DIR}/../../../.." && pwd)"
 DEFAULT_BROKER="${REPO_ROOT}/build/yunos/c/mqtt_broker/mqtt_broker"

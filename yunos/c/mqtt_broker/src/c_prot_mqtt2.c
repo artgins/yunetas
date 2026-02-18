@@ -4461,6 +4461,16 @@ PRIVATE int handle__connect(hgobj gobj, gbuffer_t *gbuf, hgobj src)
     BOOL is_bridge = FALSE;
     uint8_t version_byte;
 
+    if(!gbuf) {
+        gobj_log_error(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_MQTT_ERROR,
+            "msg",          "%s", "Mqtt CMD_CONNECT: gbuf NULL",
+            NULL
+        );
+        return -1;
+    }
+
     uint16_t slen;
     if(mqtt_read_uint16(gobj, gbuf, &slen)<0) {
         // Error already logged
