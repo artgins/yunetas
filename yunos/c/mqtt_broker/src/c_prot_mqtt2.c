@@ -4155,10 +4155,14 @@ PRIVATE int send__publish(
                 Actual payload: Slightly less after subtracting headers
                 According to the MQTT specification - it's strictly limited to 4 bytes maximum.
              */
-            // TODO is error?
-            /* FIXME - Properties too big, don't publish any - should remove some first really */
-            properties = NULL;
-            expiry_interval = 0;
+            gobj_log_error(gobj, 0,
+                "function",     "%s", __FUNCTION__,
+                "msgset",       "%s", MSGSET_INTERNAL_ERROR,
+                "msg",          "%s", "Dropping Remaining Length > 4",
+                "packetlen",    "%d", packetlen,
+                NULL
+            );
+            return MOSQ_ERR_OVERSIZE_PACKET;
         } else {
             packetlen += proplen + varbytes;
         }
