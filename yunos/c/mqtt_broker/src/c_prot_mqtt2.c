@@ -204,7 +204,7 @@ SDATA (DTP_STRING,      "mqtt_clean_session",0,         "1",            "MQTT cl
 SDATA (DTP_STRING,      "mqtt_session_expiry_interval",0,"-1",          "MQTT session expiry interval.  This option allows the session of persistent clients (those with clean session set to false) that are not currently connected to be removed if they do not reconnect within a certain time frame. This is a non-standard option in MQTT v3.1. MQTT v3.1.1 and v5.0 allow brokers to remove client sessions.\n"
 "Badly designed clients may set clean session to false whilst using a randomly generated client id. This leads to persistent clients that connect once and never reconnect. This option allows these clients to be removed. This option allows persistent clients (those with clean session set to false) to be removed if they do not reconnect within a certain time frame.\nAs this is a non-standard option, the default if not set is to never expire persistent clients."),
 
-SDATA (DTP_STRING,      "mqtt_keepalive",   0,         "10",    "MQTT keepalive. The number of seconds between sending PING commands to the broker for the purposes of informing it we are still connected and functioning. Defaults to 60 seconds."), // TODO repon 60
+SDATA (DTP_STRING,      "mqtt_keepalive",   0,         "60",    "MQTT keepalive. The number of seconds between sending PING commands to the broker for the purposes of informing it we are still connected and functioning. Defaults to 60 seconds."),
 
 SDATA (DTP_STRING,      "mqtt_will_topic",  0,          "",     "MQTT will topic"),
 SDATA (DTP_STRING,      "mqtt_will_payload",0,          "",     "MQTT will payload"),
