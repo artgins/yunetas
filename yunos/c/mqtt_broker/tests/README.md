@@ -69,7 +69,7 @@ Defaults: `--host 127.0.0.1 --port 1810 --timeout 5`
 | 19 | Session Expiry (v5.0) | Session persistence within expiry window |
 | 20 | High-volume Publish | Burst of 50 messages, all delivered |
 
-### Tests 21-24: Performance
+### Tests 21-25: Performance
 
 | # | Test | What it measures |
 |---|------|-----------------|
@@ -77,8 +77,27 @@ Defaults: `--host 127.0.0.1 --port 1810 --timeout 5`
 | 22 | Message Throughput | 1000 messages through single connection (stdin mode) |
 | 23 | Fan-out Scalability | 1 publisher to 20 subscribers, 50 messages (1000 deliveries) |
 | 24 | Burst Publish | 500 messages from 10 parallel connections |
+| 25 | **Max Speed Benchmark** | 5000 messages per QoS level (0, 1, 2), reports msg/s |
 
-Performance tests 22-24 use HiveMQ CLI's stdin line-reader mode (`-l`) to pipe many messages through a single connection, avoiding JVM startup overhead and measuring actual broker throughput.
+Performance tests 22-25 use HiveMQ CLI's stdin line-reader mode (`-l`) to pipe many messages through a single connection, avoiding JVM startup overhead and measuring actual broker throughput.
+
+#### Test 25: Max Speed Benchmark
+
+Measures maximum end-to-end message throughput for each QoS level:
+
+- **Setup**: 1 publisher, 1 subscriber, single connection each
+- **Messages**: 5000 per QoS level
+- **Reports**: publish rate (msg/s), receive count, loss %, end-to-end rate
+
+```
+./test_hivemq_mqtt_cli.sh --test 25,25
+
+  QoS 0: pub rate | recv count/5000 (loss%) | e2e msg/s
+  QoS 1: pub rate | recv count/5000 (loss%) | e2e msg/s
+  QoS 2: pub rate | recv count/5000 (loss%) | e2e msg/s
+```
+
+Pass thresholds: QoS 0 >=80% (fire-and-forget may drop), QoS 1/2 >=95%.
 
 ## Python Protocol Tests (mqtt_connect_disconnect_test.py)
 

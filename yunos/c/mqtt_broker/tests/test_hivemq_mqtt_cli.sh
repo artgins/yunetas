@@ -37,7 +37,7 @@ FAIL_COUNT=0
 SKIP_COUNT=0
 TEST_START=0
 TEST_END=0
-NUM_TESTS=24
+NUM_TESTS=25
 
 # =============================================================================
 # Colors
@@ -89,6 +89,7 @@ TEST_NAMES=(
     [22]="Perf: Message Throughput (1000 msgs, single connection)"
     [23]="Perf: Fan-out Scalability (1 pub to 20 subs, 50 msgs)"
     [24]="Perf: Burst Publish (500 msgs, 10 parallel connections)"
+    [25]="Perf: Max Speed Benchmark (QoS 0, 1, 2)"
 )
 
 # =============================================================================
@@ -1216,6 +1217,136 @@ else
     log_fail "Burst: only ${RECEIVED}/${EXPECTED} delivered (${ELAPSED_MS}ms, ~${RATE} msg/s)"
 fi
 rm -f "${OUT}"
+fi
+
+# =============================================================================
+# 25. Perf: Max Speed Benchmark (QoS 0, 1, 2)
+#     Measures maximum message throughput for each QoS level.
+#     One publisher sends N messages via stdin line-reader mode,
+#     one subscriber receives them. Reports msg/s for each QoS.
+# =============================================================================
+if should_run 25; then
+log_section "25. ${TEST_NAMES[25]}"
+
+BENCH_TOPIC="test/bench/speed/$$"
+BENCH_NUM=5000
+BENCH_PAYLOAD="benchmark-payload-data-for-speed-test"
+
+echo -e "  ${BLUE}Benchmark: 1 publisher -> broker -> 1 subscriber${NC}"
+echo -e "  ${BLUE}Messages : ${BENCH_NUM} per QoS level${NC}"
+echo -e "  ${BLUE}Payload  : ${#BENCH_PAYLOAD} bytes${NC}"
+echo
+
+# --- Generate message file once (avoid repeated seq|sed overhead) ---
+BENCH_MSG_FILE=$(mktemp)
+for i in $(seq 1 ${BENCH_NUM}); do
+    echo "${BENCH_PAYLOAD}"
+done > "${BENCH_MSG_FILE}"
+
+ALL_QOS_PASS=1
+
+for QOS in 0 1 2; do
+    OUT=$(mktemp)
+    TOPIC="${BENCH_TOPIC}/qos${QOS}"
+
+    # Start subscriber
+    ${MQTT} sub \
+        -l \
+        --host "${BROKER_HOST}" \
+        --port "${BROKER_PORT}" \
+        --topic "${TOPIC}" \
+        --identifier "bench-sub-q${QOS}-$$" \
+        --qos ${QOS} \
+        2>/dev/null >"${OUT}" &
+    SUB_PID=$!
+    sleep 0.5
+
+    # Publish all messages from a single connection via stdin
+    T_START=$(date +%s%N)
+
+    cat "${BENCH_MSG_FILE}" | ${MQTT} pub \
+        -l \
+        --host "${BROKER_HOST}" \
+        --port "${BROKER_PORT}" \
+        --topic "${TOPIC}" \
+        --identifier "bench-pub-q${QOS}-$$" \
+        --qos ${QOS} \
+        2>/dev/null
+
+    T_PUB_END=$(date +%s%N)
+    PUB_MS=$(( (T_PUB_END - T_START) / 1000000 ))
+
+    # Wait for subscriber to receive all messages
+    # For QoS 0: short wait (fire-and-forget)
+    # For QoS 1/2: longer wait (ack round-trips)
+    if [[ ${QOS} -eq 0 ]]; then
+        sleep 2
+    elif [[ ${QOS} -eq 1 ]]; then
+        sleep 4
+    else
+        sleep 6
+    fi
+
+    kill "${SUB_PID}" 2>/dev/null || true
+    wait "${SUB_PID}" 2>/dev/null || true
+
+    T_END=$(date +%s%N)
+    TOTAL_MS=$(( (T_END - T_START) / 1000000 ))
+
+    RECEIVED=$(wc -l < "${OUT}" 2>/dev/null || echo 0)
+    RECEIVED=${RECEIVED// /}  # trim whitespace
+
+    PUB_RATE=$(( BENCH_NUM * 1000 / (PUB_MS > 0 ? PUB_MS : 1) ))
+    if [[ ${RECEIVED} -gt 0 && ${TOTAL_MS} -gt 0 ]]; then
+        RECV_RATE=$(( RECEIVED * 1000 / TOTAL_MS ))
+    else
+        RECV_RATE=0
+    fi
+    LOSS=$(( BENCH_NUM - RECEIVED ))
+    LOSS_PCT=0
+    if [[ ${BENCH_NUM} -gt 0 ]]; then
+        LOSS_PCT=$(( LOSS * 100 / BENCH_NUM ))
+    fi
+
+    if [[ ${QOS} -eq 0 ]]; then
+        # QoS 0 may lose messages (fire-and-forget), pass if >=80% received
+        if [[ ${RECEIVED} -ge $(( BENCH_NUM * 80 / 100 )) ]]; then
+            STATUS="${GREEN}PASS${NC}"
+        else
+            STATUS="${RED}FAIL${NC}"
+            ALL_QOS_PASS=0
+        fi
+    else
+        # QoS 1/2 should deliver all messages, pass if >=95% received
+        if [[ ${RECEIVED} -ge $(( BENCH_NUM * 95 / 100 )) ]]; then
+            STATUS="${GREEN}PASS${NC}"
+        else
+            STATUS="${RED}FAIL${NC}"
+            ALL_QOS_PASS=0
+        fi
+    fi
+
+    printf "  [%b] QoS %d: pub %'d msg/s (%'d ms) | recv %'d/%'d (%d%% loss) | e2e %'d msg/s\n" \
+        "${STATUS}" \
+        ${QOS} \
+        ${PUB_RATE} \
+        ${PUB_MS} \
+        ${RECEIVED} \
+        ${BENCH_NUM} \
+        ${LOSS_PCT} \
+        ${RECV_RATE}
+
+    rm -f "${OUT}"
+done
+
+rm -f "${BENCH_MSG_FILE}"
+
+echo
+if [[ ${ALL_QOS_PASS} -eq 1 ]]; then
+    log_ok "Max speed benchmark completed successfully"
+else
+    log_fail "Max speed benchmark: some QoS levels below threshold"
+fi
 fi
 
 # =============================================================================
