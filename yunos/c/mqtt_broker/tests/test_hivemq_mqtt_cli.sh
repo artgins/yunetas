@@ -156,6 +156,7 @@ pub_sub_test() {
     recv_file=$(mktemp)
 
     ${MQTT} sub \
+        -l \
         --host "${BROKER_HOST}" \
         --port "${BROKER_PORT}" \
         --topic "${topic}" \
@@ -168,6 +169,7 @@ pub_sub_test() {
     sleep 0.5
 
     ${MQTT} pub \
+        -l \
         --host "${BROKER_HOST}" \
         --port "${BROKER_PORT}" \
         --topic "${topic}" \
@@ -187,6 +189,7 @@ pub_sub_test() {
 run_sub_bg() {
     local out_file="$1"; shift
     ${MQTT} sub \
+        -l \
         --host "${BROKER_HOST}" \
         --port "${BROKER_PORT}" \
         "$@" \
@@ -199,6 +202,7 @@ run_sub_bg() {
 # =============================================================================
 run_pub() {
     ${MQTT} pub \
+        -l \
         --host "${BROKER_HOST}" \
         --port "${BROKER_PORT}" \
         "$@" \
@@ -219,12 +223,14 @@ fi
 # =============================================================================
 log_info "HiveMQ MQTT CLI version: $(java -jar "${MQTT_CLI_JAR}" --version 2>&1 | head -1)"
 log_info "Broker: ${BROKER_HOST}:${BROKER_PORT}"
+log_info "HiveMQ CLI logs: ${HOME}/.mqtt-cli/logs/"
 echo
 
 # =============================================================================
 log_section "1. MQTT v3.1.1 Spec Compliance (mqtt test)"
 # =============================================================================
 ${MQTT} test \
+    -l \
     --host "${BROKER_HOST}" \
     --port "${BROKER_PORT}" \
     --mqttVersion 3 \
@@ -243,6 +249,7 @@ fi
 log_section "2. MQTT v5.0 Spec Compliance (mqtt test --all)"
 # =============================================================================
 ${MQTT} test \
+    -l \
     --host "${BROKER_HOST}" \
     --port "${BROKER_PORT}" \
     --all \
@@ -683,6 +690,7 @@ sleep 0.5
 # Connect with will then kill (simulate ungraceful disconnect)
 (
     ${MQTT} pub \
+        -l \
         --host "${BROKER_HOST}" \
         --port "${BROKER_PORT}" \
         --topic "test/will/dummy/$$" \
@@ -787,6 +795,7 @@ CLIENT_ID="persist-client-$$"
 
 # Subscribe with persistent session (clean session = false)
 SUB_PID=$(${MQTT} sub \
+    -l \
     --host "${BROKER_HOST}" \
     --port "${BROKER_PORT}" \
     --topic "${TOPIC}" \
@@ -813,6 +822,7 @@ sleep 0.5
 # Reconnect with same client ID (persistent session)
 OUT2=$(mktemp)
 SUB_PID2=$(${MQTT} sub \
+    -l \
     --host "${BROKER_HOST}" \
     --port "${BROKER_PORT}" \
     --topic "${TOPIC}" \
@@ -843,6 +853,7 @@ OUT=$(mktemp)
 
 # Connect with session expiry of 30 seconds
 SUB_PID=$(${MQTT} sub \
+    -l \
     --host "${BROKER_HOST}" \
     --port "${BROKER_PORT}" \
     --topic "${TOPIC}" \
@@ -871,6 +882,7 @@ sleep 0.5
 # Reconnect within session expiry window
 OUT2=$(mktemp)
 SUB_PID2=$(${MQTT} sub \
+    -l \
     --host "${BROKER_HOST}" \
     --port "${BROKER_PORT}" \
     --topic "${TOPIC}" \
