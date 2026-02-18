@@ -5515,7 +5515,6 @@ PRIVATE int handle__disconnect_s(hgobj gobj, gbuffer_t *gbuf)
         json_t *property = property_get_property(properties, MQTT_PROP_SESSION_EXPIRY_INTERVAL);
         int session_expiry_interval = (int)kw_get_int(gobj, property, "value", -1, 0);
         if(session_expiry_interval != -1) {
-            // TODO review
             if(priv->session_expiry_interval == 0 && session_expiry_interval!= 0) {
                 JSON_DECREF(properties)
                 return MOSQ_ERR_PROTOCOL;
