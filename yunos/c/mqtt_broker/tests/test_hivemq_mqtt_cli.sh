@@ -840,18 +840,19 @@ OUT=$(mktemp)
 
 CLIENT_ID="persist-client-$$"
 
-# Subscribe with persistent session (clean session = false)
+# Subscribe with persistent session (clean session = false, MQTT v3.1.1)
 ${MQTT} sub \
     -l \
     --host "${BROKER_HOST}" \
     --port "${BROKER_PORT}" \
     --topic "${TOPIC}" \
     --identifier "${CLIENT_ID}" \
+    --mqttVersion 3 \
     --no-cleanStart \
     --qos 1 \
     2>/dev/null >"${OUT}" &
 SUB_PID=$!
-sleep 0.5
+sleep 2
 
 # Disconnect the subscriber
 kill "${SUB_PID}" 2>/dev/null || true
@@ -874,6 +875,7 @@ ${MQTT} sub \
     --port "${BROKER_PORT}" \
     --topic "${TOPIC}" \
     --identifier "${CLIENT_ID}" \
+    --mqttVersion 3 \
     --no-cleanStart \
     --qos 1 \
     2>/dev/null >"${OUT2}" &
