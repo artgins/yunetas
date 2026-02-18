@@ -184,7 +184,6 @@ PRIVATE sdata_desc_t attrs_table[] = {
 SDATA (DTP_BOOLEAN,     "iamServer",        SDF_RD,     0,      "What side? server or client"),
 SDATA (DTP_POINTER,     "tranger_queues",   0,          0,      "Queues TimeRanger for mqtt messages with qos > 0. If null then no persistence queues are used and max qos is limited to 0"),
 SDATA (DTP_STRING,      "alert_message",    SDF_RD,     "ALERT Queuing", "Alert message"),
-SDATA (DTP_INTEGER,     "max_pending_acks", SDF_RD,     "10000","Maximum messages pending of ack, mid is an uint16_t, max_pending_acks cannot be greater than 65535"), // TODO this is really like max_inflight_messages, TODO unify
 SDATA (DTP_INTEGER,     "backup_queue_size",SDF_RD,     "60000","Do backup at this size, using rowid as mid therefore backup_queue_size cannot be greater than 65535"),
 SDATA (DTP_INTEGER,     "alert_queue_size", SDF_RD,     "2000", "Limit alert queue size"),
 SDATA (DTP_INTEGER,     "timeout_ack",      SDF_RD,     "60",   "Timeout ack in seconds"),
