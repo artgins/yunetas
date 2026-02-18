@@ -158,7 +158,7 @@ PUBLIC int tr2q_move_from_queued_to_inflight(q2_msg_t *msg);
 /**
     Unload a message from iter and hard mark with TR2Q_MSG_PENDING set to 0
 */
-PUBLIC void tr2q_unload_msg(q2_msg_t *msg, int32_t result);
+PUBLIC int tr2q_unload_msg(q2_msg_t *msg, int32_t result);
 
 /**
     Get a message from iter by his rowid

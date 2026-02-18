@@ -1114,7 +1114,14 @@ PRIVATE void db__message_remove_from_inflight(
     tr2_queue_t *trq,
     q2_msg_t *qmsg
 ) {
-    tr2q_unload_msg(qmsg, 0); // TODO must check that message is in inflight list, not in queued list
+    if(tr2q_unload_msg(qmsg, 0)<0) {
+        gobj_log_error(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_INTERNAL_ERROR,
+            "msg",          "%s", "tr2q_unload_msg() FAILED",
+            NULL
+        );
+    }
 }
 
 /***************************************************************************
