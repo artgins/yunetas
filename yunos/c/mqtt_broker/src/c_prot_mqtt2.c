@@ -4715,7 +4715,7 @@ PRIVATE int handle__connect(hgobj gobj, gbuffer_t *gbuf, hgobj src)
         return -1;
     }
 
-    // TODO Auth method not supported
+    // TODO Auth method not supported by now
     //if(mosquitto_property_read_string(
     //    properties,
     //    MQTT_PROP_AUTHENTICATION_METHOD,
@@ -4906,22 +4906,6 @@ PRIVATE int handle__connect(hgobj gobj, gbuffer_t *gbuf, hgobj src)
         JSON_DECREF(connect_properties);
         return -1;
     }
-
-    /*
-     *  TODO let entry of clients with a certain prefix!
-     *  clientid_prefixes check
-     */
-    // if(priv->clientid_prefixes) {
-    //     if(strncmp(priv->clientid_prefixes, client_id, strlen(priv->clientid_prefixes))) {
-    //         if(priv->protocol_version == mosq_p_mqtt5) {
-    //             send__connack(context, 0, MQTT_RC_NOT_AUTHORIZED, NULL);
-    //         } else {
-    //             send__connack(context, 0, CONNACK_REFUSED_NOT_AUTHORIZED, NULL);
-    //         }
-    //         rc = MOSQ_ERR_AUTH;
-    //         goto handle_connect_error;
-    //     }
-    // }
 
     /*-------------------------------------------*
      *      Will
