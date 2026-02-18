@@ -382,8 +382,6 @@ typedef struct _PRIVATE_DATA {
     gbuffer_t *gbuf_will_payload;
     json_t *jn_will_properties;
     int out_packet_count;
-
-    BOOL allow_duplicate_messages; // TODO
 } PRIVATE_DATA;
 
 
