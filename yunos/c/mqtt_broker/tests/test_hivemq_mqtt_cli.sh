@@ -968,6 +968,7 @@ log_section "20. ${TEST_NAMES[20]}"
 TOPIC="test/burst/$$"
 OUT=$(mktemp)
 EXPECTED=50
+BATCH_SIZE=5
 
 SUB_PID=$(run_sub_bg "${OUT}" \
     --topic "${TOPIC}" \
@@ -979,6 +980,9 @@ for i in $(seq 1 ${EXPECTED}); do
         --topic "${TOPIC}" \
         --message "burst-msg-${i}" \
         --identifier "pub-burst-${i}-$$" &
+    if (( i % BATCH_SIZE == 0 )); then
+        wait
+    fi
 done
 wait
 
