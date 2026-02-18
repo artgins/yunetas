@@ -1285,7 +1285,6 @@ PRIVATE int db__message_write_inflight_out_latest(hgobj gobj) // TODO is needed?
     // struct mosquitto_client_msg *tail, *next;
     // int rc;
     //
-    // TODO
     // if(context->state != mosq_cs_active
     //         || context->sock == INVALID_SOCKET
     //         || context->msgs_out.inflight == NULL) {
@@ -1361,7 +1360,6 @@ PRIVATE int db__message_update_outgoing(
             );
             return MOSQ_ERR_PROTOCOL;
         }
-        // tail->timestamp = db.now_s; TODO
         msg_flag_set_state(qmsg, state);
         tr2q_save_hard_mark(qmsg, qmsg->md_record.user_flag);
         return MOSQ_ERR_SUCCESS;
@@ -1476,7 +1474,6 @@ PRIVATE int db__message_release_incoming(hgobj gobj, uint16_t mid)
 
         if(empty_string(topic)) {
             /*
-             *  TODO review, I don't know if this a real use case
              *  topic==NULL/empty: QoS 2 message that was denied/dropped,
              *  being processed so the client doesn't keep resending it.
              *  Don't send it to other clients.
@@ -2038,7 +2035,6 @@ PRIVATE int mqtt_property_add_int16(hgobj gobj, json_t *proplist, int identifier
 
     const char *property_name = mqtt_property_identifier_to_string(identifier);
     json_object_set_new(proplist, property_name, json_integer(value));
-    // proclient_generated = TRUE; TODO vale para algo?
     return 0;
 }
 
@@ -2074,7 +2070,6 @@ PRIVATE int mqtt_property_add_int32(hgobj gobj, json_t *proplist, int identifier
 
     const char *property_name = mqtt_property_identifier_to_string(identifier);
     json_object_set_new(proplist, property_name, json_integer(value));
-    // proclient_generated = TRUE; TODO vale para algo?
     return 0;
 }
 
@@ -2163,7 +2158,6 @@ PRIVATE int mqtt_property_add_string(
         return -1;
     }
 
-    //proclient_generated = TRUE; // TODO
     const char *property_name = mqtt_property_identifier_to_string(identifier);
     json_object_set_new(proplist, property_name, json_string(value?value:""));
 
@@ -3299,34 +3293,34 @@ PRIVATE const char *property_read_string(json_t *properties, int identifier)
 /***************************************************************************
  *
  ***************************************************************************/
-// PRIVATE const char *property_read_string_pair(json_t *properties, int identifier)
-// {
-//     hgobj gobj = 0;
-//
-//     // TODO what must to return?
-//     if(identifier != MQTT_PROP_CONTENT_TYPE
-//             && identifier != MQTT_PROP_RESPONSE_TOPIC
-//             && identifier != MQTT_PROP_ASSIGNED_CLIENT_IDENTIFIER
-//             && identifier != MQTT_PROP_AUTHENTICATION_METHOD
-//             && identifier != MQTT_PROP_RESPONSE_INFORMATION
-//             && identifier != MQTT_PROP_SERVER_REFERENCE
-//             && identifier != MQTT_PROP_REASON_STRING
-//     ) {
-//         gobj_log_error(gobj, 0,
-//             "function",     "%s", __FUNCTION__,
-//             "msgset",       "%s", MSGSET_MQTT_ERROR,
-//             "msg",          "%s", "Bad string property identifier",
-//             "identifier",   "%d", identifier,
-//             NULL
-//         );
-//     }
-//
-//     json_t *property = property_get_property(properties, identifier);
-//     if(!property) {
-//         return NULL;
-//     }
-//     return kw_get_str(gobj, property, "value", "", 0);
-// }
+PRIVATE const char *property_read_string_pair(json_t *properties, int identifier)
+{
+     hgobj gobj = 0;
+
+     if(identifier != MQTT_PROP_CONTENT_TYPE
+             && identifier != MQTT_PROP_RESPONSE_TOPIC
+             && identifier != MQTT_PROP_ASSIGNED_CLIENT_IDENTIFIER
+             && identifier != MQTT_PROP_AUTHENTICATION_METHOD
+             && identifier != MQTT_PROP_RESPONSE_INFORMATION
+             && identifier != MQTT_PROP_SERVER_REFERENCE
+             && identifier != MQTT_PROP_REASON_STRING
+     ) {
+         gobj_log_error(gobj, 0,
+             "function",     "%s", __FUNCTION__,
+             "msgset",       "%s", MSGSET_MQTT_ERROR,
+             "msg",          "%s", "Bad string property identifier",
+             "identifier",   "%d", identifier,
+             NULL
+         );
+         return "";
+     }
+
+     json_t *property = property_get_property(properties, identifier);
+     if(!property) {
+         return NULL;
+     }
+     return kw_get_str(gobj, property, "value", "", 0);
+}
 
 /***************************************************************************
  *
