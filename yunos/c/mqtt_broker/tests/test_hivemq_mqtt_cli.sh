@@ -841,7 +841,7 @@ OUT=$(mktemp)
 CLIENT_ID="persist-client-$$"
 
 # Subscribe with persistent session (clean session = false)
-SUB_PID=$(${MQTT} sub \
+${MQTT} sub \
     -l \
     --host "${BROKER_HOST}" \
     --port "${BROKER_PORT}" \
@@ -849,7 +849,7 @@ SUB_PID=$(${MQTT} sub \
     --identifier "${CLIENT_ID}" \
     --no-cleanStart \
     --qos 1 \
-    2>/dev/null >"${OUT}" &)
+    2>/dev/null >"${OUT}" &
 SUB_PID=$!
 sleep 0.5
 
@@ -868,7 +868,7 @@ sleep 0.5
 
 # Reconnect with same client ID (persistent session)
 OUT2=$(mktemp)
-SUB_PID2=$(${MQTT} sub \
+${MQTT} sub \
     -l \
     --host "${BROKER_HOST}" \
     --port "${BROKER_PORT}" \
@@ -876,7 +876,7 @@ SUB_PID2=$(${MQTT} sub \
     --identifier "${CLIENT_ID}" \
     --no-cleanStart \
     --qos 1 \
-    2>/dev/null >"${OUT2}" &)
+    2>/dev/null >"${OUT2}" &
 SUB_PID2=$!
 sleep 2
 
@@ -903,7 +903,7 @@ CLIENT_ID="v5-session-$$"
 OUT=$(mktemp)
 
 # Connect with session expiry of 30 seconds
-SUB_PID=$(${MQTT} sub \
+${MQTT} sub \
     -l \
     --host "${BROKER_HOST}" \
     --port "${BROKER_PORT}" \
@@ -913,7 +913,7 @@ SUB_PID=$(${MQTT} sub \
     --no-cleanStart \
     --sessionExpiryInterval 30 \
     --qos 1 \
-    2>/dev/null >"${OUT}" &)
+    2>/dev/null >"${OUT}" &
 SUB_PID=$!
 sleep 0.5
 
@@ -932,7 +932,7 @@ sleep 0.5
 
 # Reconnect within session expiry window
 OUT2=$(mktemp)
-SUB_PID2=$(${MQTT} sub \
+${MQTT} sub \
     -l \
     --host "${BROKER_HOST}" \
     --port "${BROKER_PORT}" \
@@ -942,7 +942,7 @@ SUB_PID2=$(${MQTT} sub \
     --no-cleanStart \
     --sessionExpiryInterval 30 \
     --qos 1 \
-    2>/dev/null >"${OUT2}" &)
+    2>/dev/null >"${OUT2}" &
 SUB_PID2=$!
 sleep 2
 
