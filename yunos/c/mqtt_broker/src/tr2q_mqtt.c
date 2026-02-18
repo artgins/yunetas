@@ -638,23 +638,23 @@ PUBLIC q2_msg_t *tr2q_get_by_mid(tr2_queue_t *trq, json_int_t mid)
  ***************************************************************************/
 PUBLIC json_t *tr2q_msg_json(q2_msg_t *msg) // Return is not yours, free with tr2q_unload_msg()
 {
-    if(msg->kw_record) {
-        return msg->kw_record;
-    }
-
     hgobj gobj = (hgobj)json_integer_value(json_object_get(msg->trq->tranger, "gobj"));
 
-    msg->kw_record = tranger2_read_record_content( // return is yours
-        msg->trq->tranger,
-        msg->trq->topic,
-        "",
-        &msg->md_record
-    );
+    if(!msg->kw_record) {
+        msg->kw_record = tranger2_read_record_content( // return is yours
+            msg->trq->tranger,
+            msg->trq->topic,
+            "",
+            &msg->md_record
+        );
+    }
 
     /*
      *  Deserialize payload back to gbuffer
+     *  (needed both for on-demand disk loads and for inflight messages
+     *  loaded at queue startup via tr2q_load, which have "payload" but no "gbuffer")
      */
-    if(msg->kw_record) {
+    if(msg->kw_record && !json_object_get(msg->kw_record, "gbuffer")) {
         json_t *jn_payload = kw_get_dict_value(gobj, msg->kw_record, "payload", 0, 0);
         if(jn_payload) {
             gbuffer_t *gbuf = gbuffer_deserialize(gobj, jn_payload);
