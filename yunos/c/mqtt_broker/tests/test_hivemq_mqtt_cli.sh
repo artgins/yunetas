@@ -86,9 +86,9 @@ TEST_NAMES=(
     [19]="MQTT v5.0 Session Expiry"
     [20]="High-volume Publish (burst 50 messages)"
     [21]="Perf: Concurrent Connections (100 simultaneous)"
-    [22]="Perf: Message Throughput (500 messages, sequential)"
-    [23]="Perf: Fan-out Scalability (1 pub to 20 subs)"
-    [24]="Perf: Burst Publish (200 messages, batched)"
+    [22]="Perf: Message Throughput (1000 msgs, single connection)"
+    [23]="Perf: Fan-out Scalability (1 pub to 20 subs, 50 msgs)"
+    [24]="Perf: Burst Publish (500 msgs, 10 parallel connections)"
 )
 
 # =============================================================================
@@ -1007,6 +1007,8 @@ fi
 
 # =============================================================================
 # 21. Perf: Concurrent Connections (100 simultaneous)
+#     Tests broker's ability to handle many simultaneous connections.
+#     Each publisher is a separate JVM/connection (overhead ~1s per JVM).
 # =============================================================================
 if should_run 21; then
 log_section "21. ${TEST_NAMES[21]}"
@@ -1042,26 +1044,28 @@ kill "${SUB_PID}" 2>/dev/null || true
 wait "${SUB_PID}" 2>/dev/null || true
 
 RECEIVED=$(grep -c "conn-" "${OUT}" 2>/dev/null || echo 0)
+CONN_RATE=$(( NUM_CONNS * 1000 / (ELAPSED_MS > 0 ? ELAPSED_MS : 1) ))
 if [[ ${RECEIVED} -eq ${NUM_CONNS} ]]; then
-    log_ok "Concurrent connections: ${NUM_CONNS}/${NUM_CONNS} messages received (${ELAPSED_MS}ms for ${NUM_CONNS} connect+pub+disconnect cycles)"
+    log_ok "Concurrent connections: ${NUM_CONNS}/${NUM_CONNS} received (${ELAPSED_MS}ms, ~${CONN_RATE} conn/s)"
 elif [[ ${RECEIVED} -ge $(( NUM_CONNS * 90 / 100 )) ]]; then
-    log_ok "Concurrent connections: ${RECEIVED}/${NUM_CONNS} messages received (${ELAPSED_MS}ms, >=90%)"
+    log_ok "Concurrent connections: ${RECEIVED}/${NUM_CONNS} received (${ELAPSED_MS}ms, ~${CONN_RATE} conn/s, >=90%)"
 else
-    log_fail "Concurrent connections: only ${RECEIVED}/${NUM_CONNS} messages received (${ELAPSED_MS}ms)"
+    log_fail "Concurrent connections: only ${RECEIVED}/${NUM_CONNS} received (${ELAPSED_MS}ms)"
 fi
 rm -f "${OUT}"
 fi
 
 # =============================================================================
-# 22. Perf: Message Throughput (500 messages, sequential)
+# 22. Perf: Message Throughput (1000 msgs, single connection)
+#     Uses stdin line-reader mode (-l) to publish many messages from a single
+#     JVM/connection, measuring real broker throughput without JVM startup noise.
 # =============================================================================
 if should_run 22; then
 log_section "22. ${TEST_NAMES[22]}"
 
 TOPIC="test/perf/throughput/$$"
 OUT=$(mktemp)
-NUM_MSGS=500
-BATCH_SIZE=50
+NUM_MSGS=1000
 
 SUB_PID=$(run_sub_bg "${OUT}" \
     --topic "${TOPIC}" \
@@ -1070,50 +1074,46 @@ sleep 0.5
 
 T_START=$(date +%s%N)
 
-for i in $(seq 1 ${NUM_MSGS}); do
-    run_pub \
-        --topic "${TOPIC}" \
-        --message "tp-${i}" \
-        --identifier "perf-tp-${i}-$$" &
-    if (( i % BATCH_SIZE == 0 )); then
-        wait
-    fi
-done
-wait
+# Publish all messages from a single connection using stdin line-reader mode
+seq 1 ${NUM_MSGS} | sed "s/^/tp-/" | ${MQTT} pub \
+    -l \
+    --host "${BROKER_HOST}" \
+    --port "${BROKER_PORT}" \
+    --topic "${TOPIC}" \
+    --identifier "perf-tp-pub-$$" \
+    2>/dev/null
 
 T_END=$(date +%s%N)
 ELAPSED_MS=$(( (T_END - T_START) / 1000000 ))
 
-sleep 4
+sleep 3
 kill "${SUB_PID}" 2>/dev/null || true
 wait "${SUB_PID}" 2>/dev/null || true
 
 RECEIVED=$(grep -c "tp-" "${OUT}" 2>/dev/null || echo 0)
-if [[ ${ELAPSED_MS} -gt 0 ]]; then
-    RATE=$(( RECEIVED * 1000 / ELAPSED_MS ))
-else
-    RATE=${RECEIVED}
-fi
+RATE=$(( RECEIVED * 1000 / (ELAPSED_MS > 0 ? ELAPSED_MS : 1) ))
 
 if [[ ${RECEIVED} -eq ${NUM_MSGS} ]]; then
-    log_ok "Throughput: ${RECEIVED}/${NUM_MSGS} delivered in ${ELAPSED_MS}ms (~${RATE} msg/s pub rate)"
+    log_ok "Throughput: ${RECEIVED}/${NUM_MSGS} delivered in ${ELAPSED_MS}ms (~${RATE} msg/s)"
 elif [[ ${RECEIVED} -ge $(( NUM_MSGS * 90 / 100 )) ]]; then
-    log_ok "Throughput: ${RECEIVED}/${NUM_MSGS} delivered in ${ELAPSED_MS}ms (~${RATE} msg/s pub rate, >=90%)"
+    log_ok "Throughput: ${RECEIVED}/${NUM_MSGS} delivered in ${ELAPSED_MS}ms (~${RATE} msg/s, >=90%)"
 else
-    log_fail "Throughput: only ${RECEIVED}/${NUM_MSGS} delivered in ${ELAPSED_MS}ms (~${RATE} msg/s pub rate)"
+    log_fail "Throughput: only ${RECEIVED}/${NUM_MSGS} delivered in ${ELAPSED_MS}ms (~${RATE} msg/s)"
 fi
 rm -f "${OUT}"
 fi
 
 # =============================================================================
-# 23. Perf: Fan-out Scalability (1 pub to 20 subs)
+# 23. Perf: Fan-out Scalability (1 pub to 20 subs, 50 msgs)
+#     Tests message fan-out: single publisher sends 50 messages that must
+#     be delivered to 20 subscribers (1000 total deliveries).
 # =============================================================================
 if should_run 23; then
 log_section "23. ${TEST_NAMES[23]}"
 
 TOPIC="test/perf/fanout/$$"
 NUM_SUBS=20
-NUM_MSGS=10
+NUM_MSGS=50
 TOTAL_EXPECTED=$(( NUM_SUBS * NUM_MSGS ))
 
 declare -a SUB_PIDS
@@ -1124,17 +1124,18 @@ for s in $(seq 1 ${NUM_SUBS}); do
         --topic "${TOPIC}" \
         --identifier "perf-fan-sub-${s}-$$")
 done
-sleep 1
+sleep 2
 
 T_START=$(date +%s%N)
 
-for i in $(seq 1 ${NUM_MSGS}); do
-    run_pub \
-        --topic "${TOPIC}" \
-        --message "fan-${i}" \
-        --identifier "perf-fan-pub-${i}-$$" &
-done
-wait
+# Single publisher sends all messages via stdin line-reader mode
+seq 1 ${NUM_MSGS} | sed "s/^/fan-/" | ${MQTT} pub \
+    -l \
+    --host "${BROKER_HOST}" \
+    --port "${BROKER_PORT}" \
+    --topic "${TOPIC}" \
+    --identifier "perf-fan-pub-$$" \
+    2>/dev/null
 
 T_END=$(date +%s%N)
 ELAPSED_MS=$(( (T_END - T_START) / 1000000 ))
@@ -1154,25 +1155,29 @@ for s in $(seq 1 ${NUM_SUBS}); do
     rm -f "${SUB_OUTS[$s]}"
 done
 
+FANOUT_RATE=$(( TOTAL_RECEIVED * 1000 / (ELAPSED_MS > 0 ? ELAPSED_MS : 1) ))
 if [[ ${ALL_SUBS_OK} -eq 1 ]]; then
-    log_ok "Fan-out: all ${NUM_SUBS} subs received all ${NUM_MSGS} msgs (${TOTAL_RECEIVED}/${TOTAL_EXPECTED} total, ${ELAPSED_MS}ms pub time)"
+    log_ok "Fan-out: ${TOTAL_RECEIVED}/${TOTAL_EXPECTED} delivered (${NUM_SUBS} subs x ${NUM_MSGS} msgs, ${ELAPSED_MS}ms, ~${FANOUT_RATE} deliveries/s)"
 elif [[ ${TOTAL_RECEIVED} -ge $(( TOTAL_EXPECTED * 90 / 100 )) ]]; then
-    log_ok "Fan-out: ${TOTAL_RECEIVED}/${TOTAL_EXPECTED} total messages delivered (${ELAPSED_MS}ms, >=90%)"
+    log_ok "Fan-out: ${TOTAL_RECEIVED}/${TOTAL_EXPECTED} delivered (${ELAPSED_MS}ms, ~${FANOUT_RATE} deliveries/s, >=90%)"
 else
-    log_fail "Fan-out: only ${TOTAL_RECEIVED}/${TOTAL_EXPECTED} total messages delivered (${ELAPSED_MS}ms)"
+    log_fail "Fan-out: only ${TOTAL_RECEIVED}/${TOTAL_EXPECTED} delivered (${ELAPSED_MS}ms, ~${FANOUT_RATE} deliveries/s)"
 fi
 fi
 
 # =============================================================================
-# 24. Perf: Burst Publish (200 messages, batched)
+# 24. Perf: Burst Publish (500 msgs, 10 parallel connections)
+#     Tests broker under parallel load: 10 concurrent publishers each send
+#     50 messages via stdin line-reader mode (500 total from 10 connections).
 # =============================================================================
 if should_run 24; then
 log_section "24. ${TEST_NAMES[24]}"
 
 TOPIC="test/perf/burst/$$"
 OUT=$(mktemp)
-EXPECTED=200
-BATCH_SIZE=50
+NUM_PUBS=10
+MSGS_PER_PUB=50
+EXPECTED=$(( NUM_PUBS * MSGS_PER_PUB ))
 
 SUB_PID=$(run_sub_bg "${OUT}" \
     --topic "${TOPIC}" \
@@ -1181,37 +1186,34 @@ sleep 0.5
 
 T_START=$(date +%s%N)
 
-for i in $(seq 1 ${EXPECTED}); do
-    run_pub \
+# Launch parallel publishers, each sending MSGS_PER_PUB messages via stdin
+for p in $(seq 1 ${NUM_PUBS}); do
+    seq 1 ${MSGS_PER_PUB} | sed "s/^/burst-p${p}-m/" | ${MQTT} pub \
+        -l \
+        --host "${BROKER_HOST}" \
+        --port "${BROKER_PORT}" \
         --topic "${TOPIC}" \
-        --message "pburst-${i}" \
-        --identifier "perf-burst-${i}-$$" &
-    if (( i % BATCH_SIZE == 0 )); then
-        wait
-    fi
+        --identifier "perf-burst-pub-${p}-$$" \
+        2>/dev/null &
 done
 wait
 
 T_END=$(date +%s%N)
 ELAPSED_MS=$(( (T_END - T_START) / 1000000 ))
 
-sleep 4
+sleep 3
 kill "${SUB_PID}" 2>/dev/null || true
 wait "${SUB_PID}" 2>/dev/null || true
 
-RECEIVED=$(grep -c "pburst-" "${OUT}" 2>/dev/null || echo 0)
-if [[ ${ELAPSED_MS} -gt 0 ]]; then
-    RATE=$(( RECEIVED * 1000 / ELAPSED_MS ))
-else
-    RATE=${RECEIVED}
-fi
+RECEIVED=$(grep -c "burst-p" "${OUT}" 2>/dev/null || echo 0)
+RATE=$(( RECEIVED * 1000 / (ELAPSED_MS > 0 ? ELAPSED_MS : 1) ))
 
 if [[ ${RECEIVED} -eq ${EXPECTED} ]]; then
-    log_ok "Burst 200: all ${EXPECTED} messages received (${ELAPSED_MS}ms, ~${RATE} msg/s)"
+    log_ok "Burst: ${RECEIVED}/${EXPECTED} delivered (${NUM_PUBS} pubs x ${MSGS_PER_PUB} msgs, ${ELAPSED_MS}ms, ~${RATE} msg/s)"
 elif [[ ${RECEIVED} -ge $(( EXPECTED * 90 / 100 )) ]]; then
-    log_ok "Burst 200: ${RECEIVED}/${EXPECTED} messages received (${ELAPSED_MS}ms, ~${RATE} msg/s, >=90%)"
+    log_ok "Burst: ${RECEIVED}/${EXPECTED} delivered (${ELAPSED_MS}ms, ~${RATE} msg/s, >=90%)"
 else
-    log_fail "Burst 200: only ${RECEIVED}/${EXPECTED} messages received (${ELAPSED_MS}ms, ~${RATE} msg/s)"
+    log_fail "Burst: only ${RECEIVED}/${EXPECTED} delivered (${ELAPSED_MS}ms, ~${RATE} msg/s)"
 fi
 rm -f "${OUT}"
 fi
