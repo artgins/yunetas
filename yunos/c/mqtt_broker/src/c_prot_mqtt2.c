@@ -1047,7 +1047,7 @@ PRIVATE int message__remove(
     hgobj gobj,
     uint16_t mid,
     mqtt_msg_direction_t dir,
-    int qos, // TODO what checks mosquitto does with qos? review
+    int qos,
     json_t **pmsg
 ) {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
@@ -1064,6 +1064,19 @@ PRIVATE int message__remove(
     }
 
     if(msg) {
+        mqtt_msg_qos_t msg_qos = msg_flag_get_qos(msg);
+        if(msg_qos != qos) {
+            // Like mosquitto, check the qos
+            gobj_log_error(gobj, 0,
+                "function",     "%s", __FUNCTION__,
+                "msgset",       "%s", MSGSET_MQTT_ERROR,
+                "msg",          "%s", "QoS mismatch",
+                "mid",          "%d", (int)mid,
+                "msg_qos",      "%d", msg_qos,
+                "expected_qos", "%d", qos,
+                NULL
+            );
+        }
         json_t *kw = tr2q_msg_json(msg);
         if(pmsg) {
             *pmsg = kw_incref(kw);
