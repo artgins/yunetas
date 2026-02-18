@@ -3530,12 +3530,11 @@ PRIVATE int ac_on_open(hgobj gobj, const char *event, json_t *kw, hgobj src)
         JSON_DECREF(session);
     }
 
-    // TODO
-    // rc = acl__find_acls(context);
     /*-----------------------------*
      *  Check acl acl__find_acls
      *-----------------------------*/
-    // TODO
+    // rc = acl__find_acls(context);
+    // TODO return -2 if not AUTHORIZED to prot_mqtt2 will send right reason code
     //connection_check_acl(context, &context->msgs_in.inflight);
     //connection_check_acl(context, &context->msgs_in.queued);
     //connection_check_acl(context, &context->msgs_out.inflight);

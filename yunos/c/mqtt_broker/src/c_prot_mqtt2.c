@@ -5030,7 +5030,7 @@ PRIVATE int handle__connect(hgobj gobj, gbuffer_t *gbuf, hgobj src)
      *      Authenticate
      *-------------------------------------------*/
     if(!empty_string(priv->auth_method)) {
-        // TODO implement JWT auth method
+        // TODO Auth implement JWT method
         gobj_log_error(gobj, 0,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_MQTT_ERROR,
@@ -5046,8 +5046,8 @@ PRIVATE int handle__connect(hgobj gobj, gbuffer_t *gbuf, hgobj src)
     /*---------------------------------------------*
      *      Check user/password
      *---------------------------------------------*/
-    // TODO join with auth_method
-    const char *jwt = ""; // TODO
+    // TODO Auth join with auth_method
+    const char *jwt = "";
     const char *peername = gobj_read_str_attr(src, "peername");
     const char *dst_service = "treedb_mqtt_broker"; // TODO too much hardcoded
     int authorization = 0;
@@ -5066,7 +5066,7 @@ PRIVATE int handle__connect(hgobj gobj, gbuffer_t *gbuf, hgobj src)
 
     json_t *auth = gobj_authenticate(gobj, kw_auth, gobj);
     authorization = COMMAND_RESULT(gobj, auth);
-    //print_json("XXX authenticated", auth); // TODO TEST
+    //print_json("XXX authenticated", auth); // TODO authz
 
     if(authorization < 0) {
         if(priv->protocol_version == mosq_p_mqtt5) {
@@ -5162,7 +5162,7 @@ PRIVATE int handle__connect(hgobj gobj, gbuffer_t *gbuf, hgobj src)
             }
         }
         if(priv->auth_method) {
-            // TODO No tenemos auth method
+            // TODO Auth No tenemos auth method
             // if(mosquitto_property_add_string(&connack_props, MQTT_PROP_AUTHENTICATION_METHOD, context->auth_method)) {
             //     rc = MOSQ_ERR_NOMEM;
             //     goto error;
@@ -5244,7 +5244,7 @@ PRIVATE int handle__connect(hgobj gobj, gbuffer_t *gbuf, hgobj src)
         client  // owned
     );
     if(ret < 0) {
-        if(ret == -2) { // TODO review
+        if(ret == -2) {
             if(priv->protocol_version == mosq_p_mqtt5) {
                 send__connack(gobj, 0, MQTT_RC_NOT_AUTHORIZED, NULL);
             } else {
@@ -5279,8 +5279,8 @@ PRIVATE int handle__connect(hgobj gobj, gbuffer_t *gbuf, hgobj src)
         gobj_write_integer_attr(gobj, "max_qos", 0);
     }
 
-int todo_xxx;
-    // TODO db__expire_all_messages(gobj);
+    // TODO need all below? is in mosquitto
+    // db__expire_all_messages(gobj);
     // db__message_write_queued_out(gobj);
     // db__message_write_inflight_out_all(gobj);
 
