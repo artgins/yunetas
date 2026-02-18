@@ -4563,7 +4563,19 @@ PRIVATE int handle__connect(hgobj gobj, gbuffer_t *gbuf, hgobj src)
 
     gobj_write_str_attr(gobj, "protocol_name", protocol_name);
     gobj_write_integer_attr(gobj, "protocol_version", protocol_version);
-    gobj_write_bool_attr(gobj, "is_bridge", is_bridge); // TODO review and refuse bridge?
+    gobj_write_bool_attr(gobj, "is_bridge", is_bridge);
+
+    if(is_bridge) {
+        gobj_log_error(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_MQTT_ERROR,
+            "msg",          "%s", "Mqtt bridge not supported",
+            "version",      "%d", (int)version_byte,
+            NULL
+        );
+        send__connack(gobj, 0, MQTT_RC_UNSPECIFIED, NULL);
+        return -1;
+    }
 
     /*-------------------------------------------*
      *      Connect flags
