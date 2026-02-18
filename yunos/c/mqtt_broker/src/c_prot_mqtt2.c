@@ -5465,7 +5465,14 @@ PRIVATE int handle__disconnect_s(hgobj gobj, gbuffer_t *gbuf)
         //mosquitto__set_state(context, mosq_cs_disconnecting);
     }
 
-    send_drop(gobj, MOSQ_ERR_SUCCESS);
+    /*
+     *  Don't call send_drop() immediately.  On localhost the server's close()
+     *  arrives at the client before the client has finished its own graceful
+     *  shutdown (shutdownOutput), causing ENOTCONN on the HiveMQ side.
+     *  Instead, let the read continue: the client will send FIN and the next
+     *  recv returns EOF/EPIPE, which triggers try_to_stop_yevents() naturally.
+     *  The keepalive timer provides a safety net for misbehaving clients.
+     */
     return 0;
 }
 

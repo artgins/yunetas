@@ -938,22 +938,6 @@ PRIVATE void try_to_stop_yevents(hgobj gobj)  // IDEMPOTENT
         );
     }
 
-    if(priv->fd_clisrv > 0 && !priv->tx_in_progress) {
-        if(trace_level & TRACE_URING) {
-            gobj_log_debug(gobj, 0,
-                "function",     "%s", __FUNCTION__,
-                "msgset",       "%s", MSGSET_YEV_LOOP,
-                "msg",          "%s", "close socket fd_clisrv",
-                "msg2",         "%s", "💥🟥 close socket fd_clisrv",
-                "fd",           "%d", priv->fd_clisrv ,
-                NULL
-            );
-        }
-
-        close(priv->fd_clisrv);
-        priv->fd_clisrv = -1;
-    }
-
     if(priv->yev_connect) {
         if(!yev_event_is_stopped(priv->yev_connect)) {
             yev_stop_event(priv->yev_connect);
@@ -998,6 +982,32 @@ PRIVATE void try_to_stop_yevents(hgobj gobj)  // IDEMPOTENT
     if(to_wait_stopped) {
         gobj_change_state(gobj, ST_WAIT_STOPPED);
     } else {
+        /*
+         *  Close fd only after all io_uring events are stopped.
+         *  tx_in_progress==0 is guaranteed here (it sets to_wait_stopped above).
+         *
+         *  Call shutdown(SHUT_WR) before close() to send a graceful FIN instead
+         *  of RST.  Linux sends RST when close() is called with unread data in
+         *  the receive buffer (e.g. the peer's FIN arrived just after we read
+         *  the last application data).  shutdown(SHUT_WR) transitions the socket
+         *  to FIN_WAIT_1 first, so the subsequent close() follows the graceful
+         *  TCP teardown path and the peer can complete its own shutdown().
+         */
+        if(priv->fd_clisrv > 0) {
+            if(trace_level & TRACE_URING) {
+                gobj_log_debug(gobj, 0,
+                    "function",     "%s", __FUNCTION__,
+                    "msgset",       "%s", MSGSET_YEV_LOOP,
+                    "msg",          "%s", "close socket fd_clisrv",
+                    "msg2",         "%s", "💥🟥 close socket fd_clisrv",
+                    "fd",           "%d", priv->fd_clisrv ,
+                    NULL
+                );
+            }
+            shutdown(priv->fd_clisrv, SHUT_WR);
+            close(priv->fd_clisrv);
+            priv->fd_clisrv = -1;
+        }
         if(gobj_current_state(gobj)==ST_DISCONNECTED) {
             gobj_change_state(gobj, ST_STOPPED);
         } else {

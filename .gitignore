@@ -107,3 +107,4 @@ ipch
 
 *.xcodeproj
 *.xcworkspace
+yunos/c/mqtt_broker/tests/mqtt-cli.jar
