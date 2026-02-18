@@ -1035,15 +1035,6 @@ PRIVATE int message__queue(
             user_flag       // extra flags in addition to TRQ_MSG_PENDING
         );
     }
-int todo_xxx;
-// TODO esto está en db__message_insert(), similar a message__queue?
-// if(dir == mosq_md_out && update){
-//     rc = db__message_write_inflight_out_latest(context);
-//     if(rc) return rc;
-//     rc = db__message_write_queued_out(context);
-//     if(rc) return rc;
-// }
-
 
     return message__release_to_inflight(gobj, dir, FALSE);
 }
