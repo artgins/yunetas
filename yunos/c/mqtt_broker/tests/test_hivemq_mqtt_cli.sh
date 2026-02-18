@@ -917,7 +917,7 @@ ${MQTT} sub \
     --qos 1 \
     2>/dev/null >"${OUT}" &
 SUB_PID=$!
-sleep 0.5
+sleep 2
 
 kill "${SUB_PID}" 2>/dev/null || true
 wait "${SUB_PID}" 2>/dev/null || true
