@@ -102,6 +102,7 @@ typedef enum { // WARNING table with name's strings in 30_timeranger.c
     sf0_deleted_record       = 0x80000000,
 } system_flag_t;
 
+#undef RECORD_KEY_VALUE_MAX
 #define RECORD_KEY_VALUE_MAX   (48)
 #define tranger_max_key_size() (RECORD_KEY_VALUE_MAX-1)
 

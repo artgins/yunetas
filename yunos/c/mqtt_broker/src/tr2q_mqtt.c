@@ -24,7 +24,6 @@ PRIVATE int tr2q_set_hard_flag(q2_msg_t *msg, uint16_t hard_mark, BOOL set);
 /***************************************************************
  *              Data
  ***************************************************************/
-PRIVATE BOOL verbose = FALSE;
 
 /********************************************************************
  * String Functions
@@ -315,8 +314,6 @@ PRIVATE int load_record_callback(
     new_msg(trq, rowid, mid, md_record, jn_record);
 
     if(trq->verbose) {
-        static int x = 0;
-        x++;
         BOOL retain = (int)kw_get_bool(gobj, jn_record, "retain", 0, KW_REQUIRED);
         trace_machine2("💾💾 ==> LOAD MSG tr2q %s, session '%s', topic '%s', qos %d, retain %d %s",
             tranger2_topic_name(topic),
@@ -326,7 +323,6 @@ PRIVATE int load_record_callback(
             retain,
             retain?"🔀🔀":""
         ); // ♥🔵🔴💙🔷🔶🔀💾
-        // if(x==4) {exit(0);}
         gobj_trace_json(gobj, jn_record, "💾💾 ==> LOAD MSG tr2q");
     }
 

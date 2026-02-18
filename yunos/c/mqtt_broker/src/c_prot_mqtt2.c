@@ -1174,10 +1174,10 @@ PRIVATE int db__message_dequeue_first(
 /***************************************************************************
  *
  ***************************************************************************/
-// PRIVATE int db__message_write_inflight_out_single(
-//     hgobj gobj,
-//     struct mosquitto_client_msg *msg
-// ) {
+PRIVATE int db__message_write_inflight_out_single( // TODO is needed?
+    hgobj gobj,
+    q2_msg_t *qmsg
+) {
 //     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 //     json_t *cmsg_props = NULL, *store_props = NULL;
 //     int rc;
@@ -1195,7 +1195,7 @@ PRIVATE int db__message_dequeue_first(
 //         if(priv->db_now_real_s > msg->store->message_expiry_time) {
 //             /* Message is expired, must not send. */
 //             if(msg->direction == mosq_md_out && msg->qos > 0) {
-//                 // TODO util__increment_send_quota(context);
+//                 util__increment_send_quota(context);
 //             }
 //             db__message_remove_from_inflight(gobj, &priv->msgs_out, msg);
 //             return MOSQ_ERR_SUCCESS;
@@ -1266,14 +1266,14 @@ PRIVATE int db__message_dequeue_first(
 //         case mosq_ms_queued:
 //             break;
 //     }
-//     return MOSQ_ERR_SUCCESS;
-// }
+    return MOSQ_ERR_SUCCESS;
+}
 
 /***************************************************************************
- *  Using in handle__subscribe() and websockets
+ *
  ***************************************************************************/
-// PRIVATE int db__message_write_inflight_out_latest(hgobj gobj)
-// {
+PRIVATE int db__message_write_inflight_out_latest(hgobj gobj) // TODO is needed?
+{
     // struct mosquitto_client_msg *tail, *next;
     // int rc;
     //
@@ -1314,8 +1314,8 @@ PRIVATE int db__message_dequeue_first(
     //     if(rc) return rc;
     //     tail = next;
     // }
-//     return MOSQ_ERR_SUCCESS;
-// }
+    return MOSQ_ERR_SUCCESS;
+}
 
 /***************************************************************************
  *  Using in handle__pubrec()
