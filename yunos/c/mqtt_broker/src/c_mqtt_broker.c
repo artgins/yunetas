@@ -3629,6 +3629,15 @@ PRIVATE int ac_on_close(hgobj gobj, const char *event, json_t *kw, hgobj src)
         NULL,
         gobj
     );
+    if(!client) {
+        /*
+         *  Client not found: connection was rejected before session was created
+         *  (e.g., invalid client_id, too long, or containing invalid characters).
+         *  Nothing to clean up.
+         */
+        KW_DECREF(kw);
+        return 0;
+    }
 
     BOOL assigned_id = kw_get_bool(gobj, client, "assigned_id", FALSE, KW_REQUIRED);
 

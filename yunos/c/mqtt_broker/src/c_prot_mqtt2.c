@@ -4827,6 +4827,48 @@ PRIVATE int handle__connect(hgobj gobj, gbuffer_t *gbuf, hgobj src)
     gobj_write_bool_attr(gobj, "assigned_id", assigned_id);
 
     /*
+     *  Validate client_id: length and characters.
+     *  The client_id is used as a timeranger key (directory name) and as part of
+     *  queue topic names (client_id + "-OUT"), so:
+     *  - Max length: NAME_MAX - 4 (reserve for queue suffix "-OUT")
+     *  - Must not contain '/' (directory separator, breaks filesystem paths)
+     */
+    if(client_id_len > NAME_MAX - 4) {
+        gobj_log_warning(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_MQTT_ERROR,
+            "msg",          "%s", "Mqtt: client_id too long",
+            "client_id_len", "%d", (int)client_id_len,
+            "max_len",      "%d", (int)(NAME_MAX - 4),
+            NULL
+        );
+        if(protocol_version == mosq_p_mqtt5) {
+            send__connack(gobj, 0, MQTT_RC_CLIENTID_NOT_VALID, NULL);
+        } else {
+            send__connack(gobj, 0, CONNACK_REFUSED_IDENTIFIER_REJECTED, NULL);
+        }
+        JSON_DECREF(connect_properties);
+        return -1;
+    }
+
+    if(memchr(client_id, '/', client_id_len)) {
+        gobj_log_warning(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_MQTT_ERROR,
+            "msg",          "%s", "Mqtt: client_id contains invalid character '/'",
+            "client_id",    "%s", priv->client_id,
+            NULL
+        );
+        if(protocol_version == mosq_p_mqtt5) {
+            send__connack(gobj, 0, MQTT_RC_CLIENTID_NOT_VALID, NULL);
+        } else {
+            send__connack(gobj, 0, CONNACK_REFUSED_IDENTIFIER_REJECTED, NULL);
+        }
+        JSON_DECREF(connect_properties);
+        return -1;
+    }
+
+    /*
      *  TODO let entry of clients with a certain prefix!
      *  clientid_prefixes check
      */
