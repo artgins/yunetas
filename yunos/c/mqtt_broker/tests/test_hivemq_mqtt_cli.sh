@@ -17,11 +17,10 @@
 # Requirements:
 #   - java (11+)
 #   - mqtt-cli.jar (HiveMQ MQTT CLI) in same directory as this script
-#   - mqtt_broker binary running on BROKER_HOST:BROKER_PORT
+#   - mqtt_broker must be running on BROKER_HOST:BROKER_PORT
 #
 # Usage:
 #   ./test_hivemq_mqtt_cli.sh [--host HOST] [--port PORT] [--timeout TIMEOUT]
-#   ./test_hivemq_mqtt_cli.sh --start-broker /path/to/mqtt_broker
 # =============================================================================
 set -euo pipefail
 
@@ -30,8 +29,6 @@ MQTT_CLI_JAR="${SCRIPT_DIR}/mqtt-cli.jar"
 BROKER_HOST="${BROKER_HOST:-127.0.0.1}"
 BROKER_PORT="${BROKER_PORT:-1810}"
 TIMEOUT="${TIMEOUT:-5}"
-BROKER_PID=""
-BROKER_BIN=""
 PASS_COUNT=0
 FAIL_COUNT=0
 SKIP_COUNT=0
@@ -56,21 +53,16 @@ log_fail()  { echo -e "${RED}[FAIL]${NC} $*"; FAIL_COUNT=$((FAIL_COUNT+1)); }
 log_skip()  { echo -e "${YELLOW}[SKIP]${NC} $*"; SKIP_COUNT=$((SKIP_COUNT+1)); }
 log_section() { echo; echo -e "${BLUE}=== $* ===${NC}"; }
 
-die() { echo -e "${RED}FATAL: $*${NC}" >&2; cleanup; exit 1; }
+die() { echo -e "${RED}FATAL: $*${NC}" >&2; exit 1; }
 
 # =============================================================================
 # Argument parsing
 # =============================================================================
-START_BROKER=0
 while [[ $# -gt 0 ]]; do
     case "$1" in
         --host)      BROKER_HOST="$2"; shift 2 ;;
         --port)      BROKER_PORT="$2"; shift 2 ;;
         --timeout)   TIMEOUT="$2"; shift 2 ;;
-        --start-broker)
-            START_BROKER=1
-            BROKER_BIN="$2"
-            shift 2 ;;
         *) echo "Unknown option: $1"; exit 1 ;;
     esac
 done
@@ -87,55 +79,11 @@ if ! java -version &>/dev/null; then
 fi
 
 # =============================================================================
-# Broker lifecycle
-# =============================================================================
-start_broker() {
-    local broker_bin="$1"
-    if [[ ! -x "${broker_bin}" ]]; then
-        die "mqtt_broker binary not found or not executable: ${broker_bin}"
-    fi
-
-    log_info "Starting mqtt_broker: ${broker_bin}"
-    mkdir -p /yuneta/store/agent/uuid 2>/dev/null || true
-    chown -R yuneta:yuneta /yuneta 2>/dev/null || true
-
-    local config_file="${SCRIPT_DIR}/mqtt_broker.json"
-    su -l yuneta -c "${broker_bin} --config-file ${config_file}" &>/tmp/mqtt_broker_test.log &
-    BROKER_PID=$!
-    log_info "mqtt_broker started with PID ${BROKER_PID}"
-
-    # Wait for broker to start listening
-    local waited=0
-    while ! nc -z "${BROKER_HOST}" "${BROKER_PORT}" 2>/dev/null; do
-        sleep 0.5
-        waited=$((waited+1))
-        if [[ ${waited} -ge 20 ]]; then
-            log_fail "Broker did not start listening on ${BROKER_HOST}:${BROKER_PORT} within 10 seconds"
-            cat /tmp/mqtt_broker_test.log >&2
-            cleanup
-            exit 1
-        fi
-    done
-    log_ok "Broker is listening on ${BROKER_HOST}:${BROKER_PORT}"
-}
-
-cleanup() {
-    if [[ -n "${BROKER_PID}" ]]; then
-        log_info "Stopping mqtt_broker (PID ${BROKER_PID})"
-        kill "${BROKER_PID}" 2>/dev/null || true
-        wait "${BROKER_PID}" 2>/dev/null || true
-        BROKER_PID=""
-    fi
-}
-
-trap cleanup EXIT
-
-# =============================================================================
 # Check broker reachability
 # =============================================================================
 check_broker() {
     if ! nc -z "${BROKER_HOST}" "${BROKER_PORT}" 2>/dev/null; then
-        die "Broker not reachable at ${BROKER_HOST}:${BROKER_PORT}. Start the broker first or use --start-broker."
+        die "Broker not reachable at ${BROKER_HOST}:${BROKER_PORT}. Start the broker first."
     fi
     log_info "Broker reachable at ${BROKER_HOST}:${BROKER_PORT}"
 }
@@ -210,13 +158,9 @@ run_pub() {
 }
 
 # =============================================================================
-# Start broker if requested
+# Check broker is running
 # =============================================================================
-if [[ ${START_BROKER} -eq 1 ]]; then
-    start_broker "${BROKER_BIN}"
-else
-    check_broker
-fi
+check_broker
 
 # =============================================================================
 # TEST SUITE
