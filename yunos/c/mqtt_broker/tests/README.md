@@ -9,6 +9,8 @@ Tests for the yuneta MQTT broker covering MQTT v3.1.1 and v5.0 protocol complian
 - **Python 3** (for low-level protocol tests)
 - **mqtt_broker** running on the target host/port
 
+> **⚠️ Warning:** If you don't use 'yuneta' as linux user, you must set the attribute `allow_anonymous_in_localhost` of C_AUTHZ to true.
+
 ## Quick Start
 
 ```bash
