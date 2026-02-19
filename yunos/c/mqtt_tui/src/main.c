@@ -358,10 +358,10 @@ static int register_yuno_and_more(void)
     if(arguments.verbose > 2) {
         gobj_set_gobj_trace(0, "subscriptions", TRUE, 0);
         gobj_set_gobj_trace(0, "create_delete", TRUE, 0);
+        gobj_set_gobj_trace(0, "ev_kw", TRUE, 0);
     }
     if(arguments.verbose > 3) {
         gobj_set_gclass_trace(gclass_find_by_name(C_TCP), "traffic", TRUE);
-        gobj_set_gobj_trace(0, "ev_kw", TRUE, 0);
     }
     if(arguments.verbose > 4) {
         gobj_set_deep_tracing(1);

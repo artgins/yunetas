@@ -8686,7 +8686,7 @@ PRIVATE int ac_mqtt_client_send_publish(hgobj gobj, const char *event, json_t *k
         gobj,
         priv->client_id,
         topic,
-        gbuf_payload, // not owned
+        gbuffer_incref(gbuf_payload), // owned
         qos,
         0,
         retain,

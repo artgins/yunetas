@@ -97,6 +97,7 @@ static inline void gbuffer_decref(gbuffer_t *gbuf) /* Decr ref */
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_PARAMETER_ERROR,
             "msg",          "%s", "BAD gbuf_decref()",
+            "pointer",      "%p", gbuf,
             NULL
         );
         return;
