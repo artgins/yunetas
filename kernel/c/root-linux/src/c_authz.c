@@ -439,6 +439,7 @@ PRIVATE void mt_create(hgobj gobj)
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_INFO,
             "msg",          "%s", "No authz db, authz only to local access",
+            "path",         "%d", path,
             NULL
         );
         return;
