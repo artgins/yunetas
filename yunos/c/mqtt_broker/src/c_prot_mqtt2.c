@@ -210,6 +210,8 @@ SDATA (DTP_STRING,      "mqtt_will_payload",0,          "",     "MQTT will paylo
 SDATA (DTP_STRING,      "mqtt_will_qos",    0,          "",     "MQTT will qos"),
 SDATA (DTP_STRING,      "mqtt_will_retain", 0,          "",     "MQTT will retain"),
 
+SDATA (DTP_STRING,      "treedb_name",      SDF_RD,     "treedb_mqtt_broker", "Name of the treedb service used for authentication"),
+
 SDATA (DTP_STRING,      "user_id",          0,          "",     "MQTT Username or OAuth2 User Id (interactive jwt)"),
 SDATA (DTP_STRING,      "user_passw",       0,          "",     "MQTT Password or OAuth2 User password (interactive jwt)"),
 SDATA (DTP_STRING,      "jwt",              0,          "",     "Jwt"),
@@ -1182,7 +1184,12 @@ PRIVATE int db__message_dequeue_first(
 /***************************************************************************
  *
  ***************************************************************************/
-PRIVATE int db__message_write_inflight_out_single( // TODO is needed?
+/*
+ *  NOTE: Not needed. In Yuneta, inflight messages are sent via
+ *  message__release_to_inflight() (called on CONNECT/reconnect).
+ *  This mosquitto function is kept as dead code for reference.
+ */
+PRIVATE int db__message_write_inflight_out_single(
     hgobj gobj,
     q2_msg_t *qmsg
 ) {
@@ -1280,7 +1287,10 @@ PRIVATE int db__message_write_inflight_out_single( // TODO is needed?
 /***************************************************************************
  *
  ***************************************************************************/
-PRIVATE int db__message_write_inflight_out_latest(hgobj gobj) // TODO is needed?
+/*
+ *  NOTE: Not needed. See db__message_write_inflight_out_single() above.
+ */
+PRIVATE int db__message_write_inflight_out_latest(hgobj gobj)
 {
     // struct mosquitto_client_msg *tail, *next;
     // int rc;
@@ -5049,7 +5059,7 @@ PRIVATE int handle__connect(hgobj gobj, gbuffer_t *gbuf, hgobj src)
     // TODO Auth join with auth_method
     const char *jwt = "";
     const char *peername = gobj_read_str_attr(src, "peername");
-    const char *dst_service = "treedb_mqtt_broker"; // TODO too much hardcoded
+    const char *dst_service = gobj_read_str_attr(gobj, "treedb_name");
     int authorization = 0;
     json_t *kw_auth = json_pack("{s:s, s:s, s:s, s:s}",
         "client_id", SAFE_PRINT(priv->client_id),
@@ -5279,10 +5289,12 @@ PRIVATE int handle__connect(hgobj gobj, gbuffer_t *gbuf, hgobj src)
         gobj_write_integer_attr(gobj, "max_qos", 0);
     }
 
-    // TODO need all below? is in mosquitto
-    // db__expire_all_messages(gobj);
-    // db__message_write_queued_out(gobj);
-    // db__message_write_inflight_out_all(gobj);
+    /*
+     *  mosquitto would call db__expire_all_messages(), db__message_write_queued_out()
+     *  and db__message_write_inflight_out_all() here.
+     *  In Yuneta these are replaced by message__release_to_inflight() below,
+     *  which moves queued messages to inflight using the timeranger2 persistent queues.
+     */
 
     /*
      *  Send queued messages to the reconnecting client
@@ -5398,28 +5410,37 @@ PRIVATE int handle__connack(
             }
         }
 
-        // TODO review how save properties
-        // const char *key; json_t *value;
-        // json_object_foreach(properties, key, value) {
-        //     json_object_set(
-        //         jn_data,
-        //         kw_get_str(gobj, value, "name", "", KW_REQUIRED),
-        //         kw_get_dict_value(gobj, value, "value", 0, KW_REQUIRED)
-        //     );
-        // }
-
         json_object_set_new(jn_data, "properties", properties);
 
-        // TODO integrate in session the properties
-        // uint8_t retain_available = property_read_byte(properties, MQTT_PROP_RETAIN_AVAILABLE);
-        // uint8_t max_qos = property_read_byte(properties, MQTT_PROP_MAXIMUM_QOS);
-        // uint16_t inflight_maximum = property_read_int16(properties, MQTT_PROP_RECEIVE_MAXIMUM);
-        // uint16_t keepalive = property_read_int16(properties, MQTT_PROP_SERVER_KEEP_ALIVE);
-        // uint32_t maximum_packet_size = property_read_int32(properties, MQTT_PROP_MAXIMUM_PACKET_SIZE);
+        /*
+         *  Integrate server-sent CONNACK properties into the session.
+         *  These override the client's local defaults / config values.
+         */
+        json_t *prop;
+        prop = property_get_property(properties, MQTT_PROP_RETAIN_AVAILABLE);
+        if(prop) priv->retain_available = (BOOL)kw_get_int(gobj, prop, "value", 1, 0);
+
+        prop = property_get_property(properties, MQTT_PROP_MAXIMUM_QOS);
+        if(prop) priv->max_qos = (uint32_t)kw_get_int(gobj, prop, "value", 2, 0);
+
+        prop = property_get_property(properties, MQTT_PROP_RECEIVE_MAXIMUM);
+        if(prop) {
+            priv->msgs_out_inflight_maximum = (uint32_t)kw_get_int(gobj, prop, "value", 20, 0);
+            priv->msgs_out_inflight_quota = priv->msgs_out_inflight_maximum;
+        }
+
+        prop = property_get_property(properties, MQTT_PROP_SERVER_KEEP_ALIVE);
+        if(prop) priv->keepalive = (uint32_t)kw_get_int(gobj, prop, "value", (json_int_t)priv->keepalive, 0);
+
+        prop = property_get_property(properties, MQTT_PROP_MAXIMUM_PACKET_SIZE);
+        if(prop) priv->maximum_packet_size = (uint32_t)kw_get_int(gobj, prop, "value", 0, 0);
     }
 
-    // priv->msgs_out.inflight_quota = priv->msgs_out.inflight_maximum;
-    // message__reconnect_reset(mosq, true); TODO important?!
+    /*
+     *  In Yuneta, inflight quota is reset above from CONNACK RECEIVE_MAXIMUM property
+     *  (or keeps its configured default). message__reconnect_reset() is not needed
+     *  because queue state is managed by timeranger2 persistently across reconnects.
+     */
 
     if(gobj_trace_level(gobj) & SHOW_DECODE) {
         trace_msg0("  👈 CONNACK, as %s, client %s, reason: %d '%s'",
@@ -5442,7 +5463,7 @@ PRIVATE int handle__connack(
              *  Set in session
              */
             gobj_write_bool_attr(gobj, "in_session", TRUE);
-            gobj_write_bool_attr(gobj, "send_disconnect", TRUE); // TODO necessary?
+            gobj_write_bool_attr(gobj, "send_disconnect", TRUE); // Send DISCONNECT on close (MQTT v5)
 
             /*
              *  Start the periodic timer and begin ping timer
@@ -5465,7 +5486,7 @@ PRIVATE int handle__connack(
         case 4:
         case 5:
             {
-                // TODO don't retry connections?
+                /* Connection refused — return error and let the transport layer handle reconnect */
                 const char *reason = priv->protocol_version != mosq_p_mqtt5?
                     mqtt_connack_string(reason_code):mqtt_reason_string(reason_code);
                 gobj_log_error(gobj, 0,
@@ -5548,11 +5569,17 @@ PRIVATE int handle__disconnect_s(hgobj gobj, gbuffer_t *gbuf)
         }
     }
     if(reason_code == MQTT_RC_DISCONNECT_WITH_WILL_MSG) {
-        // TODO mosquitto__set_state(context, mosq_cs_disconnect_with_will);
+        /*
+         *  Client requested disconnect but wants the will message sent.
+         *  The will is sent on close in ac_drop() when will_topic is set.
+         *  Nothing extra needed here: the will payload/topic remain set.
+         */
     } else {
-        // TODO
-        //will__clear(context);
-        //mosquitto__set_state(context, mosq_cs_disconnecting);
+        /*
+         *  Normal disconnect: clear the will so it is NOT sent on close.
+         *  The will is only sent on unexpected disconnects.
+         */
+        gobj_write_bool_attr(gobj, "will", FALSE);
     }
 
     /*
@@ -5866,11 +5893,12 @@ PRIVATE int handle__subscribe(hgobj gobj, gbuffer_t *gbuf)
         NULL // owned (properties suback not used)
     );
 
-    int todo_xxx; // TODO
-    // if(priv->current_out_packet == NULL){
-    //     db__message_write_queued_out(gobj);
-    //     db__message_write_inflight_out_latest(gobj);
-    // }
+    /*
+     *  After SUBSCRIBE, mosquitto would flush queued/inflight messages here.
+     *  In the Yuneta implementation, queued messages are released via
+     *  message__release_to_inflight() during CONNECT (connect_on_authorized),
+     *  so there is nothing extra to do here.
+     */
 
     return MOSQ_ERR_SUCCESS;
 }
@@ -6754,7 +6782,7 @@ PRIVATE int handle__publish_s(
     /*
      *  Pull from input queued list
      */
-    db__message_write_queued_in(gobj); // TODO review
+    db__message_write_queued_in(gobj); // Move next queued-in message to inflight
     return rc;
 
 process_bad_message:
@@ -6771,10 +6799,10 @@ process_bad_message:
             break;
     }
 
-    // TODO review
-    // if(priv->max_queued_messages > 0 && priv->out_packet_count >= priv->max_queued_messages) {
-    //     rc = MQTT_RC_QUOTA_EXCEEDED;
-    // }
+    /*
+     *  max_queued_messages quota exceeded check: handled at the server side
+     *  before queuing. Not needed here (client bad-message error path).
+     */
 
     GBUFFER_DECREF(payload)
     GBMEM_FREE(topic)
@@ -6795,7 +6823,7 @@ PRIVATE int handle__publish_c(
     uint16_t mid = 0;
     uint16_t slen;
     json_t *properties = NULL;
-    uint32_t expiry_interval = 0; // TODO get from properties although be client?
+    uint32_t expiry_interval = 0;
 
     /*-----------------------------------*
      *      Get and check the header
@@ -6848,6 +6876,13 @@ PRIVATE int handle__publish_c(
             // Error already logged
             GBMEM_FREE(topic)
             return rc;
+        }
+        /*
+         *  Get message expiry interval from MQTT v5 properties
+         */
+        if(properties) {
+            json_t *prop = property_get_property(properties, MQTT_PROP_MESSAGE_EXPIRY_INTERVAL);
+            if(prop) expiry_interval = (uint32_t)kw_get_int(gobj, prop, "value", 0, 0);
         }
     }
 
@@ -6952,9 +6987,12 @@ PRIVATE int handle__publish_c(
     if(retain) {
         /*-------------------------------------------*
          *  Incoming Retain
-         *  Important thick to inform to user
-         **-----------------------------------------*/
-        // TODO
+         *  The retain flag is already passed through
+         *  to new_mqtt_message() and delivered to the
+         *  user via EV_MQTT_MESSAGE. The client-side
+         *  has no retained message storage; it is the
+         *  broker's responsibility to store/relay them.
+         *-------------------------------------------*/
     }
 
     switch(qos) {
@@ -7050,10 +7088,10 @@ process_bad_message:
             break;
     }
 
-    // TODO review
-    // if(priv->max_queued_messages > 0 && priv->out_packet_count >= priv->max_queued_messages) {
-    //     rc = MQTT_RC_QUOTA_EXCEEDED;
-    // }
+    /*
+     *  max_queued_messages quota exceeded check is done at the server
+     *  before queuing (not needed here in the bad-message error path).
+     */
 
     GBMEM_FREE(topic)
     KW_DECREF(kw_mqtt_msg)
@@ -7389,7 +7427,9 @@ PRIVATE int handle__pubrec(hgobj gobj, gbuffer_t *gbuf)
         } else {
             if(!message__delete(gobj, mid, mosq_md_out, 2)) {
                 /*
-                 *  TODO If not exist it's because must be dup? What is this case?
+                 *  Message not found: likely a retransmitted PUBREC for a
+                 *  message already acknowledged in a previous session.
+                 *  Still notify the user and release inflight quota.
                  */
                 /*
                  *  Callback to user
@@ -7704,7 +7744,7 @@ PRIVATE int decode_head(hgobj gobj, FRAME_HEAD *frame, char *data)
     frame->command = byte1 & 0xF0;
     frame->flags = byte1 & 0x0F;
 
-    // if(!priv->in_session) { // TODO remove when not needed
+    // if(!priv->in_session) { // Guard removed: enforced by FSM states (ST_WAIT_CONNECT / ST_SESSION)
     //     if(priv->iamServer) {
     //         if(frame->command != CMD_CONNECT) {
     //             gobj_log_error(gobj, 0,
@@ -8662,7 +8702,6 @@ PRIVATE int ac_mqtt_client_send_publish(hgobj gobj, const char *event, json_t *k
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
-    // TODO check: topic can be empty if using prot v5 and property MQTT_PROP_TOPIC_ALIAS
     const char *topic = kw_get_str(gobj, kw, "topic", "", 0);
     int qos = (int)kw_get_int(gobj, kw, "qos", 0, 0);
     int expiry_interval = (int)kw_get_int(gobj, kw, "expiry_interval", 0, 0);
@@ -8737,12 +8776,12 @@ PRIVATE int ac_mqtt_client_send_publish(hgobj gobj, const char *event, json_t *k
 
     if(empty_string(topic)) {
         if(priv->protocol_version == mosq_p_mqtt5) {
+            json_t *prop_properties = kw_get_dict(gobj, kw, "properties", 0, 0);
             BOOL have_topic_alias = FALSE;
-            // TODO check property
-            // if(p->identifier == MQTT_PROP_TOPIC_ALIAS) {
-            //     have_topic_alias = true;
-            //     break;
-            // }
+            if(prop_properties) {
+                json_t *alias_prop = property_get_property(prop_properties, MQTT_PROP_TOPIC_ALIAS);
+                have_topic_alias = (alias_prop != NULL);
+            }
             if(have_topic_alias == FALSE) {
                 gobj_log_error(gobj, 0,
                     "function",     "%s", __FUNCTION__,
@@ -9222,8 +9261,11 @@ PRIVATE int ac_timeout_periodic(hgobj gobj, const char *event, json_t *kw, hgobj
         priv->t_backup = start_sectimer(priv->timeout_backup);
     }
 
-    // TODO implement a cleaner of messages inflight with pending acks and timeout reached
-    // TODO or remove all messages with same mid when receiving and ack
+    /*
+     *  FUTURE: implement a cleaner for inflight messages whose ACK has timed out.
+     *  Options: re-send with DUP flag, or drop and release quota (per MQTT spec §4.4).
+     *  Also consider removing all messages with the same mid when an ACK arrives late.
+     */
 
     KW_DECREF(kw)
     return 0;
