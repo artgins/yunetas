@@ -2,6 +2,7 @@ syntax:regexp
 
 \.vite/
 chatgpt/
+.claude/
 
 VERSION_INSTALLED.txt
 VERSION_INSTALLED_STATIC.txt
