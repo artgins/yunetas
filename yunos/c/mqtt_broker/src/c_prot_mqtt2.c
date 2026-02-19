@@ -5140,6 +5140,7 @@ PRIVATE int handle__connect(hgobj gobj, gbuffer_t *gbuf, hgobj src)
      *  and db__message_write_inflight_out_all() here.
      *  In Yuneta these are replaced by message__release_to_inflight() below,
      *  which moves queued messages to inflight using the timeranger2 persistent queues.
+     *  TODO but the message expiration is checked in somewhere?
      */
 
     /*
@@ -5264,10 +5265,14 @@ PRIVATE int handle__connack(
          */
         json_t *prop;
         prop = property_get_property(properties, MQTT_PROP_RETAIN_AVAILABLE);
-        if(prop) priv->retain_available = (BOOL)kw_get_int(gobj, prop, "value", 1, 0);
+        if(prop) {
+            priv->retain_available = (BOOL)kw_get_int(gobj, prop, "value", 1, 0);
+        }
 
         prop = property_get_property(properties, MQTT_PROP_MAXIMUM_QOS);
-        if(prop) priv->max_qos = (uint32_t)kw_get_int(gobj, prop, "value", 2, 0);
+        if(prop) {
+            priv->max_qos = (uint32_t)kw_get_int(gobj, prop, "value", 2, 0);
+        }
 
         prop = property_get_property(properties, MQTT_PROP_RECEIVE_MAXIMUM);
         if(prop) {
@@ -5276,7 +5281,11 @@ PRIVATE int handle__connack(
         }
 
         prop = property_get_property(properties, MQTT_PROP_SERVER_KEEP_ALIVE);
-        if(prop) priv->keepalive = (uint32_t)kw_get_int(gobj, prop, "value", (json_int_t)priv->keepalive, 0);
+        if(prop) {
+            priv->keepalive = (uint32_t)kw_get_int(
+                gobj, prop, "value", (json_int_t)priv->keepalive, 0
+            );
+        }
 
         prop = property_get_property(properties, MQTT_PROP_MAXIMUM_PACKET_SIZE);
         if(prop) priv->maximum_packet_size = (uint32_t)kw_get_int(gobj, prop, "value", 0, 0);
@@ -5332,7 +5341,10 @@ PRIVATE int handle__connack(
         case 4:
         case 5:
             {
-                /* Connection refused — return error and let the transport layer handle reconnect */
+                /*
+                 * Connection refused — return error
+                 * and let the transport layer handle reconnect
+                 */
                 const char *reason = priv->protocol_version != mosq_p_mqtt5?
                     mqtt_connack_string(reason_code):mqtt_reason_string(reason_code);
                 gobj_log_error(gobj, 0,
@@ -6728,7 +6740,9 @@ PRIVATE int handle__publish_c(
          */
         if(properties) {
             json_t *prop = property_get_property(properties, MQTT_PROP_MESSAGE_EXPIRY_INTERVAL);
-            if(prop) expiry_interval = (uint32_t)kw_get_int(gobj, prop, "value", 0, 0);
+            if(prop) {
+                expiry_interval = (uint32_t)kw_get_int(gobj, prop, "value", 0, 0);
+            }
         }
     }
 
@@ -7589,32 +7603,6 @@ PRIVATE int decode_head(hgobj gobj, FRAME_HEAD *frame, char *data)
      */
     frame->command = byte1 & 0xF0;
     frame->flags = byte1 & 0x0F;
-
-    // if(!priv->in_session) { // Guard removed: enforced by FSM states (ST_WAIT_CONNECT / ST_SESSION)
-    //     if(priv->iamServer) {
-    //         if(frame->command != CMD_CONNECT) {
-    //             gobj_log_error(gobj, 0,
-    //                 "function",     "%s", __FUNCTION__,
-    //                 "msgset",       "%s", MSGSET_MQTT_ERROR,
-    //                 "msg",          "%s", "mqtt server: first command MUST be CONNECT",
-    //                 "command",      "%s", mqtt_command_string(frame->command),
-    //                 NULL
-    //             );
-    //             return -1;
-    //         }
-    //     } else {
-    //         if(frame->command != CMD_CONNACK) {
-    //             gobj_log_error(gobj, 0,
-    //                 "function",     "%s", __FUNCTION__,
-    //                 "msgset",       "%s", MSGSET_MQTT_ERROR,
-    //                 "msg",          "%s", "mqtt client: first command MUST be CMD_CONNACK",
-    //                 "command",      "%s", mqtt_command_string(frame->command),
-    //                 NULL
-    //             );
-    //             return -1;
-    //         }
-    //     }
-    // }
 
     /*
      *  decod byte2
