@@ -1181,7 +1181,8 @@ PUBLIC void gobj_trace_dump_gbuf(
     json_t *jn_data = json_object();
     char *label = gbuffer_getlabel(gbuf);
     json_object_set_new(jn_data, "pointer", json_sprintf("%p", gbuf));
-    json_object_set_new(jn_data, "len", json_integer(len));
+    json_object_set_new(jn_data, "refcount", json_integer((json_int_t)gbuf->refcount));
+    json_object_set_new(jn_data, "len", json_integer((json_int_t)len));
     json_object_set_new(jn_data, "label", json_string(label?label:""));
     json_object_set_new(jn_data, "mark", json_integer((json_int_t)gbuffer_getmark(gbuf)));
     json_object_set_new(jn_data, "data", tdump2json(bf, len));
