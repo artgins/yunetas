@@ -1286,7 +1286,7 @@ PRIVATE int ac_command_answer(hgobj gobj, const char *event, json_t *kw, hgobj s
             if(json_is_string(jn_data)) {
                 const char *data = json_string_value(jn_data);
                 printf("%s\n", data);
-            } else {
+            } else if(json_is_object(jn_data) || json_is_array(jn_data)) {
                 if(!gobj_read_bool_attr(gobj, "print_with_metadata")) {
                     json_t *jn_data2 = kw_filter_metadata(gobj, json_incref(jn_data));
                     print_json("", jn_data2);
