@@ -183,6 +183,7 @@ PRIVATE sdata_desc_t attrs_table[] = {
 /*-ATTR-type------------name----------------flag--------default-description---------- */
 SDATA (DTP_BOOLEAN,     "iamServer",        SDF_RD,     0,      "What side? server or client"),
 SDATA (DTP_POINTER,     "tranger_queues",   0,          0,      "Queues TimeRanger for mqtt messages with qos > 0. If null then no persistence queues are used and max qos is limited to 0"),
+SDATA (DTP_STRING,      "treedb_name",      SDF_RD,     "treedb_mqtt_broker", "Name of the treedb service used for authentication"),
 SDATA (DTP_STRING,      "alert_message",    SDF_RD,     "ALERT Queuing", "Alert message"),
 SDATA (DTP_INTEGER,     "backup_queue_size",SDF_RD,     "60000","Do backup at this size, using rowid as mid therefore backup_queue_size cannot be greater than 65535"),
 SDATA (DTP_INTEGER,     "alert_queue_size", SDF_RD,     "2000", "Limit alert queue size"),
@@ -209,8 +210,6 @@ SDATA (DTP_STRING,      "mqtt_will_topic",  0,          "",     "MQTT will topic
 SDATA (DTP_STRING,      "mqtt_will_payload",0,          "",     "MQTT will payload"),
 SDATA (DTP_STRING,      "mqtt_will_qos",    0,          "",     "MQTT will qos"),
 SDATA (DTP_STRING,      "mqtt_will_retain", 0,          "",     "MQTT will retain"),
-
-SDATA (DTP_STRING,      "treedb_name",      SDF_RD,     "treedb_mqtt_broker", "Name of the treedb service used for authentication"),
 
 SDATA (DTP_STRING,      "user_id",          0,          "",     "MQTT Username or OAuth2 User Id (interactive jwt)"),
 SDATA (DTP_STRING,      "user_passw",       0,          "",     "MQTT Password or OAuth2 User password (interactive jwt)"),
