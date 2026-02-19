@@ -493,7 +493,10 @@ PUBLIC int tty_keyboard_init(void)
     int newfd = dup(fd);
     set_cloexec(newfd);
 
-    enableRawMode(newfd);
+    if(enableRawMode(newfd) < 0) {
+        close(newfd);
+        return -1;
+    }
     return newfd;
 }
 
