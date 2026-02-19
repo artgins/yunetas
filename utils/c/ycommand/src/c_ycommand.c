@@ -1711,7 +1711,7 @@ PRIVATE int ac_tty_mirror_data(hgobj gobj, const char *event, json_t *kw, hgobj 
 PRIVATE int ac_timeout(hgobj gobj, const char *event, json_t *kw, hgobj src)
 {
     printf("\n");
-    exit(-1);
+    exit(gobj_get_exit_code());
 
     KW_DECREF(kw);
     return 0;
