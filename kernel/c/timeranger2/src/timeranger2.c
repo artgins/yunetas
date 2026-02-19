@@ -1337,7 +1337,7 @@ PUBLIC int tranger2_delete_topic(
 
     json_t *topic = tranger2_topic(tranger, topic_name);
     if(!topic) {
-        gobj_log_error(gobj, 0,
+        gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_INTERNAL_ERROR,
             "msg",          "%s", "Topic not found",

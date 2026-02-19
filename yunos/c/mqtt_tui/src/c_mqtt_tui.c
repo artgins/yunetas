@@ -566,7 +566,7 @@ PRIVATE json_t *cmd_publish(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
     gobj_send_event(gobj, EV_SEND_MQTT_PUBLISH, kw_publish, gobj);
 
     KW_DECREF(kw)
-    return 0;
+    return 0; // Asynchronous response
 }
 
 /***************************************************************************
@@ -605,7 +605,7 @@ PRIVATE json_t *cmd_subscribe(hgobj gobj, const char *cmd, json_t *kw, hgobj src
     gobj_send_event(gobj, EV_SEND_MQTT_SUBSCRIBE, kw_subscribe, gobj);
 
     KW_DECREF(kw)
-    return 0;
+    return 0; // Asynchronous response
 }
 
 /***************************************************************************
