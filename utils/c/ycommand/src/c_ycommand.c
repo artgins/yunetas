@@ -184,18 +184,20 @@ PRIVATE void mt_create(hgobj gobj)
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
     /*
-     *  Input screen size
+     *  Input screen size (only needed in interactive mode)
      */
-    struct winsize winsz;
-    if(ioctl(STDIN_FILENO, TIOCGWINSZ, &winsz)<0) {
-        gobj_log_error(0, 0,
-            "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_SYSTEM_ERROR,
-            "msg",          "%s", "ioctl() FAILED",
-            "errno",        "%d", errno,
-            "serrno",       "%s", strerror(errno),
-            NULL
-        );
+    struct winsize winsz = {0};
+    if(gobj_read_bool_attr(gobj, "interactive")) {
+        if(ioctl(STDIN_FILENO, TIOCGWINSZ, &winsz)<0) {
+            gobj_log_error(0, 0,
+                "function",     "%s", __FUNCTION__,
+                "msgset",       "%s", MSGSET_SYSTEM_ERROR,
+                "msg",          "%s", "ioctl() FAILED",
+                "errno",        "%d", errno,
+                "serrno",       "%s", strerror(errno),
+                NULL
+            );
+        }
     }
     if(winsz.ws_row <= 0) {
         winsz.ws_row = 1;
@@ -269,42 +271,44 @@ PRIVATE int mt_start(hgobj gobj)
 
     gobj_start(priv->timer);
 
-    priv->tty_fd = tty_keyboard_init();
-    if(priv->tty_fd < 0) {
-        gobj_log_error(0, 0,
-            "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_SYSTEM_ERROR,
-            "msg",          "%s", "cannot open a tty window",
-            NULL
-        );
-        printf("\n");
-        exit(-1);
-    }
-
-    /*-------------------------------*
-     *      Setup reading event
-     *-------------------------------*/
-    json_int_t rx_buffer_size = 1024;
-    if(!priv->yev_reading) {
-        priv->yev_reading = yev_create_read_event(
-            yuno_event_loop(),
-            yev_callback,
-            gobj,
-            priv->tty_fd,
-            gbuffer_create(rx_buffer_size, rx_buffer_size)
-        );
-    }
-
-    if(priv->yev_reading) {
-        yev_set_fd(priv->yev_reading, priv->tty_fd);
-
-        if(!yev_get_gbuf(priv->yev_reading)) {
-            yev_set_gbuffer(priv->yev_reading, gbuffer_create(rx_buffer_size, rx_buffer_size));
-        } else {
-            gbuffer_clear(yev_get_gbuf(priv->yev_reading));
+    if(priv->interactive) {
+        priv->tty_fd = tty_keyboard_init();
+        if(priv->tty_fd < 0) {
+            gobj_log_error(0, 0,
+                "function",     "%s", __FUNCTION__,
+                "msgset",       "%s", MSGSET_SYSTEM_ERROR,
+                "msg",          "%s", "cannot open a tty window",
+                NULL
+            );
+            printf("\n");
+            exit(-1);
         }
 
-        yev_start_event(priv->yev_reading);
+        /*-------------------------------*
+         *      Setup reading event
+         *-------------------------------*/
+        json_int_t rx_buffer_size = 1024;
+        if(!priv->yev_reading) {
+            priv->yev_reading = yev_create_read_event(
+                yuno_event_loop(),
+                yev_callback,
+                gobj,
+                priv->tty_fd,
+                gbuffer_create(rx_buffer_size, rx_buffer_size)
+            );
+        }
+
+        if(priv->yev_reading) {
+            yev_set_fd(priv->yev_reading, priv->tty_fd);
+
+            if(!yev_get_gbuf(priv->yev_reading)) {
+                yev_set_gbuffer(priv->yev_reading, gbuffer_create(rx_buffer_size, rx_buffer_size));
+            } else {
+                gbuffer_clear(yev_get_gbuf(priv->yev_reading));
+            }
+
+            yev_start_event(priv->yev_reading);
+        }
     }
 
     gobj_start(priv->gobj_editline);
