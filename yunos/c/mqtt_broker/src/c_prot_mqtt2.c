@@ -3370,7 +3370,7 @@ PRIVATE int send__connect(
     uint32_t proplen = 0;
     uint32_t varbytes = 0;
     json_t *local_props = NULL;
-    // uint16_t receive_maximum; TODO
+    // uint16_t receive_maximum; TODO mqtt_tui
 
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
@@ -3416,7 +3416,7 @@ PRIVATE int send__connect(
 
     if(protocol == mosq_p_mqtt5) {
         /* Generate properties from options */
-        // TODO
+        // TODO mqtt_tui
         // if(!mosquitto_property_read_int16(properties, MQTT_PROP_RECEIVE_MAXIMUM, &receive_maximum, FALSE)) {
         //     rc = mosquitto_property_add_int16(&local_props, MQTT_PROP_RECEIVE_MAXIMUM, priv->msgs_in.inflight_maximum);
         //     if(rc) {
@@ -3470,7 +3470,8 @@ PRIVATE int send__connect(
     if(will) {
         payloadlen += (uint32_t)(2+strlen(mqtt_will_topic) + 2+(uint32_t)strlen(mqtt_will_payload));
         if(protocol == mosq_p_mqtt5) {
-            // TODO payloadlen += property__get_remaining_length(mosq->will->properties);
+            // TODO mqtt_tui
+            // payloadlen += property__get_remaining_length(mosq->will->properties);
         }
     }
 
@@ -3546,7 +3547,8 @@ PRIVATE int send__connect(
     if(will) {
         if(protocol == mosq_p_mqtt5) {
             /* Write will properties */
-            // TODO property__write_all(gobj, gbuf, mosq->will->properties, true);
+            // TODO mqtt_tui
+            // property__write_all(gobj, gbuf, mosq->will->properties, true);
         }
         mqtt_write_string(gbuf, mqtt_will_topic);
         mqtt_write_string(gbuf, mqtt_will_payload);
@@ -4922,7 +4924,6 @@ PRIVATE int handle__connect(hgobj gobj, gbuffer_t *gbuf, hgobj src)
 
     json_t *auth = gobj_authenticate(gobj, kw_auth, gobj);
     authorization = COMMAND_RESULT(gobj, auth);
-    //print_json("XXX authenticated", auth); // TODO authz
 
     if(authorization < 0) {
         if(priv->protocol_version == mosq_p_mqtt5) {
@@ -5222,7 +5223,8 @@ PRIVATE int handle__connack(
                 "reason",       "%s", mqtt_reason_string(MQTT_RC_UNSUPPORTED_PROTOCOL_VERSION),
                 NULL
             );
-            // TODO connack_callback(mosq, MQTT_RC_UNSUPPORTED_PROTOCOL_VERSION, connect_flags, NULL);
+            // TODO mqtt_tui
+            // connack_callback(mosq, MQTT_RC_UNSUPPORTED_PROTOCOL_VERSION, connect_flags, NULL);
             return ret;
 
         } else if(ret<0) {
@@ -5315,7 +5317,8 @@ PRIVATE int handle__connack(
 
     switch(reason_code) {
         case 0:
-            // TODO message__retry_check(mosq); important!
+            // TODO mqtt_tui
+            // message__retry_check(mosq); important!
             /*
              *  Set in session
              */
@@ -5534,16 +5537,8 @@ PRIVATE int handle__subscribe(hgobj gobj, gbuffer_t *gbuf)
     if(priv->protocol_version == mosq_p_mqtt5) {
         int rc;
         properties = property_read_all(gobj, gbuf, CMD_SUBSCRIBE, &rc);
-        if(rc) {
-            // TODO review
-            /* FIXME - it would be better if property__read_all() returned
-             * MOSQ_ERR_MALFORMED_PACKET, but this is would change the library
-             * return codes so needs doc changes as well. */
-            if(rc == MOSQ_ERR_PROTOCOL){
-                return MOSQ_ERR_MALFORMED_PACKET;
-            } else {
-                return rc;
-            }
+        if(rc<0) {
+            return MOSQ_ERR_MALFORMED_PACKET;
         }
 
         subscription_identifier = property_read_varint(properties, MQTT_PROP_SUBSCRIPTION_IDENTIFIER);
@@ -6305,7 +6300,6 @@ PRIVATE int handle__publish_s(
         const char *property_name; json_t *property;
         json_object_foreach(properties, property_name, property) {
             json_int_t identifier = kw_get_int(gobj, property, "identifier", 0, KW_REQUIRED);
-            // TODO review parece que guarda las properties en msg_properties
             switch(identifier) {
                 case MQTT_PROP_CONTENT_TYPE:
                 case MQTT_PROP_CORRELATION_DATA:
@@ -6441,7 +6435,7 @@ PRIVATE int handle__publish_s(
      *-----------------------------------*/
 
     /* Check for topic access */
-    // TODO
+    // TODO acl
     rc = 0;
     // rc = mosquitto_acl_check(context, msg->topic, msg->payloadlen, msg->payload, msg->qos, msg->retain, MOSQ_ACL_WRITE);
     if(rc == -1) {
@@ -6770,11 +6764,6 @@ PRIVATE int handle__publish_c(
         }
         gbuffer_set_wr(payload, payloadlen);
     }
-
-    /*-----------------------------------*
-     *      Check permissions
-     *-----------------------------------*/
-    // TODO need it?
 
     /*-----------------------------------*
      *      Build our json message
@@ -7886,7 +7875,7 @@ PRIVATE int frame_completed(hgobj gobj, hgobj src)
             }
             break;
 
-        // case CMD_AUTH:          // NOT common to server/client TODO
+        // case CMD_AUTH:          // NOT common to server/client TODO Auth
         //     if(priv->iamServer) {
         //         ret = handle__auth_s(gobj, gbuf);
         //     } else {
@@ -8027,7 +8016,7 @@ PRIVATE int ac_connected(hgobj gobj, const char *event, json_t *kw, hgobj src)
          */
         send__connect(
             gobj,
-            json_object()   // outgoing_properties TODO get from client
+            json_object()   // outgoing_properties TODO mqtt_tui get from client
         );
     }
 
