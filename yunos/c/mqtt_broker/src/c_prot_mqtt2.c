@@ -5140,7 +5140,9 @@ PRIVATE int handle__connect(hgobj gobj, gbuffer_t *gbuf, hgobj src)
      *  and db__message_write_inflight_out_all() here.
      *  In Yuneta these are replaced by message__release_to_inflight() below,
      *  which moves queued messages to inflight using the timeranger2 persistent queues.
-     *  TODO but the message expiration is checked in somewhere?
+     *  Message expiration (MQTT-3.3.2-18) is checked at dequeue time inside
+     *  message__release_to_inflight(): expired messages are discarded there,
+     *  and the remaining interval is adjusted before sending.
      */
 
     /*
