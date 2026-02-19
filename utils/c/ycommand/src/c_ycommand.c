@@ -183,11 +183,13 @@ PRIVATE void mt_create(hgobj gobj)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
+    int interactive = gobj_read_bool_attr(gobj, "interactive");
+
     /*
-     *  Input screen size (only needed in interactive mode)
+     *  Input screen size and editline (only needed in interactive mode)
      */
     struct winsize winsz = {0};
-    if(gobj_read_bool_attr(gobj, "interactive")) {
+    if(interactive) {
         if(ioctl(STDIN_FILENO, TIOCGWINSZ, &winsz)<0) {
             gobj_log_error(0, 0,
                 "function",     "%s", __FUNCTION__,
@@ -198,37 +200,38 @@ PRIVATE void mt_create(hgobj gobj)
                 NULL
             );
         }
-    }
-    if(winsz.ws_row <= 0) {
-        winsz.ws_row = 1;
-    }
-    if(winsz.ws_col <= 0) {
-        winsz.ws_col = 80;
+        if(winsz.ws_row <= 0) {
+            winsz.ws_row = 1;
+        }
+        if(winsz.ws_col <= 0) {
+            winsz.ws_col = 80;
+        }
+
+        /*
+         *  History filename
+         */
+        char history_file[PATH_MAX];
+        get_history_file(history_file, sizeof(history_file));
+
+        /*
+         *  Editline
+         */
+        json_t *kw_editline = json_pack("{s:s, s:s, s:b, s:i, s:i}",
+            "prompt", "ycommand> ",
+            "history_file", history_file,
+            "use_ncurses", 0,
+            "cx", winsz.ws_col,
+            "cy", winsz.ws_row
+        );
+
+        priv->gobj_editline = gobj_create_pure_child(
+            gobj_name(gobj),
+            C_EDITLINE,
+            kw_editline,
+            gobj
+        );
     }
 
-    /*
-     *  History filename
-     */
-    char history_file[PATH_MAX];
-    get_history_file(history_file, sizeof(history_file));
-
-    /*
-     *  Editline
-     */
-    json_t *kw_editline = json_pack("{s:s, s:s, s:b, s:i, s:i}",
-        "prompt", "ycommand> ",
-        "history_file", history_file,
-        "use_ncurses", 0,
-        "cx", winsz.ws_col,
-        "cy", winsz.ws_row
-    );
-
-    priv->gobj_editline = gobj_create_pure_child(
-        gobj_name(gobj),
-        C_EDITLINE,
-        kw_editline,
-        gobj
-    );
     priv->timer = gobj_create_pure_child(gobj_name(gobj), C_TIMER, 0, gobj);
 
     /*
@@ -311,7 +314,9 @@ PRIVATE int mt_start(hgobj gobj)
         }
     }
 
-    gobj_start(priv->gobj_editline);
+    if(priv->interactive && priv->gobj_editline) {
+        gobj_start(priv->gobj_editline);
+    }
 
     const char *auth_url = gobj_read_str_attr(gobj, "auth_url");
     const char *user_id = gobj_read_str_attr(gobj, "user_id");
@@ -760,14 +765,17 @@ PRIVATE int do_command(hgobj gobj, const char *command)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
-//     json_t *jn_resp = gobj_command(priv->gobj_connector, command, 0, gobj);
-//     json_decref(jn_resp);
-
-    // Pass it through the event to do replace_cli_vars()
-    json_t *kw_line = json_object();
-    json_object_set_new(kw_line, "text", json_string(command));
-    gobj_send_event(priv->gobj_editline, EV_SETTEXT, kw_line, gobj);
-    gobj_send_event(gobj, EV_COMMAND, 0, priv->gobj_editline);
+    if(priv->interactive) {
+        // Pass it through the event to do replace_cli_vars()
+        json_t *kw_line = json_object();
+        json_object_set_new(kw_line, "text", json_string(command));
+        gobj_send_event(priv->gobj_editline, EV_SETTEXT, kw_line, gobj);
+        gobj_send_event(gobj, EV_COMMAND, 0, priv->gobj_editline);
+    } else {
+        // Non-interactive: bypass editline, pass text directly in kw
+        json_t *kw = json_pack("{s:s}", "text", command);
+        gobj_send_event(gobj, EV_COMMAND, kw, gobj);
+    }
 
     return 0;
 }
@@ -926,7 +934,7 @@ PRIVATE int clear_input_line(hgobj gobj)
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
     printf("\n");
-    if(!priv->on_mirror_tty) {
+    if(!priv->on_mirror_tty && priv->interactive) {
         json_t *kw_line = json_object();
         json_object_set_new(kw_line, "text", json_string(""));
         gobj_send_event(priv->gobj_editline, EV_SETTEXT, kw_line, gobj);
@@ -1183,7 +1191,13 @@ PRIVATE int ac_command(hgobj gobj, const char *event, json_t *kw, hgobj src)
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
     json_t *kw_input_command = json_object();
-    gobj_send_event(src, EV_GETTEXT, json_incref(kw_input_command), gobj); // HACK EV_GETTEXT is EVF_KW_WRITING
+    if(src != gobj) {
+        gobj_send_event(src, EV_GETTEXT, json_incref(kw_input_command), gobj); // HACK EV_GETTEXT is EVF_KW_WRITING
+    } else {
+        // Non-interactive: text is passed directly in kw
+        json_object_set_new(kw_input_command, "text",
+            json_string(kw_get_str(gobj, kw, "text", "", 0)));
+    }
     const char *command = kw_get_str(gobj, kw_input_command, "text", 0, 0);
 
     if(empty_string(command)) {
@@ -1589,7 +1603,9 @@ PRIVATE int ac_screen_ctrl(hgobj gobj, const char *event, json_t *kw, hgobj src)
         CASES(EV_CLRSCR)
             printf(Clear_Screen);
             fflush(stdout);
-            gobj_send_event(priv->gobj_editline, EV_PAINT, 0, gobj);
+            if(priv->gobj_editline) {
+                gobj_send_event(priv->gobj_editline, EV_PAINT, 0, gobj);
+            }
             break;
         CASES(EV_SCROLL_PAGE_UP)
             break;
