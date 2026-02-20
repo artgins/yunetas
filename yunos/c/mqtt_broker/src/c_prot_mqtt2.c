@@ -211,6 +211,7 @@ SDATA (DTP_STRING,      "mqtt_will_topic",  0,          "",     "MQTT will topic
 SDATA (DTP_STRING,      "mqtt_will_payload",0,          "",     "MQTT will payload"),
 SDATA (DTP_STRING,      "mqtt_will_qos",    0,          "",     "MQTT will qos"),
 SDATA (DTP_STRING,      "mqtt_will_retain", 0,          "",     "MQTT will retain"),
+SDATA (DTP_STRING,      "mqtt_will_properties",0,       "",     "MQTT will properties as JSON string (MQTT v5 only). E.g. '{\"will-delay-interval\":30,\"message-expiry-interval\":60}'."),
 
 SDATA (DTP_STRING,      "user_id",          0,          "",     "MQTT Username or OAuth2 User Id (interactive jwt)"),
 SDATA (DTP_STRING,      "user_passw",       0,          "",     "MQTT Password or OAuth2 User password (interactive jwt)"),
@@ -3389,6 +3390,26 @@ PRIVATE int send__connect(
     BOOL mqtt_will_retain = (atoi(gobj_read_str_attr(gobj, "mqtt_will_retain")))?1:0;
     BOOL will = !empty_string(mqtt_will_topic);
 
+    const char *mqtt_will_props_str = gobj_read_str_attr(gobj, "mqtt_will_properties");
+    json_t *will_properties = json_object();
+    if(!empty_string(mqtt_will_props_str)) {
+        json_error_t jerror;
+        json_t *parsed = json_loads(mqtt_will_props_str, 0, &jerror);
+        if(parsed && json_is_object(parsed)) {
+            JSON_DECREF(will_properties);
+            will_properties = parsed;
+        } else {
+            gobj_log_error(gobj, 0,
+                "function",     "%s", __FUNCTION__,
+                "msgset",       "%s", MSGSET_MQTT_ERROR,
+                "msg",          "%s", "Invalid mqtt_will_properties JSON, ignoring",
+                "error",        "%s", jerror.text,
+                NULL
+            );
+            JSON_DECREF(parsed);
+        }
+    }
+
     int protocol = mosq_p_mqtt5; // "mqttv5" default
     if(strcasecmp(mqtt_protocol, "mqttv5")==0 || strcasecmp(mqtt_protocol, "v5")==0) {
         protocol = mosq_p_mqtt5;
@@ -3409,6 +3430,7 @@ PRIVATE int send__connect(
             NULL
         );
         JSON_DECREF(properties);
+        JSON_DECREF(will_properties);
         return MOSQ_ERR_PROTOCOL;
     }
 
@@ -3459,6 +3481,7 @@ PRIVATE int send__connect(
             NULL
         );
         JSON_DECREF(properties);
+        JSON_DECREF(will_properties);
         return -1;
     }
 
@@ -3471,8 +3494,8 @@ PRIVATE int send__connect(
     if(will) {
         payloadlen += (uint32_t)(2+strlen(mqtt_will_topic) + 2+(uint32_t)strlen(mqtt_will_payload));
         if(protocol == mosq_p_mqtt5) {
-            // TODO mqtt_tui
-            // payloadlen += property__get_remaining_length(mosq->will->properties);
+            uint32_t will_proplen = property__get_length_all(will_properties);
+            payloadlen += will_proplen + packet__varint_bytes(will_proplen);
         }
     }
 
@@ -3488,6 +3511,7 @@ PRIVATE int send__connect(
                 NULL
             );
             JSON_DECREF(properties);
+            JSON_DECREF(will_properties);
             return -1;
         }
     }
@@ -3504,6 +3528,7 @@ PRIVATE int send__connect(
     if(!gbuf) {
         // Error already logged
         JSON_DECREF(properties);
+        JSON_DECREF(will_properties);
         return MOSQ_ERR_NOMEM;
     }
 
@@ -3548,12 +3573,12 @@ PRIVATE int send__connect(
     if(will) {
         if(protocol == mosq_p_mqtt5) {
             /* Write will properties */
-            // TODO mqtt_tui
-            // property__write_all(gobj, gbuf, mosq->will->properties, true);
+            property__write_all(gobj, gbuf, will_properties, TRUE);
         }
         mqtt_write_string(gbuf, mqtt_will_topic);
         mqtt_write_string(gbuf, mqtt_will_payload);
     }
+    JSON_DECREF(will_properties);
 
     if(!empty_string(username)) {
         mqtt_write_string(gbuf, username);

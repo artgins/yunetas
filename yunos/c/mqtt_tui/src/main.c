@@ -47,6 +47,7 @@ struct arguments
     char *mqtt_will_payload;
     char *mqtt_will_qos;
     char *mqtt_will_retain;
+    char *mqtt_will_properties;
 
     char *user_id;
     char *user_passw;
@@ -57,6 +58,7 @@ struct arguments
     int print_version;
     int print_yuneta_version;
     int print_with_metadata;
+    int list_mqtt_properties;
 };
 
 /***************************************************************************
@@ -172,6 +174,7 @@ static struct argp_option options[] = {
 {"will-payload",    3,    "PAYLOAD",    0,      "MQTT Will Payload", 10},
 {"will-qos",        4,    "QOS",        0,      "MQTT Will QoS", 10},
 {"will-retain",     5,    "RETAIN",     0,      "MQTT Will Retain", 10},
+{"will-properties", 6,    "JSON",       0,      "MQTT Will properties as JSON string (MQTT v5 only). E.g. '{\"will-delay-interval\":30,\"message-expiry-interval\":60}'.", 10},
 
 {0,                 0,      0,          0,      "OAuth2 keys", 20},
 {"auth_system",     'K',    "AUTH_SYSTEM",0,    "OpenID System(default: keycloak, to get now a jwt)", 20},
@@ -193,6 +196,7 @@ static struct argp_option options[] = {
 {"version",         'v',    0,          0,      "Print version.", 50},
 {"yuneta-version",  'V',    0,          0,      "Print yuneta version", 50},
 {"with-metadata",   'm',    0,          0,      "Print with metadata", 50},
+{"list-mqtt-properties", 7, 0,          0,      "List all MQTT v5 properties available for --mqtt_connect_properties and --will-properties, then exit.", 50},
 {0}
 };
 
@@ -258,6 +262,12 @@ static error_t parse_opt(int key, char *arg, struct argp_state *state)
         break;
     case 5:
         arguments->mqtt_will_retain = arg;
+        break;
+    case 6:
+        arguments->mqtt_will_properties = arg;
+        break;
+    case 7:
+        arguments->list_mqtt_properties = 1;
         break;
 
     case 'u':
@@ -373,6 +383,62 @@ static int register_yuno_and_more(void)
 }
 
 /***************************************************************************
+ *                      Print MQTT v5 property tables
+ ***************************************************************************/
+static void print_mqtt_properties(void)
+{
+    printf(
+        "MQTT v5 CONNECT properties  (use with --mqtt_connect_properties)\n"
+        "  Note: session-expiry-interval is always controlled by the -x flag.\n"
+        "\n"
+        "  %-40s %-12s %s\n"
+        "  %-40s %-12s %s\n",
+        "Property name", "Type", "Description",
+        "----------------------------------------", "------------", "-------------------------------"
+    );
+    printf("  %-40s %-12s %s\n", "receive-maximum",               "integer",  "0..65535. Max incoming QoS1/2 in-flight");
+    printf("  %-40s %-12s %s\n", "maximum-packet-size",           "integer",  "0..4294967295. Max packet size the client accepts");
+    printf("  %-40s %-12s %s\n", "topic-alias-maximum",           "integer",  "0..65535. Max topic aliases the client accepts");
+    printf("  %-40s %-12s %s\n", "request-response-information",  "byte",     "0 or 1. Request response info in CONNACK");
+    printf("  %-40s %-12s %s\n", "request-problem-information",   "byte",     "0 or 1. Request reason string/user-property on errors");
+    printf("  %-40s %-12s %s\n", "authentication-method",         "string",   "UTF-8 name of the authentication method");
+    printf("  %-40s %-12s %s\n", "authentication-data",           "binary",   "Base64-encoded authentication data");
+    printf("  %-40s %-12s %s\n", "user-property",                 "obj",      "{\"name\":\"key\",\"value\":\"val\"} — arbitrary key/value");
+
+    printf(
+        "\n"
+        "MQTT v5 WILL properties  (use with --will-properties)\n"
+        "\n"
+        "  %-40s %-12s %s\n"
+        "  %-40s %-12s %s\n",
+        "Property name", "Type", "Description",
+        "----------------------------------------", "------------", "-------------------------------"
+    );
+    printf("  %-40s %-12s %s\n", "will-delay-interval",           "integer",  "Seconds to delay the will after disconnect");
+    printf("  %-40s %-12s %s\n", "payload-format-indicator",      "byte",     "0=binary, 1=UTF-8 string payload");
+    printf("  %-40s %-12s %s\n", "message-expiry-interval",       "integer",  "Lifetime of the will message in seconds");
+    printf("  %-40s %-12s %s\n", "content-type",                  "string",   "MIME type of the payload (e.g. application/json)");
+    printf("  %-40s %-12s %s\n", "response-topic",                "string",   "UTF-8 topic for request/response pattern");
+    printf("  %-40s %-12s %s\n", "correlation-data",              "binary",   "Base64-encoded correlation data");
+    printf("  %-40s %-12s %s\n", "user-property",                 "obj",      "{\"name\":\"key\",\"value\":\"val\"} — arbitrary key/value");
+
+    printf(
+        "\n"
+        "JSON format examples:\n"
+        "  --mqtt_connect_properties='{\"receive-maximum\":100,\"topic-alias-maximum\":10}'\n"
+        "  --will-properties='{\"will-delay-interval\":30,\"message-expiry-interval\":3600,\"content-type\":\"text/plain\"}'\n"
+        "\n"
+        "Types:\n"
+        "  integer   JSON number (e.g. 30)\n"
+        "  byte      JSON number 0 or 1\n"
+        "  string    JSON string (e.g. \"text/plain\")\n"
+        "  binary    JSON string containing base64-encoded bytes\n"
+        "  obj       JSON object with \"name\" and \"value\" string fields\n"
+        "\n"
+    );
+}
+
+/***************************************************************************
  *                      Main
  ***************************************************************************/
 int main(int argc, char *argv[])
@@ -400,6 +466,7 @@ int main(int argc, char *argv[])
     arguments.mqtt_will_payload = "";
     arguments.mqtt_will_qos = "";
     arguments.mqtt_will_retain = "";
+    arguments.mqtt_will_properties = "";
 
     /*
      *  Save args
@@ -433,6 +500,10 @@ int main(int argc, char *argv[])
         printf("%s\n", YUNETA_VERSION);
         exit(0);
     }
+    if(arguments.list_mqtt_properties) {
+        print_mqtt_properties();
+        exit(0);
+    }
 
     /*
      *  Check configuration
@@ -461,9 +532,8 @@ int main(int argc, char *argv[])
      *  Put configuration
      */
     {
-        // TODO missing will properties
         json_t *kw_utility = json_pack(
-            "{s:{s:b, s:s, s:s, s:s, s:s, s:s, s:b, s:s, s:s, s:s, s:s, s:s, s:s, s:s, s:s, s:s, s:s, s:s, s:s, s:s, s:b}}",
+            "{s:{s:b, s:s, s:s, s:s, s:s, s:s, s:b, s:s, s:s, s:s, s:s, s:s, s:s, s:s, s:s, s:s, s:s, s:s, s:s, s:s, s:s, s:b}}",
             "global",
             "C_MQTT_TUI.verbose", arguments.verbose,
             "C_MQTT_TUI.auth_system", arguments.auth_system,
@@ -480,6 +550,7 @@ int main(int argc, char *argv[])
             "C_MQTT_TUI.mqtt_will_payload", arguments.mqtt_will_payload,
             "C_MQTT_TUI.mqtt_will_qos", arguments.mqtt_will_qos,
             "C_MQTT_TUI.mqtt_will_retain", arguments.mqtt_will_retain,
+            "C_MQTT_TUI.mqtt_will_properties", arguments.mqtt_will_properties,
 
             "C_MQTT_TUI.user_id", arguments.user_id,
             "C_MQTT_TUI.user_passw", arguments.user_passw,

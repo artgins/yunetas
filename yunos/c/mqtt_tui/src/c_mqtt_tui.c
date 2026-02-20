@@ -192,6 +192,7 @@ SDATA (DTP_STRING,  "mqtt_will_topic",  0,      "",     "MQTT will topic"),
 SDATA (DTP_STRING,  "mqtt_will_payload",0,      "",     "MQTT will payload"),
 SDATA (DTP_STRING,  "mqtt_will_qos",    0,      "0",    "MQTT will qos"),
 SDATA (DTP_STRING,  "mqtt_will_retain", 0,      "0",    "MQTT will retain"),
+SDATA (DTP_STRING,  "mqtt_will_properties",0,   "",     "MQTT will properties as JSON string (MQTT v5 only). E.g. '{\"will-delay-interval\":30}'."),
 
 SDATA (DTP_STRING,  "user_id",          0,      "",     "MQTT Username or OAuth2 User Id (interactive jwt)"),
 SDATA (DTP_STRING,  "user_passw",       0,      "",     "MQTT Password or OAuth2 User password (interactive jwt)"),
@@ -1066,10 +1067,11 @@ PRIVATE char mqtt_connector_config[]= "\
                         'mqtt_keepalive': '(^^__mqtt_keepalive__^^)',   \n\
                         'mqtt_connect_properties': '(^^__mqtt_connect_properties__^^)', \n\
 \n\
-                        'mqtt_will_topic': '(^^__mqtt_will_topic__^^)',     \n\
-                        'mqtt_will_payload': '(^^__mqtt_will_payload__^^)', \n\
-                        'mqtt_will_qos': '(^^__mqtt_will_qos__^^)',         \n\
-                        'mqtt_will_retain': '(^^__mqtt_will_retain__^^)',   \n\
+                        'mqtt_will_topic': '(^^__mqtt_will_topic__^^)',               \n\
+                        'mqtt_will_payload': '(^^__mqtt_will_payload__^^)',           \n\
+                        'mqtt_will_qos': '(^^__mqtt_will_qos__^^)',                   \n\
+                        'mqtt_will_retain': '(^^__mqtt_will_retain__^^)',             \n\
+                        'mqtt_will_properties': '(^^__mqtt_will_properties__^^)',     \n\
 \n\
                         'url': '(^^__url__^^)',                         \n\
                         'user_id': '(^^__user_id__^^)',                 \n\
@@ -1113,6 +1115,7 @@ PRIVATE int create_mqtt_connector(hgobj gobj)
     const char *mqtt_will_payload = gobj_read_str_attr(gobj, "mqtt_will_payload");
     const char *mqtt_will_qos = gobj_read_str_attr(gobj, "mqtt_will_qos");
     const char *mqtt_will_retain = gobj_read_str_attr(gobj, "mqtt_will_retain");
+    const char *mqtt_will_properties = gobj_read_str_attr(gobj, "mqtt_will_properties");
 
     const char *user_id = gobj_read_str_attr(gobj, "user_id");
     const char *user_passw = gobj_read_str_attr(gobj, "user_passw");
@@ -1121,7 +1124,7 @@ PRIVATE int create_mqtt_connector(hgobj gobj)
      *  Each display window has a gobj to send the commands (saved in user_data).
      *  For external agents create a filter-chain of gobjs
      */
-    json_t * jn_config_variables = json_pack("{s:s, s:s, s:s, s:s, s:s, s:s, s:s, s:s, s:s, s:s, s:s, s:s, s:s, s:s, s:s}",
+    json_t * jn_config_variables = json_pack("{s:s, s:s, s:s, s:s, s:s, s:s, s:s, s:s, s:s, s:s, s:s, s:s, s:s, s:s, s:s, s:s}",
         "__jwt__", jwt,
         "__url__", url,
         "__cert_pem__", "",
@@ -1136,6 +1139,7 @@ PRIVATE int create_mqtt_connector(hgobj gobj)
         "__mqtt_will_payload__", mqtt_will_payload,
         "__mqtt_will_qos__", mqtt_will_qos,
         "__mqtt_will_retain__", mqtt_will_retain,
+        "__mqtt_will_properties__", mqtt_will_properties,
 
         "__user_id__", user_id,
         "__user_passw__", user_passw
