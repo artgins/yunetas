@@ -206,6 +206,7 @@ SDATA (DTP_STRING,      "mqtt_session_expiry_interval",0,"-1",          "MQTT se
 
 SDATA (DTP_STRING,      "mqtt_keepalive",   0,         "60",    "MQTT keepalive. The number of seconds between sending PING commands to the broker for the purposes of informing it we are still connected and functioning. Defaults to 60 seconds."),
 
+SDATA (DTP_STRING,      "mqtt_connect_properties",0,    "",     "MQTT CONNECT properties as JSON string (MQTT v5 only). Keys are standard MQTT property names (e.g. 'receive-maximum', 'topic-alias-maximum'). session-expiry-interval is always set from mqtt_session_expiry_interval."),
 SDATA (DTP_STRING,      "mqtt_will_topic",  0,          "",     "MQTT will topic"),
 SDATA (DTP_STRING,      "mqtt_will_payload",0,          "",     "MQTT will payload"),
 SDATA (DTP_STRING,      "mqtt_will_qos",    0,          "",     "MQTT will qos"),
@@ -8014,9 +8015,28 @@ PRIVATE int ac_connected(hgobj gobj, const char *event, json_t *kw, hgobj src)
          * We are client
          * send the request
          */
+        json_t *outgoing_properties;
+        const char *mqtt_connect_props_str = gobj_read_str_attr(gobj, "mqtt_connect_properties");
+        if(!empty_string(mqtt_connect_props_str)) {
+            json_error_t jerror;
+            outgoing_properties = json_loads(mqtt_connect_props_str, 0, &jerror);
+            if(!outgoing_properties || !json_is_object(outgoing_properties)) {
+                gobj_log_error(gobj, 0,
+                    "function",     "%s", __FUNCTION__,
+                    "msgset",       "%s", MSGSET_MQTT_ERROR,
+                    "msg",          "%s", "Invalid mqtt_connect_properties JSON, ignoring",
+                    "error",        "%s", jerror.text,
+                    NULL
+                );
+                JSON_DECREF(outgoing_properties);
+                outgoing_properties = json_object();
+            }
+        } else {
+            outgoing_properties = json_object();
+        }
         send__connect(
             gobj,
-            json_object()   // outgoing_properties TODO mqtt_tui get from client
+            outgoing_properties // outgoing_properties
         );
     }
 

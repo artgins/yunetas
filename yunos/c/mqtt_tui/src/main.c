@@ -164,7 +164,7 @@ static struct argp_option options[] = {
 {"mqtt-persistent-db", 'd', 0,          0,      "Use persistent database for Inflight and Queued Messages in mqtt client side", 10},
 {"id",              'i',    "CLIENT_ID",0,      "MQTT Client ID", 10},
 {"mqtt_protocol",   'q',    "PROTOCOL", 0,      "MQTT Protocol. Can be mqttv5 (v5), mqttv311 (v311) or mqttv31 (v31). Defaults to v5.", 10},
-{"mqtt_connect_properties", 'e',    "PROPERTIES",0,     "(TODO) MQTT CONNECT properties", 10},
+{"mqtt_connect_properties", 'e',    "PROPERTIES",0,     "MQTT CONNECT properties as JSON string (MQTT v5 only). E.g. '{\"receive-maximum\":100}'. session-expiry-interval is always set via -x.", 10},
 {"mqtt_session_expiry_interval", 'x', "SECONDS", 0, "Set the session-expiry-interval property on the CONNECT packet. Applies to MQTT v5 clients only. Set to 0-4294967294 to specify the session will expire in that many seconds after the client disconnects, or use -1, 4294967295, or ∞ for a session that does not expire. Defaults to -1 if -c is also given, or 0 if -c not given."
 "If the session is set to never expire, either with -x or -c, then a client id must be provided", 10},
 {"mqtt_keepalive",  'a',    "SECONDS",  0,      "MQTT keepalive in seconds for this client, default 60", 10},
@@ -395,6 +395,7 @@ int main(int argc, char *argv[])
     arguments.user_id = "yuneta";
     arguments.user_passw = "";
     arguments.jwt = "";
+    arguments.mqtt_connect_properties = "";
     arguments.mqtt_will_topic = "";
     arguments.mqtt_will_payload = "";
     arguments.mqtt_will_qos = "";
@@ -460,9 +461,9 @@ int main(int argc, char *argv[])
      *  Put configuration
      */
     {
-        // TODO missing connect properties, will
+        // TODO missing will properties
         json_t *kw_utility = json_pack(
-            "{s:{s:b, s:s, s:s, s:s, s:s, s:s, s:b, s:s, s:s, s:s, s:s, s:s, s:s, s:s, s:s, s:s, s:s, s:s, s:s, s:b}}",
+            "{s:{s:b, s:s, s:s, s:s, s:s, s:s, s:b, s:s, s:s, s:s, s:s, s:s, s:s, s:s, s:s, s:s, s:s, s:s, s:s, s:s, s:b}}",
             "global",
             "C_MQTT_TUI.verbose", arguments.verbose,
             "C_MQTT_TUI.auth_system", arguments.auth_system,
@@ -473,6 +474,7 @@ int main(int argc, char *argv[])
             "C_MQTT_TUI.mqtt_persistent_db", arguments.mqtt_persistent_client_db?1:0,
             "C_MQTT_TUI.mqtt_session_expiry_interval", arguments.mqtt_session_expiry_interval,
             "C_MQTT_TUI.mqtt_keepalive", arguments.mqtt_keepalive,
+            "C_MQTT_TUI.mqtt_connect_properties", arguments.mqtt_connect_properties,
 
             "C_MQTT_TUI.mqtt_will_topic", arguments.mqtt_will_topic,
             "C_MQTT_TUI.mqtt_will_payload", arguments.mqtt_will_payload,

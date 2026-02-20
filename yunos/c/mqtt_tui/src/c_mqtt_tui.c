@@ -186,6 +186,7 @@ SDATA (DTP_STRING,  "mqtt_clean_session",0,     "1",    "MQTT clean_session. Def
 SDATA (DTP_STRING,  "mqtt_session_expiry_interval",0,"-1",  "MQTT session expiry interval.  This option allows the session of persistent clients (those with clean session set to false) that are not currently connected to be removed if they do not reconnect within a certain time frame. This is a non-standard option in MQTT v3.1. MQTT v3.1.1 and v5.0 allow brokers to remove client sessions.\n"
 "Badly designed clients may set clean session to false whilst using a randomly generated client id. This leads to persistent clients that connect once and never reconnect. This option allows these clients to be removed. This option allows persistent clients (those with clean session set to false) to be removed if they do not reconnect within a certain time frame.\nAs this is a non-standard option, the default if not set is to never expire persistent clients."),
 SDATA (DTP_STRING,  "mqtt_keepalive",   0,         "60",    "MQTT keepalive. The number of seconds between sending PING commands to the broker for the purposes of informing it we are still connected and functioning. Defaults to 60 seconds."),
+SDATA (DTP_STRING,  "mqtt_connect_properties",0, "",    "MQTT CONNECT properties as JSON string (MQTT v5 only). E.g. '{\"receive-maximum\":100}'. session-expiry-interval is always set from mqtt_session_expiry_interval."),
 
 SDATA (DTP_STRING,  "mqtt_will_topic",  0,      "",     "MQTT will topic"),
 SDATA (DTP_STRING,  "mqtt_will_payload",0,      "",     "MQTT will payload"),
@@ -1063,6 +1064,7 @@ PRIVATE char mqtt_connector_config[]= "\
                         'mqtt_clean_session': '(^^__mqtt_clean_session__^^)', \n\
                         'mqtt_session_expiry_interval': '(^^__mqtt_session_expiry_interval__^^)', \n\
                         'mqtt_keepalive': '(^^__mqtt_keepalive__^^)',   \n\
+                        'mqtt_connect_properties': '(^^__mqtt_connect_properties__^^)', \n\
 \n\
                         'mqtt_will_topic': '(^^__mqtt_will_topic__^^)',     \n\
                         'mqtt_will_payload': '(^^__mqtt_will_payload__^^)', \n\
@@ -1105,6 +1107,7 @@ PRIVATE int create_mqtt_connector(hgobj gobj)
     const char *mqtt_clean_session = gobj_read_str_attr(gobj, "mqtt_clean_session");
     const char *mqtt_session_expiry_interval = gobj_read_str_attr(gobj, "mqtt_session_expiry_interval");
     const char *mqtt_keepalive = gobj_read_str_attr(gobj, "mqtt_keepalive");
+    const char *mqtt_connect_properties = gobj_read_str_attr(gobj, "mqtt_connect_properties");
 
     const char *mqtt_will_topic = gobj_read_str_attr(gobj, "mqtt_will_topic");
     const char *mqtt_will_payload = gobj_read_str_attr(gobj, "mqtt_will_payload");
@@ -1118,7 +1121,7 @@ PRIVATE int create_mqtt_connector(hgobj gobj)
      *  Each display window has a gobj to send the commands (saved in user_data).
      *  For external agents create a filter-chain of gobjs
      */
-    json_t * jn_config_variables = json_pack("{s:s, s:s, s:s, s:s, s:s, s:s, s:s, s:s, s:s, s:s, s:s, s:s, s:s, s:s}",
+    json_t * jn_config_variables = json_pack("{s:s, s:s, s:s, s:s, s:s, s:s, s:s, s:s, s:s, s:s, s:s, s:s, s:s, s:s, s:s}",
         "__jwt__", jwt,
         "__url__", url,
         "__cert_pem__", "",
@@ -1127,6 +1130,7 @@ PRIVATE int create_mqtt_connector(hgobj gobj)
         "__mqtt_clean_session__", mqtt_clean_session,
         "__mqtt_session_expiry_interval__", mqtt_session_expiry_interval,
         "__mqtt_keepalive__", mqtt_keepalive,
+        "__mqtt_connect_properties__", mqtt_connect_properties,
 
         "__mqtt_will_topic__", mqtt_will_topic,
         "__mqtt_will_payload__", mqtt_will_payload,
