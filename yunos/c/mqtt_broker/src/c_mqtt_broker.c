@@ -35,6 +35,7 @@ PRIVATE int broadcast_tranger_queues(hgobj gobj);
 PRIVATE int open_database(hgobj gobj);
 PRIVATE int close_database(hgobj gobj);
 PRIVATE size_t sub__messages_queue(hgobj gobj, json_t *kw_mqtt_msg);
+PRIVATE int sub__remove_client(hgobj gobj, const char *client_id);
 
 /***************************************************************************
  *          Data: config, public data, private data
@@ -811,7 +812,12 @@ PRIVATE json_t *cmd_clean_queues(hgobj gobj, const char *cmd, json_t *kw, hgobj 
          */
         const char *topic_name = json_string_value((topic));
         snprintf(client_id, sizeof(client_id), "%s", topic_name);
-        // TODO remove prefix -IN or -OUT
+        int len = (int)strlen(client_id);
+        if(len > 4 && strcmp(client_id + len - 4, "-OUT") == 0) {
+            client_id[len - 4] = '\0';
+        } else if(len > 3 && strcmp(client_id + len - 3, "-IN") == 0) {
+            client_id[len - 3] = '\0';
+        }
 
         json_t *session = gobj_get_node(
             priv->gobj_treedb_mqtt_broker,
@@ -824,9 +830,31 @@ PRIVATE json_t *cmd_clean_queues(hgobj gobj, const char *cmd, json_t *kw, hgobj 
         BOOL delete_queue = FALSE;
         if(session) {
             /*
-             * If not persistent session and not in session remove queue
+             * If not persistent session and not in session: remove queue and session
              */
-            // TODO get if persistent and if in session
+            BOOL in_session = kw_get_bool(gobj, session, "in_session", FALSE, 0);
+            if(!in_session) {
+                int protocol_version = (int)kw_get_int(gobj, session, "protocol_version", 0, 0);
+                uint32_t session_expiry_interval = (uint32_t)kw_get_int(gobj, session, "session_expiry_interval", 0, 0);
+                BOOL clean_start = kw_get_bool(gobj, session, "clean_start", TRUE, 0);
+
+                BOOL non_persistent =
+                    (protocol_version == mosq_p_mqtt5 && session_expiry_interval == 0) ||
+                    (protocol_version != mosq_p_mqtt5 && clean_start == TRUE);
+
+                if(non_persistent) {
+                    delete_queue = TRUE;
+                    gobj_delete_node(
+                        priv->gobj_treedb_mqtt_broker,
+                        "sessions",
+                        json_incref(session),  // owned
+                        json_pack("{s:b}", "force", 1),
+                        gobj
+                    );
+                    sub__remove_client(gobj, client_id);
+                }
+            }
+            JSON_DECREF(session)
         } else {
             /*
              *  If client doesn't exist then remove queue
