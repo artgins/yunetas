@@ -88,7 +88,6 @@ PRIVATE int broadcast_tranger_queues(hgobj gobj);
 PRIVATE void try_to_stop_yevents(hgobj gobj);  // IDEMPOTENT
 PRIVATE int yev_callback(yev_event_h yev_event);
 PRIVATE int on_read_cb(hgobj gobj, gbuffer_t *gbuf);
-PRIVATE int create_broker_connector(hgobj gobj);
 PRIVATE int create_mqtt_connector(hgobj gobj);
 PRIVATE int do_command(hgobj gobj, const char *command);
 PRIVATE int clear_input_line(hgobj gobj);
@@ -107,7 +106,6 @@ typedef struct keytable_s {
 keytable_t keytable[MAX_KEYS] = {0};
 
 PRIVATE json_t *cmd_help(hgobj gobj, const char *cmd, json_t *kw, hgobj src);
-PRIVATE json_t *cmd_help_broker(hgobj gobj, const char *cmd, json_t *kw, hgobj src);
 PRIVATE json_t *cmd_publish(hgobj gobj, const char *cmd, json_t *kw, hgobj src);
 PRIVATE json_t *cmd_subscribe(hgobj gobj, const char *cmd, json_t *kw, hgobj src);
 PRIVATE json_t *cmd_unsubscribe(hgobj gobj, const char *cmd, json_t *kw, hgobj src);
@@ -152,7 +150,6 @@ PRIVATE const char *a_help[] = {"h", "?", 0};
 PRIVATE sdata_desc_t command_table[] = {
 /*-CMD---type-----------name------------alias---items-----------json_fn---------description---------- */
 SDATACM (DTP_SCHEMA,    "help",         a_help, pm_help,        cmd_help,       "Command's help"),
-SDATACM (DTP_SCHEMA,    "help-broker",  0,      pm_help,        cmd_help_broker,"Command's help of broker"),
 SDATACM (DTP_SCHEMA,    "publish",      0,      pm_publish,     cmd_publish,    "Publish"),
 SDATACM (DTP_SCHEMA,    "subscribe",    0,      pm_subscribe,   cmd_subscribe,  "Subscribe"),
 SDATACM (DTP_SCHEMA,    "unsubscribe",  0,      pm_unsubscribe, cmd_unsubscribe,"Unsubscribe"),
@@ -228,7 +225,6 @@ typedef struct _PRIVATE_DATA {
     json_t *tranger_queues;
 
     hgobj gobj_mqtt_connector;
-    hgobj gobj_broker_connector;
     hgobj timer;
     hgobj gobj_editline;
 
@@ -456,7 +452,6 @@ PRIVATE int mt_start(hgobj gobj)
          */
         do_authenticate_task(gobj);
     } else {
-        //create_broker_connector(gobj); // TODO Not ready to use?
         create_mqtt_connector(gobj);
     }
     return 0;
@@ -502,25 +497,6 @@ PRIVATE json_t *cmd_help(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
         kw  // owned
     );
 }
-
-/***************************************************************************
- *
- ***************************************************************************/
-PRIVATE json_t *cmd_help_broker(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
-{
-    PRIVATE_DATA *priv = gobj_priv_data(gobj);
-
-    if(priv->gobj_broker_connector) {
-        if(gobj_read_bool_attr(priv->gobj_broker_connector, "opened")) {
-            json_t *webix = gobj_command(priv->gobj_broker_connector, "help", kw_incref(kw), gobj);
-            JSON_DECREF(webix)
-        }
-    }
-
-    KW_DECREF(kw)
-    return NULL;
-}
-
 
 /***************************************************************************
  *
@@ -957,94 +933,6 @@ PRIVATE int do_authenticate_task(hgobj gobj)
 /***************************************************************************
  *
  ***************************************************************************/
-PRIVATE char mqtt_broker_config[]= "\
-{                                               \n\
-    'name': '(^^__url__^^)',                    \n\
-    'gclass': 'C_IEVENT_CLI',                   \n\
-    'priority': 2,                              \n\
-    'as_service': true,                         \n\
-    'kw': {                                     \n\
-        'jwt': '(^^__jwt__^^)',                 \n\
-        'url': '(^^__url__^^)',                 \n\
-        'remote_yuno_name': '(^^__yuno_name__^^)',      \n\
-        'remote_yuno_role': '(^^__yuno_role__^^)',      \n\
-        'remote_yuno_service': '(^^__yuno_service__^^)' \n\
-    },                                                  \n\
-    'children': [                                       \n\
-        {                                               \n\
-            'name': 'mqtt_broker',                      \n\
-            'gclass': 'C_IOGATE',                       \n\
-            'children': [                               \n\
-                {                                       \n\
-                    'name': 'mqtt_broker',              \n\
-                    'gclass': 'C_CHANNEL',              \n\
-                    'children': [                       \n\
-                        {                                       \n\
-                            'name': 'mqtt_broker',              \n\
-                            'gclass': 'C_WEBSOCKET',            \n\
-                            'children': [                       \n\
-                                {                               \n\
-                                    'name': 'mqtt_broker',      \n\
-                                    'gclass': 'C_TCP',          \n\
-                                    'kw': {                     \n\
-                                        'url': '(^^__url__^^)',                 \n\
-                                        'cert_pem': '(^^__cert_pem__^^)'        \n\
-                                    }                           \n\
-                                }                               \n\
-                            ]                                   \n\
-                        }                                       \n\
-                    ]                                   \n\
-                }                                       \n\
-            ]                                           \n\
-        }                                               \n\
-    ]                                           \n\
-}                                               \n\
-";
-
-PRIVATE int create_broker_connector(hgobj gobj)
-{
-    PRIVATE_DATA *priv = gobj_priv_data(gobj);
-
-    const char *jwt = gobj_read_str_attr(gobj, "jwt");
-    const char *url = gobj_read_str_attr(gobj, "url_broker");
-    if(empty_string(url)) {
-        return 0;
-    }
-    const char *yuno_name = gobj_read_str_attr(gobj, "yuno_name");
-    const char *yuno_role = gobj_read_str_attr(gobj, "yuno_role");
-    const char *yuno_service = gobj_read_str_attr(gobj, "yuno_service");
-
-    /*
-     *  Each display window has a gobj to send the commands (saved in user_data).
-     *  For external agents create a filter-chain of gobjs
-     */
-    json_t * jn_config_variables = json_pack("{s:s, s:s, s:s, s:s, s:s, s:s}",
-        "__jwt__", jwt,
-        "__url__", url,
-        "__cert_pem__", "",
-        "__yuno_name__", yuno_name,
-        "__yuno_role__", yuno_role,
-        "__yuno_service__", yuno_service
-
-    );
-
-    priv->gobj_broker_connector = gobj_create_tree(
-        gobj,
-        mqtt_broker_config,
-        jn_config_variables
-    );
-
-    gobj_start_tree(priv->gobj_broker_connector);
-
-    if(priv->verbose || priv->interactive) {
-        printf("Connecting to %s...\n", url);
-    }
-    return 0;
-}
-
-/***************************************************************************
- *
- ***************************************************************************/
 PRIVATE char mqtt_connector_config[]= "\
 {                                                       \n\
     'name': 'mqtt_connector',                           \n\
@@ -1414,7 +1302,6 @@ PRIVATE int ac_on_token(hgobj gobj, const char *event, json_t *kw, hgobj src)
     } else {
         const char *jwt = kw_get_str(gobj, kw, "jwt", "", KW_REQUIRED);
         gobj_write_str_attr(gobj, "jwt", jwt);
-        create_broker_connector(gobj);
         create_mqtt_connector(gobj);
     }
 
@@ -1441,7 +1328,6 @@ PRIVATE int ac_on_open(hgobj gobj, const char *event, json_t *kw, hgobj src)
     }
 
     const char *command = gobj_read_str_attr(gobj, "command");
-    // command="h"; // TODO TEST
     if(priv->interactive) {
         if(!empty_string(command)) {
             do_command(gobj, command);
@@ -1616,8 +1502,6 @@ PRIVATE int ac_mqtt_unsuback(hgobj gobj, const char *event, json_t *kw, hgobj sr
  ***************************************************************************/
 PRIVATE int ac_command(hgobj gobj, const char *event, json_t *kw, hgobj src)
 {
-    PRIVATE_DATA *priv = gobj_priv_data(gobj);
-
     json_t *kw_input_command = json_object();
     gobj_send_event(src, EV_GETTEXT, json_incref(kw_input_command), gobj); // HACK EV_GETTEXT is EVF_KW_WRITING
     const char *command = kw_get_str(gobj, kw_input_command, "text", 0, 0);
@@ -1664,17 +1548,6 @@ PRIVATE int ac_command(hgobj gobj, const char *event, json_t *kw, hgobj src)
     json_t *webix = 0;
     if(gobj_command_desc(gobj, command, FALSE)) {
         webix = gobj_command(gobj, xcmd, kw_command, gobj);
-    } else {
-        if(priv->gobj_broker_connector &&
-            gobj_read_bool_attr(priv->gobj_broker_connector, "opened")
-        ) {
-            // gobj_command_desc
-            webix = gobj_command(priv->gobj_broker_connector, xcmd, kw_command, gobj);
-        } else {
-            printf("\n%s%s%s\n", On_Red BWhite, "No connection with broker", Color_Off);
-            clear_input_line(gobj);
-            JSON_DECREF(kw_command)
-        }
     }
 
     gbuffer_decref(gbuf_parsed_command);
