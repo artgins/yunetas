@@ -36,6 +36,8 @@ PRIVATE int open_database(hgobj gobj);
 PRIVATE int close_database(hgobj gobj);
 PRIVATE size_t sub__messages_queue(hgobj gobj, json_t *kw_mqtt_msg);
 PRIVATE int sub__remove_client(hgobj gobj, const char *client_id);
+PRIVATE int will__send(hgobj gobj, json_t *session);
+PRIVATE int will__clear(hgobj gobj, json_t *session);
 
 /***************************************************************************
  *          Data: config, public data, private data
@@ -2485,38 +2487,110 @@ PRIVATE int retain__store(
 /***************************************************************************
  *
  ***************************************************************************/
-PRIVATE void session_expiry__check(void) //TODO
+PRIVATE void session_expiry__check(hgobj gobj)
 {
-    // TODO int x;
-    // struct session_expiry_list *item, *tmp;
-    // struct mosquitto *context;
-    //
-    // if(db.now_real_s <= last_check) return;
-    //
-    // last_check = db.now_real_s;
-    //
-    // DL_FOREACH_SAFE(expiry_list, item, tmp){
-    //     if(item->context->session_expiry_time < db.now_real_s){
-    //
-    //         context = item->context;
-    //         session_expiry__remove(context);
-    //
-    //         if(context->id){
-    //             log__printf(NULL, MOSQ_LOG_NOTICE, "Expiring client %s due to timeout.", context->id);
-    //         }
-    //         G_CLIENTS_EXPIRED_INC();
-    //
-    //         /* Session has now expired, so clear interval */
-    //         context->session_expiry_interval = 0;
-    //         /* Session has expired, so will delay should be cleared. */
-    //         context->will_delay_interval = 0;
-    //         will_delay__remove(context);
-    //         context__send_will(context);
-    //         context__add_to_disused(context);
-    //     }else{
-    //         return;
-    //     }
-    // }
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    time_t now;
+    time(&now);
+
+    /*
+     *  Get all sessions
+     */
+    json_t *sessions = gobj_list_nodes(
+        priv->gobj_treedb_mqtt_broker,
+        "sessions",
+        NULL,
+        NULL,
+        gobj
+    );
+
+    int idx; json_t *session;
+    json_array_foreach(sessions, idx, session) {
+        /*
+         *  Skip sessions that are currently connected
+         */
+        hgobj channel = (hgobj)(uintptr_t)kw_get_int(
+            gobj, session, "_gobj_channel", 0, 0
+        );
+        if(channel) {
+            continue;
+        }
+
+        /*
+         *  Only check sessions with a finite expiry interval:
+         *  - session_expiry_interval == 0       → non-persistent, already deleted at disconnect
+         *  - session_expiry_interval == UINT32_MAX → never expires (MQTT v3 persistent)
+         */
+        uint32_t session_expiry_interval = (uint32_t)kw_get_int(
+            gobj, session, "session_expiry_interval", 0, 0
+        );
+        if(session_expiry_interval == 0 || session_expiry_interval == UINT32_MAX) {
+            continue;
+        }
+
+        /*
+         *  will_delay_time is also used as disconnect timestamp for persistent sessions
+         *  (set at disconnect in ac_on_close_channel, line "Store disconnect time").
+         *  If 0, the disconnect time is unknown — skip.
+         */
+        json_int_t disconnect_time = kw_get_int(gobj, session, "will_delay_time", 0, 0);
+        if(disconnect_time == 0) {
+            continue;
+        }
+
+        /*
+         *  Session has not yet expired
+         */
+        if((now - disconnect_time) < session_expiry_interval) {
+            continue;
+        }
+
+        const char *client_id = kw_get_str(gobj, session, "id", "", KW_REQUIRED);
+
+        gobj_log_info(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_INFO,
+            "msg",          "%s", "Session expired",
+            "client_id",    "%s", client_id,
+            "elapsed",      "%ld", (long)(now - disconnect_time),
+            "expiry",       "%ld", (long)session_expiry_interval,
+            NULL
+        );
+
+        /*
+         *  Send will if still pending
+         *  (will_delay__check may have already sent and cleared it — will__send
+         *  returns immediately if will_topic is empty, so this is safe)
+         */
+        will__send(gobj, session);
+        will__clear(gobj, session);
+
+        /*
+         *  Delete the session from treedb and remove in-memory subscriptions
+         */
+        gobj_delete_node(
+            priv->gobj_treedb_mqtt_broker,
+            "sessions",
+            json_incref(session),  // owned
+            json_pack("{s:b}", "force", 1),
+            gobj
+        );
+        sub__remove_client(gobj, client_id);
+
+        /*
+         *  Delete the client's queues
+         */
+        if(priv->tranger_queues) {
+            char queue_name[NAME_MAX];
+            build_queue_name(queue_name, sizeof(queue_name), client_id, mosq_md_in);
+            tranger2_delete_topic(priv->tranger_queues, queue_name);
+            build_queue_name(queue_name, sizeof(queue_name), client_id, mosq_md_out);
+            tranger2_delete_topic(priv->tranger_queues, queue_name);
+        }
+    }
+
+    JSON_DECREF(sessions)
 }
 
 /***************************************************************************
@@ -4448,7 +4522,7 @@ PRIVATE int ac_timeout(hgobj gobj, const char *event, json_t *kw, hgobj src)
     // context__free_disused();
     // keepalive__check();
 
-    session_expiry__check();
+    session_expiry__check(gobj);
     will_delay__check(gobj);
 
     KW_DECREF(kw);
