@@ -41,6 +41,7 @@ struct arguments
 
     char *mqtt_connect_properties;
     char *mqtt_session_expiry_interval;
+    int mqtt_session_expiry_interval_set;
     char *mqtt_keepalive;
     char *mqtt_will_topic;
     char *mqtt_will_payload;
@@ -163,7 +164,7 @@ static struct argp_option options[] = {
 {"mqtt-persistent-db", 'd', 0,          0,      "Use persistent database for Inflight and Queued Messages in mqtt client side", 10},
 {"id",              'i',    "CLIENT_ID",0,      "MQTT Client ID", 10},
 {"mqtt_protocol",   'q',    "PROTOCOL", 0,      "MQTT Protocol. Can be mqttv5 (v5), mqttv311 (v311) or mqttv31 (v31). Defaults to v5.", 10},
-{"mqtt_connect_properties", 'r',    "PROPERTIES",0,     "(TODO) MQTT CONNECT properties", 10},
+{"mqtt_connect_properties", 'e',    "PROPERTIES",0,     "(TODO) MQTT CONNECT properties", 10},
 {"mqtt_session_expiry_interval", 'x', "SECONDS", 0, "Set the session-expiry-interval property on the CONNECT packet. Applies to MQTT v5 clients only. Set to 0-4294967294 to specify the session will expire in that many seconds after the client disconnects, or use -1, 4294967295, or ∞ for a session that does not expire. Defaults to -1 if -c is also given, or 0 if -c not given."
 "If the session is set to never expire, either with -x or -c, then a client id must be provided", 10},
 {"mqtt_keepalive",  'a',    "SECONDS",  0,      "MQTT keepalive in seconds for this client, default 60", 10},
@@ -240,6 +241,7 @@ static error_t parse_opt(int key, char *arg, struct argp_state *state)
         break;
     case 'x':
         arguments->mqtt_session_expiry_interval = arg;
+        arguments->mqtt_session_expiry_interval_set = 1;
         break;
     case 'a':
         arguments->mqtt_keepalive = arg;
@@ -388,7 +390,7 @@ int main(int argc, char *argv[])
     arguments.mqtt_client_id = "";
     arguments.mqtt_persistent_client_db = 0;
     arguments.mqtt_persistent_session = 0;
-    arguments.mqtt_session_expiry_interval = "-1";
+    arguments.mqtt_session_expiry_interval = "0";
     arguments.mqtt_keepalive = "60";
     arguments.user_id = "yuneta";
     arguments.user_passw = "";
@@ -411,6 +413,13 @@ int main(int argc, char *argv[])
      *  Parse arguments
      */
     argp_parse (&argp, argc, argv, 0, 0, &arguments);
+
+    /*
+     *  Apply session expiry default: -1 (never) if -c given, 0 (non-persistent) otherwise
+     */
+    if(arguments.mqtt_persistent_session && !arguments.mqtt_session_expiry_interval_set) {
+        arguments.mqtt_session_expiry_interval = "-1";
+    }
 
     /*
      *  Check arguments
