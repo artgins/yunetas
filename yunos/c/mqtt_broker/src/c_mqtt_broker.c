@@ -109,7 +109,7 @@ SDATACM (DTP_SCHEMA,    "shared-subs",  0,      0,          cmd_shared_subscribe
 SDATACM (DTP_SCHEMA,    "flatten-subs", 0,      pm_subscribers, cmd_flatten_subscribers, "Flatten subscribers"),
 SDATACM (DTP_SCHEMA,    "list-retains", 0,      pm_retain,  cmd_list_retains,   "List retain messages (remember: '#' is '/')"),
 SDATACM (DTP_SCHEMA,    "remove-retains", 0,    pm_retain,  cmd_remove_retains, "Remove retain messages (remember: '#' is '/')"),
-SDATACM (DTP_SCHEMA,    "clean-queues", 0,      0,          cmd_clean_queues,    "Clean queues (not persistent session and not using"),
+SDATACM (DTP_SCHEMA,    "clean-queues", 0,      0,          cmd_clean_queues,    "Clean queues and sessions (not persistent sessions and not in use"),
 
 /*-CMD2---type----------name----------------flag----alias---items---------------json_fn-------------description--*/
 SDATACM2 (DTP_SCHEMA,   "authzs",           0,      0,      pm_authzs,          cmd_authzs,         "Authorization's help"),
