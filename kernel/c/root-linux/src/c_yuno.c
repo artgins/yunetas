@@ -127,7 +127,7 @@ PRIVATE json_t *cmd_reset_all_traces(hgobj gobj, const char *cmd, json_t *kw, hg
 PRIVATE json_t *cmd_set_deep_trace(hgobj gobj, const char *cmd, json_t *kw, hgobj src);
 PRIVATE json_t *cmd_set_trace_machine_format(hgobj gobj, const char *cmd, json_t *kw, hgobj src);
 
-PRIVATE json_t *cmd_trunk_rotatory_file(hgobj gobj, const char *cmd, json_t *kw, hgobj src);
+PRIVATE json_t *cmd_trunk_log_file(hgobj gobj, const char *cmd, json_t *kw, hgobj src);
 PRIVATE json_t *cmd_reset_log_counters(hgobj gobj, const char *cmd, json_t *kw, hgobj src);
 PRIVATE json_t *cmd_view_log_counters(hgobj gobj, const char *cmd, json_t *kw, hgobj src);
 PRIVATE json_t* cmd_add_log_handler(hgobj gobj, const char* cmd, json_t* kw, hgobj src);
@@ -356,7 +356,7 @@ SDATACM2(DTP_SCHEMA,    "remove-denied-ip",         SDF_AUTHZ_X, 0,      pm_remo
 SDATACM2(DTP_SCHEMA,    "system-schema",            SDF_AUTHZ_X, 0,      0, cmd_system_topic_schema,             "Get system topic schema"),
 SDATACM2(DTP_SCHEMA,    "global-variables",         SDF_AUTHZ_X, 0,      0, cmd_global_variables,                "Get global variables"),
 
-SDATACM2(DTP_SCHEMA,    "trunk-rotatory-file",      SDF_AUTHZ_X, 0,      0,          cmd_trunk_rotatory_file,    "Trunk rotatory files"),
+SDATACM2(DTP_SCHEMA,    "trunk-log-file",           SDF_AUTHZ_X, 0,      0,          cmd_trunk_log_file,        "Trunk current log file"),
 SDATACM2(DTP_SCHEMA,    "reset-log-counters",       SDF_AUTHZ_X, 0,      0,          cmd_reset_log_counters,     "Reset log counters"),
 SDATACM2(DTP_SCHEMA,    "view-log-counters",        SDF_AUTHZ_X, 0,      0,          cmd_view_log_counters,      "View log counters"),
 SDATACM2(DTP_SCHEMA,    "add-log-handler",          SDF_AUTHZ_X, 0,      pm_add_log_handler,cmd_add_log_handler, "Add log handler"),
@@ -3103,13 +3103,13 @@ PRIVATE json_t* cmd_set_trace_machine_format(hgobj gobj, const char* cmd, json_t
 /***************************************************************************
  *
  ***************************************************************************/
-PRIVATE json_t *cmd_trunk_rotatory_file(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
+PRIVATE json_t *cmd_trunk_log_file(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
 {
     rotatory_trunk(0); // WARNING trunk all files
     json_t *kw_response = build_command_response(
         gobj,
         0,
-        json_sprintf("%s: Trunk all rotatory files done.", gobj_short_name(gobj)),
+        json_sprintf("%s: Trunk current log done.", gobj_short_name(gobj)),
         0,
         0
     );

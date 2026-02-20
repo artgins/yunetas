@@ -623,6 +623,24 @@ PUBLIC void gobj_log_clear_counters(void)
 }
 
 /*****************************************************************
+ *      Clear current log file
+ *****************************************************************/
+PUBLIC void gobj_log_clear_log_file(void)
+{
+    log_handler_t *lh = dl_first(&dl_log_handlers);
+    while(lh) {
+        if(strcmp(lh->hr->handler_type, "file")==0) {
+            rotatory_trunk(lh->hr);
+        }
+
+        /*
+         *  Next
+         */
+        lh = dl_next(lh);
+    }
+}
+
+/*****************************************************************
  *
  *****************************************************************/
 PUBLIC const char *gobj_log_last_message(void)
