@@ -45,6 +45,11 @@ PRIVATE char variable_config[]= "\
     },                                                              \n\
     'environment': {                                                \n\
         'console_log_handlers': {                                   \n\
+            'to_file': {                                            \n\
+                'handler_type': 'file',                             \n\
+                'filename_mask': 'W.log',                           \n\
+                'handler_options': 255                              \n\
+            },                                                      \n\
             'to_stdout': {                                          \n\
                 'handler_type': 'stdout',                           \n\
                 'handler_options': 255                              \n\
