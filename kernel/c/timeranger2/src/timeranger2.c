@@ -1149,7 +1149,7 @@ PUBLIC json_t *tranger2_list_topics( // return is yours
  *  Return a list of topic names found in the tranger database directory
  *  on disk (subdirectories of the tranger directory)
  ***************************************************************************/
-PUBLIC json_t *tranger2_list_topic_names( // return is yours
+PUBLIC json_t *tranger2_list_topic_names( // return is yours, WARNING works in disk, not in memory
     json_t *tranger
 )
 {

@@ -49,6 +49,7 @@ PRIVATE json_t *cmd_list_retains(hgobj gobj, const char *cmd, json_t *kw, hgobj 
 PRIVATE json_t *cmd_remove_retains(hgobj gobj, const char *cmd, json_t *kw, hgobj src);
 PRIVATE json_t *cmd_list_sessions(hgobj gobj, const char *cmd, json_t *kw, hgobj src);
 PRIVATE json_t *cmd_list_queues(hgobj gobj, const char *cmd, json_t *kw, hgobj src);
+PRIVATE json_t *cmd_clean_queues(hgobj gobj, const char *cmd, json_t *kw, hgobj src);
 
 PRIVATE sdata_desc_t pm_help[] = {
 /*-PM----type-----------name------------flag------------default-----description---------- */
@@ -107,6 +108,7 @@ SDATACM (DTP_SCHEMA,    "shared-subs",  0,      0,          cmd_shared_subscribe
 SDATACM (DTP_SCHEMA,    "flatten-subs", 0,      pm_subscribers, cmd_flatten_subscribers, "Flatten subscribers"),
 SDATACM (DTP_SCHEMA,    "list-retains", 0,      pm_retain,  cmd_list_retains,   "List retain messages (remember: '#' is '/')"),
 SDATACM (DTP_SCHEMA,    "remove-retains", 0,    pm_retain,  cmd_remove_retains, "Remove retain messages (remember: '#' is '/')"),
+SDATACM (DTP_SCHEMA,    "clean-queues", 0,      0,          cmd_clean_queues,    "Clean queues (not persistent session and not using"),
 
 /*-CMD2---type----------name----------------flag----alias---items---------------json_fn-------------description--*/
 SDATACM2 (DTP_SCHEMA,   "authzs",           0,      0,      pm_authzs,          cmd_authzs,         "Authorization's help"),
@@ -790,7 +792,64 @@ PRIVATE json_t *cmd_list_queues(hgobj gobj, const char *cmd, json_t *kw, hgobj s
     );
 }
 
+/***************************************************************************
+ *
+ ***************************************************************************/
+PRIVATE json_t *cmd_clean_queues(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
+    json_t *jn_queues = tranger2_list_topic_names(priv->tranger_queues);
+    json_t *jn_data = json_array();
+
+    int idx; json_t *topic;
+    json_array_foreach(jn_queues, idx, topic) {
+        char client_id[NAME_MAX];
+
+        /*
+         *  Find the name of the client removing suffix "-IN" or "-OUT"
+         */
+        const char *topic_name = json_string_value((topic));
+        snprintf(client_id, sizeof(client_id), "%s", topic_name);
+        // TODO remove prefix -IN or -OUT
+
+        json_t *session = gobj_get_node(
+            priv->gobj_treedb_mqtt_broker,
+            "sessions",
+            json_pack("{s:s}", "id", client_id),
+            NULL,
+            gobj
+        );
+
+        BOOL delete_queue = FALSE;
+        if(session) {
+            /*
+             * If not persistent session and not in session remove queue
+             */
+            // TODO get if persistent and if in session
+        } else {
+            /*
+             *  If client doesn't exist then remove queue
+             */
+            delete_queue = TRUE;
+        }
+
+        if(delete_queue) {
+            tranger2_delete_topic(priv->tranger_queues, topic_name);
+            json_array_append_new(jn_data, json_string(topic_name));
+        }
+    }
+
+    JSON_DECREF(jn_queues)
+
+    return msg_iev_build_response(gobj,
+        0,
+        json_sprintf("Cleaned queues: %d", (int)json_array_size(jn_data)),
+        0,
+        jn_data,
+        kw  // owned
+    );
+}
 
 
                     /***************************
