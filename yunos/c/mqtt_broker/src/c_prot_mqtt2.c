@@ -155,6 +155,7 @@ PRIVATE int send__disconnect(
 PRIVATE void send_drop(hgobj gobj, int reason);
 PRIVATE void ws_close(hgobj gobj, int reason);
 PRIVATE uint16_t mqtt_mid_generate(hgobj gobj);
+PRIVATE int db__message_write_queued_in(hgobj gobj);
 
 /***************************************************************************
  *          Data: config, public data, private data
