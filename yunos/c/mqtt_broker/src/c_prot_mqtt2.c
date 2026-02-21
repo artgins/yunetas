@@ -3754,7 +3754,7 @@ PRIVATE int send__disconnect(
 /***************************************************************************
  *
  ***************************************************************************/
-PRIVATE int handle__pingreq(hgobj gobj)
+PRIVATE int handle__pingreq_s(hgobj gobj)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
@@ -3774,7 +3774,7 @@ PRIVATE int handle__pingreq(hgobj gobj)
 /***************************************************************************
  *
  ***************************************************************************/
-PRIVATE int handle__pingresp(hgobj gobj)
+PRIVATE int handle__pingresp_c(hgobj gobj)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
@@ -7977,11 +7977,11 @@ PRIVATE int frame_completed(hgobj gobj, hgobj src)
     int ret = 0;
 
     switch(frame->command) {
-        case CMD_PINGREQ:       // common to server/client
-            ret = handle__pingreq(gobj);
+        case CMD_PINGREQ:       // Only Server (bridge: _c variant needed)
+            ret = handle__pingreq_s(gobj);
             break;
-        case CMD_PINGRESP:      // common to server/client
-            ret = handle__pingresp(gobj);
+        case CMD_PINGRESP:      // Only Client (bridge: _s variant needed)
+            ret = handle__pingresp_c(gobj);
             break;
 
         /*
