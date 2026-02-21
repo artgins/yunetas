@@ -1694,10 +1694,6 @@ PRIVATE unsigned int property__get_length(const char *property_name, json_t *val
             str_len += gbuffer_leftbytes(gbuf_binary_data);
             GBUFFER_DECREF(gbuf_binary_data);
 
-        } else if(identifier == MQTT_PROP_USER_PROPERTY) {
-            str_len += strlen(name);
-            str_len += strlen(json_string_value(value));
-
         } else {
             str_len += strlen(json_string_value(value));
         }
@@ -1775,9 +1771,21 @@ PRIVATE unsigned int property__get_length(const char *property_name, json_t *val
         case MQTT_PROP_REASON_STRING:
             return 3U + str_len; /* 1 + 2 bytes (len) + X bytes (string) */
 
-        /* string pair */
+        /* string pair — stored as array of {name, value} objects */
         case MQTT_PROP_USER_PROPERTY:
-            return 5U + str_len;
+            if(json_is_array(value)) {
+                unsigned int total = 0;
+                size_t idx;
+                json_t *item;
+                json_array_foreach(value, idx, item) {
+                    const char *item_name  = kw_get_str(gobj, item, "name",  "", 0);
+                    const char *item_value = kw_get_str(gobj, item, "value", "", 0);
+                    /* 1(id) + 2(name_len) + name + 2(value_len) + value */
+                    total += 5U + strlen(item_name) + strlen(item_value);
+                }
+                return total;
+            }
+            return 5U + str_len;  /* fallback: should not occur with new model */
 
         default:
             break;
@@ -2015,6 +2023,45 @@ PRIVATE int mqtt_property_add_string(
 }
 
 /***************************************************************************
+ *  Add a user-property (string pair) to a property list.
+ *  Multiple calls append to the "user-property" array; duplicate keys allowed.
+ ***************************************************************************/
+PRIVATE int mqtt_property_add_user_property(
+    hgobj gobj,
+    json_t *proplist,
+    const char *name,
+    const char *value
+)
+{
+    if(!proplist || !name || !value) {
+        gobj_log_error(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_MQTT_ERROR,
+            "msg",          "%s", "Mqtt proplist/name/value NULL",
+            NULL
+        );
+        return -1;
+    }
+
+    int type_ = 0;
+    mosquitto_string_to_property_info("user-property", NULL, &type_);
+
+    json_t *property = json_object();
+    json_object_set_new(property, "identifier", json_integer(MQTT_PROP_USER_PROPERTY));
+    json_object_set_new(property, "type",       json_integer(type_));
+    json_object_set_new(property, "name",       json_string(name));
+    json_object_set_new(property, "value",      json_string(value));
+
+    json_t *arr = json_object_get(proplist, "user-property");
+    if(!arr) {
+        arr = json_array();
+        json_object_set_new(proplist, "user-property", arr);
+    }
+    json_array_append_new(arr, property);
+    return 0;
+}
+
+/***************************************************************************
  *
  ***************************************************************************/
 PRIVATE int mqtt_write_byte(gbuffer_t *gbuf, uint8_t byte)
@@ -2199,9 +2246,26 @@ PRIVATE int property__write(hgobj gobj, gbuffer_t *gbuf, const char *property_na
             break;
 
         case MQTT_PROP_USER_PROPERTY:
+            if(json_is_array(value_)) {
+                /* Array of {name, value} pairs: write each as a separate property */
+                int ret = 0;
+                size_t idx;
+                json_t *item;
+                json_array_foreach(value_, idx, item) {
+                    if(idx > 0) {
+                        ret += mqtt_write_varint(gbuf, identifier);
+                    }
+                    const char *item_name  = kw_get_str(gobj, item, "name",  "", KW_REQUIRED);
+                    const char *item_value = kw_get_str(gobj, item, "value", "", KW_REQUIRED);
+                    ret += mqtt_write_string(gbuf, item_name);
+                    ret += mqtt_write_string(gbuf, item_value);
+                }
+                return ret;
+            }
+            /* fallback: should not occur with new model */
             {
-                const char *name = kw_get_str(gobj, value_, "name", "", KW_REQUIRED);
-                mqtt_write_string(gbuf, name);
+                const char *uname = kw_get_str(gobj, value_, "name", "", KW_REQUIRED);
+                mqtt_write_string(gbuf, uname);
                 mqtt_write_string(gbuf, json_string_value(value));
             }
             break;
@@ -2659,7 +2723,7 @@ PRIVATE int mosquitto_property_check_command(hgobj gobj, int command, int identi
         "value": 4294967295     // can be integer or string or base64-string
     },
 
-    "user-property" is a special case, it's saved with the user-property-name
+    "user-property" is stored as a JSON array to support duplicate keys (MQTT spec §2.2.2.2)
 
 ***************************************************************************/
 PRIVATE int property_read(hgobj gobj, gbuffer_t *gbuf, uint32_t *len, json_t *all_properties)
@@ -2679,8 +2743,8 @@ PRIVATE int property_read(hgobj gobj, gbuffer_t *gbuf, uint32_t *len, json_t *al
     }
     const char *property_name = mqtt_property_identifier_to_string(property_identifier);
 
-    /* Check for duplicates */
-    if(kw_has_key(all_properties, property_name)) {
+    /* Check for duplicates — user-property is explicitly allowed to repeat (MQTT spec §2.2.2.2) */
+    if(property_identifier != MQTT_PROP_USER_PROPERTY && kw_has_key(all_properties, property_name)) {
         gobj_log_warning(gobj, 0,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_MQTT_ERROR,
@@ -2808,14 +2872,24 @@ PRIVATE int property_read(hgobj gobj, gbuffer_t *gbuf, uint32_t *len, json_t *al
                 JSON_DECREF(property);
                 return MOSQ_ERR_MALFORMED_PACKET;
             }
-
             *len = (*len) - 2 - slen2; /* uint16, string len */
 
             json_object_set_new(property, "name", json_stringn(str1, slen1));
             json_object_set_new(property, "value", json_stringn(str2, slen2));
-            // using original MQTT_PROP_USER_PROPERTY implies save only one user property
-            property_name = kw_get_str(gobj, property, "name", NULL, KW_REQUIRED);
-            break;
+            {
+                /*
+                 *  Store all user-properties as an array under the fixed key
+                 *  "user-property". This preserves duplicate keys and avoids
+                 *  collision with standard property names.
+                 */
+                json_t *arr = json_object_get(all_properties, "user-property");
+                if(!arr) {
+                    arr = json_array();
+                    json_object_set_new(all_properties, "user-property", arr);
+                }
+                json_array_append_new(arr, property);
+            }
+            return 0;  /* handled: skip the generic json_object_set_new below */
 
         default:
             gobj_log_error(gobj, 0,
