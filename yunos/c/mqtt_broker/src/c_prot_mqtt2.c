@@ -6513,7 +6513,7 @@ PRIVATE int handle__publish_s(
      *-----------------------------------*/
 
     /* Check for topic access */
-    // TODO acl
+    // TODO acl, one solution is to create a new event and publish to broker, if returns 0 is permitted.
     rc = 0;
     // rc = mosquitto_acl_check(context, msg->topic, msg->payloadlen, msg->payload, msg->qos, msg->retain, MOSQ_ACL_WRITE);
     if(rc == -1) {
@@ -7776,6 +7776,7 @@ PRIVATE int framehead_consume(
     char *bf,
     size_t len
 ) {
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
     int total_consumed = 0;
     int consumed;
     char *data;
