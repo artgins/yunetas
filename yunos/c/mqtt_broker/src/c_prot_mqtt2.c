@@ -5196,8 +5196,7 @@ PRIVATE int handle__connect(hgobj gobj, gbuffer_t *gbuf, hgobj src)
  ***************************************************************************/
 PRIVATE int handle__connack(
     hgobj gobj,
-    gbuffer_t *gbuf,
-    json_t *jn_data  // not owned
+    gbuffer_t *gbuf
 ) {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
     uint8_t connect_flags;
@@ -5224,6 +5223,7 @@ PRIVATE int handle__connack(
         return MOSQ_ERR_PROTOCOL;
     }
 
+    json_t *jn_data = json_object();
     json_object_set_new(jn_data, "reason_code", json_integer(reason_code));
     json_object_set_new(jn_data, "connect_flags", json_integer(connect_flags));
     json_object_set_new(jn_data, "protocol_version", json_integer(priv->protocol_version));
@@ -5242,8 +5242,14 @@ PRIVATE int handle__connack(
                 "reason",       "%s", mqtt_reason_string(MQTT_RC_UNSUPPORTED_PROTOCOL_VERSION),
                 NULL
             );
-            // TODO mqtt_tui
-            // connack_callback(mosq, MQTT_RC_UNSUPPORTED_PROTOCOL_VERSION, connect_flags, NULL);
+            json_object_set_new(
+                jn_data, "reason_code", json_integer(MQTT_RC_UNSUPPORTED_PROTOCOL_VERSION)
+            );
+            gobj_publish_event( // To client user
+                gobj,
+                EV_ON_CLOSE,
+                jn_data
+            );
             return ret;
 
         } else if(ret<0) {
@@ -5254,6 +5260,7 @@ PRIVATE int handle__connack(
                 "command",      "%s", mqtt_command_string(CMD_CONNACK),
                 NULL
             );
+            JSON_DECREF(jn_data)
             return ret;
         }
     }
@@ -5273,6 +5280,7 @@ PRIVATE int handle__connack(
                 );
 
                 JSON_DECREF(properties);
+                JSON_DECREF(jn_data)
                 return MOSQ_ERR_PROTOCOL;
             } else {
                 gobj_write_str_attr(gobj, "mqtt_client_id", clientid);
@@ -5336,8 +5344,7 @@ PRIVATE int handle__connack(
 
     switch(reason_code) {
         case 0:
-            // TODO mqtt_tui
-            // message__retry_check(mosq); important!
+            // TODO message__retry_check(mosq); with below message__release_to_inflight is enough?
             /*
              *  Set in session
              */
@@ -5355,6 +5362,23 @@ PRIVATE int handle__connack(
             }
             if(priv->keepalive > 0) {
                 priv->timer_ping = start_sectimer(priv->keepalive);
+            }
+
+            priv->inform_on_close = TRUE;
+            gobj_publish_event( // To client user
+                gobj,
+                EV_ON_OPEN,
+                jn_data
+            );
+
+            /*----------------*
+             *  Open queues
+             *----------------*/
+            if(priv->tranger_queues) {
+                open_queues(gobj);
+                message__release_to_inflight(gobj, mosq_md_out, TRUE);
+            } else {
+                gobj_write_integer_attr(gobj, "max_qos", 0);
             }
 
             return MOSQ_ERR_SUCCESS;
@@ -5378,9 +5402,24 @@ PRIVATE int handle__connack(
                     "reason",       "%s", reason,
                     NULL
                 );
+                gobj_publish_event( // To client user
+                    gobj,
+                    EV_ON_CLOSE,
+                    jn_data
+                );
             }
             return MOSQ_ERR_CONN_REFUSED;
+
         default:
+            gobj_log_error(gobj, 0,
+                "function",     "%s", __FUNCTION__,
+                "msgset",       "%s", MSGSET_MQTT_ERROR,
+                "msg",          "%s", "Mqtt connection refused",
+                "command",      "%s", mqtt_command_string(CMD_CONNACK),
+                "reason",       "%d", reason_code,
+                NULL
+            );
+            JSON_DECREF(jn_data)
             return MOSQ_ERR_PROTOCOL;
     }
 }
@@ -7923,29 +7962,7 @@ PRIVATE int frame_completed(hgobj gobj, hgobj src)
                 ret = MOSQ_ERR_PROTOCOL;
                 break;
             } else {
-                json_t *jn_data = json_object();
-                ret = handle__connack(gobj, gbuf, jn_data);
-                if(ret == 0) {
-                    priv->inform_on_close = TRUE;
-                    gobj_publish_event( // To client user
-                        gobj,
-                        EV_ON_OPEN,
-                        jn_data
-                    );
-
-                    /*----------------*
-                     *  Open queues
-                     *----------------*/
-                    if(priv->tranger_queues) {
-                        open_queues(gobj);
-                    } else {
-                        gobj_write_integer_attr(gobj, "max_qos", 0);
-                    }
-
-                } else {
-                    // Error already logged
-                    json_decref(jn_data);
-                }
+                ret = handle__connack(gobj, gbuf);
             }
             break;
 
