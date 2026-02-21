@@ -3187,7 +3187,12 @@ PRIVATE int property_process_connect(hgobj gobj, json_t *all_properties)
 {
     const char *property_name; json_t *property;
     json_object_foreach(all_properties, property_name, property) {
-        json_int_t identifier = kw_get_int(gobj, property, "identifier", 0, KW_REQUIRED);
+        json_int_t identifier;
+        if(json_is_array(property)) {
+            identifier = MQTT_PROP_USER_PROPERTY;
+        } else {
+            identifier = kw_get_int(gobj, property, "identifier", 0, KW_REQUIRED);
+        }
 
         switch(identifier) {
             case MQTT_PROP_SESSION_EXPIRY_INTERVAL:
@@ -3258,7 +3263,12 @@ PRIVATE int property_process_will(hgobj gobj, json_t *all_properties)
 {
     const char *property_name; json_t *property;
     json_object_foreach(all_properties, property_name, property) {
-        json_int_t identifier = kw_get_int(gobj, property, "identifier", 0, KW_REQUIRED);
+        json_int_t identifier;
+        if(json_is_array(property)) {
+            identifier = MQTT_PROP_USER_PROPERTY;
+        } else {
+            identifier = kw_get_int(gobj, property, "identifier", 0, KW_REQUIRED);
+        }
         switch(identifier) {
             case MQTT_PROP_CONTENT_TYPE:
             case MQTT_PROP_CORRELATION_DATA:
@@ -6385,7 +6395,12 @@ PRIVATE int handle__publish_s(
 
         const char *property_name; json_t *property;
         json_object_foreach(properties, property_name, property) {
-            json_int_t identifier = kw_get_int(gobj, property, "identifier", 0, KW_REQUIRED);
+            json_int_t identifier;
+            if(json_is_array(property)) {
+                identifier = MQTT_PROP_USER_PROPERTY;
+            } else {
+                identifier = kw_get_int(gobj, property, "identifier", 0, KW_REQUIRED);
+            }
             switch(identifier) {
                 case MQTT_PROP_CONTENT_TYPE:
                 case MQTT_PROP_CORRELATION_DATA:
@@ -6831,7 +6846,12 @@ PRIVATE int handle__publish_c(
 
         const char *property_name; json_t *property;
         json_object_foreach(properties, property_name, property) {
-            json_int_t identifier = kw_get_int(gobj, property, "identifier", 0, KW_REQUIRED);
+            json_int_t identifier;
+            if(json_is_array(property)) {
+                identifier = MQTT_PROP_USER_PROPERTY;
+            } else {
+                identifier = kw_get_int(gobj, property, "identifier", 0, KW_REQUIRED);
+            }
             switch(identifier) {
                 case MQTT_PROP_PAYLOAD_FORMAT_INDICATOR:
                 case MQTT_PROP_CONTENT_TYPE:
