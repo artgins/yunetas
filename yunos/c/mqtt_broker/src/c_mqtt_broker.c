@@ -4101,7 +4101,7 @@ PRIVATE int ac_mqtt_subscribe(hgobj gobj, const char *event, json_t *kw, hgobj s
         gobj_trace_json(gobj, priv->shared_subs, "subs-shared");
     }
 
-    // TODO
+    // TODO is needed? is in mosquitto
     // if(priv->current_out_packet == NULL) {
     //     rc = db__message_write_queued_out(gobj);
     //     if(rc) {
@@ -4156,7 +4156,8 @@ PRIVATE int ac_mqtt_unsubscribe(hgobj gobj, const char *event, json_t *kw, hgobj
         // /* ACL check */
         mqtt5_reason_codes_t reason = 0;
         BOOL allowed = TRUE;
-        // allowed = mosquitto_acl_check(context, sub, 0, NULL, 0, FALSE, MOSQ_ACL_UNSUBSCRIBE); TODO acl
+        // TODO acl
+        // allowed = mosquitto_acl_check(context, sub, 0, NULL, 0, FALSE, MOSQ_ACL_UNSUBSCRIBE);
         if(!allowed) {
             reason = MQTT_RC_NOT_AUTHORIZED;
         } else {
@@ -4524,10 +4525,8 @@ PRIVATE int ac_user_new(hgobj gobj, const char *event, json_t *kw, hgobj src)
  ***************************************************************************/
 PRIVATE int ac_timeout(hgobj gobj, const char *event, json_t *kw, hgobj src)
 {
-    // TODO
+    // TODO needed this like mosquitto?
     // retain__expire();
-    // queue_plugin_msgs();
-    // context__free_disused();
     // keepalive__check();
 
     session_expiry__check(gobj);
