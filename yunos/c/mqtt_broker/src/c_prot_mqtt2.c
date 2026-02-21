@@ -7808,6 +7808,7 @@ PRIVATE int framehead_consume(
 
     frame->header_complete = TRUE;
 
+    // TODO is this needed?
     // if(priv->iamServer) {
     //     switch(frame->command) {
     //         case CMD_CONNECT:
