@@ -3372,7 +3372,7 @@ PRIVATE int send__connect(
     uint32_t proplen = 0;
     uint32_t varbytes = 0;
     json_t *local_props = NULL;
-    // uint16_t receive_maximum; TODO mqtt_tui
+    uint16_t receive_maximum; // TODO mqtt_tui
 
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
@@ -6699,7 +6699,6 @@ PRIVATE int handle__publish_c(
 ) {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
     int rc = 0;
-    uint8_t reason_code = 0;
     uint16_t mid = 0;
     uint16_t slen;
     json_t *properties = NULL;
@@ -6713,6 +6712,9 @@ PRIVATE int handle__publish_c(
     uint8_t qos = (header & 0x06)>>1;   // shift of two bites -> possible values of 0,1,2,3
     BOOL retain = (header & 0x01);      // possible values of 0,1
 
+    /*--------------*
+     *  Get topic
+     *--------------*/
     char *topic_;
     if(mqtt_read_string(gobj, gbuf, &topic_, &slen)<0) {
         // Error already logged
@@ -6730,6 +6732,9 @@ PRIVATE int handle__publish_c(
     }
     char *topic = gbmem_strndup(topic_, slen);
 
+    /*--------------*
+     *  Get mid
+     *--------------*/
     if(qos > 0) {
         if((rc=mqtt_read_uint16(gobj, gbuf, &mid))<0) {
             // Error already logged
@@ -6750,22 +6755,102 @@ PRIVATE int handle__publish_c(
         }
     }
 
+    /*-------------------*
+     *  Get properties
+     *-------------------*/
+	uint16_t topic_alias = 0;
     if(priv->protocol_version == mosq_p_mqtt5) {
         properties = property_read_all(gobj, gbuf, CMD_PUBLISH, &rc);
         if(rc<0) {
             // Error already logged
+            JSON_DECREF(properties)
             GBMEM_FREE(topic)
             return rc;
         }
-        /*
-         *  Get message expiry interval from MQTT v5 properties
-         */
-        if(properties) {
-            json_t *prop = property_get_property(properties, MQTT_PROP_MESSAGE_EXPIRY_INTERVAL);
-            if(prop) {
-                expiry_interval = (uint32_t)kw_get_int(gobj, prop, "value", 0, 0);
+
+        const char *property_name; json_t *property;
+        json_object_foreach(properties, property_name, property) {
+            json_int_t identifier = kw_get_int(gobj, property, "identifier", 0, KW_REQUIRED);
+            switch(identifier) {
+                case MQTT_PROP_PAYLOAD_FORMAT_INDICATOR:
+                case MQTT_PROP_CONTENT_TYPE:
+                case MQTT_PROP_RESPONSE_TOPIC: //
+                case MQTT_PROP_CORRELATION_DATA:
+                case MQTT_PROP_USER_PROPERTY:
+                    /* Allowed */
+                    break;
+
+                case MQTT_PROP_SUBSCRIPTION_IDENTIFIER:
+                    /* Allowed */
+                    break;
+
+                case MQTT_PROP_TOPIC_ALIAS:
+                    {
+                        topic_alias = (int)kw_get_int(gobj, property, "value", 0, KW_REQUIRED);
+                        int todo_process_topic_alias;
+                        // if(topic_alias == 0 || topic_alias > mosq->alias_max_l2r) {
+                        //     gobj_log_error(gobj, 0,
+                        //         "function",     "%s", __FUNCTION__,
+                        //         "msgset",       "%s", MSGSET_MQTT_ERROR,
+                        //         "msg",          "%s", "Mqtt: bad alias", // TODO better msg
+                        //         "client_id",    "%s", priv->client_id,
+                        //         "topic_alias",  "%s", topic_alias,
+                        //         NULL
+                        //     );
+                        //     GBMEM_FREE(topic)
+                        //     JSON_DECREF(properties)
+                        //     return MOSQ_ERR_TOPIC_ALIAS_INVALID;
+                        // }
+                        //
+                        // if(message->msg.topic) {
+                        //     /* Set a new topic alias */
+                        //     if(alias__add_r2l(mosq, message->msg.topic, *topic_alias)) {
+                        //         return MOSQ_ERR_NOMEM;
+                        //     }
+                        // } else {
+                        //     /* Retrieve an existing topic alias */
+                        //     mosquitto_FREE(message->msg.topic);
+                        //     if(alias__find_by_alias(mosq, ALIAS_DIR_R2L, *topic_alias, &message->msg.topic)) {
+                        //         return MOSQ_ERR_PROTOCOL;
+                        //     }
+                        // }
+                    }
+                    break;
+
+                case MQTT_PROP_MESSAGE_EXPIRY_INTERVAL:
+                    expiry_interval = (uint32_t)kw_get_int(gobj, property, "value", 0, 0);
+                    break;
+
+                default:
+                    gobj_log_error(gobj, 0,
+                        "function",     "%s", __FUNCTION__,
+                        "msgset",       "%s", MSGSET_MQTT_ERROR,
+                        "msg",          "%s", "Mqtt: discard message, property invalid",
+                        "client_id",    "%s", priv->client_id,
+                        "property",     "%d", identifier,
+                        NULL
+                    );
+                    GBMEM_FREE(topic)
+                    JSON_DECREF(properties)
+                    return MOSQ_ERR_PROTOCOL;
             }
         }
+    }
+
+    /*-------------------------------------------------------------------*
+     *  If we haven't got a topic at this point, it's a protocol error.
+     *-------------------------------------------------------------------*/
+    if(topic_alias == 0 && empty_string(topic)) {
+        gobj_log_error(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_MQTT_ERROR,
+            "msg",          "%s", "Mqtt: discard message, qos>0 and mid=0",
+            "client_id",    "%s", priv->client_id,
+            NULL
+        );
+        GBMEM_FREE(topic)
+        JSON_DECREF(properties)
+        return MOSQ_ERR_PROTOCOL;
     }
 
     /*-----------------------------------*
@@ -6949,29 +7034,6 @@ PRIVATE int handle__publish_c(
      *  Pull from input queued list
      */
     db__message_write_queued_in(gobj);
-    return rc;
-
-process_bad_message:
-    rc = MOSQ_ERR_UNKNOWN;
-    switch(qos) {
-        case 0:
-            rc = MOSQ_ERR_SUCCESS;
-            break;
-        case 1:
-            rc = send__puback(gobj, mid, reason_code, NULL);
-            break;
-        case 2:
-            rc = send__pubrec(gobj, mid, reason_code, NULL);
-            break;
-    }
-
-    /*
-     *  max_queued_messages quota exceeded check is done at the server
-     *  before queuing (not needed here in the bad-message error path).
-     */
-
-    GBMEM_FREE(topic)
-    KW_DECREF(kw_mqtt_msg)
     return rc;
 }
 
