@@ -1376,20 +1376,10 @@ PRIVATE int db__message_release_incoming(hgobj gobj, uint16_t mid)
         );
     }
 
-    int todo_pop_queued; // TODO this was in mosquitto, is needed here?
-    // DL_FOREACH_SAFE(context->msgs_in.queued, tail, tmp){
-    //     if(db__ready_for_flight(context, mosq_md_in, tail->qos)){
-    //         break;
-    //     }
-    //
-    //     tail->timestamp = db.now_s;
-    //
-    //     if(tail->qos == 2){
-    //         send__pubrec(context, tail->mid, 0, NULL);
-    //         tail->state = mosq_ms_wait_for_pubrel;
-    //         db__message_dequeue_first(context, &context->msgs_in);
-    //     }
-    // }
+    /*
+     *  Free an inflight slot: promote next queued incoming message to inflight
+     */
+    db__message_write_queued_in(gobj);
 
     if(deleted) {
         return MOSQ_ERR_SUCCESS;
