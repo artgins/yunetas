@@ -1666,7 +1666,6 @@ PRIVATE unsigned int property__get_length(const char *property_name, json_t *val
     hgobj gobj = 0;
     size_t str_len = 0;
     unsigned long v = 0;
-    const char *name = 0;
     int identifier = 0;
     int type = 0;
     if(mosquitto_string_to_property_info(property_name, &identifier, &type) < 0) {
@@ -1681,7 +1680,6 @@ PRIVATE unsigned int property__get_length(const char *property_name, json_t *val
     }
 
     if(json_is_object(value)) {
-        name = kw_get_str(gobj, value, "name", "", KW_REQUIRED);
         value = kw_get_dict_value(gobj, value, "value", 0, KW_REQUIRED);
     }
 
