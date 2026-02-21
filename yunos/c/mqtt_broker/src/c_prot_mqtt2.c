@@ -332,10 +332,11 @@ typedef struct _PRIVATE_DATA {
     FRAME_HEAD message_head;
 
     BOOL inform_on_close;
-    json_t *jn_alias_list;              // client-to-server topic alias map (alias_id -> topic)
-    json_t *jn_outgoing_alias_map;      // server-to-client topic alias map (topic -> alias_id)
-    int client_topic_alias_max;         // max topic aliases the client accepts (from CONNECT)
-    int next_outgoing_alias;            // next alias number to assign for server-to-client
+    json_t *jn_alias_list;              // incoming alias map from remote peer (alias_id -> topic)
+    json_t *jn_outgoing_alias_map;      // outgoing alias map to remote peer (topic -> alias_id)
+    int client_topic_alias_max;         // server mode: max aliases client accepts (from CONNECT)
+    int server_topic_alias_max;         // client mode: max aliases broker accepts (from CONNACK)
+    int next_outgoing_alias;            // next alias number to assign for outgoing direction
 
     json_t *tranger_queues;
     tr2_queue_t *trq_in_msgs;
@@ -3444,6 +3445,17 @@ PRIVATE int send__connect(
             gobj_write_integer_attr(gobj, "max_inflight_messages", receive_maximum);
         }
 
+        /*
+         *  TOPIC_ALIAS_MAXIMUM: tell the broker how many topic aliases it can
+         *  use when sending PUBLISH to us. Only sent if topic aliases are enabled.
+         */
+        if(priv->max_topic_alias > 0) {
+            mqtt_property_add_int16(
+                gobj, properties, MQTT_PROP_TOPIC_ALIAS_MAXIMUM,
+                (uint16_t)priv->max_topic_alias
+            );
+        }
+
         mqtt_property_add_int32(
             gobj,
             properties,
@@ -3984,9 +3996,13 @@ PRIVATE int send__publish(
         }
 
         /*
-         *  Server-to-client topic alias: assign alias when client supports it
+         *  Outgoing topic alias: assign alias when remote peer supports it.
+         *  Server mode: bounded by client_topic_alias_max (from client's CONNECT).
+         *  Client mode: bounded by server_topic_alias_max (from broker's CONNACK).
          */
-        if(priv->iamServer && topic && priv->client_topic_alias_max > 0) {
+        int outgoing_alias_max = priv->iamServer ?
+            priv->client_topic_alias_max : priv->server_topic_alias_max;
+        if(topic && outgoing_alias_max > 0) {
             json_t *jn_existing = json_object_get(priv->jn_outgoing_alias_map, topic);
             if(jn_existing) {
                 /*
@@ -3999,7 +4015,7 @@ PRIVATE int send__publish(
                 /* Send empty topic: subtract topic length from packetlen */
                 packetlen -= (unsigned int)strlen(topic);
                 topic = NULL;
-            } else if(priv->next_outgoing_alias <= priv->client_topic_alias_max) {
+            } else if(priv->next_outgoing_alias <= outgoing_alias_max) {
                 /*
                  *  Assign a new alias for this topic
                  */
@@ -4015,10 +4031,10 @@ PRIVATE int send__publish(
 
         if(gobj_trace_level(gobj) & SHOW_DECODE) {
             trace_msg0("         send__publish topic_alias: iamServer=%d, topic='%s', "
-                "client_topic_alias_max=%d, topic_alias_prop=%p, proplen=%d",
+                "outgoing_alias_max=%d, topic_alias_prop=%p, proplen=%d",
                 priv->iamServer,
                 topic ? topic : "(null)",
-                priv->client_topic_alias_max,
+                outgoing_alias_max,
                 topic_alias_prop,
                 proplen
             );
@@ -5320,6 +5336,11 @@ PRIVATE int handle__connack(
 
         prop = property_get_property(properties, MQTT_PROP_MAXIMUM_PACKET_SIZE);
         if(prop) priv->maximum_packet_size = (uint32_t)kw_get_int(gobj, prop, "value", 0, 0);
+
+        prop = property_get_property(properties, MQTT_PROP_TOPIC_ALIAS_MAXIMUM);
+        if(prop) {
+            priv->server_topic_alias_max = (int)kw_get_int(gobj, prop, "value", 0, 0);
+        }
     }
 
     /*
@@ -8100,6 +8121,7 @@ PRIVATE int ac_connected(hgobj gobj, const char *event, json_t *kw, hgobj src)
     JSON_DECREF(priv->jn_outgoing_alias_map)
     priv->jn_outgoing_alias_map = json_object();
     priv->client_topic_alias_max = 0;
+    priv->server_topic_alias_max = 0;
     priv->next_outgoing_alias = 1;
 
     start_wait_handshake(gobj); // include the start of the timeout of handshake
