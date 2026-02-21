@@ -7879,65 +7879,44 @@ PRIVATE int framehead_consume(
 
     frame->header_complete = TRUE;
 
-    // TODO is this needed?
-    // if(priv->iamServer) {
-    //     switch(frame->command) {
-    //         case CMD_CONNECT:
-    //             if(frame->frame_length > 100000) {
-    //                 gobj_log_error(gobj, 0,
-    //                     "function",     "%s", __FUNCTION__,
-    //                     "msgset",       "%s", MSGSET_MQTT_ERROR,
-    //                     "msg",          "%s", "CONNECT command too large",
-    //                     "frame_length", "%d", (int)frame->frame_length,
-    //                     NULL
-    //                 );
-    //                 return 0;
-    //             }
-    //             break;
-    //         case CMD_DISCONNECT:
-    //             break;
-    //
-    //         case CMD_CONNACK:
-    //         case CMD_PUBLISH:
-    //         case CMD_PUBACK:
-    //         case CMD_PUBREC:
-    //         case CMD_PUBREL:
-    //         case CMD_PUBCOMP:
-    //         case CMD_SUBSCRIBE:
-    //         case CMD_SUBACK:
-    //         case CMD_UNSUBSCRIBE:
-    //         case CMD_UNSUBACK:
-    //         case CMD_AUTH:
-    //             break;
-    //
-    //         case CMD_PINGREQ:
-    //         case CMD_PINGRESP:
-    //             if(frame->frame_length != 0) {
-    //                 gobj_log_error(gobj, 0,
-    //                     "function",     "%s", __FUNCTION__,
-    //                     "msgset",       "%s", MSGSET_MQTT_ERROR,
-    //                     "msg",          "%s", "PING command must be 0 large",
-    //                     "frame_length", "%d", (int)frame->frame_length,
-    //                     NULL
-    //                 );
-    //                 return 0;
-    //             }
-    //             break;
-    //
-    //         default:
-    //             gobj_log_error(gobj, 0,
-    //                 "function",     "%s", __FUNCTION__,
-    //                 "msgset",       "%s", MSGSET_MQTT_ERROR,
-    //                 "msg",          "%s", "Mqtt command unknown",
-    //                 "command",      "%d", (int)frame->command,
-    //                 NULL
-    //             );
-    //             if(priv->in_session) {
-    //                 send__disconnect(gobj, MQTT_RC_PROTOCOL_ERROR, NULL);
-    //             }
-    //             return 0;
-    //     }
-    // }
+    /*
+     *  Early frame-level checks, before payload allocation.
+     */
+
+    /* Per MQTT spec §3.12/3.13: PINGREQ and PINGRESP remaining length MUST be 0 */
+    if(frame->command == CMD_PINGREQ || frame->command == CMD_PINGRESP) {
+        if(frame->frame_length != 0) {
+            gobj_log_error(gobj, 0,
+                "function",     "%s", __FUNCTION__,
+                "msgset",       "%s", MSGSET_MQTT_ERROR,
+                "msg",          "%s", "PING remaining length must be 0",
+                "command",      "%s", mqtt_command_string(frame->command),
+                "frame_length", "%d", (int)frame->frame_length,
+                NULL
+            );
+            return -1;
+        }
+    }
+
+    /*
+     *  Server: reject incoming packets that exceed the configured max_packet_size
+     *  before allocating the payload buffer (early DoS protection).
+     *  v3.1.x clients have not been notified of the limit, but we still enforce it.
+     */
+    if(priv->iamServer && priv->max_packet_size > 0) {
+        if((int)frame->frame_length > priv->max_packet_size) {
+            gobj_log_error(gobj, 0,
+                "function",     "%s", __FUNCTION__,
+                "msgset",       "%s", MSGSET_MQTT_ERROR,
+                "msg",          "%s", "Incoming packet exceeds max_packet_size",
+                "command",      "%s", mqtt_command_string(frame->command),
+                "frame_length", "%d", (int)frame->frame_length,
+                "max_packet_size", "%d", priv->max_packet_size,
+                NULL
+            );
+            return -1;
+        }
+    }
 
     return total_consumed;
 }
