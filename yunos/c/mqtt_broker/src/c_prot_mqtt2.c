@@ -6772,7 +6772,9 @@ PRIVATE int handle__publish_c(
         // Error already logged
         return MOSQ_ERR_MALFORMED_PACKET;
     }
-    if(!slen) {
+    char *topic = (slen > 0) ? gbmem_strndup(topic_, slen) : NULL;
+    if(!slen && priv->protocol_version != mosq_p_mqtt5) {
+        /* Empty topic is only valid in MQTT v5 (when a topic alias is used) */
         gobj_log_error(gobj, 0,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_MQTT_ERROR,
@@ -6780,9 +6782,8 @@ PRIVATE int handle__publish_c(
             "client_id",    "%s", priv->client_id,
             NULL
         );
-        return MOSQ_ERR_PROTOCOL;
+        return MOSQ_ERR_MALFORMED_PACKET;
     }
-    char *topic = gbmem_strndup(topic_, slen);
 
     /*--------------*
      *  Get mid
@@ -6810,7 +6811,7 @@ PRIVATE int handle__publish_c(
     /*-------------------*
      *  Get properties
      *-------------------*/
-	uint16_t topic_alias = 0;
+    int topic_alias = -1;  /* -1 = no TOPIC_ALIAS property received */
     if(priv->protocol_version == mosq_p_mqtt5) {
         properties = property_read_all(gobj, gbuf, CMD_PUBLISH, &rc);
         if(rc<0) {
@@ -6837,36 +6838,7 @@ PRIVATE int handle__publish_c(
                     break;
 
                 case MQTT_PROP_TOPIC_ALIAS:
-                    {
-                        topic_alias = (int)kw_get_int(gobj, property, "value", 0, KW_REQUIRED);
-                        int todo_process_topic_alias;
-                        // if(topic_alias == 0 || topic_alias > mosq->alias_max_l2r) {
-                        //     gobj_log_error(gobj, 0,
-                        //         "function",     "%s", __FUNCTION__,
-                        //         "msgset",       "%s", MSGSET_MQTT_ERROR,
-                        //         "msg",          "%s", "Mqtt: bad alias", // TODO better msg
-                        //         "client_id",    "%s", priv->client_id,
-                        //         "topic_alias",  "%s", topic_alias,
-                        //         NULL
-                        //     );
-                        //     GBMEM_FREE(topic)
-                        //     JSON_DECREF(properties)
-                        //     return MOSQ_ERR_TOPIC_ALIAS_INVALID;
-                        // }
-                        //
-                        // if(message->msg.topic) {
-                        //     /* Set a new topic alias */
-                        //     if(alias__add_r2l(mosq, message->msg.topic, *topic_alias)) {
-                        //         return MOSQ_ERR_NOMEM;
-                        //     }
-                        // } else {
-                        //     /* Retrieve an existing topic alias */
-                        //     mosquitto_FREE(message->msg.topic);
-                        //     if(alias__find_by_alias(mosq, ALIAS_DIR_R2L, *topic_alias, &message->msg.topic)) {
-                        //         return MOSQ_ERR_PROTOCOL;
-                        //     }
-                        // }
-                    }
+                    topic_alias = (int)kw_get_int(gobj, property, "value", 0, KW_REQUIRED);
                     break;
 
                 case MQTT_PROP_MESSAGE_EXPIRY_INTERVAL:
@@ -6890,19 +6862,66 @@ PRIVATE int handle__publish_c(
     }
 
     /*-------------------------------------------------------------------*
-     *  If we haven't got a topic at this point, it's a protocol error.
+     *  Resolve topic alias (MQTT v5 only).
+     *  Same logic as handle__publish_s: validate range, store or look up
+     *  in jn_alias_list, then strip the hop-by-hop property.
      *-------------------------------------------------------------------*/
-    if(topic_alias == 0 && empty_string(topic)) {
-        gobj_log_error(gobj, 0,
-            "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_MQTT_ERROR,
-            "msg",          "%s", "Mqtt: discard message, qos>0 and mid=0",
-            "client_id",    "%s", priv->client_id,
-            NULL
-        );
-        GBMEM_FREE(topic)
-        JSON_DECREF(properties)
-        return MOSQ_ERR_PROTOCOL;
+    if(priv->protocol_version == mosq_p_mqtt5) {
+        if(topic_alias == -1) {
+            /* No alias property — topic string must be present */
+            if(!topic) {
+                gobj_log_error(gobj, 0,
+                    "function",     "%s", __FUNCTION__,
+                    "msgset",       "%s", MSGSET_MQTT_ERROR,
+                    "msg",          "%s", "Mqtt: empty topic and no topic alias",
+                    "client_id",    "%s", priv->client_id,
+                    NULL
+                );
+                JSON_DECREF(properties)
+                return MOSQ_ERR_MALFORMED_PACKET;
+            }
+        } else if(topic_alias == 0 || topic_alias > priv->max_topic_alias) {
+            gobj_log_error(gobj, 0,
+                "function",         "%s", __FUNCTION__,
+                "msgset",           "%s", MSGSET_MQTT_ERROR,
+                "msg",              "%s", "Mqtt: invalid topic alias",
+                "client_id",        "%s", priv->client_id,
+                "max_topic_alias",  "%d", priv->max_topic_alias,
+                "topic_alias",      "%d", topic_alias,
+                "topic",            "%s", topic,
+                NULL
+            );
+            GBMEM_FREE(topic)
+            JSON_DECREF(properties)
+            return MOSQ_ERR_TOPIC_ALIAS_INVALID;
+        } else {
+            char alias_key[16];
+            snprintf(alias_key, sizeof(alias_key), "%d", topic_alias);
+            if(topic) {
+                /* Topic + alias: create/update the mapping */
+                json_object_set_new(priv->jn_alias_list, alias_key, json_string(topic));
+            } else {
+                /* Empty topic + alias: look up stored mapping */
+                json_t *jn_alias_topic = json_object_get(priv->jn_alias_list, alias_key);
+                if(!jn_alias_topic) {
+                    gobj_log_error(gobj, 0,
+                        "function",         "%s", __FUNCTION__,
+                        "msgset",           "%s", MSGSET_MQTT_ERROR,
+                        "msg",              "%s", "Mqtt: topic alias NOT FOUND",
+                        "client_id",        "%s", priv->client_id,
+                        "max_topic_alias",  "%d", priv->max_topic_alias,
+                        "topic_alias",      "%d", topic_alias,
+                        NULL
+                    );
+                    JSON_DECREF(properties)
+                    return MOSQ_ERR_PROTOCOL;
+                }
+                topic = gbmem_strdup(json_string_value(jn_alias_topic));
+                slen = strlen(topic);
+            }
+            /* Remove hop-by-hop property: must not be forwarded */
+            json_object_del(properties, "topic-alias");
+        }
     }
 
     /*-----------------------------------*
