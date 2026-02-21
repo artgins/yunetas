@@ -803,7 +803,11 @@ PRIVATE json_t *cmd_clean_queues(hgobj gobj, const char *cmd, json_t *kw, hgobj 
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
     json_t *jn_queues = tranger2_list_topic_names(priv->tranger_queues);
-    json_t *jn_data = json_array();
+    json_t *jn_data = json_object();
+    json_t *jn_data_queues = json_array();
+    json_t *jn_data_sessions = json_array();
+    json_object_set_new(jn_data, "sessions", jn_data_sessions);
+    json_object_set_new(jn_data, "queues", jn_data_queues);
 
     int idx; json_t *topic;
     json_array_foreach(jn_queues, idx, topic) {
@@ -853,6 +857,7 @@ PRIVATE json_t *cmd_clean_queues(hgobj gobj, const char *cmd, json_t *kw, hgobj 
                         json_pack("{s:b}", "force", 1),
                         gobj
                     );
+                    json_array_append_new(jn_data_sessions, json_string(topic_name));
                     sub__remove_client(gobj, client_id);
                 }
             }
@@ -866,7 +871,7 @@ PRIVATE json_t *cmd_clean_queues(hgobj gobj, const char *cmd, json_t *kw, hgobj 
 
         if(delete_queue) {
             tranger2_delete_topic(priv->tranger_queues, topic_name);
-            json_array_append_new(jn_data, json_string(topic_name));
+            json_array_append_new(jn_data_queues, json_string(topic_name));
         }
     }
 
@@ -874,7 +879,10 @@ PRIVATE json_t *cmd_clean_queues(hgobj gobj, const char *cmd, json_t *kw, hgobj 
 
     return msg_iev_build_response(gobj,
         0,
-        json_sprintf("Cleaned queues: %d", (int)json_array_size(jn_data)),
+        json_sprintf("Cleaned queues: %d, cleaned sessions: %d",
+            (int)json_array_size(jn_data_queues),
+            (int)json_array_size(jn_data_sessions)
+        ),
         0,
         jn_data,
         kw  // owned
