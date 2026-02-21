@@ -5365,7 +5365,6 @@ PRIVATE int handle__connack(
 
     switch(reason_code) {
         case 0:
-            // TODO message__retry_check(mosq); with below message__release_to_inflight is enough?
             /*
              *  Set in session
              */
