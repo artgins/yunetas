@@ -2698,7 +2698,7 @@ PRIVATE int mosquitto_property_check_command(hgobj gobj, int command, int identi
             break;
 
         default:
-            gobj_log_error(gobj, 0,
+            gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
                 "function",     "%s", __FUNCTION__,
                 "msgset",       "%s", MSGSET_MQTT_ERROR,
                 "msg",          "%s", "Mqtt unknown property of command",
@@ -2914,7 +2914,13 @@ PRIVATE int mqtt_property_check_all(hgobj gobj, int command, json_t *all_propert
     const char *property_name; json_t *property;
     json_object_foreach(all_properties, property_name, property) {
         /* Validity checks */
-        int identifier = (int)kw_get_int(gobj, property, "identifier", 0, KW_REQUIRED);
+        int identifier;
+        if(json_is_array(property)) {
+            /* user-property array: all items are MQTT_PROP_USER_PROPERTY */
+            identifier = MQTT_PROP_USER_PROPERTY;
+        } else {
+            identifier = (int)kw_get_int(gobj, property, "identifier", 0, KW_REQUIRED);
+        }
         if(identifier == MQTT_PROP_REQUEST_PROBLEM_INFORMATION
                 || identifier == MQTT_PROP_PAYLOAD_FORMAT_INDICATOR
                 || identifier == MQTT_PROP_REQUEST_RESPONSE_INFORMATION
