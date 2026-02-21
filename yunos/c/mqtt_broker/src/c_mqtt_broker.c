@@ -3007,7 +3007,7 @@ PRIVATE int subs__send(
     /*------------------------------*
      *  Check for ACL topic access
      *------------------------------*/
-    // TODO
+    // TODO acl
     // rc2 = mosquitto_acl_check(
     //     leaf->context,
     //     topic,
@@ -3125,7 +3125,7 @@ PRIVATE int subs__send(
             queue_name,
             "tm",
             0,  // system_flag
-            0,  // max_inflight_messages TODO
+            0,  // max_inflight_messages
             0   // backup_queue_size
         );
 
@@ -3703,7 +3703,7 @@ PRIVATE int ac_on_open(hgobj gobj, const char *event, json_t *kw, hgobj src)
      *  Check acl acl__find_acls
      *-----------------------------*/
     // rc = acl__find_acls(context);
-    // TODO return -2 if not AUTHORIZED to prot_mqtt2 will send right reason code
+    // TODO acl return -2 if not AUTHORIZED to prot_mqtt2 will send right reason code
     //connection_check_acl(context, &context->msgs_in.inflight);
     //connection_check_acl(context, &context->msgs_in.queued);
     //connection_check_acl(context, &context->msgs_out.inflight);
@@ -4156,7 +4156,7 @@ PRIVATE int ac_mqtt_unsubscribe(hgobj gobj, const char *event, json_t *kw, hgobj
         // /* ACL check */
         mqtt5_reason_codes_t reason = 0;
         BOOL allowed = TRUE;
-        // allowed = mosquitto_acl_check(context, sub, 0, NULL, 0, FALSE, MOSQ_ACL_UNSUBSCRIBE); TODO
+        // allowed = mosquitto_acl_check(context, sub, 0, NULL, 0, FALSE, MOSQ_ACL_UNSUBSCRIBE); TODO acl
         if(!allowed) {
             reason = MQTT_RC_NOT_AUTHORIZED;
         } else {
