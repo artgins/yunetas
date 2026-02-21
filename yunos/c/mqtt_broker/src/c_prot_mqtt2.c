@@ -2021,45 +2021,6 @@ PRIVATE int mqtt_property_add_string(
 }
 
 /***************************************************************************
- *  Add a user-property (string pair) to a property list.
- *  Multiple calls append to the "user-property" array; duplicate keys allowed.
- ***************************************************************************/
-PRIVATE int mqtt_property_add_user_property(
-    hgobj gobj,
-    json_t *proplist,
-    const char *name,
-    const char *value
-)
-{
-    if(!proplist || !name || !value) {
-        gobj_log_error(gobj, 0,
-            "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_MQTT_ERROR,
-            "msg",          "%s", "Mqtt proplist/name/value NULL",
-            NULL
-        );
-        return -1;
-    }
-
-    int type_ = 0;
-    mosquitto_string_to_property_info("user-property", NULL, &type_);
-
-    json_t *property = json_object();
-    json_object_set_new(property, "identifier", json_integer(MQTT_PROP_USER_PROPERTY));
-    json_object_set_new(property, "type",       json_integer(type_));
-    json_object_set_new(property, "name",       json_string(name));
-    json_object_set_new(property, "value",      json_string(value));
-
-    json_t *arr = json_object_get(proplist, "user-property");
-    if(!arr) {
-        arr = json_array();
-        json_object_set_new(proplist, "user-property", arr);
-    }
-    json_array_append_new(arr, property);
-    return 0;
-}
-
-/***************************************************************************
  *
  ***************************************************************************/
 PRIVATE int mqtt_write_byte(gbuffer_t *gbuf, uint8_t byte)
@@ -3218,37 +3179,6 @@ PRIVATE const char *property_read_string(json_t *properties, int identifier)
     return kw_get_str(gobj, property, "value", "", KW_REQUIRED);
 }
 
-/***************************************************************************
- *
- ***************************************************************************/
-PRIVATE const char *property_read_string_pair(json_t *properties, int identifier)
-{
-     hgobj gobj = 0;
-
-     if(identifier != MQTT_PROP_CONTENT_TYPE
-             && identifier != MQTT_PROP_RESPONSE_TOPIC
-             && identifier != MQTT_PROP_ASSIGNED_CLIENT_IDENTIFIER
-             && identifier != MQTT_PROP_AUTHENTICATION_METHOD
-             && identifier != MQTT_PROP_RESPONSE_INFORMATION
-             && identifier != MQTT_PROP_SERVER_REFERENCE
-             && identifier != MQTT_PROP_REASON_STRING
-     ) {
-         gobj_log_error(gobj, 0,
-             "function",     "%s", __FUNCTION__,
-             "msgset",       "%s", MSGSET_MQTT_ERROR,
-             "msg",          "%s", "Bad string property identifier",
-             "identifier",   "%d", identifier,
-             NULL
-         );
-         return "";
-     }
-
-     json_t *property = property_get_property(properties, identifier);
-     if(!property) {
-         return NULL;
-     }
-     return kw_get_str(gobj, property, "value", "", 0);
-}
 
 /***************************************************************************
  *
