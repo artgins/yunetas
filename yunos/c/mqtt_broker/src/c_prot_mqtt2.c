@@ -1376,7 +1376,7 @@ PRIVATE int db__message_release_incoming(hgobj gobj, uint16_t mid)
         );
     }
 
-    int todo_pop_queued;
+    int todo_pop_queued; // TODO this was in mosquitto, is needed here?
     // DL_FOREACH_SAFE(context->msgs_in.queued, tail, tmp){
     //     if(db__ready_for_flight(context, mosq_md_in, tail->qos)){
     //         break;
