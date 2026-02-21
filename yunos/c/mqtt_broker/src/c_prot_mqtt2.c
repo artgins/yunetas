@@ -3363,7 +3363,7 @@ PRIVATE int send__connect(
     uint32_t proplen = 0;
     uint32_t varbytes = 0;
     json_t *local_props = NULL;
-    uint16_t receive_maximum; // TODO mqtt_tui
+    uint16_t receive_maximum;
 
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
@@ -3429,19 +3429,21 @@ PRIVATE int send__connect(
     const char *password = gobj_read_str_attr(gobj, "user_passw");
 
     if(protocol == mosq_p_mqtt5) {
-        /* Generate properties from options */
-        // TODO mqtt_tui
-        // if(!mosquitto_property_read_int16(properties, MQTT_PROP_RECEIVE_MAXIMUM, &receive_maximum, FALSE)) {
-        //     rc = mosquitto_property_add_int16(&local_props, MQTT_PROP_RECEIVE_MAXIMUM, priv->msgs_in.inflight_maximum);
-        //     if(rc) {
-        // log_error
-        // JSON_DECREF(properties);
-        //     return rc;
-    // }
-        // } else {
-        //     priv->msgs_in.inflight_maximum = receive_maximum;
-        //     priv->msgs_in.inflight_quota = receive_maximum;
-        // }
+        /*
+         *  RECEIVE_MAXIMUM: tell the broker how many QoS 1/2 messages it can
+         *  send to this client simultaneously.
+         *  Only include if explicitly provided by the caller (e.g. mqtt_tui via properties).
+         *  Do NOT derive from max_inflight_messages — that is a server-side outgoing queue
+         *  config, not a client-side receive-capacity advertisement.
+         *  If not provided, omit the property; the broker defaults to 65535.
+         */
+        json_t *prop_rm = property_get_property(properties, MQTT_PROP_RECEIVE_MAXIMUM);
+        if(prop_rm) {
+            receive_maximum = (uint16_t)kw_get_int(gobj, prop_rm, "value", 20, 0);
+            if(priv->trq_in_msgs) {
+                priv->trq_in_msgs->max_inflight_messages = receive_maximum;
+            }
+        }
 
         mqtt_property_add_int32(
             gobj,
@@ -3519,6 +3521,7 @@ PRIVATE int send__connect(
     if(!gbuf) {
         // Error already logged
         JSON_DECREF(properties);
+        JSON_DECREF(local_props);
         JSON_DECREF(will_properties);
         return MOSQ_ERR_NOMEM;
     }
