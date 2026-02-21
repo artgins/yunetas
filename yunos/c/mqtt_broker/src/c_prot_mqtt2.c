@@ -3357,13 +3357,10 @@ PRIVATE int send__connect(
     json_t *properties // owned
 ) {
     uint32_t payloadlen;
-    uint8_t byte;
     uint8_t version;
     uint32_t headerlen;
     uint32_t proplen = 0;
-    uint32_t varbytes = 0;
     json_t *local_props = NULL;
-    uint16_t receive_maximum;
 
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
@@ -3439,10 +3436,12 @@ PRIVATE int send__connect(
          */
         json_t *prop_rm = property_get_property(properties, MQTT_PROP_RECEIVE_MAXIMUM);
         if(prop_rm) {
-            receive_maximum = (uint16_t)kw_get_int(gobj, prop_rm, "value", 20, 0);
-            if(priv->trq_in_msgs) {
-                priv->trq_in_msgs->max_inflight_messages = receive_maximum;
-            }
+            /*
+             *  Queues are not open yet (trq_in_msgs is NULL until CONNACK is received).
+             *  Persist to priv->max_inflight_messages so open_queues() picks it up.
+             */
+            uint16_t receive_maximum = (uint16_t) kw_get_int(gobj, prop_rm, "value", 20, 0);
+            gobj_write_integer_attr(gobj, "max_inflight_messages", receive_maximum);
         }
 
         mqtt_property_add_int32(
@@ -3457,7 +3456,7 @@ PRIVATE int send__connect(
         proplen = 0;
         proplen += property__get_length_all(properties);
         proplen += property__get_length_all(local_props);
-        varbytes = packet__varint_bytes(proplen);
+        uint32_t varbytes = packet__varint_bytes(proplen);
         headerlen += proplen + varbytes;
     } else if(protocol == mosq_p_mqtt311) {
         version = PROTOCOL_VERSION_v311;
@@ -3533,7 +3532,7 @@ PRIVATE int send__connect(
         mqtt_write_string(gbuf, PROTOCOL_NAME);
     }
     mqtt_write_byte(gbuf, version);
-    byte = (uint8_t)((clean_session&0x1)<<1);
+    uint8_t byte = (uint8_t) ((clean_session & 0x1) << 1);
     if(will) {
         byte = byte | (uint8_t)(((mqtt_will_qos&0x3)<<3) | ((will&0x1)<<2));
         if(priv->retain_available) {
