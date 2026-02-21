@@ -4395,7 +4395,8 @@ PRIVATE int ac_treedb_node_deleted(hgobj gobj, const char *event, json_t *kw, hg
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
-    // TODO search sessions of a client deleted, disconnect and delete them
+    // TODO search sessions of a client deleted, disconnect and delete session, client and queues?
+    // TODO and avoid delete a client if it has a session active?
     const char *treedb_name = kw_get_str(gobj, kw, "treedb_name", "", KW_REQUIRED);
     const char *topic_name = kw_get_str(gobj, kw, "topic_name", "", KW_REQUIRED);
     json_t *node_ = kw_get_dict(gobj, kw, "node", 0, KW_REQUIRED);
