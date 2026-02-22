@@ -2582,8 +2582,7 @@ PRIVATE void session_expiry__check(hgobj gobj)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
-    time_t now;
-    time(&now);
+    time_t now = mosquitto_time();
 
     /*
      *  Get all sessions
@@ -2881,9 +2880,7 @@ PRIVATE int will__process_disconnect(hgobj gobj, json_t *session, BOOL send_will
          *  The will_delay__check() function will send it later
          *  Store the disconnect time in session for later check
          */
-        time_t t;
-        time(&t);
-        json_object_set_new(session, "will_delay_time", json_integer((json_int_t)t));
+        json_object_set_new(session, "will_delay_time", json_integer((json_int_t)mosquitto_time()));
         return 0;
     }
 
@@ -2909,8 +2906,7 @@ PRIVATE void will_delay__check(hgobj gobj)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
-    time_t now;
-    time(&now);
+    time_t now = mosquitto_time();
 
     /*
      *  Get all sessions that are disconnected (no channel)
@@ -3709,10 +3705,8 @@ PRIVATE int ac_on_open(hgobj gobj, const char *event, json_t *kw, hgobj src)
                 json_int_t disconnect_time = kw_get_int(
                     gobj, session, "will_delay_time", 0, 0
                 );
-                time_t now;
-                time(&now);
                 BOOL session_expired = (disconnect_time > 0 &&
-                    (now - disconnect_time) >= prev_session_expiry_interval);
+                    (mosquitto_time() - disconnect_time) >= prev_session_expiry_interval);
 
                 if(!session_expired) {
                     if(protocol_version == mosq_p_mqtt311 || protocol_version == mosq_p_mqtt5) {
@@ -4054,9 +4048,7 @@ PRIVATE int ac_on_close(hgobj gobj, const char *event, json_t *kw, hgobj src)
             /*
              *  Store disconnect time for session expiry checking on reconnect
              */
-            time_t t;
-            time(&t);
-            json_object_set_new(session, "will_delay_time", json_integer((json_int_t)t));
+            json_object_set_new(session, "will_delay_time", json_integer((json_int_t)mosquitto_time()));
             json_decref(gobj_update_node(
                 priv->gobj_treedb_mqtt_broker,
                 "sessions",
