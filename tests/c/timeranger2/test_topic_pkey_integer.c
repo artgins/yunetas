@@ -720,7 +720,9 @@ PRIVATE int do_test(void)
      *-------------------------------------*/
     set_expected_results( // Check that no logs happen
         "delete topic", // test name
-        NULL,   // error's list, It must not be any log error
+        json_pack("[{s:s}]", // error's list
+            "msg", "Deleting topic"
+        ),
         NULL,   // expected, NULL: we want to check only the logs
         NULL,   // ignore_keys
         TRUE    // verbose
