@@ -40,20 +40,26 @@ include("${_yunetas_project_cmake}")
 set (SRCS
     # Protocols
     src/register_prot.c
-    src/c_prot_mqtt2.c
-    src/mqtt_util.c
-    src/tr2q_mqtt.c
 )
-
 
 set (HDRS
     # Protocols
     src/yunetas_c_prot.h
     src/register_prot.h
-    src/c_prot_mqtt2.h
-    src/mqtt_util.h
-    src/tr2q_mqtt.h
 )
+
+if(CONFIG_C_PROT_MQTT)
+    list(APPEND SRCS
+        src/c_prot_mqtt2.c
+        src/mqtt_util.c
+        src/tr2q_mqtt.c
+    )
+    list(APPEND HDRS
+        src/c_prot_mqtt2.h
+        src/mqtt_util.h
+        src/tr2q_mqtt.h
+    )
+endif()
 
 ##############################################
 #   Compilation condition
