@@ -1,5 +1,8 @@
 comment "Available modules."
 
+menu "Protocols"
 source "modules/c/c_prot/Kconfig"
+endmenu
+
 source "modules/c/c_console/Kconfig"
 source "modules/c/c_postgres/Kconfig"
