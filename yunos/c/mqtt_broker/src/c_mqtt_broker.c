@@ -2273,7 +2273,7 @@ PRIVATE int retain__queue(
             json_int_t tm = kw_get_int(gobj, retain, "tm", 0, 0);
             json_int_t expiry_interval = kw_get_int(gobj, retain, "expiry_interval", 0, 0);
 
-            // TODO check if time is expired?
+            // TODO claude check if time is expired? is checked in another place)
 
             /*
              *  Adjust QoS to minimum of message and subscription QoS
@@ -4101,7 +4101,7 @@ PRIVATE int ac_mqtt_subscribe(hgobj gobj, const char *event, json_t *kw, hgobj s
         gobj_trace_json(gobj, priv->shared_subs, "subs-shared");
     }
 
-    // TODO is needed? is in mosquitto
+    // TODO claude, is needed? is like in mosquitto
     // if(priv->current_out_packet == NULL) {
     //     rc = db__message_write_queued_out(gobj);
     //     if(rc) {
@@ -4526,7 +4526,7 @@ PRIVATE int ac_user_new(hgobj gobj, const char *event, json_t *kw, hgobj src)
  ***************************************************************************/
 PRIVATE int ac_timeout(hgobj gobj, const char *event, json_t *kw, hgobj src)
 {
-    // TODO needed this like mosquitto?
+    // TODO claide, needed this like mosquitto?
     // retain__expire();
     // keepalive__check();
 
