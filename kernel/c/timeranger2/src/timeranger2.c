@@ -1335,6 +1335,25 @@ PUBLIC int tranger2_delete_topic(
 {
     hgobj gobj = (hgobj)json_integer_value(json_object_get(tranger, "gobj"));
 
+    /*
+     *  Build directory path first so we can check existence without
+     *  the ERROR log that tranger2_topic() emits for missing topics.
+     */
+    char directory[PATH_MAX];
+    snprintf(directory, sizeof(directory), "%s/%s",
+        kw_get_str(gobj, tranger, "directory", "", KW_REQUIRED),
+        topic_name
+    );
+
+    if(access(directory, F_OK) != 0) {
+        /*
+         *  Topic directory does not exist on disk — nothing to delete.
+         *  This is not an error: the caller may be doing a pre-creation
+         *  cleanup and the topic was never created.
+         */
+        return 0;
+    }
+
     json_t *topic = tranger2_topic(tranger, topic_name);
     if(!topic) {
         gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
@@ -1346,15 +1365,6 @@ PUBLIC int tranger2_delete_topic(
         );
         return -1;
     }
-
-    /*
-     *  Get directory
-     */
-    char directory[PATH_MAX];
-    snprintf(directory, sizeof(directory), "%s/%s",
-        kw_get_str(gobj, tranger, "directory", "", KW_REQUIRED),
-        topic_name
-    );
 
     gobj_log_info(gobj, 0,
         "function",     "%s", __FUNCTION__,

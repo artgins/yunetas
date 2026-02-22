@@ -9272,8 +9272,12 @@ PRIVATE int ac_drop(hgobj gobj, const char *event, json_t *kw, hgobj src)
     /*
      *  Session taken over by another connection with the same client_id.
      *  WARNING The broker could have cleaned up the old session and created a new one.
+     *  kw may be NULL when drop is triggered by user/iogate without session_take_over context.
      */
-    BOOL session_take_over = kw_get_bool(gobj, kw, "session_take_over", 0, KW_REQUIRED);
+    BOOL session_take_over = FALSE;
+    if(kw && json_is_object(kw)) {
+        session_take_over = kw_get_bool(gobj, kw, "session_take_over", 0, 0);
+    }
 
     int reason_code = 0;
     if(session_take_over) {
