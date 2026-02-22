@@ -2273,7 +2273,26 @@ PRIVATE int retain__queue(
             json_int_t tm = kw_get_int(gobj, retain, "tm", 0, 0);
             json_int_t expiry_interval = kw_get_int(gobj, retain, "expiry_interval", 0, 0);
 
-            // TODO claude check if time is expired? is checked in another place)
+            /*
+             *  Skip expired retained messages.
+             *  For non-expired ones, adjust expiry_interval to the remaining
+             *  time per [MQTT-3.3.2-18]: the broker MUST NOT send a value
+             *  larger than the time the message has already waited.
+             *  NOTE: the disconnected+queued path is covered by
+             *  message__release_to_inflight() in c_prot_mqtt2.c.
+             */
+            if(expiry_interval > 0) {
+                time_t now;
+                time(&now);
+                time_t elapsed = now - (time_t)tm;
+                if(elapsed >= (time_t)expiry_interval) {
+                    GBMEM_FREE(local_retain)
+                    GBMEM_FREE(retain_levels)
+                    GBMEM_FREE(retain_topic)
+                    continue;
+                }
+                expiry_interval = expiry_interval - (json_int_t)elapsed;
+            }
 
             /*
              *  Adjust QoS to minimum of message and subscription QoS
@@ -2490,6 +2509,73 @@ PRIVATE int retain__store(
 
     GBMEM_FREE(topic2disk)
     return 0;
+}
+
+/***************************************************************************
+ *  Remove expired retained messages from the store.
+ *
+ *  Called periodically from ac_timeout(). Scans all retained_msgs in treedb
+ *  and deletes those whose message-expiry-interval has elapsed.
+ *
+ *  MQTT spec [MQTT-3.3.2-5]: if the Message Expiry Interval has passed and
+ *  no Client has received the message, the Server MUST delete the copy of
+ *  the message.
+ ***************************************************************************/
+PRIVATE void retain__expire(hgobj gobj)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    if(!priv->gobj_treedb_mqtt_broker) {
+        return;
+    }
+
+    time_t now;
+    time(&now);
+
+    json_t *retains = gobj_list_nodes(
+        priv->gobj_treedb_mqtt_broker,
+        "retained_msgs",
+        NULL,
+        NULL,
+        gobj
+    );
+
+    int idx; json_t *retain;
+    json_array_foreach(retains, idx, retain) {
+        json_int_t expiry_interval = kw_get_int(gobj, retain, "expiry_interval", 0, 0);
+        if(expiry_interval == 0) {
+            continue;
+        }
+        json_int_t tm = kw_get_int(gobj, retain, "tm", 0, 0);
+        if(tm == 0) {
+            continue;
+        }
+        time_t elapsed = now - (time_t)tm;
+        if(elapsed < (time_t)expiry_interval) {
+            continue;
+        }
+        const char *topic = kw_get_str(gobj, retain, "id", "", KW_REQUIRED);
+        if(gobj_trace_level(gobj) & TRACE_MESSAGES) {
+            gobj_log_info(gobj, 0,
+                "function",     "%s", __FUNCTION__,
+                "msgset",       "%s", MSGSET_INFO,
+                "msg",          "%s", "Retained message expired, deleting",
+                "topic",        "%s", topic,
+                "elapsed",      "%ld", (long)elapsed,
+                "expiry",       "%ld", (long)expiry_interval,
+                NULL
+            );
+        }
+        gobj_delete_node(
+            priv->gobj_treedb_mqtt_broker,
+            "retained_msgs",
+            json_incref(retain),            // owned
+            json_pack("{s:b}", "no_verbose", 1),
+            gobj
+        );
+    }
+
+    JSON_DECREF(retains)
 }
 
 /***************************************************************************
@@ -4101,17 +4187,16 @@ PRIVATE int ac_mqtt_subscribe(hgobj gobj, const char *event, json_t *kw, hgobj s
         gobj_trace_json(gobj, priv->shared_subs, "subs-shared");
     }
 
-    // TODO claude, is needed? is like in mosquitto
-    // if(priv->current_out_packet == NULL) {
-    //     rc = db__message_write_queued_out(gobj);
-    //     if(rc) {
-    //         return rc;
-    //     }
-    //     rc = db__message_write_inflight_out_latest(gobj);
-    //     if(rc) {
-    //         return rc;
-    //     }
-    // }
+    /*
+     *  In mosquitto, db__message_write_queued_out() and
+     *  db__message_write_inflight_out_latest() are called here to flush
+     *  retained messages into the outgoing queue after a SUBSCRIBE.
+     *  In Yuneta this is not needed: retain__queue() already sends directly
+     *  via EV_SEND_MESSAGE → c_prot_mqtt2::ac_send_message() →
+     *  message__queue() → message__release_to_inflight() for connected
+     *  clients, and appends straight to the timeranger queue for disconnected
+     *  ones (drained on reconnect by message__release_to_inflight()).
+     */
 
     KW_DECREF(kw);
     return 0;
@@ -4526,10 +4611,7 @@ PRIVATE int ac_user_new(hgobj gobj, const char *event, json_t *kw, hgobj src)
  ***************************************************************************/
 PRIVATE int ac_timeout(hgobj gobj, const char *event, json_t *kw, hgobj src)
 {
-    // TODO claide, needed this like mosquitto?
-    // retain__expire();
-    // keepalive__check();
-
+    retain__expire(gobj);       // Remove expired retained messages (keepalive is per-connection in c_prot_mqtt2)
     session_expiry__check(gobj);
     will_delay__check(gobj);
 
