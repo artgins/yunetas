@@ -12,6 +12,11 @@ extern "C"{
 
 #include <yunetas.h>
 
+#include "c_prot_mqtt2.h"
+#include "topic_tokenise.h"
+#include "tr2q_mqtt.h"
+#include "mqtt_util.h"
+
 // #include <c_ota.h>
 // #include <c_prot_modbus_m.h>
 

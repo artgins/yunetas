@@ -12,7 +12,7 @@
 #include <argp-standalone.h>
 #include <yunetas.h>
 #include <c_editline.h>
-#include "c_prot_mqtt2.h"  // TODO remove when mqtt be migrated
+#include <c_prot_mqtt2.h>
 #include "c_mqtt_tui.h"
 
 /***************************************************************************
@@ -347,7 +347,6 @@ static int register_yuno_and_more(void)
      *--------------------*/
     register_c_mqtt_client();
     register_c_editline();
-    register_c_prot_mqtt2(); // TODO remove when mqtt be migrated
 
     /*------------------------------------------------*
      *          Traces

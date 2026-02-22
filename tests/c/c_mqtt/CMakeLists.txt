@@ -34,12 +34,13 @@ include("${_yunetas_project_cmake}")
 #   MQTT broker sources (embedded in test)
 ##############################################
 set(MQTT_BROKER_SRC_DIR "${YUNETAS_BASE}/yunos/c/mqtt_broker/src")
+set(MQTT_MQTT_SRC_DIR "${YUNETAS_BASE}/modules/c/c_prot/src")
 
 set(MQTT_BROKER_SRCS
     ${MQTT_BROKER_SRC_DIR}/c_mqtt_broker.c
-    ${MQTT_BROKER_SRC_DIR}/c_prot_mqtt2.c
-    ${MQTT_BROKER_SRC_DIR}/tr2q_mqtt.c
-    ${MQTT_BROKER_SRC_DIR}/mqtt_util.c
+    ${MQTT_MQTT_SRC_DIR}/c_prot_mqtt2.c
+    ${MQTT_MQTT_SRC_DIR}/tr2q_mqtt.c
+    ${MQTT_MQTT_SRC_DIR}/mqtt_util.c
 )
 
 ##############################################

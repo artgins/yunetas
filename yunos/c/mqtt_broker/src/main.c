@@ -8,7 +8,6 @@
  *          All Rights Reserved.
  ****************************************************************************/
 #include <yunetas.h>
-#include "c_prot_mqtt2.h" // TODO remove when mqtt be migrated
 #include "c_mqtt_broker.h"
 
 /***************************************************************************
@@ -113,7 +112,6 @@ static int register_yuno_and_more(void)
      *  Register gclass
      *--------------------*/
     register_c_mqtt_broker();
-    register_c_prot_mqtt2(); // TODO remove when mqtt be migrated
 
     /*------------------------------------------------*
      *          Traces

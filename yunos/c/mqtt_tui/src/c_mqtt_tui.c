@@ -18,7 +18,7 @@
 
 #include <g_ev_console.h>
 #include <c_editline.h>
-#include "c_prot_mqtt2.h" // TODO change when moved to kernel
+#include <c_prot_mqtt2.h>
 #include "c_mqtt_tui.h"
 
 /***************************************************************************

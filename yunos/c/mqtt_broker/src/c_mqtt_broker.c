@@ -13,11 +13,11 @@
 #include <g_ev_kernel.h>
 #include <g_st_kernel.h>
 #include <helpers.h>
+#include <c_prot_mqtt2.h>
 
 #include "treedb_schema_mqtt_broker.c"
 #include "c_mqtt_broker.h"
 
-#include "c_prot_mqtt2.h" // TODO remove when moved to kernel
 
 /***************************************************************************
  *              Constants
