@@ -4025,6 +4025,22 @@ PRIVATE int ac_on_close(hgobj gobj, const char *event, json_t *kw, hgobj src)
 
         sub__remove_client(gobj, client_id);
 
+        /*
+         *  Delete the client's queues.
+         *  close_queues() in c_prot_mqtt2 only deletes queue topics when
+         *  wire clean_start=TRUE.  For temporary sessions where wire
+         *  clean_start=FALSE (e.g. assigned_id clients, or MQTT5 with
+         *  session_expiry_interval=0), the broker must delete them here.
+         */
+        BOOL wire_clean_start = gobj_read_bool_attr(gobj_channel, "clean_start");
+        if(priv->tranger_queues && !wire_clean_start) {
+            char queue_name[NAME_MAX];
+            build_queue_name(queue_name, sizeof(queue_name), client_id, mosq_md_in);
+            tranger2_delete_topic(priv->tranger_queues, queue_name);
+            build_queue_name(queue_name, sizeof(queue_name), client_id, mosq_md_out);
+            tranger2_delete_topic(priv->tranger_queues, queue_name);
+        }
+
     } else {
         /*
          *  Persistent session: process will based on will_delay_interval
