@@ -3705,8 +3705,9 @@ PRIVATE int ac_on_open(hgobj gobj, const char *event, json_t *kw, hgobj src)
                 json_int_t disconnect_time = kw_get_int(
                     gobj, session, "will_delay_time", 0, 0
                 );
+                time_t now = mosquitto_time();
                 BOOL session_expired = (disconnect_time > 0 &&
-                    (mosquitto_time() - disconnect_time) >= prev_session_expiry_interval);
+                    (now - disconnect_time) >= prev_session_expiry_interval);
 
                 if(!session_expired) {
                     if(protocol_version == mosq_p_mqtt311 || protocol_version == mosq_p_mqtt5) {
