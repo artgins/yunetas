@@ -4405,12 +4405,18 @@ PRIVATE int ac_treedb_node_create(hgobj gobj, const char *event, json_t *kw, hgo
             gobj
         );
         if(json_array_size(kw_get_dict_value(gobj, webix, "data", 0, KW_REQUIRED))==0) {
+            const char *mqtt_service = gobj_read_str_attr(gobj, "mqtt_service");
+            if(empty_string(mqtt_service)) {
+                mqtt_service = gobj_yuno_role();
+            }
+            char role_path[256];
+            snprintf(role_path, sizeof(role_path), "roles^user-%s^users", mqtt_service);
             gobj_send_event(
                 priv->gobj_authz,
                 EV_ADD_USER,
                 json_pack("{s:s, s:s}",
                     "username", username,
-                    "role", "roles^user-mqtt_broker^users" // TODO ^user-mqtt_broker^ is hardcoded
+                    "role", role_path
                 ),
                 gobj
             );
@@ -4451,12 +4457,18 @@ PRIVATE int ac_treedb_node_updated(hgobj gobj, const char *event, json_t *kw, hg
         );
 
         if(json_array_size(kw_get_list(gobj, webix, "data", 0, KW_REQUIRED))==0) {
+            const char *mqtt_service = gobj_read_str_attr(gobj, "mqtt_service");
+            if(empty_string(mqtt_service)) {
+                mqtt_service = gobj_yuno_role();
+            }
+            char role_path[256];
+            snprintf(role_path, sizeof(role_path), "roles^user-%s^users", mqtt_service);
             gobj_send_event(
                 priv->gobj_authz,
                 EV_ADD_USER,
                 json_pack("{s:s, s:s, s:b}",
                     "username", username,
-                    "role", "roles^user-mqtt_broker^users", // TODO ^user-mqtt_broker^ is hardcoded
+                    "role", role_path,
                     "disabled", enabled?0:1
                 ),
                 gobj
