@@ -3,6 +3,7 @@ VERSION_INSTALLED_STATIC.txt
 .vite/
 chatgpt/
 .claude/
+Testing/
 
 build_static/
 
