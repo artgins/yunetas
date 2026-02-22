@@ -2282,9 +2282,7 @@ PRIVATE int retain__queue(
              *  message__release_to_inflight() in c_prot_mqtt2.c.
              */
             if(expiry_interval > 0) {
-                time_t now;
-                time(&now);
-                time_t elapsed = now - (time_t)tm;
+                time_t elapsed = mosquitto_time() - (time_t)tm;
                 if(elapsed >= (time_t)expiry_interval) {
                     GBMEM_FREE(local_retain)
                     GBMEM_FREE(retain_levels)
@@ -2529,8 +2527,7 @@ PRIVATE void retain__expire(hgobj gobj)
         return;
     }
 
-    time_t now;
-    time(&now);
+    time_t now = mosquitto_time();
 
     json_t *retains = gobj_list_nodes(
         priv->gobj_treedb_mqtt_broker,
