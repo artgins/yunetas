@@ -1,5 +1,5 @@
 config TEST_MODULE
-    bool "C_TEST_MODULE support"
+    bool "TEST_MODULE support"
     default y
     help
       This option enables the C_PEPON,C_TESTON gclass.
