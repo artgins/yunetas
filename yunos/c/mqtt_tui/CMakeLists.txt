@@ -56,7 +56,7 @@ target_link_libraries(${PROJECT_NAME}
     ${OPENSSL_LIBS}
     ${MBEDTLS_LIBS}
     ${DEBUG_LIBS}
-    libyunetas-c_prot.a
+    libyunetas-c_mqtt.a
     libyunetas-c_console.a
     panel.a
     ncurses.a

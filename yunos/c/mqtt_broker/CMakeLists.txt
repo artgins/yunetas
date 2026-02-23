@@ -39,10 +39,8 @@ include("${_yunetas_project_cmake}")
 ##############################################
 SET (YUNO_SRCS
     src/main.c
-    src/c_mqtt_broker.c
 )
 SET (YUNO_HDRS
-    src/c_mqtt_broker.h
 )
 
 ##############################################
@@ -57,7 +55,7 @@ target_link_libraries(${PROJECT_NAME}
     ${OPENSSL_LIBS}
     ${MBEDTLS_LIBS}
     ${DEBUG_LIBS}
-    libyunetas-c_prot.a
+    libyunetas-c_mqtt.a
 )
 
 ##############################################

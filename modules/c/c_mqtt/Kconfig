@@ -1,14 +1,5 @@
 config C_MQTT_MODULE
-    bool
-
-config C_PROT_MQTT2
-    bool "C_PROT_MQTT2 support"
+    bool "C_MQTT_MODULE support"
     default y
     help
-      This option enables the C_PROT_MQTT2 gclass.
-
-config C_MQTT_BROKER
-    bool "C_MQTT_BROKER support"
-    default y
-    help
-      This option enables the C_MQTT_BROKER gclass.
+      This option enables the C_PROT_MQTT2,C_MQTT_BROKER gclass.
