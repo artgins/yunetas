@@ -7,10 +7,10 @@ project(c-modules C)
 ##############################################
 #   Source
 ##############################################
-add_subdirectory(c_console)
-add_subdirectory(c_postgres)
-add_subdirectory(c_mqtt)
-add_subdirectory(c_test)
+add_subdirectory(console)
+add_subdirectory(postgres)
+add_subdirectory(mqtt)
+add_subdirectory(test)
 
 # compile in Release mode :
 #

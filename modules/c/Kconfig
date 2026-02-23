@@ -1,5 +1,5 @@
 comment "Available modules."
 
-source "modules/c/c_mqtt/Kconfig"
-source "modules/c/c_console/Kconfig"
-source "modules/c/c_postgres/Kconfig"
+source "modules/c/mqtt/Kconfig"
+source "modules/c/console/Kconfig"
+source "modules/c/postgres/Kconfig"
