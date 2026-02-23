@@ -2,7 +2,7 @@
 #   CMake
 ##############################################
 cmake_minimum_required(VERSION 3.11)
-project(yunetas-c_test C)
+project(yunetas-module-test C)
 
 #-----------------------------------------------------#
 #   Resolve YUNETAS_BASE
@@ -50,7 +50,7 @@ set (HDRS
 ##############################################
 #   Compilation condition
 ##############################################
-if(CONFIG_TEST_MODULE)
+if(CONFIG_MODULE_TEST)
 
 ##############################################
 #   Lib

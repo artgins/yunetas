@@ -2,7 +2,7 @@
 #   CMake
 ##############################################
 cmake_minimum_required(VERSION 3.11)
-project(yunetas-c_mqtt C)
+project(yunetas-module-mqtt C)
 
 #-----------------------------------------------------#
 #   Resolve YUNETAS_BASE
@@ -54,7 +54,7 @@ set (HDRS
 ##############################################
 #   Compilation condition
 ##############################################
-if(CONFIG_MQTT_MODULE)
+if(CONFIG_MODULE_MQTT)
 
 ##############################################
 #   Lib

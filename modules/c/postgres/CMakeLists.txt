@@ -2,7 +2,7 @@
 #   CMake
 ##############################################
 cmake_minimum_required(VERSION 3.11)
-project(yunetas-c_postgres C)
+project(yunetas-module-postgres C)
 
 #-----------------------------------------------------#
 #   Resolve YUNETAS_BASE
@@ -48,7 +48,7 @@ set (HDRS
 ##############################################
 #   Compilation condition
 ##############################################
-if(CONFIG_POSTGRES_MODULE)
+if(CONFIG_MODULE_POSTGRES)
 
 ##############################################
 #   Lib

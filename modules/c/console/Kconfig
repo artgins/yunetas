@@ -1,5 +1,5 @@
-config CONSOLE_MODULE
-    bool "CONSOLE_MODULE support"
+config MODULE_CONSOLE
+    bool "MODULE_CONSOLE support"
     default y
     help
       This option enables the C_EDITLINE gclass.

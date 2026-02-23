@@ -2,7 +2,7 @@
 #   CMake
 ##############################################
 cmake_minimum_required(VERSION 3.11)
-project(yunetas-c_console C)
+project(yunetas-module-console C)
 
 #-----------------------------------------------------#
 #   Resolve YUNETAS_BASE
@@ -54,7 +54,7 @@ set (HDRS
 ##############################################
 #   Compilation condition
 ##############################################
-if(CONFIG_CONSOLE_MODULE)
+if(CONFIG_MODULE_CONSOLE)
 
 ##############################################
 #   Lib

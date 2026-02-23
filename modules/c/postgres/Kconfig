@@ -1,5 +1,5 @@
-config POSTGRES_MODULE
-    bool "POSTGRES_MODULE support"
+config MODULE_POSTGRES
+    bool "MODULE_POSTGRES support"
     default y
     help
       This option enables the C_POSTGRES gclass.
