@@ -38,17 +38,17 @@ include("${_yunetas_project_cmake}")
 #   Source
 ##############################################
 set (SRCS
-    c_editline.c
-    help_ncurses.c
-    g_ev_console.c
-    g_st_console.c
+    src/c_editline.c
+    src/help_ncurses.c
+    src/g_ev_console.c
+    src/g_st_console.c
 )
 
 set (HDRS
-    c_editline.h
-    help_ncurses.h
-    g_ev_console.h
-    g_st_console.h
+    src/c_editline.h
+    src/help_ncurses.h
+    src/g_ev_console.h
+    src/g_st_console.h
 )
 
 ##############################################

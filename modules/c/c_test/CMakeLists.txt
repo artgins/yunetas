@@ -38,13 +38,13 @@ include("${_yunetas_project_cmake}")
 #   Source
 ##############################################
 set (SRCS
-    c_pepon.c
-    c_teston.c
+    src/c_pepon.c
+    src/c_teston.c
 )
 
 set (HDRS
-    c_pepon.h
-    c_teston.h
+    src/c_pepon.h
+    src/c_teston.h
 )
 
 

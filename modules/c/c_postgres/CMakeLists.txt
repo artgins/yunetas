@@ -38,11 +38,11 @@ include("${_yunetas_project_cmake}")
 #   Source
 ##############################################
 set (SRCS
-    c_postgres.c
+    src/c_postgres.c
 )
 
 set (HDRS
-    c_postgres.h
+    src/c_postgres.h
 )
 
 ##############################################
