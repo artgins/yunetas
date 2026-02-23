@@ -1,6 +1,4 @@
-# Copyright (c) 2018-2019 Jan Van Winkel <jan.van_winkel@dxplore.eu>
-# Copyright (c) 2020 Teslabs Engineering S.L.
-# SPDX-License-Identifier: Apache-2.0
+# TODO example
 
 menu "Memory manager settings"
 

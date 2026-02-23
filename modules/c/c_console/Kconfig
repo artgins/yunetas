@@ -5,4 +5,4 @@ config C_CONSOLE
     bool "C_CONSOLE support"
     default y
     help
-      This option enables the C_CONSOLE library.
+      This option enables the C_CONSOLE gclass.

@@ -2,7 +2,7 @@
  *              yunetas.h
  *              Includes
  *              Copyright (c) 2024- Niyamaka.
- *              Copyright (c) 2025, ArtGins.
+ *              Copyright (c) 2025-2026, ArtGins.
  *              All Rights Reserved.
  ****************************************************************************/
 #pragma once
@@ -10,8 +10,6 @@
 #ifdef __cplusplus
 extern "C"{
 #endif
-
-// TODO this file must be created by menuconfig ???
 
 /*
  *  core
