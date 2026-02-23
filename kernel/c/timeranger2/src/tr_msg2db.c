@@ -1,5 +1,5 @@
 /***********************************************************************
- *          TR_MSG2.C
+ *          tr_msg2db.c
  *
  *          Messages (ordered by key (id),pkey2) with TimeRanger
  *
