@@ -47,6 +47,10 @@ set (HDRS
     src/c_teston.h
 )
 
+##############################################
+#   Compilation condition
+##############################################
+if(CONFIG_TEST_MODULE)
 
 ##############################################
 #   Lib
@@ -68,3 +72,10 @@ install(
     WORLD_READ
     DESTINATION ${LIB_DEST_DIR}
 )
+
+##############################################
+#   Compilation condition
+##############################################
+else()
+    install(CODE "message(STATUS \"Nothing to install\")")
+endif()
