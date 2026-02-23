@@ -24,7 +24,7 @@ endif()
 set(CONFIG_FILE ${YUNETAS_BASE}/.config)
 
 if(EXISTS ${CONFIG_FILE})
-    message(STATUS "${PROJECT_NAME}: Loading Kconfig-style variables from ${CONFIG_FILE}")
+    message(DEBUG "${PROJECT_NAME}: Loading Kconfig-style variables from ${CONFIG_FILE}")
 
     # Read the file line by line
     file(READ ${CONFIG_FILE} CONFIG_CONTENTS)
@@ -54,7 +54,7 @@ if(EXISTS ${CONFIG_FILE})
 
             # Set the variable in CMake
             set(${KEY} ${VALUE})
-            message(STATUS "Loaded: ${KEY} = ${VALUE}")
+            message(DEBUG "Loaded: ${KEY} = ${VALUE}")
         endif()
     endforeach()
 else()

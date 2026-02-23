@@ -25,7 +25,7 @@ else()
       "or ensure /yuneta/development[/yunetas] exists.")
 endif()
 
-message(WARNING "Using YUNETAS_BASE: ${YUNETAS_BASE}")
+message(DEBUG "Using YUNETAS_BASE: ${YUNETAS_BASE}")
 
 # Ensure the expected cmake file exists
 set(_yunetas_project_cmake "${YUNETAS_BASE}/tools/cmake/project.cmake")
@@ -52,13 +52,13 @@ foreach(test ${SRCS})
     add_yuno_executable(${binary} "main_${test}.c" "c_${test}.c")
 
     target_link_libraries(${binary}
+        ${TEST_LIBS}
         ${YUNETAS_KERNEL_LIBS}
         ${YUNETAS_EXTERNAL_LIBS}
         ${YUNETAS_PCRE_LIBS}
         ${OPENSSL_LIBS}
         ${MBEDTLS_LIBS}
         ${DEBUG_LIBS}
-        libyunetas-c_test.a
     )
     add_test("${current_directory_name}/${test}" ${binary})
 

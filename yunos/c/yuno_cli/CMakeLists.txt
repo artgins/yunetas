@@ -24,7 +24,7 @@ else()
       "or ensure /yuneta/development[/yunetas] exists.")
 endif()
 
-message(WARNING "Using YUNETAS_BASE: ${YUNETAS_BASE}")
+message(DEBUG "Using YUNETAS_BASE: ${YUNETAS_BASE}")
 
 # Ensure the expected cmake file exists
 set(_yunetas_project_cmake "${YUNETAS_BASE}/tools/cmake/project.cmake")
@@ -72,13 +72,13 @@ SET (YUNO_HDRS
 add_yuno_executable(${PROJECT_NAME} ${YUNO_SRCS} ${YUNO_HDRS})
 
 target_link_libraries(${PROJECT_NAME}
+    ${CONSOLE_LIBS}
     ${YUNETAS_KERNEL_LIBS}
     ${YUNETAS_EXTERNAL_LIBS}
     ${YUNETAS_PCRE_LIBS}
     ${OPENSSL_LIBS}
     ${MBEDTLS_LIBS}
     ${DEBUG_LIBS}
-    libyunetas-c_console.a
     panel.a
     ncurses.a
 )

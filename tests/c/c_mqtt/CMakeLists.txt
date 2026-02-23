@@ -21,7 +21,7 @@ else()
       "or ensure /yuneta/development[/yunetas] exists.")
 endif()
 
-message(WARNING "Using YUNETAS_BASE: ${YUNETAS_BASE}")
+message(DEBUG "Using YUNETAS_BASE: ${YUNETAS_BASE}")
 
 set(_yunetas_project_cmake "${YUNETAS_BASE}/tools/cmake/project.cmake")
 if(NOT EXISTS "${_yunetas_project_cmake}")
