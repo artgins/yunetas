@@ -24,7 +24,7 @@ If you change some version of those libraries remember to change the VERSION of 
 The external libraries will be integrated in the yuneta kernel as static libraries.
 
 To avoid conflicts with other versions of those libraries installed in the machine,
-the libraries are compiled and will be deployed in own yuneta's directories and linked as static libraries.
+the libraries are cloned, compiled and deployed in own yuneta's directories and linked as static libraries.
 
 Build with the next scripts::
 
