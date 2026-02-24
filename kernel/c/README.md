@@ -147,6 +147,8 @@ kernel/c/root-esp32   ← ESP32 port of runtime GClasses
 
 The heart of Yuneta. Everything else builds on top of this.
 
+> **Legend:** Functions marked with **`[JS]`** are also available in the JavaScript implementation (`kernel/js/yunetas-js7`). Unmarked functions are C-only.
+
 ### Core Concepts
 
 A **GClass** is a registered class definition. A **GObject** (`hgobj`) is an opaque handle to an instance of a GClass. GObjects form a parent-child tree rooted at a **Yuno** (the process root).
@@ -158,7 +160,7 @@ A **GClass** is a registered class definition. A **GObject** (`hgobj`) is an opa
 GOBJ_DECLARE_GCLASS(C_MY_CLASS);
 
 // Define a GClass symbol (use in the .c file)
-GOBJ_DEFINE_GCLASS(C_MY_CLASS);
+GOBJ_DEFINE_GCLASS(C_MY_CLASS);              // [JS] as gclass_create()
 
 // Declare/define states and events
 GOBJ_DECLARE_STATE(ST_IDLE);
@@ -176,49 +178,49 @@ SET_PRIV(attr_name, priv_field)
 
 ```c
 PRIVATE sdata_desc_t tattr_desc[] = {
-    SDATA(DTP_STRING,  "url",      SDF_RD,      "",    "Server URL"),
-    SDATA(DTP_INTEGER, "timeout",  SDF_RD,       0,    "Timeout ms"),
-    SDATA(DTP_BOOLEAN, "active",   SDF_RD,   FALSE,    "Active flag"),
-    SDATA(DTP_STRING,  "saved",    SDF_PERSIST, "",    "Persisted value"),
-    SDATA(DTP_JSON,    "config",   SDF_RD,    "{}",    "Config dict"),
-    SDATA_END()
+    SDATA(DTP_STRING,  "url",      SDF_RD,      "",    "Server URL"),       // [JS]
+    SDATA(DTP_INTEGER, "timeout",  SDF_RD,       0,    "Timeout ms"),       // [JS]
+    SDATA(DTP_BOOLEAN, "active",   SDF_RD,   FALSE,    "Active flag"),      // [JS]
+    SDATA(DTP_STRING,  "saved",    SDF_PERSIST, "",    "Persisted value"),   // [JS]
+    SDATA(DTP_JSON,    "config",   SDF_RD,    "{}",    "Config dict"),       // [JS]
+    SDATA_END()                                                              // [JS]
 };
 ```
 
-**Data types:**
+**Data types:** (all available in JS via `data_type_t`)
 
-| Type | C equivalent |
-|------|-------------|
-| `DTP_STRING` | `const char *` |
-| `DTP_INTEGER` | `json_int_t` |
-| `DTP_REAL` | `double` |
-| `DTP_BOOLEAN` | `BOOL` |
-| `DTP_LIST` | `json_t *` (array) |
-| `DTP_DICT` | `json_t *` (object) |
-| `DTP_JSON` | `json_t *` (any) |
-| `DTP_POINTER` | `void *` |
+| Type | C equivalent | JS |
+|------|-------------|-----|
+| `DTP_STRING` | `const char *` | [JS] |
+| `DTP_INTEGER` | `json_int_t` | [JS] |
+| `DTP_REAL` | `double` | [JS] |
+| `DTP_BOOLEAN` | `BOOL` | [JS] |
+| `DTP_LIST` | `json_t *` (array) | [JS] |
+| `DTP_DICT` | `json_t *` (object) | [JS] |
+| `DTP_JSON` | `json_t *` (any) | [JS] |
+| `DTP_POINTER` | `void *` | [JS] |
 
-**Attribute flags (`sdata_flag_t`):**
+**Attribute flags (`sdata_flag_t`):** (all available in JS via `sdata_flag_t`)
 
-| Flag | Meaning |
-|------|---------|
-| `SDF_RD` | Readable externally |
-| `SDF_WR` | Writable externally |
-| `SDF_PERSIST` | Saved/loaded via persistence callbacks |
-| `SDF_VOLATIL` | Not included in stats/snapshots |
-| `SDF_STATS` | Included in stats output |
-| `SDF_RSTATS` | Resettable stats |
-| `SDF_PSTATS` | Persistent stats |
-| `SDF_AUTHZ_R` | Requires read authorization |
-| `SDF_AUTHZ_W` | Requires write authorization |
-| `SDF_AUTHZ_X` | Requires execute authorization |
-| `SDF_REQUIRED` | Must be provided at creation |
+| Flag | Meaning | JS |
+|------|---------|-----|
+| `SDF_RD` | Readable externally | [JS] |
+| `SDF_WR` | Writable externally | [JS] |
+| `SDF_PERSIST` | Saved/loaded via persistence callbacks | [JS] |
+| `SDF_VOLATIL` | Not included in stats/snapshots | [JS] |
+| `SDF_STATS` | Included in stats output | [JS] |
+| `SDF_RSTATS` | Resettable stats | [JS] |
+| `SDF_PSTATS` | Persistent stats | [JS] |
+| `SDF_AUTHZ_R` | Requires read authorization | [JS] |
+| `SDF_AUTHZ_W` | Requires write authorization | [JS] |
+| `SDF_AUTHZ_X` | Requires execute authorization | [JS] |
+| `SDF_REQUIRED` | Must be provided at creation | [JS] |
 
 ### GObject Lifecycle API
 
 ```c
 // Bootstrap the entire framework
-int gobj_start_up(
+int gobj_start_up(                                              // [JS]
     json_t *jn_global_settings,
     int (*load_persistent_attrs)(hgobj gobj, json_t *keys),
     int (*save_persistent_attrs)(hgobj gobj, json_t *keys),
@@ -229,81 +231,81 @@ int gobj_start_up(
 );
 
 // Creation
-hgobj gobj_create(
+hgobj gobj_create(                                              // [JS]
     const char *name,
     gclass_t gclass,      // e.g. C_MY_CLASS
     json_t *kw,           // initial attribute values
     hgobj parent
 );
-hgobj gobj_create_yuno(const char *name, gclass_t gclass, json_t *kw);
-hgobj gobj_create_service(const char *name, gclass_t gclass, json_t *kw, hgobj yuno);
-hgobj gobj_create_default_service(const char *name, gclass_t gclass, json_t *kw, hgobj yuno);
-hgobj gobj_create_volatil(const char *name, gclass_t gclass, json_t *kw, hgobj parent);
-hgobj gobj_create_pure_child(const char *name, gclass_t gclass, json_t *kw, hgobj parent);
+hgobj gobj_create_yuno(const char *name, gclass_t gclass, json_t *kw);             // [JS]
+hgobj gobj_create_service(const char *name, gclass_t gclass, json_t *kw, hgobj yuno);  // [JS]
+hgobj gobj_create_default_service(const char *name, gclass_t gclass, json_t *kw, hgobj yuno);  // [JS]
+hgobj gobj_create_volatil(const char *name, gclass_t gclass, json_t *kw, hgobj parent);  // [JS]
+hgobj gobj_create_pure_child(const char *name, gclass_t gclass, json_t *kw, hgobj parent);  // [JS]
 hgobj gobj_create_tree(hgobj parent, json_t *jn_tree_config, ...);
 
 // Start / Stop
-int  gobj_start(hgobj gobj);              // calls mt_start
-int  gobj_stop(hgobj gobj);               // calls mt_stop
-int  gobj_start_children(hgobj gobj);
-int  gobj_stop_children(hgobj gobj);
-int  gobj_start_tree(hgobj gobj);
-int  gobj_stop_tree(hgobj gobj);
+int  gobj_start(hgobj gobj);              // calls mt_start     [JS]
+int  gobj_stop(hgobj gobj);               // calls mt_stop      [JS]
+int  gobj_start_children(hgobj gobj);                           // [JS]
+int  gobj_stop_children(hgobj gobj);                            // [JS]
+int  gobj_start_tree(hgobj gobj);                               // [JS]
+int  gobj_stop_tree(hgobj gobj);                                // [JS]
 
 // Play / Pause
-int  gobj_play(hgobj gobj);               // calls mt_play on default service
-int  gobj_pause(hgobj gobj);
+int  gobj_play(hgobj gobj);               // calls mt_play      [JS]
+int  gobj_pause(hgobj gobj);                                    // [JS]
 
 // Enable / Disable
 int  gobj_enable(hgobj gobj);
 int  gobj_disable(hgobj gobj);
 
 // Destroy
-void gobj_destroy(hgobj gobj);
+void gobj_destroy(hgobj gobj);                                  // [JS]
 void gobj_destroy_children(hgobj gobj);
 
 // Status queries
-BOOL gobj_is_running(hgobj gobj);
-BOOL gobj_is_playing(hgobj gobj);
-BOOL gobj_is_destroying(hgobj gobj);
-BOOL gobj_is_volatil(hgobj gobj);
-BOOL gobj_is_pure_child(hgobj gobj);
+BOOL gobj_is_running(hgobj gobj);                               // [JS]
+BOOL gobj_is_playing(hgobj gobj);                               // [JS]
+BOOL gobj_is_destroying(hgobj gobj);                            // [JS]
+BOOL gobj_is_volatil(hgobj gobj);                               // [JS]
+BOOL gobj_is_pure_child(hgobj gobj);                            // [JS]
 BOOL gobj_is_disabled(hgobj gobj);
 ```
 
 ### State Machine API
 
 ```c
-int         gobj_change_state(hgobj gobj, gobj_state_t new_state);
-const char *gobj_current_state(hgobj gobj);
+int         gobj_change_state(hgobj gobj, gobj_state_t new_state);  // [JS]
+const char *gobj_current_state(hgobj gobj);                         // [JS]
 BOOL        gobj_in_this_state(hgobj gobj, gobj_state_t state);
-BOOL        gobj_has_event(hgobj gobj, gobj_event_t event);
-BOOL        gobj_has_output_event(hgobj gobj, gobj_event_t event);
+BOOL        gobj_has_event(hgobj gobj, gobj_event_t event);         // [JS]
+BOOL        gobj_has_output_event(hgobj gobj, gobj_event_t event);  // [JS]
 ```
 
 ### Attribute Access API
 
 ```c
 // Generic
-json_t *gobj_read_attr(hgobj gobj, const char *name, hgobj src);
-int     gobj_write_attr(hgobj gobj, const char *name, json_t *value, hgobj src);
-json_t *gobj_read_attrs(hgobj gobj, sdata_flag_t include_flag, hgobj src);
-int     gobj_write_attrs(hgobj gobj, json_t *kw, sdata_flag_t flag, hgobj src);
-BOOL    gobj_has_attr(hgobj gobj, const char *name);
+json_t *gobj_read_attr(hgobj gobj, const char *name, hgobj src);                   // [JS]
+int     gobj_write_attr(hgobj gobj, const char *name, json_t *value, hgobj src);    // [JS]
+json_t *gobj_read_attrs(hgobj gobj, sdata_flag_t include_flag, hgobj src);          // [JS]
+int     gobj_write_attrs(hgobj gobj, json_t *kw, sdata_flag_t flag, hgobj src);     // [JS]
+BOOL    gobj_has_attr(hgobj gobj, const char *name);                                // [JS]
 
 // Typed reads
-const char *gobj_read_str_attr(hgobj gobj, const char *name);
-json_int_t  gobj_read_integer_attr(hgobj gobj, const char *name);
+const char *gobj_read_str_attr(hgobj gobj, const char *name);                       // [JS]
+json_int_t  gobj_read_integer_attr(hgobj gobj, const char *name);                   // [JS]
 double      gobj_read_real_attr(hgobj gobj, const char *name);
-BOOL        gobj_read_bool_attr(hgobj gobj, const char *name);
+BOOL        gobj_read_bool_attr(hgobj gobj, const char *name);                      // [JS]
 json_t     *gobj_read_json_attr(hgobj gobj, const char *name);
-void       *gobj_read_pointer_attr(hgobj gobj, const char *name);
+void       *gobj_read_pointer_attr(hgobj gobj, const char *name);                   // [JS]
 
 // Typed writes
-int gobj_write_str_attr(hgobj gobj, const char *name, const char *value);
-int gobj_write_integer_attr(hgobj gobj, const char *name, json_int_t value);
+int gobj_write_str_attr(hgobj gobj, const char *name, const char *value);            // [JS]
+int gobj_write_integer_attr(hgobj gobj, const char *name, json_int_t value);         // [JS]
 int gobj_write_real_attr(hgobj gobj, const char *name, double value);
-int gobj_write_bool_attr(hgobj gobj, const char *name, BOOL value);
+int gobj_write_bool_attr(hgobj gobj, const char *name, BOOL value);                  // [JS]
 int gobj_write_json_attr(hgobj gobj, const char *name, json_t *value);
 int gobj_write_pointer_attr(hgobj gobj, const char *name, void *value);
 
@@ -316,51 +318,51 @@ int gobj_reset_rstats_attrs(hgobj gobj);
 
 ```c
 // Sending events
-json_t *gobj_send_event(hgobj dst, gobj_event_t event, json_t *kw, hgobj src);
-json_t *gobj_publish_event(hgobj publisher, gobj_event_t event, json_t *kw);
+json_t *gobj_send_event(hgobj dst, gobj_event_t event, json_t *kw, hgobj src);     // [JS]
+json_t *gobj_publish_event(hgobj publisher, gobj_event_t event, json_t *kw);        // [JS]
 
 // Subscriptions
-hsdata gobj_subscribe_event(
+hsdata gobj_subscribe_event(                                                         // [JS]
     hgobj publisher,
     gobj_event_t event,
     json_t *kw,           // subscription options (filter, config)
     hgobj subscriber
 );
-int gobj_unsubscribe_event(hgobj publisher, gobj_event_t event, json_t *kw, hgobj subscriber);
-int gobj_unsubscribe_list(dl_list_t *dl_subs, BOOL force);
+int gobj_unsubscribe_event(hgobj publisher, gobj_event_t event, json_t *kw, hgobj subscriber);  // [JS]
+int gobj_unsubscribe_list(dl_list_t *dl_subs, BOOL force);                          // [JS]
 
-json_t *gobj_find_subscriptions(hgobj gobj, gobj_event_t event, json_t *kw, hgobj subscriber);
-json_t *gobj_list_subscriptions(hgobj gobj);
-json_t *gobj_find_subscribings(hgobj gobj, gobj_event_t event, json_t *kw, hgobj publisher);
+json_t *gobj_find_subscriptions(hgobj gobj, gobj_event_t event, json_t *kw, hgobj subscriber);  // [JS]
+json_t *gobj_list_subscriptions(hgobj gobj);                                        // [JS]
+json_t *gobj_find_subscribings(hgobj gobj, gobj_event_t event, json_t *kw, hgobj publisher);  // [JS]
 
 // Commands & Stats
-json_t *gobj_command(hgobj gobj, const char *command, json_t *kw, hgobj src);
-json_t *gobj_stats(hgobj gobj, const char *stats, json_t *kw, hgobj src);
+json_t *gobj_command(hgobj gobj, const char *command, json_t *kw, hgobj src);       // [JS]
+json_t *gobj_stats(hgobj gobj, const char *stats, json_t *kw, hgobj src);           // [JS]
 ```
 
 ### Hierarchy & Navigation
 
 ```c
-hgobj       gobj_parent(hgobj gobj);
-hgobj       gobj_yuno(void);
-hgobj       gobj_default_service(void);
+hgobj       gobj_parent(hgobj gobj);                            // [JS]
+hgobj       gobj_yuno(void);                                    // [JS]
+hgobj       gobj_default_service(void);                         // [JS]
 
-const char *gobj_name(hgobj gobj);
-const char *gobj_short_name(hgobj gobj);
-char       *gobj_full_name(hgobj gobj);      // caller must free
-const char *gobj_gclass_name(hgobj gobj);
-const char *gobj_yuno_name(void);
-const char *gobj_yuno_role(void);
-const char *gobj_yuno_id(void);
+const char *gobj_name(hgobj gobj);                              // [JS]
+const char *gobj_short_name(hgobj gobj);                        // [JS]
+char       *gobj_full_name(hgobj gobj);      // caller must free  [JS]
+const char *gobj_gclass_name(hgobj gobj);                       // [JS]
+const char *gobj_yuno_name(void);                               // [JS]
+const char *gobj_yuno_role(void);                               // [JS]
+const char *gobj_yuno_id(void);                                 // [JS]
 
-hgobj gobj_find_child(hgobj gobj, json_t *kw_filter);
-hgobj gobj_find_service(const char *name, BOOL verbose);
-hgobj gobj_find_gobj(const char *path);
-hgobj gobj_search_path(hgobj gobj, const char *path);
+hgobj gobj_find_child(hgobj gobj, json_t *kw_filter);           // [JS]
+hgobj gobj_find_service(const char *name, BOOL verbose);         // [JS]
+hgobj gobj_find_gobj(const char *path);                          // [JS]
+hgobj gobj_search_path(hgobj gobj, const char *path);            // [JS]
 
-int gobj_walk_gobj_children(hgobj gobj, walk_type_t walk_type,
+int gobj_walk_gobj_children(hgobj gobj, walk_type_t walk_type,              // [JS]
     cb_walking_t cb, void *user_data);
-int gobj_walk_gobj_children_tree(hgobj gobj, walk_type_t walk_type,
+int gobj_walk_gobj_children_tree(hgobj gobj, walk_type_t walk_type,         // [JS]
     cb_walking_t cb, void *user_data);
 ```
 
@@ -412,61 +414,61 @@ All in `gobj-c/src/helpers.h` and `kwid.h`.
 **Keyword (kw) operations:**
 ```c
 // Flags
-#define KW_REQUIRED     0x0001
-#define KW_CREATE       0x0002
-#define KW_EXTRACT      0x0004
-#define KW_WILD_NUMBER  0x0008
+#define KW_REQUIRED     0x0001                                                       // [JS]
+#define KW_CREATE       0x0002                                                       // [JS]
+#define KW_EXTRACT      0x0004                                                       // [JS]
+#define KW_WILD_NUMBER  0x0008                                                       // [JS]
 
 // Typed getters (with default and flags)
-BOOL        kw_get_bool(hgobj gobj, json_t *kw, const char *key, int def, kw_flag_t flag);
-json_int_t  kw_get_int(hgobj gobj, json_t *kw, const char *key, json_int_t def, kw_flag_t flag);
-double      kw_get_real(hgobj gobj, json_t *kw, const char *key, double def, kw_flag_t flag);
-const char *kw_get_str(hgobj gobj, json_t *kw, const char *key, const char *def, kw_flag_t flag);
-json_t     *kw_get_dict(hgobj gobj, json_t *kw, const char *key, json_t *def, kw_flag_t flag);
-json_t     *kw_get_list(hgobj gobj, json_t *kw, const char *key, json_t *def, kw_flag_t flag);
+BOOL        kw_get_bool(hgobj gobj, json_t *kw, const char *key, int def, kw_flag_t flag);  // [JS]
+json_int_t  kw_get_int(hgobj gobj, json_t *kw, const char *key, json_int_t def, kw_flag_t flag);  // [JS]
+double      kw_get_real(hgobj gobj, json_t *kw, const char *key, double def, kw_flag_t flag);  // [JS]
+const char *kw_get_str(hgobj gobj, json_t *kw, const char *key, const char *def, kw_flag_t flag);  // [JS]
+json_t     *kw_get_dict(hgobj gobj, json_t *kw, const char *key, json_t *def, kw_flag_t flag);  // [JS]
+json_t     *kw_get_list(hgobj gobj, json_t *kw, const char *key, json_t *def, kw_flag_t flag);  // [JS]
 
 // kw manipulation
 json_t *kw_duplicate(json_t *kw);
-BOOL    kw_has_key(json_t *kw, const char *key);
-int     kw_delete(json_t *kw, const char *key);
-json_t *kw_find_path(hgobj gobj, json_t *kw, const char *path, BOOL verbose);
+BOOL    kw_has_key(json_t *kw, const char *key);                                    // [JS]
+int     kw_delete(json_t *kw, const char *key);                                     // [JS]
+json_t *kw_find_path(hgobj gobj, json_t *kw, const char *path, BOOL verbose);       // [JS]
 
-BOOL    kw_match_simple(json_t *kw, json_t *kw_filter);
-json_t *kw_select(json_t *list, json_t *kw_filter);
-json_t *kw_collect(json_t *kw, json_t *keys);
-json_t *kw_clone_by_keys(json_t *kw, json_t *keys, BOOL notkey);
+BOOL    kw_match_simple(json_t *kw, json_t *kw_filter);                             // [JS]
+json_t *kw_select(json_t *list, json_t *kw_filter);                                 // [JS]
+json_t *kw_collect(json_t *kw, json_t *keys);                                       // [JS]
+json_t *kw_clone_by_keys(json_t *kw, json_t *keys, BOOL notkey);                    // [JS]
 
 // Set values (dot-separated path)
-int kw_set_dict_value(hgobj gobj, json_t *kw, const char *path, json_t *value);
-int kw_set_subdict_value(hgobj gobj, json_t *kw,
+int kw_set_dict_value(hgobj gobj, json_t *kw, const char *path, json_t *value);     // [JS]
+int kw_set_subdict_value(hgobj gobj, json_t *kw,                                    // [JS]
     const char *subdict, const char *key, json_t *value);
 ```
 
 **String utilities:**
 ```c
-BOOL empty_string(const char *s);
-BOOL str_in_list(const char **list, const char *str, BOOL ignore_case);
+BOOL empty_string(const char *s);                                                    // [JS]
+BOOL str_in_list(const char **list, const char *str, BOOL ignore_case);              // [JS]
 int  str2json(const char *s, json_t **jn);
 ```
 
 **Inter-event message stack:**
 ```c
-int     msg_iev_push_stack(hgobj gobj, json_t *kw, const char *msg_type);
-json_t *msg_iev_get_stack(hgobj gobj, json_t *kw, BOOL verbose);
-int     msg_iev_set_msg_type(hgobj gobj, json_t *kw, const char *msg_type);
-const char *msg_iev_get_msg_type(hgobj gobj, json_t *kw);
-int     msg_iev_write_key(hgobj gobj, json_t *kw, const char *key, json_t *value);
-json_t *msg_iev_read_key(hgobj gobj, json_t *kw, const char *key);
+int     msg_iev_push_stack(hgobj gobj, json_t *kw, const char *msg_type);           // [JS]
+json_t *msg_iev_get_stack(hgobj gobj, json_t *kw, BOOL verbose);                    // [JS]
+int     msg_iev_set_msg_type(hgobj gobj, json_t *kw, const char *msg_type);         // [JS]
+const char *msg_iev_get_msg_type(hgobj gobj, json_t *kw);                           // [JS]
+int     msg_iev_write_key(hgobj gobj, json_t *kw, const char *key, json_t *value);  // [JS]
+json_t *msg_iev_read_key(hgobj gobj, json_t *kw, const char *key);                  // [JS]
 ```
 
 ### Logging
 
 ```c
-// Core log functions
-void gobj_log_error(hgobj gobj, int opt, ...);    // opt: LOG_OPT_*
-void gobj_log_warning(hgobj gobj, int opt, ...);
-void gobj_log_info(hgobj gobj, int opt, ...);
-void gobj_log_debug(hgobj gobj, int opt, ...);
+// Core log functions (JS: log_error, log_warning, log_info, log_debug)
+void gobj_log_error(hgobj gobj, int opt, ...);    // opt: LOG_OPT_*  [JS] as log_error()
+void gobj_log_warning(hgobj gobj, int opt, ...);                     // [JS] as log_warning()
+void gobj_log_info(hgobj gobj, int opt, ...);                        // [JS] as log_info()
+void gobj_log_debug(hgobj gobj, int opt, ...);                       // [JS] as log_debug()
 
 // Convenience macros (variadic key-value pairs terminated by NULL)
 gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
@@ -478,8 +480,8 @@ gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
 );
 
 // Trace output
-void trace_msg(const char *fmt, ...);
-void trace_json(json_t *jn, const char *fmt, ...);
+void trace_msg(const char *fmt, ...);                                // [JS]
+void trace_json(json_t *jn, const char *fmt, ...);                   // [JS]
 ```
 
 ---
