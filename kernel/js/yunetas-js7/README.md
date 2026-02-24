@@ -1,9 +1,768 @@
-# yunetas-js
+# yunetas-js7
 
-Yuneta in modern javascript, using Vite.
+JavaScript/ES6 implementation of the [Yuneta](https://yuneta.io) framework (v7).
 
+Yuneta is an event-driven, component-based distributed system framework. This package provides the full GObject + Finite State Machine (FSM) runtime for the browser and Node.js environments.
 
 ## License
 
-Licensed under the [The MIT License](http://www.opensource.org/licenses/mit-license).
-See LICENSE.txt in the source distribution for details.
+Licensed under the [MIT License](http://www.opensource.org/licenses/mit-license).
+
+---
+
+## Table of Contents
+
+- [Architecture Overview](#architecture-overview)
+- [Installation](#installation)
+- [Build & Develop](#build--develop)
+- [Quick Start](#quick-start)
+- [Core Concepts](#core-concepts)
+  - [GClass & GObject](#gclass--gobject)
+  - [Finite State Machines](#finite-state-machines)
+  - [Attributes (SData)](#attributes-sdata)
+  - [Events & Pub-Sub](#events--pub-sub)
+  - [GObject Tree (Yuno)](#gobject-tree-yuno)
+- [Public API](#public-api)
+  - [Framework Bootstrap](#framework-bootstrap)
+  - [GClass Registration](#gclass-registration)
+  - [GObject Lifecycle](#gobject-lifecycle)
+  - [State Machine](#state-machine)
+  - [Attribute Access](#attribute-access)
+  - [Event System](#event-system)
+  - [Hierarchy & Navigation](#hierarchy--navigation)
+  - [Persistence](#persistence)
+  - [Helpers & Utilities](#helpers--utilities)
+  - [Logging](#logging)
+  - [String Formatting](#string-formatting)
+- [Built-in GClasses](#built-in-gclasses)
+  - [C_YUNO](#c_yuno)
+  - [C_TIMER](#c_timer)
+  - [C_IEVENT_CLI](#c_ievent_cli)
+- [TreeDB Helpers](#treedb-helpers)
+- [Writing a Custom GClass](#writing-a-custom-gclass)
+- [Source Layout](#source-layout)
+
+---
+
+## Architecture Overview
+
+```
+┌──────────────────────────────────────────────────────────┐
+│                         Yuno                             │
+│   (application root GObject)                             │
+│                                                          │
+│   ┌──────────────┐   ┌──────────────┐                   │
+│   │   Service A  │   │   Service B  │                    │
+│   │  (GObject)   │   │  (GObject)   │                    │
+│   │              │   │              │                     │
+│   │  ┌────────┐  │   │  ┌────────┐  │                   │
+│   │  │Child 1 │  │   │  │Child 2 │  │                    │
+│   │  └────────┘  │   │  └────────┘  │                   │
+│   └──────────────┘   └──────────────┘                   │
+└──────────────────────────────────────────────────────────┘
+         │ events (JSON kw)  ↕  pub/sub
+```
+
+Every component is a **GObject** — an instance of a **GClass**. GClasses define:
+- Typed **attributes** (schema via `SDATA`)
+- A **Finite State Machine** (states + event-action table)
+- **Lifecycle methods** (`mt_create`, `mt_start`, `mt_stop`, `mt_destroy`, …)
+
+GObjects communicate exclusively via **events** carrying JSON key-value payloads (`kw`). There is no direct method calling between components — everything goes through the FSM event dispatcher.
+
+---
+
+## Installation
+
+```bash
+# From npm (published package)
+npm install yunetas
+
+# From source (local)
+npm install /path/to/yunetas-js7/yunetas
+```
+
+Import in your project:
+
+```javascript
+import { gobj_start_up, gobj_create_yuno, register_c_yuno } from "yunetas";
+```
+
+---
+
+## Build & Develop
+
+Requires Node.js LTS (v22+):
+
+```bash
+nvm install --lts
+npm install -g vite
+```
+
+```bash
+cd yunetas/
+npm install        # install dependencies
+
+vite               # dev server
+vite build         # build all output formats to dist/
+npm test           # run tests (vitest)
+npm run test:coverage
+npx vitest --watch # watch mode
+```
+
+To update dependencies:
+
+```bash
+npm install -g npm-check-updates
+ncu -u && npm install
+```
+
+To publish:
+
+```bash
+# bump version in package.json first
+npm publish --access public
+```
+
+### Output formats
+
+`vite build` produces 8 files in `dist/`:
+
+| File | Format | Use |
+|------|--------|-----|
+| `yunetas.es.js` | ES modules | bundlers, modern browsers |
+| `yunetas.cjs.js` | CommonJS | Node.js |
+| `yunetas.umd.js` | UMD | legacy bundlers |
+| `yunetas.iife.js` | IIFE | `<script>` tag |
+| `*.min.js` | minified variants | production |
+
+---
+
+## Quick Start
+
+```javascript
+import {
+    gobj_start_up,
+    gobj_create_yuno,
+    gobj_create_service,
+    gobj_start,
+    gobj_play,
+    gobj_yuno,
+    db_load_persistent_attrs,
+    db_save_persistent_attrs,
+    db_remove_persistent_attrs,
+    db_list_persistent_attrs,
+    register_c_yuno,
+    register_c_timer,
+    register_c_ievent_cli,
+} from "yunetas";
+
+// 1. Register GClasses
+register_c_yuno();
+register_c_timer();
+register_c_ievent_cli();
+
+// 2. Initialize framework
+gobj_start_up(
+    null,                           // jn_global_settings (JSON)
+    db_load_persistent_attrs,       // load  persistent attrs
+    db_save_persistent_attrs,       // save  persistent attrs
+    db_remove_persistent_attrs,     // remove persistent attrs
+    db_list_persistent_attrs,       // list  persistent attrs
+    null,                           // global command parser fn
+    null                            // global stats parser fn
+);
+
+// 3. Create the Yuno (application root)
+let yuno = gobj_create_yuno("yuno", "C_YUNO", {
+    yuno_name: "my_app",
+    yuno_role: "my_role",
+    yuno_version: "1.0.0",
+});
+
+// 4. Create services under the yuno
+gobj_create_service("main", "C_MY_SERVICE", {}, gobj_yuno());
+
+// 5. Start everything
+gobj_start(yuno);
+gobj_play(yuno);   // triggers mt_play on the default service
+```
+
+---
+
+## Core Concepts
+
+### GClass & GObject
+
+A **GClass** is a class definition — registered once at startup. A **GObject** is an instance of a GClass.
+
+```javascript
+// Register a GClass
+gclass_create(name, event_types, states, gmt, lmt,
+              attrs_table, private_data, authz_table,
+              command_table, s_user_trace_level, gclass_flag);
+
+// Create an instance
+let gobj = gobj_create(name, gclass_name, attributes, parent);
+```
+
+### Finite State Machines
+
+Each GClass defines:
+- A list of **states** (strings, e.g. `"ST_IDLE"`, `"ST_CONNECTED"`)
+- Per-state **event-action tables**: `[event_name, action_fn, next_state]`
+
+When an event is sent to a GObject, the FSM looks up the current state → finds the matching event → calls the action function. `next_state` (or `null` to stay) controls state transitions.
+
+```javascript
+const st_idle = [
+    ["EV_CONNECT",    ac_connect,    "ST_CONNECTED"],
+    ["EV_TIMEOUT",    ac_timeout,    null],           // stay in ST_IDLE
+];
+const st_connected = [
+    ["EV_DISCONNECT", ac_disconnect, "ST_IDLE"],
+    ["EV_MESSAGE",    ac_message,    null],
+];
+
+const states = [
+    ["ST_IDLE",      st_idle],
+    ["ST_CONNECTED", st_connected],
+];
+```
+
+### Attributes (SData)
+
+Attributes are declared in a schema table using `SDATA()` macros. Each attribute has a type, name, flags, default value, and description.
+
+```javascript
+import { SDATA, SDATA_END, data_type_t, sdata_flag_t } from "yunetas";
+
+const attrs_table = [
+    SDATA(data_type_t.DTP_STRING,  "url",        sdata_flag_t.SDF_RD,      "", "Server URL"),
+    SDATA(data_type_t.DTP_INTEGER, "timeout",    sdata_flag_t.SDF_RD,       0, "Timeout ms"),
+    SDATA(data_type_t.DTP_BOOLEAN, "connected",  sdata_flag_t.SDF_RD,   false, "Connection state"),
+    SDATA(data_type_t.DTP_STRING,  "saved_key",  sdata_flag_t.SDF_PERSIST,  "", "Persisted value"),
+    SDATA_END()
+];
+```
+
+**Data types (`data_type_t`):** `DTP_STRING`, `DTP_BOOLEAN`, `DTP_INTEGER`, `DTP_REAL`, `DTP_LIST`, `DTP_DICT`, `DTP_JSON`, `DTP_POINTER`
+
+**Flags (`sdata_flag_t`):** `SDF_RD`, `SDF_WR`, `SDF_PERSIST`, `SDF_STATS`, `SDF_AUTHZ`, `SDF_REQUIRED`, `SDF_VOLATIL`
+
+### Events & Pub-Sub
+
+GObjects communicate via events with JSON payloads:
+
+```javascript
+// Send directly to a specific GObject
+gobj_send_event(target_gobj, "EV_CONNECT", { url: "ws://..." }, src_gobj);
+
+// Publish to all subscribers
+gobj_publish_event(gobj, "EV_DATA_READY", { data: [...] });
+
+// Subscribe to events from a source
+gobj_subscribe_event(source_gobj, "EV_DATA_READY", {}, subscriber_gobj);
+
+// Unsubscribe
+gobj_unsubscribe_event(source_gobj, "EV_DATA_READY", {}, subscriber_gobj);
+```
+
+### GObject Tree (Yuno)
+
+GObjects form a parent-child tree. The root is the **Yuno**. Services live directly under the Yuno. Each GObject has exactly one parent (except the Yuno itself).
+
+```
+Yuno
+ ├── Service "auth"     (C_IEVENT_CLI)
+ ├── Service "main"     (C_MY_SERVICE)
+ │    └── Child "sub"   (C_SOME_GCLASS)
+ └── Service "timer"    (C_TIMER)
+```
+
+---
+
+## Public API
+
+### Framework Bootstrap
+
+```javascript
+gobj_start_up(
+    jn_global_settings,         // JSON object or null
+    load_persistent_attrs_fn,   // fn(gobj, keys)
+    save_persistent_attrs_fn,   // fn(gobj, keys)
+    remove_persistent_attrs_fn, // fn(gobj, keys)
+    list_persistent_attrs_fn,   // fn(gobj, keys)
+    global_command_parser_fn,   // fn or null
+    global_stats_parser_fn      // fn or null
+)
+```
+
+### GClass Registration
+
+```javascript
+gclass_create(name, event_types, states, gmt, lmt, attrs_table,
+              private_data, authz_table, command_table,
+              s_user_trace_level, gclass_flag)
+
+gclass_find_by_name(name)        // → GClass or null
+gclass_check_fsm(gclass)         // validate FSM (returns error count)
+gclass_add_event_type(gclass, event_name, flag)
+gclass_add_state(gclass, state_name)
+gclass_add_ev_action(gclass, state_name, event_name, action_fn, next_state)
+```
+
+### GObject Lifecycle
+
+```javascript
+// Creation
+gobj_create(name, gclass_name, attrs, parent)       // generic child
+gobj_create_yuno(name, gclass_name, attrs)           // application root
+gobj_create_service(name, gclass_name, attrs, yuno)  // named service
+gobj_create_default_service(name, gclass_name, attrs, yuno)
+gobj_create_volatil(name, gclass_name, attrs, parent)
+gobj_create_pure_child(name, gclass_name, attrs, parent)
+
+// Start / Stop
+gobj_start(gobj)           // calls mt_start
+gobj_stop(gobj)            // calls mt_stop
+gobj_start_children(gobj)
+gobj_stop_children(gobj)
+gobj_start_tree(gobj)
+gobj_stop_tree(gobj)
+
+// Play / Pause (applied to default service)
+gobj_play(gobj)
+gobj_pause(gobj)
+
+// Destroy
+gobj_destroy(gobj)
+
+// Status
+gobj_is_running(gobj)      // → boolean
+gobj_is_playing(gobj)      // → boolean
+gobj_is_destroying(gobj)   // → boolean
+gobj_is_volatil(gobj)      // → boolean
+gobj_is_pure_child(gobj)   // → boolean
+```
+
+### State Machine
+
+```javascript
+gobj_current_state(gobj)              // → state name string
+gobj_change_state(gobj, new_state)    // trigger FSM transition
+gobj_has_event(gobj, event_name)      // → boolean
+gobj_has_output_event(gobj, event_name)
+```
+
+### Attribute Access
+
+```javascript
+// Generic read/write
+gobj_read_attr(gobj, name)
+gobj_write_attr(gobj, name, value)
+gobj_read_attrs(gobj, include_flag)   // → JSON object of all matching attrs
+gobj_write_attrs(gobj, kw)
+gobj_has_attr(gobj, name)             // → boolean
+
+// Typed reads
+gobj_read_bool_attr(gobj, name)
+gobj_read_integer_attr(gobj, name)
+gobj_read_str_attr(gobj, name)
+gobj_read_pointer_attr(gobj, name)
+
+// Typed writes
+gobj_write_bool_attr(gobj, name, value)
+gobj_write_integer_attr(gobj, name, value)
+gobj_write_str_attr(gobj, name, value)
+```
+
+### Event System
+
+```javascript
+// Sending
+gobj_send_event(gobj, event, kw, src)         // direct send
+gobj_publish_event(gobj, event, kw)           // publish to subscribers
+gobj_post_event(gobj, event, kw, src)         // post (deferred)
+
+// Subscriptions
+gobj_subscribe_event(src, event, kw, subscriber)
+gobj_unsubscribe_event(src, event, kw, subscriber)
+gobj_unsubscribe_list(list)
+gobj_find_subscriptions(gobj, event, kw, subscriber)
+gobj_list_subscriptions(gobj)
+gobj_find_subscribings(gobj, event, kw, publisher)
+
+// Commands & Stats
+gobj_command(gobj, command, kw, src)          // → response JSON
+gobj_stats(gobj, stats, kw, src)              // → response JSON
+build_command_response(gobj, result, comment, schema, data)
+build_stats_response(gobj, result, comment, schema, data)
+```
+
+### Hierarchy & Navigation
+
+```javascript
+gobj_parent(gobj)
+gobj_yuno()                        // → the Yuno root
+gobj_default_service()             // → default service under yuno
+
+gobj_name(gobj)
+gobj_short_name(gobj)
+gobj_full_name(gobj)
+gobj_gclass_name(gobj)
+gobj_yuno_name(gobj)
+gobj_yuno_role(gobj)
+gobj_yuno_id(gobj)
+
+gobj_find_child(gobj, kw_filter)
+gobj_find_service(name)
+gobj_find_gobj(path)
+gobj_search_path(gobj, path)
+
+gobj_walk_gobj_children(gobj, fn, data)
+gobj_walk_gobj_children_tree(gobj, fn, data)
+```
+
+### Persistence
+
+Backed by `localStorage` (browser) via `dbsimple.js`:
+
+```javascript
+// Low-level (dbsimple)
+db_load_persistent_attrs(gobj, keys)
+db_save_persistent_attrs(gobj, keys)
+db_remove_persistent_attrs(gobj, keys)
+db_list_persistent_attrs(gobj, keys)
+
+// Via gobj (delegates to registered persistence fns)
+gobj_load_persistent_attrs(gobj, keys)
+gobj_save_persistent_attrs(gobj, keys)
+gobj_remove_persistent_attrs(gobj, keys)
+gobj_list_persistent_attrs(gobj, keys)
+```
+
+Attributes marked `SDF_PERSIST` are automatically saved/loaded.
+
+---
+
+## Helpers & Utilities
+
+### JSON / Object operations
+
+```javascript
+json_deep_copy(obj)
+json_is_identical(a, b)
+json_object_update(dst, src)            // merge src into dst
+json_object_update_existing(dst, src)   // only existing keys
+json_object_update_missing(dst, src)    // only missing keys
+json_object_get(obj, key)
+json_object_set(obj, key, value)
+json_object_del(obj, key)
+json_array_append(arr, value)
+json_array_remove(arr, index)
+json_array_extend(dst, src)
+json_object_size(obj)
+json_array_size(arr)
+```
+
+### Type checking
+
+```javascript
+is_object(v)
+is_array(v)
+is_string(v)
+is_number(v)
+is_boolean(v)
+is_null(v)
+is_date(v)
+is_function(v)
+is_gobj(v)
+```
+
+### Keyword (kw) operations
+
+```javascript
+kw_has_key(kw, key)
+kw_pop(kw, key)                          // get and delete
+kw_delete(kw, key)
+kw_find_path(kw, path)                   // dot-separated path
+
+kw_get_bool(kw, key, default, flag)
+kw_get_int(kw, key, default, flag)
+kw_get_real(kw, key, default, flag)
+kw_get_str(kw, key, default, flag)
+kw_get_dict(kw, key, default, flag)
+kw_get_list(kw, key, default, flag)
+kw_get_dict_value(kw, key, default, flag)
+
+kw_set_dict_value(kw, key, value)
+kw_set_subdict_value(kw, path, key, value)
+
+kw_match_simple(kw, filter)              // → boolean
+kw_select(list, filter)                  // filter array of objects
+kw_collect(kw, keys)                     // extract subset
+kw_clone_by_keys(kw, keys, notkey)
+kw_clone_by_not_keys(kw, keys)
+
+// Flags: KW_REQUIRED, KW_CREATE, KW_EXTRACT, KW_RECURSIVE, KW_WILD_NUMBER
+```
+
+### Local storage helpers
+
+```javascript
+kw_get_local_storage_value(store, key, default)
+kw_set_local_storage_value(store, key, value)
+kw_remove_local_storage_value(store, key)
+```
+
+### Misc utilities
+
+```javascript
+current_timestamp()          // ISO string
+get_now()                    // Date object
+node_uuid()                  // generate UUID
+parseBoolean(v)              // coerce to boolean
+empty_string(s)              // true if null/undefined/""
+
+str_in_list(list, str, ci)   // case-insensitive optional
+index_in_list(list, value)
+delete_from_list(list, value)
+
+jwtDecode(token)             // → header/payload/signature
+jwt2json(token)              // → payload JSON
+
+debounce(fn, delay)
+timeTracker()
+```
+
+### Inter-event message stack
+
+```javascript
+msg_iev_push_stack(kw, msg_type)
+msg_iev_get_stack(kw)
+msg_iev_set_msg_type(kw, msg_type)
+msg_iev_get_msg_type(kw)
+msg_iev_write_key(kw, key, value)
+msg_iev_read_key(kw, key)
+```
+
+---
+
+## Logging
+
+```javascript
+log_error(gobj, code, ...args)
+log_warning(gobj, code, ...args)
+log_info(gobj, ...args)
+log_debug(gobj, ...args)
+trace_msg(msg)
+trace_json(json)
+
+// Redirect log output
+set_remote_log_functions(error_fn, warning_fn, info_fn, debug_fn)
+```
+
+---
+
+## String Formatting
+
+```javascript
+sprintf(format, ...args)    // printf-style
+vsprintf(fmt, argv)         // variadic version
+```
+
+Format specifiers: `%s` `%d` `%i` `%f` `%e` `%g` `%o` `%x` `%X` `%b` `%c` `%j` (JSON) `%t` (boolean) `%T` (type) `%v` (value) `%u` (unsigned)
+
+---
+
+## Built-in GClasses
+
+### C_YUNO
+
+The application root. Always the first GClass registered.
+
+```javascript
+import { register_c_yuno } from "yunetas";
+register_c_yuno();
+```
+
+Key attributes: `yuno_name`, `yuno_role`, `yuno_id`, `yuno_version`, `yuno_release`, `yuneta_version`, `required_services`, `tracing`, `start_date`, `node_uuid`, `__username__`
+
+### C_TIMER
+
+Manages timeouts and periodic timers.
+
+```javascript
+import { register_c_timer, set_timeout, set_timeout_periodic, clear_timeout } from "yunetas";
+register_c_timer();
+
+// One-shot timeout (ms)
+set_timeout(timer_gobj, 5000);
+
+// Periodic timeout
+set_timeout_periodic(timer_gobj, 1000);
+
+// Cancel
+clear_timeout(timer_gobj);
+```
+
+Events published: `EV_TIMEOUT`, `EV_TIMEOUT_PERIODIC`
+
+Attributes: `subscriber`, `periodic`, `msec`
+
+### C_IEVENT_CLI
+
+Inter-event client — proxies a remote Yuneta service over WebSocket so it looks like a local GObject. Used to communicate with backend yunos.
+
+```javascript
+import { register_c_ievent_cli } from "yunetas";
+register_c_ievent_cli();
+
+let remote = gobj_create_service("backend", "C_IEVENT_CLI", {
+    url: "ws://localhost:1991",
+    wanted_yuno_role: "agent",
+    wanted_yuno_service: "agent",
+    jwt: "...",
+}, gobj_yuno());
+```
+
+Key attributes: `url`, `jwt`, `wanted_yuno_role`, `wanted_yuno_name`, `wanted_yuno_service`, `remote_yuno_role`, `remote_yuno_name`, `remote_yuno_service`
+
+---
+
+## TreeDB Helpers
+
+Utilities for interacting with the Yuneta TreeDB (schema-driven graph database):
+
+```javascript
+import {
+    treedb_register_formtable,
+    treedb_unregister_formtable,
+    treedb_get_topic_data,
+    treedb_get_topic_field_data,
+    treedb_decoder_fkey,
+    treedb_decoder_hook,
+    treedb_get_field_desc,
+    template_get_field_desc,
+    create_template_record,
+} from "yunetas";
+
+treedb_register_formtable(treedb_name, topic_name, gobj_formtable)
+treedb_get_topic_data(treedb_name, topic_name)
+treedb_get_topic_field_data(treedb_name, topic_name, field_name)
+treedb_hook_data_size(hook_data)            // count with caching
+treedb_decoder_fkey(col, fkey)              // parse foreign key reference
+treedb_decoder_hook(col, hook)              // parse hook reference
+create_template_record(template, kw)        // instantiate from template
+```
+
+---
+
+## Writing a Custom GClass
+
+```javascript
+import {
+    SDATA, SDATA_END, SDATA_END,
+    data_type_t, sdata_flag_t,
+    gclass_create,
+    gobj_subscribe_event, gobj_yuno,
+    trace_msg,
+} from "yunetas";
+
+const GCLASS_NAME = "C_MY_CLASS";
+
+// 1. Attribute schema
+const attrs_table = [
+    SDATA(data_type_t.DTP_STRING,  "url",      sdata_flag_t.SDF_RD, "", "Remote URL"),
+    SDATA(data_type_t.DTP_INTEGER, "retries",  sdata_flag_t.SDF_RD,  3, "Max retries"),
+    SDATA_END()
+];
+
+// 2. Private data (per-instance, copied from this template)
+const PRIVATE_DATA = {
+    retry_count: 0,
+};
+
+// 3. Lifecycle methods
+function mt_create(gobj) {
+    // instance created, attrs not yet populated
+}
+function mt_start(gobj) {
+    // subscribe to events from other gobjs here
+    gobj_subscribe_event(gobj_yuno(), "EV_TIMEOUT_PERIODIC", {}, gobj);
+}
+function mt_stop(gobj) { }
+function mt_destroy(gobj) { }
+
+// 4. Action functions
+function ac_timeout(gobj, event, kw, src) {
+    trace_msg(`Tick! retry_count=${gobj.priv.retry_count}`);
+    gobj.priv.retry_count++;
+    return 0;  // kw consumed
+}
+
+// 5. FSM
+const st_idle = [
+    ["EV_TIMEOUT_PERIODIC", ac_timeout, null],
+];
+const states = [
+    ["ST_IDLE", st_idle],
+];
+const event_types = [
+    ["EV_TIMEOUT_PERIODIC", 0],
+];
+
+// 6. Methods table
+const gmt = { mt_create, mt_start, mt_stop, mt_destroy };
+
+// 7. Register
+function register_c_my_class() {
+    return gclass_create(
+        GCLASS_NAME,
+        event_types,
+        states,
+        gmt,
+        0,              // lmt (low-level methods)
+        attrs_table,
+        PRIVATE_DATA,
+        0,              // authz_table
+        0,              // command_table
+        0,              // s_user_trace_level
+        0               // gclass_flag
+    );
+}
+
+export { register_c_my_class };
+```
+
+---
+
+## Source Layout
+
+```
+kernel/js/yunetas-js7/
+├── README.md                          ← this file
+├── examples/                          ← full working example app
+│   └── src/
+│       ├── main.js                    ← app initialization
+│       ├── c_sample.js                ← example custom GClass
+│       └── locales.js
+└── yunetas/                           ← npm package
+    ├── package.json
+    ├── vite.config.js
+    ├── README.md                      ← build/publish instructions
+    ├── dist/                          ← compiled outputs (ES, CJS, UMD, IIFE)
+    └── src/
+        ├── index.js                   ← public API entry point
+        ├── gobj.js                    ← GObject/FSM runtime      (~4 500 LOC)
+        ├── helpers.js                 ← utilities, JSON, logging (~3 300 LOC)
+        ├── c_ievent_cli.js            ← remote service proxy     (~1 350 LOC)
+        ├── lib_treedb.js              ← TreeDB helpers           (~  540 LOC)
+        ├── c_timer.js                 ← Timer GClass             (~  330 LOC)
+        ├── c_yuno.js                  ← Yuno GClass              (~  290 LOC)
+        ├── dbsimple.js                ← localStorage persistence (~  140 LOC)
+        ├── sprintf.js                 ← printf-style formatting  (~  210 LOC)
+        ├── command_parser.js          ← command parsing
+        └── stats_parser.js            ← stats parsing
+```
