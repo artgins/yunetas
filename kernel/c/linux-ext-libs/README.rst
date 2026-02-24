@@ -3,26 +3,28 @@ External libraries
 
 Libraries used by Yunetas:
 
-    - `jansson-artgins <https://github.com/artgins/jansson-artgins>`_
+    - `jansson-artgins <https://github.com/akheron/jansson.git>`_
     - `liburing <https://github.com/axboe/liburing>`_
     - `mbedtls <https://github.com/Mbed-TLS/mbedtls>`_
     - `openssl <https://github.com/openssl/openssl>`_
     - `pcre2 <https://github.com/PCRE2Project/pcre2>`_
-    - `libjwt <https://github.com/benmcollins/libjwt>`_
+    - `libbacktrace <https://github.com/ianlancetaylor/libbacktrace>`_
+    - `argp-standalone <https://github.com/artgins/argp-standalone.git>`_
+    - `ncurses <https://github.com/mirror/ncurses.git>`_
     - `http-parser <https://github.com/nodejs/http-parser>`_
     - `linenoise <https://github.com/antirez/linenoise>`_
 
 Utilities used by Yunetas:
 
-    - `openresty <https://github.com/openresty/openresty>`_
+    - `nginx <https://github.com/nginx/nginx.git>`_
+    - `openresty <https://github.com/openresty/openresty.git>`_
 
-If you change some version of those libraries rembember to change the VERSION of installation in configure-libs.sh
+If you change some version of those libraries remember to change the VERSION of installation in configure-libs.sh
 
 The external libraries will be integrated in the yuneta kernel as static libraries.
 
-To avoid conflicts with other versions of libuv and jansson installed in your host,
-the libraries will be deployed in ``/yuneta/development/outputs/lib``
-and the include files in ``/yuneta/development/outputs/include``.
+To avoid conflicts with other versions of those libraries installed in the machine,
+the libraries are compiled and will be deployed in own yuneta's directories and linked as static libraries.
 
 Build with the next scripts::
 
@@ -30,10 +32,12 @@ Build with the next scripts::
     * configure-libs.sh
     * install-libs.sh
 
-# TODO WARNING Functions needed to avoid shared glibc:
-#   getgrgid()
-#   getgrnam()
-#   getgrouplist()
-#   getaddrinfo()
-#   getpwuid()
-#   gethostbyname() // from libcrypto: in function `BIO_gethostbyname
+TODO WARNING Functions needed to avoid shared glibc:
+----------------------------------------------------
+
+   - getgrgid()
+   - getgrnam()
+   - getgrouplist()
+   - getaddrinfo()
+   - getpwuid()
+   - gethostbyname() // from libcrypto: in function `BIO_gethostbyname
