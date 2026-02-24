@@ -143,9 +143,8 @@ GObjects are organized into a hierarchical tree forming a **Yuno** (a deployable
 ### Multi-Language Implementations
 
 The primary implementation is in **C**, but parallel implementations exist:
-- `kernel/js/gobj-js/` — JavaScript GObj implementation
-- `kernel/js/yunetas-js7/` — Modern ES7+ JavaScript framework (uses Vite)
-- `kernel/py/yunetas/` — Python SData implementation
+- `kernel/js/yunetas-js7/` — JavaScript framework (uses Vite)
+- `kernel/js/gobj-js/` — Old JavaScript GObj implementation (deprecated)
 
 ### Layered Build Dependencies
 
@@ -177,8 +176,7 @@ stress/c/*            ← stress test programs
 | `kernel/c/timeranger2/` | Time-series DB (append-only, key-indexed) |
 | `kernel/c/linux-ext-libs/` | External dependency libraries (OpenSSL, liburing, …) |
 | `kernel/c/root-linux/src/` | All runtime GClasses (`c_tcp`, `c_timer`, `c_prot_*`, `c_treedb`, …) |
-| `kernel/js/` | JavaScript implementations (gobj-js, yunetas-js7) |
-| `kernel/py/` | Python SData implementation |
+| `kernel/js/` | JavaScript implementations (yunetas-js7, gobj-js deprecated) |
 | `yunos/c/mqtt_broker/` | MQTT v3.1.1 + v5.0 broker with persistence |
 | `yunos/c/yuno_agent/` | Yuno lifecycle manager (start/stop/update) |
 | `utils/c/ycommand/` | Control-plane CLI — sends commands to running yunos |
