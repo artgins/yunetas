@@ -8,32 +8,58 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 # Set up environment (must be sourced from within the repo directory)
 source yunetas-env.sh
 
+# FIRST TIME (or after any .config change): initialize build directories and generate headers
+yunetas init
+
 # Build and install (preferred — respects dependency order)
 yunetas build
 
 # Run tests
 yunetas test
 
-# Or manually with CMake + Ninja:
-mkdir build && cd build
-cmake -GNinja -DCMAKE_BUILD_TYPE=Debug ..
-ninja && ninja install
-ctest         # run all tests
-ctest -V      # verbose output
-ctest -R kw   # run a single test suite by name
+# Clean build artifacts
+yunetas clean
 ```
 
-Build variants:
+`yunetas init` must be run:
+- The **first time** after cloning/setting up the repo
+- Any time `.config` changes (compiler, build type, enabled modules)
+
+`yunetas init` does the following:
+- Reads compiler (`CONFIG_USE_COMPILER_CLANG/GCC/MUSL`) and build type (`CONFIG_BUILD_TYPE_*`) from `.config`
+- Recreates the `outputs/` directory (or `outputs_static/` for musl builds) and subdirs (`include/`, `lib/`, `bin/`, `yunos/`)
+- Generates `outputs/include/yuneta_version.h` from `YUNETA_VERSION`
+- Generates `outputs/include/yuneta_config.h` from `.config` (Kconfig → C `#define`)
+- Creates `build/` directories under each module and runs `cmake` with the selected compiler and build type
+
+`yunetas build` runs `make install` in each module's `build/` directory in dependency order.
+
+### External dependency libraries
+
+External libraries live in `kernel/c/linux-ext-libs/`. They must be extracted and built separately, **before** building yunetas:
+
 ```bash
-cmake -GNinja -DCMAKE_BUILD_TYPE=Release ..               # optimized
-cmake -GNinja -DCMAKE_BUILD_TYPE=RelWithDebInfo ..         # profiling
-cmake -GNinja -DCMAKE_BUILD_TYPE=Debug -DENABLE_TESTS=OFF ..  # skip tests
-cmake -GNinja -DCMAKE_BUILD_TYPE=Release \
-  -DCMAKE_TOOLCHAIN_FILE=tools/cmake/musl-toolchain.cmake ..  # static binary
+# After selecting a compiler in .config, apply it to external libs:
+./set_compiler.sh
+
+# Then extract, configure, and build them:
+cd kernel/c/linux-ext-libs
+./extrae.sh          # extract sources
+./install-libs.sh    # build and install into outputs_ext/
 ```
 
-Build configuration is controlled by `.config` (Kconfig format). Key knobs:
-- Compiler: `CONFIG_USE_COMPILER_CLANG=y` (default), GCC, or Musl
+For musl/static builds use `extrae-static.sh` / `install-libs-static.sh`.
+
+### Build configuration
+
+Configuration is controlled by `.config` (Kconfig format). Edit with:
+```bash
+menuconfig    # interactive TUI configurator
+```
+
+Key knobs:
+- Compiler: `CONFIG_USE_COMPILER_CLANG=y` (default), GCC, or Musl (static)
+- Build type: `CONFIG_BUILD_TYPE_DEBUG=y` (default), Release, RelWithDebInfo, MinSizeRel
 - TLS: `CONFIG_HAVE_OPENSSL=y` (default) or mbed-TLS
 - Debug extras: `CONFIG_DEBUG_WITH_BACKTRACE`, `CONFIG_DEBUG_TRACK_MEMORY`
 - Optional modules: `CONFIG_C_POSTGRES`, `CONFIG_C_PROT`, `CONFIG_C_CONSOLE`
@@ -52,16 +78,20 @@ GObjects are organized into a hierarchical tree forming a **Yuno** (a deployable
 
 ### Layered Build Dependencies
 
+Build order as processed by `yunetas` (each layer depends on all above it):
+
 ```
-gobj-c          ← core GObject framework, logging, buffers, JSON config
-ytls            ← TLS abstraction (OpenSSL or mbed-TLS)
-yev_loop        ← async event loop (epoll-based, non-blocking I/O)
-libjwt          ← JWT authentication
-timeranger2     ← append-only time-series persistence
-root-linux      ← runtime GClasses: TCP/UDP, timers, channels, protocols, DB
-modules/c       ← optional: c_console, c_postgres, c_prot
-utils/c         ← CLI tools (ycommand, ytests, …)
-yunos/c         ← deployable services (mqtt_broker, yuno_agent, …)
+kernel/c/gobj-c       ← core GObject framework, logging, buffers, JSON config
+kernel/c/libjwt       ← JWT authentication
+kernel/c/ytls         ← TLS abstraction (OpenSSL or mbed-TLS)
+kernel/c/yev_loop     ← async event loop (io_uring-based, non-blocking I/O)
+kernel/c/timeranger2  ← append-only time-series persistence
+kernel/c/root-linux   ← runtime GClasses: TCP/UDP, timers, channels, protocols, DB
+kernel/c/root-esp32   ← ESP32 port of runtime GClasses
+modules/c/*           ← optional: console, mqtt, postgres, test
+utils/c/*             ← CLI tools (ycommand, ytests, ylist, …)
+yunos/c/*             ← deployable services (mqtt_broker, yuno_agent, …)
+stress/c/*            ← stress/performance test programs
 ```
 
 ### Key Source Locations
@@ -70,14 +100,17 @@ yunos/c         ← deployable services (mqtt_broker, yuno_agent, …)
 |------|-------------|
 | `kernel/c/gobj-c/src/gobj.h` | GClass definition macros, SData types, FSM API |
 | `kernel/c/gobj-c/src/gobj.c` | Core ~12K-line GObject runtime |
-| `kernel/c/yev_loop/` | Non-blocking event loop engine |
+| `kernel/c/yev_loop/` | Non-blocking event loop engine (io_uring) |
 | `kernel/c/timeranger2/` | Time-series DB (append-only, key-indexed) |
+| `kernel/c/linux-ext-libs/` | External dependency libraries (OpenSSL, liburing, …) |
 | `kernel/c/root-linux/src/` | All runtime GClasses (`c_tcp`, `c_timer`, `c_prot_*`, `c_treedb`, …) |
 | `yunos/c/mqtt_broker/` | MQTT v3.1.1 + v5.0 broker with persistence |
 | `yunos/c/yuno_agent/` | Yuno lifecycle manager (start/stop/update) |
 | `utils/c/ycommand/` | Control-plane CLI — sends commands to running yunos |
 | `tests/c/` | Test suites (run via `ctest`) |
-| `outputs/` | Compiled libs, headers, and yuno binaries |
+| `outputs/` | Compiled libs, headers, and yuno binaries (inside repo) |
+| `outputs_static/` | Same for musl/static builds |
+| `outputs_ext/` | Built external libraries |
 
 ### GClass Implementation Pattern
 
@@ -109,7 +142,7 @@ PRIVATE GOBJ_DEFINE_GCLASS(MY_CLASS);
 
 ### Event Loop & Async I/O
 
-`yev_loop` drives everything. GClasses attach `yev_event_t` handles for:
+`yev_loop` drives everything using **Linux io_uring** (not epoll). GClasses attach `yev_event_t` handles for:
 - File descriptor I/O (TCP/UDP sockets, serial ports)
 - Timers
 - Signals
@@ -138,5 +171,5 @@ See `MEMORY.md` for `content64` expansion syntax and deployment workflow.
 | Variable | Purpose |
 |----------|---------|
 | `YUNETAS_BASE` | Root of this repo (auto-set by `yunetas-env.sh`) |
-| `YUNETAS_OUTPUTS` | `../outputs` — where compiled artefacts land |
-| `YUNETAS_YUNOS` | `../outputs/yunos` — deployed yuno binaries |
+| `YUNETAS_OUTPUTS` | `outputs/` inside the repo — where compiled artefacts land |
+| `YUNETAS_YUNOS` | `outputs/yunos/` — deployed yuno binaries |
