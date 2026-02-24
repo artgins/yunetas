@@ -34,10 +34,8 @@ git submodule update --init
 # 3. Install the yunetas CLI tool
 pipx install utils/python/tui_yunetas
 
-# 4. Create .config from the default configuration
-cp defconfig .config
-# Or use the interactive TUI configurator:
-#   menuconfig
+# 4. Generate .config with your build preferences
+menuconfig
 
 # 5. Set up environment (must be sourced from within the repo directory)
 source yunetas-env.sh
@@ -123,17 +121,15 @@ For musl/static builds use `extrae-static.sh` / `install-libs-static.sh`.
 
 ### Build configuration
 
-Configuration is controlled by `.config` (Kconfig format). This file is **not tracked by git** (it's in `.gitignore`). To create it:
+Configuration is controlled by `.config` (Kconfig format). This file is **not tracked by git** (it's in `.gitignore`). Generate it by running:
 
 ```bash
-cp defconfig .config   # start from default configuration (musl, debug, c_prot)
-# Or use the interactive TUI configurator:
-menuconfig
+menuconfig    # interactive TUI configurator — select compiler, build type, modules, etc.
 ```
 
 Key knobs:
-- Compiler: `CONFIG_USE_COMPILER_CLANG=y`, GCC, or Musl (static). Kconfig default: Clang; `defconfig` default: Musl
-- Build type: `CONFIG_BUILD_TYPE_RELWITHDEBINFO=y` (Kconfig default), Debug, Release, MinSizeRel. `defconfig` uses Debug
+- Compiler: `CONFIG_USE_COMPILER_CLANG=y` (default), GCC, or Musl (static)
+- Build type: `CONFIG_BUILD_TYPE_RELWITHDEBINFO=y` (default), Debug, Release, MinSizeRel
 - TLS: `CONFIG_HAVE_OPENSSL=y` (default) or mbed-TLS
 - Debug extras: `CONFIG_DEBUG_WITH_BACKTRACE`, `CONFIG_DEBUG_TRACK_MEMORY`, `CONFIG_DEBUG_PRINT_YEV_LOOP_TIMES`
 - Optional modules: `CONFIG_C_POSTGRES`, `CONFIG_C_PROT`, `CONFIG_C_CONSOLE`
@@ -268,7 +264,7 @@ ycommand -c 'update-binary id=X content64=$$(X)'   # update binary (dev only)
 | File | Purpose |
 |------|---------|
 | `YUNETA_VERSION` | Current version (7.0.0) — used to generate `yuneta_version.h` |
-| `defconfig` | Default Kconfig — copy to `.config` for first-time setup |
+| `defconfig` | Reference Kconfig with a known-good configuration |
 | `Kconfig` | Root Kconfig definition (compiler, build type, TLS, modules, debug) |
 | `TODO.md` | Tracks API renames, removals, and additions between versions |
 | `CHANGELOG.md` | Release history and change log |
