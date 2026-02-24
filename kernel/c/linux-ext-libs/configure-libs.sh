@@ -110,6 +110,21 @@ cd build/mbedtls
 git checkout "$TAG_MBEDTLS"
 git submodule update --init --recursive
 
+VENV_DIR=".venv"
+# Create venv if it doesn't exist
+if [ ! -d "$VENV_DIR" ]; then
+    python3 -m venv "$VENV_DIR"
+fi
+
+# Activate venv
+# shellcheck disable=SC1091
+source "$VENV_DIR/bin/activate"
+
+# Upgrade pip tooling inside the venv
+python3 -m pip install --upgrade pip setuptools wheel
+
+python3 -m pip install --user -r scripts/basic.requirements.txt
+
 mkdir -p build
 cd build
 
