@@ -118,7 +118,7 @@ echo "===================== MBEDTLS ======================="
 cd build_static/mbedtls
 
 git checkout "$TAG_MBEDTLS"
-git submodule update --init
+git submodule update --init --recursive
 
 mkdir -p build
 cd build
