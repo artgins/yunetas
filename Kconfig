@@ -12,17 +12,17 @@ mainmenu "Yunetas Kernel Configuration"
 #------------------------------#
 choice
     prompt "Compiler Selection"
-    default USE_COMPILER_CLANG
-
-config USE_COMPILER_CLANG
-    bool "Clang compiler"
-    help
-        Select Clang as the compiler.
+    default USE_COMPILER_GCC
 
 config USE_COMPILER_GCC
     bool "GCC compiler"
     help
         Select GCC as the compiler.
+
+config USE_COMPILER_CLANG
+    bool "Clang compiler"
+    help
+        Select Clang as the compiler.
 
 config USE_COMPILER_MUSL
     bool "Musl compiler"
@@ -30,6 +30,8 @@ config USE_COMPILER_MUSL
         Select Musl as the compiler.
 
 endchoice
+
+comment "WARNING: Remember to call set_compiler.sh if you change the compiler"
 
 #------------------------------#
 #   Build Configuration
