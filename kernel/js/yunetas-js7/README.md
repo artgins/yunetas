@@ -2,7 +2,7 @@
 
 JavaScript/ES6 implementation of the [Yuneta](https://yuneta.io) framework (v7).
 
-Yuneta is an event-driven, component-based distributed system framework. This package provides the full GObject + Finite State Machine (FSM) runtime for the browser and Node.js environments.
+Yuneta is a **function-oriented**, event-driven framework for building distributed systems. Components are built from plain functions and data tables — not class hierarchies — making the framework portable to any programming language. This package provides the full GObject + Finite State Machine (FSM) runtime for the browser and Node.js environments.
 
 ## License
 
@@ -12,6 +12,7 @@ Licensed under the [MIT License](http://www.opensource.org/licenses/mit-license)
 
 ## Table of Contents
 
+- [Function-Oriented & Language-Portable](#function-oriented--language-portable)
 - [Architecture Overview](#architecture-overview)
 - [Installation](#installation)
 - [Build & Develop](#build--develop)
@@ -41,6 +42,36 @@ Licensed under the [MIT License](http://www.opensource.org/licenses/mit-license)
 - [TreeDB Helpers](#treedb-helpers)
 - [Writing a Custom GClass](#writing-a-custom-gclass)
 - [Source Layout](#source-layout)
+
+---
+
+## Function-Oriented & Language-Portable
+
+Yuneta is designed around a **function-oriented paradigm**. Every component (GClass) is defined by wiring together plain functions and data tables:
+
+- **Action functions** handle events: `function ac_connect(gobj, event, kw, src)`
+- **Lifecycle methods** manage creation and teardown: `mt_create`, `mt_start`, `mt_stop`, `mt_destroy`
+- **FSM tables** map (state, event) pairs to action functions and next-state transitions
+- **Attribute schemas** (`SDATA`) declare typed, flagged fields as data — not getter/setter methods
+
+There is no class inheritance, no method overriding, and no language-specific constructs at the core. A GClass is a bag of functions plus a data description, registered at startup.
+
+### Why this matters
+
+This design makes Yuneta **portable to any programming language** that supports functions, arrays, and structured data — which is virtually all of them. The reference implementation is in **C** (~12,000 LOC in `gobj.c`), and this JavaScript package mirrors the same API and patterns:
+
+| Concept | C | JavaScript |
+|---------|---|------------|
+| Create an instance | `gobj_create(name, gclass, kw, parent)` | `gobj_create(name, gclass_name, attrs, parent)` |
+| Send an event | `gobj_send_event(gobj, event, kw, src)` | `gobj_send_event(gobj, event, kw, src)` |
+| Subscribe | `gobj_subscribe_event(pub, event, kw, sub)` | `gobj_subscribe_event(pub, event, kw, sub)` |
+| Attribute schema | `SDATA(DTP_STRING, "url", SDF_RD, "", "desc")` | `SDATA(DTP_STRING, "url", SDF_RD, "", "desc")` |
+| FSM action row | `{EV_CONNECT, ac_connect, "ST_CONNECTED"}` | `["EV_CONNECT", ac_connect, "ST_CONNECTED"]` |
+| Register a GClass | `GOBJ_DEFINE_GCLASS(name)` + populate | `gclass_create(name, events, states, gmt, ...)` |
+
+The same GClass structure — functions + FSM tables + attribute schema — translates directly between languages. A developer who knows the C implementation can read the JavaScript version (and vice versa) because the architecture is the same; only the syntax changes.
+
+Different implementations can also **interoperate over the network** via the inter-event protocol. The built-in `C_IEVENT_CLI` GClass proxies a remote Yuneta service over WebSocket, so a JavaScript frontend can communicate with a C backend as if it were a local GObject.
 
 ---
 
