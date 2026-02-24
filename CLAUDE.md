@@ -28,34 +28,31 @@ pipx install kconfiglib
 # 1. Clone and enter the repo
 git clone <repo-url> && cd yunetas
 
-# 2. Initialize the git submodule for the yunetas CLI tool
-git submodule update --init
+# 2. Install the yunetas CLI tool
+pipx install yunetas
 
-# 3. Install the yunetas CLI tool
-pipx install utils/python/tui_yunetas
-
-# 4. Generate .config with your build preferences
+# 3. Generate .config with your build preferences
 menuconfig
 
-# 5. Set up environment (must be sourced from within the repo directory)
+# 4. Set up environment (must be sourced from within the repo directory)
 source yunetas-env.sh
 
-# 6. Apply compiler selection to external libs (requires sudo for update-alternatives)
+# 5. Apply compiler selection to external libs (requires sudo for update-alternatives)
 ./set_compiler.sh
 
-# 7. Build external dependency libraries
+# 6. Build external dependency libraries
 cd kernel/c/linux-ext-libs
 ./extrae.sh          # extract sources
 ./install-libs.sh    # build and install into outputs_ext/
 cd ../../..
 
-# 8. Initialize build directories and generate headers
+# 7. Initialize build directories and generate headers
 yunetas init
 
-# 9. Build everything
+# 8. Build everything
 yunetas build
 
-# 10. Run tests
+# 9. Run tests
 yunetas test
 ```
 
@@ -63,11 +60,8 @@ yunetas test
 
 ### Install the `yunetas` CLI tool
 
-The `yunetas` CLI lives in a git submodule. Initialize it first:
-
 ```bash
-git submodule update --init
-pipx install utils/python/tui_yunetas
+pipx install yunetas
 ```
 
 ### Build workflow
