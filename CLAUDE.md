@@ -22,11 +22,53 @@ sudo apt -y install --no-install-recommends \
 pipx install kconfiglib
 ```
 
+## Quick Start (clone to build)
+
+```bash
+# 1. Clone and enter the repo
+git clone <repo-url> && cd yunetas
+
+# 2. Initialize the git submodule for the yunetas CLI tool
+git submodule update --init
+
+# 3. Install the yunetas CLI tool
+pipx install utils/python/tui_yunetas
+
+# 4. Create .config from the default configuration
+cp defconfig .config
+# Or use the interactive TUI configurator:
+#   menuconfig
+
+# 5. Set up environment (must be sourced from within the repo directory)
+source yunetas-env.sh
+
+# 6. Apply compiler selection to external libs (requires sudo for update-alternatives)
+./set_compiler.sh
+
+# 7. Build external dependency libraries
+cd kernel/c/linux-ext-libs
+./extrae.sh          # extract sources
+./install-libs.sh    # build and install into outputs_ext/
+cd ../../..
+
+# 8. Initialize build directories and generate headers
+yunetas init
+
+# 9. Build everything
+yunetas build
+
+# 10. Run tests
+yunetas test
+```
+
 ## Build Commands
 
 ### Install the `yunetas` CLI tool
 
+The `yunetas` CLI lives in a git submodule. Initialize it first:
+
 ```bash
+git submodule update --init
 pipx install utils/python/tui_yunetas
 ```
 
@@ -68,6 +110,7 @@ External libraries live in `kernel/c/linux-ext-libs/`. They must be extracted an
 
 ```bash
 # After selecting a compiler in .config, apply it to external libs:
+# NOTE: requires sudo (runs update-alternatives and apt reinstall)
 ./set_compiler.sh
 
 # Then extract, configure, and build them:
@@ -80,16 +123,19 @@ For musl/static builds use `extrae-static.sh` / `install-libs-static.sh`.
 
 ### Build configuration
 
-Configuration is controlled by `.config` (Kconfig format). Edit with:
+Configuration is controlled by `.config` (Kconfig format). This file is **not tracked by git** (it's in `.gitignore`). To create it:
+
 ```bash
-menuconfig    # interactive TUI configurator
+cp defconfig .config   # start from default configuration (musl, debug, c_prot)
+# Or use the interactive TUI configurator:
+menuconfig
 ```
 
 Key knobs:
-- Compiler: `CONFIG_USE_COMPILER_CLANG=y` (default), GCC, or Musl (static)
-- Build type: `CONFIG_BUILD_TYPE_DEBUG=y` (default), Release, RelWithDebInfo, MinSizeRel
+- Compiler: `CONFIG_USE_COMPILER_CLANG=y`, GCC, or Musl (static). Kconfig default: Clang; `defconfig` default: Musl
+- Build type: `CONFIG_BUILD_TYPE_RELWITHDEBINFO=y` (Kconfig default), Debug, Release, MinSizeRel. `defconfig` uses Debug
 - TLS: `CONFIG_HAVE_OPENSSL=y` (default) or mbed-TLS
-- Debug extras: `CONFIG_DEBUG_WITH_BACKTRACE`, `CONFIG_DEBUG_TRACK_MEMORY`
+- Debug extras: `CONFIG_DEBUG_WITH_BACKTRACE`, `CONFIG_DEBUG_TRACK_MEMORY`, `CONFIG_DEBUG_PRINT_YEV_LOOP_TIMES`
 - Optional modules: `CONFIG_C_POSTGRES`, `CONFIG_C_PROT`, `CONFIG_C_CONSOLE`
 
 ## Architecture
@@ -103,6 +149,13 @@ Every component in Yuneta is a **GObject** (`gobj`) — an instance of a **GClas
 - **Action functions** called when an event fires in a given state
 
 GObjects are organized into a hierarchical tree forming a **Yuno** (a deployable process). Communication between gobjs happens exclusively via events carrying JSON key-value payloads (`json_t *kw`).
+
+### Multi-Language Implementations
+
+The primary implementation is in **C**, but parallel implementations exist:
+- `kernel/js/gobj-js/` — JavaScript GObj implementation
+- `kernel/js/yunetas-js7/` — Modern ES7+ JavaScript framework (uses Vite)
+- `kernel/py/yunetas/` — Python SData implementation
 
 ### Layered Build Dependencies
 
@@ -119,7 +172,9 @@ kernel/c/root-esp32   ← ESP32 port of runtime GClasses
 modules/c/*           ← optional: console, mqtt, postgres, test
 utils/c/*             ← CLI tools (ycommand, ytests, ylist, …)
 yunos/c/*             ← deployable services (mqtt_broker, yuno_agent, …)
-stress/c/*            ← stress/performance test programs
+tests/c/*             ← test suites (run via ctest)
+performance/c/*       ← performance benchmarks (perf_c_tcp, perf_yev_ping_pong, …)
+stress/c/*            ← stress test programs
 ```
 
 ### Key Source Locations
@@ -132,11 +187,18 @@ stress/c/*            ← stress/performance test programs
 | `kernel/c/timeranger2/` | Time-series DB (append-only, key-indexed) |
 | `kernel/c/linux-ext-libs/` | External dependency libraries (OpenSSL, liburing, …) |
 | `kernel/c/root-linux/src/` | All runtime GClasses (`c_tcp`, `c_timer`, `c_prot_*`, `c_treedb`, …) |
+| `kernel/js/` | JavaScript implementations (gobj-js, yunetas-js7) |
+| `kernel/py/` | Python SData implementation |
 | `yunos/c/mqtt_broker/` | MQTT v3.1.1 + v5.0 broker with persistence |
 | `yunos/c/yuno_agent/` | Yuno lifecycle manager (start/stop/update) |
 | `utils/c/ycommand/` | Control-plane CLI — sends commands to running yunos |
 | `tests/c/` | Test suites (run via `ctest`) |
-| `outputs/` | Compiled libs, headers, and yuno binaries (inside repo) |
+| `performance/c/` | Performance benchmarks (TCP, TLS, ping-pong) |
+| `tools/cmake/` | CMake toolchain files (`musl-toolchain.cmake`, `project.cmake`) |
+| `tools/packages/` | Debian packaging scripts (AMD64, ARM32, ARMhf, RISCV64) |
+| `scripts/` | Utility scripts (added to `PATH` by `yunetas-env.sh`) |
+| `docs/doc.yuneta.io/` | Sphinx documentation site (API docs, guides) |
+| `outputs/` | Compiled libs, headers, and yuno binaries (created by `yunetas init`) |
 | `outputs_static/` | Same for musl/static builds |
 | `outputs_ext/` | Built external libraries |
 
@@ -192,12 +254,22 @@ ycommand -c 'stats'                       # get stats
 ycommand -c 'kill-yuno id=<id>'           # stop a yuno
 ycommand -c 'update-binary id=X content64=$$(X)'   # update binary (dev only)
 ```
-See `MEMORY.md` for `content64` expansion syntax and deployment workflow.
 
 ## Environment Variables
 
 | Variable | Purpose |
 |----------|---------|
 | `YUNETAS_BASE` | Root of this repo (auto-set by `yunetas-env.sh`) |
-| `YUNETAS_OUTPUTS` | `outputs/` inside the repo — where compiled artefacts land |
-| `YUNETAS_YUNOS` | `outputs/yunos/` — deployed yuno binaries |
+| `YUNETAS_OUTPUTS` | `$(dirname $YUNETAS_BASE)/outputs` — compiled artefacts land in the **parent** directory of the repo |
+| `YUNETAS_YUNOS` | `$YUNETAS_OUTPUTS/yunos/` — deployed yuno binaries |
+
+## Useful Files
+
+| File | Purpose |
+|------|---------|
+| `YUNETA_VERSION` | Current version (7.0.0) — used to generate `yuneta_version.h` |
+| `defconfig` | Default Kconfig — copy to `.config` for first-time setup |
+| `Kconfig` | Root Kconfig definition (compiler, build type, TLS, modules, debug) |
+| `TODO.md` | Tracks API renames, removals, and additions between versions |
+| `CHANGELOG.md` | Release history and change log |
+| `ctest-loop.sh` | Utility: runs `ctest` in a loop until first failure |
