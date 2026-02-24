@@ -920,7 +920,7 @@ PKGS=(
 )
 
 # Extra commonly-needed build meta packages
-PKGS+=(build-essential pkg-config ca-certificates)
+PKGS+=(build-essential pkg-config ca-certificates linux-libc-dev)
 
 echo "[i] Installing dev packages (no recommends)…"
 for p in "${PKGS[@]}"; do

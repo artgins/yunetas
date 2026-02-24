@@ -9,9 +9,16 @@
 #       using musl-gcc
 #   version 1.4
 #       upgrade to ncurses-6.4
+#   version 1.5
+#       upgrade to jansson v2.15.0
+#       upgrade to liburing-2.14
+#       upgrade to mbedtls v4.0.0
+#       upgrade to openssl 3.6.1
+#       upgrade to pcre2 2.10.47
+#       upgrade to nginx 1.28.2
 #
 
-VERSION="1.4"
+VERSION="1.5"
 
 
 source ./repos2clone.sh
@@ -123,7 +130,7 @@ source "$VENV_DIR/bin/activate"
 # Upgrade pip tooling inside the venv
 python3 -m pip install --upgrade pip setuptools wheel
 
-python3 -m pip install --user -r scripts/basic.requirements.txt
+python3 -m pip install -r scripts/basic.requirements.txt
 
 mkdir -p build
 cd build

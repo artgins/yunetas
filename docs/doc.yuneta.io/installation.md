@@ -54,7 +54,8 @@ Install the C dependencies:
       perl dos2unix tree curl \
       postgresql-server-dev-all libpq-dev \
       kconfig-frontends telnet pipx \
-      patch gettext fail2ban rsync
+      patch gettext fail2ban rsync \
+      build-essential pkg-config ca-certificates linux-libc-dev
 
     pipx install kconfiglib
 
