@@ -4,6 +4,20 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Build Commands
 
+### Install the `yunetas` CLI tool
+
+Before anything else, install the `yunetas` Python tool (from `utils/python/tui_yunetas`):
+
+```bash
+# Preferred:
+pipx install utils/python/tui_yunetas
+
+# Alternatives:
+conda install ...   # or pip install, uv tool install, etc.
+```
+
+### Build workflow
+
 ```bash
 # Set up environment (must be sourced from within the repo directory)
 source yunetas-env.sh
