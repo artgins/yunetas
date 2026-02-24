@@ -2,18 +2,32 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
+## System Prerequisites
+
+Install system dependencies (from doc.yuneta.io):
+
+```bash
+sudo apt -y install --no-install-recommends \
+  git mercurial make cmake ninja-build \
+  gcc musl musl-dev musl-tools clang g++ \
+  python3-dev python3-pip python3-setuptools \
+  python3-tk python3-wheel python3-venv \
+  libjansson-dev libpcre2-dev liburing-dev libcurl4-openssl-dev \
+  libpcre3-dev zlib1g-dev libssl-dev \
+  perl dos2unix tree curl \
+  postgresql-server-dev-all libpq-dev \
+  kconfig-frontends telnet pipx \
+  patch gettext fail2ban rsync
+
+pipx install kconfiglib
+```
+
 ## Build Commands
 
 ### Install the `yunetas` CLI tool
 
-Before anything else, install the `yunetas` Python tool (from `utils/python/tui_yunetas`):
-
 ```bash
-# Preferred:
 pipx install utils/python/tui_yunetas
-
-# Alternatives:
-conda install ...   # or pip install, uv tool install, etc.
 ```
 
 ### Build workflow
