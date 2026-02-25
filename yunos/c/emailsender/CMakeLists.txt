@@ -51,6 +51,11 @@ SET (YUNO_HDRS
 )
 
 ##############################################
+#   Compilation condition
+##############################################
+if(NOT CONFIG_USE_COMPILER_MUSL)
+
+##############################################
 #   yuno
 ##############################################
 add_yuno_executable(${PROJECT_NAME} ${YUNO_SRCS} ${YUNO_HDRS})
@@ -76,6 +81,13 @@ install(
     WORLD_READ WORLD_EXECUTE
     DESTINATION ${YUNOS_DEST_DIR}
 )
+
+##############################################
+#   Compilation condition
+##############################################
+else()
+    install(CODE "message(STATUS \"Nothing to install\")")
+endif()
 
 # compile in Release mode :
 #
