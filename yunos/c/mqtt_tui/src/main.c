@@ -345,6 +345,7 @@ static int register_yuno_and_more(void)
     /*--------------------*
      *  Register gclass
      *--------------------*/
+    register_c_prot_mqtt2();
     register_c_mqtt_client();
     register_c_editline();
 
