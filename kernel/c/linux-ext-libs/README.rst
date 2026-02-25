@@ -26,7 +26,7 @@ The external libraries will be integrated in the yuneta kernel as static librari
 To avoid conflicts with other versions of those libraries installed in the machine,
 the libraries are cloned, compiled and deployed in own yuneta's directories and linked as static libraries.
 
-If you want the libraries be compiled with the same compiler as yuneta, firstly execute `menuconfig`, select the compiler, and execute the script `set-compiler.sh`.
+If you want the libraries be compiled with the same compiler as yuneta, firstly execute `menuconfig`, select the compiler, and execute the script `set_compiler.sh`.
 Build with the next scripts::
 
     * extrae.sh             # clone libraries
