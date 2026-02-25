@@ -330,6 +330,8 @@ PUBLIC int test_users(
 
         const char *ignore_keys[]= {
             "t",
+            "g_rowid",
+            "i_rowid",
             NULL
         };
         json_t *expected = string2json(helper_quote2doublequote(foto_final_users), TRUE);

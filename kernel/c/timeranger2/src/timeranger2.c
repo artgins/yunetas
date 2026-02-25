@@ -2816,6 +2816,12 @@ PUBLIC int tranger2_delete_record(
         // Don't return -1, if key not exist let remove from memory
     }
 
+    /*
+     *  Remove key from topic_cache
+     */
+    json_t *topic_cache = json_object_get(topic, "cache");
+    json_object_del(topic_cache, key);
+
     return 0;
 }
 

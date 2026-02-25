@@ -69,6 +69,8 @@ PUBLIC int test_compound(
 
         const char *ignore_keys[]= {
             "t",
+            "g_rowid",
+            "i_rowid",
             NULL
         };
         set_expected_results( // Check that no logs happen
@@ -146,6 +148,8 @@ PUBLIC int test_compound(
         json_t *expected = string2json(helper_quote2doublequote(foto_final2), TRUE);
         const char *ignore_keys[]= {
             "t",
+            "g_rowid",
+            "i_rowid",
             NULL
         };
         set_expected_results( // Check that no logs happen
@@ -191,6 +195,8 @@ PUBLIC int test_compound(
         json_t *expected = string2json(helper_quote2doublequote(foto_final1), TRUE);
         const char *ignore_keys[]= {
             "t",
+            "g_rowid",
+            "i_rowid",
             NULL
         };
         set_expected_results( // Check that no logs happen
