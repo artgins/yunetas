@@ -1647,7 +1647,6 @@ int  remove_denied_ip(const char *ip);
 | `C_PROT_MQTT` | MQTT v3.1.1 client/broker protocol |
 | `C_PROT_TCP4H` | TCP 4-byte-header framing |
 | `C_PROT_RAW` | Raw passthrough |
-| `C_PROT_MODBUS_M` | Modbus RTU/TCP master |
 
 **Message Routing:**
 
@@ -1927,7 +1926,6 @@ kernel/c/
 │   ├── c_yuno.c / c_yuno.h
 │   ├── c_websocket.c / c_websocket.h
 │   ├── c_prot_http_cl.c, c_prot_http_sr.c
-│   ├── c_prot_mqtt.c, c_prot_modbus_m.c
 │   ├── msg_ievent.h / msg_ievent.c  ← inter-event wire format
 │   ├── entry_point.h / entry_point.c
 │   └── yunetas_register.h / .c

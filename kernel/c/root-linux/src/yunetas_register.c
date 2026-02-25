@@ -3,12 +3,12 @@
  *              Yuneta
  *
  *              Copyright (c) 2014-2015 Niyamaka.
+ *              Copyright (c) 2026, ArtGins.
  *              All Rights Reserved.
  ****************************************************************************/
 #include "c_yuno.h"         // the grandmother
 #include "c_tcp.h"
 #include "c_tcp_s.h"
-#include "c_udp.h"
 #include "c_udp_s.h"
 #include "c_gss_udp_s.h"
 #include "c_uart.h"
@@ -22,8 +22,6 @@
 #include "c_prot_http_sr.h"
 #include "c_prot_raw.h"
 #include "c_prot_tcp4h.h"
-#include "c_prot_mqtt.h"
-#include "c_prot_modbus_m.h"
 #include "c_task.h"
 #include "c_task_authenticate.h"
 #include "c_tranger.h"
@@ -31,16 +29,13 @@
 #include "c_fs.h"
 #include "c_counter.h"
 #include "c_pty.h"
-
 #include "c_iogate.h"
 #include "c_channel.h"
 #include "c_websocket.h"
 #include "c_qiogate.h"
 #include "c_mqiogate.h"
-
-#include "yunetas_register.h"
-
 #include "c_resource2.h"
+#include "yunetas_register.h"
 
 /***************************************************************************
  *  Data
@@ -57,13 +52,11 @@ PUBLIC int yunetas_register_c_core(void)
     }
     int result = 0;
 
-    // TODO include with menuconfig
     result += register_c_authz();
     result += register_c_ievent_cli();
     result += register_c_ievent_srv();
     result += register_c_tcp();
     result += register_c_tcp_s();
-    // result += register_c_udp();
     result += register_c_udp_s();
     result += register_c_gss_udp_s();
     result += register_c_uart();
@@ -71,10 +64,8 @@ PUBLIC int yunetas_register_c_core(void)
     result += register_c_node();
     result += register_c_prot_http_cl();
     result += register_c_prot_http_sr();
-    result += register_c_prot_mqtt();
     result += register_c_prot_raw();
     result += register_c_prot_tcp4h();
-    result += register_c_prot_modbus_m();
     result += register_c_task();
     result += register_c_task_authenticate();
     result += register_c_timer0();

@@ -2,7 +2,7 @@
 #   CMake
 ##############################################
 cmake_minimum_required(VERSION 3.11)
-project(yunetas-module-mqtt C)
+project(yunetas-module-modbus C)
 
 #-----------------------------------------------------#
 #   Resolve YUNETAS_BASE
@@ -38,25 +38,17 @@ include("${_yunetas_project_cmake}")
 #   Source
 ##############################################
 set (SRCS
-    src/c_mqtt_broker.c
-    src/c_prot_mqtt2.c
-    src/c_prot_mqtt.c
-    src/mqtt_util.c
-    src/tr2q_mqtt.c
+    src/c_prot_modbus_m.c
 )
 
 set (HDRS
-    src/c_mqtt_broker.h
-    src/c_prot_mqtt2.h
-    src/c_prot_mqtt.h
-    src/mqtt_util.h
-    src/tr2q_mqtt.h
+    src/c_prot_modbus_m.h
 )
 
 ##############################################
 #   Compilation condition
 ##############################################
-if(CONFIG_MODULE_MQTT)
+if(CONFIG_MODULE_MODBUS)
 
 ##############################################
 #   Lib

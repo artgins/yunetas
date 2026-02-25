@@ -1,0 +1,5 @@
+config MODULE_MODBUS
+    bool "MODULE_MODBUS support"
+    default y
+    help
+      This option enables the C_PROT_MODBUS_M gclass.

@@ -2,6 +2,7 @@
  *              YUNETA_REGISTER.H
  *              Includes
  *              Copyright (c) 2014-2015 Niyamaka.
+ *              Copyright (c) 2026, ArtGins.
  *              All Rights Reserved.
  ****************************************************************************/
 #pragma once
