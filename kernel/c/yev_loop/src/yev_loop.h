@@ -10,6 +10,7 @@
 #pragma once
 
 #include <netdb.h>  // need it by struct addrinfo
+#include <time.h>
 
 #include <gtypes.h>
 #include <gbuffer.h>

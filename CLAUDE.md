@@ -123,7 +123,7 @@ menuconfig    # interactive TUI configurator — select compiler, build type, mo
 ```
 
 Key knobs:
-- Compiler: `CONFIG_USE_COMPILER_CLANG=y` (default), GCC, or Musl (static)
+- Compiler: `CONFIG_USE_COMPILER_GCC=y` (default), CLANG, or Musl (static)
 - Build type: `CONFIG_BUILD_TYPE_RELWITHDEBINFO=y` (default), Debug, Release, MinSizeRel
 - TLS: `CONFIG_HAVE_OPENSSL=y` (default) or mbed-TLS
 - Debug extras: `CONFIG_DEBUG_WITH_BACKTRACE`, `CONFIG_DEBUG_TRACK_MEMORY`, `CONFIG_DEBUG_PRINT_YEV_LOOP_TIMES`
