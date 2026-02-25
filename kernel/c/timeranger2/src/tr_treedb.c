@@ -1248,7 +1248,6 @@ PUBLIC int treedb_close_db(
     json_decref(treedb);  // Don't use JSON_DECREF
 
     json_decref(topic_cols_desc);
-    topic_cols_desc = 0;
     return ret;
 }
 
