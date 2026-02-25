@@ -45,7 +45,7 @@ PRIVATE int print_treedb = 0;
 PRIVATE int without_ok_tests = 0;
 PRIVATE int without_bad_tests = 0;
 PRIVATE int show_oks = 1;
-PRIVATE int verbose = 0;
+PRIVATE int verbose = 1;
 
 /***************************************************************************
  *
@@ -554,8 +554,8 @@ PRIVATE int do_test(void)
 
         const char *ignore_keys[]= {
             "t",
-            "g_rowid",
-            "i_rowid",
+            // "g_rowid", CLAUDE
+            // "i_rowid",
             NULL
         };
         json_t *expected = string2json(helper_quote2doublequote(foto_final1), TRUE);
@@ -661,10 +661,10 @@ PRIVATE int do_test(void)
         );
         const char *ignore_keys[]= {
             "t",
-            "g_rowid",
-            "i_rowid",
-            "offset",
-            "size",
+            // "g_rowid", CLAUDE
+            // "i_rowid",
+            // "offset",
+            // "size",
             NULL
         };
         set_expected_results( // Check that no logs happen
