@@ -232,6 +232,25 @@ cd ../..
 
 
 #------------------------------------------
+#   libncurses
+#------------------------------------------
+echo "===================== NCURSES ======================="
+cd build_static/ncurses
+
+git checkout "$TAG_NCURSES"
+
+./configure \
+    --prefix="${YUNETA_INSTALL_PREFIX}" \
+    --datarootdir=/yuneta/bin/ncurses \
+    --without-cxx --without-cxx-binding \
+    --without-manpages \
+    --enable-sp-funcs
+make
+make install
+cd ../..
+
+
+#------------------------------------------
 #   Save the version installed
 #------------------------------------------
 echo "Version $VERSION installed"
