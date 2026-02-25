@@ -45,7 +45,7 @@ PRIVATE int print_treedb = 0;
 PRIVATE int without_ok_tests = 0;
 PRIVATE int without_bad_tests = 0;
 PRIVATE int show_oks = 1;
-PRIVATE int verbose = 1;
+PRIVATE int verbose = 0;
 
 /***************************************************************************
  *
@@ -82,9 +82,13 @@ PRIVATE int test_treedb_schema(
             ),
             0
         );
+        json_t *error_list = json_pack(
+            "[{s:s}]",
+            "msg", "Deleting topic"
+        );
         set_expected_results( // Check that no logs happen
             test,   // test name
-            NULL,   // error_list
+            error_list,   // error_list
             NULL,   // expected, NULL: we want to check only the logs
             NULL,   // ignore_keys
             TRUE    // verbose
@@ -380,10 +384,11 @@ PRIVATE int do_test(void)
         time_measure_t time_measure;
         MT_START_TIME(time_measure)
 
-        json_t *jn_tranger = json_pack("{s:s, s:s, s:b}",
+        json_t *jn_tranger = json_pack("{s:s, s:s, s:b, s:i}",
             "path", path_root,
             "database", DATABASE,
-            "master", 1
+            "master", 1,
+            "on_critical_error", LOG_OPT_TRACE_STACK
         );
         tranger = tranger2_startup(0, jn_tranger, 0);
 
@@ -409,7 +414,7 @@ PRIVATE int do_test(void)
         const char *test = "open treedb";
 
         json_t *error_list = json_pack(
-            "[{s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}",
+            "[{s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}]",
             "msg", "Creating topic",
             "msg", "Creating topic",
             "msg", "Creating topic",

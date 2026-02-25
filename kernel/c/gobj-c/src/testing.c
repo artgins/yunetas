@@ -93,8 +93,6 @@ PRIVATE BOOL check_log_result(int current_result)
                 printf("          \"%s\"\n", kw_get_str(0, value, "msg", "?", 0));
             }
             printf("\n");
-        } else {
-            printf("%sX%s", On_Red BWhite,Color_Off);
         }
         return FALSE;
     }
@@ -108,8 +106,6 @@ PRIVATE BOOL check_log_result(int current_result)
                 printf("          \"%s\"\n", kw_get_str(0, value, "msg", "?", 0));
             }
             printf("\n");
-        } else {
-            printf("%sX%s", On_Red BWhite, Color_Off);
         }
         return FALSE;
     }
@@ -428,8 +424,6 @@ PUBLIC int test_json_file(const char *file)
             gobj_trace_json(0, expected, "Record expected");
             gobj_trace_json(0, jn_found, "Record found");
             printf("  <-- %sERROR%s in test: \"%s\"\n", On_Red BWhite, Color_Off, test_name);
-        } else {
-            printf("%sX%s", On_Red BWhite, Color_Off);
         }
     } else {
         if(!check_log_result(result)) {
@@ -476,8 +470,6 @@ PUBLIC int test_json(
                 gobj_trace_json(0, jn_found, "Record found");
             }
             printf("  <-- %sERROR%s in test: \"%s\"\n", On_Red BWhite, Color_Off, test_name);
-        } else {
-            printf("%sX%s", On_Red BWhite, Color_Off);
         }
     } else {
         if(!check_log_result(result)) {
