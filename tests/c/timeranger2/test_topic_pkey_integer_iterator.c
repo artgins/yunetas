@@ -143,7 +143,7 @@ PRIVATE int do_test(void)
             'filename_mask': '%%Y', \
             'xpermission': 1528, \
             'rpermission': 384, \
-            'on_critical_error': 0, \
+            'on_critical_error': 16, \
             'master': true, \
             'gobj': 0, \
             'trace_level': 0, \

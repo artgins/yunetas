@@ -206,7 +206,7 @@ PRIVATE int do_test(void)
             'filename_mask': '%%Y-%%m-%%d', \
             'xpermission': 1528, \
             'rpermission': 432, \
-            'on_critical_error': 0, \
+            'on_critical_error': 16, \
             'master': true, \
             'gobj': 0, \
             'trace_level': 0, \
@@ -284,7 +284,7 @@ PRIVATE int do_test(void)
             'filename_mask': '%%Y-%%m-%%d', \
             'xpermission': 1528, \
             'rpermission': 432, \
-            'on_critical_error': 0, \
+            'on_critical_error': 16, \
             'master': true, \
             'gobj': 0, \
             'trace_level': 0, \
@@ -329,7 +329,7 @@ PRIVATE int do_test(void)
             'filename_mask': '%%Y-%%m-%%d', \
             'xpermission': 1528, \
             'rpermission': 432, \
-            'on_critical_error': 0, \
+            'on_critical_error': 16, \
             'master': false, \
             'gobj': 0, \
             'trace_level': 0, \
