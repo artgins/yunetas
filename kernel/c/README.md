@@ -124,7 +124,7 @@ sudo apt install -y kconfig-frontends ...    # see CLAUDE.md
 # 2. Configure
 menuconfig      # edit .config: compiler, build type, optional modules
 
-# 3. Build external libraries (once, or after compiler change)
+# 3. Configure, build and install external libraries (once, or after compiler change)
 ./set_compiler.sh
 cd kernel/c/linux-ext-libs
 ./extrae.sh && ./configure-libs.sh
@@ -1722,8 +1722,8 @@ Vendored external libraries. Build before the kernel modules:
 
 ```bash
 ./set_compiler.sh           # sync compiler choice from .config
-./extrae.sh                 # extract source archives
-./configure-libs.sh         # build and install to outputs_ext/
+./extrae.sh                 # clone libraries
+./configure-libs.sh         # configure, build and install to outputs_ext/
 
 # For musl/static builds:
 ./extrae-static.sh

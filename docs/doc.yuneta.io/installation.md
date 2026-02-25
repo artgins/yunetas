@@ -266,7 +266,7 @@ Extract, compile and install:
 
     # Version non-static (closely static)
     ./extrae.sh         # clone libraries
-    ./configure-libs.sh # build and install libraries
+    ./configure-libs.sh # configure, build and install libraries
 
     # Version static (ONLY if you want to use MUSL compiler)
     ./extrae-static.sh

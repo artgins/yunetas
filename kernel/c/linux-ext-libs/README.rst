@@ -30,7 +30,7 @@ If you want the libraries be compiled with the same compiler as yuneta, firstly 
 Build with the next scripts::
 
     * extrae.sh             # clone libraries
-    * configure-libs.sh     # build and install libraries
+    * configure-libs.sh     # configure, build and install libraries
     * re-install-libs.sh    # only to re-install libraries
 
 TODO WARNING Functions needed to avoid shared glibc:
