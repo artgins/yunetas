@@ -49,7 +49,7 @@ foreach(test ${SRCS})
     add_yuno_executable(${binary} "main_${test}.c" "c_${test}.c")
 
     target_link_libraries(${binary}
-        ${MQTT_LIBS}
+        ${MODULE_MQTT}
         ${YUNETAS_KERNEL_LIBS}
         ${YUNETAS_EXTERNAL_LIBS}
         ${YUNETAS_PCRE_LIBS}

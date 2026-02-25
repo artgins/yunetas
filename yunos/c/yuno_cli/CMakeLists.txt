@@ -72,7 +72,7 @@ SET (YUNO_HDRS
 add_yuno_executable(${PROJECT_NAME} ${YUNO_SRCS} ${YUNO_HDRS})
 
 target_link_libraries(${PROJECT_NAME}
-    ${CONSOLE_LIBS}
+    ${MODULE_CONSOLE}
     ${YUNETAS_KERNEL_LIBS}
     ${YUNETAS_EXTERNAL_LIBS}
     ${YUNETAS_PCRE_LIBS}

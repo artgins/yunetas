@@ -212,33 +212,33 @@ else()
 endif()
 
 if (CONFIG_MODULE_CONSOLE)
-    set(CONSOLE_LIBS
+    set(MODULE_CONSOLE
         libyunetas-module-console.a
     )
 else()
-    set(CONSOLE_LIBS "")
+    set(MODULE_CONSOLE "")
 endif()
 
 if (CONFIG_MODULE_MQTT)
-    set(MQTT_LIBS
+    set(MODULE_MQTT
         libyunetas-module-mqtt.a
     )
 else()
-    set(MQTT_LIBS "")
+    set(MODULE_MQTT "")
 endif()
 
 if (CONFIG_MODULE_POSTGRES)
-    set(POSTGRES_LIBS
+    set(MODULE_POSTGRES
         libyunetas-module-postgres.a
     )
 else()
-    set(POSTGRES_LIBS "")
+    set(MODULE_POSTGRES "")
 endif()
 
 if (CONFIG_MODULE_TEST)
-    set(TEST_LIBS
+    set(MODULE_TEST
         libyunetas-module-test.a
     )
 else()
-    set(TEST_LIBS "")
+    set(MODULE_TEST "")
 endif()

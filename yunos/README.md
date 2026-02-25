@@ -410,9 +410,9 @@ All yunos link the standard kernel libraries. Additional per-yuno dependencies:
 
 | Yuno | Extra libraries |
 |------|----------------|
-| mqtt_broker | `${MQTT_LIBS}` |
-| mqtt_tui | `${CONSOLE_LIBS}`, `${MQTT_LIBS}`, `panel.a`, `ncurses.a` |
-| ycli | `${CONSOLE_LIBS}`, `panel.a`, `ncurses.a` |
+| mqtt_broker | `${MODULE_MQTT}` |
+| mqtt_tui | `${MODULE_CONSOLE}`, `${MODULE_MQTT}`, `panel.a`, `ncurses.a` |
+| ycli | `${MODULE_CONSOLE}`, `panel.a`, `ncurses.a` |
 | emailsender | `${CURL_LIBRARIES}` |
 | dba_postgres | `libyunetas-c_postgres.a`, `pq` |
 

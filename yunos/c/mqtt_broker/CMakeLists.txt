@@ -49,7 +49,7 @@ SET (YUNO_HDRS
 add_yuno_executable(${PROJECT_NAME} ${YUNO_SRCS} ${YUNO_HDRS})
 
 target_link_libraries(${PROJECT_NAME}
-    ${MQTT_LIBS}
+    ${MODULE_MQTT}
     ${YUNETAS_KERNEL_LIBS}
     ${YUNETAS_EXTERNAL_LIBS}
     ${YUNETAS_PCRE_LIBS}

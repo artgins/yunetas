@@ -173,7 +173,7 @@ install(TARGETS ${PROJECT_NAME} DESTINATION ${LIB_DEST_DIR})
 add_yuno_executable(${PROJECT_NAME} ${YUNO_SRCS} ${YUNO_HDRS})
 
 target_link_libraries(${PROJECT_NAME}
-    ${MQTT_LIBS}                # conditional module libs as needed
+    ${MODULE_MQTT}                # conditional module libs as needed
     ${YUNETAS_KERNEL_LIBS}      # always
     ${YUNETAS_EXTERNAL_LIBS}    # always
     ${YUNETAS_PCRE_LIBS}        # always
