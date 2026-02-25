@@ -163,7 +163,7 @@ PRIVATE int do_test(void)
         "path", path_root,
         "database", DATABASE,
         "master", 1,
-        "on_critical_error", 0
+        "on_critical_error", LOG_OPT_TRACE_STACK
     );
     json_t *tranger = tranger2_startup(0, jn_tranger, 0);
 

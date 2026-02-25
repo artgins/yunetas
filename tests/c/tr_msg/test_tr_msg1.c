@@ -910,7 +910,7 @@ PRIVATE int do_test(void)
         "path", path_root,
         "database", DATABASE,
         "master", 1,
-        "on_critical_error", 0,
+        "on_critical_error", LOG_OPT_TRACE_STACK,
         "filename_mask", "%Y",
         "xpermission" , 02770,
         "rpermission", 0600,
