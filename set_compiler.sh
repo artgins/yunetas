@@ -78,8 +78,8 @@ register_and_set() {
         sudo update-alternatives --install "$alt_link" "$alt" "$path" 100
     fi
 
-    echo "✅ Setting $alt to $path"
     sudo update-alternatives --set "$alt" "$path"
+    echo "✅ Setting $alt to $path"
 }
 
 # Register and set for cc and gcc
@@ -87,3 +87,5 @@ register_and_set cc "$CC_PATH"
 
 echo "🧪 Compiler links:"
 echo "  cc  -> $(cc --version)"
+
+printf "\n❗\033[1;31mREMEMBER\033[0m❗: Now you must execute \033[1;33myunetas init\033[0m\n\n"
