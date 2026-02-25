@@ -29,9 +29,9 @@ the libraries are cloned, compiled and deployed in own yuneta's directories and 
 If you want the libraries be compiled with the same compiler as yuneta, firstly execute `menuconfig`, select the compiler, and execute the script `set-compiler.sh`.
 Build with the next scripts::
 
-    * extrae.sh
-    * configure-libs.sh
-    * install-libs.sh
+    * extrae.sh             # clone libraries
+    * configure-libs.sh     # build and install libraries
+    * install-libs.sh       # only to re-install libraries
 
 TODO WARNING Functions needed to avoid shared glibc:
 ----------------------------------------------------
