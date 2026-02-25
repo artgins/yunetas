@@ -45,7 +45,6 @@ source yunetas-env.sh
 cd kernel/c/linux-ext-libs
 ./extrae.sh             # extract sources
 ./configure-libs.sh     # build and install into outputs_ext/
-./re-install-libs.sh    # re-install into outputs_ext/
 cd ../../..
 
 # 7. Initialize build directories and generate headers
@@ -111,7 +110,6 @@ External libraries live in `kernel/c/linux-ext-libs/`. They must be extracted an
 cd kernel/c/linux-ext-libs
 ./extrae.sh             # extract sources
 ./configure-libs.sh     # build and install into outputs_ext/
-./re-install-libs.sh    # re-install into outputs_ext/
 
 ```
 
