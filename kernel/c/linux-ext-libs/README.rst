@@ -31,7 +31,7 @@ Build with the next scripts::
 
     * extrae.sh             # clone libraries
     * configure-libs.sh     # build and install libraries
-    * install-libs.sh       # only to re-install libraries
+    * re-install-libs.sh    # only to re-install libraries
 
 TODO WARNING Functions needed to avoid shared glibc:
 ----------------------------------------------------

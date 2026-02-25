@@ -121,13 +121,13 @@ See the top-level [CLAUDE.md](../../CLAUDE.md) for full build instructions. Summ
 # 1. Install system dependencies (once)
 sudo apt install -y kconfig-frontends ...    # see CLAUDE.md
 
-# 2. Build external libraries (once, or after compiler change)
+# 2. Configure
+menuconfig      # edit .config: compiler, build type, optional modules
+
+# 3. Build external libraries (once, or after compiler change)
 ./set_compiler.sh
 cd kernel/c/linux-ext-libs
-./extrae.sh && ./install-libs.sh
-
-# 3. Configure
-menuconfig      # edit .config: compiler, build type, optional modules
+./extrae.sh && ./configure-libs.sh
 
 # 4. Initialize (first time or after .config change)
 yunetas init    # generates yuneta_version.h, yuneta_config.h, cmake build dirs
@@ -1724,11 +1724,11 @@ Vendored external libraries. Build before the kernel modules:
 ```bash
 ./set_compiler.sh           # sync compiler choice from .config
 ./extrae.sh                 # extract source archives
-./install-libs.sh           # build and install to outputs_ext/
+./configure-libs.sh         # build and install to outputs_ext/
 
 # For musl/static builds:
 ./extrae-static.sh
-./install-libs-static.sh
+./configure-libs-static.sh
 ```
 
 Includes: **jansson** (JSON), **OpenSSL** (TLS/crypto), **liburing** (io_uring), and others.
@@ -1874,7 +1874,8 @@ kernel/c/
 ├── README.md                        ← this file
 ├── linux-ext-libs/                  ← external library sources and build scripts
 │   ├── extrae.sh / extrae-static.sh
-│   ├── install-libs.sh / install-libs-static.sh
+│   ├── configure-libs.sh / configure-libs-static.sh
+│   ├── re-install-libs.sh / reinstall-libs-static.sh
 │   └── sources/
 │
 ├── gobj-c/src/                      ← GObject framework (~12K-line core)
