@@ -85,6 +85,8 @@ static char args_doc[] = "PATH";
 static struct argp_option options[] = {
 /*-name-----------------key-----arg-----------------flags---doc-----------------group */
 {0,                     0,      0,                  0,      "Database",         2},
+{"database",            'b',    "DATABASE",         0,      "Database.",        2},
+{"topic",               'c',    "TOPIC",            0,      "Topic.",           2},
 {"ids",                 'i',    "ID",               0,      "Id or list of id's.",2},
 {"recursive",           'r',    0,                  0,      "List recursively.",  2},
 
@@ -104,9 +106,6 @@ static error_t parse_opt (int key, char *arg, struct argp_state *state)
     struct arguments *arguments = state->input;
 
     switch (key) {
-    case 'a':
-        arguments->path= arg;
-        break;
     case 'b':
         arguments->database= arg;
         break;
