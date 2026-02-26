@@ -47,8 +47,6 @@ struct arguments {
     char *args[MAX_ARGS+1];     /* positional args */
 
     char *path;
-    char *database;
-    char *topic;
     int recursive;
     char *mode;
     char *fields;
@@ -96,7 +94,6 @@ static char args_doc[] = "PATH";
 static struct argp_option options[] = {
 /*-name-----------------key-----arg-----------------flags---doc-----------------group */
 {0,                     0,      0,                  0,      "Database",         2},
-//{"topic",               'c',    "TOPIC",            0,      "Topic name.",      2},
 {"recursive",           'r',    0,                  0,      "List recursively.",  2},
 {"print-local-time",    't',    0,                  0,      "Print in local time", 2},
 
@@ -142,9 +139,6 @@ static error_t parse_opt(int key, char *arg, struct argp_state *state)
     struct arguments *arguments_ = state->input;
 
     switch (key) {
-    case 'c':
-        arguments_->topic= arg;
-        break;
     case 'r':
         arguments_->recursive = 1;
         break;
