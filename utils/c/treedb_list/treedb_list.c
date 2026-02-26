@@ -373,7 +373,7 @@ PRIVATE int list_messages(
         );
     }
 
-    char database_name[NAME_MAX];
+    char database_name[NAME_MAX+50];
     snprintf(database_name, sizeof(database_name), "%s.treedb_schema.json", db_name);
     if(file_exists(path_tranger, database_name)) {
         char *p = strstr(database_name, ".treedb_schema.json");
