@@ -399,7 +399,6 @@ PRIVATE int _list_messages(
     const char *topic_name)
 {
     hgobj gobj = 0;
-    char title[1024];
 
     /*-------------------------------*
      *  Startup TimeRanger
@@ -768,10 +767,13 @@ int main(int argc, char *argv[])
     }
 
     /*----------------------------------*
-     *  Options
+     *          Options
      *----------------------------------*/
-    jn_options = 0;
+    jn_options = json_pack("{s:b}", "with_metadata", TRUE);
 
+    /*----------------------------------*
+     *          Get path
+     *----------------------------------*/
     char path[PATH_MAX];
     delete_right_slash(arguments.path);
     if(arguments.path[0] != '/' && arguments.path[0] != '.') {
