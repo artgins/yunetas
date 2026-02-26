@@ -107,7 +107,7 @@ PRIVATE json_t *_list_children(
 /***************************************************************
  *              Data
  ***************************************************************/
-PRIVATE json_t *topic_cols_desc = 0;
+PRIVATE json_t *topic_cols_desc = 0; // HACK incref/decref by each treedb_open_db/treedb_close_db
 PRIVATE BOOL treedb_trace = 0;
 
 /***************************************************************************
@@ -1247,7 +1247,7 @@ PUBLIC int treedb_close_db(
     json_t *treedb = kw_get_subdict_value(gobj, tranger, "treedbs", treedb_name, 0, KW_EXTRACT);
     json_decref(treedb);  // Don't use JSON_DECREF
 
-    json_decref(topic_cols_desc);
+    json_decref(topic_cols_desc); // Don't use JSON_DECREF
     return ret;
 }
 
