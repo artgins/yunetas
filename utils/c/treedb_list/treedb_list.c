@@ -189,6 +189,7 @@ int total_counter = 0;
 int partial_counter = 0;
 json_t *jn_filter = 0;
 json_t *jn_options = 0;
+const char **list_fields = 0;
 BOOL table_mode = FALSE;
 
 /***************************************************************************
@@ -447,6 +448,8 @@ PRIVATE int _list_messages(
                 }
             }
 
+            printf("%s%s%s\n", On_Yellow BIWhite, topic_name_, Color_Off);
+
             json_t *cols = tranger2_dict_topic_desc_cols(tranger, topic_name_);
 
             BOOL first_time = TRUE;
@@ -478,10 +481,13 @@ PRIVATE int _list_messages(
                             if(*key == '_') {
                                 continue;
                             }
-                            len = (int)kw_get_int(gobj, desc, "fillspace", (int)strlen(key), 0);
-                            if(len > 20) {
-                                len = 20;
+                            if(list_fields) {
+                                if(!str_in_list(list_fields, key, FALSE)) {
+                                    continue;
+                                }
                             }
+
+                            len = (int)kw_get_int(gobj, desc, "fillspace", (int)strlen(key), 0);
                             if(col == 0) {
                                 printf("%-*.*s", len, len, key);
                             } else {
@@ -495,10 +501,12 @@ PRIVATE int _list_messages(
                             if(*key == '_') {
                                 continue;
                             }
-                            len = (int)kw_get_int(gobj, desc, "fillspace", (int)strlen(key), 0);
-                            if(len > 20) {
-                                len = 20;
+                            if(list_fields) {
+                                if(!str_in_list(list_fields, key, FALSE)) {
+                                    continue;
+                                }
                             }
+                            len = (int)kw_get_int(gobj, desc, "fillspace", (int)strlen(key), 0);
                             if(col == 0) {
                                 printf("%*.*s", len, len, "=======================================");
                             } else {
@@ -510,16 +518,16 @@ PRIVATE int _list_messages(
                     }
                     col = 0;
 
-                    printf("%s ", title);
-
                     json_object_foreach(cols, key, desc) {
                         if(*key == '_') {
                             continue;
                         }
-                        len = (int)kw_get_int(gobj, desc, "fillspace", (int)strlen(key), 0);
-                        if(len > 20) {
-                            len = 20;
+                        if(list_fields) {
+                            if(!str_in_list(list_fields, key, FALSE)) {
+                                continue;
+                            }
                         }
+                        len = (int)kw_get_int(gobj, desc, "fillspace", (int)strlen(key), 0);
                         json_t *jn_value = kw_get_dict_value(gobj, jn_record, key, 0, 0);
                         char *s = json2uglystr(jn_value);
                         if(col == 0) {
@@ -538,6 +546,7 @@ PRIVATE int _list_messages(
 
                 total_counter++;
                 partial_counter++;
+                printf("\n");
             }
 
             json_decref(cols);
@@ -741,6 +750,7 @@ int main(int argc, char *argv[])
         }
     }
     if(!empty_string(arguments.fields)) {
+        list_fields = split2(arguments.fields, ", ", 0);
         table_mode = TRUE;
     }
 
@@ -819,6 +829,7 @@ int main(int argc, char *argv[])
     }
     JSON_DECREF(jn_filter);
     JSON_DECREF(jn_options);
+    split_free2(list_fields);
 
     yev_loop_stop(yev_loop);
     yev_loop_destroy(yev_loop);
