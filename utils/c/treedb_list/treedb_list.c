@@ -43,14 +43,6 @@
 /***************************************************************************
  *              Structures
  ***************************************************************************/
-typedef struct {
-    char path[PATH_MAX];
-    char database[PATH_MAX];
-    char topic[NAME_MAX];
-    json_t *jn_filter;
-    json_t *jn_options;
-    int verbose;
-} list_params_t;
 
 /***************************************************************************
  *              Arguments
@@ -193,6 +185,9 @@ yev_loop_h yev_loop;
 int time2exit = 10;
 int total_counter = 0;
 int partial_counter = 0;
+json_t *jn_filter = 0;
+json_t *jn_options = 0;
+int verbose;
 
 /***************************************************************************
  *
@@ -404,56 +399,56 @@ PRIVATE int list_messages(
 /***************************************************************************
  *
  ***************************************************************************/
-PRIVATE BOOL list_recursive_db_cb(
-    hgobj gobj,
-    void *user_data,
-    wd_found_type type,     // type found
-    char *fullpath,         // directory+filename found
-    const char *directory,  // directory of found filename
-    char *name,             // dname[255]
-    int level,              // level of tree where file found
-    wd_option opt           // option parameter
-)
-{
-    list_params_t *list_params = user_data;
-    list_params_t list_params2 = *list_params;
-
-    char *p = strstr(name, ".treedb_schema.json");
-    if(p) {
-        *p = 0;
-    }
-
-    snprintf(list_params2.path, sizeof(list_params2.path), "%s", directory);
-    snprintf(list_params2.database, sizeof(list_params2.database), "%s", name);
-
-    partial_counter = 0;
-    _list_messages(
-        list_params2.path,
-        list_params2.database,
-        list_params2.topic,
-        list_params2.jn_filter,
-        list_params2.jn_options,
-        list_params2.verbose
-    );
-
-    printf("====> %s: %d records\n\n", name, partial_counter);
-
-    return TRUE; // to continue
-}
-
-PRIVATE int list_recursive_databases(list_params_t *list_params)
-{
-    walk_dir_tree(
-        0,
-        list_params->path,
-        ".*\\.treedb_schema\\.json",
-        WD_RECURSIVE|WD_MATCH_REGULAR_FILE,
-        list_recursive_db_cb,
-        list_params
-    );
-
-    return 0;
-}
+// PRIVATE BOOL list_recursive_db_cb(
+//     hgobj gobj,
+//     void *user_data,
+//     wd_found_type type,     // type found
+//     char *fullpath,         // directory+filename found
+//     const char *directory,  // directory of found filename
+//     char *name,             // dname[255]
+//     int level,              // level of tree where file found
+//     wd_option opt           // option parameter
+// )
+// {
+//     // list_params_t *list_params = user_data;
+//     // list_params_t list_params2 = *list_params;
+//     //
+//     // char *p = strstr(name, ".treedb_schema.json");
+//     // if(p) {
+//     //     *p = 0;
+//     // }
+//     //
+//     // snprintf(list_params2.path, sizeof(list_params2.path), "%s", directory);
+//     // snprintf(list_params2.database, sizeof(list_params2.database), "%s", name);
+//     //
+//     // partial_counter = 0;
+//     // _list_messages(
+//     //     list_params2.path,
+//     //     list_params2.database,
+//     //     list_params2.topic,
+//     //     list_params2.jn_filter,
+//     //     list_params2.jn_options,
+//     //     list_params2.verbose
+//     // );
+//     //
+//     // printf("====> %s: %d records\n\n", name, partial_counter);
+//     //
+//     return TRUE; // to continue
+// }
+//
+// PRIVATE int list_recursive_databases(list_params_t *list_params)
+// {
+//     walk_dir_tree(
+//         0,
+//         list_params->path,
+//         ".*\\.treedb_schema\\.json",
+//         WD_RECURSIVE|WD_MATCH_REGULAR_FILE,
+//         list_recursive_db_cb,
+//         list_params
+//     );
+//
+//     return 0;
+// }
 
 /***************************************************************************
  *
@@ -466,22 +461,22 @@ PRIVATE int list_recursive_msg(
     json_t *jn_options,
     int verbose)
 {
-    list_params_t list_params;
-    memset(&list_params, 0, sizeof(list_params));
-
-    snprintf(list_params.path, sizeof(list_params.path), "%s", path);
-    if(!empty_string(database)) {
-        snprintf(list_params.database, sizeof(list_params.database), "%s", database);
-    }
-    if(!empty_string(topic)) {
-        snprintf(list_params.topic, sizeof(list_params.topic), "%s", topic);
-    }
-    list_params.jn_filter = jn_filter;
-    list_params.jn_options = jn_options;
-
-    list_params.verbose = verbose;
-
-    return list_recursive_databases(&list_params);
+    // list_params_t list_params;
+    // memset(&list_params, 0, sizeof(list_params));
+    //
+    // snprintf(list_params.path, sizeof(list_params.path), "%s", path);
+    // if(!empty_string(database)) {
+    //     snprintf(list_params.database, sizeof(list_params.database), "%s", database);
+    // }
+    // if(!empty_string(topic)) {
+    //     snprintf(list_params.topic, sizeof(list_params.topic), "%s", topic);
+    // }
+    // list_params.jn_filter = jn_filter;
+    // list_params.jn_options = jn_options;
+    //
+    // list_params.verbose = verbose;
+    //
+    // return list_recursive_databases(&list_params);
 }
 
 /***************************************************************************
@@ -587,7 +582,7 @@ int main(int argc, char *argv[])
     /*----------------------------------*
      *  Ids
      *----------------------------------*/
-    json_t *jn_filter = json_array();
+    jn_filter = json_array();
     if(arguments.id) {
         int list_size;
         const char **ss = split2(arguments.id, ", ", &list_size);
@@ -600,7 +595,7 @@ int main(int argc, char *argv[])
     /*----------------------------------*
      *  Options
      *----------------------------------*/
-    json_t *jn_options = 0; //json_object();
+    jn_options = 0; //json_object();
 //     if(!arguments.expand_nodes) {
 //         json_object_set_new(
 //             jn_options,
