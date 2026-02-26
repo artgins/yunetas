@@ -756,13 +756,15 @@ int main(int argc, char *argv[])
     /*----------------------------------*
      *  Ids
      *----------------------------------*/
-    jn_filter = json_array();
+    jn_filter = json_object();
     if(arguments.id) {
         int list_size;
         const char **ss = split2(arguments.id, ", ", &list_size);
+        json_t *jn_ids = json_array();
         for(int i=0; i<list_size; i++) {
-            json_array_append_new(jn_filter, json_string(ss[i]));
+            json_array_append_new(jn_ids, json_string(ss[i]));
         }
+        json_object_set_new(jn_filter, "id", jn_ids);
         split_free2(ss);
     }
 
