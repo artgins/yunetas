@@ -399,56 +399,58 @@ PRIVATE int list_messages(
 /***************************************************************************
  *
  ***************************************************************************/
-// PRIVATE BOOL list_recursive_db_cb(
-//     hgobj gobj,
-//     void *user_data,
-//     wd_found_type type,     // type found
-//     char *fullpath,         // directory+filename found
-//     const char *directory,  // directory of found filename
-//     char *name,             // dname[255]
-//     int level,              // level of tree where file found
-//     wd_option opt           // option parameter
-// )
-// {
-//     // list_params_t *list_params = user_data;
-//     // list_params_t list_params2 = *list_params;
-//     //
-//     // char *p = strstr(name, ".treedb_schema.json");
-//     // if(p) {
-//     //     *p = 0;
-//     // }
-//     //
-//     // snprintf(list_params2.path, sizeof(list_params2.path), "%s", directory);
-//     // snprintf(list_params2.database, sizeof(list_params2.database), "%s", name);
-//     //
-//     // partial_counter = 0;
-//     // _list_messages(
-//     //     list_params2.path,
-//     //     list_params2.database,
-//     //     list_params2.topic,
-//     //     list_params2.jn_filter,
-//     //     list_params2.jn_options,
-//     //     list_params2.verbose
-//     // );
-//     //
-//     // printf("====> %s: %d records\n\n", name, partial_counter);
-//     //
-//     return TRUE; // to continue
-// }
-//
-// PRIVATE int list_recursive_databases(list_params_t *list_params)
-// {
-//     walk_dir_tree(
-//         0,
-//         list_params->path,
-//         ".*\\.treedb_schema\\.json",
-//         WD_RECURSIVE|WD_MATCH_REGULAR_FILE,
-//         list_recursive_db_cb,
-//         list_params
-//     );
-//
-//     return 0;
-// }
+PRIVATE BOOL list_recursive_db_cb(
+    hgobj gobj,
+    void *user_data,
+    wd_found_type type,     // type found
+    char *fullpath,         // directory+filename found
+    const char *directory,  // directory of found filename
+    char *name,             // dname[255]
+    int level,              // level of tree where file found
+    wd_option opt           // option parameter
+)
+{
+    // TODO restore
+
+    // list_params_t *list_params = user_data;
+    // list_params_t list_params2 = *list_params;
+    //
+    // char *p = strstr(name, ".treedb_schema.json");
+    // if(p) {
+    //     *p = 0;
+    // }
+    //
+    // snprintf(list_params2.path, sizeof(list_params2.path), "%s", directory);
+    // snprintf(list_params2.database, sizeof(list_params2.database), "%s", name);
+    //
+    // partial_counter = 0;
+    // _list_messages(
+    //     list_params2.path,
+    //     list_params2.database,
+    //     list_params2.topic,
+    //     list_params2.jn_filter,
+    //     list_params2.jn_options,
+    //     list_params2.verbose
+    // );
+    //
+    // printf("====> %s: %d records\n\n", name, partial_counter);
+    //
+    return TRUE; // to continue
+}
+
+PRIVATE int list_recursive_databases(const char *path)
+{
+    walk_dir_tree(
+        0,
+        path,
+        ".*\\.treedb_schema\\.json",
+        WD_RECURSIVE|WD_MATCH_REGULAR_FILE,
+        list_recursive_db_cb,
+        0
+    );
+
+    return 0;
+}
 
 /***************************************************************************
  *
@@ -461,6 +463,7 @@ PRIVATE int list_recursive_msg(
     json_t *jn_options,
     int verbose)
 {
+    // TODO restore
     // list_params_t list_params;
     // memset(&list_params, 0, sizeof(list_params));
     //
