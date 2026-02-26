@@ -215,6 +215,163 @@ PRIVATE int list_databases(const char *path)
 }
 
 /***************************************************************************
+ *  Helper: callback for auto-discovering the treedb schema file
+ ***************************************************************************/
+typedef struct {
+    char treedb_name[NAME_MAX];
+    int count;
+} find_schema_t;
+
+PRIVATE BOOL find_schema_cb(
+    hgobj gobj,
+    void *user_data,
+    wd_found_type type,
+    char *fullpath,
+    const char *directory,
+    char *name,
+    int level,
+    wd_option opt
+)
+{
+    find_schema_t *fs = (find_schema_t *)user_data;
+    fs->count++;
+    if(fs->count == 1) {
+        snprintf(fs->treedb_name, sizeof(fs->treedb_name), "%s", name);
+        char *p = strstr(fs->treedb_name, ".treedb_schema.json");
+        if(p) {
+            *p = 0;
+        }
+    }
+    return TRUE; // continue to count all
+}
+
+/***************************************************************************
+ *  Resolve the tranger path, treedb database name, and topic
+ *  from the user-supplied program parameters.
+ *
+ *  path:     always filled (positional argument from user)
+ *  database: can be empty (-b option)
+ *  topic:    can be empty (-c option)
+ *
+ *  If database or topic is empty, deduce from path knowing that:
+ *    - A topic directory contains topic_desc.json
+ *    - A treedb root contains __timeranger2__.json
+ *      and {treedb_name}.treedb_schema.json
+ *
+ *  On success (return 0):
+ *    resolved_path     = tranger root directory (PATH_MAX buffer)
+ *    resolved_database = treedb name without suffix (NAME_MAX buffer)
+ *    resolved_topic    = topic name (NAME_MAX buffer, may be empty)
+ *
+ *  Returns -1 on failure (with error printed to stderr).
+ ***************************************************************************/
+PRIVATE int resolve_treedb_path(
+    const char *path,
+    const char *database,
+    const char *topic,
+    char *resolved_path,
+    char *resolved_database,
+    char *resolved_topic
+)
+{
+    snprintf(resolved_path, PATH_MAX, "%s", path);
+    resolved_database[0] = '\0';
+    resolved_topic[0] = '\0';
+
+    /*
+     *  Copy provided values, normalizing database name
+     */
+    if(!empty_string(topic)) {
+        snprintf(resolved_topic, NAME_MAX, "%s", topic);
+    }
+    if(!empty_string(database)) {
+        snprintf(resolved_database, NAME_MAX, "%s", database);
+        char *p = strstr(resolved_database, ".treedb_schema.json");
+        if(p) {
+            *p = 0;
+        }
+    }
+
+    /*
+     *  Step 1: If topic is empty, check if path ends at a topic directory
+     */
+    if(empty_string(resolved_topic) && file_exists(resolved_path, "topic_desc.json")) {
+        const char *segment = pop_last_segment(resolved_path);
+        snprintf(resolved_topic, NAME_MAX, "%s", segment);
+    }
+
+    /*
+     *  Step 2: Find the tranger root (directory with __timeranger2__.json)
+     */
+    if(!file_exists(resolved_path, "__timeranger2__.json")) {
+        /*
+         *  Not at tranger root — try popping one segment
+         *  (could be a database or schema name embedded in the path)
+         */
+        if(empty_string(resolved_database)) {
+            const char *segment = pop_last_segment(resolved_path);
+            if(!empty_string(segment)) {
+                snprintf(resolved_database, NAME_MAX, "%s", segment);
+                char *p = strstr(resolved_database, ".treedb_schema.json");
+                if(p) {
+                    *p = 0;
+                }
+            }
+        }
+        if(!file_exists(resolved_path, "__timeranger2__.json")) {
+            fprintf(stderr, "Cannot find timeranger2 database in '%s'\n\n", path);
+            list_databases(resolved_path);
+            return -1;
+        }
+    }
+
+    if(!is_directory(resolved_path)) {
+        fprintf(stderr, "Directory '%s' not found\n\n", resolved_path);
+        return -1;
+    }
+
+    /*
+     *  Step 3: If database still empty, auto-discover from schema files
+     */
+    if(empty_string(resolved_database)) {
+        find_schema_t fs;
+        memset(&fs, 0, sizeof(fs));
+        walk_dir_tree(
+            0,
+            resolved_path,
+            ".*\\.treedb_schema\\.json",
+            WD_MATCH_REGULAR_FILE,
+            find_schema_cb,
+            &fs
+        );
+        if(fs.count == 0) {
+            fprintf(stderr, "No treedb database found in '%s'\n\n", resolved_path);
+            return -1;
+        }
+        if(fs.count > 1) {
+            fprintf(stderr, "Multiple treedb databases found, specify --database\n\n");
+            list_databases(resolved_path);
+            return -1;
+        }
+        snprintf(resolved_database, NAME_MAX, "%s", fs.treedb_name);
+    } else {
+        /*
+         *  Validate that the database schema file exists
+         */
+        char schema_file[NAME_MAX + 50];
+        snprintf(schema_file, sizeof(schema_file), "%s.treedb_schema.json", resolved_database);
+        if(!file_exists(resolved_path, schema_file)) {
+            fprintf(stderr, "Database '%s' not found in '%s'\n\n",
+                resolved_database, resolved_path);
+            list_databases(resolved_path);
+            return -1;
+        }
+    }
+
+    return 0;
+}
+
+/***************************************************************************
  *  Open a tranger database at path, open the named treedb,
  *  and list its records.
  ***************************************************************************/
@@ -313,76 +470,25 @@ PRIVATE int _list_messages(
 }
 
 /***************************************************************************
- *  Resolve the tranger path and treedb database name from the
- *  user-supplied path, then list the treedb records.
+ *  Resolve path/database/topic and list treedb records.
  ***************************************************************************/
 PRIVATE int list_messages(
     const char *path,
     const char *database,
     const char *topic)
 {
-    /*
-     *  Check if path is a tranger directory
-     */
-    char path_tranger[PATH_MAX];
-    snprintf(path_tranger, sizeof(path_tranger), "%s", path);
+    char resolved_path[PATH_MAX];
+    char resolved_database[NAME_MAX];
+    char resolved_topic[NAME_MAX];
 
-    char db_name[NAME_MAX];
-    if(database) {
-        snprintf(db_name, sizeof(db_name), "%s", database);
-    } else {
-        db_name[0] = '\0';
-    }
-
-    if(!file_exists(path_tranger, "__timeranger__.json")) {
-        const char *segment = pop_last_segment(path_tranger);
-        snprintf(db_name, sizeof(db_name), "%s", segment);
-        if(!file_exists(path_tranger, "__timeranger__.json")) {
-            fprintf(stderr, "What Database?\n\n");
-            list_databases(path_tranger);
-            exit(-1);
-        }
-    }
-
-    if(!is_directory(path_tranger)) {
-        fprintf(stderr, "Directory '%s' not found\n\n", path_tranger);
-        exit(-1);
-    }
-    if(empty_string(db_name)) {
-        fprintf(stderr, "What Database?\n\n");
-        list_databases(path_tranger);
+    if(resolve_treedb_path(
+        path, database, topic,
+        resolved_path, resolved_database, resolved_topic
+    ) != 0) {
         exit(-1);
     }
 
-    if(file_exists(path_tranger, db_name)) {
-        char *p = strstr(db_name, ".treedb_schema.json");
-        if(p) {
-            *p = 0;
-        }
-        return _list_messages(
-            path_tranger,
-            db_name,
-            topic
-        );
-    }
-
-    char database_name[NAME_MAX+50];
-    snprintf(database_name, sizeof(database_name), "%s.treedb_schema.json", db_name);
-    if(file_exists(path_tranger, database_name)) {
-        char *p = strstr(database_name, ".treedb_schema.json");
-        if(p) {
-            *p = 0;
-        }
-        return _list_messages(
-            path_tranger,
-            database_name,
-            topic
-        );
-    }
-
-    fprintf(stderr, "What Database?\n\n");
-    list_databases(path_tranger);
-    exit(-1);
+    return _list_messages(resolved_path, resolved_database, resolved_topic);
 }
 
 /***************************************************************************
@@ -435,19 +541,6 @@ PRIVATE int list_recursive_databases(const char *path, const char *topic)
     );
 
     return 0;
-}
-
-/***************************************************************************
- *
- ***************************************************************************/
-PRIVATE int list_recursive_msg(
-    const char *path,
-    const char *database,
-    const char *topic,
-    json_t *jn_filter,
-    json_t *jn_options)
-{
-    return list_recursive_databases(path, topic);
 }
 
 /***************************************************************************
@@ -612,12 +705,9 @@ int main(int argc, char *argv[])
     );
 
     if(arguments.recursive) {
-        list_recursive_msg(
+        list_recursive_databases(
             arguments.path,
-            arguments.database,
-            arguments.topic,
-            jn_filter,
-            jn_options
+            arguments.topic
         );
     } else {
         list_messages(
