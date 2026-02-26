@@ -221,9 +221,7 @@ PRIVATE int list_databases(const char *path)
 PRIVATE int _list_messages(
     const char *path,
     const char *treedb_name,
-    const char *topic,
-    json_t *jn_filter,
-    json_t *jn_options)
+    const char *topic)
 {
     hgobj gobj = 0;
     /*-------------------------------*
@@ -321,9 +319,7 @@ PRIVATE int _list_messages(
 PRIVATE int list_messages(
     const char *path,
     const char *database,
-    const char *topic,
-    json_t *jn_filter,
-    json_t *jn_options)
+    const char *topic)
 {
     /*
      *  Check if path is a tranger directory
@@ -366,9 +362,7 @@ PRIVATE int list_messages(
         return _list_messages(
             path_tranger,
             db_name,
-            topic,
-            jn_filter,
-            jn_options
+            topic
         );
     }
 
@@ -382,9 +376,7 @@ PRIVATE int list_messages(
         return _list_messages(
             path_tranger,
             database_name,
-            topic,
-            jn_filter,
-            jn_options
+            topic
         );
     }
 
@@ -423,9 +415,7 @@ PRIVATE BOOL list_recursive_db_cb(
     _list_messages(
         directory,
         treedb_name,
-        topic,
-        jn_filter,
-        jn_options
+        topic
     );
 
     printf("====> %s: %d records\n\n", treedb_name, partial_counter);
@@ -633,9 +623,7 @@ int main(int argc, char *argv[])
         list_messages(
             arguments.path,
             arguments.database,
-            arguments.topic,
-            jn_filter,
-            jn_options
+            arguments.topic
         );
     }
     JSON_DECREF(jn_filter);
