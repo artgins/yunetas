@@ -59,8 +59,6 @@ struct arguments
     char *args[MAX_ARGS+1];     /* positional args */
 
     char *path;
-    char *database;
-    char *topic;
     int recursive;
     char *mode;
     char *fields;
@@ -93,11 +91,6 @@ struct arguments
 
     int list_databases;
 };
-
-typedef struct {
-    struct arguments *arguments;
-    json_t *match_cond;
-} list_params_t;
 
 const char *argp_program_version = APP " " VERSION;
 const char *argp_program_bug_address = SUPPORT;
@@ -161,12 +154,6 @@ static error_t parse_opt (int key, char *arg, struct argp_state *state)
     switch (key) {
     case 'a':
         arguments_->path= arg;
-        break;
-    case 'b':
-        arguments_->database= arg;
-        break;
-    case 'c':
-        arguments_->topic= arg;
         break;
     case 'r':
         arguments_->recursive = 1;
@@ -282,6 +269,10 @@ struct arguments arguments;
  ***************************************************************************/
 PRIVATE void yuno_catch_signals(void);
 PRIVATE int list_topics(const char *path);
+PRIVATE int list_messages(const char *path, const char *database, const char *topic);
+PRIVATE int search_topics(const char *path, const char *topic_filter);
+PRIVATE int search_by_databases(const char *path, const char *topic_filter);
+PRIVATE int search_by_paths(const char *input_path, const char *topic_filter);
 
 /***************************************************************************
  *      Data
@@ -536,44 +527,38 @@ PRIVATE int load_record_callback(
 }
 
 /***************************************************************************
- *
+ *  Open a tranger database at path/database, open the given topic,
+ *  and search its records according to match_cond.
  ***************************************************************************/
-PRIVATE int list_messages(void)
+PRIVATE int list_messages(const char *path, const char *database, const char *topic)
 {
-    if(empty_string(arguments.topic)) {
-        arguments.topic = pop_last_segment(arguments.path);
-        if(empty_string(arguments.database)) {
-            arguments.database = pop_last_segment(arguments.path);
-        }
-    }
-
     /*-------------------------------*
      *      Startup TimeRanger
      *-------------------------------*/
     json_t *jn_tranger = json_pack("{s:s, s:s}",
-        "path", arguments.path,
-        "database", arguments.database
+        "path", path,
+        "database", database
     );
 
-    json_t * tranger = tranger2_startup(0, jn_tranger, 0);
+    json_t *tranger = tranger2_startup(0, jn_tranger, 0);
     if(!tranger) {
-        fprintf(stderr, "Can't startup tranger %s/%s\n\n", arguments.path, arguments.database);
+        fprintf(stderr, "Can't startup tranger %s/%s\n\n", path, database);
         exit(-1);
     }
 
     /*-------------------------------*
      *  Open topic
      *-------------------------------*/
-    json_t *topic = tranger2_open_topic(
+    json_t *jn_topic = tranger2_open_topic(
         tranger,
-        arguments.topic,
+        topic,
         FALSE
     );
-    if(!topic) {
-        fprintf(stderr, "Can't open topic %s\n\n", arguments.topic);
+    if(!jn_topic) {
+        fprintf(stderr, "Can't open topic %s\n\n", topic);
         exit(-1);
     }
-    printf("Topic ===> '%s'\n", kw_get_str(0, topic, "directory", "", KW_REQUIRED));
+    printf("Topic ===> '%s'\n", kw_get_str(0, jn_topic, "directory", "", KW_REQUIRED));
 
     json_object_set_new(
         match_cond,
@@ -584,7 +569,7 @@ PRIVATE int list_messages(void)
     if(arguments.key) {
         json_t *rt = tranger2_open_iterator(
             tranger,
-            arguments.topic,
+            topic,
             arguments.key,
             json_incref(match_cond), // owned
             load_record_callback,
@@ -598,7 +583,7 @@ PRIVATE int list_messages(void)
     } else {
         json_t *rt = tranger2_open_list(
             tranger,
-            arguments.topic,
+            topic,
             json_incref(match_cond), // owned
             NULL,   // extra
             NULL,   // rt_id
@@ -611,40 +596,44 @@ PRIVATE int list_messages(void)
     /*-------------------------------*
      *  Free resources
      *-------------------------------*/
-    tranger2_close_topic(tranger, arguments.topic);
+    tranger2_close_topic(tranger, topic);
     tranger2_shutdown(tranger);
 
     return 0;
 }
 
 /***************************************************************************
- *
+ *  Non-recursive: validate that the user-supplied path points to a
+ *  valid topic directory, parse it into path/database/topic components,
+ *  and search the messages.
  ***************************************************************************/
-PRIVATE int list_topic_messages(void)
+PRIVATE int list_topic_messages(const char *input_path)
 {
-    char path_topic[PATH_MAX];
-
-    build_path(path_topic, sizeof(path_topic),
-        arguments.path,
-        arguments.database,
-        arguments.topic,
-        NULL
-    );
-
-    if(!file_exists(path_topic, "topic_desc.json")) {
-        if(!is_directory(path_topic)) {
-            fprintf(stderr, "Path not found: '%s'\n\n", path_topic);
+    if(!file_exists(input_path, "topic_desc.json")) {
+        if(!is_directory(input_path)) {
+            fprintf(stderr, "Path not found: '%s'\n\n", input_path);
             exit(-1);
         }
         fprintf(stderr, "What Topic? Found:\n\n");
-        list_databases(arguments.path);
+        list_databases(input_path);
         exit(-1);
     }
-    return list_messages();
+
+    /*
+     *  Valid topic found — split path into path/database/topic components
+     */
+    char path_buf[PATH_MAX];
+    snprintf(path_buf, sizeof(path_buf), "%s", input_path);
+
+    const char *topic = pop_last_segment(path_buf);
+    const char *database = pop_last_segment(path_buf);
+
+    return list_messages(path_buf, database, topic);
 }
 
 /***************************************************************************
- *
+ *  Callback for walk_dir_tree: called for each topic_desc.json found.
+ *  Extracts path/database/topic from fullpath and searches messages.
  ***************************************************************************/
 PRIVATE BOOL list_recursive_topic_cb(
     hgobj gobj,
@@ -659,17 +648,18 @@ PRIVATE BOOL list_recursive_topic_cb(
 {
     partial_counter = 0;
 
-    pop_last_segment(fullpath);
-    arguments.topic = pop_last_segment(fullpath);
-    arguments.database = pop_last_segment(fullpath);
-    arguments.path = fullpath;
+    // fullpath is: .../path/database/topic/topic_desc.json
+    pop_last_segment(fullpath);  // remove "topic_desc.json"
+    const char *topic = pop_last_segment(fullpath);
+    const char *database = pop_last_segment(fullpath);
+    const char *path = fullpath;
 
-    list_messages();
+    list_messages(path, database, topic);
 
     if(partial_counter > 0) {
         printf("====> %s %s: %d records\n\n",
-            arguments.database,
-            arguments.topic,
+            database,
+            topic,
             partial_counter
         );
     }
@@ -677,11 +667,11 @@ PRIVATE BOOL list_recursive_topic_cb(
     return TRUE; // to continue
 }
 
-PRIVATE int list_recursive_topics(void)
+PRIVATE int list_recursive_topics(const char *path)
 {
     walk_dir_tree(
         0,
-        arguments.path,
+        path,
         "topic_desc.json",
         WD_RECURSIVE|WD_MATCH_REGULAR_FILE,
         list_recursive_topic_cb,
@@ -692,7 +682,8 @@ PRIVATE int list_recursive_topics(void)
 }
 
 /***************************************************************************
- *
+ *  Callback for walk_dir_tree: called for each topic_desc.json found
+ *  during a search. Uses user_data as topic filter.
  ***************************************************************************/
 PRIVATE BOOL search_topic_cb(
     hgobj gobj,
@@ -705,26 +696,21 @@ PRIVATE BOOL search_topic_cb(
     wd_option opt           // option parameter
 )
 {
+    const char *topic_filter = (const char *)user_data;
     partial_counter = 0;
-    pop_last_segment(fullpath);
-    arguments.topic = pop_last_segment(fullpath);
-    arguments.database = pop_last_segment(fullpath);
-    arguments.path = fullpath;
 
-    if(!arguments.topic || strcmp(arguments.topic, arguments.topic)==0) {
-        list_messages();
-        if(arguments.recursive) {
-            if(partial_counter > 0) {
-                printf("====> %s %s: %d records\n\n",
-                    arguments.database,
-                    arguments.topic,
-                    partial_counter
-                );
-            }
-        } else {
+    // fullpath is: .../path/database/topic/topic_desc.json
+    pop_last_segment(fullpath);  // remove "topic_desc.json"
+    const char *topic = pop_last_segment(fullpath);
+    const char *database = pop_last_segment(fullpath);
+    const char *path = fullpath;
+
+    if(empty_string(topic_filter) || strcmp(topic, topic_filter) == 0) {
+        list_messages(path, database, topic);
+        if(partial_counter > 0) {
             printf("====> %s %s: %d records\n\n",
-                arguments.database,
-                arguments.topic,
+                database,
+                topic,
                 partial_counter
             );
         }
@@ -733,15 +719,15 @@ PRIVATE BOOL search_topic_cb(
     return TRUE; // to continue
 }
 
-PRIVATE int search_topics(void)
+PRIVATE int search_topics(const char *path, const char *topic_filter)
 {
     walk_dir_tree(
         0,
-        arguments.path,
+        path,
         "topic_desc.json",
         WD_RECURSIVE|WD_MATCH_REGULAR_FILE,
         search_topic_cb,
-        0
+        (void *)topic_filter
     );
     return 0;
 }
@@ -757,26 +743,22 @@ PRIVATE BOOL search_by_databases_cb(
     wd_option opt           // option parameter
 )
 {
-    arguments.path = (char *)directory;
-    arguments.database = 0;
-    arguments.topic = arguments.topic;
-
-    search_topics();
+    const char *topic_filter = (const char *)user_data;
+    search_topics(directory, topic_filter);
 
     return TRUE; // to continue
 }
 
-PRIVATE int search_by_databases(void)
+PRIVATE int search_by_databases(const char *path, const char *topic_filter)
 {
     walk_dir_tree(
         0,
-        arguments.path,
+        path,
         "__timeranger2__.json",
         WD_RECURSIVE|WD_MATCH_REGULAR_FILE,
         search_by_databases_cb,
-        0
+        (void *)topic_filter
     );
-    //printf("\n");
     return 0;
 }
 
@@ -791,62 +773,54 @@ PRIVATE BOOL search_by_paths_cb(
     wd_option opt           // option parameter
 )
 {
-    arguments.path = (char *)fullpath;
-    arguments.database = 0;
-    arguments.topic = arguments.topic;
-
-    search_by_databases();
+    const char *topic_filter = (const char *)user_data;
+    search_by_databases(fullpath, topic_filter);
 
     return TRUE; // to continue
 }
 
-PRIVATE int search_by_paths(void)
+PRIVATE int search_by_paths(const char *input_path, const char *topic_filter)
 {
-    if(empty_string(arguments.database)) {
-        arguments.database = pop_last_segment(arguments.path);
-    }
+    char path_buf[PATH_MAX];
+    snprintf(path_buf, sizeof(path_buf), "%s", input_path);
+
+    const char *database = pop_last_segment(path_buf);
 
     walk_dir_tree(
         0,
-        arguments.path,
-        arguments.database,
+        path_buf,
+        database,
         WD_MATCH_DIRECTORY,
         search_by_paths_cb,
-        0
+        (void *)topic_filter
     );
-    //printf("\n");
     return 0;
 }
 
 /***************************************************************************
- *
+ *  Recursive entry point: determine what the user-supplied path points to
+ *  (tranger database, topic, or search root) and dispatch accordingly.
  ***************************************************************************/
-PRIVATE int list_recursive_topic_messages(void)
+PRIVATE int list_recursive_topic_messages(const char *input_path)
 {
-    char path_tranger[PATH_MAX];
+    char path_buf[PATH_MAX];
+    snprintf(path_buf, sizeof(path_buf), "%s", input_path);
 
-    build_path(path_tranger, sizeof(path_tranger),
-        arguments.path,
-        arguments.database,
-        NULL
-    );
-
-    if(!file_exists(path_tranger, "__timeranger2__.json")) {
-        if(file_exists(path_tranger, "topic_desc.json")) {
-            arguments.topic = pop_last_segment(path_tranger);
-            arguments.database = pop_last_segment(path_tranger);
-            arguments.path = path_tranger;
-            return list_messages();
+    if(!file_exists(path_buf, "__timeranger2__.json")) {
+        if(file_exists(path_buf, "topic_desc.json")) {
+            // User gave a topic-level path
+            const char *topic = pop_last_segment(path_buf);
+            const char *database = pop_last_segment(path_buf);
+            return list_messages(path_buf, database, topic);
         }
 
-        search_by_paths();
+        // Search for databases under this path
+        search_by_paths(path_buf, NULL);
         exit(-1);
     }
 
-    arguments.topic = "";
-    arguments.database = "";
-    arguments.path = path_tranger;
-    return list_recursive_topics();
+    // Path is a tranger database directory — list all topics recursively
+    return list_recursive_topics(path_buf);
 }
 
 /***************************************************************************
@@ -1128,14 +1102,12 @@ int main(int argc, char *argv[])
         &yev_loop
     );
 
-    delete_right_slash(arguments.path);
-
     if(arguments.list_databases) {
         list_databases(arguments.path);
     } else if(arguments.recursive) {
-        list_recursive_topic_messages();
+        list_recursive_topic_messages(arguments.path);
     } else {
-        list_topic_messages();
+        list_topic_messages(arguments.path);
     }
 
     json_decref(match_cond);
