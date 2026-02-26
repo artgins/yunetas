@@ -194,8 +194,14 @@ PRIVATE BOOL list_db_cb(
     wd_option opt           // option parameter
 )
 {
+    char treedb_name[NAME_MAX];
+    snprintf(treedb_name, sizeof(treedb_name), "%s", name);
+    char *p = strstr(treedb_name, ".treedb_schema.json");
+    if(p) {
+        *p = 0;
+    }
     printf("  directory: %s\n", directory);
-    printf("  treedb   : %s\n", name);
+    printf("  treedb   : %s\n", treedb_name);
     return TRUE; // to continue
 }
 
