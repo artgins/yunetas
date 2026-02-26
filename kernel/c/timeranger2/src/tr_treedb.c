@@ -676,8 +676,8 @@ PUBLIC json_t *treedb_open_db( // WARNING Return IS NOT YOURS!
     );
 
     int schema_new_version = jn_schema?
-        (int)kw_get_int(gobj, jn_schema, "schema_version", -1, KW_WILD_NUMBER) :
-        -1;
+        (int)kw_get_int(gobj, jn_schema, "schema_version", 0, KW_WILD_NUMBER) :
+        0;
     int schema_version = schema_new_version;
 
     if(options && strstr(options,"persistent")) {
