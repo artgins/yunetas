@@ -1034,9 +1034,9 @@ int main(int argc, char *argv[])
     }
     arguments.path = path;
 
-    /*
-     *  Do your work
-     */
+    /*------------------------*
+     *      Do your work
+     *------------------------*/
     time_measure_t time_measure;
     MT_START_TIME(time_measure)
 

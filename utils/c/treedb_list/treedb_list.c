@@ -13,6 +13,7 @@
 #include <argp.h>
 #include <time.h>
 #include <errno.h>
+#include <signal.h>
 #include <regex.h>
 #include <locale.h>
 #include <stdint.h>
@@ -20,11 +21,14 @@
 #include <unistd.h>
 #include <string.h>
 #include <time.h>
+#include <sys/resource.h>
 
 #include <gobj.h>
+#include <testing.h>
 #include <helpers.h>
 #include <kwid.h>
-#include <timeranger2.h>
+#include <tr_treedb.h>
+#include <yev_loop.h>
 
 /***************************************************************************
  *              Constants
@@ -40,9 +44,9 @@
  *              Structures
  ***************************************************************************/
 typedef struct {
-    char *path;
-    char *database;
-    char *topic;
+    char path[PATH_MAX];
+    char database[PATH_MAX];
+    char topic[NAME_MAX];
     json_t *jn_filter;
     json_t *jn_options;
     int verbose;
@@ -180,10 +184,13 @@ struct arguments arguments;
 /***************************************************************************
  *              Prototypes
  ***************************************************************************/
+PRIVATE void yuno_catch_signals(void);
 
 /***************************************************************************
  *      Data
  ***************************************************************************/
+yev_loop_h yev_loop;
+int time2exit = 10;
 int total_counter = 0;
 int partial_counter = 0;
 
@@ -232,6 +239,7 @@ PRIVATE int _list_messages(
     json_t *jn_options,
     int verbose)
 {
+    hgobj gobj = 0;
     /*-------------------------------*
      *  Startup TimeRanger
      *-------------------------------*/
@@ -240,7 +248,7 @@ PRIVATE int _list_messages(
         "master", 0,
         "on_critical_error", 0
     );
-    json_t * tranger = tranger_startup(jn_tranger);
+    json_t * tranger = tranger2_startup(0, jn_tranger, 0);
     if(!tranger) {
         fprintf(stderr, "Can't startup tranger %s\n\n", path);
         exit(-1);
@@ -264,9 +272,9 @@ PRIVATE int _list_messages(
 
 
     if(arguments.print_tranger) {
-        print_json(tranger);
+        print_json("tranger", tranger);
     } else if(arguments.print_treedb) {
-        print_json(kw_get_dict(tranger, "treedbs", 0, KW_REQUIRED));
+        print_json("treedb", kw_get_dict(gobj, tranger, "treedbs", 0, KW_REQUIRED));
     } else {
         const char *topic_name; json_t *topic_data;
         json_object_foreach(treedb, topic_name, topic_data) {
@@ -303,10 +311,10 @@ PRIVATE int _list_messages(
             }
             json_decref(iter);
 
-            print_json2(topic_name, node_list);
+            print_json(topic_name, node_list);
 
-            total_counter += json_array_size(node_list);
-            partial_counter += json_array_size(node_list);
+            total_counter += (int)json_array_size(node_list);
+            partial_counter += (int)json_array_size(node_list);
 
             json_decref(node_list);
         }
@@ -316,7 +324,7 @@ PRIVATE int _list_messages(
      *  Free resources
      *-------------------------------*/
     treedb_close_db(tranger, treedb_name);
-    tranger_shutdown(tranger);
+    tranger2_shutdown(tranger);
 
     return 0;
 }
@@ -397,13 +405,14 @@ PRIVATE int list_messages(
  *
  ***************************************************************************/
 PRIVATE BOOL list_recursive_db_cb(
+    hgobj gobj,
     void *user_data,
     wd_found_type type,     // type found
     char *fullpath,         // directory+filename found
     const char *directory,  // directory of found filename
     char *name,             // dname[255]
     int level,              // level of tree where file found
-    int index               // index of file inside of directory, relative to 0
+    wd_option opt           // option parameter
 )
 {
     list_params_t *list_params = user_data;
@@ -435,6 +444,7 @@ PRIVATE BOOL list_recursive_db_cb(
 PRIVATE int list_recursive_databases(list_params_t *list_params)
 {
     walk_dir_tree(
+        0,
         list_params->path,
         ".*\\.treedb_schema\\.json",
         WD_RECURSIVE|WD_MATCH_REGULAR_FILE,
@@ -475,79 +485,104 @@ PRIVATE int list_recursive_msg(
 }
 
 /***************************************************************************
+ *
+ ***************************************************************************/
+PRIVATE void delete_right_slash(char *s)
+{
+    int l;
+    char c;
+
+    /*---------------------------------*
+     *  Elimina blancos a la derecha
+     *---------------------------------*/
+    l = (int)strlen(s);
+    if(l==0)
+        return;
+    while(--l>=0) {
+        c= *(s+l);
+        if(c==' ' || c=='\t' || c=='\n' || c=='\r' || c=='/')
+            *(s+l)='\0';
+        else
+            break;
+    }
+}
+
+/***************************************************************************
  *                      Main
  ***************************************************************************/
 int main(int argc, char *argv[])
 {
+    /*---------------------------------*
+     *      Arguments
+     *---------------------------------*/
+    memset(&arguments, 0, sizeof(arguments));
     /*
      *  Default values
      */
-    memset(&arguments, 0, sizeof(arguments));
+    arguments.verbose = -1;
 
     /*
      *  Parse arguments
      */
     argp_parse(&argp, argc, argv, 0, 0, &arguments);
+    arguments.path = arguments.args[0];
 
-    /*-------------------------------------*
-     *  Your start code
-     *-------------------------------------*/
-    init_ghelpers_library(APP_NAME);
-    log_startup(
-        "test",             // application name
-        "1.0.0",            // applicacion version
-        "test_glogger"     // executable program, to can trace stack
+    /*----------------------------------*
+     *      Startup gobj system
+     *----------------------------------*/
+    sys_malloc_fn_t malloc_func;
+    sys_realloc_fn_t realloc_func;
+    sys_calloc_fn_t calloc_func;
+    sys_free_fn_t free_func;
+
+    gbmem_get_allocators(
+        &malloc_func,
+        &realloc_func,
+        &calloc_func,
+        &free_func
     );
 
-    /*------------------------------------------------*
-     *          Setup memory
-     *------------------------------------------------*/
-    #define MEM_MIN_BLOCK   512
+    json_set_alloc_funcs(
+        malloc_func,
+        free_func
+    );
+
+#ifndef CONFIG_BUILD_TYPE_RELEASE
+    init_backtrace_with_backtrace(argv[0]);
+    set_show_backtrace_fn(show_backtrace_with_backtrace);
+#endif
+
     uint64_t MEM_MAX_SYSTEM_MEMORY = free_ram_in_kb() * 1024LL;
     MEM_MAX_SYSTEM_MEMORY /= 100LL;
     MEM_MAX_SYSTEM_MEMORY *= 90LL;  // Coge el 90% de la memoria
-
-    uint64_t MEM_MAX_BLOCK = (MEM_MAX_SYSTEM_MEMORY / sizeof(md_record_t)) * sizeof(md_record_t);
+    uint64_t MEM_MAX_BLOCK = (MEM_MAX_SYSTEM_MEMORY / sizeof(md2_record_ex_t)) * sizeof(md2_record_ex_t);
     MEM_MAX_BLOCK = MIN(1*1024*1024*1024LL, MEM_MAX_BLOCK);  // 1*G max
 
-    uint64_t MEM_SUPERBLOCK = MEM_MAX_BLOCK;
-
-    static uint32_t mem_list[] = {2037, 0};
-    gbmem_trace_alloc_free(0, mem_list);
-
-    if(1) {
-        gbmem_startup(
-            MEM_MIN_BLOCK,
-            MEM_MAX_BLOCK,
-            MEM_SUPERBLOCK,
-            MEM_MAX_SYSTEM_MEMORY,
-            NULL,
-            0
-        );
-    } else {
-        gbmem_startup_system(
-            MEM_MAX_BLOCK,
-            MEM_MAX_SYSTEM_MEMORY
-        );
-    }
-    json_set_alloc_funcs(
-        gbmem_malloc,
-        gbmem_free
-    );
-    uv_replace_allocator(
-        gbmem_malloc,
-        gbmem_realloc,
-        gbmem_calloc,
-        gbmem_free
+    gbmem_setup(
+        MEM_MAX_BLOCK,  // max_block, largest memory block
+        MEM_MAX_SYSTEM_MEMORY, // max_system_memory, maximum system memory
+        FALSE,
+        0,
+        0
     );
 
-    log_startup(
-        APP_NAME,       // application name
-        VERSION,        // applicacion version
-        APP_NAME        // executable program, to can trace stack
+    gobj_start_up(
+        argc,
+        argv,
+        NULL, // jn_global_settings
+        NULL, // persistent_attrs
+        NULL, // global_command_parser
+        NULL, // global_stats_parser
+        NULL, // global_authz_checker
+        NULL  // global_authentication_parser
     );
-    log_add_handler(APP_NAME, "stdout", LOG_OPT_LOGGER, 0);
 
+    yuno_catch_signals();
+
+    /*--------------------------------*
+     *      Log handlers
+     *--------------------------------*/
+    gobj_log_add_handler("stdout", "stdout", LOG_OPT_UP_WARNING, 0);
 
     /*----------------------------------*
      *  Ids
@@ -577,15 +612,39 @@ int main(int argc, char *argv[])
     /*------------------------*
      *      Do your work
      *------------------------*/
-    struct timespec st, et;
-    double dt;
-
-    clock_gettime (CLOCK_MONOTONIC, &st);
+    time_measure_t time_measure;
+    MT_START_TIME(time_measure)
 
     if(empty_string(arguments.path)) {
         fprintf(stderr, "What TimeRanger path?\n");
+        fprintf(stderr, "You must supply --path option\n\n");
         exit(-1);
     }
+
+    struct rlimit rl;
+    // Get current limit
+    if (getrlimit(RLIMIT_NOFILE, &rl) == 0) {
+        if(rl.rlim_cur < 200000) {
+            // Set new limit
+            rl.rlim_cur = 200000;  // Set soft limit
+            rl.rlim_max = 200000;  // Set hard limit
+            setrlimit(RLIMIT_NOFILE, &rl);
+        }
+    }
+
+    /*--------------------------------*
+     *  Create the event loop
+     *--------------------------------*/
+    yev_loop_create(
+        NULL,
+        2024,
+        10,
+        NULL,
+        &yev_loop
+    );
+
+    delete_right_slash(arguments.path);
+
     if(arguments.recursive) {
         list_recursive_msg(
             arguments.path,
@@ -608,20 +667,47 @@ int main(int argc, char *argv[])
     JSON_DECREF(jn_filter);
     JSON_DECREF(jn_options);
 
-    clock_gettime (CLOCK_MONOTONIC, &et);
+    yev_loop_stop(yev_loop);
+    yev_loop_destroy(yev_loop);
 
     /*-------------------------------------*
      *  Print times
      *-------------------------------------*/
-    dt = ts_diff2(st, et);
+    MT_INCREMENT_COUNT(time_measure, total_counter)
+    MT_PRINT_TIME(time_measure, "list records")
 
-    setlocale(LC_ALL, "");
-    printf("====> Total: %'d records; %'f seconds; %'lu op/sec\n\n",
-        total_counter,
-        dt,
-        (unsigned long)(((double)total_counter)/dt)
-    );
+    gobj_end();
 
-    gbmem_shutdown();
-    return 0;
+    return gobj_get_exit_code();
+}
+
+/***************************************************************************
+ *      Signal handlers
+ ***************************************************************************/
+PRIVATE void quit_sighandler(int sig)
+{
+    static int times = 0;
+    times++;
+    yev_loop_reset_running(yev_loop);
+    if(times > 1) {
+        exit(-1);
+    }
+}
+
+PUBLIC void yuno_catch_signals(void)
+{
+    struct sigaction sigIntHandler;
+
+    signal(SIGPIPE, SIG_IGN);
+    signal(SIGTERM, SIG_IGN);
+
+    memset(&sigIntHandler, 0, sizeof(sigIntHandler));
+    sigIntHandler.sa_handler = quit_sighandler;
+    sigemptyset(&sigIntHandler.sa_mask);
+    sigIntHandler.sa_flags = SA_NODEFER|SA_RESTART;
+    sigaction(SIGALRM, &sigIntHandler, NULL);   // to debug in kdevelop
+    sigaction(SIGQUIT, &sigIntHandler, NULL);
+    sigaction(SIGINT, &sigIntHandler, NULL);    // ctrl+c
+
+    alarm(time2exit);
 }
