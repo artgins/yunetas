@@ -92,9 +92,6 @@ static struct argp_option options[] = {
 {"print-tranger",       5,      0,                  0,      "Print tranger json", 3},
 {"print-treedb",        6,      0,                  0,      "Print treedb json", 3},
 
-{0,                     0,      0,                  0,      "TreeDb options",       30},
-//{"expand",              30,     0,                  0,      "Expand nodes.",         30},
-
 {0}
 };
 
@@ -134,10 +131,6 @@ static error_t parse_opt (int key, char *arg, struct argp_state *state)
 
     case 6:
         arguments->print_treedb = 1;
-        break;
-
-    case 30:
-        //arguments->expand_nodes = 1;
         break;
 
     case ARGP_KEY_ARG:
@@ -187,7 +180,6 @@ int total_counter = 0;
 int partial_counter = 0;
 json_t *jn_filter = 0;
 json_t *jn_options = 0;
-int verbose;
 
 /***************************************************************************
  *
@@ -224,15 +216,15 @@ PRIVATE int list_databases(const char *path)
 }
 
 /***************************************************************************
- *
+ *  Open a tranger database at path, open the named treedb,
+ *  and list its records.
  ***************************************************************************/
 PRIVATE int _list_messages(
-    char *path, // must contains the full path of tranger database
-    char *treedb_name, // must contains the treedb name
-    char *topic,
+    const char *path,
+    const char *treedb_name,
+    const char *topic,
     json_t *jn_filter,
-    json_t *jn_options,
-    int verbose)
+    json_t *jn_options)
 {
     hgobj gobj = 0;
     /*-------------------------------*
@@ -264,7 +256,6 @@ PRIVATE int _list_messages(
         0,
         0
     );
-
 
     if(arguments.print_tranger) {
         print_json("tranger", tranger);
@@ -325,23 +316,32 @@ PRIVATE int _list_messages(
 }
 
 /***************************************************************************
- *
+ *  Resolve the tranger path and treedb database name from the
+ *  user-supplied path, then list the treedb records.
  ***************************************************************************/
 PRIVATE int list_messages(
-    char *path,
-    char *database,
-    char *topic,
+    const char *path,
+    const char *database,
+    const char *topic,
     json_t *jn_filter,
-    json_t *jn_options,
-    int verbose)
+    json_t *jn_options)
 {
     /*
      *  Check if path is a tranger directory
      */
     char path_tranger[PATH_MAX];
     snprintf(path_tranger, sizeof(path_tranger), "%s", path);
+
+    char db_name[NAME_MAX];
+    if(database) {
+        snprintf(db_name, sizeof(db_name), "%s", database);
+    } else {
+        db_name[0] = '\0';
+    }
+
     if(!file_exists(path_tranger, "__timeranger__.json")) {
-        database = pop_last_segment(path_tranger);
+        const char *segment = pop_last_segment(path_tranger);
+        snprintf(db_name, sizeof(db_name), "%s", segment);
         if(!file_exists(path_tranger, "__timeranger__.json")) {
             fprintf(stderr, "What Database?\n\n");
             list_databases(path_tranger);
@@ -353,29 +353,28 @@ PRIVATE int list_messages(
         fprintf(stderr, "Directory '%s' not found\n\n", path_tranger);
         exit(-1);
     }
-    if(empty_string(database)) {
+    if(empty_string(db_name)) {
         fprintf(stderr, "What Database?\n\n");
         list_databases(path_tranger);
         exit(-1);
     }
 
-    if(file_exists(path_tranger, database)) {
-        char *p = strstr(database, ".treedb_schema.json");
+    if(file_exists(path_tranger, db_name)) {
+        char *p = strstr(db_name, ".treedb_schema.json");
         if(p) {
             *p = 0;
         }
         return _list_messages(
             path_tranger,
-            database,
+            db_name,
             topic,
             jn_filter,
-            jn_options,
-            verbose
+            jn_options
         );
     }
 
     char database_name[NAME_MAX];
-    snprintf(database_name, sizeof(database_name), "%s.treedb_schema.json", database);
+    snprintf(database_name, sizeof(database_name), "%s.treedb_schema.json", db_name);
     if(file_exists(path_tranger, database_name)) {
         char *p = strstr(database_name, ".treedb_schema.json");
         if(p) {
@@ -386,8 +385,7 @@ PRIVATE int list_messages(
             database_name,
             topic,
             jn_filter,
-            jn_options,
-            verbose
+            jn_options
         );
     }
 
@@ -397,7 +395,9 @@ PRIVATE int list_messages(
 }
 
 /***************************************************************************
- *
+ *  Callback for walk_dir_tree: called for each treedb schema found.
+ *  Extracts treedb name from filename and lists its records.
+ *  user_data carries the topic filter string.
  ***************************************************************************/
 PRIVATE BOOL list_recursive_db_cb(
     hgobj gobj,
@@ -410,35 +410,31 @@ PRIVATE BOOL list_recursive_db_cb(
     wd_option opt           // option parameter
 )
 {
-    // TODO restore
+    const char *topic = (const char *)user_data;
 
-    // list_params_t *list_params = user_data;
-    // list_params_t list_params2 = *list_params;
-    //
-    // char *p = strstr(name, ".treedb_schema.json");
-    // if(p) {
-    //     *p = 0;
-    // }
-    //
-    // snprintf(list_params2.path, sizeof(list_params2.path), "%s", directory);
-    // snprintf(list_params2.database, sizeof(list_params2.database), "%s", name);
-    //
-    // partial_counter = 0;
-    // _list_messages(
-    //     list_params2.path,
-    //     list_params2.database,
-    //     list_params2.topic,
-    //     list_params2.jn_filter,
-    //     list_params2.jn_options,
-    //     list_params2.verbose
-    // );
-    //
-    // printf("====> %s: %d records\n\n", name, partial_counter);
-    //
+    // name is e.g. "mydb.treedb_schema.json" — extract treedb name
+    char treedb_name[NAME_MAX];
+    snprintf(treedb_name, sizeof(treedb_name), "%s", name);
+    char *p = strstr(treedb_name, ".treedb_schema.json");
+    if(p) {
+        *p = 0;
+    }
+
+    partial_counter = 0;
+    _list_messages(
+        directory,
+        treedb_name,
+        topic,
+        jn_filter,
+        jn_options
+    );
+
+    printf("====> %s: %d records\n\n", treedb_name, partial_counter);
+
     return TRUE; // to continue
 }
 
-PRIVATE int list_recursive_databases(const char *path)
+PRIVATE int list_recursive_databases(const char *path, const char *topic)
 {
     walk_dir_tree(
         0,
@@ -446,7 +442,7 @@ PRIVATE int list_recursive_databases(const char *path)
         ".*\\.treedb_schema\\.json",
         WD_RECURSIVE|WD_MATCH_REGULAR_FILE,
         list_recursive_db_cb,
-        0
+        (void *)topic
     );
 
     return 0;
@@ -456,30 +452,13 @@ PRIVATE int list_recursive_databases(const char *path)
  *
  ***************************************************************************/
 PRIVATE int list_recursive_msg(
-    char *path,
-    char *database,
-    char *topic,
+    const char *path,
+    const char *database,
+    const char *topic,
     json_t *jn_filter,
-    json_t *jn_options,
-    int verbose)
+    json_t *jn_options)
 {
-    // TODO restore
-    // list_params_t list_params;
-    // memset(&list_params, 0, sizeof(list_params));
-    //
-    // snprintf(list_params.path, sizeof(list_params.path), "%s", path);
-    // if(!empty_string(database)) {
-    //     snprintf(list_params.database, sizeof(list_params.database), "%s", database);
-    // }
-    // if(!empty_string(topic)) {
-    //     snprintf(list_params.topic, sizeof(list_params.topic), "%s", topic);
-    // }
-    // list_params.jn_filter = jn_filter;
-    // list_params.jn_options = jn_options;
-    //
-    // list_params.verbose = verbose;
-    //
-    // return list_recursive_databases(&list_params);
+    return list_recursive_databases(path, topic);
 }
 
 /***************************************************************************
@@ -598,14 +577,16 @@ int main(int argc, char *argv[])
     /*----------------------------------*
      *  Options
      *----------------------------------*/
-    jn_options = 0; //json_object();
-//     if(!arguments.expand_nodes) {
-//         json_object_set_new(
-//             jn_options,
-//             "collapsed",
-//             json_true()
-//         );
-//     }
+    jn_options = 0;
+
+    char path[PATH_MAX];
+    delete_right_slash(arguments.path);
+    if(arguments.path[0] != '/' && arguments.path[0] != '.') {
+        snprintf(path, sizeof(path), "./%s", arguments.path);
+    } else {
+        snprintf(path, sizeof(path), "%s", arguments.path);
+    }
+    arguments.path = path;
 
     /*------------------------*
      *      Do your work
@@ -641,16 +622,13 @@ int main(int argc, char *argv[])
         &yev_loop
     );
 
-    delete_right_slash(arguments.path);
-
     if(arguments.recursive) {
         list_recursive_msg(
             arguments.path,
             arguments.database,
             arguments.topic,
             jn_filter,
-            jn_options,
-            arguments.verbose
+            jn_options
         );
     } else {
         list_messages(
@@ -658,8 +636,7 @@ int main(int argc, char *argv[])
             arguments.database,
             arguments.topic,
             jn_filter,
-            jn_options,
-            arguments.verbose
+            jn_options
         );
     }
     JSON_DECREF(jn_filter);
