@@ -14,8 +14,10 @@ utils/
 │   ├── ylist/              # List running yuno processes
 │   ├── yshutdown/          # Shut down yuno processes and the agent
 │   ├── tr2list/            # List records in TimeRanger2 databases
+│   ├── tr2search/          # Search within record content in TimeRanger2 databases
 │   ├── tr2keys/            # List keys/primary keys in TimeRanger2 topics
 │   ├── tr2migrate/         # Migrate data from TimeRanger v1 to TimeRanger2
+│   ├── treedb_list/        # List records in TreeDB hierarchical databases
 │   ├── list_queue_msgs2/   # List messages in TimeRanger2 queues
 │   ├── fs_watcher/         # Monitor filesystem changes (io_uring-based)
 │   ├── inotify/            # Test inotify filesystem event monitoring
@@ -208,6 +210,66 @@ Print:
   --list-databases           List available databases
 ```
 
+#### tr2search
+
+Search within record content in TimeRanger2 databases. Extends `tr2list` with content-based searching: decode fields (e.g. base64), match text patterns, and display results as JSON or hexdump.
+
+```
+tr2search [OPTIONS] PATH
+
+Database:
+  -r, --recursive            List recursively through subdirectories
+
+Presentation:
+  -l, --verbose LEVEL        0=total, 1=metadata, 2=metadata+path,
+                              3=metadata+record
+  -m, --mode MODE            Display mode: form or table
+  -f, --fields FIELDS        Show only specified fields
+  -d, --show_md2             Show __md_tranger__ metadata field
+
+Search Conditions (time):
+  --from-t TIME              Start time
+  --to-t TIME                End time
+  --from-tm TIME             From message time
+  --to-tm TIME               To message time
+
+Search Conditions (row):
+  --from-rowid ROWID         Start row ID (use -N for "last N")
+  --to-rowid ROWID           End row ID
+
+Search Conditions (flags):
+  --user-flag-set MASK       User flag mask (set)
+  --user-flag-not-set MASK   User flag mask (not set)
+  --system-flag-set MASK     System flag mask (set)
+  --system-flag-not-set MASK System flag mask (not set)
+
+Search Conditions (keys):
+  --key KEY                  Filter by key
+  --not-key KEY              Exclude key
+
+Search Conditions (content):
+  --search-content-key KEY          JSON field containing data to search
+  --search-content-filter FILTER    Filter to apply: clear or base64
+  --search-content-text TEXT        Text to search in filtered content
+  --diplay-format FORMAT            Display format: json or hexdump
+```
+
+Examples:
+
+```bash
+# Search base64-encoded frames, show last 10 records
+tr2search /yuneta/store/queues/frames/myrole^myname/frames \
+  --search-content-key=frame64 \
+  --search-content-filter=base64 \
+  --from-rowid=-10 -l3
+
+# Search by key with content text match
+tr2search /yuneta/store/queues/frames/gps^device/frames \
+  --key=867060032083772 \
+  --search-content-key=frame64 \
+  --search-content-text="hello" -l3
+```
+
 #### tr2keys
 
 List keys (primary keys) in TimeRanger2 topics.
@@ -239,6 +301,44 @@ list_queue_msgs2 [OPTIONS] PATH
   -l, --verbose LEVEL        empty=total, 1=metadata, 2=metadata+record
   -a, --all                  List all messages, not only pending
   -t, --print-local-time     Display in local timezone
+```
+
+#### treedb_list
+
+List records in TreeDB hierarchical databases built on top of TimeRanger2. A TreeDB organizes records (nodes) in a parent-child graph structure with typed schemas.
+
+```
+treedb_list [OPTIONS] PATH
+
+Database:
+  -b, --database DATABASE    TreeDB name (auto-discovered if only one exists)
+  -c, --topic TOPIC          Topic name (lists all topics if omitted)
+  -i, --ids ID               Specific ID or comma-separated list of IDs
+  -r, --recursive            List recursively across all TreeDB databases
+
+Presentation:
+  -m, --mode MODE            Display mode: form (JSON) or table (columnar)
+  -f, --fields FIELDS        Show only specified fields
+
+Debug:
+  --print-tranger            Print tranger JSON configuration
+  --print-treedb             Print treedb JSON structure
+```
+
+Examples:
+
+```bash
+# List all records in default treedb
+treedb_list /yuneta/store/agent/agent
+
+# List a specific topic in table mode
+treedb_list -c binaries -m table /yuneta/store/agent/agent
+
+# List specific IDs with selected fields
+treedb_list -c yunos -i "yuno1,yuno2" -f id,name,status /path/to/tranger
+
+# Recursive listing of all treedbs under a path
+treedb_list -r /yuneta/store
 ```
 
 ### Filesystem Monitoring
