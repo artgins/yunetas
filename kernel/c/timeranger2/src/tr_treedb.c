@@ -675,7 +675,9 @@ PUBLIC json_t *treedb_open_db( // WARNING Return IS NOT YOURS!
         schema_filename
     );
 
-    int schema_new_version = (int)kw_get_int(gobj, jn_schema, "schema_version", 0, KW_WILD_NUMBER);
+    int schema_new_version = jn_schema?
+        (int)kw_get_int(gobj, jn_schema, "schema_version", -1, KW_WILD_NUMBER) :
+        -1;
     int schema_version = schema_new_version;
 
     if(options && strstr(options,"persistent")) {
@@ -695,7 +697,9 @@ PUBLIC json_t *treedb_open_db( // WARNING Return IS NOT YOURS!
                     -1,
                     KW_WILD_NUMBER
                 );
-                if(!master || schema_new_version <= schema_old_version) {
+                if(!master ||
+                    (schema_new_version > 0 && schema_new_version <= schema_old_version)
+                ) {
                     JSON_DECREF(jn_schema)
                     jn_schema = old_jn_schema;
                     schema_version = schema_old_version;
@@ -1010,7 +1014,7 @@ PUBLIC json_t *treedb_open_db( // WARNING Return IS NOT YOURS!
             jn_extra,       // owned
             rt_id,          // rt_id
             !master,        // rt_by_disk
-            treedb_name    // creator
+            treedb_name     // creator
         )) {
             gobj_log_error(gobj, 0,
                 "function",     "%s", __FUNCTION__,
@@ -1061,7 +1065,7 @@ PUBLIC json_t *treedb_open_db( // WARNING Return IS NOT YOURS!
             jn_extra,       // owned
             rt_id,          // rt_id
             !master,        // rt_by_disk
-            treedb_name    // creator
+            treedb_name     // creator
         )) {
             gobj_log_error(gobj, 0,
                 "function",     "%s", __FUNCTION__,
