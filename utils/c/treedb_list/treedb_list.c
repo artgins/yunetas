@@ -259,9 +259,9 @@ PRIVATE BOOL find_schema_cb(
  *      and {treedb_name}.treedb_schema.json
  *
  *  On success (return 0):
- *    resolved_path     = tranger root directory (PATH_MAX buffer)
- *    resolved_database = treedb name without suffix (NAME_MAX buffer)
- *    resolved_topic    = topic name (NAME_MAX buffer, may be empty)
+ *    resolved_path     = tranger root directory
+ *    resolved_database = treedb name without suffix
+ *    resolved_topic    = topic name (may be empty)
  *
  *  Returns -1 on failure (with error printed to stderr).
  ***************************************************************************/
@@ -269,12 +269,12 @@ PRIVATE int resolve_treedb_path(
     const char *path,
     const char *database,
     const char *topic,
-    char *resolved_path,
-    char *resolved_database,
-    char *resolved_topic
+    char *resolved_path,        size_t resolved_path_size,
+    char *resolved_database,    size_t resolved_database_size,
+    char *resolved_topic,       size_t resolved_topic_size
 )
 {
-    snprintf(resolved_path, PATH_MAX, "%s", path);
+    snprintf(resolved_path, resolved_path_size, "%s", path);
     resolved_database[0] = '\0';
     resolved_topic[0] = '\0';
 
@@ -282,10 +282,10 @@ PRIVATE int resolve_treedb_path(
      *  Copy provided values, normalizing database name
      */
     if(!empty_string(topic)) {
-        snprintf(resolved_topic, NAME_MAX, "%s", topic);
+        snprintf(resolved_topic, resolved_topic_size, "%s", topic);
     }
     if(!empty_string(database)) {
-        snprintf(resolved_database, NAME_MAX, "%s", database);
+        snprintf(resolved_database, resolved_database_size, "%s", database);
         char *p = strstr(resolved_database, ".treedb_schema.json");
         if(p) {
             *p = 0;
@@ -297,7 +297,7 @@ PRIVATE int resolve_treedb_path(
      */
     if(empty_string(resolved_topic) && file_exists(resolved_path, "topic_desc.json")) {
         const char *segment = pop_last_segment(resolved_path);
-        snprintf(resolved_topic, NAME_MAX, "%s", segment);
+        snprintf(resolved_topic, resolved_topic_size, "%s", segment);
     }
 
     /*
@@ -311,7 +311,7 @@ PRIVATE int resolve_treedb_path(
         if(empty_string(resolved_database)) {
             const char *segment = pop_last_segment(resolved_path);
             if(!empty_string(segment)) {
-                snprintf(resolved_database, NAME_MAX, "%s", segment);
+                snprintf(resolved_database, resolved_database_size, "%s", segment);
                 char *p = strstr(resolved_database, ".treedb_schema.json");
                 if(p) {
                     *p = 0;
@@ -353,7 +353,7 @@ PRIVATE int resolve_treedb_path(
             list_databases(resolved_path);
             return -1;
         }
-        snprintf(resolved_database, NAME_MAX, "%s", fs.treedb_name);
+        snprintf(resolved_database, resolved_database_size, "%s", fs.treedb_name);
     } else {
         /*
          *  Validate that the database schema file exists
@@ -483,7 +483,9 @@ PRIVATE int list_messages(
 
     if(resolve_treedb_path(
         path, database, topic,
-        resolved_path, resolved_database, resolved_topic
+        resolved_path, sizeof(resolved_path),
+        resolved_database, sizeof(resolved_database),
+        resolved_topic, sizeof(resolved_topic)
     ) != 0) {
         exit(-1);
     }
