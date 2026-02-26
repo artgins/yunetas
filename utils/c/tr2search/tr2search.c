@@ -59,8 +59,6 @@ struct arguments
     char *args[MAX_ARGS+1];     /* positional args */
 
     char *path;
-    char *database;
-    char *topic;
     int recursive;
     char *mode;
     char *fields;
@@ -156,12 +154,6 @@ static error_t parse_opt (int key, char *arg, struct argp_state *state)
     switch (key) {
     case 'a':
         arguments_->path= arg;
-        break;
-    case 'b':
-        arguments_->database= arg;
-        break;
-    case 'c':
-        arguments_->topic= arg;
         break;
     case 'r':
         arguments_->recursive = 1;
