@@ -29,31 +29,33 @@
 /***************************************************************************
  *              Constants
  ***************************************************************************/
-#define APP_NAME    "treedb_list"
+#define APP         "treedb_list"
 #define DOC         "List messages of Treedb database."
 
-#define VERSION     __ghelpers_version__
-#define SUPPORT     "<niyamaka at yuneta.io>"
+#define VERSION     YUNETA_VERSION
+#define SUPPORT     "<support at artgins.com>"
 #define DATETIME    __DATE__ " " __TIME__
 
 /***************************************************************************
  *              Structures
  ***************************************************************************/
 typedef struct {
-    char path[256];
-    char database[256];
-    char topic[256];
+    char *path;
+    char *database;
+    char *topic;
     json_t *jn_filter;
     json_t *jn_options;
     int verbose;
 } list_params_t;
 
-
+/***************************************************************************
+ *              Arguments
+ ***************************************************************************/
 /*
  *  Used by main to communicate with parse_opt.
  */
-#define MIN_ARGS 0
-#define MAX_ARGS 0
+#define MIN_ARGS 1
+#define MAX_ARGS 1
 struct arguments
 {
     char *args[MAX_ARGS+1];     /* positional args */
@@ -71,25 +73,14 @@ struct arguments
     int print_treedb;
 };
 
-/***************************************************************************
- *              Prototypes
- ***************************************************************************/
-static error_t parse_opt (int key, char *arg, struct argp_state *state);
-
-/***************************************************************************
- *      Data
- ***************************************************************************/
-struct arguments arguments;
-int total_counter = 0;
-int partial_counter = 0;
-const char *argp_program_version = APP_NAME " " VERSION;
+const char *argp_program_version = APP " " VERSION;
 const char *argp_program_bug_address = SUPPORT;
 
 /* Program documentation. */
 static char doc[] = DOC;
 
 /* A description of the arguments we accept. */
-static char args_doc[] = "";
+static char args_doc[] = "PATH";
 
 /*
  *  The options we understand.
@@ -98,9 +89,6 @@ static char args_doc[] = "";
 static struct argp_option options[] = {
 /*-name-----------------key-----arg-----------------flags---doc-----------------group */
 {0,                     0,      0,                  0,      "Database",         2},
-{"path",                'a',    "PATH",             0,      "Path.",            2},
-{"database",            'b',    "DATABASE",         0,      "Database.",        2},
-{"topic",               'c',    "TOPIC",            0,      "Topic.",           2},
 {"ids",                 'i',    "ID",               0,      "Id or list of id's.",2},
 {"recursive",           'r',    0,                  0,      "List recursively.",  2},
 
@@ -114,17 +102,6 @@ static struct argp_option options[] = {
 {0}
 };
 
-/* Our argp parser. */
-static struct argp argp = {
-    options,
-    parse_opt,
-    args_doc,
-    doc
-};
-
-/***************************************************************************
- *  Parse a single option
- ***************************************************************************/
 static error_t parse_opt (int key, char *arg, struct argp_state *state)
 {
     /*
@@ -188,28 +165,40 @@ static error_t parse_opt (int key, char *arg, struct argp_state *state)
     return 0;
 }
 
+/* Our argp parser. */
+static struct argp argp = {
+    options,
+    parse_opt,
+    args_doc,
+    doc,
+    0,
+    0,
+    0
+};
+struct arguments arguments;
+
 /***************************************************************************
- *
+ *              Prototypes
  ***************************************************************************/
-static inline double ts_diff2 (struct timespec start, struct timespec end)
-{
-    uint64_t s, e;
-    s = ((uint64_t)start.tv_sec)*1000000 + ((uint64_t)start.tv_nsec)/1000;
-    e = ((uint64_t)end.tv_sec)*1000000 + ((uint64_t)end.tv_nsec)/1000;
-    return ((double)(e-s))/1000000;
-}
+
+/***************************************************************************
+ *      Data
+ ***************************************************************************/
+int total_counter = 0;
+int partial_counter = 0;
 
 /***************************************************************************
  *
  ***************************************************************************/
 PRIVATE BOOL list_db_cb(
+    hgobj gobj,
     void *user_data,
     wd_found_type type,     // type found
-    char *fullpath,   // directory+filename found
+    char *fullpath,         // directory+filename found
     const char *directory,  // directory of found filename
     char *name,             // dname[255]
     int level,              // level of tree where file found
-    int index               // index of file inside of directory, relative to 0
+    wd_option opt           // option parameter
 )
 {
     printf("  directory: %s\n", directory);
@@ -221,6 +210,7 @@ PRIVATE int list_databases(const char *path)
 {
     printf("Databases found:\n");
     walk_dir_tree(
+        0,
         path,
         ".*\\.treedb_schema\\.json",
         WD_RECURSIVE|WD_MATCH_REGULAR_FILE,

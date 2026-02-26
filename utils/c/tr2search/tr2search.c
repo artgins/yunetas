@@ -8,47 +8,52 @@
  *          All Rights Reserved.
  ****************************************************************************/
 #include <stdio.h>
-#include <argp.h>
+#include <argp-standalone.h>
 #include <time.h>
+#include <signal.h>
 #include <errno.h>
-#include <regex.h>
-#include <locale.h>
 #include <stdint.h>
 #include <stdlib.h>
 #include <unistd.h>
 #include <string.h>
-#include <time.h>
+#include <sys/resource.h>
 
 #include <gobj.h>
+#include <testing.h>
 #include <helpers.h>
 #include <kwid.h>
 #include <timeranger2.h>
+#include <yev_loop.h>
 
 /***************************************************************************
  *              Constants
  ***************************************************************************/
-#define NAME        "tranger_search"
+#define APP         "tr2search"
 #define DOC         "Search messages in TimeRanger database.\n" \
                     "Example: \n" \
-                    "tranger_search \\\n" \
-                    "  -a /yuneta/store/queues/frames/{{yuno_role}}^{{yuno_name}}/frames \\\n" \
+                    "tr2search \\\n" \
+                    "  /yuneta/store/queues/frames/{{yuno_role}}^{{yuno_name}}/frames \\\n" \
                     "  --search-content-filter=base64 \\\n" \
                     "  --from-rowid=-10 \\\n" \
                     "  --search-content-key=frame64 \\\n" \
                     "  -l3"
 
-#define VERSION     __ghelpers_version__
-#define SUPPORT     "<niyamaka at yuneta.io>"
+#define VERSION     YUNETA_VERSION
+#define SUPPORT     "<support at artgins.com>"
 #define DATETIME    __DATE__ " " __TIME__
 
 /***************************************************************************
  *              Structures
  ***************************************************************************/
+
+/***************************************************************************
+ *              Arguments
+ ***************************************************************************/
 /*
  *  Used by main to communicate with parse_opt.
  */
-#define MIN_ARGS 0
-#define MAX_ARGS 0
+#define MIN_ARGS 1
+#define MAX_ARGS 1
 struct arguments
 {
     char *args[MAX_ARGS+1];     /* positional args */
@@ -59,7 +64,9 @@ struct arguments
     int recursive;
     char *mode;
     char *fields;
+    int print_local_time;
     int verbose;
+    int show_md2;
 
     char *from_t;
     char *to_t;
@@ -83,6 +90,8 @@ struct arguments
     char *search_content_filter;
     char *search_content_text;
     char *display_format;
+
+    int list_databases;
 };
 
 typedef struct {
@@ -90,27 +99,14 @@ typedef struct {
     json_t *match_cond;
 } list_params_t;
 
-/***************************************************************************
- *              Prototypes
- ***************************************************************************/
-static error_t parse_opt (int key, char *arg, struct argp_state *state);
-PRIVATE int list_topics(const char *path);
-
-/***************************************************************************
- *      Data
- ***************************************************************************/
-struct arguments arguments;
-int total_found = 0;
-int total_counter = 0;
-int partial_counter = 0;
-const char *argp_program_version = NAME " " VERSION;
+const char *argp_program_version = APP " " VERSION;
 const char *argp_program_bug_address = SUPPORT;
 
 /* Program documentation. */
 static char doc[] = DOC;
 
 /* A description of the arguments we accept. */
-static char args_doc[] = "";
+static char args_doc[] = "PATH";
 
 /*
  *  The options we understand.
@@ -119,15 +115,13 @@ static char args_doc[] = "";
 static struct argp_option options[] = {
 /*-name-----------------key-----arg-----------------flags---doc-----------------group */
 {0,                     0,      0,                  0,      "Database",         2},
-{"path",                'a',    "PATH",             0,      "Path of database/topic.",2},
-{"database",            'b',    "DATABASE",         0,      "Tranger database name.",2},
-{"topic",               'c',    "TOPIC",            0,      "Topic name.",      2},
 {"recursive",           'r',    0,                  0,      "List recursively.",  2},
 
 {0,                     0,      0,                  0,      "Presentation",     3},
 {"verbose",             'l',    "LEVEL",            0,      "Verbose level (0=total, 1=metadata, 2=metadata+path, 3=metadata+record.", 3},
 {"mode",                'm',    "MODE",             0,      "Mode: form or table", 3},
 {"fields",              'f',    "FIELDS",           0,      "Print only this fields", 3},
+{"show_md2",            'd',    0,                  0,      "Show __md_tranger__ in records", 3},
 
 {0,                     0,      0,                  0,      "Search record conditions", 4},
 {"from-t",              1,      "TIME",             0,      "From time.",       4},
@@ -156,111 +150,106 @@ static struct argp_option options[] = {
 {0}
 };
 
-/* Our argp parser. */
-static struct argp argp = {
-    options,
-    parse_opt,
-    args_doc,
-    doc
-};
-
-/***************************************************************************
- *  Parse a single option
- ***************************************************************************/
 static error_t parse_opt (int key, char *arg, struct argp_state *state)
 {
     /*
      *  Get the input argument from argp_parse,
      *  which we know is a pointer to our arguments structure.
      */
-    struct arguments *arguments = state->input;
+    struct arguments *arguments_ = state->input;
 
     switch (key) {
     case 'a':
-        arguments->path= arg;
+        arguments_->path= arg;
         break;
     case 'b':
-        arguments->database= arg;
+        arguments_->database= arg;
         break;
     case 'c':
-        arguments->topic= arg;
+        arguments_->topic= arg;
         break;
     case 'r':
-        arguments->recursive = 1;
+        arguments_->recursive = 1;
         break;
     case 'l':
         if(arg) {
-            arguments->verbose = atoi(arg);
+            arguments_->verbose = atoi(arg);
         }
         break;
+    case 't':
+        arguments_->print_local_time = 1;
+        break;
     case 'm':
-        arguments->mode = arg;
+        arguments_->mode = arg;
         break;
     case 'f':
-        arguments->fields = arg;
+        arguments_->fields = arg;
+        break;
+    case 'd':
+        arguments_->show_md2 = 1;
         break;
 
     case 1: // from_t
-        arguments->from_t = arg;
+        arguments_->from_t = arg;
         break;
     case 2: // to_t
-        arguments->to_t = arg;
+        arguments_->to_t = arg;
         break;
 
     case 4: // from_rowid
-        arguments->from_rowid = arg;
+        arguments_->from_rowid = arg;
         break;
     case 5: // to_rowid
-        arguments->to_rowid = arg;
+        arguments_->to_rowid = arg;
         break;
 
     case 9:
-        arguments->user_flag_mask_set = arg;
+        arguments_->user_flag_mask_set = arg;
         break;
     case 10:
-        arguments->user_flag_mask_notset = arg;
+        arguments_->user_flag_mask_notset = arg;
         break;
 
     case 13:
-        arguments->system_flag_mask_set = arg;
+        arguments_->system_flag_mask_set = arg;
         break;
     case 14:
-        arguments->system_flag_mask_notset = arg;
+        arguments_->system_flag_mask_notset = arg;
         break;
 
     case 15:
-        arguments->key = arg;
+        arguments_->key = arg;
         break;
     case 16:
-        arguments->notkey = arg;
+        arguments_->notkey = arg;
         break;
 
     case 17: // from_tm
-        arguments->from_tm = arg;
+        arguments_->from_tm = arg;
         break;
     case 18: // to_tm
-        arguments->to_tm = arg;
+        arguments_->to_tm = arg;
         break;
 
     case 20: // search-content-key
-        arguments->search_content_key = arg;
+        arguments_->search_content_key = arg;
         break;
     case 21: // search-content-filter
-        arguments->search_content_filter = arg;
+        arguments_->search_content_filter = arg;
         break;
     case 22: // search-content-text
-        arguments->search_content_text = arg;
+        arguments_->search_content_text = arg;
         break;
     case 19: // diplay-format
-        arguments->display_format = arg;
+        arguments_->display_format = arg;
         break;
 
     case ARGP_KEY_ARG:
         if (state->arg_num >= MAX_ARGS) {
-            /* Too many arguments. */
+            /* Too many arguments_. */
             argp_usage (state);
         }
-        arguments->args[state->arg_num] = arg;
+        arguments_->args[state->arg_num] = arg;
         break;
 
     case ARGP_KEY_END:
@@ -276,28 +265,49 @@ static error_t parse_opt (int key, char *arg, struct argp_state *state)
     return 0;
 }
 
+/* Our argp parser. */
+static struct argp argp = {
+    options,
+    parse_opt,
+    args_doc,
+    doc,
+    0,
+    0,
+    0
+};
+struct arguments arguments;
+
 /***************************************************************************
- *
+ *              Prototypes
  ***************************************************************************/
-static inline double ts_diff2 (struct timespec start, struct timespec end)
-{
-    uint64_t s, e;
-    s = ((uint64_t)start.tv_sec)*1000000 + ((uint64_t)start.tv_nsec)/1000;
-    e = ((uint64_t)end.tv_sec)*1000000 + ((uint64_t)end.tv_nsec)/1000;
-    return ((double)(e-s))/1000000;
-}
+PRIVATE void yuno_catch_signals(void);
+PRIVATE int list_topics(const char *path);
+
+/***************************************************************************
+ *      Data
+ ***************************************************************************/
+yev_loop_h yev_loop;
+int time2exit = 10;
+int total_found = 0;
+int total_counter = 0;
+int partial_counter = 0;
+json_t *match_cond = 0;
+
+int verbose = 0;
+BOOL table_mode = TRUE; // same logic as tr2list.c
 
 /***************************************************************************
  *
  ***************************************************************************/
 PRIVATE BOOL list_db_cb(
+    hgobj gobj,
     void *user_data,
     wd_found_type type,     // type found
     char *fullpath,         // directory+filename found
     const char *directory,  // directory of found filename
     char *name,             // dname[255]
     int level,              // level of tree where file found
-    int index               // index of file inside of directory, relative to 0
+    wd_option opt           // option parameter
 )
 {
     char *p = strrchr(fullpath, '/');
@@ -307,8 +317,6 @@ PRIVATE BOOL list_db_cb(
     char topic_path[PATH_MAX];
     snprintf(topic_path, sizeof(topic_path), "%s", fullpath);
     printf("TimeRanger ==> '%s'\n", fullpath);
-    printf("  TimeRanger database: '%s'\n", pop_last_segment(fullpath));
-    printf("  Path: '%s'\n", fullpath);
     list_topics(topic_path);
 
     return TRUE; // to continue
@@ -317,8 +325,9 @@ PRIVATE BOOL list_db_cb(
 PRIVATE int list_databases(const char *path)
 {
     walk_dir_tree(
+        0,
         path,
-        "__timeranger__.json",
+        "__timeranger2__.json",
         WD_RECURSIVE|WD_MATCH_REGULAR_FILE,
         list_db_cb,
         0
@@ -331,13 +340,14 @@ PRIVATE int list_databases(const char *path)
  *
  ***************************************************************************/
 PRIVATE BOOL list_topic_cb(
+    hgobj gobj,
     void *user_data,
     wd_found_type type,     // type found
     char *fullpath,         // directory+filename found
     const char *directory,  // directory of found filename
     char *name,             // dname[255]
     int level,              // level of tree where file found
-    int index               // index of file inside of directory, relative to 0
+    wd_option opt           // option parameter
 )
 {
     char *p = strrchr(directory, '/');
@@ -353,6 +363,7 @@ PRIVATE int list_topics(const char *path)
 {
     printf("    Topics:\n");
     walk_dir_tree(
+        0,
         path,
         "topic_desc.json",
         WD_RECURSIVE|WD_MATCH_REGULAR_FILE,
@@ -369,43 +380,44 @@ PRIVATE int list_topics(const char *path)
 PRIVATE int load_record_callback(
     json_t *tranger,
     json_t *topic,
-    json_t *list,
-    md_record_t *md_record,
-    json_t *jn_record
+    const char *key,
+    json_t *list, // iterator or rt_list/rt_disk id, don't own
+    json_int_t rowid,
+    md2_record_ex_t *md_record,
+    json_t *jn_record  // must be owned
 )
 {
     static BOOL first_time = TRUE;
+    hgobj gobj = (hgobj)kw_get_int(0, tranger, "gobj", 0, KW_REQUIRED);
+
     total_counter++;
     partial_counter++;
-    int verbose = kw_get_int(list, "verbose", 0, KW_REQUIRED);
     char title[1024];
 
-    print_md1_record(tranger, topic, md_record, title, sizeof(title));
+    tranger2_print_md1_record(title, sizeof(title), key, rowid, md_record, arguments.print_local_time);
 
-    BOOL table_mode = TRUE; // same logic as tranger_list.c
-    if(table_mode) {
-        table_mode = TRUE;
+    /*
+     *  Here is verbose 3
+     */
+    if(!arguments.show_md2) {
+        json_object_del(jn_record, "__md_tranger__");
     }
 
-    if(!jn_record) {
-        jn_record = tranger_read_record_content(tranger, topic, md_record);
-    }
-    const char *search_content_key = kw_get_str(list, "match_cond`search_content_key", "", 0);
-    const char *search_content_filter = kw_get_str(list, "match_cond`search_content_filter", "", 0);
-    const char *search_content_text = kw_get_str(list, "match_cond`search_content_text", "", 0);
-    const char *display_format = kw_get_str(list, "match_cond`display_format", "", 0);
 
-    GBUFFER *gbuf_value = kw_get_gbuf_value(jn_record, search_content_key, 0, 0);
-    if(!gbuf_value) {
-        JSON_DECREF(jn_record);
-        return 0;
-    }
+    const char *search_content_key = kw_get_str(gobj, list, "match_cond`search_content_key", "", 0);
+    const char *search_content_filter = kw_get_str(gobj, list, "match_cond`search_content_filter", "", 0);
+    const char *search_content_text = kw_get_str(gobj, list, "match_cond`search_content_text", "", 0);
+    const char *display_format = kw_get_str(gobj, list, "match_cond`display_format", "", 0);
+
+    const char *p = kw_get_str(gobj, jn_record, search_content_key, "", 0);
+    gbuffer_t *gbuf_value = NULL;
     BOOL base64 = FALSE;
     SWITCHS(search_content_filter) {
         // Engine RPM - Engine Speed
         CASES("base64")
             {
-                gbuf_value = gbuf_decodebase64(gbuf_value);
+                gbuf_value = gbuffer_base64_to_binary(p, strlen(p));
+                p = gbuffer_cur_rd_pointer(gbuf_value);
                 base64 = TRUE;
             }
             break;
@@ -413,7 +425,6 @@ PRIVATE int load_record_callback(
             break;
     } SWITCHS_END;
 
-    char *p = gbuf_cur_rd_pointer(gbuf_value);
 
     if(base64) {
         if(empty_string(search_content_text) || strstr(p, search_content_text)) {
@@ -422,30 +433,30 @@ PRIVATE int load_record_callback(
                 printf("===> %s\n", title);
             }
             if(verbose == 2) {
-                print_md2_record(tranger, topic, md_record, title, sizeof(title));
+                tranger2_print_md2_record(title, sizeof(title), tranger, topic, key, rowid, md_record, arguments.print_local_time);
                 printf("===> %s\n", title);
             }
             if(verbose == 3) {
                 printf("===> %s\n", title);
-                const char *key;
+                const char *key_;
                 json_t *jn_value;
-                json_object_foreach(jn_record, key, jn_value) {
-                    if(strcmp(search_content_key, key)==0) {
+                json_object_foreach(jn_record, key_, jn_value) {
+                    if(strcmp(search_content_key, key_)==0) {
                         if(strcmp(display_format, "json")==0) {
                             json_t *jn = json_string(p);
                             char *s = json2uglystr(jn);
-                            printf("\"%s\": %s\n", key, s);
+                            printf("\"%s\": %s\n", key_, s);
                             gbmem_free(s);
                             json_decref(jn);
 
                         } else { // hexdump
-                            printf("\"%s\":\n", key);
-                            int l = gbuf_leftbytes(gbuf_value);
-                            tdump2(p, l, printf);
+                            printf("\"%s\":\n", key_);
+                            size_t l = gbuffer_leftbytes(gbuf_value);
+                            tdump("", (const uint8_t *)p, l, printf, 3);
                         }
                     } else {
                         char *s = json2uglystr(jn_value);
-                        printf("\"%s\": %s\n", key, s);
+                        printf("\"%s\": %s\n", key_, s);
                         gbmem_free(s);
                     }
                 }
@@ -458,13 +469,14 @@ PRIVATE int load_record_callback(
             printf("%s\n", title);
         }
         if(verbose == 2) {
-            print_md2_record(tranger, topic, md_record, title, sizeof(title));
+            tranger2_print_md2_record(title, sizeof(title), tranger, topic, key, rowid, md_record, arguments.print_local_time);
             printf("%s\n", title);
         }
         if(!empty_string(arguments.fields)) {
             const char ** keys = 0;
             keys = split2(arguments.fields, ", ", 0);
             json_t *jn_record_with_fields = kw_clone_by_path(
+                gobj,
                 jn_record,   // owned
                 keys
             );
@@ -473,26 +485,26 @@ PRIVATE int load_record_callback(
 
         }
         if(json_object_size(jn_record)>0 && verbose >= 3) {
-            const char *key;
+            const char *key_;
             json_t *jn_value;
             int len;
             int col;
             if(first_time) {
                 first_time = FALSE;
                 col = 0;
-                json_object_foreach(jn_record, key, jn_value) {
-                    len = strlen(key);
+                json_object_foreach(jn_record, key_, jn_value) {
+                    len = (int)strlen(key_);
                     if(col == 0) {
-                        printf("%*.*s", len, len, key);
+                        printf("%*.*s", len, len, key_);
                     } else {
-                        printf(" %*.*s", len, len, key);
+                        printf(" %*.*s", len, len, key_);
                     }
                     col++;
                 }
                 printf("\n");
                 col = 0;
-                json_object_foreach(jn_record, key, jn_value) {
-                    len = strlen(key);
+                json_object_foreach(jn_record, key_, jn_value) {
+                    len = (int)strlen(key_);
                     if(col == 0) {
                         printf("%*.*s", len, len, "=======================================");
                     } else {
@@ -503,7 +515,7 @@ PRIVATE int load_record_callback(
                 printf("\n");
             }
             col = 0;
-            json_object_foreach(jn_record, key, jn_value) {
+            json_object_foreach(jn_record, key_, jn_value) {
                 char *s = json2uglystr(jn_value);
                 if(col == 0) {
                     printf("%s", s);
@@ -517,7 +529,7 @@ PRIVATE int load_record_callback(
         }
     }
 
-    GBUF_DECREF(gbuf_value);
+    GBUFFER_DECREF(gbuf_value);
     JSON_DECREF(jn_record);
 
     return 0;
@@ -526,61 +538,81 @@ PRIVATE int load_record_callback(
 /***************************************************************************
  *
  ***************************************************************************/
-PRIVATE int _search_messages(list_params_t *list_params)
+PRIVATE int list_messages(void)
 {
-    char *path = list_params->arguments->path;
-    char *database = list_params->arguments->database;
-    char *topic_name = list_params->arguments->topic;
-    int verbose = list_params->arguments->verbose;
-    json_t *match_cond = list_params->match_cond;
+    if(empty_string(arguments.topic)) {
+        arguments.topic = pop_last_segment(arguments.path);
+        if(empty_string(arguments.database)) {
+            arguments.database = pop_last_segment(arguments.path);
+        }
+    }
 
     /*-------------------------------*
-     *  Startup TimeRanger
+     *      Startup TimeRanger
      *-------------------------------*/
     json_t *jn_tranger = json_pack("{s:s, s:s}",
-        "path", path,
-        "database", database
+        "path", arguments.path,
+        "database", arguments.database
     );
-    json_t * tranger = tranger_startup(jn_tranger);
+
+    json_t * tranger = tranger2_startup(0, jn_tranger, 0);
     if(!tranger) {
-        fprintf(stderr, "Can't startup tranger %s/%s\n\n", path, database);
+        fprintf(stderr, "Can't startup tranger %s/%s\n\n", arguments.path, arguments.database);
         exit(-1);
     }
 
     /*-------------------------------*
      *  Open topic
      *-------------------------------*/
-    json_t * htopic = tranger_open_topic(
+    json_t *topic = tranger2_open_topic(
         tranger,
-        topic_name,
+        arguments.topic,
         FALSE
     );
-    if(!htopic) {
-        fprintf(stderr, "Can't open topic %s\n\n", topic_name);
+    if(!topic) {
+        fprintf(stderr, "Can't open topic %s\n\n", arguments.topic);
         exit(-1);
     }
+    printf("Topic ===> '%s'\n", kw_get_str(0, topic, "directory", "", KW_REQUIRED));
 
-    JSON_INCREF(match_cond);
-    json_t *jn_list = json_pack("{s:s, s:o, s:I, s:i}",
-        "topic_name", topic_name,
-        "match_cond", match_cond?match_cond:json_object(),
-        "load_record_callback", (json_int_t)(size_t)load_record_callback,
-        "verbose", verbose
+    json_object_set_new(
+        match_cond,
+        "load_record_callback",
+        json_integer((json_int_t)(uintptr_t)load_record_callback)
     );
 
-    json_t *tr_list = tranger_open_list(
-        tranger,
-        jn_list
-    );
-    if(tr_list) {
-        tranger_close_list(tranger, tr_list);
+    if(arguments.key) {
+        json_t *rt = tranger2_open_iterator(
+            tranger,
+            arguments.topic,
+            arguments.key,
+            json_incref(match_cond), // owned
+            load_record_callback,
+            NULL,   // rt_id
+            NULL,   // creator
+            NULL,   // data
+            NULL    // extra
+        );
+        tranger2_close_iterator(tranger, rt);
+
+    } else {
+        json_t *rt = tranger2_open_list(
+            tranger,
+            arguments.topic,
+            json_incref(match_cond), // owned
+            NULL,   // extra
+            NULL,   // rt_id
+            FALSE,  // rt_by_disk
+            NULL    // creator
+        );
+        tranger2_close_list(tranger, rt);
     }
 
     /*-------------------------------*
      *  Free resources
      *-------------------------------*/
-    tranger_close_topic(tranger, topic_name);
-    tranger_shutdown(tranger);
+    tranger2_close_topic(tranger, arguments.topic);
+    tranger2_shutdown(tranger);
 
     return 0;
 }
@@ -588,14 +620,15 @@ PRIVATE int _search_messages(list_params_t *list_params)
 /***************************************************************************
  *
  ***************************************************************************/
-PRIVATE int list_topic_messages(list_params_t *list_params)
+PRIVATE int list_topic_messages(void)
 {
     char path_topic[PATH_MAX];
 
-    build_path3(path_topic, sizeof(path_topic),
-        list_params->arguments->path,
-        list_params->arguments->database,
-        list_params->arguments->topic
+    build_path(path_topic, sizeof(path_topic),
+        arguments.path,
+        arguments.database,
+        arguments.topic,
+        NULL
     );
 
     if(!file_exists(path_topic, "topic_desc.json")) {
@@ -603,55 +636,56 @@ PRIVATE int list_topic_messages(list_params_t *list_params)
             fprintf(stderr, "Path not found: '%s'\n\n", path_topic);
             exit(-1);
         }
-        fprintf(stderr, "What Database/Topic?\n\nFound:\n\n");
-        list_databases(list_params->arguments->path);
+        fprintf(stderr, "What Topic? Found:\n\n");
+        list_databases(arguments.path);
         exit(-1);
     }
-    list_params->arguments->topic = pop_last_segment(path_topic);
-    list_params->arguments->database = pop_last_segment(path_topic);
-    list_params->arguments->path = path_topic;
-    return _search_messages(list_params);
+    return list_messages();
 }
 
 /***************************************************************************
  *
  ***************************************************************************/
 PRIVATE BOOL list_recursive_topic_cb(
+    hgobj gobj,
     void *user_data,
     wd_found_type type,     // type found
     char *fullpath,         // directory+filename found
     const char *directory,  // directory of found filename
     char *name,             // dname[255]
     int level,              // level of tree where file found
-    int index               // index of file inside of directory, relative to 0
+    wd_option opt           // option parameter
 )
 {
-    list_params_t *list_params = user_data;
-
     partial_counter = 0;
-    pop_last_segment(fullpath);
-    list_params->arguments->topic = pop_last_segment(fullpath);
-    list_params->arguments->database = pop_last_segment(fullpath);
-    list_params->arguments->path = fullpath;
-    _search_messages(list_params);
 
-    printf("====> %s %s: %d records\n\n",
-        list_params->arguments->database,
-        list_params->arguments->topic,
-        partial_counter
-    );
+    pop_last_segment(fullpath);
+    arguments.topic = pop_last_segment(fullpath);
+    arguments.database = pop_last_segment(fullpath);
+    arguments.path = fullpath;
+
+    list_messages();
+
+    if(partial_counter > 0) {
+        printf("====> %s %s: %d records\n\n",
+            arguments.database,
+            arguments.topic,
+            partial_counter
+        );
+    }
 
     return TRUE; // to continue
 }
 
-PRIVATE int list_recursive_topics(list_params_t *list_params)
+PRIVATE int list_recursive_topics(void)
 {
     walk_dir_tree(
-        list_params->arguments->path,
+        0,
+        arguments.path,
         "topic_desc.json",
         WD_RECURSIVE|WD_MATCH_REGULAR_FILE,
         list_recursive_topic_cb,
-        list_params
+        0
     );
 
     return 0;
@@ -660,36 +694,182 @@ PRIVATE int list_recursive_topics(list_params_t *list_params)
 /***************************************************************************
  *
  ***************************************************************************/
-PRIVATE int list_recursive_topic_messages(list_params_t *list_params)
+PRIVATE BOOL search_topic_cb(
+    hgobj gobj,
+    void *user_data,
+    wd_found_type type,     // type found
+    char *fullpath,         // directory+filename found
+    const char *directory,  // directory of found filename
+    char *name,             // dname[255]
+    int level,              // level of tree where file found
+    wd_option opt           // option parameter
+)
+{
+    partial_counter = 0;
+    pop_last_segment(fullpath);
+    arguments.topic = pop_last_segment(fullpath);
+    arguments.database = pop_last_segment(fullpath);
+    arguments.path = fullpath;
+
+    if(!arguments.topic || strcmp(arguments.topic, arguments.topic)==0) {
+        list_messages();
+        if(arguments.recursive) {
+            if(partial_counter > 0) {
+                printf("====> %s %s: %d records\n\n",
+                    arguments.database,
+                    arguments.topic,
+                    partial_counter
+                );
+            }
+        } else {
+            printf("====> %s %s: %d records\n\n",
+                arguments.database,
+                arguments.topic,
+                partial_counter
+            );
+        }
+    }
+
+    return TRUE; // to continue
+}
+
+PRIVATE int search_topics(void)
+{
+    walk_dir_tree(
+        0,
+        arguments.path,
+        "topic_desc.json",
+        WD_RECURSIVE|WD_MATCH_REGULAR_FILE,
+        search_topic_cb,
+        0
+    );
+    return 0;
+}
+
+PRIVATE BOOL search_by_databases_cb(
+    hgobj gobj,
+    void *user_data,
+    wd_found_type type,     // type found
+    char *fullpath,         // directory+filename found
+    const char *directory,  // directory of found filename
+    char *name,             // dname[255]
+    int level,              // level of tree where file found
+    wd_option opt           // option parameter
+)
+{
+    arguments.path = (char *)directory;
+    arguments.database = 0;
+    arguments.topic = arguments.topic;
+
+    search_topics();
+
+    return TRUE; // to continue
+}
+
+PRIVATE int search_by_databases(void)
+{
+    walk_dir_tree(
+        0,
+        arguments.path,
+        "__timeranger2__.json",
+        WD_RECURSIVE|WD_MATCH_REGULAR_FILE,
+        search_by_databases_cb,
+        0
+    );
+    //printf("\n");
+    return 0;
+}
+
+PRIVATE BOOL search_by_paths_cb(
+    hgobj gobj,
+    void *user_data,
+    wd_found_type type,     // type found
+    char *fullpath,         // directory+filename found
+    const char *directory,  // directory of found filename
+    char *name,             // dname[255]
+    int level,              // level of tree where file found
+    wd_option opt           // option parameter
+)
+{
+    arguments.path = (char *)fullpath;
+    arguments.database = 0;
+    arguments.topic = arguments.topic;
+
+    search_by_databases();
+
+    return TRUE; // to continue
+}
+
+PRIVATE int search_by_paths(void)
+{
+    if(empty_string(arguments.database)) {
+        arguments.database = pop_last_segment(arguments.path);
+    }
+
+    walk_dir_tree(
+        0,
+        arguments.path,
+        arguments.database,
+        WD_MATCH_DIRECTORY,
+        search_by_paths_cb,
+        0
+    );
+    //printf("\n");
+    return 0;
+}
+
+/***************************************************************************
+ *
+ ***************************************************************************/
+PRIVATE int list_recursive_topic_messages(void)
 {
     char path_tranger[PATH_MAX];
 
-    build_path2(path_tranger, sizeof(path_tranger),
-        list_params->arguments->path,
-        list_params->arguments->database
+    build_path(path_tranger, sizeof(path_tranger),
+        arguments.path,
+        arguments.database,
+        NULL
     );
 
-    if(!file_exists(path_tranger, "__timeranger__.json")) {
-        if(!is_directory(path_tranger)) {
-            fprintf(stderr, "Path not found: '%s'\n\n", path_tranger);
-            exit(-1);
-        }
+    if(!file_exists(path_tranger, "__timeranger2__.json")) {
         if(file_exists(path_tranger, "topic_desc.json")) {
-            list_params->arguments->topic = pop_last_segment(path_tranger);
-            list_params->arguments->database = pop_last_segment(path_tranger);
-            list_params->arguments->path = path_tranger;
-            return _search_messages(list_params);
+            arguments.topic = pop_last_segment(path_tranger);
+            arguments.database = pop_last_segment(path_tranger);
+            arguments.path = path_tranger;
+            return list_messages();
         }
 
-        fprintf(stderr, "What Database?\n\nFound:\n\n");
-        list_databases(list_params->arguments->path);
+        search_by_paths();
         exit(-1);
     }
 
-    list_params->arguments->topic = "";
-    list_params->arguments->database = "";
-    list_params->arguments->path = path_tranger;
-    return list_recursive_topics(list_params);
+    arguments.topic = "";
+    arguments.database = "";
+    arguments.path = path_tranger;
+    return list_recursive_topics();
+}
+
+/***************************************************************************
+ *
+ ***************************************************************************/
+PRIVATE void delete_right_slash(char *s)
+{
+    int l;
+    char c;
+
+    /*---------------------------------*
+     *  Elimina blancos a la derecha
+     *---------------------------------*/
+    l = (int)strlen(s);
+    if(l==0)
+        return;
+    while(--l>=0) {
+        c= *(s+l);
+        if(c==' ' || c=='\t' || c=='\n' || c=='\r' || c=='/')
+            *(s+l)='\0';
+        else
+            break;
+    }
 }
 
 /***************************************************************************
@@ -697,15 +877,20 @@ PRIVATE int list_recursive_topic_messages(list_params_t *list_params)
  ***************************************************************************/
 int main(int argc, char *argv[])
 {
+    /*---------------------------------*
+     *      Arguments
+     *---------------------------------*/
+    memset(&arguments, 0, sizeof(arguments));
     /*
      *  Default values
      */
-    memset(&arguments, 0, sizeof(arguments));
+    arguments.verbose = -1;
 
     /*
      *  Parse arguments
      */
     argp_parse(&argp, argc, argv, 0, 0, &arguments);
+    arguments.path = arguments.args[0];
 
     if(empty_string(arguments.search_content_key)) {
         printf("\nYou must input a key where search in his content"
@@ -714,35 +899,62 @@ int main(int argc, char *argv[])
         exit(-1);
     }
 
+    /*----------------------------------*
+     *      Startup gobj system
+     *----------------------------------*/
+    sys_malloc_fn_t malloc_func;
+    sys_realloc_fn_t realloc_func;
+    sys_calloc_fn_t calloc_func;
+    sys_free_fn_t free_func;
+
+    gbmem_get_allocators(
+        &malloc_func,
+        &realloc_func,
+        &calloc_func,
+        &free_func
+    );
+
+    json_set_alloc_funcs(
+        malloc_func,
+        free_func
+    );
+
+#ifndef CONFIG_BUILD_TYPE_RELEASE
+    init_backtrace_with_backtrace(argv[0]);
+    set_show_backtrace_fn(show_backtrace_with_backtrace);
+#endif
+
     uint64_t MEM_MAX_SYSTEM_MEMORY = free_ram_in_kb() * 1024LL;
     MEM_MAX_SYSTEM_MEMORY /= 100LL;
     MEM_MAX_SYSTEM_MEMORY *= 90LL;  // Coge el 90% de la memoria
-
-    uint64_t MEM_MAX_BLOCK = (MEM_MAX_SYSTEM_MEMORY / sizeof(md_record_t)) * sizeof(md_record_t);
-
+    uint64_t MEM_MAX_BLOCK = (MEM_MAX_SYSTEM_MEMORY / sizeof(md2_record_ex_t)) * sizeof(md2_record_ex_t);
     MEM_MAX_BLOCK = MIN(1*1024*1024*1024LL, MEM_MAX_BLOCK);  // 1*G max
 
-    gbmem_startup_system(
-        MEM_MAX_BLOCK,
-        MEM_MAX_SYSTEM_MEMORY
-    );
-    json_set_alloc_funcs(
-        gbmem_malloc,
-        gbmem_free
+    gbmem_setup(
+        MEM_MAX_BLOCK,  // max_block, largest memory block
+        MEM_MAX_SYSTEM_MEMORY, // max_system_memory, maximum system memory
+        FALSE,
+        0,
+        0
     );
 
-    log_startup(
-        NAME,       // application name
-        VERSION,    // applicacion version
-        NAME        // executable program, to can trace stack
+    gobj_start_up(
+        argc,
+        argv,
+        NULL, // jn_global_settings
+        NULL, // persistent_attrs
+        NULL, // global_command_parser
+        NULL, // global_stats_parser
+        NULL, // global_authz_checker
+        NULL  // global_authentication_parser
     );
-    log_add_handler(NAME, "stdout", LOG_OPT_LOGGER, 0);
 
+    yuno_catch_signals();
 
     /*----------------------------------*
      *  Match conditions
      *----------------------------------*/
-    json_t *match_cond = json_object();
+    match_cond = json_object();
 
     if(arguments.from_t) {
         timestamp_t timestamp;
@@ -860,19 +1072,33 @@ int main(int argc, char *argv[])
         );
     }
 
-    if(json_object_size(match_cond)>0) {
-        ;
-    } else {
-        JSON_DECREF(match_cond);
+    verbose = arguments.verbose;
+    if(!empty_string(arguments.mode) || !empty_string(arguments.fields)) {
+        verbose = 3;
+        table_mode = TRUE;
     }
+    if(kw_has_key(match_cond, "filter")) {
+        verbose = 3;
+    }
+
+    if(verbose < 3) {
+        json_object_set_new(match_cond, "only_md", json_true());
+    }
+
+    char path[PATH_MAX];
+    delete_right_slash(arguments.path);
+    if(arguments.path[0] != '/' && arguments.path[0] != '.') {
+        snprintf(path, sizeof(path), "./%s", arguments.path);
+    } else {
+        snprintf(path, sizeof(path), "%s", arguments.path);
+    }
+    arguments.path = path;
 
     /*
      *  Do your work
      */
-    struct timespec st, et;
-    double dt;
-
-    clock_gettime (CLOCK_MONOTONIC, &st);
+    time_measure_t time_measure;
+    MT_START_TIME(time_measure)
 
     if(empty_string(arguments.path)) {
         fprintf(stderr, "What TimeRanger path?\n");
@@ -880,34 +1106,81 @@ int main(int argc, char *argv[])
         exit(-1);
     }
 
-    list_params_t list_params;
-    memset(&list_params, 0, sizeof(list_params));
-    list_params.arguments = &arguments;
-    list_params.match_cond = match_cond;
-
-    if(arguments.recursive) {
-        list_recursive_topic_messages(&list_params);
-    } else {
-        list_topic_messages(&list_params);
+    struct rlimit rl;
+    // Get current limit
+    if (getrlimit(RLIMIT_NOFILE, &rl) == 0) {
+        if(rl.rlim_cur < 200000) {
+            // Set new limit
+            rl.rlim_cur = 200000;  // Set soft limit
+            rl.rlim_max = 200000;  // Set hard limit
+            setrlimit(RLIMIT_NOFILE, &rl);
+        }
     }
 
-    JSON_DECREF(match_cond);
+    /*--------------------------------*
+     *  Create the event loop
+     *--------------------------------*/
+    yev_loop_create(
+        NULL,
+        2024,
+        10,
+        NULL,
+        &yev_loop
+    );
 
-    clock_gettime (CLOCK_MONOTONIC, &et);
+    delete_right_slash(arguments.path);
+
+    if(arguments.list_databases) {
+        list_databases(arguments.path);
+    } else if(arguments.recursive) {
+        list_recursive_topic_messages();
+    } else {
+        list_topic_messages();
+    }
+
+    json_decref(match_cond);
+
+    yev_loop_stop(yev_loop);
+    yev_loop_destroy(yev_loop);
 
     /*-------------------------------------*
      *  Print times
      *-------------------------------------*/
-    dt = ts_diff2(st, et);
+    MT_INCREMENT_COUNT(time_measure, total_counter)
+    MT_PRINT_TIME(time_measure, "list records")
 
-    setlocale(LC_ALL, "");
-    printf("====> Found %'d records in total of %'d;  %'f seconds; %'lu op/sec\n\n",
-        total_found,
-        total_counter,
-        dt,
-        (unsigned long)(((double)total_counter)/dt)
-    );
+    gobj_end();
 
-    gbmem_shutdown();
-    return 0;
+    return gobj_get_exit_code();
+}
+
+/***************************************************************************
+ *      Signal handlers
+ ***************************************************************************/
+PRIVATE void quit_sighandler(int sig)
+{
+    static int times = 0;
+    times++;
+    yev_loop_reset_running(yev_loop);
+    if(times > 1) {
+        exit(-1);
+    }
+}
+
+PUBLIC void yuno_catch_signals(void)
+{
+    struct sigaction sigIntHandler;
+
+    signal(SIGPIPE, SIG_IGN);
+    signal(SIGTERM, SIG_IGN);
+
+    memset(&sigIntHandler, 0, sizeof(sigIntHandler));
+    sigIntHandler.sa_handler = quit_sighandler;
+    sigemptyset(&sigIntHandler.sa_mask);
+    sigIntHandler.sa_flags = SA_NODEFER|SA_RESTART;
+    sigaction(SIGALRM, &sigIntHandler, NULL);   // to debug in kdevelop
+    sigaction(SIGQUIT, &sigIntHandler, NULL);
+    sigaction(SIGINT, &sigIntHandler, NULL);    // ctrl+c
+
+    alarm(time2exit);
 }
