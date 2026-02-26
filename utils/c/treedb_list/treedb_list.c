@@ -90,9 +90,13 @@ static struct argp_option options[] = {
 {"ids",                 'i',    "ID",               0,      "Id or list of id's.",2},
 {"recursive",           'r',    0,                  0,      "List recursively.",  2},
 
-{0,                     0,      0,                  0,      "Print",            3},
-{"print-tranger",       5,      0,                  0,      "Print tranger json", 3},
-{"print-treedb",        6,      0,                  0,      "Print treedb json", 3},
+{0,                     0,      0,                  0,      "Presentation",     3},
+{"mode",                'm',    "MODE",             0,      "Mode: form or table", 3},
+{"fields",              'f',    "FIELDS",           0,      "Print only this fields", 3},
+
+{0,                     0,      0,                  0,      "Print",            4},
+{"print-tranger",       5,      0,                  0,      "Print tranger json", 4},
+{"print-treedb",        6,      0,                  0,      "Print treedb json", 4},
 
 {0}
 };
@@ -117,6 +121,12 @@ static error_t parse_opt (int key, char *arg, struct argp_state *state)
         break;
     case 'r':
         arguments->recursive = 1;
+        break;
+    case 'm':
+        arguments->mode = arg;
+        break;
+    case 'f':
+        arguments->fields = arg;
         break;
     case 'l':
         if(arg) {
@@ -179,6 +189,7 @@ int total_counter = 0;
 int partial_counter = 0;
 json_t *jn_filter = 0;
 json_t *jn_options = 0;
+BOOL table_mode = FALSE;
 
 /***************************************************************************
  *
@@ -384,9 +395,11 @@ PRIVATE int resolve_treedb_path(
 PRIVATE int _list_messages(
     const char *path,
     const char *treedb_name,
-    const char *topic)
+    const char *topic_name)
 {
     hgobj gobj = 0;
+    char title[1024];
+
     /*-------------------------------*
      *  Startup TimeRanger
      *-------------------------------*/
@@ -422,47 +435,113 @@ PRIVATE int _list_messages(
     } else if(arguments.print_treedb) {
         print_json("treedb", kw_get_dict(gobj, tranger, "treedbs", 0, KW_REQUIRED));
     } else {
-        const char *topic_name; json_t *topic_data;
-        json_object_foreach(treedb, topic_name, topic_data) {
+        const char *topic_name_; json_t *topic_data;
+        json_object_foreach(treedb, topic_name_, topic_data) {
             if(!json_is_object(topic_data)) {
                 // Can be __schema_version__ or other attribute
                 continue;
             }
-            if(!empty_string(topic)) {
-                if(strcmp(topic, topic_name)!=0) {
+            if(!empty_string(topic_name)) {
+                if(strcmp(topic_name, topic_name_)!=0) {
                     continue;
                 }
             }
-            JSON_INCREF(jn_filter);
 
+            json_t *cols = tranger2_dict_topic_desc_cols(tranger, topic_name_);
+
+            BOOL first_time = TRUE;
             json_t *iter = treedb_list_nodes( // Return MUST be decref
                 tranger,
                 treedb_name,
-                topic_name,
-                jn_filter,
+                topic_name_,
+                json_incref(jn_filter),
                 0  // match_fn
             );
 
-            json_t *node_list = json_array();
             int idx; json_t *node;
             json_array_foreach(iter, idx, node) {
-                json_array_append_new(
-                    node_list,
-                    node_collapsed_view(
-                        tranger,
-                        node,
-                        json_incref(jn_options)
-                    )
+                json_t *jn_record = node_collapsed_view(
+                    tranger,
+                    node,
+                    json_incref(jn_options)
                 );
+
+                if(table_mode) {
+                    const char *key;
+                    json_t *desc;
+                    int len;
+                    int col;
+                    if(first_time) {
+                        first_time = FALSE;
+                        col = 0;
+                        json_object_foreach(cols, key, desc) {
+                            if(*key == '_') {
+                                continue;
+                            }
+                            len = (int)kw_get_int(gobj, desc, "fillspace", (int)strlen(key), 0);
+                            if(len > 20) {
+                                len = 20;
+                            }
+                            if(col == 0) {
+                                printf("%-*.*s", len, len, key);
+                            } else {
+                                printf(" %-*.*s", len, len, key);
+                            }
+                            col++;
+                        }
+                        printf("\n");
+                        col = 0;
+                        json_object_foreach(cols, key, desc) {
+                            if(*key == '_') {
+                                continue;
+                            }
+                            len = (int)kw_get_int(gobj, desc, "fillspace", (int)strlen(key), 0);
+                            if(len > 20) {
+                                len = 20;
+                            }
+                            if(col == 0) {
+                                printf("%*.*s", len, len, "=======================================");
+                            } else {
+                                printf(" %*.*s", len, len, "=======================================");
+                            }
+                            col++;
+                        }
+                        printf("\n");
+                    }
+                    col = 0;
+
+                    printf("%s ", title);
+
+                    json_object_foreach(cols, key, desc) {
+                        if(*key == '_') {
+                            continue;
+                        }
+                        len = (int)kw_get_int(gobj, desc, "fillspace", (int)strlen(key), 0);
+                        if(len > 20) {
+                            len = 20;
+                        }
+                        json_t *jn_value = kw_get_dict_value(gobj, jn_record, key, 0, 0);
+                        char *s = json2uglystr(jn_value);
+                        if(col == 0) {
+                            printf("%-*.*s", len, len, s);
+                        } else {
+                            printf(" %-*.*s", len, len, s);
+                        }
+                        GBMEM_FREE(s);
+                        col++;
+                    }
+                    printf("\n");
+
+                } else {
+                    print_json(topic_name_, jn_record);
+                }
+
+                total_counter++;
+                partial_counter++;
             }
+
+            json_decref(cols);
             json_decref(iter);
-
-            print_json(topic_name, node_list);
-
-            total_counter += (int)json_array_size(node_list);
-            partial_counter += (int)json_array_size(node_list);
-
-            json_decref(node_list);
         }
     }
 
@@ -650,6 +729,20 @@ int main(int argc, char *argv[])
      *      Log handlers
      *--------------------------------*/
     gobj_log_add_handler("stdout", "stdout", LOG_OPT_UP_WARNING, 0);
+
+    /*----------------------------------*
+     *  Match conditions from Arguments
+     *----------------------------------*/
+    if(arguments.mode) {
+        if(strcasecmp(arguments.mode, "form")==0) {
+            table_mode = FALSE;
+        } else if(strcasecmp(arguments.mode, "table")==0) {
+            table_mode = TRUE;
+        }
+    }
+    if(!empty_string(arguments.fields)) {
+        table_mode = TRUE;
+    }
 
     /*----------------------------------*
      *  Ids
