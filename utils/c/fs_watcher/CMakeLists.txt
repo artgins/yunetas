@@ -59,17 +59,6 @@ target_link_libraries(${PROJECT_NAME}
     libbacktrace.a
 )
 
-#if(ESP32_MODE)
-#    target_link_libraries(${PROJECT_NAME}
-#        /yuneta/development/outputs/lib/libyunetas-core-linux.a
-## NO resuelto       /yuneta/development/outputs/lib/libyunetas-esp32.a   # To test partially esp32 you can include this
-#    )
-#else()
-#    target_link_libraries(${PROJECT_NAME}
-#        /yuneta/development/outputs/lib/libyunetas-core-linux.a
-#    )
-#endif()
-
 target_link_options(${PROJECT_NAME} PUBLIC LINKER:-Map=${PROJECT_NAME}.map)
 
 ##############################################
