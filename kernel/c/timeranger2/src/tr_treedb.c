@@ -759,6 +759,7 @@ PUBLIC json_t *treedb_open_db( // WARNING Return IS NOT YOURS!
     /*--------------------------------*
      *      Create desc of cols
      *--------------------------------*/
+    // HACK incref/decref by each treedb_open_db/treedb_close_db
     if(!topic_cols_desc) {
         topic_cols_desc = _treedb_create_topic_cols_desc();
     } else {
@@ -1251,7 +1252,12 @@ PUBLIC int treedb_close_db(
     json_t *treedb = kw_get_subdict_value(gobj, tranger, "treedbs", treedb_name, 0, KW_EXTRACT);
     json_decref(treedb);  // Don't use JSON_DECREF
 
-    json_decref(topic_cols_desc); // Don't use JSON_DECREF
+    // HACK incref/decref by each treedb_open_db/treedb_close_db
+    if(topic_cols_desc && topic_cols_desc->refcount > 1) {
+        json_decref(topic_cols_desc);
+    } else {
+        JSON_DECREF(topic_cols_desc);
+    }
     return ret;
 }
 
