@@ -1097,17 +1097,41 @@ PUBLIC json_t *kw_collect( // WARNING return **duplicated** objects
 }
 
 /***************************************************************************
-    Compare deeply two json values. Can be dicts, lists, or simple values.
-    Dicts and lists can be disordered.
+    Internal helpers for path-tracked comparison
  ***************************************************************************/
-PUBLIC BOOL kwid_compare_records(
+PRIVATE BOOL _kwid_compare_lists_path(
     hgobj gobj,
-    json_t *record_, // NOT owned
-    json_t *expected_, // NOT owned
+    json_t *list_,
+    json_t *expected_,
     const char **ignore_keys,
     BOOL without_metadata,
     BOOL without_private,
-    BOOL verbose
+    BOOL verbose,
+    const char *path
+);
+
+PRIVATE void _build_compare_path(
+    char *buf, size_t bufsz, const char *parent, const char *child)
+{
+    if(parent[0]) {
+        snprintf(buf, bufsz, "%s%c%s", parent, delimiter[0], child);
+    } else {
+        snprintf(buf, bufsz, "%s", child);
+    }
+}
+
+/***************************************************************************
+    Internal: Compare deeply two json values with path tracking.
+ ***************************************************************************/
+PRIVATE BOOL _kwid_compare_records_path(
+    hgobj gobj,
+    json_t *record_,
+    json_t *expected_,
+    const char **ignore_keys,
+    BOOL without_metadata,
+    BOOL without_private,
+    BOOL verbose,
+    const char *path
 )
 {
     BOOL ret = TRUE;
@@ -1119,6 +1143,7 @@ PUBLIC BOOL kwid_compare_records(
                 "function",     "%s", __FUNCTION__,
                 "msgset",       "%s", MSGSET_PARAMETER_ERROR,
                 "msg",          "%s", "record NULL",
+                "path",         "%s", path,
                 NULL
             );
         }
@@ -1132,6 +1157,7 @@ PUBLIC BOOL kwid_compare_records(
                 "function",     "%s", __FUNCTION__,
                 "msgset",       "%s", MSGSET_PARAMETER_ERROR,
                 "msg",          "%s", "expected NULL",
+                "path",         "%s", path,
                 NULL
             );
         }
@@ -1146,21 +1172,26 @@ PUBLIC BOOL kwid_compare_records(
             json_t *jn_diff = json_object();
             json_object_set(jn_diff, "found", record);
             json_object_set(jn_diff, "expected", expected);
-            gobj_trace_json(gobj, jn_diff, "compare: type mismatch");
+            if(path[0]) {
+                gobj_trace_json(gobj, jn_diff, "compare: type mismatch at '%s'", path);
+            } else {
+                gobj_trace_json(gobj, jn_diff, "compare: type mismatch");
+            }
             json_decref(jn_diff);
         }
     } else {
         switch(json_typeof(record)) {
             case JSON_ARRAY:
                 {
-                    if(!kwid_compare_lists(
+                    if(!_kwid_compare_lists_path(
                             gobj,
                             record,
                             expected,
                             ignore_keys,
                             without_metadata,
                             without_private,
-                            verbose)) {
+                            verbose,
+                            path)) {
                         ret = FALSE;
                     }
                 }
@@ -1192,13 +1223,16 @@ PUBLIC BOOL kwid_compare_records(
 
                     void *n; const char *key; json_t *value;
                     json_object_foreach_safe(record, n, key, value) {
+                        char child_path[1024];
+                        _build_compare_path(child_path, sizeof(child_path), path, key);
+
                         if(!kw_has_key(expected, key)) {
                             ret = FALSE;
                             if(verbose) {
                                 json_t *jn_diff = json_object();
                                 json_object_set(jn_diff, "found", value);
                                 gobj_trace_json(gobj, jn_diff,
-                                    "compare: key '%s' in record but not in expected", key);
+                                    "compare: key not in expected at '%s'", child_path);
                                 json_decref(jn_diff);
                             }
                             break;
@@ -1208,27 +1242,20 @@ PUBLIC BOOL kwid_compare_records(
                         if(json_is_object(value) || json_is_array(value)) {
                             /*
                              *  Recursive compare for nested objects and arrays.
-                             *  The recursive call logs the specific inner mismatch.
-                             *  Then we log at THIS level showing which key failed.
+                             *  The recursive call logs with the full path.
                              */
-                            if(!kwid_compare_records(
+                            if(!_kwid_compare_records_path(
                                     gobj,
                                     value,
                                     value2,
                                     ignore_keys,
                                     without_metadata,
                                     without_private,
-                                    verbose
+                                    verbose,
+                                    child_path
                                 )) {
                                 ret = FALSE;
-                                if(verbose) {
-                                    json_t *jn_diff = json_object();
-                                    json_object_set(jn_diff, "found", value);
-                                    json_object_set(jn_diff, "expected", value2);
-                                    gobj_trace_json(gobj, jn_diff,
-                                        "compare: value mismatch at key '%s'", key);
-                                    json_decref(jn_diff);
-                                }
+                                /* Recursive call already logged with full path */
                             }
                         } else {
                             /*
@@ -1241,7 +1268,7 @@ PUBLIC BOOL kwid_compare_records(
                                     json_object_set(jn_diff, "found", value);
                                     json_object_set(jn_diff, "expected", value2);
                                     gobj_trace_json(gobj, jn_diff,
-                                        "compare: value mismatch at key '%s'", key);
+                                        "compare: value mismatch at '%s'", child_path);
                                     json_decref(jn_diff);
                                 }
                             }
@@ -1265,15 +1292,25 @@ PUBLIC BOOL kwid_compare_records(
                         if(json_object_size(record)>0) {
                             ret = FALSE;
                             if(verbose) {
-                                gobj_trace_json(gobj, record,
-                                    "compare: extra keys in record");
+                                if(path[0]) {
+                                    gobj_trace_json(gobj, record,
+                                        "compare: extra keys in record at '%s'", path);
+                                } else {
+                                    gobj_trace_json(gobj, record,
+                                        "compare: extra keys in record");
+                                }
                             }
                         }
                         if(json_object_size(expected)>0) {
                             ret = FALSE;
                             if(verbose) {
-                                gobj_trace_json(gobj, expected,
-                                    "compare: extra keys in expected");
+                                if(path[0]) {
+                                    gobj_trace_json(gobj, expected,
+                                        "compare: extra keys in expected at '%s'", path);
+                                } else {
+                                    gobj_trace_json(gobj, expected,
+                                        "compare: extra keys in expected");
+                                }
                             }
                         }
                     }
@@ -1290,8 +1327,13 @@ PUBLIC BOOL kwid_compare_records(
                         json_t *jn_diff = json_object();
                         json_object_set(jn_diff, "found", record);
                         json_object_set(jn_diff, "expected", expected);
-                        gobj_trace_json(gobj, jn_diff,
-                            "compare: value mismatch");
+                        if(path[0]) {
+                            gobj_trace_json(gobj, jn_diff,
+                                "compare: value mismatch at '%s'", path);
+                        } else {
+                            gobj_trace_json(gobj, jn_diff,
+                                "compare: value mismatch");
+                        }
                         json_decref(jn_diff);
                     }
                 }
@@ -1305,18 +1347,17 @@ PUBLIC BOOL kwid_compare_records(
 }
 
 /***************************************************************************
-    Compare deeply two json lists. Items can be disordered.
-    Handles arrays of objects (with or without "id" field),
-    arrays of arrays, and arrays of simple values.
+    Internal: Compare deeply two json lists with path tracking.
  ***************************************************************************/
-PUBLIC BOOL kwid_compare_lists(
+PRIVATE BOOL _kwid_compare_lists_path(
     hgobj gobj,
-    json_t *list_, // NOT owned
-    json_t *expected_, // NOT owned
+    json_t *list_,
+    json_t *expected_,
     const char **ignore_keys,
     BOOL without_metadata,
     BOOL without_private,
-    BOOL verbose
+    BOOL verbose,
+    const char *path
 )
 {
     BOOL ret = TRUE;
@@ -1330,6 +1371,7 @@ PUBLIC BOOL kwid_compare_lists(
                 "function",     "%s", __FUNCTION__,
                 "msgset",       "%s", MSGSET_PARAMETER_ERROR,
                 "msg",          "%s", "list NULL",
+                "path",         "%s", path,
                 NULL
             );
         }
@@ -1343,6 +1385,7 @@ PUBLIC BOOL kwid_compare_lists(
                 "function",     "%s", __FUNCTION__,
                 "msgset",       "%s", MSGSET_PARAMETER_ERROR,
                 "msg",          "%s", "expected NULL",
+                "path",         "%s", path,
                 NULL
             );
         }
@@ -1355,7 +1398,11 @@ PUBLIC BOOL kwid_compare_lists(
             json_t *jn_diff = json_object();
             json_object_set(jn_diff, "found", list);
             json_object_set(jn_diff, "expected", expected);
-            gobj_trace_json(gobj, jn_diff, "compare: type mismatch");
+            if(path[0]) {
+                gobj_trace_json(gobj, jn_diff, "compare: type mismatch at '%s'", path);
+            } else {
+                gobj_trace_json(gobj, jn_diff, "compare: type mismatch");
+            }
             json_decref(jn_diff);
         }
     } else {
@@ -1364,6 +1411,11 @@ PUBLIC BOOL kwid_compare_lists(
             {
                 int idx1; json_t *r1;
                 json_array_foreach(list, idx1, r1) {
+                    char child_path[1024];
+                    char idx_str[32];
+                    snprintf(idx_str, sizeof(idx_str), "%d", idx1);
+                    _build_compare_path(child_path, sizeof(child_path), path, idx_str);
+
                     /*
                      *  Objects with "id" field: match by id for efficiency
                      */
@@ -1378,36 +1430,26 @@ PUBLIC BOOL kwid_compare_lists(
                                 json_t *jn_diff = json_object();
                                 json_object_set(jn_diff, "item", r1);
                                 gobj_trace_json(gobj, jn_diff,
-                                    "compare: record id '%s' not found in expected list",
-                                    id1);
+                                    "compare: record id '%s' not found in expected at '%s'",
+                                    id1, child_path);
                                 json_decref(jn_diff);
                             }
                             break;
                         }
                         json_t *r2 = json_array_get(expected, idx2);
 
-                        /*
-                         *  The recursive call logs the specific inner mismatch.
-                         *  Then we log at THIS level showing which record failed.
-                         */
-                        if(!kwid_compare_records(
+                        if(!_kwid_compare_records_path(
                             gobj,
                             r1,
                             r2,
                             ignore_keys,
                             without_metadata,
                             without_private,
-                            verbose)
+                            verbose,
+                            child_path)
                         ) {
                             ret = FALSE;
-                            if(verbose) {
-                                json_t *jn_diff = json_object();
-                                json_object_set(jn_diff, "found", r1);
-                                json_object_set(jn_diff, "expected", r2);
-                                gobj_trace_json(gobj, jn_diff,
-                                    "compare: record mismatch at id '%s'", id1);
-                                json_decref(jn_diff);
-                            }
+                            /* Recursive call already logged with full path */
                             break;
                         }
 
@@ -1424,14 +1466,15 @@ PUBLIC BOOL kwid_compare_lists(
                         BOOL found = FALSE;
                         int idx2; json_t *r2;
                         json_array_foreach(expected, idx2, r2) {
-                            if(kwid_compare_records(
+                            if(_kwid_compare_records_path(
                                 gobj,
                                 r1,
                                 r2,
                                 ignore_keys,
                                 without_metadata,
                                 without_private,
-                                FALSE)  // don't verbose during search
+                                FALSE,  // don't verbose during search
+                                "")
                             ) {
                                 found = TRUE;
                                 json_array_remove(expected, idx2);
@@ -1444,8 +1487,8 @@ PUBLIC BOOL kwid_compare_lists(
                                 json_t *jn_diff = json_object();
                                 json_object_set(jn_diff, "item", r1);
                                 gobj_trace_json(gobj, jn_diff,
-                                    "compare: list item[%d] not found in expected list",
-                                    idx1);
+                                    "compare: item not found in expected at '%s'",
+                                    child_path);
                                 json_decref(jn_diff);
                             }
                             break;
@@ -1466,8 +1509,8 @@ PUBLIC BOOL kwid_compare_lists(
                                 json_t *jn_diff = json_object();
                                 json_object_set(jn_diff, "item", r1);
                                 gobj_trace_json(gobj, jn_diff,
-                                    "compare: list item[%d] not found in expected list",
-                                    idx1);
+                                    "compare: item not found in expected at '%s'",
+                                    child_path);
                                 json_decref(jn_diff);
                             }
                             break;
@@ -1483,17 +1526,29 @@ PUBLIC BOOL kwid_compare_lists(
                     if(json_array_size(list)>0) {
                         ret = FALSE;
                         if(verbose) {
-                            gobj_trace_json(gobj, list,
-                                "compare: extra items in list (%d)",
-                                (int)json_array_size(list));
+                            if(path[0]) {
+                                gobj_trace_json(gobj, list,
+                                    "compare: extra items in list (%d) at '%s'",
+                                    (int)json_array_size(list), path);
+                            } else {
+                                gobj_trace_json(gobj, list,
+                                    "compare: extra items in list (%d)",
+                                    (int)json_array_size(list));
+                            }
                         }
                     }
                     if(json_array_size(expected)>0) {
                         ret = FALSE;
                         if(verbose) {
-                            gobj_trace_json(gobj, expected,
-                                "compare: extra items in expected (%d)",
-                                (int)json_array_size(expected));
+                            if(path[0]) {
+                                gobj_trace_json(gobj, expected,
+                                    "compare: extra items in expected (%d) at '%s'",
+                                    (int)json_array_size(expected), path);
+                            } else {
+                                gobj_trace_json(gobj, expected,
+                                    "compare: extra items in expected (%d)",
+                                    (int)json_array_size(expected));
+                            }
                         }
                     }
                 }
@@ -1502,14 +1557,15 @@ PUBLIC BOOL kwid_compare_lists(
 
         case JSON_OBJECT:
             {
-                if(!kwid_compare_records(
+                if(!_kwid_compare_records_path(
                     gobj,
                     list,
                     expected,
                     ignore_keys,
                     without_metadata,
                     without_private,
-                    verbose)
+                    verbose,
+                    path)
                 ) {
                     ret = FALSE;
                 }
@@ -1526,8 +1582,13 @@ PUBLIC BOOL kwid_compare_lists(
                     json_t *jn_diff = json_object();
                     json_object_set(jn_diff, "found", list);
                     json_object_set(jn_diff, "expected", expected);
-                    gobj_trace_json(gobj, jn_diff,
-                        "compare: value mismatch");
+                    if(path[0]) {
+                        gobj_trace_json(gobj, jn_diff,
+                            "compare: value mismatch at '%s'", path);
+                    } else {
+                        gobj_trace_json(gobj, jn_diff,
+                            "compare: value mismatch");
+                    }
                     json_decref(jn_diff);
                 }
             }
@@ -1538,6 +1599,47 @@ PUBLIC BOOL kwid_compare_lists(
     JSON_DECREF(list);
     JSON_DECREF(expected);
     return ret;
+}
+
+/***************************************************************************
+    Compare deeply two json values. Can be dicts, lists, or simple values.
+    Dicts and lists can be disordered.
+ ***************************************************************************/
+PUBLIC BOOL kwid_compare_records(
+    hgobj gobj,
+    json_t *record_, // NOT owned
+    json_t *expected_, // NOT owned
+    const char **ignore_keys,
+    BOOL without_metadata,
+    BOOL without_private,
+    BOOL verbose
+)
+{
+    return _kwid_compare_records_path(
+        gobj, record_, expected_, ignore_keys,
+        without_metadata, without_private, verbose, ""
+    );
+}
+
+/***************************************************************************
+    Compare deeply two json lists. Items can be disordered.
+    Handles arrays of objects (with or without "id" field),
+    arrays of arrays, and arrays of simple values.
+ ***************************************************************************/
+PUBLIC BOOL kwid_compare_lists(
+    hgobj gobj,
+    json_t *list_, // NOT owned
+    json_t *expected_, // NOT owned
+    const char **ignore_keys,
+    BOOL without_metadata,
+    BOOL without_private,
+    BOOL verbose
+)
+{
+    return _kwid_compare_lists_path(
+        gobj, list_, expected_, ignore_keys,
+        without_metadata, without_private, verbose, ""
+    );
 }
 
 /***************************************************************************
