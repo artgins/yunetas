@@ -80,7 +80,10 @@ static struct argp argp = {
     options,
     parse_opt,
     args_doc,
-    doc
+    doc,
+    0,
+    0,
+    0
 };
 
 /***************************************************************************
@@ -124,7 +127,7 @@ static error_t parse_opt (int key, char *arg, struct argp_state *state)
     return 0;
 }
 
-void ull_to_hex_string(unsigned long long num, char *hexString, char separate) {
+static void ull_to_hex_string(unsigned long long num, char *hexString, char separate) {
     char temp[5];  // Temporary buffer to store each 4-digit hex group
     int i;
 

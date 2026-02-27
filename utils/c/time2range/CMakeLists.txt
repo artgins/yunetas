@@ -47,6 +47,7 @@ SET (YUNO_SRCS
 add_yuno_executable(${PROJECT_NAME} ${YUNO_SRCS})
 
 target_link_libraries(${PROJECT_NAME}
+    libyunetas-gobj.a
     libargp-standalone.a
     libjansson.a
     libpcre2-8.a

@@ -99,6 +99,14 @@ int main(int argc, char **argv) {
 /** Close the switchs */
 #define SWITCHS_END } while ( 0 ); regfree(&__regex); }
 
+/*****************************************************************
+ *     Structures
+ *****************************************************************/
+typedef struct {
+    time_t start;
+    time_t end;
+} time_range_t;
+
 /***************************************************************
  *  inline functions
  ***************************************************************/
@@ -1109,3 +1117,28 @@ typedef struct { // WARNING the table must end with {0,0}
 
 PUBLIC int get_number_from_nn_table(const number_name_table_t *table, const char *name);
 PUBLIC const char *get_name_from_nn_table(const number_name_table_t *table, int number);
+
+/**rst**
+    Return in gmt time range in hours of time t, TZ optional
+**rst**/
+PUBLIC time_range_t get_hours_range(time_t t, int range, const char *TZ);
+
+/**rst**
+    Return in gmt time range in days of time t, TZ optional
+**rst**/
+PUBLIC time_range_t get_days_range(time_t t, int range, const char *TZ);
+
+/**rst**
+    Return in gmt time range in weeks of time t, TZ optional
+**rst**/
+PUBLIC time_range_t get_weeks_range(time_t t, int range, const char *TZ);
+
+/**rst**
+    Return in gmt time range in month of time t, TZ optional
+**rst**/
+PUBLIC time_range_t get_months_range(time_t t, int range, const char *TZ);
+
+/**rst**
+    Return in gmt time range in year of time t, TZ optional
+**rst**/
+PUBLIC time_range_t get_years_range(time_t t, int range, const char *TZ);

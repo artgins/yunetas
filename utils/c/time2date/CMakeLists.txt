@@ -48,6 +48,7 @@ add_yuno_executable(${PROJECT_NAME} ${YUNO_SRCS})
 
 target_link_libraries(${PROJECT_NAME}
     libargp-standalone.a
+    libyunetas-gobj.a
     libjansson.a
     libpcre2-8.a
     libbacktrace.a
