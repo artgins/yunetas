@@ -1143,8 +1143,11 @@ PUBLIC BOOL kwid_compare_records(
     if(json_typeof(record) != json_typeof(expected)) { // json_typeof CONTROLADO
         ret = FALSE;
         if(verbose) {
-            gobj_trace_json(gobj, expected, "compare: different json type: expected");
-            gobj_trace_json(gobj, record, "compare: different json type: found");
+            json_t *jn_diff = json_object();
+            json_object_set(jn_diff, "found", record);
+            json_object_set(jn_diff, "expected", expected);
+            gobj_trace_json(gobj, jn_diff, "compare: type mismatch");
+            json_decref(jn_diff);
         }
     } else {
         switch(json_typeof(record)) {
@@ -1192,7 +1195,11 @@ PUBLIC BOOL kwid_compare_records(
                         if(!kw_has_key(expected, key)) {
                             ret = FALSE;
                             if(verbose) {
-                                gobj_trace_json(gobj, expected, "compare: key not found %s", key);
+                                json_t *jn_diff = json_object();
+                                json_object_set(jn_diff, "found", value);
+                                gobj_trace_json(gobj, jn_diff,
+                                    "compare: key '%s' in record but not in expected", key);
+                                json_decref(jn_diff);
                             }
                             break;
                         }
@@ -1200,7 +1207,9 @@ PUBLIC BOOL kwid_compare_records(
 
                         if(json_is_object(value) || json_is_array(value)) {
                             /*
-                             *  Recursive compare for nested objects and arrays
+                             *  Recursive compare for nested objects and arrays.
+                             *  The recursive call logs the specific inner mismatch.
+                             *  Then we log at THIS level showing which key failed.
                              */
                             if(!kwid_compare_records(
                                     gobj,
@@ -1213,8 +1222,12 @@ PUBLIC BOOL kwid_compare_records(
                                 )) {
                                 ret = FALSE;
                                 if(verbose) {
-                                    gobj_trace_json(gobj, value, "compare: not match: value");
-                                    gobj_trace_json(gobj, value2, "compare: not match: value2");
+                                    json_t *jn_diff = json_object();
+                                    json_object_set(jn_diff, "found", value);
+                                    json_object_set(jn_diff, "expected", value2);
+                                    gobj_trace_json(gobj, jn_diff,
+                                        "compare: value mismatch at key '%s'", key);
+                                    json_decref(jn_diff);
                                 }
                             }
                         } else {
@@ -1224,8 +1237,12 @@ PUBLIC BOOL kwid_compare_records(
                             if(cmp_two_simple_json(value, value2)!=0) {
                                 ret = FALSE;
                                 if(verbose) {
-                                    gobj_trace_json(gobj, value, "compare: items not match: value");
-                                    gobj_trace_json(gobj, value2, "compare: items not match: value2");
+                                    json_t *jn_diff = json_object();
+                                    json_object_set(jn_diff, "found", value);
+                                    json_object_set(jn_diff, "expected", value2);
+                                    gobj_trace_json(gobj, jn_diff,
+                                        "compare: value mismatch at key '%s'", key);
+                                    json_decref(jn_diff);
                                 }
                             }
                         }
@@ -1248,13 +1265,15 @@ PUBLIC BOOL kwid_compare_records(
                         if(json_object_size(record)>0) {
                             ret = FALSE;
                             if(verbose) {
-                                gobj_trace_json(gobj, record, "compare: dict: remain record items");
+                                gobj_trace_json(gobj, record,
+                                    "compare: extra keys in record");
                             }
                         }
                         if(json_object_size(expected)>0) {
                             ret = FALSE;
                             if(verbose) {
-                                gobj_trace_json(gobj, expected, "compare: dict: remain expected items");
+                                gobj_trace_json(gobj, expected,
+                                    "compare: extra keys in expected");
                             }
                         }
                     }
@@ -1268,8 +1287,12 @@ PUBLIC BOOL kwid_compare_records(
                 if(cmp_two_simple_json(record, expected)!=0) {
                     ret = FALSE;
                     if(verbose) {
-                        gobj_trace_json(gobj, record, "compare: simple values not match: record");
-                        gobj_trace_json(gobj, expected, "compare: simple values not match: expected");
+                        json_t *jn_diff = json_object();
+                        json_object_set(jn_diff, "found", record);
+                        json_object_set(jn_diff, "expected", expected);
+                        gobj_trace_json(gobj, jn_diff,
+                            "compare: value mismatch");
+                        json_decref(jn_diff);
                     }
                 }
                 break;
@@ -1329,14 +1352,11 @@ PUBLIC BOOL kwid_compare_lists(
     if(json_typeof(list) != json_typeof(expected)) { // json_typeof CONTROLADO
         ret = FALSE;
         if(verbose) {
-            gobj_log_error(gobj, 0,
-                "function",     "%s", __FUNCTION__,
-                "msgset",       "%s", MSGSET_PARAMETER_ERROR,
-                "msg",          "%s", "different json type",
-                "list",         "%j", list,
-                "expected",     "%j", expected,
-                NULL
-            );
+            json_t *jn_diff = json_object();
+            json_object_set(jn_diff, "found", list);
+            json_object_set(jn_diff, "expected", expected);
+            gobj_trace_json(gobj, jn_diff, "compare: type mismatch");
+            json_decref(jn_diff);
         }
     } else {
         switch(json_typeof(list)) {
@@ -1355,13 +1375,21 @@ PUBLIC BOOL kwid_compare_lists(
                         if(idx2 < 0) {
                             ret = FALSE;
                             if(verbose) {
-                                gobj_trace_json(gobj, r1,
-                                    "compare: record id '%s' not found in expected list", id1);
+                                json_t *jn_diff = json_object();
+                                json_object_set(jn_diff, "item", r1);
+                                gobj_trace_json(gobj, jn_diff,
+                                    "compare: record id '%s' not found in expected list",
+                                    id1);
+                                json_decref(jn_diff);
                             }
                             break;
                         }
                         json_t *r2 = json_array_get(expected, idx2);
 
+                        /*
+                         *  The recursive call logs the specific inner mismatch.
+                         *  Then we log at THIS level showing which record failed.
+                         */
                         if(!kwid_compare_records(
                             gobj,
                             r1,
@@ -1373,8 +1401,12 @@ PUBLIC BOOL kwid_compare_lists(
                         ) {
                             ret = FALSE;
                             if(verbose) {
-                                gobj_trace_json(gobj, r1, "compare: record not match: r1");
-                                gobj_trace_json(gobj, r2, "compare: record not match: r2");
+                                json_t *jn_diff = json_object();
+                                json_object_set(jn_diff, "found", r1);
+                                json_object_set(jn_diff, "expected", r2);
+                                gobj_trace_json(gobj, jn_diff,
+                                    "compare: record mismatch at id '%s'", id1);
+                                json_decref(jn_diff);
                             }
                             break;
                         }
@@ -1409,8 +1441,12 @@ PUBLIC BOOL kwid_compare_lists(
                         if(!found) {
                             ret = FALSE;
                             if(verbose) {
-                                gobj_trace_json(gobj, r1,
-                                    "compare: item not found in expected list");
+                                json_t *jn_diff = json_object();
+                                json_object_set(jn_diff, "item", r1);
+                                gobj_trace_json(gobj, jn_diff,
+                                    "compare: list item[%d] not found in expected list",
+                                    idx1);
+                                json_decref(jn_diff);
                             }
                             break;
                         }
@@ -1427,8 +1463,12 @@ PUBLIC BOOL kwid_compare_lists(
                         if(idx2 < 0) {
                             ret = FALSE;
                             if(verbose) {
-                                gobj_trace_json(gobj, r1,
-                                    "compare: item not found in expected list");
+                                json_t *jn_diff = json_object();
+                                json_object_set(jn_diff, "item", r1);
+                                gobj_trace_json(gobj, jn_diff,
+                                    "compare: list item[%d] not found in expected list",
+                                    idx1);
+                                json_decref(jn_diff);
                             }
                             break;
                         }
@@ -1441,16 +1481,20 @@ PUBLIC BOOL kwid_compare_lists(
 
                 if(ret == TRUE) {
                     if(json_array_size(list)>0) {
-                        if(verbose) {
-                            gobj_trace_json(gobj, list, "compare: remain list items");
-                        }
                         ret = FALSE;
+                        if(verbose) {
+                            gobj_trace_json(gobj, list,
+                                "compare: extra items in list (%d)",
+                                (int)json_array_size(list));
+                        }
                     }
                     if(json_array_size(expected)>0) {
-                        if(verbose) {
-                            gobj_trace_json(gobj, expected, "compare: remain expected items");
-                        }
                         ret = FALSE;
+                        if(verbose) {
+                            gobj_trace_json(gobj, expected,
+                                "compare: extra items in expected (%d)",
+                                (int)json_array_size(expected));
+                        }
                     }
                 }
             }
@@ -1479,8 +1523,12 @@ PUBLIC BOOL kwid_compare_lists(
             if(cmp_two_simple_json(list, expected)!=0) {
                 ret = FALSE;
                 if(verbose) {
-                    gobj_trace_json(gobj, list, "compare: simple values not match: list");
-                    gobj_trace_json(gobj, expected, "compare: simple values not match: expected");
+                    json_t *jn_diff = json_object();
+                    json_object_set(jn_diff, "found", list);
+                    json_object_set(jn_diff, "expected", expected);
+                    gobj_trace_json(gobj, jn_diff,
+                        "compare: value mismatch");
+                    json_decref(jn_diff);
                 }
             }
             break;
