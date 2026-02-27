@@ -20,6 +20,7 @@
 #include <argp-standalone.h>
 #include <gobj.h>
 #include <testing.h>
+#include <timeranger2.h>
 #include <helpers.h>
 #include <kwid.h>
 #include <yev_loop.h>
@@ -175,64 +176,60 @@ int main(int argc, char *argv[])
      */
     argp_parse(&argp, argc, argv, 0, 0, &arguments);
 
-    /*-------------------------------------*
-     *  Your start code
-     *-------------------------------------*/
-    init_ghelpers_library(APP_NAME);
-    log_startup(
-        "test",             // application name
-        "1.0.0",            // applicacion version
-        "test_glogger"     // executable program, to can trace stack
+    /*----------------------------------*
+     *      Startup gobj system
+     *----------------------------------*/
+    sys_malloc_fn_t malloc_func;
+    sys_realloc_fn_t realloc_func;
+    sys_calloc_fn_t calloc_func;
+    sys_free_fn_t free_func;
+
+    gbmem_get_allocators(
+        &malloc_func,
+        &realloc_func,
+        &calloc_func,
+        &free_func
     );
 
-    /*------------------------------------------------*
-     *          Setup memory
-     *------------------------------------------------*/
-    #define MEM_MIN_BLOCK   512
+    json_set_alloc_funcs(
+        malloc_func,
+        free_func
+    );
+
+#ifndef CONFIG_BUILD_TYPE_RELEASE
+    init_backtrace_with_backtrace(argv[0]);
+    set_show_backtrace_fn(show_backtrace_with_backtrace);
+#endif
+
     uint64_t MEM_MAX_SYSTEM_MEMORY = free_ram_in_kb() * 1024LL;
     MEM_MAX_SYSTEM_MEMORY /= 100LL;
     MEM_MAX_SYSTEM_MEMORY *= 90LL;  // Coge el 90% de la memoria
-
-    uint64_t MEM_MAX_BLOCK = (MEM_MAX_SYSTEM_MEMORY / sizeof(md_record_t)) * sizeof(md_record_t);
+    uint64_t MEM_MAX_BLOCK = (MEM_MAX_SYSTEM_MEMORY / sizeof(md2_record_ex_t)) * sizeof(md2_record_ex_t);
     MEM_MAX_BLOCK = MIN(1*1024*1024*1024LL, MEM_MAX_BLOCK);  // 1*G max
 
-    uint64_t MEM_SUPERBLOCK = MEM_MAX_BLOCK;
-
-    static uint32_t mem_list[] = {2037, 0};
-    gbmem_trace_alloc_free(0, mem_list);
-
-    if(1) {
-        gbmem_startup(
-            MEM_MIN_BLOCK,
-            MEM_MAX_BLOCK,
-            MEM_SUPERBLOCK,
-            MEM_MAX_SYSTEM_MEMORY,
-            NULL,
-            0
-        );
-    } else {
-        gbmem_startup_system(
-            MEM_MAX_BLOCK,
-            MEM_MAX_SYSTEM_MEMORY
-        );
-    }
-    json_set_alloc_funcs(
-        gbmem_malloc,
-        gbmem_free
-    );
-    uv_replace_allocator(
-        gbmem_malloc,
-        gbmem_realloc,
-        gbmem_calloc,
-        gbmem_free
+    gbmem_setup(
+        MEM_MAX_BLOCK,  // max_block, largest memory block
+        MEM_MAX_SYSTEM_MEMORY, // max_system_memory, maximum system memory
+        FALSE,
+        0,
+        0
     );
 
-    log_startup(
-        APP_NAME,       // application name
-        VERSION,        // applicacion version
-        APP_NAME        // executable program, to can trace stack
+    gobj_start_up(
+        argc,
+        argv,
+        NULL, // jn_global_settings
+        NULL, // persistent_attrs
+        NULL, // global_command_parser
+        NULL, // global_stats_parser
+        NULL, // global_authz_checker
+        NULL  // global_authentication_parser
     );
-    log_add_handler(APP_NAME, "stdout", LOG_OPT_LOGGER, 0);
+
+    /*--------------------------------*
+     *      Log handlers
+     *--------------------------------*/
+    gobj_log_add_handler("stdout", "stdout", LOG_OPT_UP_WARNING, 0);
 
     /*------------------------*
      *      Do your work
@@ -246,16 +243,17 @@ int main(int argc, char *argv[])
         exit(-1);
     }
 
-    json_t *jn1 = nonlegalfile2json(arguments.file1, 1);
+    json_t *jn1 = anystring2json(arguments.file1, strlen(arguments.file1), 1);
     if(!jn1) {
         exit(-1);
     }
-    json_t *jn2 = nonlegalfile2json(arguments.file2, 2);
+    json_t *jn2 = anystring2json(arguments.file2, strlen(arguments.file2), 1);
     if(!jn2) {
         exit(-2);
     }
 
     int equal = kwid_compare_records(
+        0,
         jn1, // NOT owned
         jn2, // NOT owned
         arguments.without_metadata,
