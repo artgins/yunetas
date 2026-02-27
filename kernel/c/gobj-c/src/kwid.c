@@ -1097,7 +1097,8 @@ PUBLIC json_t *kw_collect( // WARNING return **duplicated** objects
 }
 
 /***************************************************************************
-    Compare deeply two json **records**. Can be disordered.
+    Compare deeply two json values. Can be dicts, lists, or simple values.
+    Dicts and lists can be disordered.
  ***************************************************************************/
 PUBLIC BOOL kwid_compare_records(
     hgobj gobj,
@@ -1158,10 +1159,6 @@ PUBLIC BOOL kwid_compare_records(
                             without_private,
                             verbose)) {
                         ret = FALSE;
-                        if(verbose) {
-                            gobj_trace_json(gobj, expected, "compare: list not match: expected");
-                            gobj_trace_json(gobj, record, "compare: list not match: record");
-                        }
                     }
                 }
                 break;
@@ -1177,6 +1174,19 @@ PUBLIC BOOL kwid_compare_records(
                         kw_delete_private_keys(expected);
                     }
 
+                    /*
+                     *  Delete ignored keys from both copies upfront.
+                     *  This is consistent with without_metadata/without_private
+                     *  and avoids the bug where ignored keys remained after the loop,
+                     *  causing false "remain items" mismatches.
+                     */
+                    if(ignore_keys) {
+                        for(const char **p = ignore_keys; *p; p++) {
+                            json_object_del(record, *p);
+                            json_object_del(expected, *p);
+                        }
+                    }
+
                     void *n; const char *key; json_t *value;
                     json_object_foreach_safe(record, n, key, value) {
                         if(!kw_has_key(expected, key)) {
@@ -1187,7 +1197,11 @@ PUBLIC BOOL kwid_compare_records(
                             break;
                         }
                         json_t *value2 = json_object_get(expected, key);
-                        if(json_typeof(value)==JSON_OBJECT) {
+
+                        if(json_is_object(value) || json_is_array(value)) {
+                            /*
+                             *  Recursive compare for nested objects and arrays
+                             */
                             if(!kwid_compare_records(
                                     gobj,
                                     value,
@@ -1199,59 +1213,35 @@ PUBLIC BOOL kwid_compare_records(
                                 )) {
                                 ret = FALSE;
                                 if(verbose) {
-                                    gobj_trace_json(gobj, value, "compare: record not match: value");
-                                    gobj_trace_json(gobj, value2, "compare: record not match: value2");
+                                    gobj_trace_json(gobj, value, "compare: not match: value");
+                                    gobj_trace_json(gobj, value2, "compare: not match: value2");
                                 }
                             }
-                            if(ret == FALSE) {
-                                break;
-                            }
-
-                            json_object_del(expected, key);  // key still valid (owned by record)
-                            json_object_del(record, key);    // key freed here, but no longer needed
-
-                        } else if(json_typeof(value)==JSON_ARRAY) {
-                            if(!kwid_compare_lists(
-                                    gobj,
-                                    value,
-                                    value2,
-                                    ignore_keys,
-                                    without_metadata,
-                                    without_private,
-                                    verbose
-                                )) {
+                        } else {
+                            /*
+                             *  Simple values (string, integer, real, boolean, null)
+                             */
+                            if(cmp_two_simple_json(value, value2)!=0) {
                                 ret = FALSE;
                                 if(verbose) {
-                                    gobj_trace_json(gobj, value, "compare: list not match: value");
-                                    gobj_trace_json(gobj, value2, "compare: list not match: value2");
-                                }
-                            }
-                            if(ret == FALSE) {
-                                break;
-                            }
-
-                            json_object_del(expected, key);  // key still valid (owned by record)
-                            json_object_del(record, key);    // key freed here, but no longer needed
-
-                        } else {
-                            if(ignore_keys && str_in_list(ignore_keys, key, FALSE)) {
-                                /*
-                                 *  HACK keys in the list are ignored
-                                 */
-                            } else {
-                                if(cmp_two_simple_json(value, value2)!=0) {
-                                    ret = FALSE;
-                                    if(verbose) {
-                                        gobj_trace_json(gobj, value, "compare: items not match: value");
-                                        gobj_trace_json(gobj, value2, "compare: items not match: value2");
-                                    }
-                                    break;
-                                } else {
-                                    json_object_del(expected, key);  // key still valid (owned by record)
-                                    json_object_del(record, key);    // key freed here, but no longer needed
+                                    gobj_trace_json(gobj, value, "compare: items not match: value");
+                                    gobj_trace_json(gobj, value2, "compare: items not match: value2");
                                 }
                             }
                         }
+
+                        if(ret == FALSE) {
+                            break;
+                        }
+
+                        /*
+                         *  IMPORTANT: delete from expected first, then from record.
+                         *  `key` points to memory inside record's hashtable entry;
+                         *  deleting from record first would free `key`, making
+                         *  the second json_object_del use a dangling pointer.
+                         */
+                        json_object_del(expected, key);
+                        json_object_del(record, key);
                     }
 
                     if(ret == TRUE) {
@@ -1270,10 +1260,17 @@ PUBLIC BOOL kwid_compare_records(
                     }
                 }
                 break;
+
             default:
-                ret = FALSE;
-                if(verbose) {
-                    gobj_trace_json(gobj, record, "compare: No list or not object");
+                /*
+                 *  Simple types: string, integer, real, boolean, null
+                 */
+                if(cmp_two_simple_json(record, expected)!=0) {
+                    ret = FALSE;
+                    if(verbose) {
+                        gobj_trace_json(gobj, record, "compare: simple values not match: record");
+                        gobj_trace_json(gobj, expected, "compare: simple values not match: expected");
+                    }
                 }
                 break;
         }
@@ -1285,7 +1282,9 @@ PUBLIC BOOL kwid_compare_records(
 }
 
 /***************************************************************************
-    Compare deeply two json lists of **records**. Can be disordered.
+    Compare deeply two json lists. Items can be disordered.
+    Handles arrays of objects (with or without "id" field),
+    arrays of arrays, and arrays of simple values.
  ***************************************************************************/
 PUBLIC BOOL kwid_compare_lists(
     hgobj gobj,
@@ -1307,7 +1306,7 @@ PUBLIC BOOL kwid_compare_lists(
             gobj_log_error(gobj, 0,
                 "function",     "%s", __FUNCTION__,
                 "msgset",       "%s", MSGSET_PARAMETER_ERROR,
-                "msg",          "%s", "record NULL",
+                "msg",          "%s", "list NULL",
                 NULL
             );
         }
@@ -1345,19 +1344,21 @@ PUBLIC BOOL kwid_compare_lists(
             {
                 int idx1; json_t *r1;
                 json_array_foreach(list, idx1, r1) {
-                    const char *id1 = kw_get_str(gobj, r1, "id", 0, 0);
-                    /*--------------------------------*
-                     *  List with id records
-                     *--------------------------------*/
+                    /*
+                     *  Objects with "id" field: match by id for efficiency
+                     */
+                    const char *id1 = json_is_object(r1) ?
+                        kw_get_str(gobj, r1, "id", 0, 0) : NULL;
+
                     if(id1) {
                         int idx2 = kwid_find_record_in_list(gobj, expected, id1, 0);
                         if(idx2 < 0) {
                             ret = FALSE;
                             if(verbose) {
-                                gobj_trace_json(gobj, r1, "compare: record not found in expected list: r1");
-                                gobj_trace_json(gobj, expected, "compare: record not found in expected list: expected");
+                                gobj_trace_json(gobj, r1,
+                                    "compare: record id '%s' not found in expected list", id1);
                             }
-                            continue;
+                            break;
                         }
                         json_t *r2 = json_array_get(expected, idx2);
 
@@ -1375,32 +1376,66 @@ PUBLIC BOOL kwid_compare_lists(
                                 gobj_trace_json(gobj, r1, "compare: record not match: r1");
                                 gobj_trace_json(gobj, r2, "compare: record not match: r2");
                             }
-                        }
-                        if(ret == FALSE) {
                             break;
                         }
 
+                        json_array_remove(expected, idx2);
                         if(json_array_remove(list, idx1)==0) {
                             idx1--;
                         }
-                        json_array_remove(expected, idx2);
-                    } else {
-                        /*--------------------------------*
-                         *  List with any json items
-                         *--------------------------------*/
-                        int idx2 = kw_find_json_in_list(gobj, expected, r1, 0);
-                        if(idx2 < 0) {
+
+                    } else if(json_is_object(r1) || json_is_array(r1)) {
+                        /*
+                         *  Objects without "id" or nested arrays:
+                         *  find match using deep compare (respects ignore_keys etc.)
+                         */
+                        BOOL found = FALSE;
+                        int idx2; json_t *r2;
+                        json_array_foreach(expected, idx2, r2) {
+                            if(kwid_compare_records(
+                                gobj,
+                                r1,
+                                r2,
+                                ignore_keys,
+                                without_metadata,
+                                without_private,
+                                FALSE)  // don't verbose during search
+                            ) {
+                                found = TRUE;
+                                json_array_remove(expected, idx2);
+                                break;
+                            }
+                        }
+                        if(!found) {
                             ret = FALSE;
                             if(verbose) {
-                                gobj_trace_json(gobj, r1, "compare: record not found in expected list: r1");
-                                gobj_trace_json(gobj, expected, "compare: record not found in expected list: expected");
+                                gobj_trace_json(gobj, r1,
+                                    "compare: item not found in expected list");
                             }
                             break;
                         }
                         if(json_array_remove(list, idx1)==0) {
                             idx1--;
                         }
+
+                    } else {
+                        /*
+                         *  Simple values (string, integer, real, boolean, null):
+                         *  find exact match
+                         */
+                        int idx2 = kw_find_json_in_list(gobj, expected, r1, 0);
+                        if(idx2 < 0) {
+                            ret = FALSE;
+                            if(verbose) {
+                                gobj_trace_json(gobj, r1,
+                                    "compare: item not found in expected list");
+                            }
+                            break;
+                        }
                         json_array_remove(expected, idx2);
+                        if(json_array_remove(list, idx1)==0) {
+                            idx1--;
+                        }
                     }
                 }
 
@@ -1433,18 +1468,19 @@ PUBLIC BOOL kwid_compare_lists(
                     verbose)
                 ) {
                     ret = FALSE;
-                    if(verbose) {
-                        gobj_trace_json(gobj, list, "compare: object not match: list");
-                        gobj_trace_json(gobj, expected, "compare: object not match: expected");
-                    }
                 }
             }
             break;
+
         default:
-            {
+            /*
+             *  Simple types: compare directly
+             */
+            if(cmp_two_simple_json(list, expected)!=0) {
                 ret = FALSE;
                 if(verbose) {
-                    gobj_trace_json(gobj, list, "No list or not object");
+                    gobj_trace_json(gobj, list, "compare: simple values not match: list");
+                    gobj_trace_json(gobj, expected, "compare: simple values not match: expected");
                 }
             }
             break;
