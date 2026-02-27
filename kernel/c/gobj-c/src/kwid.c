@@ -1207,8 +1207,8 @@ PUBLIC BOOL kwid_compare_records(
                                 break;
                             }
 
-                            json_object_del(expected, key);
-                            json_object_del(record, key);
+                            json_object_del(expected, key);  // key still valid (owned by record)
+                            json_object_del(record, key);    // key freed here, but no longer needed
 
                         } else if(json_typeof(value)==JSON_ARRAY) {
                             if(!kwid_compare_lists(
@@ -1230,8 +1230,8 @@ PUBLIC BOOL kwid_compare_records(
                                 break;
                             }
 
-                            json_object_del(expected, key);
-                            json_object_del(record, key);
+                            json_object_del(expected, key);  // key still valid (owned by record)
+                            json_object_del(record, key);    // key freed here, but no longer needed
 
                         } else {
                             if(ignore_keys && str_in_list(ignore_keys, key, FALSE)) {
@@ -1247,8 +1247,8 @@ PUBLIC BOOL kwid_compare_records(
                                     }
                                     break;
                                 } else {
-                                    json_object_del(expected, key);
-                                    json_object_del(record, key);
+                                    json_object_del(expected, key);  // key still valid (owned by record)
+                                    json_object_del(record, key);    // key freed here, but no longer needed
                                 }
                             }
                         }
