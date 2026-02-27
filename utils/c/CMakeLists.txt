@@ -31,6 +31,10 @@ add_subdirectory(ytestconfig)
 add_subdirectory(ytests)
 add_subdirectory(yuno-skeleton)
 
+add_subdirectory(time2date)
+add_subdirectory(time2range)
+add_subdirectory(json_diff)
+
 # compile in Release mode :
 #
 #     cmake -DCMAKE_BUILD_TYPE=Release ..
