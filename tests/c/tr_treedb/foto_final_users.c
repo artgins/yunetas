@@ -207,7 +207,7 @@ char foto_final_users[]= "\
             'treedb_name': 'treedb_test',\n\
             'topic_name': 'users',\n\
             'g_rowid': 3, \n\
-            'i_rowid': 3, \n\\
+            'i_rowid': 3, \n\
             't': 99999, \n\
             'tm': 0, \n\
             'pure_node': true, \n\
