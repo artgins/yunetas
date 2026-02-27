@@ -10,19 +10,16 @@
 #include <time.h>
 #include <errno.h>
 #include <regex.h>
-#include <locale.h>
 #include <stdint.h>
 #include <stdlib.h>
 #include <unistd.h>
 #include <string.h>
-#include <time.h>
 
 #include <argp-standalone.h>
 #include <gobj.h>
 #include <testing.h>
 #include <helpers.h>
 #include <kwid.h>
-#include <timeranger2.h>
 #include <yev_loop.h>
 
 /***************************************************************************
