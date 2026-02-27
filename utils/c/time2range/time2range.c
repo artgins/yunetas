@@ -7,7 +7,6 @@
  *          All Rights Reserved.
  ****************************************************************************/
 #include <stdio.h>
-#include <argp.h>
 #include <time.h>
 #include <errno.h>
 #include <regex.h>
@@ -18,16 +17,23 @@
 #include <unistd.h>
 #include <string.h>
 #include <time.h>
-#include <ghelpers.h>
+
+#include <argp-standalone.h>
+#include <gobj.h>
+#include <testing.h>
+#include <helpers.h>
+#include <kwid.h>
+#include <timeranger2.h>
+#include <yev_loop.h>
 
 /***************************************************************************
  *              Constants
  ***************************************************************************/
-#define NAME        "time2range"
+#define APP         "time2range"
 #define DOC         "Get range of a time"
 
-#define VERSION     "1.0.0"
-#define SUPPORT     "<niyamaka at yuneta.io>"
+#define VERSION     YUNETA_VERSION
+#define SUPPORT     "<support at artgins.com>"
 #define DATETIME    __DATE__ " " __TIME__
 
 
@@ -58,7 +64,7 @@ static error_t parse_opt (int key, char *arg, struct argp_state *state);
  *      Data
  ***************************************************************************/
 int counter = 0;
-const char *argp_program_version = NAME " " VERSION;
+const char *argp_program_version = APP " " VERSION;
 const char *argp_program_bug_address = SUPPORT;
 
 /* Program documentation. */

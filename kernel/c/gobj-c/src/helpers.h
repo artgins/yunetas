@@ -966,6 +966,7 @@ PUBLIC uint64_t htonll(uint64_t value); /* Convert a 64-bit integer to network b
 PUBLIC uint64_t ntohll(uint64_t value); /* Convert a 64-bit integer to host byte order */
 PUBLIC void list_open_files(void);
 
+PUBLIC time_t gmtime2timezone(time_t t, const char *tz, struct tm *ltm, time_t *offset);
 PUBLIC char *formatdate(time_t t, char *bf, int bfsize, const char *format);
 
 /**rst**

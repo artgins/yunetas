@@ -7,7 +7,6 @@
  *          All Rights Reserved.
  ****************************************************************************/
 #include <stdio.h>
-#include <argp.h>
 #include <time.h>
 #include <errno.h>
 #include <regex.h>
@@ -17,16 +16,22 @@
 #include <unistd.h>
 #include <string.h>
 #include <time.h>
-#include <ghelpers.h>
+
+#include <argp-standalone.h>
+#include <gobj.h>
+#include <testing.h>
+#include <helpers.h>
+#include <kwid.h>
+#include <yev_loop.h>
 
 /***************************************************************************
  *              Constants
  ***************************************************************************/
-#define APP_NAME    "json_diff"
+#define APP         "json_diff"
 #define DOC         "Compare two json files. Items can be disordered."
 
-#define VERSION     __ghelpers_version__
-#define SUPPORT     "<niyamaka at yuneta.io>"
+#define VERSION     YUNETA_VERSION
+#define SUPPORT     "<support at artgins.com>"
 #define DATETIME    __DATE__ " " __TIME__
 
 /***************************************************************************
@@ -68,7 +73,7 @@ static error_t parse_opt (int key, char *arg, struct argp_state *state);
 struct arguments arguments;
 int total_counter = 0;
 int partial_counter = 0;
-const char *argp_program_version = APP_NAME " " VERSION;
+const char *argp_program_version = APP " " VERSION;
 const char *argp_program_bug_address = SUPPORT;
 
 /* Program documentation. */

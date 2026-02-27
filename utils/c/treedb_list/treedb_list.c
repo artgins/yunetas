@@ -10,7 +10,6 @@
  *          All Rights Reserved.
  ****************************************************************************/
 #include <stdio.h>
-#include <argp.h>
 #include <time.h>
 #include <errno.h>
 #include <signal.h>
@@ -23,6 +22,7 @@
 #include <time.h>
 #include <sys/resource.h>
 
+#include <argp-standalone.h>
 #include <gobj.h>
 #include <testing.h>
 #include <helpers.h>

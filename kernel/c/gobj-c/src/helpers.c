@@ -5274,6 +5274,68 @@ PUBLIC void list_open_files(void)
 #endif
 }
 
+/*****************************************************************
+ *  Convert GMT time `t` (seconds from Epoch) to Time Zone `tz`
+ *  filling `ltm` and `offset`.
+ *  Return t plus the offset of search time zone
+ *  (use gmtime with the returned value)
+ *  tz values in
+ *      https://en.wikipedia.org/wiki/List_of_tz_database_time_zones
+ *  Example: time_t offset = gmtime2timezone(0, ":America/Panama", 0, 0);
+ *  WARNING use ':' in TZ name
+ *****************************************************************/
+PUBLIC time_t gmtime2timezone(time_t t, const char *tz, struct tm *ltm, time_t *offset)
+{
+    /*
+     *  Save current TZ of env
+     */
+    char *cur_tz = getenv("TZ");
+    if (cur_tz) {
+        cur_tz = strdup(cur_tz);
+    }
+
+    /*
+     *  Set searched TZ in env
+     */
+    setenv("TZ", tz, 1);
+    tzset();
+
+    /*
+     *  Get localtime of t with searched TZ
+     */
+    if(ltm) {
+        localtime_r(&t, ltm);
+    }
+
+    /*
+     *  Return offset of the searched TZ
+     */
+    time_t t_epoch = time(NULL);
+    struct tm mt_epoch = {0};
+
+    localtime_r(&t_epoch, &mt_epoch);
+    if(offset) {
+        *offset = mt_epoch.tm_gmtoff;
+    }
+
+    /*
+     *  Restore current TZ of env
+     */
+    if (cur_tz) {
+        setenv("TZ", cur_tz, 1);
+        free(cur_tz);
+    } else {
+        unsetenv("TZ");
+    }
+    tzset();
+
+    /*
+     *  Return t plus the offset of searched TZ
+     */
+    t += mt_epoch.tm_gmtoff;
+    return t;
+}
+
 /***********************************************************************
  *   Get a string with some now! date formatted
  *   DEPRECATED use strftime()

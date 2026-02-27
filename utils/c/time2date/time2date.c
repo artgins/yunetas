@@ -7,22 +7,27 @@
  *          All Rights Reserved.
  ****************************************************************************/
 #include <stdio.h>
-#include <argp.h>
 #include <time.h>
 #include <errno.h>
 #include <locale.h>
 #include <stdlib.h>
 #include <string.h>
-#include <ghelpers.h>
+
+#include <argp-standalone.h>
+#include <gobj.h>
+#include <testing.h>
+#include <helpers.h>
+#include <kwid.h>
+#include <yev_loop.h>
 
 /***************************************************************************
  *              Constants
  ***************************************************************************/
-#define NAME        "time2date"
+#define APP         "time2date"
 #define DOC         "Convert time_t to ascii date and viceversa"
 
-#define VERSION     "1.0.0"
-#define SUPPORT     "<niyamaka at yuneta.io>"
+#define VERSION     YUNETA_VERSION
+#define SUPPORT     "<support at artgins.com>"
 #define DATETIME    __DATE__ " " __TIME__
 
 
@@ -50,7 +55,7 @@ static error_t parse_opt (int key, char *arg, struct argp_state *state);
  *      Data
  ***************************************************************************/
 int counter = 0;
-const char *argp_program_version = NAME " " VERSION;
+const char *argp_program_version = APP " " VERSION;
 const char *argp_program_bug_address = SUPPORT;
 
 /* Program documentation. */
