@@ -226,7 +226,7 @@ int main(int argc, char *argv[])
     /*--------------------------------*
      *      Log handlers
      *--------------------------------*/
-    gobj_log_add_handler("stdout", "stdout", LOG_OPT_UP_WARNING, 0);
+    gobj_log_add_handler("stdout", "stdout", LOG_OPT_ALL, 0);
 
     /*------------------------*
      *      Do your work

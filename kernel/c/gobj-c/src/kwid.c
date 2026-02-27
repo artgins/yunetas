@@ -1141,14 +1141,8 @@ PUBLIC BOOL kwid_compare_records(
     if(json_typeof(record) != json_typeof(expected)) { // json_typeof CONTROLADO
         ret = FALSE;
         if(verbose) {
-            gobj_log_error(gobj, 0,
-                "function",     "%s", __FUNCTION__,
-                "msgset",       "%s", MSGSET_PARAMETER_ERROR,
-                "msg",          "%s", "different json type",
-                "record",       "%j", record,
-                "expected",     "%j", expected,
-                NULL
-            );
+            gobj_trace_json(gobj, expected, "different json type: expected");
+            gobj_trace_json(gobj, record, "different json type: found");
         }
     } else {
         switch(json_typeof(record)) {
@@ -1163,14 +1157,8 @@ PUBLIC BOOL kwid_compare_records(
                             verbose)) {
                         ret = FALSE;
                         if(verbose) {
-                            gobj_log_error(gobj, 0,
-                                "function",     "%s", __FUNCTION__,
-                                "msgset",       "%s", MSGSET_PARAMETER_ERROR,
-                                "msg",          "%s", "list not match",
-                                "record",       "%j", record,
-                                "expected",     "%j", expected,
-                                NULL
-                            );
+                            gobj_trace_json(gobj, expected, "list not match: expected");
+                            gobj_trace_json(gobj, record, "list not match: found");
                         }
                     }
                 }
@@ -1192,14 +1180,7 @@ PUBLIC BOOL kwid_compare_records(
                         if(!kw_has_key(expected, key)) {
                             ret = FALSE;
                             if(verbose) {
-                                gobj_log_error(gobj, 0,
-                                    "function",     "%s", __FUNCTION__,
-                                    "msgset",       "%s", MSGSET_PARAMETER_ERROR,
-                                    "msg",          "%s", "key not found",
-                                    "key",          "%s", key,
-                                    "expected",     "%j", expected,
-                                    NULL
-                                );
+                                gobj_trace_json(gobj, expected, "key not found %s", key);
                             }
                             break;
                         }
@@ -1215,14 +1196,8 @@ PUBLIC BOOL kwid_compare_records(
                                 )) {
                                 ret = FALSE;
                                 if(verbose) {
-                                    gobj_log_error(gobj, 0,
-                                        "function",     "%s", __FUNCTION__,
-                                        "msgset",       "%s", MSGSET_PARAMETER_ERROR,
-                                        "msg",          "%s", "record not match",
-                                        "record",       "%j", record,
-                                        "expected",     "%j", expected,
-                                        NULL
-                                    );
+                                    gobj_trace_json(gobj, expected, "record not match: expected");
+                                    gobj_trace_json(gobj, record, "record not match: found");
                                 }
                             }
                             if(ret == FALSE) {
@@ -1243,14 +1218,8 @@ PUBLIC BOOL kwid_compare_records(
                                 )) {
                                 ret = FALSE;
                                 if(verbose) {
-                                    gobj_log_error(gobj, 0,
-                                        "function",     "%s", __FUNCTION__,
-                                        "msgset",       "%s", MSGSET_PARAMETER_ERROR,
-                                        "msg",          "%s", "list not match",
-                                        "record",       "%j", record,
-                                        "expected",     "%j", expected,
-                                        NULL
-                                    );
+                                    gobj_trace_json(gobj, expected, "list not match: expected");
+                                    gobj_trace_json(gobj, record, "list not match: found");
                                 }
                             }
                             if(ret == FALSE) {
@@ -1264,14 +1233,8 @@ PUBLIC BOOL kwid_compare_records(
                             if(cmp_two_simple_json(value, value2)!=0) {
                                 ret = FALSE;
                                 if(verbose) {
-                                    gobj_log_error(gobj, 0,
-                                        "function",     "%s", __FUNCTION__,
-                                        "msgset",       "%s", MSGSET_PARAMETER_ERROR,
-                                        "msg",          "%s", "items not match",
-                                        "value",        "%j", value,
-                                        "value2",       "%j", value2,
-                                        NULL
-                                    );
+                                    gobj_trace_json(gobj, value, "items not match: value");
+                                    gobj_trace_json(gobj, value2, "items not match: value2");
                                 }
                                 break;
                             } else {
@@ -1285,25 +1248,13 @@ PUBLIC BOOL kwid_compare_records(
                         if(json_object_size(record)>0) {
                             ret = FALSE;
                             if(verbose) {
-                                gobj_log_error(gobj, 0,
-                                    "function",     "%s", __FUNCTION__,
-                                    "msgset",       "%s", MSGSET_PARAMETER_ERROR,
-                                    "msg",          "%s", "remain record items",
-                                    "record",       "%j", record,
-                                    NULL
-                                );
+                                gobj_trace_json(gobj, record, "remain record items");
                             }
                         }
                         if(json_object_size(expected)>0) {
                             ret = FALSE;
                             if(verbose) {
-                                gobj_log_error(gobj, 0,
-                                    "function",     "%s", __FUNCTION__,
-                                    "msgset",       "%s", MSGSET_PARAMETER_ERROR,
-                                    "msg",          "%s", "remain expected items",
-                                    "expected",     "%j", expected,
-                                    NULL
-                                );
+                                gobj_trace_json(gobj, expected, "dict: remain expected items");
                             }
                         }
                     }
@@ -1312,13 +1263,7 @@ PUBLIC BOOL kwid_compare_records(
             default:
                 ret = FALSE;
                 if(verbose) {
-                    gobj_log_error(gobj, 0,
-                        "function",     "%s", __FUNCTION__,
-                        "msgset",       "%s", MSGSET_PARAMETER_ERROR,
-                        "msg",          "%s", "No list or not object",
-                        "record",       "%j", record,
-                        NULL
-                    );
+                    gobj_trace_json(gobj, record, "No list or not object");
                 }
                 break;
         }
@@ -1483,7 +1428,7 @@ PUBLIC BOOL kwid_compare_lists(
                             gobj_log_error(gobj, 0,
                                 "function",     "%s", __FUNCTION__,
                                 "msgset",       "%s", MSGSET_PARAMETER_ERROR,
-                                "msg",          "%s", "remain expected items",
+                                "msg",          "%s", "list: remain expected items",
                                 "expected",     "%j", expected,
                                 NULL
                             );
