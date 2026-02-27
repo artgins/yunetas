@@ -253,6 +253,7 @@ PUBLIC BOOL kwid_compare_records(
     hgobj gobj,
     json_t *record, // NOT owned
     json_t *expected, // NOT owned
+    const char **ignore_keys,
     BOOL without_metadata,
     BOOL without_private,
     BOOL verbose
@@ -265,6 +266,7 @@ PUBLIC BOOL kwid_compare_lists(
     hgobj gobj,
     json_t *list, // NOT owned
     json_t *expected, // NOT owned
+    const char **ignore_keys,
     BOOL without_metadata,
     BOOL without_private,
     BOOL verbose

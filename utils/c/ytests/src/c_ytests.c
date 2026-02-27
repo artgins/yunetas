@@ -610,6 +610,7 @@ PRIVATE int ac_mt_command_answer(hgobj gobj, const char *event, json_t *kw, hgob
             gobj,
             kw,             // record
             jn_response,    // expected
+            0, // ignoring_keys
             without_metadata,
             without_private,
             (priv->verbose > 1)?1:0

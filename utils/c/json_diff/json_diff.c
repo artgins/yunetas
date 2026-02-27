@@ -253,6 +253,7 @@ int main(int argc, char *argv[])
         0,
         jn1, // NOT owned
         jn2, // NOT owned
+        0, // ignoring keys
         arguments.without_metadata,
         arguments.without_private,
         arguments.verbose?TRUE:FALSE

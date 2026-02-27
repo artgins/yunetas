@@ -1103,6 +1103,7 @@ PUBLIC BOOL kwid_compare_records(
     hgobj gobj,
     json_t *record_, // NOT owned
     json_t *expected_, // NOT owned
+    const char **ignore_keys,
     BOOL without_metadata,
     BOOL without_private,
     BOOL verbose
@@ -1152,6 +1153,7 @@ PUBLIC BOOL kwid_compare_records(
                             gobj,
                             record,
                             expected,
+                            ignore_keys,
                             without_metadata,
                             without_private,
                             verbose)) {
@@ -1190,6 +1192,7 @@ PUBLIC BOOL kwid_compare_records(
                                     gobj,
                                     value,
                                     value2,
+                                    ignore_keys,
                                     without_metadata,
                                     without_private,
                                     verbose
@@ -1212,6 +1215,7 @@ PUBLIC BOOL kwid_compare_records(
                                     gobj,
                                     value,
                                     value2,
+                                    ignore_keys,
                                     without_metadata,
                                     without_private,
                                     verbose
@@ -1281,6 +1285,7 @@ PUBLIC BOOL kwid_compare_lists(
     hgobj gobj,
     json_t *list_, // NOT owned
     json_t *expected_, // NOT owned
+    const char **ignore_keys,
     BOOL without_metadata,
     BOOL without_private,
     BOOL verbose
@@ -1360,6 +1365,7 @@ PUBLIC BOOL kwid_compare_lists(
                             gobj,
                             r1,
                             r2,
+                            ignore_keys,
                             without_metadata,
                             without_private,
                             verbose)
@@ -1445,6 +1451,7 @@ PUBLIC BOOL kwid_compare_lists(
                     gobj,
                     list,
                     expected,
+                    ignore_keys,
                     without_metadata,
                     without_private,
                     verbose)
