@@ -1142,8 +1142,8 @@ PUBLIC BOOL kwid_compare_records(
     if(json_typeof(record) != json_typeof(expected)) { // json_typeof CONTROLADO
         ret = FALSE;
         if(verbose) {
-            gobj_trace_json(gobj, expected, "different json type: expected");
-            gobj_trace_json(gobj, record, "different json type: found");
+            gobj_trace_json(gobj, expected, "compare: different json type: expected");
+            gobj_trace_json(gobj, record, "compare: different json type: found");
         }
     } else {
         switch(json_typeof(record)) {
@@ -1159,8 +1159,8 @@ PUBLIC BOOL kwid_compare_records(
                             verbose)) {
                         ret = FALSE;
                         if(verbose) {
-                            gobj_trace_json(gobj, expected, "list not match: expected");
-                            gobj_trace_json(gobj, record, "list not match: found");
+                            gobj_trace_json(gobj, expected, "compare: list not match: expected");
+                            gobj_trace_json(gobj, record, "compare: list not match: record");
                         }
                     }
                 }
@@ -1182,7 +1182,7 @@ PUBLIC BOOL kwid_compare_records(
                         if(!kw_has_key(expected, key)) {
                             ret = FALSE;
                             if(verbose) {
-                                gobj_trace_json(gobj, expected, "key not found %s", key);
+                                gobj_trace_json(gobj, expected, "compare: key not found %s", key);
                             }
                             break;
                         }
@@ -1199,8 +1199,8 @@ PUBLIC BOOL kwid_compare_records(
                                 )) {
                                 ret = FALSE;
                                 if(verbose) {
-                                    gobj_trace_json(gobj, expected, "record not match: expected");
-                                    gobj_trace_json(gobj, record, "record not match: found");
+                                    gobj_trace_json(gobj, value, "compare: record not match: value");
+                                    gobj_trace_json(gobj, value2, "compare: record not match: value2");
                                 }
                             }
                             if(ret == FALSE) {
@@ -1222,8 +1222,8 @@ PUBLIC BOOL kwid_compare_records(
                                 )) {
                                 ret = FALSE;
                                 if(verbose) {
-                                    gobj_trace_json(gobj, expected, "list not match: expected");
-                                    gobj_trace_json(gobj, record, "list not match: found");
+                                    gobj_trace_json(gobj, value, "compare: list not match: value");
+                                    gobj_trace_json(gobj, value2, "compare: list not match: value2");
                                 }
                             }
                             if(ret == FALSE) {
@@ -1234,16 +1234,22 @@ PUBLIC BOOL kwid_compare_records(
                             json_object_del(expected, key);
 
                         } else {
-                            if(cmp_two_simple_json(value, value2)!=0) {
-                                ret = FALSE;
-                                if(verbose) {
-                                    gobj_trace_json(gobj, value, "items not match: value");
-                                    gobj_trace_json(gobj, value2, "items not match: value2");
-                                }
-                                break;
+                            if(ignore_keys && str_in_list(ignore_keys, key, FALSE)) {
+                                /*
+                                 *  HACK keys in the list are ignored
+                                 */
                             } else {
-                                json_object_del(record, key);
-                                json_object_del(expected, key);
+                                if(cmp_two_simple_json(value, value2)!=0) {
+                                    ret = FALSE;
+                                    if(verbose) {
+                                        gobj_trace_json(gobj, value, "compare: items not match: value");
+                                        gobj_trace_json(gobj, value2, "compare: items not match: value2");
+                                    }
+                                    break;
+                                } else {
+                                    json_object_del(record, key);
+                                    json_object_del(expected, key);
+                                }
                             }
                         }
                     }
@@ -1252,13 +1258,13 @@ PUBLIC BOOL kwid_compare_records(
                         if(json_object_size(record)>0) {
                             ret = FALSE;
                             if(verbose) {
-                                gobj_trace_json(gobj, record, "remain record items");
+                                gobj_trace_json(gobj, record, "compare: dict: remain record items");
                             }
                         }
                         if(json_object_size(expected)>0) {
                             ret = FALSE;
                             if(verbose) {
-                                gobj_trace_json(gobj, expected, "dict: remain expected items");
+                                gobj_trace_json(gobj, expected, "compare: dict: remain expected items");
                             }
                         }
                     }
@@ -1267,7 +1273,7 @@ PUBLIC BOOL kwid_compare_records(
             default:
                 ret = FALSE;
                 if(verbose) {
-                    gobj_trace_json(gobj, record, "No list or not object");
+                    gobj_trace_json(gobj, record, "compare: No list or not object");
                 }
                 break;
         }
@@ -1348,14 +1354,8 @@ PUBLIC BOOL kwid_compare_lists(
                         if(idx2 < 0) {
                             ret = FALSE;
                             if(verbose) {
-                                gobj_log_error(gobj, 0,
-                                    "function",     "%s", __FUNCTION__,
-                                    "msgset",       "%s", MSGSET_PARAMETER_ERROR,
-                                    "msg",          "%s", "record not found in expected list",
-                                    "record",       "%j", r1,
-                                    "expected",     "%j", expected,
-                                    NULL
-                                );
+                                gobj_trace_json(gobj, r1, "compare: record not found in expected list: r1");
+                                gobj_trace_json(gobj, expected, "compare: record not found in expected list: expected");
                             }
                             continue;
                         }
@@ -1372,14 +1372,8 @@ PUBLIC BOOL kwid_compare_lists(
                         ) {
                             ret = FALSE;
                             if(verbose) {
-                                gobj_log_error(gobj, 0,
-                                    "function",     "%s", __FUNCTION__,
-                                    "msgset",       "%s", MSGSET_PARAMETER_ERROR,
-                                    "msg",          "%s", "record not match",
-                                    "r1",           "%j", r1,
-                                    "r2",           "%j", r2,
-                                    NULL
-                                );
+                                gobj_trace_json(gobj, r1, "compare: record not match: r1");
+                                gobj_trace_json(gobj, r2, "compare: record not match: r2");
                             }
                         }
                         if(ret == FALSE) {
@@ -1398,14 +1392,8 @@ PUBLIC BOOL kwid_compare_lists(
                         if(idx2 < 0) {
                             ret = FALSE;
                             if(verbose) {
-                                gobj_log_error(gobj, 0,
-                                    "function",     "%s", __FUNCTION__,
-                                    "msgset",       "%s", MSGSET_PARAMETER_ERROR,
-                                    "msg",          "%s", "record not found in expected list",
-                                    "record",       "%j", r1,
-                                    "expected",     "%j", expected,
-                                    NULL
-                                );
+                                gobj_trace_json(gobj, r1, "compare: record not found in expected list: r1");
+                                gobj_trace_json(gobj, expected, "compare: record not found in expected list: expected");
                             }
                             break;
                         }
@@ -1419,25 +1407,13 @@ PUBLIC BOOL kwid_compare_lists(
                 if(ret == TRUE) {
                     if(json_array_size(list)>0) {
                         if(verbose) {
-                            gobj_log_error(gobj, 0,
-                                "function",     "%s", __FUNCTION__,
-                                "msgset",       "%s", MSGSET_PARAMETER_ERROR,
-                                "msg",          "%s", "remain list items",
-                                "list",         "%j", list,
-                                NULL
-                            );
+                            gobj_trace_json(gobj, list, "compare: remain list items");
                         }
                         ret = FALSE;
                     }
                     if(json_array_size(expected)>0) {
                         if(verbose) {
-                            gobj_log_error(gobj, 0,
-                                "function",     "%s", __FUNCTION__,
-                                "msgset",       "%s", MSGSET_PARAMETER_ERROR,
-                                "msg",          "%s", "list: remain expected items",
-                                "expected",     "%j", expected,
-                                NULL
-                            );
+                            gobj_trace_json(gobj, expected, "compare: remain expected items");
                         }
                         ret = FALSE;
                     }
@@ -1458,7 +1434,8 @@ PUBLIC BOOL kwid_compare_lists(
                 ) {
                     ret = FALSE;
                     if(verbose) {
-                        gobj_trace_msg(gobj, "ERROR: object not match");
+                        gobj_trace_json(gobj, list, "compare: object not match: list");
+                        gobj_trace_json(gobj, expected, "compare: object not match: expected");
                     }
                 }
             }
@@ -1467,13 +1444,7 @@ PUBLIC BOOL kwid_compare_lists(
             {
                 ret = FALSE;
                 if(verbose) {
-                    gobj_log_error(gobj, 0,
-                        "function",     "%s", __FUNCTION__,
-                        "msgset",       "%s", MSGSET_PARAMETER_ERROR,
-                        "msg",          "%s", "No list or not object",
-                        "list",         "%j", list,
-                        NULL
-                    );
+                    gobj_trace_json(gobj, list, "No list or not object");
                 }
             }
             break;

@@ -249,11 +249,16 @@ int main(int argc, char *argv[])
         exit(-2);
     }
 
+    const char *ignore_keys[]= {// TODO get from parameters
+        "t",
+        NULL
+    };
+
     int equal = kwid_compare_records(
         0,
         jn1, // NOT owned
         jn2, // NOT owned
-        0, // ignoring keys
+        ignore_keys,
         arguments.without_metadata,
         arguments.without_private,
         arguments.verbose?TRUE:FALSE
