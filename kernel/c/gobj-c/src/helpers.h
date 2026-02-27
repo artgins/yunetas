@@ -558,6 +558,7 @@ PUBLIC BOOL json_is_identical(
 );
 
 PUBLIC json_t *anystring2json(const char *bf, size_t len, BOOL verbose);
+PUBLIC json_t *anyfile2json(const char *path, BOOL verbose);
 PUBLIC json_t *string2json(const char *str, BOOL verbose); /* only [] or {}, old legalstring2json()*/
 #define legalstring2json string2json
 #define str2json string2json

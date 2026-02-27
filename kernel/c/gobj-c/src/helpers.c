@@ -2388,6 +2388,33 @@ PUBLIC json_t *anystring2json(const char *bf, size_t len, BOOL verbose)
 }
 
 /***************************************************************************
+ *  Convert any json string to json binary.
+ ***************************************************************************/
+PUBLIC json_t *anyfile2json(const char *path, BOOL verbose)
+{
+    size_t flags = JSON_DECODE_ANY;
+    json_error_t error;
+
+    json_t *jn = json_load_file(path, flags, &error);
+    if(!jn) {
+        if(verbose) {
+            gobj_log_error(0, LOG_OPT_TRACE_STACK,
+                "function",     "%s", __FUNCTION__,
+                "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+                "msg",          "%s", "json_load_file() FAILED",
+                "path",         "%s", path,
+                "error",        "%s", error.text,
+                "line",         "%d", error.line,
+                "column",       "%d", error.column,
+                "position",     "%d", error.position,
+                NULL
+            );
+        }
+    }
+    return jn;
+}
+
+/***************************************************************************
  *  Convert a legal json string to json binary.
  *  legal json string: MUST BE an array [] or object {}
  *  Old legalstring2json()

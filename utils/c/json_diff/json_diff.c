@@ -20,9 +20,9 @@
 #include <argp-standalone.h>
 #include <gobj.h>
 #include <testing.h>
-#include <timeranger2.h>
 #include <helpers.h>
 #include <kwid.h>
+#include <timeranger2.h>
 #include <yev_loop.h>
 
 /***************************************************************************
@@ -204,7 +204,7 @@ int main(int argc, char *argv[])
     uint64_t MEM_MAX_SYSTEM_MEMORY = free_ram_in_kb() * 1024LL;
     MEM_MAX_SYSTEM_MEMORY /= 100LL;
     MEM_MAX_SYSTEM_MEMORY *= 90LL;  // Coge el 90% de la memoria
-    uint64_t MEM_MAX_BLOCK = (MEM_MAX_SYSTEM_MEMORY / sizeof(md2_record_ex_t)) * sizeof(md2_record_ex_t);
+    uint64_t MEM_MAX_BLOCK = MEM_MAX_SYSTEM_MEMORY;
     MEM_MAX_BLOCK = MIN(1*1024*1024*1024LL, MEM_MAX_BLOCK);  // 1*G max
 
     gbmem_setup(
@@ -243,11 +243,11 @@ int main(int argc, char *argv[])
         exit(-1);
     }
 
-    json_t *jn1 = anystring2json(arguments.file1, strlen(arguments.file1), 1);
+    json_t *jn1 = anyfile2json(arguments.file1, 1);
     if(!jn1) {
         exit(-1);
     }
-    json_t *jn2 = anystring2json(arguments.file2, strlen(arguments.file2), 1);
+    json_t *jn2 = anyfile2json(arguments.file2, 1);
     if(!jn2) {
         exit(-2);
     }
@@ -262,8 +262,8 @@ int main(int argc, char *argv[])
     );
     printf("Same json? %s\n", equal?"yes":"no");
 
-    JSON_DECREF(jn1);
-    JSON_DECREF(jn2);
+    JSON_DECREF(jn1)
+    JSON_DECREF(jn2)
 
     gbmem_shutdown();
     return 0;
