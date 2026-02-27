@@ -193,6 +193,20 @@ PUBLIC int test_compound(
         const char *test = "Unlink simple/compound node";
 
         json_t *expected = string2json(helper_quote2doublequote(foto_final1), TRUE);
+        // After compound link+unlink, administration g_rowid goes from 2 to 4
+        // (was 2 after initial setup, +1 link to operation.managers, +1 unlink from operation.managers)
+        json_t *jn_db = json_object_get(expected, "treedb_test");
+        json_t *jn_depts_id = json_object_get(json_object_get(jn_db, "departments"), "id");
+        // Patch top-level administration entry
+        json_t *jn_admin = json_object_get(jn_depts_id, "administration");
+        json_object_set_new(json_object_get(jn_admin, "__md_treedb__"), "g_rowid", json_integer(4));
+        json_object_set_new(json_object_get(jn_admin, "__md_treedb__"), "i_rowid", json_integer(4));
+        // Patch administration inside direction's departments hook
+        json_t *jn_dir = json_object_get(jn_depts_id, "direction");
+        json_t *jn_dir_admin = json_object_get(json_object_get(jn_dir, "departments"), "administration");
+        json_object_set_new(json_object_get(jn_dir_admin, "__md_treedb__"), "g_rowid", json_integer(4));
+        json_object_set_new(json_object_get(jn_dir_admin, "__md_treedb__"), "i_rowid", json_integer(4));
+
         const char *ignore_keys[]= {
             "t",
             // "g_rowid", CLAUDE

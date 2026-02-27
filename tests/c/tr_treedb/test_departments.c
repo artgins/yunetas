@@ -459,8 +459,8 @@ PUBLIC int test_departments(
                         "t", 9999,
                         "tm", 0,
                         "tag", 0,
-                        "g_rowid", 1,
-                        "i_rowid", 1,
+                        "g_rowid", 2,
+                        "i_rowid", 2,
                         "pure_node", TRUE,
             "managers",
             "users",
@@ -470,8 +470,8 @@ PUBLIC int test_departments(
                 "t", 9999,
                 "tm", 0,
                 "tag", 0,
-                "g_rowid", 1,
-                "i_rowid", 1,
+                "g_rowid", 2,
+                "i_rowid", 2,
                 "pure_node", TRUE
         );
 

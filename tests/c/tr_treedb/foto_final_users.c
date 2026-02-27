@@ -20,8 +20,8 @@ char foto_final_users[]= "\
         '__md_treedb__': {\n\
             'treedb_name': 'treedb_test',\n\
             'topic_name': 'users',\n\
-            'g_rowid': 1, \n\
-            'i_rowid': 1, \n\
+            'g_rowid': 3, \n\
+            'i_rowid': 3, \n\
             't': 99999, \n\
             'tm': 0, \n\
             'pure_node': true, \n\
@@ -48,8 +48,8 @@ char foto_final_users[]= "\
         '__md_treedb__': {\n\
             'treedb_name': 'treedb_test',\n\
             'topic_name': 'users',\n\
-            'g_rowid': 1, \n\
-            'i_rowid': 1, \n\
+            'g_rowid': 3, \n\
+            'i_rowid': 3, \n\
             't': 99999, \n\
             'tm': 0, \n\
             'pure_node': true, \n\
@@ -74,8 +74,8 @@ char foto_final_users[]= "\
         '__md_treedb__': {\n\
             'treedb_name': 'treedb_test',\n\
             'topic_name': 'users',\n\
-            'g_rowid': 1, \n\
-            'i_rowid': 1, \n\
+            'g_rowid': 2, \n\
+            'i_rowid': 2, \n\
             't': 99999, \n\
             'tm': 0, \n\
             'pure_node': true, \n\
@@ -100,8 +100,8 @@ char foto_final_users[]= "\
         '__md_treedb__': {\n\
             'treedb_name': 'treedb_test',\n\
             'topic_name': 'users',\n\
-            'g_rowid': 1, \n\
-            'i_rowid': 1, \n\
+            'g_rowid': 2, \n\
+            'i_rowid': 2, \n\
             't': 99999, \n\
             'tm': 0, \n\
             'pure_node': true, \n\
@@ -126,8 +126,8 @@ char foto_final_users[]= "\
         '__md_treedb__': {\n\
             'treedb_name': 'treedb_test',\n\
             'topic_name': 'users',\n\
-            'g_rowid': 1, \n\
-            'i_rowid': 1, \n\
+            'g_rowid': 2, \n\
+            'i_rowid': 2, \n\
             't': 99999, \n\
             'tm': 0, \n\
             'pure_node': true, \n\
@@ -152,8 +152,8 @@ char foto_final_users[]= "\
         '__md_treedb__': {\n\
             'treedb_name': 'treedb_test',\n\
             'topic_name': 'users',\n\
-            'g_rowid': 1, \n\
-            'i_rowid': 1, \n\
+            'g_rowid': 2, \n\
+            'i_rowid': 2, \n\
             't': 99999, \n\
             'tm': 0, \n\
             'pure_node': true, \n\
@@ -178,8 +178,8 @@ char foto_final_users[]= "\
         '__md_treedb__': {\n\
             'treedb_name': 'treedb_test',\n\
             'topic_name': 'users',\n\
-            'g_rowid': 1, \n\
-            'i_rowid': 1, \n\
+            'g_rowid': 2, \n\
+            'i_rowid': 2, \n\
             't': 99999, \n\
             'tm': 0, \n\
             'pure_node': true, \n\
@@ -206,8 +206,8 @@ char foto_final_users[]= "\
         '__md_treedb__': {\n\
             'treedb_name': 'treedb_test',\n\
             'topic_name': 'users',\n\
-            'g_rowid': 1, \n\
-            'i_rowid': 1, \n\
+            'g_rowid': 3, \n\
+            'i_rowid': 3, \n\\
             't': 99999, \n\
             'tm': 0, \n\
             'pure_node': true, \n\
