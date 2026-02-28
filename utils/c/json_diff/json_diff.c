@@ -269,5 +269,5 @@ int main(int argc, char *argv[])
     JSON_DECREF(jn2)
 
     gbmem_shutdown();
-    return 0;
+    return equal?0:-1;
 }
