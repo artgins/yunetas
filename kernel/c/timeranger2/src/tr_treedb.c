@@ -694,12 +694,10 @@ PUBLIC json_t *treedb_open_db( // WARNING Return IS NOT YOURS!
                     gobj,
                     old_jn_schema,
                     "schema_version",
-                    -1,
+                    0,
                     KW_WILD_NUMBER
                 );
-                if(!master ||
-                    (schema_new_version > 0 && schema_new_version <= schema_old_version)
-                ) {
+                if(!master || schema_new_version <= schema_old_version) {
                     JSON_DECREF(jn_schema)
                     jn_schema = old_jn_schema;
                     schema_version = schema_old_version;

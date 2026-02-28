@@ -235,6 +235,59 @@ All callbacks return without blocking. There is **no threading** — scaling is 
 - Key-value index for fast retrieval by primary key or time range
 - Used by MQTT broker for session/subscription persistence, queues, and treedb
 
+### TreeDB (tr_treedb) — Graph Memory Database on timeranger2
+
+TreeDB is a **graph memory database** that uses timeranger2 for persistence. Nodes belong to **topics** and are linked via **hook/fkey relationships**.
+
+#### Key Concepts
+
+- **Topics**: collections of nodes (e.g., `departments`, `users`). Each topic has a schema defining its columns.
+- **Nodes**: JSON objects identified by a primary key (`id`). Each node has a `__md_treedb__` metadata section containing `g_rowid`, `i_rowid`, `t`, `tm`, `tag`, `pure_node`, `topic_name`, `treedb_name`.
+- **Hooks**: fields on **parent** nodes that reference children. Hooks are in-memory references (not persisted directly). Defined with `'flag': ['hook']` and a `'hook'` mapping (e.g., `{'departments': 'department_id'}` means "child departments link back via their `department_id` fkey").
+- **Fkeys**: fields on **child** nodes that store persistent references to parents. Defined with `'flag': ['fkey']`. Fkey values are strings like `"departments^direction^departments"` (topic^parent_id^hook_name).
+- **Hook+Fkey**: a field can be both hook and fkey (e.g., `departments.users` has `'flag': ['hook', 'fkey']`). As a hook it links child users; as a fkey it stores references when linked as a child via another hook.
+
+#### Persistence Rules (CRITICAL)
+
+- Every call to `tranger2_append_record()` writes a new record to disk. This increments `g_rowid` and `i_rowid` for that key within its topic.
+- `g_rowid`: cumulative total of records appended for a given key in a topic (monotonically increasing, never resets).
+- `i_rowid`: row index within the key's md2 file (also monotonically increasing).
+- **Only `g_rowid` and `i_rowid` are set by timeranger2.c** — never modify these values directly in test code.
+- **`treedb_create_node()`**: calls `tranger2_append_record()` → g_rowid=1 for new node.
+- **`treedb_link_nodes(hook, parent, child)`**: updates the **child's fkey field** and saves the **child** to disk → child's g_rowid increments. The parent (hook owner) is NOT saved.
+- **`treedb_unlink_nodes(hook, parent, child)`**: clears the **child's fkey field** and saves the **child** to disk → child's g_rowid increments. The parent is NOT saved.
+- **Key rule**: link/unlink operations save ONLY the child node (the one with the fkey), NEVER the parent node (the one with the hook).
+
+#### Hook Mappings Example (schema_sample)
+
+```
+departments.departments: hook → {'departments': 'department_id'}
+    (child department's department_id fkey is updated)
+
+departments.users: hook+fkey → {'users': 'departments'}
+    (as hook: child user's departments fkey is updated)
+    (as fkey: updated when this department is linked as child via managers hook)
+
+departments.managers: hook → {'users': 'manager', 'departments': 'users'}
+    (linking a user child: user's manager fkey is updated → user saved)
+    (linking a department child: department's users fkey is updated → department saved)
+```
+
+#### g_rowid Tracing Example
+
+For a department "administration" through the test sequence:
+1. `treedb_create_node("administration")` → g_rowid=1
+2. `treedb_link_nodes("departments", direction, administration)` → administration's `department_id` fkey updated → g_rowid=2
+3. `treedb_link_nodes("managers", operation, administration)` → administration's `users` fkey updated → g_rowid=3
+4. `treedb_unlink_nodes("managers", operation, administration)` → administration's `users` fkey cleared → g_rowid=4
+5. `treedb_link_nodes("managers", operation, administration)` → administration's `users` fkey updated → g_rowid=5
+
+#### Test Fotos (Expected State Snapshots)
+
+Test "foto" files (e.g., `foto_final1.c`, `foto_final2.c`, `foto_final3.c`) contain the expected full treedb state as a JSON string at specific points in the test sequence. When updating fotos:
+- Nodes appear **multiple times** in the JSON: once in the `id` index and again nested inside parent hooks. All occurrences of the same node share the same `g_rowid`/`i_rowid`.
+- Different test checkpoints may need **different foto files** if g_rowid values differ (e.g., `foto_final1` for pre-compound state, `foto_final3` for post-compound-unlink state).
+
 ### Control Plane (ycommand)
 
 Running yunos expose commands and stats over a local socket. Use `ycommand` to interact:

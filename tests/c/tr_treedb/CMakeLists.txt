@@ -48,6 +48,7 @@ set(SRCS
     foto_final1.c
     foto_final2.c
     foto_final3.c
+    foto_final4.c
 )
 
 ##############################################
