@@ -31,8 +31,12 @@
     #include <openssl/rand.h>
 #elif defined(CONFIG_HAVE_MBEDTLS)
     #include <mbedtls/md.h>
-    #include <mbedtls/ctr_drbg.h>
-    #include <mbedtls/pkcs5.h>
+    #include <mbedtls/private/pkcs5.h>  /* mbedtls_pkcs5_pbkdf2_hmac_ext() */
+    #include <psa/crypto.h>             /* psa_generate_random(), psa_crypto_init() */
+    /* Compatibility shim: callers use EVP_MAX_MD_SIZE for hash output buffers */
+    #ifndef EVP_MAX_MD_SIZE
+    #define EVP_MAX_MD_SIZE MBEDTLS_MD_MAX_SIZE
+    #endif
 #else
     #error "No crypto library defined"
 #endif
@@ -386,7 +390,8 @@ PRIVATE void mt_create(hgobj gobj)
 #if defined(__linux__)
 #if defined(CONFIG_HAVE_OPENSSL)
     OpenSSL_add_all_digests();
-    // #elif defined(CONFIG_HAVE_MBEDTLS)
+#elif defined(CONFIG_HAVE_MBEDTLS)
+    psa_crypto_init(); /* PSA must be initialised before any crypto in v4.0 */
 #else
 #error "No crypto library defined"
 #endif
@@ -2693,6 +2698,15 @@ PRIVATE int gen_salt(hgobj gobj, uint8_t *salt, size_t salt_len)
         return -1;
     }
 #elif defined(CONFIG_HAVE_MBEDTLS)
+    if(psa_generate_random(salt, salt_len) != PSA_SUCCESS) {
+        gobj_log_error(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_INTERNAL_ERROR,
+            "msg",          "%s", "psa_generate_random() FAILED",
+            NULL
+        );
+        return -1;
+    }
 #else
 #error "No crypto library defined"
 #endif
@@ -2786,6 +2800,84 @@ PRIVATE int pbkdf2_any(
     ret = md_size;
 
 #elif defined(CONFIG_HAVE_MBEDTLS)
+    /* Convert lowercase digest name to mbedtls_md_type_t */
+    char upper_name[32];
+    size_t ni;
+    for(ni = 0; ni < sizeof(upper_name) - 1 && digest_name[ni]; ni++) {
+        upper_name[ni] = (char)((digest_name[ni] >= 'a' && digest_name[ni] <= 'z')
+                                ? digest_name[ni] - 32 : digest_name[ni]);
+    }
+    upper_name[ni] = '\0';
+
+    mbedtls_md_type_t pmd_type;
+    if(strcmp(upper_name, "SHA256") == 0 || strcmp(upper_name, "SHA-256") == 0)
+        pmd_type = MBEDTLS_MD_SHA256;
+    else if(strcmp(upper_name, "SHA384") == 0 || strcmp(upper_name, "SHA-384") == 0)
+        pmd_type = MBEDTLS_MD_SHA384;
+    else if(strcmp(upper_name, "SHA512") == 0 || strcmp(upper_name, "SHA-512") == 0)
+        pmd_type = MBEDTLS_MD_SHA512;
+    else if(strcmp(upper_name, "SHA1") == 0 || strcmp(upper_name, "SHA-1") == 0)
+        pmd_type = MBEDTLS_MD_SHA1;
+    else if(strcmp(upper_name, "SHA3-256") == 0)
+        pmd_type = MBEDTLS_MD_SHA3_256;
+    else if(strcmp(upper_name, "SHA3-384") == 0)
+        pmd_type = MBEDTLS_MD_SHA3_384;
+    else if(strcmp(upper_name, "SHA3-512") == 0)
+        pmd_type = MBEDTLS_MD_SHA3_512;
+    else {
+        gobj_log_error(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_INTERNAL_ERROR,
+            "msg",          "%s", "Unsupported digest",
+            "digest",       "%s", digest_name,
+            NULL
+        );
+        return -1;
+    }
+
+    const mbedtls_md_info_t *md_info = mbedtls_md_info_from_type(pmd_type);
+    if(!md_info) {
+        gobj_log_error(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_INTERNAL_ERROR,
+            "msg",          "%s", "Unsupported digest",
+            "digest",       "%s", digest_name,
+            NULL
+        );
+        return -1;
+    }
+
+    int md_size = (int)mbedtls_md_get_size(md_info);
+    if((size_t)md_size > out_len) {
+        gobj_log_error(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_INTERNAL_ERROR,
+            "msg",          "%s", "out_key size too small",
+            "digest",       "%s", digest_name,
+            "md_size",      "%d", md_size,
+            "out_len",      "%d", (int)out_len,
+            NULL
+        );
+        return -1;
+    }
+
+    if(mbedtls_pkcs5_pbkdf2_hmac_ext(mbedtls_md_get_type(md_info),
+        (const unsigned char *)password, strlen(password),
+        salt, salt_len,
+        iterations,
+        (uint32_t)md_size, out_key) != 0) {
+        gobj_log_error(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_INTERNAL_ERROR,
+            "msg",          "%s", "mbedtls_pkcs5_pbkdf2_hmac_ext() failed",
+            "digest",       "%s", digest_name,
+            NULL
+        );
+        return -1;
+    }
+
+    ret = md_size;
+
 #else
 #error "No crypto library defined"
 #endif

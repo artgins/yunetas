@@ -536,7 +536,7 @@ PRIVATE int do_test(void)
      *  Create ssl SERVER
      *--------------------------------*/
     json_t *jn_crypto_s = json_pack("{s:s, s:s, s:s, s:b}",
-        "library", "openssl",
+        "library", TLS_LIBRARY_NAME,
         "ssl_certificate", "/yuneta/agent/certs/localhost.crt",
         "ssl_certificate_key", "/yuneta/agent/certs/localhost.key",
         "trace", 0
@@ -552,7 +552,7 @@ PRIVATE int do_test(void)
      *  Create ssl CLIENT
      *--------------------------------*/
     json_t *jn_crypto_c = json_pack("{s:s, s:b}",
-        "library", "openssl",
+        "library", TLS_LIBRARY_NAME,
         "trace", 0
     );
     ytls_client = ytls_init(

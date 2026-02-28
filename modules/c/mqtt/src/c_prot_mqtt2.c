@@ -37,8 +37,8 @@
     #include <openssl/rand.h>
 #elif defined(CONFIG_HAVE_MBEDTLS)
     #include <mbedtls/md.h>
-    #include <mbedtls/ctr_drbg.h>
-    #include <mbedtls/pkcs5.h>
+    #include <mbedtls/private/pkcs5.h>  /* mbedtls_pkcs5_pbkdf2_hmac_ext() */
+    #include <psa/crypto.h>             /* psa_generate_random(), psa_crypto_init() */
 #else
     #error "No crypto library defined"
 #endif

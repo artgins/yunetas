@@ -44,7 +44,7 @@ PUBLIC hytls ytls_init(
      *--------------------------------*/
     api_tls_t *api_tls = 0;
 
-    const char *tls_library = kw_get_str(gobj, jn_config, "library", "openssl", 0);
+    const char *tls_library = kw_get_str(gobj, jn_config, "library", TLS_LIBRARY_NAME, 0);
     SWITCHS(tls_library) {
 #ifdef CONFIG_HAVE_OPENSSL
         ICASES("openssl")

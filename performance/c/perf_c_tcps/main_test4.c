@@ -100,7 +100,7 @@ PRIVATE char variable_config[]= "\
                     'gclass': 'C_TCP_S',                            \n\
                     'kw': {                                         \n\
                         'crypto': {                                 \n\
-                            'library': 'openssl',                   \n\
+                            'library': '" TLS_LIBRARY_NAME "',                   \n\
 'ssl_certificate': '/yuneta/agent/certs/localhost.crt',             \n\
 'ssl_certificate_key': '/yuneta/agent/certs/localhost.key',         \n\
                             'trace': false                          \n\
@@ -161,7 +161,7 @@ PRIVATE char variable_config[]= "\
                                     'kw': {                         \n\
                                         'url':'tcps://127.0.0.1:7778', \n\
                                         'crypto': {                 \n\
-                                            'library': 'openssl',   \n\
+                                            'library': '" TLS_LIBRARY_NAME "',   \n\
                                             'trace': false          \n\
                                         }                           \n\
                                     }                               \n\

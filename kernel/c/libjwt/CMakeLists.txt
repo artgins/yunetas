@@ -49,13 +49,20 @@ set (SRCS
     src/jwt-builder.c
     src/jwt-checker.c
 #    src/jwks-curl.c
-
-    src/openssl/jwk-parse.c
-    src/openssl/sign-verify.c
 )
 
+if(CONFIG_HAVE_OPENSSL)
+    list(APPEND SRCS
+        src/openssl/jwk-parse.c
+        src/openssl/sign-verify.c
+    )
+endif()
+
 if(CONFIG_HAVE_MBEDTLS)
-    list(APPEND SRCS src/mbedtls/sign-verify.c)
+    list(APPEND SRCS
+        src/mbedtls/jwk-parse.c
+        src/mbedtls/sign-verify.c
+    )
 endif()
 
 set (HDRS

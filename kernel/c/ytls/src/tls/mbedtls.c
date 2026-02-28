@@ -46,11 +46,10 @@ Here's how the schema translates to mbedTLS:
 #ifdef CONFIG_HAVE_MBEDTLS
 
 #include <mbedtls/ssl.h>
-// #include <mbedtls/entropy.h>
-// #include <mbedtls/ctr_drbg.h>
 #include <mbedtls/error.h>
 #include <mbedtls/x509_crt.h>
 #include <mbedtls/pk.h>
+#include <psa/crypto.h>     /* psa_crypto_init() required by mbedtls v4.0 */
 
 #include <kwid.h>
 #include "../ytls.h"
@@ -67,8 +66,9 @@ typedef struct ytls_s {
     api_tls_t *api_tls;     // Must be the first item
     BOOL server;
     mbedtls_ssl_config conf;  // mbedTLS SSL configuration
-    mbedtls_x509_crt cert;    // Server certificate
+    mbedtls_x509_crt cert;    // Own certificate (server, or client mutual-auth)
     mbedtls_pk_context pkey;  // Private key
+    mbedtls_x509_crt ca_cert; // Trusted CA certificate for peer verification
 
     // mbedtls_ctr_drbg_context ctr_drbg;
     // mbedtls_entropy_context entropy;
@@ -153,6 +153,9 @@ PRIVATE hytls init(
     BOOL server
 )
 {
+    /* PSA must be initialised before any crypto operation in mbedtls v4.0 */
+    psa_crypto_init();
+
     ytls_t *ytls = GBMEM_MALLOC(sizeof(ytls_t));
     if (!ytls) {
         gobj_log_error(gobj, 0,
@@ -169,6 +172,7 @@ PRIVATE hytls init(
     mbedtls_ssl_config_init(&ytls->conf);
     mbedtls_x509_crt_init(&ytls->cert);
     mbedtls_pk_init(&ytls->pkey);
+    mbedtls_x509_crt_init(&ytls->ca_cert);
     // mbedtls_ctr_drbg_init(&ytls->ctr_drbg);
     // mbedtls_entropy_init(&ytls->entropy);
 
@@ -208,7 +212,7 @@ PRIVATE hytls init(
         return 0;
     }
 
-    // Load certificates and keys
+    // Load own certificate and private key (required for server; optional for mutual-TLS client)
     const char *ssl_certificate = kw_get_str(
         gobj, jn_config, "ssl_certificate", "", server ? KW_REQUIRED : 0
     );
@@ -216,37 +220,64 @@ PRIVATE hytls init(
         gobj, jn_config, "ssl_certificate_key", "", server ? KW_REQUIRED : 0
     );
 
-    if (mbedtls_x509_crt_parse_file(&ytls->cert, ssl_certificate) != 0) {
-        gobj_log_error(gobj, 0,
-            "function",         "%s", __FUNCTION__,
-            "msgset",           "%s", MSGSET_AUTH_ERROR,
-            "msg",              "%s", "mbedtls_x509_crt_parse_file() FAILED",
-            "cert",             "%s", ssl_certificate,
-            NULL
-        );
-        cleanup((hytls)ytls);
-        return 0;
+    if (ssl_certificate && ssl_certificate[0] != '\0') {
+        if (mbedtls_x509_crt_parse_file(&ytls->cert, ssl_certificate) != 0) {
+            gobj_log_error(gobj, 0,
+                "function",         "%s", __FUNCTION__,
+                "msgset",           "%s", MSGSET_AUTH_ERROR,
+                "msg",              "%s", "mbedtls_x509_crt_parse_file() FAILED",
+                "cert",             "%s", ssl_certificate,
+                NULL
+            );
+            cleanup((hytls)ytls);
+            return 0;
+        }
+
+        if (mbedtls_pk_parse_keyfile(
+            &ytls->pkey,
+            ssl_certificate_key,
+            NULL   /* password: NULL for unencrypted keys; f_rng/p_rng removed in v4.0 */
+        ) != 0) {
+            gobj_log_error(gobj, 0,
+                "function",         "%s", __FUNCTION__,
+                "msgset",           "%s", MSGSET_AUTH_ERROR,
+                "msg",              "%s", "mbedtls_pk_parse_keyfile() FAILED",
+                "cert_key",         "%s", ssl_certificate_key,
+                NULL
+            );
+            cleanup((hytls)ytls);
+            return 0;
+        }
+
+        mbedtls_ssl_conf_own_cert(&ytls->conf, &ytls->cert, &ytls->pkey);
     }
 
-    // if (mbedtls_pk_parse_keyfile(
-    //     &ytls->pkey,
-    //     ssl_certificate_key,
-    //     NULL,
-    //     mbedtls_ctr_drbg_random,
-    //     &ytls->ctr_drbg
-    // ) != 0) {
-    //     gobj_log_error(gobj, 0,
-    //         "function",         "%s", __FUNCTION__,
-    //         "msgset",           "%s", MSGSET_AUTH_ERROR,
-    //         "msg",              "%s", "mbedtls_pk_parse_keyfile() FAILED",
-    //         "cert_key",         "%s", ssl_certificate_key,
-    //         NULL
-    //     );
-    //     cleanup((hytls)ytls);
-    //     return 0;
-    // }
+    // Configure peer certificate verification
+    const char *ssl_trusted_certificate = kw_get_str(
+        gobj, jn_config, "ssl_trusted_certificate", "", 0
+    );
+    if (ssl_trusted_certificate && ssl_trusted_certificate[0] != '\0') {
+        if (mbedtls_x509_crt_parse_file(&ytls->ca_cert, ssl_trusted_certificate) != 0) {
+            gobj_log_error(gobj, 0,
+                "function",         "%s", __FUNCTION__,
+                "msgset",           "%s", MSGSET_AUTH_ERROR,
+                "msg",              "%s", "mbedtls_x509_crt_parse_file() FAILED for trusted cert",
+                "ssl_trusted_certificate", "%s", ssl_trusted_certificate,
+                NULL
+            );
+            cleanup((hytls)ytls);
+            return 0;
+        }
+        mbedtls_ssl_conf_ca_chain(&ytls->conf, &ytls->ca_cert, NULL);
+        mbedtls_ssl_conf_authmode(&ytls->conf, MBEDTLS_SSL_VERIFY_REQUIRED);
+    } else {
+        // No trusted CA configured — disable peer verification
+        // (suitable for self-signed certs in development/testing)
+        mbedtls_ssl_conf_authmode(&ytls->conf, MBEDTLS_SSL_VERIFY_NONE);
+    }
 
-    mbedtls_ssl_conf_own_cert(&ytls->conf, &ytls->cert, &ytls->pkey);
+    // Set the API dispatch table (MUST be first field, required by __ytls_t__ cast)
+    ytls->api_tls = &api_tls;
 
     // Configure other parameters
     ytls->server = server;
@@ -257,14 +288,6 @@ PRIVATE hytls init(
         gobj, jn_config, "trace", 0, KW_WILD_NUMBER
     );
     ytls->gobj = gobj;
-
-    if (ytls->trace) {
-        gobj_log_info(gobj, 0,
-            "function",         "%s", __FUNCTION__,
-            "msg",              "%s", "TLS initialized with tracing enabled.",
-            NULL
-        );
-    }
 
     return (hytls)ytls;
 }
@@ -283,6 +306,7 @@ PRIVATE void cleanup(hytls ytls_)
     mbedtls_ssl_config_free(&ytls->conf);
     mbedtls_x509_crt_free(&ytls->cert);
     mbedtls_pk_free(&ytls->pkey);
+    mbedtls_x509_crt_free(&ytls->ca_cert);
     // mbedtls_ctr_drbg_free(&ytls->ctr_drbg);
     // mbedtls_entropy_free(&ytls->entropy);
 
@@ -385,17 +409,38 @@ PRIVATE hsskt new_secure_filter(
     sskt->on_encrypted_data_cb = on_encrypted_data_cb;
     sskt->user_data = user_data;
 
-    // Initialize encrypted data buffer
+    // Initialize encrypted data buffer (receives encrypted bytes from the network)
     sskt->encrypted_buffer = gbuffer_create(32 * 1024, 32 * 1024);
 
     // Set BIO callbacks for mbedTLS
     mbedtls_ssl_set_bio(
         &sskt->ssl,
         sskt,
-        mbedtls_ssl_send_callback,  // Function to send data
-        mbedtls_ssl_recv_callback,  // Function to receive data
+        mbedtls_ssl_send_callback,  // mbedTLS calls this to output encrypted bytes
+        mbedtls_ssl_recv_callback,  // mbedTLS calls this to read from encrypted_buffer
         NULL                        // Function for receive timeout (optional)
     );
+
+    // For client: initiate the TLS handshake (sends Client Hello)
+    if (!ytls->server) {
+        int ret = mbedtls_ssl_handshake(&sskt->ssl);
+        if (ret != 0 && ret != MBEDTLS_ERR_SSL_WANT_READ && ret != MBEDTLS_ERR_SSL_WANT_WRITE) {
+            char error_buf[256];
+            mbedtls_strerror(ret, error_buf, sizeof(error_buf));
+            gobj_log_error(ytls->gobj, 0,
+                "function",         "%s", __FUNCTION__,
+                "msgset",           "%s", MSGSET_AUTH_ERROR,
+                "msg",              "%s", "Initial TLS handshake (Client Hello) FAILED",
+                "error_code",       "%d", ret,
+                "error_message",    "%s", error_buf,
+                NULL
+            );
+            free_secure_filter(sskt);
+            return 0;
+        }
+        // send_callback was invoked by mbedTLS to transmit the Client Hello;
+        // on_encrypted_data_cb has already queued it for writing to the socket.
+    }
 
     return sskt;
 }
@@ -471,21 +516,9 @@ PRIVATE void set_trace(hsskt sskt_, BOOL set)
     ytls->trace = set ? TRUE : FALSE;
 
     if (ytls->trace) {
-        // Enable debug callback
         mbedtls_ssl_conf_dbg(&ytls->conf, mbedtls_debug_callback, ytls);
-        gobj_log_info(ytls->gobj, 0,
-            "function",         "%s", __FUNCTION__,
-            "msg",              "%s", "TLS tracing enabled.",
-            NULL
-        );
     } else {
-        // Disable debug callback
         mbedtls_ssl_conf_dbg(&ytls->conf, NULL, NULL);
-        gobj_log_info(ytls->gobj, 0,
-            "function",         "%s", __FUNCTION__,
-            "msg",              "%s", "TLS tracing disabled.",
-            NULL
-        );
     }
 }
 
@@ -511,9 +544,7 @@ PRIVATE int do_handshake(hsskt sskt_)
                     sskt->user_data
                 );
             }
-            flush_encrypted_data(sskt);
-            flush_clear_data(sskt);
-            return 1; // Indicate that the handshake is still ongoing
+            return 0; // Handshake in progress
         } else {
             char error_buf[256];
             mbedtls_strerror(ret, error_buf, sizeof(error_buf));
@@ -531,14 +562,12 @@ PRIVATE int do_handshake(hsskt sskt_)
         }
     }
 
-    flush_encrypted_data(sskt);
-
     if (!sskt->handshake_informed) {
         sskt->handshake_informed = TRUE;
         sskt->on_handshake_done_cb(sskt->user_data, 0); // Indicate success
     }
 
-    return 0;
+    return 1; // Handshake done
 }
 
 /***************************************************************************
@@ -546,53 +575,11 @@ PRIVATE int do_handshake(hsskt sskt_)
  ***************************************************************************/
 PRIVATE int flush_encrypted_data(sskt_t *sskt)
 {
-    hgobj gobj = sskt->ytls->gobj;
-
-    if (sskt->ytls->trace) {
-        gobj_trace_msg(gobj, "------- flush_encrypted_data(), userp %p", sskt->user_data);
-    }
-
-    int pending;
-    while ((pending = mbedtls_ssl_get_bytes_avail(&sskt->ssl)) > 0) {
-        gbuffer_t *gbuf = gbuffer_create(pending, pending);
-        if (!gbuf) {
-            gobj_log_error(gobj, 0,
-                "function",         "%s", __FUNCTION__,
-                "msgset",           "%s", MSGSET_MEMORY_ERROR,
-                "msg",              "%s", "No memory for pending encrypted data",
-                NULL
-            );
-            return -1;
-        }
-
-        char *p = gbuffer_cur_wr_pointer(gbuf);
-        int ret = mbedtls_ssl_read(&sskt->ssl, (unsigned char *)p, pending);
-        if (ret > 0) {
-            gbuffer_set_wr(gbuf, ret);
-            sskt->on_encrypted_data_cb(sskt->user_data, gbuf);
-        } else {
-            gbuffer_decref(gbuf);
-            if (ret == MBEDTLS_ERR_SSL_WANT_READ || ret == MBEDTLS_ERR_SSL_WANT_WRITE) {
-                if (sskt->ytls->trace) {
-                    gobj_trace_msg(gobj, "------- flush_encrypted_data WANT_READ/WANT_WRITE, userp %p", sskt->user_data);
-                }
-                return 1; // Indicate need for more I/O
-            } else {
-                char error_buf[256];
-                mbedtls_strerror(ret, error_buf, sizeof(error_buf));
-                gobj_log_error(gobj, 0,
-                    "function",         "%s", __FUNCTION__,
-                    "msgset",           "%s", MSGSET_SYSTEM_ERROR,
-                    "msg",              "%s", "Error reading encrypted data",
-                    "error_code",       "%d", ret,
-                    "error_message",    "%s", error_buf,
-                    NULL
-                );
-                return -1;
-            }
-        }
-    }
-
+    /*
+     * In the custom BIO model, mbedTLS calls send_callback synchronously
+     * whenever it wants to output encrypted bytes. The send_callback already
+     * invokes on_encrypted_data_cb. There is nothing more to flush here.
+     */
     return 0;
 }
 
@@ -606,7 +593,7 @@ PRIVATE int encrypt_data(
     sskt_t *sskt = (sskt_t *)sskt_;
     hgobj gobj = sskt->ytls->gobj;
 
-    if (mbedtls_ssl_handshake(&sskt->ssl)!=0) {
+    if (!mbedtls_ssl_is_handshake_over(&sskt->ssl)) {
         gobj_log_error(gobj, 0,
             "function",         "%s", __FUNCTION__,
             "msgset",           "%s", MSGSET_INTERNAL_ERROR,
@@ -738,56 +725,81 @@ PRIVATE int decrypt_data(
     sskt_t *sskt = (sskt_t *)sskt_;
     hgobj gobj = sskt->ytls->gobj;
 
+    /*
+     * Feed encrypted bytes into the recv buffer so that recv_callback
+     * (mbedtls_ssl_recv_callback) can supply them to the TLS engine.
+     */
     size_t len;
     while ((len = gbuffer_chunk(gbuf)) > 0) {
-        const unsigned char *p = (const unsigned char *)gbuffer_cur_rd_pointer(gbuf); // Don't pop data, be sure it's written
-
-        int written = mbedtls_ssl_read(&sskt->ssl, (unsigned char *)p, len);
-        if (written < 0) {
-            if (written == MBEDTLS_ERR_SSL_WANT_READ || written == MBEDTLS_ERR_SSL_WANT_WRITE) {
-                if (sskt->ytls->trace) {
-                    gobj_trace_msg(gobj, "------- decrypt_data WANT_READ/WANT_WRITE, userp %p", sskt->user_data);
-                }
-                continue; // Retry on WANT_READ or WANT_WRITE
-            } else {
-                char error_buf[256];
-                mbedtls_strerror(written, error_buf, sizeof(error_buf));
-                gobj_log_error(gobj, 0,
-                    "function",         "%s", __FUNCTION__,
-                    "msgset",           "%s", MSGSET_SYSTEM_ERROR,
-                    "msg",              "%s", "mbedtls_ssl_read() FAILED",
-                    "error_code",       "%d", written,
-                    "error_message",    "%s", error_buf,
-                    NULL
-                );
-                GBUFFER_DECREF(gbuf);
-                return -1111; // Mark as TLS error
-            }
+        /* Reset the buffer when empty to reclaim linear space */
+        if (gbuffer_leftbytes(sskt->encrypted_buffer) == 0) {
+            gbuffer_clear(sskt->encrypted_buffer);
         }
 
-        gbuffer_get(gbuf, written); // Pop data
+        const char *src = gbuffer_cur_rd_pointer(gbuf);
+        size_t appended = gbuffer_append(sskt->encrypted_buffer, (void *)src, len);
+        if (appended == 0) {
+            /* Buffer full — this should not happen with a 32 KB buffer for TLS */
+            gobj_log_error(gobj, 0,
+                "function",         "%s", __FUNCTION__,
+                "msgset",           "%s", MSGSET_INTERNAL_ERROR,
+                "msg",              "%s", "encrypted_buffer full, dropping data",
+                NULL
+            );
+            break;
+        }
+        gbuffer_get(gbuf, appended);
 
         if (sskt->ytls->trace) {
-            gobj_trace_dump(gobj, (char *)p, len, "------- <== decrypt_data, userp %p", sskt->user_data);
+            gobj_trace_msg(gobj, "------- decrypt_data: fed %zu bytes into encrypted_buffer, userp %p",
+                appended, sskt->user_data);
         }
+    }
+    GBUFFER_DECREF(gbuf);
 
-        if (mbedtls_ssl_handshake(&sskt->ssl)!=0) {
-            if (do_handshake(sskt) < 0) {
-                // Error already logged
-                GBUFFER_DECREF(gbuf);
-                return -1111; // Mark as TLS error
+    /*
+     * Drive the TLS engine.
+     * - During handshake: recv_callback pulls data from encrypted_buffer;
+     *   send_callback forwards outgoing handshake bytes via on_encrypted_data_cb.
+     * - After handshake: read decrypted application data via flush_clear_data.
+     */
+    if (!mbedtls_ssl_is_handshake_over(&sskt->ssl)) {
+        int ret = mbedtls_ssl_handshake(&sskt->ssl);
+        if (ret == 0) {
+            /* Handshake just completed */
+            if (!sskt->handshake_informed) {
+                sskt->handshake_informed = TRUE;
+                sskt->on_handshake_done_cb(sskt->user_data, 0);
+            }
+        } else if (ret == MBEDTLS_ERR_SSL_WANT_READ || ret == MBEDTLS_ERR_SSL_WANT_WRITE) {
+            /* Normal: need more data from the network or waiting for write */
+            if (sskt->ytls->trace) {
+                gobj_trace_msg(gobj, "------- decrypt_data handshake: %s, userp %p",
+                    ret == MBEDTLS_ERR_SSL_WANT_READ ? "WANT_READ" : "WANT_WRITE",
+                    sskt->user_data);
             }
         } else {
-            int ret = flush_clear_data(sskt);
-            if (ret < 0) {
-                // Error already logged
-                GBUFFER_DECREF(gbuf);
-                return ret;
-            }
+            char error_buf[256];
+            mbedtls_strerror(ret, error_buf, sizeof(error_buf));
+            gobj_log_error(gobj, 0,
+                "function",         "%s", __FUNCTION__,
+                "msgset",           "%s", MSGSET_SYSTEM_ERROR,
+                "msg",              "%s", "TLS handshake failed",
+                "error_code",       "%d", ret,
+                "error_message",    "%s", error_buf,
+                NULL
+            );
+            sskt->on_handshake_done_cb(sskt->user_data, -1);
+            return -1;
+        }
+    } else {
+        /* Handshake already done — read decrypted application data */
+        int ret = flush_clear_data(sskt);
+        if (ret < 0) {
+            return ret;
         }
     }
 
-    GBUFFER_DECREF(gbuf);
     return 0;
 }
 

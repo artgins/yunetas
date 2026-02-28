@@ -16,7 +16,7 @@ int openssl_process_ec(json_t *jwk, jwk_item_t *item);
 void openssl_process_item_free(jwk_item_t *item);
 
 int mbedtls_process_eddsa(json_t *jwk, jwk_item_t *item);
-int gmbedls_process_rsa(json_t *jwk, jwk_item_t *item);
+int mbedtls_process_rsa(json_t *jwk, jwk_item_t *item);
 int mbedtls_process_ec(json_t *jwk, jwk_item_t *item);
 void mbedtls_process_item_free(jwk_item_t *item);
 

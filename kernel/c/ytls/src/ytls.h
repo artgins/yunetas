@@ -18,6 +18,15 @@ extern "C"{
 /***************************************************************
  *              Constants
  ***************************************************************/
+/* Compile-time name of the available TLS backend */
+#include <yuneta_config.h>
+#if defined(CONFIG_HAVE_MBEDTLS)
+    #define TLS_LIBRARY_NAME "mbedtls"
+#elif defined(CONFIG_HAVE_OPENSSL)
+    #define TLS_LIBRARY_NAME "openssl"
+#else
+    #define TLS_LIBRARY_NAME ""
+#endif
 
 /***************************************************************
  *              Structures
@@ -27,7 +36,7 @@ typedef void * hsskt;
 
 /*
  *  Fields of jn_config
- *      - "library"                     str, default "openssl"
+ *      - "library"                     str, default TLS_LIBRARY_NAME (compile-time backend)
  *
  *          Fields for library "openssl"
  *              - "trace"                       bool
@@ -88,7 +97,7 @@ typedef struct { // Common to all ytls_t types
 /**rst**
     Startup tls context
 
-    "library"   library to use, defaul: "openssl"
+    "library"   library to use, default: TLS_LIBRARY_NAME (compile-time backend: openssl or mbedtls)
     "trace"     True to verbose trace.
 
     OPENSSL jn_config

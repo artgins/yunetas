@@ -33,12 +33,45 @@
     #include <openssl/rand.h>
 #elif defined(CONFIG_HAVE_MBEDTLS)
     #include <mbedtls/md.h>
-    #include <mbedtls/ctr_drbg.h>
-    #include <mbedtls/pkcs5.h>
+    #include <mbedtls/private/pkcs5.h>  /* mbedtls_pkcs5_pbkdf2_hmac_ext() */
+    #include <psa/crypto.h>             /* psa_generate_random(), psa_crypto_init() */
 #else
     #error "No crypto library defined"
 #endif
 #endif
+
+#if defined(CONFIG_HAVE_MBEDTLS)
+/* Map lowercase digest name (e.g. "sha512") to mbedtls_md_info_t.
+ * Returns NULL if the digest is not supported. */
+static const mbedtls_md_info_t *md_info_from_name(const char *name)
+{
+    char upper[32];
+    size_t i;
+    for(i = 0; i < sizeof(upper) - 1 && name[i]; i++)
+        upper[i] = (name[i] >= 'a' && name[i] <= 'z') ? (char)(name[i] - 32) : name[i];
+    upper[i] = '\0';
+
+    mbedtls_md_type_t t;
+    if(strcmp(upper, "SHA256") == 0 || strcmp(upper, "SHA-256") == 0)
+        t = MBEDTLS_MD_SHA256;
+    else if(strcmp(upper, "SHA384") == 0 || strcmp(upper, "SHA-384") == 0)
+        t = MBEDTLS_MD_SHA384;
+    else if(strcmp(upper, "SHA512") == 0 || strcmp(upper, "SHA-512") == 0)
+        t = MBEDTLS_MD_SHA512;
+    else if(strcmp(upper, "SHA1") == 0 || strcmp(upper, "SHA-1") == 0)
+        t = MBEDTLS_MD_SHA1;
+    else if(strcmp(upper, "SHA3-256") == 0)
+        t = MBEDTLS_MD_SHA3_256;
+    else if(strcmp(upper, "SHA3-384") == 0)
+        t = MBEDTLS_MD_SHA3_384;
+    else if(strcmp(upper, "SHA3-512") == 0)
+        t = MBEDTLS_MD_SHA3_512;
+    else
+        return NULL;
+
+    return mbedtls_md_info_from_type(t);
+}
+#endif /* CONFIG_HAVE_MBEDTLS */
 
 #ifdef ESP_PLATFORM
 #include "c_esp_transport.h"
@@ -1718,7 +1751,7 @@ PRIVATE int check_passwd(
         algorithm = "sha512";
     }
 
-    md_info = mbedtls_md_info_from_string(algorithm);
+    md_info = md_info_from_name(algorithm);
     if(!md_info) {
         gobj_log_error(gobj, 0,
             "function", "%s", __FUNCTION__,
@@ -1744,12 +1777,14 @@ PRIVATE int check_passwd(
         return -1;
     }
 
-    if(mbedtls_pkcs5_pbkdf2_hmac(
-            md_info,
+    psa_crypto_init();
+
+    if(mbedtls_pkcs5_pbkdf2_hmac_ext(
+            mbedtls_md_get_type(md_info),
             (const unsigned char *)password, strlen(password),
             (const unsigned char *)gbuffer_cur_rd_pointer(gbuf_salt), gbuffer_leftbytes(gbuf_salt),
             iterations,
-            hash_len,
+            (uint32_t)hash_len,
             derived_hash
         ) != 0) {
         gobj_log_error(gobj, 0,
@@ -1898,7 +1933,7 @@ PRIVATE json_t *hash_password(
     }
 
     /* Resolve hash algorithm */
-    md_info = mbedtls_md_info_from_string(algorithm);
+    md_info = md_info_from_name(algorithm);
     if(!md_info) {
         gobj_log_error(gobj, 0,
             "function", "%s", __FUNCTION__,
@@ -1911,46 +1946,26 @@ PRIVATE json_t *hash_password(
     }
     size_t hash_len = mbedtls_md_get_size(md_info);
 
-    /* Initialize RNG */
-    mbedtls_entropy_context entropy;
-    mbedtls_ctr_drbg_context ctr_drbg;
-    const char *pers = "hash_password";
+    /* PSA must be initialised before any crypto in v4.0 */
+    psa_crypto_init();
 
-    mbedtls_entropy_init(&entropy);
-    mbedtls_ctr_drbg_init(&ctr_drbg);
-
-    if(mbedtls_ctr_drbg_seed(
-            &ctr_drbg,
-            mbedtls_entropy_func,
-            &entropy,
-            (const unsigned char *)pers,
-            strlen(pers)
-        ) != 0) {
+    /* Generate random salt using PSA (replaces mbedtls_ctr_drbg_random) */
+    if(psa_generate_random(salt, SALT_LEN) != PSA_SUCCESS) {
         gobj_log_error(gobj, 0,
             "function", "%s", __FUNCTION__,
             "msgset",   "%s", MSGSET_INTERNAL_ERROR,
-            "msg",      "%s", "mbedtls_ctr_drbg_seed() FAILED",
+            "msg",      "%s", "psa_generate_random() FAILED",
             NULL
         );
-        goto error;
+        return NULL;
     }
 
-    if(mbedtls_ctr_drbg_random(&ctr_drbg, salt, SALT_LEN) != 0) {
-        gobj_log_error(gobj, 0,
-            "function", "%s", __FUNCTION__,
-            "msgset",   "%s", MSGSET_INTERNAL_ERROR,
-            "msg",      "%s", "mbedtls_ctr_drbg_random() FAILED",
-            NULL
-        );
-        goto error;
-    }
-
-    if(mbedtls_pkcs5_pbkdf2_hmac(
-            md_info,
+    if(mbedtls_pkcs5_pbkdf2_hmac_ext(
+            mbedtls_md_get_type(md_info),
             (const unsigned char *)password, strlen(password),
             salt, SALT_LEN,
             iterations,
-            hash_len,
+            (uint32_t)hash_len,
             hash
         ) != 0) {
         gobj_log_error(gobj, 0,
@@ -1959,7 +1974,7 @@ PRIVATE json_t *hash_password(
             "msg",      "%s", "mbedtls_pkcs5_pbkdf2_hmac() FAILED",
             NULL
         );
-        goto error;
+        return NULL;
     }
 
     gbuffer_t *gbuf_hash = gbuffer_binary_to_base64((const char *)hash, hash_len);
@@ -1984,14 +1999,7 @@ PRIVATE json_t *hash_password(
 
     GBUFFER_DECREF(gbuf_hash);
     GBUFFER_DECREF(gbuf_salt);
-    mbedtls_ctr_drbg_free(&ctr_drbg);
-    mbedtls_entropy_free(&entropy);
     return credentials;
-
-error:
-    mbedtls_ctr_drbg_free(&ctr_drbg);
-    mbedtls_entropy_free(&entropy);
-    return NULL;
 #else
     #error "No crypto library defined"
 #endif
