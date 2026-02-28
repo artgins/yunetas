@@ -118,7 +118,7 @@ static int test(json_t *tranger, int caso, int cnt)
                 NULL,   // error's list, It must not be any log error
                 NULL,   // expected, NULL: we want to check only the logs
                 NULL,   // ignore_keys
-                TRUE    // verbose
+                1       // verbose
             );
 
             time_measure_t time_measure;
@@ -276,7 +276,7 @@ static int test(json_t *tranger, int caso, int cnt)
                 ),
                 NULL,   // expected, NULL: we want to check only the logs
                 NULL,   // ignore_keys
-                TRUE    // verbose
+                1       // verbose
             );
 
             time_measure_t time_measure;
@@ -310,7 +310,7 @@ static int test(json_t *tranger, int caso, int cnt)
                 NULL,   // error's list, It must not be any log error
                 NULL,   // expected, NULL: we want to check only the logs
                 NULL,   // ignore_keys
-                TRUE    // verbose
+                1       // verbose
             );
 
             time_measure_t time_measure;
@@ -367,7 +367,7 @@ static int test(json_t *tranger, int caso, int cnt)
                 NULL,   // error's list, It must not be any log error
                 NULL,   // expected, NULL: we want to check only the logs
                 NULL,   // ignore_keys
-                TRUE    // verbose
+                1       // verbose
             );
 
             time_measure_t time_measure;
@@ -425,7 +425,7 @@ static int test(json_t *tranger, int caso, int cnt)
                 NULL,   // error's list, It must not be any log error
                 NULL,   // expected, NULL: we want to check only the logs
                 NULL,   // ignore_keys
-                TRUE    // verbose
+                1       // verbose
             );
 
             time_measure_t time_measure;
@@ -481,7 +481,7 @@ static int test(json_t *tranger, int caso, int cnt)
                 NULL,   // error's list, It must not be any log error
                 NULL,   // expected, NULL: we want to check only the logs
                 NULL,   // ignore_keys
-                TRUE    // verbose
+                1       // verbose
             );
 
             time_measure_t time_measure;
@@ -538,7 +538,7 @@ static int test(json_t *tranger, int caso, int cnt)
                 NULL,   // error's list, It must not be any log error
                 NULL,   // expected, NULL: we want to check only the logs
                 NULL,   // ignore_keys
-                TRUE    // verbose
+                1       // verbose
             );
 
             time_measure_t time_measure;
@@ -580,7 +580,7 @@ static int test(json_t *tranger, int caso, int cnt)
                 NULL,   // error's list, It must not be any log error
                 NULL,   // expected, NULL: we want to check only the logs
                 NULL,   // ignore_keys
-                TRUE    // verbose
+                1       // verbose
             );
 
             time_measure_t time_measure;
@@ -623,7 +623,7 @@ static int test(json_t *tranger, int caso, int cnt)
                 NULL,   // error's list, It must not be any log error
                 NULL,   // expected, NULL: we want to check only the logs
                 NULL,   // ignore_keys
-                TRUE    // verbose
+                1       // verbose
             );
 
             time_measure_t time_measure;
@@ -665,7 +665,7 @@ static int test(json_t *tranger, int caso, int cnt)
                 NULL,   // error's list, It must not be any log error
                 NULL,   // expected, NULL: we want to check only the logs
                 NULL,   // ignore_keys
-                TRUE    // verbose
+                1       // verbose
             );
 
             time_measure_t time_measure;
@@ -708,7 +708,7 @@ static int test(json_t *tranger, int caso, int cnt)
                 NULL,   // error's list, It must not be any log error
                 NULL,   // expected, NULL: we want to check only the logs
                 NULL,   // ignore_keys
-                TRUE    // verbose
+                1       // verbose
             );
 
             time_measure_t time_measure;
@@ -750,7 +750,7 @@ static int test(json_t *tranger, int caso, int cnt)
                 NULL,   // error's list, It must not be any log error
                 NULL,   // expected, NULL: we want to check only the logs
                 NULL,   // ignore_keys
-                TRUE    // verbose
+                1       // verbose
             );
 
             time_measure_t time_measure;
@@ -793,7 +793,7 @@ static int test(json_t *tranger, int caso, int cnt)
                 NULL,   // error's list, It must not be any log error
                 NULL,   // expected, NULL: we want to check only the logs
                 NULL,   // ignore_keys
-                TRUE    // verbose
+                1       // verbose
             );
 
             time_measure_t time_measure;
@@ -835,7 +835,7 @@ static int test(json_t *tranger, int caso, int cnt)
                 NULL,   // error's list, It must not be any log error
                 NULL,   // expected, NULL: we want to check only the logs
                 NULL,   // ignore_keys
-                TRUE    // verbose
+                1       // verbose
             );
 
             time_measure_t time_measure;
@@ -975,7 +975,7 @@ PRIVATE int do_test(void)
         NULL,   // error's list, It must not be any log error
         NULL,   // expected, NULL: we want to check only the logs
         NULL,   // ignore_keys
-        TRUE    // verbose
+        1       // verbose
     );
     tranger2_shutdown(tranger);
     result += test_json(NULL);  // NULL: we want to check only the logs

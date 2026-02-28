@@ -69,8 +69,7 @@ PUBLIC int test_compound(
 
         const char *ignore_keys[]= {
             "t",
-            // "g_rowid", CLAUDE
-            // "i_rowid",
+
             NULL
         };
         set_expected_results( // Check that no logs happen
@@ -78,7 +77,7 @@ PUBLIC int test_compound(
             NULL,   // error's list
             expected,   // expected
             ignore_keys,   // ignore_keys
-            TRUE    // verbose
+            1       // verbose
         );
 
         time_measure_t time_measure;
@@ -105,7 +104,7 @@ PUBLIC int test_compound(
             NULL,   // error's list
             NULL,   // expected
             NULL,   // ignore_keys
-            TRUE    // verbose
+            1       // verbose
         );
 
         time_measure_t time_measure;
@@ -148,8 +147,7 @@ PUBLIC int test_compound(
         json_t *expected = string2json(helper_quote2doublequote(foto_final2), TRUE);
         const char *ignore_keys[]= {
             "t",
-            // "g_rowid", CLAUDE
-            // "i_rowid",
+
             NULL
         };
         set_expected_results( // Check that no logs happen
@@ -157,7 +155,7 @@ PUBLIC int test_compound(
             NULL,   // error's list
             expected,  // expected
             ignore_keys,   // ignore_keys
-            TRUE    // verbose
+            1       // verbose
         );
         time_measure_t time_measure;
         MT_START_TIME(time_measure)
@@ -192,11 +190,9 @@ PUBLIC int test_compound(
     if(!without_ok_tests) {
         const char *test = "Unlink simple/compound node";
 
-        json_t *expected = string2json(helper_quote2doublequote(foto_final1), TRUE);
+        json_t *expected = string2json(helper_quote2doublequote(foto_final3), TRUE);
         const char *ignore_keys[]= {
             "t",
-            // "g_rowid", CLAUDE
-            // "i_rowid",
             NULL
         };
         set_expected_results( // Check that no logs happen
@@ -204,7 +200,7 @@ PUBLIC int test_compound(
             NULL,   // error's list
             expected,  // expected
             ignore_keys,   // ignore_keys
-            TRUE    // verbose
+            1       // verbose
         );
 
         time_measure_t time_measure;
@@ -268,7 +264,7 @@ PUBLIC int test_compound(
             NULL,   // error's list
             NULL,  // expected
             NULL,   // ignore_keys
-            TRUE    // verbose
+            1       // verbose
         );
         time_measure_t time_measure;
         MT_START_TIME(time_measure)
@@ -297,7 +293,7 @@ PUBLIC int test_compound(
         result += test_json(json_incref(found));
     }
 
-    result += debug_json("tranger", tranger, result<0? TRUE:FALSE);
+    result += debug_json("tranger", tranger, FALSE);
 
     return result;
 }

@@ -195,7 +195,7 @@ int main(int argc, char *argv[])
         ),
         NULL,  // expected
         NULL,   // ignore_keys
-        TRUE    // verbose
+        1       // verbose
     );
 
     time_measure_t time_measure;

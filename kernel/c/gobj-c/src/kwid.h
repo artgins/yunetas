@@ -247,7 +247,8 @@ PUBLIC json_t *kw_collect(
 
 
 /**rst**
-    Compare deeply two json **records**. Can be disordered.
+    Compare deeply two json values. Can be dicts, lists, or simple values.
+    Dicts and lists can be disordered.
 **rst**/
 PUBLIC BOOL kwid_compare_records(
     hgobj gobj,
@@ -260,7 +261,9 @@ PUBLIC BOOL kwid_compare_records(
 );
 
 /**rst**
-    Compare deeply two json lists of **records**. Can be disordered.
+    Compare deeply two json lists. Items can be disordered.
+    Handles arrays of objects (with or without "id" field),
+    arrays of arrays, and arrays of simple values.
 **rst**/
 PUBLIC BOOL kwid_compare_lists(
     hgobj gobj,

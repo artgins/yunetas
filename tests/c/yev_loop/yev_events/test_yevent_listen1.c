@@ -233,7 +233,7 @@ int main(int argc, char *argv[])
         error_list,  // error_list
         NULL,  // expected
         NULL,   // ignore_keys
-        TRUE    // verbose
+        1       // verbose
     );
 
     time_measure_t time_measure;

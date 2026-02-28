@@ -47,6 +47,7 @@ set(SRCS
     users_file.c
     foto_final1.c
     foto_final2.c
+    foto_final3.c
 )
 
 ##############################################

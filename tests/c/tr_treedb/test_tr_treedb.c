@@ -91,7 +91,7 @@ PRIVATE int test_treedb_schema(
             error_list,   // error_list
             NULL,   // expected, NULL: we want to check only the logs
             NULL,   // ignore_keys
-            TRUE    // verbose
+            1       // verbose
         );
         MT_START_TIME(time_measure)
 
@@ -136,7 +136,7 @@ PRIVATE int test_treedb_schema(
             NULL,   // error_list
             NULL,   // expected, NULL: we want to check only the logs
             NULL,   // ignore_keys
-            TRUE    // verbose
+            1       // verbose
         );
         MT_START_TIME(time_measure)
 
@@ -181,7 +181,7 @@ PRIVATE int test_treedb_schema(
             NULL,   // error_list
             NULL,   // expected, NULL: we want to check only the logs
             NULL,   // ignore_keys
-            TRUE    // verbose
+            1       // verbose
         );
         MT_START_TIME(time_measure)
 
@@ -232,7 +232,7 @@ PRIVATE int test_treedb_schema(
             ),
             NULL,   // expected, NULL: we want to check only the logs
             NULL,   // ignore_keys
-            TRUE    // verbose
+            1       // verbose
         );
         MT_START_TIME(time_measure)
 
@@ -284,7 +284,7 @@ PRIVATE int test_treedb_schema(
             ),
             NULL,   // expected, NULL: we want to check only the logs
             NULL,   // ignore_keys
-            TRUE    // verbose
+            1       // verbose
         );
         MT_START_TIME(time_measure)
 
@@ -325,7 +325,7 @@ PRIVATE int test_schema(
             NULL,   // error_list
             NULL,   // expected, NULL: we want to check only the logs
             NULL,   // ignore_keys
-            TRUE    // verbose
+            1       // verbose
         );
         time_measure_t time_measure;
         MT_START_TIME(time_measure)
@@ -379,7 +379,7 @@ PRIVATE int do_test(void)
             ),
             NULL,   // expected, NULL: we want to check only the logs
             NULL,   // ignore_keys
-            TRUE    // verbose
+            1       // verbose
         );
         time_measure_t time_measure;
         MT_START_TIME(time_measure)
@@ -428,7 +428,7 @@ PRIVATE int do_test(void)
             error_list,   // error_list
             NULL,   // expected, NULL: we want to check only the logs
             NULL,   // ignore_keys
-            TRUE    // verbose
+            1       // verbose
         );
         time_measure_t time_measure;
         MT_START_TIME(time_measure)
@@ -484,7 +484,7 @@ PRIVATE int do_test(void)
         show_oks,
         verbose
     );
-    result += debug_json("tranger", tranger, result<0? TRUE:FALSE);
+    result += debug_json("tranger", tranger, FALSE);
 
     /*------------------------------*
      *  Execute user test
@@ -502,7 +502,7 @@ PRIVATE int do_test(void)
      *  Check refcounts
      */
     json_check_refcounts(tranger, 1000, &result);
-    result += debug_json("tranger", tranger, result<0? TRUE:FALSE);
+    result += debug_json("tranger", tranger, FALSE);
 
     if(1) {
         /*
@@ -554,8 +554,7 @@ PRIVATE int do_test(void)
 
         const char *ignore_keys[]= {
             "t",
-            // "g_rowid", CLAUDE
-            // "i_rowid",
+
             NULL
         };
         json_t *expected = string2json(helper_quote2doublequote(foto_final1), TRUE);
@@ -566,7 +565,7 @@ PRIVATE int do_test(void)
             ),
             expected,  // expected
             ignore_keys,   // ignore_keys
-            TRUE    // verbose
+            1       // verbose
         );
         time_measure_t time_measure;
         MT_START_TIME(time_measure)
@@ -661,8 +660,7 @@ PRIVATE int do_test(void)
         );
         const char *ignore_keys[]= {
             "t",
-            // "g_rowid", CLAUDE
-            // "i_rowid",
+
             // "offset",
             // "size",
             NULL
@@ -672,7 +670,7 @@ PRIVATE int do_test(void)
             NULL,   // error_list
             expected, // expected
             ignore_keys,   // ignore_keys
-            TRUE    // verbose
+            1       // verbose
         );
 
         time_measure_t time_measure;
@@ -764,7 +762,7 @@ PRIVATE int do_test(void)
             ),
             NULL,   // expected, NULL: we want to check only the logs
             NULL,   // ignore_keys
-            TRUE    // verbose
+            1       // verbose
         );
         time_measure_t time_measure;
         MT_START_TIME(time_measure)
@@ -797,7 +795,7 @@ PRIVATE int do_test(void)
             ),
             NULL,   // expected, NULL: we want to check only the logs
             NULL,   // ignore_keys
-            TRUE    // verbose
+            1       // verbose
         );
         time_measure_t time_measure;
         MT_START_TIME(time_measure)
@@ -841,7 +839,7 @@ PRIVATE int do_test(void)
             NULL,   // error_list
             NULL,   // expected, NULL: we want to check only the logs
             NULL,   // ignore_keys
-            TRUE    // verbose
+            1       // verbose
         );
         time_measure_t time_measure;
         MT_START_TIME(time_measure)

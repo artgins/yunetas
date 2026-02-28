@@ -51,6 +51,7 @@ extern char foto_final_departments[];
 extern char foto_final_users[];
 extern char foto_final1[];
 extern char foto_final2[];
+extern char foto_final3[];
 extern char users_file[];
 
 #ifdef __cplusplus

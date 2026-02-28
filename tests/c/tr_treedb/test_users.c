@@ -330,8 +330,6 @@ PUBLIC int test_users(
 
         const char *ignore_keys[]= {
             "t",
-            // "g_rowid",
-            // "i_rowid",
             NULL
         };
         json_t *expected = string2json(helper_quote2doublequote(foto_final_users), TRUE);
@@ -340,7 +338,7 @@ PUBLIC int test_users(
             NULL,   // error's list
             expected,  // expected
             ignore_keys,   // ignore_keys
-            TRUE    // verbose
+            1       // verbose
         );
         time_measure_t time_measure;
         MT_START_TIME(time_measure)

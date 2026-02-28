@@ -246,7 +246,7 @@ PRIVATE int do_test(json_t *tranger)
             NULL,   // error's list, It must not be any log error
             NULL,   // expected, NULL: we want to check only the logs
             NULL,   // ignore_keys
-            TRUE    // verbose
+            1       // verbose
         );
         MT_START_TIME(time_measure)
 
@@ -289,7 +289,7 @@ PRIVATE int do_test(json_t *tranger)
             NULL,   // error's list, It must not be any log error
             NULL,   // expected, NULL: we want to check only the logs
             NULL,   // ignore_keys
-            TRUE    // verbose
+            1       // verbose
         );
 
         MT_START_TIME(time_measure) /* HACK the time starts when receiving the first record, set in callback */
@@ -351,7 +351,7 @@ PRIVATE int do_test(json_t *tranger)
             NULL,   // error's list, It must not be any log error
             NULL,   // expected, NULL: we want to check only the logs
             NULL,   // ignore_keys
-            TRUE    // verbose
+            1       // verbose
         );
         tranger2_close_list(tranger, list);
         result += test_json(NULL);  // NULL: we want to check only the logs
@@ -392,7 +392,7 @@ PRIVATE json_t *open_tranger(void)
         NULL,   // error's list, It must not be any log error
         NULL,   // expected, NULL: we want to check only the logs
         NULL,   // ignore_keys
-        TRUE    // verbose
+        1       // verbose
     );
     json_t *jn_tranger = json_pack("{s:s, s:s, s:b, s:i}",
         "path", path_root,
@@ -420,7 +420,7 @@ PRIVATE int close_tranger(json_t *tranger)
         NULL,   // error's list, It must not be any log error
         NULL,   // expected, NULL: we want to check only the logs
         NULL,   // ignore_keys
-        TRUE    // verbose
+        1       // verbose
     );
     if(tranger2_get_iterator_by_id(tranger, TOPIC_NAME, "it_by_mem", "")) {
         result += tranger2_close_iterator(
@@ -446,7 +446,7 @@ PRIVATE int close_tranger(json_t *tranger)
         NULL,   // error's list, It must not be any log error
         NULL,   // expected, NULL: we want to check only the logs
         NULL,   // ignore_keys
-        TRUE    // verbose
+        1       // verbose
     );
 
     result += debug_json("tranger", tranger, FALSE);
