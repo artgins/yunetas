@@ -297,7 +297,7 @@ PUBLIC int test_compound(
         result += test_json(json_incref(found));
     }
 
-    result += debug_json("tranger", tranger, result<0? TRUE:FALSE);
+    result += debug_json("tranger", tranger, FALSE);
 
     return result;
 }

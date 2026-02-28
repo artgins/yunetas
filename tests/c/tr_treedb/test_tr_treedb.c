@@ -484,7 +484,7 @@ PRIVATE int do_test(void)
         show_oks,
         verbose
     );
-    result += debug_json("tranger", tranger, result<0? TRUE:FALSE);
+    result += debug_json("tranger", tranger, FALSE);
 
     /*------------------------------*
      *  Execute user test
@@ -502,7 +502,7 @@ PRIVATE int do_test(void)
      *  Check refcounts
      */
     json_check_refcounts(tranger, 1000, &result);
-    result += debug_json("tranger", tranger, result<0? TRUE:FALSE);
+    result += debug_json("tranger", tranger, FALSE);
 
     if(1) {
         /*
