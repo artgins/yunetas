@@ -822,6 +822,12 @@ PRIVATE int do_test(void)
     json_check_refcounts(tranger, 1000, &result);
 
     /*---------------------------------------*
+     *      Close and re-open the treedb
+     *      Check foto_final3
+     *---------------------------------------*/
+    // TODO make a final foto with the last changes
+
+    /*---------------------------------------*
      *      Shutdown
      *---------------------------------------*/
     if(print_tranger) {
