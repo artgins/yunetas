@@ -1170,8 +1170,8 @@ PRIVATE BOOL _kwid_compare_records_path(
         ret = FALSE;
         if(verbose) {
             json_t *jn_diff = json_object();
-            json_object_set(jn_diff, "found", record);
             json_object_set(jn_diff, "expected", expected);
+            json_object_set(jn_diff, "found", record);
             if(path[0]) {
                 gobj_trace_json(gobj, jn_diff, "compare: type mismatch at '%s'", path);
             } else {
@@ -1265,8 +1265,8 @@ PRIVATE BOOL _kwid_compare_records_path(
                                 ret = FALSE;
                                 if(verbose) {
                                     json_t *jn_diff = json_object();
-                                    json_object_set(jn_diff, "found", value);
                                     json_object_set(jn_diff, "expected", value2);
+                                    json_object_set(jn_diff, "found", value);
                                     gobj_trace_json(gobj, jn_diff,
                                         "compare: value mismatch at '%s'", child_path);
                                     json_decref(jn_diff);
@@ -1325,8 +1325,8 @@ PRIVATE BOOL _kwid_compare_records_path(
                     ret = FALSE;
                     if(verbose) {
                         json_t *jn_diff = json_object();
-                        json_object_set(jn_diff, "found", record);
                         json_object_set(jn_diff, "expected", expected);
+                        json_object_set(jn_diff, "found", record);
                         if(path[0]) {
                             gobj_trace_json(gobj, jn_diff,
                                 "compare: value mismatch at '%s'", path);
@@ -1396,8 +1396,8 @@ PRIVATE BOOL _kwid_compare_lists_path(
         ret = FALSE;
         if(verbose) {
             json_t *jn_diff = json_object();
-            json_object_set(jn_diff, "found", list);
             json_object_set(jn_diff, "expected", expected);
+            json_object_set(jn_diff, "found", list);
             if(path[0]) {
                 gobj_trace_json(gobj, jn_diff, "compare: type mismatch at '%s'", path);
             } else {
@@ -1580,8 +1580,8 @@ PRIVATE BOOL _kwid_compare_lists_path(
                 ret = FALSE;
                 if(verbose) {
                     json_t *jn_diff = json_object();
-                    json_object_set(jn_diff, "found", list);
                     json_object_set(jn_diff, "expected", expected);
+                    json_object_set(jn_diff, "found", list);
                     if(path[0]) {
                         gobj_trace_json(gobj, jn_diff,
                             "compare: value mismatch at '%s'", path);
