@@ -368,7 +368,7 @@ PRIVATE int do_test(void)
             NULL,
             string2json(helper_quote2doublequote(expected), TRUE),
             NULL,
-            TRUE
+            1
         );
         result += test_json_file(file);
     }
@@ -383,7 +383,7 @@ PRIVATE int do_test(void)
         ),
         NULL,   // expected, NULL: we want to check only the logs
         NULL,   // ignore_keys
-        TRUE    // verbose
+        1       // verbose
     );
 
     topic = tranger2_create_topic(
@@ -434,7 +434,7 @@ PRIVATE int do_test(void)
             NULL,
             string2json(helper_quote2doublequote(expected), TRUE),
             NULL,
-            TRUE
+            1
         );
         result += test_json_file(file);
     }
@@ -457,7 +457,7 @@ PRIVATE int do_test(void)
             NULL,
             string2json(helper_quote2doublequote(expected), TRUE),
             NULL,
-            TRUE
+            1
         );
         result += test_json_file(file);
     }
@@ -477,7 +477,7 @@ PRIVATE int do_test(void)
             NULL,
             string2json(helper_quote2doublequote(expected), TRUE),
             NULL,
-            TRUE
+            1
         );
         result += test_json_file(file);
     }
@@ -555,7 +555,7 @@ PRIVATE int do_test(void)
         NULL,   // error's list, It must not be any log error
         NULL,   // expected, NULL: we want to check only the logs
         NULL,   // ignore_keys
-        TRUE    // verbose
+        1       // verbose
     );
 
     time_measure_t time_measure;
@@ -725,7 +725,7 @@ PRIVATE int do_test(void)
         ),
         NULL,   // expected, NULL: we want to check only the logs
         NULL,   // ignore_keys
-        TRUE    // verbose
+        1       // verbose
     );
 
     result += tranger2_delete_topic(
@@ -793,7 +793,7 @@ PRIVATE int do_test(void)
         ),
         NULL,   // expected, NULL: we want to check only the logs
         NULL,   // ignore_keys
-        TRUE    // verbose
+        1       // verbose
     );
 
     topic = tranger2_create_topic(
@@ -829,7 +829,7 @@ PRIVATE int do_test(void)
         NULL,   // error's list, It must not be any log error
         NULL,   // expected, NULL: we want to check only the logs
         NULL,   // ignore_keys
-        TRUE    // verbose
+        1       // verbose
     );
 
     all_leidos = 0;
@@ -952,7 +952,7 @@ PRIVATE int do_test(void)
         NULL,   // error's list, It must not be any log error
         NULL,   // expected, NULL: we want to check only the logs
         NULL,   // ignore_keys
-        TRUE    // verbose
+        1       // verbose
     );
 
     MT_START_TIME(time_measure)
@@ -1139,7 +1139,7 @@ PRIVATE int do_test(void)
         NULL,   // error's list, It must not be any log error
         NULL,   // expected, NULL: we want to check only the logs
         NULL,   // ignore_keys
-        TRUE    // verbose
+        1       // verbose
     );
 
     tranger2_close_rt_mem(
@@ -1182,7 +1182,7 @@ PRIVATE int do_test(void)
         NULL,   // error's list, It must not be any log error
         NULL,   // expected, NULL: we want to check only the logs
         NULL,   // ignore_keys
-        TRUE    // verbose
+        1       // verbose
     );
     tranger2_close_topic(tranger, TOPIC_NAME);
     result += test_json(NULL);  // NULL: we want to check only the logs
@@ -1195,7 +1195,7 @@ PRIVATE int do_test(void)
         NULL,   // error's list, It must not be any log error
         NULL,   // expected, NULL: we want to check only the logs
         NULL,   // ignore_keys
-        TRUE    // verbose
+        1       // verbose
     );
     tranger2_shutdown(tranger);
     result += test_json(NULL);  // NULL: we want to check only the logs
@@ -1235,7 +1235,7 @@ PRIVATE int do_test2(void)
         NULL,   // error's list, It must not be any log error
         NULL,   // expected, NULL: we want to check only the logs
         NULL,   // ignore_keys
-        TRUE    // verbose
+        1       // verbose
     );
     json_t *jn_tranger = json_pack("{s:s, s:s, s:b, s:i}",
         "path", path_root,
@@ -1258,7 +1258,7 @@ PRIVATE int do_test2(void)
         ),
         NULL,   // expected, NULL: we want to check only the logs
         NULL,   // ignore_keys
-        TRUE    // verbose
+        1       // verbose
     );
 
     json_t *jn_cols = json_pack("{s:s, s:I, s:s, s:s}", // jn_cols, owned
@@ -1461,7 +1461,7 @@ PRIVATE int do_test2(void)
         NULL,   // error's list, It must not be any log error
         NULL,   // expected, NULL: we want to check only the logs
         NULL,   // ignore_keys
-        TRUE    // verbose
+        1       // verbose
     );
     tranger2_shutdown(tranger);
     result += test_json(NULL);  // NULL: we want to check only the logs

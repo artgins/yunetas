@@ -154,7 +154,7 @@ PRIVATE int do_test(void)
         NULL,   // error's list, It must not be any log error
         NULL,   // expected, NULL: we want to check only the logs
         NULL,   // ignore_keys
-        TRUE    // verbose
+        1       // verbose
     );
     json_t *jn_tranger = json_pack("{s:s, s:s, s:b, s:i}",
         "path", path_root,
@@ -173,7 +173,7 @@ PRIVATE int do_test(void)
         NULL,   // error's list
         NULL,   // expected, NULL: we want to check only the logs
         NULL,   // ignore_keys
-        TRUE    // verbose
+        1       // verbose
     );
 
     leidos = 0;
@@ -265,7 +265,7 @@ PRIVATE int do_test(void)
         ),
         NULL,   // expected, NULL: we want to check only the logs
         NULL,   // ignore_keys
-        TRUE    // verbose
+        1       // verbose
     );
     json_t *iterator22 = tranger2_open_iterator(
         tranger,
@@ -509,7 +509,7 @@ PRIVATE int do_test(void)
             NULL,   // error_list,
             NULL,   // expected, NULL: we want to check only the logs
             NULL,   // ignore_keys
-            TRUE    // verbose
+            1       // verbose
         );
         json_t *data = json_array();
         json_t *iterator33 = tranger2_open_iterator(
@@ -553,7 +553,7 @@ PRIVATE int do_test(void)
             NULL,   // error_list,
             NULL,   // expected, NULL: we want to check only the logs
             NULL,   // ignore_keys
-            TRUE    // verbose
+            1       // verbose
         );
         json_t *data = json_array();
         json_t *iterator33 = tranger2_open_iterator(
@@ -813,7 +813,7 @@ PRIVATE int do_test(void)
         NULL,   // error's list, It must not be any log error
         NULL,   // expected, NULL: we want to check only the logs
         NULL,   // ignore_keys
-        TRUE    // verbose
+        1       // verbose
     );
 
     result += debug_json("tranger", tranger, FALSE);
@@ -829,7 +829,7 @@ PRIVATE int do_test(void)
         NULL,   // error's list, It must not be any log error
         NULL,   // expected, NULL: we want to check only the logs
         NULL,   // ignore_keys
-        TRUE    // verbose
+        1       // verbose
     );
     result += debug_json("tranger", tranger, FALSE);
     tranger2_shutdown(tranger);

@@ -340,7 +340,7 @@ PUBLIC int test_users(
             NULL,   // error's list
             expected,  // expected
             ignore_keys,   // ignore_keys
-            TRUE    // verbose
+            1       // verbose
         );
         time_measure_t time_measure;
         MT_START_TIME(time_measure)

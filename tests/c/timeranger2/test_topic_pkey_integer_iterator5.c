@@ -174,7 +174,7 @@ PRIVATE int do_test(void)
         NULL,   // error's list, It must not be any log error
         NULL,   // expected, NULL: we want to check only the logs
         NULL,   // ignore_keys
-        TRUE    // verbose
+        1       // verbose
     );
     json_t *jn_tranger = json_pack("{s:s, s:s, s:b, s:i}",
         "path", path_root,
@@ -198,7 +198,7 @@ PRIVATE int do_test(void)
             NULL,   // error's list, It must not be any log error
             NULL,   // expected, NULL: we want to check only the logs
             NULL,   // ignore_keys
-            TRUE    // verbose
+            1       // verbose
         );
 
         time_measure_t time_measure;
@@ -231,7 +231,7 @@ PRIVATE int do_test(void)
             NULL,   // error's list, It must not be any log error
             NULL,   // expected, NULL: we want to check only the logs
             NULL,   // ignore_keys
-            TRUE    // verbose
+            1       // verbose
         );
         json_int_t page_size = 41;
         size_t total_rows = tranger2_iterator_size(iterator);
@@ -296,7 +296,7 @@ PRIVATE int do_test(void)
             NULL,   // error's list, It must not be any log error
             NULL,   // expected, NULL: we want to check only the logs
             NULL,   // ignore_keys
-            TRUE    // verbose
+            1       // verbose
         );
         result += tranger2_close_iterator(tranger, iterator);
         result += test_json(NULL);  // NULL: we want to check only the logs
@@ -312,7 +312,7 @@ PRIVATE int do_test(void)
             NULL,   // error's list, It must not be any log error
             NULL,   // expected, NULL: we want to check only the logs
             NULL,   // ignore_keys
-            TRUE    // verbose
+            1       // verbose
         );
 
         time_measure_t time_measure;
@@ -345,7 +345,7 @@ PRIVATE int do_test(void)
             NULL,   // error's list, It must not be any log error
             NULL,   // expected, NULL: we want to check only the logs
             NULL,   // ignore_keys
-            TRUE    // verbose
+            1       // verbose
         );
         json_int_t page_size = 41;
         size_t total_rows = tranger2_iterator_size(iterator);
@@ -410,7 +410,7 @@ PRIVATE int do_test(void)
             NULL,   // error's list, It must not be any log error
             NULL,   // expected, NULL: we want to check only the logs
             NULL,   // ignore_keys
-            TRUE    // verbose
+            1       // verbose
         );
         result += tranger2_close_iterator(tranger, iterator);
         result += test_json(NULL);  // NULL: we want to check only the logs
@@ -429,7 +429,7 @@ PRIVATE int do_test(void)
         NULL,   // error's list, It must not be any log error
         NULL,   // expected, NULL: we want to check only the logs
         NULL,   // ignore_keys
-        TRUE    // verbose
+        1       // verbose
     );
 
     result += debug_json("tranger", tranger, FALSE);

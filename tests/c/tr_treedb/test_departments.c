@@ -88,7 +88,7 @@ PUBLIC int test_departments(
             NULL,   // error's list
             expected,   // expected
             ignore_keys, // ignore_keys
-            TRUE    // verbose
+            1       // verbose
         );
 
         time_measure_t time_measure;
@@ -116,7 +116,7 @@ PUBLIC int test_departments(
             ),
             NULL,   // expected, NULL: we want to check only the logs
             NULL,   // ignore_keys
-            TRUE    // verbose
+            1       // verbose
         );
         time_measure_t time_measure;
         MT_START_TIME(time_measure)
@@ -175,7 +175,7 @@ PUBLIC int test_departments(
             NULL,   // error's list
             expected, // expected
             ignore_keys, // ignore_keys
-            TRUE    // verbose
+            1       // verbose
         );
 
         time_measure_t time_measure;
@@ -225,7 +225,7 @@ PUBLIC int test_departments(
             NULL,   // error's list
             expected, // expected
             ignore_keys, // ignore_keys
-            TRUE    // verbose
+            1       // verbose
         );
 
         time_measure_t time_measure;
@@ -254,7 +254,7 @@ PUBLIC int test_departments(
             ),
             NULL,   // expected, NULL: we want to check only the logs
             NULL,   // ignore_keys
-            TRUE    // verbose
+            1       // verbose
         );
         time_measure_t time_measure;
         MT_START_TIME(time_measure)
@@ -319,7 +319,7 @@ PUBLIC int test_departments(
             NULL,   // error's list
             expected,  // expected
             ignore_keys,   // ignore_keys
-            TRUE    // verbose
+            1       // verbose
         );
         time_measure_t time_measure;
         MT_START_TIME(time_measure)
@@ -359,7 +359,7 @@ PUBLIC int test_departments(
             ),
             NULL,   // expected, NULL: we want to check only the logs
             NULL,   // ignore_keys
-            TRUE    // verbose
+            1       // verbose
         );
         time_measure_t time_measure;
         MT_START_TIME(time_measure)
@@ -419,7 +419,7 @@ PUBLIC int test_departments(
             NULL,   // error's list
             expected, // expected
             ignore_keys,   // ignore_keys
-            TRUE    // verbose
+            1       // verbose
         );
         time_measure_t time_measure;
         MT_START_TIME(time_measure)
@@ -486,7 +486,7 @@ PUBLIC int test_departments(
             NULL,   // error's list
             expected, // expected
             ignore_keys,   // ignore_keys
-            TRUE    // verbose
+            1       // verbose
         );
         time_measure_t time_measure;
         MT_START_TIME(time_measure)
@@ -553,7 +553,7 @@ PUBLIC int test_departments(
             NULL,   // error's list
             expected, // expected
             ignore_keys,   // ignore_keys
-            TRUE    // verbose
+            1       // verbose
         );
         time_measure_t time_measure;
         MT_START_TIME(time_measure)
@@ -638,7 +638,7 @@ PUBLIC int test_departments(
             NULL,   // error's list
             expected, // expected
             ignore_keys,   // ignore_keys
-            TRUE    // verbose
+            1       // verbose
         );
         time_measure_t time_measure;
         MT_START_TIME(time_measure)
@@ -671,7 +671,7 @@ PUBLIC int test_departments(
             NULL,   // error's list
             NULL,   // expected, NULL: we want to check only the logs
             NULL,   // ignore_keys
-            TRUE    // verbose
+            1       // verbose
         );
         time_measure_t time_measure;
         MT_START_TIME(time_measure)
@@ -742,7 +742,7 @@ PUBLIC int test_departments_final(
             NULL,   // error's list
             jn_foto_final,  // expected
             ignore_keys,   // ignore_keys
-            TRUE    // verbose
+            1       // verbose
         );
         time_measure_t time_measure;
         MT_START_TIME(time_measure)

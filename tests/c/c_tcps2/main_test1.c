@@ -250,7 +250,7 @@ static int register_yuno_and_more(void)
         errors_list, // errors_list,
         NULL,   // expected, NULL: we want to check only the logs
         NULL,   // ignore_keys
-        TRUE    // verbose
+        1       // verbose
     );
 
     MT_START_TIME(time_measure)

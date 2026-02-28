@@ -78,7 +78,7 @@ PUBLIC int test_compound(
             NULL,   // error's list
             expected,   // expected
             ignore_keys,   // ignore_keys
-            TRUE    // verbose
+            1       // verbose
         );
 
         time_measure_t time_measure;
@@ -105,7 +105,7 @@ PUBLIC int test_compound(
             NULL,   // error's list
             NULL,   // expected
             NULL,   // ignore_keys
-            TRUE    // verbose
+            1       // verbose
         );
 
         time_measure_t time_measure;
@@ -157,7 +157,7 @@ PUBLIC int test_compound(
             NULL,   // error's list
             expected,  // expected
             ignore_keys,   // ignore_keys
-            TRUE    // verbose
+            1       // verbose
         );
         time_measure_t time_measure;
         MT_START_TIME(time_measure)
@@ -204,7 +204,7 @@ PUBLIC int test_compound(
             NULL,   // error's list
             expected,  // expected
             ignore_keys,   // ignore_keys
-            TRUE    // verbose
+            1       // verbose
         );
 
         time_measure_t time_measure;
@@ -268,7 +268,7 @@ PUBLIC int test_compound(
             NULL,   // error's list
             NULL,  // expected
             NULL,   // ignore_keys
-            TRUE    // verbose
+            1       // verbose
         );
         time_measure_t time_measure;
         MT_START_TIME(time_measure)

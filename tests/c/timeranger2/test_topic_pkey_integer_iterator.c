@@ -64,7 +64,7 @@ PRIVATE int do_test(void)
         NULL,   // error's list, It must not be any log error
         NULL,   // expected, NULL: we want to check only the logs
         NULL,   // ignore_keys
-        TRUE    // verbose
+        1       // verbose
     );
     json_t *jn_tranger = json_pack("{s:s, s:s, s:b, s:i}",
         "path", path_root,
@@ -83,7 +83,7 @@ PRIVATE int do_test(void)
         NULL,   // error's list
         NULL,   // expected, NULL: we want to check only the logs
         NULL,   // ignore_keys
-        TRUE    // verbose
+        1       // verbose
     );
 
     json_t *topic = tranger2_open_topic(
@@ -108,7 +108,7 @@ PRIVATE int do_test(void)
         NULL,   // error's list
         NULL,   // expected, NULL: we want to check only the logs
         NULL,   // ignore_keys
-        TRUE    // verbose
+        1       // verbose
     );
     json_t *iterator = tranger2_open_iterator(
         tranger,
@@ -298,7 +298,7 @@ PRIVATE int do_test(void)
         NULL,   // error's list, It must not be any log error
         NULL,   // expected, NULL: we want to check only the logs
         NULL,   // ignore_keys
-        TRUE    // verbose
+        1       // verbose
     );
     result += tranger2_close_iterator(tranger, iterator);
     result += test_json(NULL);  // NULL: we want to check only the logs
@@ -311,7 +311,7 @@ PRIVATE int do_test(void)
         NULL,   // error's list, It must not be any log error
         NULL,   // expected, NULL: we want to check only the logs
         NULL,   // ignore_keys
-        TRUE    // verbose
+        1       // verbose
     );
 
     json_check_refcounts(tranger, 1000, &result);

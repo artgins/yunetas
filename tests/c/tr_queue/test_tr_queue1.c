@@ -60,7 +60,7 @@ static int test(tr_queue_t *trq_msgs, int caso)
                 error_list,   // error's list, It must not be any log error
                 NULL,   // expected, NULL: we want to check only the logs
                 NULL,   // ignore_keys
-                TRUE    // verbose
+                1       // verbose
             );
 
             time_measure_t time_measure;
@@ -208,7 +208,7 @@ PRIVATE int do_test(void)
         NULL,   // error's list, It must not be any log error
         NULL,   // expected, NULL: we want to check only the logs
         NULL,   // ignore_keys
-        TRUE    // verbose
+        1       // verbose
     );
     tranger2_shutdown(tranger);
     result += test_json(NULL);  // NULL: we want to check only the logs
