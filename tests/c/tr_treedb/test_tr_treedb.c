@@ -441,7 +441,7 @@ PRIVATE int do_test(void)
         }
 
         if(!treedb_open_db(
-            tranger,  // owned
+            tranger,
             treedb_name,
             jn_schema_sample,
             0
@@ -572,7 +572,7 @@ PRIVATE int do_test(void)
         json_t *jn_schema_sample = legalstring2json(schema_sample, TRUE);
 
         treedb_open_db(
-            tranger,  // owned
+            tranger,
             treedb_name,
             jn_schema_sample,
             "persistent"
@@ -828,7 +828,7 @@ PRIVATE int do_test(void)
     if(1) {
         treedb_close_db(tranger, treedb_name);
 
-        const char *test = "Load treedb from tranger, after compound";
+        const char *test = "Load treedb, foto final";
 
         const char *ignore_keys[]= {
             "t",
@@ -837,9 +837,7 @@ PRIVATE int do_test(void)
         json_t *expected = string2json(helper_quote2doublequote(foto_final4), TRUE);
         set_expected_results( // Check that no logs happen
             test,   // test name
-            json_pack("[{s:s}]",  // error_list
-                "msg", "Creating TreeDB schema file"
-            ),
+            0,  // error_list
             expected,  // expected
             ignore_keys,   // ignore_keys
             1       // verbose
@@ -850,7 +848,7 @@ PRIVATE int do_test(void)
         json_t *jn_schema_sample = legalstring2json(schema_sample, TRUE);
 
         treedb_open_db(
-            tranger,  // owned
+            tranger,
             treedb_name,
             jn_schema_sample,
             "persistent"
