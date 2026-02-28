@@ -31,7 +31,7 @@ PRIVATE const char *test_name = "";
 PRIVATE json_t *expected_log_messages = 0;
 PRIVATE json_t *unexpected_log_messages = 0;
 PRIVATE json_t *expected = 0;
-PRIVATE BOOL verbose = FALSE;
+PRIVATE int verbose = FALSE;
 PRIVATE const char **ignore_keys = NULL;
 
 PUBLIC time_measure_t yev_time_measure;
@@ -115,7 +115,7 @@ PUBLIC void set_expected_results(
     json_t *errors_list,
     json_t *expected_, // owned
     const char **ignore_keys_,
-    BOOL verbose_
+    int verbose_
 )
 {
     test_name = name_;
@@ -143,7 +143,7 @@ PUBLIC int test_json_file(const char *file)
 
     if(!kwid_compare_records(0, jn_found, expected, ignore_keys, FALSE, FALSE, verbose)) {
         result = -1;
-        if(verbose) {
+        if(verbose > 1) {
             gobj_trace_json(0, expected, "Record expected");
             gobj_trace_json(0, jn_found, "Record found");
             printf("  <-- %sERROR%s in test: \"%s\"\n", On_Red BWhite, Color_Off, test_name);
@@ -178,7 +178,7 @@ PUBLIC int test_json(
     if(jn_found && expected) {
         if(!kwid_compare_records(0, jn_found, expected, ignore_keys, FALSE, FALSE, verbose)) {
             result = -1;
-            if(verbose) {
+            if(verbose > 1) {
                 gobj_trace_json(0, expected, "Record expected");
                 gobj_trace_json(0, jn_found, "Record found");
             }
