@@ -79,7 +79,6 @@ PUBLIC int test_departments(
 
         const char *ignore_keys[]= {
             "t",
-
             NULL
         };
         set_expected_results( // Check that no logs happen
@@ -165,7 +164,6 @@ PUBLIC int test_departments(
         );
         const char *ignore_keys[]= {
             "t",
-
             NULL
         };
         set_expected_results( // Check that no logs happen
@@ -214,7 +212,6 @@ PUBLIC int test_departments(
         );
         const char *ignore_keys[]= {
             "t",
-
             NULL
         };
         set_expected_results( // Check that no logs happen
@@ -307,7 +304,6 @@ PUBLIC int test_departments(
 
         const char *ignore_keys[]= {
             "t",
-
             NULL
         };
         set_expected_results( // Check that no logs happen
@@ -406,7 +402,6 @@ PUBLIC int test_departments(
 
         const char *ignore_keys[]= {
             "t",
-
             NULL
         };
         set_expected_results( // Check that no logs happen
@@ -472,7 +467,6 @@ PUBLIC int test_departments(
 
         const char *ignore_keys[]= {
             "t",
-
             NULL
         };
         set_expected_results( // Check that no logs happen
@@ -538,7 +532,6 @@ PUBLIC int test_departments(
 
         const char *ignore_keys[]= {
             "t",
-
             NULL
         };
         set_expected_results( // Check that no logs happen
@@ -622,7 +615,6 @@ PUBLIC int test_departments(
 
         const char *ignore_keys[]= {
             "t",
-
             NULL
         };
         set_expected_results( // Check that no logs happen
@@ -725,7 +717,6 @@ PUBLIC int test_departments_final(
         const char *test = "departments: foto final";
         const char *ignore_keys[]= {
             "t",
-
             NULL
         };
         set_expected_results( // Check that no logs happen
