@@ -823,9 +823,80 @@ PRIVATE int do_test(void)
 
     /*---------------------------------------*
      *      Close and re-open the treedb
-     *      Check foto_final3
+     *      Check foto_final4
      *---------------------------------------*/
-    // TODO make a final foto with the last changes
+    if(1) {
+        treedb_close_db(tranger, treedb_name);
+
+        const char *test = "Load treedb from tranger, after compound";
+
+        const char *ignore_keys[]= {
+            "t",
+            NULL
+        };
+        json_t *expected = string2json(helper_quote2doublequote(foto_final4), TRUE);
+        set_expected_results( // Check that no logs happen
+            test,   // test name
+            json_pack("[{s:s}]",  // error_list
+                "msg", "Creating TreeDB schema file"
+            ),
+            expected,  // expected
+            ignore_keys,   // ignore_keys
+            1       // verbose
+        );
+        time_measure_t time_measure;
+        MT_START_TIME(time_measure)
+
+        json_t *jn_schema_sample = legalstring2json(schema_sample, TRUE);
+
+        treedb_open_db(
+            tranger,  // owned
+            treedb_name,
+            jn_schema_sample,
+            "persistent"
+        );
+
+        if(1) {
+            /*
+             *  Check sizes
+             */
+            if(treedb_topic_size(tranger, treedb_name, "departments") != 4) {
+                printf("%s  --> ERROR departments!=4%s\n", On_Red BWhite,Color_Off);
+                result += -1;
+            }
+
+            json_t *jn_keys = tranger2_list_keys( // return is yours
+                tranger,
+                "departments"
+            );
+            if(json_array_size(jn_keys) != 4) {
+                printf("%s  --> ERROR departments!=4%s\n", On_Red BWhite,Color_Off);
+                result += -1;
+            }
+            JSON_DECREF(jn_keys)
+
+            if(treedb_topic_size(tranger, treedb_name, "users") != 8) {
+                printf("%s  --> ERROR users!=8 %s\n", On_Red BWhite,Color_Off);
+                result += -1;
+            }
+
+            jn_keys = tranger2_list_keys( // return is yours
+                tranger,
+                "users"
+            );
+            if(json_array_size(jn_keys) != 8) {
+                printf("%s  --> ERROR users!=8 %s\n", On_Red BWhite,Color_Off);
+                result += -1;
+            }
+            JSON_DECREF(jn_keys)
+        }
+
+        MT_INCREMENT_COUNT(time_measure, 1)
+        MT_PRINT_TIME(time_measure, test)
+
+        json_t *found = kw_get_dict(0, tranger, "treedbs", 0, 0);
+        result += test_json(json_incref(found));
+    }
 
     /*---------------------------------------*
      *      Shutdown
