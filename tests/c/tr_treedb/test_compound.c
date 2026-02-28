@@ -14,45 +14,6 @@
 #include "test_tr_treedb.h"
 
 /***************************************************************************
- *  Recursively update g_rowid and i_rowid for a specific treedb node
- *  identified by topic_name and node id.
- ***************************************************************************/
-PRIVATE void update_node_rowids(
-    json_t *jn,
-    const char *topic_name,
-    const char *node_id,
-    int new_g_rowid,
-    int new_i_rowid)
-{
-    if(!jn) return;
-
-    if(json_is_array(jn)) {
-        int idx; json_t *v;
-        json_array_foreach(jn, idx, v) {
-            update_node_rowids(v, topic_name, node_id, new_g_rowid, new_i_rowid);
-        }
-        return;
-    }
-
-    if(!json_is_object(jn)) return;
-
-    json_t *md = json_object_get(jn, "__md_treedb__");
-    if(md) {
-        const char *tn = json_string_value(json_object_get(md, "topic_name"));
-        const char *id = json_string_value(json_object_get(jn, "id"));
-        if(tn && id && strcmp(tn, topic_name)==0 && strcmp(id, node_id)==0) {
-            json_object_set_new(md, "g_rowid", json_integer(new_g_rowid));
-            json_object_set_new(md, "i_rowid", json_integer(new_i_rowid));
-        }
-    }
-
-    const char *key; json_t *val;
-    json_object_foreach(jn, key, val) {
-        update_node_rowids(val, topic_name, node_id, new_g_rowid, new_i_rowid);
-    }
-}
-
-/***************************************************************************
  *
  ***************************************************************************/
 PUBLIC int test_compound(
@@ -108,6 +69,8 @@ PUBLIC int test_compound(
 
         const char *ignore_keys[]= {
             "t",
+            // "g_rowid", CLAUDE
+            // "i_rowid",
             NULL
         };
         set_expected_results( // Check that no logs happen
@@ -185,6 +148,8 @@ PUBLIC int test_compound(
         json_t *expected = string2json(helper_quote2doublequote(foto_final2), TRUE);
         const char *ignore_keys[]= {
             "t",
+            // "g_rowid", CLAUDE
+            // "i_rowid",
             NULL
         };
         set_expected_results( // Check that no logs happen
@@ -228,17 +193,10 @@ PUBLIC int test_compound(
         const char *test = "Unlink simple/compound node";
 
         json_t *expected = string2json(helper_quote2doublequote(foto_final1), TRUE);
-        /*
-         *  foto_final1 has administration g_rowid=2 (correct for "Load treedb from tranger").
-         *  But at this point administration was saved twice more:
-         *    - compound link (managers operation->administration): g_rowid=3
-         *    - compound unlink (managers operation->administration): g_rowid=4
-         *  Update the expected values to match.
-         */
-        update_node_rowids(expected, "departments", "administration", 4, 4);
-
         const char *ignore_keys[]= {
             "t",
+            // "g_rowid", CLAUDE
+            // "i_rowid",
             NULL
         };
         set_expected_results( // Check that no logs happen

@@ -554,8 +554,8 @@ PRIVATE int do_test(void)
 
         const char *ignore_keys[]= {
             "t",
-
-
+            // "g_rowid", CLAUDE
+            // "i_rowid",
             NULL
         };
         json_t *expected = string2json(helper_quote2doublequote(foto_final1), TRUE);
@@ -661,8 +661,8 @@ PRIVATE int do_test(void)
         );
         const char *ignore_keys[]= {
             "t",
-
-
+            // "g_rowid", CLAUDE
+            // "i_rowid",
             // "offset",
             // "size",
             NULL

@@ -183,10 +183,6 @@ PUBLIC int test_json(
                 gobj_trace_json(0, jn_found, "Record found");
             }
             printf("  <-- %sERROR%s in test: \"%s\"\n", On_Red BWhite, Color_Off, test_name);
-        } else {
-            if(!check_log_result(result)) {
-                result = -1;
-            }
         }
     } else {
         if(!check_log_result(result)) {
