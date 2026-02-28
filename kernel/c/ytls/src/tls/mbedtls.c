@@ -46,8 +46,8 @@ Here's how the schema translates to mbedTLS:
 #ifdef CONFIG_HAVE_MBEDTLS
 
 #include <mbedtls/ssl.h>
-#include <mbedtls/entropy.h>
-#include <mbedtls/ctr_drbg.h>
+// #include <mbedtls/entropy.h>
+// #include <mbedtls/ctr_drbg.h>
 #include <mbedtls/error.h>
 #include <mbedtls/x509_crt.h>
 #include <mbedtls/pk.h>
@@ -70,8 +70,8 @@ typedef struct ytls_s {
     mbedtls_x509_crt cert;    // Server certificate
     mbedtls_pk_context pkey;  // Private key
 
-    mbedtls_ctr_drbg_context ctr_drbg;
-    mbedtls_entropy_context entropy;
+    // mbedtls_ctr_drbg_context ctr_drbg;
+    // mbedtls_entropy_context entropy;
 
     BOOL trace;
     size_t rx_buffer_size;
@@ -169,27 +169,27 @@ PRIVATE hytls init(
     mbedtls_ssl_config_init(&ytls->conf);
     mbedtls_x509_crt_init(&ytls->cert);
     mbedtls_pk_init(&ytls->pkey);
-    mbedtls_ctr_drbg_init(&ytls->ctr_drbg);
-    mbedtls_entropy_init(&ytls->entropy);
+    // mbedtls_ctr_drbg_init(&ytls->ctr_drbg);
+    // mbedtls_entropy_init(&ytls->entropy);
 
     // Seed the CTR-DRBG
-    const char *pers = "tls";
-    if (mbedtls_ctr_drbg_seed(
-        &ytls->ctr_drbg,
-        mbedtls_entropy_func,
-        &ytls->entropy,
-        (const unsigned char *)pers,
-        strlen(pers)
-    ) != 0) {
-        gobj_log_error(gobj, 0,
-            "function",         "%s", __FUNCTION__,
-            "msgset",           "%s", MSGSET_AUTH_ERROR,
-            "msg",              "%s", "mbedtls_ctr_drbg_seed() FAILED",
-            NULL
-        );
-        cleanup((hytls)ytls);
-        return 0;
-    }
+    // const char *pers = "tls";
+    // if (mbedtls_ctr_drbg_seed(
+    //     &ytls->ctr_drbg,
+    //     mbedtls_entropy_func,
+    //     &ytls->entropy,
+    //     (const unsigned char *)pers,
+    //     strlen(pers)
+    // ) != 0) {
+    //     gobj_log_error(gobj, 0,
+    //         "function",         "%s", __FUNCTION__,
+    //         "msgset",           "%s", MSGSET_AUTH_ERROR,
+    //         "msg",              "%s", "mbedtls_ctr_drbg_seed() FAILED",
+    //         NULL
+    //     );
+    //     cleanup((hytls)ytls);
+    //     return 0;
+    // }
 
     // Set default SSL configuration
     if (mbedtls_ssl_config_defaults(
@@ -228,23 +228,23 @@ PRIVATE hytls init(
         return 0;
     }
 
-    if (mbedtls_pk_parse_keyfile(
-        &ytls->pkey,
-        ssl_certificate_key,
-        NULL,
-        mbedtls_ctr_drbg_random,
-        &ytls->ctr_drbg
-    ) != 0) {
-        gobj_log_error(gobj, 0,
-            "function",         "%s", __FUNCTION__,
-            "msgset",           "%s", MSGSET_AUTH_ERROR,
-            "msg",              "%s", "mbedtls_pk_parse_keyfile() FAILED",
-            "cert_key",         "%s", ssl_certificate_key,
-            NULL
-        );
-        cleanup((hytls)ytls);
-        return 0;
-    }
+    // if (mbedtls_pk_parse_keyfile(
+    //     &ytls->pkey,
+    //     ssl_certificate_key,
+    //     NULL,
+    //     mbedtls_ctr_drbg_random,
+    //     &ytls->ctr_drbg
+    // ) != 0) {
+    //     gobj_log_error(gobj, 0,
+    //         "function",         "%s", __FUNCTION__,
+    //         "msgset",           "%s", MSGSET_AUTH_ERROR,
+    //         "msg",              "%s", "mbedtls_pk_parse_keyfile() FAILED",
+    //         "cert_key",         "%s", ssl_certificate_key,
+    //         NULL
+    //     );
+    //     cleanup((hytls)ytls);
+    //     return 0;
+    // }
 
     mbedtls_ssl_conf_own_cert(&ytls->conf, &ytls->cert, &ytls->pkey);
 
@@ -283,8 +283,8 @@ PRIVATE void cleanup(hytls ytls_)
     mbedtls_ssl_config_free(&ytls->conf);
     mbedtls_x509_crt_free(&ytls->cert);
     mbedtls_pk_free(&ytls->pkey);
-    mbedtls_ctr_drbg_free(&ytls->ctr_drbg);
-    mbedtls_entropy_free(&ytls->entropy);
+    // mbedtls_ctr_drbg_free(&ytls->ctr_drbg);
+    // mbedtls_entropy_free(&ytls->entropy);
 
     // Free the ytls structure itself
     GBMEM_FREE(ytls);
