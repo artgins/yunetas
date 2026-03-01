@@ -1,6 +1,6 @@
 #!/bin/bash
 
-source ./repos2clone.sh
+source ./repos2clone-musl.sh
 
 #  Exit immediately if a command exits with a non-zero status.
 set -e
