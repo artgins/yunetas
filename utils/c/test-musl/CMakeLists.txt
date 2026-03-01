@@ -35,10 +35,10 @@ endif()
 include("${_yunetas_project_cmake}")
 
 # To compile as static, also using gcc, set next:
-#set(CMAKE_EXE_LINKER_FLAGS "-static -Wl,-Bstatic")
-#set(CMAKE_SHARED_LIBRARY_LINK_C_FLAGS "-static")
-#set(CMAKE_FIND_LIBRARY_SUFFIXES ".a")
-#set(BUILD_SHARED_LIBS OFF)
+set(CMAKE_EXE_LINKER_FLAGS "-static -Wl,-Bstatic")
+set(CMAKE_SHARED_LIBRARY_LINK_C_FLAGS "-static")
+set(CMAKE_FIND_LIBRARY_SUFFIXES ".a")
+set(BUILD_SHARED_LIBS OFF)
 
 ##############################################
 #   Source
@@ -52,14 +52,22 @@ SET(SRCS
 ##############################################
 add_yuno_executable(${PROJECT_NAME} ${SRCS})
 
-target_link_libraries(${PROJECT_NAME}
-#    ${YUNETAS_KERNEL_LIBS}
-#    ${YUNETAS_EXTERNAL_LIBS}
-#    ${YUNETAS_PCRE_LIBS}
-#    ${OPENSSL_LIBS}
-#    ${MBEDTLS_LIBS}
-#    ${DEBUG_LIBS}
+# To compile as static, also using gcc, set next:
+set_target_properties(${PROJECT_NAME} PROPERTIES
+    LINK_SEARCH_START_STATIC TRUE
+    LINK_SEARCH_END_STATIC TRUE
 )
+
+target_link_libraries(${PROJECT_NAME}
+    ${YUNETAS_KERNEL_LIBS}
+    ${YUNETAS_EXTERNAL_LIBS}
+    ${YUNETAS_PCRE_LIBS}
+    ${OPENSSL_LIBS}
+    ${MBEDTLS_LIBS}
+    ${DEBUG_LIBS}
+)
+
+target_link_options(${PROJECT_NAME} PUBLIC LINKER:-Map=${PROJECT_NAME}.map)
 
 ##############################################
 #   Installation
