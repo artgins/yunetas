@@ -7,6 +7,7 @@
  *          Copyright (c) 2024-2025, ArtGins.
  *          All Rights Reserved.
  ****************************************************************************/
+#include <yuneta_config.h>  /* must precede CONFIG_FULLY_STATIC guard */
 #ifdef CONFIG_FULLY_STATIC
 
 #include <stdio.h>
