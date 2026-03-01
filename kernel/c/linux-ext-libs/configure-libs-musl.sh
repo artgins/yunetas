@@ -25,7 +25,7 @@ export CC=/usr/bin/musl-gcc
 export CFLAGS="-Wno-error=char-subscripts -O3 -g -DNDEBUG" # let each library to be, or not
 export LDFLAGS="-static"
 
-[ -f "./VERSION_INSTALLED_STATIC.txt" ] && rm "./VERSION_INSTALLED_STATIC.txt"
+[ -f "./VERSION_INSTALLED_MUSL.txt" ] && rm "./VERSION_INSTALLED_MUSL.txt"
 
 #  Exit immediately if a command exits with a non-zero status.
 set -e
@@ -254,8 +254,8 @@ cd ../..
 #   Save the version installed
 #------------------------------------------
 echo "Version $VERSION installed"
-echo "$VERSION" > VERSION_INSTALLED_STATIC.txt
-echo "" >> VERSION_INSTALLED_STATIC.txt
+echo "$VERSION" > VERSION_INSTALLED_MUSL.txt
+echo "" >> VERSION_INSTALLED_MUSL.txt
 
 unset CC
 unset CFLAGS

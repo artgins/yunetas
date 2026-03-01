@@ -1,5 +1,5 @@
 VERSION_INSTALLED.txt
-VERSION_INSTALLED_STATIC.txt
+VERSION_INSTALLED_MUSL.txt
 .vite/
 chatgpt/
 .claude/
