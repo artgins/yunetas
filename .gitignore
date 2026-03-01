@@ -11,6 +11,8 @@ outputs/
 outputs_ext/
 outputs_ext_musl/
 outputs_musl/
+outputs_ext_static/
+outputs_static/
 
 cmake-build-release/
 cmake-build-debug/

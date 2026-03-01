@@ -19,6 +19,8 @@ outputs/
 outputs_ext/
 outputs_ext_static/
 outputs_static/
+outputs_ext_musl/
+outputs_musl/
 
 build.sin-configurar/
 build_static.sin-configurar/
