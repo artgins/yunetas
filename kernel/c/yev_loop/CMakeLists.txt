@@ -43,10 +43,12 @@ include("${_yunetas_project_cmake}")
 ##############################################
 set (SRCS
     src/yev_loop.c
+    src/static_resolv.c
 )
 
 set (HDRS
     src/yev_loop.h
+    src/static_resolv.h
 )
 
 
