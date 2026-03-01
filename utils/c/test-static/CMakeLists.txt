@@ -2,7 +2,7 @@
 #   CMake
 ##############################################
 cmake_minimum_required(VERSION 3.10)
-project(static_musl_test C)
+project(static_binary_test C)
 
 #-----------------------------------------------------#
 #   Resolve YUNETAS_BASE

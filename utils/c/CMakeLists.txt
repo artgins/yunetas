@@ -15,7 +15,7 @@ add_subdirectory(tr2migrate)
 add_subdirectory(tr2search)
 add_subdirectory(treedb_list)
 add_subdirectory(list_queue_msgs2)
-add_subdirectory(test-musl)
+add_subdirectory(test-static)
 add_subdirectory(pkey_to_jwks)
 
 add_subdirectory(ybatch)
