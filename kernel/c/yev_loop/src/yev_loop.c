@@ -292,11 +292,15 @@ static int dns_query(
  */
 static int dns_parse_response(
     const uint8_t *msg, size_t msglen,
+    uint16_t expected_id,
     struct in_addr *addrs4, int *naddrs4,
     struct in6_addr *addrs6, int *naddrs6,
     int maxaddrs)
 {
     if(msglen < 12) return -1;
+    /* Validate transaction ID to reject spoofed/stray UDP responses */
+    uint16_t resp_id = ((uint16_t)msg[0] << 8) | msg[1];
+    if(resp_id != expected_id) return -1;
     if(!(msg[2] & 0x80)) return -1;        /* QR must be 1 */
     if((msg[3] & 0x0F) != 0) return -1;    /* RCODE must be 0 */
 
@@ -509,8 +513,9 @@ static int yuneta_getaddrinfo(
 
             /* A record query */
             if(ai_family == AF_INET || ai_family == AF_UNSPEC) {
+                uint16_t qid4 = yuneta_dns_id++;
                 int qlen = dns_build_query(
-                    qbuf, sizeof(qbuf), yuneta_dns_id++, node, 1 /* A */);
+                    qbuf, sizeof(qbuf), qid4, node, 1 /* A */);
                 if(qlen > 0) {
                     int rlen = dns_query(nameservers[nsi],
                                          qbuf, (size_t)qlen,
@@ -518,7 +523,7 @@ static int yuneta_getaddrinfo(
                     if(rlen > 0) {
                         struct in_addr addrs4[16];
                         int naddrs4 = 0, naddrs6_dummy = 0;
-                        dns_parse_response(rbuf, (size_t)rlen,
+                        dns_parse_response(rbuf, (size_t)rlen, qid4,
                                            addrs4, &naddrs4,
                                            NULL, &naddrs6_dummy, 16);
                         for(int j = 0; j < naddrs4; j++) {
@@ -538,8 +543,9 @@ static int yuneta_getaddrinfo(
 
             /* AAAA record query */
             if(ai_family == AF_INET6 || ai_family == AF_UNSPEC) {
+                uint16_t qid6 = yuneta_dns_id++;
                 int qlen = dns_build_query(
-                    qbuf, sizeof(qbuf), yuneta_dns_id++, node, 28 /* AAAA */);
+                    qbuf, sizeof(qbuf), qid6, node, 28 /* AAAA */);
                 if(qlen > 0) {
                     int rlen = dns_query(nameservers[nsi],
                                          qbuf, (size_t)qlen,
@@ -547,7 +553,7 @@ static int yuneta_getaddrinfo(
                     if(rlen > 0) {
                         struct in6_addr addrs6[16];
                         int naddrs4_dummy = 0, naddrs6 = 0;
-                        dns_parse_response(rbuf, (size_t)rlen,
+                        dns_parse_response(rbuf, (size_t)rlen, qid6,
                                            NULL, &naddrs4_dummy,
                                            addrs6, &naddrs6, 16);
                         for(int j = 0; j < naddrs6; j++) {
