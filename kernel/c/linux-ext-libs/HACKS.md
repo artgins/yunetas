@@ -37,11 +37,11 @@ pure-file implementations (`/etc/passwd`, `/etc/group`) defined in
 - `getgrouplist` → `static_getgrouplist`
 
 DNS resolution is handled by `yuneta_getaddrinfo` / `yuneta_freeaddrinfo`
-(defined in `kernel/c/yev_loop/src/yev_loop.c`), a minimal UDP resolver
-that reads `/etc/resolv.conf` and `/etc/hosts` directly, bypassing
-glibc's NSS resolver chain.  A `#define` macro redirects all
-`getaddrinfo` and `freeaddrinfo` call sites within `yev_loop.c`
-automatically.
+(defined in `kernel/c/yev_loop/src/static_resolv.c`, declared in
+`static_resolv.h`), a minimal UDP resolver that reads `/etc/resolv.conf`
+and `/etc/hosts` directly, bypassing glibc's NSS resolver chain.
+`#define` macros in `static_resolv.h` redirect all `getaddrinfo` and
+`freeaddrinfo` call sites in files that include that header.
 
 > **Note:** `emailsender` cannot be fully static because it depends on
 > `libcurl`, which requires shared library support.  All other utils and
