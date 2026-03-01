@@ -8,6 +8,7 @@ Testing/
 VERSION_INSTALLED.txt
 VERSION_INSTALLED_STATIC.txt
 build_static/
+build_musl/
 
 cmake-build-release/
 cmake-build-debug/
