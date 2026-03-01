@@ -46,7 +46,7 @@ Selects the install prefix based on the build type:
 | Build | Install prefix | Description |
 |-------|---------------|-------------|
 | Dynamic (glibc) | `${YUNETAS_BASE}/outputs` | Default for Clang/GCC builds |
-| Static (musl) | `${YUNETAS_BASE}/outputs_static` | Fully-static binaries |
+| Static (musl) | `${YUNETAS_BASE}/outputs_musl` | Fully-static binaries |
 
 Install subdirectories:
 
@@ -62,7 +62,7 @@ Install subdirectories:
 For non-ESP32 builds:
 
 - Defines `_GNU_SOURCE`
-- Adds external library paths (`outputs_ext/` or `outputs_ext_static/`)
+- Adds external library paths (`outputs_ext/` or `outputs_ext_musl/`)
 - Adds the Yunetas output paths (`outputs/include`, `outputs/lib`)
 
 ### 6. Compiler Flags

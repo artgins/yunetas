@@ -90,7 +90,7 @@ yunetas clean
 
 `yunetas init` does the following:
 - Reads compiler (`CONFIG_USE_COMPILER_CLANG/GCC/MUSL`) and build type (`CONFIG_BUILD_TYPE_*`) from `.config`
-- Recreates the `outputs/` directory (or `outputs_static/` for musl builds) and subdirs (`include/`, `lib/`, `bin/`, `yunos/`)
+- Recreates the `outputs/` directory (or `outputs_musl/` for musl builds) and subdirs (`include/`, `lib/`, `bin/`, `yunos/`)
 - Generates `outputs/include/yuneta_version.h` from `YUNETA_VERSION`
 - Generates `outputs/include/yuneta_config.h` from `.config` (Kconfig → C `#define`)
 - Creates `build/` directories under each module and runs `cmake` with the selected compiler and build type
@@ -189,7 +189,7 @@ stress/c/*            ← stress test programs
 | `scripts/` | Utility scripts (added to `PATH` by `yunetas-env.sh`) |
 | `docs/doc.yuneta.io/` | Sphinx documentation site (API docs, guides) |
 | `outputs/` | Compiled libs, headers, and yuno binaries (created by `yunetas init`) |
-| `outputs_static/` | Same for musl/static builds |
+| `outputs_musl/` | Same for musl/static builds |
 | `outputs_ext/` | Built external libraries |
 
 ### GClass Implementation Pattern

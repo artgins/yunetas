@@ -86,8 +86,8 @@ list(APPEND CMAKE_MODULE_PATH "${YUNETAS_BASE}/tools/cmake")
 #----------------------------------------#
 if(CONFIG_USE_COMPILER_MUSL)
     # To use with musl compiler
-    list(APPEND CMAKE_SYSTEM_PREFIX_PATH "${YUNETAS_BASE}/outputs_static")
-    set(CMAKE_INSTALL_PREFIX "${YUNETAS_BASE}/outputs_static")
+    list(APPEND CMAKE_SYSTEM_PREFIX_PATH "${YUNETAS_BASE}/outputs_musl")
+    set(CMAKE_INSTALL_PREFIX "${YUNETAS_BASE}/outputs_musl")
 else()
     list(APPEND CMAKE_SYSTEM_PREFIX_PATH "${YUNETAS_BASE}/outputs")
     set(CMAKE_INSTALL_PREFIX "${YUNETAS_BASE}/outputs")
@@ -110,8 +110,8 @@ else()
 
     if(CONFIG_USE_COMPILER_MUSL)
         # To use with musl compiler
-        include_directories("${YUNETAS_BASE}/outputs_ext_static/include")
-        link_directories("${YUNETAS_BASE}/outputs_ext_static/lib")
+        include_directories("${YUNETAS_BASE}/outputs_ext_musl/include")
+        link_directories("${YUNETAS_BASE}/outputs_ext_musl/lib")
     else()
         include_directories("${YUNETAS_BASE}/outputs_ext/include")
         link_directories("${YUNETAS_BASE}/outputs_ext/lib")

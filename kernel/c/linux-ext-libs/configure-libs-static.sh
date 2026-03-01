@@ -70,7 +70,7 @@ echo "Using YUNETAS_BASE: $YUNETAS_BASE"
 #     exit 1
 # fi
 
-YUNETA_INSTALL_PREFIX="${YUNETAS_BASE}/outputs_ext_static"
+YUNETA_INSTALL_PREFIX="${YUNETAS_BASE}/outputs_ext_musl"
 
 rm -rf "$YUNETA_INSTALL_PREFIX"
 mkdir -p "$YUNETA_INSTALL_PREFIX"
