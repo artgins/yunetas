@@ -9,7 +9,7 @@ set -e
 #   Jansson
 #------------------------------------------
 echo "===================== JANSSON ======================="
-cd build_static/jansson
+cd build_musl/jansson
 cd build
 make install
 cd ..
@@ -19,7 +19,7 @@ cd ../..
 #   liburing
 #------------------------------------------
 echo "===================== liburing ======================="
-cd build_static/liburing
+cd build_musl/liburing
 make install
 cd ../..
 
@@ -27,7 +27,7 @@ cd ../..
 #   mbedtls
 #------------------------------------------
 echo "===================== MBEDTLS ======================="
-cd build_static/mbedtls
+cd build_musl/mbedtls
 cd build
 make install
 cd ..
@@ -37,7 +37,7 @@ cd ../..
 #   openssl
 #------------------------------------------
 echo "===================== OPENSSL ======================="
-cd build_static/openssl
+cd build_musl/openssl
 make install
 cd ../..
 
@@ -45,7 +45,7 @@ cd ../..
 #   PCRE
 #------------------------------------------
 echo "===================== PCRE ======================="
-cd build_static/pcre2/build
+cd build_musl/pcre2/build
 make install
 cd ..
 cd ../..
@@ -54,7 +54,7 @@ cd ../..
 #   libbacktrace
 #------------------------------------------
 echo "===================== libbacktrace ======================="
-cd build_static/libbacktrace
+cd build_musl/libbacktrace
 make install
 cd ../..
 
@@ -62,7 +62,7 @@ cd ../..
 #   argp-standalone
 #------------------------------------------
 echo "===================== ARGP-STANDALONE ======================="
-cd build_static/argp-standalone
+cd build_musl/argp-standalone
 cd build
 make install
 cd ..
@@ -72,7 +72,7 @@ cd ../..
 #   libjwt
 #------------------------------------------
 echo "===================== LIBJWT ======================= $TAG_LIBJWT"
-cd build_static/libjwt
+cd build_musl/libjwt
 cd build
 make install
 cd ..

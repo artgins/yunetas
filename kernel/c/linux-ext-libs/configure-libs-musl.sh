@@ -83,7 +83,7 @@ export PKG_CONFIG_PATH="$YUNETA_INSTALL_PREFIX/lib/pkgconfig"
 #   Jansson OK
 #------------------------------------------
 echo "===================== JANSSON ======================="
-cd build_static/jansson
+cd build_musl/jansson
 
 git checkout "$TAG_JANSSON"
 
@@ -107,7 +107,7 @@ cd ../..
 #   liburing OK
 #------------------------------------------
 echo "===================== liburing ======================="
-cd build_static/liburing
+cd build_musl/liburing
 
 git checkout "$TAG_LIBURING"
 
@@ -121,7 +121,7 @@ cd ../..
 #   mbedtls OK
 #------------------------------------------
 echo "===================== MBEDTLS ======================="
-cd build_static/mbedtls
+cd build_musl/mbedtls
 
 git checkout "$TAG_MBEDTLS"
 git submodule update --init --recursive
@@ -156,7 +156,7 @@ cd ../..
 #   openssl
 #------------------------------------------
 echo "===================== OPENSSL ======================="
-cd build_static/openssl
+cd build_musl/openssl
 
 git checkout "$TAG_OPENSSL"
 git submodule update --init
@@ -178,7 +178,7 @@ cd ../..
 #   PCRE OK
 #------------------------------------------
 echo "===================== PCRE2 ======================="
-cd build_static/pcre2
+cd build_musl/pcre2
 
 git checkout "$TAG_PCRE2"
 git submodule update --init
@@ -204,7 +204,7 @@ cd ../..
 #   libbacktrace OK
 #------------------------------------------
 echo "===================== libbacktrace ======================="
-cd build_static/libbacktrace
+cd build_musl/libbacktrace
 
 ./configure --prefix="${YUNETA_INSTALL_PREFIX}"
 make
@@ -215,7 +215,7 @@ cd ../..
 #   argp-standalone
 #------------------------------------------
 echo "===================== ARGP-STANDALONE ======================="
-cd build_static/argp-standalone
+cd build_musl/argp-standalone
 
 git checkout "$TAG_ARGP_STANDALONE"
 
@@ -235,7 +235,7 @@ cd ../..
 #   libncurses
 #------------------------------------------
 echo "===================== NCURSES ======================="
-cd build_static/ncurses
+cd build_musl/ncurses
 
 git checkout "$TAG_NCURSES"
 

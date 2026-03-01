@@ -19,9 +19,9 @@ set -e
 #----------------------------------------#
 #       Remove build
 #----------------------------------------#
-rm -rf build_static/
-mkdir build_static
-cd build_static
+rm -rf build_musl/
+mkdir build_musl
+cd build_musl
 
 
 echo ""

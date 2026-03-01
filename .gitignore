@@ -5,7 +5,7 @@ chatgpt/
 .claude/
 Testing/
 
-build_static/
+build_musl/
 
 outputs/
 outputs_ext/
@@ -21,7 +21,7 @@ cmake-build-minsizerel/
 cmake-build-debug-musl/
 
 build.sin-configurar/
-build_static.sin-configurar/
+build_musl.sin-configurar/
 ./kernel/c/root-linux-ext-libs/build/
 ./kernel/c/root-linux-ext-libs/jansson-artgins
 .venv/
