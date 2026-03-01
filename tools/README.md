@@ -35,7 +35,7 @@ Fails fatally if `YUNETAS_BASE` is unset or `.config` is missing.
 
 ### 3. `add_yuno_executable(name ...)`
 
-Custom CMake function that wraps `add_executable()`. For musl/static builds (`AS_STATIC=ON`), it also sets `LINK_SEARCH_START_STATIC` and `LINK_SEARCH_END_STATIC` properties to force static library resolution.
+Custom CMake function that wraps `add_executable()`. For musl builds (`CONFIG_USE_COMPILER_MUSL=1`), it also sets `LINK_SEARCH_START_STATIC` and `LINK_SEARCH_END_STATIC` properties to force static library resolution.
 
 Used by all yuno, test, performance, and stress executables.
 
@@ -126,7 +126,7 @@ Configuration:
 
 | Setting | Value | Purpose |
 |---------|-------|---------|
-| `AS_STATIC` | `ON` | Signals static build to `project.cmake` |
+| `CONFIG_USE_COMPILER_MUSL` | `1` (from `.config`) | Signals musl/static build to `project.cmake` |
 | `CMAKE_SYSTEM_NAME` | `Linux` | Target platform |
 | `CMAKE_C_COMPILER` | `/usr/bin/musl-gcc` | musl C compiler |
 | `CMAKE_C_FLAGS` | `-Wall -Wextra ... -funsigned-char` | Compiler warnings |

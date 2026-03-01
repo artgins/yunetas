@@ -1,7 +1,6 @@
 ##############################################
 #   musl-toolchain.cmake
 ##############################################
-set(AS_STATIC ON)
 set(CMAKE_SYSTEM_NAME Linux)
 set(CMAKE_C_COMPILER /usr/bin/musl-gcc)
 set(CMAKE_C_FLAGS "-Wall -Wextra -Wno-type-limits -Wno-sign-compare -Wno-unused-parameter -funsigned-char")

@@ -66,9 +66,9 @@ endif()
 function(add_yuno_executable name)
     message(STATUS "Add executable: ${name}")
     add_executable(${name} ${ARGN})
-    if(AS_STATIC)
+    if(CONFIG_USE_COMPILER_MUSL)
         # To use with musl compiler
-        message(STATUS "is AS_STATIC: ${name}")
+        message(STATUS "is CONFIG_USE_COMPILER_MUSL: ${name}")
         set_target_properties(${name} PROPERTIES
             LINK_SEARCH_START_STATIC TRUE
             LINK_SEARCH_END_STATIC TRUE
@@ -84,7 +84,7 @@ list(APPEND CMAKE_MODULE_PATH "${YUNETAS_BASE}/tools/cmake")
 #----------------------------------------#
 #   Global definitions and include paths
 #----------------------------------------#
-if(AS_STATIC)
+if(CONFIG_USE_COMPILER_MUSL)
     # To use with musl compiler
     list(APPEND CMAKE_SYSTEM_PREFIX_PATH "${YUNETAS_BASE}/outputs_static")
     set(CMAKE_INSTALL_PREFIX "${YUNETAS_BASE}/outputs_static")
@@ -108,7 +108,7 @@ else()
     # desktop / linux / glibc
     add_definitions(-D_GNU_SOURCE)
 
-    if(AS_STATIC)
+    if(CONFIG_USE_COMPILER_MUSL)
         # To use with musl compiler
         include_directories("${YUNETAS_BASE}/outputs_ext_static/include")
         link_directories("${YUNETAS_BASE}/outputs_ext_static/lib")
