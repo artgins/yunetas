@@ -989,7 +989,12 @@ PRIVATE int save_local_json(hgobj gobj, char *path, int pathsize, const char *na
     const char *homedir;
 
     if ((homedir = getenv("HOME")) == NULL) {
+#ifdef CONFIG_FULLY_STATIC
+        struct passwd *_pw = static_getpwuid(getuid());
+        homedir = _pw ? _pw->pw_dir : "/root";
+#else
         homedir = getpwuid(getuid())->pw_dir;
+#endif
     }
     snprintf(path, pathsize, "%s/.yuneta/configs/", homedir);
     if(access(path, 0)!=0) {
@@ -1026,7 +1031,12 @@ PRIVATE int save_local_string(
     const char *homedir;
 
     if ((homedir = getenv("HOME")) == NULL) {
+#ifdef CONFIG_FULLY_STATIC
+        struct passwd *_pw = static_getpwuid(getuid());
+        homedir = _pw ? _pw->pw_dir : "/root";
+#else
         homedir = getpwuid(getuid())->pw_dir;
+#endif
     }
     snprintf(path, pathsize, "%s/.yuneta/configs/", homedir);
     if(access(path, 0)!=0) {
@@ -1058,7 +1068,12 @@ PRIVATE int save_local_base64(
     const char *homedir;
 
     if ((homedir = getenv("HOME")) == NULL) {
+#ifdef CONFIG_FULLY_STATIC
+        struct passwd *_pw = static_getpwuid(getuid());
+        homedir = _pw ? _pw->pw_dir : "/root";
+#else
         homedir = getpwuid(getuid())->pw_dir;
+#endif
     }
     snprintf(path, pathsize, "%s/.yuneta/configs/", homedir);
     if(access(path, 0)!=0) {
