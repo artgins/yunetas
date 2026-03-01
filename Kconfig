@@ -36,6 +36,8 @@ comment "WARNING: Remember to call set_compiler.sh if you change the compiler"
 #------------------------------#
 #   Build Configuration
 #------------------------------#
+menu "Build Configuration"
+
 choice
     prompt "Build Type"
     default BUILD_TYPE_RELWITHDEBINFO
@@ -66,9 +68,6 @@ config BUILD_TYPE_MINSIZEREL
 
 endchoice
 
-#------------------------------#
-#   Static linking
-#------------------------------#
 config FULLY_STATIC
     bool "Build fully static binaries"
     default y if USE_COMPILER_MUSL
@@ -76,6 +75,8 @@ config FULLY_STATIC
         Link executables fully statically.
         Automatically enabled for the musl compiler.
         Can also be enabled with GCC or Clang for self-contained binaries.
+
+endmenu
 
 #------------------------------#
 #   TLS libraries
