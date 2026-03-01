@@ -692,6 +692,19 @@ PRIVATE int flush_clear_data(sskt_t *sskt)
                     gobj_trace_msg(gobj, "------- flush_clear_data WANT_READ/WANT_WRITE, userp %p", sskt->user_data);
                 }
                 break; // No more data available at this moment
+#ifdef MBEDTLS_ERR_SSL_RECEIVED_NEW_SESSION_TICKET
+            } else if (nread == MBEDTLS_ERR_SSL_RECEIVED_NEW_SESSION_TICKET) {
+                /*
+                 * TLS 1.3: server sent a NewSessionTicket post-handshake message.
+                 * mbedTLS processed the ticket internally and returns this code
+                 * to inform us — it is NOT a fatal error.  Continue reading;
+                 * application data may follow immediately.
+                 */
+                if (sskt->ytls->trace) {
+                    gobj_trace_msg(gobj, "------- flush_clear_data: TLS1.3 NewSessionTicket received, continuing, userp %p", sskt->user_data);
+                }
+                continue;
+#endif
             } else if (nread < 0) {
                 char error_buf[256];
                 mbedtls_strerror(nread, error_buf, sizeof(error_buf));
