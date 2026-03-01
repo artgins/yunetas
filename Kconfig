@@ -67,6 +67,17 @@ config BUILD_TYPE_MINSIZEREL
 endchoice
 
 #------------------------------#
+#   Static linking
+#------------------------------#
+config FULLY_STATIC
+    bool "Build fully static binaries"
+    default y if USE_COMPILER_MUSL
+    help
+        Link executables fully statically.
+        Automatically enabled for the musl compiler.
+        Can also be enabled with GCC or Clang for self-contained binaries.
+
+#------------------------------#
 #   TLS libraries
 #------------------------------#
 choice
