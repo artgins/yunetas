@@ -1874,7 +1874,7 @@ kernel/c/
 ├── linux-ext-libs/                  ← external library sources and build scripts
 │   ├── extrae.sh / extrae-musl.sh
 │   ├── configure-libs.sh / configure-libs-musl.sh
-│   ├── re-install-libs.sh / reinstall-libs-static.sh
+│   ├── re-install-libs.sh / re-install-libs-musl.sh
 │   └── sources/
 │
 ├── gobj-c/src/                      ← GObject framework (~12K-line core)
