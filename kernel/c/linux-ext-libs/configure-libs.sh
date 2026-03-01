@@ -160,6 +160,7 @@ git submodule update --init
     no-tests \
     no-shared \
     no-docs \
+    no-dso \
     enable-ssl-trace
 make
 make install

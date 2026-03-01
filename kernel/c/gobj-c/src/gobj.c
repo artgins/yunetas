@@ -9186,13 +9186,18 @@ PUBLIC json_t *gobj_authenticate(hgobj gobj_, json_t *kw, hgobj src)
      *-----------------------------------------------*/
     if(!__global_authentication_parser_fn__) {
 #ifdef __linux__
+#ifdef CONFIG_FULLY_STATIC
+        struct passwd *pw = static_getpwuid(getuid());
+#else
         struct passwd *pw = getpwuid(getuid());
+#endif
+        const char *username = (pw) ? pw->pw_name : "yuneta";
 
         KW_DECREF(kw)
         return json_pack("{s:i, s:s, s:s, s:o}",
             "result", 0,
             "comment", "Working without authentication",
-            "username", pw->pw_name,
+            "username", username,
             "jwt_payload", json_null()
         );
 #else

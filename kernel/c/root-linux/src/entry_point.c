@@ -323,8 +323,12 @@ PUBLIC int yuneta_entry_point(int argc, char *argv[],
         }
     }
 
+#ifdef CONFIG_FULLY_STATIC
+    struct passwd *pw = static_getpwuid(getuid());
+#else
     struct passwd *pw = getpwuid(getuid());
-    const char *username = pw->pw_name;
+#endif
+    const char *username = (pw) ? pw->pw_name : "yuneta";
     if(!is_yuneta_user(username)) {
         print_error(
             PEF_EXIT,

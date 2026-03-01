@@ -6753,6 +6753,248 @@ PUBLIC int print_open_fds(const char *fmt, ...)
 }
 
 /***************************************************************************
+ * Static NSS replacements for CONFIG_FULLY_STATIC builds.
+ * Read /etc/passwd and /etc/group directly — no dlopen/NSS needed.
+ ***************************************************************************/
+#ifdef CONFIG_FULLY_STATIC
+
+/* Internal /etc/passwd line parser — fills *pw and buf on success */
+static int parse_passwd_line(char *line, struct passwd *pw,
+                              char *buf, size_t bufsz)
+{
+    /* Format: name:password:uid:gid:gecos:dir:shell */
+    char *fields[7];
+    char *p = line;
+    for(int i = 0; i < 7; i++) {
+        fields[i] = p;
+        if(i < 6) {
+            p = strchr(p, ':');
+            if(!p) return -1;
+            *p++ = '\0';
+        }
+    }
+    /* Strip trailing newline from shell field */
+    char *nl = strchr(fields[6], '\n');
+    if(nl) *nl = '\0';
+
+    /* Copy strings into caller-supplied buf */
+    size_t need = strlen(fields[0]) + strlen(fields[1]) +
+                  strlen(fields[4]) + strlen(fields[5]) + strlen(fields[6]) + 5;
+    if(need > bufsz) return -1;
+
+    char *pos = buf;
+    pw->pw_name   = pos; strcpy(pos, fields[0]); pos += strlen(fields[0]) + 1;
+    pw->pw_passwd = pos; strcpy(pos, fields[1]); pos += strlen(fields[1]) + 1;
+    pw->pw_uid    = (uid_t)atol(fields[2]);
+    pw->pw_gid    = (gid_t)atol(fields[3]);
+    pw->pw_gecos  = pos; strcpy(pos, fields[4]); pos += strlen(fields[4]) + 1;
+    pw->pw_dir    = pos; strcpy(pos, fields[5]); pos += strlen(fields[5]) + 1;
+    pw->pw_shell  = pos; strcpy(pos, fields[6]); pos += strlen(fields[6]) + 1;
+    (void)pos;
+    return 0;
+}
+
+struct passwd *static_getpwuid(uid_t uid)
+{
+    static struct passwd result;
+    static char buf[2048];
+
+    FILE *f = fopen("/etc/passwd", "r");
+    if(!f) return NULL;
+
+    char line[2048];
+    while(fgets(line, sizeof(line), f)) {
+        if(line[0] == '#' || line[0] == '\n') continue;
+        char tmp[2048];
+        strncpy(tmp, line, sizeof(tmp) - 1);
+        tmp[sizeof(tmp) - 1] = '\0';
+        struct passwd pw;
+        if(parse_passwd_line(tmp, &pw, buf, sizeof(buf)) == 0) {
+            if(pw.pw_uid == uid) {
+                result = pw;
+                fclose(f);
+                return &result;
+            }
+        }
+    }
+    fclose(f);
+    return NULL;
+}
+
+struct passwd *static_getpwnam(const char *name)
+{
+    static struct passwd result;
+    static char buf[2048];
+
+    if(!name) return NULL;
+
+    FILE *f = fopen("/etc/passwd", "r");
+    if(!f) return NULL;
+
+    char line[2048];
+    while(fgets(line, sizeof(line), f)) {
+        if(line[0] == '#' || line[0] == '\n') continue;
+        char tmp[2048];
+        strncpy(tmp, line, sizeof(tmp) - 1);
+        tmp[sizeof(tmp) - 1] = '\0';
+        struct passwd pw;
+        if(parse_passwd_line(tmp, &pw, buf, sizeof(buf)) == 0) {
+            if(strcmp(pw.pw_name, name) == 0) {
+                result = pw;
+                fclose(f);
+                return &result;
+            }
+        }
+    }
+    fclose(f);
+    return NULL;
+}
+
+/* Internal /etc/group line parser */
+static int parse_group_line(char *line, struct group *gr,
+                             char *buf, size_t bufsz)
+{
+    /* Format: name:password:gid:member1,member2,... */
+    char *fields[4];
+    char *p = line;
+    for(int i = 0; i < 4; i++) {
+        fields[i] = p;
+        if(i < 3) {
+            p = strchr(p, ':');
+            if(!p) return -1;
+            *p++ = '\0';
+        }
+    }
+    char *nl = strchr(fields[3], '\n');
+    if(nl) *nl = '\0';
+
+    size_t need = strlen(fields[0]) + strlen(fields[1]) + strlen(fields[3]) + 3;
+    if(need > bufsz) return -1;
+
+    char *pos = buf;
+    gr->gr_name   = pos; strcpy(pos, fields[0]); pos += strlen(fields[0]) + 1;
+    gr->gr_passwd = pos; strcpy(pos, fields[1]); pos += strlen(fields[1]) + 1;
+    gr->gr_gid    = (gid_t)atol(fields[2]);
+    gr->gr_mem    = NULL; /* caller accesses gr_gid only */
+    (void)pos;
+    return 0;
+}
+
+struct group *static_getgrnam(const char *name)
+{
+    static struct group result;
+    static char buf[2048];
+
+    if(!name) return NULL;
+
+    FILE *f = fopen("/etc/group", "r");
+    if(!f) return NULL;
+
+    char line[2048];
+    while(fgets(line, sizeof(line), f)) {
+        if(line[0] == '#' || line[0] == '\n') continue;
+        char tmp[2048];
+        strncpy(tmp, line, sizeof(tmp) - 1);
+        tmp[sizeof(tmp) - 1] = '\0';
+        struct group gr;
+        if(parse_group_line(tmp, &gr, buf, sizeof(buf)) == 0) {
+            if(strcmp(gr.gr_name, name) == 0) {
+                result = gr;
+                fclose(f);
+                return &result;
+            }
+        }
+    }
+    fclose(f);
+    return NULL;
+}
+
+int static_getgrouplist(const char *user, gid_t group,
+                         gid_t *groups, int *ngroups)
+{
+    int max = *ngroups;
+    int count = 0;
+    int truncated = 0;
+
+    /* Primary group is always first */
+    if(count < max) {
+        groups[count++] = group;
+    } else {
+        truncated = 1;
+    }
+
+    FILE *f = fopen("/etc/group", "r");
+    if(!f) {
+        *ngroups = count;
+        return truncated ? -1 : count;
+    }
+
+    char line[2048];
+    while(fgets(line, sizeof(line), f)) {
+        if(line[0] == '#' || line[0] == '\n') continue;
+
+        char tmp[2048];
+        strncpy(tmp, line, sizeof(tmp) - 1);
+        tmp[sizeof(tmp) - 1] = '\0';
+
+        /* Find the 4th field (members) */
+        char *p = tmp;
+        int colon = 0;
+        while(*p && colon < 3) {
+            if(*p == ':') colon++;
+            p++;
+        }
+        /* p now points to members field, format: user1,user2,... */
+        char *nl = strchr(p, '\n');
+        if(nl) *nl = '\0';
+
+        /* Get gid from 3rd field */
+        char *gid_start = tmp;
+        int c = 0;
+        while(*gid_start && c < 2) {
+            if(*gid_start == ':') c++;
+            gid_start++;
+        }
+        char *gid_end = strchr(gid_start, ':');
+        if(!gid_end) continue;
+        *gid_end = '\0';
+        gid_t gr_gid = (gid_t)atol(gid_start);
+
+        /* Skip if this is the primary group (already added) */
+        if(gr_gid == group) continue;
+
+        /* Check if user is in the member list */
+        char *members = p;
+        char *tok = members;
+        char *next;
+        BOOL found = FALSE;
+        while(tok && *tok) {
+            next = strchr(tok, ',');
+            if(next) *next = '\0';
+            if(strcmp(tok, user) == 0) {
+                found = TRUE;
+                break;
+            }
+            tok = next ? next + 1 : NULL;
+        }
+
+        if(found) {
+            if(count < max) {
+                groups[count++] = gr_gid;
+            } else {
+                truncated = 1;
+            }
+        }
+    }
+    fclose(f);
+
+    *ngroups = count;
+    return truncated ? -1 : count;
+}
+
+#endif /* CONFIG_FULLY_STATIC */
+
+/***************************************************************************
  * Check if a given username belongs to the "yuneta" group
  * or is exactly the "yuneta" user.
  *
@@ -6775,13 +7017,21 @@ PUBLIC int is_yuneta_user(const char *username)
     }
 
     /* Get passwd entry for user */
+#ifdef CONFIG_FULLY_STATIC
+    struct passwd *pw = static_getpwnam(username);
+#else
     struct passwd *pw = getpwnam(username);
+#endif
     if(!pw) {
         return FALSE;
     }
 
     /* Get group entry for "yuneta" */
+#ifdef CONFIG_FULLY_STATIC
+    struct group *gr = static_getgrnam("yuneta");
+#else
     struct group *gr = getgrnam("yuneta");
+#endif
     if(!gr) {
         return FALSE;
     }
@@ -6796,7 +7046,11 @@ PUBLIC int is_yuneta_user(const char *username)
     gid_t groups[NGROUPS];
     int ngroups = NGROUPS;
 
+#ifdef CONFIG_FULLY_STATIC
+    if(static_getgrouplist(username, pw->pw_gid, groups, &ngroups) == -1) {
+#else
     if(getgrouplist(username, pw->pw_gid, groups, &ngroups) == -1) {
+#endif
         /* In case of error, fallback: user likely has more groups than NGROUPS */
         return FALSE;
     }
