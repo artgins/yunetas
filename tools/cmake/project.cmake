@@ -164,10 +164,12 @@ endif()
 #   To compile as static,
 #   also using gcc, set next:
 #----------------------------------------#
-#set(CMAKE_EXE_LINKER_FLAGS "-static -Wl,-Bstatic")
-#set(CMAKE_SHARED_LIBRARY_LINK_C_FLAGS "-static")
-#set(CMAKE_FIND_LIBRARY_SUFFIXES ".a")
-#set(BUILD_SHARED_LIBS OFF)
+if(CONFIG_FULLY_STATIC)
+    set(CMAKE_EXE_LINKER_FLAGS "-static -Wl,-Bstatic")
+    set(CMAKE_SHARED_LIBRARY_LINK_C_FLAGS "-static")
+    set(CMAKE_FIND_LIBRARY_SUFFIXES ".a")
+    set(BUILD_SHARED_LIBS OFF)
+endif()
 
 #----------------------------------------#
 #   Libraries
