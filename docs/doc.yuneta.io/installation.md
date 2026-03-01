@@ -237,6 +237,9 @@ Use this utility to edit the Kconfig file and to select the compiler, build type
         (X) OpenSSL
         ( ) Mbed-TLS        TODO
 
+    (Top) → Build Configuration
+        [ ] Fully static binary (gcc/clang + glibc, no shared libs)
+
     (Top) → Debug Options
         [*] Use backtrace library
         [*] Enable track memory
@@ -264,13 +267,14 @@ Goto `linux-ext-libs` directory:
 
 Extract, compile and install:
 
-    # Version non-static (closely static)
     ./extrae.sh         # clone libraries
     ./configure-libs.sh # configure, build and install libraries
 
-    # Version static (ONLY if you want to use MUSL compiler)
-    ./extrae-musl.sh
-    ./configure-libs-musl.sh
+> ℹ️ **Fully static builds** (`CONFIG_FULLY_STATIC=y`) use the same
+> `configure-libs.sh` with GCC or Clang — no separate toolchain needed.
+> OpenSSL is built with `no-dso` and `no-sock` to avoid glibc resolver
+> stubs in the static binary.  See `kernel/c/linux-ext-libs/HACKS.rst`
+> for details.
 
 ## Compile Yunetas
 
