@@ -50,13 +50,13 @@ SET(SRCS
 foreach(test ${SRCS})
     set(binary "test_tcps2_${test}")
     add_yuno_executable(${binary} "main_${test}.c" "c_${test}.c")
+
     if(CONFIG_FULLY_STATIC)
         set_target_properties(${binary} PROPERTIES
             LINK_SEARCH_START_STATIC TRUE
             LINK_SEARCH_END_STATIC TRUE
         )
     endif()
-
 
     target_link_libraries(${binary}
         ${MODULE_TEST}

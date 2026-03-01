@@ -55,6 +55,7 @@ set(SRCS
 #   Binary
 ##############################################
 add_yuno_executable(${PROJECT_NAME} ${SRCS})
+
 if(CONFIG_FULLY_STATIC)
     set_target_properties(${PROJECT_NAME} PROPERTIES
         LINK_SEARCH_START_STATIC TRUE

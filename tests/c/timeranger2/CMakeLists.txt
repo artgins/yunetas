@@ -56,13 +56,13 @@ set(SRCS
 foreach(test ${SRCS})
     set(binary "${test}")
     add_yuno_executable(${binary} "${test}.c")
+
     if(CONFIG_FULLY_STATIC)
         set_target_properties(${binary} PROPERTIES
             LINK_SEARCH_START_STATIC TRUE
             LINK_SEARCH_END_STATIC TRUE
         )
     endif()
-
 
     target_link_libraries(${binary}
         ${YUNETAS_KERNEL_LIBS}
