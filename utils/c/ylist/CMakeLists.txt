@@ -46,6 +46,12 @@ SET (YUNO_SRCS
 ##############################################
 add_yuno_executable(${PROJECT_NAME} ${YUNO_SRCS} ${YUNO_HDRS})
 
+# To compile as static, also using gcc, set next:
+set_target_properties(${PROJECT_NAME} PROPERTIES
+    LINK_SEARCH_START_STATIC TRUE
+    LINK_SEARCH_END_STATIC TRUE
+)
+
 target_link_libraries(${PROJECT_NAME}
     libyunetas-core-linux.a
     libyunetas-gobj.a

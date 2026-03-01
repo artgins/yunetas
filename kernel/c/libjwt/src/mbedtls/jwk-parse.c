@@ -8,8 +8,8 @@
 
 #include <string.h>
 #include "../jwt.h"
-
 #include "../jwt-private.h"
+#include "jwt-mbedtls.h"
 
 static const char not_implemented[] = "MBedTLS does not yet implement JWK";
 
