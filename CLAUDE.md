@@ -113,7 +113,7 @@ cd kernel/c/linux-ext-libs
 
 ```
 
-For musl/static builds use `extrae-static.sh` / `configure-libs-static.sh`.
+For musl/static builds use `extrae-musl.sh` / `configure-libs-musl.sh`.
 
 ### Build configuration
 

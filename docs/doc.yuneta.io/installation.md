@@ -269,8 +269,8 @@ Extract, compile and install:
     ./configure-libs.sh # configure, build and install libraries
 
     # Version static (ONLY if you want to use MUSL compiler)
-    ./extrae-static.sh
-    ./configure-libs-static.sh
+    ./extrae-musl.sh
+    ./configure-libs-musl.sh
 
 ## Compile Yunetas
 

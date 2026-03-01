@@ -1726,8 +1726,8 @@ Vendored external libraries. Build before the kernel modules:
 ./configure-libs.sh         # configure, build and install to outputs_ext/
 
 # For musl/static builds:
-./extrae-static.sh
-./configure-libs-static.sh
+./extrae-musl.sh
+./configure-libs-musl.sh
 ```
 
 Includes: **jansson** (JSON), **OpenSSL** (TLS/crypto), **liburing** (io_uring), and others.
@@ -1872,8 +1872,8 @@ PUBLIC int register_c_my_class(void) {
 kernel/c/
 ├── README.md                        ← this file
 ├── linux-ext-libs/                  ← external library sources and build scripts
-│   ├── extrae.sh / extrae-static.sh
-│   ├── configure-libs.sh / configure-libs-static.sh
+│   ├── extrae.sh / extrae-musl.sh
+│   ├── configure-libs.sh / configure-libs-musl.sh
 │   ├── re-install-libs.sh / reinstall-libs-static.sh
 │   └── sources/
 │

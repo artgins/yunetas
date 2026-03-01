@@ -1,6 +1,6 @@
 #!/bin/bash
 
-source ./repos2clone-static.sh
+source ./repos2clone-musl.sh
 
 if ! command -v ldconfig >/dev/null 2>&1; then
     echo "ldconfig is not available in PATH. Exiting. Add /usr/sbin/ to PATH"

@@ -19,7 +19,7 @@
 
 VERSION="1.5-s"
 
-source ./repos2clone-static.sh
+source ./repos2clone-musl.sh
 
 export CC=/usr/bin/musl-gcc
 export CFLAGS="-Wno-error=char-subscripts -O3 -g -DNDEBUG" # let each library to be, or not
