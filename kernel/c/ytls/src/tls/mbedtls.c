@@ -605,6 +605,7 @@ PRIVATE int encrypt_data(
     }
 
     size_t len;
+    int want_retries = 0;
     while ((len = gbuffer_chunk(gbuf)) > 0) {
         const char *p = gbuffer_cur_rd_pointer(gbuf); // Don't pop data, be sure it's written
         int written = mbedtls_ssl_write(&sskt->ssl, (const unsigned char *)p, len);
@@ -613,6 +614,18 @@ PRIVATE int encrypt_data(
             if (written == MBEDTLS_ERR_SSL_WANT_READ || written == MBEDTLS_ERR_SSL_WANT_WRITE) {
                 if (sskt->ytls->trace) {
                     gobj_trace_msg(gobj, "------- encrypt_data: WANT_READ/WANT_WRITE, userp %p", sskt->user_data);
+                }
+                if (++want_retries > 5) {
+                    // Network stalled: no progress after repeated flush attempts.
+                    // Caller will retry when new data arrives via the event loop.
+                    gobj_log_warning(gobj, 0,
+                        "function",     "%s", __FUNCTION__,
+                        "msgset",       "%s", MSGSET_SYSTEM_ERROR,
+                        "msg",          "%s", "mbedtls_ssl_write() WANT stall, aborting",
+                        NULL
+                    );
+                    GBUFFER_DECREF(gbuf);
+                    return -1;
                 }
                 flush_encrypted_data(sskt);
                 flush_clear_data(sskt);
@@ -633,6 +646,7 @@ PRIVATE int encrypt_data(
             }
         }
 
+        want_retries = 0;
         gbuffer_get(gbuf, written); // Pop data
 
         if (sskt->ytls->trace) {

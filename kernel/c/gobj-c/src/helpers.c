@@ -6773,9 +6773,11 @@ static int parse_passwd_line(char *line, struct passwd *pw,
             *p++ = '\0';
         }
     }
-    /* Strip trailing newline from shell field */
+    /* Strip trailing newline / carriage-return from shell field */
     char *nl = strchr(fields[6], '\n');
     if(nl) *nl = '\0';
+    char *cr = strchr(fields[6], '\r');
+    if(cr) *cr = '\0';
 
     /* Copy strings into caller-supplied buf */
     size_t need = strlen(fields[0]) + strlen(fields[1]) +
@@ -6867,6 +6869,8 @@ static int parse_group_line(char *line, struct group *gr,
     }
     char *nl = strchr(fields[3], '\n');
     if(nl) *nl = '\0';
+    char *cr = strchr(fields[3], '\r');
+    if(cr) *cr = '\0';
 
     size_t need = strlen(fields[0]) + strlen(fields[1]) + strlen(fields[3]) + 3;
     if(need > bufsz) return -1;
