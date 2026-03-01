@@ -158,7 +158,7 @@ PRIVATE char variable_config[]= "\
                                             'kw': {                             \n\
                                                 'timeout_between_connections': 10000, \n\
                                                 'crypto': {                     \n\
-                                                    'library': 'openssl',       \n\
+                                                'library': '" TLS_LIBRARY_NAME "',   \n\
                                                     'trace': false              \n\
                                                 },                              \n\
 'url': 'tcps://(^^__sys_machine__^^).(^^__node_owner__^^).(^^__output_url__^^)' \n\

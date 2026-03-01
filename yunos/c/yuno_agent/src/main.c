@@ -160,7 +160,7 @@ PRIVATE char variable_config[]= "\
                     'as_service': true,                             \n\
                     'kw': {                                         \n\
                         'crypto': {                                 \n\
-                            'library': 'openssl',                   \n\
+                            'library': '" TLS_LIBRARY_NAME "',      \n\
     'ssl_certificate': '/yuneta/agent/certs/yuneta_agent.crt',      \n\
     'ssl_certificate_key': '/yuneta/agent/certs/yuneta_agent.key',  \n\
                             'trace': false                          \n\
@@ -245,7 +245,7 @@ PRIVATE char variable_config[]= "\
                                             'kw': {                             \n\
                                                 'timeout_between_connections': 10000, \n\
                                                 'crypto': {                     \n\
-                                                    'library': 'openssl',       \n\
+                                                    'library': '" TLS_LIBRARY_NAME "', \n\
                                                     'trace': false              \n\
                                                 },                              \n\
 'url': 'tcps://(^^__sys_machine__^^).(^^__node_owner__^^).(^^__output_url__^^)' \n\

@@ -70,7 +70,10 @@ PUBLIC hytls ytls_init(
     } SWITCHS_END;
 
     if(!api_tls) {
-        gobj_log_error(gobj, 0,
+        /*
+         *  Exit without let re-starting
+         */
+        gobj_log_error(gobj, LOG_OPT_EXIT_ZERO,
             "function",         "%s", __FUNCTION__,
             "msgset",           "%s", MSGSET_INTERNAL_ERROR,
             "msg",              "%s", "api_tls() FAILED",
