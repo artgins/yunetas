@@ -49,6 +49,13 @@ SET (YUNO_HDRS
 #   yuno
 ##############################################
 add_yuno_executable(${PROJECT_NAME} ${YUNO_SRCS} ${YUNO_HDRS})
+if(CONFIG_FULLY_STATIC)
+    set_target_properties(${PROJECT_NAME} PROPERTIES
+        LINK_SEARCH_START_STATIC TRUE
+        LINK_SEARCH_END_STATIC TRUE
+    )
+endif()
+
 
 target_link_libraries(${PROJECT_NAME}
     ${YUNETAS_KERNEL_LIBS}
@@ -69,6 +76,13 @@ SET (YUNO44_SRCS
 SET (YUNO44_HDRS
 )
 add_yuno_executable("yuneta_agent44" ${YUNO44_SRCS} ${YUNO44_HDRS})
+if(CONFIG_FULLY_STATIC)
+    set_target_properties("yuneta_agent44" PROPERTIES
+        LINK_SEARCH_START_STATIC TRUE
+        LINK_SEARCH_END_STATIC TRUE
+    )
+endif()
+
 
 target_link_libraries("yuneta_agent44"
     ${YUNETAS_KERNEL_LIBS}

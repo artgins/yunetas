@@ -45,6 +45,13 @@ SET (YUNO_SRCS
 #   yuno
 ##############################################
 add_yuno_executable(${PROJECT_NAME} ${YUNO_SRCS} ${YUNO_HDRS})
+if(CONFIG_FULLY_STATIC)
+    set_target_properties(${PROJECT_NAME} PROPERTIES
+        LINK_SEARCH_START_STATIC TRUE
+        LINK_SEARCH_END_STATIC TRUE
+    )
+endif()
+
 
 target_link_libraries(${PROJECT_NAME}
     libargp-standalone.a

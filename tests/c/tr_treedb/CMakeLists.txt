@@ -55,6 +55,13 @@ set(SRCS
 #   Binary
 ##############################################
 add_yuno_executable(${PROJECT_NAME} ${SRCS})
+if(CONFIG_FULLY_STATIC)
+    set_target_properties(${PROJECT_NAME} PROPERTIES
+        LINK_SEARCH_START_STATIC TRUE
+        LINK_SEARCH_END_STATIC TRUE
+    )
+endif()
+
 target_link_libraries(${PROJECT_NAME}
     ${YUNETAS_KERNEL_LIBS}
     ${YUNETAS_EXTERNAL_LIBS}
