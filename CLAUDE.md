@@ -168,6 +168,20 @@ Two extra flags are added to OpenSSL's `./config` line:
 
 Both flags have been verified working: rebuilt OpenSSL + full Yuneta suite with no errors.
 
+#### TLS backend size impact on static binaries
+
+Measured on AMD64, `RelWithDebInfo`, fully static (`CONFIG_FULLY_STATIC`):
+
+| Binary  | OpenSSL | mbedTLS |
+|---------|---------|---------|
+| watchfs | 29.1 MB | 10.2 MB |
+| ybatch  | 29.1 MB | 10.3 MB |
+| ycli    | 30.8 MB | 11.9 MB |
+
+**mbedTLS produces binaries ~3× smaller than OpenSSL** when linking statically.
+The difference is almost entirely the OpenSSL crypto/TLS library footprint.
+Choose `CONFIG_HAVE_MBEDTLS` when binary size matters (embedded, edge deployment).
+
 #### What was changed in the Yuneta source to support `CONFIG_FULLY_STATIC`
 
 Static glibc binaries cannot call NSS (Name Service Switch) or the system resolver at runtime.  The following changes were made, all guarded by `#ifdef CONFIG_FULLY_STATIC`:
