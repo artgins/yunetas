@@ -76,6 +76,7 @@ typedef struct ytls_s {
     BOOL trace;
     size_t rx_buffer_size;
     hgobj gobj;
+    char ssl_server_name[256]; // Server name for SNI (client-side TLS only)
 } ytls_t;
 
 typedef struct sskt_s {
@@ -288,6 +289,9 @@ PRIVATE hytls init(
         gobj, jn_config, "trace", 0, KW_WILD_NUMBER
     );
     ytls->gobj = gobj;
+    snprintf(ytls->ssl_server_name, sizeof(ytls->ssl_server_name), "%s",
+        kw_get_str(gobj, jn_config, "ssl_server_name", "", 0)
+    );
 
     return (hytls)ytls;
 }
@@ -350,6 +354,11 @@ static int mbedtls_ssl_recv_callback(void *ctx, unsigned char *buf, size_t len) 
 
     // Check if there is encrypted data available
     size_t available = gbuffer_chunk(sskt->encrypted_buffer);
+    if (sskt->ytls->trace) {
+        hgobj gobj = sskt->ytls->gobj;
+        gobj_trace_msg(gobj, "------- recv_callback: available=%zu, requested=%zu, userp %p",
+            available, len, sskt->user_data);
+    }
     if (available == 0) {
         return MBEDTLS_ERR_SSL_WANT_READ; // No data available, try again later
     }
@@ -411,6 +420,11 @@ PRIVATE hsskt new_secure_filter(
 
     // Initialize encrypted data buffer (receives encrypted bytes from the network)
     sskt->encrypted_buffer = gbuffer_create(32 * 1024, 32 * 1024);
+
+    // Set SNI hostname for client connections (enables server_name extension in ClientHello)
+    if (!ytls->server && ytls->ssl_server_name[0] != '\0') {
+        mbedtls_ssl_set_hostname(&sskt->ssl, ytls->ssl_server_name);
+    }
 
     // Set BIO callbacks for mbedTLS
     mbedtls_ssl_set_bio(
@@ -705,7 +719,17 @@ PRIVATE int flush_clear_data(sskt_t *sskt)
                 if (sskt->ytls->trace) {
                     gobj_trace_msg(gobj, "------- flush_clear_data WANT_READ/WANT_WRITE, userp %p", sskt->user_data);
                 }
-                break; // No more data available at this moment
+                /*
+                 * mbedTLS may return WANT_READ after silently consuming a
+                 * TLS 1.3 NewSessionTicket (without returning the NST code).
+                 * If data still sits in encrypted_buffer, loop again so
+                 * mbedTLS can parse the next record (e.g. the actual
+                 * application data that follows the NSTs).
+                 */
+                if (gbuffer_chunk(sskt->encrypted_buffer) > 0) {
+                    continue;
+                }
+                break; // Buffer empty — genuinely waiting for more network data
 #ifdef MBEDTLS_ERR_SSL_RECEIVED_NEW_SESSION_TICKET
             } else if (nread == MBEDTLS_ERR_SSL_RECEIVED_NEW_SESSION_TICKET) {
                 /*

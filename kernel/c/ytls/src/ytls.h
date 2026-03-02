@@ -46,6 +46,14 @@ typedef void * hsskt;
  *              - "rx_buffer_size"              int, default 32*1024
  *              - "ssl_trusted_certificate"     str
  *              - "ssl_verify_depth"            int, default 1
+ *
+ *          Fields for library "mbedtls"
+ *              - "trace"                       bool
+ *              - "ssl_certificate"             str
+ *              - "ssl_certificate_key"         str
+ *              - "rx_buffer_size"              int, default 32*1024
+ *              - "ssl_trusted_certificate"     str
+ *              - "ssl_server_name"             str  (client only: hostname for SNI + cert verification)
  */
 
 typedef struct api_tls_s {

@@ -1475,6 +1475,17 @@ PRIVATE int ac_connect(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
     if(priv->use_ssl) {
         if(!priv->ytls) {
             json_t *jn_crypto = gobj_read_json_attr(gobj, "crypto");
+            char _schema[40]; char _host[120]; char _port[40];
+            if(parse_url(gobj, priv->url,
+                _schema, sizeof(_schema),
+                _host, sizeof(_host),
+                _port, sizeof(_port),
+                0, 0,
+                0, 0,
+                FALSE) == 0 && _host[0] != '\0'
+            ) {
+                json_object_set_new(jn_crypto, "ssl_server_name", json_string(_host));
+            }
             priv->ytls = ytls_init(gobj, jn_crypto, FALSE);
 
             // TODO connection with certificate, review
