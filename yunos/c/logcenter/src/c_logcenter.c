@@ -45,7 +45,7 @@ PRIVATE json_t *make_summary(hgobj gobj, BOOL show_internal_errors);
 PRIVATE int send_summary(hgobj gobj, gbuffer_t *gbuf);
 PRIVATE int do_log_stats(hgobj gobj, int priority, json_t* kw);
 PRIVATE int reset_counters(hgobj gobj);
-PRIVATE int trunk_data_log_file(hgobj gobj);
+PRIVATE int truncate_data_log_file(hgobj gobj);
 PRIVATE json_t *search_log_message(hgobj gobj, const char *text, uint32_t maxcount);
 PRIVATE json_t *tail_log_message(hgobj gobj, uint32_t lines);
 
@@ -347,7 +347,7 @@ PRIVATE json_t *mt_stats(hgobj gobj, const char *stats, json_t *kw, hgobj src)
 {
     if(stats && strcmp(stats, "__reset__")==0) {
         reset_counters(gobj);
-        trunk_data_log_file(gobj);
+        truncate_data_log_file(gobj);
     }
 
     json_t *jn_stats = json_pack("{s:I, s:I, s:I, s:I, s:I, s:I, s:I, s:I}",
@@ -491,7 +491,7 @@ PRIVATE json_t *cmd_disable_send_summary(hgobj gobj, const char *cmd, json_t *kw
 PRIVATE json_t *cmd_reset_counters(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
 {
     reset_counters(gobj);
-    trunk_data_log_file(gobj);
+    truncate_data_log_file(gobj);
     return cmd_display_summary(gobj, "", kw, src);
 }
 
@@ -648,11 +648,11 @@ PRIVATE json_t *cmd_restart_yuneta(hgobj gobj, const char *cmd, json_t *kw, hgob
 /***************************************************************************
  *
  ***************************************************************************/
-PRIVATE int trunk_data_log_file(hgobj gobj)
+PRIVATE int truncate_data_log_file(hgobj gobj)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
     if(priv->global_rotatory) {
-        rotatory_trunk(priv->global_rotatory);
+        rotatory_truncate(priv->global_rotatory);
     }
     return 0;
 }

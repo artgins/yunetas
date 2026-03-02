@@ -78,7 +78,7 @@ PRIVATE const char *priority_names[]={
 /*****************************************************************
  *          Prototypes
  *****************************************************************/
-PRIVATE void _rotatory_trunk(rotatory_log_t *rotatory_log);
+PRIVATE void _rotatory_truncate(rotatory_log_t *rotatory_log);
 PRIVATE void _rotatory_flush(rotatory_log_t* hr);
 PRIVATE BOOL _get_rotatory_filename(rotatory_log_t *rotatory_log);
 PRIVATE int _rotatory(rotatory_log_t *hr, const char *bf, size_t len);
@@ -370,18 +370,18 @@ PUBLIC int rotatory_fwrite(hrotatory_h hr_, int priority, const char *format, ..
 }
 
 /*****************************************************************
- *  if hr is null trunk all files
+ *  if hr is null truncate all files
  *****************************************************************/
-PUBLIC void rotatory_trunk(hrotatory_h hr)
+PUBLIC void rotatory_truncate(hrotatory_h hr)
 {
     if(hr) {
-        _rotatory_trunk(hr);
+        _rotatory_truncate(hr);
         return;
     }
 
     hr = dl_first(&dl_clients);
     while(hr) {
-        _rotatory_trunk(hr);
+        _rotatory_truncate(hr);
         hr = dl_next(hr);
     }
 }
@@ -406,7 +406,7 @@ PUBLIC void rotatory_flush(hrotatory_h hr)
 /*****************************************************************
  *
  *****************************************************************/
-PRIVATE void _rotatory_trunk(rotatory_log_t *hr)
+PRIVATE void _rotatory_truncate(rotatory_log_t *hr)
 {
     if(hr->flog) {
         rotatory_flush(hr);
@@ -415,7 +415,7 @@ PRIVATE void _rotatory_trunk(rotatory_log_t *hr)
         if(!hr->flog) {
             print_error(
                 hr->pe_flag,
-                "_rotatory_trunk(): Cannot open '%s' file, %s",
+                "_rotatory_truncate(): Cannot open '%s' file, %s",
                 hr->path,
                 strerror(errno)
             );

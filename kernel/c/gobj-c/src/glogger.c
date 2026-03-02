@@ -630,7 +630,7 @@ PUBLIC void gobj_log_clear_log_file(void)
     log_handler_t *lh = dl_first(&dl_log_handlers);
     while(lh) {
         if(strcmp(lh->hr->handler_type, "file")==0) {
-            rotatory_trunk(lh->hr);
+            rotatory_truncate(lh->hr);
         }
 
         /*

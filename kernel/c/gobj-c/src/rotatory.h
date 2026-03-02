@@ -72,8 +72,8 @@ PUBLIC int rotatory_write(hrotatory_h hr, int priority, const char *bf, size_t l
 // Max size defined by bf_size in rotatory_open()
 PUBLIC int rotatory_fwrite(hrotatory_h hr_, int priority, const char *format, ...);
 
-// if hr is null trunk all files
-PUBLIC void rotatory_trunk(hrotatory_h hr);
+// if hr is null truncate all files
+PUBLIC void rotatory_truncate(hrotatory_h hr);
  // if hr is null flush all files
 PUBLIC void rotatory_flush(hrotatory_h hr);
 
