@@ -4,10 +4,12 @@
  *          List stats
  *
  *          Copyright (c) 2018 Niyamaka.
+ *          Copyright (c) 2024, ArtGins.
  *          All Rights Reserved.
  ****************************************************************************/
 #include <stdio.h>
 #include <time.h>
+#include <signal.h>
 #include <errno.h>
 #include <regex.h>
 #include <locale.h>
@@ -16,6 +18,7 @@
 #include <unistd.h>
 #include <string.h>
 #include <time.h>
+#include <sys/resource.h>
 
 #include <yunetas.h>
 
@@ -66,6 +69,7 @@ typedef struct {
  *              Prototypes
  ***************************************************************************/
 static error_t parse_opt (int key, char *arg, struct argp_state *state);
+PRIVATE void yuno_catch_signals(void);
 
 /***************************************************************************
  *      Data
@@ -75,6 +79,8 @@ int total_counter = 0;
 int partial_counter = 0;
 const char *argp_program_version = NAME " " VERSION;
 const char *argp_program_bug_address = SUPPORT;
+yev_loop_h yev_loop;
+int time2exit = 10;
 
 /* Program documentation. */
 static char doc[] = DOC;
@@ -192,84 +198,83 @@ static error_t parse_opt (int key, char *arg, struct argp_state *state)
     return 0;
 }
 
-#ifdef PEPE_TODO
-
-/***************************************************************************
- *
- ***************************************************************************/
-void print_summary(json_t *metrics)
-{
-    const char *var;
-    json_t *jn_var;
-    json_object_foreach(metrics, var, jn_var) {
-        printf("Variable: %s\n", var);
-
-        const char *metric;
-        json_t *jn_metric;
-        json_object_foreach(jn_var, metric, jn_metric) {
-            printf("    Metric-Id: %s\n", metric);
-            printf("    Period: %s\n", kw_get_str(jn_metric, "period", "", KW_REQUIRED));
-            printf("    Units: %s\n", kw_get_str(jn_metric, "units", "", KW_REQUIRED));
-            printf("    Compute: %s\n", kw_get_str(jn_metric, "compute", "", KW_REQUIRED));
-            json_t *jn_data = kw_get_list(jn_metric, "data", 0, KW_REQUIRED);
-            if(json_array_size(jn_data)) {
-                int items = json_array_size(jn_data);
-                json_t *jn_first = json_array_get(jn_data, 0);
-                json_t *jn_last = json_array_get(jn_data, items-1);
-                printf("        From %s\n",
-                    kw_get_str(jn_first, "fr_d", "", KW_REQUIRED)
-                );
-                printf("        To   %s\n",
-                    kw_get_str(jn_last, "to_d", "", KW_REQUIRED)
-                );
-            }
-        }
-    }
-}
-
-/***************************************************************************
- *
- ***************************************************************************/
-PRIVATE void print_keys(json_t *metrics)
-{
-    const char *key;
-    json_t *jn_value;
-    json_object_foreach(metrics, key, jn_value) {
-        printf("        %s\n", key);
-    }
-}
-
-/***************************************************************************
- *
- ***************************************************************************/
-PRIVATE void print_units(json_t *variable)
-{
-    const char *key;
-    json_t *jn_value;
-    json_object_foreach(variable, key, jn_value) {
-        printf("        %s\n", json_string_value(json_object_get(jn_value, "units")));
-    }
-
-}
-
-/***************************************************************************
- *
- ***************************************************************************/
-PRIVATE void print_limits(json_t *jn_metric)
-{
-    json_t *jn_data = kw_get_list(jn_metric, "data", 0, KW_REQUIRED);
-    if(json_array_size(jn_data)) {
-        int items = json_array_size(jn_data);
-        json_t *jn_first = json_array_get(jn_data, 0);
-        json_t *jn_last = json_array_get(jn_data, items-1);
-        printf("        From %s\n",
-            kw_get_str(jn_first, "fr_d", "", KW_REQUIRED)
-        );
-        printf("        To   %s\n",
-            kw_get_str(jn_last, "to_d", "", KW_REQUIRED)
-        );
-    }
-}
+// TODO review what this functions do
+// /***************************************************************************
+//  *
+//  ***************************************************************************/
+// PRIVATE void print_summary(json_t *metrics)
+// {
+//     const char *var;
+//     json_t *jn_var;
+//     json_object_foreach(metrics, var, jn_var) {
+//         printf("Variable: %s\n", var);
+//
+//         const char *metric;
+//         json_t *jn_metric;
+//         json_object_foreach(jn_var, metric, jn_metric) {
+//             printf("    Metric-Id: %s\n", metric);
+//             printf("    Period: %s\n", kw_get_str(0, jn_metric, "period", "", KW_REQUIRED));
+//             printf("    Units: %s\n", kw_get_str(0, jn_metric, "units", "", KW_REQUIRED));
+//             printf("    Compute: %s\n", kw_get_str(0, jn_metric, "compute", "", KW_REQUIRED));
+//             json_t *jn_data = kw_get_list(0, jn_metric, "data", 0, KW_REQUIRED);
+//             if(json_array_size(jn_data)) {
+//                 int items = json_array_size(jn_data);
+//                 json_t *jn_first = json_array_get(jn_data, 0);
+//                 json_t *jn_last = json_array_get(jn_data, items-1);
+//                 printf("        From %s\n",
+//                     kw_get_str(0, jn_first, "fr_d", "", KW_REQUIRED)
+//                 );
+//                 printf("        To   %s\n",
+//                     kw_get_str(0, jn_last, "to_d", "", KW_REQUIRED)
+//                 );
+//             }
+//         }
+//     }
+// }
+//
+// /***************************************************************************
+//  *
+//  ***************************************************************************/
+// PRIVATE void print_keys(json_t *metrics)
+// {
+//     const char *key;
+//     json_t *jn_value;
+//     json_object_foreach(metrics, key, jn_value) {
+//         printf("        %s\n", key);
+//     }
+// }
+//
+// /***************************************************************************
+//  *
+//  ***************************************************************************/
+// PRIVATE void print_units(json_t *variable)
+// {
+//     const char *key;
+//     json_t *jn_value;
+//     json_object_foreach(variable, key, jn_value) {
+//         printf("        %s\n", json_string_value(json_object_get(jn_value, "units")));
+//     }
+//
+// }
+//
+// /***************************************************************************
+//  *
+//  ***************************************************************************/
+// PRIVATE void print_limits(json_t *jn_metric)
+// {
+//     json_t *jn_data = kw_get_list(0, jn_metric, "data", 0, KW_REQUIRED);
+//     if(json_array_size(jn_data)) {
+//         int items = json_array_size(jn_data);
+//         json_t *jn_first = json_array_get(jn_data, 0);
+//         json_t *jn_last = json_array_get(jn_data, items-1);
+//         printf("        From %s\n",
+//             kw_get_str(0, jn_first, "fr_d", "", KW_REQUIRED)
+//         );
+//         printf("        To   %s\n",
+//             kw_get_str(0, jn_last, "to_d", "", KW_REQUIRED)
+//         );
+//     }
+// }
 
 /***************************************************************************
  *
@@ -282,176 +287,23 @@ PRIVATE int _list_stats(
     int verbose
 )
 {
-    /*-------------------------------*
-     *  Open group
-     *-------------------------------*/
-    json_t *jn_stats = json_pack("{s:s, s:s}",
-        "path", path,
-        "groups", group_name?group_name:""
-    );
-    json_t * stats = rstats_open(jn_stats);
-    if(!stats) {
-        fprintf(stderr, "Can't open stats %s/%s\n\n", path, group_name);
-        exit(-1);
-    }
-    if(verbose) {
-        print_json(stats);
-    }
-
-    json_t *variables = rstats_variables(stats);
-    if(verbose) {
-        print_json(variables);
-    }
-
-    if(kw_get_bool(match_cond, "show_limits", 0, 0)) {
-        const char *var;
-        json_t *jn_v;
-        json_object_foreach(variables, var, jn_v) {
-            printf("   Variable: %s\n", var);
-            const char *metr;
-            json_t *jn_metr;
-            json_object_foreach(jn_v, metr, jn_metr) {
-                printf("   Metrica: %s, Units: %s\n", metr, kw_get_str(jn_metr, "units", "", 0));
-                print_limits(jn_metr);
-            }
-        }
-        /*
-         *  Free resources
-         */
-        JSON_DECREF(variables);
-        rstats_close(stats);
-        return -1;
-    }
-
-    uint64_t from_t = kw_get_int(match_cond, "from_t", 0, KW_WILD_NUMBER);
-    uint64_t to_t = kw_get_int(match_cond, "to_t", 0, KW_WILD_NUMBER);
-    const char *variable = kw_get_str(match_cond, "variable", "", 0);
-    const char *metric_name = kw_get_str(match_cond, "metric", metric_name_, 0);
-    const char *units = kw_get_str(match_cond, "units", "", 0);
-
-    if(empty_string(variable)) {
-        printf("What Variable?\n");
-        printf("    Available Variables:\n");
-        print_keys(variables);
-
-        /*
-         *  Free resources
-         */
-        JSON_DECREF(variables);
-        rstats_close(stats);
-        return -1;
-    }
-
-    json_t *jn_variable = kw_get_dict(variables, variable, 0, 0);
-    if(!jn_variable) {
-        printf("Variable \"%s\" not found\n", variable);
-        printf("    Available Variables:\n");
-        print_keys(variables);
-
-        /*
-         *  Free resources
-         */
-        JSON_DECREF(variables);
-        rstats_close(stats);
-        return -1;
-    }
-
-    json_t *metric = 0;
-    if(!empty_string(units)) {
-        metric = find_metric_by_units(variables, variable, units, FALSE);
-        if(!metric) {
-            printf("What Units?\n");
-            printf("    Available Units:\n");
-            print_units(jn_variable);
-
-            /*
-             *  Free resources
-             */
-            JSON_DECREF(variables);
-            rstats_close(stats);
-            return -1;
-        }
-    }
-    if(!metric) {
-        if(empty_string(metric_name)) {
-            printf("What Metric or Units?\n");
-            printf("    Available Metrics:\n");
-            print_keys(jn_variable);
-            printf("    Available Units:\n");
-            print_units(jn_variable);
-
-            /*
-            *  Free resources
-            */
-            JSON_DECREF(variables);
-            rstats_close(stats);
-            return -1;
-        }
-
-        metric = rstats_metric(variables, variable, metric_name, "", FALSE);
-        if(!metric) {
-            printf("What Metric?\n");
-            printf("    Available Metrics:\n");
-            print_keys(jn_variable);
-
-            /*
-             *  Free resources
-             */
-            JSON_DECREF(variables);
-            rstats_close(stats);
-            return -1;
-        }
-    }
-
-    if(!from_t && !to_t) {
-        printf("What Range?\n");
-        printf("    Available Limits:\n");
-        print_limits(metric);
-
-        /*
-         *  Free resources
-         */
-        JSON_DECREF(metric);
-        JSON_DECREF(variables);
-        rstats_close(stats);
-        return -1;
-    }
-
-    if(!to_t) {
-        //to_t = time((time_t *)&to_t);
-        to_t = (uint64_t)-1;
-    }
-    if(!from_t) {
-        from_t = 1;
-    }
-
-    json_t *jn_data = rstats_get_data(metric, from_t, to_t);
-    if(jn_data) {
-        print_json(jn_data);
-        JSON_DECREF(jn_data);
-    }
-
-    /*
-     *  Free resources
-     */
-    JSON_DECREF(metric);
-    JSON_DECREF(variables);
-    rstats_close(stats);
-
-    return 0;
+    // TODO: rstats API not yet ported to Yunetas V7
+    fprintf(stderr, "rstats API not yet available in V7\n");
+    return -1;
 }
 
 /***************************************************************************
  *
  ***************************************************************************/
 PRIVATE BOOL list_metric_cb(
+    hgobj gobj,
     void *user_data,
     wd_found_type type,     // type found
     char *fullpath,         // directory+filename found
     const char *directory,  // directory of found filename
     char *name,             // dname[255]
     int level,              // level of tree where file found
-    int index               // index of file inside of directory, relative to 0
+    wd_option opt           // option parameter
 )
 {
     pop_last_segment(fullpath); // remove __simple_stats__.json
@@ -468,6 +320,7 @@ PRIVATE BOOL list_metric_cb(
 PRIVATE int list_metrics(const char *path)
 {
     walk_dir_tree(
+        0,
         path,
         "__metric__\\.json",
         WD_RECURSIVE|WD_MATCH_REGULAR_FILE,
@@ -479,13 +332,14 @@ PRIVATE int list_metrics(const char *path)
 }
 
 PRIVATE BOOL list_db_cb(
+    hgobj gobj,
     void *user_data,
     wd_found_type type,     // type found
     char *fullpath,         // directory+filename found
     const char *directory,  // directory of found filename
     char *name,             // dname[255]
     int level,              // level of tree where file found
-    int index               // index of file inside of directory, relative to 0
+    wd_option opt           // option parameter
 )
 {
     pop_last_segment(fullpath); // remove __simple_stats__.json
@@ -498,6 +352,7 @@ PRIVATE BOOL list_db_cb(
 PRIVATE int list_databases(const char *path)
 {
     walk_dir_tree(
+        0,
         path,
         "__simple_stats__\\.json",
         WD_RECURSIVE|WD_MATCH_REGULAR_FILE,
@@ -529,14 +384,14 @@ PRIVATE int list_stats(list_params_t *list_params)
     pop_last_segment(list_params->path_simple_stats); // remove __simple_stats__.json
 
     char temp[PATH_MAX];
-    build_path2(temp, sizeof(temp), list_params->path_simple_stats, "");
+    build_path(temp, sizeof(temp), list_params->path_simple_stats, "", NULL);
 
     if(!empty_string(list_params->arguments->group)) {
         if(!subdir_exists(list_params->path_simple_stats, list_params->arguments->group)) {
             fprintf(stderr, "Group not found: '%s'\n\n", list_params->arguments->group);
             exit(-1);
         }
-        build_path2(temp, sizeof(temp), list_params->path_simple_stats, list_params->arguments->group);
+        build_path(temp, sizeof(temp), list_params->path_simple_stats, list_params->arguments->group, NULL);
     }
 
     return _list_stats(
@@ -552,13 +407,14 @@ PRIVATE int list_stats(list_params_t *list_params)
  *
  ***************************************************************************/
 PRIVATE BOOL list_recursive_groups_cb(
+    hgobj gobj,
     void *user_data,
     wd_found_type type,     // type found
     char *fullpath,         // directory+filename found
     const char *directory,  // directory of found filename
     char *name,             // name of type found
     int level,              // level of tree where file found
-    int index               // index of file inside of directory, relative to 0
+    wd_option opt           // option parameter
 )
 {
     list_params_t *list_params = user_data;
@@ -585,6 +441,7 @@ PRIVATE BOOL list_recursive_groups_cb(
 PRIVATE int list_recursive_groups(list_params_t *list_params)
 {
     walk_dir_tree(
+        0,
         list_params->arguments->path,
         ".*\\__metric__\\.json",
         WD_RECURSIVE|WD_MATCH_REGULAR_FILE,
@@ -599,13 +456,14 @@ PRIVATE int list_recursive_groups(list_params_t *list_params)
  *
  ***************************************************************************/
 PRIVATE BOOL list_recursive_cb(
+    hgobj gobj,
     void *user_data,
     wd_found_type type,     // type found
     char *fullpath,         // directory+filename found
     const char *directory,  // directory of found filename
     char *name,             // name of type found
     int level,              // level of tree where file found
-    int index               // index of file inside of directory, relative to 0
+    wd_option opt           // option parameter
 )
 {
     list_params_t *list_params = user_data;
@@ -621,6 +479,7 @@ PRIVATE BOOL list_recursive_cb(
 PRIVATE int list_recursive(list_params_t *list_params)
 {
     walk_dir_tree(
+        0,
         list_params->arguments->path,
         ".*\\__simple_stats__\\.json",
         WD_RECURSIVE|WD_MATCH_REGULAR_FILE,
@@ -630,7 +489,6 @@ PRIVATE int list_recursive(list_params_t *list_params)
 
     return 0;
 }
-#endif
 
 /***************************************************************************
  *                      Main
@@ -647,137 +505,203 @@ int main(int argc, char *argv[])
      */
     argp_parse(&argp, argc, argv, 0, 0, &arguments);
 
-    // TODO migrate to Yunetas
-    // uint64_t MEM_MAX_SYSTEM_MEMORY = free_ram_in_kb() * 1024LL;
-    // MEM_MAX_SYSTEM_MEMORY /= 100LL;
-    // MEM_MAX_SYSTEM_MEMORY *= 90LL;  // Coge el 90% de la memoria
-    //
-    // uint64_t MEM_MAX_BLOCK = (MEM_MAX_SYSTEM_MEMORY / sizeof(md_record_t)) * sizeof(md_record_t);
-    //
-    // MEM_MAX_BLOCK = MIN(1*1024*1024*1024LL, MEM_MAX_BLOCK);  // 1*G max
-    //
-    // BOOL debug = 0;
-    // if(debug) {
-    //     #define MEM_MIN_BLOCK   512
-    //     #define MEM_SUPERBLOCK  209715200   // 200*M
-    //     static uint32_t mem_list[] = {
-    //         1012,
-    //         0
-    //     };
-    //     gbmem_trace_alloc_free(1, mem_list);
-    //     gbmem_startup(
-    //         MEM_MIN_BLOCK,
-    //         MEM_MAX_BLOCK,
-    //         MEM_SUPERBLOCK,
-    //         MEM_MAX_SYSTEM_MEMORY,
-    //         NULL,
-    //         0
-    //     );
-    // } else {
-    //     gbmem_startup_system(
-    //         MEM_MAX_BLOCK,
-    //         MEM_MAX_SYSTEM_MEMORY
-    //     );
-    // }
-    //
-    // gbmem_startup_system(
-    //     MEM_MAX_BLOCK,
-    //     MEM_MAX_SYSTEM_MEMORY
-    // );
-    // json_set_alloc_funcs(
-    //     gbmem_malloc,
-    //     gbmem_free
-    // );
-    //
-    // log_startup(
-    //     NAME,       // application name
-    //     VERSION,    // applicacion version
-    //     NAME        // executable program, to can trace stack
-    // );
-    // log_add_handler(NAME, "stdout", debug?LOG_OPT_ALL:LOG_OPT_UP_WARNING, 0);
-    //
-    // /*----------------------------------*
-    //  *  Match conditions
-    //  *----------------------------------*/
-    // json_t *match_cond = json_object();
-    //
-    // if(arguments.from_t) {
-    //     timestamp_t timestamp;
-    //     if(all_numbers(arguments.from_t)) {
-    //         timestamp = atoll(arguments.from_t);
-    //     } else {
-    //         timestamp = approxidate(arguments.from_t);
-    //     }
-    //     json_object_set_new(match_cond, "from_t", json_integer(timestamp));
-    // }
-    // if(arguments.to_t) {
-    //     timestamp_t timestamp;
-    //     if(all_numbers(arguments.to_t)) {
-    //         timestamp = atoll(arguments.to_t);
-    //     } else {
-    //         timestamp = approxidate(arguments.to_t);
-    //     }
-    //     json_object_set_new(match_cond, "to_t", json_integer(timestamp));
-    // }
-    //
-    // if(arguments.variable) {
-    //     json_object_set_new(
-    //         match_cond,
-    //         "variable",
-    //         json_string(arguments.variable)
-    //     );
-    // }
-    // if(arguments.units) {
-    //     json_object_set_new(
-    //         match_cond,
-    //         "units",
-    //         json_string(arguments.units)
-    //     );
-    // }
-    // if(arguments.limits) {
-    //     json_object_set_new(
-    //         match_cond,
-    //         "show_limits",
-    //         json_true()
-    //     );
-    // }
-    //
-    // if(json_object_size(match_cond)>0) {
-    // } else {
-    //     JSON_DECREF(match_cond);
-    // }
-    //
-    // /*
-    //  *  Do your work
-    //  */
-    // if(empty_string(arguments.path)) {
-    //     fprintf(stderr, "What Statistics path?\n");
-    //     exit(-1);
-    // }
-    //
-    // list_params_t list_params;
-    // memset(&list_params, 0, sizeof(list_params));
-    // list_params.arguments = &arguments;
-    // list_params.match_cond = match_cond;
-    //
-    // if(arguments.raw) {
-    //     _list_stats(
-    //         arguments.path,
-    //         arguments.group,
-    //         arguments.metric,
-    //         match_cond,
-    //         arguments.verbose
-    //     );
-    // } else if(arguments.recursive) {
-    //     list_recursive(&list_params);
-    // } else {
-    //     list_stats(&list_params);
-    // }
-    //
-    // JSON_DECREF(match_cond);
-    //
-    // gbmem_shutdown();
-    // log_end();
+    /*----------------------------------*
+     *      Startup gobj system
+     *----------------------------------*/
+    sys_malloc_fn_t malloc_func;
+    sys_realloc_fn_t realloc_func;
+    sys_calloc_fn_t calloc_func;
+    sys_free_fn_t free_func;
 
-    return 0;
+    gbmem_get_allocators(
+        &malloc_func,
+        &realloc_func,
+        &calloc_func,
+        &free_func
+    );
+
+    json_set_alloc_funcs(
+        malloc_func,
+        free_func
+    );
+
+#ifndef CONFIG_BUILD_TYPE_RELEASE
+    init_backtrace_with_backtrace(argv[0]);
+    set_show_backtrace_fn(show_backtrace_with_backtrace);
+#endif
+
+    uint64_t MEM_MAX_SYSTEM_MEMORY = free_ram_in_kb() * 1024LL;
+    MEM_MAX_SYSTEM_MEMORY /= 100LL;
+    MEM_MAX_SYSTEM_MEMORY *= 90LL;  // Coge el 90% de la memoria
+    uint64_t MEM_MAX_BLOCK = (MEM_MAX_SYSTEM_MEMORY / sizeof(md2_record_ex_t)) * sizeof(md2_record_ex_t);
+    MEM_MAX_BLOCK = MIN(1*1024*1024*1024LL, MEM_MAX_BLOCK);  // 1*G max
+
+    gbmem_setup(
+        MEM_MAX_BLOCK,  // max_block, largest memory block
+        MEM_MAX_SYSTEM_MEMORY, // max_system_memory, maximum system memory
+        FALSE,
+        0,
+        0
+    );
+
+    gobj_start_up(
+        argc,
+        argv,
+        NULL, // jn_global_settings
+        NULL, // persistent_attrs
+        NULL, // global_command_parser
+        NULL, // global_stats_parser
+        NULL, // global_authz_checker
+        NULL  // global_authentication_parser
+    );
+
+    yuno_catch_signals();
+
+    /*--------------------------------*
+     *      Log handlers
+     *--------------------------------*/
+    gobj_log_add_handler("stdout", "stdout", LOG_OPT_UP_WARNING, 0);
+
+    /*----------------------------------*
+     *  Match conditions
+     *----------------------------------*/
+    json_t *match_cond = json_object();
+
+    if(arguments.from_t) {
+        timestamp_t timestamp;
+        if(all_numbers(arguments.from_t)) {
+            timestamp = atoll(arguments.from_t);
+        } else {
+            timestamp = approxidate(arguments.from_t);
+        }
+        json_object_set_new(match_cond, "from_t", json_integer(timestamp));
+    }
+    if(arguments.to_t) {
+        timestamp_t timestamp;
+        if(all_numbers(arguments.to_t)) {
+            timestamp = atoll(arguments.to_t);
+        } else {
+            timestamp = approxidate(arguments.to_t);
+        }
+        json_object_set_new(match_cond, "to_t", json_integer(timestamp));
+    }
+
+    if(arguments.variable) {
+        json_object_set_new(
+            match_cond,
+            "variable",
+            json_string(arguments.variable)
+        );
+    }
+    if(arguments.units) {
+        json_object_set_new(
+            match_cond,
+            "units",
+            json_string(arguments.units)
+        );
+    }
+    if(arguments.limits) {
+        json_object_set_new(
+            match_cond,
+            "show_limits",
+            json_true()
+        );
+    }
+
+    /*------------------------*
+     *      Do your work
+     *------------------------*/
+    time_measure_t time_measure;
+    MT_START_TIME(time_measure)
+
+    if(empty_string(arguments.path)) {
+        fprintf(stderr, "What Statistics path?\n");
+        fprintf(stderr, "You must supply --path (-a) option\n\n");
+        exit(-1);
+    }
+
+    struct rlimit rl;
+    if (getrlimit(RLIMIT_NOFILE, &rl) == 0) {
+        if(rl.rlim_cur < 200000) {
+            rl.rlim_cur = 200000;
+            rl.rlim_max = 200000;
+            setrlimit(RLIMIT_NOFILE, &rl);
+        }
+    }
+
+    /*--------------------------------*
+     *  Create the event loop
+     *--------------------------------*/
+    yev_loop_create(
+        NULL,
+        2024,
+        10,
+        NULL,
+        &yev_loop
+    );
+
+    list_params_t list_params;
+    memset(&list_params, 0, sizeof(list_params));
+    list_params.arguments = &arguments;
+    list_params.match_cond = match_cond;
+
+    if(arguments.raw) {
+        _list_stats(
+            arguments.path,
+            arguments.group,
+            arguments.metric,
+            match_cond,
+            arguments.verbose
+        );
+    } else if(arguments.recursive) {
+        list_recursive(&list_params);
+    } else {
+        list_stats(&list_params);
+    }
+
+    JSON_DECREF(match_cond);
+
+    yev_loop_stop(yev_loop);
+    yev_loop_destroy(yev_loop);
+
+    /*-------------------------------------*
+     *  Print times
+     *-------------------------------------*/
+    MT_INCREMENT_COUNT(time_measure, total_counter)
+    MT_PRINT_TIME(time_measure, "list stats")
+
+    gobj_end();
+
+    return gobj_get_exit_code();
+}
+
+/***************************************************************************
+ *      Signal handlers
+ ***************************************************************************/
+PRIVATE void quit_sighandler(int sig)
+{
+    static int times = 0;
+    times++;
+    yev_loop_reset_running(yev_loop);
+    if(times > 1) {
+        exit(-1);
+    }
+}
+
+PUBLIC void yuno_catch_signals(void)
+{
+    struct sigaction sigIntHandler;
+
+    signal(SIGPIPE, SIG_IGN);
+    signal(SIGTERM, SIG_IGN);
+
+    memset(&sigIntHandler, 0, sizeof(sigIntHandler));
+    sigIntHandler.sa_handler = quit_sighandler;
+    sigemptyset(&sigIntHandler.sa_mask);
+    sigIntHandler.sa_flags = SA_NODEFER|SA_RESTART;
+    sigaction(SIGALRM, &sigIntHandler, NULL);   // to debug in kdevelop
+    sigaction(SIGQUIT, &sigIntHandler, NULL);
+    sigaction(SIGINT, &sigIntHandler, NULL);    // ctrl+c
+
+    alarm(time2exit);
 }
