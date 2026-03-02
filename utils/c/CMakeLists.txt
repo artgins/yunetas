@@ -35,6 +35,9 @@ add_subdirectory(time2date)
 add_subdirectory(time2range)
 add_subdirectory(json_diff)
 
+add_subdirectory(msg2db_list)
+add_subdirectory(stats_list)
+
 # compile in Release mode :
 #
 #     cmake -DCMAKE_BUILD_TYPE=Release ..
@@ -47,7 +50,7 @@ add_subdirectory(json_diff)
 #
 #     cmake -DCMAKE_BUILD_TYPE=Debug ..
 #
-# compile to build static binary :
+# compile to build musl binary :
 #
 #     cmake -DCMAKE_BUILD_TYPE=Release -DCMAKE_TOOLCHAIN_FILE=/yuneta/development/yunetas/tools/cmake/musl-toolchain.cmake ..
 #

@@ -66,13 +66,10 @@ if(CONFIG_FULLY_STATIC)
 endif()
 
 target_link_libraries(${PROJECT_NAME}
-    libyunetas-core-linux.a
-    libyunetas-gobj.a
-    liburing.a
-    libjansson.a
-    libpcre2-8.a
-    libargp-standalone.a
-    libbacktrace.a
+    ${YUNETAS_KERNEL_LIBS}
+    ${YUNETAS_EXTERNAL_LIBS}
+    ${YUNETAS_PCRE_LIBS}
+    ${DEBUG_LIBS}
 )
 
 ##############################################
@@ -99,7 +96,7 @@ install(
 #
 #     cmake -DCMAKE_BUILD_TYPE=Debug ..
 #
-# compile to build static binary :
+# compile to build musl binary :
 #
 #     cmake -DCMAKE_BUILD_TYPE=Release -DCMAKE_TOOLCHAIN_FILE=/yuneta/development/yunetas/tools/cmake/musl-toolchain.cmake ..
 #

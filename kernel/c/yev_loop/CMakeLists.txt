@@ -86,7 +86,7 @@ install(
 #
 #     cmake -DCMAKE_BUILD_TYPE=Debug ..
 #
-# compile to build static binary :
+# compile to build musl binary :
 #
 #     cmake -DCMAKE_BUILD_TYPE=Release -DCMAKE_TOOLCHAIN_FILE=/yuneta/development/yunetas/tools/cmake/musl-toolchain.cmake ..
 #

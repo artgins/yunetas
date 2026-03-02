@@ -2,7 +2,7 @@
 #   CMake
 ##############################################
 cmake_minimum_required(VERSION 3.11)
-project(ybatch C)
+project(msg2db_list C)
 
 #-----------------------------------------------------#
 #   Resolve YUNETAS_BASE
@@ -12,16 +12,16 @@ project(ybatch C)
 #   - else default "/yuneta/development"
 #-----------------------------------------------------#
 if(DEFINED ENV{YUNETAS_BASE} AND IS_DIRECTORY "$ENV{YUNETAS_BASE}")
-  set(YUNETAS_BASE "$ENV{YUNETAS_BASE}")
+    set(YUNETAS_BASE "$ENV{YUNETAS_BASE}")
 elseif(IS_DIRECTORY "/yuneta/development/yunetas")
-  set(YUNETAS_BASE "/yuneta/development/yunetas")
+    set(YUNETAS_BASE "/yuneta/development/yunetas")
 elseif(IS_DIRECTORY "/yuneta/development")
-  set(YUNETAS_BASE "/yuneta/development")
+    set(YUNETAS_BASE "/yuneta/development")
 else()
-  message(FATAL_ERROR
-      "YUNETAS_BASE not found.\n"
-      "Set the environment variable YUNETAS_BASE to a valid directory, "
-      "or ensure /yuneta/development[/yunetas] exists.")
+    message(FATAL_ERROR
+        "YUNETAS_BASE not found.\n"
+        "Set the environment variable YUNETAS_BASE to a valid directory, "
+        "or ensure /yuneta/development[/yunetas] exists.")
 endif()
 
 message(DEBUG "Using YUNETAS_BASE: ${YUNETAS_BASE}")
@@ -29,7 +29,7 @@ message(DEBUG "Using YUNETAS_BASE: ${YUNETAS_BASE}")
 # Ensure the expected cmake file exists
 set(_yunetas_project_cmake "${YUNETAS_BASE}/tools/cmake/project.cmake")
 if(NOT EXISTS "${_yunetas_project_cmake}")
-  message(FATAL_ERROR "Missing: ${_yunetas_project_cmake}")
+    message(FATAL_ERROR "Missing: ${_yunetas_project_cmake}")
 endif()
 
 include("${_yunetas_project_cmake}")
@@ -51,11 +51,7 @@ endif()
 #   Source
 ##############################################
 SET (YUNO_SRCS
-    src/main.c
-    src/c_ybatch.c
-)
-SET (YUNO_HDRS
-    src/c_ybatch.h
+    msg2db_list.c
 )
 
 ##############################################
@@ -74,8 +70,6 @@ target_link_libraries(${PROJECT_NAME}
     ${YUNETAS_KERNEL_LIBS}
     ${YUNETAS_EXTERNAL_LIBS}
     ${YUNETAS_PCRE_LIBS}
-    ${OPENSSL_LIBS}
-    ${MBEDTLS_LIBS}
     ${DEBUG_LIBS}
 )
 
@@ -90,20 +84,3 @@ install(
     WORLD_READ WORLD_EXECUTE
     DESTINATION "/yuneta/bin"
 )
-
-# compile in Release mode :
-#
-#     cmake -DCMAKE_BUILD_TYPE=Release ..
-#
-# compile in Release mode optimized but adding debug symbols, useful for profiling :
-#
-#     cmake -DCMAKE_BUILD_TYPE=RelWithDebInfo ..
-#
-# compile with NO optimization and adding debug symbols :
-#
-#     cmake -DCMAKE_BUILD_TYPE=Debug ..
-#
-# compile to build musl binary :
-#
-#     cmake -DCMAKE_BUILD_TYPE=Release -DCMAKE_TOOLCHAIN_FILE=/yuneta/development/yunetas/tools/cmake/musl-toolchain.cmake ..
-#

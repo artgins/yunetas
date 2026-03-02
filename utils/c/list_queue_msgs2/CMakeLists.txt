@@ -67,14 +67,10 @@ if(CONFIG_FULLY_STATIC)
 endif()
 
 target_link_libraries(${PROJECT_NAME}
-    libargp-standalone.a
-    libtimeranger2.a
-    libyunetas-gobj.a
-    libyev_loop.a
-    liburing.a
-    libjansson.a
-    libpcre2-8.a
-    libbacktrace.a
+    ${YUNETAS_KERNEL_LIBS}
+    ${YUNETAS_EXTERNAL_LIBS}
+    ${YUNETAS_PCRE_LIBS}
+    ${DEBUG_LIBS}
 )
 
 ##############################################
