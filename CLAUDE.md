@@ -113,7 +113,8 @@ cd kernel/c/linux-ext-libs
 
 ```
 
-For musl/static builds use `extrae-musl.sh` / `configure-libs-musl.sh`.
+For musl builds (ESP32 cross-compilation toolchain) use `extrae-musl.sh` / `configure-libs-musl.sh`.
+For **fully static glibc** builds (`CONFIG_FULLY_STATIC`) use the standard `configure-libs.sh` — it already includes the necessary `no-dso` and `no-sock` OpenSSL flags.
 
 ### Build configuration
 
@@ -127,8 +128,59 @@ Key knobs:
 - Compiler: `CONFIG_USE_COMPILER_GCC=y` (default), CLANG, or Musl (static)
 - Build type: `CONFIG_BUILD_TYPE_RELWITHDEBINFO=y` (default), Debug, Release, MinSizeRel
 - TLS: `CONFIG_HAVE_OPENSSL=y` (default) or mbed-TLS
+- Static linking: `CONFIG_FULLY_STATIC=y` — fully static glibc binaries (GCC or Clang, **not** musl)
 - Debug extras: `CONFIG_DEBUG_WITH_BACKTRACE`, `CONFIG_DEBUG_TRACK_MEMORY`, `CONFIG_DEBUG_PRINT_YEV_LOOP_TIMES`
 - Optional modules: `CONFIG_MODULE_CONSOLE`, `CONFIG_MODULE_MQTT`, `CONFIG_MODULE_POSTGRES`, `CONFIG_MODULE_TEST`
+
+### Fully Static Binaries (`CONFIG_FULLY_STATIC`)
+
+Yuneta can produce **fully static glibc binaries** using GCC or Clang — no shared libraries, no dynamic linker, runs on any Linux system of the same architecture without installing anything.  This is **not** the musl approach; it uses standard glibc statically linked.
+
+> Works with both TLS backends: `CONFIG_HAVE_OPENSSL` and `CONFIG_HAVE_MBEDTLS`.
+> Exception: `emailsender` utility cannot be static (depends on libcurl).
+
+#### How to build static binaries
+
+```bash
+# 1. Enable in menuconfig
+menuconfig   # set CONFIG_FULLY_STATIC=y (and keep GCC or Clang as compiler)
+
+# 2. Rebuild external libs with the static-friendly OpenSSL flags
+cd kernel/c/linux-ext-libs
+./configure-libs.sh     # already includes no-dso + no-sock for OpenSSL (see below)
+cd ../../..
+
+# 3. Re-initialise (outputs/ is recreated, yuneta_config.h regenerated)
+yunetas init
+
+# 4. Build everything
+yunetas build
+```
+
+#### OpenSSL flags required for clean static builds (`configure-libs.sh`)
+
+Two extra flags are added to OpenSSL's `./config` line:
+
+| Flag | What it removes | Why needed |
+|------|-----------------|------------|
+| `no-dso` | DSO/dlopen engine loader | Eliminates `dlopen`/`dlsym` linker warnings in static binaries |
+| `no-sock` | `bio_addr.c` / `bio_sock.c` (socket BIO layer) | Eliminates `BIO_lookup_ex`→`getaddrinfo` and `BIO_gethostbyname` warnings; safe because Yuneta never uses OpenSSL socket BIOs — all I/O goes through `ytls` + `yev_loop` |
+
+Both flags have been verified working: rebuilt OpenSSL + full Yuneta suite with no errors.
+
+#### What was changed in the Yuneta source to support `CONFIG_FULLY_STATIC`
+
+Static glibc binaries cannot call NSS (Name Service Switch) or the system resolver at runtime.  The following changes were made, all guarded by `#ifdef CONFIG_FULLY_STATIC`:
+
+| File | Change |
+|------|--------|
+| `kernel/c/gobj-c/src/helpers.h/.c` | Added `static_getpwuid()`, `static_getpwnam()`, `static_getgrnam()`, `static_getgrouplist()` — read `/etc/passwd` and `/etc/group` directly, bypassing NSS |
+| `kernel/c/gobj-c/src/gobj.c` | `getpwuid()` → `static_getpwuid()` |
+| `kernel/c/root-linux/src/c_yuno.c` | `getpwuid()` → `static_getpwuid()` |
+| `kernel/c/root-linux/src/entry_point.c` | `getpwuid()` → `static_getpwuid()` |
+| `kernel/c/yev_loop/src/yev_loop.c` | Added `yuneta_getaddrinfo()` / `yuneta_freeaddrinfo()`: a full UDP DNS resolver (reads `/etc/resolv.conf` + `/etc/hosts`, handles numeric addresses) — `#define` macros redirect all `getaddrinfo`/`freeaddrinfo` call sites |
+| `kernel/c/root-linux/src/c_cli.c` | `getpwuid()->pw_dir` → `static_getpwuid()` + NULL guard |
+| `utils/c/ycommand/src/main.c` | `getpwuid()->pw_dir` → `static_getpwuid()` + NULL guard |
 
 ## Architecture
 
