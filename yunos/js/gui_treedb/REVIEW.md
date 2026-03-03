@@ -233,3 +233,57 @@ The codebase is **architecturally sound** and follows the Yuneta framework conve
 4. **Dead `DOMContentLoaded` listener** registered inside `load` — theme init code never runs
 
 The stub commands and incomplete `remove_tab` are technical debt to track. The operator precedence issue in `build_menu_r` works by accident but should be clarified for readability.
+
+---
+
+## Fixes Applied
+
+**Date:** 2026-03-03
+**Branch:** `claude/review-gui-treedb-webapp-tuDfl`
+**Commit:** `105ac5d`
+
+All bugs and issues listed above were fixed. Details per file:
+
+### `src/c_login.js`
+
+| Fix | What changed |
+|---|---|
+| `ac_timeout` | Removed the always-true `if(now >= priv.timeout_refresh)` guard. The timer already fires at exactly the right moment via `set_timeout(..., priv.timeout_refresh*1000)`; the body now simply calls `do_refresh(gobj)` |
+| `encodeURIComponent` | Applied `encodeURIComponent(v)` to all three form POST helpers: `do_login()`, `do_logout()`, `do_refresh()`. Passwords or tokens containing `&`, `=`, `+`, or `%` no longer corrupt the request body |
+| `offline_access \|\| true` | Removed the dead `if(offline_access \|\| true)` block and the now-unused `offline_access` local variable. Removed the unused `kw_get_bool` import |
+| `ac_login_refreshed` | Added missing `return 0`. Removed stale commented-out `console.dir` / `log_warning` debug lines |
+
+### `src/main.js`
+
+| Fix | What changed |
+|---|---|
+| Modal `removeChild` | Moved `$element.parentNode.removeChild($element)` inside the `if(!$element.contains(event.target))` guard for both `.modal` and `.popup` loops. Clicking inside a modal no longer destroys it |
+| Dead `DOMContentLoaded` | Removed the `document.addEventListener('DOMContentLoaded', ...)` block registered inside the `load` handler — it could never fire. Theme initialisation is correctly handled by `C_YUI_MAIN` |
+| Dead commented code | Removed commented-out `gobj_pause` / `gobj_stop` / `gobj_destroy` lines and the two commented-out `yuneta-icon-font` imports |
+
+### `src/c_yuneta_gui.js`
+
+| Fix | What changed |
+|---|---|
+| Unused `gobj_graph_*` captures | Removed `let gobj_graph_mqtt_broker =` and `let gobj_graph_authzsdb =`; the return value of `gobj_create_service` is no longer captured since the graph is already cleaned up as a child of `gobj_tabs` |
+| Dead `historical_tracks` block | Removed the large (23-line) commented-out block for `historical_tracks` |
+
+### `src/ui/c_yui_routing.js`
+
+| Fix | What changed |
+|---|---|
+| Operator precedence | Added inner parentheses in both `html` and `container` checks in `build_menu_r`: `if(html && ((html instanceof HTMLElement) \|\| is_string(html) \|\| is_array(html)))` — intent is now explicit |
+| Stub commands | `cmd_manage_menu` and `cmd_manage_content` now return a proper `{ result: -1, comment: "Command not implemented: ..." }` response instead of silently returning `null` |
+| Wrong docstring | Fixed copy-paste comment: `mt_command_parser` was labelled `"Framework Method: Destroy"`, now correctly reads `"Framework Method: Command Parser"` |
+
+### `src/ui/c_yui_treedb_topics.js`
+
+| Fix | What changed |
+|---|---|
+| `remove_tab` DOM leak | Added removal of the child's `$container` div from the sub-container after the `<li>` is removed, preventing orphaned DOM nodes |
+
+### `index.html`
+
+| Fix | What changed |
+|---|---|
+| Incomplete CSP | Added `default-src 'self'`, `script-src 'self'`, `style-src 'self' 'unsafe-inline'`, `connect-src 'self' wss: https:`, and `font-src 'self' data:` directives. The `connect-src wss:` entry now actually restricts WebSocket origins |

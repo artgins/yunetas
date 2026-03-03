@@ -6,9 +6,14 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <meta name="robots" content="noindex, nofollow">
   <meta http-equiv="Content-Security-Policy"
-        content="worker-src 'self' blob:;
+        content="default-src 'self';
+          script-src 'self';
+          style-src 'self' 'unsafe-inline';
+          connect-src 'self' wss: https:;
+          worker-src 'self' blob:;
           child-src 'self' blob:;
-          img-src 'self' data: blob:;">
+          img-src 'self' data: blob:;
+          font-src 'self' data:;">
 
   <link rel="manifest" href="/site.webmanifest">
   <link rel="apple-touch-icon" href="/icon.png">
