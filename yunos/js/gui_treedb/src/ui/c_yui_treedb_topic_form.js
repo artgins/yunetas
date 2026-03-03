@@ -439,6 +439,7 @@ function table__build(gobj)
         }
 
         let hozAlign;
+        let sorter = "string";
         let cellClick;
         const field_desc = treedb_get_field_desc(col);
         if(field_desc.is_hidden) {
@@ -471,17 +472,19 @@ function table__build(gobj)
                 break;
             case "boolean":
                 hozAlign = "center";
+                sorter = "boolean";
                 break;
             case "integer":
             case "real":
                 hozAlign = "right";
+                sorter = "number";
                 break;
         }
 
         let colDef = {
             title: col.header || col.id,
             field: col.id,
-            sorter: "auto",
+            sorter: sorter,
             hozAlign: hozAlign,
             formatter: formatter,
         };
@@ -547,9 +550,20 @@ function table__build(gobj)
         rowDeselected: function(row) {
             gobj_send_event(gobj, "EV_UNSELECT_ROWS", {rows: [row.getData()]}, gobj);
         },
+        tableBuilt: function() {
+            let $$t = gobj_read_attr(gobj, "$$table");
+            if($$t) {
+                $$t._ready = true;
+                if($$t._pendingData !== undefined) {
+                    $$t.setData($$t._pendingData);
+                    delete $$t._pendingData;
+                }
+            }
+        },
     };
 
     let $$table = new Tabulator(`#${table_id}`, tabulator_config);
+    $$table._ready = false;
     gobj_write_attr(gobj, "$$table", $$table);
 
     refresh_language(gobj_read_attr(gobj, "$container"), t);
@@ -2110,8 +2124,13 @@ function ac_load_nodes(gobj, event, kw, src)
     if($$table) {
         /*
          *  setData: Load data into the table. The old rows will be removed.
+         *  Guard: defer until tableBuilt fires if Tabulator isn't ready yet.
          */
-        $$table.setData(data);
+        if($$table._ready) {
+            $$table.setData(data);
+        } else {
+            $$table._pendingData = data;
+        }
     }
 
     /*
