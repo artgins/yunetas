@@ -364,29 +364,26 @@ function build_ui(gobj)
     if(with_search_button) {
         let search_id = `${toolbar_id}_search`;
         let $search_box = createElement2(
-            ['div', {class: 'field has-addons mb-0 mr-1'}, [
-                ['div', {class: 'control'}, [
-                    ['input', {
-                        id: search_id,
-                        class: 'input is-small',
-                        type: 'text',
-                        placeholder: 'search...',
-                        style: 'max-width:180px;'
-                    }]
+            ['div', {class: 'control has-icons-left has-icons-right mr-1'}, [
+                ['input', {
+                    id: search_id,
+                    class: 'input',
+                    type: 'text',
+                    placeholder: 'search...',
+                    style: 'max-width:200px;'
+                }],
+                ['span', {class: 'icon is-left'}, [
+                    ['i', {class: 'fa-solid fa-magnifying-glass'}]
                 ]],
-                ['div', {class: 'control'}, [
-                    ['button', {class: 'button is-small', title: 'clear search'}, [
-                        ['i', {class: 'fa-solid fa-xmark'}]
-                    ], {
-                        'click': (event) => {
-                            event.stopPropagation();
-                            let $input = document.getElementById(search_id);
-                            if($input) $input.value = '';
-                            let $$table = gobj_read_attr(gobj, "$$table");
-                            if($$table) $$table.clearFilter();
-                        }
-                    }]
-                ]]
+                ['span', {class: 'icon is-right', style: 'cursor:pointer; pointer-events:all;', title: 'clear search'}, [
+                    ['i', {class: 'fa-solid fa-xmark'}]
+                ], {
+                    'click': (event) => {
+                        event.stopPropagation();
+                        let $input = document.getElementById(search_id);
+                        if($input) { $input.value = ''; $input.dispatchEvent(new Event('input')); }
+                    }
+                }]
             ]]
         );
         let $search_input = $search_box.querySelector(`#${search_id}`);
