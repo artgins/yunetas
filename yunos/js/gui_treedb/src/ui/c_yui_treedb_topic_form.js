@@ -336,7 +336,7 @@ function build_ui(gobj)
     let $bootstrap_toolbar = create_bootstrap_toolbar();
 
     /*----------------------------------------------*
-     *  View toolbar: Refresh, Search, Toggle view
+     *  View toolbar: Search, Refresh
      *  Always visible, independent of edition mode
      *----------------------------------------------*/
     let toolbar_id = gobj_read_str_attr(gobj, "toolbar_id");
@@ -345,21 +345,6 @@ function build_ui(gobj)
 
     let with_refresh_button     = gobj_read_bool_attr(gobj, "with_refresh_button");
     let with_search_button      = gobj_read_bool_attr(gobj, "with_search_button");
-
-    if(with_refresh_button) {
-        let $refresh = createElement2(
-            ['button', {class: 'button mr-1', title: 'refresh'}, [
-                ['i', {class: 'fa-solid fa-arrows-rotate'}],
-                ['span', {class: 'is-hidden-mobile', i18n: 'refresh', style: 'padding-left:5px;'}, 'refresh']
-            ], {
-                'click': (event) => {
-                    event.stopPropagation();
-                    gobj_send_event(gobj, "EV_REFRESH", {}, gobj);
-                }
-            }]
-        );
-        $view_toolbar.appendChild($refresh);
-    }
 
     if(with_search_button) {
         let search_id = `${toolbar_id}_search`;
@@ -406,6 +391,21 @@ function build_ui(gobj)
             });
         }
         $view_toolbar.appendChild($search_box);
+    }
+
+    if(with_refresh_button) {
+        let $refresh = createElement2(
+            ['button', {class: 'button mr-1', title: 'refresh'}, [
+                ['i', {class: 'fa-solid fa-arrows-rotate'}],
+                ['span', {class: 'is-hidden-mobile', i18n: 'refresh', style: 'padding-left:5px;'}, 'refresh']
+            ], {
+                'click': (event) => {
+                    event.stopPropagation();
+                    gobj_send_event(gobj, "EV_REFRESH", {}, gobj);
+                }
+            }]
+        );
+        $view_toolbar.appendChild($refresh);
     }
 
     /*----------------------------------------------*
