@@ -4314,12 +4314,12 @@ function gobj_command(gobj, command, kw, src)
      *-----------------------------------------------*/
     let tracea = __yuno__ && gobj_read_integer_attr(__yuno__, "tracing");
     if(tracea) {
-        trace_machine("🌀🌀 mach(%s%s), cmd: %s, src: %s",
+        trace_machine(sprintf("🌀🌀 mach(%s%s), cmd: %s, src: %s",
             (!gobj_is_running(gobj))?"!!":"",
             gobj_short_name(gobj),
             command,
             gobj_short_name(src)
-        );
+        ));
         if(tracea > 1) {
             trace_json(kw);
         }
