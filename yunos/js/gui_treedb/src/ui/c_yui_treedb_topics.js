@@ -306,7 +306,10 @@ function remove_tab(gobj, gobj2, id)
             }
         }
     }
-    // TODO remove sub-container
+    let $child_content = gobj_read_attr(gobj2, "$container");
+    if($child_content && $child_content.parentNode) {
+        $child_content.parentNode.removeChild($child_content);
+    }
 }
 
 /************************************************************

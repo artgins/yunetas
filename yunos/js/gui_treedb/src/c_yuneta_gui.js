@@ -316,30 +316,6 @@ function build_app(gobj, services_roles)
 
     let menu = [];
 
-    // /*-----------------------------------*
-    //  *  Historical tracks
-    //  *-----------------------------------*/
-    // let gobj_historical_tracks = gobj_create_service(
-    //     "#historical_tracks", // HACK href
-    //     Ui_historical_tracks,
-    //     {
-    //         subscriber: gobj,
-    //         treedb_name: "treedb_airedb",
-    //         gobj_remote_yuno: __yuno__.__remote_service__,
-    //     },
-    //     gobj
-    // );
-    // priv.user_gobjs.push(gobj_historical_tracks);
-    // // gobj_start(gobj_historical);
-    // menu.push(
-    //     {
-    //         id: gobj_name(gobj_historical_tracks),
-    //         label: "historical_tracks",
-    //         icon: "fa-solid fa-chart-line",
-    //         gobj: gobj_historical_tracks     // use "$container" attribute
-    //     }
-    // );
-
     /*-----------------------------------*
      *      Settings
      *-----------------------------------*/
@@ -410,7 +386,7 @@ function build_app(gobj, services_roles)
             }
         );
 
-        let gobj_graph_mqtt_broker = gobj_create_service(
+        gobj_create_service(
             "mqtt_treedb_view",
             "C_YUI_TREEDB_GRAPH",
             {
@@ -473,7 +449,7 @@ function build_app(gobj, services_roles)
             }
         );
 
-        let gobj_graph_authzsdb = gobj_create_service(
+        gobj_create_service(
             "authzdb_treedb_view",
             "C_YUI_TREEDB_GRAPH",
             {
@@ -650,7 +626,7 @@ function ac_on_open(gobj, event, kw, src)
     /*----------------------------------------*
      *      Build the menu's, based in roles
      *----------------------------------------*/
-    let home = "#monitoring"; // TODO Get user's home from their config preferences
+    let home = "#monitoring"; // TODO: derive from user config preferences
     gobj_write_attr(gobj, "home", home);
 
     let menu = build_app(gobj, services_roles);

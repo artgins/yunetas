@@ -21,7 +21,6 @@ import {
     gobj_read_attr,
     gobj_write_attr,
     kw_get_str,
-    kw_get_bool,
     json_object_size,
     log_info,
     get_now,
@@ -176,7 +175,6 @@ function do_login(gobj, kw)
 {
     let username = kw_get_str(gobj, kw, "username", "", kw_flag_t.KW_REQUIRED);
     let password = kw_get_str(gobj, kw, "password", "", kw_flag_t.KW_REQUIRED);
-    let offline_access = kw_get_bool(gobj, kw, "offline_access", false, 0);
 
     if(empty_string(username)) {
         log_error(sprintf("%s: No username", gobj_short_name(gobj)));
@@ -244,16 +242,11 @@ function do_login(gobj, kw)
         "grant_type": "password",
         "client_id": service
     };
-    if(offline_access || true) {
-        // No uso offline de momento, sigue rechazando el jwt despues del refresh time
-        //form_data["scope"] = "openid offline_access";
-    }
-
     /*
      *  Convert json to www-form-urlencoded
      */
     for(let k of Object.keys(form_data)) {
-        let v = form_data[k];
+        let v = encodeURIComponent(form_data[k]);
         if(empty_string(data)) {
             data += sprintf("%s=%s", k, v);
         } else {
@@ -330,7 +323,7 @@ function do_logout(gobj)
      *  Convert json to www-form-urlencoded
      */
     for (let k of Object.keys(form_data)) {
-        let v = form_data[k];
+        let v = encodeURIComponent(form_data[k]);
         if(empty_string(data)) {
             data += sprintf("%s=%s", k, v);
         } else {
@@ -402,7 +395,7 @@ function do_refresh(gobj)
      *  Convert json to www-form-urlencoded
      */
     for (let k of Object.keys(form_data)) {
-        let v = form_data[k];
+        let v = encodeURIComponent(form_data[k]);
         if(empty_string(data)) {
             data += sprintf("%s=%s", k, v);
         } else {
@@ -601,24 +594,17 @@ function ac_login_refreshed(gobj, event, kw, src)
     priv.tokenParsed = jwt2json(gobj_read_attr(gobj, "access_token"));
     priv.refreshParsed = jwt2json(gobj_read_attr(gobj, "refresh_token"));
 
-// console.dir("kw", kw); // TODO TEST
-// console.dir("_tokenParsed", priv.tokenParsed); // TODO TEST
-// console.dir("_refreshParsed", priv.refreshParsed); // TODO TEST
-// log_warning(JSON.stringify(priv.tokenParsed));
-// log_warning(JSON.stringify(priv.refreshParsed));
-
     priv.timeout_refresh = priv.refreshParsed.exp - get_now() - 5;
     if(priv.timeout_refresh <= 0) {
         priv.timeout_refresh = 2; // Validity will be checked in refresh time
     }
     set_timeout(priv.gobj_timer, priv.timeout_refresh*1000);
 
-    // log_warning("====> timeout refresh (seconds):" + priv.timeout_refresh); // TODO TEST
-
     gobj_publish_event(gobj, "EV_LOGIN_REFRESHED", {
         username: gobj_read_attr(gobj, "username"),
         jwt: gobj_read_attr(gobj, "access_token")
     });
+    return 0;
 }
 
 /********************************************
@@ -666,18 +652,7 @@ function ac_clear_session(gobj, event, kw, src)
  ********************************************/
 function ac_timeout(gobj, event, kw, src)
 {
-    let priv = gobj.priv;
-
-    // log_warning("<==== timeout refresh"); // TODO TEST
-
-    if(priv.timeout_refresh > 0) {
-        let now = get_now();
-        if(now >= priv.timeout_refresh) {
-            // Refresh time has elapsed
-            do_refresh(gobj);
-        }
-    }
-
+    do_refresh(gobj);
     return 0;
 }
 

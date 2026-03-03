@@ -204,7 +204,7 @@ function mt_destroy(gobj)
 }
 
 /***************************************************************
- *          Framework Method: Destroy
+ *          Framework Method: Command Parser
  ***************************************************************/
 function mt_command_parser(gobj, command, kw, src)
 {
@@ -263,17 +263,12 @@ function cmd_help(gobj, cmd, kw, src)
  ************************************************************/
 function cmd_manage_menu(gobj, command, kw, src)
 {
-    switch(command) {
-    case "append-menu":
-        break;
-    case "insert-menu":
-        break;
-    case "remove-menu":
-        break;
-    default:
-        break;
-    }
-    return null;
+    return {
+        "result": -1,
+        "comment": sprintf("Command not implemented: %s", command),
+        "schema": null,
+        "data": null
+    };
 }
 
 /************************************************************
@@ -281,17 +276,12 @@ function cmd_manage_menu(gobj, command, kw, src)
  ************************************************************/
 function cmd_manage_content(gobj, command, kw, src)
 {
-    switch(command) {
-    case "append-content":
-        break;
-    case "insert-content":
-        break;
-    case "remove-content":
-        break;
-    default:
-        break;
-    }
-    return null;
+    return {
+        "result": -1,
+        "comment": sprintf("Command not implemented: %s", command),
+        "schema": null,
+        "data": null
+    };
 }
 
 
@@ -420,7 +410,7 @@ function build_menu_r(gobj, menu, $menu_list_parent, $content_container_parent)
          *              Aside menu
          *--------------------------------------------*/
         let html = item.html;
-        if(html && (html instanceof HTMLElement) || is_string(html) || is_array(html)) {
+        if(html && ((html instanceof HTMLElement) || is_string(html) || is_array(html))) {
             /*-----------------------*
              *  External built
              *-----------------------*/
@@ -500,7 +490,7 @@ function build_menu_r(gobj, menu, $menu_list_parent, $content_container_parent)
         if(!container) {
             container = item.container;
         }
-        if(container && (container instanceof HTMLElement) || is_string(container)) {
+        if(container && ((container instanceof HTMLElement) || is_string(container))) {
             /*-----------------------*
              *  External built
              *-----------------------*/

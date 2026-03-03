@@ -61,9 +61,6 @@ import "bootstrap-table/dist/themes/bulma/bootstrap-table-bulma.min.css";
 
 import "bulma-switch-control/css/main.css";
 
-// import "yuneta-icon-font/dist/yuneta-icon-font.js"; // TODO parece que no se usa
-// import "yuneta-icon-font/dist/yuneta-icon-font.css";
-
 import "./ui/c_yui_main.css";
 import "./ui/c_yui_map.css";
 import "./ui/c_yui_routing.css";
@@ -216,11 +213,6 @@ function main()
      *-------------------------------------*/
     gobj_start(yuno);
     gobj_play(yuno);    // this will start default service
-    // gobj_pause(yuno);
-    // gobj_stop(yuno);
-    //
-    // gobj_destroy(gobj_default_service);
-    // gobj_destroy(yuno);
 }
 
 /***************************************************************
@@ -245,12 +237,6 @@ window.addEventListener('load', function() {
         gobj_write_bool_attr(gobj_yuno(), "browser_beforeunload", true);
         let r = gobj_read_attr(gobj_yuno(), "changesLost");
         return r ? r : null;
-    });
-
-    document.addEventListener('DOMContentLoaded', () => {
-        // Initialize bulma theme on load
-        const savedTheme = localStorage.getItem('theme') || 'light';
-        document.documentElement.setAttribute("data-theme", savedTheme);
     });
 
     /*
@@ -321,8 +307,8 @@ window.addEventListener('load', function() {
                     if($element.classList.contains('is-active')) {
                         $element.classList.remove('is-active');
                     }
+                    $element.parentNode.removeChild($element);
                 }
-                $element.parentNode.removeChild($element);
             });
 
             (document.querySelectorAll('.popup') || []).forEach(($element) => {
@@ -330,8 +316,8 @@ window.addEventListener('load', function() {
                     if($element.classList.contains('is-active')) {
                         $element.classList.remove('is-active');
                     }
+                    $element.parentNode.removeChild($element);
                 }
-                $element.parentNode.removeChild($element);
             });
         });
     }
