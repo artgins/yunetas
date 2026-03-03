@@ -42,10 +42,11 @@ const json_type = Object.freeze({
  *  Log functions
  ********************************************/
 /* jshint node: true */
-let f_error = window.console.error;
-let f_warning = window.console.warn;
-let f_info = window.console.info;
-let f_debug = window.console.debug;
+const _console = typeof window !== "undefined" ? window.console : console;
+let f_error = _console.error;
+let f_warning = _console.warn;
+let f_info = _console.info;
+let f_debug = _console.debug;
 
 function set_remote_log_functions(remote_log_fn)
 {
@@ -53,8 +54,8 @@ function set_remote_log_functions(remote_log_fn)
         f_error = remote_log_fn;
         f_warning = remote_log_fn;
     } else {
-        f_error = window.console.error;
-        f_warning = window.console.warn;
+        f_error = _console.error;
+        f_warning = _console.warn;
     }
 }
 
@@ -132,8 +133,8 @@ function log_info(format)
     let msg = format_log(format);
     let hora = current_timestamp();
 
-    if(f_warning) {
-        f_warning("%c" + hora + " INFO: " + String(msg), "color:cyan");
+    if(f_info) {
+        f_info("%c" + hora + " INFO: " + String(msg), "color:cyan");
     }
 }
 
@@ -190,9 +191,28 @@ function duplicate_objects(...sourceObjects)
  ************************************************************/
 function json_is_identical(kw1, kw2)
 {
-    let kw1_ = JSON.stringify(kw1);
-    let kw2_ = JSON.stringify(kw2);
-    return (kw1_ === kw2_);
+    if(kw1 === kw2) return true;
+    if(kw1 === null || kw2 === null) return kw1 === kw2;
+    if(typeof kw1 !== typeof kw2) return false;
+    if(Array.isArray(kw1) !== Array.isArray(kw2)) return false;
+    if(Array.isArray(kw1)) {
+        if(kw1.length !== kw2.length) return false;
+        for(let i = 0; i < kw1.length; i++) {
+            if(!json_is_identical(kw1[i], kw2[i])) return false;
+        }
+        return true;
+    }
+    if(typeof kw1 === "object") {
+        let keys1 = Object.keys(kw1).sort();
+        let keys2 = Object.keys(kw2).sort();
+        if(keys1.length !== keys2.length) return false;
+        for(let i = 0; i < keys1.length; i++) {
+            if(keys1[i] !== keys2[i]) return false;
+            if(!json_is_identical(kw1[keys1[i]], kw2[keys2[i]])) return false;
+        }
+        return true;
+    }
+    return kw1 === kw2;
 }
 
 /************************************************************
@@ -205,9 +225,7 @@ function json_object_update(destination, source) // old __extend_dict__
         return destination;
     }
     for (let property of Object.keys(source)) {
-        if (source.hasOwnProperty(property)) {
-            destination[property] = source[property];
-        }
+        destination[property] = source[property];
     }
     return destination;
 }

@@ -453,7 +453,7 @@ function mt_subscription_deleted(gobj, subs)
     }
     if(empty_string(subs.event)) {
         // HACK only resend explicit subscriptions
-        return;
+        return 0;
     }
 
     let kw = {};
@@ -722,8 +722,8 @@ function send_identity_card(gobj)
         "launch_id": 0,
         "yuno_startdate": gobj_read_str_attr(gobj_yuno(), "start_date"),
         "id": node_uuid(),
-        "user_agent": window?window.navigator.userAgent:"",
-        "language": window?window.navigator.language:"",
+        "user_agent": typeof window !== "undefined" ? window.navigator.userAgent : "",
+        "language": typeof window !== "undefined" ? window.navigator.language : "",
         "required_services": gobj_read_attr(gobj_yuno(), "required_services")
     };
 
@@ -1187,7 +1187,7 @@ function ac_mt_stats(gobj, event, kw, src)
      *      __RESPONSE__ __MESSAGE__
      */
     // TODO
-    return null;
+    return 0;
 }
 
 /***************************************************************************
@@ -1199,7 +1199,7 @@ function ac_mt_command(gobj, event, kw, src)
      *      __RESPONSE__ __MESSAGE__
      */
     // TODO
-    return null;
+    return 0;
 }
 
 /***************************************************************************
