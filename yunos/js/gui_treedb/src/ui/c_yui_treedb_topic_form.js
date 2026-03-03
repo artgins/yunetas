@@ -94,7 +94,6 @@ SDATA(data_type_t.DTP_BOOLEAN,  "with_copy_button",     0,  true,   "Button tool
 SDATA(data_type_t.DTP_BOOLEAN,  "with_paste_button",         0,  true,   "Button toolbar PASTE"),
 SDATA(data_type_t.DTP_BOOLEAN,  "with_refresh_button",       0,  true,   "Button toolbar REFRESH"),
 SDATA(data_type_t.DTP_BOOLEAN,  "with_search_button",        0,  true,   "Button toolbar SEARCH"),
-SDATA(data_type_t.DTP_BOOLEAN,  "with_toggle_view_button",   0,  true,   "Button toolbar TOGGLE VIEW"),
 SDATA(data_type_t.DTP_BOOLEAN,  "with_in_row_edit_icons",    0,  true,   "Add a last column with internal EDIT/DELETE icon"),
 
 SDATA(data_type_t.DTP_BOOLEAN,  "editable",             0,  false,  "Edit state"),
@@ -346,7 +345,6 @@ function build_ui(gobj)
 
     let with_refresh_button     = gobj_read_bool_attr(gobj, "with_refresh_button");
     let with_search_button      = gobj_read_bool_attr(gobj, "with_search_button");
-    let with_toggle_view_button = gobj_read_bool_attr(gobj, "with_toggle_view_button");
 
     if(with_refresh_button) {
         let $refresh = createElement2(
@@ -411,40 +409,6 @@ function build_ui(gobj)
             });
         }
         $view_toolbar.appendChild($search_box);
-    }
-
-    if(with_toggle_view_button) {
-        let toggle_id = `${toolbar_id}_toggle`;
-        let $toggle = createElement2(
-            ['button', {id: toggle_id, class: 'button mr-1', title: 'toggle view'}, [
-                ['i', {class: 'fa-solid fa-expand'}],
-                ['span', {class: 'is-hidden-mobile', i18n: 'toggle_view', style: 'padding-left:5px;'}, 'toggle view']
-            ], {
-                'click': (event) => {
-                    event.stopPropagation();
-                    let $$table = gobj_read_attr(gobj, "$$table");
-                    if(!$$table) return;
-                    let $btn = document.getElementById(toggle_id);
-                    $$table._expanded = !$$table._expanded;
-                    if($$table._expanded) {
-                        $$table.setPageSize($$table.getDataCount("active") || 10000);
-                        if($btn) {
-                            $btn.classList.add('is-info');
-                            let $icon = $btn.querySelector('i');
-                            if($icon) $icon.className = 'fa-solid fa-compress';
-                        }
-                    } else {
-                        $$table.setPageSize(12);
-                        if($btn) {
-                            $btn.classList.remove('is-info');
-                            let $icon = $btn.querySelector('i');
-                            if($icon) $icon.className = 'fa-solid fa-expand';
-                        }
-                    }
-                }
-            }]
-        );
-        $view_toolbar.appendChild($toggle);
     }
 
     /*----------------------------------------------*
