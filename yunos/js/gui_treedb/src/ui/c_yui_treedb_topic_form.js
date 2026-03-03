@@ -91,8 +91,11 @@ SDATA(data_type_t.DTP_BOOLEAN,  "with_edition_mode",    0,  true,   "Enable EDIT
 SDATA(data_type_t.DTP_BOOLEAN,  "with_new_button",      0,  true,   "Button toolbar NEW"),
 SDATA(data_type_t.DTP_BOOLEAN,  "with_delete_button",   0,  true,   "Button toolbar DELETE"),
 SDATA(data_type_t.DTP_BOOLEAN,  "with_copy_button",     0,  true,   "Button toolbar COPY"),
-SDATA(data_type_t.DTP_BOOLEAN,  "with_paste_button",    0,  true,   "Button toolbar PASTE"),
-SDATA(data_type_t.DTP_BOOLEAN,  "with_in_row_edit_icons",0,  true,   "Add a last column with internal EDIT/DELETE icon"),
+SDATA(data_type_t.DTP_BOOLEAN,  "with_paste_button",         0,  true,   "Button toolbar PASTE"),
+SDATA(data_type_t.DTP_BOOLEAN,  "with_refresh_button",       0,  true,   "Button toolbar REFRESH"),
+SDATA(data_type_t.DTP_BOOLEAN,  "with_search_button",        0,  true,   "Button toolbar SEARCH"),
+SDATA(data_type_t.DTP_BOOLEAN,  "with_toggle_view_button",   0,  true,   "Button toolbar TOGGLE VIEW"),
+SDATA(data_type_t.DTP_BOOLEAN,  "with_in_row_edit_icons",    0,  true,   "Add a last column with internal EDIT/DELETE icon"),
 
 SDATA(data_type_t.DTP_BOOLEAN,  "editable",             0,  false,  "Edit state"),
 
@@ -334,12 +337,123 @@ function build_ui(gobj)
     let $bootstrap_toolbar = create_bootstrap_toolbar();
 
     /*----------------------------------------------*
+     *  View toolbar: Refresh, Search, Toggle view
+     *  Always visible, independent of edition mode
+     *----------------------------------------------*/
+    let toolbar_id = gobj_read_str_attr(gobj, "toolbar_id");
+
+    let $view_toolbar = createElement2(['div', {class: 'buttons is-gapless mb-0'}]);
+
+    let with_refresh_button     = gobj_read_bool_attr(gobj, "with_refresh_button");
+    let with_search_button      = gobj_read_bool_attr(gobj, "with_search_button");
+    let with_toggle_view_button = gobj_read_bool_attr(gobj, "with_toggle_view_button");
+
+    if(with_refresh_button) {
+        let $refresh = createElement2(
+            ['button', {class: 'button mr-1', title: 'refresh'}, [
+                ['i', {class: 'fa-solid fa-arrows-rotate'}],
+                ['span', {class: 'is-hidden-mobile', i18n: 'refresh', style: 'padding-left:5px;'}, 'refresh']
+            ], {
+                'click': (event) => {
+                    event.stopPropagation();
+                    gobj_send_event(gobj, "EV_REFRESH", {}, gobj);
+                }
+            }]
+        );
+        $view_toolbar.appendChild($refresh);
+    }
+
+    if(with_search_button) {
+        let search_id = `${toolbar_id}_search`;
+        let $search_box = createElement2(
+            ['div', {class: 'field has-addons mb-0 mr-1'}, [
+                ['div', {class: 'control'}, [
+                    ['input', {
+                        id: search_id,
+                        class: 'input is-small',
+                        type: 'text',
+                        placeholder: 'search...',
+                        style: 'max-width:180px;'
+                    }]
+                ]],
+                ['div', {class: 'control'}, [
+                    ['button', {class: 'button is-small', title: 'clear search'}, [
+                        ['i', {class: 'fa-solid fa-xmark'}]
+                    ], {
+                        'click': (event) => {
+                            event.stopPropagation();
+                            let $input = document.getElementById(search_id);
+                            if($input) $input.value = '';
+                            let $$table = gobj_read_attr(gobj, "$$table");
+                            if($$table) $$table.clearFilter();
+                        }
+                    }]
+                ]]
+            ]]
+        );
+        let $search_input = $search_box.querySelector(`#${search_id}`);
+        if($search_input) {
+            $search_input.addEventListener('input', (event) => {
+                let searchText = event.target.value.trim().toLowerCase();
+                let $$table = gobj_read_attr(gobj, "$$table");
+                if(!$$table) return;
+                if(searchText) {
+                    $$table.setFilter(function(data) {
+                        return Object.entries(data).some(([key, val]) => {
+                            if(key.startsWith('_')) return false;
+                            if(val === null || val === undefined) return false;
+                            return String(val).toLowerCase().includes(searchText);
+                        });
+                    });
+                } else {
+                    $$table.clearFilter();
+                }
+            });
+        }
+        $view_toolbar.appendChild($search_box);
+    }
+
+    if(with_toggle_view_button) {
+        let toggle_id = `${toolbar_id}_toggle`;
+        let $toggle = createElement2(
+            ['button', {id: toggle_id, class: 'button mr-1', title: 'toggle view'}, [
+                ['i', {class: 'fa-solid fa-expand'}],
+                ['span', {class: 'is-hidden-mobile', i18n: 'toggle_view', style: 'padding-left:5px;'}, 'toggle view']
+            ], {
+                'click': (event) => {
+                    event.stopPropagation();
+                    let $$table = gobj_read_attr(gobj, "$$table");
+                    if(!$$table) return;
+                    let $btn = document.getElementById(toggle_id);
+                    $$table._expanded = !$$table._expanded;
+                    if($$table._expanded) {
+                        $$table.setPageSize($$table.getDataCount("active") || 10000);
+                        if($btn) {
+                            $btn.classList.add('is-info');
+                            let $icon = $btn.querySelector('i');
+                            if($icon) $icon.className = 'fa-solid fa-compress';
+                        }
+                    } else {
+                        $$table.setPageSize(12);
+                        if($btn) {
+                            $btn.classList.remove('is-info');
+                            let $icon = $btn.querySelector('i');
+                            if($icon) $icon.className = 'fa-solid fa-expand';
+                        }
+                    }
+                }
+            }]
+        );
+        $view_toolbar.appendChild($toggle);
+    }
+
+    /*----------------------------------------------*
      *  Layout Schema
      *----------------------------------------------*/
     let table_id = gobj_read_str_attr(gobj, "table_id");
     let $container = createElement2(
         ['div', {class: 'container-treedb-topic-form', style: 'height:100%;'}, [
-            $bootstrap_toolbar,
+            ['div', {class: 'tabulator-custom-toolbar', style: 'display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; margin-bottom:4px;'}],
             ['div',
                 {
                     id: `${table_id}`,
@@ -348,6 +462,14 @@ function build_ui(gobj)
             ]
         ]]
     );
+    let $toolbar_slot = $container.querySelector('.tabulator-custom-toolbar');
+    if($bootstrap_toolbar instanceof Element) {
+        $toolbar_slot.appendChild($bootstrap_toolbar);
+    } else {
+        $toolbar_slot.appendChild(createElement2(['div', {}]));
+    }
+    $toolbar_slot.appendChild($view_toolbar);
+
     gobj_write_attr(gobj, "$container", $container);
     refresh_language($container, t);
 }
@@ -554,6 +676,7 @@ function table__build(gobj)
 
     let $$table = new Tabulator(`#${table_id}`, tabulator_config);
     $$table._ready = false;
+    $$table._expanded = false;
     $$table.on("tableBuilt", function() {
         $$table._ready = true;
         if($$table._pendingData !== undefined) {
