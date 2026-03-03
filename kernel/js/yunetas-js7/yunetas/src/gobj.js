@@ -59,7 +59,6 @@ let YUNETA_VERSION = "7.0.0a";
 /**************************************************************************
  *        Private data
  **************************************************************************/
-let __inside_event_loop__ = 0;
 let __jn_global_settings__ =  null;
 let __global_load_persistent_attrs_fn__ = null;
 let __global_save_persistent_attrs_fn__ = null;
@@ -73,7 +72,7 @@ let __global_stats_parser_fn__ = null;
  */
 let dl_global_event_types = [];
 
-let _gclass_register = {};
+let _gclass_register = Object.create(null);
 let __jn_services__ = {};
 
 let __yuno__ = null;
@@ -345,11 +344,7 @@ class Event_Type { // C event_type_t
 
 function tab()
 {
-    let bf = '';
-    for(let i=1; i<__inside__*2; i++) {
-        bf += ' ';
-    }
-    return bf;
+    return ' '.repeat(Math.max(0, __inside__ * 2 - 1));
 }
 
 /************************************************************
@@ -458,7 +453,9 @@ function sdata_write_default_values(
                 !(gobj.obflag & obflag_t.obflag_destroyed))
             {
                 // Avoid call to mt_writing before mt_create!
-                gobj.gclass.gmt.mt_writing(gobj, it.name);
+                if(gobj.gclass.gmt.mt_writing) {
+                    gobj.gclass.gmt.mt_writing(gobj, it.name);
+                }
             }
         }
     }
@@ -559,7 +556,7 @@ function set_default(gobj, sdata, it)
     }
 
     if(jn_value === undefined) {
-        log_error(`default_value WRONG, it: ${it.name}, value: ${it.name}`);
+        log_error(`default_value WRONG, it: ${it.name}, value: ${it.default_value}`);
         jn_value = null;
     }
 
@@ -1234,8 +1231,8 @@ function _remove_child(parent, child)
 function gobj_get_gclass_config(gclass_name, verbose)
 {
     let gclass = gclass_find_by_name(gclass_name, verbose);
-    if(gclass && gclass.prototype.mt_get_gclass_config) { // TODO review
-        return gclass.prototype.mt_get_gclass_config.call();
+    if(gclass && gclass.gmt.mt_get_gclass_config) {
+        return gclass.gmt.mt_get_gclass_config.call();
     } else {
         if(verbose) {
             log_error(sprintf(
@@ -3235,6 +3232,9 @@ function gobj_has_output_event(gobj, event, event_flag)
 function gobj_post_event(gobj, event, kw, src)
 {
     setTimeout(() => {
+        if(gobj_is_destroying(gobj)) {
+            return;
+        }
         gobj_send_event(gobj, event, kw, src);
     }, 10);
 }
@@ -3361,11 +3361,15 @@ function gobj_send_event(dst, event, kw, src)
     }
 
     let ret = -1;
-    if(event_action.action) {
-        // Execute the action
-        ret = (event_action.action)(dst, event, kw, src);
-    } else {
-        // No action, there is nothing amiss!.
+    try {
+        if(event_action.action) {
+            // Execute the action
+            ret = (event_action.action)(dst, event, kw, src);
+        } else {
+            // No action, there is nothing amiss!.
+        }
+    } finally {
+        __inside__ --;
     }
 
     if(tracea && !(dst.obflag & obflag_t.obflag_destroyed)) {
@@ -3377,8 +3381,6 @@ function gobj_send_event(dst, event, kw, src)
             is_number(ret)?ret:0
         ));
     }
-
-    __inside__ --;
 
     return ret;
 }
