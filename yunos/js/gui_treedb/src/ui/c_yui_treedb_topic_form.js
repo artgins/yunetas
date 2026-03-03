@@ -63,22 +63,10 @@ import {t} from "i18next";
 import { JSONEditor } from 'vanilla-jsoneditor';
 import "vanilla-jsoneditor/themes/jse-theme-dark.css";
 
-import jQuery from "jquery";
-import $ from "jquery";
-
 import "tom-select/dist/css/tom-select.css"; // Import Tom-Select CSS
 import TomSelect from "tom-select"; // Import Tom-Select JS
 
-import "bootstrap-table/dist/bootstrap-table.css";
-import "bootstrap-table/dist/bootstrap-table.js";
-import "bootstrap-table/dist/themes/bulma/bootstrap-table-bulma.js";
-import "bootstrap-table/dist/locale/bootstrap-table-es-ES.min.js";
-import "bootstrap-table/dist/locale/bootstrap-table-en-US.min.js";
-
-import "bootstrap-table/dist/extensions/fixed-columns/bootstrap-table-fixed-columns.css";
-import "bootstrap-table/dist/extensions/fixed-columns/bootstrap-table-fixed-columns.js";
-import "bootstrap-table/dist/extensions/custom-view/bootstrap-table-custom-view.js";
-import "bootstrap-table/dist/extensions/export/bootstrap-table-export.js";
+import { TabulatorFull as Tabulator } from "tabulator-tables";
 
 /***************************************************************
  *              Constants
@@ -103,8 +91,10 @@ SDATA(data_type_t.DTP_BOOLEAN,  "with_edition_mode",    0,  true,   "Enable EDIT
 SDATA(data_type_t.DTP_BOOLEAN,  "with_new_button",      0,  true,   "Button toolbar NEW"),
 SDATA(data_type_t.DTP_BOOLEAN,  "with_delete_button",   0,  true,   "Button toolbar DELETE"),
 SDATA(data_type_t.DTP_BOOLEAN,  "with_copy_button",     0,  true,   "Button toolbar COPY"),
-SDATA(data_type_t.DTP_BOOLEAN,  "with_paste_button",    0,  true,   "Button toolbar PASTE"),
-SDATA(data_type_t.DTP_BOOLEAN,  "with_in_row_edit_icons",0,  true,   "Add a last column with internal EDIT/DELETE icon"),
+SDATA(data_type_t.DTP_BOOLEAN,  "with_paste_button",         0,  true,   "Button toolbar PASTE"),
+SDATA(data_type_t.DTP_BOOLEAN,  "with_refresh_button",       0,  true,   "Button toolbar REFRESH"),
+SDATA(data_type_t.DTP_BOOLEAN,  "with_search_button",        0,  true,   "Button toolbar SEARCH"),
+SDATA(data_type_t.DTP_BOOLEAN,  "with_in_row_edit_icons",    0,  true,   "Add a last column with internal EDIT/DELETE icon"),
 
 SDATA(data_type_t.DTP_BOOLEAN,  "editable",             0,  false,  "Edit state"),
 
@@ -114,58 +104,11 @@ SDATA(data_type_t.DTP_BOOLEAN,  "with_radio",           0,  false,  "Auxiliary f
 SDATA(data_type_t.DTP_BOOLEAN,  "broadcast_select_rows_event",   0,  false, "Broadcast select rows event"),
 SDATA(data_type_t.DTP_BOOLEAN,  "broadcast_unselect_rows_event", 0,  false, "Broadcast unselect rows event"),
 
-/*---------------- Bootstrap Table Config ----------------*/
-SDATA(data_type_t.DTP_DICT, "bootstrap_table_config", 0, {
-    maintainMetaData: true,
-    cardView: false,
-    search: true,
-    searchAccentNeutralise: false,
-    searchHighlight: false,
-    searchOnEnterKey: false,
-    showButtonIcons: true,
-    showButtonText: false,
-    showColumns: false,
-    showColumnsSearch: false,
-    showColumnsToggleAll: true,
-    showExtendedPagination: true,
-    showFooter: true,
-    showFullscreen: false,
-    showHeader: true,
-    showPaginationSwitch: true,
-    showRefresh: true,
-    showSearchButton: false,
-    showSearchClearButton: false,
-    showToggle: true,
-    showExport: false,
-    advancedSearch: false,
-    fixedColumns: true,
-    pagination: true,
-    pageList: [12, 25, 50, 100, "all"],
-    pageSize: 12,
-    detailView: false,
-    detailViewByClick: false,
-    clickToSelect: false,
-    multipleSelectRow: false,
-    minimumCountColumns: 2,
-    uniqueId: "id",
-    icons: {
-        paginationSwitchDown: 'fa-caret-square-down',
-        paginationSwitchUp: 'fa-caret-square-up',
-        refresh: 'fa-sync',
-        toggleOff: 'fa-toggle-off',
-        toggleOn: 'fa-toggle-on',
-        columns: 'fa-th-list',
-        fullscreen: 'fa-arrows-alt',
-        detailOpen: 'fa-regular fa-eye',
-        detailClose: 'fa-regular fa-eye-slash'
-    }
-}, "Bootstrap-table configuration"),
-
 /*---------------- Internal Attributes ----------------*/
 SDATA(data_type_t.DTP_POINTER,  "$container",           0,  null,   "HTML container for UI"),
-SDATA(data_type_t.DTP_POINTER,  "$$table",              0,  null,   "Bootstrap-table instance"),
-SDATA(data_type_t.DTP_STRING,   "table_id",             0,  null,   "Bootstrap-table ID"),
-SDATA(data_type_t.DTP_STRING,   "toolbar_id",           0,  null,   "Toolbar of bootstrap-table"),
+SDATA(data_type_t.DTP_POINTER,  "$$table",              0,  null,   "Tabulator instance"),
+SDATA(data_type_t.DTP_STRING,   "table_id",             0,  null,   "Table div ID"),
+SDATA(data_type_t.DTP_STRING,   "toolbar_id",           0,  null,   "Toolbar ID"),
 SDATA(data_type_t.DTP_STRING,   "form_id",              0,  null,   "Edit form ID"),
 SDATA(data_type_t.DTP_STRING,   "popup_id",             0,  null,   "Edit form popup ID"),
 
@@ -393,22 +336,101 @@ function build_ui(gobj)
     let $bootstrap_toolbar = create_bootstrap_toolbar();
 
     /*----------------------------------------------*
+     *  View toolbar: Search, Refresh
+     *  Always visible, independent of edition mode
+     *----------------------------------------------*/
+    let toolbar_id = gobj_read_str_attr(gobj, "toolbar_id");
+
+    let $view_toolbar = createElement2(['div', {class: 'buttons is-gapless mb-0'}]);
+
+    let with_refresh_button     = gobj_read_bool_attr(gobj, "with_refresh_button");
+    let with_search_button      = gobj_read_bool_attr(gobj, "with_search_button");
+
+    if(with_search_button) {
+        let search_id = `${toolbar_id}_search`;
+        let $search_box = createElement2(
+            ['div', {class: 'control has-icons-left has-icons-right mr-1'}, [
+                ['input', {
+                    id: search_id,
+                    class: 'input',
+                    type: 'text',
+                    placeholder: 'search...',
+                    style: 'max-width:200px;'
+                }],
+                ['span', {class: 'icon is-left'}, [
+                    ['i', {class: 'fa-solid fa-magnifying-glass'}]
+                ]],
+                ['span', {class: 'icon is-right', style: 'cursor:pointer; pointer-events:all;', title: 'clear search'}, [
+                    ['i', {class: 'fa-solid fa-xmark'}]
+                ], {
+                    'click': (event) => {
+                        event.stopPropagation();
+                        let $input = document.getElementById(search_id);
+                        if($input) { $input.value = ''; $input.dispatchEvent(new Event('input')); }
+                    }
+                }]
+            ]]
+        );
+        let $search_input = $search_box.querySelector(`#${search_id}`);
+        if($search_input) {
+            $search_input.addEventListener('input', (event) => {
+                let searchText = event.target.value.trim().toLowerCase();
+                let $$table = gobj_read_attr(gobj, "$$table");
+                if(!$$table) return;
+                if(searchText) {
+                    $$table.setFilter(function(data) {
+                        return Object.entries(data).some(([key, val]) => {
+                            if(key.startsWith('_')) return false;
+                            if(val === null || val === undefined) return false;
+                            return String(val).toLowerCase().includes(searchText);
+                        });
+                    });
+                } else {
+                    $$table.clearFilter();
+                }
+            });
+        }
+        $view_toolbar.appendChild($search_box);
+    }
+
+    if(with_refresh_button) {
+        let $refresh = createElement2(
+            ['button', {class: 'button mr-1', title: 'refresh'}, [
+                ['i', {class: 'fa-solid fa-arrows-rotate'}],
+                ['span', {class: 'is-hidden-mobile', i18n: 'refresh', style: 'padding-left:5px;'}, 'refresh']
+            ], {
+                'click': (event) => {
+                    event.stopPropagation();
+                    gobj_send_event(gobj, "EV_REFRESH", {}, gobj);
+                }
+            }]
+        );
+        $view_toolbar.appendChild($refresh);
+    }
+
+    /*----------------------------------------------*
      *  Layout Schema
      *----------------------------------------------*/
     let table_id = gobj_read_str_attr(gobj, "table_id");
     let $container = createElement2(
-        // dataTables needs a wrapper ('div') over 'table'
         ['div', {class: 'container-treedb-topic-form', style: 'height:100%;'}, [
-            $bootstrap_toolbar,
-            ['table',
+            ['div', {class: 'tabulator-custom-toolbar', style: 'display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; margin-bottom:4px;'}],
+            ['div',
                 {
                     id: `${table_id}`,
                     style: 'margin-top:0px !important;',
                 }
             ]
         ]]
-
     );
+    let $toolbar_slot = $container.querySelector('.tabulator-custom-toolbar');
+    if($bootstrap_toolbar instanceof Element) {
+        $toolbar_slot.appendChild($bootstrap_toolbar);
+    } else {
+        $toolbar_slot.appendChild(createElement2(['div', {}]));
+    }
+    $toolbar_slot.appendChild($view_toolbar);
+
     gobj_write_attr(gobj, "$container", $container);
     refresh_language($container, t);
 }
@@ -438,54 +460,54 @@ function datasetToObject(dataset)
 }
 
 /******************************************************************
- *   Build table with bootstrap-table.com
+ *   Build table with Tabulator
  *   This fn is called on start and when desc attribute is set.
  *   desc contains the description (columns) of table to create
  ******************************************************************/
 function table__build(gobj)
 {
-    /*
-     *  We work Only in inline mode.
-     */
-
-    /*
-     *  Recover the <table> tag created in startup
-     */
     let table_id = gobj_read_str_attr(gobj, "table_id");
-    let $$table = jQuery(`#${table_id}`);
-    gobj_write_attr(gobj, "$$table", $$table);
+    let desc = gobj_read_attr(gobj, "desc");
 
-    let columns = [
-    ];
+    let columns = [];
 
     /*
-     *  Add the checkbox column.
+     *  Add the checkbox/radio selection column.
      */
     let with_checkbox = gobj_read_bool_attr(gobj, "with_checkbox");
     let with_radio = gobj_read_bool_attr(gobj, "with_radio");
     if(with_checkbox) {
         columns.push({
-            checkbox: true,
+            formatter: "rowSelection",
+            titleFormatter: "rowSelection",
+            field: "_check_box_state_",  // WARNING _check_box_state_ widely used
+            hozAlign: "center",
+            headerHozAlign: "center",
+            width: 40,
+            frozen: true,
             visible: false,
-            field: '_check_box_state_'  // WARNING _check_box_state_ widely used
+            headerSort: false
         });
     } else if(with_radio) {
         columns.push({
-            radio: true,
+            formatter: "rowSelection",
+            field: "_check_box_state_",  // WARNING _check_box_state_ widely used
+            hozAlign: "center",
+            width: 40,
+            frozen: true,
             visible: false,
-            field: '_check_box_state_'  // WARNING _check_box_state_ widely used
+            headerSort: false
         });
     }
 
     /*
-     *  Cell formatter, defined at column level,
-     *  call on displaying to every cell
-     *      index: nº de row en la tabla, propio de la tabla, base in 0
-     *      row: nuestro registro
-     *      field: name (id) of column
+     *  Cell formatter — called on every cell display
      */
-    function formatter(value, row, index, field)
+    function formatter(cell, formatterParams, onRendered)
     {
+        let value = cell.getValue();
+        let row = cell.getData();
+        let field = cell.getField();
         let col = get_schema_col(gobj, field);
         if(col) {
             return transform__treedb_value_2_table_value(gobj, col, value, row, field);
@@ -493,68 +515,72 @@ function table__build(gobj)
         return "???";
     }
 
-    let desc = gobj_read_attr(gobj, "desc");
     for (let i = 0; i < desc.cols.length; i++) {
         let col = desc.cols[i];
         if(!col.id || col.id[0]==='_') {
             continue;
         }
 
-        let align;
-        let events;
+        let hozAlign;
+        let sorter = "string";
+        let cellClick;
         const field_desc = treedb_get_field_desc(col);
         if(field_desc.is_hidden) {
             continue;
         }
         switch(field_desc.type) {
             case "hook":
-                align = "center";
-                events = {
-                    'click .hook_cell': function (evt, value, row, index) {
-                        evt.stopPropagation();
-                        // Convert dataset to object
-                        let data = datasetToObject(evt.currentTarget.dataset);
-                        let kw_hook = {};
-                        if(data && data.row_id) {
-                            let pos = getPositionRelativeToBody(evt.currentTarget);
-
-                            kw_hook = {
-                                treedb_name: gobj_read_attr(gobj, "treedb_name"),
-                                topic_name: gobj_read_attr(gobj, "topic_name"),
-                                row_id: data.row_id,
-                                col_id: data.col_id,
-                                click_x: pos.left,
-                                click_y: pos.top
-                            };
-                        }
-                        gobj_send_event(gobj, "EV_SHOW_HOOK_DATA", kw_hook, gobj);
+                hozAlign = "center";
+                cellClick = function(e, cell) {
+                    let target = e.target.closest('.hook_cell');
+                    if(!target) return;
+                    e.stopPropagation();
+                    let data = Object.fromEntries(
+                        Object.entries(target.dataset).map(([k, v]) => [k, v])
+                    );
+                    let kw_hook = {};
+                    if(data && data.row_id) {
+                        let pos = getPositionRelativeToBody(target);
+                        kw_hook = {
+                            treedb_name: gobj_read_attr(gobj, "treedb_name"),
+                            topic_name: gobj_read_attr(gobj, "topic_name"),
+                            row_id: data.row_id,
+                            col_id: data.col_id,
+                            click_x: pos.left,
+                            click_y: pos.top
+                        };
                     }
+                    gobj_send_event(gobj, "EV_SHOW_HOOK_DATA", kw_hook, gobj);
                 };
                 break;
             case "boolean":
-                align = "center";
+                hozAlign = "center";
+                sorter = "boolean";
                 break;
             case "integer":
             case "real":
-                align = "right";
+                hozAlign = "right";
+                sorter = "number";
                 break;
         }
 
-        columns.push({
+        let colDef = {
             title: col.header || col.id,
             field: col.id,
-            sortable: true,
-            align: align,
+            sorter: sorter,
+            hozAlign: hozAlign,
             formatter: formatter,
-            events: events,
-            alwaysUseFormatter: true
-        });
+        };
+        if(cellClick) {
+            colDef.cellClick = cellClick;
+        }
+        columns.push(colDef);
     }
 
     /*
-     *  Column with operators: delete,
+     *  Column with operators: edit, delete
      */
-    function operateFormatter(value, row, index) {
+    function operateFormatter(cell, formatterParams, onRendered) {
         return [
             '<button class="button without-border px-2 edit">',
                 '<i style="" class="fa-solid fa-pen has-text-link"></i>',
@@ -570,97 +596,68 @@ function table__build(gobj)
         columns.push({
             field: '_operation',
             title: 'Op',
-            align: 'center',
-            clickToSelect: false,
+            hozAlign: 'center',
+            frozen: "right",
             visible: false,
+            headerSort: false,
             formatter: operateFormatter,
-            events: {
-                'click .edit': function (evt, value, row, index) {
-                    evt.stopPropagation();
+            cellClick: function(e, cell) {
+                let row = cell.getRow().getData();
+                let index = cell.getRow().getPosition();
+                if(e.target.closest('.edit')) {
+                    e.stopPropagation();
                     show_edit_form(gobj, row, index);
-                },
-                'click .remove': function (evt, value, row, index) {
-                    // Delete this row ({index, row} filled)
-                    evt.stopPropagation();
-                    gobj_send_event(gobj, "EV_DELETE_ROWS", {index:index, row:row}, gobj);
+                } else if(e.target.closest('.remove')) {
+                    e.stopPropagation();
+                    gobj_send_event(gobj, "EV_DELETE_ROWS", {index: index, row: row}, gobj);
                 }
             }
         });
     }
 
-    /*
-     *  Detail row formatter, defined at table level (Fallback) and column level.
-     *  Call when user view detail
-     *      index: nº de row en la tabla, propio de la tabla, base in 0
-     *      row: nuestro registro
-     */
-    function detailFormatter(index, row, $element) {
-        const html = [];
-        $.each(row, function (key, value) {
-            let col = get_schema_col(gobj, key);
-            if(col) {
-                // TODO se necesitará otro transformer, o incluso externo configurable
-                value = transform__treedb_value_2_table_value(gobj, col, value, row, key);
-            }
-            html.push('<p><b>' + key + ':</b> ' + value + '</p>');
-        });
+    let pkey = desc.pkey || "id";
+    let selectable = with_checkbox ? true : (with_radio ? 1 : false);
 
-        return html.join('');
-    }
-
-    let bootstrap_table_config = Object.assign({}, gobj_read_attr(gobj, "bootstrap_table_config"));
-    let toolbar_id = gobj_read_str_attr(gobj, "toolbar_id");
-    Object.assign(bootstrap_table_config, {
-        toolbar: `#${toolbar_id}`,
-        locale: kw_get_local_storage_value("locale", "es", false),
-        uniqueId: desc.pkey?
-            desc.pkey : bootstrap_table_config.uniqueId,
+    let tabulator_config = {
+        index: pkey,
         columns: columns,
-        detailFormatter: detailFormatter,
-        onCheck: function (row, $element) {
-            gobj_send_event(gobj, "EV_SELECT_ROWS", {rows: [row]}, gobj);
+        layout: "fitColumns",
+        pagination: true,
+        paginationSize: 12,
+        paginationSizeSelector: [12, 25, 50, 100, true],
+        selectable: selectable,
+        placeholder: "No data available",
+        rowSelected: function(row) {
+            gobj_send_event(gobj, "EV_SELECT_ROWS", {rows: [row.getData()]}, gobj);
         },
-        onCheckAll: function (rowsAfter, rowsBefore) {
-            gobj_send_event(gobj, "EV_UNSELECT_ROWS", {rows: rowsBefore}, gobj);
-            gobj_send_event(gobj, "EV_SELECT_ROWS", {rows: rowsAfter}, gobj);
+        rowDeselected: function(row) {
+            gobj_send_event(gobj, "EV_UNSELECT_ROWS", {rows: [row.getData()]}, gobj);
         },
-        onCheckSome: function (rows) {
-            gobj_send_event(gobj, "EV_SELECT_ROWS", {rows: rows}, gobj);
-        },
-        onUncheck: function (row, $element) {
-            gobj_send_event(gobj, "EV_UNSELECT_ROWS", {rows: [row]}, gobj);
-        },
-        onUncheckAll: function (rowsAfter, rowsBefore) {
-            gobj_send_event(gobj, "EV_UNSELECT_ROWS", {rows: rowsBefore}, gobj);
-            gobj_send_event(gobj, "EV_SELECT_ROWS", {rows: rowsAfter}, gobj);
-        },
-        onUncheckSome: function (rows) {
-            gobj_send_event(gobj, "EV_UNSELECT_ROWS", {rows: rows}, gobj);
-        },
-        onRefresh: function (rows) {
-            gobj_send_event(gobj, "EV_REFRESH", {rows: rows}, gobj);
-        },
-    });
+    };
 
-    /*
-     *  Convert the tag in a bootstrap table
-     */
-    $$table.bootstrapTable(bootstrap_table_config);
+    let $$table = new Tabulator(`#${table_id}`, tabulator_config);
+    $$table._ready = false;
+    $$table._expanded = false;
+    $$table.on("tableBuilt", function() {
+        $$table._ready = true;
+        if($$table._pendingData !== undefined) {
+            $$table.setData($$table._pendingData);
+            delete $$table._pendingData;
+        }
+    });
+    gobj_write_attr(gobj, "$$table", $$table);
 
     refresh_language(gobj_read_attr(gobj, "$container"), t);
 }
 
 /************************************************************
- *   Destroy table with bootstrap-table.com
+ *   Destroy Tabulator instance
  ************************************************************/
 function table__destroy(gobj)
 {
-    let table_id = gobj_read_str_attr(gobj, "table_id");
-    let $table = document.getElementById(`${table_id}`);
-    if($table) {
-        let $$table = jQuery(`#${table_id}`);
-        $$table.bootstrapTable('destroy');
-        $table.remove();
+    let $$table = gobj_read_attr(gobj, "$$table");
+    if($$table) {
+        $$table.destroy();
         gobj_write_attr(gobj, "$$table", null);
     }
 }
@@ -1560,7 +1557,9 @@ function clear_data(gobj, $form)
                 input.value = null;
 
             } else if (input.multiple) {
-                $(input).val(null).trigger('change');
+                if(input.tomselect) {
+                    input.tomselect.clear();
+                }
             } else {
                 input.value = null;
             }
@@ -2205,9 +2204,14 @@ function ac_load_nodes(gobj, event, kw, src)
     let $$table = gobj_read_attr(gobj, "$$table");
     if($$table) {
         /*
-         *  'load': Load the data to the table. The old rows will be removed.
+         *  setData: Load data into the table. The old rows will be removed.
+         *  Guard: defer until tableBuilt fires if Tabulator isn't ready yet.
          */
-        $$table.bootstrapTable('load', data);
+        if($$table._ready) {
+            $$table.setData(data);
+        } else {
+            $$table._pendingData = data;
+        }
     }
 
     /*
@@ -2246,7 +2250,7 @@ function ac_load_node_created(gobj, event, kw, src)
     let $$table = gobj_read_attr(gobj, "$$table");
     if($$table) {
         for(let record of data) {
-            $$table.bootstrapTable('append', [record]); // Add a new row to table
+            $$table.addData([record]); // Add a new row to table
         }
     }
 
@@ -2273,10 +2277,7 @@ function ac_load_node_updated(gobj, event, kw, src)
     let $$table = gobj_read_attr(gobj, "$$table");
     if($$table) {
         for(let record of data) {
-            $$table.bootstrapTable('updateByUniqueId', {
-                id: record.id,
-                row: record
-            });
+            $$table.updateData([record]);
         }
     }
 
@@ -2301,40 +2302,19 @@ function ac_node_deleted(gobj, event, kw, src)
     }
 
     let $$table = gobj_read_attr(gobj, "$$table");
-    //$$table.bootstrapTable('uncheckAll'); // unselectAll TODO ??? is necessary?
+    //$$table.deselectRow(); // unselectAll TODO ??? is necessary?
 
     if($$table) {
         for(let record of data) {
-            const row = $$table.bootstrapTable('getRowByUniqueId', record.id);
+            const row = $$table.getRow(record.id);
             if (row) {
-                // Delete the row by ID
-                $$table.bootstrapTable('removeByUniqueId', record.id);
+                // Delete the row by pkey value
+                $$table.deleteRow(record.id);
             } else {
                 log_error("delete_data: record not found: " + record.id);
             }
         }
     }
-
-    /*
-     *  TODO situate en el row updated ???
-     *  Select only if it has update/create mode
-     */
-
-    // COMO BORRAR EN LA TABLA
-    // Borra con index
-    // $$table.bootstrapTable('remove', {
-    //     field: '$index',
-    //     values: [index]
-    // });
-
-    // Borra con id
-    // let ids = jQuery.map(rows, function (row) {
-    //     return row.id;
-    // });
-    // $$table.bootstrapTable('remove', {
-    //     field: 'id',
-    //     values: ids
-    // });
 
     return 0;
 }
@@ -2371,22 +2351,17 @@ function ac_edition_mode(gobj, event, kw, src)
         $button_new_record.classList.add('is-info');
         $button_delete_record.classList.add('is-danger');
 
-        $$table.bootstrapTable('showColumn', '_operation');
-        $$table.bootstrapTable('showColumn', '_check_box_state_');
+        $$table.showColumn('_operation');
+        $$table.showColumn('_check_box_state_');
 
         $button_new_record.removeAttribute("disabled");
         $button_paste_record.removeAttribute("disabled");
 
-        let rows = $$table.bootstrapTable('getSelections');
+        let rows = $$table.getSelectedData();
         if (rows.length) {
             $button_delete_record.removeAttribute("disabled");
             $button_copy_record.removeAttribute("disabled");
         }
-
-        $$table.bootstrapTable('refreshOptions', {
-            fixedNumber: 1,
-            fixedRightNumber: 1
-        });
 
     } else {
         /*
@@ -2396,13 +2371,8 @@ function ac_edition_mode(gobj, event, kw, src)
         $button_new_record.classList.remove('is-info');
         $button_delete_record.classList.remove('is-danger');
 
-        $$table.bootstrapTable('refreshOptions', {
-            fixedNumber: 0,
-            fixedRightNumber: 0
-        });
-
-        $$table.bootstrapTable('hideColumn', '_operation');
-        $$table.bootstrapTable('hideColumn', '_check_box_state_');
+        $$table.hideColumn('_operation');
+        $$table.hideColumn('_check_box_state_');
 
         $button_new_record.setAttribute("disabled", true);
         $button_delete_record.setAttribute("disabled", true);
@@ -2473,7 +2443,7 @@ function ac_delete_rows(gobj, event, kw, src)
         /*----------------------------*
          *  Delete selected rows
          *----------------------------*/
-        let rows = $$table.bootstrapTable('getSelections');
+        let rows = $$table.getSelectedData();
         if (!rows.length) {
             get_ok(t('please select some row'));
             return 0;
@@ -2527,7 +2497,7 @@ function ac_copy_rows(gobj, event, kw, src)
     /*----------------------------*
      *  Copy selected rows
      *----------------------------*/
-    let rows = $$table.bootstrapTable('getSelections');
+    let rows = $$table.getSelectedData();
     if (!rows.length) {
         get_ok(t('please select some row'));
         return 0;
@@ -2644,7 +2614,7 @@ function ac_select_rows(gobj, event, kw, src)
     let $button_delete_record = $container.querySelector(`.button-delete-record`);
     let $button_copy_record = $container.querySelector(`.button-copy-record`);
     if($button_delete_record) {
-        let selectedRows = $$table.bootstrapTable('getSelections');
+        let selectedRows = $$table.getSelectedData();
         if (selectedRows.length && gobj_read_bool_attr(gobj, "editable")) {
             $button_delete_record.removeAttribute("disabled");
             $button_copy_record.removeAttribute("disabled");
@@ -2655,10 +2625,8 @@ function ac_select_rows(gobj, event, kw, src)
     }
 
     if(gobj_read_bool_attr(gobj, "broadcast_select_rows_event")) {
-        //let rows = $$table.bootstrapTable('getSelections');
         gobj_publish_event(gobj, event, kw);
     }
-    //console.log("selected rows ", kw.rows);
 
     return 0;
 }
@@ -2677,7 +2645,7 @@ function ac_unselect_rows(gobj, event, kw, src)
     let $button_delete_record = $container.querySelector(`.button-delete-record`);
     let $button_copy_record = $container.querySelector(`.button-copy-record`);
     if($button_delete_record) {
-        let selectedRows = $$table.bootstrapTable('getSelections');
+        let selectedRows = $$table.getSelectedData();
         if (selectedRows.length && gobj_read_bool_attr(gobj, "editable")) {
             $button_delete_record.removeAttribute("disabled");
             $button_copy_record.removeAttribute("disabled");
@@ -2689,10 +2657,8 @@ function ac_unselect_rows(gobj, event, kw, src)
 
     // WARNING with radio, there is no unselect event.
     if(gobj_read_bool_attr(gobj, "broadcast_select_rows_event")) {
-        //let rows = $$table.bootstrapTable('getSelections');
         gobj_publish_event(gobj, event, kw);
     }
-    //console.log("unselected rows ", kw.rows);
 
     return 0;
 }
@@ -2702,10 +2668,6 @@ function ac_unselect_rows(gobj, event, kw, src)
  ************************************************************/
 function ac_change_locale(gobj, event, kw, src)
 {
-    let $$table = gobj_read_attr(gobj, "$$table");
-    if($$table) {
-        $$table.bootstrapTable('changeLocale', kw.locale);
-    }
     return 0;
 }
 

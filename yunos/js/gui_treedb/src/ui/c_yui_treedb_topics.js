@@ -185,7 +185,7 @@ function cmd_get_topic_data(gobj, cmd, kw, src)
     );
 
     let $$table = gobj_read_attr(gobj_topic_form, "$$table");
-    webix.data = $$table.bootstrapTable("getData");
+    webix.data = $$table.getData();
 
     return webix;
 }
