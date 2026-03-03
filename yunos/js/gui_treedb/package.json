@@ -14,11 +14,9 @@
     "dependencies": {
         "@antv/g6": "^5.0.50",
         "@antv/s2": "^2.4.10",
-        "bootstrap-table": "^1.25.0",
         "bulma": "^1.0.4",
         "bulma-switch-control": "^1.2.2",
         "i18next": "^25.6.0",
-        "jquery": "^3.7.1",
         "luxon": "^3.7.2",
         "maplibre-gl": "^5.11.0",
         "tabulator-tables": "^6.3.1",

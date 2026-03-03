@@ -26,10 +26,6 @@
     --modal-background-color: hsla(var(--bulma-scheme-h),var(--bulma-scheme-s),var(--bulma-scheme-invert-l),0.90);
 }
 
-/* MERDE label of form bash bad color in dark, guilty is bootstrap-table! */
-html[data-theme="dark"] {
-    --bulma-text-strong: hsl(221deg, 14%, 21%);
-}
 
 /*********************************************************
  *      Body
@@ -223,35 +219,6 @@ a.flex-horizontal-section { /* To make flex any <a> */
     justify-content: space-between;
     align-items: center;
     padding-inline-end: 2rem;
-}
-
-/*********************************************************
- *      Bootstrap-table
- *********************************************************/
-/*
- *  In the bootstrap-table toolbar the buttons with icon shows smaller, fix it:
- */
-.fixed-table-toolbar > .columns > .button {
-}
-.fixed-table-toolbar > .columns > .button > i {
-    padding-top: 5px;
-    height: 1.5rem;
-    width: 1.5rem;
-}
-
-/*
- *  Select2
- */
-.select2-selection__rendered {
-    line-height: var(--bulma-control-line-height);
-}
-.select2-container .select2-selection--single {
-    font-size: var(--bulma-control-size);
-    height: var(--bulma-control-height);
-}
-.select2-container .select2-selection--multiple {
-    font-size: var(--bulma-control-size);
-    height: var(--bulma-control-height);
 }
 
 /*********************************************************

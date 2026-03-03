@@ -55,9 +55,6 @@ import "uplot/dist/uPlot.min.css";
 
 import "vanilla-jsoneditor/themes/jse-theme-dark.css";
 import "tom-select/dist/css/tom-select.css"; // Import Tom-Select CSS
-import "bootstrap-table/dist/bootstrap-table.css";
-import "bootstrap-table/dist/extensions/fixed-columns/bootstrap-table-fixed-columns.css";
-import "bootstrap-table/dist/themes/bulma/bootstrap-table-bulma.min.css";
 
 import "bulma-switch-control/css/main.css";
 
