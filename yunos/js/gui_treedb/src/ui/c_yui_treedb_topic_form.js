@@ -550,20 +550,17 @@ function table__build(gobj)
         rowDeselected: function(row) {
             gobj_send_event(gobj, "EV_UNSELECT_ROWS", {rows: [row.getData()]}, gobj);
         },
-        tableBuilt: function() {
-            let $$t = gobj_read_attr(gobj, "$$table");
-            if($$t) {
-                $$t._ready = true;
-                if($$t._pendingData !== undefined) {
-                    $$t.setData($$t._pendingData);
-                    delete $$t._pendingData;
-                }
-            }
-        },
     };
 
     let $$table = new Tabulator(`#${table_id}`, tabulator_config);
     $$table._ready = false;
+    $$table.on("tableBuilt", function() {
+        $$table._ready = true;
+        if($$table._pendingData !== undefined) {
+            $$table.setData($$table._pendingData);
+            delete $$table._pendingData;
+        }
+    });
     gobj_write_attr(gobj, "$$table", $$table);
 
     refresh_language(gobj_read_attr(gobj, "$container"), t);
