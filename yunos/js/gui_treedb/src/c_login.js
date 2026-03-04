@@ -25,6 +25,7 @@ import {
     log_info,
     get_now,
     is_string,
+    is_object,
     kw_get_local_storage_value,
     kw_set_local_storage_value,
     kw_remove_local_storage_value,
@@ -125,7 +126,7 @@ function mt_start(gobj)
     gobj_start(priv.gobj_timer);
 
     let session = kw_get_local_storage_value("session", null, false);
-    if (session && session.username) {
+    if (session && session.username && is_object(session.full_oauth_response)) {
         gobj_write_attr(gobj, "username", session.username);
         gobj_change_state(gobj, "ST_WAIT_TOKEN");
         gobj_send_event(gobj, "EV_LOGIN_ACCEPTED", session.full_oauth_response, gobj);
