@@ -126,7 +126,22 @@ function mt_start(gobj)
     gobj_start(priv.gobj_timer);
 
     let session = kw_get_local_storage_value("session", null, false);
-    if (session && session.username && is_object(session.full_oauth_response)) {
+    if(session && session.username && is_object(session.full_oauth_response)) {
+        /*
+         *  SEC-07: verify the refresh token has not already expired before
+         *  reusing the cached session.  If it has, both the WebSocket
+         *  authentication and any subsequent refresh call would fail, so
+         *  discard the session now and let the user log in again cleanly.
+         *
+         *  The access token is NOT checked here: if it is expired but the
+         *  refresh token is still valid, save_token() will arm a near-zero
+         *  timer and the token will be renewed within seconds.
+         */
+        let refreshParsed = jwt2json(session.full_oauth_response["refresh_token"]);
+        if(!refreshParsed || refreshParsed.exp <= get_now()) {
+            kw_remove_local_storage_value("session");
+            return;
+        }
         gobj_write_attr(gobj, "username", session.username);
         gobj_change_state(gobj, "ST_WAIT_TOKEN");
         gobj_send_event(gobj, "EV_LOGIN_ACCEPTED", session.full_oauth_response, gobj);
