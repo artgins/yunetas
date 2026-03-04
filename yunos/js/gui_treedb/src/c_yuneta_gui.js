@@ -169,20 +169,19 @@ function console_log_remote(msg)
  ********************************************/
 function build_remote_service(gobj)
 {
-    let cur_hostname;
-    if ((window.location.hostname.indexOf("localhost") >= 0 ||
-            window.location.hostname.indexOf("127.") >= 0) ||
-        empty_string(window.location.hostname)) {
-        cur_hostname = "localhost";
-    } else {
-        cur_hostname = window.location.hostname;
-    }
-
     /*
      *  HACK "punto gatillo" trigger point: from the backend_urls.js file,
-     *  retrieve the ws/wss connection associated with the url location.hostname
+     *  retrieve the ws/wss connection associated with the url location.hostname.
+     *
+     *  Use an exact key lookup instead of indexOf() substring matching.
+     *  indexOf("localhost") would match "localhost.attacker.com", which would
+     *  redirect the WebSocket connection to wss://localhost:1800 on the victim's
+     *  machine instead of the intended backend.
+     *  The empty-hostname case (file:// or synthetic environments) falls back to
+     *  "localhost" by explicit key, keeping the same behaviour as before.
      */
-    const url = backend_urls[cur_hostname];
+    const hostname = empty_string(window.location.hostname) ? "localhost" : window.location.hostname;
+    const url = backend_urls[hostname];
     if (empty_string(url)) {
         let msg = t("no url available to remote service");
         log_error(msg);
