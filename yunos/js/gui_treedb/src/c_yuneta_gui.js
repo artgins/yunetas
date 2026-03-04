@@ -147,6 +147,14 @@ function mt_destroy(gobj)
  ************************************************************/
 function console_log_remote(msg)
 {
+    /*
+     *  HACK __remote_service__ is a C_IEVENT_CLI gclass,
+     *  that it has defined mt_inject_event global method
+     *  that is used for send events to the remote connection (other yuno).
+     *
+     *  With set_remote_log_functions() we send the logs to the remote yuno
+     *  having a centralized control of what it happens
+     */
     __yuno__.__remote_service__.gclass.gmt.mt_inject_event(
         __yuno__.__remote_service__,
         "EV_REMOTE_LOG",
