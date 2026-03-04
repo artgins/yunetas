@@ -144,24 +144,12 @@ function mt_destroy(gobj)
 
 
 /************************************************************
- *
+ *  Parameter of set_remote_log_functions()
+ *  Set in ac_on_open and clear in ac_on_close
  ************************************************************/
 function console_log_remote(msg)
 {
-    /*
-     *  HACK __remote_service__ is a C_IEVENT_CLI gclass,
-     *  that it has defined mt_inject_event global method
-     *  that is used for send events to the remote connection (other yuno).
-     *
-     *  With set_remote_log_functions() we send the logs to the remote yuno
-     *  having a centralized control of what it happens
-     */
-    __yuno__.__remote_service__.gclass.gmt.mt_inject_event(
-        __yuno__.__remote_service__,
-        "EV_REMOTE_LOG",
-        {msg: msg},
-        __yuno__
-    );
+    gobj_send_event(__yuno__.__remote_service__, "EV_REMOTE_LOG", {msg: msg}, __yuno__);
 }
 
 /********************************************
@@ -659,6 +647,8 @@ function ac_on_open(gobj, event, kw, src)
     gobj_publish_event(gobj, event, kw);
     gobj_start_tree(gobj);
 
+    log_error("TEST remote log on open"); // TODO TEST
+
     /*
      *  Select last selection
      *  TODO debería ser por usuario? por si hay mas cuentas en el mismo pc
@@ -694,6 +684,11 @@ function ac_on_open(gobj, event, kw, src)
 function ac_on_close(gobj, event, kw, src)
 {
     close_services(gobj);
+
+    /*----------------------------------------*
+     *      Clear log to remote
+     *----------------------------------------*/
+    set_remote_log_functions(null);
 
     let __yui_routing__ = gobj_find_service("__yui_routing__");
     gobj_stop(__yui_routing__); // Delete app content
