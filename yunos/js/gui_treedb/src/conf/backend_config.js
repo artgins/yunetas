@@ -15,21 +15,22 @@ const backend_urls = {
 };
 
 const keycloak_configs = {
+    // Connections to keycloak, in connections to localhost it will use real authentication too.
     "localhost": {
-            "realm": "estadodelaire.com",
-            "auth-server-url": "https://auth.artgins.com/",
-            "ssl-required": "external",
-            "resource": "gui_treedb",
-            "public-client": true,
-            "confidential-port": 0
+        "realm": "estadodelaire.com",
+        "auth-server-url": "https://auth.artgins.com/",
+        "ssl-required": "external",
+        "resource": "gui_treedb",
+        "public-client": true,
+        "confidential-port": 0
     },
     "treedb.yunetas.com": {
-            "realm": "estadodelaire.com",
-            "auth-server-url": "https://auth.artgins.com/",
-            "ssl-required": "external",
-            "resource": "gui_treedb",
-            "public-client": true,
-            "confidential-port": 0
+        "realm": "estadodelaire.com",
+        "auth-server-url": "https://auth.artgins.com/",
+        "ssl-required": "external",
+        "resource": "gui_treedb",
+        "public-client": true,
+        "confidential-port": 0
     }
 };
 
