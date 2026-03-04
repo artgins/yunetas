@@ -169,13 +169,6 @@ function cmd_help(gobj, cmd, kw, src)
  ************************************************************/
 function cmd_get_topic_data(gobj, cmd, kw, src)
 {
-    let webix = {
-        "result": 0,
-        "comment": "",
-        "schema": null,
-        "data": null
-    };
-
     let topic_name = kw.topic_name;
 
     let gobj_topic_form = gobj_find_child(gobj,
@@ -184,10 +177,16 @@ function cmd_get_topic_data(gobj, cmd, kw, src)
         }
     );
 
-    let $$table = gobj_read_attr(gobj_topic_form, "$$table");
-    webix.data = $$table.getData();
+    if(!gobj_topic_form) {
+        return {
+            "result": -1,
+            "comment": sprintf("gobj child %s not found", topic_name),
+            "schema": null,
+            "data": null
+        };
+    }
 
-    return webix;
+    return gobj_command(gobj_topic_form, cmd, kw, gobj);
 }
 
 

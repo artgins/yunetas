@@ -176,6 +176,67 @@ function mt_destroy(gobj)
     destroy_ui(gobj);
 }
 
+/************************************************************
+ *      Framework Method command
+ ************************************************************/
+function mt_command_parser(gobj, command, kw, src)
+{
+    switch(command) {
+        case "help":
+            return cmd_help(gobj, command, kw, src);
+        case "get_topic_data":
+            return cmd_get_topic_data(gobj, command, kw, src);
+        default:
+            log_error("Command not found: %s", command);
+            return {
+                "result": -1,
+                "comment": sprintf("Command not found: %s", command),
+                "schema": null,
+                "data": null
+            };
+    }
+}
+
+
+
+
+                    /***************************
+                     *      Commands
+                     ***************************/
+
+
+
+
+/************************************************************
+ *
+ ************************************************************/
+function cmd_help(gobj, cmd, kw, src)
+{
+    return {
+        "result": 0,
+        "comment": "",
+        "schema": null,
+        "data": null
+    };
+}
+
+/************************************************************
+ *
+ ************************************************************/
+function cmd_get_topic_data(gobj, cmd, kw, src)
+{
+    let webix = {
+        "result": 0,
+        "comment": "",
+        "schema": null,
+        "data": null
+    };
+
+    let $$table = gobj_read_attr(gobj, "$$table");
+    webix.data = $$table.getData();
+    return webix;
+}
+
 
 
 
@@ -376,12 +437,18 @@ function build_ui(gobj)
             $search_input.addEventListener('input', (event) => {
                 let searchText = event.target.value.trim().toLowerCase();
                 let $$table = gobj_read_attr(gobj, "$$table");
-                if(!$$table) return;
+                if(!$$table) {
+                    return;
+                }
                 if(searchText) {
                     $$table.setFilter(function(data) {
                         return Object.entries(data).some(([key, val]) => {
-                            if(key.startsWith('_')) return false;
-                            if(val === null || val === undefined) return false;
+                            if(key.startsWith('_')) {
+                                return false;
+                            }
+                            if(val === null || val === undefined) {
+                                return false;
+                            }
                             return String(val).toLowerCase().includes(searchText);
                         });
                     });
@@ -533,7 +600,9 @@ function table__build(gobj)
                 hozAlign = "center";
                 cellClick = function(e, cell) {
                     let target = e.target.closest('.hook_cell');
-                    if(!target) return;
+                    if(!target) {
+                        return;
+                    }
                     e.stopPropagation();
                     let data = Object.fromEntries(
                         Object.entries(target.dataset).map(([k, v]) => [k, v])
@@ -637,7 +706,6 @@ function table__build(gobj)
 
     let $$table = new Tabulator(`#${table_id}`, tabulator_config);
     $$table._ready = false;
-    $$table._expanded = false;
     $$table.on("tableBuilt", function() {
         $$table._ready = true;
         if($$table._pendingData !== undefined) {
@@ -2747,10 +2815,11 @@ function ac_hide(gobj, event, kw, src)
  *          Global methods table
  *---------------------------------------------*/
 const gmt = {
-    mt_create:  mt_create,
-    mt_start:   mt_start,
-    mt_stop:    mt_stop,
-    mt_destroy: mt_destroy
+    mt_create:          mt_create,
+    mt_start:           mt_start,
+    mt_stop:            mt_stop,
+    mt_destroy:         mt_destroy,
+    mt_command_parser:  mt_command_parser,
 };
 
 /***************************************************************
@@ -2768,26 +2837,26 @@ function create_gclass(gclass_name)
      *---------------------------------------------*/
     const states = [
         ["ST_IDLE", [
-            ["EV_LOAD_NODES",        ac_load_nodes,         null],
-            ["EV_LOAD_NODE_CREATED", ac_load_node_created,  null],
-            ["EV_LOAD_NODE_UPDATED", ac_load_node_updated,  null],
-            ["EV_NODE_DELETED",      ac_node_deleted,       null],
+            ["EV_LOAD_NODES",           ac_load_nodes,         null],
+            ["EV_LOAD_NODE_CREATED",    ac_load_node_created,  null],
+            ["EV_LOAD_NODE_UPDATED",    ac_load_node_updated,  null],
+            ["EV_NODE_DELETED",         ac_node_deleted,       null],
 
-            ["EV_EDITION_MODE",      ac_edition_mode,       null],
-            ["EV_CREATE_RECORD",     ac_create_record,      null],
-            ["EV_UPDATE_RECORD",     ac_update_record,      null],
+            ["EV_EDITION_MODE",         ac_edition_mode,       null],
+            ["EV_CREATE_RECORD",        ac_create_record,      null],
+            ["EV_UPDATE_RECORD",        ac_update_record,      null],
 
-            ["EV_NEW_ROW",           ac_new_row,            null],
-            ["EV_DELETE_ROWS",       ac_delete_rows,        null],
-            ["EV_SELECT_ROWS",       ac_select_rows,        null],
-            ["EV_UNSELECT_ROWS",     ac_unselect_rows,      null],
-            ["EV_COPY_ROWS",         ac_copy_rows,          null],
-            ["EV_PASTE_ROWS",        ac_paste_rows,         null],
-            ["EV_SHOW_HOOK_DATA",    ac_show_hook_data,     null],
-            ["EV_CHANGE_LOCALE",     ac_change_locale,      null],
-            ["EV_REFRESH",           ac_refresh,            null],
-            ["EV_SHOW",              ac_show,               null],
-            ["EV_HIDE",              ac_hide,               null]
+            ["EV_NEW_ROW",              ac_new_row,            null],
+            ["EV_DELETE_ROWS",          ac_delete_rows,        null],
+            ["EV_SELECT_ROWS",          ac_select_rows,        null],
+            ["EV_UNSELECT_ROWS",        ac_unselect_rows,      null],
+            ["EV_COPY_ROWS",            ac_copy_rows,          null],
+            ["EV_PASTE_ROWS",           ac_paste_rows,         null],
+            ["EV_SHOW_HOOK_DATA",       ac_show_hook_data,     null],
+            ["EV_CHANGE_LOCALE",        ac_change_locale,      null],
+            ["EV_REFRESH",              ac_refresh,            null],
+            ["EV_SHOW",                 ac_show,               null],
+            ["EV_HIDE",                 ac_hide,               null]
         ]]
     ];
 
@@ -2795,29 +2864,29 @@ function create_gclass(gclass_name)
      *          Events
      *---------------------------------------------*/
     const event_types = [
-        ["EV_LOAD_NODES",        0],
-        ["EV_LOAD_NODE_CREATED", 0],
-        ["EV_LOAD_NODE_UPDATED", 0],
-        ["EV_NODE_DELETED",      0],
+        ["EV_LOAD_NODES",           0],
+        ["EV_LOAD_NODE_CREATED",    0],
+        ["EV_LOAD_NODE_UPDATED",    0],
+        ["EV_NODE_DELETED",         0],
 
-        ["EV_EDITION_MODE",      0],
-        ["EV_NEW_ROW",           0],
-        ["EV_DELETE_ROWS",       0],
-        ["EV_COPY_ROWS",         0],
-        ["EV_PASTE_ROWS",        0],
-        ["EV_SELECT_ROWS",       event_flag_t.EVF_OUTPUT_EVENT],
-        ["EV_UNSELECT_ROWS",     event_flag_t.EVF_OUTPUT_EVENT],
-        ["EV_SHOW_HOOK_DATA",    event_flag_t.EVF_OUTPUT_EVENT],
-        ["EV_CHANGE_LOCALE",     0],
-        ["EV_REFRESH",           0],
+        ["EV_EDITION_MODE",         0],
+        ["EV_NEW_ROW",              0],
+        ["EV_DELETE_ROWS",          0],
+        ["EV_COPY_ROWS",            0],
+        ["EV_PASTE_ROWS",           0],
+        ["EV_SELECT_ROWS",          event_flag_t.EVF_OUTPUT_EVENT],
+        ["EV_UNSELECT_ROWS",        event_flag_t.EVF_OUTPUT_EVENT],
+        ["EV_SHOW_HOOK_DATA",       event_flag_t.EVF_OUTPUT_EVENT],
+        ["EV_CHANGE_LOCALE",        0],
+        ["EV_REFRESH",              0],
 
-        ["EV_CREATE_RECORD",     event_flag_t.EVF_OUTPUT_EVENT],
-        ["EV_UPDATE_RECORD",     event_flag_t.EVF_OUTPUT_EVENT],
-        ["EV_DELETE_RECORD",     event_flag_t.EVF_OUTPUT_EVENT],
-        ["EV_REFRESH_TOPIC",     event_flag_t.EVF_OUTPUT_EVENT],
+        ["EV_CREATE_RECORD",        event_flag_t.EVF_OUTPUT_EVENT],
+        ["EV_UPDATE_RECORD",        event_flag_t.EVF_OUTPUT_EVENT],
+        ["EV_DELETE_RECORD",        event_flag_t.EVF_OUTPUT_EVENT],
+        ["EV_REFRESH_TOPIC",        event_flag_t.EVF_OUTPUT_EVENT],
 
-        ["EV_SHOW",              0],
-        ["EV_HIDE",              0]
+        ["EV_SHOW",                 0],
+        ["EV_HIDE",                 0]
     ];
 
     __gclass__ = gclass_create(
