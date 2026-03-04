@@ -12,23 +12,22 @@
         "test:coverage": "vitest --coverage"
     },
     "dependencies": {
-        "@antv/g6": "^5.0.50",
-        "@antv/s2": "^2.4.10",
+        "@antv/g6": "^5.0.51",
         "bulma": "^1.0.4",
         "bulma-switch-control": "^1.2.2",
-        "i18next": "^25.6.0",
+        "i18next": "^25.8.14",
         "luxon": "^3.7.2",
-        "maplibre-gl": "^5.11.0",
+        "maplibre-gl": "^5.19.0",
         "tabulator-tables": "^6.3.1",
-        "tom-select": "^2.4.3",
+        "tom-select": "^2.5.2",
         "uplot": "^1.6.32",
         "vanilla-jsoneditor": "0.23.8",
         "yunetas": "file:../../../kernel/js/yunetas-js7/yunetas"
     },
     "devDependencies": {
         "@rollup/plugin-terser": "^0.4.4",
-        "@vitest/coverage-v8": "^4.0.7",
-        "vite": "^7.2.0",
-        "vitest": "^4.0.7"
+        "@vitest/coverage-v8": "^4.0.18",
+        "vite": "^7.3.1",
+        "vitest": "^4.0.18"
     }
 }
