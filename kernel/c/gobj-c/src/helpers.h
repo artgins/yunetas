@@ -1107,11 +1107,10 @@ PUBLIC int is_yuneta_user(const char *username);
  * directly (no glibc NSS / dlopen). In dynamic builds they delegate to
  * the standard glibc functions.
  */
-struct passwd *yuneta_getpwuid(uid_t uid);
-struct passwd *yuneta_getpwnam(const char *name);
-struct group  *yuneta_getgrnam(const char *name);
-int            yuneta_getgrouplist(const char *user, gid_t group,
-                                   gid_t *groups, int *ngroups);
+PUBLIC struct passwd *yuneta_getpwuid(uid_t uid);
+PUBLIC struct passwd *yuneta_getpwnam(const char *name);
+PUBLIC struct group *yuneta_getgrnam(const char *name);
+PUBLIC int yuneta_getgrouplist(const char *user, gid_t group, gid_t *groups, int *ngroups);
 
 PUBLIC const char *path_basename(const char *path);
 PUBLIC const char *get_yunetas_base(void);
