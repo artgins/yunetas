@@ -6759,8 +6759,7 @@ PUBLIC int print_open_fds(const char *fmt, ...)
 #ifdef CONFIG_FULLY_STATIC
 
 /* Internal /etc/passwd line parser — fills *pw and buf on success */
-static int parse_passwd_line(char *line, struct passwd *pw,
-                              char *buf, size_t bufsz)
+PRIVATE int parse_passwd_line(char *line, struct passwd *pw, char *buf, size_t bufsz)
 {
     /* Format: name:password:uid:gid:gecos:dir:shell */
     char *fields[7];
@@ -6796,7 +6795,7 @@ static int parse_passwd_line(char *line, struct passwd *pw,
     return 0;
 }
 
-PRIVATE struct passwd *static_getpwuid(uid_t uid)
+struct passwd *static_getpwuid(uid_t uid)
 {
     static struct passwd result;
     static char buf[2048];
@@ -6823,7 +6822,7 @@ PRIVATE struct passwd *static_getpwuid(uid_t uid)
     return NULL;
 }
 
-PRIVATE struct passwd *static_getpwnam(const char *name)
+struct passwd *static_getpwnam(const char *name)
 {
     static struct passwd result;
     static char buf[2048];
@@ -6853,8 +6852,7 @@ PRIVATE struct passwd *static_getpwnam(const char *name)
 }
 
 /* Internal /etc/group line parser */
-static int parse_group_line(char *line, struct group *gr,
-                             char *buf, size_t bufsz)
+PRIVATE int parse_group_line(char *line, struct group *gr, char *buf, size_t bufsz)
 {
     /* Format: name:password:gid:member1,member2,... */
     char *fields[4];
@@ -6884,7 +6882,7 @@ static int parse_group_line(char *line, struct group *gr,
     return 0;
 }
 
-PRIVATE struct group *static_getgrnam(const char *name)
+struct group *static_getgrnam(const char *name)
 {
     static struct group result;
     static char buf[2048];
@@ -6913,7 +6911,8 @@ PRIVATE struct group *static_getgrnam(const char *name)
     return NULL;
 }
 
-PRIVATE int static_getgrouplist(const char *user, gid_t group, gid_t *groups, int *ngroups)
+int static_getgrouplist(const char *user, gid_t group,
+                         gid_t *groups, int *ngroups)
 {
     int max = *ngroups;
     int count = 0;
