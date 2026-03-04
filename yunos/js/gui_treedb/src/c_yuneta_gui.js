@@ -55,6 +55,22 @@ import {
 import {setup_locale} from "./locales/locales.js";
 import {t} from "i18next";
 
+/***************************************************************
+ *  Escape a value for safe insertion into an HTML context.
+ *  Use this whenever server-supplied strings are interpolated
+ *  into a template-literal HTML string.
+ ***************************************************************/
+function escapeHtml(str)
+{
+    if(str == null) return '';
+    return String(str)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#39;');
+}
+
 // import "yuneta-icon-font/dist/yuneta-icon-font.js"; // TODO parece que no se usa
 // import "yuneta-icon-font/dist/yuneta-icon-font.css";
 
@@ -771,13 +787,13 @@ function ac_id_refused(gobj, event, kw, src)
     close_all(gobj);
 
     let message = `<div>
-        ${t('cause')}: ${t(kw.comment)}
+        ${escapeHtml(t('cause'))}: ${escapeHtml(t(kw.comment))}
         <br>
-        ${t('user')}: ${kw.username}
+        ${escapeHtml(t('user'))}: ${escapeHtml(kw.username)}
         <br>
-        ${t('remote-service')}: ${kw.remote_yuno_role}/${kw.remote_yuno_name}
+        ${escapeHtml(t('remote-service'))}: ${escapeHtml(kw.remote_yuno_role)}/${escapeHtml(kw.remote_yuno_name)}
         <br>
-        ${t('url')}: ${kw.url}
+        ${escapeHtml(t('url'))}: ${escapeHtml(kw.url)}
         </div>
     `;
 

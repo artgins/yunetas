@@ -73,6 +73,22 @@ import {
 
 import "./ytable.css"; // Must be in index.js ?
 
+/***************************************************************
+ *  Escape a value for safe insertion into an HTML context.
+ *  Formatter functions MUST use this for any user-supplied data
+ *  they embed in their returned HTML string.
+ ***************************************************************/
+export function escapeHtml(str)
+{
+    if(str == null) return '';
+    return String(str)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#39;');
+}
+
 let default_options = {
     id: undefined,
     width: "100%",
@@ -309,7 +325,15 @@ class YTable {
             this.columns.forEach(col => {
                 const td = document.createElement('td');
                 if(col.formatter) {
-                    td.innerHTML = col.formatter(record[col.id], rowIndex, col.id).trim();
+                    // Use createContextualFragment so that any <script> elements
+                    // in the formatter output are inert (never executed).
+                    // Formatter functions are responsible for escaping any
+                    // user-supplied field values they embed in their HTML
+                    // (use the exported escapeHtml() helper).
+                    const frag = document.createRange().createContextualFragment(
+                        col.formatter(record[col.id], rowIndex, col.id).trim()
+                    );
+                    td.appendChild(frag);
                 } else {
                     td.textContent = record[col.id];
                 }

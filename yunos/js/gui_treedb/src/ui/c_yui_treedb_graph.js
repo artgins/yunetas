@@ -82,6 +82,36 @@ import {
 
 import {t} from "i18next";
 
+/***************************************************************
+ *  Escape a value for safe insertion into an HTML context.
+ *  Use this whenever DB-supplied strings are interpolated
+ *  into an innerHTML/style.innerHTML template literal.
+ ***************************************************************/
+function escapeHtml(str)
+{
+    if(str == null) return '';
+    return String(str)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#39;');
+}
+
+/***************************************************************
+ *  Validate a URL for use as an image src attribute.
+ *  Only http/https and relative paths are allowed.
+ *  Returns empty string for anything else (e.g. javascript:).
+ ***************************************************************/
+function safeSrc(url)
+{
+    if(!url) return '';
+    const s = String(url).trim();
+    // Allow relative paths and http/https URLs only
+    if(/^javascript:/i.test(s) || /^data:/i.test(s)) return '';
+    return escapeHtml(s);
+}
+
 import {
     BaseLayout,
     ExtensionCategory,
@@ -1105,11 +1135,11 @@ function create_topic_node(gobj, schema, record)
 ">
     <div>
         <span class="icon is-large">
-        <img src="${record.icon?record.icon:''}" alt=""/>
+        <img src="${safeSrc(record.icon)}" alt=""/>
         </span>
     </div>
     <div style="font-weight: bold;">
-      ${record.id}
+      ${escapeHtml(record.id)}
     </div>
 </div>
 `;
