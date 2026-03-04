@@ -5,11 +5,19 @@
   <title></title>
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <meta name="robots" content="noindex, nofollow">
+  <!--
+    HACK: connect-src origins MUST match backend_config.js exactly.
+    Every WebSocket backend (backend_urls) and OAuth server (keycloak_configs → auth-server-url)
+    declared there needs a corresponding entry here, and vice-versa.
+  -->
   <meta http-equiv="Content-Security-Policy"
         content="default-src 'self';
           script-src 'self';
           style-src 'self' 'unsafe-inline';
-          connect-src 'self' wss://localhost:1800 wss://treedb.yunetas.com:1800 https://auth.artgins.com;
+          connect-src 'self'
+            wss://localhost:1800
+            wss://treedb.yunetas.com:1800
+            https://auth.artgins.com;
           worker-src 'self' blob:;
           child-src 'self' blob:;
           img-src 'self' data: blob:;

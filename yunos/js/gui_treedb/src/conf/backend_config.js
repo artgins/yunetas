@@ -6,7 +6,12 @@
  ***********************************************************************/
 
 /*
- *  Entries must be the same in backend_urls and keycloak_configs
+ *  Entries must be the same in backend_urls and keycloak_configs.
+ *
+ *  HACK: Every WebSocket backend added to backend_urls and every OAuth server
+ *  added to keycloak_configs MUST also be reflected in the CSP connect-src
+ *  directive in index.html, and vice-versa.  Keeping these two files out of
+ *  sync will either break connectivity or leave the CSP wider than intended.
  */
 
 const backend_urls = {
