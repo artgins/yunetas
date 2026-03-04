@@ -1099,19 +1099,19 @@ PUBLIC int check_open_fds(void); // return # opened fd's
 PUBLIC int print_open_fds(const char *fmt, ...);
 PUBLIC int is_yuneta_user(const char *username);
 
-#ifdef CONFIG_FULLY_STATIC
 #include <pwd.h>
 #include <grp.h>
 /*
- * Static replacements for NSS user/group functions.
- * Read /etc/passwd and /etc/group directly — no shared library needed.
+ * Portable user/group lookup wrappers.
+ * In CONFIG_FULLY_STATIC builds these read /etc/passwd and /etc/group
+ * directly (no glibc NSS / dlopen). In dynamic builds they delegate to
+ * the standard glibc functions.
  */
-struct passwd *static_getpwuid(uid_t uid);
-struct passwd *static_getpwnam(const char *name);
-struct group  *static_getgrnam(const char *name);
-int            static_getgrouplist(const char *user, gid_t group,
+struct passwd *yuneta_getpwuid(uid_t uid);
+struct passwd *yuneta_getpwnam(const char *name);
+struct group  *yuneta_getgrnam(const char *name);
+int            yuneta_getgrouplist(const char *user, gid_t group,
                                    gid_t *groups, int *ngroups);
-#endif /* CONFIG_FULLY_STATIC */
 
 PUBLIC const char *path_basename(const char *path);
 PUBLIC const char *get_yunetas_base(void);

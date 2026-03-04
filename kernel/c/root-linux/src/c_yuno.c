@@ -796,11 +796,7 @@ PRIVATE void mt_create(hgobj gobj)
      *----------------------------------------*/
     BOOL is_yuneta = FALSE;
 #ifdef __linux__
-#ifdef CONFIG_FULLY_STATIC
-    struct passwd *pw = static_getpwuid(getuid());
-#else
-    struct passwd *pw = getpwuid(getuid());
-#endif
+    struct passwd *pw = yuneta_getpwuid(getuid());
     const char *username = (pw) ? pw->pw_name : "yuneta";
     is_yuneta = is_yuneta_user(username);
 #endif

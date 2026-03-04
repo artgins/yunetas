@@ -6999,6 +6999,45 @@ int static_getgrouplist(const char *user, gid_t group,
 #endif /* CONFIG_FULLY_STATIC */
 
 /***************************************************************************
+ * Portable wrappers — callers use these; #ifdef stays here only.
+ ***************************************************************************/
+struct passwd *yuneta_getpwuid(uid_t uid)
+{
+#ifdef CONFIG_FULLY_STATIC
+    return static_getpwuid(uid);
+#else
+    return getpwuid(uid);
+#endif
+}
+
+struct passwd *yuneta_getpwnam(const char *name)
+{
+#ifdef CONFIG_FULLY_STATIC
+    return static_getpwnam(name);
+#else
+    return getpwnam(name);
+#endif
+}
+
+struct group *yuneta_getgrnam(const char *name)
+{
+#ifdef CONFIG_FULLY_STATIC
+    return static_getgrnam(name);
+#else
+    return getgrnam(name);
+#endif
+}
+
+int yuneta_getgrouplist(const char *user, gid_t group, gid_t *groups, int *ngroups)
+{
+#ifdef CONFIG_FULLY_STATIC
+    return static_getgrouplist(user, group, groups, ngroups);
+#else
+    return getgrouplist(user, group, groups, ngroups);
+#endif
+}
+
+/***************************************************************************
  * Check if a given username belongs to the "yuneta" group
  * or is exactly the "yuneta" user.
  *
@@ -7021,21 +7060,13 @@ PUBLIC int is_yuneta_user(const char *username)
     }
 
     /* Get passwd entry for user */
-#ifdef CONFIG_FULLY_STATIC
-    struct passwd *pw = static_getpwnam(username);
-#else
-    struct passwd *pw = getpwnam(username);
-#endif
+    struct passwd *pw = yuneta_getpwnam(username);
     if(!pw) {
         return FALSE;
     }
 
     /* Get group entry for "yuneta" */
-#ifdef CONFIG_FULLY_STATIC
-    struct group *gr = static_getgrnam("yuneta");
-#else
-    struct group *gr = getgrnam("yuneta");
-#endif
+    struct group *gr = yuneta_getgrnam("yuneta");
     if(!gr) {
         return FALSE;
     }
@@ -7050,11 +7081,7 @@ PUBLIC int is_yuneta_user(const char *username)
     gid_t groups[NGROUPS];
     int ngroups = NGROUPS;
 
-#ifdef CONFIG_FULLY_STATIC
-    if(static_getgrouplist(username, pw->pw_gid, groups, &ngroups) == -1) {
-#else
-    if(getgrouplist(username, pw->pw_gid, groups, &ngroups) == -1) {
-#endif
+    if(yuneta_getgrouplist(username, pw->pw_gid, groups, &ngroups) == -1) {
         /* In case of error, fallback: user likely has more groups than NGROUPS */
         return FALSE;
     }

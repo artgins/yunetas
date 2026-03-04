@@ -9198,11 +9198,7 @@ PUBLIC json_t *gobj_authenticate(hgobj gobj_, json_t *kw, hgobj src)
      *-----------------------------------------------*/
     if(!__global_authentication_parser_fn__) {
 #ifdef __linux__
-#ifdef CONFIG_FULLY_STATIC
-        struct passwd *pw = static_getpwuid(getuid());
-#else
-        struct passwd *pw = getpwuid(getuid());
-#endif
+        struct passwd *pw = yuneta_getpwuid(getuid());
         const char *username = (pw) ? pw->pw_name : "yuneta";
 
         KW_DECREF(kw)
