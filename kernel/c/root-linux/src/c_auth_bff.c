@@ -394,8 +394,6 @@ PRIVATE json_t *result_token_response(
     hgobj src_task
 )
 {
-    PRIVATE_DATA *priv = gobj_priv_data(gobj);
-
     /*
      *  Retrieve and remove the pending request that triggered this call.
      *  (It was passed via output_data of the task.)
@@ -465,7 +463,7 @@ PRIVATE json_t *result_token_response(
                         else if(payload_b64[i] == '_') payload_b64[i] = '/';
                     }
                     /* Decode */
-                    gbuffer_t *gbuf = gbuffer_base64_decode(payload_b64, payload_len);
+                    gbuffer_t *gbuf = gbuffer_base64_to_binary(payload_b64, payload_len);
                     if(gbuf) {
                         char *decoded = gbuffer_cur_rd_pointer(gbuf);
                         json_error_t jerr;
@@ -698,7 +696,7 @@ PRIVATE void process_next(hgobj gobj)
     /* Build Keycloak URL from parsed parts */
     char kc_token_url[1024];
     snprintf(kc_token_url, sizeof(kc_token_url),
-        "%s://%s%s%s/token",
+        "%s://%s%s%s%s/token",
         priv->schema,
         priv->host,
         empty_string(priv->port) ? "" : ":",
