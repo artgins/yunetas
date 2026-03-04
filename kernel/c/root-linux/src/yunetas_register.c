@@ -15,6 +15,7 @@
 #include "c_timer0.h"
 #include "c_timer.h"
 #include "c_authz.h"
+#include "c_auth_bff.h"
 #include "c_ievent_cli.h"
 #include "c_ievent_srv.h"
 #include "c_node.h"
@@ -53,6 +54,7 @@ PUBLIC int yunetas_register_c_core(void)
     int result = 0;
 
     result += register_c_authz();
+    result += register_c_auth_bff();
     result += register_c_ievent_cli();
     result += register_c_ievent_srv();
     result += register_c_tcp();

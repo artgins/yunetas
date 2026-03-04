@@ -709,14 +709,13 @@ function ac_on_close(gobj, event, kw, src)
 function ac_login_accepted(gobj, event, kw, src)
 {
     gobj_write_attr(gobj, "username", kw.username);
-    let jwt = kw.jwt;
 
-    /*---------------------------*
-     *  Get roles
-     *---------------------------*/
-    /*-----------------------------------------------------------*
-     *  With login done it's time to connect to Yuneta backend
-     *-----------------------------------------------------------*/
+    /*
+     *  SEC-06: the JWT is now stored exclusively in an httpOnly cookie set
+     *  by the BFF.  We no longer forward it from JavaScript.  The browser
+     *  will send the cookie automatically during the WebSocket HTTP Upgrade
+     *  and the Yuneta backend reads it from the Cookie header.
+     */
     if (empty_string(gobj_read_str_attr(gobj, "url"))) {
         display_error_message(
             "Error",
@@ -726,7 +725,7 @@ function ac_login_accepted(gobj, event, kw, src)
             }
         );
     } else {
-        do_connect(gobj, jwt);
+        do_connect(gobj, null);
     }
 
     return 0;
