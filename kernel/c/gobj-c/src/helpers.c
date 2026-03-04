@@ -6795,7 +6795,7 @@ PRIVATE int parse_passwd_line(char *line, struct passwd *pw, char *buf, size_t b
     return 0;
 }
 
-struct passwd *static_getpwuid(uid_t uid)
+PRIVATE struct passwd *static_getpwuid(uid_t uid)
 {
     static struct passwd result;
     static char buf[2048];
@@ -6822,7 +6822,7 @@ struct passwd *static_getpwuid(uid_t uid)
     return NULL;
 }
 
-struct passwd *static_getpwnam(const char *name)
+PRIVATE struct passwd *static_getpwnam(const char *name)
 {
     static struct passwd result;
     static char buf[2048];
@@ -6882,7 +6882,7 @@ PRIVATE int parse_group_line(char *line, struct group *gr, char *buf, size_t buf
     return 0;
 }
 
-struct group *static_getgrnam(const char *name)
+PRIVATE struct group *static_getgrnam(const char *name)
 {
     static struct group result;
     static char buf[2048];
@@ -6911,8 +6911,7 @@ struct group *static_getgrnam(const char *name)
     return NULL;
 }
 
-int static_getgrouplist(const char *user, gid_t group,
-                         gid_t *groups, int *ngroups)
+PRIVATE int static_getgrouplist(const char *user, gid_t group, gid_t *groups, int *ngroups)
 {
     int max = *ngroups;
     int count = 0;
