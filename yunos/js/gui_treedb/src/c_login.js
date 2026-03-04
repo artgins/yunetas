@@ -357,12 +357,6 @@ function do_logout(gobj)
         }
     };
     xhr.send(data);
-
-    /*
-     *  Clear username
-     */
-    gobj_write_attr(gobj, "username", "");
-    kw_remove_local_storage_value("session");
 }
 
 /********************************************
@@ -436,6 +430,39 @@ function do_refresh(gobj)
         }
     };
     xhr.send(data);
+}
+
+/********************************************
+ *
+ ********************************************/
+function save_token(gobj, kw)
+{
+    let priv = gobj.priv;
+
+    gobj_write_attr(gobj, "full_oauth_response", kw);
+    gobj_write_attr(gobj, "access_token", kw["access_token"]);
+    gobj_write_attr(gobj, "refresh_token", kw["refresh_token"]);
+
+    /*
+     *  Save the session
+     */
+    kw_set_local_storage_value(
+        "session",
+        {
+            username: gobj_read_attr(gobj, "username"),
+            full_oauth_response: kw
+        }
+    );
+
+    priv.tokenParsed = jwt2json(gobj_read_attr(gobj, "access_token"));
+    priv.refreshParsed = jwt2json(gobj_read_attr(gobj, "refresh_token"));
+
+    priv.timeout_refresh = priv.refreshParsed.exp - get_now() - 5;
+    if(priv.timeout_refresh <= 0) {
+        priv.timeout_refresh = 2; // Validity will be checked in refresh time
+    }
+    set_timeout(priv.gobj_timer, priv.timeout_refresh*1000);
+
 }
 
 
@@ -524,31 +551,7 @@ Ejemplo de jwt dado por google  {
  ********************************************/
 function ac_login_accepted(gobj, event, kw, src)
 {
-    let priv = gobj.priv;
-
-    gobj_write_attr(gobj, "full_oauth_response", kw);
-    gobj_write_attr(gobj, "access_token", kw["access_token"]);
-    gobj_write_attr(gobj, "refresh_token", kw["refresh_token"]);
-
-    /*
-     *  Save the session
-     */
-    kw_set_local_storage_value(
-        "session",
-        {
-            username: gobj_read_attr(gobj, "username"),
-            full_oauth_response: kw
-        }
-    );
-
-    priv.tokenParsed = jwt2json(gobj_read_attr(gobj, "access_token"));
-    priv.refreshParsed = jwt2json(gobj_read_attr(gobj, "refresh_token"));
-
-    priv.timeout_refresh = priv.refreshParsed.exp - get_now() - 5;
-    if(priv.timeout_refresh <= 0) {
-        priv.timeout_refresh = 2; // Validity will be checked in refresh time
-    }
-    set_timeout(priv.gobj_timer, priv.timeout_refresh*1000);
+    save_token(gobj, kw);
 
     // log_warning("====> timeout refresh (seconds):" + priv.timeout_refresh); // TODO TEST
 
@@ -574,31 +577,7 @@ function ac_login_accepted(gobj, event, kw, src)
  ********************************************/
 function ac_login_refreshed(gobj, event, kw, src)
 {
-    let priv = gobj.priv;
-
-    gobj_write_attr(gobj, "full_oauth_response", kw);
-    gobj_write_attr(gobj, "access_token", kw["access_token"]);
-    gobj_write_attr(gobj, "refresh_token", kw["refresh_token"]);
-
-    /*
-     *  Save the session
-     */
-    kw_set_local_storage_value(
-        "session",
-        {
-            username: gobj_read_attr(gobj, "username"),
-            full_oauth_response: kw
-        }
-    );
-
-    priv.tokenParsed = jwt2json(gobj_read_attr(gobj, "access_token"));
-    priv.refreshParsed = jwt2json(gobj_read_attr(gobj, "refresh_token"));
-
-    priv.timeout_refresh = priv.refreshParsed.exp - get_now() - 5;
-    if(priv.timeout_refresh <= 0) {
-        priv.timeout_refresh = 2; // Validity will be checked in refresh time
-    }
-    set_timeout(priv.gobj_timer, priv.timeout_refresh*1000);
+    save_token(gobj,  kw);
 
     gobj_publish_event(gobj, "EV_LOGIN_REFRESHED", {
         username: gobj_read_attr(gobj, "username"),
@@ -626,12 +605,18 @@ function ac_login_denied(gobj, event, kw, src)
  ********************************************/
 function ac_logout_done(gobj, event, kw, src)
 {
+    /*
+     *  Clear username
+     */
+    gobj_write_attr(gobj, "username", "");
+    kw_remove_local_storage_value("session");
+
     gobj_write_attr(gobj, "full_oauth_response", null);
     gobj_write_attr(gobj, "access_token", null);
     gobj_write_attr(gobj, "refresh_token", null);
 
-    kw_remove_local_storage_value("session");
     gobj_publish_event(gobj, "EV_LOGOUT_DONE", kw);
+
     return 0;
 }
 
