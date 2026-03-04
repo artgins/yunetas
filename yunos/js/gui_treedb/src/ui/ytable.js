@@ -69,25 +69,10 @@ Callbacks:
 import {
     duplicate_objects,
     is_pure_number,
+    escapeHtml,
 }  from "yunetas";
 
 import "./ytable.css"; // Must be in index.js ?
-
-/***************************************************************
- *  Escape a value for safe insertion into an HTML context.
- *  Formatter functions MUST use this for any user-supplied data
- *  they embed in their returned HTML string.
- ***************************************************************/
-export function escapeHtml(str)
-{
-    if(str == null) return '';
-    return String(str)
-        .replace(/&/g, '&amp;')
-        .replace(/</g, '&lt;')
-        .replace(/>/g, '&gt;')
-        .replace(/"/g, '&quot;')
-        .replace(/'/g, '&#39;');
-}
 
 let default_options = {
     id: undefined,

@@ -42,6 +42,7 @@ import {
     gobj_create_pure_child,
     refresh_language,
     set_remote_log_functions,
+    escapeHtml,
 } from "yunetas";
 
 import {backend_urls} from "./conf/backend_config.js";
@@ -54,22 +55,6 @@ import {
 
 import {setup_locale} from "./locales/locales.js";
 import {t} from "i18next";
-
-/***************************************************************
- *  Escape a value for safe insertion into an HTML context.
- *  Use this whenever server-supplied strings are interpolated
- *  into a template-literal HTML string.
- ***************************************************************/
-function escapeHtml(str)
-{
-    if(str == null) return '';
-    return String(str)
-        .replace(/&/g, '&amp;')
-        .replace(/</g, '&lt;')
-        .replace(/>/g, '&gt;')
-        .replace(/"/g, '&quot;')
-        .replace(/'/g, '&#39;');
-}
 
 // import "yuneta-icon-font/dist/yuneta-icon-font.js"; // TODO parece que no se usa
 // import "yuneta-icon-font/dist/yuneta-icon-font.css";

@@ -2660,6 +2660,41 @@ function jwt2json(jwt, what)
 }
 
 /***************************************************************************
+ *  Escape a value for safe insertion into an HTML context.
+ *  Use this whenever user- or server-supplied strings are interpolated
+ *  into an innerHTML / style.innerHTML template literal.
+ ***************************************************************************/
+function escapeHtml(str)
+{
+    if(str == null) {
+        return '';
+    }
+    return String(str)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#39;');
+}
+
+/***************************************************************************
+ *  Validate and escape a URL for use as an image/media src attribute.
+ *  Blocks javascript: and data: URIs that could be used for XSS.
+ *  Returns an empty string for any disallowed scheme.
+ ***************************************************************************/
+function safeSrc(url)
+{
+    if(!url) {
+        return '';
+    }
+    const s = String(url).trim();
+    if(/^javascript:/i.test(s) || /^data:/i.test(s)) {
+        return '';
+    }
+    return escapeHtml(s);
+}
+
+/***************************************************************************
  *
  ***************************************************************************/
 function createOneHtml(htmlString)
@@ -3318,6 +3353,8 @@ export {
     jwtDecode,
     jwt2json,
 
+    escapeHtml,
+    safeSrc,
     createOneHtml,
     createElement2,
     getPositionRelativeToBody,

@@ -62,6 +62,8 @@ import {
     gobj_save_persistent_attrs,
     gobj_read_bool_attr,
     json_size,
+    escapeHtml,
+    safeSrc,
 } from "yunetas";
 
 import {yui_toolbar} from "./yui_toolbar.js";
@@ -81,36 +83,6 @@ import {
 } from "./lib_graph.js";
 
 import {t} from "i18next";
-
-/***************************************************************
- *  Escape a value for safe insertion into an HTML context.
- *  Use this whenever DB-supplied strings are interpolated
- *  into an innerHTML/style.innerHTML template literal.
- ***************************************************************/
-function escapeHtml(str)
-{
-    if(str == null) return '';
-    return String(str)
-        .replace(/&/g, '&amp;')
-        .replace(/</g, '&lt;')
-        .replace(/>/g, '&gt;')
-        .replace(/"/g, '&quot;')
-        .replace(/'/g, '&#39;');
-}
-
-/***************************************************************
- *  Validate a URL for use as an image src attribute.
- *  Only http/https and relative paths are allowed.
- *  Returns empty string for anything else (e.g. javascript:).
- ***************************************************************/
-function safeSrc(url)
-{
-    if(!url) return '';
-    const s = String(url).trim();
-    // Allow relative paths and http/https URLs only
-    if(/^javascript:/i.test(s) || /^data:/i.test(s)) return '';
-    return escapeHtml(s);
-}
 
 import {
     BaseLayout,
