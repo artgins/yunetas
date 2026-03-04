@@ -191,24 +191,42 @@ function duplicate_objects(...sourceObjects)
  ************************************************************/
 function json_is_identical(kw1, kw2)
 {
-    if(kw1 === kw2) return true;
-    if(kw1 === null || kw2 === null) return kw1 === kw2;
-    if(typeof kw1 !== typeof kw2) return false;
-    if(Array.isArray(kw1) !== Array.isArray(kw2)) return false;
+    if(kw1 === kw2) {
+        return true;
+    }
+    if(kw1 === null || kw2 === null) {
+        return kw1 === kw2;
+    }
+    if(typeof kw1 !== typeof kw2) {
+        return false;
+    }
+    if(Array.isArray(kw1) !== Array.isArray(kw2)) {
+        return false;
+    }
     if(Array.isArray(kw1)) {
-        if(kw1.length !== kw2.length) return false;
+        if(kw1.length !== kw2.length) {
+            return false;
+        }
         for(let i = 0; i < kw1.length; i++) {
-            if(!json_is_identical(kw1[i], kw2[i])) return false;
+            if(!json_is_identical(kw1[i], kw2[i])) {
+                return false;
+            }
         }
         return true;
     }
     if(typeof kw1 === "object") {
         let keys1 = Object.keys(kw1).sort();
         let keys2 = Object.keys(kw2).sort();
-        if(keys1.length !== keys2.length) return false;
+        if(keys1.length !== keys2.length) {
+            return false;
+        }
         for(let i = 0; i < keys1.length; i++) {
-            if(keys1[i] !== keys2[i]) return false;
-            if(!json_is_identical(kw1[keys1[i]], kw2[keys2[i]])) return false;
+            if(keys1[i] !== keys2[i]) {
+                return false;
+            }
+            if(!json_is_identical(kw1[keys1[i]], kw2[keys2[i]])) {
+                return false;
+            }
         }
         return true;
     }
