@@ -90,6 +90,10 @@ PUBLIC json_t *iev_create2( // For use within Yuno
         event,
         kw // like owned, return same kw
     );
+    if(!iev) {
+        KW_DECREF(kw_request)
+        return NULL;
+    }
     json_t *__temp__ = kw_get_dict_value(gobj, kw_request, "__temp__", 0, KW_REQUIRED);
     json_object_set(iev, "__temp__", __temp__);  // Set the channel
     KW_DECREF(kw_request);
@@ -134,6 +138,7 @@ PUBLIC gbuffer_t *iev_create_to_gbuffer( // old iev_create()
             "msg",          "%s", "json_pack() FAILED",
             NULL
         );
+        return 0;
     }
     size_t flags = JSON_COMPACT;
     return json2gbuf(0, jn_iev, flags);
