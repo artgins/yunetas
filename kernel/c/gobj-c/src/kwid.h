@@ -121,17 +121,17 @@ PUBLIC int kw_add_binary_type(
     incref_fn_t incref_fn,
     decref_fn_t decref_fn
 );
-PUBLIC json_t *kw_serialize( // return the same kw
+PUBLIC json_t *kw_serialize(
     hgobj gobj,
-    json_t *kw
+    json_t *kw // like owned, return same kw
 );
 PUBLIC char *kw_serialize_to_string( // return must be free with jsonp_free()
     hgobj gobj,
     json_t *kw
 );
-PUBLIC json_t *kw_deserialize( // return the same kw
+PUBLIC json_t *kw_deserialize(
     hgobj gobj,
-    json_t *kw
+    json_t *kw // like owned, return same kw
 );
 PUBLIC json_t *kw_incref(json_t *kw);
 PUBLIC json_t *kw_decref(json_t* kw);

@@ -91,9 +91,9 @@ PUBLIC int kw_add_binary_type(
 /***************************************************************************
  *  Serialize fields
  ***************************************************************************/
-PUBLIC json_t *kw_serialize( // return the same kw
+PUBLIC json_t *kw_serialize(
     hgobj gobj,
-    json_t *kw
+    json_t *kw  // like owned, return same kw
 )
 {
     serialize_fields_t * pf = serialize_fields;

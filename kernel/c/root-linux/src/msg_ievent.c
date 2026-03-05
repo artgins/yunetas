@@ -107,7 +107,7 @@ PUBLIC json_t *iev_create2( // For use within Yuno
 PUBLIC gbuffer_t *iev_create_to_gbuffer( // old iev_create()
     hgobj gobj,
     gobj_event_t event,
-    json_t *kw // owned
+    json_t *kw // like owned, return same kw
 ) {
     if(empty_string(event)) {
         gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
@@ -127,19 +127,20 @@ PUBLIC gbuffer_t *iev_create_to_gbuffer( // old iev_create()
         gobj,
         kw  // owned
     );
-    json_t *jn_iev = json_pack("{s:s, s:o}",
-        "event", event,
-        "kw", kw
-    );
-    if(!jn_iev) {
+    if(!kw) {
         gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_PARAMETER_ERROR,
-            "msg",          "%s", "json_pack() FAILED",
+            "msg",          "%s", "kw_serialize() FAILED",
             NULL
         );
         return 0;
     }
+
+    json_t *jn_iev = json_pack("{s:s, s:o}",
+        "event", event,
+        "kw", kw
+    );
     size_t flags = JSON_COMPACT;
     return json2gbuf(0, jn_iev, flags);
 }
