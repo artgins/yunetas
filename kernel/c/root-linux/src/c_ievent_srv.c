@@ -771,9 +771,21 @@ PRIVATE int ac_identity_card(hgobj gobj, const char *event, json_t *kw, hgobj sr
         const char *http_cookie = gobj_read_str_attr(gobj, "http_cookie");
         if(!empty_string(http_cookie)) {
             const char *search = "access_token=";
+            size_t search_len = strlen(search);
             const char *p = strstr(http_cookie, search);
+            /*
+             *  SEC-06: verify we matched the exact cookie name, not a
+             *  substring (e.g. "xaccess_token=").  The match must be at
+             *  the start of the string or preceded by "; " / " ".
+             */
+            while(p) {
+                if(p == http_cookie || *(p - 1) == ' ' || *(p - 1) == ';') {
+                    break;  /* exact cookie name match */
+                }
+                p = strstr(p + search_len, search);
+            }
             if(p) {
-                p += strlen(search);
+                p += search_len;
                 const char *end = strpbrk(p, "; ");
                 size_t jwt_len = end ? (size_t)(end - p) : strlen(p);
                 if(jwt_len > 0 && jwt_len < 8192) {
