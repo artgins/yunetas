@@ -57,6 +57,7 @@ PUBLIC json_t *iev_create( // For use within Yuno
             "msg",          "%s", "event NULL",
             NULL
         );
+        KW_DECREF(kw)
         return 0;
     }
 
@@ -67,6 +68,7 @@ PUBLIC json_t *iev_create( // For use within Yuno
             "msg",          "%s", "kw NULL",
             NULL
         );
+        KW_DECREF(kw)
         return 0;
     }
     json_object_set_new(kw, "__iev_event__", json_integer((json_int_t)(uintptr_t)event));
@@ -110,6 +112,7 @@ PUBLIC gbuffer_t *iev_create_to_gbuffer( // old iev_create()
             "msg",          "%s", "event NULL",
             NULL
         );
+        KW_DECREF(kw)
         return 0;
     }
 
