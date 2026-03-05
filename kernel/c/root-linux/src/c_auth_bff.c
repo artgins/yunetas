@@ -125,6 +125,9 @@ SDATA (DTP_STRING,      "cookie_domain",        SDF_RD, "",
     "Cookie Domain attribute (shared hostname without port)"),
 SDATA (DTP_STRING,      "allowed_origin",       SDF_RD, "",
     "CORS Access-Control-Allow-Origin value"),
+SDATA (DTP_STRING,      "allowed_redirect_uri", SDF_RD, "",
+    "Allowed redirect_uri prefix (e.g. https://treedb.yunetas.com/); "
+    "rejects callback requests whose redirect_uri does not start with this"),
 SDATA (DTP_JSON,        "crypto",               SDF_RD, "{}",
     "TLS crypto config for Keycloak outbound calls"),
 SDATA (DTP_POINTER,     "user_data",            0,      0,  "user data"),
@@ -161,7 +164,7 @@ PRIVATE void process_next(hgobj gobj);
 PRIVATE void send_json_response(hgobj browser_src, int status_code,
     const char *status_text, json_t *jn_body, const char *extra_headers);
 PRIVATE void send_error_response(hgobj browser_src, int status_code,
-    const char *status_text, const char *error_msg);
+    const char *status_text, const char *error_msg, const char *extra_headers);
 PRIVATE const char *extract_cookie(const char *cookie_header, const char *name,
     char *out, size_t out_size);
 
@@ -260,13 +263,13 @@ PRIVATE void send_json_response(hgobj browser_src, int status_code,
 }
 
 PRIVATE void send_error_response(hgobj browser_src, int status_code,
-    const char *status_text, const char *error_msg)
+    const char *status_text, const char *error_msg, const char *extra_headers)
 {
     json_t *jn_body = json_pack("{s:b, s:s}",
         "success", 0,
         "error",   error_msg
     );
-    send_json_response(browser_src, status_code, status_text, jn_body, NULL);
+    send_json_response(browser_src, status_code, status_text, jn_body, extra_headers);
     JSON_DECREF(jn_body)
 }
 
@@ -279,7 +282,13 @@ PRIVATE void build_cors_headers(hgobj gobj, const char *origin,
 {
     const char *allowed_origin = gobj_read_str_attr(gobj, "allowed_origin");
     if(empty_string(allowed_origin)) {
-        allowed_origin = origin ? origin : "*";
+        /*
+         *  SEC-06: never reflect an arbitrary Origin or fall back to "*".
+         *  If allowed_origin is not configured, deny cross-origin access
+         *  by omitting the CORS headers entirely.
+         */
+        buf[0] = '\0';
+        return;
     }
     int n = snprintf(buf, buf_size,
         "Access-Control-Allow-Origin: %s\r\n"
@@ -420,10 +429,8 @@ PRIVATE json_t *result_token_response(
     build_cors_headers(gobj, origin, cors_hdrs, sizeof(cors_hdrs), FALSE);
 
     if(status != 200) {
-        char extra[2048];
-        snprintf(extra, sizeof(extra), "%s", cors_hdrs);
         send_error_response(browser_src, 400, status_str(400),
-            "Keycloak token exchange failed");
+            "Keycloak token exchange failed", cors_hdrs);
         KW_DECREF(kw)
         STOP_TASK()
     }
@@ -431,7 +438,7 @@ PRIVATE json_t *result_token_response(
     json_t *jn_body = kw_get_dict(gobj, kw, "body", NULL, KW_REQUIRED);
     if(!jn_body) {
         send_error_response(browser_src, 500, status_str(500),
-            "Empty response from Keycloak");
+            "Empty response from Keycloak", cors_hdrs);
         KW_DECREF(kw)
         STOP_TASK()
     }
@@ -854,7 +861,7 @@ PRIVATE int ac_on_message(hgobj gobj, const char *event, json_t *kw, hgobj src)
     /* ---- POST only from here ---- */
     if(method != HTTP_POST) {
         send_error_response(src, 405, "405 Method Not Allowed",
-            "Only POST is allowed");
+            "Only POST is allowed", cors_hdrs);
         KW_DECREF(kw)
         return 0;
     }
@@ -867,7 +874,8 @@ PRIVATE int ac_on_message(hgobj gobj, const char *event, json_t *kw, hgobj src)
     if(strcmp(url, "/auth/callback") == 0) {
         /* POST /auth/callback  { code, code_verifier, redirect_uri } */
         if(!jn_body) {
-            send_error_response(src, 400, status_str(400), "Missing JSON body");
+            send_error_response(src, 400, status_str(400), "Missing JSON body",
+                cors_hdrs);
             KW_DECREF(kw)
             return 0;
         }
@@ -877,10 +885,25 @@ PRIVATE int ac_on_message(hgobj gobj, const char *event, json_t *kw, hgobj src)
 
         if(empty_string(code) || empty_string(cv) || empty_string(ruri)) {
             send_error_response(src, 400, status_str(400),
-                "code, code_verifier, and redirect_uri are required");
+                "code, code_verifier, and redirect_uri are required", cors_hdrs);
             KW_DECREF(kw)
             return 0;
         }
+
+        /*
+         *  SEC-06: validate redirect_uri against the configured allowed prefix.
+         *  This prevents the BFF from forwarding arbitrary redirect URIs to
+         *  Keycloak, which could be exploited in phishing/open-redirect attacks.
+         */
+        const char *allowed_ruri = gobj_read_str_attr(gobj, "allowed_redirect_uri");
+        if(!empty_string(allowed_ruri) &&
+                strncmp(ruri, allowed_ruri, strlen(allowed_ruri)) != 0) {
+            send_error_response(src, 400, status_str(400),
+                "redirect_uri not allowed", cors_hdrs);
+            KW_DECREF(kw)
+            return 0;
+        }
+
         pa.action = BFF_CALLBACK;
         snprintf(pa.code,          sizeof(pa.code),          "%s", code);
         snprintf(pa.code_verifier, sizeof(pa.code_verifier), "%s", cv);
@@ -892,7 +915,7 @@ PRIVATE int ac_on_message(hgobj gobj, const char *event, json_t *kw, hgobj src)
         if(!extract_cookie(cookie_hdr, COOKIE_NAME_RT, rt, sizeof(rt)) ||
                 empty_string(rt)) {
             send_error_response(src, 401, status_str(401),
-                "Missing refresh_token cookie");
+                "Missing refresh_token cookie", cors_hdrs);
             KW_DECREF(kw)
             return 0;
         }
@@ -907,14 +930,15 @@ PRIVATE int ac_on_message(hgobj gobj, const char *event, json_t *kw, hgobj src)
         snprintf(pa.refresh_token, sizeof(pa.refresh_token), "%s", rt);
 
     } else {
-        send_error_response(src, 404, "404 Not Found", "Unknown endpoint");
+        send_error_response(src, 404, "404 Not Found", "Unknown endpoint",
+            cors_hdrs);
         KW_DECREF(kw)
         return 0;
     }
 
     if(enqueue(gobj, &pa) < 0) {
         send_error_response(src, 503, "503 Service Unavailable",
-            "Server busy, retry in a moment");
+            "Server busy, retry in a moment", cors_hdrs);
         KW_DECREF(kw)
         return 0;
     }

@@ -483,14 +483,19 @@ function save_session_info(gobj, data)
      *  expires_in:         access token lifetime in seconds
      *  refresh_expires_in: refresh token lifetime in seconds
      *
-     *  We schedule a BFF /auth/refresh call 10 seconds before the
-     *  refresh_token itself expires (or after 2 seconds if the timer
-     *  already expired, which means the BFF will respond with an error
-     *  and we fall back to ST_LOGOUT).
+     *  We schedule a BFF /auth/refresh call before the access_token
+     *  expires, so the WebSocket always has a valid JWT cookie.
+     *  Refresh 30 seconds early (or 75% of lifetime if very short).
+     *  If the refresh_token itself has expired, the BFF will return
+     *  an error and we fall back to ST_LOGOUT.
      */
     priv.refresh_expires_in = data.refresh_expires_in || 0;
 
-    priv.timeout_refresh = priv.refresh_expires_in - 10;
+    let access_expires = data.expires_in || 300;
+    priv.timeout_refresh = Math.max(
+        Math.floor(access_expires * 0.75),
+        access_expires - 30
+    );
     if(priv.timeout_refresh <= 0) {
         priv.timeout_refresh = 2;
     }
