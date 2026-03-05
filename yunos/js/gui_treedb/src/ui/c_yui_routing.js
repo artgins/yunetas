@@ -329,6 +329,11 @@ function build_layout(gobj)
  ************************************************************/
 function destroy_layout(gobj)
 {
+    let $container = gobj_read_attr(gobj, "$container");
+    if($container && $container.parentNode) {
+        $container.parentNode.removeChild($container);
+        gobj_write_attr(gobj, "$container", null);
+    }
     return 0;
 }
 

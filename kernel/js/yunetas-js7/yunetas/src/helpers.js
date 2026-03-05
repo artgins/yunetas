@@ -191,24 +191,42 @@ function duplicate_objects(...sourceObjects)
  ************************************************************/
 function json_is_identical(kw1, kw2)
 {
-    if(kw1 === kw2) return true;
-    if(kw1 === null || kw2 === null) return kw1 === kw2;
-    if(typeof kw1 !== typeof kw2) return false;
-    if(Array.isArray(kw1) !== Array.isArray(kw2)) return false;
+    if(kw1 === kw2) {
+        return true;
+    }
+    if(kw1 === null || kw2 === null) {
+        return kw1 === kw2;
+    }
+    if(typeof kw1 !== typeof kw2) {
+        return false;
+    }
+    if(Array.isArray(kw1) !== Array.isArray(kw2)) {
+        return false;
+    }
     if(Array.isArray(kw1)) {
-        if(kw1.length !== kw2.length) return false;
+        if(kw1.length !== kw2.length) {
+            return false;
+        }
         for(let i = 0; i < kw1.length; i++) {
-            if(!json_is_identical(kw1[i], kw2[i])) return false;
+            if(!json_is_identical(kw1[i], kw2[i])) {
+                return false;
+            }
         }
         return true;
     }
     if(typeof kw1 === "object") {
         let keys1 = Object.keys(kw1).sort();
         let keys2 = Object.keys(kw2).sort();
-        if(keys1.length !== keys2.length) return false;
+        if(keys1.length !== keys2.length) {
+            return false;
+        }
         for(let i = 0; i < keys1.length; i++) {
-            if(keys1[i] !== keys2[i]) return false;
-            if(!json_is_identical(kw1[keys1[i]], kw2[keys2[i]])) return false;
+            if(keys1[i] !== keys2[i]) {
+                return false;
+            }
+            if(!json_is_identical(kw1[keys1[i]], kw2[keys2[i]])) {
+                return false;
+            }
         }
         return true;
     }
@@ -2660,6 +2678,41 @@ function jwt2json(jwt, what)
 }
 
 /***************************************************************************
+ *  Escape a value for safe insertion into an HTML context.
+ *  Use this whenever user- or server-supplied strings are interpolated
+ *  into an innerHTML / style.innerHTML template literal.
+ ***************************************************************************/
+function escapeHtml(str)
+{
+    if(str == null) {
+        return '';
+    }
+    return String(str)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#39;');
+}
+
+/***************************************************************************
+ *  Validate and escape a URL for use as an image/media src attribute.
+ *  Blocks javascript: and data: URIs that could be used for XSS.
+ *  Returns an empty string for any disallowed scheme.
+ ***************************************************************************/
+function safeSrc(url)
+{
+    if(!url) {
+        return '';
+    }
+    const s = String(url).trim();
+    if(/^javascript:/i.test(s) || /^data:/i.test(s)) {
+        return '';
+    }
+    return escapeHtml(s);
+}
+
+/***************************************************************************
  *
  ***************************************************************************/
 function createOneHtml(htmlString)
@@ -3318,6 +3371,8 @@ export {
     jwtDecode,
     jwt2json,
 
+    escapeHtml,
+    safeSrc,
     createOneHtml,
     createElement2,
     getPositionRelativeToBody,

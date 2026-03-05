@@ -1,10 +1,41 @@
 /***********************************************************************
- *          login.js
+ *          c_login.js
  *
- *          Manage user login/logout with keycloak
+ *          OAuth2 Authorization Code + PKCE login with BFF (Backend For
+ *          Frontend) support.
  *
- *          Copyright (c) 2025, ArtGins.
- *          All Rights Reserved.
+ *  Security model (SEC-06):
+ *  - Tokens are NEVER stored in localStorage or sessionStorage.
+ *  - The PKCE Authorization Code flow replaces the deprecated ROPC
+ *    (Resource Owner Password Credentials) grant, so this JS code never
+ *    handles user passwords.
+ *  - The browser POSTs the authorization code + PKCE verifier to the BFF
+ *    endpoint (/auth/callback).  The BFF exchanges it with Keycloak
+ *    server-side and writes the tokens into httpOnly, Secure,
+ *    SameSite=Strict cookies that JavaScript cannot read at all.
+ *  - Token refresh and logout go through the BFF too (/auth/refresh,
+ *    /auth/logout), so the JS side only ever sees {username, expires_in,
+ *    refresh_expires_in} — no raw JWT.
+ *  - The WebSocket HTTP-Upgrade request automatically carries the
+ *    httpOnly cookies; the Yuneta backend reads them from the Cookie
+ *    header and validates the JWT server-side.
+ *  - Social logins (Google, GitHub, …) are supported via Keycloak
+ *    Identity Providers: pass a `kc_idp_hint` in EV_DO_LOGIN.
+ *
+ *  Keycloak client configuration required:
+ *  - Standard Flow (Authorization Code) ENABLED
+ *  - Direct Access Grants (ROPC) DISABLED
+ *  - Valid Redirect URIs: the app URL (e.g. https://treedb.yunetas.com/*)
+ *  - Web Origins: the app origin (for CORS)
+ *
+ *  PKCE code_verifier lifecycle:
+ *  - Generated fresh for every login attempt.
+ *  - Stored in sessionStorage ONLY for the duration of the OAuth redirect
+ *    round-trip (keyed by `state` nonce).
+ *  - Deleted immediately after the callback is processed.
+ *
+ *  Copyright (c) 2025, ArtGins.
+ *  All Rights Reserved.
  ***********************************************************************/
 
 import {
@@ -15,19 +46,15 @@ import {
     gclass_create,
     event_flag_t,
     log_error,
-    jwt2json,
+    log_info,
     gobj_subscribe_event,
     gobj_send_event,
     gobj_read_attr,
     gobj_write_attr,
     kw_get_str,
     json_object_size,
-    log_info,
     get_now,
-    is_string,
-    kw_get_local_storage_value,
-    kw_set_local_storage_value,
-    kw_remove_local_storage_value,
+    is_object,
     empty_string,
     sprintf,
     gobj_change_state,
@@ -42,12 +69,15 @@ import {
     gobj_stop,
 } from "yunetas";
 
-import {keycloak_configs} from "./conf/backend_config.js";
+import {keycloak_configs, bff_urls} from "./conf/backend_config.js";
 
 /***************************************************************
  *              Constants
  ***************************************************************/
 const GCLASS_NAME = "C_LOGIN";
+
+// sessionStorage key for PKCE state  (short-lived, only during redirect)
+const PKCE_SESSION_KEY = "pkce_pending";
 
 /***************************************************************
  *              Data
@@ -56,23 +86,73 @@ const GCLASS_NAME = "C_LOGIN";
  *          Attributes
  *---------------------------------------------*/
 const attrs_table = [
-SDATA(data_type_t.DTP_POINTER,  "subscriber",           0,  null,   "Subscriber of output events"),
-SDATA(data_type_t.DTP_STRING,   "username",             0,  "",     "Username to login"),
-SDATA(data_type_t.DTP_JSON,     "oauth_conf",           0,  "{}",   "OAuth configuration"),
-SDATA(data_type_t.DTP_STRING,   "access_token",         0,  "",     "JWT access token"),
-SDATA(data_type_t.DTP_STRING,   "refresh_token",        0,  "",     "JWT refresh token"),
-SDATA(data_type_t.DTP_JSON,     "full_oauth_response",  0,  "{}",   "Full OAuth response"),
+SDATA(data_type_t.DTP_POINTER,  "subscriber",   0,      null,   "Subscriber of output events"),
+SDATA(data_type_t.DTP_STRING,   "username",     0,      "",     "Authenticated username"),
+SDATA(data_type_t.DTP_JSON,     "oauth_conf",   0,      "{}",   "OAuth / Keycloak configuration"),
+SDATA(data_type_t.DTP_STRING,   "bff_url",      0,      "",     "Base URL of the BFF auth endpoint"),
 SDATA_END()
 ];
 
 let PRIVATE_DATA = {
-    timeout_refresh:    0,
-    tokenParsed:        null,
-    refreshParsed:      null,
-    gobj_timer:         null,
+    timeout_refresh:        0,  // seconds until next refresh
+    refresh_expires_in:     0,  // seconds until refresh_token expires (from BFF)
+    gobj_timer:             null,
 };
 
 let __gclass__ = null;
+
+
+
+
+                    /******************************
+                     *      PKCE helpers
+                     ******************************/
+
+
+
+
+/***************************************************************
+ *  Generate a cryptographically random code_verifier (RFC 7636).
+ *  Returns a base64url-encoded 32-byte random value (43 chars).
+ ***************************************************************/
+function generate_code_verifier()
+{
+    const array = new Uint8Array(32);
+    window.crypto.getRandomValues(array);
+    return base64url_encode(array);
+}
+
+/***************************************************************
+ *  Compute SHA-256 of the verifier, return base64url string.
+ ***************************************************************/
+async function compute_code_challenge(verifier)
+{
+    const encoder = new TextEncoder();
+    const data = encoder.encode(verifier);
+    const digest = await window.crypto.subtle.digest("SHA-256", data);
+    return base64url_encode(new Uint8Array(digest));
+}
+
+/***************************************************************
+ *  base64url encode (no padding).
+ ***************************************************************/
+function base64url_encode(array)
+{
+    return btoa(String.fromCharCode(...array))
+        .replace(/\+/g, "-")
+        .replace(/\//g, "_")
+        .replace(/=/g, "");
+}
+
+/***************************************************************
+ *  Generate a random state nonce for CSRF protection.
+ ***************************************************************/
+function generate_state()
+{
+    const array = new Uint8Array(16);
+    window.crypto.getRandomValues(array);
+    return base64url_encode(array);
+}
 
 
 
@@ -91,27 +171,28 @@ function mt_create(gobj)
 {
     let priv = gobj.priv;
 
-    /*
-     *  Create children
-     */
     priv.gobj_timer = gobj_create_pure_child(gobj_name(gobj), "C_TIMER", {}, gobj);
 
-    /*
-     *  SERVICE subscription model
-     */
     const subscriber = gobj_read_pointer_attr(gobj, "subscriber");
     if(subscriber) {
         gobj_subscribe_event(gobj, null, {}, subscriber);
     }
 
-    // HACK punto gatillo: get the keycloak file associated to the url of location.hostname
+    // Resolve configuration for the current hostname
     let hostname = window.location.hostname || "localhost";
 
     let keycloak_config = keycloak_configs[hostname];
     if(keycloak_config) {
         gobj_write_attr(gobj, "oauth_conf", keycloak_config);
     } else {
-        log_error(`${gobj_short_name(gobj)}: keycloack config not found: '${hostname}'`);
+        log_error(`${gobj_short_name(gobj)}: keycloak config not found: '${hostname}'`);
+    }
+
+    let bff_url = bff_urls[hostname];
+    if(bff_url) {
+        gobj_write_attr(gobj, "bff_url", bff_url);
+    } else {
+        log_error(`${gobj_short_name(gobj)}: BFF URL not found: '${hostname}'`);
     }
 }
 
@@ -124,14 +205,23 @@ function mt_start(gobj)
 
     gobj_start(priv.gobj_timer);
 
-    let session = kw_get_local_storage_value("session", null, false);
-    if (session && session.username) {
-        gobj_write_attr(gobj, "username", session.username);
+    /*
+     *  SEC-06: check if we are returning from an OAuth2 redirect.
+     *
+     *  Keycloak redirects back with ?code=<authz_code>&state=<nonce>.
+     *  We handle the callback asynchronously and clean the URL before
+     *  any script can read it again.
+     */
+    const url_params = new URLSearchParams(window.location.search);
+    const code = url_params.get("code");
+    const state = url_params.get("state");
+
+    if(code && state) {
+        // We are on the callback leg of the PKCE flow.
         gobj_change_state(gobj, "ST_WAIT_TOKEN");
-        gobj_send_event(gobj, "EV_LOGIN_ACCEPTED", session.full_oauth_response, gobj);
-    } else {
-        kw_remove_local_storage_value("session");
+        handle_oauth_callback(gobj, code, state);  // async — fires EV_LOGIN_ACCEPTED/DENIED
     }
+    // Otherwise stay in ST_LOGOUT; user clicks a Login button.
 }
 
 /***************************************************************
@@ -140,11 +230,8 @@ function mt_start(gobj)
 function mt_stop(gobj)
 {
     let priv = gobj.priv;
-
     clear_timeout(priv.gobj_timer);
     gobj_stop(priv.gobj_timer);
-
-    //do_logout(this);
 }
 
 /***************************************************************
@@ -164,305 +251,250 @@ function mt_destroy(gobj)
 
 
 
-/********************************************
- *  {
- *      username: str
- *      password: str
- *      offline_access: bool
- *  }
- ********************************************/
-function do_login(gobj, kw)
+/***************************************************************
+ *  Initiate the PKCE Authorization Code flow.
+ *
+ *  kc_idp_hint:  null  → Keycloak login form (local users)
+ *                "google" / "github" / …  → direct IDP redirect
+ *
+ *  This function NAVIGATES AWAY from the current page.
+ *  The app will be reloaded with ?code=…&state=… by Keycloak.
+ ***************************************************************/
+async function initiate_pkce_login(gobj, kc_idp_hint)
 {
-    let username = kw_get_str(gobj, kw, "username", "", kw_flag_t.KW_REQUIRED);
-    let password = kw_get_str(gobj, kw, "password", "", kw_flag_t.KW_REQUIRED);
-
-    if(empty_string(username)) {
-        log_error(sprintf("%s: No username", gobj_short_name(gobj)));
-        gobj_send_event(gobj,
-            "EV_LOGIN_DENIED",
-            {
-                error: "No username"
-            },
-            gobj
-        );
-        return;
-    }
-
-    if(empty_string(password)) {
-        log_error(sprintf("%s: No password", gobj_short_name(gobj)));
-        gobj_send_event(gobj,
-            "EV_LOGIN_DENIED",
-            {
-                error: "No password"
-            },
-            gobj
-        );
+    /*
+     *  SEC-06: require a secure context for WebCrypto.
+     */
+    if(!window.crypto || !window.crypto.subtle) {
+        log_error(`${gobj_short_name(gobj)}: PKCE requires HTTPS (secure context)`);
+        gobj_send_event(gobj, "EV_LOGIN_DENIED",
+            { error: "PKCE requires a secure context (HTTPS)" }, gobj);
         return;
     }
 
     const oauth_conf = gobj_read_attr(gobj, "oauth_conf");
     if(!json_object_size(oauth_conf)) {
-        log_error("NO OAuth Configuration");
+        log_error(`${gobj_short_name(gobj)}: no OAuth configuration`);
+        gobj_send_event(gobj, "EV_LOGIN_DENIED", { error: "No OAuth configuration" }, gobj);
         return;
     }
 
-    let oauth_endpoint = oauth_conf["auth-server-url"]; // Ex: "https://localhost:9999/auth/"
-    if(empty_string(oauth_endpoint)) {
-        log_error(sprintf("%s: NO auth-server-url", gobj_short_name(gobj)));
-        gobj_send_event(gobj,
-            "EV_LOGIN_DENIED",
-            {
-                error: "No auth server url"
-            },
-            gobj
-        );
-        return;
+    const code_verifier    = generate_code_verifier();
+    const code_challenge   = await compute_code_challenge(code_verifier);
+    const state            = generate_state();
+    const redirect_uri     = window.location.origin + window.location.pathname;
+
+    /*
+     *  Store ONLY what is needed for the round-trip callback verification.
+     *  This is in sessionStorage, not localStorage:
+     *  - Scoped to this tab / session.
+     *  - NOT accessible cross-origin.
+     *  - Cleared when the tab is closed.
+     *  - Deleted immediately after the callback is consumed (one-time use).
+     */
+    sessionStorage.setItem(PKCE_SESSION_KEY, JSON.stringify({
+        code_verifier,
+        state
+    }));
+
+    const oauth_endpoint    = oauth_conf["auth-server-url"];
+    const realm             = oauth_conf["realm"];
+    const client_id         = oauth_conf["resource"];
+
+    let auth_url =
+        `${oauth_endpoint}realms/${realm}/protocol/openid-connect/auth` +
+        `?response_type=code` +
+        `&client_id=${encodeURIComponent(client_id)}` +
+        `&redirect_uri=${encodeURIComponent(redirect_uri)}` +
+        `&scope=openid%20profile%20email` +
+        `&code_challenge=${code_challenge}` +
+        `&code_challenge_method=S256` +
+        `&state=${state}`;
+
+    if(kc_idp_hint && !empty_string(kc_idp_hint)) {
+        auth_url += `&kc_idp_hint=${encodeURIComponent(kc_idp_hint)}`;
     }
 
-    /*
-     *  Save username
-     */
-    gobj_write_attr(gobj, "username", kw.username);
-
-    /*
-     *  Call OAuth endpoint
-     */
-    let owner = oauth_conf["realm"];
-    let service = oauth_conf["resource"];
-    let url = sprintf("%srealms/%s/protocol/openid-connect/token", oauth_endpoint, owner);
-
-    let xhr = new XMLHttpRequest();
-    xhr.open("POST", url);
-    xhr.setRequestHeader("Content-Type", "application/x-www-form-urlencoded");
-
-    let data = "";
-    let form_data = {
-        "username": username,
-        "password": password,
-        "grant_type": "password",
-        "client_id": service
-    };
-    /*
-     *  Convert json to www-form-urlencoded
-     */
-    for(let k of Object.keys(form_data)) {
-        let v = encodeURIComponent(form_data[k]);
-        if(empty_string(data)) {
-            data += sprintf("%s=%s", k, v);
-        } else {
-            data += sprintf("&%s=%s", k, v);
-        }
-    }
-
-    xhr.onreadystatechange = function () {
-        if(xhr.readyState === 4) {
-            let status = xhr.status;
-            /*
-             *  WARNING cuando hay un error CORS con keyckoak, el navegador entrega status 0,
-             *  aunque el status sea 401 por ejemplo, y además no entrega tampoco
-             *  response.description
-             */
-            //1
-            let response = xhr.responseText;
-            if(status === 200) {
-                let r = JSON.parse(response);
-                gobj_send_event(gobj, "EV_LOGIN_ACCEPTED", r, gobj);
-            } else {
-                let error = "login denied";
-                log_info(sprintf("login error, status != 200, status %d, response '%s'", status, response));
-                try {
-                    if(is_string(response) && !empty_string(response)) {
-                        error = JSON.parse(response).error_description;
-                    }
-                } catch(e) {
-                }
-                gobj_send_event(gobj,
-                    "EV_LOGIN_DENIED",
-                    {
-                        error: error
-                    },
-                    gobj
-                );
-            }
-        }
-    };
-    xhr.send(data);
+    // Navigate away — this page will be reloaded by Keycloak with ?code=
+    window.location.replace(auth_url);
 }
 
-/********************************************
+/***************************************************************
+ *  Handle the OAuth2 callback after Keycloak redirects back.
  *
- ********************************************/
-function do_logout(gobj)
+ *  - Verifies the state nonce (CSRF protection).
+ *  - Cleans the authorization code from the URL immediately.
+ *  - POSTs code + code_verifier to the BFF endpoint.
+ *  - The BFF exchanges them server-side and sets httpOnly cookies.
+ *  - Fires EV_LOGIN_ACCEPTED or EV_LOGIN_DENIED.
+ ***************************************************************/
+async function handle_oauth_callback(gobj, code, state)
 {
-    const oauth_conf = gobj_read_attr(gobj, "oauth_conf");
-    if(!json_object_size(oauth_conf)) {
-        log_error("NO OAuth Configuration");
+    /*
+     *  SEC-06: immediately remove the authorization code from the
+     *  browser URL bar so it cannot be logged, cached, or read by
+     *  browser extensions.
+     */
+    const clean_url = window.location.origin + window.location.pathname;
+    window.history.replaceState({}, document.title, clean_url);
+
+    /*
+     *  SEC-06: CSRF check — state must match what we stored.
+     */
+    let pkce_pending_str = sessionStorage.getItem(PKCE_SESSION_KEY);
+    sessionStorage.removeItem(PKCE_SESSION_KEY);  // one-time use
+
+    if(!pkce_pending_str) {
+        log_error(`${gobj_short_name(gobj)}: no PKCE pending state in sessionStorage`);
+        gobj_send_event(gobj, "EV_LOGIN_DENIED",
+            { error: "Login session expired or invalid" }, gobj);
+        return;
+    }
+
+    let pkce_pending;
+    try {
+        pkce_pending = JSON.parse(pkce_pending_str);
+    } catch(e) {
+        log_error(`${gobj_short_name(gobj)}: corrupt PKCE pending entry`);
+        gobj_send_event(gobj, "EV_LOGIN_DENIED",
+            { error: "Login session corrupted" }, gobj);
+        return;
+    }
+
+    if(pkce_pending.state !== state) {
+        log_error(`${gobj_short_name(gobj)}: state mismatch — possible CSRF attempt`);
+        gobj_send_event(gobj, "EV_LOGIN_DENIED",
+            { error: "Login state mismatch" }, gobj);
         return;
     }
 
     /*
-     *  Call OAuth endpoint
+     *  POST to the BFF.  The BFF will:
+     *  1. Exchange code + code_verifier with Keycloak server-side.
+     *  2. Set access_token and refresh_token as httpOnly cookies.
+     *  3. Return {success, username, email, expires_in, refresh_expires_in}.
+     *
+     *  credentials:"include" is required so the browser stores the
+     *  Set-Cookie headers the BFF sends back.
      */
-    let oauth_endpoint = oauth_conf["auth-server-url"]; // Ex: "https://localhost:9999/auth/"
-    let owner = oauth_conf["realm"];
-    let service = oauth_conf["resource"];
-    let url = sprintf("%srealms/%s/protocol/openid-connect/logout", oauth_endpoint, owner);
+    const bff_url       = gobj_read_attr(gobj, "bff_url");
+    const redirect_uri  = window.location.origin + window.location.pathname;
 
-    let xhr = new XMLHttpRequest();
-    xhr.open("POST", url);
-    xhr.setRequestHeader("Content-Type", "application/x-www-form-urlencoded");
-    xhr.setRequestHeader("Authorization", "Bearer " + gobj_read_attr(gobj, "access_token"));
+    try {
+        const resp = await fetch(`${bff_url}/auth/callback`, {
+            method:         "POST",
+            credentials:    "include",
+            headers:        { "Content-Type": "application/json" },
+            body:           JSON.stringify({
+                code,
+                code_verifier:  pkce_pending.code_verifier,
+                redirect_uri
+            })
+        });
 
-    let data = "";
-    let form_data = {
-        "refresh_token": gobj_read_attr(gobj, "refresh_token"),
-        "client_id": service
-    };
+        const data = await resp.json();
 
-    /*
-     *  Convert json to www-form-urlencoded
-     */
-    for (let k of Object.keys(form_data)) {
-        let v = encodeURIComponent(form_data[k]);
-        if(empty_string(data)) {
-            data += sprintf("%s=%s", k, v);
+        if(resp.ok && data.success) {
+            gobj_write_attr(gobj, "username", data.username || data.email || "");
+            gobj_send_event(gobj, "EV_LOGIN_ACCEPTED", data, gobj);
         } else {
-            data += sprintf("&%s=%s", k, v);
+            const error = data.error || `HTTP ${resp.status}`;
+            log_info(sprintf("%s: BFF callback error: %s", gobj_short_name(gobj), error));
+            gobj_send_event(gobj, "EV_LOGIN_DENIED", { error }, gobj);
         }
-    }
 
-    xhr.onreadystatechange = function () {
-        if (xhr.readyState === 4) {
-            let status = xhr.status;
-            let response = xhr.responseText;
-            let error = null;
-            if(status !== 204) {
-                log_info(sprintf("logout: response != 204, status %d, data %s", status, response));
-                try {
-                    if(is_string(response)) {
-                        error = JSON.parse(response);
-                    }
-                } catch(e) {
-                    error = response;
-                }
-            }
-            // do logout in any case
-            gobj_send_event(gobj,
-                "EV_LOGOUT_DONE",
-                {
-                    error: error
-                },
-                gobj
-            );
-        }
-    };
-    xhr.send(data);
+    } catch(err) {
+        log_error(`${gobj_short_name(gobj)}: BFF callback fetch failed: ${err.message}`);
+        gobj_send_event(gobj, "EV_LOGIN_DENIED",
+            { error: "Network error during login" }, gobj);
+    }
 }
 
-/********************************************
- *
- ********************************************/
-function do_refresh(gobj)
+/***************************************************************
+ *  Call the BFF /auth/logout endpoint.
+ *  The BFF revokes the refresh_token with Keycloak and clears cookies.
+ ***************************************************************/
+function do_bff_logout(gobj)
 {
-    const oauth_conf = gobj_read_attr(gobj, "oauth_conf");
-    let oauth_endpoint = oauth_conf["auth-server-url"]; // Ex: "https://localhost:9999/auth/"
-    let owner = oauth_conf["realm"];
-    let service = oauth_conf["resource"];
-    let url = sprintf("%srealms/%s/protocol/openid-connect/token", oauth_endpoint, owner);
+    const bff_url = gobj_read_attr(gobj, "bff_url");
 
-    let xhr = new XMLHttpRequest();
-    xhr.open("POST", url);
-    xhr.setRequestHeader("Content-Type", "application/x-www-form-urlencoded");
-    xhr.setRequestHeader("Authorization", "Bearer " + gobj_read_attr(gobj, "access_token"));
-
-    let data = "";
-    let form_data = {
-        "grant_type": "refresh_token",
-        "refresh_token": gobj_read_attr(gobj, "refresh_token"),
-        "client_id": service
-    };
-    // if(offline_access) { // Funciona?, es necesario?
-    //     form_data["scope"] = "openid offline_access"
-    // }
-
-    /*
-     *  Convert json to www-form-urlencoded
-     */
-    for (let k of Object.keys(form_data)) {
-        let v = encodeURIComponent(form_data[k]);
-        if(empty_string(data)) {
-            data += sprintf("%s=%s", k, v);
-        } else {
-            data += sprintf("&%s=%s", k, v);
-        }
-    }
-
-    xhr.onreadystatechange = function () {
-        if (xhr.readyState === 4) {
-            let status = xhr.status;
-            let response = xhr.responseText;
-            if(status === 200) {
-                let r = JSON.parse(response);
-                gobj_send_event(gobj, "EV_LOGIN_REFRESHED", r, gobj);
-            } else {
-                /*
-                 *  WARNING: if there is a CORS error, the browser return status 0
-                 *  although the status were 200, and don't pass the {} response
-                 */
-                let error = "login denied";
-                // log_error(sprintf("status != 200, status %d, data %s", status, response)); // TODO TEST
-
-                try {
-                    if(is_string(response)) {
-                        error = JSON.parse(response).error_description;
-                    }
-                } catch(e) {
-                }
-
-                gobj_send_event(gobj,
-                    "EV_LOGIN_DENIED",
-                    {
-                        error: error
-                    },
-                    gobj
-                );
-            }
-        }
-    };
-    xhr.send(data);
+    fetch(`${bff_url}/auth/logout`, {
+        method:         "POST",
+        credentials:    "include",
+        headers:        { "Content-Type": "application/json" }
+    })
+    .then(resp => resp.json().catch(() => ({})))
+    .then(() => {
+        // Always fire EV_LOGOUT_DONE regardless of BFF result — the
+        // browser-side session is over; the cookie will expire anyway.
+        gobj_send_event(gobj, "EV_LOGOUT_DONE", {}, gobj);
+    })
+    .catch(err => {
+        log_error(`${gobj_short_name(gobj)}: BFF logout error: ${err.message}`);
+        gobj_send_event(gobj, "EV_LOGOUT_DONE", { error: err.message }, gobj);
+    });
 }
 
-/********************************************
- *
- ********************************************/
-function save_token(gobj, kw)
+/***************************************************************
+ *  Call the BFF /auth/refresh endpoint.
+ *  The BFF reads the refresh_token httpOnly cookie, calls Keycloak,
+ *  and sets fresh access_token / refresh_token cookies.
+ *  Returns {success, username, expires_in, refresh_expires_in}.
+ ***************************************************************/
+function do_bff_refresh(gobj)
+{
+    const bff_url = gobj_read_attr(gobj, "bff_url");
+
+    fetch(`${bff_url}/auth/refresh`, {
+        method:         "POST",
+        credentials:    "include",
+        headers:        { "Content-Type": "application/json" }
+    })
+    .then(resp => resp.json())
+    .then(data => {
+        if(data.success) {
+            gobj_send_event(gobj, "EV_LOGIN_REFRESHED", data, gobj);
+        } else {
+            log_info(sprintf("%s: BFF refresh denied: %s",
+                gobj_short_name(gobj), data.error || "unknown"));
+            gobj_send_event(gobj, "EV_LOGIN_DENIED",
+                { error: data.error || "Refresh denied" }, gobj);
+        }
+    })
+    .catch(err => {
+        log_error(`${gobj_short_name(gobj)}: BFF refresh failed: ${err.message}`);
+        gobj_send_event(gobj, "EV_LOGIN_DENIED",
+            { error: "Network error during refresh" }, gobj);
+    });
+}
+
+/***************************************************************
+ *  Store session timing info (no tokens — never in JS).
+ *  Arms the refresh timer so the BFF is called before the
+ *  refresh_token expires.
+ ***************************************************************/
+function save_session_info(gobj, data)
 {
     let priv = gobj.priv;
 
-    gobj_write_attr(gobj, "full_oauth_response", kw);
-    gobj_write_attr(gobj, "access_token", kw["access_token"]);
-    gobj_write_attr(gobj, "refresh_token", kw["refresh_token"]);
-
     /*
-     *  Save the session
+     *  data = { success, username, email, expires_in, refresh_expires_in }
+     *
+     *  expires_in:         access token lifetime in seconds
+     *  refresh_expires_in: refresh token lifetime in seconds
+     *
+     *  We schedule a BFF /auth/refresh call 10 seconds before the
+     *  refresh_token itself expires (or after 2 seconds if the timer
+     *  already expired, which means the BFF will respond with an error
+     *  and we fall back to ST_LOGOUT).
      */
-    kw_set_local_storage_value(
-        "session",
-        {
-            username: gobj_read_attr(gobj, "username"),
-            full_oauth_response: kw
-        }
-    );
+    priv.refresh_expires_in = data.refresh_expires_in || 0;
 
-    priv.tokenParsed = jwt2json(gobj_read_attr(gobj, "access_token"));
-    priv.refreshParsed = jwt2json(gobj_read_attr(gobj, "refresh_token"));
-
-    priv.timeout_refresh = priv.refreshParsed.exp - get_now() - 5;
+    priv.timeout_refresh = priv.refresh_expires_in - 10;
     if(priv.timeout_refresh <= 0) {
-        priv.timeout_refresh = 2; // Validity will be checked in refresh time
+        priv.timeout_refresh = 2;
     }
-    set_timeout(priv.gobj_timer, priv.timeout_refresh*1000);
-
+    set_timeout(priv.gobj_timer, priv.timeout_refresh * 1000);
 }
 
 
@@ -475,169 +507,80 @@ function save_token(gobj, kw)
 
 
 
-/********************************************
- *  {
- *      username:
- *      password:
- *  }
- ********************************************/
+/***************************************************************
+ *  EV_DO_LOGIN — initiates the PKCE redirect.
+ *  kw may contain:
+ *    provider:   null | "google" | "github" | …  (kc_idp_hint)
+ ***************************************************************/
 function ac_do_login(gobj, event, kw, src)
 {
-    do_login(gobj, kw);
+    const provider = (kw && kw.provider) ? kw.provider : null;
+    initiate_pkce_login(gobj, provider);  // async, navigates away
     return 0;
 }
 
-/********************************************
- *
- ********************************************/
 function ac_do_logout(gobj, event, kw, src)
 {
-    do_logout(gobj);
+    do_bff_logout(gobj);
     return 0;
 }
 
-/********************************************
- *  kw: {
-        access_token: ""
-        expires_in: 36000                   // 10 hours
-        "not-before-policy": 1662894464
-        refresh_expires_in: 1800            // 30 minutes
-        refresh_token: ""
-        scope: "profile email"
-        session_state: "d50cebba-c29b-48fc-a87f-0bfb1a09d7f4"
-        token_type: "Bearer"
- *  }
-
-Ejemplo keycloak:  {
-        "acr": "1",
-        "allowed-origins": [],
-        "aud": ["realm-management", "account"],
-        "azp": "yunetacontrol",
-        "email": "ginsmar@artgins.com",
-        "email_verified": true,
-        "exp": 1666336696,
-        "family_name": "Martínez",
-        "given_name": "Ginés",
-        "iat": 1666336576,
-        "iss": "https://localhost:8641/auth/realms/xxxx",
-        "jti": "96b60323-05c1-4cb1-87e8-8bd68e25a56c",
-        "locale": "en",
-        "name": "Ginés Martínez",
-        "preferred_username": "ginsmar@artgins.com",
-        "realm_access": {},
-        "resource_access": {},
-        "scope": "profile email",
-        "session_state": "aa4fb7ce-d0c7-48a0-ae92-253ef5a600d2",
-        "sid": "aa4fb7ce-d0c7-48a0-ae92-253ef5a600d2",
-        "sub": "0a1e5c27-80f1-4225-943a-edfbc204972d",
-        "typ": "Bearer"
-    }
-Ejemplo de jwt dado por google  {
-        "aud": "990339570472-k6nqn1tpmitg8pui82bfaun3jrpmiuhs.apps.googleusercontent.com",
-        "azp": "990339570472-k6nqn1tpmitg8pui82bfaun3jrpmiuhs.apps.googleusercontent.com",
-        "email": "ginsmar@gmail.com",
-        "email_verified": true,
-        "exp": 1666341427,
-        "given_name": "Gins",
-        "iat": 1666337827,
-        "iss": "https://accounts.google.com",
-        "jti": "b2a78ed2911514e30e51fb7b0da3c2032ba3a0aa",
-        "name": "Gins",
-        "nbf": 1666337527,
-        "picture": "https://lh3.googleusercontent.com/a/ALm5wu0soemzAFPT0aSqz_-PyPBX_y9RXuSpRcwStQLRBg=s96-c",
-        "sub": "109408784262322618770"
-    }
-
- ********************************************/
+/***************************************************************
+ *  EV_LOGIN_ACCEPTED — BFF exchanged the code successfully.
+ *  kw: { success, username, email, expires_in, refresh_expires_in }
+ ***************************************************************/
 function ac_login_accepted(gobj, event, kw, src)
 {
-    save_token(gobj, kw);
-
-    // log_warning("====> timeout refresh (seconds):" + priv.timeout_refresh); // TODO TEST
+    save_session_info(gobj, kw);
 
     gobj_publish_event(gobj, "EV_LOGIN_ACCEPTED", {
-        username: gobj_read_attr(gobj, "username"),
-        jwt: gobj_read_attr(gobj, "access_token")
+        username: gobj_read_attr(gobj, "username")
+        /*
+         *  SEC-06: jwt is intentionally omitted.  The httpOnly cookie is
+         *  sent automatically by the browser with the WebSocket upgrade —
+         *  the JS side never needs to see or forward the token.
+         */
     });
     return 0;
 }
 
-/********************************************
- *  kw: {
-        access_token: "",
-        expires_in: 65,
-        refresh_expires_in: 60,
-        refresh_token: "",
-        token_type: "Bearer",
-        "not-before-policy": 1662909765,
-        session_state: "144c039d-6ffb-48f0-97ec-49535d596e5b",
-        scope: "profile email"
-    }
- *
- ********************************************/
+/***************************************************************
+ *  EV_LOGIN_REFRESHED — BFF refresh succeeded.
+ *  kw: { success, username, expires_in, refresh_expires_in }
+ ***************************************************************/
 function ac_login_refreshed(gobj, event, kw, src)
 {
-    save_token(gobj,  kw);
+    save_session_info(gobj, kw);
 
     gobj_publish_event(gobj, "EV_LOGIN_REFRESHED", {
-        username: gobj_read_attr(gobj, "username"),
-        jwt: gobj_read_attr(gobj, "access_token")
+        username: gobj_read_attr(gobj, "username")
     });
     return 0;
 }
 
-/********************************************
- *
- ********************************************/
 function ac_login_denied(gobj, event, kw, src)
 {
-    gobj_write_attr(gobj, "full_oauth_response", null);
-    gobj_write_attr(gobj, "access_token", null);
-    gobj_write_attr(gobj, "refresh_token", null);
-
-    kw_remove_local_storage_value("session");
+    gobj_write_attr(gobj, "username", "");
     gobj_publish_event(gobj, "EV_LOGIN_DENIED", kw);
     return 0;
 }
 
-/********************************************
- *
- ********************************************/
 function ac_logout_done(gobj, event, kw, src)
 {
-    /*
-     *  Clear username
-     */
     gobj_write_attr(gobj, "username", "");
-    kw_remove_local_storage_value("session");
-
-    gobj_write_attr(gobj, "full_oauth_response", null);
-    gobj_write_attr(gobj, "access_token", null);
-    gobj_write_attr(gobj, "refresh_token", null);
-
     gobj_publish_event(gobj, "EV_LOGOUT_DONE", kw);
-
     return 0;
 }
 
-/********************************************
- *
- ********************************************/
 function ac_clear_session(gobj, event, kw, src)
 {
-    gobj_write_attr(gobj, "full_oauth_response", null);
-    gobj_write_attr(gobj, "access_token", null);
-    gobj_write_attr(gobj, "refresh_token", null);
-    kw_remove_local_storage_value("session");
+    gobj_write_attr(gobj, "username", "");
     return 0;
 }
 
-/********************************************
- *
- ********************************************/
 function ac_timeout(gobj, event, kw, src)
 {
-    do_refresh(gobj);
+    do_bff_refresh(gobj);
     return 0;
 }
 
@@ -651,9 +594,6 @@ function ac_timeout(gobj, event, kw, src)
 
 
 
-/*---------------------------------------------*
- *          Global methods table
- *---------------------------------------------*/
 const gmt = {
     mt_create:  mt_create,
     mt_start:   mt_start,
@@ -661,12 +601,9 @@ const gmt = {
     mt_destroy: mt_destroy
 };
 
-/***************************************************************
- *          Create the GClass
- ***************************************************************/
 function create_gclass(gclass_name)
 {
-    if (__gclass__) {
+    if(__gclass__) {
         log_error(`GClass ALREADY created: ${gclass_name}`);
         return -1;
     }
@@ -707,21 +644,18 @@ function create_gclass(gclass_name)
         event_types,
         states,
         gmt,
-        0,                // lmt
+        0,
         attrs_table,
         PRIVATE_DATA,
-        0,  // authz_table
-        0,  // command_table
-        0,  // s_user_trace_level
-        0   // gclass_flag
+        0,
+        0,
+        0,
+        0
     );
 
     return __gclass__ ? 0 : -1;
 }
 
-/***************************************************************
- *          Register Login GClass
- ***************************************************************/
 function register_c_login()
 {
     return create_gclass(GCLASS_NAME);

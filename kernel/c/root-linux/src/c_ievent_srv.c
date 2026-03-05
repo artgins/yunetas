@@ -57,6 +57,10 @@ SDATA (DTP_STRING,      "__username__",         SDF_VOLATIL, "", "Username, WARN
 SDATA (DTP_STRING,      "__session_id__",       SDF_VOLATIL, "", "Session ID, WARNING set by c_authz"),
 SDATA (DTP_JSON,        "jwt_payload",          SDF_VOLATIL, 0, "JWT payload (decoded user data) of authenticated user, WARNING set by c_authz"),
 
+// SEC-06: Cookie header captured from the HTTP Upgrade request.
+// Used as a JWT source when no jwt field is present in IDENTITY_CARD.
+SDATA (DTP_STRING,      "http_cookie",          SDF_VOLATIL, "", "Cookie header from HTTP Upgrade (SEC-06)"),
+
 SDATA (DTP_STRING,      "client_yuno_role",     SDF_VOLATIL, 0, "yuno role of connected client"),
 SDATA (DTP_STRING,      "client_yuno_name",     SDF_VOLATIL, 0, "yuno name of connected client"),
 SDATA (DTP_STRING,      "client_yuno_service",  SDF_VOLATIL, 0, "yuno service of connected client"),
@@ -535,6 +539,18 @@ PRIVATE int ac_on_open(hgobj gobj, const char *event, json_t *kw, hgobj src)
     gobj_reset_volatil_attrs(gobj);
 
     /*
+     *  SEC-06: save the Cookie header forwarded by c_websocket.c during
+     *  the HTTP Upgrade.  ac_identity_card will use it as a JWT source
+     *  when the IDENTITY_CARD message carries no explicit jwt field,
+     *  which is the case for browser clients using the BFF/httpOnly-cookie
+     *  authentication flow.
+     */
+    const char *http_cookie = kw_get_str(gobj, kw, "http_cookie", "", 0);
+    if(!empty_string(http_cookie)) {
+        gobj_write_str_attr(gobj, "http_cookie", http_cookie);
+    }
+
+    /*
      *  Route (channel) open.
      *  Wait Identity card
      */
@@ -741,6 +757,35 @@ PRIVATE int ac_identity_card(hgobj gobj, const char *event, json_t *kw, hgobj sr
     /*-------------------------*
      *  Do authentication
      *-------------------------*/
+    /*
+     *  SEC-06: if no jwt was supplied in the IDENTITY_CARD message (browser
+     *  clients using the BFF/httpOnly-cookie flow send an empty string),
+     *  try to extract the access_token from the Cookie header that was
+     *  captured during the HTTP Upgrade and stored in "http_cookie".
+     *
+     *  Cookie string format: "name1=val1; name2=val2; …"
+     *  We look for the "access_token" cookie set by the BFF.
+     */
+    const char *jwt_in_card = kw_get_str(gobj, kw, "jwt", NULL, 0);
+    if(empty_string(jwt_in_card)) {
+        const char *http_cookie = gobj_read_str_attr(gobj, "http_cookie");
+        if(!empty_string(http_cookie)) {
+            const char *search = "access_token=";
+            const char *p = strstr(http_cookie, search);
+            if(p) {
+                p += strlen(search);
+                const char *end = strpbrk(p, "; ");
+                size_t jwt_len = end ? (size_t)(end - p) : strlen(p);
+                if(jwt_len > 0 && jwt_len < 8192) {
+                    char jwt_buf[8192];
+                    memcpy(jwt_buf, p, jwt_len);
+                    jwt_buf[jwt_len] = '\0';
+                    json_object_set_new(kw, "jwt", json_string(jwt_buf));
+                }
+            }
+        }
+    }
+
     /*
      *  WARNING if not a localhost connection the authentication must be required!
      *  See mt_authenticate of c_authz.c

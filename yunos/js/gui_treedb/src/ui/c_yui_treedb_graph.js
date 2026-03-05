@@ -62,6 +62,8 @@ import {
     gobj_save_persistent_attrs,
     gobj_read_bool_attr,
     json_size,
+    escapeHtml,
+    safeSrc,
 } from "yunetas";
 
 import {yui_toolbar} from "./yui_toolbar.js";
@@ -1105,11 +1107,11 @@ function create_topic_node(gobj, schema, record)
 ">
     <div>
         <span class="icon is-large">
-        <img src="${record.icon?record.icon:''}" alt=""/>
+        <img src="${safeSrc(record.icon)}" alt=""/>
         </span>
     </div>
     <div style="font-weight: bold;">
-      ${record.id}
+      ${escapeHtml(record.id)}
     </div>
 </div>
 `;

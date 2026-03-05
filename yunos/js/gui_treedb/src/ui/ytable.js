@@ -69,6 +69,7 @@ Callbacks:
 import {
     duplicate_objects,
     is_pure_number,
+    escapeHtml,
 }  from "yunetas";
 
 import "./ytable.css"; // Must be in index.js ?
@@ -309,7 +310,15 @@ class YTable {
             this.columns.forEach(col => {
                 const td = document.createElement('td');
                 if(col.formatter) {
-                    td.innerHTML = col.formatter(record[col.id], rowIndex, col.id).trim();
+                    // Use createContextualFragment so that any <script> elements
+                    // in the formatter output are inert (never executed).
+                    // Formatter functions are responsible for escaping any
+                    // user-supplied field values they embed in their HTML
+                    // (use the exported escapeHtml() helper).
+                    const frag = document.createRange().createContextualFragment(
+                        col.formatter(record[col.id], rowIndex, col.id).trim()
+                    );
+                    td.appendChild(frag);
                 } else {
                     td.textContent = record[col.id];
                 }

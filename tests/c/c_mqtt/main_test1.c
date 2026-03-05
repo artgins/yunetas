@@ -4,7 +4,7 @@
  *          Self-contained MQTT broker + client test (test 1).
  *
  *          Test: QoS 0 publish/subscribe round-trip
- *          - Embedded MQTT broker (C_AUTHZ + C_MQTT_BROKER) on port 1801
+ *          - Embedded MQTT broker (C_AUTHZ + C_MQTT_BROKER) on port 18110
  *          - MQTT client connects, subscribes to "test/topic",
  *            publishes "Hello MQTT", receives the message, verifies it,
  *            then disconnects and exits cleanly.
@@ -36,7 +36,7 @@
 /*
  *  Default test port — change this define to use a different port
  */
-#define MQTT_TEST_PORT  "18010"
+#define MQTT_TEST_PORT  "18110"
 
 /***************************************************************************
  *                      Default config

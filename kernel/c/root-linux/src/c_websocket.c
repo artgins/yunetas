@@ -1672,7 +1672,21 @@ PRIVATE int ac_process_handshake(hgobj gobj, const char *event, json_t *kw, hgob
 
                 priv->inform_on_close = TRUE;
 
-                gobj_publish_event(gobj, EV_ON_OPEN, 0);
+                /*
+                 *  SEC-06: pass the Cookie header from the HTTP Upgrade
+                 *  request to the upper layer (c_ievent_srv) so it can
+                 *  authenticate via httpOnly cookie JWT without relying on
+                 *  a JWT field in the IDENTITY_CARD message.
+                 */
+                const char *cookie = kw_get_str(
+                    gobj,
+                    priv->parsing_request->jn_headers,
+                    "COOKIE",
+                    "",
+                    0
+                );
+                json_t *kw_open = json_pack("{s:s}", "http_cookie", cookie);
+                gobj_publish_event(gobj, EV_ON_OPEN, kw_open);
             }
         }
     } else {

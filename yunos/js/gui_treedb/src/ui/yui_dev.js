@@ -232,14 +232,19 @@ function info_user()
     let no_poll = Number(kw_get_local_storage_value("no_poll", 0, false));
 
     // Code repeated
-    let estados = `
-        <div>tracing automata: ${trace}</div>
-        <div>tracing creation: ${creation}</div>
-        <div>tracing i18n: ${i18n}</div>
-        <div>traffic: ${traffic}</div>
-        <div>no_poll: ${no_poll}</div>`;
-
-    $info.innerHTML = estados;
+    // Build with DOM instead of innerHTML to prevent any XSS via localStorage values
+    $info.replaceChildren();
+    [
+        `tracing automata: ${trace}`,
+        `tracing creation: ${creation}`,
+        `tracing i18n: ${i18n}`,
+        `traffic: ${traffic}`,
+        `no_poll: ${no_poll}`,
+    ].forEach(text => {
+        const div = document.createElement('div');
+        div.textContent = text;
+        $info.appendChild(div);
+    });
 }
 
 /************************************************************

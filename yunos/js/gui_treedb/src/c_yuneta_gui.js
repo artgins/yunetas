@@ -42,6 +42,7 @@ import {
     gobj_create_pure_child,
     refresh_language,
     set_remote_log_functions,
+    escapeHtml,
 } from "yunetas";
 
 import {backend_urls} from "./conf/backend_config.js";
@@ -143,24 +144,12 @@ function mt_destroy(gobj)
 
 
 /************************************************************
- *
+ *  Parameter of set_remote_log_functions()
+ *  Set in ac_on_open and clear in ac_on_close
  ************************************************************/
 function console_log_remote(msg)
 {
-    /*
-     *  HACK __remote_service__ is a C_IEVENT_CLI gclass,
-     *  that it has defined mt_inject_event global method
-     *  that is used for send events to the remote connection (other yuno).
-     *
-     *  With set_remote_log_functions() we send the logs to the remote yuno
-     *  having a centralized control of what it happens
-     */
-    __yuno__.__remote_service__.gclass.gmt.mt_inject_event(
-        __yuno__.__remote_service__,
-        "EV_REMOTE_LOG",
-        {msg: msg},
-        __yuno__
-    );
+    gobj_send_event(__yuno__.__remote_service__, "EV_REMOTE_LOG", {msg: msg}, __yuno__);
 }
 
 /********************************************
@@ -168,20 +157,19 @@ function console_log_remote(msg)
  ********************************************/
 function build_remote_service(gobj)
 {
-    let cur_hostname;
-    if ((window.location.hostname.indexOf("localhost") >= 0 ||
-            window.location.hostname.indexOf("127.") >= 0) ||
-        empty_string(window.location.hostname)) {
-        cur_hostname = "localhost";
-    } else {
-        cur_hostname = window.location.hostname;
-    }
-
     /*
      *  HACK "punto gatillo" trigger point: from the backend_urls.js file,
-     *  retrieve the ws/wss connection associated with the url location.hostname
+     *  retrieve the ws/wss connection associated with the url location.hostname.
+     *
+     *  Use an exact key lookup instead of indexOf() substring matching.
+     *  indexOf("localhost") would match "localhost.attacker.com", which would
+     *  redirect the WebSocket connection to wss://localhost:1800 on the victim's
+     *  machine instead of the intended backend.
+     *  The empty-hostname case (file:// or synthetic environments) falls back to
+     *  "localhost" by explicit key, keeping the same behaviour as before.
      */
-    const url = backend_urls[cur_hostname];
+    const hostname = empty_string(window.location.hostname) ? "localhost" : window.location.hostname;
+    const url = backend_urls[hostname];
     if (empty_string(url)) {
         let msg = t("no url available to remote service");
         log_error(msg);
@@ -659,6 +647,8 @@ function ac_on_open(gobj, event, kw, src)
     gobj_publish_event(gobj, event, kw);
     gobj_start_tree(gobj);
 
+    log_error("TEST remote log on open"); // TODO TEST
+
     /*
      *  Select last selection
      *  TODO debería ser por usuario? por si hay mas cuentas en el mismo pc
@@ -695,6 +685,11 @@ function ac_on_close(gobj, event, kw, src)
 {
     close_services(gobj);
 
+    /*----------------------------------------*
+     *      Clear log to remote
+     *----------------------------------------*/
+    set_remote_log_functions(null);
+
     let __yui_routing__ = gobj_find_service("__yui_routing__");
     gobj_stop(__yui_routing__); // Delete app content
     gobj_write_attr(gobj, "home", "");
@@ -714,14 +709,13 @@ function ac_on_close(gobj, event, kw, src)
 function ac_login_accepted(gobj, event, kw, src)
 {
     gobj_write_attr(gobj, "username", kw.username);
-    let jwt = kw.jwt;
 
-    /*---------------------------*
-     *  Get roles
-     *---------------------------*/
-    /*-----------------------------------------------------------*
-     *  With login done it's time to connect to Yuneta backend
-     *-----------------------------------------------------------*/
+    /*
+     *  SEC-06: the JWT is now stored exclusively in an httpOnly cookie set
+     *  by the BFF.  We no longer forward it from JavaScript.  The browser
+     *  will send the cookie automatically during the WebSocket HTTP Upgrade
+     *  and the Yuneta backend reads it from the Cookie header.
+     */
     if (empty_string(gobj_read_str_attr(gobj, "url"))) {
         display_error_message(
             "Error",
@@ -731,7 +725,7 @@ function ac_login_accepted(gobj, event, kw, src)
             }
         );
     } else {
-        do_connect(gobj, jwt);
+        do_connect(gobj, null);
     }
 
     return 0;
@@ -771,13 +765,13 @@ function ac_id_refused(gobj, event, kw, src)
     close_all(gobj);
 
     let message = `<div>
-        ${t('cause')}: ${t(kw.comment)}
+        ${escapeHtml(t('cause'))}: ${escapeHtml(t(kw.comment))}
         <br>
-        ${t('user')}: ${kw.username}
+        ${escapeHtml(t('user'))}: ${escapeHtml(kw.username)}
         <br>
-        ${t('remote-service')}: ${kw.remote_yuno_role}/${kw.remote_yuno_name}
+        ${escapeHtml(t('remote-service'))}: ${escapeHtml(kw.remote_yuno_role)}/${escapeHtml(kw.remote_yuno_name)}
         <br>
-        ${t('url')}: ${kw.url}
+        ${escapeHtml(t('url'))}: ${escapeHtml(kw.url)}
         </div>
     `;
 

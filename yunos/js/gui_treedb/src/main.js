@@ -302,18 +302,16 @@ window.addEventListener('load', function() {
             (document.querySelectorAll('.modal') || []).forEach(($element) => {
                 if(!$element.contains(event.target)) {
                     if($element.classList.contains('is-active')) {
-                        $element.classList.remove('is-active');
+                        closeModal($element);
                     }
-                    $element.parentNode.removeChild($element);
                 }
             });
 
             (document.querySelectorAll('.popup') || []).forEach(($element) => {
                 if(!$element.contains(event.target)) {
                     if($element.classList.contains('is-active')) {
-                        $element.classList.remove('is-active');
+                        closeModal($element);
                     }
-                    $element.parentNode.removeChild($element);
                 }
             });
         });
