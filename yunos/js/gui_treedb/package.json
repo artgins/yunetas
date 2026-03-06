@@ -18,14 +18,14 @@
         "i18next": "^25.8.14",
         "luxon": "^3.7.2",
         "maplibre-gl": "^5.19.0",
-        "tabulator-tables": "^6.3.1",
+        "tabulator-tables": "^6.4.0",
         "tom-select": "^2.5.2",
         "uplot": "^1.6.32",
         "vanilla-jsoneditor": "0.23.8",
         "yunetas": "file:../../../kernel/js/yunetas-js7/yunetas"
     },
     "devDependencies": {
-        "@rollup/plugin-terser": "^0.4.4",
+        "@rollup/plugin-terser": "^1.0.0",
         "@vitest/coverage-v8": "^4.0.18",
         "vite": "^7.3.1",
         "vitest": "^4.0.18"
