@@ -13,6 +13,7 @@ TAG_OPENSSL="openssl-3.6.1"
 TAG_PCRE2="pcre2-10.47"
 TAG_ARGP_STANDALONE="v1.1.5"
 TAG_NCURSES="v6.4"
+TAG_LLHTTP="v9.3.1"
 
 #------------------------------------------
 #   REPOS
@@ -26,3 +27,4 @@ REPOS["https://github.com/PCRE2Project/pcre2.git"]="$TAG_PCRE2"
 REPOS["https://github.com/ianlancetaylor/libbacktrace"]=""
 REPOS["https://github.com/artgins/argp-standalone.git"]="$TAG_ARGP_STANDALONE"
 REPOS["https://github.com/mirror/ncurses.git"]="$TAG_NCURSES"
+REPOS["https://github.com/nodejs/llhttp.git"]="$TAG_TAG_LLHTTP"

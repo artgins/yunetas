@@ -16,9 +16,11 @@
 #       upgrade to openssl 3.6.1
 #       upgrade to pcre2 2.10.47
 #       upgrade to nginx 1.28.2
+#   version 1.6
+#       add llhttp v9.3.1
 #
 
-VERSION="1.5"
+VERSION="1.6"
 
 
 source ./repos2clone.sh
@@ -237,6 +239,18 @@ git checkout "$TAG_NCURSES"
     --enable-sp-funcs
 make
 make install
+cd ../..
+
+
+#------------------------------------------
+#   llhttp
+#------------------------------------------
+echo "===================== LLHTTP ======================="
+cd build/llhttp
+
+git checkout "$TAG_LLHTTP"
+
+make CLANG=cc PREFIX="${YUNETA_INSTALL_PREFIX}"
 cd ../..
 
 

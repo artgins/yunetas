@@ -16,6 +16,7 @@ TAG_NCURSES="v6.4"
 TAG_OPENRESTY="1.27.1.2"    # warning: without the initial 'v'
 TAG_NCURSES="v6.4"
 TAG_NGINX="release-1.28.2"
+TAG_LLHTTP="v9.3.1"
 
 #------------------------------------------
 #   REPOS
@@ -31,3 +32,4 @@ REPOS["https://github.com/ianlancetaylor/libbacktrace"]=""
 REPOS["https://github.com/artgins/argp-standalone.git"]="$TAG_ARGP_STANDALONE"
 REPOS["https://github.com/mirror/ncurses.git"]="$TAG_NCURSES"
 REPOS["https://github.com/nginx/nginx.git"]="$TAG_NGINX"
+REPOS["https://github.com/nodejs/llhttp.git"]="$TAG_TAG_LLHTTP"
