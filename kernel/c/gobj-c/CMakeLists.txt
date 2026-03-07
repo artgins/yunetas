@@ -57,6 +57,11 @@ set (SRCS
     src/replace_string.c
     src/g_ev_kernel.c
     src/g_st_kernel.c
+
+    # https://github.com/nodejs/llhttp v9.3.1, clone and built and get:
+    src/llhttp.c
+    src/llhttp_api.c
+    src/llhttp_http.c
 )
 
 set (HDRS
@@ -80,6 +85,9 @@ set (HDRS
     src/replace_string.h
     src/g_ev_kernel.h
     src/g_st_kernel.h
+
+    # https://github.com/nodejs/llhttp v9.3.1, clone and built and get:
+    src/llhttp.h
 )
 
 ##############################################

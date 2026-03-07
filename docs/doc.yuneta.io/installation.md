@@ -23,6 +23,7 @@ This project is licensed under the MIT License, except for the following files:
 - [libbacktrace](https://github.com/ianlancetaylor/libbacktrace) BSD 3-Clause License
 - [argp-standalone](https://github.com/artgins/argp-standalone.git) LGPL-2.1 License
 - [ncurses](https://github.com/mirror/ncurses.git) MIT License
+- [llhttp](https://github.com/nodejs/llhttp) MIT License
 
 
 **Dependencies** for deploying in Linux: 
