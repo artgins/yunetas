@@ -54,7 +54,7 @@ PRIVATE hgobj __gobj_with_focus__ = 0;
 PRIVATE char __new_stdsrc_size__ = FALSE;
 
 /*---------------------------------------------*
- *      Attributes - order affect to oid's
+ *      Attributes
  *---------------------------------------------*/
 PRIVATE sdata_desc_t tattr_desc[] = {
 SDATA (DTP_INTEGER,     "timeout",              0,  "500", "Timeout, to detect size change in stdscr"),

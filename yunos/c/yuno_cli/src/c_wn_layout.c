@@ -99,7 +99,7 @@ PRIVATE int fix_child_sizes(hgobj gobj);
  ***************************************************************************/
 
 /*---------------------------------------------*
- *      Attributes - order affect to oid's
+ *      Attributes
  *---------------------------------------------*/
 PRIVATE sdata_desc_t tattr_desc[] = {
 SDATA (DTP_STRING,      "layout_type",          0,  "vertical", "Layout 'vertical' or 'horizontal"),

@@ -66,7 +66,7 @@ SDATA_END()
 
 
 /*---------------------------------------------*
- *      Attributes - order affect to oid's
+ *      Attributes
  *---------------------------------------------*/
 PRIVATE sdata_desc_t tattr_desc[] = {
 /*-ATTR-type------------name------------flag--------------------default-----description--*/

@@ -105,7 +105,7 @@ typedef struct keytable_s {
 keytable_t keytable[MAX_KEYS] = {0};
 
 /*---------------------------------------------*
- *      Attributes - order affect to oid's
+ *      Attributes
  *---------------------------------------------*/
 PRIVATE sdata_desc_t tattr_desc[] = {
 /*-ATTR-type------------name----------------flag--------default---------description---------- */

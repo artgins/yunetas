@@ -33,7 +33,7 @@ PRIVATE json_t *local_stats(hgobj gobj, const char *stats, json_t *kw, hgobj src
  ***************************************************************************/
 
 /*---------------------------------------------*
- *      Attributes - order affect to oid's
+ *      Attributes
  *---------------------------------------------*/
 
 PRIVATE sdata_desc_t attrs_table[] = {

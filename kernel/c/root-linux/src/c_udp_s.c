@@ -39,7 +39,7 @@ PRIVATE void try_to_stop_yevents(hgobj gobj);  // IDEMPOTENT
  ***************************************************************************/
 
 /*---------------------------------------------*
- *      Attributes - order affect to oid's
+ *      Attributes
  *---------------------------------------------*/
 PRIVATE sdata_desc_t tattr_desc[] = {
 SDATA (DTP_STRING,      "url",              SDF_RD,  0, "url of udp server"),

@@ -30,7 +30,7 @@
  ***************************************************************************/
 
 /*---------------------------------------------*
- *      Attributes - order affect to oid's
+ *      Attributes
  *---------------------------------------------*/
 PRIVATE sdata_desc_t tattr_desc[] = {
 SDATA (DTP_STRING,      "info",                 SDF_RD,  "", "Info to put in output event"),

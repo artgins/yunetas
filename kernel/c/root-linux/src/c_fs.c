@@ -55,7 +55,7 @@ PRIVATE int fs_event_callback(fs_event_t *fs_event);
  ***************************************************************************/
 
 /*---------------------------------------------*
- *      Attributes - order affect to oid's
+ *      Attributes
  *---------------------------------------------*/
 PRIVATE sdata_desc_t tattr_desc[] = {
 /*-ATTR-type------------name------------flag--------default-----description---------- */

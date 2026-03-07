@@ -150,7 +150,7 @@ PRIVATE int atexit_registered = 0; /* Register atexit just 1 time. */
 PRIVATE int rawmode = 0; /* For atexit() function to check if restore is needed*/
 
 /*---------------------------------------------*
- *      Attributes - order affect to oid's
+ *      Attributes
  *---------------------------------------------*/
 PRIVATE sdata_desc_t tattr_desc[] = {
 SDATA (DTP_BOOLEAN,     "use_ncurses",          0,  0, "True to use ncurses"),

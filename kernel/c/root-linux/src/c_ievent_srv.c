@@ -47,7 +47,7 @@ PRIVATE json_t *build_srv_ievent_request(
  ***************************************************************************/
 
 /*---------------------------------------------*
- *      Attributes - order affect to oid's
+ *      Attributes
  *---------------------------------------------*/
 PRIVATE sdata_desc_t attrs_table[] = {
 /*-ATTR-type------------name--------------------flag---------default-description---------- */

@@ -34,7 +34,7 @@ PRIVATE int poll_stats_data(hgobj gobj);
  *          Data: config, public data, private data
  ***************************************************************************/
 /*---------------------------------------------*
- *      Attributes - order affect to oid's
+ *      Attributes
  *---------------------------------------------*/
 PRIVATE sdata_desc_t tattr_desc[] = {
 /*-ATTR-type------------name----------------flag--------default---------description---------- */
