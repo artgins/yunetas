@@ -95,6 +95,13 @@ set (HDRS
 ##############################################
 add_library(${PROJECT_NAME} ${SRCS} ${HDRS})
 
+set_source_files_properties(
+    src/llhttp.c
+    src/llhttp_api.c
+    src/llhttp_http.c
+    PROPERTIES COMPILE_OPTIONS "-Wno-missing-prototypes"
+)
+
 target_link_options(${PROJECT_NAME} PUBLIC LINKER:-Map=${PROJECT_NAME}.map)
 
 ##############################################
