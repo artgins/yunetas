@@ -181,11 +181,11 @@ PRIVATE int ac_timeout(hgobj gobj, const char *event, json_t *kw, hgobj src)
  *          Global methods table
  *---------------------------------------------*/
 PRIVATE const GMETHODS gmt = {
-    .mt_create                  = mt_create,
-    .mt_destroy                 = mt_destroy,
-    .mt_start                   = mt_start,
-    .mt_stop                    = mt_stop,
-    .mt_writing                 = mt_writing,
+    .mt_create  = mt_create,
+    .mt_destroy = mt_destroy,
+    .mt_start   = mt_start,
+    .mt_stop    = mt_stop,
+    .mt_writing = mt_writing,
 };
 
 /*------------------------*
