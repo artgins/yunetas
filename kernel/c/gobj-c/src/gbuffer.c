@@ -1110,31 +1110,19 @@ PUBLIC gbuffer_t *json2gbuf(
 }
 
 /***************************************************************************
- *  Convert a json message from gbuffer into a json struct.
- *  gbuf is stolen
- *  Return 0 if error
+ *  Convert any json message in gbuffer into json
+ *  gbuf is decref
+ *  Return NULL if error
  ***************************************************************************/
-PRIVATE size_t on_load_callback(void *bf, size_t bfsize, void *data)
-{
-    gbuffer_t *gbuf = data;
-
-    size_t chunk = gbuffer_leftbytes(gbuf);
-    if(!chunk)
-        return 0;
-    if(chunk > bfsize)
-        chunk = bfsize;
-    memcpy(bf, gbuffer_get(gbuf, chunk), chunk);
-    return chunk;
-}
-
-PUBLIC json_t * gbuf2json( // own
-    gbuffer_t *gbuf,  // WARNING gbuf own and data consumed
-    int verbose     // 1 log, 2 log+dump
+PUBLIC json_t *gbuf2json(
+    gbuffer_t *gbuf,    // owned
+    int verbose         // 1 log, 2 log+dump
 )
 {
     size_t flags = JSON_DECODE_ANY|JSON_ALLOW_NUL;
     json_error_t jn_error;
-    json_t *jn_msg = json_load_callback(on_load_callback, gbuf, flags, &jn_error);
+    char *p = gbuffer_cur_rd_pointer(gbuf);
+    json_t *jn_msg = json_loads(p, flags, &jn_error);
 
     if(!jn_msg) {
         if(verbose) {
@@ -1156,6 +1144,22 @@ PUBLIC json_t * gbuf2json( // own
             }
         }
     }
+    gbuffer_decref(gbuf);
+    return jn_msg;
+}
+
+/***************************************************************************
+ *  Convert a json config with comments in gbuffer to json
+ *  gbuf is decref
+ *  Return NULL if error
+ ***************************************************************************/
+PUBLIC json_t *config_gbuffer2json(
+    gbuffer_t *gbuf,    // owned
+    int verbose         // 1 log, 2 log+dump
+)
+{
+    char *p = gbuffer_cur_rd_pointer(gbuf);
+    json_t *jn_msg = json_config_string2json(p, verbose);
     gbuffer_decref(gbuf);
     return jn_msg;
 }

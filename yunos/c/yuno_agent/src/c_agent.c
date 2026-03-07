@@ -3552,7 +3552,7 @@ PRIVATE json_t *cmd_create_config(hgobj gobj, const char *cmd, json_t *kw, hgobj
     const char *content64 = kw_get_str(gobj, kw, "content64", "", 0);
     if(!empty_string(content64)) {
         gbuffer_t *gbuf_content = gbuffer_base64_to_binary(content64, strlen(content64));
-        jn_config = gbuf2json(
+        jn_config = config_gbuffer2json(
             gbuf_content,  // owned
             2
         );
@@ -3716,7 +3716,7 @@ PRIVATE json_t *cmd_update_config(hgobj gobj, const char *cmd, json_t *kw, hgobj
     json_t *jn_config = 0;
     if(!empty_string(content64)) {
         gbuffer_t *gbuf_content = gbuffer_base64_to_binary(content64, strlen(content64));
-        jn_config = gbuf2json(
+        jn_config = config_gbuffer2json(
             gbuf_content,  // owned
             2
         );

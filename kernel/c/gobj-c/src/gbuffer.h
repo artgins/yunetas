@@ -319,11 +319,19 @@ PUBLIC gbuffer_t *json2gbuf(
     size_t flags
 );
 /*
- *  Json from gbuffer
+ *  Convert any json message in gbuffer into json
  */
 PUBLIC json_t *gbuf2json(
-    gbuffer_t *gbuf,  // WARNING gbuf own and data consumed
-    int verbose     // 1 log, 2 log+dump
+    gbuffer_t *gbuf,    // owned
+    int verbose         // 1 log, 2 log+dump
+);
+
+/*
+ *  Convert a json config with comments in gbuffer to json
+ */
+PUBLIC json_t *config_gbuffer2json(
+    gbuffer_t *gbuf,    // owned
+    int verbose         // 1 log, 2 log+dump
 );
 
 PUBLIC void gobj_trace_dump_gbuf(
