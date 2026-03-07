@@ -1,5 +1,5 @@
 /***********************************************************************
- *          c_auth_bff.c
+ *          C_AUTH_BFF.C
  *          Auth_bff GClass — Backend For Frontend (BFF) for OAuth2.
  *
  *  SEC-06 — httpOnly cookie token storage:
@@ -118,11 +118,14 @@ PRIVATE const char *extract_cookie(const char *cookie_header, const char *name,
 /***************************************************************************
  *          Data: config, public data, private data
  ***************************************************************************/
+PRIVATE sdata_desc_t command_table[] = {
+SDATA_END()
+};
 
 /*---------------------------------------------*
  *      Attributes
  *---------------------------------------------*/
-PRIVATE sdata_desc_t attrs_table[] = {
+PRIVATE sdata_desc_t tattr_desc[] = {
 /*-ATTR-type------------name--------------------flag----default-description*/
 SDATA (DTP_STRING,      "keycloak_url",         SDF_RD, "",     "Keycloak base URL, e.g. https://auth.artgins.com/"),
 SDATA (DTP_STRING,      "realm",                SDF_RD, "",     "Keycloak realm, e.g. estadodelaire.com"),
@@ -138,7 +141,21 @@ SDATA_END()
 };
 
 /*---------------------------------------------*
- *      Private data
+ *      GClass trace levels
+ *---------------------------------------------*/
+PRIVATE const trace_level_t s_user_trace_level[16] = {
+{0, 0},
+};
+
+/*---------------------------------------------*
+ *      GClass authz levels
+ *---------------------------------------------*/
+PRIVATE sdata_desc_t authz_table[] = {
+SDATA_END()
+};
+
+/*---------------------------------------------*
+ *              Private data
  *---------------------------------------------*/
 typedef struct _PRIVATE_DATA {
     /* Request queue */
@@ -157,6 +174,93 @@ typedef struct _PRIVATE_DATA {
     char port[16];
     char path[1024];
 } PRIVATE_DATA;
+
+
+
+
+                    /******************************
+                     *      Framework Methods
+                     ******************************/
+
+
+
+
+/***************************************************************************
+ *      Framework Method create
+ ***************************************************************************/
+PRIVATE void mt_create(hgobj gobj)
+{
+    /*
+     *  SERVICE subscription model
+     */
+    hgobj subscriber = (hgobj)gobj_read_pointer_attr(gobj, "user_data");
+    if(subscriber) {
+        gobj_subscribe_event(gobj, NULL, NULL, subscriber);
+    }
+}
+
+/***************************************************************************
+ *      Framework Method destroy
+ ***************************************************************************/
+PRIVATE void mt_destroy(hgobj gobj)
+{
+}
+
+/***************************************************************************
+ *      Framework Method start
+ ***************************************************************************/
+PRIVATE int mt_start(hgobj gobj)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    /* Pre-parse Keycloak base URL for re-use in every outbound call */
+    char kc_base[1024];
+    const char *kc_url  = gobj_read_str_attr(gobj, "keycloak_url");
+    const char *realm   = gobj_read_str_attr(gobj, "realm");
+    snprintf(kc_base, sizeof(kc_base),
+        "%srealms/%s/protocol/openid-connect", kc_url, realm);
+
+    parse_url(gobj,
+        kc_base,
+        priv->schema, sizeof(priv->schema),
+        priv->host,   sizeof(priv->host),
+        priv->port,   sizeof(priv->port),
+        priv->path,   sizeof(priv->path),
+        NULL, 0,
+        FALSE
+    );
+
+    return 0;
+}
+
+/***************************************************************************
+ *      Framework Method stop
+ ***************************************************************************/
+PRIVATE int mt_stop(hgobj gobj)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+    if(priv->gobj_http) {
+        gobj_stop_tree(priv->gobj_http);
+        priv->gobj_http = NULL;
+    }
+    return 0;
+}
+
+
+
+
+                    /***************************
+                     *      Commands
+                     ***************************/
+
+
+
+
+                    /***************************
+                     *      Local Methods
+                     ***************************/
+
+
 
 
 /***************************************************************************
@@ -252,6 +356,9 @@ PRIVATE void send_json_response(hgobj browser_src, int status_code,
     gobj_send_event(browser_src, EV_SEND_MESSAGE, kw_resp, 0);
 }
 
+/***************************************************************************
+ *
+ ***************************************************************************/
 PRIVATE void send_error_response(hgobj browser_src, int status_code,
     const char *status_text, const char *error_msg, const char *extra_headers)
 {
@@ -313,6 +420,9 @@ PRIVATE int enqueue(hgobj gobj, PENDING_AUTH *pa)
     return 0;
 }
 
+/***************************************************************************
+ *
+ ***************************************************************************/
 PRIVATE PENDING_AUTH *dequeue(hgobj gobj)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
@@ -323,69 +433,10 @@ PRIVATE PENDING_AUTH *dequeue(hgobj gobj)
     return pa;
 }
 
-
 /***************************************************************************
- *              Framework Methods
- ***************************************************************************/
-
-PRIVATE void mt_create(hgobj gobj)
-{
-    /*
-     *  SERVICE subscription model
-     */
-    hgobj subscriber = (hgobj)gobj_read_pointer_attr(gobj, "user_data");
-    if(subscriber) {
-        gobj_subscribe_event(gobj, NULL, NULL, subscriber);
-    }
-}
-
-PRIVATE void mt_destroy(hgobj gobj)
-{
-}
-
-PRIVATE int mt_start(hgobj gobj)
-{
-    PRIVATE_DATA *priv = gobj_priv_data(gobj);
-
-    /* Pre-parse Keycloak base URL for re-use in every outbound call */
-    char kc_base[1024];
-    const char *kc_url  = gobj_read_str_attr(gobj, "keycloak_url");
-    const char *realm   = gobj_read_str_attr(gobj, "realm");
-    snprintf(kc_base, sizeof(kc_base),
-        "%srealms/%s/protocol/openid-connect", kc_url, realm);
-
-    parse_url(gobj,
-        kc_base,
-        priv->schema, sizeof(priv->schema),
-        priv->host,   sizeof(priv->host),
-        priv->port,   sizeof(priv->port),
-        priv->path,   sizeof(priv->path),
-        NULL, 0,
-        FALSE
-    );
-
-    return 0;
-}
-
-PRIVATE int mt_stop(hgobj gobj)
-{
-    PRIVATE_DATA *priv = gobj_priv_data(gobj);
-    if(priv->gobj_http) {
-        gobj_stop_tree(priv->gobj_http);
-        priv->gobj_http = NULL;
-    }
-    return 0;
-}
-
-
-/***************************************************************************
- *              Jobs (Keycloak outbound requests via C_TASK)
- ***************************************************************************/
-
-/*
  *  Shared result handler for callback and refresh.
  *  Reads Keycloak token response, sets httpOnly cookies, responds to browser.
- */
+ ***************************************************************************/
 PRIVATE json_t *result_token_response(
     hgobj gobj,
     const char *lmethod,
@@ -521,9 +572,9 @@ PRIVATE json_t *result_token_response(
     CONTINUE_TASK()
 }
 
-/*
+/***************************************************************************
  *  Send the authorization_code or refresh_token request to Keycloak.
- */
+ ***************************************************************************/
 PRIVATE json_t *action_call_keycloak(
     hgobj gobj,
     const char *lmethod,
@@ -593,9 +644,9 @@ PRIVATE json_t *action_call_keycloak(
     CONTINUE_TASK()
 }
 
-/*
+/***************************************************************************
  *  Keycloak logout action.
- */
+ ***************************************************************************/
 PRIVATE json_t *action_kc_logout(
     hgobj gobj,
     const char *lmethod,
@@ -636,9 +687,9 @@ PRIVATE json_t *action_kc_logout(
     CONTINUE_TASK()
 }
 
-/*
+/***************************************************************************
  *  Result of Keycloak logout.
- */
+ ***************************************************************************/
 PRIVATE json_t *result_kc_logout(
     hgobj gobj,
     const char *lmethod,
@@ -674,7 +725,6 @@ PRIVATE json_t *result_kc_logout(
     KW_DECREF(kw)
     CONTINUE_TASK()
 }
-
 
 /***************************************************************************
  *  Start processing the next pending auth request.
@@ -779,14 +829,18 @@ PRIVATE void process_next(hgobj gobj)
     gobj_start(gobj_task);
 }
 
-/*
+/***************************************************************************
  *  Dummy action/result to let C_TASK finish cleanly.
- */
+ ***************************************************************************/
 PRIVATE json_t *action_done(hgobj gobj, const char *lm, json_t *kw, hgobj src)
 {
     KW_DECREF(kw)
     STOP_TASK()
 }
+
+/***************************************************************************
+ *
+ ***************************************************************************/
 PRIVATE json_t *result_done(hgobj gobj, const char *lm, json_t *kw, hgobj src)
 {
     KW_DECREF(kw)
@@ -794,9 +848,14 @@ PRIVATE json_t *result_done(hgobj gobj, const char *lm, json_t *kw, hgobj src)
 }
 
 
-/***************************************************************************
- *              Actions
- ***************************************************************************/
+
+
+                    /***************************
+                     *      Actions
+                     ***************************/
+
+
+
 
 /***************************************************************************
  *  New browser HTTP connection opened.
@@ -963,6 +1022,9 @@ PRIVATE int ac_end_task(hgobj gobj, const char *event, json_t *kw, hgobj src)
     return 0;
 }
 
+/***************************************************************************
+ *
+ ***************************************************************************/
 PRIVATE int ac_stopped(hgobj gobj, const char *event, json_t *kw, hgobj src)
 {
     if(gobj_is_volatil(src)) {
@@ -974,8 +1036,11 @@ PRIVATE int ac_stopped(hgobj gobj, const char *event, json_t *kw, hgobj src)
 
 
 /***************************************************************************
- *                          GClass definition
+ *                          FSM
  ***************************************************************************/
+/*---------------------------------------------*
+ *          Global methods table
+ *---------------------------------------------*/
 PRIVATE const GMETHODS gmt = {
     .mt_create  = mt_create,
     .mt_destroy = mt_destroy,
@@ -983,6 +1048,9 @@ PRIVATE const GMETHODS gmt = {
     .mt_stop    = mt_stop,
 };
 
+/*---------------------------------------------*
+ *          Local methods table
+ *---------------------------------------------*/
 PRIVATE LMETHOD lmt[] = {
     {"action_call_keycloak",    action_call_keycloak,   0},
     {"result_token_response",   result_token_response,  0},
@@ -993,8 +1061,22 @@ PRIVATE LMETHOD lmt[] = {
     {0, 0, 0}
 };
 
+/*------------------------*
+ *      GClass name
+ *------------------------*/
 GOBJ_DEFINE_GCLASS(C_AUTH_BFF);
 
+/*------------------------*
+ *      States
+ *------------------------*/
+
+/*------------------------*
+ *      Events
+ *------------------------*/
+
+/***************************************************************************
+ *          Create the GClass
+ ***************************************************************************/
 PRIVATE int create_gclass(gclass_name_t gclass_name)
 {
     static hgclass __gclass__ = 0;
@@ -1008,6 +1090,9 @@ PRIVATE int create_gclass(gclass_name_t gclass_name)
         return -1;
     }
 
+    /*------------------------*
+     *      States
+     *------------------------*/
     ev_action_t st_idle[] = {
         {EV_ON_OPEN,    ac_on_open,     0},
         {EV_ON_MESSAGE, ac_on_message,  0},
@@ -1022,6 +1107,9 @@ PRIVATE int create_gclass(gclass_name_t gclass_name)
         {0, 0}
     };
 
+    /*------------------------*
+     *      Events
+     *------------------------*/
     event_type_t event_types[] = {
         {EV_ON_OPEN,    0},
         {EV_ON_MESSAGE, 0},
@@ -1031,17 +1119,20 @@ PRIVATE int create_gclass(gclass_name_t gclass_name)
         {0, 0}
     };
 
+    /*----------------------------------------*
+     *          Register GClass
+     *----------------------------------------*/
     __gclass__ = gclass_create(
         gclass_name,
         event_types,
         states,
         &gmt,
         lmt,
-        attrs_table,
+        tattr_desc,
         sizeof(PRIVATE_DATA),
-        0,          /* authz_table */
-        0,          /* command_table */
-        0,          /* s_user_trace_level */
+        authz_table,
+        command_table,
+        s_user_trace_level,
         0           /* gclass_flag */
     );
     if(!__gclass__) {
@@ -1050,6 +1141,9 @@ PRIVATE int create_gclass(gclass_name_t gclass_name)
     return 0;
 }
 
+/***************************************************************************
+ *              Public access
+ ***************************************************************************/
 PUBLIC int register_c_auth_bff(void)
 {
     return create_gclass(C_AUTH_BFF);
