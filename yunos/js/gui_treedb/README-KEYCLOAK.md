@@ -286,6 +286,13 @@ If you use Vite's dev server (`http://localhost:5173`), also add:
 | **Client authentication** | Off (public client) — unless you add a `client_secret` to C_AUTH_BFF |
 
 
+# About Openid/Oauth2, specifically using keycloak,  Authentication flow:
+    - Standard flow true,
+    - Direct access grants false
+
+but Client authentication? what advantages using it or not?
+And the field 'PKCE Method'? what is that? what best values? and 'Require DPoP bound tokens'?
+
 Great questions — these are important Keycloak client settings that directly affect the security of your BFF flow. Let me explain each:
 
 ## Client Authentication (Confidential vs Public)
