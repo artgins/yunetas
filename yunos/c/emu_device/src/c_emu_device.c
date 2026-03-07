@@ -67,7 +67,7 @@ SDATA_END()
 /*---------------------------------------------*
  *      Attributes
  *---------------------------------------------*/
-PRIVATE sdata_desc_t tattr_desc[] = {
+PRIVATE sdata_desc_t attrs_table[] = {
 /*-ATTR-type------------name----------------flag------------------------default---------description---------- */
 SDATA (DTP_INTEGER,     "window",           SDF_WR|SDF_PERSIST,         "1",              "Number of messages to send in each interval event"),
 SDATA (DTP_INTEGER,     "interval",         SDF_WR|SDF_PERSIST,         "1000",           "Interval in miliseconds to send 'window' frames"),
@@ -968,7 +968,7 @@ PRIVATE int create_gclass(gclass_name_t gclass_name)
         states,
         &gmt,
         0,  // lmt
-        tattr_desc,
+        attrs_table,
         sizeof(PRIVATE_DATA),
         0,  // acl
         command_table,

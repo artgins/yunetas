@@ -57,7 +57,7 @@ PRIVATE int fs_event_callback(fs_event_t *fs_event);
 /*---------------------------------------------*
  *      Attributes
  *---------------------------------------------*/
-PRIVATE sdata_desc_t tattr_desc[] = {
+PRIVATE sdata_desc_t attrs_table[] = {
 /*-ATTR-type------------name------------flag--------default-----description---------- */
 SDATA (DTP_STRING,      "path",         SDF_RD,     0,          "Path to watch"),
 SDATA (DTP_BOOLEAN,     "recursive",    SDF_RD,     0,          "Watch on all sub-directory tree"),
@@ -366,7 +366,7 @@ PRIVATE int create_gclass(gclass_name_t gclass_name)
         states,
         &gmt,
         0,  // lmt
-        tattr_desc,
+        attrs_table,
         sizeof(PRIVATE_DATA),
         0,  // authz_table
         0,  // command_table

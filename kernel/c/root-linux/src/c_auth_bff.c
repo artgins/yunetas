@@ -125,7 +125,7 @@ SDATA_END()
 /*---------------------------------------------*
  *      Attributes
  *---------------------------------------------*/
-PRIVATE sdata_desc_t tattr_desc[] = {
+PRIVATE sdata_desc_t attrs_table[] = {
 /*-ATTR-type------------name--------------------flag----default-description*/
 SDATA (DTP_STRING,      "keycloak_url",         SDF_RD, "",     "Keycloak base URL, e.g. https://auth.artgins.com/"),
 SDATA (DTP_STRING,      "realm",                SDF_RD, "",     "Keycloak realm, e.g. estadodelaire.com"),
@@ -1128,7 +1128,7 @@ PRIVATE int create_gclass(gclass_name_t gclass_name)
         states,
         &gmt,
         lmt,
-        tattr_desc,
+        attrs_table,
         sizeof(PRIVATE_DATA),
         authz_table,
         command_table,

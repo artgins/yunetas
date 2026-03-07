@@ -120,7 +120,7 @@ SDATA_END()
 /*---------------------------------------------*
  *      Attributes
  *---------------------------------------------*/
-PRIVATE sdata_desc_t tattr_desc[] = {
+PRIVATE sdata_desc_t attrs_table[] = {
 /*-ATTR-type------------name----------------------------flag------------default---------description---------- */
 SDATA (DTP_JSON,        "schema",                       SDF_RD,         0,              "Database schema"),
 SDATA (DTP_STRING,      "url",                          SDF_PERSIST|SDF_WR,0,           "Url"),
@@ -1367,7 +1367,7 @@ PRIVATE int create_gclass(gclass_name_t gclass_name)
         states,
         &gmt,
         0,                  // Local methods table (LMT) - none
-        tattr_desc,
+        attrs_table,
         sizeof(PRIVATE_DATA),
         authz_table,        // Authorization table
         command_table,      // Command table

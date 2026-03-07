@@ -56,7 +56,7 @@ PRIVATE char __new_stdsrc_size__ = FALSE;
 /*---------------------------------------------*
  *      Attributes
  *---------------------------------------------*/
-PRIVATE sdata_desc_t tattr_desc[] = {
+PRIVATE sdata_desc_t attrs_table[] = {
 SDATA (DTP_INTEGER,     "timeout",              0,  "500", "Timeout, to detect size change in stdscr"),
 SDATA (DTP_INTEGER,     "cx",                   0,  0, "cx window size"),
 SDATA (DTP_INTEGER,     "cy",                   0,  0, "cy window size"),
@@ -382,7 +382,7 @@ PRIVATE int create_gclass(gclass_name_t gclass_name)
         states,
         &gmt,
         0,  // Local methods table
-        tattr_desc,
+        attrs_table,
         sizeof(PRIVATE_DATA),
         0,  // Authorization table
         0,  // Command table

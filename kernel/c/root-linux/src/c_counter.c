@@ -32,7 +32,7 @@
 /*---------------------------------------------*
  *      Attributes
  *---------------------------------------------*/
-PRIVATE sdata_desc_t tattr_desc[] = {
+PRIVATE sdata_desc_t attrs_table[] = {
 SDATA (DTP_STRING,      "info",                 SDF_RD,  "", "Info to put in output event"),
 SDATA (DTP_JSON,        "jn_info",              SDF_RD,  0, "Json Info to put in output event"),
 SDATA (DTP_INTEGER,     "max_count",            SDF_RD,  0, "Count to reach."),
@@ -491,7 +491,7 @@ PRIVATE int create_gclass(gclass_name_t gclass_name)
         states,
         &gmt,
         0,                  // lmt (no local methods table)
-        tattr_desc,
+        attrs_table,
         sizeof(PRIVATE_DATA),
         0,                  // authz_table
         0,                  // command_table

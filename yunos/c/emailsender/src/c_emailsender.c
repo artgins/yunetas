@@ -71,7 +71,7 @@ SDATA_END()
 /*---------------------------------------------*
  *      Attributes
  *---------------------------------------------*/
-PRIVATE sdata_desc_t tattr_desc[] = {
+PRIVATE sdata_desc_t attrs_table[] = {
 /*-ATTR-type------------name--------------------flag--------------------default-----description---------- */
 SDATA (DTP_STRING,      "username",             SDF_RD,                 0,      "email username"),
 SDATA (DTP_STRING,      "password",             SDF_RD,                 0,      "email password"),
@@ -1089,7 +1089,7 @@ PRIVATE int create_gclass(gclass_name_t gclass_name)
         states,
         &gmt,
         0, // lmt,
-        tattr_desc,
+        attrs_table,
         sizeof(PRIVATE_DATA),
         0,                          // acl
         command_table,

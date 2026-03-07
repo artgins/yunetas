@@ -53,7 +53,7 @@ SDATA_END()
 /*---------------------------------------------*
  *      Attributes
  *---------------------------------------------*/
-PRIVATE sdata_desc_t tattr_desc[] = {
+PRIVATE sdata_desc_t attrs_table[] = {
 /*-ATTR-type------------name--------------------flag--------default---------description---------- */
 SDATA (DTP_STRING,      "path",                 0,          0,              "Path to watch"),
 SDATA (DTP_BOOLEAN,     "recursive",            0,          0,              "Watch all directory tree"),
@@ -564,7 +564,7 @@ PRIVATE int create_gclass(gclass_name_t gclass_name)
         states,
         &gmt,
         0,                  // LMT
-        tattr_desc,
+        attrs_table,
         sizeof(PRIVATE_DATA),
         0,                  // ACL
         command_table,

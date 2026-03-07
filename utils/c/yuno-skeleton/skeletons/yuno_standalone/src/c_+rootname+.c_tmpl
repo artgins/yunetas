@@ -32,7 +32,7 @@
 /*---------------------------------------------*
  *      Attributes
  *---------------------------------------------*/
-PRIVATE sdata_desc_t tattr_desc[] = {
+PRIVATE sdata_desc_t attrs_table[] = {
 /*-ATTR-type--------name----------------flag--------default---------description---------- */
 SDATA (DTP_INTEGER, "verbose",          0,          0,              "Verbose mode."),
 SDATA (DTP_INTEGER, "timeout",          0,          "1000",         "Timeout "),

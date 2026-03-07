@@ -152,7 +152,7 @@ PRIVATE int rawmode = 0; /* For atexit() function to check if restore is needed*
 /*---------------------------------------------*
  *      Attributes
  *---------------------------------------------*/
-PRIVATE sdata_desc_t tattr_desc[] = {
+PRIVATE sdata_desc_t attrs_table[] = {
 SDATA (DTP_BOOLEAN,     "use_ncurses",          0,  0, "True to use ncurses"),
 SDATA (DTP_STRING,      "prompt",               0,  "> ", "Prompt"),
 SDATA (DTP_STRING,      "history_file",         0,  0, "History file"),
@@ -1590,7 +1590,7 @@ PRIVATE int create_gclass(gclass_name_t gclass_name)
         states,
         &gmt,
         0,  // lmt
-        tattr_desc,
+        attrs_table,
         sizeof(PRIVATE_DATA),
         0,  // acl
         0,  // cmds

@@ -112,7 +112,7 @@ SDATA_END()
 /*---------------------------------------------*
  *      Attributes
  *---------------------------------------------*/
-PRIVATE sdata_desc_t tattr_desc[] = {
+PRIVATE sdata_desc_t attrs_table[] = {
 /*-ATTR-type------------name--------------------flag------------------------default---------description---------- */
 SDATA (DTP_STRING,      "url",                  SDF_RD|SDF_REQUIRED, "udp://127.0.0.1:1992", "url of udp server"),
 SDATA (DTP_STRING,      "from",                 SDF_WR|SDF_PERSIST|SDF_REQUIRED, "", "from email field"),
@@ -1455,7 +1455,7 @@ PRIVATE int create_gclass(gclass_name_t gclass_name)
         states,
         &gmt,
         0,  // lmt
-        tattr_desc,
+        attrs_table,
         sizeof(PRIVATE_DATA),
         0,  // acl
         command_table,

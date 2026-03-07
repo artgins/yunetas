@@ -41,7 +41,7 @@ PRIVATE void try_to_stop_yevents(hgobj gobj);  // IDEMPOTENT
 /*---------------------------------------------*
  *      Attributes
  *---------------------------------------------*/
-PRIVATE sdata_desc_t tattr_desc[] = {
+PRIVATE sdata_desc_t attrs_table[] = {
 SDATA (DTP_STRING,      "url",              SDF_RD,  0, "url of udp server"),
 SDATA (DTP_STRING,      "lHost",            SDF_RD,  0, "Listening ip, got internally from url"),
 SDATA (DTP_STRING,      "lPort",            SDF_RD,  0, "Listening port, got internally from url"),
@@ -1074,7 +1074,7 @@ PRIVATE int create_gclass(gclass_name_t gclass_name)
         states,
         &gmt,
         0,  // lmt
-        tattr_desc,
+        attrs_table,
         sizeof(PRIVATE_DATA),
         0,  // authz_table
         0,  // command_table

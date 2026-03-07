@@ -114,7 +114,7 @@ SDATA_END()
 /*---------------------------------------------*
  *      Attributes
  *---------------------------------------------*/
-PRIVATE sdata_desc_t tattr_desc[] = {
+PRIVATE sdata_desc_t attrs_table[] = {
 /*-ATTR-type------------name----------------flag----------------default-----description---------- */
 SDATA (DTP_STRING,      "__username__",     SDF_RD,             "",         "Username 'yuneta', permission for all"),
 SDATA (DTP_INTEGER,     "txMsgs",           SDF_RD|SDF_PSTATS,  0,          "Messages transmitted"),
@@ -1657,7 +1657,7 @@ PRIVATE int create_gclass(gclass_name_t gclass_name)
         states,
         &gmt,
         0, // local methods
-        tattr_desc,
+        attrs_table,
         sizeof(PRIVATE_DATA),
         authz_table,
         command_table,

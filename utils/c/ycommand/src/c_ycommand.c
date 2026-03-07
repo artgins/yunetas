@@ -107,7 +107,7 @@ keytable_t keytable[MAX_KEYS] = {0};
 /*---------------------------------------------*
  *      Attributes
  *---------------------------------------------*/
-PRIVATE sdata_desc_t tattr_desc[] = {
+PRIVATE sdata_desc_t attrs_table[] = {
 /*-ATTR-type------------name----------------flag--------default---------description---------- */
 SDATA (DTP_BOOLEAN,     "print_with_metadata",0,        0,              "Print response with metadata."),
 SDATA (DTP_BOOLEAN,     "verbose",          0,          "1",            "Verbose mode."),
@@ -1910,7 +1910,7 @@ PRIVATE int create_gclass(gclass_name_t gclass_name)
         states,
         &gmt,
         0,  // Local methods table
-        tattr_desc,
+        attrs_table,
         sizeof(PRIVATE_DATA),
         0,  // Authorization table
         0,  // Command table

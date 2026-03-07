@@ -68,7 +68,7 @@ SDATA_END()
 /*---------------------------------------------*
  *      Attributes
  *---------------------------------------------*/
-PRIVATE sdata_desc_t tattr_desc[] = {
+PRIVATE sdata_desc_t attrs_table[] = {
 /*-ATTR-type------------name------------flag--------------------default-----description--*/
 SDATA (DTP_STRING,      "filename_mask",SDF_RD|SDF_REQUIRED,    "%Y-%m",    "System organization of tables (file name format, see strftime())"),
 SDATA (DTP_BOOLEAN,     "master",       SDF_RD,                 "1",       "the master is the only that can write"),
@@ -1073,7 +1073,7 @@ PRIVATE int create_gclass(gclass_name_t gclass_name)
         states,
         &gmt,
         lmt,
-        tattr_desc,
+        attrs_table,
         sizeof(PRIVATE_DATA),
         0,              // acl
         command_table,

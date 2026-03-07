@@ -328,7 +328,7 @@ SDATA_END()
 /*---------------------------------------------*
  *      Attributes
  *---------------------------------------------*/
-PRIVATE sdata_desc_t tattr_desc[] = {
+PRIVATE sdata_desc_t attrs_table[] = {
 /*-ATTR-type------------name----------------flag----------------default-----description---------- */
 SDATA (DTP_STRING,      "jwt",              0,                  "",         "Jwt"),
 SDATA (DTP_STRING,      "display_mode",     SDF_WR|SDF_PERSIST, "table",    "Display mode: table or form"),
@@ -3559,7 +3559,7 @@ PRIVATE int create_gclass(gclass_name_t gclass_name)
         states,
         &gmt,
         0,                  // Local method table
-        tattr_desc,
+        attrs_table,
         sizeof(PRIVATE_DATA),
         0,                  // Authorization table
         command_table,

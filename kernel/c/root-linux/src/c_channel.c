@@ -35,7 +35,6 @@ PRIVATE json_t *local_stats(hgobj gobj, const char *stats, json_t *kw, hgobj src
 /*---------------------------------------------*
  *      Attributes
  *---------------------------------------------*/
-
 PRIVATE sdata_desc_t attrs_table[] = {
 /*-ATTR-type------------name----------------flag----------------default-----description---------- */
 SDATA (DTP_BOOLEAN,     "opened",           SDF_RD,             0,          "Channel opened (opened is higher level than connected"),

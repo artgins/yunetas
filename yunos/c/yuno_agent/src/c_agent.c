@@ -893,11 +893,7 @@ SDATA_END()
 /*---------------------------------------------*
  *      Attributes
  *---------------------------------------------*/
-
-/*---------------------------------------------*
- *      GClass trace levels
- *---------------------------------------------*/
-PRIVATE sdata_desc_t tattr_desc[] = {
+PRIVATE sdata_desc_t attrs_table[] = {
 /*-ATTR-type------------name----------------flag----------------default---------description---------- */
 SDATA (DTP_STRING,      "__username__",     SDF_RD,             "",             "Username 'yuneta', permission for all"),
 SDATA (DTP_STRING,      "startup_command",  SDF_RD,             0,              "Command to execute at startup"),
@@ -922,6 +918,10 @@ SDATA (DTP_POINTER,     "subscriber",       0,                  0,              
 SDATA_END()
 };
 
+
+/*---------------------------------------------*
+ *      GClass trace levels
+ *---------------------------------------------*/
 enum {
     TRACE_MESSAGES = 0x0001,
 };
@@ -10727,7 +10727,7 @@ PRIVATE int create_gclass(gclass_name_t gclass_name)
         states,
         &gmt,
         0,              /* lmt (none) */
-        tattr_desc,
+        attrs_table,
         sizeof(PRIVATE_DATA),
         authz_table,    /* acl */
         command_table,  /* command table */

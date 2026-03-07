@@ -121,7 +121,7 @@ SDATA_END()
 /*---------------------------------------------*
  *      Attributes
  *---------------------------------------------*/
-PRIVATE sdata_desc_t tattr_desc[] = {
+PRIVATE sdata_desc_t attrs_table[] = {
 /*-ATTR-type--------name----------------flag--------default-----description---------- */
 SDATA (DTP_BOOLEAN, "enable_new_clients",0,         "0",        "Set true if you want auto-create new clients if they don't exist"),
 
@@ -4734,7 +4734,7 @@ PRIVATE int create_gclass(gclass_name_t gclass_name)
         states,
         &gmt,
         0, // local methods
-        tattr_desc,
+        attrs_table,
         sizeof(PRIVATE_DATA),
         authz_table,
         command_table,

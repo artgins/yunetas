@@ -63,7 +63,7 @@
 /*---------------------------------------------*
  *      Attributes
  *---------------------------------------------*/
-PRIVATE sdata_desc_t tattr_desc[] = {
+PRIVATE sdata_desc_t attrs_table[] = {
 SDATA (DTP_STRING,      "text",                 0,  0, "Text of status line"),
 SDATA (DTP_INTEGER,     "x",                    0,  0, "x window coord"),
 SDATA (DTP_INTEGER,     "y",                    0,  0, "y window coord"),
@@ -459,7 +459,7 @@ PRIVATE int create_gclass(gclass_name_t gclass_name)
         states,
         &gmt,
         0,  // Local methods table
-        tattr_desc,
+        attrs_table,
         sizeof(PRIVATE_DATA),
         0,  // Authorization table
         0,  // Command table

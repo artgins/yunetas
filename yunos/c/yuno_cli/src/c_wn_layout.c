@@ -101,7 +101,7 @@ PRIVATE int fix_child_sizes(hgobj gobj);
 /*---------------------------------------------*
  *      Attributes
  *---------------------------------------------*/
-PRIVATE sdata_desc_t tattr_desc[] = {
+PRIVATE sdata_desc_t attrs_table[] = {
 SDATA (DTP_STRING,      "layout_type",          0,  "vertical", "Layout 'vertical' or 'horizontal"),
 SDATA (DTP_INTEGER,     "x",                    0,  0, "x window coord"),
 SDATA (DTP_INTEGER,     "y",                    0,  0, "y window coord"),
@@ -641,7 +641,7 @@ PRIVATE int create_gclass(gclass_name_t gclass_name)
         states,
         &gmt,
         0,  // local methods
-        tattr_desc,
+        attrs_table,
         sizeof(PRIVATE_DATA),
         0,  // acl
         0,  // cmds

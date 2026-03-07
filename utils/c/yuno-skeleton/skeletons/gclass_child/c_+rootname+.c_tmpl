@@ -31,7 +31,7 @@
 /*---------------------------------------------*
  *      Attributes
  *---------------------------------------------*/
-PRIVATE sdata_desc_t tattr_desc[] = {
+PRIVATE sdata_desc_t attrs_table[] = {
 /*-ATTR-type--------name----------------flag----------------default-----description---------- */
 SDATA (DTP_POINTER, "subscriber",       0,                  0,          "Subscriber of output-events"),
 SDATA (DTP_INTEGER, "timeout",          SDF_RD,             "1000",     "Timeout"),
