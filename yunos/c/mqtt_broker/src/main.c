@@ -50,6 +50,11 @@ PRIVATE char variable_config[]= "\
                 'filename_mask': 'W.log',                           \n\
                 'handler_options': 255                              \n\
             },                                                      \n\
+            'to_udp': {                                             \n\
+                'handler_type': 'udp',                              \n\
+                'url': 'udp://127.0.0.1:1992',                      \n\
+                'handler_options': 255                              \n\
+            },                                                      \n\
             'to_stdout': {                                          \n\
                 'handler_type': 'stdout',                           \n\
                 'handler_options': 255                              \n\

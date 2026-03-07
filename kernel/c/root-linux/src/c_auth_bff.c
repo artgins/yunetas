@@ -105,6 +105,17 @@ typedef struct _PENDING_AUTH {
 } PENDING_AUTH;
 
 /***************************************************************************
+ *              Prototypes
+ ***************************************************************************/
+PRIVATE void process_next(hgobj gobj);
+PRIVATE void send_json_response(hgobj browser_src, int status_code,
+    const char *status_text, json_t *jn_body, const char *extra_headers);
+PRIVATE void send_error_response(hgobj browser_src, int status_code,
+    const char *status_text, const char *error_msg, const char *extra_headers);
+PRIVATE const char *extract_cookie(const char *cookie_header, const char *name,
+    char *out, size_t out_size);
+
+/***************************************************************************
  *          Data: config, public data, private data
  ***************************************************************************/
 
@@ -112,26 +123,17 @@ typedef struct _PENDING_AUTH {
  *      Attributes
  *---------------------------------------------*/
 PRIVATE sdata_desc_t attrs_table[] = {
-/*-ATTR-type------------name--------------------flag----default---------description*/
-SDATA (DTP_STRING,      "keycloak_url",         SDF_RD, "",
-    "Keycloak base URL, e.g. https://auth.artgins.com/"),
-SDATA (DTP_STRING,      "realm",                SDF_RD, "",
-    "Keycloak realm, e.g. estadodelaire.com"),
-SDATA (DTP_STRING,      "client_id",            SDF_RD, "",
-    "Keycloak client_id (resource)"),
-SDATA (DTP_STRING,      "client_secret",        SDF_RD, "",
-    "Client secret (leave empty for public clients with PKCE)"),
-SDATA (DTP_STRING,      "cookie_domain",        SDF_RD, "",
-    "Cookie Domain attribute (shared hostname without port)"),
-SDATA (DTP_STRING,      "allowed_origin",       SDF_RD, "",
-    "CORS Access-Control-Allow-Origin value"),
-SDATA (DTP_STRING,      "allowed_redirect_uri", SDF_RD, "",
-    "Allowed redirect_uri prefix (e.g. https://treedb.yunetas.com/); "
-    "rejects callback requests whose redirect_uri does not start with this"),
-SDATA (DTP_JSON,        "crypto",               SDF_RD, "{}",
-    "TLS crypto config for Keycloak outbound calls"),
-SDATA (DTP_POINTER,     "user_data",            0,      0,  "user data"),
-SDATA (DTP_POINTER,     "user_data2",           0,      0,  "more user data"),
+/*-ATTR-type------------name--------------------flag----default-description*/
+SDATA (DTP_STRING,      "keycloak_url",         SDF_RD, "",     "Keycloak base URL, e.g. https://auth.artgins.com/"),
+SDATA (DTP_STRING,      "realm",                SDF_RD, "",     "Keycloak realm, e.g. estadodelaire.com"),
+SDATA (DTP_STRING,      "client_id",            SDF_RD, "",     "Keycloak client_id (resource)"),
+SDATA (DTP_STRING,      "client_secret",        SDF_RD, "",     "Client secret (leave empty for public clients with PKCE)"),
+SDATA (DTP_STRING,      "cookie_domain",        SDF_RD, "",     "Cookie Domain attribute (shared hostname without port)"),
+SDATA (DTP_STRING,      "allowed_origin",       SDF_RD, "",     "CORS Access-Control-Allow-Origin value"),
+SDATA (DTP_STRING,      "allowed_redirect_uri", SDF_RD, "",     "Allowed redirect_uri prefix (e.g. https://treedb.yunetas.com/); rejects callback requests whose redirect_uri does not start with this"),
+SDATA (DTP_JSON,        "crypto",               SDF_RD, "{}",   "TLS crypto config for Keycloak outbound calls"),
+SDATA (DTP_POINTER,     "user_data",            0,      0,      "user data"),
+SDATA (DTP_POINTER,     "user_data2",           0,      0,      "more user data"),
 SDATA_END()
 };
 
@@ -155,18 +157,6 @@ typedef struct _PRIVATE_DATA {
     char port[16];
     char path[1024];
 } PRIVATE_DATA;
-
-
-/***************************************************************************
- *              Forward declarations
- ***************************************************************************/
-PRIVATE void process_next(hgobj gobj);
-PRIVATE void send_json_response(hgobj browser_src, int status_code,
-    const char *status_text, json_t *jn_body, const char *extra_headers);
-PRIVATE void send_error_response(hgobj browser_src, int status_code,
-    const char *status_text, const char *error_msg, const char *extra_headers);
-PRIVATE const char *extract_cookie(const char *cookie_header, const char *name,
-    char *out, size_t out_size);
 
 
 /***************************************************************************
