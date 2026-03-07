@@ -267,7 +267,7 @@ Every GClass follows this structure in its `.c` file:
 typedef struct { ... } priv_t;
 
 // 2. Attribute schema (SData)
-PRIVATE sdata_desc_t tattr_desc[] = {
+PRIVATE sdata_desc_t attrs_table[] = {
     SDATA(DTP_STRING, "name", SDF_RD, "default", "description"),
     SDATA_END()
 };

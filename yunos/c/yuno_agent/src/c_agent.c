@@ -893,6 +893,10 @@ SDATA_END()
 /*---------------------------------------------*
  *      Attributes
  *---------------------------------------------*/
+
+/*---------------------------------------------*
+ *      GClass trace levels
+ *---------------------------------------------*/
 PRIVATE sdata_desc_t attrs_table[] = {
 /*-ATTR-type------------name----------------flag----------------default---------description---------- */
 SDATA (DTP_STRING,      "__username__",     SDF_RD,             "",             "Username 'yuneta', permission for all"),
@@ -918,10 +922,6 @@ SDATA (DTP_POINTER,     "subscriber",       0,                  0,              
 SDATA_END()
 };
 
-
-/*---------------------------------------------*
- *      GClass trace levels
- *---------------------------------------------*/
 enum {
     TRACE_MESSAGES = 0x0001,
 };

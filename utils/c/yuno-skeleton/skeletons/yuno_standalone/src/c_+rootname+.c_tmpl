@@ -1,5 +1,5 @@
 /***********************************************************************
- *          C_{{ROOTNAME}}.C
+ *          c_{{rootname}}.c
  *          {{Rootname}} GClass.
  *
  *          {{description}}
@@ -238,7 +238,7 @@ PRIVATE int create_gclass(gclass_name_t gclass_name)
         states,
         &gmt,
         0,  // Local methods table (LMT)
-        tattr_desc,
+        attrs_table,
         sizeof(PRIVATE_DATA),
         0,  // Authorization table
         0,  // Command table

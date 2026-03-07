@@ -1,5 +1,5 @@
 /***********************************************************************
- *          C_AUTH_BFF.C
+ *          c_auth_bff.c
  *          Auth_bff GClass — Backend For Frontend (BFF) for OAuth2.
  *
  *  SEC-06 — httpOnly cookie token storage:
@@ -118,9 +118,6 @@ PRIVATE const char *extract_cookie(const char *cookie_header, const char *name,
 /***************************************************************************
  *          Data: config, public data, private data
  ***************************************************************************/
-PRIVATE sdata_desc_t command_table[] = {
-SDATA_END()
-};
 
 /*---------------------------------------------*
  *      Attributes
@@ -143,16 +140,10 @@ SDATA_END()
 /*---------------------------------------------*
  *      GClass trace levels
  *---------------------------------------------*/
-PRIVATE const trace_level_t s_user_trace_level[16] = {
-{0, 0},
-};
 
 /*---------------------------------------------*
  *      GClass authz levels
  *---------------------------------------------*/
-PRIVATE sdata_desc_t authz_table[] = {
-SDATA_END()
-};
 
 /*---------------------------------------------*
  *              Private data
@@ -1034,7 +1025,6 @@ PRIVATE int ac_stopped(hgobj gobj, const char *event, json_t *kw, hgobj src)
     return 0;
 }
 
-
 /***************************************************************************
  *                          FSM
  ***************************************************************************/
@@ -1048,9 +1038,6 @@ PRIVATE const GMETHODS gmt = {
     .mt_stop    = mt_stop,
 };
 
-/*---------------------------------------------*
- *          Local methods table
- *---------------------------------------------*/
 PRIVATE LMETHOD lmt[] = {
     {"action_call_keycloak",    action_call_keycloak,   0},
     {"result_token_response",   result_token_response,  0},
@@ -1130,9 +1117,9 @@ PRIVATE int create_gclass(gclass_name_t gclass_name)
         lmt,
         attrs_table,
         sizeof(PRIVATE_DATA),
-        authz_table,
-        command_table,
-        s_user_trace_level,
+        0,          /* authz_table */
+        0,          /* command_table */
+        0,          /* s_user_trace_level */
         0           /* gclass_flag */
     );
     if(!__gclass__) {

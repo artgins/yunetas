@@ -235,7 +235,7 @@ const sdata_desc_t *gclass_command_desc(hgclass gclass, const char *name, BOOL v
 ### Attribute Schema (SData)
 
 ```c
-PRIVATE sdata_desc_t tattr_desc[] = {
+PRIVATE sdata_desc_t attrs_table[] = {
     SDATA(DTP_STRING,  "url",      SDF_RD,      "",    "Server URL"),       // [JS]
     SDATA(DTP_INTEGER, "timeout",  SDF_RD,       0,    "Timeout ms"),       // [JS]
     SDATA(DTP_BOOLEAN, "active",   SDF_RD,   FALSE,    "Active flag"),      // [JS]
@@ -1749,7 +1749,7 @@ typedef struct {
 
 // ─── Attribute schema ──────────────────────────────────────
 
-PRIVATE sdata_desc_t tattr_desc[] = {
+PRIVATE sdata_desc_t attrs_table[] = {
     SDATA(DTP_INTEGER, "timeout_ms", SDF_RD, 5000, "Timeout in milliseconds"),
     SDATA(DTP_BOOLEAN, "connected",  SDF_RD, FALSE, "Connection state"),
     SDATA(DTP_STRING,  "url",        SDF_RD, "",    "Remote URL"),
@@ -1854,7 +1854,7 @@ PUBLIC int register_c_my_class(void) {
         st_names,
         &mt,
         NULL,               // lmt (low-level methods)
-        tattr_desc,
+        attrs_table,
         sizeof(priv_t),
         NULL,               // authz_table
         NULL,               // command_table
