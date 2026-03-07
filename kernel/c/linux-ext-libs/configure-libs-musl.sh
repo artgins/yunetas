@@ -16,11 +16,8 @@
 #       upgrade to openssl 3.6.1
 #       upgrade to pcre2 2.10.47
 #
-#   version 1.6
-#       add llhttp v9.3.1
-#
 
-VERSION="1.6-s"
+VERSION="1.5-s"
 
 source ./repos2clone-musl.sh
 
@@ -254,18 +251,6 @@ make
 make install
 cd ../..
 
-
-#------------------------------------------
-#   llhttp
-#------------------------------------------
-echo "===================== LLHTTP ======================="
-cd build/llhttp
-
-git checkout "$TAG_LLHTTP"
-
-make CLANG=cc PREFIX="${YUNETA_INSTALL_PREFIX}"
-make CLANG=cc PREFIX="${YUNETA_INSTALL_PREFIX}" install
-cd ../..
 
 #------------------------------------------
 #   Save the version installed

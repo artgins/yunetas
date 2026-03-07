@@ -12,22 +12,6 @@ if ! command -v ninja >/dev/null 2>&1; then
     exit 1
 fi
 
-if ! command -v node >/dev/null 2>&1; then
-    echo "node is not available in PATH. Exiting. Run 'sudo apt install nodejs'"
-    exit 1
-fi
-
-if ! command -v npm >/dev/null 2>&1; then
-    echo "npm is not available in PATH. Exiting. Run 'sudo apt install npm'"
-    exit 1
-fi
-
-if ! command -v npx >/dev/null 2>&1; then
-    echo "npx is not available in PATH. Exiting. Install npm >= 5.2 or run 'sudo apt install npm'"
-    exit 1
-fi
-
-
 #----------------------------------------#
 #       Disable the Merde for backends
 #----------------------------------------#
