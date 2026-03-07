@@ -62,19 +62,19 @@ const bff_urls = {
  */
 const keycloak_configs = {
     "localhost": {
-        "realm":            "estadodelaire.com",
-        "auth-server-url":  "https://auth.artgins.com/",
-        "ssl-required":     "external",
-        "resource":         "gui_treedb",
-        "public-client":    true,
+        "realm": "estadodelaire.com",
+        "auth-server-url": "https://auth.artgins.com",
+        "ssl-required": "external",
+        "resource": "gui_treedb",
+        "public-client": true,
         "confidential-port": 0
     },
     "treedb.yunetas.com": {
-        "realm":            "estadodelaire.com",
-        "auth-server-url":  "https://auth.artgins.com/",
-        "ssl-required":     "external",
-        "resource":         "gui_treedb",
-        "public-client":    true,
+        "realm": "estadodelaire.com",
+        "auth-server-url": "https://auth.artgins.com",
+        "ssl-required": "external",
+        "resource": "gui_treedb",
+        "public-client": true,
         "confidential-port": 0
     }
 };
