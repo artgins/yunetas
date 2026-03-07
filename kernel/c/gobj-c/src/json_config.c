@@ -22,7 +22,6 @@ extern void jsonp_free(void *ptr);
 /***************************************************************************
  *              Constants
  ***************************************************************************/
-#define INLINE_COMMENT "#^^"
 
 /***************************************************************************
  *              Structures
@@ -153,7 +152,7 @@ PRIVATE json_t *nonx_legalstring2json(const char *reference, const char *bf, pe_
  *  Convert a legal json string to json binary.
  *  legal json string: MUST BE an array [] or object {}
  ***************************************************************************/
-PRIVATE json_t * x_legalstring2json(const char *reference, const char *bf, pe_flag_t quit)
+PRIVATE json_t *x_legalstring2json(const char *reference, const char *bf, pe_flag_t quit)
 {
     size_t flags = 0;
     json_error_t error;

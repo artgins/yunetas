@@ -2373,7 +2373,7 @@ PUBLIC json_t *anystring2json(const char *bf, size_t len, BOOL verbose)
             gobj_log_error(0, LOG_OPT_TRACE_STACK,
                 "function",     "%s", __FUNCTION__,
                 "msgset",       "%s", MSGSET_JSON_ERROR,
-                "msg",          "%s", "json_loads() FAILED",
+                "msg",          "%s", "json_loadb() FAILED",
                 "bf",           "%s", bf,
                 "error",        "%s", error.text,
                 "line",         "%d", error.line,
@@ -2381,7 +2381,7 @@ PUBLIC json_t *anystring2json(const char *bf, size_t len, BOOL verbose)
                 "position",     "%d", error.position,
                 NULL
             );
-            gobj_trace_dump(0, bf, strlen(bf), "json_loads() FAILED");
+            gobj_trace_dump(0, bf, strlen(bf), "json_loadb() FAILED");
         }
     }
     return jn;
@@ -2430,7 +2430,7 @@ PUBLIC json_t *string2json(const char *str, BOOL verbose)
             gobj_log_error(0, LOG_OPT_TRACE_STACK,
                 "function",     "%s", __FUNCTION__,
                 "msgset",       "%s", MSGSET_PARAMETER_ERROR,
-                "msg",          "%s", "json_loads(3) FAILED",
+                "msg",          "%s", "json_loads() FAILED",
                 "str",          "%s", str,
                 "error",        "%s", error.text,
                 "line",         "%d", error.line,
@@ -2438,10 +2438,96 @@ PUBLIC json_t *string2json(const char *str, BOOL verbose)
                 "position",     "%d", error.position,
                 NULL
             );
-            fprintf(stderr, "\n%s\n", str);     // WARNING output to console
         }
     }
     return jn;
+}
+
+/***************************************************************************
+ *  Convert a legal json string to json binary removing comments.
+ ***************************************************************************/
+PUBLIC json_t *json_config_string2json(const char *bf, BOOL verbose)
+{
+    size_t flags = 0;
+    json_error_t error;
+
+    /*
+     *  Memory needed, double for src,dst
+     */
+    size_t len = strlen(bf);
+
+    /*
+     *  Create source and load the string
+     */
+    gbuffer_t *gbuf_src = gbuffer_create(len, len);
+    if(!gbuf_src) {
+        // Error already logged
+        return NULL;
+    }
+    gbuffer_append_string(gbuf_src, bf);
+
+    /*
+     *  Create destination
+     */
+    gbuffer_t *gbuf_dst = gbuffer_create(len, len);
+    if(!gbuf_dst) {
+        // Error already logged
+        gbuffer_decref(gbuf_src);
+        return NULL;
+    }
+
+    /*
+     *  Filter the comments and save to destination
+     */
+    char *s;
+    while((s=gbuffer_getline(gbuf_src, '\n'))) {
+        char *f = strstr(s, INLINE_COMMENT);
+        if(f) {
+            /*
+             *  Remove comments
+             */
+            *f = 0;
+        }
+        if(!empty_string(s)) {
+            gbuffer_append_string(gbuf_dst, s);
+        }
+    }
+
+    /*
+     *  Convert to jansson
+     */
+    s = gbuffer_cur_rd_pointer(gbuf_dst);
+
+    json_t *jn_msg = json_loads(s, flags, &error);
+    if(!jn_msg) {
+        /*
+         *  Free
+         */
+        gbuffer_decref(gbuf_src);
+        gbuffer_decref(gbuf_dst);
+        if(verbose) {
+            gobj_log_error(0, LOG_OPT_TRACE_STACK,
+                "function",     "%s", __FUNCTION__,
+                "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+                "msg",          "%s", "json_loads() FAILED",
+                "str",          "%s", s,
+                "error",        "%s", error.text,
+                "line",         "%d", error.line,
+                "column",       "%d", error.column,
+                "position",     "%d", error.position,
+                NULL
+            );
+        }
+        return NULL;
+    }
+
+    /*
+     *  Free
+     */
+    gbuffer_decref(gbuf_src);
+    gbuffer_decref(gbuf_dst);
+
+    return jn_msg;
 }
 
 /***************************************************************************

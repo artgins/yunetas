@@ -33,6 +33,11 @@
 extern "C"{
 #endif
 
+/***************************************************************************
+ *              Constants
+ ***************************************************************************/
+#define INLINE_COMMENT "#^^"
+
 /***********************************************************************
  *  Macros of switch for strings
  *  copied from https://gist.github.com/HoX/abfe15c40f2d9daebc35
@@ -563,6 +568,12 @@ PUBLIC json_t *string2json(const char *str, BOOL verbose); /* only [] or {}, old
 #define legalstring2json string2json
 #define str2json string2json
 #define nonlegalstring2json anystring2json
+
+/*
+ *  Convert a legal json string to json binary removing comments.
+ */
+PUBLIC json_t *json_config_string2json(const char *bf, BOOL verbose);
+
 
 /**rst**
     Set real precision (use in conversion of json to string functions)
