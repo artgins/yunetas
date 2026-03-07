@@ -98,6 +98,7 @@
 /***************************************************************************
  *              Prototypes
  ***************************************************************************/
+PRIVATE void new_line(hgobj gobj, hgobj wn_display);
 PRIVATE void try_to_stop_yevents(hgobj gobj);  // IDEMPOTENT
 PRIVATE int yev_callback(yev_event_h yev_event);
 PRIVATE int on_read_cb(hgobj gobj, gbuffer_t *gbuf);
@@ -2376,6 +2377,8 @@ PRIVATE int display_webix_result(
         fflush(priv->file_saving_output);
     }
 
+    new_line(gobj, display_window);
+    SetFocus(priv->gobj_editline);
     JSON_DECREF(webix);
     return 0;
 }
@@ -2925,17 +2928,12 @@ PRIVATE int ac_on_close(hgobj gobj, const char *event, json_t *kw, hgobj src)
  ***************************************************************************/
 PRIVATE int ac_mt_command_answer(hgobj gobj, const char *event, json_t *kw, hgobj src)
 {
-    PRIVATE_DATA *priv = gobj_priv_data(gobj);
-
     hgobj wn_display = gobj_read_pointer_attr(src, "user_data");
     display_webix_result(
         gobj,
         wn_display,
         kw  // owned
     );
-
-    new_line(gobj, wn_display);
-    SetFocus(priv->gobj_editline);
 
     return 0;
 }
@@ -3303,8 +3301,6 @@ PRIVATE int ac_agent_response(hgobj gobj, const char *event, json_t *kw, hgobj s
         wn_display,
         kw  // owned
     );
-
-    new_line(gobj, wn_display);
 
     return 0;
 }

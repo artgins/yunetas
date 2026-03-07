@@ -1336,6 +1336,10 @@ PRIVATE int ac_edit_config(hgobj gobj, const char *event, json_t *kw, hgobj src)
     if(result != 0) {
         printf("%sERROR %d: %s%s\n", On_Red BWhite, result, comment, Color_Off);
         clear_input_line(gobj);
+        if(!priv->interactive) {
+            gobj_set_exit_code(result);
+            set_timeout(priv->timer, priv->wait * 1000);
+        }
         KW_DECREF(kw);
         return 0;
     }
@@ -1345,6 +1349,10 @@ PRIVATE int ac_edit_config(hgobj gobj, const char *event, json_t *kw, hgobj src)
             On_Red BWhite, result, __FUNCTION__, "Internal error, no data", Color_Off
         );
         clear_input_line(gobj);
+        if(!priv->interactive) {
+            gobj_set_exit_code(result);
+            set_timeout(priv->timer, priv->wait * 1000);
+        }
         KW_DECREF(kw);
         return 0;
     }
@@ -1355,6 +1363,10 @@ PRIVATE int ac_edit_config(hgobj gobj, const char *event, json_t *kw, hgobj src)
             On_Red BWhite, result, __FUNCTION__, "Internal error, no id", Color_Off
         );
         clear_input_line(gobj);
+        if(!priv->interactive) {
+            gobj_set_exit_code(result);
+            set_timeout(priv->timer, priv->wait * 1000);
+        }
         KW_DECREF(kw);
         return 0;
     }
@@ -1365,6 +1377,10 @@ PRIVATE int ac_edit_config(hgobj gobj, const char *event, json_t *kw, hgobj src)
             On_Red BWhite, result, __FUNCTION__, "Internal error, no content", Color_Off
         );
         clear_input_line(gobj);
+        if(!priv->interactive) {
+            gobj_set_exit_code(result);
+            set_timeout(priv->timer, priv->wait * 1000);
+        }
         KW_DECREF(kw);
         return 0;
     }
@@ -1390,6 +1406,10 @@ PRIVATE int ac_edit_config(hgobj gobj, const char *event, json_t *kw, hgobj src)
             Color_Off
         );
         clear_input_line(gobj);
+        if(!priv->interactive) {
+            gobj_set_exit_code(result);
+            set_timeout(priv->timer, priv->wait * 1000);
+        }
         KW_DECREF(kw);
         return 0;
     }
@@ -1415,11 +1435,16 @@ PRIVATE int ac_edit_config(hgobj gobj, const char *event, json_t *kw, hgobj src)
  ***************************************************************************/
 PRIVATE int ac_view_config(hgobj gobj, const char *event, json_t *kw, hgobj src)
 {
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
     int result = (int)kw_get_int(gobj, kw, "result", -1, 0);
     const char *comment = kw_get_str(gobj, kw, "comment", "", 0);
     if(result != 0) {
         printf("%sERROR %d: %s%s\n", On_Red BWhite, result, comment, Color_Off);
         clear_input_line(gobj);
+        if(!priv->interactive) {
+            gobj_set_exit_code(result);
+            set_timeout(priv->timer, priv->wait * 1000);
+        }
         KW_DECREF(kw);
         return 0;
     }
@@ -1429,6 +1454,10 @@ PRIVATE int ac_view_config(hgobj gobj, const char *event, json_t *kw, hgobj src)
             On_Red BWhite, result, __FUNCTION__, "Internal error, no data", Color_Off
         );
         clear_input_line(gobj);
+        if(!priv->interactive) {
+            gobj_set_exit_code(result);
+            set_timeout(priv->timer, priv->wait * 1000);
+        }
         KW_DECREF(kw);
         return 0;
     }
@@ -1439,6 +1468,10 @@ PRIVATE int ac_view_config(hgobj gobj, const char *event, json_t *kw, hgobj src)
             On_Red BWhite, result, __FUNCTION__, "Internal error, no content", Color_Off
         );
         clear_input_line(gobj);
+        if(!priv->interactive) {
+            gobj_set_exit_code(result);
+            set_timeout(priv->timer, priv->wait * 1000);
+        }
         KW_DECREF(kw);
         return 0;
     }
@@ -1462,11 +1495,16 @@ PRIVATE int ac_view_config(hgobj gobj, const char *event, json_t *kw, hgobj src)
  ***************************************************************************/
 PRIVATE int ac_read_json(hgobj gobj, const char *event, json_t *kw, hgobj src)
 {
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
     int result = (int)kw_get_int(gobj, kw, "result", -1, 0);
     const char *comment = kw_get_str(gobj, kw, "comment", "", 0);
     if(result != 0) {
         printf("%sERROR %d: %s%s\n", On_Red BWhite, result, comment, Color_Off);
         clear_input_line(gobj);
+        if(!priv->interactive) {
+            gobj_set_exit_code(result);
+            set_timeout(priv->timer, priv->wait * 1000);
+        }
         KW_DECREF(kw);
         return 0;
     }
@@ -1476,6 +1514,10 @@ PRIVATE int ac_read_json(hgobj gobj, const char *event, json_t *kw, hgobj src)
             On_Red BWhite, result, __FUNCTION__, "Internal error, no data", Color_Off
         );
         clear_input_line(gobj);
+        if(!priv->interactive) {
+            gobj_set_exit_code(result);
+            set_timeout(priv->timer, priv->wait * 1000);
+        }
         KW_DECREF(kw);
         return 0;
     }
@@ -1486,6 +1528,10 @@ PRIVATE int ac_read_json(hgobj gobj, const char *event, json_t *kw, hgobj src)
             On_Red BWhite, result, __FUNCTION__, "Internal error, no content", Color_Off
         );
         clear_input_line(gobj);
+        if(!priv->interactive) {
+            gobj_set_exit_code(result);
+            set_timeout(priv->timer, priv->wait * 1000);
+        }
         KW_DECREF(kw);
         return 0;
     }
@@ -1509,11 +1555,16 @@ PRIVATE int ac_read_json(hgobj gobj, const char *event, json_t *kw, hgobj src)
  ***************************************************************************/
 PRIVATE int ac_read_file(hgobj gobj, const char *event, json_t *kw, hgobj src)
 {
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
     int result = (int)kw_get_int(gobj, kw, "result", -1, 0);
     const char *comment = kw_get_str(gobj, kw, "comment", "", 0);
     if(result != 0) {
         printf("%sERROR %d: %s%s\n", On_Red BWhite, result, comment, Color_Off);
         clear_input_line(gobj);
+        if(!priv->interactive) {
+            gobj_set_exit_code(result);
+            set_timeout(priv->timer, priv->wait * 1000);
+        }
         KW_DECREF(kw);
         return 0;
     }
@@ -1523,6 +1574,10 @@ PRIVATE int ac_read_file(hgobj gobj, const char *event, json_t *kw, hgobj src)
             On_Red BWhite, result, __FUNCTION__, "Internal error, no data", Color_Off
         );
         clear_input_line(gobj);
+        if(!priv->interactive) {
+            gobj_set_exit_code(result);
+            set_timeout(priv->timer, priv->wait * 1000);
+        }
         KW_DECREF(kw);
         return 0;
     }
@@ -1533,6 +1588,10 @@ PRIVATE int ac_read_file(hgobj gobj, const char *event, json_t *kw, hgobj src)
             On_Red BWhite, result, __FUNCTION__, "Internal error, no content", Color_Off
         );
         clear_input_line(gobj);
+        if(!priv->interactive) {
+            gobj_set_exit_code(result);
+            set_timeout(priv->timer, priv->wait * 1000);
+        }
         KW_DECREF(kw);
         return 0;
     }
@@ -1556,11 +1615,16 @@ PRIVATE int ac_read_file(hgobj gobj, const char *event, json_t *kw, hgobj src)
  ***************************************************************************/
 PRIVATE int ac_read_binary_file(hgobj gobj, const char *event, json_t *kw, hgobj src)
 {
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
     int result = (int)kw_get_int(gobj, kw, "result", -1, 0);
     const char *comment = kw_get_str(gobj, kw, "comment", "", 0);
     if(result != 0) {
         printf("%sERROR %d: %s%s\n", On_Red BWhite, result, comment, Color_Off);
         clear_input_line(gobj);
+        if(!priv->interactive) {
+            gobj_set_exit_code(result);
+            set_timeout(priv->timer, priv->wait * 1000);
+        }
         KW_DECREF(kw);
         return 0;
     }
@@ -1570,6 +1634,10 @@ PRIVATE int ac_read_binary_file(hgobj gobj, const char *event, json_t *kw, hgobj
             On_Red BWhite, result, __FUNCTION__, "Internal error, no data", Color_Off
         );
         clear_input_line(gobj);
+        if(!priv->interactive) {
+            gobj_set_exit_code(result);
+            set_timeout(priv->timer, priv->wait * 1000);
+        }
         KW_DECREF(kw);
         return 0;
     }
@@ -1580,6 +1648,10 @@ PRIVATE int ac_read_binary_file(hgobj gobj, const char *event, json_t *kw, hgobj
             On_Red BWhite, result, __FUNCTION__, "Internal error, no content", Color_Off
         );
         clear_input_line(gobj);
+        if(!priv->interactive) {
+            gobj_set_exit_code(result);
+            set_timeout(priv->timer, priv->wait * 1000);
+        }
         KW_DECREF(kw);
         return 0;
     }

@@ -818,7 +818,7 @@ SDATACM2 (DTP_SCHEMA,   "write-tty",        0,                  a_write_tty,    
 SDATACM2 (DTP_SCHEMA,   "read-json",        0,                  a_read_json,        pm_read_json,   0,              "Read json file"),
 SDATACM2 (DTP_SCHEMA,   "read-file",        0,                  a_read_file,        pm_read_file,   0,              "Read a text file"),
 SDATACM2 (DTP_SCHEMA,   "read-binary-file", 0,                  a_read_binary_file, pm_read_binary_file, 0,         "Read a binary file (encoded in base64)"),
-SDATACM2 (DTP_SCHEMA,   "running-keys",    0,                  a_read_running_keys,pm_running_keys,0,             "Read yuno running parameters"),
+SDATACM2 (DTP_SCHEMA,   "running-keys",    0,                   a_read_running_keys,pm_running_keys,0,              "Read yuno running parameters"),
 SDATACM2 (DTP_SCHEMA,   "running-bin",      0,                  a_read_running_bin, pm_running_keys,0,              "Read yuno running bin path"),
 SDATACM2 (DTP_SCHEMA,   "check-json",       0,                  0,                  pm_check_json,  cmd_check_json, "Check json refcounts"),
 SDATACM2 (DTP_SCHEMA,   "",                 0,                  0,                  0,              0,              "\nDeploy\n------"),
@@ -9522,7 +9522,7 @@ PRIVATE int ac_read_running_keys(hgobj gobj, const char *event, json_t *kw, hgob
         JSON_DECREF(iter)
         return gobj_send_event(
             src,
-            event,
+            EV_READ_FILE,
             msg_iev_build_response(gobj,
                 -1,
                 json_sprintf(
@@ -9539,7 +9539,7 @@ PRIVATE int ac_read_running_keys(hgobj gobj, const char *event, json_t *kw, hgob
         JSON_DECREF(iter)
         return gobj_send_event(
             src,
-            event,
+            EV_READ_FILE,
             msg_iev_build_response(gobj,
                 -1,
                 json_sprintf("Select only one yuno please"),
@@ -9610,7 +9610,7 @@ PRIVATE int ac_read_running_bin(hgobj gobj, const char *event, json_t *kw, hgobj
         JSON_DECREF(iter)
         return gobj_send_event(
             src,
-            event,
+            EV_READ_FILE,
             msg_iev_build_response(gobj,
                 -1,
                 json_sprintf(
@@ -9627,7 +9627,7 @@ PRIVATE int ac_read_running_bin(hgobj gobj, const char *event, json_t *kw, hgobj
         JSON_DECREF(iter)
         return gobj_send_event(
             src,
-            event,
+            EV_READ_FILE,
             msg_iev_build_response(gobj,
                 -1,
                 json_sprintf("Select only one yuno please"),
