@@ -73,38 +73,6 @@
 #include "kwid.h"
 #include "helpers.h"
 
-/*
- *  URL parsing types and functions from 00_http_parser (Joyent http_parser).
- *  The main HTTP stream parsing has been migrated to llhttp, but URL parsing
- *  is not provided by llhttp, so we keep these declarations to link against
- *  00_http_parser.c which still provides http_parser_parse_url().
- */
-enum http_parser_url_fields
-  { UF_SCHEMA           = 0
-  , UF_HOST             = 1
-  , UF_PORT             = 2
-  , UF_PATH             = 3
-  , UF_QUERY            = 4
-  , UF_FRAGMENT         = 5
-  , UF_USERINFO         = 6
-  , UF_MAX              = 7
-  };
-
-struct http_parser_url {
-  uint16_t field_set;           /* Bitmask of (1 << UF_*) values */
-  uint16_t port;                /* Converted UF_PORT string */
-
-  struct {
-    uint16_t off;               /* Offset into buffer in which field starts */
-    uint16_t len;               /* Length of run in buffer */
-  } field_data[UF_MAX];
-};
-
-void http_parser_url_init(struct http_parser_url *u);
-int http_parser_parse_url(const char *buf, size_t buflen,
-                          int is_connect,
-                          struct http_parser_url *u);
-
 extern void jsonp_free(void *ptr);
 
 /*****************************************************************
@@ -6061,6 +6029,25 @@ int main() {
 
 
 /***************************************************************************
+ *  Helper: copy up to dst_size-1 chars from src (length src_len) into dst
+ ***************************************************************************/
+PRIVATE void copy_field(char *dst, size_t dst_size, const char *src, size_t src_len)
+{
+    if(!dst || dst_size == 0) return;
+    if(src_len >= dst_size) {
+        src_len = dst_size - 1;
+    }
+    memcpy(dst, src, src_len);
+    dst[src_len] = 0;
+}
+
+/***************************************************************************
+ *  Parse a URI into its components.
+ *
+ *  Supports:
+ *      schema://host:port/path?query       (full URL)
+ *      schema://host/path?query            (no port)
+ *      host:port                           (no_schema mode)
  *
  ***************************************************************************/
 PUBLIC int parse_url(
@@ -6074,9 +6061,6 @@ PUBLIC int parse_url(
     BOOL no_schema // only host:port
 )
 {
-    struct http_parser_url u;
-    http_parser_url_init(&u);
-
     if(host) host[0] = 0;
     if(schema) schema[0] = 0;
     if(port) port[0] = 0;
@@ -6094,90 +6078,101 @@ PUBLIC int parse_url(
         return -1;
     }
 
-    int result = http_parser_parse_url(uri, strlen(uri), no_schema, &u);
-    if(result != 0) {
+    const char *p = uri;
+
+    if(no_schema) {
+        /*
+         *  no_schema mode: expect host:port (or just host)
+         */
+        const char *colon = strchr(p, ':');
+        if(colon) {
+            copy_field(host, host_size, p, (size_t)(colon - p));
+            copy_field(port, port_size, colon + 1, strlen(colon + 1));
+        } else {
+            copy_field(host, host_size, p, strlen(p));
+        }
+        return 0;
+    }
+
+    /*
+     *  Schema: look for "://"
+     */
+    const char *schema_end = strstr(p, "://");
+    if(!schema_end) {
         gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
             "function",             "%s", __FUNCTION__,
             "msgset",               "%s", MSGSET_INTERNAL_ERROR,
-            "msg",                  "%s", "http_parser_parse_url() FAILED",
+            "msg",                  "%s", "parse_url() FAILED, no schema",
             "url",                  "%s", uri,
             NULL
         );
         return -1;
     }
-
-    size_t ln;
+    copy_field(schema, schema_size, p, (size_t)(schema_end - p));
+    p = schema_end + 3; // skip "://"
 
     /*
-     *  Schema
+     *  Host (and optional port)
+     *  Find the end of the authority section (delimited by '/' or '?' or end of string)
      */
-    if(schema && schema_size > 0) {
-        if(!no_schema) {
-            ln = u.field_data[UF_SCHEMA].len;
-            if(ln > 0) {
-                if(ln >= schema_size) {
-                    ln = schema_size - 1;
-                }
-                memcpy(schema, uri + u.field_data[UF_SCHEMA].off, ln);
-                schema[ln] = 0;
-            }
-        }
+    const char *authority_end = p;
+    while(*authority_end && *authority_end != '/' && *authority_end != '?') {
+        authority_end++;
     }
 
     /*
-     *  Host
+     *  Check for port in authority (host:port)
+     *  Handle IPv6 addresses: [::1]:port
      */
-    if(host && host_size > 0) {
-        ln = u.field_data[UF_HOST].len;
-        if(ln > 0) {
-            if(ln >= host_size) {
-                ln = host_size - 1;
+    const char *host_start = p;
+    const char *port_start = NULL;
+
+    if(*p == '[') {
+        /* IPv6 address */
+        const char *bracket_end = memchr(p, ']', (size_t)(authority_end - p));
+        if(bracket_end) {
+            copy_field(host, host_size, p, (size_t)(bracket_end + 1 - p));
+            if(bracket_end + 1 < authority_end && *(bracket_end + 1) == ':') {
+                port_start = bracket_end + 2;
             }
-            memcpy(host, uri + u.field_data[UF_HOST].off, ln);
-            host[ln] = 0;
+        } else {
+            copy_field(host, host_size, p, (size_t)(authority_end - p));
+        }
+    } else {
+        /* IPv4 or hostname — find last colon in the authority */
+        const char *colon = memchr(p, ':', (size_t)(authority_end - p));
+        if(colon) {
+            copy_field(host, host_size, host_start, (size_t)(colon - host_start));
+            port_start = colon + 1;
+        } else {
+            copy_field(host, host_size, host_start, (size_t)(authority_end - host_start));
         }
     }
 
-    /*
-     *  Port
-     */
-    if(port && port_size > 0) {
-        ln = u.field_data[UF_PORT].len;
-        if(ln > 0) {
-            if(ln >= port_size) {
-                ln = port_size - 1;
-            }
-            memcpy(port, uri + u.field_data[UF_PORT].off, ln);
-            port[ln] = 0;
-        }
+    if(port_start && port_start < authority_end) {
+        copy_field(port, port_size, port_start, (size_t)(authority_end - port_start));
     }
+
+    p = authority_end;
 
     /*
      *  Path
      */
-    if(path && path_size > 0) {
-        ln = u.field_data[UF_PATH].len;
-        if(ln > 0) {
-            if(ln >= path_size) {
-                ln = path_size - 1;
-            }
-            memcpy(path, uri + u.field_data[UF_PATH].off, ln);
-            path[ln] = 0;
+    if(*p == '/') {
+        const char *path_end = p;
+        while(*path_end && *path_end != '?') {
+            path_end++;
         }
+        copy_field(path, path_size, p, (size_t)(path_end - p));
+        p = path_end;
     }
 
     /*
      *  Query
      */
-    if(query && query_size > 0) {
-        ln = u.field_data[UF_QUERY].len;
-        if(ln > 0) {
-            if(ln >= query_size) {
-                ln = query_size - 1;
-            }
-            memcpy(query, uri + u.field_data[UF_QUERY].off, ln);
-            query[ln] = 0;
-        }
+    if(*p == '?') {
+        p++; // skip '?'
+        copy_field(query, query_size, p, strlen(p));
     }
 
     return 0;
@@ -6191,39 +6186,36 @@ PUBLIC int get_url_schema(
     const char *uri,
     char *schema, size_t schema_size
 ) {
-    struct http_parser_url u;
-    http_parser_url_init(&u);
-
     if(schema) schema[0] = 0;
 
-    int result = http_parser_parse_url(uri, strlen(uri), FALSE, &u);
-    if (result != 0) {
+    if(empty_string(uri)) {
         gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_INTERNAL_ERROR,
-            "msg",          "%s", "http_parser_parse_url() FAILED",
+            "msg",          "%s", "uri EMPTY",
             "url",          "%s", uri,
             NULL
         );
         return -1;
     }
 
-    size_t ln;
-
-    /*
-     *  Schema
-     */
-    if(schema && schema_size > 0) {
-        ln = u.field_data[UF_SCHEMA].len;
-        if(ln > 0) {
-            if(ln >= schema_size) {
-                ln = schema_size - 1;
-            }
-            memcpy(schema, uri + u.field_data[UF_SCHEMA].off, ln);
-            schema[ln] = 0;
-            return 0;
-        }
+    const char *schema_end = strstr(uri, "://");
+    if(!schema_end) {
+        gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_INTERNAL_ERROR,
+            "msg",          "%s", "no schema found",
+            "url",          "%s", uri,
+            NULL
+        );
+        return -1;
     }
+
+    if(schema && schema_size > 0) {
+        copy_field(schema, schema_size, uri, (size_t)(schema_end - uri));
+        return 0;
+    }
+
     gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
         "function",     "%s", __FUNCTION__,
         "msgset",       "%s", MSGSET_INTERNAL_ERROR,

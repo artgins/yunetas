@@ -38,7 +38,6 @@ include("${_yunetas_project_cmake}")
 #   Source
 ##############################################
 set (SRCS
-    src/00_http_parser.c
     src/dl_list.c
     src/gobj.c
     src/gbmem.c
