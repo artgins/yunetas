@@ -793,7 +793,6 @@ PRIVATE void process_next(hgobj gobj)
     );
     gobj_unsubscribe_event(priv->gobj_http, NULL, NULL, gobj);
 
-    gobj_set_bottom_gobj(gobj, priv->gobj_http);
     gobj_set_bottom_gobj(
         priv->gobj_http,
         gobj_create_pure_child(
@@ -1038,7 +1037,6 @@ PRIVATE int ac_end_task(hgobj gobj, const char *event, json_t *kw, hgobj src)
         gobj_stop_tree(priv->gobj_http);
         priv->gobj_http = NULL;
     }
-    gobj_set_bottom_gobj(gobj, NULL);
 
     priv->processing = FALSE;
 
