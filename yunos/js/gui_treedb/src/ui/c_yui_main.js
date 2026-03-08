@@ -1359,8 +1359,7 @@ function ac_select_theme(gobj, event, kw, src)
 function ac_user_menu(gobj, event, kw, src)
 {
     if (empty_string(gobj_read_attr(gobj, "username"))) {
-        // SEC-06: PKCE flow — redirect directly to Keycloak, no local form
-        gobj_send_event(gobj, "EV_DO_LOGIN", {}, gobj);
+        show_login_form(gobj);
     } else {
         let element = kw.evt.currentTarget; // button clicked
         let pos = getPositionRelativeToBody(element);
@@ -1404,7 +1403,7 @@ function ac_on_close(gobj, event, kw, src)
 function ac_timeout(gobj, event, kw, src)
 {
     if (empty_string(gobj_read_attr(gobj, "username"))) {
-        // show_login_form(gobj);
+        show_login_form(gobj);
     }
     return 0;
 }

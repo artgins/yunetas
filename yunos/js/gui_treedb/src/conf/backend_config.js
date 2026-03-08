@@ -34,6 +34,7 @@ const backend_urls = {
 /*
  *  BFF (Backend For Frontend) base URLs.
  *  Endpoints provided:
+ *    POST /auth/login      — Direct Access Grant (username/password → tokens)
  *    POST /auth/callback   — exchange PKCE code for tokens (sets httpOnly cookies)
  *    POST /auth/refresh    — refresh tokens via httpOnly cookie
  *    POST /auth/logout     — revoke tokens and clear cookies
@@ -51,8 +52,7 @@ const bff_urls = {
  *  Used by c_login.js to build the PKCE Authorization Code URL.
  *
  *  Required Keycloak client settings:
- *  - Standard Flow (Authorization Code):  ENABLED
- *  - Direct Access Grants (ROPC):         DISABLED  (SEC-06)
+ *  - Direct Access Grants (ROPC):         ENABLED
  *  - Valid Redirect URIs:                 the app URL + "/*"
  *  - Web Origins:                         the app origin
  *

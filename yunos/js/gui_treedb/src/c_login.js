@@ -1,38 +1,27 @@
 /***********************************************************************
  *          c_login.js
  *
- *          OAuth2 Authorization Code + PKCE login with BFF (Backend For
+ *          OAuth2 Direct Access Grant login with BFF (Backend For
  *          Frontend) support.
  *
  *  Security model (SEC-06):
  *  - Tokens are NEVER stored in localStorage or sessionStorage.
- *  - The PKCE Authorization Code flow replaces the deprecated ROPC
- *    (Resource Owner Password Credentials) grant, so this JS code never
- *    handles user passwords.
- *  - The browser POSTs the authorization code + PKCE verifier to the BFF
- *    endpoint (/auth/callback).  The BFF exchanges it with Keycloak
- *    server-side and writes the tokens into httpOnly, Secure,
- *    SameSite=Strict cookies that JavaScript cannot read at all.
+ *  - The browser sends username/password to the BFF endpoint
+ *    (/auth/login).  The BFF exchanges them with Keycloak server-side
+ *    using the Direct Access Grant (grant_type=password) and writes
+ *    the tokens into httpOnly, Secure, SameSite=Strict cookies that
+ *    JavaScript cannot read at all.
  *  - Token refresh and logout go through the BFF too (/auth/refresh,
  *    /auth/logout), so the JS side only ever sees {username, expires_in,
  *    refresh_expires_in} — no raw JWT.
  *  - The WebSocket HTTP-Upgrade request automatically carries the
  *    httpOnly cookies; the Yuneta backend reads them from the Cookie
  *    header and validates the JWT server-side.
- *  - Social logins (Google, GitHub, …) are supported via Keycloak
- *    Identity Providers: pass a `kc_idp_hint` in EV_DO_LOGIN.
  *
  *  Keycloak client configuration required:
- *  - Standard Flow (Authorization Code) ENABLED
- *  - Direct Access Grants (ROPC) DISABLED
+ *  - Direct Access Grants (ROPC) ENABLED
  *  - Valid Redirect URIs: the app URL (e.g. https://treedb.yunetas.com/*)
  *  - Web Origins: the app origin (for CORS)
- *
- *  PKCE code_verifier lifecycle:
- *  - Generated fresh for every login attempt.
- *  - Stored in sessionStorage ONLY for the duration of the OAuth redirect
- *    round-trip (keyed by `state` nonce).
- *  - Deleted immediately after the callback is processed.
  *
  *  Copyright (c) 2025, ArtGins.
  *  All Rights Reserved.
@@ -70,15 +59,12 @@ import {
     build_path,
 } from "yunetas";
 
-import {keycloak_configs, bff_urls} from "./conf/backend_config.js";
+import {bff_urls} from "./conf/backend_config.js";
 
 /***************************************************************
  *              Constants
  ***************************************************************/
 const GCLASS_NAME = "C_LOGIN";
-
-// sessionStorage key for PKCE state  (short-lived, only during redirect)
-const PKCE_SESSION_KEY = "pkce_pending";
 
 /***************************************************************
  *              Data
@@ -89,7 +75,6 @@ const PKCE_SESSION_KEY = "pkce_pending";
 const attrs_table = [
 SDATA(data_type_t.DTP_POINTER,  "subscriber",   0,      null,   "Subscriber of output events"),
 SDATA(data_type_t.DTP_STRING,   "username",     0,      "",     "Authenticated username"),
-SDATA(data_type_t.DTP_JSON,     "oauth_conf",   0,      "{}",   "OAuth / Keycloak configuration"),
 SDATA(data_type_t.DTP_STRING,   "bff_url",      0,      "",     "Base URL of the BFF auth endpoint"),
 SDATA_END()
 ];
@@ -98,64 +83,9 @@ let PRIVATE_DATA = {
     timeout_refresh:        0,  // seconds until next refresh
     refresh_expires_in:     0,  // seconds until refresh_token expires (from BFF)
     gobj_timer:             null,
-    login_popup:            null,   // reference to the Keycloak login popup window
-    message_handler:        null,   // bound postMessage handler (for cleanup)
 };
 
 let __gclass__ = null;
-
-
-
-
-                    /******************************
-                     *      PKCE helpers
-                     ******************************/
-
-
-
-
-/***************************************************************
- *  Generate a cryptographically random code_verifier (RFC 7636).
- *  Returns a base64url-encoded 32-byte random value (43 chars).
- ***************************************************************/
-function generate_code_verifier()
-{
-    const array = new Uint8Array(32);
-    window.crypto.getRandomValues(array);
-    return base64url_encode(array);
-}
-
-/***************************************************************
- *  Compute SHA-256 of the verifier, return base64url string.
- ***************************************************************/
-async function compute_code_challenge(verifier)
-{
-    const encoder = new TextEncoder();
-    const data = encoder.encode(verifier);
-    const digest = await window.crypto.subtle.digest("SHA-256", data);
-    return base64url_encode(new Uint8Array(digest));
-}
-
-/***************************************************************
- *  base64url encode (no padding).
- ***************************************************************/
-function base64url_encode(array)
-{
-    return btoa(String.fromCharCode(...array))
-        .replace(/\+/g, "-")
-        .replace(/\//g, "_")
-        .replace(/=/g, "");
-}
-
-/***************************************************************
- *  Generate a random state nonce for CSRF protection.
- ***************************************************************/
-function generate_state()
-{
-    const array = new Uint8Array(16);
-    window.crypto.getRandomValues(array);
-    return base64url_encode(array);
-}
 
 
 
@@ -181,15 +111,8 @@ function mt_create(gobj)
         gobj_subscribe_event(gobj, null, {}, subscriber);
     }
 
-    // Resolve configuration for the current hostname
+    // Resolve BFF URL for the current hostname
     let hostname = window.location.hostname || "localhost";
-
-    let keycloak_config = keycloak_configs[hostname];
-    if(keycloak_config) {
-        gobj_write_attr(gobj, "oauth_conf", keycloak_config);
-    } else {
-        log_error(`${gobj_short_name(gobj)}: keycloak config not found: '${hostname}'`);
-    }
 
     let bff_url = bff_urls[hostname];
     if(bff_url !== undefined) {
@@ -197,25 +120,6 @@ function mt_create(gobj)
     } else {
         log_error(`${gobj_short_name(gobj)}: BFF URL not found: '${hostname}'`);
     }
-
-    /*
-     *  Listen for postMessage from the login popup.
-     *  When the popup receives the OAuth callback (?code=&state=),
-     *  it sends the code/state back to us via postMessage and closes.
-     */
-    priv.message_handler = function(event) {
-        if(event.origin !== window.location.origin) {
-            return; // ignore cross-origin messages
-        }
-        if(event.data && event.data.type === "pkce_callback") {
-            if(priv.login_popup) {
-                priv.login_popup = null;
-            }
-            gobj_change_state(gobj, "ST_WAIT_TOKEN");
-            handle_oauth_callback(gobj, event.data.code, event.data.state);
-        }
-    };
-    window.addEventListener("message", priv.message_handler);
 }
 
 /***************************************************************
@@ -228,48 +132,13 @@ function mt_start(gobj)
     gobj_start(priv.gobj_timer);
 
     /*
-     *  SEC-06: check if we are returning from an OAuth2 redirect.
-     *
-     *  Keycloak redirects back with ?code=<authz_code>&state=<nonce>.
-     *  If we are inside a popup (window.opener exists), send the code
-     *  back to the parent window via postMessage and close the popup.
-     *  Otherwise handle the callback directly (fallback for redirect flow).
+     *  Try to restore the session from httpOnly cookies on page load
+     *  (e.g. after F5 refresh).  If the BFF refresh succeeds, fire
+     *  EV_LOGIN_ACCEPTED.  If it fails, remain in ST_LOGOUT so the
+     *  user sees the login form.
      */
-    const url_params = new URLSearchParams(window.location.search);
-    const code = url_params.get("code");
-    const state = url_params.get("state");
-
-    if(code && state) {
-        if(window.opener) {
-            /*
-             *  We are inside the login popup — send the authorization
-             *  code back to the parent window and close this popup.
-             *  The parent's postMessage handler will call
-             *  handle_oauth_callback() using its own sessionStorage
-             *  (which holds the PKCE verifier).
-             */
-            window.opener.postMessage({
-                type: "pkce_callback",
-                code: code,
-                state: state
-            }, window.location.origin);
-            window.close();
-            return;
-        }
-        // Fallback: redirect flow (no popup opener)
-        gobj_change_state(gobj, "ST_WAIT_TOKEN");
-        handle_oauth_callback(gobj, code, state);
-    } else {
-        /*
-         *  No OAuth callback — try to restore the session from httpOnly
-         *  cookies (e.g. after F5 page refresh).  If the BFF refresh
-         *  succeeds, fire EV_LOGIN_ACCEPTED and transition to ST_LOGIN.
-         *  If it fails (no cookies, expired, network error), silently
-         *  remain in ST_LOGOUT so the user sees the login button.
-         */
-        gobj_change_state(gobj, "ST_WAIT_TOKEN");
-        try_restore_session(gobj);
-    }
+    gobj_change_state(gobj, "ST_WAIT_TOKEN");
+    try_restore_session(gobj);
 }
 
 /***************************************************************
@@ -287,15 +156,6 @@ function mt_stop(gobj)
  ***************************************************************/
 function mt_destroy(gobj)
 {
-    let priv = gobj.priv;
-    if(priv.message_handler) {
-        window.removeEventListener("message", priv.message_handler);
-        priv.message_handler = null;
-    }
-    if(priv.login_popup && !priv.login_popup.closed) {
-        priv.login_popup.close();
-        priv.login_popup = null;
-    }
 }
 
 
@@ -309,181 +169,23 @@ function mt_destroy(gobj)
 
 
 /***************************************************************
- *  Initiate the PKCE Authorization Code flow via a popup window.
+ *  POST username/password to the BFF /auth/login endpoint.
  *
- *  kc_idp_hint:  null  → Keycloak login form (local users)
- *                "google" / "github" / …  → direct IDP redirect
- *
- *  Opens Keycloak in a popup window.  After the user authenticates,
- *  Keycloak redirects back to our redirect_uri inside the popup.
- *  The popup's mt_start() detects window.opener, sends the
- *  authorization code back via postMessage, and closes itself.
- *  If the popup is blocked by the browser, falls back to full
- *  page redirect.
+ *  The BFF exchanges them with Keycloak using the Direct Access
+ *  Grant (grant_type=password) and sets httpOnly cookies.
+ *  Returns { success, username, email, expires_in,
+ *            refresh_expires_in }.
  ***************************************************************/
-async function initiate_pkce_login(gobj, kc_idp_hint)
+async function do_bff_login(gobj, username, password)
 {
-    let priv = gobj.priv;
-
-    /*
-     *  SEC-06: require a secure context for WebCrypto.
-     */
-    if(!window.crypto || !window.crypto.subtle) {
-        log_error(`${gobj_short_name(gobj)}: PKCE requires HTTPS (secure context)`);
-        gobj_send_event(gobj, "EV_LOGIN_DENIED",
-            { error: "PKCE requires a secure context (HTTPS)" }, gobj);
-        return;
-    }
-
-    const oauth_conf = gobj_read_attr(gobj, "oauth_conf");
-    if(!json_object_size(oauth_conf)) {
-        log_error(`${gobj_short_name(gobj)}: no OAuth configuration`);
-        gobj_send_event(gobj, "EV_LOGIN_DENIED", { error: "No OAuth configuration" }, gobj);
-        return;
-    }
-
-    const code_verifier    = generate_code_verifier();
-    const code_challenge   = await compute_code_challenge(code_verifier);
-    const state            = generate_state();
-    const redirect_uri     = window.location.origin + window.location.pathname;
-
-    /*
-     *  Store ONLY what is needed for the round-trip callback verification.
-     *  This is in sessionStorage, not localStorage:
-     *  - Scoped to this tab / session.
-     *  - NOT accessible cross-origin.
-     *  - Cleared when the tab is closed.
-     *  - Deleted immediately after the callback is consumed (one-time use).
-     */
-    sessionStorage.setItem(PKCE_SESSION_KEY, JSON.stringify({
-        code_verifier,
-        state
-    }));
-
-    const oauth_endpoint    = oauth_conf["auth-server-url"];
-    const realm             = oauth_conf["realm"];
-    const client_id         = oauth_conf["resource"];
-    const url = build_path(
-        oauth_endpoint,
-        "realms",
-        realm,
-        "protocol",
-        "openid-connect",
-        "auth"
-    );
-
-    let auth_url =
-        `${url}` +
-        `?response_type=code` +
-        `&client_id=${encodeURIComponent(client_id)}` +
-        `&redirect_uri=${encodeURIComponent(redirect_uri)}` +
-        `&scope=openid%20profile%20email` +
-        `&code_challenge=${code_challenge}` +
-        `&code_challenge_method=S256` +
-        `&state=${state}`;
-
-    if(kc_idp_hint && !empty_string(kc_idp_hint)) {
-        auth_url += `&kc_idp_hint=${encodeURIComponent(kc_idp_hint)}`;
-    }
-
-    /*
-     *  Open Keycloak in a popup window centered over the app.
-     *  The popup loads our app after Keycloak redirects back,
-     *  detects window.opener, sends the code via postMessage,
-     *  and closes itself.
-     *  If popup is blocked, fall back to full page redirect.
-     */
-    const w = 500;
-    const h = 650;
-    const left = window.screenX + Math.round((window.outerWidth  - w) / 2);
-    const top  = window.screenY + Math.round((window.outerHeight - h) / 2);
-    const popup = window.open(
-        auth_url,
-        "keycloak-login",
-        `width=${w},height=${h},left=${left},top=${top},menubar=no,toolbar=no,location=yes,status=yes`
-    );
-
-    if(!popup || popup.closed) {
-        // Popup blocked — fall back to full page redirect
-        log_info(sprintf("%s: popup blocked, falling back to redirect",
-            gobj_short_name(gobj)));
-        window.location.replace(auth_url);
-    } else {
-        priv.login_popup = popup;
-    }
-}
-
-/***************************************************************
- *  Handle the OAuth2 callback after Keycloak redirects back.
- *
- *  - Verifies the state nonce (CSRF protection).
- *  - Cleans the authorization code from the URL immediately.
- *  - POSTs code + code_verifier to the BFF endpoint.
- *  - The BFF exchanges them server-side and sets httpOnly cookies.
- *  - Fires EV_LOGIN_ACCEPTED or EV_LOGIN_DENIED.
- ***************************************************************/
-async function handle_oauth_callback(gobj, code, state)
-{
-    /*
-     *  SEC-06: immediately remove the authorization code from the
-     *  browser URL bar so it cannot be logged, cached, or read by
-     *  browser extensions.
-     */
-    const clean_url = window.location.origin + window.location.pathname;
-    window.history.replaceState({}, document.title, clean_url);
-
-    /*
-     *  SEC-06: CSRF check — state must match what we stored.
-     */
-    let pkce_pending_str = sessionStorage.getItem(PKCE_SESSION_KEY);
-    sessionStorage.removeItem(PKCE_SESSION_KEY);  // one-time use
-
-    if(!pkce_pending_str) {
-        log_error(`${gobj_short_name(gobj)}: no PKCE pending state in sessionStorage`);
-        gobj_send_event(gobj, "EV_LOGIN_DENIED",
-            { error: "Login session expired or invalid" }, gobj);
-        return;
-    }
-
-    let pkce_pending;
-    try {
-        pkce_pending = JSON.parse(pkce_pending_str);
-    } catch(e) {
-        log_error(`${gobj_short_name(gobj)}: corrupt PKCE pending entry`);
-        gobj_send_event(gobj, "EV_LOGIN_DENIED",
-            { error: "Login session corrupted" }, gobj);
-        return;
-    }
-
-    if(pkce_pending.state !== state) {
-        log_error(`${gobj_short_name(gobj)}: state mismatch — possible CSRF attempt`);
-        gobj_send_event(gobj, "EV_LOGIN_DENIED",
-            { error: "Login state mismatch" }, gobj);
-        return;
-    }
-
-    /*
-     *  POST to the BFF.  The BFF will:
-     *  1. Exchange code + code_verifier with Keycloak server-side.
-     *  2. Set access_token and refresh_token as httpOnly cookies.
-     *  3. Return {success, username, email, expires_in, refresh_expires_in}.
-     *
-     *  credentials:"include" is required so the browser stores the
-     *  Set-Cookie headers the BFF sends back.
-     */
-    const bff_url       = gobj_read_attr(gobj, "bff_url");
-    const redirect_uri  = window.location.origin + window.location.pathname;
+    const bff_url = gobj_read_attr(gobj, "bff_url");
 
     try {
-        const resp = await fetch(build_path(bff_url, "auth", "callback"), {
+        const resp = await fetch(build_path(bff_url, "auth", "login"), {
             method:         "POST",
             credentials:    "include",
             headers:        { "Content-Type": "application/json" },
-            body:           JSON.stringify({
-                code,
-                code_verifier:  pkce_pending.code_verifier,
-                redirect_uri
-            })
+            body:           JSON.stringify({ username, password })
         });
 
         const data = await resp.json();
@@ -493,12 +195,12 @@ async function handle_oauth_callback(gobj, code, state)
             gobj_send_event(gobj, "EV_LOGIN_ACCEPTED", data, gobj);
         } else {
             const error = data.error || `HTTP ${resp.status}`;
-            log_info(sprintf("%s: BFF callback error: %s", gobj_short_name(gobj), error));
+            log_info(sprintf("%s: BFF login error: %s", gobj_short_name(gobj), error));
             gobj_send_event(gobj, "EV_LOGIN_DENIED", { error }, gobj);
         }
 
     } catch(err) {
-        log_error(`${gobj_short_name(gobj)}: BFF callback fetch failed: ${err.message}`);
+        log_error(`${gobj_short_name(gobj)}: BFF login fetch failed: ${err.message}`);
         gobj_send_event(gobj, "EV_LOGIN_DENIED",
             { error: "Network error during login" }, gobj);
     }
@@ -570,7 +272,7 @@ function do_bff_refresh(gobj)
  *  - If it succeeds, the cookies are still valid → fire
  *    EV_LOGIN_ACCEPTED to transition to ST_LOGIN.
  *  - If it fails (no cookies, expired, network error), silently
- *    go back to ST_LOGOUT so the user sees the login button.
+ *    go back to ST_LOGOUT so the user sees the login form.
  *    No error is shown — this is a normal "no session" case.
  ***************************************************************/
 function try_restore_session(gobj)
@@ -643,14 +345,14 @@ function save_session_info(gobj, data)
 
 
 /***************************************************************
- *  EV_DO_LOGIN — initiates the PKCE redirect.
- *  kw may contain:
- *    provider:   null | "google" | "github" | …  (kc_idp_hint)
+ *  EV_DO_LOGIN — initiates the Direct Access Grant via BFF.
+ *  kw: { username, password }
  ***************************************************************/
 function ac_do_login(gobj, event, kw, src)
 {
-    const provider = (kw && kw.provider) ? kw.provider : null;
-    initiate_pkce_login(gobj, provider);  // async, navigates away
+    const username = (kw && kw.username) ? kw.username : "";
+    const password = (kw && kw.password) ? kw.password : "";
+    do_bff_login(gobj, username, password);
     return 0;
 }
 
@@ -661,7 +363,7 @@ function ac_do_logout(gobj, event, kw, src)
 }
 
 /***************************************************************
- *  EV_LOGIN_ACCEPTED — BFF exchanged the code successfully.
+ *  EV_LOGIN_ACCEPTED — BFF exchanged the credentials successfully.
  *  kw: { success, username, email, expires_in, refresh_expires_in }
  ***************************************************************/
 function ac_login_accepted(gobj, event, kw, src)
