@@ -239,6 +239,15 @@ PRIVATE int ac_disconnected(hgobj gobj, const char *event, json_t *kw, hgobj src
     return 0;
 }
 
+/***************************************************************************
+ *  Message completed
+ ***************************************************************************/
+PRIVATE int ac_on_message(hgobj gobj, const char *event, json_t *kw, hgobj src)
+{
+    gobj_publish_event(gobj, event, kw);
+    return 0;
+}
+
 /********************************************************************
  *
  ********************************************************************/
@@ -413,6 +422,7 @@ PRIVATE int create_gclass(gclass_name_t gclass_name)
     };
     ev_action_t st_connected[] = {
         {EV_RX_DATA,            ac_rx_data,                 0},
+        {EV_ON_MESSAGE,         ac_on_message,              0},
         {EV_SEND_MESSAGE,       ac_send_message,            0},
         {EV_TIMEOUT,            ac_timeout_inactivity,      0},
         {EV_TX_READY,           0,                          0},
