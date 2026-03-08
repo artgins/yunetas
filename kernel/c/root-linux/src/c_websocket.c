@@ -1325,7 +1325,7 @@ PRIVATE BOOL do_response(hgobj gobj, GHTTP_PARSER *request)
     /*
      * Websocket only supports GET method
      */
-    if (request->http_parser.method != HTTP_GET) {
+    if (llhttp_get_method(&request->llhttp) != HTTP_GET) {
         const char *data =
             "HTTP/1.1 405 Method Not Allowed\r\n"
             "Allow: GET\r\n"
@@ -1534,7 +1534,7 @@ PRIVATE int process_http(hgobj gobj, gbuffer_t *gbuf, GHTTP_PARSER *parser)
             gbuffer_get(gbuf, n);  // take out the bytes consumed
         }
 
-        if (parser->message_completed || parser->http_parser.upgrade) {
+        if (parser->message_completed || llhttp_get_upgrade(&parser->llhttp)) {
             /*
              *  The cur_request (with the body) is ready to use.
              */
@@ -1698,7 +1698,7 @@ PRIVATE int ac_process_handshake(hgobj gobj, const char *event, json_t *kw, hgob
             gobj_send_event(gobj_bottom_gobj(gobj), EV_DROP, 0, gobj);
 
         } else if (result > 0) {
-            if (priv->parsing_response->http_parser.status_code == 101) {
+            if (llhttp_get_status_code(&priv->parsing_response->llhttp) == 101) {
                 /*------------------------------------*
                  *   Upgrade to websocket
                  *------------------------------------*/

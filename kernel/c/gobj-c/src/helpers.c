@@ -73,6 +73,38 @@
 #include "kwid.h"
 #include "helpers.h"
 
+/*
+ *  URL parsing types and functions from 00_http_parser (Joyent http_parser).
+ *  The main HTTP stream parsing has been migrated to llhttp, but URL parsing
+ *  is not provided by llhttp, so we keep these declarations to link against
+ *  00_http_parser.c which still provides http_parser_parse_url().
+ */
+enum http_parser_url_fields
+  { UF_SCHEMA           = 0
+  , UF_HOST             = 1
+  , UF_PORT             = 2
+  , UF_PATH             = 3
+  , UF_QUERY            = 4
+  , UF_FRAGMENT         = 5
+  , UF_USERINFO         = 6
+  , UF_MAX              = 7
+  };
+
+struct http_parser_url {
+  uint16_t field_set;           /* Bitmask of (1 << UF_*) values */
+  uint16_t port;                /* Converted UF_PORT string */
+
+  struct {
+    uint16_t off;               /* Offset into buffer in which field starts */
+    uint16_t len;               /* Length of run in buffer */
+  } field_data[UF_MAX];
+};
+
+void http_parser_url_init(struct http_parser_url *u);
+int http_parser_parse_url(const char *buf, size_t buflen,
+                          int is_connect,
+                          struct http_parser_url *u);
+
 extern void jsonp_free(void *ptr);
 
 /*****************************************************************

@@ -1,6 +1,7 @@
 /***********************************************************************
  *          GHTTP_PARSER.C
  *          Mixin http_parser - gobj-ecosistema
+ *          Migrated from http_parser (Joyent) to llhttp (nodejs/llhttp)
  *
  *          Copyright (c) 2013 Niyamaka.
  *          All Rights Reserved.
@@ -22,18 +23,18 @@
 /****************************************************************
  *         Prototypes
  ****************************************************************/
-PRIVATE int on_message_begin(http_parser* http_parser);
-PRIVATE int on_headers_complete(http_parser* http_parser);
-PRIVATE int on_message_complete(http_parser* http_parser);
-PRIVATE int on_url(http_parser* http_parser, const char* at, size_t length);
-PRIVATE int on_header_field(http_parser* http_parser, const char* at, size_t length);
-PRIVATE int on_header_value(http_parser* http_parser, const char* at, size_t length);
-PRIVATE int on_body(http_parser* http_parser, const char* at, size_t length);
+PRIVATE int on_message_begin(llhttp_t* llhttp);
+PRIVATE int on_headers_complete(llhttp_t* llhttp);
+PRIVATE int on_message_complete(llhttp_t* llhttp);
+PRIVATE int on_url(llhttp_t* llhttp, const char* at, size_t length);
+PRIVATE int on_header_field(llhttp_t* llhttp, const char* at, size_t length);
+PRIVATE int on_header_value(llhttp_t* llhttp, const char* at, size_t length);
+PRIVATE int on_body(llhttp_t* llhttp, const char* at, size_t length);
 
 /****************************************************************
  *         Data
  ****************************************************************/
-PRIVATE http_parser_settings settings = {
+PRIVATE llhttp_settings_t settings = {
   .on_message_begin = on_message_begin,
   .on_url = on_url,
   .on_header_field = on_header_field,
@@ -48,7 +49,7 @@ PRIVATE http_parser_settings settings = {
  ***************************************************************************/
 PUBLIC GHTTP_PARSER *ghttp_parser_create(
     hgobj gobj,
-    enum http_parser_type type,
+    llhttp_type_t type,
     gobj_event_t on_header_event,       // Event to publish or send when the header is completed
     gobj_event_t on_body_event,         // Event to publish or send when the body is receiving
     gobj_event_t on_message_event,      // Event to publish or send when the message is completed
@@ -77,8 +78,8 @@ PUBLIC GHTTP_PARSER *ghttp_parser_create(
     parser->on_message_event = empty_string(on_message_event)?NULL:on_message_event;
     parser->send_event = send_event;
 
-    http_parser_init(&parser->http_parser, type);
-    parser->http_parser.data = parser;
+    llhttp_init(&parser->llhttp, type, &settings);
+    parser->llhttp.data = parser;
 
     return parser;
 }
@@ -106,7 +107,8 @@ PUBLIC void ghttp_parser_reset(GHTTP_PARSER *parser)
     JSON_DECREF(parser->jn_headers);
     GBMEM_FREE(parser->cur_key);
     GBMEM_FREE(parser->last_key);
-    http_parser_init(&parser->http_parser, parser->type);
+    llhttp_init(&parser->llhttp, parser->type, &settings);
+    parser->llhttp.data = parser;
 }
 
 /***************************************************************************
@@ -119,36 +121,24 @@ PUBLIC int ghttp_parser_received(
 ) {
     hgobj gobj = parser->gobj;
 
-    size_t nparsed = http_parser_execute(&parser->http_parser, &settings, buf, received);
-    if (parser->http_parser.upgrade) {
-        /* handle new protocol */
-    } else if (nparsed != received) {
+    llhttp_errno_t err = llhttp_execute(&parser->llhttp, buf, received);
+    if (err == HPE_PAUSED_UPGRADE) {
+        /* handle new protocol (upgrade) */
+        llhttp_resume_after_upgrade(&parser->llhttp);
+    } else if (err != HPE_OK) {
         /* Handle error. Usually just close the connection. */
         gobj_log_error(gobj,0,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_PROTOCOL_ERROR,
-            "msg",          "%s", "http_parser_execute() FAILED 1",
-            "error",        "%s", http_errno_name(HTTP_PARSER_ERRNO(&parser->http_parser)),
-            "desc",         "%s", http_errno_description(HTTP_PARSER_ERRNO(&parser->http_parser)),
+            "msg",          "%s", "llhttp_execute() FAILED",
+            "error",        "%s", llhttp_errno_name(err),
+            "desc",         "%s", llhttp_get_error_reason(&parser->llhttp),
             NULL
         );
-        gobj_trace_dump(gobj, buf, received, "http_parser_execute() FAILED 1");
+        gobj_trace_dump(gobj, buf, received, "llhttp_execute() FAILED");
         return -1;
-    } else {
-        if(HTTP_PARSER_ERRNO(&parser->http_parser) != HPE_OK) {
-            gobj_log_error(gobj, 0,
-                "function",     "%s", __FUNCTION__,
-                "msgset",       "%s", MSGSET_PROTOCOL_ERROR,
-                "msg",          "%s", "http_parser_execute() FAILED 2",
-                "error",        "%s", http_errno_name(HTTP_PARSER_ERRNO(&parser->http_parser)),
-                "desc",         "%s", http_errno_description(HTTP_PARSER_ERRNO(&parser->http_parser)),
-                NULL
-            );
-            gobj_trace_dump(gobj, buf, received, "http_parser_execute() FAILED 2");
-            return -1;
-        }
     }
-    return (int)nparsed;
+    return (int)received;
 }
 
 /***************************************************************************
@@ -156,9 +146,9 @@ PUBLIC int ghttp_parser_received(
  *  Returning a non-zero value indicates error to the parser,
  *  making it exit immediately.
  ***************************************************************************/
-PRIVATE int on_message_begin(http_parser* http_parser)
+PRIVATE int on_message_begin(llhttp_t* llhttp)
 {
-//     GHTTP_PARSER *parser = http_parser->data;
+//     GHTTP_PARSER *parser = llhttp->data;
 //     ghttp_parser_reset(parser);
     return 0;
 }
@@ -168,9 +158,9 @@ PRIVATE int on_message_begin(http_parser* http_parser)
  *  Returning a non-zero value indicates error to the parser,
  *  making it exit immediately.
  ***************************************************************************/
-PRIVATE int on_headers_complete(http_parser* http_parser)
+PRIVATE int on_headers_complete(llhttp_t* llhttp)
 {
-    GHTTP_PARSER *parser = http_parser->data;
+    GHTTP_PARSER *parser = llhttp->data;
     hgobj gobj = parser->gobj;
 
     parser->headers_completed = 1;
@@ -181,8 +171,8 @@ PRIVATE int on_headers_complete(http_parser* http_parser)
         json_t *kw_http = json_pack("{s:i, s:s, s:i, s:i, s:O}",
             "http_parser_type",     (int)parser->type,
             "url",                  parser->url?parser->url:"",
-            "response_status_code", (int)parser->http_parser.status_code,
-            "request_method",       (int)parser->http_parser.method,
+            "response_status_code", (int)llhttp_get_status_code(&parser->llhttp),
+            "request_method",       (int)llhttp_get_method(&parser->llhttp),
             "headers",              parser->jn_headers
         );
         if(parser->send_event) {
@@ -199,14 +189,14 @@ PRIVATE int on_headers_complete(http_parser* http_parser)
  *  Returning a non-zero value indicates error to the parser,
  *  making it exit immediately.
  ***************************************************************************/
-PRIVATE int on_body(http_parser* http_parser, const char* at, size_t length)
+PRIVATE int on_body(llhttp_t* llhttp, const char* at, size_t length)
 {
-    GHTTP_PARSER *parser = http_parser->data;
+    GHTTP_PARSER *parser = llhttp->data;
     hgobj gobj = parser->gobj;
 
     if(parser->on_body_event) {
         json_t *kw_http = json_pack("{s:i, s:I, s:I}",
-            "response_status_code", (int)parser->http_parser.status_code,
+            "response_status_code", (int)llhttp_get_status_code(&parser->llhttp),
             "__pbf__", (json_int_t)(uintptr_t)at,
             "__pbf_size__", (json_int_t)length
         );
@@ -221,29 +211,6 @@ PRIVATE int on_body(http_parser* http_parser, const char* at, size_t length)
         /*
          *  If on_message_event is defined, then accumulate data in body variable
          */
-
-// Old code
-//        if(parser->body) {
-//            parser->body = gobj_realloc_func()(
-//                parser->body,
-//                parser->body_size + length + 1
-//            );
-//        } else {
-//            parser->body = gbmem_malloc(length + 1);
-//        }
-//
-//        if(!parser->body) {
-//            gobj_log_error(gobj, 0,
-//                "function",     "%s", __FUNCTION__,
-//                "msgset",       "%s", MSGSET_MEMORY_ERROR,
-//                "msg",          "%s", "no memory for body",
-//                "body_size",    "%d", parser->body_size,
-//                "length",       "%d", length,
-//                NULL);
-//            return -1;
-//        }
-//        memcpy(parser->body + parser->body_size, at, length);
-
         if(!parser->gbuf_body) {
             parser->gbuf_body = gbuffer_create(RX_GBUFFER_SIZE, gbmem_get_maximum_block());
             if(!parser->gbuf_body) {
@@ -269,9 +236,9 @@ PRIVATE int on_body(http_parser* http_parser, const char* at, size_t length)
  *  Returning a non-zero value indicates error to the parser,
  *  making it exit immediately.
  ***************************************************************************/
-PRIVATE int on_message_complete(http_parser* http_parser)
+PRIVATE int on_message_complete(llhttp_t* llhttp)
 {
-    GHTTP_PARSER *parser = http_parser->data;
+    GHTTP_PARSER *parser = llhttp->data;
     hgobj gobj = parser->gobj;
 
     parser->message_completed = 1;
@@ -284,7 +251,7 @@ PRIVATE int on_message_complete(http_parser* http_parser)
          *  HACK: The last event without "__buffer__" key will indicate that all message is completed
          */
         json_t *kw_http = json_pack("{s:i}",
-            "response_status_code", (int)parser->http_parser.status_code
+            "response_status_code", (int)llhttp_get_status_code(&parser->llhttp)
         );
         if(parser->send_event) {
             gobj_send_event(gobj, parser->on_body_event, kw_http, gobj);
@@ -300,8 +267,8 @@ PRIVATE int on_message_complete(http_parser* http_parser)
         json_t *kw_http = json_pack("{s:i, s:s, s:i, s:i, s:O}",
             "http_parser_type",     (int)parser->type,
             "url",                  parser->url?parser->url:"",
-            "response_status_code", (int)parser->http_parser.status_code,
-            "request_method",       (int)parser->http_parser.method,
+            "response_status_code", (int)llhttp_get_status_code(&parser->llhttp),
+            "request_method",       (int)llhttp_get_method(&parser->llhttp),
             "headers",              parser->jn_headers
         );
         const char *content_type = kw_get_str(gobj, parser->jn_headers, "CONTENT-TYPE", "", 0);
@@ -343,9 +310,9 @@ PRIVATE int on_message_complete(http_parser* http_parser)
  *  Returning a non-zero value indicates error to the parser,
  *  making it exit immediately.
  ***************************************************************************/
-PRIVATE int on_url(http_parser* http_parser, const char* at, size_t length)
+PRIVATE int on_url(llhttp_t* llhttp, const char* at, size_t length)
 {
-    GHTTP_PARSER *parser = http_parser->data;
+    GHTTP_PARSER *parser = llhttp->data;
     hgobj gobj = parser->gobj;
 
     size_t pos = 0;
@@ -378,9 +345,9 @@ PRIVATE int on_url(http_parser* http_parser, const char* at, size_t length)
  *  Returning a non-zero value indicates error to the parser,
  *  making it exit immediately.
  ***************************************************************************/
-PRIVATE int on_header_field(http_parser* http_parser, const char* at, size_t length)
+PRIVATE int on_header_field(llhttp_t* llhttp, const char* at, size_t length)
 {
-    GHTTP_PARSER *parser = http_parser->data;
+    GHTTP_PARSER *parser = llhttp->data;
     hgobj gobj = parser->gobj;
 
     if(!parser->jn_headers) {
@@ -426,9 +393,9 @@ PRIVATE int on_header_field(http_parser* http_parser, const char* at, size_t len
  *  Returning a non-zero value indicates error to the parser,
  *  making it exit immediately.
  ***************************************************************************/
-PRIVATE int on_header_value(http_parser* http_parser, const char* at, size_t length)
+PRIVATE int on_header_value(llhttp_t* llhttp, const char* at, size_t length)
 {
-    GHTTP_PARSER *parser = http_parser->data;
+    GHTTP_PARSER *parser = llhttp->data;
     hgobj gobj = parser->gobj;
 
     if(!parser->jn_headers) {

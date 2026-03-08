@@ -14,14 +14,14 @@ extern "C"{
 #endif
 
 typedef struct _GHTTP_PARSER {
-    http_parser http_parser;
+    llhttp_t llhttp;
     hgobj gobj;
     gobj_event_t on_header_event;
     gobj_event_t on_body_event;
     gobj_event_t on_message_event;
     BOOL send_event;
 
-    enum http_parser_type type;
+    llhttp_type_t type;
     char message_completed;
     char headers_completed;
 
@@ -37,11 +37,11 @@ typedef struct _GHTTP_PARSER {
 
 PUBLIC GHTTP_PARSER *ghttp_parser_create(
     hgobj gobj,
-    enum http_parser_type type,
+    llhttp_type_t type,
     gobj_event_t on_header_event,       // Event to publish or send when the header is completed
         /* kw of event:
             {
-                "http_parser_type":     (int) http_parser_type,
+                "http_parser_type":     (int) llhttp_type_t,
                 "url":                  (string) "url",
                 "response_status_code": (int) status_code,
                 "request_method":       (int) method,
@@ -61,7 +61,7 @@ PUBLIC GHTTP_PARSER *ghttp_parser_create(
     gobj_event_t on_message_event,      // Event to publish or send when the message is completed
         /* kw of event:
             {
-                "http_parser_type":     (int) http_parser_type,
+                "http_parser_type":     (int) llhttp_type_t,
                 "url":                  (string) "url",
                 "response_status_code": (int) status_code,
                 "request_method":       (int) method,
