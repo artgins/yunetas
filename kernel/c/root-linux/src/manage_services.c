@@ -230,7 +230,7 @@ PRIVATE int stop_autostart_services(json_t *top_services)
                                 NULL
                             );
                         }
-                        gobj_stop(gobj);
+                        gobj_stop_tree(gobj);
                         yev_loop_run_once(yuno_event_loop());
                     }
                 }
