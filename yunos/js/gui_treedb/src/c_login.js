@@ -387,16 +387,20 @@ async function initiate_pkce_login(gobj, kc_idp_hint)
     }
 
     /*
-     *  Open Keycloak in a popup window.
+     *  Open Keycloak in a popup window centered over the app.
      *  The popup loads our app after Keycloak redirects back,
      *  detects window.opener, sends the code via postMessage,
      *  and closes itself.
      *  If popup is blocked, fall back to full page redirect.
      */
+    const w = 500;
+    const h = 650;
+    const left = window.screenX + Math.round((window.outerWidth  - w) / 2);
+    const top  = window.screenY + Math.round((window.outerHeight - h) / 2);
     const popup = window.open(
         auth_url,
         "keycloak-login",
-        "width=500,height=650,menubar=no,toolbar=no,location=yes,status=yes"
+        `width=${w},height=${h},left=${left},top=${top},menubar=no,toolbar=no,location=yes,status=yes`
     );
 
     if(!popup || popup.closed) {
