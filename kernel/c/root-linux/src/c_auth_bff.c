@@ -205,13 +205,39 @@ PRIVATE int mt_start(hgobj gobj)
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
     /* Pre-parse Keycloak base URL for re-use in every outbound call */
-    char kc_base[1024];
+    char kc_base[PATH_MAX];
     const char *kc_url  = gobj_read_str_attr(gobj, "keycloak_url");
     const char *realm   = gobj_read_str_attr(gobj, "realm");
-    snprintf(kc_base, sizeof(kc_base),
-        "%srealms/%s/protocol/openid-connect", kc_url, realm);
 
-    parse_url(gobj,
+    if(empty_string(kc_url)) {
+        gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
+            "function", "%s", __FUNCTION__,
+            "msgset",   "%s", MSGSET_SYSTEM_ERROR,
+            "msg",      "%s", "keycloak_url EMPTY",
+            NULL
+        );
+        return -1;
+    }
+    if(empty_string(realm)) {
+        gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
+            "function", "%s", __FUNCTION__,
+            "msgset",   "%s", MSGSET_SYSTEM_ERROR,
+            "msg",      "%s", "keycloak realm EMPTY",
+            NULL
+        );
+        return -1;
+    }
+
+    build_path(kc_base, sizeof(kc_base),
+        kc_url,
+        "realms",
+        realm,
+        "protocol",
+        "openid-connect",
+        NULL
+    );
+
+    if(parse_url(gobj,
         kc_base,
         priv->schema, sizeof(priv->schema),
         priv->host,   sizeof(priv->host),
@@ -219,7 +245,15 @@ PRIVATE int mt_start(hgobj gobj)
         priv->path,   sizeof(priv->path),
         NULL, 0,
         FALSE
-    );
+    )<0) {
+        gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
+            "function", "%s", __FUNCTION__,
+            "msgset",   "%s", MSGSET_SYSTEM_ERROR,
+            "msg",      "%s", "keycloak url parse failed",
+            "url",      "%s", kc_base,
+            NULL
+        );
+    }
 
     return 0;
 }
@@ -402,7 +436,8 @@ PRIVATE int enqueue(hgobj gobj, PENDING_AUTH *pa)
             "function", "%s", __FUNCTION__,
             "msgset",   "%s", MSGSET_SYSTEM_ERROR,
             "msg",      "%s", "BFF pending queue full",
-            NULL);
+            NULL
+        );
         return -1;
     }
     priv->queue[priv->q_tail] = *pa;

@@ -67,6 +67,7 @@ import {
     gobj_name,
     gobj_start,
     gobj_stop,
+    build_path,
 } from "yunetas";
 
 import {keycloak_configs, bff_urls} from "./conf/backend_config.js";
@@ -300,9 +301,17 @@ async function initiate_pkce_login(gobj, kc_idp_hint)
     const oauth_endpoint    = oauth_conf["auth-server-url"];
     const realm             = oauth_conf["realm"];
     const client_id         = oauth_conf["resource"];
+    const url = build_path(
+        oauth_endpoint,
+        "realms",
+        realm,
+        "protocol",
+        "openid-connect",
+        "auth"
+    );
 
     let auth_url =
-        `${oauth_endpoint}realms/${realm}/protocol/openid-connect/auth` +
+        `${url}` +
         `?response_type=code` +
         `&client_id=${encodeURIComponent(client_id)}` +
         `&redirect_uri=${encodeURIComponent(redirect_uri)}` +
