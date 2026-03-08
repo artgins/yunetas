@@ -513,7 +513,7 @@ PRIVATE json_t *result_get_token(
             output_data_,
             "comment",
             json_sprintf("Something went wrong, check your user or password: %s, %s",
-                http_status_str(response_status_code),
+                llhttp_status_name((llhttp_status_t)response_status_code),
                 kw_get_str(gobj, kw, "body`error", "", 0)
             )
         );
@@ -716,7 +716,7 @@ PRIVATE json_t *result_logout(
             "msgset",       "%s", MSGSET_TASK_ERROR,
             "msg",          "%s", "Logout has failed",
             "status_code",  "%d", response_status_code,
-            "status",       "%s", http_status_str(response_status_code),
+            "status",       "%s", llhttp_status_name((llhttp_status_t)response_status_code),
             NULL
         );
         gobj_trace_json(gobj, kw, "Logout has failed");
