@@ -3264,6 +3264,51 @@ function debounce(func, wait = 0, immediate = false)
     return debounced;
 }
 
+/************************************************************
+ *  Build a URL/path from segments, ensuring exactly one '/'
+ *  between each part.
+ *
+ *  - The first segment keeps its leading '/' (absolute) or
+ *    not (relative).
+ *  - Trailing '/' is stripped from every segment.
+ *  - Leading '/' is stripped from every segment except the first.
+ *  - Empty/null/undefined segments are skipped.
+ *
+ *  Mirrors the C helper build_path() from gobj-c/src/helpers.c.
+ ************************************************************/
+function build_path(...segments)
+{
+    let result = "";
+    let i = 0;
+
+    for(let segment of segments) {
+        if(segment == null || segment === "") {
+            continue;
+        }
+        segment = String(segment);
+
+        if(i === 0) {
+            // First segment: keep leading '/', strip trailing '/'
+            segment = segment.replace(/\/+$/, "");
+        } else {
+            // Subsequent segments: strip both leading and trailing '/'
+            segment = segment.replace(/^\/+/, "").replace(/\/+$/, "");
+        }
+
+        if(segment === "") {
+            continue;
+        }
+
+        if(i > 0) {
+            result += "/";
+        }
+        result += segment;
+        i++;
+    }
+
+    return result;
+}
+
 export {
     kw_flag_t,
     json_deep_copy,
@@ -3387,4 +3432,5 @@ export {
     clean_name,
     get_function_name,
     debounce,
+    build_path,
 };

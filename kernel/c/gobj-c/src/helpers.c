@@ -609,55 +609,74 @@ PUBLIC char *delete_left_char(char *s, char x)
 }
 
 /***************************************************************************
- *  WARNING function a bit slower that snprintf
+ *  Build a path/URL from variadic segments, ensuring exactly one '/'
+ *  between each part. No heap allocations — uses pointer arithmetic only.
+ *  Returns the start of the buffer (bf_start).
  ***************************************************************************/
 PUBLIC char *build_path(char *bf, size_t bfsize, ...)
 {
+    char *bf_start = bf;
     const char *segment;
-    char *segm = 0;
     va_list ap;
     va_start(ap, bfsize);
 
-    int writted = 0;
-    int i = 0;
-    while ((segment = (char *)va_arg (ap, char *)) != NULL) {
-        if(!empty_string(segment)) {
-            segm = strdup(segment);
-            if(!segm) {
-                syslog(LOG_CRIT, "YUNETA: " "No memory");
-                break;
-            }
-            if(i==0) {
-                // The first segment can be absolute (begin with /) or relative (not begin with /)
-                delete_right_char(segm, '/');
-            } else {
-                delete_left_char(segm, '/');
-                delete_right_char(segm, '/');
-            }
-
-            writted = snprintf(bf, bfsize, "%s%s", i>0?"/":"", segm);
-            if(writted < 0) {
-                syslog(LOG_CRIT, "YUNETA: " "snprintf() FAILED");
-                break;
-            }
-            bf += writted;
-            bfsize -= writted;
-
-            EXEC_AND_RESET(free, segm)
-
-            if(bfsize <= 0) {
-                syslog(LOG_CRIT, "YUNETA: " "No space to snprintf in build_path()");
-                break;
-            }
-            i++;
-        }
+    if(!bf || bfsize == 0) {
+        va_end(ap);
+        return bf;
     }
+    *bf = '\0';
 
-    EXEC_AND_RESET(free, segm)
+    int i = 0;
+    while((segment = va_arg(ap, const char *)) != NULL) {
+        if(empty_string(segment)) {
+            continue;
+        }
+
+        const char *start = segment;
+        const char *end = segment + strlen(segment);
+
+        if(i == 0) {
+            // First segment: keep leading '/', strip trailing '/'
+            while(end > start && *(end - 1) == '/') {
+                end--;
+            }
+        } else {
+            // Subsequent segments: strip leading and trailing '/'
+            while(*start == '/') {
+                start++;
+            }
+            while(end > start && *(end - 1) == '/') {
+                end--;
+            }
+        }
+
+        size_t seg_len = (size_t)(end - start);
+        if(seg_len == 0) {
+            continue;
+        }
+
+        // Add separator
+        size_t sep_len = (i > 0) ? 1 : 0;
+        if(sep_len + seg_len >= bfsize) {
+            syslog(LOG_CRIT, "YUNETA: " "No space in build_path()");
+            break;
+        }
+
+        if(sep_len) {
+            *bf++ = '/';
+            bfsize--;
+        }
+        memcpy(bf, start, seg_len);
+        bf += seg_len;
+        bfsize -= seg_len;
+        *bf = '\0';
+
+        i++;
+    }
 
     va_end(ap);
 
-    return bf;
+    return bf_start;
 }
 
 /***************************************************************************

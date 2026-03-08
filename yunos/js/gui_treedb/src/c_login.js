@@ -190,7 +190,7 @@ function mt_create(gobj)
     }
 
     let bff_url = bff_urls[hostname];
-    if(bff_url) {
+    if(bff_url !== undefined) {
         gobj_write_attr(gobj, "bff_url", bff_url);
     } else {
         log_error(`${gobj_short_name(gobj)}: BFF URL not found: '${hostname}'`);
@@ -390,7 +390,7 @@ async function handle_oauth_callback(gobj, code, state)
     const redirect_uri  = window.location.origin + window.location.pathname;
 
     try {
-        const resp = await fetch(`${bff_url}/auth/callback`, {
+        const resp = await fetch(build_path(bff_url, "auth", "callback"), {
             method:         "POST",
             credentials:    "include",
             headers:        { "Content-Type": "application/json" },
@@ -427,7 +427,7 @@ function do_bff_logout(gobj)
 {
     const bff_url = gobj_read_attr(gobj, "bff_url");
 
-    fetch(`${bff_url}/auth/logout`, {
+    fetch(build_path(bff_url, "auth", "logout"), {
         method:         "POST",
         credentials:    "include",
         headers:        { "Content-Type": "application/json" }
@@ -454,7 +454,7 @@ function do_bff_refresh(gobj)
 {
     const bff_url = gobj_read_attr(gobj, "bff_url");
 
-    fetch(`${bff_url}/auth/refresh`, {
+    fetch(build_path(bff_url, "auth", "refresh"), {
         method:         "POST",
         credentials:    "include",
         headers:        { "Content-Type": "application/json" }

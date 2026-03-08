@@ -256,6 +256,13 @@ PRIVATE int check_url(hgobj gobj)
             );
         }
         priv->port = atoi(port);
+        if(!priv->port) {
+            if(strcmp(priv->schema, "https") == 0 || strcmp(priv->schema, "wss") == 0) {
+                priv->port = 443;
+            } else if(strcmp(priv->schema, "http") == 0 || strcmp(priv->schema, "ws") == 0) {
+                priv->port = 80;
+            }
+        }
     }
 
     if(empty_string(priv->host)) {

@@ -615,7 +615,7 @@ PRIVATE json_t *action_call_keycloak(
         gobj, output_data, "_action", 0, KW_REQUIRED);
 
     char resource[PATH_MAX];
-    snprintf(resource, sizeof(resource), "%s/token", priv->path);
+    build_path(resource, sizeof(resource), priv->path, "token", NULL);
 
     json_t *jn_headers = json_pack("{s:s}",
         "Content-Type", "application/x-www-form-urlencoded"
@@ -688,7 +688,7 @@ PRIVATE json_t *action_kc_logout(
     const char *cs        = gobj_read_str_attr(gobj, "client_secret");
 
     char resource[PATH_MAX];
-    snprintf(resource, sizeof(resource), "%s/logout", priv->path);
+    build_path(resource, sizeof(resource), priv->path, "logout", NULL);
 
     json_t *jn_headers = json_pack("{s:s}", "Content-Type",
         "application/x-www-form-urlencoded");
@@ -768,13 +768,15 @@ PRIVATE void process_next(hgobj gobj)
 
     /* Build Keycloak URL from parsed parts */
     char kc_token_url[1024];
+    char kc_token_path[PATH_MAX];
+    build_path(kc_token_path, sizeof(kc_token_path), priv->path, "token", NULL);
     snprintf(kc_token_url, sizeof(kc_token_url),
-        "%s://%s%s%s%s/token",
+        "%s://%s%s%s%s",
         priv->schema,
         priv->host,
         empty_string(priv->port) ? "" : ":",
         empty_string(priv->port) ? "" : priv->port,
-        priv->path
+        kc_token_path
     );
 
     json_t *jn_crypto = gobj_read_json_attr(gobj, "crypto");
@@ -791,7 +793,6 @@ PRIVATE void process_next(hgobj gobj)
     );
     gobj_unsubscribe_event(priv->gobj_http, NULL, NULL, gobj);
 
-    gobj_set_bottom_gobj(gobj, priv->gobj_http);
     gobj_set_bottom_gobj(
         priv->gobj_http,
         gobj_create_pure_child(
@@ -1036,7 +1037,6 @@ PRIVATE int ac_end_task(hgobj gobj, const char *event, json_t *kw, hgobj src)
         gobj_stop_tree(priv->gobj_http);
         priv->gobj_http = NULL;
     }
-    gobj_set_bottom_gobj(gobj, NULL);
 
     priv->processing = FALSE;
 

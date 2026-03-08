@@ -239,6 +239,15 @@ PRIVATE int ac_disconnected(hgobj gobj, const char *event, json_t *kw, hgobj src
     return 0;
 }
 
+/***************************************************************************
+ *  Message completed
+ ***************************************************************************/
+PRIVATE int ac_on_message(hgobj gobj, const char *event, json_t *kw, hgobj src)
+{
+    gobj_publish_event(gobj, event, kw);
+    return 0;
+}
+
 /********************************************************************
  *
  ********************************************************************/
@@ -276,10 +285,11 @@ PRIVATE int ac_send_message(hgobj gobj, const char *event, json_t *kw, hgobj src
         const char *headers = kw_get_str(gobj, kw, "headers", "", 0);
         json_t *jn_body = kw_duplicate(gobj, kw_get_dict_value(gobj, kw, "body", json_object(), KW_REQUIRED));
         char *resp = json2uglystr(jn_body);
-        int len = strlen(resp) + strlen(headers);
+        int body_len = strlen(resp);
+        int headers_len = strlen(headers);
         kw_decref(jn_body);
 
-        gbuf = gbuffer_create(256+len, 256+len);
+        gbuf = gbuffer_create(256 + headers_len + body_len, 256 + headers_len + body_len);
         gbuffer_printf(gbuf,
             "HTTP/1.1 %s\r\n"
             "%s"
@@ -287,9 +297,9 @@ PRIVATE int ac_send_message(hgobj gobj, const char *event, json_t *kw, hgobj src
             "Content-Length: %d\r\n\r\n",
             code,
             headers,
-            len
+            body_len
         );
-        gbuffer_append(gbuf, resp, len);
+        gbuffer_append(gbuf, resp, body_len);
         GBMEM_FREE(resp)
     } else  {
         // Old method
@@ -413,6 +423,7 @@ PRIVATE int create_gclass(gclass_name_t gclass_name)
     };
     ev_action_t st_connected[] = {
         {EV_RX_DATA,            ac_rx_data,                 0},
+        {EV_ON_MESSAGE,         ac_on_message,              0},
         {EV_SEND_MESSAGE,       ac_send_message,            0},
         {EV_TIMEOUT,            ac_timeout_inactivity,      0},
         {EV_TX_READY,           0,                          0},
