@@ -598,7 +598,22 @@ function ac_on_open(gobj, event, kw, src)
 {
     let username = gobj_read_str_attr(gobj, "username");
     let username_ = kw.username;
-    if(username !== username_) {
+    if(empty_string(username)) {
+        /*
+         *  Session restored from httpOnly cookies (e.g. F5 refresh).
+         *  The BFF /auth/refresh may not return a username, so adopt
+         *  the one from the backend identity card (the JWT was already
+         *  validated server-side).
+         */
+        gobj_write_attr(gobj, "username", username_);
+        if(__yuno__.__login__) {
+            gobj_write_attr(__yuno__.__login__, "username", username_);
+        }
+        if(__yuno__.__yui_main__) {
+            gobj_send_event(__yuno__.__yui_main__, "EV_LOGIN_ACCEPTED",
+                {username: username_}, gobj);
+        }
+    } else if(username !== username_) {
         log_error(`${gobj_short_name(gobj)}: username NOT match ${username}, ${username_}`);
         close_all(gobj);
         return -1;
@@ -699,6 +714,13 @@ function ac_on_close(gobj, event, kw, src)
      *      - ui_main will display PUBLI and hide APP
      */
     gobj_publish_event(gobj, event, kw);
+
+    /*
+     *  Do NOT call close_all() here — keep the remote service running
+     *  so c_ievent_cli auto-reconnects when the backend comes back.
+     *  The httpOnly session cookies remain valid; ac_on_open() will
+     *  rebuild the app when the WebSocket reconnects.
+     */
 
     return 0;
 }

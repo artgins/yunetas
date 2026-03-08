@@ -1,38 +1,27 @@
 /***********************************************************************
  *          c_login.js
  *
- *          OAuth2 Authorization Code + PKCE login with BFF (Backend For
+ *          OAuth2 Direct Access Grant login with BFF (Backend For
  *          Frontend) support.
  *
  *  Security model (SEC-06):
  *  - Tokens are NEVER stored in localStorage or sessionStorage.
- *  - The PKCE Authorization Code flow replaces the deprecated ROPC
- *    (Resource Owner Password Credentials) grant, so this JS code never
- *    handles user passwords.
- *  - The browser POSTs the authorization code + PKCE verifier to the BFF
- *    endpoint (/auth/callback).  The BFF exchanges it with Keycloak
- *    server-side and writes the tokens into httpOnly, Secure,
- *    SameSite=Strict cookies that JavaScript cannot read at all.
+ *  - The browser sends username/password to the BFF endpoint
+ *    (/auth/login).  The BFF exchanges them with Keycloak server-side
+ *    using the Direct Access Grant (grant_type=password) and writes
+ *    the tokens into httpOnly, Secure, SameSite=Strict cookies that
+ *    JavaScript cannot read at all.
  *  - Token refresh and logout go through the BFF too (/auth/refresh,
  *    /auth/logout), so the JS side only ever sees {username, expires_in,
  *    refresh_expires_in} — no raw JWT.
  *  - The WebSocket HTTP-Upgrade request automatically carries the
  *    httpOnly cookies; the Yuneta backend reads them from the Cookie
  *    header and validates the JWT server-side.
- *  - Social logins (Google, GitHub, …) are supported via Keycloak
- *    Identity Providers: pass a `kc_idp_hint` in EV_DO_LOGIN.
  *
  *  Keycloak client configuration required:
- *  - Standard Flow (Authorization Code) ENABLED
- *  - Direct Access Grants (ROPC) DISABLED
+ *  - Direct Access Grants (ROPC) ENABLED
  *  - Valid Redirect URIs: the app URL (e.g. https://treedb.yunetas.com/*)
  *  - Web Origins: the app origin (for CORS)
- *
- *  PKCE code_verifier lifecycle:
- *  - Generated fresh for every login attempt.
- *  - Stored in sessionStorage ONLY for the duration of the OAuth redirect
- *    round-trip (keyed by `state` nonce).
- *  - Deleted immediately after the callback is processed.
  *
  *  Copyright (c) 2025, ArtGins.
  *  All Rights Reserved.
@@ -70,15 +59,12 @@ import {
     build_path,
 } from "yunetas";
 
-import {keycloak_configs, bff_urls} from "./conf/backend_config.js";
+import {bff_urls} from "./conf/backend_config.js";
 
 /***************************************************************
  *              Constants
  ***************************************************************/
 const GCLASS_NAME = "C_LOGIN";
-
-// sessionStorage key for PKCE state  (short-lived, only during redirect)
-const PKCE_SESSION_KEY = "pkce_pending";
 
 /***************************************************************
  *              Data
@@ -89,7 +75,6 @@ const PKCE_SESSION_KEY = "pkce_pending";
 const attrs_table = [
 SDATA(data_type_t.DTP_POINTER,  "subscriber",   0,      null,   "Subscriber of output events"),
 SDATA(data_type_t.DTP_STRING,   "username",     0,      "",     "Authenticated username"),
-SDATA(data_type_t.DTP_JSON,     "oauth_conf",   0,      "{}",   "OAuth / Keycloak configuration"),
 SDATA(data_type_t.DTP_STRING,   "bff_url",      0,      "",     "Base URL of the BFF auth endpoint"),
 SDATA_END()
 ];
@@ -101,59 +86,6 @@ let PRIVATE_DATA = {
 };
 
 let __gclass__ = null;
-
-
-
-
-                    /******************************
-                     *      PKCE helpers
-                     ******************************/
-
-
-
-
-/***************************************************************
- *  Generate a cryptographically random code_verifier (RFC 7636).
- *  Returns a base64url-encoded 32-byte random value (43 chars).
- ***************************************************************/
-function generate_code_verifier()
-{
-    const array = new Uint8Array(32);
-    window.crypto.getRandomValues(array);
-    return base64url_encode(array);
-}
-
-/***************************************************************
- *  Compute SHA-256 of the verifier, return base64url string.
- ***************************************************************/
-async function compute_code_challenge(verifier)
-{
-    const encoder = new TextEncoder();
-    const data = encoder.encode(verifier);
-    const digest = await window.crypto.subtle.digest("SHA-256", data);
-    return base64url_encode(new Uint8Array(digest));
-}
-
-/***************************************************************
- *  base64url encode (no padding).
- ***************************************************************/
-function base64url_encode(array)
-{
-    return btoa(String.fromCharCode(...array))
-        .replace(/\+/g, "-")
-        .replace(/\//g, "_")
-        .replace(/=/g, "");
-}
-
-/***************************************************************
- *  Generate a random state nonce for CSRF protection.
- ***************************************************************/
-function generate_state()
-{
-    const array = new Uint8Array(16);
-    window.crypto.getRandomValues(array);
-    return base64url_encode(array);
-}
 
 
 
@@ -179,15 +111,8 @@ function mt_create(gobj)
         gobj_subscribe_event(gobj, null, {}, subscriber);
     }
 
-    // Resolve configuration for the current hostname
+    // Resolve BFF URL for the current hostname
     let hostname = window.location.hostname || "localhost";
-
-    let keycloak_config = keycloak_configs[hostname];
-    if(keycloak_config) {
-        gobj_write_attr(gobj, "oauth_conf", keycloak_config);
-    } else {
-        log_error(`${gobj_short_name(gobj)}: keycloak config not found: '${hostname}'`);
-    }
 
     let bff_url = bff_urls[hostname];
     if(bff_url !== undefined) {
@@ -207,22 +132,13 @@ function mt_start(gobj)
     gobj_start(priv.gobj_timer);
 
     /*
-     *  SEC-06: check if we are returning from an OAuth2 redirect.
-     *
-     *  Keycloak redirects back with ?code=<authz_code>&state=<nonce>.
-     *  We handle the callback asynchronously and clean the URL before
-     *  any script can read it again.
+     *  Try to restore the session from httpOnly cookies on page load
+     *  (e.g. after F5 refresh).  If the BFF refresh succeeds, fire
+     *  EV_LOGIN_ACCEPTED.  If it fails, remain in ST_LOGOUT so the
+     *  user sees the login form.
      */
-    const url_params = new URLSearchParams(window.location.search);
-    const code = url_params.get("code");
-    const state = url_params.get("state");
-
-    if(code && state) {
-        // We are on the callback leg of the PKCE flow.
-        gobj_change_state(gobj, "ST_WAIT_TOKEN");
-        handle_oauth_callback(gobj, code, state);  // async — fires EV_LOGIN_ACCEPTED/DENIED
-    }
-    // Otherwise stay in ST_LOGOUT; user clicks a Login button.
+    gobj_change_state(gobj, "ST_WAIT_TOKEN");
+    try_restore_session(gobj);
 }
 
 /***************************************************************
@@ -253,152 +169,23 @@ function mt_destroy(gobj)
 
 
 /***************************************************************
- *  Initiate the PKCE Authorization Code flow.
+ *  POST username/password to the BFF /auth/login endpoint.
  *
- *  kc_idp_hint:  null  → Keycloak login form (local users)
- *                "google" / "github" / …  → direct IDP redirect
- *
- *  This function NAVIGATES AWAY from the current page.
- *  The app will be reloaded with ?code=…&state=… by Keycloak.
+ *  The BFF exchanges them with Keycloak using the Direct Access
+ *  Grant (grant_type=password) and sets httpOnly cookies.
+ *  Returns { success, username, email, expires_in,
+ *            refresh_expires_in }.
  ***************************************************************/
-async function initiate_pkce_login(gobj, kc_idp_hint)
+async function do_bff_login(gobj, username, password)
 {
-    /*
-     *  SEC-06: require a secure context for WebCrypto.
-     */
-    if(!window.crypto || !window.crypto.subtle) {
-        log_error(`${gobj_short_name(gobj)}: PKCE requires HTTPS (secure context)`);
-        gobj_send_event(gobj, "EV_LOGIN_DENIED",
-            { error: "PKCE requires a secure context (HTTPS)" }, gobj);
-        return;
-    }
-
-    const oauth_conf = gobj_read_attr(gobj, "oauth_conf");
-    if(!json_object_size(oauth_conf)) {
-        log_error(`${gobj_short_name(gobj)}: no OAuth configuration`);
-        gobj_send_event(gobj, "EV_LOGIN_DENIED", { error: "No OAuth configuration" }, gobj);
-        return;
-    }
-
-    const code_verifier    = generate_code_verifier();
-    const code_challenge   = await compute_code_challenge(code_verifier);
-    const state            = generate_state();
-    const redirect_uri     = window.location.origin + window.location.pathname;
-
-    /*
-     *  Store ONLY what is needed for the round-trip callback verification.
-     *  This is in sessionStorage, not localStorage:
-     *  - Scoped to this tab / session.
-     *  - NOT accessible cross-origin.
-     *  - Cleared when the tab is closed.
-     *  - Deleted immediately after the callback is consumed (one-time use).
-     */
-    sessionStorage.setItem(PKCE_SESSION_KEY, JSON.stringify({
-        code_verifier,
-        state
-    }));
-
-    const oauth_endpoint    = oauth_conf["auth-server-url"];
-    const realm             = oauth_conf["realm"];
-    const client_id         = oauth_conf["resource"];
-    const url = build_path(
-        oauth_endpoint,
-        "realms",
-        realm,
-        "protocol",
-        "openid-connect",
-        "auth"
-    );
-
-    let auth_url =
-        `${url}` +
-        `?response_type=code` +
-        `&client_id=${encodeURIComponent(client_id)}` +
-        `&redirect_uri=${encodeURIComponent(redirect_uri)}` +
-        `&scope=openid%20profile%20email` +
-        `&code_challenge=${code_challenge}` +
-        `&code_challenge_method=S256` +
-        `&state=${state}`;
-
-    if(kc_idp_hint && !empty_string(kc_idp_hint)) {
-        auth_url += `&kc_idp_hint=${encodeURIComponent(kc_idp_hint)}`;
-    }
-
-    // Navigate away — this page will be reloaded by Keycloak with ?code=
-    window.location.replace(auth_url);
-}
-
-/***************************************************************
- *  Handle the OAuth2 callback after Keycloak redirects back.
- *
- *  - Verifies the state nonce (CSRF protection).
- *  - Cleans the authorization code from the URL immediately.
- *  - POSTs code + code_verifier to the BFF endpoint.
- *  - The BFF exchanges them server-side and sets httpOnly cookies.
- *  - Fires EV_LOGIN_ACCEPTED or EV_LOGIN_DENIED.
- ***************************************************************/
-async function handle_oauth_callback(gobj, code, state)
-{
-    /*
-     *  SEC-06: immediately remove the authorization code from the
-     *  browser URL bar so it cannot be logged, cached, or read by
-     *  browser extensions.
-     */
-    const clean_url = window.location.origin + window.location.pathname;
-    window.history.replaceState({}, document.title, clean_url);
-
-    /*
-     *  SEC-06: CSRF check — state must match what we stored.
-     */
-    let pkce_pending_str = sessionStorage.getItem(PKCE_SESSION_KEY);
-    sessionStorage.removeItem(PKCE_SESSION_KEY);  // one-time use
-
-    if(!pkce_pending_str) {
-        log_error(`${gobj_short_name(gobj)}: no PKCE pending state in sessionStorage`);
-        gobj_send_event(gobj, "EV_LOGIN_DENIED",
-            { error: "Login session expired or invalid" }, gobj);
-        return;
-    }
-
-    let pkce_pending;
-    try {
-        pkce_pending = JSON.parse(pkce_pending_str);
-    } catch(e) {
-        log_error(`${gobj_short_name(gobj)}: corrupt PKCE pending entry`);
-        gobj_send_event(gobj, "EV_LOGIN_DENIED",
-            { error: "Login session corrupted" }, gobj);
-        return;
-    }
-
-    if(pkce_pending.state !== state) {
-        log_error(`${gobj_short_name(gobj)}: state mismatch — possible CSRF attempt`);
-        gobj_send_event(gobj, "EV_LOGIN_DENIED",
-            { error: "Login state mismatch" }, gobj);
-        return;
-    }
-
-    /*
-     *  POST to the BFF.  The BFF will:
-     *  1. Exchange code + code_verifier with Keycloak server-side.
-     *  2. Set access_token and refresh_token as httpOnly cookies.
-     *  3. Return {success, username, email, expires_in, refresh_expires_in}.
-     *
-     *  credentials:"include" is required so the browser stores the
-     *  Set-Cookie headers the BFF sends back.
-     */
-    const bff_url       = gobj_read_attr(gobj, "bff_url");
-    const redirect_uri  = window.location.origin + window.location.pathname;
+    const bff_url = gobj_read_attr(gobj, "bff_url");
 
     try {
-        const resp = await fetch(build_path(bff_url, "auth", "callback"), {
+        const resp = await fetch(build_path(bff_url, "auth", "login"), {
             method:         "POST",
             credentials:    "include",
             headers:        { "Content-Type": "application/json" },
-            body:           JSON.stringify({
-                code,
-                code_verifier:  pkce_pending.code_verifier,
-                redirect_uri
-            })
+            body:           JSON.stringify({ username, password })
         });
 
         const data = await resp.json();
@@ -408,12 +195,12 @@ async function handle_oauth_callback(gobj, code, state)
             gobj_send_event(gobj, "EV_LOGIN_ACCEPTED", data, gobj);
         } else {
             const error = data.error || `HTTP ${resp.status}`;
-            log_info(sprintf("%s: BFF callback error: %s", gobj_short_name(gobj), error));
+            log_info(sprintf("%s: BFF login error: %s", gobj_short_name(gobj), error));
             gobj_send_event(gobj, "EV_LOGIN_DENIED", { error }, gobj);
         }
 
     } catch(err) {
-        log_error(`${gobj_short_name(gobj)}: BFF callback fetch failed: ${err.message}`);
+        log_error(`${gobj_short_name(gobj)}: BFF login fetch failed: ${err.message}`);
         gobj_send_event(gobj, "EV_LOGIN_DENIED",
             { error: "Network error during login" }, gobj);
     }
@@ -478,6 +265,42 @@ function do_bff_refresh(gobj)
 }
 
 /***************************************************************
+ *  Try to restore the session from httpOnly cookies on page load
+ *  (e.g. after F5 refresh).
+ *
+ *  Calls BFF /auth/refresh:
+ *  - If it succeeds, the cookies are still valid → fire
+ *    EV_LOGIN_ACCEPTED to transition to ST_LOGIN.
+ *  - If it fails (no cookies, expired, network error), silently
+ *    go back to ST_LOGOUT so the user sees the login form.
+ *    No error is shown — this is a normal "no session" case.
+ ***************************************************************/
+function try_restore_session(gobj)
+{
+    const bff_url = gobj_read_attr(gobj, "bff_url");
+
+    fetch(build_path(bff_url, "auth", "refresh"), {
+        method:         "POST",
+        credentials:    "include",
+        headers:        { "Content-Type": "application/json" }
+    })
+    .then(resp => resp.json())
+    .then(data => {
+        if(data.success) {
+            gobj_write_attr(gobj, "username", data.username || data.email || "");
+            gobj_send_event(gobj, "EV_LOGIN_ACCEPTED", data, gobj);
+        } else {
+            // No valid session — go back to login screen (no error shown)
+            gobj_change_state(gobj, "ST_LOGOUT");
+        }
+    })
+    .catch(() => {
+        // Network error or BFF not available — go back to login screen
+        gobj_change_state(gobj, "ST_LOGOUT");
+    });
+}
+
+/***************************************************************
  *  Store session timing info (no tokens — never in JS).
  *  Arms the refresh timer so the BFF is called before the
  *  refresh_token expires.
@@ -522,14 +345,14 @@ function save_session_info(gobj, data)
 
 
 /***************************************************************
- *  EV_DO_LOGIN — initiates the PKCE redirect.
- *  kw may contain:
- *    provider:   null | "google" | "github" | …  (kc_idp_hint)
+ *  EV_DO_LOGIN — initiates the Direct Access Grant via BFF.
+ *  kw: { username, password }
  ***************************************************************/
 function ac_do_login(gobj, event, kw, src)
 {
-    const provider = (kw && kw.provider) ? kw.provider : null;
-    initiate_pkce_login(gobj, provider);  // async, navigates away
+    const username = (kw && kw.username) ? kw.username : "";
+    const password = (kw && kw.password) ? kw.password : "";
+    do_bff_login(gobj, username, password);
     return 0;
 }
 
@@ -540,7 +363,7 @@ function ac_do_logout(gobj, event, kw, src)
 }
 
 /***************************************************************
- *  EV_LOGIN_ACCEPTED — BFF exchanged the code successfully.
+ *  EV_LOGIN_ACCEPTED — BFF exchanged the credentials successfully.
  *  kw: { success, username, email, expires_in, refresh_expires_in }
  ***************************************************************/
 function ac_login_accepted(gobj, event, kw, src)
@@ -626,7 +449,8 @@ function create_gclass(gclass_name)
         ["ST_LOGOUT", [
             ["EV_DO_LOGIN",       ac_do_login,        "ST_WAIT_TOKEN"],
             ["EV_LOGIN_DENIED",   ac_login_denied,    null],
-            ["EV_DO_LOGOUT",      ac_clear_session,   null]
+            ["EV_DO_LOGOUT",      ac_clear_session,   null],
+            ["EV_LOGOUT_DONE",    ac_clear_session,   null]
         ]],
 
         ["ST_WAIT_TOKEN", [

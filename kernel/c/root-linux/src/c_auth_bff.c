@@ -6,7 +6,16 @@
  *  ========================================
  *  This GClass acts as an HTTP server (not WebSocket) that mediates
  *  between the browser SPA and the Keycloak authorization server.
- *  It exposes three endpoints:
+ *  It exposes four endpoints:
+ *
+ *    POST /auth/login
+ *      Body: { "username": "…", "password": "…" }
+ *      Action: Direct Access Grant (grant_type=password) with Keycloak,
+ *              write access_token and refresh_token as httpOnly cookies,
+ *              return { "success": true, "username": "…", "email": "…",
+ *                       "expires_in": N, "refresh_expires_in": N }.
+ *      Note:   Requires "Direct Access Grants Enabled" in the Keycloak
+ *              client configuration.
  *
  *    POST /auth/callback
  *      Body: { "code": "…", "code_verifier": "…", "redirect_uri": "…" }
@@ -87,6 +96,7 @@
  ***************************************************************************/
 typedef enum {
     BFF_CALLBACK,
+    BFF_LOGIN,
     BFF_REFRESH,
     BFF_LOGOUT
 } bff_action_t;
@@ -100,6 +110,8 @@ typedef struct _PENDING_AUTH {
     char        code[2048];             /* /auth/callback: authorization code */
     char        code_verifier[256];     /* /auth/callback: PKCE verifier */
     char        redirect_uri[1024];     /* /auth/callback: redirect URI */
+    char        username[256];          /* /auth/login: username */
+    char        password[256];          /* /auth/login: password */
     char        refresh_token[4096];    /* /auth/refresh + /auth/logout */
     char        client_origin[512];     /* Origin header (for CORS) */
 } PENDING_AUTH;
@@ -570,7 +582,7 @@ PRIVATE json_t *result_token_response(
     snprintf(extra, extra_len, "%s%s%s", cors_hdrs, at_cookie, rt_cookie);
 
     json_t *jn_resp;
-    if(action == BFF_CALLBACK) {
+    if(action == BFF_CALLBACK || action == BFF_LOGIN) {
         jn_resp = json_pack("{s:b, s:s, s:s, s:I, s:I}",
             "success",          1,
             "username",         username,
@@ -635,6 +647,21 @@ PRIVATE json_t *action_call_keycloak(
             "code",          code,
             "code_verifier", code_verifier,
             "redirect_uri",  redirect_uri,
+            "client_id",     client_id
+        );
+        if(!empty_string(client_secret)) {
+            json_object_set_new(jn_data, "client_secret",
+                json_string(client_secret));
+        }
+
+    } else if(action == BFF_LOGIN) {
+        const char *username = kw_get_str(gobj, output_data, "_username", "", 0);
+        const char *password = kw_get_str(gobj, output_data, "_password", "", 0);
+
+        jn_data = json_pack("{s:s, s:s, s:s, s:s}",
+            "grant_type",    "password",
+            "username",      username,
+            "password",      password,
             "client_id",     client_id
         );
         if(!empty_string(client_secret)) {
@@ -804,18 +831,20 @@ PRIVATE void process_next(hgobj gobj)
     );
 
     /* Build the task with the appropriate action/result pair */
-    json_t *kw_output = json_pack("{s:I, s:i, s:s, s:s, s:s, s:s, s:s}",
+    json_t *kw_output = json_pack("{s:I, s:i, s:s, s:s, s:s, s:s, s:s, s:s, s:s}",
         "_browser_src",    (json_int_t)(uintptr_t)pa->browser_src,
         "_action",         (int)pa->action,
         "_code",           pa->code,
         "_code_verifier",  pa->code_verifier,
         "_redirect_uri",   pa->redirect_uri,
+        "_username",       pa->username,
+        "_password",       pa->password,
         "_refresh_token",  pa->refresh_token,
         "_origin",         pa->client_origin
     );
 
     json_t *kw_task;
-    if(pa->action == BFF_CALLBACK || pa->action == BFF_REFRESH) {
+    if(pa->action == BFF_CALLBACK || pa->action == BFF_LOGIN || pa->action == BFF_REFRESH) {
         kw_task = json_pack(
             "{s:o, s:o, s:o, s:["
                 "{s:s, s:s},"
@@ -984,6 +1013,28 @@ PRIVATE int ac_on_message(hgobj gobj, const char *event, json_t *kw, hgobj src)
         snprintf(pa.code,          sizeof(pa.code),          "%s", code);
         snprintf(pa.code_verifier, sizeof(pa.code_verifier), "%s", cv);
         snprintf(pa.redirect_uri,  sizeof(pa.redirect_uri),  "%s", ruri);
+
+    } else if(strcmp(url, "/auth/login") == 0) {
+        /* POST /auth/login  { username, password } — Direct Access Grant (ROPC) */
+        if(!jn_body) {
+            send_error_response(src, 400, status_str(400), "Missing JSON body",
+                cors_hdrs);
+            KW_DECREF(kw)
+            return 0;
+        }
+        const char *username = kw_get_str(gobj, jn_body, "username", "", 0);
+        const char *password = kw_get_str(gobj, jn_body, "password", "", 0);
+
+        if(empty_string(username) || empty_string(password)) {
+            send_error_response(src, 400, status_str(400),
+                "username and password are required", cors_hdrs);
+            KW_DECREF(kw)
+            return 0;
+        }
+
+        pa.action = BFF_LOGIN;
+        snprintf(pa.username, sizeof(pa.username), "%s", username);
+        snprintf(pa.password, sizeof(pa.password), "%s", password);
 
     } else if(strcmp(url, "/auth/refresh") == 0) {
         /* POST /auth/refresh  (reads httpOnly cookie) */
