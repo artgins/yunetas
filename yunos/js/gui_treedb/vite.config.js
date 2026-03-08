@@ -11,6 +11,13 @@ export default defineConfig({
         watch: {
             usePolling: true,
             interval: 300
+        },
+        proxy: {
+            "/auth": {
+                target: "https://localhost:1801",
+                changeOrigin: true,
+                secure: false      // accept self-signed certs in dev
+            }
         }
     },
     test: {

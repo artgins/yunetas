@@ -42,7 +42,7 @@ const backend_urls = {
  *  raw JWTs never appear in JavaScript.
  */
 const bff_urls = {
-    "localhost":            "https://localhost:1801",
+    "localhost":            "",    // same-origin; Vite proxies /auth/* to https://localhost:1801
     "treedb.yunetas.com":   "https://treedb.yunetas.com:1801"
 };
 
