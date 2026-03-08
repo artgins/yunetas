@@ -174,6 +174,7 @@ typedef struct _PRIVATE_DATA {
     hgobj gobj_authz;
     hgobj gobj_input_side;
     hgobj gobj_top_side;
+    hgobj gobj_bff_side;
 
     hgobj gobj_tranger_queues;
     json_t *tranger_queues;
@@ -325,6 +326,11 @@ PRIVATE int mt_play(hgobj gobj)
     priv->gobj_top_side = gobj_find_service("__top_side__", TRUE);
     gobj_subscribe_event(priv->gobj_top_side, 0, 0, gobj);
 
+    priv->gobj_bff_side = gobj_find_service("__bff_side__", FALSE);
+    if(priv->gobj_bff_side) {
+        gobj_subscribe_event(priv->gobj_bff_side, 0, 0, gobj);
+    }
+
     /*-----------------------------*
      *  Broadcast timeranger
      *-----------------------------*/
@@ -335,6 +341,9 @@ PRIVATE int mt_play(hgobj gobj)
      *--------------------------------*/
     gobj_start_tree(priv->gobj_input_side);
     gobj_start_tree(priv->gobj_top_side);
+    if(priv->gobj_bff_side) {
+        gobj_start_tree(priv->gobj_bff_side);
+    }
 
     /*
      *  Periodic timer for tasks
@@ -354,6 +363,9 @@ PRIVATE int mt_pause(hgobj gobj)
     /*-----------------------------*
      *      Stop services
      *-----------------------------*/
+    if(priv->gobj_bff_side) {
+        gobj_stop_tree(priv->gobj_bff_side);
+    }
     gobj_stop_tree(priv->gobj_top_side);
     gobj_stop_tree(priv->gobj_input_side);
 
