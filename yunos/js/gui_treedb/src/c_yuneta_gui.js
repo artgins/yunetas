@@ -716,11 +716,11 @@ function ac_on_close(gobj, event, kw, src)
     gobj_publish_event(gobj, event, kw);
 
     /*
-     *  When the backend yuno goes down, perform a full logout.
-     *  Stop the remote service (prevents reconnection retries)
-     *  and trigger the login service to clear the session.
+     *  Do NOT call close_all() here — keep the remote service running
+     *  so c_ievent_cli auto-reconnects when the backend comes back.
+     *  The httpOnly session cookies remain valid; ac_on_open() will
+     *  rebuild the app when the WebSocket reconnects.
      */
-    close_all(gobj);
 
     return 0;
 }
