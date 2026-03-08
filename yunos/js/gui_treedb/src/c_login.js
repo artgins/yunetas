@@ -98,6 +98,8 @@ let PRIVATE_DATA = {
     timeout_refresh:        0,  // seconds until next refresh
     refresh_expires_in:     0,  // seconds until refresh_token expires (from BFF)
     gobj_timer:             null,
+    login_popup:            null,   // reference to the Keycloak login popup window
+    message_handler:        null,   // bound postMessage handler (for cleanup)
 };
 
 let __gclass__ = null;
@@ -195,6 +197,25 @@ function mt_create(gobj)
     } else {
         log_error(`${gobj_short_name(gobj)}: BFF URL not found: '${hostname}'`);
     }
+
+    /*
+     *  Listen for postMessage from the login popup.
+     *  When the popup receives the OAuth callback (?code=&state=),
+     *  it sends the code/state back to us via postMessage and closes.
+     */
+    priv.message_handler = function(event) {
+        if(event.origin !== window.location.origin) {
+            return; // ignore cross-origin messages
+        }
+        if(event.data && event.data.type === "pkce_callback") {
+            if(priv.login_popup) {
+                priv.login_popup = null;
+            }
+            gobj_change_state(gobj, "ST_WAIT_TOKEN");
+            handle_oauth_callback(gobj, event.data.code, event.data.state);
+        }
+    };
+    window.addEventListener("message", priv.message_handler);
 }
 
 /***************************************************************
@@ -210,17 +231,34 @@ function mt_start(gobj)
      *  SEC-06: check if we are returning from an OAuth2 redirect.
      *
      *  Keycloak redirects back with ?code=<authz_code>&state=<nonce>.
-     *  We handle the callback asynchronously and clean the URL before
-     *  any script can read it again.
+     *  If we are inside a popup (window.opener exists), send the code
+     *  back to the parent window via postMessage and close the popup.
+     *  Otherwise handle the callback directly (fallback for redirect flow).
      */
     const url_params = new URLSearchParams(window.location.search);
     const code = url_params.get("code");
     const state = url_params.get("state");
 
     if(code && state) {
-        // We are on the callback leg of the PKCE flow.
+        if(window.opener) {
+            /*
+             *  We are inside the login popup — send the authorization
+             *  code back to the parent window and close this popup.
+             *  The parent's postMessage handler will call
+             *  handle_oauth_callback() using its own sessionStorage
+             *  (which holds the PKCE verifier).
+             */
+            window.opener.postMessage({
+                type: "pkce_callback",
+                code: code,
+                state: state
+            }, window.location.origin);
+            window.close();
+            return;
+        }
+        // Fallback: redirect flow (no popup opener)
         gobj_change_state(gobj, "ST_WAIT_TOKEN");
-        handle_oauth_callback(gobj, code, state);  // async — fires EV_LOGIN_ACCEPTED/DENIED
+        handle_oauth_callback(gobj, code, state);
     } else {
         /*
          *  No OAuth callback — try to restore the session from httpOnly
@@ -249,6 +287,15 @@ function mt_stop(gobj)
  ***************************************************************/
 function mt_destroy(gobj)
 {
+    let priv = gobj.priv;
+    if(priv.message_handler) {
+        window.removeEventListener("message", priv.message_handler);
+        priv.message_handler = null;
+    }
+    if(priv.login_popup && !priv.login_popup.closed) {
+        priv.login_popup.close();
+        priv.login_popup = null;
+    }
 }
 
 
@@ -262,16 +309,22 @@ function mt_destroy(gobj)
 
 
 /***************************************************************
- *  Initiate the PKCE Authorization Code flow.
+ *  Initiate the PKCE Authorization Code flow via a popup window.
  *
  *  kc_idp_hint:  null  → Keycloak login form (local users)
  *                "google" / "github" / …  → direct IDP redirect
  *
- *  This function NAVIGATES AWAY from the current page.
- *  The app will be reloaded with ?code=…&state=… by Keycloak.
+ *  Opens Keycloak in a popup window.  After the user authenticates,
+ *  Keycloak redirects back to our redirect_uri inside the popup.
+ *  The popup's mt_start() detects window.opener, sends the
+ *  authorization code back via postMessage, and closes itself.
+ *  If the popup is blocked by the browser, falls back to full
+ *  page redirect.
  ***************************************************************/
 async function initiate_pkce_login(gobj, kc_idp_hint)
 {
+    let priv = gobj.priv;
+
     /*
      *  SEC-06: require a secure context for WebCrypto.
      */
@@ -333,8 +386,27 @@ async function initiate_pkce_login(gobj, kc_idp_hint)
         auth_url += `&kc_idp_hint=${encodeURIComponent(kc_idp_hint)}`;
     }
 
-    // Navigate away — this page will be reloaded by Keycloak with ?code=
-    window.location.replace(auth_url);
+    /*
+     *  Open Keycloak in a popup window.
+     *  The popup loads our app after Keycloak redirects back,
+     *  detects window.opener, sends the code via postMessage,
+     *  and closes itself.
+     *  If popup is blocked, fall back to full page redirect.
+     */
+    const popup = window.open(
+        auth_url,
+        "keycloak-login",
+        "width=500,height=650,menubar=no,toolbar=no,location=yes,status=yes"
+    );
+
+    if(!popup || popup.closed) {
+        // Popup blocked — fall back to full page redirect
+        log_info(sprintf("%s: popup blocked, falling back to redirect",
+            gobj_short_name(gobj)));
+        window.location.replace(auth_url);
+    } else {
+        priv.login_popup = popup;
+    }
 }
 
 /***************************************************************
