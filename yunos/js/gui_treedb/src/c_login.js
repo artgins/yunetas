@@ -221,8 +221,17 @@ function mt_start(gobj)
         // We are on the callback leg of the PKCE flow.
         gobj_change_state(gobj, "ST_WAIT_TOKEN");
         handle_oauth_callback(gobj, code, state);  // async — fires EV_LOGIN_ACCEPTED/DENIED
+    } else {
+        /*
+         *  No OAuth callback — try to restore the session from httpOnly
+         *  cookies (e.g. after F5 page refresh).  If the BFF refresh
+         *  succeeds, fire EV_LOGIN_ACCEPTED and transition to ST_LOGIN.
+         *  If it fails (no cookies, expired, network error), silently
+         *  remain in ST_LOGOUT so the user sees the login button.
+         */
+        gobj_change_state(gobj, "ST_WAIT_TOKEN");
+        try_restore_session(gobj);
     }
-    // Otherwise stay in ST_LOGOUT; user clicks a Login button.
 }
 
 /***************************************************************
@@ -474,6 +483,42 @@ function do_bff_refresh(gobj)
         log_error(`${gobj_short_name(gobj)}: BFF refresh failed: ${err.message}`);
         gobj_send_event(gobj, "EV_LOGIN_DENIED",
             { error: "Network error during refresh" }, gobj);
+    });
+}
+
+/***************************************************************
+ *  Try to restore the session from httpOnly cookies on page load
+ *  (e.g. after F5 refresh).
+ *
+ *  Calls BFF /auth/refresh:
+ *  - If it succeeds, the cookies are still valid → fire
+ *    EV_LOGIN_ACCEPTED to transition to ST_LOGIN.
+ *  - If it fails (no cookies, expired, network error), silently
+ *    go back to ST_LOGOUT so the user sees the login button.
+ *    No error is shown — this is a normal "no session" case.
+ ***************************************************************/
+function try_restore_session(gobj)
+{
+    const bff_url = gobj_read_attr(gobj, "bff_url");
+
+    fetch(build_path(bff_url, "auth", "refresh"), {
+        method:         "POST",
+        credentials:    "include",
+        headers:        { "Content-Type": "application/json" }
+    })
+    .then(resp => resp.json())
+    .then(data => {
+        if(data.success) {
+            gobj_write_attr(gobj, "username", data.username || data.email || "");
+            gobj_send_event(gobj, "EV_LOGIN_ACCEPTED", data, gobj);
+        } else {
+            // No valid session — go back to login screen (no error shown)
+            gobj_change_state(gobj, "ST_LOGOUT");
+        }
+    })
+    .catch(() => {
+        // Network error or BFF not available — go back to login screen
+        gobj_change_state(gobj, "ST_LOGOUT");
     });
 }
 
