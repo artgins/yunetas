@@ -141,3 +141,28 @@ This is **not possible with standard Keycloak** without using the deprecated Res
 **Popup window** is the practical choice with Keycloak — it keeps the full OIDC security model intact while avoiding a full-page redirect. Just handle popup blockers gracefully (fall back to redirect if the popup is blocked).
 
 If the popup UX isn't acceptable and you want a true in-page modal login, that's a point in favor of **Ory Kratos** over Keycloak.
+
+
+# Changing to a own login form
+
+A simple login form is cleaner UX. The browser's password manager handles credentials anyway.
+
+The tradeoff is that with a direct login form, the app sends credentials to Keycloak's Resource Owner Password Grant (direct access grant), which means:
+
+    The app handles the raw password (briefly, to exchange it for tokens)
+    It must be enabled in the Keycloak client settings ("Direct Access Grants Enabled")
+    No MFA/social login support (those require the browser redirect flow)
+
+But if your setup doesn't need MFA or social login, a direct form is simpler and better UX.
+
+Yes, it's still secure. The key security properties are preserved:
+
+- **Tokens never touch JavaScript** — the BFF exchanges credentials server-side and stores tokens in `httpOnly; Secure; SameSite=Strict` cookies. JS can't read them.
+- **Password only transits once** — browser sends it over HTTPS to the BFF, BFF forwards to Keycloak, done. It's not stored anywhere.
+- **Browser password manager works** — which is actually a security win over the popup, since users are more likely to use strong unique passwords.
+- **CORS + cookie domain** restrictions still apply.
+- **Token refresh/logout** still go through the BFF with httpOnly cookies.
+
+The only security tradeoff vs PKCE is that the app briefly handles the raw password (to forward it to the BFF). With PKCE, the app never saw the password at all — Keycloak's own form handled it. But since the BFF is your own server on the same infrastructure, the password is only exposed over your HTTPS connection, same as any traditional login form.
+
+If you ever need MFA or social login in the future, you can re-enable the PKCE flow alongside the direct login — the BFF still has the `/auth/callback` endpoint for that.
