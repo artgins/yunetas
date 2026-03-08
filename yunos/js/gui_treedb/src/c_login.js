@@ -190,7 +190,7 @@ function mt_create(gobj)
     }
 
     let bff_url = bff_urls[hostname];
-    if(bff_url) {
+    if(bff_url !== undefined) {
         gobj_write_attr(gobj, "bff_url", bff_url);
     } else {
         log_error(`${gobj_short_name(gobj)}: BFF URL not found: '${hostname}'`);
