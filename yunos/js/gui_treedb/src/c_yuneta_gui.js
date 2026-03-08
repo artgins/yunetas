@@ -700,6 +700,13 @@ function ac_on_close(gobj, event, kw, src)
      */
     gobj_publish_event(gobj, event, kw);
 
+    /*
+     *  When the backend yuno goes down, perform a full logout.
+     *  Stop the remote service (prevents reconnection retries)
+     *  and trigger the login service to clear the session.
+     */
+    close_all(gobj);
+
     return 0;
 }
 
