@@ -887,6 +887,29 @@ PUBLIC int yev_protocol_set_protocol_fill_hints_fn(
 /***************************************************************************
  *
  ***************************************************************************/
+/***************************************************************************
+ *  Return the well-known default port for a URL schema.
+ *  Returns NULL when no default applies (caller must have an explicit port).
+ ***************************************************************************/
+PRIVATE const char *default_port_for_schema(const char *schema)
+{
+    SWITCHS(schema) {
+        ICASES("http")
+        ICASES("ws")
+            return "80";
+        ICASES("https")
+        ICASES("wss")
+            return "443";
+        ICASES("mqtt")
+            return "1883";
+        ICASES("mqtts")
+            return "8883";
+        DEFAULTS
+            return NULL;
+    } SWITCHS_END;
+    return NULL;
+}
+
 PRIVATE int _yev_protocol_fill_hints( // fill hints according the schema
     const char *schema,
     struct addrinfo *hints,
@@ -2088,6 +2111,17 @@ PUBLIC int yev_rearm_connect_event( // create the socket to connect in yev_event
         return -1;
     }
 
+    /*
+     *  If no explicit port in the URL, use the well-known default for the schema
+     *  (e.g. 443 for https, 80 for http).
+     */
+    if(empty_string(dst_port)) {
+        const char *def = default_port_for_schema(schema);
+        if(def) {
+            snprintf(dst_port, sizeof(dst_port), "%s", def);
+        }
+    }
+
     struct addrinfo hints = {
         .ai_family = ai_family,
         .ai_flags = ai_flags,
@@ -2383,6 +2417,17 @@ PUBLIC yev_event_h yev_create_accept_event( // create the socket listening in ye
     if(ret < 0) {
         // Error already logged
         return NULL;
+    }
+
+    /*
+     *  If no explicit port in the URL, use the well-known default for the schema
+     *  (e.g. 443 for https, 80 for http).
+     */
+    if(empty_string(port)) {
+        const char *def = default_port_for_schema(schema);
+        if(def) {
+            snprintf(port, sizeof(port), "%s", def);
+        }
     }
 
 #ifdef __linux__
