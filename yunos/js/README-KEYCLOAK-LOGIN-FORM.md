@@ -37,3 +37,107 @@ With a custom form, your application **receives the raw username and password**,
 **Use Keycloak's login form** (the standard redirect flow) unless you have a hard UX requirement that can't be solved with Keycloak theme customization. The security and maintenance benefits far outweigh the minor UX trade-off of a redirect.
 
 If the redirect feels jarring, Keycloak supports **custom themes** (FreeMarker templates) that can match your application's look and feel exactly — you get full visual control while keeping the security model intact.
+
+
+## Switching IdPs: Keycloak vs Ory vs Others
+
+### If you use Keycloak's redirect-based login flow (OpenID Connect)
+
+Switching to another IdP later is **straightforward** because your application only knows:
+1. An authorization endpoint (redirect the user there)
+2. A token endpoint (exchange the code for tokens)
+3. A JWKS endpoint (validate JWT signatures)
+
+These are all **standardized by OpenID Connect**. To swap IdPs, you change configuration (URLs, client ID/secret), not code.
+
+### Ory as an alternative
+
+Ory is a strong option. It comes in two flavors:
+
+| | **Ory Kratos** (self-hosted) | **Ory Network** (cloud) |
+|---|---|---|
+| Identity management | Yes | Yes |
+| Login/registration flows | Yes (API + browser) | Yes |
+| MFA | TOTP, WebAuthn, Lookup Secrets | Same + SMS |
+| Social login | Yes | Yes |
+| OpenID Connect provider | Via **Ory Hydra** (separate component) | Built-in |
+| License | Apache 2.0 | SaaS |
+
+**Key difference from Keycloak:** Ory is modular — Kratos handles identity, Hydra handles OAuth2/OIDC, Oathkeeper handles API gateway/auth. Keycloak bundles everything in one server.
+
+### Ory advantages over Keycloak
+
+- **Headless/API-first** — Kratos exposes login/registration as JSON APIs, making custom UIs natural (no theme templating).
+- **Cloud-native** — designed for containers, lightweight, no JVM.
+- **Smaller footprint** — Keycloak needs a JVM + database; Kratos is a single Go binary + PostgreSQL.
+- **Better developer experience** for custom login UIs — this is Ory's explicit design goal.
+
+### Ory disadvantages vs Keycloak
+
+- **More assembly required** — you need Kratos + Hydra + Oathkeeper for what Keycloak gives you in one package.
+- **Smaller community** — less documentation, fewer Stack Overflow answers.
+- **Admin UI** — Keycloak has a full admin console; Ory's self-hosted admin UI is more limited (Ory Network has a good dashboard).
+
+### What this means for Yuneta
+
+If your app talks **standard OIDC** (redirect flow, JWT validation), the IdP is a pluggable configuration choice:
+
+```
+App → redirect to IdP → user logs in → redirect back with code → exchange for JWT → validate JWT
+```
+
+This flow is identical whether the IdP is Keycloak, Ory Hydra, Auth0, Azure AD, or anything else OIDC-compliant.
+
+### Recommendation
+
+1. **Design your app against OIDC standards**, not Keycloak-specific APIs — this keeps IdP-switching trivial.
+2. If you want **full UI control without theming hassles** → Ory Kratos + Hydra is a better fit.
+3. If you want **everything in one box with minimal setup** → Keycloak is simpler to get running.
+4. Either way, **don't build a custom login form that handles passwords directly** — that's the decision that locks you in and creates risk.
+
+## Keycloak Login as a Popup
+
+Yes, there are a few approaches:
+
+### 1. Popup Window (most common)
+
+Open Keycloak's authorization URL in a `window.open()` popup instead of a full redirect:
+
+```javascript
+const popup = window.open(
+  keycloakAuthUrl,
+  'keycloak-login',
+  'width=500,height=600,menubar=no,toolbar=no'
+);
+```
+
+After login, Keycloak redirects back to your `redirect_uri` — that page runs inside the popup, grabs the authorization code/token, sends it to the parent window via `postMessage`, and closes itself:
+
+```javascript
+// In the popup's redirect_uri page:
+window.opener.postMessage({ code: authCode }, origin);
+window.close();
+```
+
+**Pros:** Standard OIDC flow, no security compromise, works today.
+**Cons:** Popup blockers can interfere; mobile experience is poor.
+
+### 2. Iframe (not recommended)
+
+Embedding Keycloak in an `<iframe>` is **blocked by default** — Keycloak sets `X-Frame-Options: SAMEORIGIN`. You can change this in Keycloak's config, but:
+
+- It breaks clickjacking protection (security risk).
+- Browsers increasingly block third-party cookies in iframes, which breaks session management.
+- **Don't do this.**
+
+### 3. Modal with Custom UI + Ory-style API (different IdP)
+
+If you really want a modal/overlay login without leaving the page, that's exactly what **Ory Kratos** is designed for — it exposes login as a JSON API, so you build the form yourself inside a modal and POST credentials directly to Kratos's API.
+
+This is **not possible with standard Keycloak** without using the deprecated Resource Owner Password Credentials (ROPC) grant.
+
+### Recommendation
+
+**Popup window** is the practical choice with Keycloak — it keeps the full OIDC security model intact while avoiding a full-page redirect. Just handle popup blockers gracefully (fall back to redirect if the popup is blocked).
+
+If the popup UX isn't acceptable and you want a true in-page modal login, that's a point in favor of **Ory Kratos** over Keycloak.
