@@ -3650,8 +3650,8 @@ function create_gclass(gclass_name)
         ["EV_EDGE_CONTEXT_MENU",    0],
         ["EV_EDGE_CREATED",         0],
         ["EV_CANVAS_CLICK",         0],
-        ["EV_EDIT_NODE",            event_flag_t.EVF_PUBLIC_EVENT],
-        ["EV_VIEW_NODE_JSON",       event_flag_t.EVF_PUBLIC_EVENT],
+        ["EV_EDIT_NODE",            event_flag_t.EVF_OUTPUT_EVENT],
+        ["EV_VIEW_NODE_JSON",       event_flag_t.EVF_OUTPUT_EVENT],
         ["EV_HISTORY_UNDO",         0],
         ["EV_HISTORY_REDO",         0],
     ];

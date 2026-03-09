@@ -913,7 +913,7 @@ function create_gclass(gclass_name)
         ["EV_NODE_CLICK",           0],
         ["EV_SHOW",                 0],
         ["EV_HIDE",                 0],
-        ["EV_JSON_ITEM_CLICKED",    event_flag_t.EVF_PUBLIC_EVENT],
+        ["EV_JSON_ITEM_CLICKED",    event_flag_t.EVF_OUTPUT_EVENT],
     ];
 
     __gclass__ = gclass_create(
