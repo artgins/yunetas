@@ -596,16 +596,6 @@ function table__build(gobj)
         return "???";
     }
 
-    // Compute total fillspace to convert ratios to percentages
-    let totalFillspace = 0;
-    for (let i = 0; i < desc.cols.length; i++) {
-        let col = desc.cols[i];
-        if(!col.id || col.id[0]==='_') continue;
-        const fd = treedb_get_field_desc(col);
-        if(fd.is_hidden) continue;
-        totalFillspace += (col.fillspace || 1);
-    }
-
     for (let i = 0; i < desc.cols.length; i++) {
         let col = desc.cols[i];
         if(!col.id || col.id[0]==='_') {
@@ -664,10 +654,6 @@ function table__build(gobj)
             hozAlign: hozAlign,
             formatter: formatter,
         };
-        {
-            let pct = ((col.fillspace || 1) / totalFillspace) * 100;
-            colDef.width = pct + "%";
-        }
         if(cellClick) {
             colDef.cellClick = cellClick;
         }
