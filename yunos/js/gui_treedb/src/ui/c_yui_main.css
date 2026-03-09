@@ -224,11 +224,43 @@ a.flex-horizontal-section { /* To make flex any <a> */
 /*********************************************************
  *      Tabulator
  *********************************************************/
+
+/* Visible column separator via pseudo-element on the right-side resize handle only.
+   .prev handles (left-side) are excluded so hidden columns (e.g. Select Row when
+   not in edit mode) don't leave a spurious line at the start of the table. */
+.tabulator .tabulator-col-resize-handle:not(.prev)::after {
+    content: "";
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    left: 50%;
+    width: 1px;
+    background-color: var(--bulma-border);
+}
+
 .tabulator-row .tabulator-cell.tabulator-frozen {
     background-color: var(--bulma-background) !important;
 }
 .tabulator .tabulator-header .tabulator-frozen {
     background-color: var(--bulma-background) !important;
+}
+
+/*
+ *  Tabulator light theme — alternating row backgrounds
+ *  scheme-main-ter (#f5f5f5) gives visible contrast against white odd rows.
+ *  !important needed to override the tabulator_bulma.css theme.
+ */
+.tabulator .tabulator-row,
+.tabulator .tabulator-row.tabulator-row-odd {
+    background-color: var(--bulma-scheme-main, #fff) !important;
+}
+
+.tabulator .tabulator-row.tabulator-row-even {
+    background-color: var(--bulma-scheme-main-ter, #f5f5f5) !important;
+}
+
+.tabulator .tabulator-row.tabulator-selectable:hover {
+    background-color: var(--bulma-background, #ebebeb) !important;
 }
 
 /*
@@ -254,13 +286,13 @@ a.flex-horizontal-section { /* To make flex any <a> */
 
 [data-theme=dark] .tabulator-row,
 [data-theme=dark] .tabulator-row.tabulator-row-odd {
-    background-color: var(--bulma-body-background-color);
+    background-color: var(--bulma-body-background-color) !important;
     color: var(--bulma-body-color);
     border-color: var(--bulma-border);
 }
 
 [data-theme=dark] .tabulator-row.tabulator-row-even {
-    background-color: var(--bulma-background);
+    background-color: var(--bulma-background) !important;
     color: var(--bulma-body-color);
     border-color: var(--bulma-border);
 }
@@ -325,12 +357,12 @@ a.flex-horizontal-section { /* To make flex any <a> */
     }
     [data-theme=system] .tabulator-row,
     [data-theme=system] .tabulator-row.tabulator-row-odd {
-        background-color: var(--bulma-body-background-color);
+        background-color: var(--bulma-body-background-color) !important;
         color: var(--bulma-body-color);
         border-color: var(--bulma-border);
     }
     [data-theme=system] .tabulator-row.tabulator-row-even {
-        background-color: var(--bulma-background);
+        background-color: var(--bulma-background) !important;
         color: var(--bulma-body-color);
         border-color: var(--bulma-border);
     }

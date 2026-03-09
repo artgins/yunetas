@@ -20,6 +20,7 @@ import {
     gobj_parent,
     sprintf,
     gobj_read_attr,
+    json_deep_copy,
     createElement2,
     gobj_send_event,
     clean_name,
@@ -103,6 +104,19 @@ SDATA(data_type_t.DTP_BOOLEAN,  "with_checkbox",        0,  true,   "Auxiliary f
 SDATA(data_type_t.DTP_BOOLEAN,  "with_radio",           0,  false,  "Auxiliary first column to select one row"),
 SDATA(data_type_t.DTP_BOOLEAN,  "broadcast_select_rows_event",   0,  false, "Broadcast select rows event"),
 SDATA(data_type_t.DTP_BOOLEAN,  "broadcast_unselect_rows_event", 0,  false, "Broadcast unselect rows event"),
+
+/*---------------- Tabulator Defaults ----------------*/
+SDATA(data_type_t.DTP_JSON,     "tabulator_settings",   0,  {
+    layout: "fitDataFill",
+    columnDefaults: {
+        resizable: true
+    },
+    pagination: true,
+    paginationSize: 25,
+    paginationSizeSelector: [25, 50, 100, true],
+    placeholder: "No data available",
+    maxHeight: "100%"
+}, "Default settings for Tabulator"),
 
 /*---------------- Internal Attributes ----------------*/
 SDATA(data_type_t.DTP_POINTER,  "$container",           0,  null,   "HTML container for UI"),
@@ -551,7 +565,6 @@ function table__build(gobj)
             hozAlign: "center",
             headerHozAlign: "center",
             width: 40,
-            frozen: true,
             visible: false,
             headerSort: false
         });
@@ -561,7 +574,6 @@ function table__build(gobj)
             field: "_check_box_state_",  // WARNING _check_box_state_ widely used
             hozAlign: "center",
             width: 40,
-            frozen: true,
             visible: false,
             headerSort: false
         });
@@ -640,9 +652,6 @@ function table__build(gobj)
             hozAlign: hozAlign,
             formatter: formatter,
         };
-        if(col.fillspace) {
-            colDef.widthGrow = col.fillspace;
-        }
         if(cellClick) {
             colDef.cellClick = cellClick;
         }
@@ -690,24 +699,21 @@ function table__build(gobj)
     let pkey = desc.pkey || "id";
     let selectable = with_checkbox ? true : (with_radio ? 1 : false);
 
-    let tabulator_config = {
+    let tabulator_settings = json_deep_copy(gobj_read_attr(gobj, "tabulator_settings"));
+
+    Object.assign(tabulator_settings, {
         index: pkey,
         columns: columns,
-        layout: "fitColumns",
-        pagination: true,
-        paginationSize: 25,
-        paginationSizeSelector: [25, 50, 100, true],
         selectable: selectable,
-        placeholder: "No data available",
         rowSelected: function(row) {
             gobj_send_event(gobj, "EV_SELECT_ROWS", {rows: [row.getData()]}, gobj);
         },
         rowDeselected: function(row) {
             gobj_send_event(gobj, "EV_UNSELECT_ROWS", {rows: [row.getData()]}, gobj);
         },
-    };
+    });
 
-    let $$table = new Tabulator(`#${table_id}`, tabulator_config);
+    let $$table = new Tabulator(`#${table_id}`, tabulator_settings);
     $$table._ready = false;
     $$table.on("tableBuilt", function() {
         $$table._ready = true;

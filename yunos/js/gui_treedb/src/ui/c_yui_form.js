@@ -1661,9 +1661,6 @@ function template2columns(gobj, columns, template, sub_elements)
             if(readonly) {
                 delete column.editor;
             }
-            if(field_desc.fillspace) {
-                column.widthGrow = field_desc.fillspace;
-            }
             columns.push(column);
         }
     });
