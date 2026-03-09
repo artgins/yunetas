@@ -163,16 +163,17 @@
 static char treedb_schema_mqtt_broker[]= "\
 {                                                                   \n\
     'id': 'treedb_mqtt_broker',                                     \n\
-    'schema_version': '22',                                         \n\
+    'schema_version': '23',                                         \n\
     'topics': [                                                     \n\
         {                                                           \n\
             'id': 'client_groups',                                  \n\
             'pkey': 'id',                                           \n\
             'system_flag': 'sf_string_key',                         \n\
-            'topic_version': '1',                                   \n\
+            'topic_version': '2',                                   \n\
             'cols': {                                               \n\
                 'id': {                                             \n\
                     'header': 'Client Group',                       \n\
+                    'fillspace': 20,                                \n\
                     'type': 'string',                               \n\
                     'flag': [                                       \n\
                         'persistent',                               \n\
@@ -181,6 +182,7 @@ static char treedb_schema_mqtt_broker[]= "\
                 },                                                  \n\
                 'client_groups': {                                  \n\
                     'header': 'Groups',                             \n\
+                    'fillspace': 10,                                \n\
                     'type': 'object',                               \n\
                     'flag': [                                       \n\
                         'hook'                                      \n\
@@ -191,6 +193,7 @@ static char treedb_schema_mqtt_broker[]= "\
                 },                                                  \n\
                 'group_parent': {                                   \n\
                     'header': 'Parent Group',                       \n\
+                    'fillspace': 10,                                \n\
                     'type': 'string',                               \n\
                     'flag': [                                       \n\
                         'fkey'                                      \n\
@@ -198,6 +201,7 @@ static char treedb_schema_mqtt_broker[]= "\
                 },                                                  \n\
                 'description': {                                    \n\
                     'header': 'Description',                        \n\
+                    'fillspace': 20,                                \n\
                     'type': 'string',                               \n\
                     'flag': [                                       \n\
                         'writable',                                 \n\
@@ -206,6 +210,7 @@ static char treedb_schema_mqtt_broker[]= "\
                 },                                                  \n\
                 'icon': {                                           \n\
                     'header': 'Icon',                               \n\
+                    'fillspace': 10,                                \n\
                     'type': 'string',                               \n\
                     'flag': [                                       \n\
                         'image',                                    \n\
@@ -215,6 +220,7 @@ static char treedb_schema_mqtt_broker[]= "\
                 },                                                  \n\
                 'enabled': {                                        \n\
                     'header': 'enabled',                            \n\
+                    'fillspace': 4,                                 \n\
                     'type': 'boolean',                              \n\
                     'default': true,                                \n\
                     'flag': [                                       \n\
@@ -224,6 +230,7 @@ static char treedb_schema_mqtt_broker[]= "\
                 },                                                  \n\
                 'time': {                                           \n\
                     'header': 'Update Time',                        \n\
+                    'fillspace': 15,                                \n\
                     'type': 'integer',                              \n\
                     'flag': [                                       \n\
                         'time',                                     \n\
@@ -233,6 +240,7 @@ static char treedb_schema_mqtt_broker[]= "\
                 },                                                  \n\
                 'language': {                                       \n\
                     'header': 'Language',                           \n\
+                    'fillspace': 6,                                 \n\
                     'type': 'string',                               \n\
                     'flag': [                                       \n\
                         'writable',                                 \n\
@@ -247,6 +255,7 @@ static char treedb_schema_mqtt_broker[]= "\
                 },                                                  \n\
                 'cluster': {                                        \n\
                     'header': 'cluster',                            \n\
+                    'fillspace': 4,                                 \n\
                     'type': 'boolean',                              \n\
                     'default': false,                               \n\
                     'flag': [                                       \n\
@@ -256,6 +265,7 @@ static char treedb_schema_mqtt_broker[]= "\
                 },                                                  \n\
                 'properties': {                                     \n\
                     'header': 'Properties',                         \n\
+                    'fillspace': 20,                                \n\
                     'type': 'blob',                                 \n\
                     'flag': [                                       \n\
                         'writable',                                 \n\
@@ -264,6 +274,7 @@ static char treedb_schema_mqtt_broker[]= "\
                 },                                                  \n\
                 'coordinates': {                                    \n\
                     'header': 'Coordinates',                        \n\
+                    'fillspace': 10,                                \n\
                     'type': 'dict',                                 \n\
                     'default': {                                    \n\
                         'geometry': {                               \n\
@@ -279,6 +290,7 @@ static char treedb_schema_mqtt_broker[]= "\
                 },                                                  \n\
                 'managers': {                                       \n\
                     'header': 'Managers',                           \n\
+                    'fillspace': 10,                                \n\
                     'type': 'object',                               \n\
                     'flag': ['hook'],                               \n\
                     'hook': {                                       \n\
@@ -287,6 +299,7 @@ static char treedb_schema_mqtt_broker[]= "\
                 },                                                  \n\
                 'clients': {                                        \n\
                     'header': 'Clients',                            \n\
+                    'fillspace': 10,                                \n\
                     'type': 'object',                               \n\
                     'flag': ['hook'],                               \n\
                     'hook': {                                       \n\
@@ -295,6 +308,7 @@ static char treedb_schema_mqtt_broker[]= "\
                 },                                                  \n\
                 '_geometry': {                                      \n\
                     'header': 'Geometry',                           \n\
+                    'fillspace': 10,                                \n\
                     'type': 'blob',                                 \n\
                     'flag': [                                       \n\
                         'persistent'                                \n\
@@ -307,7 +321,7 @@ static char treedb_schema_mqtt_broker[]= "\
             'id': 'clients',                                        \n\
             'pkey': 'id',                                           \n\
             'system_flag': 'sf_string_key',                         \n\
-            'topic_version': '5',                                   \n\
+            'topic_version': '6',                                   \n\
             'cols': {                                               \n\
                 'id': {                                             \n\
                     'header': 'Client Id',                          \n\
@@ -320,6 +334,7 @@ static char treedb_schema_mqtt_broker[]= "\
                 },                                                  \n\
                 'client_groups': {                                  \n\
                     'header': 'Client Groups',                      \n\
+                    'fillspace': 10,                                \n\
                     'type': 'array',                                \n\
                     'flag': [                                       \n\
                         'fkey'                                      \n\
@@ -327,6 +342,7 @@ static char treedb_schema_mqtt_broker[]= "\
                 },                                                  \n\
                 'name': {                                           \n\
                     'header': 'Name',                               \n\
+                    'fillspace': 20,                                \n\
                     'type': 'string',                               \n\
                     'flag': [                                       \n\
                         'writable',                                 \n\
@@ -335,6 +351,7 @@ static char treedb_schema_mqtt_broker[]= "\
                 },                                                  \n\
                 'assigned_id': {                                    \n\
                     'header': 'Assigned Id',                        \n\
+                    'fillspace': 4,                                 \n\
                     'type': 'boolean',                              \n\
                     'flag': [                                       \n\
                         'persistent'                                \n\
@@ -342,6 +359,7 @@ static char treedb_schema_mqtt_broker[]= "\
                 },                                                  \n\
                 'auto_created': {                                   \n\
                     'header': 'Auto Created',                       \n\
+                    'fillspace': 4,                                 \n\
                     'description': 'True if client was auto created (not created by config)',\n\
                     'type': 'boolean',                              \n\
                     'flag': [                                       \n\
@@ -350,6 +368,7 @@ static char treedb_schema_mqtt_broker[]= "\
                 },                                                  \n\
                 'description': {                                    \n\
                     'header': 'Description',                        \n\
+                    'fillspace': 20,                                \n\
                     'type': 'string',                               \n\
                     'flag': [                                       \n\
                         'writable',                                 \n\
@@ -358,6 +377,7 @@ static char treedb_schema_mqtt_broker[]= "\
                 },                                                  \n\
                 'enabled': {                                        \n\
                     'header': 'Enabled',                            \n\
+                    'fillspace': 4,                                 \n\
                     'type': 'boolean',                              \n\
                     'default': true,                                \n\
                     'flag': [                                       \n\
@@ -367,6 +387,7 @@ static char treedb_schema_mqtt_broker[]= "\
                 },                                                  \n\
                 'time': {                                           \n\
                     'header': 'Update Time',                        \n\
+                    'fillspace': 15,                                \n\
                     'type': 'integer',                              \n\
                     'flag': [                                       \n\
                         'time',                                     \n\
@@ -376,6 +397,7 @@ static char treedb_schema_mqtt_broker[]= "\
                 },                                                  \n\
                 'client_type': {                                    \n\
                     'header': 'Type',                               \n\
+                    'fillspace': 10,                                \n\
                     'type': 'array',                                \n\
                     'flag': [                                       \n\
                         'fkey'                                      \n\
@@ -383,6 +405,7 @@ static char treedb_schema_mqtt_broker[]= "\
                 },                                                  \n\
                 'properties': {                                     \n\
                     'header': 'Properties',                         \n\
+                    'fillspace': 20,                                \n\
                     'type': 'blob',                                 \n\
                     'flag': [                                       \n\
                         'writable',                                 \n\
@@ -391,6 +414,7 @@ static char treedb_schema_mqtt_broker[]= "\
                 },                                                  \n\
                 'coordinates': {                                    \n\
                     'header': 'Coordinates',                        \n\
+                    'fillspace': 10,                                \n\
                     'type': 'dict',                                 \n\
                     'default': {                                    \n\
                         'geometry': {                               \n\
@@ -406,6 +430,7 @@ static char treedb_schema_mqtt_broker[]= "\
                 },                                                  \n\
                 'settings': {                                       \n\
                     'header': 'Client Settings',                    \n\
+                    'fillspace': 20,                                \n\
                     'type': 'dict',                                 \n\
                     'flag': [                                       \n\
                         'writable',                                 \n\
@@ -414,6 +439,7 @@ static char treedb_schema_mqtt_broker[]= "\
                 },                                                  \n\
                 'yuno': {                                           \n\
                     'header': 'Yuno',                               \n\
+                    'fillspace': 20,                                \n\
                     'type': 'string',                               \n\
                     'flag': [                                       \n\
                         'persistent'                                \n\
@@ -421,6 +447,7 @@ static char treedb_schema_mqtt_broker[]= "\
                 },                                                  \n\
                 '_geometry': {                                      \n\
                     'header': 'Geometry',                           \n\
+                    'fillspace': 10,                                \n\
                     'type': 'blob',                                 \n\
                     'flag': [                                       \n\
                         'persistent'                                \n\
@@ -433,10 +460,11 @@ static char treedb_schema_mqtt_broker[]= "\
             'id': 'client_types',                                   \n\
             'pkey': 'id',                                           \n\
             'system_flag': 'sf_string_key',                         \n\
-            'topic_version': '1',                                   \n\
+            'topic_version': '2',                                   \n\
             'cols': {                                               \n\
                 'id': {                                             \n\
                     'header': 'Type',                               \n\
+                    'fillspace': 20,                                \n\
                     'type': 'string',                               \n\
                     'flag': [                                       \n\
                         'persistent',                               \n\
@@ -445,6 +473,7 @@ static char treedb_schema_mqtt_broker[]= "\
                 },                                                  \n\
                 'clients': {                                        \n\
                     'header': 'Clients',                            \n\
+                    'fillspace': 10,                                \n\
                     'type': 'object',                               \n\
                     'flag': [                                       \n\
                         'hook'                                      \n\
@@ -455,6 +484,7 @@ static char treedb_schema_mqtt_broker[]= "\
                 },                                                  \n\
                 'name': {                                           \n\
                     'header': 'Name',                               \n\
+                    'fillspace': 20,                                \n\
                     'type': 'string',                               \n\
                     'flag': [                                       \n\
                         'writable',                                 \n\
@@ -463,6 +493,7 @@ static char treedb_schema_mqtt_broker[]= "\
                 },                                                  \n\
                 'description': {                                    \n\
                     'header': 'Description',                        \n\
+                    'fillspace': 20,                                \n\
                     'type': 'string',                               \n\
                     'flag': [                                       \n\
                         'writable',                                 \n\
@@ -471,6 +502,7 @@ static char treedb_schema_mqtt_broker[]= "\
                 },                                                  \n\
                 'icon': {                                           \n\
                     'header': 'Icon',                               \n\
+                    'fillspace': 10,                                \n\
                     'type': 'string',                               \n\
                     'flag': [                                       \n\
                         'image',                                    \n\
@@ -480,6 +512,7 @@ static char treedb_schema_mqtt_broker[]= "\
                 },                                                  \n\
                 'properties': {                                     \n\
                     'header': 'Properties',                         \n\
+                    'fillspace': 20,                                \n\
                     'type': 'blob',                                 \n\
                     'flag': [                                       \n\
                         'writable',                                 \n\
@@ -488,6 +521,7 @@ static char treedb_schema_mqtt_broker[]= "\
                 },                                                  \n\
                 'time': {                                           \n\
                     'header': 'Update Time',                        \n\
+                    'fillspace': 15,                                \n\
                     'type': 'integer',                              \n\
                     'flag': [                                       \n\
                         'time',                                     \n\
@@ -497,6 +531,7 @@ static char treedb_schema_mqtt_broker[]= "\
                 },                                                  \n\
                 'template_settings': {                              \n\
                     'header': 'Template Settings',                  \n\
+                    'fillspace': 20,                                \n\
                     'type': 'dict',                                 \n\
                     'flag': [                                       \n\
                         'template',                                 \n\
@@ -508,6 +543,7 @@ static char treedb_schema_mqtt_broker[]= "\
                 },                                                  \n\
                 '_geometry': {                                      \n\
                     'header': 'Geometry',                           \n\
+                    'fillspace': 10,                                \n\
                     'type': 'blob',                                 \n\
                     'flag': [                                       \n\
                         'persistent'                                \n\
@@ -780,10 +816,11 @@ static char treedb_schema_mqtt_broker[]= "\
             'id': 'users',                                          \n\
             'pkey': 'id',                                           \n\
             'system_flag': 'sf_string_key',                         \n\
-            'topic_version': '1',                                   \n\
+            'topic_version': '2',                                   \n\
             'cols': {                                               \n\
                 'id': {                                             \n\
                     'header': 'User',                               \n\
+                    'fillspace': 20,                                \n\
                     'type': 'string',                               \n\
                     'flag': [                                       \n\
                         'persistent',                               \n\
@@ -792,6 +829,7 @@ static char treedb_schema_mqtt_broker[]= "\
                 },                                                  \n\
                 'user_groups': {                                    \n\
                     'header': 'Manager',                            \n\
+                    'fillspace': 10,                                \n\
                     'type': 'array',                                \n\
                     'flag': [                                       \n\
                         'fkey'                                      \n\
@@ -799,6 +837,7 @@ static char treedb_schema_mqtt_broker[]= "\
                 },                                                  \n\
                 'enabled': {                                        \n\
                     'header': 'Enabled',                            \n\
+                    'fillspace': 4,                                 \n\
                     'type': 'boolean',                              \n\
                     'default': true,                                \n\
                     'flag': [                                       \n\
@@ -808,6 +847,7 @@ static char treedb_schema_mqtt_broker[]= "\
                 },                                                  \n\
                 'language': {                                       \n\
                     'header': 'Language',                           \n\
+                    'fillspace': 6,                                 \n\
                     'type': 'string',                               \n\
                     'default': 'es',                                \n\
                     'flag': [                                       \n\
@@ -823,6 +863,7 @@ static char treedb_schema_mqtt_broker[]= "\
                 },                                                  \n\
                 'persistent_attrs': {                               \n\
                     'header': 'Persistent Attrs',                   \n\
+                    'fillspace': 20,                                \n\
                     'type': 'dict',                                 \n\
                     'flag': [                                       \n\
                         'writable',                                 \n\
@@ -831,6 +872,7 @@ static char treedb_schema_mqtt_broker[]= "\
                 },                                                  \n\
                 'properties': {                                     \n\
                     'header': 'Properties',                         \n\
+                    'fillspace': 20,                                \n\
                     'type': 'dict',                                 \n\
                     'flag': [                                       \n\
                         'writable',                                 \n\
@@ -839,6 +881,7 @@ static char treedb_schema_mqtt_broker[]= "\
                 },                                                  \n\
                 'time': {                                           \n\
                     'header': 'Update Time',                        \n\
+                    'fillspace': 15,                                \n\
                     'type': 'integer',                              \n\
                     'flag': [                                       \n\
                         'time',                                     \n\
@@ -848,6 +891,7 @@ static char treedb_schema_mqtt_broker[]= "\
                 },                                                  \n\
                 '_geometry': {                                      \n\
                     'header': 'Geometry',                           \n\
+                    'fillspace': 10,                                \n\
                     'type': 'blob',                                 \n\
                     'flag': [                                       \n\
                         'persistent'                                \n\
@@ -862,7 +906,7 @@ static char treedb_schema_mqtt_broker[]= "\
 static char msg2db_schema_alarms[]= "\
 {                                                                   \n\
     'id': 'msg2db_alarms',                                          \n\
-    'schema_version': '1',                                          \n\
+    'schema_version': '2',                                          \n\
     'topics': [                                                     \n\
         {                                                           \n\
             'id': 'alarms',                                         \n\
@@ -870,7 +914,7 @@ static char msg2db_schema_alarms[]= "\
             'tkey': 'tm',                                           \n\
             'system_flag': 'sf_string_key',                         \n\
             'pkey2': 'alarm',                                       \n\
-            'topic_version': '1',                                   \n\
+            'topic_version': '2',                                   \n\
             'cols': {                                               \n\
                 'id': {                                             \n\
                     'header': 'Client Id',                          \n\
@@ -925,27 +969,32 @@ static char msg2db_schema_alarms[]= "\
                 },                                                  \n\
                 '_old_triggers': {                                  \n\
                     'header': 'Old Triggers',                       \n\
+                    'fillspace': 1,                                 \n\
                     'type': 'array',                                \n\
                     'flag': ['persistent']                          \n\
                 },                                                  \n\
                 'sent': {                                           \n\
                     'header': 'Sent',                               \n\
+                    'fillspace': 1,                                 \n\
                     'type': 'boolean',                              \n\
                     'default': false,                               \n\
                     'flag': ['persistent']                          \n\
                 },                                                  \n\
                 'notified': {                                       \n\
                     'header': 'Notified',                           \n\
+                    'fillspace': 1,                                 \n\
                     'type': 'string',                               \n\
                     'flag': ['persistent']                          \n\
                 },                                                  \n\
                 '_yuno': {                                          \n\
                     'header': 'Yuno',                               \n\
+                    'fillspace': 1,                                 \n\
                     'type': 'string',                               \n\
                     'flag': ['persistent']                          \n\
                 },                                                  \n\
                 '_client_type': {                                   \n\
                     'header': 'Client Type',                        \n\
+                    'fillspace': 1,                                 \n\
                     'type': 'array',                                \n\
                     'flag': ['persistent']                          \n\
                 }                                                   \n\
