@@ -66,9 +66,6 @@ const GCLASS_NAME = "C_YUI_FORM";
 /***************************************************************
  *              Data
  ***************************************************************/
-/***************************************************************
- *              Data
- ***************************************************************/
 const attrs_table = [
 SDATA(data_type_t.DTP_POINTER,  "subscriber",       0,  null,   "Subscriber of publishing messages"),
 SDATA(data_type_t.DTP_POINTER,  "$parent",          0,  null,   "$container will be appended to $parent if not null, else do it manually"),
