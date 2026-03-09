@@ -719,6 +719,21 @@ function table__build(gobj)
     $$table._ready = false;
     $$table.on("tableBuilt", function() {
         $$table._ready = true;
+
+        /*
+         *  Force-hide frozen columns that start invisible.
+         *  Tabulator's initial render with visible:false + frozen:true
+         *  can leave a stray separator line; hideColumn() after build fixes it.
+         */
+        let with_checkbox = gobj_read_bool_attr(gobj, "with_checkbox");
+        let with_radio = gobj_read_bool_attr(gobj, "with_radio");
+        if(with_checkbox || with_radio) {
+            $$table.hideColumn("_check_box_state_");
+        }
+        if(gobj_read_bool_attr(gobj, "with_in_row_edit_icons")) {
+            $$table.hideColumn("_operation");
+        }
+
         if($$table._pendingData !== undefined) {
             $$table.setData($$table._pendingData);
             delete $$table._pendingData;
