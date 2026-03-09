@@ -662,8 +662,6 @@ function ac_on_open(gobj, event, kw, src)
     gobj_publish_event(gobj, event, kw);
     gobj_start_tree(gobj);
 
-    log_error("TEST remote log on open"); // TODO TEST
-
     /*
      *  Select last selection
      *  TODO debería ser por usuario? por si hay mas cuentas en el mismo pc
