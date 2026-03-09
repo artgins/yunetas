@@ -695,8 +695,8 @@ function table__build(gobj)
         columns: columns,
         layout: "fitColumns",
         pagination: true,
-        paginationSize: 12,
-        paginationSizeSelector: [12, 25, 50, 100, true],
+        paginationSize: 25,
+        paginationSizeSelector: [25, 50, 100, true],
         selectable: selectable,
         placeholder: "No data available",
         rowSelected: function(row) {
