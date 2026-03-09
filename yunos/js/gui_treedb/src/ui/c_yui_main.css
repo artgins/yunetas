@@ -247,17 +247,16 @@ a.flex-horizontal-section { /* To make flex any <a> */
 
 /*
  *  Tabulator light theme — alternating row backgrounds
- *  Use scheme-main-bis (Bulma's striped-table shade, ~#fafafa) for even rows
- *  so the alternation is visible against the white odd-row background.
- *  Extra .tabulator parent ensures we beat the tabulator_bulma.css specificity.
+ *  scheme-main-ter (#f5f5f5) gives visible contrast against white odd rows.
+ *  !important needed to override the tabulator_bulma.css theme.
  */
 .tabulator .tabulator-row,
 .tabulator .tabulator-row.tabulator-row-odd {
-    background-color: var(--bulma-scheme-main, #fff);
+    background-color: var(--bulma-scheme-main, #fff) !important;
 }
 
 .tabulator .tabulator-row.tabulator-row-even {
-    background-color: var(--bulma-scheme-main-bis, #fafafa);
+    background-color: var(--bulma-scheme-main-ter, #f5f5f5) !important;
 }
 
 /*
@@ -283,13 +282,13 @@ a.flex-horizontal-section { /* To make flex any <a> */
 
 [data-theme=dark] .tabulator-row,
 [data-theme=dark] .tabulator-row.tabulator-row-odd {
-    background-color: var(--bulma-body-background-color);
+    background-color: var(--bulma-body-background-color) !important;
     color: var(--bulma-body-color);
     border-color: var(--bulma-border);
 }
 
 [data-theme=dark] .tabulator-row.tabulator-row-even {
-    background-color: var(--bulma-background);
+    background-color: var(--bulma-background) !important;
     color: var(--bulma-body-color);
     border-color: var(--bulma-border);
 }
@@ -354,12 +353,12 @@ a.flex-horizontal-section { /* To make flex any <a> */
     }
     [data-theme=system] .tabulator-row,
     [data-theme=system] .tabulator-row.tabulator-row-odd {
-        background-color: var(--bulma-body-background-color);
+        background-color: var(--bulma-body-background-color) !important;
         color: var(--bulma-body-color);
         border-color: var(--bulma-border);
     }
     [data-theme=system] .tabulator-row.tabulator-row-even {
-        background-color: var(--bulma-background);
+        background-color: var(--bulma-background) !important;
         color: var(--bulma-body-color);
         border-color: var(--bulma-border);
     }
