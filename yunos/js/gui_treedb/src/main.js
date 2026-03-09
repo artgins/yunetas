@@ -32,7 +32,7 @@ import {register_c_ui_todo} from "./c_ui_todo.js";
 
 import {register_c_yui_map} from "./ui/c_yui_map.js";
 import {register_c_yui_treedb_graph} from "./ui/c_yui_treedb_graph.js";
-import {register_c_yui_treedb_topic_form} from "./ui/c_yui_treedb_topic_form.js";
+import {register_c_yui_treedb_topic_form} from "./ui/c_yui_treedb_topic_with_form.js";
 import {register_c_yui_treedb_topics} from "./ui/c_yui_treedb_topics.js";
 import {register_c_yui_uplot} from "./ui/c_yui_uplot.js";
 

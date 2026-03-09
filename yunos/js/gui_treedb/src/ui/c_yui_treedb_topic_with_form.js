@@ -1,5 +1,5 @@
 /***********************************************************************
- *          c_yui_treedb_topic_form.js
+ *          c_yui_treedb_topic_with_form.js
  *
  *          Table of TreeDB topic with FORM for editing
  *
