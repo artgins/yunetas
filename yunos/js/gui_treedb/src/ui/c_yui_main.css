@@ -259,6 +259,10 @@ a.flex-horizontal-section { /* To make flex any <a> */
     background-color: var(--bulma-scheme-main-ter, #f5f5f5) !important;
 }
 
+.tabulator .tabulator-row.tabulator-selectable:hover {
+    background-color: var(--bulma-background, #ebebeb) !important;
+}
+
 /*
  *  Tabulator dark theme
  *  Activated by html[data-theme=dark] (set by the app's theme switcher)
