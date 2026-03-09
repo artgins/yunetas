@@ -225,11 +225,15 @@ a.flex-horizontal-section { /* To make flex any <a> */
  *      Tabulator
  *********************************************************/
 
-/* Visible column resize handle (vertical separator line) */
-.tabulator .tabulator-header .tabulator-col .tabulator-col-resize-handle {
+/* Visible column separator via centered pseudo-element on the resize handle */
+.tabulator .tabulator-col-resize-handle::after {
+    content: "";
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    left: 50%;
     width: 1px;
     background-color: var(--bulma-border);
-    right: 0;
 }
 
 .tabulator-row .tabulator-cell.tabulator-frozen {
