@@ -655,7 +655,7 @@ function table__build(gobj)
             formatter: formatter,
         };
         if(col.fillspace) {
-            colDef.width = col.fillspace;
+            colDef.widthGrow = col.fillspace;
         }
         if(cellClick) {
             colDef.cellClick = cellClick;
