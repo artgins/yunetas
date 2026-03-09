@@ -1370,6 +1370,13 @@ function template2columns(gobj, columns, template, sub_elements)
         return gobj_read_bool_attr(gobj, "editable");
     }
 
+    // Compute total fillspace to convert ratios to percentages
+    let totalFillspace = 0;
+    Object.entries(template).forEach(([key, value]) => {
+        const fd = template_get_field_desc(key, value);
+        totalFillspace += (fd.fillspace || 1);
+    });
+
     Object.entries(template).forEach(([key, value]) => {
         /*
          *  Decode the item in template into html item
@@ -1661,8 +1668,9 @@ function template2columns(gobj, columns, template, sub_elements)
             if(readonly) {
                 delete column.editor;
             }
-            if(field_desc.fillspace) {
-                column.widthGrow = field_desc.fillspace;
+            {
+                let pct = ((field_desc.fillspace || 1) / totalFillspace) * 100;
+                column.width = pct + "%";
             }
             columns.push(column);
         }
