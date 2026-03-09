@@ -562,10 +562,12 @@ function configure_events(gobj)
      *--------------------------------*/
     let canvas_el = document.getElementById(priv.canvas_id);
     if(canvas_el) {
+        // Block on the container div and all children (including G6's internal canvas)
         canvas_el.addEventListener('contextmenu', (e) => {
             e.preventDefault();
             e.stopPropagation();
-        });
+            return false;
+        }, true); // Use capture phase to intercept before any child handlers
     }
 
     /*--------------------------------*
@@ -3008,11 +3010,6 @@ function ac_edge_context_menu(gobj, event, kw, src)
     let edge_id = kw.evt.target.id;
     let client = kw.evt.client;
 
-    // Prevent default browser context menu
-    if(kw.evt.originalEvent) {
-        kw.evt.originalEvent.preventDefault();
-    }
-
     if(!priv.edit_mode) {
         return 0;
     }
@@ -3236,11 +3233,6 @@ function ac_node_context_menu(gobj, event, kw, src)
     let graph = priv.graph;
     let node_id = kw.evt.target.id;
     let client = kw.evt.client;
-
-    // Prevent default browser context menu
-    if(kw.evt.originalEvent) {
-        kw.evt.originalEvent.preventDefault();
-    }
 
     let nodedata;
     try {
