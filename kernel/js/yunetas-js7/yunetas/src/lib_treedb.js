@@ -391,7 +391,7 @@ function treedb_get_field_desc(col)
         is_hidden: false,
         default_value: col.default,
         placeholder: col.placeholder,
-        fillspace: col.fillspace || 0,
+        fillspace: col.fillspace || 4,
     };
 
     if(!col.flag) {
