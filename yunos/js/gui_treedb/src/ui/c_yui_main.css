@@ -246,6 +246,19 @@ a.flex-horizontal-section { /* To make flex any <a> */
 }
 
 /*
+ *  Tabulator light theme — alternating row backgrounds
+ *  Bulma variables provide the correct shades for light mode.
+ */
+.tabulator-row,
+.tabulator-row.tabulator-row-odd {
+    background-color: var(--bulma-body-background-color);
+}
+
+.tabulator-row.tabulator-row-even {
+    background-color: var(--bulma-background);
+}
+
+/*
  *  Tabulator dark theme
  *  Activated by html[data-theme=dark] (set by the app's theme switcher)
  */
