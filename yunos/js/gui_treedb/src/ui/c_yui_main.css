@@ -224,6 +224,15 @@ a.flex-horizontal-section { /* To make flex any <a> */
 /*********************************************************
  *      Tabulator
  *********************************************************/
+
+/* Vertical column separators for cells and headers */
+.tabulator-row .tabulator-cell {
+    border-right: 1px solid var(--bulma-border);
+}
+.tabulator .tabulator-header .tabulator-col {
+    border-right: 1px solid var(--bulma-border);
+}
+
 .tabulator-row .tabulator-cell.tabulator-frozen {
     background-color: var(--bulma-background) !important;
 }
