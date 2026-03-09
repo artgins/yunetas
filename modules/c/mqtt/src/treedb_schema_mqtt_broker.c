@@ -163,13 +163,13 @@
 static char treedb_schema_mqtt_broker[]= "\
 {                                                                   \n\
     'id': 'treedb_mqtt_broker',                                     \n\
-    'schema_version': '22',                                         \n\
+    'schema_version': '23',                                         \n\
     'topics': [                                                     \n\
         {                                                           \n\
             'id': 'client_groups',                                  \n\
             'pkey': 'id',                                           \n\
             'system_flag': 'sf_string_key',                         \n\
-            'topic_version': '1',                                   \n\
+            'topic_version': '2',                                   \n\
             'cols': {                                               \n\
                 'id': {                                             \n\
                     'header': 'Client Group',                       \n\
@@ -321,7 +321,7 @@ static char treedb_schema_mqtt_broker[]= "\
             'id': 'clients',                                        \n\
             'pkey': 'id',                                           \n\
             'system_flag': 'sf_string_key',                         \n\
-            'topic_version': '5',                                   \n\
+            'topic_version': '6',                                   \n\
             'cols': {                                               \n\
                 'id': {                                             \n\
                     'header': 'Client Id',                          \n\
@@ -460,7 +460,7 @@ static char treedb_schema_mqtt_broker[]= "\
             'id': 'client_types',                                   \n\
             'pkey': 'id',                                           \n\
             'system_flag': 'sf_string_key',                         \n\
-            'topic_version': '1',                                   \n\
+            'topic_version': '2',                                   \n\
             'cols': {                                               \n\
                 'id': {                                             \n\
                     'header': 'Type',                               \n\
@@ -816,7 +816,7 @@ static char treedb_schema_mqtt_broker[]= "\
             'id': 'users',                                          \n\
             'pkey': 'id',                                           \n\
             'system_flag': 'sf_string_key',                         \n\
-            'topic_version': '1',                                   \n\
+            'topic_version': '2',                                   \n\
             'cols': {                                               \n\
                 'id': {                                             \n\
                     'header': 'User',                               \n\
@@ -906,7 +906,7 @@ static char treedb_schema_mqtt_broker[]= "\
 static char msg2db_schema_alarms[]= "\
 {                                                                   \n\
     'id': 'msg2db_alarms',                                          \n\
-    'schema_version': '1',                                          \n\
+    'schema_version': '2',                                          \n\
     'topics': [                                                     \n\
         {                                                           \n\
             'id': 'alarms',                                         \n\
@@ -914,7 +914,7 @@ static char msg2db_schema_alarms[]= "\
             'tkey': 'tm',                                           \n\
             'system_flag': 'sf_string_key',                         \n\
             'pkey2': 'alarm',                                       \n\
-            'topic_version': '1',                                   \n\
+            'topic_version': '2',                                   \n\
             'cols': {                                               \n\
                 'id': {                                             \n\
                     'header': 'Client Id',                          \n\
