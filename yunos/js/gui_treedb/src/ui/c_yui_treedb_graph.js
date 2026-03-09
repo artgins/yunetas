@@ -3102,6 +3102,12 @@ function show_edge_context_menu(gobj, edgedata, position)
     $container.style.position = 'relative';
     $container.appendChild($menu);
 
+    // Prevent browser context menu on our custom menu
+    $menu.addEventListener('contextmenu', (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+    });
+
     // Close on click outside
     let close_handler = (e) => {
         if(!$menu.contains(e.target)) {
@@ -3350,6 +3356,12 @@ function show_node_context_menu(gobj, node_id, topic_name, schema, record, posit
     $menu.appendChild($content);
     $container.style.position = 'relative';
     $container.appendChild($menu);
+
+    // Prevent browser context menu on our custom menu
+    $menu.addEventListener('contextmenu', (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+    });
 
     // Close on click outside
     let close_handler = (e) => {
