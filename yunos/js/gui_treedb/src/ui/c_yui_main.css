@@ -247,15 +247,17 @@ a.flex-horizontal-section { /* To make flex any <a> */
 
 /*
  *  Tabulator light theme — alternating row backgrounds
- *  Bulma variables provide the correct shades for light mode.
+ *  Use scheme-main-bis (Bulma's striped-table shade, ~#fafafa) for even rows
+ *  so the alternation is visible against the white odd-row background.
+ *  Extra .tabulator parent ensures we beat the tabulator_bulma.css specificity.
  */
-.tabulator-row,
-.tabulator-row.tabulator-row-odd {
-    background-color: var(--bulma-body-background-color);
+.tabulator .tabulator-row,
+.tabulator .tabulator-row.tabulator-row-odd {
+    background-color: var(--bulma-scheme-main, #fff);
 }
 
-.tabulator-row.tabulator-row-even {
-    background-color: var(--bulma-background);
+.tabulator .tabulator-row.tabulator-row-even {
+    background-color: var(--bulma-scheme-main-bis, #fafafa);
 }
 
 /*
