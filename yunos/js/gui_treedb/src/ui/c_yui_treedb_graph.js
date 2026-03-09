@@ -558,6 +558,17 @@ function configure_events(gobj)
     let graph = priv.graph;
 
     /*--------------------------------*
+     *      Prevent browser context menu on the graph canvas
+     *--------------------------------*/
+    let canvas_el = document.getElementById(priv.canvas_id);
+    if(canvas_el) {
+        canvas_el.addEventListener('contextmenu', (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+        });
+    }
+
+    /*--------------------------------*
      *      Configure events
      *--------------------------------*/
     graph.on(CanvasEvent.CLICK, (evt) => {
@@ -576,12 +587,6 @@ function configure_events(gobj)
     });
 
     graph.on(NodeEvent.CONTEXT_MENU, (evt) => {
-        if(evt.originalEvent) {
-            evt.originalEvent.preventDefault();
-            evt.originalEvent.stopPropagation();
-        } else if(evt.preventDefault) {
-            evt.preventDefault();
-        }
         gobj_send_event(gobj, "EV_NODE_CONTEXT_MENU", {evt: evt}, gobj);
     });
 
@@ -590,12 +595,6 @@ function configure_events(gobj)
     });
 
     graph.on(EdgeEvent.CONTEXT_MENU, (evt) => {
-        if(evt.originalEvent) {
-            evt.originalEvent.preventDefault();
-            evt.originalEvent.stopPropagation();
-        } else if(evt.preventDefault) {
-            evt.preventDefault();
-        }
         gobj_send_event(gobj, "EV_EDGE_CONTEXT_MENU", {evt: evt}, gobj);
     });
 
