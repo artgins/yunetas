@@ -3020,7 +3020,7 @@ function ac_edge_context_menu(gobj, event, kw, src)
         return 0;
     }
 
-    //show_edge_context_menu(gobj, edgedata, client);
+    show_edge_context_menu(gobj, edgedata, client);
 
     return 0;
 }
@@ -3250,7 +3250,7 @@ function ac_node_context_menu(gobj, event, kw, src)
     let schema = nodedata.data.schema;
     let topic_name = nodedata.data.topic_name;
 
-    //show_node_context_menu(gobj, node_id, topic_name, schema, record, client);
+    show_node_context_menu(gobj, node_id, topic_name, schema, record, client);
 
     return 0;
 }
