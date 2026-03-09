@@ -225,8 +225,10 @@ a.flex-horizontal-section { /* To make flex any <a> */
  *      Tabulator
  *********************************************************/
 
-/* Visible column separator via centered pseudo-element on the resize handle */
-.tabulator .tabulator-col-resize-handle::after {
+/* Visible column separator via pseudo-element on the right-side resize handle only.
+   .prev handles (left-side) are excluded so hidden columns (e.g. Select Row when
+   not in edit mode) don't leave a spurious line at the start of the table. */
+.tabulator .tabulator-col-resize-handle:not(.prev)::after {
     content: "";
     position: absolute;
     top: 0;
@@ -234,10 +236,6 @@ a.flex-horizontal-section { /* To make flex any <a> */
     left: 50%;
     width: 1px;
     background-color: var(--bulma-border);
-}
-/* Hide the line on the first column's left-side ("prev") resize handle */
-.tabulator .tabulator-col:first-child > .tabulator-col-resize-handle.prev::after {
-    display: none;
 }
 
 .tabulator-row .tabulator-cell.tabulator-frozen {
