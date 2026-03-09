@@ -94,6 +94,7 @@ import {
     HistoryEvent,
     GraphEvent,
     EdgeEvent,
+    CommonEvent,
     Circle,
     register,
 } from '@antv/g6';
@@ -558,19 +559,6 @@ function configure_events(gobj)
     let graph = priv.graph;
 
     /*--------------------------------*
-     *      Prevent browser context menu on the graph canvas
-     *--------------------------------*/
-    let canvas_el = document.getElementById(priv.canvas_id);
-    if(canvas_el) {
-        // Block on the container div and all children (including G6's internal canvas)
-        canvas_el.addEventListener('contextmenu', (e) => {
-            e.preventDefault();
-            e.stopPropagation();
-            return false;
-        }, true); // Use capture phase to intercept before any child handlers
-    }
-
-    /*--------------------------------*
      *      Configure events
      *--------------------------------*/
     graph.on(CanvasEvent.CLICK, (evt) => {
@@ -589,6 +577,15 @@ function configure_events(gobj)
     });
 
     graph.on(NodeEvent.CONTEXT_MENU, (evt) => {
+        evt.preventDefault();
+        // const { targetType, target, originalEvent } = evt;
+        // if (targetType === 'node') {
+        //     log_warning('Clicked on node:', target.id);
+        // } else if (targetType === 'edge') {
+        //     log_warning('Clicked on edge:', target.id);
+        // } else {
+        //     log_warning('Clicked on canvas blank area');
+        // }
         gobj_send_event(gobj, "EV_NODE_CONTEXT_MENU", {evt: evt}, gobj);
     });
 
@@ -597,6 +594,7 @@ function configure_events(gobj)
     });
 
     graph.on(EdgeEvent.CONTEXT_MENU, (evt) => {
+        evt.preventDefault();
         gobj_send_event(gobj, "EV_EDGE_CONTEXT_MENU", {evt: evt}, gobj);
     });
 
@@ -3022,7 +3020,7 @@ function ac_edge_context_menu(gobj, event, kw, src)
         return 0;
     }
 
-    show_edge_context_menu(gobj, edgedata, client);
+    //show_edge_context_menu(gobj, edgedata, client);
 
     return 0;
 }
@@ -3246,7 +3244,7 @@ function ac_node_context_menu(gobj, event, kw, src)
     let schema = nodedata.data.schema;
     let topic_name = nodedata.data.topic_name;
 
-    show_node_context_menu(gobj, node_id, topic_name, schema, record, client);
+    //show_node_context_menu(gobj, node_id, topic_name, schema, record, client);
 
     return 0;
 }
