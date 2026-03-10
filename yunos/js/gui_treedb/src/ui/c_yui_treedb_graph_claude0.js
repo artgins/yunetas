@@ -3,7 +3,7 @@
  *
  *          Manage treedb topics with AntV/G6
  *
- *          Copyright (c) 2025-2026, ArtGins.
+ *          Copyright (c) 2025, ArtGins.
  *          All Rights Reserved.
  ***********************************************************************/
 import {
@@ -61,6 +61,7 @@ import {
     delete_from_list,
     gobj_save_persistent_attrs,
     gobj_read_bool_attr,
+    gobj_publish_event,
     json_size,
     escapeHtml,
     safeSrc,
@@ -93,6 +94,7 @@ import {
     HistoryEvent,
     GraphEvent,
     EdgeEvent,
+    CommonEvent,
     Circle,
     register,
 } from '@antv/g6';
@@ -575,11 +577,35 @@ function configure_events(gobj)
     });
 
     graph.on(NodeEvent.CONTEXT_MENU, (evt) => {
+        evt.preventDefault();
+        // const { targetType, target, originalEvent } = evt;
+        // if (targetType === 'node') {
+        //     log_warning('Clicked on node:', target.id);
+        // } else if (targetType === 'edge') {
+        //     log_warning('Clicked on edge:', target.id);
+        // } else {
+        //     log_warning('Clicked on canvas blank area');
+        // }
         gobj_send_event(gobj, "EV_NODE_CONTEXT_MENU", {evt: evt}, gobj);
     });
 
     graph.on(EdgeEvent.CLICK, (evt) => {
         gobj_send_event(gobj, "EV_EDGE_CLICK", {evt: evt}, gobj);
+    });
+
+    graph.on(EdgeEvent.CONTEXT_MENU, (evt) => {
+        evt.preventDefault();
+        gobj_send_event(gobj, "EV_EDGE_CONTEXT_MENU", {evt: evt}, gobj);
+    });
+
+    /*
+     *  Listen for new edges created via drag (create-edge behavior)
+     *  to send link-nodes command to the backend
+     */
+    graph.on(GraphEvent.AFTER_ELEMENT_CREATE, (evt) => {
+        if(evt.elementType === 'edge') {
+            gobj_send_event(gobj, "EV_EDGE_CREATED", {evt: evt}, gobj);
+        }
     });
 
     // graph.on(GraphEvent.BATCH_START, (evt) => {
@@ -1391,6 +1417,127 @@ function clear_link(
     } catch(e) {
         if(verbose) {
             log_error(e.message);
+        }
+    }
+}
+
+/************************************************************
+ *  Update an existing topic node in the graph
+ ************************************************************/
+function update_topic_node(gobj, schema, node_name, record)
+{
+    let priv = gobj.priv;
+    let graph = priv.graph;
+
+    /*
+     *  Update node data (record reference)
+     */
+    let nodedata = graph.getNodeData(node_name);
+    if(!nodedata) {
+        log_error(`${gobj_short_name(gobj)}: update_topic_node: node not found: ${node_name}`);
+        return;
+    }
+
+    let node_treedb_type = schema.node_treedb_type;
+
+    let update_def = {
+        id: node_name,
+        data: {
+            topic_name: schema.topic_name,
+            schema: schema,
+            record: record
+        }
+    };
+
+    /*
+     *  Update visual style based on node type
+     */
+    if(node_treedb_type === 'child') {
+        update_def.style = {
+            labelText: record.id,
+        };
+    } else if(node_treedb_type !== 'extended') {
+        // hierarchical node - update HTML content
+        update_def.style = {
+            innerHTML: `
+<div style="
+    width: 100%;
+    height: 100%;
+    background: ${schema.color};
+    border: 1px solid ${getStrokeColor(schema.color)};
+    border-radius: 0.5rem;
+    color: #000;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    padding: 10px;
+">
+    <div>
+        <span class="icon is-large">
+        <img src="${safeSrc(record.icon)}" alt=""/>
+        </span>
+    </div>
+    <div style="font-weight: bold;">
+      ${escapeHtml(record.id)}
+    </div>
+</div>
+`,
+        };
+    }
+
+    /*
+     *  Update geometry if provided
+     */
+    if(record._geometry) {
+        if(!update_def.style) {
+            update_def.style = {};
+        }
+        if(record._geometry.x !== undefined) {
+            update_def.style.x = record._geometry.x;
+        }
+        if(record._geometry.y !== undefined) {
+            update_def.style.y = record._geometry.y;
+        }
+    }
+
+    graph.updateNodeData([update_def]);
+}
+
+/************************************************************
+ *  Update a record in the local records cache
+ ************************************************************/
+function update_local_record(gobj, topic_name, node)
+{
+    let priv = gobj.priv;
+    let records = priv.records[topic_name];
+    if(!records) {
+        return;
+    }
+    for(let i=0; i<records.length; i++) {
+        if(records[i].id === node.id) {
+            priv.records[topic_name][i] = node;
+            return;
+        }
+    }
+    // Not found, add it
+    records.push(node);
+}
+
+/************************************************************
+ *  Remove a record from the local records cache
+ ************************************************************/
+function remove_local_record(gobj, topic_name, record_id)
+{
+    let priv = gobj.priv;
+    let records = priv.records[topic_name];
+    if(!records) {
+        return;
+    }
+    for(let i=0; i<records.length; i++) {
+        if(records[i].id === record_id) {
+            records.splice(i, 1);
+            return;
         }
     }
 }
@@ -2318,25 +2465,35 @@ function ac_mt_command_answer(gobj, event, kw, src)
  ********************************************/
 function ac_treedb_node_created(gobj, event, kw, src)
 {
+    let priv = gobj.priv;
     let treedb_name = kw_get_str(gobj, kw, "treedb_name", "", 0);
     let topic_name = kw_get_str(gobj, kw, "topic_name", "", 0);
     let node = kw_get_dict_value(gobj, kw, "node", null, 0);
 
-    // let cell = create_topic_node(gobj, kw.schema, kw.node);
-    // add_state_overlays(gobj, graph, cell);
-    // draw_links(gobj, cell);
+    if(!node || !priv.graph) {
+        return 0;
+    }
 
-    // if(treedb_name === priv.treedb_name) {
-    //     gobj.config.gobj_sw_graph.gobj_send_event(
-    //         "EV_NODE_CREATED",
-    //         {
-    //             schema: schema,
-    //             topic_name: topic_name,
-    //             node: node
-    //         },
-    //         gobj
-    //     );
-    // }
+    let schema = priv.descs[topic_name];
+    if(!schema) {
+        log_error(`${gobj_short_name(gobj)}: schema not found for topic: ${topic_name}`);
+        return -1;
+    }
+
+    /*
+     *  Save in local records
+     */
+    if(!priv.records[topic_name]) {
+        priv.records[topic_name] = [];
+    }
+    priv.records[topic_name].push(node);
+
+    /*
+     *  Create graph node and draw links
+     */
+    create_topic_node(gobj, schema, node);
+    draw_links(gobj, schema, node, false);
+    graph_render(gobj);
 
     return 0;
 }
@@ -2346,33 +2503,48 @@ function ac_treedb_node_created(gobj, event, kw, src)
  ********************************************/
 function ac_treedb_node_updated(gobj, event, kw, src)
 {
+    let priv = gobj.priv;
+    let graph = priv.graph;
     let treedb_name = kw_get_str(gobj, kw, "treedb_name", "", 0);
     let topic_name = kw_get_str(gobj, kw, "topic_name", "", 0);
     let node = kw_get_dict_value(gobj, kw, "node", null, 0);
 
-    // let cell_name = build_cell_name(gobj, kw.topic_name, kw.node.id);
-    // let cell = model.getCell(cell_name);
-    // if(!cell) {
-    //     log_error("ac_node_updated: cell not found");
-    //     return -1;
-    // }
-    //
-    // clear_links(gobj, cell);
-    // update_topic_cell(gobj, cell, kw.node);
-    // update_geometry(gobj, cell, kw.node._geometry);
-    // draw_links(gobj, cell);
+    if(!node || !graph) {
+        return 0;
+    }
 
+    let schema = priv.descs[topic_name];
+    if(!schema) {
+        log_error(`${gobj_short_name(gobj)}: schema not found for topic: ${topic_name}`);
+        return -1;
+    }
 
-    // if(treedb_name === priv.treedb_name) {
-    //     gobj.config.gobj_sw_graph.gobj_send_event(
-    //         "EV_NODE_UPDATED",
-    //         {
-    //             topic_name: topic_name,
-    //             node: node
-    //         },
-    //         gobj
-    //     );
-    // }
+    let node_name = build_node_name(gobj, topic_name, node.id);
+
+    /*
+     *  Check node exists in graph
+     */
+    let nodedata;
+    try {
+        nodedata = graph.getNodeData(node_name);
+    } catch(e) {}
+    if(!nodedata) {
+        log_error(`${gobj_short_name(gobj)}: ac_treedb_node_updated: node not found: ${node_name}`);
+        return -1;
+    }
+
+    /*
+     *  Update local records
+     */
+    update_local_record(gobj, topic_name, node);
+
+    /*
+     *  Clear old links, update node data, redraw links
+     */
+    clear_links(gobj, schema, nodedata.data.record, false);
+    update_topic_node(gobj, schema, node_name, node);
+    draw_links(gobj, schema, node, false);
+    graph_render(gobj);
 
     return 0;
 }
@@ -2382,29 +2554,35 @@ function ac_treedb_node_updated(gobj, event, kw, src)
  ********************************************/
 function ac_treedb_node_deleted(gobj, event, kw, src)
 {
+    let priv = gobj.priv;
+    let graph = priv.graph;
     let treedb_name = kw_get_str(gobj, kw, "treedb_name", "", 0);
     let topic_name = kw_get_str(gobj, kw, "topic_name", "", 0);
     let node = kw_get_dict_value(gobj, kw, "node", null, 0);
 
-    // let cell_name = build_cell_name(gobj, kw.topic_name, kw.node.id);
-    // let cell = model.getCell(cell_name);
-    // if(!cell) {
-    //     log_error("ac_node_deleted: cell not found");
-    //     return -1;
-    // }
-    //
-    // graph.removeCells([cell]);
+    if(!node || !graph) {
+        return 0;
+    }
 
-    // if(treedb_name === priv.treedb_name) {
-    //     gobj.config.gobj_sw_graph.gobj_send_event(
-    //         "EV_NODE_DELETED",
-    //         {
-    //             topic_name: topic_name,
-    //             node: node
-    //         },
-    //         gobj
-    //     );
-    // }
+    let node_name = build_node_name(gobj, topic_name, node.id);
+
+    /*
+     *  Remove node from graph (edges are removed automatically by G6)
+     */
+    try {
+        let nodedata = graph.getNodeData(node_name);
+        if(nodedata) {
+            graph.removeNodeData([node_name]);
+            graph_render(gobj);
+        }
+    } catch(e) {
+        log_error(`${gobj_short_name(gobj)}: ac_treedb_node_deleted: ${e.message}`);
+    }
+
+    /*
+     *  Remove from local records
+     */
+    remove_local_record(gobj, topic_name, node.id);
 
     return 0;
 }
@@ -2726,8 +2904,14 @@ function ac_edit_mode(gobj, event, kw, src)
         set_active_state($container, ".EV_EDIT_MODE", true);
 
         graph_set_behavior(gobj, 'drag-element', true);
+        graph_set_behavior(gobj, 'create-edge', true);
 
         graph_add_plugin(gobj, 'history');
+
+        /*
+         *  Enable "new" button
+         */
+        enableElements($container, ".EV_NEW");
 
     } else {
         /*
@@ -2736,12 +2920,14 @@ function ac_edit_mode(gobj, event, kw, src)
         set_active_state($container, ".EV_EDIT_MODE", false);
 
         graph_set_behavior(gobj, 'drag-element', false);
+        graph_set_behavior(gobj, 'create-edge', false);
 
         /*
-         *  Disable "save" although it could be active
+         *  Disable "save" and "new" buttons
          */
         disableElements($container, ".EV_SAVE_GRAPH");
         set_submit_state($container, ".EV_SAVE_GRAPH", false);
+        disableElements($container, ".EV_NEW");
 
         /*
          *  Remove history plugin
@@ -2808,16 +2994,385 @@ function ac_edge_click(gobj, event, kw, src)
 {
     let priv = gobj.priv;
     let edge_id = kw.evt.target.id;
-    trace_msg(`edge_id ${edge_id}`);
+    // Select edge for potential operations
+    return 0;
 }
 
 /************************************************************
- *
+ *  Context menu on edge: unlink
+ ************************************************************/
+function ac_edge_context_menu(gobj, event, kw, src)
+{
+    let priv = gobj.priv;
+    let graph = priv.graph;
+    let edge_id = kw.evt.target.id;
+    let client = kw.evt.client;
+
+    if(!priv.edit_mode) {
+        return 0;
+    }
+
+    let edgedata;
+    try {
+        edgedata = graph.getEdgeData(edge_id);
+    } catch(e) {}
+    if(!edgedata) {
+        return 0;
+    }
+
+    show_edge_context_menu(gobj, edgedata, client);
+
+    return 0;
+}
+
+/************************************************************
+ *  Show context menu for an edge (link)
+ ************************************************************/
+function show_edge_context_menu(gobj, edgedata, position)
+{
+    let priv = gobj.priv;
+    let graph = priv.graph;
+
+    // Remove existing context menu if any
+    let existing = document.getElementById('graph-context-menu');
+    if(existing) {
+        existing.remove();
+    }
+
+    let $container = gobj_read_attr(gobj, "$container");
+    let container_rect = $container.getBoundingClientRect();
+
+    let $menu = document.createElement('div');
+    $menu.id = 'graph-context-menu';
+    $menu.className = 'dropdown is-active';
+    let x = (position ? position.x : 100) - container_rect.left;
+    let y = (position ? position.y : 100) - container_rect.top;
+    $menu.style.cssText = `position:absolute; z-index:9999; top:${y}px; left:${x}px;`;
+
+    let $content = document.createElement('div');
+    $content.className = 'dropdown-menu';
+    $content.style.cssText = 'display:block; position:static;';
+
+    let $inner = document.createElement('div');
+    $inner.className = 'dropdown-content';
+
+    // HACK: source/target are interchanged in G6 edge definition
+    let parent_node_name = edgedata.source;
+    let child_node_name = edgedata.target;
+    let hook_name = edgedata.style ? edgedata.style.sourcePort : "";
+    let fkey_name = edgedata.style ? edgedata.style.targetPort : "";
+
+    let parent_nodedata, child_nodedata;
+    try {
+        parent_nodedata = graph.getNodeData(parent_node_name);
+        child_nodedata = graph.getNodeData(child_node_name);
+    } catch(e) {}
+
+    if(!parent_nodedata || !child_nodedata) {
+        return;
+    }
+
+    let parent_topic = parent_nodedata.data.topic_name;
+    let parent_id = parent_nodedata.data.record.id;
+    let child_topic = child_nodedata.data.topic_name;
+    let child_id = child_nodedata.data.record.id;
+
+    let $item = document.createElement('a');
+    $item.className = 'dropdown-item';
+    $item.href = '#';
+    $item.innerHTML = `<span class="icon is-small"><i class="fas fa-unlink"></i></span> ${t("Unlink")}`;
+    $item.addEventListener('click', (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        $menu.remove();
+        if(confirm(t("Are you sure you want to unlink?"))) {
+            let parent_ref = `${parent_topic}^${parent_id}^${hook_name}`;
+            let child_ref = `${child_topic}^${child_id}^${fkey_name}`;
+            gobj_send_event(gobj, "EV_UNLINK_RECORDS", {
+                parent_ref: parent_ref,
+                child_ref: child_ref,
+                options: {}
+            }, gobj);
+        }
+    });
+    $inner.appendChild($item);
+
+    $content.appendChild($inner);
+    $menu.appendChild($content);
+    $container.style.position = 'relative';
+    $container.appendChild($menu);
+
+    // Prevent browser context menu on our custom menu
+    $menu.addEventListener('contextmenu', (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+    });
+
+    // Close on click outside
+    let close_handler = (e) => {
+        if(!$menu.contains(e.target)) {
+            $menu.remove();
+            document.removeEventListener('click', close_handler, true);
+        }
+    };
+    setTimeout(() => {
+        document.addEventListener('click', close_handler, true);
+    }, 0);
+}
+
+/************************************************************
+ *  Create a new node: show topic selection, then create
+ ************************************************************/
+function ac_new(gobj, event, kw, src)
+{
+    let priv = gobj.priv;
+
+    if(!priv.edit_mode) {
+        return 0;
+    }
+
+    /*
+     *  Build topic selection menu
+     */
+    let topics = [];
+    for(const [topic_name, desc] of Object.entries(priv.descs)) {
+        if(topic_name.substring(0, 2) === "__") {
+            continue; // ignore system topics
+        }
+        topics.push(topic_name);
+    }
+
+    if(topics.length === 0) {
+        return 0;
+    }
+
+    show_topic_selector(gobj, topics, (selected_topic) => {
+        let schema = priv.descs[selected_topic];
+        if(!schema) {
+            return;
+        }
+
+        /*
+         *  Send create command to backend with an empty record
+         *  The backend will create a new node and notify us via
+         *  EV_TREEDB_NODE_CREATED subscription
+         */
+        treedb_create_node(
+            gobj,
+            priv.treedb_name,
+            selected_topic,
+            {},
+            {list_dict: true, autolink: false}
+        );
+    });
+
+    return 0;
+}
+
+/************************************************************
+ *  Show a topic selector dropdown at cursor position
+ ************************************************************/
+function show_topic_selector(gobj, topics, callback)
+{
+    let priv = gobj.priv;
+
+    // Remove existing menu if any
+    let existing = document.getElementById('graph-topic-selector');
+    if(existing) {
+        existing.remove();
+    }
+
+    let $container = gobj_read_attr(gobj, "$container");
+
+    let $menu = document.createElement('div');
+    $menu.id = 'graph-topic-selector';
+    $menu.className = 'dropdown is-active';
+    $menu.style.cssText = 'position:absolute; z-index:9999; top:80px; left:10px;';
+
+    let $content = document.createElement('div');
+    $content.className = 'dropdown-menu';
+    $content.style.cssText = 'display:block; position:static;';
+
+    let $inner = document.createElement('div');
+    $inner.className = 'dropdown-content';
+
+    for(let i=0; i<topics.length; i++) {
+        let $item = document.createElement('a');
+        $item.className = 'dropdown-item';
+        $item.textContent = topics[i];
+        $item.href = '#';
+        let topic = topics[i];
+        $item.addEventListener('click', (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            $menu.remove();
+            callback(topic);
+        });
+        $inner.appendChild($item);
+    }
+
+    $content.appendChild($inner);
+    $menu.appendChild($content);
+    $container.style.position = 'relative';
+    $container.appendChild($menu);
+
+    // Close on click outside
+    let close_handler = (e) => {
+        if(!$menu.contains(e.target)) {
+            $menu.remove();
+            document.removeEventListener('click', close_handler, true);
+        }
+    };
+    setTimeout(() => {
+        document.addEventListener('click', close_handler, true);
+    }, 0);
+}
+
+/************************************************************
+ *  Context menu on node: edit, view JSON, delete, unlink
  ************************************************************/
 function ac_node_context_menu(gobj, event, kw, src)
 {
     let priv = gobj.priv;
+    let graph = priv.graph;
     let node_id = kw.evt.target.id;
+    let client = kw.evt.client;
+
+    let nodedata;
+    try {
+        nodedata = graph.getNodeData(node_id);
+    } catch(e) {}
+    if(!nodedata || !nodedata.data) {
+        return 0;
+    }
+
+    let record = nodedata.data.record;
+    let schema = nodedata.data.schema;
+    let topic_name = nodedata.data.topic_name;
+
+    show_node_context_menu(gobj, node_id, topic_name, schema, record, client);
+
+    return 0;
+}
+
+/************************************************************
+ *  Show a context menu for a node
+ ************************************************************/
+function show_node_context_menu(gobj, node_id, topic_name, schema, record, position)
+{
+    let priv = gobj.priv;
+
+    // Remove existing context menu if any
+    let existing = document.getElementById('graph-context-menu');
+    if(existing) {
+        existing.remove();
+    }
+
+    let $container = gobj_read_attr(gobj, "$container");
+    let container_rect = $container.getBoundingClientRect();
+
+    let $menu = document.createElement('div');
+    $menu.id = 'graph-context-menu';
+    $menu.className = 'dropdown is-active';
+    let x = (position ? position.x : 100) - container_rect.left;
+    let y = (position ? position.y : 100) - container_rect.top;
+    $menu.style.cssText = `position:absolute; z-index:9999; top:${y}px; left:${x}px;`;
+
+    let $content = document.createElement('div');
+    $content.className = 'dropdown-menu';
+    $content.style.cssText = 'display:block; position:static;';
+
+    let $inner = document.createElement('div');
+    $inner.className = 'dropdown-content';
+
+    let menu_items = [
+        {
+            label: t("Edit data"),
+            icon: "fas fa-pen-to-square",
+            action: () => {
+                gobj_publish_event(gobj, "EV_EDIT_NODE", {
+                    topic_name: topic_name,
+                    schema: schema,
+                    record: record
+                });
+            }
+        },
+        {
+            label: t("View JSON"),
+            icon: "fas fa-code",
+            action: () => {
+                gobj_publish_event(gobj, "EV_VIEW_NODE_JSON", {
+                    topic_name: topic_name,
+                    record: record
+                });
+            }
+        },
+    ];
+
+    if(priv.edit_mode) {
+        menu_items.push({
+            label: "---", // separator
+        });
+        menu_items.push({
+            label: t("Delete node"),
+            icon: "fas fa-trash",
+            action: () => {
+                if(confirm(t("Are you sure you want to delete this node?"))) {
+                    gobj_send_event(gobj, "EV_DELETE_RECORD", {
+                        topic_name: topic_name,
+                        record: {id: record.id},
+                        options: {}
+                    }, gobj);
+                }
+            }
+        });
+    }
+
+    for(let item of menu_items) {
+        if(item.label === "---") {
+            let $hr = document.createElement('hr');
+            $hr.className = 'dropdown-divider';
+            $inner.appendChild($hr);
+            continue;
+        }
+        let $item = document.createElement('a');
+        $item.className = 'dropdown-item';
+        $item.href = '#';
+        if(item.icon) {
+            $item.innerHTML = `<span class="icon is-small"><i class="${item.icon}"></i></span> ${item.label}`;
+        } else {
+            $item.textContent = item.label;
+        }
+        $item.addEventListener('click', (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            $menu.remove();
+            item.action();
+        });
+        $inner.appendChild($item);
+    }
+
+    $content.appendChild($inner);
+    $menu.appendChild($content);
+    $container.style.position = 'relative';
+    $container.appendChild($menu);
+
+    // Prevent browser context menu on our custom menu
+    $menu.addEventListener('contextmenu', (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+    });
+
+    // Close on click outside
+    let close_handler = (e) => {
+        if(!$menu.contains(e.target)) {
+            $menu.remove();
+            document.removeEventListener('click', close_handler, true);
+        }
+    };
+    setTimeout(() => {
+        document.addEventListener('click', close_handler, true);
+    }, 0);
 }
 
 /************************************************************
@@ -2825,12 +3380,143 @@ function ac_node_context_menu(gobj, event, kw, src)
  ************************************************************/
 function ac_canvas_click(gobj, event, kw, src)
 {
-    let priv = gobj.priv;
-    // let node_id = kw.evt.target.id;
+    /*
+     *  Dismiss any open context menus
+     */
+    let existing = document.getElementById('graph-context-menu');
+    if(existing) {
+        existing.remove();
+    }
+    let selector = document.getElementById('graph-topic-selector');
+    if(selector) {
+        selector.remove();
+    }
 
-    // const selectedIds = graph.getElementDataByState('node', 'selected').map((node) => node.id);
-    // graph.updateNodeData(selectedIds.map((id) => ({ id, states: [], style: { labelText: 'Click the Light' } })));
-    // graph.draw();
+    return 0;
+}
+
+/************************************************************
+ *
+ ************************************************************/
+/************************************************************
+ *  New edge created via drag interaction in edit mode
+ *  Translate to a treedb link-nodes command
+ ************************************************************/
+function ac_edge_created(gobj, event, kw, src)
+{
+    let priv = gobj.priv;
+    let graph = priv.graph;
+
+    if(!priv.edit_mode) {
+        return 0;
+    }
+
+    let edge_data = kw.evt.data;
+    if(!edge_data) {
+        return 0;
+    }
+
+    /*
+     *  Get source (parent/hook) and target (child/fkey) node data
+     *  HACK: source/target may be interchanged depending on drag direction
+     */
+    let source_name = edge_data.source;
+    let target_name = edge_data.target;
+
+    let source_nodedata, target_nodedata;
+    try {
+        source_nodedata = graph.getNodeData(source_name);
+        target_nodedata = graph.getNodeData(target_name);
+    } catch(e) {
+        log_error(`${gobj_short_name(gobj)}: ac_edge_created: ${e.message}`);
+        return 0;
+    }
+
+    if(!source_nodedata || !target_nodedata) {
+        return 0;
+    }
+
+    let source_topic = source_nodedata.data.topic_name;
+    let source_id = source_nodedata.data.record.id;
+    let source_schema = source_nodedata.data.schema;
+
+    let target_topic = target_nodedata.data.topic_name;
+    let target_id = target_nodedata.data.record.id;
+    let target_schema = target_nodedata.data.schema;
+
+    /*
+     *  Determine parent (hook owner) and child (fkey owner)
+     *  Find which source port is a hook that references the target topic
+     */
+    let parent_ref = null;
+    let child_ref = null;
+
+    // Check if source has a hook for target topic
+    let source_cols = source_schema.cols;
+    for(let i=0; i<source_cols.length; i++) {
+        let col = source_cols[i];
+        if(col.hook) {
+            let hook_topics = Object.keys(col.hook);
+            if(hook_topics.includes(target_topic)) {
+                let fkey_name = col.hook[target_topic];
+                parent_ref = `${source_topic}^${source_id}^${col.id}`;
+                child_ref = `${target_topic}^${target_id}^${fkey_name}`;
+                break;
+            }
+        }
+    }
+
+    // If not found, check if target has a hook for source topic
+    if(!parent_ref) {
+        let target_cols = target_schema.cols;
+        for(let i=0; i<target_cols.length; i++) {
+            let col = target_cols[i];
+            if(col.hook) {
+                let hook_topics = Object.keys(col.hook);
+                if(hook_topics.includes(source_topic)) {
+                    let fkey_name = col.hook[source_topic];
+                    parent_ref = `${target_topic}^${target_id}^${col.id}`;
+                    child_ref = `${source_topic}^${source_id}^${fkey_name}`;
+                    break;
+                }
+            }
+        }
+    }
+
+    if(!parent_ref || !child_ref) {
+        log_warning(`${gobj_short_name(gobj)}: Cannot determine link relationship between ${source_topic} and ${target_topic}`);
+        // Remove the visually created edge since we can't determine the relationship
+        try {
+            if(edge_data.id) {
+                graph.removeEdgeData([edge_data.id]);
+                graph_render(gobj);
+            }
+        } catch(e) {}
+        return 0;
+    }
+
+    /*
+     *  Remove the visually created edge (the backend will notify us to recreate it properly)
+     */
+    try {
+        if(edge_data.id) {
+            graph.removeEdgeData([edge_data.id]);
+            graph_render(gobj);
+        }
+    } catch(e) {}
+
+    /*
+     *  Send link command to backend
+     */
+    treedb_link_nodes(
+        gobj,
+        priv.treedb_name,
+        parent_ref,
+        child_ref,
+        {}
+    );
+
+    return 0;
 }
 
 /************************************************************
@@ -2930,9 +3616,12 @@ function create_gclass(gclass_name)
             ["EV_EDIT_MODE",            ac_edit_mode,           null],
             ["EV_SAVE_GRAPH",           ac_save_graph,          null],
             ["EV_NODE_DRAG_END",        ac_node_drag_end,       null],
+            ["EV_NEW",                  ac_new,                 null],
             ["EV_NODE_CLICK",           ac_node_click,          null],
             ["EV_EDGE_CLICK",           ac_edge_click,          null],
             ["EV_NODE_CONTEXT_MENU",    ac_node_context_menu,   null],
+            ["EV_EDGE_CONTEXT_MENU",    ac_edge_context_menu,   null],
+            ["EV_EDGE_CREATED",         ac_edge_created,        null],
             ["EV_CANVAS_CLICK",         ac_canvas_click,        null],
             ["EV_HISTORY_REDO",         ac_history_redo,        null],
             ["EV_HISTORY_UNDO",         ac_history_undo,        null],
@@ -2967,10 +3656,15 @@ function create_gclass(gclass_name)
         ["EV_EDIT_MODE",            0],
         ["EV_SAVE_GRAPH",           0],
         ["EV_NODE_DRAG_END",        0],
+        ["EV_NEW",                  0],
         ["EV_NODE_CLICK",           0],
         ["EV_EDGE_CLICK",           0],
         ["EV_NODE_CONTEXT_MENU",    0],
+        ["EV_EDGE_CONTEXT_MENU",    0],
+        ["EV_EDGE_CREATED",         0],
         ["EV_CANVAS_CLICK",         0],
+        ["EV_EDIT_NODE",            event_flag_t.EVF_OUTPUT_EVENT],
+        ["EV_VIEW_NODE_JSON",       event_flag_t.EVF_OUTPUT_EVENT],
         ["EV_HISTORY_UNDO",         0],
         ["EV_HISTORY_REDO",         0],
     ];
