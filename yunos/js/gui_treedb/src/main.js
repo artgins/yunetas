@@ -42,8 +42,8 @@ import {register_c_yui_window} from "./ui/c_yui_window.js";
 import {register_c_yui_form} from "./ui/c_yui_form.js";
 import {register_c_yui_tabs} from "./ui/c_yui_tabs.js";
 
-import {register_c_g6_node} from "./ui/c_g6_node.js";
 import {register_c_yui_json_graph} from "./ui/c_yui_json_graph.js";
+import {register_c_g6_nodes_tree} from "./ui/c_g6_nodes_tree.js";
 
 import "bulma/css/bulma.css";
 import "/assets/fontawesome-free-7.1.0-web/css/fontawesome.css";
@@ -153,7 +153,7 @@ function main()
     register_c_yui_window();
     register_c_yui_form();
     register_c_yui_tabs();
-    register_c_g6_node();
+    register_c_g6_nodes_tree();
     register_c_yui_json_graph();
 
     /*------------------------------------------------*
