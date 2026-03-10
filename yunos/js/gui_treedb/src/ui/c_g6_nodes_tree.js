@@ -2316,6 +2316,26 @@ function create_gclass(gclass_name)
         ["EV_LINK_NODES",               event_flag_t.EVF_OUTPUT_EVENT],
         ["EV_UNLINK_NODES",             event_flag_t.EVF_OUTPUT_EVENT],
 
+        // TODO some events to review from mx_nodes_tree.js
+        // ["EV_SHOW_HOOK_DATA",           event_flag_t.EVF_OUTPUT_EVENT],
+        // ["EV_SHOW_TREEDB_TOPIC",        event_flag_t.EVF_OUTPUT_EVENT],
+
+        // "EV_CREATE_VERTEX",
+        // "EV_DELETE_VERTEX",
+        // "EV_CLONE_VERTEX",
+        // "EV_DELETE_EDGE",
+        // "EV_SHOW_CELL_DATA_FORM",
+        // "EV_SHOW_CELL_DATA_JSON",
+        // "EV_POPUP_MENU",
+        // "EV_EXTEND_SIZE",    -> show levels
+        // "EV_MX_CLICK",
+        // "EV_MX_DOUBLECLICK",
+        // "EV_MX_SELECTION_CHANGE",
+        // "EV_MX_ADDCELLS",
+        // "EV_MX_MOVECELLS",
+        // "EV_MX_RESIZECELLS",
+        // "EV_MX_CONNECTCELL",
+
         /*--- UI events ---*/
         ["EV_SHOW",                     0],
         ["EV_HIDE",                     0],
