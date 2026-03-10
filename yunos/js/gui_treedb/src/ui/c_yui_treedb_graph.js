@@ -196,10 +196,6 @@ function mt_create(gobj)
 
     build_ui(gobj);
 
-    // TODO move to g6?
-    // register_layouts(gobj);
-    // build_graph(gobj);
-
     priv.gobj_nodes_tree = gobj_create_service(
         `${gobj_name(gobj)}-g6`,
         "C_G6_NODES_TREE",
