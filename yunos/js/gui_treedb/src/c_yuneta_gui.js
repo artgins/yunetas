@@ -802,6 +802,63 @@ function ac_id_refused(gobj, event, kw, src)
     return 0;
 }
 
+/************************************************************
+ *  kw: {
+ *      topic_name: string,
+ *      record: object
+ *  }
+ ************************************************************/
+function ac_view_node_json(gobj, event, kw, src)
+{
+    let topic_name = kw.topic_name || "";
+    let record = kw.record || {};
+    let node_id = record.id || "";
+
+    let window_name = `json-view-${topic_name}-${node_id}`;
+
+    // Check if window already exists
+    let existing = gobj_find_service(window_name, false);
+    if(existing) {
+        // Update data in existing window
+        let json_graph = gobj_find_service(window_name + "-graph", false);
+        if(json_graph) {
+            gobj_send_event(json_graph, "EV_LOAD_DATA", {
+                path: `${topic_name} / ${node_id}`,
+                data: record
+            });
+        }
+        return 0;
+    }
+
+    let gobj_json_graph = gobj_create_pure_child(
+        window_name + "-graph",
+        "C_YUI_JSON_GRAPH",
+        {
+            json_data: record,
+            path: `${topic_name} / ${node_id}`,
+        },
+        gobj
+    );
+
+    gobj_create_service(
+        window_name,
+        "C_YUI_WINDOW",
+        {
+            $parent: document.getElementById('top-layer'),
+            width: 800,
+            height: 600,
+            auto_save_size_and_position: true,
+            center: true,
+            body: gobj_json_graph,
+            on_close: function() {
+                gobj_destroy(gobj_json_graph);
+            }
+        },
+        gobj
+    );
+
+    return 0;
+}
 
 
 
@@ -842,7 +899,8 @@ function create_gclass(gclass_name)
         ["EV_LOGIN_ACCEPTED",           ac_login_accepted,      null],
         ["EV_LOGIN_DENIED",             ac_login_denied,        null],
         ["EV_LOGIN_REFRESHED",          ac_login_refreshed,     null],
-        ["EV_LOGOUT_DONE",              ac_logout_done,         null]
+        ["EV_LOGOUT_DONE",              ac_logout_done,         null],
+        ["EV_VIEW_NODE_JSON",           ac_view_node_json,      null]
     ];
 
     const states = [
@@ -860,6 +918,7 @@ function create_gclass(gclass_name)
         ["EV_LOGIN_REFRESHED",          0],
         ["EV_LOGIN_DENIED",             0],
         ["EV_LOGOUT_DONE",              0],
+        ["EV_VIEW_NODE_JSON",           0],
     ];
 
     /*----------------------------------------*
