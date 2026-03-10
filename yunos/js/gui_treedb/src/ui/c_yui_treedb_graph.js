@@ -130,6 +130,7 @@ let PRIVATE_DATA = {
     hook_data_viewer:   null,
     with_treedb_tables: false,
     auto_topics:        false,
+    canvas_id:          null,
 
     is_pinhold_window:  false, // inherited of v6, todo review
 };
@@ -181,12 +182,15 @@ function mt_create(gobj)
         priv.theme = gobj_read_str_attr(__yui_main__, "theme");
     }
 
+    priv.canvas_id = "canvas-" + clean_name(gobj_name(gobj)); // do before build_id()
+
     build_ui(gobj);
 
     priv.gobj_nodes_tree = gobj_create_service(
         `${gobj_name(gobj)}-g6`,
         "C_G6_NODES_TREE",
         {
+            canvas_id: priv.canvas_id,
             subscriber: gobj,
             gobj_remote_yuno: priv.gobj_remote_yuno,
             treedb_name: priv.treedb_name,

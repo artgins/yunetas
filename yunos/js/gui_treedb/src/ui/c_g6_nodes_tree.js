@@ -215,10 +215,6 @@ function mt_create(gobj)
 {
     let priv = gobj.priv;
 
-    let name = clean_name(gobj_name(gobj));
-    priv.canvas_id = "canvas" + name;
-    gobj_write_str_attr(gobj, "canvas_id", priv.canvas_id);
-
     /*
      *  CHILD subscription model
      */
@@ -334,21 +330,9 @@ function build_ui(gobj)
 {
     let priv = gobj.priv;
 
-    let padding = gobj_read_attr(gobj, "padding");
-    let $toolbar = make_toolbar(gobj);
+    let $canvas_container = document.getElementById(priv.canvas_id);
 
-    let $container = createElement2(
-        ['div', {class: 'graphs', style: `height:100%; display:flex; flex-direction:column;`}, [
-            ['div', {class: 'is-flex-grow-0 is-flex graph_toolbar'}, $toolbar],
-            ['div', {class: `is-flex-grow-1 ${padding}`, style: 'height:100%; min-height:0; overflow:hidden;'}, [
-                ['div', {id: priv.canvas_id, class: `graph-container`, style: 'height:100%; min-height:0;border: 1px solid var(--bulma-border-weak);border-radius:0.2rem;'}, [
-                ]]
-            ]]
-        ]]
-    );
-
-    gobj_write_attr(gobj, "$container", $container);
-    refresh_language($container, t);
+    gobj_write_attr(gobj, "$container", $canvas_container);
 }
 
 /************************************************************
@@ -356,13 +340,6 @@ function build_ui(gobj)
  ************************************************************/
 function destroy_ui(gobj)
 {
-    let $container = gobj_read_attr(gobj, "$container");
-    if($container) {
-        if($container.parentNode) {
-            $container.parentNode.removeChild($container);
-        }
-        gobj_write_attr(gobj, "$container", null);
-    }
 }
 
 /************************************************************
