@@ -654,7 +654,7 @@ function show_positions(gobj)
 }
 
 /************************************************************
- *
+ *  add_buttons()
  ************************************************************/
 function create_button_handlers(gobj, event_name)
 {
