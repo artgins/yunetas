@@ -1,104 +1,150 @@
 /***********************************************************************
  *          c_ui_treedb_graph.js
  *
- *          NOTE Wrapper on (Mix "Container Panel" & "Pinhold Window")
+ *          Manage treedb topics with graphs
  *
- *          Manage treedb topics with mxgraph
+ *          This gclass manages the communication between backend and graph gobj.
  *
  *          Copyright (c) 2021 Niyamaka.
  *          Copyright (c) 2025-2026, ArtGins.
  *          All Rights Reserved.
  ***********************************************************************/
 import {
+    __yuno__,
     SDATA,
     SDATA_END,
     data_type_t,
+    kw_flag_t,
     event_flag_t,
-    gclass_flag_t,
+    sdata_flag_t,
     gclass_create,
     log_error,
-    log_info,
-    trace_msg,
     gobj_read_pointer_attr,
-    gobj_read_attr,
-    gobj_read_str_attr,
-    gobj_read_bool_attr,
-    gobj_write_attr,
     gobj_parent,
-    gobj_name,
-    gobj_short_name,
     gobj_subscribe_event,
+    gobj_name,
+    clean_name,
+    gobj_read_attr,
+    gobj_write_attr,
     gobj_send_event,
-    gobj_start,
-    gobj_command,
-    gobj_find_gclass,
-    json_size,
+    gobj_find_service,
+    createElement2,
+    sprintf,
+    kw_get_int,
+    is_string,
+    is_array,
     kw_get_str,
     kw_get_dict_value,
-    msg_iev_write_key,
+    gobj_short_name,
+    gobj_read_str_attr,
+    gobj_destroy,
+    json_object_update,
+    is_object,
+    gobj_create_service,
+    kwid_find_one_record,
+    json_object_size,
+    kw_set_dict_value,
+    kw_clone_by_keys,
+    treedb_get_field_desc,
+    treedb_decoder_fkey,
+    gobj_write_str_attr,
+    gobj_command,
     msg_iev_get_stack,
     kw_get_dict,
-    kw_flag_t,
-    __yuno__,
-    gobj_create_unique,
-    gobj_find_unique_gobj,
-    gobj_destroy,
-    info_user_warning,
-    build_name,
+    gobj_hsdata,
+    msg_iev_write_key,
+    log_warning,
+    trace_json,
+    json_object_update_missing,
+    gobj_start,
+    log_info,
+    trace_msg,
+    refresh_language,
+    gobj_unsubscribe_event,
+    str_in_list,
+    delete_from_list,
+    gobj_save_persistent_attrs,
+    gobj_read_bool_attr,
+    json_size,
+    escapeHtml,
+    safeSrc,
+    gclass_find_by_name,
 } from "yunetas";
+
+import {yui_toolbar} from "./yui_toolbar.js";
+import {display_error_message} from "./c_yui_main.js";
+
+import {
+    addClasses,
+    removeClasses,
+    toggleClasses,
+    removeChildElements,
+    disableElements,
+    enableElements,
+    set_submit_state,
+    set_cancel_state,
+    set_active_state,
+    getStrokeColor,
+} from "./lib_graph.js";
+
+import {t} from "i18next";
 
 /***************************************************************
  *              Constants
  ***************************************************************/
-const GCLASS_NAME = "C_UI_TREEDB_GRAPH";
+const GCLASS_NAME = "C_YUI_TREEDB_GRAPH";
 
 /***************************************************************
  *              Data
  ***************************************************************/
 const attrs_table = [
-/*---------------- Wrapper Common Attributes ----------------*/
-SDATA(data_type_t.DTP_BOOLEAN,  "is_pinhold_window",    0,  false,  "Select default: window or container panel"),
-SDATA(data_type_t.DTP_DICT,     "panel_properties",     0,  {},     "Creator can set Container Panel properties"),
-SDATA(data_type_t.DTP_DICT,     "window_properties",    0,  {},     "Creator can set Pinhold Window properties"),
-SDATA(data_type_t.DTP_POINTER,  "ui_properties",        0,  null,   "Creator can set webix properties"),
-SDATA(data_type_t.DTP_STRING,   "window_image",         0,  "",     "Used by pinhold_window_top_toolbar"),
-SDATA(data_type_t.DTP_STRING,   "window_title",         0,  "",     "Used by pinhold_window_top_toolbar"),
-SDATA(data_type_t.DTP_INTEGER,  "left",                 0,  0,      "Used by pinhold_window_top_toolbar"),
-SDATA(data_type_t.DTP_INTEGER,  "top",                  0,  0,      "Used by pinhold_window_top_toolbar"),
-SDATA(data_type_t.DTP_INTEGER,  "width",                0,  600,    "Used by pinhold_window_top_toolbar"),
-SDATA(data_type_t.DTP_INTEGER,  "height",               0,  500,    "Used by pinhold_window_top_toolbar"),
+/*---------------- Public Attributes ----------------*/
+SDATA(data_type_t.DTP_POINTER,  "subscriber",       0,  null,   "Subscriber of output events"),
+SDATA(data_type_t.DTP_LIST,     "modes",            0,  '["reading", "operation", "writing", "edition"]',   "Available permission or behaviour modes"),
+SDATA(data_type_t.DTP_BOOLEAN,  "with_treedb_tables",0, false,  "Include treedb tables"),
 
-SDATA(data_type_t.DTP_POINTER,  "$ui",                  0,  null,   "$ui from wrapped window or panel"),
-SDATA(data_type_t.DTP_POINTER,  "subscriber",           0,  null,   "Subscriber of published events, by default the parent"),
+/*---------------- User last selections  ----------------*/
+SDATA(data_type_t.DTP_STRING,   "current_mode",     sdata_flag_t.SDF_PERSIST, "", "Current mode (internal behaviour or role). Changed by the user trough the gui."),
+SDATA(data_type_t.DTP_STRING,   "current_layout",   sdata_flag_t.SDF_PERSIST, "", "Current graph layout or **view**, See graph_settings.layouts for available list. User preference. Changed by the user trough the gui."),
+
+/*---------------- Remote Connection ----------------*/
+SDATA(data_type_t.DTP_POINTER,  "gobj_remote_yuno", 0,  null,   "Remote Yuno to request data"),
+SDATA(data_type_t.DTP_STRING,   "treedb_name",      0,  null,   "Remote service treedb name"),
+SDATA(data_type_t.DTP_DICT,     "descs",            0,  null,   "Descriptions of topics obtained"),
+SDATA(data_type_t.DTP_DICT,     "records",          0,  "{}",   "Data of topics"),
+SDATA(data_type_t.DTP_LIST,     "topics",           0,  "[]",   "List of topic objects"),
+
+/*---------------- Sub-container ----------------*/
+SDATA(data_type_t.DTP_POINTER,  "$container",       0,  null,   "Container element"),
+SDATA(data_type_t.DTP_STRING,   "href",             0,  "",     "Tab href"),
+SDATA(data_type_t.DTP_STRING,   "label",            0,  "",     "Tab label"),
+SDATA(data_type_t.DTP_STRING,   "image",            0,  "",     "Tab image"),
+SDATA(data_type_t.DTP_STRING,   "icon",             0,  "fa-solid fa-question", "Tab icon"),
 
 /*---------------- Particular Attributes ----------------*/
-SDATA(data_type_t.DTP_BOOLEAN,  "with_treedb_tables",   0,  false,  "Include treedb tables"),
-SDATA(data_type_t.DTP_BOOLEAN,  "auto_topics",          0,  false,  "Auto-discover topics"),
-SDATA(data_type_t.DTP_LIST,     "topics_style",         0,  null,   "Style definitions per topic"),
-
+SDATA(data_type_t.DTP_BOOLEAN,  "auto_topics",          0,  true,   "Auto-discover topics"),
 SDATA(data_type_t.DTP_POINTER,  "hook_data_viewer",     0,  null,   "GClass Manager/Viewer of hook data"),
-SDATA(data_type_t.DTP_POINTER,  "gobj_remote_yuno",     0,  null,   "Remote yuno to ask data"),
-SDATA(data_type_t.DTP_STRING,   "treedb_name",          0,  null,   "Treedb name"),
-SDATA(data_type_t.DTP_LIST,     "topics",               0,  "[]",   "List of topic objects"),
-SDATA(data_type_t.DTP_DICT,     "descs",                0,  null,   "Topic descriptions"),
+SDATA(data_type_t.DTP_BOOLEAN,  "is_pinhold_window",    0,  false,  "Select default: window or container panel"),
+
+SDATA(data_type_t.DTP_STRING,   "wide",                     0,  "40px", "Height of header"),
+SDATA(data_type_t.DTP_STRING,   "padding",                  0,  "m-2",  "Padding or margin value"),
 
 SDATA_END()
 ];
 
 let PRIVATE_DATA = {
-    is_pinhold_window:  false,
     treedb_name:        "",
     gobj_remote_yuno:   null,
     descs:              null,
     topics:             [],
-    topics_style:       [],
-    gobj_window:        null,
+    records:            {},
     gobj_nodes_tree:    null,
     gobj_treedb_tables: null,
-    gobj_container:     null,
-    info_wait:          null,
-    info_no_wait:       null,
     hook_data_viewer:   null,
+    with_treedb_tables: false,
+    auto_topics:        false,
+
+    is_pinhold_window:  false, // inherited of v6, todo review
 };
 
 let __gclass__ = null;
@@ -131,22 +177,67 @@ function mt_create(gobj)
 
     priv.treedb_name = gobj_read_str_attr(gobj, "treedb_name");
     priv.gobj_remote_yuno = gobj_read_attr(gobj, "gobj_remote_yuno");
-    priv.is_pinhold_window = gobj_read_bool_attr(gobj, "is_pinhold_window");
     priv.topics = gobj_read_attr(gobj, "topics") || [];
-    priv.topics_style = gobj_read_attr(gobj, "topics_style") || [];
     priv.hook_data_viewer = gobj_read_attr(gobj, "hook_data_viewer");
-    priv.info_wait = gobj_read_attr(gobj, "info_wait") || function() {};
-    priv.info_no_wait = gobj_read_attr(gobj, "info_no_wait") || function() {};
+    priv.is_pinhold_window = gobj_read_bool_attr(gobj, "is_pinhold_window");
+    priv.with_treedb_tables = gobj_read_bool_attr(gobj, "with_treedb_tables");
+    priv.auto_topics = gobj_read_bool_attr(gobj, "auto_topics");
 
     if(!priv.treedb_name) {
         log_error(`${gobj_name(gobj)} -> treedb_name not configured`);
     }
 
-    // TODO create container/window and child gobjs
-    // if(!priv.is_pinhold_window) {
-    //     priv.gobj_container = gobj_create_unique(...);
-    // }
-    // priv.gobj_nodes_tree = gobj_create_unique(...);
+    let __yui_main__ = gobj_find_service("__yui_main__", true);
+    if(__yui_main__) {
+        gobj_subscribe_event(__yui_main__, "EV_RESIZE", {}, gobj);
+        gobj_subscribe_event(__yui_main__, "EV_THEME", {}, gobj);
+        priv.theme = gobj_read_str_attr(__yui_main__, "theme");
+    }
+
+    build_ui(gobj);
+
+    // TODO move to g6?
+    // register_layouts(gobj);
+    // build_graph(gobj);
+
+    priv.gobj_nodes_tree = gobj_create_service(
+        `${gobj_name(gobj)}-g6`,
+        "C_G6_NODES_TREE",
+        {
+            subscriber: gobj,
+            gobj_remote_yuno: priv.gobj_remote_yuno,
+            treedb_name: priv.treedb_name,
+            topics: priv.topics,
+            // TODO review if needed
+            // topics_style: priv.topics_style,
+            with_treedb_tables: priv.with_treedb_tables,
+            hook_port_position: "bottom",
+            fkey_port_position: "top",
+        },
+        gobj
+    );
+
+    /*
+     *  Treedb tables at start
+     */
+    if(priv.with_treedb_tables) {
+        if(!gobj_read_bool_attr(gobj, "auto_topics")) {
+            // priv.gobj_treedb_tables = gobj_create_service( TODO
+            //     "", // TODO build_name(self, "Topics"),
+            //     "Ui_treedb_tables", // TODO
+            //     {
+            //         subscriber: gobj,
+            //         with_treedb_tables: priv.with_treedb_tables,
+            //         auto_topics: priv.auto_topics,
+            //         // hook_data_viewer: Ui_hook_viewer_popup, TODO
+            //         gobj_remote_yuno: priv.gobj_remote_yuno,
+            //         treedb_name: priv.treedb_name,
+            //         topics: priv.topics,
+            //     },
+            //     gobj
+            // );
+        }
+    }
 }
 
 /***************************************************************
@@ -157,13 +248,14 @@ function mt_writing(gobj, path)
     let priv = gobj.priv;
 
     switch(path) {
+        // TODO needed?
         case "treedb_name":
             priv.treedb_name = gobj_read_str_attr(gobj, "treedb_name");
             break;
         case "gobj_remote_yuno":
             priv.gobj_remote_yuno = gobj_read_attr(gobj, "gobj_remote_yuno");
             break;
-        case "descs":
+        case "descs": // Yes, needed
             priv.descs = gobj_read_attr(gobj, "descs");
             break;
     }
@@ -201,6 +293,7 @@ function mt_stop(gobj)
  ***************************************************************/
 function mt_destroy(gobj)
 {
+    destroy_ui(gobj);
 }
 
 
@@ -213,101 +306,85 @@ function mt_destroy(gobj)
 
 
 
-/********************************************
- *  Build default graph topics style
- ********************************************/
-function build_default_graph_topics_style(topics)
+/************************************************************
+ *   Build UI
+ ************************************************************/
+function build_ui(gobj)
 {
-    const default_styles = [
-        {
-            node:
-            "html=1;strokeColor=DarkOrange;fillColor=#fff2cc;whiteSpace=wrap;shadow=0;strokeWidth=2;spacingLeft=10;spacingTop=5;fontSize=12;verticalAlign=top;spacingTop=20;opacity=60;",
-            hook:
-            "html=1;strokeColor=DarkOrange;fillColor=#fff2cc;shadow=0;strokeWidth=2;fontSize=12;horizontal=0;labelPosition=center;verticalLabelPosition=bottom;align=center;spacingLeft=80;spacingTop=-5;opacity=60;",
-            fkey:
-            "ellipse;html=1;strokeColor=DarkOrange;fillColor=#fff2cc;shadow=0;strokeWidth=2;fontSize=12;horizontal=0;labelPosition=center;verticalLabelPosition=bottom;align=center;spacingLeft=80;spacingTop=25;opacity=60;",
-            arrow:
-            "edgeStyle=topToBottomEdgeStyle;html=1;rounded=1;curved=1;strokeWidth=2;strokeColor=DarkOrange;"
-        },
-        {
-            node:
-            "ellipse;html=1;fillColor=#f8cecc;strokeColor=#b85450;whiteSpace=wrap;shadow=0;spacingLeft=10;spacingTop=5;fontSize=12;verticalAlign=top;spacingTop=20;opacity=60;",
-            hook:
-            "html=1;fillColor=#f8cecc;strokeColor=#b85450;shadow=0;strokeWidth=2;fontSize=12;horizontal=0;labelPosition=center;verticalLabelPosition=bottom;align=center;spacingLeft=80;spacingTop=-5;opacity=60;",
-            fkey:
-            "ellipse;html=1;fillColor=#f8cecc;strokeColor=#b85450;shadow=0;strokeWidth=2;fontSize=12;horizontal=0;labelPosition=center;verticalLabelPosition=bottom;align=center;spacingLeft=80;spacingTop=-5;opacity=60;",
-            arrow:
-            "edgeStyle=topToBottomEdgeStyle;html=1;rounded=1;curved=1;strokeWidth=2;strokeColor=#b85450;"
-        },
-        {
-            node:
-            "ellipse;html=1;strokeColor=#6c8ebf;fillColor=#dae8fc;whiteSpace=wrap;shadow=0;spacingLeft=10;spacingTop=5;fontSize=12;verticalAlign=top;spacingTop=20;opacity=60;",
-            hook:
-            "html=1;strokeColor=#6c8ebf;fillColor=#dae8fc;shadow=0;strokeWidth=2;fontSize=12;horizontal=0;labelPosition=center;verticalLabelPosition=bottom;align=center;spacingLeft=80;spacingTop=-5;opacity=60;",
-            fkey:
-            "ellipse;html=1;strokeColor=#6c8ebf;fillColor=#dae8fc;shadow=0;strokeWidth=2;fontSize=12;horizontal=0;labelPosition=center;verticalLabelPosition=bottom;align=center;spacingLeft=80;spacingTop=-5;opacity=60;",
-            arrow:
-            "edgeStyle=topToBottomEdgeStyle;html=1;rounded=1;curved=1;strokeWidth=2;strokeColor=#6c8ebf;"
-        },
-        {
-            node:
-            "ellipse;html=1;strokeColor=#82b366;fillColor=#d5e8d4;whiteSpace=wrap;shadow=0;spacingLeft=10;spacingTop=5;fontSize=12;verticalAlign=top;spacingTop=20;opacity=60;",
-            hook:
-            "html=1;strokeColor=#82b366;fillColor=#d5e8d4;shadow=0;strokeWidth=2;fontSize=12;horizontal=0;labelPosition=center;verticalLabelPosition=bottom;align=center;spacingLeft=80;spacingTop=-5;opacity=60;",
-            fkey:
-            "ellipse;html=1;strokeColor=#82b366;fillColor=#d5e8d4;shadow=0;strokeWidth=2;fontSize=12;horizontal=0;labelPosition=center;verticalLabelPosition=bottom;align=center;spacingLeft=80;spacingTop=-5;opacity=60;",
-            arrow:
-            "edgeStyle=topToBottomEdgeStyle;html=1;rounded=1;curved=1;strokeWidth=2;strokeColor=#82b366;"
-        },
-        {
-            node:
-            "ellipse;html=1;fillColor=#f5f5f5;strokeColor=#666666;whiteSpace=wrap;shadow=0;spacingLeft=10;spacingTop=5;fontSize=12;verticalAlign=top;spacingTop=20;opacity=60;",
-            hook:
-            "html=1;fillColor=#f5f5f5;strokeColor=#666666;shadow=0;strokeWidth=2;fontSize=12;horizontal=0;labelPosition=center;verticalLabelPosition=bottom;align=center;spacingLeft=80;spacingTop=-5;opacity=60;",
-            fkey:
-            "ellipse;html=1;fillColor=#f5f5f5;strokeColor=#666666;shadow=0;strokeWidth=2;fontSize=12;horizontal=0;labelPosition=center;verticalLabelPosition=bottom;align=center;spacingLeft=80;spacingTop=-5;opacity=60;",
-            arrow:
-            "edgeStyle=topToBottomEdgeStyle;html=1;rounded=1;curved=1;strokeWidth=2;strokeColor=#666666;"
-        },
-        {
-            node:
-            "ellipse;html=1;fillColor=#e1d5e7;strokeColor=#9673a6;whiteSpace=wrap;shadow=0;spacingLeft=10;spacingTop=5;fontSize=12;verticalAlign=top;spacingTop=20;opacity=60;",
-            hook:
-            "html=1;fillColor=#e1d5e7;strokeColor=#9673a6;shadow=0;strokeWidth=2;fontSize=12;horizontal=0;labelPosition=center;verticalLabelPosition=bottom;align=center;spacingLeft=80;spacingTop=-5;opacity=60;",
-            fkey:
-            "ellipse;html=1;fillColor=#e1d5e7;strokeColor=#9673a6;shadow=0;strokeWidth=2;fontSize=12;horizontal=0;labelPosition=center;verticalLabelPosition=bottom;align=center;spacingLeft=80;spacingTop=-5;opacity=60;",
-            arrow:
-            "edgeStyle=topToBottomEdgeStyle;html=1;rounded=1;curved=1;strokeWidth=2;strokeColor=#9673a6;"
-        },
-        {
-            node:
-            "ellipse;html=1;fillColor=#ffe6cc;strokeColor=#d79b00;whiteSpace=wrap;shadow=0;spacingLeft=10;spacingTop=5;fontSize=12;verticalAlign=top;spacingTop=20;opacity=60;",
-            hook:
-            "html=1;fillColor=#ffe6cc;strokeColor=#d79b00;shadow=0;strokeWidth=2;fontSize=12;horizontal=0;labelPosition=center;verticalLabelPosition=bottom;align=center;spacingLeft=80;spacingTop=-5;opacity=60;",
-            fkey:
-            "ellipse;html=1;fillColor=#ffe6cc;strokeColor=#d79b00;shadow=0;strokeWidth=2;fontSize=12;horizontal=0;labelPosition=center;verticalLabelPosition=bottom;align=center;spacingLeft=80;spacingTop=-5;opacity=60;",
-            arrow:
-            "edgeStyle=topToBottomEdgeStyle;html=1;rounded=1;curved=1;strokeWidth=2;strokeColor=#d79b00;"
+    let priv = gobj.priv;
+
+    /*----------------------------------------------*
+     *  Layout Schema
+     *----------------------------------------------*/
+    let padding = gobj_read_attr(gobj, "padding");
+    let $toolbar = make_toolbar(gobj);
+
+    let $container = createElement2(
+        // Don't use is-flex, don't work well with is-hidden
+        ['div', {class: 'graphs', style: `height:100%; display:flex; flex-direction:column;`}, [
+            ['div', {class: 'is-flex-grow-0 is-flex graph_toolbar'}, $toolbar],
+            ['div', {class: `is-flex-grow-1 ${padding}`, style: 'height:100%; min-height:0; overflow:hidden;'}, [
+                ['div', {id: priv.canvas_id, class: `graph-container`, style: 'height:100%; min-height:0;border: 1px solid var(--bulma-border-weak);border-radius:0.2rem;'}, [
+                ]]
+            ]]
+        ]]
+    );
+
+    gobj_write_attr(gobj, "$container", $container);
+    refresh_language($container, t);
+}
+
+/************************************************************
+ *   Destroy UI
+ ************************************************************/
+function destroy_ui(gobj)
+{
+    let $container = gobj_read_attr(gobj, "$container");
+    if($container) {
+        if($container.parentNode) {
+            $container.parentNode.removeChild($container);
         }
+        gobj_write_attr(gobj, "$container", null);
+    }
+}
+
+/************************************************************
+ *
+ ************************************************************/
+function make_toolbar(gobj)
+{
+    let priv = gobj.priv;
+
+    /*---------------------------------------*
+     *      Top Header toolbar
+     *---------------------------------------*/
+
+    /*
+     *  Left, layout and mode
+     */
+    let left_items = [
     ];
 
-    let topics_style = [];
+    /*
+     *  Center, common controls
+     */
+    let center_items = [];
 
-    for(let i=0; i<topics.length && i<default_styles.length; i++) {
-        let topic_style = {
-            topic_name: topics[i].topic_name,
-            run_event: false,
-            default_cx: 200,
-            default_cy: 180,
-            default_alt_cx: 110,
-            default_alt_cy: 80,
-            graph_styles: default_styles[i]
-        };
+    /*
+     *  Right, fill in set_mode
+     */
+    let right_items = [
+    ];
 
-        topics_style.push(topic_style);
-    }
+    const $toolbar_header = yui_toolbar({}, [
+        ['div', {class: 'yui-horizontal-toolbar-section left'}, left_items],
+        ['div', {class: 'yui-horizontal-toolbar-section center'}, center_items],
+        ['div', {class: 'yui-horizontal-toolbar-section right mode_buttons'}, right_items]
+    ]);
 
-    return topics_style;
+    refresh_language($toolbar_header, t);
+
+    return $toolbar_header;
 }
 
 /************************************************************
@@ -332,8 +409,6 @@ function treedb_nodes(gobj, treedb_name, topic_name, options)
     };
 
     msg_iev_write_key(kw, "__topic_name__", topic_name);
-
-    priv.info_wait();
 
     let ret = gobj_command(priv.gobj_remote_yuno,
         command,
@@ -369,8 +444,6 @@ function treedb_create_node(gobj, treedb_name, topic_name, record, options)
 
     msg_iev_write_key(kw, "__topic_name__", topic_name);
 
-    priv.info_wait();
-
     let ret = gobj_command(priv.gobj_remote_yuno,
         command,
         kw,
@@ -404,8 +477,6 @@ function treedb_update_node(gobj, treedb_name, topic_name, record, options)
     };
 
     msg_iev_write_key(kw, "__topic_name__", topic_name);
-
-    priv.info_wait();
 
     let ret = gobj_command(priv.gobj_remote_yuno,
         command,
@@ -441,8 +512,6 @@ function treedb_delete_node(gobj, treedb_name, topic_name, record, options)
 
     msg_iev_write_key(kw, "__topic_name__", topic_name);
 
-    priv.info_wait();
-
     let ret = gobj_command(priv.gobj_remote_yuno,
         command,
         kw,
@@ -474,8 +543,6 @@ function treedb_link_nodes(gobj, treedb_name, parent_ref, child_ref, options)
         child_ref: child_ref,
         options: options || {}
     };
-
-    priv.info_wait();
 
     let ret = gobj_command(priv.gobj_remote_yuno,
         command,
@@ -509,8 +576,6 @@ function treedb_unlink_nodes(gobj, treedb_name, parent_ref, child_ref, options)
         options: options || {}
     };
 
-    priv.info_wait();
-
     let ret = gobj_command(priv.gobj_remote_yuno,
         command,
         kw,
@@ -540,8 +605,6 @@ function request_treedb_descs(gobj)
         treedb_name: priv.treedb_name
     };
 
-    priv.info_wait();
-
     let ret = gobj_command(priv.gobj_remote_yuno,
         command,
         kw,
@@ -555,7 +618,7 @@ function request_treedb_descs(gobj)
 /************************************************************
  *  Process topic descriptions received from remote
  ************************************************************/
-function process_descs(gobj)
+function process_treedb_descs(gobj)
 {
     let priv = gobj.priv;
 
@@ -623,7 +686,7 @@ function process_descs(gobj)
      *  Create default styles if not defined
      */
     if(json_size(priv.topics_style) === 0) {
-        priv.topics_style = build_default_graph_topics_style(priv.topics);
+        // priv.topics_style = build_default_graph_topics_style(priv.topics);
         if(priv.gobj_nodes_tree) {
             gobj_send_event(priv.gobj_nodes_tree,
                 "EV_CREATE_GRAPH_STYLES",
@@ -644,7 +707,7 @@ function process_descs(gobj)
     //         if(priv.gobj_treedb_tables) {
     //             log_error("gobj_treedb_tables ALREADY created");
     //         }
-    //         priv.gobj_treedb_tables = gobj_create_unique(...);
+    //         priv.gobj_treedb_tables = gobj_create_service(...);
     //         gobj_start(priv.gobj_treedb_tables);
     //     }
     // }
@@ -686,14 +749,6 @@ function refresh_data(gobj)
     }
 }
 
-/********************************************
- *  Refresh treedb
- ********************************************/
-function refresh_treedb(gobj)
-{
-    refresh_data(gobj);
-}
-
 
 
 
@@ -711,8 +766,6 @@ function ac_mt_command_answer(gobj, event, kw, src)
 {
     let priv = gobj.priv;
 
-    priv.info_no_wait();
-
     let result;
     let comment;
     let schema;
@@ -728,31 +781,39 @@ function ac_mt_command_answer(gobj, event, kw, src)
         return;
     }
     if(result < 0) {
-        info_user_warning(comment);
+        display_error_message(
+            "Error",
+            t(comment)
+        );
         // HACK don't return, pass errors when need it.
     }
 
     let __command__ = msg_iev_get_stack(gobj, kw, "command_stack", true);
     let command = kw_get_str(gobj, __command__, "command", "", kw_flag_t.KW_REQUIRED);
+    let kw_command = kw_get_dict(gobj, __command__, "kw", {}, kw_flag_t.KW_REQUIRED);
 
     switch(command) {
         case "descs":
             if(result >= 0) {
-                priv.descs = data;
                 gobj_write_attr(gobj, "descs", data);
-                process_descs(gobj);
-                if(priv.gobj_nodes_tree) {
-                    gobj_send_event(priv.gobj_nodes_tree,
-                        "EV_DESCS",
-                        data,
-                        gobj
-                    );
-                }
+                process_treedb_descs(gobj);
+                // if(priv.gobj_nodes_tree) { // TODO move to process_treedb_descs?
+                //     gobj_send_event(priv.gobj_nodes_tree,
+                //         "EV_DESCS",
+                //         data,
+                //         gobj
+                //     );
+                // }
             }
             break;
 
         case "nodes":
             if(result >= 0) {
+                /*
+                 *  Here it could update cols of `descs`
+                 *  seeing if they have changed in schema argument (controlling the version?)
+                 *  Now the schema pass to creation of nodes is get from `descs`.
+                 */
                 if(priv.gobj_nodes_tree) {
                     gobj_send_event(priv.gobj_nodes_tree,
                         "EV_LOAD_DATA",
@@ -876,12 +937,15 @@ function ac_treedb_node_deleted(gobj, event, kw, src)
  ********************************************/
 function ac_refresh_treedb(gobj, event, kw, src)
 {
-    refresh_treedb(gobj);
+    /*
+     *  Get data
+     */
+    refresh_data(gobj);
     return 0;
 }
 
 /********************************************
- *  Event from Mx_nodes_tree
+ *  Event from G6_nodes_tree
  *  kw: {
  *      treedb_name,
  *      parent_topic_name,
@@ -911,9 +975,9 @@ function ac_show_hook_data(gobj, event, kw, src)
         child_topic_name + ">" +
         child_field_name + ">" +
         child_field_value;
-    let found_gobj = gobj_find_unique_gobj(name);
+    let found_gobj = gobj_find_service(name);
     if(!found_gobj) {
-        found_gobj = gobj_create_unique(
+        found_gobj = gobj_create_service(
             name,
             priv.hook_data_viewer,
             kw,
@@ -928,7 +992,7 @@ function ac_show_hook_data(gobj, event, kw, src)
 }
 
 /********************************************
- *  Event from Mx_nodes_tree
+ *  Event from G6_nodes_tree
  ********************************************/
 function ac_show_treedb_topic(gobj, event, kw, src)
 {
@@ -958,20 +1022,20 @@ function ac_show_treedb_topic(gobj, event, kw, src)
 }
 
 /********************************************
- *  Event from Mx_nodes_tree
+ *  Event from G6_nodes_tree
  *  kw: {
  *      treedb_name,
  *      topic_name,
  *      record
  *  }
  ********************************************/
-function ac_mx_vertex_clicked(gobj, event, kw, src)
+function ac_vertex_clicked(gobj, event, kw, src)
 {
     return 0;
 }
 
 /********************************************
- *  Event from Mx_nodes_tree
+ *  Event from G6_nodes_tree
  *  kw: {
  *      child_topic_name,
  *      child_topic_id,
@@ -981,19 +1045,24 @@ function ac_mx_vertex_clicked(gobj, event, kw, src)
  *      parent_hook
  * }
  ********************************************/
-function ac_mx_edge_clicked(gobj, event, kw, src)
+function ac_edge_clicked(gobj, event, kw, src)
 {
     return 0;
 }
 
 /********************************************
- *  Message from Mx_nodes_tree
- *  Send to backend, speaking of node
+ *  Message from G6_nodes_tree
+ *  kw: {
+ *      topic_name,
+ *      record,
+ *      options
+ *  }
+ *  Send to backend
  ********************************************/
 function ac_create_record(gobj, event, kw, src)
 {
     let priv = gobj.priv;
-    let treedb_name = kw.treedb_name;
+    let treedb_name = priv.treedb_name;
     let topic_name = kw.topic_name;
     let record = kw.record;
     let options = kw.options || {};
@@ -1008,12 +1077,18 @@ function ac_create_record(gobj, event, kw, src)
 }
 
 /********************************************
- *  Message from Mx_nodes_tree
- *  Send to backend, speaking of node
+ *  Message from G6_nodes_tree
+ *  kw: {
+ *      topic_name,
+ *      record,
+ *      options
+ *  }
+ *  Send to backend
  ********************************************/
 function ac_update_record(gobj, event, kw, src)
 {
-    let treedb_name = kw.treedb_name;
+    let priv = gobj.priv;
+    let treedb_name = priv.treedb_name;
     let topic_name = kw.topic_name;
     let record = kw.record;
     let options = kw.options || {};
@@ -1028,12 +1103,18 @@ function ac_update_record(gobj, event, kw, src)
 }
 
 /********************************************
- *  Message from Mx_nodes_tree
- *  Send to backend, speaking of node
+ *  Message from G6_nodes_tree
+ *  kw: {
+ *      topic_name,
+ *      record,
+ *      options
+ *  }
+ *  Send to backend
  ********************************************/
 function ac_delete_record(gobj, event, kw, src)
 {
-    let treedb_name = kw.treedb_name;
+    let priv = gobj.priv;
+    let treedb_name = priv.treedb_name;
     let topic_name = kw.topic_name;
     let record = kw.record;
     let options = kw.options || {};
@@ -1048,12 +1129,18 @@ function ac_delete_record(gobj, event, kw, src)
 }
 
 /********************************************
- *  Message from Mx_nodes_tree
- *  Send to backend, speaking of node
+ *  Message from G6_nodes_tree
+ *  kw: {
+ *      parent_ref,
+ *      child_ref,
+ *      options
+ *  }
+ *  Send to backend
  ********************************************/
 function ac_link_records(gobj, event, kw, src)
 {
-    let treedb_name = kw.treedb_name;
+    let priv = gobj.priv;
+    let treedb_name = priv.treedb_name;
     let parent_ref = kw.parent_ref;
     let child_ref = kw.child_ref;
     let options = kw.options || {};
@@ -1068,12 +1155,18 @@ function ac_link_records(gobj, event, kw, src)
 }
 
 /********************************************
- *  Message from Mx_nodes_tree
- *  Send to backend, speaking of node
+ *  Message from G6_nodes_tree
+ *  kw: {
+ *      parent_ref,
+ *      child_ref,
+ *      options
+ *  }
+ *  Send to backend
  ********************************************/
 function ac_unlink_records(gobj, event, kw, src)
 {
-    let treedb_name = kw.treedb_name;
+    let priv = gobj.priv;
+    let treedb_name = priv.treedb_name;
     let parent_ref = kw.parent_ref;
     let child_ref = kw.child_ref;
     let options = kw.options || {};
@@ -1088,46 +1181,47 @@ function ac_unlink_records(gobj, event, kw, src)
 }
 
 /********************************************
- *  Message from Mx_nodes_tree
+ *  Message from G6_nodes_tree
  ********************************************/
 function ac_run_node(gobj, event, kw, src)
 {
-    let record = kw.record;
-
-    let url = record.url;
-    let dst_role = record.dst_role;
-    let dst_service = record.dst_service;
-    let dst_yuno = record.dst_yuno;
-    let viewer_engine = record.viewer_engine;
-
-    let gclass = gobj_find_gclass(viewer_engine);
-    if(!gclass) {
-        log_error("Viewer engine (gclass) not found: " + viewer_engine);
-        return -1;
-    }
-
-    let name = viewer_engine + ">" + url + ">" + dst_role + ">" + dst_service;
-    let found_gobj = gobj_find_unique_gobj(name);
-    if(!found_gobj) {
-        found_gobj = gobj_create_unique(
-            name,
-            gclass,
-            {
-                is_pinhold_window: true,
-                window_title: name,
-                window_image: "",
-
-                dst_role: dst_role,
-                dst_service: dst_service,
-                dst_yuno: dst_yuno,
-                url: url
-            },
-            gobj
-        );
-        gobj_start(found_gobj);
-    } else {
-        gobj_send_event(found_gobj, "EV_TOGGLE", {}, gobj);
-    }
+    // TODO what is this?
+    // let record = kw.record;
+    //
+    // let url = record.url;
+    // let dst_role = record.dst_role;
+    // let dst_service = record.dst_service;
+    // let dst_yuno = record.dst_yuno;
+    // let viewer_engine = record.viewer_engine;
+    //
+    // let gclass = gclass_find_by_name(viewer_engine);
+    // if(!gclass) {
+    //     log_error("Viewer engine (gclass) not found: " + viewer_engine);
+    //     return -1;
+    // }
+    //
+    // let name = viewer_engine + ">" + url + ">" + dst_role + ">" + dst_service;
+    // let found_gobj = gobj_find_service(name);
+    // if(!found_gobj) {
+    //     found_gobj = gobj_create_service(
+    //         name,
+    //         gclass,
+    //         {
+    //             is_pinhold_window: true,
+    //             window_title: name,
+    //             window_image: "",
+    //
+    //             dst_role: dst_role,
+    //             dst_service: dst_service,
+    //             dst_yuno: dst_yuno,
+    //             url: url
+    //         },
+    //         gobj
+    //     );
+    //     gobj_start(found_gobj);
+    // } else {
+    //     gobj_send_event(found_gobj, "EV_TOGGLE", {}, gobj);
+    // }
 
     return 0;
 }
@@ -1148,74 +1242,88 @@ function ac_close_window(gobj, event, kw, src)
     return 0;
 }
 
-/********************************************
- *  Toggle visibility
- ********************************************/
-function ac_toggle(gobj, event, kw, src)
-{
-    let $ui = gobj_read_attr(gobj, "$ui");
-    if($ui) {
-        if($ui.isVisible()) {
-            $ui.hide();
-        } else {
-            $ui.show();
-        }
-        return $ui.isVisible();
-    }
-    return 0;
-}
-
-/********************************************
- *  Show
- ********************************************/
+/************************************************************
+ *  Parent (routing) inform us that we go showing
+ *
+ *      {
+ *          href: href
+ *      }
+ *
+ *  WARNING href is the full path,
+ *  the path relative to this gobj is the right part of split href by '?'
+ ************************************************************/
 function ac_show(gobj, event, kw, src)
 {
-    let $ui = gobj_read_attr(gobj, "$ui");
-    if($ui) {
-        $ui.show();
-        return $ui.isVisible();
-    }
+    let priv = gobj.priv;
+
+    // TODO
+    // let $canvas_container = document.getElementById(priv.canvas_id);
+    // let rect = $canvas_container.getBoundingClientRect();
+    //
+    // if(!priv.yet_showed && priv.graph) {
+    //     priv.yet_showed = true;
+    //
+    //     graph_resize(gobj, rect.width, rect.height);
+    //     graph_reset(gobj).then(() => {graph_render(gobj);});
+    // }
+
     return 0;
 }
 
-/********************************************
- *  Hide
- ********************************************/
+/************************************************************
+ *   Parent (routing) inform us that we go hidden
+ ************************************************************/
 function ac_hide(gobj, event, kw, src)
 {
-    let $ui = gobj_read_attr(gobj, "$ui");
-    if($ui) {
-        $ui.hide();
-        return $ui.isVisible();
-    }
     return 0;
 }
 
-/********************************************
- *  Select
- ********************************************/
-function ac_select(gobj, event, kw, src)
+/************************************************************
+ *  we are subscribed to EV_RESIZE from __yui_main__
+ ************************************************************/
+function ac_resize(gobj, event, kw, src)
 {
+    // TODO
+    // let priv = gobj.priv;
+    //
+    // let $canvas_container = document.getElementById(priv.canvas_id);
+    // let rect = $canvas_container.getBoundingClientRect();
+    // if(rect.width === 0 || rect.height === 0) {
+    //     priv.yet_showed = false;
+    // } else {
+    //     if(priv.graph) {
+    //         let h = rect.height;
+    //         if(h<0) {
+    //             h = 80;
+    //         }
+    //         graph_resize(gobj, rect.width, h); // setSize
+    //         // graph_reset(gobj).then(() => {graph_render(gobj);});
+    //     }
+    // }
+
     return 0;
 }
 
-/*************************************************************
- *  Refresh, order from container
- *  provocado por entry/exit de fullscreen
- *  o por redimensionamiento del panel, propio o de hermanos
- *************************************************************/
-function ac_refresh(gobj, event, kw, src)
+/************************************************************
+ *  we are subscribed to EV_THEME from __yui_main__
+ ************************************************************/
+function ac_theme(gobj, event, kw, src)
 {
-    return 0;
-}
+    // TODO
+    // let priv = gobj.priv;
+    // let graph = priv.graph;
+    // let theme = kw.theme || 'light';
+    // priv.theme = theme;
+    // graph.setTheme(theme);
+    //
+    // graph.updatePlugin({
+    //     key: 'grid-line',
+    //     stroke: theme === 'dark'?'#343434':'#EEEEEE',
+    //     borderStroke: theme === 'dark'?'#656565':'#EEEEEE',
+    // });
+    //
+    // graph_render(gobj);
 
-/********************************************
- *  "Container Panel"
- *  Order from container (parent): re-create
- ********************************************/
-function ac_rebuild_panel(gobj, event, kw, src)
-{
-    // TODO rebuild(gobj);
     return 0;
 }
 
@@ -1262,8 +1370,8 @@ function create_gclass(gclass_name)
             ["EV_REFRESH_TREEDB",           ac_refresh_treedb,          null],
             ["EV_SHOW_HOOK_DATA",           ac_show_hook_data,          null],
             ["EV_SHOW_TREEDB_TOPIC",        ac_show_treedb_topic,       null],
-            ["EV_MX_VERTEX_CLICKED",        ac_mx_vertex_clicked,       null],
-            ["EV_MX_EDGE_CLICKED",          ac_mx_edge_clicked,         null],
+            ["EV_MX_VERTEX_CLICKED",        ac_vertex_clicked,          null],
+            ["EV_MX_EDGE_CLICKED",          ac_edge_clicked,            null],
             ["EV_CREATE_RECORD",            ac_create_record,           null],
             ["EV_DELETE_RECORD",            ac_delete_record,           null],
             ["EV_UPDATE_RECORD",            ac_update_record,           null],
@@ -1271,12 +1379,10 @@ function create_gclass(gclass_name)
             ["EV_UNLINK_RECORDS",           ac_unlink_records,          null],
             ["EV_RUN_NODE",                 ac_run_node,                null],
             ["EV_CLOSE_WINDOW",             ac_close_window,            null],
-            ["EV_TOGGLE",                   ac_toggle,                  null],
             ["EV_SHOW",                     ac_show,                    null],
             ["EV_HIDE",                     ac_hide,                    null],
-            ["EV_SELECT",                   ac_select,                  null],
-            ["EV_REFRESH",                  ac_refresh,                 null],
-            ["EV_REBUILD_PANEL",            ac_rebuild_panel,           null],
+            ["EV_RESIZE",                   ac_resize,                  null],
+            ["EV_THEME",                    ac_theme,                   null],
         ]]
     ];
 
@@ -1300,12 +1406,10 @@ function create_gclass(gclass_name)
         ["EV_UNLINK_RECORDS",           0],
         ["EV_RUN_NODE",                 0],
         ["EV_CLOSE_WINDOW",             0],
-        ["EV_TOGGLE",                   0],
         ["EV_SHOW",                     0],
         ["EV_HIDE",                     0],
-        ["EV_SELECT",                   0],
-        ["EV_REFRESH",                  0],
-        ["EV_REBUILD_PANEL",            0],
+        ["EV_RESIZE",                   0],
+        ["EV_THEME",                    0],
     ];
 
     /*----------------------------------------*
@@ -1322,7 +1426,7 @@ function create_gclass(gclass_name)
         0,  // authz_table,
         0,  // command_table,
         0,  // s_user_trace_level
-        gclass_flag_t.gcflag_manual_start // gclass_flag
+        0   // gclass_flag
     );
 
     if(!__gclass__) {
@@ -1335,9 +1439,9 @@ function create_gclass(gclass_name)
 /***************************************************************************
  *          Register GClass
  ***************************************************************************/
-function register_c_ui_treedb_graph()
+function register_c_yui_treedb_graph()
 {
     return create_gclass(GCLASS_NAME);
 }
 
-export { register_c_ui_treedb_graph };
+export { register_c_yui_treedb_graph };
