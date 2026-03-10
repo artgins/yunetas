@@ -657,93 +657,81 @@ function show_positions(gobj)
 /************************************************************
  *
  ************************************************************/
+function create_button_handlers(gobj, event_name)
+{
+    return {
+        /*
+         *  the anonymous event handler will be removed and
+         *  cleaned up when the element is removed via innerHTML = '',
+         *  as long as nothing else holds a reference to it.
+         */
+        click: (evt) => {
+            evt.stopPropagation();
+            gobj_send_event(gobj, event_name, {evt}, gobj);
+        },
+
+        contextmenu: (evt) => {
+            evt.stopPropagation();
+            evt.preventDefault();
+            gobj_send_event(gobj, event_name, {evt}, gobj);
+        }
+    };
+}
+
+function push_button(zone, button, content, handlers)
+{
+    zone.push([
+        'button',
+        button,
+        content,
+        handlers
+    ]);
+}
+
 function add_buttons(gobj, zone, c_icons)
 {
-    let toolbar_wide = gobj_read_attr(gobj, "wide");
+    const toolbar_wide = gobj_read_attr(gobj, "wide");
 
     for(let i = 0; i < c_icons.length; i++) {
-        let item = c_icons[i];
-        let icon_name = item[0];
-        let event_name = item[1];
-        let disabled = item[2];
-        let type = item[3];
+        const item = c_icons[i];
+        const icon_name  = item[0];
+        const event_name = item[1];
+        const disabled   = item[2];
+        const type       = item[3];
+
+        const button = {
+            class: `button ${event_name}`,
+            style: {
+                height: `${toolbar_wide}`
+            }
+        };
+
+        if(disabled) {
+            button.disabled = true;
+        }
+
+        const handlers = create_button_handlers(gobj, event_name);
 
         switch(type) {
+            case 'i':
+                {
+                    button.style.width = "2.5em";
+
+                    const icon = ['i', {
+                        style: "font-size:1.5em; color:inherit;",
+                        class: icon_name
+                    }];
+
+                    push_button(zone, button, icon, handlers);
+                }
+                break;
+
             default:
-            case 't': {
-                let button = {
-                    class: `button ${event_name}`,
-                    style: {
-                        height: `${toolbar_wide}`,
-                        // width: `2.5em`
-                    }
-                };
-                if(disabled) {
-                    button.disabled = true;
+            case 't':
+                {
+                    push_button(zone, button, icon_name, handlers);
                 }
-                zone.push(
-                    ['button',
-                        button,
-                        `${icon_name}`,
-                        {
-                            /*
-                             *  the anonymous event handler will be removed and
-                             *  cleaned up when the element is removed via innerHTML = '',
-                             *  as long as nothing else holds a reference to it.
-                             */
-                            click: (evt) => {
-                                //
-                                evt.stopPropagation();
-                                gobj_send_event(gobj, `${event_name}`, {evt: evt}, gobj);
-                            },
-                            contextmenu: (evt) => {
-                                evt.stopPropagation();
-                                evt.preventDefault();
-                                gobj_send_event(gobj, `${event_name}`, {evt: evt}, gobj);
-                            }
-                        }
-                    ]
-                );
-            }
-            break;
-            case 'i': {
-                let button = {
-                    class: `button ${event_name}`,
-                    style: {
-                        height: `${toolbar_wide}`,
-                        width: `2.5em`
-                    }
-                };
-                if(disabled) {
-                    button.disabled = true;
-                }
-                zone.push(
-                    ['button',
-                        button,
-                        ['i', {
-                            // id: 'icon_yuneta_state',
-                            style: `font-size:1.5em; color:inherit;`,
-                            class: `${icon_name}`
-                        }], {
-                            /*
-                             *  the anonymous event handler will be removed and
-                             *  cleaned up when the element is removed via innerHTML = '',
-                             *  as long as nothing else holds a reference to it.
-                             */
-                            click: (evt) => {
-                                evt.stopPropagation();
-                                gobj_send_event(gobj, `${event_name}`, {evt: evt}, gobj);
-                            },
-                            contextmenu: (evt) => {
-                                evt.stopPropagation();
-                                evt.preventDefault();
-                                gobj_send_event(gobj, `${event_name}`, {evt: evt}, gobj);
-                            }
-                        }
-                    ]
-                );
-            }
-            break;
+                break;
         }
     }
 }
