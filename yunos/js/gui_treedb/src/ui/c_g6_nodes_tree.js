@@ -187,8 +187,8 @@ let PRIVATE_DATA = {
     descs:              null,
     records:            {},
     canvas_id:          "",
-    graph:              null,
-    __graphs__:         [],
+    graph:              null,   // Instance of G6
+    __graphs__:         [],     // Rows of __graphs__
     yet_showed:         false,
     graph_settings:     null,
     edit_mode:          false,
@@ -2083,7 +2083,7 @@ function ac_node_click(gobj, event, kw, src)
     try {
         let nodedata = graph.getNodeData(node_id);
         if(nodedata && nodedata.data && nodedata.data.schema) {
-            gobj_publish_event(gobj, "EV_MX_VERTEX_CLICKED", {
+            gobj_publish_event(gobj, "EV_VERTEX_CLICKED", {
                 treedb_name: priv.treedb_name,
                 topic_name: nodedata.data.schema.topic_name,
                 record: nodedata.data.record
@@ -2248,7 +2248,7 @@ function create_gclass(gclass_name)
             ["EV_REFRESH_TREEDB",           ac_refresh_treedb,      null],
             ["EV_ZOOM_IN",                  ac_zoom_in,             null],
             ["EV_ZOOM_OUT",                 ac_zoom_out,            null],
-            ["EV_ZOOM_RESET",              ac_zoom_reset,          null],
+            ["EV_ZOOM_RESET",               ac_zoom_reset,          null],
             ["EV_CENTER",                   ac_center,              null],
             ["EV_FULLSCREEN",               ac_fullscreen,          null],
             ["EV_LAYOUT",                   ac_layout,              null],
@@ -2307,8 +2307,8 @@ function create_gclass(gclass_name)
         ["EV_HISTORY_REDO",             0],
 
         /*--- Published to parent ---*/
-        ["EV_MX_VERTEX_CLICKED",        event_flag_t.EVF_OUTPUT_EVENT],
-        ["EV_MX_EDGE_CLICKED",          event_flag_t.EVF_OUTPUT_EVENT],
+        ["EV_VERTEX_CLICKED",           event_flag_t.EVF_OUTPUT_EVENT],
+        ["EV_EDGE_CLICKED",             event_flag_t.EVF_OUTPUT_EVENT],
         ["EV_REFRESH_TREEDB",           event_flag_t.EVF_OUTPUT_EVENT],
         ["EV_CREATE_RECORD",            event_flag_t.EVF_OUTPUT_EVENT],
         ["EV_UPDATE_RECORD",            event_flag_t.EVF_OUTPUT_EVENT],

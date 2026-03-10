@@ -74,19 +74,6 @@ import {
 import {yui_toolbar} from "./yui_toolbar.js";
 import {display_error_message} from "./c_yui_main.js";
 
-import {
-    addClasses,
-    removeClasses,
-    toggleClasses,
-    removeChildElements,
-    disableElements,
-    enableElements,
-    set_submit_state,
-    set_cancel_state,
-    set_active_state,
-    getStrokeColor,
-} from "./lib_graph.js";
-
 import {t} from "i18next";
 
 /***************************************************************
@@ -244,7 +231,6 @@ function mt_writing(gobj, path)
     let priv = gobj.priv;
 
     switch(path) {
-        // TODO needed?
         case "treedb_name":
             priv.treedb_name = gobj_read_str_attr(gobj, "treedb_name");
             break;
@@ -1366,8 +1352,8 @@ function create_gclass(gclass_name)
             ["EV_REFRESH_TREEDB",           ac_refresh_treedb,          null],
             ["EV_SHOW_HOOK_DATA",           ac_show_hook_data,          null],
             ["EV_SHOW_TREEDB_TOPIC",        ac_show_treedb_topic,       null],
-            ["EV_MX_VERTEX_CLICKED",        ac_vertex_clicked,          null],
-            ["EV_MX_EDGE_CLICKED",          ac_edge_clicked,            null],
+            ["EV_VERTEX_CLICKED",           ac_vertex_clicked,          null],
+            ["EV_EDGE_CLICKED",             ac_edge_clicked,            null],
             ["EV_CREATE_RECORD",            ac_create_record,           null],
             ["EV_DELETE_RECORD",            ac_delete_record,           null],
             ["EV_UPDATE_RECORD",            ac_update_record,           null],
@@ -1393,8 +1379,8 @@ function create_gclass(gclass_name)
         ["EV_REFRESH_TREEDB",           0],
         ["EV_SHOW_HOOK_DATA",           0],
         ["EV_SHOW_TREEDB_TOPIC",        0],
-        ["EV_MX_VERTEX_CLICKED",        0],
-        ["EV_MX_EDGE_CLICKED",          0],
+        ["EV_VERTEX_CLICKED",           0],
+        ["EV_EDGE_CLICKED",             0],
         ["EV_CREATE_RECORD",            0],
         ["EV_DELETE_RECORD",            0],
         ["EV_UPDATE_RECORD",            0],
