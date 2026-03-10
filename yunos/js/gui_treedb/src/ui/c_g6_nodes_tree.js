@@ -1016,7 +1016,7 @@ function remove_topic_node(gobj, node_name)
 /************************************************************
  *  Update local record in records dict
  ************************************************************/
-function update_local_record(gobj, topic_name, node)
+function update_local_node(gobj, topic_name, node)
 {
     let priv = gobj.priv;
 
@@ -1036,7 +1036,7 @@ function update_local_record(gobj, topic_name, node)
 /************************************************************
  *  Remove local record from records dict
  ************************************************************/
-function remove_local_record(gobj, topic_name, node)
+function remove_local_node(gobj, topic_name, node)
 {
     let priv = gobj.priv;
 
@@ -1413,7 +1413,7 @@ function save_geometry(gobj)
             },
             options: options
         };
-        gobj_publish_event(gobj, "EV_UPDATE_RECORD", kw_update);
+        gobj_publish_event(gobj, "EV_UPDATE_NODE", kw_update);
     }
 }
 
@@ -1814,7 +1814,7 @@ function ac_node_updated(gobj, event, kw, src)
     }
 
     update_topic_node(gobj, schema, node_name, node);
-    update_local_record(gobj, topic_name, node);
+    update_local_node(gobj, topic_name, node);
 
     draw_links(gobj, schema, node, false);
 
@@ -1846,7 +1846,7 @@ function ac_node_deleted(gobj, event, kw, src)
 
     clear_links(gobj, schema, node, false);
     remove_topic_node(gobj, node_name);
-    remove_local_record(gobj, topic_name, node);
+    remove_local_node(gobj, topic_name, node);
 
     graph_render(gobj);
 
@@ -2162,33 +2162,33 @@ function ac_history_undo(gobj, event, kw, src)
 /************************************************************
  *  CRUD events - publish to parent for backend handling
  ************************************************************/
-function ac_create_record(gobj, event, kw, src)
+function ac_create_node(gobj, event, kw, src)
 {
-    gobj_publish_event(gobj, "EV_CREATE_RECORD", kw);
+    gobj_publish_event(gobj, "EV_CREATE_NODE", kw);
     return 0;
 }
 
-function ac_update_record(gobj, event, kw, src)
+function ac_update_node(gobj, event, kw, src)
 {
-    gobj_publish_event(gobj, "EV_UPDATE_RECORD", kw);
+    gobj_publish_event(gobj, "EV_UPDATE_NODE", kw);
     return 0;
 }
 
-function ac_delete_record(gobj, event, kw, src)
+function ac_delete_node(gobj, event, kw, src)
 {
-    gobj_publish_event(gobj, "EV_DELETE_RECORD", kw);
+    gobj_publish_event(gobj, "EV_DELETE_NODE", kw);
     return 0;
 }
 
-function ac_link_records(gobj, event, kw, src)
+function ac_link_nodes(gobj, event, kw, src)
 {
-    gobj_publish_event(gobj, "EV_LINK_RECORDS", kw);
+    gobj_publish_event(gobj, "EV_LINK_NODES", kw);
     return 0;
 }
 
-function ac_unlink_records(gobj, event, kw, src)
+function ac_unlink_nodes(gobj, event, kw, src)
 {
-    gobj_publish_event(gobj, "EV_UNLINK_RECORDS", kw);
+    gobj_publish_event(gobj, "EV_UNLINK_NODES", kw);
     return 0;
 }
 
@@ -2259,11 +2259,11 @@ function create_gclass(gclass_name)
             ["EV_HISTORY_REDO",             ac_history_redo,        null],
 
             /*--- CRUD pass-through events ---*/
-            ["EV_CREATE_RECORD",            ac_create_record,       null],
-            ["EV_UPDATE_RECORD",            ac_update_record,       null],
-            ["EV_DELETE_RECORD",            ac_delete_record,       null],
-            ["EV_LINK_RECORDS",             ac_link_records,        null],
-            ["EV_UNLINK_RECORDS",           ac_unlink_records,      null],
+            ["EV_CREATE_NODE",              ac_create_node,         null],
+            ["EV_UPDATE_NODE",              ac_update_node,         null],
+            ["EV_DELETE_NODE",              ac_delete_node,         null],
+            ["EV_LINK_NODES",               ac_link_nodes,          null],
+            ["EV_UNLINK_NODES",             ac_unlink_nodes,        null],
 
             /*--- UI events ---*/
             ["EV_SHOW",                     ac_show,                null],
@@ -2296,7 +2296,7 @@ function create_gclass(gclass_name)
         /*--- Toolbar (internal) ---*/
         ["EV_ZOOM_IN",                  0],
         ["EV_ZOOM_OUT",                 0],
-        ["EV_ZOOM_RESET",              0],
+        ["EV_ZOOM_RESET",               0],
         ["EV_CENTER",                   0],
         ["EV_FULLSCREEN",               0],
         ["EV_LAYOUT",                   0],
@@ -2310,11 +2310,11 @@ function create_gclass(gclass_name)
         ["EV_VERTEX_CLICKED",           event_flag_t.EVF_OUTPUT_EVENT],
         ["EV_EDGE_CLICKED",             event_flag_t.EVF_OUTPUT_EVENT],
         ["EV_REFRESH_TREEDB",           event_flag_t.EVF_OUTPUT_EVENT],
-        ["EV_CREATE_RECORD",            event_flag_t.EVF_OUTPUT_EVENT],
-        ["EV_UPDATE_RECORD",            event_flag_t.EVF_OUTPUT_EVENT],
-        ["EV_DELETE_RECORD",            event_flag_t.EVF_OUTPUT_EVENT],
-        ["EV_LINK_RECORDS",             event_flag_t.EVF_OUTPUT_EVENT],
-        ["EV_UNLINK_RECORDS",           event_flag_t.EVF_OUTPUT_EVENT],
+        ["EV_CREATE_NODE",              event_flag_t.EVF_OUTPUT_EVENT],
+        ["EV_UPDATE_NODE",              event_flag_t.EVF_OUTPUT_EVENT],
+        ["EV_DELETE_NODE",              event_flag_t.EVF_OUTPUT_EVENT],
+        ["EV_LINK_NODES",               event_flag_t.EVF_OUTPUT_EVENT],
+        ["EV_UNLINK_NODES",             event_flag_t.EVF_OUTPUT_EVENT],
 
         /*--- UI events ---*/
         ["EV_SHOW",                     0],

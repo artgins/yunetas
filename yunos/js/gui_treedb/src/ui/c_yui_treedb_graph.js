@@ -1041,7 +1041,7 @@ function ac_edge_clicked(gobj, event, kw, src)
  *  }
  *  Send to backend
  ********************************************/
-function ac_create_record(gobj, event, kw, src)
+function ac_create_node(gobj, event, kw, src)
 {
     let priv = gobj.priv;
     let treedb_name = priv.treedb_name;
@@ -1067,7 +1067,7 @@ function ac_create_record(gobj, event, kw, src)
  *  }
  *  Send to backend
  ********************************************/
-function ac_update_record(gobj, event, kw, src)
+function ac_update_node(gobj, event, kw, src)
 {
     let priv = gobj.priv;
     let treedb_name = priv.treedb_name;
@@ -1093,7 +1093,7 @@ function ac_update_record(gobj, event, kw, src)
  *  }
  *  Send to backend
  ********************************************/
-function ac_delete_record(gobj, event, kw, src)
+function ac_delete_node(gobj, event, kw, src)
 {
     let priv = gobj.priv;
     let treedb_name = priv.treedb_name;
@@ -1119,7 +1119,7 @@ function ac_delete_record(gobj, event, kw, src)
  *  }
  *  Send to backend
  ********************************************/
-function ac_link_records(gobj, event, kw, src)
+function ac_link_nodes(gobj, event, kw, src)
 {
     let priv = gobj.priv;
     let treedb_name = priv.treedb_name;
@@ -1145,7 +1145,7 @@ function ac_link_records(gobj, event, kw, src)
  *  }
  *  Send to backend
  ********************************************/
-function ac_unlink_records(gobj, event, kw, src)
+function ac_unlink_nodes(gobj, event, kw, src)
 {
     let priv = gobj.priv;
     let treedb_name = priv.treedb_name;
@@ -1354,11 +1354,11 @@ function create_gclass(gclass_name)
             ["EV_SHOW_TREEDB_TOPIC",        ac_show_treedb_topic,       null],
             ["EV_VERTEX_CLICKED",           ac_vertex_clicked,          null],
             ["EV_EDGE_CLICKED",             ac_edge_clicked,            null],
-            ["EV_CREATE_RECORD",            ac_create_record,           null],
-            ["EV_DELETE_RECORD",            ac_delete_record,           null],
-            ["EV_UPDATE_RECORD",            ac_update_record,           null],
-            ["EV_LINK_RECORDS",             ac_link_records,            null],
-            ["EV_UNLINK_RECORDS",           ac_unlink_records,          null],
+            ["EV_CREATE_NODE",              ac_create_node,             null],
+            ["EV_DELETE_NODE",              ac_delete_node,             null],
+            ["EV_UPDATE_NODE",              ac_update_node,             null],
+            ["EV_LINK_NODES",               ac_link_nodes,              null],
+            ["EV_UNLINK_NODES",             ac_unlink_nodes,            null],
             ["EV_RUN_NODE",                 ac_run_node,                null],
             ["EV_CLOSE_WINDOW",             ac_close_window,            null],
             ["EV_SHOW",                     ac_show,                    null],
@@ -1381,11 +1381,11 @@ function create_gclass(gclass_name)
         ["EV_SHOW_TREEDB_TOPIC",        0],
         ["EV_VERTEX_CLICKED",           0],
         ["EV_EDGE_CLICKED",             0],
-        ["EV_CREATE_RECORD",            0],
-        ["EV_DELETE_RECORD",            0],
-        ["EV_UPDATE_RECORD",            0],
-        ["EV_LINK_RECORDS",             0],
-        ["EV_UNLINK_RECORDS",           0],
+        ["EV_CREATE_NODE",              0],
+        ["EV_DELETE_NODE",              0],
+        ["EV_UPDATE_NODE",              0],
+        ["EV_LINK_NODES",               0],
+        ["EV_UNLINK_NODES",             0],
         ["EV_RUN_NODE",                 0],
         ["EV_CLOSE_WINDOW",             0],
         ["EV_SHOW",                     0],
