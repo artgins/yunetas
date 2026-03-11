@@ -109,7 +109,6 @@ SDATA(data_type_t.DTP_STRING,   "image",            0,  "",     "Tab image"),
 SDATA(data_type_t.DTP_STRING,   "icon",             0,  "fa-solid fa-question", "Tab icon"),
 
 /*---------------- Particular Attributes ----------------*/
-SDATA(data_type_t.DTP_BOOLEAN,  "auto_topics",          0,  true,   "Auto-discover topics"),
 SDATA(data_type_t.DTP_POINTER,  "hook_data_viewer",     0,  null,   "GClass Manager/Viewer of hook data"),
 SDATA(data_type_t.DTP_BOOLEAN,  "is_pinhold_window",    0,  false,  "Select default: window or container panel"),
 
@@ -130,7 +129,6 @@ let PRIVATE_DATA = {
     gobj_treedb_tables: null,
     hook_data_viewer:   null,
     with_treedb_tables: false,
-    auto_topics:        false,
     canvas_id:          null,
 
     is_pinhold_window:  false, // inherited of v6, todo review
@@ -202,22 +200,19 @@ function mt_create(gobj)
      *  Treedb tables at start
      */
     if(priv.with_treedb_tables) {
-        if(!gobj_read_bool_attr(gobj, "auto_topics")) {
-            // priv.gobj_treedb_tables = gobj_create_service( TODO
-            //     "", // TODO build_name(self, "Topics"),
-            //     "Ui_treedb_tables", // TODO
-            //     {
-            //         subscriber: gobj,
-            //         with_treedb_tables: priv.with_treedb_tables,
-            //         auto_topics: priv.auto_topics,
-            //         // hook_data_viewer: Ui_hook_viewer_popup, TODO
-            //         gobj_remote_yuno: priv.gobj_remote_yuno,
-            //         treedb_name: priv.treedb_name,
-            //         topics: priv.topics,
-            //     },
-            //     gobj
-            // );
-        }
+        // priv.gobj_treedb_tables = gobj_create_service( TODO
+        //     "", // TODO build_name(self, "Topics"),
+        //     "Ui_treedb_tables", // TODO
+        //     {
+        //         subscriber: gobj,
+        //         with_treedb_tables: priv.with_treedb_tables,
+        //         // hook_data_viewer: Ui_hook_viewer_popup, TODO
+        //         gobj_remote_yuno: priv.gobj_remote_yuno,
+        //         treedb_name: priv.treedb_name,
+        //         topics: priv.topics,
+        //     },
+        //     gobj
+        // );
     }
 }
 
@@ -592,29 +587,27 @@ function process_treedb_descs(gobj)
     let priv = gobj.priv;
 
     /*
-     *  Auto topics
+     *  descs is a dict: { __snaps__: {…}, roles: {…}, users: {…} }
      */
-    if(gobj_read_bool_attr(gobj, "auto_topics")) {
-        if(json_size(priv.topics) === 0) {
-            for(const topic_name of Object.keys(priv.descs)) {
-                if(topic_name.substring(0, 2) === "__") {
-                    continue;
-                }
-                priv.topics.push({topic_name: topic_name});
+    let gobj_remote_yuno = gobj_read_pointer_attr(gobj, "gobj_remote_yuno");
+    let descs = gobj_read_attr(gobj, "descs");
+    let system = gobj_read_bool_attr(gobj, "system");
+    let treedb_name = gobj_read_str_attr(gobj, "treedb_name");
+    for (const [key, desc] of Object.entries(descs)) {
+        if(system) {
+            if(key === "__snaps__") {
+                continue;
+            }
+            if (key.substring(0, 2) !== "__") {
+                continue;
+            }
+        } else {
+            if (key.substring(0, 2) === "__") {
+                continue;
             }
         }
-    }
 
-    /*
-     *  Subscribe events
-     */
-    for(let i=0; i<priv.topics.length; i++) {
-        let topic_name = priv.topics[i].topic_name;
-        let desc = priv.descs[topic_name];
-        if(!desc) {
-            log_error("topic desc unknown: " + topic_name);
-            continue;
-        }
+        let topic_name = key;
 
         gobj_subscribe_event(priv.gobj_remote_yuno,
             "EV_TREEDB_NODE_CREATED",
@@ -666,20 +659,6 @@ function process_treedb_descs(gobj)
             );
         }
     }
-
-    /*
-     *  Treedb tables on auto_topics
-     */
-    // TODO: Create gobj_treedb_tables when auto_topics + with_treedb_tables
-    // if(gobj_read_bool_attr(gobj, "auto_topics")) {
-    //     if(gobj_read_bool_attr(gobj, "with_treedb_tables")) {
-    //         if(priv.gobj_treedb_tables) {
-    //             log_error("gobj_treedb_tables ALREADY created");
-    //         }
-    //         priv.gobj_treedb_tables = gobj_create_service(...);
-    //         gobj_start(priv.gobj_treedb_tables);
-    //     }
-    // }
 
     /*
      *  Get data
