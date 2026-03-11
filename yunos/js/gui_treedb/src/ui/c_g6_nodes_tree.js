@@ -1714,15 +1714,6 @@ function ac_load_data(gobj, event, kw, src)
 }
 
 /************************************************************
- *  Create graph styles (from parent)
- ************************************************************/
-function ac_create_graph_styles(gobj, event, kw, src)
-{
-    // Styles are handled internally via topic colors
-    return 0;
-}
-
-/************************************************************
  *  Node created (from subscription)
  ************************************************************/
 function ac_node_created(gobj, event, kw, src)
@@ -2218,7 +2209,6 @@ function create_gclass(gclass_name)
             ["EV_DESCS",                    ac_descs,               null],
             ["EV_CLEAR_DATA",               ac_clear_data,          null],
             ["EV_LOAD_DATA",                ac_load_data,           null],
-            ["EV_CREATE_GRAPH_STYLES",      ac_create_graph_styles, null],
             ["EV_NODE_CREATED",             ac_node_created,        null],
             ["EV_NODE_UPDATED",             ac_node_updated,        null],
             ["EV_NODE_DELETED",             ac_node_deleted,        null],
@@ -2267,7 +2257,6 @@ function create_gclass(gclass_name)
         ["EV_DESCS",                    0],
         ["EV_CLEAR_DATA",               0],
         ["EV_LOAD_DATA",                0],
-        ["EV_CREATE_GRAPH_STYLES",      0],
         ["EV_NODE_CREATED",             0],
         ["EV_NODE_UPDATED",             0],
         ["EV_NODE_DELETED",             0],

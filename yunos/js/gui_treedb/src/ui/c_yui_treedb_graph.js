@@ -695,22 +695,6 @@ function process_treedb_descs(gobj)
 
     // TODO register_nodes(gobj) = register(ExtensionCategory.NODE, 'light', LightNode);
 
-    /*
-     *  Create default styles if not defined
-     */
-    if(json_size(priv.topics_style) === 0) {
-        // priv.topics_style = build_default_graph_topics_style(priv.topics);
-        if(priv.gobj_nodes_tree) {
-            gobj_send_event(priv.gobj_nodes_tree,
-                "EV_CREATE_GRAPH_STYLES",
-                {
-                    topics_style: priv.topics_style,
-                },
-                gobj
-            );
-        }
-    }
-
     if(priv.gobj_nodes_tree) {
         gobj_send_event(priv.gobj_nodes_tree,
             "EV_DESCS",
