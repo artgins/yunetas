@@ -134,7 +134,6 @@ SDATA(data_type_t.DTP_LIST,     "topics",               0,  "[]",   "List of top
 
 /*---------------- Sub-container ----------------*/
 SDATA(data_type_t.DTP_POINTER,  "$container",           0,  null,   "Container element, set externally"),
-SDATA(data_type_t.DTP_STRING,   "canvas_id",            0,  "",     "Canvas ID"),
 
 /*---------------- Graph Settings ----------------*/
 SDATA(data_type_t.DTP_BOOLEAN,  "with_treedb_tables",   0,  false,  "Include treedb tables"),
@@ -186,7 +185,7 @@ let PRIVATE_DATA = {
     gobj_remote_yuno:   null,
     descs:              null,
     records:            {},
-    canvas_id:          "",
+    $container:         null,
     graph:              null,   // Instance of G6
     __graphs__:         [],     // Rows of __graphs__
     yet_showed:         false,
@@ -1340,9 +1339,9 @@ function process_command_nodes(gobj, topic_name, data)
     }
 
     if(do_links && priv.graph) {
-        // graph_render(gobj).then(() => {
-        //     create_links(gobj); // create links and render graph
-        // });
+        graph_render(gobj).then(() => {
+            create_links(gobj); // create links and render graph
+        });
     }
 }
 

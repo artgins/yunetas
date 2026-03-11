@@ -183,6 +183,7 @@ function mt_create(gobj)
         `${gobj_name(gobj)}-g6`,
         "C_G6_NODES_TREE",
         {
+            // canvas_id: canvas_id,
             $container: $container_canvas,
             subscriber: gobj,
             gobj_remote_yuno: priv.gobj_remote_yuno,
