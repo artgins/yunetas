@@ -113,6 +113,39 @@ SDATA(data_type_t.DTP_STRING,   "icon",             0,  "fa-solid fa-question", 
 SDATA(data_type_t.DTP_POINTER,  "hook_data_viewer",     0,  null,   "GClass Manager/Viewer of hook data"),
 SDATA(data_type_t.DTP_BOOLEAN,  "is_pinhold_window",    0,  false,  "Select default: window or container panel"),
 
+/*---------------- Graph General Settings ----------------*/
+SDATA(data_type_t.DTP_DICT,     "graph_settings",       0,  {
+    layouts: {
+        "dagre": {
+            type: 'dagre',
+        },
+        "antv-dagre": {
+            type: 'antv-dagre',
+        },
+        "d3-force": {
+            type: 'd3-force',
+            link: {
+                distance: 200,
+                strength: 2
+            },
+            collide: {
+                radius: 80,
+            },
+        },
+        "force-atlas2": {
+            type: 'force-atlas2',
+            preventOverlap: true,
+            kr: 20,
+            graph_center: [250, 250],
+        },
+
+        // set manual the last
+        "manual": {
+            type: 'manual',
+        },
+    },
+}, "Default graph settings"),
+
 SDATA(data_type_t.DTP_STRING,   "wide",                 0,  "40px", "Height of header"),
 SDATA(data_type_t.DTP_STRING,   "padding",              0,  "m-2",  "Padding or margin value"),
 SDATA(data_type_t.DTP_STRING,   "canvas_id",            0,  "",     "Canvas ID"),
@@ -131,6 +164,7 @@ let PRIVATE_DATA = {
     hook_data_viewer:   null,
     with_treedb_tables: false,
     canvas_id:          null,
+    graph_settings:     null,
 
     is_pinhold_window:  false, // inherited of v6, todo review
 };
@@ -167,6 +201,8 @@ function mt_create(gobj)
         log_error(`${gobj_name(gobj)} -> treedb_name not configured`);
     }
 
+    priv.graph_settings = gobj_read_attr(gobj, "graph_settings");
+
     let __yui_main__ = gobj_find_service("__yui_main__", true);
     if(__yui_main__) {
         gobj_subscribe_event(__yui_main__, "EV_RESIZE", {}, gobj);
@@ -183,8 +219,8 @@ function mt_create(gobj)
         `${gobj_name(gobj)}-g6`,
         "C_G6_NODES_TREE",
         {
-            // canvas_id: canvas_id,
             $container: $container_canvas,
+            $toolbar_container: $container,
             subscriber: gobj,
             gobj_remote_yuno: priv.gobj_remote_yuno,
             treedb_name: priv.treedb_name,
@@ -192,6 +228,7 @@ function mt_create(gobj)
             // TODO review if needed
             // topics_style: priv.topics_style,
             with_treedb_tables: priv.with_treedb_tables,
+            graph_settings: priv.graph_settings,
             hook_port_position: "bottom",
             fkey_port_position: "top",
         },
@@ -324,28 +361,38 @@ function make_toolbar(gobj)
     /*---------------------------------------*
      *      Top Header toolbar
      *---------------------------------------*/
+    let graph_settings = priv.graph_settings;
+    let layouts = graph_settings.layouts;
+    let layout_options = Object.keys(layouts).map(key => ['option', {}, key]);
+
+    let modes = gobj_read_attr(gobj, "modes");
+    let mode_options = modes.map(item => ['option', {}, item]);
 
     /*
      *  Left: layout and mode selectors
      */
     let left_items = [
-        // ['div', {class: 'select'}, [
-        //     ['select', {class: 'graph_layout'}, layout_options]
-        // ], {
-        //     change: (evt) => {
-        //         evt.stopPropagation();
-        //         gobj_send_event(gobj, "EV_LAYOUT", {layout: evt.target.value}, gobj);
-        //     }
-        // }],
+        ['div', {class: 'select'}, [
+            ['select', {class: 'graph_layout'}, layout_options]
+        ], {
+            change: (evt) => {
+                evt.stopPropagation();
+                if(priv.gobj_nodes_tree) {
+                    gobj_send_event(priv.gobj_nodes_tree, "EV_LAYOUT", {layout: evt.target.value}, gobj);
+                }
+            }
+        }],
 
-        // ['div', {class: 'select'}, [
-        //     ['select', {class: 'graph_mode'}, mode_options]
-        // ], {
-        //     change: (evt) => {
-        //         evt.stopPropagation();
-        //         gobj_send_event(gobj, "EV_SET_MODE", {mode: evt.target.value}, gobj);
-        //     }
-        // }],
+        ['div', {class: 'select'}, [
+            ['select', {class: 'graph_mode'}, mode_options]
+        ], {
+            change: (evt) => {
+                evt.stopPropagation();
+                if(priv.gobj_nodes_tree) {
+                    gobj_send_event(priv.gobj_nodes_tree, "EV_SET_MODE", {mode: evt.target.value}, gobj);
+                }
+            }
+        }],
     ];
     let l_icons = [
         ["fas fa-arrows-rotate",        "EV_REFRESH_TREEDB",false,  'i'],

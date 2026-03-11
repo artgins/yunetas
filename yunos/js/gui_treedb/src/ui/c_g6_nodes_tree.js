@@ -62,7 +62,6 @@ import {
     delete_from_list,
     escapeHtml,
     safeSrc,
-    refresh_language,
 } from "yunetas";
 
 import {
@@ -76,9 +75,6 @@ import {
     getStrokeColor,
 } from "./lib_graph.js";
 
-import {yui_toolbar} from "./yui_toolbar.js";
-
-import {t} from "i18next";
 
 import {
     BaseLayout,
@@ -133,7 +129,8 @@ SDATA(data_type_t.DTP_DICT,     "records",              0,  "{}",   "Data of top
 SDATA(data_type_t.DTP_LIST,     "topics",               0,  "[]",   "List of topic objects"),
 
 /*---------------- Sub-container ----------------*/
-SDATA(data_type_t.DTP_POINTER,  "$container",           0,  null,   "Container element, set externally"),
+SDATA(data_type_t.DTP_POINTER,  "$container",           0,  null,   "Graph container element, set externally"),
+SDATA(data_type_t.DTP_POINTER,  "$toolbar_container",   0,  null,   "Parent container with toolbar, set externally"),
 
 /*---------------- Graph Settings ----------------*/
 SDATA(data_type_t.DTP_BOOLEAN,  "with_treedb_tables",   0,  false,  "Include treedb tables"),
@@ -186,6 +183,7 @@ let PRIVATE_DATA = {
     descs:              null,
     records:            {},
     $container:         null,
+    $toolbar_container: null,
     graph:              null,   // Instance of G6
     __graphs__:         [],     // Rows of __graphs__
     yet_showed:         false,
@@ -319,75 +317,6 @@ function build_ui(gobj)
 function destroy_ui(gobj)
 {
     // Nothing to do, $container set externally
-}
-
-/************************************************************
- *   Make toolbar
- ************************************************************/
-function make_toolbar(gobj)
-{
-    let priv = gobj.priv;
-
-    let graph_settings = priv.graph_settings;
-    let layouts = graph_settings.layouts;
-    let layout_options = Object.keys(layouts).map(key => ['option', {}, key]);
-
-    let modes = gobj_read_attr(gobj, "modes");
-    let mode_options = modes.map(item => ['option', {}, item]);
-
-    /*
-     *  Left: layout and mode selectors
-     */
-    let left_items = [
-        ['div', {class: 'select'}, [
-            ['select', {class: 'graph_layout'}, layout_options]
-        ], {
-            change: (evt) => {
-                evt.stopPropagation();
-                gobj_send_event(gobj, "EV_LAYOUT", {layout: evt.target.value}, gobj);
-            }
-        }],
-
-        ['div', {class: 'select'}, [
-            ['select', {class: 'graph_mode'}, mode_options]
-        ], {
-            change: (evt) => {
-                evt.stopPropagation();
-                gobj_send_event(gobj, "EV_SET_MODE", {mode: evt.target.value}, gobj);
-            }
-        }],
-    ];
-    let l_icons = [
-        ["fas fa-arrows-rotate",        "EV_REFRESH_TREEDB",false,  'i'],
-    ];
-    add_buttons(gobj, left_items, l_icons);
-
-    /*
-     *  Center: zoom and navigation controls
-     */
-    let center_items = [];
-    let c_icons = [
-        ["fas fa-magnifying-glass-plus", "EV_ZOOM_IN",       false,  'i'],
-        ["fas fa-magnifying-glass",      "EV_ZOOM_RESET",    false,  'i'],
-        ["fas fa-magnifying-glass-minus","EV_ZOOM_OUT",      false,  'i'],
-        ["fas fa-arrows-to-eye",         "EV_CENTER",        false,  'i'],
-    ];
-    add_buttons(gobj, center_items, c_icons);
-
-    /*
-     *  Right: mode-specific buttons (filled by set_mode)
-     */
-    let right_items = [];
-
-    const $toolbar_header = yui_toolbar({}, [
-        ['div', {class: 'yui-horizontal-toolbar-section left'}, left_items],
-        ['div', {class: 'yui-horizontal-toolbar-section center'}, center_items],
-        ['div', {class: 'yui-horizontal-toolbar-section right mode_buttons'}, right_items]
-    ]);
-
-    refresh_language($toolbar_header, t);
-
-    return $toolbar_header;
 }
 
 /************************************************************
@@ -626,7 +555,7 @@ function select_layout(gobj, layout_name)
     let priv = gobj.priv;
 
     let graph_settings = priv.graph_settings;
-    let $container = gobj_read_attr(gobj, "$container");
+    let $toolbar_container = gobj_read_attr(gobj, "$toolbar_container");
 
     if(!layout_name) {
         layout_name = gobj_read_str_attr(gobj, "current_layout");
@@ -637,7 +566,7 @@ function select_layout(gobj, layout_name)
 
     gobj_write_str_attr(gobj, "current_layout", layout_name);
 
-    let $input = $container.querySelector('.graph_layout');
+    let $input = $toolbar_container? $toolbar_container.querySelector('.graph_layout') : null;
     if($input) {
         $input.value = layout_name;
     }
@@ -650,7 +579,7 @@ function select_layout(gobj, layout_name)
  ************************************************************/
 function select_mode(gobj, mode_name)
 {
-    let $container = gobj_read_attr(gobj, "$container");
+    let $toolbar_container = gobj_read_attr(gobj, "$toolbar_container");
 
     if(!mode_name) {
         mode_name = gobj_read_str_attr(gobj, "current_mode");
@@ -661,7 +590,7 @@ function select_mode(gobj, mode_name)
 
     gobj_write_str_attr(gobj, "current_mode", mode_name);
 
-    let $input = $container.querySelector('.graph_mode');
+    let $input = $toolbar_container? $toolbar_container.querySelector('.graph_mode') : null;
     if($input) {
         $input.value = mode_name;
     }
@@ -674,9 +603,9 @@ function select_mode(gobj, mode_name)
  ************************************************************/
 function set_mode(gobj, mode)
 {
-    let $container = gobj_read_attr(gobj, "$container");
+    let $toolbar_container = gobj_read_attr(gobj, "$toolbar_container");
 
-    let $zone = $container.querySelector('.mode_buttons');
+    let $zone = $toolbar_container? $toolbar_container.querySelector('.mode_buttons') : null;
     if($zone) {
         removeChildElements($zone);
     }
@@ -1638,38 +1567,38 @@ function update_history_buttons(gobj)
 {
     let priv = gobj.priv;
     let graph = priv.graph;
-    let $container = gobj_read_attr(gobj, "$container");
+    let $toolbar_container = gobj_read_attr(gobj, "$toolbar_container");
 
     if(!graph || !graph.rendered) {
-        disableElements($container, ".EV_HISTORY_REDO");
-        set_active_state($container, ".EV_HISTORY_REDO", false);
-        disableElements($container, ".EV_HISTORY_UNDO");
-        set_active_state($container, ".EV_HISTORY_UNDO", false);
+        disableElements($toolbar_container, ".EV_HISTORY_REDO");
+        set_active_state($toolbar_container, ".EV_HISTORY_REDO", false);
+        disableElements($toolbar_container, ".EV_HISTORY_UNDO");
+        set_active_state($toolbar_container, ".EV_HISTORY_UNDO", false);
         return;
     }
 
     const history = graph.getPluginInstance('history');
     if(history) {
         if(history.canRedo()) {
-            enableElements($container, ".EV_HISTORY_REDO");
-            set_active_state($container, ".EV_HISTORY_REDO", true);
+            enableElements($toolbar_container, ".EV_HISTORY_REDO");
+            set_active_state($toolbar_container, ".EV_HISTORY_REDO", true);
         } else {
-            disableElements($container, ".EV_HISTORY_REDO");
-            set_active_state($container, ".EV_HISTORY_REDO", false);
+            disableElements($toolbar_container, ".EV_HISTORY_REDO");
+            set_active_state($toolbar_container, ".EV_HISTORY_REDO", false);
         }
 
         if(history.canUndo()) {
-            enableElements($container, ".EV_HISTORY_UNDO");
-            set_active_state($container, ".EV_HISTORY_UNDO", true);
+            enableElements($toolbar_container, ".EV_HISTORY_UNDO");
+            set_active_state($toolbar_container, ".EV_HISTORY_UNDO", true);
         } else {
-            disableElements($container, ".EV_HISTORY_UNDO");
-            set_active_state($container, ".EV_HISTORY_UNDO", false);
+            disableElements($toolbar_container, ".EV_HISTORY_UNDO");
+            set_active_state($toolbar_container, ".EV_HISTORY_UNDO", false);
         }
     } else {
-        disableElements($container, ".EV_HISTORY_REDO");
-        set_active_state($container, ".EV_HISTORY_REDO", false);
-        disableElements($container, ".EV_HISTORY_UNDO");
-        set_active_state($container, ".EV_HISTORY_UNDO", false);
+        disableElements($toolbar_container, ".EV_HISTORY_REDO");
+        set_active_state($toolbar_container, ".EV_HISTORY_REDO", false);
+        disableElements($toolbar_container, ".EV_HISTORY_UNDO");
+        set_active_state($toolbar_container, ".EV_HISTORY_UNDO", false);
     }
 }
 
@@ -2022,9 +1951,9 @@ function ac_layout(gobj, event, kw, src)
     gobj_save_persistent_attrs(gobj, "current_layout");
     graph_set_layout(gobj, layout).then(() => {
         if(priv.edit_mode) {
-            let $container = gobj_read_attr(gobj, "$container");
-            enableElements($container, ".EV_SAVE_GRAPH");
-            set_submit_state($container, ".EV_SAVE_GRAPH", true);
+            let $toolbar_container = gobj_read_attr(gobj, "$toolbar_container");
+            enableElements($toolbar_container, ".EV_SAVE_GRAPH");
+            set_submit_state($toolbar_container, ".EV_SAVE_GRAPH", true);
         }
     });
 
@@ -2048,18 +1977,18 @@ function ac_set_mode(gobj, event, kw, src)
 function ac_edit_mode(gobj, event, kw, src)
 {
     let priv = gobj.priv;
-    let $container = gobj_read_attr(gobj, "$container");
+    let $toolbar_container = gobj_read_attr(gobj, "$toolbar_container");
 
     priv.edit_mode = !priv.edit_mode;
     if(priv.edit_mode) {
-        set_active_state($container, ".EV_EDIT_MODE", true);
+        set_active_state($toolbar_container, ".EV_EDIT_MODE", true);
         graph_set_behavior(gobj, 'drag-element', true);
         graph_add_plugin(gobj, 'history');
     } else {
-        set_active_state($container, ".EV_EDIT_MODE", false);
+        set_active_state($toolbar_container, ".EV_EDIT_MODE", false);
         graph_set_behavior(gobj, 'drag-element', false);
-        disableElements($container, ".EV_SAVE_GRAPH");
-        set_submit_state($container, ".EV_SAVE_GRAPH", false);
+        disableElements($toolbar_container, ".EV_SAVE_GRAPH");
+        set_submit_state($toolbar_container, ".EV_SAVE_GRAPH", false);
         graph_remove_plugin(gobj, 'history');
         update_history_buttons(gobj);
     }
@@ -2075,9 +2004,9 @@ function ac_save_graph(gobj, event, kw, src)
     let priv = gobj.priv;
 
     if(priv.edit_mode) {
-        let $container = gobj_read_attr(gobj, "$container");
-        disableElements($container, ".EV_SAVE_GRAPH");
-        set_submit_state($container, ".EV_SAVE_GRAPH", false);
+        let $toolbar_container = gobj_read_attr(gobj, "$toolbar_container");
+        disableElements($toolbar_container, ".EV_SAVE_GRAPH");
+        set_submit_state($toolbar_container, ".EV_SAVE_GRAPH", false);
         save_geometry(gobj);
     }
 
@@ -2092,9 +2021,9 @@ function ac_node_drag_end(gobj, event, kw, src)
     let priv = gobj.priv;
 
     if(priv.edit_mode) {
-        let $container = gobj_read_attr(gobj, "$container");
-        enableElements($container, ".EV_SAVE_GRAPH");
-        set_submit_state($container, ".EV_SAVE_GRAPH", true);
+        let $toolbar_container = gobj_read_attr(gobj, "$toolbar_container");
+        enableElements($toolbar_container, ".EV_SAVE_GRAPH");
+        set_submit_state($toolbar_container, ".EV_SAVE_GRAPH", true);
     }
 
     return 0;
