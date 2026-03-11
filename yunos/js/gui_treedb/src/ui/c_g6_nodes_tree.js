@@ -470,10 +470,15 @@ function add_buttons(gobj, zone, c_icons)
 /************************************************************
  *  Register custom G6 layouts
  ************************************************************/
+let _g6_extensions_registered = false;
+
 function register_layouts(gobj)
 {
-    register(ExtensionCategory.LAYOUT, 'manual', ManualLayout);
-    register(ExtensionCategory.NODE, 'light', LightNode);
+    if(!_g6_extensions_registered) {
+        _g6_extensions_registered = true;
+        register(ExtensionCategory.LAYOUT, 'manual', ManualLayout);
+        register(ExtensionCategory.NODE, 'light', LightNode);
+    }
 }
 
 /************************************************************
@@ -519,9 +524,13 @@ function build_graph(gobj)
     let mode = select_mode(gobj);
     set_mode(gobj, mode);
 
-    graph_set_layout(gobj, layout).then(() => {
-        configure_events(gobj);
-    });
+    /*
+     *  Don't render here — the container is not yet attached to the DOM.
+     *  Just set the layout config; rendering is deferred to ac_show()
+     *  which fires when the container becomes visible.
+     */
+    graph.setLayout(layout);
+    configure_events(gobj);
 }
 
 /************************************************************
@@ -1430,6 +1439,10 @@ function graph_add_plugin(gobj, plugin_key, options)
     let priv = gobj.priv;
     let graph = priv.graph;
 
+    if(!graph || !graph.rendered) {
+        return;
+    }
+
     let plugin = graph.getPluginInstance(plugin_key);
     if(!plugin) {
         let plugin_def = {
@@ -1462,6 +1475,10 @@ function graph_remove_plugin(gobj, plugin_key, verbose)
     let priv = gobj.priv;
     let graph = priv.graph;
 
+    if(!graph || !graph.rendered) {
+        return;
+    }
+
     const plugin = graph.getPluginInstance(plugin_key);
     if(plugin) {
         let plugins = graph.getPlugins();
@@ -1493,6 +1510,10 @@ async function clear_graph(gobj)
 
     graph_remove_plugin(gobj, 'history');
     update_history_buttons(gobj);
+
+    if(!graph.rendered) {
+        return;
+    }
 
     await graph.clear();
 
