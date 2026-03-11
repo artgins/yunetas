@@ -880,8 +880,6 @@ function process_command_nodes(gobj, kw_command, data)
         return;   // ignore system topics
     }
 
-
-
     if(priv.gobj_nodes_tree) {
         gobj_send_event(priv.gobj_nodes_tree,
             "EV_LOAD_DATA",

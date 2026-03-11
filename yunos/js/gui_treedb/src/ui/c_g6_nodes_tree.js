@@ -3,8 +3,6 @@
  *
  *          Treedb's Nodes Tree Manager using AntV/G6
  *
- *          Migrated from mx_nodes_tree.js (mxGraph) to G6
- *
  *          Each G6 Node contains in his data:
  *          {
  *              topic_name: "...",
