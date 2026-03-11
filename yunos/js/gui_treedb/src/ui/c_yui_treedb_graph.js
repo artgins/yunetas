@@ -325,10 +325,31 @@ function make_toolbar(gobj)
      *---------------------------------------*/
 
     /*
-     *  Left, layout and mode
+     *  Left: layout and mode selectors
      */
     let left_items = [
+        // ['div', {class: 'select'}, [
+        //     ['select', {class: 'graph_layout'}, layout_options]
+        // ], {
+        //     change: (evt) => {
+        //         evt.stopPropagation();
+        //         gobj_send_event(gobj, "EV_LAYOUT", {layout: evt.target.value}, gobj);
+        //     }
+        // }],
+
+        // ['div', {class: 'select'}, [
+        //     ['select', {class: 'graph_mode'}, mode_options]
+        // ], {
+        //     change: (evt) => {
+        //         evt.stopPropagation();
+        //         gobj_send_event(gobj, "EV_SET_MODE", {mode: evt.target.value}, gobj);
+        //     }
+        // }],
     ];
+    let l_icons = [
+        ["fas fa-arrows-rotate",        "EV_REFRESH_TREEDB",false,  'i'],
+    ];
+    add_buttons(gobj, left_items, l_icons);
 
     /*
      *  Center, common controls
@@ -353,7 +374,82 @@ function make_toolbar(gobj)
 }
 
 /************************************************************
+ *  add_buttons() - helper to create toolbar buttons
+ ************************************************************/
+function create_button_handlers(gobj, event_name)
+{
+    return {
+        click: (evt) => {
+            evt.stopPropagation();
+            gobj_send_event(gobj, event_name, {evt}, gobj);
+        },
+        contextmenu: (evt) => {
+            evt.stopPropagation();
+            evt.preventDefault();
+            gobj_send_event(gobj, event_name, {evt}, gobj);
+        }
+    };
+}
+
+function push_button(zone, button, content, handlers)
+{
+    zone.push([
+        'button',
+        button,
+        content,
+        handlers
+    ]);
+}
+
+function add_buttons(gobj, zone, c_icons)
+{
+    const toolbar_wide = gobj_read_attr(gobj, "wide");
+
+    for(let i = 0; i < c_icons.length; i++) {
+        const item = c_icons[i];
+        const icon_name  = item[0];
+        const event_name = item[1];
+        const disabled   = item[2];
+        const type       = item[3];
+
+        const button = {
+            class: `button ${event_name}`,
+            style: {
+                height: `${toolbar_wide}`
+            }
+        };
+
+        if(disabled) {
+            button.disabled = true;
+        }
+
+        const handlers = create_button_handlers(gobj, event_name);
+
+        switch(type) {
+            case 'i':
+            {
+                button.style.width = "2.5em";
+                const icon = ['i', {
+                    style: "font-size:1.5em; color:inherit;",
+                    class: icon_name
+                }];
+                push_button(zone, button, icon, handlers);
+            }
+                break;
+
+            default:
+            case 't':
+            {
+                push_button(zone, button, icon_name, handlers);
+            }
+                break;
+        }
+    }
+}
+
+/************************************************************
  *  Command to remote service
+ *  Get nodes of a topic
  ************************************************************/
 function treedb_nodes(gobj, treedb_name, topic_name, options)
 {
@@ -373,7 +469,9 @@ function treedb_nodes(gobj, treedb_name, topic_name, options)
         options: options || {}
     };
 
-    msg_iev_write_key(kw, "__topic_name__", topic_name);
+    kw.__md_command__ = { // Data to be returned
+        topic_name: topic_name,
+    };
 
     let ret = gobj_command(priv.gobj_remote_yuno,
         command,
@@ -407,7 +505,9 @@ function treedb_create_node(gobj, treedb_name, topic_name, record, options)
         options: options || {}
     };
 
-    msg_iev_write_key(kw, "__topic_name__", topic_name);
+    kw.__md_command__ = { // Data to be returned
+        topic_name: topic_name,
+    };
 
     let ret = gobj_command(priv.gobj_remote_yuno,
         command,
@@ -441,7 +541,9 @@ function treedb_update_node(gobj, treedb_name, topic_name, record, options)
         options: options || {}
     };
 
-    msg_iev_write_key(kw, "__topic_name__", topic_name);
+    kw.__md_command__ = { // Data to be returned
+        topic_name: topic_name,
+    };
 
     let ret = gobj_command(priv.gobj_remote_yuno,
         command,
@@ -475,7 +577,9 @@ function treedb_delete_node(gobj, treedb_name, topic_name, record, options)
         options: options || {}
     };
 
-    msg_iev_write_key(kw, "__topic_name__", topic_name);
+    kw.__md_command__ = { // Data to be returned
+        topic_name: topic_name,
+    };
 
     let ret = gobj_command(priv.gobj_remote_yuno,
         command,
@@ -587,63 +691,9 @@ function process_treedb_descs(gobj)
 {
     let priv = gobj.priv;
 
-    /*
-     *  descs is a dict: { __snaps__: {…}, roles: {…}, users: {…} }
-     */
-    let gobj_remote_yuno = gobj_read_pointer_attr(gobj, "gobj_remote_yuno");
-    let descs = gobj_read_attr(gobj, "descs");
-    let system = gobj_read_bool_attr(gobj, "system");
-    let treedb_name = gobj_read_str_attr(gobj, "treedb_name");
-    for (const [key, desc] of Object.entries(descs)) {
-        if(system) {
-            if(key === "__snaps__") {
-                continue;
-            }
-            if (key.substring(0, 2) !== "__") {
-                continue;
-            }
-        } else {
-            if (key.substring(0, 2) === "__") {
-                continue;
-            }
-        }
+    let descs = priv.descs;
 
-        let topic_name = key;
-
-        gobj_subscribe_event(priv.gobj_remote_yuno,
-            "EV_TREEDB_NODE_CREATED",
-            {
-                __service__: priv.treedb_name,
-                __filter__: {
-                    "treedb_name": priv.treedb_name,
-                    "topic_name": topic_name
-                }
-            },
-            gobj
-        );
-        gobj_subscribe_event(priv.gobj_remote_yuno,
-            "EV_TREEDB_NODE_UPDATED",
-            {
-                __service__: priv.treedb_name,
-                __filter__: {
-                    "treedb_name": priv.treedb_name,
-                    "topic_name": topic_name
-                }
-            },
-            gobj
-        );
-        gobj_subscribe_event(priv.gobj_remote_yuno,
-            "EV_TREEDB_NODE_DELETED",
-            {
-                __service__: priv.treedb_name,
-                __filter__: {
-                    "treedb_name": priv.treedb_name,
-                    "topic_name": topic_name
-                }
-            },
-            gobj
-        );
-    }
+    // TODO register_nodes(gobj) = register(ExtensionCategory.NODE, 'light', LightNode);
 
     /*
      *  Create default styles if not defined
@@ -661,10 +711,226 @@ function process_treedb_descs(gobj)
         }
     }
 
+    if(priv.gobj_nodes_tree) {
+        gobj_send_event(priv.gobj_nodes_tree,
+            "EV_DESCS",
+            descs,
+            gobj
+        );
+    }
+
+    /*
+     *  System topics
+     *  Get firstly __graphs__, it contains data to personalize graph nodes
+     */
+    for(const topic_name of Object.keys(descs)) {
+        if(topic_name.substring(0, 2) === "__") {
+            /*
+             *  Only get __graphs__
+             */
+            if(topic_name === '__graphs__') {
+                get_nodes(gobj, topic_name);
+            }
+        }
+    }
+
+    /*
+     *  User topics
+     */
+    for (const [topic_name, desc] of Object.entries(descs)) {
+        if(topic_name.substring(0, 2) === "__") {
+            continue;   // ignore system topics
+        }
+        //create_combo(gobj, desc);
+        get_nodes(gobj, topic_name);
+    }
+}
+
+/************************************************************
+ *
+ ************************************************************/
+function get_nodes(gobj, topic_name)
+{
+    let priv = gobj.priv;
+    const treedb_name = priv.treedb_name;
+
+    // unsubscribe_treedb(gobj, topic_name);
+    subscribe_treedb(gobj, topic_name);
+
     /*
      *  Get data
      */
-    refresh_data(gobj);
+    treedb_nodes(
+        gobj,
+        treedb_name,
+        topic_name,
+        {
+            list_dict: true
+        }
+    );
+}
+
+/************************************************************
+ *
+ ************************************************************/
+function subscribe_treedb(gobj, topic_name)
+{
+    let priv = gobj.priv;
+    const gobj_remote_yuno = priv.gobj_remote_yuno;
+    const treedb_name = priv.treedb_name;
+
+    gobj_subscribe_event(gobj_remote_yuno,
+        "EV_TREEDB_NODE_CREATED",
+        {
+            __service__: treedb_name,
+            __filter__: {
+                "treedb_name": treedb_name,
+                "topic_name": topic_name
+            }
+        },
+        gobj
+    );
+    gobj_subscribe_event(gobj_remote_yuno,
+        "EV_TREEDB_NODE_UPDATED",
+        {
+            __service__: treedb_name,
+            __filter__: {
+                "treedb_name": treedb_name,
+                "topic_name": topic_name
+            }
+        },
+        gobj
+    );
+    gobj_subscribe_event(gobj_remote_yuno,
+        "EV_TREEDB_NODE_DELETED",
+        {
+            __service__: treedb_name,
+            __filter__: {
+                "treedb_name": treedb_name,
+                "topic_name": topic_name
+            }
+        },
+        gobj
+    );
+}
+
+/************************************************************
+ *
+ ************************************************************/
+function unsubscribe_treedb(gobj, topic_name)
+{
+    let priv = gobj.priv;
+    const gobj_remote_yuno = priv.gobj_remote_yuno;
+    const treedb_name = priv.treedb_name;
+
+    gobj_unsubscribe_event(gobj_remote_yuno,
+        "EV_TREEDB_NODE_CREATED",
+        {
+            __service__: treedb_name,
+            __filter__: {
+                "treedb_name": treedb_name,
+                "topic_name": topic_name
+            }
+        },
+        gobj
+    );
+    gobj_unsubscribe_event(gobj_remote_yuno,
+        "EV_TREEDB_NODE_UPDATED",
+        {
+            __service__: treedb_name,
+            __filter__: {
+                "treedb_name": treedb_name,
+                "topic_name": topic_name
+            }
+        },
+        gobj
+    );
+    gobj_unsubscribe_event(gobj_remote_yuno,
+        "EV_TREEDB_NODE_DELETED",
+        {
+            __service__: treedb_name,
+            __filter__: {
+                "treedb_name": treedb_name,
+                "topic_name": topic_name
+            }
+        },
+        gobj
+    );
+
+}
+
+/************************************************************
+ *  Got nodes of a topic, response to command "nodes"
+ *  Supposing that the graph is empty.
+ ************************************************************/
+function process_command_nodes(gobj, kw_command, data)
+{
+    let priv = gobj.priv;
+
+    let topic_name = kw_get_str(
+        gobj, kw_command, "topic_name", "", kw_flag_t.KW_REQUIRED
+    );
+    let schema = priv.descs[topic_name];
+
+    if (topic_name.substring(0, 2) === "__") {
+        if(topic_name === '__graphs__') {
+            // save style
+            priv.__graphs__ = data;
+        }
+        return;   // ignore system topics
+    }
+
+
+
+    if(priv.gobj_nodes_tree) {
+        gobj_send_event(priv.gobj_nodes_tree,
+            "EV_LOAD_DATA",
+            {
+                schema: schema,
+                data: data
+            },
+            gobj
+        );
+    }
+
+
+    // //log_warning(`create graph treedb ${treedb_name}, topic ${topic_name}`);
+    //
+    // /*-------------------------*
+    //  *  Save topic's records
+    //  *-------------------------*/
+    // priv.records[topic_name] = data;
+    // priv.descs[topic_name].loaded = true;
+    //
+    // /*--------------------------------------------------*
+    //  *  Creating and loading topic cells from backend
+    //  *--------------------------------------------------*/
+    // for(let i=0; i<data.length; i++) {
+    //     let record = data[i];
+    //     if(priv.graph) {
+    //         create_topic_node(gobj, schema, record);
+    //     }
+    // }
+    //
+    // /*--------------------------------------------------*
+    //  *  Check if all topics loaded to make links
+    //  *--------------------------------------------------*/
+    // let do_links = true;
+    // for (const [topic_name, desc] of Object.entries(priv.descs)) {
+    //     if (topic_name.substring(0, 2) === "__") {
+    //         continue;   // ignore system topics
+    //     }
+    //     if(!desc.loaded) {
+    //         do_links = false;
+    //         break;
+    //     }
+    // }
+    //
+    // if(do_links && priv.graph) {
+    //     graph_render(gobj).then(() => {
+    //         create_links(gobj); // create links and render graph
+    //     });
+    // }
 }
 
 /********************************************
@@ -674,28 +940,14 @@ function refresh_data(gobj)
 {
     let priv = gobj.priv;
 
-    if(priv.gobj_nodes_tree) {
+    if(priv.gobj_nodes_tree) { // TODO must do clear_graph(gobj)
         gobj_send_event(priv.gobj_nodes_tree,
             "EV_CLEAR_DATA",
             {},
             gobj
         );
     }
-
-    let options = {
-        list_dict: true
-    };
-
-    for(let i=0; i<priv.topics.length; i++) {
-        let topic = priv.topics[i];
-        let topic_name = topic.topic_name;
-
-        treedb_nodes(gobj,
-            priv.treedb_name,
-            topic_name,
-            options
-        );
-    }
+    request_treedb_descs(gobj);
 }
 
 
@@ -746,13 +998,6 @@ function ac_mt_command_answer(gobj, event, kw, src)
             if(result >= 0) {
                 gobj_write_attr(gobj, "descs", data);
                 process_treedb_descs(gobj);
-                // if(priv.gobj_nodes_tree) { // TODO move to process_treedb_descs?
-                //     gobj_send_event(priv.gobj_nodes_tree,
-                //         "EV_DESCS",
-                //         data,
-                //         gobj
-                //     );
-                // }
             }
             break;
 
@@ -763,16 +1008,7 @@ function ac_mt_command_answer(gobj, event, kw, src)
                  *  seeing if they have changed in schema argument (controlling the version?)
                  *  Now the schema pass to creation of nodes is get from `descs`.
                  */
-                if(priv.gobj_nodes_tree) {
-                    gobj_send_event(priv.gobj_nodes_tree,
-                        "EV_LOAD_DATA",
-                        {
-                            schema: schema,
-                            data: data
-                        },
-                        gobj
-                    );
-                }
+                process_command_nodes(gobj, kw_command, data);
             }
             break;
 
