@@ -1578,6 +1578,14 @@ function update_history_buttons(gobj)
     let graph = priv.graph;
     let $container = gobj_read_attr(gobj, "$container");
 
+    if(!graph || !graph.rendered) {
+        disableElements($container, ".EV_HISTORY_REDO");
+        set_active_state($container, ".EV_HISTORY_REDO", false);
+        disableElements($container, ".EV_HISTORY_UNDO");
+        set_active_state($container, ".EV_HISTORY_UNDO", false);
+        return;
+    }
+
     const history = graph.getPluginInstance('history');
     if(history) {
         if(history.canRedo()) {
