@@ -1239,7 +1239,7 @@ function clear_link(
  *  Process nodes command response
  *  Called when data arrives from backend
  ************************************************************/
-function process_command_nodes(gobj, topic_name, schema, data)
+function process_command_nodes(gobj, topic_name, data)
 {
     let priv = gobj.priv;
 
@@ -1250,29 +1250,21 @@ function process_command_nodes(gobj, topic_name, schema, data)
         return;
     }
 
-    /*
+    let schema = priv.descs[topic_name];
+
+    /*-------------------------*
      *  Save topic's records
-     */
+     *-------------------------*/
     priv.records[topic_name] = data;
     priv.descs[topic_name].loaded = true;
 
-    /*
-     *  Create nodes
-     */
-    for(let i=0; i<data.length; i++) {
-        let record = data[i];
-        if(priv.graph) {
-            create_topic_node(gobj, schema, record);
-        }
-    }
-
-    /*
+    /*--------------------------------------------------*
      *  Check if all topics loaded to make links
-     */
+     *--------------------------------------------------*/
     let do_links = true;
-    for(const [tn, desc] of Object.entries(priv.descs)) {
-        if(tn.substring(0, 2) === "__") {
-            continue;
+    for (const [topic_name, desc] of Object.entries(priv.descs)) {
+        if (topic_name.substring(0, 2) === "__") {
+            continue;   // ignore system topics
         }
         if(!desc.loaded) {
             do_links = false;
@@ -1282,47 +1274,9 @@ function process_command_nodes(gobj, topic_name, schema, data)
 
     if(do_links && priv.graph) {
         graph_render(gobj).then(() => {
-            create_links(gobj);
+            create_links(gobj); // create links and render graph
         });
     }
-
-    // //log_warning(`create graph treedb ${treedb_name}, topic ${topic_name}`);
-    //
-    // /*-------------------------*
-    //  *  Save topic's records
-    //  *-------------------------*/
-    // priv.records[topic_name] = data;
-    // priv.descs[topic_name].loaded = true;
-    //
-    // /*--------------------------------------------------*
-    //  *  Creating and loading topic cells from backend
-    //  *--------------------------------------------------*/
-    // for(let i=0; i<data.length; i++) {
-    //     let record = data[i];
-    //     if(priv.graph) {
-    //         create_topic_node(gobj, schema, record);
-    //     }
-    // }
-    //
-    // /*--------------------------------------------------*
-    //  *  Check if all topics loaded to make links
-    //  *--------------------------------------------------*/
-    // let do_links = true;
-    // for (const [topic_name, desc] of Object.entries(priv.descs)) {
-    //     if (topic_name.substring(0, 2) === "__") {
-    //         continue;   // ignore system topics
-    //     }
-    //     if(!desc.loaded) {
-    //         do_links = false;
-    //         break;
-    //     }
-    // }
-    //
-    // if(do_links && priv.graph) {
-    //     graph_render(gobj).then(() => {
-    //         create_links(gobj); // create links and render graph
-    //     });
-    // }
 }
 
 /************************************************************
@@ -1729,7 +1683,6 @@ function ac_load_data(gobj, event, kw, src)
     let priv = gobj.priv;
 
     let kw_command = kw.kw_command;
-    let schema = kw.schema;
     let data = kw.data;
 
     let topic_name = kw_get_str(
@@ -1741,15 +1694,7 @@ function ac_load_data(gobj, event, kw, src)
         return 0;
     }
 
-    /*
-     *  Use descs schema (may have colors and counters calculated)
-     */
-    let desc = priv.descs[topic_name];
-    if(desc) {
-        schema = desc;
-    }
-
-    process_command_nodes(gobj, topic_name, schema, data);
+    process_command_nodes(gobj, topic_name, data);
 
     return 0;
 }
