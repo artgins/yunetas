@@ -496,7 +496,7 @@ function build_graph(gobj)
         autoResize: true,
         zoomRange: [0.2, 4],
 
-        node: {
+        node: {  // WARNING this affect to all nodes with prevalence over individual defines!
             palette: {
                 type: 'group',
                 color: 'tableau',
@@ -504,7 +504,7 @@ function build_graph(gobj)
             },
         },
 
-        edge: {
+        edge: { // WARNING this affect to all edges with prevalence over individual defines!
             style: {
                 startArrow: true,   // HACK target/source interchanged
                 endArrow: false,
@@ -527,8 +527,12 @@ function build_graph(gobj)
      *  Just set the layout config; rendering is deferred to ac_show()
      *  which fires when the container becomes visible.
      */
-    graph.setLayout(layout);
-    configure_events(gobj);
+    // graph.setLayout(layout);
+    // configure_events(gobj);
+    graph_set_layout(gobj, layout).then(() => {
+        configure_events(gobj);
+        //show_positions(gobj);
+    });
 }
 
 /************************************************************
@@ -580,6 +584,39 @@ function do_extra_configuration(gobj)
             }
         );
     }
+
+    // graph_add_plugin(
+    //     gobj,
+    //     'contextmenu',
+    //     {
+    //         trigger: 'contextmenu', // 'click' or 'contextmenu'
+    //         onClick: (v) => {
+    //             trace_msg('You have clicked the「' + v + '」item');
+    //         },
+    //         getItems: () => {
+    //             return [
+    //                 { name: 'Spread', value: 'spread' },
+    //                 { name: 'Detail', value: 'detail' },
+    //             ];
+    //         },
+    //         enable: (e) => e.targetType === 'node',
+    //     }
+    // );
+}
+
+/************************************************************
+ *
+ ************************************************************/
+function show_positions(gobj)
+{
+    let priv = gobj.priv;
+    let graph = priv.graph;
+    window.console.log(`${gobj_short_name(gobj)}: show, size ${graph.getSize()}`);
+    window.console.log(`${gobj_short_name(gobj)}: show, canvas center ${graph.getCanvasCenter()}`);
+    window.console.log(`${gobj_short_name(gobj)}: show, position ${graph.getPosition()}`);
+    window.console.log(`${gobj_short_name(gobj)}: show, viewport center ${graph.getViewportCenter()}`);
+    window.console.log(`${gobj_short_name(gobj)}: show, zoom ${graph.getZoom()}`);
+    window.console.log(`${gobj_short_name(gobj)}: show, rotation ${graph.getRotation()}`);
 }
 
 /************************************************************
@@ -836,9 +873,10 @@ function create_topic_node(gobj, schema, record)
     let style = {
         x: x,
         y: y,
-        fill: schema.color,
-        stroke: getStrokeColor(schema.color),
-        lineWidth: 1,
+        fill: schema.color,     // Fill color
+        stroke: getStrokeColor(schema.color),   // Stroke color
+        lineWidth: 1,           // Stroke width
+        //labelText: schema.topic_name + "^" + record.id,
     };
 
     if(node_treedb_type === 'child') {
@@ -850,6 +888,9 @@ function create_topic_node(gobj, schema, record)
             labelPlacement: 'center',
             labelWordWrap: true,
             labelMaxWidth: "100%",
+            // iconText: record.id,
+            // iconSrc: record.icon,
+            // iconFontSize: 14,
         });
 
     } else if(node_treedb_type === 'extended') {
@@ -894,6 +935,7 @@ function create_topic_node(gobj, schema, record)
         type: node_graph_type,
         style: style,
         data: {
+            // This 4 keys are available in user `data` of G6 Node.
             topic_name: schema.topic_name,
             schema: schema,
             record: record
@@ -1298,7 +1340,7 @@ function process_command_nodes(gobj, topic_name, data)
     }
 
     if(do_links && priv.graph) {
-        // graph_render(gobj).then(() => { TODO TEST repon
+        // graph_render(gobj).then(() => {
         //     create_links(gobj); // create links and render graph
         // });
     }
@@ -1756,9 +1798,9 @@ function ac_node_created(gobj, event, kw, src)
      *  Create graph node and links
      */
     create_topic_node(gobj, schema, node);
-    draw_links(gobj, schema, node, false);
-
-    graph_render(gobj);
+    // draw_links(gobj, schema, node, false);
+    //
+    // graph_render(gobj);
 
     return 0;
 }
