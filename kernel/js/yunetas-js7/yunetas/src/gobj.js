@@ -447,18 +447,32 @@ function sdata_write_default_values(
             continue;
         }
         if(include_flag === -1 || (it.flag & include_flag)) {
-            set_default(gobj, gobj.jn_attrs, it);
+            const value = set_default(gobj, gobj.jn_attrs, it);
 
-            if((gobj.obflag & obflag_t.obflag_created) &&
-                !(gobj.obflag & obflag_t.obflag_destroyed))
-            {
-                // Avoid call to mt_writing before mt_create!
-                if(gobj.gclass.gmt.mt_writing) {
-                    gobj.gclass.gmt.mt_writing(gobj, it.name);
-                }
+            // New, write automatically the defined private data, in JS is possible do it
+            if(is_object(gobj.priv) && gobj.priv.hasOwnProperty(it.name)) {
+                gobj.priv[it.name] = value;
+            }
+
+            // Now mt_writing is only informative, not needed to update priv
+            if(gobj.gclass.gmt.mt_writing) {
+                gobj.gclass.gmt.mt_writing(gobj, it.name);
             }
         }
     }
+}
+
+/***************************************************************************
+ *  ATTR: write
+ *  Reset volatile attributes
+ ***************************************************************************/
+function gobj_reset_volatil_attrs(gobj)
+{
+    return sdata_write_default_values(
+        gobj,
+        sdata_flag_t.SDF_VOLATIL, // include_flag
+        0 // exclude_flag
+    );
 }
 
 /***************************************************************************
@@ -486,6 +500,7 @@ function sdata_create(gobj, sdata_desc)
 
 /***************************************************************************
  *  Set array values to sdata, from json or binary
+ *  New: return jn_value
  ***************************************************************************/
 function set_default(gobj, sdata, it)
 {
@@ -561,7 +576,7 @@ function set_default(gobj, sdata, it)
     }
 
     sdata[it.name] = jn_value;
-    return 0;
+    return jn_value;
 }
 
 /***************************************************************************
@@ -659,8 +674,17 @@ function json2item(gobj, sdata, it, jn_value_)
 
     sdata[it.name] = jn_value2;
 
-    if(gobj.gclass.gmt.mt_writing) {
-        if((gobj.obflag & obflag_t.obflag_created) && !(gobj.obflag & obflag_t.obflag_destroyed)) {
+    // Avoid call to mt_writing before mt_create!
+    if((gobj.obflag & obflag_t.obflag_created) &&
+        !(gobj.obflag & obflag_t.obflag_destroyed)
+    ) {
+        // New, write automatically the defined private data, in JS is possible do it
+        if(is_object(gobj.priv) && gobj.priv.hasOwnProperty(it.name)) {
+            gobj.priv[it.name] = jn_value2;
+        }
+
+        // Now mt_writing is only informative, not needed to update priv
+        if(gobj.gclass.gmt.mt_writing) {
             // Avoid call to mt_writing before mt_create!
             gobj.gclass.gmt.mt_writing(gobj, it.name);
         }
@@ -2744,7 +2768,7 @@ function gobj_has_attr(gobj, name)
 }
 
 /************************************************************
- *
+ *  ATTR: read
  ************************************************************/
 function gobj_read_attr(gobj, name, src)
 {
@@ -2792,98 +2816,6 @@ function gobj_read_attrs(
     }
 
     return jn_attrs;
-}
-
-/************************************************************
- *
- ************************************************************/
-function gobj_write_attr(
-    gobj,
-    path, // If it has ` then segments are gobj and leaf is the attribute (+bottom)
-    value,
-    src
-) {
-    // TODO implement inherited attributes
-    // TODO if attribute not found then find in bottom gobj
-
-    if(!is_string(path)) {
-        log_error(sprintf(
-            "gobj_write_attr(%s): path must be a string",
-            gobj_short_name(gobj))
-        );
-        return -1;
-    }
-    let jn_attrs = gobj.jn_attrs;
-
-    let ss = path.split("`");
-    if(ss.length<=1) {
-        let key = path;
-        if(key in jn_attrs) {
-            if(jn_attrs.hasOwnProperty(key)) {
-                jn_attrs[key] = value;
-
-                if(gobj.gclass.gmt.mt_writing) {
-                    gobj.gclass.gmt.mt_writing(gobj, key);
-                }
-                return 0;
-            }
-        }
-        log_error(sprintf("gobj_write_attr(%s): attr not found '%s'", gobj_short_name(gobj), key));
-        return -1;
-    }
-
-    let key;
-    let len = ss.length;
-    for(let i=0; i<len; i++) {
-        key = ss[i];
-        let child = gobj_find_child(gobj, {"__gobj_name__": key});
-        if(child && i<len-1) {
-            gobj = child;
-            continue;
-        }
-
-        if(key in jn_attrs) {
-            if (jn_attrs.hasOwnProperty(key)) {
-                jn_attrs[key] = value;
-
-                if(gobj.mt_writing) {
-                    gobj.mt_writing(gobj, key);
-                }
-                return 0;
-            }
-        }
-        break;
-    }
-
-    log_error(sprintf("gobj_write_attr(%s): attr not found '%s'", gobj_short_name(gobj), key));
-    return -1;
-}
-
-/***************************************************************************
- *  ATTR: write
- ***************************************************************************/
-function gobj_write_attrs(
-    gobj,
-    kw,
-    include_flag,  // sdata_flag_t
-    src
-) {
-    let hs = gobj_hsdata(gobj);
-
-    let ret = 0;
-
-    for (const [attr, jn_value] of Object.entries(kw)) {
-        let it = gobj_attr_desc(gobj, attr, true);
-        if(!it) {
-            continue;
-        }
-        if(!(include_flag === -1 || (it.flag & include_flag))) {
-            continue;
-        }
-        ret += json2item(gobj, hs, it, jn_value);
-    }
-
-    return ret;
 }
 
 /***************************************************************************
@@ -2982,6 +2914,113 @@ function gobj_read_pointer_attr(gobj, name)
     return 0;
 }
 
+/************************************************************
+ *  ATTR: write
+ ************************************************************/
+function gobj_write_attr(
+    gobj,
+    path, // If it has ` then segments are gobj and leaf is the attribute (+bottom)
+    value,
+    src
+) {
+    // TODO implement inherited attributes
+    // TODO if attribute not found then find in bottom gobj
+
+    if(!is_string(path)) {
+        log_error(sprintf(
+            "gobj_write_attr(%s): path must be a string",
+            gobj_short_name(gobj))
+        );
+        return -1;
+    }
+    let jn_attrs = gobj.jn_attrs;
+
+    let ss = path.split("`");
+    if(ss.length<=1) {
+        let key = path;
+        if(key in jn_attrs) {
+            if(jn_attrs.hasOwnProperty(key)) {
+                jn_attrs[key] = value;
+
+                // New, write automatically the defined private data, in JS is possible do it
+                if(is_object(gobj.priv) && gobj.priv.hasOwnProperty(key)) {
+                    gobj.priv[key] = value;
+                }
+
+                // Now mt_writing is only informative, not needed to update priv
+                if(gobj.gclass.gmt.mt_writing) {
+                    gobj.gclass.gmt.mt_writing(gobj, key);
+                }
+                return 0;
+            }
+        }
+        log_error(sprintf("gobj_write_attr(%s): attr not found '%s'", gobj_short_name(gobj), key));
+        return -1;
+    }
+
+    let key;
+    let len = ss.length;
+    for(let i=0; i<len; i++) {
+        key = ss[i];
+        let child = gobj_find_child(gobj, {"__gobj_name__": key});
+        if(child && i<len-1) {
+            gobj = child;
+            continue;
+        }
+
+        // TODO this write in childs, is not well checked!
+        let jn_attrs = gobj.jn_attrs;
+
+        if(key in jn_attrs) {
+            if (jn_attrs.hasOwnProperty(key)) {
+                jn_attrs[key] = value;
+
+                // New, write automatically the defined private data, in JS is possible do it
+                if(is_object(gobj.priv) && gobj.priv.hasOwnProperty(key)) {
+                    gobj.priv[key] = value;
+                }
+
+                // Now mt_writing is only informative, not needed to update priv
+                if(gobj.mt_writing) {
+                    gobj.mt_writing(gobj, key);
+                }
+                return 0;
+            }
+        }
+        break;
+    }
+
+    log_error(sprintf("gobj_write_attr(%s): attr not found '%s'", gobj_short_name(gobj), key));
+    return -1;
+}
+
+/***************************************************************************
+ *  ATTR: write
+ ***************************************************************************/
+function gobj_write_attrs(
+    gobj,
+    kw,
+    include_flag,  // sdata_flag_t
+    src
+) {
+    let hs = gobj_hsdata(gobj);
+
+    let ret = 0;
+
+    for (const [attr, jn_value] of Object.entries(kw)) {
+        let it = gobj_attr_desc(gobj, attr, true);
+        if(!it) {
+            continue;
+        }
+        if(!(include_flag === -1 || (it.flag & include_flag))) {
+            continue;
+        }
+        ret += json2item(gobj, hs, it, jn_value);
+    }
+
+    return ret;
+}
+
 /***************************************************************************
  *  ATTR: write
  ***************************************************************************/
@@ -2990,11 +3029,15 @@ function gobj_write_bool_attr(gobj, name, value)
     let hs = gobj_hsdata2(gobj, name, false);
     if(hs) {
         hs[name] = value;
+
+        // New, write automatically the defined private data, in JS is possible do it
+        if(is_object(gobj.priv) && gobj.priv.hasOwnProperty(name)) {
+            gobj.priv[name] = value;
+        }
+
+        // Now mt_writing is only informative, not needed to update priv
         if(gobj.gclass.gmt.mt_writing) {
-            if((gobj.obflag & obflag_t.obflag_created) && !(gobj.obflag & obflag_t.obflag_destroyed)) {
-                // Avoid call to mt_writing before mt_create!
-                gobj.gclass.gmt.mt_writing(gobj, name);
-            }
+            gobj.gclass.gmt.mt_writing(gobj, name);
         }
         return 0;
     }
@@ -3011,11 +3054,15 @@ function gobj_write_integer_attr(gobj, name, value)
     let hs = gobj_hsdata2(gobj, name, false);
     if(hs) {
         hs[name] = parseInt(value);
+
+        // New, write automatically the defined private data, in JS is possible do it
+        if(is_object(gobj.priv) && gobj.priv.hasOwnProperty(name)) {
+            gobj.priv[name] = value;
+        }
+
+        // Now mt_writing is only informative, not needed to update priv
         if(gobj.gclass.gmt.mt_writing) {
-            if((gobj.obflag & obflag_t.obflag_created) && !(gobj.obflag & obflag_t.obflag_destroyed)) {
-                // Avoid call to mt_writing before mt_create!
-                gobj.gclass.gmt.mt_writing(gobj, name);
-            }
+            gobj.gclass.gmt.mt_writing(gobj, name);
         }
         return 0;
     }
@@ -3032,11 +3079,15 @@ function gobj_write_str_attr(gobj, name, value)
     let hs = gobj_hsdata2(gobj, name, false);
     if(hs) {
         hs[name] = String(value);
+
+        // New, write automatically the defined private data, in JS is possible do it
+        if(is_object(gobj.priv) && gobj.priv.hasOwnProperty(name)) {
+            gobj.priv[name] = value;
+        }
+
+        // Now mt_writing is only informative, not needed to update priv
         if(gobj.gclass.gmt.mt_writing) {
-            if((gobj.obflag & obflag_t.obflag_created) && !(gobj.obflag & obflag_t.obflag_destroyed)) {
-                // Avoid call to mt_writing before mt_create!
-                gobj.gclass.gmt.mt_writing(gobj, name);
-            }
+            gobj.gclass.gmt.mt_writing(gobj, name);
         }
         return 0;
     }
@@ -3109,6 +3160,7 @@ function gobj_current_state(gobj)
 
 /************************************************************
  *        Change parent
+ *  Not exist in C
  ************************************************************/
 function gobj_change_parent(gobj, parent)
 {
@@ -4484,6 +4536,7 @@ export {
     gobj_write_bool_attr,
     gobj_write_integer_attr,
     gobj_write_str_attr,
+    gobj_reset_volatil_attrs,
     gobj_change_state,
     gobj_current_state,
     gobj_change_parent,
