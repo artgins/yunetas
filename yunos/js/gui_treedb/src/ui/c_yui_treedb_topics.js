@@ -398,7 +398,14 @@ function process_treedb_descs(gobj)
     /*
      *  Active the last_selection
      */
-    gobj_send_event(gobj, "EV_SHOW", {href: gobj_read_str_attr(gobj, "last_selection")}, gobj);
+    gobj_send_event(
+        gobj,
+        "EV_SHOW",
+        {
+            href: gobj_read_str_attr(gobj, "last_selection")
+        },
+        gobj
+    );
 
     /*
      *  Subscribe events to manage Ui_treedb_topic_form kids
