@@ -674,7 +674,7 @@ function json2item(gobj, sdata, it, jn_value_)
 
     sdata[it.name] = jn_value2;
 
-    // Avoid call to mt_writing before mt_create!
+    // Avoid call to mt_writing before mt_create or destroyed!
     if((gobj.obflag & obflag_t.obflag_created) &&
         !(gobj.obflag & obflag_t.obflag_destroyed)
     ) {
