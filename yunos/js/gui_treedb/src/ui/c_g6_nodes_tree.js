@@ -807,11 +807,26 @@ function create_topic_node(gobj, schema, record)
     let priv = gobj.priv;
     const graph = priv.graph;
 
+    /*------------------------------------------*
+     *  Creating filled cell from backend data
+     *------------------------------------------*/
     let node_name = build_node_name(gobj, schema.topic_name, record.id);
     let xy = get_default_ne_xy(gobj);
     let geometry = record._geometry || {};
     let x = kw_get_int(gobj, geometry, "x", xy, kw_flag_t.KW_CREATE);
     let y = kw_get_int(gobj, geometry, "y", xy, kw_flag_t.KW_CREATE);
+
+    let topic_graphs = kwid_find_one_record( // TODO review
+        gobj,
+        priv.__graphs__,
+        null,
+        {
+            topic: schema.topic_name,
+            active: true
+        }
+    );
+
+    //log_warning(`create node ==> ${node_name}`);
 
     let ports = build_ports(gobj, schema);
 
@@ -1259,6 +1274,16 @@ function process_command_nodes(gobj, topic_name, data)
     priv.descs[topic_name].loaded = true;
 
     /*--------------------------------------------------*
+     *  Creating and loading topic cells from backend
+     *--------------------------------------------------*/
+    for(let i=0; i<data.length; i++) {
+        let record = data[i];
+        if(priv.graph) {
+            create_topic_node(gobj, schema, record);
+        }
+    }
+
+    /*--------------------------------------------------*
      *  Check if all topics loaded to make links
      *--------------------------------------------------*/
     let do_links = true;
@@ -1273,9 +1298,9 @@ function process_command_nodes(gobj, topic_name, data)
     }
 
     if(do_links && priv.graph) {
-        graph_render(gobj).then(() => {
-            create_links(gobj); // create links and render graph
-        });
+        // graph_render(gobj).then(() => { TODO TEST repon
+        //     create_links(gobj); // create links and render graph
+        // });
     }
 }
 
