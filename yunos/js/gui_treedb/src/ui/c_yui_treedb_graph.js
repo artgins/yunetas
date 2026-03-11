@@ -113,8 +113,9 @@ SDATA(data_type_t.DTP_BOOLEAN,  "auto_topics",          0,  true,   "Auto-discov
 SDATA(data_type_t.DTP_POINTER,  "hook_data_viewer",     0,  null,   "GClass Manager/Viewer of hook data"),
 SDATA(data_type_t.DTP_BOOLEAN,  "is_pinhold_window",    0,  false,  "Select default: window or container panel"),
 
-SDATA(data_type_t.DTP_STRING,   "wide",                     0,  "40px", "Height of header"),
-SDATA(data_type_t.DTP_STRING,   "padding",                  0,  "m-2",  "Padding or margin value"),
+SDATA(data_type_t.DTP_STRING,   "wide",                 0,  "40px", "Height of header"),
+SDATA(data_type_t.DTP_STRING,   "padding",              0,  "m-2",  "Padding or margin value"),
+SDATA(data_type_t.DTP_STRING,   "canvas_id",            0,  "",     "Canvas ID"),
 
 SDATA_END()
 ];
@@ -163,14 +164,6 @@ function mt_create(gobj)
     }
     gobj_subscribe_event(gobj, null, {}, subscriber);
 
-    priv.treedb_name = gobj_read_str_attr(gobj, "treedb_name");
-    priv.gobj_remote_yuno = gobj_read_attr(gobj, "gobj_remote_yuno");
-    priv.topics = gobj_read_attr(gobj, "topics") || [];
-    priv.hook_data_viewer = gobj_read_attr(gobj, "hook_data_viewer");
-    priv.is_pinhold_window = gobj_read_bool_attr(gobj, "is_pinhold_window");
-    priv.with_treedb_tables = gobj_read_bool_attr(gobj, "with_treedb_tables");
-    priv.auto_topics = gobj_read_bool_attr(gobj, "auto_topics");
-
     if(!priv.treedb_name) {
         log_error(`${gobj_name(gobj)} -> treedb_name not configured`);
     }
@@ -182,15 +175,16 @@ function mt_create(gobj)
         priv.theme = gobj_read_str_attr(__yui_main__, "theme");
     }
 
-    priv.canvas_id = "canvas-" + clean_name(gobj_name(gobj)); // do before build_id()
-
-    build_ui(gobj);
+    let canvas_id = clean_name(gobj_name(gobj)) + "-canvas"; // do before build_id()
+    gobj_write_attr(gobj, "canvas_id", canvas_id);
+    let $container = build_ui(gobj);
+    let $container_canvas = $container.querySelector(`#${priv.canvas_id}`);
 
     priv.gobj_nodes_tree = gobj_create_service(
         `${gobj_name(gobj)}-g6`,
         "C_G6_NODES_TREE",
         {
-            canvas_id: priv.canvas_id,
+            $container: $container_canvas,
             subscriber: gobj,
             gobj_remote_yuno: priv.gobj_remote_yuno,
             treedb_name: priv.treedb_name,
@@ -233,18 +227,6 @@ function mt_create(gobj)
 function mt_writing(gobj, path)
 {
     let priv = gobj.priv;
-
-    switch(path) {
-        case "treedb_name":
-            priv.treedb_name = gobj_read_str_attr(gobj, "treedb_name");
-            break;
-        case "gobj_remote_yuno":
-            priv.gobj_remote_yuno = gobj_read_attr(gobj, "gobj_remote_yuno");
-            break;
-        case "descs": // Yes, needed
-            priv.descs = gobj_read_attr(gobj, "descs");
-            break;
-    }
 }
 
 /***************************************************************
@@ -318,6 +300,7 @@ function build_ui(gobj)
 
     gobj_write_attr(gobj, "$container", $container);
     refresh_language($container, t);
+    return $container;
 }
 
 /************************************************************

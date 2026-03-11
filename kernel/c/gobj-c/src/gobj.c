@@ -3005,6 +3005,17 @@ PRIVATE int sdata_write_default_values(
     sdata_flag_t exclude_flag
 )
 {
+    // Avoid call to mt_writing if destroyed!
+    if(gobj_is_destroying(gobj)) {
+        gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+            "msg",          "%s", "gobj destroyed",
+            NULL
+        );
+        return -1;
+    }
+
     const sdata_desc_t *it = gobj->gclass->attrs_table;
     while(it->name) {
         if(exclude_flag && (it->flag & exclude_flag)) {
@@ -3014,11 +3025,8 @@ PRIVATE int sdata_write_default_values(
         if(include_flag == (sdata_flag_t)-1 || (it->flag & include_flag)) {
             set_default(gobj, gobj->jn_attrs, it);
 
-            if((gobj->obflag & obflag_created) && !(gobj->obflag & obflag_destroyed)) {
-                // Avoid call to mt_writing before mt_create!
-                if(gobj->gclass->gmt->mt_writing) {
-                    gobj->gclass->gmt->mt_writing(gobj, it->name);
-                }
+            if(gobj->gclass->gmt->mt_writing) {
+                gobj->gclass->gmt->mt_writing(gobj, it->name);
             }
         }
         it++;
@@ -3262,9 +3270,9 @@ PRIVATE int json2item(
         return -1;
     }
 
-    if(gobj->gclass->gmt->mt_writing) {
-        if((gobj->obflag & obflag_created) && !(gobj->obflag & obflag_destroyed)) {
-            // Avoid call to mt_writing before mt_create!
+    // Avoid call to mt_writing before mt_create or destroyed!
+    if((gobj->obflag & obflag_created) && !(gobj->obflag & obflag_destroyed)) {
+        if(gobj->gclass->gmt->mt_writing) {
             gobj->gclass->gmt->mt_writing(gobj, it->name);
         }
     }

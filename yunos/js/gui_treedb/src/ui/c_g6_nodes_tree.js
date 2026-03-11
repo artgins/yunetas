@@ -135,7 +135,7 @@ SDATA(data_type_t.DTP_DICT,     "records",              0,  "{}",   "Data of top
 SDATA(data_type_t.DTP_LIST,     "topics",               0,  "[]",   "List of topic objects"),
 
 /*---------------- Sub-container ----------------*/
-SDATA(data_type_t.DTP_POINTER,  "$container",           0,  null,   "Container element"),
+SDATA(data_type_t.DTP_POINTER,  "$container",           0,  null,   "Container element, set externally"),
 SDATA(data_type_t.DTP_STRING,   "canvas_id",            0,  "",     "Canvas ID"),
 
 /*---------------- Graph Settings ----------------*/
@@ -143,9 +143,6 @@ SDATA(data_type_t.DTP_BOOLEAN,  "with_treedb_tables",   0,  false,  "Include tre
 SDATA(data_type_t.DTP_BOOLEAN,  "with_gridline",        0,  false,  "Use gridline plugin"),
 SDATA(data_type_t.DTP_DICT,     "graph_settings",       0,  {
     layouts: {
-        "manual": {
-            type: 'manual',
-        },
         "dagre": {
             type: 'dagre',
         },
@@ -167,6 +164,11 @@ SDATA(data_type_t.DTP_DICT,     "graph_settings",       0,  {
             preventOverlap: true,
             kr: 20,
             graph_center: [250, 250],
+        },
+
+        // set manual the last
+        "manual": {
+            type: 'manual',
         },
     },
 }, "Default graph settings"),
@@ -224,11 +226,6 @@ function mt_create(gobj)
     }
     gobj_subscribe_event(gobj, null, {}, subscriber);
 
-    priv.records = gobj_read_attr(gobj, "records");
-    priv.treedb_name = gobj_read_str_attr(gobj, "treedb_name");
-    priv.gobj_remote_yuno = gobj_read_attr(gobj, "gobj_remote_yuno");
-    priv.graph_settings = gobj_read_attr(gobj, "graph_settings");
-
     let __yui_main__ = gobj_find_service("__yui_main__", true);
     if(__yui_main__) {
         gobj_subscribe_event(__yui_main__, "EV_RESIZE", {}, gobj);
@@ -247,18 +244,6 @@ function mt_create(gobj)
 function mt_writing(gobj, path)
 {
     let priv = gobj.priv;
-
-    switch(path) {
-        case "treedb_name":
-            priv.treedb_name = gobj_read_str_attr(gobj, "treedb_name");
-            break;
-        case "gobj_remote_yuno":
-            priv.gobj_remote_yuno = gobj_read_attr(gobj, "gobj_remote_yuno");
-            break;
-        case "descs":
-            priv.descs = gobj_read_attr(gobj, "descs");
-            break;
-    }
 }
 
 /***************************************************************
@@ -328,11 +313,7 @@ function get_default_ne_xy(gobj)
  ************************************************************/
 function build_ui(gobj)
 {
-    let priv = gobj.priv;
-
-    let $canvas_container = document.getElementById(priv.canvas_id);
-
-    gobj_write_attr(gobj, "$container", $canvas_container);
+    // Nothing to do, $container set externally
 }
 
 /************************************************************
@@ -340,6 +321,7 @@ function build_ui(gobj)
  ************************************************************/
 function destroy_ui(gobj)
 {
+    // Nothing to do, $container set externally
 }
 
 /************************************************************
@@ -506,7 +488,7 @@ function build_graph(gobj)
     const graph = priv.graph = new Graph({
         x: 0,
         y: 0,
-        container: priv.canvas_id,
+        container: priv.$container,
         animation: false,
         autoResize: true,
         zoomRange: [0.2, 4],
@@ -1847,7 +1829,7 @@ function ac_show(gobj, event, kw, src)
 {
     let priv = gobj.priv;
 
-    let $canvas_container = document.getElementById(priv.canvas_id);
+    let $canvas_container = priv.$container;
     if(!$canvas_container) {
         return 0;
     }
@@ -1878,7 +1860,7 @@ function ac_resize(gobj, event, kw, src)
 {
     let priv = gobj.priv;
 
-    let $canvas_container = document.getElementById(priv.canvas_id);
+    let $canvas_container = priv.$container;
     if(!$canvas_container) {
         return 0;
     }
