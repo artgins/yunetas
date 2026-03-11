@@ -1285,15 +1285,59 @@ function process_command_nodes(gobj, topic_name, schema, data)
             create_links(gobj);
         });
     }
+
+    // //log_warning(`create graph treedb ${treedb_name}, topic ${topic_name}`);
+    //
+    // /*-------------------------*
+    //  *  Save topic's records
+    //  *-------------------------*/
+    // priv.records[topic_name] = data;
+    // priv.descs[topic_name].loaded = true;
+    //
+    // /*--------------------------------------------------*
+    //  *  Creating and loading topic cells from backend
+    //  *--------------------------------------------------*/
+    // for(let i=0; i<data.length; i++) {
+    //     let record = data[i];
+    //     if(priv.graph) {
+    //         create_topic_node(gobj, schema, record);
+    //     }
+    // }
+    //
+    // /*--------------------------------------------------*
+    //  *  Check if all topics loaded to make links
+    //  *--------------------------------------------------*/
+    // let do_links = true;
+    // for (const [topic_name, desc] of Object.entries(priv.descs)) {
+    //     if (topic_name.substring(0, 2) === "__") {
+    //         continue;   // ignore system topics
+    //     }
+    //     if(!desc.loaded) {
+    //         do_links = false;
+    //         break;
+    //     }
+    // }
+    //
+    // if(do_links && priv.graph) {
+    //     graph_render(gobj).then(() => {
+    //         create_links(gobj); // create links and render graph
+    //     });
+    // }
 }
 
 /************************************************************
  *  Process descs: assign colors and calculate counters
  ************************************************************/
-function process_descs(gobj, descs)
+function process_treedb_descs(gobj)
 {
     let priv = gobj.priv;
+    let descs = priv.descs;
 
+    // TODO register_nodes(gobj) = register(ExtensionCategory.NODE, 'light', LightNode);
+
+    /*
+     *  descs is a dict: { __snaps__: {…}, roles: {…}, users: {…} }
+     */
     let idx = 0;
     for(const [topic_name, desc] of Object.entries(descs)) {
         calculate_hooks_fkeys_counter(desc);
@@ -1654,11 +1698,8 @@ class ManualLayout extends BaseLayout
  ************************************************************/
 function ac_descs(gobj, event, kw, src)
 {
-    let priv = gobj.priv;
-
-    priv.descs = kw;
     gobj_write_attr(gobj, "descs", kw);
-    process_descs(gobj, priv.descs);
+    process_treedb_descs(gobj);
 
     return 0;
 }
@@ -1686,15 +1727,15 @@ function ac_clear_data(gobj, event, kw, src)
 function ac_load_data(gobj, event, kw, src)
 {
     let priv = gobj.priv;
+
+    let kw_command = kw.kw_command;
     let schema = kw.schema;
     let data = kw.data;
 
-    if(!priv.descs) {
-        log_error(`${gobj_short_name(gobj)}: descs not available yet`);
-        return 0;
-    }
+    let topic_name = kw_get_str(
+        gobj, kw_command, "topic_name", "", kw_flag_t.KW_REQUIRED
+    );
 
-    let topic_name = schema ? schema.topic_name : "";
     if(!topic_name) {
         log_error(`${gobj_short_name(gobj)}: No topic_name in schema`);
         return 0;

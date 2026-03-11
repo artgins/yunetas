@@ -691,9 +691,10 @@ function process_treedb_descs(gobj)
 {
     let priv = gobj.priv;
 
+    /*
+     *  descs is a dict: { __snaps__: {…}, roles: {…}, users: {…} }
+     */
     let descs = priv.descs;
-
-    // TODO register_nodes(gobj) = register(ExtensionCategory.NODE, 'light', LightNode);
 
     if(priv.gobj_nodes_tree) {
         gobj_send_event(priv.gobj_nodes_tree,
@@ -843,78 +844,6 @@ function unsubscribe_treedb(gobj, topic_name)
 
 }
 
-/************************************************************
- *  Got nodes of a topic, response to command "nodes"
- *  Supposing that the graph is empty.
- ************************************************************/
-function process_command_nodes(gobj, kw_command, data)
-{
-    let priv = gobj.priv;
-
-    let topic_name = kw_get_str(
-        gobj, kw_command, "topic_name", "", kw_flag_t.KW_REQUIRED
-    );
-    let schema = priv.descs[topic_name];
-
-    if (topic_name.substring(0, 2) === "__") {
-        if(topic_name === '__graphs__') {
-            // save style
-            priv.__graphs__ = data;
-        }
-        return;   // ignore system topics
-    }
-
-    if(priv.gobj_nodes_tree) {
-        gobj_send_event(priv.gobj_nodes_tree,
-            "EV_LOAD_DATA",
-            {
-                schema: schema,
-                data: data
-            },
-            gobj
-        );
-    }
-
-
-    // //log_warning(`create graph treedb ${treedb_name}, topic ${topic_name}`);
-    //
-    // /*-------------------------*
-    //  *  Save topic's records
-    //  *-------------------------*/
-    // priv.records[topic_name] = data;
-    // priv.descs[topic_name].loaded = true;
-    //
-    // /*--------------------------------------------------*
-    //  *  Creating and loading topic cells from backend
-    //  *--------------------------------------------------*/
-    // for(let i=0; i<data.length; i++) {
-    //     let record = data[i];
-    //     if(priv.graph) {
-    //         create_topic_node(gobj, schema, record);
-    //     }
-    // }
-    //
-    // /*--------------------------------------------------*
-    //  *  Check if all topics loaded to make links
-    //  *--------------------------------------------------*/
-    // let do_links = true;
-    // for (const [topic_name, desc] of Object.entries(priv.descs)) {
-    //     if (topic_name.substring(0, 2) === "__") {
-    //         continue;   // ignore system topics
-    //     }
-    //     if(!desc.loaded) {
-    //         do_links = false;
-    //         break;
-    //     }
-    // }
-    //
-    // if(do_links && priv.graph) {
-    //     graph_render(gobj).then(() => {
-    //         create_links(gobj); // create links and render graph
-    //     });
-    // }
-}
-
 /********************************************
  *  Refresh data from remote
  ********************************************/
@@ -990,7 +919,15 @@ function ac_mt_command_answer(gobj, event, kw, src)
                  *  seeing if they have changed in schema argument (controlling the version?)
                  *  Now the schema pass to creation of nodes is get from `descs`.
                  */
-                process_command_nodes(gobj, kw_command, data);
+                gobj_send_event(priv.gobj_nodes_tree,
+                    "EV_LOAD_DATA",
+                    {
+                        kw_command: kw_command,
+                        schema: schema,
+                        data: data
+                    },
+                    gobj
+                );
             }
             break;
 
