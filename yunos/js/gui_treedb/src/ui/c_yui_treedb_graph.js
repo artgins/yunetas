@@ -98,6 +98,7 @@ SDATA(data_type_t.DTP_STRING,   "current_layout",   sdata_flag_t.SDF_PERSIST, ""
 SDATA(data_type_t.DTP_POINTER,  "gobj_remote_yuno", 0,  null,   "Remote Yuno to request data"),
 SDATA(data_type_t.DTP_STRING,   "treedb_name",      0,  null,   "Remote service treedb name"),
 SDATA(data_type_t.DTP_DICT,     "descs",            0,  null,   "Descriptions of topics obtained"),
+SDATA(data_type_t.DTP_BOOLEAN,  "system",           0,  false,  "Manage system topics (true) or user topics (false)"),
 SDATA(data_type_t.DTP_DICT,     "records",          0,  "{}",   "Data of topics"),
 SDATA(data_type_t.DTP_LIST,     "topics",           0,  "[]",   "List of topic objects"),
 
