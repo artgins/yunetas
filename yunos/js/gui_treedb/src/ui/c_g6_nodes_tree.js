@@ -95,6 +95,39 @@ import {Circle as CircleGeometry} from '@antv/g';
  ***************************************************************/
 const GCLASS_NAME = "C_G6_NODES_TREE";
 
+/***************************************************************
+ *      Internal layout definitions (child's domain)
+ ***************************************************************/
+const _layouts = {
+    "dagre": {
+        type: 'dagre',
+    },
+    "antv-dagre": {
+        type: 'antv-dagre',
+    },
+    "d3-force": {
+        type: 'd3-force',
+        link: {
+            distance: 200,
+            strength: 2
+        },
+        collide: {
+            radius: 80,
+        },
+    },
+    "force-atlas2": {
+        type: 'force-atlas2',
+        preventOverlap: true,
+        kr: 20,
+        graph_center: [250, 250],
+    },
+
+    // set manual the last
+    "manual": {
+        type: 'manual',
+    },
+};
+
 const node_colors = [
     'rgb(237, 201, 73)',
     'rgb(118, 183, 178)',
@@ -135,7 +168,9 @@ SDATA(data_type_t.DTP_POINTER,  "$toolbar_container",   0,  null,   "Parent cont
 /*---------------- Graph Settings ----------------*/
 SDATA(data_type_t.DTP_BOOLEAN,  "with_treedb_tables",   0,  false,  "Include treedb tables"),
 SDATA(data_type_t.DTP_BOOLEAN,  "with_gridline",        0,  false,  "Use gridline plugin"),
-SDATA(data_type_t.DTP_DICT,     "graph_settings",       0,  null,   "Graph settings, set by parent"),
+SDATA(data_type_t.DTP_LIST,     "layout_names",         sdata_flag_t.SDF_RD,
+    JSON.stringify(Object.keys(_layouts)),
+    "Available layout names (read-only, for parent to query)"),
 
 SDATA(data_type_t.DTP_STRING,   "hook_port_position",   0,  "bottom",   "Hook port position"),
 SDATA(data_type_t.DTP_STRING,   "fkey_port_position",   0,  "top",      "Fkey port position"),
@@ -157,7 +192,6 @@ let PRIVATE_DATA = {
     graph:              null,   // Instance of G6
     __graphs__:         [],     // Rows of __graphs__
     yet_showed:         false,
-    graph_settings:     null,
     edit_mode:          false,
     mode:               null,
     theme:              null,
@@ -522,16 +556,13 @@ function show_positions(gobj)
  ************************************************************/
 function select_layout(gobj, layout_name)
 {
-    let priv = gobj.priv;
-
-    let graph_settings = priv.graph_settings;
     let $toolbar_container = gobj_read_attr(gobj, "$toolbar_container");
 
     if(!layout_name) {
         layout_name = gobj_read_str_attr(gobj, "current_layout");
     }
     if(!layout_name) {
-        layout_name = Object.keys(graph_settings.layouts)[0];
+        layout_name = Object.keys(_layouts)[0];
     }
 
     gobj_write_str_attr(gobj, "current_layout", layout_name);
@@ -541,7 +572,7 @@ function select_layout(gobj, layout_name)
         $input.value = layout_name;
     }
 
-    return graph_settings.layouts[layout_name];
+    return _layouts[layout_name];
 }
 
 /************************************************************

@@ -92,7 +92,7 @@ SDATA(data_type_t.DTP_BOOLEAN,  "with_treedb_tables",0, false,  "Include treedb 
 
 /*---------------- User last selections  ----------------*/
 SDATA(data_type_t.DTP_STRING,   "current_mode",     sdata_flag_t.SDF_PERSIST, "", "Current mode (internal behaviour or role). Changed by the user trough the gui."),
-SDATA(data_type_t.DTP_STRING,   "current_layout",   sdata_flag_t.SDF_PERSIST, "", "Current graph layout or **view**, See graph_settings.layouts for available list. User preference. Changed by the user trough the gui."),
+SDATA(data_type_t.DTP_STRING,   "current_layout",   sdata_flag_t.SDF_PERSIST, "", "Current graph layout. User preference. Changed by the user through the gui."),
 
 /*---------------- Remote Connection ----------------*/
 SDATA(data_type_t.DTP_POINTER,  "gobj_remote_yuno", 0,  null,   "Remote Yuno to request data"),
@@ -113,39 +113,6 @@ SDATA(data_type_t.DTP_STRING,   "icon",             0,  "fa-solid fa-question", 
 SDATA(data_type_t.DTP_POINTER,  "hook_data_viewer",     0,  null,   "GClass Manager/Viewer of hook data"),
 SDATA(data_type_t.DTP_BOOLEAN,  "is_pinhold_window",    0,  false,  "Select default: window or container panel"),
 
-/*---------------- Graph General Settings ----------------*/
-SDATA(data_type_t.DTP_DICT,     "graph_settings",       0,  {
-    layouts: {
-        "dagre": {
-            type: 'dagre',
-        },
-        "antv-dagre": {
-            type: 'antv-dagre',
-        },
-        "d3-force": {
-            type: 'd3-force',
-            link: {
-                distance: 200,
-                strength: 2
-            },
-            collide: {
-                radius: 80,
-            },
-        },
-        "force-atlas2": {
-            type: 'force-atlas2',
-            preventOverlap: true,
-            kr: 20,
-            graph_center: [250, 250],
-        },
-
-        // set manual the last
-        "manual": {
-            type: 'manual',
-        },
-    },
-}, "Default graph settings"),
-
 SDATA(data_type_t.DTP_STRING,   "wide",                 0,  "40px", "Height of header"),
 SDATA(data_type_t.DTP_STRING,   "padding",              0,  "m-2",  "Padding or margin value"),
 SDATA(data_type_t.DTP_STRING,   "canvas_id",            0,  "",     "Canvas ID"),
@@ -164,7 +131,6 @@ let PRIVATE_DATA = {
     hook_data_viewer:   null,
     with_treedb_tables: false,
     canvas_id:          null,
-    graph_settings:     null,
 
     is_pinhold_window:  false, // inherited of v6, todo review
 };
@@ -226,12 +192,16 @@ function mt_create(gobj)
             // TODO review if needed
             // topics_style: priv.topics_style,
             with_treedb_tables: priv.with_treedb_tables,
-            graph_settings: priv.graph_settings,
             hook_port_position: "bottom",
             fkey_port_position: "top",
         },
         gobj
     );
+
+    /*
+     *  Populate layout dropdown from child's available layouts
+     */
+    populate_layout_options(gobj);
 
     /*
      *  Treedb tables at start
@@ -359,19 +329,17 @@ function make_toolbar(gobj)
     /*---------------------------------------*
      *      Top Header toolbar
      *---------------------------------------*/
-    let graph_settings = priv.graph_settings;
-    let layouts = graph_settings.layouts;
-    let layout_options = Object.keys(layouts).map(key => ['option', {}, key]);
-
     let modes = gobj_read_attr(gobj, "modes");
     let mode_options = modes.map(item => ['option', {}, item]);
 
     /*
      *  Left: layout and mode selectors
+     *  Layout options are empty — populated after child creation
+     *  via populate_layout_options()
      */
     let left_items = [
         ['div', {class: 'select'}, [
-            ['select', {class: 'graph_layout'}, layout_options]
+            ['select', {class: 'graph_layout'}]
         ], {
             change: (evt) => {
                 evt.stopPropagation();
@@ -417,6 +385,29 @@ function make_toolbar(gobj)
     refresh_language($toolbar_header, t);
 
     return $toolbar_header;
+}
+
+/************************************************************
+ *  Populate layout dropdown from child's available layouts
+ ************************************************************/
+function populate_layout_options(gobj)
+{
+    let priv = gobj.priv;
+    let $container = gobj_read_attr(gobj, "$container");
+    if(!$container || !priv.gobj_nodes_tree) {
+        return;
+    }
+
+    let layout_names = gobj_read_attr(priv.gobj_nodes_tree, "layout_names");
+    let $select = $container.querySelector('.graph_layout');
+    if($select && layout_names) {
+        for(let name of layout_names) {
+            let option = document.createElement('option');
+            option.value = name;
+            option.textContent = name;
+            $select.appendChild(option);
+        }
+    }
 }
 
 /************************************************************
