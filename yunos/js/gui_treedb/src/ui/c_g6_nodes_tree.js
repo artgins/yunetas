@@ -1724,16 +1724,6 @@ function ac_node_deleted(gobj, event, kw, src)
 }
 
 /************************************************************
- *  Refresh treedb
- ************************************************************/
-function ac_refresh_treedb(gobj, event, kw, src)
-{
-    clear_graph(gobj);
-    gobj_publish_event(gobj, "EV_REFRESH_TREEDB", {});
-    return 0;
-}
-
-/************************************************************
  *  Show
  ************************************************************/
 function ac_show(gobj, event, kw, src)
@@ -2127,7 +2117,6 @@ function create_gclass(gclass_name)
             ["EV_NODE_DRAG_END",            ac_node_drag_end,       null],
 
             /*--- Toolbar events ---*/
-            ["EV_REFRESH_TREEDB",           ac_refresh_treedb,      null],
             ["EV_ZOOM_IN",                  ac_zoom_in,             null],
             ["EV_ZOOM_OUT",                 ac_zoom_out,            null],
             ["EV_ZOOM_RESET",               ac_zoom_reset,          null],
@@ -2191,7 +2180,6 @@ function create_gclass(gclass_name)
         ["EV_TOOLBAR_STATE",            event_flag_t.EVF_OUTPUT_EVENT],
         ["EV_VERTEX_CLICKED",           event_flag_t.EVF_OUTPUT_EVENT],
         ["EV_EDGE_CLICKED",             event_flag_t.EVF_OUTPUT_EVENT],
-        ["EV_REFRESH_TREEDB",           event_flag_t.EVF_OUTPUT_EVENT],
         ["EV_CREATE_NODE",              event_flag_t.EVF_OUTPUT_EVENT],
         ["EV_UPDATE_NODE",              event_flag_t.EVF_OUTPUT_EVENT],
         ["EV_DELETE_NODE",              event_flag_t.EVF_OUTPUT_EVENT],
