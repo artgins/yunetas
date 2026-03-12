@@ -347,6 +347,7 @@ function make_toolbar(gobj)
      *  via populate_nodes_tree_options()
      */
     let left_items = [
+        ['span', {style: 'padding-right:5px;'}, 'Layout:'],
         ['div', {class: 'select'}, [
             ['select', {class: 'graph_layout'}]
         ], {
@@ -358,6 +359,7 @@ function make_toolbar(gobj)
             }
         }],
 
+        ['span', {style: 'padding-left:10px; padding-right:5px;'}, 'Operation Mode:'],
         ['div', {class: 'select'}, [
             ['select', {class: 'graph_operation_mode'}]
         ], {
@@ -370,7 +372,7 @@ function make_toolbar(gobj)
         }],
     ];
     let l_icons = [
-        ["fas fa-arrows-rotate",        "EV_REFRESH_TREEDB",false,  'i'],
+        ["fas fa-arrows-rotate",        "EV_REFRESH_TREEDB",false,  'il', 'Refresh'],
     ];
     add_buttons(gobj, left_items, l_icons);
 
@@ -502,6 +504,20 @@ function add_buttons(gobj, zone, c_icons, target_gobj)
                     class: icon_name
                 }];
                 push_button(zone, button, icon, handlers);
+            }
+                break;
+
+            case 'il':
+            {
+                const label = item[4] || '';
+                const content = [
+                    ['i', {
+                        style: "font-size:1.5em; color:inherit;",
+                        class: icon_name
+                    }],
+                    ['span', {style: 'padding-left:5px;'}, label]
+                ];
+                push_button(zone, button, content, handlers);
             }
                 break;
 
