@@ -1,5 +1,5 @@
 /***********************************************************************
- *          g6_nodes_tree.js
+ *          c_g6_nodes_tree.js
  *
  *          Treedb's Nodes Tree Manager using AntV/G6
  *

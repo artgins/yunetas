@@ -1,5 +1,5 @@
 /***********************************************************************
- *          c_ui_treedb_graph.js
+ *          c_yui_treedb_graph.js
  *
  *          Manage treedb topics with graphs
  *
