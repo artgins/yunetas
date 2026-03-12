@@ -96,7 +96,7 @@ const attrs_table = [
 SDATA(data_type_t.DTP_POINTER,  "subscriber",       0,  null,   "Subscriber of output events"),
 SDATA(data_type_t.DTP_LIST,     "operation_modes",  0,
 '["reading", "operation", "writing", "edition"]',
-"Available permission or behaviour modes. These operation modes are required to be accomplish by the graph handler."),
+"Available **permission** or behaviour modes. These operation modes are required to be accomplish by the graph handler."),
 SDATA(data_type_t.DTP_BOOLEAN,  "with_treedb_tables",0, false,  "Include treedb tables"),
 
 /*---------------- User last selections  ----------------*/
