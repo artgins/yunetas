@@ -405,13 +405,27 @@ function populate_layout_options(gobj)
     }
 
     let layout_names = gobj_read_attr(priv.gobj_nodes_tree, "layout_names");
-    let $select = $container.querySelector('.graph_layout');
-    if($select && layout_names) {
+    let $layout_select = $container.querySelector('.graph_layout');
+    if($layout_select && layout_names) {
         for(let name of layout_names) {
             let option = document.createElement('option');
             option.value = name;
             option.textContent = name;
-            $select.appendChild(option);
+            $layout_select.appendChild(option);
+        }
+        // Restore persisted layout selection
+        let current_layout = gobj_read_str_attr(priv.gobj_nodes_tree, "current_layout");
+        if(current_layout) {
+            $layout_select.value = current_layout;
+        }
+    }
+
+    // Restore persisted mode selection
+    let $mode_select = $container.querySelector('.graph_mode');
+    if($mode_select) {
+        let current_mode = gobj_read_str_attr(priv.gobj_nodes_tree, "current_mode");
+        if(current_mode) {
+            $mode_select.value = current_mode;
         }
     }
 }
