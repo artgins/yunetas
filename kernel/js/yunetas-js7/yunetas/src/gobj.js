@@ -2876,11 +2876,6 @@ function gobj_write_attr(
     // TODO implement inherited attributes
     // TODO if attribute not found then find in bottom gobj
 
-    if(gobj_is_destroying(gobj)) {
-        log_error("gobj NULL or DESTROYED");
-        return -1;
-    }
-
     if(!is_string(path)) {
         log_error(sprintf(
             "gobj_write_attr(%s): path must be a string",
@@ -2902,9 +2897,12 @@ function gobj_write_attr(
                     gobj.priv[key] = value;
                 }
 
-                // Now mt_writing is only informative, not needed to update priv
-                if(gobj.gclass.gmt.mt_writing) {
-                    gobj.gclass.gmt.mt_writing(gobj, key);
+                // Avoid call to mt_writing before mt_create or destroyed!
+                if((gobj.obflag & obflag_t.obflag_created) && !(gobj.obflag & obflag_t.obflag_destroyed)) {
+                    // Now mt_writing is only informative, not needed to update priv
+                    if(gobj.gclass.gmt.mt_writing) {
+                        gobj.gclass.gmt.mt_writing(gobj, key);
+                    }
                 }
                 return 0;
             }
@@ -2935,9 +2933,12 @@ function gobj_write_attr(
                     gobj.priv[key] = value;
                 }
 
-                // Now mt_writing is only informative, not needed to update priv
-                if(gobj.mt_writing) {
-                    gobj.mt_writing(gobj, key);
+                // Avoid call to mt_writing before mt_create or destroyed!
+                if((gobj.obflag & obflag_t.obflag_created) && !(gobj.obflag & obflag_t.obflag_destroyed)) {
+                    // Now mt_writing is only informative, not needed to update priv
+                    if(gobj.mt_writing) {
+                        gobj.mt_writing(gobj, key);
+                    }
                 }
                 return 0;
             }
