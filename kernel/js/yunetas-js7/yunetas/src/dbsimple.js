@@ -40,12 +40,19 @@ function db_load_persistent_attrs(
     keys  // str, list or dict.
 )
 {
+    let jn_attrs = gobj_read_attrs(gobj, sdata_flag_t.SDF_PERSIST, 0);
     let jn_file = kw_get_local_storage_value(_get_persistent_path(gobj), null, false);
     if(jn_file && is_object(jn_file)) {
         let attrs = kw_clone_by_keys(
             gobj,
             jn_file,    // owned
             keys,       // owned
+            false
+        );
+        attrs = kw_clone_by_keys( // Remove attrs removed
+            gobj,
+            jn_attrs,   // owned
+            attrs,      // owned
             false
         );
 

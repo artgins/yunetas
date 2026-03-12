@@ -94,7 +94,12 @@ const GCLASS_NAME = "C_YUI_TREEDB_GRAPH";
 const attrs_table = [
 /*---------------- Public Attributes ----------------*/
 SDATA(data_type_t.DTP_POINTER,  "subscriber",       0,  null,   "Subscriber of output events"),
+SDATA(data_type_t.DTP_LIST,     "operation_modes",  0,  '["reading", "operation", "writing", "edition"]',   "Available permission or behaviour modes"),
 SDATA(data_type_t.DTP_BOOLEAN,  "with_treedb_tables",0, false,  "Include treedb tables"),
+
+/*---------------- User last selections  ----------------*/
+SDATA(data_type_t.DTP_STRING,   "operation_mode",sdata_flag_t.SDF_PERSIST, "reading", "Current operation mode (internal behaviour or role). Changed by the user trough the gui."),
+SDATA(data_type_t.DTP_STRING,   "current_layout",   sdata_flag_t.SDF_PERSIST, "", "Current graph layout. User preference. Changed by the user through the gui."),
 
 /*---------------- Remote Connection ----------------*/
 SDATA(data_type_t.DTP_POINTER,  "gobj_remote_yuno", 0,  null,   "Remote Yuno to request data"),
@@ -133,6 +138,8 @@ let PRIVATE_DATA = {
     hook_data_viewer:   null,
     with_treedb_tables: false,
     canvas_id:          null,
+    operation_mode:     null,
+    layout:             null,
 
     is_pinhold_window:  false, // inherited of v6, todo review
 };
@@ -201,6 +208,8 @@ function mt_create(gobj)
             gobj_remote_yuno: priv.gobj_remote_yuno,
             treedb_name: priv.treedb_name,
             topics: priv.topics,
+            operation_mode: priv.operation_mode,
+            layout: priv.layout,
             // TODO review if needed
             // topics_style: priv.topics_style,
             with_treedb_tables: priv.with_treedb_tables,
@@ -341,6 +350,9 @@ function make_toolbar(gobj)
     /*---------------------------------------*
      *      Top Header toolbar
      *---------------------------------------*/
+    let modes = gobj_read_attr(gobj, "operation_modes");
+    let mode_options = modes.map(item => ['option', {}, item]);
+
     /*
      *  Left: layout and mode selectors
      *  Layout options are empty — populated after child creation
@@ -354,14 +366,21 @@ function make_toolbar(gobj)
             change: (evt) => {
                 evt.stopPropagation();
                 if(priv.gobj_nodes_tree) {
-                    gobj_send_event(priv.gobj_nodes_tree, "EV_LAYOUT", {layout: evt.target.value}, gobj);
+                    gobj_send_event(
+                        priv.gobj_nodes_tree,
+                        "EV_SET_LAYOUT",
+                        {
+                            layout: evt.target.value
+                        },
+                        gobj
+                    );
                 }
             }
         }],
 
         ['span', {class: 'is-hidden-mobile', style: 'padding-left:10px; padding-right:5px;'}, 'Operation Mode:'],
         ['div', {class: 'select'}, [
-            ['select', {class: 'graph_operation_mode'}]
+            ['select', {class: 'graph_operation_mode'}, mode_options]
         ], {
             change: (evt) => {
                 evt.stopPropagation();
@@ -419,27 +438,15 @@ function populate_nodes_tree_options(gobj)
             $layout_select.appendChild(option);
         }
         // Restore persisted layout selection
-        let current_layout = gobj_read_str_attr(priv.gobj_nodes_tree, "current_layout");
+        let current_layout = gobj_read_str_attr(priv.gobj_nodes_tree, "layout");
         if(current_layout) {
             $layout_select.value = current_layout;
         }
     }
 
-    let operation_mode_names = gobj_read_attr(priv.gobj_nodes_tree, "operation_mode_names");
+    // Restore persisted operation_mode selection
     let $operation_mode_select = $container.querySelector('.graph_operation_mode');
-    if($operation_mode_select && operation_mode_names) {
-        for(let name of operation_mode_names) {
-            let option = document.createElement('option');
-            option.value = name;
-            option.textContent = name;
-            $operation_mode_select.appendChild(option);
-        }
-        // Restore persisted operation_mode selection
-        let current_operation_mode = gobj_read_str_attr(priv.gobj_nodes_tree, "current_operation_mode");
-        if(current_operation_mode) {
-            $operation_mode_select.value = current_operation_mode;
-        }
-    }
+    $operation_mode_select.value = priv.operation_mode;
 }
 
 /************************************************************

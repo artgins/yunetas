@@ -122,21 +122,6 @@ const _layouts = {
     },
 };
 
-const _operation_modes = {
-    "reading": {
-
-    },
-    "operation": {
-
-    },
-    "writing": {
-
-    },
-    "edition": {
-
-    },
-};
-
 const node_colors = [
     'rgb(237, 201, 73)',
     'rgb(118, 183, 178)',
@@ -155,10 +140,8 @@ const attrs_table = [
 SDATA(data_type_t.DTP_POINTER,  "subscriber",           0,  null,   "Subscriber of output events"),
 
 /*---------------- User last selections  ----------------*/
-SDATA(data_type_t.DTP_STRING,   "current_operation_mode",sdata_flag_t.SDF_PERSIST,
-    "", "Current mode"),
-SDATA(data_type_t.DTP_STRING,   "current_layout",       sdata_flag_t.SDF_PERSIST,
-    "", "Current graph layout"),
+SDATA(data_type_t.DTP_STRING,   "operation_mode",       0,  "", "Current operation mode"),
+SDATA(data_type_t.DTP_STRING,   "layout",               0,  "", "Current graph layout"),
 
 /*---------------- Remote Connection ----------------*/
 SDATA(data_type_t.DTP_POINTER,  "gobj_remote_yuno",     0,  null,   "Remote Yuno"),
@@ -176,9 +159,6 @@ SDATA(data_type_t.DTP_BOOLEAN,  "with_gridline",        0,  false,  "Use gridlin
 SDATA(data_type_t.DTP_LIST,     "layout_names",         sdata_flag_t.SDF_RD,
     JSON.stringify(Object.keys(_layouts)),
     "Available layout names (read-only, for parent to query)"),
-SDATA(data_type_t.DTP_LIST,     "operation_mode_names", sdata_flag_t.SDF_RD,
-    JSON.stringify(Object.keys(_operation_modes)),
-    "Available operation mode names (read-only, for parent to query)"),
 
 SDATA(data_type_t.DTP_STRING,   "hook_port_position",   0,  "bottom",   "Hook port position"),
 SDATA(data_type_t.DTP_STRING,   "fkey_port_position",   0,  "top",      "Fkey port position"),
@@ -200,7 +180,8 @@ let PRIVATE_DATA = {
     __graphs__:         [],     // Rows of __graphs__
     yet_showed:         false,
     edit_mode:          false,
-    mode:               null,
+    operation_mode:     null,
+    layout:             null,
     theme:              null,
 };
 
@@ -351,7 +332,7 @@ function build_graph(gobj)
 {
     let priv = gobj.priv;
 
-    let layout = select_layout(gobj, gobj_read_str_attr(gobj, "current_layout"));
+    let layout = select_layout(gobj, priv.layout);
 
     const graph = priv.graph = new Graph({
         x: 0,
@@ -384,8 +365,7 @@ function build_graph(gobj)
      */
     graph.setTheme(priv.theme);
 
-    let mode = select_operation_mode(gobj);
-    set_operation_mode(gobj, mode);
+    set_operation_mode(gobj, priv.operation_mode);
 
     /*
      *  Don't render here — the container is not yet attached to the DOM.
@@ -489,39 +469,20 @@ function show_positions(gobj)
  ************************************************************/
 function select_layout(gobj, layout_name)
 {
+    let priv = gobj.priv;
+
     if(!layout_name) {
-        layout_name = gobj_read_str_attr(gobj, "current_layout");
+        layout_name = priv.layout;
     }
 
     let layouts = Object.keys(_layouts);
 
-    if(!layout_name || !str_in_list(layouts, layout_name)) {
+    if(!str_in_list(layouts, layout_name)) {
         layout_name = layouts[0];
+        gobj_write_attr(gobj, "layout", layout_name);
     }
-
-    gobj_write_str_attr(gobj, "current_layout", layout_name);
 
     return _layouts[layout_name];
-}
-
-/************************************************************
- *  Operation Mode selection
- ************************************************************/
-function select_operation_mode(gobj, operation_mode_name)
-{
-    if(!operation_mode_name) {
-        operation_mode_name = gobj_read_str_attr(gobj, "current_operation_mode");
-    }
-
-    let operation_modes = Object.keys(_operation_modes);
-
-    if(!operation_mode_name || !str_in_list(operation_modes, operation_mode_name)) {
-        operation_mode_name = operation_modes[0];
-    }
-
-    gobj_write_str_attr(gobj, "current_operation_mode", operation_mode_name);
-
-    return operation_mode_name;
 }
 
 /************************************************************
@@ -541,6 +502,9 @@ function set_operation_mode(gobj, mode)
             ];
             break;
         case 'operation':
+            break;
+        default:
+            log_error(`operation mode unknown: ${mode}`);
             break;
     }
     graph_write_behaviors(gobj, behaviors);
@@ -1395,8 +1359,7 @@ async function clear_graph(gobj)
     let priv = gobj.priv;
     let graph = priv.graph;
 
-    let mode = select_operation_mode(gobj);
-    set_operation_mode(gobj, mode);
+    set_operation_mode(gobj, priv.operation_mode);
 
     priv._xy = 100;
     priv.yet_showed = false;
@@ -1797,12 +1760,11 @@ function ac_fullscreen(gobj, event, kw, src)
 /************************************************************
  *  Layout change
  ************************************************************/
-function ac_layout(gobj, event, kw, src)
+function ac_set_layout(gobj, event, kw, src)
 {
     let priv = gobj.priv;
 
     let layout = select_layout(gobj, kw.layout);
-    gobj_save_persistent_attrs(gobj, "current_layout");
     graph_set_layout(gobj, layout);
 
     return 0;
@@ -1813,9 +1775,7 @@ function ac_layout(gobj, event, kw, src)
  ************************************************************/
 function ac_set_mode(gobj, event, kw, src)
 {
-    let mode = select_operation_mode(gobj, kw.mode);
-    gobj_save_persistent_attrs(gobj, "current_operation_mode");
-    set_operation_mode(gobj, mode);
+    set_operation_mode(gobj, kw.mode);
     return 0;
 }
 
@@ -1928,7 +1888,7 @@ function ac_history_redo(gobj, event, kw, src)
         if(history && history.canRedo()) {
             history.redo();
         }
-        update_history_buttons(gobj);
+        // update_history_buttons(gobj);
     }
 
     return 0;
@@ -1944,7 +1904,7 @@ function ac_history_undo(gobj, event, kw, src)
         if(history && history.canUndo()) {
             history.undo();
         }
-        update_history_buttons(gobj);
+        // update_history_buttons(gobj);
     }
 
     return 0;
@@ -2040,7 +2000,7 @@ function create_gclass(gclass_name)
             ["EV_ZOOM_RESET",               ac_zoom_reset,          null],
             ["EV_CENTER",                   ac_center,              null],
             ["EV_FULLSCREEN",               ac_fullscreen,          null],
-            ["EV_LAYOUT",                   ac_layout,              null],
+            ["EV_SET_LAYOUT",               ac_set_layout,          null],
             ["EV_SET_MODE",                 ac_set_mode,            null],
             ["EV_EDIT_MODE",                ac_edit_mode,           null],
             ["EV_SAVE_GRAPH",               ac_save_graph,          null],
@@ -2087,7 +2047,7 @@ function create_gclass(gclass_name)
         ["EV_ZOOM_RESET",               0],
         ["EV_CENTER",                   0],
         ["EV_FULLSCREEN",               0],
-        ["EV_LAYOUT",                   0],
+        ["EV_SET_LAYOUT",               0],
         ["EV_SET_MODE",                 0],
         ["EV_EDIT_MODE",                0],
         ["EV_SAVE_GRAPH",               0],
