@@ -94,6 +94,10 @@ const GCLASS_NAME = "C_G6_NODES_TREE";
  *  Internal layout and operation mode definitions
  ***************************************************************/
 const _layouts = {
+    // set manual the first
+    "manual": {
+        type: 'manual',
+    },
     "dagre": {
         type: 'dagre',
     },
@@ -115,11 +119,6 @@ const _layouts = {
         preventOverlap: true,
         kr: 20,
         graph_center: [250, 250],
-    },
-
-    // set manual the last
-    "manual": {
-        type: 'manual',
     },
 };
 
