@@ -553,9 +553,14 @@ function set_mode(gobj, mode)
     });
 }
 
-/**
- * Returns the proportional position (between 0 and 1) of a specific point
- */
+/************************************************************
+ * Returns the proportional position (between 0 and 1) of a specific point,
+ * centered and spaced with margins.
+ *
+ * index - Index of the point (0 to count-1)
+ * count - Total number of points
+ * margin - Total margin space (default 0.2 means 10% on each end)
+ ************************************************************/
 function getPointPosition(count, index, margin = 0.2)
 {
     if(count <= 0 || index < 0 || index >= count) {
