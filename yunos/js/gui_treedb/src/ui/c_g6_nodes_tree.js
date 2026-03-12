@@ -39,7 +39,6 @@ import {
     gobj_publish_event,
     gobj_send_event,
     gobj_find_service,
-    gobj_load_persistent_attrs,
     gobj_save_persistent_attrs,
     clean_name,
     sprintf,
@@ -217,11 +216,6 @@ function mt_create(gobj)
         subscriber = gobj_parent(gobj);
     }
     gobj_subscribe_event(gobj, null, {}, subscriber);
-
-    /*
-     *  Restore persisted attrs (current_layout, current_mode)
-     */
-    gobj_load_persistent_attrs(gobj, null);
 
     let __yui_main__ = gobj_find_service("__yui_main__", true);
     if(__yui_main__) {
