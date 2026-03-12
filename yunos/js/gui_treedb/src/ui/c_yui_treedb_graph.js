@@ -72,6 +72,13 @@ import {
 } from "yunetas";
 
 import {yui_toolbar} from "./yui_toolbar.js";
+import {
+    removeChildElements,
+    disableElements,
+    enableElements,
+    set_submit_state,
+    set_active_state,
+} from "./lib_graph.js";
 import {display_error_message} from "./c_yui_main.js";
 
 import {t} from "i18next";
@@ -184,7 +191,6 @@ function mt_create(gobj)
         "C_G6_NODES_TREE",
         {
             $container: $container_canvas,
-            $toolbar_container: $container,
             subscriber: gobj,
             gobj_remote_yuno: priv.gobj_remote_yuno,
             treedb_name: priv.treedb_name,
@@ -413,17 +419,18 @@ function populate_layout_options(gobj)
 /************************************************************
  *  add_buttons() - helper to create toolbar buttons
  ************************************************************/
-function create_button_handlers(gobj, event_name)
+function create_button_handlers(gobj, event_name, target_gobj)
 {
+    let dst = target_gobj || gobj;
     return {
         click: (evt) => {
             evt.stopPropagation();
-            gobj_send_event(gobj, event_name, {evt}, gobj);
+            gobj_send_event(dst, event_name, {evt}, gobj);
         },
         contextmenu: (evt) => {
             evt.stopPropagation();
             evt.preventDefault();
-            gobj_send_event(gobj, event_name, {evt}, gobj);
+            gobj_send_event(dst, event_name, {evt}, gobj);
         }
     };
 }
@@ -438,7 +445,7 @@ function push_button(zone, button, content, handlers)
     ]);
 }
 
-function add_buttons(gobj, zone, c_icons)
+function add_buttons(gobj, zone, c_icons, target_gobj)
 {
     const toolbar_wide = gobj_read_attr(gobj, "wide");
 
@@ -460,7 +467,7 @@ function add_buttons(gobj, zone, c_icons)
             button.disabled = true;
         }
 
-        const handlers = create_button_handlers(gobj, event_name);
+        const handlers = create_button_handlers(gobj, event_name, target_gobj);
 
         switch(type) {
             case 'i':
@@ -1086,6 +1093,62 @@ function ac_refresh_treedb(gobj, event, kw, src)
 }
 
 /********************************************
+ *  Toolbar state update from child
+ *  kw: {
+ *      mode_buttons: [...],   // optional: replace mode buttons
+ *      button_states: {       // optional: update button states
+ *          "EV_XXX": {enabled, active, submit},
+ *      },
+ *  }
+ ********************************************/
+function ac_toolbar_state(gobj, event, kw, src)
+{
+    let priv = gobj.priv;
+    let $container = gobj_read_attr(gobj, "$container");
+    if(!$container) {
+        return 0;
+    }
+
+    /*
+     *  Replace mode buttons
+     */
+    if(kw.mode_buttons !== undefined) {
+        let $zone = $container.querySelector('.mode_buttons');
+        if($zone) {
+            removeChildElements($zone);
+            if(kw.mode_buttons.length > 0) {
+                let right_items = [];
+                add_buttons(gobj, right_items, kw.mode_buttons, priv.gobj_nodes_tree);
+                for(let item of right_items) {
+                    $zone.appendChild(createElement2(item));
+                }
+            }
+        }
+    }
+
+    /*
+     *  Update button states
+     */
+    if(kw.button_states) {
+        for(let [ev_name, states] of Object.entries(kw.button_states)) {
+            if(states.enabled === true) {
+                enableElements($container, `.${ev_name}`);
+            } else if(states.enabled === false) {
+                disableElements($container, `.${ev_name}`);
+            }
+            if(states.active !== undefined) {
+                set_active_state($container, `.${ev_name}`, states.active);
+            }
+            if(states.submit !== undefined) {
+                set_submit_state($container, `.${ev_name}`, states.submit);
+            }
+        }
+    }
+
+    return 0;
+}
+
+/********************************************
  *  Event from G6_nodes_tree
  *  kw: {
  *      treedb_name,
@@ -1509,6 +1572,7 @@ function create_gclass(gclass_name)
             ["EV_TREEDB_NODE_UPDATED",      ac_treedb_node_updated,     null],
             ["EV_TREEDB_NODE_DELETED",      ac_treedb_node_deleted,     null],
             ["EV_REFRESH_TREEDB",           ac_refresh_treedb,          null],
+            ["EV_TOOLBAR_STATE",            ac_toolbar_state,           null],
             ["EV_SHOW_HOOK_DATA",           ac_show_hook_data,          null],
             ["EV_SHOW_TREEDB_TOPIC",        ac_show_treedb_topic,       null],
             ["EV_VERTEX_CLICKED",           ac_vertex_clicked,          null],
@@ -1536,6 +1600,7 @@ function create_gclass(gclass_name)
         ["EV_TREEDB_NODE_UPDATED",      event_flag_t.EVF_PUBLIC_EVENT],
         ["EV_TREEDB_NODE_DELETED",      event_flag_t.EVF_PUBLIC_EVENT],
         ["EV_REFRESH_TREEDB",           0],
+        ["EV_TOOLBAR_STATE",            0],
         ["EV_SHOW_HOOK_DATA",           0],
         ["EV_SHOW_TREEDB_TOPIC",        0],
         ["EV_VERTEX_CLICKED",           0],
