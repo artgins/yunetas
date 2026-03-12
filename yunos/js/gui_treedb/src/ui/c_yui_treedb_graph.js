@@ -201,8 +201,6 @@ function mt_create(gobj)
         log_error(`${gobj_name(gobj)} -> treedb_name not configured`);
     }
 
-    priv.graph_settings = gobj_read_attr(gobj, "graph_settings");
-
     let __yui_main__ = gobj_find_service("__yui_main__", true);
     if(__yui_main__) {
         gobj_subscribe_event(__yui_main__, "EV_RESIZE", {}, gobj);

@@ -135,37 +135,7 @@ SDATA(data_type_t.DTP_POINTER,  "$toolbar_container",   0,  null,   "Parent cont
 /*---------------- Graph Settings ----------------*/
 SDATA(data_type_t.DTP_BOOLEAN,  "with_treedb_tables",   0,  false,  "Include treedb tables"),
 SDATA(data_type_t.DTP_BOOLEAN,  "with_gridline",        0,  false,  "Use gridline plugin"),
-SDATA(data_type_t.DTP_DICT,     "graph_settings",       0,  {
-    layouts: {
-        "dagre": {
-            type: 'dagre',
-        },
-        "antv-dagre": {
-            type: 'antv-dagre',
-        },
-        "d3-force": {
-            type: 'd3-force',
-            link: {
-                distance: 200,
-                strength: 2
-            },
-            collide: {
-                radius: 80,
-            },
-        },
-        "force-atlas2": {
-            type: 'force-atlas2',
-            preventOverlap: true,
-            kr: 20,
-            graph_center: [250, 250],
-        },
-
-        // set manual the last
-        "manual": {
-            type: 'manual',
-        },
-    },
-}, "Default graph settings"),
+SDATA(data_type_t.DTP_DICT,     "graph_settings",       0,  null,   "Graph settings, set by parent"),
 
 SDATA(data_type_t.DTP_STRING,   "hook_port_position",   0,  "bottom",   "Hook port position"),
 SDATA(data_type_t.DTP_STRING,   "fkey_port_position",   0,  "top",      "Fkey port position"),
