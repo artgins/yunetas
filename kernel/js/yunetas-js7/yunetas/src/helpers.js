@@ -2046,23 +2046,31 @@ function id_index_in_obj_list(list, id) {
  ************************************************************/
 function str_in_list(list, str, ignore_case)
 {
-    if(!list) {
-        log_error("ERROR: str_in_list() list empty");
+    if(!list || !str) {
+        log_error("ERROR: str_in_list() list or str empty");
         return false;
     }
-    if(!str) {
-        log_error("ERROR: str_in_list() str empty");
-        return false;
-    }
-    for(let i=0; i<list.length; i++) {
-        if(ignore_case) {
-            if(str.toLowerCase() === list[i].toLowerCase()) {
+
+    let len = list.length;
+
+    if(ignore_case) {
+        str = str.toLowerCase();
+
+        for(let i = 0; i < len; i++) {
+            let item = list[i];
+            if(item && item.toLowerCase() === str) {
                 return true;
             }
-        } else if(str === list[i]) {
-            return true;
+        }
+
+    } else {
+        for(let i = 0; i < len; i++) {
+            if(list[i] === str) {
+                return true;
+            }
         }
     }
+
     return false;
 }
 

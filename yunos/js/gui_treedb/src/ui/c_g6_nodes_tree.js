@@ -15,6 +15,7 @@
  *          All Rights Reserved.
  ***********************************************************************/
 import {
+    __yuno__,
     SDATA,
     SDATA_END,
     data_type_t,
@@ -90,7 +91,7 @@ import {Circle as CircleGeometry} from '@antv/g';
 const GCLASS_NAME = "C_G6_NODES_TREE";
 
 /***************************************************************
- *      Internal layout definitions (child's domain)
+ *  Internal layout and operation mode definitions
  ***************************************************************/
 const _layouts = {
     "dagre": {
@@ -122,6 +123,21 @@ const _layouts = {
     },
 };
 
+const _operation_modes = {
+    "reading": {
+
+    },
+    "operation": {
+
+    },
+    "writing": {
+
+    },
+    "edition": {
+
+    },
+};
+
 const node_colors = [
     'rgb(237, 201, 73)',
     'rgb(118, 183, 178)',
@@ -140,10 +156,7 @@ const attrs_table = [
 SDATA(data_type_t.DTP_POINTER,  "subscriber",           0,  null,   "Subscriber of output events"),
 
 /*---------------- User last selections  ----------------*/
-SDATA(data_type_t.DTP_LIST,     "modes",                0,
-    '["reading", "operation", "writing", "edition"]',
-    "Available permission or behaviour modes"),
-SDATA(data_type_t.DTP_STRING,   "current_mode",         sdata_flag_t.SDF_PERSIST,
+SDATA(data_type_t.DTP_STRING,   "current_operation_mode",sdata_flag_t.SDF_PERSIST,
     "", "Current mode"),
 SDATA(data_type_t.DTP_STRING,   "current_layout",       sdata_flag_t.SDF_PERSIST,
     "", "Current graph layout"),
@@ -164,6 +177,9 @@ SDATA(data_type_t.DTP_BOOLEAN,  "with_gridline",        0,  false,  "Use gridlin
 SDATA(data_type_t.DTP_LIST,     "layout_names",         sdata_flag_t.SDF_RD,
     JSON.stringify(Object.keys(_layouts)),
     "Available layout names (read-only, for parent to query)"),
+SDATA(data_type_t.DTP_LIST,     "operation_mode_names", sdata_flag_t.SDF_RD,
+    JSON.stringify(Object.keys(_operation_modes)),
+    "Available operation mode names (read-only, for parent to query)"),
 
 SDATA(data_type_t.DTP_STRING,   "hook_port_position",   0,  "bottom",   "Hook port position"),
 SDATA(data_type_t.DTP_STRING,   "fkey_port_position",   0,  "top",      "Fkey port position"),
@@ -369,8 +385,8 @@ function build_graph(gobj)
      */
     graph.setTheme(priv.theme);
 
-    let mode = select_mode(gobj);
-    set_mode(gobj, mode);
+    let mode = select_operation_mode(gobj);
+    set_operation_mode(gobj, mode);
 
     /*
      *  Don't render here — the container is not yet attached to the DOM.
@@ -477,8 +493,11 @@ function select_layout(gobj, layout_name)
     if(!layout_name) {
         layout_name = gobj_read_str_attr(gobj, "current_layout");
     }
-    if(!layout_name) {
-        layout_name = Object.keys(_layouts)[0];
+
+    let layouts = Object.keys(_layouts);
+
+    if(!layout_name || !str_in_list(layouts, layout_name)) {
+        layout_name = layouts[0];
     }
 
     gobj_write_str_attr(gobj, "current_layout", layout_name);
@@ -487,31 +506,30 @@ function select_layout(gobj, layout_name)
 }
 
 /************************************************************
- *  Mode selection
+ *  Operation Mode selection
  ************************************************************/
-function select_mode(gobj, mode_name)
+function select_operation_mode(gobj, operation_mode_name)
 {
-    if(!mode_name) {
-        mode_name = gobj_read_str_attr(gobj, "current_mode");
-    }
-    if(!mode_name) {
-        mode_name = gobj_read_attr(gobj, "modes")[0];
+    if(!operation_mode_name) {
+        operation_mode_name = gobj_read_str_attr(gobj, "current_operation_mode");
     }
 
-    gobj_write_str_attr(gobj, "current_mode", mode_name);
+    let operation_modes = Object.keys(_operation_modes);
 
-    return mode_name;
+    if(!operation_mode_name || !str_in_list(operation_modes, operation_mode_name)) {
+        operation_mode_name = operation_modes[0];
+    }
+
+    gobj_write_str_attr(gobj, "current_operation_mode", operation_mode_name);
+
+    return operation_mode_name;
 }
 
 /************************************************************
  *  Set mode: reading, operation, writing, edition
  ************************************************************/
-function set_mode(gobj, mode)
+function set_operation_mode(gobj, mode)
 {
-    if(!mode || !str_in_list(["reading","operation","writing","edition"], mode)) {
-        mode = 'reading';
-    }
-
     let behaviors = [];
 
     switch(mode) {
@@ -1261,6 +1279,13 @@ function save_geometry(gobj)
             continue;
         }
 
+        json_object_update( // Add me
+            _geometry,
+            {
+                __origin__: gobj_read_str_attr(__yuno__, "node_uuid")
+            }
+        );
+
         let options = {
             list_dict: true,
             autolink: false
@@ -1274,6 +1299,7 @@ function save_geometry(gobj)
             },
             options: options
         };
+        // TODO make a api with multi-records
         gobj_publish_event(gobj, "EV_UPDATE_NODE", kw_update);
     }
 }
@@ -1394,8 +1420,8 @@ async function clear_graph(gobj)
     let priv = gobj.priv;
     let graph = priv.graph;
 
-    let mode = select_mode(gobj);
-    set_mode(gobj, mode);
+    let mode = select_operation_mode(gobj);
+    set_operation_mode(gobj, mode);
 
     priv._xy = 100;
     priv.yet_showed = false;
@@ -1854,9 +1880,9 @@ function ac_layout(gobj, event, kw, src)
  ************************************************************/
 function ac_set_mode(gobj, event, kw, src)
 {
-    let mode = select_mode(gobj, kw.mode);
-    gobj_save_persistent_attrs(gobj, "current_mode");
-    set_mode(gobj, mode);
+    let mode = select_operation_mode(gobj, kw.mode);
+    gobj_save_persistent_attrs(gobj, "current_operation_mode");
+    set_operation_mode(gobj, mode);
     return 0;
 }
 

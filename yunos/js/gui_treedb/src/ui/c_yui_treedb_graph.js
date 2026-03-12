@@ -94,12 +94,7 @@ const GCLASS_NAME = "C_YUI_TREEDB_GRAPH";
 const attrs_table = [
 /*---------------- Public Attributes ----------------*/
 SDATA(data_type_t.DTP_POINTER,  "subscriber",       0,  null,   "Subscriber of output events"),
-SDATA(data_type_t.DTP_LIST,     "modes",            0,  '["reading", "operation", "writing", "edition"]',   "Available permission or behaviour modes"),
 SDATA(data_type_t.DTP_BOOLEAN,  "with_treedb_tables",0, false,  "Include treedb tables"),
-
-/*---------------- User last selections  ----------------*/
-SDATA(data_type_t.DTP_STRING,   "current_mode",     sdata_flag_t.SDF_PERSIST, "", "Current mode (internal behaviour or role). Changed by the user trough the gui."),
-SDATA(data_type_t.DTP_STRING,   "current_layout",   sdata_flag_t.SDF_PERSIST, "", "Current graph layout. User preference. Changed by the user through the gui."),
 
 /*---------------- Remote Connection ----------------*/
 SDATA(data_type_t.DTP_POINTER,  "gobj_remote_yuno", 0,  null,   "Remote Yuno to request data"),
@@ -181,9 +176,20 @@ function mt_create(gobj)
         priv.theme = gobj_read_str_attr(__yui_main__, "theme");
     }
 
-    let canvas_id = clean_name(gobj_name(gobj)) + "-canvas"; // do before build_id()
+    /*
+     *  set canvas_id, before build_ui()
+     */
+    let canvas_id = clean_name(gobj_name(gobj)) + "-canvas";
     gobj_write_attr(gobj, "canvas_id", canvas_id);
+
+    /*
+     *  Build UI
+     */
     let $container = build_ui(gobj);
+
+    /*
+     *  Get canvas container
+     */
     let $container_canvas = $container.querySelector(`#${priv.canvas_id}`);
 
     priv.gobj_nodes_tree = gobj_create_service(
@@ -207,7 +213,7 @@ function mt_create(gobj)
     /*
      *  Populate layout dropdown from child's available layouts
      */
-    populate_layout_options(gobj);
+    populate_nodes_tree_options(gobj);
 
     /*
      *  Treedb tables at start
@@ -335,13 +341,10 @@ function make_toolbar(gobj)
     /*---------------------------------------*
      *      Top Header toolbar
      *---------------------------------------*/
-    let modes = gobj_read_attr(gobj, "modes");
-    let mode_options = modes.map(item => ['option', {}, item]);
-
     /*
      *  Left: layout and mode selectors
      *  Layout options are empty — populated after child creation
-     *  via populate_layout_options()
+     *  via populate_nodes_tree_options()
      */
     let left_items = [
         ['div', {class: 'select'}, [
@@ -356,7 +359,7 @@ function make_toolbar(gobj)
         }],
 
         ['div', {class: 'select'}, [
-            ['select', {class: 'graph_mode'}, mode_options]
+            ['select', {class: 'graph_operation_mode'}]
         ], {
             change: (evt) => {
                 evt.stopPropagation();
@@ -396,7 +399,7 @@ function make_toolbar(gobj)
 /************************************************************
  *  Populate layout dropdown from child's available layouts
  ************************************************************/
-function populate_layout_options(gobj)
+function populate_nodes_tree_options(gobj)
 {
     let priv = gobj.priv;
     let $container = gobj_read_attr(gobj, "$container");
@@ -420,12 +423,19 @@ function populate_layout_options(gobj)
         }
     }
 
-    // Restore persisted mode selection
-    let $mode_select = $container.querySelector('.graph_mode');
-    if($mode_select) {
-        let current_mode = gobj_read_str_attr(priv.gobj_nodes_tree, "current_mode");
-        if(current_mode) {
-            $mode_select.value = current_mode;
+    let operation_mode_names = gobj_read_attr(priv.gobj_nodes_tree, "operation_mode_names");
+    let $operation_mode_select = $container.querySelector('.graph_operation_mode');
+    if($operation_mode_select && operation_mode_names) {
+        for(let name of operation_mode_names) {
+            let option = document.createElement('option');
+            option.value = name;
+            option.textContent = name;
+            $operation_mode_select.appendChild(option);
+        }
+        // Restore persisted operation_mode selection
+        let current_operation_mode = gobj_read_str_attr(priv.gobj_nodes_tree, "current_operation_mode");
+        if(current_operation_mode) {
+            $operation_mode_select.value = current_operation_mode;
         }
     }
 }

@@ -626,12 +626,14 @@ function json2item(gobj, sdata, it, jn_value_)
         gobj.priv[it.name] = jn_value2;
     }
 
-    // Now mt_writing is only informative, not needed to update priv
-    if(gobj.gclass.gmt.mt_writing) {
-        gobj.gclass.gmt.mt_writing(gobj, it.name);
+    // Avoid call to mt_writing before mt_create or destroyed!
+    if((gobj.obflag & obflag_t.obflag_created) && !(gobj.obflag & obflag_t.obflag_destroyed)) {
+        // Now mt_writing is only informative, not needed to update priv
+        if(gobj.gclass.gmt.mt_writing) {
+            gobj.gclass.gmt.mt_writing(gobj, it.name);
+        }
     }
-
-    return jn_value2;
+    return 0;
 }
 
 /***************************************************************************
@@ -1322,6 +1324,7 @@ function json2sdata(
         log_error(`hsdata or kw NULL`);
         return -1;
     }
+    let ret = 0;
 
     for (const [key, jn_value] of Object.entries(kw)) {
         const it = gclass_attr_desc(gobj.gclass, key, false);
@@ -1335,10 +1338,10 @@ function json2sdata(
         if(!(flag === -1 || (it.flag & flag))) {
             continue;
         }
-        json2item(gobj, hsdata, it, jn_value);
+        ret += json2item(gobj, hsdata, it, jn_value);
     }
 
-    return 0;
+    return ret;
 }
 
 /************************************************************
@@ -3010,13 +3013,8 @@ function gobj_write_attrs(
     include_flag,  // sdata_flag_t
     src
 ) {
-    // Avoid call after destroyed!
-    if((gobj.obflag & obflag_t.obflag_destroyed)) {
-        return -1;
-    }
-
     let hs = gobj_hsdata(gobj);
-
+    let ret = 0;
     for (const [attr, jn_value] of Object.entries(kw)) {
         let it = gobj_attr_desc(gobj, attr, true);
         if(!it) {
@@ -3025,10 +3023,10 @@ function gobj_write_attrs(
         if(!(include_flag === -1 || (it.flag & include_flag))) {
             continue;
         }
-        json2item(gobj, hs, it, jn_value);
+        ret += json2item(gobj, hs, it, jn_value);
     }
 
-    return 0;
+    return ret;
 }
 
 /***************************************************************************
@@ -3036,11 +3034,6 @@ function gobj_write_attrs(
  ***************************************************************************/
 function gobj_write_bool_attr(gobj, name, value)
 {
-    if(gobj_is_destroying(gobj)) {
-        log_error("gobj NULL or DESTROYED");
-        return -1;
-    }
-
     let hs = gobj_hsdata2(gobj, name, false);
     if(hs) {
         hs[name] = parseBoolean(value);
@@ -3050,9 +3043,12 @@ function gobj_write_bool_attr(gobj, name, value)
             gobj.priv[name] = value;
         }
 
-        // Now mt_writing is only informative, not needed to update priv
-        if(gobj.gclass.gmt.mt_writing) {
-            gobj.gclass.gmt.mt_writing(gobj, name);
+        // Avoid call to mt_writing before mt_create or destroyed!
+        if((gobj.obflag & obflag_t.obflag_created) && !(gobj.obflag & obflag_t.obflag_destroyed)) {
+            // Now mt_writing is only informative, not needed to update priv
+            if(gobj.gclass.gmt.mt_writing) {
+                gobj.gclass.gmt.mt_writing(gobj, name);
+            }
         }
         return 0;
     }
@@ -3066,11 +3062,6 @@ function gobj_write_bool_attr(gobj, name, value)
  ***************************************************************************/
 function gobj_write_integer_attr(gobj, name, value)
 {
-    if(gobj_is_destroying(gobj)) {
-        log_error("gobj NULL or DESTROYED");
-        return -1;
-    }
-
     let hs = gobj_hsdata2(gobj, name, false);
     if(hs) {
         hs[name] = parseInt(value);
@@ -3080,9 +3071,12 @@ function gobj_write_integer_attr(gobj, name, value)
             gobj.priv[name] = value;
         }
 
-        // Now mt_writing is only informative, not needed to update priv
-        if(gobj.gclass.gmt.mt_writing) {
-            gobj.gclass.gmt.mt_writing(gobj, name);
+        // Avoid call to mt_writing before mt_create or destroyed!
+        if((gobj.obflag & obflag_t.obflag_created) && !(gobj.obflag & obflag_t.obflag_destroyed)) {
+            // Now mt_writing is only informative, not needed to update priv
+            if(gobj.gclass.gmt.mt_writing) {
+                gobj.gclass.gmt.mt_writing(gobj, name);
+            }
         }
         return 0;
     }
@@ -3096,11 +3090,6 @@ function gobj_write_integer_attr(gobj, name, value)
  ***************************************************************************/
 function gobj_write_str_attr(gobj, name, value)
 {
-    if(gobj_is_destroying(gobj)) {
-        log_error("gobj NULL or DESTROYED");
-        return -1;
-    }
-
     let hs = gobj_hsdata2(gobj, name, false);
     if(hs) {
         hs[name] = String(value);
@@ -3110,9 +3099,12 @@ function gobj_write_str_attr(gobj, name, value)
             gobj.priv[name] = value;
         }
 
-        // Now mt_writing is only informative, not needed to update priv
-        if(gobj.gclass.gmt.mt_writing) {
-            gobj.gclass.gmt.mt_writing(gobj, name);
+        // Avoid call to mt_writing before mt_create or destroyed!
+        if((gobj.obflag & obflag_t.obflag_created) && !(gobj.obflag & obflag_t.obflag_destroyed)) {
+            // Now mt_writing is only informative, not needed to update priv
+            if(gobj.gclass.gmt.mt_writing) {
+                gobj.gclass.gmt.mt_writing(gobj, name);
+            }
         }
         return 0;
     }
