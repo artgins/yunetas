@@ -390,8 +390,7 @@ function build_app(gobj, services_roles)
                 treedb_name: "treedb_mqtt_broker",
                 gobj_remote_yuno: __yuno__.__remote_service__,
                 label: "AuthDB",
-                icon: "fas fa-hexagon-nodes",
-                modes: ["reading", "operation", "writing", "edition"],
+                icon: "fas fa-hexagon-nodes"
             },
             gobj_tabs
         );
@@ -453,8 +452,7 @@ function build_app(gobj, services_roles)
                 treedb_name: "treedb_authzs",
                 gobj_remote_yuno: __yuno__.__remote_service__,
                 label: "AuthDB",
-                icon: "fas fa-hexagon-nodes",
-                modes: ["reading", "operation", "writing", "edition"],
+                icon: "fas fa-hexagon-nodes"
             },
             gobj_tabs
         );

@@ -72,6 +72,13 @@ import {
 } from "yunetas";
 
 import {yui_toolbar} from "./yui_toolbar.js";
+import {
+    removeChildElements,
+    disableElements,
+    enableElements,
+    set_submit_state,
+    set_active_state,
+} from "./lib_graph.js";
 import {display_error_message} from "./c_yui_main.js";
 
 import {t} from "i18next";
@@ -87,12 +94,7 @@ const GCLASS_NAME = "C_YUI_TREEDB_GRAPH";
 const attrs_table = [
 /*---------------- Public Attributes ----------------*/
 SDATA(data_type_t.DTP_POINTER,  "subscriber",       0,  null,   "Subscriber of output events"),
-SDATA(data_type_t.DTP_LIST,     "modes",            0,  '["reading", "operation", "writing", "edition"]',   "Available permission or behaviour modes"),
 SDATA(data_type_t.DTP_BOOLEAN,  "with_treedb_tables",0, false,  "Include treedb tables"),
-
-/*---------------- User last selections  ----------------*/
-SDATA(data_type_t.DTP_STRING,   "current_mode",     sdata_flag_t.SDF_PERSIST, "", "Current mode (internal behaviour or role). Changed by the user trough the gui."),
-SDATA(data_type_t.DTP_STRING,   "current_layout",   sdata_flag_t.SDF_PERSIST, "", "Current graph layout or **view**, See graph_settings.layouts for available list. User preference. Changed by the user trough the gui."),
 
 /*---------------- Remote Connection ----------------*/
 SDATA(data_type_t.DTP_POINTER,  "gobj_remote_yuno", 0,  null,   "Remote Yuno to request data"),
@@ -174,16 +176,26 @@ function mt_create(gobj)
         priv.theme = gobj_read_str_attr(__yui_main__, "theme");
     }
 
-    let canvas_id = clean_name(gobj_name(gobj)) + "-canvas"; // do before build_id()
+    /*
+     *  set canvas_id, before build_ui()
+     */
+    let canvas_id = clean_name(gobj_name(gobj)) + "-canvas";
     gobj_write_attr(gobj, "canvas_id", canvas_id);
+
+    /*
+     *  Build UI
+     */
     let $container = build_ui(gobj);
+
+    /*
+     *  Get canvas container
+     */
     let $container_canvas = $container.querySelector(`#${priv.canvas_id}`);
 
     priv.gobj_nodes_tree = gobj_create_service(
         `${gobj_name(gobj)}-g6`,
         "C_G6_NODES_TREE",
         {
-            // canvas_id: canvas_id,
             $container: $container_canvas,
             subscriber: gobj,
             gobj_remote_yuno: priv.gobj_remote_yuno,
@@ -197,6 +209,11 @@ function mt_create(gobj)
         },
         gobj
     );
+
+    /*
+     *  Populate layout dropdown from child's available layouts
+     */
+    populate_nodes_tree_options(gobj);
 
     /*
      *  Treedb tables at start
@@ -324,28 +341,33 @@ function make_toolbar(gobj)
     /*---------------------------------------*
      *      Top Header toolbar
      *---------------------------------------*/
-
     /*
      *  Left: layout and mode selectors
+     *  Layout options are empty — populated after child creation
+     *  via populate_nodes_tree_options()
      */
     let left_items = [
-        // ['div', {class: 'select'}, [
-        //     ['select', {class: 'graph_layout'}, layout_options]
-        // ], {
-        //     change: (evt) => {
-        //         evt.stopPropagation();
-        //         gobj_send_event(gobj, "EV_LAYOUT", {layout: evt.target.value}, gobj);
-        //     }
-        // }],
+        ['div', {class: 'select'}, [
+            ['select', {class: 'graph_layout'}]
+        ], {
+            change: (evt) => {
+                evt.stopPropagation();
+                if(priv.gobj_nodes_tree) {
+                    gobj_send_event(priv.gobj_nodes_tree, "EV_LAYOUT", {layout: evt.target.value}, gobj);
+                }
+            }
+        }],
 
-        // ['div', {class: 'select'}, [
-        //     ['select', {class: 'graph_mode'}, mode_options]
-        // ], {
-        //     change: (evt) => {
-        //         evt.stopPropagation();
-        //         gobj_send_event(gobj, "EV_SET_MODE", {mode: evt.target.value}, gobj);
-        //     }
-        // }],
+        ['div', {class: 'select'}, [
+            ['select', {class: 'graph_operation_mode'}]
+        ], {
+            change: (evt) => {
+                evt.stopPropagation();
+                if(priv.gobj_nodes_tree) {
+                    gobj_send_event(priv.gobj_nodes_tree, "EV_SET_MODE", {mode: evt.target.value}, gobj);
+                }
+            }
+        }],
     ];
     let l_icons = [
         ["fas fa-arrows-rotate",        "EV_REFRESH_TREEDB",false,  'i'],
@@ -375,19 +397,64 @@ function make_toolbar(gobj)
 }
 
 /************************************************************
+ *  Populate layout dropdown from child's available layouts
+ ************************************************************/
+function populate_nodes_tree_options(gobj)
+{
+    let priv = gobj.priv;
+    let $container = gobj_read_attr(gobj, "$container");
+    if(!$container || !priv.gobj_nodes_tree) {
+        return;
+    }
+
+    let layout_names = gobj_read_attr(priv.gobj_nodes_tree, "layout_names");
+    let $layout_select = $container.querySelector('.graph_layout');
+    if($layout_select && layout_names) {
+        for(let name of layout_names) {
+            let option = document.createElement('option');
+            option.value = name;
+            option.textContent = name;
+            $layout_select.appendChild(option);
+        }
+        // Restore persisted layout selection
+        let current_layout = gobj_read_str_attr(priv.gobj_nodes_tree, "current_layout");
+        if(current_layout) {
+            $layout_select.value = current_layout;
+        }
+    }
+
+    let operation_mode_names = gobj_read_attr(priv.gobj_nodes_tree, "operation_mode_names");
+    let $operation_mode_select = $container.querySelector('.graph_operation_mode');
+    if($operation_mode_select && operation_mode_names) {
+        for(let name of operation_mode_names) {
+            let option = document.createElement('option');
+            option.value = name;
+            option.textContent = name;
+            $operation_mode_select.appendChild(option);
+        }
+        // Restore persisted operation_mode selection
+        let current_operation_mode = gobj_read_str_attr(priv.gobj_nodes_tree, "current_operation_mode");
+        if(current_operation_mode) {
+            $operation_mode_select.value = current_operation_mode;
+        }
+    }
+}
+
+/************************************************************
  *  add_buttons() - helper to create toolbar buttons
  ************************************************************/
-function create_button_handlers(gobj, event_name)
+function create_button_handlers(gobj, event_name, target_gobj)
 {
+    let dst = target_gobj || gobj;
     return {
         click: (evt) => {
             evt.stopPropagation();
-            gobj_send_event(gobj, event_name, {evt}, gobj);
+            gobj_send_event(dst, event_name, {evt}, gobj);
         },
         contextmenu: (evt) => {
             evt.stopPropagation();
             evt.preventDefault();
-            gobj_send_event(gobj, event_name, {evt}, gobj);
+            gobj_send_event(dst, event_name, {evt}, gobj);
         }
     };
 }
@@ -402,7 +469,7 @@ function push_button(zone, button, content, handlers)
     ]);
 }
 
-function add_buttons(gobj, zone, c_icons)
+function add_buttons(gobj, zone, c_icons, target_gobj)
 {
     const toolbar_wide = gobj_read_attr(gobj, "wide");
 
@@ -424,7 +491,7 @@ function add_buttons(gobj, zone, c_icons)
             button.disabled = true;
         }
 
-        const handlers = create_button_handlers(gobj, event_name);
+        const handlers = create_button_handlers(gobj, event_name, target_gobj);
 
         switch(type) {
             case 'i':
@@ -1050,6 +1117,62 @@ function ac_refresh_treedb(gobj, event, kw, src)
 }
 
 /********************************************
+ *  Toolbar state update from child
+ *  kw: {
+ *      mode_buttons: [...],   // optional: replace mode buttons
+ *      button_states: {       // optional: update button states
+ *          "EV_XXX": {enabled, active, submit},
+ *      },
+ *  }
+ ********************************************/
+function ac_toolbar_state(gobj, event, kw, src)
+{
+    let priv = gobj.priv;
+    let $container = gobj_read_attr(gobj, "$container");
+    if(!$container) {
+        return 0;
+    }
+
+    /*
+     *  Replace mode buttons
+     */
+    if(kw.mode_buttons !== undefined) {
+        let $zone = $container.querySelector('.mode_buttons');
+        if($zone) {
+            removeChildElements($zone);
+            if(kw.mode_buttons.length > 0) {
+                let right_items = [];
+                add_buttons(gobj, right_items, kw.mode_buttons, priv.gobj_nodes_tree);
+                for(let item of right_items) {
+                    $zone.appendChild(createElement2(item));
+                }
+            }
+        }
+    }
+
+    /*
+     *  Update button states
+     */
+    if(kw.button_states) {
+        for(let [ev_name, states] of Object.entries(kw.button_states)) {
+            if(states.enabled === true) {
+                enableElements($container, `.${ev_name}`);
+            } else if(states.enabled === false) {
+                disableElements($container, `.${ev_name}`);
+            }
+            if(states.active !== undefined) {
+                set_active_state($container, `.${ev_name}`, states.active);
+            }
+            if(states.submit !== undefined) {
+                set_submit_state($container, `.${ev_name}`, states.submit);
+            }
+        }
+    }
+
+    return 0;
+}
+
+/********************************************
  *  Event from G6_nodes_tree
  *  kw: {
  *      treedb_name,
@@ -1473,6 +1596,7 @@ function create_gclass(gclass_name)
             ["EV_TREEDB_NODE_UPDATED",      ac_treedb_node_updated,     null],
             ["EV_TREEDB_NODE_DELETED",      ac_treedb_node_deleted,     null],
             ["EV_REFRESH_TREEDB",           ac_refresh_treedb,          null],
+            ["EV_TOOLBAR_STATE",            ac_toolbar_state,           null],
             ["EV_SHOW_HOOK_DATA",           ac_show_hook_data,          null],
             ["EV_SHOW_TREEDB_TOPIC",        ac_show_treedb_topic,       null],
             ["EV_VERTEX_CLICKED",           ac_vertex_clicked,          null],
@@ -1500,6 +1624,7 @@ function create_gclass(gclass_name)
         ["EV_TREEDB_NODE_UPDATED",      event_flag_t.EVF_PUBLIC_EVENT],
         ["EV_TREEDB_NODE_DELETED",      event_flag_t.EVF_PUBLIC_EVENT],
         ["EV_REFRESH_TREEDB",           0],
+        ["EV_TOOLBAR_STATE",            0],
         ["EV_SHOW_HOOK_DATA",           0],
         ["EV_SHOW_TREEDB_TOPIC",        0],
         ["EV_VERTEX_CLICKED",           0],

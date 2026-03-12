@@ -15,6 +15,7 @@
  *          All Rights Reserved.
  ***********************************************************************/
 import {
+    __yuno__,
     SDATA,
     SDATA_END,
     data_type_t,
@@ -41,7 +42,6 @@ import {
     gobj_find_service,
     gobj_save_persistent_attrs,
     clean_name,
-    createElement2,
     sprintf,
     is_string,
     is_array,
@@ -62,23 +62,14 @@ import {
     delete_from_list,
     escapeHtml,
     safeSrc,
-    refresh_language,
 } from "yunetas";
 
 import {
     addClasses,
     removeClasses,
-    removeChildElements,
-    disableElements,
-    enableElements,
-    set_submit_state,
-    set_active_state,
     getStrokeColor,
 } from "./lib_graph.js";
 
-import {yui_toolbar} from "./yui_toolbar.js";
-
-import {t} from "i18next";
 
 import {
     BaseLayout,
@@ -99,6 +90,54 @@ import {Circle as CircleGeometry} from '@antv/g';
  ***************************************************************/
 const GCLASS_NAME = "C_G6_NODES_TREE";
 
+/***************************************************************
+ *  Internal layout and operation mode definitions
+ ***************************************************************/
+const _layouts = {
+    "dagre": {
+        type: 'dagre',
+    },
+    "antv-dagre": {
+        type: 'antv-dagre',
+    },
+    "d3-force": {
+        type: 'd3-force',
+        link: {
+            distance: 200,
+            strength: 2
+        },
+        collide: {
+            radius: 80,
+        },
+    },
+    "force-atlas2": {
+        type: 'force-atlas2',
+        preventOverlap: true,
+        kr: 20,
+        graph_center: [250, 250],
+    },
+
+    // set manual the last
+    "manual": {
+        type: 'manual',
+    },
+};
+
+const _operation_modes = {
+    "reading": {
+
+    },
+    "operation": {
+
+    },
+    "writing": {
+
+    },
+    "edition": {
+
+    },
+};
+
 const node_colors = [
     'rgb(237, 201, 73)',
     'rgb(118, 183, 178)',
@@ -117,10 +156,7 @@ const attrs_table = [
 SDATA(data_type_t.DTP_POINTER,  "subscriber",           0,  null,   "Subscriber of output events"),
 
 /*---------------- User last selections  ----------------*/
-SDATA(data_type_t.DTP_LIST,     "modes",                0,
-    '["reading", "operation", "writing", "edition"]',
-    "Available permission or behaviour modes"),
-SDATA(data_type_t.DTP_STRING,   "current_mode",         sdata_flag_t.SDF_PERSIST,
+SDATA(data_type_t.DTP_STRING,   "current_operation_mode",sdata_flag_t.SDF_PERSIST,
     "", "Current mode"),
 SDATA(data_type_t.DTP_STRING,   "current_layout",       sdata_flag_t.SDF_PERSIST,
     "", "Current graph layout"),
@@ -133,42 +169,17 @@ SDATA(data_type_t.DTP_DICT,     "records",              0,  "{}",   "Data of top
 SDATA(data_type_t.DTP_LIST,     "topics",               0,  "[]",   "List of topic objects"),
 
 /*---------------- Sub-container ----------------*/
-SDATA(data_type_t.DTP_POINTER,  "$container",           0,  null,   "Container element, set externally"),
+SDATA(data_type_t.DTP_POINTER,  "$container",           0,  null,   "Graph container element, set externally"),
 
 /*---------------- Graph Settings ----------------*/
 SDATA(data_type_t.DTP_BOOLEAN,  "with_treedb_tables",   0,  false,  "Include treedb tables"),
 SDATA(data_type_t.DTP_BOOLEAN,  "with_gridline",        0,  false,  "Use gridline plugin"),
-SDATA(data_type_t.DTP_DICT,     "graph_settings",       0,  {
-    layouts: {
-        "dagre": {
-            type: 'dagre',
-        },
-        "antv-dagre": {
-            type: 'antv-dagre',
-        },
-        "d3-force": {
-            type: 'd3-force',
-            link: {
-                distance: 200,
-                strength: 2
-            },
-            collide: {
-                radius: 80,
-            },
-        },
-        "force-atlas2": {
-            type: 'force-atlas2',
-            preventOverlap: true,
-            kr: 20,
-            graph_center: [250, 250],
-        },
-
-        // set manual the last
-        "manual": {
-            type: 'manual',
-        },
-    },
-}, "Default graph settings"),
+SDATA(data_type_t.DTP_LIST,     "layout_names",         sdata_flag_t.SDF_RD,
+    JSON.stringify(Object.keys(_layouts)),
+    "Available layout names (read-only, for parent to query)"),
+SDATA(data_type_t.DTP_LIST,     "operation_mode_names", sdata_flag_t.SDF_RD,
+    JSON.stringify(Object.keys(_operation_modes)),
+    "Available operation mode names (read-only, for parent to query)"),
 
 SDATA(data_type_t.DTP_STRING,   "hook_port_position",   0,  "bottom",   "Hook port position"),
 SDATA(data_type_t.DTP_STRING,   "fkey_port_position",   0,  "top",      "Fkey port position"),
@@ -189,7 +200,6 @@ let PRIVATE_DATA = {
     graph:              null,   // Instance of G6
     __graphs__:         [],     // Rows of __graphs__
     yet_showed:         false,
-    graph_settings:     null,
     edit_mode:          false,
     mode:               null,
     theme:              null,
@@ -322,149 +332,6 @@ function destroy_ui(gobj)
 }
 
 /************************************************************
- *   Make toolbar
- ************************************************************/
-function make_toolbar(gobj)
-{
-    let priv = gobj.priv;
-
-    let graph_settings = priv.graph_settings;
-    let layouts = graph_settings.layouts;
-    let layout_options = Object.keys(layouts).map(key => ['option', {}, key]);
-
-    let modes = gobj_read_attr(gobj, "modes");
-    let mode_options = modes.map(item => ['option', {}, item]);
-
-    /*
-     *  Left: layout and mode selectors
-     */
-    let left_items = [
-        ['div', {class: 'select'}, [
-            ['select', {class: 'graph_layout'}, layout_options]
-        ], {
-            change: (evt) => {
-                evt.stopPropagation();
-                gobj_send_event(gobj, "EV_LAYOUT", {layout: evt.target.value}, gobj);
-            }
-        }],
-
-        ['div', {class: 'select'}, [
-            ['select', {class: 'graph_mode'}, mode_options]
-        ], {
-            change: (evt) => {
-                evt.stopPropagation();
-                gobj_send_event(gobj, "EV_SET_MODE", {mode: evt.target.value}, gobj);
-            }
-        }],
-    ];
-    let l_icons = [
-        ["fas fa-arrows-rotate",        "EV_REFRESH_TREEDB",false,  'i'],
-    ];
-    add_buttons(gobj, left_items, l_icons);
-
-    /*
-     *  Center: zoom and navigation controls
-     */
-    let center_items = [];
-    let c_icons = [
-        ["fas fa-magnifying-glass-plus", "EV_ZOOM_IN",       false,  'i'],
-        ["fas fa-magnifying-glass",      "EV_ZOOM_RESET",    false,  'i'],
-        ["fas fa-magnifying-glass-minus","EV_ZOOM_OUT",      false,  'i'],
-        ["fas fa-arrows-to-eye",         "EV_CENTER",        false,  'i'],
-    ];
-    add_buttons(gobj, center_items, c_icons);
-
-    /*
-     *  Right: mode-specific buttons (filled by set_mode)
-     */
-    let right_items = [];
-
-    const $toolbar_header = yui_toolbar({}, [
-        ['div', {class: 'yui-horizontal-toolbar-section left'}, left_items],
-        ['div', {class: 'yui-horizontal-toolbar-section center'}, center_items],
-        ['div', {class: 'yui-horizontal-toolbar-section right mode_buttons'}, right_items]
-    ]);
-
-    refresh_language($toolbar_header, t);
-
-    return $toolbar_header;
-}
-
-/************************************************************
- *  add_buttons() - helper to create toolbar buttons
- ************************************************************/
-function create_button_handlers(gobj, event_name)
-{
-    return {
-        click: (evt) => {
-            evt.stopPropagation();
-            gobj_send_event(gobj, event_name, {evt}, gobj);
-        },
-        contextmenu: (evt) => {
-            evt.stopPropagation();
-            evt.preventDefault();
-            gobj_send_event(gobj, event_name, {evt}, gobj);
-        }
-    };
-}
-
-function push_button(zone, button, content, handlers)
-{
-    zone.push([
-        'button',
-        button,
-        content,
-        handlers
-    ]);
-}
-
-function add_buttons(gobj, zone, c_icons)
-{
-    const toolbar_wide = gobj_read_attr(gobj, "wide");
-
-    for(let i = 0; i < c_icons.length; i++) {
-        const item = c_icons[i];
-        const icon_name  = item[0];
-        const event_name = item[1];
-        const disabled   = item[2];
-        const type       = item[3];
-
-        const button = {
-            class: `button ${event_name}`,
-            style: {
-                height: `${toolbar_wide}`
-            }
-        };
-
-        if(disabled) {
-            button.disabled = true;
-        }
-
-        const handlers = create_button_handlers(gobj, event_name);
-
-        switch(type) {
-            case 'i':
-                {
-                    button.style.width = "2.5em";
-                    const icon = ['i', {
-                        style: "font-size:1.5em; color:inherit;",
-                        class: icon_name
-                    }];
-                    push_button(zone, button, icon, handlers);
-                }
-                break;
-
-            default:
-            case 't':
-                {
-                    push_button(zone, button, icon_name, handlers);
-                }
-                break;
-        }
-    }
-}
-
-/************************************************************
  *  Register custom G6 layouts
  ************************************************************/
 let _g6_extensions_registered = false;
@@ -518,8 +385,8 @@ function build_graph(gobj)
      */
     graph.setTheme(priv.theme);
 
-    let mode = select_mode(gobj);
-    set_mode(gobj, mode);
+    let mode = select_operation_mode(gobj);
+    set_operation_mode(gobj, mode);
 
     /*
      *  Don't render here — the container is not yet attached to the DOM.
@@ -623,68 +490,46 @@ function show_positions(gobj)
  ************************************************************/
 function select_layout(gobj, layout_name)
 {
-    let priv = gobj.priv;
-
-    let graph_settings = priv.graph_settings;
-    let $container = gobj_read_attr(gobj, "$container");
-
     if(!layout_name) {
         layout_name = gobj_read_str_attr(gobj, "current_layout");
     }
-    if(!layout_name) {
-        layout_name = Object.keys(graph_settings.layouts)[0];
+
+    let layouts = Object.keys(_layouts);
+
+    if(!layout_name || !str_in_list(layouts, layout_name)) {
+        layout_name = layouts[0];
     }
 
     gobj_write_str_attr(gobj, "current_layout", layout_name);
 
-    let $input = $container.querySelector('.graph_layout');
-    if($input) {
-        $input.value = layout_name;
-    }
-
-    return graph_settings.layouts[layout_name];
+    return _layouts[layout_name];
 }
 
 /************************************************************
- *  Mode selection
+ *  Operation Mode selection
  ************************************************************/
-function select_mode(gobj, mode_name)
+function select_operation_mode(gobj, operation_mode_name)
 {
-    let $container = gobj_read_attr(gobj, "$container");
-
-    if(!mode_name) {
-        mode_name = gobj_read_str_attr(gobj, "current_mode");
-    }
-    if(!mode_name) {
-        mode_name = gobj_read_attr(gobj, "modes")[0];
+    if(!operation_mode_name) {
+        operation_mode_name = gobj_read_str_attr(gobj, "current_operation_mode");
     }
 
-    gobj_write_str_attr(gobj, "current_mode", mode_name);
+    let operation_modes = Object.keys(_operation_modes);
 
-    let $input = $container.querySelector('.graph_mode');
-    if($input) {
-        $input.value = mode_name;
+    if(!operation_mode_name || !str_in_list(operation_modes, operation_mode_name)) {
+        operation_mode_name = operation_modes[0];
     }
 
-    return mode_name;
+    gobj_write_str_attr(gobj, "current_operation_mode", operation_mode_name);
+
+    return operation_mode_name;
 }
 
 /************************************************************
  *  Set mode: reading, operation, writing, edition
  ************************************************************/
-function set_mode(gobj, mode)
+function set_operation_mode(gobj, mode)
 {
-    let $container = gobj_read_attr(gobj, "$container");
-
-    let $zone = $container.querySelector('.mode_buttons');
-    if($zone) {
-        removeChildElements($zone);
-    }
-
-    if(!mode || !str_in_list(["reading","operation","writing","edition"], mode)) {
-        mode = 'reading';
-    }
-
     let behaviors = [];
 
     switch(mode) {
@@ -701,14 +546,14 @@ function set_mode(gobj, mode)
     }
     graph_write_behaviors(gobj, behaviors);
 
-    let c_icons = [];
+    let mode_buttons = [];
     switch(mode) {
         case 'reading':
         case 'operation':
         case 'writing':
             break;
         case 'edition':
-            c_icons = [
+            mode_buttons = [
                 ["fas fa-pen ",                 "EV_EDIT_MODE",     false,  'i'],
                 ["fas fa-plus",                 "EV_NEW",           true,   'i'],
                 ["fas fa-arrow-rotate-left",    "EV_HISTORY_UNDO",  true,   'i'],
@@ -718,18 +563,22 @@ function set_mode(gobj, mode)
             break;
     }
 
-    if(c_icons.length && $zone) {
-        let right_items = [];
-        add_buttons(gobj, right_items, c_icons);
-        for(let item of right_items) {
-            $zone.appendChild(createElement2(item));
-        }
-    }
+    /*
+     *  Notify parent to update its toolbar mode buttons
+     */
+    gobj_publish_event(gobj, "EV_TOOLBAR_STATE", {
+        mode_buttons: mode_buttons,
+    });
 }
 
-/**
- * Returns the proportional position (between 0 and 1) of a specific point
- */
+/************************************************************
+ * Returns the proportional position (between 0 and 1) of a specific point,
+ * centered and spaced with margins.
+ *
+ * index - Index of the point (0 to count-1)
+ * count - Total number of points
+ * margin - Total margin space (default 0.2 means 10% on each end)
+ ************************************************************/
 function getPointPosition(count, index, margin = 0.2)
 {
     if(count <= 0 || index < 0 || index >= count) {
@@ -1430,6 +1279,13 @@ function save_geometry(gobj)
             continue;
         }
 
+        json_object_update( // Add me
+            _geometry,
+            {
+                __origin__: gobj_read_str_attr(__yuno__, "node_uuid")
+            }
+        );
+
         let options = {
             list_dict: true,
             autolink: false
@@ -1443,6 +1299,7 @@ function save_geometry(gobj)
             },
             options: options
         };
+        // TODO make a api with multi-records
         gobj_publish_event(gobj, "EV_UPDATE_NODE", kw_update);
     }
 }
@@ -1563,8 +1420,8 @@ async function clear_graph(gobj)
     let priv = gobj.priv;
     let graph = priv.graph;
 
-    let mode = select_mode(gobj);
-    set_mode(gobj, mode);
+    let mode = select_operation_mode(gobj);
+    set_operation_mode(gobj, mode);
 
     priv._xy = 100;
     priv.yet_showed = false;
@@ -1638,39 +1495,24 @@ function update_history_buttons(gobj)
 {
     let priv = gobj.priv;
     let graph = priv.graph;
-    let $container = gobj_read_attr(gobj, "$container");
 
-    if(!graph || !graph.rendered) {
-        disableElements($container, ".EV_HISTORY_REDO");
-        set_active_state($container, ".EV_HISTORY_REDO", false);
-        disableElements($container, ".EV_HISTORY_UNDO");
-        set_active_state($container, ".EV_HISTORY_UNDO", false);
-        return;
+    let can_redo = false;
+    let can_undo = false;
+
+    if(graph && graph.rendered) {
+        const history = graph.getPluginInstance('history');
+        if(history) {
+            can_redo = history.canRedo();
+            can_undo = history.canUndo();
+        }
     }
 
-    const history = graph.getPluginInstance('history');
-    if(history) {
-        if(history.canRedo()) {
-            enableElements($container, ".EV_HISTORY_REDO");
-            set_active_state($container, ".EV_HISTORY_REDO", true);
-        } else {
-            disableElements($container, ".EV_HISTORY_REDO");
-            set_active_state($container, ".EV_HISTORY_REDO", false);
-        }
-
-        if(history.canUndo()) {
-            enableElements($container, ".EV_HISTORY_UNDO");
-            set_active_state($container, ".EV_HISTORY_UNDO", true);
-        } else {
-            disableElements($container, ".EV_HISTORY_UNDO");
-            set_active_state($container, ".EV_HISTORY_UNDO", false);
-        }
-    } else {
-        disableElements($container, ".EV_HISTORY_REDO");
-        set_active_state($container, ".EV_HISTORY_REDO", false);
-        disableElements($container, ".EV_HISTORY_UNDO");
-        set_active_state($container, ".EV_HISTORY_UNDO", false);
-    }
+    gobj_publish_event(gobj, "EV_TOOLBAR_STATE", {
+        button_states: {
+            "EV_HISTORY_REDO": {enabled: can_redo, active: can_redo},
+            "EV_HISTORY_UNDO": {enabled: can_undo, active: can_undo},
+        },
+    });
 }
 
 /************************************************************
@@ -2022,9 +1864,11 @@ function ac_layout(gobj, event, kw, src)
     gobj_save_persistent_attrs(gobj, "current_layout");
     graph_set_layout(gobj, layout).then(() => {
         if(priv.edit_mode) {
-            let $container = gobj_read_attr(gobj, "$container");
-            enableElements($container, ".EV_SAVE_GRAPH");
-            set_submit_state($container, ".EV_SAVE_GRAPH", true);
+            gobj_publish_event(gobj, "EV_TOOLBAR_STATE", {
+                button_states: {
+                    "EV_SAVE_GRAPH": {enabled: true, submit: true},
+                },
+            });
         }
     });
 
@@ -2036,9 +1880,9 @@ function ac_layout(gobj, event, kw, src)
  ************************************************************/
 function ac_set_mode(gobj, event, kw, src)
 {
-    let mode = select_mode(gobj, kw.mode);
-    gobj_save_persistent_attrs(gobj, "current_mode");
-    set_mode(gobj, mode);
+    let mode = select_operation_mode(gobj, kw.mode);
+    gobj_save_persistent_attrs(gobj, "current_operation_mode");
+    set_operation_mode(gobj, mode);
     return 0;
 }
 
@@ -2048,20 +1892,27 @@ function ac_set_mode(gobj, event, kw, src)
 function ac_edit_mode(gobj, event, kw, src)
 {
     let priv = gobj.priv;
-    let $container = gobj_read_attr(gobj, "$container");
 
     priv.edit_mode = !priv.edit_mode;
     if(priv.edit_mode) {
-        set_active_state($container, ".EV_EDIT_MODE", true);
         graph_set_behavior(gobj, 'drag-element', true);
         graph_add_plugin(gobj, 'history');
+        gobj_publish_event(gobj, "EV_TOOLBAR_STATE", {
+            button_states: {
+                "EV_EDIT_MODE": {active: true},
+            },
+        });
     } else {
-        set_active_state($container, ".EV_EDIT_MODE", false);
         graph_set_behavior(gobj, 'drag-element', false);
-        disableElements($container, ".EV_SAVE_GRAPH");
-        set_submit_state($container, ".EV_SAVE_GRAPH", false);
         graph_remove_plugin(gobj, 'history');
-        update_history_buttons(gobj);
+        gobj_publish_event(gobj, "EV_TOOLBAR_STATE", {
+            button_states: {
+                "EV_EDIT_MODE": {active: false},
+                "EV_SAVE_GRAPH": {enabled: false, submit: false},
+                "EV_HISTORY_REDO": {enabled: false, active: false},
+                "EV_HISTORY_UNDO": {enabled: false, active: false},
+            },
+        });
     }
 
     return 0;
@@ -2075,10 +1926,12 @@ function ac_save_graph(gobj, event, kw, src)
     let priv = gobj.priv;
 
     if(priv.edit_mode) {
-        let $container = gobj_read_attr(gobj, "$container");
-        disableElements($container, ".EV_SAVE_GRAPH");
-        set_submit_state($container, ".EV_SAVE_GRAPH", false);
         save_geometry(gobj);
+        gobj_publish_event(gobj, "EV_TOOLBAR_STATE", {
+            button_states: {
+                "EV_SAVE_GRAPH": {enabled: false, submit: false},
+            },
+        });
     }
 
     return 0;
@@ -2092,9 +1945,11 @@ function ac_node_drag_end(gobj, event, kw, src)
     let priv = gobj.priv;
 
     if(priv.edit_mode) {
-        let $container = gobj_read_attr(gobj, "$container");
-        enableElements($container, ".EV_SAVE_GRAPH");
-        set_submit_state($container, ".EV_SAVE_GRAPH", true);
+        gobj_publish_event(gobj, "EV_TOOLBAR_STATE", {
+            button_states: {
+                "EV_SAVE_GRAPH": {enabled: true, submit: true},
+            },
+        });
     }
 
     return 0;
@@ -2334,6 +2189,7 @@ function create_gclass(gclass_name)
         ["EV_HISTORY_REDO",             0],
 
         /*--- Published to parent ---*/
+        ["EV_TOOLBAR_STATE",            event_flag_t.EVF_OUTPUT_EVENT],
         ["EV_VERTEX_CLICKED",           event_flag_t.EVF_OUTPUT_EVENT],
         ["EV_EDGE_CLICKED",             event_flag_t.EVF_OUTPUT_EVENT],
         ["EV_REFRESH_TREEDB",           event_flag_t.EVF_OUTPUT_EVENT],

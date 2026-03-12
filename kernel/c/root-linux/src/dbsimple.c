@@ -142,6 +142,12 @@ PUBLIC int db_save_persistent_attrs(
 
     json_t *jn_file = load_json(gobj);
     if(jn_file) {
+        jn_file = kw_clone_by_keys( // Remove attrs removed
+            gobj,
+            jn_attrs,   // owned
+            jn_file,    // owned
+            FALSE
+        );
         json_object_update_missing(attrs, jn_file);
         JSON_DECREF(jn_file)
     }
