@@ -544,30 +544,6 @@ function set_operation_mode(gobj, mode)
             break;
     }
     graph_write_behaviors(gobj, behaviors);
-
-    let mode_buttons = [];
-    switch(mode) {
-        case 'reading':
-        case 'operation':
-        case 'writing':
-            break;
-        case 'edition':
-            mode_buttons = [
-                ["fas fa-pen ",                 "EV_EDIT_MODE",     false,  'i'],
-                ["fas fa-plus",                 "EV_NEW",           true,   'i'],
-                ["fas fa-arrow-rotate-left",    "EV_HISTORY_UNDO",  true,   'i'],
-                ["fas fa-arrow-rotate-right",   "EV_HISTORY_REDO",  true,   'i'],
-                ["fas fa-save ",                "EV_SAVE_GRAPH",    true,   'i'],
-            ];
-            break;
-    }
-
-    /*
-     *  Notify parent to update its toolbar mode buttons
-     */
-    gobj_publish_event(gobj, "EV_TOOLBAR_STATE", {
-        mode_buttons: mode_buttons,
-    });
 }
 
 /************************************************************
@@ -1381,7 +1357,7 @@ function graph_add_plugin(gobj, plugin_key, options)
         case 'history':
             if(plugin) {
                 plugin.emitter.on(HistoryEvent.ADD, () => {
-                    update_history_buttons(gobj);
+                    //update_history_buttons(gobj);
                 });
             }
             break;
@@ -1427,7 +1403,7 @@ async function clear_graph(gobj)
     priv.edit_mode = false;
 
     graph_remove_plugin(gobj, 'history');
-    update_history_buttons(gobj);
+    //update_history_buttons(gobj);
 
     if(!graph.rendered) {
         return;
@@ -1487,30 +1463,6 @@ function graph_set_behavior(gobj, behavior, set)
 
     graph.setOptions({
         behaviors: behaviors
-    });
-}
-
-function update_history_buttons(gobj)
-{
-    let priv = gobj.priv;
-    let graph = priv.graph;
-
-    let can_redo = false;
-    let can_undo = false;
-
-    if(graph && graph.rendered) {
-        const history = graph.getPluginInstance('history');
-        if(history) {
-            can_redo = history.canRedo();
-            can_undo = history.canUndo();
-        }
-    }
-
-    gobj_publish_event(gobj, "EV_TOOLBAR_STATE", {
-        button_states: {
-            "EV_HISTORY_REDO": {enabled: can_redo, active: can_redo},
-            "EV_HISTORY_UNDO": {enabled: can_undo, active: can_undo},
-        },
     });
 }
 
@@ -1851,15 +1803,7 @@ function ac_layout(gobj, event, kw, src)
 
     let layout = select_layout(gobj, kw.layout);
     gobj_save_persistent_attrs(gobj, "current_layout");
-    graph_set_layout(gobj, layout).then(() => {
-        if(priv.edit_mode) {
-            gobj_publish_event(gobj, "EV_TOOLBAR_STATE", {
-                button_states: {
-                    "EV_SAVE_GRAPH": {enabled: true, submit: true},
-                },
-            });
-        }
-    });
+    graph_set_layout(gobj, layout);
 
     return 0;
 }
@@ -1886,22 +1830,9 @@ function ac_edit_mode(gobj, event, kw, src)
     if(priv.edit_mode) {
         graph_set_behavior(gobj, 'drag-element', true);
         graph_add_plugin(gobj, 'history');
-        gobj_publish_event(gobj, "EV_TOOLBAR_STATE", {
-            button_states: {
-                "EV_EDIT_MODE": {active: true},
-            },
-        });
     } else {
         graph_set_behavior(gobj, 'drag-element', false);
         graph_remove_plugin(gobj, 'history');
-        gobj_publish_event(gobj, "EV_TOOLBAR_STATE", {
-            button_states: {
-                "EV_EDIT_MODE": {active: false},
-                "EV_SAVE_GRAPH": {enabled: false, submit: false},
-                "EV_HISTORY_REDO": {enabled: false, active: false},
-                "EV_HISTORY_UNDO": {enabled: false, active: false},
-            },
-        });
     }
 
     return 0;
@@ -1916,11 +1847,6 @@ function ac_save_graph(gobj, event, kw, src)
 
     if(priv.edit_mode) {
         save_geometry(gobj);
-        gobj_publish_event(gobj, "EV_TOOLBAR_STATE", {
-            button_states: {
-                "EV_SAVE_GRAPH": {enabled: false, submit: false},
-            },
-        });
     }
 
     return 0;
@@ -1932,14 +1858,6 @@ function ac_save_graph(gobj, event, kw, src)
 function ac_node_drag_end(gobj, event, kw, src)
 {
     let priv = gobj.priv;
-
-    if(priv.edit_mode) {
-        gobj_publish_event(gobj, "EV_TOOLBAR_STATE", {
-            button_states: {
-                "EV_SAVE_GRAPH": {enabled: true, submit: true},
-            },
-        });
-    }
 
     return 0;
 }
@@ -2177,7 +2095,6 @@ function create_gclass(gclass_name)
         ["EV_HISTORY_REDO",             0],
 
         /*--- Published to parent ---*/
-        ["EV_TOOLBAR_STATE",            event_flag_t.EVF_OUTPUT_EVENT],
         ["EV_VERTEX_CLICKED",           event_flag_t.EVF_OUTPUT_EVENT],
         ["EV_EDGE_CLICKED",             event_flag_t.EVF_OUTPUT_EVENT],
         ["EV_CREATE_NODE",              event_flag_t.EVF_OUTPUT_EVENT],
