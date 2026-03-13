@@ -477,8 +477,8 @@ function select_layout(gobj, layout_name)
 
     if(!layout_name || !str_in_list(layouts, layout_name)) {
         layout_name = layouts[0];
-        gobj_write_attr(gobj, "layout", layout_name);
     }
+    gobj_write_attr(gobj, "layout", layout_name);
 
     return _layouts[layout_name];
 }
@@ -1760,8 +1760,6 @@ function ac_fullscreen(gobj, event, kw, src)
  ************************************************************/
 function ac_set_layout(gobj, event, kw, src)
 {
-    let priv = gobj.priv;
-
     let layout = select_layout(gobj, kw.layout);
     graph_set_layout(gobj, layout);
 
@@ -1771,9 +1769,10 @@ function ac_set_layout(gobj, event, kw, src)
 /************************************************************
  *  Mode change
  ************************************************************/
-function ac_set_mode(gobj, event, kw, src)
+function ac_set_operation_mode(gobj, event, kw, src)
 {
-    set_operation_mode(gobj, kw.mode);
+    gobj_write_attr(gobj, "operation_mode", kw.operation_mode);
+    set_operation_mode(gobj, kw.operation_mode);
     return 0;
 }
 
@@ -1999,7 +1998,7 @@ function create_gclass(gclass_name)
             ["EV_CENTER",                   ac_center,              null],
             ["EV_FULLSCREEN",               ac_fullscreen,          null],
             ["EV_SET_LAYOUT",               ac_set_layout,          null],
-            ["EV_SET_MODE",                 ac_set_mode,            null],
+            ["EV_SET_OPERATION_MODE",       ac_set_operation_mode,  null],
             ["EV_EDIT_MODE",                ac_edit_mode,           null],
             ["EV_SAVE_GRAPH",               ac_save_graph,          null],
             ["EV_HISTORY_UNDO",             ac_history_undo,        null],
@@ -2046,7 +2045,7 @@ function create_gclass(gclass_name)
         ["EV_CENTER",                   0],
         ["EV_FULLSCREEN",               0],
         ["EV_SET_LAYOUT",               0],
-        ["EV_SET_MODE",                 0],
+        ["EV_SET_OPERATION_MODE",       0],
         ["EV_EDIT_MODE",                0],
         ["EV_SAVE_GRAPH",               0],
         ["EV_HISTORY_UNDO",             0],
