@@ -182,8 +182,6 @@ function mt_create(gobj)
     let __yui_main__ = gobj_find_service("__yui_main__", true);
     if(__yui_main__) {
         gobj_subscribe_event(__yui_main__, "EV_RESIZE", {}, gobj);
-        gobj_subscribe_event(__yui_main__, "EV_THEME", {}, gobj);
-        priv.theme = gobj_read_str_attr(__yui_main__, "theme");
     }
 
     /*
@@ -1540,29 +1538,6 @@ function ac_resize(gobj, event, kw, src)
     return 0;
 }
 
-/************************************************************
- *  we are subscribed to EV_THEME from __yui_main__
- ************************************************************/
-function ac_theme(gobj, event, kw, src)
-{
-    // TODO
-    // let priv = gobj.priv;
-    // let graph = priv.graph;
-    // let theme = kw.theme || 'light';
-    // priv.theme = theme;
-    // graph.setTheme(theme);
-    //
-    // graph.updatePlugin({
-    //     key: 'grid-line',
-    //     stroke: theme === 'dark'?'#343434':'#EEEEEE',
-    //     borderStroke: theme === 'dark'?'#656565':'#EEEEEE',
-    // });
-    //
-    // graph_render(gobj);
-
-    return 0;
-}
-
 
 
 
@@ -1620,7 +1595,6 @@ function create_gclass(gclass_name)
             ["EV_SHOW",                     ac_show,                    null],
             ["EV_HIDE",                     ac_hide,                    null],
             ["EV_RESIZE",                   ac_resize,                  null],
-            ["EV_THEME",                    ac_theme,                   null],
         ]]
     ];
 
@@ -1649,7 +1623,6 @@ function create_gclass(gclass_name)
         ["EV_SHOW",                     0],
         ["EV_HIDE",                     0],
         ["EV_RESIZE",                   0],
-        ["EV_THEME",                    0],
     ];
 
     /*----------------------------------------*

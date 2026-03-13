@@ -154,6 +154,7 @@ SDATA(data_type_t.DTP_LIST,     "topics",               0,  "[]",   "List of top
 SDATA(data_type_t.DTP_POINTER,  "$container",           0,  null,   "Graph container element, set externally"),
 
 /*---------------- Graph Settings ----------------*/
+SDATA(data_type_t.DTP_STRING,   "theme",                0,  "light", "Theme: light or dark"),
 SDATA(data_type_t.DTP_BOOLEAN,  "with_treedb_tables",   0,  false,  "Include treedb tables"),
 SDATA(data_type_t.DTP_BOOLEAN,  "with_gridline",        0,  false,  "Use gridline plugin"),
 SDATA(data_type_t.DTP_LIST,     "layout_names",         sdata_flag_t.SDF_RD,
@@ -215,9 +216,8 @@ function mt_create(gobj)
 
     let __yui_main__ = gobj_find_service("__yui_main__", true);
     if(__yui_main__) {
-        gobj_subscribe_event(__yui_main__, "EV_RESIZE", {}, gobj);
         gobj_subscribe_event(__yui_main__, "EV_THEME", {}, gobj);
-        priv.theme = gobj_read_str_attr(__yui_main__, "theme");
+        gobj_write_attr(gobj, "theme", gobj_read_str_attr(__yui_main__, "theme"));
     }
 
     build_ui(gobj);
@@ -1668,7 +1668,7 @@ function ac_hide(gobj, event, kw, src)
 }
 
 /************************************************************
- *  Resize (subscribed from __yui_main__)
+ *  Resize, from parent
  ************************************************************/
 function ac_resize(gobj, event, kw, src)
 {
@@ -1702,7 +1702,7 @@ function ac_theme(gobj, event, kw, src)
     let priv = gobj.priv;
     let graph = priv.graph;
     let theme = kw.theme || 'light';
-    priv.theme = theme;
+    gobj_write_attr(gobj, "theme", theme);
     graph.setTheme(theme);
 
     graph.updatePlugin({
