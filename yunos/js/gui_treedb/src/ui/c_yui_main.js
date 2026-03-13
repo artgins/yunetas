@@ -1180,32 +1180,6 @@ function show_app_content(gobj, show)
 /************************************************************
  *
  ************************************************************/
-function xresize_and_subscribe_to_system(gobj)
-{
-    function resize() {
-        const width = document.body.offsetWidth;
-        const height = document.body.offsetHeight;
-
-        gobj_write_attr(gobj, "width", width);
-        gobj_write_attr(gobj, "height", height);
-
-        gobj_publish_event(gobj, "EV_RESIZE", {
-            width,
-            height
-        });
-    }
-
-    const debouncedResize = debounce(resize, 300);
-
-    const observer = new ResizeObserver(() => {
-        debouncedResize();
-    });
-
-    observer.observe(document.body);
-
-    resize();
-}
-
 function resize_and_subscribe_to_system(gobj)
 {
     let last_w = 0;
