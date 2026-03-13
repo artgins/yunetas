@@ -107,6 +107,7 @@ function mt_create(gobj)
     setup_dev(gobj, v);
     build_remote_service(gobj);
     build_ui(gobj);
+    window.dispatchEvent(new Event("resize"));
 }
 
 /***************************************************************
@@ -140,6 +141,7 @@ function mt_destroy(gobj)
                     /***************************
                      *      Local Methods
                      ***************************/
+
 
 
 
@@ -678,6 +680,8 @@ function ac_on_open(gobj, event, kw, src)
             gobj
         );
     }
+
+    window.dispatchEvent(new Event("resize"));
 
     return 0;
 }

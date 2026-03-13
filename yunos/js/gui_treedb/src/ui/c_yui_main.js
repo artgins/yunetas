@@ -1180,7 +1180,7 @@ function show_app_content(gobj, show)
 /************************************************************
  *
  ************************************************************/
-function resize_and_subscribe_to_system(gobj)
+function xresize_and_subscribe_to_system(gobj)
 {
     function resize() {
         const width = document.body.offsetWidth;
@@ -1205,6 +1205,73 @@ function resize_and_subscribe_to_system(gobj)
 
     resize();
 }
+
+function resize_and_subscribe_to_system(gobj)
+{
+    let last_w = 0;
+    let last_h = 0;
+    let scheduled = false;
+
+    function get_viewport_size()
+    {
+        if(window.visualViewport) {
+            return {
+                width: window.visualViewport.width,
+                height: window.visualViewport.height
+            };
+        }
+
+        return {
+            width: window.innerWidth,
+            height: window.innerHeight
+        };
+    }
+
+    function resize()
+    {
+        scheduled = false;
+
+        const {width, height} = get_viewport_size();
+
+        if(width === 0 || height === 0) {
+            requestAnimationFrame(schedule_resize);
+            return;
+        }
+
+        if(width === last_w && height === last_h) {
+            return;
+        }
+
+        last_w = width;
+        last_h = height;
+
+        gobj_write_attr(gobj, "width", width);
+        gobj_write_attr(gobj, "height", height);
+
+        gobj_publish_event(gobj, "EV_RESIZE", {width, height});
+    }
+
+    function schedule_resize()
+    {
+        if(scheduled) {
+            return;
+        }
+
+        scheduled = true;
+        requestAnimationFrame(resize);
+    }
+
+    const debouncedResize = debounce(schedule_resize, 100);
+
+    if(window.visualViewport) {
+        window.visualViewport.addEventListener("resize", debouncedResize);
+        window.visualViewport.addEventListener("scroll", debouncedResize);
+    } else {
+        window.addEventListener("resize", debouncedResize);
+    }
+}
+
+
 
 
                     /***************************

@@ -144,11 +144,12 @@ function mt_stop(gobj)
  ***************************************************************/
 function mt_play(gobj)
 {
-    if(!gobj_is_running(gobj_default_service())) {
-        gobj_start(gobj_default_service());
+    let default_service = gobj_default_service();
+    if(!gobj_is_running(default_service)) {
+        gobj_start(default_service);
     }
-    if(!gobj_is_playing(gobj_default_service())) {
-        gobj_play(gobj_default_service());
+    if(!gobj_is_playing(default_service)) {
+        gobj_play(default_service);
     }
     return 0;
 }
