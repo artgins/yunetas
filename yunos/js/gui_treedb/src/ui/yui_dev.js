@@ -187,6 +187,40 @@ function trace_creation()
 /************************************************************
  *
  ************************************************************/
+function trace_start_stop()
+{
+    let v = kw_get_local_storage_value("trace_start_stop");
+    v = Number(v);
+    if(v===0) {
+        v = 1;
+    } else {
+        v = 0;
+    }
+    gobj_write_attr(__yuno__, "trace_start_stop", v);
+    kw_set_local_storage_value("trace_start_stop", v);
+    info_user();
+}
+
+/************************************************************
+ *
+ ************************************************************/
+function trace_subscriptions()
+{
+    let v = kw_get_local_storage_value("trace_subscriptions");
+    v = Number(v);
+    if(v===0) {
+        v = 1;
+    } else {
+        v = 0;
+    }
+    gobj_write_attr(__yuno__, "trace_subscriptions", v);
+    kw_set_local_storage_value("trace_subscriptions", v);
+    info_user();
+}
+
+/************************************************************
+ *
+ ************************************************************/
 function trace_i18n()
 {
     let v = kw_get_local_storage_value("trace_i18n");
@@ -228,6 +262,9 @@ function info_user()
     let traffic = Number(kw_get_local_storage_value("trace_traffic", 0, false));
     let trace = Number(kw_get_local_storage_value("trace_automata", 0, false));
     let creation = Number(kw_get_local_storage_value("trace_creation", 0, false));
+    let start_stop = Number(kw_get_local_storage_value("trace_start_stop", 0, false));
+    let subscriptions = Number(kw_get_local_storage_value("trace_subscriptions", 0, false));
+
     let i18n = Number(kw_get_local_storage_value("trace_i18n", 0, false));
     let no_poll = Number(kw_get_local_storage_value("no_poll", 0, false));
 
@@ -235,11 +272,13 @@ function info_user()
     // Build with DOM instead of innerHTML to prevent any XSS via localStorage values
     $info.replaceChildren();
     [
-        `tracing automata: ${trace}`,
-        `tracing creation: ${creation}`,
-        `tracing i18n: ${i18n}`,
-        `traffic: ${traffic}`,
-        `no_poll: ${no_poll}`,
+        `Automata: ${trace}`,
+        `Creation: ${creation}`,
+        `Start/Stop: ${start_stop}`,
+        `Subscriptions: ${subscriptions}`,
+        `I18n: ${i18n}`,
+        `Traffic: ${traffic}`,
+        `No poll: ${no_poll}`,
     ].forEach(text => {
         const div = document.createElement('div');
         div.textContent = text;
@@ -255,6 +294,8 @@ function setup_dev(self, show)
     let traffic = Number(kw_get_local_storage_value("trace_traffic", 0, false));
     let trace = Number(kw_get_local_storage_value("trace_automata", 0, false));
     let creation = Number(kw_get_local_storage_value("trace_creation", 0, false));
+    let start_stop = Number(kw_get_local_storage_value("trace_start_stop", 0, false));
+    let subscriptions = Number(kw_get_local_storage_value("trace_subscriptions", 0, false));
     let i18n = Number(kw_get_local_storage_value("trace_i18n", 0, false));
     let no_poll = Number(kw_get_local_storage_value("no_poll", 0, false));
 
@@ -263,7 +304,7 @@ function setup_dev(self, show)
             ['div', {class: 'buttons'}, [
                 ['button', {
                     class: 'button',
-                }, 'Tracing automata', {
+                }, 'Automata', {
                     click: (evt) => {
                         evt.stopPropagation();
                         trace_automata();
@@ -271,7 +312,7 @@ function setup_dev(self, show)
                 }],
                 ['button', {
                     class: 'button',
-                }, 'Tracing creation', {
+                }, 'Creation', {
                     click: (evt) => {
                         evt.stopPropagation();
                         trace_creation();
@@ -279,7 +320,23 @@ function setup_dev(self, show)
                 }],
                 ['button', {
                     class: 'button',
-                }, 'Tracing i18n', {
+                }, 'Star/Stop', {
+                    click: (evt) => {
+                        evt.stopPropagation();
+                        trace_start_stop();
+                    }
+                }],
+                ['button', {
+                    class: 'button',
+                }, 'Subscriptions', {
+                    click: (evt) => {
+                        evt.stopPropagation();
+                        trace_subscriptions();
+                    }
+                }],
+                ['button', {
+                    class: 'button',
+                }, 'I18n', {
                     click: (evt) => {
                         evt.stopPropagation();
                         trace_i18n();
@@ -326,11 +383,13 @@ function setup_dev(self, show)
 
         // Code repeated
         let estados = `
-        <div>tracing automata: ${trace}</div>
-        <div>tracing creation: ${creation}</div>
-        <div>tracing i18n: ${i18n}</div>
-        <div>traffic: ${traffic}</div>
-        <div>no_poll: ${no_poll}</div>`;
+        <div>Automata: ${trace}</div>
+        <div>Creation: ${creation}</div>
+        <div>Start/Stop: ${start_stop}</div>
+        <div>Subscriptions: ${subscriptions}</div>
+        <div>I18n: ${i18n}</div>
+        <div>Traffic: ${traffic}</div>
+        <div>No poll: ${no_poll}</div>`;
 
         gobj_create_service(
             "Developer-Window",

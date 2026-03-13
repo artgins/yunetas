@@ -1535,7 +1535,7 @@ function gobj_create2(
         if(trace_creation) { // if(__trace_gobj_create_delete__(gobj))
             trace_machine(sprintf(
                 "👦👦🔵 child_added(%s): %s",
-                parent.gobj_full_name(),
+                gobj_full_name(parent),
                 gobj_short_name(gobj)
             ));
         }
