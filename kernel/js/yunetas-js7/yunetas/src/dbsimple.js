@@ -51,8 +51,8 @@ function db_load_persistent_attrs(
         );
         attrs = kw_clone_by_keys( // Remove attrs removed
             gobj,
-            jn_attrs,   // owned
             attrs,      // owned
+            jn_attrs,   // owned
             false
         );
 
@@ -78,12 +78,6 @@ function db_save_persistent_attrs(
 
     let jn_file = kw_get_local_storage_value(_get_persistent_path(gobj), null, false);
     if(jn_file && is_object(jn_file)) {
-        jn_file = kw_clone_by_keys( // Remove attrs removed
-            gobj,
-            jn_attrs,   // owned
-            jn_file,       // owned
-            false
-        );
         json_object_update_missing(attrs, jn_file);
     }
 

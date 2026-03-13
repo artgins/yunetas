@@ -372,8 +372,6 @@ function build_graph(gobj)
      *  Just set the layout config; rendering is deferred to ac_show()
      *  which fires when the container becomes visible.
      */
-    // graph.setLayout(layout);
-    // configure_events(gobj);
     graph_set_layout(gobj, layout).then(() => {
         configure_events(gobj);
         //show_positions(gobj);
@@ -477,7 +475,7 @@ function select_layout(gobj, layout_name)
 
     let layouts = Object.keys(_layouts);
 
-    if(!str_in_list(layouts, layout_name)) {
+    if(!layout_name || !str_in_list(layouts, layout_name)) {
         layout_name = layouts[0];
         gobj_write_attr(gobj, "layout", layout_name);
     }

@@ -96,12 +96,12 @@ const attrs_table = [
 SDATA(data_type_t.DTP_POINTER,  "subscriber",       0,  null,   "Subscriber of output events"),
 SDATA(data_type_t.DTP_LIST,     "operation_modes",  0,
 '["reading", "operation", "writing", "edition"]',
-"Available **permission** or behaviour modes. These operation modes are required to be accomplish by the graph handler."),
+"Available **permission** or behaviour modes. These operation modes are required to be accomplish by the graph handler (G6 child)."),
 SDATA(data_type_t.DTP_BOOLEAN,  "with_treedb_tables",0, false,  "Include treedb tables"),
 
 /*---------------- User last selections  ----------------*/
-SDATA(data_type_t.DTP_STRING,   "operation_mode",sdata_flag_t.SDF_PERSIST, "reading", "Current operation mode (internal behaviour or role). Changed by the user trough the gui."),
-SDATA(data_type_t.DTP_STRING,   "current_layout",   sdata_flag_t.SDF_PERSIST, "", "Current graph layout. User preference. Changed by the user through the gui."),
+SDATA(data_type_t.DTP_STRING,   "operation_mode",   sdata_flag_t.SDF_PERSIST, "reading", "Current operation mode (internal behaviour or role). Changed by the user trough the gui."),
+SDATA(data_type_t.DTP_STRING,   "layout",           sdata_flag_t.SDF_PERSIST, "", "Current graph layout. User preference. Changed by the user through the gui."),
 
 /*---------------- Remote Connection ----------------*/
 SDATA(data_type_t.DTP_POINTER,  "gobj_remote_yuno", 0,  null,   "Remote Yuno to request data"),
@@ -130,6 +130,7 @@ SDATA_END()
 ];
 
 let PRIVATE_DATA = {
+    $container:         null,
     treedb_name:        "",
     gobj_remote_yuno:   null,
     descs:              null,
@@ -367,16 +368,7 @@ function make_toolbar(gobj)
         ], {
             change: (evt) => {
                 evt.stopPropagation();
-                if(priv.gobj_nodes_tree) {
-                    gobj_send_event(
-                        priv.gobj_nodes_tree,
-                        "EV_SET_LAYOUT",
-                        {
-                            layout: evt.target.value
-                        },
-                        gobj
-                    );
-                }
+                gobj_send_event(gobj, "EV_SET_LAYOUT", {layout: evt.target.value}, gobj);
             }
         }],
 
@@ -386,9 +378,7 @@ function make_toolbar(gobj)
         ], {
             change: (evt) => {
                 evt.stopPropagation();
-                if(priv.gobj_nodes_tree) {
-                    gobj_send_event(priv.gobj_nodes_tree, "EV_SET_MODE", {mode: evt.target.value}, gobj);
-                }
+                gobj_send_event(gobj, "EV_SET_OPERATION_MODE", {operation_mode: evt.target.value}, gobj);
             }
         }],
     ];
@@ -425,10 +415,7 @@ function make_toolbar(gobj)
 function populate_nodes_tree_options(gobj)
 {
     let priv = gobj.priv;
-    let $container = gobj_read_attr(gobj, "$container");
-    if(!$container || !priv.gobj_nodes_tree) {
-        return;
-    }
+    let $container = priv.$container;
 
     let layout_names = gobj_read_attr(priv.gobj_nodes_tree, "layout_names");
     let $layout_select = $container.querySelector('.graph_layout');
@@ -1440,6 +1427,58 @@ function ac_close_window(gobj, event, kw, src)
 }
 
 /************************************************************
+ *
+ ************************************************************/
+function ac_set_layout(gobj, event, kw, src)
+{
+    let priv = gobj.priv;
+
+    let layout = kw.layout;
+    gobj_write_str_attr(gobj, "layout", layout);
+    gobj_save_persistent_attrs(gobj, "layout");
+
+    let $layout_select = priv.$container.querySelector('.graph_layout');
+    $layout_select.value = priv.layout;
+
+    gobj_send_event(
+        priv.gobj_nodes_tree,
+        "EV_SET_LAYOUT",
+        {
+            layout: layout
+        },
+        gobj
+    );
+
+    return 0;
+}
+
+/************************************************************
+ *
+ ************************************************************/
+function ac_set_operation_mode(gobj, event, kw, src)
+{
+    let priv = gobj.priv;
+
+    let operation_mode = kw.operation_mode;
+    gobj_write_str_attr(gobj, "operation_mode", operation_mode);
+    gobj_save_persistent_attrs(gobj, "operation_mode");
+
+    let $operation_mode_select = priv.$container.querySelector('.graph_operation_mode');
+    $operation_mode_select.value = priv.operation_mode;
+
+    gobj_send_event(
+        priv.gobj_nodes_tree,
+        "EV_SET_OPERATION_MODE",
+        {
+            operation_mode: operation_mode
+        },
+        gobj
+    );
+
+    return 0;
+}
+
+/************************************************************
  *  Parent (routing) inform us that we go showing
  *
  *      {
@@ -1576,6 +1615,8 @@ function create_gclass(gclass_name)
             ["EV_UNLINK_NODES",             ac_unlink_nodes,            null],
             ["EV_RUN_NODE",                 ac_run_node,                null],
             ["EV_CLOSE_WINDOW",             ac_close_window,            null],
+            ["EV_SET_LAYOUT",               ac_set_layout,              null],
+            ["EV_SET_OPERATION_MODE",       ac_set_operation_mode,      null],
             ["EV_SHOW",                     ac_show,                    null],
             ["EV_HIDE",                     ac_hide,                    null],
             ["EV_RESIZE",                   ac_resize,                  null],
@@ -1603,6 +1644,8 @@ function create_gclass(gclass_name)
         ["EV_UNLINK_NODES",             0],
         ["EV_RUN_NODE",                 0],
         ["EV_CLOSE_WINDOW",             0],
+        ["EV_SET_LAYOUT",               0],
+        ["EV_SET_OPERATION_MODE",       0],
         ["EV_SHOW",                     0],
         ["EV_HIDE",                     0],
         ["EV_RESIZE",                   0],
