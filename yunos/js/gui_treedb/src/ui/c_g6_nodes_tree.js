@@ -140,7 +140,8 @@ const attrs_table = [
 SDATA(data_type_t.DTP_POINTER,  "subscriber",           0,  null,   "Subscriber of output events"),
 
 /*---------------- User last selections  ----------------*/
-SDATA(data_type_t.DTP_STRING,   "operation_mode",       0,  "", "Current operation mode"),
+SDATA(data_type_t.DTP_STRING,   "operation_mode",       0,  '["reading", "operation", "writing", "edition"]', // WARNING put only the implemented modes
+"Current operation mode. Interface to fulfill requirements of the parent."),
 SDATA(data_type_t.DTP_STRING,   "layout",               0,  "", "Current graph layout"),
 
 /*---------------- Remote Connection ----------------*/
