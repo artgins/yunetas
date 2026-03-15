@@ -1111,9 +1111,9 @@ function process_command_nodes(gobj, topic_name, data)
         }
     }
 
-    /*--------------------------------------------------*
-     *  Check if all topics loaded to make links
-     *--------------------------------------------------*/
+    /*----------------------------------------------------*
+     *  Check if all topics are loaded to make the links
+     *----------------------------------------------------*/
     let do_links = true;
     for (const [topic_name, desc] of Object.entries(priv.descs)) {
         if (topic_name.substring(0, 2) === "__") {
@@ -1244,6 +1244,55 @@ function save_geometry(gobj)
 
 /************************************************************
  *  Graph utility functions
+ *
+ *  From the G6 documentation:
+ *
+ *  Reorganization after adding data
+ *      // Add new nodes and edges
+ *      graph.addData({
+ *          nodes: [{id: 'newNode1'}, {id: 'newNode2'}],
+ *          edges: [{id: 'newEdge', origin: 'existingNode', destination: 'newNode1'}]
+ *      });
+ *
+ *      // Draw new nodes and edges
+ *      await graph.draw();
+ *
+ *      // Recalculate the layout
+ *      await graph.layout();
+
+    What does graph.render() do? it calls internally to graph.layout()?
+    graph.render() does call layout internally. Here's what it does
+
+    render()
+    ├── prepare()           // init canvas + runtime
+    ├── BEFORE_RENDER event
+    ├── [one of three branches depending on layout config:]
+    │   ├── No layout       → draw({ type: 'render' }) + autoFit()
+    │   ├── Pre-layout      → preLayoutDraw() + autoFit()
+    │   └── Post-layout     → draw({ type: 'render' }) + postLayout() + autoFit()
+    ├── this.rendered = true
+    └── AFTER_RENDER event
+
+    And graph.layout() (graph.ts:1209) is just a thin wrapper:
+    public async layout(layoutOptions?: LayoutOptions) {
+        await this.context.layout!.postLayout(layoutOptions);
+    }
+
+    So render() calls postLayout() directly (the same thing layout() calls) in the post-layout branch.
+
+    Key difference from the documentation's draw() + layout() pattern:
+
+    - render(): Full pipeline:
+            initializes canvas/runtime + draw + layout + autoFit.
+            Use on first render.
+    - draw(): Only redraws elements — no layout recalculation.
+    - layout(): Only recalculates positions and redraws — no canvas init.
+
+    After addData(), using draw() + layout() is preferred over render()
+    because render() re-runs prepare() (canvas init) which is unnecessary overhead.
+    However, render() would also work since it does include layout.
+
+
  ************************************************************/
 async function graph_center(gobj)
 {
@@ -1361,9 +1410,6 @@ async function clear_graph(gobj)
     }
 
     await graph.clear();
-
-    let layout = select_layout(gobj);
-    await graph_set_layout(gobj, layout);
 }
 
 async function graph_set_layout(gobj, layout)
@@ -1540,9 +1586,6 @@ function ac_node_created(gobj, event, kw, src)
      *  Create graph node and links
      */
     create_topic_node(gobj, schema, node);
-    // draw_links(gobj, schema, node, false);
-    //
-    // graph_render(gobj);
 
     return 0;
 }
