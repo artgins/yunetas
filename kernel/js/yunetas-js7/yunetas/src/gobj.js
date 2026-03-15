@@ -355,7 +355,7 @@ function trace_machine(msg)
     if(is_object(msg)) {
         msg = JSON.stringify(msg);
     }
-    log_debug(tab() + String(msg), "color:lime");
+    log_debug(tab() + String(msg));
 }
 
 /************************************************************
@@ -3438,7 +3438,6 @@ function gobj_send_event(dst, event, kw, src)
             // No action, there is nothing amiss!.
         }
     } finally {
-        __inside__ --;
     }
 
     if(tracea && !(dst.obflag & obflag_t.obflag_destroyed)) {
@@ -3450,6 +3449,8 @@ function gobj_send_event(dst, event, kw, src)
             is_number(ret)?ret:0
         ));
     }
+
+    __inside__ --;
 
     return ret;
 }
