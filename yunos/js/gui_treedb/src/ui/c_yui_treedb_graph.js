@@ -1489,19 +1489,7 @@ function ac_set_operation_mode(gobj, event, kw, src)
 function ac_show(gobj, event, kw, src)
 {
     let priv = gobj.priv;
-
-    // TODO
-    // let $canvas_container = document.getElementById(priv.canvas_id);
-    // let rect = $canvas_container.getBoundingClientRect();
-    //
-    // if(!priv.yet_showed && priv.graph) {
-    //     priv.yet_showed = true;
-    //
-    //     graph_resize(gobj, rect.width, rect.height);
-    //     graph_reset(gobj).then(() => {graph_render(gobj);});
-    // }
-
-    return 0;
+    return gobj_send_event(priv.gobj_nodes_tree, event, kw, gobj);
 }
 
 /************************************************************
@@ -1509,7 +1497,8 @@ function ac_show(gobj, event, kw, src)
  ************************************************************/
 function ac_hide(gobj, event, kw, src)
 {
-    return 0;
+    let priv = gobj.priv;
+    return gobj_send_event(priv.gobj_nodes_tree, event, kw, gobj);
 }
 
 /************************************************************
@@ -1517,25 +1506,8 @@ function ac_hide(gobj, event, kw, src)
  ************************************************************/
 function ac_resize(gobj, event, kw, src)
 {
-    // TODO
-    // let priv = gobj.priv;
-    //
-    // let $canvas_container = document.getElementById(priv.canvas_id);
-    // let rect = $canvas_container.getBoundingClientRect();
-    // if(rect.width === 0 || rect.height === 0) {
-    //     priv.yet_showed = false;
-    // } else {
-    //     if(priv.graph) {
-    //         let h = rect.height;
-    //         if(h<0) {
-    //             h = 80;
-    //         }
-    //         graph_resize(gobj, rect.width, h); // setSize
-    //         // graph_reset(gobj).then(() => {graph_render(gobj);});
-    //     }
-    // }
-
-    return 0;
+    let priv = gobj.priv;
+    return gobj_send_event(priv.gobj_nodes_tree, event, kw, gobj);
 }
 
 

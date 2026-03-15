@@ -373,10 +373,9 @@ function build_graph(gobj)
      *  Just set the layout config; rendering is deferred to ac_show()
      *  which fires when the container becomes visible.
      */
-    graph_set_layout(gobj, layout).then(() => {
-        configure_events(gobj);
-        //show_positions(gobj);
-    });
+    graph.setLayout(layout);
+    configure_events(gobj);
+    //show_positions(gobj);
 }
 
 /************************************************************
@@ -863,7 +862,7 @@ function remove_local_node(gobj, topic_name, node)
 }
 
 /************************************************************
- *  Create all links from records and render
+ *  Create all links from records
  ************************************************************/
 function create_links(gobj)
 {
@@ -876,7 +875,6 @@ function create_links(gobj)
             draw_links(gobj, schema, record, true);
         }
     }
-    graph_render(gobj);
 }
 
 /************************************************************
@@ -1085,6 +1083,7 @@ function clear_link(
 function process_command_nodes(gobj, topic_name, data)
 {
     let priv = gobj.priv;
+    let graph = priv.graph;
 
     if(topic_name.substring(0, 2) === "__") {
         if(topic_name === '__graphs__') {
@@ -1106,9 +1105,7 @@ function process_command_nodes(gobj, topic_name, data)
      *--------------------------------------------------*/
     for(let i=0; i<data.length; i++) {
         let record = data[i];
-        if(priv.graph) {
-            create_topic_node(gobj, schema, record);
-        }
+        create_topic_node(gobj, schema, record);
     }
 
     /*----------------------------------------------------*
@@ -1126,9 +1123,22 @@ function process_command_nodes(gobj, topic_name, data)
     }
 
     if(do_links && priv.graph) {
-        graph_render(gobj).then(() => {
-            create_links(gobj); // create links and render graph
-        });
+        if(!graph.rendered) {
+            graph_render(gobj).then(() => { // draw nodes, else the link fails
+                create_links(gobj);
+                graph_draw(gobj).then(() => {
+                    graph_layout(gobj);
+                });
+            });
+
+        } else {
+            graph_draw(gobj).then(() => { // draw nodes, else the link fails
+                create_links(gobj);
+                graph_draw(gobj).then(() => {
+                    graph_layout(gobj);
+                });
+            });
+        }
     }
 }
 
@@ -1329,14 +1339,26 @@ async function graph_render(gobj)
     await graph.render();
 }
 
-function graph_add_plugin(gobj, plugin_key, options)
+async function graph_draw(gobj)
 {
     let priv = gobj.priv;
     let graph = priv.graph;
 
-    if(!graph || !graph.rendered) {
-        return;
-    }
+    await graph.draw();
+}
+
+async function graph_layout(gobj)
+{
+    let priv = gobj.priv;
+    let graph = priv.graph;
+
+    await graph.layout();
+}
+
+function graph_add_plugin(gobj, plugin_key, options)
+{
+    let priv = gobj.priv;
+    let graph = priv.graph;
 
     let plugin = graph.getPluginInstance(plugin_key);
     if(!plugin) {
@@ -1370,10 +1392,6 @@ function graph_remove_plugin(gobj, plugin_key, verbose)
     let priv = gobj.priv;
     let graph = priv.graph;
 
-    if(!graph || !graph.rendered) {
-        return;
-    }
-
     const plugin = graph.getPluginInstance(plugin_key);
     if(plugin) {
         let plugins = graph.getPlugins();
@@ -1405,10 +1423,6 @@ async function clear_graph(gobj)
     graph_remove_plugin(gobj, 'history');
     //update_history_buttons(gobj);
 
-    if(!graph.rendered) {
-        return;
-    }
-
     await graph.clear();
 }
 
@@ -1418,7 +1432,11 @@ async function graph_set_layout(gobj, layout)
     let graph = priv.graph;
 
     graph.setLayout(layout);
-    await graph_render(gobj);
+    if(graph.rendered) {
+        await graph_layout(gobj);
+    } else {
+        await graph_render(gobj);
+    }
 }
 
 function graph_resize(gobj, width, height)
@@ -1633,7 +1651,7 @@ function ac_node_updated(gobj, event, kw, src)
 
     draw_links(gobj, schema, node, false);
 
-    graph_render(gobj);
+    graph_draw(gobj);
 
     return 0;
 }
@@ -1663,7 +1681,7 @@ function ac_node_deleted(gobj, event, kw, src)
     remove_topic_node(gobj, node_name);
     remove_local_node(gobj, topic_name, node);
 
-    graph_render(gobj);
+    graph_draw(gobj);
 
     return 0;
 }
@@ -1681,11 +1699,10 @@ function ac_show(gobj, event, kw, src)
     }
     let rect = $canvas_container.getBoundingClientRect();
 
-    if(!priv.yet_showed && priv.graph) {
+    if(!priv.yet_showed) {
         priv.yet_showed = true;
 
         graph_resize(gobj, rect.width, rect.height);
-        graph_render(gobj);
     }
 
     return 0;
@@ -1743,7 +1760,7 @@ function ac_theme(gobj, event, kw, src)
         borderStroke: theme === 'dark' ? '#656565' : '#EEEEEE',
     });
 
-    graph_render(gobj);
+    graph_draw(gobj);
 
     return 0;
 }
