@@ -72,11 +72,8 @@ import { TabulatorFull as Tabulator } from "tabulator-tables";
 /***************************************************************
  *              Constants
  ***************************************************************/
-const GCLASS_NAME = "C_YUI_TREEDB_TOPIC_FORM";
+const GCLASS_NAME = "C_YUI_TREEDB_TOPIC_WITH_FORM";
 
-/***************************************************************
- *              Data
- ***************************************************************/
 /***************************************************************
  *              Data
  ***************************************************************/
@@ -2922,9 +2919,9 @@ function create_gclass(gclass_name)
 /***************************************************************
  *          Register GClass
  ***************************************************************/
-function register_c_yui_treedb_topic_form()
+function register_c_yui_treedb_topic_with_form()
 {
     return create_gclass(GCLASS_NAME);
 }
 
-export { register_c_yui_treedb_topic_form };
+export { register_c_yui_treedb_topic_with_form };

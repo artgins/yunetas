@@ -23,9 +23,6 @@ const GCLASS_NAME = "C_UI_TODO";
 /***************************************************************
  *              Data
  ***************************************************************/
-/***************************************************************
- *              Data
- ***************************************************************/
 const attrs_table = [
 SDATA(data_type_t.DTP_POINTER,  "subscriber",       0,  null,   "Subscriber of output events"),
 SDATA(data_type_t.DTP_POINTER,  "$container",       0,  null,   "Container element"),

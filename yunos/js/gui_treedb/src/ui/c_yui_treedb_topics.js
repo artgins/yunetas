@@ -384,7 +384,7 @@ function process_treedb_descs(gobj)
         let id = `${gobj_name(gobj)}?${desc.topic_name}`;
         let gobj_topic_form = gobj_create_service(
             id,
-            "C_YUI_TREEDB_TOPIC_FORM",
+            "C_YUI_TREEDB_TOPIC_WITH_FORM",
             kw_topic_form,
             gobj
         );
@@ -414,7 +414,7 @@ function process_treedb_descs(gobj)
     let kids = gobj_match_children(
         gobj,
         {
-            __gclass_name__: "C_YUI_TREEDB_TOPIC_FORM"
+            __gclass_name__: "C_YUI_TREEDB_TOPIC_WITH_FORM"
         }
     );
     for(let i=0; i<kids.length; i++) {
@@ -480,7 +480,7 @@ function get_gobj_formtable(gobj, topic_name)
     let kids = gobj_match_children(
         gobj,
         {
-            __gclass_name__: "C_YUI_TREEDB_TOPIC_FORM"
+            __gclass_name__: "C_YUI_TREEDB_TOPIC_WITH_FORM"
         }
     );
 

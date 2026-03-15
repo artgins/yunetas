@@ -29,9 +29,6 @@ const GCLASS_NAME = "C_G6_NODE";
 /***************************************************************
  *              Data
  ***************************************************************/
-/***************************************************************
- *              Data
- ***************************************************************/
 const attrs_table = [
 SDATA(data_type_t.DTP_POINTER,  "subscriber",   0,  null,   "Subscriber of output events"),
 SDATA(data_type_t.DTP_POINTER,  "graph",        0,  null,   "G7 Graph"),
