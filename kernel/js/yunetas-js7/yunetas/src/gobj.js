@@ -355,7 +355,7 @@ function trace_machine(msg)
     if(is_object(msg)) {
         msg = JSON.stringify(msg);
     }
-    log_debug(tab() + String(msg), "color:lime");
+    log_debug(tab() + String(msg));
 }
 
 /************************************************************
