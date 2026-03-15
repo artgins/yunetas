@@ -158,6 +158,9 @@ SDATA(data_type_t.DTP_POINTER,  "$container",           0,  null,   "Graph conta
 SDATA(data_type_t.DTP_STRING,   "theme",                0,  "light", "Theme: light or dark"),
 SDATA(data_type_t.DTP_BOOLEAN,  "with_treedb_tables",   0,  false,  "Include treedb tables"),
 SDATA(data_type_t.DTP_BOOLEAN,  "with_gridline",        0,  false,  "Use gridline plugin"),
+SDATA(data_type_t.DTP_BOOLEAN,  "with_toolbar",         0,  true,   "Use toolbar plugin"),
+SDATA(data_type_t.DTP_STRING,   "toolbar_position",     0,  "top-left",
+    "Toolbar position: top-left, top-right, bottom-left, bottom-right, left-top, right-top"),
 SDATA(data_type_t.DTP_LIST,     "layout_names",         sdata_flag_t.SDF_RD,
     JSON.stringify(Object.keys(_layouts)),
     "Available layout names (read-only, for parent to query)"),
@@ -445,6 +448,89 @@ function do_extra_configuration(gobj)
     //         enable: (e) => e.targetType === 'node',
     //     }
     // );
+
+    if(gobj_read_bool_attr(gobj, "with_toolbar")) {
+        configure_toolbar(gobj);
+    }
+}
+
+/************************************************************
+ *  Configure G6 Toolbar plugin
+ *  Uses G6 built-in icons: zoom-in, zoom-out, redo, undo,
+ *  edit, delete, auto-fit, export, reset
+ ************************************************************/
+function update_toolbar(gobj)
+{
+    let priv = gobj.priv;
+    let graph = priv.graph;
+
+    if(!gobj_read_bool_attr(gobj, "with_toolbar")) {
+        return;
+    }
+
+    let toolbar = graph.getPluginInstance('toolbar');
+    if(toolbar) {
+        /*
+         *  Force toolbar to re-render by updating the plugin.
+         *  The getItems callback reads priv.edit_mode dynamically.
+         */
+        graph.updatePlugin({
+            key: 'toolbar',
+        });
+    }
+}
+
+function configure_toolbar(gobj)
+{
+    let priv = gobj.priv;
+    let toolbar_position = gobj_read_str_attr(gobj, "toolbar_position") || "top-left";
+
+    graph_add_plugin(
+        gobj,
+        'toolbar',
+        {
+            position: toolbar_position,
+            getItems: () => {
+                let items = [
+                    { id: 'zoom-in', value: 'zoom-in' },
+                    { id: 'zoom-out', value: 'zoom-out' },
+                    { id: 'reset', value: 'reset' },
+                    { id: 'auto-fit', value: 'auto-fit' },
+                ];
+
+                if(priv.edit_mode) {
+                    items.push(
+                        { id: 'undo', value: 'undo' },
+                        { id: 'redo', value: 'redo' },
+                    );
+                }
+
+                return items;
+            },
+            onClick: (value) => {
+                switch(value) {
+                    case 'zoom-in':
+                        gobj_send_event(gobj, "EV_ZOOM_IN", {}, gobj);
+                        break;
+                    case 'zoom-out':
+                        gobj_send_event(gobj, "EV_ZOOM_OUT", {}, gobj);
+                        break;
+                    case 'reset':
+                        gobj_send_event(gobj, "EV_ZOOM_RESET", {}, gobj);
+                        break;
+                    case 'auto-fit':
+                        gobj_send_event(gobj, "EV_CENTER", {}, gobj);
+                        break;
+                    case 'undo':
+                        gobj_send_event(gobj, "EV_HISTORY_UNDO", {}, gobj);
+                        break;
+                    case 'redo':
+                        gobj_send_event(gobj, "EV_HISTORY_REDO", {}, gobj);
+                        break;
+                }
+            },
+        }
+    );
 }
 
 /************************************************************
@@ -1843,6 +1929,8 @@ function ac_edit_mode(gobj, event, kw, src)
         graph_set_behavior(gobj, 'drag-element', false);
         graph_remove_plugin(gobj, 'history');
     }
+
+    update_toolbar(gobj);
 
     return 0;
 }
