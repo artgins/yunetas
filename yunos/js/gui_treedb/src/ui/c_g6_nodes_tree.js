@@ -1272,17 +1272,6 @@ async function graph_zoom_out(gobj)
     await graph.zoomTo(z * 0.9);
 }
 
-async function graph_reset(gobj)
-{
-    let priv = gobj.priv;
-    let graph = priv.graph;
-
-    if(graph.rendered) {
-        await graph.zoomTo(1);
-        await graph.translateTo([0, 0]);
-    }
-}
-
 async function graph_render(gobj)
 {
     let priv = gobj.priv;
@@ -1383,7 +1372,6 @@ async function graph_set_layout(gobj, layout)
     let graph = priv.graph;
 
     graph.setLayout(layout);
-    await graph_reset(gobj);
     await graph_render(gobj);
 }
 
@@ -1654,7 +1642,7 @@ function ac_show(gobj, event, kw, src)
         priv.yet_showed = true;
 
         graph_resize(gobj, rect.width, rect.height);
-        graph_reset(gobj).then(() => { graph_render(gobj); });
+        graph_render(gobj);
     }
 
     return 0;
@@ -1734,7 +1722,10 @@ function ac_zoom_out(gobj, event, kw, src)
 
 function ac_zoom_reset(gobj, event, kw, src)
 {
-    graph_reset(gobj);
+    let priv = gobj.priv;
+    let graph = priv.graph;
+
+    graph.zoomTo(1);
     return 0;
 }
 
