@@ -319,7 +319,7 @@ PRIVATE json_t * (*__global_list_persistent_attrs_fn__)(hgobj gobj, json_t *keys
 PRIVATE dl_list_t dl_gclass = {0};
 PRIVATE json_t *__jn_services__ = 0;        // Dict "service": (json_int_t)(uintptr_t)gobj
 PRIVATE dl_list_t dl_trans_filter = {0};
-PRIVATE int trace_machine_format = 1;       // 0 legacy, 1 simpler
+PRIVATE int trace_machine_format = 1;       // 0 legacy, 1 simpler, 2 full
 /*
  *  Global trace levels
  */
@@ -7416,7 +7416,7 @@ PUBLIC int gobj_send_event(
         if(dst->gclass->gmt->mt_inject_event) {
             __inside__ --;
             if(tracea) {
-                if(trace_machine_format) {
+                if(trace_machine_format==1) {
                     trace_machine("🔜 %s%s%s %s%s %s%s%s",
                         On_Black RRed,
                         event?event:"",
@@ -7486,7 +7486,7 @@ PUBLIC int gobj_send_event(
      *      Exec the event
      *----------------------------------*/
     if(tracea) {
-        if(trace_machine_format) {
+        if(trace_machine_format==1) {
             trace_machine("🔄 %s%s%s %s%s %s%s%s from %s%s",
                 On_Black RBlue,
                 event?event:"",
@@ -7543,7 +7543,7 @@ PUBLIC int gobj_send_event(
     }
 
     if(tracea && !(dst->obflag & obflag_destroyed)) {
-        if(trace_machine_format) {
+        if(trace_machine_format==1) {
             // No trace return
         } else {
             trace_machine("<- mach(%s%s^%s), st: %s, ev: %s, ret: %d",
@@ -7556,13 +7556,13 @@ PUBLIC int gobj_send_event(
         }
     }
 
-    __inside__ --;
-
 #ifdef CONFIG_DEBUG_PRINT_YEV_LOOP_TIMES
     if(measuring_cur_type) {
         MT_PRINT_TIME(yev_time_measure, "⏪ gobj_send_event()");
     }
 #endif
+
+    __inside__ --;
 
     return ret;
 }
@@ -7682,7 +7682,7 @@ PUBLIC BOOL gobj_change_state(
     BOOL tracea = is_machine_tracing(gobj, EV_STATE_CHANGED);
     BOOL tracea_states = __trace_gobj_states__(gobj)?TRUE:FALSE;
     if(tracea || tracea_states) {
-        if(trace_machine_format) {
+        if(trace_machine_format==1) {
             // No trace state
         } else {
             trace_machine("🔀🔀 mach(%s%s), new st(%s%s%s), prev st(%s%s%s)",
@@ -8865,7 +8865,7 @@ PUBLIC int gobj_publish_event(
     BOOL tracea = (__trace_gobj_subscriptions__(publisher) || is_machine_tracing(publisher, event)) &&
         !is_machine_not_tracing(publisher, event);
     if(tracea) {
-        if(trace_machine_format) {
+        if(trace_machine_format==1) {
             trace_machine("🔝🔝 %s%s%s %s%s %s%s%s",
                 On_Black BBlue,
                 event?event:"",
@@ -9082,7 +9082,7 @@ PUBLIC int gobj_publish_event(
              *  Send event
              */
             if(tracea) {
-                if(trace_machine_format) {
+                if(trace_machine_format==1) {
                     trace_machine("🔝🔄 %s (%s) %s%s",
                         event?event:"",
                         event_name?event_name:"",
