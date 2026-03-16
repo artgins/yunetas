@@ -157,7 +157,8 @@ SDATA(data_type_t.DTP_POINTER,  "$container",           0,  null,   "Graph conta
 /*---------------- Graph Settings ----------------*/
 SDATA(data_type_t.DTP_STRING,   "theme",                0,  "light", "Theme: light or dark"),
 SDATA(data_type_t.DTP_BOOLEAN,  "with_treedb_tables",   0,  false,  "Include treedb tables"),
-SDATA(data_type_t.DTP_BOOLEAN,  "with_gridline",        0,  false,  "Use gridline plugin"),
+SDATA(data_type_t.DTP_BOOLEAN,  "with_gridline",        0,  true,   "Use gridline plugin"),
+SDATA(data_type_t.DTP_BOOLEAN,  "with_fullscreen",      0,  true,   "Use fullscreen plugin"),
 SDATA(data_type_t.DTP_BOOLEAN,  "with_toolbar",         0,  true,   "Use toolbar plugin"),
 SDATA(data_type_t.DTP_STRING,   "toolbar_position",     0,  "right-top",
     "Toolbar position: top-left, top-right, bottom-left, bottom-right, left-top, right-top"),
@@ -426,6 +427,20 @@ function configure_plugins(gobj)
         );
     }
 
+    if(gobj_read_bool_attr(gobj, "with_fullscreen")) {
+        graph_add_plugin(
+            gobj,
+            'fullscreen',
+            {
+                autoFit: true,
+                trigger: {
+                    request: 'F', // Use shortcut key F to enter fullscreen
+                    exit: 'Esc', // Use shortcut key Esc to exit fullscreen
+                },
+            }
+        );
+    }
+
     graph_add_plugin(
         gobj,
         'contextmenu',
@@ -502,9 +517,14 @@ function configure_toolbar(gobj)
                     { id: 'zoom-out', value: 'zoom-out', title: 'Zoom Out' },
                     { id: 'reset', value: 'reset', title: 'Reset Zoom' },
                     { id: 'auto-fit', value: 'auto-fit', title: 'Auto Fit' },
-                    { id: 'request-fullscreen', value: 'request-fullscreen', title: 'Enter Full Screen' },
-                    { id: 'exit-fullscreen', value: 'exit-fullscreen', title: 'Exit Full Screen' },
                 ];
+
+                if(gobj_read_bool_attr(gobj, "with_fullscreen")) {
+                    items.push(
+                        { id: 'request-fullscreen', value: 'request-fullscreen', title: 'Enter Full Screen' },
+                        { id: 'exit-fullscreen', value: 'exit-fullscreen', title: 'Exit Full Screen' },
+                    );
+                }
 
                 if(priv.edit_mode) {
                     items.push(
@@ -2036,7 +2056,6 @@ function ac_canvas_click(gobj, event, kw, src)
 function ac_history_redo(gobj, event, kw, src)
 {
     let priv = gobj.priv;
-    let graph = priv.graph;
 
     if(priv.edit_mode) {
         const history = graph_get_plugin(gobj, "history");
@@ -2052,7 +2071,6 @@ function ac_history_redo(gobj, event, kw, src)
 function ac_history_undo(gobj, event, kw, src)
 {
     let priv = gobj.priv;
-    let graph = priv.graph;
 
     if(priv.edit_mode) {
         const history = graph_get_plugin(gobj, "history");
@@ -2070,16 +2088,20 @@ function ac_history_undo(gobj, event, kw, src)
  ************************************************************/
 function ac_request_fullscreen(gobj, event, kw, src)
 {
-    let priv = gobj.priv;
-    let graph = priv.graph;
+    const fullscreen = graph_get_plugin(gobj, "fullscreen");
+    if(fullscreen) {
+        fullscreen.request();
+    }
 
     return 0;
 }
 
 function ac_exit_fullscreen(gobj, event, kw, src)
 {
-    let priv = gobj.priv;
-    let graph = priv.graph;
+    const fullscreen = graph_get_plugin(gobj, "fullscreen");
+    if(fullscreen) {
+        fullscreen.exit();
+    }
 
     return 0;
 }
