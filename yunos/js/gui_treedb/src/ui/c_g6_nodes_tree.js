@@ -411,7 +411,9 @@ function configure_events(gobj)
         graph.on("keydown", (evt) => {
             const key = evt.key;
             const fullscreen = graph_get_plugin(gobj, "fullscreen");
-            if(!fullscreen) return;
+            if(!fullscreen) {
+                return;
+            }
             if(key === "F" || key === "f") {
                 fullscreen.request();
             } else if(key === "Escape") {
@@ -480,7 +482,9 @@ function configure_plugins(gobj)
  ************************************************************/
 function inject_custom_toolbar_icons()
 {
-    if(document.getElementById('g6-custom-svgicons')) return;
+    if(document.getElementById('g6-custom-svgicons')) {
+        return;
+    }
     const div = document.createElement('div');
     div.id = 'g6-custom-svgicons';
     div.style.display = 'none';
