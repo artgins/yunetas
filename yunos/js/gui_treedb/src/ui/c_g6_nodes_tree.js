@@ -484,6 +484,7 @@ function configure_toolbar(gobj)
         gobj,
         'toolbar',
         {
+            className: 'g6-toolbar-large',
             position: toolbar_position,
             style: {
                 backgroundColor: '#f5f5f5',
