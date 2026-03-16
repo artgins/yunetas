@@ -11,3 +11,16 @@
 .color_active_state {
     color: #0000FF !important;
 }
+
+/*
+ *  G6 toolbar: larger icons
+ */
+.g6-toolbar .g6-toolbar-item {
+    width: 24px !important;
+    height: 24px !important;
+    padding: 6px !important;
+}
+.g6-toolbar .g6-toolbar-item svg {
+    width: 24px !important;
+    height: 24px !important;
+}
