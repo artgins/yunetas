@@ -71,7 +71,6 @@ import {
 } from "./lib_graph.js";
 
 
-
 import {
     BaseLayout,
     ExtensionCategory,
@@ -407,21 +406,6 @@ function configure_events(gobj)
     graph.on(EdgeEvent.CLICK, (evt) => {
         gobj_send_event(gobj, "EV_EDGE_CLICK", {evt: evt}, gobj);
     });
-
-    if(gobj_read_bool_attr(gobj, "with_fullscreen")) {
-        graph.on("keydown", (evt) => {
-            const key = evt.key;
-            const fullscreen = graph_get_plugin(gobj, "fullscreen");
-            if(!fullscreen) {
-                return;
-            }
-            if(key === "F" || key === "f") {
-                fullscreen.request();
-            } else if(key === "Escape") {
-                fullscreen.exit();
-            }
-        });
-    }
 }
 
 /************************************************************
@@ -449,6 +433,10 @@ function configure_plugins(gobj)
             'fullscreen',
             {
                 autoFit: true,
+                trigger: {
+                    request: 'F', // Use shortcut key F to enter fullscreen
+                    exit: 'Esc', // Use shortcut key Esc to exit fullscreen
+                },
             }
         );
     }
@@ -543,7 +531,7 @@ function configure_toolbar(gobj)
                         { id: 'undo', value: 'undo', title: 'Undo' },
                         { id: 'redo', value: 'redo', title: 'Redo' },
                         { id: 'delete', value: 'delete', title: 'Delete' },
-                        { id: 'g6-icon-save', value: 'save', title: 'Save' },
+                        { id: 'save', value: 'save', title: 'Save' },
                     );
                 }
 

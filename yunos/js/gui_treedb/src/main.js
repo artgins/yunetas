@@ -45,8 +45,6 @@ import {register_c_yui_tabs} from "./ui/c_yui_tabs.js";
 import {register_c_yui_json_graph} from "./ui/c_yui_json_graph.js";
 import {register_c_g6_nodes_tree} from "./ui/c_g6_nodes_tree.js";
 
-import {inject_svg_icons} from "./ui/lib_icons.js";
-
 import "bulma/css/bulma.css";
 import "/assets/fontawesome-free-7.1.0-web/css/fontawesome.css";
 import "/assets/fontawesome-free-7.1.0-web/css/regular.css";
@@ -220,8 +218,6 @@ function main()
  *
  ***************************************************************/
 window.addEventListener('load', function() {
-    inject_svg_icons();
-
     /*
      *  Delete message "Loading application. Wait please..."
      */
