@@ -167,8 +167,9 @@
 }
 
 .without-border {
-    border: none !important; /* Remove the border */
-    box-shadow: none !important; /* Optional: remove the box-shadow if present */
+    border: none !important;
+    box-shadow: none !important;
+    background: transparent !important;
 }
 
 .with-border {
