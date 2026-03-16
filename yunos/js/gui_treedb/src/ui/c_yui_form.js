@@ -334,7 +334,7 @@ function build_ui(gobj)
                      *      Clear
                      *----------------------------*/
                     ['button', {class: 'button p-1 is-flex is-flex-direction-column is-align-items-center', style:'width:100%;'}, [
-                        ['span', {class: 'icon m-0'}, '<i class="fa-solid fa-lg fa-broom-wide"></i>'],
+                        ['span', {class: 'icon m-0'}, '<i class="yi-broom-wide"></i>'],
                         ['span', {class: 'is-hidden-mobile', i18n: 'clear'}, 'clear']
                     ], {
                         click: function(evt) {
@@ -831,7 +831,7 @@ function create_form_field(
                         ['div', {class: 'field'}, [
                             ['div', {class: '' }, [
                                 ['button', {class: 'button p-1'}, [
-                                    ['span', {class: 'icon m-0'}, '<i class="fa-solid fa-plus"></i>'],
+                                    ['span', {class: 'icon m-0'}, '<i class="yi-plus"></i>'],
                                     ['span', {class: 'p-1 pr-2 is-hidden-mobile', i18n: 'add'}, 'add'],
                                 ], {
                                     click: function(evt) {
@@ -1210,7 +1210,7 @@ function create_coordinates(gobj, attrs)
                 {
                     class: 'icon is-left is-clickable'
                 },
-                '<i class="fa-solid fa-location-crosshairs"></i>',
+                '<i class="yi-location-crosshairs"></i>',
                 {
                     'click': function (evt) {
                         evt.stopPropagation();
@@ -1225,7 +1225,7 @@ function create_coordinates(gobj, attrs)
                     class: 'icon clear-button is-right is-clickable',
                     style: 'display:none;'
                 },
-                '<i class="fas fa-times"></i>',
+                '<i class="yi-xmark"></i>',
                 {
                     'click': function (evt) {
                         evt.stopPropagation();
@@ -1442,7 +1442,7 @@ function template2columns(gobj, columns, template, sub_elements)
 
                 Object.assign(column, {
                     formatter: function(cell, formatterParams) {
-                        return '<i style="" class="fa-solid fa-plus has-text-link"></i>';
+                        return '<i style="" class="yi-plus has-text-link"></i>';
                     },
                     hozAlign:"center",
                     cellClick: function(evt, cell) {

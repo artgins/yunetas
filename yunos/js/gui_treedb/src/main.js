@@ -48,9 +48,7 @@ import {register_c_g6_nodes_tree} from "./ui/c_g6_nodes_tree.js";
 import {inject_svg_icons} from "./ui/lib_icons.js";
 
 import "bulma/css/bulma.css";
-import "/assets/fontawesome-free-7.1.0-web/css/fontawesome.css";
-import "/assets/fontawesome-free-7.1.0-web/css/regular.css";
-import "/assets/fontawesome-free-7.1.0-web/css/solid.css";
+import "./ui/yui_icons.css";
 
 import "tabulator-tables/dist/css/tabulator.min.css"; // Import Tabulator CSS
 import "tabulator-tables/dist/css/tabulator_bulma.css";

@@ -249,7 +249,7 @@ function build_ui(gobj)
                             "font-size": "1.4em",
                             "display": gobj_read_bool_attr(gobj, "showMax")?'inline-block':'none',
                         }
-                    }, '<i class="fa-regular fa-square"></i>', {
+                    }, '<i class="yi-square"></i>', {
                         click: (evt) => {
                             evt.stopPropagation();
                             toggle(gobj);
@@ -261,7 +261,7 @@ function build_ui(gobj)
                     ['button', {
                         class: 'without-border pr-2',
                         style: 'color:var(--bulma-text);font-size:1.6em;',
-                    }, '<i class="fas fa-xmark"></i>', {
+                    }, '<i class="yi-xmark"></i>', {
                         click: (evt) => {
                             evt.stopPropagation();
                             close_window(gobj);
@@ -271,7 +271,7 @@ function build_ui(gobj)
             ],
                 {
                     pointerdown: (evt) => {
-                        if(!evt.target.classList.contains("fa-xmark")) {
+                        if(!evt.target.classList.contains("yi-xmark")) {
                             mvStart(gobj, evt);
                         }
                     }

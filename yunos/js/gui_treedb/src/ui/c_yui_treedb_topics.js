@@ -390,7 +390,7 @@ function process_treedb_descs(gobj)
         );
 
         // TODO get icon from remote config
-        add_tab(gobj, gobj_topic_form, id, key, "fa-solid fa-table");
+        add_tab(gobj, gobj_topic_form, id, key, "yi-table");
 
         gobj_start(gobj_topic_form);
     }

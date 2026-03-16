@@ -245,11 +245,11 @@ function make_toolbar(gobj)
     let center_items = [];
 
     let c_icons = [
-        ["fas fa-magnifying-glass-plus", "EV_ZOOM_IN",       false, 'i'],
-        ["fas fa-magnifying-glass",      "EV_ZOOM_RESET",    false, 'i'],
-        ["fas fa-magnifying-glass-minus","EV_ZOOM_OUT",      false, 'i'],
+        ["yi-magnifying-glass-plus", "EV_ZOOM_IN",       false, 'i'],
+        ["yi-magnifying-glass",      "EV_ZOOM_RESET",    false, 'i'],
+        ["yi-magnifying-glass-minus","EV_ZOOM_OUT",      false, 'i'],
         ["fas fa-arrows-to-eye",         "EV_CENTER",        false, 'i'],
-        ["fas fa-arrows-rotate",         "EV_REFRESH",       false, 'i'],
+        ["yi-arrows-rotate",         "EV_REFRESH",       false, 'i'],
     ];
 
     for(let item of c_icons) {

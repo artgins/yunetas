@@ -297,7 +297,7 @@ function build_ui(gobj)
             );
             let $edit_button = createElement2(
                 ['button', {id: ``, class: 'button button-edit-record mr-1'}, [
-                    ['i', {class: 'fa-solid fa-pen'}],
+                    ['i', {class: 'yi-pen'}],
                     ['span',
                         {
                             class: 'is-hidden-mobile', i18n: 'edit', style: 'padding-left:5px;'
@@ -323,7 +323,7 @@ function build_ui(gobj)
             if(with_new_button) {
                 let $new_button = createElement2(
                     ['button', {id: ``, class: 'button button-new-record mr-1', disabled: true}, [
-                        ['i', {class: 'fa-solid fa-plus'}],
+                        ['i', {class: 'yi-plus'}],
                         ['span',
                             {
                                 class: 'is-hidden-mobile', i18n: 'new', style: 'padding-left:5px;'
@@ -430,10 +430,10 @@ function build_ui(gobj)
                     style: 'max-width:200px;'
                 }],
                 ['span', {class: 'icon is-left'}, [
-                    ['i', {class: 'fa-solid fa-magnifying-glass'}]
+                    ['i', {class: 'yi-magnifying-glass'}]
                 ]],
                 ['span', {class: 'icon is-right', style: 'cursor:pointer; pointer-events:all;', title: 'clear search'}, [
-                    ['i', {class: 'fa-solid fa-xmark'}]
+                    ['i', {class: 'yi-xmark'}]
                 ], {
                     'click': (event) => {
                         event.stopPropagation();
@@ -474,7 +474,7 @@ function build_ui(gobj)
     if(with_refresh_button) {
         let $refresh = createElement2(
             ['button', {class: 'button mr-1', title: 'refresh'}, [
-                ['i', {class: 'fa-solid fa-arrows-rotate'}],
+                ['i', {class: 'yi-arrows-rotate'}],
                 ['span', {class: 'is-hidden-mobile', i18n: 'refresh', style: 'padding-left:5px;'}, 'refresh']
             ], {
                 'click': (event) => {
@@ -661,7 +661,7 @@ function table__build(gobj)
     function operateFormatter(cell, formatterParams, onRendered) {
         return [
             '<button class="button without-border px-2 edit">',
-                '<i style="" class="fa-solid fa-pen has-text-link"></i>',
+                '<i style="" class="yi-pen has-text-link"></i>',
             '</button>',
             '<button class="button without-border px-2 remove">',
                 '<i style="" class="fa fa-trash has-text-danger"></i>',
@@ -752,9 +752,9 @@ function transform__treedb_value_2_table_value(gobj, col, value, row, field)
             break;
         case "boolean":
             if(value) {
-                value = `<span class=""><i style="color:limegreen; font-size:1.2rem;" class="fa-regular fa-square-check"></i></i></span>`;
+                value = `<span class=""><i style="color:limegreen; font-size:1.2rem;" class="yi-square-check"></i></i></span>`;
             } else {
-                value = `<span class=""><i style="color:orangered; font-size:1.2rem;" class="fa-solid fa-xmark"></i></span>`;
+                value = `<span class=""><i style="color:orangered; font-size:1.2rem;" class="yi-xmark"></i></span>`;
             }
             break;
         case "object":
@@ -1366,14 +1366,14 @@ function build_topic_modal(gobj)
 
                         ['button', { class: 'button px-4 form-close'}, [
                             ['span', {class:'icon'}, [
-                                ['i', {class:'fa-solid fa-xmark'}]
+                                ['i', {class:'yi-xmark'}]
                             ]],
                             ['span', {i18n:'cancel'}, 'cancel']
                         ]],
 
                         ['button', { class: 'button px-4'}, [
                             ['span', {class:'icon'}, [
-                                ['i', {class:'fas fa-broom'}]
+                                ['i', {class:'yi-broom'}]
                             ]],
                             ['span', {i18n:'clear'}, 'clear']
                         ], {

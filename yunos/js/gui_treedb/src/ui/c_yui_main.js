@@ -208,7 +208,7 @@ function build_ui(gobj)
             'i', {
                 id: 'icon_yuneta_state',
                 style: `font-size:1.5em; color:${gobj_read_attr(gobj, "color_yuneta_disconnected")};`,
-                class: 'fa-solid fa-bars'
+                class: 'yi-bars'
             }
         ], {
             click: (evt) => {
@@ -273,7 +273,7 @@ function build_ui(gobj)
                 width: `2.5em`,
             }
         }, [
-            ['i', {style: 'font-size:1.5em;', class: 'fa-solid fa-language'}]
+            ['i', {style: 'font-size:1.5em;', class: 'yi-language'}]
         ], {
             click: (evt) => {
                 evt.stopPropagation();
@@ -292,11 +292,11 @@ function build_ui(gobj)
             }, [
                 ['i', {
                     style: 'font-size:1.5em; color:#8156F5; display:none;',
-                    class: 'theme-dark fa-solid fa-moon'
+                    class: 'theme-dark yi-moon'
                 }],
                 ['i', {
                     style: 'font-size:1.5em; color:#FFB70F; display:none;',
-                    class: 'theme-light fa-solid fa-sun'
+                    class: 'theme-light yi-sun'
                 }]
             ], {
                 click: (evt) => {
@@ -319,7 +319,7 @@ function build_ui(gobj)
                 ['i', {
                     id: 'icon_username',
                     style: `font-size:1.5em; color:${gobj_read_attr(gobj, "color_user_logout")};`,
-                    class: 'fa-solid fa-user'
+                    class: 'yi-user'
                 }]
             ], {
                 click: (evt) => {

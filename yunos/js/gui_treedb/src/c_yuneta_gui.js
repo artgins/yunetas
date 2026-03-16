@@ -360,7 +360,7 @@ function build_app(gobj, services_roles)
             {
                 id: gobj_name(gobj_tables_mqtt_broker),
                 label: "MQTT Topics",
-                icon: "fas fa-table",
+                icon: "yi-table",
                 gobj: gobj_tables_mqtt_broker  // use "$container" attribute
             }
         );
@@ -422,7 +422,7 @@ function build_app(gobj, services_roles)
             {
                 id: gobj_name(gobj_tables_authzsdb),
                 label: "AuthzDB Topics",
-                icon: "fas fa-table",
+                icon: "yi-table",
                 gobj: gobj_tables_authzsdb  // use "$container" attribute
             }
         );
@@ -492,7 +492,7 @@ function build_app(gobj, services_roles)
             {
                 id: gobj_name(gobj_tables_mqtt_broker),
                 label: "MQTT Design",
-                icon: "fas fa-table",
+                icon: "yi-table",
                 gobj: gobj_tables_mqtt_broker  // use "$container" attribute
             }
         );
@@ -518,7 +518,7 @@ function build_app(gobj, services_roles)
             {
                 id: gobj_name(gobj_tables_authzsdb),
                 label: "AuthzDB Design",
-                icon: "fas fa-table",
+                icon: "yi-table",
                 gobj: gobj_tables_authzsdb  // use "$container" attribute
             }
         );

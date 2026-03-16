@@ -116,7 +116,7 @@ SDATA(data_type_t.DTP_POINTER,  "$container",       0,  null,   "Container eleme
 SDATA(data_type_t.DTP_STRING,   "href",             0,  "",     "Tab href"),
 SDATA(data_type_t.DTP_STRING,   "label",            0,  "",     "Tab label"),
 SDATA(data_type_t.DTP_STRING,   "image",            0,  "",     "Tab image"),
-SDATA(data_type_t.DTP_STRING,   "icon",             0,  "fa-solid fa-question", "Tab icon"),
+SDATA(data_type_t.DTP_STRING,   "icon",             0,  "yi-question", "Tab icon"),
 
 /*---------------- Particular Attributes ----------------*/
 SDATA(data_type_t.DTP_POINTER,  "hook_data_viewer",     0,  null,   "GClass Manager/Viewer of hook data"),
@@ -381,7 +381,7 @@ function make_toolbar(gobj)
         }],
     ];
     let l_icons = [
-        ["fas fa-arrows-rotate",        "EV_REFRESH_TREEDB",false,  'il', 'Refresh'],
+        ["yi-arrows-rotate",        "EV_REFRESH_TREEDB",false,  'il', 'Refresh'],
     ];
     add_buttons(gobj, left_items, l_icons);
 

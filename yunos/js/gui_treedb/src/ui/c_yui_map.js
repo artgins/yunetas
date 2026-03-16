@@ -63,7 +63,7 @@ SDATA(data_type_t.DTP_REAL,     "default_longitude",0,  -3.7038, "Default longit
 SDATA(data_type_t.DTP_REAL,     "default_latitude", 0,  40.4168, "Default latitude"),
 SDATA(data_type_t.DTP_POINTER,  "$map",             0,  null,    "External HTML container"),
 SDATA(data_type_t.DTP_STRING,   "label",            0,  "map",   "Label"),
-SDATA(data_type_t.DTP_STRING,   "icon",             0,  "fa-solid fa-location-dot", "Icon class"),
+SDATA(data_type_t.DTP_STRING,   "icon",             0,  "yi-location-dot", "Icon class"),
 SDATA(data_type_t.DTP_INTEGER,  "width",            0,  400,    "Width of the map"),
 SDATA(data_type_t.DTP_INTEGER,  "height",           0,  400,    "Height of the map"),
 SDATA(data_type_t.DTP_BOOLEAN,  "dimensions_with_parent_observer", 0, false, "Observe parent dimensions"),
