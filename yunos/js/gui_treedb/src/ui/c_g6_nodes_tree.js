@@ -368,13 +368,12 @@ function build_graph(gobj)
      */
     graph.setTheme(priv.theme);
 
-    set_operation_mode(gobj, priv.operation_mode);
-
     graph.setLayout(layout);
     //show_positions(gobj);
 
     graph_render(gobj).then(() => {
         configure_events(gobj);
+        configure_behaviour(gobj, priv.operation_mode);
         configure_plugins(gobj);
     });
 }
@@ -464,7 +463,7 @@ function update_toolbar(gobj)
         return;
     }
 
-    let toolbar = graph.getPluginInstance('toolbar');
+    let toolbar = graph_get_plugin(gobj, 'toolbar');
     if(toolbar) {
         /*
          *  Force toolbar to re-render by updating the plugin.
@@ -576,22 +575,36 @@ function select_layout(gobj, layout_name)
 }
 
 /************************************************************
- *  Set mode: reading, operation, writing, edition
+ *  Set behavior of operation mode:
+ *  reading, operation, writing, edition
  ************************************************************/
-function set_operation_mode(gobj, mode)
+function configure_behaviour(gobj, mode)
 {
-    let behaviors = [];
+    let priv = gobj.priv;
 
+    /*
+     *  Behaviors
+     */
+    let behaviors = [];
     switch(mode) {
-        case 'edition':
-        case 'writing':
-        case 'reading':
+        case "writing":
+        case "reading":
+            priv.edit_mode = false;
             behaviors = [
-                'drag-canvas',
-                'zoom-canvas',
+                "drag-canvas",
+                "zoom-canvas",
             ];
             break;
-        case 'operation':
+        case "edition":
+            priv.edit_mode = true;
+            behaviors = [
+                "drag-canvas",
+                "zoom-canvas",
+                "drag-element",
+            ];
+            break;
+        case "operation":
+            priv.edit_mode = false;
             break;
         default:
             log_error(`operation mode unknown: ${mode}`);
@@ -1169,86 +1182,6 @@ function clear_link(
 }
 
 /************************************************************
- *  Process nodes command response
- *  Called when data arrives from backend
- ************************************************************/
-function process_command_nodes(gobj, topic_name, data)
-{
-    let priv = gobj.priv;
-    let graph = priv.graph;
-
-    if(topic_name.substring(0, 2) === "__") {
-        if(topic_name === '__graphs__') {
-            priv.__graphs__ = data;
-        }
-        return;
-    }
-
-    let schema = priv.descs[topic_name];
-
-    /*-------------------------*
-     *  Save topic's records
-     *-------------------------*/
-    priv.records[topic_name] = data;
-    priv.descs[topic_name].loaded = true;
-
-    /*--------------------------------------------------*
-     *  Creating and loading topic cells from backend
-     *--------------------------------------------------*/
-    for(let i=0; i<data.length; i++) {
-        let record = data[i];
-        create_topic_node(gobj, schema, record);
-    }
-
-    /*----------------------------------------------------*
-     *  Check if all topics are loaded to make the links
-     *----------------------------------------------------*/
-    let do_links = true;
-    for (const [topic_name, desc] of Object.entries(priv.descs)) {
-        if (topic_name.substring(0, 2) === "__") {
-            continue;   // ignore system topics
-        }
-        if(!desc.loaded) {
-            do_links = false;
-            break;
-        }
-    }
-
-    if(do_links && priv.graph) {
-        graph_draw(gobj).then(() => { // draw nodes, else the link fails
-            create_links(gobj);
-            graph_draw(gobj).then(() => {
-                graph_layout(gobj);
-            });
-        });
-    }
-}
-
-/************************************************************
- *  Process descs: assign colors and calculate counters
- ************************************************************/
-function process_treedb_descs(gobj)
-{
-    let priv = gobj.priv;
-    let descs = priv.descs;
-
-    // TODO register_nodes(gobj) = register(ExtensionCategory.NODE, 'light', LightNode);
-
-    /*
-     *  descs is a dict: { __snaps__: {…}, roles: {…}, users: {…} }
-     */
-    let idx = 0;
-    for(const [topic_name, desc] of Object.entries(descs)) {
-        calculate_hooks_fkeys_counter(desc);
-        if(topic_name.substring(0, 2) === "__") {
-            continue;
-        }
-        desc.color = node_colors[idx % node_colors.length];
-        idx++;
-    }
-}
-
-/************************************************************
  *  Update geometry from render style
  ************************************************************/
 function update_geometry(gobj, node_id)
@@ -1444,12 +1377,25 @@ async function graph_layout(gobj)
     await graph.layout();
 }
 
+function graph_get_plugin(gobj, plugin_key)
+{
+    let priv = gobj.priv;
+    let graph = priv.graph;
+    const plugins = graph.getPlugins();
+    const exists = plugins.some((p) => typeof p === 'object' && p.key === plugin_key);
+    if(exists) {
+        return graph.getPluginInstance(plugin_key);
+    } else {
+        return null;
+    }
+}
+
 function graph_add_plugin(gobj, plugin_key, options)
 {
     let priv = gobj.priv;
     let graph = priv.graph;
 
-    let plugin = graph.getPluginInstance(plugin_key);
+    let plugin = graph_get_plugin(gobj, plugin_key);
     if(!plugin) {
         let plugin_def = {
             key: plugin_key,
@@ -1459,14 +1405,12 @@ function graph_add_plugin(gobj, plugin_key, options)
             json_object_update_missing(plugin_def, options);
         }
         graph.setPlugins((plugins) => [...plugins, plugin_def]);
-    } else {
-        log_error(`${gobj_short_name(gobj)}: Plugin already defined ${plugin_key}`);
     }
 
-    plugin = graph.getPluginInstance(plugin_key);
+    plugin = graph_get_plugin(gobj, plugin_key);
 
     switch(plugin_key) {
-        case 'history':
+        case "history":
             if(plugin) {
                 plugin.emitter.on(HistoryEvent.ADD, () => {
                     //update_history_buttons(gobj);
@@ -1476,12 +1420,12 @@ function graph_add_plugin(gobj, plugin_key, options)
     }
 }
 
-function graph_remove_plugin(gobj, plugin_key, verbose)
+function graph_remove_plugin(gobj, plugin_key)
 {
     let priv = gobj.priv;
     let graph = priv.graph;
 
-    const plugin = graph.getPluginInstance(plugin_key);
+    const plugin = graph_get_plugin(gobj, plugin_key);
     if(plugin) {
         let plugins = graph.getPlugins();
         plugins = plugins.filter((p) => p.key !== plugin_key);
@@ -1491,10 +1435,6 @@ function graph_remove_plugin(gobj, plugin_key, verbose)
                 plugin.destroy();
             }
         }
-    } else {
-        if(verbose) {
-            log_error(`${gobj_short_name(gobj)}: Plugin not defined ${plugin_key}`);
-        }
     }
 }
 
@@ -1503,14 +1443,8 @@ async function clear_graph(gobj)
     let priv = gobj.priv;
     let graph = priv.graph;
 
-    set_operation_mode(gobj, priv.operation_mode);
-
     priv._xy = 100;
     priv.yet_showed = false;
-    priv.edit_mode = false;
-
-    graph_remove_plugin(gobj, 'history');
-    //update_history_buttons(gobj);
 
     await graph.clear();
 }
@@ -1614,8 +1548,27 @@ class ManualLayout extends BaseLayout
  ************************************************************/
 function ac_descs(gobj, event, kw, src)
 {
+    let priv = gobj.priv;
+
     gobj_write_attr(gobj, "descs", kw);
-    process_treedb_descs(gobj);
+
+    let descs = priv.descs;
+
+    // TODO register_nodes(gobj) = register(ExtensionCategory.NODE, 'light', LightNode);
+
+    /*
+     *  Assign colors and calculate counters
+     *  descs is a dict: { __snaps__: {…}, roles: {…}, users: {…} }
+     */
+    let idx = 0;
+    for(const [topic_name, desc] of Object.entries(descs)) {
+        calculate_hooks_fkeys_counter(desc);
+        if(topic_name.substring(0, 2) === "__") {
+            continue;
+        }
+        desc.color = node_colors[idx % node_colors.length];
+        idx++;
+    }
 
     return 0;
 }
@@ -1630,9 +1583,12 @@ function ac_clear_data(gobj, event, kw, src)
     priv.records = {};
     gobj_write_attr(gobj, "records", priv.records);
 
-    if(priv.graph) {
-        clear_graph(gobj);
-    }
+    clear_graph(gobj).then(() => {
+        let history = graph_get_plugin(gobj, "history");
+        if(history) {
+            graph_remove_plugin(gobj, "history");
+        }
+    });
 
     return 0;
 }
@@ -1643,6 +1599,7 @@ function ac_clear_data(gobj, event, kw, src)
 function ac_load_data(gobj, event, kw, src)
 {
     let priv = gobj.priv;
+    let graph = priv.graph;
 
     let kw_command = kw.kw_command;
     let data = kw.data;
@@ -1656,7 +1613,62 @@ function ac_load_data(gobj, event, kw, src)
         return 0;
     }
 
-    process_command_nodes(gobj, topic_name, data);
+    if(topic_name.substring(0, 2) === "__") {
+        if(topic_name === '__graphs__') {
+            priv.__graphs__ = data;
+        }
+        return 0;
+    }
+
+    let schema = priv.descs[topic_name];
+
+    /*-------------------------*
+     *  Save topic's records
+     *-------------------------*/
+    priv.records[topic_name] = data;
+    priv.descs[topic_name].loaded = true;
+
+    /*--------------------------------------------------*
+     *  Creating and loading topic cells from backend
+     *--------------------------------------------------*/
+    for(let i=0; i<data.length; i++) {
+        let record = data[i];
+        create_topic_node(gobj, schema, record);
+    }
+
+    /*----------------------------------------------------*
+     *  Check if all topics are loaded to make the links
+     *----------------------------------------------------*/
+    let do_links = true;
+    for (const [topic_name, desc] of Object.entries(priv.descs)) {
+        if (topic_name.substring(0, 2) === "__") {
+            continue;   // ignore system topics
+        }
+        if(!desc.loaded) {
+            do_links = false;
+            break;
+        }
+    }
+
+    if(do_links && priv.graph) {
+        graph_draw(gobj).then(() => { // draw nodes, else the link fails
+            create_links(gobj);
+            graph_draw(gobj).then(() => {
+                graph_layout(gobj).then(() => {
+                    let history = graph_get_plugin(gobj, "history");
+                    if(priv.edit_mode) {
+                        if(!history) {
+                            graph_add_plugin(gobj, "history");
+                        }
+                    } else {
+                        if(history) {
+                            graph_remove_plugin(gobj, "history");
+                        }
+                    }
+                });
+            });
+        });
+    }
 
     return 0;
 }
@@ -1890,7 +1902,7 @@ function ac_fullscreen(gobj, event, kw, src)
     let priv = gobj.priv;
     let graph = priv.graph;
 
-    const plugin = graph.getPluginInstance('fullscreen');
+    const plugin = graph_get_plugin(gobj, 'fullscreen');
     if(plugin) {
         plugin.request();
     }
@@ -1914,28 +1926,8 @@ function ac_set_layout(gobj, event, kw, src)
 function ac_set_operation_mode(gobj, event, kw, src)
 {
     gobj_write_attr(gobj, "operation_mode", kw.operation_mode);
-    set_operation_mode(gobj, kw.operation_mode);
-    return 0;
-}
-
-/************************************************************
- *  Edit mode toggle
- ************************************************************/
-function ac_edit_mode(gobj, event, kw, src)
-{
-    let priv = gobj.priv;
-
-    priv.edit_mode = !priv.edit_mode;
-    if(priv.edit_mode) {
-        graph_set_behavior(gobj, 'drag-element', true);
-        graph_add_plugin(gobj, 'history');
-    } else {
-        graph_set_behavior(gobj, 'drag-element', false);
-        graph_remove_plugin(gobj, 'history');
-    }
-
+    configure_behaviour(gobj, kw.operation_mode);
     update_toolbar(gobj);
-
     return 0;
 }
 
@@ -2025,7 +2017,7 @@ function ac_history_redo(gobj, event, kw, src)
     let graph = priv.graph;
 
     if(priv.edit_mode) {
-        const history = graph.getPluginInstance('history');
+        const history = graph_get_plugin(gobj, "history");
         if(history && history.canRedo()) {
             history.redo();
         }
@@ -2041,7 +2033,7 @@ function ac_history_undo(gobj, event, kw, src)
     let graph = priv.graph;
 
     if(priv.edit_mode) {
-        const history = graph.getPluginInstance('history');
+        const history = graph_get_plugin(gobj, "history");
         if(history && history.canUndo()) {
             history.undo();
         }
@@ -2143,7 +2135,6 @@ function create_gclass(gclass_name)
             ["EV_FULLSCREEN",               ac_fullscreen,          null],
             ["EV_SET_LAYOUT",               ac_set_layout,          null],
             ["EV_SET_OPERATION_MODE",       ac_set_operation_mode,  null],
-            ["EV_EDIT_MODE",                ac_edit_mode,           null],
             ["EV_SAVE_GRAPH",               ac_save_graph,          null],
             ["EV_HISTORY_UNDO",             ac_history_undo,        null],
             ["EV_HISTORY_REDO",             ac_history_redo,        null],
@@ -2190,7 +2181,6 @@ function create_gclass(gclass_name)
         ["EV_FULLSCREEN",               0],
         ["EV_SET_LAYOUT",               0],
         ["EV_SET_OPERATION_MODE",       0],
-        ["EV_EDIT_MODE",                0],
         ["EV_SAVE_GRAPH",               0],
         ["EV_HISTORY_UNDO",             0],
         ["EV_HISTORY_REDO",             0],
