@@ -4,7 +4,7 @@ VERSION_INSTALLED_MUSL.txt
 chatgpt/
 .claude/
 Testing/
-
+assets/
 build_musl/
 build_static/
 x.html
