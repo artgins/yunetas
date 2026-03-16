@@ -159,7 +159,7 @@ SDATA(data_type_t.DTP_STRING,   "theme",                0,  "light", "Theme: lig
 SDATA(data_type_t.DTP_BOOLEAN,  "with_treedb_tables",   0,  false,  "Include treedb tables"),
 SDATA(data_type_t.DTP_BOOLEAN,  "with_gridline",        0,  false,  "Use gridline plugin"),
 SDATA(data_type_t.DTP_BOOLEAN,  "with_toolbar",         0,  true,   "Use toolbar plugin"),
-SDATA(data_type_t.DTP_STRING,   "toolbar_position",     0,  "top-right",
+SDATA(data_type_t.DTP_STRING,   "toolbar_position",     0,  "right-top",
     "Toolbar position: top-left, top-right, bottom-left, bottom-right, left-top, right-top"),
 SDATA(data_type_t.DTP_LIST,     "layout_names",         sdata_flag_t.SDF_RD,
     JSON.stringify(Object.keys(_layouts)),
@@ -375,6 +375,7 @@ function build_graph(gobj)
 
     graph_render(gobj).then(() => {
         configure_events(gobj);
+        configure_plugins(gobj);
     });
 }
 
@@ -405,14 +406,12 @@ function configure_events(gobj)
     graph.on(EdgeEvent.CLICK, (evt) => {
         gobj_send_event(gobj, "EV_EDGE_CLICK", {evt: evt}, gobj);
     });
-
-    do_extra_configuration(gobj);
 }
 
 /************************************************************
- *  Extra plugin configuration
+ *  Plugin configuration
  ************************************************************/
-function do_extra_configuration(gobj)
+function configure_plugins(gobj)
 {
     let priv = gobj.priv;
 
@@ -428,23 +427,23 @@ function do_extra_configuration(gobj)
         );
     }
 
-    // graph_add_plugin(
-    //     gobj,
-    //     'contextmenu',
-    //     {
-    //         trigger: 'contextmenu', // 'click' or 'contextmenu'
-    //         onClick: (v) => {
-    //             trace_msg('You have clicked the「' + v + '」item');
-    //         },
-    //         getItems: () => {
-    //             return [
-    //                 { name: 'Spread', value: 'spread' },
-    //                 { name: 'Detail', value: 'detail' },
-    //             ];
-    //         },
-    //         enable: (e) => e.targetType === 'node',
-    //     }
-    // );
+    graph_add_plugin(
+        gobj,
+        'contextmenu',
+        {
+            trigger: 'contextmenu', // 'click' or 'contextmenu'
+            onClick: (v) => {
+                trace_msg('You have clicked the「' + v + '」item');
+            },
+            getItems: () => {
+                return [
+                    { name: 'Spread', value: 'spread' },
+                    { name: 'Detail', value: 'detail' },
+                ];
+            },
+            enable: (e) => e.targetType === 'node',
+        }
+    );
 
     if(gobj_read_bool_attr(gobj, "with_toolbar")) {
         configure_toolbar(gobj);
@@ -487,6 +486,16 @@ function configure_toolbar(gobj)
         'toolbar',
         {
             position: toolbar_position,
+            style: {
+                backgroundColor: '#f5f5f5',
+                padding: '8px',
+                boxShadow: '0 2px 8px rgba(0, 0, 0, 0.15)',
+                borderRadius: '8px',
+                border: '1px solid #e8e8e8',
+                opacity: '0.9',
+                marginTop: '12px',
+                marginLeft: '12px',
+            },
             getItems: () => {
                 let items = [
                     { id: 'zoom-in', value: 'zoom-in' },
