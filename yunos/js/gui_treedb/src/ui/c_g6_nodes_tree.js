@@ -159,7 +159,7 @@ SDATA(data_type_t.DTP_STRING,   "theme",                0,  "light", "Theme: lig
 SDATA(data_type_t.DTP_BOOLEAN,  "with_treedb_tables",   0,  false,  "Include treedb tables"),
 SDATA(data_type_t.DTP_BOOLEAN,  "with_gridline",        0,  false,  "Use gridline plugin"),
 SDATA(data_type_t.DTP_BOOLEAN,  "with_toolbar",         0,  true,   "Use toolbar plugin"),
-SDATA(data_type_t.DTP_STRING,   "toolbar_position",     0,  "top-left",
+SDATA(data_type_t.DTP_STRING,   "toolbar_position",     0,  "top-right",
     "Toolbar position: top-left, top-right, bottom-left, bottom-right, left-top, right-top"),
 SDATA(data_type_t.DTP_LIST,     "layout_names",         sdata_flag_t.SDF_RD,
     JSON.stringify(Object.keys(_layouts)),
@@ -343,9 +343,8 @@ function build_graph(gobj)
         y: 0,
         container: priv.$container,
         animation: false,
-        autoResize: true,
+        autoResize: false,
         zoomRange: [0.2, 4],
-
         node: {  // WARNING this affect to all nodes with prevalence over individual defines!
             palette: {
                 type: 'group',
@@ -371,14 +370,12 @@ function build_graph(gobj)
 
     set_operation_mode(gobj, priv.operation_mode);
 
-    /*
-     *  Don't render here — the container is not yet attached to the DOM.
-     *  Just set the layout config; rendering is deferred to ac_show()
-     *  which fires when the container becomes visible.
-     */
     graph.setLayout(layout);
-    configure_events(gobj);
     //show_positions(gobj);
+
+    graph_render(gobj).then(() => {
+        configure_events(gobj);
+    });
 }
 
 /************************************************************
@@ -1209,22 +1206,12 @@ function process_command_nodes(gobj, topic_name, data)
     }
 
     if(do_links && priv.graph) {
-        if(!graph.rendered) {
-            graph_render(gobj).then(() => { // draw nodes, else the link fails
-                create_links(gobj);
-                graph_draw(gobj).then(() => {
-                    graph_layout(gobj);
-                });
+        graph_draw(gobj).then(() => { // draw nodes, else the link fails
+            create_links(gobj);
+            graph_draw(gobj).then(() => {
+                graph_layout(gobj);
             });
-
-        } else {
-            graph_draw(gobj).then(() => { // draw nodes, else the link fails
-                create_links(gobj);
-                graph_draw(gobj).then(() => {
-                    graph_layout(gobj);
-                });
-            });
-        }
+        });
     }
 }
 
@@ -1396,6 +1383,13 @@ async function graph_center(gobj)
     let graph = priv.graph;
 
     await graph.fitCenter();
+}
+
+async function graph_fitview(gobj)
+{
+    let priv = gobj.priv;
+    let graph = priv.graph;
+
     await graph.fitView();
 }
 
@@ -1878,6 +1872,7 @@ function ac_zoom_reset(gobj, event, kw, src)
 function ac_center(gobj, event, kw, src)
 {
     graph_center(gobj);
+    graph_fitview(gobj);
     return 0;
 }
 
