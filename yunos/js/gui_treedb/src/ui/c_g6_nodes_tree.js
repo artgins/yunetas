@@ -434,8 +434,8 @@ function configure_plugins(gobj)
             {
                 autoFit: true,
                 trigger: {
-                    request: ['F'], // ShortcutKey is string[]
-                    exit: ['Escape'],
+                    request: 'F', // Use shortcut key F to enter fullscreen
+                    exit: 'Esc', // Use shortcut key Esc to exit fullscreen
                 },
             }
         );
