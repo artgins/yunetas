@@ -11,3 +11,24 @@
 .color_active_state {
     color: #0000FF !important;
 }
+
+/*
+ *  G6 toolbar: larger icons (via className option)
+ */
+.g6-toolbar.g6-toolbar-large .g6-toolbar-item {
+    width: 20px;
+    height: 20px;
+    padding: 6px;
+}
+.g6-toolbar.g6-toolbar-large .g6-toolbar-item svg {
+    width: 20px;
+    height: 20px;
+}
+/* Vertical toolbar (column): horizontal separator */
+.g6-toolbar.g6-toolbar-large[style*="flex-direction: column"] .g6-toolbar-item + .g6-toolbar-item {
+    border-top: 1px solid #d9d9d9;
+}
+/* Horizontal toolbar (row): vertical separator */
+.g6-toolbar.g6-toolbar-large[style*="flex-direction: row"] .g6-toolbar-item + .g6-toolbar-item {
+    border-left: 1px solid #d9d9d9;
+}

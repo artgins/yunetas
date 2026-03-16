@@ -157,7 +157,8 @@ SDATA(data_type_t.DTP_POINTER,  "$container",           0,  null,   "Graph conta
 /*---------------- Graph Settings ----------------*/
 SDATA(data_type_t.DTP_STRING,   "theme",                0,  "light", "Theme: light or dark"),
 SDATA(data_type_t.DTP_BOOLEAN,  "with_treedb_tables",   0,  false,  "Include treedb tables"),
-SDATA(data_type_t.DTP_BOOLEAN,  "with_gridline",        0,  false,  "Use gridline plugin"),
+SDATA(data_type_t.DTP_BOOLEAN,  "with_gridline",        0,  true,   "Use gridline plugin"),
+SDATA(data_type_t.DTP_BOOLEAN,  "with_fullscreen",      0,  true,   "Use fullscreen plugin"),
 SDATA(data_type_t.DTP_BOOLEAN,  "with_toolbar",         0,  true,   "Use toolbar plugin"),
 SDATA(data_type_t.DTP_STRING,   "toolbar_position",     0,  "right-top",
     "Toolbar position: top-left, top-right, bottom-left, bottom-right, left-top, right-top"),
@@ -426,6 +427,20 @@ function configure_plugins(gobj)
         );
     }
 
+    if(gobj_read_bool_attr(gobj, "with_fullscreen")) {
+        graph_add_plugin(
+            gobj,
+            'fullscreen',
+            {
+                autoFit: true,
+                trigger: {
+                    request: 'F', // Use shortcut key F to enter fullscreen
+                    exit: 'Esc', // Use shortcut key Esc to exit fullscreen
+                },
+            }
+        );
+    }
+
     graph_add_plugin(
         gobj,
         'contextmenu',
@@ -484,6 +499,7 @@ function configure_toolbar(gobj)
         gobj,
         'toolbar',
         {
+            className: 'g6-toolbar-large',
             position: toolbar_position,
             style: {
                 backgroundColor: '#f5f5f5',
@@ -491,22 +507,31 @@ function configure_toolbar(gobj)
                 boxShadow: '0 2px 8px rgba(0, 0, 0, 0.15)',
                 borderRadius: '8px',
                 border: '1px solid #e8e8e8',
-                opacity: '0.9',
+                opacity: '0.85',
                 marginTop: '12px',
                 marginLeft: '12px',
             },
             getItems: () => {
                 let items = [
-                    { id: 'zoom-in', value: 'zoom-in' },
-                    { id: 'zoom-out', value: 'zoom-out' },
-                    { id: 'reset', value: 'reset' },
-                    { id: 'auto-fit', value: 'auto-fit' },
+                    { id: 'zoom-in', value: 'zoom-in', title: 'Zoom In' },
+                    { id: 'zoom-out', value: 'zoom-out', title: 'Zoom Out' },
+                    { id: 'reset', value: 'reset', title: 'Reset Zoom' },
+                    { id: 'auto-fit', value: 'auto-fit', title: 'Auto Fit' },
                 ];
+
+                if(gobj_read_bool_attr(gobj, "with_fullscreen")) {
+                    items.push(
+                        { id: 'request-fullscreen', value: 'request-fullscreen', title: 'Enter Full Screen' },
+                        { id: 'exit-fullscreen', value: 'exit-fullscreen', title: 'Exit Full Screen' },
+                    );
+                }
 
                 if(priv.edit_mode) {
                     items.push(
-                        { id: 'undo', value: 'undo' },
-                        { id: 'redo', value: 'redo' },
+                        { id: 'undo', value: 'undo', title: 'Undo' },
+                        { id: 'redo', value: 'redo', title: 'Redo' },
+                        { id: 'delete', value: 'delete', title: 'Delete' },
+                        { id: 'save', value: 'save', title: 'Save' },
                     );
                 }
 
@@ -524,6 +549,9 @@ function configure_toolbar(gobj)
                         gobj_send_event(gobj, "EV_ZOOM_RESET", {}, gobj);
                         break;
                     case 'auto-fit':
+                        gobj_send_event(gobj, "EV_AUTO_FIT", {}, gobj);
+                        break;
+                    case 'center':
                         gobj_send_event(gobj, "EV_CENTER", {}, gobj);
                         break;
                     case 'undo':
@@ -531,6 +559,15 @@ function configure_toolbar(gobj)
                         break;
                     case 'redo':
                         gobj_send_event(gobj, "EV_HISTORY_REDO", {}, gobj);
+                        break;
+                    case 'save':
+                        gobj_send_event(gobj, "EV_SAVE", {}, gobj);
+                        break;
+                    case 'request-fullscreen':
+                        gobj_send_event(gobj, "EV_REQUEST_FULLSCREEN", {}, gobj);
+                        break;
+                    case 'exit-fullscreen':
+                        gobj_send_event(gobj, "EV_EXIT_FULLSCREEN", {}, gobj);
                         break;
                 }
             },
@@ -1890,10 +1927,15 @@ function ac_zoom_reset(gobj, event, kw, src)
     return 0;
 }
 
+function ac_auto_fit(gobj, event, kw, src)
+{
+    graph_fitview(gobj);
+    return 0;
+}
+
 function ac_center(gobj, event, kw, src)
 {
     graph_center(gobj);
-    graph_fitview(gobj);
     return 0;
 }
 
@@ -2014,7 +2056,6 @@ function ac_canvas_click(gobj, event, kw, src)
 function ac_history_redo(gobj, event, kw, src)
 {
     let priv = gobj.priv;
-    let graph = priv.graph;
 
     if(priv.edit_mode) {
         const history = graph_get_plugin(gobj, "history");
@@ -2030,7 +2071,6 @@ function ac_history_redo(gobj, event, kw, src)
 function ac_history_undo(gobj, event, kw, src)
 {
     let priv = gobj.priv;
-    let graph = priv.graph;
 
     if(priv.edit_mode) {
         const history = graph_get_plugin(gobj, "history");
@@ -2038,6 +2078,29 @@ function ac_history_undo(gobj, event, kw, src)
             history.undo();
         }
         // update_history_buttons(gobj);
+    }
+
+    return 0;
+}
+
+/************************************************************
+ *  Fullscreen
+ ************************************************************/
+function ac_request_fullscreen(gobj, event, kw, src)
+{
+    const fullscreen = graph_get_plugin(gobj, "fullscreen");
+    if(fullscreen) {
+        fullscreen.request();
+    }
+
+    return 0;
+}
+
+function ac_exit_fullscreen(gobj, event, kw, src)
+{
+    const fullscreen = graph_get_plugin(gobj, "fullscreen");
+    if(fullscreen) {
+        fullscreen.exit();
     }
 
     return 0;
@@ -2131,6 +2194,7 @@ function create_gclass(gclass_name)
             ["EV_ZOOM_IN",                  ac_zoom_in,             null],
             ["EV_ZOOM_OUT",                 ac_zoom_out,            null],
             ["EV_ZOOM_RESET",               ac_zoom_reset,          null],
+            ["EV_AUTO_FIT",                 ac_auto_fit,            null],
             ["EV_CENTER",                   ac_center,              null],
             ["EV_FULLSCREEN",               ac_fullscreen,          null],
             ["EV_SET_LAYOUT",               ac_set_layout,          null],
@@ -2138,6 +2202,8 @@ function create_gclass(gclass_name)
             ["EV_SAVE_GRAPH",               ac_save_graph,          null],
             ["EV_HISTORY_UNDO",             ac_history_undo,        null],
             ["EV_HISTORY_REDO",             ac_history_redo,        null],
+            ["EV_REQUEST_FULLSCREEN",       ac_request_fullscreen,  null],
+            ["EV_EXIT_FULLSCREEN",          ac_exit_fullscreen,     null],
 
             /*--- CRUD pass-through events ---*/
             ["EV_CREATE_NODE",              ac_create_node,         null],
@@ -2177,6 +2243,7 @@ function create_gclass(gclass_name)
         ["EV_ZOOM_IN",                  0],
         ["EV_ZOOM_OUT",                 0],
         ["EV_ZOOM_RESET",               0],
+        ["EV_AUTO_FIT",                 0],
         ["EV_CENTER",                   0],
         ["EV_FULLSCREEN",               0],
         ["EV_SET_LAYOUT",               0],
@@ -2184,6 +2251,8 @@ function create_gclass(gclass_name)
         ["EV_SAVE_GRAPH",               0],
         ["EV_HISTORY_UNDO",             0],
         ["EV_HISTORY_REDO",             0],
+        ["EV_REQUEST_FULLSCREEN",       0],
+        ["EV_EXIT_FULLSCREEN",          0],
 
         /*--- Published to parent ---*/
         ["EV_VERTEX_CLICKED",           event_flag_t.EVF_OUTPUT_EVENT],
