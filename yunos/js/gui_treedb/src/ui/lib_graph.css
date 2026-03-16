@@ -15,12 +15,12 @@
 /*
  *  G6 toolbar: larger icons (via className option)
  */
-.g6-toolbar-large .g6-toolbar-item {
+.g6-toolbar.g6-toolbar-large .g6-toolbar-item {
     width: 24px;
     height: 24px;
     padding: 6px;
 }
-.g6-toolbar-large .g6-toolbar-item svg {
+.g6-toolbar.g6-toolbar-large .g6-toolbar-item svg {
     width: 24px;
     height: 24px;
 }
