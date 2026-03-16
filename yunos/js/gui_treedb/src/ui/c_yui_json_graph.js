@@ -248,7 +248,7 @@ function make_toolbar(gobj)
         ["yi-magnifying-glass-plus", "EV_ZOOM_IN",       false, 'i'],
         ["yi-magnifying-glass",      "EV_ZOOM_RESET",    false, 'i'],
         ["yi-magnifying-glass-minus","EV_ZOOM_OUT",      false, 'i'],
-        ["fas fa-arrows-to-eye",         "EV_CENTER",        false, 'i'],
+        ["yi-arrows-to-eye",         "EV_CENTER",        false, 'i'],
         ["yi-arrows-rotate",         "EV_REFRESH",       false, 'i'],
     ];
 

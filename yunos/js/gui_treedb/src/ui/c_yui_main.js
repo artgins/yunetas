@@ -354,8 +354,8 @@ function build_ui(gobj)
      *---------------------------------------*/
     // add_menu_item("EV_HOME", t("Home"), "fas fa-home", false);
     // add_menu_item("EV_USER", t("Profile"), "fas fa-user", false);
-    // add_menu_item("EV_MESSAGE", t("Messages"), "fas fa-envelope", false);
-    // add_menu_item("EV_SETTING", t("Settings"), "fas fa-cog", false);
+    // add_menu_item("EV_MESSAGE", t("Messages"), "yi-envelope", false);
+    // add_menu_item("EV_SETTING", t("Settings"), "yi-gear", false);
     // add_menu_item("EV_XXX", t("Home"), "fas fa-home", false);
     //
     // set_active_menu_item("EV_USER", true);
@@ -505,7 +505,7 @@ let login_html = `
                     <div class="control has-icons-left">
                         <input class="input with-focus input-email" type="email" placeholder="name@example.com" required>
                         <span class="icon is-small is-left">
-                            <i class="fa fa-envelope"></i>
+                            <i class="yi-envelope"></i>
                         </span>
                     </div>
                 </div>
@@ -515,10 +515,10 @@ let login_html = `
                     <div class="control has-icons-left has-icons-right">
                         <input class="input input-password" type="password" placeholder="********" required>
                         <span class="icon is-small is-left">
-                            <i class="fa fa-lock"></i>
+                            <i class="yi-lock"></i>
                         </span>
                         <span class="icon is-small is-right is-clickable toggle-password">
-                            <i class="fa fa-eye"></i>
+                            <i class="yi-eye"></i>
                         </span>
                     </div>
                     <!-- aqui va forgot password -->
@@ -678,7 +678,7 @@ let recovery_password_html = `
                     <div class="control has-icons-left">
                         <input id="recovery-email" class="input with-focus" type="email" placeholder="name@example.com" required aria-required="true">
                         <span class="icon is-small is-left">
-                            <i class="fas fa-envelope"></i>
+                            <i class="yi-envelope"></i>
                         </span>
                     </div>
                 </div>
@@ -763,7 +763,7 @@ function show_user_menu(gobj, show, pos)
                         // ['hr', {class: 'dropdown-divider'}],
                         ['a', {class: 'dropdown-item flex-horizontal-section'}, [
                             ['span', {class:'pr-2', i18n: 'logout'}, 'logout'],
-                            ['i', {style: `color: ${gobj_read_attr(gobj, "color_user_logout")}`, class: 'fas fa-sign-out-alt'}]
+                            ['i', {style: `color: ${gobj_read_attr(gobj, "color_user_logout")}`, class: 'yi-right-from-bracket'}]
                         ],
                         {
                             click: (evt) => {

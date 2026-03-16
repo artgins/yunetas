@@ -333,7 +333,7 @@ function build_app(gobj, services_roles)
         {
             // If it doesn't have an ID, then it's a menu title.
             label: "settings",
-            icon: "far fa-cog",
+            icon: "yi-gear",
         }
     );
 
@@ -379,7 +379,7 @@ function build_app(gobj, services_roles)
             {
                 id: gobj_name(gobj_tabs),
                 label: "MQTT Graphs",
-                icon: "fas fa-hexagon-nodes",
+                icon: "yi-hexagon-nodes",
                 gobj: gobj_tabs   // use "$container" attribute
             }
         );
@@ -392,7 +392,7 @@ function build_app(gobj, services_roles)
                 treedb_name: "treedb_mqtt_broker",
                 gobj_remote_yuno: __yuno__.__remote_service__,
                 label: "AuthDB",
-                icon: "fas fa-hexagon-nodes"
+                icon: "yi-hexagon-nodes"
             },
             gobj_tabs
         );
@@ -441,7 +441,7 @@ function build_app(gobj, services_roles)
             {
                 id: gobj_name(gobj_tabs),
                 label: "AuthzDB Graphs",
-                icon: "fas fa-hexagon-nodes",
+                icon: "yi-hexagon-nodes",
                 gobj: gobj_tabs   // use "$container" attribute
             }
         );
@@ -454,7 +454,7 @@ function build_app(gobj, services_roles)
                 treedb_name: "treedb_authzs",
                 gobj_remote_yuno: __yuno__.__remote_service__,
                 label: "AuthDB",
-                icon: "fas fa-hexagon-nodes"
+                icon: "yi-hexagon-nodes"
             },
             gobj_tabs
         );
@@ -468,7 +468,7 @@ function build_app(gobj, services_roles)
         {
             // If it doesn't have an ID, then it's a menu title.
             label: "developer",
-            icon: "far fa-cog",
+            icon: "yi-gear",
         }
     );
 
@@ -541,7 +541,7 @@ function build_app(gobj, services_roles)
             {
                 id: gobj_name(gobj_tree_js),
                 label: "Frontend View",
-                icon: "fab fa-js-square",
+                icon: "yi-square-js",
                 gobj: gobj_tree_js  // use "$container" attribute
             }
         );

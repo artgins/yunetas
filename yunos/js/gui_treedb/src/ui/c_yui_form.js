@@ -308,7 +308,7 @@ function build_ui(gobj)
                      *      Save
                      *----------------------------*/
                     ['button', {class: 'button p-1 is-flex is-flex-direction-column is-align-items-center button-save', style:'width:100%;', disabled: true}, [
-                        ['span', {class: 'icon m-0'}, '<i class="fa fa-lg fa-save"></i>'],
+                        ['span', {class: 'icon m-0'}, '<i class="yi-floppy-disk"></i>'],
                         ['span', {class: 'is-hidden-mobile', i18n: 'save'}, 'save']
                     ], {
                         click: function(evt) {
@@ -321,7 +321,7 @@ function build_ui(gobj)
                      *      Undo
                      *----------------------------*/
                     ['button', {class: 'button p-1 is-flex is-flex-direction-column is-align-items-center button-undo', style:'width:100%;', disabled: true}, [
-                        ['span', {class: 'icon m-0'}, '<i class="far fa-lg fa-undo"></i>'],
+                        ['span', {class: 'icon m-0'}, '<i class="yi-arrow-rotate-left"></i>'],
                         ['span', {class: 'is-hidden-mobile', i18n: 'undo'}, 'undo']
                     ], {
                         click: function(evt) {
@@ -352,7 +352,7 @@ function build_ui(gobj)
                      *      Copy
                      *----------------------------*/
                     ['button', {class: 'button p-1 is-flex is-flex-direction-column is-align-items-center', style:'width:100%;'}, [
-                        ['span', {class: 'icon m-0'}, '<i class="fa fa-lg fa-copy"></i>'],
+                        ['span', {class: 'icon m-0'}, '<i class="yi-copy"></i>'],
                         ['span', {class: 'is-hidden-mobile', i18n: 'copy'}, 'copy']
                     ], {click: function(evt) {
                             evt.stopPropagation();
@@ -364,7 +364,7 @@ function build_ui(gobj)
                      *      Paste
                      *----------------------------*/
                     ['button', {class: 'button p-1 is-flex is-flex-direction-column is-align-items-center', style:'width:100%;'}, [
-                        ['span', {class: 'icon m-0'}, '<i class="fa fa-lg fa-paste"></i>'],
+                        ['span', {class: 'icon m-0'}, '<i class="yi-paste"></i>'],
                         ['span', {class: 'is-hidden-mobile', i18n: 'paste'}, 'paste']
                     ], {click: async function(evt) {
                             evt.stopPropagation();
@@ -1305,7 +1305,7 @@ function create_tabulator(gobj, $extend, name, template)
         columns.push(
             {
                 formatter: function(cell, formatterParams) {
-                    return '<i style="" class="fa fa-trash has-text-danger"></i>';
+                    return '<i style="" class="yi-trash has-text-danger"></i>';
                 },
                 width:40,
                 hozAlign:"center",

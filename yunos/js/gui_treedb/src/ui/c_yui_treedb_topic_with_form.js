@@ -343,7 +343,7 @@ function build_ui(gobj)
             if(with_delete_button) {
                 let $delete_button = createElement2(
                     ['button', {id: ``, class: 'button button-delete-record mr-1', disabled: true}, [
-                        ['i', {class: 'fa fa-trash'}],
+                        ['i', {class: 'yi-trash'}],
                         ['span',
                             {
                                 class: 'is-hidden-mobile', i18n: 'delete', style: 'padding-left:5px;'
@@ -364,7 +364,7 @@ function build_ui(gobj)
             if(with_copy_button) {
                 let $copy_button = createElement2(
                     ['button', {id: ``, class: 'button button-copy-record mr-1', disabled: true}, [
-                        ['i', {class: 'fa fa-copy'}],
+                        ['i', {class: 'yi-copy'}],
                         ['span',
                             {
                                 class: 'is-hidden-mobile', i18n: 'copy', style: 'padding-left:5px;'
@@ -385,7 +385,7 @@ function build_ui(gobj)
             if(with_paste_button) {
                 let $paste_button = createElement2(
                     ['button', {id: ``, class: 'button button-paste-record mr-1', disabled: true}, [
-                        ['i', {class: 'fa fa-paste'}],
+                        ['i', {class: 'yi-paste'}],
                         ['span',
                             {
                                 class: 'is-hidden-mobile', i18n: 'paste', style: 'padding-left:5px;'
@@ -664,7 +664,7 @@ function table__build(gobj)
                 '<i style="" class="yi-pen has-text-link"></i>',
             '</button>',
             '<button class="button without-border px-2 remove">',
-                '<i style="" class="fa fa-trash has-text-danger"></i>',
+                '<i style="" class="yi-trash has-text-danger"></i>',
             '</button>'
         ].join('');
     }
@@ -791,7 +791,7 @@ function transform__treedb_value_2_table_value(gobj, col, value, row, field)
                     '<a class="hook_cell" ',
                     `data-row_id="${row.id}" `,
                     `data-col_id="${col.id}" > `,
-                    '<span style="" class="icon fas fa-eye"></span>',
+                    '<span style="" class="icon yi-eye"></span>',
                     `<span>[&nbsp;<u>${items}</u>&nbsp;]</span>`,
                     '</a>'
                 ].join('');

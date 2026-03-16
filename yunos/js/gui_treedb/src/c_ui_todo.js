@@ -27,7 +27,7 @@ const attrs_table = [
 SDATA(data_type_t.DTP_POINTER,  "subscriber",       0,  null,   "Subscriber of output events"),
 SDATA(data_type_t.DTP_POINTER,  "$container",       0,  null,   "Container element"),
 SDATA(data_type_t.DTP_STRING,   "label",            0,  "todo", "Label"),
-SDATA(data_type_t.DTP_STRING,   "icon",             0,  "fab fa-cloudversify", "Icon class"),
+SDATA(data_type_t.DTP_STRING,   "icon",             0,  "yi-cloudversify", "Icon class"),
 SDATA(data_type_t.DTP_INTEGER,  "timeout_retry",    0,  "5",    "Timeout retry in seconds"),
 SDATA(data_type_t.DTP_INTEGER,  "timeout_idle",     0,  "5",    "Idle timeout in seconds"),
 SDATA_END()
