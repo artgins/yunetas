@@ -1339,7 +1339,7 @@ function build_topic_modal(gobj)
                     ['div', {class: 'buttons', style: 'justify-content:center; width:100%;'}, [
                         ['button', { class: 'button is-success px-4', type: 'submit'}, [
                             ['span', {class:'icon'}, [
-                                ['i', {class:'fa fa-save'}]
+                                ['i', {class:'yi-floppy-disk'}]
                             ]],
                             ['span', {i18n:'save'}, 'save']
                         ], {
