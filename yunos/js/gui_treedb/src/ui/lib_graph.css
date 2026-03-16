@@ -13,6 +13,19 @@
 }
 
 /*
+ *  G6 fullscreen: override G6's transparent ::backdrop and give the container
+ *  a solid background so the page doesn't show through.
+ *  G6 injects `:not(:root):fullscreen::backdrop { background: transparent }`
+ *  with lower specificity, so class + pseudo-class wins without !important.
+ */
+.graph-container:fullscreen {
+    background-color: var(--bulma-background, #fff);
+}
+.graph-container:fullscreen::backdrop {
+    background-color: var(--bulma-background, #fff);
+}
+
+/*
  *  G6 toolbar: larger icons (via className option)
  */
 .g6-toolbar.g6-toolbar-large .g6-toolbar-item {
