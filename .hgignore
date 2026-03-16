@@ -9,7 +9,7 @@ VERSION_INSTALLED.txt
 VERSION_INSTALLED_STATIC.txt
 build_static/
 build_musl/
-
+x.html
 cmake-build-release/
 cmake-build-debug/
 cmake-build-relwithdebinfo/
