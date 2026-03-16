@@ -498,16 +498,16 @@ function configure_toolbar(gobj)
             },
             getItems: () => {
                 let items = [
-                    { id: 'zoom-in', value: 'zoom-in' },
-                    { id: 'zoom-out', value: 'zoom-out' },
-                    { id: 'reset', value: 'reset' },
-                    { id: 'auto-fit', value: 'auto-fit' },
+                    { id: 'zoom-in', value: 'zoom-in', title: 'Zoom In' },
+                    { id: 'zoom-out', value: 'zoom-out', title: 'Zoom Out' },
+                    { id: 'reset', value: 'reset', title: 'Reset Zoom' },
+                    { id: 'auto-fit', value: 'auto-fit', title: 'Auto Fit' },
                 ];
 
                 if(priv.edit_mode) {
                     items.push(
-                        { id: 'undo', value: 'undo' },
-                        { id: 'redo', value: 'redo' },
+                        { id: 'undo', value: 'undo', title: 'Undo' },
+                        { id: 'redo', value: 'redo', title: 'Redo' },
                     );
                 }
 
