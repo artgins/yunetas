@@ -36,6 +36,7 @@
 .g6-toolbar.g6-toolbar-large .g6-toolbar-item svg {
     width: 20px;
     height: 20px;
+    fill: currentColor;
 }
 /* Vertical toolbar (column): horizontal separator */
 .g6-toolbar.g6-toolbar-large[style*="flex-direction: column"] .g6-toolbar-item + .g6-toolbar-item {

@@ -70,6 +70,12 @@ import {
     getStrokeColor,
 } from "./lib_graph.js";
 
+import {
+    set_toolbar_item_submit_state,
+    set_toolbar_item_cancel_state,
+    set_toolbar_item_active_state,
+} from "./lib_icons.js";
+
 
 
 import {
@@ -585,6 +591,26 @@ function configure_toolbar(gobj)
             },
         }
     );
+}
+
+/************************************************************
+ *  GObj wrappers around lib_icons toolbar icon state functions.
+ *  item_value: 'value' attribute of the toolbar item (e.g. 'save').
+ *  set: true to activate the state, false to clear it.
+ ************************************************************/
+function gobj_set_toolbar_item_submit_state(gobj, item_value, set)
+{
+    set_toolbar_item_submit_state(gobj_read_attr(gobj, "$container"), item_value, set);
+}
+
+function gobj_set_toolbar_item_cancel_state(gobj, item_value, set)
+{
+    set_toolbar_item_cancel_state(gobj_read_attr(gobj, "$container"), item_value, set);
+}
+
+function gobj_set_toolbar_item_active_state(gobj, item_value, set)
+{
+    set_toolbar_item_active_state(gobj_read_attr(gobj, "$container"), item_value, set);
 }
 
 /************************************************************

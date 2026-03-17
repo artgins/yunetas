@@ -1,19 +1,31 @@
 /*********************************************************
  *      lib_icons.js
  *
- *      Custom SVG icon symbols for G6 toolbar and other
- *      components. Symbols are injected once into the DOM
- *      so they can be referenced via <use xlink:href="#id">.
+ *      Two icon systems are managed here:
  *
- *      All symbol ids are prefixed with "g6-icon-" to avoid
- *      conflicts with other DOM elements.
+ *      1. FA-style CSS icons (yui_icons.css)
+ *         Usage: <i class="yi-save"></i>
+ *         Color: inherits currentColor from parent via CSS mask.
  *
- *      Icon paths come from:
- *        fontawesome-free-7.1.0-web/sprites/regular.svg
+ *      2. SVG symbol icons for G6 toolbar (and any other component
+ *         that uses <use xlink:href="#id">).
+ *         Symbols are injected once into the DOM.
+ *         All symbol ids are prefixed with "g6-icon-" to avoid
+ *         conflicts with other DOM elements.
+ *         Icon paths come from:
+ *           fontawesome-free-7.1.0-web/sprites/regular.svg
+ *         lib_graph.css sets fill:currentColor on .g6-toolbar-item svg
+ *         so each item's color can be set individually via style.color.
  *
  *      Copyright (c) 2025-2026, ArtGins.
  *      All Rights Reserved.
  *********************************************************/
+
+import {
+    set_submit_state,
+    set_cancel_state,
+    set_active_state,
+} from "./lib_graph.js";
 
 const CUSTOM_SVG_ICONS_ID = 'g6-custom-svgicons';
 
@@ -38,4 +50,33 @@ export function inject_svg_icons()
     div.style.display = 'none';
     div.innerHTML = ICONS;
     document.body.appendChild(div);
+}
+
+/*
+ *  Toolbar icon state functions.
+ *  Work for G6 toolbar and any other toolbar that renders items as:
+ *    <div class="g6-toolbar-item" value="..."><svg>...</svg></div>
+ *
+ *  lib_graph.css sets fill:currentColor on .g6-toolbar-item svg, so
+ *  the SVG path inherits the CSS color property of its parent div.
+ *  The same CSS state classes used elsewhere (color_submit_state, etc.)
+ *  therefore apply to toolbar icons without any extra CSS.
+ *
+ *  container_el  — the DOM element that contains the .g6-toolbar
+ *  item_value    — the 'value' attribute of the target item (e.g. 'save')
+ *  set           — true to activate the state, false to clear it
+ */
+export function set_toolbar_item_submit_state(container_el, item_value, set)
+{
+    set_submit_state(container_el, `.g6-toolbar [value="${item_value}"]`, set);
+}
+
+export function set_toolbar_item_cancel_state(container_el, item_value, set)
+{
+    set_cancel_state(container_el, `.g6-toolbar [value="${item_value}"]`, set);
+}
+
+export function set_toolbar_item_active_state(container_el, item_value, set)
+{
+    set_active_state(container_el, `.g6-toolbar [value="${item_value}"]`, set);
 }
