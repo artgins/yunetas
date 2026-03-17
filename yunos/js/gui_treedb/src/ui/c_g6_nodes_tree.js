@@ -78,14 +78,6 @@ import {
 } from "./lib_graph.js";
 
 import {
-    set_toolbar_item_submit_state,
-    set_toolbar_item_cancel_state,
-    set_toolbar_item_active_state,
-} from "./lib_icons.js";
-
-
-
-import {
     BaseLayout,
     ExtensionCategory,
     Graph,
@@ -94,10 +86,45 @@ import {
     HistoryEvent,
     EdgeEvent,
     Circle,
+    Toolbar,
     register,
 } from '@antv/g6';
 
 import {Circle as CircleGeometry} from '@antv/g';
+
+/***************************************************************
+ *  YuiToolbar — G6 Toolbar subclass that adds per-item className
+ *  and disabled support.
+ *
+ *  Each item in getItems() may carry:
+ *    className  — CSS class added to the div (e.g. 'EV_SAVE_GRAPH')
+ *    disabled   — boolean; sets the 'disabled' attribute initially
+ *
+ *  With className set to the event name, the lib_graph.js state
+ *  functions (set_submit_state, disableElements, …) work on toolbar
+ *  icons exactly like on regular Bulma/FA buttons — no special
+ *  icon-specific helpers needed.
+ ***************************************************************/
+class YuiToolbar extends Toolbar
+{
+    async getDOMContent()
+    {
+        const items = await this.options.getItems();
+        return items.map((item) => {
+            const extra_class = item.className ? ` ${item.className}` : '';
+            const disabled    = item.disabled  ? ' disabled'          : '';
+            return (
+                `<div class="g6-toolbar-item${extra_class}"` +
+                ` value="${item.value}" title="${item.title ?? ''}"${disabled}>` +
+                `<svg aria-hidden="true" focusable="false">` +
+                `<use xlink:href="#${item.id}"></use>` +
+                `</svg>` +
+                `</div>`
+            );
+        }).join('');
+    }
+}
+register(ExtensionCategory.PLUGIN, 'yui-toolbar', YuiToolbar);
 
 /***************************************************************
  *              Constants
@@ -390,7 +417,6 @@ function build_graph(gobj)
         configure_events(gobj);
         configure_behaviour(gobj);
         configure_plugins(gobj);
-        update_edit_mode(gobj);
     });
 }
 
@@ -525,6 +551,7 @@ function configure_toolbar(gobj)
         gobj,
         'toolbar',
         {
+            type: 'yui-toolbar',
             className: 'g6-toolbar-large',
             position: toolbar_position,
             style: {
@@ -539,25 +566,25 @@ function configure_toolbar(gobj)
             },
             getItems: () => {
                 let items = [
-                    { id: 'zoom-in', value: 'zoom-in', title: 'Zoom In' },
-                    { id: 'zoom-out', value: 'zoom-out', title: 'Zoom Out' },
-                    { id: 'reset', value: 'reset', title: 'Reset Zoom' },
-                    { id: 'auto-fit', value: 'auto-fit', title: 'Auto Fit' },
+                    { id: 'zoom-in',  value: 'zoom-in',  className: 'EV_ZOOM_IN',    title: 'Zoom In'    },
+                    { id: 'zoom-out', value: 'zoom-out', className: 'EV_ZOOM_OUT',   title: 'Zoom Out'   },
+                    { id: 'reset',    value: 'reset',    className: 'EV_ZOOM_RESET', title: 'Reset Zoom' },
+                    { id: 'auto-fit', value: 'auto-fit', className: 'EV_AUTO_FIT',   title: 'Auto Fit'   },
                 ];
 
                 if(gobj_read_bool_attr(gobj, "with_fullscreen")) {
                     items.push(
-                        { id: 'request-fullscreen', value: 'request-fullscreen', title: 'Enter Full Screen' },
-                        { id: 'exit-fullscreen', value: 'exit-fullscreen', title: 'Exit Full Screen' },
+                        { id: 'request-fullscreen', value: 'request-fullscreen', className: 'EV_REQUEST_FULLSCREEN', title: 'Enter Full Screen' },
+                        { id: 'exit-fullscreen',    value: 'exit-fullscreen',    className: 'EV_EXIT_FULLSCREEN',    title: 'Exit Full Screen'  },
                     );
                 }
 
                 if(priv.edit_mode) {
                     items.push(
-                        { id: 'undo', value: 'undo', title: 'Undo' },
-                        { id: 'redo', value: 'redo', title: 'Redo' },
-                        { id: 'delete', value: 'delete', title: 'Delete' },
-                        { id: 'g6-icon-save', value: 'save', title: 'Save' },
+                        { id: 'undo',         value: 'undo',   className: 'EV_HISTORY_UNDO', title: 'Undo',   disabled: true },
+                        { id: 'redo',         value: 'redo',   className: 'EV_HISTORY_REDO', title: 'Redo',   disabled: true },
+                        // { id: 'delete',       value: 'delete', className: 'EV_DELETE_NODE',  title: 'Delete'                },
+                        { id: 'g6-icon-save', value: 'save',   className: 'EV_SAVE_GRAPH',   title: 'Save',   disabled: true },
                     );
                 }
 
@@ -1334,48 +1361,6 @@ function save_geometry(gobj)
 /************************************************************
  *
  ************************************************************/
-function update_edit_mode(gobj)
-{
-    let priv = gobj.priv;
-    let $container = gobj_read_attr(gobj, "$container");
-
-    if(priv.edit_mode) {
-        /*
-         *  Set edition mode
-         */
-        set_active_state($container, ".EV_EDIT_MODE", true);
-
-        graph_set_behavior(gobj, 'drag-element', true);
-
-        graph_add_plugin(gobj, 'history');
-
-    } else {
-        /*
-         *  Set non-edition mode
-         */
-        set_active_state($container, ".EV_EDIT_MODE", false);
-
-        graph_set_behavior(gobj, 'drag-element', false);
-
-        /*
-         *  Disable "save" although it could be active
-         */
-        disableElements($container, ".EV_SAVE_GRAPH");
-        set_submit_state($container, ".EV_SAVE_GRAPH", false);
-
-        /*
-         *  Remove history plugin
-         */
-        graph_remove_plugin(gobj, 'history');
-        update_history_buttons(gobj);
-    }
-
-    return 0;
-}
-
-/************************************************************
- *
- ************************************************************/
 function update_history_buttons(gobj)
 {
     let priv = gobj.priv;
@@ -1545,7 +1530,7 @@ function graph_add_plugin(gobj, plugin_key, options)
             type: plugin_key,
         };
         if(json_object_size(options)) {
-            json_object_update_missing(plugin_def, options);
+            json_object_update(plugin_def, options);  // options can override type
         }
         graph.setPlugins((plugins) => [...plugins, plugin_def]);
     }
@@ -1556,7 +1541,7 @@ function graph_add_plugin(gobj, plugin_key, options)
         case "history":
             if(plugin) {
                 plugin.emitter.on(HistoryEvent.ADD, () => {
-                    //update_history_buttons(gobj);
+                    update_history_buttons(gobj);
                 });
             }
             break;
@@ -1730,6 +1715,7 @@ function ac_clear_data(gobj, event, kw, src)
         let history = graph_get_plugin(gobj, "history");
         if(history) {
             graph_remove_plugin(gobj, "history");
+            update_history_buttons(gobj);
         }
     });
 
@@ -2067,7 +2053,6 @@ function ac_set_layout(gobj, event, kw, src)
     graph_set_layout(gobj, layout).then(() => {
         configure_behaviour(gobj);
         update_toolbar(gobj);
-        update_edit_mode(gobj);
     });
 
     return 0;
@@ -2081,7 +2066,6 @@ function ac_set_operation_mode(gobj, event, kw, src)
     gobj_write_attr(gobj, "operation_mode", kw.operation_mode);
     configure_behaviour(gobj);
     update_toolbar(gobj);
-    update_edit_mode(gobj);
     return 0;
 }
 
@@ -2097,6 +2081,13 @@ function ac_save_graph(gobj, event, kw, src)
 
         disableElements($container, ".EV_SAVE_GRAPH");
         set_submit_state($container, ".EV_SAVE_GRAPH", false);
+
+        let history = graph_get_plugin(gobj, "history");
+        if(history) {
+            history.clear();
+            update_history_buttons(gobj);
+        }
+
         save_geometry(gobj);
     }
 
@@ -2184,7 +2175,7 @@ function ac_history_redo(gobj, event, kw, src)
         if(history && history.canRedo()) {
             history.redo();
         }
-        // update_history_buttons(gobj);
+        update_history_buttons(gobj);
     }
 
     return 0;
@@ -2199,7 +2190,7 @@ function ac_history_undo(gobj, event, kw, src)
         if(history && history.canUndo()) {
             history.undo();
         }
-        // update_history_buttons(gobj);
+        update_history_buttons(gobj);
     }
 
     return 0;

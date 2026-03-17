@@ -38,6 +38,11 @@
     height: 20px;
     fill: currentColor;
 }
+/* Disabled toolbar item: visual feedback + block clicks */
+.g6-toolbar-item[disabled] {
+    opacity: 0.35;
+    pointer-events: none;
+}
 /* Vertical toolbar (column): horizontal separator */
 .g6-toolbar.g6-toolbar-large[style*="flex-direction: column"] .g6-toolbar-item + .g6-toolbar-item {
     border-top: 1px solid #d9d9d9;
