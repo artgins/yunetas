@@ -2151,6 +2151,12 @@ function ac_unlink_nodes(gobj, event, kw, src)
     return 0;
 }
 
+function ac_save(gobj, event, kw, src)
+{
+    // TODO gobj_publish_event(gobj, "EV_SAVE", kw);
+    return 0;
+}
+
 
 
 
@@ -2223,6 +2229,7 @@ function create_gclass(gclass_name)
             ["EV_DELETE_NODE",              ac_delete_node,         null],
             ["EV_LINK_NODES",               ac_link_nodes,          null],
             ["EV_UNLINK_NODES",             ac_unlink_nodes,        null],
+            ["EV_SAVE",                     ac_save,                null],
 
             /*--- UI events ---*/
             ["EV_SHOW",                     ac_show,                null],
@@ -2274,6 +2281,7 @@ function create_gclass(gclass_name)
         ["EV_DELETE_NODE",              event_flag_t.EVF_OUTPUT_EVENT],
         ["EV_LINK_NODES",               event_flag_t.EVF_OUTPUT_EVENT],
         ["EV_UNLINK_NODES",             event_flag_t.EVF_OUTPUT_EVENT],
+        ["EV_SAVE",                     event_flag_t.EVF_OUTPUT_EVENT],
 
         // TODO some events to review from mx_nodes_tree.js
         // ["EV_SHOW_HOOK_DATA",           event_flag_t.EVF_OUTPUT_EVENT],
