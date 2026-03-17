@@ -67,6 +67,13 @@ import {
 import {
     addClasses,
     removeClasses,
+    toggleClasses,
+    removeChildElements,
+    disableElements,
+    enableElements,
+    set_submit_state,
+    set_cancel_state,
+    set_active_state,
     getStrokeColor,
 } from "./lib_graph.js";
 
@@ -381,8 +388,9 @@ function build_graph(gobj)
 
     graph_render(gobj).then(() => {
         configure_events(gobj);
-        configure_behaviour(gobj, priv.operation_mode);
+        configure_behaviour(gobj);
         configure_plugins(gobj);
+        update_edit_mode(gobj);
     });
 }
 
@@ -579,7 +587,7 @@ function configure_toolbar(gobj)
                         gobj_send_event(gobj, "EV_HISTORY_REDO", {}, gobj);
                         break;
                     case 'save':
-                        gobj_send_event(gobj, "EV_SAVE", {}, gobj);
+                        gobj_send_event(gobj, "EV_SAVE_GRAPH", {}, gobj);
                         break;
                     case 'request-fullscreen':
                         gobj_send_event(gobj, "EV_REQUEST_FULLSCREEN", {}, gobj);
@@ -591,26 +599,6 @@ function configure_toolbar(gobj)
             },
         }
     );
-}
-
-/************************************************************
- *  GObj wrappers around lib_icons toolbar icon state functions.
- *  item_value: 'value' attribute of the toolbar item (e.g. 'save').
- *  set: true to activate the state, false to clear it.
- ************************************************************/
-function gobj_set_toolbar_item_submit_state(gobj, item_value, set)
-{
-    set_toolbar_item_submit_state(gobj_read_attr(gobj, "$container"), item_value, set);
-}
-
-function gobj_set_toolbar_item_cancel_state(gobj, item_value, set)
-{
-    set_toolbar_item_cancel_state(gobj_read_attr(gobj, "$container"), item_value, set);
-}
-
-function gobj_set_toolbar_item_active_state(gobj, item_value, set)
-{
-    set_toolbar_item_active_state(gobj_read_attr(gobj, "$container"), item_value, set);
 }
 
 /************************************************************
@@ -653,15 +641,16 @@ function select_layout(gobj, layout_name)
  *  Set behavior of operation mode:
  *  reading, operation, writing, edition
  ************************************************************/
-function configure_behaviour(gobj, mode)
+function configure_behaviour(gobj)
 {
     let priv = gobj.priv;
+    let operation_mode = priv.operation_mode;
 
     /*
      *  Behaviors
      */
     let behaviors = [];
-    switch(mode) {
+    switch(operation_mode) {
         case "writing":
         case "reading":
             priv.edit_mode = false;
@@ -682,7 +671,7 @@ function configure_behaviour(gobj, mode)
             priv.edit_mode = false;
             break;
         default:
-            log_error(`operation mode unknown: ${mode}`);
+            log_error(`operation mode unknown: ${operation_mode}`);
             break;
     }
     graph_write_behaviors(gobj, behaviors);
@@ -1343,6 +1332,85 @@ function save_geometry(gobj)
 }
 
 /************************************************************
+ *
+ ************************************************************/
+function update_edit_mode(gobj)
+{
+    let priv = gobj.priv;
+    let $container = gobj_read_attr(gobj, "$container");
+
+    if(priv.edit_mode) {
+        /*
+         *  Set edition mode
+         */
+        set_active_state($container, ".EV_EDIT_MODE", true);
+
+        graph_set_behavior(gobj, 'drag-element', true);
+
+        graph_add_plugin(gobj, 'history');
+
+    } else {
+        /*
+         *  Set non-edition mode
+         */
+        set_active_state($container, ".EV_EDIT_MODE", false);
+
+        graph_set_behavior(gobj, 'drag-element', false);
+
+        /*
+         *  Disable "save" although it could be active
+         */
+        disableElements($container, ".EV_SAVE_GRAPH");
+        set_submit_state($container, ".EV_SAVE_GRAPH", false);
+
+        /*
+         *  Remove history plugin
+         */
+        graph_remove_plugin(gobj, 'history');
+        update_history_buttons(gobj);
+    }
+
+    return 0;
+}
+
+/************************************************************
+ *
+ ************************************************************/
+function update_history_buttons(gobj)
+{
+    let priv = gobj.priv;
+    let graph = priv.graph;
+    let $container = gobj_read_attr(gobj, "$container");
+
+    if(priv.edit_mode) {
+        const history = graph.getPluginInstance('history');
+        if(history) {
+            if(history.canRedo()) {
+                enableElements($container, ".EV_HISTORY_REDO");
+                set_active_state($container, ".EV_HISTORY_REDO", true);
+            } else {
+                disableElements($container, ".EV_HISTORY_REDO");
+                set_active_state($container, ".EV_HISTORY_REDO", false);
+            }
+
+            if (history.canUndo()) {
+                enableElements($container, ".EV_HISTORY_UNDO");
+                set_active_state($container, ".EV_HISTORY_UNDO", true);
+            } else {
+                disableElements($container, ".EV_HISTORY_UNDO");
+                set_active_state($container, ".EV_HISTORY_UNDO", false);
+            }
+        } else {
+            disableElements($container, ".EV_HISTORY_REDO");
+            set_active_state($container, ".EV_HISTORY_REDO", false);
+
+            disableElements($container, ".EV_HISTORY_UNDO");
+            set_active_state($container, ".EV_HISTORY_UNDO", false);
+        }
+    }
+}
+
+/************************************************************
  *  Graph utility functions
  *
  *  From the G6 documentation:
@@ -1994,8 +2062,13 @@ function ac_fullscreen(gobj, event, kw, src)
  ************************************************************/
 function ac_set_layout(gobj, event, kw, src)
 {
+    let priv = gobj.priv;
     let layout = select_layout(gobj, kw.layout);
-    graph_set_layout(gobj, layout);
+    graph_set_layout(gobj, layout).then(() => {
+        configure_behaviour(gobj);
+        update_toolbar(gobj);
+        update_edit_mode(gobj);
+    });
 
     return 0;
 }
@@ -2006,8 +2079,9 @@ function ac_set_layout(gobj, event, kw, src)
 function ac_set_operation_mode(gobj, event, kw, src)
 {
     gobj_write_attr(gobj, "operation_mode", kw.operation_mode);
-    configure_behaviour(gobj, kw.operation_mode);
+    configure_behaviour(gobj);
     update_toolbar(gobj);
+    update_edit_mode(gobj);
     return 0;
 }
 
@@ -2019,6 +2093,10 @@ function ac_save_graph(gobj, event, kw, src)
     let priv = gobj.priv;
 
     if(priv.edit_mode) {
+        let $container = gobj_read_attr(gobj, "$container");
+
+        disableElements($container, ".EV_SAVE_GRAPH");
+        set_submit_state($container, ".EV_SAVE_GRAPH", false);
         save_geometry(gobj);
     }
 
@@ -2031,6 +2109,12 @@ function ac_save_graph(gobj, event, kw, src)
 function ac_node_drag_end(gobj, event, kw, src)
 {
     let priv = gobj.priv;
+
+    if(priv.edit_mode) {
+        let $container = gobj_read_attr(gobj, "$container");
+        enableElements($container, ".EV_SAVE_GRAPH");
+        set_submit_state($container, ".EV_SAVE_GRAPH", true);
+    }
 
     return 0;
 }
@@ -2177,12 +2261,6 @@ function ac_unlink_nodes(gobj, event, kw, src)
     return 0;
 }
 
-function ac_save(gobj, event, kw, src)
-{
-    // TODO gobj_publish_event(gobj, "EV_SAVE", kw);
-    return 0;
-}
-
 
 
 
@@ -2255,7 +2333,6 @@ function create_gclass(gclass_name)
             ["EV_DELETE_NODE",              ac_delete_node,         null],
             ["EV_LINK_NODES",               ac_link_nodes,          null],
             ["EV_UNLINK_NODES",             ac_unlink_nodes,        null],
-            ["EV_SAVE",                     ac_save,                null],
 
             /*--- UI events ---*/
             ["EV_SHOW",                     ac_show,                null],
@@ -2293,9 +2370,9 @@ function create_gclass(gclass_name)
         ["EV_FULLSCREEN",               0],
         ["EV_SET_LAYOUT",               0],
         ["EV_SET_OPERATION_MODE",       0],
-        ["EV_SAVE_GRAPH",               0],
         ["EV_HISTORY_UNDO",             0],
         ["EV_HISTORY_REDO",             0],
+        ["EV_SAVE_GRAPH",               0],
         ["EV_REQUEST_FULLSCREEN",       0],
         ["EV_EXIT_FULLSCREEN",          0],
 
@@ -2307,7 +2384,6 @@ function create_gclass(gclass_name)
         ["EV_DELETE_NODE",              event_flag_t.EVF_OUTPUT_EVENT],
         ["EV_LINK_NODES",               event_flag_t.EVF_OUTPUT_EVENT],
         ["EV_UNLINK_NODES",             event_flag_t.EVF_OUTPUT_EVENT],
-        ["EV_SAVE",                     event_flag_t.EVF_OUTPUT_EVENT],
 
         // TODO some events to review from mx_nodes_tree.js
         // ["EV_SHOW_HOOK_DATA",           event_flag_t.EVF_OUTPUT_EVENT],
