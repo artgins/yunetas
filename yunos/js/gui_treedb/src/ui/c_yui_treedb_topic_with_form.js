@@ -184,6 +184,11 @@ function mt_stop(gobj)
  ***************************************************************/
 function mt_destroy(gobj)
 {
+    let tabulator = gobj_read_attr(gobj, "tabulator");
+    if(tabulator) {
+        tabulator.destroy();
+        gobj_write_attr(gobj, "tabulator", null);
+    }
     destroy_ui(gobj);
 }
 
@@ -278,11 +283,11 @@ async function readClipboard(gobj)
  ************************************************************/
 function build_ui(gobj)
 {
-    function create_bootstrap_toolbar()
+    function create_table_toolbar()
     {
         // TODO pon autorización, solo si está autorizado a modificar los datos!!!
         // TODO deja que estos botones se queden en el top cuando se hace scroll (clip ?)
-        let $bootstrap_toolbar = [];
+        let $table_toolbar = [];
         let with_edition_mode = gobj_read_bool_attr(gobj, "with_edition_mode");
         let with_new_button = gobj_read_bool_attr(gobj, "with_new_button");
         let with_delete_button = gobj_read_bool_attr(gobj, "with_delete_button");
@@ -292,7 +297,7 @@ function build_ui(gobj)
         let toolbar_id = gobj_read_str_attr(gobj, "toolbar_id");
 
         if(with_edition_mode) {
-            $bootstrap_toolbar = createElement2(
+            $table_toolbar = createElement2(
                 ['div', {id: `${toolbar_id}`, class: 'buttons is-gapless'}]
             );
             let $edit_button = createElement2(
@@ -318,7 +323,7 @@ function build_ui(gobj)
                     }
                 }
             ]);
-            $bootstrap_toolbar.appendChild($edit_button);
+            $table_toolbar.appendChild($edit_button);
 
             if(with_new_button) {
                 let $new_button = createElement2(
@@ -337,7 +342,7 @@ function build_ui(gobj)
                         }
                     }
                 ]);
-                $bootstrap_toolbar.appendChild($new_button);
+                $table_toolbar.appendChild($new_button);
             }
 
             if(with_delete_button) {
@@ -358,7 +363,7 @@ function build_ui(gobj)
                         }
                     }
                 ]);
-                $bootstrap_toolbar.appendChild($delete_button);
+                $table_toolbar.appendChild($delete_button);
             }
 
             if(with_copy_button) {
@@ -379,7 +384,7 @@ function build_ui(gobj)
                         }
                     }
                     ]);
-                $bootstrap_toolbar.appendChild($copy_button);
+                $table_toolbar.appendChild($copy_button);
             }
 
             if(with_paste_button) {
@@ -399,13 +404,13 @@ function build_ui(gobj)
                         }
                     }]
                 );
-                $bootstrap_toolbar.appendChild($paste_button);
+                $table_toolbar.appendChild($paste_button);
             }
         }
-        return $bootstrap_toolbar;
+        return $table_toolbar;
     }
 
-    let $bootstrap_toolbar = create_bootstrap_toolbar();
+    let $table_toolbar = create_table_toolbar();
 
     /*----------------------------------------------*
      *  View toolbar: Search, Refresh
@@ -502,8 +507,8 @@ function build_ui(gobj)
         ]]
     );
     let $toolbar_slot = $container.querySelector('.tabulator-custom-toolbar');
-    if($bootstrap_toolbar instanceof Element) {
-        $toolbar_slot.appendChild($bootstrap_toolbar);
+    if($table_toolbar instanceof Element) {
+        $toolbar_slot.appendChild($table_toolbar);
     } else {
         $toolbar_slot.appendChild(createElement2(['div', {}]));
     }
