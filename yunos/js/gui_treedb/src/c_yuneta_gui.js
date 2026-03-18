@@ -402,64 +402,65 @@ function build_app(gobj, services_roles)
     /*----------------------------------------*
      *      Treedb Authzs
      *----------------------------------------*/
-    let authzs_roles = services_roles["treedb_authzs"];
-    if(authzs_roles && strs_in_list(authzs_roles, ["root","owner"], true)) {
-        /*----------------------*
-         *      USER Topics
-         *----------------------*/
-        let gobj_tables_authzsdb = gobj_create_service(
-            "#topics_authzs", // HACK href
-            "C_YUI_TREEDB_TOPICS",
-            {
-                gobj_remote_yuno: __yuno__.__remote_service__,
-                treedb_name: "treedb_authzs",
-            },
-            gobj
-        );
-        priv.user_gobjs.push(gobj_tables_authzsdb);
-        // gobj_start(gobj_tables_authzsdb);
-        menu.push(
-            {
-                id: gobj_name(gobj_tables_authzsdb),
-                label: "AuthzDB Topics",
-                icon: "yi-table",
-                gobj: gobj_tables_authzsdb  // use "$container" attribute
-            }
-        );
-
-        /*----------------------*
-         *      USER Graphs
-         *----------------------*/
-        let gobj_tabs = gobj_create_pure_child(
-            "#graphs_authzs", // HACK href
-            "C_YUI_TABS",
-            {
-            },
-            gobj
-        );
-        menu.push(
-            {
-                id: gobj_name(gobj_tabs),
-                label: "AuthzDB Graphs",
-                icon: "yi-hexagon-nodes",
-                gobj: gobj_tabs   // use "$container" attribute
-            }
-        );
-
-        gobj_create_service(
-            "authzdb_treedb_view",
-            "C_YUI_TREEDB_GRAPH",
-            {
-                subscriber: gobj,
-                treedb_name: "treedb_authzs",
-                gobj_remote_yuno: __yuno__.__remote_service__,
-                label: "AuthDB",
-                icon: "yi-hexagon-nodes"
-            },
-            gobj_tabs
-        );
-        priv.user_gobjs.push(gobj_tabs);
-    }
+    // TODO repon
+    // let authzs_roles = services_roles["treedb_authzs"];
+    // if(authzs_roles && strs_in_list(authzs_roles, ["root","owner"], true)) {
+    //     /*----------------------*
+    //      *      USER Topics
+    //      *----------------------*/
+    //     let gobj_tables_authzsdb = gobj_create_service(
+    //         "#topics_authzs", // HACK href
+    //         "C_YUI_TREEDB_TOPICS",
+    //         {
+    //             gobj_remote_yuno: __yuno__.__remote_service__,
+    //             treedb_name: "treedb_authzs",
+    //         },
+    //         gobj
+    //     );
+    //     priv.user_gobjs.push(gobj_tables_authzsdb);
+    //     // gobj_start(gobj_tables_authzsdb);
+    //     menu.push(
+    //         {
+    //             id: gobj_name(gobj_tables_authzsdb),
+    //             label: "AuthzDB Topics",
+    //             icon: "yi-table",
+    //             gobj: gobj_tables_authzsdb  // use "$container" attribute
+    //         }
+    //     );
+    //
+    //     /*----------------------*
+    //      *      USER Graphs
+    //      *----------------------*/
+    //     let gobj_tabs = gobj_create_pure_child(
+    //         "#graphs_authzs", // HACK href
+    //         "C_YUI_TABS",
+    //         {
+    //         },
+    //         gobj
+    //     );
+    //     menu.push(
+    //         {
+    //             id: gobj_name(gobj_tabs),
+    //             label: "AuthzDB Graphs",
+    //             icon: "yi-hexagon-nodes",
+    //             gobj: gobj_tabs   // use "$container" attribute
+    //         }
+    //     );
+    //
+    //     gobj_create_service(
+    //         "authzdb_treedb_view",
+    //         "C_YUI_TREEDB_GRAPH",
+    //         {
+    //             subscriber: gobj,
+    //             treedb_name: "treedb_authzs",
+    //             gobj_remote_yuno: __yuno__.__remote_service__,
+    //             label: "AuthDB",
+    //             icon: "yi-hexagon-nodes"
+    //         },
+    //         gobj_tabs
+    //     );
+    //     priv.user_gobjs.push(gobj_tabs);
+    // }
 
     /*----------------------------------------*
      *      Design
@@ -498,31 +499,32 @@ function build_app(gobj, services_roles)
         );
     }
 
-    if(authzs_roles && strs_in_list(authzs_roles, ["root","owner"], true)) {
-        /*-------------------------*
-         *      SYSTEM Topics
-         *-------------------------*/
-        let gobj_tables_authzsdb = gobj_create_service(
-            "#topics_authzs_system", // HACK href
-            "C_YUI_TREEDB_TOPICS",
-            {
-                gobj_remote_yuno: __yuno__.__remote_service__,
-                treedb_name: "treedb_authzs",
-                system: true,
-            },
-            gobj
-        );
-        priv.user_gobjs.push(gobj_tables_authzsdb);
-        // gobj_start(gobj_tables_authzsdb);
-        menu.push(
-            {
-                id: gobj_name(gobj_tables_authzsdb),
-                label: "AuthzDB Design",
-                icon: "yi-table",
-                gobj: gobj_tables_authzsdb  // use "$container" attribute
-            }
-        );
-    }
+    // TODO repon
+    // if(authzs_roles && strs_in_list(authzs_roles, ["root","owner"], true)) {
+    //     /*-------------------------*
+    //      *      SYSTEM Topics
+    //      *-------------------------*/
+    //     let gobj_tables_authzsdb = gobj_create_service(
+    //         "#topics_authzs_system", // HACK href
+    //         "C_YUI_TREEDB_TOPICS",
+    //         {
+    //             gobj_remote_yuno: __yuno__.__remote_service__,
+    //             treedb_name: "treedb_authzs",
+    //             system: true,
+    //         },
+    //         gobj
+    //     );
+    //     priv.user_gobjs.push(gobj_tables_authzsdb);
+    //     // gobj_start(gobj_tables_authzsdb);
+    //     menu.push(
+    //         {
+    //             id: gobj_name(gobj_tables_authzsdb),
+    //             label: "AuthzDB Design",
+    //             icon: "yi-table",
+    //             gobj: gobj_tables_authzsdb  // use "$container" attribute
+    //         }
+    //     );
+    // }
 
     /*----------------------------------------*
      *      Developer

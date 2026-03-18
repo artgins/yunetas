@@ -566,6 +566,7 @@ function configure_toolbar(gobj)
             },
             getItems: () => {
                 let items = [
+                    { id: 'g6-icon-save', value: 'save',   className: 'EV_SAVE_GRAPH',   title: 'Save',   disabled: true },
                     { id: 'zoom-in',  value: 'zoom-in',  className: 'EV_ZOOM_IN',    title: 'Zoom In'    },
                     { id: 'zoom-out', value: 'zoom-out', className: 'EV_ZOOM_OUT',   title: 'Zoom Out'   },
                     { id: 'reset',    value: 'reset',    className: 'EV_ZOOM_RESET', title: 'Reset Zoom' },
@@ -584,7 +585,7 @@ function configure_toolbar(gobj)
                         { id: 'undo',         value: 'undo',   className: 'EV_HISTORY_UNDO', title: 'Undo',   disabled: true },
                         { id: 'redo',         value: 'redo',   className: 'EV_HISTORY_REDO', title: 'Redo',   disabled: true },
                         // { id: 'delete',       value: 'delete', className: 'EV_DELETE_NODE',  title: 'Delete'                },
-                        { id: 'g6-icon-save', value: 'save',   className: 'EV_SAVE_GRAPH',   title: 'Save',   disabled: true },
+                        // { id: 'g6-icon-save', value: 'save',   className: 'EV_SAVE_GRAPH',   title: 'Save',   disabled: true },
                     );
                 }
 
