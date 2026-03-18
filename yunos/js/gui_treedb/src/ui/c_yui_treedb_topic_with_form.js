@@ -704,13 +704,7 @@ function create_tabulator(gobj)
     Object.assign(tabulator_settings, {
         index: pkey,
         columns: columns,
-        selectable: selectable,
-        rowSelected: function(row) {
-            gobj_send_event(gobj, "EV_SELECT_ROWS", {rows: [row.getData()]}, gobj);
-        },
-        rowDeselected: function(row) {
-            gobj_send_event(gobj, "EV_UNSELECT_ROWS", {rows: [row.getData()]}, gobj);
-        },
+        selectableRows: selectable,
     });
 
     let tabulator = new Tabulator(`#${table_id}`, tabulator_settings);
@@ -721,6 +715,12 @@ function create_tabulator(gobj)
             tabulator.setData(tabulator._pendingData);
             delete tabulator._pendingData;
         }
+    });
+    tabulator.on("rowSelected", function(row) {
+        gobj_send_event(gobj, "EV_SELECT_ROWS", {rows: [row.getData()]}, gobj);
+    });
+    tabulator.on("rowDeselected", function(row) {
+        gobj_send_event(gobj, "EV_UNSELECT_ROWS", {rows: [row.getData()]}, gobj);
     });
     gobj_write_attr(gobj, "tabulator", tabulator);
 
@@ -823,7 +823,7 @@ function transform__treedb_value_2_table_value(gobj, col, value, row, field)
                 }
             }
 
-            value = new_value;
+            value = new_value.join(", ");
             break;
 
         case "now":
