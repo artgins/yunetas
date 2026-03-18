@@ -171,7 +171,7 @@ function mt_create(gobj)
  ***************************************************************/
 function mt_start(gobj)
 {
-    table__build(gobj);
+    create_tabulator(gobj);
 }
 
 /***************************************************************
@@ -545,7 +545,7 @@ function datasetToObject(dataset)
  *   This fn is called on start and when desc attribute is set.
  *   desc contains the description (columns) of table to create
  ******************************************************************/
-function table__build(gobj)
+function create_tabulator(gobj)
 {
     let table_id = gobj_read_str_attr(gobj, "table_id");
     let desc = gobj_read_attr(gobj, "desc");
