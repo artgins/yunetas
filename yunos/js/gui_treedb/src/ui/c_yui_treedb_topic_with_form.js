@@ -117,7 +117,7 @@ SDATA(data_type_t.DTP_JSON,     "tabulator_settings",   0,  {
 
 /*---------------- Internal Attributes ----------------*/
 SDATA(data_type_t.DTP_POINTER,  "$container",           0,  null,   "HTML container for UI"),
-SDATA(data_type_t.DTP_POINTER,  "$$table",              0,  null,   "Tabulator instance"),
+SDATA(data_type_t.DTP_POINTER,  "tabulator",            0,  null,   "Tabulator instance"),
 SDATA(data_type_t.DTP_STRING,   "table_id",             0,  null,   "Table div ID"),
 SDATA(data_type_t.DTP_STRING,   "toolbar_id",           0,  null,   "Toolbar ID"),
 SDATA(data_type_t.DTP_STRING,   "form_id",              0,  null,   "Edit form ID"),
@@ -126,7 +126,10 @@ SDATA(data_type_t.DTP_STRING,   "popup_id",             0,  null,   "Edit form p
 SDATA_END()
 ];
 
-let PRIVATE_DATA = {};
+let PRIVATE_DATA = {
+    $container:         null,
+    tabulator:          null,
+};
 
 let __gclass__ = null;
 
@@ -184,11 +187,6 @@ function mt_stop(gobj)
  ***************************************************************/
 function mt_destroy(gobj)
 {
-    let tabulator = gobj_read_attr(gobj, "tabulator");
-    if(tabulator) {
-        tabulator.destroy();
-        gobj_write_attr(gobj, "tabulator", null);
-    }
     destroy_ui(gobj);
 }
 
@@ -248,8 +246,8 @@ function cmd_get_topic_data(gobj, cmd, kw, src)
         "data": null
     };
 
-    let $$table = gobj_read_attr(gobj, "$$table");
-    webix.data = $$table.getData();
+    let tabulator = gobj_read_attr(gobj, "tabulator");
+    webix.data = tabulator.getData();
     return webix;
 }
 
@@ -452,12 +450,12 @@ function build_ui(gobj)
         if($search_input) {
             $search_input.addEventListener('input', (event) => {
                 let searchText = event.target.value.trim().toLowerCase();
-                let $$table = gobj_read_attr(gobj, "$$table");
-                if(!$$table) {
+                let tabulator = gobj_read_attr(gobj, "tabulator");
+                if(!tabulator) {
                     return;
                 }
                 if(searchText) {
-                    $$table.setFilter(function(data) {
+                    tabulator.setFilter(function(data) {
                         return Object.entries(data).some(([key, val]) => {
                             if(key.startsWith('_')) {
                                 return false;
@@ -469,7 +467,7 @@ function build_ui(gobj)
                         });
                     });
                 } else {
-                    $$table.clearFilter();
+                    tabulator.clearFilter();
                 }
             });
         }
@@ -715,16 +713,16 @@ function table__build(gobj)
         },
     });
 
-    let $$table = new Tabulator(`#${table_id}`, tabulator_settings);
-    $$table._ready = false;
-    $$table.on("tableBuilt", function() {
-        $$table._ready = true;
-        if($$table._pendingData !== undefined) {
-            $$table.setData($$table._pendingData);
-            delete $$table._pendingData;
+    let tabulator = new Tabulator(`#${table_id}`, tabulator_settings);
+    tabulator._ready = false;
+    tabulator.on("tableBuilt", function() {
+        tabulator._ready = true;
+        if(tabulator._pendingData !== undefined) {
+            tabulator.setData(tabulator._pendingData);
+            delete tabulator._pendingData;
         }
     });
-    gobj_write_attr(gobj, "$$table", $$table);
+    gobj_write_attr(gobj, "tabulator", tabulator);
 
     refresh_language(gobj_read_attr(gobj, "$container"), t);
 }
@@ -734,10 +732,10 @@ function table__build(gobj)
  ************************************************************/
 function table__destroy(gobj)
 {
-    let $$table = gobj_read_attr(gobj, "$$table");
-    if($$table) {
-        $$table.destroy();
-        gobj_write_attr(gobj, "$$table", null);
+    let tabulator = gobj_read_attr(gobj, "tabulator");
+    if(tabulator) {
+        tabulator.destroy();
+        gobj_write_attr(gobj, "tabulator", null);
     }
 }
 
@@ -2280,16 +2278,16 @@ function ac_load_nodes(gobj, event, kw, src)
         return -1;
     }
 
-    let $$table = gobj_read_attr(gobj, "$$table");
-    if($$table) {
+    let tabulator = gobj_read_attr(gobj, "tabulator");
+    if(tabulator) {
         /*
          *  setData: Load data into the table. The old rows will be removed.
          *  Guard: defer until tableBuilt fires if Tabulator isn't ready yet.
          */
-        if($$table._ready) {
-            $$table.setData(data);
+        if(tabulator._ready) {
+            tabulator.setData(data);
         } else {
-            $$table._pendingData = data;
+            tabulator._pendingData = data;
         }
     }
 
@@ -2326,10 +2324,10 @@ function ac_load_node_created(gobj, event, kw, src)
         return -1;
     }
 
-    let $$table = gobj_read_attr(gobj, "$$table");
-    if($$table) {
+    let tabulator = gobj_read_attr(gobj, "tabulator");
+    if(tabulator) {
         for(let record of data) {
-            $$table.addData([record]); // Add a new row to table
+            tabulator.addData([record]); // Add a new row to table
         }
     }
 
@@ -2353,10 +2351,10 @@ function ac_load_node_updated(gobj, event, kw, src)
         return -1;
     }
 
-    let $$table = gobj_read_attr(gobj, "$$table");
-    if($$table) {
+    let tabulator = gobj_read_attr(gobj, "tabulator");
+    if(tabulator) {
         for(let record of data) {
-            $$table.updateData([record]);
+            tabulator.updateData([record]);
         }
     }
 
@@ -2380,15 +2378,15 @@ function ac_node_deleted(gobj, event, kw, src)
         return -1;
     }
 
-    let $$table = gobj_read_attr(gobj, "$$table");
-    //$$table.deselectRow(); // unselectAll TODO ??? is necessary?
+    let tabulator = gobj_read_attr(gobj, "tabulator");
+    //tabulator.deselectRow(); // unselectAll TODO ??? is necessary?
 
-    if($$table) {
+    if(tabulator) {
         for(let record of data) {
-            const row = $$table.getRow(record.id);
-            if (row) {
+            const row = tabulator.getRow(record.id);
+            if(row) {
                 // Delete the row by pkey value
-                $$table.deleteRow(record.id);
+                tabulator.deleteRow(record.id);
             } else {
                 log_error("delete_data: record not found: " + record.id);
             }
@@ -2406,7 +2404,7 @@ function ac_node_deleted(gobj, event, kw, src)
  ************************************************************/
 function ac_edition_mode(gobj, event, kw, src)
 {
-    let $$table = gobj_read_attr(gobj, "$$table");
+    let tabulator = gobj_read_attr(gobj, "tabulator");
 
     /*
      *  Set button states according to editable state
@@ -2430,13 +2428,13 @@ function ac_edition_mode(gobj, event, kw, src)
         $button_new_record.classList.add('is-info');
         $button_delete_record.classList.add('is-danger');
 
-        $$table.showColumn('_operation');
-        $$table.showColumn('_check_box_state_');
+        tabulator.showColumn('_operation');
+        tabulator.showColumn('_check_box_state_');
 
         $button_new_record.removeAttribute("disabled");
         $button_paste_record.removeAttribute("disabled");
 
-        let rows = $$table.getSelectedData();
+        let rows = tabulator.getSelectedData();
         if (rows.length) {
             $button_delete_record.removeAttribute("disabled");
             $button_copy_record.removeAttribute("disabled");
@@ -2450,8 +2448,8 @@ function ac_edition_mode(gobj, event, kw, src)
         $button_new_record.classList.remove('is-info');
         $button_delete_record.classList.remove('is-danger');
 
-        $$table.hideColumn('_operation');
-        $$table.hideColumn('_check_box_state_');
+        tabulator.hideColumn('_operation');
+        tabulator.hideColumn('_check_box_state_');
 
         $button_new_record.setAttribute("disabled", true);
         $button_delete_record.setAttribute("disabled", true);
@@ -2516,13 +2514,13 @@ function ac_new_row(gobj, event, kw, src)
  ************************************************************/
 function ac_delete_rows(gobj, event, kw, src)
 {
-    let $$table = gobj_read_attr(gobj, "$$table");
+    let tabulator = gobj_read_attr(gobj, "tabulator");
 
     if(json_size(kw) === 0) {
         /*----------------------------*
          *  Delete selected rows
          *----------------------------*/
-        let rows = $$table.getSelectedData();
+        let rows = tabulator.getSelectedData();
         if (!rows.length) {
             get_ok(t('please select some row'));
             return 0;
@@ -2571,12 +2569,12 @@ function ac_delete_rows(gobj, event, kw, src)
  ************************************************************/
 function ac_copy_rows(gobj, event, kw, src)
 {
-    let $$table = gobj_read_attr(gobj, "$$table");
+    let tabulator = gobj_read_attr(gobj, "tabulator");
 
     /*----------------------------*
      *  Copy selected rows
      *----------------------------*/
-    let rows = $$table.getSelectedData();
+    let rows = tabulator.getSelectedData();
     if (!rows.length) {
         get_ok(t('please select some row'));
         return 0;
@@ -2684,7 +2682,7 @@ function ac_update_record(gobj, event, kw, src)
  ************************************************************/
 function ac_select_rows(gobj, event, kw, src)
 {
-    let $$table = gobj_read_attr(gobj, "$$table");
+    let tabulator = gobj_read_attr(gobj, "tabulator");
     let $container = gobj_read_attr(gobj, "$container");
 
     /*
@@ -2693,7 +2691,7 @@ function ac_select_rows(gobj, event, kw, src)
     let $button_delete_record = $container.querySelector(`.button-delete-record`);
     let $button_copy_record = $container.querySelector(`.button-copy-record`);
     if($button_delete_record) {
-        let selectedRows = $$table.getSelectedData();
+        let selectedRows = tabulator.getSelectedData();
         if (selectedRows.length && gobj_read_bool_attr(gobj, "editable")) {
             $button_delete_record.removeAttribute("disabled");
             $button_copy_record.removeAttribute("disabled");
@@ -2715,7 +2713,7 @@ function ac_select_rows(gobj, event, kw, src)
  ************************************************************/
 function ac_unselect_rows(gobj, event, kw, src)
 {
-    let $$table = gobj_read_attr(gobj, "$$table");
+    let tabulator = gobj_read_attr(gobj, "tabulator");
     let $container = gobj_read_attr(gobj, "$container");
 
     /*
@@ -2724,7 +2722,7 @@ function ac_unselect_rows(gobj, event, kw, src)
     let $button_delete_record = $container.querySelector(`.button-delete-record`);
     let $button_copy_record = $container.querySelector(`.button-copy-record`);
     if($button_delete_record) {
-        let selectedRows = $$table.getSelectedData();
+        let selectedRows = tabulator.getSelectedData();
         if (selectedRows.length && gobj_read_bool_attr(gobj, "editable")) {
             $button_delete_record.removeAttribute("disabled");
             $button_copy_record.removeAttribute("disabled");
