@@ -1712,12 +1712,9 @@ function ac_clear_data(gobj, event, kw, src)
     priv.records = {};
     gobj_write_attr(gobj, "records", priv.records);
 
+    graph_remove_plugin(gobj, "history");
+    update_history_buttons(gobj);
     clear_graph(gobj).then(() => {
-        let history = graph_get_plugin(gobj, "history");
-        if(history) {
-            graph_remove_plugin(gobj, "history");
-            update_history_buttons(gobj);
-        }
     });
 
     return 0;
@@ -1798,6 +1795,31 @@ function ac_load_data(gobj, event, kw, src)
                 });
             });
         });
+    }
+
+    return 0;
+}
+
+/************************************************************
+ *  Save graph geometry
+ ************************************************************/
+function ac_save_graph(gobj, event, kw, src)
+{
+    let priv = gobj.priv;
+
+    if(priv.edit_mode) {
+        let $container = gobj_read_attr(gobj, "$container");
+
+        disableElements($container, ".EV_SAVE_GRAPH");
+        set_submit_state($container, ".EV_SAVE_GRAPH", false);
+
+        let history = graph_get_plugin(gobj, "history");
+        if(history) {
+            history.clear();
+            update_history_buttons(gobj);
+        }
+
+        save_geometry(gobj);
     }
 
     return 0;
@@ -2067,31 +2089,6 @@ function ac_set_operation_mode(gobj, event, kw, src)
     gobj_write_attr(gobj, "operation_mode", kw.operation_mode);
     configure_behaviour(gobj);
     update_toolbar(gobj);
-    return 0;
-}
-
-/************************************************************
- *  Save graph geometry
- ************************************************************/
-function ac_save_graph(gobj, event, kw, src)
-{
-    let priv = gobj.priv;
-
-    if(priv.edit_mode) {
-        let $container = gobj_read_attr(gobj, "$container");
-
-        disableElements($container, ".EV_SAVE_GRAPH");
-        set_submit_state($container, ".EV_SAVE_GRAPH", false);
-
-        let history = graph_get_plugin(gobj, "history");
-        if(history) {
-            history.clear();
-            update_history_buttons(gobj);
-        }
-
-        save_geometry(gobj);
-    }
-
     return 0;
 }
 
