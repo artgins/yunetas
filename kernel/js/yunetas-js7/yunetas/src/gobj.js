@@ -3986,7 +3986,7 @@ function gobj_unsubscribe_event(
     }
 
     if(!deleted) {
-        log_error(`${gobj_short_name(publisher)}: No subscription found`);
+        log_warning(`${gobj_short_name(publisher)}: No subscription found`);
         trace_json(kw);
     }
 
