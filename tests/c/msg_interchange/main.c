@@ -284,9 +284,10 @@ int main(int argc, char *argv[])
     /*
      *  Shift argv past the test file argument so yuneta_entry_point's
      *  argp parser doesn't interpret the file path as parameter_config.
-     *  argv[0] (program name) is kept; argv[1] (test file) is removed.
+     *  Set argv[1] to test_name so that after the shift it becomes argv[0],
+     *  making basename(argv[0]) match the yuno_role.
      */
-    argv[1] = argv[0];
+    argv[1] = (char *)test_name;
     result += yuneta_entry_point(
         argc - 1, argv + 1,
         test_name, APP_VERSION, APP_SUPPORT,
