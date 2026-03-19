@@ -128,11 +128,27 @@ static int register_yuno_and_more(void)
 #endif
 
     /*------------------------------------------------*
-     *  Suppress noisy traces
+     *          Traces
      *------------------------------------------------*/
+    // Avoid timer trace, too much information
     gobj_set_gclass_no_trace(gclass_find_by_name(C_TIMER0), "machine", TRUE);
     gobj_set_gclass_no_trace(gclass_find_by_name(C_TIMER), "machine", TRUE);
     gobj_set_global_no_trace("timer_periodic", TRUE);
+
+    // Samples of gclass traces, don't remove
+    // gobj_set_gclass_trace(gclass_find_by_name(C_TEST_TIMER), "messages", TRUE);
+    // gobj_set_gclass_trace(gclass_find_by_name(C_IEVENT_CLI), "ievents2", TRUE);
+    // gobj_set_gclass_trace(gclass_find_by_name(C_IEVENT_SRV), "ievents2", TRUE);
+    // gobj_set_gclass_trace(gclass_find_by_name(C_TCP), "traffic", TRUE);
+
+    // Samples of global traces, don't remove
+    // gobj_set_gobj_trace(0, "create_delete", TRUE, 0);
+    // gobj_set_gobj_trace(0, "create_delete2", TRUE, 0);
+    // gobj_set_gobj_trace(0, "start_stop", TRUE, 0);
+    // gobj_set_gobj_trace(0, "subscriptions", TRUE, 0);
+    gobj_set_gobj_trace(0, "machine", TRUE, 0);
+    // gobj_set_gobj_trace(0, "ev_kw", TRUE, 0);
+    // gobj_set_gobj_trace(0, "liburing", TRUE, 0);
 
     /*------------------------------------------------*
      *  Safety: auto-kill timeout from JSON
