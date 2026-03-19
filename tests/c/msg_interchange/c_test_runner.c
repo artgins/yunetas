@@ -177,16 +177,6 @@ PRIVATE void mt_destroy(hgobj gobj)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
-    // Unsubscribe from all services we subscribed to
-    const char *svc_name;
-    json_t *jn_value;
-    json_object_foreach(priv->subscribed_services, svc_name, jn_value) {
-        hgobj svc = gobj_find_service(svc_name, FALSE);
-        if(svc) {
-            gobj_unsubscribe_event(svc, NULL, 0, gobj);
-        }
-    }
-
     JSON_DECREF(priv->event_trace)
     JSON_DECREF(priv->subscribed_services)
 }
