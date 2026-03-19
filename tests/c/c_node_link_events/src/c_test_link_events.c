@@ -251,6 +251,7 @@ PRIVATE int mt_stop(hgobj gobj)
 
     clear_timeout(priv->timer);
     gobj_stop(priv->timer);
+    gobj_stop(priv->gobj_node);
 
     return 0;
 }
