@@ -1678,10 +1678,9 @@ class ManualLayout extends BaseLayout
 function ac_descs(gobj, event, kw, src)
 {
     let priv = gobj.priv;
+    let descs = kw;
 
-    gobj_write_attr(gobj, "descs", kw);
-
-    let descs = priv.descs;
+    gobj_write_attr(gobj, "descs", descs); // TRIGGER POINT: Topics cleared
 
     // TODO register_nodes(gobj) = register(ExtensionCategory.NODE, 'light', LightNode);
 
@@ -1782,15 +1781,10 @@ function ac_load_data(gobj, event, kw, src)
             create_links(gobj);
             graph_draw(gobj).then(() => {
                 graph_layout(gobj).then(() => {
-                    let history = graph_get_plugin(gobj, "history");
                     if(priv.edit_mode) {
-                        if(!history) {
-                            graph_add_plugin(gobj, "history");
-                        }
+                        graph_add_plugin(gobj, "history");
                     } else {
-                        if(history) {
-                            graph_remove_plugin(gobj, "history");
-                        }
+                        graph_remove_plugin(gobj, "history");
                     }
                 });
             });

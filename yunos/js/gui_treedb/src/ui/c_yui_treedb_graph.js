@@ -765,14 +765,15 @@ function request_treedb_descs(gobj)
 /************************************************************
  *  Process topic descriptions received from remote
  ************************************************************/
-function process_treedb_descs(gobj)
+function process_treedb_descs(gobj, descs)
 {
     let priv = gobj.priv;
+
+    gobj_write_attr(gobj, "descs", descs);  // TRIGGER POINT: Topics cleared
 
     /*
      *  descs is a dict: { __snaps__: {…}, roles: {…}, users: {…} }
      */
-    let descs = priv.descs;
 
     if(priv.gobj_nodes_tree) {
         gobj_send_event(priv.gobj_nodes_tree,
@@ -985,8 +986,7 @@ function ac_mt_command_answer(gobj, event, kw, src)
     switch(command) {
         case "descs":
             if(result >= 0) {
-                gobj_write_attr(gobj, "descs", data);
-                process_treedb_descs(gobj);
+                process_treedb_descs(gobj, data);
             }
             break;
 
