@@ -701,7 +701,7 @@ PRIVATE int execute_next_step(hgobj gobj)
 /***************************************************************************
  *  Timer fired: execute next step or handle wait timeout
  ***************************************************************************/
-PRIVATE int ac_timeout(hgobj gobj, const char *event, json_t *kw, hgobj src)
+PRIVATE int ac_timeout(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
@@ -723,7 +723,7 @@ PRIVATE int ac_timeout(hgobj gobj, const char *event, json_t *kw, hgobj src)
         execute_next_step(gobj);
     }
 
-    JSON_DECREF(kw)
+    KW_DECREF(kw)
     return 0;
 }
 
@@ -731,7 +731,7 @@ PRIVATE int ac_timeout(hgobj gobj, const char *event, json_t *kw, hgobj src)
  *  Handle any event received from subscribed services
  *  This is the catch-all handler for events we're waiting on
  ***************************************************************************/
-PRIVATE int ac_on_event(hgobj gobj, const char *event, json_t *kw, hgobj src)
+PRIVATE int ac_on_event(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
@@ -816,20 +816,20 @@ PRIVATE int ac_on_event(hgobj gobj, const char *event, json_t *kw, hgobj src)
         }
     }
 
-    JSON_DECREF(kw)
+    KW_DECREF(kw)
     return 0;
 }
 
 /***************************************************************************
  *  Volatil child stopped: destroy it
  ***************************************************************************/
-PRIVATE int ac_stopped(hgobj gobj, const char *event, json_t *kw, hgobj src)
+PRIVATE int ac_stopped(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 {
     if(gobj_is_volatil(src)) {
         gobj_destroy(src);
     }
 
-    JSON_DECREF(kw)
+    KW_DECREF(kw)
     return 0;
 }
 
@@ -838,7 +838,7 @@ PRIVATE int ac_stopped(hgobj gobj, const char *event, json_t *kw, hgobj src)
  *  This allows the test runner to receive any event type (MQTT, custom, etc.)
  *  without having to register them all in advance.
  ***************************************************************************/
-PRIVATE int mt_inject_event(hgobj gobj, const char *event, json_t *kw, hgobj src)
+PRIVATE int mt_inject_event(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 {
     return ac_on_event(gobj, event, kw, src);
 }
