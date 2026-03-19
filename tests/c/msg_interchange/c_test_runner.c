@@ -82,6 +82,9 @@ typedef struct _PRIVATE_DATA {
     // Track subscribed services to avoid duplicate subscriptions
     json_t *subscribed_services;        // set of service names (json object as set)
 
+    // Index into event_trace: events before this index have been consumed by wait_event
+    size_t trace_consumed_idx;
+
     int test_result;
 } PRIVATE_DATA;
 
@@ -570,6 +573,21 @@ PRIVATE int execute_next_step(hgobj gobj)
             json_object_set_new(priv->subscribed_services, svc_name, json_true());
         }
 
+        // Check if the event was already recorded (arrived before wait_event was set up)
+        size_t trace_size = json_array_size(priv->event_trace);
+        for(size_t i = priv->trace_consumed_idx; i < trace_size; i++) {
+            json_t *record = json_array_get(priv->event_trace, i);
+            const char *rec_event = json_string_value(json_object_get(record, "event"));
+            if(rec_event && strcmp(rec_event, event_name) == 0) {
+                // Event already arrived — consume it and advance
+                priv->trace_consumed_idx = i + 1;
+                priv->waiting_for_event = FALSE;
+                priv->current_step++;
+                set_timeout(priv->timer, gobj_read_integer_attr(gobj, "step_timeout"));
+                return 0;
+            }
+        }
+
         // Set timeout for wait
         set_timeout(priv->timer, priv->wait_timeout_ms);
 
@@ -789,13 +807,9 @@ PRIVATE int ac_on_event(hgobj gobj, const char *event, json_t *kw, hgobj src)
 
             // Event received, move to next step
             priv->waiting_for_event = FALSE;
+            priv->wait_source = NULL;
+            priv->trace_consumed_idx = json_array_size(priv->event_trace);
             clear_timeout(priv->timer);
-
-            // Unsubscribe from source
-            if(priv->wait_source) {
-                gobj_unsubscribe_event(priv->wait_source, NULL, 0, gobj);
-                priv->wait_source = NULL;
-            }
 
             priv->current_step++;
             set_timeout(priv->timer, gobj_read_integer_attr(gobj, "step_timeout"));
