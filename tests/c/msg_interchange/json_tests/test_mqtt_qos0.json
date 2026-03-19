@@ -1,0 +1,210 @@
+{
+    "test_name": "test_mqtt_qos0",
+    "test_description": "MQTT QoS 0 publish/subscribe round-trip. Embedded broker + client: connect, subscribe, publish, receive, verify, disconnect.",
+    "timeout": 10,
+
+    "variable_config": {
+        "environment": {
+            "work_dir": "/tmp",
+            "console_log_handlers": {},
+            "daemon_log_handlers": {}
+        },
+        "yuno": {
+            "autoplay": true,
+            "required_services": [],
+            "public_services": [],
+            "service_descriptor": {},
+            "realm_owner": "test",
+            "realm_id": "test",
+            "trace_levels": {}
+        },
+        "global": {
+            "Authz.allow_anonymous_in_localhost": true,
+            "__input_side__.__json_config_variables__": {
+                "__input_url__": "mqtt://0.0.0.0:18220",
+                "__input_host__": "0.0.0.0",
+                "__input_port__": "18220"
+            }
+        },
+        "services": [
+            {
+                "name": "authz",
+                "gclass": "C_AUTHZ",
+                "priority": 0,
+                "default_service": false,
+                "autostart": true,
+                "autoplay": true
+            },
+            {
+                "name": "mqtt_broker",
+                "gclass": "C_MQTT_BROKER",
+                "default_service": false,
+                "autostart": true,
+                "autoplay": true,
+                "kw": {
+                    "enable_new_clients": true
+                }
+            },
+            {
+                "name": "__input_side__",
+                "gclass": "C_IOGATE",
+                "autostart": true,
+                "autoplay": false,
+                "kw": {},
+                "children": [
+                    {
+                        "name": "server_port",
+                        "gclass": "C_TCP_S",
+                        "kw": {
+                            "url": "(^^__input_url__^^)",
+                            "backlog": 4,
+                            "use_dups": 0
+                        }
+                    }
+                ],
+                "[^^children^^]": {
+                    "__range__": [1, 4],
+                    "__vars__": {},
+                    "__content__": {
+                        "name": "(^^__input_port__^^)-(^^__range__^^)",
+                        "gclass": "C_CHANNEL",
+                        "children": [
+                            {
+                                "name": "(^^__input_port__^^)-(^^__range__^^)",
+                                "gclass": "C_PROT_MQTT2",
+                                "kw": {
+                                    "iamServer": true
+                                },
+                                "children": [
+                                    {
+                                        "gclass": "C_TCP"
+                                    }
+                                ]
+                            }
+                        ]
+                    }
+                }
+            },
+            {
+                "name": "__output_side__",
+                "gclass": "C_IOGATE",
+                "autostart": false,
+                "autoplay": false,
+                "children": [
+                    {
+                        "name": "mqtt_client",
+                        "gclass": "C_CHANNEL",
+                        "children": [
+                            {
+                                "name": "mqtt_client",
+                                "gclass": "C_PROT_MQTT2",
+                                "kw": {
+                                    "iamServer": false,
+                                    "mqtt_client_id": "test_client_qos0"
+                                },
+                                "children": [
+                                    {
+                                        "name": "mqtt_client",
+                                        "gclass": "C_TCP",
+                                        "kw": {
+                                            "url": "tcp://127.0.0.1:18220"
+                                        }
+                                    }
+                                ]
+                            }
+                        ]
+                    }
+                ]
+            },
+            {
+                "name": "__top_side__",
+                "gclass": "C_IOGATE",
+                "autostart": false,
+                "autoplay": false,
+                "kw": {}
+            }
+        ]
+    },
+
+    "script": [
+        {
+            "action": "subscribe",
+            "target": "__output_side__",
+            "comment": "Subscribe to all events from output_side"
+        },
+        {
+            "action": "wait_timeout",
+            "ms": 500,
+            "comment": "Wait for broker to be ready"
+        },
+        {
+            "action": "start_tree",
+            "target": "__output_side__",
+            "comment": "Start MQTT client connection"
+        },
+        {
+            "action": "wait_event",
+            "source": "__output_side__",
+            "event": "EV_ON_OPEN",
+            "timeout": 5,
+            "comment": "Wait for CONNACK"
+        },
+        {
+            "action": "send_iev",
+            "target": "__output_side__",
+            "event": "EV_MQTT_SUBSCRIBE",
+            "kw": {
+                "subs": ["test/topic"],
+                "qos": 0,
+                "options": 0
+            },
+            "comment": "Subscribe to test/topic"
+        },
+        {
+            "action": "wait_event",
+            "source": "__output_side__",
+            "event": "EV_MQTT_SUBSCRIBE",
+            "timeout": 5,
+            "comment": "Wait for SUBACK"
+        },
+        {
+            "action": "send_iev",
+            "target": "__output_side__",
+            "event": "EV_MQTT_PUBLISH",
+            "kw": {
+                "topic": "test/topic",
+                "qos": 0,
+                "expiry_interval": 0,
+                "retain": false,
+                "payload": "Hello MQTT from JSON test"
+            },
+            "comment": "Publish message to test/topic"
+        },
+        {
+            "action": "wait_event",
+            "source": "__output_side__",
+            "event": "EV_MQTT_MESSAGE",
+            "timeout": 5,
+            "expected_kw": {
+                "topic": "test/topic",
+                "payload": "Hello MQTT from JSON test"
+            },
+            "comment": "Wait for published message to arrive and verify payload"
+        },
+        {
+            "action": "send_event",
+            "target": "__output_side__",
+            "event": "EV_DROP",
+            "kw": {},
+            "comment": "Disconnect cleanly"
+        }
+    ],
+
+    "expected_errors": [],
+
+    "expected_event_trace": [
+        {"event": "EV_ON_OPEN"},
+        {"event": "EV_MQTT_SUBSCRIBE"},
+        {"event": "EV_MQTT_MESSAGE", "kw": {"topic": "test/topic"}}
+    ]
+}

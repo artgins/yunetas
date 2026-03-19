@@ -1,0 +1,192 @@
+{
+    "test_name": "test_tcp_reconnect",
+    "test_description": "TCP connect/disconnect/reconnect cycle. Verifies the client can reconnect after a clean disconnect.",
+    "timeout": 15,
+
+    "variable_config": {
+        "environment": {
+            "work_dir": "/tmp",
+            "console_log_handlers": {},
+            "daemon_log_handlers": {}
+        },
+        "yuno": {
+            "autoplay": true,
+            "required_services": [],
+            "public_services": [],
+            "service_descriptor": {},
+            "trace_levels": {
+                "C_TCP": ["connections"],
+                "C_TCP_S": ["listen"]
+            }
+        },
+        "global": {
+            "__input_side__.__json_config_variables__": {
+                "__input_url__": "tcp://0.0.0.0:7791",
+                "__input_host__": "0.0.0.0",
+                "__input_port__": "7791"
+            }
+        },
+        "services": [
+            {
+                "name": "__input_side__",
+                "gclass": "C_IOGATE",
+                "autostart": true,
+                "autoplay": false,
+                "kw": {},
+                "children": [
+                    {
+                        "name": "server_port",
+                        "gclass": "C_TCP_S",
+                        "kw": {
+                            "url": "(^^__input_url__^^)",
+                            "child_tree_filter": {
+                                "kw": {
+                                    "__gclass_name__": "C_CHANNEL",
+                                    "__disabled__": false,
+                                    "connected": false
+                                }
+                            }
+                        }
+                    }
+                ],
+                "[^^children^^]": {
+                    "__range__": [1, 2],
+                    "__vars__": {},
+                    "__content__": {
+                        "name": "(^^__input_port__^^)-(^^__range__^^)",
+                        "gclass": "C_CHANNEL",
+                        "children": [
+                            {
+                                "name": "(^^__input_port__^^)-(^^__range__^^)",
+                                "gclass": "C_PROT_TCP4H",
+                                "kw": {},
+                                "children": [
+                                    {
+                                        "gclass": "C_TCP"
+                                    }
+                                ]
+                            }
+                        ]
+                    }
+                }
+            },
+            {
+                "name": "__output_side__",
+                "gclass": "C_IOGATE",
+                "autostart": false,
+                "autoplay": false,
+                "children": [
+                    {
+                        "name": "output",
+                        "gclass": "C_CHANNEL",
+                        "children": [
+                            {
+                                "name": "output",
+                                "gclass": "C_PROT_TCP4H",
+                                "kw": {},
+                                "children": [
+                                    {
+                                        "name": "output",
+                                        "gclass": "C_TCP",
+                                        "kw": {
+                                            "url": "tcp://127.0.0.1:7791"
+                                        }
+                                    }
+                                ]
+                            }
+                        ]
+                    }
+                ]
+            }
+        ]
+    },
+
+    "script": [
+        {
+            "action": "subscribe",
+            "target": "__output_side__",
+            "comment": "Subscribe to output_side events"
+        },
+        {
+            "action": "wait_timeout",
+            "ms": 500,
+            "comment": "Wait for server to be ready"
+        },
+        {
+            "action": "start_tree",
+            "target": "__output_side__",
+            "comment": "First connection: start TCP client"
+        },
+        {
+            "action": "wait_event",
+            "source": "__output_side__",
+            "event": "EV_ON_OPEN",
+            "timeout": 5,
+            "comment": "Wait for first connection"
+        },
+        {
+            "action": "wait_timeout",
+            "ms": 300,
+            "comment": "Stay connected briefly"
+        },
+        {
+            "action": "send_event",
+            "target": "__output_side__",
+            "event": "EV_DROP",
+            "kw": {},
+            "comment": "First disconnect"
+        },
+        {
+            "action": "wait_event",
+            "source": "__output_side__",
+            "event": "EV_ON_CLOSE",
+            "timeout": 5,
+            "comment": "Wait for first disconnect"
+        },
+        {
+            "action": "wait_timeout",
+            "ms": 500,
+            "comment": "Wait before reconnecting"
+        },
+        {
+            "action": "start_tree",
+            "target": "__output_side__",
+            "comment": "Second connection: reconnect"
+        },
+        {
+            "action": "wait_event",
+            "source": "__output_side__",
+            "event": "EV_ON_OPEN",
+            "timeout": 5,
+            "comment": "Wait for second connection"
+        },
+        {
+            "action": "wait_timeout",
+            "ms": 300,
+            "comment": "Stay connected briefly"
+        },
+        {
+            "action": "send_event",
+            "target": "__output_side__",
+            "event": "EV_DROP",
+            "kw": {},
+            "comment": "Second disconnect"
+        },
+        {
+            "action": "wait_event",
+            "source": "__output_side__",
+            "event": "EV_ON_CLOSE",
+            "timeout": 5,
+            "comment": "Wait for second disconnect"
+        }
+    ],
+
+    "expected_errors": [],
+
+    "expected_event_trace": [
+        {"event": "EV_ON_OPEN"},
+        {"event": "EV_ON_CLOSE"},
+        {"event": "EV_ON_OPEN"},
+        {"event": "EV_ON_CLOSE"}
+    ]
+}
