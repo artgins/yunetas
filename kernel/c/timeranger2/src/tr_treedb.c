@@ -450,7 +450,7 @@ PUBLIC json_t *_treedb_create_topic_cols_desc(void)
     );
     json_array_append_new(
         topic_cols_desc,
-        json_pack("{s:s, s:s, s:i, s:s, s:[s,s,s,s,s,s,s,s,s], s:[s,s,s,s,s]}",
+        json_pack("{s:s, s:s, s:i, s:s, s:[s,s,s,s,s,s,s,s,s,s], s:[s,s,s,s,s]}",
             "id", "type",
             "header", "Type",
             "fillspace", 5,
@@ -465,6 +465,7 @@ PUBLIC json_t *_treedb_create_topic_cols_desc(void)
                 "real",
                 "boolean",
                 "blob",
+                "number",
             "flag",
                 "enum",
                 "required",
@@ -2519,6 +2520,7 @@ PRIVATE int normalize_node_field_value(
     BOOL is_enum = kw_has_word(gobj, desc_flag, "enum", 0)?TRUE:FALSE;
     BOOL is_now = kw_has_word(gobj, desc_flag, "now", 0)?TRUE:FALSE;
     BOOL is_time = kw_has_word(gobj, desc_flag, "time", 0)?TRUE:FALSE;
+    BOOL is_template = kw_has_word(gobj, desc_flag, "template", 0)?TRUE:FALSE;
 
     /*
      *  Null
@@ -2550,6 +2552,8 @@ PRIVATE int normalize_node_field_value(
         type = "fkey";
     } else if(is_enum) {
         type = "enum";
+    } else if(is_template) {
+        type = "template";
     }
 
     SWITCHS(type) {
@@ -2695,6 +2699,7 @@ PRIVATE int normalize_node_field_value(
             }
             break;
 
+        CASES("template")
         CASES("dict")
         CASES("object")
             if(JSON_TYPEOF(value, JSON_OBJECT)) {
