@@ -80,6 +80,7 @@ SDATA_END()
  *---------------------------------------------*/
 typedef struct _PRIVATE_DATA {
     hgobj gobj_node;
+    hgobj timer;
     json_t *tranger;
 
     int linked_count;
@@ -227,6 +228,11 @@ PRIVATE void mt_create(hgobj gobj)
         kw_resource,
         gobj
     );
+
+    /*
+     *  Create a timer to trigger tests from within the event loop
+     */
+    priv->timer = gobj_create_pure_child(gobj_name(gobj), C_TIMER, 0, gobj);
 }
 
 PRIVATE int mt_start(hgobj gobj)
@@ -234,11 +240,37 @@ PRIVATE int mt_start(hgobj gobj)
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
     gobj_start(priv->gobj_node);
+    gobj_start(priv->timer);
+
+    return 0;
+}
+
+PRIVATE int mt_stop(hgobj gobj)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    clear_timeout(priv->timer);
+    gobj_stop(priv->timer);
 
     return 0;
 }
 
 PRIVATE int mt_play(hgobj gobj)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    /*
+     *  Fire a one-shot timer to run tests inside the event loop
+     */
+    set_timeout(priv->timer, 100);
+
+    return 0;
+}
+
+/***************************************************************************
+ *  Run all tests — called from timer callback inside the event loop
+ ***************************************************************************/
+PRIVATE int run_tests(hgobj gobj)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
@@ -395,14 +427,7 @@ PRIVATE int mt_play(hgobj gobj)
         );
     }
 
-    gobj_log_info(gobj, 0,
-        "msgset", "%s", MSGSET_INFO,
-        "msg", "%s", "Exit to die",
-        NULL
-    );
-    set_yuno_must_die();
-
-    return 0;
+    return result;
 }
 
 PRIVATE void mt_destroy(hgobj gobj)
@@ -498,6 +523,24 @@ PRIVATE int ac_node_deleted(hgobj gobj, const char *event, json_t *kw, hgobj src
 }
 
 /***************************************************************************
+ *  EV_TIMEOUT — runs test logic inside the event loop, then exits
+ ***************************************************************************/
+PRIVATE int ac_timeout(hgobj gobj, const char *event, json_t *kw, hgobj src)
+{
+    run_tests(gobj);
+
+    gobj_log_info(gobj, 0,
+        "msgset", "%s", MSGSET_INFO,
+        "msg", "%s", "Exit to die",
+        NULL
+    );
+    set_yuno_must_die();
+
+    KW_DECREF(kw)
+    return 0;
+}
+
+/***************************************************************************
  *  EV_STOPPED
  ***************************************************************************/
 PRIVATE int ac_stopped(hgobj gobj, const char *event, json_t *kw, hgobj src)
@@ -529,6 +572,7 @@ PRIVATE json_t *cmd_help(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
 PRIVATE const GMETHODS gmt = {
     .mt_create = mt_create,
     .mt_start = mt_start,
+    .mt_stop = mt_stop,
     .mt_play = mt_play,
     .mt_destroy = mt_destroy,
 };
@@ -550,6 +594,7 @@ PRIVATE int create_gclass(gclass_name_t gclass_name)
     }
 
     ev_action_t st_idle[] = {
+        {EV_TIMEOUT,                ac_timeout,         0},
         {EV_TREEDB_NODE_LINKED,     ac_node_linked,     0},
         {EV_TREEDB_NODE_UNLINKED,   ac_node_unlinked,   0},
         {EV_TREEDB_NODE_CREATED,    ac_node_created,    0},
@@ -565,6 +610,7 @@ PRIVATE int create_gclass(gclass_name_t gclass_name)
     };
 
     event_type_t event_types[] = {
+        {EV_TIMEOUT,                0},
         {EV_TREEDB_NODE_LINKED,     EVF_PUBLIC_EVENT|EVF_NO_WARN_SUBS},
         {EV_TREEDB_NODE_UNLINKED,   EVF_PUBLIC_EVENT|EVF_NO_WARN_SUBS},
         {EV_TREEDB_NODE_CREATED,    EVF_PUBLIC_EVENT|EVF_NO_WARN_SUBS},
