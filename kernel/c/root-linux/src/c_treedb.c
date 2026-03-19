@@ -151,6 +151,7 @@ SDATA (DTP_BOOLEAN,     "master",           SDF_RD,             "0",            
 SDATA (DTP_INTEGER,     "xpermission",      SDF_RD,             "02770",        "Use in creation, default 02770"),
 SDATA (DTP_INTEGER,     "rpermission",      SDF_RD,             "0660",         "Use in creation, default 0660"),
 SDATA (DTP_INTEGER,     "exit_on_error",    0,                  "2",            "exit on error, 2=LOG_OPT_EXIT_ZERO"),
+SDATA (DTP_BOOLEAN,     "with_link_events", SDF_RD,             0,              "Publish EV_TREEDB_NODE_LINKED/UNLINKED events"),
 SDATA (DTP_POINTER,     "user_data",        0,                  0,              "user data"),
 SDATA (DTP_POINTER,     "user_data2",       0,                  0,              "more user data"),
 SDATA (DTP_POINTER,     "subscriber",       0,                  0,              "subscriber of output-events. Not a child gobj."),
@@ -297,11 +298,13 @@ PRIVATE void mt_create(hgobj gobj)
         "treedb_system_schema",
         KW_REQUIRED
     );
-    json_t *kw_resource = json_pack("{s:I, s:s, s:o, s:i}",
+    BOOL with_link_events = gobj_read_bool_attr(gobj, "with_link_events");
+    json_t *kw_resource = json_pack("{s:I, s:s, s:o, s:i, s:b}",
         "tranger", (json_int_t)(uintptr_t)priv->tranger_system_,
         "treedb_name", treedb_name,
         "treedb_schema", jn_treedb_system_schema,
-        "exit_on_error", LOG_OPT_EXIT_ZERO
+        "exit_on_error", LOG_OPT_EXIT_ZERO,
+        "with_link_events", with_link_events
     );
 
     priv->gobj_node_system = gobj_create_service(
@@ -574,11 +577,12 @@ PRIVATE json_t *cmd_open_treedb(hgobj gobj, const char *cmd, json_t *kw, hgobj s
     /*-------------------------------*
      *      Create Client Treedb
      *-------------------------------*/
-    json_t *kw_resource = json_pack("{s:I, s:s, s:o, s:i}",
+    json_t *kw_resource = json_pack("{s:I, s:s, s:o, s:i, s:b}",
         "tranger", (json_int_t)(uintptr_t)tranger_client,
         "treedb_name", treedb_name,
         "treedb_schema", jn_client_treedb_schema,
-        "exit_on_error", exit_on_error
+        "exit_on_error", exit_on_error,
+        "with_link_events", gobj_read_bool_attr(gobj, "with_link_events")
     );
 
     hgobj gobj_client_node = gobj_create_service(

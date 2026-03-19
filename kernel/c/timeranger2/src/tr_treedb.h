@@ -27,6 +27,16 @@ GOBJ_DECLARE_EVENT(EV_TREEDB_UPDATE_NODE);
 GOBJ_DECLARE_EVENT(EV_TREEDB_NODE_CREATED);
 GOBJ_DECLARE_EVENT(EV_TREEDB_NODE_UPDATED);
 GOBJ_DECLARE_EVENT(EV_TREEDB_NODE_DELETED);
+GOBJ_DECLARE_EVENT(EV_TREEDB_NODE_LINKED);
+GOBJ_DECLARE_EVENT(EV_TREEDB_NODE_UNLINKED);
+
+/*------------------------*
+ *      Callback flags
+ *------------------------*/
+typedef enum {
+    TREEDB_CALLBACK_NO_FLAG      = 0,
+    TREEDB_CALLBACK_LINK_EVENTS  = 0x0001,  // fire EV_TREEDB_NODE_LINKED/UNLINKED
+} treedb_callback_flag_t;
 
 /***************************************************************
  *              Prototypes
@@ -83,9 +93,11 @@ typedef int (*treedb_callback_t)(
     json_t *tranger,
     const char *treedb_name,
     const char *topic_name,
-    const char *operation,  // EV_TREEDB_NODE_UPDATED,
+    const char *operation,  // EV_TREEDB_NODE_CREATED,
                             // EV_TREEDB_NODE_UPDATED,
-                            // EV_TREEDB_NODE_DELETED
+                            // EV_TREEDB_NODE_DELETED,
+                            // EV_TREEDB_NODE_LINKED,
+                            // EV_TREEDB_NODE_UNLINKED
     json_t *node            // owned
 );
 
@@ -93,7 +105,8 @@ PUBLIC int treedb_set_callback(
     json_t *tranger,
     const char *treedb_name,
     treedb_callback_t treedb_callback,
-    void *user_data
+    void *user_data,
+    treedb_callback_flag_t flags
 );
 
 /***************************************************************************

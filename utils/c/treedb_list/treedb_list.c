@@ -427,7 +427,8 @@ PRIVATE int _list_messages(
         tranger,
         treedb_name,
         0,
-        0
+        0,
+        TREEDB_CALLBACK_NO_FLAG
     );
 
     if(arguments.print_tranger) {
