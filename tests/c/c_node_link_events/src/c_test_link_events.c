@@ -436,7 +436,7 @@ PRIVATE void mt_destroy(hgobj gobj)
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
     if(priv->tranger) {
-        treedb_close_db(priv->tranger, "treedb_link_test");
+        // NOTE: treedb is already closed by C_NODE's mt_destroy
         tranger2_shutdown(priv->tranger);
         priv->tranger = NULL;
     }
