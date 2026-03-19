@@ -27,6 +27,8 @@ GOBJ_DEFINE_EVENT(EV_TREEDB_UPDATE_NODE);
 GOBJ_DEFINE_EVENT(EV_TREEDB_NODE_CREATED);
 GOBJ_DEFINE_EVENT(EV_TREEDB_NODE_UPDATED);
 GOBJ_DEFINE_EVENT(EV_TREEDB_NODE_DELETED);
+GOBJ_DEFINE_EVENT(EV_TREEDB_NODE_LINKED);
+GOBJ_DEFINE_EVENT(EV_TREEDB_NODE_UNLINKED);
 
 /***************************************************************
  *              Structures
@@ -1191,7 +1193,8 @@ PUBLIC int treedb_set_callback(
     json_t *tranger,
     const char *treedb_name,
     treedb_callback_t treedb_callback,
-    void *user_data
+    void *user_data,
+    treedb_callback_flag_t flags
 )
 {
     hgobj gobj = (hgobj)json_integer_value(json_object_get(tranger, "gobj"));
@@ -1219,6 +1222,11 @@ PUBLIC int treedb_set_callback(
         treedb,
         "__treedb_callback_user_data__",
         json_integer((json_int_t)(uintptr_t)user_data)
+    );
+    json_object_set_new(
+        treedb,
+        "__treedb_callback_flags__",
+        json_integer((json_int_t)flags)
     );
     return 0;
 }
@@ -6075,7 +6083,6 @@ PRIVATE int _link_nodes(
 
     /*--------------------------------------------------*
      *      Call Callback
-     *      TODO implement EV_LINK_NODE/EV_UNLINK_NODE ?
      *--------------------------------------------------*/
     json_t *treedb = kwid_get(gobj, tranger, 0, "treedbs`%s", treedb_name);
     treedb_callback_t treedb_callback =
@@ -6086,9 +6093,6 @@ PRIVATE int _link_nodes(
             0
     );
     if(treedb_callback) {
-        /*
-         *  Inform user in real time, HACK ONLY to PARENT, child will be in save
-         */
         void *user_data =
             (treedb_callback_t)(size_t)kw_get_int(gobj,
                 treedb,
@@ -6097,15 +6101,47 @@ PRIVATE int _link_nodes(
                 0
             );
 
-        JSON_INCREF(parent_node);
-        treedb_callback(
-            user_data,
-            tranger,
-            treedb_name,
-            parent_topic_name,
-            EV_TREEDB_NODE_UPDATED,
-            parent_node
-        );
+        treedb_callback_flag_t flags =
+            (treedb_callback_flag_t)kw_get_int(gobj,
+                treedb,
+                "__treedb_callback_flags__",
+                0,
+                0
+            );
+
+        if(flags & TREEDB_CALLBACK_LINK_EVENTS) {
+            /*
+             *  Inform with specific link event, with full relationship info
+             */
+            json_t *kw_link = json_pack("{s:s, s:s, s:s, s:s, s:s}",
+                "hook_name", hook_name,
+                "parent_topic_name", parent_topic_name,
+                "child_topic_name", child_topic_name,
+                "parent_id", kw_get_str(gobj, parent_node, "id", "", 0),
+                "child_id", kw_get_str(gobj, child_node, "id", "", 0)
+            );
+            treedb_callback(
+                user_data,
+                tranger,
+                treedb_name,
+                parent_topic_name,
+                EV_TREEDB_NODE_LINKED,
+                kw_link
+            );
+        } else {
+            /*
+             *  Backward compatible: inform as generic update, ONLY PARENT
+             */
+            JSON_INCREF(parent_node);
+            treedb_callback(
+                user_data,
+                tranger,
+                treedb_name,
+                parent_topic_name,
+                EV_TREEDB_NODE_UPDATED,
+                parent_node
+            );
+        }
     }
 
     if(save) {
@@ -6522,7 +6558,6 @@ PRIVATE int _unlink_nodes(
 
     /*--------------------------------------------------*
      *      Call Callback
-     *      TODO implement EV_LINK_NODE/EV_UNLINK_NODE ?
      *--------------------------------------------------*/
     json_t *treedb = kwid_get(gobj, tranger, 0, "treedbs`%s", treedb_name);
     treedb_callback_t treedb_callback =
@@ -6533,9 +6568,6 @@ PRIVATE int _unlink_nodes(
             0
     );
     if(treedb_callback) {
-        /*
-         *  Inform user in real time, HACK ONLY to PARENT, child will be in save
-         */
         void *user_data =
             (treedb_callback_t)(size_t)kw_get_int(gobj,
                 treedb,
@@ -6544,15 +6576,47 @@ PRIVATE int _unlink_nodes(
                 0
             );
 
-        JSON_INCREF(parent_node)
-        treedb_callback(
-            user_data,
-            tranger,
-            treedb_name,
-            parent_topic_name,
-            EV_TREEDB_NODE_UPDATED,
-            parent_node
-        );
+        treedb_callback_flag_t flags =
+            (treedb_callback_flag_t)kw_get_int(gobj,
+                treedb,
+                "__treedb_callback_flags__",
+                0,
+                0
+            );
+
+        if(flags & TREEDB_CALLBACK_LINK_EVENTS) {
+            /*
+             *  Inform with specific unlink event, with full relationship info
+             */
+            json_t *kw_link = json_pack("{s:s, s:s, s:s, s:s, s:s}",
+                "hook_name", hook_name,
+                "parent_topic_name", parent_topic_name,
+                "child_topic_name", child_topic_name,
+                "parent_id", kw_get_str(gobj, parent_node, "id", "", 0),
+                "child_id", kw_get_str(gobj, child_node, "id", "", 0)
+            );
+            treedb_callback(
+                user_data,
+                tranger,
+                treedb_name,
+                parent_topic_name,
+                EV_TREEDB_NODE_UNLINKED,
+                kw_link
+            );
+        } else {
+            /*
+             *  Backward compatible: inform as generic update, ONLY PARENT
+             */
+            JSON_INCREF(parent_node)
+            treedb_callback(
+                user_data,
+                tranger,
+                treedb_name,
+                parent_topic_name,
+                EV_TREEDB_NODE_UPDATED,
+                parent_node
+            );
+        }
     }
 
     if(save) {

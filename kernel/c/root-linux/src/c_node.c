@@ -41,9 +41,11 @@ PRIVATE int treedb_callback(
     json_t *tranger,
     const char *treedb_name,
     const char *topic_name,
-    const char *operation,  // EV_TREEDB_NODE_UPDATED,
+    const char *operation,  // EV_TREEDB_NODE_CREATED,
                             // EV_TREEDB_NODE_UPDATED,
-                            // EV_TREEDB_NODE_DELETED
+                            // EV_TREEDB_NODE_DELETED,
+                            // EV_TREEDB_NODE_LINKED,
+                            // EV_TREEDB_NODE_UNLINKED
     json_t *node            // owned
 );
 
@@ -296,6 +298,7 @@ SDATA (DTP_POINTER,     "tranger",          0,                  0,              
 SDATA (DTP_STRING,      "treedb_name",      SDF_RD|SDF_REQUIRED,"",             "Treedb name"),
 SDATA (DTP_JSON,        "treedb_schema",    SDF_RD|SDF_REQUIRED,0,              "Treedb schema"),
 SDATA (DTP_INTEGER,     "exit_on_error",    0,                  "2",            "exit on error, 2=LOG_OPT_EXIT_ZERO"),
+SDATA (DTP_BOOLEAN,     "with_link_events", SDF_RD,             0,              "Publish EV_TREEDB_NODE_LINKED/UNLINKED events"),
 SDATA (DTP_POINTER,     "user_data",        0,                  0,              "user data"),
 SDATA (DTP_POINTER,     "user_data2",       0,                  0,              "more user data"),
 SDATA (DTP_POINTER,     "subscriber",       0,                  0,              "subscriber of output-events. Not a child gobj."),
@@ -469,11 +472,16 @@ PRIVATE int mt_start(hgobj gobj)
         "persistent"
     );
 
+    treedb_callback_flag_t flags = TREEDB_CALLBACK_NO_FLAG;
+    if(gobj_read_bool_attr(gobj, "with_link_events")) {
+        flags |= TREEDB_CALLBACK_LINK_EVENTS;
+    }
     treedb_set_callback(
         priv->tranger,
         priv->treedb_name,
         treedb_callback,
-        gobj
+        gobj,
+        flags
     );
 
     return treedb?0:-1;
@@ -3571,28 +3579,40 @@ PRIVATE int treedb_callback(
     json_t *tranger,
     const char *treedb_name,
     const char *topic_name,
-    const char *operation,  // EV_TREEDB_NODE_UPDATED,
+    const char *operation,  // EV_TREEDB_NODE_CREATED,
                             // EV_TREEDB_NODE_UPDATED,
-                            // EV_TREEDB_NODE_DELETED
+                            // EV_TREEDB_NODE_DELETED,
+                            // EV_TREEDB_NODE_LINKED,
+                            // EV_TREEDB_NODE_UNLINKED
     json_t *node            // owned
 )
 {
     hgobj gobj = user_data;
 
-    json_t *collapse_node = node_collapsed_view( // Return MUST be decref
-        tranger,
-        node, // not owned
-        json_pack("{s:b}",
-            "list_dict", 1  // HACK always list_dict
-        )
-    );
+    json_t *kw;
+    if(operation == EV_TREEDB_NODE_LINKED || operation == EV_TREEDB_NODE_UNLINKED) {
+        /*
+         *  Link/unlink events: node is a kw with relationship info,
+         *  no need to collapse
+         */
+        json_object_set_new(node, "treedb_name", json_string(treedb_name));
+        kw = node; // already owned
+    } else {
+        json_t *collapse_node = node_collapsed_view( // Return MUST be decref
+            tranger,
+            node, // not owned
+            json_pack("{s:b}",
+                "list_dict", 1  // HACK always list_dict
+            )
+        );
 
-    json_t *kw = json_pack("{s:s, s:s, s:o}",
-        "treedb_name", treedb_name,
-        "topic_name", topic_name,
-        "node", collapse_node
-    );
-    json_decref(node);
+        kw = json_pack("{s:s, s:s, s:o}",
+            "treedb_name", treedb_name,
+            "topic_name", topic_name,
+            "node", collapse_node
+        );
+        json_decref(node);
+    }
 
     if(gobj_trace_level(gobj) & TRACE_MESSAGES) {
         gobj_trace_json(gobj, kw, "🔝🔝 publish_event %s %s", operation, topic_name);
@@ -3852,6 +3872,8 @@ PRIVATE int create_gclass(gclass_name_t gclass_name)
         {EV_TREEDB_NODE_CREATED,    EVF_PUBLIC_EVENT|EVF_OUTPUT_EVENT|EVF_NO_WARN_SUBS},
         {EV_TREEDB_NODE_UPDATED,    EVF_PUBLIC_EVENT|EVF_OUTPUT_EVENT|EVF_NO_WARN_SUBS},
         {EV_TREEDB_NODE_DELETED,    EVF_PUBLIC_EVENT|EVF_OUTPUT_EVENT|EVF_NO_WARN_SUBS},
+        {EV_TREEDB_NODE_LINKED,     EVF_PUBLIC_EVENT|EVF_OUTPUT_EVENT|EVF_NO_WARN_SUBS},
+        {EV_TREEDB_NODE_UNLINKED,   EVF_PUBLIC_EVENT|EVF_OUTPUT_EVENT|EVF_NO_WARN_SUBS},
         {0, 0}
     };
 
