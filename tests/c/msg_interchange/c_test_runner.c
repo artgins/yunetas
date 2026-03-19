@@ -79,6 +79,9 @@ typedef struct _PRIVATE_DATA {
     json_t *event_trace;                // array of recorded events
     json_t *expected_trace;             // borrowed from attr
 
+    // Track subscribed services to avoid duplicate subscriptions
+    json_t *subscribed_services;        // set of service names (json object as set)
+
     int test_result;
 } PRIVATE_DATA;
 
@@ -97,6 +100,7 @@ PRIVATE void mt_create(hgobj gobj)
 
     priv->timer = gobj_create_pure_child(gobj_name(gobj), C_TIMER, 0, gobj);
     priv->event_trace = json_array();
+    priv->subscribed_services = json_object();
 }
 
 /***************************************************************************
@@ -171,6 +175,7 @@ PRIVATE void mt_destroy(hgobj gobj)
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
     JSON_DECREF(priv->event_trace)
+    JSON_DECREF(priv->subscribed_services)
 }
 
 
@@ -559,8 +564,11 @@ PRIVATE int execute_next_step(hgobj gobj)
         }
         priv->wait_timeout_ms = timeout * 1000;
 
-        // Subscribe to all events from the source service
-        gobj_subscribe_event(source, NULL, 0, gobj);
+        // Subscribe to all events from the source service (if not already subscribed)
+        if(!json_object_get(priv->subscribed_services, svc_name)) {
+            gobj_subscribe_event(source, NULL, 0, gobj);
+            json_object_set_new(priv->subscribed_services, svc_name, json_true());
+        }
 
         // Set timeout for wait
         set_timeout(priv->timer, priv->wait_timeout_ms);
@@ -588,6 +596,7 @@ PRIVATE int execute_next_step(hgobj gobj)
         }
 
         gobj_subscribe_event(target, NULL, 0, gobj);
+        json_object_set_new(priv->subscribed_services, target_name, json_true());
 
         priv->current_step++;
         set_timeout(priv->timer, gobj_read_integer_attr(gobj, "step_timeout"));

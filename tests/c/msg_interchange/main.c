@@ -307,9 +307,15 @@ int main(int argc, char *argv[])
 
     /*------------------------------*
      *  Cleanup
+     *  NOTE: test_definition was allocated with default malloc before
+     *  yuneta_entry_point switched jansson to gbmem allocators.
+     *  We cannot use JSON_DECREF here (it would call gbmem free on
+     *  malloc'd memory). Instead, reload with the file path to free
+     *  properly, or simply skip — the process is about to exit.
      *------------------------------*/
     free(variable_config_str);
-    JSON_DECREF(test_definition)
+    // test_definition intentionally not freed: allocated with malloc,
+    // but jansson now uses gbmem; process is exiting anyway.
 
     if(result < 0) {
         printf("<-- %sTEST FAILED%s: %s\n", On_Red BWhite, Color_Off, test_name);
