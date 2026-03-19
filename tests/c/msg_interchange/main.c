@@ -281,8 +281,14 @@ int main(int argc, char *argv[])
         MEM_SUPERBLOCK
     );
 
+    /*
+     *  Shift argv past the test file argument so yuneta_entry_point's
+     *  argp parser doesn't interpret the file path as parameter_config.
+     *  argv[0] (program name) is kept; argv[1] (test file) is removed.
+     */
+    argv[1] = argv[0];
     result += yuneta_entry_point(
-        argc, argv,
+        argc - 1, argv + 1,
         test_name, APP_VERSION, APP_SUPPORT,
         "JSON-driven message interchange test",
         APP_DATETIME,
