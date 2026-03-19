@@ -616,6 +616,7 @@ PRIVATE int create_gclass(gclass_name_t gclass_name)
         {EV_TREEDB_NODE_CREATED,    EVF_PUBLIC_EVENT|EVF_NO_WARN_SUBS},
         {EV_TREEDB_NODE_UPDATED,    EVF_PUBLIC_EVENT|EVF_NO_WARN_SUBS},
         {EV_TREEDB_NODE_DELETED,    EVF_PUBLIC_EVENT|EVF_NO_WARN_SUBS},
+        {EV_STOPPED,                0},
         {0, 0}
     };
 
