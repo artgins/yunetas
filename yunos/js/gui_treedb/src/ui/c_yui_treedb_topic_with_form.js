@@ -580,7 +580,12 @@ function create_tabulator(gobj)
     }
 
     /*
-     *  Cell formatter — called on every cell display
+     *  Cell formatter — called on every cell display.
+     *  Tabulator only accepts: string, number, boolean, DOM Node, null, or undefined.
+     *  Returning any other object (e.g. Array, plain {}) triggers a console.warn and
+     *  renders an empty cell (see tabulator Cell.js _generateContents).
+     *  transform__treedb_value_2_table_value() is responsible for the conversion;
+     *  it has a final guard that JSON.stringifies any object that slips through.
      */
     function formatter(cell, formatterParams, onRendered)
     {
@@ -782,6 +787,7 @@ function transform__treedb_value_2_table_value(gobj, col, value, row, field)
                 case "dict":
                 case "array":
                 case "list":
+                    value = JSON.stringify(value);
                     break;
             }
             break;
@@ -867,6 +873,15 @@ function transform__treedb_value_2_table_value(gobj, col, value, row, field)
             value = `<img src="${value}" alt="${value}" width="60" height="30" title="">`;
             break;
 
+    }
+
+    // Tabulator only accepts string, number, boolean, DOM Node, null, or undefined.
+    // Any other object (Array, plain {}) produces a console.warn and an empty cell.
+    // This guard catches cases where the backend sends an unexpected type for a field
+    // (e.g. list_dict=1 converting an unset string/enum field to []).
+    if(value !== null && value !== undefined && typeof value === "object" && !(value instanceof Node)) {
+        log_warning("transform__treedb_value_2_table_value() unexpected object value for field '" + field + "': " + JSON.stringify(value));
+        value = JSON.stringify(value);
     }
 
     return value;
