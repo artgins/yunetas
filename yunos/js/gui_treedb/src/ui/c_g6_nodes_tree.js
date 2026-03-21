@@ -684,7 +684,7 @@ function configure_toolbar(gobj)
             },
             getItems: () => {
                 let items = [
-                    { id: 'g6-icon-save', value: 'save',   className: 'EV_SAVE_GRAPH',   title: 'Save',   disabled: true },
+                    { id: 'g6-icon-save', value: 'save',   className: 'EV_SAVE_GRAPH',   title: 'Save',   disabled: false },
                     { id: 'zoom-in',  value: 'zoom-in',  className: 'EV_ZOOM_IN',    title: 'Zoom In'    },
                     { id: 'zoom-out', value: 'zoom-out', className: 'EV_ZOOM_OUT',   title: 'Zoom Out'   },
                     { id: 'reset',    value: 'reset',    className: 'EV_ZOOM_RESET', title: 'Reset Zoom' },
@@ -1511,6 +1511,26 @@ function save_geometry(gobj)
 }
 
 /************************************************************
+ *  Pause/resume history recording.
+ *
+ *  Backend-driven updates (node created/updated/deleted) must
+ *  not be recorded as undoable user actions.
+ *
+ *  Uses a flag checked by the history plugin's beforeAddCommand
+ *  callback — when paused, beforeAddCommand returns false and
+ *  the command is not added to the undo queue.
+ ************************************************************/
+function history_pause(gobj)
+{
+    gobj.priv._history_paused = true;
+}
+
+function history_resume(gobj)
+{
+    gobj.priv._history_paused = false;
+}
+
+/************************************************************
  *
  ************************************************************/
 function update_history_buttons(gobj)
@@ -1977,26 +1997,6 @@ function ac_save_graph(gobj, event, kw, src)
     }
 
     return 0;
-}
-
-/************************************************************
- *  Pause/resume history recording.
- *
- *  Backend-driven updates (node created/updated/deleted) must
- *  not be recorded as undoable user actions.
- *
- *  Uses a flag checked by the history plugin's beforeAddCommand
- *  callback — when paused, beforeAddCommand returns false and
- *  the command is not added to the undo queue.
- ************************************************************/
-function history_pause(gobj)
-{
-    gobj.priv._history_paused = true;
-}
-
-function history_resume(gobj)
-{
-    gobj.priv._history_paused = false;
 }
 
 /************************************************************
