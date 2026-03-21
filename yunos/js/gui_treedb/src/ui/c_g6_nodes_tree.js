@@ -219,6 +219,7 @@ SDATA_END()
 let PRIVATE_DATA = {
     _xy:                100,
     _edge_seq:          0,
+    _history_paused:    false,
     treedb_name:        "",
     gobj_remote_yuno:   null,
     descs:              null,
@@ -1937,7 +1938,11 @@ function ac_load_data(gobj, event, kw, src)
             graph_draw(gobj).then(() => {
                 graph_layout(gobj).then(() => {
                     if(priv.edit_mode) {
-                        graph_add_plugin(gobj, "history");
+                        graph_add_plugin(gobj, "history", {
+                            beforeAddCommand: () => {
+                                return !priv._history_paused;
+                            },
+                        });
                     } else {
                         graph_remove_plugin(gobj, "history");
                     }
@@ -1975,24 +1980,23 @@ function ac_save_graph(gobj, event, kw, src)
 }
 
 /************************************************************
- *  Pause/resume history plugin.
+ *  Pause/resume history recording.
+ *
  *  Backend-driven updates (node created/updated/deleted) must
  *  not be recorded as undoable user actions.
+ *
+ *  Uses a flag checked by the history plugin's beforeAddCommand
+ *  callback — when paused, beforeAddCommand returns false and
+ *  the command is not added to the undo queue.
  ************************************************************/
 function history_pause(gobj)
 {
-    let history = graph_get_plugin(gobj, "history");
-    if(history) {
-        history.pause();
-    }
+    gobj.priv._history_paused = true;
 }
 
 function history_resume(gobj)
 {
-    let history = graph_get_plugin(gobj, "history");
-    if(history) {
-        history.resume();
-    }
+    gobj.priv._history_paused = false;
 }
 
 /************************************************************
