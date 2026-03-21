@@ -893,14 +893,14 @@ function build_ports(gobj, desc)
         switch(field_desc.type) {
             case "hook":
                 {
-                    let child_schema = null;
-                    let child_schema_name = Object.keys(col.hook)[0];
-                    if(child_schema_name) {
-                        child_schema = priv.descs[child_schema_name];
+                    let child_desc = null;
+                    let child_topic_name = Object.keys(col.hook)[0];
+                    if(child_topic_name) {
+                        child_desc = priv.descs[child_topic_name];
                     }
                     port = {
                         key: col.id,
-                        fill: child_schema?child_schema.color:desc.color,
+                        fill: child_desc?child_desc.color:desc.color,
                         stroke: getStrokeColor(desc.color),
                     };
                     bottom_ports.push(port);
@@ -1249,8 +1249,8 @@ function draw_link(
         return;
     }
     let parent_topic = target_fkey.topic_name;
-    let parent_schema = priv.descs[parent_topic];
-    if(parent_schema && parent_schema.node_treedb_type === 'extended') {
+    let parent_desc = priv.descs[parent_topic];
+    if(parent_desc && parent_desc.node_treedb_type === 'extended') {
         return;
     }
     let parent_id  = target_fkey.id;
@@ -1947,7 +1947,7 @@ function ac_save_graph(gobj, event, kw, src)
 function ac_node_created(gobj, event, kw, src)
 {
     let priv = gobj.priv;
-    let schema_kw = kw.desc; // ignore changes in desc, by now
+    let desc_kw = kw.desc; // ignore changes in desc, by now
     let topic_name = kw.topic_name;
     let node = kw.node;
 
