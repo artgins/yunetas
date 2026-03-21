@@ -776,6 +776,7 @@ function transform__treedb_value_2_table_value(gobj, col, value, row, field)
             break;
         case "coordinates":
         case "blob":
+        case "gbuffer":
             value = JSON.stringify(value);
             break;
 
@@ -871,6 +872,10 @@ function transform__treedb_value_2_table_value(gobj, col, value, row, field)
 
         case "image":
             value = `<img src="${value}" alt="${value}" width="60" height="30" title="">`;
+            break;
+
+        default:
+            log_error(`transform__treedb_value_2_table_value() unhandled type '${field_desc.type}' (real_type='${field_desc.real_type}') for field '${field}'`);
             break;
 
     }
