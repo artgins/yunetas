@@ -1520,7 +1520,7 @@ function update_history_buttons(gobj)
     let $container = gobj_read_attr(gobj, "$container");
 
     if(priv.edit_mode) {
-        const history = graph.getPluginInstance('history');
+        const history = graph_get_plugin(gobj, "history");
         if(history) {
             if(history.canRedo()) {
                 enableElements($container, ".EV_HISTORY_REDO");
