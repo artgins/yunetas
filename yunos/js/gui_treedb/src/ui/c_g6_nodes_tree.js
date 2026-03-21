@@ -6,7 +6,7 @@
  *          Each G6 Node contains in his data:
  *          {
  *              topic_name: "...",
- *              schema: schema,     // Schema of topic
+ *              desc: desc,         // Desc of topic
  *              record: null,       // Data of node
  *          }
  *
@@ -759,16 +759,16 @@ function calculate_hooks_fkeys_counter(desc)
 }
 
 /************************************************************
- *  Build ports for a topic schema
+ *  Build ports for a topic desc
  ************************************************************/
-function build_ports(gobj, schema)
+function build_ports(gobj, desc)
 {
     let priv = gobj.priv;
 
     let top_ports = [];
     let bottom_ports = [];
 
-    let cols = schema.cols;
+    let cols = desc.cols;
     for(let i=0; i<cols.length; i++) {
         let col = cols[i];
         const field_desc = treedb_get_field_desc(col);
@@ -783,8 +783,8 @@ function build_ports(gobj, schema)
                     }
                     port = {
                         key: col.id,
-                        fill: child_schema?child_schema.color:schema.color,
-                        stroke: getStrokeColor(schema.color),
+                        fill: child_schema?child_schema.color:desc.color,
+                        stroke: getStrokeColor(desc.color),
                     };
                     bottom_ports.push(port);
                 }
@@ -792,8 +792,8 @@ function build_ports(gobj, schema)
             case "fkey":
                 port = {
                     key: col.id,
-                    fill: schema.color,
-                    stroke: getStrokeColor(schema.color),
+                    fill: desc.color,
+                    stroke: getStrokeColor(desc.color),
                 };
                 top_ports.push(port);
                 break;
@@ -821,7 +821,7 @@ function build_ports(gobj, schema)
 /************************************************************
  *  Create a topic node in the G6 graph
  ************************************************************/
-function create_topic_node(gobj, schema, record)
+function create_topic_node(gobj, desc, record)
 {
     let priv = gobj.priv;
     const graph = priv.graph;
@@ -829,7 +829,7 @@ function create_topic_node(gobj, schema, record)
     /*------------------------------------------*
      *  Creating filled cell from backend data
      *------------------------------------------*/
-    let node_name = build_node_name(gobj, schema.topic_name, record.id);
+    let node_name = build_node_name(gobj, desc.topic_name, record.id);
     let xy = get_default_ne_xy(gobj);
     let geometry = record._geometry || {};
     let x = kw_get_int(gobj, geometry, "x", xy, kw_flag_t.KW_CREATE);
@@ -840,25 +840,25 @@ function create_topic_node(gobj, schema, record)
         priv.__graphs__,
         null,
         {
-            topic: schema.topic_name,
+            topic: desc.topic_name,
             active: true
         }
     );
 
     //log_warning(`create node ==> ${node_name}`);
 
-    let ports = build_ports(gobj, schema);
+    let ports = build_ports(gobj, desc);
 
     let node_graph_type = null;
-    let node_treedb_type = schema.node_treedb_type;
+    let node_treedb_type = desc.node_treedb_type;
 
     let style = {
         x: x,
         y: y,
-        fill: schema.color,     // Fill color
-        stroke: getStrokeColor(schema.color),   // Stroke color
+        fill: desc.color,     // Fill color
+        stroke: getStrokeColor(desc.color),   // Stroke color
         lineWidth: 1,           // Stroke width
-        //labelText: schema.topic_name + "^" + record.id,
+        //labelText: desc.topic_name + "^" + record.id,
     };
 
     if(node_treedb_type === 'child') {
@@ -890,8 +890,8 @@ function create_topic_node(gobj, schema, record)
 <div style="
     width: 100%;
     height: 100%;
-    background: ${schema.color};
-    border: 1px solid ${getStrokeColor(schema.color)};
+    background: ${desc.color};
+    border: 1px solid ${getStrokeColor(desc.color)};
     border-radius: 0.5rem;
     color: #000;
     display: flex;
@@ -918,8 +918,8 @@ function create_topic_node(gobj, schema, record)
         style: style,
         data: {
             // This 4 keys are available in user `data` of G6 Node.
-            topic_name: schema.topic_name,
-            schema: schema,
+            topic_name: desc.topic_name,
+            desc: desc,
             record: record
         }
     };
@@ -941,7 +941,7 @@ function create_topic_node(gobj, schema, record)
 /************************************************************
  *  Update topic node data
  ************************************************************/
-function update_topic_node(gobj, schema, node_name, record)
+function update_topic_node(gobj, desc, node_name, record)
 {
     let priv = gobj.priv;
     let graph = priv.graph;
@@ -957,14 +957,14 @@ function update_topic_node(gobj, schema, node_name, record)
         nodedata.data.record = record;
 
         // Update label if it's a child node
-        if(schema.node_treedb_type === 'child') {
+        if(desc.node_treedb_type === 'child') {
             graph.updateNodeData([{
                 id: node_name,
                 style: {
                     labelText: record.id,
                 }
             }]);
-        } else if(schema.node_treedb_type === 'hierarchical') {
+        } else if(desc.node_treedb_type === 'hierarchical') {
             graph.updateNodeData([{
                 id: node_name,
                 style: {
@@ -972,8 +972,8 @@ function update_topic_node(gobj, schema, node_name, record)
 <div style="
     width: 100%;
     height: 100%;
-    background: ${schema.color};
-    border: 1px solid ${getStrokeColor(schema.color)};
+    background: ${desc.color};
+    border: 1px solid ${getStrokeColor(desc.color)};
     border-radius: 0.5rem;
     color: #000;
     display: flex;
@@ -1066,10 +1066,10 @@ function create_links(gobj)
     let priv = gobj.priv;
 
     for(const [topic_name, records] of Object.entries(priv.records)) {
-        let schema = priv.descs[topic_name];
+        let desc = priv.descs[topic_name];
         for(let i = 0; i < records.length; i++) {
             let record = records[i];
-            draw_links(gobj, schema, record, true);
+            draw_links(gobj, desc, record, true);
         }
     }
 }
@@ -1077,10 +1077,10 @@ function create_links(gobj)
 /************************************************************
  *  Draw links for a record based on its fkey fields
  ************************************************************/
-function draw_links(gobj, schema, record, initial_load)
+function draw_links(gobj, desc, record, initial_load)
 {
-    let cols = schema.cols;
-    let topic_name = schema.topic_name;
+    let cols = desc.cols;
+    let topic_name = desc.topic_name;
     let record_id = record.id;
 
     for(let i=0; i<cols.length; i++) {
@@ -1190,10 +1190,10 @@ function draw_link(
 /************************************************************
  *  Clear links for a record
  ************************************************************/
-function clear_links(gobj, schema, record, verbose)
+function clear_links(gobj, desc, record, verbose)
 {
-    let cols = schema.cols;
-    let topic_name = schema.topic_name;
+    let cols = desc.cols;
+    let topic_name = desc.topic_name;
     let record_id = record.id;
 
     for(let i=0; i<cols.length; i++) {
@@ -1722,7 +1722,7 @@ function ac_clear_data(gobj, event, kw, src)
  *  Load batch data, from parent
  *  {
  *      kw_command,
- *      schema,
+ *      desc,
  *      data
  *  },
  ************************************************************/
@@ -1739,7 +1739,7 @@ function ac_load_data(gobj, event, kw, src)
     );
 
     if(!topic_name) {
-        log_error(`${gobj_short_name(gobj)}: No topic_name in schema`);
+        log_error(`${gobj_short_name(gobj)}: No topic_name in desc`);
         return 0;
     }
 
@@ -1750,7 +1750,7 @@ function ac_load_data(gobj, event, kw, src)
         return 0;
     }
 
-    let schema = priv.descs[topic_name];
+    let desc = priv.descs[topic_name];
 
     /*-------------------------*
      *  Save topic's records
@@ -1763,7 +1763,7 @@ function ac_load_data(gobj, event, kw, src)
      *--------------------------------------------------*/
     for(let i=0; i<data.length; i++) {
         let record = data[i];
-        create_topic_node(gobj, schema, record);
+        create_topic_node(gobj, desc, record);
     }
 
     /*----------------------------------------------------*
@@ -1829,7 +1829,7 @@ function ac_save_graph(gobj, event, kw, src)
 function ac_node_created(gobj, event, kw, src)
 {
     let priv = gobj.priv;
-    let schema_kw = kw.schema; // ignore changes in schema, by now
+    let schema_kw = kw.desc; // ignore changes in desc, by now
     let topic_name = kw.topic_name;
     let node = kw.node;
 
@@ -1837,8 +1837,8 @@ function ac_node_created(gobj, event, kw, src)
         return 0;
     }
 
-    let schema = priv.descs[topic_name];
-    if(!schema) {
+    let desc = priv.descs[topic_name];
+    if(!desc) {
         log_error(`ac_node_created: unknown topic: ${topic_name}`);
         return 0;
     }
@@ -1854,7 +1854,7 @@ function ac_node_created(gobj, event, kw, src)
     /*
      *  Create graph node and links
      */
-    create_topic_node(gobj, schema, node);
+    create_topic_node(gobj, desc, node);
 
     return 0;
 }
@@ -1872,8 +1872,8 @@ function ac_node_updated(gobj, event, kw, src)
         return 0;
     }
 
-    let schema = priv.descs[topic_name];
-    if(!schema) {
+    let desc = priv.descs[topic_name];
+    if(!desc) {
         log_error(`ac_node_updated: unknown topic: ${topic_name}`);
         return 0;
     }
@@ -1898,13 +1898,13 @@ function ac_node_updated(gobj, event, kw, src)
         }
     }
     if(old_record) {
-        clear_links(gobj, schema, old_record, false);
+        clear_links(gobj, desc, old_record, false);
     }
 
-    update_topic_node(gobj, schema, node_name, node);
+    update_topic_node(gobj, desc, node_name, node);
     update_local_node(gobj, topic_name, node);
 
-    draw_links(gobj, schema, node, false);
+    draw_links(gobj, desc, node, false);
 
     graph_draw(gobj);
 
@@ -1924,8 +1924,8 @@ function ac_node_deleted(gobj, event, kw, src)
         return 0;
     }
 
-    let schema = priv.descs[topic_name];
-    if(!schema) {
+    let desc = priv.descs[topic_name];
+    if(!desc) {
         log_error(`ac_node_deleted: unknown topic: ${topic_name}`);
         return 0;
     }
@@ -1934,7 +1934,7 @@ function ac_node_deleted(gobj, event, kw, src)
      *  Delete graph node and links
      */
     let node_name = build_node_name(gobj, topic_name, node.id);
-    clear_links(gobj, schema, node, false);
+    clear_links(gobj, desc, node, false);
     remove_topic_node(gobj, node_name);
     remove_local_node(gobj, topic_name, node);
 
@@ -2123,10 +2123,10 @@ function ac_node_click(gobj, event, kw, src)
 
     try {
         let nodedata = graph.getNodeData(node_id);
-        if(nodedata && nodedata.data && nodedata.data.schema) {
+        if(nodedata && nodedata.data && nodedata.data.desc) {
             gobj_publish_event(gobj, "EV_VERTEX_CLICKED", {
                 treedb_name: priv.treedb_name,
-                topic_name: nodedata.data.schema.topic_name,
+                topic_name: nodedata.data.desc.topic_name,
                 record: nodedata.data.record
             });
         }
