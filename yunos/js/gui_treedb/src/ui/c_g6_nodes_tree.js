@@ -1866,8 +1866,7 @@ function ac_clear_data(gobj, event, kw, src)
 {
     let priv = gobj.priv;
 
-    priv.records = {};
-    gobj_write_attr(gobj, "records", priv.records);
+    gobj_write_attr(gobj, "records", {});
 
     graph_remove_plugin(gobj, "history");
     update_history_buttons(gobj);
