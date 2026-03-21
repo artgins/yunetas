@@ -1192,6 +1192,40 @@ function create_links(gobj)
 }
 
 /************************************************************
+ *  Collect all fkey references from a record as a Set.
+ *
+ *  Each entry is a string: "col_id\tcol_idx\tfkey_value"
+ *  where col_idx is the index into desc.cols for recovering
+ *  the col object, and fkey_value is the raw fkey string
+ *  (e.g. "departments^direction^departments" or just "admin").
+ *
+ *  This allows diffing old vs new records to find added/removed
+ *  links without destroying and recreating all edges.
+ ************************************************************/
+function collect_fkey_refs(desc, record)
+{
+    let refs = new Set();
+    let cols = desc.cols;
+    for(let i=0; i<cols.length; i++) {
+        let col = cols[i];
+        if(!col.fkey) {
+            continue;
+        }
+        let fkeys = record[col.id];
+        if(fkeys) {
+            if(is_string(fkeys)) {
+                refs.add(i + "\t" + fkeys);
+            } else if(is_array(fkeys)) {
+                for(let j=0; j<fkeys.length; j++) {
+                    refs.add(i + "\t" + fkeys[j]);
+                }
+            }
+        }
+    }
+    return refs;
+}
+
+/************************************************************
  *  Draw links for a record based on its fkey fields
  ************************************************************/
 function draw_links(gobj, desc, record, initial_load)
@@ -1970,15 +2004,22 @@ function ac_node_created(gobj, event, kw, src)
     priv.records[topic_name].push(node);
 
     /*
-     *  Create graph node and links
+     *  Create graph node and draw its links
      */
     create_topic_node(gobj, desc, node);
+    draw_links(gobj, desc, node, false);
+    graph_draw(gobj);
 
     return 0;
 }
 
 /************************************************************
- *  Node updated, from subscription
+ *  Node updated, from subscription.
+ *
+ *  Diff old vs new fkey references:
+ *  - removed refs → clear those edges
+ *  - added refs   → draw those edges
+ *  - unchanged    → leave as-is
  ************************************************************/
 function ac_node_updated(gobj, event, kw, src)
 {
@@ -1996,14 +2037,11 @@ function ac_node_updated(gobj, event, kw, src)
         return 0;
     }
 
-    /*
-     *  Update graph node and links
-     */
-
     let node_name = build_node_name(gobj, topic_name, node.id);
+    let cols = desc.cols;
 
     /*
-     *  Clear old links, update record, draw new links
+     *  Find old record
      */
     let old_record = null;
     let records = priv.records[topic_name];
@@ -2015,14 +2053,34 @@ function ac_node_updated(gobj, event, kw, src)
             }
         }
     }
-    if(old_record) {
-        clear_links(gobj, desc, old_record, false);
+
+    /*
+     *  Diff fkey references: old vs new
+     */
+    let old_refs = old_record ? collect_fkey_refs(desc, old_record) : new Set();
+    let new_refs = collect_fkey_refs(desc, node);
+
+    // Remove edges for refs that disappeared
+    for(let ref of old_refs) {
+        if(!new_refs.has(ref)) {
+            let [col_idx, fkey_value] = ref.split("\t");
+            clear_link(gobj, topic_name, node.id, cols[parseInt(col_idx)], fkey_value, false);
+        }
     }
 
+    /*
+     *  Update node data and local record
+     */
     update_topic_node(gobj, desc, node_name, node);
     update_local_node(gobj, topic_name, node);
 
-    draw_links(gobj, desc, node, false);
+    // Draw edges for refs that appeared
+    for(let ref of new_refs) {
+        if(!old_refs.has(ref)) {
+            let [col_idx, fkey_value] = ref.split("\t");
+            draw_link(gobj, topic_name, node.id, cols[parseInt(col_idx)], fkey_value, false);
+        }
+    }
 
     graph_draw(gobj);
 
