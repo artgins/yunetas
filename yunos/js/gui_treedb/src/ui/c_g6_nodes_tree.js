@@ -1567,7 +1567,7 @@ function graph_remove_plugin(gobj, plugin_key)
     }
 }
 
-async function clear_graph(gobj)
+async function graph_clear(gobj)
 {
     let priv = gobj.priv;
     let graph = priv.graph;
@@ -1713,8 +1713,7 @@ function ac_clear_data(gobj, event, kw, src)
 
     graph_remove_plugin(gobj, "history");
     update_history_buttons(gobj);
-    clear_graph(gobj).then(() => {
-    });
+    graph_clear(gobj);
 
     return 0;
 }
