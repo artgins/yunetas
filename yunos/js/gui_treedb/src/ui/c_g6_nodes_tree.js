@@ -1852,7 +1852,7 @@ function ac_node_created(gobj, event, kw, src)
     priv.records[topic_name].push(node);
 
     /*
-     *  Create graph node and links
+     *  Create graph node
      */
     create_topic_node(gobj, desc, node);
 
