@@ -1673,7 +1673,7 @@ class ManualLayout extends BaseLayout
 
 
 /************************************************************
- *  Receive descs from parent
+ *  Receive descs, from parent
  ************************************************************/
 function ac_descs(gobj, event, kw, src)
 {
@@ -1702,7 +1702,7 @@ function ac_descs(gobj, event, kw, src)
 }
 
 /************************************************************
- *  Clear all graph data
+ *  Clear all graph data, from parent
  ************************************************************/
 function ac_clear_data(gobj, event, kw, src)
 {
@@ -1720,7 +1720,12 @@ function ac_clear_data(gobj, event, kw, src)
 }
 
 /************************************************************
- *  Load batch data: {schema, data}
+ *  Load batch data, from parent
+ *  {
+ *      kw_command,
+ *      schema,
+ *      data
+ *  },
  ************************************************************/
 function ac_load_data(gobj, event, kw, src)
 {
@@ -1795,7 +1800,7 @@ function ac_load_data(gobj, event, kw, src)
 }
 
 /************************************************************
- *  Save graph geometry
+ *  Save graph geometry, from click
  ************************************************************/
 function ac_save_graph(gobj, event, kw, src)
 {
@@ -1820,7 +1825,7 @@ function ac_save_graph(gobj, event, kw, src)
 }
 
 /************************************************************
- *  Node created (from subscription)
+ *  Node created, from subscription
  ************************************************************/
 function ac_node_created(gobj, event, kw, src)
 {
@@ -1856,7 +1861,7 @@ function ac_node_created(gobj, event, kw, src)
 }
 
 /************************************************************
- *  Node updated (from subscription)
+ *  Node updated, from subscription
  ************************************************************/
 function ac_node_updated(gobj, event, kw, src)
 {
@@ -1904,7 +1909,7 @@ function ac_node_updated(gobj, event, kw, src)
 }
 
 /************************************************************
- *  Node deleted (from subscription)
+ *  Node deleted, from subscription
  ************************************************************/
 function ac_node_deleted(gobj, event, kw, src)
 {
@@ -1934,7 +1939,7 @@ function ac_node_deleted(gobj, event, kw, src)
 }
 
 /************************************************************
- *  Show
+ *  Show, from parent
  ************************************************************/
 function ac_show(gobj, event, kw, src)
 {
@@ -1956,7 +1961,7 @@ function ac_show(gobj, event, kw, src)
 }
 
 /************************************************************
- *  Hide
+ *  Hide, from parent
  ************************************************************/
 function ac_hide(gobj, event, kw, src)
 {
