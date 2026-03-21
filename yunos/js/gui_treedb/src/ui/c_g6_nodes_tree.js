@@ -1830,7 +1830,7 @@ function ac_save_graph(gobj, event, kw, src)
 function ac_node_created(gobj, event, kw, src)
 {
     let priv = gobj.priv;
-    let schema_kw = kw.schema;
+    let schema_kw = kw.schema; // ignore changes in schema, by now
     let topic_name = kw.topic_name;
     let node = kw.node;
 
