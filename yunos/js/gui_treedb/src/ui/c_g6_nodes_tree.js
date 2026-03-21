@@ -1975,6 +1975,27 @@ function ac_save_graph(gobj, event, kw, src)
 }
 
 /************************************************************
+ *  Pause/resume history plugin.
+ *  Backend-driven updates (node created/updated/deleted) must
+ *  not be recorded as undoable user actions.
+ ************************************************************/
+function history_pause(gobj)
+{
+    let history = graph_get_plugin(gobj, "history");
+    if(history) {
+        history.pause();
+    }
+}
+
+function history_resume(gobj)
+{
+    let history = graph_get_plugin(gobj, "history");
+    if(history) {
+        history.resume();
+    }
+}
+
+/************************************************************
  *  Node created, from subscription
  ************************************************************/
 function ac_node_created(gobj, event, kw, src)
@@ -2005,9 +2026,11 @@ function ac_node_created(gobj, event, kw, src)
     /*
      *  Create graph node and draw its links
      */
+    history_pause(gobj);
     create_topic_node(gobj, desc, node);
     draw_links(gobj, desc, node, false);
     graph_draw(gobj);
+    history_resume(gobj);
 
     return 0;
 }
@@ -2059,6 +2082,8 @@ function ac_node_updated(gobj, event, kw, src)
     let old_refs = old_record ? collect_fkey_refs(desc, old_record) : new Set();
     let new_refs = collect_fkey_refs(desc, node);
 
+    history_pause(gobj);
+
     // Remove edges for refs that disappeared
     for(let ref of old_refs) {
         if(!new_refs.has(ref)) {
@@ -2082,6 +2107,7 @@ function ac_node_updated(gobj, event, kw, src)
     }
 
     graph_draw(gobj);
+    history_resume(gobj);
 
     return 0;
 }
@@ -2108,12 +2134,14 @@ function ac_node_deleted(gobj, event, kw, src)
     /*
      *  Delete graph node and links
      */
+    history_pause(gobj);
     let node_name = build_node_name(gobj, topic_name, node.id);
     clear_links(gobj, desc, node, false);
     remove_topic_node(gobj, node_name);
     remove_local_node(gobj, topic_name, node);
 
     graph_draw(gobj);
+    history_resume(gobj);
 
     return 0;
 }
