@@ -57,6 +57,7 @@ import {
     json_size,
     treedb_get_field_desc,
     treedb_decoder_fkey,
+    treedb_encoder_fkey,
     kwid_find_one_record,
     str_in_list,
     delete_from_list,
@@ -684,7 +685,6 @@ function configure_toolbar(gobj)
             },
             getItems: () => {
                 let items = [
-                    { id: 'g6-icon-save', value: 'save',   className: 'EV_SAVE_GRAPH',   title: 'Save',   disabled: false },
                     { id: 'zoom-in',  value: 'zoom-in',  className: 'EV_ZOOM_IN',    title: 'Zoom In'    },
                     { id: 'zoom-out', value: 'zoom-out', className: 'EV_ZOOM_OUT',   title: 'Zoom Out'   },
                     { id: 'reset',    value: 'reset',    className: 'EV_ZOOM_RESET', title: 'Reset Zoom' },
@@ -702,7 +702,7 @@ function configure_toolbar(gobj)
                     items.push(
                         { id: 'undo',         value: 'undo',   className: 'EV_HISTORY_UNDO', title: 'Undo',   disabled: true },
                         { id: 'redo',         value: 'redo',   className: 'EV_HISTORY_REDO', title: 'Redo',   disabled: true },
-                        // { id: 'g6-icon-save', value: 'save',   className: 'EV_SAVE_GRAPH',   title: 'Save',   disabled: true },
+                        { id: 'g6-icon-save', value: 'save',   className: 'EV_SAVE_GRAPH',   title: 'Save',   disabled: true },
                     );
                 }
 
@@ -1213,11 +1213,18 @@ function collect_fkey_refs(desc, record)
         }
         let fkeys = record[col.id];
         if(fkeys) {
-            if(is_string(fkeys)) {
-                refs.add(i + "\t" + fkeys);
-            } else if(is_array(fkeys)) {
+            if(is_array(fkeys)) {
                 for(let j=0; j<fkeys.length; j++) {
-                    refs.add(i + "\t" + fkeys[j]);
+                    let key = treedb_encoder_fkey(col, fkeys[j]);
+                    if(key) {
+                        refs.add(i + "\t" + key);
+                    }
+                }
+            } else {
+                // string or object — normalize to canonical form
+                let key = treedb_encoder_fkey(col, fkeys);
+                if(key) {
+                    refs.add(i + "\t" + key);
                 }
             }
         }
@@ -1243,14 +1250,13 @@ function draw_links(gobj, desc, record, initial_load)
         let fkeys = record[col.id];
 
         if(fkeys) {
-            if(is_string(fkeys)) {
-                draw_link(gobj, topic_name, record_id, col, fkeys, initial_load);
-            } else if(is_array(fkeys)) {
+            if(is_array(fkeys)) {
                 for(let j=0; j<fkeys.length; j++) {
                     draw_link(gobj, topic_name, record_id, col, fkeys[j], initial_load);
                 }
             } else {
-                log_error(`${gobj_short_name(gobj)}: fkey type unsupported: ` + JSON.stringify(fkeys));
+                // string or object
+                draw_link(gobj, topic_name, record_id, col, fkeys, initial_load);
             }
         }
     }
@@ -1369,14 +1375,13 @@ function clear_links(gobj, desc, record, verbose)
         let fkeys = record[col.id];
 
         if(fkeys) {
-            if(is_string(fkeys)) {
-                clear_link(gobj, topic_name, record_id, col, fkeys, verbose);
-            } else if(is_array(fkeys)) {
+            if(is_array(fkeys)) {
                 for(let j=0; j<fkeys.length; j++) {
                     clear_link(gobj, topic_name, record_id, col, fkeys[j], verbose);
                 }
             } else {
-                log_error(`${gobj_short_name(gobj)}: fkey type unsupported: ` + JSON.stringify(fkeys));
+                // string or object
+                clear_link(gobj, topic_name, record_id, col, fkeys, verbose);
             }
         }
     }

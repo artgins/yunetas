@@ -232,6 +232,21 @@ function treedb_decoder_fkey(col, fkey)
     }
 }
 
+/************************************************************
+ *  Encode a fkey (any format) to canonical string:
+ *      "$topic_name^$id^$hook_name"
+ *
+ *  Returns null on error.
+ ************************************************************/
+function treedb_encoder_fkey(col, fkey)
+{
+    let decoded = treedb_decoder_fkey(col, fkey);
+    if(!decoded) {
+        return null;
+    }
+    return decoded.topic_name + "^" + decoded.id + "^" + decoded.hook_name;
+}
+
 /********************************************
  *  hook can be:
  *
@@ -531,6 +546,7 @@ function create_template_record(template, kw)
 export {
     treedb_hook_data_size,
     treedb_decoder_fkey,
+    treedb_encoder_fkey,
     treedb_decoder_hook,
     treedb_get_field_desc,
     template_get_field_desc,
