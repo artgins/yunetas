@@ -1695,6 +1695,12 @@ function graph_add_plugin(gobj, plugin_key, options)
                 plugin.emitter.on(HistoryEvent.ADD, () => {
                     update_history_buttons(gobj);
                 });
+                graph.updatePlugin({
+                    key: plugin_key,
+                    beforeAddCommand: () => {
+                        return !priv._history_paused;
+                    }
+                });
             }
             break;
     }
@@ -1938,11 +1944,7 @@ function ac_load_data(gobj, event, kw, src)
             graph_draw(gobj).then(() => {
                 graph_layout(gobj).then(() => {
                     if(priv.edit_mode) {
-                        graph_add_plugin(gobj, "history", {
-                            beforeAddCommand: () => {
-                                return !priv._history_paused;
-                            },
-                        });
+                        graph_add_plugin(gobj, "history");
                     } else {
                         graph_remove_plugin(gobj, "history");
                     }
@@ -2033,8 +2035,9 @@ function ac_node_created(gobj, event, kw, src)
     history_pause(gobj);
     create_topic_node(gobj, desc, node);
     draw_links(gobj, desc, node, false);
-    graph_draw(gobj);
-    history_resume(gobj);
+    graph_draw(gobj).then(() => {
+        history_resume(gobj);
+    });
 
     return 0;
 }
@@ -2110,8 +2113,9 @@ function ac_node_updated(gobj, event, kw, src)
         }
     }
 
-    graph_draw(gobj);
-    history_resume(gobj);
+    graph_draw(gobj).then(() => {
+        history_resume(gobj);
+    });
 
     return 0;
 }
@@ -2144,8 +2148,9 @@ function ac_node_deleted(gobj, event, kw, src)
     remove_topic_node(gobj, node_name);
     remove_local_node(gobj, topic_name, node);
 
-    graph_draw(gobj);
-    history_resume(gobj);
+    graph_draw(gobj).then(() => {
+        history_resume(gobj);
+    });
 
     return 0;
 }
