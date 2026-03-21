@@ -880,7 +880,7 @@ function transform__treedb_value_2_table_value(gobj, col, value, row, field)
     // This guard catches cases where the backend sends an unexpected type for a field
     // (e.g. list_dict=1 converting an unset string/enum field to []).
     if(value !== null && value !== undefined && typeof value === "object" && !(value instanceof Node)) {
-        log_error(`transform__treedb_value_2_table_value() unexpected object value for field '${field}': ${JSON.stringify(value)}`);
+        log_error(`transform__treedb_value_2_table_value() unexpected object value for field '${field}' (type='${field_desc.type}', real_type='${field_desc.real_type}'): ${JSON.stringify(value)}`);
         value = JSON.stringify(value);
     }
 
