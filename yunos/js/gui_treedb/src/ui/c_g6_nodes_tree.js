@@ -728,33 +728,33 @@ function getPointPosition(count, index, margin = 0.2)
 }
 
 /************************************************************
- *  Count hooks and fkeys in schema, classify node type
+ *  Count hooks and fkeys in topic desc, classify node type
  ************************************************************/
-function calculate_hooks_fkeys_counter(schema)
+function calculate_hooks_fkeys_counter(desc)
 {
-    let cols = schema.cols;
-    schema.hooks_counter = 0;
-    schema.fkeys_counter = 0;
+    let cols = desc.cols;
+    desc.hooks_counter = 0;
+    desc.fkeys_counter = 0;
 
     for(let i=0; i<cols.length; i++) {
         let col = cols[i];
         const field_desc = treedb_get_field_desc(col);
         switch(field_desc.type) {
             case "hook":
-                schema.hooks_counter++;
+                desc.hooks_counter++;
                 break;
             case "fkey":
-                schema.fkeys_counter++;
+                desc.fkeys_counter++;
                 break;
         }
     }
 
-    if(schema.hooks_counter === 0) {
-        schema.node_treedb_type = 'child';
-    } else if(schema.fkeys_counter === 0) {
-        schema.node_treedb_type = 'extended';
+    if(desc.hooks_counter === 0) {
+        desc.node_treedb_type = 'child';
+    } else if(desc.fkeys_counter === 0) {
+        desc.node_treedb_type = 'extended';
     } else {
-        schema.node_treedb_type = 'hierarchical';
+        desc.node_treedb_type = 'hierarchical';
     }
 }
 
