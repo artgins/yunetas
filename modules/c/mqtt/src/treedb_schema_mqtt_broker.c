@@ -163,13 +163,13 @@
 static char treedb_schema_mqtt_broker[]= "\
 {                                                                   \n\
     'id': 'treedb_mqtt_broker',                                     \n\
-    'schema_version': '23',                                         \n\
+    'schema_version': '24',                                         \n\
     'topics': [                                                     \n\
         {                                                           \n\
             'id': 'client_groups',                                  \n\
             'pkey': 'id',                                           \n\
             'system_flag': 'sf_string_key',                         \n\
-            'topic_version': '2',                                   \n\
+            'topic_version': '3',                                   \n\
             'cols': {                                               \n\
                 'id': {                                             \n\
                     'header': 'Client Group',                       \n\
@@ -198,6 +198,24 @@ static char treedb_schema_mqtt_broker[]= "\
                     'flag': [                                       \n\
                         'fkey'                                      \n\
                     ]                                               \n\
+                },                                                  \n\
+                'managers': {                                       \n\
+                    'header': 'Managers',                           \n\
+                    'fillspace': 10,                                \n\
+                    'type': 'object',                               \n\
+                    'flag': ['hook'],                               \n\
+                    'hook': {                                       \n\
+                        'users': 'user_groups'                      \n\
+                    }                                               \n\
+                },                                                  \n\
+                'clients': {                                        \n\
+                    'header': 'Clients',                            \n\
+                    'fillspace': 10,                                \n\
+                    'type': 'object',                               \n\
+                    'flag': ['hook'],                               \n\
+                    'hook': {                                       \n\
+                        'clients': 'client_groups'                  \n\
+                    }                                               \n\
                 },                                                  \n\
                 'description': {                                    \n\
                     'header': 'Description',                        \n\
@@ -287,24 +305,6 @@ static char treedb_schema_mqtt_broker[]= "\
                         'writable',                                 \n\
                         'coordinates'                               \n\
                     ]                                               \n\
-                },                                                  \n\
-                'managers': {                                       \n\
-                    'header': 'Managers',                           \n\
-                    'fillspace': 10,                                \n\
-                    'type': 'object',                               \n\
-                    'flag': ['hook'],                               \n\
-                    'hook': {                                       \n\
-                        'users': 'user_groups'                      \n\
-                    }                                               \n\
-                },                                                  \n\
-                'clients': {                                        \n\
-                    'header': 'Clients',                            \n\
-                    'fillspace': 10,                                \n\
-                    'type': 'object',                               \n\
-                    'flag': ['hook'],                               \n\
-                    'hook': {                                       \n\
-                        'clients': 'client_groups'                  \n\
-                    }                                               \n\
                 },                                                  \n\
                 '_geometry': {                                      \n\
                     'header': 'Geometry',                           \n\
