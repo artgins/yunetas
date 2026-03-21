@@ -1516,7 +1516,6 @@ function save_geometry(gobj)
 function update_history_buttons(gobj)
 {
     let priv = gobj.priv;
-    let graph = priv.graph;
     let $container = gobj_read_attr(gobj, "$container");
 
     if(priv.edit_mode) {
@@ -1692,7 +1691,7 @@ function graph_add_plugin(gobj, plugin_key, options)
     switch(plugin_key) {
         case "history":
             if(plugin) {
-                plugin.emitter.on(HistoryEvent.ADD, () => {
+                plugin.on(HistoryEvent.CHANGE, () => {
                     update_history_buttons(gobj);
                 });
                 graph.updatePlugin({
@@ -2406,7 +2405,6 @@ function ac_history_redo(gobj, event, kw, src)
         if(history && history.canRedo()) {
             history.redo();
         }
-        update_history_buttons(gobj);
     }
 
     return 0;
@@ -2421,7 +2419,6 @@ function ac_history_undo(gobj, event, kw, src)
         if(history && history.canUndo()) {
             history.undo();
         }
-        update_history_buttons(gobj);
     }
 
     return 0;
