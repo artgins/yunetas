@@ -1879,6 +1879,10 @@ function ac_node_updated(gobj, event, kw, src)
         return 0;
     }
 
+    /*
+     *  Update graph node and links
+     */
+
     let node_name = build_node_name(gobj, topic_name, node.id);
 
     /*
@@ -1927,8 +1931,10 @@ function ac_node_deleted(gobj, event, kw, src)
         return 0;
     }
 
+    /*
+     *  Delete graph node and links
+     */
     let node_name = build_node_name(gobj, topic_name, node.id);
-
     clear_links(gobj, schema, node, false);
     remove_topic_node(gobj, node_name);
     remove_local_node(gobj, topic_name, node);
