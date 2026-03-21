@@ -128,6 +128,8 @@ SDATA_END()
 
 let PRIVATE_DATA = {
     $container:         null,
+    treedb_name:        "",
+    topic_name:         "",
     tabulator:          null,
 };
 
@@ -749,6 +751,7 @@ function table__destroy(gobj)
  ************************************************************/
 function transform__treedb_value_2_table_value(gobj, col, value, row, field)
 {
+    let priv = gobj.priv;
     const field_desc = treedb_get_field_desc(col);
 
     switch(field_desc.type) {
@@ -875,7 +878,7 @@ function transform__treedb_value_2_table_value(gobj, col, value, row, field)
             break;
 
         default:
-            log_error(`transform__treedb_value_2_table_value() unhandled type '${field_desc.type}' (real_type='${field_desc.real_type}') for field '${field}'`);
+            log_error(`transform__treedb_value_2_table_value() unhandled type '${field_desc.type}' (real_type='${field_desc.real_type}') for field '${field}', topic ${priv.topic_name}`);
             break;
 
     }
@@ -885,7 +888,7 @@ function transform__treedb_value_2_table_value(gobj, col, value, row, field)
     // This guard catches cases where the backend sends an unexpected type for a field
     // (e.g. list_dict=1 converting an unset string/enum field to []).
     if(value !== null && value !== undefined && typeof value === "object" && !(value instanceof Node)) {
-        log_error(`transform__treedb_value_2_table_value() unexpected object value for field '${field}' (type='${field_desc.type}', real_type='${field_desc.real_type}'): ${JSON.stringify(value)}`);
+        log_error(`transform__treedb_value_2_table_value() unexpected object value for field '${field}' (type='${field_desc.type}', real_type='${field_desc.real_type}'): ${JSON.stringify(value)}, topic ${priv.topic_name}`);
         value = JSON.stringify(value);
     }
 
