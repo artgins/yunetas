@@ -218,6 +218,8 @@ SDATA_END()
 
 let PRIVATE_DATA = {
     _xy:                100,
+    _edge_seq:          0,
+    _history_paused:    false,
     treedb_name:        "",
     gobj_remote_yuno:   null,
     descs:              null,
@@ -328,6 +330,122 @@ function build_node_name(gobj, topic_name, id)
     let priv = gobj.priv;
 
     return sprintf("node-%s-%s-%s", priv.treedb_name, topic_name, id);
+}
+
+/************************************************************
+ *  Build edge id: independent, stable, auto-incremented.
+ *
+ *  The id is decoupled from the treedb relationship so that
+ *  an edge can exist in intermediate states (dangling,
+ *  half-connected) during design-mode interactions.
+ *  The treedb semantics live in edge.data (see create_edge_data).
+ ************************************************************/
+function build_edge_id(gobj)
+{
+    let priv = gobj.priv;
+    priv._edge_seq++;
+    return sprintf("edge-%s-%d", priv.treedb_name, priv._edge_seq);
+}
+
+/************************************************************
+ *  Create edge data structure — the semantic treedb relationship.
+ *
+ *  Lifecycle states:
+ *
+ *  DANGLING (just created, not connected to any port):
+ *    all fields null
+ *
+ *  HALF-CONNECTED (one port attached):
+ *    parent side OR child side filled in
+ *
+ *  FULLY-CONNECTED (both ports attached):
+ *    all fields filled — ready for treedb_link_nodes
+ ************************************************************/
+function create_edge_data()
+{
+    return {
+        hook_name:    null,
+        fkey_name:    null,
+        parent_topic: null,
+        parent_id:    null,
+        child_topic:  null,
+        child_id:     null,
+    };
+}
+
+/************************************************************
+ *  Edge connection state queries
+ ************************************************************/
+function edge_is_fully_connected(edge_data)
+{
+    return !!(edge_data.hook_name && edge_data.fkey_name &&
+              edge_data.parent_id && edge_data.child_id);
+}
+
+function edge_is_half_connected(edge_data)
+{
+    let has_parent = !!(edge_data.hook_name && edge_data.parent_id);
+    let has_child  = !!(edge_data.fkey_name && edge_data.child_id);
+    return (has_parent || has_child) && !(has_parent && has_child);
+}
+
+function edge_is_dangling(edge_data)
+{
+    return (!edge_data.hook_name && !edge_data.fkey_name &&
+            !edge_data.parent_id && !edge_data.child_id);
+}
+
+/************************************************************
+ *  Find all edges connected to a hook port on a parent node
+ ************************************************************/
+function get_edges_by_hook(gobj, parent_topic, parent_id, hook_name)
+{
+    let priv = gobj.priv;
+    let graph = priv.graph;
+    let edges = graph.getData().edges || [];
+    return edges.filter(e =>
+        e.data &&
+        e.data.parent_topic === parent_topic &&
+        e.data.parent_id    === parent_id &&
+        e.data.hook_name    === hook_name
+    );
+}
+
+/************************************************************
+ *  Find all edges connected to a fkey port on a child node
+ ************************************************************/
+function get_edges_by_fkey(gobj, child_topic, child_id, fkey_name)
+{
+    let priv = gobj.priv;
+    let graph = priv.graph;
+    let edges = graph.getData().edges || [];
+    return edges.filter(e =>
+        e.data &&
+        e.data.child_topic === child_topic &&
+        e.data.child_id    === child_id &&
+        e.data.fkey_name   === fkey_name
+    );
+}
+
+/************************************************************
+ *  Find the exact edge for a specific fully-connected
+ *  treedb link (parent hook <-> child fkey).
+ ************************************************************/
+function get_edge_by_link(gobj, parent_topic, parent_id, hook_name,
+                                child_topic, child_id, fkey_name)
+{
+    let priv = gobj.priv;
+    let graph = priv.graph;
+    let edges = graph.getData().edges || [];
+    return edges.find(e =>
+        e.data &&
+        e.data.parent_topic === parent_topic &&
+        e.data.parent_id    === parent_id &&
+        e.data.hook_name    === hook_name &&
+        e.data.child_topic  === child_topic &&
+        e.data.child_id     === child_id &&
+        e.data.fkey_name    === fkey_name
+    ) || null;
 }
 
 /************************************************************
@@ -566,7 +684,7 @@ function configure_toolbar(gobj)
             },
             getItems: () => {
                 let items = [
-                    { id: 'g6-icon-save', value: 'save',   className: 'EV_SAVE_GRAPH',   title: 'Save',   disabled: true },
+                    { id: 'g6-icon-save', value: 'save',   className: 'EV_SAVE_GRAPH',   title: 'Save',   disabled: false },
                     { id: 'zoom-in',  value: 'zoom-in',  className: 'EV_ZOOM_IN',    title: 'Zoom In'    },
                     { id: 'zoom-out', value: 'zoom-out', className: 'EV_ZOOM_OUT',   title: 'Zoom Out'   },
                     { id: 'reset',    value: 'reset',    className: 'EV_ZOOM_RESET', title: 'Reset Zoom' },
@@ -584,7 +702,6 @@ function configure_toolbar(gobj)
                     items.push(
                         { id: 'undo',         value: 'undo',   className: 'EV_HISTORY_UNDO', title: 'Undo',   disabled: true },
                         { id: 'redo',         value: 'redo',   className: 'EV_HISTORY_REDO', title: 'Redo',   disabled: true },
-                        // { id: 'delete',       value: 'delete', className: 'EV_DELETE_NODE',  title: 'Delete'                },
                         // { id: 'g6-icon-save', value: 'save',   className: 'EV_SAVE_GRAPH',   title: 'Save',   disabled: true },
                     );
                 }
@@ -776,14 +893,14 @@ function build_ports(gobj, desc)
         switch(field_desc.type) {
             case "hook":
                 {
-                    let child_schema = null;
-                    let child_schema_name = Object.keys(col.hook)[0];
-                    if(child_schema_name) {
-                        child_schema = priv.descs[child_schema_name];
+                    let child_desc = null;
+                    let child_topic_name = Object.keys(col.hook)[0];
+                    if(child_topic_name) {
+                        child_desc = priv.descs[child_topic_name];
                     }
                     port = {
                         key: col.id,
-                        fill: child_schema?child_schema.color:desc.color,
+                        fill: child_desc?child_desc.color:desc.color,
                         stroke: getStrokeColor(desc.color),
                     };
                     bottom_ports.push(port);
@@ -1075,6 +1192,40 @@ function create_links(gobj)
 }
 
 /************************************************************
+ *  Collect all fkey references from a record as a Set.
+ *
+ *  Each entry is a string: "col_id\tcol_idx\tfkey_value"
+ *  where col_idx is the index into desc.cols for recovering
+ *  the col object, and fkey_value is the raw fkey string
+ *  (e.g. "departments^direction^departments" or just "admin").
+ *
+ *  This allows diffing old vs new records to find added/removed
+ *  links without destroying and recreating all edges.
+ ************************************************************/
+function collect_fkey_refs(desc, record)
+{
+    let refs = new Set();
+    let cols = desc.cols;
+    for(let i=0; i<cols.length; i++) {
+        let col = cols[i];
+        if(!col.fkey) {
+            continue;
+        }
+        let fkeys = record[col.id];
+        if(fkeys) {
+            if(is_string(fkeys)) {
+                refs.add(i + "\t" + fkeys);
+            } else if(is_array(fkeys)) {
+                for(let j=0; j<fkeys.length; j++) {
+                    refs.add(i + "\t" + fkeys[j]);
+                }
+            }
+        }
+    }
+    return refs;
+}
+
+/************************************************************
  *  Draw links for a record based on its fkey fields
  ************************************************************/
 function draw_links(gobj, desc, record, initial_load)
@@ -1106,12 +1257,15 @@ function draw_links(gobj, desc, record, initial_load)
 }
 
 /************************************************************
- *  Draw a single link (edge) between two nodes
+ *  Draw a single link (edge) between two nodes.
+ *
+ *  The edge gets an independent id (build_edge_id) and
+ *  carries the full treedb relationship in its data section.
  ************************************************************/
 function draw_link(
     gobj,
-    source_topic_name,
-    source_topic_id,
+    child_topic,
+    child_id,
     source_col,
     fkey,
     verbose
@@ -1121,60 +1275,70 @@ function draw_link(
     let graph = priv.graph;
 
     /*
-     *  Decode fkey: the link to the target
+     *  Decode fkey: the link to the parent
      */
     let target_fkey = treedb_decoder_fkey(source_col, fkey);
     if(!target_fkey) {
         log_error("draw_link: cannot decode fkey");
         return;
     }
-    let target_topic_name = target_fkey.topic_name;
-    let source_schema = priv.descs[target_topic_name];
-    if(source_schema && source_schema.node_treedb_type === 'extended') {
+    let parent_topic = target_fkey.topic_name;
+    let parent_desc = priv.descs[parent_topic];
+    if(parent_desc && parent_desc.node_treedb_type === 'extended') {
         return;
     }
-    let target_topic_id = target_fkey.id;
-    let target_hook = target_fkey.hook_name;
+    let parent_id  = target_fkey.id;
+    let hook_name  = target_fkey.hook_name;
+    let fkey_name  = source_col.id;
 
-    let target_node_name = build_node_name(gobj, target_topic_name, target_topic_id);
+    let parent_node = build_node_name(gobj, parent_topic, parent_id);
 
     /*
-     *  Target node must exist
+     *  Parent node must exist
      */
-    let target_cell;
+    let parent_cell;
     try {
-        target_cell = graph.getNodeData(target_node_name);
+        parent_cell = graph.getNodeData(parent_node);
     } catch(e) {
         if(verbose) {
             log_error(e.message);
         }
     }
-    if(!target_cell) {
+    if(!parent_cell) {
         if(verbose) {
-            log_error(`${gobj_short_name(gobj)}: target_cell NOT FOUND: ${target_node_name}`);
+            log_error(`${gobj_short_name(gobj)}: parent node NOT FOUND: ${parent_node}`);
         }
         return;
     }
 
     /*
-     *  Source node (me, the child)
+     *  Child node (me)
      */
-    let source_node_name = build_node_name(gobj, source_topic_name, source_topic_id);
-    let style = graph.getElementRenderStyle(source_node_name);
+    let child_node = build_node_name(gobj, child_topic, child_id);
+    let style = graph.getElementRenderStyle(child_node);
 
     /*
-     *  Create the edge
-     *  HACK: target/source are interchanged so arrows point parent -> child
+     *  Create the edge with independent id and semantic data
+     *  HACK: source/target are interchanged so arrows point parent -> child
      */
     let edge = {
+        id: build_edge_id(gobj),
         type: 'cubic',
-        source: target_node_name,
-        target: source_node_name,
+        source: parent_node,
+        target: child_node,
         style: {
-            sourcePort: target_hook,
-            targetPort: source_col.id,
+            sourcePort: hook_name,
+            targetPort: fkey_name,
             lineWidth: 2,
             stroke: style.fill,
+        },
+        data: {
+            parent_topic: parent_topic,
+            parent_id:    parent_id,
+            hook_name:    hook_name,
+            child_topic:  child_topic,
+            child_id:     child_id,
+            fkey_name:    fkey_name,
         }
     };
 
@@ -1219,57 +1383,44 @@ function clear_links(gobj, desc, record, verbose)
 }
 
 /************************************************************
- *  Clear a single link (edge)
+ *  Clear a single link (edge).
+ *  Finds the edge by its semantic data, removes by its id.
  ************************************************************/
 function clear_link(
     gobj,
-    source_topic_name,
-    source_topic_id,
+    child_topic,
+    child_id,
     source_col,
     fkey,
     verbose
 )
 {
-    let priv = gobj.priv;
-    let graph = priv.graph;
-
     let target_fkey = treedb_decoder_fkey(source_col, fkey);
     if(!target_fkey) {
         log_error("clear_link: cannot decode fkey");
         return;
     }
-    let target_topic_name = target_fkey.topic_name;
-    let target_topic_id = target_fkey.id;
 
-    let target_node_name = build_node_name(gobj, target_topic_name, target_topic_id);
+    let edge = get_edge_by_link(gobj,
+        target_fkey.topic_name, target_fkey.id, target_fkey.hook_name,
+        child_topic, child_id, source_col.id
+    );
 
-    let target_cell;
-    try {
-        target_cell = graph.getNodeData(target_node_name);
-    } catch(e) {
-        if(verbose) {
-            log_error(e.message);
+    if(edge) {
+        let priv = gobj.priv;
+        let graph = priv.graph;
+        try {
+            graph.removeEdgeData([edge.id]);
+        } catch(e) {
+            if(verbose) {
+                log_error(e.message);
+            }
         }
-    }
-    if(!target_cell) {
-        if(verbose) {
-            log_error(`${gobj_short_name(gobj)}: target_cell NOT FOUND: ${target_node_name}`);
-        }
-        return;
-    }
-
-    let source_node_name = build_node_name(gobj, source_topic_name, source_topic_id);
-
-    try {
-        let edge_id = `${source_node_name}-${target_node_name}`;
-        let edge = graph.getEdgeData(edge_id);
-        if(edge) {
-            graph.removeEdge(edge);
-        }
-    } catch(e) {
-        if(verbose) {
-            log_error(e.message);
-        }
+    } else if(verbose) {
+        log_error(`${gobj_short_name(gobj)}: clear_link: edge not found for ` +
+            `${target_fkey.topic_name}^${target_fkey.id}^${target_fkey.hook_name} -> ` +
+            `${child_topic}^${child_id}^${source_col.id}`
+        );
     }
 }
 
@@ -1360,16 +1511,35 @@ function save_geometry(gobj)
 }
 
 /************************************************************
+ *  Pause/resume history recording.
+ *
+ *  Backend-driven updates (node created/updated/deleted) must
+ *  not be recorded as undoable user actions.
+ *
+ *  Uses a flag checked by the history plugin's beforeAddCommand
+ *  callback — when paused, beforeAddCommand returns false and
+ *  the command is not added to the undo queue.
+ ************************************************************/
+function history_pause(gobj)
+{
+    gobj.priv._history_paused = true;
+}
+
+function history_resume(gobj)
+{
+    gobj.priv._history_paused = false;
+}
+
+/************************************************************
  *
  ************************************************************/
 function update_history_buttons(gobj)
 {
     let priv = gobj.priv;
-    let graph = priv.graph;
     let $container = gobj_read_attr(gobj, "$container");
 
     if(priv.edit_mode) {
-        const history = graph.getPluginInstance('history');
+        const history = graph_get_plugin(gobj, "history");
         if(history) {
             if(history.canRedo()) {
                 enableElements($container, ".EV_HISTORY_REDO");
@@ -1541,8 +1711,14 @@ function graph_add_plugin(gobj, plugin_key, options)
     switch(plugin_key) {
         case "history":
             if(plugin) {
-                plugin.emitter.on(HistoryEvent.ADD, () => {
+                plugin.on(HistoryEvent.CHANGE, () => {
                     update_history_buttons(gobj);
+                });
+                graph.updatePlugin({
+                    key: plugin_key,
+                    beforeAddCommand: () => {
+                        return !priv._history_paused;
+                    }
                 });
             }
             break;
@@ -1573,6 +1749,7 @@ async function graph_clear(gobj)
     let graph = priv.graph;
 
     priv._xy = 100;
+    priv._edge_seq = 0;
     priv.yet_showed = false;
 
     await graph.clear();
@@ -1708,8 +1885,7 @@ function ac_clear_data(gobj, event, kw, src)
 {
     let priv = gobj.priv;
 
-    priv.records = {};
-    gobj_write_attr(gobj, "records", priv.records);
+    gobj_write_attr(gobj, "records", {});
 
     graph_remove_plugin(gobj, "history");
     update_history_buttons(gobj);
@@ -1817,7 +1993,7 @@ function ac_save_graph(gobj, event, kw, src)
             update_history_buttons(gobj);
         }
 
-        save_geometry(gobj);
+        save_geometry(gobj); // Publish an EV_UPDATE_NODE of each node
     }
 
     return 0;
@@ -1829,7 +2005,7 @@ function ac_save_graph(gobj, event, kw, src)
 function ac_node_created(gobj, event, kw, src)
 {
     let priv = gobj.priv;
-    let schema_kw = kw.desc; // ignore changes in desc, by now
+    let desc_kw = kw.desc; // ignore changes in desc, by now
     let topic_name = kw.topic_name;
     let node = kw.node;
 
@@ -1852,15 +2028,25 @@ function ac_node_created(gobj, event, kw, src)
     priv.records[topic_name].push(node);
 
     /*
-     *  Create graph node
+     *  Create graph node and draw its links
      */
+    history_pause(gobj);
     create_topic_node(gobj, desc, node);
+    draw_links(gobj, desc, node, false);
+    graph_draw(gobj).then(() => {
+        history_resume(gobj);
+    });
 
     return 0;
 }
 
 /************************************************************
- *  Node updated, from subscription
+ *  Node updated, from subscription.
+ *
+ *  Diff old vs new fkey references:
+ *  - removed refs → clear those edges
+ *  - added refs   → draw those edges
+ *  - unchanged    → leave as-is
  ************************************************************/
 function ac_node_updated(gobj, event, kw, src)
 {
@@ -1878,14 +2064,11 @@ function ac_node_updated(gobj, event, kw, src)
         return 0;
     }
 
-    /*
-     *  Update graph node and links
-     */
-
     let node_name = build_node_name(gobj, topic_name, node.id);
+    let cols = desc.cols;
 
     /*
-     *  Clear old links, update record, draw new links
+     *  Find old record
      */
     let old_record = null;
     let records = priv.records[topic_name];
@@ -1897,16 +2080,40 @@ function ac_node_updated(gobj, event, kw, src)
             }
         }
     }
-    if(old_record) {
-        clear_links(gobj, desc, old_record, false);
+
+    /*
+     *  Diff fkey references: old vs new
+     */
+    let old_refs = old_record ? collect_fkey_refs(desc, old_record) : new Set();
+    let new_refs = collect_fkey_refs(desc, node);
+
+    history_pause(gobj);
+
+    // Remove edges for refs that disappeared
+    for(let ref of old_refs) {
+        if(!new_refs.has(ref)) {
+            let [col_idx, fkey_value] = ref.split("\t");
+            clear_link(gobj, topic_name, node.id, cols[parseInt(col_idx)], fkey_value, false);
+        }
     }
 
+    /*
+     *  Update node data and local record
+     */
     update_topic_node(gobj, desc, node_name, node);
     update_local_node(gobj, topic_name, node);
 
-    draw_links(gobj, desc, node, false);
+    // Draw edges for refs that appeared
+    for(let ref of new_refs) {
+        if(!old_refs.has(ref)) {
+            let [col_idx, fkey_value] = ref.split("\t");
+            draw_link(gobj, topic_name, node.id, cols[parseInt(col_idx)], fkey_value, false);
+        }
+    }
 
-    graph_draw(gobj);
+    graph_draw(gobj).then(() => {
+        history_resume(gobj);
+    });
 
     return 0;
 }
@@ -1933,12 +2140,15 @@ function ac_node_deleted(gobj, event, kw, src)
     /*
      *  Delete graph node and links
      */
+    history_pause(gobj);
     let node_name = build_node_name(gobj, topic_name, node.id);
     clear_links(gobj, desc, node, false);
     remove_topic_node(gobj, node_name);
     remove_local_node(gobj, topic_name, node);
 
-    graph_draw(gobj);
+    graph_draw(gobj).then(() => {
+        history_resume(gobj);
+    });
 
     return 0;
 }
@@ -2138,13 +2348,31 @@ function ac_node_click(gobj, event, kw, src)
 }
 
 /************************************************************
- *  Edge click - publish edge clicked event
+ *  Edge click - publish edge clicked event with semantic data
  ************************************************************/
 function ac_edge_click(gobj, event, kw, src)
 {
     let priv = gobj.priv;
+    let graph = priv.graph;
     let edge_id = kw.evt.target.id;
-    trace_msg(`edge_id ${edge_id}`);
+
+    try {
+        let edgedata = graph.getEdgeData(edge_id);
+        if(edgedata && edgedata.data) {
+            gobj_publish_event(gobj, "EV_EDGE_CLICKED", {
+                treedb_name: priv.treedb_name,
+                edge_id: edge_id,
+                parent_topic: edgedata.data.parent_topic,
+                parent_id:    edgedata.data.parent_id,
+                hook_name:    edgedata.data.hook_name,
+                child_topic:  edgedata.data.child_topic,
+                child_id:     edgedata.data.child_id,
+                fkey_name:    edgedata.data.fkey_name,
+            });
+        }
+    } catch(e) {
+        // Clicked on non-edge element
+    }
 
     return 0;
 }
@@ -2177,7 +2405,6 @@ function ac_history_redo(gobj, event, kw, src)
         if(history && history.canRedo()) {
             history.redo();
         }
-        update_history_buttons(gobj);
     }
 
     return 0;
@@ -2192,7 +2419,6 @@ function ac_history_undo(gobj, event, kw, src)
         if(history && history.canUndo()) {
             history.undo();
         }
-        update_history_buttons(gobj);
     }
 
     return 0;
@@ -2218,39 +2444,6 @@ function ac_exit_fullscreen(gobj, event, kw, src)
         fullscreen.exit();
     }
 
-    return 0;
-}
-
-/************************************************************
- *  CRUD events - publish to parent for backend handling
- ************************************************************/
-function ac_create_node(gobj, event, kw, src)
-{
-    gobj_publish_event(gobj, "EV_CREATE_NODE", kw);
-    return 0;
-}
-
-function ac_update_node(gobj, event, kw, src)
-{
-    gobj_publish_event(gobj, "EV_UPDATE_NODE", kw);
-    return 0;
-}
-
-function ac_delete_node(gobj, event, kw, src)
-{
-    gobj_publish_event(gobj, "EV_DELETE_NODE", kw);
-    return 0;
-}
-
-function ac_link_nodes(gobj, event, kw, src)
-{
-    gobj_publish_event(gobj, "EV_LINK_NODES", kw);
-    return 0;
-}
-
-function ac_unlink_nodes(gobj, event, kw, src)
-{
-    gobj_publish_event(gobj, "EV_UNLINK_NODES", kw);
     return 0;
 }
 
@@ -2319,13 +2512,6 @@ function create_gclass(gclass_name)
             ["EV_HISTORY_REDO",             ac_history_redo,        null],
             ["EV_REQUEST_FULLSCREEN",       ac_request_fullscreen,  null],
             ["EV_EXIT_FULLSCREEN",          ac_exit_fullscreen,     null],
-
-            /*--- CRUD pass-through events ---*/
-            ["EV_CREATE_NODE",              ac_create_node,         null],
-            ["EV_UPDATE_NODE",              ac_update_node,         null],
-            ["EV_DELETE_NODE",              ac_delete_node,         null],
-            ["EV_LINK_NODES",               ac_link_nodes,          null],
-            ["EV_UNLINK_NODES",             ac_unlink_nodes,        null],
 
             /*--- UI events ---*/
             ["EV_SHOW",                     ac_show,                null],
