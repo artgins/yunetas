@@ -701,7 +701,6 @@ function configure_toolbar(gobj)
                     items.push(
                         { id: 'undo',         value: 'undo',   className: 'EV_HISTORY_UNDO', title: 'Undo',   disabled: true },
                         { id: 'redo',         value: 'redo',   className: 'EV_HISTORY_REDO', title: 'Redo',   disabled: true },
-                        // { id: 'delete',       value: 'delete', className: 'EV_DELETE_NODE',  title: 'Delete'                },
                         // { id: 'g6-icon-save', value: 'save',   className: 'EV_SAVE_GRAPH',   title: 'Save',   disabled: true },
                     );
                 }
@@ -2415,39 +2414,6 @@ function ac_exit_fullscreen(gobj, event, kw, src)
     return 0;
 }
 
-/************************************************************
- *  CRUD events - publish to parent for backend handling
- ************************************************************/
-function ac_create_node(gobj, event, kw, src)
-{
-    gobj_publish_event(gobj, "EV_CREATE_NODE", kw);
-    return 0;
-}
-
-function ac_update_node(gobj, event, kw, src)
-{
-    gobj_publish_event(gobj, "EV_UPDATE_NODE", kw);
-    return 0;
-}
-
-function ac_delete_node(gobj, event, kw, src)
-{
-    gobj_publish_event(gobj, "EV_DELETE_NODE", kw);
-    return 0;
-}
-
-function ac_link_nodes(gobj, event, kw, src)
-{
-    gobj_publish_event(gobj, "EV_LINK_NODES", kw);
-    return 0;
-}
-
-function ac_unlink_nodes(gobj, event, kw, src)
-{
-    gobj_publish_event(gobj, "EV_UNLINK_NODES", kw);
-    return 0;
-}
-
 
 
 
@@ -2513,13 +2479,6 @@ function create_gclass(gclass_name)
             ["EV_HISTORY_REDO",             ac_history_redo,        null],
             ["EV_REQUEST_FULLSCREEN",       ac_request_fullscreen,  null],
             ["EV_EXIT_FULLSCREEN",          ac_exit_fullscreen,     null],
-
-            /*--- CRUD pass-through events ---*/
-            ["EV_CREATE_NODE",              ac_create_node,         null],
-            ["EV_UPDATE_NODE",              ac_update_node,         null],
-            ["EV_DELETE_NODE",              ac_delete_node,         null],
-            ["EV_LINK_NODES",               ac_link_nodes,          null],
-            ["EV_UNLINK_NODES",             ac_unlink_nodes,        null],
 
             /*--- UI events ---*/
             ["EV_SHOW",                     ac_show,                null],
