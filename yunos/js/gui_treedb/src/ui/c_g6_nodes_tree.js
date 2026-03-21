@@ -1059,7 +1059,7 @@ function remove_local_node(gobj, topic_name, node)
 }
 
 /************************************************************
- *  Create all links from records
+ *  Create all links from records, initial load from parent
  ************************************************************/
 function create_links(gobj)
 {
