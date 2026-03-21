@@ -1969,7 +1969,7 @@ function ac_save_graph(gobj, event, kw, src)
             update_history_buttons(gobj);
         }
 
-        save_geometry(gobj);
+        save_geometry(gobj); // Publish an EV_UPDATE_NODE of each node
     }
 
     return 0;
