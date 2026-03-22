@@ -764,7 +764,7 @@ function configure_toolbar_edit(gobj)
         {
             type: 'yui-toolbar',
             className: 'g6-toolbar-large',
-            position: 'top-right',
+            position: 'left-top',
             style: {
                 backgroundColor: '#f5f5f5',
                 padding: '8px',
@@ -772,14 +772,12 @@ function configure_toolbar_edit(gobj)
                 borderRadius: '8px',
                 border: '1px solid #e8e8e8',
                 opacity: '0.85',
-                marginTop: '12px',
-                marginRight: '56px',
             },
             getItems: () => {
                 return [
+                    { id: 'g6-icon-save', value: 'save', className: 'EV_SAVE_GRAPH',   title: 'Save', disabled: true },
                     { id: 'undo',         value: 'undo', className: 'EV_HISTORY_UNDO', title: 'Undo', disabled: true },
                     { id: 'redo',         value: 'redo', className: 'EV_HISTORY_REDO', title: 'Redo', disabled: true },
-                    { id: 'g6-icon-save', value: 'save', className: 'EV_SAVE_GRAPH',   title: 'Save', disabled: true },
                 ];
             },
             onClick: (value) => {
