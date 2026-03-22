@@ -4768,6 +4768,13 @@ PRIVATE json_t *cmd_run_yuno(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
         src
     );
     if(json_array_size(iter)==0) {
+        gobj_log_error(gobj, 0,
+            "function",         "%s", __FUNCTION__,
+            "msgset",           "%s", MSGSET_OPERATIONAL_ERROR,
+            "msg",              "%s", "Yuno not found or already running",
+            "kw",               "%j", kw,
+            NULL
+        );
         JSON_DECREF(iter)
         return msg_iev_build_response(gobj,
             -1,
