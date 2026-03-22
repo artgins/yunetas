@@ -29,17 +29,17 @@
             │                           │   │
             │         group_parent (↖)  │ ──┘ 1
             │                           │
-            │  description              │
-            │  icon                     │
-            │  enabled                  │
-            │  time                     │
-            │  language                 │
-            │  cluster                  │
-            │  properties               │
-            │  coordinates              │
-            │                           │
             │               managers {} │ ◀─────────────────┐N
             │                clients {} │ ◀─┐N              │
+            │                           │   │               │
+            │  description              │   │               │
+            │  icon                     │   │               │
+            │  enabled                  │   │               │
+            │  time                     │   │               │
+            │  language                 │   │               │
+            │  cluster                  │   │               │
+            │  properties               │   │               │
+            │  coordinates              │   │               │
             │                           │   │               │
             │                           │   │               │
             │  _geometry                │   │               │
@@ -53,13 +53,14 @@
             │                           │   │n              │
             │         client_groups [↖] │ ──┘               │
             │                           │                   │
-            │  name                     │                   │
-            │  assigned_id              │                   │
-            │  auto_created             │                   │
-            │  description              │                   │
-            │  enabled                  │                   │
-            │  time                     │                   │
             │           client_type [↖] │ ──┐ n             │
+            │                           │   │               │
+            │  name                     │   │               │
+            │  assigned_id              │   │               │
+            │  auto_created             │   │               │
+            │  description              │   │               │
+            │  enabled                  │   │               │
+            │  time                     │   │               │
             │  properties               │   │               │
             │  coordinates              │   │               │
             │  settings             <----------------- using client_types.template_settings
@@ -163,7 +164,7 @@
 static char treedb_schema_mqtt_broker[]= "\
 {                                                                   \n\
     'id': 'treedb_mqtt_broker',                                     \n\
-    'schema_version': '24',                                         \n\
+    'schema_version': '25',                                         \n\
     'topics': [                                                     \n\
         {                                                           \n\
             'id': 'client_groups',                                  \n\
@@ -321,7 +322,7 @@ static char treedb_schema_mqtt_broker[]= "\
             'id': 'clients',                                        \n\
             'pkey': 'id',                                           \n\
             'system_flag': 'sf_string_key',                         \n\
-            'topic_version': '6',                                   \n\
+            'topic_version': '7',                                   \n\
             'cols': {                                               \n\
                 'id': {                                             \n\
                     'header': 'Client Id',                          \n\
@@ -334,6 +335,14 @@ static char treedb_schema_mqtt_broker[]= "\
                 },                                                  \n\
                 'client_groups': {                                  \n\
                     'header': 'Client Groups',                      \n\
+                    'fillspace': 10,                                \n\
+                    'type': 'array',                                \n\
+                    'flag': [                                       \n\
+                        'fkey'                                      \n\
+                    ]                                               \n\
+                },                                                  \n\
+                'client_type': {                                    \n\
+                    'header': 'Type',                               \n\
                     'fillspace': 10,                                \n\
                     'type': 'array',                                \n\
                     'flag': [                                       \n\
@@ -393,14 +402,6 @@ static char treedb_schema_mqtt_broker[]= "\
                         'time',                                     \n\
                         'now',                                      \n\
                         'persistent'                                \n\
-                    ]                                               \n\
-                },                                                  \n\
-                'client_type': {                                    \n\
-                    'header': 'Type',                               \n\
-                    'fillspace': 10,                                \n\
-                    'type': 'array',                                \n\
-                    'flag': [                                       \n\
-                        'fkey'                                      \n\
                     ]                                               \n\
                 },                                                  \n\
                 'properties': {                                     \n\

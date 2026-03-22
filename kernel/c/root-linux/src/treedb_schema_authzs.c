@@ -20,16 +20,16 @@
             │                           │   │
             │        parent_role_id (↖) │ ──┘ 1
             │                           │
-            │* description              │
-            │  disabled                 │
-            │* realm_id                 │
-            │* service                  │
-            │  permission               │
-            │  permissions              │
-            │  deny                     │
-            │  parameters               │
-            │                           │
             │                  users {} │ ◀─┐N
+            │                           │   │
+            │* description              │   │
+            │  disabled                 │   │
+            │* realm_id                 │   │
+            │* service                  │   │
+            │  permission               │   │
+            │  permissions              │   │
+            │  deny                     │   │
+            │  parameters               │   │
             │                           │   │
             │  _geometry                │   │
             └───────────────────────────┘   │
@@ -58,13 +58,13 @@
 static char treedb_schema_authzs[]= "\
 {                                                                   \n\
     'id': 'treedb_authzs',                                          \n\
-    'schema_version': '18',                                         \n\
+    'schema_version': '19',                                         \n\
     'topics': [                                                     \n\
         {                                                           \n\
             'id': 'roles',                                          \n\
             'pkey': 'id',                                           \n\
             'system_flag': 'sf_string_key',                         \n\
-            'topic_version': '7',                                   \n\
+            'topic_version': '8',                                   \n\
             'cols': {                                               \n\
                 'id': {                                             \n\
                     'header': 'Role',                               \n\
@@ -91,6 +91,15 @@ static char treedb_schema_authzs[]= "\
                     'flag': [                                       \n\
                         'fkey'                                      \n\
                     ]                                               \n\
+                },                                                  \n\
+                'users': {                                          \n\
+                    'header': 'Users',                              \n\
+                    'fillspace': 20,                                \n\
+                    'type': 'dict',                                 \n\
+                    'flag': ['hook'],                               \n\
+                    'hook': {                                       \n\
+                        'users': 'roles'                            \n\
+                    }                                               \n\
                 },                                                  \n\
                 'description': {                                    \n\
                     'header': 'Description',                        \n\
@@ -168,15 +177,6 @@ static char treedb_schema_authzs[]= "\
                         'writable',                                 \n\
                         'persistent'                                \n\
                     ]                                               \n\
-                },                                                  \n\
-                'users': {                                          \n\
-                    'header': 'Users',                              \n\
-                    'fillspace': 20,                                \n\
-                    'type': 'dict',                                 \n\
-                    'flag': ['hook'],                               \n\
-                    'hook': {                                       \n\
-                        'users': 'roles'                            \n\
-                    }                                               \n\
                 },                                                  \n\
                 '_geometry': {                                      \n\
                     'header': 'Geometry',                           \n\

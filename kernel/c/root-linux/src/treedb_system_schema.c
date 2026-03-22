@@ -31,14 +31,14 @@
             │                           │   │
             │               treedbs [↖] │ ──┘n
             │                           │
-            │* pkey                     │
-            │  pkey2s                   │
-            │* system_flag              │
-            │  tkey                     │
-            │* topic_version            │
-            │                           │
-            │                           │
             │                   cols {} │ ◀─┐N
+            │                           │   │
+            │* pkey                     │   │
+            │  pkey2s                   │   │
+            │* system_flag              │   │
+            │  tkey                     │   │
+            │* topic_version            │   │
+            │                           │   │
             │                           │   │
             │  _geometry                │   │
             └───────────────────────────┘   │
@@ -70,7 +70,7 @@
 static char treedb_system_schema[]= "\
 {                                                       \n\
     'id': 'treedb_system_schema',                       \n\
-    'schema_version': '3',                              \n\
+    'schema_version': '4',                              \n\
     'topics': [                                         \n\
         {                                               \n\
             'id': 'treedbs',                            \n\
@@ -122,7 +122,7 @@ static char treedb_system_schema[]= "\
             'id': 'topics',                             \n\
             'pkey': 'id',                               \n\
             'system_flag': 'sf_string_key',             \n\
-            'topic_version': '2',                       \n\
+            'topic_version': '3',                       \n\
             'cols': {                                   \n\
                 'id': {                                 \n\
                     'header': 'Topic',                  \n\
@@ -140,6 +140,15 @@ static char treedb_system_schema[]= "\
                     'flag': [                           \n\
                         'fkey'                          \n\
                     ]                                   \n\
+                },                                      \n\
+                'cols': {                               \n\
+                    'header': 'Columns',                \n\
+                    'fillspace': 20,                    \n\
+                    'type': 'dict',                     \n\
+                    'flag': ['hook'],                   \n\
+                    'hook': {                           \n\
+                        'cols': 'topics'                \n\
+                    }                                   \n\
                 },                                      \n\
                 'pkey': {                               \n\
                     'header': 'Primary Key',            \n\
@@ -192,15 +201,6 @@ static char treedb_system_schema[]= "\
                         'persistent',                   \n\
                         'required'                      \n\
                     ]                                   \n\
-                },                                      \n\
-                'cols': {                               \n\
-                    'header': 'Columns',                \n\
-                    'fillspace': 20,                    \n\
-                    'type': 'dict',                     \n\
-                    'flag': ['hook'],                   \n\
-                    'hook': {                           \n\
-                        'cols': 'topics'                \n\
-                    }                                   \n\
                 },                                      \n\
                 '_geometry': {                          \n\
                     'header': 'Geometry',               \n\
