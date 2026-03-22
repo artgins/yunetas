@@ -3262,7 +3262,7 @@ PRIVATE json_t *cmd_deactivate_snap(hgobj gobj, const char *cmd, json_t *kw, hgo
 /***************************************************************************
  *
  ***************************************************************************/
-PRIVATE json_t *cmd_export_db(hgobj gobj, const char *event, json_t *kw, hgobj src)
+PRIVATE json_t *cmd_export_db(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
@@ -3757,7 +3757,7 @@ PRIVATE int export_treedb(
 /***************************************************************************
  *  HACK bypass authz control, only internal use
  ***************************************************************************/
-PRIVATE int ac_treedb_update_node(hgobj gobj, const char *event, json_t *kw, hgobj src)
+PRIVATE int ac_treedb_update_node(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 {
     /*
      *  Get parameters

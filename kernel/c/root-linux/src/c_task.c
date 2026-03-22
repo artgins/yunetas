@@ -563,7 +563,7 @@ PRIVATE int execute_action(hgobj gobj)
 /***************************************************************************
  *  Connected
  ***************************************************************************/
-PRIVATE int ac_on_open(hgobj gobj, const char *event, json_t *kw, hgobj src)
+PRIVATE int ac_on_open(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 {
     execute_action(gobj);
 
@@ -574,7 +574,7 @@ PRIVATE int ac_on_open(hgobj gobj, const char *event, json_t *kw, hgobj src)
 /***************************************************************************
  *  Disconnected
  ***************************************************************************/
-PRIVATE int ac_on_close(hgobj gobj, const char *event, json_t *kw, hgobj src)
+PRIVATE int ac_on_close(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 {
     KW_DECREF(kw);
     return 0;
@@ -583,7 +583,7 @@ PRIVATE int ac_on_close(hgobj gobj, const char *event, json_t *kw, hgobj src)
 /***************************************************************************
  *
  ***************************************************************************/
-PRIVATE int ac_on_message(hgobj gobj, const char *event, json_t *kw, hgobj src)
+PRIVATE int ac_on_message(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
@@ -646,7 +646,7 @@ PRIVATE int ac_on_message(hgobj gobj, const char *event, json_t *kw, hgobj src)
 /***************************************************************************
  *
  ***************************************************************************/
-PRIVATE int ac_stopped(hgobj gobj, const char *event, json_t *kw, hgobj src)
+PRIVATE int ac_stopped(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 {
     KW_DECREF(kw)
     if(gobj_is_volatil(gobj)) {
@@ -658,7 +658,7 @@ PRIVATE int ac_stopped(hgobj gobj, const char *event, json_t *kw, hgobj src)
 /***************************************************************************
  *  Timeout waiting result
  ***************************************************************************/
-PRIVATE int ac_timeout(hgobj gobj, const char *event, json_t *kw, hgobj src)
+PRIVATE int ac_timeout(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 {
     json_t *output_data = gobj_read_json_attr(gobj, "output_data");
     json_object_set_new(

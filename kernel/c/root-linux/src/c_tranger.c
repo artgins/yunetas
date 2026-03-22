@@ -1361,7 +1361,7 @@ PRIVATE json_t *get_topic(hgobj gobj, const char *lmethod, json_t *kw, hgobj src
 /***************************************************************************
  *
  ***************************************************************************/
-PRIVATE int ac_tranger_add_record(hgobj gobj, const char *event, json_t *kw, hgobj src)
+PRIVATE int ac_tranger_add_record(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 

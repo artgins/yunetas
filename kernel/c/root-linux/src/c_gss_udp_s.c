@@ -279,7 +279,7 @@ PRIVATE UDP_CHANNEL *find_udp_channel(hgobj gobj, const char *name)
 /***************************************************************************
  *
  ***************************************************************************/
-PRIVATE int ac_rx_data(hgobj gobj, const char *event, json_t *kw, hgobj src)
+PRIVATE int ac_rx_data(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
     gbuffer_t *gbuf = (gbuffer_t *)(uintptr_t)kw_get_int(gobj, kw, "gbuffer", 0, FALSE);
@@ -378,7 +378,7 @@ PRIVATE int ac_rx_data(hgobj gobj, const char *event, json_t *kw, hgobj src)
 /***************************************************************************
  *
  ***************************************************************************/
-PRIVATE int ac_send_message(hgobj gobj, const char *event, json_t *kw, hgobj src)
+PRIVATE int ac_send_message(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
     gbuffer_t *gbuf = (gbuffer_t *)(uintptr_t)kw_get_int(gobj, kw, "gbuffer", 0, FALSE);
@@ -401,7 +401,7 @@ PRIVATE int ac_send_message(hgobj gobj, const char *event, json_t *kw, hgobj src
 /***************************************************************************
  *
  ***************************************************************************/
-PRIVATE int ac_transmit_ready(hgobj gobj, const char *event, json_t *kw, hgobj src)
+PRIVATE int ac_transmit_ready(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 {
     KW_DECREF(kw);
     return 0;
@@ -410,7 +410,7 @@ PRIVATE int ac_transmit_ready(hgobj gobj, const char *event, json_t *kw, hgobj s
 /***************************************************************************
  *
  ***************************************************************************/
-PRIVATE int ac_timeout(hgobj gobj, const char *event, json_t *kw, hgobj src)
+PRIVATE int ac_timeout(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
     UDP_CHANNEL *ch, *nx;

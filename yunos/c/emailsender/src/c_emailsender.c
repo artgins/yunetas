@@ -740,7 +740,7 @@ PRIVATE int process_curl_response(hgobj gobj, q_msg_t *msg, int result, const ch
 /********************************************************************
  *  Guarda el mensaje para enviarlo cuando se pueda
  ********************************************************************/
-PRIVATE int ac_enqueue_message(hgobj gobj, const char *event, json_t *kw, hgobj src)
+PRIVATE int ac_enqueue_message(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
@@ -778,7 +778,7 @@ PRIVATE int ac_enqueue_message(hgobj gobj, const char *event, json_t *kw, hgobj 
 /***************************************************************************
  *
  ***************************************************************************/
-PRIVATE int ac_timeout_to_dequeue(hgobj gobj, const char *event, json_t *kw, hgobj src)
+PRIVATE int ac_timeout_to_dequeue(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
@@ -809,7 +809,7 @@ PRIVATE int ac_timeout_to_dequeue(hgobj gobj, const char *event, json_t *kw, hgo
 /********************************************************************
  *
  ********************************************************************/
-PRIVATE int ac_curl_command(hgobj gobj, const char *event, json_t *kw, hgobj src)
+PRIVATE int ac_curl_command(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
@@ -956,7 +956,7 @@ PRIVATE int ac_curl_command(hgobj gobj, const char *event, json_t *kw, hgobj src
 /***************************************************************************
  *
  ***************************************************************************/
-PRIVATE int ac_curl_response(hgobj gobj, const char *event, json_t *kw, hgobj src)
+PRIVATE int ac_curl_response(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
@@ -974,7 +974,7 @@ PRIVATE int ac_curl_response(hgobj gobj, const char *event, json_t *kw, hgobj sr
 /***************************************************************************
  *
  ***************************************************************************/
-PRIVATE int ac_on_open(hgobj gobj, const char *event, json_t *kw, hgobj src)
+PRIVATE int ac_on_open(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 {
     // Some app is connected, ignore
     KW_DECREF(kw);
@@ -984,7 +984,7 @@ PRIVATE int ac_on_open(hgobj gobj, const char *event, json_t *kw, hgobj src)
 /***************************************************************************
  *
  ***************************************************************************/
-PRIVATE int ac_on_close(hgobj gobj, const char *event, json_t *kw, hgobj src)
+PRIVATE int ac_on_close(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 {
     // Some app is disconnected, ignore
     KW_DECREF(kw);

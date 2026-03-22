@@ -814,7 +814,7 @@ PRIVATE int emulate_gps_msgs(hgobj gobj)
 /***************************************************************************
  *
  ***************************************************************************/
-PRIVATE int ac_on_open(hgobj gobj, const char *event, json_t *kw, hgobj src)
+PRIVATE int ac_on_open(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
@@ -860,7 +860,7 @@ PRIVATE int ac_on_open(hgobj gobj, const char *event, json_t *kw, hgobj src)
 /***************************************************************************
  *
  ***************************************************************************/
-PRIVATE int ac_on_close(hgobj gobj, const char *event, json_t *kw, hgobj src)
+PRIVATE int ac_on_close(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
@@ -876,7 +876,7 @@ PRIVATE int ac_on_close(hgobj gobj, const char *event, json_t *kw, hgobj src)
 /***************************************************************************
  *
  ***************************************************************************/
-// PRIVATE int ac_interval(hgobj gobj, const char *event, json_t *kw, hgobj src)
+// PRIVATE int ac_interval(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 // {
 //     emulate_gps_msgs(gobj);
 //     KW_DECREF(kw);
@@ -886,7 +886,7 @@ PRIVATE int ac_on_close(hgobj gobj, const char *event, json_t *kw, hgobj src)
 /***************************************************************************
  *  Child stopped
  ***************************************************************************/
-PRIVATE int ac_stopped(hgobj gobj, const char *event, json_t *kw, hgobj src)
+PRIVATE int ac_stopped(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 {
     KW_DECREF(kw);
     return 0;

@@ -318,7 +318,7 @@ PRIVATE json_t *mt_command(hgobj gobj, const char *command, json_t *kw, hgobj sr
 /***************************************************************************
  *      Framework Method inject_event
  ***************************************************************************/
-PRIVATE int mt_inject_event(hgobj gobj, const char *event, json_t *kw, hgobj src)
+PRIVATE int mt_inject_event(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 {
     if(gobj_current_state(gobj) != ST_SESSION) {
         gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
@@ -529,7 +529,7 @@ PRIVATE int send_static_iev(
 /***************************************************************************
  *
  ***************************************************************************/
-PRIVATE int ac_on_open(hgobj gobj, const char *event, json_t *kw, hgobj src)
+PRIVATE int ac_on_open(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
@@ -563,7 +563,7 @@ PRIVATE int ac_on_open(hgobj gobj, const char *event, json_t *kw, hgobj src)
 /***************************************************************************
  *
  ***************************************************************************/
-PRIVATE int ac_on_close(hgobj gobj, const char *event, json_t *kw, hgobj src)
+PRIVATE int ac_on_close(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
@@ -615,7 +615,7 @@ PRIVATE int ac_on_close(hgobj gobj, const char *event, json_t *kw, hgobj src)
 /***************************************************************************
  *
  ***************************************************************************/
-PRIVATE int ac_timeout_wait_idGot(hgobj gobj, const char *event, json_t *kw, hgobj src)
+PRIVATE int ac_timeout_wait_idGot(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 {
     gobj_log_info(gobj, 0,
         "function",     "%s", __FUNCTION__,
@@ -633,7 +633,7 @@ PRIVATE int ac_timeout_wait_idGot(hgobj gobj, const char *event, json_t *kw, hgo
  *  remote ask
  *  Somebody wants our services.
  ***************************************************************************/
-PRIVATE int ac_identity_card(hgobj gobj, const char *event, json_t *kw, hgobj src)
+PRIVATE int ac_identity_card(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
@@ -940,7 +940,7 @@ TODO now the tube is C_IEVENT_SRV -> C_CHANNEL -> C_WEBSOCKET -> C_TCP
      Review too EV_ON_ID,EV_ON_ID_NAK when refactoring authz
 
  ***************************************************************************/
-PRIVATE int ac_on_message(hgobj gobj, const char *event, json_t *kw, hgobj src)
+PRIVATE int ac_on_message(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
     gbuffer_t *gbuf = (gbuffer_t *)(uintptr_t)kw_get_int(gobj, kw, "gbuffer", 0, FALSE);
@@ -1349,7 +1349,7 @@ PRIVATE int ac_on_message(hgobj gobj, const char *event, json_t *kw, hgobj src)
 /***************************************************************************
  *  remote ask for stats
  ***************************************************************************/
-PRIVATE int ac_mt_stats(hgobj gobj, const char *event, json_t *kw, hgobj src)
+PRIVATE int ac_mt_stats(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
@@ -1488,7 +1488,7 @@ PRIVATE int ac_mt_stats(hgobj gobj, const char *event, json_t *kw, hgobj src)
 /***************************************************************************
  *  remote ask for command
  ***************************************************************************/
-PRIVATE int ac_mt_command(hgobj gobj, const char *event, json_t *kw, hgobj src)
+PRIVATE int ac_mt_command(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
@@ -1630,7 +1630,7 @@ PRIVATE int ac_mt_command(hgobj gobj, const char *event, json_t *kw, hgobj src)
  *  remote ask
  *  Somebody wants exit
  ***************************************************************************/
-PRIVATE int ac_goodbye(hgobj gobj, const char *event, json_t *kw, hgobj src)
+PRIVATE int ac_goodbye(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 {
     const char *cause = kw_get_str(gobj, kw, "cause", "", 0);
 
@@ -1671,7 +1671,7 @@ PRIVATE int ac_mt_command_answer(hgobj gobj, gobj_event_t event, json_t *kw, hgo
 /***************************************************************************
  *
  ***************************************************************************/
-PRIVATE int ac_drop(hgobj gobj, const char *event, json_t *kw, hgobj src)
+PRIVATE int ac_drop(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 {
     drop(gobj);
 
@@ -1682,7 +1682,7 @@ PRIVATE int ac_drop(hgobj gobj, const char *event, json_t *kw, hgobj src)
 /***************************************************************************
  *
  ***************************************************************************/
-PRIVATE int ac_remote_log(hgobj gobj, const char *event, json_t *kw, hgobj src)
+PRIVATE int ac_remote_log(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 {
     const char *msg = kw_get_str(gobj, kw, "msg", "", 0);
     gobj_log_error(gobj, 0,
@@ -1701,7 +1701,7 @@ PRIVATE int ac_remote_log(hgobj gobj, const char *event, json_t *kw, hgobj src)
 /***************************************************************************
  *
  ***************************************************************************/
-PRIVATE int ac_stopped(hgobj gobj, const char *event, json_t *kw, hgobj src)
+PRIVATE int ac_stopped(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 {
     /*
      *  someone or ... has stopped

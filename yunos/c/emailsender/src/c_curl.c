@@ -621,7 +621,7 @@ cleanup:
 /***************************************************************************
  *
  ***************************************************************************/
-PRIVATE int ac_command(hgobj gobj, const char *event, json_t *kw, hgobj src)
+PRIVATE int ac_command(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 {
     const char *username = kw_get_str(gobj, kw, "username", "", 0);
     const char *password = kw_get_str(gobj, kw, "password", "", 0);

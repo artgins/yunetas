@@ -880,7 +880,7 @@ PRIVATE int yev_callback(yev_event_h yev_event)
 /***************************************************************************
  *
  ***************************************************************************/
-PRIVATE int ac_tx_data(hgobj gobj, const char *event, json_t *kw, hgobj src)
+PRIVATE int ac_tx_data(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 

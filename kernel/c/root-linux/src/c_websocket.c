@@ -1557,7 +1557,7 @@ PRIVATE int process_http(hgobj gobj, gbuffer_t *gbuf, GHTTP_PARSER *parser)
 /***************************************************************************
  *  iam client. send the request
  ***************************************************************************/
-PRIVATE int ac_connected(hgobj gobj, const char *event, json_t *kw, hgobj src)
+PRIVATE int ac_connected(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
@@ -1596,7 +1596,7 @@ PRIVATE int ac_connected(hgobj gobj, const char *event, json_t *kw, hgobj src)
 /***************************************************************************
  *
  ***************************************************************************/
-PRIVATE int ac_disconnected(hgobj gobj, const char *event, json_t *kw, hgobj src)
+PRIVATE int ac_disconnected(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
@@ -1629,7 +1629,7 @@ PRIVATE int ac_disconnected(hgobj gobj, const char *event, json_t *kw, hgobj src
 /***************************************************************************
  *  Child stopped
  ***************************************************************************/
-PRIVATE int ac_stopped(hgobj gobj, const char *event, json_t *kw, hgobj src)
+PRIVATE int ac_stopped(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 {
     if(gobj_is_volatil(src)) {
         gobj_destroy(src);
@@ -1642,7 +1642,7 @@ PRIVATE int ac_stopped(hgobj gobj, const char *event, json_t *kw, hgobj src)
  *  Process handshake rx data.
  *  We can be server or client.
  ***************************************************************************/
-PRIVATE int ac_process_handshake(hgobj gobj, const char *event, json_t *kw, hgobj src)
+PRIVATE int ac_process_handshake(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
     gbuffer_t *gbuf = (gbuffer_t *)(uintptr_t)kw_get_int(gobj, kw, "gbuffer", 0, FALSE);
@@ -1734,7 +1734,7 @@ PRIVATE int ac_process_handshake(hgobj gobj, const char *event, json_t *kw, hgob
 /***************************************************************************
  *  Too much time waiting the handshake.
  ***************************************************************************/
-PRIVATE int ac_timeout_wait_handshake(hgobj gobj, const char *event, json_t *kw, hgobj src)
+PRIVATE int ac_timeout_wait_handshake(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
@@ -1755,7 +1755,7 @@ PRIVATE int ac_timeout_wait_handshake(hgobj gobj, const char *event, json_t *kw,
 /***************************************************************************
  *  Too much time waiting disconnected
  ***************************************************************************/
-PRIVATE int ac_timeout_wait_disconnected(hgobj gobj, const char *event, json_t *kw, hgobj src)
+PRIVATE int ac_timeout_wait_disconnected(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 {
     gobj_log_warning(gobj, 0,
         "msgset",       "%s", MSGSET_PROTOCOL_ERROR,
@@ -1771,7 +1771,7 @@ PRIVATE int ac_timeout_wait_disconnected(hgobj gobj, const char *event, json_t *
 /***************************************************************************
  *  Process the header.
  ***************************************************************************/
-PRIVATE int ac_process_frame_header(hgobj gobj, const char *event, json_t *kw, hgobj src)
+PRIVATE int ac_process_frame_header(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
@@ -1875,7 +1875,7 @@ PRIVATE int ac_process_frame_header(hgobj gobj, const char *event, json_t *kw, h
 /***************************************************************************
  *  No activity, send ping
  ***************************************************************************/
-PRIVATE int ac_timeout_wait_frame_header(hgobj gobj, const char *event, json_t *kw, hgobj src)
+PRIVATE int ac_timeout_wait_frame_header(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
@@ -1891,7 +1891,7 @@ PRIVATE int ac_timeout_wait_frame_header(hgobj gobj, const char *event, json_t *
 /***************************************************************************
  *  Get payload data
  ***************************************************************************/
-PRIVATE int ac_process_payload_data(hgobj gobj, const char *event, json_t *kw, hgobj src)
+PRIVATE int ac_process_payload_data(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
     int ret = 0;
@@ -1922,7 +1922,7 @@ PRIVATE int ac_process_payload_data(hgobj gobj, const char *event, json_t *kw, h
 /***************************************************************************
  *  Too much time waiting payload data
  ***************************************************************************/
-PRIVATE int ac_timeout_wait_payload_data(hgobj gobj, const char *event, json_t *kw, hgobj src)
+PRIVATE int ac_timeout_wait_payload_data(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 {
     gobj_log_info(gobj, 0,
         "msgset",       "%s", MSGSET_PROTOCOL_ERROR,
@@ -1938,7 +1938,7 @@ PRIVATE int ac_timeout_wait_payload_data(hgobj gobj, const char *event, json_t *
 /***************************************************************************
  *  Send data
  ***************************************************************************/
-PRIVATE int ac_send_message(hgobj gobj, const char *event, json_t *kw, hgobj src)
+PRIVATE int ac_send_message(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
     gbuffer_t *gbuf_data = (gbuffer_t *)(uintptr_t)kw_get_int(gobj, kw, "gbuffer", 0, FALSE);
@@ -2011,7 +2011,7 @@ PRIVATE int ac_send_message(hgobj gobj, const char *event, json_t *kw, hgobj src
 /***************************************************************************
  *
  ***************************************************************************/
-PRIVATE int ac_drop(hgobj gobj, const char *event, json_t *kw, hgobj src)
+PRIVATE int ac_drop(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 {
     gobj_send_event(gobj_bottom_gobj(gobj), EV_DROP, 0, gobj);
 

@@ -449,7 +449,7 @@ PRIVATE void mt_destroy(hgobj gobj)
 /***************************************************************************
  *  EV_TREEDB_NODE_LINKED
  ***************************************************************************/
-PRIVATE int ac_node_linked(hgobj gobj, const char *event, json_t *kw, hgobj src)
+PRIVATE int ac_node_linked(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
     priv->linked_count++;
@@ -473,7 +473,7 @@ PRIVATE int ac_node_linked(hgobj gobj, const char *event, json_t *kw, hgobj src)
 /***************************************************************************
  *  EV_TREEDB_NODE_UNLINKED
  ***************************************************************************/
-PRIVATE int ac_node_unlinked(hgobj gobj, const char *event, json_t *kw, hgobj src)
+PRIVATE int ac_node_unlinked(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
     priv->unlinked_count++;
@@ -493,7 +493,7 @@ PRIVATE int ac_node_unlinked(hgobj gobj, const char *event, json_t *kw, hgobj sr
 /***************************************************************************
  *  EV_TREEDB_NODE_CREATED
  ***************************************************************************/
-PRIVATE int ac_node_created(hgobj gobj, const char *event, json_t *kw, hgobj src)
+PRIVATE int ac_node_created(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
     priv->created_count++;
@@ -504,7 +504,7 @@ PRIVATE int ac_node_created(hgobj gobj, const char *event, json_t *kw, hgobj src
 /***************************************************************************
  *  EV_TREEDB_NODE_UPDATED
  ***************************************************************************/
-PRIVATE int ac_node_updated(hgobj gobj, const char *event, json_t *kw, hgobj src)
+PRIVATE int ac_node_updated(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
     priv->updated_count++;
@@ -515,7 +515,7 @@ PRIVATE int ac_node_updated(hgobj gobj, const char *event, json_t *kw, hgobj src
 /***************************************************************************
  *  EV_TREEDB_NODE_DELETED
  ***************************************************************************/
-PRIVATE int ac_node_deleted(hgobj gobj, const char *event, json_t *kw, hgobj src)
+PRIVATE int ac_node_deleted(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
     priv->deleted_count++;
@@ -526,7 +526,7 @@ PRIVATE int ac_node_deleted(hgobj gobj, const char *event, json_t *kw, hgobj src
 /***************************************************************************
  *  EV_TIMEOUT — runs test logic inside the event loop, then exits
  ***************************************************************************/
-PRIVATE int ac_timeout(hgobj gobj, const char *event, json_t *kw, hgobj src)
+PRIVATE int ac_timeout(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 {
     run_tests(gobj);
 
@@ -544,7 +544,7 @@ PRIVATE int ac_timeout(hgobj gobj, const char *event, json_t *kw, hgobj src)
 /***************************************************************************
  *  EV_STOPPED
  ***************************************************************************/
-PRIVATE int ac_stopped(hgobj gobj, const char *event, json_t *kw, hgobj src)
+PRIVATE int ac_stopped(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 {
     KW_DECREF(kw)
     return 0;

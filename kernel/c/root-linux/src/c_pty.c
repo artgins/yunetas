@@ -816,7 +816,7 @@ PRIVATE int enqueue_write(hgobj gobj, gbuffer_t *gbuf)
 /***************************************************************************
  *
  ***************************************************************************/
-PRIVATE int ac_write_tty(hgobj gobj, const char *event, json_t *kw, hgobj src)
+PRIVATE int ac_write_tty(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 

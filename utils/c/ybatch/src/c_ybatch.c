@@ -646,7 +646,7 @@ PRIVATE int tira_dela_cola(hgobj gobj)
 /***************************************************************************
  *
  ***************************************************************************/
-PRIVATE int ac_on_token(hgobj gobj, const char *event, json_t *kw, hgobj src)
+PRIVATE int ac_on_token(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 {
     int result = (int)kw_get_int(gobj, kw, "result", -1, KW_REQUIRED);
     if(result < 0) {
@@ -669,7 +669,7 @@ PRIVATE int ac_on_token(hgobj gobj, const char *event, json_t *kw, hgobj src)
 /***************************************************************************
  *  Execute batch of input parameters when the route is opened.
  ***************************************************************************/
-PRIVATE int ac_on_open(hgobj gobj, const char *event, json_t *kw, hgobj src)
+PRIVATE int ac_on_open(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
     const char *agent_name = kw_get_str(gobj, kw, "remote_yuno_name", 0, 0); // remote agent name
@@ -687,7 +687,7 @@ PRIVATE int ac_on_open(hgobj gobj, const char *event, json_t *kw, hgobj src)
 /***************************************************************************
  *
  ***************************************************************************/
-PRIVATE int ac_on_close(hgobj gobj, const char *event, json_t *kw, hgobj src)
+PRIVATE int ac_on_close(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
@@ -719,7 +719,7 @@ PRIVATE int ac_on_close(hgobj gobj, const char *event, json_t *kw, hgobj src)
  *      max_count: items raised
  *      cur_count: items reached with success
  ***************************************************************************/
-PRIVATE int ac_mt_command_answer(hgobj gobj, const char *event, json_t *kw, hgobj src)
+PRIVATE int ac_mt_command_answer(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
@@ -784,7 +784,7 @@ PRIVATE int ac_mt_command_answer(hgobj gobj, const char *event, json_t *kw, hgob
 /***************************************************************************
  *
  ***************************************************************************/
-PRIVATE int ac_timeout(hgobj gobj, const char *event, json_t *kw, hgobj src)
+PRIVATE int ac_timeout(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 {
     if(gobj_current_state(gobj) == ST_WAIT_RESPONSE) {
         gobj_log_error(gobj, 0,

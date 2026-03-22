@@ -870,7 +870,7 @@ PRIVATE json_t *cmd_drop_agent(hgobj gobj, const char *cmd, json_t *kw_, hgobj s
  *  Identity_card on from
  *      Web clients (__top_side__)
  ***************************************************************************/
-PRIVATE int ac_on_open(hgobj gobj, const char *event, json_t *kw, hgobj src)
+PRIVATE int ac_on_open(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
@@ -893,7 +893,7 @@ PRIVATE int ac_on_open(hgobj gobj, const char *event, json_t *kw, hgobj src)
  *      Web clients (__top_side__)
  *      agent clients (__input_side__)
  ***************************************************************************/
-PRIVATE int ac_on_close(hgobj gobj, const char *event, json_t *kw, hgobj src)
+PRIVATE int ac_on_close(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
@@ -925,7 +925,7 @@ PRIVATE int ac_on_close(hgobj gobj, const char *event, json_t *kw, hgobj src)
 /***************************************************************************
  *  HACK intermediate node
  ***************************************************************************/
-PRIVATE int ac_stats_yuno_answer(hgobj gobj, const char *event, json_t *kw, hgobj src)
+PRIVATE int ac_stats_yuno_answer(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
@@ -980,7 +980,7 @@ PRIVATE int ac_stats_yuno_answer(hgobj gobj, const char *event, json_t *kw, hgob
 /***************************************************************************
  *  HACK intermediate node
  ***************************************************************************/
-PRIVATE int ac_command_yuno_answer(hgobj gobj, const char *event, json_t *kw, hgobj src)
+PRIVATE int ac_command_yuno_answer(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
@@ -1035,7 +1035,7 @@ PRIVATE int ac_command_yuno_answer(hgobj gobj, const char *event, json_t *kw, hg
 /***************************************************************************
  *  HACK intermediate node
  ***************************************************************************/
-PRIVATE int ac_tty_mirror_open(hgobj gobj, const char *event, json_t *kw, hgobj src)
+PRIVATE int ac_tty_mirror_open(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
@@ -1094,7 +1094,7 @@ PRIVATE int ac_tty_mirror_open(hgobj gobj, const char *event, json_t *kw, hgobj 
 /***************************************************************************
  *  HACK intermediate node
  ***************************************************************************/
-PRIVATE int ac_tty_mirror_close(hgobj gobj, const char *event, json_t *kw, hgobj src)
+PRIVATE int ac_tty_mirror_close(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
@@ -1153,7 +1153,7 @@ PRIVATE int ac_tty_mirror_close(hgobj gobj, const char *event, json_t *kw, hgobj
 /***************************************************************************
  *  HACK intermediate node
  ***************************************************************************/
-PRIVATE int ac_tty_mirror_data(hgobj gobj, const char *event, json_t *kw, hgobj src)
+PRIVATE int ac_tty_mirror_data(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
@@ -1208,7 +1208,7 @@ PRIVATE int ac_tty_mirror_data(hgobj gobj, const char *event, json_t *kw, hgobj 
 /***************************************************************************
  *  HACK intermediate node, pero al revés(???)
  ***************************************************************************/
-PRIVATE int ac_write_tty(hgobj gobj, const char *event, json_t *kw, hgobj src)
+PRIVATE int ac_write_tty(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
@@ -1281,7 +1281,7 @@ PRIVATE int ac_write_tty(hgobj gobj, const char *event, json_t *kw, hgobj src)
 /***************************************************************************
  *
  ***************************************************************************/
-PRIVATE int ac_treedb_node_create(hgobj gobj, const char *event, json_t *kw, hgobj src)
+PRIVATE int ac_treedb_node_create(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
@@ -1328,7 +1328,7 @@ PRIVATE int ac_treedb_node_create(hgobj gobj, const char *event, json_t *kw, hgo
 /***************************************************************************
  *
  ***************************************************************************/
-PRIVATE int ac_treedb_node_updated(hgobj gobj, const char *event, json_t *kw, hgobj src)
+PRIVATE int ac_treedb_node_updated(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
@@ -1387,7 +1387,7 @@ PRIVATE int ac_treedb_node_updated(hgobj gobj, const char *event, json_t *kw, hg
 /***************************************************************************
  *
  ***************************************************************************/
-PRIVATE int ac_treedb_node_deleted(hgobj gobj, const char *event, json_t *kw, hgobj src)
+PRIVATE int ac_treedb_node_deleted(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
@@ -1422,7 +1422,7 @@ PRIVATE int ac_treedb_node_deleted(hgobj gobj, const char *event, json_t *kw, hg
 /***************************************************************************
  *
  ***************************************************************************/
-PRIVATE int ac_user_login(hgobj gobj, const char *event, json_t *kw, hgobj src)
+PRIVATE int ac_user_login(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
@@ -1472,7 +1472,7 @@ PRIVATE int ac_user_login(hgobj gobj, const char *event, json_t *kw, hgobj src)
 /***************************************************************************
  *
  ***************************************************************************/
-PRIVATE int ac_user_logout(hgobj gobj, const char *event, json_t *kw, hgobj src)
+PRIVATE int ac_user_logout(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 {
 //     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 //
@@ -1489,7 +1489,7 @@ PRIVATE int ac_user_logout(hgobj gobj, const char *event, json_t *kw, hgobj src)
 /***************************************************************************
  *
  ***************************************************************************/
-PRIVATE int ac_user_new(hgobj gobj, const char *event, json_t *kw, hgobj src)
+PRIVATE int ac_user_new(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
@@ -1524,7 +1524,7 @@ PRIVATE int ac_user_new(hgobj gobj, const char *event, json_t *kw, hgobj src)
 /***************************************************************************
  *
  ***************************************************************************/
-PRIVATE int ac_timeout(hgobj gobj, const char *event, json_t *kw, hgobj src)
+PRIVATE int ac_timeout(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 

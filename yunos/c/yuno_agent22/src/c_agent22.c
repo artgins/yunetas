@@ -899,7 +899,7 @@ PRIVATE int delete_consoles_on_disconnection(hgobj gobj, json_t *kw, hgobj src_)
 /***************************************************************************
  *
  ***************************************************************************/
-PRIVATE int ac_on_open(hgobj gobj, const char *event, json_t *kw, hgobj src)
+PRIVATE int ac_on_open(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 {
     KW_DECREF(kw);
     return 0;
@@ -908,7 +908,7 @@ PRIVATE int ac_on_open(hgobj gobj, const char *event, json_t *kw, hgobj src)
 /***************************************************************************
  *
  ***************************************************************************/
-PRIVATE int ac_on_close(hgobj gobj, const char *event, json_t *kw, hgobj src)
+PRIVATE int ac_on_close(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 {
     delete_consoles_on_disconnection(gobj, kw, src);
 
@@ -919,7 +919,7 @@ PRIVATE int ac_on_close(hgobj gobj, const char *event, json_t *kw, hgobj src)
 /***************************************************************************
  *
  ***************************************************************************/
-PRIVATE int ac_tty_open(hgobj gobj, const char *event, json_t *kw, hgobj src)
+PRIVATE int ac_tty_open(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
@@ -970,7 +970,7 @@ PRIVATE int ac_tty_open(hgobj gobj, const char *event, json_t *kw, hgobj src)
 /***************************************************************************
  *
  ***************************************************************************/
-PRIVATE int ac_tty_close(hgobj gobj, const char *event, json_t *kw, hgobj src)
+PRIVATE int ac_tty_close(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
@@ -1034,7 +1034,7 @@ PRIVATE int ac_tty_close(hgobj gobj, const char *event, json_t *kw, hgobj src)
 /***************************************************************************
  *
  ***************************************************************************/
-PRIVATE int ac_tty_data(hgobj gobj, const char *event, json_t *kw, hgobj src)
+PRIVATE int ac_tty_data(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
@@ -1085,7 +1085,7 @@ PRIVATE int ac_tty_data(hgobj gobj, const char *event, json_t *kw, hgobj src)
 /***************************************************************************
  *
  ***************************************************************************/
-PRIVATE int ac_write_tty(hgobj gobj, const char *event, json_t *kw, hgobj src)
+PRIVATE int ac_write_tty(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 {
     const char *name= kw_get_str(gobj, kw, "name", 0, 0);
     const char *content64 = kw_get_str(gobj, kw, "content64", 0, 0);
@@ -1142,7 +1142,7 @@ PRIVATE int ac_write_tty(hgobj gobj, const char *event, json_t *kw, hgobj src)
 /***************************************************************************
  *
  ***************************************************************************/
-PRIVATE int ac_timeout(hgobj gobj, const char *event, json_t *kw, hgobj src)
+PRIVATE int ac_timeout(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 {
     KW_DECREF(kw);
     return 0;

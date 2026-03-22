@@ -514,7 +514,7 @@ PRIVATE int ac_disconnected(hgobj gobj, gobj_event_t event, json_t *kw, hgobj sr
 /***************************************************************************
  *  Too much time waiting disconnected
  ***************************************************************************/
-PRIVATE int ac_timeout_wait_disconnected(hgobj gobj, const char *event, json_t *kw, hgobj src)
+PRIVATE int ac_timeout_wait_disconnected(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 {
     gobj_log_warning(gobj, 0,
         "msgset",       "%s", MSGSET_MQTT_ERROR,
@@ -531,7 +531,7 @@ PRIVATE int ac_timeout_wait_disconnected(hgobj gobj, const char *event, json_t *
 /***************************************************************************
  *
  ***************************************************************************/
-PRIVATE int ac_timeout_wait_handshake(hgobj gobj, const char *event, json_t *kw, hgobj src)
+PRIVATE int ac_timeout_wait_handshake(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 {
     gobj_log_warning(gobj, 0,
         "msgset",       "%s", MSGSET_MQTT_ERROR,
@@ -548,7 +548,7 @@ PRIVATE int ac_timeout_wait_handshake(hgobj gobj, const char *event, json_t *kw,
 /***************************************************************************
  *  Process the header.
  ***************************************************************************/
-PRIVATE int ac_process_frame_header(hgobj gobj, const char *event, json_t *kw, hgobj src)
+PRIVATE int ac_process_frame_header(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
     gbuffer_t *gbuf = (gbuffer_t *)(uintptr_t)kw_get_int(gobj, kw, "gbuffer", 0, FALSE);
@@ -653,7 +653,7 @@ PRIVATE int ac_process_frame_header(hgobj gobj, const char *event, json_t *kw, h
 /***************************************************************************
  *  No activity, send ping
  ***************************************************************************/
-PRIVATE int ac_timeout_wait_frame_header(hgobj gobj, const char *event, json_t *kw, hgobj src)
+PRIVATE int ac_timeout_wait_frame_header(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 {
     KW_DECREF(kw)
     return 0;
@@ -662,7 +662,7 @@ PRIVATE int ac_timeout_wait_frame_header(hgobj gobj, const char *event, json_t *
 /***************************************************************************
  *  Get payload data
  ***************************************************************************/
-PRIVATE int ac_process_payload_data(hgobj gobj, const char *event, json_t *kw, hgobj src)
+PRIVATE int ac_process_payload_data(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
     gbuffer_t *gbuf = (gbuffer_t *)(uintptr_t)kw_get_int(gobj, kw, "gbuffer", 0, FALSE);
@@ -712,7 +712,7 @@ PRIVATE int ac_process_payload_data(hgobj gobj, const char *event, json_t *kw, h
 /***************************************************************************
  *  Too much time waiting payload data
  ***************************************************************************/
-PRIVATE int ac_timeout_wait_payload_data(hgobj gobj, const char *event, json_t *kw, hgobj src)
+PRIVATE int ac_timeout_wait_payload_data(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 {
     gobj_log_info(gobj, 0,
         "msgset",       "%s", MSGSET_MQTT_ERROR,

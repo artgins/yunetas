@@ -3512,7 +3512,7 @@ PRIVATE size_t sub__messages_queue(
 
  *
  ***************************************************************************/
-PRIVATE int ac_on_open(hgobj gobj, const char *event, json_t *kw, hgobj src)
+PRIVATE int ac_on_open(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
@@ -3843,7 +3843,7 @@ PRIVATE int ac_on_open(hgobj gobj, const char *event, json_t *kw, hgobj src)
  *      mqtt clients (__input_side__)
  *      top clients (__top_side__)
  ***************************************************************************/
-PRIVATE int ac_on_close(hgobj gobj, const char *event, json_t *kw, hgobj src)
+PRIVATE int ac_on_close(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
@@ -4098,7 +4098,7 @@ PRIVATE int ac_on_close(hgobj gobj, const char *event, json_t *kw, hgobj src)
  *  Message from
  *      mqtt clients (__input_side__)
  ***************************************************************************/
-PRIVATE int ac_mqtt_subscribe(hgobj gobj, const char *event, json_t *kw, hgobj src)
+PRIVATE int ac_mqtt_subscribe(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
@@ -4224,7 +4224,7 @@ PRIVATE int ac_mqtt_subscribe(hgobj gobj, const char *event, json_t *kw, hgobj s
  *  Message from
  *      mqtt clients (__input_side__)
  ***************************************************************************/
-PRIVATE int ac_mqtt_unsubscribe(hgobj gobj, const char *event, json_t *kw, hgobj src)
+PRIVATE int ac_mqtt_unsubscribe(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
@@ -4294,7 +4294,7 @@ PRIVATE int ac_mqtt_unsubscribe(hgobj gobj, const char *event, json_t *kw, hgobj
  *  Message from
  *      top clients (__top_side__)
  ***************************************************************************/
-PRIVATE int ac_on_message(hgobj gobj, const char *event, json_t *kw, hgobj src)
+PRIVATE int ac_on_message(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
@@ -4346,7 +4346,7 @@ PRIVATE int ac_on_message(hgobj gobj, const char *event, json_t *kw, hgobj src)
     }
 
  ***************************************************************************/
-PRIVATE int ac_mqtt_message(hgobj gobj, const char *event, json_t *kw, hgobj src)
+PRIVATE int ac_mqtt_message(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
@@ -4393,7 +4393,7 @@ PRIVATE int ac_mqtt_message(hgobj gobj, const char *event, json_t *kw, hgobj src
 /***************************************************************************
  *
  ***************************************************************************/
-PRIVATE int ac_treedb_node_create(hgobj gobj, const char *event, json_t *kw, hgobj src)
+PRIVATE int ac_treedb_node_create(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
@@ -4443,7 +4443,7 @@ PRIVATE int ac_treedb_node_create(hgobj gobj, const char *event, json_t *kw, hgo
 /***************************************************************************
  *
  ***************************************************************************/
-PRIVATE int ac_treedb_node_updated(hgobj gobj, const char *event, json_t *kw, hgobj src)
+PRIVATE int ac_treedb_node_updated(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
@@ -4506,7 +4506,7 @@ PRIVATE int ac_treedb_node_updated(hgobj gobj, const char *event, json_t *kw, hg
 /***************************************************************************
  *
  ***************************************************************************/
-PRIVATE int ac_treedb_node_deleted(hgobj gobj, const char *event, json_t *kw, hgobj src)
+PRIVATE int ac_treedb_node_deleted(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
@@ -4541,7 +4541,7 @@ PRIVATE int ac_treedb_node_deleted(hgobj gobj, const char *event, json_t *kw, hg
 /***************************************************************************
  *
  ***************************************************************************/
-PRIVATE int ac_user_login(hgobj gobj, const char *event, json_t *kw, hgobj src)
+PRIVATE int ac_user_login(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 {
     // PRIVATE_DATA *priv = gobj_priv_data(gobj);
     //
@@ -4587,7 +4587,7 @@ PRIVATE int ac_user_login(hgobj gobj, const char *event, json_t *kw, hgobj src)
 /***************************************************************************
  *
  ***************************************************************************/
-PRIVATE int ac_user_logout(hgobj gobj, const char *event, json_t *kw, hgobj src)
+PRIVATE int ac_user_logout(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 {
 //     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 //
@@ -4604,7 +4604,7 @@ PRIVATE int ac_user_logout(hgobj gobj, const char *event, json_t *kw, hgobj src)
 /***************************************************************************
  *
  ***************************************************************************/
-PRIVATE int ac_user_new(hgobj gobj, const char *event, json_t *kw, hgobj src)
+PRIVATE int ac_user_new(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 {
     // PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
@@ -4639,7 +4639,7 @@ PRIVATE int ac_user_new(hgobj gobj, const char *event, json_t *kw, hgobj src)
 /***************************************************************************
  *
  ***************************************************************************/
-PRIVATE int ac_timeout(hgobj gobj, const char *event, json_t *kw, hgobj src)
+PRIVATE int ac_timeout(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 {
     retain__expire(gobj);       // Remove expired retained messages (keepalive is per-connection in c_prot_mqtt2)
     session_expiry__check(gobj);

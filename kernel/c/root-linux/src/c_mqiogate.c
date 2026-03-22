@@ -321,7 +321,7 @@ PRIVATE json_t *cmd_view_channels(hgobj gobj, const char *cmd, json_t *kw, hgobj
 /***************************************************************************
  *
  ***************************************************************************/
-PRIVATE int ac_send_message(hgobj gobj, const char *event, json_t *kw, hgobj src)
+PRIVATE int ac_send_message(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 

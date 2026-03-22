@@ -1026,7 +1026,7 @@ PRIVATE int linenoiseHistoryLoad(PRIVATE_DATA *l, const char *filename)
 /***************************************************************************
  *  char
  ***************************************************************************/
-PRIVATE int ac_keychar(hgobj gobj, const char *event, json_t *kw, hgobj src)
+PRIVATE int ac_keychar(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
     PRIVATE_DATA *l = priv;
@@ -1054,7 +1054,7 @@ PRIVATE int ac_keychar(hgobj gobj, const char *event, json_t *kw, hgobj src)
 /***************************************************************************
  *  function
  ***************************************************************************/
-PRIVATE int ac_move_start(hgobj gobj, const char *event, json_t *kw, hgobj src)
+PRIVATE int ac_move_start(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 {
     PRIVATE_DATA *l = gobj_priv_data(gobj);
 
@@ -1068,7 +1068,7 @@ PRIVATE int ac_move_start(hgobj gobj, const char *event, json_t *kw, hgobj src)
 /***************************************************************************
  *  function
  ***************************************************************************/
-PRIVATE int ac_move_end(hgobj gobj, const char *event, json_t *kw, hgobj src)
+PRIVATE int ac_move_end(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 {
     PRIVATE_DATA *l = gobj_priv_data(gobj);
 
@@ -1082,7 +1082,7 @@ PRIVATE int ac_move_end(hgobj gobj, const char *event, json_t *kw, hgobj src)
 /***************************************************************************
  *  function
  ***************************************************************************/
-PRIVATE int ac_move_left(hgobj gobj, const char *event, json_t *kw, hgobj src)
+PRIVATE int ac_move_left(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
     PRIVATE_DATA *l = priv;
@@ -1097,7 +1097,7 @@ PRIVATE int ac_move_left(hgobj gobj, const char *event, json_t *kw, hgobj src)
 /***************************************************************************
  *  function
  ***************************************************************************/
-PRIVATE int ac_del_char(hgobj gobj, const char *event, json_t *kw, hgobj src)
+PRIVATE int ac_del_char(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 {
     PRIVATE_DATA *l = gobj_priv_data(gobj);
 
@@ -1119,7 +1119,7 @@ PRIVATE int ac_del_char(hgobj gobj, const char *event, json_t *kw, hgobj src)
 /***************************************************************************
  *  function
  ***************************************************************************/
-PRIVATE int ac_move_right(hgobj gobj, const char *event, json_t *kw, hgobj src)
+PRIVATE int ac_move_right(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 {
     PRIVATE_DATA *l = gobj_priv_data(gobj);
 
@@ -1133,7 +1133,7 @@ PRIVATE int ac_move_right(hgobj gobj, const char *event, json_t *kw, hgobj src)
 /***************************************************************************
  *  function
  ***************************************************************************/
-PRIVATE int ac_backspace(hgobj gobj, const char *event, json_t *kw, hgobj src)
+PRIVATE int ac_backspace(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
@@ -1146,7 +1146,7 @@ PRIVATE int ac_backspace(hgobj gobj, const char *event, json_t *kw, hgobj src)
 /***************************************************************************
  *  function
  ***************************************************************************/
-PRIVATE int ac_complete_line(hgobj gobj, const char *event, json_t *kw, hgobj src)
+PRIVATE int ac_complete_line(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 {
     completeLine(gobj);
     KW_DECREF(kw);
@@ -1156,7 +1156,7 @@ PRIVATE int ac_complete_line(hgobj gobj, const char *event, json_t *kw, hgobj sr
 /***************************************************************************
  *  function
  ***************************************************************************/
-PRIVATE int ac_del_eol(hgobj gobj, const char *event, json_t *kw, hgobj src)
+PRIVATE int ac_del_eol(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
     PRIVATE_DATA *l = priv;
@@ -1173,7 +1173,7 @@ PRIVATE int ac_del_eol(hgobj gobj, const char *event, json_t *kw, hgobj src)
 /***************************************************************************
  *  function
  ***************************************************************************/
-PRIVATE int ac_enter(hgobj gobj, const char *event, json_t *kw, hgobj src)
+PRIVATE int ac_enter(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
     PRIVATE_DATA *l = priv;
@@ -1195,7 +1195,7 @@ PRIVATE int ac_enter(hgobj gobj, const char *event, json_t *kw, hgobj src)
 /***************************************************************************
  *  function
  ***************************************************************************/
-PRIVATE int ac_prev_hist(hgobj gobj, const char *event, json_t *kw, hgobj src)
+PRIVATE int ac_prev_hist(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
     PRIVATE_DATA *l = priv;
@@ -1209,7 +1209,7 @@ PRIVATE int ac_prev_hist(hgobj gobj, const char *event, json_t *kw, hgobj src)
 /***************************************************************************
  *  function
  ***************************************************************************/
-PRIVATE int ac_next_hist(hgobj gobj, const char *event, json_t *kw, hgobj src)
+PRIVATE int ac_next_hist(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
     PRIVATE_DATA *l = priv;
@@ -1223,7 +1223,7 @@ PRIVATE int ac_next_hist(hgobj gobj, const char *event, json_t *kw, hgobj src)
 /***************************************************************************
  *  function
  ***************************************************************************/
-PRIVATE int ac_swap_char(hgobj gobj, const char *event, json_t *kw, hgobj src)
+PRIVATE int ac_swap_char(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
     PRIVATE_DATA *l = priv;
@@ -1246,7 +1246,7 @@ PRIVATE int ac_swap_char(hgobj gobj, const char *event, json_t *kw, hgobj src)
 /***************************************************************************
  *  function
  ***************************************************************************/
-PRIVATE int ac_del_line(hgobj gobj, const char *event, json_t *kw, hgobj src)
+PRIVATE int ac_del_line(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
     PRIVATE_DATA *l = priv;
@@ -1263,7 +1263,7 @@ PRIVATE int ac_del_line(hgobj gobj, const char *event, json_t *kw, hgobj src)
 /***************************************************************************
  *  function
  ***************************************************************************/
-PRIVATE int ac_del_prev_word(hgobj gobj, const char *event, json_t *kw, hgobj src)
+PRIVATE int ac_del_prev_word(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
     PRIVATE_DATA *l = priv;
@@ -1278,7 +1278,7 @@ PRIVATE int ac_del_prev_word(hgobj gobj, const char *event, json_t *kw, hgobj sr
 /***************************************************************************
  *  HACK kw is EVF_KW_WRITING
  ***************************************************************************/
-PRIVATE int ac_gettext(hgobj gobj, const char *event, json_t *kw, hgobj src)
+PRIVATE int ac_gettext(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
@@ -1292,7 +1292,7 @@ PRIVATE int ac_gettext(hgobj gobj, const char *event, json_t *kw, hgobj src)
 /***************************************************************************
  *
  ***************************************************************************/
-PRIVATE int ac_settext(hgobj gobj, const char *event, json_t *kw, hgobj src)
+PRIVATE int ac_settext(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
     const char *data = kw_get_str(gobj, kw, "text", "", KW_REQUIRED);
@@ -1324,7 +1324,7 @@ PRIVATE int ac_settext(hgobj gobj, const char *event, json_t *kw, hgobj src)
 /***************************************************************************
  *
  ***************************************************************************/
-PRIVATE int ac_setfocus(hgobj gobj, const char *event, json_t *kw, hgobj src)
+PRIVATE int ac_setfocus(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
@@ -1341,7 +1341,7 @@ PRIVATE int ac_setfocus(hgobj gobj, const char *event, json_t *kw, hgobj src)
 /***************************************************************************
  *
  ***************************************************************************/
-PRIVATE int ac_move(hgobj gobj, const char *event, json_t *kw, hgobj src)
+PRIVATE int ac_move(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
@@ -1368,7 +1368,7 @@ PRIVATE int ac_move(hgobj gobj, const char *event, json_t *kw, hgobj src)
 /***************************************************************************
  *
  ***************************************************************************/
-PRIVATE int ac_size(hgobj gobj, const char *event, json_t *kw, hgobj src)
+PRIVATE int ac_size(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
@@ -1407,7 +1407,7 @@ PRIVATE int ac_size(hgobj gobj, const char *event, json_t *kw, hgobj src)
         "cyan"
         "white"
  ***************************************************************************/
-PRIVATE int ac_paint(hgobj gobj, const char *event, json_t *kw, hgobj src)
+PRIVATE int ac_paint(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
@@ -1423,7 +1423,7 @@ PRIVATE int ac_paint(hgobj gobj, const char *event, json_t *kw, hgobj src)
 /***************************************************************************
  *
  ***************************************************************************/
-PRIVATE int ac_clear_history(hgobj gobj, const char *event, json_t *kw, hgobj src)
+PRIVATE int ac_clear_history(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
@@ -1441,7 +1441,7 @@ PRIVATE int ac_clear_history(hgobj gobj, const char *event, json_t *kw, hgobj sr
 /*-----------------------------------------------------------------------*
  *  Mouse: click/move adjusts caret if inside our single-line box
  *-----------------------------------------------------------------------*/
-PRIVATE int ac_mouse(hgobj gobj, const char *event, json_t *kw, hgobj src)
+PRIVATE int ac_mouse(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 {
     // PRIVATE_DATA *priv = gobj_priv_data(gobj);
     //

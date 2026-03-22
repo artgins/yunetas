@@ -160,7 +160,7 @@ PRIVATE int mt_pause(hgobj gobj)
 /***************************************************************************
  *
  ***************************************************************************/
-PRIVATE int ac_timeout_idle(hgobj gobj, const char *event, json_t *kw, hgobj src)
+PRIVATE int ac_timeout_idle(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
@@ -180,7 +180,7 @@ PRIVATE int ac_timeout_idle(hgobj gobj, const char *event, json_t *kw, hgobj src
 /***************************************************************************
  *
  ***************************************************************************/
-PRIVATE int ac_timeout_session(hgobj gobj, const char *event, json_t *kw, hgobj src)
+PRIVATE int ac_timeout_session(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
@@ -200,7 +200,7 @@ PRIVATE int ac_timeout_session(hgobj gobj, const char *event, json_t *kw, hgobj 
 /***************************************************************************
  *
  ***************************************************************************/
-PRIVATE int ac_on_message(hgobj gobj, const char *event, json_t *kw, hgobj src)
+PRIVATE int ac_on_message(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 

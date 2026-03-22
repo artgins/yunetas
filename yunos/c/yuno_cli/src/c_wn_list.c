@@ -338,7 +338,7 @@ PRIVATE int getcolor(hgobj gobj, line_t *line)
 /***************************************************************************
  *
  ***************************************************************************/
-PRIVATE int ac_settext(hgobj gobj, const char *event, json_t *kw, hgobj src)
+PRIVATE int ac_settext(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
     const char *text = kw_get_str(gobj, kw, "text", "", KW_REQUIRED);
@@ -384,7 +384,7 @@ PRIVATE int ac_settext(hgobj gobj, const char *event, json_t *kw, hgobj src)
 /***************************************************************************
  *
  ***************************************************************************/
-PRIVATE int ac_on_message(hgobj gobj, const char *event, json_t *kw, hgobj src)
+PRIVATE int ac_on_message(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
     gbuffer_t *gbuf = (gbuffer_t *)(uintptr_t)kw_get_int(gobj, kw, "gbuffer", 0, 0);
@@ -415,7 +415,7 @@ PRIVATE int ac_on_message(hgobj gobj, const char *event, json_t *kw, hgobj src)
 /***************************************************************************
  *
  ***************************************************************************/
-PRIVATE int ac_paint(hgobj gobj, const char *event, json_t *kw, hgobj src)
+PRIVATE int ac_paint(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
@@ -507,7 +507,7 @@ PRIVATE int ac_paint(hgobj gobj, const char *event, json_t *kw, hgobj src)
 /***************************************************************************
  *
  ***************************************************************************/
-PRIVATE int ac_scroll_line_up(hgobj gobj, const char *event, json_t *kw, hgobj src)
+PRIVATE int ac_scroll_line_up(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
@@ -528,7 +528,7 @@ PRIVATE int ac_scroll_line_up(hgobj gobj, const char *event, json_t *kw, hgobj s
 /***************************************************************************
  *
  ***************************************************************************/
-PRIVATE int ac_scroll_line_down(hgobj gobj, const char *event, json_t *kw, hgobj src)
+PRIVATE int ac_scroll_line_down(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
@@ -544,7 +544,7 @@ PRIVATE int ac_scroll_line_down(hgobj gobj, const char *event, json_t *kw, hgobj
 /***************************************************************************
  *
  ***************************************************************************/
-PRIVATE int ac_scroll_page_up(hgobj gobj, const char *event, json_t *kw, hgobj src)
+PRIVATE int ac_scroll_page_up(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
@@ -568,7 +568,7 @@ PRIVATE int ac_scroll_page_up(hgobj gobj, const char *event, json_t *kw, hgobj s
 /***************************************************************************
  *
  ***************************************************************************/
-PRIVATE int ac_scroll_page_down(hgobj gobj, const char *event, json_t *kw, hgobj src)
+PRIVATE int ac_scroll_page_down(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
@@ -589,7 +589,7 @@ PRIVATE int ac_scroll_page_down(hgobj gobj, const char *event, json_t *kw, hgobj
 /***************************************************************************
  *
  ***************************************************************************/
-PRIVATE int ac_scroll_top(hgobj gobj, const char *event, json_t *kw, hgobj src)
+PRIVATE int ac_scroll_top(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
@@ -607,7 +607,7 @@ PRIVATE int ac_scroll_top(hgobj gobj, const char *event, json_t *kw, hgobj src)
 /***************************************************************************
  *
  ***************************************************************************/
-PRIVATE int ac_scroll_bottom(hgobj gobj, const char *event, json_t *kw, hgobj src)
+PRIVATE int ac_scroll_bottom(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
@@ -622,7 +622,7 @@ PRIVATE int ac_scroll_bottom(hgobj gobj, const char *event, json_t *kw, hgobj sr
 /***************************************************************************
  *
  ***************************************************************************/
-PRIVATE int ac_clrscr(hgobj gobj, const char *event, json_t *kw, hgobj src)
+PRIVATE int ac_clrscr(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
@@ -637,7 +637,7 @@ PRIVATE int ac_clrscr(hgobj gobj, const char *event, json_t *kw, hgobj src)
 /***************************************************************************
  *
  ***************************************************************************/
-PRIVATE int ac_move(hgobj gobj, const char *event, json_t *kw, hgobj src)
+PRIVATE int ac_move(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
@@ -664,7 +664,7 @@ PRIVATE int ac_move(hgobj gobj, const char *event, json_t *kw, hgobj src)
 /***************************************************************************
  *
  ***************************************************************************/
-PRIVATE int ac_size(hgobj gobj, const char *event, json_t *kw, hgobj src)
+PRIVATE int ac_size(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
@@ -692,7 +692,7 @@ PRIVATE int ac_size(hgobj gobj, const char *event, json_t *kw, hgobj src)
 /***************************************************************************
  *
  ***************************************************************************/
-PRIVATE int ac_set_top_window(hgobj gobj, const char *event, json_t *kw, hgobj src)
+PRIVATE int ac_set_top_window(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 

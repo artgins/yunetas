@@ -179,7 +179,7 @@ PRIVATE int mt_pause(hgobj gobj)
 /***************************************************************************
  *  Gps connected
  ***************************************************************************/
-PRIVATE int ac_on_open(hgobj gobj, const char *event, json_t *kw, hgobj src)
+PRIVATE int ac_on_open(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
@@ -192,7 +192,7 @@ PRIVATE int ac_on_open(hgobj gobj, const char *event, json_t *kw, hgobj src)
 /***************************************************************************
  *
  ***************************************************************************/
-PRIVATE int ac_timeout_to_connect(hgobj gobj, const char *event, json_t *kw, hgobj src)
+PRIVATE int ac_timeout_to_connect(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
@@ -208,7 +208,7 @@ PRIVATE int ac_timeout_to_connect(hgobj gobj, const char *event, json_t *kw, hgo
  *
  ***************************************************************************/
 gbuffer_t *gbuf_to_send = 0;
-PRIVATE int ac_timeout_send_messages(hgobj gobj, const char *event, json_t *kw, hgobj src)
+PRIVATE int ac_timeout_send_messages(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
@@ -227,7 +227,7 @@ PRIVATE int ac_timeout_send_messages(hgobj gobj, const char *event, json_t *kw, 
 /***************************************************************************
  *
  ***************************************************************************/
-PRIVATE int ac_on_close(hgobj gobj, const char *event, json_t *kw, hgobj src)
+PRIVATE int ac_on_close(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 {
     JSON_DECREF(kw)
     return 0;
@@ -236,7 +236,7 @@ PRIVATE int ac_on_close(hgobj gobj, const char *event, json_t *kw, hgobj src)
 /***************************************************************************
  *
  ***************************************************************************/
-PRIVATE int ac_on_message(hgobj gobj, const char *event, json_t *kw, hgobj src)
+PRIVATE int ac_on_message(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
@@ -283,7 +283,7 @@ PRIVATE int ac_on_message(hgobj gobj, const char *event, json_t *kw, hgobj src)
 /***************************************************************************
  *
  ***************************************************************************/
-PRIVATE int ac_stopped(hgobj gobj, const char *event, json_t *kw, hgobj src)
+PRIVATE int ac_stopped(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 {
     gobj_log_info(0, 0,
         "msgset",           "%s", MSGSET_INFO,

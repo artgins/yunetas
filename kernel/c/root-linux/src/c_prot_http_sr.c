@@ -207,7 +207,7 @@ PRIVATE int parse_message(hgobj gobj, gbuffer_t *gbuf, GHTTP_PARSER *parser)
 /***************************************************************************
  *
  ***************************************************************************/
-PRIVATE int ac_connected(hgobj gobj, const char *event, json_t *kw, hgobj src)
+PRIVATE int ac_connected(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
@@ -224,7 +224,7 @@ PRIVATE int ac_connected(hgobj gobj, const char *event, json_t *kw, hgobj src)
 /***************************************************************************
  *
  ***************************************************************************/
-PRIVATE int ac_disconnected(hgobj gobj, const char *event, json_t *kw, hgobj src)
+PRIVATE int ac_disconnected(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
@@ -242,7 +242,7 @@ PRIVATE int ac_disconnected(hgobj gobj, const char *event, json_t *kw, hgobj src
 /***************************************************************************
  *  Message completed
  ***************************************************************************/
-PRIVATE int ac_on_message(hgobj gobj, const char *event, json_t *kw, hgobj src)
+PRIVATE int ac_on_message(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 {
     gobj_publish_event(gobj, event, kw);
     return 0;
@@ -251,7 +251,7 @@ PRIVATE int ac_on_message(hgobj gobj, const char *event, json_t *kw, hgobj src)
 /********************************************************************
  *
  ********************************************************************/
-PRIVATE int ac_rx_data(hgobj gobj, const char *event, json_t *kw, hgobj src)
+PRIVATE int ac_rx_data(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
     gbuffer_t *gbuf = (gbuffer_t *)(uintptr_t)kw_get_int(gobj, kw, "gbuffer", 0, FALSE);
@@ -275,7 +275,7 @@ PRIVATE int ac_rx_data(hgobj gobj, const char *event, json_t *kw, hgobj src)
 /********************************************************************
  *
  ********************************************************************/
-PRIVATE int ac_send_message(hgobj gobj, const char *event, json_t *kw, hgobj src)
+PRIVATE int ac_send_message(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 {
     gbuffer_t *gbuf = 0;
 
@@ -337,7 +337,7 @@ PRIVATE int ac_send_message(hgobj gobj, const char *event, json_t *kw, hgobj src
 /***************************************************************************
  *
  ***************************************************************************/
-PRIVATE int ac_drop(hgobj gobj, const char *event, json_t *kw, hgobj src)
+PRIVATE int ac_drop(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 {
     gobj_send_event(gobj_bottom_gobj(gobj), EV_DROP, 0, gobj);
 
@@ -348,7 +348,7 @@ PRIVATE int ac_drop(hgobj gobj, const char *event, json_t *kw, hgobj src)
 /***************************************************************************
  *
  ***************************************************************************/
-PRIVATE int ac_timeout_inactivity(hgobj gobj, const char *event, json_t *kw, hgobj src)
+PRIVATE int ac_timeout_inactivity(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 {
     gobj_send_event(gobj_bottom_gobj(gobj), EV_DROP, 0, gobj);
     KW_DECREF(kw)
@@ -358,7 +358,7 @@ PRIVATE int ac_timeout_inactivity(hgobj gobj, const char *event, json_t *kw, hgo
 /***************************************************************************
  *  Child stopped
  ***************************************************************************/
-PRIVATE int ac_stopped(hgobj gobj, const char *event, json_t *kw, hgobj src)
+PRIVATE int ac_stopped(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 {
     if(gobj_is_volatil(src)) {
         gobj_destroy(src);

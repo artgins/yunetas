@@ -8136,7 +8136,7 @@ PRIVATE int frame_completed(hgobj gobj, hgobj src)
 /***************************************************************************
  *  iam client. send the request
  ***************************************************************************/
-PRIVATE int ac_connected(hgobj gobj, const char *event, json_t *kw, hgobj src)
+PRIVATE int ac_connected(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
@@ -8193,7 +8193,7 @@ PRIVATE int ac_connected(hgobj gobj, const char *event, json_t *kw, hgobj src)
 /***************************************************************************
  *
  ***************************************************************************/
-PRIVATE int ac_disconnected(hgobj gobj, const char *event, json_t *kw, hgobj src)
+PRIVATE int ac_disconnected(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
@@ -8257,7 +8257,7 @@ PRIVATE int ac_disconnected(hgobj gobj, const char *event, json_t *kw, hgobj src
 /***************************************************************************
  *  Too much time waiting disconnected
  ***************************************************************************/
-PRIVATE int ac_timeout_waiting_disconnected(hgobj gobj, const char *event, json_t *kw, hgobj src)
+PRIVATE int ac_timeout_waiting_disconnected(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 {
     gobj_log_warning(gobj, 0,
         "msgset",       "%s", MSGSET_MQTT_ERROR,
@@ -8273,7 +8273,7 @@ PRIVATE int ac_timeout_waiting_disconnected(hgobj gobj, const char *event, json_
 /***************************************************************************
  *  Process the handshake.
  ***************************************************************************/
-PRIVATE int ac_process_handshake(hgobj gobj, const char *event, json_t *kw, hgobj src)
+PRIVATE int ac_process_handshake(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
     gbuffer_t *gbuf = (gbuffer_t *)(uintptr_t)kw_get_int(gobj, kw, "gbuffer", 0, FALSE);
@@ -8424,7 +8424,7 @@ PRIVATE int ac_process_handshake(hgobj gobj, const char *event, json_t *kw, hgob
 /***************************************************************************
  *  Too much time waiting handshake
  ***************************************************************************/
-PRIVATE int ac_timeout_wait_handshake(hgobj gobj, const char *event, json_t *kw, hgobj src)
+PRIVATE int ac_timeout_wait_handshake(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 {
     gobj_log_warning(gobj, 0,
         "function",     "%s", __FUNCTION__,
@@ -8441,7 +8441,7 @@ PRIVATE int ac_timeout_wait_handshake(hgobj gobj, const char *event, json_t *kw,
 /***************************************************************************
  *  Process the header.
  ***************************************************************************/
-PRIVATE int ac_process_frame_header(hgobj gobj, const char *event, json_t *kw, hgobj src)
+PRIVATE int ac_process_frame_header(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
     gbuffer_t *gbuf = (gbuffer_t *)(uintptr_t)kw_get_int(gobj, kw, "gbuffer", 0, FALSE);
@@ -8547,7 +8547,7 @@ PRIVATE int ac_process_frame_header(hgobj gobj, const char *event, json_t *kw, h
 /***************************************************************************
  *
  ***************************************************************************/
-PRIVATE int ac_timeout_waiting_frame_header(hgobj gobj, const char *event, json_t *kw, hgobj src)
+PRIVATE int ac_timeout_waiting_frame_header(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 {
     // We wait forever, if it has done the login.
     KW_DECREF(kw)
@@ -8557,7 +8557,7 @@ PRIVATE int ac_timeout_waiting_frame_header(hgobj gobj, const char *event, json_
 /***************************************************************************
  *  Get payload data
  ***************************************************************************/
-PRIVATE int ac_process_payload_data(hgobj gobj, const char *event, json_t *kw, hgobj src)
+PRIVATE int ac_process_payload_data(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
     gbuffer_t *gbuf = (gbuffer_t *)(uintptr_t)kw_get_int(gobj, kw, "gbuffer", 0, FALSE);
@@ -8605,7 +8605,7 @@ PRIVATE int ac_process_payload_data(hgobj gobj, const char *event, json_t *kw, h
 /***************************************************************************
  *  Too much time waiting payload data
  ***************************************************************************/
-PRIVATE int ac_timeout_waiting_payload_data(hgobj gobj, const char *event, json_t *kw, hgobj src)
+PRIVATE int ac_timeout_waiting_payload_data(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 {
     gobj_log_warning(gobj, 0,
         "function",     "%s", __FUNCTION__,
@@ -8625,7 +8625,7 @@ PRIVATE int ac_timeout_waiting_payload_data(hgobj gobj, const char *event, json_
 /***************************************************************************
  *  From broker, send message (publish) to client
  ***************************************************************************/
-PRIVATE int ac_send_message(hgobj gobj, const char *event, json_t *kw_mqtt_msg, hgobj src)
+PRIVATE int ac_send_message(hgobj gobj, gobj_event_t event, json_t *kw_mqtt_msg, hgobj src)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
@@ -8689,7 +8689,7 @@ PRIVATE int ac_send_message(hgobj gobj, const char *event, json_t *kw_mqtt_msg, 
 /***************************************************************************
  *  Entry of mqtt publishing for clients (mosquitto_publish_v5)
  ***************************************************************************/
-PRIVATE int ac_mqtt_client_send_publish(hgobj gobj, const char *event, json_t *kw, hgobj src)
+PRIVATE int ac_mqtt_client_send_publish(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
@@ -8923,7 +8923,7 @@ PRIVATE int ac_mqtt_client_send_publish(hgobj gobj, const char *event, json_t *k
 /***************************************************************************
  *  Entry of mqtt subscribing for clients
  ***************************************************************************/
-PRIVATE int ac_mqtt_client_send_subscribe(hgobj gobj, const char *event, json_t *kw, hgobj src)
+PRIVATE int ac_mqtt_client_send_subscribe(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
     json_t *subs = kw_get_list(gobj, kw, "subs", 0, 0);
@@ -9057,7 +9057,7 @@ PRIVATE int ac_mqtt_client_send_subscribe(hgobj gobj, const char *event, json_t 
 /***************************************************************************
  *  Entry of mqtt unsubscribing for clients
  ***************************************************************************/
-PRIVATE int ac_mqtt_client_send_unsubscribe(hgobj gobj, const char *event, json_t *kw, hgobj src)
+PRIVATE int ac_mqtt_client_send_unsubscribe(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
     json_t *subs = kw_get_list(gobj, kw, "subs", 0, 0);
@@ -9163,7 +9163,7 @@ PRIVATE int ac_mqtt_client_send_unsubscribe(hgobj gobj, const char *event, json_
 /***************************************************************************
  *
  ***************************************************************************/
-PRIVATE int ac_timeout_periodic(hgobj gobj, const char *event, json_t *kw, hgobj src)
+PRIVATE int ac_timeout_periodic(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
@@ -9265,7 +9265,7 @@ PRIVATE int ac_timeout_periodic(hgobj gobj, const char *event, json_t *kw, hgobj
 /***************************************************************************
  *
  ***************************************************************************/
-PRIVATE int ac_drop(hgobj gobj, const char *event, json_t *kw, hgobj src)
+PRIVATE int ac_drop(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
@@ -9295,7 +9295,7 @@ PRIVATE int ac_drop(hgobj gobj, const char *event, json_t *kw, hgobj src)
 /***************************************************************************
  *  Child stopped
  ***************************************************************************/
-PRIVATE int ac_stopped(hgobj gobj, const char *event, json_t *kw, hgobj src)
+PRIVATE int ac_stopped(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 {
     if(gobj_is_volatil(src)) {
         gobj_destroy(src);

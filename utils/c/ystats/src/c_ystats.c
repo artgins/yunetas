@@ -409,7 +409,7 @@ PRIVATE int poll_stats_data(hgobj gobj)
 /***************************************************************************
  *
  ***************************************************************************/
-PRIVATE int ac_on_token(hgobj gobj, const char *event, json_t *kw, hgobj src)
+PRIVATE int ac_on_token(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 {
     int result = (int)kw_get_int(gobj, kw, "result", -1, KW_REQUIRED);
     if(result < 0) {
@@ -432,7 +432,7 @@ PRIVATE int ac_on_token(hgobj gobj, const char *event, json_t *kw, hgobj src)
 /***************************************************************************
  *  Execute batch of input parameters when the route is opened.
  ***************************************************************************/
-PRIVATE int ac_on_open(hgobj gobj, const char *event, json_t *kw, hgobj src)
+PRIVATE int ac_on_open(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
     const char *agent_name = kw_get_str(gobj, kw, "remote_yuno_name", 0, 0); // remote agent name
@@ -487,7 +487,7 @@ PRIVATE int ac_on_open(hgobj gobj, const char *event, json_t *kw, hgobj src)
 /***************************************************************************
  *
  ***************************************************************************/
-PRIVATE int ac_on_close(hgobj gobj, const char *event, json_t *kw, hgobj src)
+PRIVATE int ac_on_close(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
@@ -510,7 +510,7 @@ PRIVATE int ac_on_close(hgobj gobj, const char *event, json_t *kw, hgobj src)
 /***************************************************************************
  *  Stats received.
  ***************************************************************************/
-PRIVATE int ac_stats(hgobj gobj, const char *event, json_t *kw, hgobj src)
+PRIVATE int ac_stats(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
@@ -548,7 +548,7 @@ PRIVATE int ac_stats(hgobj gobj, const char *event, json_t *kw, hgobj src)
 /***************************************************************************
  *
  ***************************************************************************/
-PRIVATE int ac_timeout(hgobj gobj, const char *event, json_t *kw, hgobj src)
+PRIVATE int ac_timeout(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 {
     const char *attribute = gobj_read_str_attr(gobj, "attribute");
     const char *command = gobj_read_str_attr(gobj, "command");

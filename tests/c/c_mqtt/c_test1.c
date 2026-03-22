@@ -132,7 +132,7 @@ PRIVATE int mt_pause(hgobj gobj)
 /***************************************************************************
  *  Timer fired: start the MQTT client tree (initiate TCP connection)
  ***************************************************************************/
-PRIVATE int ac_connect(hgobj gobj, const char *event, json_t *kw, hgobj src)
+PRIVATE int ac_connect(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
@@ -145,7 +145,7 @@ PRIVATE int ac_connect(hgobj gobj, const char *event, json_t *kw, hgobj src)
 /***************************************************************************
  *  MQTT connected (CONNACK received): subscribe to "test/topic"
  ***************************************************************************/
-PRIVATE int ac_on_open(hgobj gobj, const char *event, json_t *kw, hgobj src)
+PRIVATE int ac_on_open(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
@@ -164,7 +164,7 @@ PRIVATE int ac_on_open(hgobj gobj, const char *event, json_t *kw, hgobj src)
 /***************************************************************************
  *  SUBACK received: publish "Hello MQTT" to "test/topic"
  ***************************************************************************/
-PRIVATE int ac_suback(hgobj gobj, const char *event, json_t *kw, hgobj src)
+PRIVATE int ac_suback(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
@@ -190,7 +190,7 @@ PRIVATE int ac_suback(hgobj gobj, const char *event, json_t *kw, hgobj src)
 /***************************************************************************
  *  MQTT message received: verify topic + payload, then disconnect and die
  ***************************************************************************/
-PRIVATE int ac_message(hgobj gobj, const char *event, json_t *kw, hgobj src)
+PRIVATE int ac_message(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
@@ -246,7 +246,7 @@ PRIVATE int ac_message(hgobj gobj, const char *event, json_t *kw, hgobj src)
 /***************************************************************************
  *  MQTT connection closed unexpectedly (before message received)
  ***************************************************************************/
-PRIVATE int ac_on_close(hgobj gobj, const char *event, json_t *kw, hgobj src)
+PRIVATE int ac_on_close(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
@@ -267,7 +267,7 @@ PRIVATE int ac_on_close(hgobj gobj, const char *event, json_t *kw, hgobj src)
 /***************************************************************************
  *  QoS 0 publish-sent confirmation: ignore silently
  ***************************************************************************/
-PRIVATE int ac_publish_sent(hgobj gobj, const char *event, json_t *kw, hgobj src)
+PRIVATE int ac_publish_sent(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 {
     JSON_DECREF(kw)
     return 0;
@@ -276,7 +276,7 @@ PRIVATE int ac_publish_sent(hgobj gobj, const char *event, json_t *kw, hgobj src
 /***************************************************************************
  *  Volatil child stopped: destroy it
  ***************************************************************************/
-PRIVATE int ac_stopped(hgobj gobj, const char *event, json_t *kw, hgobj src)
+PRIVATE int ac_stopped(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 {
     if(gobj_is_volatil(src)) {
         gobj_destroy(src);

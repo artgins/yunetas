@@ -766,7 +766,7 @@ PRIVATE hgobj get_next_destination(hgobj gobj)
 /***************************************************************************
  *
  ***************************************************************************/
-PRIVATE int send_one_rotate(hgobj gobj, const char *event, json_t *kw, hgobj src)
+PRIVATE int send_one_rotate(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
@@ -829,7 +829,7 @@ PRIVATE int send_one_rotate(hgobj gobj, const char *event, json_t *kw, hgobj src
 /***************************************************************************
  *
  ***************************************************************************/
-PRIVATE int send_all(hgobj gobj, const char *event, json_t *kw, hgobj src)
+PRIVATE int send_all(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
@@ -928,7 +928,7 @@ PRIVATE json_t *channels_opened(hgobj gobj, const char *lmethod, json_t *kw, hgo
 /***************************************************************************
  *
  ***************************************************************************/
-PRIVATE int ac_on_open(hgobj gobj, const char *event, json_t *kw, hgobj src)
+PRIVATE int ac_on_open(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 {
     if(gobj_trace_level(gobj) & TRACE_CONNECTION) {
         gobj_log_info(gobj, 0,
@@ -964,7 +964,7 @@ PRIVATE int ac_on_open(hgobj gobj, const char *event, json_t *kw, hgobj src)
 /***************************************************************************
  *
  ***************************************************************************/
-PRIVATE int ac_on_close(hgobj gobj, const char *event, json_t *kw, hgobj src)
+PRIVATE int ac_on_close(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 {
     if(gobj_trace_level(gobj) & TRACE_CONNECTION) {
         gobj_log_info(gobj, 0,
@@ -1000,7 +1000,7 @@ PRIVATE int ac_on_close(hgobj gobj, const char *event, json_t *kw, hgobj src)
 /***************************************************************************
  *  Client/Server, receiving a message to publish.
  ***************************************************************************/
-PRIVATE int ac_on_message(hgobj gobj, const char *event, json_t *kw, hgobj src)
+PRIVATE int ac_on_message(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
@@ -1051,7 +1051,7 @@ PRIVATE int ac_on_message(hgobj gobj, const char *event, json_t *kw, hgobj src)
 /***************************************************************************
  *  Server, receiving a IEvent inter-event to publish.
  ***************************************************************************/
-PRIVATE int ac_on_iev_message(hgobj gobj, const char *event, json_t *kw, hgobj src)
+PRIVATE int ac_on_iev_message(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
@@ -1112,7 +1112,7 @@ PRIVATE int ac_on_iev_message(hgobj gobj, const char *event, json_t *kw, hgobj s
 /***************************************************************************
  *
  ***************************************************************************/
-PRIVATE int ac_send_message(hgobj gobj, const char *event, json_t *kw, hgobj src)
+PRIVATE int ac_send_message(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
@@ -1135,7 +1135,7 @@ PRIVATE int ac_send_message(hgobj gobj, const char *event, json_t *kw, hgobj src
 /***************************************************************************
  *
  ***************************************************************************/
-PRIVATE int ac_send_iev(hgobj gobj, const char *event, json_t *kw, hgobj src)
+PRIVATE int ac_send_iev(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
@@ -1158,7 +1158,7 @@ PRIVATE int ac_send_iev(hgobj gobj, const char *event, json_t *kw, hgobj src)
 /***************************************************************************
  *
  ***************************************************************************/
-PRIVATE int ac_drop(hgobj gobj, const char *event, json_t *kw, hgobj src)
+PRIVATE int ac_drop(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 {
     hgobj channel_gobj = gobj_bottom_gobj(gobj); // See firstly if it's a tube
     if(!channel_gobj) {
@@ -1226,7 +1226,7 @@ PRIVATE int ac_drop(hgobj gobj, const char *event, json_t *kw, hgobj src)
  *  This event comes from clisrv TCP gobjs
  *  that haven't found a free server link.
  ***************************************************************************/
-PRIVATE int ac_stopped(hgobj gobj, const char *event, json_t *kw, hgobj src)
+PRIVATE int ac_stopped(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 {
     JSON_DECREF(kw)
 

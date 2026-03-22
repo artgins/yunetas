@@ -208,7 +208,7 @@ PRIVATE gobj_event_t resolve_event(hgobj gobj, const char *event_name)
 /***************************************************************************
  *  Record an event in the trace
  ***************************************************************************/
-PRIVATE void record_event(hgobj gobj, const char *event, json_t *kw, hgobj src)
+PRIVATE void record_event(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 

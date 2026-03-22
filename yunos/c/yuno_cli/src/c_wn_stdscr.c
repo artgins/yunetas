@@ -287,7 +287,7 @@ PRIVATE void catch_signals(void)
 /***************************************************************************
  *
  ***************************************************************************/
-PRIVATE int ac_timeout(hgobj gobj, const char *event, json_t *kw, hgobj src)
+PRIVATE int ac_timeout(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 {
     if(__new_stdsrc_size__) {
         __new_stdsrc_size__ = FALSE;

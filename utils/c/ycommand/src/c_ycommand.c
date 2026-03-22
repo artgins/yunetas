@@ -1102,7 +1102,7 @@ PRIVATE int save_local_base64(
 /***************************************************************************
  *
  ***************************************************************************/
-PRIVATE int ac_on_token(hgobj gobj, const char *event, json_t *kw, hgobj src)
+PRIVATE int ac_on_token(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
@@ -1128,7 +1128,7 @@ PRIVATE int ac_on_token(hgobj gobj, const char *event, json_t *kw, hgobj src)
 /***************************************************************************
  *  Execute batch of input parameters when the route is opened.
  ***************************************************************************/
-PRIVATE int ac_on_open(hgobj gobj, const char *event, json_t *kw, hgobj src)
+PRIVATE int ac_on_open(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
     const char *yuno_role = kw_get_str(gobj, kw, "remote_yuno_role", "", 0);
@@ -1167,7 +1167,7 @@ PRIVATE int ac_on_open(hgobj gobj, const char *event, json_t *kw, hgobj src)
 /***************************************************************************
  *
  ***************************************************************************/
-PRIVATE int ac_on_close(hgobj gobj, const char *event, json_t *kw, hgobj src)
+PRIVATE int ac_on_close(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
@@ -1189,7 +1189,7 @@ PRIVATE int ac_on_close(hgobj gobj, const char *event, json_t *kw, hgobj src)
 /***************************************************************************
  *  HACK Este evento solo puede venir de GCLASS_EDITLINE
  ***************************************************************************/
-PRIVATE int ac_command(hgobj gobj, const char *event, json_t *kw, hgobj src)
+PRIVATE int ac_command(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
@@ -1284,7 +1284,7 @@ PRIVATE int ac_command(hgobj gobj, const char *event, json_t *kw, hgobj src)
 /***************************************************************************
  *  Command received.
  ***************************************************************************/
-PRIVATE int ac_command_answer(hgobj gobj, const char *event, json_t *kw, hgobj src)
+PRIVATE int ac_command_answer(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
@@ -1327,7 +1327,7 @@ PRIVATE int ac_command_answer(hgobj gobj, const char *event, json_t *kw, hgobj s
 /***************************************************************************
  *
  ***************************************************************************/
-PRIVATE int ac_edit_config(hgobj gobj, const char *event, json_t *kw, hgobj src)
+PRIVATE int ac_edit_config(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
@@ -1433,7 +1433,7 @@ PRIVATE int ac_edit_config(hgobj gobj, const char *event, json_t *kw, hgobj src)
 /***************************************************************************
  *
  ***************************************************************************/
-PRIVATE int ac_view_config(hgobj gobj, const char *event, json_t *kw, hgobj src)
+PRIVATE int ac_view_config(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
     int result = (int)kw_get_int(gobj, kw, "result", -1, 0);
@@ -1493,7 +1493,7 @@ PRIVATE int ac_view_config(hgobj gobj, const char *event, json_t *kw, hgobj src)
 /***************************************************************************
  *
  ***************************************************************************/
-PRIVATE int ac_read_json(hgobj gobj, const char *event, json_t *kw, hgobj src)
+PRIVATE int ac_read_json(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
     int result = (int)kw_get_int(gobj, kw, "result", -1, 0);
@@ -1553,7 +1553,7 @@ PRIVATE int ac_read_json(hgobj gobj, const char *event, json_t *kw, hgobj src)
 /***************************************************************************
  *
  ***************************************************************************/
-PRIVATE int ac_read_file(hgobj gobj, const char *event, json_t *kw, hgobj src)
+PRIVATE int ac_read_file(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
     int result = (int)kw_get_int(gobj, kw, "result", -1, 0);
@@ -1613,7 +1613,7 @@ PRIVATE int ac_read_file(hgobj gobj, const char *event, json_t *kw, hgobj src)
 /***************************************************************************
  *
  ***************************************************************************/
-PRIVATE int ac_read_binary_file(hgobj gobj, const char *event, json_t *kw, hgobj src)
+PRIVATE int ac_read_binary_file(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
     int result = (int)kw_get_int(gobj, kw, "result", -1, 0);
@@ -1670,7 +1670,7 @@ PRIVATE int ac_read_binary_file(hgobj gobj, const char *event, json_t *kw, hgobj
 /***************************************************************************
  *
  ***************************************************************************/
-PRIVATE int ac_screen_ctrl(hgobj gobj, const char *event, json_t *kw, hgobj src)
+PRIVATE int ac_screen_ctrl(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
@@ -1705,7 +1705,7 @@ PRIVATE int ac_screen_ctrl(hgobj gobj, const char *event, json_t *kw, hgobj src)
 /***************************************************************************
  *
  ***************************************************************************/
-PRIVATE int ac_tty_mirror_open(hgobj gobj, const char *event, json_t *kw, hgobj src)
+PRIVATE int ac_tty_mirror_open(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
@@ -1725,7 +1725,7 @@ PRIVATE int ac_tty_mirror_open(hgobj gobj, const char *event, json_t *kw, hgobj 
 /***************************************************************************
  *
  ***************************************************************************/
-PRIVATE int ac_tty_mirror_close(hgobj gobj, const char *event, json_t *kw, hgobj src)
+PRIVATE int ac_tty_mirror_close(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
@@ -1741,7 +1741,7 @@ PRIVATE int ac_tty_mirror_close(hgobj gobj, const char *event, json_t *kw, hgobj
 /***************************************************************************
  *
  ***************************************************************************/
-PRIVATE int ac_tty_mirror_data(hgobj gobj, const char *event, json_t *kw, hgobj src)
+PRIVATE int ac_tty_mirror_data(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 {
     const char *agent_name = gobj_name(gobj_read_pointer_attr(src, "user_data"));
 
@@ -1783,7 +1783,7 @@ PRIVATE int ac_tty_mirror_data(hgobj gobj, const char *event, json_t *kw, hgobj 
 /***************************************************************************
  *
  ***************************************************************************/
-PRIVATE int ac_timeout(hgobj gobj, const char *event, json_t *kw, hgobj src)
+PRIVATE int ac_timeout(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 {
     printf("\n");
     exit(gobj_get_exit_code());

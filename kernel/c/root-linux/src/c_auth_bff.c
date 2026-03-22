@@ -916,7 +916,7 @@ PRIVATE json_t *result_done(hgobj gobj, const char *lm, json_t *kw, hgobj src)
 /***************************************************************************
  *  New browser HTTP connection opened.
  ***************************************************************************/
-PRIVATE int ac_on_open(hgobj gobj, const char *event, json_t *kw, hgobj src)
+PRIVATE int ac_on_open(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 {
     KW_DECREF(kw)
     return 0;
@@ -925,7 +925,7 @@ PRIVATE int ac_on_open(hgobj gobj, const char *event, json_t *kw, hgobj src)
 /***************************************************************************
  *  Browser HTTP connection closed (before we could respond, or after).
  ***************************************************************************/
-PRIVATE int ac_on_close(hgobj gobj, const char *event, json_t *kw, hgobj src)
+PRIVATE int ac_on_close(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 {
     KW_DECREF(kw)
     return 0;
@@ -935,7 +935,7 @@ PRIVATE int ac_on_close(hgobj gobj, const char *event, json_t *kw, hgobj src)
  *  Incoming HTTP request from browser.
  *  kw: { url, request_method, headers (json), body (json) }
  ***************************************************************************/
-PRIVATE int ac_on_message(hgobj gobj, const char *event, json_t *kw, hgobj src)
+PRIVATE int ac_on_message(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 {
     int method = (int)kw_get_int(gobj, kw, "request_method", 0, 0);
     const char *url    = kw_get_str(gobj, kw, "url", "", 0);
@@ -1079,7 +1079,7 @@ PRIVATE int ac_on_message(hgobj gobj, const char *event, json_t *kw, hgobj src)
 /***************************************************************************
  *  Keycloak task completed — clean up, process next queued request.
  ***************************************************************************/
-PRIVATE int ac_end_task(hgobj gobj, const char *event, json_t *kw, hgobj src)
+PRIVATE int ac_end_task(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
@@ -1102,7 +1102,7 @@ PRIVATE int ac_end_task(hgobj gobj, const char *event, json_t *kw, hgobj src)
 /***************************************************************************
  *
  ***************************************************************************/
-PRIVATE int ac_stopped(hgobj gobj, const char *event, json_t *kw, hgobj src)
+PRIVATE int ac_stopped(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 {
     if(gobj_is_volatil(src)) {
         gobj_destroy(src);

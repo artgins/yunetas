@@ -8748,7 +8748,7 @@ PRIVATE int restart_nodes(hgobj gobj)
 /***************************************************************************
  *
  ***************************************************************************/
-PRIVATE int ac_edit_config(hgobj gobj, const char *event, json_t *kw, hgobj src)
+PRIVATE int ac_edit_config(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
     char *resource = "configurations";
@@ -8825,7 +8825,7 @@ PRIVATE int ac_edit_config(hgobj gobj, const char *event, json_t *kw, hgobj src)
 /***************************************************************************
  *
  ***************************************************************************/
-PRIVATE int ac_view_config(hgobj gobj, const char *event, json_t *kw, hgobj src)
+PRIVATE int ac_view_config(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
     char *resource = "configurations";
@@ -8902,7 +8902,7 @@ PRIVATE int ac_view_config(hgobj gobj, const char *event, json_t *kw, hgobj src)
 /***************************************************************************
  *
  ***************************************************************************/
-PRIVATE int ac_edit_yuno_config(hgobj gobj, const char *event, json_t *kw, hgobj src)
+PRIVATE int ac_edit_yuno_config(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
     char *resource = "yunos";
@@ -9017,7 +9017,7 @@ PRIVATE int ac_edit_yuno_config(hgobj gobj, const char *event, json_t *kw, hgobj
 /***************************************************************************
  *
  ***************************************************************************/
-PRIVATE int ac_view_yuno_config(hgobj gobj, const char *event, json_t *kw, hgobj src)
+PRIVATE int ac_view_yuno_config(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
     char *resource = "yunos";
@@ -9132,7 +9132,7 @@ PRIVATE int ac_view_yuno_config(hgobj gobj, const char *event, json_t *kw, hgobj
 /***************************************************************************
  *
  ***************************************************************************/
-PRIVATE int ac_read_json(hgobj gobj, const char *event, json_t *kw, hgobj src)
+PRIVATE int ac_read_json(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 {
     const char *filename = kw_get_str(gobj, kw, "filename", 0, 0);
     if(!filename) {
@@ -9251,7 +9251,7 @@ PRIVATE int ac_read_json(hgobj gobj, const char *event, json_t *kw, hgobj src)
 /***************************************************************************
  *
  ***************************************************************************/
-PRIVATE int ac_read_file(hgobj gobj, const char *event, json_t *kw, hgobj src)
+PRIVATE int ac_read_file(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 {
     const char *filename = kw_get_str(gobj, kw, "filename", 0, 0);
     if(!filename) {
@@ -9370,7 +9370,7 @@ PRIVATE int ac_read_file(hgobj gobj, const char *event, json_t *kw, hgobj src)
 /***************************************************************************
  *
  ***************************************************************************/
-PRIVATE int ac_read_binary_file(hgobj gobj, const char *event, json_t *kw, hgobj src)
+PRIVATE int ac_read_binary_file(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 {
     const char *filename = kw_get_str(gobj, kw, "filename", 0, 0);
     if(!filename) {
@@ -9510,7 +9510,7 @@ PRIVATE int ac_read_binary_file(hgobj gobj, const char *event, json_t *kw, hgobj
 /***************************************************************************
  *
  ***************************************************************************/
-PRIVATE int ac_read_running_keys(hgobj gobj, const char *event, json_t *kw, hgobj src)
+PRIVATE int ac_read_running_keys(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
     char *resource = "yunos";
@@ -9598,7 +9598,7 @@ PRIVATE int ac_read_running_keys(hgobj gobj, const char *event, json_t *kw, hgob
 /***************************************************************************
  *
  ***************************************************************************/
-PRIVATE int ac_read_running_bin(hgobj gobj, const char *event, json_t *kw, hgobj src)
+PRIVATE int ac_read_running_bin(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
     char *resource = "yunos";
@@ -9683,7 +9683,7 @@ PRIVATE int ac_read_running_bin(hgobj gobj, const char *event, json_t *kw, hgobj
 /***************************************************************************
  *  Este mensaje llega directamente del channel superior (ievent_srv)
  ***************************************************************************/
-PRIVATE int ac_play_yuno_ack(hgobj gobj, const char *event, json_t *kw, hgobj src)
+PRIVATE int ac_play_yuno_ack(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
@@ -9761,7 +9761,7 @@ PRIVATE int ac_play_yuno_ack(hgobj gobj, const char *event, json_t *kw, hgobj sr
 /***************************************************************************
  *
  ***************************************************************************/
-PRIVATE int ac_pause_yuno_ack(hgobj gobj, const char *event, json_t *kw, hgobj src)
+PRIVATE int ac_pause_yuno_ack(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
@@ -9817,7 +9817,7 @@ PRIVATE int ac_pause_yuno_ack(hgobj gobj, const char *event, json_t *kw, hgobj s
 /***************************************************************************
  *  HACK intermediate node
  ***************************************************************************/
-PRIVATE int ac_stats_yuno_answer(hgobj gobj, const char *event, json_t *kw, hgobj src)
+PRIVATE int ac_stats_yuno_answer(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
@@ -9863,7 +9863,7 @@ PRIVATE int ac_stats_yuno_answer(hgobj gobj, const char *event, json_t *kw, hgob
 /***************************************************************************
  *  HACK intermediate node
  ***************************************************************************/
-PRIVATE int ac_command_yuno_answer(hgobj gobj, const char *event, json_t *kw, hgobj src)
+PRIVATE int ac_command_yuno_answer(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
@@ -9915,7 +9915,7 @@ PRIVATE int ac_command_yuno_answer(hgobj gobj, const char *event, json_t *kw, hg
 /***************************************************************************
  *
  ***************************************************************************/
-PRIVATE int ac_on_open(hgobj gobj, const char *event, json_t *kw, hgobj src)
+PRIVATE int ac_on_open(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
@@ -10183,7 +10183,7 @@ PRIVATE int ac_on_open(hgobj gobj, const char *event, json_t *kw, hgobj src)
 /***************************************************************************
  *
  ***************************************************************************/
-PRIVATE int ac_on_close(hgobj gobj, const char *event, json_t *kw, hgobj src)
+PRIVATE int ac_on_close(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
@@ -10270,7 +10270,7 @@ PRIVATE int ac_on_close(hgobj gobj, const char *event, json_t *kw, hgobj src)
 /***************************************************************************
  *
  ***************************************************************************/
-PRIVATE int ac_final_count(hgobj gobj, const char *event, json_t *kw, hgobj src)
+PRIVATE int ac_final_count(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
     const char *info = kw_get_str(gobj, kw, "info", "", 0);
@@ -10361,7 +10361,7 @@ PRIVATE int ac_final_count(hgobj gobj, const char *event, json_t *kw, hgobj src)
 /***************************************************************************
  *
  ***************************************************************************/
-PRIVATE int ac_tty_open(hgobj gobj, const char *event, json_t *kw, hgobj src)
+PRIVATE int ac_tty_open(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
@@ -10412,7 +10412,7 @@ PRIVATE int ac_tty_open(hgobj gobj, const char *event, json_t *kw, hgobj src)
 /***************************************************************************
  *
  ***************************************************************************/
-PRIVATE int ac_tty_close(hgobj gobj, const char *event, json_t *kw, hgobj src)
+PRIVATE int ac_tty_close(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
@@ -10476,7 +10476,7 @@ PRIVATE int ac_tty_close(hgobj gobj, const char *event, json_t *kw, hgobj src)
 /***************************************************************************
  *
  ***************************************************************************/
-PRIVATE int ac_tty_data(hgobj gobj, const char *event, json_t *kw, hgobj src)
+PRIVATE int ac_tty_data(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
@@ -10527,7 +10527,7 @@ PRIVATE int ac_tty_data(hgobj gobj, const char *event, json_t *kw, hgobj src)
 /***************************************************************************
  *
  ***************************************************************************/
-PRIVATE int ac_write_tty(hgobj gobj, const char *event, json_t *kw, hgobj src)
+PRIVATE int ac_write_tty(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 {
     const char *name= kw_get_str(gobj, kw, "name", 0, 0);
     const char *content64 = kw_get_str(gobj, kw, "content64", 0, 0);
@@ -10584,7 +10584,7 @@ PRIVATE int ac_write_tty(hgobj gobj, const char *event, json_t *kw, hgobj src)
 /***************************************************************************
  *
  ***************************************************************************/
-PRIVATE int ac_timeout(hgobj gobj, const char *event, json_t *kw, hgobj src)
+PRIVATE int ac_timeout(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 

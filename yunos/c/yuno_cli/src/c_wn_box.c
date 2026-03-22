@@ -297,7 +297,7 @@ PRIVATE int mt_child_removed(hgobj gobj, hgobj child)
 /***************************************************************************
  *
  ***************************************************************************/
-PRIVATE int ac_paint(hgobj gobj, const char *event, json_t *kw, hgobj src)
+PRIVATE int ac_paint(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
@@ -330,7 +330,7 @@ PRIVATE int ac_paint(hgobj gobj, const char *event, json_t *kw, hgobj src)
 /***************************************************************************
  *
  ***************************************************************************/
-PRIVATE int ac_move(hgobj gobj, const char *event, json_t *kw, hgobj src)
+PRIVATE int ac_move(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
@@ -363,7 +363,7 @@ PRIVATE int ac_move(hgobj gobj, const char *event, json_t *kw, hgobj src)
 /***************************************************************************
  *
  ***************************************************************************/
-PRIVATE int ac_size(hgobj gobj, const char *event, json_t *kw, hgobj src)
+PRIVATE int ac_size(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 

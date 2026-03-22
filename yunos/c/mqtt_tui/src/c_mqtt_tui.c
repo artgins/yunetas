@@ -1286,7 +1286,7 @@ PRIVATE int list_history(hgobj gobj)
 /***************************************************************************
  *
  ***************************************************************************/
-PRIVATE int ac_on_token(hgobj gobj, const char *event, json_t *kw, hgobj src)
+PRIVATE int ac_on_token(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
@@ -1311,7 +1311,7 @@ PRIVATE int ac_on_token(hgobj gobj, const char *event, json_t *kw, hgobj src)
 /***************************************************************************
  *
  ***************************************************************************/
-PRIVATE int ac_on_open(hgobj gobj, const char *event, json_t *kw, hgobj src)
+PRIVATE int ac_on_open(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
@@ -1349,7 +1349,7 @@ PRIVATE int ac_on_open(hgobj gobj, const char *event, json_t *kw, hgobj src)
 /***************************************************************************
  *
  ***************************************************************************/
-PRIVATE int ac_on_close(hgobj gobj, const char *event, json_t *kw, hgobj src)
+PRIVATE int ac_on_close(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
@@ -1374,7 +1374,7 @@ PRIVATE int ac_on_close(hgobj gobj, const char *event, json_t *kw, hgobj src)
 /***************************************************************************
  *  Send publish command to the broker
  ***************************************************************************/
-PRIVATE int ac_send_mqtt_publish(hgobj gobj, const char *event, json_t *kw, hgobj src)
+PRIVATE int ac_send_mqtt_publish(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
@@ -1393,7 +1393,7 @@ PRIVATE int ac_send_mqtt_publish(hgobj gobj, const char *event, json_t *kw, hgob
 /***************************************************************************
  *  Send subscribe command to the broker
  ***************************************************************************/
-PRIVATE int ac_send_mqtt_subscribe(hgobj gobj, const char *event, json_t *kw, hgobj src)
+PRIVATE int ac_send_mqtt_subscribe(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
@@ -1412,7 +1412,7 @@ PRIVATE int ac_send_mqtt_subscribe(hgobj gobj, const char *event, json_t *kw, hg
 /***************************************************************************
  *  Send unsubscribe command to the broker
  ***************************************************************************/
-PRIVATE int ac_send_mqtt_unsubscribe(hgobj gobj, const char *event, json_t *kw, hgobj src)
+PRIVATE int ac_send_mqtt_unsubscribe(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
@@ -1431,7 +1431,7 @@ PRIVATE int ac_send_mqtt_unsubscribe(hgobj gobj, const char *event, json_t *kw, 
 /***************************************************************************
  *  Receive message from the broker
  ***************************************************************************/
-PRIVATE int ac_mqtt_message(hgobj gobj, const char *event, json_t *kw, hgobj src)
+PRIVATE int ac_mqtt_message(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 {
     kw_delete_metadata_keys(kw);
     printf("Message from broker:\n");
@@ -1457,7 +1457,7 @@ PRIVATE int ac_mqtt_message(hgobj gobj, const char *event, json_t *kw, hgobj src
 /***************************************************************************
  *  Receive puback from the broker
  ***************************************************************************/
-PRIVATE int ac_mqtt_puback(hgobj gobj, const char *event, json_t *kw, hgobj src)
+PRIVATE int ac_mqtt_puback(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 {
     kw_delete_metadata_keys(kw);
     printf("Publish ack\n");
@@ -1471,7 +1471,7 @@ PRIVATE int ac_mqtt_puback(hgobj gobj, const char *event, json_t *kw, hgobj src)
 /***************************************************************************
  *  Receive suback from the broker
  ***************************************************************************/
-PRIVATE int ac_mqtt_suback(hgobj gobj, const char *event, json_t *kw, hgobj src)
+PRIVATE int ac_mqtt_suback(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 {
     kw_delete_metadata_keys(kw);
     printf("Subscribe ack\n");
@@ -1485,7 +1485,7 @@ PRIVATE int ac_mqtt_suback(hgobj gobj, const char *event, json_t *kw, hgobj src)
 /***************************************************************************
  *  Receive unsuback from the broker
  ***************************************************************************/
-PRIVATE int ac_mqtt_unsuback(hgobj gobj, const char *event, json_t *kw, hgobj src)
+PRIVATE int ac_mqtt_unsuback(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 {
     kw_delete_metadata_keys(kw);
     printf("Unsubscribe ack\n");
@@ -1499,7 +1499,7 @@ PRIVATE int ac_mqtt_unsuback(hgobj gobj, const char *event, json_t *kw, hgobj sr
 /***************************************************************************
  *  HACK Este evento solo puede venir de GCLASS_EDITLINE
  ***************************************************************************/
-PRIVATE int ac_command(hgobj gobj, const char *event, json_t *kw, hgobj src)
+PRIVATE int ac_command(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 {
     json_t *kw_input_command = json_object();
     gobj_send_event(src, EV_GETTEXT, json_incref(kw_input_command), gobj); // HACK EV_GETTEXT is EVF_KW_WRITING
@@ -1571,7 +1571,7 @@ PRIVATE int ac_command(hgobj gobj, const char *event, json_t *kw, hgobj src)
 /***************************************************************************
  *  Command received.
  ***************************************************************************/
-PRIVATE int ac_command_answer(hgobj gobj, const char *event, json_t *kw, hgobj src)
+PRIVATE int ac_command_answer(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
@@ -1616,7 +1616,7 @@ PRIVATE int ac_command_answer(hgobj gobj, const char *event, json_t *kw, hgobj s
 /***************************************************************************
  *
  ***************************************************************************/
-PRIVATE int ac_screen_ctrl(hgobj gobj, const char *event, json_t *kw, hgobj src)
+PRIVATE int ac_screen_ctrl(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
@@ -1649,7 +1649,7 @@ PRIVATE int ac_screen_ctrl(hgobj gobj, const char *event, json_t *kw, hgobj src)
 /***************************************************************************
  *
  ***************************************************************************/
-PRIVATE int ac_timeout(hgobj gobj, const char *event, json_t *kw, hgobj src)
+PRIVATE int ac_timeout(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 {
     exit(-1);
 

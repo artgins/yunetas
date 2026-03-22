@@ -1027,7 +1027,7 @@ PRIVATE int send_cur_query(hgobj gobj)
 /***************************************************************************
  *
  ***************************************************************************/
-PRIVATE int ac_connect(hgobj gobj, const char *event, json_t *kw, hgobj src)
+PRIVATE int ac_connect(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
@@ -1078,7 +1078,7 @@ PRIVATE int ac_connect(hgobj gobj, const char *event, json_t *kw, hgobj src)
 /***************************************************************************
  *
  ***************************************************************************/
-PRIVATE int ac_timeout_disconnected(hgobj gobj, const char *event, json_t *kw, hgobj src)
+PRIVATE int ac_timeout_disconnected(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 {
     if (gobj_read_bool_attr(gobj, "manual")) {
         return 0;
@@ -1093,7 +1093,7 @@ PRIVATE int ac_timeout_disconnected(hgobj gobj, const char *event, json_t *kw, h
 /***************************************************************************
  *
  ***************************************************************************/
-PRIVATE int ac_disconnected(hgobj gobj, const char *event, json_t *kw, hgobj src)
+PRIVATE int ac_disconnected(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
@@ -1116,7 +1116,7 @@ PRIVATE int ac_disconnected(hgobj gobj, const char *event, json_t *kw, hgobj src
 /***************************************************************************
  *
  ***************************************************************************/
-PRIVATE int ac_timeout_wait_connected(hgobj gobj, const char *event, json_t *kw, hgobj src)
+PRIVATE int ac_timeout_wait_connected(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
@@ -1132,7 +1132,7 @@ PRIVATE int ac_timeout_wait_connected(hgobj gobj, const char *event, json_t *kw,
 /***************************************************************************
  *
  ***************************************************************************/
-PRIVATE int ac_connected(hgobj gobj, const char *event, json_t *kw, hgobj src)
+PRIVATE int ac_connected(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
@@ -1154,7 +1154,7 @@ PRIVATE int ac_connected(hgobj gobj, const char *event, json_t *kw, hgobj src)
 /***************************************************************************
  *
  ***************************************************************************/
-PRIVATE int ac_timeout_data(hgobj gobj, const char *event, json_t *kw, hgobj src)
+PRIVATE int ac_timeout_data(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
@@ -1187,7 +1187,7 @@ PRIVATE int ac_timeout_data(hgobj gobj, const char *event, json_t *kw, hgobj src
     }
  *
  ***************************************************************************/
-PRIVATE int ac_send_query(hgobj gobj, const char *event, json_t *kw, hgobj src)
+PRIVATE int ac_send_query(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 {
     push_queue(gobj, kw);
     pull_queue(gobj);
@@ -1199,7 +1199,7 @@ PRIVATE int ac_send_query(hgobj gobj, const char *event, json_t *kw, hgobj src)
 /***************************************************************************
  *
  ***************************************************************************/
-PRIVATE int ac_enqueue_query(hgobj gobj, const char *event, json_t *kw, hgobj src)
+PRIVATE int ac_enqueue_query(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 {
     push_queue(gobj, kw);
 
@@ -1213,7 +1213,7 @@ PRIVATE int ac_enqueue_query(hgobj gobj, const char *event, json_t *kw, hgobj sr
 /***************************************************************************
  *
  ***************************************************************************/
-PRIVATE int ac_clear_queue(hgobj gobj, const char *event, json_t *kw, hgobj src)
+PRIVATE int ac_clear_queue(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 {
     clear_queue(gobj, kw);
 
@@ -1224,7 +1224,7 @@ PRIVATE int ac_clear_queue(hgobj gobj, const char *event, json_t *kw, hgobj src)
 /***************************************************************************
  *
  ***************************************************************************/
-PRIVATE int ac_drop(hgobj gobj, const char *event, json_t *kw, hgobj src)
+PRIVATE int ac_drop(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 {
     set_disconnected(gobj);
 
@@ -1235,7 +1235,7 @@ PRIVATE int ac_drop(hgobj gobj, const char *event, json_t *kw, hgobj src)
 /***************************************************************************
  *
  ***************************************************************************/
-PRIVATE int ac_stopped(hgobj gobj, const char *event, json_t *kw, hgobj src)
+PRIVATE int ac_stopped(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 {
     KW_DECREF(kw);
     return 0;

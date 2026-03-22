@@ -1312,7 +1312,7 @@ PRIVATE int delete_client_treedb_schema(
 /***************************************************************************
  *
  ***************************************************************************/
-PRIVATE int ac_open_treedb(hgobj gobj, const char *event, json_t *kw, hgobj src)
+PRIVATE int ac_open_treedb(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 {
 
     KW_DECREF(kw)
@@ -1322,7 +1322,7 @@ PRIVATE int ac_open_treedb(hgobj gobj, const char *event, json_t *kw, hgobj src)
 /***************************************************************************
  *
  ***************************************************************************/
-PRIVATE int ac_close_treedb(hgobj gobj, const char *event, json_t *kw, hgobj src)
+PRIVATE int ac_close_treedb(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 {
 
     KW_DECREF(kw)

@@ -266,7 +266,7 @@ PRIVATE int mt_pause(hgobj gobj)
 /***************************************************************************
  *
  ***************************************************************************/
-PRIVATE int ac_settext(hgobj gobj, const char *event, json_t *kw, hgobj src)
+PRIVATE int ac_settext(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 {
     const char *text = kw_get_str(gobj, kw, "text", "", KW_REQUIRED);
     gobj_write_str_attr(gobj, "text", text);
@@ -279,7 +279,7 @@ PRIVATE int ac_settext(hgobj gobj, const char *event, json_t *kw, hgobj src)
 /***************************************************************************
  *
  ***************************************************************************/
-PRIVATE int ac_paint(hgobj gobj, const char *event, json_t *kw, hgobj src)
+PRIVATE int ac_paint(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
@@ -320,7 +320,7 @@ PRIVATE int ac_paint(hgobj gobj, const char *event, json_t *kw, hgobj src)
 /***************************************************************************
  *
  ***************************************************************************/
-PRIVATE int ac_move(hgobj gobj, const char *event, json_t *kw, hgobj src)
+PRIVATE int ac_move(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
@@ -347,7 +347,7 @@ PRIVATE int ac_move(hgobj gobj, const char *event, json_t *kw, hgobj src)
 /***************************************************************************
  *
  ***************************************************************************/
-PRIVATE int ac_size(hgobj gobj, const char *event, json_t *kw, hgobj src)
+PRIVATE int ac_size(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 

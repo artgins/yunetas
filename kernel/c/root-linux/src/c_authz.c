@@ -3616,7 +3616,7 @@ PRIVATE int add_user_logout(hgobj gobj, const char *username)
 /***************************************************************************
  *  Identity_card off from
  ***************************************************************************/
-PRIVATE int ac_on_close(hgobj gobj, const char *event, json_t *kw, hgobj src)
+PRIVATE int ac_on_close(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
@@ -3713,7 +3713,7 @@ PRIVATE int ac_on_close(hgobj gobj, const char *event, json_t *kw, hgobj src)
 /***************************************************************************
  *  Create or update a user
  ***************************************************************************/
-PRIVATE int ac_create_user(hgobj gobj, const char *event, json_t *kw, hgobj src)
+PRIVATE int ac_create_user(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
     const char *username = kw_get_str(gobj, kw, "username", "", KW_REQUIRED);
@@ -3799,7 +3799,7 @@ PRIVATE int ac_create_user(hgobj gobj, const char *event, json_t *kw, hgobj src)
 /***************************************************************************
  *
  ***************************************************************************/
-PRIVATE int ac_reject_user(hgobj gobj, const char *event, json_t *kw, hgobj src)
+PRIVATE int ac_reject_user(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
     const char *username = kw_get_str(gobj, kw, "username", "", KW_REQUIRED);

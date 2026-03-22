@@ -742,7 +742,7 @@ PRIVATE json_t *result_logout(
 /***************************************************************************
  *  The token already was published, here only close task.
  ***************************************************************************/
-PRIVATE int ac_end_task(hgobj gobj, const char *event, json_t *kw, hgobj src)
+PRIVATE int ac_end_task(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
@@ -755,7 +755,7 @@ PRIVATE int ac_end_task(hgobj gobj, const char *event, json_t *kw, hgobj src)
 /***************************************************************************
  *
  ***************************************************************************/
-PRIVATE int ac_stopped(hgobj gobj, const char *event, json_t *kw, hgobj src)
+PRIVATE int ac_stopped(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 {
     if(gobj_is_volatil(src)) {
         gobj_destroy(src);

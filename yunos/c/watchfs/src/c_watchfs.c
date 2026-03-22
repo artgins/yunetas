@@ -359,7 +359,7 @@ PRIVATE int exec_command(hgobj gobj, const char *path, const char *filename)
 /***************************************************************************
  *
  ***************************************************************************/
-PRIVATE int ac_renamed(hgobj gobj, const char *event, json_t *kw, hgobj src)
+PRIVATE int ac_renamed(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 {
     // TODO would be a launcher for each modified filename
     //const char *path = kw_get_str(gobj, kw, "path", "");
@@ -412,7 +412,7 @@ PRIVATE int ac_renamed(hgobj gobj, const char *event, json_t *kw, hgobj src)
 /***************************************************************************
  *
  ***************************************************************************/
-PRIVATE int ac_changed(hgobj gobj, const char *event, json_t *kw, hgobj src)
+PRIVATE int ac_changed(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 {
     // TODO would be a launcher for each modified filename
     //const char *path = kw_get_str(gobj, kw, "path", "", FALSE);
@@ -470,7 +470,7 @@ PRIVATE int ac_changed(hgobj gobj, const char *event, json_t *kw, hgobj src)
 /***************************************************************************
  *
  ***************************************************************************/
-PRIVATE int ac_timeout(hgobj gobj, const char *event, json_t *kw, hgobj src)
+PRIVATE int ac_timeout(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 

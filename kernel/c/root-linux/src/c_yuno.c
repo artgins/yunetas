@@ -5068,7 +5068,7 @@ PRIVATE int ac_timeout_periodic(hgobj gobj, gobj_event_t event, json_t *kw, hgob
 /***************************************************************************
  *  This event comes from timer0
  ***************************************************************************/
-PRIVATE int ac_stopped(hgobj gobj, const char *event, json_t *kw, hgobj src)
+PRIVATE int ac_stopped(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 {
     JSON_DECREF(kw)
 

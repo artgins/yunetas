@@ -317,7 +317,7 @@ PRIVATE void publish_finalcount(hgobj gobj)
 /***************************************************************************
  *  Count an event
  ***************************************************************************/
-PRIVATE int ac_count(hgobj gobj, const char *event, json_t *kw, hgobj src)
+PRIVATE int ac_count(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
     const char *event2count = kw_get_str(gobj, kw, "__original_event_name__", "", 0);
@@ -405,7 +405,7 @@ PRIVATE int ac_count(hgobj gobj, const char *event, json_t *kw, hgobj src)
 /***************************************************************************
  *  Arriving here is because the final count has not been reached.
  ***************************************************************************/
-PRIVATE int ac_timeout(hgobj gobj, const char *event, json_t *kw, hgobj src)
+PRIVATE int ac_timeout(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
