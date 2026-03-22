@@ -632,6 +632,7 @@ function configure_plugins(gobj)
 
     if(gobj_read_bool_attr(gobj, "with_toolbar")) {
         configure_toolbar(gobj);
+        configure_toolbar_edit(gobj);
     }
 }
 
@@ -653,10 +654,19 @@ function update_toolbar(gobj)
     if(toolbar) {
         /*
          *  Force toolbar to re-render by updating the plugin.
-         *  The getItems callback reads priv.edit_mode dynamically.
          */
         graph.updatePlugin({
             key: 'toolbar',
+        });
+    }
+
+    // Add or remove edit toolbar based on edit mode
+    configure_toolbar_edit(gobj);
+
+    let toolbar_edit = graph_get_plugin(gobj, 'toolbar-edit');
+    if(toolbar_edit) {
+        graph.updatePlugin({
+            key: 'toolbar-edit',
         });
     }
 }
@@ -698,14 +708,6 @@ function configure_toolbar(gobj)
                     );
                 }
 
-                if(priv.edit_mode) {
-                    items.push(
-                        { id: 'undo',         value: 'undo',   className: 'EV_HISTORY_UNDO', title: 'Undo',   disabled: true },
-                        { id: 'redo',         value: 'redo',   className: 'EV_HISTORY_REDO', title: 'Redo',   disabled: true },
-                        { id: 'g6-icon-save', value: 'save',   className: 'EV_SAVE_GRAPH',   title: 'Save',   disabled: true },
-                    );
-                }
-
                 return items;
             },
             onClick: (value) => {
@@ -725,6 +727,63 @@ function configure_toolbar(gobj)
                     case 'center':
                         gobj_send_event(gobj, "EV_CENTER", {}, gobj);
                         break;
+                    case 'request-fullscreen':
+                        gobj_send_event(gobj, "EV_REQUEST_FULLSCREEN", {}, gobj);
+                        break;
+                    case 'exit-fullscreen':
+                        gobj_send_event(gobj, "EV_EXIT_FULLSCREEN", {}, gobj);
+                        break;
+                }
+            },
+        }
+    );
+}
+
+/************************************************************
+ *  Configure G6 Edit Toolbar plugin (horizontal, top-right)
+ *  Contains edit-mode buttons: Undo, Redo, Save
+ ************************************************************/
+function configure_toolbar_edit(gobj)
+{
+    let priv = gobj.priv;
+
+    if(!priv.edit_mode) {
+        // Remove edit toolbar when not in edit mode
+        graph_remove_plugin(gobj, 'toolbar-edit');
+        return;
+    }
+
+    // Already exists, just update it
+    if(graph_get_plugin(gobj, 'toolbar-edit')) {
+        return;
+    }
+
+    graph_add_plugin(
+        gobj,
+        'toolbar-edit',
+        {
+            type: 'yui-toolbar',
+            className: 'g6-toolbar-large',
+            position: 'top-right',
+            style: {
+                backgroundColor: '#f5f5f5',
+                padding: '8px',
+                boxShadow: '0 2px 8px rgba(0, 0, 0, 0.15)',
+                borderRadius: '8px',
+                border: '1px solid #e8e8e8',
+                opacity: '0.85',
+                marginTop: '12px',
+                marginRight: '56px',
+            },
+            getItems: () => {
+                return [
+                    { id: 'undo',         value: 'undo', className: 'EV_HISTORY_UNDO', title: 'Undo', disabled: true },
+                    { id: 'redo',         value: 'redo', className: 'EV_HISTORY_REDO', title: 'Redo', disabled: true },
+                    { id: 'g6-icon-save', value: 'save', className: 'EV_SAVE_GRAPH',   title: 'Save', disabled: true },
+                ];
+            },
+            onClick: (value) => {
+                switch(value) {
                     case 'undo':
                         gobj_send_event(gobj, "EV_HISTORY_UNDO", {}, gobj);
                         break;
@@ -733,12 +792,6 @@ function configure_toolbar(gobj)
                         break;
                     case 'save':
                         gobj_send_event(gobj, "EV_SAVE_GRAPH", {}, gobj);
-                        break;
-                    case 'request-fullscreen':
-                        gobj_send_event(gobj, "EV_REQUEST_FULLSCREEN", {}, gobj);
-                        break;
-                    case 'exit-fullscreen':
-                        gobj_send_event(gobj, "EV_EXIT_FULLSCREEN", {}, gobj);
                         break;
                 }
             },
