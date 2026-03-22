@@ -773,7 +773,7 @@ function configure_toolbar_edit(gobj)
                 border: '1px solid #e8e8e8',
                 opacity: '0.85',
                 marginTop: '12px',
-                marginRight: '12px',
+                marginRight: '56px',
             },
             getItems: () => {
                 return [
