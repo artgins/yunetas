@@ -233,6 +233,10 @@ let PRIVATE_DATA = {
     operation_mode:     null,
     layout:             null,
     theme:              null,
+    _selected_node_id:  null,
+    _resize_handles_el: null,
+    _resize_handles:    [],
+    _resize_sel_rect:   null,
 };
 
 let __gclass__ = null;
@@ -512,6 +516,12 @@ function build_graph(gobj)
                 color: 'tableau',
                 field: 'topic_name',
             },
+            state: {
+                selected: {
+                    lineWidth: 2,
+                    stroke: '#1890ff',
+                },
+            },
         },
 
         edge: { // WARNING this affect to all edges with prevalence over individual defines!
@@ -565,6 +575,10 @@ function configure_events(gobj)
 
     graph.on(EdgeEvent.CLICK, (evt) => {
         gobj_send_event(gobj, "EV_EDGE_CLICK", {evt: evt}, gobj);
+    });
+
+    graph.on('aftertransform', () => {
+        update_resize_handles_position(gobj);
     });
 
     if(gobj_read_bool_attr(gobj, "with_fullscreen")) {
@@ -869,6 +883,9 @@ function configure_behaviour(gobj)
         default:
             log_error(`operation mode unknown: ${operation_mode}`);
             break;
+    }
+    if(!priv.edit_mode) {
+        deselect_node(gobj);
     }
     graph_write_behaviors(gobj, behaviors);
 }
@@ -1895,6 +1912,307 @@ class ManualLayout extends BaseLayout
     }
 }
 
+/************************************************************
+ *  Node selection and resize handles
+ ************************************************************/
+const RESIZE_HANDLE_SIZE = 8;
+const RESIZE_MIN_VP = 20;
+const RESIZE_MIN_WORLD = 30;
+
+function select_node(gobj, node_id)
+{
+    let priv = gobj.priv;
+    let graph = priv.graph;
+
+    // Deselect previous
+    deselect_node(gobj);
+
+    // Set selected state
+    try {
+        graph.setElementState(node_id, ['selected']);
+    } catch(e) {}
+    priv._selected_node_id = node_id;
+
+    // Show resize handles
+    show_resize_handles(gobj);
+}
+
+function deselect_node(gobj)
+{
+    let priv = gobj.priv;
+    let graph = priv.graph;
+
+    if(priv._selected_node_id) {
+        try {
+            graph.setElementState(priv._selected_node_id, []);
+        } catch(e) {}
+        priv._selected_node_id = null;
+    }
+
+    hide_resize_handles(gobj);
+}
+
+function get_node_viewport_rect(gobj, node_id)
+{
+    let priv = gobj.priv;
+    let graph = priv.graph;
+
+    const pos = graph.getElementPosition(node_id);
+    const nodeData = graph.getNodeData(node_id);
+    const style = nodeData.style || {};
+    const size = style.size || [60];
+    const w = Array.isArray(size) ? size[0] : size;
+    const h = Array.isArray(size) ? (size.length > 1 ? size[1] : size[0]) : size;
+
+    const vpMin = graph.getViewportByCanvas([pos[0] - w/2, pos[1] - h/2]);
+    const vpMax = graph.getViewportByCanvas([pos[0] + w/2, pos[1] + h/2]);
+
+    return {
+        left: vpMin[0], top: vpMin[1],
+        right: vpMax[0], bottom: vpMax[1]
+    };
+}
+
+function show_resize_handles(gobj)
+{
+    hide_resize_handles(gobj);
+
+    let priv = gobj.priv;
+    if(!priv._selected_node_id) {
+        return;
+    }
+
+    // Create container for handles overlay
+    const container = document.createElement('div');
+    container.className = 'g6-resize-handles';
+    container.style.cssText =
+        'position:absolute;top:0;left:0;width:100%;height:100%;' +
+        'pointer-events:none;z-index:10;';
+
+    // Selection rectangle (dashed border)
+    const selRect = document.createElement('div');
+    container.appendChild(selRect);
+
+    // 8 resize handles: nw, n, ne, w, e, sw, s, se
+    const handle_defs = [
+        { cursor: 'nw-resize', mx: -1, my: -1 },
+        { cursor: 'n-resize',  mx:  0, my: -1 },
+        { cursor: 'ne-resize', mx:  1, my: -1 },
+        { cursor: 'w-resize',  mx: -1, my:  0 },
+        { cursor: 'e-resize',  mx:  1, my:  0 },
+        { cursor: 'sw-resize', mx: -1, my:  1 },
+        { cursor: 's-resize',  mx:  0, my:  1 },
+        { cursor: 'se-resize', mx:  1, my:  1 },
+    ];
+
+    const handles = [];
+    for(const def of handle_defs) {
+        const el = document.createElement('div');
+        el.style.cssText =
+            'position:absolute;' +
+            'width:' + RESIZE_HANDLE_SIZE + 'px;' +
+            'height:' + RESIZE_HANDLE_SIZE + 'px;' +
+            'background:#fff;' +
+            'border:1px solid #1890ff;' +
+            'cursor:' + def.cursor + ';' +
+            'pointer-events:all;' +
+            'box-sizing:border-box;';
+        el.addEventListener('pointerdown', (e) => {
+            start_node_resize(gobj, e, def.mx, def.my);
+        });
+        handles.push({ el: el, mx: def.mx, my: def.my });
+        container.appendChild(el);
+    }
+
+    priv.$container.appendChild(container);
+    priv._resize_handles_el = container;
+    priv._resize_handles = handles;
+    priv._resize_sel_rect = selRect;
+
+    update_resize_handles_position(gobj);
+}
+
+function hide_resize_handles(gobj)
+{
+    let priv = gobj.priv;
+
+    if(priv._resize_handles_el) {
+        priv._resize_handles_el.remove();
+        priv._resize_handles_el = null;
+        priv._resize_handles = [];
+        priv._resize_sel_rect = null;
+    }
+}
+
+function update_resize_handles_position(gobj)
+{
+    let priv = gobj.priv;
+
+    if(!priv._selected_node_id || !priv._resize_handles_el) {
+        return;
+    }
+
+    try {
+        const rect = get_node_viewport_rect(gobj, priv._selected_node_id);
+        apply_handles_to_rect(gobj, rect);
+    } catch(e) {
+        // Node may have been removed
+        hide_resize_handles(gobj);
+    }
+}
+
+function apply_handles_to_rect(gobj, rect)
+{
+    let priv = gobj.priv;
+    const HALF = RESIZE_HANDLE_SIZE / 2;
+
+    const left = rect.left;
+    const top = rect.top;
+    const w = rect.right - rect.left;
+    const h = rect.bottom - rect.top;
+
+    // Selection rectangle
+    const selRect = priv._resize_sel_rect;
+    if(selRect) {
+        selRect.style.cssText =
+            'position:absolute;' +
+            'left:' + left + 'px;' +
+            'top:' + top + 'px;' +
+            'width:' + w + 'px;' +
+            'height:' + h + 'px;' +
+            'border:1px dashed #1890ff;' +
+            'pointer-events:none;' +
+            'box-sizing:border-box;';
+    }
+
+    // Handle positions: nw, n, ne, w, e, sw, s, se
+    const positions = [
+        { x: left,       y: top },
+        { x: left + w/2, y: top },
+        { x: left + w,   y: top },
+        { x: left,       y: top + h/2 },
+        { x: left + w,   y: top + h/2 },
+        { x: left,       y: top + h },
+        { x: left + w/2, y: top + h },
+        { x: left + w,   y: top + h },
+    ];
+
+    for(let i = 0; i < priv._resize_handles.length; i++) {
+        const handle = priv._resize_handles[i];
+        const p = positions[i];
+        handle.el.style.left = (p.x - HALF) + 'px';
+        handle.el.style.top = (p.y - HALF) + 'px';
+    }
+}
+
+function start_node_resize(gobj, e, mx, my)
+{
+    let priv = gobj.priv;
+    let graph = priv.graph;
+
+    e.preventDefault();
+    e.stopPropagation();
+
+    const node_id = priv._selected_node_id;
+    if(!node_id) {
+        return;
+    }
+
+    // Capture original state
+    const pos = graph.getElementPosition(node_id);
+    const nodeData = graph.getNodeData(node_id);
+    const nodeType = nodeData.type;
+    const style = nodeData.style || {};
+    const size = style.size || [60];
+    const origW = Array.isArray(size) ? size[0] : size;
+    const origH = Array.isArray(size) ? (size.length > 1 ? size[1] : size[0]) : size;
+    const origCx = pos[0];
+    const origCy = pos[1];
+
+    const origVpRect = get_node_viewport_rect(gobj, node_id);
+    const startX = e.clientX;
+    const startY = e.clientY;
+    const zoom = graph.getZoom();
+
+    let currentRect = { ...origVpRect };
+
+    function onPointerMove(ev) {
+        const dx = ev.clientX - startX;
+        const dy = ev.clientY - startY;
+
+        currentRect = { ...origVpRect };
+
+        if(mx === -1) {
+            currentRect.left = Math.min(origVpRect.left + dx, origVpRect.right - RESIZE_MIN_VP);
+        }
+        if(mx === 1) {
+            currentRect.right = Math.max(origVpRect.right + dx, origVpRect.left + RESIZE_MIN_VP);
+        }
+        if(my === -1) {
+            currentRect.top = Math.min(origVpRect.top + dy, origVpRect.bottom - RESIZE_MIN_VP);
+        }
+        if(my === 1) {
+            currentRect.bottom = Math.max(origVpRect.bottom + dy, origVpRect.top + RESIZE_MIN_VP);
+        }
+
+        apply_handles_to_rect(gobj, currentRect);
+    }
+
+    function onPointerUp(ev) {
+        document.removeEventListener('pointermove', onPointerMove);
+        document.removeEventListener('pointerup', onPointerUp);
+
+        // Calculate final size in world coordinates from the viewport rect deltas
+        const dLeft = (currentRect.left - origVpRect.left) / zoom;
+        const dTop = (currentRect.top - origVpRect.top) / zoom;
+        const dRight = (currentRect.right - origVpRect.right) / zoom;
+        const dBottom = (currentRect.bottom - origVpRect.bottom) / zoom;
+
+        // New world bounds
+        const newLeft = (origCx - origW/2) + dLeft;
+        const newTop = (origCy - origH/2) + dTop;
+        const newRight = (origCx + origW/2) + dRight;
+        const newBottom = (origCy + origH/2) + dBottom;
+
+        let newW = newRight - newLeft;
+        let newH = newBottom - newTop;
+        const newCx = (newLeft + newRight) / 2;
+        const newCy = (newTop + newBottom) / 2;
+
+        let updateStyle = {
+            x: newCx,
+            y: newCy,
+        };
+
+        // Circle nodes: single size value (keep it a circle)
+        if(nodeType === 'circle') {
+            const d = Math.max(newW, newH);
+            updateStyle.size = [d];
+        } else {
+            updateStyle.size = [newW, newH];
+        }
+
+        // HTML nodes: update dx, dy to keep content centered
+        if(nodeType === 'html') {
+            updateStyle.dx = -newW / 2;
+            updateStyle.dy = -newH / 2;
+        }
+
+        graph.updateNodeData([{ id: node_id, style: updateStyle }]);
+        graph.draw().then(() => {
+            update_resize_handles_position(gobj);
+
+            // Mark graph as dirty (enable save button)
+            let $container = gobj_read_attr(gobj, "$container");
+            enableElements($container, ".EV_SAVE_GRAPH");
+            set_submit_state($container, ".EV_SAVE_GRAPH", true);
+        });
+    }
+
+    document.addEventListener('pointermove', onPointerMove);
+    document.addEventListener('pointerup', onPointerUp);
+}
+
 
 
 
@@ -2395,6 +2713,10 @@ function ac_node_click(gobj, event, kw, src)
                 topic_name: nodedata.data.desc.topic_name,
                 record: nodedata.data.record
             });
+
+            if(priv.edit_mode) {
+                select_node(gobj, node_id);
+            }
         }
     } catch(e) {
         // Clicked on non-node element
@@ -2446,6 +2768,12 @@ function ac_node_context_menu(gobj, event, kw, src)
  ************************************************************/
 function ac_canvas_click(gobj, event, kw, src)
 {
+    let priv = gobj.priv;
+
+    if(priv.edit_mode) {
+        deselect_node(gobj);
+    }
+
     return 0;
 }
 
