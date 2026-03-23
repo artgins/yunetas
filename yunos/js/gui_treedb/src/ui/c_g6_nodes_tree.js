@@ -228,6 +228,7 @@ let PRIVATE_DATA = {
     $container:         null,
     graph:              null,   // Instance of G6
     __graphs__:         [],     // Rows of __graphs__
+    _graph_properties:  {},     // topic_name → {nodes: {node_id: {x,y,size,...}}}
     yet_showed:         false,
     edit_mode:          false,
     operation_mode:     null,
@@ -1020,19 +1021,9 @@ function create_topic_node(gobj, desc, record)
      *------------------------------------------*/
     let node_name = build_node_name(gobj, desc.topic_name, record.id);
     let xy = get_default_ne_xy(gobj);
-    let geometry = record._geometry || {};
+    let geometry = get_node_graph_props(gobj, desc.topic_name, record.id, record);
     let x = kw_get_int(gobj, geometry, "x", xy, kw_flag_t.KW_CREATE);
     let y = kw_get_int(gobj, geometry, "y", xy, kw_flag_t.KW_CREATE);
-
-    let topic_graphs = kwid_find_one_record( // TODO review
-        gobj,
-        priv.__graphs__,
-        null,
-        {
-            topic: desc.topic_name,
-            active: true
-        }
-    );
 
     //log_warning(`create node ==> ${node_name}`);
 
@@ -1109,7 +1100,8 @@ function create_topic_node(gobj, desc, record)
             // This 4 keys are available in user `data` of G6 Node.
             topic_name: desc.topic_name,
             desc: desc,
-            record: record
+            record: record,
+            graph_props: geometry  // from __graphs__ (or _geometry fallback)
         }
     };
 
@@ -1502,7 +1494,58 @@ function clear_link(
 }
 
 /************************************************************
- *  Update geometry from render style
+ *  Build _graph_properties from __graphs__ records.
+ *  Indexes active __graphs__ records by topic_name for
+ *  fast per-node geometry/style lookups.
+ ************************************************************/
+function build_graph_properties(gobj)
+{
+    let priv = gobj.priv;
+    priv._graph_properties = {};
+
+    for(let i = 0; i < priv.__graphs__.length; i++) {
+        let rec = priv.__graphs__[i];
+        if(!rec.active || !rec.topic) {
+            continue;
+        }
+        let props = rec.properties;
+        if(is_object(props)) {
+            priv._graph_properties[rec.topic] = props;
+        }
+    }
+}
+
+/************************************************************
+ *  Get graph properties for a specific node.
+ *  Returns the node's visual properties from __graphs__,
+ *  falling back to record._geometry for backward compat.
+ ************************************************************/
+function get_node_graph_props(gobj, topic_name, node_id, record)
+{
+    let priv = gobj.priv;
+
+    // Primary source: __graphs__ properties
+    let topic_props = priv._graph_properties[topic_name];
+    if(topic_props && is_object(topic_props.nodes)) {
+        let node_props = topic_props.nodes[node_id];
+        if(is_object(node_props)) {
+            return node_props;
+        }
+    }
+
+    // Fallback: legacy _geometry on the record
+    if(is_object(record._geometry)) {
+        return record._geometry;
+    }
+
+    return {};
+}
+
+/************************************************************
+ *  Update geometry of a single node into _graph_properties.
+ *  Collects x, y, size from the current render style and
+ *  stores them in the in-memory _graph_properties structure.
+ *  Also updates the node data's graph_props reference.
  ************************************************************/
 function update_geometry(gobj, node_id)
 {
@@ -1511,78 +1554,67 @@ function update_geometry(gobj, node_id)
 
     let nodedata = graph.getNodeData(node_id);
     let style = graph.getElementRenderStyle(node_id);
-
+    let topic_name = nodedata.data.topic_name;
     let record = nodedata.data.record;
-    let _geometry = kw_get_dict_value(gobj,
-        record,
-        "_geometry",
-        {},
-        kw_flag_t.KW_CREATE
-    );
-    if(!is_object(_geometry)) {
-        _geometry = {};
-        kw_set_dict_value(
-            gobj,
-            record,
-            "_geometry",
-            _geometry
-        );
+
+    // Ensure topic entry exists in _graph_properties
+    if(!is_object(priv._graph_properties[topic_name])) {
+        priv._graph_properties[topic_name] = {};
     }
+    let topic_props = priv._graph_properties[topic_name];
+    if(!is_object(topic_props.nodes)) {
+        topic_props.nodes = {};
+    }
+
+    // Extract geometry from render style
+    let node_props = topic_props.nodes[record.id] || {};
     json_object_update(
-        _geometry,
-        kw_clone_by_keys(gobj,
-            style,
-            ["x", "y", "size"]
-        )
+        node_props,
+        kw_clone_by_keys(gobj, style, ["x", "y", "size"])
     );
+    topic_props.nodes[record.id] = node_props;
+
+    // Keep node data's graph_props in sync
+    nodedata.data.graph_props = node_props;
 }
 
 /************************************************************
- *  Save all node geometries to backend
+ *  Save all node geometries to __graphs__ topic.
+ *  One EV_UPDATE_NODE per topic instead of one per node.
  ************************************************************/
 function save_geometry(gobj)
 {
     let priv = gobj.priv;
     let graph = priv.graph;
 
+    // Collect geometry for all nodes into _graph_properties
     const nodes = graph.getData().nodes;
-    for(let i=0; i<nodes.length; i++) {
-        let node = nodes[i];
-        update_geometry(gobj, node.id);
+    for(let i = 0; i < nodes.length; i++) {
+        update_geometry(gobj, nodes[i].id);
+    }
 
-        let nodedata = graph.getNodeData(node.id);
-        let record = nodedata.data.record;
-        let _geometry = kw_get_dict_value(gobj,
-            record,
-            "_geometry",
-            null,
-            kw_flag_t.KW_REQUIRED
-        );
-        if(!_geometry) {
-            continue;
-        }
+    // Save one __graphs__ record per topic
+    let origin = gobj_read_str_attr(__yuno__, "node_uuid");
 
-        json_object_update( // Add me
-            _geometry,
-            {
-                __origin__: gobj_read_str_attr(__yuno__, "node_uuid")
-            }
-        );
+    for(const [topic_name, properties] of Object.entries(priv._graph_properties)) {
+        // Add origin metadata
+        properties.__origin__ = origin;
 
-        let options = {
-            list_dict: true,
-            autolink: false
-        };
         let kw_update = {
             treedb_name: priv.treedb_name,
-            topic_name: nodedata.data.topic_name,
+            topic_name: "__graphs__",
             record: {
-                id: record.id,
-                _geometry: _geometry
+                id: topic_name,
+                topic: topic_name,
+                active: true,
+                properties: properties
             },
-            options: options
+            options: {
+                list_dict: true,
+                autolink: false,
+                create: true    // Create if doesn't exist, update if it does
+            }
         };
-        // TODO make a api with multi-records
         gobj_publish_event(gobj, "EV_UPDATE_NODE", kw_update);
     }
 }
@@ -1898,20 +1930,27 @@ class LightNode extends Circle
 }
 
 /************************************************************
- *  Custom G6 layout: ManualLayout (uses _geometry positions)
+ *  Custom G6 layout: ManualLayout
+ *  Reads positions from graph_props (__graphs__),
+ *  falls back to legacy _geometry on the record.
  ************************************************************/
 class ManualLayout extends BaseLayout
 {
     async execute(data, options) {
         const { nodes = [] } = data;
         return {
-            nodes: nodes.map((node) => ({
-                id: node.id,
-                style: {
-                    x: node.data.record._geometry ? node.data.record._geometry.x : 0,
-                    y: node.data.record._geometry ? node.data.record._geometry.y : 0,
-                },
-            })),
+            nodes: nodes.map((node) => {
+                let gp = node.data.graph_props;
+                let geo = node.data.record._geometry;
+                let x = (gp && gp.x != null) ? gp.x :
+                         (geo && geo.x != null) ? geo.x : 0;
+                let y = (gp && gp.y != null) ? gp.y :
+                         (geo && geo.y != null) ? geo.y : 0;
+                return {
+                    id: node.id,
+                    style: { x: x, y: y },
+                };
+            }),
         };
     }
 }
@@ -2312,6 +2351,7 @@ function ac_load_data(gobj, event, kw, src)
     if(topic_name.substring(0, 2) === "__") {
         if(topic_name === '__graphs__') {
             priv.__graphs__ = data;
+            build_graph_properties(gobj);
         }
         return 0;
     }
@@ -2403,6 +2443,13 @@ function ac_node_created(gobj, event, kw, src)
         return 0;
     }
 
+    // Handle __graphs__ creation: update _graph_properties
+    if(topic_name === '__graphs__') {
+        priv.__graphs__.push(node);
+        build_graph_properties(gobj);
+        return 0;
+    }
+
     let desc = priv.descs[topic_name];
     if(!desc) {
         log_error(`ac_node_created: unknown topic: ${topic_name}`);
@@ -2445,6 +2492,24 @@ function ac_node_updated(gobj, event, kw, src)
     let node = kw.node;
 
     if(!priv.descs || !priv.graph) {
+        return 0;
+    }
+
+    // Handle __graphs__ updates: refresh _graph_properties
+    if(topic_name === '__graphs__') {
+        // Update the __graphs__ record in our local list
+        let found = false;
+        for(let i = 0; i < priv.__graphs__.length; i++) {
+            if(priv.__graphs__[i].id === node.id) {
+                priv.__graphs__[i] = node;
+                found = true;
+                break;
+            }
+        }
+        if(!found) {
+            priv.__graphs__.push(node);
+        }
+        build_graph_properties(gobj);
         return 0;
     }
 
