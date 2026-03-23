@@ -1931,16 +1931,19 @@ function select_node(gobj, node_id)
     // Deselect previous
     deselect_node(gobj);
 
-    // Set selected state (not recorded in history)
+    // Set selected state (not recorded in history, resume after draw)
     history_pause(gobj);
     try {
         graph.setElementState(node_id, ['selected']);
     } catch(e) {}
-    history_resume(gobj);
     priv._selected_node_id = node_id;
 
     // Show resize handles
     show_resize_handles(gobj);
+
+    graph_draw(gobj).then(() => {
+        history_resume(gobj);
+    });
 }
 
 function deselect_node(gobj)
@@ -1953,8 +1956,11 @@ function deselect_node(gobj)
         try {
             graph.setElementState(priv._selected_node_id, []);
         } catch(e) {}
-        history_resume(gobj);
         priv._selected_node_id = null;
+
+        graph_draw(gobj).then(() => {
+            history_resume(gobj);
+        });
     }
 
     hide_resize_handles(gobj);
