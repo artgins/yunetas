@@ -2263,6 +2263,8 @@ function ac_clear_data(gobj, event, kw, src)
 {
     let priv = gobj.priv;
 
+    deselect_node(gobj);
+
     gobj_write_attr(gobj, "records", {});
 
     graph_remove_plugin(gobj, "history");
