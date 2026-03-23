@@ -561,6 +561,10 @@ function configure_events(gobj)
         gobj_send_event(gobj, "EV_CANVAS_CLICK", {evt: evt}, gobj);
     });
 
+    graph.on(NodeEvent.DRAG, (evt) => {
+        update_resize_handles_position(gobj);
+    });
+
     graph.on(NodeEvent.DRAG_END, (evt) => {
         gobj_send_event(gobj, "EV_NODE_DRAG_END", {evt: evt}, gobj);
     });
