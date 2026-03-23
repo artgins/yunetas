@@ -2794,6 +2794,7 @@ function ac_history_redo(gobj, event, kw, src)
         const history = graph_get_plugin(gobj, "history");
         if(history && history.canRedo()) {
             history.redo();
+            update_resize_handles_position(gobj);
         }
     }
 
@@ -2808,6 +2809,7 @@ function ac_history_undo(gobj, event, kw, src)
         const history = graph_get_plugin(gobj, "history");
         if(history && history.canUndo()) {
             history.undo();
+            update_resize_handles_position(gobj);
         }
     }
 
