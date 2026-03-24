@@ -897,7 +897,7 @@ PUBLIC json_t *treedb_open_db( // WARNING Return IS NOT YOURS!
      *      __graphs__
      *-------------------------------*/
     char *graphs_topic_name = "__graphs__";
-    int graphs_topic_version = 11;
+    int graphs_topic_version = 12;
     json_t *jn_graphs_topic_var = json_object();
     json_object_set_new(jn_graphs_topic_var, "topic_version", json_integer(graphs_topic_version));
 
@@ -905,7 +905,7 @@ PUBLIC json_t *treedb_open_db( // WARNING Return IS NOT YOURS!
         "{s:{s:s, s:s, s:i, s:s, s:[s,s,s]},"           /* id */
             "s:{s:s, s:s, s:i, s:s, s:[s,s,s]},"        /* topic */
             "s:{s:s, s:s, s:i, s:s, s:[s,s]},"          /* active */
-            "s:{s:s, s:s, s:i, s:s, s:[s,s,s,s,s]},"    /* time */
+            "s:{s:s, s:s, s:i, s:s, s:[s,s,s,s]},"      /* time */
             "s:{s:s, s:s, s:i, s:s, s:[s,s]}}",         /* properties */
         "id",
             "id", "id",
@@ -935,7 +935,7 @@ PUBLIC json_t *treedb_open_db( // WARNING Return IS NOT YOURS!
             "fillspace", 28,
             "type", "integer",
             "flag",
-                "persistent", "required", "time", "now", "writable",
+                "persistent", "time", "now", "writable",
         "properties",
             "id", "properties",
             "header", "Properties",
