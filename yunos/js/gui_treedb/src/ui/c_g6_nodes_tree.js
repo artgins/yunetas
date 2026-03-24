@@ -1092,6 +1092,17 @@ function create_topic_node(gobj, desc, record)
 `;
     }
 
+    // Override size with saved geometry (restore resized dimensions)
+    let saved_size = geometry.size;
+    if(Array.isArray(saved_size) && saved_size.length > 0) {
+        style.size = saved_size;
+        // Recalculate dx/dy for HTML nodes to keep content centered
+        if(node_graph_type === 'html') {
+            style.dx = -saved_size[0] / 2;
+            style.dy = -(saved_size.length > 1 ? saved_size[1] : saved_size[0]) / 2;
+        }
+    }
+
     let node_def = {
         id: node_name,
         type: node_graph_type,
