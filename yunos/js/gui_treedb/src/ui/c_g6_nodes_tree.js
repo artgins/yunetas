@@ -3846,6 +3846,14 @@ function ac_node_deleted(gobj, event, kw, src)
     }
 
     /*
+     *  Remove node entry from __graphs__ properties
+     */
+    let topic_props = priv._graph_properties[topic_name];
+    if(topic_props && is_object(topic_props.nodes)) {
+        delete topic_props.nodes[node.id];
+    }
+
+    /*
      *  Delete graph node and links
      */
     history_pause(gobj);
