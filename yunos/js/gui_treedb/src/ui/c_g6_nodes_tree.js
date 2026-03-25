@@ -92,6 +92,7 @@ import {
 } from '@antv/g6';
 
 import {Circle as CircleGeometry} from '@antv/g';
+import {t} from "i18next";
 
 /***************************************************************
  *  YuiToolbar — G6 Toolbar subclass that adds per-item className
@@ -2725,7 +2726,7 @@ function build_node_context_menu(gobj, node_id)
     let items = [];
 
     if(gobj.priv.edit_mode) {
-        items.push({ name: 'Copy size to topic', value: 'copy_size_to_topic_nodes' });
+        items.push({ name: t('copy size to topic'), value: 'copy_size_to_topic_nodes' });
     }
 
     return items;
@@ -2739,7 +2740,7 @@ function build_port_context_menu(gobj, node_id, port_key)
     let items = [];
 
     if(gobj.priv.edit_mode) {
-        items.push({ name: 'Copy size to topic ports', value: 'copy_size_to_topic_ports' });
+        items.push({ name: t('copy size to topic ports'), value: 'copy_size_to_topic_ports' });
     }
 
     return items;

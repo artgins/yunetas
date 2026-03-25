@@ -160,6 +160,9 @@ let es = {
 
         'Inicio': 'Inicio',
 
+        'copy size to topic': 'Copiar tamaño al tema',
+        'copy size to topic ports': 'Copiar tamaño a puertos del tema',
+
         'xxx': 'ultima entrada NO TOCAR, insertar antes'
     }
 };

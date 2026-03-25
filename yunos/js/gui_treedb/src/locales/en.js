@@ -160,6 +160,9 @@ var en = {
 
         'Inicio': 'Home',
 
+        'copy size to topic': 'Copy size to topic',
+        'copy size to topic ports': 'Copy size to topic ports',
+
         'xxx': 'last entry DONT CHANGE, insert before'
     }
 };
