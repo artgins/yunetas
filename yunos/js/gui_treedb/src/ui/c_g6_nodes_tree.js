@@ -2929,6 +2929,7 @@ function copy_size_to_ports(gobj, same_topic_only)
 
     // Store as default
     if(same_topic_only) {
+        // Store for matching port key in this topic only
         if(!is_object(priv._graph_properties[source_topic])) {
             priv._graph_properties[source_topic] = {};
         }
@@ -2938,19 +2939,18 @@ function copy_size_to_ports(gobj, same_topic_only)
         defaults.port_sizes = port_sizes;
         priv._graph_properties[source_topic].defaults = defaults;
     } else {
+        // Store for all topics — set portR as the global default
         for(const topic_name of Object.keys(priv.descs || {})) {
             if(!is_object(priv._graph_properties[topic_name])) {
                 priv._graph_properties[topic_name] = {};
             }
             let defaults = priv._graph_properties[topic_name].defaults || {};
-            let port_sizes = defaults.port_sizes || {};
-            port_sizes[port_key] = source_r;
-            defaults.port_sizes = port_sizes;
+            defaults.portR = source_r;
             priv._graph_properties[topic_name].defaults = defaults;
         }
     }
 
-    // Iterate nodes and update matching ports
+    // Iterate nodes and update ports
     let updates = [];
     const nodes = graph.getData().nodes;
     for(let i = 0; i < nodes.length; i++) {
@@ -2970,7 +2970,7 @@ function copy_size_to_ports(gobj, same_topic_only)
 
         let port_updated = false;
         let new_ports = ports.map((p) => {
-            if(p.key === port_key) {
+            if(!same_topic_only || p.key === port_key) {
                 port_updated = true;
                 return { ...p, r: source_r };
             }
@@ -2978,7 +2978,12 @@ function copy_size_to_ports(gobj, same_topic_only)
         });
 
         if(port_updated) {
-            updates.push({ id: nodes[i].id, style: { ports: new_ports } });
+            let upd = { ports: new_ports };
+            // When resizing all ports, also update node-level portR
+            if(!same_topic_only) {
+                upd.portR = source_r;
+            }
+            updates.push({ id: nodes[i].id, style: upd });
         }
     }
 
