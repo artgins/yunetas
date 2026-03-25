@@ -2826,7 +2826,11 @@ function deselect_edge(gobj)
  *  Get the midpoint of an edge in viewport coordinates.
  *  Uses the edge's source and target node positions.
  ************************************************************/
-function get_edge_viewport_midpoint(gobj, edge_id)
+/************************************************************
+ *  Get the bounding rectangle and midpoint of an edge
+ *  in viewport coordinates (from source to target node).
+ ************************************************************/
+function get_edge_viewport_rect(gobj, edge_id)
 {
     let priv = gobj.priv;
     let graph = priv.graph;
@@ -2839,12 +2843,22 @@ function get_edge_viewport_midpoint(gobj, edge_id)
     let sourcePos = graph.getElementPosition(edgeData.source);
     let targetPos = graph.getElementPosition(edgeData.target);
 
-    // Canvas midpoint
-    let midX = (sourcePos[0] + targetPos[0]) / 2;
-    let midY = (sourcePos[1] + targetPos[1]) / 2;
+    let vpSource = graph.getViewportByCanvas(sourcePos);
+    let vpTarget = graph.getViewportByCanvas(targetPos);
 
-    let vp = graph.getViewportByCanvas([midX, midY]);
-    return { x: vp[0], y: vp[1] };
+    let left = Math.min(vpSource[0], vpTarget[0]);
+    let right = Math.max(vpSource[0], vpTarget[0]);
+    let top = Math.min(vpSource[1], vpTarget[1]);
+    let bottom = Math.max(vpSource[1], vpTarget[1]);
+
+    // Midpoint in viewport
+    let midX = (vpSource[0] + vpTarget[0]) / 2;
+    let midY = (vpSource[1] + vpTarget[1]) / 2;
+
+    return {
+        left: left, top: top, right: right, bottom: bottom,
+        midX: midX, midY: midY
+    };
 }
 
 /************************************************************
@@ -2943,8 +2957,8 @@ function update_edge_resize_handles_position(gobj)
     }
 
     try {
-        let mid = get_edge_viewport_midpoint(gobj, priv._selected_edge_id);
-        if(!mid) {
+        let rect = get_edge_viewport_rect(gobj, priv._selected_edge_id);
+        if(!rect) {
             hide_edge_resize_handles(gobj);
             return;
         }
@@ -2953,7 +2967,7 @@ function update_edge_resize_handles_position(gobj)
         let zoom = priv.graph.getZoom();
         let vpHalfWidth = Math.max(lineWidth * zoom / 2, 4);
 
-        apply_edge_handles(gobj, mid.x, mid.y, vpHalfWidth);
+        apply_edge_handles(gobj, rect, vpHalfWidth);
     } catch(e) {
         hide_edge_resize_handles(gobj);
     }
@@ -2962,30 +2976,29 @@ function update_edge_resize_handles_position(gobj)
 /************************************************************
  *  Position edge handles and indicator line.
  ************************************************************/
-function apply_edge_handles(gobj, cx, cy, vpHalfWidth)
+function apply_edge_handles(gobj, rect, vpHalfWidth)
 {
     let priv = gobj.priv;
     const HALF = EDGE_HANDLE_SIZE / 2;
-    const LINE_W = 30; // visual indicator width
 
-    // Horizontal line showing lineWidth
+    // Dashed rectangle spanning the full edge bounding box
     const selLine = priv._edge_sel_line;
     if(selLine) {
         selLine.style.cssText =
             'position:absolute;' +
-            'left:' + (cx - LINE_W / 2) + 'px;' +
-            'top:' + (cy - vpHalfWidth) + 'px;' +
-            'width:' + LINE_W + 'px;' +
-            'height:' + (vpHalfWidth * 2) + 'px;' +
+            'left:' + rect.left + 'px;' +
+            'top:' + (rect.top - vpHalfWidth) + 'px;' +
+            'width:' + (rect.right - rect.left) + 'px;' +
+            'height:' + (rect.bottom - rect.top + vpHalfWidth * 2) + 'px;' +
             'border:1px dashed #52c41a;' +
             'pointer-events:none;' +
             'box-sizing:border-box;';
     }
 
-    // N and S handles
+    // N and S handles at midpoint
     const offsets = [
-        { x: cx, y: cy - vpHalfWidth },  // N
-        { x: cx, y: cy + vpHalfWidth },  // S
+        { x: rect.midX, y: rect.midY - vpHalfWidth },  // N
+        { x: rect.midX, y: rect.midY + vpHalfWidth },  // S
     ];
 
     for(let i = 0; i < priv._edge_handles.length; i++) {
@@ -3012,20 +3025,20 @@ function start_edge_resize(gobj, e)
         return;
     }
 
-    let mid = get_edge_viewport_midpoint(gobj, edge_id);
-    if(!mid) {
+    let rect = get_edge_viewport_rect(gobj, edge_id);
+    if(!rect) {
         return;
     }
 
     const containerRect = priv.$container.getBoundingClientRect();
-    const clientCy = mid.y + containerRect.top;
+    const clientCy = rect.midY + containerRect.top;
     const zoom = graph.getZoom();
 
     function onPointerMove(ev) {
         let dy = Math.abs(ev.clientY - clientCy);
         let vpHalfWidth = Math.max(dy, 4);
 
-        apply_edge_handles(gobj, mid.x, mid.y, vpHalfWidth);
+        apply_edge_handles(gobj, rect, vpHalfWidth);
     }
 
     function onPointerUp(ev) {
