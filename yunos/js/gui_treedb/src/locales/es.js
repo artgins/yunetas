@@ -164,6 +164,8 @@ let es = {
         'resize topic nodes': 'Redimensionar nodos del topic',
         'resize all ports': 'Redimensionar todos los puertos',
         'resize topic ports': 'Redimensionar puertos del topic',
+        'resize all edges': 'Redimensionar todos los enlaces',
+        'resize topic edges': 'Redimensionar enlaces del topic',
 
         'xxx': 'ultima entrada NO TOCAR, insertar antes'
     }

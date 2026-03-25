@@ -243,6 +243,10 @@ let PRIVATE_DATA = {
     _port_handles_el:   null,
     _port_handles:      [],
     _port_ring:         null,
+    _selected_edge_id:  null,
+    _edge_handles_el:   null,
+    _edge_handles:      [],
+    _edge_sel_line:     null,
     _context_node_id:   null,   // node id for context menu target
     _context_port_key:  null,   // port key for context menu target (null = node body)
     _context_edge_id:   null,   // edge id for context menu target
@@ -573,6 +577,7 @@ function configure_events(gobj)
     graph.on(NodeEvent.DRAG, (evt) => {
         update_resize_handles_position(gobj);
         update_port_resize_handles_position(gobj);
+        update_edge_resize_handles_position(gobj);
     });
 
     graph.on(NodeEvent.DRAG_END, (evt) => {
@@ -594,6 +599,7 @@ function configure_events(gobj)
     graph.on('aftertransform', () => {
         update_resize_handles_position(gobj);
         update_port_resize_handles_position(gobj);
+        update_edge_resize_handles_position(gobj);
     });
 
     if(gobj_read_bool_attr(gobj, "with_fullscreen")) {
@@ -1448,6 +1454,26 @@ function draw_link(
      *  Create the edge with independent id and semantic data
      *  HACK: source/target are interchanged so arrows point parent -> child
      */
+    // Check saved lineWidth from __graphs__
+    let saved_lineWidth = 2;
+    let topic_props = priv._graph_properties[parent_topic];
+    if(topic_props && is_object(topic_props.edges)) {
+        let edge_key = hook_name + ":" + parent_id + ":" + child_id;
+        let edge_props = topic_props.edges[edge_key];
+        if(edge_props && edge_props.lineWidth != null) {
+            saved_lineWidth = edge_props.lineWidth;
+        }
+    }
+    // Check topic default lineWidth
+    if(saved_lineWidth === 2 && topic_props && is_object(topic_props.defaults)) {
+        let defs = topic_props.defaults;
+        if(defs.edge_lineWidths && defs.edge_lineWidths[hook_name] != null) {
+            saved_lineWidth = defs.edge_lineWidths[hook_name];
+        } else if(defs.edge_lineWidth != null) {
+            saved_lineWidth = defs.edge_lineWidth;
+        }
+    }
+
     let edge = {
         id: build_edge_id(gobj),
         type: 'cubic',
@@ -1456,7 +1482,7 @@ function draw_link(
         style: {
             sourcePort: hook_name,
             targetPort: fkey_name,
-            lineWidth: 2,
+            lineWidth: saved_lineWidth,
             stroke: style.fill,
         },
         data: {
@@ -1652,6 +1678,44 @@ function update_geometry(gobj, node_id)
 }
 
 /************************************************************
+ *  Update edge lineWidth into _graph_properties.
+ *  Stores edge lineWidths keyed by "hook_name:source:target"
+ *  in the parent topic's _graph_properties.edges dict.
+ ************************************************************/
+function update_edge_geometry(gobj, edge_id)
+{
+    let priv = gobj.priv;
+    let graph = priv.graph;
+
+    let edgeData = graph.getEdgeData(edge_id);
+    if(!edgeData || !edgeData.data) {
+        return;
+    }
+
+    let style = edgeData.style || {};
+    let lineWidth = style.lineWidth;
+    if(lineWidth == null || lineWidth === 2) {
+        return; // default, no need to save
+    }
+
+    let parent_topic = edgeData.data.parent_topic;
+
+    // Ensure topic entry exists
+    if(!is_object(priv._graph_properties[parent_topic])) {
+        priv._graph_properties[parent_topic] = {};
+    }
+    let topic_props = priv._graph_properties[parent_topic];
+    if(!is_object(topic_props.edges)) {
+        topic_props.edges = {};
+    }
+
+    // Key: hook_name:parent_id:child_id
+    let edge_key = edgeData.data.hook_name + ":" +
+        edgeData.data.parent_id + ":" + edgeData.data.child_id;
+    topic_props.edges[edge_key] = { lineWidth: lineWidth };
+}
+
+/************************************************************
  *  Save all node geometries to __graphs__ topic.
  *  One EV_UPDATE_NODE per topic instead of one per node.
  ************************************************************/
@@ -1664,6 +1728,12 @@ function save_geometry(gobj)
     const nodes = graph.getData().nodes;
     for(let i = 0; i < nodes.length; i++) {
         update_geometry(gobj, nodes[i].id);
+    }
+
+    // Collect edge lineWidths into _graph_properties
+    const edges = graph.getData().edges;
+    for(let i = 0; i < edges.length; i++) {
+        update_edge_geometry(gobj, edges[i].id);
     }
 
     // Save one __graphs__ record per topic
@@ -2072,6 +2142,7 @@ function deselect_node(gobj)
     let graph = priv.graph;
 
     deselect_port(gobj);
+    deselect_edge(gobj);
 
     if(priv._selected_node_id) {
         history_pause(gobj);
@@ -2705,6 +2776,362 @@ function start_port_resize(gobj, e)
 
 
 /************************************************************
+ *  Edge selection and resize (lineWidth).
+ ************************************************************/
+const EDGE_HANDLE_SIZE = 8;
+const EDGE_MIN_LINE_WIDTH = 1;
+
+function select_edge(gobj, edge_id)
+{
+    let priv = gobj.priv;
+    let graph = priv.graph;
+
+    // Deselect previous edge
+    deselect_edge(gobj);
+
+    history_pause(gobj);
+    try {
+        graph.setElementState(edge_id, ['selected']);
+    } catch(e) {}
+    priv._selected_edge_id = edge_id;
+
+    show_edge_resize_handles(gobj);
+
+    graph_draw(gobj).then(() => {
+        history_resume(gobj);
+    });
+}
+
+function deselect_edge(gobj)
+{
+    let priv = gobj.priv;
+    let graph = priv.graph;
+
+    if(priv._selected_edge_id) {
+        history_pause(gobj);
+        try {
+            graph.setElementState(priv._selected_edge_id, []);
+        } catch(e) {}
+        priv._selected_edge_id = null;
+
+        graph_draw(gobj).then(() => {
+            history_resume(gobj);
+        });
+    }
+
+    hide_edge_resize_handles(gobj);
+}
+
+/************************************************************
+ *  Get the midpoint of an edge in viewport coordinates.
+ *  Uses the edge's source and target node positions.
+ ************************************************************/
+function get_edge_viewport_midpoint(gobj, edge_id)
+{
+    let priv = gobj.priv;
+    let graph = priv.graph;
+
+    let edgeData = graph.getEdgeData(edge_id);
+    if(!edgeData) {
+        return null;
+    }
+
+    let sourcePos = graph.getElementPosition(edgeData.source);
+    let targetPos = graph.getElementPosition(edgeData.target);
+
+    // Canvas midpoint
+    let midX = (sourcePos[0] + targetPos[0]) / 2;
+    let midY = (sourcePos[1] + targetPos[1]) / 2;
+
+    let vp = graph.getViewportByCanvas([midX, midY]);
+    return { x: vp[0], y: vp[1] };
+}
+
+/************************************************************
+ *  Get current lineWidth of an edge.
+ ************************************************************/
+function get_edge_line_width(gobj, edge_id)
+{
+    let priv = gobj.priv;
+    let graph = priv.graph;
+
+    let edgeData = graph.getEdgeData(edge_id);
+    if(!edgeData) {
+        return 2;
+    }
+    let style = edgeData.style || {};
+    return style.lineWidth || 2;
+}
+
+/************************************************************
+ *  Show resize handles on selected edge: two handles at
+ *  midpoint that can be dragged vertically to change lineWidth.
+ ************************************************************/
+function show_edge_resize_handles(gobj)
+{
+    hide_edge_resize_handles(gobj);
+
+    let priv = gobj.priv;
+    if(!priv._selected_edge_id) {
+        return;
+    }
+
+    const container = document.createElement('div');
+    container.className = 'g6-edge-resize-handles';
+    container.style.cssText =
+        'position:absolute;top:0;left:0;width:100%;height:100%;' +
+        'pointer-events:none;z-index:11;';
+
+    // Horizontal line indicator showing current lineWidth
+    const selLine = document.createElement('div');
+    container.appendChild(selLine);
+
+    // Two handles: top and bottom (vertical drag to change lineWidth)
+    const handle_defs = [
+        { cursor: 'n-resize', dy: -1 },
+        { cursor: 's-resize', dy:  1 },
+    ];
+
+    const handles = [];
+    for(const def of handle_defs) {
+        const el = document.createElement('div');
+        el.style.cssText =
+            'position:absolute;' +
+            'width:' + EDGE_HANDLE_SIZE + 'px;' +
+            'height:' + EDGE_HANDLE_SIZE + 'px;' +
+            'background:#fff;' +
+            'border:1px solid #52c41a;' +
+            'cursor:' + def.cursor + ';' +
+            'pointer-events:all;' +
+            'box-sizing:border-box;';
+        el.addEventListener('pointerdown', (e) => {
+            start_edge_resize(gobj, e);
+        });
+        handles.push({ el: el, dy: def.dy });
+        container.appendChild(el);
+    }
+
+    priv.$container.appendChild(container);
+    priv._edge_handles_el = container;
+    priv._edge_handles = handles;
+    priv._edge_sel_line = selLine;
+
+    update_edge_resize_handles_position(gobj);
+}
+
+function hide_edge_resize_handles(gobj)
+{
+    let priv = gobj.priv;
+
+    if(priv._edge_handles_el) {
+        priv._edge_handles_el.remove();
+        priv._edge_handles_el = null;
+        priv._edge_handles = [];
+        priv._edge_sel_line = null;
+    }
+}
+
+/************************************************************
+ *  Update edge handle positions after zoom/pan.
+ ************************************************************/
+function update_edge_resize_handles_position(gobj)
+{
+    let priv = gobj.priv;
+
+    if(!priv._selected_edge_id || !priv._edge_handles_el) {
+        return;
+    }
+
+    try {
+        let mid = get_edge_viewport_midpoint(gobj, priv._selected_edge_id);
+        if(!mid) {
+            hide_edge_resize_handles(gobj);
+            return;
+        }
+
+        let lineWidth = get_edge_line_width(gobj, priv._selected_edge_id);
+        let zoom = priv.graph.getZoom();
+        let vpHalfWidth = Math.max(lineWidth * zoom / 2, 4);
+
+        apply_edge_handles(gobj, mid.x, mid.y, vpHalfWidth);
+    } catch(e) {
+        hide_edge_resize_handles(gobj);
+    }
+}
+
+/************************************************************
+ *  Position edge handles and indicator line.
+ ************************************************************/
+function apply_edge_handles(gobj, cx, cy, vpHalfWidth)
+{
+    let priv = gobj.priv;
+    const HALF = EDGE_HANDLE_SIZE / 2;
+    const LINE_W = 30; // visual indicator width
+
+    // Horizontal line showing lineWidth
+    const selLine = priv._edge_sel_line;
+    if(selLine) {
+        selLine.style.cssText =
+            'position:absolute;' +
+            'left:' + (cx - LINE_W / 2) + 'px;' +
+            'top:' + (cy - vpHalfWidth) + 'px;' +
+            'width:' + LINE_W + 'px;' +
+            'height:' + (vpHalfWidth * 2) + 'px;' +
+            'border:1px dashed #52c41a;' +
+            'pointer-events:none;' +
+            'box-sizing:border-box;';
+    }
+
+    // N and S handles
+    const offsets = [
+        { x: cx, y: cy - vpHalfWidth },  // N
+        { x: cx, y: cy + vpHalfWidth },  // S
+    ];
+
+    for(let i = 0; i < priv._edge_handles.length; i++) {
+        const h = priv._edge_handles[i];
+        const o = offsets[i];
+        h.el.style.left = (o.x - HALF) + 'px';
+        h.el.style.top = (o.y - HALF) + 'px';
+    }
+}
+
+/************************************************************
+ *  Drag handler for edge resize: changes lineWidth.
+ ************************************************************/
+function start_edge_resize(gobj, e)
+{
+    let priv = gobj.priv;
+    let graph = priv.graph;
+
+    e.preventDefault();
+    e.stopPropagation();
+
+    const edge_id = priv._selected_edge_id;
+    if(!edge_id) {
+        return;
+    }
+
+    let mid = get_edge_viewport_midpoint(gobj, edge_id);
+    if(!mid) {
+        return;
+    }
+
+    const containerRect = priv.$container.getBoundingClientRect();
+    const clientCy = mid.y + containerRect.top;
+    const zoom = graph.getZoom();
+
+    function onPointerMove(ev) {
+        let dy = Math.abs(ev.clientY - clientCy);
+        let vpHalfWidth = Math.max(dy, 4);
+
+        apply_edge_handles(gobj, mid.x, mid.y, vpHalfWidth);
+    }
+
+    function onPointerUp(ev) {
+        document.removeEventListener('pointermove', onPointerMove);
+        document.removeEventListener('pointerup', onPointerUp);
+
+        let dy = Math.abs(ev.clientY - clientCy);
+        let vpHalfWidth = Math.max(dy, 4);
+        let newLineWidth = Math.max(EDGE_MIN_LINE_WIDTH, Math.round(vpHalfWidth * 2 / zoom));
+
+        graph.updateEdgeData([{ id: edge_id, style: { lineWidth: newLineWidth } }]);
+        graph.draw().then(() => {
+            update_edge_resize_handles_position(gobj);
+
+            let $container = gobj_read_attr(gobj, "$container");
+            enableElements($container, ".EV_SAVE_GRAPH");
+            set_submit_state($container, ".EV_SAVE_GRAPH", true);
+        });
+    }
+
+    document.addEventListener('pointermove', onPointerMove);
+    document.addEventListener('pointerup', onPointerUp);
+}
+
+/************************************************************
+ *  Copy the selected edge's lineWidth to other edges.
+ *  If same_topic_only=true, only edges of the same hook_name.
+ *  If same_topic_only=false, all edges in the graph.
+ *  Also stores as default.
+ ************************************************************/
+function copy_linewidth_to_edges(gobj, same_topic_only)
+{
+    let priv = gobj.priv;
+    let graph = priv.graph;
+
+    let edge_id = priv._context_edge_id;
+    if(!edge_id) {
+        return;
+    }
+
+    let edgeData = graph.getEdgeData(edge_id);
+    if(!edgeData || !edgeData.data) {
+        return;
+    }
+
+    let source_hook = edgeData.data.hook_name;
+    let source_parent_topic = edgeData.data.parent_topic;
+    let source_lineWidth = (edgeData.style || {}).lineWidth || 2;
+
+    // Store as default
+    let edge_key = source_parent_topic + "." + source_hook;
+    if(same_topic_only) {
+        // Store default for this specific hook
+        let topic_props = priv._graph_properties[source_parent_topic];
+        if(!is_object(topic_props)) {
+            topic_props = {};
+            priv._graph_properties[source_parent_topic] = topic_props;
+        }
+        let defaults = topic_props.defaults || {};
+        let edge_defaults = defaults.edge_lineWidths || {};
+        edge_defaults[source_hook] = source_lineWidth;
+        defaults.edge_lineWidths = edge_defaults;
+        topic_props.defaults = defaults;
+    } else {
+        // Store for all topics
+        for(const topic_name of Object.keys(priv.descs || {})) {
+            if(!is_object(priv._graph_properties[topic_name])) {
+                priv._graph_properties[topic_name] = {};
+            }
+            let defaults = priv._graph_properties[topic_name].defaults || {};
+            defaults.edge_lineWidth = source_lineWidth;
+            priv._graph_properties[topic_name].defaults = defaults;
+        }
+    }
+
+    // Iterate edges and update matching ones
+    let updates = [];
+    const edges = graph.getData().edges;
+    for(let i = 0; i < edges.length; i++) {
+        let ed = graph.getEdgeData(edges[i].id);
+        if(!ed || !ed.data) {
+            continue;
+        }
+        if(edges[i].id === edge_id) {
+            continue; // skip source
+        }
+        if(same_topic_only && ed.data.hook_name !== source_hook) {
+            continue;
+        }
+
+        updates.push({ id: edges[i].id, style: { lineWidth: source_lineWidth } });
+    }
+
+    if(updates.length > 0) {
+        graph.updateEdgeData(updates);
+        graph.draw().then(() => {
+            update_edge_resize_handles_position(gobj);
+
+            let $container = gobj_read_attr(gobj, "$container");
+            enableElements($container, ".EV_SAVE_GRAPH");
+            set_submit_state($container, ".EV_SAVE_GRAPH", true);
+        });
+    }
+}
+
+/************************************************************
  *  Context menu: build items based on target element.
  *  Returns different menu items for nodes, ports, and edges.
  *  Stores the target in priv for use in the click handler.
@@ -2785,7 +3212,12 @@ function build_port_context_menu(gobj, node_id, port_key)
 function build_edge_context_menu(gobj)
 {
     let items = [];
-    // Future: add edge-specific actions here
+
+    if(gobj.priv.edit_mode) {
+        items.push({ name: t('resize all edges'), value: 'resize_all_edges' });
+        items.push({ name: t('resize topic edges'), value: 'resize_topic_edges' });
+    }
+
     return items;
 }
 
@@ -2808,6 +3240,12 @@ function handle_context_menu_click(gobj, value)
             break;
         case 'resize_topic_ports':
             copy_size_to_ports(gobj, true);
+            break;
+        case 'resize_all_edges':
+            copy_linewidth_to_edges(gobj, false);
+            break;
+        case 'resize_topic_edges':
+            copy_linewidth_to_edges(gobj, true);
             break;
     }
 }
@@ -3583,6 +4021,11 @@ function ac_edge_click(gobj, event, kw, src)
                 child_id:     edgedata.data.child_id,
                 fkey_name:    edgedata.data.fkey_name,
             });
+
+            if(priv.edit_mode) {
+                deselect_node(gobj);
+                select_edge(gobj, edge_id);
+            }
         }
     } catch(e) {
         // Clicked on non-edge element
@@ -3607,7 +4050,7 @@ function ac_canvas_click(gobj, event, kw, src)
     let priv = gobj.priv;
 
     if(priv.edit_mode) {
-        deselect_node(gobj);
+        deselect_node(gobj);  // also deselects edge via deselect_edge()
     }
 
     return 0;
