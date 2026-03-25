@@ -161,7 +161,9 @@ var en = {
         'Inicio': 'Home',
 
         'resize all': 'Resize all',
+        'resize all in topic': 'Resize all in topic',
         'resize all ports': 'Resize all ports',
+        'resize all ports in topic': 'Resize all ports in topic',
 
         'xxx': 'last entry DONT CHANGE, insert before'
     }

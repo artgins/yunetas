@@ -2749,7 +2749,8 @@ function build_node_context_menu(gobj, node_id)
     let items = [];
 
     if(gobj.priv.edit_mode) {
-        items.push({ name: t('resize all'), value: 'copy_size_to_topic_nodes' });
+        items.push({ name: t('resize all'), value: 'resize_all_nodes' });
+        items.push({ name: t('resize all in topic'), value: 'resize_topic_nodes' });
     }
 
     return items;
@@ -2763,7 +2764,8 @@ function build_port_context_menu(gobj, node_id, port_key)
     let items = [];
 
     if(gobj.priv.edit_mode) {
-        items.push({ name: t('resize all ports'), value: 'copy_size_to_topic_ports' });
+        items.push({ name: t('resize all ports'), value: 'resize_all_ports' });
+        items.push({ name: t('resize all ports in topic'), value: 'resize_topic_ports' });
     }
 
     return items;
@@ -2787,20 +2789,28 @@ function handle_context_menu_click(gobj, value)
     let priv = gobj.priv;
 
     switch(value) {
-        case 'copy_size_to_topic_nodes':
-            copy_size_to_topic_nodes(gobj);
+        case 'resize_all_nodes':
+            copy_size_to_nodes(gobj, false);
             break;
-        case 'copy_size_to_topic_ports':
-            copy_size_to_topic_ports(gobj);
+        case 'resize_topic_nodes':
+            copy_size_to_nodes(gobj, true);
+            break;
+        case 'resize_all_ports':
+            copy_size_to_ports(gobj, false);
+            break;
+        case 'resize_topic_ports':
+            copy_size_to_ports(gobj, true);
             break;
     }
 }
 
 /************************************************************
- *  Copy the selected node's size to all nodes of the same
- *  topic. Also copies portR.
+ *  Copy the selected node's size to other nodes.
+ *  If same_topic_only=true, only nodes of the same topic.
+ *  If same_topic_only=false, all nodes in the graph.
+ *  Also copies portR and stores as default.
  ************************************************************/
-function copy_size_to_topic_nodes(gobj)
+function copy_size_to_nodes(gobj, same_topic_only)
 {
     let priv = gobj.priv;
     let graph = priv.graph;
@@ -2825,22 +2835,37 @@ function copy_size_to_topic_nodes(gobj)
         return;
     }
 
-    // Store as default for new nodes of this topic
-    if(!is_object(priv._graph_properties[source_topic])) {
-        priv._graph_properties[source_topic] = {};
-    }
+    // Store as default for new nodes
     let defaults = { size: [...source_size] };
     if(source_portR != null) {
         defaults.portR = source_portR;
     }
-    priv._graph_properties[source_topic].defaults = defaults;
 
-    // Iterate all graph nodes and update those of the same topic
+    if(same_topic_only) {
+        // Store default only for this topic
+        if(!is_object(priv._graph_properties[source_topic])) {
+            priv._graph_properties[source_topic] = {};
+        }
+        priv._graph_properties[source_topic].defaults = defaults;
+    } else {
+        // Store default for all topics present in the graph
+        for(const topic_name of Object.keys(priv.descs || {})) {
+            if(!is_object(priv._graph_properties[topic_name])) {
+                priv._graph_properties[topic_name] = {};
+            }
+            priv._graph_properties[topic_name].defaults = { ...defaults };
+        }
+    }
+
+    // Iterate nodes and update matching ones
     let updates = [];
     const nodes = graph.getData().nodes;
     for(let i = 0; i < nodes.length; i++) {
         let nd = graph.getNodeData(nodes[i].id);
-        if(!nd || !nd.data || nd.data.topic_name !== source_topic) {
+        if(!nd || !nd.data) {
+            continue;
+        }
+        if(same_topic_only && nd.data.topic_name !== source_topic) {
             continue;
         }
         if(nodes[i].id === node_id) {
@@ -2851,13 +2876,12 @@ function copy_size_to_topic_nodes(gobj)
             size: [...source_size],
         };
 
-        // Copy portR if present
         if(source_portR != null) {
             updateStyle.portR = source_portR;
         }
 
         // Recalculate dx/dy for HTML nodes
-        if(source_type === 'html') {
+        if(nd.type === 'html') {
             updateStyle.dx = -source_size[0] / 2;
             let h = source_size.length > 1 ? source_size[1] : source_size[0];
             updateStyle.dy = -h / 2;
@@ -2879,10 +2903,12 @@ function copy_size_to_topic_nodes(gobj)
 }
 
 /************************************************************
- *  Copy the selected port's radius to all ports with the
- *  same key across all nodes of the same topic.
+ *  Copy the selected port's radius to matching ports.
+ *  If same_topic_only=true, only ports in same-topic nodes.
+ *  If same_topic_only=false, matching ports in all nodes.
+ *  Also stores as default.
  ************************************************************/
-function copy_size_to_topic_ports(gobj)
+function copy_size_to_ports(gobj, same_topic_only)
 {
     let priv = gobj.priv;
     let graph = priv.graph;
@@ -2901,22 +2927,38 @@ function copy_size_to_topic_ports(gobj)
     let source_topic = nodedata.data.topic_name;
     let source_r = get_port_radius(gobj, node_id, port_key);
 
-    // Store as default for new nodes' ports of this topic
-    if(!is_object(priv._graph_properties[source_topic])) {
-        priv._graph_properties[source_topic] = {};
+    // Store as default
+    if(same_topic_only) {
+        if(!is_object(priv._graph_properties[source_topic])) {
+            priv._graph_properties[source_topic] = {};
+        }
+        let defaults = priv._graph_properties[source_topic].defaults || {};
+        let port_sizes = defaults.port_sizes || {};
+        port_sizes[port_key] = source_r;
+        defaults.port_sizes = port_sizes;
+        priv._graph_properties[source_topic].defaults = defaults;
+    } else {
+        for(const topic_name of Object.keys(priv.descs || {})) {
+            if(!is_object(priv._graph_properties[topic_name])) {
+                priv._graph_properties[topic_name] = {};
+            }
+            let defaults = priv._graph_properties[topic_name].defaults || {};
+            let port_sizes = defaults.port_sizes || {};
+            port_sizes[port_key] = source_r;
+            defaults.port_sizes = port_sizes;
+            priv._graph_properties[topic_name].defaults = defaults;
+        }
     }
-    let defaults = priv._graph_properties[source_topic].defaults || {};
-    let default_port_sizes = defaults.port_sizes || {};
-    default_port_sizes[port_key] = source_r;
-    defaults.port_sizes = default_port_sizes;
-    priv._graph_properties[source_topic].defaults = defaults;
 
-    // Iterate all graph nodes of the same topic and update matching ports
+    // Iterate nodes and update matching ports
     let updates = [];
     const nodes = graph.getData().nodes;
     for(let i = 0; i < nodes.length; i++) {
         let nd = graph.getNodeData(nodes[i].id);
-        if(!nd || !nd.data || nd.data.topic_name !== source_topic) {
+        if(!nd || !nd.data) {
+            continue;
+        }
+        if(same_topic_only && nd.data.topic_name !== source_topic) {
             continue;
         }
 
