@@ -2955,6 +2955,15 @@ function show_edge_popover(gobj)
     let origLW = currentLW;
     let origStroke = currentStroke;
 
+    // Clear selected state so the real style is visible during preview
+    history_pause(gobj);
+    try {
+        graph.setElementState(edge_id, []);
+    } catch(e) {}
+    graph_draw(gobj).then(() => {
+        history_resume(gobj);
+    });
+
     let mid = get_edge_viewport_midpoint(gobj, edge_id);
     if(!mid) {
         return;
@@ -3050,9 +3059,15 @@ function show_edge_popover(gobj)
         'border-radius:4px;cursor:pointer;font-size:13px;font-weight:500;';
     cancelBtn.addEventListener('click', (e) => {
         e.stopPropagation();
-        // Restore original style
+        // Restore original style and re-select
         graph.updateEdgeData([{ id: edge_id, style: { lineWidth: origLW, stroke: origStroke } }]);
-        graph.draw();
+        history_pause(gobj);
+        try {
+            graph.setElementState(edge_id, ['selected']);
+        } catch(ex) {}
+        graph.draw().then(() => {
+            history_resume(gobj);
+        });
         hide_edge_popover(gobj);
     });
     btnRow.appendChild(cancelBtn);
