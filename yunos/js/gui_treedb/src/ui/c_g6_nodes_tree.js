@@ -2724,9 +2724,6 @@ function build_node_context_menu(gobj, node_id)
 {
     let items = [];
 
-    items.push({ name: 'Spread', value: 'spread' });
-    items.push({ name: 'Detail', value: 'detail' });
-
     if(gobj.priv.edit_mode) {
         items.push({ name: 'Copy size to topic', value: 'copy_size_to_topic_nodes' });
     }
@@ -2766,14 +2763,6 @@ function handle_context_menu_click(gobj, value)
     let priv = gobj.priv;
 
     switch(value) {
-        case 'spread':
-            // TODO implement spread
-            trace_msg('Spread: ' + priv._context_node_id);
-            break;
-        case 'detail':
-            // TODO implement detail
-            trace_msg('Detail: ' + priv._context_node_id);
-            break;
         case 'copy_size_to_topic_nodes':
             copy_size_to_topic_nodes(gobj);
             break;
