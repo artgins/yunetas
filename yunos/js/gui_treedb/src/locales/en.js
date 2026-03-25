@@ -164,8 +164,6 @@ var en = {
         'resize topic nodes': 'Resize topic nodes',
         'resize all ports': 'Resize all ports',
         'resize topic ports': 'Resize topic ports',
-        'resize all edges': 'Resize all edges',
-        'resize topic edges': 'Resize topic edges',
 
         'xxx': 'last entry DONT CHANGE, insert before'
     }
