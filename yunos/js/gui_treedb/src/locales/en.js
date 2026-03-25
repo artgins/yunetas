@@ -172,6 +172,7 @@ var en = {
         'same type edges': 'Same type edges',
         'all edges': 'All edges',
         'apply': 'Apply',
+        'cancel': 'Cancel',
 
         'xxx': 'last entry DONT CHANGE, insert before'
     }

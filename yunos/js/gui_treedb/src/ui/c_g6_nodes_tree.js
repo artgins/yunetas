@@ -2951,6 +2951,10 @@ function show_edge_popover(gobj)
     let currentLW = style.lineWidth || 2;
     let currentStroke = style.stroke || '#000000';
 
+    // Save original style for cancel/restore
+    let origLW = currentLW;
+    let origStroke = currentStroke;
+
     let mid = get_edge_viewport_midpoint(gobj, edge_id);
     if(!mid) {
         return;
@@ -2971,6 +2975,14 @@ function show_edge_popover(gobj)
     popover.addEventListener('click', (e) => e.stopPropagation());
     popover.addEventListener('pointerdown', (e) => e.stopPropagation());
 
+    // Live preview: update the selected edge in real time
+    function preview_edge() {
+        let lw = parseInt(lwInput.value) || 2;
+        let color = colorInput.value;
+        graph.updateEdgeData([{ id: edge_id, style: { lineWidth: lw, stroke: color } }]);
+        graph.draw();
+    }
+
     // Line width
     let lwLabel = document.createElement('label');
     lwLabel.textContent = t('line width');
@@ -2985,6 +2997,7 @@ function show_edge_popover(gobj)
     lwInput.style.cssText =
         'width:100%;padding:4px 6px;border:1px solid #d9d9d9;border-radius:4px;' +
         'box-sizing:border-box;margin-bottom:10px;';
+    lwInput.addEventListener('input', preview_edge);
     popover.appendChild(lwInput);
 
     // Color
@@ -2999,6 +3012,7 @@ function show_edge_popover(gobj)
     colorInput.style.cssText =
         'width:100%;height:30px;padding:0;border:1px solid #d9d9d9;border-radius:4px;' +
         'cursor:pointer;margin-bottom:10px;';
+    colorInput.addEventListener('input', preview_edge);
     popover.appendChild(colorInput);
 
     // Apply-to scope
@@ -3024,11 +3038,30 @@ function show_edge_popover(gobj)
     }
     popover.appendChild(scopeSelect);
 
+    // Button row
+    let btnRow = document.createElement('div');
+    btnRow.style.cssText = 'display:flex;gap:8px;';
+
+    // Cancel button
+    let cancelBtn = document.createElement('button');
+    cancelBtn.textContent = t('cancel');
+    cancelBtn.style.cssText =
+        'flex:1;padding:6px;background:#fff;color:#333;border:1px solid #d9d9d9;' +
+        'border-radius:4px;cursor:pointer;font-size:13px;font-weight:500;';
+    cancelBtn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        // Restore original style
+        graph.updateEdgeData([{ id: edge_id, style: { lineWidth: origLW, stroke: origStroke } }]);
+        graph.draw();
+        hide_edge_popover(gobj);
+    });
+    btnRow.appendChild(cancelBtn);
+
     // Apply button
     let applyBtn = document.createElement('button');
     applyBtn.textContent = t('apply');
     applyBtn.style.cssText =
-        'width:100%;padding:6px;background:#52c41a;color:#fff;border:none;' +
+        'flex:1;padding:6px;background:#52c41a;color:#fff;border:none;' +
         'border-radius:4px;cursor:pointer;font-size:13px;font-weight:500;';
     applyBtn.addEventListener('click', (e) => {
         e.stopPropagation();
@@ -3038,7 +3071,9 @@ function show_edge_popover(gobj)
             scopeSelect.value
         );
     });
-    popover.appendChild(applyBtn);
+    btnRow.appendChild(applyBtn);
+
+    popover.appendChild(btnRow);
 
     priv.$container.appendChild(popover);
     priv._edge_popover_el = popover;

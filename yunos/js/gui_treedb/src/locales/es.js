@@ -172,6 +172,7 @@ let es = {
         'same type edges': 'Enlaces del mismo tipo',
         'all edges': 'Todos los enlaces',
         'apply': 'Aplicar',
+        'cancel': 'Cancelar',
 
         'xxx': 'ultima entrada NO TOCAR, insertar antes'
     }
