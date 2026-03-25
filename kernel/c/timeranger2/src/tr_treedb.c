@@ -452,7 +452,7 @@ PUBLIC json_t *_treedb_create_topic_cols_desc(void)
     );
     json_array_append_new(
         topic_cols_desc,
-        json_pack("{s:s, s:s, s:i, s:s, s:[s,s,s,s,s,s,s,s,s,s], s:[s,s,s,s,s]}",
+        json_pack("{s:s, s:s, s:i, s:s, s:[s,s,s,s,s,s,s,s,s], s:[s,s,s,s,s]}",
             "id", "type",
             "header", "Type",
             "fillspace", 5,
@@ -467,7 +467,6 @@ PUBLIC json_t *_treedb_create_topic_cols_desc(void)
                 "real",
                 "boolean",
                 "blob",
-                "number",
             "flag",
                 "enum",
                 "required",
@@ -2867,14 +2866,7 @@ PRIVATE int set_mem_field_value(
         return -1;
     }
 
-    //const char *real_type = type;
-    json_t *desc_flag = kw_get_dict_value(gobj, col, "flag", 0, 0);
-    if(kw_has_word(gobj, desc_flag, "enum", 0)) {
-        type = "enum";
-    }
-
     SWITCHS(type) {
-        CASES("enum")
         CASES("list")
         CASES("array")
             if(JSON_TYPEOF(value, JSON_ARRAY)) {
