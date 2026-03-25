@@ -1737,6 +1737,10 @@ function update_history_buttons(gobj)
             } else {
                 disableElements($container, ".EV_HISTORY_UNDO");
                 set_active_state($container, ".EV_HISTORY_UNDO", false);
+
+                // No more undos: graph is back to original state, disable save
+                disableElements($container, ".EV_SAVE_GRAPH");
+                set_submit_state($container, ".EV_SAVE_GRAPH", false);
             }
         } else {
             disableElements($container, ".EV_HISTORY_REDO");
