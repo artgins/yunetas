@@ -242,6 +242,9 @@ let PRIVATE_DATA = {
     _port_handles_el:   null,
     _port_handles:      [],
     _port_ring:         null,
+    _context_node_id:   null,   // node id for context menu target
+    _context_port_key:  null,   // port key for context menu target (null = node body)
+    _context_edge_id:   null,   // edge id for context menu target
 };
 
 let __gclass__ = null;
@@ -641,17 +644,16 @@ function configure_plugins(gobj)
         gobj,
         'contextmenu',
         {
-            trigger: 'contextmenu', // 'click' or 'contextmenu'
-            onClick: (v) => {
-                trace_msg('You have clicked the「' + v + '」item');
+            trigger: 'contextmenu',
+            onClick: (value) => {
+                handle_context_menu_click(gobj, value);
             },
-            getItems: () => {
-                return [
-                    { name: 'Spread', value: 'spread' },
-                    { name: 'Detail', value: 'detail' },
-                ];
+            getItems: (e) => {
+                return build_context_menu_items(gobj, e);
             },
-            enable: (e) => e.targetType === 'node',
+            enable: (e) => {
+                return e.targetType === 'node' || e.targetType === 'edge';
+            },
         }
     );
 
@@ -2667,6 +2669,254 @@ function start_port_resize(gobj, e)
 
     document.addEventListener('pointermove', onPointerMove);
     document.addEventListener('pointerup', onPointerUp);
+}
+
+
+/************************************************************
+ *  Context menu: build items based on target element.
+ *  Returns different menu items for nodes, ports, and edges.
+ *  Stores the target in priv for use in the click handler.
+ ************************************************************/
+function build_context_menu_items(gobj, e)
+{
+    let priv = gobj.priv;
+    let graph = priv.graph;
+
+    // Reset context target
+    priv._context_node_id = null;
+    priv._context_port_key = null;
+    priv._context_edge_id = null;
+
+    if(e.targetType === 'edge') {
+        priv._context_edge_id = e.target.id;
+        return build_edge_context_menu(gobj);
+    }
+
+    if(e.targetType === 'node') {
+        let node_id = e.target.id;
+        priv._context_node_id = node_id;
+
+        // Detect if right-click is on a port
+        let containerRect = priv.$container.getBoundingClientRect();
+        let canvasPoint = graph.getCanvasByViewport([
+            e.client.x - containerRect.left,
+            e.client.y - containerRect.top
+        ]);
+        let port_key = detect_port_click(
+            gobj, node_id, canvasPoint[0], canvasPoint[1]
+        );
+
+        if(port_key) {
+            priv._context_port_key = port_key;
+            return build_port_context_menu(gobj, node_id, port_key);
+        } else {
+            return build_node_context_menu(gobj, node_id);
+        }
+    }
+
+    return [];
+}
+
+/************************************************************
+ *  Build node context menu items.
+ ************************************************************/
+function build_node_context_menu(gobj, node_id)
+{
+    let items = [];
+
+    items.push({ name: 'Spread', value: 'spread' });
+    items.push({ name: 'Detail', value: 'detail' });
+
+    if(gobj.priv.edit_mode) {
+        items.push({ name: 'Copy size to topic', value: 'copy_size_to_topic_nodes' });
+    }
+
+    return items;
+}
+
+/************************************************************
+ *  Build port context menu items.
+ ************************************************************/
+function build_port_context_menu(gobj, node_id, port_key)
+{
+    let items = [];
+
+    if(gobj.priv.edit_mode) {
+        items.push({ name: 'Copy size to topic ports', value: 'copy_size_to_topic_ports' });
+    }
+
+    return items;
+}
+
+/************************************************************
+ *  Build edge context menu items (prepared for expansion).
+ ************************************************************/
+function build_edge_context_menu(gobj)
+{
+    let items = [];
+    // Future: add edge-specific actions here
+    return items;
+}
+
+/************************************************************
+ *  Handle context menu click: dispatch by value.
+ ************************************************************/
+function handle_context_menu_click(gobj, value)
+{
+    let priv = gobj.priv;
+
+    switch(value) {
+        case 'spread':
+            // TODO implement spread
+            trace_msg('Spread: ' + priv._context_node_id);
+            break;
+        case 'detail':
+            // TODO implement detail
+            trace_msg('Detail: ' + priv._context_node_id);
+            break;
+        case 'copy_size_to_topic_nodes':
+            copy_size_to_topic_nodes(gobj);
+            break;
+        case 'copy_size_to_topic_ports':
+            copy_size_to_topic_ports(gobj);
+            break;
+    }
+}
+
+/************************************************************
+ *  Copy the selected node's size to all nodes of the same
+ *  topic. Also copies portR.
+ ************************************************************/
+function copy_size_to_topic_nodes(gobj)
+{
+    let priv = gobj.priv;
+    let graph = priv.graph;
+
+    let node_id = priv._context_node_id;
+    if(!node_id) {
+        return;
+    }
+
+    let nodedata = graph.getNodeData(node_id);
+    if(!nodedata || !nodedata.data) {
+        return;
+    }
+
+    let source_topic = nodedata.data.topic_name;
+    let source_style = nodedata.style || {};
+    let source_size = source_style.size;
+    let source_portR = source_style.portR;
+    let source_type = nodedata.type;
+
+    if(!source_size) {
+        return;
+    }
+
+    // Iterate all graph nodes and update those of the same topic
+    let updates = [];
+    const nodes = graph.getData().nodes;
+    for(let i = 0; i < nodes.length; i++) {
+        let nd = graph.getNodeData(nodes[i].id);
+        if(!nd || !nd.data || nd.data.topic_name !== source_topic) {
+            continue;
+        }
+        if(nodes[i].id === node_id) {
+            continue; // skip source
+        }
+
+        let updateStyle = {
+            size: [...source_size],
+        };
+
+        // Copy portR if present
+        if(source_portR != null) {
+            updateStyle.portR = source_portR;
+        }
+
+        // Recalculate dx/dy for HTML nodes
+        if(source_type === 'html') {
+            updateStyle.dx = -source_size[0] / 2;
+            let h = source_size.length > 1 ? source_size[1] : source_size[0];
+            updateStyle.dy = -h / 2;
+        }
+
+        updates.push({ id: nodes[i].id, style: updateStyle });
+    }
+
+    if(updates.length > 0) {
+        graph.updateNodeData(updates);
+        graph.draw().then(() => {
+            update_resize_handles_position(gobj);
+
+            let $container = gobj_read_attr(gobj, "$container");
+            enableElements($container, ".EV_SAVE_GRAPH");
+            set_submit_state($container, ".EV_SAVE_GRAPH", true);
+        });
+    }
+}
+
+/************************************************************
+ *  Copy the selected port's radius to all ports with the
+ *  same key across all nodes of the same topic.
+ ************************************************************/
+function copy_size_to_topic_ports(gobj)
+{
+    let priv = gobj.priv;
+    let graph = priv.graph;
+
+    let node_id = priv._context_node_id;
+    let port_key = priv._context_port_key;
+    if(!node_id || !port_key) {
+        return;
+    }
+
+    let nodedata = graph.getNodeData(node_id);
+    if(!nodedata || !nodedata.data) {
+        return;
+    }
+
+    let source_topic = nodedata.data.topic_name;
+    let source_r = get_port_radius(gobj, node_id, port_key);
+
+    // Iterate all graph nodes of the same topic and update matching ports
+    let updates = [];
+    const nodes = graph.getData().nodes;
+    for(let i = 0; i < nodes.length; i++) {
+        let nd = graph.getNodeData(nodes[i].id);
+        if(!nd || !nd.data || nd.data.topic_name !== source_topic) {
+            continue;
+        }
+
+        let style = nd.style || {};
+        let ports = style.ports;
+        if(!ports) {
+            continue;
+        }
+
+        let port_updated = false;
+        let new_ports = ports.map((p) => {
+            if(p.key === port_key) {
+                port_updated = true;
+                return { ...p, r: source_r };
+            }
+            return p;
+        });
+
+        if(port_updated) {
+            updates.push({ id: nodes[i].id, style: { ports: new_ports } });
+        }
+    }
+
+    if(updates.length > 0) {
+        graph.updateNodeData(updates);
+        graph.draw().then(() => {
+            update_port_resize_handles_position(gobj);
+
+            let $container = gobj_read_attr(gobj, "$container");
+            enableElements($container, ".EV_SAVE_GRAPH");
+            set_submit_state($container, ".EV_SAVE_GRAPH", true);
+        });
+    }
 }
 
 
