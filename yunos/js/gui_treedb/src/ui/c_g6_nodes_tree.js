@@ -3059,16 +3059,10 @@ function show_edge_popover(gobj)
         'border-radius:4px;cursor:pointer;font-size:13px;font-weight:500;';
     cancelBtn.addEventListener('click', (e) => {
         e.stopPropagation();
-        // Restore original style and re-select
+        // Restore original style and deselect
         graph.updateEdgeData([{ id: edge_id, style: { lineWidth: origLW, stroke: origStroke } }]);
-        history_pause(gobj);
-        try {
-            graph.setElementState(edge_id, ['selected']);
-        } catch(ex) {}
-        graph.draw().then(() => {
-            history_resume(gobj);
-        });
-        hide_edge_popover(gobj);
+        graph.draw();
+        deselect_edge(gobj);
     });
     btnRow.appendChild(cancelBtn);
 
@@ -3170,7 +3164,7 @@ function apply_edge_properties(gobj, edge_id, lineWidth, stroke, scope)
         }
     }
 
-    hide_edge_popover(gobj);
+    deselect_edge(gobj);
 }
 
 /************************************************************
