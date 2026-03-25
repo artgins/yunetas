@@ -235,9 +235,13 @@ let PRIVATE_DATA = {
     layout:             null,
     theme:              null,
     _selected_node_id:  null,
+    _selected_port_key: null,       // key of selected port (null = node selected)
     _resize_handles_el: null,
     _resize_handles:    [],
     _resize_sel_rect:   null,
+    _port_handles_el:   null,
+    _port_handles:      [],
+    _port_ring:         null,
 };
 
 let __gclass__ = null;
@@ -564,6 +568,7 @@ function configure_events(gobj)
 
     graph.on(NodeEvent.DRAG, (evt) => {
         update_resize_handles_position(gobj);
+        update_port_resize_handles_position(gobj);
     });
 
     graph.on(NodeEvent.DRAG_END, (evt) => {
@@ -584,6 +589,7 @@ function configure_events(gobj)
 
     graph.on('aftertransform', () => {
         update_resize_handles_position(gobj);
+        update_port_resize_handles_position(gobj);
     });
 
     if(gobj_read_bool_attr(gobj, "with_fullscreen")) {
@@ -1126,6 +1132,17 @@ function create_topic_node(gobj, desc, record)
             portR: node_treedb_type === 'child' ? 2 : 6,
             portLineWidth: 1,
         });
+
+        // Restore per-port radius from saved geometry
+        let port_sizes = geometry.port_sizes;
+        if(is_object(port_sizes)) {
+            for(let i = 0; i < style.ports.length; i++) {
+                let r = port_sizes[style.ports[i].key];
+                if(r != null) {
+                    style.ports[i].r = r;
+                }
+            }
+        }
     }
 
     if(node_graph_type) {
@@ -1586,6 +1603,22 @@ function update_geometry(gobj, node_id)
         node_props,
         kw_clone_by_keys(gobj, style, ["x", "y", "size", "portR"])
     );
+
+    // Save per-port radius values (only ports with custom r)
+    let node_style = nodedata.style || {};
+    let ports = node_style.ports || [];
+    let port_sizes = {};
+    for(let i = 0; i < ports.length; i++) {
+        if(ports[i].r != null) {
+            port_sizes[ports[i].key] = ports[i].r;
+        }
+    }
+    if(Object.keys(port_sizes).length > 0) {
+        node_props.port_sizes = port_sizes;
+    } else {
+        delete node_props.port_sizes;
+    }
+
     topic_props.nodes[record.id] = node_props;
 
     // Keep node data's graph_props in sync
@@ -2004,6 +2037,8 @@ function deselect_node(gobj)
     let priv = gobj.priv;
     let graph = priv.graph;
 
+    deselect_port(gobj);
+
     if(priv._selected_node_id) {
         history_pause(gobj);
         try {
@@ -2289,7 +2324,350 @@ function start_node_resize(gobj, e, mx, my)
     document.addEventListener('pointerup', onPointerUp);
 }
 
+/************************************************************
+ *  Port selection and individual port resizing
+ ************************************************************/
+const PORT_HANDLE_SIZE = 8;
 
+/************************************************************
+ *  Compute the canvas (world) position of a port on a node.
+ *  Returns {x, y} in world coordinates.
+ ************************************************************/
+function get_port_canvas_position(gobj, node_id, port_key)
+{
+    let priv = gobj.priv;
+    let graph = priv.graph;
+
+    const pos = graph.getElementPosition(node_id);
+    const nodeData = graph.getNodeData(node_id);
+    const style = nodeData.style || {};
+    const size = style.size || [60];
+    const w = Array.isArray(size) ? size[0] : size;
+    const h = Array.isArray(size) ? (size.length > 1 ? size[1] : size[0]) : size;
+    const ports = style.ports || [];
+
+    for(let i = 0; i < ports.length; i++) {
+        if(ports[i].key === port_key) {
+            let pl = ports[i].placement || [0.5, 0.5];
+            return {
+                x: pos[0] + (pl[0] - 0.5) * w,
+                y: pos[1] + (pl[1] - 0.5) * h
+            };
+        }
+    }
+    return null;
+}
+
+/************************************************************
+ *  Get the radius of a specific port on a node.
+ ************************************************************/
+function get_port_radius(gobj, node_id, port_key)
+{
+    let priv = gobj.priv;
+    let graph = priv.graph;
+
+    const nodeData = graph.getNodeData(node_id);
+    const style = nodeData.style || {};
+    const ports = style.ports || [];
+
+    for(let i = 0; i < ports.length; i++) {
+        if(ports[i].key === port_key) {
+            // Per-port r overrides node-level portR
+            if(ports[i].r != null) {
+                return ports[i].r;
+            }
+            break;
+        }
+    }
+    return style.portR || 6;
+}
+
+/************************************************************
+ *  Detect if a click in canvas coordinates hits a port.
+ *  Returns the port key string, or null if no port hit.
+ ************************************************************/
+function detect_port_click(gobj, node_id, canvasX, canvasY)
+{
+    let priv = gobj.priv;
+    let graph = priv.graph;
+
+    const pos = graph.getElementPosition(node_id);
+    const nodeData = graph.getNodeData(node_id);
+    const style = nodeData.style || {};
+    const size = style.size || [60];
+    const w = Array.isArray(size) ? size[0] : size;
+    const h = Array.isArray(size) ? (size.length > 1 ? size[1] : size[0]) : size;
+    const ports = style.ports || [];
+    const defaultR = style.portR || 6;
+
+    let best_key = null;
+    let best_dist = Infinity;
+
+    for(let i = 0; i < ports.length; i++) {
+        let pl = ports[i].placement || [0.5, 0.5];
+        let px = pos[0] + (pl[0] - 0.5) * w;
+        let py = pos[1] + (pl[1] - 0.5) * h;
+        let r = ports[i].r != null ? ports[i].r : defaultR;
+
+        let dx = canvasX - px;
+        let dy = canvasY - py;
+        let dist = Math.sqrt(dx * dx + dy * dy);
+
+        // Hit area is the port radius + a tolerance of 4 world units
+        if(dist <= r + 4 && dist < best_dist) {
+            best_dist = dist;
+            best_key = ports[i].key;
+        }
+    }
+
+    return best_key;
+}
+
+/************************************************************
+ *  Select a port: deselect node handles, show port handles.
+ ************************************************************/
+function select_port(gobj, node_id, port_key)
+{
+    let priv = gobj.priv;
+
+    // Hide node resize handles (but keep node selected state)
+    hide_resize_handles(gobj);
+
+    priv._selected_node_id = node_id;
+    priv._selected_port_key = port_key;
+
+    show_port_resize_handles(gobj);
+}
+
+/************************************************************
+ *  Deselect port: clear port state, return to node selection.
+ ************************************************************/
+function deselect_port(gobj)
+{
+    let priv = gobj.priv;
+
+    hide_port_resize_handles(gobj);
+    priv._selected_port_key = null;
+}
+
+/************************************************************
+ *  Show 4 resize handles (N, E, S, W) around selected port.
+ ************************************************************/
+function show_port_resize_handles(gobj)
+{
+    hide_port_resize_handles(gobj);
+
+    let priv = gobj.priv;
+    if(!priv._selected_port_key || !priv._selected_node_id) {
+        return;
+    }
+
+    const container = document.createElement('div');
+    container.className = 'g6-port-resize-handles';
+    container.style.cssText =
+        'position:absolute;top:0;left:0;width:100%;height:100%;' +
+        'pointer-events:none;z-index:11;';
+
+    // Dashed circle indicator
+    const ring = document.createElement('div');
+    container.appendChild(ring);
+
+    // 4 handles: N, E, S, W
+    const handle_defs = [
+        { cursor: 'n-resize',  dx:  0, dy: -1 },
+        { cursor: 'e-resize',  dx:  1, dy:  0 },
+        { cursor: 's-resize',  dx:  0, dy:  1 },
+        { cursor: 'w-resize',  dx: -1, dy:  0 },
+    ];
+
+    const handles = [];
+    for(const def of handle_defs) {
+        const el = document.createElement('div');
+        el.style.cssText =
+            'position:absolute;' +
+            'width:' + PORT_HANDLE_SIZE + 'px;' +
+            'height:' + PORT_HANDLE_SIZE + 'px;' +
+            'background:#fff;' +
+            'border:1px solid #fa8c16;' +
+            'border-radius:50%;' +
+            'cursor:' + def.cursor + ';' +
+            'pointer-events:all;' +
+            'box-sizing:border-box;';
+        el.addEventListener('pointerdown', (e) => {
+            start_port_resize(gobj, e);
+        });
+        handles.push({ el: el, dx: def.dx, dy: def.dy });
+        container.appendChild(el);
+    }
+
+    priv.$container.appendChild(container);
+    priv._port_handles_el = container;
+    priv._port_handles = handles;
+    priv._port_ring = ring;
+
+    update_port_resize_handles_position(gobj);
+}
+
+/************************************************************
+ *  Hide port resize handles.
+ ************************************************************/
+function hide_port_resize_handles(gobj)
+{
+    let priv = gobj.priv;
+
+    if(priv._port_handles_el) {
+        priv._port_handles_el.remove();
+        priv._port_handles_el = null;
+        priv._port_handles = [];
+        priv._port_ring = null;
+    }
+}
+
+/************************************************************
+ *  Update port handle positions after zoom/pan/resize.
+ ************************************************************/
+function update_port_resize_handles_position(gobj)
+{
+    let priv = gobj.priv;
+    let graph = priv.graph;
+
+    if(!priv._selected_port_key || !priv._port_handles_el) {
+        return;
+    }
+
+    try {
+        let canvasPos = get_port_canvas_position(
+            gobj, priv._selected_node_id, priv._selected_port_key
+        );
+        if(!canvasPos) {
+            hide_port_resize_handles(gobj);
+            return;
+        }
+
+        let r = get_port_radius(gobj, priv._selected_node_id, priv._selected_port_key);
+        let vpCenter = graph.getViewportByCanvas([canvasPos.x, canvasPos.y]);
+        let vpEdge = graph.getViewportByCanvas([canvasPos.x + r, canvasPos.y]);
+        let vpR = vpEdge[0] - vpCenter[0]; // radius in viewport pixels
+
+        apply_port_handles(gobj, vpCenter[0], vpCenter[1], vpR);
+    } catch(e) {
+        hide_port_resize_handles(gobj);
+    }
+}
+
+/************************************************************
+ *  Position port handles and ring around viewport center.
+ ************************************************************/
+function apply_port_handles(gobj, cx, cy, vpR)
+{
+    let priv = gobj.priv;
+    const HALF = PORT_HANDLE_SIZE / 2;
+
+    // Dashed ring
+    const ring = priv._port_ring;
+    if(ring) {
+        const d = vpR * 2;
+        ring.style.cssText =
+            'position:absolute;' +
+            'left:' + (cx - vpR) + 'px;' +
+            'top:' + (cy - vpR) + 'px;' +
+            'width:' + d + 'px;' +
+            'height:' + d + 'px;' +
+            'border:1px dashed #fa8c16;' +
+            'border-radius:50%;' +
+            'pointer-events:none;' +
+            'box-sizing:border-box;';
+    }
+
+    // N, E, S, W handles
+    const offsets = [
+        { x: cx,        y: cy - vpR },  // N
+        { x: cx + vpR,  y: cy },         // E
+        { x: cx,        y: cy + vpR },  // S
+        { x: cx - vpR,  y: cy },         // W
+    ];
+
+    for(let i = 0; i < priv._port_handles.length; i++) {
+        const h = priv._port_handles[i];
+        const o = offsets[i];
+        h.el.style.left = (o.x - HALF) + 'px';
+        h.el.style.top = (o.y - HALF) + 'px';
+    }
+}
+
+/************************************************************
+ *  Drag handler for port resize.
+ *  Uses distance from port center to pointer as new radius.
+ ************************************************************/
+function start_port_resize(gobj, e)
+{
+    let priv = gobj.priv;
+    let graph = priv.graph;
+
+    e.preventDefault();
+    e.stopPropagation();
+
+    const node_id = priv._selected_node_id;
+    const port_key = priv._selected_port_key;
+    if(!node_id || !port_key) {
+        return;
+    }
+
+    const canvasPos = get_port_canvas_position(gobj, node_id, port_key);
+    if(!canvasPos) {
+        return;
+    }
+
+    // Get viewport center of port for live feedback
+    // vpCenter is container-relative; client coords need container offset
+    const vpCenter = graph.getViewportByCanvas([canvasPos.x, canvasPos.y]);
+    const containerRect = priv.$container.getBoundingClientRect();
+    const clientCx = vpCenter[0] + containerRect.left;
+    const clientCy = vpCenter[1] + containerRect.top;
+    const zoom = graph.getZoom();
+
+    function onPointerMove(ev) {
+        const dx = ev.clientX - clientCx;
+        const dy = ev.clientY - clientCy;
+        let vpR = Math.max(PORT_HANDLE_SIZE, Math.sqrt(dx * dx + dy * dy));
+
+        apply_port_handles(gobj, vpCenter[0], vpCenter[1], vpR);
+    }
+
+    function onPointerUp(ev) {
+        document.removeEventListener('pointermove', onPointerMove);
+        document.removeEventListener('pointerup', onPointerUp);
+
+        // Calculate new radius in world coordinates
+        const dx = ev.clientX - clientCx;
+        const dy = ev.clientY - clientCy;
+        let vpR = Math.max(PORT_HANDLE_SIZE, Math.sqrt(dx * dx + dy * dy));
+        let newR = Math.max(2, Math.round(vpR / zoom));
+
+        // Update the individual port's r in the ports array
+        const nodeData = graph.getNodeData(node_id);
+        const style = nodeData.style || {};
+        let ports = style.ports ? [...style.ports] : [];
+        for(let i = 0; i < ports.length; i++) {
+            if(ports[i].key === port_key) {
+                ports[i] = { ...ports[i], r: newR };
+                break;
+            }
+        }
+
+        graph.updateNodeData([{ id: node_id, style: { ports: ports } }]);
+        graph.draw().then(() => {
+            update_port_resize_handles_position(gobj);
+
+            let $container = gobj_read_attr(gobj, "$container");
+            enableElements($container, ".EV_SAVE_GRAPH");
+            set_submit_state($container, ".EV_SAVE_GRAPH", true);
+        });
+    }
+
+    document.addEventListener('pointermove', onPointerMove);
+    document.addEventListener('pointerup', onPointerUp);
+}
 
 
                     /***************************
@@ -2819,7 +3197,23 @@ function ac_node_click(gobj, event, kw, src)
             });
 
             if(priv.edit_mode) {
-                select_node(gobj, node_id);
+                // Check if click hits a port
+                // Convert client coords to viewport (container-relative) then to canvas
+                let containerRect = priv.$container.getBoundingClientRect();
+                let canvasPoint = graph.getCanvasByViewport([
+                    kw.evt.client.x - containerRect.left,
+                    kw.evt.client.y - containerRect.top
+                ]);
+                let port_key = detect_port_click(
+                    gobj, node_id, canvasPoint[0], canvasPoint[1]
+                );
+
+                if(port_key) {
+                    select_port(gobj, node_id, port_key);
+                } else {
+                    deselect_port(gobj);
+                    select_node(gobj, node_id);
+                }
             }
         }
     } catch(e) {
