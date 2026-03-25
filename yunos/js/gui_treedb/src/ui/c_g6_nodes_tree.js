@@ -3034,13 +3034,17 @@ function start_edge_resize(gobj, e)
         return;
     }
 
-    const containerRect = priv.$container.getBoundingClientRect();
-    const clientCy = rect.midY + containerRect.top;
+    const origLineWidth = get_edge_line_width(gobj, edge_id);
+    const startY = e.clientY;
     const zoom = graph.getZoom();
 
     function onPointerMove(ev) {
-        let dy = Math.abs(ev.clientY - clientCy);
-        let vpHalfWidth = Math.max(dy, 4);
+        // Delta in viewport pixels from drag start
+        let dy = Math.abs(ev.clientY - startY);
+        // Convert to world-coordinate lineWidth change
+        let deltaLW = dy / zoom;
+        let newLineWidth = Math.max(EDGE_MIN_LINE_WIDTH, Math.round(origLineWidth + deltaLW));
+        let vpHalfWidth = Math.max(newLineWidth * zoom / 2, 4);
 
         apply_edge_handles(gobj, rect, vpHalfWidth);
     }
@@ -3049,9 +3053,9 @@ function start_edge_resize(gobj, e)
         document.removeEventListener('pointermove', onPointerMove);
         document.removeEventListener('pointerup', onPointerUp);
 
-        let dy = Math.abs(ev.clientY - clientCy);
-        let vpHalfWidth = Math.max(dy, 4);
-        let newLineWidth = Math.max(EDGE_MIN_LINE_WIDTH, Math.round(vpHalfWidth * 2 / zoom));
+        let dy = Math.abs(ev.clientY - startY);
+        let deltaLW = dy / zoom;
+        let newLineWidth = Math.max(EDGE_MIN_LINE_WIDTH, Math.round(origLineWidth + deltaLW));
 
         graph.updateEdgeData([{ id: edge_id, style: { lineWidth: newLineWidth } }]);
         graph.draw().then(() => {
