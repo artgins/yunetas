@@ -3185,14 +3185,22 @@ function update_edge_geometry(gobj, edge_id)
     let lineWidth = style.lineWidth;
     let stroke = style.stroke;
 
-    // Only save non-default values
+    let parent_topic = edgeData.data.parent_topic;
+    let edge_key = edgeData.data.hook_name + ":" +
+        edgeData.data.parent_id + ":" + edgeData.data.child_id;
+
+    // If default values, remove any previously saved entry
     let hasCustom = (lineWidth != null && lineWidth !== 2);
-    // stroke is always set (from node fill), save it if lineWidth is custom
     if(!hasCustom) {
+        let topic_props = priv._graph_properties[parent_topic];
+        if(topic_props && is_object(topic_props.edges)) {
+            delete topic_props.edges[edge_key];
+            if(Object.keys(topic_props.edges).length === 0) {
+                delete topic_props.edges;
+            }
+        }
         return;
     }
-
-    let parent_topic = edgeData.data.parent_topic;
 
     if(!is_object(priv._graph_properties[parent_topic])) {
         priv._graph_properties[parent_topic] = {};
@@ -3202,8 +3210,6 @@ function update_edge_geometry(gobj, edge_id)
         topic_props.edges = {};
     }
 
-    let edge_key = edgeData.data.hook_name + ":" +
-        edgeData.data.parent_id + ":" + edgeData.data.child_id;
     let edge_props = { lineWidth: lineWidth };
     if(stroke) {
         edge_props.stroke = stroke;
