@@ -1108,8 +1108,8 @@ function create_topic_node(gobj, desc, record)
 
     // Apply topic defaults (from "resize all") for nodes without saved geometry
     let topic_props = priv._graph_properties[desc.topic_name];
-    let topic_defaults = (is_object(topic_props) && is_object(topic_props.defaults))
-        ? topic_props.defaults : null;
+    let topic_defaults = (is_object(topic_props) && is_object(topic_props.defaults))?
+        topic_props.defaults : null;
     if(topic_defaults) {
         let def_size = topic_defaults.size;
         if(!geometry.size && Array.isArray(def_size) && def_size.length > 0) {
