@@ -164,6 +164,14 @@ var en = {
         'resize topic nodes': 'Resize topic nodes',
         'resize all ports': 'Resize all ports',
         'resize topic ports': 'Resize topic ports',
+        'edge properties': 'Edge properties',
+        'line width': 'Line width',
+        'color': 'Color',
+        'apply to': 'Apply to',
+        'this edge': 'This edge',
+        'same type edges': 'Same type edges',
+        'all edges': 'All edges',
+        'apply': 'Apply',
 
         'xxx': 'last entry DONT CHANGE, insert before'
     }

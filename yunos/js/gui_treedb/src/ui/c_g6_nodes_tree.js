@@ -243,6 +243,9 @@ let PRIVATE_DATA = {
     _port_handles_el:   null,
     _port_handles:      [],
     _port_ring:         null,
+    _selected_edge_id:  null,       // selected edge id
+    _edge_icon_el:      null,       // floating properties icon element
+    _edge_popover_el:   null,       // edge properties popover element
     _context_node_id:   null,   // node id for context menu target
     _context_port_key:  null,   // port key for context menu target (null = node body)
     _context_edge_id:   null,   // edge id for context menu target
@@ -573,6 +576,7 @@ function configure_events(gobj)
     graph.on(NodeEvent.DRAG, (evt) => {
         update_resize_handles_position(gobj);
         update_port_resize_handles_position(gobj);
+        update_edge_icon_position(gobj);
     });
 
     graph.on(NodeEvent.DRAG_END, (evt) => {
@@ -594,6 +598,7 @@ function configure_events(gobj)
     graph.on('aftertransform', () => {
         update_resize_handles_position(gobj);
         update_port_resize_handles_position(gobj);
+        update_edge_icon_position(gobj);
     });
 
     if(gobj_read_bool_attr(gobj, "with_fullscreen")) {
@@ -1448,6 +1453,46 @@ function draw_link(
      *  Create the edge with independent id and semantic data
      *  HACK: source/target are interchanged so arrows point parent -> child
      */
+    // Restore saved edge style from __graphs__
+    let saved_lineWidth = 2;
+    let saved_stroke = style.fill;
+    let topic_props = priv._graph_properties[parent_topic];
+    if(topic_props) {
+        // Per-edge saved style
+        if(is_object(topic_props.edges)) {
+            let edge_key = hook_name + ":" + parent_id + ":" + child_id;
+            let edge_props = topic_props.edges[edge_key];
+            if(edge_props) {
+                if(edge_props.lineWidth != null) {
+                    saved_lineWidth = edge_props.lineWidth;
+                }
+                if(edge_props.stroke) {
+                    saved_stroke = edge_props.stroke;
+                }
+            }
+        }
+        // Fall back to topic defaults
+        if(saved_lineWidth === 2 && is_object(topic_props.defaults)) {
+            let defs = topic_props.defaults;
+            if(defs.edge_styles && defs.edge_styles[hook_name]) {
+                let hook_style = defs.edge_styles[hook_name];
+                if(hook_style.lineWidth != null) {
+                    saved_lineWidth = hook_style.lineWidth;
+                }
+                if(hook_style.stroke) {
+                    saved_stroke = hook_style.stroke;
+                }
+            } else if(defs.edge_style) {
+                if(defs.edge_style.lineWidth != null) {
+                    saved_lineWidth = defs.edge_style.lineWidth;
+                }
+                if(defs.edge_style.stroke) {
+                    saved_stroke = defs.edge_style.stroke;
+                }
+            }
+        }
+    }
+
     let edge = {
         id: build_edge_id(gobj),
         type: 'cubic',
@@ -1456,8 +1501,8 @@ function draw_link(
         style: {
             sourcePort: hook_name,
             targetPort: fkey_name,
-            lineWidth: 2,
-            stroke: style.fill,
+            lineWidth: saved_lineWidth,
+            stroke: saved_stroke,
         },
         data: {
             parent_topic: parent_topic,
@@ -1664,6 +1709,12 @@ function save_geometry(gobj)
     const nodes = graph.getData().nodes;
     for(let i = 0; i < nodes.length; i++) {
         update_geometry(gobj, nodes[i].id);
+    }
+
+    // Collect edge styles into _graph_properties
+    const edges = graph.getData().edges;
+    for(let i = 0; i < edges.length; i++) {
+        update_edge_geometry(gobj, edges[i].id);
     }
 
     // Save one __graphs__ record per topic
@@ -2072,6 +2123,7 @@ function deselect_node(gobj)
     let graph = priv.graph;
 
     deselect_port(gobj);
+    deselect_edge(gobj);
 
     if(priv._selected_node_id) {
         history_pause(gobj);
@@ -2701,6 +2753,418 @@ function start_port_resize(gobj, e)
 
     document.addEventListener('pointermove', onPointerMove);
     document.addEventListener('pointerup', onPointerUp);
+}
+
+
+/************************************************************
+ *  Edge selection: show a floating properties icon near
+ *  the edge midpoint. Clicking it opens a popover form.
+ ************************************************************/
+
+function select_edge(gobj, edge_id)
+{
+    let priv = gobj.priv;
+    let graph = priv.graph;
+
+    deselect_edge(gobj);
+
+    priv._selected_edge_id = edge_id;
+
+    history_pause(gobj);
+    try {
+        graph.setElementState(edge_id, ['selected']);
+    } catch(e) {}
+
+    show_edge_icon(gobj);
+
+    graph_draw(gobj).then(() => {
+        history_resume(gobj);
+    });
+}
+
+function deselect_edge(gobj)
+{
+    let priv = gobj.priv;
+    let graph = priv.graph;
+
+    hide_edge_popover(gobj);
+    hide_edge_icon(gobj);
+
+    if(priv._selected_edge_id) {
+        history_pause(gobj);
+        try {
+            graph.setElementState(priv._selected_edge_id, []);
+        } catch(e) {}
+        priv._selected_edge_id = null;
+
+        graph_draw(gobj).then(() => {
+            history_resume(gobj);
+        });
+    }
+}
+
+/************************************************************
+ *  Get the midpoint of an edge in viewport coordinates.
+ ************************************************************/
+function get_edge_viewport_midpoint(gobj, edge_id)
+{
+    let priv = gobj.priv;
+    let graph = priv.graph;
+
+    let edgeData = graph.getEdgeData(edge_id);
+    if(!edgeData) {
+        return null;
+    }
+
+    let sourcePos = graph.getElementPosition(edgeData.source);
+    let targetPos = graph.getElementPosition(edgeData.target);
+
+    let midX = (sourcePos[0] + targetPos[0]) / 2;
+    let midY = (sourcePos[1] + targetPos[1]) / 2;
+
+    let vp = graph.getViewportByCanvas([midX, midY]);
+    return { x: vp[0], y: vp[1] };
+}
+
+/************************************************************
+ *  Show a floating properties icon at the edge midpoint.
+ ************************************************************/
+function show_edge_icon(gobj)
+{
+    hide_edge_icon(gobj);
+
+    let priv = gobj.priv;
+    if(!priv._selected_edge_id) {
+        return;
+    }
+
+    let mid = get_edge_viewport_midpoint(gobj, priv._selected_edge_id);
+    if(!mid) {
+        return;
+    }
+
+    const icon = document.createElement('div');
+    icon.className = 'g6-edge-properties-icon';
+    icon.title = t('edge properties');
+    icon.innerHTML =
+        '<svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" ' +
+        'fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" ' +
+        'stroke-linejoin="round">' +
+        '<circle cx="12" cy="12" r="3"/>' +
+        '<path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06' +
+        'a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09' +
+        'A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83' +
+        'l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09' +
+        'A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83' +
+        'l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09' +
+        'a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83' +
+        'l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09' +
+        'a1.65 1.65 0 0 0-1.51 1z"/>' +
+        '</svg>';
+    icon.style.cssText =
+        'position:absolute;' +
+        'left:' + (mid.x - 14) + 'px;' +
+        'top:' + (mid.y - 14) + 'px;' +
+        'width:28px;height:28px;' +
+        'display:flex;align-items:center;justify-content:center;' +
+        'background:#fff;border:1px solid #52c41a;border-radius:50%;' +
+        'cursor:pointer;pointer-events:all;z-index:11;' +
+        'box-shadow:0 2px 6px rgba(0,0,0,0.15);' +
+        'color:#52c41a;';
+
+    icon.addEventListener('click', (e) => {
+        e.stopPropagation();
+        toggle_edge_popover(gobj);
+    });
+
+    priv.$container.appendChild(icon);
+    priv._edge_icon_el = icon;
+}
+
+function hide_edge_icon(gobj)
+{
+    let priv = gobj.priv;
+    if(priv._edge_icon_el) {
+        priv._edge_icon_el.remove();
+        priv._edge_icon_el = null;
+    }
+}
+
+function update_edge_icon_position(gobj)
+{
+    let priv = gobj.priv;
+    if(!priv._selected_edge_id || !priv._edge_icon_el) {
+        return;
+    }
+
+    try {
+        let mid = get_edge_viewport_midpoint(gobj, priv._selected_edge_id);
+        if(!mid) {
+            hide_edge_icon(gobj);
+            hide_edge_popover(gobj);
+            return;
+        }
+        priv._edge_icon_el.style.left = (mid.x - 14) + 'px';
+        priv._edge_icon_el.style.top = (mid.y - 14) + 'px';
+
+        // Reposition popover if open
+        if(priv._edge_popover_el) {
+            priv._edge_popover_el.style.left = (mid.x + 20) + 'px';
+            priv._edge_popover_el.style.top = (mid.y - 14) + 'px';
+        }
+    } catch(e) {
+        hide_edge_icon(gobj);
+        hide_edge_popover(gobj);
+    }
+}
+
+/************************************************************
+ *  Edge properties popover: form with lineWidth, color,
+ *  and apply-to scope.
+ ************************************************************/
+function toggle_edge_popover(gobj)
+{
+    let priv = gobj.priv;
+    if(priv._edge_popover_el) {
+        hide_edge_popover(gobj);
+    } else {
+        show_edge_popover(gobj);
+    }
+}
+
+function show_edge_popover(gobj)
+{
+    hide_edge_popover(gobj);
+
+    let priv = gobj.priv;
+    let graph = priv.graph;
+    let edge_id = priv._selected_edge_id;
+    if(!edge_id) {
+        return;
+    }
+
+    let edgeData = graph.getEdgeData(edge_id);
+    if(!edgeData) {
+        return;
+    }
+    let style = edgeData.style || {};
+    let currentLW = style.lineWidth || 2;
+    let currentStroke = style.stroke || '#000000';
+
+    let mid = get_edge_viewport_midpoint(gobj, edge_id);
+    if(!mid) {
+        return;
+    }
+
+    const popover = document.createElement('div');
+    popover.className = 'g6-edge-popover';
+    popover.style.cssText =
+        'position:absolute;' +
+        'left:' + (mid.x + 20) + 'px;' +
+        'top:' + (mid.y - 14) + 'px;' +
+        'background:#fff;border:1px solid #d9d9d9;border-radius:6px;' +
+        'padding:12px;z-index:12;pointer-events:all;' +
+        'box-shadow:0 4px 12px rgba(0,0,0,0.15);' +
+        'min-width:180px;font-size:13px;';
+
+    // Prevent clicks inside popover from deselecting
+    popover.addEventListener('click', (e) => e.stopPropagation());
+    popover.addEventListener('pointerdown', (e) => e.stopPropagation());
+
+    // Line width
+    let lwLabel = document.createElement('label');
+    lwLabel.textContent = t('line width');
+    lwLabel.style.cssText = 'display:block;margin-bottom:4px;font-weight:500;';
+    popover.appendChild(lwLabel);
+
+    let lwInput = document.createElement('input');
+    lwInput.type = 'number';
+    lwInput.min = '1';
+    lwInput.max = '20';
+    lwInput.value = currentLW;
+    lwInput.style.cssText =
+        'width:100%;padding:4px 6px;border:1px solid #d9d9d9;border-radius:4px;' +
+        'box-sizing:border-box;margin-bottom:10px;';
+    popover.appendChild(lwInput);
+
+    // Color
+    let colorLabel = document.createElement('label');
+    colorLabel.textContent = t('color');
+    colorLabel.style.cssText = 'display:block;margin-bottom:4px;font-weight:500;';
+    popover.appendChild(colorLabel);
+
+    let colorInput = document.createElement('input');
+    colorInput.type = 'color';
+    colorInput.value = currentStroke;
+    colorInput.style.cssText =
+        'width:100%;height:30px;padding:0;border:1px solid #d9d9d9;border-radius:4px;' +
+        'cursor:pointer;margin-bottom:10px;';
+    popover.appendChild(colorInput);
+
+    // Apply-to scope
+    let scopeLabel = document.createElement('label');
+    scopeLabel.textContent = t('apply to');
+    scopeLabel.style.cssText = 'display:block;margin-bottom:4px;font-weight:500;';
+    popover.appendChild(scopeLabel);
+
+    let scopeSelect = document.createElement('select');
+    scopeSelect.style.cssText =
+        'width:100%;padding:4px 6px;border:1px solid #d9d9d9;border-radius:4px;' +
+        'box-sizing:border-box;margin-bottom:12px;';
+    let options = [
+        { value: 'this', label: t('this edge') },
+        { value: 'same_type', label: t('same type edges') },
+        { value: 'all', label: t('all edges') },
+    ];
+    for(let opt of options) {
+        let o = document.createElement('option');
+        o.value = opt.value;
+        o.textContent = opt.label;
+        scopeSelect.appendChild(o);
+    }
+    popover.appendChild(scopeSelect);
+
+    // Apply button
+    let applyBtn = document.createElement('button');
+    applyBtn.textContent = t('apply');
+    applyBtn.style.cssText =
+        'width:100%;padding:6px;background:#52c41a;color:#fff;border:none;' +
+        'border-radius:4px;cursor:pointer;font-size:13px;font-weight:500;';
+    applyBtn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        apply_edge_properties(gobj, edge_id,
+            parseInt(lwInput.value) || 2,
+            colorInput.value,
+            scopeSelect.value
+        );
+    });
+    popover.appendChild(applyBtn);
+
+    priv.$container.appendChild(popover);
+    priv._edge_popover_el = popover;
+}
+
+function hide_edge_popover(gobj)
+{
+    let priv = gobj.priv;
+    if(priv._edge_popover_el) {
+        priv._edge_popover_el.remove();
+        priv._edge_popover_el = null;
+    }
+}
+
+/************************************************************
+ *  Apply edge properties to one or more edges.
+ *  scope: 'this', 'same_type', 'all'
+ ************************************************************/
+function apply_edge_properties(gobj, edge_id, lineWidth, stroke, scope)
+{
+    let priv = gobj.priv;
+    let graph = priv.graph;
+
+    let edgeData = graph.getEdgeData(edge_id);
+    if(!edgeData || !edgeData.data) {
+        return;
+    }
+
+    let source_hook = edgeData.data.hook_name;
+    let newStyle = { lineWidth: lineWidth, stroke: stroke };
+
+    let updates = [];
+    const edges = graph.getData().edges;
+
+    for(let i = 0; i < edges.length; i++) {
+        let ed = graph.getEdgeData(edges[i].id);
+        if(!ed || !ed.data) {
+            continue;
+        }
+
+        if(scope === 'this' && edges[i].id !== edge_id) {
+            continue;
+        }
+        if(scope === 'same_type' && ed.data.hook_name !== source_hook) {
+            continue;
+        }
+
+        updates.push({ id: edges[i].id, style: { ...newStyle } });
+    }
+
+    if(updates.length > 0) {
+        graph.updateEdgeData(updates);
+        graph.draw().then(() => {
+            let $container = gobj_read_attr(gobj, "$container");
+            enableElements($container, ".EV_SAVE_GRAPH");
+            set_submit_state($container, ".EV_SAVE_GRAPH", true);
+        });
+    }
+
+    // Store defaults in _graph_properties
+    let parent_topic = edgeData.data.parent_topic;
+    if(scope === 'same_type') {
+        if(!is_object(priv._graph_properties[parent_topic])) {
+            priv._graph_properties[parent_topic] = {};
+        }
+        let defaults = priv._graph_properties[parent_topic].defaults || {};
+        let edge_defaults = defaults.edge_styles || {};
+        edge_defaults[source_hook] = { lineWidth: lineWidth, stroke: stroke };
+        defaults.edge_styles = edge_defaults;
+        priv._graph_properties[parent_topic].defaults = defaults;
+    } else if(scope === 'all') {
+        for(const topic_name of Object.keys(priv.descs || {})) {
+            if(!is_object(priv._graph_properties[topic_name])) {
+                priv._graph_properties[topic_name] = {};
+            }
+            let defaults = priv._graph_properties[topic_name].defaults || {};
+            defaults.edge_style = { lineWidth: lineWidth, stroke: stroke };
+            priv._graph_properties[topic_name].defaults = defaults;
+        }
+    }
+
+    hide_edge_popover(gobj);
+}
+
+/************************************************************
+ *  Save edge styles into _graph_properties (called from
+ *  save_geometry).
+ ************************************************************/
+function update_edge_geometry(gobj, edge_id)
+{
+    let priv = gobj.priv;
+    let graph = priv.graph;
+
+    let edgeData = graph.getEdgeData(edge_id);
+    if(!edgeData || !edgeData.data) {
+        return;
+    }
+
+    let style = edgeData.style || {};
+    let lineWidth = style.lineWidth;
+    let stroke = style.stroke;
+
+    // Only save non-default values
+    let hasCustom = (lineWidth != null && lineWidth !== 2);
+    // stroke is always set (from node fill), save it if lineWidth is custom
+    if(!hasCustom) {
+        return;
+    }
+
+    let parent_topic = edgeData.data.parent_topic;
+
+    if(!is_object(priv._graph_properties[parent_topic])) {
+        priv._graph_properties[parent_topic] = {};
+    }
+    let topic_props = priv._graph_properties[parent_topic];
+    if(!is_object(topic_props.edges)) {
+        topic_props.edges = {};
+    }
+
+    let edge_key = edgeData.data.hook_name + ":" +
+        edgeData.data.parent_id + ":" + edgeData.data.child_id;
+    let edge_props = { lineWidth: lineWidth };
+    if(stroke) {
+        edge_props.stroke = stroke;
+    }
+    topic_props.edges[edge_key] = edge_props;
 }
 
 
@@ -3583,6 +4047,11 @@ function ac_edge_click(gobj, event, kw, src)
                 child_id:     edgedata.data.child_id,
                 fkey_name:    edgedata.data.fkey_name,
             });
+
+            if(priv.edit_mode) {
+                deselect_node(gobj);
+                select_edge(gobj, edge_id);
+            }
         }
     } catch(e) {
         // Clicked on non-edge element
