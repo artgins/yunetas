@@ -1092,7 +1092,7 @@ function create_topic_node(gobj, desc, record)
 `;
     }
 
-    // Override size with saved geometry (restore resized dimensions)
+    // Override size and portR with saved geometry (restore resized dimensions)
     let saved_size = geometry.size;
     if(Array.isArray(saved_size) && saved_size.length > 0) {
         style.size = saved_size;
@@ -1101,6 +1101,9 @@ function create_topic_node(gobj, desc, record)
             style.dx = -saved_size[0] / 2;
             style.dy = -(saved_size.length > 1 ? saved_size[1] : saved_size[0]) / 2;
         }
+    }
+    if(geometry.portR > 0) {
+        style.portR = geometry.portR;
     }
 
     let node_def = {
@@ -1581,7 +1584,7 @@ function update_geometry(gobj, node_id)
     let node_props = topic_props.nodes[record.id] || {};
     json_object_update(
         node_props,
-        kw_clone_by_keys(gobj, style, ["x", "y", "size"])
+        kw_clone_by_keys(gobj, style, ["x", "y", "size", "portR"])
     );
     topic_props.nodes[record.id] = node_props;
 
@@ -2190,6 +2193,7 @@ function start_node_resize(gobj, e, mx, my)
     const size = style.size || [60];
     const origW = Array.isArray(size) ? size[0] : size;
     const origH = Array.isArray(size) ? (size.length > 1 ? size[1] : size[0]) : size;
+    const origPortR = style.portR || 0;
     const origCx = pos[0];
     const origCy = pos[1];
 
@@ -2260,6 +2264,14 @@ function start_node_resize(gobj, e, mx, my)
         if(nodeType === 'html') {
             updateStyle.dx = -newW / 2;
             updateStyle.dy = -newH / 2;
+        }
+
+        // Scale port radius proportionally to node size change
+        if(origPortR > 0) {
+            const scale = (nodeType === 'circle') ?
+                Math.max(newW, newH) / Math.max(origW, origH) :
+                Math.max(newW / origW, newH / origH);
+            updateStyle.portR = Math.max(2, Math.round(origPortR * scale));
         }
 
         graph.updateNodeData([{ id: node_id, style: updateStyle }]);
