@@ -1734,6 +1734,10 @@ function update_history_buttons(gobj)
             if (history.canUndo()) {
                 enableElements($container, ".EV_HISTORY_UNDO");
                 set_active_state($container, ".EV_HISTORY_UNDO", true);
+
+                // Pending changes exist, enable save
+                enableElements($container, ".EV_SAVE_GRAPH");
+                set_submit_state($container, ".EV_SAVE_GRAPH", true);
             } else {
                 disableElements($container, ".EV_HISTORY_UNDO");
                 set_active_state($container, ".EV_HISTORY_UNDO", false);
