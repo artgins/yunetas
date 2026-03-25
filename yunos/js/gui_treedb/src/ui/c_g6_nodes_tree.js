@@ -2980,25 +2980,29 @@ function apply_edge_handles(gobj, rect, vpHalfWidth)
 {
     let priv = gobj.priv;
     const HALF = EDGE_HANDLE_SIZE / 2;
+    const PAD = vpHalfWidth; // padding above/below the bounding box
 
-    // Dashed rectangle spanning the full edge bounding box
+    let boxTop = rect.top - PAD;
+    let boxBottom = rect.bottom + PAD;
+
+    // Dashed rectangle spanning the full edge bounding box + lineWidth padding
     const selLine = priv._edge_sel_line;
     if(selLine) {
         selLine.style.cssText =
             'position:absolute;' +
             'left:' + rect.left + 'px;' +
-            'top:' + (rect.top - vpHalfWidth) + 'px;' +
+            'top:' + boxTop + 'px;' +
             'width:' + (rect.right - rect.left) + 'px;' +
-            'height:' + (rect.bottom - rect.top + vpHalfWidth * 2) + 'px;' +
+            'height:' + (boxBottom - boxTop) + 'px;' +
             'border:1px dashed #52c41a;' +
             'pointer-events:none;' +
             'box-sizing:border-box;';
     }
 
-    // N and S handles at midpoint
+    // N and S handles at the top/bottom edges of the rectangle, at midX
     const offsets = [
-        { x: rect.midX, y: rect.midY - vpHalfWidth },  // N
-        { x: rect.midX, y: rect.midY + vpHalfWidth },  // S
+        { x: rect.midX, y: boxTop },     // N — top edge of rect
+        { x: rect.midX, y: boxBottom },   // S — bottom edge of rect
     ];
 
     for(let i = 0; i < priv._edge_handles.length; i++) {
