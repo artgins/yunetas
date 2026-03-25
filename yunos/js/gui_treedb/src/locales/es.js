@@ -161,9 +161,9 @@ let es = {
         'Inicio': 'Inicio',
 
         'resize all': 'Redimensionar todos',
-        'resize all in topic': 'Redimensionar todos en topic',
+        'resize topic nodes': 'Redimensionar nodos del topic',
         'resize all ports': 'Redimensionar todos los puertos',
-        'resize all ports in topic': 'Redimensionar puertos en topic',
+        'resize topic ports': 'Redimensionar puertos del topic',
 
         'xxx': 'ultima entrada NO TOCAR, insertar antes'
     }
