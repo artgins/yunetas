@@ -160,8 +160,8 @@ var en = {
 
         'Inicio': 'Home',
 
-        'copy size to topic': 'Copy size to topic',
-        'copy size to topic ports': 'Copy size to topic ports',
+        'resize all': 'Resize all',
+        'resize all ports': 'Resize all ports',
 
         'xxx': 'last entry DONT CHANGE, insert before'
     }

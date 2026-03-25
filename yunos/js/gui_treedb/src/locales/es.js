@@ -160,8 +160,8 @@ let es = {
 
         'Inicio': 'Inicio',
 
-        'copy size to topic': 'Copiar tamaño al tema',
-        'copy size to topic ports': 'Copiar tamaño a puertos del tema',
+        'resize all': 'Redimensionar todos',
+        'resize all ports': 'Redimensionar todos los puertos',
 
         'xxx': 'ultima entrada NO TOCAR, insertar antes'
     }

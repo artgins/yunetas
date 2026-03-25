@@ -2726,7 +2726,7 @@ function build_node_context_menu(gobj, node_id)
     let items = [];
 
     if(gobj.priv.edit_mode) {
-        items.push({ name: t('copy size to topic'), value: 'copy_size_to_topic_nodes' });
+        items.push({ name: t('resize all'), value: 'copy_size_to_topic_nodes' });
     }
 
     return items;
@@ -2740,7 +2740,7 @@ function build_port_context_menu(gobj, node_id, port_key)
     let items = [];
 
     if(gobj.priv.edit_mode) {
-        items.push({ name: t('copy size to topic ports'), value: 'copy_size_to_topic_ports' });
+        items.push({ name: t('resize all ports'), value: 'copy_size_to_topic_ports' });
     }
 
     return items;
