@@ -1101,7 +1101,25 @@ function create_topic_node(gobj, desc, record)
 `;
     }
 
-    // Override size and portR with saved geometry (restore resized dimensions)
+    // Apply topic defaults (from "resize all") for nodes without saved geometry
+    let topic_props = priv._graph_properties[desc.topic_name];
+    let topic_defaults = (is_object(topic_props) && is_object(topic_props.defaults))
+        ? topic_props.defaults : null;
+    if(topic_defaults) {
+        let def_size = topic_defaults.size;
+        if(!geometry.size && Array.isArray(def_size) && def_size.length > 0) {
+            style.size = [...def_size];
+            if(node_graph_type === 'html') {
+                style.dx = -def_size[0] / 2;
+                style.dy = -(def_size.length > 1 ? def_size[1] : def_size[0]) / 2;
+            }
+        }
+        if(!geometry.portR && topic_defaults.portR > 0) {
+            style.portR = topic_defaults.portR;
+        }
+    }
+
+    // Override size and portR with saved per-node geometry
     let saved_size = geometry.size;
     if(Array.isArray(saved_size) && saved_size.length > 0) {
         style.size = saved_size;
@@ -1136,11 +1154,16 @@ function create_topic_node(gobj, desc, record)
             portLineWidth: 1,
         });
 
-        // Restore per-port radius from saved geometry
+        // Restore per-port radius: saved geometry first, then topic defaults
         let port_sizes = geometry.port_sizes;
-        if(is_object(port_sizes)) {
+        let default_port_sizes = topic_defaults ? topic_defaults.port_sizes : null;
+        if(is_object(port_sizes) || is_object(default_port_sizes)) {
             for(let i = 0; i < style.ports.length; i++) {
-                let r = port_sizes[style.ports[i].key];
+                let key = style.ports[i].key;
+                let r = is_object(port_sizes) ? port_sizes[key] : null;
+                if(r == null && is_object(default_port_sizes)) {
+                    r = default_port_sizes[key];
+                }
                 if(r != null) {
                     style.ports[i].r = r;
                 }
@@ -2802,6 +2825,16 @@ function copy_size_to_topic_nodes(gobj)
         return;
     }
 
+    // Store as default for new nodes of this topic
+    if(!is_object(priv._graph_properties[source_topic])) {
+        priv._graph_properties[source_topic] = {};
+    }
+    let defaults = { size: [...source_size] };
+    if(source_portR != null) {
+        defaults.portR = source_portR;
+    }
+    priv._graph_properties[source_topic].defaults = defaults;
+
     // Iterate all graph nodes and update those of the same topic
     let updates = [];
     const nodes = graph.getData().nodes;
@@ -2867,6 +2900,16 @@ function copy_size_to_topic_ports(gobj)
 
     let source_topic = nodedata.data.topic_name;
     let source_r = get_port_radius(gobj, node_id, port_key);
+
+    // Store as default for new nodes' ports of this topic
+    if(!is_object(priv._graph_properties[source_topic])) {
+        priv._graph_properties[source_topic] = {};
+    }
+    let defaults = priv._graph_properties[source_topic].defaults || {};
+    let default_port_sizes = defaults.port_sizes || {};
+    default_port_sizes[port_key] = source_r;
+    defaults.port_sizes = default_port_sizes;
+    priv._graph_properties[source_topic].defaults = defaults;
 
     // Iterate all graph nodes of the same topic and update matching ports
     let updates = [];
