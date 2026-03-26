@@ -158,8 +158,11 @@ function trace_msg(format)
     }
 }
 
-function trace_json(jn)
+function trace_json(jn, msg)
 {
+    if(msg) {
+        window.console.warn("=====> " + msg);
+    }
     window.console.dir(jn);
 }
 

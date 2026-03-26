@@ -143,6 +143,7 @@ let PRIVATE_DATA = {
     canvas_id:          null,
     operation_mode:     null,
     layout:             null,
+    _topics_subscribed: {},
 
     is_pinhold_window:  false, // inherited of v6, todo review
 };
@@ -801,7 +802,7 @@ function process_treedb_descs(gobj, descs)
     /*
      *  User topics
      */
-    for (const [topic_name, desc] of Object.entries(descs)) {
+    for(const [topic_name, desc] of Object.entries(descs)) {
         if(topic_name.substring(0, 2) === "__") {
             continue;   // ignore system topics
         }
@@ -818,7 +819,6 @@ function get_nodes(gobj, topic_name)
     let priv = gobj.priv;
     const treedb_name = priv.treedb_name;
 
-    // unsubscribe_treedb(gobj, topic_name);
     subscribe_treedb(gobj, topic_name);
 
     /*
@@ -842,6 +842,14 @@ function subscribe_treedb(gobj, topic_name)
     let priv = gobj.priv;
     const gobj_remote_yuno = priv.gobj_remote_yuno;
     const treedb_name = priv.treedb_name;
+
+    /*
+     *  Avoid repetitions of subscribings
+     */
+    if(priv._topics_subscribed[topic_name]) {
+        return;
+    }
+    priv._topics_subscribed[topic_name] = true;
 
     gobj_subscribe_event(gobj_remote_yuno,
         "EV_TREEDB_NODE_CREATED",
@@ -887,6 +895,14 @@ function unsubscribe_treedb(gobj, topic_name)
     const gobj_remote_yuno = priv.gobj_remote_yuno;
     const treedb_name = priv.treedb_name;
 
+    /*
+     *  Avoid repetitions of unsubscribings
+     */
+    if(!priv._topics_subscribed[topic_name]) {
+        return;
+    }
+    priv._topics_subscribed[topic_name] = false;
+
     gobj_unsubscribe_event(gobj_remote_yuno,
         "EV_TREEDB_NODE_CREATED",
         {
@@ -920,7 +936,6 @@ function unsubscribe_treedb(gobj, topic_name)
         },
         gobj
     );
-
 }
 
 /********************************************

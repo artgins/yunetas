@@ -359,7 +359,7 @@ function build_app(gobj, services_roles)
         menu.push(
             {
                 id: gobj_name(gobj_tables_mqtt_broker),
-                label: "MQTT Topics",
+                label: "MqttDB Topics",
                 icon: "yi-table",
                 gobj: gobj_tables_mqtt_broker  // use "$container" attribute
             }
@@ -375,23 +375,24 @@ function build_app(gobj, services_roles)
             },
             gobj
         );
+        let label = "MqttDB Graphs";
         menu.push(
             {
                 id: gobj_name(gobj_tabs),
-                label: "MQTT Graphs",
+                label: label,
                 icon: "yi-hexagon-nodes",
                 gobj: gobj_tabs   // use "$container" attribute
             }
         );
 
         gobj_create_service(
-            "mqtt_treedb_view",
+            "graphs_mqtt_broker",
             "C_YUI_TREEDB_GRAPH",
             {
                 subscriber: gobj,
                 treedb_name: "treedb_mqtt_broker",
                 gobj_remote_yuno: __yuno__.__remote_service__,
-                label: "AuthDB",
+                label: label,
                 icon: "yi-hexagon-nodes"
             },
             gobj_tabs
@@ -438,23 +439,24 @@ function build_app(gobj, services_roles)
     //         },
     //         gobj
     //     );
+    //     let label = "AuthzDB Graphs";
     //     menu.push(
     //         {
     //             id: gobj_name(gobj_tabs),
-    //             label: "AuthzDB Graphs",
+    //             label: label,
     //             icon: "yi-hexagon-nodes",
     //             gobj: gobj_tabs   // use "$container" attribute
     //         }
     //     );
     //
     //     gobj_create_service(
-    //         "authzdb_treedb_view",
+    //         "graphs_authzs",
     //         "C_YUI_TREEDB_GRAPH",
     //         {
     //             subscriber: gobj,
     //             treedb_name: "treedb_authzs",
     //             gobj_remote_yuno: __yuno__.__remote_service__,
-    //             label: "AuthDB",
+    //             label: label,
     //             icon: "yi-hexagon-nodes"
     //         },
     //         gobj_tabs
