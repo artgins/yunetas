@@ -3014,7 +3014,7 @@ function show_edge_popover(gobj)
         'left:' + (mid.x + 20) + 'px;' +
         'top:' + (mid.y - 14) + 'px;' +
         'background:#fff;border:1px solid #d9d9d9;border-radius:6px;' +
-        'padding:12px;z-index:12;pointer-events:all;' +
+        'padding:12px;z-index:100;pointer-events:all;' +
         'box-shadow:0 4px 12px rgba(0,0,0,0.15);' +
         'min-width:180px;font-size:13px;';
 
