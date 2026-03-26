@@ -2142,6 +2142,61 @@ const RESIZE_HANDLE_SIZE = 8;
 const RESIZE_MIN_VP = 20;
 const RESIZE_MIN_WORLD = 30;
 
+/************************************************************
+ *  SVG icons for floating action buttons (28×28 circles).
+ *  Each value is a raw SVG string sized 18×18 in a 24×24 viewBox.
+ *  Stroke inherits from CSS `color` via `stroke="currentColor"`.
+ ************************************************************/
+const SVG_ICONS = {
+    gear:
+        '<svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" ' +
+        'fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" ' +
+        'stroke-linejoin="round">' +
+        '<circle cx="12" cy="12" r="3"/>' +
+        '<path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06' +
+        'a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09' +
+        'A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83' +
+        'l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09' +
+        'A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83' +
+        'l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09' +
+        'a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83' +
+        'l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09' +
+        'a1.65 1.65 0 0 0-1.51 1z"/>' +
+        '</svg>',
+};
+
+/************************************************************
+ *  Create a 28×28 floating circular icon button.
+ *  @param {string} svgKey   - key into SVG_ICONS
+ *  @param {string} color    - border & text color (e.g. '#1890ff')
+ *  @param {number} left     - CSS left in px
+ *  @param {number} top      - CSS top in px
+ *  @param {string} title    - tooltip text
+ *  @param {Function} onClick
+ *  @returns {HTMLElement}
+ ************************************************************/
+function create_floating_icon(svgKey, color, left, top, title, onClick)
+{
+    const el = document.createElement('div');
+    el.title = title;
+    el.innerHTML = SVG_ICONS[svgKey] || '';
+    el.style.cssText =
+        'position:absolute;' +
+        'left:' + left + 'px;' +
+        'top:' + top + 'px;' +
+        'width:28px;height:28px;' +
+        'display:flex;align-items:center;justify-content:center;' +
+        'background:#fff;border:1px solid ' + color + ';border-radius:50%;' +
+        'cursor:pointer;pointer-events:all;z-index:11;' +
+        'box-shadow:0 2px 6px rgba(0,0,0,0.15);' +
+        'color:' + color + ';';
+    el.addEventListener('click', (e) => {
+        e.stopPropagation();
+        onClick();
+    });
+    return el;
+}
+
 function select_node(gobj, node_id)
 {
     let priv = gobj.priv;
@@ -2900,39 +2955,10 @@ function show_edge_icon(gobj)
         return;
     }
 
-    const icon = document.createElement('div');
-    icon.className = 'g6-edge-properties-icon';
-    icon.title = t('edge properties');
-    icon.innerHTML =
-        '<svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" ' +
-        'fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" ' +
-        'stroke-linejoin="round">' +
-        '<circle cx="12" cy="12" r="3"/>' +
-        '<path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06' +
-        'a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09' +
-        'A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83' +
-        'l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09' +
-        'A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83' +
-        'l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09' +
-        'a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83' +
-        'l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09' +
-        'a1.65 1.65 0 0 0-1.51 1z"/>' +
-        '</svg>';
-    icon.style.cssText =
-        'position:absolute;' +
-        'left:' + (mid.x + 4) + 'px;' +
-        'top:' + (mid.y - 14) + 'px;' +
-        'width:28px;height:28px;' +
-        'display:flex;align-items:center;justify-content:center;' +
-        'background:#fff;border:1px solid #52c41a;border-radius:50%;' +
-        'cursor:pointer;pointer-events:all;z-index:11;' +
-        'box-shadow:0 2px 6px rgba(0,0,0,0.15);' +
-        'color:#52c41a;';
-
-    icon.addEventListener('click', (e) => {
-        e.stopPropagation();
-        toggle_edge_popover(gobj);
-    });
+    const icon = create_floating_icon(
+        'gear', '#52c41a', mid.x + 4, mid.y - 14,
+        t('edge properties'), () => toggle_edge_popover(gobj)
+    );
 
     priv.$container.appendChild(icon);
     priv._edge_icon_el = icon;
@@ -3212,39 +3238,10 @@ function show_node_icon(gobj)
         return;
     }
 
-    const icon = document.createElement('div');
-    icon.className = 'g6-node-properties-icon';
-    icon.title = t('node properties');
-    icon.innerHTML =
-        '<svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" ' +
-        'fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" ' +
-        'stroke-linejoin="round">' +
-        '<circle cx="12" cy="12" r="3"/>' +
-        '<path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06' +
-        'a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09' +
-        'A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83' +
-        'l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09' +
-        'A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83' +
-        'l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09' +
-        'a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83' +
-        'l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09' +
-        'a1.65 1.65 0 0 0-1.51 1z"/>' +
-        '</svg>';
-    icon.style.cssText =
-        'position:absolute;' +
-        'left:' + (rect.right + 4) + 'px;' +
-        'top:' + (rect.top - 14) + 'px;' +
-        'width:28px;height:28px;' +
-        'display:flex;align-items:center;justify-content:center;' +
-        'background:#fff;border:1px solid #1890ff;border-radius:50%;' +
-        'cursor:pointer;pointer-events:all;z-index:11;' +
-        'box-shadow:0 2px 6px rgba(0,0,0,0.15);' +
-        'color:#1890ff;';
-
-    icon.addEventListener('click', (e) => {
-        e.stopPropagation();
-        toggle_node_popover(gobj);
-    });
+    const icon = create_floating_icon(
+        'gear', '#1890ff', rect.right + 4, rect.top - 14,
+        t('node properties'), () => toggle_node_popover(gobj)
+    );
 
     priv.$container.appendChild(icon);
     priv._node_icon_el = icon;
