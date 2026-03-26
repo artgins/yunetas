@@ -227,9 +227,9 @@ let PRIVATE_DATA = {
     descs:              null,
     records:            {},
     $container:         null,
-    graph:              null,   // Instance of G6
-    __graphs__:         [],     // Rows of __graphs__
-    _graph_properties:  {},     // topic_name → {nodes: {node_id: {x,y,size,...}}}
+    graph:              null,       // Instance of G6
+    __graphs__:         [],         // Rows of __graphs__
+    _graph_properties:  {},         // topic_name → {nodes: {node_id: {x,y,size,...}}}
     yet_showed:         false,
     edit_mode:          false,
     operation_mode:     null,
@@ -246,9 +246,9 @@ let PRIVATE_DATA = {
     _selected_edge_id:  null,       // selected edge id
     _edge_icon_el:      null,       // floating properties icon element
     _edge_popover_el:   null,       // edge properties popover element
-    _context_node_id:   null,   // node id for context menu target
-    _context_port_key:  null,   // port key for context menu target (null = node body)
-    _context_edge_id:   null,   // edge id for context menu target
+    _context_node_id:   null,       // node id for context menu target
+    _context_port_key:  null,       // port key for context menu target (null = node body)
+    _context_edge_id:   null,       // edge id for context menu target
 };
 
 let __gclass__ = null;
