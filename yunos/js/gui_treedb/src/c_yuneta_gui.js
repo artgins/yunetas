@@ -368,36 +368,25 @@ function build_app(gobj, services_roles)
         /*----------------------*
          *      USER Graphs
          *----------------------*/
-        let gobj_tabs = gobj_create_pure_child(
+        let gobj_graph_mqtt_broker = gobj_create_service(
             "#graphs_mqtt_broker", // HACK href
-            "C_YUI_TABS",
+            "C_YUI_TREEDB_GRAPH",
             {
+                gobj_remote_yuno: __yuno__.__remote_service__,
+                treedb_name: "treedb_mqtt_broker",
             },
             gobj
         );
-        let label = "MqttDB Graphs";
+        priv.user_gobjs.push(gobj_graph_mqtt_broker);
+        // gobj_start(gobj_graph_mqtt_broker);
         menu.push(
             {
-                id: gobj_name(gobj_tabs),
-                label: label,
+                id: gobj_name(gobj_graph_mqtt_broker),
+                label: "MqttDB Graphs",
                 icon: "yi-hexagon-nodes",
-                gobj: gobj_tabs   // use "$container" attribute
+                gobj: gobj_graph_mqtt_broker  // use "$container" attribute
             }
         );
-
-        gobj_create_service(
-            "graphs_mqtt_broker",
-            "C_YUI_TREEDB_GRAPH",
-            {
-                subscriber: gobj,
-                treedb_name: "treedb_mqtt_broker",
-                gobj_remote_yuno: __yuno__.__remote_service__,
-                label: label,
-                icon: "yi-hexagon-nodes"
-            },
-            gobj_tabs
-        );
-        priv.user_gobjs.push(gobj_tabs);
     }
 
     /*----------------------------------------*
