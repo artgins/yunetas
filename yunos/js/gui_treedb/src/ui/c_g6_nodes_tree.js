@@ -2894,16 +2894,16 @@ function show_edge_icon(gobj)
         'l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09' +
         'a1.65 1.65 0 0 0-1.51 1z"/>' +
         '</svg>';
-    icon.className = 'g6-edge-properties-icon has-background-success-light has-text-success';
     icon.style.cssText =
         'position:absolute;' +
         'left:' + (mid.x - 14) + 'px;' +
         'top:' + (mid.y - 14) + 'px;' +
         'width:28px;height:28px;' +
         'display:flex;align-items:center;justify-content:center;' +
-        'border:1px solid var(--bulma-success);border-radius:50%;' +
+        'background:#fff;border:1px solid #52c41a;border-radius:50%;' +
         'cursor:pointer;pointer-events:all;z-index:11;' +
-        'box-shadow:0 2px 6px hsla(var(--bulma-shadow-h),var(--bulma-shadow-s),var(--bulma-shadow-l),0.15);';
+        'box-shadow:0 2px 6px rgba(0,0,0,0.15);' +
+        'color:#52c41a;';
 
     icon.addEventListener('click', (e) => {
         e.stopPropagation();
@@ -3003,12 +3003,14 @@ function show_edge_popover(gobj)
     }
 
     const popover = document.createElement('div');
-    popover.className = 'g6-edge-popover box p-3';
+    popover.className = 'g6-edge-popover';
     popover.style.cssText =
         'position:absolute;' +
         'left:' + (mid.x + 20) + 'px;' +
         'top:' + (mid.y - 14) + 'px;' +
-        'z-index:12;pointer-events:all;' +
+        'background:#fff;border:1px solid #d9d9d9;border-radius:6px;' +
+        'padding:12px;z-index:12;pointer-events:all;' +
+        'box-shadow:0 4px 12px rgba(0,0,0,0.15);' +
         'min-width:180px;font-size:13px;';
 
     // Prevent clicks inside popover from deselecting
@@ -3024,56 +3026,47 @@ function show_edge_popover(gobj)
     }
 
     // Line width
-    let lwField = document.createElement('div');
-    lwField.className = 'field';
     let lwLabel = document.createElement('label');
-    lwLabel.className = 'label is-small';
     lwLabel.textContent = t('line width');
-    lwField.appendChild(lwLabel);
-    let lwControl = document.createElement('div');
-    lwControl.className = 'control';
+    lwLabel.style.cssText = 'display:block;margin-bottom:4px;font-weight:500;';
+    popover.appendChild(lwLabel);
+
     let lwInput = document.createElement('input');
-    lwInput.className = 'input is-small';
     lwInput.type = 'number';
     lwInput.min = '1';
     lwInput.max = '20';
     lwInput.value = currentLW;
+    lwInput.style.cssText =
+        'width:100%;padding:4px 6px;border:1px solid #d9d9d9;border-radius:4px;' +
+        'box-sizing:border-box;margin-bottom:10px;';
     lwInput.addEventListener('input', preview_edge);
-    lwControl.appendChild(lwInput);
-    lwField.appendChild(lwControl);
-    popover.appendChild(lwField);
+    popover.appendChild(lwInput);
 
     // Color
-    let colorField = document.createElement('div');
-    colorField.className = 'field';
     let colorLabel = document.createElement('label');
-    colorLabel.className = 'label is-small';
     colorLabel.textContent = t('color');
-    colorField.appendChild(colorLabel);
-    let colorControl = document.createElement('div');
-    colorControl.className = 'control';
+    colorLabel.style.cssText = 'display:block;margin-bottom:4px;font-weight:500;';
+    popover.appendChild(colorLabel);
+
     let colorInput = document.createElement('input');
-    colorInput.className = 'input is-small';
     colorInput.type = 'color';
     colorInput.value = currentStroke;
-    colorInput.style.cssText = 'height:30px;padding:2px;cursor:pointer;';
+    colorInput.style.cssText =
+        'width:100%;height:30px;padding:0;border:1px solid #d9d9d9;border-radius:4px;' +
+        'cursor:pointer;margin-bottom:10px;';
     colorInput.addEventListener('input', preview_edge);
-    colorControl.appendChild(colorInput);
-    colorField.appendChild(colorControl);
-    popover.appendChild(colorField);
+    popover.appendChild(colorInput);
 
     // Apply-to scope
-    let scopeField = document.createElement('div');
-    scopeField.className = 'field';
     let scopeLabel = document.createElement('label');
-    scopeLabel.className = 'label is-small';
     scopeLabel.textContent = t('apply to');
-    scopeField.appendChild(scopeLabel);
-    let scopeControl = document.createElement('div');
-    scopeControl.className = 'control';
+    scopeLabel.style.cssText = 'display:block;margin-bottom:4px;font-weight:500;';
+    popover.appendChild(scopeLabel);
+
     let scopeSelect = document.createElement('select');
-    scopeSelect.className = 'select is-small';
-    scopeSelect.style.cssText = 'width:100%;';
+    scopeSelect.style.cssText =
+        'width:100%;padding:4px 6px;border:1px solid #d9d9d9;border-radius:4px;' +
+        'box-sizing:border-box;margin-bottom:12px;';
     let options = [
         { value: 'this', label: t('this edge') },
         { value: 'same_type', label: t('same type edges') },
@@ -3085,20 +3078,18 @@ function show_edge_popover(gobj)
         o.textContent = opt.label;
         scopeSelect.appendChild(o);
     }
-    scopeControl.appendChild(scopeSelect);
-    scopeField.appendChild(scopeControl);
-    popover.appendChild(scopeField);
+    popover.appendChild(scopeSelect);
 
     // Button row
-    let btnField = document.createElement('div');
-    btnField.className = 'field is-grouped';
+    let btnRow = document.createElement('div');
+    btnRow.style.cssText = 'display:flex;gap:8px;';
 
     // Cancel button
-    let cancelControl = document.createElement('div');
-    cancelControl.className = 'control is-expanded';
     let cancelBtn = document.createElement('button');
-    cancelBtn.className = 'button is-small is-fullwidth';
     cancelBtn.textContent = t('cancel');
+    cancelBtn.style.cssText =
+        'flex:1;padding:6px;background:#fff;color:#333;border:1px solid #d9d9d9;' +
+        'border-radius:4px;cursor:pointer;font-size:13px;font-weight:500;';
     cancelBtn.addEventListener('click', (e) => {
         e.stopPropagation();
         // Restore original style and deselect
@@ -3106,15 +3097,14 @@ function show_edge_popover(gobj)
         graph.draw();
         deselect_edge(gobj);
     });
-    cancelControl.appendChild(cancelBtn);
-    btnField.appendChild(cancelControl);
+    btnRow.appendChild(cancelBtn);
 
     // Apply button
-    let applyControl = document.createElement('div');
-    applyControl.className = 'control is-expanded';
     let applyBtn = document.createElement('button');
-    applyBtn.className = 'button is-small is-success is-fullwidth';
     applyBtn.textContent = t('apply');
+    applyBtn.style.cssText =
+        'flex:1;padding:6px;background:#52c41a;color:#fff;border:none;' +
+        'border-radius:4px;cursor:pointer;font-size:13px;font-weight:500;';
     applyBtn.addEventListener('click', (e) => {
         e.stopPropagation();
         apply_edge_properties(gobj, edge_id,
@@ -3123,10 +3113,9 @@ function show_edge_popover(gobj)
             scopeSelect.value
         );
     });
-    applyControl.appendChild(applyBtn);
-    btnField.appendChild(applyControl);
+    btnRow.appendChild(applyBtn);
 
-    popover.appendChild(btnField);
+    popover.appendChild(btnRow);
 
     priv.$container.appendChild(popover);
     priv._edge_popover_el = popover;
