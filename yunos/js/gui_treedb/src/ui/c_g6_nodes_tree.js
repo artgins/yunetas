@@ -3593,6 +3593,8 @@ function request_delete_node(gobj)
         topic_name: nodeData.data.desc.topic_name,
         record: nodeData.data.record,
     });
+
+    deselect_node(gobj);
 }
 
 /************************************************************
@@ -3621,6 +3623,8 @@ function request_unlink_edge(gobj)
         child_id:     edgeData.data.child_id,
         fkey_name:    edgeData.data.fkey_name,
     });
+
+    deselect_edge(gobj);
 }
 
 /************************************************************
