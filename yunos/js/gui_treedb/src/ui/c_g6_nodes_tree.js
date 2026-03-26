@@ -2787,12 +2787,10 @@ function start_port_resize(gobj, e)
     document.addEventListener('pointerup', onPointerUp);
 }
 
-
 /************************************************************
  *  Edge selection: show a floating properties icon near
  *  the edge midpoint. Clicking it opens a popover form.
  ************************************************************/
-
 function select_edge(gobj, edge_id)
 {
     let priv = gobj.priv;
