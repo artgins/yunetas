@@ -532,7 +532,7 @@ function build_graph(gobj)
                 selected: {
                     lineWidth: 2,
                     stroke: '#1890ff',
-                    labelFill: '#000',
+                    labelFill: '#000',          // Force black; remove to let G6 dark theme control it
                     labelFontWeight: 'normal',
                 },
             },
@@ -1066,7 +1066,7 @@ function create_topic_node(gobj, desc, record)
             labelPlacement: 'center',
             labelWordWrap: true,
             labelMaxWidth: "100%",
-            labelFill: '#000',
+            labelFill: '#000',          // Force black; remove to let G6 dark theme control it
             labelFontWeight: 'normal',
             // iconText: record.id,
             // iconSrc: record.icon,
