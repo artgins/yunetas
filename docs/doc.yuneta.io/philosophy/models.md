@@ -16,49 +16,6 @@ Each realm has three properties:
 | **Name** | Instance of the realm |
 | **Owner** | Owner of the realm |
 
-### Realm URL Interface
-
-The interface between realms and URLs is:
-
-```
-https://{name}.{role}.{environment}/{owner}
-```
-
-### Examples
-
-**Open system** — anonymous users can create one or more realms:
-
-```
-https://demo.saludatos.ovh/chris@gmail.com
-
-    realm_owner  = chris@gmail.com    (owner)
-    realm_role   = saludatos          (service class)
-    realm_name   = demo               (service instance)
-    environment  = ovh                (staging)
-```
-
-**Closed system** — a company service where the owner defines authorized users:
-
-```
-https://mulesol.siguerastro.com/mulesol
-
-    realm_owner  = mulesol            (owner)
-    realm_role   = siguerastro        (service class)
-    realm_name   = mulesol            (service instance)
-    environment  = com                (production)
-```
-
-**Closed system with subdomains** — a public organization:
-
-```
-https://comunidad-madrid.saludatos.es/hospital-princesa
-
-    realm_owner  = hospital-princesa  (owner)
-    realm_role   = saludatos          (service class)
-    realm_name   = comunidad-madrid   (service instance)
-    environment  = es                 (production)
-```
-
 ### Realm Terms
 
 - The **Role** defines the class of the realm.
