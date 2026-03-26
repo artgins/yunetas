@@ -2920,7 +2920,7 @@ function show_edge_icon(gobj)
         '</svg>';
     icon.style.cssText =
         'position:absolute;' +
-        'left:' + (mid.x - 14) + 'px;' +
+        'left:' + (mid.x + 4) + 'px;' +
         'top:' + (mid.y - 14) + 'px;' +
         'width:28px;height:28px;' +
         'display:flex;align-items:center;justify-content:center;' +
@@ -2961,12 +2961,12 @@ function update_edge_icon_position(gobj)
             hide_edge_popover(gobj);
             return;
         }
-        priv._edge_icon_el.style.left = (mid.x - 14) + 'px';
+        priv._edge_icon_el.style.left = (mid.x + 4) + 'px';
         priv._edge_icon_el.style.top = (mid.y - 14) + 'px';
 
         // Reposition popover if open
         if(priv._edge_popover_el) {
-            priv._edge_popover_el.style.left = (mid.x + 20) + 'px';
+            priv._edge_popover_el.style.left = (mid.x + 36) + 'px';
             priv._edge_popover_el.style.top = (mid.y - 14) + 'px';
             clamp_popover_position(gobj, priv._edge_popover_el);
         }
@@ -3031,7 +3031,7 @@ function show_edge_popover(gobj)
     popover.className = 'g6-edge-popover';
     popover.style.cssText =
         'position:absolute;' +
-        'left:' + (mid.x + 20) + 'px;' +
+        'left:' + (mid.x + 36) + 'px;' +
         'top:' + (mid.y - 14) + 'px;' +
         'background:#fff;border:1px solid #d9d9d9;border-radius:6px;' +
         'padding:12px;z-index:100;pointer-events:all;' +
