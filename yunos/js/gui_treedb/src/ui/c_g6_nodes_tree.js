@@ -2987,6 +2987,15 @@ function show_edge_popover(gobj)
     let origLW = currentLW;
     let origStroke = currentStroke;
 
+    // Clear selected state so the real style is visible during preview
+    history_pause(gobj);
+    try {
+        graph.setElementState(edge_id, []);
+    } catch(e) {}
+    graph_draw(gobj).then(() => {
+        history_resume(gobj);
+    });
+
     let mid = get_edge_viewport_midpoint(gobj, edge_id);
     if(!mid) {
         return;
