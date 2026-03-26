@@ -3981,7 +3981,10 @@ function ac_theme(gobj, event, kw, src)
         borderStroke: theme === 'dark' ? '#656565' : '#EEEEEE',
     });
 
-    graph_draw(gobj);
+    graph_draw(gobj).then(() => {
+        // Restore toolbar icon states lost when G6 re-renders the DOM
+        update_history_buttons(gobj);
+    });
 
     return 0;
 }
