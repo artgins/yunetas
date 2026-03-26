@@ -2948,6 +2948,7 @@ function update_edge_icon_position(gobj)
         if(priv._edge_popover_el) {
             priv._edge_popover_el.style.left = (mid.x + 20) + 'px';
             priv._edge_popover_el.style.top = (mid.y - 14) + 'px';
+            clamp_popover_position(gobj);
         }
     } catch(e) {
         hide_edge_icon(gobj);
@@ -3123,6 +3124,47 @@ function show_edge_popover(gobj)
 
     priv.$container.appendChild(popover);
     priv._edge_popover_el = popover;
+
+    // Clamp popover inside the container
+    clamp_popover_position(gobj);
+}
+
+/************************************************************
+ *  Clamp edge popover so it stays inside the container.
+ ************************************************************/
+function clamp_popover_position(gobj)
+{
+    let priv = gobj.priv;
+    let popover = priv._edge_popover_el;
+    if(!popover) {
+        return;
+    }
+
+    let containerRect = priv.$container.getBoundingClientRect();
+    let popRect = popover.getBoundingClientRect();
+    let margin = 4;
+
+    let left = popover.offsetLeft;
+    let top = popover.offsetTop;
+
+    // Clamp right edge
+    if(left + popRect.width > containerRect.width - margin) {
+        left = containerRect.width - popRect.width - margin;
+    }
+    // Clamp bottom edge
+    if(top + popRect.height > containerRect.height - margin) {
+        top = containerRect.height - popRect.height - margin;
+    }
+    // Clamp left/top
+    if(left < margin) {
+        left = margin;
+    }
+    if(top < margin) {
+        top = margin;
+    }
+
+    popover.style.left = left + 'px';
+    popover.style.top = top + 'px';
 }
 
 function hide_edge_popover(gobj)
