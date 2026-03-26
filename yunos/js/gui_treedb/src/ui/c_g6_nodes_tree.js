@@ -246,6 +246,8 @@ let PRIVATE_DATA = {
     _selected_edge_id:  null,       // selected edge id
     _edge_icon_el:      null,       // floating properties icon element
     _edge_popover_el:   null,       // edge properties popover element
+    _node_icon_el:      null,       // floating node properties icon element
+    _node_popover_el:   null,       // node properties popover element
     _context_node_id:   null,       // node id for context menu target
     _context_port_key:  null,       // port key for context menu target (null = node body)
     _context_edge_id:   null,       // edge id for context menu target
@@ -579,6 +581,7 @@ function configure_events(gobj)
         update_resize_handles_position(gobj);
         update_port_resize_handles_position(gobj);
         update_edge_icon_position(gobj);
+        update_node_icon_position(gobj);
     });
 
     graph.on(NodeEvent.DRAG_END, (evt) => {
@@ -601,6 +604,7 @@ function configure_events(gobj)
         update_resize_handles_position(gobj);
         update_port_resize_handles_position(gobj);
         update_edge_icon_position(gobj);
+        update_node_icon_position(gobj);
     });
 
     if(gobj_read_bool_attr(gobj, "with_fullscreen")) {
@@ -2050,8 +2054,10 @@ function graph_resize(gobj, width, height)
     let priv = gobj.priv;
     let graph = priv.graph;
 
-    // Deselect edge before resize — setSize() may not fire aftertransform
+    // Deselect/hide before resize — setSize() may not fire aftertransform
     deselect_edge(gobj);
+    hide_node_icon(gobj);
+    hide_node_popover(gobj);
 
     graph.setSize(width, height);
 }
@@ -2148,8 +2154,9 @@ function select_node(gobj, node_id)
     } catch(e) {}
     priv._selected_node_id = node_id;
 
-    // Show resize handles
+    // Show resize handles and properties icon
     show_resize_handles(gobj);
+    show_node_icon(gobj);
 
     graph_draw(gobj).then(() => {
         history_resume(gobj);
@@ -2163,6 +2170,8 @@ function deselect_node(gobj)
 
     deselect_port(gobj);
     deselect_edge(gobj);
+    hide_node_icon(gobj);
+    hide_node_popover(gobj);
 
     if(priv._selected_node_id) {
         history_pause(gobj);
@@ -2555,8 +2564,10 @@ function select_port(gobj, node_id, port_key)
 {
     let priv = gobj.priv;
 
-    // Hide node resize handles (but keep node selected state)
+    // Hide node resize handles and icon (but keep node selected state)
     hide_resize_handles(gobj);
+    hide_node_icon(gobj);
+    hide_node_popover(gobj);
 
     priv._selected_node_id = node_id;
     priv._selected_port_key = port_key;
@@ -2948,7 +2959,7 @@ function update_edge_icon_position(gobj)
         if(priv._edge_popover_el) {
             priv._edge_popover_el.style.left = (mid.x + 20) + 'px';
             priv._edge_popover_el.style.top = (mid.y - 14) + 'px';
-            clamp_popover_position(gobj);
+            clamp_popover_position(gobj, priv._edge_popover_el);
         }
     } catch(e) {
         hide_edge_icon(gobj);
@@ -3126,16 +3137,15 @@ function show_edge_popover(gobj)
     priv._edge_popover_el = popover;
 
     // Clamp popover inside the container
-    clamp_popover_position(gobj);
+    clamp_popover_position(gobj, popover);
 }
 
 /************************************************************
- *  Clamp edge popover so it stays inside the container.
+ *  Clamp a popover so it stays inside the container.
  ************************************************************/
-function clamp_popover_position(gobj)
+function clamp_popover_position(gobj, popover)
 {
     let priv = gobj.priv;
-    let popover = priv._edge_popover_el;
     if(!popover) {
         return;
     }
@@ -3174,6 +3184,393 @@ function hide_edge_popover(gobj)
         priv._edge_popover_el.remove();
         priv._edge_popover_el = null;
     }
+}
+
+/************************************************************
+ *  Node properties icon and popover
+ ************************************************************/
+function show_node_icon(gobj)
+{
+    hide_node_icon(gobj);
+
+    let priv = gobj.priv;
+    if(!priv._selected_node_id || priv._selected_port_key) {
+        return;
+    }
+
+    let rect = get_node_viewport_rect(gobj, priv._selected_node_id);
+    if(!rect) {
+        return;
+    }
+
+    const icon = document.createElement('div');
+    icon.className = 'g6-node-properties-icon';
+    icon.title = t('node properties');
+    icon.innerHTML =
+        '<svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" ' +
+        'fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" ' +
+        'stroke-linejoin="round">' +
+        '<circle cx="12" cy="12" r="3"/>' +
+        '<path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06' +
+        'a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09' +
+        'A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83' +
+        'l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09' +
+        'A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83' +
+        'l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09' +
+        'a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83' +
+        'l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09' +
+        'a1.65 1.65 0 0 0-1.51 1z"/>' +
+        '</svg>';
+    icon.style.cssText =
+        'position:absolute;' +
+        'left:' + (rect.right + 4) + 'px;' +
+        'top:' + (rect.top - 14) + 'px;' +
+        'width:28px;height:28px;' +
+        'display:flex;align-items:center;justify-content:center;' +
+        'background:#fff;border:1px solid #1890ff;border-radius:50%;' +
+        'cursor:pointer;pointer-events:all;z-index:11;' +
+        'box-shadow:0 2px 6px rgba(0,0,0,0.15);' +
+        'color:#1890ff;';
+
+    icon.addEventListener('click', (e) => {
+        e.stopPropagation();
+        toggle_node_popover(gobj);
+    });
+
+    priv.$container.appendChild(icon);
+    priv._node_icon_el = icon;
+}
+
+function hide_node_icon(gobj)
+{
+    let priv = gobj.priv;
+    if(priv._node_icon_el) {
+        priv._node_icon_el.remove();
+        priv._node_icon_el = null;
+    }
+}
+
+function update_node_icon_position(gobj)
+{
+    let priv = gobj.priv;
+    if(!priv._selected_node_id || !priv._node_icon_el) {
+        return;
+    }
+
+    try {
+        let rect = get_node_viewport_rect(gobj, priv._selected_node_id);
+        if(!rect) {
+            hide_node_icon(gobj);
+            hide_node_popover(gobj);
+            return;
+        }
+        priv._node_icon_el.style.left = (rect.right + 4) + 'px';
+        priv._node_icon_el.style.top = (rect.top - 14) + 'px';
+
+        // Reposition popover if open
+        if(priv._node_popover_el) {
+            priv._node_popover_el.style.left = (rect.right + 36) + 'px';
+            priv._node_popover_el.style.top = (rect.top - 14) + 'px';
+            clamp_popover_position(gobj, priv._node_popover_el);
+        }
+    } catch(e) {
+        hide_node_icon(gobj);
+        hide_node_popover(gobj);
+    }
+}
+
+/************************************************************
+ *  Node properties popover: form with fill color, stroke
+ *  color, lineWidth, and apply-to scope.
+ ************************************************************/
+function toggle_node_popover(gobj)
+{
+    let priv = gobj.priv;
+    if(priv._node_popover_el) {
+        hide_node_popover(gobj);
+    } else {
+        show_node_popover(gobj);
+    }
+}
+
+function show_node_popover(gobj)
+{
+    hide_node_popover(gobj);
+
+    let priv = gobj.priv;
+    let graph = priv.graph;
+    let node_id = priv._selected_node_id;
+    if(!node_id) {
+        return;
+    }
+
+    let nodeData = graph.getNodeData(node_id);
+    if(!nodeData) {
+        return;
+    }
+    let style = nodeData.style || {};
+    let currentFill = style.fill || '#ffffff';
+    let currentStroke = style.stroke || '#000000';
+    let currentLW = style.lineWidth || 1;
+
+    // Save original style for cancel/restore
+    let origFill = currentFill;
+    let origStroke = currentStroke;
+    let origLW = currentLW;
+
+    let rect = get_node_viewport_rect(gobj, node_id);
+    if(!rect) {
+        return;
+    }
+
+    const popover = document.createElement('div');
+    popover.className = 'g6-node-popover';
+    popover.style.cssText =
+        'position:absolute;' +
+        'left:' + (rect.right + 36) + 'px;' +
+        'top:' + (rect.top - 14) + 'px;' +
+        'background:#fff;border:1px solid #d9d9d9;border-radius:6px;' +
+        'padding:12px;z-index:100;pointer-events:all;' +
+        'box-shadow:0 4px 12px rgba(0,0,0,0.15);' +
+        'min-width:180px;font-size:13px;';
+
+    // Prevent clicks inside popover from deselecting
+    popover.addEventListener('click', (e) => e.stopPropagation());
+    popover.addEventListener('pointerdown', (e) => e.stopPropagation());
+
+    let node_graph_type = nodeData.data && nodeData.data.desc ?
+        nodeData.data.desc.node_treedb_type : null;
+
+    // Live preview
+    function preview_node() {
+        let fill = fillInput.value;
+        let stroke = strokeInput.value;
+        let lw = parseInt(lwInput.value) || 1;
+        let updateStyle = { fill: fill, stroke: stroke, lineWidth: lw };
+
+        if(node_graph_type === 'hierarchical') {
+            let record = nodeData.data.record || {};
+            updateStyle.innerHTML = build_node_innerHTML(
+                fill, stroke, record.icon, record.id
+            );
+        }
+        graph.updateNodeData([{ id: node_id, style: updateStyle }]);
+        graph.draw();
+    }
+
+    // Fill color
+    let fillLabel = document.createElement('label');
+    fillLabel.textContent = t('fill color');
+    fillLabel.style.cssText = 'display:block;margin-bottom:4px;font-weight:500;';
+    popover.appendChild(fillLabel);
+
+    let fillInput = document.createElement('input');
+    fillInput.type = 'color';
+    fillInput.value = currentFill;
+    fillInput.style.cssText =
+        'width:100%;height:30px;padding:0;border:1px solid #d9d9d9;border-radius:4px;' +
+        'cursor:pointer;margin-bottom:10px;';
+    fillInput.addEventListener('input', preview_node);
+    popover.appendChild(fillInput);
+
+    // Stroke color
+    let strokeLabel = document.createElement('label');
+    strokeLabel.textContent = t('stroke color');
+    strokeLabel.style.cssText = 'display:block;margin-bottom:4px;font-weight:500;';
+    popover.appendChild(strokeLabel);
+
+    let strokeInput = document.createElement('input');
+    strokeInput.type = 'color';
+    strokeInput.value = currentStroke;
+    strokeInput.style.cssText =
+        'width:100%;height:30px;padding:0;border:1px solid #d9d9d9;border-radius:4px;' +
+        'cursor:pointer;margin-bottom:10px;';
+    strokeInput.addEventListener('input', preview_node);
+    popover.appendChild(strokeInput);
+
+    // Line width
+    let lwLabel = document.createElement('label');
+    lwLabel.textContent = t('line width');
+    lwLabel.style.cssText = 'display:block;margin-bottom:4px;font-weight:500;';
+    popover.appendChild(lwLabel);
+
+    let lwInput = document.createElement('input');
+    lwInput.type = 'number';
+    lwInput.min = '1';
+    lwInput.max = '20';
+    lwInput.value = currentLW;
+    lwInput.style.cssText =
+        'width:100%;padding:4px 6px;border:1px solid #d9d9d9;border-radius:4px;' +
+        'box-sizing:border-box;margin-bottom:10px;';
+    lwInput.addEventListener('input', preview_node);
+    popover.appendChild(lwInput);
+
+    // Apply-to scope
+    let scopeLabel = document.createElement('label');
+    scopeLabel.textContent = t('apply to');
+    scopeLabel.style.cssText = 'display:block;margin-bottom:4px;font-weight:500;';
+    popover.appendChild(scopeLabel);
+
+    let scopeSelect = document.createElement('select');
+    scopeSelect.style.cssText =
+        'width:100%;padding:4px 6px;border:1px solid #d9d9d9;border-radius:4px;' +
+        'box-sizing:border-box;margin-bottom:12px;';
+    let options = [
+        { value: 'this', label: t('this node') },
+        { value: 'same_topic', label: t('same topic nodes') },
+        { value: 'all', label: t('all nodes') },
+    ];
+    for(let opt of options) {
+        let o = document.createElement('option');
+        o.value = opt.value;
+        o.textContent = opt.label;
+        scopeSelect.appendChild(o);
+    }
+    popover.appendChild(scopeSelect);
+
+    // Button row
+    let btnRow = document.createElement('div');
+    btnRow.style.cssText = 'display:flex;gap:8px;';
+
+    // Cancel button
+    let cancelBtn = document.createElement('button');
+    cancelBtn.textContent = t('cancel');
+    cancelBtn.style.cssText =
+        'flex:1;padding:6px;background:#fff;color:#333;border:1px solid #d9d9d9;' +
+        'border-radius:4px;cursor:pointer;font-size:13px;font-weight:500;';
+    cancelBtn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        // Restore original style
+        let restoreStyle = { fill: origFill, stroke: origStroke, lineWidth: origLW };
+        if(node_graph_type === 'hierarchical') {
+            let record = nodeData.data.record || {};
+            restoreStyle.innerHTML = build_node_innerHTML(
+                origFill, origStroke, record.icon, record.id
+            );
+        }
+        graph.updateNodeData([{ id: node_id, style: restoreStyle }]);
+        graph.draw();
+        hide_node_popover(gobj);
+    });
+    btnRow.appendChild(cancelBtn);
+
+    // Apply button
+    let applyBtn = document.createElement('button');
+    applyBtn.textContent = t('apply');
+    applyBtn.style.cssText =
+        'flex:1;padding:6px;background:#1890ff;color:#fff;border:none;' +
+        'border-radius:4px;cursor:pointer;font-size:13px;font-weight:500;';
+    applyBtn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        apply_node_properties(gobj, node_id,
+            fillInput.value,
+            strokeInput.value,
+            parseInt(lwInput.value) || 1,
+            scopeSelect.value
+        );
+    });
+    btnRow.appendChild(applyBtn);
+
+    popover.appendChild(btnRow);
+
+    priv.$container.appendChild(popover);
+    priv._node_popover_el = popover;
+
+    // Clamp popover inside the container
+    clamp_popover_position(gobj, popover);
+}
+
+function hide_node_popover(gobj)
+{
+    let priv = gobj.priv;
+    if(priv._node_popover_el) {
+        priv._node_popover_el.remove();
+        priv._node_popover_el = null;
+    }
+}
+
+/************************************************************
+ *  Build innerHTML for hierarchical (HTML) nodes.
+ ************************************************************/
+function build_node_innerHTML(fill, stroke, icon, id)
+{
+    return `
+<div style="
+    width: 100%;
+    height: 100%;
+    background: ${fill};
+    border: 1px solid ${stroke};
+    border-radius: 0.5rem;
+    color: #000;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    padding: 10px;
+">
+    <div>
+        <span class="icon is-large">
+        <img src="${safeSrc(icon)}" alt=""/>
+        </span>
+    </div>
+    <div style="font-weight: bold;">
+      ${escapeHtml(id)}
+    </div>
+</div>
+`;
+}
+
+/************************************************************
+ *  Apply node properties to one or more nodes.
+ *  scope: 'this', 'same_topic', 'all'
+ ************************************************************/
+function apply_node_properties(gobj, node_id, fill, stroke, lineWidth, scope)
+{
+    let priv = gobj.priv;
+    let graph = priv.graph;
+
+    let nodeData = graph.getNodeData(node_id);
+    if(!nodeData || !nodeData.data) {
+        return;
+    }
+
+    let source_topic = nodeData.data.desc ? nodeData.data.desc.topic_name : null;
+    let updates = [];
+    const nodes = graph.getData().nodes;
+
+    for(let i = 0; i < nodes.length; i++) {
+        let nd = graph.getNodeData(nodes[i].id);
+        if(!nd || !nd.data || !nd.data.desc) {
+            continue;
+        }
+
+        if(scope === 'this' && nodes[i].id !== node_id) {
+            continue;
+        }
+        if(scope === 'same_topic' && nd.data.desc.topic_name !== source_topic) {
+            continue;
+        }
+
+        let updateStyle = { fill: fill, stroke: stroke, lineWidth: lineWidth };
+        if(nd.data.desc.node_treedb_type === 'hierarchical') {
+            let record = nd.data.record || {};
+            updateStyle.innerHTML = build_node_innerHTML(
+                fill, stroke, record.icon, record.id
+            );
+        }
+        updates.push({ id: nodes[i].id, style: updateStyle });
+    }
+
+    if(updates.length > 0) {
+        graph.updateNodeData(updates);
+        graph.draw().then(() => {
+            let $container = gobj_read_attr(gobj, "$container");
+            enableElements($container, ".EV_SAVE_GRAPH");
+            set_submit_state($container, ".EV_SAVE_GRAPH", true);
+        });
+    }
+
+    hide_node_popover(gobj);
 }
 
 /************************************************************
