@@ -245,8 +245,10 @@ let PRIVATE_DATA = {
     _port_ring:         null,
     _selected_edge_id:  null,       // selected edge id
     _edge_icon_el:      null,       // floating properties icon element
+    _edge_delete_el:    null,       // floating delete icon element for edge
     _edge_popover_el:   null,       // edge properties popover element
     _node_icon_el:      null,       // floating node properties icon element
+    _node_delete_el:    null,       // floating delete icon element for node
     _node_popover_el:   null,       // node properties popover element
     _context_node_id:   null,       // node id for context menu target
     _context_port_key:  null,       // port key for context menu target (null = node body)
@@ -2163,6 +2165,15 @@ const SVG_ICONS = {
         'l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09' +
         'a1.65 1.65 0 0 0-1.51 1z"/>' +
         '</svg>',
+    trash:
+        '<svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" ' +
+        'fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" ' +
+        'stroke-linejoin="round">' +
+        '<polyline points="3 6 5 6 21 6"/>' +
+        '<path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/>' +
+        '<path d="M10 11v6"/><path d="M14 11v6"/>' +
+        '<path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/>' +
+        '</svg>',
 };
 
 /************************************************************
@@ -2959,9 +2970,15 @@ function show_edge_icon(gobj)
         'gear', '#52c41a', mid.x + 4, mid.y - 14,
         t('edge properties'), () => toggle_edge_popover(gobj)
     );
-
     priv.$container.appendChild(icon);
     priv._edge_icon_el = icon;
+
+    const del_icon = create_floating_icon(
+        'trash', '#ff4d4f', mid.x + 4, mid.y + 18,
+        t('unlink'), () => request_unlink_edge(gobj)
+    );
+    priv.$container.appendChild(del_icon);
+    priv._edge_delete_el = del_icon;
 }
 
 function hide_edge_icon(gobj)
@@ -2970,6 +2987,10 @@ function hide_edge_icon(gobj)
     if(priv._edge_icon_el) {
         priv._edge_icon_el.remove();
         priv._edge_icon_el = null;
+    }
+    if(priv._edge_delete_el) {
+        priv._edge_delete_el.remove();
+        priv._edge_delete_el = null;
     }
 }
 
@@ -2989,6 +3010,10 @@ function update_edge_icon_position(gobj)
         }
         priv._edge_icon_el.style.left = (mid.x + 4) + 'px';
         priv._edge_icon_el.style.top = (mid.y - 14) + 'px';
+        if(priv._edge_delete_el) {
+            priv._edge_delete_el.style.left = (mid.x + 4) + 'px';
+            priv._edge_delete_el.style.top = (mid.y + 18) + 'px';
+        }
 
         // Reposition popover if open
         if(priv._edge_popover_el) {
@@ -3242,9 +3267,15 @@ function show_node_icon(gobj)
         'gear', '#1890ff', rect.right + 4, rect.top - 14,
         t('node properties'), () => toggle_node_popover(gobj)
     );
-
     priv.$container.appendChild(icon);
     priv._node_icon_el = icon;
+
+    const del_icon = create_floating_icon(
+        'trash', '#ff4d4f', rect.right + 4, rect.top + 18,
+        t('delete node'), () => request_delete_node(gobj)
+    );
+    priv.$container.appendChild(del_icon);
+    priv._node_delete_el = del_icon;
 }
 
 function hide_node_icon(gobj)
@@ -3253,6 +3284,10 @@ function hide_node_icon(gobj)
     if(priv._node_icon_el) {
         priv._node_icon_el.remove();
         priv._node_icon_el = null;
+    }
+    if(priv._node_delete_el) {
+        priv._node_delete_el.remove();
+        priv._node_delete_el = null;
     }
 }
 
@@ -3278,6 +3313,10 @@ function update_node_icon_position(gobj)
         }
         priv._node_icon_el.style.left = (rect.right + 4) + 'px';
         priv._node_icon_el.style.top = (rect.top - 14) + 'px';
+        if(priv._node_delete_el) {
+            priv._node_delete_el.style.left = (rect.right + 4) + 'px';
+            priv._node_delete_el.style.top = (rect.top + 18) + 'px';
+        }
 
         // Reposition popover if open
         if(priv._node_popover_el) {
@@ -3530,6 +3569,58 @@ function build_node_innerHTML(fill, stroke, icon, id)
     </div>
 </div>
 `;
+}
+
+/************************************************************
+ *  Request delete node: publish EV_DELETE_NODE to parent.
+ ************************************************************/
+function request_delete_node(gobj)
+{
+    let priv = gobj.priv;
+    let graph = priv.graph;
+    let node_id = priv._selected_node_id;
+    if(!node_id) {
+        return;
+    }
+
+    let nodeData = graph.getNodeData(node_id);
+    if(!nodeData || !nodeData.data || !nodeData.data.desc) {
+        return;
+    }
+
+    gobj_publish_event(gobj, "EV_DELETE_NODE", {
+        treedb_name: priv.treedb_name,
+        topic_name: nodeData.data.desc.topic_name,
+        record: nodeData.data.record,
+    });
+}
+
+/************************************************************
+ *  Request unlink edge: publish EV_UNLINK_NODES to parent.
+ ************************************************************/
+function request_unlink_edge(gobj)
+{
+    let priv = gobj.priv;
+    let graph = priv.graph;
+    let edge_id = priv._selected_edge_id;
+    if(!edge_id) {
+        return;
+    }
+
+    let edgeData = graph.getEdgeData(edge_id);
+    if(!edgeData || !edgeData.data) {
+        return;
+    }
+
+    gobj_publish_event(gobj, "EV_UNLINK_NODES", {
+        treedb_name: priv.treedb_name,
+        parent_topic: edgeData.data.parent_topic,
+        parent_id:    edgeData.data.parent_id,
+        hook_name:    edgeData.data.hook_name,
+        child_topic:  edgeData.data.child_topic,
+        child_id:     edgeData.data.child_id,
+        fkey_name:    edgeData.data.fkey_name,
+    });
 }
 
 /************************************************************
