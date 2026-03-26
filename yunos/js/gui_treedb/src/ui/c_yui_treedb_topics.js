@@ -18,6 +18,7 @@ import {
     log_error,
     gobj_read_pointer_attr,
     gobj_subscribe_event,
+    gobj_unsubscribe_event,
     gobj_parent,
     sprintf,
     gobj_name,
@@ -66,7 +67,13 @@ SDATA(data_type_t.DTP_STRING,   "last_selection",   0,  null,   "Last href selec
 SDATA_END()
 ];
 
-let PRIVATE_DATA = {};
+let PRIVATE_DATA = {
+    $container:         null,
+    treedb_name:        "",
+    gobj_remote_yuno:   null,
+    descs:              null,
+    _topics_subscribed: {},
+};
 
 let __gclass__ = null;
 
@@ -354,16 +361,16 @@ function process_treedb_descs(gobj)
     let descs = gobj_read_attr(gobj, "descs");
     let system = gobj_read_bool_attr(gobj, "system");
     let treedb_name = gobj_read_str_attr(gobj, "treedb_name");
-    for (const [key, desc] of Object.entries(descs)) {
+    for(const [key, desc] of Object.entries(descs)) {
         if(system) {
             if(key === "__snaps__") {
                 continue;
             }
-            if (key.substring(0, 2) !== "__") {
+            if(key.substring(0, 2) !== "__") {
                 continue;
             }
         } else {
-            if (key.substring(0, 2) === "__") {
+            if(key.substring(0, 2) === "__") {
                 continue;
             }
         }
@@ -420,56 +427,138 @@ function process_treedb_descs(gobj)
     for(let i=0; i<kids.length; i++) {
         let kid = kids[i];
         let topic_name = gobj_read_attr(kid, "topic_name");
-
-        gobj_subscribe_event(
-            gobj_remote_yuno,
-            "EV_TREEDB_NODE_CREATED",
-            {
-                __service__: treedb_name,
-                __filter__: {
-                    "treedb_name": treedb_name,
-                    "topic_name": topic_name
-                }
-            },
-            gobj
-        );
-        gobj_subscribe_event(
-            gobj_remote_yuno,
-            "EV_TREEDB_NODE_UPDATED",
-            {
-                __service__: treedb_name,
-                __filter__: {
-                    "treedb_name": treedb_name,
-                    "topic_name": topic_name
-                }
-            },
-            gobj
-        );
-        gobj_subscribe_event(
-            gobj_remote_yuno,
-            "EV_TREEDB_NODE_DELETED",
-            {
-                __service__: treedb_name,
-                __filter__: {
-                    "treedb_name": treedb_name,
-                    "topic_name": topic_name
-                }
-            },
-            gobj
-        );
-
-        /*
-         *  Get data
-         */
-        treedb_nodes(
-            gobj,
-            treedb_name,
-            topic_name,
-            {
-                list_dict: true
-            }
-        );
+        get_nodes(gobj, topic_name);
     }
+}
+
+/************************************************************
+ *
+ ************************************************************/
+function get_nodes(gobj, topic_name)
+{
+    let priv = gobj.priv;
+    const treedb_name = priv.treedb_name;
+
+    subscribe_treedb(gobj, topic_name);
+
+    /*
+     *  Get data
+     */
+    treedb_nodes(
+        gobj,
+        treedb_name,
+        topic_name,
+        {
+            list_dict: true
+        }
+    );
+}
+
+/************************************************************
+ *
+ ************************************************************/
+function subscribe_treedb(gobj, topic_name)
+{
+    let priv = gobj.priv;
+    const gobj_remote_yuno = priv.gobj_remote_yuno;
+    const treedb_name = priv.treedb_name;
+
+    /*
+     *  Avoid repetitions of subscribings
+     */
+    if(priv._topics_subscribed[topic_name]) {
+        return;
+    }
+    priv._topics_subscribed[topic_name] = true;
+
+    gobj_subscribe_event(
+        gobj_remote_yuno,
+        "EV_TREEDB_NODE_CREATED",
+        {
+            __service__: treedb_name,
+            __filter__: {
+                "treedb_name": treedb_name,
+                "topic_name": topic_name
+            }
+        },
+        gobj
+    );
+    gobj_subscribe_event(
+        gobj_remote_yuno,
+        "EV_TREEDB_NODE_UPDATED",
+        {
+            __service__: treedb_name,
+            __filter__: {
+                "treedb_name": treedb_name,
+                "topic_name": topic_name
+            }
+        },
+        gobj
+    );
+    gobj_subscribe_event(
+        gobj_remote_yuno,
+        "EV_TREEDB_NODE_DELETED",
+        {
+            __service__: treedb_name,
+            __filter__: {
+                "treedb_name": treedb_name,
+                "topic_name": topic_name
+            }
+        },
+        gobj
+    );
+}
+
+/************************************************************
+ *
+ ************************************************************/
+function unsubscribe_treedb(gobj, topic_name)
+{
+    let priv = gobj.priv;
+    const gobj_remote_yuno = priv.gobj_remote_yuno;
+    const treedb_name = priv.treedb_name;
+
+    /*
+     *  Avoid repetitions of unsubscribings
+     */
+    if(!priv._topics_subscribed[topic_name]) {
+        return;
+    }
+    priv._topics_subscribed[topic_name] = false;
+
+    gobj_unsubscribe_event(gobj_remote_yuno,
+        "EV_TREEDB_NODE_CREATED",
+        {
+            __service__: treedb_name,
+            __filter__: {
+                "treedb_name": treedb_name,
+                "topic_name": topic_name
+            }
+        },
+        gobj
+    );
+    gobj_unsubscribe_event(gobj_remote_yuno,
+        "EV_TREEDB_NODE_UPDATED",
+        {
+            __service__: treedb_name,
+            __filter__: {
+                "treedb_name": treedb_name,
+                "topic_name": topic_name
+            }
+        },
+        gobj
+    );
+    gobj_unsubscribe_event(gobj_remote_yuno,
+        "EV_TREEDB_NODE_DELETED",
+        {
+            __service__: treedb_name,
+            __filter__: {
+                "treedb_name": treedb_name,
+                "topic_name": topic_name
+            }
+        },
+        gobj
+    );
 }
 
 /********************************************

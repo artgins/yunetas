@@ -3863,7 +3863,8 @@ function gobj_subscribe_event(
         subscriber
     );
     if(json_array_size(dl_subs) > 0) {
-        log_warning(`${gobj_short_name(publisher)}: subscription(s) REPEATED, will be deleted and override`);
+        log_error(`${gobj_short_name(publisher)}: ${json_array_size(dl_subs)} subscription(s) REPEATED, will be deleted and override`);
+        trace_json(dl_subs, "subscription REPEATED");
         gobj_unsubscribe_list(publisher, dl_subs, false);
     }
 
@@ -3987,7 +3988,7 @@ function gobj_unsubscribe_event(
 
     if(!deleted) {
         log_warning(`${gobj_short_name(publisher)}: No subscription found`);
-        trace_json(kw);
+        trace_json(kw, "No subscription found");
     }
 
     return 0;

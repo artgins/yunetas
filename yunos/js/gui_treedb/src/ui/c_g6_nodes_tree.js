@@ -92,6 +92,7 @@ import {
 } from '@antv/g6';
 
 import {Circle as CircleGeometry} from '@antv/g';
+import {t} from "i18next";
 
 /***************************************************************
  *  YuiToolbar — G6 Toolbar subclass that adds per-item className
@@ -228,11 +229,26 @@ let PRIVATE_DATA = {
     $container:         null,
     graph:              null,   // Instance of G6
     __graphs__:         [],     // Rows of __graphs__
+    _graph_properties:  {},     // topic_name → {nodes: {node_id: {x,y,size,...}}}
     yet_showed:         false,
     edit_mode:          false,
     operation_mode:     null,
     layout:             null,
     theme:              null,
+    _selected_node_id:  null,
+    _selected_port_key: null,       // key of selected port (null = node selected)
+    _resize_handles_el: null,
+    _resize_handles:    [],
+    _resize_sel_rect:   null,
+    _port_handles_el:   null,
+    _port_handles:      [],
+    _port_ring:         null,
+    _selected_edge_id:  null,       // selected edge id
+    _edge_icon_el:      null,       // floating properties icon element
+    _edge_popover_el:   null,       // edge properties popover element
+    _context_node_id:   null,   // node id for context menu target
+    _context_port_key:  null,   // port key for context menu target (null = node body)
+    _context_edge_id:   null,   // edge id for context menu target
 };
 
 let __gclass__ = null;
@@ -512,6 +528,12 @@ function build_graph(gobj)
                 color: 'tableau',
                 field: 'topic_name',
             },
+            state: {
+                selected: {
+                    lineWidth: 2,
+                    stroke: '#1890ff',
+                },
+            },
         },
 
         edge: { // WARNING this affect to all edges with prevalence over individual defines!
@@ -551,6 +573,12 @@ function configure_events(gobj)
         gobj_send_event(gobj, "EV_CANVAS_CLICK", {evt: evt}, gobj);
     });
 
+    graph.on(NodeEvent.DRAG, (evt) => {
+        update_resize_handles_position(gobj);
+        update_port_resize_handles_position(gobj);
+        update_edge_icon_position(gobj);
+    });
+
     graph.on(NodeEvent.DRAG_END, (evt) => {
         gobj_send_event(gobj, "EV_NODE_DRAG_END", {evt: evt}, gobj);
     });
@@ -565,6 +593,12 @@ function configure_events(gobj)
 
     graph.on(EdgeEvent.CLICK, (evt) => {
         gobj_send_event(gobj, "EV_EDGE_CLICK", {evt: evt}, gobj);
+    });
+
+    graph.on('aftertransform', () => {
+        update_resize_handles_position(gobj);
+        update_port_resize_handles_position(gobj);
+        update_edge_icon_position(gobj);
     });
 
     if(gobj_read_bool_attr(gobj, "with_fullscreen")) {
@@ -616,17 +650,16 @@ function configure_plugins(gobj)
         gobj,
         'contextmenu',
         {
-            trigger: 'contextmenu', // 'click' or 'contextmenu'
-            onClick: (v) => {
-                trace_msg('You have clicked the「' + v + '」item');
+            trigger: 'contextmenu',
+            onClick: (value) => {
+                handle_context_menu_click(gobj, value);
             },
-            getItems: () => {
-                return [
-                    { name: 'Spread', value: 'spread' },
-                    { name: 'Detail', value: 'detail' },
-                ];
+            getItems: (e) => {
+                return build_context_menu_items(gobj, e);
             },
-            enable: (e) => e.targetType === 'node',
+            enable: (e) => {
+                return e.targetType === 'node' || e.targetType === 'edge';
+            },
         }
     );
 
@@ -870,6 +903,9 @@ function configure_behaviour(gobj)
             log_error(`operation mode unknown: ${operation_mode}`);
             break;
     }
+    if(!priv.edit_mode) {
+        deselect_node(gobj);
+    }
     graph_write_behaviors(gobj, behaviors);
 }
 
@@ -999,19 +1035,9 @@ function create_topic_node(gobj, desc, record)
      *------------------------------------------*/
     let node_name = build_node_name(gobj, desc.topic_name, record.id);
     let xy = get_default_ne_xy(gobj);
-    let geometry = record._geometry || {};
+    let geometry = get_node_graph_props(gobj, desc.topic_name, record.id, record);
     let x = kw_get_int(gobj, geometry, "x", xy, kw_flag_t.KW_CREATE);
     let y = kw_get_int(gobj, geometry, "y", xy, kw_flag_t.KW_CREATE);
-
-    let topic_graphs = kwid_find_one_record( // TODO review
-        gobj,
-        priv.__graphs__,
-        null,
-        {
-            topic: desc.topic_name,
-            active: true
-        }
-    );
 
     //log_warning(`create node ==> ${node_name}`);
 
@@ -1080,6 +1106,38 @@ function create_topic_node(gobj, desc, record)
 `;
     }
 
+    // Apply topic defaults (from "resize all") for nodes without saved geometry
+    let topic_props = priv._graph_properties[desc.topic_name];
+    let topic_defaults = (is_object(topic_props) && is_object(topic_props.defaults))?
+        topic_props.defaults : null;
+    if(topic_defaults) {
+        let def_size = topic_defaults.size;
+        if(!geometry.size && Array.isArray(def_size) && def_size.length > 0) {
+            style.size = [...def_size];
+            if(node_graph_type === 'html') {
+                style.dx = -def_size[0] / 2;
+                style.dy = -(def_size.length > 1 ? def_size[1] : def_size[0]) / 2;
+            }
+        }
+        if(!geometry.portR && topic_defaults.portR > 0) {
+            style.portR = topic_defaults.portR;
+        }
+    }
+
+    // Override size and portR with saved per-node geometry
+    let saved_size = geometry.size;
+    if(Array.isArray(saved_size) && saved_size.length > 0) {
+        style.size = saved_size;
+        // Recalculate dx/dy for HTML nodes to keep content centered
+        if(node_graph_type === 'html') {
+            style.dx = -saved_size[0] / 2;
+            style.dy = -(saved_size.length > 1 ? saved_size[1] : saved_size[0]) / 2;
+        }
+    }
+    if(geometry.portR > 0) {
+        style.portR = geometry.portR;
+    }
+
     let node_def = {
         id: node_name,
         type: node_graph_type,
@@ -1088,7 +1146,8 @@ function create_topic_node(gobj, desc, record)
             // This 4 keys are available in user `data` of G6 Node.
             topic_name: desc.topic_name,
             desc: desc,
-            record: record
+            record: record,
+            graph_props: geometry  // from __graphs__ (or _geometry fallback)
         }
     };
 
@@ -1099,6 +1158,22 @@ function create_topic_node(gobj, desc, record)
             portR: node_treedb_type === 'child' ? 2 : 6,
             portLineWidth: 1,
         });
+
+        // Restore per-port radius: saved geometry first, then topic defaults
+        let port_sizes = geometry.port_sizes;
+        let default_port_sizes = topic_defaults ? topic_defaults.port_sizes : null;
+        if(is_object(port_sizes) || is_object(default_port_sizes)) {
+            for(let i = 0; i < style.ports.length; i++) {
+                let key = style.ports[i].key;
+                let r = is_object(port_sizes) ? port_sizes[key] : null;
+                if(r == null && is_object(default_port_sizes)) {
+                    r = default_port_sizes[key];
+                }
+                if(r != null) {
+                    style.ports[i].r = r;
+                }
+            }
+        }
     }
 
     if(node_graph_type) {
@@ -1378,6 +1453,46 @@ function draw_link(
      *  Create the edge with independent id and semantic data
      *  HACK: source/target are interchanged so arrows point parent -> child
      */
+    // Restore saved edge style from __graphs__
+    let saved_lineWidth = 2;
+    let saved_stroke = style.fill;
+    let topic_props = priv._graph_properties[parent_topic];
+    if(topic_props) {
+        // Per-edge saved style
+        if(is_object(topic_props.edges)) {
+            let edge_key = hook_name + ":" + parent_id + ":" + child_id;
+            let edge_props = topic_props.edges[edge_key];
+            if(edge_props) {
+                if(edge_props.lineWidth != null) {
+                    saved_lineWidth = edge_props.lineWidth;
+                }
+                if(edge_props.stroke) {
+                    saved_stroke = edge_props.stroke;
+                }
+            }
+        }
+        // Fall back to topic defaults
+        if(saved_lineWidth === 2 && is_object(topic_props.defaults)) {
+            let defs = topic_props.defaults;
+            if(defs.edge_styles && defs.edge_styles[hook_name]) {
+                let hook_style = defs.edge_styles[hook_name];
+                if(hook_style.lineWidth != null) {
+                    saved_lineWidth = hook_style.lineWidth;
+                }
+                if(hook_style.stroke) {
+                    saved_stroke = hook_style.stroke;
+                }
+            } else if(defs.edge_style) {
+                if(defs.edge_style.lineWidth != null) {
+                    saved_lineWidth = defs.edge_style.lineWidth;
+                }
+                if(defs.edge_style.stroke) {
+                    saved_stroke = defs.edge_style.stroke;
+                }
+            }
+        }
+    }
+
     let edge = {
         id: build_edge_id(gobj),
         type: 'cubic',
@@ -1386,8 +1501,8 @@ function draw_link(
         style: {
             sourcePort: hook_name,
             targetPort: fkey_name,
-            lineWidth: 2,
-            stroke: style.fill,
+            lineWidth: saved_lineWidth,
+            stroke: saved_stroke,
         },
         data: {
             parent_topic: parent_topic,
@@ -1481,7 +1596,58 @@ function clear_link(
 }
 
 /************************************************************
- *  Update geometry from render style
+ *  Build _graph_properties from __graphs__ records.
+ *  Indexes active __graphs__ records by topic_name for
+ *  fast per-node geometry/style lookups.
+ ************************************************************/
+function build_graph_properties(gobj)
+{
+    let priv = gobj.priv;
+    priv._graph_properties = {};
+
+    for(let i = 0; i < priv.__graphs__.length; i++) {
+        let rec = priv.__graphs__[i];
+        if(!rec.active || !rec.topic) {
+            continue;
+        }
+        let props = rec.properties;
+        if(is_object(props)) {
+            priv._graph_properties[rec.topic] = props;
+        }
+    }
+}
+
+/************************************************************
+ *  Get graph properties for a specific node.
+ *  Returns the node's visual properties from __graphs__,
+ *  falling back to record._geometry for backward compat.
+ ************************************************************/
+function get_node_graph_props(gobj, topic_name, node_id, record)
+{
+    let priv = gobj.priv;
+
+    // Primary source: __graphs__ properties
+    let topic_props = priv._graph_properties[topic_name];
+    if(topic_props && is_object(topic_props.nodes)) {
+        let node_props = topic_props.nodes[node_id];
+        if(is_object(node_props)) {
+            return node_props;
+        }
+    }
+
+    // Fallback: legacy _geometry on the record
+    if(is_object(record._geometry)) {
+        return record._geometry;
+    }
+
+    return {};
+}
+
+/************************************************************
+ *  Update geometry of a single node into _graph_properties.
+ *  Collects x, y, size from the current render style and
+ *  stores them in the in-memory _graph_properties structure.
+ *  Also updates the node data's graph_props reference.
  ************************************************************/
 function update_geometry(gobj, node_id)
 {
@@ -1490,80 +1656,123 @@ function update_geometry(gobj, node_id)
 
     let nodedata = graph.getNodeData(node_id);
     let style = graph.getElementRenderStyle(node_id);
-
+    let topic_name = nodedata.data.topic_name;
     let record = nodedata.data.record;
-    let _geometry = kw_get_dict_value(gobj,
-        record,
-        "_geometry",
-        {},
-        kw_flag_t.KW_CREATE
-    );
-    if(!is_object(_geometry)) {
-        _geometry = {};
-        kw_set_dict_value(
-            gobj,
-            record,
-            "_geometry",
-            _geometry
-        );
+
+    // Ensure topic entry exists in _graph_properties
+    if(!is_object(priv._graph_properties[topic_name])) {
+        priv._graph_properties[topic_name] = {};
     }
+    let topic_props = priv._graph_properties[topic_name];
+    if(!is_object(topic_props.nodes)) {
+        topic_props.nodes = {};
+    }
+
+    // Extract geometry from render style
+    let node_props = topic_props.nodes[record.id] || {};
     json_object_update(
-        _geometry,
-        kw_clone_by_keys(gobj,
-            style,
-            ["x", "y", "size"]
-        )
+        node_props,
+        kw_clone_by_keys(gobj, style, ["x", "y", "size", "portR"])
     );
+
+    // Save per-port radius values (only ports with custom r)
+    let node_style = nodedata.style || {};
+    let ports = node_style.ports || [];
+    let port_sizes = {};
+    for(let i = 0; i < ports.length; i++) {
+        if(ports[i].r != null) {
+            port_sizes[ports[i].key] = ports[i].r;
+        }
+    }
+    if(Object.keys(port_sizes).length > 0) {
+        node_props.port_sizes = port_sizes;
+    } else {
+        delete node_props.port_sizes;
+    }
+
+    topic_props.nodes[record.id] = node_props;
+
+    // Keep node data's graph_props in sync
+    nodedata.data.graph_props = node_props;
 }
 
 /************************************************************
- *  Save all node geometries to backend
+ *  Save all node geometries to __graphs__ topic.
+ *  One EV_UPDATE_NODE per topic instead of one per node.
  ************************************************************/
 function save_geometry(gobj)
 {
     let priv = gobj.priv;
     let graph = priv.graph;
 
+    // Collect geometry for all nodes into _graph_properties
     const nodes = graph.getData().nodes;
-    for(let i=0; i<nodes.length; i++) {
-        let node = nodes[i];
-        update_geometry(gobj, node.id);
+    for(let i = 0; i < nodes.length; i++) {
+        update_geometry(gobj, nodes[i].id);
+    }
 
-        let nodedata = graph.getNodeData(node.id);
-        let record = nodedata.data.record;
-        let _geometry = kw_get_dict_value(gobj,
-            record,
-            "_geometry",
-            null,
-            kw_flag_t.KW_REQUIRED
-        );
-        if(!_geometry) {
-            continue;
-        }
+    // Collect edge styles into _graph_properties
+    const edges = graph.getData().edges;
+    for(let i = 0; i < edges.length; i++) {
+        update_edge_geometry(gobj, edges[i].id);
+    }
 
-        json_object_update( // Add me
-            _geometry,
-            {
-                __origin__: gobj_read_str_attr(__yuno__, "node_uuid")
-            }
-        );
+    // Save one __graphs__ record per topic
+    let origin = gobj_read_str_attr(__yuno__, "node_uuid");
 
-        let options = {
-            list_dict: true,
-            autolink: false
-        };
+    for(const [topic_name, properties] of Object.entries(priv._graph_properties)) {
+        // Add origin metadata
+        properties.__origin__ = origin;
+
         let kw_update = {
             treedb_name: priv.treedb_name,
-            topic_name: nodedata.data.topic_name,
+            topic_name: "__graphs__",
             record: {
-                id: record.id,
-                _geometry: _geometry
+                id: topic_name,
+                topic: topic_name,
+                active: true,
+                properties: properties
             },
-            options: options
+            options: {
+                list_dict: true,
+                autolink: false,
+                create: true    // Create if doesn't exist, update if it does
+            }
         };
-        // TODO make a api with multi-records
         gobj_publish_event(gobj, "EV_UPDATE_NODE", kw_update);
     }
+}
+
+/************************************************************
+ *  Save __graphs__ properties for a single topic to backend.
+ ************************************************************/
+function save_topic_graph_properties(gobj, topic_name)
+{
+    let priv = gobj.priv;
+    let properties = priv._graph_properties[topic_name];
+    if(!properties) {
+        return;
+    }
+
+    let origin = gobj_read_str_attr(__yuno__, "node_uuid");
+    properties.__origin__ = origin;
+
+    let kw_update = {
+        treedb_name: priv.treedb_name,
+        topic_name: "__graphs__",
+        record: {
+            id: topic_name,
+            topic: topic_name,
+            active: true,
+            properties: properties
+        },
+        options: {
+            list_dict: true,
+            autolink: false,
+            create: true
+        }
+    };
+    gobj_publish_event(gobj, "EV_UPDATE_NODE", kw_update);
 }
 
 /************************************************************
@@ -1608,9 +1817,17 @@ function update_history_buttons(gobj)
             if (history.canUndo()) {
                 enableElements($container, ".EV_HISTORY_UNDO");
                 set_active_state($container, ".EV_HISTORY_UNDO", true);
+
+                // Pending changes exist, enable save
+                enableElements($container, ".EV_SAVE_GRAPH");
+                set_submit_state($container, ".EV_SAVE_GRAPH", true);
             } else {
                 disableElements($container, ".EV_HISTORY_UNDO");
                 set_active_state($container, ".EV_HISTORY_UNDO", false);
+
+                // No more undos: graph is back to original state, disable save
+                disableElements($container, ".EV_SAVE_GRAPH");
+                set_submit_state($container, ".EV_SAVE_GRAPH", false);
             }
         } else {
             disableElements($container, ".EV_HISTORY_REDO");
@@ -1877,25 +2094,1464 @@ class LightNode extends Circle
 }
 
 /************************************************************
- *  Custom G6 layout: ManualLayout (uses _geometry positions)
+ *  Custom G6 layout: ManualLayout
+ *  Reads positions from graph_props (__graphs__),
+ *  falls back to legacy _geometry on the record.
  ************************************************************/
 class ManualLayout extends BaseLayout
 {
     async execute(data, options) {
         const { nodes = [] } = data;
         return {
-            nodes: nodes.map((node) => ({
-                id: node.id,
-                style: {
-                    x: node.data.record._geometry ? node.data.record._geometry.x : 0,
-                    y: node.data.record._geometry ? node.data.record._geometry.y : 0,
-                },
-            })),
+            nodes: nodes.map((node) => {
+                let gp = node.data.graph_props;
+                let geo = node.data.record._geometry;
+                let x = (gp && gp.x != null) ? gp.x :
+                         (geo && geo.x != null) ? geo.x : 0;
+                let y = (gp && gp.y != null) ? gp.y :
+                         (geo && geo.y != null) ? geo.y : 0;
+                return {
+                    id: node.id,
+                    style: { x: x, y: y },
+                };
+            }),
         };
     }
 }
 
+/************************************************************
+ *  Node selection and resize handles
+ ************************************************************/
+const RESIZE_HANDLE_SIZE = 8;
+const RESIZE_MIN_VP = 20;
+const RESIZE_MIN_WORLD = 30;
 
+function select_node(gobj, node_id)
+{
+    let priv = gobj.priv;
+    let graph = priv.graph;
+
+    // Deselect previous
+    deselect_node(gobj);
+
+    // Set selected state (not recorded in history, resume after draw)
+    history_pause(gobj);
+    try {
+        graph.setElementState(node_id, ['selected']);
+    } catch(e) {}
+    priv._selected_node_id = node_id;
+
+    // Show resize handles
+    show_resize_handles(gobj);
+
+    graph_draw(gobj).then(() => {
+        history_resume(gobj);
+    });
+}
+
+function deselect_node(gobj)
+{
+    let priv = gobj.priv;
+    let graph = priv.graph;
+
+    deselect_port(gobj);
+    deselect_edge(gobj);
+
+    if(priv._selected_node_id) {
+        history_pause(gobj);
+        try {
+            graph.setElementState(priv._selected_node_id, []);
+        } catch(e) {}
+        priv._selected_node_id = null;
+
+        graph_draw(gobj).then(() => {
+            history_resume(gobj);
+        });
+    }
+
+    hide_resize_handles(gobj);
+}
+
+function get_node_viewport_rect(gobj, node_id)
+{
+    let priv = gobj.priv;
+    let graph = priv.graph;
+
+    const pos = graph.getElementPosition(node_id);
+    const nodeData = graph.getNodeData(node_id);
+    const style = nodeData.style || {};
+    const size = style.size || [60];
+    const w = Array.isArray(size) ? size[0] : size;
+    const h = Array.isArray(size) ? (size.length > 1 ? size[1] : size[0]) : size;
+
+    const vpMin = graph.getViewportByCanvas([pos[0] - w/2, pos[1] - h/2]);
+    const vpMax = graph.getViewportByCanvas([pos[0] + w/2, pos[1] + h/2]);
+
+    return {
+        left: vpMin[0], top: vpMin[1],
+        right: vpMax[0], bottom: vpMax[1]
+    };
+}
+
+function show_resize_handles(gobj)
+{
+    hide_resize_handles(gobj);
+
+    let priv = gobj.priv;
+    if(!priv._selected_node_id) {
+        return;
+    }
+
+    // Create container for handles overlay
+    const container = document.createElement('div');
+    container.className = 'g6-resize-handles';
+    container.style.cssText =
+        'position:absolute;top:0;left:0;width:100%;height:100%;' +
+        'pointer-events:none;z-index:10;';
+
+    // Selection rectangle (dashed border)
+    const selRect = document.createElement('div');
+    container.appendChild(selRect);
+
+    // 8 resize handles: nw, n, ne, w, e, sw, s, se
+    const handle_defs = [
+        { cursor: 'nw-resize', mx: -1, my: -1 },
+        { cursor: 'n-resize',  mx:  0, my: -1 },
+        { cursor: 'ne-resize', mx:  1, my: -1 },
+        { cursor: 'w-resize',  mx: -1, my:  0 },
+        { cursor: 'e-resize',  mx:  1, my:  0 },
+        { cursor: 'sw-resize', mx: -1, my:  1 },
+        { cursor: 's-resize',  mx:  0, my:  1 },
+        { cursor: 'se-resize', mx:  1, my:  1 },
+    ];
+
+    const handles = [];
+    for(const def of handle_defs) {
+        const el = document.createElement('div');
+        el.style.cssText =
+            'position:absolute;' +
+            'width:' + RESIZE_HANDLE_SIZE + 'px;' +
+            'height:' + RESIZE_HANDLE_SIZE + 'px;' +
+            'background:#fff;' +
+            'border:1px solid #1890ff;' +
+            'cursor:' + def.cursor + ';' +
+            'pointer-events:all;' +
+            'box-sizing:border-box;';
+        el.addEventListener('pointerdown', (e) => {
+            start_node_resize(gobj, e, def.mx, def.my);
+        });
+        handles.push({ el: el, mx: def.mx, my: def.my });
+        container.appendChild(el);
+    }
+
+    priv.$container.appendChild(container);
+    priv._resize_handles_el = container;
+    priv._resize_handles = handles;
+    priv._resize_sel_rect = selRect;
+
+    update_resize_handles_position(gobj);
+}
+
+function hide_resize_handles(gobj)
+{
+    let priv = gobj.priv;
+
+    if(priv._resize_handles_el) {
+        priv._resize_handles_el.remove();
+        priv._resize_handles_el = null;
+        priv._resize_handles = [];
+        priv._resize_sel_rect = null;
+    }
+}
+
+function update_resize_handles_position(gobj)
+{
+    let priv = gobj.priv;
+
+    if(!priv._selected_node_id || !priv._resize_handles_el) {
+        return;
+    }
+
+    try {
+        const rect = get_node_viewport_rect(gobj, priv._selected_node_id);
+        apply_handles_to_rect(gobj, rect);
+    } catch(e) {
+        // Node may have been removed
+        hide_resize_handles(gobj);
+    }
+}
+
+function apply_handles_to_rect(gobj, rect)
+{
+    let priv = gobj.priv;
+    const HALF = RESIZE_HANDLE_SIZE / 2;
+
+    const left = rect.left;
+    const top = rect.top;
+    const w = rect.right - rect.left;
+    const h = rect.bottom - rect.top;
+
+    // Selection rectangle
+    const selRect = priv._resize_sel_rect;
+    if(selRect) {
+        selRect.style.cssText =
+            'position:absolute;' +
+            'left:' + left + 'px;' +
+            'top:' + top + 'px;' +
+            'width:' + w + 'px;' +
+            'height:' + h + 'px;' +
+            'border:1px dashed #1890ff;' +
+            'pointer-events:none;' +
+            'box-sizing:border-box;';
+    }
+
+    // Handle positions: nw, n, ne, w, e, sw, s, se
+    const positions = [
+        { x: left,       y: top },
+        { x: left + w/2, y: top },
+        { x: left + w,   y: top },
+        { x: left,       y: top + h/2 },
+        { x: left + w,   y: top + h/2 },
+        { x: left,       y: top + h },
+        { x: left + w/2, y: top + h },
+        { x: left + w,   y: top + h },
+    ];
+
+    for(let i = 0; i < priv._resize_handles.length; i++) {
+        const handle = priv._resize_handles[i];
+        const p = positions[i];
+        handle.el.style.left = (p.x - HALF) + 'px';
+        handle.el.style.top = (p.y - HALF) + 'px';
+    }
+}
+
+function start_node_resize(gobj, e, mx, my)
+{
+    let priv = gobj.priv;
+    let graph = priv.graph;
+
+    e.preventDefault();
+    e.stopPropagation();
+
+    const node_id = priv._selected_node_id;
+    if(!node_id) {
+        return;
+    }
+
+    // Capture original state
+    const pos = graph.getElementPosition(node_id);
+    const nodeData = graph.getNodeData(node_id);
+    const nodeType = nodeData.type;
+    const style = nodeData.style || {};
+    const size = style.size || [60];
+    const origW = Array.isArray(size) ? size[0] : size;
+    const origH = Array.isArray(size) ? (size.length > 1 ? size[1] : size[0]) : size;
+    const origPortR = style.portR || 0;
+    const origCx = pos[0];
+    const origCy = pos[1];
+
+    const origVpRect = get_node_viewport_rect(gobj, node_id);
+    const startX = e.clientX;
+    const startY = e.clientY;
+    const zoom = graph.getZoom();
+
+    let currentRect = { ...origVpRect };
+
+    function onPointerMove(ev) {
+        const dx = ev.clientX - startX;
+        const dy = ev.clientY - startY;
+
+        currentRect = { ...origVpRect };
+
+        if(mx === -1) {
+            currentRect.left = Math.min(origVpRect.left + dx, origVpRect.right - RESIZE_MIN_VP);
+        }
+        if(mx === 1) {
+            currentRect.right = Math.max(origVpRect.right + dx, origVpRect.left + RESIZE_MIN_VP);
+        }
+        if(my === -1) {
+            currentRect.top = Math.min(origVpRect.top + dy, origVpRect.bottom - RESIZE_MIN_VP);
+        }
+        if(my === 1) {
+            currentRect.bottom = Math.max(origVpRect.bottom + dy, origVpRect.top + RESIZE_MIN_VP);
+        }
+
+        apply_handles_to_rect(gobj, currentRect);
+    }
+
+    function onPointerUp(ev) {
+        document.removeEventListener('pointermove', onPointerMove);
+        document.removeEventListener('pointerup', onPointerUp);
+
+        // Calculate final size in world coordinates from the viewport rect deltas
+        const dLeft = (currentRect.left - origVpRect.left) / zoom;
+        const dTop = (currentRect.top - origVpRect.top) / zoom;
+        const dRight = (currentRect.right - origVpRect.right) / zoom;
+        const dBottom = (currentRect.bottom - origVpRect.bottom) / zoom;
+
+        // New world bounds
+        const newLeft = (origCx - origW/2) + dLeft;
+        const newTop = (origCy - origH/2) + dTop;
+        const newRight = (origCx + origW/2) + dRight;
+        const newBottom = (origCy + origH/2) + dBottom;
+
+        let newW = newRight - newLeft;
+        let newH = newBottom - newTop;
+        const newCx = (newLeft + newRight) / 2;
+        const newCy = (newTop + newBottom) / 2;
+
+        let updateStyle = {
+            x: newCx,
+            y: newCy,
+        };
+
+        // Circle nodes: single size value (keep it a circle)
+        if(nodeType === 'circle') {
+            const d = Math.max(newW, newH);
+            updateStyle.size = [d];
+        } else {
+            updateStyle.size = [newW, newH];
+        }
+
+        // HTML nodes: update dx, dy to keep content centered
+        if(nodeType === 'html') {
+            updateStyle.dx = -newW / 2;
+            updateStyle.dy = -newH / 2;
+        }
+
+        // Scale port radius proportionally to node size change
+        if(origPortR > 0) {
+            const scale = (nodeType === 'circle') ?
+                Math.max(newW, newH) / Math.max(origW, origH) :
+                Math.max(newW / origW, newH / origH);
+            updateStyle.portR = Math.max(2, Math.round(origPortR * scale));
+        }
+
+        graph.updateNodeData([{ id: node_id, style: updateStyle }]);
+        graph.draw().then(() => {
+            update_resize_handles_position(gobj);
+
+            // Mark graph as dirty (enable save button)
+            let $container = gobj_read_attr(gobj, "$container");
+            enableElements($container, ".EV_SAVE_GRAPH");
+            set_submit_state($container, ".EV_SAVE_GRAPH", true);
+        });
+    }
+
+    document.addEventListener('pointermove', onPointerMove);
+    document.addEventListener('pointerup', onPointerUp);
+}
+
+/************************************************************
+ *  Port selection and individual port resizing
+ ************************************************************/
+const PORT_HANDLE_SIZE = 8;
+
+/************************************************************
+ *  Compute the canvas (world) position of a port on a node.
+ *  Returns {x, y} in world coordinates.
+ ************************************************************/
+function get_port_canvas_position(gobj, node_id, port_key)
+{
+    let priv = gobj.priv;
+    let graph = priv.graph;
+
+    const pos = graph.getElementPosition(node_id);
+    const nodeData = graph.getNodeData(node_id);
+    const style = nodeData.style || {};
+    const size = style.size || [60];
+    const w = Array.isArray(size) ? size[0] : size;
+    const h = Array.isArray(size) ? (size.length > 1 ? size[1] : size[0]) : size;
+    const ports = style.ports || [];
+
+    for(let i = 0; i < ports.length; i++) {
+        if(ports[i].key === port_key) {
+            let pl = ports[i].placement || [0.5, 0.5];
+            return {
+                x: pos[0] + (pl[0] - 0.5) * w,
+                y: pos[1] + (pl[1] - 0.5) * h
+            };
+        }
+    }
+    return null;
+}
+
+/************************************************************
+ *  Get the radius of a specific port on a node.
+ ************************************************************/
+function get_port_radius(gobj, node_id, port_key)
+{
+    let priv = gobj.priv;
+    let graph = priv.graph;
+
+    const nodeData = graph.getNodeData(node_id);
+    const style = nodeData.style || {};
+    const ports = style.ports || [];
+
+    for(let i = 0; i < ports.length; i++) {
+        if(ports[i].key === port_key) {
+            // Per-port r overrides node-level portR
+            if(ports[i].r != null) {
+                return ports[i].r;
+            }
+            break;
+        }
+    }
+    return style.portR || 6;
+}
+
+/************************************************************
+ *  Detect if a click in canvas coordinates hits a port.
+ *  Returns the port key string, or null if no port hit.
+ ************************************************************/
+function detect_port_click(gobj, node_id, canvasX, canvasY)
+{
+    let priv = gobj.priv;
+    let graph = priv.graph;
+
+    const pos = graph.getElementPosition(node_id);
+    const nodeData = graph.getNodeData(node_id);
+    const style = nodeData.style || {};
+    const size = style.size || [60];
+    const w = Array.isArray(size) ? size[0] : size;
+    const h = Array.isArray(size) ? (size.length > 1 ? size[1] : size[0]) : size;
+    const ports = style.ports || [];
+    const defaultR = style.portR || 6;
+
+    let best_key = null;
+    let best_dist = Infinity;
+
+    for(let i = 0; i < ports.length; i++) {
+        let pl = ports[i].placement || [0.5, 0.5];
+        let px = pos[0] + (pl[0] - 0.5) * w;
+        let py = pos[1] + (pl[1] - 0.5) * h;
+        let r = ports[i].r != null ? ports[i].r : defaultR;
+
+        let dx = canvasX - px;
+        let dy = canvasY - py;
+        let dist = Math.sqrt(dx * dx + dy * dy);
+
+        // Hit area is the port radius + a tolerance of 4 world units
+        if(dist <= r + 4 && dist < best_dist) {
+            best_dist = dist;
+            best_key = ports[i].key;
+        }
+    }
+
+    return best_key;
+}
+
+/************************************************************
+ *  Select a port: deselect node handles, show port handles.
+ ************************************************************/
+function select_port(gobj, node_id, port_key)
+{
+    let priv = gobj.priv;
+
+    // Hide node resize handles (but keep node selected state)
+    hide_resize_handles(gobj);
+
+    priv._selected_node_id = node_id;
+    priv._selected_port_key = port_key;
+
+    show_port_resize_handles(gobj);
+}
+
+/************************************************************
+ *  Deselect port: clear port state, return to node selection.
+ ************************************************************/
+function deselect_port(gobj)
+{
+    let priv = gobj.priv;
+
+    hide_port_resize_handles(gobj);
+    priv._selected_port_key = null;
+}
+
+/************************************************************
+ *  Show 4 resize handles (N, E, S, W) around selected port.
+ ************************************************************/
+function show_port_resize_handles(gobj)
+{
+    hide_port_resize_handles(gobj);
+
+    let priv = gobj.priv;
+    if(!priv._selected_port_key || !priv._selected_node_id) {
+        return;
+    }
+
+    const container = document.createElement('div');
+    container.className = 'g6-port-resize-handles';
+    container.style.cssText =
+        'position:absolute;top:0;left:0;width:100%;height:100%;' +
+        'pointer-events:none;z-index:11;';
+
+    // Dashed circle indicator
+    const ring = document.createElement('div');
+    container.appendChild(ring);
+
+    // 4 handles: N, E, S, W
+    const handle_defs = [
+        { cursor: 'n-resize',  dx:  0, dy: -1 },
+        { cursor: 'e-resize',  dx:  1, dy:  0 },
+        { cursor: 's-resize',  dx:  0, dy:  1 },
+        { cursor: 'w-resize',  dx: -1, dy:  0 },
+    ];
+
+    const handles = [];
+    for(const def of handle_defs) {
+        const el = document.createElement('div');
+        el.style.cssText =
+            'position:absolute;' +
+            'width:' + PORT_HANDLE_SIZE + 'px;' +
+            'height:' + PORT_HANDLE_SIZE + 'px;' +
+            'background:#fff;' +
+            'border:1px solid #fa8c16;' +
+            'border-radius:50%;' +
+            'cursor:' + def.cursor + ';' +
+            'pointer-events:all;' +
+            'box-sizing:border-box;';
+        el.addEventListener('pointerdown', (e) => {
+            start_port_resize(gobj, e);
+        });
+        handles.push({ el: el, dx: def.dx, dy: def.dy });
+        container.appendChild(el);
+    }
+
+    priv.$container.appendChild(container);
+    priv._port_handles_el = container;
+    priv._port_handles = handles;
+    priv._port_ring = ring;
+
+    update_port_resize_handles_position(gobj);
+}
+
+/************************************************************
+ *  Hide port resize handles.
+ ************************************************************/
+function hide_port_resize_handles(gobj)
+{
+    let priv = gobj.priv;
+
+    if(priv._port_handles_el) {
+        priv._port_handles_el.remove();
+        priv._port_handles_el = null;
+        priv._port_handles = [];
+        priv._port_ring = null;
+    }
+}
+
+/************************************************************
+ *  Update port handle positions after zoom/pan/resize.
+ ************************************************************/
+function update_port_resize_handles_position(gobj)
+{
+    let priv = gobj.priv;
+    let graph = priv.graph;
+
+    if(!priv._selected_port_key || !priv._port_handles_el) {
+        return;
+    }
+
+    try {
+        let canvasPos = get_port_canvas_position(
+            gobj, priv._selected_node_id, priv._selected_port_key
+        );
+        if(!canvasPos) {
+            hide_port_resize_handles(gobj);
+            return;
+        }
+
+        let r = get_port_radius(gobj, priv._selected_node_id, priv._selected_port_key);
+        let vpCenter = graph.getViewportByCanvas([canvasPos.x, canvasPos.y]);
+        let vpEdge = graph.getViewportByCanvas([canvasPos.x + r, canvasPos.y]);
+        let vpR = vpEdge[0] - vpCenter[0]; // radius in viewport pixels
+
+        apply_port_handles(gobj, vpCenter[0], vpCenter[1], vpR);
+    } catch(e) {
+        hide_port_resize_handles(gobj);
+    }
+}
+
+/************************************************************
+ *  Position port handles and ring around viewport center.
+ ************************************************************/
+function apply_port_handles(gobj, cx, cy, vpR)
+{
+    let priv = gobj.priv;
+    const HALF = PORT_HANDLE_SIZE / 2;
+
+    // Dashed ring
+    const ring = priv._port_ring;
+    if(ring) {
+        const d = vpR * 2;
+        ring.style.cssText =
+            'position:absolute;' +
+            'left:' + (cx - vpR) + 'px;' +
+            'top:' + (cy - vpR) + 'px;' +
+            'width:' + d + 'px;' +
+            'height:' + d + 'px;' +
+            'border:1px dashed #fa8c16;' +
+            'border-radius:50%;' +
+            'pointer-events:none;' +
+            'box-sizing:border-box;';
+    }
+
+    // N, E, S, W handles
+    const offsets = [
+        { x: cx,        y: cy - vpR },  // N
+        { x: cx + vpR,  y: cy },         // E
+        { x: cx,        y: cy + vpR },  // S
+        { x: cx - vpR,  y: cy },         // W
+    ];
+
+    for(let i = 0; i < priv._port_handles.length; i++) {
+        const h = priv._port_handles[i];
+        const o = offsets[i];
+        h.el.style.left = (o.x - HALF) + 'px';
+        h.el.style.top = (o.y - HALF) + 'px';
+    }
+}
+
+/************************************************************
+ *  Drag handler for port resize.
+ *  Uses distance from port center to pointer as new radius.
+ ************************************************************/
+function start_port_resize(gobj, e)
+{
+    let priv = gobj.priv;
+    let graph = priv.graph;
+
+    e.preventDefault();
+    e.stopPropagation();
+
+    const node_id = priv._selected_node_id;
+    const port_key = priv._selected_port_key;
+    if(!node_id || !port_key) {
+        return;
+    }
+
+    const canvasPos = get_port_canvas_position(gobj, node_id, port_key);
+    if(!canvasPos) {
+        return;
+    }
+
+    // Get viewport center of port for live feedback
+    // vpCenter is container-relative; client coords need container offset
+    const vpCenter = graph.getViewportByCanvas([canvasPos.x, canvasPos.y]);
+    const containerRect = priv.$container.getBoundingClientRect();
+    const clientCx = vpCenter[0] + containerRect.left;
+    const clientCy = vpCenter[1] + containerRect.top;
+    const zoom = graph.getZoom();
+
+    function onPointerMove(ev) {
+        const dx = ev.clientX - clientCx;
+        const dy = ev.clientY - clientCy;
+        let vpR = Math.max(PORT_HANDLE_SIZE, Math.sqrt(dx * dx + dy * dy));
+
+        apply_port_handles(gobj, vpCenter[0], vpCenter[1], vpR);
+    }
+
+    function onPointerUp(ev) {
+        document.removeEventListener('pointermove', onPointerMove);
+        document.removeEventListener('pointerup', onPointerUp);
+
+        // Calculate new radius in world coordinates
+        const dx = ev.clientX - clientCx;
+        const dy = ev.clientY - clientCy;
+        let vpR = Math.max(PORT_HANDLE_SIZE, Math.sqrt(dx * dx + dy * dy));
+        let newR = Math.max(2, Math.round(vpR / zoom));
+
+        // Update the individual port's r in the ports array
+        const nodeData = graph.getNodeData(node_id);
+        const style = nodeData.style || {};
+        let ports = style.ports ? [...style.ports] : [];
+        for(let i = 0; i < ports.length; i++) {
+            if(ports[i].key === port_key) {
+                ports[i] = { ...ports[i], r: newR };
+                break;
+            }
+        }
+
+        graph.updateNodeData([{ id: node_id, style: { ports: ports } }]);
+        graph.draw().then(() => {
+            update_port_resize_handles_position(gobj);
+
+            let $container = gobj_read_attr(gobj, "$container");
+            enableElements($container, ".EV_SAVE_GRAPH");
+            set_submit_state($container, ".EV_SAVE_GRAPH", true);
+        });
+    }
+
+    document.addEventListener('pointermove', onPointerMove);
+    document.addEventListener('pointerup', onPointerUp);
+}
+
+
+/************************************************************
+ *  Edge selection: show a floating properties icon near
+ *  the edge midpoint. Clicking it opens a popover form.
+ ************************************************************/
+
+function select_edge(gobj, edge_id)
+{
+    let priv = gobj.priv;
+    let graph = priv.graph;
+
+    deselect_edge(gobj);
+
+    priv._selected_edge_id = edge_id;
+
+    history_pause(gobj);
+    try {
+        graph.setElementState(edge_id, ['selected']);
+    } catch(e) {}
+
+    show_edge_icon(gobj);
+
+    graph_draw(gobj).then(() => {
+        history_resume(gobj);
+    });
+}
+
+function deselect_edge(gobj)
+{
+    let priv = gobj.priv;
+    let graph = priv.graph;
+
+    hide_edge_popover(gobj);
+    hide_edge_icon(gobj);
+
+    if(priv._selected_edge_id) {
+        history_pause(gobj);
+        try {
+            graph.setElementState(priv._selected_edge_id, []);
+        } catch(e) {}
+        priv._selected_edge_id = null;
+
+        graph_draw(gobj).then(() => {
+            history_resume(gobj);
+        });
+    }
+}
+
+/************************************************************
+ *  Get the midpoint of an edge in viewport coordinates.
+ ************************************************************/
+function get_edge_viewport_midpoint(gobj, edge_id)
+{
+    let priv = gobj.priv;
+    let graph = priv.graph;
+
+    let edgeData = graph.getEdgeData(edge_id);
+    if(!edgeData) {
+        return null;
+    }
+
+    let sourcePos = graph.getElementPosition(edgeData.source);
+    let targetPos = graph.getElementPosition(edgeData.target);
+
+    let midX = (sourcePos[0] + targetPos[0]) / 2;
+    let midY = (sourcePos[1] + targetPos[1]) / 2;
+
+    let vp = graph.getViewportByCanvas([midX, midY]);
+    return { x: vp[0], y: vp[1] };
+}
+
+/************************************************************
+ *  Show a floating properties icon at the edge midpoint.
+ ************************************************************/
+function show_edge_icon(gobj)
+{
+    hide_edge_icon(gobj);
+
+    let priv = gobj.priv;
+    if(!priv._selected_edge_id) {
+        return;
+    }
+
+    let mid = get_edge_viewport_midpoint(gobj, priv._selected_edge_id);
+    if(!mid) {
+        return;
+    }
+
+    const icon = document.createElement('div');
+    icon.className = 'g6-edge-properties-icon';
+    icon.title = t('edge properties');
+    icon.innerHTML =
+        '<svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" ' +
+        'fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" ' +
+        'stroke-linejoin="round">' +
+        '<circle cx="12" cy="12" r="3"/>' +
+        '<path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06' +
+        'a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09' +
+        'A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83' +
+        'l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09' +
+        'A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83' +
+        'l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09' +
+        'a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83' +
+        'l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09' +
+        'a1.65 1.65 0 0 0-1.51 1z"/>' +
+        '</svg>';
+    icon.style.cssText =
+        'position:absolute;' +
+        'left:' + (mid.x - 14) + 'px;' +
+        'top:' + (mid.y - 14) + 'px;' +
+        'width:28px;height:28px;' +
+        'display:flex;align-items:center;justify-content:center;' +
+        'background:#fff;border:1px solid #52c41a;border-radius:50%;' +
+        'cursor:pointer;pointer-events:all;z-index:11;' +
+        'box-shadow:0 2px 6px rgba(0,0,0,0.15);' +
+        'color:#52c41a;';
+
+    icon.addEventListener('click', (e) => {
+        e.stopPropagation();
+        toggle_edge_popover(gobj);
+    });
+
+    priv.$container.appendChild(icon);
+    priv._edge_icon_el = icon;
+}
+
+function hide_edge_icon(gobj)
+{
+    let priv = gobj.priv;
+    if(priv._edge_icon_el) {
+        priv._edge_icon_el.remove();
+        priv._edge_icon_el = null;
+    }
+}
+
+function update_edge_icon_position(gobj)
+{
+    let priv = gobj.priv;
+    if(!priv._selected_edge_id || !priv._edge_icon_el) {
+        return;
+    }
+
+    try {
+        let mid = get_edge_viewport_midpoint(gobj, priv._selected_edge_id);
+        if(!mid) {
+            hide_edge_icon(gobj);
+            hide_edge_popover(gobj);
+            return;
+        }
+        priv._edge_icon_el.style.left = (mid.x - 14) + 'px';
+        priv._edge_icon_el.style.top = (mid.y - 14) + 'px';
+
+        // Reposition popover if open
+        if(priv._edge_popover_el) {
+            priv._edge_popover_el.style.left = (mid.x + 20) + 'px';
+            priv._edge_popover_el.style.top = (mid.y - 14) + 'px';
+        }
+    } catch(e) {
+        hide_edge_icon(gobj);
+        hide_edge_popover(gobj);
+    }
+}
+
+/************************************************************
+ *  Edge properties popover: form with lineWidth, color,
+ *  and apply-to scope.
+ ************************************************************/
+function toggle_edge_popover(gobj)
+{
+    let priv = gobj.priv;
+    if(priv._edge_popover_el) {
+        hide_edge_popover(gobj);
+    } else {
+        show_edge_popover(gobj);
+    }
+}
+
+function show_edge_popover(gobj)
+{
+    hide_edge_popover(gobj);
+
+    let priv = gobj.priv;
+    let graph = priv.graph;
+    let edge_id = priv._selected_edge_id;
+    if(!edge_id) {
+        return;
+    }
+
+    let edgeData = graph.getEdgeData(edge_id);
+    if(!edgeData) {
+        return;
+    }
+    let style = edgeData.style || {};
+    let currentLW = style.lineWidth || 2;
+    let currentStroke = style.stroke || '#000000';
+
+    // Save original style for cancel/restore
+    let origLW = currentLW;
+    let origStroke = currentStroke;
+
+    // Clear selected state so the real style is visible during preview
+    history_pause(gobj);
+    try {
+        graph.setElementState(edge_id, []);
+    } catch(e) {}
+    graph_draw(gobj).then(() => {
+        history_resume(gobj);
+    });
+
+    let mid = get_edge_viewport_midpoint(gobj, edge_id);
+    if(!mid) {
+        return;
+    }
+
+    const popover = document.createElement('div');
+    popover.className = 'g6-edge-popover';
+    popover.style.cssText =
+        'position:absolute;' +
+        'left:' + (mid.x + 20) + 'px;' +
+        'top:' + (mid.y - 14) + 'px;' +
+        'background:#fff;border:1px solid #d9d9d9;border-radius:6px;' +
+        'padding:12px;z-index:12;pointer-events:all;' +
+        'box-shadow:0 4px 12px rgba(0,0,0,0.15);' +
+        'min-width:180px;font-size:13px;';
+
+    // Prevent clicks inside popover from deselecting
+    popover.addEventListener('click', (e) => e.stopPropagation());
+    popover.addEventListener('pointerdown', (e) => e.stopPropagation());
+
+    // Live preview: update the selected edge in real time
+    function preview_edge() {
+        let lw = parseInt(lwInput.value) || 2;
+        let color = colorInput.value;
+        graph.updateEdgeData([{ id: edge_id, style: { lineWidth: lw, stroke: color } }]);
+        graph.draw();
+    }
+
+    // Line width
+    let lwLabel = document.createElement('label');
+    lwLabel.textContent = t('line width');
+    lwLabel.style.cssText = 'display:block;margin-bottom:4px;font-weight:500;';
+    popover.appendChild(lwLabel);
+
+    let lwInput = document.createElement('input');
+    lwInput.type = 'number';
+    lwInput.min = '1';
+    lwInput.max = '20';
+    lwInput.value = currentLW;
+    lwInput.style.cssText =
+        'width:100%;padding:4px 6px;border:1px solid #d9d9d9;border-radius:4px;' +
+        'box-sizing:border-box;margin-bottom:10px;';
+    lwInput.addEventListener('input', preview_edge);
+    popover.appendChild(lwInput);
+
+    // Color
+    let colorLabel = document.createElement('label');
+    colorLabel.textContent = t('color');
+    colorLabel.style.cssText = 'display:block;margin-bottom:4px;font-weight:500;';
+    popover.appendChild(colorLabel);
+
+    let colorInput = document.createElement('input');
+    colorInput.type = 'color';
+    colorInput.value = currentStroke;
+    colorInput.style.cssText =
+        'width:100%;height:30px;padding:0;border:1px solid #d9d9d9;border-radius:4px;' +
+        'cursor:pointer;margin-bottom:10px;';
+    colorInput.addEventListener('input', preview_edge);
+    popover.appendChild(colorInput);
+
+    // Apply-to scope
+    let scopeLabel = document.createElement('label');
+    scopeLabel.textContent = t('apply to');
+    scopeLabel.style.cssText = 'display:block;margin-bottom:4px;font-weight:500;';
+    popover.appendChild(scopeLabel);
+
+    let scopeSelect = document.createElement('select');
+    scopeSelect.style.cssText =
+        'width:100%;padding:4px 6px;border:1px solid #d9d9d9;border-radius:4px;' +
+        'box-sizing:border-box;margin-bottom:12px;';
+    let options = [
+        { value: 'this', label: t('this edge') },
+        { value: 'same_type', label: t('same type edges') },
+        { value: 'all', label: t('all edges') },
+    ];
+    for(let opt of options) {
+        let o = document.createElement('option');
+        o.value = opt.value;
+        o.textContent = opt.label;
+        scopeSelect.appendChild(o);
+    }
+    popover.appendChild(scopeSelect);
+
+    // Button row
+    let btnRow = document.createElement('div');
+    btnRow.style.cssText = 'display:flex;gap:8px;';
+
+    // Cancel button
+    let cancelBtn = document.createElement('button');
+    cancelBtn.textContent = t('cancel');
+    cancelBtn.style.cssText =
+        'flex:1;padding:6px;background:#fff;color:#333;border:1px solid #d9d9d9;' +
+        'border-radius:4px;cursor:pointer;font-size:13px;font-weight:500;';
+    cancelBtn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        // Restore original style and deselect
+        graph.updateEdgeData([{ id: edge_id, style: { lineWidth: origLW, stroke: origStroke } }]);
+        graph.draw();
+        deselect_edge(gobj);
+    });
+    btnRow.appendChild(cancelBtn);
+
+    // Apply button
+    let applyBtn = document.createElement('button');
+    applyBtn.textContent = t('apply');
+    applyBtn.style.cssText =
+        'flex:1;padding:6px;background:#52c41a;color:#fff;border:none;' +
+        'border-radius:4px;cursor:pointer;font-size:13px;font-weight:500;';
+    applyBtn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        apply_edge_properties(gobj, edge_id,
+            parseInt(lwInput.value) || 2,
+            colorInput.value,
+            scopeSelect.value
+        );
+    });
+    btnRow.appendChild(applyBtn);
+
+    popover.appendChild(btnRow);
+
+    priv.$container.appendChild(popover);
+    priv._edge_popover_el = popover;
+}
+
+function hide_edge_popover(gobj)
+{
+    let priv = gobj.priv;
+    if(priv._edge_popover_el) {
+        priv._edge_popover_el.remove();
+        priv._edge_popover_el = null;
+    }
+}
+
+/************************************************************
+ *  Apply edge properties to one or more edges.
+ *  scope: 'this', 'same_type', 'all'
+ ************************************************************/
+function apply_edge_properties(gobj, edge_id, lineWidth, stroke, scope)
+{
+    let priv = gobj.priv;
+    let graph = priv.graph;
+
+    let edgeData = graph.getEdgeData(edge_id);
+    if(!edgeData || !edgeData.data) {
+        return;
+    }
+
+    let source_hook = edgeData.data.hook_name;
+    let newStyle = { lineWidth: lineWidth, stroke: stroke };
+
+    let updates = [];
+    const edges = graph.getData().edges;
+
+    for(let i = 0; i < edges.length; i++) {
+        let ed = graph.getEdgeData(edges[i].id);
+        if(!ed || !ed.data) {
+            continue;
+        }
+
+        if(scope === 'this' && edges[i].id !== edge_id) {
+            continue;
+        }
+        if(scope === 'same_type' && ed.data.hook_name !== source_hook) {
+            continue;
+        }
+
+        updates.push({ id: edges[i].id, style: { ...newStyle } });
+    }
+
+    if(updates.length > 0) {
+        graph.updateEdgeData(updates);
+        graph.draw().then(() => {
+            let $container = gobj_read_attr(gobj, "$container");
+            enableElements($container, ".EV_SAVE_GRAPH");
+            set_submit_state($container, ".EV_SAVE_GRAPH", true);
+        });
+    }
+
+    // Store defaults in _graph_properties
+    let parent_topic = edgeData.data.parent_topic;
+    if(scope === 'same_type') {
+        if(!is_object(priv._graph_properties[parent_topic])) {
+            priv._graph_properties[parent_topic] = {};
+        }
+        let defaults = priv._graph_properties[parent_topic].defaults || {};
+        let edge_defaults = defaults.edge_styles || {};
+        edge_defaults[source_hook] = { lineWidth: lineWidth, stroke: stroke };
+        defaults.edge_styles = edge_defaults;
+        priv._graph_properties[parent_topic].defaults = defaults;
+    } else if(scope === 'all') {
+        for(const topic_name of Object.keys(priv.descs || {})) {
+            if(!is_object(priv._graph_properties[topic_name])) {
+                priv._graph_properties[topic_name] = {};
+            }
+            let defaults = priv._graph_properties[topic_name].defaults || {};
+            defaults.edge_style = { lineWidth: lineWidth, stroke: stroke };
+            priv._graph_properties[topic_name].defaults = defaults;
+        }
+    }
+
+    deselect_edge(gobj);
+}
+
+/************************************************************
+ *  Save edge styles into _graph_properties (called from
+ *  save_geometry).
+ ************************************************************/
+function update_edge_geometry(gobj, edge_id)
+{
+    let priv = gobj.priv;
+    let graph = priv.graph;
+
+    let edgeData = graph.getEdgeData(edge_id);
+    if(!edgeData || !edgeData.data) {
+        return;
+    }
+
+    let style = edgeData.style || {};
+    let lineWidth = style.lineWidth;
+    let stroke = style.stroke;
+
+    let parent_topic = edgeData.data.parent_topic;
+    let edge_key = edgeData.data.hook_name + ":" +
+        edgeData.data.parent_id + ":" + edgeData.data.child_id;
+
+    // If default values, remove any previously saved entry
+    let hasCustom = (lineWidth != null && lineWidth !== 2);
+    if(!hasCustom) {
+        let topic_props = priv._graph_properties[parent_topic];
+        if(topic_props && is_object(topic_props.edges)) {
+            delete topic_props.edges[edge_key];
+            if(Object.keys(topic_props.edges).length === 0) {
+                delete topic_props.edges;
+            }
+        }
+        return;
+    }
+
+    if(!is_object(priv._graph_properties[parent_topic])) {
+        priv._graph_properties[parent_topic] = {};
+    }
+    let topic_props = priv._graph_properties[parent_topic];
+    if(!is_object(topic_props.edges)) {
+        topic_props.edges = {};
+    }
+
+    let edge_props = { lineWidth: lineWidth };
+    if(stroke) {
+        edge_props.stroke = stroke;
+    }
+    topic_props.edges[edge_key] = edge_props;
+}
+
+
+/************************************************************
+ *  Context menu: build items based on target element.
+ *  Returns different menu items for nodes, ports, and edges.
+ *  Stores the target in priv for use in the click handler.
+ ************************************************************/
+function build_context_menu_items(gobj, e)
+{
+    let priv = gobj.priv;
+    let graph = priv.graph;
+
+    // Reset context target
+    priv._context_node_id = null;
+    priv._context_port_key = null;
+    priv._context_edge_id = null;
+
+    if(e.targetType === 'edge') {
+        priv._context_edge_id = e.target.id;
+        return build_edge_context_menu(gobj);
+    }
+
+    if(e.targetType === 'node') {
+        let node_id = e.target.id;
+        priv._context_node_id = node_id;
+
+        // Detect if right-click is on a port
+        let containerRect = priv.$container.getBoundingClientRect();
+        let canvasPoint = graph.getCanvasByViewport([
+            e.client.x - containerRect.left,
+            e.client.y - containerRect.top
+        ]);
+        let port_key = detect_port_click(
+            gobj, node_id, canvasPoint[0], canvasPoint[1]
+        );
+
+        if(port_key) {
+            priv._context_port_key = port_key;
+            return build_port_context_menu(gobj, node_id, port_key);
+        } else {
+            return build_node_context_menu(gobj, node_id);
+        }
+    }
+
+    return [];
+}
+
+/************************************************************
+ *  Build node context menu items.
+ ************************************************************/
+function build_node_context_menu(gobj, node_id)
+{
+    let items = [];
+
+    if(gobj.priv.edit_mode) {
+        items.push({ name: t('resize all'), value: 'resize_all_nodes' });
+        items.push({ name: t('resize topic nodes'), value: 'resize_topic_nodes' });
+    }
+
+    return items;
+}
+
+/************************************************************
+ *  Build port context menu items.
+ ************************************************************/
+function build_port_context_menu(gobj, node_id, port_key)
+{
+    let items = [];
+
+    if(gobj.priv.edit_mode) {
+        items.push({ name: t('resize all ports'), value: 'resize_all_ports' });
+        items.push({ name: t('resize topic ports'), value: 'resize_topic_ports' });
+    }
+
+    return items;
+}
+
+/************************************************************
+ *  Build edge context menu items (prepared for expansion).
+ ************************************************************/
+function build_edge_context_menu(gobj)
+{
+    let items = [];
+    // Future: add edge-specific actions here
+    return items;
+}
+
+/************************************************************
+ *  Handle context menu click: dispatch by value.
+ ************************************************************/
+function handle_context_menu_click(gobj, value)
+{
+    let priv = gobj.priv;
+
+    switch(value) {
+        case 'resize_all_nodes':
+            copy_size_to_nodes(gobj, false);
+            break;
+        case 'resize_topic_nodes':
+            copy_size_to_nodes(gobj, true);
+            break;
+        case 'resize_all_ports':
+            copy_size_to_ports(gobj, false);
+            break;
+        case 'resize_topic_ports':
+            copy_size_to_ports(gobj, true);
+            break;
+    }
+}
+
+/************************************************************
+ *  Copy the selected node's size to other nodes.
+ *  If same_topic_only=true, only nodes of the same topic.
+ *  If same_topic_only=false, all nodes in the graph.
+ *  Also copies portR and stores as default.
+ ************************************************************/
+function copy_size_to_nodes(gobj, same_topic_only)
+{
+    let priv = gobj.priv;
+    let graph = priv.graph;
+
+    let node_id = priv._context_node_id;
+    if(!node_id) {
+        return;
+    }
+
+    let nodedata = graph.getNodeData(node_id);
+    if(!nodedata || !nodedata.data) {
+        return;
+    }
+
+    let source_topic = nodedata.data.topic_name;
+    let source_style = nodedata.style || {};
+    let source_size = source_style.size;
+    let source_portR = source_style.portR;
+    let source_type = nodedata.type;
+
+    if(!source_size) {
+        return;
+    }
+
+    // Store as default for new nodes
+    let defaults = { size: [...source_size] };
+    if(source_portR != null) {
+        defaults.portR = source_portR;
+    }
+
+    if(same_topic_only) {
+        // Store default only for this topic
+        if(!is_object(priv._graph_properties[source_topic])) {
+            priv._graph_properties[source_topic] = {};
+        }
+        priv._graph_properties[source_topic].defaults = defaults;
+    } else {
+        // Store default for all topics present in the graph
+        for(const topic_name of Object.keys(priv.descs || {})) {
+            if(!is_object(priv._graph_properties[topic_name])) {
+                priv._graph_properties[topic_name] = {};
+            }
+            priv._graph_properties[topic_name].defaults = { ...defaults };
+        }
+    }
+
+    // Iterate nodes and update matching ones
+    let updates = [];
+    const nodes = graph.getData().nodes;
+    for(let i = 0; i < nodes.length; i++) {
+        let nd = graph.getNodeData(nodes[i].id);
+        if(!nd || !nd.data) {
+            continue;
+        }
+        if(same_topic_only && nd.data.topic_name !== source_topic) {
+            continue;
+        }
+        if(nodes[i].id === node_id) {
+            continue; // skip source
+        }
+
+        let updateStyle = {
+            size: [...source_size],
+        };
+
+        if(source_portR != null) {
+            updateStyle.portR = source_portR;
+        }
+
+        // Recalculate dx/dy for HTML nodes
+        if(nd.type === 'html') {
+            updateStyle.dx = -source_size[0] / 2;
+            let h = source_size.length > 1 ? source_size[1] : source_size[0];
+            updateStyle.dy = -h / 2;
+        }
+
+        updates.push({ id: nodes[i].id, style: updateStyle });
+    }
+
+    if(updates.length > 0) {
+        graph.updateNodeData(updates);
+        graph.draw().then(() => {
+            update_resize_handles_position(gobj);
+
+            let $container = gobj_read_attr(gobj, "$container");
+            enableElements($container, ".EV_SAVE_GRAPH");
+            set_submit_state($container, ".EV_SAVE_GRAPH", true);
+        });
+    }
+}
+
+/************************************************************
+ *  Copy the selected port's radius to matching ports.
+ *  If same_topic_only=true, only ports in same-topic nodes.
+ *  If same_topic_only=false, matching ports in all nodes.
+ *  Also stores as default.
+ ************************************************************/
+function copy_size_to_ports(gobj, same_topic_only)
+{
+    let priv = gobj.priv;
+    let graph = priv.graph;
+
+    let node_id = priv._context_node_id;
+    let port_key = priv._context_port_key;
+    if(!node_id || !port_key) {
+        return;
+    }
+
+    let nodedata = graph.getNodeData(node_id);
+    if(!nodedata || !nodedata.data) {
+        return;
+    }
+
+    let source_topic = nodedata.data.topic_name;
+    let source_r = get_port_radius(gobj, node_id, port_key);
+
+    // Store as default
+    if(same_topic_only) {
+        // Store for matching port key in this topic only
+        if(!is_object(priv._graph_properties[source_topic])) {
+            priv._graph_properties[source_topic] = {};
+        }
+        let defaults = priv._graph_properties[source_topic].defaults || {};
+        let port_sizes = defaults.port_sizes || {};
+        port_sizes[port_key] = source_r;
+        defaults.port_sizes = port_sizes;
+        priv._graph_properties[source_topic].defaults = defaults;
+    } else {
+        // Store for all topics — set portR as the global default
+        for(const topic_name of Object.keys(priv.descs || {})) {
+            if(!is_object(priv._graph_properties[topic_name])) {
+                priv._graph_properties[topic_name] = {};
+            }
+            let defaults = priv._graph_properties[topic_name].defaults || {};
+            defaults.portR = source_r;
+            priv._graph_properties[topic_name].defaults = defaults;
+        }
+    }
+
+    // Iterate nodes and update ports
+    let updates = [];
+    const nodes = graph.getData().nodes;
+    for(let i = 0; i < nodes.length; i++) {
+        let nd = graph.getNodeData(nodes[i].id);
+        if(!nd || !nd.data) {
+            continue;
+        }
+        if(same_topic_only && nd.data.topic_name !== source_topic) {
+            continue;
+        }
+
+        let style = nd.style || {};
+        let ports = style.ports;
+        if(!ports) {
+            continue;
+        }
+
+        let port_updated = false;
+        let new_ports = ports.map((p) => {
+            if(!same_topic_only || p.key === port_key) {
+                port_updated = true;
+                return { ...p, r: source_r };
+            }
+            return p;
+        });
+
+        if(port_updated) {
+            let upd = { ports: new_ports };
+            // When resizing all ports, also update node-level portR
+            if(!same_topic_only) {
+                upd.portR = source_r;
+            }
+            updates.push({ id: nodes[i].id, style: upd });
+        }
+    }
+
+    if(updates.length > 0) {
+        graph.updateNodeData(updates);
+        graph.draw().then(() => {
+            update_port_resize_handles_position(gobj);
+
+            let $container = gobj_read_attr(gobj, "$container");
+            enableElements($container, ".EV_SAVE_GRAPH");
+            set_submit_state($container, ".EV_SAVE_GRAPH", true);
+        });
+    }
+}
 
 
                     /***************************
@@ -1941,6 +3597,8 @@ function ac_clear_data(gobj, event, kw, src)
 {
     let priv = gobj.priv;
 
+    deselect_node(gobj);
+
     gobj_write_attr(gobj, "records", {});
 
     graph_remove_plugin(gobj, "history");
@@ -1978,6 +3636,7 @@ function ac_load_data(gobj, event, kw, src)
     if(topic_name.substring(0, 2) === "__") {
         if(topic_name === '__graphs__') {
             priv.__graphs__ = data;
+            build_graph_properties(gobj);
         }
         return 0;
     }
@@ -2069,6 +3728,13 @@ function ac_node_created(gobj, event, kw, src)
         return 0;
     }
 
+    // Handle __graphs__ creation: update _graph_properties
+    if(topic_name === '__graphs__') {
+        priv.__graphs__.push(node);
+        build_graph_properties(gobj);
+        return 0;
+    }
+
     let desc = priv.descs[topic_name];
     if(!desc) {
         log_error(`ac_node_created: unknown topic: ${topic_name}`);
@@ -2111,6 +3777,24 @@ function ac_node_updated(gobj, event, kw, src)
     let node = kw.node;
 
     if(!priv.descs || !priv.graph) {
+        return 0;
+    }
+
+    // Handle __graphs__ updates: refresh _graph_properties
+    if(topic_name === '__graphs__') {
+        // Update the __graphs__ record in our local list
+        let found = false;
+        for(let i = 0; i < priv.__graphs__.length; i++) {
+            if(priv.__graphs__[i].id === node.id) {
+                priv.__graphs__[i] = node;
+                found = true;
+                break;
+            }
+        }
+        if(!found) {
+            priv.__graphs__.push(node);
+        }
+        build_graph_properties(gobj);
         return 0;
     }
 
@@ -2191,6 +3875,15 @@ function ac_node_deleted(gobj, event, kw, src)
     if(!desc) {
         log_error(`ac_node_deleted: unknown topic: ${topic_name}`);
         return 0;
+    }
+
+    /*
+     *  Remove node entry from __graphs__ properties and persist
+     */
+    let topic_props = priv._graph_properties[topic_name];
+    if(topic_props && is_object(topic_props.nodes)) {
+        delete topic_props.nodes[node.id];
+        save_topic_graph_properties(gobj, topic_name);
     }
 
     /*
@@ -2395,6 +4088,26 @@ function ac_node_click(gobj, event, kw, src)
                 topic_name: nodedata.data.desc.topic_name,
                 record: nodedata.data.record
             });
+
+            if(priv.edit_mode) {
+                // Check if click hits a port
+                // Convert client coords to viewport (container-relative) then to canvas
+                let containerRect = priv.$container.getBoundingClientRect();
+                let canvasPoint = graph.getCanvasByViewport([
+                    kw.evt.client.x - containerRect.left,
+                    kw.evt.client.y - containerRect.top
+                ]);
+                let port_key = detect_port_click(
+                    gobj, node_id, canvasPoint[0], canvasPoint[1]
+                );
+
+                if(port_key) {
+                    select_port(gobj, node_id, port_key);
+                } else {
+                    deselect_port(gobj);
+                    select_node(gobj, node_id);
+                }
+            }
         }
     } catch(e) {
         // Clicked on non-node element
@@ -2425,6 +4138,11 @@ function ac_edge_click(gobj, event, kw, src)
                 child_id:     edgedata.data.child_id,
                 fkey_name:    edgedata.data.fkey_name,
             });
+
+            if(priv.edit_mode) {
+                deselect_node(gobj);
+                select_edge(gobj, edge_id);
+            }
         }
     } catch(e) {
         // Clicked on non-edge element
@@ -2446,6 +4164,12 @@ function ac_node_context_menu(gobj, event, kw, src)
  ************************************************************/
 function ac_canvas_click(gobj, event, kw, src)
 {
+    let priv = gobj.priv;
+
+    if(priv.edit_mode) {
+        deselect_node(gobj);
+    }
+
     return 0;
 }
 
@@ -2460,6 +4184,7 @@ function ac_history_redo(gobj, event, kw, src)
         const history = graph_get_plugin(gobj, "history");
         if(history && history.canRedo()) {
             history.redo();
+            update_resize_handles_position(gobj);
         }
     }
 
@@ -2474,6 +4199,7 @@ function ac_history_undo(gobj, event, kw, src)
         const history = graph_get_plugin(gobj, "history");
         if(history && history.canUndo()) {
             history.undo();
+            update_resize_handles_position(gobj);
         }
     }
 

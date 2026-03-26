@@ -160,6 +160,20 @@ let es = {
 
         'Inicio': 'Inicio',
 
+        'resize all': 'Redimensionar todos',
+        'resize topic nodes': 'Redimensionar nodos del topic',
+        'resize all ports': 'Redimensionar todos los puertos',
+        'resize topic ports': 'Redimensionar puertos del topic',
+        'edge properties': 'Propiedades del enlace',
+        'line width': 'Grosor de línea',
+        'color': 'Color',
+        'apply to': 'Aplicar a',
+        'this edge': 'Este enlace',
+        'same type edges': 'Enlaces del mismo tipo',
+        'all edges': 'Todos los enlaces',
+        'apply': 'Aplicar',
+        'cancel': 'Cancelar',
+
         'xxx': 'ultima entrada NO TOCAR, insertar antes'
     }
 };
