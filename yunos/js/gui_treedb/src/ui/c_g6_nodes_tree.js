@@ -2046,6 +2046,10 @@ function graph_resize(gobj, width, height)
     let priv = gobj.priv;
     let graph = priv.graph;
 
+    // Hide edge icon/popover before resize — setSize() may not fire aftertransform
+    hide_edge_icon(gobj);
+    hide_edge_popover(gobj);
+
     graph.setSize(width, height);
 }
 
