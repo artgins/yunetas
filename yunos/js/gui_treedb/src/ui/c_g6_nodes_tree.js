@@ -532,6 +532,8 @@ function build_graph(gobj)
                 selected: {
                     lineWidth: 2,
                     stroke: '#1890ff',
+                    labelFill: '#000',
+                    labelFontWeight: 'normal',
                 },
             },
         },
@@ -1064,6 +1066,8 @@ function create_topic_node(gobj, desc, record)
             labelPlacement: 'center',
             labelWordWrap: true,
             labelMaxWidth: "100%",
+            labelFill: '#000',
+            labelFontWeight: 'normal',
             // iconText: record.id,
             // iconSrc: record.icon,
             // iconFontSize: 14,
