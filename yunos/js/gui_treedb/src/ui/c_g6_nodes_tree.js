@@ -1744,6 +1744,38 @@ function save_geometry(gobj)
 }
 
 /************************************************************
+ *  Save __graphs__ properties for a single topic to backend.
+ ************************************************************/
+function save_topic_graph_properties(gobj, topic_name)
+{
+    let priv = gobj.priv;
+    let properties = priv._graph_properties[topic_name];
+    if(!properties) {
+        return;
+    }
+
+    let origin = gobj_read_str_attr(__yuno__, "node_uuid");
+    properties.__origin__ = origin;
+
+    let kw_update = {
+        treedb_name: priv.treedb_name,
+        topic_name: "__graphs__",
+        record: {
+            id: topic_name,
+            topic: topic_name,
+            active: true,
+            properties: properties
+        },
+        options: {
+            list_dict: true,
+            autolink: false,
+            create: true
+        }
+    };
+    gobj_publish_event(gobj, "EV_UPDATE_NODE", kw_update);
+}
+
+/************************************************************
  *  Pause/resume history recording.
  *
  *  Backend-driven updates (node created/updated/deleted) must
@@ -3846,11 +3878,12 @@ function ac_node_deleted(gobj, event, kw, src)
     }
 
     /*
-     *  Remove node entry from __graphs__ properties
+     *  Remove node entry from __graphs__ properties and persist
      */
     let topic_props = priv._graph_properties[topic_name];
     if(topic_props && is_object(topic_props.nodes)) {
         delete topic_props.nodes[node.id];
+        save_topic_graph_properties(gobj, topic_name);
     }
 
     /*
