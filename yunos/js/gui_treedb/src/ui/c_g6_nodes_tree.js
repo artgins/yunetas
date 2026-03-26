@@ -2056,7 +2056,6 @@ function graph_resize(gobj, width, height)
 
     // Deselect edge before resize
     deselect_edge(gobj);
-    hide_node_popover(gobj);
 
     graph.setSize(width, height);
 
