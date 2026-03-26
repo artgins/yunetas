@@ -2054,12 +2054,16 @@ function graph_resize(gobj, width, height)
     let priv = gobj.priv;
     let graph = priv.graph;
 
-    // Deselect/hide before resize — setSize() may not fire aftertransform
+    // Deselect edge before resize
     deselect_edge(gobj);
-    hide_node_icon(gobj);
     hide_node_popover(gobj);
 
     graph.setSize(width, height);
+
+    // setSize() may not fire aftertransform, update overlays manually
+    update_resize_handles_position(gobj);
+    update_port_resize_handles_position(gobj);
+    update_node_icon_position(gobj);
 }
 
 function graph_write_behaviors(gobj, behaviors)
@@ -2284,7 +2288,13 @@ function update_resize_handles_position(gobj)
 {
     let priv = gobj.priv;
 
-    if(!priv._selected_node_id || !priv._resize_handles_el) {
+    if(!priv._selected_node_id || priv._selected_port_key) {
+        return;
+    }
+
+    // Recreate handles if they were removed (e.g. by resize)
+    if(!priv._resize_handles_el) {
+        show_resize_handles(gobj);
         return;
     }
 
@@ -3253,7 +3263,13 @@ function hide_node_icon(gobj)
 function update_node_icon_position(gobj)
 {
     let priv = gobj.priv;
-    if(!priv._selected_node_id || !priv._node_icon_el) {
+    if(!priv._selected_node_id || priv._selected_port_key) {
+        return;
+    }
+
+    // Recreate icon if it was removed (e.g. by resize)
+    if(!priv._node_icon_el) {
+        show_node_icon(gobj);
         return;
     }
 
