@@ -253,6 +253,11 @@ let PRIVATE_DATA = {
     _context_node_id:   null,       // node id for context menu target
     _context_port_key:  null,       // port key for context menu target (null = node body)
     _context_edge_id:   null,       // edge id for context menu target
+    _linking_mode:      false,      // true when in link-drag mode
+    _link_source:       null,       // {node_id, port_key, col, topic_name} of fkey being linked
+    _link_icon_el:      null,       // floating link icon on fkey port
+    _link_valid_hooks:  [],         // [{node_id, port_key}] compatible hook targets
+    _link_saved_styles: [],         // saved port styles to restore on cancel
 };
 
 let __gclass__ = null;
@@ -584,6 +589,7 @@ function configure_events(gobj)
         update_port_resize_handles_position(gobj);
         update_edge_icon_position(gobj);
         update_node_icon_position(gobj);
+        update_link_icon_position(gobj);
     });
 
     graph.on(NodeEvent.DRAG_END, (evt) => {
@@ -607,6 +613,7 @@ function configure_events(gobj)
         update_port_resize_handles_position(gobj);
         update_edge_icon_position(gobj);
         update_node_icon_position(gobj);
+        update_link_icon_position(gobj);
     });
 
     if(gobj_read_bool_attr(gobj, "with_fullscreen")) {
@@ -2065,6 +2072,7 @@ function graph_resize(gobj, width, height)
     update_resize_handles_position(gobj);
     update_port_resize_handles_position(gobj);
     update_node_icon_position(gobj);
+    update_link_icon_position(gobj);
 }
 
 function graph_write_behaviors(gobj, behaviors)
@@ -2173,6 +2181,13 @@ const SVG_ICONS = {
         '<path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/>' +
         '<path d="M10 11v6"/><path d="M14 11v6"/>' +
         '<path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/>' +
+        '</svg>',
+    link:
+        '<svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" ' +
+        'fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" ' +
+        'stroke-linejoin="round">' +
+        '<path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/>' +
+        '<path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/>' +
         '</svg>',
 };
 
@@ -2643,11 +2658,13 @@ function select_port(gobj, node_id, port_key)
     hide_resize_handles(gobj);
     hide_node_icon(gobj);
     hide_node_popover(gobj);
+    exit_linking_mode(gobj);
 
     priv._selected_node_id = node_id;
     priv._selected_port_key = port_key;
 
     show_port_resize_handles(gobj);
+    show_link_icon_if_fkey(gobj);
 }
 
 /************************************************************
@@ -2657,8 +2674,289 @@ function deselect_port(gobj)
 {
     let priv = gobj.priv;
 
+    exit_linking_mode(gobj);
+    hide_link_icon(gobj);
     hide_port_resize_handles(gobj);
     priv._selected_port_key = null;
+}
+
+/************************************************************
+ *  Show a link icon next to a selected fkey port.
+ ************************************************************/
+function show_link_icon_if_fkey(gobj)
+{
+    hide_link_icon(gobj);
+
+    let priv = gobj.priv;
+    let graph = priv.graph;
+    if(!priv._selected_node_id || !priv._selected_port_key) {
+        return;
+    }
+
+    let nodeData = graph.getNodeData(priv._selected_node_id);
+    if(!nodeData || !nodeData.data || !nodeData.data.desc) {
+        return;
+    }
+    let desc = nodeData.data.desc;
+    let col = get_col_by_id(desc, priv._selected_port_key);
+    if(!col) {
+        return;
+    }
+    let field_desc = treedb_get_field_desc(col);
+    if(field_desc.type !== 'fkey') {
+        return;
+    }
+
+    // Get viewport position of the port
+    let canvasPos = get_port_canvas_position(gobj, priv._selected_node_id, priv._selected_port_key);
+    if(!canvasPos) {
+        return;
+    }
+    let vp = graph.getViewportByCanvas([canvasPos.x, canvasPos.y]);
+
+    let icon = create_floating_icon(
+        'link', '#52c41a', vp[0] + 18, vp[1] - 14,
+        t('link to hook'), () => enter_linking_mode(gobj)
+    );
+    priv.$container.appendChild(icon);
+    priv._link_icon_el = icon;
+}
+
+function hide_link_icon(gobj)
+{
+    let priv = gobj.priv;
+    if(priv._link_icon_el) {
+        priv._link_icon_el.remove();
+        priv._link_icon_el = null;
+    }
+}
+
+function update_link_icon_position(gobj)
+{
+    let priv = gobj.priv;
+    if(!priv._link_icon_el || !priv._selected_node_id || !priv._selected_port_key) {
+        return;
+    }
+    try {
+        let graph = priv.graph;
+        let canvasPos = get_port_canvas_position(
+            gobj, priv._selected_node_id, priv._selected_port_key
+        );
+        if(!canvasPos) {
+            hide_link_icon(gobj);
+            return;
+        }
+        let vp = graph.getViewportByCanvas([canvasPos.x, canvasPos.y]);
+        priv._link_icon_el.style.left = (vp[0] + 18) + 'px';
+        priv._link_icon_el.style.top = (vp[1] - 14) + 'px';
+    } catch(e) {
+        hide_link_icon(gobj);
+    }
+}
+
+/************************************************************
+ *  Get a column descriptor by field id from a topic desc.
+ ************************************************************/
+function get_col_by_id(desc, col_id)
+{
+    let cols = desc.cols;
+    for(let i = 0; i < cols.length; i++) {
+        if(cols[i].id === col_id) {
+            return cols[i];
+        }
+    }
+    return null;
+}
+
+/************************************************************
+ *  Linking mode: click-click flow.
+ *  1. User clicks link icon on a fkey port → enter_linking_mode
+ *  2. Compatible hook ports are highlighted
+ *  3. User clicks on a valid hook port → complete_link
+ *  4. User clicks elsewhere or ESC → exit_linking_mode
+ ************************************************************/
+function enter_linking_mode(gobj)
+{
+    let priv = gobj.priv;
+    let graph = priv.graph;
+
+    if(priv._linking_mode) {
+        exit_linking_mode(gobj);
+        return;
+    }
+
+    let node_id = priv._selected_node_id;
+    let port_key = priv._selected_port_key;
+    if(!node_id || !port_key) {
+        return;
+    }
+
+    let nodeData = graph.getNodeData(node_id);
+    if(!nodeData || !nodeData.data || !nodeData.data.desc) {
+        return;
+    }
+    let desc = nodeData.data.desc;
+    let col = get_col_by_id(desc, port_key);
+    if(!col || !col.fkey) {
+        return;
+    }
+
+    // col.fkey = { "parent_topic": "hook_name" }
+    // Find all compatible hook ports on all nodes
+    let valid_hooks = [];
+    let saved_styles = [];
+
+    for(const [parent_topic, hook_name] of Object.entries(col.fkey)) {
+        let parent_desc = priv.descs[parent_topic];
+        if(!parent_desc) {
+            continue;
+        }
+
+        // Find all nodes of this topic
+        let nodes = graph.getData().nodes || [];
+        for(let n of nodes) {
+            let nd = graph.getNodeData(n.id);
+            if(!nd || !nd.data || !nd.data.desc) {
+                continue;
+            }
+            if(nd.data.desc.topic_name !== parent_topic) {
+                continue;
+            }
+            // Don't link to self
+            if(n.id === node_id) {
+                continue;
+            }
+            valid_hooks.push({
+                node_id: n.id,
+                port_key: hook_name,
+                parent_topic: parent_topic,
+                parent_id: nd.data.record ? nd.data.record.id : null,
+            });
+        }
+    }
+
+    if(valid_hooks.length === 0) {
+        return;
+    }
+
+    // Highlight valid hook ports (enlarge + green stroke)
+    for(let vh of valid_hooks) {
+        let nd = graph.getNodeData(vh.node_id);
+        if(!nd) continue;
+        let style = nd.style || {};
+        let ports = style.ports || [];
+        for(let p of ports) {
+            if(p.key === vh.port_key) {
+                saved_styles.push({
+                    node_id: vh.node_id,
+                    port_key: vh.port_key,
+                    orig_stroke: p.stroke,
+                    orig_lineWidth: p.lineWidth,
+                    orig_r: p.r,
+                });
+                p.stroke = '#52c41a';
+                p.lineWidth = 3;
+                if(p.r != null) {
+                    p.r = p.r + 4;
+                } else {
+                    p.r = (style.portR || 6) + 4;
+                }
+            }
+        }
+        graph.updateNodeData([{ id: vh.node_id, style: { ports: ports } }]);
+    }
+
+    priv._linking_mode = true;
+    priv._link_source = {
+        node_id: node_id,
+        port_key: port_key,
+        col: col,
+        topic_name: desc.topic_name,
+        child_id: nodeData.data.record ? nodeData.data.record.id : null,
+    };
+    priv._link_valid_hooks = valid_hooks;
+    priv._link_saved_styles = saved_styles;
+
+    graph.draw();
+}
+
+function exit_linking_mode(gobj)
+{
+    let priv = gobj.priv;
+    let graph = priv.graph;
+
+    if(!priv._linking_mode) {
+        return;
+    }
+
+    // Restore original port styles
+    let updated_nodes = {};
+    for(let saved of priv._link_saved_styles) {
+        let nd = graph.getNodeData(saved.node_id);
+        if(!nd) continue;
+        let style = nd.style || {};
+        let ports = style.ports || [];
+        for(let p of ports) {
+            if(p.key === saved.port_key) {
+                p.stroke = saved.orig_stroke;
+                p.lineWidth = saved.orig_lineWidth;
+                if(saved.orig_r != null) {
+                    p.r = saved.orig_r;
+                } else {
+                    delete p.r;
+                }
+            }
+        }
+        updated_nodes[saved.node_id] = { id: saved.node_id, style: { ports: ports } };
+    }
+    let updates = Object.values(updated_nodes);
+    if(updates.length > 0) {
+        graph.updateNodeData(updates);
+        graph.draw();
+    }
+
+    priv._linking_mode = false;
+    priv._link_source = null;
+    priv._link_valid_hooks = [];
+    priv._link_saved_styles = [];
+}
+
+function try_complete_link(gobj, clicked_node_id, clicked_port_key)
+{
+    let priv = gobj.priv;
+
+    if(!priv._linking_mode || !priv._link_source) {
+        return false;
+    }
+
+    // Check if the clicked port is a valid hook target
+    let target = priv._link_valid_hooks.find(vh =>
+        vh.node_id === clicked_node_id && vh.port_key === clicked_port_key
+    );
+
+    if(!target) {
+        return false;
+    }
+
+    let source = priv._link_source;
+
+    // Build parent_ref and child_ref for the backend
+    // parent_ref = "parent_topic^parent_id^hook_name"
+    // child_ref = "child_topic^child_id^fkey_name"
+    let parent_ref = target.parent_topic + "^" + target.parent_id + "^" + target.port_key;
+    let child_ref = source.topic_name + "^" + source.child_id + "^" + source.port_key;
+
+    exit_linking_mode(gobj);
+    deselect_port(gobj);
+    deselect_node(gobj);
+
+    gobj_publish_event(gobj, "EV_LINK_NODES", {
+        treedb_name: priv.treedb_name,
+        parent_ref: parent_ref,
+        child_ref: child_ref,
+    });
+
+    return true;
 }
 
 /************************************************************
@@ -4657,6 +4955,16 @@ function ac_node_click(gobj, event, kw, src)
                     gobj, node_id, canvasPoint[0], canvasPoint[1]
                 );
 
+                // In linking mode, try to complete the link
+                if(priv._linking_mode) {
+                    if(port_key && try_complete_link(gobj, node_id, port_key)) {
+                        return 0;
+                    }
+                    // Clicked on non-valid target, cancel linking
+                    exit_linking_mode(gobj);
+                    return 0;
+                }
+
                 if(port_key) {
                     select_port(gobj, node_id, port_key);
                 } else {
@@ -4721,6 +5029,11 @@ function ac_node_context_menu(gobj, event, kw, src)
 function ac_canvas_click(gobj, event, kw, src)
 {
     let priv = gobj.priv;
+
+    if(priv._linking_mode) {
+        exit_linking_mode(gobj);
+        return 0;
+    }
 
     if(priv.edit_mode) {
         deselect_node(gobj);
