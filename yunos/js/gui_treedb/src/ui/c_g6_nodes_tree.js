@@ -2942,9 +2942,9 @@ function try_complete_link(gobj, clicked_node_id, clicked_port_key)
 
     // Build parent_ref and child_ref for the backend
     // parent_ref = "parent_topic^parent_id^hook_name"
-    // child_ref = "child_topic^child_id^fkey_name"
+    // child_ref = "child_topic^child_id"
     let parent_ref = target.parent_topic + "^" + target.parent_id + "^" + target.port_key;
-    let child_ref = source.topic_name + "^" + source.child_id + "^" + source.port_key;
+    let child_ref = source.topic_name + "^" + source.child_id;
 
     exit_linking_mode(gobj);
     deselect_port(gobj);
