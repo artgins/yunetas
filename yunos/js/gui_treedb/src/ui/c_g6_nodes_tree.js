@@ -2995,15 +2995,11 @@ function start_link_drag(gobj, e)
         return; // no valid hooks, nothing to drag
     }
 
-    // Get fkey port viewport position as line start
-    let canvasPos = get_port_canvas_position(
-        gobj, priv._link_source.node_id, priv._link_source.port_key
-    );
-    if(!canvasPos) {
-        return;
-    }
+    // Line starts from the center of the link icon
     let containerRect = priv.$container.getBoundingClientRect();
-    let vpStart = graph.getViewportByCanvas([canvasPos.x, canvasPos.y]);
+    let iconRect = priv._link_icon_el.getBoundingClientRect();
+    let startX = iconRect.left + iconRect.width / 2 - containerRect.left;
+    let startY = iconRect.top + iconRect.height / 2 - containerRect.top;
 
     // Create SVG overlay for the drag line
     let svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
@@ -3011,8 +3007,8 @@ function start_link_drag(gobj, e)
         'position:absolute;top:0;left:0;width:100%;height:100%;' +
         'pointer-events:none;z-index:10;';
     let line = document.createElementNS('http://www.w3.org/2000/svg', 'line');
-    line.setAttribute('x1', vpStart[0]);
-    line.setAttribute('y1', vpStart[1]);
+    line.setAttribute('x1', startX);
+    line.setAttribute('y1', startY);
     line.setAttribute('x2', e.clientX - containerRect.left);
     line.setAttribute('y2', e.clientY - containerRect.top);
     line.setAttribute('stroke', '#52c41a');
