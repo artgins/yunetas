@@ -256,6 +256,7 @@ let PRIVATE_DATA = {
     _linking_mode:      false,      // true when in link-drag mode
     _link_source:       null,       // {node_id, port_key, col, topic_name} of fkey being linked
     _link_icon_el:      null,       // floating link icon on fkey port
+    _link_drag_svg:     null,       // SVG overlay for drag line
     _link_valid_hooks:  [],         // [{node_id, port_key}] compatible hook targets
     _link_saved_styles: [],         // saved port styles to restore on cancel
 };
@@ -2716,8 +2717,19 @@ function show_link_icon_if_fkey(gobj)
 
     let icon = create_floating_icon(
         'link', '#52c41a', vp[0] + 18, vp[1] - 14,
-        t('link to hook'), () => enter_linking_mode(gobj)
+        t('link to hook'), () => {
+            // Click (no drag) toggles linking mode
+            if(!priv._linking_mode) {
+                enter_linking_mode(gobj);
+            }
+        }
     );
+    // Add drag support: pointerdown starts drag-link
+    icon.addEventListener('pointerdown', (e) => {
+        e.stopPropagation();
+        e.preventDefault();
+        start_link_drag(gobj, e);
+    });
     priv.$container.appendChild(icon);
     priv._link_icon_el = icon;
 }
@@ -2889,6 +2901,13 @@ function exit_linking_mode(gobj)
         return;
     }
 
+    // Clean up drag line if active
+    if(priv._link_drag_svg) {
+        priv._link_drag_svg.remove();
+        priv._link_drag_svg = null;
+    }
+    priv.$container.style.cursor = '';
+
     // Restore original port styles
     let updated_nodes = {};
     for(let saved of priv._link_saved_styles) {
@@ -2957,6 +2976,133 @@ function try_complete_link(gobj, clicked_node_id, clicked_port_key)
     });
 
     return true;
+}
+
+/************************************************************
+ *  Drag-link: drag from link icon to a hook port.
+ *  Draws a temporary SVG line from the fkey port to the cursor.
+ ************************************************************/
+function start_link_drag(gobj, e)
+{
+    let priv = gobj.priv;
+    let graph = priv.graph;
+
+    // Enter linking mode first (highlights valid hooks)
+    if(!priv._linking_mode) {
+        enter_linking_mode(gobj);
+    }
+    if(!priv._linking_mode) {
+        return; // no valid hooks, nothing to drag
+    }
+
+    // Get fkey port viewport position as line start
+    let canvasPos = get_port_canvas_position(
+        gobj, priv._link_source.node_id, priv._link_source.port_key
+    );
+    if(!canvasPos) {
+        return;
+    }
+    let containerRect = priv.$container.getBoundingClientRect();
+    let vpStart = graph.getViewportByCanvas([canvasPos.x, canvasPos.y]);
+
+    // Create SVG overlay for the drag line
+    let svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+    svg.style.cssText =
+        'position:absolute;top:0;left:0;width:100%;height:100%;' +
+        'pointer-events:none;z-index:10;';
+    let line = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+    line.setAttribute('x1', vpStart[0]);
+    line.setAttribute('y1', vpStart[1]);
+    line.setAttribute('x2', e.clientX - containerRect.left);
+    line.setAttribute('y2', e.clientY - containerRect.top);
+    line.setAttribute('stroke', '#52c41a');
+    line.setAttribute('stroke-width', '2');
+    line.setAttribute('stroke-dasharray', '6 3');
+    svg.appendChild(line);
+    priv.$container.appendChild(svg);
+    priv._link_drag_svg = svg;
+
+    let dragged = false;
+
+    function onPointerMove(ev) {
+        dragged = true;
+        let cx = ev.clientX - containerRect.left;
+        let cy = ev.clientY - containerRect.top;
+        line.setAttribute('x2', cx);
+        line.setAttribute('y2', cy);
+
+        // Check if cursor is over a valid hook port → change cursor
+        let canvasPt = graph.getCanvasByViewport([cx, cy]);
+        let hoverTarget = find_hook_at_point(gobj, canvasPt[0], canvasPt[1]);
+        priv.$container.style.cursor = hoverTarget ? 'copy' : 'not-allowed';
+    }
+
+    function onPointerUp(ev) {
+        document.removeEventListener('pointermove', onPointerMove);
+        document.removeEventListener('pointerup', onPointerUp);
+        priv.$container.style.cursor = '';
+
+        // Remove drag line
+        if(priv._link_drag_svg) {
+            priv._link_drag_svg.remove();
+            priv._link_drag_svg = null;
+        }
+
+        if(!dragged) {
+            // It was a click, not a drag — let the click handler deal with it
+            return;
+        }
+
+        // Check if dropped on a valid hook port
+        let cx = ev.clientX - containerRect.left;
+        let cy = ev.clientY - containerRect.top;
+        let canvasPt = graph.getCanvasByViewport([cx, cy]);
+        let target = find_hook_at_point(gobj, canvasPt[0], canvasPt[1]);
+
+        if(target) {
+            try_complete_link(gobj, target.node_id, target.port_key);
+        } else {
+            exit_linking_mode(gobj);
+        }
+    }
+
+    document.addEventListener('pointermove', onPointerMove);
+    document.addEventListener('pointerup', onPointerUp);
+}
+
+/************************************************************
+ *  Find if a canvas point hits a valid hook port during
+ *  linking mode. Returns {node_id, port_key} or null.
+ ************************************************************/
+function find_hook_at_point(gobj, canvasX, canvasY)
+{
+    let priv = gobj.priv;
+    let graph = priv.graph;
+
+    for(let vh of priv._link_valid_hooks) {
+        let nd = graph.getNodeData(vh.node_id);
+        if(!nd) continue;
+        let style = nd.style || {};
+        let size = style.size || [60];
+        let w = Array.isArray(size) ? size[0] : size;
+        let h = Array.isArray(size) ? (size.length > 1 ? size[1] : size[0]) : size;
+        let pos = graph.getElementPosition(vh.node_id);
+        let ports = style.ports || [];
+
+        for(let p of ports) {
+            if(p.key !== vh.port_key) continue;
+            let pl = p.placement || [0.5, 0.5];
+            let px = pos[0] + (pl[0] - 0.5) * w;
+            let py = pos[1] + (pl[1] - 0.5) * h;
+            let r = p.r != null ? p.r : (style.portR || 6);
+            let dx = canvasX - px;
+            let dy = canvasY - py;
+            if(Math.sqrt(dx * dx + dy * dy) <= r + 6) {
+                return { node_id: vh.node_id, port_key: vh.port_key };
+            }
+        }
+    }
+    return null;
 }
 
 /************************************************************
