@@ -3614,14 +3614,16 @@ function request_unlink_edge(gobj)
         return;
     }
 
+    const d = edgeData.data;
+
+    /*
+     * Backend decode_parent_ref() expects "topic^id^hook_name".
+     * Backend decode_child_ref()  expects "topic^id".
+     */
     gobj_publish_event(gobj, "EV_UNLINK_NODES", {
         treedb_name: priv.treedb_name,
-        parent_topic: edgeData.data.parent_topic,
-        parent_id:    edgeData.data.parent_id,
-        hook_name:    edgeData.data.hook_name,
-        child_topic:  edgeData.data.child_topic,
-        child_id:     edgeData.data.child_id,
-        fkey_name:    edgeData.data.fkey_name,
+        parent_ref: `${d.parent_topic}^${d.parent_id}^${d.hook_name}`,
+        child_ref:  `${d.child_topic}^${d.child_id}`,
     });
 
     deselect_edge(gobj);
@@ -4728,6 +4730,99 @@ function ac_canvas_click(gobj, event, kw, src)
 }
 
 /************************************************************
+ *  Synchronize a history command with the treedb backend.
+ *
+ *  Call after undo (pass cmd.original) or after redo (pass cmd.current).
+ *  `cmdData` has the shape produced by G6's parseCommand():
+ *      { add: { nodes?, edges? }, update: { ... }, remove: { nodes?, edges? } }
+ *
+ *  Only structural add/remove operations require backend sync:
+ *    - add.nodes    → nodes restored by undo/redo  → EV_CREATE_NODE
+ *    - remove.nodes → nodes removed  by undo/redo  → EV_DELETE_NODE
+ *    - add.edges    → edges restored by undo/redo  → EV_LINK_NODES
+ *    - remove.edges → edges removed  by undo/redo  → EV_UNLINK_NODES
+ *
+ *  update.nodes/edges are style/position-only changes; they are saved
+ *  to the backend in bulk via EV_SAVE_GRAPH, not individually.
+ *
+ *  Ref formats expected by the backend (c_node.c):
+ *    parent_ref: "topic^id^hook_name"  (decoded by decode_parent_ref())
+ *    child_ref:  "topic^id"            (decoded by decode_child_ref())
+ ************************************************************/
+function sync_history_to_backend(gobj, cmdData)
+{
+    if(!cmdData) {
+        return;
+    }
+    let priv = gobj.priv;
+
+    /*
+     * Nodes re-added by undo (undo of a delete) or redo (redo of a create).
+     * node.data carries topic_name and the full treedb record,
+     * set when the node was first created via create_topic_node().
+     */
+    (cmdData.add?.nodes || []).forEach((node) => {
+        const d = node.data;
+        if(!d || !d.topic_name || !d.record) {
+            return;
+        }
+        gobj_publish_event(gobj, "EV_CREATE_NODE", {
+            treedb_name: priv.treedb_name,
+            topic_name:  d.topic_name,
+            record:      d.record,
+        });
+    });
+
+    /*
+     * Nodes removed by undo (undo of a create) or redo (redo of a delete).
+     */
+    (cmdData.remove?.nodes || []).forEach((node) => {
+        const d = node.data;
+        if(!d || !d.topic_name || !d.record) {
+            return;
+        }
+        gobj_publish_event(gobj, "EV_DELETE_NODE", {
+            treedb_name: priv.treedb_name,
+            topic_name:  d.topic_name,
+            record:      d.record,
+        });
+    });
+
+    /*
+     * Edges re-added by undo (undo of an unlink) or redo (redo of a link).
+     * edge.data carries the full connection info set when the edge was drawn.
+     */
+    (cmdData.add?.edges || []).forEach((edge) => {
+        const d = edge.data;
+        if(!d || !d.parent_topic || !d.parent_id || !d.hook_name ||
+                 !d.child_topic  || !d.child_id) {
+            return;
+        }
+        gobj_publish_event(gobj, "EV_LINK_NODES", {
+            treedb_name: priv.treedb_name,
+            parent_ref: `${d.parent_topic}^${d.parent_id}^${d.hook_name}`,
+            child_ref:  `${d.child_topic}^${d.child_id}`,
+        });
+    });
+
+    /*
+     * Edges removed by undo (undo of a link) or redo (redo of an unlink).
+     */
+    (cmdData.remove?.edges || []).forEach((edge) => {
+        const d = edge.data;
+        if(!d || !d.parent_topic || !d.parent_id || !d.hook_name ||
+                 !d.child_topic  || !d.child_id) {
+            return;
+        }
+        gobj_publish_event(gobj, "EV_UNLINK_NODES", {
+            treedb_name: priv.treedb_name,
+            parent_ref: `${d.parent_topic}^${d.parent_id}^${d.hook_name}`,
+            child_ref:  `${d.child_topic}^${d.child_id}`,
+        });
+    });
+}
+
+/************************************************************
  *  History undo/redo
  ************************************************************/
 function ac_history_redo(gobj, event, kw, src)
@@ -4737,8 +4832,20 @@ function ac_history_redo(gobj, event, kw, src)
     if(priv.edit_mode) {
         const history = graph_get_plugin(gobj, "history");
         if(history && history.canRedo()) {
+            /*
+             * Capture the command about to be redone before the stack changes.
+             * cmd.current describes what G6 will re-apply.
+             */
+            const cmd = history.redoStack[history.redoStack.length - 1];
+
             history.redo();
             update_resize_handles_position(gobj);
+
+            /*
+             * Sync backend using cmd.current: it contains the add/remove sets
+             * that G6 just re-applied, mirroring what the user originally did.
+             */
+            sync_history_to_backend(gobj, cmd ? cmd.current : null);
         }
     }
 
@@ -4752,8 +4859,20 @@ function ac_history_undo(gobj, event, kw, src)
     if(priv.edit_mode) {
         const history = graph_get_plugin(gobj, "history");
         if(history && history.canUndo()) {
+            /*
+             * Capture the command about to be undone before the stack changes.
+             * cmd.original describes the state G6 will restore.
+             */
+            const cmd = history.undoStack[history.undoStack.length - 1];
+
             history.undo();
             update_resize_handles_position(gobj);
+
+            /*
+             * Sync backend using cmd.original: it contains the add/remove sets
+             * that G6 just restored, which are the inverse of the user's action.
+             */
+            sync_history_to_backend(gobj, cmd ? cmd.original : null);
         }
     }
 
