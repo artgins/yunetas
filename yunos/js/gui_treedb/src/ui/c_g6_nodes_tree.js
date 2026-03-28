@@ -2852,6 +2852,8 @@ function enter_linking_mode(gobj)
     }
 
     // Highlight valid hook ports (enlarge + green stroke)
+    // Pause history so highlighting doesn't pollute undo queue
+    history_pause(gobj);
     for(let vh of valid_hooks) {
         let nd = graph.getNodeData(vh.node_id);
         if(!nd) continue;
@@ -2889,7 +2891,9 @@ function enter_linking_mode(gobj)
     priv._link_valid_hooks = valid_hooks;
     priv._link_saved_styles = saved_styles;
 
-    graph.draw();
+    graph.draw().then(() => {
+        history_resume(gobj);
+    });
 }
 
 function exit_linking_mode(gobj)
@@ -2930,8 +2934,11 @@ function exit_linking_mode(gobj)
     }
     let updates = Object.values(updated_nodes);
     if(updates.length > 0) {
+        history_pause(gobj);
         graph.updateNodeData(updates);
-        graph.draw();
+        graph.draw().then(() => {
+            history_resume(gobj);
+        });
     }
 
     priv._linking_mode = false;
