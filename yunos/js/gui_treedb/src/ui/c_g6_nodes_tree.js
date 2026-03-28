@@ -746,16 +746,16 @@ function configure_toolbar(gobj)
             },
             getItems: () => {
                 let items = [
-                    { id: 'zoom-in',  value: 'zoom-in',  className: 'EV_ZOOM_IN',    title: 'Zoom In'    },
-                    { id: 'zoom-out', value: 'zoom-out', className: 'EV_ZOOM_OUT',   title: 'Zoom Out'   },
-                    { id: 'reset',    value: 'reset',    className: 'EV_ZOOM_RESET', title: 'Reset Zoom' },
-                    { id: 'auto-fit', value: 'auto-fit', className: 'EV_AUTO_FIT',   title: 'Auto Fit'   },
+                    { id: 'zoom-in',  value: 'zoom-in',  className: 'EV_ZOOM_IN',    title: t('zoom in')    },
+                    { id: 'zoom-out', value: 'zoom-out', className: 'EV_ZOOM_OUT',   title: t('zoom out')   },
+                    { id: 'reset',    value: 'reset',    className: 'EV_ZOOM_RESET', title: t('reset zoom') },
+                    { id: 'auto-fit', value: 'auto-fit', className: 'EV_AUTO_FIT',   title: t('auto fit')   },
                 ];
 
                 if(gobj_read_bool_attr(gobj, "with_fullscreen")) {
                     items.push(
-                        { id: 'request-fullscreen', value: 'request-fullscreen', className: 'EV_REQUEST_FULLSCREEN', title: 'Enter Full Screen' },
-                        { id: 'exit-fullscreen',    value: 'exit-fullscreen',    className: 'EV_EXIT_FULLSCREEN',    title: 'Exit Full Screen'  },
+                        { id: 'request-fullscreen', value: 'request-fullscreen', className: 'EV_REQUEST_FULLSCREEN', title: t('enter full screen') },
+                        { id: 'exit-fullscreen',    value: 'exit-fullscreen',    className: 'EV_EXIT_FULLSCREEN',    title: t('exit full screen')  },
                     );
                 }
 
@@ -826,9 +826,9 @@ function configure_toolbar_edit(gobj)
             },
             getItems: () => {
                 return [
-                    { id: 'g6-icon-save', value: 'save', className: 'EV_SAVE_GRAPH',   title: 'Save', disabled: true },
-                    { id: 'undo',         value: 'undo', className: 'EV_HISTORY_UNDO', title: 'Undo', disabled: true },
-                    { id: 'redo',         value: 'redo', className: 'EV_HISTORY_REDO', title: 'Redo', disabled: true },
+                    { id: 'g6-icon-save', value: 'save', className: 'EV_SAVE_GRAPH',   title: t('save'), disabled: true },
+                    { id: 'undo',         value: 'undo', className: 'EV_HISTORY_UNDO', title: t('undo'), disabled: true },
+                    { id: 'redo',         value: 'redo', className: 'EV_HISTORY_REDO', title: t('redo'), disabled: true },
                 ];
             },
             onClick: (value) => {
@@ -5079,6 +5079,9 @@ function ac_theme(gobj, event, kw, src)
         // Restore toolbar icon states lost when G6 re-renders the DOM
         update_history_buttons(gobj);
     });
+
+    // Re-render toolbars to pick up language changes via t()
+    update_toolbar(gobj);
 
     return 0;
 }
