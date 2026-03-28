@@ -77,12 +77,40 @@ yunetas init
 # Build and install (preferred — respects dependency order)
 yunetas build
 
-# Run tests
+# Run all tests
 yunetas test
+
+# Run a single test by name (from repo root)
+ctest -R test_c_timer --output-on-failure --test-dir build
+
+# Run ctest in a loop until first failure (useful for flaky test detection)
+./ctest-loop.sh
 
 # Clean build artifacts
 yunetas clean
 ```
+
+### Building a single module
+
+For faster iteration when working on a specific module, build just that module directly:
+
+```bash
+cd kernel/c/gobj-c/build && make install    # build and install one module
+cd tests/c/c_timer/build && make && ctest --output-on-failure   # build and test one test
+```
+
+### JavaScript framework (kernel/js/yunetas-js7/)
+
+```bash
+cd kernel/js/yunetas-js7/yunetas
+npm install
+npm run build          # vite build → dist/ (CJS, ES, UMD)
+npm test               # vitest
+npm run test:watch     # vitest --watch
+npm run test:coverage  # vitest --coverage
+```
+
+### When to re-run `yunetas init`
 
 `yunetas init` must be run:
 - The **first time** after cloning/setting up the repo
