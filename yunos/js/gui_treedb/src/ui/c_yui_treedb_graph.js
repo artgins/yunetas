@@ -315,7 +315,7 @@ function build_ui(gobj)
     let $container = createElement2(
         // Don't use is-flex, don't work well with is-hidden
         ['div', {class: 'graphs', style: `height:100%; display:flex; flex-direction:column;`}, [
-            ['div', {class: 'is-flex-grow-0 is-flex graph_toolbar'}, $toolbar],
+            ['div', {class: 'is-flex-grow-0 is-flex toolbar_yui_treedb_graph'}, $toolbar],
             ['div', {class: `is-flex-grow-1 ${padding}`, style: 'height:100%; min-height:0; overflow:hidden;'}, [
                 ['div', {id: priv.canvas_id, class: `graph-container`, style: 'height:100%; min-height:0;border: 1px solid var(--bulma-border-weak);border-radius:0.2rem;'}, [
                 ]]

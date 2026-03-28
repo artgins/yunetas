@@ -496,8 +496,8 @@ function build_ui(gobj)
      *----------------------------------------------*/
     let table_id = gobj_read_str_attr(gobj, "table_id");
     let $container = createElement2(
-        ['div', {class: 'container-treedb-topic-form', style: 'height:100%;'}, [
-            ['div', {class: 'tabulator-custom-toolbar', style: 'display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; margin-bottom:4px;'}],
+        ['div', {class: 'container-treedb-topic-with-form', style: 'height:100%;'}, [
+            ['div', {class: 'toolbar_tabulator_table', style: 'display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; margin-bottom:4px;'}],
             ['div',
                 {
                     id: `${table_id}`,
@@ -506,7 +506,7 @@ function build_ui(gobj)
             ]
         ]]
     );
-    let $toolbar_slot = $container.querySelector('.tabulator-custom-toolbar');
+    let $toolbar_slot = $container.querySelector('.toolbar_tabulator_table');
     if($table_toolbar instanceof Element) {
         $toolbar_slot.appendChild($table_toolbar);
     } else {
