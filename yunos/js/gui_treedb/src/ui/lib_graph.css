@@ -2,17 +2,26 @@
  *      lib_graph.css
  *********************************************************/
 
-.color_submit_state {
-    color: #32CD32 !important;
+/*
+ *  Toolbar icon state colors — chosen for maximum distinction,
+ *  including deuteranopia/protanopia/tritanopia safety.
+ *
+ *  Blue (#1890ff)   — create: primary action ("new")
+ *  Orange (#fa8c16)  — save: "pending changes, needs attention"
+ *  Violet (#722ed1) — undo/redo: history navigation
+ *  Red (#f5222d)    — delete/cancel: destructive action
+ */
+.color_create_state {
+    color: #1890ff !important;
 }
-.color_cancel_state {
-    color: #FF0000 !important;
+.color_submit_state {
+    color: #fa8c16 !important;
 }
 .color_active_state {
-    color: #0000FF !important;
+    color: #722ed1 !important;
 }
-.color_create_state {
-    color: #52c41a !important;
+.color_cancel_state {
+    color: #f5222d !important;
 }
 
 /*
