@@ -115,9 +115,10 @@ class YuiToolbar extends Toolbar
         return items.map((item) => {
             const extra_class = item.className ? ` ${item.className}` : '';
             const disabled    = item.disabled  ? ' disabled'          : '';
+            const item_style  = item.style     ? ` style="${item.style}"` : '';
             return (
                 `<div class="g6-toolbar-item${extra_class}"` +
-                ` value="${item.value}" title="${item.title ?? ''}"${disabled}>` +
+                ` value="${item.value}" title="${item.title ?? ''}"${disabled}${item_style}>` +
                 `<svg aria-hidden="true" focusable="false">` +
                 `<use xlink:href="#${item.id}"></use>` +
                 `</svg>` +
@@ -837,7 +838,7 @@ function configure_toolbar_edit(gobj)
             },
             getItems: () => {
                 return [
-                    { id: 'g6-icon-plus',  value: 'create-node', className: 'EV_CREATE_NODE_BTN', title: t('create node') },
+                    { id: 'g6-icon-plus',  value: 'create-node', className: 'EV_CREATE_NODE_BTN', title: t('create node'), style: 'color:#52c41a;' },
                     { id: 'g6-icon-save', value: 'save', className: 'EV_SAVE_GRAPH',   title: t('save'), disabled: true },
                     { id: 'undo',         value: 'undo', className: 'EV_HISTORY_UNDO', title: t('undo'), disabled: true },
                     { id: 'redo',         value: 'redo', className: 'EV_HISTORY_REDO', title: t('redo'), disabled: true },
