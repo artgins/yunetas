@@ -4209,14 +4209,24 @@ function show_create_popover(gobj)
     }
 
     /*
-     *  Position: near the toolbar-edit plugin (left-top area)
+     *  Position: to the right of the edit toolbar's "+" button
      */
+    let left = 60;
+    let top = 12;
+    let btnEl = priv.$container.querySelector('.EV_CREATE_NODE_BTN');
+    if(btnEl) {
+        let btnRect = btnEl.getBoundingClientRect();
+        let containerRect = priv.$container.getBoundingClientRect();
+        left = btnRect.right - containerRect.left + 8;
+        top = btnRect.top - containerRect.top;
+    }
+
     const popover = document.createElement('div');
     popover.className = 'g6-create-popover';
     popover.style.cssText =
         'position:absolute;' +
-        'left:12px;' +
-        'top:60px;' +
+        'left:' + left + 'px;' +
+        'top:' + top + 'px;' +
         'background:#fff;border:1px solid #1890ff;border-radius:6px;' +
         'padding:12px;z-index:100;pointer-events:all;' +
         'box-shadow:0 4px 12px rgba(0,0,0,0.15);' +
