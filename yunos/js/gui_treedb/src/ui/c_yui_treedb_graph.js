@@ -492,35 +492,35 @@ function add_buttons(gobj, zone, c_icons, target_gobj)
 
         switch(type) {
             case 'i':
-            {
-                button.style.width = "2.5em";
-                const icon = ['i', {
-                    style: "font-size:1.5em; color:inherit;",
-                    class: icon_name
-                }];
-                push_button(zone, button, icon, handlers);
-            }
+                {
+                    button.style.width = "2.5em";
+                    const icon = ['i', {
+                        style: "font-size:1.5em; color:inherit;",
+                        class: icon_name
+                    }];
+                    push_button(zone, button, icon, handlers);
+                }
                 break;
 
             case 'il':
-            {
-                const label = item[4] || '';
-                const content = [
-                    ['i', {
-                        style: "font-size:1.5em; color:inherit;",
-                        class: icon_name
-                    }],
-                    ['span', {class: 'is-hidden-mobile', style: 'padding-left:5px;', i18n: label}, label]
-                ];
-                push_button(zone, button, content, handlers);
-            }
+                {
+                    const label = item[4] || '';
+                    const content = [
+                        ['i', {
+                            style: "font-size:1.5em; color:inherit;",
+                            class: icon_name
+                        }],
+                        ['span', {class: 'is-hidden-mobile', style: 'padding-left:5px;', i18n: label}, label]
+                    ];
+                    push_button(zone, button, content, handlers);
+                }
                 break;
 
-            default:
             case 't':
-            {
-                push_button(zone, button, icon_name, handlers);
-            }
+            default:
+                {
+                    push_button(zone, button, icon_name, handlers);
+                }
                 break;
         }
     }
