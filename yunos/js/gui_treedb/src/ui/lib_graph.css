@@ -11,6 +11,9 @@
 .color_active_state {
     color: #0000FF !important;
 }
+.color_create_state {
+    color: #52c41a !important;
+}
 
 /*
  *  G6 fullscreen: override G6's transparent ::backdrop and give the container
