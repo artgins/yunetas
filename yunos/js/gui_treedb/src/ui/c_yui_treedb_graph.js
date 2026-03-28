@@ -361,7 +361,7 @@ function make_toolbar(gobj)
      *  via populate_nodes_tree_options()
      */
     let left_items = [
-        ['span', {class: 'is-hidden-mobile', style: 'padding-right:5px;'}, t('layout') + ':'],
+        ['span', {class: 'is-hidden-mobile', style: 'padding-right:5px;', i18n: 'layout'}, t('layout')],
         ['div', {class: 'select'}, [
             ['select', {class: 'graph_layout'}]
         ], {
@@ -371,7 +371,7 @@ function make_toolbar(gobj)
             }
         }],
 
-        ['span', {class: 'is-hidden-mobile', style: 'padding-left:10px; padding-right:5px;'}, t('operation mode') + ':'],
+        ['span', {class: 'is-hidden-mobile', style: 'padding-left:10px; padding-right:5px;', i18n: 'operation mode'}, t('operation mode')],
         ['div', {class: 'select'}, [
             ['select', {class: 'graph_operation_mode'}, mode_options]
         ], {
@@ -510,7 +510,7 @@ function add_buttons(gobj, zone, c_icons, target_gobj)
                         style: "font-size:1.5em; color:inherit;",
                         class: icon_name
                     }],
-                    ['span', {class: 'is-hidden-mobile', style: 'padding-left:5px;'}, label]
+                    ['span', {class: 'is-hidden-mobile', style: 'padding-left:5px;', i18n: label}, label]
                 ];
                 push_button(zone, button, content, handlers);
             }

@@ -92,7 +92,7 @@ import {
 } from '@antv/g6';
 
 import {Circle as CircleGeometry} from '@antv/g';
-import {t} from "i18next";
+import i18next, {t} from "i18next";
 
 /***************************************************************
  *  YuiToolbar — G6 Toolbar subclass that adds per-item className
@@ -332,6 +332,11 @@ function mt_stop(gobj)
 function mt_destroy(gobj)
 {
     let priv = gobj.priv;
+
+    if(priv._on_language_changed) {
+        i18next.off('languageChanged', priv._on_language_changed);
+        priv._on_language_changed = null;
+    }
 
     if(priv.graph) {
         priv.graph.destroy();
@@ -618,6 +623,12 @@ function configure_events(gobj)
         update_node_icon_position(gobj);
         update_link_icon_position(gobj);
     });
+
+    // Re-render G6 toolbars when language changes
+    priv._on_language_changed = () => {
+        update_toolbar(gobj);
+    };
+    i18next.on('languageChanged', priv._on_language_changed);
 
     if(gobj_read_bool_attr(gobj, "with_fullscreen")) {
         graph.on("keydown", (evt) => {
