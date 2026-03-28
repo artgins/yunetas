@@ -174,6 +174,23 @@ let es = {
         'apply': 'Aplicar',
         'cancel': 'Cancelar',
 
+        'node properties': 'Propiedades del nodo',
+        'fill color': 'Color de relleno',
+        'stroke color': 'Color del borde',
+        'this node': 'Este nodo',
+        'same topic nodes': 'Nodos del mismo topic',
+        'all nodes': 'Todos los nodos',
+        'delete node': 'Eliminar nodo',
+        'unlink': 'Desenlazar',
+        'link to hook': 'Enlazar a hook',
+        'redo': 'Rehacer',
+        'zoom in': 'Acercar',
+        'zoom out': 'Alejar',
+        'reset zoom': 'Restablecer zoom',
+        'auto fit': 'Ajustar',
+        'enter full screen': 'Pantalla completa',
+        'exit full screen': 'Salir de pantalla completa',
+
         'xxx': 'ultima entrada NO TOCAR, insertar antes'
     }
 };

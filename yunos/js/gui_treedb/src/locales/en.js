@@ -174,6 +174,23 @@ var en = {
         'apply': 'Apply',
         'cancel': 'Cancel',
 
+        'node properties': 'Node properties',
+        'fill color': 'Fill color',
+        'stroke color': 'Stroke color',
+        'this node': 'This node',
+        'same topic nodes': 'Same topic nodes',
+        'all nodes': 'All nodes',
+        'delete node': 'Delete node',
+        'unlink': 'Unlink',
+        'link to hook': 'Link to hook',
+        'redo': 'Redo',
+        'zoom in': 'Zoom In',
+        'zoom out': 'Zoom Out',
+        'reset zoom': 'Reset Zoom',
+        'auto fit': 'Auto Fit',
+        'enter full screen': 'Enter Full Screen',
+        'exit full screen': 'Exit Full Screen',
+
         'xxx': 'last entry DONT CHANGE, insert before'
     }
 };
