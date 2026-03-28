@@ -92,7 +92,7 @@ import {
 } from '@antv/g6';
 
 import {Circle as CircleGeometry} from '@antv/g';
-import {t} from "i18next";
+import i18next, {t} from "i18next";
 
 /***************************************************************
  *  YuiToolbar — G6 Toolbar subclass that adds per-item className
@@ -211,6 +211,7 @@ SDATA(data_type_t.DTP_LIST,     "layout_names",         sdata_flag_t.SDF_RD,
 
 SDATA(data_type_t.DTP_STRING,   "hook_port_position",   0,  "bottom",   "Hook port position"),
 SDATA(data_type_t.DTP_STRING,   "fkey_port_position",   0,  "top",      "Fkey port position"),
+SDATA(data_type_t.DTP_BOOLEAN,  "confirm_delete_node",  0,  true,   "Ask confirmation before deleting a node"),
 
 SDATA(data_type_t.DTP_STRING,   "wide",                 0,  "40px", "Height of header"),
 SDATA(data_type_t.DTP_STRING,   "padding",              0,  "m-2",  "Padding or margin value"),
@@ -245,10 +246,21 @@ let PRIVATE_DATA = {
     _port_ring:         null,
     _selected_edge_id:  null,       // selected edge id
     _edge_icon_el:      null,       // floating properties icon element
+    _edge_delete_el:    null,       // floating delete icon element for edge
     _edge_popover_el:   null,       // edge properties popover element
+    _node_icon_el:      null,       // floating node properties icon element
+    _node_delete_el:    null,       // floating delete icon element for node
+    _node_popover_el:   null,       // node properties popover element
+    _delete_confirm_el: null,       // delete confirmation popover
     _context_node_id:   null,       // node id for context menu target
     _context_port_key:  null,       // port key for context menu target (null = node body)
     _context_edge_id:   null,       // edge id for context menu target
+    _linking_mode:      false,      // true when in link-drag mode
+    _link_source:       null,       // {node_id, port_key, col, topic_name} of fkey being linked
+    _link_icon_el:      null,       // floating link icon on fkey port
+    _link_drag_svg:     null,       // SVG overlay for drag line
+    _link_valid_hooks:  [],         // [{node_id, port_key}] compatible hook targets
+    _link_saved_styles: [],         // saved port styles to restore on cancel
 };
 
 let __gclass__ = null;
@@ -320,6 +332,11 @@ function mt_stop(gobj)
 function mt_destroy(gobj)
 {
     let priv = gobj.priv;
+
+    if(priv._on_language_changed) {
+        i18next.off('languageChanged', priv._on_language_changed);
+        priv._on_language_changed = null;
+    }
 
     if(priv.graph) {
         priv.graph.destroy();
@@ -532,6 +549,8 @@ function build_graph(gobj)
                 selected: {
                     lineWidth: 2,
                     stroke: '#1890ff',
+                    labelFill: '#000',          // Force black; remove to let G6 dark theme control it
+                    labelFontWeight: 'normal',
                 },
             },
         },
@@ -577,6 +596,8 @@ function configure_events(gobj)
         update_resize_handles_position(gobj);
         update_port_resize_handles_position(gobj);
         update_edge_icon_position(gobj);
+        update_node_icon_position(gobj);
+        update_link_icon_position(gobj);
     });
 
     graph.on(NodeEvent.DRAG_END, (evt) => {
@@ -599,7 +620,15 @@ function configure_events(gobj)
         update_resize_handles_position(gobj);
         update_port_resize_handles_position(gobj);
         update_edge_icon_position(gobj);
+        update_node_icon_position(gobj);
+        update_link_icon_position(gobj);
     });
+
+    // Re-render G6 toolbars when language changes
+    priv._on_language_changed = () => {
+        update_toolbar(gobj);
+    };
+    i18next.on('languageChanged', priv._on_language_changed);
 
     if(gobj_read_bool_attr(gobj, "with_fullscreen")) {
         graph.on("keydown", (evt) => {
@@ -728,16 +757,16 @@ function configure_toolbar(gobj)
             },
             getItems: () => {
                 let items = [
-                    { id: 'zoom-in',  value: 'zoom-in',  className: 'EV_ZOOM_IN',    title: 'Zoom In'    },
-                    { id: 'zoom-out', value: 'zoom-out', className: 'EV_ZOOM_OUT',   title: 'Zoom Out'   },
-                    { id: 'reset',    value: 'reset',    className: 'EV_ZOOM_RESET', title: 'Reset Zoom' },
-                    { id: 'auto-fit', value: 'auto-fit', className: 'EV_AUTO_FIT',   title: 'Auto Fit'   },
+                    { id: 'zoom-in',  value: 'zoom-in',  className: 'EV_ZOOM_IN',    title: t('zoom in')    },
+                    { id: 'zoom-out', value: 'zoom-out', className: 'EV_ZOOM_OUT',   title: t('zoom out')   },
+                    { id: 'reset',    value: 'reset',    className: 'EV_ZOOM_RESET', title: t('reset zoom') },
+                    { id: 'auto-fit', value: 'auto-fit', className: 'EV_AUTO_FIT',   title: t('auto fit')   },
                 ];
 
                 if(gobj_read_bool_attr(gobj, "with_fullscreen")) {
                     items.push(
-                        { id: 'request-fullscreen', value: 'request-fullscreen', className: 'EV_REQUEST_FULLSCREEN', title: 'Enter Full Screen' },
-                        { id: 'exit-fullscreen',    value: 'exit-fullscreen',    className: 'EV_EXIT_FULLSCREEN',    title: 'Exit Full Screen'  },
+                        { id: 'request-fullscreen', value: 'request-fullscreen', className: 'EV_REQUEST_FULLSCREEN', title: t('enter full screen') },
+                        { id: 'exit-fullscreen',    value: 'exit-fullscreen',    className: 'EV_EXIT_FULLSCREEN',    title: t('exit full screen')  },
                     );
                 }
 
@@ -808,9 +837,9 @@ function configure_toolbar_edit(gobj)
             },
             getItems: () => {
                 return [
-                    { id: 'g6-icon-save', value: 'save', className: 'EV_SAVE_GRAPH',   title: 'Save', disabled: true },
-                    { id: 'undo',         value: 'undo', className: 'EV_HISTORY_UNDO', title: 'Undo', disabled: true },
-                    { id: 'redo',         value: 'redo', className: 'EV_HISTORY_REDO', title: 'Redo', disabled: true },
+                    { id: 'g6-icon-save', value: 'save', className: 'EV_SAVE_GRAPH',   title: t('save'), disabled: true },
+                    { id: 'undo',         value: 'undo', className: 'EV_HISTORY_UNDO', title: t('undo'), disabled: true },
+                    { id: 'redo',         value: 'redo', className: 'EV_HISTORY_REDO', title: t('redo'), disabled: true },
                 ];
             },
             onClick: (value) => {
@@ -1064,6 +1093,8 @@ function create_topic_node(gobj, desc, record)
             labelPlacement: 'center',
             labelWordWrap: true,
             labelMaxWidth: "100%",
+            labelFill: '#000',          // Force black; remove to let G6 dark theme control it
+            labelFontWeight: 'normal',
             // iconText: record.id,
             // iconSrc: record.icon,
             // iconFontSize: 14,
@@ -2046,7 +2077,16 @@ function graph_resize(gobj, width, height)
     let priv = gobj.priv;
     let graph = priv.graph;
 
+    // Deselect edge before resize
+    deselect_edge(gobj);
+
     graph.setSize(width, height);
+
+    // setSize() may not fire aftertransform, update overlays manually
+    update_resize_handles_position(gobj);
+    update_port_resize_handles_position(gobj);
+    update_node_icon_position(gobj);
+    update_link_icon_position(gobj);
 }
 
 function graph_write_behaviors(gobj, behaviors)
@@ -2126,6 +2166,77 @@ const RESIZE_HANDLE_SIZE = 8;
 const RESIZE_MIN_VP = 20;
 const RESIZE_MIN_WORLD = 30;
 
+/************************************************************
+ *  SVG icons for floating action buttons (28×28 circles).
+ *  Each value is a raw SVG string sized 18×18 in a 24×24 viewBox.
+ *  Stroke inherits from CSS `color` via `stroke="currentColor"`.
+ ************************************************************/
+const SVG_ICONS = {
+    gear:
+        '<svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" ' +
+        'fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" ' +
+        'stroke-linejoin="round">' +
+        '<circle cx="12" cy="12" r="3"/>' +
+        '<path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06' +
+        'a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09' +
+        'A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83' +
+        'l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09' +
+        'A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83' +
+        'l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09' +
+        'a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83' +
+        'l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09' +
+        'a1.65 1.65 0 0 0-1.51 1z"/>' +
+        '</svg>',
+    trash:
+        '<svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" ' +
+        'fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" ' +
+        'stroke-linejoin="round">' +
+        '<polyline points="3 6 5 6 21 6"/>' +
+        '<path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/>' +
+        '<path d="M10 11v6"/><path d="M14 11v6"/>' +
+        '<path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/>' +
+        '</svg>',
+    link:
+        '<svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" ' +
+        'fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" ' +
+        'stroke-linejoin="round">' +
+        '<path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/>' +
+        '<path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/>' +
+        '</svg>',
+};
+
+/************************************************************
+ *  Create a 28×28 floating circular icon button.
+ *  @param {string} svgKey   - key into SVG_ICONS
+ *  @param {string} color    - border & text color (e.g. '#1890ff')
+ *  @param {number} left     - CSS left in px
+ *  @param {number} top      - CSS top in px
+ *  @param {string} title    - tooltip text
+ *  @param {Function} onClick
+ *  @returns {HTMLElement}
+ ************************************************************/
+function create_floating_icon(svgKey, color, left, top, title, onClick)
+{
+    const el = document.createElement('div');
+    el.title = title;
+    el.innerHTML = SVG_ICONS[svgKey] || '';
+    el.style.cssText =
+        'position:absolute;' +
+        'left:' + left + 'px;' +
+        'top:' + top + 'px;' +
+        'width:28px;height:28px;' +
+        'display:flex;align-items:center;justify-content:center;' +
+        'background:#fff;border:1px solid ' + color + ';border-radius:50%;' +
+        'cursor:pointer;pointer-events:all;z-index:11;' +
+        'box-shadow:0 2px 6px rgba(0,0,0,0.15);' +
+        'color:' + color + ';';
+    el.addEventListener('click', (e) => {
+        e.stopPropagation();
+        onClick();
+    });
+    return el;
+}
+
 function select_node(gobj, node_id)
 {
     let priv = gobj.priv;
@@ -2141,8 +2252,9 @@ function select_node(gobj, node_id)
     } catch(e) {}
     priv._selected_node_id = node_id;
 
-    // Show resize handles
+    // Show resize handles and properties icon
     show_resize_handles(gobj);
+    show_node_icon(gobj);
 
     graph_draw(gobj).then(() => {
         history_resume(gobj);
@@ -2156,6 +2268,9 @@ function deselect_node(gobj)
 
     deselect_port(gobj);
     deselect_edge(gobj);
+    hide_node_icon(gobj);
+    hide_node_popover(gobj);
+    hide_delete_confirm(gobj);
 
     if(priv._selected_node_id) {
         history_pause(gobj);
@@ -2268,7 +2383,13 @@ function update_resize_handles_position(gobj)
 {
     let priv = gobj.priv;
 
-    if(!priv._selected_node_id || !priv._resize_handles_el) {
+    if(!priv._selected_node_id || priv._selected_port_key) {
+        return;
+    }
+
+    // Recreate handles if they were removed (e.g. by resize)
+    if(!priv._resize_handles_el) {
+        show_resize_handles(gobj);
         return;
     }
 
@@ -2548,13 +2669,17 @@ function select_port(gobj, node_id, port_key)
 {
     let priv = gobj.priv;
 
-    // Hide node resize handles (but keep node selected state)
+    // Hide node resize handles and icon (but keep node selected state)
     hide_resize_handles(gobj);
+    hide_node_icon(gobj);
+    hide_node_popover(gobj);
+    exit_linking_mode(gobj);
 
     priv._selected_node_id = node_id;
     priv._selected_port_key = port_key;
 
     show_port_resize_handles(gobj);
+    show_link_icon_if_fkey(gobj);
 }
 
 /************************************************************
@@ -2564,8 +2689,437 @@ function deselect_port(gobj)
 {
     let priv = gobj.priv;
 
+    exit_linking_mode(gobj);
+    hide_link_icon(gobj);
     hide_port_resize_handles(gobj);
     priv._selected_port_key = null;
+}
+
+/************************************************************
+ *  Show a link icon next to a selected fkey port.
+ ************************************************************/
+function show_link_icon_if_fkey(gobj)
+{
+    hide_link_icon(gobj);
+
+    let priv = gobj.priv;
+    let graph = priv.graph;
+    if(!priv._selected_node_id || !priv._selected_port_key) {
+        return;
+    }
+
+    let nodeData = graph.getNodeData(priv._selected_node_id);
+    if(!nodeData || !nodeData.data || !nodeData.data.desc) {
+        return;
+    }
+    let desc = nodeData.data.desc;
+    let col = get_col_by_id(desc, priv._selected_port_key);
+    if(!col) {
+        return;
+    }
+    let field_desc = treedb_get_field_desc(col);
+    if(field_desc.type !== 'fkey') {
+        return;
+    }
+
+    // Get viewport position of the port
+    let canvasPos = get_port_canvas_position(gobj, priv._selected_node_id, priv._selected_port_key);
+    if(!canvasPos) {
+        return;
+    }
+    let vp = graph.getViewportByCanvas([canvasPos.x, canvasPos.y]);
+
+    let icon = create_floating_icon(
+        'link', '#52c41a', vp[0] + 18, vp[1] - 14,
+        t('link to hook'), () => {
+            // Click (no drag) toggles linking mode
+            if(!priv._linking_mode) {
+                enter_linking_mode(gobj);
+            }
+        }
+    );
+    // Add drag support: pointerdown starts drag-link
+    icon.addEventListener('pointerdown', (e) => {
+        e.stopPropagation();
+        e.preventDefault();
+        start_link_drag(gobj, e);
+    });
+    priv.$container.appendChild(icon);
+    priv._link_icon_el = icon;
+}
+
+function hide_link_icon(gobj)
+{
+    let priv = gobj.priv;
+    if(priv._link_icon_el) {
+        priv._link_icon_el.remove();
+        priv._link_icon_el = null;
+    }
+}
+
+function update_link_icon_position(gobj)
+{
+    let priv = gobj.priv;
+    if(!priv._link_icon_el || !priv._selected_node_id || !priv._selected_port_key) {
+        return;
+    }
+    try {
+        let graph = priv.graph;
+        let canvasPos = get_port_canvas_position(
+            gobj, priv._selected_node_id, priv._selected_port_key
+        );
+        if(!canvasPos) {
+            hide_link_icon(gobj);
+            return;
+        }
+        let vp = graph.getViewportByCanvas([canvasPos.x, canvasPos.y]);
+        priv._link_icon_el.style.left = (vp[0] + 18) + 'px';
+        priv._link_icon_el.style.top = (vp[1] - 14) + 'px';
+    } catch(e) {
+        hide_link_icon(gobj);
+    }
+}
+
+/************************************************************
+ *  Get a column descriptor by field id from a topic desc.
+ ************************************************************/
+function get_col_by_id(desc, col_id)
+{
+    let cols = desc.cols;
+    for(let i = 0; i < cols.length; i++) {
+        if(cols[i].id === col_id) {
+            return cols[i];
+        }
+    }
+    return null;
+}
+
+/************************************************************
+ *  Linking mode: click-click flow.
+ *  1. User clicks link icon on a fkey port → enter_linking_mode
+ *  2. Compatible hook ports are highlighted
+ *  3. User clicks on a valid hook port → complete_link
+ *  4. User clicks elsewhere or ESC → exit_linking_mode
+ ************************************************************/
+function enter_linking_mode(gobj)
+{
+    let priv = gobj.priv;
+    let graph = priv.graph;
+
+    if(priv._linking_mode) {
+        exit_linking_mode(gobj);
+        return;
+    }
+
+    let node_id = priv._selected_node_id;
+    let port_key = priv._selected_port_key;
+    if(!node_id || !port_key) {
+        return;
+    }
+
+    let nodeData = graph.getNodeData(node_id);
+    if(!nodeData || !nodeData.data || !nodeData.data.desc) {
+        return;
+    }
+    let desc = nodeData.data.desc;
+    let col = get_col_by_id(desc, port_key);
+    if(!col || !col.fkey) {
+        return;
+    }
+
+    // col.fkey = { "parent_topic": "hook_name" }
+    // Find all compatible hook ports on all nodes
+    let valid_hooks = [];
+    let saved_styles = [];
+
+    for(const [parent_topic, hook_name] of Object.entries(col.fkey)) {
+        let parent_desc = priv.descs[parent_topic];
+        if(!parent_desc) {
+            continue;
+        }
+
+        // Find all nodes of this topic
+        let nodes = graph.getData().nodes || [];
+        for(let n of nodes) {
+            let nd = graph.getNodeData(n.id);
+            if(!nd || !nd.data || !nd.data.desc) {
+                continue;
+            }
+            if(nd.data.desc.topic_name !== parent_topic) {
+                continue;
+            }
+            // Don't link to self
+            if(n.id === node_id) {
+                continue;
+            }
+            valid_hooks.push({
+                node_id: n.id,
+                port_key: hook_name,
+                parent_topic: parent_topic,
+                parent_id: nd.data.record ? nd.data.record.id : null,
+            });
+        }
+    }
+
+    if(valid_hooks.length === 0) {
+        return;
+    }
+
+    // Highlight valid hook ports (enlarge + green stroke)
+    // Pause history so highlighting doesn't pollute undo queue
+    history_pause(gobj);
+    for(let vh of valid_hooks) {
+        let nd = graph.getNodeData(vh.node_id);
+        if(!nd) continue;
+        let style = nd.style || {};
+        let ports = style.ports || [];
+        for(let p of ports) {
+            if(p.key === vh.port_key) {
+                saved_styles.push({
+                    node_id: vh.node_id,
+                    port_key: vh.port_key,
+                    orig_stroke: p.stroke,
+                    orig_lineWidth: p.lineWidth,
+                    orig_r: p.r,
+                });
+                p.stroke = '#52c41a';
+                p.lineWidth = 3;
+                if(p.r != null) {
+                    p.r = p.r + 4;
+                } else {
+                    p.r = (style.portR || 6) + 4;
+                }
+            }
+        }
+        graph.updateNodeData([{ id: vh.node_id, style: { ports: ports } }]);
+    }
+
+    priv._linking_mode = true;
+    priv._link_source = {
+        node_id: node_id,
+        port_key: port_key,
+        col: col,
+        topic_name: desc.topic_name,
+        child_id: nodeData.data.record ? nodeData.data.record.id : null,
+    };
+    priv._link_valid_hooks = valid_hooks;
+    priv._link_saved_styles = saved_styles;
+
+    graph.draw().then(() => {
+        history_resume(gobj);
+    });
+}
+
+function exit_linking_mode(gobj)
+{
+    let priv = gobj.priv;
+    let graph = priv.graph;
+
+    if(!priv._linking_mode) {
+        return;
+    }
+
+    // Clean up drag line if active
+    if(priv._link_drag_svg) {
+        priv._link_drag_svg.remove();
+        priv._link_drag_svg = null;
+    }
+    priv.$container.style.cursor = '';
+
+    // Restore original port styles
+    let updated_nodes = {};
+    for(let saved of priv._link_saved_styles) {
+        let nd = graph.getNodeData(saved.node_id);
+        if(!nd) continue;
+        let style = nd.style || {};
+        let ports = style.ports || [];
+        for(let p of ports) {
+            if(p.key === saved.port_key) {
+                p.stroke = saved.orig_stroke;
+                p.lineWidth = saved.orig_lineWidth;
+                if(saved.orig_r != null) {
+                    p.r = saved.orig_r;
+                } else {
+                    delete p.r;
+                }
+            }
+        }
+        updated_nodes[saved.node_id] = { id: saved.node_id, style: { ports: ports } };
+    }
+    let updates = Object.values(updated_nodes);
+    if(updates.length > 0) {
+        history_pause(gobj);
+        graph.updateNodeData(updates);
+        graph.draw().then(() => {
+            history_resume(gobj);
+        });
+    }
+
+    priv._linking_mode = false;
+    priv._link_source = null;
+    priv._link_valid_hooks = [];
+    priv._link_saved_styles = [];
+}
+
+function try_complete_link(gobj, clicked_node_id, clicked_port_key)
+{
+    let priv = gobj.priv;
+
+    if(!priv._linking_mode || !priv._link_source) {
+        return false;
+    }
+
+    // Check if the clicked port is a valid hook target
+    let target = priv._link_valid_hooks.find(vh =>
+        vh.node_id === clicked_node_id && vh.port_key === clicked_port_key
+    );
+
+    if(!target) {
+        return false;
+    }
+
+    let source = priv._link_source;
+
+    // Build parent_ref and child_ref for the backend
+    // parent_ref = "parent_topic^parent_id^hook_name"
+    // child_ref = "child_topic^child_id"
+    let parent_ref = target.parent_topic + "^" + target.parent_id + "^" + target.port_key;
+    let child_ref = source.topic_name + "^" + source.child_id;
+
+    exit_linking_mode(gobj);
+    deselect_port(gobj);
+    deselect_node(gobj);
+
+    gobj_publish_event(gobj, "EV_LINK_NODES", {
+        treedb_name: priv.treedb_name,
+        parent_ref: parent_ref,
+        child_ref: child_ref,
+    });
+
+    return true;
+}
+
+/************************************************************
+ *  Drag-link: drag from link icon to a hook port.
+ *  Draws a temporary SVG line from the fkey port to the cursor.
+ ************************************************************/
+function start_link_drag(gobj, e)
+{
+    let priv = gobj.priv;
+    let graph = priv.graph;
+
+    // Enter linking mode first (highlights valid hooks)
+    if(!priv._linking_mode) {
+        enter_linking_mode(gobj);
+    }
+    if(!priv._linking_mode) {
+        return; // no valid hooks, nothing to drag
+    }
+
+    // Line starts from the center of the link icon
+    let containerRect = priv.$container.getBoundingClientRect();
+    let iconRect = priv._link_icon_el.getBoundingClientRect();
+    let startX = iconRect.left + iconRect.width / 2 - containerRect.left;
+    let startY = iconRect.top + iconRect.height / 2 - containerRect.top;
+
+    // Create SVG overlay for the drag line
+    let svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+    svg.style.cssText =
+        'position:absolute;top:0;left:0;width:100%;height:100%;' +
+        'pointer-events:none;z-index:10;';
+    let line = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+    line.setAttribute('x1', startX);
+    line.setAttribute('y1', startY);
+    line.setAttribute('x2', e.clientX - containerRect.left);
+    line.setAttribute('y2', e.clientY - containerRect.top);
+    line.setAttribute('stroke', '#52c41a');
+    line.setAttribute('stroke-width', '2');
+    line.setAttribute('stroke-dasharray', '6 3');
+    svg.appendChild(line);
+    priv.$container.appendChild(svg);
+    priv._link_drag_svg = svg;
+
+    let dragged = false;
+
+    function onPointerMove(ev) {
+        dragged = true;
+        let cx = ev.clientX - containerRect.left;
+        let cy = ev.clientY - containerRect.top;
+        line.setAttribute('x2', cx);
+        line.setAttribute('y2', cy);
+
+        // Check if cursor is over a valid hook port → change cursor
+        let canvasPt = graph.getCanvasByViewport([cx, cy]);
+        let hoverTarget = find_hook_at_point(gobj, canvasPt[0], canvasPt[1]);
+        priv.$container.style.cursor = hoverTarget ? 'copy' : 'not-allowed';
+    }
+
+    function onPointerUp(ev) {
+        document.removeEventListener('pointermove', onPointerMove);
+        document.removeEventListener('pointerup', onPointerUp);
+        priv.$container.style.cursor = '';
+
+        // Remove drag line
+        if(priv._link_drag_svg) {
+            priv._link_drag_svg.remove();
+            priv._link_drag_svg = null;
+        }
+
+        if(!dragged) {
+            // It was a click, not a drag — let the click handler deal with it
+            return;
+        }
+
+        // Check if dropped on a valid hook port
+        let cx = ev.clientX - containerRect.left;
+        let cy = ev.clientY - containerRect.top;
+        let canvasPt = graph.getCanvasByViewport([cx, cy]);
+        let target = find_hook_at_point(gobj, canvasPt[0], canvasPt[1]);
+
+        if(target) {
+            try_complete_link(gobj, target.node_id, target.port_key);
+        } else {
+            exit_linking_mode(gobj);
+        }
+    }
+
+    document.addEventListener('pointermove', onPointerMove);
+    document.addEventListener('pointerup', onPointerUp);
+}
+
+/************************************************************
+ *  Find if a canvas point hits a valid hook port during
+ *  linking mode. Returns {node_id, port_key} or null.
+ ************************************************************/
+function find_hook_at_point(gobj, canvasX, canvasY)
+{
+    let priv = gobj.priv;
+    let graph = priv.graph;
+
+    for(let vh of priv._link_valid_hooks) {
+        let nd = graph.getNodeData(vh.node_id);
+        if(!nd) continue;
+        let style = nd.style || {};
+        let size = style.size || [60];
+        let w = Array.isArray(size) ? size[0] : size;
+        let h = Array.isArray(size) ? (size.length > 1 ? size[1] : size[0]) : size;
+        let pos = graph.getElementPosition(vh.node_id);
+        let ports = style.ports || [];
+
+        for(let p of ports) {
+            if(p.key !== vh.port_key) continue;
+            let pl = p.placement || [0.5, 0.5];
+            let px = pos[0] + (pl[0] - 0.5) * w;
+            let py = pos[1] + (pl[1] - 0.5) * h;
+            let r = p.r != null ? p.r : (style.portR || 6);
+            let dx = canvasX - px;
+            let dy = canvasY - py;
+            if(Math.sqrt(dx * dx + dy * dy) <= r + 6) {
+                return { node_id: vh.node_id, port_key: vh.port_key };
+            }
+        }
+    }
+    return null;
 }
 
 /************************************************************
@@ -2873,42 +3427,19 @@ function show_edge_icon(gobj)
         return;
     }
 
-    const icon = document.createElement('div');
-    icon.className = 'g6-edge-properties-icon';
-    icon.title = t('edge properties');
-    icon.innerHTML =
-        '<svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" ' +
-        'fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" ' +
-        'stroke-linejoin="round">' +
-        '<circle cx="12" cy="12" r="3"/>' +
-        '<path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06' +
-        'a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09' +
-        'A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83' +
-        'l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09' +
-        'A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83' +
-        'l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09' +
-        'a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83' +
-        'l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09' +
-        'a1.65 1.65 0 0 0-1.51 1z"/>' +
-        '</svg>';
-    icon.style.cssText =
-        'position:absolute;' +
-        'left:' + (mid.x - 14) + 'px;' +
-        'top:' + (mid.y - 14) + 'px;' +
-        'width:28px;height:28px;' +
-        'display:flex;align-items:center;justify-content:center;' +
-        'background:#fff;border:1px solid #52c41a;border-radius:50%;' +
-        'cursor:pointer;pointer-events:all;z-index:11;' +
-        'box-shadow:0 2px 6px rgba(0,0,0,0.15);' +
-        'color:#52c41a;';
-
-    icon.addEventListener('click', (e) => {
-        e.stopPropagation();
-        toggle_edge_popover(gobj);
-    });
-
+    const icon = create_floating_icon(
+        'gear', '#52c41a', mid.x + 4, mid.y - 14,
+        t('edge properties'), () => toggle_edge_popover(gobj)
+    );
     priv.$container.appendChild(icon);
     priv._edge_icon_el = icon;
+
+    const del_icon = create_floating_icon(
+        'trash', '#ff4d4f', mid.x + 4, mid.y + 18,
+        t('unlink'), () => request_unlink_edge(gobj)
+    );
+    priv.$container.appendChild(del_icon);
+    priv._edge_delete_el = del_icon;
 }
 
 function hide_edge_icon(gobj)
@@ -2917,6 +3448,10 @@ function hide_edge_icon(gobj)
     if(priv._edge_icon_el) {
         priv._edge_icon_el.remove();
         priv._edge_icon_el = null;
+    }
+    if(priv._edge_delete_el) {
+        priv._edge_delete_el.remove();
+        priv._edge_delete_el = null;
     }
 }
 
@@ -2934,13 +3469,18 @@ function update_edge_icon_position(gobj)
             hide_edge_popover(gobj);
             return;
         }
-        priv._edge_icon_el.style.left = (mid.x - 14) + 'px';
+        priv._edge_icon_el.style.left = (mid.x + 4) + 'px';
         priv._edge_icon_el.style.top = (mid.y - 14) + 'px';
+        if(priv._edge_delete_el) {
+            priv._edge_delete_el.style.left = (mid.x + 4) + 'px';
+            priv._edge_delete_el.style.top = (mid.y + 18) + 'px';
+        }
 
         // Reposition popover if open
         if(priv._edge_popover_el) {
-            priv._edge_popover_el.style.left = (mid.x + 20) + 'px';
+            priv._edge_popover_el.style.left = (mid.x + 36) + 'px';
             priv._edge_popover_el.style.top = (mid.y - 14) + 'px';
+            clamp_popover_position(gobj, priv._edge_popover_el);
         }
     } catch(e) {
         hide_edge_icon(gobj);
@@ -3003,10 +3543,10 @@ function show_edge_popover(gobj)
     popover.className = 'g6-edge-popover';
     popover.style.cssText =
         'position:absolute;' +
-        'left:' + (mid.x + 20) + 'px;' +
+        'left:' + (mid.x + 36) + 'px;' +
         'top:' + (mid.y - 14) + 'px;' +
         'background:#fff;border:1px solid #d9d9d9;border-radius:6px;' +
-        'padding:12px;z-index:12;pointer-events:all;' +
+        'padding:12px;z-index:100;pointer-events:all;' +
         'box-shadow:0 4px 12px rgba(0,0,0,0.15);' +
         'min-width:180px;font-size:13px;';
 
@@ -3116,6 +3656,46 @@ function show_edge_popover(gobj)
 
     priv.$container.appendChild(popover);
     priv._edge_popover_el = popover;
+
+    // Clamp popover inside the container
+    clamp_popover_position(gobj, popover);
+}
+
+/************************************************************
+ *  Clamp a popover so it stays inside the container.
+ ************************************************************/
+function clamp_popover_position(gobj, popover)
+{
+    let priv = gobj.priv;
+    if(!popover) {
+        return;
+    }
+
+    let containerRect = priv.$container.getBoundingClientRect();
+    let popRect = popover.getBoundingClientRect();
+    let margin = 4;
+
+    let left = popover.offsetLeft;
+    let top = popover.offsetTop;
+
+    // Clamp right edge
+    if(left + popRect.width > containerRect.width - margin) {
+        left = containerRect.width - popRect.width - margin;
+    }
+    // Clamp bottom edge
+    if(top + popRect.height > containerRect.height - margin) {
+        top = containerRect.height - popRect.height - margin;
+    }
+    // Clamp left/top
+    if(left < margin) {
+        left = margin;
+    }
+    if(top < margin) {
+        top = margin;
+    }
+
+    popover.style.left = left + 'px';
+    popover.style.top = top + 'px';
 }
 
 function hide_edge_popover(gobj)
@@ -3125,6 +3705,538 @@ function hide_edge_popover(gobj)
         priv._edge_popover_el.remove();
         priv._edge_popover_el = null;
     }
+}
+
+/************************************************************
+ *  Node properties icon and popover
+ ************************************************************/
+function show_node_icon(gobj)
+{
+    hide_node_icon(gobj);
+
+    let priv = gobj.priv;
+    if(!priv._selected_node_id || priv._selected_port_key) {
+        return;
+    }
+
+    let rect = get_node_viewport_rect(gobj, priv._selected_node_id);
+    if(!rect) {
+        return;
+    }
+
+    const icon = create_floating_icon(
+        'gear', '#1890ff', rect.right + 4, rect.top - 14,
+        t('node properties'), () => toggle_node_popover(gobj)
+    );
+    priv.$container.appendChild(icon);
+    priv._node_icon_el = icon;
+
+    const del_icon = create_floating_icon(
+        'trash', '#ff4d4f', rect.right + 4, rect.top + 18,
+        t('delete node'), () => request_delete_node(gobj)
+    );
+    priv.$container.appendChild(del_icon);
+    priv._node_delete_el = del_icon;
+}
+
+function hide_node_icon(gobj)
+{
+    let priv = gobj.priv;
+    if(priv._node_icon_el) {
+        priv._node_icon_el.remove();
+        priv._node_icon_el = null;
+    }
+    if(priv._node_delete_el) {
+        priv._node_delete_el.remove();
+        priv._node_delete_el = null;
+    }
+}
+
+function update_node_icon_position(gobj)
+{
+    let priv = gobj.priv;
+    if(!priv._selected_node_id || priv._selected_port_key) {
+        return;
+    }
+
+    // Recreate icon if it was removed (e.g. by resize)
+    if(!priv._node_icon_el) {
+        show_node_icon(gobj);
+        return;
+    }
+
+    try {
+        let rect = get_node_viewport_rect(gobj, priv._selected_node_id);
+        if(!rect) {
+            hide_node_icon(gobj);
+            hide_node_popover(gobj);
+            return;
+        }
+        priv._node_icon_el.style.left = (rect.right + 4) + 'px';
+        priv._node_icon_el.style.top = (rect.top - 14) + 'px';
+        if(priv._node_delete_el) {
+            priv._node_delete_el.style.left = (rect.right + 4) + 'px';
+            priv._node_delete_el.style.top = (rect.top + 18) + 'px';
+        }
+
+        // Reposition popover if open
+        if(priv._node_popover_el) {
+            priv._node_popover_el.style.left = (rect.right + 36) + 'px';
+            priv._node_popover_el.style.top = (rect.top - 14) + 'px';
+            clamp_popover_position(gobj, priv._node_popover_el);
+        }
+    } catch(e) {
+        hide_node_icon(gobj);
+        hide_node_popover(gobj);
+    }
+}
+
+/************************************************************
+ *  Node properties popover: form with fill color, stroke
+ *  color, lineWidth, and apply-to scope.
+ ************************************************************/
+function toggle_node_popover(gobj)
+{
+    let priv = gobj.priv;
+    if(priv._node_popover_el) {
+        hide_node_popover(gobj);
+    } else {
+        show_node_popover(gobj);
+    }
+}
+
+function show_node_popover(gobj)
+{
+    hide_node_popover(gobj);
+
+    let priv = gobj.priv;
+    let graph = priv.graph;
+    let node_id = priv._selected_node_id;
+    if(!node_id) {
+        return;
+    }
+
+    let nodeData = graph.getNodeData(node_id);
+    if(!nodeData) {
+        return;
+    }
+    let style = nodeData.style || {};
+    let currentFill = style.fill || '#ffffff';
+    let currentStroke = style.stroke || '#000000';
+    let currentLW = style.lineWidth || 1;
+
+    // Save original style for cancel/restore
+    let origFill = currentFill;
+    let origStroke = currentStroke;
+    let origLW = currentLW;
+
+    let rect = get_node_viewport_rect(gobj, node_id);
+    if(!rect) {
+        return;
+    }
+
+    const popover = document.createElement('div');
+    popover.className = 'g6-node-popover';
+    popover.style.cssText =
+        'position:absolute;' +
+        'left:' + (rect.right + 36) + 'px;' +
+        'top:' + (rect.top - 14) + 'px;' +
+        'background:#fff;border:1px solid #d9d9d9;border-radius:6px;' +
+        'padding:12px;z-index:100;pointer-events:all;' +
+        'box-shadow:0 4px 12px rgba(0,0,0,0.15);' +
+        'min-width:180px;font-size:13px;';
+
+    // Prevent clicks inside popover from deselecting
+    popover.addEventListener('click', (e) => e.stopPropagation());
+    popover.addEventListener('pointerdown', (e) => e.stopPropagation());
+
+    let node_graph_type = nodeData.data && nodeData.data.desc ?
+        nodeData.data.desc.node_treedb_type : null;
+
+    // Live preview
+    function preview_node() {
+        let fill = fillInput.value;
+        let stroke = strokeInput.value;
+        let lw = parseInt(lwInput.value) || 1;
+        let updateStyle = { fill: fill, stroke: stroke, lineWidth: lw };
+
+        if(node_graph_type === 'hierarchical') {
+            let record = nodeData.data.record || {};
+            updateStyle.innerHTML = build_node_innerHTML(
+                fill, stroke, record.icon, record.id
+            );
+        }
+        graph.updateNodeData([{ id: node_id, style: updateStyle }]);
+        graph.draw();
+    }
+
+    // Fill color
+    let fillLabel = document.createElement('label');
+    fillLabel.textContent = t('fill color');
+    fillLabel.style.cssText = 'display:block;margin-bottom:4px;font-weight:500;';
+    popover.appendChild(fillLabel);
+
+    let fillInput = document.createElement('input');
+    fillInput.type = 'color';
+    fillInput.value = currentFill;
+    fillInput.style.cssText =
+        'width:100%;height:30px;padding:0;border:1px solid #d9d9d9;border-radius:4px;' +
+        'cursor:pointer;margin-bottom:10px;';
+    fillInput.addEventListener('input', preview_node);
+    popover.appendChild(fillInput);
+
+    // Stroke color
+    let strokeLabel = document.createElement('label');
+    strokeLabel.textContent = t('stroke color');
+    strokeLabel.style.cssText = 'display:block;margin-bottom:4px;font-weight:500;';
+    popover.appendChild(strokeLabel);
+
+    let strokeInput = document.createElement('input');
+    strokeInput.type = 'color';
+    strokeInput.value = currentStroke;
+    strokeInput.style.cssText =
+        'width:100%;height:30px;padding:0;border:1px solid #d9d9d9;border-radius:4px;' +
+        'cursor:pointer;margin-bottom:10px;';
+    strokeInput.addEventListener('input', preview_node);
+    popover.appendChild(strokeInput);
+
+    // Line width
+    let lwLabel = document.createElement('label');
+    lwLabel.textContent = t('line width');
+    lwLabel.style.cssText = 'display:block;margin-bottom:4px;font-weight:500;';
+    popover.appendChild(lwLabel);
+
+    let lwInput = document.createElement('input');
+    lwInput.type = 'number';
+    lwInput.min = '1';
+    lwInput.max = '20';
+    lwInput.value = currentLW;
+    lwInput.style.cssText =
+        'width:100%;padding:4px 6px;border:1px solid #d9d9d9;border-radius:4px;' +
+        'box-sizing:border-box;margin-bottom:10px;';
+    lwInput.addEventListener('input', preview_node);
+    popover.appendChild(lwInput);
+
+    // Apply-to scope
+    let scopeLabel = document.createElement('label');
+    scopeLabel.textContent = t('apply to');
+    scopeLabel.style.cssText = 'display:block;margin-bottom:4px;font-weight:500;';
+    popover.appendChild(scopeLabel);
+
+    let scopeSelect = document.createElement('select');
+    scopeSelect.style.cssText =
+        'width:100%;padding:4px 6px;border:1px solid #d9d9d9;border-radius:4px;' +
+        'box-sizing:border-box;margin-bottom:12px;';
+    let options = [
+        { value: 'this', label: t('this node') },
+        { value: 'same_topic', label: t('same topic nodes') },
+        { value: 'all', label: t('all nodes') },
+    ];
+    for(let opt of options) {
+        let o = document.createElement('option');
+        o.value = opt.value;
+        o.textContent = opt.label;
+        scopeSelect.appendChild(o);
+    }
+    popover.appendChild(scopeSelect);
+
+    // Button row
+    let btnRow = document.createElement('div');
+    btnRow.style.cssText = 'display:flex;gap:8px;';
+
+    // Cancel button
+    let cancelBtn = document.createElement('button');
+    cancelBtn.textContent = t('cancel');
+    cancelBtn.style.cssText =
+        'flex:1;padding:6px;background:#fff;color:#333;border:1px solid #d9d9d9;' +
+        'border-radius:4px;cursor:pointer;font-size:13px;font-weight:500;';
+    cancelBtn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        // Restore original style
+        let restoreStyle = { fill: origFill, stroke: origStroke, lineWidth: origLW };
+        if(node_graph_type === 'hierarchical') {
+            let record = nodeData.data.record || {};
+            restoreStyle.innerHTML = build_node_innerHTML(
+                origFill, origStroke, record.icon, record.id
+            );
+        }
+        graph.updateNodeData([{ id: node_id, style: restoreStyle }]);
+        graph.draw();
+        hide_node_popover(gobj);
+    });
+    btnRow.appendChild(cancelBtn);
+
+    // Apply button
+    let applyBtn = document.createElement('button');
+    applyBtn.textContent = t('apply');
+    applyBtn.style.cssText =
+        'flex:1;padding:6px;background:#1890ff;color:#fff;border:none;' +
+        'border-radius:4px;cursor:pointer;font-size:13px;font-weight:500;';
+    applyBtn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        apply_node_properties(gobj, node_id,
+            fillInput.value,
+            strokeInput.value,
+            parseInt(lwInput.value) || 1,
+            scopeSelect.value
+        );
+    });
+    btnRow.appendChild(applyBtn);
+
+    popover.appendChild(btnRow);
+
+    priv.$container.appendChild(popover);
+    priv._node_popover_el = popover;
+
+    // Clamp popover inside the container
+    clamp_popover_position(gobj, popover);
+}
+
+function hide_node_popover(gobj)
+{
+    let priv = gobj.priv;
+    if(priv._node_popover_el) {
+        priv._node_popover_el.remove();
+        priv._node_popover_el = null;
+    }
+}
+
+/************************************************************
+ *  Build innerHTML for hierarchical (HTML) nodes.
+ ************************************************************/
+function build_node_innerHTML(fill, stroke, icon, id)
+{
+    return `
+<div style="
+    width: 100%;
+    height: 100%;
+    background: ${fill};
+    border: 1px solid ${stroke};
+    border-radius: 0.5rem;
+    color: #000;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    padding: 10px;
+">
+    <div>
+        <span class="icon is-large">
+        <img src="${safeSrc(icon)}" alt=""/>
+        </span>
+    </div>
+    <div style="font-weight: bold;">
+      ${escapeHtml(id)}
+    </div>
+</div>
+`;
+}
+
+/************************************************************
+ *  Request delete node: publish EV_DELETE_NODE to parent.
+ ************************************************************/
+function request_delete_node(gobj)
+{
+    let priv = gobj.priv;
+    let graph = priv.graph;
+    let node_id = priv._selected_node_id;
+    if(!node_id) {
+        return;
+    }
+
+    let nodeData = graph.getNodeData(node_id);
+    if(!nodeData || !nodeData.data || !nodeData.data.desc) {
+        return;
+    }
+
+    if(gobj_read_bool_attr(gobj, "confirm_delete_node")) {
+        show_delete_confirm(gobj, nodeData);
+    } else {
+        execute_delete_node(gobj, nodeData);
+    }
+}
+
+function execute_delete_node(gobj, nodeData)
+{
+    let priv = gobj.priv;
+
+    hide_delete_confirm(gobj);
+
+    gobj_publish_event(gobj, "EV_DELETE_NODE", {
+        treedb_name: priv.treedb_name,
+        topic_name: nodeData.data.desc.topic_name,
+        record: nodeData.data.record,
+    });
+
+    deselect_node(gobj);
+}
+
+/************************************************************
+ *  Show a confirmation popover next to the delete icon.
+ ************************************************************/
+function show_delete_confirm(gobj, nodeData)
+{
+    hide_delete_confirm(gobj);
+
+    let priv = gobj.priv;
+    if(!priv._node_delete_el) {
+        return;
+    }
+
+    let record = nodeData.data.record || {};
+    let topic_name = nodeData.data.desc.topic_name;
+
+    // Position relative to the delete icon
+    let iconRect = priv._node_delete_el.getBoundingClientRect();
+    let containerRect = priv.$container.getBoundingClientRect();
+    let left = iconRect.right - containerRect.left + 6;
+    let top = iconRect.top - containerRect.top - 4;
+
+    const popover = document.createElement('div');
+    popover.className = 'g6-delete-confirm';
+    popover.style.cssText =
+        'position:absolute;' +
+        'left:' + left + 'px;' +
+        'top:' + top + 'px;' +
+        'background:#fff;border:1px solid #ff4d4f;border-radius:6px;' +
+        'padding:12px;z-index:100;pointer-events:all;' +
+        'box-shadow:0 4px 12px rgba(0,0,0,0.15);' +
+        'min-width:160px;font-size:13px;';
+    popover.addEventListener('click', (e) => e.stopPropagation());
+    popover.addEventListener('pointerdown', (e) => e.stopPropagation());
+
+    // Message
+    let msg = document.createElement('div');
+    msg.style.cssText = 'margin-bottom:10px;font-weight:500;';
+    msg.textContent = t('delete') + ' ' + topic_name + ': ' + record.id + '?';
+    popover.appendChild(msg);
+
+    // Button row
+    let btnRow = document.createElement('div');
+    btnRow.style.cssText = 'display:flex;gap:8px;';
+
+    let cancelBtn = document.createElement('button');
+    cancelBtn.textContent = t('cancel');
+    cancelBtn.style.cssText =
+        'flex:1;padding:6px;background:#fff;color:#333;border:1px solid #d9d9d9;' +
+        'border-radius:4px;cursor:pointer;font-size:13px;font-weight:500;';
+    cancelBtn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        hide_delete_confirm(gobj);
+    });
+    btnRow.appendChild(cancelBtn);
+
+    let deleteBtn = document.createElement('button');
+    deleteBtn.textContent = t('delete');
+    deleteBtn.style.cssText =
+        'flex:1;padding:6px;background:#ff4d4f;color:#fff;border:none;' +
+        'border-radius:4px;cursor:pointer;font-size:13px;font-weight:500;';
+    deleteBtn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        execute_delete_node(gobj, nodeData);
+    });
+    btnRow.appendChild(deleteBtn);
+
+    popover.appendChild(btnRow);
+
+    priv.$container.appendChild(popover);
+    priv._delete_confirm_el = popover;
+
+    clamp_popover_position(gobj, popover);
+}
+
+function hide_delete_confirm(gobj)
+{
+    let priv = gobj.priv;
+    if(priv._delete_confirm_el) {
+        priv._delete_confirm_el.remove();
+        priv._delete_confirm_el = null;
+    }
+}
+
+/************************************************************
+ *  Request unlink edge: publish EV_UNLINK_NODES to parent.
+ ************************************************************/
+function request_unlink_edge(gobj)
+{
+    let priv = gobj.priv;
+    let graph = priv.graph;
+    let edge_id = priv._selected_edge_id;
+    if(!edge_id) {
+        return;
+    }
+
+    let edgeData = graph.getEdgeData(edge_id);
+    if(!edgeData || !edgeData.data) {
+        return;
+    }
+
+    const d = edgeData.data;
+
+    /*
+     * Backend decode_parent_ref() expects "topic^id^hook_name".
+     * Backend decode_child_ref()  expects "topic^id".
+     */
+    gobj_publish_event(gobj, "EV_UNLINK_NODES", {
+        treedb_name: priv.treedb_name,
+        parent_ref: `${d.parent_topic}^${d.parent_id}^${d.hook_name}`,
+        child_ref:  `${d.child_topic}^${d.child_id}`,
+    });
+
+    deselect_edge(gobj);
+}
+
+/************************************************************
+ *  Apply node properties to one or more nodes.
+ *  scope: 'this', 'same_topic', 'all'
+ ************************************************************/
+function apply_node_properties(gobj, node_id, fill, stroke, lineWidth, scope)
+{
+    let priv = gobj.priv;
+    let graph = priv.graph;
+
+    let nodeData = graph.getNodeData(node_id);
+    if(!nodeData || !nodeData.data) {
+        return;
+    }
+
+    let source_topic = nodeData.data.desc ? nodeData.data.desc.topic_name : null;
+    let updates = [];
+    const nodes = graph.getData().nodes;
+
+    for(let i = 0; i < nodes.length; i++) {
+        let nd = graph.getNodeData(nodes[i].id);
+        if(!nd || !nd.data || !nd.data.desc) {
+            continue;
+        }
+
+        if(scope === 'this' && nodes[i].id !== node_id) {
+            continue;
+        }
+        if(scope === 'same_topic' && nd.data.desc.topic_name !== source_topic) {
+            continue;
+        }
+
+        let updateStyle = { fill: fill, stroke: stroke, lineWidth: lineWidth };
+        if(nd.data.desc.node_treedb_type === 'hierarchical') {
+            let record = nd.data.record || {};
+            updateStyle.innerHTML = build_node_innerHTML(
+                fill, stroke, record.icon, record.id
+            );
+        }
+        updates.push({ id: nodes[i].id, style: updateStyle });
+    }
+
+    if(updates.length > 0) {
+        graph.updateNodeData(updates);
+        graph.draw().then(() => {
+            let $container = gobj_read_attr(gobj, "$container");
+            enableElements($container, ".EV_SAVE_GRAPH");
+            set_submit_state($container, ".EV_SAVE_GRAPH", true);
+        });
+    }
+
+    hide_node_popover(gobj);
 }
 
 /************************************************************
@@ -3974,7 +5086,13 @@ function ac_theme(gobj, event, kw, src)
         borderStroke: theme === 'dark' ? '#656565' : '#EEEEEE',
     });
 
-    graph_draw(gobj);
+    graph_draw(gobj).then(() => {
+        // Restore toolbar icon states lost when G6 re-renders the DOM
+        update_history_buttons(gobj);
+    });
+
+    // Re-render toolbars to pick up language changes via t()
+    update_toolbar(gobj);
 
     return 0;
 }
@@ -4099,6 +5217,16 @@ function ac_node_click(gobj, event, kw, src)
                     gobj, node_id, canvasPoint[0], canvasPoint[1]
                 );
 
+                // In linking mode, try to complete the link
+                if(priv._linking_mode) {
+                    if(port_key && try_complete_link(gobj, node_id, port_key)) {
+                        return 0;
+                    }
+                    // Clicked on non-valid target, cancel linking
+                    exit_linking_mode(gobj);
+                    return 0;
+                }
+
                 if(port_key) {
                     select_port(gobj, node_id, port_key);
                 } else {
@@ -4164,11 +5292,109 @@ function ac_canvas_click(gobj, event, kw, src)
 {
     let priv = gobj.priv;
 
+    if(priv._linking_mode) {
+        exit_linking_mode(gobj);
+        return 0;
+    }
+
     if(priv.edit_mode) {
         deselect_node(gobj);
     }
 
     return 0;
+}
+
+/************************************************************
+ *  Synchronize a history command with the treedb backend.
+ *
+ *  Call after undo (pass cmd.original) or after redo (pass cmd.current).
+ *  `cmdData` has the shape produced by G6's parseCommand():
+ *      { add: { nodes?, edges? }, update: { ... }, remove: { nodes?, edges? } }
+ *
+ *  Only structural add/remove operations require backend sync:
+ *    - add.nodes    → nodes restored by undo/redo  → EV_CREATE_NODE
+ *    - remove.nodes → nodes removed  by undo/redo  → EV_DELETE_NODE
+ *    - add.edges    → edges restored by undo/redo  → EV_LINK_NODES
+ *    - remove.edges → edges removed  by undo/redo  → EV_UNLINK_NODES
+ *
+ *  update.nodes/edges are style/position-only changes; they are saved
+ *  to the backend in bulk via EV_SAVE_GRAPH, not individually.
+ *
+ *  Ref formats expected by the backend (c_node.c):
+ *    parent_ref: "topic^id^hook_name"  (decoded by decode_parent_ref())
+ *    child_ref:  "topic^id"            (decoded by decode_child_ref())
+ ************************************************************/
+function sync_history_to_backend(gobj, cmdData)
+{
+    if(!cmdData) {
+        return;
+    }
+    let priv = gobj.priv;
+
+    /*
+     * Nodes re-added by undo (undo of a delete) or redo (redo of a create).
+     * node.data carries topic_name and the full treedb record,
+     * set when the node was first created via create_topic_node().
+     */
+    (cmdData.add?.nodes || []).forEach((node) => {
+        const d = node.data;
+        if(!d || !d.topic_name || !d.record) {
+            return;
+        }
+        gobj_publish_event(gobj, "EV_CREATE_NODE", {
+            treedb_name: priv.treedb_name,
+            topic_name:  d.topic_name,
+            record:      d.record,
+        });
+    });
+
+    /*
+     * Nodes removed by undo (undo of a create) or redo (redo of a delete).
+     */
+    (cmdData.remove?.nodes || []).forEach((node) => {
+        const d = node.data;
+        if(!d || !d.topic_name || !d.record) {
+            return;
+        }
+        gobj_publish_event(gobj, "EV_DELETE_NODE", {
+            treedb_name: priv.treedb_name,
+            topic_name:  d.topic_name,
+            record:      d.record,
+        });
+    });
+
+    /*
+     * Edges re-added by undo (undo of an unlink) or redo (redo of a link).
+     * edge.data carries the full connection info set when the edge was drawn.
+     */
+    (cmdData.add?.edges || []).forEach((edge) => {
+        const d = edge.data;
+        if(!d || !d.parent_topic || !d.parent_id || !d.hook_name ||
+                 !d.child_topic  || !d.child_id) {
+            return;
+        }
+        gobj_publish_event(gobj, "EV_LINK_NODES", {
+            treedb_name: priv.treedb_name,
+            parent_ref: `${d.parent_topic}^${d.parent_id}^${d.hook_name}`,
+            child_ref:  `${d.child_topic}^${d.child_id}`,
+        });
+    });
+
+    /*
+     * Edges removed by undo (undo of a link) or redo (redo of an unlink).
+     */
+    (cmdData.remove?.edges || []).forEach((edge) => {
+        const d = edge.data;
+        if(!d || !d.parent_topic || !d.parent_id || !d.hook_name ||
+                 !d.child_topic  || !d.child_id) {
+            return;
+        }
+        gobj_publish_event(gobj, "EV_UNLINK_NODES", {
+            treedb_name: priv.treedb_name,
+            parent_ref: `${d.parent_topic}^${d.parent_id}^${d.hook_name}`,
+            child_ref:  `${d.child_topic}^${d.child_id}`,
+        });
+    });
 }
 
 /************************************************************
@@ -4181,8 +5407,20 @@ function ac_history_redo(gobj, event, kw, src)
     if(priv.edit_mode) {
         const history = graph_get_plugin(gobj, "history");
         if(history && history.canRedo()) {
+            /*
+             * Capture the command about to be redone before the stack changes.
+             * cmd.current describes what G6 will re-apply.
+             */
+            const cmd = history.redoStack[history.redoStack.length - 1];
+
             history.redo();
             update_resize_handles_position(gobj);
+
+            /*
+             * Sync backend using cmd.current: it contains the add/remove sets
+             * that G6 just re-applied, mirroring what the user originally did.
+             */
+            sync_history_to_backend(gobj, cmd ? cmd.current : null);
         }
     }
 
@@ -4196,8 +5434,20 @@ function ac_history_undo(gobj, event, kw, src)
     if(priv.edit_mode) {
         const history = graph_get_plugin(gobj, "history");
         if(history && history.canUndo()) {
+            /*
+             * Capture the command about to be undone before the stack changes.
+             * cmd.original describes the state G6 will restore.
+             */
+            const cmd = history.undoStack[history.undoStack.length - 1];
+
             history.undo();
             update_resize_handles_position(gobj);
+
+            /*
+             * Sync backend using cmd.original: it contains the add/remove sets
+             * that G6 just restored, which are the inverse of the user's action.
+             */
+            sync_history_to_backend(gobj, cmd ? cmd.original : null);
         }
     }
 

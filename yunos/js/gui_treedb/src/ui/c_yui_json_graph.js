@@ -207,7 +207,7 @@ function build_ui(gobj)
 
     let $container = createElement2(
         ['div', {class: 'json-graph', style: 'height:100%; display:flex; flex-direction:column;'}, [
-            ['div', {class: 'is-flex-grow-0 is-flex json_graph_toolbar'}, $toolbar],
+            ['div', {class: 'is-flex-grow-0 is-flex toolbar_yui_json_graph'}, $toolbar],
             ['div', {class: 'is-flex-grow-1', style: 'height:100%; min-height:0; overflow:hidden;'}, [
                 ['div', {id: priv.canvas_id, class: 'json-graph-container', style: 'height:100%; min-height:0; border: 1px solid var(--bulma-border-weak); border-radius:0.2rem;'}, [
                 ]]
