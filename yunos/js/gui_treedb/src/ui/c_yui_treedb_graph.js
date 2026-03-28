@@ -123,7 +123,7 @@ SDATA(data_type_t.DTP_POINTER,  "hook_data_viewer",     0,  null,   "GClass Mana
 SDATA(data_type_t.DTP_BOOLEAN,  "is_pinhold_window",    0,  false,  "Select default: window or container panel"),
 
 SDATA(data_type_t.DTP_STRING,   "wide",                 0,  "40px", "Height of header"),
-SDATA(data_type_t.DTP_STRING,   "padding",              0,  "m-2",  "Padding or margin value"),
+SDATA(data_type_t.DTP_STRING,   "padding",              0,  "m-1",  "Padding or margin value"),
 SDATA(data_type_t.DTP_STRING,   "canvas_id",            0,  "",     "Canvas ID"),
 
 SDATA_END()

@@ -186,7 +186,7 @@ function build_ui(gobj)
         // Don't use is-flex, don't work well with is-hidden
         ['div', {class: `yui_tabs`, style: 'height:100%; display:flex; flex-direction:column;'}, [
             ['div', {class: 'is-flex-grow-0'}, [
-                ['div', {class: `tabs ${tabs_style}`, style: 'margin-bottom: 10px;'}, [
+                ['div', {class: `tabs ${tabs_style}`, style: ''}, [
                     ['ul', {}]
                 ]],
             ]],

@@ -310,7 +310,7 @@ function build_layout(gobj)
             ],
             ['div', {
                 id: 'main-content-container',
-                class: 'container-grid-2col-right main-content-container'}, []
+                class: 'container-grid-2col-right main-content-container m-1'}, []
             ]
         ]]
     );

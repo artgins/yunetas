@@ -217,7 +217,7 @@ function build_ui(gobj)
     let $container = createElement2(
         ['div', {class: `${gobj_read_attr(gobj, "treedb_name")}`, style: 'height:100%; display:flex; flex-direction:column;'}, [
             ['div', {class: 'is-flex-grow-0'}, [
-                ['div', {class: `tabs ${gobj_read_attr(gobj, "tabs_style")}`, style: 'margin-bottom: 10px;'}, [
+                ['div', {class: `tabs ${gobj_read_attr(gobj, "tabs_style")}`, style: ''}, [
                     ['ul', {}]
                 ]],
             ]],

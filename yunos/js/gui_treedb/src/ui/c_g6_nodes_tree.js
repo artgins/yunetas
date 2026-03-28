@@ -214,7 +214,6 @@ SDATA(data_type_t.DTP_STRING,   "fkey_port_position",   0,  "top",      "Fkey po
 SDATA(data_type_t.DTP_BOOLEAN,  "confirm_delete_node",  0,  true,   "Ask confirmation before deleting a node"),
 
 SDATA(data_type_t.DTP_STRING,   "wide",                 0,  "40px", "Height of header"),
-SDATA(data_type_t.DTP_STRING,   "padding",              0,  "m-2",  "Padding or margin value"),
 
 SDATA_END()
 ];
