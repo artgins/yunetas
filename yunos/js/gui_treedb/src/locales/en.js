@@ -188,6 +188,8 @@ var en = {
         "auto fit": "Auto Fit",
         "enter full screen": "Enter Full Screen",
         "exit full screen": "Exit Full Screen",
+        "layout": "Layout",
+        "operation mode": "Operation Mode",
 
         'xxx': 'last entry DONT CHANGE, insert before'
     }

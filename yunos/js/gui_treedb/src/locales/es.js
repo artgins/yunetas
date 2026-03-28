@@ -188,6 +188,8 @@ let es = {
         "auto fit": "Ajustar",
         "enter full screen": "Pantalla completa",
         "exit full screen": "Salir de pantalla completa",
+        "layout": "Disposición",
+        "operation mode": "Modo de operación",
 
         'xxx': 'ultima entrada NO TOCAR, insertar antes'
     }

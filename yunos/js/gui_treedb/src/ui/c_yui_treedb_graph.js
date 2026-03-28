@@ -361,7 +361,7 @@ function make_toolbar(gobj)
      *  via populate_nodes_tree_options()
      */
     let left_items = [
-        ['span', {class: 'is-hidden-mobile', style: 'padding-right:5px;'}, 'Layout:'],
+        ['span', {class: 'is-hidden-mobile', style: 'padding-right:5px;'}, t('layout') + ':'],
         ['div', {class: 'select'}, [
             ['select', {class: 'graph_layout'}]
         ], {
@@ -371,7 +371,7 @@ function make_toolbar(gobj)
             }
         }],
 
-        ['span', {class: 'is-hidden-mobile', style: 'padding-left:10px; padding-right:5px;'}, 'Operation Mode:'],
+        ['span', {class: 'is-hidden-mobile', style: 'padding-left:10px; padding-right:5px;'}, t('operation mode') + ':'],
         ['div', {class: 'select'}, [
             ['select', {class: 'graph_operation_mode'}, mode_options]
         ], {
@@ -382,7 +382,7 @@ function make_toolbar(gobj)
         }],
     ];
     let l_icons = [
-        ["yi-arrows-rotate",        "EV_REFRESH_TREEDB",false,  'il', 'Refresh'],
+        ["yi-arrows-rotate",        "EV_REFRESH_TREEDB",false,  'il', t('refresh')],
     ];
     add_buttons(gobj, left_items, l_icons);
 
