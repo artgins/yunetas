@@ -211,6 +211,7 @@ SDATA(data_type_t.DTP_LIST,     "layout_names",         sdata_flag_t.SDF_RD,
 
 SDATA(data_type_t.DTP_STRING,   "hook_port_position",   0,  "bottom",   "Hook port position"),
 SDATA(data_type_t.DTP_STRING,   "fkey_port_position",   0,  "top",      "Fkey port position"),
+SDATA(data_type_t.DTP_BOOLEAN,  "confirm_delete_node",  0,  true,   "Ask confirmation before deleting a node"),
 
 SDATA(data_type_t.DTP_STRING,   "wide",                 0,  "40px", "Height of header"),
 SDATA(data_type_t.DTP_STRING,   "padding",              0,  "m-2",  "Padding or margin value"),
@@ -250,6 +251,7 @@ let PRIVATE_DATA = {
     _node_icon_el:      null,       // floating node properties icon element
     _node_delete_el:    null,       // floating delete icon element for node
     _node_popover_el:   null,       // node properties popover element
+    _delete_confirm_el: null,       // delete confirmation popover
     _context_node_id:   null,       // node id for context menu target
     _context_port_key:  null,       // port key for context menu target (null = node body)
     _context_edge_id:   null,       // edge id for context menu target
@@ -2257,6 +2259,7 @@ function deselect_node(gobj)
     deselect_edge(gobj);
     hide_node_icon(gobj);
     hide_node_popover(gobj);
+    hide_delete_confirm(gobj);
 
     if(priv._selected_node_id) {
         history_pause(gobj);
@@ -4035,6 +4038,19 @@ function request_delete_node(gobj)
         return;
     }
 
+    if(gobj_read_bool_attr(gobj, "confirm_delete_node")) {
+        show_delete_confirm(gobj, nodeData);
+    } else {
+        execute_delete_node(gobj, nodeData);
+    }
+}
+
+function execute_delete_node(gobj, nodeData)
+{
+    let priv = gobj.priv;
+
+    hide_delete_confirm(gobj);
+
     gobj_publish_event(gobj, "EV_DELETE_NODE", {
         treedb_name: priv.treedb_name,
         topic_name: nodeData.data.desc.topic_name,
@@ -4042,6 +4058,89 @@ function request_delete_node(gobj)
     });
 
     deselect_node(gobj);
+}
+
+/************************************************************
+ *  Show a confirmation popover next to the delete icon.
+ ************************************************************/
+function show_delete_confirm(gobj, nodeData)
+{
+    hide_delete_confirm(gobj);
+
+    let priv = gobj.priv;
+    if(!priv._node_delete_el) {
+        return;
+    }
+
+    let record = nodeData.data.record || {};
+    let topic_name = nodeData.data.desc.topic_name;
+
+    // Position relative to the delete icon
+    let iconRect = priv._node_delete_el.getBoundingClientRect();
+    let containerRect = priv.$container.getBoundingClientRect();
+    let left = iconRect.right - containerRect.left + 6;
+    let top = iconRect.top - containerRect.top - 4;
+
+    const popover = document.createElement('div');
+    popover.className = 'g6-delete-confirm';
+    popover.style.cssText =
+        'position:absolute;' +
+        'left:' + left + 'px;' +
+        'top:' + top + 'px;' +
+        'background:#fff;border:1px solid #ff4d4f;border-radius:6px;' +
+        'padding:12px;z-index:100;pointer-events:all;' +
+        'box-shadow:0 4px 12px rgba(0,0,0,0.15);' +
+        'min-width:160px;font-size:13px;';
+    popover.addEventListener('click', (e) => e.stopPropagation());
+    popover.addEventListener('pointerdown', (e) => e.stopPropagation());
+
+    // Message
+    let msg = document.createElement('div');
+    msg.style.cssText = 'margin-bottom:10px;font-weight:500;';
+    msg.textContent = t('delete') + ' ' + topic_name + ': ' + record.id + '?';
+    popover.appendChild(msg);
+
+    // Button row
+    let btnRow = document.createElement('div');
+    btnRow.style.cssText = 'display:flex;gap:8px;';
+
+    let cancelBtn = document.createElement('button');
+    cancelBtn.textContent = t('cancel');
+    cancelBtn.style.cssText =
+        'flex:1;padding:6px;background:#fff;color:#333;border:1px solid #d9d9d9;' +
+        'border-radius:4px;cursor:pointer;font-size:13px;font-weight:500;';
+    cancelBtn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        hide_delete_confirm(gobj);
+    });
+    btnRow.appendChild(cancelBtn);
+
+    let deleteBtn = document.createElement('button');
+    deleteBtn.textContent = t('delete');
+    deleteBtn.style.cssText =
+        'flex:1;padding:6px;background:#ff4d4f;color:#fff;border:none;' +
+        'border-radius:4px;cursor:pointer;font-size:13px;font-weight:500;';
+    deleteBtn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        execute_delete_node(gobj, nodeData);
+    });
+    btnRow.appendChild(deleteBtn);
+
+    popover.appendChild(btnRow);
+
+    priv.$container.appendChild(popover);
+    priv._delete_confirm_el = popover;
+
+    clamp_popover_position(gobj, popover);
+}
+
+function hide_delete_confirm(gobj)
+{
+    let priv = gobj.priv;
+    if(priv._delete_confirm_el) {
+        priv._delete_confirm_el.remove();
+        priv._delete_confirm_el = null;
+    }
 }
 
 /************************************************************
