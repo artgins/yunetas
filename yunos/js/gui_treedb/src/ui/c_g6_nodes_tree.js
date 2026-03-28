@@ -2869,7 +2869,9 @@ function enter_linking_mode(gobj)
     history_pause(gobj);
     for(let vh of valid_hooks) {
         let nd = graph.getNodeData(vh.node_id);
-        if(!nd) continue;
+        if(!nd) {
+            continue;
+        }
         let style = nd.style || {};
         let ports = style.ports || [];
         for(let p of ports) {
@@ -3106,7 +3108,9 @@ function find_hook_at_point(gobj, canvasX, canvasY)
         let ports = style.ports || [];
 
         for(let p of ports) {
-            if(p.key !== vh.port_key) continue;
+            if(p.key !== vh.port_key) {
+                continue;
+            }
             let pl = p.placement || [0.5, 0.5];
             let px = pos[0] + (pl[0] - 0.5) * w;
             let py = pos[1] + (pl[1] - 0.5) * h;
