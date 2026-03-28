@@ -251,6 +251,7 @@ let PRIVATE_DATA = {
     _node_delete_el:    null,       // floating delete icon element for node
     _node_popover_el:   null,       // node properties popover element
     _delete_confirm_el: null,       // delete confirmation popover
+    _create_popover_el: null,       // create node popover element
     _context_node_id:   null,       // node id for context menu target
     _context_port_key:  null,       // port key for context menu target (null = node body)
     _context_edge_id:   null,       // edge id for context menu target
@@ -836,6 +837,7 @@ function configure_toolbar_edit(gobj)
             },
             getItems: () => {
                 return [
+                    { id: 'g6-icon-plus',  value: 'create-node', className: 'EV_CREATE_NODE_BTN', title: t('create node') },
                     { id: 'g6-icon-save', value: 'save', className: 'EV_SAVE_GRAPH',   title: t('save'), disabled: true },
                     { id: 'undo',         value: 'undo', className: 'EV_HISTORY_UNDO', title: t('undo'), disabled: true },
                     { id: 'redo',         value: 'redo', className: 'EV_HISTORY_REDO', title: t('redo'), disabled: true },
@@ -843,6 +845,9 @@ function configure_toolbar_edit(gobj)
             },
             onClick: (value) => {
                 switch(value) {
+                    case 'create-node':
+                        toggle_create_popover(gobj);
+                        break;
                     case 'undo':
                         gobj_send_event(gobj, "EV_HISTORY_UNDO", {}, gobj);
                         break;
@@ -2201,6 +2206,13 @@ const SVG_ICONS = {
         'stroke-linejoin="round">' +
         '<path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/>' +
         '<path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/>' +
+        '</svg>',
+    plus:
+        '<svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" ' +
+        'fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" ' +
+        'stroke-linejoin="round">' +
+        '<line x1="12" y1="5" x2="12" y2="19"/>' +
+        '<line x1="5" y1="12" x2="19" y2="12"/>' +
         '</svg>',
 };
 
@@ -4158,6 +4170,207 @@ function hide_delete_confirm(gobj)
 }
 
 /************************************************************
+ *  Create node: show a popover to select topic and enter id.
+ ************************************************************/
+function toggle_create_popover(gobj)
+{
+    let priv = gobj.priv;
+    if(priv._create_popover_el) {
+        hide_create_popover(gobj);
+    } else {
+        show_create_popover(gobj);
+    }
+}
+
+function show_create_popover(gobj)
+{
+    hide_create_popover(gobj);
+
+    let priv = gobj.priv;
+    if(!priv.descs) {
+        return;
+    }
+
+    /*
+     *  Collect available topics (skip system topics starting with "__")
+     */
+    let topics = [];
+    for(const [topic_name, desc] of Object.entries(priv.descs)) {
+        if(topic_name.substring(0, 2) === "__") {
+            continue;
+        }
+        topics.push({
+            topic_name: topic_name,
+            color: desc.color || '#ccc',
+        });
+    }
+    if(topics.length === 0) {
+        return;
+    }
+
+    /*
+     *  Position: near the toolbar-edit plugin (left-top area)
+     */
+    const popover = document.createElement('div');
+    popover.className = 'g6-create-popover';
+    popover.style.cssText =
+        'position:absolute;' +
+        'left:12px;' +
+        'top:60px;' +
+        'background:#fff;border:1px solid #1890ff;border-radius:6px;' +
+        'padding:12px;z-index:100;pointer-events:all;' +
+        'box-shadow:0 4px 12px rgba(0,0,0,0.15);' +
+        'min-width:220px;font-size:13px;';
+    popover.addEventListener('click', (e) => e.stopPropagation());
+    popover.addEventListener('pointerdown', (e) => e.stopPropagation());
+
+    // Title
+    let titleEl = document.createElement('div');
+    titleEl.style.cssText = 'margin-bottom:10px;font-weight:600;font-size:14px;';
+    titleEl.textContent = t('create node');
+    popover.appendChild(titleEl);
+
+    // Topic selector
+    let topicLabel = document.createElement('div');
+    topicLabel.style.cssText = 'margin-bottom:4px;font-weight:500;';
+    topicLabel.textContent = t('topic') + ':';
+    popover.appendChild(topicLabel);
+
+    let topicSelect = document.createElement('select');
+    topicSelect.style.cssText =
+        'width:100%;padding:6px;border:1px solid #d9d9d9;border-radius:4px;' +
+        'font-size:13px;margin-bottom:8px;';
+    for(let i = 0; i < topics.length; i++) {
+        let opt = document.createElement('option');
+        opt.value = topics[i].topic_name;
+        opt.textContent = topics[i].topic_name;
+        opt.style.cssText = 'padding:4px;';
+        topicSelect.appendChild(opt);
+    }
+    popover.appendChild(topicSelect);
+
+    // Color indicator (updates with topic selection)
+    let colorRow = document.createElement('div');
+    colorRow.style.cssText = 'display:flex;align-items:center;gap:6px;margin-bottom:8px;';
+    let colorDot = document.createElement('span');
+    colorDot.style.cssText =
+        'display:inline-block;width:14px;height:14px;border-radius:50%;' +
+        'border:1px solid #999;background:' + topics[0].color + ';';
+    let colorText = document.createElement('span');
+    colorText.style.cssText = 'font-size:12px;color:#666;';
+    colorText.textContent = topics[0].topic_name;
+    colorRow.appendChild(colorDot);
+    colorRow.appendChild(colorText);
+    popover.appendChild(colorRow);
+
+    topicSelect.addEventListener('change', () => {
+        let sel = topics.find(t => t.topic_name === topicSelect.value);
+        if(sel) {
+            colorDot.style.background = sel.color;
+            colorText.textContent = sel.topic_name;
+        }
+    });
+
+    // Node ID input
+    let idLabel = document.createElement('div');
+    idLabel.style.cssText = 'margin-bottom:4px;font-weight:500;';
+    idLabel.textContent = 'Id:';
+    popover.appendChild(idLabel);
+
+    let idInput = document.createElement('input');
+    idInput.type = 'text';
+    idInput.placeholder = t('node id');
+    idInput.style.cssText =
+        'width:100%;padding:6px;border:1px solid #d9d9d9;border-radius:4px;' +
+        'font-size:13px;margin-bottom:10px;box-sizing:border-box;';
+    popover.appendChild(idInput);
+
+    // Error message area
+    let errorEl = document.createElement('div');
+    errorEl.style.cssText =
+        'color:#ff4d4f;font-size:12px;margin-bottom:8px;display:none;';
+    popover.appendChild(errorEl);
+
+    // Button row
+    let btnRow = document.createElement('div');
+    btnRow.style.cssText = 'display:flex;gap:8px;';
+
+    let cancelBtn = document.createElement('button');
+    cancelBtn.textContent = t('cancel');
+    cancelBtn.style.cssText =
+        'flex:1;padding:6px;background:#fff;color:#333;border:1px solid #d9d9d9;' +
+        'border-radius:4px;cursor:pointer;font-size:13px;font-weight:500;';
+    cancelBtn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        hide_create_popover(gobj);
+    });
+    btnRow.appendChild(cancelBtn);
+
+    let createBtn = document.createElement('button');
+    createBtn.textContent = t('create');
+    createBtn.style.cssText =
+        'flex:1;padding:6px;background:#1890ff;color:#fff;border:none;' +
+        'border-radius:4px;cursor:pointer;font-size:13px;font-weight:500;';
+    createBtn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        let node_id = idInput.value.trim();
+        if(!node_id) {
+            errorEl.textContent = t('node id') + ' required';
+            errorEl.style.display = 'block';
+            idInput.focus();
+            return;
+        }
+        execute_create_node(gobj, topicSelect.value, node_id);
+    });
+    btnRow.appendChild(createBtn);
+
+    popover.appendChild(btnRow);
+
+    // Enter key submits
+    idInput.addEventListener('keydown', (e) => {
+        if(e.key === 'Enter') {
+            e.preventDefault();
+            createBtn.click();
+        } else if(e.key === 'Escape') {
+            e.preventDefault();
+            hide_create_popover(gobj);
+        }
+    });
+
+    priv.$container.appendChild(popover);
+    priv._create_popover_el = popover;
+
+    clamp_popover_position(gobj, popover);
+
+    // Focus the id input
+    idInput.focus();
+}
+
+function hide_create_popover(gobj)
+{
+    let priv = gobj.priv;
+    if(priv._create_popover_el) {
+        priv._create_popover_el.remove();
+        priv._create_popover_el = null;
+    }
+}
+
+function execute_create_node(gobj, topic_name, node_id)
+{
+    let priv = gobj.priv;
+
+    hide_create_popover(gobj);
+
+    gobj_publish_event(gobj, "EV_CREATE_NODE", {
+        treedb_name: priv.treedb_name,
+        topic_name: topic_name,
+        record: {
+            id: node_id,
+        },
+    });
+}
+
+/************************************************************
  *  Request unlink edge: publish EV_UNLINK_NODES to parent.
  ************************************************************/
 function request_unlink_edge(gobj)
@@ -4711,6 +4924,7 @@ function ac_clear_data(gobj, event, kw, src)
     let priv = gobj.priv;
 
     deselect_node(gobj);
+    hide_create_popover(gobj);
 
     gobj_write_attr(gobj, "records", {});
 
@@ -5302,6 +5516,7 @@ function ac_canvas_click(gobj, event, kw, src)
 
     if(priv.edit_mode) {
         deselect_node(gobj);
+        hide_create_popover(gobj);
     }
 
     return 0;
