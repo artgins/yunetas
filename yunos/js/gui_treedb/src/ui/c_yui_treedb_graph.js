@@ -380,11 +380,17 @@ function make_toolbar(gobj)
                 gobj_send_event(gobj, "EV_SET_OPERATION_MODE", {operation_mode: evt.target.value}, gobj);
             }
         }],
+
+        ['button', {class: 'button EV_REFRESH_TREEDB'}, [
+            ['i', {style: 'font-size:1.5em; color:inherit;', class: 'yi-arrows-rotate'}],
+            ['span', {class: 'is-hidden-mobile', style: 'padding-left:5px;', i18n: 'refresh'}, 'refresh']
+        ], {
+            click: (evt) => {
+                evt.stopPropagation();
+                gobj_send_event(gobj, "EV_REFRESH_TREEDB", {evt}, gobj);
+            }
+        }],
     ];
-    let l_icons = [
-        ["yi-arrows-rotate",        "EV_REFRESH_TREEDB",false,  'il', 'refresh'],
-    ];
-    add_buttons(gobj, left_items, l_icons);
 
     /*
      *  Center, common controls
@@ -435,95 +441,6 @@ function populate_nodes_tree_options(gobj)
     // Restore persisted operation_mode selection
     let $operation_mode_select = $container.querySelector('.graph_operation_mode');
     $operation_mode_select.value = priv.operation_mode;
-}
-
-/************************************************************
- *  add_buttons() - helper to create toolbar buttons
- ************************************************************/
-function create_button_handlers(gobj, event_name, target_gobj)
-{
-    let dst = target_gobj || gobj;
-    return {
-        click: (evt) => {
-            evt.stopPropagation();
-            gobj_send_event(dst, event_name, {evt}, gobj);
-        },
-        contextmenu: (evt) => {
-            evt.stopPropagation();
-            evt.preventDefault();
-            gobj_send_event(dst, event_name, {evt}, gobj);
-        }
-    };
-}
-
-function push_button(zone, button, content, handlers)
-{
-    zone.push([
-        'button',
-        button,
-        content,
-        handlers
-    ]);
-}
-
-function add_buttons(gobj, zone, c_icons, target_gobj)
-{
-    const toolbar_wide = gobj_read_attr(gobj, "wide");
-
-    for(let i = 0; i < c_icons.length; i++) {
-        const item = c_icons[i];
-        const icon_name  = item[0];
-        const event_name = item[1];
-        const disabled   = item[2];
-        const type       = item[3];
-
-        const button = {
-            class: `button ${event_name}`,
-            style: {
-                height: `${toolbar_wide}`
-            }
-        };
-
-        if(disabled) {
-            button.disabled = true;
-        }
-
-        const handlers = create_button_handlers(gobj, event_name, target_gobj);
-
-        switch(type) {
-            case 'i':
-                {
-                    button.style.width = "2.5em";
-                    const icon = ['i', {
-                        style: "font-size:1.5em; color:inherit;",
-                        class: icon_name
-                    }];
-                    push_button(zone, button, icon, handlers);
-                }
-                break;
-
-            case 'il':
-                {
-                    const label = item[4] || '';
-                    const content = [
-                        ['i', {
-                            style: "font-size:1.5em; color:inherit;",
-                            class: icon_name
-                        }],
-                        ['span', {class: 'is-hidden-mobile', style: 'padding-left:5px;', i18n: label}, label]
-                    ];
-                    push_button(zone, button, content, handlers);
-                }
-                break;
-
-            case 't':
-            default:
-                {
-                    push_button(zone, button, icon_name, handlers);
-                }
-                break;
-        }
-    }
 }
 
 /************************************************************
