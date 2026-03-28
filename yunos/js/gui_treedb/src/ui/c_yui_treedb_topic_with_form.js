@@ -298,7 +298,7 @@ function build_ui(gobj)
 
         if(with_edition_mode) {
             $table_toolbar = createElement2(
-                ['div', {id: `${toolbar_id}`, class: 'buttons is-gapless'}]
+                ['div', {id: `${toolbar_id}`, class: 'buttons mb-0'}]
             );
             let $edit_button = createElement2(
                 ['button', {id: ``, class: 'button button-edit-record mr-1'}, [
@@ -418,7 +418,7 @@ function build_ui(gobj)
      *----------------------------------------------*/
     let toolbar_id = gobj_read_str_attr(gobj, "toolbar_id");
 
-    let $view_toolbar = createElement2(['div', {class: 'buttons is-gapless mb-0'}]);
+    let $view_toolbar = createElement2(['div', {class: 'is-flex is-align-items-center'}]);
 
     let with_refresh_button     = gobj_read_bool_attr(gobj, "with_refresh_button");
     let with_search_button      = gobj_read_bool_attr(gobj, "with_search_button");
