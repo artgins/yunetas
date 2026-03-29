@@ -984,7 +984,11 @@ function display_volatil_modal(
     /*
      *  Add to popup layer
      */
-    document.getElementById("popup-layer").appendChild($element);
+    let $popup_layer = document.getElementById("popup-layer");
+    if(!$popup_layer) {
+        $popup_layer = document.body;
+    }
+    $popup_layer.appendChild($element);
     $element.classList.add('is-active');
 
     /*
@@ -1039,7 +1043,7 @@ function display_warning_message(title, msg, callback)
 /************************************************************
  *
  ************************************************************/
-function display_error_message(title, msg, callback)
+function display_error_message(title, msg, callback, without_buttons)
 {
     if(!title) {
         title = t("error");
@@ -1049,7 +1053,7 @@ function display_error_message(title, msg, callback)
         msg: msg,
         callback: callback,
         type: 'error',
-        buttons: [{
+        buttons: without_buttons? []: [{
             content:
                 `<button class="button is-success px-6 with-focus">${t('accept')}</button>`,
         }]

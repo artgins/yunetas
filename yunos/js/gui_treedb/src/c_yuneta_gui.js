@@ -105,9 +105,10 @@ function mt_create(gobj)
     setup_locale();
     let v = Number(kw_get_local_storage_value("open_developer_window", 0, false));
     setup_dev(gobj, v);
-    build_remote_service(gobj);
-    build_ui(gobj);
-    window.dispatchEvent(new Event("resize"));
+    if(build_remote_service(gobj)) {
+        build_ui(gobj);
+        window.dispatchEvent(new Event("resize"));
+    }
 }
 
 /***************************************************************
@@ -173,16 +174,17 @@ function build_remote_service(gobj)
     const hostname = empty_string(window.location.hostname) ? "localhost" : window.location.hostname;
     const url = backend_urls[hostname];
     if (empty_string(url)) {
-        let msg = t("no url available to remote service");
+        let msg = t("There is no registered URL for this remote service.: " + hostname);
         log_error(msg);
         display_error_message(
             "Error",
             msg,
             function () {
                 close_all(gobj);
-            }
+            },
+            true // leave the message forever
         );
-        return;
+        return false;
     }
 
     gobj_write_str_attr(gobj, "url", url);
@@ -213,6 +215,8 @@ function build_remote_service(gobj)
         {},
         gobj
     );
+
+    return true;
 }
 
 /********************************************
