@@ -27,17 +27,20 @@ To build:
 
     vite build
 
-To publish a new version of yunetas:
+To publish a new version of yunetas to [npmjs.com](https://www.npmjs.com/package/yunetas):
 
-    # change the version in package.json
+    # 1. Configure your npm token (only once)
+    echo "//registry.npmjs.org/:_authToken=<your-token>" > ~/.npmrc
 
+    # 2. Update the version in package.json
+    npm version patch   # or minor / major
+
+    # 3. Publish (build runs automatically via prepublishOnly)
     npm publish --access public
 
+To create an npm token, go to [npmjs.com](https://www.npmjs.com) → Account → Access Tokens.
+
 To test:
-
-    npm test
-
-To test
 
     npm test
 
