@@ -212,6 +212,7 @@ SDATA(data_type_t.DTP_LIST,     "layout_names",         sdata_flag_t.SDF_RD,
 SDATA(data_type_t.DTP_STRING,   "hook_port_position",   0,  "bottom",   "Hook port position"),
 SDATA(data_type_t.DTP_STRING,   "fkey_port_position",   0,  "top",      "Fkey port position"),
 SDATA(data_type_t.DTP_BOOLEAN,  "confirm_delete_node",  0,  true,   "Ask confirmation before deleting a node"),
+SDATA(data_type_t.DTP_BOOLEAN,  "confirm_unlink_edge",  0,  true,   "Ask confirmation before unlinking an edge"),
 
 SDATA(data_type_t.DTP_STRING,   "wide",                 0,  "40px", "Height of header"),
 
@@ -251,6 +252,7 @@ let PRIVATE_DATA = {
     _node_delete_el:    null,       // floating delete icon element for node
     _node_popover_el:   null,       // node properties popover element
     _delete_confirm_el: null,       // delete confirmation popover
+    _unlink_confirm_el: null,       // unlink confirmation popover
     _create_popover_el: null,       // create node popover element
     _context_node_id:   null,       // node id for context menu target
     _context_port_key:  null,       // port key for context menu target (null = node body)
@@ -2282,6 +2284,7 @@ function deselect_node(gobj)
     hide_node_icon(gobj);
     hide_node_popover(gobj);
     hide_delete_confirm(gobj);
+    hide_unlink_confirm(gobj);
 
     if(priv._selected_node_id) {
         history_pause(gobj);
@@ -3388,6 +3391,7 @@ function deselect_edge(gobj)
 
     hide_edge_popover(gobj);
     hide_edge_icon(gobj);
+    hide_unlink_confirm(gobj);
 
     if(priv._selected_edge_id) {
         history_pause(gobj);
@@ -4397,6 +4401,19 @@ function request_unlink_edge(gobj)
         return;
     }
 
+    if(gobj_read_bool_attr(gobj, "confirm_unlink_edge")) {
+        show_unlink_confirm(gobj, edgeData);
+    } else {
+        execute_unlink_edge(gobj, edgeData);
+    }
+}
+
+function execute_unlink_edge(gobj, edgeData)
+{
+    let priv = gobj.priv;
+
+    hide_unlink_confirm(gobj);
+
     const d = edgeData.data;
 
     /*
@@ -4410,6 +4427,89 @@ function request_unlink_edge(gobj)
     });
 
     deselect_edge(gobj);
+}
+
+/************************************************************
+ *  Show a confirmation popover next to the unlink icon.
+ ************************************************************/
+function show_unlink_confirm(gobj, edgeData)
+{
+    hide_unlink_confirm(gobj);
+
+    let priv = gobj.priv;
+    if(!priv._edge_delete_el) {
+        return;
+    }
+
+    const d = edgeData.data;
+
+    // Position relative to the unlink icon
+    let iconRect = priv._edge_delete_el.getBoundingClientRect();
+    let containerRect = priv.$container.getBoundingClientRect();
+    let left = iconRect.right - containerRect.left + 6;
+    let top = iconRect.top - containerRect.top - 4;
+
+    const popover = document.createElement('div');
+    popover.className = 'g6-unlink-confirm';
+    popover.style.cssText =
+        'position:absolute;' +
+        'left:' + left + 'px;' +
+        'top:' + top + 'px;' +
+        'background:#fff;border:1px solid #ff4d4f;border-radius:6px;' +
+        'padding:12px;z-index:100;pointer-events:all;' +
+        'box-shadow:0 4px 12px rgba(0,0,0,0.15);' +
+        'min-width:160px;font-size:13px;';
+    popover.addEventListener('click', (e) => e.stopPropagation());
+    popover.addEventListener('pointerdown', (e) => e.stopPropagation());
+
+    // Message
+    let msg = document.createElement('div');
+    msg.style.cssText = 'margin-bottom:10px;font-weight:500;';
+    msg.textContent = t('unlink') + ' ' + d.parent_topic + ':' + d.parent_id +
+        ' → ' + d.child_topic + ':' + d.child_id + '?';
+    popover.appendChild(msg);
+
+    // Button row
+    let btnRow = document.createElement('div');
+    btnRow.style.cssText = 'display:flex;gap:8px;';
+
+    let cancelBtn = document.createElement('button');
+    cancelBtn.textContent = t('cancel');
+    cancelBtn.style.cssText =
+        'flex:1;padding:6px;background:#fff;color:#333;border:1px solid #d9d9d9;' +
+        'border-radius:4px;cursor:pointer;font-size:13px;font-weight:500;';
+    cancelBtn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        hide_unlink_confirm(gobj);
+    });
+    btnRow.appendChild(cancelBtn);
+
+    let unlinkBtn = document.createElement('button');
+    unlinkBtn.textContent = t('unlink');
+    unlinkBtn.style.cssText =
+        'flex:1;padding:6px;background:#ff4d4f;color:#fff;border:none;' +
+        'border-radius:4px;cursor:pointer;font-size:13px;font-weight:500;';
+    unlinkBtn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        execute_unlink_edge(gobj, edgeData);
+    });
+    btnRow.appendChild(unlinkBtn);
+
+    popover.appendChild(btnRow);
+
+    priv.$container.appendChild(popover);
+    priv._unlink_confirm_el = popover;
+
+    clamp_popover_position(gobj, popover);
+}
+
+function hide_unlink_confirm(gobj)
+{
+    let priv = gobj.priv;
+    if(priv._unlink_confirm_el) {
+        priv._unlink_confirm_el.remove();
+        priv._unlink_confirm_el = null;
+    }
 }
 
 /************************************************************
