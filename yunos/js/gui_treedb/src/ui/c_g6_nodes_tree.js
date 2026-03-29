@@ -1117,30 +1117,9 @@ function create_topic_node(gobj, desc, record)
         style.size = [150, 100];
         style.dx = -75;
         style.dy = -50;
-        style.innerHTML = `
-<div style="
-    width: 100%;
-    height: 100%;
-    background: ${desc.color};
-    border: 1px solid ${getStrokeColor(desc.color)};
-    border-radius: 0.5rem;
-    color: #000;
-    display: flex;
-    flex-direction: column;
-    justify-content: center;
-    align-items: center;
-    padding: 10px;
-">
-    <div>
-        <span class="icon is-large">
-        <img src="${safeSrc(record.icon)}" alt=""/>
-        </span>
-    </div>
-    <div style="font-weight: bold;">
-      ${escapeHtml(record.id)}
-    </div>
-</div>
-`;
+        style.innerHTML = build_node_innerHTML(
+            desc.color, getStrokeColor(desc.color), record.icon, record.id
+        );
     }
 
     // Apply topic defaults (from "resize all") for nodes without saved geometry
@@ -1248,30 +1227,9 @@ function update_topic_node(gobj, desc, node_name, record)
             graph.updateNodeData([{
                 id: node_name,
                 style: {
-                    innerHTML: `
-<div style="
-    width: 100%;
-    height: 100%;
-    background: ${desc.color};
-    border: 1px solid ${getStrokeColor(desc.color)};
-    border-radius: 0.5rem;
-    color: #000;
-    display: flex;
-    flex-direction: column;
-    justify-content: center;
-    align-items: center;
-    padding: 10px;
-">
-    <div>
-        <span class="icon is-large">
-        <img src="${safeSrc(record.icon)}" alt=""/>
-        </span>
-    </div>
-    <div style="font-weight: bold;">
-      ${escapeHtml(record.id)}
-    </div>
-</div>
-`,
+                    innerHTML: build_node_innerHTML(
+                        desc.color, getStrokeColor(desc.color), record.icon, record.id
+                    ),
                 }
             }]);
         }
@@ -2250,6 +2208,244 @@ function create_floating_icon(svgKey, color, left, top, title, onClick)
     return el;
 }
 
+/************************************************************
+ *  Remove one or more overlay elements from priv and the DOM.
+ *  @param {object} gobj
+ *  @param {...string} keys  - priv property names to remove
+ ************************************************************/
+function hide_overlay(gobj, ...keys)
+{
+    let priv = gobj.priv;
+    for(let key of keys) {
+        if(priv[key]) {
+            priv[key].remove();
+            priv[key] = null;
+        }
+    }
+}
+
+/************************************************************
+ *  Enable the save button (mark graph as dirty).
+ ************************************************************/
+function mark_graph_dirty(gobj)
+{
+    let $container = gobj_read_attr(gobj, "$container");
+    enableElements($container, ".EV_SAVE_GRAPH");
+    set_submit_state($container, ".EV_SAVE_GRAPH", true);
+}
+
+/************************************************************
+ *  Extract width/height from a style's size property.
+ *  Returns {w, h}.
+ ************************************************************/
+function extract_size(style)
+{
+    const size = style.size || [60];
+    const w = Array.isArray(size) ? size[0] : size;
+    const h = Array.isArray(size) ? (size.length > 1 ? size[1] : size[0]) : size;
+    return {w, h};
+}
+
+/************************************************************
+ *  Show a pair of floating icons (gear + trash) next to an
+ *  element. Returns {icon_el, delete_el}.
+ ************************************************************/
+function show_dual_icons(gobj, x, y, gear_title, gear_click, trash_title, trash_click)
+{
+    let priv = gobj.priv;
+
+    const icon_el = create_floating_icon(
+        'gear', '#1890ff', x, y, gear_title, gear_click
+    );
+    priv.$container.appendChild(icon_el);
+
+    const delete_el = create_floating_icon(
+        'trash', '#ff4d4f', x, y + 32, trash_title, trash_click
+    );
+    priv.$container.appendChild(delete_el);
+
+    return {icon_el, delete_el};
+}
+
+/************************************************************
+ *  Form helpers for popover construction (DRY).
+ ************************************************************/
+function create_popover_base(left, top, className, borderColor, minWidth)
+{
+    const popover = document.createElement('div');
+    popover.className = className;
+    popover.style.cssText =
+        'position:absolute;' +
+        'left:' + left + 'px;' +
+        'top:' + top + 'px;' +
+        'background:#fff;border:1px solid ' + borderColor + ';border-radius:6px;' +
+        'padding:12px;z-index:100;pointer-events:all;' +
+        'box-shadow:0 4px 12px rgba(0,0,0,0.15);' +
+        'min-width:' + minWidth + 'px;font-size:13px;';
+    popover.addEventListener('click', (e) => e.stopPropagation());
+    popover.addEventListener('pointerdown', (e) => e.stopPropagation());
+    return popover;
+}
+
+function create_form_label(parent, text)
+{
+    let label = document.createElement('label');
+    label.textContent = t(text);
+    label.style.cssText = 'display:block;margin-bottom:4px;font-weight:500;';
+    parent.appendChild(label);
+    return label;
+}
+
+function create_form_color_input(parent, value, onInput)
+{
+    let input = document.createElement('input');
+    input.type = 'color';
+    input.value = value;
+    input.style.cssText =
+        'width:100%;height:30px;padding:0;border:1px solid #d9d9d9;border-radius:4px;' +
+        'cursor:pointer;margin-bottom:10px;';
+    if(onInput) {
+        input.addEventListener('input', onInput);
+    }
+    parent.appendChild(input);
+    return input;
+}
+
+function create_form_number_input(parent, value, min, max, onInput)
+{
+    let input = document.createElement('input');
+    input.type = 'number';
+    input.min = String(min);
+    input.max = String(max);
+    input.value = value;
+    input.style.cssText =
+        'width:100%;padding:4px 6px;border:1px solid #d9d9d9;border-radius:4px;' +
+        'box-sizing:border-box;margin-bottom:10px;';
+    if(onInput) {
+        input.addEventListener('input', onInput);
+    }
+    parent.appendChild(input);
+    return input;
+}
+
+function create_form_select(parent, options, marginBottom)
+{
+    let select = document.createElement('select');
+    select.style.cssText =
+        'width:100%;padding:4px 6px;border:1px solid #d9d9d9;border-radius:4px;' +
+        'box-sizing:border-box;margin-bottom:' + (marginBottom || '12px') + ';';
+    for(let opt of options) {
+        let o = document.createElement('option');
+        o.value = opt.value;
+        o.textContent = opt.label;
+        select.appendChild(o);
+    }
+    parent.appendChild(select);
+    return select;
+}
+
+const BTN_STYLE_CANCEL =
+    'flex:1;padding:6px;background:#fff;color:#333;border:1px solid #d9d9d9;' +
+    'border-radius:4px;cursor:pointer;font-size:13px;font-weight:500;';
+
+function create_form_button_row(parent, buttons)
+{
+    let btnRow = document.createElement('div');
+    btnRow.style.cssText = 'display:flex;gap:8px;';
+    for(let {text, style, onClick} of buttons) {
+        let btn = document.createElement('button');
+        btn.textContent = t(text);
+        btn.style.cssText = style;
+        btn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            onClick();
+        });
+        btnRow.appendChild(btn);
+    }
+    parent.appendChild(btnRow);
+    return btnRow;
+}
+
+/************************************************************
+ *  Show a confirmation popover next to a target element.
+ *  Returns the popover element.
+ ************************************************************/
+function show_confirm_popover(gobj, target_el, message, confirm_text, confirm_color, onConfirm, priv_key)
+{
+    hide_overlay(gobj, priv_key);
+
+    let priv = gobj.priv;
+    if(!target_el) {
+        return;
+    }
+
+    let iconRect = target_el.getBoundingClientRect();
+    let containerRect = priv.$container.getBoundingClientRect();
+    let left = iconRect.right - containerRect.left + 6;
+    let top = iconRect.top - containerRect.top - 4;
+
+    const popover = create_popover_base(left, top, 'g6-confirm-popover', '#ff4d4f', 160);
+
+    // Message
+    let msg = document.createElement('div');
+    msg.style.cssText = 'margin-bottom:10px;font-weight:500;';
+    msg.textContent = message;
+    popover.appendChild(msg);
+
+    create_form_button_row(popover, [
+        {
+            text: 'cancel',
+            style: BTN_STYLE_CANCEL,
+            onClick: () => hide_overlay(gobj, priv_key),
+        },
+        {
+            text: confirm_text,
+            style: 'flex:1;padding:6px;background:' + confirm_color + ';color:#fff;border:none;' +
+                   'border-radius:4px;cursor:pointer;font-size:13px;font-weight:500;',
+            onClick: onConfirm,
+        },
+    ]);
+
+    priv.$container.appendChild(popover);
+    priv[priv_key] = popover;
+    clamp_popover_position(gobj, popover);
+}
+
+/************************************************************
+ *  Perform a history undo or redo operation.
+ ************************************************************/
+function perform_history_op(gobj, is_redo)
+{
+    let priv = gobj.priv;
+
+    if(!priv.edit_mode) {
+        return;
+    }
+
+    const history = graph_get_plugin(gobj, "history");
+    if(!history) {
+        return;
+    }
+
+    if(is_redo) {
+        if(!history.canRedo()) {
+            return;
+        }
+        const cmd = history.redoStack[history.redoStack.length - 1];
+        history.redo();
+        update_resize_handles_position(gobj);
+        sync_history_to_backend(gobj, cmd ? cmd.current : null);
+    } else {
+        if(!history.canUndo()) {
+            return;
+        }
+        const cmd = history.undoStack[history.undoStack.length - 1];
+        history.undo();
+        update_resize_handles_position(gobj);
+        sync_history_to_backend(gobj, cmd ? cmd.original : null);
+    }
+}
+
 function select_node(gobj, node_id)
 {
     let priv = gobj.priv;
@@ -2309,9 +2505,7 @@ function get_node_viewport_rect(gobj, node_id)
     const pos = graph.getElementPosition(node_id);
     const nodeData = graph.getNodeData(node_id);
     const style = nodeData.style || {};
-    const size = style.size || [60];
-    const w = Array.isArray(size) ? size[0] : size;
-    const h = Array.isArray(size) ? (size.length > 1 ? size[1] : size[0]) : size;
+    const {w, h} = extract_size(style);
 
     const vpMin = graph.getViewportByCanvas([pos[0] - w/2, pos[1] - h/2]);
     const vpMax = graph.getViewportByCanvas([pos[0] + w/2, pos[1] + h/2]);
@@ -2386,8 +2580,7 @@ function hide_resize_handles(gobj)
     let priv = gobj.priv;
 
     if(priv._resize_handles_el) {
-        priv._resize_handles_el.remove();
-        priv._resize_handles_el = null;
+        hide_overlay(gobj, '_resize_handles_el');
         priv._resize_handles = [];
         priv._resize_sel_rect = null;
     }
@@ -2478,9 +2671,7 @@ function start_node_resize(gobj, e, mx, my)
     const nodeData = graph.getNodeData(node_id);
     const nodeType = nodeData.type;
     const style = nodeData.style || {};
-    const size = style.size || [60];
-    const origW = Array.isArray(size) ? size[0] : size;
-    const origH = Array.isArray(size) ? (size.length > 1 ? size[1] : size[0]) : size;
+    const {w: origW, h: origH} = extract_size(style);
     const origPortR = style.portR || 0;
     const origCx = pos[0];
     const origCy = pos[1];
@@ -2565,11 +2756,7 @@ function start_node_resize(gobj, e, mx, my)
         graph.updateNodeData([{ id: node_id, style: updateStyle }]);
         graph.draw().then(() => {
             update_resize_handles_position(gobj);
-
-            // Mark graph as dirty (enable save button)
-            let $container = gobj_read_attr(gobj, "$container");
-            enableElements($container, ".EV_SAVE_GRAPH");
-            set_submit_state($container, ".EV_SAVE_GRAPH", true);
+            mark_graph_dirty(gobj);
         });
     }
 
@@ -2594,9 +2781,7 @@ function get_port_canvas_position(gobj, node_id, port_key)
     const pos = graph.getElementPosition(node_id);
     const nodeData = graph.getNodeData(node_id);
     const style = nodeData.style || {};
-    const size = style.size || [60];
-    const w = Array.isArray(size) ? size[0] : size;
-    const h = Array.isArray(size) ? (size.length > 1 ? size[1] : size[0]) : size;
+    const {w, h} = extract_size(style);
     const ports = style.ports || [];
 
     for(let i = 0; i < ports.length; i++) {
@@ -2647,9 +2832,7 @@ function detect_port_click(gobj, node_id, canvasX, canvasY)
     const pos = graph.getElementPosition(node_id);
     const nodeData = graph.getNodeData(node_id);
     const style = nodeData.style || {};
-    const size = style.size || [60];
-    const w = Array.isArray(size) ? size[0] : size;
-    const h = Array.isArray(size) ? (size.length > 1 ? size[1] : size[0]) : size;
+    const {w, h} = extract_size(style);
     const ports = style.ports || [];
     const defaultR = style.portR || 6;
 
@@ -2764,11 +2947,7 @@ function show_link_icon_if_fkey(gobj)
 
 function hide_link_icon(gobj)
 {
-    let priv = gobj.priv;
-    if(priv._link_icon_el) {
-        priv._link_icon_el.remove();
-        priv._link_icon_el = null;
-    }
+    hide_overlay(gobj, '_link_icon_el');
 }
 
 function update_link_icon_position(gobj)
@@ -3116,9 +3295,7 @@ function find_hook_at_point(gobj, canvasX, canvasY)
         let nd = graph.getNodeData(vh.node_id);
         if(!nd) continue;
         let style = nd.style || {};
-        let size = style.size || [60];
-        let w = Array.isArray(size) ? size[0] : size;
-        let h = Array.isArray(size) ? (size.length > 1 ? size[1] : size[0]) : size;
+        let {w, h} = extract_size(style);
         let pos = graph.getElementPosition(vh.node_id);
         let ports = style.ports || [];
 
@@ -3206,8 +3383,7 @@ function hide_port_resize_handles(gobj)
     let priv = gobj.priv;
 
     if(priv._port_handles_el) {
-        priv._port_handles_el.remove();
-        priv._port_handles_el = null;
+        hide_overlay(gobj, '_port_handles_el');
         priv._port_handles = [];
         priv._port_ring = null;
     }
@@ -3348,10 +3524,7 @@ function start_port_resize(gobj, e)
         graph.updateNodeData([{ id: node_id, style: { ports: ports } }]);
         graph.draw().then(() => {
             update_port_resize_handles_position(gobj);
-
-            let $container = gobj_read_attr(gobj, "$container");
-            enableElements($container, ".EV_SAVE_GRAPH");
-            set_submit_state($container, ".EV_SAVE_GRAPH", true);
+            mark_graph_dirty(gobj);
         });
     }
 
@@ -3446,32 +3619,17 @@ function show_edge_icon(gobj)
         return;
     }
 
-    const icon = create_floating_icon(
-        'gear', '#52c41a', mid.x + 4, mid.y - 14,
-        t('edge properties'), () => toggle_edge_popover(gobj)
-    );
-    priv.$container.appendChild(icon);
-    priv._edge_icon_el = icon;
-
-    const del_icon = create_floating_icon(
-        'trash', '#ff4d4f', mid.x + 4, mid.y + 18,
+    let icons = show_dual_icons(gobj, mid.x + 4, mid.y - 14,
+        t('edge properties'), () => toggle_edge_popover(gobj),
         t('unlink'), () => request_unlink_edge(gobj)
     );
-    priv.$container.appendChild(del_icon);
-    priv._edge_delete_el = del_icon;
+    priv._edge_icon_el = icons.icon_el;
+    priv._edge_delete_el = icons.delete_el;
 }
 
 function hide_edge_icon(gobj)
 {
-    let priv = gobj.priv;
-    if(priv._edge_icon_el) {
-        priv._edge_icon_el.remove();
-        priv._edge_icon_el = null;
-    }
-    if(priv._edge_delete_el) {
-        priv._edge_delete_el.remove();
-        priv._edge_delete_el = null;
-    }
+    hide_overlay(gobj, '_edge_icon_el', '_edge_delete_el');
 }
 
 function update_edge_icon_position(gobj)
@@ -3558,20 +3716,7 @@ function show_edge_popover(gobj)
         return;
     }
 
-    const popover = document.createElement('div');
-    popover.className = 'g6-edge-popover';
-    popover.style.cssText =
-        'position:absolute;' +
-        'left:' + (mid.x + 36) + 'px;' +
-        'top:' + (mid.y - 14) + 'px;' +
-        'background:#fff;border:1px solid #d9d9d9;border-radius:6px;' +
-        'padding:12px;z-index:100;pointer-events:all;' +
-        'box-shadow:0 4px 12px rgba(0,0,0,0.15);' +
-        'min-width:180px;font-size:13px;';
-
-    // Prevent clicks inside popover from deselecting
-    popover.addEventListener('click', (e) => e.stopPropagation());
-    popover.addEventListener('pointerdown', (e) => e.stopPropagation());
+    const popover = create_popover_base(mid.x + 36, mid.y - 14, 'g6-edge-popover', '#d9d9d9', 180);
 
     // Live preview: update the selected edge in real time
     function preview_edge() {
@@ -3582,96 +3727,44 @@ function show_edge_popover(gobj)
     }
 
     // Line width
-    let lwLabel = document.createElement('label');
-    lwLabel.textContent = t('line width');
-    lwLabel.style.cssText = 'display:block;margin-bottom:4px;font-weight:500;';
-    popover.appendChild(lwLabel);
-
-    let lwInput = document.createElement('input');
-    lwInput.type = 'number';
-    lwInput.min = '1';
-    lwInput.max = '20';
-    lwInput.value = currentLW;
-    lwInput.style.cssText =
-        'width:100%;padding:4px 6px;border:1px solid #d9d9d9;border-radius:4px;' +
-        'box-sizing:border-box;margin-bottom:10px;';
-    lwInput.addEventListener('input', preview_edge);
-    popover.appendChild(lwInput);
+    create_form_label(popover, 'line width');
+    let lwInput = create_form_number_input(popover, currentLW, 1, 20, preview_edge);
 
     // Color
-    let colorLabel = document.createElement('label');
-    colorLabel.textContent = t('color');
-    colorLabel.style.cssText = 'display:block;margin-bottom:4px;font-weight:500;';
-    popover.appendChild(colorLabel);
-
-    let colorInput = document.createElement('input');
-    colorInput.type = 'color';
-    colorInput.value = currentStroke;
-    colorInput.style.cssText =
-        'width:100%;height:30px;padding:0;border:1px solid #d9d9d9;border-radius:4px;' +
-        'cursor:pointer;margin-bottom:10px;';
-    colorInput.addEventListener('input', preview_edge);
-    popover.appendChild(colorInput);
+    create_form_label(popover, 'color');
+    let colorInput = create_form_color_input(popover, currentStroke, preview_edge);
 
     // Apply-to scope
-    let scopeLabel = document.createElement('label');
-    scopeLabel.textContent = t('apply to');
-    scopeLabel.style.cssText = 'display:block;margin-bottom:4px;font-weight:500;';
-    popover.appendChild(scopeLabel);
-
-    let scopeSelect = document.createElement('select');
-    scopeSelect.style.cssText =
-        'width:100%;padding:4px 6px;border:1px solid #d9d9d9;border-radius:4px;' +
-        'box-sizing:border-box;margin-bottom:12px;';
-    let options = [
+    create_form_label(popover, 'apply to');
+    let scopeSelect = create_form_select(popover, [
         { value: 'this', label: t('this edge') },
         { value: 'same_type', label: t('same type edges') },
         { value: 'all', label: t('all edges') },
-    ];
-    for(let opt of options) {
-        let o = document.createElement('option');
-        o.value = opt.value;
-        o.textContent = opt.label;
-        scopeSelect.appendChild(o);
-    }
-    popover.appendChild(scopeSelect);
+    ]);
 
-    // Button row
-    let btnRow = document.createElement('div');
-    btnRow.style.cssText = 'display:flex;gap:8px;';
-
-    // Cancel button
-    let cancelBtn = document.createElement('button');
-    cancelBtn.textContent = t('cancel');
-    cancelBtn.style.cssText =
-        'flex:1;padding:6px;background:#fff;color:#333;border:1px solid #d9d9d9;' +
-        'border-radius:4px;cursor:pointer;font-size:13px;font-weight:500;';
-    cancelBtn.addEventListener('click', (e) => {
-        e.stopPropagation();
-        // Restore original style and deselect
-        graph.updateEdgeData([{ id: edge_id, style: { lineWidth: origLW, stroke: origStroke } }]);
-        graph.draw();
-        deselect_edge(gobj);
-    });
-    btnRow.appendChild(cancelBtn);
-
-    // Apply button
-    let applyBtn = document.createElement('button');
-    applyBtn.textContent = t('apply');
-    applyBtn.style.cssText =
-        'flex:1;padding:6px;background:#52c41a;color:#fff;border:none;' +
-        'border-radius:4px;cursor:pointer;font-size:13px;font-weight:500;';
-    applyBtn.addEventListener('click', (e) => {
-        e.stopPropagation();
-        apply_edge_properties(gobj, edge_id,
-            parseInt(lwInput.value) || 2,
-            colorInput.value,
-            scopeSelect.value
-        );
-    });
-    btnRow.appendChild(applyBtn);
-
-    popover.appendChild(btnRow);
+    create_form_button_row(popover, [
+        {
+            text: 'cancel',
+            style: BTN_STYLE_CANCEL,
+            onClick: () => {
+                graph.updateEdgeData([{ id: edge_id, style: { lineWidth: origLW, stroke: origStroke } }]);
+                graph.draw();
+                deselect_edge(gobj);
+            },
+        },
+        {
+            text: 'apply',
+            style: 'flex:1;padding:6px;background:#52c41a;color:#fff;border:none;' +
+                   'border-radius:4px;cursor:pointer;font-size:13px;font-weight:500;',
+            onClick: () => {
+                apply_edge_properties(gobj, edge_id,
+                    parseInt(lwInput.value) || 2,
+                    colorInput.value,
+                    scopeSelect.value
+                );
+            },
+        },
+    ]);
 
     priv.$container.appendChild(popover);
     priv._edge_popover_el = popover;
@@ -3719,11 +3812,7 @@ function clamp_popover_position(gobj, popover)
 
 function hide_edge_popover(gobj)
 {
-    let priv = gobj.priv;
-    if(priv._edge_popover_el) {
-        priv._edge_popover_el.remove();
-        priv._edge_popover_el = null;
-    }
+    hide_overlay(gobj, '_edge_popover_el');
 }
 
 /************************************************************
@@ -3743,32 +3832,17 @@ function show_node_icon(gobj)
         return;
     }
 
-    const icon = create_floating_icon(
-        'gear', '#1890ff', rect.right + 4, rect.top - 14,
-        t('node properties'), () => toggle_node_popover(gobj)
-    );
-    priv.$container.appendChild(icon);
-    priv._node_icon_el = icon;
-
-    const del_icon = create_floating_icon(
-        'trash', '#ff4d4f', rect.right + 4, rect.top + 18,
+    let icons = show_dual_icons(gobj, rect.right + 4, rect.top - 14,
+        t('node properties'), () => toggle_node_popover(gobj),
         t('delete node'), () => request_delete_node(gobj)
     );
-    priv.$container.appendChild(del_icon);
-    priv._node_delete_el = del_icon;
+    priv._node_icon_el = icons.icon_el;
+    priv._node_delete_el = icons.delete_el;
 }
 
 function hide_node_icon(gobj)
 {
-    let priv = gobj.priv;
-    if(priv._node_icon_el) {
-        priv._node_icon_el.remove();
-        priv._node_icon_el = null;
-    }
-    if(priv._node_delete_el) {
-        priv._node_delete_el.remove();
-        priv._node_delete_el = null;
-    }
+    hide_overlay(gobj, '_node_icon_el', '_node_delete_el');
 }
 
 function update_node_icon_position(gobj)
@@ -3854,20 +3928,7 @@ function show_node_popover(gobj)
         return;
     }
 
-    const popover = document.createElement('div');
-    popover.className = 'g6-node-popover';
-    popover.style.cssText =
-        'position:absolute;' +
-        'left:' + (rect.right + 36) + 'px;' +
-        'top:' + (rect.top - 14) + 'px;' +
-        'background:#fff;border:1px solid #d9d9d9;border-radius:6px;' +
-        'padding:12px;z-index:100;pointer-events:all;' +
-        'box-shadow:0 4px 12px rgba(0,0,0,0.15);' +
-        'min-width:180px;font-size:13px;';
-
-    // Prevent clicks inside popover from deselecting
-    popover.addEventListener('click', (e) => e.stopPropagation());
-    popover.addEventListener('pointerdown', (e) => e.stopPropagation());
+    const popover = create_popover_base(rect.right + 36, rect.top - 14, 'g6-node-popover', '#d9d9d9', 180);
 
     let node_graph_type = nodeData.data && nodeData.data.desc ?
         nodeData.data.desc.node_treedb_type : null;
@@ -3890,119 +3951,56 @@ function show_node_popover(gobj)
     }
 
     // Fill color
-    let fillLabel = document.createElement('label');
-    fillLabel.textContent = t('fill color');
-    fillLabel.style.cssText = 'display:block;margin-bottom:4px;font-weight:500;';
-    popover.appendChild(fillLabel);
-
-    let fillInput = document.createElement('input');
-    fillInput.type = 'color';
-    fillInput.value = currentFill;
-    fillInput.style.cssText =
-        'width:100%;height:30px;padding:0;border:1px solid #d9d9d9;border-radius:4px;' +
-        'cursor:pointer;margin-bottom:10px;';
-    fillInput.addEventListener('input', preview_node);
-    popover.appendChild(fillInput);
+    create_form_label(popover, 'fill color');
+    let fillInput = create_form_color_input(popover, currentFill, preview_node);
 
     // Stroke color
-    let strokeLabel = document.createElement('label');
-    strokeLabel.textContent = t('stroke color');
-    strokeLabel.style.cssText = 'display:block;margin-bottom:4px;font-weight:500;';
-    popover.appendChild(strokeLabel);
-
-    let strokeInput = document.createElement('input');
-    strokeInput.type = 'color';
-    strokeInput.value = currentStroke;
-    strokeInput.style.cssText =
-        'width:100%;height:30px;padding:0;border:1px solid #d9d9d9;border-radius:4px;' +
-        'cursor:pointer;margin-bottom:10px;';
-    strokeInput.addEventListener('input', preview_node);
-    popover.appendChild(strokeInput);
+    create_form_label(popover, 'stroke color');
+    let strokeInput = create_form_color_input(popover, currentStroke, preview_node);
 
     // Line width
-    let lwLabel = document.createElement('label');
-    lwLabel.textContent = t('line width');
-    lwLabel.style.cssText = 'display:block;margin-bottom:4px;font-weight:500;';
-    popover.appendChild(lwLabel);
-
-    let lwInput = document.createElement('input');
-    lwInput.type = 'number';
-    lwInput.min = '1';
-    lwInput.max = '20';
-    lwInput.value = currentLW;
-    lwInput.style.cssText =
-        'width:100%;padding:4px 6px;border:1px solid #d9d9d9;border-radius:4px;' +
-        'box-sizing:border-box;margin-bottom:10px;';
-    lwInput.addEventListener('input', preview_node);
-    popover.appendChild(lwInput);
+    create_form_label(popover, 'line width');
+    let lwInput = create_form_number_input(popover, currentLW, 1, 20, preview_node);
 
     // Apply-to scope
-    let scopeLabel = document.createElement('label');
-    scopeLabel.textContent = t('apply to');
-    scopeLabel.style.cssText = 'display:block;margin-bottom:4px;font-weight:500;';
-    popover.appendChild(scopeLabel);
-
-    let scopeSelect = document.createElement('select');
-    scopeSelect.style.cssText =
-        'width:100%;padding:4px 6px;border:1px solid #d9d9d9;border-radius:4px;' +
-        'box-sizing:border-box;margin-bottom:12px;';
-    let options = [
+    create_form_label(popover, 'apply to');
+    let scopeSelect = create_form_select(popover, [
         { value: 'this', label: t('this node') },
         { value: 'same_topic', label: t('same topic nodes') },
         { value: 'all', label: t('all nodes') },
-    ];
-    for(let opt of options) {
-        let o = document.createElement('option');
-        o.value = opt.value;
-        o.textContent = opt.label;
-        scopeSelect.appendChild(o);
-    }
-    popover.appendChild(scopeSelect);
+    ]);
 
-    // Button row
-    let btnRow = document.createElement('div');
-    btnRow.style.cssText = 'display:flex;gap:8px;';
-
-    // Cancel button
-    let cancelBtn = document.createElement('button');
-    cancelBtn.textContent = t('cancel');
-    cancelBtn.style.cssText =
-        'flex:1;padding:6px;background:#fff;color:#333;border:1px solid #d9d9d9;' +
-        'border-radius:4px;cursor:pointer;font-size:13px;font-weight:500;';
-    cancelBtn.addEventListener('click', (e) => {
-        e.stopPropagation();
-        // Restore original style
-        let restoreStyle = { fill: origFill, stroke: origStroke, lineWidth: origLW };
-        if(node_graph_type === 'hierarchical') {
-            let record = nodeData.data.record || {};
-            restoreStyle.innerHTML = build_node_innerHTML(
-                origFill, origStroke, record.icon, record.id
-            );
-        }
-        graph.updateNodeData([{ id: node_id, style: restoreStyle }]);
-        graph.draw();
-        hide_node_popover(gobj);
-    });
-    btnRow.appendChild(cancelBtn);
-
-    // Apply button
-    let applyBtn = document.createElement('button');
-    applyBtn.textContent = t('apply');
-    applyBtn.style.cssText =
-        'flex:1;padding:6px;background:#1890ff;color:#fff;border:none;' +
-        'border-radius:4px;cursor:pointer;font-size:13px;font-weight:500;';
-    applyBtn.addEventListener('click', (e) => {
-        e.stopPropagation();
-        apply_node_properties(gobj, node_id,
-            fillInput.value,
-            strokeInput.value,
-            parseInt(lwInput.value) || 1,
-            scopeSelect.value
-        );
-    });
-    btnRow.appendChild(applyBtn);
-
-    popover.appendChild(btnRow);
+    create_form_button_row(popover, [
+        {
+            text: 'cancel',
+            style: BTN_STYLE_CANCEL,
+            onClick: () => {
+                let restoreStyle = { fill: origFill, stroke: origStroke, lineWidth: origLW };
+                if(node_graph_type === 'hierarchical') {
+                    let record = nodeData.data.record || {};
+                    restoreStyle.innerHTML = build_node_innerHTML(
+                        origFill, origStroke, record.icon, record.id
+                    );
+                }
+                graph.updateNodeData([{ id: node_id, style: restoreStyle }]);
+                graph.draw();
+                hide_node_popover(gobj);
+            },
+        },
+        {
+            text: 'apply',
+            style: 'flex:1;padding:6px;background:#1890ff;color:#fff;border:none;' +
+                   'border-radius:4px;cursor:pointer;font-size:13px;font-weight:500;',
+            onClick: () => {
+                apply_node_properties(gobj, node_id,
+                    fillInput.value,
+                    strokeInput.value,
+                    parseInt(lwInput.value) || 1,
+                    scopeSelect.value
+                );
+            },
+        },
+    ]);
 
     priv.$container.appendChild(popover);
     priv._node_popover_el = popover;
@@ -4013,11 +4011,7 @@ function show_node_popover(gobj)
 
 function hide_node_popover(gobj)
 {
-    let priv = gobj.priv;
-    if(priv._node_popover_el) {
-        priv._node_popover_el.remove();
-        priv._node_popover_el = null;
-    }
+    hide_overlay(gobj, '_node_popover_el');
 }
 
 /************************************************************
@@ -4095,82 +4089,21 @@ function execute_delete_node(gobj, nodeData)
  ************************************************************/
 function show_delete_confirm(gobj, nodeData)
 {
-    hide_delete_confirm(gobj);
-
     let priv = gobj.priv;
-    if(!priv._node_delete_el) {
-        return;
-    }
-
     let record = nodeData.data.record || {};
     let topic_name = nodeData.data.desc.topic_name;
 
-    // Position relative to the delete icon
-    let iconRect = priv._node_delete_el.getBoundingClientRect();
-    let containerRect = priv.$container.getBoundingClientRect();
-    let left = iconRect.right - containerRect.left + 6;
-    let top = iconRect.top - containerRect.top - 4;
-
-    const popover = document.createElement('div');
-    popover.className = 'g6-delete-confirm';
-    popover.style.cssText =
-        'position:absolute;' +
-        'left:' + left + 'px;' +
-        'top:' + top + 'px;' +
-        'background:#fff;border:1px solid #ff4d4f;border-radius:6px;' +
-        'padding:12px;z-index:100;pointer-events:all;' +
-        'box-shadow:0 4px 12px rgba(0,0,0,0.15);' +
-        'min-width:160px;font-size:13px;';
-    popover.addEventListener('click', (e) => e.stopPropagation());
-    popover.addEventListener('pointerdown', (e) => e.stopPropagation());
-
-    // Message
-    let msg = document.createElement('div');
-    msg.style.cssText = 'margin-bottom:10px;font-weight:500;';
-    msg.textContent = t('delete') + ' ' + topic_name + ': ' + record.id + '?';
-    popover.appendChild(msg);
-
-    // Button row
-    let btnRow = document.createElement('div');
-    btnRow.style.cssText = 'display:flex;gap:8px;';
-
-    let cancelBtn = document.createElement('button');
-    cancelBtn.textContent = t('cancel');
-    cancelBtn.style.cssText =
-        'flex:1;padding:6px;background:#fff;color:#333;border:1px solid #d9d9d9;' +
-        'border-radius:4px;cursor:pointer;font-size:13px;font-weight:500;';
-    cancelBtn.addEventListener('click', (e) => {
-        e.stopPropagation();
-        hide_delete_confirm(gobj);
-    });
-    btnRow.appendChild(cancelBtn);
-
-    let deleteBtn = document.createElement('button');
-    deleteBtn.textContent = t('delete');
-    deleteBtn.style.cssText =
-        'flex:1;padding:6px;background:#ff4d4f;color:#fff;border:none;' +
-        'border-radius:4px;cursor:pointer;font-size:13px;font-weight:500;';
-    deleteBtn.addEventListener('click', (e) => {
-        e.stopPropagation();
-        execute_delete_node(gobj, nodeData);
-    });
-    btnRow.appendChild(deleteBtn);
-
-    popover.appendChild(btnRow);
-
-    priv.$container.appendChild(popover);
-    priv._delete_confirm_el = popover;
-
-    clamp_popover_position(gobj, popover);
+    show_confirm_popover(gobj, priv._node_delete_el,
+        t('delete') + ' ' + topic_name + ': ' + record.id + '?',
+        'delete', '#ff4d4f',
+        () => execute_delete_node(gobj, nodeData),
+        '_delete_confirm_el'
+    );
 }
 
 function hide_delete_confirm(gobj)
 {
-    let priv = gobj.priv;
-    if(priv._delete_confirm_el) {
-        priv._delete_confirm_el.remove();
-        priv._delete_confirm_el = null;
-    }
+    hide_overlay(gobj, '_delete_confirm_el');
 }
 
 /************************************************************
@@ -4225,18 +4158,7 @@ function show_create_popover(gobj)
         top = btnRect.top - containerRect.top;
     }
 
-    const popover = document.createElement('div');
-    popover.className = 'g6-create-popover';
-    popover.style.cssText =
-        'position:absolute;' +
-        'left:' + left + 'px;' +
-        'top:' + top + 'px;' +
-        'background:#fff;border:1px solid #1890ff;border-radius:6px;' +
-        'padding:12px;z-index:100;pointer-events:all;' +
-        'box-shadow:0 4px 12px rgba(0,0,0,0.15);' +
-        'min-width:220px;font-size:13px;';
-    popover.addEventListener('click', (e) => e.stopPropagation());
-    popover.addEventListener('pointerdown', (e) => e.stopPropagation());
+    const popover = create_popover_base(left, top, 'g6-create-popover', '#1890ff', 220);
 
     // Title
     let titleEl = document.createElement('div');
@@ -4306,39 +4228,30 @@ function show_create_popover(gobj)
     popover.appendChild(errorEl);
 
     // Button row
-    let btnRow = document.createElement('div');
-    btnRow.style.cssText = 'display:flex;gap:8px;';
-
-    let cancelBtn = document.createElement('button');
-    cancelBtn.textContent = t('cancel');
-    cancelBtn.style.cssText =
-        'flex:1;padding:6px;background:#fff;color:#333;border:1px solid #d9d9d9;' +
-        'border-radius:4px;cursor:pointer;font-size:13px;font-weight:500;';
-    cancelBtn.addEventListener('click', (e) => {
-        e.stopPropagation();
-        hide_create_popover(gobj);
-    });
-    btnRow.appendChild(cancelBtn);
-
-    let createBtn = document.createElement('button');
-    createBtn.textContent = t('create');
-    createBtn.style.cssText =
-        'flex:1;padding:6px;background:#1890ff;color:#fff;border:none;' +
-        'border-radius:4px;cursor:pointer;font-size:13px;font-weight:500;';
-    createBtn.addEventListener('click', (e) => {
-        e.stopPropagation();
-        let node_id = idInput.value.trim();
-        if(!node_id) {
-            errorEl.textContent = t('node id') + ' required';
-            errorEl.style.display = 'block';
-            idInput.focus();
-            return;
-        }
-        execute_create_node(gobj, topicSelect.value, node_id);
-    });
-    btnRow.appendChild(createBtn);
-
-    popover.appendChild(btnRow);
+    let createBtn;  // need reference for Enter key handler
+    create_form_button_row(popover, [
+        {
+            text: 'cancel',
+            style: BTN_STYLE_CANCEL,
+            onClick: () => hide_create_popover(gobj),
+        },
+        {
+            text: 'create',
+            style: 'flex:1;padding:6px;background:#1890ff;color:#fff;border:none;' +
+                   'border-radius:4px;cursor:pointer;font-size:13px;font-weight:500;',
+            onClick: () => {
+                let node_id = idInput.value.trim();
+                if(!node_id) {
+                    errorEl.textContent = t('node id') + ' required';
+                    errorEl.style.display = 'block';
+                    idInput.focus();
+                    return;
+                }
+                execute_create_node(gobj, topicSelect.value, node_id);
+            },
+        },
+    ]);
+    createBtn = popover.querySelector('button:last-child');
 
     // Enter key submits
     idInput.addEventListener('keydown', (e) => {
@@ -4362,11 +4275,7 @@ function show_create_popover(gobj)
 
 function hide_create_popover(gobj)
 {
-    let priv = gobj.priv;
-    if(priv._create_popover_el) {
-        priv._create_popover_el.remove();
-        priv._create_popover_el = null;
-    }
+    hide_overlay(gobj, '_create_popover_el');
 }
 
 function execute_create_node(gobj, topic_name, node_id)
@@ -4434,82 +4343,20 @@ function execute_unlink_edge(gobj, edgeData)
  ************************************************************/
 function show_unlink_confirm(gobj, edgeData)
 {
-    hide_unlink_confirm(gobj);
-
     let priv = gobj.priv;
-    if(!priv._edge_delete_el) {
-        return;
-    }
-
     const d = edgeData.data;
 
-    // Position relative to the unlink icon
-    let iconRect = priv._edge_delete_el.getBoundingClientRect();
-    let containerRect = priv.$container.getBoundingClientRect();
-    let left = iconRect.right - containerRect.left + 6;
-    let top = iconRect.top - containerRect.top - 4;
-
-    const popover = document.createElement('div');
-    popover.className = 'g6-unlink-confirm';
-    popover.style.cssText =
-        'position:absolute;' +
-        'left:' + left + 'px;' +
-        'top:' + top + 'px;' +
-        'background:#fff;border:1px solid #ff4d4f;border-radius:6px;' +
-        'padding:12px;z-index:100;pointer-events:all;' +
-        'box-shadow:0 4px 12px rgba(0,0,0,0.15);' +
-        'min-width:160px;font-size:13px;';
-    popover.addEventListener('click', (e) => e.stopPropagation());
-    popover.addEventListener('pointerdown', (e) => e.stopPropagation());
-
-    // Message
-    let msg = document.createElement('div');
-    msg.style.cssText = 'margin-bottom:10px;font-weight:500;';
-    msg.textContent = t('unlink') + ' ' + d.child_id +
-        ' → ' + d.parent_id + '?';
-    popover.appendChild(msg);
-
-    // Button row
-    let btnRow = document.createElement('div');
-    btnRow.style.cssText = 'display:flex;gap:8px;';
-
-    let cancelBtn = document.createElement('button');
-    cancelBtn.textContent = t('cancel');
-    cancelBtn.style.cssText =
-        'flex:1;padding:6px;background:#fff;color:#333;border:1px solid #d9d9d9;' +
-        'border-radius:4px;cursor:pointer;font-size:13px;font-weight:500;';
-    cancelBtn.addEventListener('click', (e) => {
-        e.stopPropagation();
-        hide_unlink_confirm(gobj);
-    });
-    btnRow.appendChild(cancelBtn);
-
-    let unlinkBtn = document.createElement('button');
-    unlinkBtn.textContent = t('unlink');
-    unlinkBtn.style.cssText =
-        'flex:1;padding:6px;background:#ff4d4f;color:#fff;border:none;' +
-        'border-radius:4px;cursor:pointer;font-size:13px;font-weight:500;';
-    unlinkBtn.addEventListener('click', (e) => {
-        e.stopPropagation();
-        execute_unlink_edge(gobj, edgeData);
-    });
-    btnRow.appendChild(unlinkBtn);
-
-    popover.appendChild(btnRow);
-
-    priv.$container.appendChild(popover);
-    priv._unlink_confirm_el = popover;
-
-    clamp_popover_position(gobj, popover);
+    show_confirm_popover(gobj, priv._edge_delete_el,
+        t('unlink') + ' ' + d.child_id + ' → ' + d.parent_id + '?',
+        'unlink', '#ff4d4f',
+        () => execute_unlink_edge(gobj, edgeData),
+        '_unlink_confirm_el'
+    );
 }
 
 function hide_unlink_confirm(gobj)
 {
-    let priv = gobj.priv;
-    if(priv._unlink_confirm_el) {
-        priv._unlink_confirm_el.remove();
-        priv._unlink_confirm_el = null;
-    }
+    hide_overlay(gobj, '_unlink_confirm_el');
 }
 
 /************************************************************
@@ -4556,9 +4403,7 @@ function apply_node_properties(gobj, node_id, fill, stroke, lineWidth, scope)
     if(updates.length > 0) {
         graph.updateNodeData(updates);
         graph.draw().then(() => {
-            let $container = gobj_read_attr(gobj, "$container");
-            enableElements($container, ".EV_SAVE_GRAPH");
-            set_submit_state($container, ".EV_SAVE_GRAPH", true);
+            mark_graph_dirty(gobj);
         });
     }
 
@@ -4604,9 +4449,7 @@ function apply_edge_properties(gobj, edge_id, lineWidth, stroke, scope)
     if(updates.length > 0) {
         graph.updateEdgeData(updates);
         graph.draw().then(() => {
-            let $container = gobj_read_attr(gobj, "$container");
-            enableElements($container, ".EV_SAVE_GRAPH");
-            set_submit_state($container, ".EV_SAVE_GRAPH", true);
+            mark_graph_dirty(gobj);
         });
     }
 
@@ -4884,10 +4727,7 @@ function copy_size_to_nodes(gobj, same_topic_only)
         graph.updateNodeData(updates);
         graph.draw().then(() => {
             update_resize_handles_position(gobj);
-
-            let $container = gobj_read_attr(gobj, "$container");
-            enableElements($container, ".EV_SAVE_GRAPH");
-            set_submit_state($container, ".EV_SAVE_GRAPH", true);
+            mark_graph_dirty(gobj);
         });
     }
 }
@@ -4981,10 +4821,7 @@ function copy_size_to_ports(gobj, same_topic_only)
         graph.updateNodeData(updates);
         graph.draw().then(() => {
             update_port_resize_handles_position(gobj);
-
-            let $container = gobj_read_attr(gobj, "$container");
-            enableElements($container, ".EV_SAVE_GRAPH");
-            set_submit_state($container, ".EV_SAVE_GRAPH", true);
+            mark_graph_dirty(gobj);
         });
     }
 }
@@ -5462,14 +5299,7 @@ function ac_center(gobj, event, kw, src)
 
 function ac_fullscreen(gobj, event, kw, src)
 {
-    let priv = gobj.priv;
-    let graph = priv.graph;
-
-    const plugin = graph_get_plugin(gobj, 'fullscreen');
-    if(plugin) {
-        plugin.request();
-    }
-    return 0;
+    return ac_request_fullscreen(gobj, event, kw, src);
 }
 
 /************************************************************
@@ -5506,9 +5336,7 @@ function ac_node_drag_end(gobj, event, kw, src)
     let priv = gobj.priv;
 
     if(priv.edit_mode) {
-        let $container = gobj_read_attr(gobj, "$container");
-        enableElements($container, ".EV_SAVE_GRAPH");
-        set_submit_state($container, ".EV_SAVE_GRAPH", true);
+        mark_graph_dirty(gobj);
     }
 
     return 0;
@@ -5730,55 +5558,13 @@ function sync_history_to_backend(gobj, cmdData)
  ************************************************************/
 function ac_history_redo(gobj, event, kw, src)
 {
-    let priv = gobj.priv;
-
-    if(priv.edit_mode) {
-        const history = graph_get_plugin(gobj, "history");
-        if(history && history.canRedo()) {
-            /*
-             * Capture the command about to be redone before the stack changes.
-             * cmd.current describes what G6 will re-apply.
-             */
-            const cmd = history.redoStack[history.redoStack.length - 1];
-
-            history.redo();
-            update_resize_handles_position(gobj);
-
-            /*
-             * Sync backend using cmd.current: it contains the add/remove sets
-             * that G6 just re-applied, mirroring what the user originally did.
-             */
-            sync_history_to_backend(gobj, cmd ? cmd.current : null);
-        }
-    }
-
+    perform_history_op(gobj, true);
     return 0;
 }
 
 function ac_history_undo(gobj, event, kw, src)
 {
-    let priv = gobj.priv;
-
-    if(priv.edit_mode) {
-        const history = graph_get_plugin(gobj, "history");
-        if(history && history.canUndo()) {
-            /*
-             * Capture the command about to be undone before the stack changes.
-             * cmd.original describes the state G6 will restore.
-             */
-            const cmd = history.undoStack[history.undoStack.length - 1];
-
-            history.undo();
-            update_resize_handles_position(gobj);
-
-            /*
-             * Sync backend using cmd.original: it contains the add/remove sets
-             * that G6 just restored, which are the inverse of the user's action.
-             */
-            sync_history_to_backend(gobj, cmd ? cmd.original : null);
-        }
-    }
-
+    perform_history_op(gobj, false);
     return 0;
 }
 
