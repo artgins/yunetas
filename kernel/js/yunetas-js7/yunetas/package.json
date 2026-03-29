@@ -20,7 +20,8 @@
         "dev": "vite",
         "test": "vitest",
         "test:watch": "vitest --watch",
-        "test:coverage": "vitest --coverage"
+        "test:coverage": "vitest --coverage",
+        "prepublishOnly": "npm run build"
     },
     "devDependencies": {
         "@rollup/plugin-terser": "^1.0.0",
