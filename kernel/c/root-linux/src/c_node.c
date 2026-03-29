@@ -876,15 +876,19 @@ PRIVATE json_t *mt_update_node( // Return is YOURS
             );
         }
         if(!node) {
+            const char *msg = gobj_log_last_message();
+            if(empty_string(msg)) {
+                msg = "treedb_create_node failed";
+            }
             gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
                 "function",     "%s", __FUNCTION__,
                 "msgset",       "%s", MSGSET_TREEDB_ERROR,
-                "msg",          "%s", "node not found",
+                "msg",          "%s", msg,
                 "treedb_name",  "%s", priv->treedb_name,
                 "topic_name",   "%s", topic_name,
                 NULL
             );
-            gobj_trace_json(gobj, kw, "node not found");
+            gobj_trace_json(gobj, kw, "%s", msg);
             JSON_DECREF(jn_options)
             KW_DECREF(kw)
             return 0;
@@ -1154,7 +1158,7 @@ PRIVATE int mt_link_nodes(
             "msg",          "%s", "parent node not found",
             NULL
         );
-        gobj_trace_json(gobj, parent_record, "node not found");
+        gobj_trace_json(gobj, parent_record, "parent node not found");
         JSON_DECREF(parent_record)
         JSON_DECREF(child_record)
         return -1;
@@ -1172,7 +1176,7 @@ PRIVATE int mt_link_nodes(
             "msg",          "%s", "child node not found",
             NULL
         );
-        gobj_trace_json(gobj, child_record, "node not found");
+        gobj_trace_json(gobj, child_record, "child node not found");
         JSON_DECREF(parent_record)
         JSON_DECREF(child_record)
         return -1;
@@ -1278,7 +1282,7 @@ PRIVATE int mt_unlink_nodes(
             "msg",          "%s", "parent node not found",
             NULL
         );
-        gobj_trace_json(gobj, parent_record, "node not found");
+        gobj_trace_json(gobj, parent_record, "parent node not found");
         JSON_DECREF(parent_record)
         JSON_DECREF(child_record)
         return -1;
@@ -1296,7 +1300,7 @@ PRIVATE int mt_unlink_nodes(
             "msg",          "%s", "child node not found",
             NULL
         );
-        gobj_trace_json(gobj, child_record, "node not found");
+        gobj_trace_json(gobj, child_record, "child node not found");
         JSON_DECREF(parent_record)
         JSON_DECREF(child_record)
         return -1;
