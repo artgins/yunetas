@@ -1510,22 +1510,34 @@ function get_field_value_for_validation($field, conf)
     switch(conf.tag) {
         case 'input': {
             let $input = $field.querySelector('input');
-            if(!$input) return '';
-            if($input.type === 'checkbox') return $input.checked;
+            if(!$input) {
+                return '';
+            }
+            if($input.type === 'checkbox') {
+                return $input.checked;
+            }
             return $input.value;
         }
         case 'checkbox': {
             let $input = $field.querySelector('input[type="checkbox"]');
-            return $input ? $input.checked : false;
+            if(!$input) {
+                return false;
+            }
+            return $input.checked;
         }
         case 'textarea': {
             let $el = $field.querySelector('textarea');
-            return $el ? $el.value : '';
+            if(!$el) {
+                return '';
+            }
+            return $el.value;
         }
         case 'select':
         case 'select2': {
             let $el = $field.querySelector('select');
-            if(!$el) return '';
+            if(!$el) {
+                return '';
+            }
             if($el.tomselect) {
                 return $el.tomselect.getValue();
             }
@@ -1533,14 +1545,21 @@ function get_field_value_for_validation($field, conf)
         }
         case 'jsoneditor': {
             let $el = $field.querySelector('.jsoneditor');
-            if(!$el || !$el.jsoneditor) return '';
+            if(!$el || !$el.jsoneditor) {
+                return '';
+            }
             let val = $el.jsoneditor.get();
-            if(val.text !== undefined) return val.text;
+            if(val.text !== undefined) {
+                return val.text;
+            }
             return JSON.stringify(val.json);
         }
         case 'radio': {
             let $checked = $field.querySelector('input[type="radio"]:checked');
-            return $checked ? $checked.value : '';
+            if(!$checked) {
+                return '';
+            }
+            return $checked.value;
         }
     }
     return '';
