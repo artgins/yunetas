@@ -902,7 +902,7 @@ function build_topic_form(gobj)
 {
     let desc = gobj_read_attr(gobj, "desc");
     let form_id = gobj_read_str_attr(gobj, "form_id");
-    let $form = createElement2(['form', {id: form_id , class: 'box p-3'}]);
+    let $form = createElement2(['form', {id: form_id, class: 'box p-3', novalidate: ''}]);
 
     for (let i = 0; i < desc.cols.length; i++) {
         let col = desc.cols[i];
@@ -948,8 +948,8 @@ function build_topic_form(gobj)
         }
 
         if(!is_writable) {
-            if(id !== 'id') {
-                // Show only fields writable (except id)
+            if(id !== desc.pkey) {
+                // Show only fields writable (except pkey)
                 continue;
             }
         }
@@ -974,7 +974,9 @@ function build_topic_form(gobj)
             readonly: !is_writable,
             required: is_required,
             hidden: is_hidden,
-            not_null: is_notnull
+            not_null: is_notnull,
+            is_pkey: (id === desc.pkey),
+            is_rowid: is_rowid
         };
 
         let $field = create_html_field(field_conf);
@@ -1196,40 +1198,16 @@ function create_html_field(
 
             if(readonly) {
                 attrs.readonly = '';
-            } else if(required || not_null) {
-                attrs.required = '';
             }
             let extend = ['input', attrs, '', {
-                'invalid': function (evt) {
-                    this.classList.add('is-danger');
-                    let $h = this.parentNode.querySelector('.help');
-                    if($h) {
-                        $h.textContent = this.validationMessage;
-                        $h.style.display = 'block';
-                    }
-                },
                 'blur': function (evt) {
-                    if (!this.checkValidity()) {
-                        this.classList.add('is-danger');
-                        let $h = this.parentNode.querySelector('.help');
-                        if($h) {
-                            $h.textContent = this.validationMessage;
-                            $h.style.display = 'block';
-                        }
-                    } else {
-                        this.classList.remove('is-danger');
-                        let $h = this.parentNode.querySelector('.help');
-                        if($h) {
-                            $h.textContent = '';
-                            $h.style.display = 'none';
-                        }
-                    }
+                    validate_field_on_blur(this);
                 }
             }];
 
             let $extend = createElement2(extend);
             $control.appendChild($extend);
-            $control.appendChild(createElement2(['p', {class: 'help'}, '']));
+            $control.appendChild(createElement2(['p', {class: 'help is-danger', style: 'display:none'}, '']));
             break;
         }
 
@@ -1243,13 +1221,12 @@ function create_html_field(
 
             if(readonly) {
                 attrs.readonly = '';
-            } else if(required || not_null) {
-                attrs.required = '';
             }
             let extend = ['div', attrs];
             let $extend = createElement2(extend);
             $extend.setAttribute('name', name);
             $control.appendChild($extend);
+            $control.appendChild(createElement2(['p', {class: 'help is-danger', style: 'display:none'}, '']));
             break;
         }
 
@@ -1260,12 +1237,15 @@ function create_html_field(
 
             if(readonly) {
                 attrs.readonly = '';
-            } else if(required || not_null) {
-                attrs.required = '';
             }
-            let extend = ['textarea', attrs];
+            let extend = ['textarea', attrs, '', {
+                'blur': function (evt) {
+                    validate_field_on_blur(this);
+                }
+            }];
             let $extend = createElement2(extend);
             $control.appendChild($extend);
+            $control.appendChild(createElement2(['p', {class: 'help is-danger', style: 'display:none'}, '']));
             break;
         }
 
@@ -1283,6 +1263,7 @@ function create_html_field(
             ];
             let $extend = createElement2(extend);
             $control.appendChild($extend);
+            $control.appendChild(createElement2(['p', {class: 'help is-danger', style: 'display:none'}, '']));
             break;
         }
 
@@ -1303,6 +1284,7 @@ function create_html_field(
             ];
             let $extend = createElement2(extend);
             $control.appendChild($extend);
+            $control.appendChild(createElement2(['p', {class: 'help is-danger', style: 'display:none'}, '']));
             break;
         }
 
@@ -1313,6 +1295,7 @@ function create_html_field(
             ];
             let $extend = createElement2(extend);
             $control.appendChild($extend);
+            $control.appendChild(createElement2(['p', {class: 'help is-danger', style: 'display:none'}, '']));
             break;
         }
 
@@ -1330,6 +1313,7 @@ function create_html_field(
                 let $extend = createOneHtml(elm);
                 $control.appendChild($extend);
             }
+            $control.appendChild(createElement2(['p', {class: 'help is-danger', style: 'display:none'}, '']));
             break;
         }
 
@@ -1373,7 +1357,7 @@ function build_topic_modal(gobj)
                                 evt.stopPropagation();
                                 evt.preventDefault();
                                 let $form = $element.querySelector('form');
-                                if ($form.reportValidity()) {
+                                if (validate_form(gobj, $form)) {
                                     let values = get_form_values($form);
                                     let ret;
                                     if($form.__mode__==="create") {
@@ -1489,17 +1473,185 @@ function build_topic_modal(gobj)
 }
 
 /************************************************************
- *
+ *  Show a validation error on a field
+ ************************************************************/
+function show_field_error($field, message)
+{
+    $field.querySelectorAll('input, textarea, select').forEach(el => {
+        el.classList.add('is-danger');
+    });
+    let $help = $field.querySelector('.help');
+    if($help) {
+        $help.textContent = message;
+        $help.style.display = 'block';
+    }
+}
+
+/************************************************************
+ *  Clear a validation error from a field
+ ************************************************************/
+function clear_field_error($field)
+{
+    $field.querySelectorAll('input, textarea, select').forEach(el => {
+        el.classList.remove('is-danger');
+    });
+    let $help = $field.querySelector('.help');
+    if($help) {
+        $help.textContent = '';
+        $help.style.display = 'none';
+    }
+}
+
+/************************************************************
+ *  Get the current value of a field for validation
+ ************************************************************/
+function get_field_value_for_validation($field, conf)
+{
+    switch(conf.tag) {
+        case 'input': {
+            let $input = $field.querySelector('input');
+            if(!$input) return '';
+            if($input.type === 'checkbox') return $input.checked;
+            return $input.value;
+        }
+        case 'checkbox': {
+            let $input = $field.querySelector('input[type="checkbox"]');
+            return $input ? $input.checked : false;
+        }
+        case 'textarea': {
+            let $el = $field.querySelector('textarea');
+            return $el ? $el.value : '';
+        }
+        case 'select':
+        case 'select2': {
+            let $el = $field.querySelector('select');
+            if(!$el) return '';
+            if($el.tomselect) {
+                return $el.tomselect.getValue();
+            }
+            return $el.value;
+        }
+        case 'jsoneditor': {
+            let $el = $field.querySelector('.jsoneditor');
+            if(!$el || !$el.jsoneditor) return '';
+            let val = $el.jsoneditor.get();
+            if(val.text !== undefined) return val.text;
+            return JSON.stringify(val.json);
+        }
+        case 'radio': {
+            let $checked = $field.querySelector('input[type="radio"]:checked');
+            return $checked ? $checked.value : '';
+        }
+    }
+    return '';
+}
+
+/************************************************************
+ *  Check if a field value is empty
+ ************************************************************/
+function is_field_value_empty(value)
+{
+    if(value === null || value === undefined || value === '') {
+        return true;
+    }
+    if(Array.isArray(value) && value.length === 0) {
+        return true;
+    }
+    return false;
+}
+
+/************************************************************
+ *  Determine if a field requires validation in the current mode
+ ************************************************************/
+function is_field_required(conf, mode)
+{
+    if(conf.is_pkey) {
+        // pkey is required only in create mode (unless it's a rowid)
+        return (mode === "create" && !conf.is_rowid);
+    }
+    if(conf.readonly) {
+        return false;
+    }
+    return (conf.required || conf.not_null);
+}
+
+/************************************************************
+ *  Validate a single field on blur
+ *  Called from input/textarea blur event handlers
+ ************************************************************/
+function validate_field_on_blur(element)
+{
+    let $field = element.closest('.xfield');
+    if(!$field || !$field.field_conf) {
+        return;
+    }
+    let conf = $field.field_conf;
+    let $form = element.closest('form');
+    let mode = $form ? $form.__mode__ : 'update';
+
+    if(!is_field_required(conf, mode)) {
+        clear_field_error($field);
+        return;
+    }
+
+    let value = get_field_value_for_validation($field, conf);
+    if(is_field_value_empty(value)) {
+        show_field_error($field, t('this field is required'));
+    } else {
+        clear_field_error($field);
+    }
+}
+
+/************************************************************
+ *  Validate all required fields in the form
+ *  Returns true if valid, false otherwise
+ ************************************************************/
+function validate_form(gobj, $form)
+{
+    let is_valid = true;
+    let first_invalid = null;
+    let mode = $form.__mode__ || 'update';
+
+    $form.querySelectorAll('.xfield').forEach($field => {
+        let conf = $field.field_conf;
+        if(!conf) {
+            return;
+        }
+
+        if(!is_field_required(conf, mode)) {
+            clear_field_error($field);
+            return;
+        }
+
+        let value = get_field_value_for_validation($field, conf);
+        if(is_field_value_empty(value)) {
+            show_field_error($field, t('this field is required'));
+            is_valid = false;
+            if(!first_invalid) {
+                first_invalid = $field;
+            }
+        } else {
+            clear_field_error($field);
+        }
+    });
+
+    if(first_invalid) {
+        let $focusable = first_invalid.querySelector('input, select, textarea');
+        if($focusable && $focusable.focus) {
+            $focusable.focus();
+        }
+    }
+
+    return is_valid;
+}
+
+/************************************************************
+ *  Clear all validation errors from the form
  ************************************************************/
 function clear_validation(gobj, $form)
 {
-    $form.querySelectorAll('input').forEach(input => {
-        input.classList.remove('is-danger');
-    });
-
-    $form.querySelectorAll('.help').forEach(input => {
-        input.textContent = '';
-        input.style.display = 'none';
+    $form.querySelectorAll('.xfield').forEach($field => {
+        clear_field_error($field);
     });
 }
 
