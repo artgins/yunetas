@@ -1373,7 +1373,7 @@ function build_topic_modal(gobj)
                                 evt.stopPropagation();
                                 evt.preventDefault();
                                 let $form = $element.querySelector('form');
-                                if ($form.checkValidity()) {
+                                if ($form.reportValidity()) {
                                     let values = get_form_values($form);
                                     let ret;
                                     if($form.__mode__==="create") {
@@ -1533,14 +1533,17 @@ function set_form_mode(gobj, $form, mode, index)
              *  update mode
              */
             $id.setAttribute('readonly', 'readonly');
+            $id.removeAttribute('required');
         } else {
             /*
              *  create mode
              */
             if(is_rowid) {
                 $id.setAttribute('readonly', 'readonly');
+                $id.removeAttribute('required');
             } else {
                 $id.removeAttribute('readonly');
+                $id.setAttribute('required', '');
             }
         }
     } else {
