@@ -4465,8 +4465,8 @@ function show_unlink_confirm(gobj, edgeData)
     // Message
     let msg = document.createElement('div');
     msg.style.cssText = 'margin-bottom:10px;font-weight:500;';
-    msg.textContent = t('unlink') + ' ' + d.parent_topic + ':' + d.parent_id +
-        ' → ' + d.child_topic + ':' + d.child_id + '?';
+    msg.textContent = t('unlink') + ' ' + d.child_id +
+        ' → ' + d.parent_id + '?';
     popover.appendChild(msg);
 
     // Button row
