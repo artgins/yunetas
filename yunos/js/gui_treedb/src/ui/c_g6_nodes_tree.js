@@ -3125,7 +3125,9 @@ function exit_linking_mode(gobj)
     let updated_nodes = {};
     for(let saved of priv._link_saved_styles) {
         let nd = graph.getNodeData(saved.node_id);
-        if(!nd) continue;
+        if(!nd) {
+            continue;
+        }
         let style = nd.style || {};
         let ports = style.ports || [];
         for(let p of ports) {
@@ -3293,7 +3295,9 @@ function find_hook_at_point(gobj, canvasX, canvasY)
 
     for(let vh of priv._link_valid_hooks) {
         let nd = graph.getNodeData(vh.node_id);
-        if(!nd) continue;
+        if(!nd) {
+            continue;
+        }
         let style = nd.style || {};
         let {w, h} = extract_size(style);
         let pos = graph.getElementPosition(vh.node_id);
