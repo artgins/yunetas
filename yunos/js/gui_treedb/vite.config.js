@@ -3,6 +3,9 @@ import fs from "fs";
 import path from "path";
 
 export default defineConfig({
+    resolve: {
+        preserveSymlinks: true,
+    },
     build: {
         sourcemap: true,
         chunkSizeWarningLimit: 6000

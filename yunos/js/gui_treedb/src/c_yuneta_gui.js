@@ -47,13 +47,11 @@ import {
 
 import {backend_urls} from "./conf/backend_config.js";
 
-import {setup_dev} from "./ui/yui_dev.js";
-
-import {
-    display_error_message,
-} from "./ui/c_yui_main.js";
+import {setup_dev, display_error_message} from "yui-lib";
 
 import {setup_locale} from "./locales/locales.js";
+import {flags_of_world} from "./locales/flags.js";
+import {logo_wide_svg} from "./ui/logos_svg.js";
 import {t} from "i18next";
 
 // import "yuneta-icon-font/dist/yuneta-icon-font.js"; // TODO parece que no se usa
@@ -279,6 +277,8 @@ function build_ui(gobj)
         "__yui_main__",
         "C_YUI_MAIN",
         {
+            logo_wide_svg: logo_wide_svg,
+            flags_of_world: flags_of_world,
         },
         gobj
     );

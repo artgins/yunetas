@@ -22,7 +22,8 @@
         "tom-select": "^2.5.2",
         "uplot": "^1.6.32",
         "vanilla-jsoneditor": "0.23.8",
-        "yunetas": "file:../../../kernel/js/yunetas-js7/yunetas"
+        "yunetas": "file:../../../kernel/js/yunetas-js7/yunetas",
+        "yui-lib": "file:../yui-lib"
     },
     "devDependencies": {
         "@rollup/plugin-terser": "^1.0.0",

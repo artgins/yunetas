@@ -1,0 +1,19 @@
+{
+    "name": "yui-lib",
+    "private": true,
+    "version": "7.1.0",
+    "type": "module",
+    "main": "index.js",
+    "description": "Yuneta UI Library - Reusable GUI components for Yuneta-based projects",
+    "peerDependencies": {
+        "yunetas": "*",
+        "@antv/g6": "^5.0.0",
+        "bulma": "^1.0.0",
+        "i18next": "^25.0.0",
+        "maplibre-gl": "^5.0.0",
+        "tabulator-tables": "^6.0.0",
+        "tom-select": "^2.0.0",
+        "uplot": "^1.6.0",
+        "vanilla-jsoneditor": "^0.23.0"
+    }
+}
