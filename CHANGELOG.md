@@ -1,5 +1,10 @@
 # **Changelog**
 
+## v7.0.1 -- 29/Mar/2026
+    - Release 7.0.1
+    - JS kernel (yunetas npm package) published as v0.3.0
+    - Updated and documented .deb packaging (packages/)
+
 ## v7.0.0 -- 28/Sep/2025
     - Publish first 7.0.0 for production
 
