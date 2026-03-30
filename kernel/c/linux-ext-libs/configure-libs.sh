@@ -16,9 +16,12 @@
 #       upgrade to openssl 3.6.1
 #       upgrade to pcre2 2.10.47
 #       upgrade to nginx 1.28.2
+#   version 1.6
+#       upgrade to openresty 1.29.2.3
+#       upgrade to nginx 1.28.3
 #
 
-VERSION="1.5"
+VERSION="1.6"
 
 
 source ./repos2clone.sh

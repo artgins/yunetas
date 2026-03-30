@@ -13,9 +13,9 @@ TAG_OPENSSL="openssl-3.6.1"
 TAG_PCRE2="pcre2-10.47"
 TAG_ARGP_STANDALONE="v1.1.5"
 TAG_NCURSES="v6.4"
-TAG_OPENRESTY="1.27.1.2"    # warning: without the initial 'v'
+TAG_OPENRESTY="1.29.2.3"    # warning: without the initial 'v'
 TAG_NCURSES="v6.4"
-TAG_NGINX="release-1.28.2"
+TAG_NGINX="release-1.28.3"
 
 #------------------------------------------
 #   REPOS
