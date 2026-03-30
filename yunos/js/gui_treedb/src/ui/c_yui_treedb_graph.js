@@ -69,6 +69,7 @@ import {
     escapeHtml,
     safeSrc,
     gclass_find_by_name,
+    gobj_stop_children,
 } from "yunetas";
 
 import {yui_toolbar} from "./yui_toolbar.js";
@@ -278,7 +279,7 @@ function mt_start(gobj)
  ***************************************************************/
 function mt_stop(gobj)
 {
-    return 0;
+    gobj_stop_children(gobj);
 }
 
 /***************************************************************
