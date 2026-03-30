@@ -28,7 +28,7 @@ utils/
 │   ├── yscapec/            # Escape a file into a C string literal
 │   ├── ytestconfig/        # Validate JSON configuration files
 │   ├── pkey_to_jwks/       # Convert RSA public keys to JWKS format
-│   └── test-musl/          # Minimal test for musl static builds
+│   └── test-static/        # Minimal test for static builds
 └── python/                 # (reserved, currently empty)
 ```
 
@@ -470,12 +470,12 @@ Uses `getopt_long` (not argp). Links OpenSSL directly.
 
 ### Build Testing
 
-#### test-musl
+#### test-static
 
-Minimal "Hello World" program for verifying musl static builds work correctly. No Yuneta dependencies.
+Minimal "Hello World" program for verifying static builds work correctly. No Yuneta dependencies.
 
 ```bash
-# Prints: Hello from static musl binary!
+# Prints: Hello from static binary!
 ```
 
 ## Implementation Patterns

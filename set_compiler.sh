@@ -34,12 +34,6 @@ if grep -q '^CONFIG_USE_COMPILER_CLANG=y' "$CONFIG_FILE"; then
     COMPILER="clang"
 elif grep -q '^CONFIG_USE_COMPILER_GCC=y' "$CONFIG_FILE"; then
     COMPILER="gcc"
-elif grep -q '^CONFIG_USE_COMPILER_MUSL=y' "$CONFIG_FILE"; then
-    COMPILER="musl-gcc"
-    # These have been tested in Kubuntu 24.04
-    sudo ln -s /usr/include/x86_64-linux-gnu/asm /usr/include/x86_64-linux-musl
-    sudo ln -s /usr/include/linux /usr/include/x86_64-linux-musl
-    sudo ln -s /usr/include/asm-generic /usr/include/x86_64-linux-musl
 else
     echo "❌ No compiler selected in $CONFIG_FILE"
     exit 1

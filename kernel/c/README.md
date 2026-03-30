@@ -1725,9 +1725,6 @@ Vendored external libraries. Build before the kernel modules:
 ./extrae.sh                 # clone libraries
 ./configure-libs.sh         # configure, build and install to outputs_ext/
 
-# For musl/static builds:
-./extrae-musl.sh
-./configure-libs-musl.sh
 ```
 
 Includes: **jansson** (JSON), **OpenSSL** (TLS/crypto), **liburing** (io_uring), and others.
@@ -1872,9 +1869,9 @@ PUBLIC int register_c_my_class(void) {
 kernel/c/
 ├── README.md                        ← this file
 ├── linux-ext-libs/                  ← external library sources and build scripts
-│   ├── extrae.sh / extrae-musl.sh
-│   ├── configure-libs.sh / configure-libs-musl.sh
-│   ├── re-install-libs.sh / re-install-libs-musl.sh
+│   ├── extrae.sh
+│   ├── configure-libs.sh
+│   ├── re-install-libs.sh
 │   └── sources/
 │
 ├── gobj-c/src/                      ← GObject framework (~12K-line core)

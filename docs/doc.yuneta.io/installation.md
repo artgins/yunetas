@@ -47,7 +47,7 @@ Install the C dependencies:
 
     sudo apt -y install --no-install-recommends \
       git mercurial make cmake ninja-build \
-      gcc musl musl-dev musl-tools clang g++ \
+      gcc clang g++ \
       python3-dev python3-pip python3-setuptools \
       python3-tk python3-wheel python3-venv \
       libjansson-dev libpcre2-dev liburing-dev libcurl4-openssl-dev \

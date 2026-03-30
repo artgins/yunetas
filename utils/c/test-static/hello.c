@@ -1,6 +1,6 @@
 #include <stdio.h>
 
 int main(void) {
-    puts("Hello from static musl binary!");
+    puts("Hello from static binary!");
     return 0;
 }

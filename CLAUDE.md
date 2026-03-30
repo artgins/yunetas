@@ -118,7 +118,7 @@ npm run test:coverage  # vitest --coverage
 
 `yunetas init` does the following:
 - Reads compiler (`CONFIG_USE_COMPILER_CLANG/GCC/MUSL`) and build type (`CONFIG_BUILD_TYPE_*`) from `.config`
-- Recreates the `outputs/` directory (or `outputs_musl/` for musl builds) and subdirs (`include/`, `lib/`, `bin/`, `yunos/`)
+- Recreates the `outputs/` directory and subdirs (`include/`, `lib/`, `bin/`, `yunos/`)
 - Generates `outputs/include/yuneta_version.h` from `YUNETA_VERSION`
 - Generates `outputs/include/yuneta_config.h` from `.config` (Kconfig → C `#define`)
 - Creates `build/` directories under each module and runs `cmake` with the selected compiler and build type
@@ -141,7 +141,6 @@ cd kernel/c/linux-ext-libs
 
 ```
 
-For musl builds (ESP32 cross-compilation toolchain) use `extrae-musl.sh` / `configure-libs-musl.sh`.
 For **fully static glibc** builds (`CONFIG_FULLY_STATIC`) use the standard `configure-libs.sh` — it already includes the necessary `no-dso` and `no-sock` OpenSSL flags.
 
 ### Build configuration
@@ -156,13 +155,13 @@ Key knobs:
 - Compiler: `CONFIG_USE_COMPILER_GCC=y` (default), CLANG, or Musl (static)
 - Build type: `CONFIG_BUILD_TYPE_RELWITHDEBINFO=y` (default), Debug, Release, MinSizeRel
 - TLS: `CONFIG_HAVE_OPENSSL=y` (default) or mbed-TLS
-- Static linking: `CONFIG_FULLY_STATIC=y` — fully static glibc binaries (GCC or Clang, **not** musl)
+- Static linking: `CONFIG_FULLY_STATIC=y` — fully static glibc binaries (GCC or Clang)
 - Debug extras: `CONFIG_DEBUG_WITH_BACKTRACE`, `CONFIG_DEBUG_TRACK_MEMORY`, `CONFIG_DEBUG_PRINT_YEV_LOOP_TIMES`
 - Optional modules: `CONFIG_MODULE_CONSOLE`, `CONFIG_MODULE_MQTT`, `CONFIG_MODULE_POSTGRES`, `CONFIG_MODULE_TEST`
 
 ### Fully Static Binaries (`CONFIG_FULLY_STATIC`)
 
-Yuneta can produce **fully static glibc binaries** using GCC or Clang — no shared libraries, no dynamic linker, runs on any Linux system of the same architecture without installing anything.  This is **not** the musl approach; it uses standard glibc statically linked.
+Yuneta can produce **fully static glibc binaries** using GCC or Clang — no shared libraries, no dynamic linker, runs on any Linux system of the same architecture without installing anything.  It uses standard glibc statically linked.
 
 > Works with both TLS backends: `CONFIG_HAVE_OPENSSL` and `CONFIG_HAVE_MBEDTLS`.
 > Exception: `emailsender` utility cannot be static (depends on libcurl).
@@ -278,12 +277,11 @@ stress/c/*            ← stress test programs
 | `utils/c/ycommand/` | Control-plane CLI — sends commands to running yunos |
 | `tests/c/` | Test suites (run via `ctest`) |
 | `performance/c/` | Performance benchmarks (TCP, TLS, ping-pong) |
-| `tools/cmake/` | CMake toolchain files (`musl-toolchain.cmake`, `project.cmake`) |
+| `tools/cmake/` | CMake toolchain files (`project.cmake`) |
 | `tools/packages/` | Debian packaging scripts (AMD64, ARM32, ARMhf, RISCV64) |
 | `scripts/` | Utility scripts (added to `PATH` by `yunetas-env.sh`) |
 | `docs/doc.yuneta.io/` | Sphinx documentation site (API docs, guides) |
 | `outputs/` | Compiled libs, headers, and yuno binaries (created by `yunetas init`) |
-| `outputs_musl/` | Same for musl/static builds |
 | `outputs_ext/` | Built external libraries |
 
 ### GClass Implementation Pattern
