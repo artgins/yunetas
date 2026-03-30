@@ -16,7 +16,7 @@ fi
 #----------------------------------------#
 sudo update-alternatives --remove-all gcc
 sudo update-alternatives --remove-all cc
-sudo apt reinstall gcc musl musl-dev musl-tools clang
+sudo apt reinstall gcc clang
 
 #----------------------------------------#
 #       Select compiler
