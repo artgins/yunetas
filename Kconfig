@@ -24,11 +24,6 @@ config USE_COMPILER_CLANG
     help
         Select Clang as the compiler.
 
-config USE_COMPILER_MUSL
-    bool "Musl compiler"
-    help
-        Select Musl as the compiler.
-
 endchoice
 
 comment "WARNING: Remember to call set_compiler.sh if you change the compiler"

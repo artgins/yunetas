@@ -117,7 +117,7 @@ npm run test:coverage  # vitest --coverage
 - Any time `.config` changes (compiler, build type, enabled modules)
 
 `yunetas init` does the following:
-- Reads compiler (`CONFIG_USE_COMPILER_CLANG/GCC/MUSL`) and build type (`CONFIG_BUILD_TYPE_*`) from `.config`
+- Reads compiler (`CONFIG_USE_COMPILER_CLANG/GCC`) and build type (`CONFIG_BUILD_TYPE_*`) from `.config`
 - Recreates the `outputs/` directory and subdirs (`include/`, `lib/`, `bin/`, `yunos/`)
 - Generates `outputs/include/yuneta_version.h` from `YUNETA_VERSION`
 - Generates `outputs/include/yuneta_config.h` from `.config` (Kconfig → C `#define`)
@@ -152,7 +152,7 @@ menuconfig    # interactive TUI configurator — select compiler, build type, mo
 ```
 
 Key knobs:
-- Compiler: `CONFIG_USE_COMPILER_GCC=y` (default), CLANG, or Musl (static)
+- Compiler: `CONFIG_USE_COMPILER_GCC=y` (default) or CLANG
 - Build type: `CONFIG_BUILD_TYPE_RELWITHDEBINFO=y` (default), Debug, Release, MinSizeRel
 - TLS: `CONFIG_HAVE_OPENSSL=y` (default) or mbed-TLS
 - Static linking: `CONFIG_FULLY_STATIC=y` — fully static glibc binaries (GCC or Clang)

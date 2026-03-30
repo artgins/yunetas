@@ -7,8 +7,7 @@ CMake build infrastructure shared by every module in the Yunetas project. All `C
 ```
 tools/
 └── cmake/
-    ├── project.cmake           # Master build configuration (included by all modules)
-    └── musl-toolchain.cmake    # CMake toolchain file for fully-static musl builds
+    └── project.cmake           # Master build configuration (included by all modules)
 ```
 
 ## project.cmake
@@ -35,7 +34,7 @@ Fails fatally if `YUNETAS_BASE` is unset or `.config` is missing.
 
 ### 3. `add_yuno_executable(name ...)`
 
-Custom CMake function that wraps `add_executable()`. For musl builds (`CONFIG_USE_COMPILER_MUSL=1`), it also sets `LINK_SEARCH_START_STATIC` and `LINK_SEARCH_END_STATIC` properties to force static library resolution.
+Custom CMake function that wraps `add_executable()`.
 
 Used by all yuno, test, performance, and stress executables.
 
@@ -45,8 +44,7 @@ Selects the install prefix based on the build type:
 
 | Build | Install prefix | Description |
 |-------|---------------|-------------|
-| Dynamic (glibc) | `${YUNETAS_BASE}/outputs` | Default for Clang/GCC builds |
-| Static (musl) | `${YUNETAS_BASE}/outputs_musl` | Fully-static binaries |
+| Default | `${YUNETAS_BASE}/outputs` | Clang/GCC builds |
 
 Install subdirectories:
 
@@ -62,7 +60,7 @@ Install subdirectories:
 For non-ESP32 builds:
 
 - Defines `_GNU_SOURCE`
-- Adds external library paths (`outputs_ext/` or `outputs_ext_musl/`)
+- Adds external library paths (`outputs_ext/`)
 - Adds the Yunetas output paths (`outputs/include`, `outputs/lib`)
 
 ### 6. Compiler Flags
@@ -117,23 +115,6 @@ Pre-defined CMake variables for linking. Modules pick the ones they need in thei
 | `CONFIG_MODULE_MQTT` | `MQTT_LIBS` | `libyunetas-module-mqtt.a` |
 | `CONFIG_MODULE_POSTGRES` | `POSTGRES_LIBS` | `libyunetas-module-postgres.a` |
 | `CONFIG_MODULE_TEST` | `TEST_LIBS` | `libyunetas-module-test.a` |
-
-## musl-toolchain.cmake
-
-CMake toolchain file for building fully-static binaries with musl-gcc. Passed to CMake via `-DCMAKE_TOOLCHAIN_FILE=.../musl-toolchain.cmake`.
-
-Configuration:
-
-| Setting | Value | Purpose |
-|---------|-------|---------|
-| `CONFIG_USE_COMPILER_MUSL` | `1` (from `.config`) | Signals musl/static build to `project.cmake` |
-| `CMAKE_SYSTEM_NAME` | `Linux` | Target platform |
-| `CMAKE_C_COMPILER` | `/usr/bin/musl-gcc` | musl C compiler |
-| `CMAKE_C_FLAGS` | `-Wall -Wextra ... -funsigned-char` | Compiler warnings |
-| `CMAKE_EXE_LINKER_FLAGS` | `-static -Wl,-Bstatic` | Force static linking |
-| `CMAKE_SHARED_LIBRARY_LINK_C_FLAGS` | `-static` | Prevent shared library linking |
-| `CMAKE_FIND_LIBRARY_SUFFIXES` | `.a` | Only search for static archives |
-| `BUILD_SHARED_LIBS` | `OFF` | Disable shared library generation |
 
 ## Usage Pattern
 
@@ -202,8 +183,4 @@ cmake -DCMAKE_BUILD_TYPE=Debug ..
 
 # Release build
 cmake -DCMAKE_BUILD_TYPE=Release ..
-
-# Static build with musl
-cmake -DCMAKE_BUILD_TYPE=Release \
-      -DCMAKE_TOOLCHAIN_FILE=${YUNETAS_BASE}/tools/cmake/musl-toolchain.cmake ..
 ```

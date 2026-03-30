@@ -226,7 +226,6 @@ Use this utility to edit the Kconfig file and to select the compiler, build type
     (Top) → Compiler Selection
         (X) Clang compiler (default, but don't use in RISC cpus, use GCC)
         ( ) GCC compiler
-        ( ) Musl compiler
 
     (Top) → Build Type
         (X) RelWithDebInfo

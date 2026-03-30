@@ -48,7 +48,7 @@ set (HDRS
 ##############################################
 #   Compilation condition
 ##############################################
-if(CONFIG_MODULE_POSTGRES AND NOT CONFIG_USE_COMPILER_MUSL)
+if(CONFIG_MODULE_POSTGRES)
 
 ##############################################
 #   Lib

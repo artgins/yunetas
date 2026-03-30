@@ -61,7 +61,7 @@ SET (YUNO_HDRS
 ##############################################
 #   Compilation condition
 ##############################################
-if(CONFIG_DBA_POSTGRES AND CONFIG_MODULE_POSTGRES AND NOT CONFIG_USE_COMPILER_MUSL)
+if(CONFIG_DBA_POSTGRES AND CONFIG_MODULE_POSTGRES)
 
 ##############################################
 #   yuno

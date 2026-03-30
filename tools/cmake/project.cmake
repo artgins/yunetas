@@ -66,14 +66,6 @@ endif()
 function(add_yuno_executable name)
     message(STATUS "Add executable: ${name}")
     add_executable(${name} ${ARGN})
-    if(CONFIG_USE_COMPILER_MUSL)
-        # To use with musl compiler
-        message(STATUS "is CONFIG_USE_COMPILER_MUSL: ${name}")
-        set_target_properties(${name} PROPERTIES
-            LINK_SEARCH_START_STATIC TRUE
-            LINK_SEARCH_END_STATIC TRUE
-        )
-    endif()
 endfunction()
 
 #----------------------------------------#
@@ -84,14 +76,8 @@ list(APPEND CMAKE_MODULE_PATH "${YUNETAS_BASE}/tools/cmake")
 #----------------------------------------#
 #   Global definitions and include paths
 #----------------------------------------#
-if(CONFIG_USE_COMPILER_MUSL)
-    # To use with musl compiler
-    list(APPEND CMAKE_SYSTEM_PREFIX_PATH "${YUNETAS_BASE}/outputs_musl")
-    set(CMAKE_INSTALL_PREFIX "${YUNETAS_BASE}/outputs_musl")
-else()
-    list(APPEND CMAKE_SYSTEM_PREFIX_PATH "${YUNETAS_BASE}/outputs")
-    set(CMAKE_INSTALL_PREFIX "${YUNETAS_BASE}/outputs")
-endif()
+list(APPEND CMAKE_SYSTEM_PREFIX_PATH "${YUNETAS_BASE}/outputs")
+set(CMAKE_INSTALL_PREFIX "${YUNETAS_BASE}/outputs")
 
 #----------------------------------------#
 #   Add system prefix and install prefix
@@ -108,14 +94,8 @@ else()
     # desktop / linux / glibc
     add_definitions(-D_GNU_SOURCE)
 
-    if(CONFIG_USE_COMPILER_MUSL)
-        # To use with musl compiler
-        include_directories("${YUNETAS_BASE}/outputs_ext_musl/include")
-        link_directories("${YUNETAS_BASE}/outputs_ext_musl/lib")
-    else()
-        include_directories("${YUNETAS_BASE}/outputs_ext/include")
-        link_directories("${YUNETAS_BASE}/outputs_ext/lib")
-    endif()
+    include_directories("${YUNETAS_BASE}/outputs_ext/include")
+    link_directories("${YUNETAS_BASE}/outputs_ext/lib")
 
     include_directories("${INC_DEST_DIR}")
     link_directories("${LIB_DEST_DIR}")
