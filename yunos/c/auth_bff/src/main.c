@@ -98,7 +98,7 @@ static int register_yuno_and_more(void)
     /*--------------------*
      *  Register gclass
      *--------------------*/
-    register_c_auth_bff();
+    // c_auth_bff is registered by yunetas_register_c_core()
 
     /*------------------------------------------------*
      *          Traces
