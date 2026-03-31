@@ -12,12 +12,12 @@
         "test:coverage": "vitest --coverage"
     },
     "dependencies": {
-        "@antv/g6": "^5.0.51",
+        "@antv/g6": "^5.1.0",
         "bulma": "^1.0.4",
         "bulma-switch-control": "^1.2.2",
-        "i18next": "^25.8.14",
+        "i18next": "^26.0.3",
         "luxon": "^3.7.2",
-        "maplibre-gl": "^5.19.0",
+        "maplibre-gl": "^5.21.1",
         "tabulator-tables": "^6.4.0",
         "tom-select": "^2.5.2",
         "uplot": "^1.6.32",
@@ -27,8 +27,8 @@
     },
     "devDependencies": {
         "@rollup/plugin-terser": "^1.0.0",
-        "@vitest/coverage-v8": "^4.0.18",
-        "vite": "^7.3.1",
-        "vitest": "^4.0.18"
+        "@vitest/coverage-v8": "^4.1.2",
+        "vite": "^8.0.3",
+        "vitest": "^4.1.2"
     }
 }
