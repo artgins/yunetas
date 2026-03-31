@@ -4,5 +4,12 @@
         "application-name": "TreeDB GUI",
         "description": "TreeDB GUI",
         "keywords": "TreeDB GUI"
-    }
+    },
+    "csp_connect_src": [
+        "wss://localhost:1800",
+        "wss://treedb.yunetas.com:1800",
+        "https://localhost:1801",
+        "https://treedb.yunetas.com:1801",
+        "https://auth.artgins.com"
+    ]
 }
