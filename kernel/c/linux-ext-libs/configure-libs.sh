@@ -20,8 +20,10 @@
 #       upgrade to openresty 1.29.2.3
 #       upgrade to nginx 1.28.3
 #
+#   version 1.7
+#       upgrade to mbedtls v4.1.0
 
-VERSION="1.6"
+VERSION="1.7"
 
 
 source ./repos2clone.sh
