@@ -1,0 +1,20 @@
+{
+    "_comment": "All variable parts for index.html are configured here. The Vite html-transform plugin reads this file and injects the values at build time.",
+
+    "title": "My Yuneta GUI",
+
+    "metadata": {
+        "application-name": "My Yuneta GUI",
+        "description": "Yuneta-based GUI application",
+        "keywords": "yuneta gui"
+    },
+
+    "csp_connect_src": [
+        "_comment: List all WebSocket and HTTPS origins from backend_config.js",
+        "_comment: Each backend_urls value (wss://...) must appear here",
+        "_comment: Each keycloak auth-server-url (https://...) must appear here",
+        "_comment: BFF endpoints (https://...:port) must appear here",
+        "wss://localhost:1800",
+        "https://localhost:1801"
+    ]
+}

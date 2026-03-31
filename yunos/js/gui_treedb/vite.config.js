@@ -1,8 +1,10 @@
 import { defineConfig } from "vite";
-import fs from "fs";
-import path from "path";
+import { yunetaHtmlPlugin } from "yui-lib/vite-plugin-yuneta-html.js";
 
 export default defineConfig({
+    resolve: {
+        preserveSymlinks: true,
+    },
     build: {
         sourcemap: true,
         chunkSizeWarningLimit: 6000
@@ -28,29 +30,6 @@ export default defineConfig({
         },
     },
     plugins: [
-        {
-            name: "html-transform",
-            transformIndexHtml(html) {
-                const configPath = path.resolve(__dirname, "config.json");
-                if (!fs.existsSync(configPath)) {
-                    console.error("⚠️ config.json not found");
-                    return html;
-                }
-
-                const config = JSON.parse(fs.readFileSync(configPath, "utf-8"));
-                const title = config.title || "TreeDB GUI";
-
-                let metadataHtml = "";
-                for (const [key, value] of Object.entries(config.metadata)) {
-                    if (value) {
-                        metadataHtml += `  <meta name="${key}" content="${value}">\n`;
-                    }
-                }
-
-                return html
-                    .replace("<title></title>", `<title>${title}</title>`)
-                    .replace("<!-- METADATA_PLACEHOLDER -->", metadataHtml);
-            }
-        }
+        yunetaHtmlPlugin({ defaultTitle: "TreeDB GUI" })
     ]
 });

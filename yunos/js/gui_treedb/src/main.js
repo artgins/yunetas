@@ -30,25 +30,24 @@ import {register_c_yuneta_gui} from "./c_yuneta_gui.js";
 import {register_c_login} from "./c_login.js";
 import {register_c_ui_todo} from "./c_ui_todo.js";
 
-import {register_c_yui_map} from "./ui/c_yui_map.js";
-import {register_c_yui_treedb_graph} from "./ui/c_yui_treedb_graph.js";
-import {register_c_yui_treedb_topic_with_form} from "./ui/c_yui_treedb_topic_with_form.js";
-import {register_c_yui_treedb_topics} from "./ui/c_yui_treedb_topics.js";
-import {register_c_yui_uplot} from "./ui/c_yui_uplot.js";
-
-import {register_c_yui_main} from "./ui/c_yui_main.js";
-import {register_c_yui_routing} from "./ui/c_yui_routing.js";
-import {register_c_yui_window} from "./ui/c_yui_window.js";
-import {register_c_yui_form} from "./ui/c_yui_form.js";
-import {register_c_yui_tabs} from "./ui/c_yui_tabs.js";
-
-import {register_c_yui_json_graph} from "./ui/c_yui_json_graph.js";
-import {register_c_g6_nodes_tree} from "./ui/c_g6_nodes_tree.js";
-
-import {inject_svg_icons} from "./ui/lib_icons.js";
+import {
+    register_c_yui_main,
+    register_c_yui_window,
+    register_c_yui_tabs,
+    register_c_yui_form,
+    register_c_yui_routing,
+    register_c_yui_map,
+    register_c_yui_uplot,
+    register_c_yui_json_graph,
+    register_c_yui_treedb_topics,
+    register_c_yui_treedb_topic_with_form,
+    register_c_yui_treedb_graph,
+    register_c_g6_nodes_tree,
+    inject_svg_icons,
+} from "yui-lib";
 
 import "bulma/css/bulma.css";
-import "./ui/yui_icons.css";
+import "yui-lib/src/yui_icons.css";
 
 import "tabulator-tables/dist/css/tabulator.min.css"; // Import Tabulator CSS
 import "tabulator-tables/dist/css/tabulator_bulma.css";
@@ -59,12 +58,12 @@ import "tom-select/dist/css/tom-select.css"; // Import Tom-Select CSS
 
 import "bulma-switch-control/css/main.css";
 
-import "./ui/c_yui_main.css";
-import "./ui/c_yui_map.css";
-import "./ui/c_yui_routing.css";
-import "./ui/ytable.css";
-import "./ui/yui_toolbar.css";
-import "./ui/lib_graph.css";
+import "yui-lib/src/c_yui_main.css";
+import "yui-lib/src/c_yui_map.css";
+import "yui-lib/src/c_yui_routing.css";
+import "yui-lib/src/ytable.css";
+import "yui-lib/src/yui_toolbar.css";
+import "yui-lib/src/lib_graph.css";
 
 /************************************************
  *          Data
