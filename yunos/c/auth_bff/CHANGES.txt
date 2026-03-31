@@ -1,0 +1,7 @@
+auth_bff 1.0.0
+==============
+
+- Initial release.
+- OAuth2 BFF service using kernel C_AUTH_BFF GClass.
+- Endpoints: /auth/login, /auth/callback, /auth/refresh, /auth/logout.
+- httpOnly cookie token storage (SEC-06).
