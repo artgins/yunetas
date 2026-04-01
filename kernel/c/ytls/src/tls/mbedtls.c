@@ -582,7 +582,7 @@ PRIVATE int do_handshake(hsskt sskt_)
                 "error_message",    "%s", error_buf,
                 NULL
             );
-
+            gobj_log_set_last_message("%s", error_buf);
             sskt->on_handshake_done_cb(sskt->user_data, -1);
             return -1;
         }
@@ -880,6 +880,7 @@ PRIVATE int decrypt_data(
                 "error_message",    "%s", error_buf,
                 NULL
             );
+            gobj_log_set_last_message("%s", error_buf);
             sskt->on_handshake_done_cb(sskt->user_data, -1);
             return -1;
         }
