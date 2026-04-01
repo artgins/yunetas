@@ -8,14 +8,19 @@ Keycloak, storing tokens as httpOnly cookies so they never reach JavaScript.
 Architecture
 ------------
 
-    Browser SPA ──POST /auth/*──> auth_bff (port 1801) ──> Keycloak
+    Browser SPA ──POST /auth/*──> auth_bff (default port 1802) ──> Keycloak
                                       │
                                       ├── Sets httpOnly cookies
                                       │   (access_token, refresh_token)
                                       │
-    Browser SPA ──WSS upgrade──> yuno backend (port 1800)
+    Browser SPA ──WSS upgrade──> yuno backend (configurable port,
+                                      │          typically 1600, 1800, …)
                                       │
                                       └── Reads JWT from Cookie header
+
+Cookies are scoped by Domain (no port), so a cookie set by the BFF
+is automatically sent with the WebSocket upgrade to any port on the
+same hostname.
 
 Endpoints
 ---------
