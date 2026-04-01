@@ -12,7 +12,7 @@ In your project's `package.json`:
 ```json
 {
     "dependencies": {
-        "yui-lib": "file:../../../yunetas/yunos/js/yui-lib",
+        "yui-lib": "file:../../../yunetas/kernel/js/yunetas-js7/yui-lib",
         "yunetas": "file:../../../yunetas/kernel/js/yunetas-js7/yunetas"
     }
 }
