@@ -51,7 +51,7 @@ import {setup_dev, display_error_message} from "yui-lib";
 
 import {setup_locale} from "./locales/locales.js";
 import {flags_of_world} from "./locales/flags.js";
-import {logo_wide_svg} from "./ui/logos_svg.js";
+import {logo_wide_svg} from "./logos_svg.js";
 import {t} from "i18next";
 
 // import "yuneta-icon-font/dist/yuneta-icon-font.js"; // TODO parece que no se usa
