@@ -1,16 +1,16 @@
 {
-    "name": "yunetas",
-    "version": "0.3.0",
+    "name": "@yuneta/gobj-js",
+    "version": "7.1.0",
     "description": "Yuneta Simplified v7 in javascript version",
     "author": "Niyamaka",
     "license": "MIT",
     "type": "module",
-    "main": "dist/yunetas.cjs.js",
-    "module": "dist/yunetas.es.js",
-    "browser": "dist/yunetas.umd.js",
+    "main": "dist/gobj-js.cjs.js",
+    "module": "dist/gobj-js.es.js",
+    "browser": "dist/gobj-js.umd.js",
     "exports": {
-        "import": "./dist/yunetas.es.js",
-        "require": "./dist/yunetas.cjs.js"
+        "import": "./dist/gobj-js.es.js",
+        "require": "./dist/gobj-js.cjs.js"
     },
     "files": [
         "dist/"

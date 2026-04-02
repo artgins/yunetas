@@ -1,7 +1,59 @@
-# yui-lib — Yuneta UI Library
+# lib-yui — Yuneta UI Library
 
 Reusable GUI components for Yuneta-based web applications. Extracted from
 `gui_treedb` to be shared across projects (EstadoDelAire, TreeDB GUI, etc.).
+
+## Install
+
+This project uses [`vite`](https://vite.dev/) as build tool.
+
+Install the latest `node`:
+
+    nvm install --lts
+
+When writing this readme the LTS version was:
+
+    node --version
+        v22.17.0
+
+    npm install -g vite
+
+Install dependencies:
+
+    npm install
+
+To build:
+
+    vite build
+
+To publish a new version of @yuneta/lib-yui to [npmjs.com](https://www.npmjs.com/package/@yuneta/lib-yui):
+
+    # 1. Configure your npm token (only once)
+    echo "//registry.npmjs.org/:_authToken=<your-token>" > ~/.npmrc
+
+    # 2. Update the version in package.json
+    npm version patch   # or minor / major
+
+    # 3. Publish (build runs automatically via prepublishOnly)
+    npm publish --access public
+
+To create an npm token, go to [npmjs.com](https://www.npmjs.com) → Account → Access Tokens.
+
+## Update
+
+ONLY one time: to update all js packages, install the module:
+
+    npm install -g npm-check-updates
+
+To download new releases:
+
+    ncu -u
+
+And to install the new versions:
+
+    npm install
+
+---
 
 ## Quick Start
 
@@ -12,8 +64,8 @@ In your project's `package.json`:
 ```json
 {
     "dependencies": {
-        "yui-lib": "file:../../../yunetas/kernel/js/yunetas-js7/yui-lib",
-        "yunetas": "file:../../../yunetas/kernel/js/yunetas-js7/yunetas"
+        "@yuneta/lib-yui": "file:../../../yunetas/kernel/js/lib-yui",
+        "@yuneta/gobj-js": "file:../../../yunetas/kernel/js/gobj-js"
     }
 }
 ```
@@ -34,7 +86,7 @@ import {
     register_c_yui_treedb_topics,
     register_c_yui_treedb_graph,
     inject_svg_icons,
-} from "yui-lib";
+} from "@yuneta/lib-yui";
 
 // Register in main():
 register_c_yui_main();
@@ -46,13 +98,13 @@ register_c_yui_tabs();
 ### 3. Import CSS
 
 ```js
-import "yui-lib/src/c_yui_main.css";
-import "yui-lib/src/c_yui_map.css";
-import "yui-lib/src/c_yui_routing.css";
-import "yui-lib/src/ytable.css";
-import "yui-lib/src/yui_toolbar.css";
-import "yui-lib/src/lib_graph.css";
-import "yui-lib/src/yui_icons.css";
+import "@yuneta/lib-yui/src/c_yui_main.css";
+import "@yuneta/lib-yui/src/c_yui_map.css";
+import "@yuneta/lib-yui/src/c_yui_routing.css";
+import "@yuneta/lib-yui/src/ytable.css";
+import "@yuneta/lib-yui/src/yui_toolbar.css";
+import "@yuneta/lib-yui/src/lib_graph.css";
+import "@yuneta/lib-yui/src/yui_icons.css";
 ```
 
 ### 4. Configure `C_YUI_MAIN` with your app branding
@@ -80,7 +132,7 @@ __yuno__.__yui_main__ = gobj_create_service(
 
 ```js
 import { defineConfig } from "vite";
-import { yunetaHtmlPlugin } from "yui-lib/vite-plugin-yuneta-html.js";
+import { yunetaHtmlPlugin } from "@yuneta/lib-yui/vite-plugin-yuneta-html.js";
 
 export default defineConfig({
     resolve: {
@@ -93,13 +145,13 @@ export default defineConfig({
 ```
 
 > **Note**: `preserveSymlinks: true` is required so that Vite resolves
-> `import "yunetas"` from within yui-lib's source files using the host
+> `import "@yuneta/gobj-js"` from within yui-lib's source files using the host
 > app's `node_modules/`.
 
 ## Project Structure
 
 ```
-yui-lib/
+lib-yui/
 ├── index.js                           # Barrel re-exports
 ├── package.json                       # Peer dependencies
 ├── vite-plugin-yuneta-html.js         # Shared Vite plugin
@@ -194,8 +246,8 @@ yui-lib/
 Copy the template files from `skeleton/` to bootstrap a new GUI:
 
 ```bash
-cp yui-lib/skeleton/index.html  my-gui/index.html
-cp yui-lib/skeleton/config.json my-gui/config.json
+cp lib-yui/skeleton/index.html  my-gui/index.html
+cp lib-yui/skeleton/config.json my-gui/config.json
 ```
 
 ### `index.html`
@@ -242,7 +294,7 @@ Entries starting with `_comment` are ignored (used for inline documentation).
 Shared plugin that replaces the placeholders in `index.html` at build time.
 
 ```js
-import { yunetaHtmlPlugin } from "yui-lib/vite-plugin-yuneta-html.js";
+import { yunetaHtmlPlugin } from "@yuneta/lib-yui/vite-plugin-yuneta-html.js";
 
 // Options:
 yunetaHtmlPlugin({
@@ -263,11 +315,11 @@ The plugin generates a strict Content-Security-Policy with:
 
 ## Peer Dependencies
 
-yui-lib does **not** bundle these — your project must include them:
+lib-yui does **not** bundle these — your project must include them:
 
 | Package | Used by |
 |---------|---------|
-| `yunetas` | All components (GClass framework) |
+| `@yuneta/gobj-js` | All components (GClass framework) |
 | `@antv/g6` | `c_g6_nodes_tree`, `c_yui_json_graph` |
 | `bulma` | All components (CSS framework) |
 | `i18next` | `c_yui_main`, `c_yui_form` (i18n) |

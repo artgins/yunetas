@@ -46,7 +46,7 @@ import {
     gobj_read_str_attr,
     gobj_publish_event,
     refresh_language,
-} from "yunetas";
+} from "@yuneta/gobj-js";
 
 import {t} from "i18next";
 import "tom-select/dist/css/tom-select.css"; // Import Tom-Select CSS

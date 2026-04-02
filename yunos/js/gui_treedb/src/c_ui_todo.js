@@ -13,7 +13,7 @@ import {
     data_type_t,
     gclass_create,
     log_error
-} from "yunetas";
+} from "@yuneta/gobj-js";
 
 /***************************************************************
  *              Constants

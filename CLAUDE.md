@@ -99,10 +99,10 @@ cd kernel/c/gobj-c/build && make install    # build and install one module
 cd tests/c/c_timer/build && make && ctest --output-on-failure   # build and test one test
 ```
 
-### JavaScript framework (kernel/js/yunetas-js7/)
+### JavaScript framework (kernel/js/gobj-js/)
 
 ```bash
-cd kernel/js/yunetas-js7/yunetas
+cd kernel/js/gobj-js
 npm install
 npm run build          # vite build → dist/ (CJS, ES, UMD)
 npm test               # vitest
@@ -238,8 +238,8 @@ GObjects are organized into a hierarchical tree forming a **Yuno** (a deployable
 ### Multi-Language Implementations
 
 The primary implementation is in **C**, but parallel implementations exist:
-- `kernel/js/yunetas-js7/` — JavaScript framework (uses Vite)
-- `kernel/js/gobj-js/` — Old JavaScript GObj implementation (deprecated)
+- `kernel/js/gobj-js/` — JavaScript framework (uses Vite)
+- `kernel/js/lib-yui/` — Yuneta UI Library (reusable GUI components)
 
 ### Layered Build Dependencies
 
@@ -271,7 +271,7 @@ stress/c/*            ← stress test programs
 | `kernel/c/timeranger2/` | Time-series DB (append-only, key-indexed) |
 | `kernel/c/linux-ext-libs/` | External dependency libraries (OpenSSL, liburing, …) |
 | `kernel/c/root-linux/src/` | All runtime GClasses (`c_tcp`, `c_timer`, `c_prot_*`, `c_treedb`, …) |
-| `kernel/js/` | JavaScript implementations (yunetas-js7, gobj-js deprecated) |
+| `kernel/js/` | JavaScript implementations (gobj-js framework, lib-yui UI library) |
 | `yunos/c/mqtt_broker/` | MQTT v3.1.1 + v5.0 broker with persistence |
 | `yunos/c/yuno_agent/` | Yuno lifecycle manager (start/stop/update) |
 | `utils/c/ycommand/` | Control-plane CLI — sends commands to running yunos |

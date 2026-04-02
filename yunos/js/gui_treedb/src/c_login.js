@@ -57,7 +57,7 @@ import {
     gobj_start,
     gobj_stop,
     build_path,
-} from "yunetas";
+} from "@yuneta/gobj-js";
 
 import {bff_urls} from "./conf/backend_config.js";
 

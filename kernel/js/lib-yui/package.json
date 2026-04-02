@@ -1,12 +1,37 @@
 {
-    "name": "yui-lib",
-    "private": true,
-    "version": "7.1.0",
+    "name": "@yuneta/lib-yui",
+    "version": "7.1.1",
     "type": "module",
-    "main": "index.js",
+    "main": "dist/lib-yui.cjs.js",
+    "module": "dist/lib-yui.es.js",
+    "browser": "dist/lib-yui.umd.js",
+    "exports": {
+        ".": {
+            "import": "./dist/lib-yui.es.js",
+            "require": "./dist/lib-yui.cjs.js"
+        },
+        "./src/*": "./src/*",
+        "./vite-plugin-yuneta-html.js": "./vite-plugin-yuneta-html.js",
+        "./skeleton/*": "./skeleton/*"
+    },
+    "files": [
+        "dist/",
+        "index.js",
+        "src/",
+        "skeleton/",
+        "vite-plugin-yuneta-html.js"
+    ],
     "description": "Yuneta UI Library - Reusable GUI components for Yuneta-based projects",
+    "scripts": {
+        "build": "vite build",
+        "prepublishOnly": "npm run build"
+    },
+    "devDependencies": {
+        "@rollup/plugin-terser": "^1.0.0",
+        "vite": "^7.3.1"
+    },
     "peerDependencies": {
-        "yunetas": "*",
+        "@yuneta/gobj-js": "*",
         "@antv/g6": "^5.0.0",
         "bulma": "^1.0.0",
         "i18next": "^25.0.0",

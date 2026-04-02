@@ -1,4 +1,4 @@
-# yunetas-js7
+# gobj-js
 
 JavaScript/ES6 implementation of the [Yuneta](https://yuneta.io) framework (v7).
 
@@ -107,16 +107,16 @@ GObjects communicate exclusively via **events** carrying JSON key-value payloads
 
 ```bash
 # From npm (published package)
-npm install yunetas
+npm install @yuneta/gobj-js
 
 # From source (local)
-npm install /path/to/yunetas-js7/yunetas
+npm install /path/to/kernel/js/gobj-js
 ```
 
 Import in your project:
 
 ```javascript
-import { gobj_start_up, gobj_create_yuno, register_c_yuno } from "yunetas";
+import { gobj_start_up, gobj_create_yuno, register_c_yuno } from "@yuneta/gobj-js";
 ```
 
 ---
@@ -131,7 +131,7 @@ npm install -g vite
 ```
 
 ```bash
-cd yunetas/
+cd gobj-js/
 npm install        # install dependencies
 
 vite               # dev server
@@ -161,10 +161,10 @@ npm publish --access public
 
 | File | Format | Use |
 |------|--------|-----|
-| `yunetas.es.js` | ES modules | bundlers, modern browsers |
-| `yunetas.cjs.js` | CommonJS | Node.js |
-| `yunetas.umd.js` | UMD | legacy bundlers |
-| `yunetas.iife.js` | IIFE | `<script>` tag |
+| `gobj-js.es.js` | ES modules | bundlers, modern browsers |
+| `gobj-js.cjs.js` | CommonJS | Node.js |
+| `gobj-js.umd.js` | UMD | legacy bundlers |
+| `gobj-js.iife.js` | IIFE | `<script>` tag |
 | `*.min.js` | minified variants | production |
 
 ---
@@ -186,7 +186,7 @@ import {
     register_c_yuno,
     register_c_timer,
     register_c_ievent_cli,
-} from "yunetas";
+} from "@yuneta/gobj-js";
 
 // 1. Register GClasses
 register_c_yuno();
@@ -266,7 +266,7 @@ const states = [
 Attributes are declared in a schema table using `SDATA()` macros. Each attribute has a type, name, flags, default value, and description.
 
 ```javascript
-import { SDATA, SDATA_END, data_type_t, sdata_flag_t } from "yunetas";
+import { SDATA, SDATA_END, data_type_t, sdata_flag_t } from "@yuneta/gobj-js";
 
 const attrs_table = [
     SDATA(data_type_t.DTP_STRING,  "url",        sdata_flag_t.SDF_RD,      "", "Server URL"),
@@ -614,7 +614,7 @@ Format specifiers: `%s` `%d` `%i` `%f` `%e` `%g` `%o` `%x` `%X` `%b` `%c` `%j` (
 The application root. Always the first GClass registered.
 
 ```javascript
-import { register_c_yuno } from "yunetas";
+import { register_c_yuno } from "@yuneta/gobj-js";
 register_c_yuno();
 ```
 
@@ -625,7 +625,7 @@ Key attributes: `yuno_name`, `yuno_role`, `yuno_id`, `yuno_version`, `yuno_relea
 Manages timeouts and periodic timers.
 
 ```javascript
-import { register_c_timer, set_timeout, set_timeout_periodic, clear_timeout } from "yunetas";
+import { register_c_timer, set_timeout, set_timeout_periodic, clear_timeout } from "@yuneta/gobj-js";
 register_c_timer();
 
 // One-shot timeout (ms)
@@ -647,7 +647,7 @@ Attributes: `subscriber`, `periodic`, `msec`
 Inter-event client — proxies a remote Yuneta service over WebSocket so it looks like a local GObject. Used to communicate with backend yunos.
 
 ```javascript
-import { register_c_ievent_cli } from "yunetas";
+import { register_c_ievent_cli } from "@yuneta/gobj-js";
 register_c_ievent_cli();
 
 let remote = gobj_create_service("backend", "C_IEVENT_CLI", {
@@ -677,7 +677,7 @@ import {
     treedb_get_field_desc,
     template_get_field_desc,
     create_template_record,
-} from "yunetas";
+} from "@yuneta/gobj-js";
 
 treedb_register_formtable(treedb_name, topic_name, gobj_formtable)
 treedb_get_topic_data(treedb_name, topic_name)
@@ -699,7 +699,7 @@ import {
     gclass_create,
     gobj_subscribe_event, gobj_yuno,
     trace_msg,
-} from "yunetas";
+} from "@yuneta/gobj-js";
 
 const GCLASS_NAME = "C_MY_CLASS";
 
@@ -772,14 +772,14 @@ export { register_c_my_class };
 ## Source Layout
 
 ```
-kernel/js/yunetas-js7/
+kernel/js/
 ├── README.md                          ← this file
 ├── examples/                          ← full working example app
 │   └── src/
 │       ├── main.js                    ← app initialization
 │       ├── c_sample.js                ← example custom GClass
 │       └── locales.js
-└── yunetas/                           ← npm package
+├── gobj-js/                           ← npm package
     ├── package.json
     ├── vite.config.js
     ├── README.md                      ← build/publish instructions

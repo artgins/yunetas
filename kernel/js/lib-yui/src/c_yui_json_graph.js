@@ -43,7 +43,7 @@ import {
     empty_string,
     escapeHtml,
     refresh_language,
-} from "yunetas";
+} from "@yuneta/gobj-js";
 
 import {yui_toolbar} from "./yui_toolbar.js";
 

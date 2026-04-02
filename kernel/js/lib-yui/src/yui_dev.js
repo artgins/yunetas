@@ -17,7 +17,7 @@ import {
     gobj_write_attr,
     gobj_create_service,
     trace_json,
-} from "yunetas";
+} from "@yuneta/gobj-js";
 
 import i18next from 'i18next';
 

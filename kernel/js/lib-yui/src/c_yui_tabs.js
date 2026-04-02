@@ -47,7 +47,7 @@ import {
     gobj_short_name,
     gobj_write_str_attr,
     gobj_has_attr, gobj_is_service, gobj_stop_children,
-} from "yunetas";
+} from "@yuneta/gobj-js";
 
 
 /***************************************************************
