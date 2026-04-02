@@ -12,7 +12,7 @@ import {
     kw_get_local_storage_value,
     gobj_read_attr,
     kw_set_local_storage_value,
-} from "yunetas";
+} from "@yuneta/gobj-js";
 
 import {Settings as luxonSettings} from "luxon";
 import i18next from 'i18next';

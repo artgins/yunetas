@@ -1,5 +1,5 @@
 import { defineConfig } from "vite";
-import { yunetaHtmlPlugin } from "yui-lib/vite-plugin-yuneta-html.js";
+import { yunetaHtmlPlugin } from "@yuneta/lib-yui/vite-plugin-yuneta-html.js";
 
 export default defineConfig({
     resolve: {

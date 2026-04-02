@@ -24,7 +24,7 @@ import {
     kw_get_local_storage_value,
     gobj_read_attr,
     gobj_write_bool_attr,
-} from "yunetas";
+} from "@yuneta/gobj-js";
 
 import {register_c_yuneta_gui} from "./c_yuneta_gui.js";
 import {register_c_login} from "./c_login.js";
@@ -44,10 +44,10 @@ import {
     register_c_yui_treedb_graph,
     register_c_g6_nodes_tree,
     inject_svg_icons,
-} from "yui-lib";
+} from "@yuneta/lib-yui";
 
 import "bulma/css/bulma.css";
-import "yui-lib/src/yui_icons.css";
+import "@yuneta/lib-yui/src/yui_icons.css";
 
 import "tabulator-tables/dist/css/tabulator.min.css"; // Import Tabulator CSS
 import "tabulator-tables/dist/css/tabulator_bulma.css";
@@ -58,12 +58,12 @@ import "tom-select/dist/css/tom-select.css"; // Import Tom-Select CSS
 
 import "bulma-switch-control/css/main.css";
 
-import "yui-lib/src/c_yui_main.css";
-import "yui-lib/src/c_yui_map.css";
-import "yui-lib/src/c_yui_routing.css";
-import "yui-lib/src/ytable.css";
-import "yui-lib/src/yui_toolbar.css";
-import "yui-lib/src/lib_graph.css";
+import "@yuneta/lib-yui/src/c_yui_main.css";
+import "@yuneta/lib-yui/src/c_yui_map.css";
+import "@yuneta/lib-yui/src/c_yui_routing.css";
+import "@yuneta/lib-yui/src/ytable.css";
+import "@yuneta/lib-yui/src/yui_toolbar.css";
+import "@yuneta/lib-yui/src/lib_graph.css";
 
 /************************************************
  *          Data

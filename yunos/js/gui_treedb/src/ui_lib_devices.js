@@ -10,7 +10,7 @@
 import {
     log_error,
     sprintf,
-} from "yunetas";
+} from "@yuneta/gobj-js";
 
 /************************************************************
  *
