@@ -70,6 +70,7 @@ SDATA(data_type_t.DTP_BOOLEAN,  "trace_start_stop",     0,  0,      "Trace start
 SDATA(data_type_t.DTP_BOOLEAN,  "trace_subscriptions",  0,  0,      "Trace subscription"),
 SDATA(data_type_t.DTP_BOOLEAN,  "trace_i18n",           0,  0,      "Trace i18n"),
 SDATA(data_type_t.DTP_BOOLEAN,  "no_poll",              0,  0,      "no poll"),
+SDATA(data_type_t.DTP_BOOLEAN,  "developer",            0,  false,  "Developer mode enabled"),
 SDATA(data_type_t.DTP_INTEGER,  "periodic_timeout",     0,  "1000", "Timeout periodic, in miliseconds."),
 SDATA_END()
 ];
