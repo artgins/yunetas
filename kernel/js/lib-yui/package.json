@@ -1,9 +1,14 @@
 {
     "name": "@yuneta/lib-yui",
-    "private": true,
     "version": "7.1.0",
     "type": "module",
     "main": "index.js",
+    "files": [
+        "index.js",
+        "src/",
+        "skeleton/",
+        "vite-plugin-yuneta-html.js"
+    ],
     "description": "Yuneta UI Library - Reusable GUI components for Yuneta-based projects",
     "peerDependencies": {
         "@yuneta/gobj-js": "*",
