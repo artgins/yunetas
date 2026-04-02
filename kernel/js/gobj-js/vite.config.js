@@ -15,6 +15,9 @@ export default defineConfig({
             },
         },
         rollupOptions: {
+            checks: {
+                pluginTimings: false
+            },
             output: [
                 // Non-minified ES Module
                 {

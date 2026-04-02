@@ -8,6 +8,9 @@ export default defineConfig({
             name: "libYui"
         },
         rollupOptions: {
+            checks: {
+                pluginTimings: false
+            },
             external: [
                 "@yuneta/gobj-js",
                 "@antv/g6",
