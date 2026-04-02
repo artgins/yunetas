@@ -52,7 +52,7 @@ import {
     gobj_name,
     gobj_short_name,
     refresh_language,
-} from "yunetas";
+} from "gobj-js";
 
 import {
     get_yesnocancel,

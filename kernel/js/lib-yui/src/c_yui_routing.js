@@ -100,7 +100,7 @@ import {
     gobj_save_persistent_attrs,
     gobj_is_running,
     refresh_language,
-} from "yunetas";
+} from "gobj-js";
 
 import "./c_yui_routing.css"; // Must be in index.js ?
 

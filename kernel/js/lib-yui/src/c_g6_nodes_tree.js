@@ -63,7 +63,7 @@ import {
     delete_from_list,
     escapeHtml,
     safeSrc,
-} from "yunetas";
+} from "gobj-js";
 
 import {
     addClasses,

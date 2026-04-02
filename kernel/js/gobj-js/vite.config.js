@@ -5,7 +5,7 @@ export default defineConfig({
     build: {
         lib: {
             entry: "src/index.js",
-            name: "yunetas"
+            name: "gobj-js"
         },
         test: {
             globals: true,  // Use global `describe` and `test` like Jest
@@ -20,31 +20,31 @@ export default defineConfig({
                 {
                     format: "es",
                     dir: "dist",
-                    entryFileNames: "yunetas.es.js",
+                    entryFileNames: "gobj-js.es.js",
                     compact: false // ✅ Keep original formatting
                 },
                 // Non-minified UMD Module
                 {
-                    name: "yunetas",
+                    name: "gobj-js",
                     format: "umd",
                     dir: "dist",
-                    entryFileNames: "yunetas.umd.js",
+                    entryFileNames: "gobj-js.umd.js",
                     compact: false
                 },
                 // Non-minified CJS Module
                 {
-                    name: "yunetas",
+                    name: "gobj-js",
                     format: "cjs",
                     dir: "dist",
-                    entryFileNames: "yunetas.cjs.js",
+                    entryFileNames: "gobj-js.cjs.js",
                     compact: false
                 },
                 // Non-minified IIFE Module
                 {
-                    name: "yunetas",
+                    name: "gobj-js",
                     format: "iife",
                     dir: "dist",
-                    entryFileNames: "yunetas.iife.js",
+                    entryFileNames: "gobj-js.iife.js",
                     compact: false
                 },
 
@@ -52,31 +52,31 @@ export default defineConfig({
                 {
                     format: "es",
                     dir: "dist",
-                    entryFileNames: "yunetas.es.min.js",
+                    entryFileNames: "gobj-js.es.min.js",
                     plugins: [terser()] // ✅ Minified version
                 },
                 // Minified UMD Module
                 {
-                    name: "yunetas",
+                    name: "gobj-js",
                     format: "umd",
                     dir: "dist",
-                    entryFileNames: "yunetas.umd.min.js",
+                    entryFileNames: "gobj-js.umd.min.js",
                     plugins: [terser()]
                 },
                 // Minified CJS Module
                 {
-                    name: "yunetas",
+                    name: "gobj-js",
                     format: "cjs",
                     dir: "dist",
-                    entryFileNames: "yunetas.cjs.min.js",
+                    entryFileNames: "gobj-js.cjs.min.js",
                     plugins: [terser()]
                 },
                 // Minified IIFE Module
                 {
-                    name: "yunetas",
+                    name: "gobj-js",
                     format: "iife",
                     dir: "dist",
-                    entryFileNames: "yunetas.iife.min.js",
+                    entryFileNames: "gobj-js.iife.min.js",
                     plugins: [terser()]
                 }
             ]

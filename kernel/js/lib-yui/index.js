@@ -1,5 +1,5 @@
 /***********************************************************************
- *          yui-lib/index.js
+ *          lib-yui/index.js
  *
  *          Yuneta UI Library - Reusable GUI components
  *
@@ -41,11 +41,11 @@ export { info_traffic, setup_dev } from "./src/yui_dev.js";
 /*
  *  CSS - import these in your main entry point
  *  Example:
- *    import "yui-lib/src/c_yui_main.css";
- *    import "yui-lib/src/c_yui_map.css";
- *    import "yui-lib/src/c_yui_routing.css";
- *    import "yui-lib/src/ytable.css";
- *    import "yui-lib/src/yui_toolbar.css";
- *    import "yui-lib/src/lib_graph.css";
- *    import "yui-lib/src/yui_icons.css";
+ *    import "lib-yui/src/c_yui_main.css";
+ *    import "lib-yui/src/c_yui_map.css";
+ *    import "lib-yui/src/c_yui_routing.css";
+ *    import "lib-yui/src/ytable.css";
+ *    import "lib-yui/src/yui_toolbar.css";
+ *    import "lib-yui/src/lib_graph.css";
+ *    import "lib-yui/src/yui_icons.css";
  */

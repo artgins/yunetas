@@ -38,7 +38,7 @@ import {
     gobj_match_children,
     msg_iev_get_stack,
     kw_get_dict, gobj_stop_children,
-} from "yunetas";
+} from "gobj-js";
 
 import {
     display_error_message

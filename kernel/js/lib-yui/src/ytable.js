@@ -70,7 +70,7 @@ import {
     duplicate_objects,
     is_pure_number,
     escapeHtml,
-}  from "yunetas";
+}  from "gobj-js";
 
 import "./ytable.css"; // Must be in index.js ?
 

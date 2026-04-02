@@ -1,12 +1,12 @@
 {
-    "name": "yui-lib",
+    "name": "lib-yui",
     "private": true,
     "version": "7.1.0",
     "type": "module",
     "main": "index.js",
     "description": "Yuneta UI Library - Reusable GUI components for Yuneta-based projects",
     "peerDependencies": {
-        "yunetas": "*",
+        "gobj-js": "*",
         "@antv/g6": "^5.0.0",
         "bulma": "^1.0.0",
         "i18next": "^25.0.0",

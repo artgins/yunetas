@@ -39,7 +39,7 @@ import {
     gobj_stop_children,
     gobj_is_running,
     refresh_language,
-} from "yunetas";
+} from "gobj-js";
 
 import {t} from "i18next";
 

@@ -59,7 +59,7 @@ import {
     gobj_default_service,
     refresh_language,
     debounce,
-} from "yunetas";
+} from "gobj-js";
 
 import {setup_dev} from "./yui_dev.js";
 import {yui_toolbar} from "./yui_toolbar.js";

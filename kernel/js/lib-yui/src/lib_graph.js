@@ -8,7 +8,7 @@
  ***********************************************************************/
 import {
     gobj_read_attr,
-} from "yunetas";
+} from "gobj-js";
 
 // import {t} from "i18next";
 import "./lib_graph.css";

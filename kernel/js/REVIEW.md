@@ -1,4 +1,4 @@
-# Deep Review: `kernel/js/yunetas-js7` Framework
+# Deep Review: `kernel/js/gobj-js` Framework
 
 **Date:** 2026-03-03
 
@@ -255,7 +255,7 @@ Declared at module level but never read or written after initialization. Only `_
 
 ## Summary
 
-The yunetas-js7 framework is a **solid, production-grade JS port** of the C runtime. The FSM validation, subscription model, and WebSocket client are mature and correct. The main actionable bugs are:
+The gobj-js framework is a **solid, production-grade JS port** of the C runtime. The FSM validation, subscription model, and WebSocket client are mature and correct. The main actionable bugs are:
 
 1. **`sdata_write_default_values` calls `mt_writing` without null check** — crashes any GClass that omits `mt_writing`
 2. **`log_info` routes to `f_warning`** — INFO log level is broken
@@ -277,7 +277,7 @@ The yunetas-js7 framework is a **solid, production-grade JS port** of the C runt
 
 All bugs and issues listed above were fixed. Details per file:
 
-### `yunetas/src/gobj.js`
+### `gobj-js/src/gobj.js`
 
 | Fix | What changed |
 |---|---|
@@ -290,7 +290,7 @@ All bugs and issues listed above were fixed. Details per file:
 | `tab()` | Replaced loop with `' '.repeat(Math.max(0, __inside__ * 2 - 1))` |
 | Dead `__inside_event_loop__` | Removed the unused `let __inside_event_loop__ = 0;` variable |
 
-### `yunetas/src/helpers.js`
+### `gobj-js/src/helpers.js`
 
 | Fix | What changed |
 |---|---|
@@ -299,7 +299,7 @@ All bugs and issues listed above were fixed. Details per file:
 | `json_is_identical` order-sensitivity | Replaced stringify comparison with a recursive key-sorted deep comparison so `{a:1,b:2}` equals `{b:2,a:1}` |
 | `json_object_update` redundant check | Removed the always-true `if(source.hasOwnProperty(property))` inside `for...of Object.keys(source)` |
 
-### `yunetas/src/c_ievent_cli.js`
+### `gobj-js/src/c_ievent_cli.js`
 
 | Fix | What changed |
 |---|---|
