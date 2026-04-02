@@ -70,7 +70,7 @@ import {
     safeSrc,
     gclass_find_by_name,
     gobj_stop_children,
-} from "gobj-js";
+} from "@yuneta/gobj-js";
 
 import {yui_toolbar} from "./yui_toolbar.js";
 import {

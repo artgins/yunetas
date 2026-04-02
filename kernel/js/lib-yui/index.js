@@ -1,5 +1,5 @@
 /***********************************************************************
- *          lib-yui/index.js
+ *          @yuneta/lib-yui/index.js
  *
  *          Yuneta UI Library - Reusable GUI components
  *

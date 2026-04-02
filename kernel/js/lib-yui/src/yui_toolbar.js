@@ -10,7 +10,7 @@
 
 import {
     createElement2, debounce
-} from "gobj-js";
+} from "@yuneta/gobj-js";
 
 import "./yui_toolbar.css"; // Must be in index.js ?
 

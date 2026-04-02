@@ -27,7 +27,7 @@ To build:
 
     vite build
 
-To publish a new version of gobj-js to [npmjs.com](https://www.npmjs.com/package/gobj-js):
+To publish a new version of @yuneta/gobj-js to [npmjs.com](https://www.npmjs.com/package/@yuneta/gobj-js):
 
     # 1. Configure your npm token (only once)
     echo "//registry.npmjs.org/:_authToken=<your-token>" > ~/.npmrc

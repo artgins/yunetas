@@ -107,7 +107,7 @@ GObjects communicate exclusively via **events** carrying JSON key-value payloads
 
 ```bash
 # From npm (published package)
-npm install gobj-js
+npm install @yuneta/gobj-js
 
 # From source (local)
 npm install /path/to/kernel/js/gobj-js
@@ -116,7 +116,7 @@ npm install /path/to/kernel/js/gobj-js
 Import in your project:
 
 ```javascript
-import { gobj_start_up, gobj_create_yuno, register_c_yuno } from "gobj-js";
+import { gobj_start_up, gobj_create_yuno, register_c_yuno } from "@yuneta/gobj-js";
 ```
 
 ---
@@ -186,7 +186,7 @@ import {
     register_c_yuno,
     register_c_timer,
     register_c_ievent_cli,
-} from "gobj-js";
+} from "@yuneta/gobj-js";
 
 // 1. Register GClasses
 register_c_yuno();
@@ -266,7 +266,7 @@ const states = [
 Attributes are declared in a schema table using `SDATA()` macros. Each attribute has a type, name, flags, default value, and description.
 
 ```javascript
-import { SDATA, SDATA_END, data_type_t, sdata_flag_t } from "gobj-js";
+import { SDATA, SDATA_END, data_type_t, sdata_flag_t } from "@yuneta/gobj-js";
 
 const attrs_table = [
     SDATA(data_type_t.DTP_STRING,  "url",        sdata_flag_t.SDF_RD,      "", "Server URL"),
@@ -614,7 +614,7 @@ Format specifiers: `%s` `%d` `%i` `%f` `%e` `%g` `%o` `%x` `%X` `%b` `%c` `%j` (
 The application root. Always the first GClass registered.
 
 ```javascript
-import { register_c_yuno } from "gobj-js";
+import { register_c_yuno } from "@yuneta/gobj-js";
 register_c_yuno();
 ```
 
@@ -625,7 +625,7 @@ Key attributes: `yuno_name`, `yuno_role`, `yuno_id`, `yuno_version`, `yuno_relea
 Manages timeouts and periodic timers.
 
 ```javascript
-import { register_c_timer, set_timeout, set_timeout_periodic, clear_timeout } from "gobj-js";
+import { register_c_timer, set_timeout, set_timeout_periodic, clear_timeout } from "@yuneta/gobj-js";
 register_c_timer();
 
 // One-shot timeout (ms)
@@ -647,7 +647,7 @@ Attributes: `subscriber`, `periodic`, `msec`
 Inter-event client — proxies a remote Yuneta service over WebSocket so it looks like a local GObject. Used to communicate with backend yunos.
 
 ```javascript
-import { register_c_ievent_cli } from "gobj-js";
+import { register_c_ievent_cli } from "@yuneta/gobj-js";
 register_c_ievent_cli();
 
 let remote = gobj_create_service("backend", "C_IEVENT_CLI", {
@@ -677,7 +677,7 @@ import {
     treedb_get_field_desc,
     template_get_field_desc,
     create_template_record,
-} from "gobj-js";
+} from "@yuneta/gobj-js";
 
 treedb_register_formtable(treedb_name, topic_name, gobj_formtable)
 treedb_get_topic_data(treedb_name, topic_name)
@@ -699,7 +699,7 @@ import {
     gclass_create,
     gobj_subscribe_event, gobj_yuno,
     trace_msg,
-} from "gobj-js";
+} from "@yuneta/gobj-js";
 
 const GCLASS_NAME = "C_MY_CLASS";
 

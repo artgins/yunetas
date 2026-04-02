@@ -63,7 +63,7 @@ import {
     delete_from_list,
     escapeHtml,
     safeSrc,
-} from "gobj-js";
+} from "@yuneta/gobj-js";
 
 import {
     addClasses,

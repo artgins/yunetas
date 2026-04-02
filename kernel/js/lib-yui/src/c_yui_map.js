@@ -29,7 +29,7 @@ import {
     gobj_find_service,
     gobj_create_service,
     gobj_name,
-} from "gobj-js";
+} from "@yuneta/gobj-js";
 
 import "maplibre-gl/dist/maplibre-gl.css"; // Import MapLibre styles
 import maplibregl from "maplibre-gl"; // Import MapLibre JavaScript

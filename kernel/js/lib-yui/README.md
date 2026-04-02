@@ -12,8 +12,8 @@ In your project's `package.json`:
 ```json
 {
     "dependencies": {
-        "lib-yui": "file:../../../yunetas/kernel/js/lib-yui",
-        "gobj-js": "file:../../../yunetas/kernel/js/gobj-js"
+        "@yuneta/lib-yui": "file:../../../yunetas/kernel/js/lib-yui",
+        "@yuneta/gobj-js": "file:../../../yunetas/kernel/js/gobj-js"
     }
 }
 ```
@@ -34,7 +34,7 @@ import {
     register_c_yui_treedb_topics,
     register_c_yui_treedb_graph,
     inject_svg_icons,
-} from "lib-yui";
+} from "@yuneta/lib-yui";
 
 // Register in main():
 register_c_yui_main();
@@ -93,7 +93,7 @@ export default defineConfig({
 ```
 
 > **Note**: `preserveSymlinks: true` is required so that Vite resolves
-> `import "gobj-js"` from within yui-lib's source files using the host
+> `import "@yuneta/gobj-js"` from within yui-lib's source files using the host
 > app's `node_modules/`.
 
 ## Project Structure
@@ -267,7 +267,7 @@ lib-yui does **not** bundle these — your project must include them:
 
 | Package | Used by |
 |---------|---------|
-| `gobj-js` | All components (GClass framework) |
+| `@yuneta/gobj-js` | All components (GClass framework) |
 | `@antv/g6` | `c_g6_nodes_tree`, `c_yui_json_graph` |
 | `bulma` | All components (CSS framework) |
 | `i18next` | `c_yui_main`, `c_yui_form` (i18n) |

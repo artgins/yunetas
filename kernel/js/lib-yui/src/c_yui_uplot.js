@@ -26,7 +26,7 @@ import {
     gobj_write_bool_attr,
     gobj_read_bool_attr,
     is_string, gobj_short_name,
-} from "gobj-js";
+} from "@yuneta/gobj-js";
 
 // Import uPlot
 import uPlot from "uplot";

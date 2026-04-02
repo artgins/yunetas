@@ -11,7 +11,7 @@ import {
     createElement2,
     gobj_send_event,
     parseSVG,
-} from "gobj-js";
+} from "@yuneta/gobj-js";
 
 import {t} from "i18next";
 
