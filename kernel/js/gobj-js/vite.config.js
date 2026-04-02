@@ -5,7 +5,7 @@ export default defineConfig({
     build: {
         lib: {
             entry: "src/index.js",
-            name: "gobj-js"
+            name: "gobjJs"
         },
         test: {
             globals: true,  // Use global `describe` and `test` like Jest
@@ -25,7 +25,7 @@ export default defineConfig({
                 },
                 // Non-minified UMD Module
                 {
-                    name: "gobj-js",
+                    name: "gobjJs",
                     format: "umd",
                     dir: "dist",
                     entryFileNames: "gobj-js.umd.js",
@@ -33,7 +33,7 @@ export default defineConfig({
                 },
                 // Non-minified CJS Module
                 {
-                    name: "gobj-js",
+                    name: "gobjJs",
                     format: "cjs",
                     dir: "dist",
                     entryFileNames: "gobj-js.cjs.js",
@@ -41,7 +41,7 @@ export default defineConfig({
                 },
                 // Non-minified IIFE Module
                 {
-                    name: "gobj-js",
+                    name: "gobjJs",
                     format: "iife",
                     dir: "dist",
                     entryFileNames: "gobj-js.iife.js",
@@ -57,7 +57,7 @@ export default defineConfig({
                 },
                 // Minified UMD Module
                 {
-                    name: "gobj-js",
+                    name: "gobjJs",
                     format: "umd",
                     dir: "dist",
                     entryFileNames: "gobj-js.umd.min.js",
@@ -65,7 +65,7 @@ export default defineConfig({
                 },
                 // Minified CJS Module
                 {
-                    name: "gobj-js",
+                    name: "gobjJs",
                     format: "cjs",
                     dir: "dist",
                     entryFileNames: "gobj-js.cjs.min.js",
@@ -73,7 +73,7 @@ export default defineConfig({
                 },
                 // Minified IIFE Module
                 {
-                    name: "gobj-js",
+                    name: "gobjJs",
                     format: "iife",
                     dir: "dist",
                     entryFileNames: "gobj-js.iife.min.js",
