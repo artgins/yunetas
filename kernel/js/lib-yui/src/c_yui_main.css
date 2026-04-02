@@ -393,36 +393,3 @@ a.flex-horizontal-section { /* To make flex any <a> */
         color: var(--bulma-link-invert);
     }
 }
-
-/*********************************************************
- *      From
- *********************************************************/
-@font-face {
-    font-family: 'Roboto Condensed';
-    src: url('/fonts/RobotoCondensed-Bold.ttf') format('truetype');
-    font-weight: bold;
-}
-.roboto-bold-text {
-    font-family: 'Roboto Condensed', sans-serif;
-    font-weight: bold;
-}
-
-@font-face {
-    font-family:Dancing Script; /* Catalish Huntera; */
-    src:url(/fonts/DancingScript-Bold.ttf) format('truetype');
-    font-weight: bold;
-}
-@font-face {
-    font-family:Titillium Web;
-    src:url(/fonts/TitilliumWeb-Bold.ttf) format('truetype');
-    font-weight: bold;
-}
-
-.titulo1 {
-    font-family:Dancing Script,sans-serif !important; /*Catalish Huntera*/
-    font-size: max(6vw, 36px);
-}
-.titulo2 {
-    font-family:Titillium Web,sans-serif !important;
-    font-size: max(2vw, 16px);
-}
