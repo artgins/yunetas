@@ -114,6 +114,7 @@ typedef struct _PENDING_AUTH {
     char        password[256];          /* /auth/login: password */
     char        refresh_token[4096];    /* /auth/refresh + /auth/logout */
     char        client_origin[512];     /* Origin header (for CORS) */
+    char        client_host[256];       /* Host header (for cookie domain check) */
 } PENDING_AUTH;
 
 /***************************************************************************
@@ -377,6 +378,63 @@ PRIVATE const char *extract_cookie(const char *cookie_header, const char *name,
 }
 
 /***************************************************************************
+ *  Return the effective cookie domain for the current request.
+ *
+ *  If `cookie_domain` is configured but the request's Host header hostname
+ *  doesn't match it, the browser would reject the cookie ("invalid domain").
+ *  This happens during local development when the BFF is configured with a
+ *  production domain (e.g. "treedb.yunetas.com") but accessed via localhost.
+ *
+ *  In that case, return "" (empty) so make_set_cookie() omits the Domain
+ *  attribute entirely, letting the cookie bind to the exact request host.
+ ***************************************************************************/
+PRIVATE const char *effective_cookie_domain(
+    hgobj gobj,
+    const char *cookie_domain,
+    const char *request_host)
+{
+    if(empty_string(cookie_domain)) {
+        return "";  /* not configured — no Domain attribute */
+    }
+    if(empty_string(request_host)) {
+        return cookie_domain;  /* no Host header — keep configured value */
+    }
+
+    /* Strip port from request host (e.g. "localhost:5173" → "localhost") */
+    char hostname[256];
+    snprintf(hostname, sizeof(hostname), "%s", request_host);
+    char *colon = strchr(hostname, ':');
+    if(colon) *colon = '\0';
+
+    /*
+     *  Check: does the request hostname match the configured cookie_domain?
+     *  Accept exact match or subdomain match (host ends with "."+domain).
+     */
+    size_t host_len = strlen(hostname);
+    size_t domain_len = strlen(cookie_domain);
+
+    if(host_len == domain_len && strcmp(hostname, cookie_domain) == 0) {
+        return cookie_domain;  /* exact match */
+    }
+    if(host_len > domain_len + 1 &&
+            hostname[host_len - domain_len - 1] == '.' &&
+            strcmp(hostname + host_len - domain_len, cookie_domain) == 0) {
+        return cookie_domain;  /* subdomain match */
+    }
+
+    /* Mismatch — omit Domain so the cookie binds to the exact host */
+    gobj_log_warning(gobj, 0,
+        "function",         "%s", __FUNCTION__,
+        "msg",              "%s", "cookie_domain does not match request Host, "
+                                  "omitting Domain attribute",
+        "cookie_domain",    "%s", cookie_domain,
+        "request_host",     "%s", request_host,
+        NULL
+    );
+    return "";
+}
+
+/***************************************************************************
  *  Send an HTTP JSON response to the browser client.
  *
  *  extra_headers: raw header lines ("Set-Cookie: …\r\nSet-Cookie: …\r\n")
@@ -570,7 +628,10 @@ PRIVATE json_t *result_token_response(
     }
 
     /* Build Set-Cookie headers */
-    const char *cookie_domain = gobj_read_str_attr(gobj, "cookie_domain");
+    const char *cookie_domain_cfg = gobj_read_str_attr(gobj, "cookie_domain");
+    const char *request_host = kw_get_str(gobj, output_data, "_host", "", 0);
+    const char *cookie_domain = effective_cookie_domain(
+        gobj, cookie_domain_cfg, request_host);
     char *at_cookie = make_set_cookie(COOKIE_NAME_AT, access_token,
         (int)expires_in, cookie_domain);
     char *rt_cookie = make_set_cookie(COOKIE_NAME_RT, refresh_token,
@@ -759,7 +820,10 @@ PRIVATE json_t *result_kc_logout(
     build_cors_headers(gobj, origin, cors_hdrs, sizeof(cors_hdrs), FALSE);
 
     if(browser_src) {
-        const char *cookie_domain = gobj_read_str_attr(gobj, "cookie_domain");
+        const char *cookie_domain_cfg = gobj_read_str_attr(gobj, "cookie_domain");
+        const char *request_host = kw_get_str(gobj, output_data, "_host", "", 0);
+        const char *cookie_domain = effective_cookie_domain(
+            gobj, cookie_domain_cfg, request_host);
         char *at_clear = make_clear_cookie(COOKIE_NAME_AT, cookie_domain);
         char *rt_clear = make_clear_cookie(COOKIE_NAME_RT, cookie_domain);
 
@@ -831,7 +895,7 @@ PRIVATE void process_next(hgobj gobj)
     );
 
     /* Build the task with the appropriate action/result pair */
-    json_t *kw_output = json_pack("{s:I, s:i, s:s, s:s, s:s, s:s, s:s, s:s, s:s}",
+    json_t *kw_output = json_pack("{s:I, s:i, s:s, s:s, s:s, s:s, s:s, s:s, s:s, s:s}",
         "_browser_src",    (json_int_t)(uintptr_t)pa->browser_src,
         "_action",         (int)pa->action,
         "_code",           pa->code,
@@ -840,7 +904,8 @@ PRIVATE void process_next(hgobj gobj)
         "_username",       pa->username,
         "_password",       pa->password,
         "_refresh_token",  pa->refresh_token,
-        "_origin",         pa->client_origin
+        "_origin",         pa->client_origin,
+        "_host",           pa->client_host
     );
 
     json_t *kw_task;
@@ -946,6 +1011,8 @@ PRIVATE int ac_on_message(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
         kw_get_str(gobj, jn_headers, "ORIGIN", "", 0) : "";
     const char *cookie_hdr = jn_headers ?
         kw_get_str(gobj, jn_headers, "COOKIE", "", 0) : "";
+    const char *host_hdr = jn_headers ?
+        kw_get_str(gobj, jn_headers, "HOST", "", 0) : "";
 
     /* Build CORS headers for response */
     char cors_hdrs[1024];
@@ -975,6 +1042,7 @@ PRIVATE int ac_on_message(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
     memset(&pa, 0, sizeof(pa));
     pa.browser_src = src;
     snprintf(pa.client_origin, sizeof(pa.client_origin), "%s", origin);
+    snprintf(pa.client_host, sizeof(pa.client_host), "%s", host_hdr);
 
     if(strcmp(url, "/auth/callback") == 0) {
         /* POST /auth/callback  { code, code_verifier, redirect_uri } */
