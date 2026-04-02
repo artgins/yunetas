@@ -191,7 +191,7 @@ function build_remote_service(gobj)
     /*------------------------------------*
      *      Realtime service
      *------------------------------------*/
-    let remote_service = gobj_create_service(
+    let __remote_service__ = gobj_create_service(
         "__remote_service__",
         "C_IEVENT_CLI",
         {
@@ -209,7 +209,7 @@ function build_remote_service(gobj)
      *      EV_ON_ID_NAK
      */
     gobj_subscribe_event(
-        remote_service,
+        __remote_service__,
         null,
         {},
         gobj
@@ -223,13 +223,13 @@ function build_remote_service(gobj)
  ********************************************/
 function do_connect(gobj, jwt)
 {
-    let remote_service = gobj_find_service("__remote_service__");
-    gobj_write_attr(remote_service, "jwt", jwt);
+    let __remote_service__ = gobj_find_service("__remote_service__");
+    gobj_write_attr(__remote_service__, "jwt", jwt);
 
     /*
      *  Start
      */
-    gobj_start_tree(remote_service);
+    gobj_start_tree(__remote_service__);
 }
 
 /********************************************
@@ -237,13 +237,13 @@ function do_connect(gobj, jwt)
  ********************************************/
 function close_all(gobj)
 {
-    let remote_service = gobj_find_service("__remote_service__");
-    if (remote_service) {
-        gobj_stop_tree(remote_service);
+    let __remote_service__ = gobj_find_service("__remote_service__");
+    if (__remote_service__) {
+        gobj_stop_tree(__remote_service__);
     }
-    let login = gobj_find_service("__login__");
-    if (login) {
-        gobj_send_event(login, "EV_DO_LOGOUT", {}, gobj);
+    let __login__ = gobj_find_service("__login__");
+    if (__login__) {
+        gobj_send_event(__login__, "EV_DO_LOGOUT", {}, gobj);
     }
 }
 
@@ -301,11 +301,11 @@ function build_ui(gobj)
      *  HACK:
      *  Subscribe to ui_main all from login and gobj (default_service)
      */
-    let login = gobj_find_service("__login__");
-    let yui_main = gobj_find_service("__yui_main__");
-    if(login) {
-        gobj_subscribe_event(login, null, {}, yui_main);
-        gobj_subscribe_event(gobj, null, {}, yui_main);
+    let __login__ = gobj_find_service("__login__");
+    let __yui_main__ = gobj_find_service("__yui_main__");
+    if(__login__) {
+        gobj_subscribe_event(__login__, null, {}, __yui_main__);
+        gobj_subscribe_event(gobj, null, {}, __yui_main__);
     }
 }
 
@@ -315,7 +315,7 @@ function build_ui(gobj)
 function build_app(gobj, services_roles)
 {
     let priv = gobj.priv;
-    let remote_service = gobj_find_service("__remote_service__");
+    let __remote_service__ = gobj_find_service("__remote_service__");
 
     let main_remote_service = gobj_read_str_attr(gobj, "remote_yuno_service");
 
@@ -360,7 +360,7 @@ function build_app(gobj, services_roles)
             "#topics_mqtt_broker", // HACK href
             "C_YUI_TREEDB_TOPICS",
             {
-                gobj_remote_yuno: remote_service,
+                gobj_remote_yuno: __remote_service__,
                 treedb_name: "treedb_mqtt_broker",
             },
             gobj
@@ -383,7 +383,7 @@ function build_app(gobj, services_roles)
             "#graphs_mqtt_broker", // HACK href
             "C_YUI_TREEDB_GRAPH",
             {
-                gobj_remote_yuno: remote_service,
+                gobj_remote_yuno: __remote_service__,
                 treedb_name: "treedb_mqtt_broker",
             },
             gobj
@@ -413,7 +413,7 @@ function build_app(gobj, services_roles)
     //         "#topics_authzs", // HACK href
     //         "C_YUI_TREEDB_TOPICS",
     //         {
-    //             gobj_remote_yuno: remote_service,
+    //             gobj_remote_yuno: __remote_service__,
     //             treedb_name: "treedb_authzs",
     //         },
     //         gobj
@@ -455,7 +455,7 @@ function build_app(gobj, services_roles)
     //         {
     //             subscriber: gobj,
     //             treedb_name: "treedb_authzs",
-    //             gobj_remote_yuno: remote_service,
+    //             gobj_remote_yuno: __remote_service__,
     //             label: label,
     //             icon: "yi-hexagon-nodes"
     //         },
@@ -483,7 +483,7 @@ function build_app(gobj, services_roles)
             "#topics_mqtt_broker_system", // HACK href
             "C_YUI_TREEDB_TOPICS",
             {
-                gobj_remote_yuno: remote_service,
+                gobj_remote_yuno: __remote_service__,
                 treedb_name: "treedb_mqtt_broker",
                 system: true,
             },
@@ -510,7 +510,7 @@ function build_app(gobj, services_roles)
     //         "#topics_authzs_system", // HACK href
     //         "C_YUI_TREEDB_TOPICS",
     //         {
-    //             gobj_remote_yuno: remote_service,
+    //             gobj_remote_yuno: __remote_service__,
     //             treedb_name: "treedb_authzs",
     //             system: true,
     //         },
@@ -610,13 +610,13 @@ function ac_on_open(gobj, event, kw, src)
          *  validated server-side).
          */
         gobj_write_attr(gobj, "username", username_);
-        let login = gobj_find_service("__login__");
-        if(login) {
-            gobj_write_attr(login, "username", username_);
+        let __login__ = gobj_find_service("__login__");
+        if(__login__) {
+            gobj_write_attr(__login__, "username", username_);
         }
-        let yui_main = gobj_find_service("__yui_main__");
-        if(yui_main) {
-            gobj_send_event(yui_main, "EV_LOGIN_ACCEPTED",
+        let __yui_main__ = gobj_find_service("__yui_main__");
+        if(__yui_main__) {
+            gobj_send_event(__yui_main__, "EV_LOGIN_ACCEPTED",
                 {username: username_}, gobj);
         }
     } else if(username !== username_) {
