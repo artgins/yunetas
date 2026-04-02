@@ -1,0 +1,86 @@
+{
+    "__version__": "1",
+    "__description__": "auth_bff for localhost development (gui_treedb)",
+    "global": {
+        "__bff_side__.__json_config_variables__": {
+            "__bff_secure_url__": "https://0.0.0.0:1801"
+        }
+    },
+    "services": [
+        {
+            "name": "__bff_side__",
+            "gclass": "IOGate",
+            "autostart": true,
+            "autoplay": false,
+            "kw": {
+                "persistent_channels": false
+            },
+            "children": [
+                {
+                    "name": "bff_server_secure",
+                    "gclass": "C_TCP_S",
+                    "as_service": true,
+                    "kw": {
+                        "crypto": {
+                            "library": "(^^__tls_library__^^)",
+                            "ssl_certificate": "/yuneta/store/certs/localhost.crt",
+                            "ssl_certificate_key": "/yuneta/store/certs/private/localhost.key",
+                            "trace": false
+                        },
+                        "url": "(^^__bff_secure_url__^^)",
+                        "child_tree_filter": {
+                            "kw": {
+                                "__gclass_name__": "C_CHANNEL",
+                                "__disabled__": false,
+                                "connected": false
+                            }
+                        }
+                    }
+                }
+            ],
+            "[^^children^^]": {
+                "__range__": 25,
+                "__vars__": {
+                },
+                "__content__": {
+                    "name": "bff-(^^__range__^^)",
+                    "gclass": "C_CHANNEL",
+                    "kw": {
+                    },
+                    "children": [
+                        {
+                            "name": "bff-(^^__range__^^)",
+                            "gclass": "C_AUTH_BFF",
+                            "kw": {
+                                "keycloak_url": "https://auth.artgins.com/",
+                                "realm": "yunetas.com",
+                                "client_id": "treedb.yunetas.com",
+                                "client_secret": "",
+                                "cookie_domain": "",
+                                "allowed_origin": "",
+                                "allowed_redirect_uri": "",
+                                "crypto": {
+                                    "library": "(^^__tls_library__^^)"
+                                }
+                            },
+                            "children": [
+                                {
+                                    "name": "bff-(^^__range__^^)",
+                                    "gclass": "C_PROT_HTTP_SR",
+                                    "kw": {
+                                    },
+                                    "children": [
+                                        {
+                                            "name": "bff-(^^__range__^^)",
+                                            "gclass": "C_TCP"
+                                        }
+                                    ]
+                                }
+                            ]
+                        }
+                    ]
+                }
+            }
+        }
+    ]
+}
