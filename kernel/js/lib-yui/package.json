@@ -1,6 +1,6 @@
 {
     "name": "@yuneta/lib-yui",
-    "version": "7.1.3",
+    "version": "7.1.4",
     "type": "module",
     "main": "dist/lib-yui.cjs.js",
     "module": "dist/lib-yui.es.js",
