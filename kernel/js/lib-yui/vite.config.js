@@ -25,7 +25,6 @@ export default defineConfig({
                     format: "es",
                     dir: "dist",
                     entryFileNames: "lib-yui.es.js",
-                    compact: false
                 },
                 // Non-minified UMD Module
                 {
@@ -33,7 +32,6 @@ export default defineConfig({
                     format: "umd",
                     dir: "dist",
                     entryFileNames: "lib-yui.umd.js",
-                    compact: false,
                     globals: {
                         "@yuneta/gobj-js": "gobjJs",
                         "@antv/g6": "G6",
@@ -51,7 +49,6 @@ export default defineConfig({
                     format: "cjs",
                     dir: "dist",
                     entryFileNames: "lib-yui.cjs.js",
-                    compact: false
                 },
                 // Non-minified IIFE Module
                 {
@@ -59,7 +56,6 @@ export default defineConfig({
                     format: "iife",
                     dir: "dist",
                     entryFileNames: "lib-yui.iife.js",
-                    compact: false,
                     globals: {
                         "@yuneta/gobj-js": "gobjJs",
                         "@antv/g6": "G6",

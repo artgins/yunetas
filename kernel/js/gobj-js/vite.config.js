@@ -21,7 +21,6 @@ export default defineConfig({
                     format: "es",
                     dir: "dist",
                     entryFileNames: "gobj-js.es.js",
-                    compact: false // ✅ Keep original formatting
                 },
                 // Non-minified UMD Module
                 {
@@ -29,7 +28,6 @@ export default defineConfig({
                     format: "umd",
                     dir: "dist",
                     entryFileNames: "gobj-js.umd.js",
-                    compact: false
                 },
                 // Non-minified CJS Module
                 {
@@ -37,7 +35,6 @@ export default defineConfig({
                     format: "cjs",
                     dir: "dist",
                     entryFileNames: "gobj-js.cjs.js",
-                    compact: false
                 },
                 // Non-minified IIFE Module
                 {
@@ -45,7 +42,6 @@ export default defineConfig({
                     format: "iife",
                     dir: "dist",
                     entryFileNames: "gobj-js.iife.js",
-                    compact: false
                 },
 
                 // Minified ES Module
