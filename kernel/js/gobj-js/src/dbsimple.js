@@ -1,70 +1,143 @@
 /*********************************************************************************
- *          dbsimple.js
+ *      dbsimple.js
  *
- *          Author: Niyamaka
- *          Email: Niyamaka at yuneta.io
- *          Licence: MIT (http://www.opensource.org/licenses/mit-license)
+ *      Licence: MIT (http://www.opensource.org/licenses/mit-license)
+ *      Copyright (c) 2014,2024 Niyamaka.
+ *      Copyright (c) 2025, ArtGins.
  *********************************************************************************/
 
-(function (exports) {
-    "use strict";
+import {
+    kw_get_local_storage_value,
+    kw_remove_local_storage_value,
+    kw_set_local_storage_value,
+    is_object,
+    kw_clone_by_keys,
+    json_object_update_missing,
+    kw_clone_by_not_keys,
+    json_object_size,
+} from "./helpers.js";
 
-    /************************************************************
-     *
-     ************************************************************/
-    function _get_persistent_path(gobj)
-    {
-        var path = "persistent-attrs-" + gobj.gobj_short_name();
-        return path;
+import {
+    sdata_flag_t,
+    gobj_read_attrs,
+    gobj_short_name,
+    gobj_write_attrs,
+} from "./gobj.js";
+
+/************************************************************
+ *
+ ************************************************************/
+function _get_persistent_path(gobj)
+{
+    return "persistent-attrs-" + gobj_short_name(gobj);
+}
+
+/************************************************************
+ *
+ ************************************************************/
+function db_load_persistent_attrs(
+    gobj,
+    keys  // str, list or dict.
+)
+{
+    let jn_attrs = gobj_read_attrs(gobj, sdata_flag_t.SDF_PERSIST, 0);
+    let jn_file = kw_get_local_storage_value(_get_persistent_path(gobj), null, false);
+    if(jn_file && is_object(jn_file)) {
+        let attrs = kw_clone_by_keys(
+            gobj,
+            jn_file,    // owned
+            keys,       // owned
+            false
+        );
+        attrs = kw_clone_by_keys( // Remove attrs removed
+            gobj,
+            attrs,      // owned
+            jn_attrs,   // owned
+            false
+        );
+
+        gobj_write_attrs(gobj, attrs, sdata_flag_t.SDF_PERSIST, 0);
+    }
+}
+
+/************************************************************
+ *
+ ************************************************************/
+function db_save_persistent_attrs(
+    gobj,
+    keys  // str, list or dict.
+)
+{
+    let jn_attrs = gobj_read_attrs(gobj, sdata_flag_t.SDF_PERSIST, 0);
+    let attrs = kw_clone_by_keys(
+        gobj,
+        jn_attrs,   // owned
+        keys,       // owned
+        false
+    );
+
+    let jn_file = kw_get_local_storage_value(_get_persistent_path(gobj), null, false);
+    if(jn_file && is_object(jn_file)) {
+        json_object_update_missing(attrs, jn_file);
     }
 
-    /************************************************************
-     *
-     ************************************************************/
-    function db_load_persistent_attrs(gobj)
-    {
-        var attrs = kw_get_local_storage_value(_get_persistent_path(gobj), null, false);
-        if(attrs && is_object(attrs)) {
-            __update_dict__(
-                gobj.config,
-                filter_dict(attrs, gobj.gobj_get_writable_attrs())
-            );
-        }
-    }
+    kw_set_local_storage_value(
+        _get_persistent_path(gobj),
+        attrs
+    );
+}
 
-    /************************************************************
-     *
-     ************************************************************/
-    function db_save_persistent_attrs(gobj)
-    {
+/************************************************************
+ *
+ ************************************************************/
+function db_remove_persistent_attrs(
+    gobj,
+    keys  // str, list or dict.
+)
+{
+    let jn_file = kw_get_local_storage_value(_get_persistent_path(gobj), null, false);
+
+    let attrs = kw_clone_by_not_keys(
+        gobj,
+        jn_file,
+        keys,
+        false
+    );
+
+    if(json_object_size(attrs)===0) {
+        kw_remove_local_storage_value(_get_persistent_path(gobj));
+    } else {
         kw_set_local_storage_value(
             _get_persistent_path(gobj),
-            filter_dict(gobj.config, gobj.gobj_get_writable_attrs())
+            attrs
         );
     }
+}
 
-    /************************************************************
-     *
-     ************************************************************/
-    function db_remove_persistent_attrs(gobj)
-    {
-        kw_remove_local_storage_value(_get_persistent_path(gobj));
+/************************************************************
+ *
+ ************************************************************/
+function db_list_persistent_attrs(gobj, keys)
+{
+    let jn_file = kw_get_local_storage_value(_get_persistent_path(gobj), null, false);
+    let attrs = {};
+    if(jn_file && is_object(jn_file)) {
+        attrs = kw_clone_by_keys(
+            gobj,
+            jn_file,    // owned
+            keys,       // owned
+            false
+        );
     }
+    return attrs;
+}
 
-    /************************************************************
-     *
-     ************************************************************/
-    function db_list_persistent_attrs()
-    {
-        // TODO
-    }
-
-    //=======================================================================
-    //      Expose the class via the global object
-    //=======================================================================
-    exports.db_load_persistent_attrs = db_load_persistent_attrs;
-    exports.db_save_persistent_attrs = db_save_persistent_attrs;
-    exports.db_remove_persistent_attrs = db_remove_persistent_attrs;
-    exports.db_list_persistent_attrs = db_list_persistent_attrs;
-
-})(this);
+//=======================================================================
+//      Expose the class via the global object
+//=======================================================================
+export {
+    db_load_persistent_attrs,
+    db_save_persistent_attrs,
+    db_remove_persistent_attrs,
+    db_list_persistent_attrs,
+};
