@@ -33,7 +33,7 @@
 /* global ResizeObserver, window, document */
 
 import {
-    __yuno__,
+    gobj_yuno,
     SDATA,
     SDATA_END,
     data_type_t,
@@ -1365,7 +1365,7 @@ function ac_home(gobj, event, kw, src)
 {
     let home = gobj_read_attr(gobj_default_service(), "home");
     if(home) {
-        gobj_send_event(__yuno__.__yui_routing__,
+        gobj_send_event(gobj_yuno().__yui_routing__,
             "EV_SELECT",
             {
                 id: home
