@@ -1,6 +1,6 @@
 {
     "name": "@yuneta/gobj-js",
-    "version": "7.1.2",
+    "version": "7.1.3",
     "description": "Yuneta Simplified v7 in javascript version",
     "author": "Niyamaka",
     "license": "MIT",
@@ -26,7 +26,7 @@
     "devDependencies": {
         "@rollup/plugin-terser": "^1.0.0",
         "@vitest/coverage-v8": "^4.0.18",
-        "vite": "^7.3.1",
+        "vite": "^8.0.3",
         "vitest": "^4.0.18"
     },
     "dependencies": {
