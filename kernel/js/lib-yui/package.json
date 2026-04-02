@@ -4,7 +4,6 @@
     "type": "module",
     "main": "dist/lib-yui.cjs.js",
     "module": "dist/lib-yui.es.js",
-    "browser": "dist/lib-yui.umd.js",
     "exports": {
         ".": {
             "import": "./dist/lib-yui.es.js",

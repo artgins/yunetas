@@ -7,7 +7,6 @@
     "type": "module",
     "main": "dist/gobj-js.cjs.js",
     "module": "dist/gobj-js.es.js",
-    "browser": "dist/gobj-js.umd.js",
     "exports": {
         "import": "./dist/gobj-js.es.js",
         "require": "./dist/gobj-js.cjs.js"
