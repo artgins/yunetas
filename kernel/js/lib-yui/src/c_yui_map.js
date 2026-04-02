@@ -7,7 +7,6 @@
  *          All Rights Reserved.
  ***********************************************************************/
 import {
-    __yuno__,
     SDATA,
     SDATA_END,
     data_type_t,

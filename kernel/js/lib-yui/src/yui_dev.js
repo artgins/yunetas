@@ -7,7 +7,7 @@
  *          All Rights Reserved.
  ***********************************************************************/
 import {
-    __yuno__,
+    gobj_yuno,
     gobj_find_service,
     log_error,
     is_string,
@@ -137,11 +137,11 @@ function trace_traffic()
     let v = kw_get_local_storage_value("trace_traffic");
     v = Number(v);
     if(v) {
-        gobj_write_attr(__yuno__, "trace_inter_event", false);
+        gobj_write_attr(gobj_yuno(), "trace_inter_event", false);
         v = 0;
     } else {
-        gobj_write_attr(__yuno__, "trace_inter_event", true);
-        gobj_write_attr(__yuno__, "trace_ievent_callback", info_traffic);
+        gobj_write_attr(gobj_yuno(), "trace_inter_event", true);
+        gobj_write_attr(gobj_yuno(), "trace_ievent_callback", info_traffic);
         v = 1;
     }
     kw_set_local_storage_value("trace_traffic", v);
@@ -162,7 +162,7 @@ function trace_automata()
     } else {
         v = 0;
     }
-    gobj_write_attr(__yuno__, "tracing", v);
+    gobj_write_attr(gobj_yuno(), "tracing", v);
     kw_set_local_storage_value("trace_automata", v);
     info_user();
 }
@@ -179,7 +179,7 @@ function trace_creation()
     } else {
         v = 0;
     }
-    gobj_write_attr(__yuno__, "trace_creation", v);
+    gobj_write_attr(gobj_yuno(), "trace_creation", v);
     kw_set_local_storage_value("trace_creation", v);
     info_user();
 }
@@ -196,7 +196,7 @@ function trace_start_stop()
     } else {
         v = 0;
     }
-    gobj_write_attr(__yuno__, "trace_start_stop", v);
+    gobj_write_attr(gobj_yuno(), "trace_start_stop", v);
     kw_set_local_storage_value("trace_start_stop", v);
     info_user();
 }
@@ -213,7 +213,7 @@ function trace_subscriptions()
     } else {
         v = 0;
     }
-    gobj_write_attr(__yuno__, "trace_subscriptions", v);
+    gobj_write_attr(gobj_yuno(), "trace_subscriptions", v);
     kw_set_local_storage_value("trace_subscriptions", v);
     info_user();
 }
@@ -247,7 +247,7 @@ function set_no_poll()
     } else {
         v = 1;
     }
-    gobj_write_attr(__yuno__, "no_poll", v);
+    gobj_write_attr(gobj_yuno(), "no_poll", v);
     kw_set_local_storage_value("no_poll", v);
     info_user();
 }
@@ -415,11 +415,11 @@ function setup_dev(self, show)
     }
 
     if(traffic) {
-        gobj_write_attr(__yuno__, "trace_inter_event", true);
-        gobj_write_attr(__yuno__, "trace_ievent_callback", info_traffic);
+        gobj_write_attr(gobj_yuno(), "trace_inter_event", true);
+        gobj_write_attr(gobj_yuno(), "trace_ievent_callback", info_traffic);
     }
-    gobj_write_attr(__yuno__, "tracing", trace);
-    gobj_write_attr(__yuno__, "no_poll", no_poll);
+    gobj_write_attr(gobj_yuno(), "tracing", trace);
+    gobj_write_attr(gobj_yuno(), "no_poll", no_poll);
 }
 
 export {info_traffic, setup_dev};

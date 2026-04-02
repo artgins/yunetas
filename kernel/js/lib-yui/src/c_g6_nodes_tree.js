@@ -15,7 +15,7 @@
  *          All Rights Reserved.
  ***********************************************************************/
 import {
-    __yuno__,
+    gobj_yuno,
     SDATA,
     SDATA_END,
     data_type_t,
@@ -1713,7 +1713,7 @@ function save_geometry(gobj)
     }
 
     // Save one __graphs__ record per topic
-    let origin = gobj_read_str_attr(__yuno__, "node_uuid");
+    let origin = gobj_read_str_attr(gobj_yuno(), "node_uuid");
 
     for(const [topic_name, properties] of Object.entries(priv._graph_properties)) {
         // Add origin metadata
@@ -1749,7 +1749,7 @@ function save_topic_graph_properties(gobj, topic_name)
         return;
     }
 
-    let origin = gobj_read_str_attr(__yuno__, "node_uuid");
+    let origin = gobj_read_str_attr(gobj_yuno(), "node_uuid");
     properties.__origin__ = origin;
 
     let kw_update = {

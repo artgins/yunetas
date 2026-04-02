@@ -7,7 +7,6 @@
  *          All Rights Reserved.
  ***********************************************************************/
 import {
-    __yuno__,
     SDATA,
     SDATA_END,
     event_flag_t,
