@@ -688,7 +688,8 @@ PRIVATE int encrypt_data(
         gbuffer_get(gbuf, written); // Pop data
 
         if(sskt->ytls->trace_tls) {
-            gobj_trace_dump(gobj, p, written, "------- ==> encrypt_data DATA, userp %p", sskt->user_data);
+            // gobj_trace_dump(gobj, p, written, "------- ==> encrypt_data DATA, userp %p", sskt->user_data);
+            gobj_trace_msg(gobj, "------- ==> encrypt_data DATA, userp %p, len %d", sskt->user_data, written);
         }
 
         if(flush_encrypted_data(sskt) < 0) {
@@ -854,8 +855,7 @@ PRIVATE int decrypt_data(
         gbuffer_get(gbuf, appended);
 
         if(sskt->ytls->trace_tls) {
-            gobj_trace_msg(gobj, "------- decrypt_data: fed %zu bytes into encrypted_buffer, userp %p",
-                appended, sskt->user_data);
+            gobj_trace_msg(gobj, "------- <== decrypt_data, userp %p, len %zu", sskt->user_data, appended);
         }
     }
     GBUFFER_DECREF(gbuf);

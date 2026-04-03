@@ -814,7 +814,8 @@ PRIVATE int encrypt_data(
         gbuffer_get(gbuf, written);    // Pop data
 
         if(sskt->ytls->trace_tls) {
-            gobj_trace_dump(gobj, p, len, "------- ==> encrypt_data DATA, userp %p", sskt->user_data);
+            // gobj_trace_dump(gobj, p, len, "------- ==> encrypt_data DATA, userp %p", sskt->user_data);
+            gobj_trace_msg(gobj, "------- ==> encrypt_data DATA, userp %p, len %d", sskt->user_data, (int)len);
         }
         gbuffer_get(gbuf, written);    // Pop data
         if(flush_encrypted_data(sskt)<0) {
@@ -909,7 +910,8 @@ PRIVATE int decrypt_data(
         gbuffer_get(gbuf, written);    // Pop data
 
         if(sskt->ytls->trace_tls) {
-            gobj_trace_dump(gobj, p, len, "------- <== decrypt_data, userp %p", sskt->user_data);
+            // gobj_trace_dump(gobj, p, len, "------- <== decrypt_data, userp %p", sskt->user_data);
+            gobj_trace_msg(gobj, "------- <== decrypt_data, userp %p, len %zu", sskt->user_data, len);
         }
         if(!SSL_is_init_finished(sskt->ssl)) {
             if(do_handshake(sskt)<0) {
