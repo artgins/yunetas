@@ -289,7 +289,7 @@ PRIVATE int mt_start(hgobj gobj)
         uint32_t trace_level = gobj_trace_level(gobj);
         json_object_set_new(
             jn_crypto,
-            "trace",
+            "trace_tls",
             json_boolean(priv->trace_tls || trace_level & TRACE_TLS)
         );
 

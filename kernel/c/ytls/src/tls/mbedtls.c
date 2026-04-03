@@ -73,7 +73,7 @@ typedef struct ytls_s {
     // mbedtls_ctr_drbg_context ctr_drbg;
     // mbedtls_entropy_context entropy;
 
-    BOOL trace;
+    BOOL trace_tls;
     size_t rx_buffer_size;
     hgobj gobj;
     char ssl_server_name[256]; // Server name for SNI (client-side TLS only)
@@ -286,8 +286,8 @@ PRIVATE hytls init(
     ytls->rx_buffer_size = kw_get_int(
         gobj, jn_config, "rx_buffer_size", 32*1024, 0
     );
-    ytls->trace = kw_get_bool(
-        gobj, jn_config, "trace", 0, KW_WILD_NUMBER
+    ytls->trace_tls = kw_get_bool(
+        gobj, jn_config, "trace_tls", 0, KW_WILD_NUMBER
     );
     ytls->gobj = gobj;
     snprintf(ytls->ssl_server_name, sizeof(ytls->ssl_server_name), "%s",
@@ -367,7 +367,7 @@ static int mbedtls_ssl_recv_callback(void *ctx, unsigned char *buf, size_t len) 
 
     // Check if there is encrypted data available
     size_t available = gbuffer_chunk(sskt->encrypted_buffer);
-    if(sskt->ytls->trace) {
+    if(sskt->ytls->trace_tls) {
         hgobj gobj = sskt->ytls->gobj;
         gobj_trace_msg(gobj, "------- recv_callback: available=%zu, requested=%zu, userp %p",
             available, len, sskt->user_data);
@@ -551,9 +551,9 @@ PRIVATE void set_trace(hsskt sskt_, BOOL set)
 {
     sskt_t *sskt = (sskt_t *)sskt_;
     ytls_t *ytls = sskt->ytls;
-    ytls->trace = set ? TRUE : FALSE;
+    ytls->trace_tls = set ? TRUE : FALSE;
 
-    if(ytls->trace) {
+    if(ytls->trace_tls) {
         mbedtls_ssl_conf_dbg(&ytls->conf, mbedtls_debug_callback, ytls);
     } else {
         mbedtls_ssl_conf_dbg(&ytls->conf, NULL, NULL);
@@ -568,7 +568,7 @@ PRIVATE int do_handshake(hsskt sskt_)
     sskt_t *sskt = (sskt_t *)sskt_;
     hgobj gobj = sskt->ytls->gobj;
 
-    if(sskt->ytls->trace) {
+    if(sskt->ytls->trace_tls) {
         gobj_trace_msg(gobj, "------- do_handshake, userp %p", sskt->user_data);
     }
 
@@ -576,7 +576,7 @@ PRIVATE int do_handshake(hsskt sskt_)
 
     if(ret != 0) {
         if(ret == MBEDTLS_ERR_SSL_WANT_READ || ret == MBEDTLS_ERR_SSL_WANT_WRITE) {
-            if(sskt->ytls->trace) {
+            if(sskt->ytls->trace_tls) {
                 gobj_trace_msg(gobj, "------- handshake: %s, userp %p",
                     ret == MBEDTLS_ERR_SSL_WANT_READ ? "WANT_READ" : "WANT_WRITE",
                     sskt->user_data
@@ -650,7 +650,7 @@ PRIVATE int encrypt_data(
 
         if(written <= 0) {
             if(written == MBEDTLS_ERR_SSL_WANT_READ || written == MBEDTLS_ERR_SSL_WANT_WRITE) {
-                if(sskt->ytls->trace) {
+                if(sskt->ytls->trace_tls) {
                     gobj_trace_msg(gobj, "------- encrypt_data: WANT_READ/WANT_WRITE, userp %p", sskt->user_data);
                 }
                 if(++want_retries > 5) {
@@ -687,7 +687,7 @@ PRIVATE int encrypt_data(
         want_retries = 0;
         gbuffer_get(gbuf, written); // Pop data
 
-        if(sskt->ytls->trace) {
+        if(sskt->ytls->trace_tls) {
             gobj_trace_dump(gobj, p, written, "------- ==> encrypt_data DATA, userp %p", sskt->user_data);
         }
 
@@ -720,7 +720,7 @@ PRIVATE int flush_clear_data(sskt_t *sskt)
     BOOL sskt_alive = TRUE;
     sskt->alive = &sskt_alive;
 
-    if(sskt->ytls->trace) {
+    if(sskt->ytls->trace_tls) {
         gobj_trace_msg(gobj, "------- flush_clear_data(), userp %p", sskt->user_data);
     }
 
@@ -740,7 +740,7 @@ PRIVATE int flush_clear_data(sskt_t *sskt)
         char *p = gbuffer_cur_wr_pointer(gbuf);
         int nread = mbedtls_ssl_read(&sskt->ssl, (unsigned char *)p, sskt->ytls->rx_buffer_size);
 
-        if(sskt->ytls->trace) {
+        if(sskt->ytls->trace_tls) {
             gobj_trace_msg(gobj, "------- flush_clear_data() %d, userp %p", nread, sskt->user_data);
         }
 
@@ -759,7 +759,7 @@ PRIVATE int flush_clear_data(sskt_t *sskt)
             gbuffer_decref(gbuf);
 
             if(nread == MBEDTLS_ERR_SSL_WANT_READ || nread == MBEDTLS_ERR_SSL_WANT_WRITE) {
-                if(sskt->ytls->trace) {
+                if(sskt->ytls->trace_tls) {
                     gobj_trace_msg(gobj, "------- flush_clear_data WANT_READ/WANT_WRITE, userp %p", sskt->user_data);
                 }
                 /*
@@ -781,7 +781,7 @@ PRIVATE int flush_clear_data(sskt_t *sskt)
                  * to inform us — it is NOT a fatal error.  Continue reading;
                  * application data may follow immediately.
                  */
-                if(sskt->ytls->trace) {
+                if(sskt->ytls->trace_tls) {
                     gobj_trace_msg(gobj, "------- flush_clear_data: TLS1.3 NewSessionTicket received, continuing, userp %p", sskt->user_data);
                 }
                 continue;
@@ -791,7 +791,7 @@ PRIVATE int flush_clear_data(sskt_t *sskt)
                 mbedtls_strerror(nread, error_buf, sizeof(error_buf));
                 if(nread == -30848) {
                     // SSL - The peer notified us that the connection is going to be closed
-                    if(sskt->ytls->trace) {
+                    if(sskt->ytls->trace_tls) {
                         gobj_trace_msg(gobj, "------- flush_clear_data: The peer notified connection is going to be closed, userp %p", sskt->user_data);
                     }
                 } else {
@@ -853,7 +853,7 @@ PRIVATE int decrypt_data(
         }
         gbuffer_get(gbuf, appended);
 
-        if(sskt->ytls->trace) {
+        if(sskt->ytls->trace_tls) {
             gobj_trace_msg(gobj, "------- decrypt_data: fed %zu bytes into encrypted_buffer, userp %p",
                 appended, sskt->user_data);
         }
@@ -876,7 +876,7 @@ PRIVATE int decrypt_data(
             }
         } else if(ret == MBEDTLS_ERR_SSL_WANT_READ || ret == MBEDTLS_ERR_SSL_WANT_WRITE) {
             /* Normal: need more data from the network or waiting for write */
-            if(sskt->ytls->trace) {
+            if(sskt->ytls->trace_tls) {
                 gobj_trace_msg(gobj, "------- decrypt_data handshake: %s, userp %p",
                     ret == MBEDTLS_ERR_SSL_WANT_READ ? "WANT_READ" : "WANT_WRITE",
                     sskt->user_data);

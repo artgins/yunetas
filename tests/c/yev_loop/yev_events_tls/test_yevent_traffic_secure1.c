@@ -539,7 +539,7 @@ PRIVATE int do_test(void)
         "library", TLS_LIBRARY_NAME,
         "ssl_certificate", "/yuneta/agent/certs/localhost.crt",
         "ssl_certificate_key", "/yuneta/agent/certs/localhost.key",
-        "trace", 0
+        "trace_tls", 0
     );
     ytls_server = ytls_init(
         0,
@@ -553,7 +553,7 @@ PRIVATE int do_test(void)
      *--------------------------------*/
     json_t *jn_crypto_c = json_pack("{s:s, s:b}",
         "library", TLS_LIBRARY_NAME,
-        "trace", 0
+        "trace_tls", 0
     );
     ytls_client = ytls_init(
         0,

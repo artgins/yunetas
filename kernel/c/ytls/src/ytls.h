@@ -106,7 +106,7 @@ typedef struct { // Common to all ytls_t types
     Startup tls context
 
     "library"   library to use, default: TLS_LIBRARY_NAME (compile-time backend: openssl or mbedtls)
-    "trace"     True to verbose trace.
+    "trace_tls" True to verbose trace.
 
     OPENSSL jn_config
     -----------------

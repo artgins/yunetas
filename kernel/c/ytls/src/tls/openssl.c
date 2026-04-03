@@ -66,6 +66,7 @@ socket write of encrypted data.
 
 ***********************************************************************/
 #include <yuneta_config.h>
+#define CONFIG_HAVE_OPENSSL
 
 #ifdef CONFIG_HAVE_OPENSSL
 
@@ -90,7 +91,7 @@ typedef struct ytls_s {
     api_tls_t *api_tls;     // HACK must be the first item
     BOOL server;
     SSL_CTX *ctx;
-    BOOL trace;
+    BOOL trace_tls;
     size_t rx_buffer_size;
     hgobj gobj;
 } ytls_t;
@@ -392,10 +393,10 @@ PRIVATE hytls init(
     ytls->ctx = ctx;
     ytls->gobj = gobj;
 
-    /* the SSL trace callback is only used for verbose logging */
-    ytls->trace = kw_get_bool(gobj, jn_config, "trace", 0, KW_WILD_NUMBER);
+    /* the SSL trace_tls callback is only used for verbose logging */
+    ytls->trace_tls = kw_get_bool(gobj, jn_config, "trace_tls", 0, KW_WILD_NUMBER);
 
-    if(ytls->trace) {
+    if(ytls->trace_tls) {
         SSL_CTX_set_msg_callback(ytls->ctx, ssl_tls_trace);
         SSL_CTX_set_msg_callback_arg(ytls->ctx, ytls);
     }
@@ -559,7 +560,7 @@ PRIVATE hsskt new_secure_filter(
         return 0;
     }
 
-    if(ytls->trace) {
+    if(ytls->trace_tls) {
         SSL_set_msg_callback(sskt->ssl, ssl_tls_trace);
         SSL_set_msg_callback_arg(sskt->ssl, ytls);
     } else {
@@ -616,9 +617,9 @@ PRIVATE void free_secure_filter(hsskt sskt_)
 PRIVATE void set_trace(hsskt sskt_, BOOL set)
 {
     sskt_t *sskt = sskt_;
-    sskt->ytls->trace = set?TRUE:FALSE;
+    sskt->ytls->trace_tls = set?TRUE:FALSE;
 
-    if(sskt->ytls->trace) {
+    if(sskt->ytls->trace_tls) {
         SSL_CTX_set_msg_callback(sskt->ytls->ctx, ssl_tls_trace);
         SSL_CTX_set_msg_callback_arg(sskt->ytls->ctx, sskt->ytls);
         if(sskt->ssl) {
@@ -640,7 +641,7 @@ PRIVATE int do_handshake(hsskt sskt_)
     sskt_t *sskt = sskt_;
     hgobj gobj = sskt->ytls->gobj;
 
-    if(sskt->ytls->trace) {
+    if(sskt->ytls->trace_tls) {
         gobj_trace_msg(gobj, "------- do_handshake, userp %p", sskt->user_data);
     }
 
@@ -663,7 +664,7 @@ PRIVATE int do_handshake(hsskt sskt_)
         switch(detail) {
         case SSL_ERROR_WANT_READ:
         case SSL_ERROR_WANT_WRITE:
-            if(sskt->ytls->trace) {
+            if(sskt->ytls->trace_tls) {
                 gobj_trace_msg(gobj, "------- encrypt_data: %s, userp %p",
                     ret==SSL_ERROR_WANT_READ?"SSL_ERROR_WANT_READ":"SSL_ERROR_WANT_WRITE",
                     sskt->user_data
@@ -707,7 +708,7 @@ PRIVATE int flush_encrypted_data(sskt_t *sskt)
 {
     hgobj gobj = sskt->ytls->gobj;
 
-    if(sskt->ytls->trace) {
+    if(sskt->ytls->trace_tls) {
         gobj_trace_msg(gobj, "------- flush_encrypted_data(), userp %p", sskt->user_data);
     }
     /*
@@ -737,7 +738,7 @@ PRIVATE int flush_encrypted_data(sskt_t *sskt)
         }
         char *p = gbuffer_cur_wr_pointer(gbuf);
         const int ret = BIO_read(sskt->wbio, p, pending);
-        if(sskt->ytls->trace) {
+        if(sskt->ytls->trace_tls) {
             gobj_trace_msg(gobj, "------- flush_encrypted_data() %d, userp %p", ret, sskt->user_data);
         }
         if(ret > 0) {
@@ -783,7 +784,7 @@ PRIVATE int encrypt_data(
             switch(ret) {
             case SSL_ERROR_WANT_READ:
             case SSL_ERROR_WANT_WRITE:
-                if(sskt->ytls->trace) {
+                if(sskt->ytls->trace_tls) {
                     gobj_trace_msg(gobj, "------- encrypt_data: %s, userp %p",
                         ret==SSL_ERROR_WANT_READ?"SSL_ERROR_WANT_READ":"SSL_ERROR_WANT_WRITE",
                         sskt->user_data
@@ -812,7 +813,7 @@ PRIVATE int encrypt_data(
         }
         gbuffer_get(gbuf, written);    // Pop data
 
-        if(sskt->ytls->trace) {
+        if(sskt->ytls->trace_tls) {
             gobj_trace_dump(gobj, p, len, "------- ==> encrypt_data DATA, userp %p", sskt->user_data);
         }
         gbuffer_get(gbuf, written);    // Pop data
@@ -833,14 +834,14 @@ PRIVATE int flush_clear_data(sskt_t *sskt)
 {
     hgobj gobj = sskt->ytls->gobj;
     int ret = 0;
-    if(sskt->ytls->trace) {
+    if(sskt->ytls->trace_tls) {
         gobj_trace_msg(gobj, "------- flush_clear_data(), userp %p", sskt->user_data);
     }
     while(sskt->ssl) {
         gbuffer_t *gbuf = gbuffer_create(sskt->ytls->rx_buffer_size, sskt->ytls->rx_buffer_size);
         char *p = gbuffer_cur_wr_pointer(gbuf);
         int nread = SSL_read(sskt->ssl, p, sskt->ytls->rx_buffer_size);
-        if(sskt->ytls->trace) {
+        if(sskt->ytls->trace_tls) {
             gobj_trace_msg(gobj, "------- flush_clear_data() %d, userp %p", nread, sskt->user_data);
         }
         if(nread <= 0) {
@@ -907,7 +908,7 @@ PRIVATE int decrypt_data(
 
         gbuffer_get(gbuf, written);    // Pop data
 
-        if(sskt->ytls->trace) {
+        if(sskt->ytls->trace_tls) {
             gobj_trace_dump(gobj, p, len, "------- <== decrypt_data, userp %p", sskt->user_data);
         }
         if(!SSL_is_init_finished(sskt->ssl)) {
