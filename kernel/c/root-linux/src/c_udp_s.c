@@ -69,10 +69,12 @@ SDATA_END()
  *      GClass trace levels
  *---------------------------------------------*/
 enum {
-    TRACE_TRAFFIC           = 0x0001,
+    TRACE_TRAFFIC   = 0x0001,
+    TRACE_TLS       = 0x0002,
 };
 PRIVATE const trace_level_t s_user_trace_level[16] = {
-{"traffic",             "Trace dump traffic"},
+{"traffic",         "Trace dump traffic"},
+{"tls",             "Trace tls"},
 {0, 0},
 };
 
@@ -284,7 +286,12 @@ PRIVATE int mt_start(hgobj gobj)
         gobj_write_bool_attr(gobj, "use_ssl", TRUE);
 
         json_t *jn_crypto = gobj_read_json_attr(gobj, "crypto");
-        json_object_set_new(jn_crypto, "trace", json_boolean(priv->trace_tls));
+        uint32_t trace_level = gobj_trace_level(gobj);
+        json_object_set_new(
+            jn_crypto,
+            "trace",
+            json_boolean(priv->trace_tls || trace_level & TRACE_TLS)
+        );
 
         EXEC_AND_RESET(ytls_cleanup, priv->ytls)
         priv->ytls = ytls_init(gobj, jn_crypto, TRUE);
