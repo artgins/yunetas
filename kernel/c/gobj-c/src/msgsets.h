@@ -38,6 +38,8 @@ extern "C"{
 #define MSGSET_RUNTIME_ERROR            "Runtime error"
 #define MSGSET_MQTT_ERROR               "Mqtt error"
 #define MSGSET_POSTGRES_ERROR           "Postgres error"
+#define MSGSET_OPENSSL_ERROR            "OpenSSL error"
+#define MSGSET_MBEDTLS_ERROR            "MbedTLS error"
 
 // Info/Debug MSGSETs
 #define MSGSET_STATISTICS               "Statistics"

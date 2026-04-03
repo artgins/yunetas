@@ -167,7 +167,7 @@ PRIVATE hytls init(
             "sizeof(ytls_t)",   "%d", sizeof(ytls_t),
             NULL
         );
-        return 0;
+        return NULL;
     }
 
     // Initialize mbedTLS structures
@@ -189,12 +189,12 @@ PRIVATE hytls init(
     // ) != 0) {
     //     gobj_log_error(gobj, 0,
     //         "function",         "%s", __FUNCTION__,
-    //         "msgset",           "%s", MSGSET_AUTH_ERROR,
+    //         "msgset",           "%s", MSGSET_MBEDTLS_ERROR,
     //         "msg",              "%s", "mbedtls_ctr_drbg_seed() FAILED",
     //         NULL
     //     );
     //     cleanup((hytls)ytls);
-    //     return 0;
+    //     return NULL;
     // }
 
     // Set default SSL configuration
@@ -206,12 +206,12 @@ PRIVATE hytls init(
     ) != 0) {
         gobj_log_error(gobj, 0,
             "function",         "%s", __FUNCTION__,
-            "msgset",           "%s", MSGSET_AUTH_ERROR,
+            "msgset",           "%s", MSGSET_MBEDTLS_ERROR,
             "msg",              "%s", "mbedtls_ssl_config_defaults() FAILED",
             NULL
         );
         cleanup((hytls)ytls);
-        return 0;
+        return NULL;
     }
 
     // Load own certificate and private key (required for server; optional for mutual-TLS client)
@@ -226,13 +226,13 @@ PRIVATE hytls init(
         if(mbedtls_x509_crt_parse_file(&ytls->cert, ssl_certificate) != 0) {
             gobj_log_error(gobj, 0,
                 "function",         "%s", __FUNCTION__,
-                "msgset",           "%s", MSGSET_AUTH_ERROR,
+                "msgset",           "%s", MSGSET_MBEDTLS_ERROR,
                 "msg",              "%s", "mbedtls_x509_crt_parse_file() FAILED",
                 "cert",             "%s", ssl_certificate,
                 NULL
             );
             cleanup((hytls)ytls);
-            return 0;
+            return NULL;
         }
 
         if(mbedtls_pk_parse_keyfile(
@@ -242,13 +242,13 @@ PRIVATE hytls init(
         ) != 0) {
             gobj_log_error(gobj, 0,
                 "function",         "%s", __FUNCTION__,
-                "msgset",           "%s", MSGSET_AUTH_ERROR,
+                "msgset",           "%s", MSGSET_MBEDTLS_ERROR,
                 "msg",              "%s", "mbedtls_pk_parse_keyfile() FAILED",
                 "cert_key",         "%s", ssl_certificate_key,
                 NULL
             );
             cleanup((hytls)ytls);
-            return 0;
+            return NULL;
         }
 
         mbedtls_ssl_conf_own_cert(&ytls->conf, &ytls->cert, &ytls->pkey);
@@ -262,13 +262,13 @@ PRIVATE hytls init(
         if(mbedtls_x509_crt_parse_file(&ytls->ca_cert, ssl_trusted_certificate) != 0) {
             gobj_log_error(gobj, 0,
                 "function",         "%s", __FUNCTION__,
-                "msgset",           "%s", MSGSET_AUTH_ERROR,
+                "msgset",           "%s", MSGSET_MBEDTLS_ERROR,
                 "msg",              "%s", "mbedtls_x509_crt_parse_file() FAILED for trusted cert",
                 "ssl_trusted_certificate", "%s", ssl_trusted_certificate,
                 NULL
             );
             cleanup((hytls)ytls);
-            return 0;
+            return NULL;
         }
         mbedtls_ssl_conf_ca_chain(&ytls->conf, &ytls->ca_cert, NULL);
         mbedtls_ssl_conf_authmode(&ytls->conf, MBEDTLS_SSL_VERIFY_REQUIRED);
@@ -284,7 +284,7 @@ PRIVATE hytls init(
     // Configure other parameters
     ytls->server = server;
     ytls->rx_buffer_size = kw_get_int(
-        gobj, jn_config, "rx_buffer_size", 32 * 1024, 0
+        gobj, jn_config, "rx_buffer_size", 32*1024, 0
     );
     ytls->trace = kw_get_bool(
         gobj, jn_config, "trace", 0, KW_WILD_NUMBER
@@ -327,12 +327,24 @@ PRIVATE const char *version(hytls ytls)
     return MBEDTLS_VERSION_STRING;
 }
 
-static int mbedtls_ssl_send_callback(void *ctx, const unsigned char *buf, size_t len) {
+static int mbedtls_ssl_send_callback(
+    void *ctx,
+    const unsigned char *buf,
+    size_t len
+) {
     sskt_t *sskt = (sskt_t *)ctx;
+    hgobj gobj = NULL;
 
     // Create a buffer for the encrypted data
     gbuffer_t *gbuf = gbuffer_create(len, len);
     if(!gbuf) {
+        gobj_log_error(gobj, 0,
+            "function",         "%s", __FUNCTION__,
+            "msgset",           "%s", MSGSET_MEMORY_ERROR,
+            "msg",              "%s", "no memory for gbuffer",
+            "size",             "%d", (int)len,
+            NULL
+        );
         return MBEDTLS_ERR_SSL_INTERNAL_ERROR; // Out of memory
     }
 
@@ -395,7 +407,7 @@ PRIVATE hsskt new_secure_filter(
             "sizeof(sskt_t)",   "%d", sizeof(sskt_t),
             NULL
         );
-        return 0;
+        return NULL;
     }
 
     // Initialize the mbedTLS SSL context
@@ -404,12 +416,12 @@ PRIVATE hsskt new_secure_filter(
     if(mbedtls_ssl_setup(&sskt->ssl, &ytls->conf) != 0) {
         gobj_log_error(ytls->gobj, 0,
             "function",         "%s", __FUNCTION__,
-            "msgset",           "%s", MSGSET_AUTH_ERROR,
+            "msgset",           "%s", MSGSET_MBEDTLS_ERROR,
             "msg",              "%s", "mbedtls_ssl_setup() FAILED",
             NULL
         );
         GBMEM_FREE(sskt);
-        return 0;
+        return NULL;
     }
 
     // Set user-defined callbacks and user data
@@ -446,14 +458,14 @@ PRIVATE hsskt new_secure_filter(
             mbedtls_strerror(ret, error_buf, sizeof(error_buf));
             gobj_log_error(ytls->gobj, 0,
                 "function",         "%s", __FUNCTION__,
-                "msgset",           "%s", MSGSET_AUTH_ERROR,
+                "msgset",           "%s", MSGSET_MBEDTLS_ERROR,
                 "msg",              "%s", "Initial TLS handshake (Client Hello) FAILED",
                 "error_code",       "%d", ret,
                 "error_message",    "%s", error_buf,
                 NULL
             );
             free_secure_filter(sskt);
-            return 0;
+            return NULL;
         }
         // send_callback was invoked by mbedTLS to transmit the Client Hello;
         // on_encrypted_data_cb has already queued it for writing to the socket.
@@ -474,7 +486,7 @@ PRIVATE void shutdown_sskt(hsskt sskt_)
     if(ret < 0) {
         gobj_log_error(sskt->ytls->gobj, 0,
             "function",         "%s", __FUNCTION__,
-            "msgset",           "%s", MSGSET_SYSTEM_ERROR,
+            "msgset",           "%s", MSGSET_MBEDTLS_ERROR,
             "msg",              "%s", "mbedtls_ssl_close_notify() FAILED",
             "error",            "%d", ret,
             NULL
@@ -576,7 +588,7 @@ PRIVATE int do_handshake(hsskt sskt_)
             mbedtls_strerror(ret, error_buf, sizeof(error_buf));
             gobj_log_error(gobj, 0,
                 "function",         "%s", __FUNCTION__,
-                "msgset",           "%s", MSGSET_SYSTEM_ERROR,
+                "msgset",           "%s", MSGSET_MBEDTLS_ERROR,
                 "msg",              "%s", "TLS handshake failed",
                 "error_code",       "%d", ret,
                 "error_message",    "%s", error_buf,
@@ -622,7 +634,7 @@ PRIVATE int encrypt_data(
     if(!mbedtls_ssl_is_handshake_over(&sskt->ssl)) {
         gobj_log_error(gobj, 0,
             "function",         "%s", __FUNCTION__,
-            "msgset",           "%s", MSGSET_INTERNAL_ERROR,
+            "msgset",           "%s", MSGSET_MBEDTLS_ERROR,
             "msg",              "%s", "TLS handshake PENDING",
             NULL
         );
@@ -646,7 +658,7 @@ PRIVATE int encrypt_data(
                     // Caller will retry when new data arrives via the event loop.
                     gobj_log_warning(gobj, 0,
                         "function",     "%s", __FUNCTION__,
-                        "msgset",       "%s", MSGSET_SYSTEM_ERROR,
+                        "msgset",       "%s", MSGSET_MBEDTLS_ERROR,
                         "msg",          "%s", "mbedtls_ssl_write() WANT stall, aborting",
                         NULL
                     );
@@ -661,7 +673,7 @@ PRIVATE int encrypt_data(
                 mbedtls_strerror(written, error_buf, sizeof(error_buf));
                 gobj_log_error(gobj, 0,
                     "function",         "%s", __FUNCTION__,
-                    "msgset",           "%s", MSGSET_SYSTEM_ERROR,
+                    "msgset",           "%s", MSGSET_MBEDTLS_ERROR,
                     "msg",              "%s", "mbedtls_ssl_write() FAILED",
                     "error_code",       "%d", written,
                     "error_message",    "%s", error_buf,
@@ -785,7 +797,7 @@ PRIVATE int flush_clear_data(sskt_t *sskt)
                 } else {
                     gobj_log_error(gobj, 0,
                         "function",         "%s", __FUNCTION__,
-                        "msgset",           "%s", MSGSET_SYSTEM_ERROR,
+                        "msgset",           "%s", MSGSET_MBEDTLS_ERROR,
                         "msg",              "%s", "mbedtls_ssl_read() FAILED",
                         "error_code",       "%d", nread,
                         "error_message",    "%s", error_buf,
@@ -833,7 +845,7 @@ PRIVATE int decrypt_data(
             /* Buffer full — this should not happen with a 32 KB buffer for TLS */
             gobj_log_error(gobj, 0,
                 "function",         "%s", __FUNCTION__,
-                "msgset",           "%s", MSGSET_INTERNAL_ERROR,
+                "msgset",           "%s", MSGSET_MBEDTLS_ERROR,
                 "msg",              "%s", "encrypted_buffer full, dropping data",
                 NULL
             );
@@ -874,7 +886,7 @@ PRIVATE int decrypt_data(
             mbedtls_strerror(ret, error_buf, sizeof(error_buf));
             gobj_log_error(gobj, 0,
                 "function",         "%s", __FUNCTION__,
-                "msgset",           "%s", MSGSET_SYSTEM_ERROR,
+                "msgset",           "%s", MSGSET_MBEDTLS_ERROR,
                 "msg",              "%s", "TLS handshake failed",
                 "error_code",       "%d", ret,
                 "error_message",    "%s", error_buf,
@@ -888,6 +900,12 @@ PRIVATE int decrypt_data(
         /* Handshake already done — read decrypted application data */
         int ret = flush_clear_data(sskt);
         if(ret < 0) {
+            gobj_log_error(gobj, 0,
+                "function",         "%s", __FUNCTION__,
+                "msgset",           "%s", MSGSET_MBEDTLS_ERROR,
+                "msg",              "%s", "flush_clear_data() FAILED",
+                NULL
+            );
             return ret;
         }
     }
@@ -921,9 +939,9 @@ PRIVATE int flush(hsskt sskt)
 
 
 
-            /***************************
-             *      Public
-             ***************************/
+                    /***************************
+                     *      Public
+                     ***************************/
 
 
 
