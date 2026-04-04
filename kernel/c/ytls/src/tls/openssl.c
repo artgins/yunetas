@@ -395,7 +395,7 @@ PRIVATE hytls init(
     ytls->trace_tls = kw_get_bool(gobj, jn_config, "trace_tls", 0, KW_WILD_NUMBER);
 
     if(ytls->trace_tls) {
-        gobj_log_info(ytls->gobj, 0,
+        gobj_log_debug(ytls->gobj, 0,
             "function",         "%s", __FUNCTION__,
             "msgset",           "%s", MSGSET_INFO,
             "msg",              "%s", "OPENSSL: set trace TRUE",
@@ -623,7 +623,7 @@ PRIVATE void set_trace(hsskt sskt_, BOOL set)
     sskt_t *sskt = sskt_;
     sskt->ytls->trace_tls = set?TRUE:FALSE;
 
-    gobj_log_info(sskt->ytls->gobj, 0,
+    gobj_log_debug(sskt->ytls->gobj, 0,
         "function",         "%s", __FUNCTION__,
         "msgset",           "%s", MSGSET_INFO,
         "msg",              "%s", "OPENSSL: set trace",

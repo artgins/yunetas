@@ -91,7 +91,8 @@ typedef struct sskt_s {
     char last_error[256];
     int error;
     char rx_bf[16*1024];
-    gbuffer_t *encrypted_buffer; // TODO review
+    gbuffer_t *encrypted_buffer; // Receives encrypted bytes from the network (recv path)
+    gbuffer_t *output_buffer;    // Accumulates encrypted bytes from send_callback (send path)
     BOOL *alive; // Points to stack var in flush_clear_data; set to FALSE when freed mid-callback
 } sskt_t;
 
@@ -316,7 +317,7 @@ PRIVATE hytls init(
     // mbedtls_debug_set_threshold() is global: level 1=errors, 2=states,
     // 3=info, 4=verbose. Default is 0 (silent) — must be raised explicitly.
     if(ytls->trace_tls) {
-        gobj_log_info(ytls->gobj, 0,
+        gobj_log_debug(ytls->gobj, 0,
             "function",         "%s", __FUNCTION__,
             "msgset",           "%s", MSGSET_INFO,
             "msg",              "%s", "MBEDTLS: set trace TRUE",
@@ -367,37 +368,33 @@ PRIVATE int mbedtls_ssl_send_callback(
     sskt_t *sskt = (sskt_t *)ctx;
     hgobj gobj = sskt->ytls->gobj;
 
-    // Create a buffer for the encrypted data
-    gbuffer_t *gbuf = gbuffer_create(len, len);
-    if(!gbuf) {
+    /*
+     * Accumulate encrypted data in output_buffer.
+     * flush_encrypted_data() will send it all at once via on_encrypted_data_cb.
+     *
+     * This is critical: mbedtls_ssl_write() calls this callback once per TLS
+     * record (~16 KB). For a large payload (e.g. 138 MB) that means ~8000+
+     * individual calls. If each call triggered a separate io_uring write,
+     * the writes could be reordered on the wire, corrupting TLS record order
+     * and causing bad_record_mac on the peer.
+     *
+     * By accumulating here and flushing once, we produce a single write
+     * to the transport — the same approach OpenSSL uses with its memory BIO.
+     */
+    size_t appended = gbuffer_append(sskt->output_buffer, (void *)buf, len);
+    if(appended < len) {
         gobj_log_error(gobj, 0,
             "function",         "%s", __FUNCTION__,
             "msgset",           "%s", MSGSET_MEMORY_ERROR,
-            "msg",              "%s", "no memory for gbuffer",
-            "size",             "%d", (int)len,
+            "msg",              "%s", "output_buffer append failed",
+            "requested",        "%d", (int)len,
+            "appended",         "%d", (int)appended,
             NULL
         );
-        return MBEDTLS_ERR_SSL_INTERNAL_ERROR; // Out of memory
+        return MBEDTLS_ERR_SSL_INTERNAL_ERROR;
     }
 
-    // Copy the encrypted data into the buffer
-    char *dest = gbuffer_cur_wr_pointer(gbuf);
-    memcpy(dest, buf, len);
-    gbuffer_set_wr(gbuf, len);
-
-    // Invoke the callback to handle the encrypted data
-    if(sskt->on_encrypted_data_cb(sskt->user_data, gbuf) < 0) {
-        gbuffer_decref(gbuf);
-        gobj_log_error(gobj, 0,
-            "function",         "%s", __FUNCTION__,
-            "msgset",           "%s", MSGSET_MBEDTLS_ERROR,
-            "msg",              "%s", "on_encrypted_data_cb() FAILED",
-            NULL
-        );
-        return MBEDTLS_ERR_SSL_INTERNAL_ERROR; // Callback failed
-    }
-
-    return (int)len; // Return the number of bytes processed
+    return (int)len;
 }
 
 PRIVATE int mbedtls_ssl_recv_callback(void *ctx, unsigned char *buf, size_t len) {
@@ -484,6 +481,19 @@ PRIVATE hsskt new_secure_filter(
         return NULL;
     }
 
+    // Initialize output buffer (accumulates encrypted bytes from send_callback)
+    sskt->output_buffer = gbuffer_create(64 * 1024, gbmem_get_maximum_block());
+    if(!sskt->output_buffer) {
+        gobj_log_error(ytls->gobj, 0,
+            "function",         "%s", __FUNCTION__,
+            "msgset",           "%s", MSGSET_MEMORY_ERROR,
+            "msg",              "%s", "no memory for output_buffer",
+            NULL
+        );
+        free_secure_filter(sskt);
+        return NULL;
+    }
+
     // Set SNI hostname for client connections (enables server_name extension in ClientHello)
     if(!ytls->server && ytls->ssl_server_name[0] != '\0') {
         int ret = mbedtls_ssl_set_hostname(&sskt->ssl, ytls->ssl_server_name);
@@ -530,8 +540,8 @@ PRIVATE hsskt new_secure_filter(
             free_secure_filter(sskt);
             return NULL;
         }
-        // send_callback was invoked by mbedTLS to transmit the Client Hello;
-        // on_encrypted_data_cb has already queued it for writing to the socket.
+        // Flush the Client Hello that send_callback accumulated in output_buffer
+        flush_encrypted_data(sskt);
     }
 
     return sskt;
@@ -587,6 +597,11 @@ PRIVATE void free_secure_filter(hsskt sskt_)
         gbuffer_decref(sskt->encrypted_buffer);
     }
 
+    // Free the output buffer if it exists
+    if(sskt->output_buffer) {
+        gbuffer_decref(sskt->output_buffer);
+    }
+
     // Free the sskt structure itself
     GBMEM_FREE(sskt);
 }
@@ -616,7 +631,7 @@ PRIVATE void set_trace(hsskt sskt_, BOOL set)
     ytls_t *ytls = sskt->ytls;
     ytls->trace_tls = set ? TRUE : FALSE;
 
-    gobj_log_info(ytls->gobj, 0,
+    gobj_log_debug(ytls->gobj, 0,
         "function",         "%s", __FUNCTION__,
         "msgset",           "%s", MSGSET_INFO,
         "msg",              "%s", "MBEDTLS: set trace",
@@ -655,6 +670,7 @@ PRIVATE int do_handshake(hsskt sskt_)
                     sskt->user_data
                 );
             }
+            flush_encrypted_data(sskt); // Send accumulated handshake bytes
             return 0; // Handshake in progress
         } else {
             char error_buf[256];
@@ -673,6 +689,8 @@ PRIVATE int do_handshake(hsskt sskt_)
         }
     }
 
+    flush_encrypted_data(sskt); // Send accumulated handshake bytes
+
     if(!sskt->handshake_informed) {
         sskt->handshake_informed = TRUE;
         sskt->on_handshake_done_cb(sskt->user_data, 0); // Indicate success
@@ -686,11 +704,48 @@ PRIVATE int do_handshake(hsskt sskt_)
  ***************************************************************************/
 PRIVATE int flush_encrypted_data(sskt_t *sskt)
 {
+    hgobj gobj = sskt->ytls->gobj;
+
+    size_t pending = gbuffer_leftbytes(sskt->output_buffer);
+    if(pending == 0) {
+        return 0;
+    }
+
+    if(sskt->ytls->trace_tls) {
+        gobj_trace_msg(gobj, "------- flush_encrypted_data() %zu, userp %p",
+            pending, sskt->user_data);
+    }
+
     /*
-     * In the custom BIO model, mbedTLS calls send_callback synchronously
-     * whenever it wants to output encrypted bytes. The send_callback already
-     * invokes on_encrypted_data_cb. There is nothing more to flush here.
+     * Hand over the accumulated output_buffer to the transport callback
+     * and replace it with a fresh one for future writes.
+     * This avoids copying potentially large amounts of data.
      */
+    gbuffer_t *to_send = sskt->output_buffer;
+
+    sskt->output_buffer = gbuffer_create(64 * 1024, gbmem_get_maximum_block());
+    if(!sskt->output_buffer) {
+        gobj_log_error(gobj, 0,
+            "function",         "%s", __FUNCTION__,
+            "msgset",           "%s", MSGSET_MEMORY_ERROR,
+            "msg",              "%s", "Cannot allocate new output_buffer",
+            NULL
+        );
+        sskt->output_buffer = to_send; // Restore — don't lose data
+        return -1;
+    }
+
+    if(sskt->on_encrypted_data_cb(sskt->user_data, to_send) < 0) {
+        gobj_log_error(gobj, 0,
+            "function",         "%s", __FUNCTION__,
+            "msgset",           "%s", MSGSET_MBEDTLS_ERROR,
+            "msg",              "%s", "on_encrypted_data_cb() FAILED",
+            NULL
+        );
+        gbuffer_decref(to_send);
+        return -1;
+    }
+
     return 0;
 }
 
@@ -735,10 +790,11 @@ PRIVATE int encrypt_data(
                         "msg",          "%s", "mbedtls_ssl_write() WANT stall, aborting",
                         NULL
                     );
+                    flush_encrypted_data(sskt); // Send what we have so far
                     GBUFFER_DECREF(gbuf);
                     return -1;
                 }
-                flush_encrypted_data(sskt);
+                flush_encrypted_data(sskt); // Send what we have to make progress
                 flush_clear_data(sskt);
                 continue;
             } else {
@@ -752,6 +808,7 @@ PRIVATE int encrypt_data(
                     "error_message",    "%s", error_buf,
                     NULL
                 );
+                flush_encrypted_data(sskt); // Send what we have so far
                 GBUFFER_DECREF(gbuf);
                 return -1;
             }
@@ -764,11 +821,19 @@ PRIVATE int encrypt_data(
             gobj_trace_msg(gobj, "------- ==> encrypt_data DATA, userp %p, len %d", sskt->user_data, written);
         }
 
-        if(flush_encrypted_data(sskt) < 0) {
-            // Error already logged
-            GBUFFER_DECREF(gbuf);
-            return -1;
-        }
+        /*
+         * Do NOT flush here — let send_callback accumulate all TLS records
+         * in output_buffer. Flushing once after the loop produces a single
+         * write to the transport, avoiding io_uring write reordering.
+         */
+    }
+
+    /*
+     * All data encrypted — flush the accumulated output as a single write.
+     */
+    if(flush_encrypted_data(sskt) < 0) {
+        GBUFFER_DECREF(gbuf);
+        return -1;
     }
 
     GBUFFER_DECREF(gbuf);
@@ -941,13 +1006,15 @@ PRIVATE int decrypt_data(
     if(!mbedtls_ssl_is_handshake_over(&sskt->ssl)) {
         int ret = mbedtls_ssl_handshake(&sskt->ssl);
         if(ret == 0) {
-            /* Handshake just completed */
+            /* Handshake just completed — flush handshake response bytes */
+            flush_encrypted_data(sskt);
             if(!sskt->handshake_informed) {
                 sskt->handshake_informed = TRUE;
                 sskt->on_handshake_done_cb(sskt->user_data, 0);
             }
         } else if(ret == MBEDTLS_ERR_SSL_WANT_READ || ret == MBEDTLS_ERR_SSL_WANT_WRITE) {
             /* Normal: need more data from the network or waiting for write */
+            flush_encrypted_data(sskt); // Send accumulated handshake bytes
             if(sskt->ytls->trace_tls) {
                 gobj_trace_msg(gobj, "------- decrypt_data handshake: %s, userp %p",
                     ret == MBEDTLS_ERR_SSL_WANT_READ ? "WANT_READ" : "WANT_WRITE",
