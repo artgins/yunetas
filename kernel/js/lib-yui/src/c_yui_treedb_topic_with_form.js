@@ -873,7 +873,7 @@ function transform__treedb_value_2_table_value(gobj, col, value, row, field)
             break;
 
         case "image":
-            value = `<img src="${value}" alt="${value}" width="60" height="30" title="">`;
+            value = `<img src="${value}" alt="${value}" style="max-height:18px; width:auto;" title="">`;
             break;
 
         default:
