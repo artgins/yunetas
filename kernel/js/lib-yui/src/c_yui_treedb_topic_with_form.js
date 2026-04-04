@@ -666,7 +666,9 @@ function create_tabulator(gobj)
                 break;
             case "boolean":
                 hozAlign = "center";
+                vertAlign = "middle";
                 sorter = "boolean";
+                colFormatter = "tickCross";
                 break;
             case "integer":
             case "real":
@@ -791,11 +793,7 @@ function transform__treedb_value_2_table_value(gobj, col, value, row, field)
         case "real":
             break;
         case "boolean":
-            if(value) {
-                value = `<span class=""><i style="color:limegreen; font-size:1.2rem;" class="yi-square-check"></i></i></span>`;
-            } else {
-                value = `<span class=""><i style="color:orangered; font-size:1.2rem;" class="yi-xmark"></i></span>`;
-            }
+            // Handled by Tabulator's built-in "tickCross" formatter (see colDef above)
             break;
         case "object":
         case "dict":
