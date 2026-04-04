@@ -304,6 +304,11 @@ PRIVATE hytls init(
         kw_get_str(gobj, jn_config, "ssl_server_name", "", 0)
     );
 
+    // Activate mbedTLS internal debug callback if trace requested
+    if(ytls->trace_tls) {
+        mbedtls_ssl_conf_dbg(&ytls->conf, mbedtls_debug_callback, ytls);
+    }
+
     return (hytls)ytls;
 }
 

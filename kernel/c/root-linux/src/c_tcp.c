@@ -1581,18 +1581,53 @@ PRIVATE int ac_drop(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 }
 
 /***************************************************************************
+ *  Called when a trace level is enabled at runtime (e.g. via agent command).
+ *  Propagate the TLS trace flag to the active secure filter if present.
+ ***************************************************************************/
+PRIVATE int mt_trace_on(hgobj gobj, const char *level, json_t *kw)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    if(priv->ytls && priv->sskt) {
+        uint32_t trace_level = gobj_trace_level(gobj);
+        ytls_set_trace(priv->ytls, priv->sskt, (trace_level & TRACE_TLS) ? TRUE : FALSE);
+    }
+
+    KW_DECREF(kw)
+    return 0;
+}
+
+/***************************************************************************
+ *  Called when a trace level is disabled at runtime.
+ ***************************************************************************/
+PRIVATE int mt_trace_off(hgobj gobj, const char *level, json_t *kw)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    if(priv->ytls && priv->sskt) {
+        uint32_t trace_level = gobj_trace_level(gobj);
+        ytls_set_trace(priv->ytls, priv->sskt, (trace_level & TRACE_TLS) ? TRUE : FALSE);
+    }
+
+    KW_DECREF(kw)
+    return 0;
+}
+
+/***************************************************************************
  *                          FSM
  ***************************************************************************/
 /*---------------------------------------------*
  *          Global methods table
  *---------------------------------------------*/
 PRIVATE const GMETHODS gmt = {
-    .mt_create  = mt_create,
-    .mt_writing = mt_writing,
-    .mt_destroy = mt_destroy,
-    .mt_start   = mt_start,
-    .mt_stop    = mt_stop,
-    .mt_reading = mt_reading,
+    .mt_create      = mt_create,
+    .mt_writing     = mt_writing,
+    .mt_destroy     = mt_destroy,
+    .mt_start       = mt_start,
+    .mt_stop        = mt_stop,
+    .mt_reading     = mt_reading,
+    .mt_trace_on    = mt_trace_on,
+    .mt_trace_off   = mt_trace_off,
 };
 
 /*------------------------*
