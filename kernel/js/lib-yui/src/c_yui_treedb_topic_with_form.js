@@ -609,6 +609,8 @@ function create_tabulator(gobj)
         let hozAlign;
         let sorter = "string";
         let cellClick;
+        let colFormatter = formatter;
+        let formatterParams;
         const field_desc = treedb_get_field_desc(col);
         if(field_desc.is_hidden) {
             continue;
@@ -642,6 +644,11 @@ function create_tabulator(gobj)
                 break;
             case "image":
                 hozAlign = "center";
+                colFormatter = "image";
+                formatterParams = {
+                    height: "18px",
+                    width: "auto",
+                };
                 break;
             case "boolean":
                 hozAlign = "center";
@@ -659,14 +666,10 @@ function create_tabulator(gobj)
             field: col.id,
             sorter: sorter,
             hozAlign: hozAlign,
-            formatter: formatter,
+            formatter: colFormatter,
         };
-        if(field_desc.type === "image") {
-            colDef.formatter = "image";
-            colDef.formatterParams = {
-                height: "22px",
-                width: "auto",
-            };
+        if(formatterParams) {
+            colDef.formatterParams = formatterParams;
         }
         if(cellClick) {
             colDef.cellClick = cellClick;
