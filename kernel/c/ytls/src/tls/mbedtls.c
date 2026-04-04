@@ -49,6 +49,7 @@ Here's how the schema translates to mbedTLS:
 #include <mbedtls/error.h>
 #include <mbedtls/x509_crt.h>
 #include <mbedtls/pk.h>
+#include <mbedtls/debug.h>  /* mbedtls_debug_set_threshold() */
 #include <psa/crypto.h>     /* psa_crypto_init() required by mbedtls v4.0 */
 
 #include <kwid.h>
@@ -98,6 +99,13 @@ typedef struct sskt_s {
  *              Prototypes
  ***************************************************************/
 PRIVATE int flush_clear_data(sskt_t *sskt);
+PRIVATE void mbedtls_debug_callback(
+    void *ctx,
+    int level,
+    const char *file,
+    int line,
+    const char *str
+);
 
 /***************************************************************
  *              Api
@@ -304,8 +312,17 @@ PRIVATE hytls init(
         kw_get_str(gobj, jn_config, "ssl_server_name", "", 0)
     );
 
-    // Activate mbedTLS internal debug callback if trace requested
+    // Activate mbedTLS internal debug callback if trace requested.
+    // mbedtls_debug_set_threshold() is global: level 1=errors, 2=states,
+    // 3=info, 4=verbose. Default is 0 (silent) — must be raised explicitly.
     if(ytls->trace_tls) {
+        gobj_log_info(ytls->gobj, 0,
+            "function",         "%s", __FUNCTION__,
+            "msgset",           "%s", MSGSET_MBEDTLS_ERROR,
+            "msg",              "%s", "MBEDTLS: set trace TRUE",
+            NULL
+        );
+        mbedtls_debug_set_threshold(1);
         mbedtls_ssl_conf_dbg(&ytls->conf, mbedtls_debug_callback, ytls);
     }
 
@@ -342,7 +359,7 @@ PRIVATE const char *version(hytls ytls)
     return MBEDTLS_VERSION_STRING;
 }
 
-static int mbedtls_ssl_send_callback(
+PRIVATE int mbedtls_ssl_send_callback(
     void *ctx,
     const unsigned char *buf,
     size_t len
@@ -383,7 +400,7 @@ static int mbedtls_ssl_send_callback(
     return (int)len; // Return the number of bytes processed
 }
 
-static int mbedtls_ssl_recv_callback(void *ctx, unsigned char *buf, size_t len) {
+PRIVATE int mbedtls_ssl_recv_callback(void *ctx, unsigned char *buf, size_t len) {
     sskt_t *sskt = (sskt_t *)ctx;
 
     // Check if there is encrypted data available
@@ -577,22 +594,19 @@ PRIVATE void free_secure_filter(hsskt sskt_)
 /***************************************************************************
  *
  ***************************************************************************/
-static void mbedtls_debug_callback(
+PRIVATE void mbedtls_debug_callback(
     void *ctx,
     int level,
     const char *file,
     int line,
-    const char *str)
-{
+    const char *str
+) {
     ytls_t *ytls = (ytls_t *)ctx;
 
     // Log the debug message
-    gobj_log_info(ytls->gobj, 0,
-        "level",          "%d", level,
-        "file",           "%s", file,
-        "line",           "%d", line,
-        "msg",            "%s", str,
-        NULL
+    gobj_trace_msg(ytls->gobj,
+        "mbedtls debug: level %d, file %s, line %d, msg '%s'",
+        level, file, line, str
     );
 }
 
@@ -602,9 +616,19 @@ PRIVATE void set_trace(hsskt sskt_, BOOL set)
     ytls_t *ytls = sskt->ytls;
     ytls->trace_tls = set ? TRUE : FALSE;
 
+    gobj_log_info(ytls->gobj, 0,
+        "function",         "%s", __FUNCTION__,
+        "msgset",           "%s", MSGSET_MBEDTLS_ERROR,
+        "msg",              "%s", "MBEDTLS: set trace",
+        "trace",            "%d", set,
+        NULL
+    );
+
     if(ytls->trace_tls) {
+        mbedtls_debug_set_threshold(1);
         mbedtls_ssl_conf_dbg(&ytls->conf, mbedtls_debug_callback, ytls);
     } else {
+        mbedtls_debug_set_threshold(0);
         mbedtls_ssl_conf_dbg(&ytls->conf, NULL, NULL);
     }
 }
@@ -737,7 +761,6 @@ PRIVATE int encrypt_data(
         gbuffer_get(gbuf, written); // Pop data
 
         if(sskt->ytls->trace_tls) {
-            // gobj_trace_dump(gobj, p, written, "------- ==> encrypt_data DATA, userp %p", sskt->user_data);
             gobj_trace_msg(gobj, "------- ==> encrypt_data DATA, userp %p, len %d", sskt->user_data, written);
         }
 
