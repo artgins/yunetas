@@ -663,11 +663,6 @@ function create_tabulator(gobj)
             case "list":
             case "coordinates":
             case "blob":
-                colFormatter = "json";
-                formatterParams = {
-                    indent: 0,
-                    multiline: false,
-                };
                 break;
             case "boolean":
                 hozAlign = "center";
@@ -810,7 +805,10 @@ function transform__treedb_value_2_table_value(gobj, col, value, row, field)
         case "coordinates":
         case "blob":
         case "gbuffer":
-            // Handled by Tabulator's built-in "json" formatter (see colDef above)
+            value = JSON.stringify(value);
+            if(value && value.length > 40) {
+                value = value.substring(0, 40) + "…";
+            }
             break;
 
         case "enum":
