@@ -397,7 +397,7 @@ PRIVATE hytls init(
     if(ytls->trace_tls) {
         gobj_log_info(ytls->gobj, 0,
             "function",         "%s", __FUNCTION__,
-            "msgset",           "%s", MSGSET_MBEDTLS_ERROR,
+            "msgset",           "%s", MSGSET_INFO,
             "msg",              "%s", "OPENSSL: set trace TRUE",
             NULL
         );
@@ -625,7 +625,7 @@ PRIVATE void set_trace(hsskt sskt_, BOOL set)
 
     gobj_log_info(sskt->ytls->gobj, 0,
         "function",         "%s", __FUNCTION__,
-        "msgset",           "%s", MSGSET_MBEDTLS_ERROR,
+        "msgset",           "%s", MSGSET_INFO,
         "msg",              "%s", "OPENSSL: set trace",
         "trace",            "%d", set,
         NULL
@@ -755,10 +755,20 @@ PRIVATE int flush_encrypted_data(sskt_t *sskt)
         }
         if(ret > 0) {
             gbuffer_set_wr(gbuf, ret);
-            sskt->on_encrypted_data_cb(sskt->user_data, gbuf);
-            // TODO check mbedtls does:
-            // gbuffer_decref(gbuf);
-            // return MBEDTLS_ERR_SSL_INTERNAL_ERROR; // Callback failed
+            int cb_ret = sskt->on_encrypted_data_cb(sskt->user_data, gbuf);
+            // Release our reference; the io_uring write event holds its own via gbuffer_incref
+            gbuffer_decref(gbuf);
+            if(cb_ret < 0) {
+                gobj_log_error(gobj, 0,
+                    "function",     "%s", __FUNCTION__,
+                    "msgset",       "%s", MSGSET_OPENSSL_ERROR,
+                    "msg",          "%s", "on_encrypted_data_cb() FAILED",
+                    NULL
+                );
+                return -1;
+            }
+        } else {
+            gbuffer_decref(gbuf);
         }
     }
 
