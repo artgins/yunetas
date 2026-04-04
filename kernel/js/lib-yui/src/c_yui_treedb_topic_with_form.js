@@ -607,6 +607,7 @@ function create_tabulator(gobj)
         }
 
         let hozAlign;
+        let vertAlign;
         let sorter = "string";
         let cellClick;
         let colFormatter = formatter;
@@ -644,6 +645,7 @@ function create_tabulator(gobj)
                 break;
             case "image":
                 hozAlign = "center";
+                vertAlign = "middle";
                 colFormatter = "image";
                 formatterParams = {
                     height: "18px",
@@ -685,6 +687,9 @@ function create_tabulator(gobj)
             hozAlign: hozAlign,
             formatter: colFormatter,
         };
+        if(vertAlign) {
+            colDef.vertAlign = vertAlign;
+        }
         if(formatterParams) {
             colDef.formatterParams = formatterParams;
         }
