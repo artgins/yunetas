@@ -225,11 +225,8 @@ PRIVATE SUBDIR_WATCH * create_subdir_watch(hgobj gobj, const char *path)
  ***************************************************************************/
 PRIVATE void destroy_subdir_watch(SUBDIR_WATCH * sw)
 {
-    // TODO
     fs_stop_watcher_event(sw->uv_fs);
-
-    // uv_fs_event_stop(&sw->uv_fs);
-    // uv_close((uv_handle_t *)&sw->uv_fs, on_close_cb);
+    gbmem_free(sw);
 }
 
 /***************************************************************************
