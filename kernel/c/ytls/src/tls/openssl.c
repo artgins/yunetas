@@ -755,20 +755,10 @@ PRIVATE int flush_encrypted_data(sskt_t *sskt)
         }
         if(ret > 0) {
             gbuffer_set_wr(gbuf, ret);
-            int cb_ret = sskt->on_encrypted_data_cb(sskt->user_data, gbuf);
-            // Release our reference; the io_uring write event holds its own via gbuffer_incref
-            gbuffer_decref(gbuf);
-            if(cb_ret < 0) {
-                gobj_log_error(gobj, 0,
-                    "function",     "%s", __FUNCTION__,
-                    "msgset",       "%s", MSGSET_OPENSSL_ERROR,
-                    "msg",          "%s", "on_encrypted_data_cb() FAILED",
-                    NULL
-                );
-                return -1;
-            }
-        } else {
-            gbuffer_decref(gbuf);
+            sskt->on_encrypted_data_cb(sskt->user_data, gbuf);
+            // TODO check mbedtls does:
+            // gbuffer_decref(gbuf);
+            // return MBEDTLS_ERR_SSL_INTERNAL_ERROR; // Callback failed
         }
     }
 
