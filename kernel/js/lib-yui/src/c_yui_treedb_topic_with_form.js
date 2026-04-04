@@ -650,6 +650,23 @@ function create_tabulator(gobj)
                     width: "auto",
                 };
                 break;
+            case "color":
+                hozAlign = "center";
+                colFormatter = "color";
+                break;
+            case "object":
+            case "dict":
+            case "template":
+            case "array":
+            case "list":
+            case "coordinates":
+            case "blob":
+                colFormatter = "json";
+                formatterParams = {
+                    indent: 0,
+                    multiline: false,
+                };
+                break;
             case "boolean":
                 hozAlign = "center";
                 sorter = "boolean";
@@ -783,16 +800,12 @@ function transform__treedb_value_2_table_value(gobj, col, value, row, field)
         case "object":
         case "dict":
         case "template":
-            value = JSON.stringify(value);
-            break;
         case "array":
         case "list":
-            value = JSON.stringify(value);
-            break;
         case "coordinates":
         case "blob":
         case "gbuffer":
-            value = JSON.stringify(value);
+            // Handled by Tabulator's built-in "json" formatter (see colDef above)
             break;
 
         case "enum":
@@ -875,14 +888,7 @@ function transform__treedb_value_2_table_value(gobj, col, value, row, field)
             break;
 
         case "color":
-            switch(field_desc.real_type) {
-                case "string":
-                    // TODO
-                    break;
-                case "integer":
-                    // TODO
-                    break;
-            }
+            // Handled by Tabulator's built-in "color" formatter (see colDef above)
             break;
 
         case "image":
