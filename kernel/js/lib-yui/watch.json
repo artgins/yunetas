@@ -1,0 +1,13 @@
+{
+    "global":{
+        "Fs.info": false,
+        "Watchfs.kw": {
+            "info": false,
+            "command": "vite build",
+            "path":"./src",
+            "recursive":true,
+            "patterns":".*\\.js;.*\\.css;.*\\.scss;.*\\.rst;.*\\.md;.*\\.json;",
+            "ignore_renamed_event":true
+        }
+    }
+}

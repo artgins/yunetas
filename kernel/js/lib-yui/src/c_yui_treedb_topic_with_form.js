@@ -664,7 +664,7 @@ function create_tabulator(gobj)
         if(field_desc.type === "image") {
             colDef.formatter = "image";
             colDef.formatterParams = {
-                height: "18px",
+                height: "22px",
                 width: "auto",
             };
         }
