@@ -806,8 +806,8 @@ function transform__treedb_value_2_table_value(gobj, col, value, row, field)
         case "blob":
         case "gbuffer":
             value = JSON.stringify(value);
-            if(value && value.length > 40) {
-                value = value.substring(0, 40) + "…";
+            if(value && value.length > 20) {
+                value = value.substring(0, 20) + "…";
             }
             break;
 
