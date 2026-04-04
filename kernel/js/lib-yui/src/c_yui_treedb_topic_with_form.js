@@ -607,8 +607,11 @@ function create_tabulator(gobj)
         }
 
         let hozAlign;
+        let vertAlign;
         let sorter = "string";
         let cellClick;
+        let colFormatter = formatter;
+        let formatterParams;
         const field_desc = treedb_get_field_desc(col);
         if(field_desc.is_hidden) {
             continue;
@@ -640,9 +643,32 @@ function create_tabulator(gobj)
                     gobj_send_event(gobj, "EV_SHOW_HOOK_DATA", kw_hook, gobj);
                 };
                 break;
+            case "image":
+                hozAlign = "center";
+                vertAlign = "middle";
+                colFormatter = "image";
+                formatterParams = {
+                    height: "18px",
+                    width: "auto",
+                };
+                break;
+            case "color":
+                hozAlign = "center";
+                colFormatter = "color";
+                break;
+            case "object":
+            case "dict":
+            case "template":
+            case "array":
+            case "list":
+            case "coordinates":
+            case "blob":
+                break;
             case "boolean":
                 hozAlign = "center";
+                vertAlign = "middle";
                 sorter = "boolean";
+                colFormatter = "tickCross";
                 break;
             case "integer":
             case "real":
@@ -656,8 +682,14 @@ function create_tabulator(gobj)
             field: col.id,
             sorter: sorter,
             hozAlign: hozAlign,
-            formatter: formatter,
+            formatter: colFormatter,
         };
+        if(vertAlign) {
+            colDef.vertAlign = vertAlign;
+        }
+        if(formatterParams) {
+            colDef.formatterParams = formatterParams;
+        }
         if(cellClick) {
             colDef.cellClick = cellClick;
         }
@@ -761,25 +793,20 @@ function transform__treedb_value_2_table_value(gobj, col, value, row, field)
         case "real":
             break;
         case "boolean":
-            if(value) {
-                value = `<span class=""><i style="color:limegreen; font-size:1.2rem;" class="yi-square-check"></i></i></span>`;
-            } else {
-                value = `<span class=""><i style="color:orangered; font-size:1.2rem;" class="yi-xmark"></i></span>`;
-            }
+            // Handled by Tabulator's built-in "tickCross" formatter (see colDef above)
             break;
         case "object":
         case "dict":
         case "template":
-            value = JSON.stringify(value);
-            break;
         case "array":
         case "list":
-            value = JSON.stringify(value);
-            break;
         case "coordinates":
         case "blob":
         case "gbuffer":
             value = JSON.stringify(value);
+            if(value && value.length > 20) {
+                value = value.substring(0, 20) + "…";
+            }
             break;
 
         case "enum":
@@ -862,18 +889,11 @@ function transform__treedb_value_2_table_value(gobj, col, value, row, field)
             break;
 
         case "color":
-            switch(field_desc.real_type) {
-                case "string":
-                    // TODO
-                    break;
-                case "integer":
-                    // TODO
-                    break;
-            }
+            // Handled by Tabulator's built-in "color" formatter (see colDef above)
             break;
 
         case "image":
-            value = `<img src="${value}" alt="${value}" width="60" height="30" title="">`;
+            // Handled by Tabulator's built-in "image" formatter (see colDef above)
             break;
 
         default:

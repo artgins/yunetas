@@ -60,8 +60,8 @@ SDATA (DTP_BOOLEAN,     "recursive",            0,          0,              "Wat
 SDATA (DTP_STRING,      "patterns",             0,          0,              "File patterns to watch"),
 SDATA (DTP_STRING,      "command",              0,          0,              "Command to execute when a fs event occurs"),
 SDATA (DTP_BOOLEAN,     "use_parameter",        0,          0,              "Pass to command the filename as parameter"),
-SDATA (DTP_BOOLEAN,     "ignore_changed_event", 0,          0,              "Ignore EV_CHANGED"),
-SDATA (DTP_BOOLEAN,     "ignore_renamed_event", 0,          0,              "Ignore EV_RENAMED"),
+SDATA (DTP_BOOLEAN,     "ignore_changed_event", 0,          0,              "Ignore EV_FS_CHANGED"),
+SDATA (DTP_BOOLEAN,     "ignore_renamed_event", 0,          0,              "Ignore EV_FS_RENAMED"),
 SDATA (DTP_BOOLEAN,     "info",                 0,          0,              "Inform of found subdirectories"),
 SDATA (DTP_POINTER,     "user_data",            0,          0,              "user data"),
 SDATA (DTP_POINTER,     "user_data2",           0,          0,              "more user data"),
@@ -159,6 +159,7 @@ PRIVATE int mt_start(hgobj gobj)
         ";",
         &priv->npatterns
     );
+    priv->regex = GBMEM_MALLOC(sizeof(regex_t) * priv->npatterns);
 
     for(int i=0; i<priv->npatterns; i++) {
         // WARNING changed 0 by REG_EXTENDED|REG_NOSUB: future side effect?
@@ -211,6 +212,7 @@ PRIVATE int mt_stop(hgobj gobj)
     for(int i=0; i<priv->npatterns; i++) {
         regfree(&priv->regex[i]);
     }
+    GBMEM_FREE(priv->regex)
     return 0;
 }
 
@@ -325,7 +327,7 @@ PRIVATE int exec_command(hgobj gobj, const char *path, const char *filename)
     const char *command = gobj_read_str_attr(gobj, "command");
 
     if(priv->use_parameter) {
-        char temp[4*1014];
+        char temp[4*1024];
         char escaped_path[1024];
         char escaped_filename[1024];
         char escaped_fullpath[2048];
@@ -369,7 +371,7 @@ PRIVATE int ac_renamed(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 
     if(strstr(path, "/_build/")) { // 2024-Mar-07 FIX to avoid sphinx re-make all time
         // TODO set a new parameter: ignore_path
-        JSON_DECREF(kw);
+        KW_DECREF(kw);
         return 0;
     }
 
@@ -405,7 +407,7 @@ PRIVATE int ac_renamed(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
         }
     }
 
-    JSON_DECREF(kw);
+    KW_DECREF(kw);
     return 0;
 }
 
@@ -422,12 +424,12 @@ PRIVATE int ac_changed(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 
     if(strstr(path, "/_build/")) { // 2024-Mar-07 FIX to avoid sphinx re-make all time
         // TODO set a new parameter: ignore_path
-        JSON_DECREF(kw);
+        KW_DECREF(kw);
         return 0;
     }
 
     if(priv->ignore_changed_event) {
-        JSON_DECREF(kw);
+        KW_DECREF(kw);
         return 0;
     }
 
@@ -463,7 +465,7 @@ PRIVATE int ac_changed(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
             priv->time2exec = start_msectimer(200);
         }
     }
-    JSON_DECREF(kw);
+    KW_DECREF(kw);
     return 0;
 }
 
@@ -478,7 +480,7 @@ PRIVATE int ac_timeout(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
         exec_command(gobj, "", ""); //TODO filename parameter not used.
         priv->time2exec = 0;
     }
-    JSON_DECREF(kw);
+    KW_DECREF(kw);
     return 0;
 }
 
@@ -508,8 +510,7 @@ GOBJ_DEFINE_GCLASS(C_WATCHFS);
 /*------------------------*
  *      Events
  *------------------------*/
-GOBJ_DEFINE_EVENT(EV_RENAMED);
-GOBJ_DEFINE_EVENT(EV_CHANGED);
+// Events EV_FS_RENAMED and EV_FS_CHANGED are defined by C_FS
 
 /***************************************************************************
  *          Create the GClass
@@ -532,10 +533,10 @@ PRIVATE int create_gclass(gclass_name_t gclass_name)
      *      States
      *------------------------*/
     ev_action_t st_idle[] = {
-        {EV_RENAMED,    ac_renamed,     0},
-        {EV_CHANGED,    ac_changed,     0},
-        {EV_TIMEOUT,    ac_timeout,     0},
-        {EV_STOPPED,    0,              0},
+        {EV_FS_RENAMED,         ac_renamed,     0},
+        {EV_FS_CHANGED,         ac_changed,     0},
+        {EV_TIMEOUT_PERIODIC,   ac_timeout,     0},
+        {EV_STOPPED,            0,              0},
         {0,0,0}
     };
 
@@ -548,10 +549,10 @@ PRIVATE int create_gclass(gclass_name_t gclass_name)
      *      Events
      *------------------------*/
     event_type_t event_types[] = {
-        {EV_RENAMED,    0},
-        {EV_CHANGED,    0},
-        {EV_TIMEOUT,    0},
-        {EV_STOPPED,    0},
+        {EV_FS_RENAMED,         0},
+        {EV_FS_CHANGED,         0},
+        {EV_TIMEOUT_PERIODIC,   0},
+        {EV_STOPPED,            0},
         {NULL, 0}
     };
 

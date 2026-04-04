@@ -69,8 +69,8 @@ PRIVATE char variable_config[]= "\
     },                                                              \n\
     'services': [                                                   \n\
         {                                                           \n\
-            'name': 'watchfs',                                      \n\
-            'gclass': 'Watchfs',                                    \n\
+            'name': 'Watchfs',                                      \n\
+            'gclass': 'C_WATCHFS',                                  \n\
             'default_service': true,                                \n\
             'autostart': true,                                      \n\
             'autoplay': false,                                      \n\
