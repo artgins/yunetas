@@ -640,6 +640,9 @@ function create_tabulator(gobj)
                     gobj_send_event(gobj, "EV_SHOW_HOOK_DATA", kw_hook, gobj);
                 };
                 break;
+            case "image":
+                hozAlign = "center";
+                break;
             case "boolean":
                 hozAlign = "center";
                 sorter = "boolean";
@@ -658,6 +661,13 @@ function create_tabulator(gobj)
             hozAlign: hozAlign,
             formatter: formatter,
         };
+        if(field_desc.type === "image") {
+            colDef.formatter = "image";
+            colDef.formatterParams = {
+                height: "18px",
+                width: "auto",
+            };
+        }
         if(cellClick) {
             colDef.cellClick = cellClick;
         }
@@ -873,7 +883,7 @@ function transform__treedb_value_2_table_value(gobj, col, value, row, field)
             break;
 
         case "image":
-            value = `<img src="${value}" alt="${value}" style="max-height:18px; width:auto;" title="">`;
+            // Handled by Tabulator's built-in "image" formatter (see colDef above)
             break;
 
         default:
