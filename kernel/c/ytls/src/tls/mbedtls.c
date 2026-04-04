@@ -156,7 +156,17 @@ PRIVATE hytls init(
 )
 {
     /* PSA must be initialised before any crypto operation in mbedtls v4.0 */
-    psa_crypto_init();
+    psa_status_t psa_ret = psa_crypto_init();
+    if(psa_ret != PSA_SUCCESS) {
+        gobj_log_error(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_MBEDTLS_ERROR,
+            "msg",          "%s", "psa_crypto_init() FAILED",
+            "error_code",   "%d", (int)psa_ret,
+            NULL
+        );
+        return NULL;
+    }
 
     ytls_t *ytls = GBMEM_MALLOC(sizeof(ytls_t));
     if(!ytls) {
@@ -333,7 +343,7 @@ static int mbedtls_ssl_send_callback(
     size_t len
 ) {
     sskt_t *sskt = (sskt_t *)ctx;
-    hgobj gobj = NULL;
+    hgobj gobj = sskt->ytls->gobj;
 
     // Create a buffer for the encrypted data
     gbuffer_t *gbuf = gbuffer_create(len, len);
@@ -356,6 +366,12 @@ static int mbedtls_ssl_send_callback(
     // Invoke the callback to handle the encrypted data
     if(sskt->on_encrypted_data_cb(sskt->user_data, gbuf) < 0) {
         gbuffer_decref(gbuf);
+        gobj_log_error(gobj, 0,
+            "function",         "%s", __FUNCTION__,
+            "msgset",           "%s", MSGSET_MBEDTLS_ERROR,
+            "msg",              "%s", "on_encrypted_data_cb() FAILED",
+            NULL
+        );
         return MBEDTLS_ERR_SSL_INTERNAL_ERROR; // Callback failed
     }
 
@@ -435,10 +451,35 @@ PRIVATE hsskt new_secure_filter(
 
     // Initialize encrypted data buffer (receives encrypted bytes from the network)
     sskt->encrypted_buffer = gbuffer_create(32 * 1024, 32 * 1024);
+    if(!sskt->encrypted_buffer) {
+        gobj_log_error(ytls->gobj, 0,
+            "function",         "%s", __FUNCTION__,
+            "msgset",           "%s", MSGSET_MEMORY_ERROR,
+            "msg",              "%s", "no memory for encrypted_buffer",
+            NULL
+        );
+        free_secure_filter(sskt);
+        return NULL;
+    }
 
     // Set SNI hostname for client connections (enables server_name extension in ClientHello)
     if(!ytls->server && ytls->ssl_server_name[0] != '\0') {
-        mbedtls_ssl_set_hostname(&sskt->ssl, ytls->ssl_server_name);
+        int ret = mbedtls_ssl_set_hostname(&sskt->ssl, ytls->ssl_server_name);
+        if(ret != 0) {
+            char error_buf[256];
+            mbedtls_strerror(ret, error_buf, sizeof(error_buf));
+            gobj_log_error(ytls->gobj, 0,
+                "function",         "%s", __FUNCTION__,
+                "msgset",           "%s", MSGSET_MBEDTLS_ERROR,
+                "msg",              "%s", "mbedtls_ssl_set_hostname() FAILED",
+                "ssl_server_name",  "%s", ytls->ssl_server_name,
+                "error_code",       "%d", ret,
+                "error_message",    "%s", error_buf,
+                NULL
+            );
+            free_secure_filter(sskt);
+            return NULL;
+        }
     }
 
     // Set BIO callbacks for mbedTLS
@@ -484,11 +525,14 @@ PRIVATE void shutdown_sskt(hsskt sskt_)
     // Perform a proper SSL/TLS shutdown
     int ret = mbedtls_ssl_close_notify(&sskt->ssl);
     if(ret < 0) {
+        char error_buf[256];
+        mbedtls_strerror(ret, error_buf, sizeof(error_buf));
         gobj_log_error(sskt->ytls->gobj, 0,
             "function",         "%s", __FUNCTION__,
             "msgset",           "%s", MSGSET_MBEDTLS_ERROR,
             "msg",              "%s", "mbedtls_ssl_close_notify() FAILED",
-            "error",            "%d", ret,
+            "error_code",       "%d", ret,
+            "error_message",    "%s", error_buf,
             NULL
         );
     }
@@ -932,7 +976,11 @@ PRIVATE const char *last_error(hsskt sskt_)
 PRIVATE int flush(hsskt sskt)
 {
     flush_encrypted_data(sskt);
-    flush_clear_data(sskt);
+    int ret = flush_clear_data(sskt);
+    if(ret < 0) {
+        // Error already logged in flush_clear_data
+        return ret;
+    }
     return 0;
 }
 
