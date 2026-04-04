@@ -66,7 +66,7 @@ socket write of encrypted data.
 
 ***********************************************************************/
 #include <yuneta_config.h>
-#define CONFIG_HAVE_OPENSSL
+// #define CONFIG_HAVE_OPENSSL // TODO TEST remove
 
 #ifdef CONFIG_HAVE_OPENSSL
 
@@ -312,15 +312,13 @@ PRIVATE void ssl_tls_trace(
             msg_name = ssl_msg_type(ssl_ver, msg_type);
         }
 
-        gobj_trace_dump(gobj, buf, len,
-            "%s (%s), %s, %s (%d), userp %p",
+        gobj_trace_msg(gobj, "%s (%s), %s, %s (%d), userp %p, len %zu",
             verstr, direction?"OUT":"IN",
-            tls_rt_name, msg_name, msg_type, userp
+            tls_rt_name, msg_name, msg_type, userp, len
         );
     } else {
-        gobj_trace_dump(gobj, buf, len,
-            "%s ssl_ver %d, content_type %d, userp %p",
-            direction?"OUT":"IN", ssl_ver, content_type, userp
+        gobj_trace_msg(gobj, "%s ssl_ver %d, content_type %d, userp %p, len %zu",
+            direction?"OUT":"IN", ssl_ver, content_type, userp, len
         );
     }
 }
@@ -397,6 +395,12 @@ PRIVATE hytls init(
     ytls->trace_tls = kw_get_bool(gobj, jn_config, "trace_tls", 0, KW_WILD_NUMBER);
 
     if(ytls->trace_tls) {
+        gobj_log_info(ytls->gobj, 0,
+            "function",         "%s", __FUNCTION__,
+            "msgset",           "%s", MSGSET_MBEDTLS_ERROR,
+            "msg",              "%s", "OPENSSL: set trace TRUE",
+            NULL
+        );
         SSL_CTX_set_msg_callback(ytls->ctx, ssl_tls_trace);
         SSL_CTX_set_msg_callback_arg(ytls->ctx, ytls);
     }
@@ -619,6 +623,14 @@ PRIVATE void set_trace(hsskt sskt_, BOOL set)
     sskt_t *sskt = sskt_;
     sskt->ytls->trace_tls = set?TRUE:FALSE;
 
+    gobj_log_info(sskt->ytls->gobj, 0,
+        "function",         "%s", __FUNCTION__,
+        "msgset",           "%s", MSGSET_MBEDTLS_ERROR,
+        "msg",              "%s", "OPENSSL: set trace",
+        "trace",            "%d", set,
+        NULL
+    );
+
     if(sskt->ytls->trace_tls) {
         SSL_CTX_set_msg_callback(sskt->ytls->ctx, ssl_tls_trace);
         SSL_CTX_set_msg_callback_arg(sskt->ytls->ctx, sskt->ytls);
@@ -814,7 +826,6 @@ PRIVATE int encrypt_data(
         gbuffer_get(gbuf, written);    // Pop data
 
         if(sskt->ytls->trace_tls) {
-            // gobj_trace_dump(gobj, p, len, "------- ==> encrypt_data DATA, userp %p", sskt->user_data);
             gobj_trace_msg(gobj, "------- ==> encrypt_data DATA, userp %p, len %d", sskt->user_data, (int)len);
         }
         gbuffer_get(gbuf, written);    // Pop data
@@ -910,7 +921,6 @@ PRIVATE int decrypt_data(
         gbuffer_get(gbuf, written);    // Pop data
 
         if(sskt->ytls->trace_tls) {
-            // gobj_trace_dump(gobj, p, len, "------- <== decrypt_data, userp %p", sskt->user_data);
             gobj_trace_msg(gobj, "------- <== decrypt_data, userp %p, len %zu", sskt->user_data, len);
         }
         if(!SSL_is_init_finished(sskt->ssl)) {
