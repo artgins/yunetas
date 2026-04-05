@@ -3,6 +3,7 @@ title: Yuneta Simplified
 ---
 
 ::::{grid} 2
+:class: hero-banner
 
 :::{grid-item}
 :columns: 9
