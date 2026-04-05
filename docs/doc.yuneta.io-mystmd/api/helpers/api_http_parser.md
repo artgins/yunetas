@@ -52,16 +52,3 @@ Source code in:
         int local;
     };
 ```
-
-
-
-:::{toctree}
-:caption: HTTP Parser Functions
-:maxdepth: 1
-
-http-parser/ghttp_parser_create
-http-parser/ghttp_parser_destroy
-http-parser/ghttp_parser_received
-http-parser/ghttp_parser_reset
-
-:::

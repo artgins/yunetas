@@ -10,23 +10,3 @@ Source code in:
 
 (dl_node_t())=
 ## dl_node_t
-
-
-```{toctree}
-:caption: Double List Functions
-:maxdepth: 1
-
-dl/dl_add
-dl/dl_delete
-dl/dl_find
-dl/dl_first
-dl/dl_flush
-dl/dl_init
-dl/dl_insert
-dl/dl_last
-dl/dl_next
-dl/dl_prev
-dl/dl_size
-
-
-```

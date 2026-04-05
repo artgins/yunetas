@@ -1,8 +1,10 @@
 # MyST Markdown project configuration for the full Yuneta Simplified docs.
 # Docs: https://mystmd.org/guide/quickstart
 #
-# This file replaces every Sphinx `{toctree}` directive from the original
-# conf.py + index.md. The TOC order below mirrors the old site 1:1.
+# Replaces every Sphinx `{toctree}` directive from the old site. Landing
+# pages are listed explicitly; individual function reference pages under
+# each landing are picked up with `pattern:` globs so we do not have to
+# list ~700 pages by hand.
 version: 1
 
 project:
@@ -52,64 +54,189 @@ project:
 
     - title: GObj API
       children:
-        - file: api/gobj/api_gobj_startup.md
-        - file: api/gobj/api_gobj_gclass.md
-        - file: api/gobj/api_gobj_creation.md
-        - file: api/gobj/api_gobj_attrs.md
-        - file: api/gobj/api_gobj_op.md
-        - file: api/gobj/api_gobj_events_state.md
-        - file: api/gobj/api_gobj_resource.md
-        - file: api/gobj/api_gobj_publish.md
-        - file: api/gobj/api_gobj_authz.md
-        - file: api/gobj/api_gobj_info.md
-        - file: api/gobj/api_gobj_stats.md
-        - file: api/gobj/api_gobj_node.md
-        - file: api/gobj/api_gobj_memory.md
-        - file: api/gobj/api_gobj_log.md
-        - file: api/gobj/api_gobj_trace.md
-        - file: api/gobj/api_gobj_gbuffer.md
-        - file: api/gobj/api_gobj_dl.md
+        - title: Startup
+          children:
+            - file: api/gobj/api_gobj_startup.md
+            - pattern: api/gobj/startup/*.md
+        - title: GClass
+          children:
+            - file: api/gobj/api_gobj_gclass.md
+            - pattern: api/gobj/gclass/*.md
+        - title: Creation
+          children:
+            - file: api/gobj/api_gobj_creation.md
+            - pattern: api/gobj/creation/*.md
+        - title: Attributes
+          children:
+            - file: api/gobj/api_gobj_attrs.md
+            - pattern: api/gobj/attrs/*.md
+        - title: Operations
+          children:
+            - file: api/gobj/api_gobj_op.md
+            - pattern: api/gobj/op/*.md
+        - title: Events & State
+          children:
+            - file: api/gobj/api_gobj_events_state.md
+            - pattern: api/gobj/events_state/*.md
+        - title: Resource
+          children:
+            - file: api/gobj/api_gobj_resource.md
+            - pattern: api/gobj/resource/*.md
+        - title: Publish / Subscribe
+          children:
+            - file: api/gobj/api_gobj_publish.md
+            - pattern: api/gobj/publish/*.md
+        - title: Authorization
+          children:
+            - file: api/gobj/api_gobj_authz.md
+            - pattern: api/gobj/authz/*.md
+        - title: Info
+          children:
+            - file: api/gobj/api_gobj_info.md
+            - pattern: api/gobj/info/*.md
+        - title: Stats
+          children:
+            - file: api/gobj/api_gobj_stats.md
+            - pattern: api/gobj/stats/*.md
+        - title: Node
+          children:
+            - file: api/gobj/api_gobj_node.md
+            - pattern: api/gobj/node/*.md
+        - title: Memory
+          children:
+            - file: api/gobj/api_gobj_memory.md
+            - pattern: api/gobj/memory/*.md
+        - title: Log
+          children:
+            - file: api/gobj/api_gobj_log.md
+            - pattern: api/gobj/log/*.md
+        - title: Trace
+          children:
+            - file: api/gobj/api_gobj_trace.md
+            - pattern: api/gobj/trace/*.md
+        - title: GBuffer
+          children:
+            - file: api/gobj/api_gobj_gbuffer.md
+            - pattern: api/gobj/gbuffer/*.md
+        - title: DL (doubly-linked list)
+          children:
+            - file: api/gobj/api_gobj_dl.md
+            - pattern: api/gobj/dl/*.md
 
     - title: Helpers API
       children:
-        - file: api/helpers/api_file_system.md
-        - file: api/helpers/api_string_helper.md
-        - file: api/helpers/api_json_helper.md
-        - file: api/helpers/api_directory_walk.md
-        - file: api/helpers/api_time_date.md
-        - file: api/helpers/api_misc.md
-        - file: api/helpers/api_common_protocol.md
-        - file: api/helpers/api_daemon_launcher.md
-        - file: api/helpers/api_url_parsing.md
-        - file: api/helpers/api_backtrace.md
-        - file: api/helpers/api_http_parser.md
-        - file: api/helpers/api_istream.md
+        - title: File System
+          children:
+            - file: api/helpers/api_file_system.md
+            - pattern: api/helpers/file-system/*.md
+        - title: String Helper
+          children:
+            - file: api/helpers/api_string_helper.md
+            - pattern: api/helpers/string-helper/*.md
+        - title: JSON Helper
+          children:
+            - file: api/helpers/api_json_helper.md
+            - pattern: api/helpers/json-helper/*.md
+        - title: Directory Walk
+          children:
+            - file: api/helpers/api_directory_walk.md
+            - pattern: api/helpers/directory-walk/*.md
+        - title: Time & Date
+          children:
+            - file: api/helpers/api_time_date.md
+            - pattern: api/helpers/time-date/*.md
+        - title: Misc
+          children:
+            - file: api/helpers/api_misc.md
+            - pattern: api/helpers/misc/*.md
+        - title: Common Protocol
+          children:
+            - file: api/helpers/api_common_protocol.md
+            - pattern: api/helpers/common-protocol/*.md
+        - title: Daemon Launcher
+          children:
+            - file: api/helpers/api_daemon_launcher.md
+            - pattern: api/helpers/daemon-launcher/*.md
+        - title: URL Parsing
+          children:
+            - file: api/helpers/api_url_parsing.md
+            - pattern: api/helpers/url-parsing/*.md
+        - title: Backtrace
+          children:
+            - file: api/helpers/api_backtrace.md
+            - pattern: api/helpers/backtrace/*.md
+        - title: HTTP Parser
+          children:
+            - file: api/helpers/api_http_parser.md
+            - pattern: api/helpers/http-parser/*.md
+        - title: IStream
+          children:
+            - file: api/helpers/api_istream.md
+            - pattern: api/helpers/istream/*.md
 
     - title: GObj Auxiliary API
       children:
-        - file: api/kwid/api_kwid.md
-        - file: api/command_parser/api_command_parser.md
-        - file: api/stats_parser/api_stats_parser.md
-        - file: api/log_udp_handler/api_log_udp_handler.md
-        - file: api/rotatory/api_rotatory.md
-        - file: api/testing/api_testing.md
+        - title: kwid
+          children:
+            - file: api/kwid/api_kwid.md
+            - pattern: api/kwid/kwid/*.md
+        - title: Command Parser
+          children:
+            - file: api/command_parser/api_command_parser.md
+            - pattern: api/command_parser/command_parser/*.md
+        - title: Stats Parser
+          children:
+            - file: api/stats_parser/api_stats_parser.md
+            - pattern: api/stats_parser/stats_parser/*.md
+        - title: Log UDP Handler
+          children:
+            - file: api/log_udp_handler/api_log_udp_handler.md
+            - pattern: api/log_udp_handler/log_udp_handler/*.md
+        - title: Rotatory
+          children:
+            - file: api/rotatory/api_rotatory.md
+            - pattern: api/rotatory/rotatory/*.md
+        - title: Testing
+          children:
+            - file: api/testing/api_testing.md
+            - pattern: api/testing/testing/*.md
 
     - title: Timeranger2 API
       children:
-        - file: api/timeranger2/api_timeranger2.md
-        - file: api/timeranger2/api_fs_watcher.md
-        - file: api/timeranger2/api_tr_msg.md
-        - file: api/timeranger2/api_tr_msg2db.md
-        - file: api/timeranger2/api_tr_queue.md
-        - file: api/timeranger2/api_treedb.md
+        - title: timeranger2
+          children:
+            - file: api/timeranger2/api_timeranger2.md
+            - pattern: api/timeranger2/timeranger2/*.md
+        - title: fs_watcher
+          children:
+            - file: api/timeranger2/api_fs_watcher.md
+            - pattern: api/timeranger2/fs_watcher/*.md
+        - title: tr_msg
+          children:
+            - file: api/timeranger2/api_tr_msg.md
+            - pattern: api/timeranger2/tr_msg/*.md
+        - title: tr_msg2db
+          children:
+            - file: api/timeranger2/api_tr_msg2db.md
+            - pattern: api/timeranger2/tr_msg2db/*.md
+        - title: tr_queue
+          children:
+            - file: api/timeranger2/api_tr_queue.md
+            - pattern: api/timeranger2/tr_queue/*.md
+        - title: tr_treedb
+          children:
+            - file: api/timeranger2/api_treedb.md
+            - pattern: api/timeranger2/tr_treedb/*.md
 
     - title: Event Loop API
       children:
         - file: api/yev_loop/api_yev_loop.md
+        - pattern: api/yev_loop/yev_loop/*.md
 
     - title: TLS API
       children:
         - file: api/ytls/api_ytls.md
+        - pattern: api/ytls/ytls/*.md
 
     - title: JavaScript API
       children:

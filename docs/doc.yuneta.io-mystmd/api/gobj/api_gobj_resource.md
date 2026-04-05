@@ -26,17 +26,3 @@ Source code in:
 
 4. **Input and Output Handling:**
     - JSON objects passed as parameters are either owned or not owned by the caller, depending on the API. This ownership must be managed correctly to avoid memory issues.
-
-
-```{toctree}
-:caption: Resource Functions
-:maxdepth: 1
-
-resource/gobj_create_resource
-resource/gobj_delete_resource
-resource/gobj_get_resource
-resource/gobj_list_resource
-resource/gobj_save_resource
-
-
-```
