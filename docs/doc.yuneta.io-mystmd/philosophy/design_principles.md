@@ -89,16 +89,19 @@ it returns. The framework assumes every action is non-blocking.
 
 The asynchronous engine (`yev_loop`) is built on Linux **`io_uring`**.
 Every file-descriptor operation — accept, connect, read, write, timer,
-signal, filesystem event — is submitted through the same ring and its
-completion drives a callback.
+signal — is submitted through the same ring and its completion drives
+a callback. Filesystem events go through `fs_watcher` (an inotify
+wrapper in `timeranger2`) whose inotify fd is itself read through
+`io_uring`, so completions still land on the same loop.
 
 **Why.** `io_uring` unifies the API (one ring for I/O, timers,
-signals, fs events) and cuts the syscall cost per operation. It also
-supports linked and batched submissions, which matters for the
-per-yuno message throughput Yuneta targets.
+signals, and — via the inotify fd — fs events) and cuts the syscall
+cost per operation. It also supports linked and batched submissions,
+which matters for the per-yuno message throughput Yuneta targets.
 
-**Trade-off.** Requires a reasonably recent kernel. Not portable to
-non-Linux systems; the ESP32 port uses a different backend.
+**Trade-off.** Requires a reasonably recent Linux kernel. Not portable
+to non-Linux systems; the ESP32 port (`kernel/c/root-esp32`) lives
+outside `yev_loop` and relies on the ESP-IDF runtime instead.
 
 ### 4. JSON is the *only* in-flight data format
 
@@ -212,7 +215,7 @@ version and authorize it like any other contract.
   composition through "bottom gobj" and through events.
 - **A non-zero JSON cost** on every message in flight.
 - **Linux-first.** Windows and macOS are not targets; the ESP32 port
-  uses its own event backend.
+  lives outside `yev_loop` and uses the ESP-IDF runtime instead.
 
 ## Where to go next
 
