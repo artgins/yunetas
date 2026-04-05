@@ -1,0 +1,6 @@
+# Statistic Parser Functions
+
+Source code in:
+
+- [stats_parser.c](https://github.com/artgins/yunetas/blob/main/kernel/c/gobj-c/src/stats_parser.c)
+- [stats_parser.h](https://github.com/artgins/yunetas/blob/main/kernel/c/gobj-c/src/stats_parser.h)
