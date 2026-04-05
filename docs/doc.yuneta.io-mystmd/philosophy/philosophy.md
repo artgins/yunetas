@@ -1,15 +1,15 @@
 # Inspiration
 
 Yuneta is an engineering framework, but its vocabulary — *events*,
-*actions*, *gobjs*, *hierarchy*, *realms* — did not come out of a
-specification document. It came from looking at how **life itself**
-is organised and borrowing the words that fit.
+*actions*, *gobjs*, *hierarchy*, [*realms*](domain_model.md#realms) —
+did not come out of a specification document. It came from looking at
+how **life itself** is organised and borrowing the words that fit.
 
 This page is the short, non-technical companion to the
 [Design Principles](design_principles.md) and the
-[Domain Model](domain_model.md). If you only want to ship code, skip
-it. If you want to understand why the framework uses the words it
-uses, keep reading.
+[Domain Model](domain_model.md). It is optional: nothing here is
+required to build with Yuneta. Read it if you want to understand
+**why the framework uses the words it uses**.
 
 ## Events are what make anything happen
 
@@ -87,3 +87,12 @@ and reality is the system we are ultimately modelling.
 If any of this resonates, read the [Design Principles](design_principles.md)
 next — it translates every idea on this page into a concrete
 engineering decision you can measure and test.
+
+## Where to go next
+
+- [Design Principles](design_principles.md) — the same ideas expressed
+  as engineering trade-offs.
+- [Domain Model](domain_model.md) — the vocabulary used to model real
+  systems.
+- [Basic Concepts](../guide/basic_concepts.md) — GClass, gobj, yuno
+  from the code side.

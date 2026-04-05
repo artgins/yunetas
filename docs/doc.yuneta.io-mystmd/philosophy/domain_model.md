@@ -7,7 +7,25 @@ on them. It is the concrete counterpart to the
 built this way) and to the [Inspiration](philosophy.md) page (*where
 the words come from*).
 
-In Yuneta we seek models (patterns) that allow us to represent and visualize all kinds of realities.
+In Yuneta we seek models (patterns) that allow us to represent and
+visualize all kinds of realities.
+
+:::{note} How this vocabulary maps onto the code
+The abstract terms below have direct equivalents in the framework:
+
+| Concept here | In the framework |
+|---|---|
+| **Role** (class) | A [GClass](../guide/basic_concepts.md#basic_gclass) registered at startup |
+| **Instance** | A [gobj](../guide/basic_concepts.md#basic_gobj) created by `gobj_create(name, gclass, kw, parent)` |
+| **Realm** | A running [yuno](../guide/basic_concepts.md#yuno) or a logically-grouped set of them |
+| **Parent / Child** | A gobj and the gobjs it created (`parent` argument of `gobj_create`) |
+| **Service / Client** | A gobj registered with `gobj_create_service()` and the gobjs that address it by service name |
+| **Message** | An event name + a `kw` JSON payload sent with `gobj_send_event()` |
+| **Persisted record** | A row in a `timeranger2` topic, or a node in a `tr_treedb` graph |
+
+Read the next sections as *the words we use*; the reference to *what
+the code actually calls them* is always in this table.
+:::
 
 ---
 
@@ -162,16 +180,32 @@ Example topologies:
 
 ## CRUDLU
 
-The basic operations on **entities** are the classic CRUD:
+Most systems describe entities with the classic **CRUD** operations:
 
 - **C**reate
 - **R**ead
 - **U**pdate
 - **D**elete
 
-But when we add **relationships** between entities, we need two additional operations:
+Yuneta adds two more because the [TreeDB](../guide/guide_timeranger2.md)
+graph store makes relationships first-class citizens, not foreign keys
+managed by convention:
 
-- **L**ink
-- **U**nlink
+- **L**ink — attach an existing child to an existing parent via a
+  declared hook. The operation is persisted by writing the child's
+  `fkey` field (see [TreeDB in CLAUDE.md](../guide/guide_timeranger2.md)).
+- **U**nlink — the inverse: clear the child's `fkey`, persist the
+  change.
 
-**CRUDLU** = **Create**, **Read**, **Update**, **Delete**, **Link**, **Unlink**
+**CRUDLU** = **C**reate, **R**ead, **U**pdate, **D**elete, **L**ink,
+**U**nlink. Every TreeDB API call is one of these six shapes.
+
+## Where to go next
+
+- [Design Principles](design_principles.md) — the engineering decisions
+  these concepts sit on (in particular, decision 7 on append-only
+  persistence and decision 8 on the control plane).
+- [Basic Concepts](../guide/basic_concepts.md) — the same concepts
+  from the implementation side.
+- [Timeranger2 Guide](../guide/guide_timeranger2.md) — how CRUDLU
+  actually works on disk and in memory.

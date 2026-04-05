@@ -6,6 +6,28 @@ It is the engineering counterpart to the more evocative
 [Domain Model](domain_model.md). Read this first if you are evaluating
 the framework.
 
+:::{note} Key terms used on this page
+Just enough vocabulary to read the rest of the document. Full
+definitions live in [Basic Concepts](../guide/basic_concepts.md).
+
+- **yuno** — a Yuneta process. One single-threaded binary holding
+  a tree of gobjs plus the runtime that drives them.
+- **gobj** — the runtime instance: an event-driven object with its
+  own finite state machine and attributes.
+- **GClass** — the *template* a gobj is instantiated from. Declares
+  states, events, attribute schema, commands, and action callbacks.
+  There is no inheritance.
+- **event + `kw`** — the only way gobjs talk to each other. An event
+  is a typed name; `kw` is its JSON key-value payload (`json_t *`).
+- **SData** — the typed schema used for a GClass's attributes and
+  commands. Carries type, default, persistence and authorization
+  flags in one declaration.
+- **bottom gobj** — the optional delegate a gobj points at to share
+  attributes and forward events (Yuneta's alternative to inheritance).
+- **timeranger2 / TreeDB** — the append-only time-series store and
+  the in-memory graph view built on top of it.
+:::
+
 ## The problem Yuneta was built to solve
 
 Yuneta exists to build **long-lived, message-driven services** that run
@@ -22,7 +44,9 @@ inside IoT gateways — and that need to:
   behaviour.
 
 Most frameworks optimise for one of those axes. Yuneta is the result
-of doing all of them, for ~25 years, in production, with the same core.
+of doing all of them, with the same conceptual core (GClass, gobj,
+events, FSM, tree-of-objects, append-only persistence), iterated in
+production since the early 2000s.
 
 ## The decisions that define Yuneta
 
@@ -150,9 +174,10 @@ mechanics.
 
 ### 8. The control plane is first-class, not bolted on
 
-Every running yuno exposes **commands** and **stats** through a local
-socket (or the inter-event protocol). The CLI tool `ycommand`,
-operator consoles, and other yunos use the same surface. Commands are
+Every running yuno exposes **commands** and **stats**. Operators reach
+them through a local socket via the `ycommand` CLI; other yunos reach
+them by sending the same commands as events over the inter-yuno
+protocol. In both cases the surface is identical. Commands are
 declared on the GClass with name, parameters, authorization, and help
 text — the same SData mechanism as attributes.
 
@@ -189,12 +214,21 @@ version and authorize it like any other contract.
 - **Linux-first.** Windows and macOS are not targets; the ESP32 port
   uses its own event backend.
 
-## Further reading
+## Where to go next
 
-- [Domain Model](domain_model.md) — the entity / relationship / message
-  vocabulary these principles operate on.
+If the trade-offs above match what you need, the recommended path is:
+
+1. [Domain Model](domain_model.md) — learn the vocabulary these
+   principles operate on (realms, entities, messages, CRUDLU).
+2. [Installation](../installation.md) — get a working build environment.
+3. [Basic Concepts](../guide/basic_concepts.md) — concrete mechanics
+   of [GClass](../guide/basic_concepts.md#basic_gclass),
+   [gobj](../guide/basic_concepts.md#basic_gobj), and
+   [yuno](../guide/basic_concepts.md#yuno).
+4. [GClass Guide](../guide/guide_gclass.md) — build your first GClass.
+5. The **API reference** sections in the sidebar.
+
+Optional:
+
 - [Inspiration](philosophy.md) — the humanist angle that shaped the
   framework's vocabulary.
-- [Basic Concepts](../guide/basic_concepts.md) — GClass, gobj, yuno
-  mechanics.
-- [Guides](../guide/guide_gclass.md) — how to actually build with them.
