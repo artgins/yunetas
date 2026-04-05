@@ -72,7 +72,7 @@ kernel and whatever libraries those cells import.
   keeps its `(funcname)=` anchor, so every internal reference resolves
   identically; only the URL changes from
   `api/helpers/istream/istream_create.html` to
-  `api/helpers/api_istream.html#istream_create`.
+  `api/helpers/istream.html#istream_create`.
 - `list-table` parameter blocks → Markdown pipe tables (cheaper parse,
   easier to edit).
 - Empty JS/Python tab-set stubs and `// TODO` Examples dropdowns

@@ -2,7 +2,7 @@
 
 Utilities for interacting with the Yuneta **TreeDB** — the
 schema-driven graph database built on top of `timeranger2`. See the
-[Timeranger2 API](../timeranger2/api_timeranger2.md) and the TreeDB
+[Timeranger2 API](../timeranger2/timeranger2.md) and the TreeDB
 section of `CLAUDE.md` for the underlying semantics.
 
 ## Available helpers
