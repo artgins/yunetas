@@ -46,12 +46,6 @@ plt.tight_layout()
 The cell above is a proper Python cell — you can reference the figure with
 `@fig-signal`, and the caption is stored as document metadata.
 
-## Inline computation
-
-Quarto also supports **inline results**, similar to R Markdown. The current
-sample has `{python} len(signal)` data points and a mean of roughly
-`{python} f"{signal.mean():.3f}"`.
-
 ## What this replaces
 
 | Sphinx stack feature | Quarto equivalent |
