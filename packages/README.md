@@ -19,7 +19,7 @@ cd packages/
 ./RISCV64.sh        # RISC-V 64-bit
 
 # 4. Install the resulting .deb
-sudo apt install ./dist/yuneta-agent-7.0.1-9-amd64.deb
+sudo apt install ./dist/yuneta-agent-7.2.0-9-amd64.deb
 ```
 
 ## Supported Architectures
