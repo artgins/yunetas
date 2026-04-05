@@ -45,151 +45,6 @@ for the full static-binary notes.
 The individual function reference pages are listed in the left-hand
 sidebar under **Event Loop API**.
 
-(get_peername)=
-## `get_peername()`
-
-`get_peername()` retrieves the peer's address and stores it in the provided buffer.
-
-```C
-int get_peername(
-    char   *bf,
-    size_t  bfsize,
-    int     fd
-);
-```
-
-**Parameters**
-
-| Key | Type | Description |
-|---|---|---|
-| `bf` | `char *` | Buffer to store the peer's address. |
-| `bfsize` | `size_t` | Size of the buffer to ensure safe storage. |
-| `fd` | `int` | File descriptor of the socket whose peer address is retrieved. |
-
-**Returns**
-
-Returns `0` on success, or `-1` on failure.
-
-**Notes**
-
-This function internally calls `getpeername()` to obtain the peer's address.
-
----
-
-(get_sockname)=
-## `get_sockname()`
-
-`get_sockname()` retrieves the local socket address associated with the given file descriptor and stores it as a string.
-
-```C
-int get_sockname(
-    char *bf,
-    size_t bfsize,
-    int fd
-);
-```
-
-**Parameters**
-
-| Key | Type | Description |
-|---|---|---|
-| `bf` | `char *` | Buffer to store the local socket address as a string. |
-| `bfsize` | `size_t` | Size of the buffer `bf` to prevent overflow. |
-| `fd` | `int` | File descriptor of the socket whose local address is to be retrieved. |
-
-**Returns**
-
-Returns `0` on success, or `-1` on failure.
-
-**Notes**
-
-This function is useful for obtaining the local address of a socket, particularly in network applications.
-
----
-
-(is_tcp_socket)=
-## `is_tcp_socket()`
-
-`is_tcp_socket()` determines whether the given file descriptor corresponds to a TCP socket.
-
-```C
-BOOL is_tcp_socket(
-    int fd
-);
-```
-
-**Parameters**
-
-| Key | Type | Description |
-|---|---|---|
-| `fd` | `int` | The file descriptor to check. |
-
-**Returns**
-
-Returns `TRUE` if the file descriptor corresponds to a TCP socket, otherwise returns `FALSE`.
-
-**Notes**
-
-This function checks the socket type using system-level socket options.
-
----
-
-(is_udp_socket)=
-## `is_udp_socket()`
-
-The `is_udp_socket()` function determines whether the given file descriptor corresponds to a UDP socket.
-
-```C
-BOOL is_udp_socket(
-    int fd
-);
-```
-
-**Parameters**
-
-| Key | Type | Description |
-|---|---|---|
-| `fd` | `int` | The file descriptor to check. |
-
-**Returns**
-
-Returns `TRUE` if the file descriptor corresponds to a UDP socket, otherwise returns `FALSE`.
-
-**Notes**
-
-This function is useful for verifying socket types before performing UDP-specific operations.
-
----
-
-(set_tcp_socket_options)=
-## `set_tcp_socket_options()`
-
-`set_tcp_socket_options()` configures TCP socket options such as `TCP_NODELAY`, `SO_KEEPALIVE`, and `SO_LINGER` for a given file descriptor.
-
-```C
-int set_tcp_socket_options(
-    int fd,
-    int delay
-);
-```
-
-**Parameters**
-
-| Key | Type | Description |
-|---|---|---|
-| `fd` | `int` | The file descriptor of the TCP socket to configure. |
-| `delay` | `int` | If nonzero, enables `TCP_NODELAY` to disable Nagle's algorithm, reducing latency. |
-
-**Returns**
-
-Returns `0` on success, or `-1` on failure.
-
-**Notes**
-
-This function is internally used for configuring TCP sockets in both client and server modes.
-
----
-
 (yev_create_accept_event)=
 ## `yev_create_accept_event()`
 
@@ -197,9 +52,14 @@ This function is internally used for configuring TCP sockets in both client and 
 
 ```C
 yev_event_h yev_create_accept_event(
-    yev_loop_h      yev_loop,
-    yev_callback_t  callback,
-    hgobj           gobj
+    yev_loop_h yev_loop,
+    yev_callback_t callback,
+    const char *listen_url,
+    int backlog,
+    BOOL shared,
+    int ai_family,
+    int ai_flags,
+    hgobj gobj
 );
 ```
 
@@ -217,7 +77,7 @@ Returns a `yev_event_h` handle to the newly created accept event, or `NULL` on f
 
 **Notes**
 
-Before starting the accept event, it must be configured using [`yev_setup_accept_event()`](<#yev_setup_accept_event>).
+The event is configured at creation time by [`yev_create_accept_event()`](#yev_create_accept_event).
 
 ---
 
@@ -228,9 +88,13 @@ Before starting the accept event, it must be configured using [`yev_setup_accept
 
 ```C
 yev_event_h yev_create_connect_event(
-    yev_loop_h      yev_loop,
-    yev_callback_t  callback,
-    hgobj           gobj
+    yev_loop_h yev_loop,
+    yev_callback_t callback,
+    const char *dst_url,
+    const char *src_url,
+    int ai_family,
+    int ai_flags,
+    hgobj gobj
 );
 ```
 
@@ -248,42 +112,7 @@ Returns a `yev_event_h` handle to the newly created connect event, or `NULL` on 
 
 **Notes**
 
-Before starting the connect event, it must be configured using [`yev_setup_connect_event()`](<#yev_setup_connect_event>).
-
----
-
-(yev_create_inotify_event)=
-## `yev_create_inotify_event()`
-
-`yev_create_inotify_event()` creates a new inotify event within the specified event loop, associating it with a callback function and a given object.
-
-```C
-yev_event_h yev_create_inotify_event(
-    yev_loop_h      yev_loop,
-    yev_callback_t  callback,  // if return -1 the loop in yev_loop_run will break;
-    hgobj           gobj,
-    int            fd,
-    gbuffer_t *    gbuf
-);
-```
-
-**Parameters**
-
-| Key | Type | Description |
-|---|---|---|
-| `yev_loop` | `yev_loop_h` | The event loop handle in which the inotify event will be created. |
-| `callback` | `yev_callback_t` | The function to be called when the event is triggered. If it returns -1, [`yev_loop_run()`](<#yev_loop_run>) will break. |
-| `gobj` | `hgobj` | The associated object that will handle the event. |
-| `fd` | `int` | The file descriptor associated with the inotify event. |
-| `gbuf` | `gbuffer_t *` | A buffer for storing event-related data. |
-
-**Returns**
-
-Returns a `yev_event_h` handle to the newly created inotify event, or `NULL` on failure.
-
-**Notes**
-
-The callback function provided will be invoked when the inotify event is triggered. Ensure that the file descriptor `fd` is valid and properly initialized before calling [`yev_create_inotify_event()`](<#yev_create_inotify_event>).
+The event is configured at creation time by [`yev_create_connect_event()`](#yev_create_connect_event).
 
 ---
 
@@ -415,87 +244,6 @@ If the event is associated with a socket, it will be closed before destruction.
 
 ---
 
-(yev_event_is_running)=
-## `yev_event_is_running()`
-
-`yev_event_is_running()` checks whether the specified event is currently in the running state.
-
-```C
-BOOL yev_event_is_running(
-    yev_event_h yev_event
-);
-```
-
-**Parameters**
-
-| Key | Type | Description |
-|---|---|---|
-| `yev_event` | `yev_event_h` | Handle to the event being checked. |
-
-**Returns**
-
-Returns `TRUE` if the event is in the running state, otherwise returns `FALSE`.
-
-**Notes**
-
-This function helps determine if an event is actively being processed within the event loop.
-
----
-
-(yev_event_is_stopped)=
-## `yev_event_is_stopped()`
-
-`yev_event_is_stopped()` checks whether the specified event has reached the stopped state.
-
-```C
-BOOL yev_event_is_stopped(
-    yev_event_h yev_event
-);
-```
-
-**Parameters**
-
-| Key | Type | Description |
-|---|---|---|
-| `yev_event` | `yev_event_h` | Handle to the event being checked. |
-
-**Returns**
-
-Returns `TRUE` if the event is in the stopped state, otherwise returns `FALSE`.
-
-**Notes**
-
-This function is useful for determining if an event has completed its execution and is no longer active.
-
----
-
-(yev_event_is_stopping)=
-## `yev_event_is_stopping()`
-
-Checks if the given `yev_event_h` event is in the process of stopping.
-
-```C
-BOOL yev_event_is_stopping(
-    yev_event_h yev_event
-);
-```
-
-**Parameters**
-
-| Key | Type | Description |
-|---|---|---|
-| `yev_event` | `yev_event_h` | The event handle to check. |
-
-**Returns**
-
-Returns `TRUE` if the event is in the process of stopping, otherwise `FALSE`.
-
-**Notes**
-
-This function helps determine if an event is currently transitioning to a stopped state.
-
----
-
 (yev_event_type_name)=
 ## `yev_event_type_name()`
 
@@ -548,222 +296,6 @@ The returned array provides human-readable names for `yev_flag_t` flags, which c
 
 ---
 
-(yev_get_callback)=
-## `yev_get_callback()`
-
-`yev_get_callback()` retrieves the callback function associated with a given event.
-
-```C
-yev_callback_t yev_get_callback(
-    yev_event_h yev_event
-);
-```
-
-**Parameters**
-
-| Key | Type | Description |
-|---|---|---|
-| `yev_event` | `yev_event_h` | The event handle from which to retrieve the callback function. |
-
-**Returns**
-
-Returns the callback function associated with the given `yev_event_h` event.
-
-**Notes**
-
-If no callback function is set for the event, the function may return `NULL`.
-
----
-
-(yev_get_fd)=
-## `yev_get_fd()`
-
-`yev_get_fd()` retrieves the file descriptor associated with the given event.
-
-```C
-int yev_get_fd(
-    yev_event_h yev_event
-);
-```
-
-**Parameters**
-
-| Key | Type | Description |
-|---|---|---|
-| `yev_event` | `yev_event_h` | The event handle from which to retrieve the file descriptor. |
-
-**Returns**
-
-Returns the file descriptor associated with `yev_event`. If no file descriptor is set, the return value is undefined.
-
-**Notes**
-
-This function is typically used in conjunction with event-based operations such as [`yev_create_read_event()`](<#yev_create_read_event>) and [`yev_create_write_event()`](<#yev_create_write_event>).
-
----
-
-(yev_get_flag)=
-## `yev_get_flag()`
-
-`yev_get_flag()` retrieves the event flags associated with the given `yev_event_h` event.
-
-```C
-yev_flag_t yev_get_flag(
-    yev_event_h yev_event
-);
-```
-
-**Parameters**
-
-| Key | Type | Description |
-|---|---|---|
-| `yev_event` | `yev_event_h` | Handle to the event whose flags are to be retrieved. |
-
-**Returns**
-
-Returns the `yev_flag_t` flags associated with the specified event.
-
-**Notes**
-
-The returned flags indicate various properties of the event, such as whether it is periodic, uses TLS, or is connected.
-
----
-
-(yev_get_gbuf)=
-## `yev_get_gbuf()`
-
-`yev_get_gbuf()` retrieves the `gbuffer_t *` associated with the given `yev_event_h` event.
-
-```C
-gbuffer_t *yev_get_gbuf(
-    yev_event_h yev_event
-);
-```
-
-**Parameters**
-
-| Key | Type | Description |
-|---|---|---|
-| `yev_event` | `yev_event_h` | The event handle from which to retrieve the associated `gbuffer_t *`. |
-
-**Returns**
-
-Returns a pointer to the `gbuffer_t *` associated with the event, or `NULL` if no buffer is set.
-
-**Notes**
-
-The returned `gbuffer_t *` is managed by the event system and should not be manually freed.
-
----
-
-(yev_get_gobj)=
-## `yev_get_gobj()`
-
-`yev_get_gobj()` retrieves the associated `hgobj` instance from the given `yev_event_h` event handle.
-
-```C
-hgobj yev_get_gobj(
-    yev_event_h yev_event
-);
-```
-
-**Parameters**
-
-| Key | Type | Description |
-|---|---|---|
-| `yev_event` | `yev_event_h` | The event handle from which to retrieve the associated `hgobj` instance. |
-
-**Returns**
-
-Returns the `hgobj` instance associated with the given event handle, or `NULL` if no instance is associated.
-
-**Notes**
-
-The returned `hgobj` instance can be used to access the object context linked to the event.
-
----
-
-(yev_get_loop)=
-## `yev_get_loop()`
-
-`yev_get_loop()` retrieves the event loop handle associated with the given event.
-
-```C
-yev_loop_h yev_get_loop(
-    yev_event_h yev_event
-);
-```
-
-**Parameters**
-
-| Key | Type | Description |
-|---|---|---|
-| `yev_event` | `yev_event_h` | The event handle from which to retrieve the associated event loop. |
-
-**Returns**
-
-Returns the event loop handle (`yev_loop_h`) associated with the given event.
-
-**Notes**
-
-If `yev_event` is invalid or uninitialized, the behavior is undefined.
-
----
-
-(yev_get_result)=
-## `yev_get_result()`
-
-`yev_get_result()` retrieves the result code associated with the specified event.
-
-```C
-int yev_get_result(
-    yev_event_h yev_event
-);
-```
-
-**Parameters**
-
-| Key | Type | Description |
-|---|---|---|
-| `yev_event` | `yev_event_h` | Handle to the event whose result code is being queried. |
-
-**Returns**
-
-Returns an integer representing the result code of the event.
-
-**Notes**
-
-The result code may indicate success or failure of the event operation.
-
----
-
-(yev_get_state)=
-## `yev_get_state()`
-
-`yev_get_state()` retrieves the current state of the specified event.
-
-```C
-yev_state_t yev_get_state(
-    yev_event_h yev_event
-);
-```
-
-**Parameters**
-
-| Key | Type | Description |
-|---|---|---|
-| `yev_event` | `yev_event_h` | Handle to the event whose state is being queried. |
-
-**Returns**
-
-Returns the current state of the event as a `yev_state_t` enumeration value.
-
-**Notes**
-
-The returned state can be one of `YEV_ST_IDLE`, `YEV_ST_RUNNING`, `YEV_ST_CANCELING`, or `YEV_ST_STOPPED`.
-
----
-
 (yev_get_state_name)=
 ## `yev_get_state_name()`
 
@@ -788,60 +320,6 @@ A string representing the name of the current state of the event.
 **Notes**
 
 The returned string corresponds to one of the predefined event states.
-
----
-
-(yev_get_type)=
-## `yev_get_type()`
-
-`yev_get_type()` retrieves the event type associated with the given `yev_event_h` handle.
-
-```C
-yev_type_t yev_get_type(
-    yev_event_h yev_event
-);
-```
-
-**Parameters**
-
-| Key | Type | Description |
-|---|---|---|
-| `yev_event` | `yev_event_h` | Handle to the event whose type is to be retrieved. |
-
-**Returns**
-
-Returns the event type as a `yev_type_t` enumeration value.
-
-**Notes**
-
-The returned type can be one of the predefined `yev_type_t` values, such as `YEV_TIMER_TYPE`, `YEV_READ_TYPE`, etc.
-
----
-
-(yev_get_user_data)=
-## `yev_get_user_data()`
-
-`yev_get_user_data()` retrieves the user-defined data associated with a given event handle.
-
-```C
-void *yev_get_user_data(
-    yev_event_h yev_event
-);
-```
-
-**Parameters**
-
-| Key | Type | Description |
-|---|---|---|
-| `yev_event` | `yev_event_h` | The event handle from which to retrieve the user data. |
-
-**Returns**
-
-Returns a pointer to the user-defined data associated with the event, or `NULL` if no data is set.
-
-**Notes**
-
-The user data can be set using [`yev_set_user_data()`](<#yev_set_user_data>).
 
 ---
 
@@ -1071,66 +549,6 @@ This function allows customization of protocol hint filling, which is useful for
 
 ---
 
-(yev_set_fd)=
-## `yev_set_fd()`
-
-`yev_set_fd()` assigns a file descriptor to a given event, applicable only for `yev_create_read_event()` and `yev_create_write_event()`.
-
-```C
-void yev_set_fd(
-    yev_event_h yev_event,
-    int         fd
-);
-```
-
-**Parameters**
-
-| Key | Type | Description |
-|---|---|---|
-| `yev_event` | `yev_event_h` | The event handle to which the file descriptor will be assigned. |
-| `fd` | `int` | The file descriptor to be associated with the event. |
-
-**Returns**
-
-This function does not return a value.
-
-**Notes**
-
-This function should only be used with events created using [`yev_create_read_event()`](<#yev_create_read_event>) and [`yev_create_write_event()`](<#yev_create_write_event>).
-
----
-
-(yev_set_flag)=
-## `yev_set_flag()`
-
-Sets or clears a specific flag on the given `yev_event_h` event.
-
-```C
-void yev_set_flag(
-    yev_event_h  yev_event,
-    yev_flag_t   flag,
-    BOOL         set
-);
-```
-
-**Parameters**
-
-| Key | Type | Description |
-|---|---|---|
-| `yev_event` | `yev_event_h` | The event handle on which the flag will be modified. |
-| `flag` | `yev_flag_t` | The flag to be set or cleared. |
-| `set` | `BOOL` | If `TRUE`, the flag is set; if `FALSE`, the flag is cleared. |
-
-**Returns**
-
-This function does not return a value.
-
-**Notes**
-
-Use [`yev_get_flag()`](<#yev_get_flag>) to check the current state of a flag.
-
----
-
 (yev_set_gbuffer)=
 ## `yev_set_gbuffer()`
 
@@ -1157,107 +575,6 @@ Returns `0` on success, or `-1` if an error occurs.
 **Notes**
 
 This function is only applicable for events created using [`yev_create_read_event()`](<#yev_create_read_event>) and [`yev_create_write_event()`](<#yev_create_write_event>).
-
----
-
-(yev_set_user_data)=
-## `yev_set_user_data()`
-
-`yev_set_user_data()` associates a user-defined data pointer with a given event, allowing custom data storage and retrieval.
-
-```C
-int yev_set_user_data(
-    yev_event_h yev_event,
-    void        *user_data
-);
-```
-
-**Parameters**
-
-| Key | Type | Description |
-|---|---|---|
-| `yev_event` | `yev_event_h` | The event handle to which the user data will be associated. |
-| `user_data` | `void *` | A pointer to the user-defined data to be stored in the event. |
-
-**Returns**
-
-Returns `0` on success, or `-1` if an error occurs.
-
-**Notes**
-
-The user data set with [`yev_set_user_data()`](<#yev_set_user_data>) can be retrieved using [`yev_get_user_data()`](<#yev_get_user_data>).
-
----
-
-(yev_setup_accept_event)=
-## `yev_setup_accept_event()`
-
-`yev_setup_accept_event()` creates and configures a socket for listening on the specified `listen_url` with the given parameters.
-
-```C
-int yev_setup_accept_event(
-    yev_event_h  yev_event,
-    const char  *listen_url,
-    int          backlog,
-    BOOL         shared,
-    int          ai_family,
-    int          ai_flags
-);
-```
-
-**Parameters**
-
-| Key | Type | Description |
-|---|---|---|
-| `yev_event` | `yev_event_h` | The event handle associated with the accept event. |
-| `listen_url` | `const char *` | The URL specifying the address and port to listen on. |
-| `backlog` | `int` | The maximum length of the queue for pending connections, default is 512. |
-| `shared` | `BOOL` | Indicates whether the socket should be opened as shared. |
-| `ai_family` | `int` | The address family, default is `AF_UNSPEC` to allow both IPv4 and IPv6 (`AF_INET`, `AF_INET6`). |
-| `ai_flags` | `int` | Additional flags for address resolution, default is `AI_V4MAPPED \| AI_ADDRCONFIG`. |
-
-**Returns**
-
-Returns `0` on success, or `-1` on failure.
-
-**Notes**
-
-This function must be called before starting an accept event using [`yev_start_event()`](<#yev_start_event>).
-
----
-
-(yev_setup_connect_event)=
-## `yev_setup_connect_event()`
-
-`yev_setup_connect_event()` creates and configures a socket for a connection event, setting the destination and source addresses, as well as socket options.
-
-```C
-int yev_setup_connect_event(
-    yev_event_h  yev_event,
-    const char  *dst_url,
-    const char  *src_url,
-    int          ai_family,
-    int          ai_flags
-);
-```
-
-**Parameters**
-
-| Key | Type | Description |
-|---|---|---|
-| `yev_event` | `yev_event_h` | The event handle associated with the connection. |
-| `dst_url` | `const char *` | The destination URL for the connection. |
-| `src_url` | `const char *` | The local bind address in the format 'host:port'. |
-| `ai_family` | `int` | The address family, default is `AF_UNSPEC` to allow both IPv4 and IPv6 (`AF_INET`, `AF_INET6`). |
-| `ai_flags` | `int` | Additional address resolution flags, default is `AI_V4MAPPED \| AI_ADDRCONFIG`. |
-
-**Returns**
-
-Returns `0` on success, or `-1` on failure.
-
-**Notes**
-
-If a file descriptor is already set in `yev_event`, it will be closed and replaced with the new socket. This function should be called before [`yev_start_event()`](<#yev_start_event>).
 
 ---
 
@@ -1347,3 +664,104 @@ If the event is a `connect`, `timer`, or `accept` event, the associated socket w
 If the event is in an idle state, it can be reused; otherwise, a new event must be created.
 
 ---
+
+(yev_create_poll_event)=
+## `yev_create_poll_event()`
+
+*Description pending — signature extracted from header.*
+
+```C
+yev_event_h yev_create_poll_event(
+    yev_loop_h yev_loop,
+    yev_callback_t callback,
+    hgobj gobj,
+    int fd,
+    unsigned poll_mask
+);
+```
+
+---
+
+(yev_create_recvmsg_event)=
+## `yev_create_recvmsg_event()`
+
+*Description pending — signature extracted from header.*
+
+```C
+yev_event_h yev_create_recvmsg_event(
+    yev_loop_h yev_loop,
+    yev_callback_t callback,
+    hgobj gobj,
+    int fd,
+    gbuffer_t *gbuf
+);
+```
+
+---
+
+(yev_create_sendmsg_event)=
+## `yev_create_sendmsg_event()`
+
+*Description pending — signature extracted from header.*
+
+```C
+yev_event_h yev_create_sendmsg_event(
+    yev_loop_h yev_loop,
+    yev_callback_t callback,
+    hgobj gobj,
+    int fd,
+    gbuffer_t *gbuf,
+    struct sockaddr *dst_addr
+);
+```
+
+---
+
+(yev_dup2_accept_event)=
+## `yev_dup2_accept_event()`
+
+*Description pending — signature extracted from header.*
+
+```C
+yev_event_h yev_dup2_accept_event(
+    yev_loop_h yev_loop,
+    yev_callback_t callback,
+    int fd_listen,
+    hgobj gobj
+);
+```
+
+---
+
+(yev_dup_accept_event)=
+## `yev_dup_accept_event()`
+
+*Description pending — signature extracted from header.*
+
+```C
+yev_event_h yev_dup_accept_event(
+    yev_event_h yev_server_accept,
+    int dup_idx,
+    hgobj gobj
+);
+```
+
+---
+
+(yev_rearm_connect_event)=
+## `yev_rearm_connect_event()`
+
+*Description pending — signature extracted from header.*
+
+```C
+int yev_rearm_connect_event(
+    yev_event_h yev_event,
+    const char *dst_url,
+    const char *src_url,
+    int ai_family,
+    int ai_flags
+);
+```
+
+---
+

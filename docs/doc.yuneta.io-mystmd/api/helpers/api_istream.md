@@ -210,7 +210,7 @@ The returned [`gbuffer_t *`](#gbuffer_t) is not owned by the caller and should n
 `istream_is_completed()` checks if the input stream has completed reading the expected data.
 
 ```C
-PUBLIC BOOL istream_is_completed(
+BOOL istream_is_completed(
     istream_h istream
 );
 ```
@@ -237,7 +237,7 @@ Returns `TRUE` if the input stream has completed reading the expected data, othe
 `istream_length()` returns the number of unread bytes in the internal buffer of the given input stream.
 
 ```C
-PUBLIC size_t istream_length(
+size_t istream_length(
     istream_h istream
 );
 ```
@@ -433,61 +433,3 @@ Returns 0 on success, or -1 if the `istream` handle is NULL or invalid.
 This function clears the write pointer but does not deallocate the buffer. Use [`istream_clear()`](#istream_clear) to reset both read and write pointers.
 
 ---
-(macro_istream_create)=
-## `ISTREAM_CREATE()`
-
-Macro to create an `istream_h` instance with specified buffer sizes, ensuring proper memory management and error handling.
-
-```C
-ISTREAM_CREATE(
-    var,       istream_h *
-    gobj,      hgobj
-    data_size, size_t
-    max_size,  size_t
-)
-```
-
-**Parameters**
-
-| Key | Type | Description |
-|---|---|---|
-| `var` | `istream_h *` | Pointer to the `istream_h` instance to be created. |
-| `gobj` | `hgobj` | Handle to the gobj that owns the istream. |
-| `data_size` | `size_t` | Initial buffer size for the istream. |
-| `max_size` | `size_t` | Maximum buffer size allowed for the istream. |
-
-**Returns**
-
-None. The macro initializes `var` with a new `istream_h` instance or destroys an existing one before reinitialization.
-
-**Notes**
-
-If `var` is already allocated, it is destroyed before creating a new instance. The macro logs an error if `var` is not NULL before reallocation.
-
----
-
-(macro_istream_destroy)=
-## `ISTREAM_DESTROY()`
-
-The `ISTREAM_DESTROY` macro safely destroys an `istream_h` instance by calling `istream_destroy()` and setting the pointer to `NULL`.
-
-```C
-#define ISTREAM_DESTROY(istream)
-```
-
-**Parameters**
-
-| Key | Type | Description |
-|---|---|---|
-| `istream` | `istream_h` | A pointer to the `istream_h` instance to be destroyed. |
-
-**Returns**
-
-This macro does not return a value.
-
-**Notes**
-
-This macro ensures that the `istream_h` instance is properly deallocated and prevents accidental use of a dangling pointer by setting it to `NULL`.
-
----
-

@@ -54,32 +54,6 @@ The exit code is set using [`gobj_set_exit_code()`](#gobj_set_exit_code).
 
 ---
 
-(gobj_get_yuno_must_die)=
-## `gobj_get_yuno_must_die()`
-
-Returns the current state of the `__yuno_must_die__` flag, indicating whether the Yuno process should terminate.
-
-```C
-BOOL gobj_get_yuno_must_die(void);
-```
-
-**Parameters**
-
-| Key | Type | Description |
-|---|---|---|
-| `-` | `-` | This function does not take any parameters. |
-
-**Returns**
-
-Returns `TRUE` if the Yuno process must terminate, otherwise returns `FALSE`.
-
-**Notes**
-
-This function is used to check if the Yuno process has been marked for termination.
-The flag is typically set using [`gobj_set_yuno_must_die()`](#gobj_set_yuno_must_die).
-
----
-
 (gobj_is_shutdowning)=
 ## `gobj_is_shutdowning()`
 
@@ -130,56 +104,6 @@ The exit code set by this function can be retrieved using [`gobj_get_exit_code()
 
 ---
 
-(gobj_set_yuno_must_die)=
-## `gobj_set_yuno_must_die()`
-
-Sets a flag indicating that the Yuno process must terminate.
-
-```C
-void gobj_set_yuno_must_die(void);
-```
-
-**Parameters**
-
-| Key | Type | Description |
-|---|---|---|
-| `-` | `-` | This function does not take any parameters. |
-
-**Returns**
-
-This function does not return a value.
-
-**Notes**
-
-This function is used to signal that the Yuno process should exit. It is typically used in scenarios where an external condition requires the process to terminate gracefully.
-
----
-
-(gobj_shutdown)=
-## `gobj_shutdown()`
-
-`gobj_shutdown()` gracefully shuts down the Yuno framework, ensuring that all services and objects are properly stopped and cleaned up.
-
-```C
-void gobj_shutdown(void);
-```
-
-**Parameters**
-
-| Key | Type | Description |
-|---|---|---|
-| `-` | `-` | This function does not take any parameters. |
-
-**Returns**
-
-This function does not return a value.
-
-**Notes**
-
-If the Yuno is already in the process of shutting down, `gobj_shutdown()` will return immediately without performing any additional operations.
-
----
-
 (gobj_start_up)=
 ## `gobj_start_up()`
 
@@ -187,19 +111,14 @@ If the Yuno is already in the process of shutting down, `gobj_shutdown()` will r
 
 ```C
 int gobj_start_up(
-    int                         argc,
-    char                        *argv[],
-    const json_t                *jn_global_settings,
-    const persistent_attrs_t    *persistent_attrs,
-    json_function_fn            global_command_parser,
-    json_function_fn            global_statistics_parser,
-    authorization_checker_fn    global_authorization_checker,
-    authentication_parser_fn    global_authentication_parser,
-    size_t                      mem_max_block,
-    size_t                      mem_max_system_memory,
-    BOOL                        use_own_system_memory,
-    size_t                      mem_min_block,
-    size_t                      mem_superblock
+    int argc,
+    char *argv[],
+    const json_t *jn_global_settings,
+    const persistent_attrs_t *persistent_attrs,
+    json_function_fn global_command_parser,
+    json_function_fn global_statistics_parser,
+    authorization_checker_fn global_authorization_checker,
+    authentication_parser_fn global_authentication_parser
 );
 ```
 
@@ -235,3 +154,15 @@ If `global_authorization_checker` is `NULL`, authorization checks are disabled.
 If `global_authentication_parser` is `NULL`, authentication is bypassed.
 
 ---
+
+(gobj_set_shutdown)=
+## `gobj_set_shutdown()`
+
+*Description pending — signature extracted from header.*
+
+```C
+void gobj_set_shutdown(void);
+```
+
+---
+

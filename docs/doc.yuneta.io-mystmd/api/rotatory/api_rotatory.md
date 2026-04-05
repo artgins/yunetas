@@ -92,9 +92,9 @@ Flushing ensures that all buffered log data is written to disk, reducing the ris
 
 ```C
 int rotatory_fwrite(
-    hrotatory_h  hr,        
-    int         priority,  
-    const char *format,    
+    hrotatory_h hr_,
+    int priority,
+    const char *format,
     ...
 );
 ```
@@ -211,33 +211,6 @@ This function registers [`rotatory_end()`](#rotatory_end) with `atexit()` to ens
 
 ---
 
-(rotatory_trunk)=
-## `rotatory_trunk()`
-
-`rotatory_trunk()` truncates the log file associated with the given `hrotatory_h` handle. If `hr` is `NULL`, it truncates all active log files.
-
-```C
-void rotatory_trunk(
-    hrotatory_h hr
-);
-```
-
-**Parameters**
-
-| Key | Type | Description |
-|---|---|---|
-| `hr` | `hrotatory_h` | Handle to the rotatory log. If `NULL`, all log files are truncated. |
-
-**Returns**
-
-This function does not return a value.
-
-**Notes**
-
-If `hr` is `NULL`, [`rotatory_trunk()`](#rotatory_trunk) iterates over all active log handles and truncates each log file.
-
----
-
 (rotatory_write)=
 ## `rotatory_write()`
 
@@ -273,3 +246,32 @@ The function appends a newline character (`\n`) to the log message.
 Internally calls `_rotatory()` to perform the actual writing.
 
 ---
+
+(rotatory_subscribe2newfile)=
+## `rotatory_subscribe2newfile()`
+
+*Description pending — signature extracted from header.*
+
+```C
+int rotatory_subscribe2newfile(
+    hrotatory_h hr,
+    int (*cb_newfile)(void *user_data, const char *old_filename, const char *new_filename),
+    void *user_data
+);
+```
+
+---
+
+(rotatory_truncate)=
+## `rotatory_truncate()`
+
+*Description pending — signature extracted from header.*
+
+```C
+void rotatory_truncate(
+    hrotatory_h hr
+);
+```
+
+---
+

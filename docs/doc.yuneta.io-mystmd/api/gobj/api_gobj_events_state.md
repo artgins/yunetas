@@ -40,7 +40,7 @@ Retrieves the current state of the given `hgobj`.
 
 ```C
 gobj_state_t gobj_current_state(
-    hgobj hgobj
+    hgobj gobj
 );
 ```
 
@@ -66,8 +66,8 @@ If `hgobj` is `NULL`, an error is logged, and an empty string is returned.
 Retrieves the event type information for a given event in the specified gobj. If the event is not found in the gobj's event list, it checks the global event list if `include_system_events` is set to true.
 
 ```C
-PUBLIC event_type_t *gobj_event_type(
-    hgobj gobj_,
+event_type_t *gobj_event_type(
+    hgobj gobj,
     gobj_event_t event,
     BOOL include_system_events
 );
@@ -97,7 +97,7 @@ If `include_system_events` is set to true, the function will also check the glob
 Retrieves the event type information for a given event name in the specified gobj.
 
 ```C
-PUBLIC event_type_t *gobj_event_type_by_name(
+event_type_t *gobj_event_type_by_name(
     hgobj gobj,
     const char *event_name
 );
@@ -126,7 +126,7 @@ This function searches for the event in the gobj's event list and the global eve
 Checks if the given `gobj` supports the specified event, optionally filtering by event flags.
 
 ```C
-PUBLIC BOOL gobj_has_event(
+BOOL gobj_has_event(
     hgobj gobj,
     gobj_event_t event,
     event_flag_t event_flag
@@ -157,7 +157,7 @@ This function does not differentiate between input and output events. Use [`gobj
 Checks if the given `gobj` has the specified `event` in its output event list, optionally filtered by `event_flag`.
 
 ```C
-PUBLIC BOOL gobj_has_output_event(
+BOOL gobj_has_output_event(
     hgobj gobj,
     gobj_event_t event,
     event_flag_t event_flag
@@ -272,3 +272,64 @@ Returns 0 on success, -1 if the event is not defined in the current state, or if
 If the event is not found in the current state of `dst`, the function checks if `dst` has a custom event injection method (`mt_inject_event`). If defined, it delegates event processing to that method.
 
 ---
+
+(gobj_find_event_type)=
+## `gobj_find_event_type()`
+
+*Description pending — signature extracted from header.*
+
+```C
+event_type_t *gobj_find_event_type(
+    const char *event,
+    event_flag_t event_flag,
+    BOOL verbose
+);
+```
+
+---
+
+(gobj_send_event_to_children)=
+## `gobj_send_event_to_children()`
+
+*Description pending — signature extracted from header.*
+
+```C
+int gobj_send_event_to_children(
+    hgobj gobj,
+    gobj_event_t event,
+    json_t *kw,
+    hgobj src
+);
+```
+
+---
+
+(gobj_send_event_to_children_tree)=
+## `gobj_send_event_to_children_tree()`
+
+*Description pending — signature extracted from header.*
+
+```C
+int gobj_send_event_to_children_tree(
+    hgobj gobj,
+    gobj_event_t event,
+    json_t *kw,
+    hgobj src
+);
+```
+
+---
+
+(gobj_state_find_by_name)=
+## `gobj_state_find_by_name()`
+
+*Description pending — signature extracted from header.*
+
+```C
+hgclass gobj_state_find_by_name(
+    gclass_name_t gclass_name
+);
+```
+
+---
+

@@ -5,80 +5,18 @@ Source code in:
 - [helpers.h](https://github.com/artgins/yunetas/blob/main/kernel/c/gobj-c/src/helpers.h)
 - [helpers.c](https://github.com/artgins/yunetas/blob/main/kernel/c/gobj-c/src/helpers.c)
 
-(free_ordered_filename_array)=
-## `free_ordered_filename_array()`
-
-Deallocates memory used by an array of ordered filenames, freeing each filename string and the array itself.
-
-```C
-void free_ordered_filename_array(
-    char **array,
-    int    size
-);
-```
-
-**Parameters**
-
-| Key | Type | Description |
-|---|---|---|
-| `array` | `char **` | Pointer to an array of dynamically allocated filename strings. |
-| `size` | `int` | Number of elements in the array. |
-
-**Returns**
-
-This function does not return a value.
-
-**Notes**
-
-Each filename string in the array is individually freed before freeing the array itself. Ensure that `array` was allocated using [`get_ordered_filename_array()`](#get_ordered_filename_array) to avoid undefined behavior.
-
----
-
-(get_number_of_files)=
-## `get_number_of_files()`
-
-The function `get_number_of_files()` counts the number of files in a directory tree that match a given pattern and options.
-
-```C
-int get_number_of_files(
-    hgobj gobj,
-    const char *root_dir,
-    const char *pattern,
-    wd_option opt
-);
-```
-
-**Parameters**
-
-| Key | Type | Description |
-|---|---|---|
-| `gobj` | `hgobj` | A handle to the gobj (generic object) system, used for logging and error handling. |
-| `root_dir` | `const char *` | The root directory where the search begins. |
-| `pattern` | `const char *` | A regular expression pattern to match filenames. |
-| `opt` | `wd_option` | Options that control the search behavior, such as recursion and file type filtering. |
-
-**Returns**
-
-Returns the number of matching files found in the directory tree. Returns -1 on error.
-
-**Notes**
-
-This function internally uses [`walk_dir_tree()`](#walk_dir_tree) to traverse the directory tree and count matching files.
-
----
-
 (get_ordered_filename_array)=
 ## `get_ordered_filename_array()`
 
 Retrieves an ordered list of filenames from a specified directory, optionally filtered by a pattern and search options.
 
 ```C
-char **get_ordered_filename_array(
+int get_ordered_filename_array(
     hgobj gobj,
     const char *root_dir,
-    const char *pattern,
+    const char *re,
     wd_option opt,
-    int *size
+    dir_array_t *da
 );
 ```
 
@@ -138,3 +76,63 @@ Returns 0 on success, or -1 if an error occurs (e.g., if `root_dir` does not exi
 The callback function `cb` should return `TRUE` to continue traversal or `FALSE` to stop. The function uses `regcomp()` to compile the `pattern` and `regexec()` to match file names.
 
 ---
+
+(dir_array_free)=
+## `dir_array_free()`
+
+*Description pending — signature extracted from header.*
+
+```C
+void dir_array_free(
+    dir_array_t *da
+);
+```
+
+---
+
+(dir_array_sort)=
+## `dir_array_sort()`
+
+*Description pending — signature extracted from header.*
+
+```C
+void dir_array_sort(
+    dir_array_t *da
+);
+```
+
+---
+
+(find_files_with_suffix_array)=
+## `find_files_with_suffix_array()`
+
+*Description pending — signature extracted from header.*
+
+```C
+int find_files_with_suffix_array(
+    hgobj gobj,
+    const char *directory,
+    const char *suffix,
+    dir_array_t *da
+);
+```
+
+---
+
+(walk_dir_array)=
+## `walk_dir_array()`
+
+*Description pending — signature extracted from header.*
+
+```C
+int walk_dir_array(
+    hgobj gobj,
+    const char *root_dir,
+    const char *re,
+    wd_option opt,
+    dir_array_t *da
+);
+```
+
+---
+

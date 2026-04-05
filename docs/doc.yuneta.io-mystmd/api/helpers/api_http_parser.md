@@ -5,54 +5,6 @@ Source code in:
 - [helpers.h](https://github.com/artgins/yunetas/blob/main/kernel/c/gobj-c/src/helpers.h)
 - [helpers.c](https://github.com/artgins/yunetas/blob/main/kernel/c/gobj-c/src/helpers.c)
 
-(GHTTP_PARSER)=
-## GHTTP_PARSER
-
-```C
-    typedef struct _GHTTP_PARSER {
-        http_parser http_parser;
-        hgobj gobj;
-        gobj_event_t on_header_event;
-        gobj_event_t on_body_event;
-        gobj_event_t on_message_event;
-        BOOL send_event;
-
-        enum http_parser_type type;
-        char message_completed;
-        char headers_completed;
-
-        char *url;
-        json_t *jn_headers;
-        //char *body;
-        size_t body_size;
-        gbuffer_t *gbuf_body;
-
-        char *cur_key;  // key can arrive in several callbacks
-        char *last_key; // save last key for the case value arriving in several callbacks
-    } GHTTP_PARSER;
-```
-
-(date_mode)=
-## date_mode
-
-```C
-    struct date_mode {
-        enum date_mode_type {
-            DATE_NORMAL = 0,
-            DATE_RELATIVE,
-            DATE_SHORT,
-            DATE_ISO8601,
-            DATE_ISO8601_STRICT,
-            DATE_RFC2822,
-            DATE_STRFTIME,
-            DATE_RAW,
-            DATE_UNIX
-        } type;
-        char strftime_fmt[256];
-        int local;
-    };
-```
-
 (ghttp_parser_create)=
 ## `ghttp_parser_create()`
 
@@ -61,7 +13,7 @@ Creates and initializes a new `GHTTP_PARSER` instance for parsing HTTP messages.
 ```C
 GHTTP_PARSER *ghttp_parser_create(
     hgobj gobj,
-    enum http_parser_type type,
+    llhttp_type_t type,
     gobj_event_t on_header_event,
     gobj_event_t on_body_event,
     gobj_event_t on_message_event,
@@ -123,8 +75,8 @@ Parses an HTTP message from the given buffer using the [`ghttp_parser_create()`]
 ```C
 int ghttp_parser_received(
     GHTTP_PARSER *parser,
-    char *buf,
-    size_t received
+    char *bf,
+    size_t len
 );
 ```
 
@@ -132,7 +84,7 @@ int ghttp_parser_received(
 
 | Key | Type | Description |
 |---|---|---|
-| `parser` | `GHTTP_PARSER *` | Pointer to the [`GHTTP_PARSER`](#GHTTP_PARSER) instance handling the HTTP parsing. |
+| `parser` | `GHTTP_PARSER *` | Pointer to the `GHTTP_PARSER` instance handling the HTTP parsing. |
 | `buf` | `char *` | Pointer to the buffer containing the HTTP message data. |
 | `received` | `size_t` | Number of bytes available in `buf` for parsing. |
 
@@ -149,7 +101,7 @@ Returns the number of bytes successfully parsed. Returns `-1` if an error occurs
 (ghttp_parser_reset)=
 ## `ghttp_parser_reset()`
 
-Resets the internal state of a [`GHTTP_PARSER`](#GHTTP_PARSER) structure, clearing accumulated data such as headers, body, and URL.
+Resets the internal state of a `GHTTP_PARSER` structure, clearing accumulated data such as headers, body, and URL.
 
 ```C
 void ghttp_parser_reset(GHTTP_PARSER *parser);
@@ -159,7 +111,7 @@ void ghttp_parser_reset(GHTTP_PARSER *parser);
 
 | Key | Type | Description |
 |---|---|---|
-| `parser` | `GHTTP_PARSER *` | Pointer to the [`GHTTP_PARSER`](#GHTTP_PARSER) structure to reset. |
+| `parser` | `GHTTP_PARSER *` | Pointer to the `GHTTP_PARSER` structure to reset. |
 
 **Returns**
 
@@ -167,6 +119,6 @@ This function does not return a value.
 
 **Notes**
 
-This function should be called before reusing a [`GHTTP_PARSER`](#GHTTP_PARSER) instance to ensure a clean state.
+This function should be called before reusing a `GHTTP_PARSER` instance to ensure a clean state.
 
 ---

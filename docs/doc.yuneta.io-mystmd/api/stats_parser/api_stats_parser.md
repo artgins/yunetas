@@ -72,3 +72,21 @@ Internally, [`stats_parser()`](#stats_parser) calls [`build_stats()`](#build_sta
 The function wraps the generated statistics in a standard command response format before returning.
 
 ---
+
+(build_stats_response)=
+## `build_stats_response()`
+
+*Description pending — signature extracted from header.*
+
+```C
+json_t *build_stats_response(
+    hgobj gobj,
+    json_int_t result,
+    json_t *jn_comment,
+    json_t *jn_schema,
+    json_t *jn_data
+);
+```
+
+---
+

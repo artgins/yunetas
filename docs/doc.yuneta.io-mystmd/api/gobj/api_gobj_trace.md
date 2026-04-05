@@ -93,7 +93,7 @@ The returned JSON array must be freed by the caller using `json_decref()`.
 Retrieves a list of trace levels set for a given `gclass`. If `gclass` is NULL, it returns the trace levels for all registered `gclass` instances.
 
 ```C
-PUBLIC json_t *gobj_get_gclass_trace_level_list(
+json_t *gobj_get_gclass_trace_level_list(
     hgclass gclass
 );
 ```
@@ -120,7 +120,7 @@ The returned JSON array must be freed by the caller using `json_decref()`.
 Retrieves the trace levels that are explicitly disabled for a given gclass.
 
 ```C
-PUBLIC json_t *gobj_get_gclass_trace_no_level(
+json_t *gobj_get_gclass_trace_no_level(
     hgclass gclass
 );
 ```
@@ -147,7 +147,9 @@ This function returns a list of trace levels that have been explicitly disabled 
 Retrieves a list of gclasses with their respective trace levels that are explicitly disabled.
 
 ```C
-PUBLIC json_t *gobj_get_gclass_trace_no_level_list(hgclass gclass_);
+json_t *gobj_get_gclass_trace_no_level_list(
+    hgclass gclass
+);
 ```
 
 **Parameters**
@@ -197,7 +199,7 @@ The returned JSON object must be managed properly to avoid memory leaks. Use `js
 Retrieves the trace levels set for the specified `hgobj`. The function returns a JSON array containing the active trace levels.
 
 ```C
-PUBLIC json_t *gobj_get_gobj_trace_level(
+json_t *gobj_get_gobj_trace_level(
     hgobj gobj
 );
 ```
@@ -278,7 +280,7 @@ This function returns a list of trace levels that have been explicitly disabled 
 Retrieves a hierarchical list of trace levels that are explicitly disabled for a given gobj and its child tree.
 
 ```C
-PUBLIC json_t *gobj_get_gobj_trace_no_level_tree(
+json_t *gobj_get_gobj_trace_no_level_tree(
     hgobj gobj
 );
 ```
@@ -305,7 +307,9 @@ This function traverses the entire gobj tree and collects trace levels that have
 Retrieves the trace filter configuration for a given `hgclass`.
 
 ```C
-PUBLIC json_t *gobj_get_trace_filter(hgclass gclass);
+json_t *gobj_get_trace_filter(
+    hgclass gclass
+);
 ```
 
 **Parameters**
@@ -651,7 +655,7 @@ If `gobj` is not `NULL`, this function invokes [`mt_trace_on()`](#mt_trace_on) o
 Returns the trace level bitmask for the given `hgobj`.
 
 ```C
-PUBLIC uint32_t gobj_trace_level(
+uint32_t gobj_trace_level(
     hgobj gobj
 );
 ```
@@ -678,7 +682,7 @@ If `gobj` is `NULL`, the function returns the global trace level bitmask.
 Returns a JSON object containing the trace levels available for a given `hgclass`.
 
 ```C
-PUBLIC json_t *gobj_trace_level_list(
+json_t *gobj_trace_level_list(
     hgclass gclass
 );
 ```
@@ -705,7 +709,7 @@ The returned JSON object must be decremented when no longer needed.
 Retrieves the trace level mask that is explicitly disabled for the given `hgobj`.
 
 ```C
-PUBLIC uint32_t gobj_trace_no_level(
+uint32_t gobj_trace_no_level(
     hgobj gobj
 );
 ```
@@ -723,64 +727,6 @@ Returns a 32-bit mask representing the disabled trace levels for the given `hgob
 **Notes**
 
 The function combines the global disabled trace levels with those specific to the `hgobj` and its [`gclass`](#gclass).
-
----
-
-(is_level_not_tracing)=
-## `is_level_not_tracing()`
-
-Determines whether a given trace level is explicitly disabled for a specified `hgobj` instance or globally.
-
-```C
-PUBLIC BOOL is_level_not_tracing(
-    hgobj gobj_,
-    uint32_t level
-);
-```
-
-**Parameters**
-
-| Key | Type | Description |
-|---|---|---|
-| `gobj_` | `hgobj` | The object whose trace level is being checked. If NULL, the global trace level is considered. |
-| `level` | `uint32_t` | The trace level to check. |
-
-**Returns**
-
-Returns `TRUE` if the specified trace level is disabled, otherwise returns `FALSE`.
-
-**Notes**
-
-If `__deep_trace__` is greater than 1, tracing is always enabled, overriding any disabled levels.
-
----
-
-(is_level_tracing)=
-## `is_level_tracing()`
-
-Checks if the given `gobj` has the specified trace `level` enabled, considering global and class-level trace settings.
-
-```C
-PUBLIC BOOL is_level_tracing(
-    hgobj gobj, 
-    uint32_t level
-);
-```
-
-**Parameters**
-
-| Key | Type | Description |
-|---|---|---|
-| `gobj` | `hgobj` | The GObj instance to check for the trace level. |
-| `level` | `uint32_t` | The trace level bitmask to check. |
-
-**Returns**
-
-Returns `TRUE` if the trace level is enabled for the given `gobj`, otherwise returns `FALSE`.
-
-**Notes**
-
-If `gobj` is `NULL`, the function checks the global trace level. The function considers deep tracing settings and class-level trace configurations.
 
 ---
 
@@ -819,7 +765,10 @@ The indentation is determined by the global variable `__inside__`, which tracks 
 The `trace_machine()` function logs formatted trace messages for debugging purposes.
 
 ```C
-void trace_machine(const char *fmt, ...);
+void trace_machine(
+    const char *fmt,
+    ...) JANSSON_ATTRS((format(printf, 1, 2))
+);
 ```
 
 **Parameters**
@@ -838,3 +787,109 @@ This function does not return a value.
 This function is used for debugging and tracing execution flow. It formats and logs messages based on the provided format string and arguments.
 
 ---
+
+(gobj_global_trace_level)=
+## `gobj_global_trace_level()`
+
+*Description pending — signature extracted from header.*
+
+```C
+uint32_t gobj_global_trace_level(void);
+```
+
+---
+
+(gobj_global_trace_level2)=
+## `gobj_global_trace_level2()`
+
+*Description pending — signature extracted from header.*
+
+```C
+uint32_t gobj_global_trace_level2(void);
+```
+
+---
+
+(gobj_set_global_no_trace2)=
+## `gobj_set_global_no_trace2()`
+
+*Description pending — signature extracted from header.*
+
+```C
+int gobj_set_global_no_trace2(
+    uint32_t level,
+    BOOL set
+);
+```
+
+---
+
+(gobj_set_global_trace2)=
+## `gobj_set_global_trace2()`
+
+*Description pending — signature extracted from header.*
+
+```C
+int gobj_set_global_trace2(
+    uint32_t level,
+    BOOL set
+);
+```
+
+---
+
+(gobj_is_level_tracing)=
+## `gobj_is_level_tracing()`
+
+*Description pending — signature extracted from header.*
+
+```C
+BOOL gobj_is_level_tracing(
+    hgobj gobj,
+    uint32_t level
+);
+```
+
+---
+
+(gobj_is_level_not_tracing)=
+## `gobj_is_level_not_tracing()`
+
+*Description pending — signature extracted from header.*
+
+```C
+BOOL gobj_is_level_not_tracing(
+    hgobj gobj,
+    uint32_t level
+);
+```
+
+---
+
+(gobj_set_trace_machine_format)=
+## `gobj_set_trace_machine_format()`
+
+*Description pending — signature extracted from header.*
+
+```C
+void gobj_set_trace_machine_format(
+    int format
+);
+```
+
+---
+
+(trace_machine2)=
+## `trace_machine2()`
+
+*Description pending — signature extracted from header.*
+
+```C
+void trace_machine2(
+    const char *fmt,
+    ...) JANSSON_ATTRS((format(printf, 1, 2))
+);
+```
+
+---
+

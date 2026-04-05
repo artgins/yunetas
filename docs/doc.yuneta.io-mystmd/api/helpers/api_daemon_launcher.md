@@ -11,7 +11,7 @@ Source code in:
 `launch_daemon()` creates a detached daemon process by performing a double fork and returns the PID of the first child process.
 
 ```C
-pid_t launch_daemon(
+int launch_daemon(
     BOOL redirect_stdio_to_null,
     const char *program,
     ...

@@ -11,7 +11,7 @@ Converts a given `hgclass` object into a JSON representation, including its attr
 
 ```C
 json_t *gclass2json(
-    hgclass gclass_
+    hgclass gclass
 );
 ```
 
@@ -73,8 +73,9 @@ Adds a new event type to the specified `gclass`. The event type is appended to t
 
 ```C
 int gclass_add_event_type(
-    hgclass gclass, 
-    event_type_t *event_type
+    hgclass gclass,
+    gobj_event_t event_name,
+    event_flag_t event_flag
 );
 ```
 
@@ -460,7 +461,9 @@ This function performs a case-sensitive search for the attribute name.
 Unregisters a `gclass`, freeing its allocated resources if no instances exist.
 
 ```C
-void gclass_unregister(hgclass gclass);
+void gclass_unregister(
+    hgclass hgclass
+);
 ```
 
 **Parameters**

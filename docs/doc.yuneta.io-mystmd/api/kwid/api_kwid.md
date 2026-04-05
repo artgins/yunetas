@@ -1199,8 +1199,9 @@ Compare two JSON lists of records, allowing for unordered comparison. The functi
 ```C
 BOOL kwid_compare_lists(
     hgobj gobj,
-    json_t *list,          // NOT owned
-    json_t *expected,      // NOT owned
+    json_t *list,
+    json_t *expected,
+    const char **ignore_keys,
     BOOL without_metadata,
     BOOL without_private,
     BOOL verbose
@@ -1235,12 +1236,13 @@ Compares two JSON records deeply, allowing for unordered elements. The function 
 
 ```C
 BOOL kwid_compare_records(
-    hgobj  gobj,
-    json_t *record,          // NOT owned
-    json_t *expected,        // NOT owned
-    BOOL    without_metadata,
-    BOOL    without_private,
-    BOOL    verbose
+    hgobj gobj,
+    json_t *record,
+    json_t *expected,
+    const char **ignore_keys,
+    BOOL without_metadata,
+    BOOL without_private,
+    BOOL verbose
 );
 ```
 
@@ -1367,11 +1369,11 @@ Retrieve the first record from a JSON list or dictionary that matches the given 
 ```C
 json_t *kwjr_get(
     hgobj gobj,
-    json_t *kw,          // NOT owned
+    json_t *kw,
     const char *id,
-    json_t *new_record,  // owned
+    json_t *new_record,
     const json_desc_t *json_desc,
-    size_t *idx,        // If not null, set the index in case of an array
+    size_t *idx_,
     kw_flag_t flag
 );
 ```
@@ -1397,3 +1399,139 @@ Returns a pointer to the found or newly created JSON record. If `KW_EXTRACT` is 
 If `kw` is a dictionary, the function searches for a key matching `id`. If `kw` is a list, it searches for a record where the `id` field matches. If `KW_CREATE` is set, a new record is created using `json_desc` and `new_record`. If `KW_EXTRACT` is set, the record is removed from `kw` and returned with an increased reference count.
 
 ---
+
+(json_flatten_dict)=
+## `json_flatten_dict()`
+
+*Description pending — signature extracted from header.*
+
+```C
+json_t *json_flatten_dict(
+    json_t *jn_nested
+);
+```
+
+---
+
+(json_unflatten_dict)=
+## `json_unflatten_dict()`
+
+*Description pending — signature extracted from header.*
+
+```C
+json_t *json_unflatten_dict(
+    json_t *jn_flat
+);
+```
+
+---
+
+(kw_collect)=
+## `kw_collect()`
+
+*Description pending — signature extracted from header.*
+
+```C
+json_t *kw_collect(
+    hgobj gobj,
+    json_t *kw,
+    json_t *jn_filter,
+    BOOL (*match_fn) ( json_t *kw, json_t *jn_filter )
+);
+```
+
+---
+
+(kw_serialize_to_string)=
+## `kw_serialize_to_string()`
+
+*Description pending — signature extracted from header.*
+
+```C
+char *kw_serialize_to_string(
+    hgobj gobj,
+    json_t *kw
+);
+```
+
+---
+
+(kw_size)=
+## `kw_size()`
+
+*Description pending — signature extracted from header.*
+
+```C
+size_t kw_size(
+    json_t *kw
+);
+```
+
+---
+
+(kw_walk)=
+## `kw_walk()`
+
+*Description pending — signature extracted from header.*
+
+```C
+int kw_walk(
+    hgobj gobj,
+    json_t *kw,
+    int (*callback)(hgobj gobj, json_t *kw, const char *key, json_t *value)
+);
+```
+
+---
+
+(kwid_get)=
+## `kwid_get()`
+
+*Description pending — signature extracted from header.*
+
+```C
+json_t *kwid_get(
+    hgobj gobj,
+    json_t *kw,
+    kw_flag_t flag,
+    const char *path,
+    ... ) JANSSON_ATTRS((format(printf, 4, 5))
+);
+```
+
+---
+
+(kwid_new_dict)=
+## `kwid_new_dict()`
+
+*Description pending — signature extracted from header.*
+
+```C
+json_t *kwid_new_dict(
+    hgobj gobj,
+    json_t *kw,
+    kw_flag_t flag,
+    const char *path,
+    ... ) JANSSON_ATTRS((format(printf, 4, 5))
+);
+```
+
+---
+
+(kwid_new_list)=
+## `kwid_new_list()`
+
+*Description pending — signature extracted from header.*
+
+```C
+json_t *kwid_new_list(
+    hgobj gobj,
+    json_t *kw,
+    kw_flag_t flag,
+    const char *path,
+    ... ) JANSSON_ATTRS((format(printf, 4, 5))
+);
+```
+
+---
+

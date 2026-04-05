@@ -101,9 +101,9 @@ Ensures that the resulting path does not have redundant slashes and properly for
 
 ```C
 int change_char(
-    char *s,    /* Input string to modify */
-    char old_c, /* Character to be replaced */
-    char new_c  /* Replacement character */
+    char *s,
+    char old_c,
+    char new_c
 );
 ```
 
@@ -398,11 +398,11 @@ This function modifies the input string in place and does not allocate new memor
 
 ```C
 char *hex2bin(
-    char *bf,     /* Output buffer for binary data */
-    int bfsize,   /* Size of the output buffer */
-    const char *hex, /* Input hexadecimal string */
-    size_t hex_len,  /* Length of the input hexadecimal string */
-    size_t *out_len  /* Output length of the binary data */
+    char *bf,
+    int bfsize,
+    const char *hex,
+    size_t hex_len,
+    size_t *out_len
 );
 ```
 
@@ -535,37 +535,6 @@ A pointer to the last segment of the path. The original `path` string is modifie
 **Notes**
 
 If no '/' is found in `path`, the entire string is returned, and `path` remains unchanged.
-
----
-
-(replace_string)=
-## `replace_string()`
-
-`replace_string()` replaces all occurrences of a substring within a given string with another substring, dynamically allocating memory for the new string.
-
-```C
-char *replace_string(
-    const char *str,
-    const char *old,
-    const char *snew
-);
-```
-
-**Parameters**
-
-| Key | Type | Description |
-|---|---|---|
-| `str` | `const char *` | The input string in which replacements will be made. |
-| `old` | `const char *` | The substring to be replaced. |
-| `snew` | `const char *` | The substring to replace occurrences of `old`. |
-
-**Returns**
-
-A newly allocated string with all occurrences of `old` replaced by `snew`. Returns `NULL` if memory allocation fails.
-
-**Notes**
-
-The caller is responsible for freeing the returned string using `free()`. If `old` is an empty string, the function will enter an infinite loop.
 
 ---
 
@@ -889,3 +858,71 @@ Returns a pointer to the `to` buffer containing the translated string.
 ['The `mk_from` and `mk_to` strings define a mapping where each character in `mk_from` is replaced by the corresponding character in `mk_to`.', 'If `tolen` is too small, the function may not fully translate the input.', 'The function does not allocate memory; the caller must ensure `to` has sufficient space.']
 
 ---
+
+(capitalize)=
+## `capitalize()`
+
+*Description pending — signature extracted from header.*
+
+```C
+char *capitalize(
+    char *s
+);
+```
+
+---
+
+(lower)=
+## `lower()`
+
+*Description pending — signature extracted from header.*
+
+```C
+char *lower(
+    char *s
+);
+```
+
+---
+
+(path_basename)=
+## `path_basename()`
+
+*Description pending — signature extracted from header.*
+
+```C
+const char *path_basename(
+    const char *path
+);
+```
+
+---
+
+(replace_cli_vars)=
+## `replace_cli_vars()`
+
+*Description pending — signature extracted from header.*
+
+```C
+gbuffer_t *replace_cli_vars(
+    const char *command,
+    char *comment,
+    int commentlen
+);
+```
+
+---
+
+(upper)=
+## `upper()`
+
+*Description pending — signature extracted from header.*
+
+```C
+char *upper(
+    char *s
+);
+```
+
+---
+

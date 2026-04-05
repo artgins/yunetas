@@ -1,16 +1,3 @@
-(dl)=
-# Double Linked List Functions
-
-Source code in:
-- [gobj.c](https://github.com/artgins/yunetas/blob/main/kernel/c/gobj-c/src/gobj.c)
-- [gobj.h](https://github.com/artgins/yunetas/blob/main/kernel/c/gobj-c/src/gobj.h)
-
-(dl_list_t)=
-## dl_list_t
-
-(dl_node_t)=
-## dl_node_t
-
 (dl_add)=
 ## `dl_add()`
 
@@ -94,31 +81,6 @@ Returns a pointer to the item if found, otherwise returns `NULL`.
 **Notes**
 
 This function performs a linear search through the list and returns the first matching item.
-
----
-
-(dl_first)=
-## `dl_first()`
-
-Returns the first item in the given double-linked list.
-
-```C
-void *dl_first(dl_list_t *dl);
-```
-
-**Parameters**
-
-| Key | Type | Description |
-|---|---|---|
-| `dl` | `dl_list_t *` | Pointer to the double-linked list. |
-
-**Returns**
-
-Returns a pointer to the first item in the list, or NULL if the list is empty.
-
-**Notes**
-
-Ensure that the list is properly initialized before calling [`dl_first()`](#dl_first).
 
 ---
 
@@ -209,102 +171,31 @@ The function checks if the item already has links before inserting it. If the li
 
 ---
 
-(dl_last)=
-## `dl_last()`
+(dl_delete_item)=
+## `dl_delete_item()`
 
-Retrieves the last item in a doubly linked list.
+*Description pending — signature extracted from header.*
 
 ```C
-void *dl_last(dl_list_t *dl);
+int dl_delete_item(
+    void *curr,
+    void (*fnfree)(void *)
+);
 ```
-
-**Parameters**
-
-| Key | Type | Description |
-|---|---|---|
-| `dl` | `dl_list_t *` | Pointer to the doubly linked list. |
-
-**Returns**
-
-Returns a pointer to the last item in the list, or NULL if the list is empty.
-
-**Notes**
-
-Ensure that the list is properly initialized before calling [`dl_last()`](#dl_last).
 
 ---
 
-(dl_next)=
-## `dl_next()`
+(dl_nfind)=
+## `dl_nfind()`
 
-Returns the next item in a doubly linked list relative to the given item.
+*Description pending — signature extracted from header.*
 
 ```C
-void *dl_next(void *curr);
+void * dl_nfind(
+    dl_list_t *dl,
+    size_t nitem
+);
 ```
-
-**Parameters**
-
-| Key | Type | Description |
-|---|---|---|
-| `curr` | `void *` | Pointer to the current item in the doubly linked list. |
-
-**Returns**
-
-A pointer to the next item in the list, or NULL if there is no next item.
-
-**Notes**
-
-The function assumes that `curr` is a valid pointer to an item in a doubly linked list.
 
 ---
 
-(dl_prev)=
-## `dl_prev()`
-
-Returns the previous item in a doubly linked list relative to the given item.
-
-```C
-void *dl_prev(void *curr);
-```
-
-**Parameters**
-
-| Key | Type | Description |
-|---|---|---|
-| `curr` | `void *` | Pointer to the current item in the doubly linked list. |
-
-**Returns**
-
-Returns a pointer to the previous item in the list. If `curr` is `NULL`, or if `curr` is the first item in the list, returns `NULL`.
-
-**Notes**
-
-Ensure that `curr` is a valid pointer to an item in a properly initialized doubly linked list before calling [`dl_prev()`](#dl_prev).
-
----
-
-(dl_size)=
-## `dl_size()`
-
-`dl_size()` returns the number of items in a given doubly linked list.
-
-```C
-size_t dl_size(dl_list_t *dl);
-```
-
-**Parameters**
-
-| Key | Type | Description |
-|---|---|---|
-| `dl` | `dl_list_t *` | Pointer to the doubly linked list whose size is to be determined. |
-
-**Returns**
-
-Returns the number of items in the list. If `dl` is NULL, returns 0.
-
-**Notes**
-
-This function does not modify the list; it only retrieves the count of elements.
-
----

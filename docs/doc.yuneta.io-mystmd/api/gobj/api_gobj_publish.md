@@ -11,7 +11,7 @@ Returns a list of subscriptions where the given `subscriber` is subscribed to ev
 
 ```C
 json_t *gobj_find_subscribings(
-    hgobj subscriber,
+    hgobj gobj,
     gobj_event_t event,
     json_t *kw,
     hgobj publisher
@@ -44,10 +44,10 @@ Retrieves a list of event subscriptions for a given publisher, filtering by even
 
 ```C
 json_t *gobj_find_subscriptions(
-    hgobj       publisher,
+    hgobj gobj,
     gobj_event_t event,
-    json_t      *kw,
-    hgobj       subscriber
+    json_t *kw,
+    hgobj subscriber
 );
 ```
 
@@ -77,7 +77,10 @@ Retrieves a list of event subscriptions for a given `hgobj`. The function return
 
 ```C
 json_t *gobj_list_subscriptions(
-    hgobj gobj2view
+    hgobj gobj,
+    gobj_event_t event,
+    json_t *kw,
+    hgobj subscriber
 );
 ```
 
@@ -211,8 +214,9 @@ Removes a list of event subscriptions from their respective publishers, optional
 
 ```C
 int gobj_unsubscribe_list(
-    json_t *dl_subs,  // owned
-    BOOL force  // delete hard_subscription subs too
+    hgobj gobj,
+    json_t *dl_subs,
+    BOOL force
 );
 ```
 
@@ -232,3 +236,31 @@ Returns `0` upon successful removal of the subscriptions.
 Each subscription in `dl_subs` is checked and removed from both the publisher's and subscriber's subscription lists.
 
 ---
+
+(gobj_list_subscribings)=
+## `gobj_list_subscribings()`
+
+*Description pending — signature extracted from header.*
+
+```C
+json_t *gobj_list_subscribings(
+    hgobj gobj,
+    gobj_event_t event,
+    json_t *kw,
+    hgobj subscriber
+);
+```
+
+---
+
+(gobj_subs_desc)=
+## `gobj_subs_desc()`
+
+*Description pending — signature extracted from header.*
+
+```C
+const sdata_desc_t *gobj_subs_desc(void);
+```
+
+---
+

@@ -4,91 +4,6 @@ Source code in:
 - [gobj.c](https://github.com/artgins/yunetas/blob/main/kernel/c/gobj-c/src/gobj.c)
 - [gobj.h](https://github.com/artgins/yunetas/blob/main/kernel/c/gobj-c/src/gobj.h)
 
-(build_command_response)=
-## `build_command_response()`
-
-Constructs a JSON response object containing the result, comment, schema, and data fields.
-
-```C
-json_t *build_command_response(
-    hgobj gobj,
-    json_int_t result,
-    json_t *jn_comment, // owned, if null then not set
-    json_t *jn_schema,  // owned, if null then not set
-    json_t *jn_data     // owned, if null then not set
-);
-```
-
-**Parameters**
-
-| Key | Type | Description |
-|---|---|---|
-| `gobj` | `hgobj` | The GObj instance associated with the response. |
-| `result` | `json_int_t` | The result code of the command execution. |
-| `jn_comment` | `json_t *` | A JSON string containing a comment or message. If null, it is not set. |
-| `jn_schema` | `json_t *` | A JSON object representing the schema of the response. If null, it is not set. |
-| `jn_data` | `json_t *` | A JSON object containing the response data. If null, it is not set. |
-
-**Returns**
-
-A JSON object containing the response structure with 'result', 'comment', 'schema', and 'data' fields.
-
-**Notes**
-
-The caller is responsible for managing the memory of the returned JSON object. If any of the optional parameters (jn_comment, jn_schema, jn_data) are null, they are replaced with default values.
-
----
-
-(gobj_autoplay_services)=
-## `gobj_autoplay_services()`
-
-Starts all services marked with `gobj_flag_autoplay` by calling [`gobj_play()`](#gobj_play) on them.
-
-```C
-int gobj_autoplay_services(void);
-```
-
-**Parameters**
-
-| Key | Type | Description |
-|---|---|---|
-| `-` | `-` | This function does not take any parameters. |
-
-**Returns**
-
-Returns 0 after attempting to start all autoplay services.
-
-**Notes**
-
-This function iterates over all registered services and plays those that have the `gobj_flag_autoplay` flag set.
-
----
-
-(gobj_autostart_services)=
-## `gobj_autostart_services()`
-
-Starts all services marked with `gobj_flag_autostart`. If a service has a `mt_play` method, only the service gobj is started; otherwise, the entire tree is started using [`gobj_start_tree()`](#gobj_start_tree).
-
-```C
-int gobj_autostart_services(void);
-```
-
-**Parameters**
-
-| Key | Type | Description |
-|---|---|---|
-| `-` | `-` | This function does not take any parameters. |
-
-**Returns**
-
-Returns 0 on success.
-
-**Notes**
-
-['Services with `gobj_flag_autostart` are started automatically.', 'If a service has a `mt_play` method, it is responsible for starting its own tree.']
-
----
-
 (gobj_bottom_gobj)=
 ## `gobj_bottom_gobj()`
 
@@ -153,7 +68,7 @@ This function ensures that the object hierarchy remains consistent when changing
 ```C
 hgobj gobj_child_by_index(
     hgobj gobj,
-    size_t idx
+    size_t index
 );
 ```
 
@@ -209,7 +124,9 @@ This function performs a case-sensitive comparison of the child names.
 Returns the number of child objects directly associated with the given `hgobj`.
 
 ```C
-size_t gobj_child_size(hgobj gobj_);
+size_t gobj_child_size(
+    hgobj gobj
+);
 ```
 
 **Parameters**
@@ -394,43 +311,14 @@ The function iterates over the direct children of `gobj` and applies the filter 
 
 ---
 
-(gobj_find_gclass_service)=
-## `gobj_find_gclass_service()`
-
-Finds a service gobj by its gclass name. Returns a handle to the service gobj if found, otherwise returns NULL.
-
-```C
-hgobj gobj_find_gclass_service(
-    const char *gclass_name,
-    BOOL verbose
-);
-```
-
-**Parameters**
-
-| Key | Type | Description |
-|---|---|---|
-| `gclass_name` | `const char *` | The name of the gclass to search for. |
-| `verbose` | `BOOL` | If TRUE, logs an error message when the service is not found. |
-
-**Returns**
-
-Returns a handle to the service gobj if found, otherwise returns NULL.
-
-**Notes**
-
-This function searches for a service gobj that matches the given gclass name. If `verbose` is set to TRUE and the service is not found, an error message is logged.
-
----
-
 (gobj_find_gobj)=
 ## `gobj_find_gobj()`
 
 Finds a `gobj` by its path within the hierarchical structure of `gobj` instances.
 
 ```C
-PUBLIC hgobj gobj_find_gobj(
-    const char *path
+hgobj gobj_find_gobj(
+    const char *gobj_path
 );
 ```
 
@@ -539,7 +427,7 @@ This function does not modify the object hierarchy; it only retrieves the first 
 Decrements the reference count of each gobj in the given JSON array and frees the array.
 
 ```C
-void gobj_free_iter(
+int gobj_free_iter(
     json_t *iter
 );
 ```
@@ -786,31 +674,6 @@ If the object is already paused, a warning is logged. If the object has a `mt_pa
 
 ---
 
-(gobj_pause_autoplay_services)=
-## `gobj_pause_autoplay_services()`
-
-Pauses all services that have the `gobj_flag_autoplay` flag set. This function iterates over all registered services and pauses those that are currently playing.
-
-```C
-int gobj_pause_autoplay_services(void);
-```
-
-**Parameters**
-
-| Key | Type | Description |
-|---|---|---|
-| `-` | `-` | This function does not take any parameters. |
-
-**Returns**
-
-Returns 0 after attempting to pause all autoplay services.
-
-**Notes**
-
-This function is typically used during shutdown or when temporarily suspending services. It ensures that services marked for autoplay do not continue running.
-
----
-
 (gobj_play)=
 ## `gobj_play()`
 
@@ -872,8 +735,8 @@ Searches for a `hgobj` instance by traversing the object tree using a path with 
 
 ```C
 hgobj gobj_search_path(
-    hgobj gobj_,
-    const char *path_
+    hgobj gobj,
+    const char *path
 );
 ```
 
@@ -926,8 +789,8 @@ Sets the bottom gobj of a given gobj, allowing attribute inheritance from the sp
 
 ```C
 hgobj gobj_set_bottom_gobj(
-    hgobj gobj,         /* The gobj whose bottom gobj is being set */
-    hgobj bottom_gobj   /* The gobj to be set as the bottom gobj */
+    hgobj gobj,
+    hgobj bottom_gobj
 );
 ```
 
@@ -1092,31 +955,6 @@ If the `gobj` is playing, it will be paused before stopping. If the `gobj` is al
 
 ---
 
-(gobj_stop_autostart_services)=
-## `gobj_stop_autostart_services()`
-
-Stops all services that were marked for automatic start during initialization.
-
-```C
-int gobj_stop_autostart_services(void);
-```
-
-**Parameters**
-
-| Key | Type | Description |
-|---|---|---|
-| `-` | `-` | This function does not take any parameters. |
-
-**Returns**
-
-Returns 0 on success.
-
-**Notes**
-
-This function iterates over all registered services and stops those that have the `gobj_flag_autostart` flag set.
-
----
-
 (gobj_stop_children)=
 ## `gobj_stop_children()`
 
@@ -1180,11 +1018,12 @@ Traverses the direct child objects of the given `hgobj` using the specified trav
 
 ```C
 int gobj_walk_gobj_children(
-    hgobj         gobj,
-    walk_type_t   walk_type,
-    cb_walking_t  cb_walking,
-    void         *user_data,
-    void         *user_data2
+    hgobj gobj,
+    walk_type_t walk_type,
+    cb_walking_t cb_walking,
+    void *user_data,
+    void *user_data2,
+    void *user_data3
 );
 ```
 
@@ -1215,11 +1054,12 @@ Traverses the child objects of a given `hgobj` in a specified order and applies 
 
 ```C
 int gobj_walk_gobj_children_tree(
-    hgobj         gobj,
-    walk_type_t   walk_type,
-    cb_walking_t  cb_walking,
-    void         *user_data,
-    void         *user_data2
+    hgobj gobj,
+    walk_type_t walk_type,
+    cb_walking_t cb_walking,
+    void *user_data,
+    void *user_data2,
+    void *user_data3
 );
 ```
 
@@ -1242,3 +1082,18 @@ Returns 0 on success or a negative value if an error occurs.
 The callback function should return 0 to continue traversal, a negative value to stop traversal, or a positive value to skip the current branch when using `WALK_TOP2BOTTOM`.
 
 ---
+
+(gobj_find_child_by_tree)=
+## `gobj_find_child_by_tree()`
+
+*Description pending — signature extracted from header.*
+
+```C
+hgobj gobj_find_child_by_tree(
+    hgobj gobj,
+    json_t *jn_filter
+);
+```
+
+---
+

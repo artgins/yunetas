@@ -148,3 +148,47 @@ Returns `TRUE` if the user has the required authorization, otherwise returns `FA
 If the `hgobj` has a local authorization checker (`mt_authz_checker`), it is used first. If not, the global authorization checker is used. If neither is defined, the function defaults to returning `TRUE`.
 
 ---
+
+(authz_get_level_desc)=
+## `authz_get_level_desc()`
+
+*Description pending — signature extracted from header.*
+
+```C
+const sdata_desc_t *authz_get_level_desc(
+    const sdata_desc_t *authz_table,
+    const char *authz
+);
+```
+
+---
+
+(gobj_build_authzs_doc)=
+## `gobj_build_authzs_doc()`
+
+*Description pending — signature extracted from header.*
+
+```C
+json_t *gobj_build_authzs_doc(
+    hgobj gobj,
+    const char *cmd,
+    json_t *kw
+);
+```
+
+---
+
+(authzs_list)=
+## `authzs_list()`
+
+*Description pending — signature extracted from header.*
+
+```C
+json_t *authzs_list(
+    hgobj gobj,
+    const char *authz
+);
+```
+
+---
+

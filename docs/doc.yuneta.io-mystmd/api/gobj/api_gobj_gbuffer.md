@@ -42,8 +42,8 @@ Appends a specified number of bytes from a given buffer to the [`gbuffer_t`](#gb
 ```C
 size_t gbuffer_append(
     gbuffer_t *gbuf,
-    void      *bf,
-    size_t     len
+    void *data,
+    size_t len
 );
 ```
 
@@ -62,35 +62,6 @@ Returns the number of bytes successfully appended to the [`gbuffer_t`](#gbuffer_
 **Notes**
 
 If the [`gbuffer_t`](#gbuffer_t) does not have enough space, it will attempt to reallocate memory. If reallocation fails, fewer bytes may be appended than requested.
-
----
-
-(gbuffer_append_char)=
-## `gbuffer_append_char()`
-
-Appends a single character to the [`gbuffer_t`](#gbuffer_t) buffer, expanding it if necessary.
-
-```C
-size_t gbuffer_append_char(
-    gbuffer_t *gbuf,
-    char       c
-);
-```
-
-**Parameters**
-
-| Key | Type | Description |
-|---|---|---|
-| `gbuf` | `gbuffer_t *` | Pointer to the [`gbuffer_t`](#gbuffer_t) buffer where the character will be appended. |
-| `c` | `char` | The character to append to the buffer. |
-
-**Returns**
-
-Returns the number of bytes written, which is always 1 unless an error occurs.
-
-**Notes**
-
-If the buffer does not have enough space, it will attempt to expand before appending the character.
 
 ---
 
@@ -123,116 +94,6 @@ The function iterates over `src` in chunks, copying data into `dst`. Ensure that
 
 ---
 
-(gbuffer_append_string)=
-## `gbuffer_append_string()`
-
-`gbuffer_append_string()` appends a null-terminated string to the given `gbuffer_t` buffer, increasing its size if necessary.
-
-```C
-size_t gbuffer_append_string(
-    gbuffer_t *gbuf,
-    const char *s
-);
-```
-
-**Parameters**
-
-| Key | Type | Description |
-|---|---|---|
-| `gbuf` | `gbuffer_t *` | Pointer to the `gbuffer_t` buffer where the string will be appended. |
-| `s` | `const char *` | Null-terminated string to append to the buffer. |
-
-**Returns**
-
-Returns the number of bytes successfully appended to the buffer.
-
-**Notes**
-
-If the buffer does not have enough space, it will be reallocated to accommodate the new data.
-
----
-
-(gbuffer_base64_to_string)=
-## `gbuffer_base64_to_string()`
-
-`gbuffer_base64_to_string()` decodes a Base64-encoded string into a newly allocated [`gbuffer_t *`](#gbuffer_t).
-
-```C
-gbuffer_t *gbuffer_base64_to_string(
-    const char *base64,
-    size_t      base64_len
-);
-```
-
-**Parameters**
-
-| Key | Type | Description |
-|---|---|---|
-| `base64` | `const char *` | Pointer to the Base64-encoded input string. |
-| `base64_len` | `size_t` | Length of the Base64-encoded input string. |
-
-**Returns**
-
-Returns a newly allocated [`gbuffer_t *`](#gbuffer_t) containing the decoded data, or `NULL` if decoding fails.
-
-**Notes**
-
-The returned [`gbuffer_t *`](#gbuffer_t) must be freed using [`gbuffer_decref()`](#gbuffer_decref) to avoid memory leaks.
-
----
-
-(gbuffer_chunk)=
-## `gbuffer_chunk()`
-
-`gbuffer_chunk()` returns the number of bytes available for reading in the given `gbuffer_t` instance, ensuring that the returned value does not exceed the allocated buffer size.
-
-```C
-PUBLIC size_t gbuffer_chunk(gbuffer_t *gbuf);
-```
-
-**Parameters**
-
-| Key | Type | Description |
-|---|---|---|
-| `gbuf` | `gbuffer_t *` | Pointer to the `gbuffer_t` instance whose available read chunk size is to be determined. |
-
-**Returns**
-
-Returns the number of bytes available for reading, ensuring it does not exceed the allocated buffer size.
-
-**Notes**
-
-This function calculates the available data chunk by taking the minimum of the remaining unread bytes and the allocated buffer size.
-
----
-
-(gbuffer_clear)=
-## `gbuffer_clear()`
-
-Resets the write and read pointers of the given [`gbuffer_t *`](#gbuffer_t), effectively clearing its contents.
-
-```C
-void gbuffer_clear(
-    gbuffer_t *gbuf
-);
-```
-
-**Parameters**
-
-| Key | Type | Description |
-|---|---|---|
-| `gbuf` | `gbuffer_t *` | Pointer to the [`gbuffer_t`](#gbuffer_t) structure to be cleared. |
-
-**Returns**
-
-This function does not return a value.
-
-**Notes**
-
-This function does not deallocate memory; it only resets the buffer's state.
-
----
-
 (gbuffer_create)=
 ## `gbuffer_create()`
 
@@ -259,85 +120,6 @@ Returns a pointer to the newly allocated `gbuffer_t` structure, or `NULL` if mem
 **Notes**
 
 If memory allocation for the buffer fails, an error is logged, and `NULL` is returned.
-
----
-
-(gbuffer_cur_rd_pointer)=
-## `gbuffer_cur_rd_pointer()`
-
-Returns a pointer to the current read position in the `gbuffer_t` structure.
-
-```C
-void *gbuffer_cur_rd_pointer(
-    gbuffer_t *gbuf
-);
-```
-
-**Parameters**
-
-| Key | Type | Description |
-|---|---|---|
-| `gbuf` | `gbuffer_t *` | Pointer to the `gbuffer_t` structure. |
-
-**Returns**
-
-Returns a pointer to the current read position in the buffer.
-
-**Notes**
-
-Ensure that `gbuf` is not NULL before calling this function to avoid undefined behavior.
-
----
-
-(gbuffer_cur_wr_pointer)=
-## `gbuffer_cur_wr_pointer()`
-
-Returns a pointer to the current write position in the given `gbuffer_t` structure.
-
-```C
-void *gbuffer_cur_wr_pointer(
-    gbuffer_t *gbuf
-);
-```
-
-**Parameters**
-
-| Key | Type | Description |
-|---|---|---|
-| `gbuf` | `gbuffer_t *` | Pointer to the `gbuffer_t` structure whose write position is to be retrieved. |
-
-**Returns**
-
-Returns a pointer to the current write position in the buffer.
-
-**Notes**
-
-The returned pointer can be used to directly write data into the buffer. Ensure that the buffer has enough space before writing.
-
----
-
-(gbuffer_decref)=
-## `gbuffer_decref()`
-
-Decrements the reference count of a `gbuffer_t` instance and deallocates it if the count reaches zero.
-
-```C
-void gbuffer_decref(gbuffer_t *gbuf);
-```
-
-**Parameters**
-
-| Key | Type | Description |
-|---|---|---|
-| `gbuf` | `gbuffer_t *` | Pointer to the `gbuffer_t` instance whose reference count is to be decremented. |
-
-**Returns**
-
-This function does not return a value.
-
-**Notes**
-
-If the reference count reaches zero, the memory associated with the `gbuffer_t` instance is freed. Ensure that the `gbuffer_t` instance is valid before calling [`gbuffer_decref()`](#gbuffer_decref).
 
 ---
 
@@ -397,31 +179,6 @@ The caller is responsible for managing the reference count of the returned [`gbu
 
 ---
 
-(gbuffer_freebytes)=
-## `gbuffer_freebytes()`
-
-`gbuffer_freebytes()` returns the number of free bytes available in the buffer for writing.
-
-```C
-size_t gbuffer_freebytes(gbuffer_t *gbuf);
-```
-
-**Parameters**
-
-| Key | Type | Description |
-|---|---|---|
-| `gbuf` | `gbuffer_t *` | Pointer to the `gbuffer_t` structure whose free space is to be determined. |
-
-**Returns**
-
-Returns the number of free bytes available in the buffer.
-
-**Notes**
-
-Ensure that `gbuf` is not NULL before calling [`gbuffer_freebytes()`](#gbuffer_freebytes) to avoid potential errors.
-
----
-
 (gbuffer_get)=
 ## `gbuffer_get()`
 
@@ -448,83 +205,6 @@ Returns a pointer to the extracted data if `len` bytes are available; otherwise,
 **Notes**
 
 Ensure that `len` does not exceed the available data in [`gbuffer_t`](#gbuffer_t). If `len` is greater than the remaining bytes, the function returns `NULL` without modifying the buffer.
-
----
-
-(gbuffer_get_rd_offset)=
-## `gbuffer_get_rd_offset()`
-
-Returns the current read offset of the given `gbuffer_t` instance.
-
-```C
-size_t gbuffer_get_rd_offset(gbuffer_t *gbuf);
-```
-
-**Parameters**
-
-| Key | Type | Description |
-|---|---|---|
-| `gbuf` | `gbuffer_t *` | Pointer to the `gbuffer_t` instance whose read offset is to be retrieved. |
-
-**Returns**
-
-The current read offset as a `size_t` value.
-
-**Notes**
-
-The function does not perform any validation on the `gbuf` pointer before accessing its read offset.
-
----
-
-(gbuffer_getchar)=
-## `gbuffer_getchar()`
-
-`gbuffer_getchar()` retrieves and removes a single byte from the given `gbuffer_t` instance, advancing the read pointer.
-
-```C
-char gbuffer_getchar(
-    gbuffer_t *gbuf
-);
-```
-
-**Parameters**
-
-| Key | Type | Description |
-|---|---|---|
-| `gbuf` | `gbuffer_t *` | Pointer to the `gbuffer_t` instance from which a byte will be retrieved. |
-
-**Returns**
-
-Returns the retrieved byte if available; otherwise, returns `0` if no data remains.
-
-**Notes**
-
-Ensure that `gbuffer_leftbytes(gbuf)` is greater than zero before calling [`gbuffer_getchar()`](#gbuffer_getchar) to avoid retrieving an invalid byte.
-
----
-
-(gbuffer_getlabel)=
-## `gbuffer_getlabel()`
-
-Retrieves the label associated with the given `gbuffer_t` instance.
-
-```C
-char *gbuffer_getlabel(gbuffer_t *gbuf);
-```
-
-**Parameters**
-
-| Key | Type | Description |
-|---|---|---|
-| `gbuf` | `gbuffer_t *` | Pointer to the `gbuffer_t` instance whose label is to be retrieved. |
-
-**Returns**
-
-Returns a pointer to the label string if it exists, otherwise returns `NULL`.
-
-**Notes**
-
-The returned label is owned by the `gbuffer_t` instance and should not be modified or freed by the caller.
 
 ---
 
@@ -557,110 +237,6 @@ The function modifies the buffer by replacing the separator with a null terminat
 
 ---
 
-(gbuffer_getmark)=
-## `gbuffer_getmark()`
-
-Retrieves the mark value associated with the given `gbuffer_t` instance.
-
-```C
-PUBLIC size_t gbuffer_getmark(gbuffer_t *gbuf);
-```
-
-**Parameters**
-
-| Key | Type | Description |
-|---|---|---|
-| `gbuf` | `gbuffer_t *` | Pointer to the `gbuffer_t` instance from which to retrieve the mark value. |
-
-**Returns**
-
-Returns the mark value stored in the `gbuffer_t` instance. If `gbuf` is NULL, returns 0.
-
-**Notes**
-
-The mark value is a user-defined field that can be used to store arbitrary metadata associated with the buffer.
-
----
-
-(gbuffer_head_pointer)=
-## `gbuffer_head_pointer()`
-
-Returns a pointer to the first position of data in the given `gbuffer_t` instance.
-
-```C
-void *gbuffer_head_pointer(
-    gbuffer_t *gbuf
-);
-```
-
-**Parameters**
-
-| Key | Type | Description |
-|---|---|---|
-| `gbuf` | `gbuffer_t *` | Pointer to the `gbuffer_t` instance whose data head is to be retrieved. |
-
-**Returns**
-
-Returns a pointer to the first byte of data in the buffer. If `gbuf` is NULL, an error is logged and NULL is returned.
-
-**Notes**
-
-This function does not modify the buffer; it only provides access to the beginning of the stored data.
-
----
-
-(gbuffer_incref)=
-## `gbuffer_incref()`
-
-`gbuffer_incref()` increments the reference count of a `gbuffer_t` instance, ensuring it is not prematurely deallocated.
-
-```C
-gbuffer_t *gbuffer_incref(
-    gbuffer_t *gbuf
-);
-```
-
-**Parameters**
-
-| Key | Type | Description |
-|---|---|---|
-| `gbuf` | `gbuffer_t *` | Pointer to the `gbuffer_t` instance whose reference count is to be incremented. |
-
-**Returns**
-
-Returns the same `gbuffer_t *` instance with an incremented reference count, or `NULL` if the input is invalid.
-
-**Notes**
-
-If `gbuf` is `NULL` or has an invalid reference count, an error is logged and `NULL` is returned.
-
----
-
-(gbuffer_leftbytes)=
-## `gbuffer_leftbytes()`
-
-`gbuffer_leftbytes()` returns the number of unread bytes remaining in the given `gbuffer_t` instance.
-
-```C
-size_t gbuffer_leftbytes(gbuffer_t *gbuf);
-```
-
-**Parameters**
-
-| Key | Type | Description |
-|---|---|---|
-| `gbuf` | `gbuffer_t *` | Pointer to the `gbuffer_t` instance whose unread byte count is to be retrieved. |
-
-**Returns**
-
-Returns the number of unread bytes remaining in the buffer.
-
-**Notes**
-
-If `gbuf` is `NULL`, an error is logged, and `0` is returned.
-
----
-
 (gbuffer_printf)=
 ## `gbuffer_printf()`
 
@@ -670,7 +246,7 @@ The function `gbuffer_printf()` appends formatted text to a [`gbuffer_t *`](#gbu
 int gbuffer_printf(
     gbuffer_t *gbuf,
     const char *format,
-    ...
+    ...) JANSSON_ATTRS((format(printf, 2, 3))
 );
 ```
 
@@ -713,59 +289,7 @@ This function does not return a value.
 
 **Notes**
 
-This function should not be called directly. Instead, use [`gbuffer_decref()`](#gbuffer_decref) to manage reference counting and ensure proper deallocation.
-
----
-
-(gbuffer_reset_rd)=
-## `gbuffer_reset_rd()`
-
-Resets the read pointer of the given `gbuffer_t` instance to the beginning, allowing data to be read from the start again.
-
-```C
-void gbuffer_reset_rd(
-    gbuffer_t *gbuf
-);
-```
-
-**Parameters**
-
-| Key | Type | Description |
-|---|---|---|
-| `gbuf` | `gbuffer_t *` | Pointer to the `gbuffer_t` instance whose read pointer will be reset. |
-
-**Returns**
-
-This function does not return a value.
-
-**Notes**
-
-This function is useful when re-reading data from a buffer without modifying its contents.
-
----
-
-(gbuffer_reset_wr)=
-## `gbuffer_reset_wr()`
-
-Resets the write pointer of the given `gbuffer_t` instance, effectively clearing its contents.
-
-```C
-void gbuffer_reset_wr(gbuffer_t *gbuf);
-```
-
-**Parameters**
-
-| Key | Type | Description |
-|---|---|---|
-| `gbuf` | `gbuffer_t *` | Pointer to the `gbuffer_t` instance whose write pointer is to be reset. |
-
-**Returns**
-
-This function does not return a value.
-
-**Notes**
-
-This function sets both the write (`tail`) and read (`curp`) pointers to zero, effectively clearing the buffer. A null terminator is placed at the beginning of the buffer to ensure it remains a valid C string.
+This function should not be called directly. Instead, use `gbuffer_decref()` to manage reference counting and ensure proper deallocation.
 
 ---
 
@@ -885,118 +409,6 @@ If a label is already set, it is freed before assigning the new one. The functio
 
 ---
 
-(gbuffer_setmark)=
-## `gbuffer_setmark()`
-
-Sets a marker value in the given `gbuffer_t` instance.
-
-```C
-void gbuffer_setmark(
-    gbuffer_t *gbuf,
-    size_t     mark
-);
-```
-
-**Parameters**
-
-| Key | Type | Description |
-|---|---|---|
-| `gbuf` | `gbuffer_t *` | Pointer to the `gbuffer_t` instance where the marker will be set. |
-| `mark` | `size_t` | The marker value to set in the `gbuffer_t` instance. |
-
-**Returns**
-
-This function does not return a value.
-
-**Notes**
-
-The marker value can be used for custom tracking or reference purposes within the `gbuffer_t` instance.
-
----
-
-(gbuffer_string_to_base64)=
-## `gbuffer_string_to_base64()`
-
-`gbuffer_string_to_base64()` encodes a given string into a Base64-encoded `gbuffer_t` object.
-
-```C
-gbuffer_t *gbuffer_string_to_base64(
-    const char *src,
-    size_t      len
-);
-```
-
-**Parameters**
-
-| Key | Type | Description |
-|---|---|---|
-| `src` | `const char *` | Pointer to the input string to be encoded. |
-| `len` | `size_t` | Length of the input string. |
-
-**Returns**
-
-Returns a newly allocated `gbuffer_t *` containing the Base64-encoded representation of the input string. Returns `NULL` on failure.
-
-**Notes**
-
-The returned `gbuffer_t *` must be freed using [`gbuffer_decref()`](#gbuffer_decref).
-
----
-
-(gbuffer_totalbytes)=
-## `gbuffer_totalbytes()`
-
-`gbuffer_totalbytes()` returns the total number of bytes written in the given `gbuffer_t` instance.
-
-```C
-size_t gbuffer_totalbytes(gbuffer_t *gbuf);
-```
-
-**Parameters**
-
-| Key | Type | Description |
-|---|---|---|
-| `gbuf` | `gbuffer_t *` | Pointer to the `gbuffer_t` instance whose total written bytes are to be retrieved. |
-
-**Returns**
-
-Returns the total number of bytes written in the `gbuffer_t` instance.
-
-**Notes**
-
-This function does not modify the `gbuffer_t` instance; it only retrieves the current write position.
-
----
-
-(gbuffer_ungetc)=
-## `gbuffer_ungetc()`
-
-Pushes a single character back onto the read buffer of the given `gbuffer_t` instance, effectively undoing the last read operation.
-
-```C
-PUBLIC int gbuffer_ungetc(
-    gbuffer_t *gbuf,
-    char       c
-);
-```
-
-**Parameters**
-
-| Key | Type | Description |
-|---|---|---|
-| `gbuf` | `gbuffer_t *` | Pointer to the `gbuffer_t` instance where the character will be pushed back. |
-| `c` | `char` | The character to be pushed back onto the read buffer. |
-
-**Returns**
-
-Returns 0 on success.
-
-**Notes**
-
-If the read pointer is already at the beginning of the buffer, the function does nothing.
-
----
-
 (gbuffer_vprintf)=
 ## `gbuffer_vprintf()`
 
@@ -1006,7 +418,7 @@ If the read pointer is already at the beginning of the buffer, the function does
 int gbuffer_vprintf(
     gbuffer_t *gbuf,
     const char *format,
-    va_list ap
+    va_list ap) JANSSON_ATTRS((format(printf, 2, 0))
 );
 ```
 
@@ -1035,10 +447,10 @@ Logs a full hexdump of the given [`gbuffer_t *`](#gbuffer_t) including all writt
 
 ```C
 void gobj_trace_dump_full_gbuf(
-    hgobj       gobj,
-    gbuffer_t  *gbuf,
+    hgobj gobj,
+    gbuffer_t *gbuf,
     const char *fmt,
-    ...
+    ... ) JANSSON_ATTRS((format(printf, 3, 4))
 );
 ```
 
@@ -1071,7 +483,7 @@ void gobj_trace_dump_gbuf(
     hgobj gobj,
     gbuffer_t *gbuf,
     const char *fmt,
-    ...
+    ... ) JANSSON_ATTRS((format(printf, 3, 4))
 );
 ```
 
@@ -1124,3 +536,104 @@ Returns a pointer to a `gbuffer_t` containing the serialized JSON data. If an er
 The function uses `json_dump_callback()` to serialize the JSON object into the buffer. If `gbuf` is NULL, a new buffer is allocated with a default size.
 
 ---
+
+(config_gbuffer2json)=
+## `config_gbuffer2json()`
+
+*Description pending — signature extracted from header.*
+
+```C
+json_t *config_gbuffer2json(
+    gbuffer_t *gbuf,
+    int verbose
+);
+```
+
+---
+
+(gbuf2file)=
+## `gbuf2file()`
+
+*Description pending — signature extracted from header.*
+
+```C
+int gbuf2file(
+    hgobj gobj,
+    gbuffer_t *gbuf,
+    const char *path,
+    int permission,
+    BOOL overwrite
+);
+```
+
+---
+
+(gbuffer_append_json)=
+## `gbuffer_append_json()`
+
+*Description pending — signature extracted from header.*
+
+```C
+size_t gbuffer_append_json(
+    gbuffer_t *gbuf,
+    json_t *jn
+);
+```
+
+---
+
+(gbuffer_base64_to_binary)=
+## `gbuffer_base64_to_binary()`
+
+*Description pending — signature extracted from header.*
+
+```C
+gbuffer_t *gbuffer_base64_to_binary(
+    const char *base64,
+    size_t base64_len
+);
+```
+
+---
+
+(gbuffer_binary_to_base64)=
+## `gbuffer_binary_to_base64()`
+
+*Description pending — signature extracted from header.*
+
+```C
+gbuffer_t *gbuffer_binary_to_base64(
+    const char *src,
+    size_t len
+);
+```
+
+---
+
+(gbuffer_file2base64)=
+## `gbuffer_file2base64()`
+
+*Description pending — signature extracted from header.*
+
+```C
+gbuffer_t *gbuffer_file2base64(
+    const char *path
+);
+```
+
+---
+
+(str2gbuf)=
+## `str2gbuf()`
+
+*Description pending — signature extracted from header.*
+
+```C
+gbuffer_t *str2gbuf(
+    const char *fmt,
+    ... ) JANSSON_ATTRS((format(printf, 1, 2))
+);
+```
+
+---
+

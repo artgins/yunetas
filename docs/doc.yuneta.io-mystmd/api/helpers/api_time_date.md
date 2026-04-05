@@ -5,87 +5,6 @@ Source code in:
 - [helpers.h](https://github.com/artgins/yunetas/blob/main/kernel/c/gobj-c/src/helpers.h)
 - [helpers.c](https://github.com/artgins/yunetas/blob/main/kernel/c/gobj-c/src/helpers.c)
 
-(approxidate)=
-## `approxidate()`
-
-The `approxidate` function interprets a human-readable date string and converts it into a timestamp. It supports various date formats, including absolute dates, relative dates, and special keywords.
-
-```C
-timestamp_t approxidate(const char *date);
-```
-
-**Parameters**
-
-| Key | Type | Description |
-|---|---|---|
-| `date` | `const char *` | A human-readable date string that can include absolute dates (e.g., '2024-09-17'), relative dates (e.g., '3 days ago'), or special keywords (e.g., 'yesterday', 'now'). |
-
-**Returns**
-
-Returns a `timestamp_t` representing the parsed date as a Unix timestamp. If parsing fails, it returns `TIME_MAX`.
-
-**Notes**
-
-This function is useful for parsing flexible date inputs in applications that require user-friendly date handling. It internally calls [`approxidate_careful()`](#approxidate_careful) to process the input string.
-
----
-
-(approxidate_careful)=
-## `approxidate_careful()`
-
-Parses a human-readable date string and converts it into a timestamp, handling relative and absolute date formats. Returns a timestamp representing the parsed date.
-
-```C
-timestamp_t approxidate_careful(
-    const char *date,
-    int *error_ret
-);
-```
-
-**Parameters**
-
-| Key | Type | Description |
-|---|---|---|
-| `date` | `const char *` | A human-readable date string, supporting absolute dates (e.g., '2024-09-17') and relative dates (e.g., '3 days ago'). |
-| `error_ret` | `int *` | Pointer to an integer that will be set to a nonzero value if an error occurs during parsing. |
-
-**Returns**
-
-Returns a `timestamp_t` representing the parsed date. If parsing fails, the function returns the current time and sets `error_ret` to a nonzero value.
-
-**Notes**
-
-This function supports a wide range of date formats, including ISO 8601, RFC 2822, and relative expressions like 'yesterday' or 'next Monday'. It is a more cautious version of [`approxidate()`](#approxidate), ensuring better error handling.
-
----
-
-(approxidate_relative)=
-## `approxidate_relative()`
-
-Parses a human-readable date string and returns the corresponding timestamp relative to the current time.
-
-```C
-timestamp_t approxidate_relative(
-    const char *date
-);
-```
-
-**Parameters**
-
-| Key | Type | Description |
-|---|---|---|
-| `date` | `const char *` | A human-readable date string, such as 'yesterday', '2 weeks ago', or 'next Friday'. |
-
-**Returns**
-
-Returns the parsed timestamp as a `timestamp_t` value, representing the number of seconds since the Unix epoch.
-
-**Notes**
-
-This function interprets relative date expressions based on the current system time. It supports various formats, including absolute dates, relative time expressions, and named days of the week.
-
----
-
 (current_timestamp)=
 ## `current_timestamp()`
 
@@ -362,14 +281,14 @@ Returns 0 on success, or -1 if the date string could not be parsed.
 
 **Notes**
 
-This function is used internally by [`approxidate_careful()`](#approxidate_careful) and [`approxidate_relative()`](#approxidate_relative) to interpret date strings in various formats.
+This function is used internally by `approxidate_careful()` and `approxidate_relative()` to interpret date strings in various formats.
 
 ---
 
 (parse_date_format)=
 ## `parse_date_format()`
 
-Parses a date format string and initializes a [`date_mode`](#date_mode) structure with the corresponding format type and localization settings.
+Parses a date format string and initializes a `date_mode` structure with the corresponding format type and localization settings.
 
 ```C
 void parse_date_format(
@@ -383,7 +302,7 @@ void parse_date_format(
 | Key | Type | Description |
 |---|---|---|
 | `format` | `const char *` | The date format string to be parsed. |
-| `mode` | `struct date_mode *` | Pointer to a [`date_mode`](#date_mode) structure that will be initialized based on the parsed format. |
+| `mode` | `struct date_mode *` | Pointer to a `date_mode` structure that will be initialized based on the parsed format. |
 
 **Returns**
 
@@ -420,38 +339,7 @@ Returns 0 on success, or a nonzero value if an error occurs during parsing.
 
 **Notes**
 
-If the `date` string is `never`, the function sets `timestamp` to 0. If `date` is `all` or `now`, `timestamp` is set to the maximum possible value (`TIME_MAX`). Otherwise, it attempts to parse the date using [`approxidate_careful()`](#approxidate_careful).
-
----
-
-(parse_timestamp)=
-## `parse_timestamp()`
-
-`parse_timestamp` converts a string representation of a number into an unsigned integer using the specified base.
-
-```C
-uintmax_t parse_timestamp(
-    const char *str,
-    char **endptr,
-    int base
-);
-```
-
-**Parameters**
-
-| Key | Type | Description |
-|---|---|---|
-| `str` | `const char *` | Pointer to the null-terminated string containing the number to convert. |
-| `endptr` | `char **` | Pointer to a character pointer that will be set to the first invalid character after the number. |
-| `base` | `int` | Numerical base to use for conversion (e.g., 10 for decimal, 16 for hexadecimal). |
-
-**Returns**
-
-Returns the converted unsigned integer value. If no valid conversion is performed, returns `UINTMAX_MAX`.
-
-**Notes**
-
-This function is a wrapper around `strtoumax`, ensuring safe conversion of string-based timestamps.
+If the `date` string is `never`, the function sets `timestamp` to 0. If `date` is `all` or `now`, `timestamp` is set to the maximum possible value (`TIME_MAX`). Otherwise, it attempts to parse the date using `approxidate_careful()`.
 
 ---
 
@@ -474,7 +362,7 @@ const char *show_date(
 |---|---|---|
 | `time` | `timestamp_t` | The timestamp to be formatted. |
 | `timezone` | `int` | The timezone offset in minutes from UTC. |
-| `mode` | `const struct date_mode *` | Pointer to a [`date_mode`](#date_mode) structure specifying the formatting style. |
+| `mode` | `const struct date_mode *` | Pointer to a `date_mode` structure specifying the formatting style. |
 
 **Returns**
 
@@ -523,7 +411,9 @@ The function calculates the difference between the given timestamp and the curre
 `start_msectimer()` initializes a millisecond-resolution timer and returns the expiration timestamp.
 
 ```C
-uint64_t start_msectimer(uint64_t miliseconds);
+uint64_t start_msectimer(
+    uint64_t milliseconds
+);
 ```
 
 **Parameters**
@@ -606,7 +496,9 @@ The function uses `strftime()` to format the timestamp in ISO 8601 format with t
 Checks if the given millisecond timer has expired by comparing it with the current monotonic time.
 
 ```C
-PUBLIC BOOL test_msectimer(uint64_t value);
+BOOL test_msectimer(
+    uint64_t value
+);
 ```
 
 **Parameters**
@@ -650,63 +542,13 @@ If `value` is less than or equal to zero, the function returns `FALSE` without p
 
 ---
 
-(time_in_miliseconds)=
-## `time_in_miliseconds()`
-
-`time_in_miliseconds()` returns the current real-world time in milliseconds since the Unix epoch using the `CLOCK_REALTIME` clock source.
-
-```C
-uint64_t time_in_miliseconds(void);
-```
-
-**Parameters**
-
-| Key | Type | Description |
-|---|---|---|
-| `-` | `-` | This function does not take any parameters. |
-
-**Returns**
-
-Returns the current time in milliseconds as a `uint64_t` value.
-
-**Notes**
-
-['Uses `clock_gettime(CLOCK_REALTIME, &spec)` to retrieve the current time.', 'The returned value represents the number of milliseconds elapsed since January 1, 1970 (Unix epoch).', 'For a monotonic time source, use [`time_in_miliseconds_monotonic()`](#time_in_miliseconds_monotonic).']
-
----
-
-(time_in_miliseconds_monotonic)=
-## `time_in_miliseconds_monotonic()`
-
-`time_in_miliseconds_monotonic()` returns the current monotonic time in milliseconds, unaffected by system clock changes.
-
-```C
-uint64_t time_in_miliseconds_monotonic(void);
-```
-
-**Parameters**
-
-| Key | Type | Description |
-|---|---|---|
-| `-` | `-` | This function does not take any parameters. |
-
-**Returns**
-
-Returns the current monotonic time in milliseconds as a `uint64_t` value.
-
-**Notes**
-
-This function uses `clock_gettime(CLOCK_MONOTONIC, &spec)` to retrieve a time value that is not subject to system clock adjustments.
-
----
-
 (time_in_seconds)=
 ## `time_in_seconds()`
 
 `time_in_seconds()` returns the current system time in seconds since the Unix epoch (January 1, 1970).
 
 ```C
-uint64_t time_in_seconds(void);
+time_t time_in_seconds(void);
 ```
 
 **Parameters**
@@ -782,3 +624,117 @@ Returns the corresponding `time_t` value representing the given time in seconds 
 This function does not perform normalization of `tm_wday` or `tm_yday`, and it assumes the input time is in UTC.
 
 ---
+
+(get_days_range)=
+## `get_days_range()`
+
+*Description pending — signature extracted from header.*
+
+```C
+time_range_t get_days_range(
+    time_t t,
+    int range,
+    const char *TZ
+);
+```
+
+---
+
+(get_hours_range)=
+## `get_hours_range()`
+
+*Description pending — signature extracted from header.*
+
+```C
+time_range_t get_hours_range(
+    time_t t,
+    int range,
+    const char *TZ
+);
+```
+
+---
+
+(get_months_range)=
+## `get_months_range()`
+
+*Description pending — signature extracted from header.*
+
+```C
+time_range_t get_months_range(
+    time_t t,
+    int range,
+    const char *TZ
+);
+```
+
+---
+
+(get_weeks_range)=
+## `get_weeks_range()`
+
+*Description pending — signature extracted from header.*
+
+```C
+time_range_t get_weeks_range(
+    time_t t,
+    int range,
+    const char *TZ
+);
+```
+
+---
+
+(get_years_range)=
+## `get_years_range()`
+
+*Description pending — signature extracted from header.*
+
+```C
+time_range_t get_years_range(
+    time_t t,
+    int range,
+    const char *TZ
+);
+```
+
+---
+
+(gmtime2timezone)=
+## `gmtime2timezone()`
+
+*Description pending — signature extracted from header.*
+
+```C
+time_t gmtime2timezone(
+    time_t t,
+    const char *tz,
+    struct tm *ltm,
+    time_t *offset
+);
+```
+
+---
+
+(time_in_milliseconds)=
+## `time_in_milliseconds()`
+
+*Description pending — signature extracted from header.*
+
+```C
+uint64_t time_in_milliseconds(void);
+```
+
+---
+
+(time_in_milliseconds_monotonic)=
+## `time_in_milliseconds_monotonic()`
+
+*Description pending — signature extracted from header.*
+
+```C
+uint64_t time_in_milliseconds_monotonic(void);
+```
+
+---
+

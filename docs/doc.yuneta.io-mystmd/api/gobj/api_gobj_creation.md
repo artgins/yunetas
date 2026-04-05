@@ -185,9 +185,9 @@ Creates a hierarchical tree of `gobj` instances from a JSON configuration string
 
 ```C
 hgobj gobj_create_tree(
-    hgobj           parent,
-    const char      *tree_config,
-    const char      *json_config_variables
+    hgobj parent,
+    const char *tree_config,
+    json_t *json_config_variables
 );
 ```
 
@@ -205,36 +205,7 @@ Returns the root `gobj` of the created tree, or `NULL` if an error occurs.
 
 **Notes**
 
-This function internally calls [`gobj_create_tree0()`](#gobj_create_tree0) after parsing and applying configuration variables.
-
----
-
-(gobj_create_tree0)=
-## `gobj_create_tree0()`
-
-Creates a hierarchical tree of `gobj` instances, initializing attributes and linking child objects to their parent.
-
-```C
-hgobj gobj_create_tree0(
-    hgobj       parent,
-    json_t      *jn_tree
-);
-```
-
-**Parameters**
-
-| Key | Type | Description |
-|---|---|---|
-| `parent` | `hgobj` | The parent `gobj` to which the new tree will be attached. |
-| `jn_tree` | `json_t *` | A JSON object defining the structure of the `gobj` tree, including attributes and child objects. |
-
-**Returns**
-
-Returns the root `gobj` of the created tree, or `NULL` if creation fails.
-
-**Notes**
-
-['The `jn_tree` parameter must contain a valid JSON structure with `gclass`, `name`, and optionally `kw` for attributes.', 'If `jn_tree` contains a `children` array, child `gobj` instances will be recursively created and linked to the parent.', 'If only one child is present in `zchildren`, it is set as the bottom `gobj` of the parent.', 'This function is used internally by [`gobj_create_tree()`](#gobj_create_tree) to parse JSON configurations.']
+This function internally calls `gobj_create_tree0()` after parsing and applying configuration variables.
 
 ---
 
@@ -359,7 +330,7 @@ Each child object is destroyed using [`gobj_destroy()`](#gobj_destroy). If a chi
 (gobj_service_factory)=
 ## `gobj_service_factory()`
 
-Creates a service gobj using [`gobj_create_tree0()`](#gobj_create_tree0) and registers it as a service.
+Creates a service gobj using `gobj_create_tree0()` and registers it as a service.
 
 ```C
 hgobj gobj_service_factory(
@@ -381,31 +352,35 @@ Returns a handle to the created service gobj, or `NULL` if the creation fails.
 
 **Notes**
 
-The function extracts global settings, applies configuration variables, and invokes [`gobj_create_tree0()`](#gobj_create_tree0) to instantiate the service.
+The function extracts global settings, applies configuration variables, and invokes `gobj_create_tree0()` to instantiate the service.
 
 ---
 
-(gobj_service_register)=
-## `gobj_service_register()`
+(gobj_destroy_named_children)=
+## `gobj_destroy_named_children()`
 
-Retrieves a list of registered services, returning an array of JSON objects containing the gclass and service name.
+*Description pending — signature extracted from header.*
 
 ```C
-json_t *gobj_service_register(void);
+int gobj_destroy_named_children(
+    hgobj gobj,
+    const char *name
+);
 ```
 
-**Parameters**
+---
 
-| Key | Type | Description |
-|---|---|---|
-| `-` | `-` | This function does not take any parameters. |
+(gobj_sdata_create)=
+## `gobj_sdata_create()`
 
-**Returns**
+*Description pending — signature extracted from header.*
 
-A JSON array where each element is an object with 'gclass' and 'service' fields representing registered services.
-
-**Notes**
-
-The returned JSON object must be freed by the caller using `json_decref()`.
+```C
+json_t *gobj_sdata_create(
+    hgobj gobj,
+    const sdata_desc_t* schema
+);
+```
 
 ---
+

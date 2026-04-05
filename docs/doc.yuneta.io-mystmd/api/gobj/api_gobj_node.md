@@ -291,7 +291,7 @@ Returns a list of child nodes for a given topic in a hierarchical tree structure
 
 ```C
 json_t *gobj_node_children(
-    hgobj gobj_,
+    hgobj gobj,
     const char *topic_name,
     json_t *kw,
     const char *hook,
@@ -434,7 +434,7 @@ If the GObj does not support snapshots, an error is logged and the function retu
 Retrieves the description of a topic in the given `hgobj`. The function returns a JSON object containing metadata about the specified topic.
 
 ```C
-PUBLIC json_t *gobj_topic_desc(
+json_t *gobj_topic_desc(
     hgobj gobj,
     const char *topic_name
 );

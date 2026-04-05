@@ -36,7 +36,7 @@ This function should be called to clean up the communication protocol registry b
 Retrieves the gclass name associated with a given communication protocol schema.
 
 ```C
-PUBLIC gclass_name_t comm_prot_get_gclass(
+gclass_name_t comm_prot_get_gclass(
     const char *schema
 );
 ```
@@ -85,3 +85,89 @@ Returns `0` on success, or `-1` if memory allocation fails.
 The function initializes the internal communication protocol registry if it has not been initialized yet. The schema is stored as a dynamically allocated string, which will be freed when the registry is cleared.
 
 ---
+
+(get_peername)=
+## `get_peername()`
+
+*Description pending — signature extracted from header.*
+
+```C
+int get_peername(
+    char *bf,
+    size_t bfsize,
+    int fd
+);
+```
+
+---
+
+(get_sockname)=
+## `get_sockname()`
+
+*Description pending — signature extracted from header.*
+
+```C
+int get_sockname(
+    char *bf,
+    size_t bfsize,
+    int fd
+);
+```
+
+---
+
+(is_tcp_socket)=
+## `is_tcp_socket()`
+
+*Description pending — signature extracted from header.*
+
+```C
+BOOL is_tcp_socket(
+    int fd
+);
+```
+
+---
+
+(is_udp_socket)=
+## `is_udp_socket()`
+
+*Description pending — signature extracted from header.*
+
+```C
+BOOL is_udp_socket(
+    int fd
+);
+```
+
+---
+
+(print_socket_address)=
+## `print_socket_address()`
+
+*Description pending — signature extracted from header.*
+
+```C
+int print_socket_address(
+    char *buf,
+    size_t buflen,
+    const struct sockaddr *sa
+);
+```
+
+---
+
+(set_tcp_socket_options)=
+## `set_tcp_socket_options()`
+
+*Description pending — signature extracted from header.*
+
+```C
+int set_tcp_socket_options(
+    int fd,
+    int delay
+);
+```
+
+---
+

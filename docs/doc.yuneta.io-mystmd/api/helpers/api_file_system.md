@@ -246,7 +246,7 @@ This function uses `fcntl` with `F_SETLKW` to apply a blocking write lock. Ensur
 ```C
 int mkrdir(
     const char *path,
-    int         permission
+    int xpermission
 );
 ```
 
@@ -275,7 +275,7 @@ If a directory in the path already exists, it is not modified. The function ensu
 ```C
 int newdir(
     const char *path,
-    int         permission
+    int xpermission
 );
 ```
 
@@ -304,8 +304,8 @@ This function ensures that the umask is cleared before creating the directory to
 ```C
 int newfile(
     const char *path,
-    int         permission,
-    BOOL        overwrite
+    int rpermission,
+    BOOL overwrite
 );
 ```
 
@@ -335,8 +335,8 @@ This function sets `umask(0)` to ensure the specified permissions are applied.
 ```C
 int open_exclusive(
     const char *path,
-    int         flags,
-    int         permission
+    int flags,
+    int rpermission
 );
 ```
 
@@ -390,7 +390,7 @@ This function does not remove the root directory itself, only its contents. It s
 
 ```C
 int rmrdir(
-    const char *path
+    const char *root_dir
 );
 ```
 
@@ -463,3 +463,61 @@ Returns 0 on success, or -1 if an error occurs.
 This function is typically used in conjunction with [`lock_file()`](#lock_file) to manage file locking in multi-process environments.
 
 ---
+
+(copyfile)=
+## `copyfile()`
+
+*Description pending — signature extracted from header.*
+
+```C
+int copyfile(
+    const char* source,
+    const char* destination,
+    int permission,
+    BOOL overwrite
+);
+```
+
+---
+
+(read_process_cmdline)=
+## `read_process_cmdline()`
+
+*Description pending — signature extracted from header.*
+
+```C
+int read_process_cmdline(
+    char *bf,
+    size_t bfsize,
+    pid_t pid
+);
+```
+
+---
+
+(set_cloexec)=
+## `set_cloexec()`
+
+*Description pending — signature extracted from header.*
+
+```C
+int set_cloexec(
+    int fd
+);
+```
+
+---
+
+(set_nonblocking)=
+## `set_nonblocking()`
+
+*Description pending — signature extracted from header.*
+
+```C
+int set_nonblocking(
+    int fd
+);
+```
+
+---
+

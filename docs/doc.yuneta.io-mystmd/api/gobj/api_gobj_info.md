@@ -29,81 +29,6 @@ The returned JSON array must be freed by the caller using `json_decref()`.
 
 ---
 
-(get_cur_system_memory)=
-## `get_cur_system_memory()`
-
-Returns the current system memory usage in bytes.
-
-```C
-size_t get_cur_system_memory(void);
-```
-
-**Parameters**
-
-| Key | Type | Description |
-|---|---|---|
-| `-` | `-` | This function does not take any parameters. |
-
-**Returns**
-
-The amount of system memory currently in use, in bytes.
-
-**Notes**
-
-This function provides insight into the memory consumption of the system at runtime.
-
----
-
-(get_max_system_memory)=
-## `get_max_system_memory()`
-
-Returns the maximum system memory limit set for the application.
-
-```C
-size_t get_max_system_memory(void);
-```
-
-**Parameters**
-
-| Key | Type | Description |
-|---|---|---|
-| `-` | `-` | This function does not take any parameters. |
-
-**Returns**
-
-The maximum system memory in bytes.
-
-**Notes**
-
-This function provides the upper limit of memory that the system is allowed to allocate.
-
----
-
-(get_sdata_flag_desc)=
-## `get_sdata_flag_desc()`
-
-Returns a dynamically allocated `gbuffer_t` containing a string representation of the `sdata_flag_t` bitmask.
-
-```C
-gbuffer_t *get_sdata_flag_desc(sdata_flag_t flag);
-```
-
-**Parameters**
-
-| Key | Type | Description |
-|---|---|---|
-| `flag` | `sdata_flag_t` | Bitmask representing the flags of structured data attributes. |
-
-**Returns**
-
-A pointer to a `gbuffer_t` containing a string representation of the flags. The caller is responsible for freeing the returned buffer.
-
-**Notes**
-
-If no flags are set, the returned buffer will be empty.
-
----
-
 (get_sdata_flag_table)=
 ## `get_sdata_flag_table()`
 
@@ -164,7 +89,7 @@ The `jn_filter` parameter allows selective inclusion of attributes such as `full
 Retrieves the command description for a given gobj. If the command name is NULL, it returns the full command table.
 
 ```C
-PUBLIC const sdata_desc_t *gobj_command_desc(
+const sdata_desc_t *gobj_command_desc(
     hgobj gobj,
     const char *name,
     BOOL verbose
@@ -574,7 +499,9 @@ A volatile `hgobj` is typically used for temporary objects that should not persi
 Returns the short name of the given `hgobj`, formatted as `gclass^name`.
 
 ```C
-const char *gobj_short_name(hgobj gobj_);
+const char * gobj_short_name(
+    hgobj gobj
+);
 ```
 
 **Parameters**
@@ -979,3 +906,84 @@ A pointer to a string containing the `yuno` tag. If the `yuno` instance is not a
 The returned string is managed internally and should not be modified or freed by the caller.
 
 ---
+
+(gobj_audit_commands)=
+## `gobj_audit_commands()`
+
+*Description pending — signature extracted from header.*
+
+```C
+int gobj_audit_commands(
+    int (*audit_command_cb)( const char *command, json_t *kw, void *user_data ),
+    void *user_data
+);
+```
+
+---
+
+(gobj_is_bottom_gobj)=
+## `gobj_is_bottom_gobj()`
+
+*Description pending — signature extracted from header.*
+
+```C
+BOOL gobj_is_bottom_gobj(
+    hgobj gobj
+);
+```
+
+---
+
+(gobj_is_top_service)=
+## `gobj_is_top_service()`
+
+*Description pending — signature extracted from header.*
+
+```C
+BOOL gobj_is_top_service(
+    hgobj gobj
+);
+```
+
+---
+
+(gobj_kw_get_user_data)=
+## `gobj_kw_get_user_data()`
+
+*Description pending — signature extracted from header.*
+
+```C
+json_t *gobj_kw_get_user_data(
+    hgobj gobj,
+    const char *path,
+    json_t *default_value,
+    kw_flag_t flag
+);
+```
+
+---
+
+(gobj_nearest_top_service)=
+## `gobj_nearest_top_service()`
+
+*Description pending — signature extracted from header.*
+
+```C
+hgobj gobj_nearest_top_service(
+    hgobj gobj
+);
+```
+
+---
+
+(gobj_top_services)=
+## `gobj_top_services()`
+
+*Description pending — signature extracted from header.*
+
+```C
+json_t *gobj_top_services(void);
+```
+
+---
+

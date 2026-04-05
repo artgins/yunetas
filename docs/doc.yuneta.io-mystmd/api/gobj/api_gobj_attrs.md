@@ -100,7 +100,7 @@ Checks if the given `hgobj` or any of its bottom objects has the specified attri
 
 ```C
 BOOL gobj_has_bottom_attr(
-    hgobj gobj, 
+    hgobj gobj_,
     const char *name
 );
 ```
@@ -119,62 +119,6 @@ Returns `TRUE` if the attribute exists in the given `hgobj` or any of its bottom
 **Notes**
 
 This function traverses the bottom hierarchy of the given `hgobj` to check for the presence of the attribute.
-
----
-
-(gobj_hsdata)=
-## `gobj_hsdata()`
-
-Returns the attribute storage (hsdata) of the given `hgobj`.
-
-```C
-json_t *gobj_hsdata(hgobj gobj);
-```
-
-**Parameters**
-
-| Key | Type | Description |
-|---|---|---|
-| `gobj` | `hgobj` | The `hgobj` whose attribute storage is to be retrieved. |
-
-**Returns**
-
-A pointer to the JSON object containing the attribute storage of the given `hgobj`, or NULL if the object is invalid.
-
-**Notes**
-
-The returned JSON object is not owned by the caller and should not be modified or freed.
-
----
-
-(gobj_hsdata2)=
-## `gobj_hsdata2()`
-
-Retrieves the structured data (hsdata) associated with a given `hgobj`, including inherited attributes from bottom objects.
-
-```C
-json_t *gobj_hsdata2(
-    hgobj gobj, 
-    const char *name, 
-    BOOL verbose
-);
-```
-
-**Parameters**
-
-| Key | Type | Description |
-|---|---|---|
-| `gobj` | `hgobj` | The `hgobj` whose structured data is to be retrieved. |
-| `name` | `const char *` | The name of the attribute to retrieve from the structured data. |
-| `verbose` | `BOOL` | If `TRUE`, logs an error message when the attribute is not found. |
-
-**Returns**
-
-A pointer to a `json_t` object containing the structured data of the given `hgobj`. Returns `NULL` if the attribute is not found.
-
-**Notes**
-
-This function traverses the bottom hierarchy of the `hgobj` to find the requested attribute. If `verbose` is `TRUE`, an error message is logged when the attribute is missing.
 
 ---
 
@@ -273,7 +217,7 @@ Retrieves the value of a specified attribute from the given `hgobj`. The functio
 ```C
 json_t *gobj_read_attr(
     hgobj gobj,
-    const char *name,
+    const char *path,
     hgobj src
 );
 ```
@@ -683,8 +627,8 @@ Writes multiple attributes of a `hgobj` object based on the provided JSON dictio
 ```C
 int gobj_write_attrs(
     hgobj gobj,
-    json_t *kw,  // owned
-    sdata_flag_t flag,
+    json_t *kw,
+    sdata_flag_t include_flag,
     hgobj src
 );
 ```
@@ -779,7 +723,7 @@ Writes a JSON value to the specified attribute of a `hgobj`. The function ensure
 int gobj_write_json_attr(
     hgobj gobj,
     const char *name,
-    json_t *jn_value
+    json_t *value
 );
 ```
 
@@ -810,7 +754,7 @@ Writes a new JSON value to the specified attribute of a `hgobj`. The provided JS
 int gobj_write_new_json_attr(
     hgobj gobj,
     const char *name,
-    json_t *jn_value
+    json_t *value
 );
 ```
 
@@ -901,9 +845,9 @@ Sets the value of a string attribute in the given `hgobj` object. If the attribu
 
 ```C
 int gobj_write_str_attr(
-    hgobj gobj,   /* Object whose attribute is being modified */
-    const char *name,   /* Name of the attribute */
-    const char *value   /* New string value to set */
+    hgobj gobj,
+    const char *name,
+    const char *value
 );
 ```
 
@@ -932,10 +876,10 @@ Writes a string attribute to a `hgobj` object, ensuring the string is properly t
 
 ```C
 int gobj_write_strn_attr(
-    hgobj gobj,   /* Target object */
-    const char *name, /* Attribute name */
-    const char *value, /* String value */
-    size_t len /* Maximum length */
+    hgobj gobj_,
+    const char *name,
+    const char *s,
+    size_t len
 );
 ```
 
@@ -986,6 +930,20 @@ Returns 0 on success, or -1 if an error occurs.
 **Notes**
 
 If `name` is empty, the entire user data dictionary is replaced with `value`.
+
+---
+
+(gobj_load_persistent_attrs)=
+## `gobj_load_persistent_attrs()`
+
+*Description pending — signature extracted from header.*
+
+```C
+int gobj_load_persistent_attrs(
+    hgobj gobj,
+    json_t *jn_attrs
+);
+```
 
 ---
 

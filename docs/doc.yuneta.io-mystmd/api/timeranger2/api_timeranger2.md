@@ -75,12 +75,12 @@ Appends a new record to a topic in the TimeRanger database. The function assigns
 
 ```C
 int tranger2_append_record(
-    json_t            *tranger,
-    const char        *topic_name,
-    uint64_t           __t__,
-    uint16_t           user_flag,
-    md2_record_ex_t   *md2_record_ex,
-    json_t            *jn_record
+    json_t *tranger,
+    const char *topic_name,
+    uint64_t __t__,
+    uint16_t user_flag,
+    md2_record_ex_t *md_record_ex,
+    json_t *jn_record
 );
 ```
 
@@ -618,9 +618,8 @@ Returns a list of keys from the specified topic in the TimeRanger database. The 
 
 ```C
 json_t *tranger2_list_keys(
-    json_t      *tranger,
-    const char  *topic_name,
-    const char  *rkey
+    json_t *tranger,
+    const char *topic_name
 );
 ```
 
@@ -900,11 +899,12 @@ Prints metadata of a record, including row ID, time, message time, and key, into
 
 ```C
 void tranger2_print_md0_record(
-    char                 *bf,
-    int                   bfsize,
-    const char           *key,
+    char *bf,
+    int bfsize,
+    const char *key,
+    json_int_t rowid,
     const md2_record_ex_t *md_record_ex,
-    BOOL                  print_local_time
+    BOOL print_local_time
 );
 ```
 
@@ -938,6 +938,7 @@ void tranger2_print_md1_record(
     char *bf,
     int bfsize,
     const char *key,
+    json_int_t rowid,
     const md2_record_ex_t *md_record_ex,
     BOOL print_local_time
 );
@@ -975,6 +976,7 @@ void tranger2_print_md2_record(
     json_t *tranger,
     json_t *topic,
     const char *key,
+    json_int_t rowid,
     const md2_record_ex_t *md_record_ex,
     BOOL print_local_time
 );
@@ -1079,8 +1081,10 @@ The `tranger2_read_user_flag()` function retrieves the user flag associated with
 
 ```C
 uint16_t tranger2_read_user_flag(
-    json_t  *tranger,
+    json_t *tranger,
     const char *topic_name,
+    const char *key,
+    uint64_t __t__,
     uint64_t rowid
 );
 ```
@@ -1139,11 +1143,13 @@ Sets or clears specific bits in the user flag of a record in a topic within the 
 
 ```C
 int tranger2_set_user_flag(
-    json_t      *tranger,
-    const char  *topic_name,
-    uint64_t     rowid,
-    uint32_t     mask,
-    BOOL         set
+    json_t *tranger,
+    const char *topic_name,
+    const char *key,
+    uint64_t __t__,
+    uint64_t rowid,
+    uint16_t mask,
+    BOOL set
 );
 ```
 
@@ -1493,10 +1499,12 @@ The `tranger2_write_user_flag()` function updates the user flag of a specific re
 
 ```C
 int tranger2_write_user_flag(
-    json_t      *tranger,
-    const char  *topic_name,
-    uint64_t     rowid,
-    uint32_t     user_flag
+    json_t *tranger,
+    const char *topic_name,
+    const char *key,
+    uint64_t __t__,
+    uint64_t rowid,
+    uint16_t user_flag
 );
 ```
 
@@ -1518,3 +1526,33 @@ Returns `0` on success, or a negative value on failure.
 This function modifies the user flag of an existing record but does not alter other record attributes. Use [`tranger2_set_user_flag()`](<#tranger2_set_user_flag>) if you need to update the flag using a mask.
 
 ---
+
+(tranger2_list_topic_names)=
+## `tranger2_list_topic_names()`
+
+*Description pending — signature extracted from header.*
+
+```C
+json_t *tranger2_list_topic_names(
+    json_t *tranger
+);
+```
+
+---
+
+(tranger2_topic_path)=
+## `tranger2_topic_path()`
+
+*Description pending — signature extracted from header.*
+
+```C
+int tranger2_topic_path(
+    char *bf,
+    size_t bfsize,
+    json_t *tranger,
+    const char *topic_name
+);
+```
+
+---
+

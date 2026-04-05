@@ -309,10 +309,11 @@ The `set_volatil_values()` function assigns volatile values to a record in the T
 
 ```C
 int set_volatil_values(
-    json_t  *tranger,
+    json_t *tranger,
     const char *topic_name,
-    json_t  *record,  // NOT owned
-    json_t  *kw       // NOT owned
+    json_t *record,
+    json_t *kw,
+    BOOL broadcast
 );
 ```
 
@@ -979,11 +980,10 @@ If `match_fn` is provided, it is used to further refine the selection of nodes b
 
 ```C
 json_t *treedb_list_parents(
-    json_t      *tranger,
-    const char  *fkey,
-    json_t      *node,
-    BOOL        collapsed_view,
-    json_t      *jn_options
+    json_t *tranger,
+    const char *fkey,
+    json_t *node,
+    json_t *jn_options
 );
 ```
 
@@ -1243,10 +1243,11 @@ Sets a callback function for `treedb_name` in `tranger`. The callback is trigger
 
 ```C
 int treedb_set_callback(
-    json_t            *tranger,
-    const char        *treedb_name,
-    treedb_callback_t  treedb_callback,
-    void              *user_data
+    json_t *tranger,
+    const char *treedb_name,
+    treedb_callback_t treedb_callback,
+    void *user_data,
+    treedb_callback_flag_t flags
 );
 ```
 
@@ -1275,7 +1276,7 @@ The callback function must follow the `treedb_callback_t` signature and will rec
 Enables or disables trace logging for the TreeDB system.
 
 ```C
-BOOL treedb_set_trace(
+int treedb_set_trace(
     BOOL set
 );
 ```
@@ -1519,3 +1520,44 @@ Foreign keys (`fkeys`) and hook fields are not updated by [`treedb_update_node()
 The returned node must not be modified or freed by the caller.
 
 ---
+
+(get_hook_list)=
+## `get_hook_list()`
+
+*Description pending — signature extracted from header.*
+
+```C
+json_t *get_hook_list(
+    hgobj gobj,
+    json_t *hook_data
+);
+```
+
+---
+
+(topic_desc_fkey_names)=
+## `topic_desc_fkey_names()`
+
+*Description pending — signature extracted from header.*
+
+```C
+json_t *topic_desc_fkey_names(
+    json_t *topic_desc
+);
+```
+
+---
+
+(topic_desc_hook_names)=
+## `topic_desc_hook_names()`
+
+*Description pending — signature extracted from header.*
+
+```C
+json_t *topic_desc_hook_names(
+    json_t *topic_desc
+);
+```
+
+---
+

@@ -113,7 +113,7 @@ The function maps integer priority levels to predefined log level names such as 
 void gobj_info_msg(
     hgobj gobj,
     const char *fmt,
-    ...
+    ... ) JANSSON_ATTRS((format(printf, 2, 3))
 );
 ```
 
@@ -350,7 +350,7 @@ The function increments the global error count and formats the log message befor
 Checks if a log handler with the specified name exists in the system.
 
 ```C
-PUBLIC BOOL gobj_log_exist_handler(
+BOOL gobj_log_exist_handler(
     const char *handler_name
 );
 ```
@@ -523,7 +523,7 @@ Sets the last log message for retrieval using [`gobj_log_last_message()`](#gobj_
 ```C
 void gobj_log_set_last_message(
     const char *msg,
-    ...
+    ...) JANSSON_ATTRS((format(printf, 1, 2))
 );
 ```
 
@@ -575,41 +575,6 @@ The function checks if logging is initialized before proceeding. If logging is a
 
 ---
 
-(gobj_trace_buffer)=
-## `gobj_trace_buffer()`
-
-Logs a buffer of data with a debug-level message. The function formats the buffer as a JSON string and includes it in the log entry.
-
-```C
-void gobj_trace_buffer(
-    hgobj gobj,      
-    const char *bf,  
-    size_t len,      
-    const char *fmt, 
-    ...              
-);
-```
-
-**Parameters**
-
-| Key | Type | Description |
-|---|---|---|
-| `gobj` | `hgobj` | The GObj instance associated with the log entry. |
-| `bf` | `const char *` | Pointer to the buffer containing the data to be logged. |
-| `len` | `size_t` | Length of the buffer in bytes. |
-| `fmt` | `const char *` | Format string for the log message. |
-| `...` | `variadic` | Additional arguments for the format string. |
-
-**Returns**
-
-This function does not return a value.
-
-**Notes**
-
-The function internally calls [`trace_vjson()`](#trace_vjson) to format and log the buffer data. The buffer content is stored as a JSON string in the log entry.
-
----
-
 (gobj_trace_dump)=
 ## `gobj_trace_dump()`
 
@@ -621,7 +586,7 @@ void gobj_trace_dump(
     const char *bf,
     size_t len,
     const char *fmt,
-    ...
+    ... ) JANSSON_ATTRS((format(printf, 4, 5))
 );
 ```
 
@@ -655,7 +620,7 @@ void gobj_trace_json(
     hgobj gobj,
     json_t *jn,
     const char *fmt,
-    ...
+    ... ) JANSSON_ATTRS((format(printf, 3, 4))
 );
 ```
 
@@ -687,7 +652,7 @@ Logs a debug-level message with formatted text. The function formats the message
 void gobj_trace_msg(
     hgobj gobj,
     const char *fmt,
-    ...
+    ... ) JANSSON_ATTRS((format(printf, 2, 3))
 );
 ```
 
@@ -743,7 +708,7 @@ The `print_error()` function prints an error message to stdout and syslog, and o
 void print_error(
     pe_flag_t quit,
     const char *fmt,
-    ...
+    ... ) JANSSON_ATTRS((format(printf, 2, 3))
 );
 ```
 
@@ -772,7 +737,7 @@ Sets the function pointer for handling backtrace display. The provided function 
 
 ```C
 void set_show_backtrace_fn(
-    show_backtrace_fn_t show_backtrace_
+    show_backtrace_fn_t show_backtrace_fn
 );
 ```
 
@@ -799,9 +764,9 @@ If `show_backtrace_` is set to `NULL`, backtrace logging will be disabled.
 
 ```C
 int stdout_fwrite(
-    void *v,
+    void* v,
     int priority,
-    const char *fmt,
+    const char* format,
     ...
 );
 ```
@@ -866,7 +831,7 @@ The `trace_msg0()` function logs a debug message with a formatted string.
 ```C
 int trace_msg0(
     const char *fmt,
-    ...
+    ...) JANSSON_ATTRS((format(printf, 1, 2))
 );
 ```
 
@@ -923,3 +888,57 @@ This function does not return a value.
 The function formats the log message as JSON, including metadata such as timestamps and system information. It is used internally by logging functions like [`gobj_trace_json()`](#gobj_trace_json) and [`gobj_trace_msg()`](#gobj_trace_msg).
 
 ---
+
+(_log_bf)=
+## `_log_bf()`
+
+*Description pending — signature extracted from header.*
+
+```C
+void _log_bf(
+    int priority,
+    log_opt_t opt,
+    const char *bf,
+    size_t len
+);
+```
+
+---
+
+(gobj_log_clear_log_file)=
+## `gobj_log_clear_log_file()`
+
+*Description pending — signature extracted from header.*
+
+```C
+void gobj_log_clear_log_file(void);
+```
+
+---
+
+(set_trace_with_full_name)=
+## `set_trace_with_full_name()`
+
+*Description pending — signature extracted from header.*
+
+```C
+BOOL set_trace_with_full_name(
+    BOOL trace_with_full_name
+);
+```
+
+---
+
+(set_trace_with_short_name)=
+## `set_trace_with_short_name()`
+
+*Description pending — signature extracted from header.*
+
+```C
+BOOL set_trace_with_short_name(
+    BOOL trace_with_short_name
+);
+```
+
+---
+

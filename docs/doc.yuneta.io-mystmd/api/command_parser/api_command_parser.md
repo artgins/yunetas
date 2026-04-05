@@ -5,64 +5,6 @@ Source code in:
 - [command_parser.c](https://github.com/artgins/yunetas/blob/main/kernel/c/gobj-c/src/command_parser.c)
 - [command_parser.h](https://github.com/artgins/yunetas/blob/main/kernel/c/gobj-c/src/command_parser.h)
 
-(authz_get_level_desc)=
-## `authz_get_level_desc()`
-
-The `authz_get_level_desc()` function searches for an authorization level descriptor in the given `authz_table` based on the provided `auth` name.
-
-```C
-const sdata_desc_t *authz_get_level_desc(
-    const sdata_desc_t *authz_table,
-    const char *auth
-);
-```
-
-**Parameters**
-
-| Key | Type | Description |
-|---|---|---|
-| `authz_table` | `const sdata_desc_t *` | Pointer to the authorization table containing authorization descriptors. |
-| `auth` | `const char *` | The name of the authorization level to search for. |
-
-**Returns**
-
-Returns a pointer to the matching `sdata_desc_t` descriptor if found, otherwise returns `NULL`.
-
-**Notes**
-
-The function first checks for an alias match if no direct match is found. If an alias exists and matches `auth`, the corresponding descriptor is returned.
-
----
-
-(authzs_list)=
-## `authzs_list()`
-
-`authzs_list()` retrieves a list of authorization descriptors for a given `hgobj`. If an `authz` name is provided, it returns the specific authorization descriptor matching that name.
-
-```C
-json_t *authzs_list(
-    hgobj       gobj,
-    const char *authz
-);
-```
-
-**Parameters**
-
-| Key | Type | Description |
-|---|---|---|
-| `gobj` | `hgobj` | The object whose authorization descriptors are to be retrieved. Can be `NULL` to retrieve global authorizations. |
-| `authz` | `const char *` | The name of a specific authorization descriptor to retrieve. If empty, all available authorizations are returned. |
-
-**Returns**
-
-A `json_t *` object containing the list of authorization descriptors. If `authz` is provided, returns the specific descriptor or `NULL` if not found.
-
-**Notes**
-
-If `gobj` is `NULL`, the function retrieves global authorization descriptors. If `authz` is not found, an error is logged.
-
----
-
 (command_parser)=
 ## `command_parser()`
 
@@ -99,37 +41,6 @@ If the command does not have a function handler, it is redirected as an event.
 
 ---
 
-(gobj_build_authzs_doc)=
-## `gobj_build_authzs_doc()`
-
-`gobj_build_authzs_doc()` generates a JSON object describing the authorization levels available for a given service or globally.
-
-```C
-json_t *gobj_build_authzs_doc(
-    hgobj      gobj,
-    const char *cmd,
-    json_t     *kw
-);
-```
-
-**Parameters**
-
-| Key | Type | Description |
-|---|---|---|
-| `gobj` | `hgobj` | The GObj instance from which to retrieve authorization levels. |
-| `cmd` | `const char *` | The command name, currently unused in the function. |
-| `kw` | `json_t *` | A JSON object containing optional parameters: 'authz' to filter by authorization level and 'service' to specify a particular service. |
-
-**Returns**
-
-A JSON object containing the authorization levels for the specified service or globally. If a specific authorization level is requested and not found, an error message is returned as a JSON string.
-
-**Notes**
-
-If 'service' is provided in `kw`, the function retrieves the authorization levels for that service. If 'authz' is specified, it filters the results to include only the requested authorization level.
-
----
-
 (gobj_build_cmds_doc)=
 ## `gobj_build_cmds_doc()`
 
@@ -158,3 +69,51 @@ A JSON string containing the formatted documentation of available commands. If a
 If `level` is set, [`gobj_build_cmds_doc()`](#gobj_build_cmds_doc) will also include commands from child objects of the given `hgobj`.
 
 ---
+
+(build_command_response)=
+## `build_command_response()`
+
+*Description pending — signature extracted from header.*
+
+```C
+json_t *build_command_response(
+    hgobj gobj,
+    json_int_t result,
+    json_t *jn_comment,
+    json_t *jn_schema,
+    json_t *jn_data
+);
+```
+
+---
+
+(command_get_cmd_desc)=
+## `command_get_cmd_desc()`
+
+*Description pending — signature extracted from header.*
+
+```C
+const sdata_desc_t *command_get_cmd_desc(
+    const sdata_desc_t *command_table,
+    const char *command
+);
+```
+
+---
+
+(search_command_desc)=
+## `search_command_desc()`
+
+*Description pending — signature extracted from header.*
+
+```C
+const sdata_desc_t *search_command_desc(
+    hgobj gobj,
+    const char *command,
+    int level,
+    hgobj *gobj_found
+);
+```
+
+---
+

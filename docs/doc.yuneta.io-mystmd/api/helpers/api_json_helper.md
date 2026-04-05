@@ -57,11 +57,11 @@ gbuffer_t *bits2gbuffer(
 
 **Returns**
 
-A newly allocated [`gbuffer_t *`](#gbuffer_t) containing the string representation of the set bits, or NULL if memory allocation fails.
+A newly allocated `gbuffer_t *` containing the string representation of the set bits, or NULL if memory allocation fails.
 
 **Notes**
 
-The caller is responsible for managing the memory of the returned [`gbuffer_t *`](#gbuffer_t) using [`gbuffer_decref()`](<#gbuffer_decref>).
+The caller is responsible for managing the memory of the returned `gbuffer_t *` using `gbuffer_decref()`.
 
 ---
 
@@ -367,9 +367,9 @@ Checks the reference counts of a JSON object and its nested elements, ensuring t
 
 ```C
 int json_check_refcounts(
-    json_t *jn, // not owned
+    json_t *kw,
     int max_refcount,
-    int *result // firstly initalize to 0
+    int *result
 );
 ```
 
@@ -397,14 +397,14 @@ This function recursively checks all elements in the JSON object, including arra
 The `json_config` function merges multiple JSON configuration sources into a single JSON string, allowing for variable substitution and expansion. It processes fixed, variable, file-based, and parameter-based configurations in a structured order.
 
 ```C
-char *json_config(
-    BOOL        print_verbose_config,
-    BOOL        print_final_config,
-    const char  *fixed_config,
-    const char  *variable_config,
-    const char  *config_json_file,
-    const char  *parameter_config,
-    pe_flag_t   quit
+json_t *json_config(
+    BOOL print_verbose_config,
+    BOOL print_final_config,
+    const char *fixed_config,
+    const char *variable_config,
+    const char *config_json_file,
+    const char *parameter_config,
+    pe_flag_t quit
 );
 ```
 
@@ -463,9 +463,9 @@ Each field in the schema includes an 'id', 'header', 'type', and 'fillspace' att
 The function `json_is_identical()` compares two JSON objects and returns `TRUE` if they are identical, otherwise `FALSE`.
 
 ```C
-PUBLIC BOOL json_is_identical(
-    json_t *kw1,    /* NOT owned */
-    json_t *kw2     /* NOT owned */
+BOOL json_is_identical(
+    json_t *kw1,
+    json_t *kw2
 );
 ```
 
@@ -523,8 +523,8 @@ The function expects `jn_list` to be a JSON array. If `jn_list` is not an array,
 Prints the reference counts of a JSON object and its nested elements recursively.
 
 ```C
-PUBLIC int json_print_refcounts(
-    json_t *jn,  // not owned
+int json_print_refcounts(
+    json_t *jn,
     int level
 );
 ```
@@ -552,7 +552,7 @@ This function is useful for debugging memory management issues related to JSON r
 Checks if a given string exists within a JSON array of strings.
 
 ```C
-PUBLIC BOOL json_str_in_list(
+BOOL json_str_in_list(
     hgobj gobj,
     json_t *jn_list,
     const char *str,
@@ -576,35 +576,6 @@ Returns TRUE if the string is found in the JSON array, otherwise returns FALSE.
 **Notes**
 
 If `jn_list` is not a JSON array, an error is logged using [`gobj_log_error()`](<#gobj_log_error>).
-
----
-
-(legalstring2json)=
-## `legalstring2json()`
-
-The function `legalstring2json` converts a legal JSON string into a JSON object. A legal JSON string must be either an array (`[]`) or an object (`{}`).
-
-```C
-json_t *legalstring2json(
-    const char *str,
-    BOOL verbose
-);
-```
-
-**Parameters**
-
-| Key | Type | Description |
-|---|---|---|
-| `str` | `const char *` | A null-terminated string containing a legal JSON representation (either an array or an object). |
-| `verbose` | `BOOL` | If `TRUE`, logs errors when parsing fails. |
-
-**Returns**
-
-Returns a `json_t *` representing the parsed JSON object. Returns `NULL` if parsing fails.
-
-**Notes**
-
-This function is an alias for [`string2json()`](#string2json).
 
 ---
 
@@ -777,35 +748,6 @@ This function affects the precision of floating-point numbers when converting JS
 
 ---
 
-(str2json)=
-## `str2json()`
-
-The function `str2json` converts a legal JSON string into a JSON object. The input string must be a valid JSON array `[]` or object `{}`.
-
-```C
-json_t *str2json(
-    const char *str,
-    BOOL verbose
-);
-```
-
-**Parameters**
-
-| Key | Type | Description |
-|---|---|---|
-| `str` | `const char *` | A null-terminated string containing a valid JSON object or array. |
-| `verbose` | `BOOL` | If `TRUE`, logs errors when parsing fails. |
-
-**Returns**
-
-Returns a `json_t *` representing the parsed JSON object. Returns `NULL` if parsing fails.
-
-**Notes**
-
-['This function is an alias for [`string2json()`](#string2json).', 'Use [`anystring2json()`](#anystring2json) if the input may contain other JSON types such as numbers or strings.']
-
----
-
 (string2json)=
 ## `string2json()`
 
@@ -865,3 +807,229 @@ A 64-bit bitmask where each bit corresponds to a matched string in `strings_tabl
 ['Each string in `str` is matched against `strings_table`, and the corresponding bit is set in the returned bitmask.', 'If `separators` is NULL or empty, the default separators "|, " are used.', 'The function assumes that `strings_table` contains at most 64 entries, as it maps each entry to a bit in a `uint64_t`.']
 
 ---
+
+(anyfile2json)=
+## `anyfile2json()`
+
+*Description pending — signature extracted from header.*
+
+```C
+json_t *anyfile2json(
+    const char *path,
+    BOOL verbose
+);
+```
+
+---
+
+(debug_json2)=
+## `debug_json2()`
+
+*Description pending — signature extracted from header.*
+
+```C
+int debug_json2(
+    json_t *jn,
+    const char *format,
+    ...)JANSSON_ATTRS((format(printf, 2, 3))
+);
+```
+
+---
+
+(is_metadata_key)=
+## `is_metadata_key()`
+
+*Description pending — signature extracted from header.*
+
+```C
+BOOL is_metadata_key(
+    const char *key
+);
+```
+
+---
+
+(is_private_key)=
+## `is_private_key()`
+
+*Description pending — signature extracted from header.*
+
+```C
+BOOL is_private_key(
+    const char *key
+);
+```
+
+---
+
+(json_config_string2json)=
+## `json_config_string2json()`
+
+*Description pending — signature extracted from header.*
+
+```C
+json_t *json_config_string2json(
+    const char *bf,
+    BOOL verbose
+);
+```
+
+---
+
+(json_dict_recursive_update)=
+## `json_dict_recursive_update()`
+
+*Description pending — signature extracted from header.*
+
+```C
+int json_dict_recursive_update(
+    json_t *object,
+    json_t *other,
+    BOOL overwrite
+);
+```
+
+---
+
+(json_is_range)=
+## `json_is_range()`
+
+*Description pending — signature extracted from header.*
+
+```C
+BOOL json_is_range(
+    json_t *list,
+    json_int_t *pfirst,
+    json_int_t *psecond
+);
+```
+
+---
+
+(json_list_find)=
+## `json_list_find()`
+
+*Description pending — signature extracted from header.*
+
+```C
+int json_list_find(
+    json_t *list,
+    json_t *value
+);
+```
+
+---
+
+(json_list_int)=
+## `json_list_int()`
+
+*Description pending — signature extracted from header.*
+
+```C
+json_int_t json_list_int(
+    json_t *jn_list,
+    size_t idx
+);
+```
+
+---
+
+(json_list_int_index)=
+## `json_list_int_index()`
+
+*Description pending — signature extracted from header.*
+
+```C
+int json_list_int_index(
+    json_t *jn_list,
+    json_int_t value
+);
+```
+
+---
+
+(json_list_update)=
+## `json_list_update()`
+
+*Description pending — signature extracted from header.*
+
+```C
+int json_list_update(
+    json_t *list,
+    json_t *other,
+    BOOL as_set_type
+);
+```
+
+---
+
+(json_listsrange2set)=
+## `json_listsrange2set()`
+
+*Description pending — signature extracted from header.*
+
+```C
+json_t *json_listsrange2set(
+    json_t *listsrange
+);
+```
+
+---
+
+(json_range_list)=
+## `json_range_list()`
+
+*Description pending — signature extracted from header.*
+
+```C
+json_t *json_range_list(
+    json_t *list
+);
+```
+
+---
+
+(json_replace_var)=
+## `json_replace_var()`
+
+*Description pending — signature extracted from header.*
+
+```C
+json_t *json_replace_var(
+    json_t *jn_dict,
+    json_t *jn_vars
+);
+```
+
+---
+
+(json_replace_var_custom)=
+## `json_replace_var_custom()`
+
+*Description pending — signature extracted from header.*
+
+```C
+json_t *json_replace_var_custom(
+    json_t *jn_dict,
+    json_t *jn_vars,
+    const char *open,
+    const char *close
+);
+```
+
+---
+
+(json_size)=
+## `json_size()`
+
+*Description pending — signature extracted from header.*
+
+```C
+size_t json_size(
+    json_t *value
+);
+```
+
+---
+

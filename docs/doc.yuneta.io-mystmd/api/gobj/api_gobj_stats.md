@@ -101,7 +101,9 @@ If the statistic attribute does not exist, it is initialized to zero before incr
 Returns a JSON object containing the statistics of the given `hgobj`.
 
 ```C
-PUBLIC json_t *gobj_jn_stats(hgobj gobj);
+json_t *gobj_jn_stats(
+    hgobj gobj
+);
 ```
 
 **Parameters**

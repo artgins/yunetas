@@ -192,3 +192,44 @@ Calls `check_log_result()` to validate log messages.
 If `verbose` mode is enabled, additional debug information is printed.
 
 ---
+
+(get_measure_times)=
+## `get_measure_times()`
+
+*Description pending — signature extracted from header.*
+
+```C
+int get_measure_times(void);
+```
+
+---
+
+(set_measure_times)=
+## `set_measure_times()`
+
+*Description pending — signature extracted from header.*
+
+```C
+void set_measure_times(
+    int types
+);
+```
+
+---
+
+(test_list)=
+## `test_list()`
+
+*Description pending — signature extracted from header.*
+
+```C
+int test_list(
+    json_t *found,
+    json_t *expected,
+    const char *msg,
+    ...) JANSSON_ATTRS((format(printf, 3, 4))
+);
+```
+
+---
+
