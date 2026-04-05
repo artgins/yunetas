@@ -373,32 +373,33 @@ gobj_is_pure_child(gobj)   // → boolean
 ### State Machine
 
 ```javascript
-gobj_current_state(gobj)              // → state name string
-gobj_change_state(gobj, new_state)    // trigger FSM transition
-gobj_has_event(gobj, event_name)      // → boolean
-gobj_has_output_event(gobj, event_name)
+gobj_current_state(gobj)                         // → state name string
+gobj_change_state(gobj, new_state)               // trigger FSM transition
+gobj_has_event(gobj, event, event_flag)          // → boolean; pass 0 to ignore flag
+gobj_has_output_event(gobj, event, event_flag)   // same; checks EVF_OUTPUT_EVENT
 ```
 
 ### Attribute Access
 
 ```javascript
 // Generic read/write
-gobj_read_attr(gobj, name)
-gobj_write_attr(gobj, name, value)
-gobj_read_attrs(gobj, include_flag)   // → JSON object of all matching attrs
-gobj_write_attrs(gobj, kw)
-gobj_has_attr(gobj, name)             // → boolean
+// `path` accepts back-tick navigation to walk into child gobjs: "child`subattr"
+gobj_read_attr (gobj, name, src)
+gobj_write_attr(gobj, path, value, src)
+gobj_read_attrs (gobj, include_flag, src)                // → JSON object of matching attrs
+gobj_write_attrs(gobj, kw, include_flag, src)            // include_flag filters which are written
+gobj_has_attr(gobj, name)                                // → boolean
 
-// Typed reads
-gobj_read_bool_attr(gobj, name)
+// Typed reads — name only (no src)
+gobj_read_bool_attr   (gobj, name)
 gobj_read_integer_attr(gobj, name)
-gobj_read_str_attr(gobj, name)
+gobj_read_str_attr    (gobj, name)
 gobj_read_pointer_attr(gobj, name)
 
-// Typed writes
-gobj_write_bool_attr(gobj, name, value)
+// Typed writes — (name, value), no src
+gobj_write_bool_attr   (gobj, name, value)
 gobj_write_integer_attr(gobj, name, value)
-gobj_write_str_attr(gobj, name, value)
+gobj_write_str_attr    (gobj, name, value)
 ```
 
 ### Event System
@@ -410,12 +411,12 @@ gobj_publish_event(gobj, event, kw)           // publish to subscribers
 gobj_post_event(gobj, event, kw, src)         // post (deferred)
 
 // Subscriptions
-gobj_subscribe_event(src, event, kw, subscriber)
-gobj_unsubscribe_event(src, event, kw, subscriber)
-gobj_unsubscribe_list(list)
-gobj_find_subscriptions(gobj, event, kw, subscriber)
+gobj_subscribe_event  (publisher, event, kw, subscriber)
+gobj_unsubscribe_event(publisher, event, kw, subscriber)
+gobj_unsubscribe_list (publisher, dl_subs, force)     // force=true also removes hard subs
+gobj_find_subscriptions(publisher, event, kw, subscriber)
 gobj_list_subscriptions(gobj)
-gobj_find_subscribings(gobj, event, kw, publisher)
+gobj_find_subscribings (subscriber, event, kw, publisher)
 
 // Commands & Stats
 gobj_command(gobj, command, kw, src)          // → response JSON
