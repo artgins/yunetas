@@ -11,8 +11,3 @@
     color: orange;
     font-weight: bold;
 }
-
-/* Vertically centre the two hero boxes (title + logo) on the home page. */
-.hero-banner {
-    align-items: center;
-}

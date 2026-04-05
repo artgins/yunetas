@@ -2,11 +2,10 @@
 title: Yuneta Simplified
 ---
 
-::::{grid} 2
-:class: hero-banner
+::::{grid} 1 1 2 2
 
 :::{grid-item}
-:columns: 9
+:columns: 8
 
 # Yuneta Simplified
 
@@ -14,12 +13,10 @@ title: Yuneta Simplified
 :::
 
 :::{grid-item}
-:columns: 3
+:columns: 4
 
 ```{image} ./_static/yuneta-image.svg
-:width: 140px
-:alt: Yuneta logo
-:align: center
+:width: 150px
 ```
 :::
 ::::
