@@ -18,6 +18,7 @@ title: Yuneta Simplified
 ```{image} ./_static/yuneta-image.svg
 :width: 140px
 :alt: Yuneta logo
+:align: center
 ```
 :::
 ::::
