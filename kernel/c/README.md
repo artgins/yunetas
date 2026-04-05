@@ -68,7 +68,7 @@ There is no class inheritance, no method overriding, and no language-specific co
 
 ### Why this matters
 
-This design makes Yuneta **portable to any programming language** that supports functions, arrays, and structured data. The C implementation here is the reference (~12,000 LOC in `gobj.c`), and the JavaScript package (`kernel/js/yunetas-js7`) mirrors the same API and patterns:
+This design makes Yuneta **portable to any programming language** that supports functions, arrays, and structured data. The C implementation here is the reference (~12,000 LOC in `gobj.c`), and the JavaScript package (`kernel/js/gobj-js`) mirrors the same API and patterns:
 
 | Concept | C | JavaScript |
 |---------|---|------------|
@@ -161,7 +161,7 @@ kernel/c/root-esp32   ← ESP32 port of runtime GClasses
 
 The heart of Yuneta. Everything else builds on top of this.
 
-> **Legend:** Functions marked with **`[JS]`** are also available in the JavaScript implementation (`kernel/js/yunetas-js7`). Unmarked functions are C-only.
+> **Legend:** Functions marked with **`[JS]`** are also available in the JavaScript implementation (`kernel/js/gobj-js`). Unmarked functions are C-only.
 
 ### Core Concepts
 
@@ -207,11 +207,11 @@ hgclass gclass_create(                                                      // [
 );
 
 // Build FSM incrementally
-int gclass_add_state(hgclass gclass, gobj_state_t state_name);
-int gclass_add_ev_action(hgclass gclass, gobj_state_t state_name,
+int gclass_add_state(hgclass gclass, gobj_state_t state_name);              // [JS]
+int gclass_add_ev_action(hgclass gclass, gobj_state_t state_name,           // [JS]
     gobj_event_t event, gobj_action_fn action, gobj_state_t next_state);
-int gclass_add_event_type(hgclass gclass, gobj_event_t event_name, event_flag_t event_flag);
-int gclass_check_fsm(hgclass gclass);
+int gclass_add_event_type(hgclass gclass, gobj_event_t event_name, event_flag_t event_flag);  // [JS]
+int gclass_check_fsm(hgclass gclass);                                        // [JS]
 
 // Query GClasses
 hgclass gclass_find_by_name(gclass_name_t gclass_name);                    // [JS]
@@ -221,7 +221,7 @@ json_t *gclass_gclass_register(void);       // list all registered GClasses
 json_t *gclass2json(hgclass gclass);
 
 // Event introspection
-event_type_t *gclass_event_type(hgclass gclass, gobj_event_t event);
+event_type_t *gclass_event_type(hgclass gclass, gobj_event_t event);       // [JS]
 gobj_event_t gclass_find_public_event(const char *event, BOOL verbose);
 event_type_t *gobj_find_event_type(const char *event, event_flag_t event_flag, BOOL verbose);
 
@@ -416,7 +416,7 @@ int     gobj_write_user_data(hgobj gobj, const char *name, json_t *value);
 json_t *gobj_kw_get_user_data(hgobj gobj, const char *path, json_t *default_value, kw_flag_t flag);
 
 // Stats
-int gobj_reset_volatil_attrs(hgobj gobj);
+int gobj_reset_volatil_attrs(hgobj gobj);                                   // [JS]
 int gobj_reset_rstats_attrs(hgobj gobj);
 ```
 
@@ -576,13 +576,20 @@ json_t *gobj_build_authzs_doc(hgobj gobj, const char *cmd, json_t *kw);
 #define TRACE_GBUFFERS          0x00000040  // Buffer ops
 #define TRACE_TIMER             0x00000080  // Timer events
 
-// Set trace levels
+// Set trace levels (by level name)
 int gobj_set_global_trace(const char *level, BOOL set);
 int gobj_set_global_no_trace(const char *level, BOOL set);
 int gobj_set_gclass_trace(hgclass gclass, const char *level, BOOL set);
 int gobj_set_gclass_no_trace(hgclass gclass, const char *level, BOOL set);
 int gobj_set_gobj_trace(hgobj gobj, const char *level, BOOL set, json_t *kw);
 int gobj_set_gobj_no_trace(hgobj gobj, const char *level, BOOL set);
+
+// Set trace levels (by raw bitmask)
+int gobj_set_global_trace2(uint32_t level, BOOL set);
+int gobj_set_global_no_trace2(uint32_t level, BOOL set);
+
+// Customize trace-machine output format (0 = legacy, 1 = new format)
+void gobj_set_trace_machine_format(int format);
 
 // Query trace levels
 uint32_t gobj_trace_level(hgobj gobj);
@@ -598,9 +605,12 @@ json_t *gobj_trace_level_list(hgclass gclass);
 json_t *gobj_get_global_trace_level(void);
 json_t *gobj_get_gclass_trace_level(hgclass gclass);
 json_t *gobj_get_gclass_trace_no_level(hgclass gclass);
+json_t *gobj_get_gclass_trace_level_list(hgclass gclass);
+json_t *gobj_get_gclass_trace_no_level_list(hgclass gclass);
 json_t *gobj_get_gobj_trace_level(hgobj gobj);
 json_t *gobj_get_gobj_trace_no_level(hgobj gobj);
 json_t *gobj_get_gobj_trace_level_tree(hgobj gobj);
+json_t *gobj_get_gobj_trace_no_level_tree(hgobj gobj);
 
 // Trace filters (per-GClass filtering by attribute value)
 int     gobj_load_trace_filter(hgclass gclass, json_t *jn_trace_filter);
@@ -683,6 +693,23 @@ BOOL    kwid_compare_lists(hgobj gobj, json_t *list, json_t *expected,
 // Serialization
 json_t *kw_serialize(hgobj gobj, json_t *kw);
 json_t *kw_deserialize(hgobj gobj, json_t *kw);
+char   *kw_serialize_to_string(hgobj gobj, json_t *kw);   // free with jsonp_free()
+
+// Walk / search / size
+int    kw_walk(hgobj gobj, json_t *kw,
+           int (*cb)(hgobj, json_t *kw, const char *key, json_t *value));
+size_t kw_size(json_t *kw);              // dict or list size (1 for scalars)
+BOOL   kw_has_word(hgobj gobj, json_t *kw, const char *word, kw_flag_t flag);
+int    kw_find_str_in_list(hgobj gobj, json_t *kw_list, const char *str);
+int    kw_find_json_in_list(hgobj gobj, json_t *kw_list, json_t *item, kw_flag_t flag);
+
+// Path delimiter (default '`')
+char kw_set_path_delimiter(char delimiter);
+
+// Collapse / flatten (flatten: nested dict → back-tick keys; unflatten: the inverse)
+json_t *kw_collapse(hgobj gobj, json_t *kw, int collapse_lists_limit, int collapse_dicts_limit);
+json_t *json_flatten_dict(json_t *jn_nested);
+json_t *json_unflatten_dict(json_t *jn_flat);
 ```
 
 **String utilities:**
@@ -690,11 +717,24 @@ json_t *kw_deserialize(hgobj gobj, json_t *kw);
 BOOL empty_string(const char *s);                                                    // [JS]
 BOOL str_in_list(const char **list, const char *str, BOOL ignore_case);              // [JS]
 int  idx_in_list(const char **list, const char *str, BOOL ignore_case);
-char *build_path(char *bf, size_t bfsize, ...);
+char *build_path(char *bf, size_t bfsize, ...);                                      // [JS]
 char *get_last_segment(char *path);
 char *pop_last_segment(char *path);
 const char **split2(const char *str, const char *delim, int *list_size);
 void split_free2(const char **list);
+const char **split3(const char *str, const char *delim, int *plist_size);
+void split_free3(const char **list);
+char *str_concat(const char *str1, const char *str2);
+char *str_concat3(const char *str1, const char *str2, const char *str3);
+void  str_concat_free(char *s);
+char *upper(char *s);
+char *lower(char *s);
+char *capitalize(char *s);
+char *strntoupper(char *s, size_t n);
+char *strntolower(char *s, size_t n);
+char *translate_string(char *dest, int dest_size, const char *src, const char *from, const char *to);
+char *get_parameter(char *s, char **save_ptr);
+char *get_key_value_parameter(char *s, char **key, char **save_ptr);
 ```
 
 **JSON helpers:**
@@ -740,18 +780,25 @@ int json_check_refcounts(json_t *kw, int max_refcount, int *result);
 
 **File system utilities:**
 ```c
-int  newdir(const char *path, int xpermission);
-int  newfile(const char *path, int rpermission, BOOL overwrite);
-int  mkrdir(const char *path, int xpermission);
-int  rmrdir(const char *root_dir);
-int  rmrcontentdir(const char *root_dir);
-BOOL is_regular_file(const char *path);
-BOOL is_directory(const char *path);
-off_t file_size(const char *path);
-BOOL file_exists(const char *directory, const char *filename);
-BOOL subdir_exists(const char *directory, const char *subdir);
-int  file_remove(const char *directory, const char *filename);
-int  copyfile(const char *source, const char *destination, int permission, BOOL overwrite);
+int     newdir(const char *path, int xpermission);
+int     newfile(const char *path, int rpermission, BOOL overwrite);
+int     open_exclusive(const char *path, int flags, int rpermission);
+int     mkrdir(const char *path, int xpermission);
+int     rmrdir(const char *root_dir);
+int     rmrcontentdir(const char *root_dir);
+BOOL    is_regular_file(const char *path);
+BOOL    is_directory(const char *path);
+off_t   file_size(const char *path);
+off_t   filesize(const char *path);             // by path, like file_size
+off_t   filesize2(int fd);                      // by fd
+mode_t  file_permission(const char *path);
+BOOL    file_exists(const char *directory, const char *filename);
+BOOL    subdir_exists(const char *directory, const char *subdir);
+int     file_remove(const char *directory, const char *filename);
+int     copyfile(const char *source, const char *destination, int permission, BOOL overwrite);
+int     lock_file(int fd);
+int     unlock_file(int fd);
+const char *path_basename(const char *path);
 ```
 
 **URL parsing:**
@@ -765,9 +812,9 @@ int parse_url(hgobj gobj, const char *uri,
     BOOL no_schema);
 ```
 
-**Time utilities:**
+**Time / date utilities:**
 ```c
-char    *current_timestamp(char *bf, size_t bfsize);
+char    *current_timestamp(char *bf, size_t bfsize);                                 // [JS]
 time_t   start_sectimer(time_t seconds);
 BOOL     test_sectimer(time_t value);
 uint64_t start_msectimer(uint64_t milliseconds);
@@ -776,6 +823,13 @@ uint64_t time_in_milliseconds(void);
 uint64_t time_in_milliseconds_monotonic(void);
 time_t   time_in_seconds(void);
 char    *formatdate(time_t t, char *bf, int bfsize, const char *format);
+char    *t2timestamp(char *bf, int bfsize, time_t t, BOOL local);
+char    *tm2timestamp(char *bf, int bfsize, struct tm *tm);
+time_t   tm_to_time_t(const struct tm *tm);
+int      parse_date(const char *date, int mode, timestamp_t *out);
+int      parse_date_basic(const char *date, timestamp_t *timestamp, int *offset);
+void     parse_date_format(const char *format, struct date_mode *mode);
+void     datestamp(char *bf, size_t bfsize, time_t t, const struct date_mode *mode);
 ```
 
 **Metadata & private key detection:**
@@ -801,6 +855,89 @@ void comm_prot_free(void);
 // Directory walking
 int walk_dir_tree(hgobj gobj, const char *root_dir, const char *pattern,
     wd_option opt, walkdir_cb cb, void *user_data);
+```
+
+**JSON config loading:**
+```c
+json_t *json_config(
+    BOOL print_verbose_config,
+    BOOL print_final_config,
+    const char *fixed_config,
+    const char *variable_config,
+    const char *config_json_file,
+    const char *parameter_config,
+    int pc_verbose
+);
+json_t *json_config_string2json(const char *bf, BOOL verbose);
+json_t *json_replace_var_custom(json_t *jn_dict, json_t *jn_vars,
+    const char *left_delim, const char *right_delim);
+json_t *json_desc_to_schema(const json_desc_t *json_desc);
+```
+
+**Socket / network helpers:**
+```c
+int  get_peername(char *bf, size_t bfsize, int fd);
+int  get_sockname(char *bf, size_t bfsize, int fd);
+int  get_url_schema(const char *uri, char *schema, size_t schema_size);
+BOOL is_tcp_socket(int fd);
+BOOL is_udp_socket(int fd);
+int  print_socket_address(char *buf, size_t buflen, const struct sockaddr *sa);
+int  set_nonblocking(int fd);
+int  set_cloexec(int fd);                // children will not inherit
+int  set_tcp_socket_options(int fd, int delay);
+```
+
+**System info & diagnostics:**
+```c
+unsigned long total_ram_in_kb(void);
+unsigned long free_ram_in_kb(void);
+double        cpu_usage_percent(int *err);
+int           read_process_cmdline(char *bf, size_t bfsize, pid_t pid);
+int           check_open_fds(void);     // return number of opened fds
+int           print_open_fds(const char *fmt, ...);
+int           print_json(const char *label, json_t *jn);
+int           debug_json(const char *label, json_t *jn, BOOL verbose);
+int           debug_json2(json_t *jn, const char *format, ...);
+```
+
+**Yuneta environment:**
+```c
+const char *get_yunetas_base(void);
+int         is_yuneta_user(const char *username);
+```
+
+**NSS replacements for `CONFIG_FULLY_STATIC`:**
+
+Fully-static glibc binaries cannot use NSS (`libnss_*.so` is loaded via `dlopen`). These helpers read `/etc/passwd` / `/etc/group` directly and are called by the kernel in place of glibc's `getpwuid` / `getpwnam` / `getgrnam` / `getgrouplist`.
+
+```c
+struct passwd *yuneta_getpwuid(uid_t uid);
+struct passwd *yuneta_getpwnam(const char *name);
+struct group  *yuneta_getgrnam(const char *name);
+int            yuneta_getgrouplist(const char *user, gid_t group,
+                                   gid_t *groups, int *ngroups);
+```
+
+> For DNS resolution there is a separate companion, `yuneta_getaddrinfo()` / `yuneta_freeaddrinfo()`, in `kernel/c/yev_loop/src/static_resolv.h`.
+
+**Name/number tables:**
+```c
+typedef struct { int number; const char *name; } number_name_table_t;
+int         get_number_from_nn_table(const number_name_table_t *table, const char *name);
+const char *get_name_from_nn_table(const number_name_table_t *table, int number);
+```
+
+**Bitmask / string conversion:**
+```c
+json_t    *bits2jn_strlist(const char **names, int namec, uint64_t bits);
+gbuffer_t *bits2gbuffer(const char **names, int namec, uint64_t bits);
+uint64_t   strings2bits(const char **names, int namec, const char *str_bits);
+```
+
+**JSON list extras:**
+```c
+json_int_t json_list_int(json_t *jn_list, size_t idx);
+int        json_list_int_index(json_t *jn_list, json_int_t value);
 ```
 
 **Inter-event message stack** (from `msg_ievent.h` in root-linux):
@@ -971,26 +1108,62 @@ json_t *gobj_node_tree(hgobj gobj, const char *topic_name, json_t *kw, json_t *j
 json_t *gobj_topic_jtree(hgobj gobj, const char *topic_name, const char *hook,
     const char *rename_hook, json_t *kw, json_t *jn_filter, json_t *jn_options, hgobj src);
 
+// Topic links & hooks introspection (via gobj wrapping a treedb)
+json_t *gobj_topic_links(hgobj gobj, const char *treedb_name,
+    const char *topic_name, json_t *kw, hgobj src);
+json_t *gobj_topic_hooks(hgobj gobj, const char *treedb_name,
+    const char *topic_name, json_t *kw, hgobj src);
+
 // Snapshots
 int     gobj_shoot_snap(hgobj gobj, const char *tag, json_t *kw, hgobj src);
 int     gobj_activate_snap(hgobj gobj, const char *tag, json_t *kw, hgobj src);
 json_t *gobj_list_snaps(hgobj gobj, json_t *filter, hgobj src);
 ```
 
+**Subscription / sdata descriptors:**
+```c
+json_t                  *gobj_sdata_create(hgobj gobj, const sdata_desc_t *schema);
+const sdata_desc_t      *gobj_subs_desc(void);   // standard subscription filter keys
+```
+
 ### Memory Management (gbmem)
 
 **Header:** `gobj-c/src/gbmem.h`
 
+Tracked allocator used throughout Yuneta. Any memory taken with `gbmem_malloc()` is accounted for, and any leak is reported by `print_track_mem()` at shutdown when `CONFIG_DEBUG_TRACK_MEMORY` is enabled — this is what catches memory leaks in the test suite.
+
 ```c
+// Setup / shutdown
 int   gbmem_setup(size_t mem_max_block, size_t mem_max_system_memory,
     BOOL use_own_system_memory, size_t mem_min_block, size_t mem_superblock);
 void  gbmem_shutdown(void);
+
+// Plug a custom allocator (default uses the system malloc)
+int   gbmem_set_allocators(void *(*malloc_fn)(size_t),
+                           void (*free_fn)(void *),
+                           void *(*realloc_fn)(void *, size_t),
+                           void *(*calloc_fn)(size_t, size_t));
+int   gbmem_get_allocators(void *(**malloc_fn)(size_t),
+                           void (**free_fn)(void *),
+                           void *(**realloc_fn)(void *, size_t),
+                           void *(**calloc_fn)(size_t, size_t));
+
+// Allocation
 void *gbmem_malloc(size_t size);
 void  gbmem_free(void *ptr);
 void *gbmem_realloc(void *ptr, size_t size);
 void *gbmem_calloc(size_t n, size_t size);
 char *gbmem_strdup(const char *str);
 char *gbmem_strndup(const char *str, size_t size);
+
+// Limits / accounting
+size_t gbmem_get_maximum_block(void);
+size_t get_max_system_memory(void);
+size_t get_cur_system_memory(void);
+
+// Leak diagnostics (use at shutdown or from the debugger)
+void   set_memory_check_list(unsigned long *memory_check_list);
+void   print_track_mem(void);
 ```
 
 ### Rotatory Log Files
@@ -1313,10 +1486,28 @@ int     treedb_set_callback(json_t *tranger, const char *treedb_name,
     treedb_callback_t cb, void *user_data);
 
 // Topic management
+json_t *treedb_create_topic(json_t *tranger, const char *treedb_name,
+    const char *topic_name, int topic_version, const char *topic_tkey,
+    json_t *pkey2s, json_t *jn_topic_ext, json_t *jn_cols,
+    size_t snap_tag, BOOL create);
+int     treedb_close_topic(json_t *tranger, const char *treedb_name, const char *topic_name);
+int     treedb_delete_topic(json_t *tranger, const char *treedb_name, const char *topic_name);
+int     treedb_set_trace(BOOL set);
+
 json_t *treedb_list_treedb(json_t *tranger, json_t *kw);
 json_t *treedb_topics(json_t *tranger, const char *treedb_name, json_t *jn_options);
 size_t  treedb_topic_size(json_t *tranger, const char *treedb_name, const char *topic_name);
 BOOL    treedb_is_treedbs_topic(json_t *tranger, const char *treedb_name, const char *topic_name);
+
+// pkey2 (multi-version / instance indexing)
+json_t *treedb_topic_pkey2s(json_t *tranger, const char *topic_name);
+json_t *treedb_topic_pkey2s_filter(json_t *tranger, const char *topic_name,
+    json_t *node, const char *id);
+json_t *treedb_get_id_index(json_t *tranger, const char *treedb_name, const char *topic_name);
+
+// Templates
+json_t *create_template_record(const char *template_name,
+    json_t *cols, json_t *kw);
 
 // Node CRUD
 json_t *treedb_create_node(json_t *tranger, const char *treedb_name,
