@@ -188,3 +188,7 @@ site:
     favicon: _static/yuneta-y.svg
     hide_toc: false
     hide_search_button: false
+  actions:
+    - title: GitHub
+      url: https://github.com/artgins/yunetas
+      static: false
