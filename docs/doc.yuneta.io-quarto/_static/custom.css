@@ -2,6 +2,17 @@
    The original Sphinx site had a larger custom.css tied to sphinx-book-theme;
    here we only keep the semantic color roles used by the ported content. */
 
+/* Prevent horizontal "jump" on page navigation: some pages are short enough
+   not to need a vertical scrollbar, and when navigating from a long page the
+   scrollbar disappears and the whole layout shifts a few pixels to the right.
+   Forcing the scrollbar to be always present keeps the viewport width stable.
+   `scrollbar-gutter: stable` is the modern, non-overlay way to do it; the
+   `overflow-y: scroll` fallback covers older browsers. */
+html {
+  overflow-y: scroll;
+  scrollbar-gutter: stable;
+}
+
 .danger {
   color: #c0392b;
   font-weight: 600;
