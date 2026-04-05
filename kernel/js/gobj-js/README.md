@@ -440,12 +440,12 @@ gobj_yuno_role(gobj)
 gobj_yuno_id(gobj)
 
 gobj_find_child(gobj, kw_filter)
-gobj_find_service(name)
-gobj_find_gobj(path)
+gobj_find_service(name, verbose)
+gobj_find_gobj(gobj, path)
 gobj_search_path(gobj, path)
 
-gobj_walk_gobj_children(gobj, fn, data)
-gobj_walk_gobj_children_tree(gobj, fn, data)
+gobj_walk_gobj_children(gobj, walk_type, cb_walking, user_data, user_data2)
+gobj_walk_gobj_children_tree(gobj, walk_type, cb_walking, user_data, user_data2)
 ```
 
 ### Persistence
@@ -639,23 +639,21 @@ Utilities for interacting with the Yuneta TreeDB (schema-driven graph database):
 
 ```javascript
 import {
-    treedb_register_formtable,
-    treedb_unregister_formtable,
-    treedb_get_topic_data,
-    treedb_get_topic_field_data,
+    treedb_hook_data_size,
     treedb_decoder_fkey,
+    treedb_encoder_fkey,
     treedb_decoder_hook,
     treedb_get_field_desc,
     template_get_field_desc,
     create_template_record,
 } from "@yuneta/gobj-js";
 
-treedb_register_formtable(treedb_name, topic_name, gobj_formtable)
-treedb_get_topic_data(treedb_name, topic_name)
-treedb_get_topic_field_data(treedb_name, topic_name, field_name)
-treedb_hook_data_size(hook_data)            // count with caching
+treedb_hook_data_size(value)                // count with caching
 treedb_decoder_fkey(col, fkey)              // parse foreign key reference
+treedb_encoder_fkey(col, fkey)              // build fkey string "topic^id^hook"
 treedb_decoder_hook(col, hook)              // parse hook reference
+treedb_get_field_desc(col)                  // build field descriptor from column
+template_get_field_desc(key, value)         // build field descriptor from template
 create_template_record(template, kw)        // instantiate from template
 ```
 
