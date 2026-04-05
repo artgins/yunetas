@@ -188,5 +188,3 @@ site:
     favicon: _static/yuneta-y.svg
     hide_toc: false
     hide_search_button: false
-  parts:
-    navbar_end: _static/navbar_end.md

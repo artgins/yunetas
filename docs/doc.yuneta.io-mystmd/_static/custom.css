@@ -11,9 +11,3 @@
     color: orange;
     font-weight: bold;
 }
-
-/* Hide the duplicate GitHub link from the per-page title block.
-   It already lives in the sticky navbar (via parts/navbar_end). */
-.myst-article-header a[href*="github.com"] {
-    display: none;
-}
