@@ -402,7 +402,7 @@ ycommand -c 'update-binary id=X content64=$$(X)'   # update binary (dev only)
 
 | File | Purpose |
 |------|---------|
-| `YUNETA_VERSION` | Current version (7.0.0) — used to generate `yuneta_version.h` |
+| `YUNETA_VERSION` | Current version (7.2.0) — used to generate `yuneta_version.h` |
 | `defconfig` | Reference Kconfig with a known-good configuration |
 | `Kconfig` | Root Kconfig definition (compiler, build type, TLS, modules, debug) |
 | `TODO.md` | Tracks API renames, removals, and additions between versions |
