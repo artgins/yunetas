@@ -188,3 +188,4 @@ site:
     favicon: _static/yuneta-y.svg
     hide_toc: false
     hide_search_button: false
+    style: _static/custom.css
