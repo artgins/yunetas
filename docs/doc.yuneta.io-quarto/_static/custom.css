@@ -1,0 +1,13 @@
+/* Minimal custom styles for the Quarto pilot.
+   The original Sphinx site had a larger custom.css tied to sphinx-book-theme;
+   here we only keep the semantic color roles used by the ported content. */
+
+.danger {
+  color: #c0392b;
+  font-weight: 600;
+}
+
+.warning {
+  color: #d35400;
+  font-weight: 600;
+}

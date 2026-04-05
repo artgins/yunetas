@@ -1,0 +1,74 @@
+---
+title: "Executable notebook demo"
+subtitle: "Quarto + Python — the replacement for myst_nb"
+jupyter: python3
+execute:
+  enabled: true
+  echo: true
+  cache: true
+---
+
+This page demonstrates **Quarto's native Jupyter integration** — the feature
+that motivated evaluating Quarto as a successor to the current
+`sphinx-book-theme` + `myst_nb` stack.
+
+When this page is rendered, every Python code cell below is executed by a
+real Jupyter kernel; outputs (numbers, tables, plots) are captured and
+embedded in the HTML. Results are cached via `execute: cache: true`, so
+subsequent builds are fast unless the code changes.
+
+## A tiny time-series example
+
+Yuneta is heavy on time-series data. Here's a trivial example generating and
+plotting a synthetic signal — the kind of snippet we'd want to embed in
+architecture docs to illustrate concepts without shipping a separate
+notebook file.
+
+```{python}
+#| label: fig-signal
+#| fig-cap: "A synthetic time-series (sine + noise), rendered at build time."
+
+import numpy as np
+import matplotlib.pyplot as plt
+
+rng = np.random.default_rng(seed=42)
+t = np.linspace(0, 4 * np.pi, 500)
+signal = np.sin(t) + 0.2 * rng.standard_normal(t.shape)
+
+fig, ax = plt.subplots(figsize=(7, 3))
+ax.plot(t, signal, linewidth=1)
+ax.set_xlabel("time")
+ax.set_ylabel("value")
+ax.grid(alpha=0.3)
+plt.tight_layout()
+```
+
+The cell above is a proper Python cell — you can reference the figure with
+`@fig-signal`, and the caption is stored as document metadata.
+
+## Inline computation
+
+Quarto also supports **inline results**, similar to R Markdown. The current
+sample has `{python} len(signal)` data points and a mean of roughly
+`{python} f"{signal.mean():.3f}"`.
+
+## What this replaces
+
+| Sphinx stack feature | Quarto equivalent |
+|---|---|
+| `myst_nb` execution of `.md`/`.ipynb` | Native `.qmd` + `jupyter:` metadata |
+| `nb_execution_mode = "cache"` | `execute: cache: true` (page-level) |
+| `sphinx_thebe` live execution in browser | *(no direct equivalent — Quarto uses OJS / Shiny for interactivity)* |
+| `matplotlib` figure embedding | Native, with `fig-cap` / `label` metadata |
+
+::: {.callout-tip}
+To build this page locally you need:
+
+```bash
+pip install jupyter matplotlib numpy
+cd docs/doc.yuneta.io-quarto
+quarto render
+```
+
+If Quarto isn't installed yet, grab it from <https://quarto.org/docs/get-started/>.
+:::

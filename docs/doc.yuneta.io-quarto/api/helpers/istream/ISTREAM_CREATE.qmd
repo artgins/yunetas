@@ -1,0 +1,93 @@
+# `macro ISTREAM_CREATE()` {#sec-macro ISTREAM_CREATE}
+
+Macro to create an `istream_h` instance with specified buffer sizes, ensuring proper memory management and error handling.
+
+
+::: {.panel-tabset}
+## C
+
+
+**Prototype**
+
+```C
+ISTREAM_CREATE(
+    var,       istream_h *
+    gobj,      hgobj
+    data_size, size_t
+    max_size,  size_t
+)
+```
+
+**Parameters**
+
+| Key | Type | Description |
+|---|---|---|
+| `var` | `istream_h *` | Pointer to the `istream_h` instance to be created. |
+| `gobj` | `hgobj` | Handle to the gobj that owns the istream. |
+| `data_size` | `size_t` | Initial buffer size for the istream. |
+| `max_size` | `size_t` | Maximum buffer size allowed for the istream. |
+
+---
+
+**Return Value**
+
+None. The macro initializes `var` with a new `istream_h` instance or destroys an existing one before reinitialization.
+
+**Notes**
+
+If `var` is already allocated, it is destroyed before creating a new instance. The macro logs an error if `var` is not NULL before reallocation.
+
+
+## JS
+
+
+**Prototype**
+
+````JS
+// Not applicable in JS
+````
+
+
+## Python
+
+
+**Prototype**
+
+````Python
+# Not applicable in Python
+````
+
+
+:::
+
+
+::: {.callout-note collapse="true" title="Examples"}
+
+::: {.panel-tabset}
+## C
+
+
+````C
+// TODO C examples
+````
+
+
+## JS
+
+
+````JS
+// TODO JS examples
+````
+
+
+## Python
+
+
+````python
+# TODO Python examples
+````
+
+
+:::
+
+:::

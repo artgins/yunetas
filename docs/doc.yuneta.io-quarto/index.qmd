@@ -1,0 +1,91 @@
+---
+title: "Yuneta Simplified"
+subtitle: "An Asynchronous Development Framework"
+page-layout: full
+---
+
+:::: {.grid}
+
+::: {.g-col-12 .g-col-md-4}
+![](_static/yuneta-image.svg){width=200}
+:::
+
+::: {.g-col-12 .g-col-md-8}
+
+`Yuneta Simplified` is a **development framework** focused on **messaging** and
+**services**, based on
+[Event-driven](https://en.wikipedia.org/wiki/Event-driven_programming),
+[Automata-based](https://en.wikipedia.org/wiki/Automata-based_programming) and
+[Object-oriented](https://en.wikipedia.org/wiki/Object-oriented_programming)
+programming paradigms. Heavy use of JSON, **time-series**, **key-value**,
+**flat-files** and **graph** concepts.
+
+[Yuneta Simplified](https://yuneta.io) is a **real-time system** (RTS) that
+includes **development**, **testing**, and **deployment** features. Built for
+Linux and **deployable** on any **bare-metal** server.
+
+Specialised in IoT data collection, device integration, and data exchange
+and protocol adaptation between systems — including collection,
+**publication/subscription**, and querying of **messages** in **real time**,
+with **historical** data storage.
+
+Messages (encrypted or plain text) circulating within the Yuneta system can be
+persistent on disk or exist only while in transit or in memory. All data in
+JSON.
+
+For [Linux](https://en.wikipedia.org/wiki/Linux). Versions in C, partially in
+JavaScript.
+
+:::
+
+::::
+
+---
+
+## About this pilot {.unnumbered}
+
+::: {.callout-note}
+This site is a **pilot migration** of the original Sphinx documentation at
+`docs/doc.yuneta.io/` to [Quarto](https://quarto.org). It does **not** contain
+all the pages — only a representative slice is included so we can compare
+both stacks side by side before committing to a full migration.
+
+**What's included**
+
+- The **Philosophy** section (prose pages).
+- The **istream** helper API (17 reference pages — the mechanical case).
+- A **demo executable notebook** to validate Quarto's Jupyter integration.
+
+**What's missing vs. the Sphinx site**
+
+- Interactive execution via `sphinx_thebe` (no 1-to-1 in Quarto).
+- `ablog` blog posts (Quarto has its own `listing:` format).
+- `intersphinx` cross-references to Python stdlib.
+- The full API reference (~800 pages) — only `istream` is ported.
+:::
+
+## Explore the pilot {.unnumbered}
+
+:::: {.grid}
+
+::: {.g-col-12 .g-col-md-4}
+### [Philosophy](philosophy/philosophy.qmd)
+The design principles behind Yuneta: events, actions, hierarchy, time and
+data.
+:::
+
+::: {.g-col-12 .g-col-md-4}
+### [istream API](api/helpers/istream/index.qmd)
+Input-stream helper: lifecycle, reading primitives, buffer inspection.
+Seventeen function reference pages migrated mechanically by
+`tools/docs-migration/myst_to_quarto.py`.
+:::
+
+::: {.g-col-12 .g-col-md-4}
+### [Demo notebook](notebooks/demo_timeseries.qmd)
+A small executable Quarto document with a Python code cell — the
+`myst_nb`-equivalent feature that made the stack choice relevant in the
+first place.
+:::
+
+::::

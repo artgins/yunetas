@@ -1,0 +1,87 @@
+# `istream_is_completed()` {#sec-istream_is_completed}
+
+`istream_is_completed()` checks if the input stream has completed reading the expected data.
+
+
+::: {.panel-tabset}
+## C
+
+
+**Prototype**
+
+```C
+PUBLIC BOOL istream_is_completed(
+    istream_h istream
+);
+```
+
+**Parameters**
+
+| Key | Type | Description |
+|---|---|---|
+| `istream` | `istream_h` | Handle to the input stream. |
+
+---
+
+**Return Value**
+
+Returns `TRUE` if the input stream has completed reading the expected data, otherwise returns `FALSE`.
+
+**Notes**
+
+['If `istream` is `NULL`, an error is logged and `FALSE` is returned.']
+
+
+## JS
+
+
+**Prototype**
+
+````JS
+// Not applicable in JS
+````
+
+
+## Python
+
+
+**Prototype**
+
+````Python
+# Not applicable in Python
+````
+
+
+:::
+
+
+::: {.callout-note collapse="true" title="Examples"}
+
+::: {.panel-tabset}
+## C
+
+
+````C
+// TODO C examples
+````
+
+
+## JS
+
+
+````JS
+// TODO JS examples
+````
+
+
+## Python
+
+
+````python
+# TODO Python examples
+````
+
+
+:::
+
+:::
