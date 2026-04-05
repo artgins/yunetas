@@ -219,7 +219,7 @@ Static glibc binaries cannot call NSS (Name Service Switch) or the system resolv
 | `kernel/c/gobj-c/src/gobj.c` | `getpwuid()` → `static_getpwuid()` |
 | `kernel/c/root-linux/src/c_yuno.c` | `getpwuid()` → `static_getpwuid()` |
 | `kernel/c/root-linux/src/entry_point.c` | `getpwuid()` → `static_getpwuid()` |
-| `kernel/c/yev_loop/src/yev_loop.c` | Added `yuneta_getaddrinfo()` / `yuneta_freeaddrinfo()`: a full UDP DNS resolver (reads `/etc/resolv.conf` + `/etc/hosts`, handles numeric addresses) — `#define` macros redirect all `getaddrinfo`/`freeaddrinfo` call sites |
+| `kernel/c/yev_loop/src/static_resolv.c/.h` | Added `yuneta_getaddrinfo()` / `yuneta_freeaddrinfo()`: a full UDP DNS resolver (reads `/etc/resolv.conf` + `/etc/hosts`, handles numeric addresses). `#define` macros in `static_resolv.h` redirect all `getaddrinfo`/`freeaddrinfo` call sites in files that include it |
 | `kernel/c/root-linux/src/c_cli.c` | `getpwuid()->pw_dir` → `static_getpwuid()` + NULL guard |
 | `utils/c/ycommand/src/main.c` | `getpwuid()->pw_dir` → `static_getpwuid()` + NULL guard |
 
