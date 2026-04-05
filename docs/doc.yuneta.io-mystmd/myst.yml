@@ -1,0 +1,56 @@
+# MyST Markdown project configuration.
+# Docs: https://mystmd.org/guide/quickstart
+version: 1
+
+project:
+  id: yuneta-simplified-mystmd-pilot
+  title: Yuneta Simplified
+  description: |
+    Pilot migration of docs/doc.yuneta.io/ from Sphinx to mystmd
+    (Jupyter Book 2). Source files are MyST Markdown and are shared
+    verbatim with the Sphinx site — no conversion needed.
+  authors:
+    - name: ArtGins
+  github: https://github.com/artgins/yunetas
+  license: MIT
+
+  # The TOC replaces Sphinx's {toctree} directives. mystmd does not
+  # auto-discover files — every page must be listed here.
+  toc:
+    - file: index.md
+    - title: Philosophy
+      children:
+        - file: philosophy/philosophy.md
+        - file: philosophy/models.md
+    - title: API — istream
+      children:
+        - file: api/helpers/istream/index.md
+        - file: api/helpers/istream/istream_create.md
+        - file: api/helpers/istream/istream_destroy.md
+        - file: api/helpers/istream/istream_length.md
+        - file: api/helpers/istream/istream_clear.md
+        - file: api/helpers/istream/istream_consume.md
+        - file: api/helpers/istream/istream_cur_rd_pointer.md
+        - file: api/helpers/istream/istream_extract_matched_data.md
+        - file: api/helpers/istream/istream_get_gbuffer.md
+        - file: api/helpers/istream/istream_is_completed.md
+        - file: api/helpers/istream/istream_new_gbuffer.md
+        - file: api/helpers/istream/istream_pop_gbuffer.md
+        - file: api/helpers/istream/istream_read_until_delimiter.md
+        - file: api/helpers/istream/istream_read_until_num_bytes.md
+        - file: api/helpers/istream/istream_reset_rd.md
+        - file: api/helpers/istream/istream_reset_wr.md
+        - file: api/helpers/istream/ISTREAM_CREATE.md
+        - file: api/helpers/istream/ISTREAM_DESTROY.md
+    - title: Notebooks (demo)
+      children:
+        - file: notebooks/demo_timeseries.md
+
+site:
+  template: book-theme
+  options:
+    logo: _static/yuneta-label.svg
+    logo_dark: _static/yuneta-label.svg
+    favicon: _static/yuneta-y.svg
+    hide_toc: false
+    hide_search_button: false
