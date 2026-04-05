@@ -1,0 +1,170 @@
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<!-- Created with Inkscape (http://www.inkscape.org/) -->
+
+<svg
+   width="91.312485mm"
+   height="59.625mm"
+   viewBox="0 0 91.312485 59.625"
+   version="1.1"
+   id="svg864"
+   inkscape:version="1.2.2 (b0a8486541, 2022-12-01)"
+   sodipodi:docname="gclass_diagram.svg"
+   inkscape:export-filename="gclass_diagram.png"
+   inkscape:export-xdpi="96"
+   inkscape:export-ydpi="96"
+   xmlns:inkscape="http://www.inkscape.org/namespaces/inkscape"
+   xmlns:sodipodi="http://sodipodi.sourceforge.net/DTD/sodipodi-0.dtd"
+   xmlns="http://www.w3.org/2000/svg"
+   xmlns:svg="http://www.w3.org/2000/svg">
+  <sodipodi:namedview
+     id="namedview866"
+     pagecolor="#ffffff"
+     bordercolor="#666666"
+     borderopacity="1.0"
+     inkscape:showpageshadow="2"
+     inkscape:pageopacity="0.0"
+     inkscape:pagecheckerboard="0"
+     inkscape:deskcolor="#d1d1d1"
+     inkscape:document-units="mm"
+     showgrid="false"
+     inkscape:zoom="1.4111111"
+     inkscape:cx="101.33858"
+     inkscape:cy="119.05512"
+     inkscape:window-width="1920"
+     inkscape:window-height="992"
+     inkscape:window-x="0"
+     inkscape:window-y="0"
+     inkscape:window-maximized="1"
+     inkscape:current-layer="layer1" />
+  <defs
+     id="defs861" />
+  <g
+     inkscape:label="Layer 1"
+     inkscape:groupmode="layer"
+     id="layer1"
+     transform="translate(-39.9375,-83.25)">
+    <rect
+       style="fill:#000000;fill-opacity:1;stroke-width:0.776981"
+       id="rect1407"
+       width="91.312485"
+       height="59.625"
+       x="39.9375"
+       y="83.25" />
+    <rect
+       fill="#f0e68c"
+       height="52.916664"
+       stroke="#000000"
+       stroke-width="0.529167"
+       width="52.916664"
+       x="75.531273"
+       y="87.166664"
+       id="rect4" />
+    <text
+       fill="#000000"
+       font-family="Arial"
+       font-size="4.23333px"
+       x="94.052109"
+       y="92.458336"
+       id="text6"
+       style="stroke-width:0.264583">Gclass</text>
+    <rect
+       fill="#87cefa"
+       height="10.583333"
+       stroke="#000000"
+       stroke-width="0.264583"
+       width="47.625"
+       x="78.177109"
+       y="97.75"
+       id="rect8" />
+    <text
+       fill="#000000"
+       font-family="Arial"
+       font-size="3.70417px"
+       x="88.760445"
+       y="104.36459"
+       id="text10"
+       style="stroke-width:0.264583">Attributes</text>
+    <rect
+       fill="#90ee90"
+       height="10.583333"
+       stroke="#000000"
+       stroke-width="0.264583"
+       width="47.625"
+       x="78.177109"
+       y="110.97916"
+       id="rect12" />
+    <text
+       fill="#000000"
+       font-family="Arial"
+       font-size="3.70417px"
+       x="88.760445"
+       y="117.59375"
+       id="text14"
+       style="stroke-width:0.264583">Commands</text>
+    <rect
+       fill="#ffb6c1"
+       height="10.583333"
+       stroke="#000000"
+       stroke-width="0.264583"
+       width="47.625"
+       x="78.177109"
+       y="124.20834"
+       id="rect16" />
+    <text
+       fill="#000000"
+       font-family="Arial"
+       font-size="3.70417px"
+       x="94.052109"
+       y="130.82292"
+       id="text18"
+       style="stroke-width:0.264583">FSM</text>
+    <line
+       stroke="#696969"
+       stroke-width="0.37122"
+       x1="70.364609"
+       x2="78.177109"
+       y1="103.04166"
+       y2="103.04166"
+       id="line20" />
+    <text
+       fill="#87cefa"
+       font-family="Arial"
+       font-size="3.175px"
+       x="43.781277"
+       y="104.36459"
+       id="text22"
+       style="font-style:normal;font-variant:normal;font-weight:bold;font-stretch:normal;font-size:4.23333px;font-family:monospace;-inkscape-font-specification:'monospace, Bold';font-variant-ligatures:normal;font-variant-caps:normal;font-variant-numeric:normal;font-variant-east-asian:normal;fill:#87cefa;stroke:none;stroke-width:0.265;stroke-dasharray:none;stroke-opacity:1">Attributes</text>
+    <line
+       stroke="#696969"
+       stroke-width="0.447931"
+       x1="66.802109"
+       x2="78.177109"
+       y1="116.27084"
+       y2="116.27084"
+       id="line24" />
+    <text
+       fill="#90ee90"
+       font-family="Arial"
+       font-size="3.175px"
+       x="43.781277"
+       y="117.59375"
+       id="text26"
+       style="font-style:normal;font-variant:normal;font-weight:bold;font-stretch:normal;font-size:4.23333px;font-family:monospace;-inkscape-font-specification:'monospace, Bold';font-variant-ligatures:normal;font-variant-caps:normal;font-variant-numeric:normal;font-variant-east-asian:normal;fill:#90ee90;stroke-width:0.264583">Commands</text>
+    <line
+       stroke="#696969"
+       stroke-width="0.529167"
+       x1="62.302109"
+       x2="78.177109"
+       y1="129.5"
+       y2="129.5"
+       id="line28" />
+    <text
+       fill="#ffb6c1"
+       font-family="Arial"
+       font-size="3.175px"
+       x="43.781277"
+       y="130.82292"
+       id="text30"
+       style="font-style:normal;font-variant:normal;font-weight:bold;font-stretch:normal;font-size:4.23333px;font-family:monospace;-inkscape-font-specification:'monospace, Bold';font-variant-ligatures:normal;font-variant-caps:normal;font-variant-numeric:normal;font-variant-east-asian:normal;fill:#ffb6c1;stroke-width:0.264583">Events</text>
+  </g>
+</svg>
