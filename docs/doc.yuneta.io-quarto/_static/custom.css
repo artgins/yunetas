@@ -20,20 +20,62 @@ html {
   navigation: auto;
 }
 
-/* Reduce navbar height. Cosmo's default padding plus the logo SVG's
-   intrinsic height make the bar oversized. Constrain both. */
+/* Compact, always-visible navbar.
+   - Force a fixed 36px height regardless of content.
+   - Cap logo height so the SVG can't push the bar taller.
+   - Neutralise Quarto's "headroom" hide-on-scroll: the JS adds
+     .headroom--unpinned with a translateY(-100%) transform to slide the
+     navbar off-screen when you scroll down. We override that transform
+     so the navbar stays pinned to the top at all times. */
 .navbar {
-  min-height: 0;
-  padding-top: 0.35rem;
-  padding-bottom: 0.35rem;
+  min-height: 36px;
+  height: 36px;
+  padding-top: 0;
+  padding-bottom: 0;
+}
+.navbar .container-fluid,
+.navbar .container,
+.navbar > .container-xxl {
+  min-height: 36px;
+  height: 36px;
+}
+.navbar-brand,
+.navbar-brand-container {
+  padding-top: 0;
+  padding-bottom: 0;
+  height: 36px;
+  display: flex;
+  align-items: center;
 }
 .navbar-brand > img,
 .navbar .navbar-logo {
-  max-height: 28px;
+  max-height: 24px;
   width: auto;
 }
 .navbar .navbar-title {
-  font-size: 1.05rem;
+  font-size: 1rem;
+  line-height: 1;
+}
+.navbar .nav-link {
+  padding-top: 0.25rem;
+  padding-bottom: 0.25rem;
+}
+
+/* Keep the navbar visible on scroll: override Quarto's headroom.js
+   "unpinned" state (which slides it off-screen with a negative Y
+   transform). */
+.headroom--unpinned,
+.navbar.headroom--unpinned {
+  transform: translateY(0) !important;
+}
+
+/* Shift the main content down so the fixed navbar doesn't cover the
+   first line. 36px navbar + a small gutter. */
+body {
+  padding-top: 0;
+}
+#quarto-header + * {
+  scroll-margin-top: 48px;
 }
 
 .danger {
