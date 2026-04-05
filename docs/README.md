@@ -97,6 +97,40 @@ Install [sphinx] and [sphinx-book-theme]
           sphinxcontrib.mermaid
       ```
 
+### Tested versions
+
+Last known-good versions used to build `doc.yuneta.io` (verified on 2026-04-05,
+Python 3.13, conda env `conda_sphinx`):
+
+| Package | Version |
+|---|---|
+| Sphinx | 9.1.0 |
+| sphinx-book-theme | 1.2.0 |
+| myst-parser | 5.0.0 |
+| myst-nb | 1.4.0 |
+| sphinx-design | 0.7.0 |
+| sphinx-copybutton | 0.5.2 |
+| sphinx-togglebutton | 0.4.5 |
+| sphinx-examples | 0.0.5 |
+| sphinx-tabs | 3.5.0 |
+| sphinx-thebe | 0.3.1 |
+| sphinxext-opengraph | 0.13.0 |
+| sphinxcontrib-bibtex | 2.6.5 |
+| sphinxcontrib-mermaid | 2.0.1 |
+| sphinxcontrib-youtube | 1.5.0 |
+| sphinxcontrib-serializinghtml | 2.0.0 |
+| ablog | 0.11.13 |
+| numpydoc | 1.10.0 |
+| matplotlib | 3.10.8 |
+
+Notes:
+- `myst-parser` 5.x declares `sphinx>=8,<10`, so it supports Sphinx 9 but will
+  need an upgrade before moving to Sphinx 10.
+- `sphinx-book-theme` 1.2.0 is in maintenance mode (bug-fixes only); it has no
+  upper Sphinx bound and works fine with Sphinx 9.
+- `make html` currently produces 8 pre-existing content warnings (broken
+  toctree refs / orphan documents) unrelated to the Sphinx version.
+
 Some included utils extensions:
   - [ablog](https://ablog.readthedocs.io/en/stable/)
   - [myst_nb](https://myst-nb.readthedocs.io/en/latest/)
