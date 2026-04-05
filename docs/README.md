@@ -30,7 +30,7 @@ Some fixed values are used, modify the scripts as you want.
 - The constant values used for [conda]:
     ``` json
     {
-        "venv_name": "conda_sphinx"  #  virtual env name for [conda] 
+        "venv_name": "conda_myst"  #  virtual env name for [conda] 
     }
     ```
 
@@ -70,10 +70,10 @@ Steps to install and create a virtual environment:
     ``` shell
     conda config --add channels conda-forge
     ```
-- Create the virtual environment `conda_sphinx` and activate:
+- Create the virtual environment `conda_myst` and activate:
     ``` shell
-    conda create -n conda_sphinx pip
-    conda activate conda_sphinx
+    conda create -n conda_myst pip
+    conda activate conda_myst
     ```
 
 Install [sphinx] and [sphinx-book-theme]  
@@ -100,7 +100,7 @@ Install [sphinx] and [sphinx-book-theme]
 ### Tested versions
 
 Last known-good versions used to build `doc.yuneta.io` (verified on 2026-04-05,
-Python 3.13, conda env `conda_sphinx`):
+Python 3.13, conda env `conda_myst`):
 
 | Package | Version |
 |---|---|
