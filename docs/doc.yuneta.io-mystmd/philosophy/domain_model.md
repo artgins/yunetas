@@ -1,4 +1,11 @@
-# Models and Patterns
+# Domain Model
+
+This page describes the vocabulary Yuneta uses to model reality:
+realms, entities, relationships, messages, and the CRUDLU operations
+on them. It is the concrete counterpart to the
+[Design Principles](design_principles.md) (*why* the framework is
+built this way) and to the [Inspiration](philosophy.md) page (*where
+the words come from*).
 
 In Yuneta we seek models (patterns) that allow us to represent and visualize all kinds of realities.
 

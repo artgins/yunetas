@@ -31,8 +31,12 @@ project:
 
     - title: Philosophy
       children:
-        - file: philosophy/philosophy.md
-        - file: philosophy/models.md
+        - title: Design Principles
+          file: philosophy/design_principles.md
+        - title: Domain Model
+          file: philosophy/domain_model.md
+        - title: Inspiration
+          file: philosophy/philosophy.md
 
     - title: Guides
       children:

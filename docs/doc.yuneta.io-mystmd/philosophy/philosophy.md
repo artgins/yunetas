@@ -1,73 +1,89 @@
-# **Philosophy**
+# Inspiration
 
-Yuneta integrates programming principles with a life-inspired philosophy, emphasizing the interplay of events, actions, and structures in both software and life. The framework is built around G objects, events, and finite state machines (FSMs), promoting a holistic approach to understanding systems and their interactions.
+Yuneta is an engineering framework, but its vocabulary — *events*,
+*actions*, *gobjs*, *hierarchy*, *realms* — did not come out of a
+specification document. It came from looking at how **life itself**
+is organised and borrowing the words that fit.
 
----
+This page is the short, non-technical companion to the
+[Design Principles](design_principles.md) and the
+[Domain Model](domain_model.md). If you only want to ship code, skip
+it. If you want to understand why the framework uses the words it
+uses, keep reading.
 
-## **Core Principles**
+## Events are what make anything happen
 
-### **1. Events and Actions**
-- Events are the fundamental drivers of change; without events, “nothing happens”—this is the concept of **emptiness**.
-- Each event triggers a corresponding action or consequence.
-- Events can be:
-    - **Internal**: Self-generated, representing control and the potential for progress.
-    - **External**: Environment-driven, often highlighting our lack of control.
-- The relationship between events and actions emphasizes cause and effect, mirroring real-world dynamics.
+> *Without events, nothing happens.*
 
----
+Every change — in a program, in a conversation, in a life — is
+triggered by an event. Between events there is only waiting.
+Yuneta takes this literally: a gobj does nothing until an event
+reaches it, and every event is either consumed, transformed, or
+forwarded.
 
-### **2. Unity of Systems**
-- **“What is above is below; what is inside is outside.”**  
-  This principle highlights the interconnectedness of systems, where internal dynamics reflect external behaviors and vice versa.
-- Events and their consequences unfold over time, intertwining internal and external influences.
+Events come in two flavours, and both are present in the framework
+the same way they are present in life:
 
----
+- **Internal events** — self-generated. They represent will, agency,
+  the potential to act. A timer firing, a gobj deciding to publish,
+  a periodic heartbeat.
+- **External events** — coming from the environment. They represent
+  the part we do not control. A packet on a socket, a signal from the
+  OS, a user command, a filesystem change.
 
-### **3. Hierarchy and Structure**
-- G objects are organized in a **parent → child hierarchy**, mirroring the complexity of life and systems.
-- Components are designed to publish and subscribe to events within an **authorized scope**, promoting structured and secure interactions.
+A well-designed gobj, like a well-designed life, is one that reacts
+gracefully to external events while still generating enough internal
+ones to make progress.
 
----
+## What is above is below; what is inside is outside
 
-### **4. Time and Data**
-- Time and events are core dimensions for data collection and understanding.
-- Persistent data is organized as:
-    - **Time-series data**: Sequential data linked to specific events over time.
-    - **Key-value pairs**: Structured data capturing relationships and attributes.
-- Consistency and repetition of events or actions are key to achieving success or identifying failure.
+A Yuneta system is organised as a **tree of gobjs**, and that tree
+has the same shape at every scale: a yuno contains gobjs; a gobj can
+contain child gobjs; two yunos can be connected as if they were a
+single bigger tree. The interaction patterns — parent to child,
+service to client, publisher to subscriber — repeat at every level.
 
----
+The outside of a gobj (its events, commands, attributes) mirrors its
+inside (its state machine, private data, action callbacks). The
+outside of a yuno (its control plane, its statistics, its persisted
+history) mirrors the outside of each gobj it contains. This
+fractal-like consistency is the reason a single set of tools —
+`ycommand`, tracing, logging, persistence — works at every scale.
 
-## **Technological Manifestations**
+## Time is the axis everything hangs from
 
-### **1. Timeranger**
-- A system for managing **time-series data** and key-value pairs stored in both memory and flat files.
-- Provides an efficient mechanism for tracking event-driven changes over time.
+Events happen **in order**, and Yuneta never forgets the order.
+Persistence is append-only and indexed by monotonically growing row
+ids. Logs, traces, queues, message stores, and the graph database are
+all views over the same time-ordered stream. Nothing is ever
+overwritten without leaving a trace.
 
-### **2. Treedb**
-- A graph-based database model that extends Timeranger by maintaining **parent-child relationships** in memory.
-- On disk:
-    - Child IDs reference their parent IDs.
-    - Parent nodes do not store references to children, maintaining a lightweight structure.
-- Upon loading into memory, these references form a fully interconnected graph, reflecting real-world entity relationships.
+This is also why **consistency** and **repetition** matter in Yuneta.
+A service that does the same thing the same way, event after event,
+for months, is a service you can trust, reason about, and replay.
+Sporadic, unpredictable behaviour is the enemy.
 
----
+## Hierarchy gives lifetimes their meaning
 
-## **Philosophical Insights**
+Every gobj has exactly one parent, and the root of every yuno is
+itself a gobj. This is not only an implementation convenience: it is
+a statement that nothing in the system exists without a context and a
+lifetime. When a parent goes, its children go with it. When a branch
+is paused, everything in it is paused. When you trace a log line, you
+always know the full lineage of the gobj that produced it.
 
-1. **Code Reflects a Vision**:
-    - Every system represents a philosophy, offering a structured approach to addressing challenges.
+A well-designed Yuneta application, like a well-designed organisation,
+knows who is responsible for what, who creates whom, and when things
+are allowed to end.
 
-2. **Interaction Drives Progress**:
-    - Events and their consequences are the catalysts for change, development, and adaptation.
+## A final note
 
-3. **Consistency and Scalability**:
-    - Repetition and consistency of actions are essential for scaling and sustaining success.
+Yuneta is a tool. It is written in C (and JavaScript), it runs on
+Linux, and it solves a fairly concrete class of engineering problems.
+But the reason it uses the words it uses — events, actions, hierarchy,
+realms, time — is that those words describe how reality is organised,
+and reality is the system we are ultimately modelling.
 
-4. **Holistic System Design**:
-    - By structuring objects hierarchically, aligning internal and external dynamics, and emphasizing time-based insights, Yuneta fosters scalable and adaptive systems.
-
----
-
-## **Conclusion**
-Yuneta’s philosophy blends the technical and the philosophical, encouraging developers to think beyond code. It emphasizes the power of events, hierarchical organization, and consistent action while integrating time and data as essential dimensions for understanding and building interconnected systems.
+If any of this resonates, read the [Design Principles](design_principles.md)
+next — it translates every idea on this page into a concrete
+engineering decision you can measure and test.
