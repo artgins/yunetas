@@ -1,28 +1,13 @@
 ---
 title: Yuneta Simplified
+subtitle: An Asynchronous Development Framework
 ---
 
-# Yuneta Simplified
-
-::::{grid} 1 1 2 2
-
-:::{grid-item}
-:columns: 4
-
 ```{image} ./_static/yuneta-image.svg
-:width: 150px
+:align: right
+:width: 130px
+:alt: Yuneta logo
 ```
-:::
-
-:::{grid-item}
-:columns: 8
-:class: sd-fs-3
-
-An Asynchronous Development Framework
-
-:::
-
-::::
 
 `Yuneta Simplified` is a **development framework** focused on **messaging** and **services**, based on
 [Event-driven](https://en.wikipedia.org/wiki/Event-driven_programming),
