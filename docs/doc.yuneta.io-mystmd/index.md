@@ -8,7 +8,7 @@ title: Yuneta Simplified
 
 :::{grid-item}
 
-*An Asynchronous Development Framework*
+## *An Asynchronous Development Framework*
 :::
 
 :::{grid-item}
