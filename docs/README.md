@@ -82,19 +82,15 @@ Install [sphinx] and [sphinx-book-theme]
 
 - In some virtual environment, install [sphinx], [sphinx-book-theme] 
   -
-      ``` shell
-      pip install sphinx sphinx-book-theme myst-parser \
-          ablog myst_nb numpydoc matplotlib \
-          sphinx_design \
-          sphinx_copybutton \
-          sphinx_examples \
-          sphinx_togglebutton \
-          sphinxext.opengraph \
-          sphinxcontrib.youtube \
-          sphinx_thebe \
-          sphinx-tabs \
-          sphinxcontrib.bibtex \
-          sphinxcontrib.mermaid
+      ``` shell 
+    # Instalar (una sola vez)
+        npm install -g mystmd
+        pip install jupyter matplotlib numpy   # solo para el notebook demo
+
+    # Lanzar el dev server
+        cd docs/doc.yuneta.io-mystmd
+        myst start
+
       ```
 
 ### Tested versions
