@@ -60,6 +60,8 @@ format:
       light: cosmo
       dark: darkly
     css: _static/custom.css
+    include-in-header:
+      - _static/head-extras.html
     toc: true
     toc-depth: 3
     code-copy: true
