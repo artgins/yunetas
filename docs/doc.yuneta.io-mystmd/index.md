@@ -2,21 +2,20 @@
 title: Yuneta Simplified
 ---
 
+# Yuneta Simplified
+
 ::::{grid} 1 1 2 2
 
 :::{grid-item}
-:columns: 8
-
-# Yuneta Simplified
 
 *An Asynchronous Development Framework*
 :::
 
 :::{grid-item}
-:columns: 4
 
 ```{image} ./_static/yuneta-image.svg
 :width: 150px
+:align: center
 ```
 :::
 ::::
