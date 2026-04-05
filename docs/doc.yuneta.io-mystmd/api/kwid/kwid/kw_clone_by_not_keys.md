@@ -1,9 +1,9 @@
 <!-- ============================================================== -->
-(kw_clone_by_not_keys())=
+(kw_clone_by_not_keys)=
 # `kw_clone_by_not_keys()`
 <!-- ============================================================== -->
 
-Return a new JSON object excluding the specified keys from the input [`json_t *`](#json_t). The keys can be provided as a string, dictionary, or list. If no keys are specified, an empty JSON object is returned.
+Return a new JSON object excluding the specified keys from the input `json_t *`. The keys can be provided as a string, dictionary, or list. If no keys are specified, an empty JSON object is returned.
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -31,7 +31,6 @@ json_t *kw_clone_by_not_keys(
 **Parameters**
 
 ::: {list-table}
-:widths: 20 20 60
 :header-rows: 1
 
 * - Key
@@ -59,7 +58,7 @@ json_t *kw_clone_by_not_keys(
 
 **Return Value**
 
-A new [`json_t *`](#json_t) object with the specified keys removed. If no keys are specified, an empty JSON object is returned.
+A new `json_t *` object with the specified keys removed. If no keys are specified, an empty JSON object is returned.
 
 **Notes**
 

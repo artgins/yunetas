@@ -1,5 +1,5 @@
 <!-- ============================================================== -->
-(kw_set_subdict_value())=
+(kw_set_subdict_value)=
 # `kw_set_subdict_value()`
 <!-- ============================================================== -->
 
@@ -32,7 +32,6 @@ int kw_set_subdict_value(
 **Parameters**
 
 ::: {list-table}
-:widths: 20 20 60
 :header-rows: 1
 
 * - Key

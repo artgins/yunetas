@@ -1,5 +1,5 @@
 <!-- ============================================================== -->
-(kw_delete_metadata_keys())=
+(kw_delete_metadata_keys)=
 # `kw_delete_metadata_keys()`
 <!-- ============================================================== -->
 
@@ -28,7 +28,6 @@ int kw_delete_metadata_keys(
 **Parameters**
 
 ::: {list-table}
-:widths: 20 20 60
 :header-rows: 1
 
 * - Key

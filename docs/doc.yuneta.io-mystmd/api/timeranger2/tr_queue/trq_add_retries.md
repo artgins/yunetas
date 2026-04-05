@@ -1,5 +1,5 @@
 <!-- ============================================================== -->
-(trq_add_retries())=
+(trq_add_retries)=
 # `trq_add_retries()`
 <!-- ============================================================== -->
 
@@ -29,7 +29,6 @@ void trq_add_retries(
 **Parameters**
 
 ::: {list-table}
-:widths: 20 20 60
 :header-rows: 1
 
 * - Key
@@ -53,7 +52,7 @@ This function does not return a value.
 
 **Notes**
 
-Use [`trq_test_retries()`](#trq_test_retries()) to check if the retry limit has been reached.
+Use [`trq_test_retries()`](<#trq_test_retries>) to check if the retry limit has been reached.
 
 <!--====================================================-->
 <!--                    End Tab C                       -->

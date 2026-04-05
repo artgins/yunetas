@@ -1,5 +1,5 @@
 <!-- ============================================================== -->
-(treedb_delete_node())=
+(treedb_delete_node)=
 # `treedb_delete_node()`
 <!-- ============================================================== -->
 
@@ -30,7 +30,6 @@ int treedb_delete_node(
 **Parameters**
 
 ::: {list-table}
-:widths: 20 20 60
 :header-rows: 1
 
 * - Key
@@ -58,7 +57,7 @@ Returns 0 on success, or a negative error code if the deletion fails.
 
 **Notes**
 
-If the node has existing links and 'force' is not enabled, [`treedb_delete_node()`](#treedb_delete_node()) will fail.
+If the node has existing links and 'force' is not enabled, [`treedb_delete_node()`](<#treedb_delete_node>) will fail.
 
 <!--====================================================-->
 <!--                    End Tab C                       -->

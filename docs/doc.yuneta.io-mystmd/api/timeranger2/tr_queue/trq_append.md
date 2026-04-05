@@ -1,5 +1,5 @@
 <!-- ============================================================== -->
-(trq_append())=
+(trq_append)=
 # `trq_append()`
 <!-- ============================================================== -->
 
@@ -29,7 +29,6 @@ q_msg trq_append(
 **Parameters**
 
 ::: {list-table}
-:widths: 20 20 60
 :header-rows: 1
 
 * - Key
@@ -53,7 +52,7 @@ Returns a `q_msg` handle to the newly appended message, or `NULL` on failure.
 
 **Notes**
 
-The message must be flagged after appending if it needs to be recovered in the next session using [`trq_load()`](#trq_load()).
+The message must be flagged after appending if it needs to be recovered in the next session using [`trq_load()`](<#trq_load>).
 
 <!--====================================================-->
 <!--                    End Tab C                       -->

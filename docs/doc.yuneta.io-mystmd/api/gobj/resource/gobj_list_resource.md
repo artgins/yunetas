@@ -1,9 +1,9 @@
 <!-- ============================================================== -->
-(gobj_list_resource())=
+(gobj_list_resource)=
 # `gobj_list_resource()`
 <!-- ============================================================== -->
 
-`gobj_list_resource()` retrieves a list of resources from the specified [`hgobj`](#hgobj) object, applying optional filtering and additional options.
+`gobj_list_resource()` retrieves a list of resources from the specified `hgobj` object, applying optional filtering and additional options.
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -31,7 +31,6 @@ json_t *gobj_list_resource(
 **Parameters**
 
 ::: {list-table}
-:widths: 20 20 60
 :header-rows: 1
 
 * - Key
@@ -40,7 +39,7 @@ json_t *gobj_list_resource(
 
 * - `gobj`
   - `hgobj`
-  - The [`hgobj`](#hgobj) instance from which to retrieve the resource list.
+  - The `hgobj` instance from which to retrieve the resource list.
 
 * - `resource`
   - `const char *`

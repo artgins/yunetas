@@ -1,5 +1,5 @@
 <!-- ============================================================== -->
-(current_timestamp())=
+(current_timestamp)=
 # `current_timestamp()`
 <!-- ============================================================== -->
 
@@ -29,7 +29,6 @@ char *current_timestamp(
 **Parameters**
 
 ::: {list-table}
-:widths: 20 20 60
 :header-rows: 1
 
 * - Key

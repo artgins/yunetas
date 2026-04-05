@@ -1,5 +1,5 @@
 <!-- ============================================================== -->
-(gclass_command_desc())=
+(gclass_command_desc)=
 # `gclass_command_desc()`
 <!-- ============================================================== -->
 
@@ -30,7 +30,6 @@ const sdata_desc_t *gclass_command_desc(
 **Parameters**
 
 ::: {list-table}
-:widths: 20 20 60
 :header-rows: 1
 
 * - Key

@@ -15,7 +15,9 @@ project:
     Documentation rebuilt with mystmd (Jupyter Book 2) from the MyST
     Markdown sources originally written for Sphinx.
   authors:
-    - name: ArtGins
+    - nameParsed:
+        literal: ArtGins
+        family: ArtGins
   github: https://github.com/artgins/yunetas
   license: MIT
 

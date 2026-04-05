@@ -1,5 +1,5 @@
 <!-- ============================================================== -->
-(trmsg_add_instance())=
+(trmsg_add_instance)=
 # `trmsg_add_instance()`
 <!-- ============================================================== -->
 
@@ -31,7 +31,6 @@ int trmsg_add_instance(
 **Parameters**
 
 ::: {list-table}
-:widths: 20 20 60
 :header-rows: 1
 
 * - Key
@@ -48,7 +47,7 @@ int trmsg_add_instance(
 
 * - `jn_msg`
   - `json_t *`
-  - JSON object containing the message instance data. Ownership is transferred to [`trmsg_add_instance()`](#trmsg_add_instance()).
+  - JSON object containing the message instance data. Ownership is transferred to [`trmsg_add_instance()`](<#trmsg_add_instance>).
 
 * - `md_record`
   - `md2_record_ex_t *`
@@ -63,7 +62,7 @@ Returns `0` on success, or a negative value on failure.
 
 **Notes**
 
-The `jn_msg` parameter is owned by [`trmsg_add_instance()`](#trmsg_add_instance()), meaning it will be managed and freed internally.
+The `jn_msg` parameter is owned by [`trmsg_add_instance()`](<#trmsg_add_instance>), meaning it will be managed and freed internally.
 
 <!--====================================================-->
 <!--                    End Tab C                       -->

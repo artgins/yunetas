@@ -1,9 +1,9 @@
 <!-- ============================================================== -->
-(gobj_activate_snap())=
+(gobj_activate_snap)=
 # `gobj_activate_snap()`
 <!-- ============================================================== -->
 
-Activates a previously saved snapshot identified by `tag` in the given [`hgobj`](#hgobj) instance. This operation typically involves stopping and restarting the associated [`hgobj`](#hgobj) to restore the saved state.
+Activates a previously saved snapshot identified by `tag` in the given `hgobj` instance. This operation typically involves stopping and restarting the associated `hgobj` to restore the saved state.
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -31,7 +31,6 @@ int gobj_activate_snap(
 **Parameters**
 
 ::: {list-table}
-:widths: 20 20 60
 :header-rows: 1
 
 * - Key
@@ -40,7 +39,7 @@ int gobj_activate_snap(
 
 * - `gobj`
   - `hgobj`
-  - The [`hgobj`](#hgobj) instance where the snapshot will be activated.
+  - The `hgobj` instance where the snapshot will be activated.
 
 * - `tag`
   - `const char *`
@@ -52,7 +51,7 @@ int gobj_activate_snap(
 
 * - `src`
   - `hgobj`
-  - The source [`hgobj`](#hgobj) initiating the activation request.
+  - The source `hgobj` initiating the activation request.
 :::
 
 ---
@@ -63,7 +62,7 @@ Returns 0 on success, or -1 if an error occurs (e.g., if `gobj` is NULL, destroy
 
 **Notes**
 
-['If `gobj` is NULL or destroyed, an error is logged and the function returns -1.', "If `mt_activate_snap` is not defined in the [`hgobj`](#hgobj)'s gclass, an error is logged and the function returns -1.", "The function ensures that the snapshot activation is properly handled by the [`hgobj`](#hgobj)'s gclass."]
+['If `gobj` is NULL or destroyed, an error is logged and the function returns -1.', "If `mt_activate_snap` is not defined in the `hgobj`'s gclass, an error is logged and the function returns -1.", "The function ensures that the snapshot activation is properly handled by the `hgobj`'s gclass."]
 
 <!--====================================================-->
 <!--                    End Tab C                       -->

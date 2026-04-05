@@ -1,5 +1,5 @@
 <!-- ============================================================== -->
-(gobj_repr_global_trace_levels())=
+(gobj_repr_global_trace_levels)=
 # `gobj_repr_global_trace_levels()`
 <!-- ============================================================== -->
 
@@ -26,7 +26,6 @@ json_t *gobj_repr_global_trace_levels(void);
 **Parameters**
 
 ::: {list-table}
-:widths: 20 20 60
 :header-rows: 1
 
 * - Key

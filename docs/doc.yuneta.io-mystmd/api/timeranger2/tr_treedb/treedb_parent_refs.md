@@ -1,5 +1,5 @@
 <!-- ============================================================== -->
-(treedb_parent_refs())=
+(treedb_parent_refs)=
 # `treedb_parent_refs()`
 <!-- ============================================================== -->
 
@@ -31,7 +31,6 @@ json_t *treedb_parent_refs(
 **Parameters**
 
 ::: {list-table}
-:widths: 20 20 60
 :header-rows: 1
 
 * - Key

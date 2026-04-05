@@ -1,9 +1,9 @@
 <!-- ============================================================== -->
-(istream_extract_matched_data())=
+(istream_extract_matched_data)=
 # `istream_extract_matched_data()`
 <!-- ============================================================== -->
 
-Extracts the matched data from the input stream [`istream_h`](#istream_h) if the matching condition is met.
+Extracts the matched data from the input stream `istream_h` if the matching condition is met.
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -29,7 +29,6 @@ char *istream_extract_matched_data(
 **Parameters**
 
 ::: {list-table}
-:widths: 20 20 60
 :header-rows: 1
 
 * - Key

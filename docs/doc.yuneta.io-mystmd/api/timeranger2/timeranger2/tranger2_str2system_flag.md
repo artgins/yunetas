@@ -1,5 +1,5 @@
 <!-- ============================================================== -->
-(tranger2_str2system_flag())=
+(tranger2_str2system_flag)=
 # `tranger2_str2system_flag()`
 <!-- ============================================================== -->
 
@@ -28,7 +28,6 @@ system_flag2_t tranger2_str2system_flag(
 **Parameters**
 
 ::: {list-table}
-:widths: 20 20 60
 :header-rows: 1
 
 * - Key

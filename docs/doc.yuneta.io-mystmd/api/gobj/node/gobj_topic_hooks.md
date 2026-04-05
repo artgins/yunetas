@@ -1,5 +1,5 @@
 <!-- ============================================================== -->
-(gobj_topic_hooks())=
+(gobj_topic_hooks)=
 # `gobj_topic_hooks()`
 <!-- ============================================================== -->
 
@@ -32,7 +32,6 @@ json_t *gobj_topic_hooks(
 **Parameters**
 
 ::: {list-table}
-:widths: 20 20 60
 :header-rows: 1
 
 * - Key

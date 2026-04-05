@@ -1,5 +1,5 @@
 <!-- ============================================================== -->
-(gobj_match_children())=
+(gobj_match_children)=
 # `gobj_match_children()`
 <!-- ============================================================== -->
 
@@ -29,7 +29,6 @@ json_t *gobj_match_children(
 **Parameters**
 
 ::: {list-table}
-:widths: 20 20 60
 :header-rows: 1
 
 * - Key

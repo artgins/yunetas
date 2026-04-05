@@ -1,9 +1,9 @@
 <!-- ============================================================== -->
-(gobj_reset_rstats_attrs())=
+(gobj_reset_rstats_attrs)=
 # `gobj_reset_rstats_attrs()`
 <!-- ============================================================== -->
 
-Resets all attributes of the given [`hgobj`](#hgobj) that are marked with `SDF_RSTATS` to their default values.
+Resets all attributes of the given `hgobj` that are marked with `SDF_RSTATS` to their default values.
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -28,7 +28,6 @@ int gobj_reset_rstats_attrs(
 **Parameters**
 
 ::: {list-table}
-:widths: 20 20 60
 :header-rows: 1
 
 * - Key
@@ -37,7 +36,7 @@ int gobj_reset_rstats_attrs(
 
 * - `gobj`
   - `hgobj`
-  - The [`hgobj`](#hgobj) whose resettable statistics attributes should be reset.
+  - The `hgobj` whose resettable statistics attributes should be reset.
 :::
 
 ---

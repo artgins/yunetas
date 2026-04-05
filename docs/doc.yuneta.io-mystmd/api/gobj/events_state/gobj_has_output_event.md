@@ -1,5 +1,5 @@
 <!-- ============================================================== -->
-(gobj_has_output_event())=
+(gobj_has_output_event)=
 # `gobj_has_output_event()`
 <!-- ============================================================== -->
 
@@ -30,7 +30,6 @@ PUBLIC BOOL gobj_has_output_event(
 **Parameters**
 
 ::: {list-table}
-:widths: 20 20 60
 :header-rows: 1
 
 * - Key

@@ -1,9 +1,9 @@
 <!-- ============================================================== -->
-(gobj_set_gobj_trace())=
+(gobj_set_gobj_trace)=
 # `gobj_set_gobj_trace()`
 <!-- ============================================================== -->
 
-Sets or resets the trace level for a given [`hgobj`](#hgobj). If `gobj` is `NULL`, it modifies the global trace level instead. Calls [`mt_trace_on()`](#mt_trace_on) or [`mt_trace_off()`](#mt_trace_off) if applicable.
+Sets or resets the trace level for a given `hgobj`. If `gobj` is `NULL`, it modifies the global trace level instead. Calls [`mt_trace_on()`](#mt_trace_on) or [`mt_trace_off()`](#mt_trace_off) if applicable.
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -31,7 +31,6 @@ int gobj_set_gobj_trace(
 **Parameters**
 
 ::: {list-table}
-:widths: 20 20 60
 :header-rows: 1
 
 * - Key
@@ -40,7 +39,7 @@ int gobj_set_gobj_trace(
 
 * - `gobj`
   - `hgobj`
-  - The [`hgobj`](#hgobj) whose trace level is being modified. If `NULL`, modifies the global trace level.
+  - The `hgobj` whose trace level is being modified. If `NULL`, modifies the global trace level.
 
 * - `level`
   - `const char *`

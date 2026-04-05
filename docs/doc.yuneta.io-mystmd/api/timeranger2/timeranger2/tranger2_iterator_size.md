@@ -1,5 +1,5 @@
 <!-- ============================================================== -->
-(tranger2_iterator_size())=
+(tranger2_iterator_size)=
 # `tranger2_iterator_size()`
 <!-- ============================================================== -->
 
@@ -28,7 +28,6 @@ size_t tranger2_iterator_size(
 **Parameters**
 
 ::: {list-table}
-:widths: 20 20 60
 :header-rows: 1
 
 * - Key

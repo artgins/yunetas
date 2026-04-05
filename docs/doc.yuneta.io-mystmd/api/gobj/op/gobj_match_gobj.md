@@ -1,9 +1,9 @@
 <!-- ============================================================== -->
-(gobj_match_gobj())=
+(gobj_match_gobj)=
 # `gobj_match_gobj()`
 <!-- ============================================================== -->
 
-Checks if a given [`hgobj`](#hgobj) matches the specified filter criteria in `jn_filter`. The function evaluates attributes and system-defined keys to determine if the object meets the conditions.
+Checks if a given `hgobj` matches the specified filter criteria in `jn_filter`. The function evaluates attributes and system-defined keys to determine if the object meets the conditions.
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -29,7 +29,6 @@ BOOL gobj_match_gobj(
 **Parameters**
 
 ::: {list-table}
-:widths: 20 20 60
 :header-rows: 1
 
 * - Key
@@ -38,7 +37,7 @@ BOOL gobj_match_gobj(
 
 * - `gobj`
   - `hgobj`
-  - The [`hgobj`](#hgobj) instance to be checked against the filter.
+  - The `hgobj` instance to be checked against the filter.
 
 * - `jn_filter`
   - `json_t *`
@@ -49,7 +48,7 @@ BOOL gobj_match_gobj(
 
 **Return Value**
 
-Returns `TRUE` if the [`hgobj`](#hgobj) matches the filter criteria, otherwise returns `FALSE`.
+Returns `TRUE` if the `hgobj` matches the filter criteria, otherwise returns `FALSE`.
 
 **Notes**
 

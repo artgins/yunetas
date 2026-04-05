@@ -1,5 +1,5 @@
 <!-- ============================================================== -->
-(is_regular_file())=
+(is_regular_file)=
 # `is_regular_file()`
 <!-- ============================================================== -->
 
@@ -26,7 +26,6 @@ BOOL is_regular_file(const char *path);
 **Parameters**
 
 ::: {list-table}
-:widths: 20 20 60
 :header-rows: 1
 
 * - Key

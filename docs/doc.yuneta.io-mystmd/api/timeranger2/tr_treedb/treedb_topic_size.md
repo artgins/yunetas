@@ -1,5 +1,5 @@
 <!-- ============================================================== -->
-(treedb_topic_size())=
+(treedb_topic_size)=
 # `treedb_topic_size()`
 <!-- ============================================================== -->
 
@@ -30,7 +30,6 @@ size_t treedb_topic_size(
 **Parameters**
 
 ::: {list-table}
-:widths: 20 20 60
 :header-rows: 1
 
 * - Key

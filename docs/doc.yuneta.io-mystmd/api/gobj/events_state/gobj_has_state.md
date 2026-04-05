@@ -1,9 +1,9 @@
 <!-- ============================================================== -->
-(gobj_has_state())=
+(gobj_has_state)=
 # `gobj_has_state()`
 <!-- ============================================================== -->
 
-Checks if the given [`gobj`](#hgobj) has the specified state in its state machine.
+Checks if the given `gobj` has the specified state in its state machine.
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -29,7 +29,6 @@ BOOL gobj_has_state(
 **Parameters**
 
 ::: {list-table}
-:widths: 20 20 60
 :header-rows: 1
 
 * - Key
@@ -38,22 +37,22 @@ BOOL gobj_has_state(
 
 * - `gobj`
   - `hgobj`
-  - The [`gobj`](#hgobj) instance to check.
+  - The `gobj` instance to check.
 
 * - `state`
   - `gobj_state_t`
-  - The state to verify in the [`gobj`](#hgobj)'s state machine.
+  - The state to verify in the `gobj`'s state machine.
 :::
 
 ---
 
 **Return Value**
 
-Returns `TRUE` if the [`gobj`](#hgobj) has the specified state, otherwise returns `FALSE`.
+Returns `TRUE` if the `gobj` has the specified state, otherwise returns `FALSE`.
 
 **Notes**
 
-This function verifies if the given state exists in the state machine of the [`gobj`](#hgobj). It does not check if the [`gobj`](#hgobj) is currently in that state.
+This function verifies if the given state exists in the state machine of the `gobj`. It does not check if the `gobj` is currently in that state.
 
 <!--====================================================-->
 <!--                    End Tab C                       -->

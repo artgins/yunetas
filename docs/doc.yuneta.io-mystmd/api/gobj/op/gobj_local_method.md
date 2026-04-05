@@ -1,9 +1,9 @@
 <!-- ============================================================== -->
-(gobj_local_method())=
+(gobj_local_method)=
 # `gobj_local_method()`
 <!-- ============================================================== -->
 
-Executes a local method (`lmethod`) on the given [`hgobj`](#hgobj) instance, passing the provided keyword arguments (`kw`) and source object (`src`).
+Executes a local method (`lmethod`) on the given `hgobj` instance, passing the provided keyword arguments (`kw`) and source object (`src`).
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -31,7 +31,6 @@ json_t *gobj_local_method(
 **Parameters**
 
 ::: {list-table}
-:widths: 20 20 60
 :header-rows: 1
 
 * - Key
@@ -40,7 +39,7 @@ json_t *gobj_local_method(
 
 * - `gobj`
   - `hgobj`
-  - The [`hgobj`](#hgobj) instance on which the local method is executed.
+  - The `hgobj` instance on which the local method is executed.
 
 * - `lmethod`
   - `const char *`
@@ -52,7 +51,7 @@ json_t *gobj_local_method(
 
 * - `src`
   - `hgobj`
-  - The source [`hgobj`](#hgobj) instance invoking the method.
+  - The source `hgobj` instance invoking the method.
 :::
 
 ---

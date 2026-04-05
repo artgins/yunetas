@@ -1,5 +1,5 @@
 <!-- ============================================================== -->
-(istream_consume())=
+(istream_consume)=
 # `istream_consume()`
 <!-- ============================================================== -->
 
@@ -30,7 +30,6 @@ size_t istream_consume(
 **Parameters**
 
 ::: {list-table}
-:widths: 20 20 60
 :header-rows: 1
 
 * - Key

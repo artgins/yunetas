@@ -1,5 +1,5 @@
 <!-- ============================================================== -->
-(get_sdata_flag_table())=
+(get_sdata_flag_table)=
 # `get_sdata_flag_table()`
 <!-- ============================================================== -->
 
@@ -26,7 +26,6 @@ const char **get_sdata_flag_table(void);
 **Parameters**
 
 ::: {list-table}
-:widths: 20 20 60
 :header-rows: 1
 
 * - Key

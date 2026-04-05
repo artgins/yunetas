@@ -1,5 +1,5 @@
 <!-- ============================================================== -->
-(load_json_from_file())=
+(load_json_from_file)=
 # `load_json_from_file()`
 <!-- ============================================================== -->
 
@@ -31,7 +31,6 @@ json_t *load_json_from_file(
 **Parameters**
 
 ::: {list-table}
-:widths: 20 20 60
 :header-rows: 1
 
 * - Key
@@ -63,7 +62,7 @@ Returns a `json_t *` object containing the parsed JSON data if successful, or NU
 
 **Notes**
 
-The function uses `json_loadfd()` to parse the JSON file. If the file does not exist, it returns NULL without logging an error. If an error occurs while opening or parsing the file, it logs an error message using [`gobj_log_critical()`](#gobj_log_critical()).
+The function uses `json_loadfd()` to parse the JSON file. If the file does not exist, it returns NULL without logging an error. If an error occurs while opening or parsing the file, it logs an error message using [`gobj_log_critical()`](<#gobj_log_critical>).
 
 <!--====================================================-->
 <!--                    End Tab C                       -->

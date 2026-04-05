@@ -1,5 +1,5 @@
 <!-- ============================================================== -->
-(kw_filter_metadata())=
+(kw_filter_metadata)=
 # `kw_filter_metadata()`
 <!-- ============================================================== -->
 
@@ -29,7 +29,6 @@ json_t *kw_filter_metadata(
 **Parameters**
 
 ::: {list-table}
-:widths: 20 20 60
 :header-rows: 1
 
 * - Key

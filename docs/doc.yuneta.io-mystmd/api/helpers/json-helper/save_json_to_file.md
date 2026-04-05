@@ -1,5 +1,5 @@
 <!-- ============================================================== -->
-(save_json_to_file())=
+(save_json_to_file)=
 # `save_json_to_file()`
 <!-- ============================================================== -->
 
@@ -36,7 +36,6 @@ int save_json_to_file(
 **Parameters**
 
 ::: {list-table}
-:widths: 20 20 60
 :header-rows: 1
 
 * - Key

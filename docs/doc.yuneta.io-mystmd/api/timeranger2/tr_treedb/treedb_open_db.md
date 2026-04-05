@@ -1,5 +1,5 @@
 <!-- ============================================================== -->
-(treedb_open_db())=
+(treedb_open_db)=
 # `treedb_open_db()`
 <!-- ============================================================== -->
 
@@ -31,7 +31,6 @@ json_t *treedb_open_db(
 **Parameters**
 
 ::: {list-table}
-:widths: 20 20 60
 :header-rows: 1
 
 * - Key
@@ -63,7 +62,7 @@ A JSON dictionary representing the opened tree database inside `tranger`. The re
 
 **Notes**
 
-Ensure that `tranger` is already initialized before calling [`treedb_open_db()`](#treedb_open_db()).
+Ensure that `tranger` is already initialized before calling [`treedb_open_db()`](<#treedb_open_db>).
 The function follows a hierarchical structure where nodes are linked via parent-child relationships.
 If the `persistent` option is enabled, the schema is loaded from a file, and modifications require a version update.
 

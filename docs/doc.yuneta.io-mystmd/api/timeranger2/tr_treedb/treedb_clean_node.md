@@ -1,5 +1,5 @@
 <!-- ============================================================== -->
-(treedb_clean_node())=
+(treedb_clean_node)=
 # `treedb_clean_node()`
 <!-- ============================================================== -->
 
@@ -30,7 +30,6 @@ int treedb_clean_node(
 **Parameters**
 
 ::: {list-table}
-:widths: 20 20 60
 :header-rows: 1
 
 * - Key

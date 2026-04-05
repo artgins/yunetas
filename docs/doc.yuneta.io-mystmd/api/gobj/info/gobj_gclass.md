@@ -1,9 +1,9 @@
 <!-- ============================================================== -->
-(gobj_gclass())=
+(gobj_gclass)=
 # `gobj_gclass()`
 <!-- ============================================================== -->
 
-Returns the gclass associated with the given [`hgobj`](#hgobj).
+Returns the gclass associated with the given `hgobj`.
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -26,7 +26,6 @@ hgclass gobj_gclass(hgobj gobj);
 **Parameters**
 
 ::: {list-table}
-:widths: 20 20 60
 :header-rows: 1
 
 * - Key
@@ -35,18 +34,18 @@ hgclass gobj_gclass(hgobj gobj);
 
 * - `gobj`
   - `hgobj`
-  - The [`hgobj`](#hgobj) whose gclass is to be retrieved.
+  - The `hgobj` whose gclass is to be retrieved.
 :::
 
 ---
 
 **Return Value**
 
-Returns the [`hgclass`](#hgclass) associated with the given [`hgobj`](#hgobj), or NULL if the input is invalid.
+Returns the `hgclass` associated with the given `hgobj`, or NULL if the input is invalid.
 
 **Notes**
 
-This function does not perform extensive validation on the input [`hgobj`](#hgobj). Ensure that the object is properly initialized before calling this function.
+This function does not perform extensive validation on the input `hgobj`. Ensure that the object is properly initialized before calling this function.
 
 <!--====================================================-->
 <!--                    End Tab C                       -->

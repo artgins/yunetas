@@ -1,5 +1,5 @@
 <!-- ============================================================== -->
-(gobj_attr_desc())=
+(gobj_attr_desc)=
 # `gobj_attr_desc()`
 <!-- ============================================================== -->
 
@@ -30,7 +30,6 @@ const sdata_desc_t *gobj_attr_desc(
 **Parameters**
 
 ::: {list-table}
-:widths: 20 20 60
 :header-rows: 1
 
 * - Key

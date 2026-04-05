@@ -1,9 +1,9 @@
 <!-- ============================================================== -->
-(ytls_free_secure_filter())=
+(ytls_free_secure_filter)=
 # `ytls_free_secure_filter()`
 <!-- ============================================================== -->
 
-The `ytls_free_secure_filter()` function releases the resources associated with a secure filter created by [`ytls_new_secure_filter()`](#ytls_new_secure_filter()).
+The `ytls_free_secure_filter()` function releases the resources associated with a secure filter created by [`ytls_new_secure_filter()`](<#ytls_new_secure_filter>).
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -29,7 +29,6 @@ void ytls_free_secure_filter(
 **Parameters**
 
 ::: {list-table}
-:widths: 20 20 60
 :header-rows: 1
 
 * - Key
@@ -53,7 +52,7 @@ This function does not return a value.
 
 **Notes**
 
-Ensure that [`ytls_shutdown()`](#ytls_shutdown()) is called before freeing the secure filter to properly close the connection.
+Ensure that [`ytls_shutdown()`](<#ytls_shutdown>) is called before freeing the secure filter to properly close the connection.
 
 <!--====================================================-->
 <!--                    End Tab C                       -->

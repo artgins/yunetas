@@ -1,9 +1,9 @@
 <!-- ============================================================== -->
-(gobj_read_pointer_attr())=
+(gobj_read_pointer_attr)=
 # `gobj_read_pointer_attr()`
 <!-- ============================================================== -->
 
-Retrieves the value of a pointer-type attribute from the given [`hgobj`](#hgobj). The function searches for the attribute in the object's hierarchy, following inherited attributes if necessary.
+Retrieves the value of a pointer-type attribute from the given `hgobj`. The function searches for the attribute in the object's hierarchy, following inherited attributes if necessary.
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -29,7 +29,6 @@ void *gobj_read_pointer_attr(
 **Parameters**
 
 ::: {list-table}
-:widths: 20 20 60
 :header-rows: 1
 
 * - Key

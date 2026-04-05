@@ -1,9 +1,9 @@
 <!-- ============================================================== -->
-(gobj_list_snaps())=
+(gobj_list_snaps)=
 # `gobj_list_snaps()`
 <!-- ============================================================== -->
 
-Retrieves a list of snapshots associated with the given [`hgobj`](#hgobj).
+Retrieves a list of snapshots associated with the given `hgobj`.
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -30,7 +30,6 @@ json_t *gobj_list_snaps(
 **Parameters**
 
 ::: {list-table}
-:widths: 20 20 60
 :header-rows: 1
 
 * - Key
@@ -39,7 +38,7 @@ json_t *gobj_list_snaps(
 
 * - `gobj`
   - `hgobj`
-  - The [`hgobj`](#hgobj) instance from which to retrieve the snapshots.
+  - The `hgobj` instance from which to retrieve the snapshots.
 
 * - `filter`
   - `json_t *`
@@ -47,7 +46,7 @@ json_t *gobj_list_snaps(
 
 * - `src`
   - `hgobj`
-  - The source [`hgobj`](#hgobj) requesting the snapshot list.
+  - The source `hgobj` requesting the snapshot list.
 :::
 
 ---

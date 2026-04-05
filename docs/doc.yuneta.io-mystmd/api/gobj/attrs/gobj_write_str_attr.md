@@ -1,9 +1,9 @@
 <!-- ============================================================== -->
-(gobj_write_str_attr())=
+(gobj_write_str_attr)=
 # `gobj_write_str_attr()`
 <!-- ============================================================== -->
 
-Sets the value of a string attribute in the given [`hgobj`](#hgobj) object. If the attribute does not exist, a warning is logged.
+Sets the value of a string attribute in the given `hgobj` object. If the attribute does not exist, a warning is logged.
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -30,7 +30,6 @@ int gobj_write_str_attr(
 **Parameters**
 
 ::: {list-table}
-:widths: 20 20 60
 :header-rows: 1
 
 * - Key
@@ -39,7 +38,7 @@ int gobj_write_str_attr(
 
 * - `gobj`
   - `hgobj`
-  - The [`hgobj`](#hgobj) object whose attribute is being modified.
+  - The `hgobj` object whose attribute is being modified.
 
 * - `name`
   - `const char *`
@@ -58,7 +57,7 @@ Returns `0` on success, or `-1` if the attribute does not exist.
 
 **Notes**
 
-If the attribute does not exist in the [`hgobj`](#hgobj), a warning is logged. If the [`hgobj`](#hgobj) has a `mt_writing` method, it is called after updating the attribute.
+If the attribute does not exist in the `hgobj`, a warning is logged. If the `hgobj` has a `mt_writing` method, it is called after updating the attribute.
 
 <!--====================================================-->
 <!--                    End Tab C                       -->

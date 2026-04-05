@@ -1,5 +1,5 @@
 <!-- ============================================================== -->
-(command_parser())=
+(command_parser)=
 # `command_parser()`
 <!-- ============================================================== -->
 
@@ -31,7 +31,6 @@ json_t *command_parser(
 **Parameters**
 
 ::: {list-table}
-:widths: 20 20 60
 :header-rows: 1
 
 * - Key

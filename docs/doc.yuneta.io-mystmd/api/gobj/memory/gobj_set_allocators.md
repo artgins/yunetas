@@ -1,5 +1,5 @@
 <!-- ============================================================== -->
-(gobj_set_allocators())=
+(gobj_set_allocators)=
 # `gobj_set_allocators()`
 <!-- ============================================================== -->
 
@@ -31,7 +31,6 @@ int gobj_set_allocators(
 **Parameters**
 
 ::: {list-table}
-:widths: 20 20 60
 :header-rows: 1
 
 * - Key

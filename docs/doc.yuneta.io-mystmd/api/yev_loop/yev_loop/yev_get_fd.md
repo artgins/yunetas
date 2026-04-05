@@ -1,5 +1,5 @@
 <!-- ============================================================== -->
-(yev_get_fd())=
+(yev_get_fd)=
 # `yev_get_fd()`
 <!-- ============================================================== -->
 
@@ -28,7 +28,6 @@ int yev_get_fd(
 **Parameters**
 
 ::: {list-table}
-:widths: 20 20 60
 :header-rows: 1
 
 * - Key
@@ -48,7 +47,7 @@ Returns the file descriptor associated with `yev_event`. If no file descriptor i
 
 **Notes**
 
-This function is typically used in conjunction with event-based operations such as [`yev_create_read_event()`](#yev_create_read_event()) and [`yev_create_write_event()`](#yev_create_write_event()).
+This function is typically used in conjunction with event-based operations such as [`yev_create_read_event()`](<#yev_create_read_event>) and [`yev_create_write_event()`](<#yev_create_write_event>).
 
 <!--====================================================-->
 <!--                    End Tab C                       -->

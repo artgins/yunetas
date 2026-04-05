@@ -1,5 +1,5 @@
 <!-- ============================================================== -->
-(gobj_build_authzs_doc())=
+(gobj_build_authzs_doc)=
 # `gobj_build_authzs_doc()`
 <!-- ============================================================== -->
 
@@ -30,7 +30,6 @@ json_t *gobj_build_authzs_doc(
 **Parameters**
 
 ::: {list-table}
-:widths: 20 20 60
 :header-rows: 1
 
 * - Key

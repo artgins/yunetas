@@ -1,9 +1,9 @@
 <!-- ============================================================== -->
-(gobj_start())=
+(gobj_start)=
 # `gobj_start()`
 <!-- ============================================================== -->
 
-The `gobj_start()` function starts the specified [`hgobj`](#hgobj) instance, transitioning it to a running state if it is not already running. It verifies required attributes before starting and invokes the `mt_start` method of the associated gclass if defined.
+The `gobj_start()` function starts the specified `hgobj` instance, transitioning it to a running state if it is not already running. It verifies required attributes before starting and invokes the `mt_start` method of the associated gclass if defined.
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -28,7 +28,6 @@ int gobj_start(
 **Parameters**
 
 ::: {list-table}
-:widths: 20 20 60
 :header-rows: 1
 
 * - Key
@@ -37,7 +36,7 @@ int gobj_start(
 
 * - `gobj`
   - `hgobj`
-  - The [`hgobj`](#hgobj) instance to be started.
+  - The `hgobj` instance to be started.
 :::
 
 ---

@@ -1,9 +1,9 @@
 <!-- ============================================================== -->
-(trq_close())=
+(trq_close)=
 # `trq_close()`
 <!-- ============================================================== -->
 
-Closes the given `tr_queue`, releasing associated resources. After calling `trq_close()`, ensure to invoke [`tranger2_shutdown()`](#tranger2_shutdown()) if no other queues are in use.
+Closes the given `tr_queue`, releasing associated resources. After calling `trq_close()`, ensure to invoke [`tranger2_shutdown()`](<#tranger2_shutdown>) if no other queues are in use.
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -28,7 +28,6 @@ void trq_close(
 **Parameters**
 
 ::: {list-table}
-:widths: 20 20 60
 :header-rows: 1
 
 * - Key
@@ -48,7 +47,7 @@ This function does not return a value.
 
 **Notes**
 
-Ensure that [`trq_close()`](#trq_close()) is called before shutting down the underlying TimeRanger instance with [`tranger2_shutdown()`](#tranger2_shutdown()).
+Ensure that [`trq_close()`](<#trq_close>) is called before shutting down the underlying TimeRanger instance with [`tranger2_shutdown()`](<#tranger2_shutdown>).
 
 <!--====================================================-->
 <!--                    End Tab C                       -->

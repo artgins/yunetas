@@ -1,5 +1,5 @@
 <!-- ============================================================== -->
-(approxidate_careful())=
+(approxidate_careful)=
 # `approxidate_careful()`
 <!-- ============================================================== -->
 
@@ -29,7 +29,6 @@ timestamp_t approxidate_careful(
 **Parameters**
 
 ::: {list-table}
-:widths: 20 20 60
 :header-rows: 1
 
 * - Key

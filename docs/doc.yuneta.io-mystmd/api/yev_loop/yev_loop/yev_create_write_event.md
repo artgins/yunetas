@@ -1,5 +1,5 @@
 <!-- ============================================================== -->
-(yev_create_write_event())=
+(yev_create_write_event)=
 # `yev_create_write_event()`
 <!-- ============================================================== -->
 
@@ -32,7 +32,6 @@ yev_event_h yev_create_write_event(
 **Parameters**
 
 ::: {list-table}
-:widths: 20 20 60
 :header-rows: 1
 
 * - Key
@@ -45,7 +44,7 @@ yev_event_h yev_create_write_event(
 
 * - `callback`
   - `yev_callback_t`
-  - The callback function to be invoked when the event is triggered. If it returns -1, [`yev_loop_run()`](#yev_loop_run()) will break.
+  - The callback function to be invoked when the event is triggered. If it returns -1, [`yev_loop_run()`](<#yev_loop_run>) will break.
 
 * - `gobj`
   - `hgobj`
@@ -68,7 +67,7 @@ Returns a handle to the newly created write event (`yev_event_h`). If creation f
 
 **Notes**
 
-The write event monitors the specified file descriptor for write readiness. Use [`yev_set_gbuffer()`](#yev_set_gbuffer()) to modify the associated buffer.
+The write event monitors the specified file descriptor for write readiness. Use [`yev_set_gbuffer()`](<#yev_set_gbuffer>) to modify the associated buffer.
 
 <!--====================================================-->
 <!--                    End Tab C                       -->

@@ -1,5 +1,5 @@
 <!-- ============================================================== -->
-(kw_get_list_value())=
+(kw_get_list_value)=
 # `kw_get_list_value()`
 <!-- ============================================================== -->
 
@@ -31,7 +31,6 @@ json_t *kw_get_list_value(
 **Parameters**
 
 ::: {list-table}
-:widths: 20 20 60
 :header-rows: 1
 
 * - Key

@@ -1,9 +1,9 @@
 <!-- ============================================================== -->
-(gobj_child_by_name())=
+(gobj_child_by_name)=
 # `gobj_child_by_name()`
 <!-- ============================================================== -->
 
-Retrieves the first child of a given [`hgobj`](#hgobj) that matches the specified name.
+Retrieves the first child of a given `hgobj` that matches the specified name.
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -29,7 +29,6 @@ hgobj gobj_child_by_name(
 **Parameters**
 
 ::: {list-table}
-:widths: 20 20 60
 :header-rows: 1
 
 * - Key
@@ -38,18 +37,18 @@ hgobj gobj_child_by_name(
 
 * - `gobj`
   - `hgobj`
-  - The parent [`hgobj`](#hgobj) whose children will be searched.
+  - The parent `hgobj` whose children will be searched.
 
 * - `name`
   - `const char *`
-  - The name of the child [`hgobj`](#hgobj) to find.
+  - The name of the child `hgobj` to find.
 :::
 
 ---
 
 **Return Value**
 
-Returns the first child [`hgobj`](#hgobj) that matches the given name, or `NULL` if no match is found.
+Returns the first child `hgobj` that matches the given name, or `NULL` if no match is found.
 
 **Notes**
 

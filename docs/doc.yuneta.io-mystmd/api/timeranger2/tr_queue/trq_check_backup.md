@@ -1,5 +1,5 @@
 <!-- ============================================================== -->
-(trq_check_backup())=
+(trq_check_backup)=
 # `trq_check_backup()`
 <!-- ============================================================== -->
 
@@ -28,7 +28,6 @@ int trq_check_backup(
 **Parameters**
 
 ::: {list-table}
-:widths: 20 20 60
 :header-rows: 1
 
 * - Key

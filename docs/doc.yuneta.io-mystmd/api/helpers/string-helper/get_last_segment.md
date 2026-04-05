@@ -1,5 +1,5 @@
 <!-- ============================================================== -->
-(get_last_segment())=
+(get_last_segment)=
 # `get_last_segment()`
 <!-- ============================================================== -->
 
@@ -26,7 +26,6 @@ char *get_last_segment(char *path);
 **Parameters**
 
 ::: {list-table}
-:widths: 20 20 60
 :header-rows: 1
 
 * - Key

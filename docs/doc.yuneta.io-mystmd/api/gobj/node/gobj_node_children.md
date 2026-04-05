@@ -1,5 +1,5 @@
 <!-- ============================================================== -->
-(gobj_node_children())=
+(gobj_node_children)=
 # `gobj_node_children()`
 <!-- ============================================================== -->
 
@@ -34,7 +34,6 @@ json_t *gobj_node_children(
 **Parameters**
 
 ::: {list-table}
-:widths: 20 20 60
 :header-rows: 1
 
 * - Key

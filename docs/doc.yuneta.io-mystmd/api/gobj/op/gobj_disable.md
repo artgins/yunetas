@@ -1,9 +1,9 @@
 <!-- ============================================================== -->
-(gobj_disable())=
+(gobj_disable)=
 # `gobj_disable()`
 <!-- ============================================================== -->
 
-Disables the given [`hgobj`](#hgobj) instance, preventing it from running or playing. If the object has a `mt_disable` method, it is executed; otherwise, [`gobj_stop_tree()`](#gobj_stop_tree) is called.
+Disables the given `hgobj` instance, preventing it from running or playing. If the object has a `mt_disable` method, it is executed; otherwise, [`gobj_stop_tree()`](#gobj_stop_tree) is called.
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -26,7 +26,6 @@ int gobj_disable(hgobj gobj);
 **Parameters**
 
 ::: {list-table}
-:widths: 20 20 60
 :header-rows: 1
 
 * - Key
@@ -35,7 +34,7 @@ int gobj_disable(hgobj gobj);
 
 * - `gobj`
   - `hgobj`
-  - The [`hgobj`](#hgobj) instance to disable.
+  - The `hgobj` instance to disable.
 :::
 
 ---

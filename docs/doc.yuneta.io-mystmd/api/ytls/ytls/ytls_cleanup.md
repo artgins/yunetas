@@ -1,5 +1,5 @@
 <!-- ============================================================== -->
-(ytls_cleanup())=
+(ytls_cleanup)=
 # `ytls_cleanup()`
 <!-- ============================================================== -->
 
@@ -28,7 +28,6 @@ void ytls_cleanup(
 **Parameters**
 
 ::: {list-table}
-:widths: 20 20 60
 :header-rows: 1
 
 * - Key
@@ -48,7 +47,7 @@ This function does not return a value.
 
 **Notes**
 
-Ensure that [`ytls_cleanup()`](#ytls_cleanup()) is called to free resources allocated by [`ytls_init()`](#ytls_init()) to prevent memory leaks.
+Ensure that [`ytls_cleanup()`](<#ytls_cleanup>) is called to free resources allocated by [`ytls_init()`](<#ytls_init>) to prevent memory leaks.
 
 <!--====================================================-->
 <!--                    End Tab C                       -->

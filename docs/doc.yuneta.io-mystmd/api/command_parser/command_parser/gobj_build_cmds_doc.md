@@ -1,9 +1,9 @@
 <!-- ============================================================== -->
-(gobj_build_cmds_doc())=
+(gobj_build_cmds_doc)=
 # `gobj_build_cmds_doc()`
 <!-- ============================================================== -->
 
-`gobj_build_cmds_doc()` generates a JSON-formatted documentation of available commands for a given [`hgobj`](#hgobj).
+`gobj_build_cmds_doc()` generates a JSON-formatted documentation of available commands for a given `hgobj`.
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -29,7 +29,6 @@ json_t *gobj_build_cmds_doc(
 **Parameters**
 
 ::: {list-table}
-:widths: 20 20 60
 :header-rows: 1
 
 * - Key
@@ -38,7 +37,7 @@ json_t *gobj_build_cmds_doc(
 
 * - `gobj`
   - `hgobj`
-  - The [`hgobj`](#hgobj) instance whose commands are to be documented.
+  - The `hgobj` instance whose commands are to be documented.
 
 * - `kw`
   - `json_t *`
@@ -53,7 +52,7 @@ A JSON string containing the formatted documentation of available commands. If a
 
 **Notes**
 
-If `level` is set, [`gobj_build_cmds_doc()`](#gobj_build_cmds_doc) will also include commands from child objects of the given [`hgobj`](#hgobj).
+If `level` is set, [`gobj_build_cmds_doc()`](#gobj_build_cmds_doc) will also include commands from child objects of the given `hgobj`.
 
 <!--====================================================-->
 <!--                    End Tab C                       -->

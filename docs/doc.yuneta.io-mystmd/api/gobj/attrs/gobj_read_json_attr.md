@@ -1,5 +1,5 @@
 <!-- ============================================================== -->
-(gobj_read_json_attr())=
+(gobj_read_json_attr)=
 # `gobj_read_json_attr()`
 <!-- ============================================================== -->
 
@@ -29,7 +29,6 @@ json_t *gobj_read_json_attr(
 **Parameters**
 
 ::: {list-table}
-:widths: 20 20 60
 :header-rows: 1
 
 * - Key

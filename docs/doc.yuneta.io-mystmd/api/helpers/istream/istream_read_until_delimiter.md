@@ -1,5 +1,5 @@
 <!-- ============================================================== -->
-(istream_read_until_delimiter())=
+(istream_read_until_delimiter)=
 # `istream_read_until_delimiter()`
 <!-- ============================================================== -->
 
@@ -31,7 +31,6 @@ int istream_read_until_delimiter(
 **Parameters**
 
 ::: {list-table}
-:widths: 20 20 60
 :header-rows: 1
 
 * - Key

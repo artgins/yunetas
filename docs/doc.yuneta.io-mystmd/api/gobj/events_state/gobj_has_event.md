@@ -1,9 +1,9 @@
 <!-- ============================================================== -->
-(gobj_has_event())=
+(gobj_has_event)=
 # `gobj_has_event()`
 <!-- ============================================================== -->
 
-Checks if the given [`gobj`](#hgobj) supports the specified event, optionally filtering by event flags.
+Checks if the given `gobj` supports the specified event, optionally filtering by event flags.
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -30,7 +30,6 @@ PUBLIC BOOL gobj_has_event(
 **Parameters**
 
 ::: {list-table}
-:widths: 20 20 60
 :header-rows: 1
 
 * - Key
@@ -39,7 +38,7 @@ PUBLIC BOOL gobj_has_event(
 
 * - `gobj`
   - `hgobj`
-  - The [`gobj`](#hgobj) instance to check.
+  - The `gobj` instance to check.
 
 * - `event`
   - `gobj_event_t`
@@ -54,7 +53,7 @@ PUBLIC BOOL gobj_has_event(
 
 **Return Value**
 
-Returns `TRUE` if the event exists in the [`gobj`](#hgobj)'s event list and matches the given flags, otherwise returns `FALSE`.
+Returns `TRUE` if the event exists in the `gobj`'s event list and matches the given flags, otherwise returns `FALSE`.
 
 **Notes**
 

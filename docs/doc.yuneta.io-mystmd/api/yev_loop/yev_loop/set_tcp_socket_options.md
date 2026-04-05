@@ -1,5 +1,5 @@
 <!-- ============================================================== -->
-(set_tcp_socket_options())=
+(set_tcp_socket_options)=
 # `set_tcp_socket_options()`
 <!-- ============================================================== -->
 
@@ -29,7 +29,6 @@ int set_tcp_socket_options(
 **Parameters**
 
 ::: {list-table}
-:widths: 20 20 60
 :header-rows: 1
 
 * - Key

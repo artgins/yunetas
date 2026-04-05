@@ -1,9 +1,9 @@
 <!-- ============================================================== -->
-(gobj_destroy_children())=
+(gobj_destroy_children)=
 # `gobj_destroy_children()`
 <!-- ============================================================== -->
 
-Destroys all child objects of the given [`hgobj`](#hgobj), ensuring proper cleanup and deallocation.
+Destroys all child objects of the given `hgobj`, ensuring proper cleanup and deallocation.
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -28,7 +28,6 @@ void gobj_destroy_children(
 **Parameters**
 
 ::: {list-table}
-:widths: 20 20 60
 :header-rows: 1
 
 * - Key

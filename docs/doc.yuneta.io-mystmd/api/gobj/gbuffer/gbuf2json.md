@@ -1,9 +1,9 @@
 <!-- ============================================================== -->
-(gbuf2json())=
+(gbuf2json)=
 # `gbuf2json()`
 <!-- ============================================================== -->
 
-Converts a [`gbuffer_t *`](#gbuffer_t) containing JSON data into a [`json_t *`](#json_t) object. The function consumes the input buffer and returns a parsed JSON object.
+Converts a [`gbuffer_t *`](#gbuffer_t) containing JSON data into a `json_t *` object. The function consumes the input buffer and returns a parsed JSON object.
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -29,7 +29,6 @@ json_t *gbuf2json(
 **Parameters**
 
 ::: {list-table}
-:widths: 20 20 60
 :header-rows: 1
 
 * - Key
@@ -49,7 +48,7 @@ json_t *gbuf2json(
 
 **Return Value**
 
-Returns a [`json_t *`](#json_t) object if parsing is successful. Returns `NULL` if parsing fails.
+Returns a `json_t *` object if parsing is successful. Returns `NULL` if parsing fails.
 
 **Notes**
 

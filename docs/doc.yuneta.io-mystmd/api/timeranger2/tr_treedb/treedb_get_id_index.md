@@ -1,5 +1,5 @@
 <!-- ============================================================== -->
-(treedb_get_id_index())=
+(treedb_get_id_index)=
 # `treedb_get_id_index()`
 <!-- ============================================================== -->
 
@@ -30,7 +30,6 @@ json_t *treedb_get_id_index(
 **Parameters**
 
 ::: {list-table}
-:widths: 20 20 60
 :header-rows: 1
 
 * - Key

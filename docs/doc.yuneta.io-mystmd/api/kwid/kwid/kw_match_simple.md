@@ -1,5 +1,5 @@
 <!-- ============================================================== -->
-(kw_match_simple())=
+(kw_match_simple)=
 # `kw_match_simple()`
 <!-- ============================================================== -->
 
@@ -29,7 +29,6 @@ BOOL kw_match_simple(
 **Parameters**
 
 ::: {list-table}
-:widths: 20 20 60
 :header-rows: 1
 
 * - Key

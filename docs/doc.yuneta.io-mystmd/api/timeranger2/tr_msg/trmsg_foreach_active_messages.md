@@ -1,5 +1,5 @@
 <!-- ============================================================== -->
-(trmsg_foreach_active_messages())=
+(trmsg_foreach_active_messages)=
 # `trmsg_foreach_active_messages()`
 <!-- ============================================================== -->
 
@@ -38,7 +38,6 @@ int trmsg_foreach_active_messages(
 **Parameters**
 
 ::: {list-table}
-:widths: 20 20 60
 :header-rows: 1
 
 * - Key
@@ -74,7 +73,7 @@ Returns 0 on success, a negative value if the iteration was interrupted by the c
 
 **Notes**
 
-The callback function should return a negative value to break the iteration, 0 to continue, or 1 to add the record to the returned list. See [`trmsg_foreach_messages()`](#trmsg_foreach_messages()) for iterating over all messages.
+The callback function should return a negative value to break the iteration, 0 to continue, or 1 to add the record to the returned list. See [`trmsg_foreach_messages()`](<#trmsg_foreach_messages>) for iterating over all messages.
 
 <!--====================================================-->
 <!--                    End Tab C                       -->

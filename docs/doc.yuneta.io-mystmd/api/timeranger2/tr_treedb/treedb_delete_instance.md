@@ -1,5 +1,5 @@
 <!-- ============================================================== -->
-(treedb_delete_instance())=
+(treedb_delete_instance)=
 # `treedb_delete_instance()`
 <!-- ============================================================== -->
 
@@ -31,7 +31,6 @@ int treedb_delete_instance(
 **Parameters**
 
 ::: {list-table}
-:widths: 20 20 60
 :header-rows: 1
 
 * - Key
@@ -63,7 +62,7 @@ Returns `0` on success, or a negative error code if the deletion fails.
 
 **Notes**
 
-If links exist and `force` is not set in `jn_options`, [`treedb_delete_instance()`](#treedb_delete_instance()) will fail.
+If links exist and `force` is not set in `jn_options`, [`treedb_delete_instance()`](<#treedb_delete_instance>) will fail.
 
 <!--====================================================-->
 <!--                    End Tab C                       -->

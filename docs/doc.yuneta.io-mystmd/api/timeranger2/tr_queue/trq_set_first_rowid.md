@@ -1,5 +1,5 @@
 <!-- ============================================================== -->
-(trq_set_first_rowid())=
+(trq_set_first_rowid)=
 # `trq_set_first_rowid()`
 <!-- ============================================================== -->
 
@@ -29,7 +29,6 @@ void trq_set_first_rowid(
 **Parameters**
 
 ::: {list-table}
-:widths: 20 20 60
 :header-rows: 1
 
 * - Key
@@ -53,7 +52,7 @@ This function does not return a value.
 
 **Notes**
 
-Setting a lower `first_rowid` can improve performance when iterating over messages using [`trq_load()`](#trq_load()) or [`trq_load_all()`](#trq_load_all()).
+Setting a lower `first_rowid` can improve performance when iterating over messages using [`trq_load()`](<#trq_load>) or [`trq_load_all()`](<#trq_load_all>).
 
 <!--====================================================-->
 <!--                    End Tab C                       -->

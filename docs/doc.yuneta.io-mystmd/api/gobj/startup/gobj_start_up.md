@@ -1,5 +1,5 @@
 <!-- ============================================================== -->
-(gobj_start_up())=
+(gobj_start_up)=
 # `gobj_start_up()`
 <!-- ============================================================== -->
 
@@ -40,7 +40,6 @@ int gobj_start_up(
 **Parameters**
 
 ::: {list-table}
-:widths: 20 20 60
 :header-rows: 1
 
 * - Key
@@ -60,7 +59,7 @@ int gobj_start_up(
   - Global settings in JSON format (not owned).
 
 * - `persistent_attrs`
-  - [`const persistent_attrs_t *`](persistent_attrs_t)
+  - [`const persistent_attrs_t *`](#persistent_attrs_t)
   - Persistent attributes management functions.
 
 * - `global_command_parser`

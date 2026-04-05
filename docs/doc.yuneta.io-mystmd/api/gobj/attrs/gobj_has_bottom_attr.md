@@ -1,9 +1,9 @@
 <!-- ============================================================== -->
-(gobj_has_bottom_attr())=
+(gobj_has_bottom_attr)=
 # `gobj_has_bottom_attr()`
 <!-- ============================================================== -->
 
-Checks if the given [`hgobj`](#hgobj) or any of its bottom objects has the specified attribute.
+Checks if the given `hgobj` or any of its bottom objects has the specified attribute.
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -29,7 +29,6 @@ BOOL gobj_has_bottom_attr(
 **Parameters**
 
 ::: {list-table}
-:widths: 20 20 60
 :header-rows: 1
 
 * - Key
@@ -49,11 +48,11 @@ BOOL gobj_has_bottom_attr(
 
 **Return Value**
 
-Returns `TRUE` if the attribute exists in the given [`hgobj`](#hgobj) or any of its bottom objects, otherwise returns `FALSE`.
+Returns `TRUE` if the attribute exists in the given `hgobj` or any of its bottom objects, otherwise returns `FALSE`.
 
 **Notes**
 
-This function traverses the bottom hierarchy of the given [`hgobj`](#hgobj) to check for the presence of the attribute.
+This function traverses the bottom hierarchy of the given `hgobj` to check for the presence of the attribute.
 
 <!--====================================================-->
 <!--                    End Tab C                       -->

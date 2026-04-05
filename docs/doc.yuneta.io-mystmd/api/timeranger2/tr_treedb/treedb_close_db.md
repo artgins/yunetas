@@ -1,9 +1,9 @@
 <!-- ============================================================== -->
-(treedb_close_db())=
+(treedb_close_db)=
 # `treedb_close_db()`
 <!-- ============================================================== -->
 
-Closes the TreeDB instance identified by `treedb_name` in the given [`json_t *`](#json_t) `tranger`. This function ensures that all resources associated with the TreeDB instance are properly released.
+Closes the TreeDB instance identified by `treedb_name` in the given `json_t *` `tranger`. This function ensures that all resources associated with the TreeDB instance are properly released.
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -29,7 +29,6 @@ int treedb_close_db(
 **Parameters**
 
 ::: {list-table}
-:widths: 20 20 60
 :header-rows: 1
 
 * - Key
@@ -38,7 +37,7 @@ int treedb_close_db(
 
 * - `tranger`
   - `json_t *`
-  - A pointer to the [`json_t *`](#json_t) object representing the TimeRanger instance.
+  - A pointer to the `json_t *` object representing the TimeRanger instance.
 
 * - `treedb_name`
   - `const char *`
@@ -53,7 +52,7 @@ Returns `0` on success, or a negative error code if the operation fails.
 
 **Notes**
 
-Ensure that [`treedb_open_db()`](#treedb_open_db()) was previously called before attempting to close the TreeDB instance.
+Ensure that [`treedb_open_db()`](<#treedb_open_db>) was previously called before attempting to close the TreeDB instance.
 
 <!--====================================================-->
 <!--                    End Tab C                       -->

@@ -1,9 +1,9 @@
 <!-- ============================================================== -->
-(gobj_write_new_json_attr())=
+(gobj_write_new_json_attr)=
 # `gobj_write_new_json_attr()`
 <!-- ============================================================== -->
 
-Writes a new JSON value to the specified attribute of a [`hgobj`](#hgobj). The provided JSON value is owned and will not be incremented in reference count.
+Writes a new JSON value to the specified attribute of a `hgobj`. The provided JSON value is owned and will not be incremented in reference count.
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -30,7 +30,6 @@ int gobj_write_new_json_attr(
 **Parameters**
 
 ::: {list-table}
-:widths: 20 20 60
 :header-rows: 1
 
 * - Key
@@ -39,7 +38,7 @@ int gobj_write_new_json_attr(
 
 * - `gobj`
   - `hgobj`
-  - The [`hgobj`](#hgobj) instance whose attribute will be modified.
+  - The `hgobj` instance whose attribute will be modified.
 
 * - `name`
   - `const char *`

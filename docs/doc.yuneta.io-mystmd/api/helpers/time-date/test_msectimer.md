@@ -1,5 +1,5 @@
 <!-- ============================================================== -->
-(test_msectimer())=
+(test_msectimer)=
 # `test_msectimer()`
 <!-- ============================================================== -->
 
@@ -26,7 +26,6 @@ PUBLIC BOOL test_msectimer(uint64_t value);
 **Parameters**
 
 ::: {list-table}
-:widths: 20 20 60
 :header-rows: 1
 
 * - Key

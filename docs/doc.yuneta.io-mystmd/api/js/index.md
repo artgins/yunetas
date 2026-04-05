@@ -1,8 +1,7 @@
 # JavaScript API
 
 JavaScript / ES6 implementation of the Yuneta framework for the browser
-and Node.js. Published on npm as
-[`@yuneta/gobj-js`](https://www.npmjs.com/package/@yuneta/gobj-js).
+and Node.js. Published on npm as `@yuneta/gobj-js`.
 
 Yuneta is **function-oriented** and **language-portable**: a GClass is a
 bag of plain functions plus a data description, registered at startup.

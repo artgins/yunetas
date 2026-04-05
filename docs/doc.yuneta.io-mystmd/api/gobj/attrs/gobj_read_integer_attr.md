@@ -1,9 +1,9 @@
 <!-- ============================================================== -->
-(gobj_read_integer_attr())=
+(gobj_read_integer_attr)=
 # `gobj_read_integer_attr()`
 <!-- ============================================================== -->
 
-Retrieves the integer value of a specified attribute from the given [`hgobj`](#hgobj). The function supports attribute inheritance from bottom objects.
+Retrieves the integer value of a specified attribute from the given `hgobj`. The function supports attribute inheritance from bottom objects.
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -29,7 +29,6 @@ json_int_t gobj_read_integer_attr(
 **Parameters**
 
 ::: {list-table}
-:widths: 20 20 60
 :header-rows: 1
 
 * - Key

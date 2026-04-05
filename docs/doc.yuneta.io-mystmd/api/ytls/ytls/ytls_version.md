@@ -1,5 +1,5 @@
 <!-- ============================================================== -->
-(ytls_version())=
+(ytls_version)=
 # `ytls_version()`
 <!-- ============================================================== -->
 
@@ -28,7 +28,6 @@ const char *ytls_version(
 **Parameters**
 
 ::: {list-table}
-:widths: 20 20 60
 :header-rows: 1
 
 * - Key

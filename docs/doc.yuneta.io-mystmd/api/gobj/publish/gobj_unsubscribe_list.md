@@ -1,5 +1,5 @@
 <!-- ============================================================== -->
-(gobj_unsubscribe_list())=
+(gobj_unsubscribe_list)=
 # `gobj_unsubscribe_list()`
 <!-- ============================================================== -->
 
@@ -29,7 +29,6 @@ int gobj_unsubscribe_list(
 **Parameters**
 
 ::: {list-table}
-:widths: 20 20 60
 :header-rows: 1
 
 * - Key

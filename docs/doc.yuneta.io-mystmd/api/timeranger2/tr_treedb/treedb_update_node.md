@@ -1,5 +1,5 @@
 <!-- ============================================================== -->
-(treedb_update_node())=
+(treedb_update_node)=
 # `treedb_update_node()`
 <!-- ============================================================== -->
 
@@ -31,7 +31,6 @@ json_t *treedb_update_node(
 **Parameters**
 
 ::: {list-table}
-:widths: 20 20 60
 :header-rows: 1
 
 * - Key
@@ -63,7 +62,7 @@ Returns a pointer to the updated node. The returned node is not owned by the cal
 
 **Notes**
 
-Foreign keys (`fkeys`) and hook fields are not updated by [`treedb_update_node()`](#treedb_update_node()).
+Foreign keys (`fkeys`) and hook fields are not updated by [`treedb_update_node()`](<#treedb_update_node>).
 The returned node must not be modified or freed by the caller.
 
 <!--====================================================-->

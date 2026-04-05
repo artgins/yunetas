@@ -1,5 +1,5 @@
 <!-- ============================================================== -->
-(tranger2_write_topic_var())=
+(tranger2_write_topic_var)=
 # `tranger2_write_topic_var()`
 <!-- ============================================================== -->
 
@@ -30,7 +30,6 @@ int tranger2_write_topic_var(
 **Parameters**
 
 ::: {list-table}
-:widths: 20 20 60
 :header-rows: 1
 
 * - Key
@@ -47,7 +46,7 @@ int tranger2_write_topic_var(
 
 * - `jn_topic_var`
   - `json_t *`
-  - A JSON object containing the new variable metadata for the topic. The ownership of this object is transferred to [`tranger2_write_topic_var()`](#tranger2_write_topic_var()).
+  - A JSON object containing the new variable metadata for the topic. The ownership of this object is transferred to [`tranger2_write_topic_var()`](<#tranger2_write_topic_var>).
 :::
 
 ---

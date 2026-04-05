@@ -1,5 +1,5 @@
 <!-- ============================================================== -->
-(yev_get_yuno())=
+(yev_get_yuno)=
 # `yev_get_yuno()`
 <!-- ============================================================== -->
 
@@ -28,7 +28,6 @@ hgobj yev_get_yuno(
 **Parameters**
 
 ::: {list-table}
-:widths: 20 20 60
 :header-rows: 1
 
 * - Key
@@ -44,11 +43,11 @@ hgobj yev_get_yuno(
 
 **Return Value**
 
-Returns the [`hgobj`](#hgobj) object associated with the specified event loop.
+Returns the `hgobj` object associated with the specified event loop.
 
 **Notes**
 
-The returned [`hgobj`](#hgobj) may be `NULL` if the event loop is not properly initialized.
+The returned `hgobj` may be `NULL` if the event loop is not properly initialized.
 
 <!--====================================================-->
 <!--                    End Tab C                       -->

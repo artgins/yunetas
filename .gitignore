@@ -9,6 +9,7 @@ build_musl/
 build_static/
 x.html
 x.json
+x.txt
 outputs/
 outputs_ext/
 outputs_ext_musl/

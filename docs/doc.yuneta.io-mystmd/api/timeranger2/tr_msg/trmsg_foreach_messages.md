@@ -1,5 +1,5 @@
 <!-- ============================================================== -->
-(trmsg_foreach_messages())=
+(trmsg_foreach_messages)=
 # `trmsg_foreach_messages()`
 <!-- ============================================================== -->
 
@@ -39,7 +39,6 @@ int trmsg_foreach_messages(
 **Parameters**
 
 ::: {list-table}
-:widths: 20 20 60
 :header-rows: 1
 
 * - Key
@@ -79,7 +78,7 @@ Returns `0` on success, a negative value if the iteration was interrupted by the
 
 **Notes**
 
-The callback function receives a reference to the `list`, the message `key`, and the `instances` JSON object. The `instances` parameter must be owned by the callback function. This function is similar to [`trmsg_foreach_active_messages()`](#trmsg_foreach_active_messages()) and [`trmsg_foreach_instances_messages()`](#trmsg_foreach_instances_messages()), but it allows selecting between duplicated and cloned messages.
+The callback function receives a reference to the `list`, the message `key`, and the `instances` JSON object. The `instances` parameter must be owned by the callback function. This function is similar to [`trmsg_foreach_active_messages()`](<#trmsg_foreach_active_messages>) and [`trmsg_foreach_instances_messages()`](<#trmsg_foreach_instances_messages>), but it allows selecting between duplicated and cloned messages.
 
 <!--====================================================-->
 <!--                    End Tab C                       -->

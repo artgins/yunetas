@@ -1,5 +1,5 @@
 <!-- ============================================================== -->
-(gobj_yuno_realm_role())=
+(gobj_yuno_realm_role)=
 # `gobj_yuno_realm_role()`
 <!-- ============================================================== -->
 
@@ -26,7 +26,6 @@ const char *gobj_yuno_realm_role(void);
 **Parameters**
 
 ::: {list-table}
-:widths: 20 20 60
 :header-rows: 1
 
 * - Key

@@ -1,5 +1,5 @@
 <!-- ============================================================== -->
-(trmsg_open_list())=
+(trmsg_open_list)=
 # `trmsg_open_list()`
 <!-- ============================================================== -->
 
@@ -34,7 +34,6 @@ json_t *trmsg_open_list(
 **Parameters**
 
 ::: {list-table}
-:widths: 20 20 60
 :header-rows: 1
 
 * - Key
@@ -78,7 +77,7 @@ Returns a JSON object representing the opened list. The caller is responsible fo
 
 **Notes**
 
-`trmsg_open_list()` internally uses [`tranger2_open_list()`](#tranger2_open_list()) to perform the operation. If `rt_by_disk` is set to `true`, the list is loaded from disk, which may introduce delays in application startup.
+`trmsg_open_list()` internally uses [`tranger2_open_list()`](<#tranger2_open_list>) to perform the operation. If `rt_by_disk` is set to `true`, the list is loaded from disk, which may introduce delays in application startup.
 
 <!--====================================================-->
 <!--                    End Tab C                       -->

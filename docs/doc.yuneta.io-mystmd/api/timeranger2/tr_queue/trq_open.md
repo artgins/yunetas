@@ -1,5 +1,5 @@
 <!-- ============================================================== -->
-(trq_open())=
+(trq_open)=
 # `trq_open()`
 <!-- ============================================================== -->
 
@@ -33,7 +33,6 @@ tr_queue trq_open(
 **Parameters**
 
 ::: {list-table}
-:widths: 20 20 60
 :header-rows: 1
 
 * - Key
@@ -73,7 +72,7 @@ Returns a `tr_queue` handle representing the opened queue, or `NULL` on failure.
 
 **Notes**
 
-Ensure that [`tranger2_startup()`](#tranger2_startup()) is called before invoking [`trq_open()`](#trq_open()).
+Ensure that [`tranger2_startup()`](<#tranger2_startup>) is called before invoking [`trq_open()`](<#trq_open>).
 
 <!--====================================================-->
 <!--                    End Tab C                       -->

@@ -1,5 +1,5 @@
 <!-- ============================================================== -->
-(trq_set_ack_timer())=
+(trq_set_ack_timer)=
 # `trq_set_ack_timer()`
 <!-- ============================================================== -->
 
@@ -29,7 +29,6 @@ time_t trq_set_ack_timer(
 **Parameters**
 
 ::: {list-table}
-:widths: 20 20 60
 :header-rows: 1
 
 * - Key
@@ -53,7 +52,7 @@ Returns the previously set acknowledgment timer value in seconds.
 
 **Notes**
 
-Use [`trq_test_ack_timer()`](#trq_test_ack_timer()) to check if the acknowledgment timer has expired.
+Use [`trq_test_ack_timer()`](<#trq_test_ack_timer>) to check if the acknowledgment timer has expired.
 
 <!--====================================================-->
 <!--                    End Tab C                       -->

@@ -1,5 +1,5 @@
 <!-- ============================================================== -->
-(gobj_log_set_last_message())=
+(gobj_log_set_last_message)=
 # `gobj_log_set_last_message()`
 <!-- ============================================================== -->
 
@@ -29,7 +29,6 @@ void gobj_log_set_last_message(
 **Parameters**
 
 ::: {list-table}
-:widths: 20 20 60
 :header-rows: 1
 
 * - Key

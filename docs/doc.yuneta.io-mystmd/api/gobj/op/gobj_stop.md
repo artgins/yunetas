@@ -1,9 +1,9 @@
 <!-- ============================================================== -->
-(gobj_stop())=
+(gobj_stop)=
 # `gobj_stop()`
 <!-- ============================================================== -->
 
-Stops the execution of the given [`gobj`](#hgobj) instance, ensuring it is no longer running. If the [`gobj`](#hgobj) is playing, it will be paused before stopping.
+Stops the execution of the given `gobj` instance, ensuring it is no longer running. If the `gobj` is playing, it will be paused before stopping.
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -28,7 +28,6 @@ int gobj_stop(
 **Parameters**
 
 ::: {list-table}
-:widths: 20 20 60
 :header-rows: 1
 
 * - Key
@@ -37,18 +36,18 @@ int gobj_stop(
 
 * - `gobj`
   - `hgobj`
-  - The [`gobj`](#hgobj) instance to be stopped.
+  - The `gobj` instance to be stopped.
 :::
 
 ---
 
 **Return Value**
 
-Returns 0 on success, or -1 if the [`gobj`](#hgobj) is already stopped, destroying, or invalid.
+Returns 0 on success, or -1 if the `gobj` is already stopped, destroying, or invalid.
 
 **Notes**
 
-If the [`gobj`](#hgobj) is playing, it will be paused before stopping. If the [`gobj`](#hgobj) is already stopped, an error is logged.
+If the `gobj` is playing, it will be paused before stopping. If the `gobj` is already stopped, an error is logged.
 
 <!--====================================================-->
 <!--                    End Tab C                       -->

@@ -1,5 +1,5 @@
 <!-- ============================================================== -->
-(treedb_node_children())=
+(treedb_node_children)=
 # `treedb_node_children()`
 <!-- ============================================================== -->
 
@@ -32,7 +32,6 @@ json_t *treedb_node_children(
 **Parameters**
 
 ::: {list-table}
-:widths: 20 20 60
 :header-rows: 1
 
 * - Key
@@ -68,7 +67,7 @@ Returns a JSON array containing the child nodes that match the specified criteri
 
 **Notes**
 
-If the `recursive` option is enabled in `jn_options`, [`treedb_node_children()`](#treedb_node_children()) will traverse the hierarchy recursively.
+If the `recursive` option is enabled in `jn_options`, [`treedb_node_children()`](<#treedb_node_children>) will traverse the hierarchy recursively.
 
 <!--====================================================-->
 <!--                    End Tab C                       -->

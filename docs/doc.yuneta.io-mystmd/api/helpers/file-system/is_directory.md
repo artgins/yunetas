@@ -1,5 +1,5 @@
 <!-- ============================================================== -->
-(is_directory())=
+(is_directory)=
 # `is_directory()`
 <!-- ============================================================== -->
 
@@ -26,7 +26,6 @@ BOOL is_directory(const char *path);
 **Parameters**
 
 ::: {list-table}
-:widths: 20 20 60
 :header-rows: 1
 
 * - Key

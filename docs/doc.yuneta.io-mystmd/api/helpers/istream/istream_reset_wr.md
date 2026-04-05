@@ -1,5 +1,5 @@
 <!-- ============================================================== -->
-(istream_reset_wr())=
+(istream_reset_wr)=
 # `istream_reset_wr()`
 <!-- ============================================================== -->
 
@@ -28,7 +28,6 @@ int istream_reset_wr(
 **Parameters**
 
 ::: {list-table}
-:widths: 20 20 60
 :header-rows: 1
 
 * - Key

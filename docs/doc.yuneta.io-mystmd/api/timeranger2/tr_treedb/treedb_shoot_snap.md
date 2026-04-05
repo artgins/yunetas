@@ -1,5 +1,5 @@
 <!-- ============================================================== -->
-(treedb_shoot_snap())=
+(treedb_shoot_snap)=
 # `treedb_shoot_snap()`
 <!-- ============================================================== -->
 
@@ -31,7 +31,6 @@ int treedb_shoot_snap(
 **Parameters**
 
 ::: {list-table}
-:widths: 20 20 60
 :header-rows: 1
 
 * - Key
@@ -63,7 +62,7 @@ Returns `0` on success, or a negative error code on failure.
 
 **Notes**
 
-Snapshots allow restoring the TreeDB to a previous state using [`treedb_activate_snap()`](#treedb_activate_snap()).
+Snapshots allow restoring the TreeDB to a previous state using [`treedb_activate_snap()`](<#treedb_activate_snap>).
 
 <!--====================================================-->
 <!--                    End Tab C                       -->

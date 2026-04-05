@@ -1,5 +1,5 @@
 <!-- ============================================================== -->
-(tranger2_read_user_flag())=
+(tranger2_read_user_flag)=
 # `tranger2_read_user_flag()`
 <!-- ============================================================== -->
 
@@ -30,7 +30,6 @@ uint16_t tranger2_read_user_flag(
 **Parameters**
 
 ::: {list-table}
-:widths: 20 20 60
 :header-rows: 1
 
 * - Key

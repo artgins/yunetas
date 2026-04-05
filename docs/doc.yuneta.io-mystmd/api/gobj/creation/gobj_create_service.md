@@ -1,5 +1,5 @@
 <!-- ============================================================== -->
-(gobj_create_service())=
+(gobj_create_service)=
 # `gobj_create_service()`
 <!-- ============================================================== -->
 
@@ -31,7 +31,6 @@ hgobj gobj_create_service(
 **Parameters**
 
 ::: {list-table}
-:widths: 20 20 60
 :header-rows: 1
 
 * - Key

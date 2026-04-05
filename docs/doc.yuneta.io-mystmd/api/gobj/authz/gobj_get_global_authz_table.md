@@ -1,5 +1,5 @@
 <!-- ============================================================== -->
-(gobj_get_global_authz_table())=
+(gobj_get_global_authz_table)=
 # `gobj_get_global_authz_table()`
 <!-- ============================================================== -->
 
@@ -26,7 +26,6 @@ const sdata_desc_t *gobj_get_global_authz_table(void);
 **Parameters**
 
 ::: {list-table}
-:widths: 20 20 60
 :header-rows: 1
 
 * - Key

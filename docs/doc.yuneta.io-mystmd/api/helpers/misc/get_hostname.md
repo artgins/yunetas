@@ -1,5 +1,5 @@
 <!-- ============================================================== -->
-(get_hostname())=
+(get_hostname)=
 # `get_hostname()`
 <!-- ============================================================== -->
 
@@ -26,7 +26,6 @@ const char *get_hostname(void);
 **Parameters**
 
 ::: {list-table}
-:widths: 20 20 60
 :header-rows: 1
 
 * - Key

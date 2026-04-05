@@ -1,5 +1,5 @@
 <!-- ============================================================== -->
-(treedb_is_treedbs_topic())=
+(treedb_is_treedbs_topic)=
 # `treedb_is_treedbs_topic()`
 <!-- ============================================================== -->
 
@@ -30,7 +30,6 @@ BOOL treedb_is_treedbs_topic(
 **Parameters**
 
 ::: {list-table}
-:widths: 20 20 60
 :header-rows: 1
 
 * - Key

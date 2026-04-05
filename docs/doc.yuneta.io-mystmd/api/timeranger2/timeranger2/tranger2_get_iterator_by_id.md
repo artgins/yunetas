@@ -1,5 +1,5 @@
 <!-- ============================================================== -->
-(tranger2_get_iterator_by_id())=
+(tranger2_get_iterator_by_id)=
 # `tranger2_get_iterator_by_id()`
 <!-- ============================================================== -->
 
@@ -31,7 +31,6 @@ json_t *tranger2_get_iterator_by_id(
 **Parameters**
 
 ::: {list-table}
-:widths: 20 20 60
 :header-rows: 1
 
 * - Key

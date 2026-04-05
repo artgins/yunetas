@@ -1,9 +1,9 @@
 <!-- ============================================================== -->
-(tranger2_topic())=
+(tranger2_topic)=
 # `tranger2_topic()`
 <!-- ============================================================== -->
 
-Retrieve a topic by its name from the TimeRanger database. If the topic is not already opened, [`tranger2_open_topic()`](#tranger2_open_topic()) is called to open it.
+Retrieve a topic by its name from the TimeRanger database. If the topic is not already opened, [`tranger2_open_topic()`](<#tranger2_open_topic>) is called to open it.
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -29,7 +29,6 @@ json_t *tranger2_topic(
 **Parameters**
 
 ::: {list-table}
-:widths: 20 20 60
 :header-rows: 1
 
 * - Key
@@ -53,7 +52,7 @@ A JSON object representing the topic. The returned object is not owned by the ca
 
 **Notes**
 
-If the topic exists on disk but has not been opened yet, [`tranger2_open_topic()`](#tranger2_open_topic()) is automatically invoked.
+If the topic exists on disk but has not been opened yet, [`tranger2_open_topic()`](<#tranger2_open_topic>) is automatically invoked.
 
 <!--====================================================-->
 <!--                    End Tab C                       -->

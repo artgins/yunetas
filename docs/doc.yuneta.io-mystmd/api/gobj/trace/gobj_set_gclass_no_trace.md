@@ -1,9 +1,9 @@
 <!-- ============================================================== -->
-(gobj_set_gclass_no_trace())=
+(gobj_set_gclass_no_trace)=
 # `gobj_set_gclass_no_trace()`
 <!-- ============================================================== -->
 
-Sets or resets the no-trace level for a given [`hgclass`](#hgclass).
+Sets or resets the no-trace level for a given `hgclass`.
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -30,7 +30,6 @@ int gobj_set_gclass_no_trace(
 **Parameters**
 
 ::: {list-table}
-:widths: 20 20 60
 :header-rows: 1
 
 * - Key
@@ -39,7 +38,7 @@ int gobj_set_gclass_no_trace(
 
 * - `gclass`
   - `hgclass`
-  - The [`hgclass`](#hgclass) whose no-trace level is being modified.
+  - The `hgclass` whose no-trace level is being modified.
 
 * - `level`
   - `const char *`

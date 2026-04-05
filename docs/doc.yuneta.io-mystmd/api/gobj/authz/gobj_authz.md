@@ -1,9 +1,9 @@
 <!-- ============================================================== -->
-(gobj_authz())=
+(gobj_authz)=
 # `gobj_authz()`
 <!-- ============================================================== -->
 
-Retrieves the authorization details for a given [`hgobj`](#hgobj). If `authz` is specified, it returns the details of that specific authorization; otherwise, it returns all authorizations available for the object.
+Retrieves the authorization details for a given `hgobj`. If `authz` is specified, it returns the details of that specific authorization; otherwise, it returns all authorizations available for the object.
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -29,7 +29,6 @@ json_t *gobj_authz(
 **Parameters**
 
 ::: {list-table}
-:widths: 20 20 60
 :header-rows: 1
 
 * - Key

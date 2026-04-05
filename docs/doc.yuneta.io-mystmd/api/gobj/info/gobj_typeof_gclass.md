@@ -1,9 +1,9 @@
 <!-- ============================================================== -->
-(gobj_typeof_gclass())=
+(gobj_typeof_gclass)=
 # `gobj_typeof_gclass()`
 <!-- ============================================================== -->
 
-Checks if the given [`hgobj`](#hgobj) belongs to the specified gclass.
+Checks if the given `hgobj` belongs to the specified gclass.
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -29,7 +29,6 @@ BOOL gobj_typeof_gclass(
 **Parameters**
 
 ::: {list-table}
-:widths: 20 20 60
 :header-rows: 1
 
 * - Key
@@ -49,7 +48,7 @@ BOOL gobj_typeof_gclass(
 
 **Return Value**
 
-Returns `TRUE` if the [`hgobj`](#hgobj) belongs to the specified gclass, otherwise returns `FALSE`.
+Returns `TRUE` if the `hgobj` belongs to the specified gclass, otherwise returns `FALSE`.
 
 **Notes**
 

@@ -1,5 +1,5 @@
 <!-- ============================================================== -->
-(rmrcontentdir())=
+(rmrcontentdir)=
 # `rmrcontentdir()`
 <!-- ============================================================== -->
 
@@ -26,7 +26,6 @@ int rmrcontentdir(const char *root_dir);
 **Parameters**
 
 ::: {list-table}
-:widths: 20 20 60
 :header-rows: 1
 
 * - Key

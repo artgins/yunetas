@@ -1,5 +1,5 @@
 <!-- ============================================================== -->
-(rotatory_start_up()())=
+(rotatory_start_up)=
 # `rotatory_start_up()`
 <!-- ============================================================== -->
 
@@ -26,7 +26,6 @@ int rotatory_start_up(void);
 **Parameters**
 
 ::: {list-table}
-:widths: 20 20 60
 :header-rows: 1
 
 * - Key

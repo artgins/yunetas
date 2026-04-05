@@ -1,9 +1,9 @@
 <!-- ============================================================== -->
-(gobj_authzs())=
+(gobj_authzs)=
 # `gobj_authzs()`
 <!-- ============================================================== -->
 
-Returns a list of authorization levels available for the given [`hgobj`](#hgobj). If `gobj` is `NULL`, it returns the global authorization levels.
+Returns a list of authorization levels available for the given `hgobj`. If `gobj` is `NULL`, it returns the global authorization levels.
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -28,7 +28,6 @@ json_t *gobj_authzs(
 **Parameters**
 
 ::: {list-table}
-:widths: 20 20 60
 :header-rows: 1
 
 * - Key
@@ -37,18 +36,18 @@ json_t *gobj_authzs(
 
 * - `gobj`
   - `hgobj`
-  - The [`hgobj`](#hgobj) instance whose authorization levels are to be retrieved. If `NULL`, global authorization levels are returned.
+  - The `hgobj` instance whose authorization levels are to be retrieved. If `NULL`, global authorization levels are returned.
 :::
 
 ---
 
 **Return Value**
 
-A JSON object containing the list of authorization levels available for the given [`hgobj`](#hgobj) or globally if `gobj` is `NULL`.
+A JSON object containing the list of authorization levels available for the given `hgobj` or globally if `gobj` is `NULL`.
 
 **Notes**
 
-This function is useful for inspecting the authorization levels assigned to a specific [`hgobj`](#hgobj) or retrieving the global authorization levels.
+This function is useful for inspecting the authorization levels assigned to a specific `hgobj` or retrieving the global authorization levels.
 
 <!--====================================================-->
 <!--                    End Tab C                       -->

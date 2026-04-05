@@ -1,5 +1,5 @@
 <!-- ============================================================== -->
-(gobj_log_set_global_handler_option())=
+(gobj_log_set_global_handler_option)=
 # `gobj_log_set_global_handler_option()`
 <!-- ============================================================== -->
 
@@ -29,7 +29,6 @@ int gobj_log_set_global_handler_option(
 **Parameters**
 
 ::: {list-table}
-:widths: 20 20 60
 :header-rows: 1
 
 * - Key

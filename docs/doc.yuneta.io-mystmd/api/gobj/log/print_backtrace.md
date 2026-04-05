@@ -1,5 +1,5 @@
 <!-- ============================================================== -->
-(print_backtrace())=
+(print_backtrace)=
 # `print_backtrace()`
 <!-- ============================================================== -->
 
@@ -26,7 +26,6 @@ void print_backtrace(void);
 **Parameters**
 
 ::: {list-table}
-:widths: 20 20 60
 :header-rows: 1
 
 * - Key

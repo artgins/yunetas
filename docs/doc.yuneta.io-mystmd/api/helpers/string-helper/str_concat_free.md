@@ -1,5 +1,5 @@
 <!-- ============================================================== -->
-(str_concat_free())=
+(str_concat_free)=
 # `str_concat_free()`
 <!-- ============================================================== -->
 
@@ -26,7 +26,6 @@ void str_concat_free(char *s);
 **Parameters**
 
 ::: {list-table}
-:widths: 20 20 60
 :header-rows: 1
 
 * - Key

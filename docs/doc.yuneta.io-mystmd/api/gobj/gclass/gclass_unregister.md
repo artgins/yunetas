@@ -1,5 +1,5 @@
 <!-- ============================================================== -->
-(gclass_unregister())=
+(gclass_unregister)=
 # `gclass_unregister()`
 <!-- ============================================================== -->
 
@@ -26,7 +26,6 @@ void gclass_unregister(hgclass gclass);
 **Parameters**
 
 ::: {list-table}
-:widths: 20 20 60
 :header-rows: 1
 
 * - Key

@@ -1,5 +1,5 @@
 <!-- ============================================================== -->
-(tranger2_set_trace_level())=
+(tranger2_set_trace_level)=
 # `tranger2_set_trace_level()`
 <!-- ============================================================== -->
 
@@ -29,7 +29,6 @@ void tranger2_set_trace_level(
 **Parameters**
 
 ::: {list-table}
-:widths: 20 20 60
 :header-rows: 1
 
 * - Key

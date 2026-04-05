@@ -1,5 +1,5 @@
 <!-- ============================================================== -->
-(all_numbers())=
+(all_numbers)=
 # `all_numbers()`
 <!-- ============================================================== -->
 
@@ -26,7 +26,6 @@ BOOL all_numbers(const char *s);
 **Parameters**
 
 ::: {list-table}
-:widths: 20 20 60
 :header-rows: 1
 
 * - Key

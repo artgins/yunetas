@@ -1,9 +1,9 @@
 <!-- ============================================================== -->
-(gobj_write_strn_attr())=
+(gobj_write_strn_attr)=
 # `gobj_write_strn_attr()`
 <!-- ============================================================== -->
 
-Writes a string attribute to a [`hgobj`](#hgobj) object, ensuring the string is properly truncated to the specified length.
+Writes a string attribute to a `hgobj` object, ensuring the string is properly truncated to the specified length.
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -31,7 +31,6 @@ int gobj_write_strn_attr(
 **Parameters**
 
 ::: {list-table}
-:widths: 20 20 60
 :header-rows: 1
 
 * - Key

@@ -1,5 +1,5 @@
 <!-- ============================================================== -->
-(yev_create_accept_event())=
+(yev_create_accept_event)=
 # `yev_create_accept_event()`
 <!-- ============================================================== -->
 
@@ -30,7 +30,6 @@ yev_event_h yev_create_accept_event(
 **Parameters**
 
 ::: {list-table}
-:widths: 20 20 60
 :header-rows: 1
 
 * - Key
@@ -43,11 +42,11 @@ yev_event_h yev_create_accept_event(
 
 * - `callback`
   - `yev_callback_t`
-  - The callback function to be invoked when the event is triggered. If it returns -1, the loop in [`yev_loop_run()`](#yev_loop_run()) will break.
+  - The callback function to be invoked when the event is triggered. If it returns -1, the loop in [`yev_loop_run()`](<#yev_loop_run>) will break.
 
 * - `gobj`
   - `hgobj`
-  - The associated [`hgobj`](#hgobj) object for event handling.
+  - The associated `hgobj` object for event handling.
 :::
 
 ---
@@ -58,7 +57,7 @@ Returns a `yev_event_h` handle to the newly created accept event, or `NULL` on f
 
 **Notes**
 
-Before starting the accept event, it must be configured using [`yev_setup_accept_event()`](#yev_setup_accept_event()).
+Before starting the accept event, it must be configured using [`yev_setup_accept_event()`](<#yev_setup_accept_event>).
 
 <!--====================================================-->
 <!--                    End Tab C                       -->

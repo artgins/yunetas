@@ -1,5 +1,5 @@
 <!-- ============================================================== -->
-(yev_loop_stop())=
+(yev_loop_stop)=
 # `yev_loop_stop()`
 <!-- ============================================================== -->
 
@@ -28,7 +28,6 @@ int yev_loop_stop(
 **Parameters**
 
 ::: {list-table}
-:widths: 20 20 60
 :header-rows: 1
 
 * - Key
@@ -48,7 +47,7 @@ Returns 0 on success, or a negative value on failure.
 
 **Notes**
 
-Stopping the event loop using [`yev_loop_stop()`](#yev_loop_stop()) will cause it to exit its execution cycle, but it can be restarted using [`yev_loop_run()`](#yev_loop_run()).
+Stopping the event loop using [`yev_loop_stop()`](<#yev_loop_stop>) will cause it to exit its execution cycle, but it can be restarted using [`yev_loop_run()`](<#yev_loop_run>).
 
 <!--====================================================-->
 <!--                    End Tab C                       -->

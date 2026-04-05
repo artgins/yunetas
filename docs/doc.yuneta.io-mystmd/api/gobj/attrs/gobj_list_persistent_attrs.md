@@ -1,9 +1,9 @@
 <!-- ============================================================== -->
-(gobj_list_persistent_attrs())=
+(gobj_list_persistent_attrs)=
 # `gobj_list_persistent_attrs()`
 <!-- ============================================================== -->
 
-Retrieves a list of persistent attributes for a given [`hgobj`](#hgobj) or all services if `gobj` is `NULL`.
+Retrieves a list of persistent attributes for a given `hgobj` or all services if `gobj` is `NULL`.
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -29,7 +29,6 @@ json_t *gobj_list_persistent_attrs(
 **Parameters**
 
 ::: {list-table}
-:widths: 20 20 60
 :header-rows: 1
 
 * - Key
@@ -38,7 +37,7 @@ json_t *gobj_list_persistent_attrs(
 
 * - `gobj`
   - `hgobj`
-  - The [`hgobj`](#hgobj) whose persistent attributes should be listed. If `NULL`, lists attributes for all services.
+  - The `hgobj` whose persistent attributes should be listed. If `NULL`, lists attributes for all services.
 
 * - `jn_attrs`
   - `json_t *`

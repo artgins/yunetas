@@ -1,9 +1,9 @@
 <!-- ============================================================== -->
-(gobj_save_persistent_attrs())=
+(gobj_save_persistent_attrs)=
 # `gobj_save_persistent_attrs()`
 <!-- ============================================================== -->
 
-The function `gobj_save_persistent_attrs()` saves the persistent attributes of a given [`hgobj`](#hgobj) object. It ensures that only named gobjs (services) can store persistent attributes.
+The function `gobj_save_persistent_attrs()` saves the persistent attributes of a given `hgobj` object. It ensures that only named gobjs (services) can store persistent attributes.
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -29,7 +29,6 @@ int gobj_save_persistent_attrs(
 **Parameters**
 
 ::: {list-table}
-:widths: 20 20 60
 :header-rows: 1
 
 * - Key
@@ -38,7 +37,7 @@ int gobj_save_persistent_attrs(
 
 * - `gobj`
   - `hgobj`
-  - The [`hgobj`](#hgobj) object whose persistent attributes are to be saved.
+  - The `hgobj` object whose persistent attributes are to be saved.
 
 * - `jn_attrs`
   - `json_t *`
@@ -53,7 +52,7 @@ Returns 0 on success, or -1 if the operation fails.
 
 **Notes**
 
-This function requires that the [`hgobj`](#hgobj) is a named gobj (service). If the global save function is not set, the function will return -1.
+This function requires that the `hgobj` is a named gobj (service). If the global save function is not set, the function will return -1.
 
 <!--====================================================-->
 <!--                    End Tab C                       -->

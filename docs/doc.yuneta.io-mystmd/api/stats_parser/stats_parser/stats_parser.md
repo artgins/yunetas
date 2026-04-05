@@ -1,9 +1,9 @@
 <!-- ============================================================== -->
-(stats_parser())=
+(stats_parser)=
 # `stats_parser()`
 <!-- ============================================================== -->
 
-`stats_parser()` generates a JSON-formatted statistical report by extracting relevant attributes from the given [`hgobj`](#hgobj) instance and formatting them into a structured response.
+`stats_parser()` generates a JSON-formatted statistical report by extracting relevant attributes from the given `hgobj` instance and formatting them into a structured response.
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -31,7 +31,6 @@ json_t *stats_parser(
 **Parameters**
 
 ::: {list-table}
-:widths: 20 20 60
 :header-rows: 1
 
 * - Key
@@ -40,7 +39,7 @@ json_t *stats_parser(
 
 * - `gobj`
   - `hgobj`
-  - The [`hgobj`](#hgobj) instance from which statistics are extracted.
+  - The `hgobj` instance from which statistics are extracted.
 
 * - `stats`
   - `const char *`
@@ -52,7 +51,7 @@ json_t *stats_parser(
 
 * - `src`
   - `hgobj`
-  - The source [`hgobj`](#hgobj) that initiated the request.
+  - The source `hgobj` that initiated the request.
 :::
 
 ---

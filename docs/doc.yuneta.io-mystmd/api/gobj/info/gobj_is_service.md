@@ -1,9 +1,9 @@
 <!-- ============================================================== -->
-(gobj_is_service())=
+(gobj_is_service)=
 # `gobj_is_service()`
 <!-- ============================================================== -->
 
-Checks if the given [`hgobj`](#hgobj) is marked as a service. A service object is an interface available for external access.
+Checks if the given `hgobj` is marked as a service. A service object is an interface available for external access.
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -26,7 +26,6 @@ BOOL gobj_is_service(hgobj gobj);
 **Parameters**
 
 ::: {list-table}
-:widths: 20 20 60
 :header-rows: 1
 
 * - Key

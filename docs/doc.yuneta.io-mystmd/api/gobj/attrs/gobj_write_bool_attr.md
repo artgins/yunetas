@@ -1,9 +1,9 @@
 <!-- ============================================================== -->
-(gobj_write_bool_attr())=
+(gobj_write_bool_attr)=
 # `gobj_write_bool_attr()`
 <!-- ============================================================== -->
 
-Sets the boolean attribute of a [`hgobj`](#hgobj) instance to the specified value.
+Sets the boolean attribute of a `hgobj` instance to the specified value.
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -30,7 +30,6 @@ int gobj_write_bool_attr(
 **Parameters**
 
 ::: {list-table}
-:widths: 20 20 60
 :header-rows: 1
 
 * - Key
@@ -39,7 +38,7 @@ int gobj_write_bool_attr(
 
 * - `gobj`
   - `hgobj`
-  - The [`hgobj`](#hgobj) instance whose attribute is being modified.
+  - The `hgobj` instance whose attribute is being modified.
 
 * - `name`
   - `const char *`
@@ -58,7 +57,7 @@ Returns 0 on success, or -1 if the attribute is not found.
 
 **Notes**
 
-If the attribute is found, it is updated with the new boolean value. If the [`hgobj`](#hgobj) has a `mt_writing` method, it is called after updating the attribute.
+If the attribute is found, it is updated with the new boolean value. If the `hgobj` has a `mt_writing` method, it is called after updating the attribute.
 
 <!--====================================================-->
 <!--                    End Tab C                       -->

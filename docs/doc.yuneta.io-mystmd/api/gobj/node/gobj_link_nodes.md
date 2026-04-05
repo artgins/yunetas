@@ -1,5 +1,5 @@
 <!-- ============================================================== -->
-(gobj_link_nodes())=
+(gobj_link_nodes)=
 # `gobj_link_nodes()`
 <!-- ============================================================== -->
 
@@ -34,7 +34,6 @@ int gobj_link_nodes(
 **Parameters**
 
 ::: {list-table}
-:widths: 20 20 60
 :header-rows: 1
 
 * - Key

@@ -1,5 +1,5 @@
 <!-- ============================================================== -->
-(gobj_default_service())=
+(gobj_default_service)=
 # `gobj_default_service()`
 <!-- ============================================================== -->
 
@@ -26,7 +26,6 @@ hgobj gobj_default_service(void);
 **Parameters**
 
 ::: {list-table}
-:widths: 20 20 60
 :header-rows: 1
 
 * - Key
@@ -46,7 +45,7 @@ A handle to the default service gobj, or NULL if no default service is set.
 
 **Notes**
 
-The default service is typically set using [`gobj_create_default_service()`](#gobj_create_default_service()).
+The default service is typically set using [`gobj_create_default_service()`](<#gobj_create_default_service>).
 
 <!--====================================================-->
 <!--                    End Tab C                       -->

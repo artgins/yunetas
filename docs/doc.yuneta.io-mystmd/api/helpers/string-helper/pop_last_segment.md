@@ -1,5 +1,5 @@
 <!-- ============================================================== -->
-(pop_last_segment())=
+(pop_last_segment)=
 # `pop_last_segment()`
 <!-- ============================================================== -->
 
@@ -26,7 +26,6 @@ char *pop_last_segment(char *path);
 **Parameters**
 
 ::: {list-table}
-:widths: 20 20 60
 :header-rows: 1
 
 * - Key

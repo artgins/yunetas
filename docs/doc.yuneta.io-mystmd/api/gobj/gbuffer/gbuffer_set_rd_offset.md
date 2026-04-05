@@ -1,5 +1,5 @@
 <!-- ============================================================== -->
-(gbuffer_set_rd_offset())=
+(gbuffer_set_rd_offset)=
 # `gbuffer_set_rd_offset()`
 <!-- ============================================================== -->
 
@@ -29,7 +29,6 @@ int gbuffer_set_rd_offset(
 **Parameters**
 
 ::: {list-table}
-:widths: 20 20 60
 :header-rows: 1
 
 * - Key

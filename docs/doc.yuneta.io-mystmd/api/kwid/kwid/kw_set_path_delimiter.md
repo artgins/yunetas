@@ -1,5 +1,5 @@
 <!-- ============================================================== -->
-(kw_set_path_delimiter())=
+(kw_set_path_delimiter)=
 # `kw_set_path_delimiter()`
 <!-- ============================================================== -->
 
@@ -28,7 +28,6 @@ char kw_set_path_delimiter(
 **Parameters**
 
 ::: {list-table}
-:widths: 20 20 60
 :header-rows: 1
 
 * - Key

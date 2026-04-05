@@ -1,9 +1,9 @@
 <!-- ============================================================== -->
-(gobj_enable())=
+(gobj_enable)=
 # `gobj_enable()`
 <!-- ============================================================== -->
 
-Enables the specified [`hgobj`](#hgobj) by setting its disabled flag to `FALSE` and starting its execution if necessary. If the object has a custom `mt_enable` method, it is invoked; otherwise, [`gobj_start_tree()`](#gobj_start_tree) is called.
+Enables the specified `hgobj` by setting its disabled flag to `FALSE` and starting its execution if necessary. If the object has a custom `mt_enable` method, it is invoked; otherwise, [`gobj_start_tree()`](#gobj_start_tree) is called.
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -26,7 +26,6 @@ int gobj_enable(hgobj gobj);
 **Parameters**
 
 ::: {list-table}
-:widths: 20 20 60
 :header-rows: 1
 
 * - Key

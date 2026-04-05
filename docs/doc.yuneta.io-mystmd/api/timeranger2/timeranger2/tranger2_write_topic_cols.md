@@ -1,5 +1,5 @@
 <!-- ============================================================== -->
-(tranger2_write_topic_cols())=
+(tranger2_write_topic_cols)=
 # `tranger2_write_topic_cols()`
 <!-- ============================================================== -->
 
@@ -30,7 +30,6 @@ int tranger2_write_topic_cols(
 **Parameters**
 
 ::: {list-table}
-:widths: 20 20 60
 :header-rows: 1
 
 * - Key
@@ -47,7 +46,7 @@ int tranger2_write_topic_cols(
 
 * - `jn_cols`
   - `json_t *`
-  - A JSON object containing the new column definitions. The ownership of this object is transferred to [`tranger2_write_topic_cols()`](#tranger2_write_topic_cols()).
+  - A JSON object containing the new column definitions. The ownership of this object is transferred to [`tranger2_write_topic_cols()`](<#tranger2_write_topic_cols>).
 :::
 
 ---
@@ -58,7 +57,7 @@ Returns `0` on success, or a negative error code on failure.
 
 **Notes**
 
-This function modifies the column definitions of an existing topic. Ensure that the topic exists before calling [`tranger2_write_topic_cols()`](#tranger2_write_topic_cols()).
+This function modifies the column definitions of an existing topic. Ensure that the topic exists before calling [`tranger2_write_topic_cols()`](<#tranger2_write_topic_cols>).
 
 <!--====================================================-->
 <!--                    End Tab C                       -->

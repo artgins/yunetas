@@ -1,9 +1,9 @@
 <!-- ============================================================== -->
-(gobj_load_trace_filter())=
+(gobj_load_trace_filter)=
 # `gobj_load_trace_filter()`
 <!-- ============================================================== -->
 
-Loads a trace filter into the specified [`hgclass`](#hgclass), replacing any existing filter.
+Loads a trace filter into the specified `hgclass`, replacing any existing filter.
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -29,7 +29,6 @@ int gobj_load_trace_filter(
 **Parameters**
 
 ::: {list-table}
-:widths: 20 20 60
 :header-rows: 1
 
 * - Key
@@ -38,7 +37,7 @@ int gobj_load_trace_filter(
 
 * - `gclass`
   - `hgclass`
-  - The [`hgclass`](#hgclass) instance where the trace filter will be applied.
+  - The `hgclass` instance where the trace filter will be applied.
 
 * - `jn_trace_filter`
   - `json_t *`
@@ -53,7 +52,7 @@ Returns `0` on success.
 
 **Notes**
 
-This function replaces any existing trace filter in the specified [`hgclass`](#hgclass).
+This function replaces any existing trace filter in the specified `hgclass`.
 
 <!--====================================================-->
 <!--                    End Tab C                       -->

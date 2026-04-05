@@ -1,5 +1,5 @@
 <!-- ============================================================== -->
-(treedb_list_instances())=
+(treedb_list_instances)=
 # `treedb_list_instances()`
 <!-- ============================================================== -->
 
@@ -37,7 +37,6 @@ json_t *treedb_list_instances(
 **Parameters**
 
 ::: {list-table}
-:widths: 20 20 60
 :header-rows: 1
 
 * - Key

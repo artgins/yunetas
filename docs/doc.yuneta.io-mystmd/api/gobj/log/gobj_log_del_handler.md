@@ -1,5 +1,5 @@
 <!-- ============================================================== -->
-(gobj_log_del_handler())=
+(gobj_log_del_handler)=
 # `gobj_log_del_handler()`
 <!-- ============================================================== -->
 
@@ -28,7 +28,6 @@ int gobj_log_del_handler(
 **Parameters**
 
 ::: {list-table}
-:widths: 20 20 60
 :header-rows: 1
 
 * - Key

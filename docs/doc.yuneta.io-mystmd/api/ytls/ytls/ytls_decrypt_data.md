@@ -1,5 +1,5 @@
 <!-- ============================================================== -->
-(ytls_decrypt_data())=
+(ytls_decrypt_data)=
 # `ytls_decrypt_data()`
 <!-- ============================================================== -->
 
@@ -30,7 +30,6 @@ int ytls_decrypt_data(
 **Parameters**
 
 ::: {list-table}
-:widths: 20 20 60
 :header-rows: 1
 
 * - Key

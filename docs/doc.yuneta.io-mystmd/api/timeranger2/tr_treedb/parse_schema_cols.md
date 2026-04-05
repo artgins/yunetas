@@ -1,5 +1,5 @@
 <!-- ============================================================== -->
-(parse_schema_cols())=
+(parse_schema_cols)=
 # `parse_schema_cols()`
 <!-- ============================================================== -->
 
@@ -29,7 +29,6 @@ int parse_schema_cols(
 **Parameters**
 
 ::: {list-table}
-:widths: 20 20 60
 :header-rows: 1
 
 * - Key

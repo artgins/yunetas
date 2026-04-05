@@ -1,5 +1,5 @@
 <!-- ============================================================== -->
-(gobj_set_exit_code())=
+(gobj_set_exit_code)=
 # `gobj_set_exit_code()`
 <!-- ============================================================== -->
 
@@ -26,7 +26,6 @@ void gobj_set_exit_code(int exit_code);
 **Parameters**
 
 ::: {list-table}
-:widths: 20 20 60
 :header-rows: 1
 
 * - Key

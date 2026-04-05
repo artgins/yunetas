@@ -1,9 +1,9 @@
 <!-- ============================================================== -->
-(gobj_gclass_name())=
+(gobj_gclass_name)=
 # `gobj_gclass_name()`
 <!-- ============================================================== -->
 
-Retrieves the gclass name associated with the given [`hgobj`](#hgobj).
+Retrieves the gclass name associated with the given `hgobj`.
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -26,7 +26,6 @@ gclass_name_t gobj_gclass_name(hgobj gobj);
 **Parameters**
 
 ::: {list-table}
-:widths: 20 20 60
 :header-rows: 1
 
 * - Key
@@ -35,14 +34,14 @@ gclass_name_t gobj_gclass_name(hgobj gobj);
 
 * - `gobj`
   - `hgobj`
-  - The [`hgobj`](#hgobj) instance whose gclass name is to be retrieved.
+  - The `hgobj` instance whose gclass name is to be retrieved.
 :::
 
 ---
 
 **Return Value**
 
-Returns the gclass name of the given [`hgobj`](#hgobj). If `gobj` is `NULL`, returns `???`.
+Returns the gclass name of the given `hgobj`. If `gobj` is `NULL`, returns `???`.
 
 **Notes**
 

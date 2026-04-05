@@ -1,5 +1,5 @@
 <!-- ============================================================== -->
-(trq_tranger())=
+(trq_tranger)=
 # `trq_tranger()`
 <!-- ============================================================== -->
 
@@ -28,7 +28,6 @@ json_t *trq_tranger(
 **Parameters**
 
 ::: {list-table}
-:widths: 20 20 60
 :header-rows: 1
 
 * - Key
@@ -44,11 +43,11 @@ json_t *trq_tranger(
 
 **Return Value**
 
-A [`json_t *`](#json_t) representing the `tranger` instance associated with the queue.
+A `json_t *` representing the `tranger` instance associated with the queue.
 
 **Notes**
 
-The returned [`json_t *`](#json_t) is managed internally and should not be modified or freed by the caller.
+The returned `json_t *` is managed internally and should not be modified or freed by the caller.
 
 <!--====================================================-->
 <!--                    End Tab C                       -->

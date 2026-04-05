@@ -1,5 +1,5 @@
 <!-- ============================================================== -->
-(get_number_of_files())=
+(get_number_of_files)=
 # `get_number_of_files()`
 <!-- ============================================================== -->
 
@@ -31,7 +31,6 @@ int get_number_of_files(
 **Parameters**
 
 ::: {list-table}
-:widths: 20 20 60
 :header-rows: 1
 
 * - Key

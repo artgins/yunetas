@@ -1,5 +1,5 @@
 <!-- ============================================================== -->
-(parse_expiry_date())=
+(parse_expiry_date)=
 # `parse_expiry_date()`
 <!-- ============================================================== -->
 
@@ -29,7 +29,6 @@ int parse_expiry_date(
 **Parameters**
 
 ::: {list-table}
-:widths: 20 20 60
 :header-rows: 1
 
 * - Key

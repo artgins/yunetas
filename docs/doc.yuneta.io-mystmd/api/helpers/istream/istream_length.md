@@ -1,5 +1,5 @@
 <!-- ============================================================== -->
-(istream_length())=
+(istream_length)=
 # `istream_length()`
 <!-- ============================================================== -->
 
@@ -28,7 +28,6 @@ PUBLIC size_t istream_length(
 **Parameters**
 
 ::: {list-table}
-:widths: 20 20 60
 :header-rows: 1
 
 * - Key

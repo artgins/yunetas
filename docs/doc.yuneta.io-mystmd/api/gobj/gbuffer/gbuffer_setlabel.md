@@ -1,5 +1,5 @@
 <!-- ============================================================== -->
-(gbuffer_setlabel())=
+(gbuffer_setlabel)=
 # `gbuffer_setlabel()`
 <!-- ============================================================== -->
 
@@ -29,7 +29,6 @@ int gbuffer_setlabel(
 **Parameters**
 
 ::: {list-table}
-:widths: 20 20 60
 :header-rows: 1
 
 * - Key

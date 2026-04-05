@@ -1,5 +1,5 @@
 <!-- ============================================================== -->
-(tranger2_stop())=
+(tranger2_stop)=
 # `tranger2_stop()`
 <!-- ============================================================== -->
 
@@ -28,7 +28,6 @@ int tranger2_stop(
 **Parameters**
 
 ::: {list-table}
-:widths: 20 20 60
 :header-rows: 1
 
 * - Key
@@ -48,7 +47,7 @@ Returns `0` on success, or a negative value if an error occurs.
 
 **Notes**
 
-This function should be called before shutting down the database using [`tranger2_shutdown()`](#tranger2_shutdown()).
+This function should be called before shutting down the database using [`tranger2_shutdown()`](<#tranger2_shutdown>).
 
 <!--====================================================-->
 <!--                    End Tab C                       -->

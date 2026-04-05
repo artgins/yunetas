@@ -1,5 +1,5 @@
 <!-- ============================================================== -->
-(gobj_autostart_services())=
+(gobj_autostart_services)=
 # `gobj_autostart_services()`
 <!-- ============================================================== -->
 
@@ -26,7 +26,6 @@ int gobj_autostart_services(void);
 **Parameters**
 
 ::: {list-table}
-:widths: 20 20 60
 :header-rows: 1
 
 * - Key

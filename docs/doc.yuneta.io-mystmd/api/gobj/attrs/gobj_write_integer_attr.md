@@ -1,9 +1,9 @@
 <!-- ============================================================== -->
-(gobj_write_integer_attr())=
+(gobj_write_integer_attr)=
 # `gobj_write_integer_attr()`
 <!-- ============================================================== -->
 
-The function `gobj_write_integer_attr()` sets the value of an integer attribute in the given [`hgobj`](#hgobj) object. It updates the attribute if it exists and triggers the `mt_writing` method if defined.
+The function `gobj_write_integer_attr()` sets the value of an integer attribute in the given `hgobj` object. It updates the attribute if it exists and triggers the `mt_writing` method if defined.
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -30,7 +30,6 @@ int gobj_write_integer_attr(
 **Parameters**
 
 ::: {list-table}
-:widths: 20 20 60
 :header-rows: 1
 
 * - Key
@@ -39,7 +38,7 @@ int gobj_write_integer_attr(
 
 * - `gobj`
   - `hgobj`
-  - The [`hgobj`](#hgobj) object whose attribute is being modified.
+  - The `hgobj` object whose attribute is being modified.
 
 * - `name`
   - `const char *`

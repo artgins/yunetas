@@ -1,9 +1,9 @@
 <!-- ============================================================== -->
-(gobj_remove_persistent_attrs())=
+(gobj_remove_persistent_attrs)=
 # `gobj_remove_persistent_attrs()`
 <!-- ============================================================== -->
 
-Removes persistent and writable attributes from a [`hgobj`](#hgobj). If `jn_attrs` is empty, all attributes are removed.
+Removes persistent and writable attributes from a `hgobj`. If `jn_attrs` is empty, all attributes are removed.
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -29,7 +29,6 @@ int gobj_remove_persistent_attrs(
 **Parameters**
 
 ::: {list-table}
-:widths: 20 20 60
 :header-rows: 1
 
 * - Key
@@ -38,7 +37,7 @@ int gobj_remove_persistent_attrs(
 
 * - `gobj`
   - `hgobj`
-  - The [`hgobj`](#hgobj) instance from which persistent attributes should be removed.
+  - The `hgobj` instance from which persistent attributes should be removed.
 
 * - `jn_attrs`
   - `json_t *`

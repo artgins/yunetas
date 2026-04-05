@@ -1,5 +1,5 @@
 <!-- ============================================================== -->
-(tranger2_print_record_filename())=
+(tranger2_print_record_filename)=
 # `tranger2_print_record_filename()`
 <!-- ============================================================== -->
 
@@ -33,7 +33,6 @@ void tranger2_print_record_filename(
 **Parameters**
 
 ::: {list-table}
-:widths: 20 20 60
 :header-rows: 1
 
 * - Key

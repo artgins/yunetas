@@ -28,7 +28,6 @@ const sdata_desc_t *gclass_authz_desc(
 **Parameters**
 
 ::: {list-table}
-:widths: 20 20 60
 :header-rows: 1
 
 * - Key

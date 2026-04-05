@@ -1,9 +1,9 @@
 <!-- ============================================================== -->
-(gobj_command())=
+(gobj_command)=
 # `gobj_command()`
 <!-- ============================================================== -->
 
-Executes a command on the given [`hgobj`](#hgobj) instance, using either the local command parser or the global command parser if available.
+Executes a command on the given `hgobj` instance, using either the local command parser or the global command parser if available.
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -31,7 +31,6 @@ json_t *gobj_command(
 **Parameters**
 
 ::: {list-table}
-:widths: 20 20 60
 :header-rows: 1
 
 * - Key
@@ -40,7 +39,7 @@ json_t *gobj_command(
 
 * - `gobj`
   - `hgobj`
-  - The target [`hgobj`](#hgobj) instance on which the command is executed.
+  - The target `hgobj` instance on which the command is executed.
 
 * - `command`
   - `const char *`
@@ -52,7 +51,7 @@ json_t *gobj_command(
 
 * - `src`
   - `hgobj`
-  - The source [`hgobj`](#hgobj) instance that initiated the command.
+  - The source `hgobj` instance that initiated the command.
 :::
 
 ---
@@ -63,7 +62,7 @@ A JSON object containing the command response. The response follows the format `
 
 **Notes**
 
-If the target [`hgobj`](#hgobj) has a local command parser (`mt_command_parser`), it is used. Otherwise, the global command parser is invoked if available. If neither is present, an error response is returned.
+If the target `hgobj` has a local command parser (`mt_command_parser`), it is used. Otherwise, the global command parser is invoked if available. If neither is present, an error response is returned.
 
 <!--====================================================-->
 <!--                    End Tab C                       -->

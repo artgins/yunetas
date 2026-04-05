@@ -1,5 +1,5 @@
 <!-- ============================================================== -->
-(decode_parent_ref())=
+(decode_parent_ref)=
 # `decode_parent_ref()`
 <!-- ============================================================== -->
 
@@ -31,7 +31,6 @@ BOOL decode_parent_ref(
 **Parameters**
 
 ::: {list-table}
-:widths: 20 20 60
 :header-rows: 1
 
 * - Key

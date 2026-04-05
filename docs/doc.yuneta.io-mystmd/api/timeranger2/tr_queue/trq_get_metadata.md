@@ -1,5 +1,5 @@
 <!-- ============================================================== -->
-(trq_get_metadata())=
+(trq_get_metadata)=
 # `trq_get_metadata()`
 <!-- ============================================================== -->
 
@@ -28,7 +28,6 @@ json_t *trq_get_metadata(
 **Parameters**
 
 ::: {list-table}
-:widths: 20 20 60
 :header-rows: 1
 
 * - Key

@@ -1,9 +1,9 @@
 <!-- ============================================================== -->
-(gobj_read_bool_attr())=
+(gobj_read_bool_attr)=
 # `gobj_read_bool_attr()`
 <!-- ============================================================== -->
 
-The function `gobj_read_bool_attr()` retrieves the boolean value of a specified attribute from a given [`hgobj`](#hgobj). It traverses the object's hierarchy to find the attribute if it is not directly present in the object.
+The function `gobj_read_bool_attr()` retrieves the boolean value of a specified attribute from a given `hgobj`. It traverses the object's hierarchy to find the attribute if it is not directly present in the object.
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -29,7 +29,6 @@ BOOL gobj_read_bool_attr(
 **Parameters**
 
 ::: {list-table}
-:widths: 20 20 60
 :header-rows: 1
 
 * - Key
@@ -38,7 +37,7 @@ BOOL gobj_read_bool_attr(
 
 * - `gobj`
   - `hgobj`
-  - The [`hgobj`](#hgobj) instance from which the attribute is read.
+  - The `hgobj` instance from which the attribute is read.
 
 * - `name`
   - `const char *`

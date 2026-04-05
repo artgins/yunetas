@@ -1,4 +1,4 @@
-(sample_function())=
+(sample_function)=
 # `sample_function()`
 
 Describe the function
@@ -12,7 +12,6 @@ PUBLIC void sample_function(int exit_code);
 **Parameters**
 
 :::{list-table}
-:widths: 20 20 60
 :header-rows: 1
 * - Key
   - Type

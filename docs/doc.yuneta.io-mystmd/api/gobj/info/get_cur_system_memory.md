@@ -1,5 +1,5 @@
 <!-- ============================================================== -->
-(get_cur_system_memory())=
+(get_cur_system_memory)=
 # `get_cur_system_memory()`
 <!-- ============================================================== -->
 
@@ -26,7 +26,6 @@ size_t get_cur_system_memory(void);
 **Parameters**
 
 ::: {list-table}
-:widths: 20 20 60
 :header-rows: 1
 
 * - Key

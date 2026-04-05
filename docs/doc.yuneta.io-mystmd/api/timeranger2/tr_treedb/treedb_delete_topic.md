@@ -1,5 +1,5 @@
 <!-- ============================================================== -->
-(treedb_delete_topic())=
+(treedb_delete_topic)=
 # `treedb_delete_topic()`
 <!-- ============================================================== -->
 
@@ -30,7 +30,6 @@ int treedb_delete_topic(
 **Parameters**
 
 ::: {list-table}
-:widths: 20 20 60
 :header-rows: 1
 
 * - Key
@@ -58,7 +57,7 @@ Returns `0` on success, or a negative error code if the operation fails.
 
 **Notes**
 
-Ensure that the topic does not contain critical data before calling [`treedb_delete_topic()`](#treedb_delete_topic()).
+Ensure that the topic does not contain critical data before calling [`treedb_delete_topic()`](<#treedb_delete_topic>).
 
 <!--====================================================-->
 <!--                    End Tab C                       -->

@@ -1,5 +1,5 @@
 <!-- ============================================================== -->
-(show_date_relative())=
+(show_date_relative)=
 # `show_date_relative()`
 <!-- ============================================================== -->
 
@@ -30,7 +30,6 @@ void show_date_relative(
 **Parameters**
 
 ::: {list-table}
-:widths: 20 20 60
 :header-rows: 1
 
 * - Key

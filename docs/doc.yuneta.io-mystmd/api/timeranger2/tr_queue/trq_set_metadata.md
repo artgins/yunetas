@@ -1,5 +1,5 @@
 <!-- ============================================================== -->
-(trq_set_metadata())=
+(trq_set_metadata)=
 # `trq_set_metadata()`
 <!-- ============================================================== -->
 
@@ -30,7 +30,6 @@ int trq_set_metadata(
 **Parameters**
 
 ::: {list-table}
-:widths: 20 20 60
 :header-rows: 1
 
 * - Key
@@ -58,7 +57,7 @@ Returns `0` on success, or a negative value on failure.
 
 **Notes**
 
-The caller must ensure that `kw` is a valid JSON object before calling [`trq_set_metadata()`](#trq_set_metadata()).
+The caller must ensure that `kw` is a valid JSON object before calling [`trq_set_metadata()`](<#trq_set_metadata>).
 
 <!--====================================================-->
 <!--                    End Tab C                       -->

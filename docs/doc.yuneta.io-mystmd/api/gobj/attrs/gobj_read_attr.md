@@ -1,9 +1,9 @@
 <!-- ============================================================== -->
-(gobj_read_attr())=
+(gobj_read_attr)=
 # `gobj_read_attr()`
 <!-- ============================================================== -->
 
-Retrieves the value of a specified attribute from the given [`hgobj`](#hgobj). The function returns a JSON object representing the attribute value.
+Retrieves the value of a specified attribute from the given `hgobj`. The function returns a JSON object representing the attribute value.
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -30,7 +30,6 @@ json_t *gobj_read_attr(
 **Parameters**
 
 ::: {list-table}
-:widths: 20 20 60
 :header-rows: 1
 
 * - Key
@@ -39,7 +38,7 @@ json_t *gobj_read_attr(
 
 * - `gobj`
   - `hgobj`
-  - The [`hgobj`](#hgobj) instance from which the attribute value is retrieved.
+  - The `hgobj` instance from which the attribute value is retrieved.
 
 * - `name`
   - `const char *`
@@ -47,7 +46,7 @@ json_t *gobj_read_attr(
 
 * - `src`
   - `hgobj`
-  - The source [`hgobj`](#hgobj) requesting the attribute value.
+  - The source `hgobj` requesting the attribute value.
 :::
 
 ---
@@ -58,7 +57,7 @@ A JSON object containing the attribute value. If the attribute is not found, a w
 
 **Notes**
 
-If the attribute exists, the function returns a reference to the JSON object stored in the [`hgobj`](#hgobj). The caller should not modify or free the returned JSON object.
+If the attribute exists, the function returns a reference to the JSON object stored in the `hgobj`. The caller should not modify or free the returned JSON object.
 
 <!--====================================================-->
 <!--                    End Tab C                       -->

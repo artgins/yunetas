@@ -1,9 +1,9 @@
 <!-- ============================================================== -->
-(gobj_read_user_data())=
+(gobj_read_user_data)=
 # `gobj_read_user_data()`
 <!-- ============================================================== -->
 
-Retrieves user-defined data associated with the given [`hgobj`](#hgobj). If a specific key is provided, it returns the corresponding value; otherwise, it returns the entire user data dictionary.
+Retrieves user-defined data associated with the given `hgobj`. If a specific key is provided, it returns the corresponding value; otherwise, it returns the entire user data dictionary.
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -29,7 +29,6 @@ json_t *gobj_read_user_data(
 **Parameters**
 
 ::: {list-table}
-:widths: 20 20 60
 :header-rows: 1
 
 * - Key
@@ -38,7 +37,7 @@ json_t *gobj_read_user_data(
 
 * - `gobj`
   - `hgobj`
-  - The [`hgobj`](#hgobj) instance from which to retrieve user data.
+  - The `hgobj` instance from which to retrieve user data.
 
 * - `name`
   - `const char *`

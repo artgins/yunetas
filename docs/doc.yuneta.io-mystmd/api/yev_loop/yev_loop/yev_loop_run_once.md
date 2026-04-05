@@ -1,5 +1,5 @@
 <!-- ============================================================== -->
-(yev_loop_run_once())=
+(yev_loop_run_once)=
 # `yev_loop_run_once()`
 <!-- ============================================================== -->
 
@@ -28,7 +28,6 @@ int yev_loop_run_once(
 **Parameters**
 
 ::: {list-table}
-:widths: 20 20 60
 :header-rows: 1
 
 * - Key
@@ -48,7 +47,7 @@ Returns 0 on success, or a negative value on failure.
 
 **Notes**
 
-This function processes at most one event and then returns immediately. To continuously process events, use [`yev_loop_run()`](#yev_loop_run()).
+This function processes at most one event and then returns immediately. To continuously process events, use [`yev_loop_run()`](<#yev_loop_run>).
 
 <!--====================================================-->
 <!--                    End Tab C                       -->

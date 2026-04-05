@@ -1,5 +1,5 @@
 <!-- ============================================================== -->
-(trq_clear_ack_timer())=
+(trq_clear_ack_timer)=
 # `trq_clear_ack_timer()`
 <!-- ============================================================== -->
 
@@ -28,7 +28,6 @@ void trq_clear_ack_timer(
 **Parameters**
 
 ::: {list-table}
-:widths: 20 20 60
 :header-rows: 1
 
 * - Key
@@ -48,7 +47,7 @@ This function does not return a value.
 
 **Notes**
 
-Use [`trq_set_ack_timer()`](#trq_set_ack_timer()) to set an acknowledgment timer before clearing it.
+Use [`trq_set_ack_timer()`](<#trq_set_ack_timer>) to set an acknowledgment timer before clearing it.
 
 <!--====================================================-->
 <!--                    End Tab C                       -->

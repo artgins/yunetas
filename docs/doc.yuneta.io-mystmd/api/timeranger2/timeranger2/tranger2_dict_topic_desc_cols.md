@@ -1,5 +1,5 @@
 <!-- ============================================================== -->
-(tranger2_dict_topic_desc_cols())=
+(tranger2_dict_topic_desc_cols)=
 # `tranger2_dict_topic_desc_cols()`
 <!-- ============================================================== -->
 
@@ -29,7 +29,6 @@ json_t *tranger2_dict_topic_desc_cols(
 **Parameters**
 
 ::: {list-table}
-:widths: 20 20 60
 :header-rows: 1
 
 * - Key
@@ -53,7 +52,7 @@ A JSON object containing the column descriptions of the specified topic. The cal
 
 **Notes**
 
-This function is similar to [`tranger2_list_topic_desc_cols()`](#tranger2_list_topic_desc_cols()), but returns the data in dictionary format instead of a list.
+This function is similar to [`tranger2_list_topic_desc_cols()`](<#tranger2_list_topic_desc_cols>), but returns the data in dictionary format instead of a list.
 
 <!--====================================================-->
 <!--                    End Tab C                       -->

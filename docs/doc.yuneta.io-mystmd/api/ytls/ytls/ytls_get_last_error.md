@@ -1,5 +1,5 @@
 <!-- ============================================================== -->
-(ytls_get_last_error())=
+(ytls_get_last_error)=
 # `ytls_get_last_error()`
 <!-- ============================================================== -->
 
@@ -29,7 +29,6 @@ const char *ytls_get_last_error(
 **Parameters**
 
 ::: {list-table}
-:widths: 20 20 60
 :header-rows: 1
 
 * - Key

@@ -1,5 +1,5 @@
 <!-- ============================================================== -->
-(treedb_set_callback())=
+(treedb_set_callback)=
 # `treedb_set_callback()`
 <!-- ============================================================== -->
 
@@ -31,7 +31,6 @@ int treedb_set_callback(
 **Parameters**
 
 ::: {list-table}
-:widths: 20 20 60
 :header-rows: 1
 
 * - Key

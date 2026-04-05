@@ -1,5 +1,5 @@
 <!-- ============================================================== -->
-(gobj_treedb_topics())=
+(gobj_treedb_topics)=
 # `gobj_treedb_topics()`
 <!-- ============================================================== -->
 
@@ -31,7 +31,6 @@ json_t *gobj_treedb_topics(
 **Parameters**
 
 ::: {list-table}
-:widths: 20 20 60
 :header-rows: 1
 
 * - Key

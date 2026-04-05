@@ -1,5 +1,5 @@
 <!-- ============================================================== -->
-(gobj_subscribe_event())=
+(gobj_subscribe_event)=
 # `gobj_subscribe_event()`
 <!-- ============================================================== -->
 
@@ -31,7 +31,6 @@ json_t *gobj_subscribe_event(
 **Parameters**
 
 ::: {list-table}
-:widths: 20 20 60
 :header-rows: 1
 
 * - Key

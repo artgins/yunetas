@@ -1,5 +1,5 @@
 <!-- ============================================================== -->
-(tranger2_topic_key_size())=
+(tranger2_topic_key_size)=
 # `tranger2_topic_key_size()`
 <!-- ============================================================== -->
 
@@ -30,7 +30,6 @@ uint64_t tranger2_topic_key_size(
 **Parameters**
 
 ::: {list-table}
-:widths: 20 20 60
 :header-rows: 1
 
 * - Key

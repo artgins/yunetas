@@ -1,5 +1,5 @@
 <!-- ============================================================== -->
-(gobj_get_gclass_trace_no_level_list())=
+(gobj_get_gclass_trace_no_level_list)=
 # `gobj_get_gclass_trace_no_level_list()`
 <!-- ============================================================== -->
 
@@ -26,7 +26,6 @@ PUBLIC json_t *gobj_get_gclass_trace_no_level_list(hgclass gclass_);
 **Parameters**
 
 ::: {list-table}
-:widths: 20 20 60
 :header-rows: 1
 
 * - Key

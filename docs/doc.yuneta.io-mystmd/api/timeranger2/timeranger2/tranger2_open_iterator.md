@@ -1,5 +1,5 @@
 <!-- ============================================================== -->
-(tranger2_open_iterator())=
+(tranger2_open_iterator)=
 # `tranger2_open_iterator()`
 <!-- ============================================================== -->
 
@@ -36,7 +36,6 @@ json_t *tranger2_open_iterator(
 **Parameters**
 
 ::: {list-table}
-:widths: 20 20 60
 :header-rows: 1
 
 * - Key
@@ -88,7 +87,7 @@ Returns a JSON object representing the iterator. The caller is responsible for m
 
 **Notes**
 
-The iterator supports real-time data loading and filtering based on various conditions. Use [`tranger2_close_iterator()`](#tranger2_close_iterator()) to release resources when done.
+The iterator supports real-time data loading and filtering based on various conditions. Use [`tranger2_close_iterator()`](<#tranger2_close_iterator>) to release resources when done.
 
 <!--====================================================-->
 <!--                    End Tab C                       -->

@@ -1,5 +1,5 @@
 <!-- ============================================================== -->
-(tranger2_open_rt_mem())=
+(tranger2_open_rt_mem)=
 # `tranger2_open_rt_mem()`
 <!-- ============================================================== -->
 
@@ -35,7 +35,6 @@ json_t *tranger2_open_rt_mem(
 **Parameters**
 
 ::: {list-table}
-:widths: 20 20 60
 :header-rows: 1
 
 * - Key
@@ -83,7 +82,7 @@ Returns a JSON object representing the real-time memory stream. The caller does 
 
 **Notes**
 
-This function is valid when the Yuno instance is the master writing real-time messages from [`tranger2_append_record()`](#tranger2_append_record()).
+This function is valid when the Yuno instance is the master writing real-time messages from [`tranger2_append_record()`](<#tranger2_append_record>).
 
 <!--====================================================-->
 <!--                    End Tab C                       -->

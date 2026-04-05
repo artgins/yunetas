@@ -1,5 +1,5 @@
 <!-- ============================================================== -->
-(trq_msg_md_record())=
+(trq_msg_md_record)=
 # `trq_msg_md_record()`
 <!-- ============================================================== -->
 
@@ -28,7 +28,6 @@ md2_record_ex_t trq_msg_md_record(
 **Parameters**
 
 ::: {list-table}
-:widths: 20 20 60
 :header-rows: 1
 
 * - Key

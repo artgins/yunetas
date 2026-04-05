@@ -1,5 +1,5 @@
 <!-- ============================================================== -->
-(open_exclusive())=
+(open_exclusive)=
 # `open_exclusive()`
 <!-- ============================================================== -->
 
@@ -30,7 +30,6 @@ int open_exclusive(
 **Parameters**
 
 ::: {list-table}
-:widths: 20 20 60
 :header-rows: 1
 
 * - Key

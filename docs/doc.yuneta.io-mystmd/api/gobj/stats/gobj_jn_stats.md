@@ -1,9 +1,9 @@
 <!-- ============================================================== -->
-(gobj_jn_stats())=
+(gobj_jn_stats)=
 # `gobj_jn_stats()`
 <!-- ============================================================== -->
 
-Returns a JSON object containing the statistics of the given [`hgobj`](#hgobj).
+Returns a JSON object containing the statistics of the given `hgobj`.
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -26,7 +26,6 @@ PUBLIC json_t *gobj_jn_stats(hgobj gobj);
 **Parameters**
 
 ::: {list-table}
-:widths: 20 20 60
 :header-rows: 1
 
 * - Key
@@ -35,18 +34,18 @@ PUBLIC json_t *gobj_jn_stats(hgobj gobj);
 
 * - `gobj`
   - `hgobj`
-  - The [`hgobj`](#hgobj) instance whose statistics are to be retrieved.
+  - The `hgobj` instance whose statistics are to be retrieved.
 :::
 
 ---
 
 **Return Value**
 
-A JSON object containing the statistics of the given [`hgobj`](#hgobj). The returned JSON object is not owned by the caller and should not be modified or freed.
+A JSON object containing the statistics of the given `hgobj`. The returned JSON object is not owned by the caller and should not be modified or freed.
 
 **Notes**
 
-The returned JSON object provides access to the internal statistics of the [`hgobj`](#hgobj). Modifying it directly may lead to undefined behavior.
+The returned JSON object provides access to the internal statistics of the `hgobj`. Modifying it directly may lead to undefined behavior.
 
 <!--====================================================-->
 <!--                    End Tab C                       -->

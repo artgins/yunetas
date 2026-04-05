@@ -1,9 +1,9 @@
 <!-- ============================================================== -->
-(gobj_set_gclass_trace())=
+(gobj_set_gclass_trace)=
 # `gobj_set_gclass_trace()`
 <!-- ============================================================== -->
 
-Sets or resets the trace level for a given [`hgclass`](#hgclass). If `level` is `NULL`, all trace levels are set or reset. If `level` is an empty string, only user-defined trace levels are affected.
+Sets or resets the trace level for a given `hgclass`. If `level` is `NULL`, all trace levels are set or reset. If `level` is an empty string, only user-defined trace levels are affected.
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -30,7 +30,6 @@ int gobj_set_gclass_trace(
 **Parameters**
 
 ::: {list-table}
-:widths: 20 20 60
 :header-rows: 1
 
 * - Key
@@ -39,7 +38,7 @@ int gobj_set_gclass_trace(
 
 * - `gclass`
   - `hgclass`
-  - The [`hgclass`](#hgclass) whose trace level is being modified.
+  - The `hgclass` whose trace level is being modified.
 
 * - `level`
   - `const char *`

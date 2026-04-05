@@ -1,9 +1,9 @@
 <!-- ============================================================== -->
-(gobj_read_attrs())=
+(gobj_read_attrs)=
 # `gobj_read_attrs()`
 <!-- ============================================================== -->
 
-Retrieves a JSON object containing attributes of the given [`hgobj`](#hgobj) that match the specified flag criteria.
+Retrieves a JSON object containing attributes of the given `hgobj` that match the specified flag criteria.
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -30,7 +30,6 @@ json_t *gobj_read_attrs(
 **Parameters**
 
 ::: {list-table}
-:widths: 20 20 60
 :header-rows: 1
 
 * - Key
@@ -39,7 +38,7 @@ json_t *gobj_read_attrs(
 
 * - `gobj`
   - `hgobj`
-  - The [`hgobj`](#hgobj) instance whose attributes are to be read.
+  - The `hgobj` instance whose attributes are to be read.
 
 * - `include_flag`
   - `sdata_flag_t`
@@ -47,7 +46,7 @@ json_t *gobj_read_attrs(
 
 * - `src`
   - `hgobj`
-  - The source [`hgobj`](#hgobj) requesting the attributes.
+  - The source `hgobj` requesting the attributes.
 :::
 
 ---

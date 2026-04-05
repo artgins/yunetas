@@ -1,5 +1,5 @@
 <!-- ============================================================== -->
-(tranger2_backup_topic())=
+(tranger2_backup_topic)=
 # `tranger2_backup_topic()`
 <!-- ============================================================== -->
 
@@ -33,7 +33,6 @@ json_t *tranger2_backup_topic(
 **Parameters**
 
 ::: {list-table}
-:widths: 20 20 60
 :header-rows: 1
 
 * - Key

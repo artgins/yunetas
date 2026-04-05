@@ -1,9 +1,9 @@
 <!-- ============================================================== -->
-(gobj_unlink_nodes())=
+(gobj_unlink_nodes)=
 # `gobj_unlink_nodes()`
 <!-- ============================================================== -->
 
-The `gobj_unlink_nodes()` function removes the relationship between a parent and child node in a hierarchical data structure managed by a [`hgobj`](#hgobj).
+The `gobj_unlink_nodes()` function removes the relationship between a parent and child node in a hierarchical data structure managed by a `hgobj`.
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -34,7 +34,6 @@ int gobj_unlink_nodes(
 **Parameters**
 
 ::: {list-table}
-:widths: 20 20 60
 :header-rows: 1
 
 * - Key
@@ -43,7 +42,7 @@ int gobj_unlink_nodes(
 
 * - `gobj`
   - `hgobj`
-  - The [`hgobj`](#hgobj) instance managing the nodes.
+  - The `hgobj` instance managing the nodes.
 
 * - `hook`
   - `const char *`
@@ -67,7 +66,7 @@ int gobj_unlink_nodes(
 
 * - `src`
   - `hgobj`
-  - The source [`hgobj`](#hgobj) initiating the unlink operation.
+  - The source `hgobj` initiating the unlink operation.
 :::
 
 ---
@@ -78,7 +77,7 @@ Returns `0` on success, or `-1` if an error occurs (e.g., if `gobj` is `NULL` or
 
 **Notes**
 
-['The function checks if `gobj` is valid before proceeding.', "If `mt_unlink_nodes` is not defined in the [`hgobj`](#hgobj)'s gclass, an error is logged and `-1` is returned.", 'Both `parent_record` and `child_record` are decremented after use.']
+['The function checks if `gobj` is valid before proceeding.', "If `mt_unlink_nodes` is not defined in the `hgobj`'s gclass, an error is logged and `-1` is returned.", 'Both `parent_record` and `child_record` are decremented after use.']
 
 <!--====================================================-->
 <!--                    End Tab C                       -->

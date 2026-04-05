@@ -1,5 +1,5 @@
 <!-- ============================================================== -->
-(gclass_add_state())=
+(gclass_add_state)=
 # `gclass_add_state()`
 <!-- ============================================================== -->
 
@@ -29,7 +29,6 @@ int gclass_add_state(
 **Parameters**
 
 ::: {list-table}
-:widths: 20 20 60
 :header-rows: 1
 
 * - Key

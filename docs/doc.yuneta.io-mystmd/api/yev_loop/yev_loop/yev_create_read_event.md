@@ -1,5 +1,5 @@
 <!-- ============================================================== -->
-(yev_create_read_event())=
+(yev_create_read_event)=
 # `yev_create_read_event()`
 <!-- ============================================================== -->
 
@@ -32,7 +32,6 @@ yev_event_h yev_create_read_event(
 **Parameters**
 
 ::: {list-table}
-:widths: 20 20 60
 :header-rows: 1
 
 * - Key
@@ -45,7 +44,7 @@ yev_event_h yev_create_read_event(
 
 * - `callback`
   - `yev_callback_t`
-  - The function to be called when the read event is triggered. If it returns -1, the loop in [`yev_loop_run()`](#yev_loop_run()) will break.
+  - The function to be called when the read event is triggered. If it returns -1, the loop in [`yev_loop_run()`](<#yev_loop_run>) will break.
 
 * - `gobj`
   - `hgobj`

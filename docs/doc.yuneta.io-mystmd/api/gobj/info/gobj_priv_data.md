@@ -1,9 +1,9 @@
 <!-- ============================================================== -->
-(gobj_priv_data())=
+(gobj_priv_data)=
 # `gobj_priv_data()`
 <!-- ============================================================== -->
 
-Returns a pointer to the private data of the given [`hgobj`](#hgobj).
+Returns a pointer to the private data of the given `hgobj`.
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -26,7 +26,6 @@ void *gobj_priv_data(hgobj gobj);
 **Parameters**
 
 ::: {list-table}
-:widths: 20 20 60
 :header-rows: 1
 
 * - Key
@@ -35,18 +34,18 @@ void *gobj_priv_data(hgobj gobj);
 
 * - `gobj`
   - `hgobj`
-  - The [`hgobj`](#hgobj) instance whose private data is to be retrieved.
+  - The `hgobj` instance whose private data is to be retrieved.
 :::
 
 ---
 
 **Return Value**
 
-A pointer to the private data associated with the given [`hgobj`](#hgobj).
+A pointer to the private data associated with the given `hgobj`.
 
 **Notes**
 
-The returned pointer provides direct access to the private data structure of the [`hgobj`](#hgobj). Ensure that the [`hgobj`](#hgobj) is valid before accessing its private data.
+The returned pointer provides direct access to the private data structure of the `hgobj`. Ensure that the `hgobj` is valid before accessing its private data.
 
 <!--====================================================-->
 <!--                    End Tab C                       -->

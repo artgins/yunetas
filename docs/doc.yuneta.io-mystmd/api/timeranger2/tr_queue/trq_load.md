@@ -1,5 +1,5 @@
 <!-- ============================================================== -->
-(trq_load())=
+(trq_load)=
 # `trq_load()`
 <!-- ============================================================== -->
 
@@ -28,7 +28,6 @@ int trq_load(
 **Parameters**
 
 ::: {list-table}
-:widths: 20 20 60
 :header-rows: 1
 
 * - Key
@@ -48,7 +47,7 @@ Returns an iterator for traversing the loaded messages.
 
 **Notes**
 
-Use [`trq_load_all()`](#trq_load_all()) to load all messages, including non-pending ones.
+Use [`trq_load_all()`](<#trq_load_all>) to load all messages, including non-pending ones.
 
 <!--====================================================-->
 <!--                    End Tab C                       -->

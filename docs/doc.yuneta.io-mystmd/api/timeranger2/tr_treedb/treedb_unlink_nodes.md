@@ -1,5 +1,5 @@
 <!-- ============================================================== -->
-(treedb_unlink_nodes())=
+(treedb_unlink_nodes)=
 # `treedb_unlink_nodes()`
 <!-- ============================================================== -->
 
@@ -31,7 +31,6 @@ int treedb_unlink_nodes(
 **Parameters**
 
 ::: {list-table}
-:widths: 20 20 60
 :header-rows: 1
 
 * - Key
@@ -63,7 +62,7 @@ Returns `0` on success, or a negative error code if the unlinking operation fail
 
 **Notes**
 
-The function does not take ownership of `parent_node` or `child_node`, meaning the caller is responsible for managing their memory. Ensure that the specified `hook` exists before calling [`treedb_unlink_nodes()`](#treedb_unlink_nodes()).
+The function does not take ownership of `parent_node` or `child_node`, meaning the caller is responsible for managing their memory. Ensure that the specified `hook` exists before calling [`treedb_unlink_nodes()`](<#treedb_unlink_nodes>).
 
 <!--====================================================-->
 <!--                    End Tab C                       -->

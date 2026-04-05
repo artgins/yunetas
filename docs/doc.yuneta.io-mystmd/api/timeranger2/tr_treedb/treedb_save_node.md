@@ -1,5 +1,5 @@
 <!-- ============================================================== -->
-(treedb_save_node())=
+(treedb_save_node)=
 # `treedb_save_node()`
 <!-- ============================================================== -->
 
@@ -29,7 +29,6 @@ int treedb_save_node(
 **Parameters**
 
 ::: {list-table}
-:widths: 20 20 60
 :header-rows: 1
 
 * - Key

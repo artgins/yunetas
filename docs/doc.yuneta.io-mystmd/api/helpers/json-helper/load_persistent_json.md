@@ -1,5 +1,5 @@
 <!-- ============================================================== -->
-(load_persistent_json())=
+(load_persistent_json)=
 # `load_persistent_json()`
 <!-- ============================================================== -->
 
@@ -34,7 +34,6 @@ json_t *load_persistent_json(
 **Parameters**
 
 ::: {list-table}
-:widths: 20 20 60
 :header-rows: 1
 
 * - Key

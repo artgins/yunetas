@@ -1,5 +1,5 @@
 <!-- ============================================================== -->
-(gobj_log_critical())=
+(gobj_log_critical)=
 # `gobj_log_critical()`
 <!-- ============================================================== -->
 
@@ -30,7 +30,6 @@ void gobj_log_critical(
 **Parameters**
 
 ::: {list-table}
-:widths: 20 20 60
 :header-rows: 1
 
 * - Key
@@ -58,7 +57,7 @@ None.
 
 **Notes**
 
-Critical logs indicate severe conditions that require immediate attention. The function internally calls [`_log_jnbf()`](#_log_jnbf) to process the log message.
+Critical logs indicate severe conditions that require immediate attention. The function internally calls `_log_jnbf()` to process the log message.
 
 <!--====================================================-->
 <!--                    End Tab C                       -->

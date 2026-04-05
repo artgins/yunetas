@@ -1,5 +1,5 @@
 <!-- ============================================================== -->
-(treedb_list_nodes())=
+(treedb_list_nodes)=
 # `treedb_list_nodes()`
 <!-- ============================================================== -->
 
@@ -36,7 +36,6 @@ json_t *treedb_list_nodes(
 **Parameters**
 
 ::: {list-table}
-:widths: 20 20 60
 :header-rows: 1
 
 * - Key

@@ -1,5 +1,5 @@
 <!-- ============================================================== -->
-(free_ordered_filename_array())=
+(free_ordered_filename_array)=
 # `free_ordered_filename_array()`
 <!-- ============================================================== -->
 
@@ -29,7 +29,6 @@ void free_ordered_filename_array(
 **Parameters**
 
 ::: {list-table}
-:widths: 20 20 60
 :header-rows: 1
 
 * - Key

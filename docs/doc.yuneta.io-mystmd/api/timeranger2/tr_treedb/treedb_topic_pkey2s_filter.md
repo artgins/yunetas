@@ -1,5 +1,5 @@
 <!-- ============================================================== -->
-(treedb_topic_pkey2s_filter())=
+(treedb_topic_pkey2s_filter)=
 # `treedb_topic_pkey2s_filter()`
 <!-- ============================================================== -->
 
@@ -31,7 +31,6 @@ json_t *treedb_topic_pkey2s_filter(
 **Parameters**
 
 ::: {list-table}
-:widths: 20 20 60
 :header-rows: 1
 
 * - Key

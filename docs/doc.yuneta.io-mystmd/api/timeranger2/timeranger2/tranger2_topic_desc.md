@@ -1,5 +1,5 @@
 <!-- ============================================================== -->
-(tranger2_topic_desc())=
+(tranger2_topic_desc)=
 # `tranger2_topic_desc()`
 <!-- ============================================================== -->
 
@@ -29,7 +29,6 @@ json_t *tranger2_topic_desc(
 **Parameters**
 
 ::: {list-table}
-:widths: 20 20 60
 :header-rows: 1
 
 * - Key

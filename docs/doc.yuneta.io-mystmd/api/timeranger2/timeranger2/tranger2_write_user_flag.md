@@ -1,5 +1,5 @@
 <!-- ============================================================== -->
-(tranger2_write_user_flag())=
+(tranger2_write_user_flag)=
 # `tranger2_write_user_flag()`
 <!-- ============================================================== -->
 
@@ -31,7 +31,6 @@ int tranger2_write_user_flag(
 **Parameters**
 
 ::: {list-table}
-:widths: 20 20 60
 :header-rows: 1
 
 * - Key
@@ -63,7 +62,7 @@ Returns `0` on success, or a negative value on failure.
 
 **Notes**
 
-This function modifies the user flag of an existing record but does not alter other record attributes. Use [`tranger2_set_user_flag()`](#tranger2_set_user_flag()) if you need to update the flag using a mask.
+This function modifies the user flag of an existing record but does not alter other record attributes. Use [`tranger2_set_user_flag()`](<#tranger2_set_user_flag>) if you need to update the flag using a mask.
 
 <!--====================================================-->
 <!--                    End Tab C                       -->

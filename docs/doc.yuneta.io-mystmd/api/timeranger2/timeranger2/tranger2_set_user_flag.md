@@ -1,5 +1,5 @@
 <!-- ============================================================== -->
-(tranger2_set_user_flag())=
+(tranger2_set_user_flag)=
 # `tranger2_set_user_flag()`
 <!-- ============================================================== -->
 
@@ -32,7 +32,6 @@ int tranger2_set_user_flag(
 **Parameters**
 
 ::: {list-table}
-:widths: 20 20 60
 :header-rows: 1
 
 * - Key

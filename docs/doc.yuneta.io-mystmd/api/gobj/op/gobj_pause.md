@@ -1,9 +1,9 @@
 <!-- ============================================================== -->
-(gobj_pause())=
+(gobj_pause)=
 # `gobj_pause()`
 <!-- ============================================================== -->
 
-The `gobj_pause()` function pauses the execution of a given [`hgobj`](#hgobj) instance if it is currently playing. If the object is not playing, a warning is logged.
+The `gobj_pause()` function pauses the execution of a given `hgobj` instance if it is currently playing. If the object is not playing, a warning is logged.
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -28,7 +28,6 @@ int gobj_pause(
 **Parameters**
 
 ::: {list-table}
-:widths: 20 20 60
 :header-rows: 1
 
 * - Key
@@ -37,7 +36,7 @@ int gobj_pause(
 
 * - `gobj`
   - `hgobj`
-  - The [`hgobj`](#hgobj) instance to be paused.
+  - The `hgobj` instance to be paused.
 :::
 
 ---

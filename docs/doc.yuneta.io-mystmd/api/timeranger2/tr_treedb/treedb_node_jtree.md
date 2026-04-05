@@ -1,5 +1,5 @@
 <!-- ============================================================== -->
-(treedb_node_jtree())=
+(treedb_node_jtree)=
 # `treedb_node_jtree()`
 <!-- ============================================================== -->
 
@@ -33,7 +33,6 @@ json_t *treedb_node_jtree(
 **Parameters**
 
 ::: {list-table}
-:widths: 20 20 60
 :header-rows: 1
 
 * - Key

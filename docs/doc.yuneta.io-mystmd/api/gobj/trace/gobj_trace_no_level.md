@@ -1,9 +1,9 @@
 <!-- ============================================================== -->
-(gobj_trace_no_level())=
+(gobj_trace_no_level)=
 # `gobj_trace_no_level()`
 <!-- ============================================================== -->
 
-Retrieves the trace level mask that is explicitly disabled for the given [`hgobj`](#hgobj).
+Retrieves the trace level mask that is explicitly disabled for the given `hgobj`.
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -28,7 +28,6 @@ PUBLIC uint32_t gobj_trace_no_level(
 **Parameters**
 
 ::: {list-table}
-:widths: 20 20 60
 :header-rows: 1
 
 * - Key
@@ -37,18 +36,18 @@ PUBLIC uint32_t gobj_trace_no_level(
 
 * - `gobj`
   - `hgobj`
-  - The [`hgobj`](#hgobj) instance whose disabled trace levels are to be retrieved.
+  - The `hgobj` instance whose disabled trace levels are to be retrieved.
 :::
 
 ---
 
 **Return Value**
 
-Returns a 32-bit mask representing the disabled trace levels for the given [`hgobj`](#hgobj).
+Returns a 32-bit mask representing the disabled trace levels for the given `hgobj`.
 
 **Notes**
 
-The function combines the global disabled trace levels with those specific to the [`hgobj`](#hgobj) and its [`gclass`](#gclass).
+The function combines the global disabled trace levels with those specific to the `hgobj` and its [`gclass`](#gclass).
 
 <!--====================================================-->
 <!--                    End Tab C                       -->

@@ -1,5 +1,5 @@
 <!-- ============================================================== -->
-(tranger2_topic_name())=
+(tranger2_topic_name)=
 # `tranger2_topic_name()`
 <!-- ============================================================== -->
 
@@ -28,7 +28,6 @@ const char *tranger2_topic_name(
 **Parameters**
 
 ::: {list-table}
-:widths: 20 20 60
 :header-rows: 1
 
 * - Key

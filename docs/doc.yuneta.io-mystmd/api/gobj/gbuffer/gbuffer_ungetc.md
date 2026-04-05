@@ -1,5 +1,5 @@
 <!-- ============================================================== -->
-(gbuffer_ungetc())=
+(gbuffer_ungetc)=
 # `gbuffer_ungetc()`
 <!-- ============================================================== -->
 
@@ -29,7 +29,6 @@ PUBLIC int gbuffer_ungetc(
 **Parameters**
 
 ::: {list-table}
-:widths: 20 20 60
 :header-rows: 1
 
 * - Key

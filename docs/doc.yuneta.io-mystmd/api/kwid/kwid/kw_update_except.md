@@ -1,5 +1,5 @@
 <!-- ============================================================== -->
-(kw_update_except())=
+(kw_update_except)=
 # `kw_update_except()`
 <!-- ============================================================== -->
 
@@ -31,7 +31,6 @@ void kw_update_except(
 **Parameters**
 
 ::: {list-table}
-:widths: 20 20 60
 :header-rows: 1
 
 * - Key

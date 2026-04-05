@@ -1,9 +1,9 @@
 <!-- ============================================================== -->
-(gobj_delete_node())=
+(gobj_delete_node)=
 # `gobj_delete_node()`
 <!-- ============================================================== -->
 
-Deletes a node from a tree database in the given [`hgobj`](#hgobj) instance. The node is identified by its topic name and key attributes.
+Deletes a node from a tree database in the given `hgobj` instance. The node is identified by its topic name and key attributes.
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -32,7 +32,6 @@ int gobj_delete_node(
 **Parameters**
 
 ::: {list-table}
-:widths: 20 20 60
 :header-rows: 1
 
 * - Key
@@ -41,7 +40,7 @@ int gobj_delete_node(
 
 * - `gobj`
   - `hgobj`
-  - The [`hgobj`](#hgobj) instance managing the tree database.
+  - The `hgobj` instance managing the tree database.
 
 * - `topic_name`
   - `const char *`
@@ -57,18 +56,18 @@ int gobj_delete_node(
 
 * - `src`
   - `hgobj`
-  - The source [`hgobj`](#hgobj) instance initiating the deletion request.
+  - The source `hgobj` instance initiating the deletion request.
 :::
 
 ---
 
 **Return Value**
 
-Returns 0 on success, or -1 if an error occurs (e.g., if the [`hgobj`](#hgobj) is NULL, destroyed, or lacks the `mt_delete_node` method).
+Returns 0 on success, or -1 if an error occurs (e.g., if the `hgobj` is NULL, destroyed, or lacks the `mt_delete_node` method).
 
 **Notes**
 
-['If `gobj` is NULL or destroyed, an error is logged and the function returns -1.', "If `mt_delete_node` is not defined in the [`hgobj`](#hgobj)'s gclass, an error is logged and the function returns -1.", 'The `kw` and `jn_options` parameters are owned and will be decremented within the function.']
+['If `gobj` is NULL or destroyed, an error is logged and the function returns -1.', "If `mt_delete_node` is not defined in the `hgobj`'s gclass, an error is logged and the function returns -1.", 'The `kw` and `jn_options` parameters are owned and will be decremented within the function.']
 
 <!--====================================================-->
 <!--                    End Tab C                       -->

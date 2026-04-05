@@ -1,5 +1,5 @@
 <!-- ============================================================== -->
-(gobj_find_subscriptions())=
+(gobj_find_subscriptions)=
 # `gobj_find_subscriptions()`
 <!-- ============================================================== -->
 
@@ -31,7 +31,6 @@ json_t *gobj_find_subscriptions(
 **Parameters**
 
 ::: {list-table}
-:widths: 20 20 60
 :header-rows: 1
 
 * - Key

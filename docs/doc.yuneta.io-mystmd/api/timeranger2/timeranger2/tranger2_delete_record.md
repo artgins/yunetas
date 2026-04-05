@@ -1,5 +1,5 @@
 <!-- ============================================================== -->
-(tranger2_delete_record())=
+(tranger2_delete_record)=
 # `tranger2_delete_record()`
 <!-- ============================================================== -->
 
@@ -30,7 +30,6 @@ int tranger2_delete_record(
 **Parameters**
 
 ::: {list-table}
-:widths: 20 20 60
 :header-rows: 1
 
 * - Key

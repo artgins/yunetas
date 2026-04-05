@@ -1,5 +1,5 @@
 <!-- ============================================================== -->
-(yev_start_timer_event())=
+(yev_start_timer_event)=
 # `yev_start_timer_event()`
 <!-- ============================================================== -->
 
@@ -30,7 +30,6 @@ int yev_start_timer_event(
 **Parameters**
 
 ::: {list-table}
-:widths: 20 20 60
 :header-rows: 1
 
 * - Key
@@ -43,7 +42,7 @@ int yev_start_timer_event(
 
 * - `timeout_ms`
   - `time_t`
-  - Timeout in milliseconds. A value of `timeout_ms <= 0` is equivalent to calling [`yev_stop_event()`](#yev_stop_event()).
+  - Timeout in milliseconds. A value of `timeout_ms <= 0` is equivalent to calling [`yev_stop_event()`](<#yev_stop_event>).
 
 * - `periodic`
   - `BOOL`
@@ -58,7 +57,7 @@ Returns `0` on success, or `-1` on failure.
 
 **Notes**
 
-To start a timer event, use [`yev_start_timer_event()`](#yev_start_timer_event()) instead of [`yev_start_event()`](#yev_start_event()).
+To start a timer event, use [`yev_start_timer_event()`](<#yev_start_timer_event>) instead of [`yev_start_event()`](<#yev_start_event>).
 If the timer is in the `IDLE` state, it can be reused. If it is `STOPPED`, a new timer event must be created.
 
 <!--====================================================-->

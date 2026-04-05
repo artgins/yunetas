@@ -1,9 +1,9 @@
 <!-- ============================================================== -->
-(gobj_parent())=
+(gobj_parent)=
 # `gobj_parent()`
 <!-- ============================================================== -->
 
-Returns the parent object of the given [`hgobj`](#hgobj).
+Returns the parent object of the given `hgobj`.
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -26,7 +26,6 @@ hgobj gobj_parent(hgobj gobj);
 **Parameters**
 
 ::: {list-table}
-:widths: 20 20 60
 :header-rows: 1
 
 * - Key
@@ -42,11 +41,11 @@ hgobj gobj_parent(hgobj gobj);
 
 **Return Value**
 
-Returns the parent [`hgobj`](#hgobj) of the given object, or NULL if the object has no parent.
+Returns the parent `hgobj` of the given object, or NULL if the object has no parent.
 
 **Notes**
 
-If the provided [`hgobj`](#hgobj) is NULL, an error is logged.
+If the provided `hgobj` is NULL, an error is logged.
 
 <!--====================================================-->
 <!--                    End Tab C                       -->

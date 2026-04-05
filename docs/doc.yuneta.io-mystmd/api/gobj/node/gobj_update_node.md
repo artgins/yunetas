@@ -1,5 +1,5 @@
 <!-- ============================================================== -->
-(gobj_update_node())=
+(gobj_update_node)=
 # `gobj_update_node()`
 <!-- ============================================================== -->
 
@@ -32,7 +32,6 @@ json_t *gobj_update_node(
 **Parameters**
 
 ::: {list-table}
-:widths: 20 20 60
 :header-rows: 1
 
 * - Key

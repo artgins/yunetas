@@ -1,5 +1,5 @@
 <!-- ============================================================== -->
-(tranger2_close_all_lists())=
+(tranger2_close_all_lists)=
 # `tranger2_close_all_lists()`
 <!-- ============================================================== -->
 
@@ -31,7 +31,6 @@ int tranger2_close_all_lists(
 **Parameters**
 
 ::: {list-table}
-:widths: 20 20 60
 :header-rows: 1
 
 * - Key

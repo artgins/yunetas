@@ -1,9 +1,9 @@
 <!-- ============================================================== -->
-(gobj_write_real_attr())=
+(gobj_write_real_attr)=
 # `gobj_write_real_attr()`
 <!-- ============================================================== -->
 
-The function `gobj_write_real_attr()` sets the value of a real (floating-point) attribute in the given [`hgobj`](#hgobj) object. The attribute must exist and be of type `DTP_REAL`.
+The function `gobj_write_real_attr()` sets the value of a real (floating-point) attribute in the given `hgobj` object. The attribute must exist and be of type `DTP_REAL`.
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -30,7 +30,6 @@ int gobj_write_real_attr(
 **Parameters**
 
 ::: {list-table}
-:widths: 20 20 60
 :header-rows: 1
 
 * - Key
@@ -39,7 +38,7 @@ int gobj_write_real_attr(
 
 * - `gobj`
   - `hgobj`
-  - A handle to the [`hgobj`](#hgobj) object whose attribute is being modified.
+  - A handle to the `hgobj` object whose attribute is being modified.
 
 * - `name`
   - `const char *`
@@ -58,7 +57,7 @@ Returns `0` on success, or `-1` if the attribute does not exist or is not of typ
 
 **Notes**
 
-If the attribute exists and is writable, its value is updated. If the [`hgobj`](#hgobj) has a `mt_writing` method, it is called after updating the attribute.
+If the attribute exists and is writable, its value is updated. If the `hgobj` has a `mt_writing` method, it is called after updating the attribute.
 
 <!--====================================================-->
 <!--                    End Tab C                       -->

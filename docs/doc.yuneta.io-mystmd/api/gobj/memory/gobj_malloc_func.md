@@ -1,5 +1,5 @@
 <!-- ============================================================== -->
-(gobj_malloc_func())=
+(gobj_malloc_func)=
 # `gobj_malloc_func()`
 <!-- ============================================================== -->
 
@@ -26,7 +26,6 @@ PUBLIC sys_malloc_fn_t gobj_malloc_func(void);
 **Parameters**
 
 ::: {list-table}
-:widths: 20 20 60
 :header-rows: 1
 
 * - Key

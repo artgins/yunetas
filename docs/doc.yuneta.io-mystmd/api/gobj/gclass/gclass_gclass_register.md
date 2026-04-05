@@ -1,5 +1,5 @@
 <!-- ============================================================== -->
-(gclass_gclass_register())=
+(gclass_gclass_register)=
 # `gclass_gclass_register()`
 <!-- ============================================================== -->
 
@@ -26,7 +26,6 @@ json_t *gclass_gclass_register(void);
 **Parameters**
 
 ::: {list-table}
-:widths: 20 20 60
 :header-rows: 1
 
 * - Key

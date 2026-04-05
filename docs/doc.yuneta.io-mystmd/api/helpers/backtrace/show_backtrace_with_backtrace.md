@@ -1,5 +1,5 @@
 <!-- ============================================================== -->
-(show_backtrace_with_backtrace())=
+(show_backtrace_with_backtrace)=
 # `show_backtrace_with_backtrace()`
 <!-- ============================================================== -->
 
@@ -29,7 +29,6 @@ void show_backtrace_with_backtrace(
 **Parameters**
 
 ::: {list-table}
-:widths: 20 20 60
 :header-rows: 1
 
 * - Key

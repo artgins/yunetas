@@ -1,5 +1,5 @@
 <!-- ============================================================== -->
-(yev_loop_reset_running())=
+(yev_loop_reset_running)=
 # `yev_loop_reset_running()`
 <!-- ============================================================== -->
 
@@ -28,7 +28,6 @@ void yev_loop_reset_running(
 **Parameters**
 
 ::: {list-table}
-:widths: 20 20 60
 :header-rows: 1
 
 * - Key
@@ -48,7 +47,7 @@ This function does not return a value.
 
 **Notes**
 
-Use [`yev_loop_reset_running()`](#yev_loop_reset_running()) to ensure the event loop is reset before restarting it.
+Use [`yev_loop_reset_running()`](<#yev_loop_reset_running>) to ensure the event loop is reset before restarting it.
 
 <!--====================================================-->
 <!--                    End Tab C                       -->

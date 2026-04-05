@@ -1,5 +1,5 @@
 <!-- ============================================================== -->
-(fs_create_watcher_event())=
+(fs_create_watcher_event)=
 # `fs_create_watcher_event()`
 <!-- ============================================================== -->
 
@@ -34,7 +34,6 @@ fs_event_t *fs_create_watcher_event(
 **Parameters**
 
 ::: {list-table}
-:widths: 20 20 60
 :header-rows: 1
 
 * - Key
@@ -78,7 +77,7 @@ Returns a pointer to a newly allocated [`fs_event_t`](#fs_event_t) structure rep
 
 **Notes**
 
-The created watcher event must be started using [`fs_start_watcher_event()`](#fs_start_watcher_event()) to begin monitoring. When no longer needed, it should be stopped using [`fs_stop_watcher_event()`](#fs_stop_watcher_event()), which will also free the associated resources.
+The created watcher event must be started using [`fs_start_watcher_event()`](<#fs_start_watcher_event>) to begin monitoring. When no longer needed, it should be stopped using [`fs_stop_watcher_event()`](<#fs_stop_watcher_event>), which will also free the associated resources.
 
 <!--====================================================-->
 <!--                    End Tab C                       -->

@@ -1,5 +1,5 @@
 <!-- ============================================================== -->
-(yev_get_user_data())=
+(yev_get_user_data)=
 # `yev_get_user_data()`
 <!-- ============================================================== -->
 
@@ -28,7 +28,6 @@ void *yev_get_user_data(
 **Parameters**
 
 ::: {list-table}
-:widths: 20 20 60
 :header-rows: 1
 
 * - Key
@@ -48,7 +47,7 @@ Returns a pointer to the user-defined data associated with the event, or `NULL` 
 
 **Notes**
 
-The user data can be set using [`yev_set_user_data()`](#yev_set_user_data()).
+The user data can be set using [`yev_set_user_data()`](<#yev_set_user_data>).
 
 <!--====================================================-->
 <!--                    End Tab C                       -->

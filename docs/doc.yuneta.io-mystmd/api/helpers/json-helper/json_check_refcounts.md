@@ -1,5 +1,5 @@
 <!-- ============================================================== -->
-(json_check_refcounts())=
+(json_check_refcounts)=
 # `json_check_refcounts()`
 <!-- ============================================================== -->
 
@@ -30,7 +30,6 @@ int json_check_refcounts(
 **Parameters**
 
 ::: {list-table}
-:widths: 20 20 60
 :header-rows: 1
 
 * - Key

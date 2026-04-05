@@ -1,5 +1,5 @@
 <!-- ============================================================== -->
-(comm_prot_get_gclass())=
+(comm_prot_get_gclass)=
 # `comm_prot_get_gclass()`
 <!-- ============================================================== -->
 
@@ -28,7 +28,6 @@ PUBLIC gclass_name_t comm_prot_get_gclass(
 **Parameters**
 
 ::: {list-table}
-:widths: 20 20 60
 :header-rows: 1
 
 * - Key

@@ -1,5 +1,5 @@
 <!-- ============================================================== -->
-(gobj_log_warning())=
+(gobj_log_warning)=
 # `gobj_log_warning()`
 <!-- ============================================================== -->
 
@@ -30,7 +30,6 @@ void gobj_log_warning(
 **Parameters**
 
 ::: {list-table}
-:widths: 20 20 60
 :header-rows: 1
 
 * - Key

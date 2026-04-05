@@ -1,5 +1,5 @@
 <!-- ============================================================== -->
-(test_sectimer())=
+(test_sectimer)=
 # `test_sectimer()`
 <!-- ============================================================== -->
 
@@ -26,7 +26,6 @@ BOOL test_sectimer(time_t value);
 **Parameters**
 
 ::: {list-table}
-:widths: 20 20 60
 :header-rows: 1
 
 * - Key

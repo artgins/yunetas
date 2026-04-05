@@ -1,5 +1,5 @@
 <!-- ============================================================== -->
-(gobj_log_last_message())=
+(gobj_log_last_message)=
 # `gobj_log_last_message()`
 <!-- ============================================================== -->
 
@@ -26,7 +26,6 @@ const char *gobj_log_last_message(void);
 **Parameters**
 
 ::: {list-table}
-:widths: 20 20 60
 :header-rows: 1
 
 * - Key

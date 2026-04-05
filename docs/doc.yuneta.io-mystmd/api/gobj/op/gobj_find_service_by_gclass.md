@@ -1,5 +1,5 @@
 <!-- ============================================================== -->
-(gobj_find_service_by_gclass())=
+(gobj_find_service_by_gclass)=
 # `gobj_find_service_by_gclass()`
 <!-- ============================================================== -->
 
@@ -29,7 +29,6 @@ hgobj gobj_find_service_by_gclass(
 **Parameters**
 
 ::: {list-table}
-:widths: 20 20 60
 :header-rows: 1
 
 * - Key

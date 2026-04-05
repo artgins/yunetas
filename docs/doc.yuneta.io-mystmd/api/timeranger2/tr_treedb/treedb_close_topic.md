@@ -1,5 +1,5 @@
 <!-- ============================================================== -->
-(treedb_close_topic())=
+(treedb_close_topic)=
 # `treedb_close_topic()`
 <!-- ============================================================== -->
 
@@ -30,7 +30,6 @@ int treedb_close_topic(
 **Parameters**
 
 ::: {list-table}
-:widths: 20 20 60
 :header-rows: 1
 
 * - Key
@@ -58,7 +57,7 @@ Returns `0` on success, or a negative error code if the operation fails.
 
 **Notes**
 
-Ensure that the topic is not in use before calling [`treedb_close_topic()`](#treedb_close_topic()).
+Ensure that the topic is not in use before calling [`treedb_close_topic()`](<#treedb_close_topic>).
 
 <!--====================================================-->
 <!--                    End Tab C                       -->

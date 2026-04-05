@@ -1,5 +1,5 @@
 <!-- ============================================================== -->
-(build_msg2db_index_path())=
+(build_msg2db_index_path)=
 # `build_msg2db_index_path()`
 <!-- ============================================================== -->
 
@@ -32,7 +32,6 @@ char *build_msg2db_index_path(
 **Parameters**
 
 ::: {list-table}
-:widths: 20 20 60
 :header-rows: 1
 
 * - Key

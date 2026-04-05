@@ -1,5 +1,5 @@
 <!-- ============================================================== -->
-(yev_setup_connect_event())=
+(yev_setup_connect_event)=
 # `yev_setup_connect_event()`
 <!-- ============================================================== -->
 
@@ -32,7 +32,6 @@ int yev_setup_connect_event(
 **Parameters**
 
 ::: {list-table}
-:widths: 20 20 60
 :header-rows: 1
 
 * - Key
@@ -68,7 +67,7 @@ Returns `0` on success, or `-1` on failure.
 
 **Notes**
 
-If a file descriptor is already set in `yev_event`, it will be closed and replaced with the new socket. This function should be called before [`yev_start_event()`](#yev_start_event()).
+If a file descriptor is already set in `yev_event`, it will be closed and replaced with the new socket. This function should be called before [`yev_start_event()`](<#yev_start_event>).
 
 <!--====================================================-->
 <!--                    End Tab C                       -->

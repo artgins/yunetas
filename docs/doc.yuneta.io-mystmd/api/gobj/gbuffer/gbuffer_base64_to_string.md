@@ -1,5 +1,5 @@
 <!-- ============================================================== -->
-(gbuffer_base64_to_string())=
+(gbuffer_base64_to_string)=
 # `gbuffer_base64_to_string()`
 <!-- ============================================================== -->
 
@@ -29,7 +29,6 @@ gbuffer_t *gbuffer_base64_to_string(
 **Parameters**
 
 ::: {list-table}
-:widths: 20 20 60
 :header-rows: 1
 
 * - Key

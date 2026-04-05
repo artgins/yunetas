@@ -1,5 +1,5 @@
 <!-- ============================================================== -->
-(set_real_precision())=
+(set_real_precision)=
 # `set_real_precision()`
 <!-- ============================================================== -->
 
@@ -26,7 +26,6 @@ int set_real_precision(int precision);
 **Parameters**
 
 ::: {list-table}
-:widths: 20 20 60
 :header-rows: 1
 
 * - Key

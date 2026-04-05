@@ -1,5 +1,5 @@
 <!-- ============================================================== -->
-(trmsg_close_list())=
+(trmsg_close_list)=
 # `trmsg_close_list()`
 <!-- ============================================================== -->
 
@@ -29,7 +29,6 @@ int trmsg_close_list(
 **Parameters**
 
 ::: {list-table}
-:widths: 20 20 60
 :header-rows: 1
 
 * - Key
@@ -53,7 +52,7 @@ Returns `0` on success, or a negative value on failure.
 
 **Notes**
 
-Ensure that [`trmsg_open_list()`](#trmsg_open_list()) was called before invoking [`trmsg_close_list()`](#trmsg_close_list()) to properly manage resources.
+Ensure that [`trmsg_open_list()`](<#trmsg_open_list>) was called before invoking [`trmsg_close_list()`](<#trmsg_close_list>) to properly manage resources.
 
 <!--====================================================-->
 <!--                    End Tab C                       -->

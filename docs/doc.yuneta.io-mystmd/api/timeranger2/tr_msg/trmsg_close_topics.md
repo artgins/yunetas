@@ -1,5 +1,5 @@
 <!-- ============================================================== -->
-(trmsg_close_topics())=
+(trmsg_close_topics)=
 # `trmsg_close_topics()`
 <!-- ============================================================== -->
 
@@ -29,7 +29,6 @@ int trmsg_close_topics(
 **Parameters**
 
 ::: {list-table}
-:widths: 20 20 60
 :header-rows: 1
 
 * - Key
@@ -53,7 +52,7 @@ Returns `0` on success, or a negative value if an error occurs during topic clos
 
 **Notes**
 
-Ensure that [`trmsg_open_topics()`](#trmsg_open_topics()) was previously called before invoking this function to close topics properly.
+Ensure that [`trmsg_open_topics()`](<#trmsg_open_topics>) was previously called before invoking this function to close topics properly.
 
 <!--====================================================-->
 <!--                    End Tab C                       -->

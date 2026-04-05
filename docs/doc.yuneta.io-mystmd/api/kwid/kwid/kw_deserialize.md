@@ -1,5 +1,5 @@
 <!-- ============================================================== -->
-(kw_deserialize())=
+(kw_deserialize)=
 # `kw_deserialize()`
 <!-- ============================================================== -->
 
@@ -29,7 +29,6 @@ json_t *kw_deserialize(
 **Parameters**
 
 ::: {list-table}
-:widths: 20 20 60
 :header-rows: 1
 
 * - Key
@@ -37,11 +36,11 @@ json_t *kw_deserialize(
   - Description
 
 * - `gobj`
-  - `[`hgobj`](#hgobj)`
+  - ``hgobj``
   - A handle to the gobj (generic object) that may be used for logging or context.
 
 * - `kw`
-  - `[`json_t *`](#json_t)`
+  - ``json_t *``
   - A JSON object containing serialized fields that need to be deserialized.
 :::
 
@@ -49,7 +48,7 @@ json_t *kw_deserialize(
 
 **Return Value**
 
-Returns the same JSON object [`kw`](#json_t) with its serialized fields converted back to their original binary representation.
+Returns the same JSON object `kw` with its serialized fields converted back to their original binary representation.
 
 **Notes**
 

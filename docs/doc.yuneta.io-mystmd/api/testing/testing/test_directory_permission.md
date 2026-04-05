@@ -1,5 +1,5 @@
 <!-- ============================================================== -->
-(test_directory_permission())=
+(test_directory_permission)=
 # `test_directory_permission()`
 <!-- ============================================================== -->
 
@@ -29,7 +29,6 @@ int test_directory_permission(
 **Parameters**
 
 ::: {list-table}
-:widths: 20 20 60
 :header-rows: 1
 
 * - Key

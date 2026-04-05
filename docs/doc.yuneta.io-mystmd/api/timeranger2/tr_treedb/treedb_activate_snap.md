@@ -1,5 +1,5 @@
 <!-- ============================================================== -->
-(treedb_activate_snap())=
+(treedb_activate_snap)=
 # `treedb_activate_snap()`
 <!-- ============================================================== -->
 
@@ -30,7 +30,6 @@ int treedb_activate_snap(
 **Parameters**
 
 ::: {list-table}
-:widths: 20 20 60
 :header-rows: 1
 
 * - Key
@@ -58,7 +57,7 @@ Returns the snapshot tag as an integer if successful, or a negative value if an 
 
 **Notes**
 
-Ensure that the snapshot exists before calling [`treedb_activate_snap()`](#treedb_activate_snap()).
+Ensure that the snapshot exists before calling [`treedb_activate_snap()`](<#treedb_activate_snap>).
 
 <!--====================================================-->
 <!--                    End Tab C                       -->

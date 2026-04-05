@@ -1,9 +1,9 @@
 <!-- ============================================================== -->
-(gobj_set_volatil())=
+(gobj_set_volatil)=
 # `gobj_set_volatil()`
 <!-- ============================================================== -->
 
-Sets or clears the `gobj_flag_volatil` flag for the given [`hgobj`](#hgobj) instance.
+Sets or clears the `gobj_flag_volatil` flag for the given `hgobj` instance.
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -29,7 +29,6 @@ int gobj_set_volatil(
 **Parameters**
 
 ::: {list-table}
-:widths: 20 20 60
 :header-rows: 1
 
 * - Key
@@ -38,7 +37,7 @@ int gobj_set_volatil(
 
 * - `gobj`
   - `hgobj`
-  - The [`hgobj`](#hgobj) instance whose volatility flag is to be modified.
+  - The `hgobj` instance whose volatility flag is to be modified.
 
 * - `set`
   - `BOOL`
@@ -53,7 +52,7 @@ Returns `0` on success.
 
 **Notes**
 
-A volatile [`hgobj`](#hgobj) is typically used for temporary objects that should not persist beyond a certain scope.
+A volatile `hgobj` is typically used for temporary objects that should not persist beyond a certain scope.
 
 <!--====================================================-->
 <!--                    End Tab C                       -->

@@ -1,5 +1,5 @@
 <!-- ============================================================== -->
-(yev_set_fd())=
+(yev_set_fd)=
 # `yev_set_fd()`
 <!-- ============================================================== -->
 
@@ -29,7 +29,6 @@ void yev_set_fd(
 **Parameters**
 
 ::: {list-table}
-:widths: 20 20 60
 :header-rows: 1
 
 * - Key
@@ -53,7 +52,7 @@ This function does not return a value.
 
 **Notes**
 
-This function should only be used with events created using [`yev_create_read_event()`](#yev_create_read_event()) and [`yev_create_write_event()`](#yev_create_write_event()).
+This function should only be used with events created using [`yev_create_read_event()`](<#yev_create_read_event>) and [`yev_create_write_event()`](<#yev_create_write_event>).
 
 <!--====================================================-->
 <!--                    End Tab C                       -->

@@ -1,9 +1,9 @@
 <!-- ============================================================== -->
-(gobj_delete_resource())=
+(gobj_delete_resource)=
 # `gobj_delete_resource()`
 <!-- ============================================================== -->
 
-`gobj_delete_resource()` deletes a resource associated with a given [`hgobj`](#hgobj).
+`gobj_delete_resource()` deletes a resource associated with a given `hgobj`.
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -31,7 +31,6 @@ int gobj_delete_resource(
 **Parameters**
 
 ::: {list-table}
-:widths: 20 20 60
 :header-rows: 1
 
 * - Key
@@ -40,7 +39,7 @@ int gobj_delete_resource(
 
 * - `gobj`
   - `hgobj`
-  - The [`hgobj`](#hgobj) instance managing the resource.
+  - The `hgobj` instance managing the resource.
 
 * - `resource`
   - `const char *`

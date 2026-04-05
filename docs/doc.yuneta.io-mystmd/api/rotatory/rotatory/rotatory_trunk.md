@@ -1,5 +1,5 @@
 <!-- ============================================================== -->
-(rotatory_trunk()())=
+(rotatory_trunk)=
 # `rotatory_trunk()`
 <!-- ============================================================== -->
 
@@ -28,7 +28,6 @@ void rotatory_trunk(
 **Parameters**
 
 ::: {list-table}
-:widths: 20 20 60
 :header-rows: 1
 
 * - Key

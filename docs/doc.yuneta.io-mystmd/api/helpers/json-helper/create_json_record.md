@@ -1,5 +1,5 @@
 <!-- ============================================================== -->
-(create_json_record())=
+(create_json_record)=
 # `create_json_record()`
 <!-- ============================================================== -->
 
@@ -29,7 +29,6 @@ json_t *create_json_record(
 **Parameters**
 
 ::: {list-table}
-:widths: 20 20 60
 :header-rows: 1
 
 * - Key
@@ -53,7 +52,7 @@ A newly allocated `json_t *` object containing the initialized JSON structure, o
 
 **Notes**
 
-['The `json_desc_t` structure must be properly terminated with a NULL entry.', 'The function supports various JSON types including `string`, `integer`, `real`, `boolean`, `null`, `object`, and `array`.', 'If an unknown type is encountered, an error is logged using [`gobj_log_error()`](#gobj_log_error()).']
+['The `json_desc_t` structure must be properly terminated with a NULL entry.', 'The function supports various JSON types including `string`, `integer`, `real`, `boolean`, `null`, `object`, and `array`.', 'If an unknown type is encountered, an error is logged using [`gobj_log_error()`](<#gobj_log_error>).']
 
 <!--====================================================-->
 <!--                    End Tab C                       -->

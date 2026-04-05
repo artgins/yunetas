@@ -1,5 +1,5 @@
 <!-- ============================================================== -->
-(msg2db_close_db())=
+(msg2db_close_db)=
 # `msg2db_close_db()`
 <!-- ============================================================== -->
 
@@ -29,7 +29,6 @@ int msg2db_close_db(
 **Parameters**
 
 ::: {list-table}
-:widths: 20 20 60
 :header-rows: 1
 
 * - Key
@@ -53,7 +52,7 @@ Returns `0` on success, or a negative value if an error occurs.
 
 **Notes**
 
-Ensure that [`msg2db_close_db()`](#msg2db_close_db()) is called after all operations on the database are complete to prevent resource leaks.
+Ensure that [`msg2db_close_db()`](<#msg2db_close_db>) is called after all operations on the database are complete to prevent resource leaks.
 
 <!--====================================================-->
 <!--                    End Tab C                       -->

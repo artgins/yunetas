@@ -1,5 +1,5 @@
 <!-- ============================================================== -->
-(gbuffer_setmark())=
+(gbuffer_setmark)=
 # `gbuffer_setmark()`
 <!-- ============================================================== -->
 
@@ -29,7 +29,6 @@ void gbuffer_setmark(
 **Parameters**
 
 ::: {list-table}
-:widths: 20 20 60
 :header-rows: 1
 
 * - Key

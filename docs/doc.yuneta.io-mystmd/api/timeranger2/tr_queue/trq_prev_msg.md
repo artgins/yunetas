@@ -1,5 +1,5 @@
 <!-- ============================================================== -->
-(trq_prev_msg())=
+(trq_prev_msg)=
 # `trq_prev_msg()`
 <!-- ============================================================== -->
 
@@ -28,7 +28,6 @@ q_msg trq_prev_msg(
 **Parameters**
 
 ::: {list-table}
-:widths: 20 20 60
 :header-rows: 1
 
 * - Key
@@ -48,7 +47,7 @@ Returns the previous message in the queue iteration, or `NULL` if there are no m
 
 **Notes**
 
-Use [`trq_first_msg()`](#trq_first_msg()) or [`trq_last_msg()`](#trq_last_msg()) to obtain an initial message before iterating with [`trq_prev_msg()`](#trq_prev_msg()).
+Use [`trq_first_msg()`](<#trq_first_msg>) or [`trq_last_msg()`](<#trq_last_msg>) to obtain an initial message before iterating with [`trq_prev_msg()`](<#trq_prev_msg>).
 
 <!--====================================================-->
 <!--                    End Tab C                       -->

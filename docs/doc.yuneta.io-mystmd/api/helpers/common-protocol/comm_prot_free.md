@@ -1,5 +1,5 @@
 <!-- ============================================================== -->
-(comm_prot_free())=
+(comm_prot_free)=
 # `comm_prot_free()`
 <!-- ============================================================== -->
 
@@ -26,7 +26,6 @@ void comm_prot_free(void);
 **Parameters**
 
 ::: {list-table}
-:widths: 20 20 60
 :header-rows: 1
 
 * - Key

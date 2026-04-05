@@ -1,5 +1,5 @@
 <!-- ============================================================== -->
-(json_str_in_list())=
+(json_str_in_list)=
 # `json_str_in_list()`
 <!-- ============================================================== -->
 
@@ -31,7 +31,6 @@ PUBLIC BOOL json_str_in_list(
 **Parameters**
 
 ::: {list-table}
-:widths: 20 20 60
 :header-rows: 1
 
 * - Key
@@ -63,7 +62,7 @@ Returns TRUE if the string is found in the JSON array, otherwise returns FALSE.
 
 **Notes**
 
-If `jn_list` is not a JSON array, an error is logged using [`gobj_log_error()`](#gobj_log_error()).
+If `jn_list` is not a JSON array, an error is logged using [`gobj_log_error()`](<#gobj_log_error>).
 
 <!--====================================================-->
 <!--                    End Tab C                       -->

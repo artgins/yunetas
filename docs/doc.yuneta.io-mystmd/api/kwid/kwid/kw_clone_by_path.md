@@ -1,5 +1,5 @@
 <!-- ============================================================== -->
-(kw_clone_by_path())=
+(kw_clone_by_path)=
 # `kw_clone_by_path()`
 <!-- ============================================================== -->
 
@@ -30,7 +30,6 @@ json_t *kw_clone_by_path(
 **Parameters**
 
 ::: {list-table}
-:widths: 20 20 60
 :header-rows: 1
 
 * - Key

@@ -1,5 +1,5 @@
 <!-- ============================================================== -->
-(trq_clear_retries())=
+(trq_clear_retries)=
 # `trq_clear_retries()`
 <!-- ============================================================== -->
 
@@ -28,7 +28,6 @@ void trq_clear_retries(
 **Parameters**
 
 ::: {list-table}
-:widths: 20 20 60
 :header-rows: 1
 
 * - Key
@@ -48,7 +47,7 @@ This function does not return a value.
 
 **Notes**
 
-Use [`trq_test_retries()`](#trq_test_retries()) to check the retry count before clearing it.
+Use [`trq_test_retries()`](<#trq_test_retries>) to check the retry count before clearing it.
 
 <!--====================================================-->
 <!--                    End Tab C                       -->

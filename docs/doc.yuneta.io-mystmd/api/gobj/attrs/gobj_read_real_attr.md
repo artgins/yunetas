@@ -1,9 +1,9 @@
 <!-- ============================================================== -->
-(gobj_read_real_attr())=
+(gobj_read_real_attr)=
 # `gobj_read_real_attr()`
 <!-- ============================================================== -->
 
-Retrieves the value of a real (floating-point) attribute from the given [`hgobj`](#hgobj). The function searches for the attribute in the object's hierarchy, including inherited attributes from bottom objects.
+Retrieves the value of a real (floating-point) attribute from the given `hgobj`. The function searches for the attribute in the object's hierarchy, including inherited attributes from bottom objects.
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -29,7 +29,6 @@ double gobj_read_real_attr(
 **Parameters**
 
 ::: {list-table}
-:widths: 20 20 60
 :header-rows: 1
 
 * - Key
@@ -38,7 +37,7 @@ double gobj_read_real_attr(
 
 * - `gobj`
   - `hgobj`
-  - The [`hgobj`](#hgobj) instance from which the attribute value is retrieved.
+  - The `hgobj` instance from which the attribute value is retrieved.
 
 * - `name`
   - `const char *`
@@ -53,7 +52,7 @@ Returns the floating-point value of the specified attribute. If the attribute is
 
 **Notes**
 
-If the attribute is found and the [`hgobj`](#hgobj) has a `mt_reading` method, that method is called before returning the value.
+If the attribute is found and the `hgobj` has a `mt_reading` method, that method is called before returning the value.
 
 <!--====================================================-->
 <!--                    End Tab C                       -->

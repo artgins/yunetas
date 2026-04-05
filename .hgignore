@@ -5,6 +5,7 @@ chatgpt/
 .claude/
 Testing/
 
+x.txt
 docs/doc.yuneta.io-quarto/.gitignore
 docs/doc.yuneta.io-quarto/_freeze/
 docs/doc.yuneta.io-quarto/notebooks/.jupyter_cache/

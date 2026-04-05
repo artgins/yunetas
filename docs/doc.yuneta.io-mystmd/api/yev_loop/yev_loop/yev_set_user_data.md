@@ -1,5 +1,5 @@
 <!-- ============================================================== -->
-(yev_set_user_data())=
+(yev_set_user_data)=
 # `yev_set_user_data()`
 <!-- ============================================================== -->
 
@@ -29,7 +29,6 @@ int yev_set_user_data(
 **Parameters**
 
 ::: {list-table}
-:widths: 20 20 60
 :header-rows: 1
 
 * - Key
@@ -53,7 +52,7 @@ Returns `0` on success, or `-1` if an error occurs.
 
 **Notes**
 
-The user data set with [`yev_set_user_data()`](#yev_set_user_data()) can be retrieved using [`yev_get_user_data()`](#yev_get_user_data()).
+The user data set with [`yev_set_user_data()`](<#yev_set_user_data>) can be retrieved using [`yev_get_user_data()`](<#yev_get_user_data>).
 
 <!--====================================================-->
 <!--                    End Tab C                       -->

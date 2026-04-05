@@ -1,5 +1,5 @@
 <!-- ============================================================== -->
-(gclass_add_event_type())=
+(gclass_add_event_type)=
 # `gclass_add_event_type()`
 <!-- ============================================================== -->
 
@@ -29,7 +29,6 @@ int gclass_add_event_type(
 **Parameters**
 
 ::: {list-table}
-:widths: 20 20 60
 :header-rows: 1
 
 * - Key
@@ -53,7 +52,7 @@ Returns 0 on success, or -1 if an error occurs.
 
 **Notes**
 
-Ensure that the `event_type` does not already exist in the `gclass` before calling [`gclass_add_event_type()`](#gclass_add_event_type()).
+Ensure that the `event_type` does not already exist in the `gclass` before calling [`gclass_add_event_type()`](<#gclass_add_event_type>).
 
 <!--====================================================-->
 <!--                    End Tab C                       -->

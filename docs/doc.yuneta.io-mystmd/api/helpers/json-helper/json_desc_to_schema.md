@@ -1,5 +1,5 @@
 <!-- ============================================================== -->
-(json_desc_to_schema())=
+(json_desc_to_schema)=
 # `json_desc_to_schema()`
 <!-- ============================================================== -->
 
@@ -28,7 +28,6 @@ json_t *json_desc_to_schema(
 **Parameters**
 
 ::: {list-table}
-:widths: 20 20 60
 :header-rows: 1
 
 * - Key

@@ -1,5 +1,5 @@
 <!-- ============================================================== -->
-(test_json_file())=
+(test_json_file)=
 # `test_json_file()`
 <!-- ============================================================== -->
 
@@ -28,7 +28,6 @@ int test_json_file(
 **Parameters**
 
 ::: {list-table}
-:widths: 20 20 60
 :header-rows: 1
 
 * - Key
@@ -48,8 +47,8 @@ Returns `0` if the JSON content matches the expected structure and logs are as e
 
 **Notes**
 
-Uses [`match_record()`](#match_record) to compare the JSON structures.
-Calls [`check_log_result()`](#check_log_result) to validate log messages.
+Uses `match_record()` to compare the JSON structures.
+Calls `check_log_result()` to validate log messages.
 If `verbose` mode is enabled, additional debug information is printed.
 
 <!--====================================================-->

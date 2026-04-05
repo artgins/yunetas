@@ -1,5 +1,5 @@
 <!-- ============================================================== -->
-(msg2db_get_message())=
+(msg2db_get_message)=
 # `msg2db_get_message()`
 <!-- ============================================================== -->
 
@@ -32,7 +32,6 @@ json_t *msg2db_get_message(
 **Parameters**
 
 ::: {list-table}
-:widths: 20 20 60
 :header-rows: 1
 
 * - Key
@@ -70,7 +69,7 @@ A JSON object containing the requested message. The returned object is not owned
 
 The function returns a reference to an internal JSON object, so the caller must not modify or free it.
 If the message is not found, the function may return `NULL`.
-The function relies on the structure and indexing of the database, which must be properly initialized using [`msg2db_open_db()`](#msg2db_open_db()).
+The function relies on the structure and indexing of the database, which must be properly initialized using [`msg2db_open_db()`](<#msg2db_open_db>).
 
 <!--====================================================-->
 <!--                    End Tab C                       -->

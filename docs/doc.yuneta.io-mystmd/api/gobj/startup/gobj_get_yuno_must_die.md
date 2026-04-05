@@ -1,5 +1,5 @@
 <!-- ============================================================== -->
-(gobj_get_yuno_must_die())=
+(gobj_get_yuno_must_die)=
 # `gobj_get_yuno_must_die()`
 <!-- ============================================================== -->
 
@@ -26,7 +26,6 @@ BOOL gobj_get_yuno_must_die(void);
 **Parameters**
 
 ::: {list-table}
-:widths: 20 20 60
 :header-rows: 1
 
 * - Key

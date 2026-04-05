@@ -1,5 +1,5 @@
 <!-- ============================================================== -->
-(gbuffer_get_rd_offset())=
+(gbuffer_get_rd_offset)=
 # `gbuffer_get_rd_offset()`
 <!-- ============================================================== -->
 
@@ -26,7 +26,6 @@ size_t gbuffer_get_rd_offset(gbuffer_t *gbuf);
 **Parameters**
 
 ::: {list-table}
-:widths: 20 20 60
 :header-rows: 1
 
 * - Key

@@ -1,9 +1,9 @@
 <!-- ============================================================== -->
-(yev_get_gobj())=
+(yev_get_gobj)=
 # `yev_get_gobj()`
 <!-- ============================================================== -->
 
-`yev_get_gobj()` retrieves the associated [`hgobj`](#hgobj) instance from the given `yev_event_h` event handle.
+`yev_get_gobj()` retrieves the associated `hgobj` instance from the given `yev_event_h` event handle.
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -28,7 +28,6 @@ hgobj yev_get_gobj(
 **Parameters**
 
 ::: {list-table}
-:widths: 20 20 60
 :header-rows: 1
 
 * - Key
@@ -37,18 +36,18 @@ hgobj yev_get_gobj(
 
 * - `yev_event`
   - `yev_event_h`
-  - The event handle from which to retrieve the associated [`hgobj`](#hgobj) instance.
+  - The event handle from which to retrieve the associated `hgobj` instance.
 :::
 
 ---
 
 **Return Value**
 
-Returns the [`hgobj`](#hgobj) instance associated with the given event handle, or `NULL` if no instance is associated.
+Returns the `hgobj` instance associated with the given event handle, or `NULL` if no instance is associated.
 
 **Notes**
 
-The returned [`hgobj`](#hgobj) instance can be used to access the object context linked to the event.
+The returned `hgobj` instance can be used to access the object context linked to the event.
 
 <!--====================================================-->
 <!--                    End Tab C                       -->

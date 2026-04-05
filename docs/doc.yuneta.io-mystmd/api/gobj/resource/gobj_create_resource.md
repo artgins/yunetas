@@ -1,5 +1,5 @@
 <!-- ============================================================== -->
-(gobj_create_resource())=
+(gobj_create_resource)=
 # `gobj_create_resource()`
 <!-- ============================================================== -->
 
@@ -31,7 +31,6 @@ json_t *gobj_create_resource(
 **Parameters**
 
 ::: {list-table}
-:widths: 20 20 60
 :header-rows: 1
 
 * - Key

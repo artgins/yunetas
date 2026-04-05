@@ -1,9 +1,9 @@
 <!-- ============================================================== -->
-(gobj_treedbs())=
+(gobj_treedbs)=
 # `gobj_treedbs()`
 <!-- ============================================================== -->
 
-Retrieves a list of TreeDB names available in the given [`hgobj`](#hgobj).
+Retrieves a list of TreeDB names available in the given `hgobj`.
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -30,7 +30,6 @@ json_t *gobj_treedbs(
 **Parameters**
 
 ::: {list-table}
-:widths: 20 20 60
 :header-rows: 1
 
 * - Key
@@ -39,7 +38,7 @@ json_t *gobj_treedbs(
 
 * - `gobj`
   - `hgobj`
-  - The [`hgobj`](#hgobj) instance from which to retrieve the TreeDB names.
+  - The `hgobj` instance from which to retrieve the TreeDB names.
 
 * - `kw`
   - `json_t *`
@@ -47,7 +46,7 @@ json_t *gobj_treedbs(
 
 * - `src`
   - `hgobj`
-  - The source [`hgobj`](#hgobj) requesting the TreeDB list.
+  - The source `hgobj` requesting the TreeDB list.
 :::
 
 ---

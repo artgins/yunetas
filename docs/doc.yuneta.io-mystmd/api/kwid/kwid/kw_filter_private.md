@@ -1,5 +1,5 @@
 <!-- ============================================================== -->
-(kw_filter_private())=
+(kw_filter_private)=
 # `kw_filter_private()`
 <!-- ============================================================== -->
 
@@ -29,7 +29,6 @@ json_t *kw_filter_private(
 **Parameters**
 
 ::: {list-table}
-:widths: 20 20 60
 :header-rows: 1
 
 * - Key
@@ -53,7 +52,7 @@ A new JSON object or array with private keys removed. The caller owns the return
 
 **Notes**
 
-Private keys are identified as those that begin with a single underscore (`_`). The function uses [`_duplicate_object()`](#_duplicate_object) and [`_duplicate_array()`](#_duplicate_array) to create a filtered copy of the input JSON.
+Private keys are identified as those that begin with a single underscore (`_`). The function uses `_duplicate_object()` and `_duplicate_array()` to create a filtered copy of the input JSON.
 
 <!--====================================================-->
 <!--                    End Tab C                       -->

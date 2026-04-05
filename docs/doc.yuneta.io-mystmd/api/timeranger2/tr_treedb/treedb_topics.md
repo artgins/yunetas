@@ -1,5 +1,5 @@
 <!-- ============================================================== -->
-(treedb_topics())=
+(treedb_topics)=
 # `treedb_topics()`
 <!-- ============================================================== -->
 
@@ -30,7 +30,6 @@ json_t *treedb_topics(
 **Parameters**
 
 ::: {list-table}
-:widths: 20 20 60
 :header-rows: 1
 
 * - Key
@@ -58,7 +57,7 @@ A JSON array containing the topic names or a list of dictionaries if `jn_options
 
 **Notes**
 
-The returned JSON object should not be modified or freed by the caller. Use [`treedb_list_treedb()`](#treedb_list_treedb()) to retrieve available TreeDB names.
+The returned JSON object should not be modified or freed by the caller. Use [`treedb_list_treedb()`](<#treedb_list_treedb>) to retrieve available TreeDB names.
 
 <!--====================================================-->
 <!--                    End Tab C                       -->

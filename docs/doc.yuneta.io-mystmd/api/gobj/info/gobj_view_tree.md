@@ -1,9 +1,9 @@
 <!-- ============================================================== -->
-(gobj_view_tree())=
+(gobj_view_tree)=
 # `gobj_view_tree()`
 <!-- ============================================================== -->
 
-Generates a hierarchical JSON representation of the given [`hgobj`](#hgobj) and its child objects, including selected attributes.
+Generates a hierarchical JSON representation of the given `hgobj` and its child objects, including selected attributes.
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -29,7 +29,6 @@ json_t *gobj_view_tree(
 **Parameters**
 
 ::: {list-table}
-:widths: 20 20 60
 :header-rows: 1
 
 * - Key
@@ -38,7 +37,7 @@ json_t *gobj_view_tree(
 
 * - `gobj`
   - `hgobj`
-  - The root [`hgobj`](#hgobj) whose tree structure will be represented.
+  - The root `hgobj` whose tree structure will be represented.
 
 * - `jn_filter`
   - `json_t *`
@@ -49,7 +48,7 @@ json_t *gobj_view_tree(
 
 **Return Value**
 
-A JSON object representing the hierarchical structure of [`gobj`](#hgobj) and its children, including the requested attributes.
+A JSON object representing the hierarchical structure of `gobj` and its children, including the requested attributes.
 
 **Notes**
 

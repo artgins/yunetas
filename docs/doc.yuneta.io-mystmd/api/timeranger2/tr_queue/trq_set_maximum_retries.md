@@ -1,5 +1,5 @@
 <!-- ============================================================== -->
-(trq_set_maximum_retries())=
+(trq_set_maximum_retries)=
 # `trq_set_maximum_retries()`
 <!-- ============================================================== -->
 
@@ -29,7 +29,6 @@ void trq_set_maximum_retries(
 **Parameters**
 
 ::: {list-table}
-:widths: 20 20 60
 :header-rows: 1
 
 * - Key

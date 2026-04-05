@@ -1,5 +1,5 @@
 <!-- ============================================================== -->
-(gobj_is_shutdowning())=
+(gobj_is_shutdowning)=
 # `gobj_is_shutdowning()`
 <!-- ============================================================== -->
 
@@ -26,7 +26,6 @@ BOOL gobj_is_shutdowning(void);
 **Parameters**
 
 ::: {list-table}
-:widths: 20 20 60
 :header-rows: 1
 
 * - Key

@@ -1,5 +1,5 @@
 <!-- ============================================================== -->
-(yev_create_inotify_event())=
+(yev_create_inotify_event)=
 # `yev_create_inotify_event()`
 <!-- ============================================================== -->
 
@@ -32,7 +32,6 @@ yev_event_h yev_create_inotify_event(
 **Parameters**
 
 ::: {list-table}
-:widths: 20 20 60
 :header-rows: 1
 
 * - Key
@@ -45,7 +44,7 @@ yev_event_h yev_create_inotify_event(
 
 * - `callback`
   - `yev_callback_t`
-  - The function to be called when the event is triggered. If it returns -1, [`yev_loop_run()`](#yev_loop_run()) will break.
+  - The function to be called when the event is triggered. If it returns -1, [`yev_loop_run()`](<#yev_loop_run>) will break.
 
 * - `gobj`
   - `hgobj`
@@ -68,7 +67,7 @@ Returns a `yev_event_h` handle to the newly created inotify event, or `NULL` on 
 
 **Notes**
 
-The callback function provided will be invoked when the inotify event is triggered. Ensure that the file descriptor `fd` is valid and properly initialized before calling [`yev_create_inotify_event()`](#yev_create_inotify_event()).
+The callback function provided will be invoked when the inotify event is triggered. Ensure that the file descriptor `fd` is valid and properly initialized before calling [`yev_create_inotify_event()`](<#yev_create_inotify_event>).
 
 <!--====================================================-->
 <!--                    End Tab C                       -->

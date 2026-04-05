@@ -1,5 +1,5 @@
 <!-- ============================================================== -->
-(trq_load_all())=
+(trq_load_all)=
 # `trq_load_all()`
 <!-- ============================================================== -->
 
@@ -31,7 +31,6 @@ int trq_load_all(
 **Parameters**
 
 ::: {list-table}
-:widths: 20 20 60
 :header-rows: 1
 
 * - Key
@@ -63,7 +62,7 @@ Returns an iterator over the loaded messages or an error code if the operation f
 
 **Notes**
 
-Use [`trq_load_all()`](#trq_load_all()) to retrieve messages efficiently within a specific rowid range.
+Use [`trq_load_all()`](<#trq_load_all>) to retrieve messages efficiently within a specific rowid range.
 
 <!--====================================================-->
 <!--                    End Tab C                       -->

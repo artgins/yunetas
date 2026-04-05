@@ -1,5 +1,5 @@
 <!-- ============================================================== -->
-(gobj_event_type())=
+(gobj_event_type)=
 # `gobj_event_type()`
 <!-- ============================================================== -->
 
@@ -30,7 +30,6 @@ PUBLIC event_type_t *gobj_event_type(
 **Parameters**
 
 ::: {list-table}
-:widths: 20 20 60
 :header-rows: 1
 
 * - Key

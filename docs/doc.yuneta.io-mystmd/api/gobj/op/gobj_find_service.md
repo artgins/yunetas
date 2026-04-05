@@ -1,5 +1,5 @@
 <!-- ============================================================== -->
-(gobj_find_service())=
+(gobj_find_service)=
 # `gobj_find_service()`
 <!-- ============================================================== -->
 
@@ -29,7 +29,6 @@ hgobj gobj_find_service(
 **Parameters**
 
 ::: {list-table}
-:widths: 20 20 60
 :header-rows: 1
 
 * - Key

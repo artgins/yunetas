@@ -1,5 +1,5 @@
 <!-- ============================================================== -->
-(treedb_get_node())=
+(treedb_get_node)=
 # `treedb_get_node()`
 <!-- ============================================================== -->
 
@@ -31,7 +31,6 @@ json_t *treedb_get_node(
 **Parameters**
 
 ::: {list-table}
-:widths: 20 20 60
 :header-rows: 1
 
 * - Key
@@ -63,7 +62,7 @@ A reference to the requested node as a `json_t *`. The returned node must not be
 
 **Notes**
 
-The returned node is not owned by the caller and should not be modified or freed. Use [`treedb_update_node()`](#treedb_update_node()) to modify the node safely.
+The returned node is not owned by the caller and should not be modified or freed. Use [`treedb_update_node()`](<#treedb_update_node>) to modify the node safely.
 
 <!--====================================================-->
 <!--                    End Tab C                       -->

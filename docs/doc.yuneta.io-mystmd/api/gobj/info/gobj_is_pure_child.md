@@ -1,9 +1,9 @@
 <!-- ============================================================== -->
-(gobj_is_pure_child())=
+(gobj_is_pure_child)=
 # `gobj_is_pure_child()`
 <!-- ============================================================== -->
 
-Checks if the given [`hgobj`](#hgobj) is marked as a pure child, meaning it sends events directly to its parent instead of publishing them.
+Checks if the given `hgobj` is marked as a pure child, meaning it sends events directly to its parent instead of publishing them.
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -26,7 +26,6 @@ BOOL gobj_is_pure_child(hgobj gobj);
 **Parameters**
 
 ::: {list-table}
-:widths: 20 20 60
 :header-rows: 1
 
 * - Key
@@ -35,18 +34,18 @@ BOOL gobj_is_pure_child(hgobj gobj);
 
 * - `gobj`
   - `hgobj`
-  - The [`hgobj`](#hgobj) instance to check.
+  - The `hgobj` instance to check.
 :::
 
 ---
 
 **Return Value**
 
-Returns `TRUE` if the [`hgobj`](#hgobj) is a pure child, otherwise returns `FALSE`.
+Returns `TRUE` if the `hgobj` is a pure child, otherwise returns `FALSE`.
 
 **Notes**
 
-A pure child is a [`hgobj`](#hgobj) that bypasses event publication and directly sends events to its parent.
+A pure child is a `hgobj` that bypasses event publication and directly sends events to its parent.
 
 <!--====================================================-->
 <!--                    End Tab C                       -->

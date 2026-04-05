@@ -1,5 +1,5 @@
 <!-- ============================================================== -->
-(trmsg_get_active_message())=
+(trmsg_get_active_message)=
 # `trmsg_get_active_message()`
 <!-- ============================================================== -->
 
@@ -29,7 +29,6 @@ json_t *trmsg_get_active_message(
 **Parameters**
 
 ::: {list-table}
-:widths: 20 20 60
 :header-rows: 1
 
 * - Key

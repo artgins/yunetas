@@ -1,9 +1,9 @@
 <!-- ============================================================== -->
-(gobj_write_json_attr())=
+(gobj_write_json_attr)=
 # `gobj_write_json_attr()`
 <!-- ============================================================== -->
 
-Writes a JSON value to the specified attribute of a [`hgobj`](#hgobj). The function ensures that the attribute exists and is of the correct type before updating its value.
+Writes a JSON value to the specified attribute of a `hgobj`. The function ensures that the attribute exists and is of the correct type before updating its value.
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -30,7 +30,6 @@ int gobj_write_json_attr(
 **Parameters**
 
 ::: {list-table}
-:widths: 20 20 60
 :header-rows: 1
 
 * - Key
@@ -39,7 +38,7 @@ int gobj_write_json_attr(
 
 * - `gobj`
   - `hgobj`
-  - The [`hgobj`](#hgobj) instance whose attribute is being updated.
+  - The `hgobj` instance whose attribute is being updated.
 
 * - `name`
   - `const char *`

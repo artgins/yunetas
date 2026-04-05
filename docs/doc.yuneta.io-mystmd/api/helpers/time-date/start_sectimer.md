@@ -1,5 +1,5 @@
 <!-- ============================================================== -->
-(start_sectimer())=
+(start_sectimer)=
 # `start_sectimer()`
 <!-- ============================================================== -->
 
@@ -26,7 +26,6 @@ time_t start_sectimer(time_t seconds);
 **Parameters**
 
 ::: {list-table}
-:widths: 20 20 60
 :header-rows: 1
 
 * - Key

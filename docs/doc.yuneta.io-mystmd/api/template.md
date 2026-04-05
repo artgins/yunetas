@@ -1,5 +1,5 @@
 <!-- ============================================================== -->
-(function_name())=
+(function_name)=
 # `function_name`
 <!-- ============================================================== -->
 
@@ -36,7 +36,6 @@ TODO C prototype
 **Parameters**
 
 ````{list-table}
-:widths: 20 20 60
 :header-rows: 1
 * - Key
   - Type
@@ -87,7 +86,6 @@ TODO JS prototype
 **Parameters**
 
 ````{list-table}
-:widths: 20 20 60
 :header-rows: 1
 * - Key
   - Type
@@ -137,7 +135,6 @@ TODO Pyton prototype
 **Parameters**
 
 ````{list-table}
-:widths: 20 20 60
 :header-rows: 1
 * - Key
   - Type

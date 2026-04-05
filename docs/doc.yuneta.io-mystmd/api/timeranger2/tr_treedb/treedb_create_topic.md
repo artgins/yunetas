@@ -1,5 +1,5 @@
 <!-- ============================================================== -->
-(treedb_create_topic())=
+(treedb_create_topic)=
 # `treedb_create_topic()`
 <!-- ============================================================== -->
 
@@ -36,7 +36,6 @@ json_t *treedb_create_topic(
 **Parameters**
 
 ::: {list-table}
-:widths: 20 20 60
 :header-rows: 1
 
 * - Key

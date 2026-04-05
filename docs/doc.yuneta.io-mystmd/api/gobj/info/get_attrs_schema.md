@@ -1,9 +1,9 @@
 <!-- ============================================================== -->
-(get_attrs_schema())=
+(get_attrs_schema)=
 # `get_attrs_schema()`
 <!-- ============================================================== -->
 
-Returns a JSON array describing the attributes of a given [`hgobj`](#hgobj). The attributes included are those marked with `SDF_RD`, `SDF_WR`, `SDF_STATS`, `SDF_PERSIST`, `SDF_VOLATIL`, `SDF_RSTATS`, or `SDF_PSTATS`.
+Returns a JSON array describing the attributes of a given `hgobj`. The attributes included are those marked with `SDF_RD`, `SDF_WR`, `SDF_STATS`, `SDF_PERSIST`, `SDF_VOLATIL`, `SDF_RSTATS`, or `SDF_PSTATS`.
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -26,7 +26,6 @@ json_t *get_attrs_schema(hgobj gobj);
 **Parameters**
 
 ::: {list-table}
-:widths: 20 20 60
 :header-rows: 1
 
 * - Key
@@ -35,7 +34,7 @@ json_t *get_attrs_schema(hgobj gobj);
 
 * - `gobj`
   - `hgobj`
-  - The [`hgobj`](#hgobj) whose attributes are to be described.
+  - The `hgobj` whose attributes are to be described.
 :::
 
 ---

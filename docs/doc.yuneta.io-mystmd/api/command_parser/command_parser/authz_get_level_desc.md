@@ -1,5 +1,5 @@
 <!-- ============================================================== -->
-(authz_get_level_desc())=
+(authz_get_level_desc)=
 # `authz_get_level_desc()`
 <!-- ============================================================== -->
 
@@ -29,7 +29,6 @@ const sdata_desc_t *authz_get_level_desc(
 **Parameters**
 
 ::: {list-table}
-:widths: 20 20 60
 :header-rows: 1
 
 * - Key

@@ -1,9 +1,9 @@
 <!-- ============================================================== -->
-(gobj_trace_level())=
+(gobj_trace_level)=
 # `gobj_trace_level()`
 <!-- ============================================================== -->
 
-Returns the trace level bitmask for the given [`hgobj`](#hgobj).
+Returns the trace level bitmask for the given `hgobj`.
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -28,7 +28,6 @@ PUBLIC uint32_t gobj_trace_level(
 **Parameters**
 
 ::: {list-table}
-:widths: 20 20 60
 :header-rows: 1
 
 * - Key
@@ -37,18 +36,18 @@ PUBLIC uint32_t gobj_trace_level(
 
 * - `gobj`
   - `hgobj`
-  - The [`hgobj`](#hgobj) instance whose trace level is to be retrieved.
+  - The `hgobj` instance whose trace level is to be retrieved.
 :::
 
 ---
 
 **Return Value**
 
-A 32-bit bitmask representing the trace levels enabled for the given [`hgobj`](#hgobj).
+A 32-bit bitmask representing the trace levels enabled for the given `hgobj`.
 
 **Notes**
 
-If [`gobj`](#hgobj) is `NULL`, the function returns the global trace level bitmask.
+If `gobj` is `NULL`, the function returns the global trace level bitmask.
 
 <!--====================================================-->
 <!--                    End Tab C                       -->

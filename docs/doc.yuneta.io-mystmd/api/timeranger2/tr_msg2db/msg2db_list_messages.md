@@ -1,5 +1,5 @@
 <!-- ============================================================== -->
-(msg2db_list_messages())=
+(msg2db_list_messages)=
 # `msg2db_list_messages()`
 <!-- ============================================================== -->
 
@@ -36,7 +36,6 @@ json_t *msg2db_list_messages(
 **Parameters**
 
 ::: {list-table}
-:widths: 20 20 60
 :header-rows: 1
 
 * - Key

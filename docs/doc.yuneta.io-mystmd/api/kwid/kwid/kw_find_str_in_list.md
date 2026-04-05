@@ -1,5 +1,5 @@
 <!-- ============================================================== -->
-(kw_find_str_in_list())=
+(kw_find_str_in_list)=
 # `kw_find_str_in_list()`
 <!-- ============================================================== -->
 
@@ -30,7 +30,6 @@ int kw_find_str_in_list(
 **Parameters**
 
 ::: {list-table}
-:widths: 20 20 60
 :header-rows: 1
 
 * - Key

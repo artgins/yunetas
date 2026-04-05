@@ -1,5 +1,5 @@
 <!-- ============================================================== -->
-(gobj_trace_dump())=
+(gobj_trace_dump)=
 # `gobj_trace_dump()`
 <!-- ============================================================== -->
 
@@ -32,7 +32,6 @@ void gobj_trace_dump(
 **Parameters**
 
 ::: {list-table}
-:widths: 20 20 60
 :header-rows: 1
 
 * - Key

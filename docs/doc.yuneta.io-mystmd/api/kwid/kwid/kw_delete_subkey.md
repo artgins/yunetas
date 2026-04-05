@@ -1,5 +1,5 @@
 <!-- ============================================================== -->
-(kw_delete_subkey())=
+(kw_delete_subkey)=
 # `kw_delete_subkey()`
 <!-- ============================================================== -->
 
@@ -31,7 +31,6 @@ int kw_delete_subkey(
 **Parameters**
 
 ::: {list-table}
-:widths: 20 20 60
 :header-rows: 1
 
 * - Key

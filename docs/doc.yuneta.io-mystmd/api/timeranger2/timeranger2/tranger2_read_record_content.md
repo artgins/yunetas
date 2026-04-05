@@ -1,5 +1,5 @@
 <!-- ============================================================== -->
-(tranger2_read_record_content())=
+(tranger2_read_record_content)=
 # `tranger2_read_record_content()`
 <!-- ============================================================== -->
 
@@ -31,7 +31,6 @@ json_t *tranger2_read_record_content(
 **Parameters**
 
 ::: {list-table}
-:widths: 20 20 60
 :header-rows: 1
 
 * - Key
@@ -59,7 +58,7 @@ json_t *tranger2_read_record_content(
 
 **Return Value**
 
-Returns a [`json_t *`](#json_t) object containing the record's content. The caller owns the returned JSON object and must free it when no longer needed.
+Returns a `json_t *` object containing the record's content. The caller owns the returned JSON object and must free it when no longer needed.
 
 **Notes**
 

@@ -1,5 +1,5 @@
 <!-- ============================================================== -->
-(ghttp_parser_received())=
+(ghttp_parser_received)=
 # `ghttp_parser_received()`
 <!-- ============================================================== -->
 
@@ -30,7 +30,6 @@ int ghttp_parser_received(
 **Parameters**
 
 ::: {list-table}
-:widths: 20 20 60
 :header-rows: 1
 
 * - Key

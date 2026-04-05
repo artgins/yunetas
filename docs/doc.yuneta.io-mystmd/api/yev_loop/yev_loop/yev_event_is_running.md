@@ -1,5 +1,5 @@
 <!-- ============================================================== -->
-(yev_event_is_running())=
+(yev_event_is_running)=
 # `yev_event_is_running()`
 <!-- ============================================================== -->
 
@@ -28,7 +28,6 @@ BOOL yev_event_is_running(
 **Parameters**
 
 ::: {list-table}
-:widths: 20 20 60
 :header-rows: 1
 
 * - Key

@@ -1,5 +1,5 @@
 <!-- ============================================================== -->
-(tranger2_print_md1_record())=
+(tranger2_print_md1_record)=
 # `tranger2_print_md1_record()`
 <!-- ============================================================== -->
 
@@ -32,7 +32,6 @@ void tranger2_print_md1_record(
 **Parameters**
 
 ::: {list-table}
-:widths: 20 20 60
 :header-rows: 1
 
 * - Key

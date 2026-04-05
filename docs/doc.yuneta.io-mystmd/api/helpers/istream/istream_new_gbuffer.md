@@ -1,5 +1,5 @@
 <!-- ============================================================== -->
-(istream_new_gbuffer())=
+(istream_new_gbuffer)=
 # `istream_new_gbuffer()`
 <!-- ============================================================== -->
 
@@ -30,7 +30,6 @@ int istream_new_gbuffer(
 **Parameters**
 
 ::: {list-table}
-:widths: 20 20 60
 :header-rows: 1
 
 * - Key

@@ -1,9 +1,9 @@
 <!-- ============================================================== -->
-(gobj_first_child())=
+(gobj_first_child)=
 # `gobj_first_child()`
 <!-- ============================================================== -->
 
-Returns the first child of the given [`hgobj`](#hgobj) object.
+Returns the first child of the given `hgobj` object.
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -26,7 +26,6 @@ hgobj gobj_first_child(hgobj gobj);
 **Parameters**
 
 ::: {list-table}
-:widths: 20 20 60
 :header-rows: 1
 
 * - Key
@@ -35,14 +34,14 @@ hgobj gobj_first_child(hgobj gobj);
 
 * - `gobj`
   - `hgobj`
-  - The parent [`hgobj`](#hgobj) whose first child is to be retrieved.
+  - The parent `hgobj` whose first child is to be retrieved.
 :::
 
 ---
 
 **Return Value**
 
-Returns the first child [`hgobj`](#hgobj) of the given parent. If the parent has no children, returns `NULL`.
+Returns the first child `hgobj` of the given parent. If the parent has no children, returns `NULL`.
 
 **Notes**
 

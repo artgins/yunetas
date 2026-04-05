@@ -1,5 +1,5 @@
 <!-- ============================================================== -->
-(tranger2_list_keys())=
+(tranger2_list_keys)=
 # `tranger2_list_keys()`
 <!-- ============================================================== -->
 
@@ -30,7 +30,6 @@ json_t *tranger2_list_keys(
 **Parameters**
 
 ::: {list-table}
-:widths: 20 20 60
 :header-rows: 1
 
 * - Key

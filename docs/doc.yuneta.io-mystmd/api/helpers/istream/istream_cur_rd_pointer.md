@@ -1,5 +1,5 @@
 <!-- ============================================================== -->
-(istream_cur_rd_pointer())=
+(istream_cur_rd_pointer)=
 # `istream_cur_rd_pointer()`
 <!-- ============================================================== -->
 
@@ -28,7 +28,6 @@ char *istream_cur_rd_pointer(
 **Parameters**
 
 ::: {list-table}
-:widths: 20 20 60
 :header-rows: 1
 
 * - Key

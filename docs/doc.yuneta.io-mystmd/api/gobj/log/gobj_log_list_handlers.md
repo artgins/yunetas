@@ -1,5 +1,5 @@
 <!-- ============================================================== -->
-(gobj_log_list_handlers())=
+(gobj_log_list_handlers)=
 # `gobj_log_list_handlers()`
 <!-- ============================================================== -->
 
@@ -26,7 +26,6 @@ json_t *gobj_log_list_handlers(void);
 **Parameters**
 
 ::: {list-table}
-:widths: 20 20 60
 :header-rows: 1
 
 * - Key

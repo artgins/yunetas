@@ -1,5 +1,5 @@
 <!-- ============================================================== -->
-(yev_create_connect_event())=
+(yev_create_connect_event)=
 # `yev_create_connect_event()`
 <!-- ============================================================== -->
 
@@ -30,7 +30,6 @@ yev_event_h yev_create_connect_event(
 **Parameters**
 
 ::: {list-table}
-:widths: 20 20 60
 :header-rows: 1
 
 * - Key
@@ -43,7 +42,7 @@ yev_event_h yev_create_connect_event(
 
 * - `callback`
   - `yev_callback_t`
-  - The callback function to be invoked when the event is triggered. If it returns -1, the loop in [`yev_loop_run()`](#yev_loop_run()) will break.
+  - The callback function to be invoked when the event is triggered. If it returns -1, the loop in [`yev_loop_run()`](<#yev_loop_run>) will break.
 
 * - `gobj`
   - `hgobj`
@@ -58,7 +57,7 @@ Returns a `yev_event_h` handle to the newly created connect event, or `NULL` on 
 
 **Notes**
 
-Before starting the connect event, it must be configured using [`yev_setup_connect_event()`](#yev_setup_connect_event()).
+Before starting the connect event, it must be configured using [`yev_setup_connect_event()`](<#yev_setup_connect_event>).
 
 <!--====================================================-->
 <!--                    End Tab C                       -->

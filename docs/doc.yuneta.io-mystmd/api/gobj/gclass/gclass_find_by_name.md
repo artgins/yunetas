@@ -1,5 +1,5 @@
 <!-- ============================================================== -->
-(gclass_find_by_name())=
+(gclass_find_by_name)=
 # `gclass_find_by_name()`
 <!-- ============================================================== -->
 
@@ -28,7 +28,6 @@ hgclass gclass_find_by_name(
 **Parameters**
 
 ::: {list-table}
-:widths: 20 20 60
 :header-rows: 1
 
 * - Key

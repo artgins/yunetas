@@ -1,5 +1,5 @@
 <!-- ============================================================== -->
-(gbuffer_encode_base64())=
+(gbuffer_encode_base64)=
 # `gbuffer_encode_base64()`
 <!-- ============================================================== -->
 
@@ -28,7 +28,6 @@ gbuffer_t *gbuffer_encode_base64(
 **Parameters**
 
 ::: {list-table}
-:widths: 20 20 60
 :header-rows: 1
 
 * - Key

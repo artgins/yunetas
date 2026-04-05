@@ -1,9 +1,9 @@
 <!-- ============================================================== -->
-(gobj_walk_gobj_children_tree())=
+(gobj_walk_gobj_children_tree)=
 # `gobj_walk_gobj_children_tree()`
 <!-- ============================================================== -->
 
-Traverses the child objects of a given [`hgobj`](#hgobj) in a specified order and applies a callback function to each child.
+Traverses the child objects of a given `hgobj` in a specified order and applies a callback function to each child.
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -32,7 +32,6 @@ int gobj_walk_gobj_children_tree(
 **Parameters**
 
 ::: {list-table}
-:widths: 20 20 60
 :header-rows: 1
 
 * - Key
@@ -41,7 +40,7 @@ int gobj_walk_gobj_children_tree(
 
 * - `gobj`
   - `hgobj`
-  - The parent [`hgobj`](#hgobj) whose child objects will be traversed.
+  - The parent `hgobj` whose child objects will be traversed.
 
 * - `walk_type`
   - `walk_type_t`
@@ -49,7 +48,7 @@ int gobj_walk_gobj_children_tree(
 
 * - `cb_walking`
   - `cb_walking_t`
-  - A callback function that is applied to each child [`hgobj`](#hgobj).
+  - A callback function that is applied to each child `hgobj`.
 
 * - `user_data`
   - `void *`

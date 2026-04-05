@@ -1,5 +1,5 @@
 <!-- ============================================================== -->
-(gclass_find_public_event())=
+(gclass_find_public_event)=
 # `gclass_find_public_event()`
 <!-- ============================================================== -->
 
@@ -29,7 +29,6 @@ gobj_event_t gclass_find_public_event(
 **Parameters**
 
 ::: {list-table}
-:widths: 20 20 60
 :header-rows: 1
 
 * - Key

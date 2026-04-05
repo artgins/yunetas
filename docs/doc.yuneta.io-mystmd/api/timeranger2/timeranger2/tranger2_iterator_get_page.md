@@ -1,5 +1,5 @@
 <!-- ============================================================== -->
-(tranger2_iterator_get_page())=
+(tranger2_iterator_get_page)=
 # `tranger2_iterator_get_page()`
 <!-- ============================================================== -->
 
@@ -32,7 +32,6 @@ json_t *tranger2_iterator_get_page(
 **Parameters**
 
 ::: {list-table}
-:widths: 20 20 60
 :header-rows: 1
 
 * - Key

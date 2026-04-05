@@ -1,5 +1,5 @@
 <!-- ============================================================== -->
-(trmsg_record_instances())=
+(trmsg_record_instances)=
 # `trmsg_record_instances()`
 <!-- ============================================================== -->
 
@@ -30,7 +30,6 @@ json_t *trmsg_record_instances(
 **Parameters**
 
 ::: {list-table}
-:widths: 20 20 60
 :header-rows: 1
 
 * - Key

@@ -1,5 +1,5 @@
 <!-- ============================================================== -->
-(yev_set_gbuffer())=
+(yev_set_gbuffer)=
 # `yev_set_gbuffer()`
 <!-- ============================================================== -->
 
@@ -29,7 +29,6 @@ int yev_set_gbuffer(
 **Parameters**
 
 ::: {list-table}
-:widths: 20 20 60
 :header-rows: 1
 
 * - Key
@@ -53,7 +52,7 @@ Returns `0` on success, or `-1` if an error occurs.
 
 **Notes**
 
-This function is only applicable for events created using [`yev_create_read_event()`](#yev_create_read_event()) and [`yev_create_write_event()`](#yev_create_write_event()).
+This function is only applicable for events created using [`yev_create_read_event()`](<#yev_create_read_event>) and [`yev_create_write_event()`](<#yev_create_write_event>).
 
 <!--====================================================-->
 <!--                    End Tab C                       -->

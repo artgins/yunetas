@@ -1,9 +1,9 @@
 <!-- ============================================================== -->
-(tranger2_startup())=
+(tranger2_startup)=
 # `tranger2_startup()`
 <!-- ============================================================== -->
 
-Initializes the TimeRanger 2 database, setting up its internal structures and preparing it for use. The function requires a [`hgobj`](#hgobj) instance and a JSON configuration object that defines database parameters.
+Initializes the TimeRanger 2 database, setting up its internal structures and preparing it for use. The function requires a `hgobj` instance and a JSON configuration object that defines database parameters.
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -30,7 +30,6 @@ json_t *tranger2_startup(
 **Parameters**
 
 ::: {list-table}
-:widths: 20 20 60
 :header-rows: 1
 
 * - Key

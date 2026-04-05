@@ -1,5 +1,5 @@
 <!-- ============================================================== -->
-(yev_event_type_name())=
+(yev_event_type_name)=
 # `yev_event_type_name()`
 <!-- ============================================================== -->
 
@@ -28,7 +28,6 @@ const char *yev_event_type_name(
 **Parameters**
 
 ::: {list-table}
-:widths: 20 20 60
 :header-rows: 1
 
 * - Key

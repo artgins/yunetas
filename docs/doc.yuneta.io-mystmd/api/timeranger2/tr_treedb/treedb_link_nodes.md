@@ -1,5 +1,5 @@
 <!-- ============================================================== -->
-(treedb_link_nodes())=
+(treedb_link_nodes)=
 # `treedb_link_nodes()`
 <!-- ============================================================== -->
 
@@ -31,7 +31,6 @@ int treedb_link_nodes(
 **Parameters**
 
 ::: {list-table}
-:widths: 20 20 60
 :header-rows: 1
 
 * - Key
@@ -63,7 +62,7 @@ Returns `0` on success, or a negative error code if the operation fails.
 
 **Notes**
 
-The function does not take ownership of `parent_node` or `child_node`. Ensure that both nodes exist and are valid before calling [`treedb_link_nodes()`](#treedb_link_nodes()).
+The function does not take ownership of `parent_node` or `child_node`. Ensure that both nodes exist and are valid before calling [`treedb_link_nodes()`](<#treedb_link_nodes>).
 
 <!--====================================================-->
 <!--                    End Tab C                       -->

@@ -1,5 +1,5 @@
 <!-- ============================================================== -->
-(delete_right_char())=
+(delete_right_char)=
 # `delete_right_char()`
 <!-- ============================================================== -->
 
@@ -26,7 +26,6 @@ char *delete_right_char(char *s, char x);
 **Parameters**
 
 ::: {list-table}
-:widths: 20 20 60
 :header-rows: 1
 
 * - Key

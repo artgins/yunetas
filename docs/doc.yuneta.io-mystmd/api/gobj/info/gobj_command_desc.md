@@ -1,5 +1,5 @@
 <!-- ============================================================== -->
-(gobj_command_desc())=
+(gobj_command_desc)=
 # `gobj_command_desc()`
 <!-- ============================================================== -->
 
@@ -30,7 +30,6 @@ PUBLIC const sdata_desc_t *gobj_command_desc(
 **Parameters**
 
 ::: {list-table}
-:widths: 20 20 60
 :header-rows: 1
 
 * - Key

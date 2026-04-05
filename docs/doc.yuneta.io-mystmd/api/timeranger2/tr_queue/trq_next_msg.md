@@ -1,5 +1,5 @@
 <!-- ============================================================== -->
-(trq_next_msg())=
+(trq_next_msg)=
 # `trq_next_msg()`
 <!-- ============================================================== -->
 
@@ -28,7 +28,6 @@ q_msg trq_next_msg(
 **Parameters**
 
 ::: {list-table}
-:widths: 20 20 60
 :header-rows: 1
 
 * - Key
@@ -48,7 +47,7 @@ Returns the next [`q_msg`](#q_msg) in the queue iteration, or `NULL` if there ar
 
 **Notes**
 
-Use [`trq_first_msg()`](#trq_first_msg()) to obtain the first message before calling [`trq_next_msg()`](#trq_next_msg()) in a loop.
+Use [`trq_first_msg()`](<#trq_first_msg>) to obtain the first message before calling [`trq_next_msg()`](<#trq_next_msg>) in a loop.
 
 <!--====================================================-->
 <!--                    End Tab C                       -->

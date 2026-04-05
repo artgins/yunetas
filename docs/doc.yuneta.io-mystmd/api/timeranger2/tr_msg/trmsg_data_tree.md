@@ -1,5 +1,5 @@
 <!-- ============================================================== -->
-(trmsg_data_tree())=
+(trmsg_data_tree)=
 # `trmsg_data_tree()`
 <!-- ============================================================== -->
 
@@ -29,7 +29,6 @@ json_t *trmsg_data_tree(
 **Parameters**
 
 ::: {list-table}
-:widths: 20 20 60
 :header-rows: 1
 
 * - Key

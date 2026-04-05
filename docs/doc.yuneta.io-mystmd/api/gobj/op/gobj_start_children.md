@@ -1,9 +1,9 @@
 <!-- ============================================================== -->
-(gobj_start_children())=
+(gobj_start_children)=
 # `gobj_start_children()`
 <!-- ============================================================== -->
 
-Starts all direct child objects of the given [`hgobj`](#hgobj) instance by invoking [`gobj_start()`](#gobj_start) on each child that is not already running and not disabled.
+Starts all direct child objects of the given `hgobj` instance by invoking [`gobj_start()`](#gobj_start) on each child that is not already running and not disabled.
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -28,7 +28,6 @@ int gobj_start_children(
 **Parameters**
 
 ::: {list-table}
-:widths: 20 20 60
 :header-rows: 1
 
 * - Key

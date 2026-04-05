@@ -1,5 +1,5 @@
 <!-- ============================================================== -->
-(istream_create())=
+(istream_create)=
 # `istream_create()`
 <!-- ============================================================== -->
 
@@ -30,7 +30,6 @@ istream_h istream_create(
 **Parameters**
 
 ::: {list-table}
-:widths: 20 20 60
 :header-rows: 1
 
 * - Key

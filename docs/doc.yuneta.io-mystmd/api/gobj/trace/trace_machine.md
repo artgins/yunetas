@@ -1,5 +1,5 @@
 <!-- ============================================================== -->
-(trace_machine())=
+(trace_machine)=
 # `trace_machine()`
 <!-- ============================================================== -->
 
@@ -26,7 +26,6 @@ void trace_machine(const char *fmt, ...);
 **Parameters**
 
 ::: {list-table}
-:widths: 20 20 60
 :header-rows: 1
 
 * - Key

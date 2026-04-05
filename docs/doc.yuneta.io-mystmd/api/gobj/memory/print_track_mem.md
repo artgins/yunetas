@@ -1,5 +1,5 @@
 <!-- ============================================================== -->
-(print_track_mem())=
+(print_track_mem)=
 # `print_track_mem()`
 <!-- ============================================================== -->
 
@@ -26,7 +26,6 @@ void print_track_mem(void);
 **Parameters**
 
 ::: {list-table}
-:widths: 20 20 60
 :header-rows: 1
 
 * - Key

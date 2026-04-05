@@ -1,9 +1,9 @@
 <!-- ============================================================== -->
-(trq_set_hard_flag())=
+(trq_set_hard_flag)=
 # `trq_set_hard_flag()`
 <!-- ============================================================== -->
 
-`trq_set_hard_flag()` marks a message with a hard flag, allowing it to be recovered in the next queue open if the flag is used in [`trq_load()`](#trq_load()).
+`trq_set_hard_flag()` marks a message with a hard flag, allowing it to be recovered in the next queue open if the flag is used in [`trq_load()`](<#trq_load>).
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -30,7 +30,6 @@ int trq_set_hard_flag(
 **Parameters**
 
 ::: {list-table}
-:widths: 20 20 60
 :header-rows: 1
 
 * - Key
@@ -58,7 +57,7 @@ Returns `0` on success, or a negative value on failure.
 
 **Notes**
 
-A message must be flagged after being appended to the queue if it needs to be recovered in the next queue open using [`trq_load()`](#trq_load()).
+A message must be flagged after being appended to the queue if it needs to be recovered in the next queue open using [`trq_load()`](<#trq_load>).
 
 <!--====================================================-->
 <!--                    End Tab C                       -->

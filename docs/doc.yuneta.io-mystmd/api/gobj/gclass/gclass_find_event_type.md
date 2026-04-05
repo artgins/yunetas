@@ -1,5 +1,5 @@
 <!-- ============================================================== -->
-(gclass_event_type())=
+(gclass_event_type)=
 # `gclass_event_type()`
 <!-- ============================================================== -->
 
@@ -29,7 +29,6 @@ event_type_t *gclass_event_type(
 **Parameters**
 
 ::: {list-table}
-:widths: 20 20 60
 :header-rows: 1
 
 * - Key

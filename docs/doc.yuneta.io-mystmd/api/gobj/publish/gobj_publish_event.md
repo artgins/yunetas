@@ -1,5 +1,5 @@
 <!-- ============================================================== -->
-(gobj_publish_event())=
+(gobj_publish_event)=
 # `gobj_publish_event()`
 <!-- ============================================================== -->
 
@@ -30,7 +30,6 @@ int gobj_publish_event(
 **Parameters**
 
 ::: {list-table}
-:widths: 20 20 60
 :header-rows: 1
 
 * - Key
@@ -54,7 +53,7 @@ int gobj_publish_event(
 
 **Return Value**
 
-Returns the sum of the return values from [`gobj_send_event()`](#gobj_send_event()) calls to all subscribers. A return value of -1 indicates that an event was owned and should not be further published.
+Returns the sum of the return values from [`gobj_send_event()`](<#gobj_send_event>) calls to all subscribers. A return value of -1 indicates that an event was owned and should not be further published.
 
 **Notes**
 

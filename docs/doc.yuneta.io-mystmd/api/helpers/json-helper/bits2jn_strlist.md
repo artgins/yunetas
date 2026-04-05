@@ -1,5 +1,5 @@
 <!-- ============================================================== -->
-(bits2jn_strlist())=
+(bits2jn_strlist)=
 # `bits2jn_strlist()`
 <!-- ============================================================== -->
 
@@ -29,7 +29,6 @@ json_t *bits2jn_strlist(
 **Parameters**
 
 ::: {list-table}
-:widths: 20 20 60
 :header-rows: 1
 
 * - Key

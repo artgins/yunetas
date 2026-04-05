@@ -1,9 +1,9 @@
 <!-- ============================================================== -->
-(gobj_full_name())=
+(gobj_full_name)=
 # `gobj_full_name()`
 <!-- ============================================================== -->
 
-Returns the full hierarchical name of the given [`hgobj`](#hgobj), constructed from its ancestors using the '`' separator.
+Returns the full hierarchical name of the given `hgobj`, constructed from its ancestors using the '`' separator.
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -26,7 +26,6 @@ const char *gobj_full_name(hgobj gobj);
 **Parameters**
 
 ::: {list-table}
-:widths: 20 20 60
 :header-rows: 1
 
 * - Key
@@ -35,14 +34,14 @@ const char *gobj_full_name(hgobj gobj);
 
 * - `gobj`
   - `hgobj`
-  - The [`hgobj`](#hgobj) whose full name is to be retrieved.
+  - The `hgobj` whose full name is to be retrieved.
 :::
 
 ---
 
 **Return Value**
 
-A pointer to a statically allocated string containing the full hierarchical name of the [`hgobj`](#hgobj). Returns '???' if the object is NULL or destroyed.
+A pointer to a statically allocated string containing the full hierarchical name of the `hgobj`. Returns '???' if the object is NULL or destroyed.
 
 **Notes**
 

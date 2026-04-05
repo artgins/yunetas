@@ -1,5 +1,5 @@
 <!-- ============================================================== -->
-(treedb_autolink())=
+(treedb_autolink)=
 # `treedb_autolink()`
 <!-- ============================================================== -->
 
@@ -31,7 +31,6 @@ int treedb_autolink(
 **Parameters**
 
 ::: {list-table}
-:widths: 20 20 60
 :header-rows: 1
 
 * - Key

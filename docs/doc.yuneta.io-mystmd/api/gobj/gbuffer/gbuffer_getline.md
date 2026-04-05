@@ -1,5 +1,5 @@
 <!-- ============================================================== -->
-(gbuffer_getline())=
+(gbuffer_getline)=
 # `gbuffer_getline()`
 <!-- ============================================================== -->
 
@@ -29,7 +29,6 @@ char *gbuffer_getline(
 **Parameters**
 
 ::: {list-table}
-:widths: 20 20 60
 :header-rows: 1
 
 * - Key

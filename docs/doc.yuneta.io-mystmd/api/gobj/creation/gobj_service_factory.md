@@ -1,5 +1,5 @@
 <!-- ============================================================== -->
-(gobj_service_factory())=
+(gobj_service_factory)=
 # `gobj_service_factory()`
 <!-- ============================================================== -->
 
@@ -29,7 +29,6 @@ hgobj gobj_service_factory(
 **Parameters**
 
 ::: {list-table}
-:widths: 20 20 60
 :header-rows: 1
 
 * - Key

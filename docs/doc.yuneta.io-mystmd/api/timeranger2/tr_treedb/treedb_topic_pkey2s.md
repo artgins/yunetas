@@ -1,5 +1,5 @@
 <!-- ============================================================== -->
-(treedb_topic_pkey2s())=
+(treedb_topic_pkey2s)=
 # `treedb_topic_pkey2s()`
 <!-- ============================================================== -->
 
@@ -29,7 +29,6 @@ json_t *treedb_topic_pkey2s(
 **Parameters**
 
 ::: {list-table}
-:widths: 20 20 60
 :header-rows: 1
 
 * - Key

@@ -1,5 +1,5 @@
 <!-- ============================================================== -->
-(delete_left_char())=
+(delete_left_char)=
 # `delete_left_char()`
 <!-- ============================================================== -->
 
@@ -29,7 +29,6 @@ char *delete_left_char(
 **Parameters**
 
 ::: {list-table}
-:widths: 20 20 60
 :header-rows: 1
 
 * - Key

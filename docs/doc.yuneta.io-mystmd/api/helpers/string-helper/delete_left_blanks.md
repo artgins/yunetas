@@ -1,5 +1,5 @@
 <!-- ============================================================== -->
-(delete_left_blanks())=
+(delete_left_blanks)=
 # `delete_left_blanks()`
 <!-- ============================================================== -->
 
@@ -26,7 +26,6 @@ void delete_left_blanks(char *s);
 **Parameters**
 
 ::: {list-table}
-:widths: 20 20 60
 :header-rows: 1
 
 * - Key

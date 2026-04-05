@@ -1,9 +1,9 @@
 <!-- ============================================================== -->
-(gobj_is_destroying())=
+(gobj_is_destroying)=
 # `gobj_is_destroying()`
 <!-- ============================================================== -->
 
-Checks if the given [`hgobj`](#hgobj) is in the process of being destroyed or has already been destroyed.
+Checks if the given `hgobj` is in the process of being destroyed or has already been destroyed.
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -26,7 +26,6 @@ BOOL gobj_is_destroying(hgobj gobj);
 **Parameters**
 
 ::: {list-table}
-:widths: 20 20 60
 :header-rows: 1
 
 * - Key
@@ -35,14 +34,14 @@ BOOL gobj_is_destroying(hgobj gobj);
 
 * - `gobj`
   - `hgobj`
-  - The [`hgobj`](#hgobj) instance to check.
+  - The `hgobj` instance to check.
 :::
 
 ---
 
 **Return Value**
 
-Returns `TRUE` if the [`hgobj`](#hgobj) is being destroyed or has already been destroyed, otherwise returns `FALSE`.
+Returns `TRUE` if the `hgobj` is being destroyed or has already been destroyed, otherwise returns `FALSE`.
 
 **Notes**
 

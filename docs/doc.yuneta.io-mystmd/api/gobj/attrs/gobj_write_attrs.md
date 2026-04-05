@@ -1,9 +1,9 @@
 <!-- ============================================================== -->
-(gobj_write_attrs())=
+(gobj_write_attrs)=
 # `gobj_write_attrs()`
 <!-- ============================================================== -->
 
-Writes multiple attributes of a [`hgobj`](#hgobj) object based on the provided JSON dictionary, applying the specified flag filter.
+Writes multiple attributes of a `hgobj` object based on the provided JSON dictionary, applying the specified flag filter.
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -31,7 +31,6 @@ int gobj_write_attrs(
 **Parameters**
 
 ::: {list-table}
-:widths: 20 20 60
 :header-rows: 1
 
 * - Key
@@ -40,7 +39,7 @@ int gobj_write_attrs(
 
 * - `gobj`
   - `hgobj`
-  - The target [`hgobj`](#hgobj) object whose attributes will be modified.
+  - The target `hgobj` object whose attributes will be modified.
 
 * - `kw`
   - `json_t *`
@@ -52,7 +51,7 @@ int gobj_write_attrs(
 
 * - `src`
   - `hgobj`
-  - The source [`hgobj`](#hgobj) object initiating the attribute modification.
+  - The source `hgobj` object initiating the attribute modification.
 :::
 
 ---

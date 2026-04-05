@@ -1,5 +1,5 @@
 <!-- ============================================================== -->
-(trq_first_msg())=
+(trq_first_msg)=
 # `trq_first_msg()`
 <!-- ============================================================== -->
 
@@ -28,7 +28,6 @@ q_msg trq_first_msg(
 **Parameters**
 
 ::: {list-table}
-:widths: 20 20 60
 :header-rows: 1
 
 * - Key
@@ -48,7 +47,7 @@ A `q_msg` handle to the first message in the queue, or `NULL` if the queue is em
 
 **Notes**
 
-Use [`trq_next_msg()`](#trq_next_msg()) to iterate through subsequent messages in the queue.
+Use [`trq_next_msg()`](<#trq_next_msg>) to iterate through subsequent messages in the queue.
 
 <!--====================================================-->
 <!--                    End Tab C                       -->

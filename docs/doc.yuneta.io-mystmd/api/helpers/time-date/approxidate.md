@@ -1,5 +1,5 @@
 <!-- ============================================================== -->
-(approxidate())=
+(approxidate)=
 # `approxidate()`
 <!-- ============================================================== -->
 
@@ -26,7 +26,6 @@ timestamp_t approxidate(const char *date);
 **Parameters**
 
 ::: {list-table}
-:widths: 20 20 60
 :header-rows: 1
 
 * - Key

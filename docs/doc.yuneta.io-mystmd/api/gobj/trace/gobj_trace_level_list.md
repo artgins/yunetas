@@ -1,9 +1,9 @@
 <!-- ============================================================== -->
-(gobj_trace_level_list())=
+(gobj_trace_level_list)=
 # `gobj_trace_level_list()`
 <!-- ============================================================== -->
 
-Returns a JSON object containing the trace levels available for a given [`hgclass`](#hgclass).
+Returns a JSON object containing the trace levels available for a given `hgclass`.
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -28,7 +28,6 @@ PUBLIC json_t *gobj_trace_level_list(
 **Parameters**
 
 ::: {list-table}
-:widths: 20 20 60
 :header-rows: 1
 
 * - Key
@@ -37,14 +36,14 @@ PUBLIC json_t *gobj_trace_level_list(
 
 * - `gclass`
   - `hgclass`
-  - The [`hgclass`](#hgclass) whose trace levels are to be retrieved.
+  - The `hgclass` whose trace levels are to be retrieved.
 :::
 
 ---
 
 **Return Value**
 
-A JSON object containing the trace levels available for the specified [`hgclass`](#hgclass).
+A JSON object containing the trace levels available for the specified `hgclass`.
 
 **Notes**
 

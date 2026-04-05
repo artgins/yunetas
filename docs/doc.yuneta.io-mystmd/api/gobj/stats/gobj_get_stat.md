@@ -1,9 +1,9 @@
 <!-- ============================================================== -->
-(gobj_get_stat())=
+(gobj_get_stat)=
 # `gobj_get_stat()`
 <!-- ============================================================== -->
 
-Retrieves the value of a statistical attribute from the given [`hgobj`](#hgobj).
+Retrieves the value of a statistical attribute from the given `hgobj`.
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -29,7 +29,6 @@ json_int_t gobj_get_stat(
 **Parameters**
 
 ::: {list-table}
-:widths: 20 20 60
 :header-rows: 1
 
 * - Key
@@ -38,7 +37,7 @@ json_int_t gobj_get_stat(
 
 * - `gobj`
   - `hgobj`
-  - The [`hgobj`](#hgobj) instance from which the statistic is retrieved.
+  - The `hgobj` instance from which the statistic is retrieved.
 
 * - `path`
   - `const char *`

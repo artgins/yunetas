@@ -1,5 +1,5 @@
 <!-- ============================================================== -->
-(gbuffer_printf())=
+(gbuffer_printf)=
 # `gbuffer_printf()`
 <!-- ============================================================== -->
 
@@ -30,7 +30,6 @@ int gbuffer_printf(
 **Parameters**
 
 ::: {list-table}
-:widths: 20 20 60
 :header-rows: 1
 
 * - Key

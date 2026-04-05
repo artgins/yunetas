@@ -1,5 +1,5 @@
 <!-- ============================================================== -->
-(gbuffer_append_string())=
+(gbuffer_append_string)=
 # `gbuffer_append_string()`
 <!-- ============================================================== -->
 
@@ -29,7 +29,6 @@ size_t gbuffer_append_string(
 **Parameters**
 
 ::: {list-table}
-:widths: 20 20 60
 :header-rows: 1
 
 * - Key

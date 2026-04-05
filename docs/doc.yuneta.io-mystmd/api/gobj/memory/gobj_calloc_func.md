@@ -1,5 +1,5 @@
 <!-- ============================================================== -->
-(gobj_calloc_func())=
+(gobj_calloc_func)=
 # `gobj_calloc_func()`
 <!-- ============================================================== -->
 
@@ -26,7 +26,6 @@ sys_calloc_fn_t gobj_calloc_func(void);
 **Parameters**
 
 ::: {list-table}
-:widths: 20 20 60
 :header-rows: 1
 
 * - Key

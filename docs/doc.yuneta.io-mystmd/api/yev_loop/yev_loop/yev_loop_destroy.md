@@ -1,5 +1,5 @@
 <!-- ============================================================== -->
-(yev_loop_destroy())=
+(yev_loop_destroy)=
 # `yev_loop_destroy()`
 <!-- ============================================================== -->
 
@@ -28,7 +28,6 @@ void yev_loop_destroy(
 **Parameters**
 
 ::: {list-table}
-:widths: 20 20 60
 :header-rows: 1
 
 * - Key

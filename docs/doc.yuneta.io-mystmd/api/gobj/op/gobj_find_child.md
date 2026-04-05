@@ -1,9 +1,9 @@
 <!-- ============================================================== -->
-(gobj_find_child())=
+(gobj_find_child)=
 # `gobj_find_child()`
 <!-- ============================================================== -->
 
-Finds the first child of [`gobj`](#hgobj) that matches the given filter criteria.
+Finds the first child of `gobj` that matches the given filter criteria.
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -29,7 +29,6 @@ hgobj gobj_find_child(
 **Parameters**
 
 ::: {list-table}
-:widths: 20 20 60
 :header-rows: 1
 
 * - Key
@@ -38,7 +37,7 @@ hgobj gobj_find_child(
 
 * - `gobj`
   - `hgobj`
-  - The parent [`gobj`](#hgobj) whose children will be searched.
+  - The parent `gobj` whose children will be searched.
 
 * - `jn_filter`
   - `json_t *`
@@ -49,11 +48,11 @@ hgobj gobj_find_child(
 
 **Return Value**
 
-Returns the first child [`gobj`](#hgobj) that matches the filter criteria, or `NULL` if no match is found.
+Returns the first child `gobj` that matches the filter criteria, or `NULL` if no match is found.
 
 **Notes**
 
-The function iterates over the direct children of [`gobj`](#hgobj) and applies the filter criteria to find a match.
+The function iterates over the direct children of `gobj` and applies the filter criteria to find a match.
 
 <!--====================================================-->
 <!--                    End Tab C                       -->

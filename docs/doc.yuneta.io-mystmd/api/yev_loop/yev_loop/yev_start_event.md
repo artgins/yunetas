@@ -1,5 +1,5 @@
 <!-- ============================================================== -->
-(yev_start_event())=
+(yev_start_event)=
 # `yev_start_event()`
 <!-- ============================================================== -->
 
@@ -28,7 +28,6 @@ int yev_start_event(
 **Parameters**
 
 ::: {list-table}
-:widths: 20 20 60
 :header-rows: 1
 
 * - Key
@@ -48,7 +47,7 @@ Returns 0 on success, or a negative value on failure.
 
 **Notes**
 
-For timer events, use [`yev_start_timer_event()`](#yev_start_timer_event()) instead.
+For timer events, use [`yev_start_timer_event()`](<#yev_start_timer_event>) instead.
 
 <!--====================================================-->
 <!--                    End Tab C                       -->

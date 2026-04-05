@@ -1,5 +1,5 @@
 <!-- ============================================================== -->
-(trmsg_open_topics())=
+(trmsg_open_topics)=
 # `trmsg_open_topics()`
 <!-- ============================================================== -->
 
@@ -29,7 +29,6 @@ int trmsg_open_topics(
 **Parameters**
 
 ::: {list-table}
-:widths: 20 20 60
 :header-rows: 1
 
 * - Key
@@ -53,7 +52,7 @@ Returns `0` on success, or a negative error code if the operation fails.
 
 **Notes**
 
-Ensure that `tranger2_startup()` has been called before invoking [`trmsg_open_topics()`](#trmsg_open_topics()) to properly initialize the TimeRanger environment.
+Ensure that `tranger2_startup()` has been called before invoking [`trmsg_open_topics()`](<#trmsg_open_topics>) to properly initialize the TimeRanger environment.
 
 <!--====================================================-->
 <!--                    End Tab C                       -->

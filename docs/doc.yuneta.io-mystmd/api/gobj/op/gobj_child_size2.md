@@ -1,9 +1,9 @@
 <!-- ============================================================== -->
-(gobj_child_size2())=
+(gobj_child_size2)=
 # `gobj_child_size2()`
 <!-- ============================================================== -->
 
-Returns the number of child objects of the given [`hgobj`](#hgobj) that match the specified filter criteria.
+Returns the number of child objects of the given `hgobj` that match the specified filter criteria.
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -29,7 +29,6 @@ size_t gobj_child_size2(
 **Parameters**
 
 ::: {list-table}
-:widths: 20 20 60
 :header-rows: 1
 
 * - Key
@@ -38,7 +37,7 @@ size_t gobj_child_size2(
 
 * - `gobj_`
   - `hgobj`
-  - The parent [`hgobj`](#hgobj) whose children are to be counted.
+  - The parent `hgobj` whose children are to be counted.
 
 * - `jn_filter`
   - `json_t *`
@@ -53,7 +52,7 @@ The number of child objects that match the filter criteria.
 
 **Notes**
 
-The function iterates over the children of [`gobj_`](#gobj_child_size2) and applies the filter conditions specified in [`jn_filter`](#json_t).
+The function iterates over the children of [`gobj_`](#gobj_child_size2) and applies the filter conditions specified in `jn_filter`.
 
 <!--====================================================-->
 <!--                    End Tab C                       -->

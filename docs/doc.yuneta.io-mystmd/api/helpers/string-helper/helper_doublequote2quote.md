@@ -1,5 +1,5 @@
 <!-- ============================================================== -->
-(helper_doublequote2quote())=
+(helper_doublequote2quote)=
 # `helper_doublequote2quote()`
 <!-- ============================================================== -->
 
@@ -26,7 +26,6 @@ char *helper_doublequote2quote(char *str);
 **Parameters**
 
 ::: {list-table}
-:widths: 20 20 60
 :header-rows: 1
 
 * - Key

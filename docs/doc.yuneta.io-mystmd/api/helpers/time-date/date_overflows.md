@@ -1,5 +1,5 @@
 <!-- ============================================================== -->
-(date_overflows())=
+(date_overflows)=
 # `date_overflows()`
 <!-- ============================================================== -->
 
@@ -26,7 +26,6 @@ int date_overflows(timestamp_t date);
 **Parameters**
 
 ::: {list-table}
-:widths: 20 20 60
 :header-rows: 1
 
 * - Key

@@ -1,5 +1,5 @@
 <!-- ============================================================== -->
-(gobj_authenticate())=
+(gobj_authenticate)=
 # `gobj_authenticate()`
 <!-- ============================================================== -->
 
@@ -30,7 +30,6 @@ json_t *gobj_authenticate(
 **Parameters**
 
 ::: {list-table}
-:widths: 20 20 60
 :header-rows: 1
 
 * - Key

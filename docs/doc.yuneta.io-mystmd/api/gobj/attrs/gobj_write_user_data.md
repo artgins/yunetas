@@ -1,5 +1,5 @@
 <!-- ============================================================== -->
-(gobj_write_user_data())=
+(gobj_write_user_data)=
 # `gobj_write_user_data()`
 <!-- ============================================================== -->
 
@@ -30,7 +30,6 @@ int gobj_write_user_data(
 **Parameters**
 
 ::: {list-table}
-:widths: 20 20 60
 :header-rows: 1
 
 * - Key

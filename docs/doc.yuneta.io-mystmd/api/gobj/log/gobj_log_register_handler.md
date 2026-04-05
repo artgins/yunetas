@@ -1,5 +1,5 @@
 <!-- ============================================================== -->
-(gobj_log_register_handler())=
+(gobj_log_register_handler)=
 # `gobj_log_register_handler()`
 <!-- ============================================================== -->
 
@@ -31,7 +31,6 @@ int gobj_log_register_handler(
 **Parameters**
 
 ::: {list-table}
-:widths: 20 20 60
 :header-rows: 1
 
 * - Key

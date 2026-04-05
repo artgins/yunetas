@@ -1,9 +1,9 @@
 <!-- ============================================================== -->
-(gobj_child_by_index())=
+(gobj_child_by_index)=
 # `gobj_child_by_index()`
 <!-- ============================================================== -->
 
-`gobj_child_by_index()` returns the child of a given [`hgobj`](#hgobj) at the specified index, where the index is relative to 1.
+`gobj_child_by_index()` returns the child of a given `hgobj` at the specified index, where the index is relative to 1.
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -29,7 +29,6 @@ hgobj gobj_child_by_index(
 **Parameters**
 
 ::: {list-table}
-:widths: 20 20 60
 :header-rows: 1
 
 * - Key
@@ -38,7 +37,7 @@ hgobj gobj_child_by_index(
 
 * - `gobj`
   - `hgobj`
-  - The parent [`hgobj`](#hgobj) whose child is to be retrieved.
+  - The parent `hgobj` whose child is to be retrieved.
 
 * - `idx`
   - `size_t`
@@ -49,7 +48,7 @@ hgobj gobj_child_by_index(
 
 **Return Value**
 
-Returns the child [`hgobj`](#hgobj) at the specified index, or `NULL` if the index is out of bounds.
+Returns the child `hgobj` at the specified index, or `NULL` if the index is out of bounds.
 
 **Notes**
 

@@ -1,5 +1,5 @@
 <!-- ============================================================== -->
-(node_collapsed_view())=
+(node_collapsed_view)=
 # `node_collapsed_view()`
 <!-- ============================================================== -->
 
@@ -30,7 +30,6 @@ json_t *node_collapsed_view(
 **Parameters**
 
 ::: {list-table}
-:widths: 20 20 60
 :header-rows: 1
 
 * - Key

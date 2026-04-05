@@ -1,9 +1,9 @@
 <!-- ============================================================== -->
-(gobj_name())=
+(gobj_name)=
 # `gobj_name()`
 <!-- ============================================================== -->
 
-Returns the name of the given [`hgobj`](#hgobj) instance as a string.
+Returns the name of the given `hgobj` instance as a string.
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -26,7 +26,6 @@ const char *gobj_name(hgobj gobj);
 **Parameters**
 
 ::: {list-table}
-:widths: 20 20 60
 :header-rows: 1
 
 * - Key
@@ -35,14 +34,14 @@ const char *gobj_name(hgobj gobj);
 
 * - `gobj`
   - `hgobj`
-  - The [`hgobj`](#hgobj) instance whose name is to be retrieved.
+  - The `hgobj` instance whose name is to be retrieved.
 :::
 
 ---
 
 **Return Value**
 
-A pointer to a string containing the name of the [`hgobj`](#hgobj) instance. If `gobj` is `NULL`, returns "???".
+A pointer to a string containing the name of the `hgobj` instance. If `gobj` is `NULL`, returns "???".
 
 **Notes**
 

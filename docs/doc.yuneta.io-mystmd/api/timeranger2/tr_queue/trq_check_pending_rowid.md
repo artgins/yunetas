@@ -1,5 +1,5 @@
 <!-- ============================================================== -->
-(trq_check_pending_rowid())=
+(trq_check_pending_rowid)=
 # `trq_check_pending_rowid()`
 <!-- ============================================================== -->
 
@@ -29,7 +29,6 @@ int trq_check_pending_rowid(
 **Parameters**
 
 ::: {list-table}
-:widths: 20 20 60
 :header-rows: 1
 
 * - Key

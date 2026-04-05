@@ -1,5 +1,5 @@
 <!-- ============================================================== -->
-(set_volatil_values())=
+(set_volatil_values)=
 # `set_volatil_values()`
 <!-- ============================================================== -->
 
@@ -31,7 +31,6 @@ int set_volatil_values(
 **Parameters**
 
 ::: {list-table}
-:widths: 20 20 60
 :header-rows: 1
 
 * - Key

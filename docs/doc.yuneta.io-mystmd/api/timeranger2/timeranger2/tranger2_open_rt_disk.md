@@ -1,5 +1,5 @@
 <!-- ============================================================== -->
-(tranger2_open_rt_disk())=
+(tranger2_open_rt_disk)=
 # `tranger2_open_rt_disk()`
 <!-- ============================================================== -->
 
@@ -35,7 +35,6 @@ json_t *tranger2_open_rt_disk(
 **Parameters**
 
 ::: {list-table}
-:widths: 20 20 60
 :header-rows: 1
 
 * - Key
@@ -83,7 +82,7 @@ Returns a JSON object representing the real-time disk iterator. The caller does 
 
 **Notes**
 
-This function is used when monitoring real-time changes in a topic via disk events. The iterator remains active until explicitly closed using [`tranger2_close_rt_disk()`](#tranger2_close_rt_disk()).
+This function is used when monitoring real-time changes in a topic via disk events. The iterator remains active until explicitly closed using [`tranger2_close_rt_disk()`](<#tranger2_close_rt_disk>).
 
 <!--====================================================-->
 <!--                    End Tab C                       -->

@@ -1,5 +1,5 @@
 <!-- ============================================================== -->
-(gobj_prev_child())=
+(gobj_prev_child)=
 # `gobj_prev_child()`
 <!-- ============================================================== -->
 
@@ -28,7 +28,6 @@ hgobj gobj_prev_child(
 **Parameters**
 
 ::: {list-table}
-:widths: 20 20 60
 :header-rows: 1
 
 * - Key

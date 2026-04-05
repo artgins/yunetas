@@ -1,5 +1,5 @@
 <!-- ============================================================== -->
-(build_command_response())=
+(build_command_response)=
 # `build_command_response()`
 <!-- ============================================================== -->
 
@@ -32,7 +32,6 @@ json_t *build_command_response(
 **Parameters**
 
 ::: {list-table}
-:widths: 20 20 60
 :header-rows: 1
 
 * - Key

@@ -1,9 +1,9 @@
 <!-- ============================================================== -->
-(gobj_write_attr())=
+(gobj_write_attr)=
 # `gobj_write_attr()`
 <!-- ============================================================== -->
 
-The `gobj_write_attr` function writes a new value to a specified attribute of a given [`hgobj`](#hgobj).
+The `gobj_write_attr` function writes a new value to a specified attribute of a given `hgobj`.
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -31,7 +31,6 @@ int gobj_write_attr(
 **Parameters**
 
 ::: {list-table}
-:widths: 20 20 60
 :header-rows: 1
 
 * - Key
@@ -40,11 +39,11 @@ int gobj_write_attr(
 
 * - `gobj`
   - `hgobj`
-  - The target [`hgobj`](#hgobj) whose attribute will be modified.
+  - The target `hgobj` whose attribute will be modified.
 
 * - `path`
   - `const char *`
-  - The attribute path to be modified. If it contains '`' characters, segments represent [`hgobj`](#hgobj) instances, and the leaf is the attribute.
+  - The attribute path to be modified. If it contains '`' characters, segments represent `hgobj` instances, and the leaf is the attribute.
 
 * - `value`
   - `json_t *`
@@ -52,7 +51,7 @@ int gobj_write_attr(
 
 * - `src`
   - `hgobj`
-  - The source [`hgobj`](#hgobj) initiating the attribute modification.
+  - The source `hgobj` initiating the attribute modification.
 :::
 
 ---

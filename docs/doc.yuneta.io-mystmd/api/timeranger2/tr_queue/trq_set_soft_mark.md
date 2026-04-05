@@ -1,5 +1,5 @@
 <!-- ============================================================== -->
-(trq_set_soft_mark())=
+(trq_set_soft_mark)=
 # `trq_set_soft_mark()`
 <!-- ============================================================== -->
 
@@ -30,7 +30,6 @@ uint64_t trq_set_soft_mark(
 **Parameters**
 
 ::: {list-table}
-:widths: 20 20 60
 :header-rows: 1
 
 * - Key

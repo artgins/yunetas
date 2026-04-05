@@ -1,9 +1,9 @@
 <!-- ============================================================== -->
-(gobj_list_nodes())=
+(gobj_list_nodes)=
 # `gobj_list_nodes()`
 <!-- ============================================================== -->
 
-Retrieves a list of nodes from a specified topic in the given [`hgobj`](#hgobj). The function allows filtering and additional options to refine the query.
+Retrieves a list of nodes from a specified topic in the given `hgobj`. The function allows filtering and additional options to refine the query.
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -32,7 +32,6 @@ json_t *gobj_list_nodes(
 **Parameters**
 
 ::: {list-table}
-:widths: 20 20 60
 :header-rows: 1
 
 * - Key
@@ -41,7 +40,7 @@ json_t *gobj_list_nodes(
 
 * - `gobj`
   - `hgobj`
-  - The [`hgobj`](#hgobj) instance from which to retrieve the nodes.
+  - The `hgobj` instance from which to retrieve the nodes.
 
 * - `topic_name`
   - `const char *`
@@ -57,7 +56,7 @@ json_t *gobj_list_nodes(
 
 * - `src`
   - `hgobj`
-  - The source [`hgobj`](#hgobj) making the request.
+  - The source `hgobj` making the request.
 :::
 
 ---

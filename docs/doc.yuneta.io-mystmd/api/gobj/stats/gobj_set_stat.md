@@ -1,9 +1,9 @@
 <!-- ============================================================== -->
-(gobj_set_stat())=
+(gobj_set_stat)=
 # `gobj_set_stat()`
 <!-- ============================================================== -->
 
-Sets the value of a statistical attribute for the given [`hgobj`](#hgobj) and returns the previous value.
+Sets the value of a statistical attribute for the given `hgobj` and returns the previous value.
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -30,7 +30,6 @@ json_int_t gobj_set_stat(
 **Parameters**
 
 ::: {list-table}
-:widths: 20 20 60
 :header-rows: 1
 
 * - Key
@@ -39,7 +38,7 @@ json_int_t gobj_set_stat(
 
 * - `gobj`
   - `hgobj`
-  - The [`hgobj`](#hgobj) instance whose statistical attribute is being modified.
+  - The `hgobj` instance whose statistical attribute is being modified.
 
 * - `path`
   - `const char *`

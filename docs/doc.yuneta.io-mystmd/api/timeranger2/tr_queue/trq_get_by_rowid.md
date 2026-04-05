@@ -1,5 +1,5 @@
 <!-- ============================================================== -->
-(trq_get_by_rowid())=
+(trq_get_by_rowid)=
 # `trq_get_by_rowid()`
 <!-- ============================================================== -->
 
@@ -29,7 +29,6 @@ q_msg trq_get_by_rowid(
 **Parameters**
 
 ::: {list-table}
-:widths: 20 20 60
 :header-rows: 1
 
 * - Key

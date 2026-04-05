@@ -1,5 +1,5 @@
 <!-- ============================================================== -->
-(gobj_set_global_no_trace())=
+(gobj_set_global_no_trace)=
 # `gobj_set_global_no_trace()`
 <!-- ============================================================== -->
 
@@ -29,7 +29,6 @@ int gobj_set_global_no_trace(
 **Parameters**
 
 ::: {list-table}
-:widths: 20 20 60
 :header-rows: 1
 
 * - Key

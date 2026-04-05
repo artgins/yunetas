@@ -1,9 +1,9 @@
 <!-- ============================================================== -->
-(gobj_hsdata2())=
+(gobj_hsdata2)=
 # `gobj_hsdata2()`
 <!-- ============================================================== -->
 
-Retrieves the structured data (hsdata) associated with a given [`hgobj`](#hgobj), including inherited attributes from bottom objects.
+Retrieves the structured data (hsdata) associated with a given `hgobj`, including inherited attributes from bottom objects.
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -30,7 +30,6 @@ json_t *gobj_hsdata2(
 **Parameters**
 
 ::: {list-table}
-:widths: 20 20 60
 :header-rows: 1
 
 * - Key
@@ -39,7 +38,7 @@ json_t *gobj_hsdata2(
 
 * - `gobj`
   - `hgobj`
-  - The [`hgobj`](#hgobj) whose structured data is to be retrieved.
+  - The `hgobj` whose structured data is to be retrieved.
 
 * - `name`
   - `const char *`
@@ -54,11 +53,11 @@ json_t *gobj_hsdata2(
 
 **Return Value**
 
-A pointer to a [`json_t`](#json_t) object containing the structured data of the given [`hgobj`](#hgobj). Returns `NULL` if the attribute is not found.
+A pointer to a `json_t` object containing the structured data of the given `hgobj`. Returns `NULL` if the attribute is not found.
 
 **Notes**
 
-This function traverses the bottom hierarchy of the [`hgobj`](#hgobj) to find the requested attribute. If `verbose` is `TRUE`, an error message is logged when the attribute is missing.
+This function traverses the bottom hierarchy of the `hgobj` to find the requested attribute. If `verbose` is `TRUE`, an error message is logged when the attribute is missing.
 
 <!--====================================================-->
 <!--                    End Tab C                       -->

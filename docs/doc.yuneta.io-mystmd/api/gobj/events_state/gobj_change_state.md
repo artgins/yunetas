@@ -1,9 +1,9 @@
 <!-- ============================================================== -->
-(gobj_change_state())=
+(gobj_change_state)=
 # `gobj_change_state()`
 <!-- ============================================================== -->
 
-Changes the current state of the given [`hgobj`](#hgobj) to the specified `state_name`. If the new state is different from the current state, it updates the state and publishes the [`EV_STATE_CHANGED`](#EV_STATE_CHANGED) event.
+Changes the current state of the given `hgobj` to the specified `state_name`. If the new state is different from the current state, it updates the state and publishes the [`EV_STATE_CHANGED`](#EV_STATE_CHANGED) event.
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -29,7 +29,6 @@ BOOL gobj_change_state(
 **Parameters**
 
 ::: {list-table}
-:widths: 20 20 60
 :header-rows: 1
 
 * - Key
@@ -38,7 +37,7 @@ BOOL gobj_change_state(
 
 * - `gobj`
   - `hgobj`
-  - The [`hgobj`](#hgobj) whose state is to be changed.
+  - The `hgobj` whose state is to be changed.
 
 * - `state_name`
   - `gobj_state_t`
@@ -53,7 +52,7 @@ Returns `TRUE` if the state was changed successfully, otherwise returns `FALSE`.
 
 **Notes**
 
-If the new state is the same as the current state, no change occurs. If the [`hgobj`](#hgobj) has a `mt_state_changed` method, it will be called instead of publishing [`EV_STATE_CHANGED`](#EV_STATE_CHANGED).
+If the new state is the same as the current state, no change occurs. If the `hgobj` has a `mt_state_changed` method, it will be called instead of publishing [`EV_STATE_CHANGED`](#EV_STATE_CHANGED).
 
 <!--====================================================-->
 <!--                    End Tab C                       -->

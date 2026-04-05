@@ -1,5 +1,5 @@
 <!-- ============================================================== -->
-(gbuffer_create())=
+(gbuffer_create)=
 # `gbuffer_create()`
 <!-- ============================================================== -->
 
@@ -29,7 +29,6 @@ gbuffer_t *gbuffer_create(
 **Parameters**
 
 ::: {list-table}
-:widths: 20 20 60
 :header-rows: 1
 
 * - Key

@@ -1,5 +1,5 @@
 <!-- ============================================================== -->
-(tranger2_append_record())=
+(tranger2_append_record)=
 # `tranger2_append_record()`
 <!-- ============================================================== -->
 
@@ -33,7 +33,6 @@ int tranger2_append_record(
 **Parameters**
 
 ::: {list-table}
-:widths: 20 20 60
 :header-rows: 1
 
 * - Key
@@ -73,7 +72,7 @@ Returns 0 on success, or a negative value on failure.
 
 **Notes**
 
-The function ensures that the record is appended to the specified topic in [`tranger2_startup()`](#tranger2_startup()). If the topic does not exist, it must be created using [`tranger2_create_topic()`](#tranger2_create_topic()) before calling this function.
+The function ensures that the record is appended to the specified topic in [`tranger2_startup()`](<#tranger2_startup>). If the topic does not exist, it must be created using [`tranger2_create_topic()`](<#tranger2_create_topic>) before calling this function.
 
 <!--====================================================-->
 <!--                    End Tab C                       -->

@@ -1,5 +1,5 @@
 <!-- ============================================================== -->
-(kwid_compare_records())=
+(kwid_compare_records)=
 # `kwid_compare_records()`
 <!-- ============================================================== -->
 
@@ -33,7 +33,6 @@ BOOL kwid_compare_records(
 **Parameters**
 
 ::: {list-table}
-:widths: 20 20 60
 :header-rows: 1
 
 * - Key

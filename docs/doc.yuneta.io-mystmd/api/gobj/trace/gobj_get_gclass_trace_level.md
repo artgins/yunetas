@@ -1,9 +1,9 @@
 <!-- ============================================================== -->
-(gobj_get_gclass_trace_level())=
+(gobj_get_gclass_trace_level)=
 # `gobj_get_gclass_trace_level()`
 <!-- ============================================================== -->
 
-Retrieves the trace levels set for the specified [`hgclass`](#hgclass).
+Retrieves the trace levels set for the specified `hgclass`.
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -28,7 +28,6 @@ json_t *gobj_get_gclass_trace_level(
 **Parameters**
 
 ::: {list-table}
-:widths: 20 20 60
 :header-rows: 1
 
 * - Key
@@ -37,14 +36,14 @@ json_t *gobj_get_gclass_trace_level(
 
 * - `gclass`
   - `hgclass`
-  - The [`hgclass`](#hgclass) whose trace levels are to be retrieved.
+  - The `hgclass` whose trace levels are to be retrieved.
 :::
 
 ---
 
 **Return Value**
 
-A JSON array containing the active trace levels for the given [`hgclass`](#hgclass).
+A JSON array containing the active trace levels for the given `hgclass`.
 
 **Notes**
 

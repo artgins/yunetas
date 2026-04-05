@@ -1,5 +1,5 @@
 <!-- ============================================================== -->
-(list_open_files())=
+(list_open_files)=
 # `list_open_files()`
 <!-- ============================================================== -->
 
@@ -26,7 +26,6 @@ void list_open_files(void);
 **Parameters**
 
 ::: {list-table}
-:widths: 20 20 60
 :header-rows: 1
 
 * - Key

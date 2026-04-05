@@ -1,5 +1,5 @@
 <!-- ============================================================== -->
-(json_print_refcounts())=
+(json_print_refcounts)=
 # `json_print_refcounts()`
 <!-- ============================================================== -->
 
@@ -29,7 +29,6 @@ PUBLIC int json_print_refcounts(
 **Parameters**
 
 ::: {list-table}
-:widths: 20 20 60
 :header-rows: 1
 
 * - Key

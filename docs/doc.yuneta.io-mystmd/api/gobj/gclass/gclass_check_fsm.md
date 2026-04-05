@@ -1,9 +1,9 @@
 <!-- ============================================================== -->
-(gclass_check_fsm())=
+(gclass_check_fsm)=
 # `gclass_check_fsm()`
 <!-- ============================================================== -->
 
-Checks the finite state machine (FSM) of a given [`hgclass`](#hgclass) for consistency, ensuring that all states and events are properly defined.
+Checks the finite state machine (FSM) of a given `hgclass` for consistency, ensuring that all states and events are properly defined.
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -28,7 +28,6 @@ int gclass_check_fsm(
 **Parameters**
 
 ::: {list-table}
-:widths: 20 20 60
 :header-rows: 1
 
 * - Key
@@ -37,7 +36,7 @@ int gclass_check_fsm(
 
 * - `gclass`
   - `hgclass`
-  - The [`hgclass`](#hgclass) instance whose FSM is to be checked.
+  - The `hgclass` instance whose FSM is to be checked.
 :::
 
 ---

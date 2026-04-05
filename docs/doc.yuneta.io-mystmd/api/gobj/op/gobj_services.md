@@ -1,5 +1,5 @@
 <!-- ============================================================== -->
-(gobj_services())=
+(gobj_services)=
 # `gobj_services()`
 <!-- ============================================================== -->
 
@@ -26,7 +26,6 @@ json_t *gobj_services(void);
 **Parameters**
 
 ::: {list-table}
-:widths: 20 20 60
 :header-rows: 1
 
 * - Key
@@ -46,7 +45,7 @@ A JSON array of strings, where each string represents the name of a registered s
 
 **Notes**
 
-This function provides a list of services that have been registered using [`gobj_create_service()`](#gobj_create_service()) or similar functions.
+This function provides a list of services that have been registered using [`gobj_create_service()`](<#gobj_create_service>) or similar functions.
 
 <!--====================================================-->
 <!--                    End Tab C                       -->

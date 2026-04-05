@@ -1,5 +1,5 @@
 <!-- ============================================================== -->
-(_treedb_create_topic_cols_desc())=
+(_treedb_create_topic_cols_desc)=
 # `_treedb_create_topic_cols_desc()`
 <!-- ============================================================== -->
 
@@ -26,7 +26,6 @@ json_t *_treedb_create_topic_cols_desc(void);
 **Parameters**
 
 ::: {list-table}
-:widths: 20 20 60
 :header-rows: 1
 
 * - Key

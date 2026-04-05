@@ -1,5 +1,5 @@
 <!-- ============================================================== -->
-(replace_string())=
+(replace_string)=
 # `replace_string()`
 <!-- ============================================================== -->
 
@@ -30,7 +30,6 @@ char *replace_string(
 **Parameters**
 
 ::: {list-table}
-:widths: 20 20 60
 :header-rows: 1
 
 * - Key

@@ -1,9 +1,9 @@
 <!-- ============================================================== -->
-(gobj_attr_type())=
+(gobj_attr_type)=
 # `gobj_attr_type()`
 <!-- ============================================================== -->
 
-Returns the data type of a given attribute in the specified [`hgobj`](#hgobj).
+Returns the data type of a given attribute in the specified `hgobj`.
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -29,7 +29,6 @@ data_type_t gobj_attr_type(
 **Parameters**
 
 ::: {list-table}
-:widths: 20 20 60
 :header-rows: 1
 
 * - Key
@@ -38,7 +37,7 @@ data_type_t gobj_attr_type(
 
 * - `gobj`
   - `hgobj`
-  - The [`hgobj`](#hgobj) instance whose attribute type is being queried.
+  - The `hgobj` instance whose attribute type is being queried.
 
 * - `name`
   - `const char *`
@@ -49,7 +48,7 @@ data_type_t gobj_attr_type(
 
 **Return Value**
 
-Returns the [`data_type_t`](#data_type_t) of the specified attribute, or `0` if the attribute does not exist.
+Returns the `data_type_t` of the specified attribute, or `0` if the attribute does not exist.
 
 **Notes**
 

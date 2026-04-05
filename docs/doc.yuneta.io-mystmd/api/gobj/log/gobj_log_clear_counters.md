@@ -1,5 +1,5 @@
 <!-- ============================================================== -->
-(gobj_log_clear_counters())=
+(gobj_log_clear_counters)=
 # `gobj_log_clear_counters()`
 <!-- ============================================================== -->
 
@@ -26,7 +26,6 @@ void gobj_log_clear_counters(void);
 **Parameters**
 
 ::: {list-table}
-:widths: 20 20 60
 :header-rows: 1
 
 * - Key

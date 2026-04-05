@@ -1,5 +1,5 @@
 <!-- ============================================================== -->
-(tranger2_list_topic_desc_cols())=
+(tranger2_list_topic_desc_cols)=
 # `tranger2_list_topic_desc_cols()`
 <!-- ============================================================== -->
 
@@ -29,7 +29,6 @@ json_t *tranger2_list_topic_desc_cols(
 **Parameters**
 
 ::: {list-table}
-:widths: 20 20 60
 :header-rows: 1
 
 * - Key

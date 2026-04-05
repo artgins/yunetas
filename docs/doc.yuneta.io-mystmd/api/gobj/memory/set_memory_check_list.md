@@ -1,5 +1,5 @@
 <!-- ============================================================== -->
-(set_memory_check_list())=
+(set_memory_check_list)=
 # `set_memory_check_list()`
 <!-- ============================================================== -->
 
@@ -26,7 +26,6 @@ void set_memory_check_list(unsigned long *memory_check_list);
 **Parameters**
 
 ::: {list-table}
-:widths: 20 20 60
 :header-rows: 1
 
 * - Key

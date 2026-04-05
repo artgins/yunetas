@@ -1,5 +1,5 @@
 <!-- ============================================================== -->
-(yev_protocol_set_protocol_fill_hints_fn())=
+(yev_protocol_set_protocol_fill_hints_fn)=
 # `yev_protocol_set_protocol_fill_hints_fn()`
 <!-- ============================================================== -->
 
@@ -28,7 +28,6 @@ int yev_protocol_set_protocol_fill_hints_fn(
 **Parameters**
 
 ::: {list-table}
-:widths: 20 20 60
 :header-rows: 1
 
 * - Key

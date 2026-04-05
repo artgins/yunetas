@@ -1,9 +1,9 @@
 <!-- ============================================================== -->
-(gobj_destroy())=
+(gobj_destroy)=
 # `gobj_destroy()`
 <!-- ============================================================== -->
 
-The `gobj_destroy()` function deallocates and removes a given [`hgobj`](#hgobj) instance, ensuring proper cleanup of its resources, subscriptions, and child objects.
+The `gobj_destroy()` function deallocates and removes a given `hgobj` instance, ensuring proper cleanup of its resources, subscriptions, and child objects.
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -28,7 +28,6 @@ void gobj_destroy(
 **Parameters**
 
 ::: {list-table}
-:widths: 20 20 60
 :header-rows: 1
 
 * - Key
@@ -37,7 +36,7 @@ void gobj_destroy(
 
 * - `gobj`
   - `hgobj`
-  - A handle to the [`hgobj`](#hgobj) instance to be destroyed.
+  - A handle to the `hgobj` instance to be destroyed.
 :::
 
 ---
@@ -48,7 +47,7 @@ This function does not return a value.
 
 **Notes**
 
-['If the [`hgobj`](#hgobj) instance is currently playing, it will be paused before destruction.', 'If the [`hgobj`](#hgobj) instance is running, it will be stopped before destruction.', 'All child objects of the [`hgobj`](#hgobj) instance will be recursively destroyed.', 'All event subscriptions related to the [`hgobj`](#hgobj) instance will be removed.', 'If the [`hgobj`](#hgobj) instance is a registered service, it will be deregistered before destruction.']
+['If the `hgobj` instance is currently playing, it will be paused before destruction.', 'If the `hgobj` instance is running, it will be stopped before destruction.', 'All child objects of the `hgobj` instance will be recursively destroyed.', 'All event subscriptions related to the `hgobj` instance will be removed.', 'If the `hgobj` instance is a registered service, it will be deregistered before destruction.']
 
 <!--====================================================-->
 <!--                    End Tab C                       -->

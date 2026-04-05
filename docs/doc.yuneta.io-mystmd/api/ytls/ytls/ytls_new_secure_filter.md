@@ -1,5 +1,5 @@
 <!-- ============================================================== -->
-(ytls_new_secure_filter())=
+(ytls_new_secure_filter)=
 # `ytls_new_secure_filter()`
 <!-- ============================================================== -->
 
@@ -38,7 +38,6 @@ hsskt ytls_new_secure_filter(
 **Parameters**
 
 ::: {list-table}
-:widths: 20 20 60
 :header-rows: 1
 
 * - Key

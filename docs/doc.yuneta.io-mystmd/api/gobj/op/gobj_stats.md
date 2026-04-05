@@ -1,9 +1,9 @@
 <!-- ============================================================== -->
-(gobj_stats())=
+(gobj_stats)=
 # `gobj_stats()`
 <!-- ============================================================== -->
 
-Retrieves statistics for the given [`hgobj`](#hgobj). If the gclass has a `mt_stats` method, it is used; otherwise, the global statistics parser is invoked.
+Retrieves statistics for the given `hgobj`. If the gclass has a `mt_stats` method, it is used; otherwise, the global statistics parser is invoked.
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -31,7 +31,6 @@ json_t *gobj_stats(
 **Parameters**
 
 ::: {list-table}
-:widths: 20 20 60
 :header-rows: 1
 
 * - Key
@@ -40,7 +39,7 @@ json_t *gobj_stats(
 
 * - `gobj`
   - `hgobj`
-  - The [`hgobj`](#hgobj) instance whose statistics are to be retrieved.
+  - The `hgobj` instance whose statistics are to be retrieved.
 
 * - `stats`
   - `const char *`
@@ -52,7 +51,7 @@ json_t *gobj_stats(
 
 * - `src`
   - `hgobj`
-  - The source [`hgobj`](#hgobj) requesting the statistics.
+  - The source `hgobj` requesting the statistics.
 :::
 
 ---

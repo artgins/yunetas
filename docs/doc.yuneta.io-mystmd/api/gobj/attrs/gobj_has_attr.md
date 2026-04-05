@@ -1,9 +1,9 @@
 <!-- ============================================================== -->
-(gobj_has_attr())=
+(gobj_has_attr)=
 # `gobj_has_attr()`
 <!-- ============================================================== -->
 
-Checks if the given [`hgobj`](#hgobj) has an attribute with the specified name.
+Checks if the given `hgobj` has an attribute with the specified name.
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -29,7 +29,6 @@ BOOL gobj_has_attr(
 **Parameters**
 
 ::: {list-table}
-:widths: 20 20 60
 :header-rows: 1
 
 * - Key
@@ -38,7 +37,7 @@ BOOL gobj_has_attr(
 
 * - `hgobj`
   - `hgobj`
-  - The [`hgobj`](#hgobj) instance to check.
+  - The `hgobj` instance to check.
 
 * - `name`
   - `const char *`

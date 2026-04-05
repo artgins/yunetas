@@ -1,5 +1,5 @@
 <!-- ============================================================== -->
-(kw_set_dict_value())=
+(kw_set_dict_value)=
 # `kw_set_dict_value()`
 <!-- ============================================================== -->
 
@@ -31,7 +31,6 @@ int kw_set_dict_value(
 **Parameters**
 
 ::: {list-table}
-:widths: 20 20 60
 :header-rows: 1
 
 * - Key
@@ -63,7 +62,7 @@ Returns `0` on success, or `-1` if an error occurs (e.g., if `kw` is not a dicti
 
 **Notes**
 
-If the path does not exist, intermediate objects are created as dictionaries. Arrays are not created automatically. The function uses [`kw_find_path()`](#kw_find_path()) internally to navigate the JSON structure.
+If the path does not exist, intermediate objects are created as dictionaries. Arrays are not created automatically. The function uses [`kw_find_path()`](<#kw_find_path>) internally to navigate the JSON structure.
 
 <!--====================================================-->
 <!--                    End Tab C                       -->

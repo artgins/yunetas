@@ -1,9 +1,9 @@
 <!-- ============================================================== -->
-(gobj_child_size())=
+(gobj_child_size)=
 # `gobj_child_size()`
 <!-- ============================================================== -->
 
-Returns the number of child objects directly associated with the given [`hgobj`](#hgobj).
+Returns the number of child objects directly associated with the given `hgobj`.
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -26,7 +26,6 @@ size_t gobj_child_size(hgobj gobj_);
 **Parameters**
 
 ::: {list-table}
-:widths: 20 20 60
 :header-rows: 1
 
 * - Key
@@ -42,7 +41,7 @@ size_t gobj_child_size(hgobj gobj_);
 
 **Return Value**
 
-The number of direct child objects of the given [`hgobj`](#hgobj).
+The number of direct child objects of the given `hgobj`.
 
 **Notes**
 

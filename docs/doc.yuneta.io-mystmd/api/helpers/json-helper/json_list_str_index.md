@@ -1,5 +1,5 @@
 <!-- ============================================================== -->
-(json_list_str_index())=
+(json_list_str_index)=
 # `json_list_str_index()`
 <!-- ============================================================== -->
 
@@ -30,7 +30,6 @@ int json_list_str_index(
 **Parameters**
 
 ::: {list-table}
-:widths: 20 20 60
 :header-rows: 1
 
 * - Key

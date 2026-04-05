@@ -1,5 +1,5 @@
 <!-- ============================================================== -->
-(time_in_miliseconds_monotonic())=
+(time_in_miliseconds_monotonic)=
 # `time_in_miliseconds_monotonic()`
 <!-- ============================================================== -->
 
@@ -26,7 +26,6 @@ uint64_t time_in_miliseconds_monotonic(void);
 **Parameters**
 
 ::: {list-table}
-:widths: 20 20 60
 :header-rows: 1
 
 * - Key

@@ -1,9 +1,9 @@
 <!-- ============================================================== -->
-(gobj_change_parent())=
+(gobj_change_parent)=
 # `gobj_change_parent()`
 <!-- ============================================================== -->
 
-Changes the parent of the given [`hgobj`](#hgobj) instance to a new parent [`hgobj`](#hgobj). The function updates the internal hierarchy of the object tree.
+Changes the parent of the given `hgobj` instance to a new parent `hgobj`. The function updates the internal hierarchy of the object tree.
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -29,7 +29,6 @@ int gobj_change_parent(
 **Parameters**
 
 ::: {list-table}
-:widths: 20 20 60
 :header-rows: 1
 
 * - Key
@@ -38,11 +37,11 @@ int gobj_change_parent(
 
 * - `gobj`
   - `hgobj`
-  - The [`hgobj`](#hgobj) instance whose parent is to be changed.
+  - The `hgobj` instance whose parent is to be changed.
 
 * - `gobj_new_parent`
   - `hgobj`
-  - The new parent [`hgobj`](#hgobj) instance.
+  - The new parent `hgobj` instance.
 :::
 
 ---

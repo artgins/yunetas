@@ -1,5 +1,5 @@
 <!-- ============================================================== -->
-(tranger2_shutdown())=
+(tranger2_shutdown)=
 # `tranger2_shutdown()`
 <!-- ============================================================== -->
 
@@ -28,7 +28,6 @@ int tranger2_shutdown(
 **Parameters**
 
 ::: {list-table}
-:widths: 20 20 60
 :header-rows: 1
 
 * - Key

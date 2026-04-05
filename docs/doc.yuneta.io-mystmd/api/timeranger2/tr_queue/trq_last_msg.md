@@ -1,5 +1,5 @@
 <!-- ============================================================== -->
-(trq_last_msg())=
+(trq_last_msg)=
 # `trq_last_msg()`
 <!-- ============================================================== -->
 
@@ -28,7 +28,6 @@ q_msg trq_last_msg(
 **Parameters**
 
 ::: {list-table}
-:widths: 20 20 60
 :header-rows: 1
 
 * - Key
@@ -48,7 +47,7 @@ Returns a `q_msg` representing the last message in the queue, or `NULL` if the q
 
 **Notes**
 
-Use [`trq_prev_msg()`](#trq_prev_msg()) to iterate backward through the queue.
+Use [`trq_prev_msg()`](<#trq_prev_msg>) to iterate backward through the queue.
 
 <!--====================================================-->
 <!--                    End Tab C                       -->

@@ -1,5 +1,5 @@
 <!-- ============================================================== -->
-(fs_start_watcher_event())=
+(fs_start_watcher_event)=
 # `fs_start_watcher_event()`
 <!-- ============================================================== -->
 
@@ -28,7 +28,6 @@ int fs_start_watcher_event(
 **Parameters**
 
 ::: {list-table}
-:widths: 20 20 60
 :header-rows: 1
 
 * - Key
@@ -48,7 +47,7 @@ Returns `0` on success, or a negative error code on failure.
 
 **Notes**
 
-Once started, the event will trigger the associated callback when file system changes occur. Use [`fs_stop_watcher_event()`](#fs_stop_watcher_event()) to stop monitoring and release resources.
+Once started, the event will trigger the associated callback when file system changes occur. Use [`fs_stop_watcher_event()`](<#fs_stop_watcher_event>) to stop monitoring and release resources.
 
 <!--====================================================-->
 <!--                    End Tab C                       -->

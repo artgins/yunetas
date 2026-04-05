@@ -1,9 +1,9 @@
 <!-- ============================================================== -->
-(gobj_current_state())=
+(gobj_current_state)=
 # `gobj_current_state()`
 <!-- ============================================================== -->
 
-Retrieves the current state of the given [`hgobj`](#hgobj).
+Retrieves the current state of the given `hgobj`.
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -28,7 +28,6 @@ gobj_state_t gobj_current_state(
 **Parameters**
 
 ::: {list-table}
-:widths: 20 20 60
 :header-rows: 1
 
 * - Key
@@ -37,14 +36,14 @@ gobj_state_t gobj_current_state(
 
 * - `hgobj`
   - `hgobj`
-  - The [`hgobj`](#hgobj) whose current state is to be retrieved.
+  - The `hgobj` whose current state is to be retrieved.
 :::
 
 ---
 
 **Return Value**
 
-Returns the current state of the [`hgobj`](#hgobj) as a `gobj_state_t` string.
+Returns the current state of the `hgobj` as a `gobj_state_t` string.
 
 **Notes**
 

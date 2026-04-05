@@ -1,9 +1,9 @@
 <!-- ============================================================== -->
-(gobj_user_has_authz())=
+(gobj_user_has_authz)=
 # `gobj_user_has_authz()`
 <!-- ============================================================== -->
 
-Checks if a user has the specified authorization level in the context of the given [`hgobj`](#hgobj). If no authorization checker is defined, the function defaults to granting authorization.
+Checks if a user has the specified authorization level in the context of the given `hgobj`. If no authorization checker is defined, the function defaults to granting authorization.
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -31,7 +31,6 @@ BOOL gobj_user_has_authz(
 **Parameters**
 
 ::: {list-table}
-:widths: 20 20 60
 :header-rows: 1
 
 * - Key
@@ -40,7 +39,7 @@ BOOL gobj_user_has_authz(
 
 * - `gobj`
   - `hgobj`
-  - The [`hgobj`](#hgobj) instance in which the authorization check is performed.
+  - The `hgobj` instance in which the authorization check is performed.
 
 * - `authz`
   - `const char *`
@@ -52,7 +51,7 @@ BOOL gobj_user_has_authz(
 
 * - `src`
   - `hgobj`
-  - The source [`hgobj`](#hgobj) requesting the authorization check.
+  - The source `hgobj` requesting the authorization check.
 :::
 
 ---
@@ -63,7 +62,7 @@ Returns `TRUE` if the user has the required authorization, otherwise returns `FA
 
 **Notes**
 
-If the [`hgobj`](#hgobj) has a local authorization checker (`mt_authz_checker`), it is used first. If not, the global authorization checker is used. If neither is defined, the function defaults to returning `TRUE`.
+If the `hgobj` has a local authorization checker (`mt_authz_checker`), it is used first. If not, the global authorization checker is used. If neither is defined, the function defaults to returning `TRUE`.
 
 <!--====================================================-->
 <!--                    End Tab C                       -->

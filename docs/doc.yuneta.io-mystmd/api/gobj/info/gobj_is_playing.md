@@ -1,9 +1,9 @@
 <!-- ============================================================== -->
-(gobj_is_playing())=
+(gobj_is_playing)=
 # `gobj_is_playing()`
 <!-- ============================================================== -->
 
-Checks if the given [`hgobj`](#hgobj) is currently in a playing state.
+Checks if the given `hgobj` is currently in a playing state.
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -26,7 +26,6 @@ BOOL gobj_is_playing(hgobj gobj);
 **Parameters**
 
 ::: {list-table}
-:widths: 20 20 60
 :header-rows: 1
 
 * - Key
@@ -35,18 +34,18 @@ BOOL gobj_is_playing(hgobj gobj);
 
 * - `gobj`
   - `hgobj`
-  - The [`hgobj`](#hgobj) instance to check.
+  - The `hgobj` instance to check.
 :::
 
 ---
 
 **Return Value**
 
-Returns `TRUE` if the [`hgobj`](#hgobj) is playing, otherwise returns `FALSE`.
+Returns `TRUE` if the `hgobj` is playing, otherwise returns `FALSE`.
 
 **Notes**
 
-If the [`hgobj`](#hgobj) is `NULL` or has been destroyed, an error is logged and `FALSE` is returned.
+If the `hgobj` is `NULL` or has been destroyed, an error is logged and `FALSE` is returned.
 
 <!--====================================================-->
 <!--                    End Tab C                       -->

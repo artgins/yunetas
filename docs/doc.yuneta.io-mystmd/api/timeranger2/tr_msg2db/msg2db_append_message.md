@@ -1,5 +1,5 @@
 <!-- ============================================================== -->
-(msg2db_append_message())=
+(msg2db_append_message)=
 # `msg2db_append_message()`
 <!-- ============================================================== -->
 
@@ -32,7 +32,6 @@ json_t *msg2db_append_message(
 **Parameters**
 
 ::: {list-table}
-:widths: 20 20 60
 :header-rows: 1
 
 * - Key
@@ -69,7 +68,7 @@ A JSON object representing the appended message. The returned object is NOT owne
 **Notes**
 
 The caller should not modify or free the returned JSON object.
-Ensure that [`msg2db_open_db()`](#msg2db_open_db()) has been called before using [`msg2db_append_message()`](#msg2db_append_message()).
+Ensure that [`msg2db_open_db()`](<#msg2db_open_db>) has been called before using [`msg2db_append_message()`](<#msg2db_append_message>).
 
 <!--====================================================-->
 <!--                    End Tab C                       -->

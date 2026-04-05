@@ -1,5 +1,5 @@
 <!-- ============================================================== -->
-(gobj_add_trace_filter())=
+(gobj_add_trace_filter)=
 # `gobj_add_trace_filter()`
 <!-- ============================================================== -->
 
@@ -30,7 +30,6 @@ int gobj_add_trace_filter(
 **Parameters**
 
 ::: {list-table}
-:widths: 20 20 60
 :header-rows: 1
 
 * - Key
@@ -58,7 +57,7 @@ Returns 0 on success, or -1 if the attribute is invalid or the gclass does not s
 
 **Notes**
 
-This function allows filtering trace messages based on specific attribute values. If the attribute does not exist in [`hgclass`](#hgclass), an error is logged.
+This function allows filtering trace messages based on specific attribute values. If the attribute does not exist in `hgclass`, an error is logged.
 
 <!--====================================================-->
 <!--                    End Tab C                       -->

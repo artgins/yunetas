@@ -1,5 +1,5 @@
 <!-- ============================================================== -->
-(gobj_set_bottom_gobj())=
+(gobj_set_bottom_gobj)=
 # `gobj_set_bottom_gobj()`
 <!-- ============================================================== -->
 
@@ -29,7 +29,6 @@ hgobj gobj_set_bottom_gobj(
 **Parameters**
 
 ::: {list-table}
-:widths: 20 20 60
 :header-rows: 1
 
 * - Key

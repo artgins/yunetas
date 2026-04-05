@@ -1,5 +1,5 @@
 <!-- ============================================================== -->
-(yev_get_state_name())=
+(yev_get_state_name)=
 # `yev_get_state_name()`
 <!-- ============================================================== -->
 
@@ -28,7 +28,6 @@ const char *yev_get_state_name(
 **Parameters**
 
 ::: {list-table}
-:widths: 20 20 60
 :header-rows: 1
 
 * - Key

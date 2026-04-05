@@ -1,5 +1,5 @@
 <!-- ============================================================== -->
-(gbuffer_serialize())=
+(gbuffer_serialize)=
 # `gbuffer_serialize()`
 <!-- ============================================================== -->
 
@@ -29,7 +29,6 @@ json_t *gbuffer_serialize(
 **Parameters**
 
 ::: {list-table}
-:widths: 20 20 60
 :header-rows: 1
 
 * - Key
@@ -38,7 +37,7 @@ json_t *gbuffer_serialize(
 
 * - `gobj`
   - `hgobj`
-  - The [`hgobj`](#hgobj) context for logging and error handling.
+  - The `hgobj` context for logging and error handling.
 
 * - `gbuf`
   - `gbuffer_t *`

@@ -1,5 +1,5 @@
 <!-- ============================================================== -->
-(gobj_topic_links())=
+(gobj_topic_links)=
 # `gobj_topic_links()`
 <!-- ============================================================== -->
 
@@ -32,7 +32,6 @@ json_t *gobj_topic_links(
 **Parameters**
 
 ::: {list-table}
-:widths: 20 20 60
 :header-rows: 1
 
 * - Key

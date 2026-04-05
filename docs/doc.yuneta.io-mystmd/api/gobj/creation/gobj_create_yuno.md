@@ -1,5 +1,5 @@
 <!-- ============================================================== -->
-(gobj_create_yuno())=
+(gobj_create_yuno)=
 # `gobj_create_yuno()`
 <!-- ============================================================== -->
 
@@ -30,7 +30,6 @@ hgobj gobj_create_yuno(
 **Parameters**
 
 ::: {list-table}
-:widths: 20 20 60
 :header-rows: 1
 
 * - Key

@@ -15,51 +15,51 @@ Source code in:
 
 A `GClass` consists of several key components that define its operation:
 
-1. [`GClass Name`](gclass_name_t)
+1. [`GClass Name`](#gclass_name_t)
     - Unique name to identify it.
 
-2. [`Attributes`](attrs_table)
+2. [`Attributes`](#attrs_table)
     - Set of public attributes
 
-3. [`Private Variables`](private_vars)
+3. [`Private Variables`](#private_vars)
     - Set of private variables
 
-4. [`Global Methods`](GMETHODS)
+4. [`Global Methods`](#GMETHODS)
     - Set of global methods that supports
 
-5. [`Local Methods`](LMETHOD)
+5. [`Local Methods`](#LMETHOD)
     - Set of local methods that supports
 
-6. [`Event Table`](event_type_t)
+6. [`Event Table`](#event_type_t)
     - Set of public and private events.
 
-7. [`State Table`](states_t)
+7. [`State Table`](#states_t)
     - Set of states with event/actions
 
-8. [`Authorization Table`](authz_table)
+8. [`Authorization Table`](#authz_table)
 
     - Specifies access control rules.
 
-9. [`Command Table`](command_table)
+9. [`Command Table`](#command_table)
 
     - Describes executable commands for the GClass.
 
-10. [`Trace Levels`](trace_level_t)
+10. [`Trace Levels`](#trace_level_t)
 
     - Defines trace levels for debugging and monitoring.
 
-11. [`gclass_flag`](gclass_flag_t)
+11. [`gclass_flag`](#gclass_flag_t)
 
     - Modifier of behavior
 
 ## How a GClass Works
 
 1. **Definition**:
-    - A `GClass` is created using the [`gclass_create()`](gclass_create()) function, combining its attributes, methods, states, events, and other metadata.
+    - A `GClass` is created using the [`gclass_create()`](#gclass_create) function, combining its attributes, methods, states, events, and other metadata.
 2. **Instantiation**:
     - A GObject instance is created from a `GClass` using the GObject API.
 3. **Interaction**:
-    - The GObject API (e.g., [`gobj_start()`](gobj_start()), [`gobj_stop()`](gobj_stop())) dynamically invokes the global methods ([`gmt`](GMETHODS)) defined in the `GClass`.
+    - The GObject API (e.g., [`gobj_start()`](#gobj_start), [`gobj_stop()`](#gobj_stop)) dynamically invokes the global methods ([`gmt`](#GMETHODS)) defined in the `GClass`.
 4. **Extensibility**:
     - The modular design of `GClass` allows new behaviors and features to be added by defining additional methods, events, or states.
 
@@ -70,15 +70,15 @@ The name of the gclass.
 
 Each `GClass` has a unique name to identify it.
 
-In C must be defined with the macro [`GOBJ_DEFINE_GCLASS`](gobj_define_gclass) in `.c` file 
-and [`GOBJ_DECLARE_GCLASS`](gobj_declare_gclass) in `.h` file.
+In C must be defined with the macro `GOBJ_DEFINE_GCLASS` in `.c` file 
+and `GOBJ_DECLARE_GCLASS` in `.h` file.
 
 
 (attrs_table)=
 ## Attributes
 
 Attributes in a GClass define its properties or state. They are represented as structured data
- of type [`sdata_desc_t`](sdata_desc_t) in the `attrs_table` table, where each entry describes an attribute's type, access flags, default value, and purpose. Attributes are the foundation of a GClass, providing a schema for configuration, runtime state, and operational behavior.
+ of type [`sdata_desc_t`](#sdata_desc_t) in the `attrs_table` table, where each entry describes an attribute's type, access flags, default value, and purpose. Attributes are the foundation of a GClass, providing a schema for configuration, runtime state, and operational behavior.
 
 ---
 
@@ -304,7 +304,7 @@ The `GMETHODS` structure enables flexible, modular behavior in the Yuneta framew
 
 ```{warning}
 Some methods are not currently utilized in the gobj API. 
-Refer to the [](mapping_gmethods) section for details.
+Refer to the [](#mapping_gmethods) section for details.
 ```
 
 (mt_create)=
@@ -695,7 +695,7 @@ The `LMETHOD` structure in the Yuneta framework defines the local methods
 that can be implemented by a `GClass`. 
 These methods are specific to the internal operation of the `GClass` 
 and are not intended to be invoked dynamically via 
-the [`gobj_local_method()`](#gobj_local_method()) API, 
+the [`gobj_local_method()`](<#gobj_local_method>) API, 
 unlike the global methods (`GMETHODS`).
 
 

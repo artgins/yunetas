@@ -1,9 +1,9 @@
 <!-- ============================================================== -->
-(gobj_get_resource())=
+(gobj_get_resource)=
 # `gobj_get_resource()`
 <!-- ============================================================== -->
 
-Retrieves a resource from the specified [`hgobj`](#hgobj) object, using the given resource name and filter criteria.
+Retrieves a resource from the specified `hgobj` object, using the given resource name and filter criteria.
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -31,7 +31,6 @@ json_t *gobj_get_resource(
 **Parameters**
 
 ::: {list-table}
-:widths: 20 20 60
 :header-rows: 1
 
 * - Key
@@ -40,7 +39,7 @@ json_t *gobj_get_resource(
 
 * - `gobj`
   - `hgobj`
-  - The [`hgobj`](#hgobj) instance from which the resource is retrieved.
+  - The `hgobj` instance from which the resource is retrieved.
 
 * - `resource`
   - `const char *`
@@ -63,7 +62,7 @@ A JSON object representing the requested resource. The returned object is not ow
 
 **Notes**
 
-If the `gobj` is `NULL` or destroyed, an error is logged and `NULL` is returned. If the `mt_get_resource` method is not defined in the [`hgobj`](#hgobj)'s gclass, an error is logged and `NULL` is returned.
+If the `gobj` is `NULL` or destroyed, an error is logged and `NULL` is returned. If the `mt_get_resource` method is not defined in the `hgobj`'s gclass, an error is logged and `NULL` is returned.
 
 <!--====================================================-->
 <!--                    End Tab C                       -->

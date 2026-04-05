@@ -1,5 +1,5 @@
 <!-- ============================================================== -->
-(gobj_service_register())=
+(gobj_service_register)=
 # `gobj_service_register()`
 <!-- ============================================================== -->
 
@@ -26,7 +26,6 @@ json_t *gobj_service_register(void);
 **Parameters**
 
 ::: {list-table}
-:widths: 20 20 60
 :header-rows: 1
 
 * - Key

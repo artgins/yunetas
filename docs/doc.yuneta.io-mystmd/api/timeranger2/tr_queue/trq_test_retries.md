@@ -1,5 +1,5 @@
 <!-- ============================================================== -->
-(trq_test_retries())=
+(trq_test_retries)=
 # `trq_test_retries()`
 <!-- ============================================================== -->
 
@@ -28,7 +28,6 @@ BOOL trq_test_retries(
 **Parameters**
 
 ::: {list-table}
-:widths: 20 20 60
 :header-rows: 1
 
 * - Key
@@ -48,7 +47,7 @@ Returns `TRUE` if the retry limit has been reached, otherwise `FALSE`.
 
 **Notes**
 
-Use [`trq_add_retries()`](#trq_add_retries()) to increment the retry count and [`trq_clear_retries()`](#trq_clear_retries()) to reset it.
+Use [`trq_add_retries()`](<#trq_add_retries>) to increment the retry count and [`trq_clear_retries()`](<#trq_clear_retries>) to reset it.
 
 <!--====================================================-->
 <!--                    End Tab C                       -->

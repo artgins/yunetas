@@ -1,5 +1,5 @@
 <!-- ============================================================== -->
-(is_level_not_tracing())=
+(is_level_not_tracing)=
 # `is_level_not_tracing()`
 <!-- ============================================================== -->
 
@@ -29,7 +29,6 @@ PUBLIC BOOL is_level_not_tracing(
 **Parameters**
 
 ::: {list-table}
-:widths: 20 20 60
 :header-rows: 1
 
 * - Key

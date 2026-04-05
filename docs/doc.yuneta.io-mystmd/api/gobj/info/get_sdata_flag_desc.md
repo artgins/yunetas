@@ -1,5 +1,5 @@
 <!-- ============================================================== -->
-(get_sdata_flag_desc())=
+(get_sdata_flag_desc)=
 # `get_sdata_flag_desc()`
 <!-- ============================================================== -->
 
@@ -26,7 +26,6 @@ gbuffer_t *get_sdata_flag_desc(sdata_flag_t flag);
 **Parameters**
 
 ::: {list-table}
-:widths: 20 20 60
 :header-rows: 1
 
 * - Key

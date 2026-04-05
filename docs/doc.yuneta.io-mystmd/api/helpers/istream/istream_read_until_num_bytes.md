@@ -1,5 +1,5 @@
 <!-- ============================================================== -->
-(istream_read_until_num_bytes())=
+(istream_read_until_num_bytes)=
 # `istream_read_until_num_bytes()`
 <!-- ============================================================== -->
 
@@ -30,7 +30,6 @@ int istream_read_until_num_bytes(
 **Parameters**
 
 ::: {list-table}
-:widths: 20 20 60
 :header-rows: 1
 
 * - Key

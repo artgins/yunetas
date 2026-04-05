@@ -1,5 +1,5 @@
 <!-- ============================================================== -->
-(gobj_get_log_data())=
+(gobj_get_log_data)=
 # `gobj_get_log_data()`
 <!-- ============================================================== -->
 
@@ -26,7 +26,6 @@ json_t *gobj_get_log_data(void);
 **Parameters**
 
 ::: {list-table}
-:widths: 20 20 60
 :header-rows: 1
 
 * - Key

@@ -1,5 +1,5 @@
 <!-- ============================================================== -->
-(gobj_realloc_func())=
+(gobj_realloc_func)=
 # `gobj_realloc_func()`
 <!-- ============================================================== -->
 
@@ -26,7 +26,6 @@ sys_realloc_fn_t gobj_realloc_func(void);
 **Parameters**
 
 ::: {list-table}
-:widths: 20 20 60
 :header-rows: 1
 
 * - Key

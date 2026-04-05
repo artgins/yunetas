@@ -1,5 +1,5 @@
 <!-- ============================================================== -->
-(tranger2_create_topic())=
+(tranger2_create_topic)=
 # `tranger2_create_topic()`
 <!-- ============================================================== -->
 
@@ -35,7 +35,6 @@ json_t *tranger2_create_topic(
 **Parameters**
 
 ::: {list-table}
-:widths: 20 20 60
 :header-rows: 1
 
 * - Key

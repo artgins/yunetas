@@ -1,5 +1,5 @@
 <!-- ============================================================== -->
-(gobj_global_variables())=
+(gobj_global_variables)=
 # `gobj_global_variables()`
 <!-- ============================================================== -->
 
@@ -26,7 +26,6 @@ json_t *gobj_global_variables(void);
 **Parameters**
 
 ::: {list-table}
-:widths: 20 20 60
 :header-rows: 1
 
 * - Key

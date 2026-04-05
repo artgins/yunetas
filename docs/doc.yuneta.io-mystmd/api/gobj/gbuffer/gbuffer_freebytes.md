@@ -1,5 +1,5 @@
 <!-- ============================================================== -->
-(gbuffer_freebytes())=
+(gbuffer_freebytes)=
 # `gbuffer_freebytes()`
 <!-- ============================================================== -->
 
@@ -26,7 +26,6 @@ size_t gbuffer_freebytes(gbuffer_t *gbuf);
 **Parameters**
 
 ::: {list-table}
-:widths: 20 20 60
 :header-rows: 1
 
 * - Key

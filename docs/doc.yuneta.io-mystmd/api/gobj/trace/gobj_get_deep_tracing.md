@@ -1,5 +1,5 @@
 <!-- ============================================================== -->
-(gobj_get_deep_tracing())=
+(gobj_get_deep_tracing)=
 # `gobj_get_deep_tracing()`
 <!-- ============================================================== -->
 
@@ -26,7 +26,6 @@ int gobj_get_deep_tracing(void);
 **Parameters**
 
 ::: {list-table}
-:widths: 20 20 60
 :header-rows: 1
 
 * - Key

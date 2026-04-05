@@ -1,5 +1,5 @@
 <!-- ============================================================== -->
-(gobj_short_name())=
+(gobj_short_name)=
 # `gobj_short_name()`
 <!-- ============================================================== -->
 
@@ -26,7 +26,6 @@ const char *gobj_short_name(hgobj gobj_);
 **Parameters**
 
 ::: {list-table}
-:widths: 20 20 60
 :header-rows: 1
 
 * - Key

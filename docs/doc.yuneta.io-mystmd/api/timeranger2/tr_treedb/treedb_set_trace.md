@@ -1,5 +1,5 @@
 <!-- ============================================================== -->
-(treedb_set_trace())=
+(treedb_set_trace)=
 # `treedb_set_trace()`
 <!-- ============================================================== -->
 
@@ -28,7 +28,6 @@ BOOL treedb_set_trace(
 **Parameters**
 
 ::: {list-table}
-:widths: 20 20 60
 :header-rows: 1
 
 * - Key

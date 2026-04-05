@@ -1,5 +1,5 @@
 <!-- ============================================================== -->
-(istream_destroy())=
+(istream_destroy)=
 # `istream_destroy()`
 <!-- ============================================================== -->
 
@@ -28,7 +28,6 @@ void istream_destroy(
 **Parameters**
 
 ::: {list-table}
-:widths: 20 20 60
 :header-rows: 1
 
 * - Key

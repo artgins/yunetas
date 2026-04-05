@@ -1,5 +1,5 @@
 <!-- ============================================================== -->
-(gbuffer_head_pointer())=
+(gbuffer_head_pointer)=
 # `gbuffer_head_pointer()`
 <!-- ============================================================== -->
 
@@ -28,7 +28,6 @@ void *gbuffer_head_pointer(
 **Parameters**
 
 ::: {list-table}
-:widths: 20 20 60
 :header-rows: 1
 
 * - Key

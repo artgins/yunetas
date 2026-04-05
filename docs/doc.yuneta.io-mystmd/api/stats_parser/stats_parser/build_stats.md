@@ -1,9 +1,9 @@
 <!-- ============================================================== -->
-(build_stats())=
+(build_stats)=
 # `build_stats()`
 <!-- ============================================================== -->
 
-`build_stats()` constructs a JSON object containing statistical data extracted from the attributes of a given [`hgobj`](#hgobj) instance, including attributes marked with `SFD_STATS` flags.
+`build_stats()` constructs a JSON object containing statistical data extracted from the attributes of a given `hgobj` instance, including attributes marked with `SFD_STATS` flags.
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -31,7 +31,6 @@ json_t *build_stats(
 **Parameters**
 
 ::: {list-table}
-:widths: 20 20 60
 :header-rows: 1
 
 * - Key
@@ -40,7 +39,7 @@ json_t *build_stats(
 
 * - `gobj`
   - `hgobj`
-  - The [`hgobj`](#hgobj) instance from which statistics are gathered.
+  - The `hgobj` instance from which statistics are gathered.
 
 * - `stats`
   - `const char *`
@@ -52,19 +51,19 @@ json_t *build_stats(
 
 * - `src`
   - `hgobj`
-  - The source [`hgobj`](#hgobj) instance, used for context in the statistics gathering process.
+  - The source `hgobj` instance, used for context in the statistics gathering process.
 :::
 
 ---
 
 **Return Value**
 
-A JSON object containing the collected statistics, structured by the short names of the [`hgobj`](#hgobj) instances.
+A JSON object containing the collected statistics, structured by the short names of the `hgobj` instances.
 
 **Notes**
 
-Internally, [`_build_stats()`](#_build_stats) is used to extract statistics from the [`hgobj`](#hgobj) instance and its bottom-level objects.
-The function iterates through the hierarchy of [`hgobj`](#hgobj) instances, aggregating statistics from each level.
+Internally, `_build_stats()` is used to extract statistics from the `hgobj` instance and its bottom-level objects.
+The function iterates through the hierarchy of `hgobj` instances, aggregating statistics from each level.
 
 <!--====================================================-->
 <!--                    End Tab C                       -->

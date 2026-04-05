@@ -1,5 +1,5 @@
 <!-- ============================================================== -->
-(trmsg_get_instances())=
+(trmsg_get_instances)=
 # `trmsg_get_instances()`
 <!-- ============================================================== -->
 
@@ -29,7 +29,6 @@ json_t *trmsg_get_instances(
 **Parameters**
 
 ::: {list-table}
-:widths: 20 20 60
 :header-rows: 1
 
 * - Key

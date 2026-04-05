@@ -1,5 +1,5 @@
 <!-- ============================================================== -->
-(gobj_get_log_priority_name())=
+(gobj_get_log_priority_name)=
 # `gobj_get_log_priority_name()`
 <!-- ============================================================== -->
 
@@ -26,7 +26,6 @@ const char *gobj_get_log_priority_name(int priority);
 **Parameters**
 
 ::: {list-table}
-:widths: 20 20 60
 :header-rows: 1
 
 * - Key

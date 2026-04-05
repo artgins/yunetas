@@ -1,5 +1,5 @@
 <!-- ============================================================== -->
-(gclass_gclass_name())=
+(gclass_gclass_name)=
 # `gclass_gclass_name()`
 <!-- ============================================================== -->
 
@@ -26,7 +26,6 @@ gclass_name_t gclass_gclass_name(hgclass gclass);
 **Parameters**
 
 ::: {list-table}
-:widths: 20 20 60
 :header-rows: 1
 
 * - Key

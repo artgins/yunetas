@@ -1,5 +1,5 @@
 <!-- ============================================================== -->
-(gbuffer_vprintf())=
+(gbuffer_vprintf)=
 # `gbuffer_vprintf()`
 <!-- ============================================================== -->
 
@@ -30,7 +30,6 @@ int gbuffer_vprintf(
 **Parameters**
 
 ::: {list-table}
-:widths: 20 20 60
 :header-rows: 1
 
 * - Key

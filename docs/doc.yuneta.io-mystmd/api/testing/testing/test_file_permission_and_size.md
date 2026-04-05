@@ -1,5 +1,5 @@
 <!-- ============================================================== -->
-(test_file_permission_and_size())=
+(test_file_permission_and_size)=
 # `test_file_permission_and_size()`
 <!-- ============================================================== -->
 
@@ -30,7 +30,6 @@ int test_file_permission_and_size(
 **Parameters**
 
 ::: {list-table}
-:widths: 20 20 60
 :header-rows: 1
 
 * - Key

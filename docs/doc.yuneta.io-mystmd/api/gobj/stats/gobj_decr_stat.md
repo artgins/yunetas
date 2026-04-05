@@ -1,9 +1,9 @@
 <!-- ============================================================== -->
-(gobj_decr_stat())=
+(gobj_decr_stat)=
 # `gobj_decr_stat()`
 <!-- ============================================================== -->
 
-Decrements the specified statistic attribute of the given [`hgobj`](#hgobj) by a given value and returns the new value.
+Decrements the specified statistic attribute of the given `hgobj` by a given value and returns the new value.
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -30,7 +30,6 @@ json_int_t gobj_decr_stat(
 **Parameters**
 
 ::: {list-table}
-:widths: 20 20 60
 :header-rows: 1
 
 * - Key
@@ -39,7 +38,7 @@ json_int_t gobj_decr_stat(
 
 * - `gobj`
   - `hgobj`
-  - The [`hgobj`](#hgobj) instance whose statistic attribute is to be decremented.
+  - The `hgobj` instance whose statistic attribute is to be decremented.
 
 * - `path`
   - `const char *`

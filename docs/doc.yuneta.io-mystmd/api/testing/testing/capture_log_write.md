@@ -1,5 +1,5 @@
 <!-- ============================================================== -->
-(capture_log_write())=
+(capture_log_write)=
 # `capture_log_write()`
 <!-- ============================================================== -->
 
@@ -31,7 +31,6 @@ int capture_log_write(
 **Parameters**
 
 ::: {list-table}
-:widths: 20 20 60
 :header-rows: 1
 
 * - Key

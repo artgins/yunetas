@@ -1,9 +1,9 @@
 <!-- ============================================================== -->
-(yev_loop_create())=
+(yev_loop_create)=
 # `yev_loop_create()`
 <!-- ============================================================== -->
 
-`yev_loop_create()` initializes a new event loop associated with a given [`hgobj`](#hgobj) instance, allocating resources for event management.
+`yev_loop_create()` initializes a new event loop associated with a given `hgobj` instance, allocating resources for event management.
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -32,7 +32,6 @@ int yev_loop_create(
 **Parameters**
 
 ::: {list-table}
-:widths: 20 20 60
 :header-rows: 1
 
 * - Key
@@ -41,7 +40,7 @@ int yev_loop_create(
 
 * - `yuno`
   - `hgobj`
-  - The [`hgobj`](#hgobj) instance associated with the event loop.
+  - The `hgobj` instance associated with the event loop.
 
 * - `entries`
   - `unsigned`
@@ -53,7 +52,7 @@ int yev_loop_create(
 
 * - `callback`
   - `yev_callback_t`
-  - A callback function invoked for each event; returning `-1` will break [`yev_loop_run()`](#yev_loop_run()).
+  - A callback function invoked for each event; returning `-1` will break [`yev_loop_run()`](<#yev_loop_run>).
 
 * - `yev_loop`
   - `yev_loop_h *`
@@ -68,7 +67,7 @@ Returns `0` on success, or a negative value on failure.
 
 **Notes**
 
-If `callback` is `NULL`, a default callback will be used when processing events in [`yev_loop_run()`](#yev_loop_run()).
+If `callback` is `NULL`, a default callback will be used when processing events in [`yev_loop_run()`](<#yev_loop_run>).
 
 <!--====================================================-->
 <!--                    End Tab C                       -->

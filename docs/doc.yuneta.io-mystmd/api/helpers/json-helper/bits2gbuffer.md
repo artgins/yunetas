@@ -1,5 +1,5 @@
 <!-- ============================================================== -->
-(bits2gbuffer())=
+(bits2gbuffer)=
 # `bits2gbuffer()`
 <!-- ============================================================== -->
 
@@ -29,7 +29,6 @@ gbuffer_t *bits2gbuffer(
 **Parameters**
 
 ::: {list-table}
-:widths: 20 20 60
 :header-rows: 1
 
 * - Key
@@ -53,7 +52,7 @@ A newly allocated [`gbuffer_t *`](#gbuffer_t) containing the string representati
 
 **Notes**
 
-The caller is responsible for managing the memory of the returned [`gbuffer_t *`](#gbuffer_t) using [`gbuffer_decref()`](#gbuffer_decref()).
+The caller is responsible for managing the memory of the returned [`gbuffer_t *`](#gbuffer_t) using [`gbuffer_decref()`](<#gbuffer_decref>).
 
 <!--====================================================-->
 <!--                    End Tab C                       -->

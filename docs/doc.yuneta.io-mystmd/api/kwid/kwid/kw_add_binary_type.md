@@ -1,5 +1,5 @@
 <!-- ============================================================== -->
-(kw_add_binary_type())=
+(kw_add_binary_type)=
 # `kw_add_binary_type()`
 <!-- ============================================================== -->
 
@@ -33,7 +33,6 @@ int kw_add_binary_type(
 **Parameters**
 
 ::: {list-table}
-:widths: 20 20 60
 :header-rows: 1
 
 * - Key

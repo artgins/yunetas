@@ -1,5 +1,5 @@
 <!-- ============================================================== -->
-(tranger2_close_rt_mem())=
+(tranger2_close_rt_mem)=
 # `tranger2_close_rt_mem()`
 <!-- ============================================================== -->
 
@@ -29,7 +29,6 @@ int tranger2_close_rt_mem(
 **Parameters**
 
 ::: {list-table}
-:widths: 20 20 60
 :header-rows: 1
 
 * - Key

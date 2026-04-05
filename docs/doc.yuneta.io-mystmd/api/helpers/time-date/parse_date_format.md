@@ -1,5 +1,5 @@
 <!-- ============================================================== -->
-(parse_date_format())=
+(parse_date_format)=
 # `parse_date_format()`
 <!-- ============================================================== -->
 
@@ -29,7 +29,6 @@ void parse_date_format(
 **Parameters**
 
 ::: {list-table}
-:widths: 20 20 60
 :header-rows: 1
 
 * - Key

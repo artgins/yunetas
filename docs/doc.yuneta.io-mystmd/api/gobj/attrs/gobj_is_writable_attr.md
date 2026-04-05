@@ -1,9 +1,9 @@
 <!-- ============================================================== -->
-(gobj_is_writable_attr())=
+(gobj_is_writable_attr)=
 # `gobj_is_writable_attr()`
 <!-- ============================================================== -->
 
-Checks if a given attribute of a [`hgobj`](#hgobj) is writable based on its flags.
+Checks if a given attribute of a `hgobj` is writable based on its flags.
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -29,7 +29,6 @@ BOOL gobj_is_writable_attr(
 **Parameters**
 
 ::: {list-table}
-:widths: 20 20 60
 :header-rows: 1
 
 * - Key
@@ -38,7 +37,7 @@ BOOL gobj_is_writable_attr(
 
 * - `gobj`
   - `hgobj`
-  - The [`hgobj`](#hgobj) instance whose attribute is being checked.
+  - The `hgobj` instance whose attribute is being checked.
 
 * - `name`
   - `const char *`

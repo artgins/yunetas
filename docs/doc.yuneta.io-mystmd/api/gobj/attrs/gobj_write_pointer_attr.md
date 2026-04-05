@@ -1,9 +1,9 @@
 <!-- ============================================================== -->
-(gobj_write_pointer_attr())=
+(gobj_write_pointer_attr)=
 # `gobj_write_pointer_attr()`
 <!-- ============================================================== -->
 
-Sets the value of a pointer attribute in the given [`hgobj`](#hgobj) object.
+Sets the value of a pointer attribute in the given `hgobj` object.
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -30,7 +30,6 @@ int gobj_write_pointer_attr(
 **Parameters**
 
 ::: {list-table}
-:widths: 20 20 60
 :header-rows: 1
 
 * - Key
@@ -39,7 +38,7 @@ int gobj_write_pointer_attr(
 
 * - `gobj`
   - `hgobj`
-  - The [`hgobj`](#hgobj) object whose attribute is being modified.
+  - The `hgobj` object whose attribute is being modified.
 
 * - `name`
   - `const char *`

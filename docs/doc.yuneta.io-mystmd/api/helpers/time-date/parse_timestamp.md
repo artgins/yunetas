@@ -1,5 +1,5 @@
 <!-- ============================================================== -->
-(parse_timestamp())=
+(parse_timestamp)=
 # `parse_timestamp()`
 <!-- ============================================================== -->
 
@@ -30,7 +30,6 @@ uintmax_t parse_timestamp(
 **Parameters**
 
 ::: {list-table}
-:widths: 20 20 60
 :header-rows: 1
 
 * - Key

@@ -1,5 +1,5 @@
 <!-- ============================================================== -->
-(ghttp_parser_reset())=
+(ghttp_parser_reset)=
 # `ghttp_parser_reset()`
 <!-- ============================================================== -->
 
@@ -26,7 +26,6 @@ void ghttp_parser_reset(GHTTP_PARSER *parser);
 **Parameters**
 
 ::: {list-table}
-:widths: 20 20 60
 :header-rows: 1
 
 * - Key

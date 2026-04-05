@@ -1,5 +1,5 @@
 <!-- ============================================================== -->
-(gobj_save_resource())=
+(gobj_save_resource)=
 # `gobj_save_resource()`
 <!-- ============================================================== -->
 
@@ -31,7 +31,6 @@ int gobj_save_resource(
 **Parameters**
 
 ::: {list-table}
-:widths: 20 20 60
 :header-rows: 1
 
 * - Key

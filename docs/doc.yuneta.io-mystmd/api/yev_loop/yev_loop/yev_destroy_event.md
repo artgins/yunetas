@@ -1,5 +1,5 @@
 <!-- ============================================================== -->
-(yev_destroy_event())=
+(yev_destroy_event)=
 # `yev_destroy_event()`
 <!-- ============================================================== -->
 
@@ -28,7 +28,6 @@ void yev_destroy_event(
 **Parameters**
 
 ::: {list-table}
-:widths: 20 20 60
 :header-rows: 1
 
 * - Key

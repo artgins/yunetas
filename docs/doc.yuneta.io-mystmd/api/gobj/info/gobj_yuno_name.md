@@ -1,5 +1,5 @@
 <!-- ============================================================== -->
-(gobj_yuno_name())=
+(gobj_yuno_name)=
 # `gobj_yuno_name()`
 <!-- ============================================================== -->
 
@@ -26,7 +26,6 @@ const char *gobj_yuno_name(void);
 **Parameters**
 
 ::: {list-table}
-:widths: 20 20 60
 :header-rows: 1
 
 * - Key

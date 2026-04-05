@@ -1,9 +1,9 @@
 <!-- ============================================================== -->
-(gobj_walk_gobj_children())=
+(gobj_walk_gobj_children)=
 # `gobj_walk_gobj_children()`
 <!-- ============================================================== -->
 
-Traverses the direct child objects of the given [`hgobj`](#hgobj) using the specified traversal method and applies a callback function to each child.
+Traverses the direct child objects of the given `hgobj` using the specified traversal method and applies a callback function to each child.
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -32,7 +32,6 @@ int gobj_walk_gobj_children(
 **Parameters**
 
 ::: {list-table}
-:widths: 20 20 60
 :header-rows: 1
 
 * - Key
@@ -41,7 +40,7 @@ int gobj_walk_gobj_children(
 
 * - `gobj`
   - `hgobj`
-  - The parent [`hgobj`](#hgobj) whose direct children will be traversed.
+  - The parent `hgobj` whose direct children will be traversed.
 
 * - `walk_type`
   - `walk_type_t`
@@ -49,7 +48,7 @@ int gobj_walk_gobj_children(
 
 * - `cb_walking`
   - `cb_walking_t`
-  - A callback function that is applied to each child [`hgobj`](#hgobj).
+  - A callback function that is applied to each child `hgobj`.
 
 * - `user_data`
   - `void *`
@@ -68,7 +67,7 @@ Returns 0 on success, or a negative value if an error occurs.
 
 **Notes**
 
-This function only traverses the direct children of the given [`hgobj`](#hgobj). To traverse the entire hierarchy, use [`gobj_walk_gobj_children_tree()`](#gobj_walk_gobj_children_tree).
+This function only traverses the direct children of the given `hgobj`. To traverse the entire hierarchy, use [`gobj_walk_gobj_children_tree()`](#gobj_walk_gobj_children_tree).
 
 <!--====================================================-->
 <!--                    End Tab C                       -->

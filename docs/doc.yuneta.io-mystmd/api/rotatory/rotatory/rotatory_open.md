@@ -1,5 +1,5 @@
 <!-- ============================================================== -->
-(rotatory_open()())=
+(rotatory_open)=
 # `rotatory_open()`
 <!-- ============================================================== -->
 
@@ -34,7 +34,6 @@ hrotatory_h rotatory_open(
 **Parameters**
 
 ::: {list-table}
-:widths: 20 20 60
 :header-rows: 1
 
 * - Key

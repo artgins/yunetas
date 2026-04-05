@@ -1,5 +1,5 @@
 <!-- ============================================================== -->
-(create_template_record())=
+(create_template_record)=
 # `create_template_record()`
 <!-- ============================================================== -->
 
@@ -30,7 +30,6 @@ json_t *create_template_record(
 **Parameters**
 
 ::: {list-table}
-:widths: 20 20 60
 :header-rows: 1
 
 * - Key

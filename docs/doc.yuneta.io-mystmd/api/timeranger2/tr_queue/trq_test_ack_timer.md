@@ -1,5 +1,5 @@
 <!-- ============================================================== -->
-(trq_test_ack_timer())=
+(trq_test_ack_timer)=
 # `trq_test_ack_timer()`
 <!-- ============================================================== -->
 
@@ -28,7 +28,6 @@ BOOL trq_test_ack_timer(
 **Parameters**
 
 ::: {list-table}
-:widths: 20 20 60
 :header-rows: 1
 
 * - Key
@@ -48,7 +47,7 @@ Returns `TRUE` if the acknowledgment timer is active, otherwise `FALSE`.
 
 **Notes**
 
-Use [`trq_set_ack_timer()`](#trq_set_ack_timer()) to set an acknowledgment timer and [`trq_clear_ack_timer()`](#trq_clear_ack_timer()) to clear it.
+Use [`trq_set_ack_timer()`](<#trq_set_ack_timer>) to set an acknowledgment timer and [`trq_clear_ack_timer()`](<#trq_clear_ack_timer>) to clear it.
 
 <!--====================================================-->
 <!--                    End Tab C                       -->

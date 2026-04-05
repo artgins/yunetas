@@ -1,5 +1,5 @@
 <!-- ============================================================== -->
-(get_key_value_parameter())=
+(get_key_value_parameter)=
 # `get_key_value_parameter()`
 <!-- ============================================================== -->
 
@@ -30,7 +30,6 @@ char *get_key_value_parameter(
 **Parameters**
 
 ::: {list-table}
-:widths: 20 20 60
 :header-rows: 1
 
 * - Key

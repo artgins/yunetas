@@ -1,5 +1,5 @@
 <!-- ============================================================== -->
-(date_mode_from_type())=
+(date_mode_from_type)=
 # `date_mode_from_type()`
 <!-- ============================================================== -->
 
@@ -28,7 +28,6 @@ struct date_mode *date_mode_from_type(
 **Parameters**
 
 ::: {list-table}
-:widths: 20 20 60
 :header-rows: 1
 
 * - Key

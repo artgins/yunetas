@@ -1,9 +1,9 @@
 <!-- ============================================================== -->
-(kw_find_json_in_list())=
+(kw_find_json_in_list)=
 # `kw_find_json_in_list()`
 <!-- ============================================================== -->
 
-Search for a JSON item in a JSON list and return its index. If the item is not found, return -1. The comparison is performed using [`json_is_identical()`](#json_is_identical()).
+Search for a JSON item in a JSON list and return its index. If the item is not found, return -1. The comparison is performed using [`json_is_identical()`](<#json_is_identical>).
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -31,7 +31,6 @@ int kw_find_json_in_list(
 **Parameters**
 
 ::: {list-table}
-:widths: 20 20 60
 :header-rows: 1
 
 * - Key

@@ -1,5 +1,5 @@
 <!-- ============================================================== -->
-(yev_setup_accept_event())=
+(yev_setup_accept_event)=
 # `yev_setup_accept_event()`
 <!-- ============================================================== -->
 
@@ -33,7 +33,6 @@ int yev_setup_accept_event(
 **Parameters**
 
 ::: {list-table}
-:widths: 20 20 60
 :header-rows: 1
 
 * - Key
@@ -73,7 +72,7 @@ Returns `0` on success, or `-1` on failure.
 
 **Notes**
 
-This function must be called before starting an accept event using [`yev_start_event()`](#yev_start_event()).
+This function must be called before starting an accept event using [`yev_start_event()`](<#yev_start_event>).
 
 <!--====================================================-->
 <!--                    End Tab C                       -->

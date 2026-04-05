@@ -1,5 +1,5 @@
 <!-- ============================================================== -->
-(ytls_do_handshake())=
+(ytls_do_handshake)=
 # `ytls_do_handshake()`
 <!-- ============================================================== -->
 
@@ -29,7 +29,6 @@ int ytls_do_handshake(
 **Parameters**
 
 ::: {list-table}
-:widths: 20 20 60
 :header-rows: 1
 
 * - Key

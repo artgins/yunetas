@@ -1,9 +1,9 @@
 <!-- ============================================================== -->
-(gobj_get_gobj_trace_level())=
+(gobj_get_gobj_trace_level)=
 # `gobj_get_gobj_trace_level()`
 <!-- ============================================================== -->
 
-Retrieves the trace levels set for the specified [`hgobj`](#hgobj). The function returns a JSON array containing the active trace levels.
+Retrieves the trace levels set for the specified `hgobj`. The function returns a JSON array containing the active trace levels.
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -28,7 +28,6 @@ PUBLIC json_t *gobj_get_gobj_trace_level(
 **Parameters**
 
 ::: {list-table}
-:widths: 20 20 60
 :header-rows: 1
 
 * - Key
@@ -37,14 +36,14 @@ PUBLIC json_t *gobj_get_gobj_trace_level(
 
 * - `gobj`
   - `hgobj`
-  - The [`hgobj`](#hgobj) instance whose trace levels are to be retrieved.
+  - The `hgobj` instance whose trace levels are to be retrieved.
 :::
 
 ---
 
 **Return Value**
 
-A JSON array containing the active trace levels for the given [`hgobj`](#hgobj).
+A JSON array containing the active trace levels for the given `hgobj`.
 
 **Notes**
 

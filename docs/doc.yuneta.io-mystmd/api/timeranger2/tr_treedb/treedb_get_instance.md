@@ -1,5 +1,5 @@
 <!-- ============================================================== -->
-(treedb_get_instance())=
+(treedb_get_instance)=
 # `treedb_get_instance()`
 <!-- ============================================================== -->
 
@@ -33,7 +33,6 @@ json_t *treedb_get_instance(
 **Parameters**
 
 ::: {list-table}
-:widths: 20 20 60
 :header-rows: 1
 
 * - Key
@@ -73,7 +72,7 @@ Returns a pointer to a `json_t` object representing the requested node instance.
 
 **Notes**
 
-If the specified instance does not exist, `NULL` is returned. Use [`treedb_get_node()`](#treedb_get_node()) if only the primary key is needed.
+If the specified instance does not exist, `NULL` is returned. Use [`treedb_get_node()`](<#treedb_get_node>) if only the primary key is needed.
 
 <!--====================================================-->
 <!--                    End Tab C                       -->

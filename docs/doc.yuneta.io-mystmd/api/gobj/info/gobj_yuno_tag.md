@@ -1,5 +1,5 @@
 <!-- ============================================================== -->
-(gobj_yuno_tag())=
+(gobj_yuno_tag)=
 # `gobj_yuno_tag()`
 <!-- ============================================================== -->
 
@@ -26,7 +26,6 @@ const char *gobj_yuno_tag(void);
 **Parameters**
 
 ::: {list-table}
-:widths: 20 20 60
 :header-rows: 1
 
 * - Key

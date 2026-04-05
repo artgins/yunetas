@@ -1,5 +1,5 @@
 <!-- ============================================================== -->
-(gobj_start_tree())=
+(gobj_start_tree)=
 # `gobj_start_tree()`
 <!-- ============================================================== -->
 
@@ -28,7 +28,6 @@ int gobj_start_tree(
 **Parameters**
 
 ::: {list-table}
-:widths: 20 20 60
 :header-rows: 1
 
 * - Key

@@ -1,5 +1,5 @@
 <!-- ============================================================== -->
-(comm_prot_register())=
+(comm_prot_register)=
 # `comm_prot_register()`
 <!-- ============================================================== -->
 
@@ -29,7 +29,6 @@ int comm_prot_register(
 **Parameters**
 
 ::: {list-table}
-:widths: 20 20 60
 :header-rows: 1
 
 * - Key

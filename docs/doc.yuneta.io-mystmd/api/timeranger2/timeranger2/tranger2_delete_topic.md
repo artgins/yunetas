@@ -1,5 +1,5 @@
 <!-- ============================================================== -->
-(tranger2_delete_topic())=
+(tranger2_delete_topic)=
 # `tranger2_delete_topic()`
 <!-- ============================================================== -->
 
@@ -29,7 +29,6 @@ int tranger2_delete_topic(
 **Parameters**
 
 ::: {list-table}
-:widths: 20 20 60
 :header-rows: 1
 
 * - Key
@@ -53,7 +52,7 @@ Returns `0` on success, or a negative value if an error occurs.
 
 **Notes**
 
-Deleting a topic is irreversible. Ensure that the topic is no longer needed before calling [`tranger2_delete_topic()`](#tranger2_delete_topic()).
+Deleting a topic is irreversible. Ensure that the topic is no longer needed before calling [`tranger2_delete_topic()`](<#tranger2_delete_topic>).
 
 <!--====================================================-->
 <!--                    End Tab C                       -->

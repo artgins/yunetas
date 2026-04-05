@@ -1,5 +1,5 @@
 <!-- ============================================================== -->
-(gbuffer_chunk())=
+(gbuffer_chunk)=
 # `gbuffer_chunk()`
 <!-- ============================================================== -->
 
@@ -26,7 +26,6 @@ PUBLIC size_t gbuffer_chunk(gbuffer_t *gbuf);
 **Parameters**
 
 ::: {list-table}
-:widths: 20 20 60
 :header-rows: 1
 
 * - Key

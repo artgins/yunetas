@@ -1,5 +1,5 @@
 <!-- ============================================================== -->
-(count_char())=
+(count_char)=
 # `count_char()`
 <!-- ============================================================== -->
 
@@ -26,7 +26,6 @@ int count_char(const char *s, char c);
 **Parameters**
 
 ::: {list-table}
-:widths: 20 20 60
 :header-rows: 1
 
 * - Key

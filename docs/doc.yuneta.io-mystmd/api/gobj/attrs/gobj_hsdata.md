@@ -1,9 +1,9 @@
 <!-- ============================================================== -->
-(gobj_hsdata())=
+(gobj_hsdata)=
 # `gobj_hsdata()`
 <!-- ============================================================== -->
 
-Returns the attribute storage (hsdata) of the given [`hgobj`](#hgobj).
+Returns the attribute storage (hsdata) of the given `hgobj`.
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -26,7 +26,6 @@ json_t *gobj_hsdata(hgobj gobj);
 **Parameters**
 
 ::: {list-table}
-:widths: 20 20 60
 :header-rows: 1
 
 * - Key
@@ -35,14 +34,14 @@ json_t *gobj_hsdata(hgobj gobj);
 
 * - `gobj`
   - `hgobj`
-  - The [`hgobj`](#hgobj) whose attribute storage is to be retrieved.
+  - The `hgobj` whose attribute storage is to be retrieved.
 :::
 
 ---
 
 **Return Value**
 
-A pointer to the JSON object containing the attribute storage of the given [`hgobj`](#hgobj), or NULL if the object is invalid.
+A pointer to the JSON object containing the attribute storage of the given `hgobj`, or NULL if the object is invalid.
 
 **Notes**
 

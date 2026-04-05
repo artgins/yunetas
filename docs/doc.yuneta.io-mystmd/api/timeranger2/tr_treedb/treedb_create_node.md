@@ -1,9 +1,9 @@
 <!-- ============================================================== -->
-(treedb_create_node())=
+(treedb_create_node)=
 # `treedb_create_node()`
 <!-- ============================================================== -->
 
-Creates a new node in the TreeDB. The node is stored in [`tranger`](#treedb_create_node()) under the specified [`treedb_name`](#treedb_create_node()) and [`topic_name`](#treedb_create_node()).
+Creates a new node in the TreeDB. The node is stored in [`tranger`](<#treedb_create_node>) under the specified [`treedb_name`](<#treedb_create_node>) and [`topic_name`](<#treedb_create_node>).
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -31,7 +31,6 @@ json_t *treedb_create_node(
 **Parameters**
 
 ::: {list-table}
-:widths: 20 20 60
 :header-rows: 1
 
 * - Key
@@ -40,7 +39,7 @@ json_t *treedb_create_node(
 
 * - `tranger`
   - `json_t *`
-  - Pointer to the [`tranger`](#treedb_create_node()) database instance.
+  - Pointer to the [`tranger`](<#treedb_create_node>) database instance.
 
 * - `treedb_name`
   - `const char *`

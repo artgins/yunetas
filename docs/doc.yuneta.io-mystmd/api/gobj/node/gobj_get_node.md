@@ -1,9 +1,9 @@
 <!-- ============================================================== -->
-(gobj_get_node())=
+(gobj_get_node)=
 # `gobj_get_node()`
 <!-- ============================================================== -->
 
-Retrieves a node from a tree database in the given [`hgobj`](#hgobj) instance. The node is identified by its topic name and a set of key-value filters.
+Retrieves a node from a tree database in the given `hgobj` instance. The node is identified by its topic name and a set of key-value filters.
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -32,7 +32,6 @@ json_t *gobj_get_node(
 **Parameters**
 
 ::: {list-table}
-:widths: 20 20 60
 :header-rows: 1
 
 * - Key
@@ -41,7 +40,7 @@ json_t *gobj_get_node(
 
 * - `gobj`
   - `hgobj`
-  - The [`hgobj`](#hgobj) instance representing the tree database.
+  - The `hgobj` instance representing the tree database.
 
 * - `topic_name`
   - `const char *`
@@ -57,7 +56,7 @@ json_t *gobj_get_node(
 
 * - `src`
   - `hgobj`
-  - The source [`hgobj`](#hgobj) instance requesting the node.
+  - The source `hgobj` instance requesting the node.
 :::
 
 ---
@@ -68,7 +67,7 @@ Returns a JSON object representing the requested node. If the node is not found 
 
 **Notes**
 
-This function requires the `mt_get_node` method to be implemented in the [`hgobj`](#hgobj)'s gclass. If the method is not defined, an error is logged.
+This function requires the `mt_get_node` method to be implemented in the `hgobj`'s gclass. If the method is not defined, an error is logged.
 
 <!--====================================================-->
 <!--                    End Tab C                       -->

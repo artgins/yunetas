@@ -1,5 +1,5 @@
 <!-- ============================================================== -->
-(gobj_free_func())=
+(gobj_free_func)=
 # `gobj_free_func()`
 <!-- ============================================================== -->
 
@@ -26,7 +26,6 @@ sys_free_fn_t gobj_free_func(void);
 **Parameters**
 
 ::: {list-table}
-:widths: 20 20 60
 :header-rows: 1
 
 * - Key

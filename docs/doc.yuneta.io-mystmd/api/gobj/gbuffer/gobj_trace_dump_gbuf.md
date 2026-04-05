@@ -1,5 +1,5 @@
 <!-- ============================================================== -->
-(gobj_trace_dump_gbuf())=
+(gobj_trace_dump_gbuf)=
 # `gobj_trace_dump_gbuf()`
 <!-- ============================================================== -->
 
@@ -31,7 +31,6 @@ void gobj_trace_dump_gbuf(
 **Parameters**
 
 ::: {list-table}
-:widths: 20 20 60
 :header-rows: 1
 
 * - Key
@@ -40,7 +39,7 @@ void gobj_trace_dump_gbuf(
 
 * - `gobj`
   - `hgobj`
-  - The [`hgobj`](#hgobj) instance used for logging.
+  - The `hgobj` instance used for logging.
 
 * - `gbuf`
   - `gbuffer_t *`

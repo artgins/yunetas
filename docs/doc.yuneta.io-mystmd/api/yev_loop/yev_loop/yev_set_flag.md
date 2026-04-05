@@ -1,5 +1,5 @@
 <!-- ============================================================== -->
-(yev_set_flag())=
+(yev_set_flag)=
 # `yev_set_flag()`
 <!-- ============================================================== -->
 
@@ -30,7 +30,6 @@ void yev_set_flag(
 **Parameters**
 
 ::: {list-table}
-:widths: 20 20 60
 :header-rows: 1
 
 * - Key
@@ -58,7 +57,7 @@ This function does not return a value.
 
 **Notes**
 
-Use [`yev_get_flag()`](#yev_get_flag()) to check the current state of a flag.
+Use [`yev_get_flag()`](<#yev_get_flag>) to check the current state of a flag.
 
 <!--====================================================-->
 <!--                    End Tab C                       -->

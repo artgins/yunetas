@@ -1,5 +1,5 @@
 <!-- ============================================================== -->
-(gobj_get_gobj_trace_no_level())=
+(gobj_get_gobj_trace_no_level)=
 # `gobj_get_gobj_trace_no_level()`
 <!-- ============================================================== -->
 
@@ -28,7 +28,6 @@ json_t *gobj_get_gobj_trace_no_level(
 **Parameters**
 
 ::: {list-table}
-:widths: 20 20 60
 :header-rows: 1
 
 * - Key

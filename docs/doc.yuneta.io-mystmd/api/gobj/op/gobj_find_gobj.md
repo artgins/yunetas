@@ -1,5 +1,5 @@
 <!-- ============================================================== -->
-(gobj_find_gobj())=
+(gobj_find_gobj)=
 # `gobj_find_gobj()`
 <!-- ============================================================== -->
 
@@ -28,7 +28,6 @@ PUBLIC hgobj gobj_find_gobj(
 **Parameters**
 
 ::: {list-table}
-:widths: 20 20 60
 :header-rows: 1
 
 * - Key

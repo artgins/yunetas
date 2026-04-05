@@ -1,5 +1,5 @@
 <!-- ============================================================== -->
-(treedb_get_topic_hooks())=
+(treedb_get_topic_hooks)=
 # `treedb_get_topic_hooks()`
 <!-- ============================================================== -->
 
@@ -30,7 +30,6 @@ json_t *treedb_get_topic_hooks(
 **Parameters**
 
 ::: {list-table}
-:widths: 20 20 60
 :header-rows: 1
 
 * - Key
@@ -58,7 +57,7 @@ A JSON array containing the names of the columns that are hooks in the specified
 
 **Notes**
 
-Hooks define relationships between nodes in the tree database. Use [`treedb_get_topic_links()`](#treedb_get_topic_links()) to retrieve foreign key links instead.
+Hooks define relationships between nodes in the tree database. Use [`treedb_get_topic_links()`](<#treedb_get_topic_links>) to retrieve foreign key links instead.
 
 <!--====================================================-->
 <!--                    End Tab C                       -->

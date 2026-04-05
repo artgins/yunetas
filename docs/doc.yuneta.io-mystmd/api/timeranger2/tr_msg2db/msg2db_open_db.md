@@ -1,5 +1,5 @@
 <!-- ============================================================== -->
-(msg2db_open_db())=
+(msg2db_open_db)=
 # `msg2db_open_db()`
 <!-- ============================================================== -->
 
@@ -31,7 +31,6 @@ json_t *msg2db_open_db(
 **Parameters**
 
 ::: {list-table}
-:widths: 20 20 60
 :header-rows: 1
 
 * - Key
@@ -48,7 +47,7 @@ json_t *msg2db_open_db(
 
 * - `jn_schema`
   - `json_t *`
-  - A JSON object defining the schema of the database. Ownership is transferred to [`msg2db_open_db()`](#msg2db_open_db()).
+  - A JSON object defining the schema of the database. Ownership is transferred to [`msg2db_open_db()`](<#msg2db_open_db>).
 
 * - `options`
   - `const char *`
@@ -63,7 +62,7 @@ A JSON object representing the opened message database, or `NULL` on failure.
 
 **Notes**
 
-The function [`tranger2_startup()`](#tranger2_startup()) must be called before invoking [`msg2db_open_db()`](#msg2db_open_db()).
+The function [`tranger2_startup()`](<#tranger2_startup>) must be called before invoking [`msg2db_open_db()`](<#msg2db_open_db>).
 If the 'persistent' option is enabled, the schema is loaded from a file, which takes precedence over any provided schema.
 To modify the schema after it has been saved, the schema version and topic version must be updated.
 

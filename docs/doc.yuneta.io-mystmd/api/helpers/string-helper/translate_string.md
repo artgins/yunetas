@@ -1,5 +1,5 @@
 <!-- ============================================================== -->
-(translate_string())=
+(translate_string)=
 # `translate_string()`
 <!-- ============================================================== -->
 
@@ -32,7 +32,6 @@ char *translate_string(
 **Parameters**
 
 ::: {list-table}
-:widths: 20 20 60
 :header-rows: 1
 
 * - Key

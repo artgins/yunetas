@@ -1,9 +1,9 @@
 <!-- ============================================================== -->
-(gobj_remove_trace_filter())=
+(gobj_remove_trace_filter)=
 # `gobj_remove_trace_filter()`
 <!-- ============================================================== -->
 
-Removes a trace filter from the specified [`hgclass`](#hgclass). If `attr` is empty, all filters are removed. If `value` is empty, all values for the given attribute are removed.
+Removes a trace filter from the specified `hgclass`. If `attr` is empty, all filters are removed. If `value` is empty, all values for the given attribute are removed.
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -30,7 +30,6 @@ int gobj_remove_trace_filter(
 **Parameters**
 
 ::: {list-table}
-:widths: 20 20 60
 :header-rows: 1
 
 * - Key
@@ -39,7 +38,7 @@ int gobj_remove_trace_filter(
 
 * - `gclass`
   - `hgclass`
-  - The [`hgclass`](#hgclass) from which the trace filter should be removed.
+  - The `hgclass` from which the trace filter should be removed.
 
 * - `attr`
   - `const char *`

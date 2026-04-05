@@ -1,9 +1,9 @@
 <!-- ============================================================== -->
-(gobj_topic_desc())=
+(gobj_topic_desc)=
 # `gobj_topic_desc()`
 <!-- ============================================================== -->
 
-Retrieves the description of a topic in the given [`hgobj`](#hgobj). The function returns a JSON object containing metadata about the specified topic.
+Retrieves the description of a topic in the given `hgobj`. The function returns a JSON object containing metadata about the specified topic.
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -29,7 +29,6 @@ PUBLIC json_t *gobj_topic_desc(
 **Parameters**
 
 ::: {list-table}
-:widths: 20 20 60
 :header-rows: 1
 
 * - Key
@@ -38,7 +37,7 @@ PUBLIC json_t *gobj_topic_desc(
 
 * - `gobj`
   - `hgobj`
-  - The [`hgobj`](#hgobj) instance representing the object that manages the topic.
+  - The `hgobj` instance representing the object that manages the topic.
 
 * - `topic_name`
   - `const char *`
@@ -49,11 +48,11 @@ PUBLIC json_t *gobj_topic_desc(
 
 **Return Value**
 
-Returns a JSON object containing the topic description. If the [`hgobj`](#hgobj) is NULL or destroyed, or if the function is not implemented, it returns NULL.
+Returns a JSON object containing the topic description. If the `hgobj` is NULL or destroyed, or if the function is not implemented, it returns NULL.
 
 **Notes**
 
-This function checks if the [`hgobj`](#hgobj) is valid before proceeding. If the method `mt_topic_desc` is not defined in the [`hgobj`](#hgobj)'s gclass, an error is logged and NULL is returned.
+This function checks if the `hgobj` is valid before proceeding. If the method `mt_topic_desc` is not defined in the `hgobj`'s gclass, an error is logged and NULL is returned.
 
 <!--====================================================-->
 <!--                    End Tab C                       -->

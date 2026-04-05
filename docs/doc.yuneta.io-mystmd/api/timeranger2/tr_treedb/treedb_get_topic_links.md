@@ -1,5 +1,5 @@
 <!-- ============================================================== -->
-(treedb_get_topic_links())=
+(treedb_get_topic_links)=
 # `treedb_get_topic_links()`
 <!-- ============================================================== -->
 
@@ -30,7 +30,6 @@ json_t *treedb_get_topic_links(
 **Parameters**
 
 ::: {list-table}
-:widths: 20 20 60
 :header-rows: 1
 
 * - Key

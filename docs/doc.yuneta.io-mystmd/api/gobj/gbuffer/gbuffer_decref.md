@@ -1,5 +1,5 @@
 <!-- ============================================================== -->
-(gbuffer_decref())=
+(gbuffer_decref)=
 # `gbuffer_decref()`
 <!-- ============================================================== -->
 
@@ -26,7 +26,6 @@ void gbuffer_decref(gbuffer_t *gbuf);
 **Parameters**
 
 ::: {list-table}
-:widths: 20 20 60
 :header-rows: 1
 
 * - Key

@@ -1,5 +1,5 @@
 <!-- ============================================================== -->
-(kw_get_dict_value())=
+(kw_get_dict_value)=
 # `kw_get_dict_value()`
 <!-- ============================================================== -->
 
@@ -32,7 +32,6 @@ json_t *kw_get_dict_value(
 **Parameters**
 
 ::: {list-table}
-:widths: 20 20 60
 :header-rows: 1
 
 * - Key

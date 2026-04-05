@@ -1,5 +1,5 @@
 <!-- ============================================================== -->
-(gobj_shoot_snap())=
+(gobj_shoot_snap)=
 # `gobj_shoot_snap()`
 <!-- ============================================================== -->
 
@@ -31,7 +31,6 @@ int gobj_shoot_snap(
 **Parameters**
 
 ::: {list-table}
-:widths: 20 20 60
 :header-rows: 1
 
 * - Key

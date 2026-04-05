@@ -1,5 +1,5 @@
 <!-- ============================================================== -->
-(parse_date_basic())=
+(parse_date_basic)=
 # `parse_date_basic()`
 <!-- ============================================================== -->
 
@@ -30,7 +30,6 @@ int parse_date_basic(
 **Parameters**
 
 ::: {list-table}
-:widths: 20 20 60
 :header-rows: 1
 
 * - Key

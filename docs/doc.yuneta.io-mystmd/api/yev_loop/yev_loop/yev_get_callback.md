@@ -1,5 +1,5 @@
 <!-- ============================================================== -->
-(yev_get_callback())=
+(yev_get_callback)=
 # `yev_get_callback()`
 <!-- ============================================================== -->
 
@@ -28,7 +28,6 @@ yev_callback_t yev_get_callback(
 **Parameters**
 
 ::: {list-table}
-:widths: 20 20 60
 :header-rows: 1
 
 * - Key

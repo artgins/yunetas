@@ -24,7 +24,6 @@ SData tables are arrays of field descriptors (`sdata_desc_t`) that define struct
 The `data_type_t` enumeration defines the types of data that SData fields can represent:
 
 ::: {list-table}
-:widths: 30 70
 :header-rows: 1
 
 * - **Type**
@@ -74,7 +73,6 @@ The `data_type_t` enumeration defines the types of data that SData fields can re
 The `sdata_flag_t` enumeration defines the properties and characteristics of each field. Flags are bitwise-combinable to give fields multiple properties.
 
 ::: {list-table}
-:widths: 20 80
 :header-rows: 1
 
 * - **Flag**
@@ -207,7 +205,6 @@ The `sdata_flag_t` enumeration defines the properties and characteristics of eac
 The `sdata_desc_t` structure defines a field or schema. Each descriptor specifies the following:
 
 ::: {list-table}
-:widths: 20 25 55
 :header-rows: 1
 
 * - **Field**

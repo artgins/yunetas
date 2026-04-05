@@ -1,5 +1,5 @@
 <!-- ============================================================== -->
-(gobj_yuno_role())=
+(gobj_yuno_role)=
 # `gobj_yuno_role()`
 <!-- ============================================================== -->
 
@@ -26,7 +26,6 @@ const char *gobj_yuno_role(void);
 **Parameters**
 
 ::: {list-table}
-:widths: 20 20 60
 :header-rows: 1
 
 * - Key
@@ -46,7 +45,7 @@ A string representing the role of the Yuno instance. If the Yuno instance is not
 
 **Notes**
 
-The function retrieves the value of the `yuno_role` attribute from the Yuno instance using [`gobj_read_str_attr()`](#gobj_read_str_attr()).
+The function retrieves the value of the `yuno_role` attribute from the Yuno instance using [`gobj_read_str_attr()`](<#gobj_read_str_attr>).
 
 <!--====================================================-->
 <!--                    End Tab C                       -->

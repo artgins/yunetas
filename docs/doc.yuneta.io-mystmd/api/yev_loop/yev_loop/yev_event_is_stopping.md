@@ -1,5 +1,5 @@
 <!-- ============================================================== -->
-(yev_event_is_stopping())=
+(yev_event_is_stopping)=
 # `yev_event_is_stopping()`
 <!-- ============================================================== -->
 
@@ -28,7 +28,6 @@ BOOL yev_event_is_stopping(
 **Parameters**
 
 ::: {list-table}
-:widths: 20 20 60
 :header-rows: 1
 
 * - Key

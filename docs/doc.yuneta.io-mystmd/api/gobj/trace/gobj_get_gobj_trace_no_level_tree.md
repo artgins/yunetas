@@ -1,5 +1,5 @@
 <!-- ============================================================== -->
-(gobj_get_gobj_trace_no_level_tree())=
+(gobj_get_gobj_trace_no_level_tree)=
 # `gobj_get_gobj_trace_no_level_tree()`
 <!-- ============================================================== -->
 
@@ -28,7 +28,6 @@ PUBLIC json_t *gobj_get_gobj_trace_no_level_tree(
 **Parameters**
 
 ::: {list-table}
-:widths: 20 20 60
 :header-rows: 1
 
 * - Key

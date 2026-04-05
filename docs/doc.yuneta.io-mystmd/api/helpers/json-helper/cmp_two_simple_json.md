@@ -1,5 +1,5 @@
 <!-- ============================================================== -->
-(cmp_two_simple_json())=
+(cmp_two_simple_json)=
 # `cmp_two_simple_json()`
 <!-- ============================================================== -->
 
@@ -29,7 +29,6 @@ int cmp_two_simple_json(
 **Parameters**
 
 ::: {list-table}
-:widths: 20 20 60
 :header-rows: 1
 
 * - Key

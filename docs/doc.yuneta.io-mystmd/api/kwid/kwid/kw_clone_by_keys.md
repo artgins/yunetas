@@ -1,5 +1,5 @@
 <!-- ============================================================== -->
-(kw_clone_by_keys())=
+(kw_clone_by_keys)=
 # `kw_clone_by_keys()`
 <!-- ============================================================== -->
 
@@ -31,7 +31,6 @@ json_t *kw_clone_by_keys(
 **Parameters**
 
 ::: {list-table}
-:widths: 20 20 60
 :header-rows: 1
 
 * - Key

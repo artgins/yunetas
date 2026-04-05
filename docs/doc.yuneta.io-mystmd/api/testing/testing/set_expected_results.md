@@ -1,5 +1,5 @@
 <!-- ============================================================== -->
-(set_expected_results())=
+(set_expected_results)=
 # `set_expected_results()`
 <!-- ============================================================== -->
 
@@ -32,7 +32,6 @@ void set_expected_results(
 **Parameters**
 
 ::: {list-table}
-:widths: 20 20 60
 :header-rows: 1
 
 * - Key

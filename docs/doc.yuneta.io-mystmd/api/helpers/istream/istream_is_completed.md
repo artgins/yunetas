@@ -1,5 +1,5 @@
 <!-- ============================================================== -->
-(istream_is_completed())=
+(istream_is_completed)=
 # `istream_is_completed()`
 <!-- ============================================================== -->
 
@@ -28,7 +28,6 @@ PUBLIC BOOL istream_is_completed(
 **Parameters**
 
 ::: {list-table}
-:widths: 20 20 60
 :header-rows: 1
 
 * - Key

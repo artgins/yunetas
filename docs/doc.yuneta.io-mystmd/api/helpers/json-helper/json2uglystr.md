@@ -1,5 +1,5 @@
 <!-- ============================================================== -->
-(json2uglystr())=
+(json2uglystr)=
 # `json2uglystr()`
 <!-- ============================================================== -->
 
@@ -26,7 +26,6 @@ char *json2uglystr(const json_t *jn);
 **Parameters**
 
 ::: {list-table}
-:widths: 20 20 60
 :header-rows: 1
 
 * - Key

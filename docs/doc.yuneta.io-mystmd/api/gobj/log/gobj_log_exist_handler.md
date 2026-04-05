@@ -1,5 +1,5 @@
 <!-- ============================================================== -->
-(gobj_log_exist_handler())=
+(gobj_log_exist_handler)=
 # `gobj_log_exist_handler()`
 <!-- ============================================================== -->
 
@@ -28,7 +28,6 @@ PUBLIC BOOL gobj_log_exist_handler(
 **Parameters**
 
 ::: {list-table}
-:widths: 20 20 60
 :header-rows: 1
 
 * - Key

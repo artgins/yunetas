@@ -1,5 +1,5 @@
 <!-- ============================================================== -->
-(tranger2_open_list())=
+(tranger2_open_list)=
 # `tranger2_open_list()`
 <!-- ============================================================== -->
 
@@ -34,7 +34,6 @@ json_t *tranger2_open_list(
 **Parameters**
 
 ::: {list-table}
-:widths: 20 20 60
 :header-rows: 1
 
 * - Key

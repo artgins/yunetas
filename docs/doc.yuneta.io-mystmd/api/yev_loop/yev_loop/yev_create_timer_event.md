@@ -1,5 +1,5 @@
 <!-- ============================================================== -->
-(yev_create_timer_event())=
+(yev_create_timer_event)=
 # `yev_create_timer_event()`
 <!-- ============================================================== -->
 
@@ -30,7 +30,6 @@ yev_event_h yev_create_timer_event(
 **Parameters**
 
 ::: {list-table}
-:widths: 20 20 60
 :header-rows: 1
 
 * - Key
@@ -43,11 +42,11 @@ yev_event_h yev_create_timer_event(
 
 * - `callback`
   - `yev_callback_t`
-  - The callback function to be invoked when the timer event triggers. If it returns -1, the loop in [`yev_loop_run()`](#yev_loop_run()) will break.
+  - The callback function to be invoked when the timer event triggers. If it returns -1, the loop in [`yev_loop_run()`](<#yev_loop_run>) will break.
 
 * - `gobj`
   - `hgobj`
-  - The associated [`hgobj`](#hgobj) object for the event.
+  - The associated `hgobj` object for the event.
 :::
 
 ---
@@ -58,7 +57,7 @@ Returns a `yev_event_h` handle to the newly created timer event, or `NULL` on fa
 
 **Notes**
 
-The timer event must be started using [`yev_start_timer_event()`](#yev_start_timer_event()) before it becomes active.
+The timer event must be started using [`yev_start_timer_event()`](<#yev_start_timer_event>) before it becomes active.
 
 <!--====================================================-->
 <!--                    End Tab C                       -->

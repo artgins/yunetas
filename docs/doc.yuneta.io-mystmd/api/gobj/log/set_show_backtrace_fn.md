@@ -1,5 +1,5 @@
 <!-- ============================================================== -->
-(set_show_backtrace_fn())=
+(set_show_backtrace_fn)=
 # `set_show_backtrace_fn()`
 <!-- ============================================================== -->
 
@@ -28,7 +28,6 @@ void set_show_backtrace_fn(
 **Parameters**
 
 ::: {list-table}
-:widths: 20 20 60
 :header-rows: 1
 
 * - Key

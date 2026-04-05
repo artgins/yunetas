@@ -1,5 +1,5 @@
 <!-- ============================================================== -->
-(start_msectimer())=
+(start_msectimer)=
 # `start_msectimer()`
 <!-- ============================================================== -->
 
@@ -26,7 +26,6 @@ uint64_t start_msectimer(uint64_t miliseconds);
 **Parameters**
 
 ::: {list-table}
-:widths: 20 20 60
 :header-rows: 1
 
 * - Key
