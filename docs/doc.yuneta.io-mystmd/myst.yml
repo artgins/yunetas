@@ -188,10 +188,5 @@ site:
     favicon: _static/yuneta-y.svg
     hide_toc: false
     hide_search_button: false
-    # Hide the per-page title/action block: it renders a row of
-    # floating icons (edit-on-github / download / fullscreen) next to
-    # the page title that scroll away with the content. The icons we
-    # care about now live in the sticky navbar via parts.navbar_end.
-    hide_title_block: true
   parts:
     navbar_end: _static/navbar_end.md
