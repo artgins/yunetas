@@ -1,0 +1,87 @@
+# `istream_destroy()` {#sec-istream_destroy}
+
+Releases all resources associated with the given `istream_h` instance, including its internal buffer and allocated memory.
+
+
+::: {.panel-tabset}
+## C
+
+
+**Prototype**
+
+```C
+void istream_destroy(
+    istream_h istream
+);
+```
+
+**Parameters**
+
+| Key | Type | Description |
+|---|---|---|
+| `istream` | `istream_h` | Handle to the input stream instance to be destroyed. |
+
+---
+
+**Return Value**
+
+This function does not return a value.
+
+**Notes**
+
+After calling `istream_destroy()`, the `istream_h` handle becomes invalid and should not be used.
+
+
+## JS
+
+
+**Prototype**
+
+````JS
+// Not applicable in JS
+````
+
+
+## Python
+
+
+**Prototype**
+
+````Python
+# Not applicable in Python
+````
+
+
+:::
+
+
+::: {.callout-note collapse="true" title="Examples"}
+
+::: {.panel-tabset}
+## C
+
+
+````C
+// TODO C examples
+````
+
+
+## JS
+
+
+````JS
+// TODO JS examples
+````
+
+
+## Python
+
+
+````python
+# TODO Python examples
+````
+
+
+:::
+
+:::

@@ -1,0 +1,91 @@
+# `istream_new_gbuffer()` {#sec-istream_new_gbuffer}
+
+Creates a new `gbuffer_t` for the given `istream_h` instance, replacing the existing buffer if present.
+
+
+::: {.panel-tabset}
+## C
+
+
+**Prototype**
+
+```C
+int istream_new_gbuffer(
+    istream_h istream,
+    size_t    data_size,
+    size_t    max_size
+);
+```
+
+**Parameters**
+
+| Key | Type | Description |
+|---|---|---|
+| `istream` | `istream_h` | The input stream handle whose buffer will be replaced. |
+| `data_size` | `size_t` | The initial size of the new buffer. |
+| `max_size` | `size_t` | The maximum allowed size of the new buffer. |
+
+---
+
+**Return Value**
+
+Returns `0` on success, or `-1` if memory allocation fails.
+
+**Notes**
+
+If a buffer already exists in `istream`, it is decremented and replaced with a new one.
+
+
+## JS
+
+
+**Prototype**
+
+````JS
+// Not applicable in JS
+````
+
+
+## Python
+
+
+**Prototype**
+
+````Python
+# Not applicable in Python
+````
+
+
+:::
+
+
+::: {.callout-note collapse="true" title="Examples"}
+
+::: {.panel-tabset}
+## C
+
+
+````C
+// TODO C examples
+````
+
+
+## JS
+
+
+````JS
+// TODO JS examples
+````
+
+
+## Python
+
+
+````python
+# TODO Python examples
+````
+
+
+:::
+
+:::

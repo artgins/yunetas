@@ -1,0 +1,89 @@
+/* Minimal custom styles for the Quarto pilot.
+   The original Sphinx site had a larger custom.css tied to sphinx-book-theme;
+   here we only keep the semantic color roles used by the ported content. */
+
+/* Prevent horizontal "jump" on page navigation: some pages are short enough
+   not to need a vertical scrollbar, and when navigating from a long page the
+   scrollbar disappears and the whole layout shifts a few pixels to the right.
+   Forcing the scrollbar to be always present keeps the viewport width stable.
+   `scrollbar-gutter: stable` is the modern, non-overlay way to do it; the
+   `overflow-y: scroll` fallback covers older browsers. */
+html {
+  overflow-y: scroll;
+  scrollbar-gutter: stable;
+}
+
+/* Smooth cross-document navigation: Chrome/Edge ≥126 apply a fade
+   transition between page loads instead of the raw white flash of a
+   full reload. Unsupported browsers ignore this rule. */
+@view-transition {
+  navigation: auto;
+}
+
+/* Compact, always-visible navbar.
+   - Force a fixed 36px height regardless of content.
+   - Cap logo height so the SVG can't push the bar taller.
+   - Neutralise Quarto's "headroom" hide-on-scroll: the JS adds
+     .headroom--unpinned with a translateY(-100%) transform to slide the
+     navbar off-screen when you scroll down. We override that transform
+     so the navbar stays pinned to the top at all times. */
+.navbar {
+  min-height: 36px;
+  height: 36px;
+  padding-top: 0;
+  padding-bottom: 0;
+}
+.navbar .container-fluid,
+.navbar .container,
+.navbar > .container-xxl {
+  min-height: 36px;
+  height: 36px;
+}
+.navbar-brand,
+.navbar-brand-container {
+  padding-top: 0;
+  padding-bottom: 0;
+  height: 36px;
+  display: flex;
+  align-items: center;
+}
+.navbar-brand > img,
+.navbar .navbar-logo {
+  max-height: 24px;
+  width: auto;
+}
+.navbar .navbar-title {
+  font-size: 1rem;
+  line-height: 1;
+}
+.navbar .nav-link {
+  padding-top: 0.25rem;
+  padding-bottom: 0.25rem;
+}
+
+/* Keep the navbar visible on scroll: override Quarto's headroom.js
+   "unpinned" state (which slides it off-screen with a negative Y
+   transform). */
+.headroom--unpinned,
+.navbar.headroom--unpinned {
+  transform: translateY(0) !important;
+}
+
+/* Shift the main content down so the fixed navbar doesn't cover the
+   first line. 36px navbar + a small gutter. */
+body {
+  padding-top: 0;
+}
+#quarto-header + * {
+  scroll-margin-top: 48px;
+}
+
+.danger {
+  color: #c0392b;
+  font-weight: 600;
+}
+
+.warning {
+  color: #d35400;
+  font-weight: 600;
+}

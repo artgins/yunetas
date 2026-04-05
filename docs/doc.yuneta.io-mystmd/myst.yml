@@ -1,0 +1,182 @@
+# MyST Markdown project configuration for the full Yuneta Simplified docs.
+# Docs: https://mystmd.org/guide/quickstart
+#
+# Each API module is one landing page that contains every function
+# (anchored with `(funcname)=`), so the TOC has one entry per module
+# rather than one per symbol.
+version: 1
+
+project:
+  id: yuneta-simplified-mystmd
+  title: Yuneta Simplified
+  description: |
+    An asynchronous development framework focused on messaging and services.
+    Documentation rebuilt with mystmd (Jupyter Book 2) from the MyST
+    Markdown sources originally written for Sphinx.
+  authors:
+    - nameParsed:
+        literal: ArtGins
+        family: ArtGins
+  github: https://github.com/artgins/yunetas
+  license: MIT
+
+  toc:
+    - file: index.md
+
+    - title: Get Started
+      children:
+        - file: installation.md
+        - file: activating.md
+        - file: CHANGELOG.md
+
+    - title: Philosophy
+      children:
+        - file: philosophy/philosophy.md
+        - file: philosophy/models.md
+
+    - title: Guides
+      children:
+        - file: guide/basic_concepts.md
+        - file: guide/guide_gclass.md
+        - file: guide/guide_gobj.md
+        - file: guide/guide_sdata.md
+        - file: guide/guide_kwid.md
+        - file: guide/guide_gbuffer.md
+        - file: guide/folders.md
+        - file: guide/persistent_attrs.md
+        - file: guide/parser_command.md
+        - file: guide/parser_stats.md
+        - file: guide/settings.md
+        - file: guide/guide_authz.md
+        - file: guide/guide_timeranger2.md
+        - file: guide/guide_yev_loop.md
+        - file: guide/guide_ytls.md
+        - file: guide/guide_oauth2_pkce_bff.md
+
+    - title: GObj API
+      children:
+        - title: Startup
+          file: api/gobj/api_gobj_startup.md
+        - title: GClass
+          file: api/gobj/api_gobj_gclass.md
+        - title: Creation
+          file: api/gobj/api_gobj_creation.md
+        - title: Attributes
+          file: api/gobj/api_gobj_attrs.md
+        - title: Operations
+          file: api/gobj/api_gobj_op.md
+        - title: Events & State
+          file: api/gobj/api_gobj_events_state.md
+        - title: Resource
+          file: api/gobj/api_gobj_resource.md
+        - title: Publish / Subscribe
+          file: api/gobj/api_gobj_publish.md
+        - title: Authorization
+          file: api/gobj/api_gobj_authz.md
+        - title: Info
+          file: api/gobj/api_gobj_info.md
+        - title: Stats
+          file: api/gobj/api_gobj_stats.md
+        - title: Node
+          file: api/gobj/api_gobj_node.md
+        - title: Memory
+          file: api/gobj/api_gobj_memory.md
+        - title: Log
+          file: api/gobj/api_gobj_log.md
+        - title: Trace
+          file: api/gobj/api_gobj_trace.md
+        - title: GBuffer
+          file: api/gobj/api_gobj_gbuffer.md
+        - title: DL (doubly-linked list)
+          file: api/gobj/api_gobj_dl.md
+
+    - title: Helpers API
+      children:
+        - title: File System
+          file: api/helpers/api_file_system.md
+        - title: String Helper
+          file: api/helpers/api_string_helper.md
+        - title: JSON Helper
+          file: api/helpers/api_json_helper.md
+        - title: Directory Walk
+          file: api/helpers/api_directory_walk.md
+        - title: Time & Date
+          file: api/helpers/api_time_date.md
+        - title: Misc
+          file: api/helpers/api_misc.md
+        - title: Common Protocol
+          file: api/helpers/api_common_protocol.md
+        - title: Daemon Launcher
+          file: api/helpers/api_daemon_launcher.md
+        - title: URL Parsing
+          file: api/helpers/api_url_parsing.md
+        - title: Backtrace
+          file: api/helpers/api_backtrace.md
+        - title: HTTP Parser
+          file: api/helpers/api_http_parser.md
+        - title: IStream
+          file: api/helpers/api_istream.md
+
+    - title: GObj Auxiliary API
+      children:
+        - title: kwid
+          file: api/kwid/api_kwid.md
+        - title: Command Parser
+          file: api/command_parser/api_command_parser.md
+        - title: Stats Parser
+          file: api/stats_parser/api_stats_parser.md
+        - title: Log UDP Handler
+          file: api/log_udp_handler/api_log_udp_handler.md
+        - title: Rotatory
+          file: api/rotatory/api_rotatory.md
+        - title: Testing
+          file: api/testing/api_testing.md
+
+    - title: Timeranger2 API
+      children:
+        - title: timeranger2
+          file: api/timeranger2/api_timeranger2.md
+        - title: fs_watcher
+          file: api/timeranger2/api_fs_watcher.md
+        - title: tr_msg
+          file: api/timeranger2/api_tr_msg.md
+        - title: tr_msg2db
+          file: api/timeranger2/api_tr_msg2db.md
+        - title: tr_queue
+          file: api/timeranger2/api_tr_queue.md
+        - title: tr_treedb
+          file: api/timeranger2/api_treedb.md
+
+    - title: Event Loop API
+      file: api/yev_loop/api_yev_loop.md
+
+    - title: TLS API
+      file: api/ytls/api_ytls.md
+
+    - title: JavaScript API
+      children:
+        - file: api/js/index.md
+        - file: api/js/bootstrap.md
+        - file: api/js/gclass.md
+        - file: api/js/lifecycle.md
+        - file: api/js/state_machine.md
+        - file: api/js/attrs.md
+        - file: api/js/events.md
+        - file: api/js/hierarchy.md
+        - file: api/js/persistence.md
+        - file: api/js/helpers.md
+        - file: api/js/logging.md
+        - file: api/js/builtin_gclasses.md
+        - file: api/js/treedb_helpers.md
+
+    - title: Glossary
+      file: glossary.md
+
+site:
+  template: book-theme
+  options:
+    logo: _static/yuneta-label.svg
+    logo_dark: _static/yuneta-label.svg
+    favicon: _static/yuneta-y.svg
+    hide_toc: false
+    hide_search_button: false

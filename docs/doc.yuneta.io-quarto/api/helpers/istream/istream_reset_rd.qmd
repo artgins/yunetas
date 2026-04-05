@@ -1,0 +1,87 @@
+# `istream_reset_rd()` {#sec-istream_reset_rd}
+
+Resets the reading pointer of the `istream_h` stream, allowing data to be read again from the beginning.
+
+
+::: {.panel-tabset}
+## C
+
+
+**Prototype**
+
+```C
+int istream_reset_rd(
+    istream_h istream
+);
+```
+
+**Parameters**
+
+| Key | Type | Description |
+|---|---|---|
+| `istream` | `istream_h` | The input stream whose reading pointer will be reset. |
+
+---
+
+**Return Value**
+
+Returns 0 on success, or -1 if the `istream` or its internal buffer is NULL.
+
+**Notes**
+
+This function ensures that subsequent reads start from the beginning of the buffer. If the `istream` or its buffer is NULL, an error is logged.
+
+
+## JS
+
+
+**Prototype**
+
+````JS
+// Not applicable in JS
+````
+
+
+## Python
+
+
+**Prototype**
+
+````Python
+# Not applicable in Python
+````
+
+
+:::
+
+
+::: {.callout-note collapse="true" title="Examples"}
+
+::: {.panel-tabset}
+## C
+
+
+````C
+// TODO C examples
+````
+
+
+## JS
+
+
+````JS
+// TODO JS examples
+````
+
+
+## Python
+
+
+````python
+# TODO Python examples
+````
+
+
+:::
+
+:::

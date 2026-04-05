@@ -30,7 +30,7 @@ Some fixed values are used, modify the scripts as you want.
 - The constant values used for [conda]:
     ``` json
     {
-        "venv_name": "conda_sphinx"  #  virtual env name for [conda] 
+        "venv_name": "conda_myst"  #  virtual env name for [conda] 
     }
     ```
 
@@ -70,10 +70,10 @@ Steps to install and create a virtual environment:
     ``` shell
     conda config --add channels conda-forge
     ```
-- Create the virtual environment `conda_sphinx` and activate:
+- Create the virtual environment `conda_myst` and activate:
     ``` shell
-    conda create -n conda_sphinx pip
-    conda activate conda_sphinx
+    conda create -n conda_myst pip
+    conda activate conda_myst
     ```
 
 Install [sphinx] and [sphinx-book-theme]  
@@ -82,25 +82,21 @@ Install [sphinx] and [sphinx-book-theme]
 
 - In some virtual environment, install [sphinx], [sphinx-book-theme] 
   -
-      ``` shell
-      pip install sphinx sphinx-book-theme myst-parser \
-          ablog myst_nb numpydoc matplotlib \
-          sphinx_design \
-          sphinx_copybutton \
-          sphinx_examples \
-          sphinx_togglebutton \
-          sphinxext.opengraph \
-          sphinxcontrib.youtube \
-          sphinx_thebe \
-          sphinx-tabs \
-          sphinxcontrib.bibtex \
-          sphinxcontrib.mermaid
+      ``` shell 
+    # Instalar (una sola vez)
+        npm install -g mystmd
+        pip install jupyter matplotlib numpy   # solo para el notebook demo
+
+    # Lanzar el dev server
+        cd docs/doc.yuneta.io-mystmd
+        myst start
+
       ```
 
 ### Tested versions
 
 Last known-good versions used to build `doc.yuneta.io` (verified on 2026-04-05,
-Python 3.13, conda env `conda_sphinx`):
+Python 3.13, conda env `conda_myst`):
 
 | Package | Version |
 |---|---|

@@ -1,0 +1,91 @@
+# `istream_create()` {#sec-istream_create}
+
+`istream_create()` initializes and returns a new input stream (`istream_h`) with a specified buffer size and maximum capacity.
+
+
+::: {.panel-tabset}
+## C
+
+
+**Prototype**
+
+```C
+istream_h istream_create(
+    hgobj gobj,
+    size_t data_size,
+    size_t max_size
+);
+```
+
+**Parameters**
+
+| Key | Type | Description |
+|---|---|---|
+| `gobj` | `hgobj` | The parent object managing the input stream. |
+| `data_size` | `size_t` | The initial size of the buffer allocated for the input stream. |
+| `max_size` | `size_t` | The maximum allowed size of the buffer. |
+
+---
+
+**Return Value**
+
+Returns a handle (`istream_h`) to the newly created input stream, or `NULL` if memory allocation fails.
+
+**Notes**
+
+The returned `istream_h` must be destroyed using [`istream_destroy()`](#sec-istream_destroy) to free allocated resources.
+
+
+## JS
+
+
+**Prototype**
+
+````JS
+// Not applicable in JS
+````
+
+
+## Python
+
+
+**Prototype**
+
+````Python
+# Not applicable in Python
+````
+
+
+:::
+
+
+::: {.callout-note collapse="true" title="Examples"}
+
+::: {.panel-tabset}
+## C
+
+
+````C
+// TODO C examples
+````
+
+
+## JS
+
+
+````JS
+// TODO JS examples
+````
+
+
+## Python
+
+
+````python
+# TODO Python examples
+````
+
+
+:::
+
+:::

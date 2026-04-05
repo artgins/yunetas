@@ -9,6 +9,7 @@ build_musl/
 build_static/
 x.html
 x.json
+x.txt
 outputs/
 outputs_ext/
 outputs_ext_musl/
@@ -107,6 +108,16 @@ ipch
 
 # sphinx generated files
 /docs/build/
+
+# Quarto pilot (docs/doc.yuneta.io-quarto/)
+docs/doc.yuneta.io-quarto/.gitignore
+docs/doc.yuneta.io-quarto/_freeze/
+docs/doc.yuneta.io-quarto/notebooks/.jupyter_cache/
+
+# mystmd pilot (docs/doc.yuneta.io-mystmd/)
+docs/doc.yuneta.io-mystmd/_build/
+docs/doc.yuneta.io-mystmd/node_modules/
+docs/doc.yuneta.io-mystmd/.myst/
 
 # Clion / IntelliJ project files
 /.idea/

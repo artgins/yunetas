@@ -1,0 +1,87 @@
+# `istream_pop_gbuffer()` {#sec-istream_pop_gbuffer}
+
+Retrieves and removes the current [`gbuffer_t *`](#sec-gbuffer_t) from the given [`istream_h *`](#sec-istream_h), returning ownership to the caller.
+
+
+::: {.panel-tabset}
+## C
+
+
+**Prototype**
+
+```C
+gbuffer_t *istream_pop_gbuffer(
+    istream_h istream
+);
+```
+
+**Parameters**
+
+| Key | Type | Description |
+|---|---|---|
+| `istream` | `istream_h` | The input stream handle from which the [`gbuffer_t *`](#gbuffer_t) will be extracted. |
+
+---
+
+**Return Value**
+
+Returns the [`gbuffer_t *`](#sec-gbuffer_t) extracted from the [`istream_h *`](#sec-istream_h). The caller assumes ownership and must manage its lifecycle. Returns `NULL` if `istream` is invalid or empty.
+
+**Notes**
+
+After calling [`istream_pop_gbuffer()`](#sec-istream_pop_gbuffer), the internal buffer of the [`istream_h *`](#sec-istream_h) is set to `NULL`, meaning subsequent reads will require a new buffer.
+
+
+## JS
+
+
+**Prototype**
+
+````JS
+// Not applicable in JS
+````
+
+
+## Python
+
+
+**Prototype**
+
+````Python
+# Not applicable in Python
+````
+
+
+:::
+
+
+::: {.callout-note collapse="true" title="Examples"}
+
+::: {.panel-tabset}
+## C
+
+
+````C
+// TODO C examples
+````
+
+
+## JS
+
+
+````JS
+// TODO JS examples
+````
+
+
+## Python
+
+
+````python
+# TODO Python examples
+````
+
+
+:::
+
+:::
