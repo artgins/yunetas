@@ -108,6 +108,11 @@ ipch
 # sphinx generated files
 /docs/build/
 
+# Quarto pilot (docs/doc.yuneta.io-quarto/)
+docs/doc.yuneta.io-quarto/.gitignore
+docs/doc.yuneta.io-quarto/_freeze/
+docs/doc.yuneta.io-quarto/notebooks/.jupyter_cache/
+
 # Clion / IntelliJ project files
 /.idea/
 
