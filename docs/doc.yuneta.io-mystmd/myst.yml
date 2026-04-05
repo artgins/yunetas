@@ -1,10 +1,9 @@
 # MyST Markdown project configuration for the full Yuneta Simplified docs.
 # Docs: https://mystmd.org/guide/quickstart
 #
-# Replaces every Sphinx `{toctree}` directive from the old site. Landing
-# pages are listed explicitly; individual function reference pages under
-# each landing are picked up with `pattern:` globs so we do not have to
-# list ~700 pages by hand.
+# Each API module is one landing page that contains every function
+# (anchored with `(funcname)=`), so the TOC has one entry per module
+# rather than one per symbol.
 version: 1
 
 project:

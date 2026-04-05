@@ -7,9 +7,7 @@ intended to replace the Sphinx site once validated.
 ## Why mystmd
 
 - **Zero conversion cost**: mystmd reads MyST Markdown natively — the
-  same format the old Sphinx site already uses. All `{tab-set}`,
-  `{tab-item}`, `{list-table}`, `{dropdown}`, `{grid}`, `{card}`
-  directives work as-is. The `.md` source files were copied verbatim.
+  same format the old Sphinx site already uses.
 - **Client-side navigation**: mystmd is a React/Remix SPA, so sidebar
   clicks no longer trigger full page reloads. No inter-page flash.
 - **Modern theme family**: `book-theme` is the successor to
@@ -19,6 +17,9 @@ intended to replace the Sphinx site once validated.
   replacement for the old `myst_nb` Sphinx extension.
 - **Single Node binary** (`mystmd`) instead of a Python environment
   with 15+ pip packages.
+- **Fast incremental builds**: ~79 pages built in ~3s clean, thanks
+  to the module-per-page layout (one landing page with every function
+  of the module anchored as `(funcname)=`).
 
 ## How to build
 
@@ -39,39 +40,52 @@ kernel and whatever libraries those cells import.
 ## Migration scope and status
 
 ### Done — Phase 1: structural migration
-- All 818 MyST Markdown source files copied verbatim from
-  `docs/doc.yuneta.io/` (verified with `diff -rq`).
+- MyST Markdown source files copied verbatim from `docs/doc.yuneta.io/`.
 - `_static/` assets copied.
 - `myst.yml` written with a complete TOC mirroring the old Sphinx
-  `{toctree}` structure 1:1.
+  `{toctree}` structure.
 - `index.md` hand-adapted: `{toctree}` blocks stripped (they now live
   in `myst.yml`).
 
 ### Done — Phase 2a: C module landing pages reconciled
 - Each `api/*/api_*.md` module landing page rebuilt from the
   corresponding `kernel/c/*/README.md` (the authoritative up-to-date
-  source). Obsolete pointers in the old landings are removed, new
-  concepts from the READMEs are added.
+  source).
 
 ### Done — Phase 2b: JavaScript API section (new)
 - `api/js/` is **new content**. The old Sphinx site did not document
   the JavaScript framework at all. This section is generated from
-  `kernel/js/gobj-js/README.md` (764 lines of authoritative API
-  reference) and `kernel/js/lib-yui/README.md`.
+  `kernel/js/gobj-js/README.md` and `kernel/js/lib-yui/README.md`.
+
+### Done — Phase 3: warnings + strict-mode errors
+- `myst build` and `myst build --strict` both produce zero warnings
+  and zero errors. Fixes ranged from the `myst.yml` author schema to
+  hundreds of anchor/link target mismatches (`(func())=` → `(func)=`),
+  empty-target C type references (`hgobj`, `json_t`, …), legacy
+  unresolved cross-refs, broken external URLs, and the glossary being
+  rewritten as plain Markdown headings (the `{glossary}` directive
+  rejected embedded code fences).
+
+### Done — Phase 4: consolidation
+- The ~740 one-function-per-file pages (`api/helpers/istream/istream_create.md`,
+  etc.) were merged into 42 module landing pages. Every function
+  keeps its `(funcname)=` anchor, so every internal reference resolves
+  identically; only the URL changes from
+  `api/helpers/istream/istream_create.html` to
+  `api/helpers/api_istream.html#istream_create`.
+- `list-table` parameter blocks → Markdown pipe tables (cheaper parse,
+  easier to edit).
+- Empty JS/Python tab-set stubs and `// TODO` Examples dropdowns
+  dropped wholesale.
+- Build time dropped from ~32s to ~3s (clean) on 829 → 79 pages.
 
 ### Pending — function-by-function C API reconciliation
-- The ~700 individual C function reference pages (e.g.
-  `api/helpers/istream/istream_create.md`) are copied verbatim from
-  the old Sphinx site and have **not** been reconciled against the
-  actual headers in `kernel/c/*/src/`. The C READMEs are overview
-  documents, not function references — they cannot drive that
-  reconciliation.
-- Expect stale signatures, removed functions, and missing new
-  functions. Each needs to be checked against the corresponding
-  header (`gobj.h`, `yev_loop.h`, `timeranger2.h`, `ytls.h`, …).
-- This is the large remaining task. It is deliberately out of scope
-  for the migration commit so the structural work can be reviewed in
-  isolation.
+- The consolidated pages still carry the function signatures from the
+  old Sphinx site. They have **not** been reconciled against the
+  actual headers in `kernel/c/*/src/`. Expect stale signatures,
+  removed functions, and missing new functions.
+- The reconciliation itself is cheaper now: it is a per-module edit
+  against one landing page, not 700 individual files.
 
 ## Coexistence with the old Sphinx site
 
