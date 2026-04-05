@@ -79,11 +79,27 @@ kernel and whatever libraries those cells import.
   dropped wholesale.
 - Build time dropped from ~32s to ~3s (clean) on 829 → 79 pages.
 
-### Pending — function-by-function C API reconciliation
-- The consolidated pages still carry the function signatures from the
-  old Sphinx site. They have **not** been reconciled against the
-  actual headers in `kernel/c/*/src/`. Expect stale signatures,
-  removed functions, and missing new functions.
+### Done — Phase 5: API coverage verifier
+- `tools/docs-migration/verify_api_coverage.py` compares every
+  `PUBLIC` function declared in the kernel C headers against the
+  `(funcname)=` anchors present in the mystmd landing pages. It
+  reports per-header MISSING (exported but not documented) and EXTRA
+  (documented but not exported) symbols.
+- The initial run found 9 real gaps (7 `ydaemon.h` functions, 2
+  `yev_loop.h` measure-time helpers); they are now fixed.
+- Current state: **23 headers, 784 PUBLIC functions, 784 documented,
+  0 gaps, 0 stale entries.**
+- CI enforcement: `.github/workflows/docs-api-coverage.yml` runs the
+  verifier on every push / PR that touches kernel headers, mystmd
+  sources or the script itself, and fails the build on any issue.
+- Local run: `python3 tools/docs-migration/verify_api_coverage.py`.
+
+### Pending — function-by-function C API signature/description reconciliation
+- The verifier only checks presence. It does **not** validate that
+  parameter types, return types or descriptions actually match the
+  current headers. Expect stale signatures on some pages.
+- A stronger check would parse the headers with tree-sitter or
+  libclang and compare parameter lists. Not yet implemented.
 - The reconciliation itself is cheaper now: it is a per-module edit
   against one landing page, not 700 individual files.
 
