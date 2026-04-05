@@ -3,11 +3,9 @@ title: Yuneta Simplified
 ---
 
 ::::{grid} 2
-:gutter: 3
-:class-container: sd-align-items-center
 
 :::{grid-item}
-:columns: 12 8 9 9
+:columns: 9
 
 # Yuneta Simplified
 
@@ -15,7 +13,7 @@ title: Yuneta Simplified
 :::
 
 :::{grid-item}
-:columns: 12 4 3 3
+:columns: 3
 
 ```{image} ./_static/yuneta-image.svg
 :width: 140px
