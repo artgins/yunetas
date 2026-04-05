@@ -491,34 +491,39 @@ is_object(v), is_array(v), is_string(v), is_number(v),
 is_boolean(v), is_null(v), is_date(v), is_function(v), is_gobj(v)
 
 // Keyword (kw) operations
-kw_has_key(kw, key)
-kw_pop(kw, key)                          // get and delete
-kw_delete(kw, key)
-kw_find_path(kw, path)                   // dot-separated path
+//
+// Most kw_* helpers take `gobj` as first argument (for error logging)
+// and a dot/back-tick path instead of a single key. Exceptions that do
+// NOT take gobj: kw_has_key, kw_pop, kw_match_simple.
 
-kw_get_bool(kw, key, default, flag)
-kw_get_int(kw, key, default, flag)
-kw_get_real(kw, key, default, flag)
-kw_get_str(kw, key, default, flag)
-kw_get_dict(kw, key, default, flag)
-kw_get_list(kw, key, default, flag)
-kw_get_dict_value(kw, key, default, flag)
+kw_has_key(kw, key)                                      // → boolean
+kw_pop(kw1, kw2)                                         // delete from kw1 the keys listed in kw2
+kw_delete(gobj, kw, path)
+kw_find_path(gobj, kw, path, verbose)                    // back-tick path: "a`b`c"
 
-kw_set_dict_value(kw, key, value)
-kw_set_subdict_value(kw, path, key, value)
+kw_get_bool(gobj, kw, path, default_value, flag)
+kw_get_int (gobj, kw, path, default_value, flag)
+kw_get_real(gobj, kw, path, default_value, flag)
+kw_get_str (gobj, kw, path, default_value, flag)
+kw_get_dict(gobj, kw, path, default_value, flag)
+kw_get_list(gobj, kw, path, default_value, flag)
+kw_get_dict_value(gobj, kw, path, default_value, flag)
 
-kw_match_simple(kw, filter)              // → boolean
-kw_select(list, filter)                  // filter array of objects
-kw_collect(kw, keys)                     // extract subset
-kw_clone_by_keys(kw, keys, notkey)
-kw_clone_by_not_keys(kw, keys)
+kw_set_dict_value(gobj, kw, path, value)
+kw_set_subdict_value(gobj, kw, path, key, value)
+
+kw_match_simple(kw, filter)                              // → boolean
+kw_select (gobj, kw, jn_filter, match_fn)                // filter list
+kw_collect(gobj, kw, jn_filter, match_fn)                // extract subset
+kw_clone_by_keys    (gobj, kw, keys, verbose)
+kw_clone_by_not_keys(gobj, kw, keys, verbose)
 
 // Flags: KW_REQUIRED, KW_CREATE, KW_EXTRACT, KW_RECURSIVE, KW_WILD_NUMBER
 
-// Local storage helpers
-kw_get_local_storage_value(store, key, default)
-kw_set_local_storage_value(store, key, value)
-kw_remove_local_storage_value(store, key)
+// Local storage helpers (browser localStorage, no "store" parameter)
+kw_get_local_storage_value(key, default_value, create)   // create=false
+kw_set_local_storage_value(key, value)
+kw_remove_local_storage_value(key)
 
 // Misc utilities
 current_timestamp()          // ISO string
@@ -535,26 +540,31 @@ debounce(fn, delay)
 timeTracker()
 
 // Inter-event message stack
-msg_iev_push_stack(kw, msg_type)
-msg_iev_get_stack(kw)
-msg_iev_set_msg_type(kw, msg_type)
-msg_iev_get_msg_type(kw)
-msg_iev_write_key(kw, key, value)
-msg_iev_read_key(kw, key)
+msg_iev_push_stack  (gobj, kw, stack, jn_data)    // push jn_data onto named stack
+msg_iev_get_stack   (gobj, kw, stack, verbose)    // peek top of named stack
+msg_iev_set_msg_type(gobj, kw, msg_type)          // "" to delete
+msg_iev_get_msg_type(gobj, kw)
+msg_iev_write_key(kw, key, value)                 // no gobj
+msg_iev_read_key (kw, key)                        // no gobj
 ```
 
 ### Logging
 
-```javascript
-log_error(gobj, code, ...args)
-log_warning(gobj, code, ...args)
-log_info(gobj, ...args)
-log_debug(gobj, ...args)
-trace_msg(msg)
-trace_json(json)
+All log functions take a single `format` argument and use `printf`-style
+substitution (`%s`, `%d`, `%i`, `%f`, `%o`/`%O`). There is no `gobj` or
+error-code argument (that's the C API — the JS runtime is simpler).
 
-// Redirect log output
-set_remote_log_functions(error_fn, warning_fn, info_fn, debug_fn)
+```javascript
+log_error(format, ...args)       // red, prefixed "ERROR"
+log_warning(format, ...args)     // yellow, prefixed "WARNING"
+log_info(format, ...args)        // cyan, prefixed "INFO"
+log_debug(format, ...args)       // silver, prefixed "DEBUG"
+trace_msg(format, ...args)       // cyan, prefixed "MSG"
+trace_json(json, msg)            // dir-dump a JSON object
+
+// Redirect error/warning output to a single remote handler
+// (info/debug always go to the browser console)
+set_remote_log_functions(remote_log_fn)   // fn(message) — single function
 ```
 
 ### String Formatting
