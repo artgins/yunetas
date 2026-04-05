@@ -113,6 +113,22 @@ HEADER_TO_LANDINGS: dict[Path, list[str]] = {
 }
 
 
+# Symbols that are declared in more than one header but belong
+# conceptually (and canonically) to a single landing page. The other
+# headers' coverage report treats them as satisfied so we never emit a
+# "MISSING" even though the anchor physically lives elsewhere, and the
+# mystmd build does not get a duplicate-identifier warning for having
+# two copies of the same `(anchor)=` section.
+#
+# Key: function name. Value: the header that owns the canonical
+# landing; every OTHER header that also declares the symbol will skip
+# it.
+CANONICAL_SHARED: dict[str, str] = {
+    "get_measure_times": "kernel/c/yev_loop/src/yev_loop.h",
+    "set_measure_times": "kernel/c/yev_loop/src/yev_loop.h",
+}
+
+
 ANCHOR_RE = re.compile(r"^\(([a-zA-Z_][a-zA-Z0-9_]*)\)=\s*$", re.MULTILINE)
 
 PUBLIC_RE = re.compile(
@@ -176,7 +192,14 @@ def main() -> int:
 
     for header, landings in HEADER_TO_LANDINGS.items():
         rep = HeaderReport(header=header, landings=landings)
-        rep.exported = header_exports[header]
+        rep.exported = set(header_exports[header])
+        # Drop canonical-shared symbols owned by a different header so we
+        # do not double-document them.
+        header_rel = str(header.relative_to(REPO))
+        rep.exported -= {
+            name for name, owner in CANONICAL_SHARED.items()
+            if owner != header_rel
+        }
         for rel in landings:
             for name in landing_anchors[rel]:
                 # Only count the anchor as "documented by this header"
