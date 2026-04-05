@@ -56,9 +56,7 @@ website:
 
 format:
   html:
-    theme:
-      light: cosmo
-      dark: darkly
+    theme: cosmo
     css: _static/custom.css
     toc: true
     toc-depth: 3

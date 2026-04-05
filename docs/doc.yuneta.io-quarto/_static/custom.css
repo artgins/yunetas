@@ -13,6 +13,29 @@ html {
   scrollbar-gutter: stable;
 }
 
+/* Smooth cross-document navigation: Chrome/Edge ≥126 apply a fade
+   transition between page loads instead of the raw white flash of a
+   full reload. Unsupported browsers ignore this rule. */
+@view-transition {
+  navigation: auto;
+}
+
+/* Reduce navbar height. Cosmo's default padding plus the logo SVG's
+   intrinsic height make the bar oversized. Constrain both. */
+.navbar {
+  min-height: 0;
+  padding-top: 0.35rem;
+  padding-bottom: 0.35rem;
+}
+.navbar-brand > img,
+.navbar .navbar-logo {
+  max-height: 28px;
+  width: auto;
+}
+.navbar .navbar-title {
+  font-size: 1.05rem;
+}
+
 .danger {
   color: #c0392b;
   font-weight: 600;
