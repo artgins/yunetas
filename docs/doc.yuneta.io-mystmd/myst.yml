@@ -57,145 +57,102 @@ project:
     - title: GObj API
       children:
         - title: Startup
-          children:
-            - file: api/gobj/api_gobj_startup.md
+          file: api/gobj/api_gobj_startup.md
         - title: GClass
-          children:
-            - file: api/gobj/api_gobj_gclass.md
+          file: api/gobj/api_gobj_gclass.md
         - title: Creation
-          children:
-            - file: api/gobj/api_gobj_creation.md
+          file: api/gobj/api_gobj_creation.md
         - title: Attributes
-          children:
-            - file: api/gobj/api_gobj_attrs.md
+          file: api/gobj/api_gobj_attrs.md
         - title: Operations
-          children:
-            - file: api/gobj/api_gobj_op.md
+          file: api/gobj/api_gobj_op.md
         - title: Events & State
-          children:
-            - file: api/gobj/api_gobj_events_state.md
+          file: api/gobj/api_gobj_events_state.md
         - title: Resource
-          children:
-            - file: api/gobj/api_gobj_resource.md
+          file: api/gobj/api_gobj_resource.md
         - title: Publish / Subscribe
-          children:
-            - file: api/gobj/api_gobj_publish.md
+          file: api/gobj/api_gobj_publish.md
         - title: Authorization
-          children:
-            - file: api/gobj/api_gobj_authz.md
+          file: api/gobj/api_gobj_authz.md
         - title: Info
-          children:
-            - file: api/gobj/api_gobj_info.md
+          file: api/gobj/api_gobj_info.md
         - title: Stats
-          children:
-            - file: api/gobj/api_gobj_stats.md
+          file: api/gobj/api_gobj_stats.md
         - title: Node
-          children:
-            - file: api/gobj/api_gobj_node.md
+          file: api/gobj/api_gobj_node.md
         - title: Memory
-          children:
-            - file: api/gobj/api_gobj_memory.md
+          file: api/gobj/api_gobj_memory.md
         - title: Log
-          children:
-            - file: api/gobj/api_gobj_log.md
+          file: api/gobj/api_gobj_log.md
         - title: Trace
-          children:
-            - file: api/gobj/api_gobj_trace.md
+          file: api/gobj/api_gobj_trace.md
         - title: GBuffer
-          children:
-            - file: api/gobj/api_gobj_gbuffer.md
+          file: api/gobj/api_gobj_gbuffer.md
         - title: DL (doubly-linked list)
-          children:
-            - file: api/gobj/api_gobj_dl.md
+          file: api/gobj/api_gobj_dl.md
 
     - title: Helpers API
       children:
         - title: File System
-          children:
-            - file: api/helpers/api_file_system.md
+          file: api/helpers/api_file_system.md
         - title: String Helper
-          children:
-            - file: api/helpers/api_string_helper.md
+          file: api/helpers/api_string_helper.md
         - title: JSON Helper
-          children:
-            - file: api/helpers/api_json_helper.md
+          file: api/helpers/api_json_helper.md
         - title: Directory Walk
-          children:
-            - file: api/helpers/api_directory_walk.md
+          file: api/helpers/api_directory_walk.md
         - title: Time & Date
-          children:
-            - file: api/helpers/api_time_date.md
+          file: api/helpers/api_time_date.md
         - title: Misc
-          children:
-            - file: api/helpers/api_misc.md
+          file: api/helpers/api_misc.md
         - title: Common Protocol
-          children:
-            - file: api/helpers/api_common_protocol.md
+          file: api/helpers/api_common_protocol.md
         - title: Daemon Launcher
-          children:
-            - file: api/helpers/api_daemon_launcher.md
+          file: api/helpers/api_daemon_launcher.md
         - title: URL Parsing
-          children:
-            - file: api/helpers/api_url_parsing.md
+          file: api/helpers/api_url_parsing.md
         - title: Backtrace
-          children:
-            - file: api/helpers/api_backtrace.md
+          file: api/helpers/api_backtrace.md
         - title: HTTP Parser
-          children:
-            - file: api/helpers/api_http_parser.md
+          file: api/helpers/api_http_parser.md
         - title: IStream
-          children:
-            - file: api/helpers/api_istream.md
+          file: api/helpers/api_istream.md
 
     - title: GObj Auxiliary API
       children:
         - title: kwid
-          children:
-            - file: api/kwid/api_kwid.md
+          file: api/kwid/api_kwid.md
         - title: Command Parser
-          children:
-            - file: api/command_parser/api_command_parser.md
+          file: api/command_parser/api_command_parser.md
         - title: Stats Parser
-          children:
-            - file: api/stats_parser/api_stats_parser.md
+          file: api/stats_parser/api_stats_parser.md
         - title: Log UDP Handler
-          children:
-            - file: api/log_udp_handler/api_log_udp_handler.md
+          file: api/log_udp_handler/api_log_udp_handler.md
         - title: Rotatory
-          children:
-            - file: api/rotatory/api_rotatory.md
+          file: api/rotatory/api_rotatory.md
         - title: Testing
-          children:
-            - file: api/testing/api_testing.md
+          file: api/testing/api_testing.md
 
     - title: Timeranger2 API
       children:
         - title: timeranger2
-          children:
-            - file: api/timeranger2/api_timeranger2.md
+          file: api/timeranger2/api_timeranger2.md
         - title: fs_watcher
-          children:
-            - file: api/timeranger2/api_fs_watcher.md
+          file: api/timeranger2/api_fs_watcher.md
         - title: tr_msg
-          children:
-            - file: api/timeranger2/api_tr_msg.md
+          file: api/timeranger2/api_tr_msg.md
         - title: tr_msg2db
-          children:
-            - file: api/timeranger2/api_tr_msg2db.md
+          file: api/timeranger2/api_tr_msg2db.md
         - title: tr_queue
-          children:
-            - file: api/timeranger2/api_tr_queue.md
+          file: api/timeranger2/api_tr_queue.md
         - title: tr_treedb
-          children:
-            - file: api/timeranger2/api_treedb.md
+          file: api/timeranger2/api_treedb.md
 
     - title: Event Loop API
-      children:
-        - file: api/yev_loop/api_yev_loop.md
+      file: api/yev_loop/api_yev_loop.md
 
     - title: TLS API
-      children:
-        - file: api/ytls/api_ytls.md
+      file: api/ytls/api_ytls.md
 
     - title: JavaScript API
       children:
@@ -214,8 +171,7 @@ project:
         - file: api/js/treedb_helpers.md
 
     - title: Glossary
-      children:
-        - file: glossary.md
+      file: glossary.md
 
 site:
   template: book-theme
