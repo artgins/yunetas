@@ -765,3 +765,50 @@ int yev_rearm_connect_event(
 
 ---
 
+(set_measure_times)=
+## `set_measure_times()`
+
+`set_measure_times()` enables per-operation latency measurement inside
+the event loop for a subset of `yev_event` types. The measurements are
+surfaced by [`get_measure_times()`](#get_measure_times) and are used by
+the ping-pong benchmarks under `performance/c/`.
+
+```C
+void set_measure_times(int types); // -1 = all types
+```
+
+**Parameters**
+
+| Key | Type | Description |
+|---|---|---|
+| `types` | `int` | Bitmask of `yev_type_t` values to measure, or `-1` to measure every event type. Pass `0` to stop measuring. |
+
+**Returns**
+
+This function does not return a value.
+
+**Notes**
+
+Measurement is off by default to avoid paying the cost on hot paths.
+Only turn it on for benchmarks or targeted diagnostics.
+
+---
+
+(get_measure_times)=
+## `get_measure_times()`
+
+`get_measure_times()` returns the bitmask of `yev_event` types that
+currently have latency measurement enabled. Used together with
+[`set_measure_times()`](#set_measure_times).
+
+```C
+int get_measure_times(void);
+```
+
+**Returns**
+
+The bitmask of `yev_type_t` values being measured, or `0` if measurement
+is disabled.
+
+---
+
