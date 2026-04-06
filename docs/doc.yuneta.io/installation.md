@@ -240,32 +240,34 @@ menuconfig
 Options:
 
 (Top) → Compiler Selection
-    (X) Clang compiler (default, but don't use in RISC cpus, use GCC)
-    ( ) GCC compiler
-
-(Top) → Build Type
-    (X) RelWithDebInfo
-    ( ) Release
-    ( ) Debug
-    ( ) MinSizeRel
-
-(Top) → TLS Library
-    (X) OpenSSL
-    ( ) Mbed-TLS        TODO
+    (X) GCC compiler (default)
+    ( ) Clang compiler
+    WARNING: Remember to call set_compiler.sh if you change the compiler
 
 (Top) → Build Configuration
-    [ ] Fully static binary (gcc/clang + glibc, no shared libs)
+    Build Type
+        (X) RelWithDebInfo (default)
+        ( ) Release
+        ( ) Debug
+        ( ) MinSizeRel
+    [*] Build fully static binaries (default y)
+
+(Top) → TLS Library
+    (X) OpenSSL (default)
+    ( ) Mbed-TLS
 
 (Top) → Debug Options
-    [*] Use backtrace library
-    [*] Enable track memory
+    [*] Use backtrace library (default y)
+    [ ] Enable track memory
     [ ] Print times of yev_loop
 
 (Top) → Modules
     *** Available modules. ***
-    [*] C_PROT support
     [*] C_CONSOLE support
+    [*] C_MQTT support
+    [*] C_MODBUS support
     [*] C_POSTGRES support
+    [*] C_TEST support
 ```
 
 
