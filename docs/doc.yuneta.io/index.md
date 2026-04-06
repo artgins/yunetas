@@ -33,6 +33,8 @@ Heavy use of JSON, **time-series**, **key-value**, **flat-files** and **graphs**
 
 [Yuneta Simplified](https://yuneta.io) is a **real-time system** (RTS) that includes **development**, **testing**, and **deployment** features. Built for Linux, and **deployable** on any **bare-metal** server.
 
+Yuneta produces **fully static binaries** by default — no shared libraries, no dynamic linker. A compiled yuno can be copied to any Linux machine of the same CPU architecture and run immediately, with zero dependencies to install.
+
 Specialized in IoT data collection, all types of devices, and data exchange and protocol adaptation between systems, including collection, **publication/subscription**, and querying of **messages** in **real time**, with **historical** data storage.
 
 The messages (**encrypted** or plain text) circulating within the Yuneta system can be persistent on disk or exist only while in transit or in the memory of a service. All data in JSON.

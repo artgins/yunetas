@@ -251,6 +251,8 @@ Options:
         ( ) Debug
         ( ) MinSizeRel
     [*] Build fully static binaries (default y)
+         Produces binaries with no shared library dependencies.
+         Copy to any Linux machine of the same architecture and run — nothing to install.
 
 (Top) → TLS Library
     (X) OpenSSL (default)
