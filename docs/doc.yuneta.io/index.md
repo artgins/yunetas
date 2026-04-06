@@ -9,6 +9,10 @@ title: Yuneta Simplified
 :::{grid-item}
 
 ## *An Asynchronous Development Framework*
+
+**Current version: [7.2.0](https://github.com/artgins/yunetas/tree/7.2.0)**
+
+*Documentation updated: 2026-04-06*
 :::
 
 :::{grid-item}

@@ -2,6 +2,13 @@
 set -euo pipefail
 
 cd "$(dirname "$0")"
+REPO_ROOT="$(git rev-parse --show-toplevel)"
+
+# Stamp current version from YUNETA_VERSION into index.md
+VERSION=$(sed 's/YUNETA_VERSION=//' "$REPO_ROOT/YUNETA_VERSION")
+TODAY=$(date +%Y-%m-%d)
+sed -i "s|\*\*Current version: \[.*\](.*)\*\*|\*\*Current version: [${VERSION}](https://github.com/artgins/yunetas/tree/${VERSION})\*\*|" index.md
+sed -i "s|\*Documentation updated: .*\*|\*Documentation updated: ${TODAY}\*|" index.md
 
 # Build static HTML with empty BASE_URL so the site works at the domain root
 # myst build --html spawns a temporary node server that doesn't always exit;
