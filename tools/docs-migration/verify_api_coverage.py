@@ -7,8 +7,8 @@ Strategy:
   - Each C header is considered the source of truth for a set of PUBLIC
     function declarations.
   - Each header may be split across several mystmd landing pages (e.g.
-    `helpers.h` feeds api/helpers/api_file_system.md,
-    api/helpers/api_string_helper.md, api/helpers/api_json_helper.md, …).
+    `helpers.h` feeds api/helpers/file_system.md,
+    api/helpers/string_helper.md, api/helpers/json_helper.md, …).
   - For every header, we aggregate the anchors from all the landings
     that claim to cover it, then compare against the header's PUBLIC set.
 
@@ -38,78 +38,77 @@ KERNEL = REPO / "kernel" / "c"
 # document every PUBLIC function in that header.
 HEADER_TO_LANDINGS: dict[Path, list[str]] = {
     # ---- gobj-c: gobj.h is split by topic across the GObj API landings ----
-    # NOTE: we exclude api_gobj_log.md and api_gobj_memory.md from the gobj.h
-    # cover list — those landings document glogger.h and gbmem.h respectively,
-    # not symbols from gobj.h. Including them here would produce spurious
-    # EXTRA reports on gobj.h for legit glogger/gbmem anchors.
+    # NOTE: log/trace/memory/gbuffer/dl landings live in Logging or Helpers
+    # sections and cover their own headers (glogger.h, gbmem.h, gbuffer.h,
+    # dl_list.h), not gobj.h itself.
     KERNEL / "gobj-c/src/gobj.h": [
-        "api/gobj/api_gobj_startup.md",
-        "api/gobj/api_gobj_gclass.md",
-        "api/gobj/api_gobj_creation.md",
-        "api/gobj/api_gobj_attrs.md",
-        "api/gobj/api_gobj_op.md",
-        "api/gobj/api_gobj_events_state.md",
-        "api/gobj/api_gobj_resource.md",
-        "api/gobj/api_gobj_publish.md",
-        "api/gobj/api_gobj_authz.md",
-        "api/gobj/api_gobj_info.md",
-        "api/gobj/api_gobj_stats.md",
-        "api/gobj/api_gobj_node.md",
-        "api/gobj/api_gobj_trace.md",
+        "api/gobj/startup.md",
+        "api/gobj/gclass.md",
+        "api/gobj/creation.md",
+        "api/gobj/attrs.md",
+        "api/gobj/op.md",
+        "api/gobj/events_state.md",
+        "api/gobj/resource.md",
+        "api/gobj/publish.md",
+        "api/gobj/authz.md",
+        "api/gobj/info.md",
+        "api/gobj/stats.md",
+        "api/gobj/node.md",
+        "api/logging/trace.md",
     ],
-    KERNEL / "gobj-c/src/gbuffer.h":    ["api/gobj/api_gobj_gbuffer.md"],
-    KERNEL / "gobj-c/src/dl_list.h":    ["api/gobj/api_gobj_dl.md"],
-    KERNEL / "gobj-c/src/gbmem.h":      ["api/gobj/api_gobj_memory.md"],
-    KERNEL / "gobj-c/src/glogger.h":    ["api/gobj/api_gobj_log.md"],
+    KERNEL / "gobj-c/src/gbuffer.h":    ["api/helpers/gbuffer.md"],
+    KERNEL / "gobj-c/src/dl_list.h":    ["api/helpers/dl.md"],
+    KERNEL / "gobj-c/src/gbmem.h":      ["api/helpers/memory.md"],
+    KERNEL / "gobj-c/src/glogger.h":    ["api/logging/log.md"],
 
     # ---- gobj-c: helpers.h is split by topic across helper landings + the
     # daemon launcher landing (launch_daemon lives in helpers.h, not ydaemon.h).
     KERNEL / "gobj-c/src/helpers.h": [
-        "api/helpers/api_file_system.md",
-        "api/helpers/api_string_helper.md",
-        "api/helpers/api_json_helper.md",
-        "api/helpers/api_directory_walk.md",
-        "api/helpers/api_time_date.md",
-        "api/helpers/api_misc.md",
-        "api/helpers/api_common_protocol.md",
-        "api/helpers/api_url_parsing.md",
-        "api/helpers/api_backtrace.md",
-        "api/helpers/api_daemon_launcher.md",
+        "api/helpers/file_system.md",
+        "api/helpers/string_helper.md",
+        "api/helpers/json_helper.md",
+        "api/helpers/directory_walk.md",
+        "api/helpers/time_date.md",
+        "api/helpers/misc.md",
+        "api/helpers/common_protocol.md",
+        "api/helpers/url_parsing.md",
+        "api/helpers/backtrace.md",
+        "api/helpers/daemon_launcher.md",
     ],
-    # kwid.h is only covered by api_kwid.md. The json_* helpers that also
-    # appear in api_json_helper.md live in helpers.h, not kwid.h.
-    KERNEL / "gobj-c/src/kwid.h":       ["api/kwid/api_kwid.md"],
+    # kwid.h is only covered by helpers/kwid.md. The json_* helpers that
+    # also appear in json_helper.md live in helpers.h, not kwid.h.
+    KERNEL / "gobj-c/src/kwid.h":       ["api/helpers/kwid.md"],
 
     # ---- aux APIs ----
-    KERNEL / "gobj-c/src/command_parser.h":  ["api/command_parser/api_command_parser.md"],
-    KERNEL / "gobj-c/src/stats_parser.h":    ["api/stats_parser/api_stats_parser.md"],
-    KERNEL / "gobj-c/src/log_udp_handler.h": ["api/log_udp_handler/api_log_udp_handler.md"],
-    KERNEL / "gobj-c/src/rotatory.h":        ["api/rotatory/api_rotatory.md"],
-    KERNEL / "gobj-c/src/testing.h":         ["api/testing/api_testing.md"],
+    KERNEL / "gobj-c/src/command_parser.h":  ["api/parsers/command_parser.md"],
+    KERNEL / "gobj-c/src/stats_parser.h":    ["api/parsers/stats_parser.md"],
+    KERNEL / "gobj-c/src/log_udp_handler.h": ["api/logging/log_udp_handler.md"],
+    KERNEL / "gobj-c/src/rotatory.h":        ["api/logging/rotatory.md"],
+    KERNEL / "gobj-c/src/testing.h":         ["api/testing/testing.md"],
 
     # ---- http parser ----
     # llhttp.h is the upstream third-party parser header used internally;
     # it is not part of the Yuneta public API surface, so we do not verify
     # it. The public wrapper lives in ghttp_parser.h.
-    KERNEL / "root-linux/src/ghttp_parser.h": ["api/helpers/api_http_parser.md"],
+    KERNEL / "root-linux/src/ghttp_parser.h": ["api/helpers/http_parser.md"],
 
     # ---- istream (root-linux) ----
-    KERNEL / "root-linux/src/istream.h":     ["api/helpers/api_istream.md"],
+    KERNEL / "root-linux/src/istream.h":     ["api/helpers/istream.md"],
 
     # ---- daemon launcher (root-linux/ydaemon.h) ----
-    KERNEL / "root-linux/src/ydaemon.h":     ["api/helpers/api_daemon_launcher.md"],
+    KERNEL / "root-linux/src/ydaemon.h":     ["api/helpers/daemon_launcher.md"],
 
     # ---- timeranger2 ----
-    KERNEL / "timeranger2/src/timeranger2.h": ["api/timeranger2/api_timeranger2.md"],
-    KERNEL / "timeranger2/src/fs_watcher.h":  ["api/timeranger2/api_fs_watcher.md"],
-    KERNEL / "timeranger2/src/tr_msg.h":      ["api/timeranger2/api_tr_msg.md"],
-    KERNEL / "timeranger2/src/tr_msg2db.h":   ["api/timeranger2/api_tr_msg2db.md"],
-    KERNEL / "timeranger2/src/tr_queue.h":    ["api/timeranger2/api_tr_queue.md"],
-    KERNEL / "timeranger2/src/tr_treedb.h":   ["api/timeranger2/api_treedb.md"],
+    KERNEL / "timeranger2/src/timeranger2.h": ["api/timeranger2/timeranger2.md"],
+    KERNEL / "timeranger2/src/fs_watcher.h":  ["api/timeranger2/fs_watcher.md"],
+    KERNEL / "timeranger2/src/tr_msg.h":      ["api/timeranger2/tr_msg.md"],
+    KERNEL / "timeranger2/src/tr_msg2db.h":   ["api/timeranger2/tr_msg2db.md"],
+    KERNEL / "timeranger2/src/tr_queue.h":    ["api/timeranger2/tr_queue.md"],
+    KERNEL / "timeranger2/src/tr_treedb.h":   ["api/timeranger2/treedb.md"],
 
     # ---- event loop & TLS ----
-    KERNEL / "yev_loop/src/yev_loop.h":  ["api/yev_loop/api_yev_loop.md"],
-    KERNEL / "ytls/src/ytls.h":          ["api/ytls/api_ytls.md"],
+    KERNEL / "yev_loop/src/yev_loop.h":  ["api/yev_loop/yev_loop.md"],
+    KERNEL / "ytls/src/ytls.h":          ["api/ytls/ytls.md"],
 }
 
 

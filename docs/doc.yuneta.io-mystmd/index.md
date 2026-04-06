@@ -7,21 +7,17 @@ title: Yuneta Simplified
 ::::{grid} 1 1 2 2
 
 :::{grid-item}
-:columns: 4
 
-```{image} ./_static/yuneta-image.svg
-:width: 150px
-```
+## *An Asynchronous Development Framework*
 :::
 
 :::{grid-item}
-:columns: 8
-:class: sd-fs-3
 
-An Asynchronous Development Framework
-
+```{image} ./_static/yuneta-image.svg
+:width: 150px
+:align: center
+```
 :::
-
 ::::
 
 `Yuneta Simplified` is a **development framework** focused on **messaging** and **services**, based on
@@ -50,9 +46,18 @@ full table of contents is in the left sidebar — use it to browse by
 section. Every page is authored in MyST Markdown, the same format the
 previous Sphinx site used, so sources migrated one-to-one.
 
-Start with:
+Suggested reading order:
 
-- [Installation](installation.md) — get a working build environment.
-- [Philosophy](philosophy/philosophy.md) — why Yuneta is shaped the way it is.
-- [Basic concepts](guide/basic_concepts.md) — GClasses, GObjects, events.
-- The **API reference** sections in the sidebar — organised by subsystem.
+1. [Design Principles](philosophy/design_principles.md) — the
+   engineering decisions behind Yuneta and what they buy / cost.
+2. [Domain Model](philosophy/domain_model.md) — the vocabulary the
+   framework uses to model reality (realms, entities, messages, CRUDLU).
+3. [Installation](installation.md) — get a working build environment.
+4. [Basic concepts](guide/basic_concepts.md) — GClass, gobj, yuno,
+   events.
+5. [Guides](guide/guide_gclass.md) — how to actually build with them.
+6. The **API reference** sections in the sidebar — organised by
+   subsystem (GObj, Helpers, Logging, Parsers, Timeranger2, TLS,
+   Event Loop, JavaScript).
+7. [Inspiration](philosophy/philosophy.md) — optional, the humanist
+   angle that shaped the framework's vocabulary.

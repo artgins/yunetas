@@ -42,20 +42,11 @@ Import in your project:
 import { gobj_start_up, gobj_create_yuno, register_c_yuno } from "@yuneta/gobj-js";
 ```
 
-## Sections
-
-- [Framework Bootstrap](bootstrap.md)
-- [GClass Registration](gclass.md)
-- [GObject Lifecycle](lifecycle.md)
-- [State Machine](state_machine.md)
-- [Attribute Access](attrs.md)
-- [Event System](events.md)
-- [Hierarchy & Navigation](hierarchy.md)
-- [Persistence](persistence.md)
-- [Helpers & Utilities](helpers.md)
-- [Logging & String Formatting](logging.md)
-- [Built-in GClasses](builtin_gclasses.md)
-- [TreeDB Helpers](treedb_helpers.md)
+Browse the JavaScript API pages in the left sidebar, in the order
+shown. They follow the same sequence as the C reference: bootstrap →
+GClass registration → GObject lifecycle → state machine → attributes →
+events → hierarchy → persistence → helpers → logging → built-in
+GClasses → TreeDB helpers.
 
 ## Source layout
 
