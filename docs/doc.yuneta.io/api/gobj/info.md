@@ -236,7 +236,7 @@ A JSON object containing the following global variables:
 
 **Notes**
 
-The returned JSON object must be decremented with `json_decref()` to avoid memory leaks. These variables are also available for substitution in configuration strings via the `(^^ ^^)` syntax — see [Settings](../../guide/settings.md#1-global-variable-substitution).
+The returned JSON object must be decremented with `json_decref()` to avoid memory leaks. These variables are also available for substitution in configuration strings via the `(^^ ^^)` syntax — see [Settings](../../guide/settings.md#global-variable-substitution).
 
 ---
 

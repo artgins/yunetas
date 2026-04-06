@@ -40,6 +40,7 @@ and will be merge to `kw` when creating a `gobj`.
 
 ## Features
 
+(global-variable-substitution)=
 ### 1. **Global Variable Substitution**
 The function replaces strings enclosed in `(^^ ^^)` with corresponding values from the `__json_config_variables__` dictionary. This dictionary includes global variables returned by [`gobj_global_variables()`](../api/gobj/info.md#gobj_global_variables).
 
