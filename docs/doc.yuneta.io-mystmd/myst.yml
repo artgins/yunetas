@@ -183,6 +183,7 @@ project:
 site:
   template: book-theme
   options:
+    base_url: /
     logo: _static/yuneta-label.svg
     logo_dark: _static/yuneta-label.svg
     favicon: _static/yuneta-y.svg
