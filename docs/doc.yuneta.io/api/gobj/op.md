@@ -1089,7 +1089,7 @@ The callback function should return 0 to continue traversal, a negative value to
 (gobj_find_child_by_tree)=
 ## `gobj_find_child_by_tree()`
 
-*Description pending — signature extracted from header.*
+Searches the entire gobj subtree (recursively) for the first child that matches the given filter conditions. This is the recursive counterpart to `gobj_find_child()`, which only searches first-level children.
 
 ```C
 hgobj gobj_find_child_by_tree(
@@ -1097,6 +1097,21 @@ hgobj gobj_find_child_by_tree(
     json_t *jn_filter
 );
 ```
+
+**Parameters**
+
+| Key | Type | Description |
+|---|---|---|
+| `gobj` | `hgobj` | The root gobj whose subtree will be searched. |
+| `jn_filter` | `json_t *` | A JSON object with filter conditions (e.g., `{"__gclass_name__": "...", "__gobj_name__": "..."}`). Ownership is transferred to the function. |
+
+**Returns**
+
+A handle to the first matching child gobj, or `NULL` if no match is found.
+
+**Notes**
+
+The filter uses the same matching logic as `gobj_match_gobj()`. The search traverses the tree depth-first and returns the first match.
 
 ---
 

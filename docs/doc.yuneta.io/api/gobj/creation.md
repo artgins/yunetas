@@ -362,7 +362,7 @@ The function extracts global settings, applies configuration variables, and invo
 (gobj_destroy_named_children)=
 ## `gobj_destroy_named_children()`
 
-*Description pending — signature extracted from header.*
+Destroys all direct children of the given gobj that match the specified name. Before destruction, each matching child is automatically paused and stopped if it is currently running or playing. The function walks first-level children only.
 
 ```C
 int gobj_destroy_named_children(
@@ -371,12 +371,27 @@ int gobj_destroy_named_children(
 );
 ```
 
+**Parameters**
+
+| Key | Type | Description |
+|---|---|---|
+| `gobj` | `hgobj` | The parent gobj whose children will be searched. |
+| `name` | `const char *` | The name to match against child gobj names. All children with this name are destroyed. |
+
+**Returns**
+
+Returns `0` on success, or `-1` if `gobj` is `NULL`.
+
+**Notes**
+
+Matching children are automatically paused and stopped before being destroyed. Only first-level children are considered (not recursive).
+
 ---
 
 (gobj_sdata_create)=
 ## `gobj_sdata_create()`
 
-*Description pending — signature extracted from header.*
+Creates a new JSON object populated with default values according to the given `sdata_desc_t` schema. Each attribute defined in the schema is initialized to its declared default value (string, boolean, integer, real, JSON list, or JSON dict). This is an attribute function without bottom inheritance.
 
 ```C
 json_t *gobj_sdata_create(
@@ -384,6 +399,21 @@ json_t *gobj_sdata_create(
     const sdata_desc_t* schema
 );
 ```
+
+**Parameters**
+
+| Key | Type | Description |
+|---|---|---|
+| `gobj` | `hgobj` | The GObj context used for logging. |
+| `schema` | `const sdata_desc_t *` | A null-terminated array of `sdata_desc_t` descriptors defining attribute names, types, and default values. |
+
+**Returns**
+
+A new JSON object (owned by the caller) with one key per schema attribute, each set to its default value.
+
+**Notes**
+
+This function is called internally during gobj creation to initialize the gobj's attribute dictionary (`jn_attrs`). It can also be used independently to build data records from any `sdata_desc_t` schema (e.g., subscription records).
 
 ---
 

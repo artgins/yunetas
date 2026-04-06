@@ -279,7 +279,7 @@ If the event is not found in the current state of `dst`, the function checks if 
 (gobj_find_event_type)=
 ## `gobj_find_event_type()`
 
-*Description pending — signature extracted from header.*
+Searches all registered GClasses for an event type matching the given string name. This performs a global, case-insensitive lookup across every GClass's event list. Optionally filters by event flags (e.g., `EVF_PUBLIC_EVENT`).
 
 ```C
 event_type_t *gobj_find_event_type(
@@ -289,12 +289,28 @@ event_type_t *gobj_find_event_type(
 );
 ```
 
+**Parameters**
+
+| Key | Type | Description |
+|---|---|---|
+| `event` | `const char *` | The event name string to search for (case-insensitive match). |
+| `event_flag` | `event_flag_t` | If non-zero, only events whose flags include this value are considered. Pass `0` to match any flag. |
+| `verbose` | `BOOL` | If `TRUE`, logs an error when the event is not found. |
+
+**Returns**
+
+A pointer to the `event_type_t` descriptor if the event is found, or `NULL` if no matching event exists in any registered GClass.
+
+**Notes**
+
+This is a global search across all GClasses, not scoped to a single gobj. It is used internally to resolve string event names (HACK events) into their canonical `event_type_t` representation. The returned pointer references internal static data and must not be freed.
+
 ---
 
 (gobj_send_event_to_children)=
 ## `gobj_send_event_to_children()`
 
-*Description pending — signature extracted from header.*
+Sends an event to all direct (first-level) children of the given gobj that support the event in their current state. Children that do not have the event defined in their FSM are silently skipped.
 
 ```C
 int gobj_send_event_to_children(
@@ -305,12 +321,29 @@ int gobj_send_event_to_children(
 );
 ```
 
+**Parameters**
+
+| Key | Type | Description |
+|---|---|---|
+| `gobj` | `hgobj` | The parent gobj whose children will receive the event. |
+| `event` | `gobj_event_t` | The event to send. |
+| `kw` | `json_t *` | A JSON object containing event-specific data. Ownership is transferred to the function. |
+| `src` | `hgobj` | The source gobj originating the event. |
+
+**Returns**
+
+Returns `0` on success, or `-1` if `gobj` is `NULL`.
+
+**Notes**
+
+Only first-level children are visited (not recursive). The `kw` is shared among all children via reference counting. For recursive delivery to the entire subtree, use `gobj_send_event_to_children_tree()`.
+
 ---
 
 (gobj_send_event_to_children_tree)=
 ## `gobj_send_event_to_children_tree()`
 
-*Description pending — signature extracted from header.*
+Sends an event to all children in the entire subtree of the given gobj that support the event in their current state. This is the recursive version of `gobj_send_event_to_children()` -- it walks the full gobj tree depth-first, delivering the event to every descendant that has it defined in its FSM.
 
 ```C
 int gobj_send_event_to_children_tree(
@@ -321,18 +354,49 @@ int gobj_send_event_to_children_tree(
 );
 ```
 
+**Parameters**
+
+| Key | Type | Description |
+|---|---|---|
+| `gobj` | `hgobj` | The root gobj whose entire subtree will receive the event. |
+| `event` | `gobj_event_t` | The event to send. |
+| `kw` | `json_t *` | A JSON object containing event-specific data. Ownership is transferred to the function. |
+| `src` | `hgobj` | The source gobj originating the event. |
+
+**Returns**
+
+Returns `0` on success, or `-1` if `gobj` is `NULL`.
+
+**Notes**
+
+Internally uses `gobj_walk_gobj_children_tree()` for recursive traversal. Children that do not have the event in their current state are silently skipped.
+
 ---
 
 (gobj_state_find_by_name)=
 ## `gobj_state_find_by_name()`
 
-*Description pending — signature extracted from header.*
+Finds a registered GClass by its name. The search first attempts an exact pointer comparison (for `gclass_name_t` constants), and if that fails, falls back to a string comparison. This allows lookup by either the canonical GClass name constant or a plain `char *` string.
 
 ```C
 hgclass gobj_state_find_by_name(
     gclass_name_t gclass_name
 );
 ```
+
+**Parameters**
+
+| Key | Type | Description |
+|---|---|---|
+| `gclass_name` | `gclass_name_t` | The GClass name to search for. Can be a `gclass_name_t` constant or a `char *` string. |
+
+**Returns**
+
+A handle to the GClass (`hgclass`) if found, or `NULL` if no registered GClass matches the given name.
+
+**Notes**
+
+This is a global lookup across all registered GClasses. The pointer-first comparison makes lookups by canonical name constant faster than string comparison.
 
 ---
 

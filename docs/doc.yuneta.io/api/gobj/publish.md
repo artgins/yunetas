@@ -243,7 +243,7 @@ Each subscription in `dl_subs` is checked and removed from both the publisher's 
 (gobj_list_subscribings)=
 ## `gobj_list_subscribings()`
 
-*Description pending — signature extracted from header.*
+Returns a JSON array describing the subscriptions where the given gobj is acting as a subscriber. Each element in the returned array contains human-readable information about a matching subscription (publisher name, event, subscriber name, flags, etc.). The results can be filtered by event, kw sub-dictionaries, and subscriber.
 
 ```C
 json_t *gobj_list_subscribings(
@@ -254,16 +254,47 @@ json_t *gobj_list_subscribings(
 );
 ```
 
+**Parameters**
+
+| Key | Type | Description |
+|---|---|---|
+| `gobj` | `hgobj` | The GObj whose outgoing subscriptions (subscribings) will be listed. |
+| `event` | `gobj_event_t` | Filter by this event. Pass `NULL` to match all events. |
+| `kw` | `json_t *` | A JSON object with optional sub-dictionaries (`__config__`, `__global__`, `__local__`) used to filter subscriptions. Pass `NULL` to match all. |
+| `subscriber` | `hgobj` | Filter by this subscriber gobj. Pass `NULL` to match all subscribers. |
+
+**Returns**
+
+A new JSON array (owned by the caller) containing one JSON object per matching subscription. Each object includes details such as publisher name, subscriber name, event, flags, and kw sub-dictionaries.
+
+**Notes**
+
+Internally calls `gobj_find_subscribings()` to locate matching subscriptions and then converts each one to a human-readable JSON representation via `get_subs_info()`.
+
 ---
 
 (gobj_subs_desc)=
 ## `gobj_subs_desc()`
 
-*Description pending — signature extracted from header.*
+Returns a pointer to the internal subscription schema descriptor (`sdata_desc_t` array). This schema defines the structure of a subscription record, including fields such as `publisher`, `subscriber`, `event`, `renamed_event`, `subs_flag`, `__config__`, `__global__`, `__local__`, `__filter__`, and `__service__`.
 
 ```C
 const sdata_desc_t *gobj_subs_desc(void);
 ```
+
+**Parameters**
+
+| Key | Type | Description |
+|---|---|---|
+| `-` | `-` | This function does not take any parameters. |
+
+**Returns**
+
+A pointer to the static `sdata_desc_t` array that describes the subscription data structure. The returned pointer references internal static data and must not be freed or modified.
+
+**Notes**
+
+This is useful for introspection or for building subscription records programmatically using the same schema the framework uses internally.
 
 ---
 

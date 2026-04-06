@@ -864,7 +864,7 @@ Returns a pointer to the `to` buffer containing the translated string.
 (capitalize)=
 ## `capitalize()`
 
-*Description pending — signature extracted from header.*
+Converts the first character to uppercase and the remaining characters to lowercase.
 
 ```C
 char *capitalize(
@@ -872,12 +872,26 @@ char *capitalize(
 );
 ```
 
+**Parameters**
+
+| Key | Type | Description |
+|---|---|---|
+| `s` | `char *` | The string to capitalize. Modified in place. |
+
+**Returns**
+
+Returns a pointer to the modified string `s`.
+
+**Notes**
+
+The function modifies the input string in place. If `s` is NULL or empty, it is returned unchanged.
+
 ---
 
 (lower)=
 ## `lower()`
 
-*Description pending — signature extracted from header.*
+Converts all characters in the string to lowercase.
 
 ```C
 char *lower(
@@ -885,12 +899,26 @@ char *lower(
 );
 ```
 
+**Parameters**
+
+| Key | Type | Description |
+|---|---|---|
+| `s` | `char *` | The string to convert. Modified in place. |
+
+**Returns**
+
+Returns a pointer to the modified string `s`.
+
+**Notes**
+
+The function modifies the input string in place. If `s` is NULL, it is returned unchanged.
+
 ---
 
 (path_basename)=
 ## `path_basename()`
 
-*Description pending — signature extracted from header.*
+Extracts the filename component from a file path.
 
 ```C
 const char *path_basename(
@@ -898,12 +926,26 @@ const char *path_basename(
 );
 ```
 
+**Parameters**
+
+| Key | Type | Description |
+|---|---|---|
+| `path` | `const char *` | The file path from which to extract the filename. |
+
+**Returns**
+
+A pointer to the last component (filename) within the `path` string. If no directory separator is found, returns the original `path` pointer.
+
+**Notes**
+
+The returned pointer points into the original `path` string; no new memory is allocated. The input string is not modified.
+
 ---
 
 (replace_cli_vars)=
 ## `replace_cli_vars()`
 
-*Description pending — signature extracted from header.*
+Replaces CLI variable placeholders in a command string with base64-encoded values.
 
 ```C
 gbuffer_t *replace_cli_vars(
@@ -913,18 +955,48 @@ gbuffer_t *replace_cli_vars(
 );
 ```
 
+**Parameters**
+
+| Key | Type | Description |
+|---|---|---|
+| `command` | `const char *` | The command string containing variable placeholders to be replaced. |
+| `comment` | `char *` | Buffer to receive a descriptive comment about the replacements performed. |
+| `commentlen` | `int` | Size of the `comment` buffer. |
+
+**Returns**
+
+A `gbuffer_t *` containing the command string with all CLI variable placeholders replaced, or NULL on failure.
+
+**Notes**
+
+Placeholders use the `$$(...)` syntax. The referenced values are read and base64-encoded before substitution into the command string.
+
 ---
 
 (upper)=
 ## `upper()`
 
-*Description pending — signature extracted from header.*
+Converts all characters in the string to uppercase.
 
 ```C
 char *upper(
     char *s
 );
 ```
+
+**Parameters**
+
+| Key | Type | Description |
+|---|---|---|
+| `s` | `char *` | The string to convert. Modified in place. |
+
+**Returns**
+
+Returns a pointer to the modified string `s`.
+
+**Notes**
+
+The function modifies the input string in place. If `s` is NULL, it is returned unchanged.
 
 ---
 

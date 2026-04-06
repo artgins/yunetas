@@ -542,7 +542,7 @@ The function uses `json_dump_callback()` to serialize the JSON object into the b
 (config_gbuffer2json)=
 ## `config_gbuffer2json()`
 
-*Description pending — signature extracted from header.*
+Parses the contents of a `gbuffer_t` as a configuration string and returns the resulting JSON object. The buffer is consumed (decremented) by this function.
 
 ```C
 json_t *config_gbuffer2json(
@@ -551,12 +551,27 @@ json_t *config_gbuffer2json(
 );
 ```
 
+**Parameters**
+
+| Key | Type | Description |
+|---|---|---|
+| `gbuf` | `gbuffer_t *` | The buffer containing the configuration string to parse. Ownership is taken -- the buffer is decremented after use. |
+| `verbose` | `int` | Verbosity level for error reporting: 1 logs errors, 2 logs errors and dumps the buffer content. |
+
+**Returns**
+
+Returns a `json_t *` object parsed from the buffer content, or NULL if parsing fails.
+
+**Notes**
+
+The function reads from the current read position of the buffer, passes the data to `json_config_string2json()`, and then calls `gbuffer_decref()` on the buffer.
+
 ---
 
 (gbuf2file)=
 ## `gbuf2file()`
 
-*Description pending — signature extracted from header.*
+Writes the entire contents of a `gbuffer_t` to a file on disk. The buffer is consumed (decremented) after the operation, regardless of success or failure.
 
 ```C
 int gbuf2file(
@@ -568,12 +583,30 @@ int gbuf2file(
 );
 ```
 
+**Parameters**
+
+| Key | Type | Description |
+|---|---|---|
+| `gobj` | `hgobj` | The GObj instance used for error logging. |
+| `gbuf` | `gbuffer_t *` | The buffer whose contents will be written to the file. Ownership is taken -- the buffer is decremented after the operation. |
+| `path` | `const char *` | The file path where the data will be written. |
+| `permission` | `int` | File permission mode (e.g. 0644) applied when creating the file. |
+| `overwrite` | `BOOL` | If TRUE, an existing file at `path` will be overwritten. If FALSE, the function fails if the file already exists. |
+
+**Returns**
+
+Returns 0 on success, or -1 on error (e.g. file creation failure or write error).
+
+**Notes**
+
+The function writes all available chunks from the buffer sequentially. The buffer is always decremented after the call, even if an error occurs.
+
 ---
 
 (gbuffer_append_json)=
 ## `gbuffer_append_json()`
 
-*Description pending — signature extracted from header.*
+Serializes a JSON object to a string and appends it to a `gbuffer_t`, followed by a newline character.
 
 ```C
 size_t gbuffer_append_json(
@@ -582,12 +615,27 @@ size_t gbuffer_append_json(
 );
 ```
 
+**Parameters**
+
+| Key | Type | Description |
+|---|---|---|
+| `gbuf` | `gbuffer_t *` | The buffer to append the serialized JSON to. |
+| `jn` | `json_t *` | The JSON object to serialize. Ownership is taken -- the reference is decremented after use. |
+
+**Returns**
+
+Returns the number of bytes appended (excluding the trailing newline), or -1 (cast to `size_t`) on serialization error.
+
+**Notes**
+
+The JSON object is converted to a compact string using `json2str()`, appended to the buffer, and then a `\n` character is appended. The JSON reference is always decremented, even on error.
+
 ---
 
 (gbuffer_base64_to_binary)=
 ## `gbuffer_base64_to_binary()`
 
-*Description pending — signature extracted from header.*
+Decodes a Base64-encoded string into a new `gbuffer_t` containing the raw binary data.
 
 ```C
 gbuffer_t *gbuffer_base64_to_binary(
@@ -596,12 +644,27 @@ gbuffer_t *gbuffer_base64_to_binary(
 );
 ```
 
+**Parameters**
+
+| Key | Type | Description |
+|---|---|---|
+| `base64` | `const char *` | Pointer to the Base64-encoded input string. |
+| `base64_len` | `size_t` | Length of the Base64 input string in bytes. |
+
+**Returns**
+
+Returns a new `gbuffer_t` containing the decoded binary data, or NULL on error (e.g. NULL input, memory allocation failure, or decoding error).
+
+**Notes**
+
+The output buffer is sized based on the expected decoded length. The caller is responsible for calling `gbuffer_decref()` on the returned buffer when done.
+
 ---
 
 (gbuffer_binary_to_base64)=
 ## `gbuffer_binary_to_base64()`
 
-*Description pending — signature extracted from header.*
+Encodes raw binary data into a new `gbuffer_t` containing the Base64-encoded string.
 
 ```C
 gbuffer_t *gbuffer_binary_to_base64(
@@ -610,12 +673,27 @@ gbuffer_t *gbuffer_binary_to_base64(
 );
 ```
 
+**Parameters**
+
+| Key | Type | Description |
+|---|---|---|
+| `src` | `const char *` | Pointer to the raw binary data to encode. |
+| `len` | `size_t` | Length of the input data in bytes. |
+
+**Returns**
+
+Returns a new `gbuffer_t` containing the Base64-encoded string, or NULL on error (e.g. memory allocation failure or encoding error).
+
+**Notes**
+
+The output buffer is sized to hold the full Base64-encoded output. The caller is responsible for calling `gbuffer_decref()` on the returned buffer when done.
+
 ---
 
 (gbuffer_file2base64)=
 ## `gbuffer_file2base64()`
 
-*Description pending — signature extracted from header.*
+Reads a file from disk and returns its contents as a Base64-encoded string in a new `gbuffer_t`.
 
 ```C
 gbuffer_t *gbuffer_file2base64(
@@ -623,12 +701,26 @@ gbuffer_t *gbuffer_file2base64(
 );
 ```
 
+**Parameters**
+
+| Key | Type | Description |
+|---|---|---|
+| `path` | `const char *` | Path to the file to read and encode. |
+
+**Returns**
+
+Returns a new `gbuffer_t` containing the Base64-encoded file contents, or NULL on error (e.g. file not found, memory allocation failure).
+
+**Notes**
+
+The function reads the entire file into memory, encodes it using [`gbuffer_binary_to_base64()`](#gbuffer_binary_to_base64), and frees the intermediate buffer. The caller is responsible for calling `gbuffer_decref()` on the returned buffer when done.
+
 ---
 
 (str2gbuf)=
 ## `str2gbuf()`
 
-*Description pending — signature extracted from header.*
+Creates a new `gbuffer_t` and fills it with a printf-formatted string.
 
 ```C
 gbuffer_t *str2gbuf(
@@ -636,6 +728,21 @@ gbuffer_t *str2gbuf(
     ... ) JANSSON_ATTRS((format(printf, 1, 2))
 );
 ```
+
+**Parameters**
+
+| Key | Type | Description |
+|---|---|---|
+| `fmt` | `const char *` | A printf-style format string. |
+| `...` | `variadic` | Additional arguments corresponding to the format specifiers in `fmt`. |
+
+**Returns**
+
+Returns a new `gbuffer_t` containing the formatted string, or NULL on allocation failure.
+
+**Notes**
+
+The formatted output is limited to `PATH_MAX` bytes. The buffer is created with an exact size matching the resulting string length. The caller is responsible for calling `gbuffer_decref()` on the returned buffer when done.
 
 ---
 

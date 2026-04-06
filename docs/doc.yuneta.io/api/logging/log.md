@@ -895,7 +895,7 @@ The function formats the log message as JSON, including metadata such as timesta
 (_log_bf)=
 ## `_log_bf()`
 
-*Description pending — signature extracted from header.*
+Dispatches a pre-formatted log buffer to all registered log handlers. This is a low-level function used internally by the logging system.
 
 ```C
 void _log_bf(
@@ -906,23 +906,52 @@ void _log_bf(
 );
 ```
 
+**Parameters**
+
+| Key | Type | Description |
+|---|---|---|
+| `priority` | `int` | The syslog priority level of the message (e.g. `LOG_ERR`, `LOG_DEBUG`). |
+| `opt` | `log_opt_t` | Logging options that control behavior such as stack trace printing or process exit. |
+| `bf` | `const char *` | Pointer to the pre-formatted log message buffer. |
+| `len` | `size_t` | Length of the log message in bytes. Must be greater than 0. |
+
+**Returns**
+
+This function does not return a value.
+
+**Notes**
+
+If no log handlers are registered, the message is printed to stderr. Each registered handler receives the message unless its priority filter excludes it. If `LOG_OPT_TRACE_STACK` is set in `opt`, or the handler has `LOG_HND_OPT_TRACE_STACK` enabled and the priority is `LOG_ERR` or higher, a backtrace is appended. A handler's write function can return a negative value to stop propagation to subsequent handlers.
+
 ---
 
 (gobj_log_clear_log_file)=
 ## `gobj_log_clear_log_file()`
 
-*Description pending — signature extracted from header.*
+Truncates all file-based log handlers, clearing their log file contents.
 
 ```C
 void gobj_log_clear_log_file(void);
 ```
+
+**Parameters**
+
+This function takes no parameters.
+
+**Returns**
+
+This function does not return a value.
+
+**Notes**
+
+The function iterates over all registered log handlers and truncates those whose handler type is `"file"`, by calling [`rotatory_truncate()`](#rotatory_truncate) on each. Non-file handlers are unaffected.
 
 ---
 
 (set_trace_with_full_name)=
 ## `set_trace_with_full_name()`
 
-*Description pending — signature extracted from header.*
+Sets whether trace log messages include the full name of the GObj instance. Returns the previous setting.
 
 ```C
 BOOL set_trace_with_full_name(
@@ -930,18 +959,46 @@ BOOL set_trace_with_full_name(
 );
 ```
 
+**Parameters**
+
+| Key | Type | Description |
+|---|---|---|
+| `trace_with_full_name` | `BOOL` | If TRUE, the full hierarchical GObj name will be included in trace messages. If FALSE, it will be omitted. |
+
+**Returns**
+
+Returns the previous value of the `trace_with_full_name` setting.
+
+**Notes**
+
+The default value is TRUE. This setting controls whether the `gobj_full_name` field appears in JSON-formatted log output.
+
 ---
 
 (set_trace_with_short_name)=
 ## `set_trace_with_short_name()`
 
-*Description pending — signature extracted from header.*
+Sets whether trace log messages include the short name of the GObj instance. Returns the previous setting.
 
 ```C
 BOOL set_trace_with_short_name(
     BOOL trace_with_short_name
 );
 ```
+
+**Parameters**
+
+| Key | Type | Description |
+|---|---|---|
+| `trace_with_short_name` | `BOOL` | If TRUE, the short GObj name will be included in trace messages. If FALSE, it will be omitted. |
+
+**Returns**
+
+Returns the previous value of the `trace_with_short_name` setting.
+
+**Notes**
+
+The default value is FALSE. This setting controls whether the `gobj_short_name` field appears in JSON-formatted log output.
 
 ---
 

@@ -669,7 +669,7 @@ If the event is in an idle state, it can be reused; otherwise, a new event must 
 (yev_create_poll_event)=
 ## `yev_create_poll_event()`
 
-*Description pending — signature extracted from header.*
+Creates a poll event for monitoring a file descriptor.
 
 ```C
 yev_event_h yev_create_poll_event(
@@ -681,12 +681,26 @@ yev_event_h yev_create_poll_event(
 );
 ```
 
+**Parameters**
+
+| Key | Type | Description |
+|---|---|---|
+| `yev_loop` | `yev_loop_h` | The event loop handle in which the poll event will be created. |
+| `callback` | `yev_callback_t` | The callback function to be invoked when the event is triggered. If it returns -1, the loop in [`yev_loop_run()`](<#yev_loop_run>) will break. |
+| `gobj` | `hgobj` | The associated GObj instance for event handling. |
+| `fd` | `int` | The file descriptor to monitor. |
+| `poll_mask` | `unsigned` | Bitmask specifying the poll conditions to monitor (e.g., `POLLIN`, `POLLOUT`). |
+
+**Returns**
+
+Returns a `yev_event_h` handle to the newly created poll event, or `NULL` on failure.
+
 ---
 
 (yev_create_recvmsg_event)=
 ## `yev_create_recvmsg_event()`
 
-*Description pending — signature extracted from header.*
+Creates a recvmsg event for receiving messages with socket address information.
 
 ```C
 yev_event_h yev_create_recvmsg_event(
@@ -698,12 +712,26 @@ yev_event_h yev_create_recvmsg_event(
 );
 ```
 
+**Parameters**
+
+| Key | Type | Description |
+|---|---|---|
+| `yev_loop` | `yev_loop_h` | The event loop handle in which the recvmsg event will be created. |
+| `callback` | `yev_callback_t` | The callback function to be invoked when a message is received. If it returns -1, the loop in [`yev_loop_run()`](<#yev_loop_run>) will break. |
+| `gobj` | `hgobj` | The associated GObj instance for event handling. |
+| `fd` | `int` | The socket file descriptor to receive messages on. |
+| `gbuf` | `gbuffer_t *` | The buffer where the received data will be stored. |
+
+**Returns**
+
+Returns a `yev_event_h` handle to the newly created recvmsg event, or `NULL` on failure.
+
 ---
 
 (yev_create_sendmsg_event)=
 ## `yev_create_sendmsg_event()`
 
-*Description pending — signature extracted from header.*
+Creates a sendmsg event for sending messages with a destination address.
 
 ```C
 yev_event_h yev_create_sendmsg_event(
@@ -716,12 +744,27 @@ yev_event_h yev_create_sendmsg_event(
 );
 ```
 
+**Parameters**
+
+| Key | Type | Description |
+|---|---|---|
+| `yev_loop` | `yev_loop_h` | The event loop handle in which the sendmsg event will be created. |
+| `callback` | `yev_callback_t` | The callback function to be invoked when the message has been sent. If it returns -1, the loop in [`yev_loop_run()`](<#yev_loop_run>) will break. |
+| `gobj` | `hgobj` | The associated GObj instance for event handling. |
+| `fd` | `int` | The socket file descriptor to send messages on. |
+| `gbuf` | `gbuffer_t *` | The buffer containing the data to be sent. |
+| `dst_addr` | `struct sockaddr *` | Pointer to the destination socket address. |
+
+**Returns**
+
+Returns a `yev_event_h` handle to the newly created sendmsg event, or `NULL` on failure.
+
 ---
 
 (yev_dup2_accept_event)=
 ## `yev_dup2_accept_event()`
 
-*Description pending — signature extracted from header.*
+Creates a duplicate accept event from a raw listen socket file descriptor.
 
 ```C
 yev_event_h yev_dup2_accept_event(
@@ -732,12 +775,25 @@ yev_event_h yev_dup2_accept_event(
 );
 ```
 
+**Parameters**
+
+| Key | Type | Description |
+|---|---|---|
+| `yev_loop` | `yev_loop_h` | The event loop handle in which the accept event will be created. |
+| `callback` | `yev_callback_t` | The callback function to be invoked when a connection is accepted. If it returns -1, the loop in [`yev_loop_run()`](<#yev_loop_run>) will break. |
+| `fd_listen` | `int` | The raw listen socket file descriptor. |
+| `gobj` | `hgobj` | The associated GObj instance for event handling. |
+
+**Returns**
+
+Returns a `yev_event_h` handle to the newly created accept event, or `NULL` on failure.
+
 ---
 
 (yev_dup_accept_event)=
 ## `yev_dup_accept_event()`
 
-*Description pending — signature extracted from header.*
+Creates a duplicate accept event based on an existing server accept event.
 
 ```C
 yev_event_h yev_dup_accept_event(
@@ -747,12 +803,24 @@ yev_event_h yev_dup_accept_event(
 );
 ```
 
+**Parameters**
+
+| Key | Type | Description |
+|---|---|---|
+| `yev_server_accept` | `yev_event_h` | Handle to the existing server accept event to duplicate. |
+| `dup_idx` | `int` | Index identifying the duplicate accept event. |
+| `gobj` | `hgobj` | The associated GObj instance for event handling. |
+
+**Returns**
+
+Returns a `yev_event_h` handle to the newly created duplicate accept event, or `NULL` on failure.
+
 ---
 
 (yev_rearm_connect_event)=
 ## `yev_rearm_connect_event()`
 
-*Description pending — signature extracted from header.*
+Prepares or reuses a connect event by establishing a connection to a destination URL.
 
 ```C
 int yev_rearm_connect_event(
@@ -763,6 +831,20 @@ int yev_rearm_connect_event(
     int ai_flags
 );
 ```
+
+**Parameters**
+
+| Key | Type | Description |
+|---|---|---|
+| `yev_event` | `yev_event_h` | Handle to the connect event to rearm. |
+| `dst_url` | `const char *` | Destination URL to connect to (e.g., `"tcp://host:port"`). |
+| `src_url` | `const char *` | Source URL for local binding (`host:port` only), or `NULL`. |
+| `ai_family` | `int` | Address family (e.g., `AF_UNSPEC`, `AF_INET`, `AF_INET6`). |
+| `ai_flags` | `int` | Address info flags (e.g., `AI_V4MAPPED \| AI_ADDRCONFIG`). |
+
+**Returns**
+
+Returns the file descriptor on success, or `-1` on error.
 
 ---
 

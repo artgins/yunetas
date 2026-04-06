@@ -1406,7 +1406,7 @@ If `kw` is a dictionary, the function searches for a key matching `id`. If `kw` 
 (json_flatten_dict)=
 ## `json_flatten_dict()`
 
-*Description pending — signature extracted from header.*
+Flattens a nested JSON object into a single-level dictionary with backtick-delimited path keys.
 
 ```C
 json_t *json_flatten_dict(
@@ -1414,12 +1414,26 @@ json_t *json_flatten_dict(
 );
 ```
 
+**Parameters**
+
+| Key | Type | Description |
+|---|---|---|
+| `jn_nested` | `json_t *` | The nested JSON object to flatten. |
+
+**Returns**
+
+A new flattened `json_t *` object where each key is a backtick-delimited path representing the original nested structure. The caller owns the returned object.
+
+**Notes**
+
+Use [`json_unflatten_dict()`](#json_unflatten_dict) to reconstruct the original nested structure from the flattened dictionary.
+
 ---
 
 (json_unflatten_dict)=
 ## `json_unflatten_dict()`
 
-*Description pending — signature extracted from header.*
+Reconstructs a nested JSON structure from a flattened dictionary.
 
 ```C
 json_t *json_unflatten_dict(
@@ -1427,12 +1441,26 @@ json_t *json_unflatten_dict(
 );
 ```
 
+**Parameters**
+
+| Key | Type | Description |
+|---|---|---|
+| `jn_flat` | `json_t *` | A flattened JSON object with backtick-delimited path keys, as produced by [`json_flatten_dict()`](#json_flatten_dict). |
+
+**Returns**
+
+A new nested `json_t *` object reconstructed from the flattened dictionary. The caller owns the returned object.
+
+**Notes**
+
+This is the inverse of [`json_flatten_dict()`](#json_flatten_dict). The backtick-delimited keys are parsed to recreate the original nested hierarchy.
+
 ---
 
 (kw_collect)=
 ## `kw_collect()`
 
-*Description pending — signature extracted from header.*
+Collects all records matching a filter criteria from a JSON array or object.
 
 ```C
 json_t *kw_collect(
@@ -1443,12 +1471,29 @@ json_t *kw_collect(
 );
 ```
 
+**Parameters**
+
+| Key | Type | Description |
+|---|---|---|
+| `gobj` | `hgobj` | GObj handle, used for logging. |
+| `kw` | `json_t *` | The JSON array or object to search through. Not owned. |
+| `jn_filter` | `json_t *` | Filter criteria to match records against. Owned by the function. |
+| `match_fn` | `callback` | Optional matching function. If NULL, the default matching logic is used. |
+
+**Returns**
+
+A new `json_t *` array containing duplicated copies of all matching records. The caller owns the returned array.
+
+**Notes**
+
+Each matching record is duplicated into the result array, so modifications to the returned records do not affect the originals.
+
 ---
 
 (kw_serialize_to_string)=
 ## `kw_serialize_to_string()`
 
-*Description pending — signature extracted from header.*
+Serializes a JSON object to a compact JSON string, handling binary fields.
 
 ```C
 char *kw_serialize_to_string(
@@ -1457,12 +1502,27 @@ char *kw_serialize_to_string(
 );
 ```
 
+**Parameters**
+
+| Key | Type | Description |
+|---|---|---|
+| `gobj` | `hgobj` | GObj handle, used for logging. |
+| `kw` | `json_t *` | The JSON object to serialize. |
+
+**Returns**
+
+A `char *` containing the compact JSON string representation. The caller must free the returned string with `jsonp_free()`.
+
+**Notes**
+
+Binary fields registered via [`kw_add_binary_type()`](#kw_add_binary_type) are converted to their serialized form before encoding.
+
 ---
 
 (kw_size)=
 ## `kw_size()`
 
-*Description pending — signature extracted from header.*
+Returns the size of a JSON object or array.
 
 ```C
 size_t kw_size(
@@ -1470,12 +1530,26 @@ size_t kw_size(
 );
 ```
 
+**Parameters**
+
+| Key | Type | Description |
+|---|---|---|
+| `kw` | `json_t *` | The JSON value whose size is to be determined. |
+
+**Returns**
+
+For objects, returns the number of keys. For arrays, returns the number of elements. For all other JSON types, returns 1.
+
+**Notes**
+
+This is a convenience wrapper that works uniformly across JSON types, avoiding the need to check the type before calling `json_object_size()` or `json_array_size()`.
+
 ---
 
 (kw_walk)=
 ## `kw_walk()`
 
-*Description pending — signature extracted from header.*
+Iterates through all key-value pairs in a JSON object, invoking a callback for each.
 
 ```C
 int kw_walk(
@@ -1485,12 +1559,28 @@ int kw_walk(
 );
 ```
 
+**Parameters**
+
+| Key | Type | Description |
+|---|---|---|
+| `gobj` | `hgobj` | GObj handle, passed through to the callback. |
+| `kw` | `json_t *` | The JSON object to iterate over. Not owned. |
+| `callback` | `function` | Function called for each key-value pair. Receives the gobj, the parent object, the key name, and the value. |
+
+**Returns**
+
+Returns 0 on success, or -1 if an error occurs.
+
+**Notes**
+
+The callback is invoked once per key-value pair in the object. If the callback returns a non-zero value, iteration may stop early.
+
 ---
 
 (kwid_get)=
 ## `kwid_get()`
 
-*Description pending — signature extracted from header.*
+Retrieves a value from a JSON object using a formatted path with variable arguments.
 
 ```C
 json_t *kwid_get(
@@ -1502,12 +1592,30 @@ json_t *kwid_get(
 );
 ```
 
+**Parameters**
+
+| Key | Type | Description |
+|---|---|---|
+| `gobj` | `hgobj` | GObj handle, used for logging. |
+| `kw` | `json_t *` | The JSON object to search in. |
+| `flag` | `kw_flag_t` | Flags controlling the lookup behavior. |
+| `path` | `const char *` | A `printf`-style format string specifying the dotted path to the desired value. |
+| `...` | variadic | Arguments for the format string. |
+
+**Returns**
+
+The `json_t *` value at the specified path, not owned by the caller. Returns NULL if the path does not exist.
+
+**Notes**
+
+The path supports dotted notation to navigate nested objects. The `flag` parameter controls behaviors such as whether to create missing intermediate nodes.
+
 ---
 
 (kwid_new_dict)=
 ## `kwid_new_dict()`
 
-*Description pending — signature extracted from header.*
+Converts a JSON array or object at a specified path into a dictionary keyed by record IDs.
 
 ```C
 json_t *kwid_new_dict(
@@ -1519,12 +1627,30 @@ json_t *kwid_new_dict(
 );
 ```
 
+**Parameters**
+
+| Key | Type | Description |
+|---|---|---|
+| `gobj` | `hgobj` | GObj handle, used for logging. |
+| `kw` | `json_t *` | The JSON object to search in. |
+| `flag` | `kw_flag_t` | Flags controlling the lookup behavior. |
+| `path` | `const char *` | A `printf`-style format string specifying the dotted path to the target value. |
+| `...` | variadic | Arguments for the format string. |
+
+**Returns**
+
+A new `json_t *` dictionary where each record is keyed by its ID field, or NULL if the path does not resolve. The caller owns the returned object.
+
+**Notes**
+
+This function is useful for converting lists of records into dictionaries for fast lookup by ID.
+
 ---
 
 (kwid_new_list)=
 ## `kwid_new_list()`
 
-*Description pending — signature extracted from header.*
+Converts a JSON array or object at a specified path into a standardized array of records.
 
 ```C
 json_t *kwid_new_list(
@@ -1535,6 +1661,24 @@ json_t *kwid_new_list(
     ... ) JANSSON_ATTRS((format(printf, 4, 5))
 );
 ```
+
+**Parameters**
+
+| Key | Type | Description |
+|---|---|---|
+| `gobj` | `hgobj` | GObj handle, used for logging. |
+| `kw` | `json_t *` | The JSON object to search in. |
+| `flag` | `kw_flag_t` | Flags controlling the lookup behavior. |
+| `path` | `const char *` | A `printf`-style format string specifying the dotted path to the target value. |
+| `...` | variadic | Arguments for the format string. |
+
+**Returns**
+
+A new `json_t *` array containing the records found at the specified path, or NULL if the path does not resolve. The caller owns the returned object.
+
+**Notes**
+
+If the value at the path is a dictionary, its values are extracted into the returned array. If it is already an array, it is duplicated.
 
 ---
 

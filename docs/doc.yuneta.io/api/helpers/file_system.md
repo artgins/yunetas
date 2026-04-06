@@ -469,7 +469,7 @@ This function is typically used in conjunction with [`lock_file()`](#lock_file) 
 (copyfile)=
 ## `copyfile()`
 
-*Description pending — signature extracted from header.*
+Copies a file from source to destination using kernel-space operations for efficiency.
 
 ```C
 int copyfile(
@@ -480,12 +480,25 @@ int copyfile(
 );
 ```
 
+**Parameters**
+
+| Key | Type | Description |
+|---|---|---|
+| `source` | `const char *` | Path to the source file. |
+| `destination` | `const char *` | Path to the destination file. |
+| `permission` | `int` | The permission mode for the destination file. |
+| `overwrite` | `BOOL` | If `TRUE`, an existing destination file will be overwritten; otherwise, the copy fails if the file exists. |
+
+**Returns**
+
+Returns `0` on success, or `-1` on error.
+
 ---
 
 (read_process_cmdline)=
 ## `read_process_cmdline()`
 
-*Description pending — signature extracted from header.*
+Reads the command-line arguments of a process into a buffer.
 
 ```C
 int read_process_cmdline(
@@ -495,12 +508,28 @@ int read_process_cmdline(
 );
 ```
 
+**Parameters**
+
+| Key | Type | Description |
+|---|---|---|
+| `bf` | `char *` | Buffer to receive the command-line string. |
+| `bfsize` | `size_t` | Size of the buffer in bytes. |
+| `pid` | `pid_t` | Process ID to read. Pass `0` for the current process. |
+
+**Returns**
+
+Returns `0` on success, or `-1` on error.
+
+**Notes**
+
+On Linux, this function reads from `/proc/[pid]/cmdline`.
+
 ---
 
 (set_cloexec)=
 ## `set_cloexec()`
 
-*Description pending — signature extracted from header.*
+Sets the `FD_CLOEXEC` flag on a file descriptor to prevent inheritance by child processes.
 
 ```C
 int set_cloexec(
@@ -508,18 +537,38 @@ int set_cloexec(
 );
 ```
 
+**Parameters**
+
+| Key | Type | Description |
+|---|---|---|
+| `fd` | `int` | The file descriptor to modify. |
+
+**Returns**
+
+Returns `0` on success, or `-1` on error.
+
 ---
 
 (set_nonblocking)=
 ## `set_nonblocking()`
 
-*Description pending — signature extracted from header.*
+Sets a file descriptor to non-blocking mode.
 
 ```C
 int set_nonblocking(
     int fd
 );
 ```
+
+**Parameters**
+
+| Key | Type | Description |
+|---|---|---|
+| `fd` | `int` | The file descriptor to set to non-blocking mode. |
+
+**Returns**
+
+Returns `0`.
 
 ---
 

@@ -198,7 +198,7 @@ If `verbose` mode is enabled, additional debug information is printed.
 (test_list)=
 ## `test_list()`
 
-*Description pending — signature extracted from header.*
+`test_list()` compares two JSON arrays element by element, verifying that each key present in the expected array also exists with an identical value in the found array. The sizes of both arrays must match.
 
 ```C
 int test_list(
@@ -208,6 +208,24 @@ int test_list(
     ...) JANSSON_ATTRS((format(printf, 3, 4))
 );
 ```
+
+**Parameters**
+
+| Key | Type | Description |
+|---|---|---|
+| `found` | `json_t *` | The JSON array of objects obtained from the operation being tested. |
+| `expected` | `json_t *` | The JSON array of objects containing the expected values. Each object's keys are checked against the corresponding object in `found`. |
+| `msg` | `const char *` | A `printf`-style format string used to identify the test in error output. |
+| `...` | | Variable arguments for the format string. |
+
+**Returns**
+
+Returns `0` if all elements match. Returns a negative value (accumulated `-1` per mismatch) if the array sizes differ or if any key in an expected object does not match the corresponding value in `found`.
+
+**Notes**
+
+Only keys present in the `expected` objects are checked; extra keys in `found` objects are ignored.
+On mismatch, error details are printed to stdout with the formatted message, the mismatched key, index, and both expected and found values.
 
 ---
 

@@ -252,7 +252,7 @@ Internally calls `_rotatory()` to perform the actual writing.
 (rotatory_subscribe2newfile)=
 ## `rotatory_subscribe2newfile()`
 
-*Description pending — signature extracted from header.*
+Registers a callback that is invoked whenever the rotatory log rotates to a new file.
 
 ```C
 int rotatory_subscribe2newfile(
@@ -262,18 +262,48 @@ int rotatory_subscribe2newfile(
 );
 ```
 
+**Parameters**
+
+| Key | Type | Description |
+|---|---|---|
+| `hr` | `hrotatory_h` | Handle to the rotatory log instance. |
+| `cb_newfile` | `int (*)(void *, const char *, const char *)` | Callback function invoked on file rotation. Receives the user data, the old filename, and the new filename. |
+| `user_data` | `void *` | Opaque pointer passed to the callback on each invocation. |
+
+**Returns**
+
+Returns 0 on success.
+
+**Notes**
+
+Only one callback can be registered per rotatory log instance. Calling this function again replaces the previous callback and user data.
+
 ---
 
 (rotatory_truncate)=
 ## `rotatory_truncate()`
 
-*Description pending — signature extracted from header.*
+Truncates the log file associated with a rotatory log instance, clearing all its contents. If `hr` is NULL, all rotatory log instances are truncated.
 
 ```C
 void rotatory_truncate(
     hrotatory_h hr
 );
 ```
+
+**Parameters**
+
+| Key | Type | Description |
+|---|---|---|
+| `hr` | `hrotatory_h` | Handle to the rotatory log instance to truncate, or NULL to truncate all instances. |
+
+**Returns**
+
+This function does not return a value.
+
+**Notes**
+
+The function flushes the file before truncating. The file is reopened in write mode (`"w"`), which discards all previous content. If the file cannot be reopened, an error is printed to stderr.
 
 ---
 

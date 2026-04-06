@@ -1526,7 +1526,7 @@ The returned node must not be modified or freed by the caller.
 (get_hook_list)=
 ## `get_hook_list()`
 
-*Description pending — signature extracted from header.*
+`get_hook_list()` converts hook data of various JSON types into a uniform JSON array of child node references. This normalizes the different internal representations of hook data (array, object, or dict) into a single list format for iteration.
 
 ```C
 json_t *get_hook_list(
@@ -1535,12 +1535,27 @@ json_t *get_hook_list(
 );
 ```
 
+**Parameters**
+
+| Key | Type | Description |
+|---|---|---|
+| `gobj` | `hgobj` | The GObj instance used for logging. |
+| `hook_data` | `json_t *` | **Not owned.** The hook field data from a node. Can be a JSON array (returned as-is with incremented refcount), a JSON object (values are collected into a new array), or a JSON string (currently unsupported, logs an error). |
+
+**Returns**
+
+A new JSON array containing the child references from the hook data. The caller owns the returned array and must call `json_decref()` on it. Returns `NULL` if the hook data type is not supported.
+
+**Notes**
+
+When `hook_data` is a JSON array, the returned array is the same object with an incremented reference count. When it is a JSON object (dict-based hook), the object values are extracted into a new array.
+
 ---
 
 (topic_desc_fkey_names)=
 ## `topic_desc_fkey_names()`
 
-*Description pending — signature extracted from header.*
+`topic_desc_fkey_names()` extracts the names of all foreign key (`fkey`) fields from a topic descriptor. It iterates over the columns in the topic descriptor and collects the `id` of each column whose `flag` contains the word `"fkey"`.
 
 ```C
 json_t *topic_desc_fkey_names(
@@ -1548,18 +1563,46 @@ json_t *topic_desc_fkey_names(
 );
 ```
 
+**Parameters**
+
+| Key | Type | Description |
+|---|---|---|
+| `topic_desc` | `json_t *` | **Owned.** A JSON array describing the topic columns (the topic descriptor). It is consumed (decremented) by this function. |
+
+**Returns**
+
+A new JSON array of strings, each being the `id` of a column flagged as `fkey`. The caller owns the returned array and must call `json_decref()` on it.
+
+**Notes**
+
+The `topic_desc` parameter is consumed by this function. Do not use it after calling `topic_desc_fkey_names()`. See also [`topic_desc_hook_names()`](#topic_desc_hook_names) for the equivalent function for hook fields.
+
 ---
 
 (topic_desc_hook_names)=
 ## `topic_desc_hook_names()`
 
-*Description pending — signature extracted from header.*
+`topic_desc_hook_names()` extracts the names of all hook fields from a topic descriptor. It iterates over the columns in the topic descriptor and collects the `id` of each column whose `flag` contains the word `"hook"`.
 
 ```C
 json_t *topic_desc_hook_names(
     json_t *topic_desc
 );
 ```
+
+**Parameters**
+
+| Key | Type | Description |
+|---|---|---|
+| `topic_desc` | `json_t *` | **Owned.** A JSON array describing the topic columns (the topic descriptor). It is consumed (decremented) by this function. |
+
+**Returns**
+
+A new JSON array of strings, each being the `id` of a column flagged as `hook`. The caller owns the returned array and must call `json_decref()` on it.
+
+**Notes**
+
+The `topic_desc` parameter is consumed by this function. Do not use it after calling `topic_desc_hook_names()`. See also [`topic_desc_fkey_names()`](#topic_desc_fkey_names) for the equivalent function for fkey fields.
 
 ---
 

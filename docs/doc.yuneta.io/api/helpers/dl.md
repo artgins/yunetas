@@ -183,7 +183,7 @@ The function checks if the item already has links before inserting it. If the li
 (dl_delete_item)=
 ## `dl_delete_item()`
 
-*Description pending — signature extracted from header.*
+Removes an item from its doubly linked list and optionally frees it. Unlike [`dl_delete()`](#dl_delete), this function does not require passing the list pointer -- it uses the item's internal back-reference to its owning list.
 
 ```C
 int dl_delete_item(
@@ -192,12 +192,27 @@ int dl_delete_item(
 );
 ```
 
+**Parameters**
+
+| Key | Type | Description |
+|---|---|---|
+| `curr` | `void *` | Pointer to the item to remove from its list. |
+| `fnfree` | `void (*)(void *)` | Optional callback to free the item's memory after removal. Pass NULL to leave the item allocated. |
+
+**Returns**
+
+Returns 0 on success, or -1 if `curr` is NULL or the item has no links (is not currently in a list).
+
+**Notes**
+
+The function delegates to [`dl_delete()`](#dl_delete) using the item's internally stored list pointer. After removal, the item's link pointers are cleared. If `fnfree` is provided, it is called on the item after unlinking.
+
 ---
 
 (dl_nfind)=
 ## `dl_nfind()`
 
-*Description pending — signature extracted from header.*
+Finds and returns the Nth item in a doubly linked list, using 1-based indexing.
 
 ```C
 void * dl_nfind(
@@ -205,6 +220,21 @@ void * dl_nfind(
     size_t nitem
 );
 ```
+
+**Parameters**
+
+| Key | Type | Description |
+|---|---|---|
+| `dl` | `dl_list_t *` | Pointer to the doubly linked list to search. |
+| `nitem` | `size_t` | The 1-based position of the item to retrieve. |
+
+**Returns**
+
+Returns a pointer to the item at position `nitem`, or NULL if `nitem` is 0 or exceeds the number of items in the list.
+
+**Notes**
+
+The function traverses the list from the head. Position 1 returns the first item, position 2 the second, and so on.
 
 ---
 

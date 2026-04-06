@@ -91,7 +91,7 @@ The function initializes the internal communication protocol registry if it has 
 (get_peername)=
 ## `get_peername()`
 
-*Description pending — signature extracted from header.*
+Retrieves the remote socket address of a connected socket and formats it as a string.
 
 ```C
 int get_peername(
@@ -101,12 +101,24 @@ int get_peername(
 );
 ```
 
+**Parameters**
+
+| Key | Type | Description |
+|---|---|---|
+| `bf` | `char *` | Buffer to receive the formatted address string. |
+| `bfsize` | `size_t` | Size of the buffer in bytes. |
+| `fd` | `int` | File descriptor of the connected socket. |
+
+**Returns**
+
+Returns `0` on success, or `-1` on error.
+
 ---
 
 (get_sockname)=
 ## `get_sockname()`
 
-*Description pending — signature extracted from header.*
+Retrieves the local socket address of a socket and formats it as a string.
 
 ```C
 int get_sockname(
@@ -116,12 +128,24 @@ int get_sockname(
 );
 ```
 
+**Parameters**
+
+| Key | Type | Description |
+|---|---|---|
+| `bf` | `char *` | Buffer to receive the formatted address string. |
+| `bfsize` | `size_t` | Size of the buffer in bytes. |
+| `fd` | `int` | File descriptor of the socket. |
+
+**Returns**
+
+Returns `0` on success, or `-1` on error.
+
 ---
 
 (is_tcp_socket)=
 ## `is_tcp_socket()`
 
-*Description pending — signature extracted from header.*
+Determines if the given file descriptor represents a TCP (stream) socket.
 
 ```C
 BOOL is_tcp_socket(
@@ -129,12 +153,22 @@ BOOL is_tcp_socket(
 );
 ```
 
+**Parameters**
+
+| Key | Type | Description |
+|---|---|---|
+| `fd` | `int` | The file descriptor to check. |
+
+**Returns**
+
+Returns `TRUE` if the file descriptor is a TCP socket, `FALSE` otherwise.
+
 ---
 
 (is_udp_socket)=
 ## `is_udp_socket()`
 
-*Description pending — signature extracted from header.*
+Determines if the given file descriptor represents a UDP (datagram) socket.
 
 ```C
 BOOL is_udp_socket(
@@ -142,12 +176,22 @@ BOOL is_udp_socket(
 );
 ```
 
+**Parameters**
+
+| Key | Type | Description |
+|---|---|---|
+| `fd` | `int` | The file descriptor to check. |
+
+**Returns**
+
+Returns `TRUE` if the file descriptor is a UDP socket, `FALSE` otherwise.
+
 ---
 
 (print_socket_address)=
 ## `print_socket_address()`
 
-*Description pending — signature extracted from header.*
+Formats a socket address structure into a human-readable string.
 
 ```C
 int print_socket_address(
@@ -157,12 +201,28 @@ int print_socket_address(
 );
 ```
 
+**Parameters**
+
+| Key | Type | Description |
+|---|---|---|
+| `buf` | `char *` | Buffer to receive the formatted address string. |
+| `buflen` | `size_t` | Size of the buffer in bytes. |
+| `sa` | `const struct sockaddr *` | Pointer to the socket address structure to format. |
+
+**Returns**
+
+Returns `0` on success, or `-1` on error.
+
+**Notes**
+
+Supports both IPv4 and IPv6 address families.
+
 ---
 
 (set_tcp_socket_options)=
 ## `set_tcp_socket_options()`
 
-*Description pending — signature extracted from header.*
+Configures TCP socket options including `TCP_NODELAY`, `SO_KEEPALIVE`, and `SO_LINGER`.
 
 ```C
 int set_tcp_socket_options(
@@ -170,6 +230,17 @@ int set_tcp_socket_options(
     int delay
 );
 ```
+
+**Parameters**
+
+| Key | Type | Description |
+|---|---|---|
+| `fd` | `int` | The TCP socket file descriptor to configure. |
+| `delay` | `int` | Keep-alive idle timeout in seconds. Defaults to 60 if `0` is passed. |
+
+**Returns**
+
+Returns the cumulative result of the `setsockopt` calls.
 
 ---
 

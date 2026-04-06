@@ -630,7 +630,7 @@ This function does not perform normalization of `tm_wday` or `tm_yday`, and it a
 (get_days_range)=
 ## `get_days_range()`
 
-*Description pending — signature extracted from header.*
+Calculates a time range spanning multiple days.
 
 ```C
 time_range_t get_days_range(
@@ -640,12 +640,28 @@ time_range_t get_days_range(
 );
 ```
 
+**Parameters**
+
+| Key | Type | Description |
+|---|---|---|
+| `t` | `time_t` | The reference timestamp around which to compute the range. |
+| `range` | `int` | The number of days to span. |
+| `TZ` | `const char *` | Timezone name for localizing the day boundaries. |
+
+**Returns**
+
+A `time_range_t` structure containing the `start` and `end` timestamps of the computed range.
+
+**Notes**
+
+Day boundaries are computed in the specified timezone so that the range aligns to local midnight.
+
 ---
 
 (get_hours_range)=
 ## `get_hours_range()`
 
-*Description pending — signature extracted from header.*
+Calculates a time range spanning multiple hours.
 
 ```C
 time_range_t get_hours_range(
@@ -655,12 +671,28 @@ time_range_t get_hours_range(
 );
 ```
 
+**Parameters**
+
+| Key | Type | Description |
+|---|---|---|
+| `t` | `time_t` | The reference timestamp around which to compute the range. |
+| `range` | `int` | The number of hours to span. |
+| `TZ` | `const char *` | Timezone name for localizing the hour boundaries. |
+
+**Returns**
+
+A `time_range_t` structure containing the `start` and `end` timestamps of the computed range.
+
+**Notes**
+
+Hour boundaries are computed in the specified timezone so that the range aligns to the start of each hour.
+
 ---
 
 (get_months_range)=
 ## `get_months_range()`
 
-*Description pending — signature extracted from header.*
+Calculates a time range spanning multiple months.
 
 ```C
 time_range_t get_months_range(
@@ -670,12 +702,28 @@ time_range_t get_months_range(
 );
 ```
 
+**Parameters**
+
+| Key | Type | Description |
+|---|---|---|
+| `t` | `time_t` | The reference timestamp around which to compute the range. |
+| `range` | `int` | The number of months to span. |
+| `TZ` | `const char *` | Timezone name for localizing the month boundaries. |
+
+**Returns**
+
+A `time_range_t` structure containing the `start` and `end` timestamps of the computed range.
+
+**Notes**
+
+Month boundaries are computed in the specified timezone so that the range aligns to the first day of each month at local midnight.
+
 ---
 
 (get_weeks_range)=
 ## `get_weeks_range()`
 
-*Description pending — signature extracted from header.*
+Calculates a time range spanning multiple weeks, starting from Monday.
 
 ```C
 time_range_t get_weeks_range(
@@ -685,12 +733,28 @@ time_range_t get_weeks_range(
 );
 ```
 
+**Parameters**
+
+| Key | Type | Description |
+|---|---|---|
+| `t` | `time_t` | The reference timestamp around which to compute the range. |
+| `range` | `int` | The number of weeks to span. |
+| `TZ` | `const char *` | Timezone name for localizing the week boundaries. |
+
+**Returns**
+
+A `time_range_t` structure containing the `start` and `end` timestamps of the computed range.
+
+**Notes**
+
+Week boundaries are computed in the specified timezone with weeks starting on Monday at local midnight.
+
 ---
 
 (get_years_range)=
 ## `get_years_range()`
 
-*Description pending — signature extracted from header.*
+Calculates a time range spanning multiple years, starting from January 1st.
 
 ```C
 time_range_t get_years_range(
@@ -700,12 +764,28 @@ time_range_t get_years_range(
 );
 ```
 
+**Parameters**
+
+| Key | Type | Description |
+|---|---|---|
+| `t` | `time_t` | The reference timestamp around which to compute the range. |
+| `range` | `int` | The number of years to span. |
+| `TZ` | `const char *` | Timezone name for localizing the year boundaries. |
+
+**Returns**
+
+A `time_range_t` structure containing the `start` and `end` timestamps of the computed range.
+
+**Notes**
+
+Year boundaries are computed in the specified timezone so that the range aligns to January 1st at local midnight.
+
 ---
 
 (gmtime2timezone)=
 ## `gmtime2timezone()`
 
-*Description pending — signature extracted from header.*
+Converts a Unix timestamp to local time in a specified timezone.
 
 ```C
 time_t gmtime2timezone(
@@ -716,27 +796,72 @@ time_t gmtime2timezone(
 );
 ```
 
+**Parameters**
+
+| Key | Type | Description |
+|---|---|---|
+| `t` | `time_t` | The Unix timestamp to convert. |
+| `tz` | `const char *` | The target timezone name (e.g., `"Europe/Madrid"`). |
+| `ltm` | `struct tm *` | Optional pointer to a `struct tm` to receive the broken-down local time. Can be NULL. |
+| `offset` | `time_t *` | Optional pointer to receive the UTC offset in seconds for the given timezone. Can be NULL. |
+
+**Returns**
+
+The adjusted `time_t` value representing the local time in the specified timezone.
+
+**Notes**
+
+The function temporarily sets the `TZ` environment variable to perform the conversion and restores it afterwards.
+
 ---
 
 (time_in_milliseconds)=
 ## `time_in_milliseconds()`
 
-*Description pending — signature extracted from header.*
+Returns the current wall-clock time in milliseconds since the Unix epoch.
 
 ```C
 uint64_t time_in_milliseconds(void);
 ```
+
+**Parameters**
+
+| Key | Type | Description |
+|---|---|---|
+| `-` | `-` | This function does not take any parameters. |
+
+**Returns**
+
+A `uint64_t` value representing the current time in milliseconds, obtained using `CLOCK_REALTIME`.
+
+**Notes**
+
+This clock is subject to system time adjustments (e.g., NTP). For measuring elapsed time, use [`time_in_milliseconds_monotonic()`](#time_in_milliseconds_monotonic) instead.
 
 ---
 
 (time_in_milliseconds_monotonic)=
 ## `time_in_milliseconds_monotonic()`
 
-*Description pending — signature extracted from header.*
+Returns the current monotonic time in milliseconds.
 
 ```C
 uint64_t time_in_milliseconds_monotonic(void);
 ```
+
+**Parameters**
+
+| Key | Type | Description |
+|---|---|---|
+| `-` | `-` | This function does not take any parameters. |
+
+**Returns**
+
+A `uint64_t` value representing the current monotonic time in milliseconds, obtained using `CLOCK_MONOTONIC`.
+
+**Notes**
+
+Monotonic time is not affected by system clock adjustments and is suitable for measuring elapsed durations. This is the clock used by [`start_msectimer()`](#start_msectimer) and [`test_msectimer()`](#test_msectimer).
 
 ---
 

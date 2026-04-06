@@ -939,7 +939,7 @@ If `name` is empty, the entire user data dictionary is replaced with `value`.
 (gobj_load_persistent_attrs)=
 ## `gobj_load_persistent_attrs()`
 
-*Description pending — signature extracted from header.*
+Loads persistent attributes from storage into the given gobj. This function is automatically called during gobj creation, so manual invocation is typically unnecessary. Only service gobjs (those with `gobj_flag_service` or `gobj_flag_top_service`) are allowed to load persistent attributes. Persistent attributes have higher precedence than values provided via JSON configuration.
 
 ```C
 int gobj_load_persistent_attrs(
@@ -947,6 +947,21 @@ int gobj_load_persistent_attrs(
     json_t *jn_attrs
 );
 ```
+
+**Parameters**
+
+| Key | Type | Description |
+|---|---|---|
+| `gobj` | `hgobj` | The GObj instance whose persistent attributes will be loaded. Must be a service gobj. |
+| `jn_attrs` | `json_t *` | A string, list of keys, or dict specifying which attributes to load. If empty, all persistent attributes are loaded. Ownership is transferred to the function. |
+
+**Returns**
+
+Returns `0` on success, or `-1` if the gobj is not a service, or if no persistent attributes loader function has been registered.
+
+**Notes**
+
+The actual loading is delegated to a globally registered callback (`__global_load_persistent_attrs_fn__`). If no callback is registered, the function returns `-1`. Use `gobj_save_persistent_attrs()` to persist attribute changes -- saving must be done manually.
 
 ---
 

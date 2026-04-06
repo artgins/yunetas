@@ -1527,7 +1527,7 @@ This function modifies the user flag of an existing record but does not alter ot
 (tranger2_list_topic_names)=
 ## `tranger2_list_topic_names()`
 
-*Description pending — signature extracted from header.*
+`tranger2_list_topic_names()` returns a JSON array of topic names by scanning the tranger database directory on disk. Unlike [`tranger2_list_topics()`](#tranger2_list_topics), which reads from the in-memory topic registry, this function reads subdirectory names from the filesystem.
 
 ```C
 json_t *tranger2_list_topic_names(
@@ -1535,12 +1535,26 @@ json_t *tranger2_list_topic_names(
 );
 ```
 
+**Parameters**
+
+| Key | Type | Description |
+|---|---|---|
+| `tranger` | `json_t *` | The tranger database handle (JSON object). |
+
+**Returns**
+
+A new JSON array of strings, each being a topic name found as a subdirectory in the tranger database directory. The caller owns the returned array and must call `json_decref()` on it. Hidden entries (names starting with `.`) are excluded.
+
+**Notes**
+
+This function operates on disk, not in memory. It may return topic names that are not currently open, or miss topics that exist only in memory. Use [`tranger2_list_topics()`](#tranger2_list_topics) to get the in-memory list instead.
+
 ---
 
 (tranger2_topic_path)=
 ## `tranger2_topic_path()`
 
-*Description pending — signature extracted from header.*
+`tranger2_topic_path()` writes the filesystem path of a topic into the provided buffer. The path is constructed by appending the topic name to the tranger database directory.
 
 ```C
 int tranger2_topic_path(
@@ -1550,6 +1564,23 @@ int tranger2_topic_path(
     const char *topic_name
 );
 ```
+
+**Parameters**
+
+| Key | Type | Description |
+|---|---|---|
+| `bf` | `char *` | Output buffer where the topic path will be written. |
+| `bfsize` | `size_t` | Size of the output buffer in bytes. |
+| `tranger` | `json_t *` | The tranger database handle (JSON object). |
+| `topic_name` | `const char *` | Name of the topic. |
+
+**Returns**
+
+Returns `0` on success.
+
+**Notes**
+
+The resulting path has the format `<directory>/<topic_name>`, where `<directory>` is the tranger database directory stored in the tranger handle.
 
 ---
 

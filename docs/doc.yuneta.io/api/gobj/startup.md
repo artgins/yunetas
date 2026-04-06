@@ -161,11 +161,25 @@ If `global_authentication_parser` is `NULL`, authentication is bypassed.
 (gobj_set_shutdown)=
 ## `gobj_set_shutdown()`
 
-*Description pending — signature extracted from header.*
+Marks the gobj system as shutting down. Once called, `gobj_is_shutdowning()` will return `TRUE`. This flag is used throughout the framework to signal that the yuno is in the process of shutting down, allowing GClasses to perform cleanup and stop accepting new work.
 
 ```C
 void gobj_set_shutdown(void);
 ```
+
+**Parameters**
+
+| Key | Type | Description |
+|---|---|---|
+| `-` | `-` | This function does not take any parameters. |
+
+**Returns**
+
+This function does not return a value.
+
+**Notes**
+
+Calling this function multiple times is safe -- subsequent calls are ignored if the shutdown flag is already set. Use `gobj_is_shutdowning()` to check the current shutdown state.
 
 ---
 

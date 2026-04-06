@@ -794,29 +794,57 @@ This function is used for debugging and tracing execution flow. It formats and l
 (gobj_global_trace_level)=
 ## `gobj_global_trace_level()`
 
-*Description pending — signature extracted from header.*
+Returns the current global trace level bitmask, considering the deep trace setting.
 
 ```C
 uint32_t gobj_global_trace_level(void);
 ```
+
+**Parameters**
+
+| Key | Type | Description |
+|---|---|---|
+| `-` | `-` | This function does not take any parameters. |
+
+**Returns**
+
+A `uint32_t` bitmask of the active global trace levels. If deep tracing is enabled, all bits are set (all levels active).
+
+**Notes**
+
+When deep tracing is active (level >= 2), this function returns `0xFFFFFFFF` to enable all trace levels unconditionally. Use [`gobj_global_trace_level2()`](#gobj_global_trace_level2) to get the raw bitmask without deep trace influence.
 
 ---
 
 (gobj_global_trace_level2)=
 ## `gobj_global_trace_level2()`
 
-*Description pending — signature extracted from header.*
+Returns the current global trace level bitmask without considering deep trace.
 
 ```C
 uint32_t gobj_global_trace_level2(void);
 ```
+
+**Parameters**
+
+| Key | Type | Description |
+|---|---|---|
+| `-` | `-` | This function does not take any parameters. |
+
+**Returns**
+
+A `uint32_t` raw bitmask of the active global trace levels, regardless of the deep trace setting.
+
+**Notes**
+
+Unlike [`gobj_global_trace_level()`](#gobj_global_trace_level), this function always returns the actual bitmask value, even when deep tracing is enabled.
 
 ---
 
 (gobj_set_global_no_trace2)=
 ## `gobj_set_global_no_trace2()`
 
-*Description pending — signature extracted from header.*
+Sets or resets specific bits in the global no-trace level bitmask.
 
 ```C
 int gobj_set_global_no_trace2(
@@ -825,12 +853,27 @@ int gobj_set_global_no_trace2(
 );
 ```
 
+**Parameters**
+
+| Key | Type | Description |
+|---|---|---|
+| `level` | `uint32_t` | Bitmask of trace levels to set or reset in the global no-trace mask. |
+| `set` | `BOOL` | If `TRUE`, the specified bits are set (disabling those trace levels). If `FALSE`, the bits are cleared (re-enabling those trace levels). |
+
+**Returns**
+
+Returns 0.
+
+**Notes**
+
+This is the numeric bitmask variant of [`gobj_set_global_no_trace()`](#gobj_set_global_no_trace), which accepts trace level names as strings.
+
 ---
 
 (gobj_set_global_trace2)=
 ## `gobj_set_global_trace2()`
 
-*Description pending — signature extracted from header.*
+Sets or resets specific bits in the global trace level bitmask.
 
 ```C
 int gobj_set_global_trace2(
@@ -839,12 +882,27 @@ int gobj_set_global_trace2(
 );
 ```
 
+**Parameters**
+
+| Key | Type | Description |
+|---|---|---|
+| `level` | `uint32_t` | Bitmask of trace levels to set or reset in the global trace mask. |
+| `set` | `BOOL` | If `TRUE`, the specified bits are set (enabling those trace levels). If `FALSE`, the bits are cleared (disabling those trace levels). |
+
+**Returns**
+
+Returns 0.
+
+**Notes**
+
+This is the numeric bitmask variant of [`gobj_set_global_trace()`](#gobj_set_global_trace), which accepts trace level names as strings.
+
 ---
 
 (gobj_is_level_tracing)=
 ## `gobj_is_level_tracing()`
 
-*Description pending — signature extracted from header.*
+Determines whether a specific trace level is enabled for a given gobj.
 
 ```C
 BOOL gobj_is_level_tracing(
@@ -853,12 +911,27 @@ BOOL gobj_is_level_tracing(
 );
 ```
 
+**Parameters**
+
+| Key | Type | Description |
+|---|---|---|
+| `gobj` | `hgobj` | The gobj instance to check. Can be NULL, in which case only the global trace level is consulted. |
+| `level` | `uint32_t` | The trace level bitmask to test. |
+
+**Returns**
+
+Returns `TRUE` if the specified trace level is active for the gobj (considering global, gclass, and per-instance settings), `FALSE` otherwise.
+
+**Notes**
+
+The function combines the global trace level, the gclass trace level, and the per-instance trace level. It also respects no-trace masks that can suppress specific levels.
+
 ---
 
 (gobj_is_level_not_tracing)=
 ## `gobj_is_level_not_tracing()`
 
-*Description pending — signature extracted from header.*
+Determines whether a specific trace level is explicitly disabled for a given gobj.
 
 ```C
 BOOL gobj_is_level_not_tracing(
@@ -867,12 +940,27 @@ BOOL gobj_is_level_not_tracing(
 );
 ```
 
+**Parameters**
+
+| Key | Type | Description |
+|---|---|---|
+| `gobj` | `hgobj` | The gobj instance to check. Can be NULL, in which case only the global no-trace level is consulted. |
+| `level` | `uint32_t` | The trace level bitmask to test. |
+
+**Returns**
+
+Returns `TRUE` if the specified trace level is explicitly disabled (present in the no-trace mask) for the gobj, `FALSE` otherwise.
+
+**Notes**
+
+This checks the no-trace masks at global, gclass, and per-instance levels. A level in the no-trace mask will suppress tracing even if it is enabled in the regular trace mask.
+
 ---
 
 (gobj_set_trace_machine_format)=
 ## `gobj_set_trace_machine_format()`
 
-*Description pending — signature extracted from header.*
+Sets the output format for trace_machine messages.
 
 ```C
 void gobj_set_trace_machine_format(
@@ -880,12 +968,26 @@ void gobj_set_trace_machine_format(
 );
 ```
 
+**Parameters**
+
+| Key | Type | Description |
+|---|---|---|
+| `format` | `int` | The format mode. Use 0 for the default format that includes a timestamp prefix. |
+
+**Returns**
+
+This function does not return a value.
+
+**Notes**
+
+The format setting affects how [`trace_machine()`](#trace_machine) and [`trace_machine2()`](#trace_machine2) render their output.
+
 ---
 
 (trace_machine2)=
 ## `trace_machine2()`
 
-*Description pending — signature extracted from header.*
+Logs formatted trace messages without adding timestamps.
 
 ```C
 void trace_machine2(
@@ -893,6 +995,21 @@ void trace_machine2(
     ...) JANSSON_ATTRS((format(printf, 1, 2))
 );
 ```
+
+**Parameters**
+
+| Key | Type | Description |
+|---|---|---|
+| `fmt` | `const char *` | The format string, similar to `printf()`, specifying the message format. |
+| `...` | `variadic arguments` | Additional arguments corresponding to the format specifiers in `fmt`. |
+
+**Returns**
+
+This function does not return a value.
+
+**Notes**
+
+Unlike [`trace_machine()`](#trace_machine), this variant does not prepend a timestamp to the output. It is useful for continuation lines or structured output where timestamps would add noise.
 
 ---
 

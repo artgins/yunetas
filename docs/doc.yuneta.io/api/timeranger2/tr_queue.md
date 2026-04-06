@@ -422,7 +422,7 @@ Use `trq_unload_msg()` to free a message from the queue iterator after processin
 (trq_append2)=
 ## `trq_append2()`
 
-*Description pending — signature extracted from header.*
+Appends a new message to the queue with an explicit timestamp and optional user flags.
 
 ```C
 q_msg_t * trq_append2(
@@ -433,12 +433,25 @@ q_msg_t * trq_append2(
 );
 ```
 
+**Parameters**
+
+| Key | Type | Description |
+|---|---|---|
+| `trq` | `tr_queue_t *` | The queue instance to append the message to. |
+| `t` | `json_int_t` | Timestamp for the message. Pass `0` to use the current time. |
+| `kw` | `json_t *` | The JSON payload of the message. Ownership is transferred to the queue. |
+| `user_flag` | `uint16_t` | Optional user-defined flags to associate with the message. |
+
+**Returns**
+
+Returns a `q_msg_t *` handle to the appended message, or `NULL` on failure.
+
 ---
 
 (trq_load_all_by_time)=
 ## `trq_load_all_by_time()`
 
-*Description pending — signature extracted from header.*
+Loads all messages from the queue within a specified time range.
 
 ```C
 int trq_load_all_by_time(
@@ -448,18 +461,40 @@ int trq_load_all_by_time(
 );
 ```
 
+**Parameters**
+
+| Key | Type | Description |
+|---|---|---|
+| `trq` | `tr_queue_t *` | The queue instance from which messages will be loaded. |
+| `from_t` | `int64_t` | The starting timestamp for the time range. |
+| `to_t` | `int64_t` | The ending timestamp for the time range. |
+
+**Returns**
+
+Returns `0` on success, or a negative value on error.
+
 ---
 
 (trq_msg_md)=
 ## `trq_msg_md()`
 
-*Description pending — signature extracted from header.*
+Retrieves the metadata record associated with a queue message.
 
 ```C
 md2_record_ex_t *trq_msg_md(
     q_msg_t *msg
 );
 ```
+
+**Parameters**
+
+| Key | Type | Description |
+|---|---|---|
+| `msg` | `q_msg_t *` | The queue message whose metadata is to be retrieved. |
+
+**Returns**
+
+Returns a `md2_record_ex_t *` pointer to the internal metadata record.
 
 ---
 

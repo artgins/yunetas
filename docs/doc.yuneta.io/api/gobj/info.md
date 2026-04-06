@@ -936,7 +936,7 @@ The returned string is managed internally and should not be modified or freed by
 (gobj_audit_commands)=
 ## `gobj_audit_commands()`
 
-*Description pending — signature extracted from header.*
+Registers a global callback function that will be invoked every time a command is executed. This enables auditing or logging of all commands processed by the gobj system. Only one audit callback can be active at a time -- subsequent calls overwrite the previously registered callback.
 
 ```C
 int gobj_audit_commands(
@@ -945,12 +945,27 @@ int gobj_audit_commands(
 );
 ```
 
+**Parameters**
+
+| Key | Type | Description |
+|---|---|---|
+| `audit_command_cb` | `function pointer` | The callback invoked for each command. Receives the command name, a JSON kw (NOT owned -- do not decref), and the user data pointer. Pass `NULL` to disable auditing. |
+| `user_data` | `void *` | Opaque pointer passed through to the callback on each invocation. |
+
+**Returns**
+
+Returns `0` on success.
+
+**Notes**
+
+Only one audit callback is supported globally. Each new call to `gobj_audit_commands()` replaces the previous callback and user data.
+
 ---
 
 (gobj_is_bottom_gobj)=
 ## `gobj_is_bottom_gobj()`
 
-*Description pending — signature extracted from header.*
+Checks whether the given gobj is the bottom gobj of its parent. A bottom gobj is a special child that provides attribute inheritance -- when an attribute is not found on the parent, the framework delegates to the bottom gobj.
 
 ```C
 BOOL gobj_is_bottom_gobj(
@@ -958,12 +973,26 @@ BOOL gobj_is_bottom_gobj(
 );
 ```
 
+**Parameters**
+
+| Key | Type | Description |
+|---|---|---|
+| `gobj` | `hgobj` | The GObj instance to check. |
+
+**Returns**
+
+Returns `TRUE` if the gobj is its parent's designated bottom gobj, `FALSE` otherwise (including when `gobj` is `NULL` or has no parent).
+
+**Notes**
+
+The bottom gobj relationship is set during gobj creation. Use `gobj_bottom_gobj()` to retrieve the bottom gobj of a given parent.
+
 ---
 
 (gobj_is_top_service)=
 ## `gobj_is_top_service()`
 
-*Description pending — signature extracted from header.*
+Checks whether the given gobj is a top-level service. A top service is a service gobj that was created with the `gobj_flag_top_service` flag, typically representing the highest-level service in a yuno's gobj tree.
 
 ```C
 BOOL gobj_is_top_service(
@@ -971,12 +1000,26 @@ BOOL gobj_is_top_service(
 );
 ```
 
+**Parameters**
+
+| Key | Type | Description |
+|---|---|---|
+| `gobj` | `hgobj` | The GObj instance to check. |
+
+**Returns**
+
+Returns `TRUE` if the gobj has the `gobj_flag_top_service` flag set, `FALSE` otherwise.
+
+**Notes**
+
+A top service differs from a regular service (`gobj_is_service()`) in that it represents the primary entry point for a yuno. Use `gobj_top_services()` to list all top services.
+
 ---
 
 (gobj_kw_get_user_data)=
 ## `gobj_kw_get_user_data()`
 
-*Description pending — signature extracted from header.*
+Retrieves a value from the gobj's user data dictionary by path. The user data is a free-form JSON object associated with each gobj where application-specific data can be stored (via `gobj_kw_set_user_data()`).
 
 ```C
 json_t *gobj_kw_get_user_data(
@@ -987,12 +1030,29 @@ json_t *gobj_kw_get_user_data(
 );
 ```
 
+**Parameters**
+
+| Key | Type | Description |
+|---|---|---|
+| `gobj` | `hgobj` | The GObj instance whose user data will be queried. |
+| `path` | `const char *` | A dot-separated path to the desired value within the user data dictionary (e.g., `"key"` or `"nested.key"`). |
+| `default_value` | `json_t *` | The value to return if the path is not found. |
+| `flag` | `kw_flag_t` | Flags controlling retrieval behavior. Use `KW_EXTRACT` to remove the value from user data and take ownership; otherwise the returned reference is NOT owned by the caller. |
+
+**Returns**
+
+The JSON value at the given path, or `default_value` if not found. The return value is NOT owned by the caller unless `KW_EXTRACT` is used in `flag`.
+
+**Notes**
+
+This function delegates to `kw_get_dict_value()` on the gobj's internal `jn_user_data` dictionary. Returns `NULL` if `gobj` is `NULL`.
+
 ---
 
 (gobj_nearest_top_service)=
 ## `gobj_nearest_top_service()`
 
-*Description pending — signature extracted from header.*
+Walks up the gobj tree from the given gobj's parent and returns the nearest ancestor that is a service, top service, or the yuno itself. This is useful for finding the enclosing service context of any gobj.
 
 ```C
 hgobj gobj_nearest_top_service(
@@ -1000,16 +1060,44 @@ hgobj gobj_nearest_top_service(
 );
 ```
 
+**Parameters**
+
+| Key | Type | Description |
+|---|---|---|
+| `gobj` | `hgobj` | The GObj instance from which to search upward. The search starts from the gobj's parent, not the gobj itself. |
+
+**Returns**
+
+A handle to the nearest ancestor gobj that is a service, top service, or `__yuno__`. Returns `NULL` if `gobj` is `NULL` or destroyed.
+
+**Notes**
+
+The traversal checks for `gobj_flag_service`, `gobj_flag_top_service`, or `gobj_flag_yuno` flags on each ancestor. The search begins at the parent of the provided gobj.
+
 ---
 
 (gobj_top_services)=
 ## `gobj_top_services()`
 
-*Description pending — signature extracted from header.*
+Returns a JSON array listing all currently registered top-level service gobjs and their metadata. Each element is a JSON object containing the GClass name, service name, gobj handle, priority, and gobj flags.
 
 ```C
 json_t *gobj_top_services(void);
 ```
+
+**Parameters**
+
+| Key | Type | Description |
+|---|---|---|
+| `-` | `-` | This function does not take any parameters. |
+
+**Returns**
+
+A new JSON array (owned by the caller) where each element is a JSON object with keys: `"gclass"` (string), `"service"` (string), `"gobj"` (integer handle), `"priority"` (integer), and `"gobj_flag"` (integer).
+
+**Notes**
+
+Only services with the `gobj_flag_top_service` flag are included. Regular services (without the top flag) are excluded. Use `gobj_services()` to list all registered services including non-top ones.
 
 ---
 

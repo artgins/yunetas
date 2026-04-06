@@ -813,7 +813,7 @@ A 64-bit bitmask where each bit corresponds to a matched string in `strings_tabl
 (anyfile2json)=
 ## `anyfile2json()`
 
-*Description pending — signature extracted from header.*
+Loads a JSON object from a file at the specified path.
 
 ```C
 json_t *anyfile2json(
@@ -822,12 +822,23 @@ json_t *anyfile2json(
 );
 ```
 
+**Parameters**
+
+| Key | Type | Description |
+|---|---|---|
+| `path` | `const char *` | The file path to load the JSON data from. |
+| `verbose` | `BOOL` | If TRUE, logs errors when the file cannot be opened or parsed. |
+
+**Returns**
+
+Returns a `json_t *` representing the parsed JSON object, or NULL if the file cannot be opened or parsing fails.
+
 ---
 
 (debug_json2)=
 ## `debug_json2()`
 
-*Description pending — signature extracted from header.*
+Prints a JSON object with a formatted prefix label, along with its reference counts.
 
 ```C
 int debug_json2(
@@ -837,12 +848,24 @@ int debug_json2(
 );
 ```
 
+**Parameters**
+
+| Key | Type | Description |
+|---|---|---|
+| `jn` | `json_t *` | The JSON object to be printed. |
+| `format` | `const char *` | A printf-style format string used to build the prefix label. |
+| `...` | variadic | Additional arguments for the format string. |
+
+**Returns**
+
+Returns 0 on success, or -1 if the JSON object is NULL.
+
 ---
 
 (is_metadata_key)=
 ## `is_metadata_key()`
 
-*Description pending — signature extracted from header.*
+Checks if a key is a metadata key by verifying it has exactly two leading underscores.
 
 ```C
 BOOL is_metadata_key(
@@ -850,12 +873,22 @@ BOOL is_metadata_key(
 );
 ```
 
+**Parameters**
+
+| Key | Type | Description |
+|---|---|---|
+| `key` | `const char *` | The key string to check. |
+
+**Returns**
+
+Returns TRUE if the key starts with `__`, otherwise returns FALSE.
+
 ---
 
 (is_private_key)=
 ## `is_private_key()`
 
-*Description pending — signature extracted from header.*
+Checks if a key is a private key by verifying it has exactly one leading underscore.
 
 ```C
 BOOL is_private_key(
@@ -863,12 +896,22 @@ BOOL is_private_key(
 );
 ```
 
+**Parameters**
+
+| Key | Type | Description |
+|---|---|---|
+| `key` | `const char *` | The key string to check. |
+
+**Returns**
+
+Returns TRUE if the key starts with a single `_`, otherwise returns FALSE.
+
 ---
 
 (json_config_string2json)=
 ## `json_config_string2json()`
 
-*Description pending — signature extracted from header.*
+Converts a JSON configuration string into a JSON object, with support for inline comment removal (using `##^` delimiter).
 
 ```C
 json_t *json_config_string2json(
@@ -877,12 +920,23 @@ json_t *json_config_string2json(
 );
 ```
 
+**Parameters**
+
+| Key | Type | Description |
+|---|---|---|
+| `bf` | `const char *` | The JSON configuration string to parse. May contain inline comments delimited by `##^`. |
+| `verbose` | `BOOL` | If TRUE, logs errors when parsing fails. |
+
+**Returns**
+
+Returns a `json_t *` representing the parsed JSON object, or NULL if parsing fails.
+
 ---
 
 (json_dict_recursive_update)=
 ## `json_dict_recursive_update()`
 
-*Description pending — signature extracted from header.*
+Recursively updates a JSON object with key-value pairs from another object.
 
 ```C
 int json_dict_recursive_update(
@@ -892,12 +946,24 @@ int json_dict_recursive_update(
 );
 ```
 
+**Parameters**
+
+| Key | Type | Description |
+|---|---|---|
+| `object` | `json_t *` | The target JSON object to be updated. |
+| `other` | `json_t *` | The source JSON object whose key-value pairs will be merged into `object`. |
+| `overwrite` | `BOOL` | If TRUE, existing keys in `object` are overwritten with values from `other`. If FALSE, existing keys are preserved. |
+
+**Returns**
+
+Returns 0 on success, or -1 if either parameter is not a JSON object.
+
 ---
 
 (json_is_range)=
 ## `json_is_range()`
 
-*Description pending — signature extracted from header.*
+Checks if a JSON array represents a valid integer range (exactly two integers where first <= second).
 
 ```C
 BOOL json_is_range(
@@ -907,12 +973,24 @@ BOOL json_is_range(
 );
 ```
 
+**Parameters**
+
+| Key | Type | Description |
+|---|---|---|
+| `list` | `json_t *` | The JSON array to check. Must contain exactly two integer elements. |
+| `pfirst` | `json_int_t *` | If not NULL, receives the first (lower) value of the range. |
+| `psecond` | `json_int_t *` | If not NULL, receives the second (upper) value of the range. |
+
+**Returns**
+
+Returns TRUE if the array contains exactly two integers where the first is less than or equal to the second, otherwise returns FALSE.
+
 ---
 
 (json_list_find)=
 ## `json_list_find()`
 
-*Description pending — signature extracted from header.*
+Searches for a JSON value in a JSON array and returns its index.
 
 ```C
 int json_list_find(
@@ -921,12 +999,23 @@ int json_list_find(
 );
 ```
 
+**Parameters**
+
+| Key | Type | Description |
+|---|---|---|
+| `list` | `json_t *` | The JSON array to search within. |
+| `value` | `json_t *` | The JSON value to search for. |
+
+**Returns**
+
+Returns the index of the value in the array if found, or -1 if not found.
+
 ---
 
 (json_list_int)=
 ## `json_list_int()`
 
-*Description pending — signature extracted from header.*
+Retrieves an integer value from a JSON array at the specified index.
 
 ```C
 json_int_t json_list_int(
@@ -935,12 +1024,23 @@ json_int_t json_list_int(
 );
 ```
 
+**Parameters**
+
+| Key | Type | Description |
+|---|---|---|
+| `jn_list` | `json_t *` | The JSON array to retrieve the value from. |
+| `idx` | `size_t` | The index of the element to retrieve. |
+
+**Returns**
+
+Returns the integer value at the specified index, or 0 if the index is out of bounds or the element is not an integer.
+
 ---
 
 (json_list_int_index)=
 ## `json_list_int_index()`
 
-*Description pending — signature extracted from header.*
+Searches for an integer value in a JSON array and returns its index.
 
 ```C
 int json_list_int_index(
@@ -949,12 +1049,23 @@ int json_list_int_index(
 );
 ```
 
+**Parameters**
+
+| Key | Type | Description |
+|---|---|---|
+| `jn_list` | `json_t *` | The JSON array to search within. |
+| `value` | `json_int_t` | The integer value to search for. |
+
+**Returns**
+
+Returns the index of the integer value in the array if found, or -1 if not found.
+
 ---
 
 (json_list_update)=
 ## `json_list_update()`
 
-*Description pending — signature extracted from header.*
+Extends a JSON array with values from another array, optionally treating it as a set.
 
 ```C
 int json_list_update(
@@ -964,12 +1075,24 @@ int json_list_update(
 );
 ```
 
+**Parameters**
+
+| Key | Type | Description |
+|---|---|---|
+| `list` | `json_t *` | The target JSON array to extend. |
+| `other` | `json_t *` | The source JSON array whose values will be appended to `list`. |
+| `as_set_type` | `BOOL` | If TRUE, only adds values from `other` that are not already present in `list`, treating the array as a set. |
+
+**Returns**
+
+Returns 0 on success, or -1 on error.
+
 ---
 
 (json_listsrange2set)=
 ## `json_listsrange2set()`
 
-*Description pending — signature extracted from header.*
+Converts a mixed list of integers and integer ranges into a single flattened set of unique integers.
 
 ```C
 json_t *json_listsrange2set(
@@ -977,12 +1100,22 @@ json_t *json_listsrange2set(
 );
 ```
 
+**Parameters**
+
+| Key | Type | Description |
+|---|---|---|
+| `listsrange` | `json_t *` | A JSON array containing integers and/or two-element integer range arrays. Not owned by the function. |
+
+**Returns**
+
+Returns a new `json_t *` array containing the flattened set of unique integers, or NULL on error.
+
 ---
 
 (json_range_list)=
 ## `json_range_list()`
 
-*Description pending — signature extracted from header.*
+Expands an integer range array into a full JSON array of all integers in that range.
 
 ```C
 json_t *json_range_list(
@@ -990,12 +1123,26 @@ json_t *json_range_list(
 );
 ```
 
+**Parameters**
+
+| Key | Type | Description |
+|---|---|---|
+| `list` | `json_t *` | A two-element JSON array representing an integer range `[first, second]`. |
+
+**Returns**
+
+Returns a new `json_t *` array containing all integers from first to second (inclusive), or NULL on error.
+
+**Notes**
+
+This function can be slow for large ranges, as it allocates an element for every integer in the range.
+
 ---
 
 (json_replace_var)=
 ## `json_replace_var()`
 
-*Description pending — signature extracted from header.*
+Replaces variable placeholders using default delimiters `(^^` and `^^)`.
 
 ```C
 json_t *json_replace_var(
@@ -1004,12 +1151,23 @@ json_t *json_replace_var(
 );
 ```
 
+**Parameters**
+
+| Key | Type | Description |
+|---|---|---|
+| `jn_dict` | `json_t *` | The JSON object containing string values with variable placeholders. Owned by the function. |
+| `jn_vars` | `json_t *` | A JSON object mapping variable names to their replacement values. Owned by the function. |
+
+**Returns**
+
+Returns a new `json_t *` with all placeholders replaced, or NULL on error.
+
 ---
 
 (json_replace_var_custom)=
 ## `json_replace_var_custom()`
 
-*Description pending — signature extracted from header.*
+Replaces variable placeholders with custom delimiters.
 
 ```C
 json_t *json_replace_var_custom(
@@ -1020,18 +1178,41 @@ json_t *json_replace_var_custom(
 );
 ```
 
+**Parameters**
+
+| Key | Type | Description |
+|---|---|---|
+| `jn_dict` | `json_t *` | The JSON object containing string values with variable placeholders. Owned by the function. |
+| `jn_vars` | `json_t *` | A JSON object mapping variable names to their replacement values. Owned by the function. |
+| `open` | `const char *` | The opening delimiter string that marks the start of a variable placeholder. |
+| `close` | `const char *` | The closing delimiter string that marks the end of a variable placeholder. |
+
+**Returns**
+
+Returns a new `json_t *` with all placeholders replaced, or NULL on error.
+
 ---
 
 (json_size)=
 ## `json_size()`
 
-*Description pending — signature extracted from header.*
+Returns the size of a JSON value based on its type.
 
 ```C
 size_t json_size(
     json_t *value
 );
 ```
+
+**Parameters**
+
+| Key | Type | Description |
+|---|---|---|
+| `value` | `json_t *` | The JSON value whose size is to be determined. |
+
+**Returns**
+
+Returns the number of elements for arrays and objects, 1 for non-empty strings, and 0 for all other types (including empty strings, integers, reals, booleans, and null).
 
 ---
 

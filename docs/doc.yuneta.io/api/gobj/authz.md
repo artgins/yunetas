@@ -155,7 +155,7 @@ If the `hgobj` has a local authorization checker (`mt_authz_checker`), it is use
 (authz_get_level_desc)=
 ## `authz_get_level_desc()`
 
-*Description pending — signature extracted from header.*
+Looks up an authorization level descriptor by name within an authorization table. The search matches against both the `name` field and any `alias` entries in each descriptor. When a descriptor has no `json_fn` callback, aliases take precedence over the name match.
 
 ```C
 const sdata_desc_t *authz_get_level_desc(
@@ -164,12 +164,27 @@ const sdata_desc_t *authz_get_level_desc(
 );
 ```
 
+**Parameters**
+
+| Key | Type | Description |
+|---|---|---|
+| `authz_table` | `const sdata_desc_t *` | A null-terminated array of `sdata_desc_t` descriptors representing the authorization table to search. |
+| `authz` | `const char *` | The authorization name (or alias) to look up. |
+
+**Returns**
+
+A pointer to the matching `sdata_desc_t` entry if found, or `NULL` if no entry matches.
+
+**Notes**
+
+Aliases allow a single authorization level to be referenced by multiple names. When a descriptor has no `json_fn`, alias matching is checked first, allowing aliases to redirect authorization checks to a named event.
+
 ---
 
 (gobj_build_authzs_doc)=
 ## `gobj_build_authzs_doc()`
 
-*Description pending — signature extracted from header.*
+Builds a JSON document describing available authorizations. If a `service` is specified in `kw`, returns the authorization list for that service only. Otherwise, returns a comprehensive document containing the global authorization table plus the authorization tables of all registered services that define one.
 
 ```C
 json_t *gobj_build_authzs_doc(
@@ -179,12 +194,28 @@ json_t *gobj_build_authzs_doc(
 );
 ```
 
+**Parameters**
+
+| Key | Type | Description |
+|---|---|---|
+| `gobj` | `hgobj` | The GObj context (used for logging). |
+| `cmd` | `const char *` | The command name that triggered this call (informational). |
+| `kw` | `json_t *` | A JSON object with optional keys: `"service"` (string -- restrict to a specific service) and `"authz"` (string -- filter by a specific authorization name). |
+
+**Returns**
+
+A new JSON value (owned by the caller). If a specific service was requested, returns its authz list (array or object). If no service was specified, returns a JSON object keyed by `"global authzs"` and each service name, with their respective authorization lists as values. Returns a JSON string with an error message if the service is not found or has no authorization table.
+
+**Notes**
+
+This function is typically invoked as part of a command handler to provide introspection into the authorization system.
+
 ---
 
 (authzs_list)=
 ## `authzs_list()`
 
-*Description pending — signature extracted from header.*
+Returns the authorization descriptors for a gobj's GClass. If `authz` is empty, returns the full list of all authorization entries as a JSON array. If `authz` is a specific name, returns only the matching authorization entry as a JSON object. When `gobj` is `NULL`, the global authorization table is used instead.
 
 ```C
 json_t *authzs_list(
@@ -192,6 +223,21 @@ json_t *authzs_list(
     const char *authz
 );
 ```
+
+**Parameters**
+
+| Key | Type | Description |
+|---|---|---|
+| `gobj` | `hgobj` | The GObj instance whose GClass authorization table will be queried. Pass `NULL` to query the global authorization table. |
+| `authz` | `const char *` | The specific authorization name to look up. Pass an empty string to return all authorizations. |
+
+**Returns**
+
+A new JSON value (owned by the caller): a JSON array of all authorization entries when `authz` is empty, or a single JSON object for the matching entry. Returns `NULL` if the gobj's GClass has no authorization table or if the specified `authz` is not found.
+
+**Notes**
+
+The authorization descriptors are converted from the `sdata_desc_t` format to JSON via `sdataauth2json()`. An error is logged if a specific `authz` name is requested but not found.
 
 ---
 

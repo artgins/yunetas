@@ -82,7 +82,7 @@ The callback function `cb` should return `TRUE` to continue traversal or `FALSE`
 (dir_array_free)=
 ## `dir_array_free()`
 
-*Description pending — signature extracted from header.*
+Frees all memory associated with a directory array structure.
 
 ```C
 void dir_array_free(
@@ -90,12 +90,22 @@ void dir_array_free(
 );
 ```
 
+**Parameters**
+
+| Key | Type | Description |
+|---|---|---|
+| `da` | `dir_array_t *` | Pointer to the directory array structure to free. |
+
+**Returns**
+
+This function does not return a value.
+
 ---
 
 (dir_array_sort)=
 ## `dir_array_sort()`
 
-*Description pending — signature extracted from header.*
+Sorts the filenames in a directory array in lexicographic order using `qsort()`.
 
 ```C
 void dir_array_sort(
@@ -103,12 +113,22 @@ void dir_array_sort(
 );
 ```
 
+**Parameters**
+
+| Key | Type | Description |
+|---|---|---|
+| `da` | `dir_array_t *` | Pointer to the directory array structure to sort. |
+
+**Returns**
+
+This function does not return a value.
+
 ---
 
 (find_files_with_suffix_array)=
 ## `find_files_with_suffix_array()`
 
-*Description pending — signature extracted from header.*
+Finds all regular files in a directory with a given suffix.
 
 ```C
 int find_files_with_suffix_array(
@@ -119,12 +139,25 @@ int find_files_with_suffix_array(
 );
 ```
 
+**Parameters**
+
+| Key | Type | Description |
+|---|---|---|
+| `gobj` | `hgobj` | A handle to the GObj instance, used for logging and error reporting. |
+| `directory` | `const char *` | The directory to search in. |
+| `suffix` | `const char *` | The file suffix to match (e.g., `".json"`). |
+| `da` | `dir_array_t *` | Pointer to a `dir_array_t` structure that will receive the results. |
+
+**Returns**
+
+Returns `0` on success, or `-1` on error.
+
 ---
 
 (walk_dir_array)=
 ## `walk_dir_array()`
 
-*Description pending — signature extracted from header.*
+Recursively traverses a directory tree and populates an array with paths matching a regex pattern.
 
 ```C
 int walk_dir_array(
@@ -135,6 +168,20 @@ int walk_dir_array(
     dir_array_t *da
 );
 ```
+
+**Parameters**
+
+| Key | Type | Description |
+|---|---|---|
+| `gobj` | `hgobj` | A handle to the GObj instance, used for logging and error reporting. |
+| `root_dir` | `const char *` | The root directory from which the traversal begins. |
+| `re` | `const char *` | A regex pattern to filter filenames. If `NULL`, all entries are included. |
+| `opt` | `wd_option` | Options controlling the traversal behavior, such as recursion and file type filtering. |
+| `da` | `dir_array_t *` | Pointer to a `dir_array_t` structure that will receive the results. |
+
+**Returns**
+
+Returns `0` on success, or `-1` on error.
 
 ---
 
