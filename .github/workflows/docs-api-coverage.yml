@@ -13,13 +13,13 @@ on:
     branches: [main, master]
     paths:
       - 'kernel/c/**/*.h'
-      - 'docs/doc.yuneta.io-mystmd/**/*.md'
+      - 'docs/doc.yuneta.io/**/*.md'
       - 'tools/docs-migration/verify_api_coverage.py'
       - '.github/workflows/docs-api-coverage.yml'
   pull_request:
     paths:
       - 'kernel/c/**/*.h'
-      - 'docs/doc.yuneta.io-mystmd/**/*.md'
+      - 'docs/doc.yuneta.io/**/*.md'
       - 'tools/docs-migration/verify_api_coverage.py'
       - '.github/workflows/docs-api-coverage.yml'
   workflow_dispatch:  # allow manual runs from the Actions tab

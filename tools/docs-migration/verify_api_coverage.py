@@ -30,7 +30,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 
 REPO = Path(__file__).resolve().parents[2]
-DOCS = REPO / "docs" / "doc.yuneta.io-mystmd"
+DOCS = REPO / "docs" / "doc.yuneta.io"
 KERNEL = REPO / "kernel" / "c"
 
 

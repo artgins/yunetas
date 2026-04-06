@@ -88,7 +88,7 @@ Install [sphinx] and [sphinx-book-theme]
         pip install jupyter matplotlib numpy   # solo para el notebook demo
 
     # Lanzar el dev server
-        cd docs/doc.yuneta.io-mystmd
+        cd docs/doc.yuneta.io
         myst start
 
       ```
