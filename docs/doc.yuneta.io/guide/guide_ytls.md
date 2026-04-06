@@ -19,6 +19,8 @@ The ytls module uses a **backend-agnostic** design. The public API (`ytls.h` / `
 
 The compile-time macro `TLS_LIBRARY_NAME` (defined in `ytls.h`) expands to `"openssl"` or `"mbedtls"` accordingly.
 
+At runtime, the chosen backend is available as the **yuno global variable** `__tls_library__` (set in `gobj.c`). This allows any GObj in the tree to query which TLS backend the yuno was compiled with — for example, to adapt configuration strings or log the active backend at startup.
+
 ### Source files
 
 | File | Purpose |
