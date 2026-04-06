@@ -35,9 +35,11 @@ This project is licensed under the MIT License, except for the following files:
 
 Firstly you must create the user/group `yuneta` and the directory `/yuneta`.
 
-    sudo adduser yuneta
-    sudo mkdir /yuneta
-    sudo chown yuneta:yuneta /yuneta
+```bash
+sudo adduser yuneta
+sudo mkdir /yuneta
+sudo chown yuneta:yuneta /yuneta
+```
 
 Re-enter with the user yuneta
 
@@ -45,32 +47,31 @@ Re-enter with the user yuneta
 
 Install the C dependencies:
 
-    sudo apt -y install --no-install-recommends \
-      git mercurial make cmake ninja-build \
-      gcc clang g++ \
-      python3-dev python3-pip python3-setuptools \
-      python3-tk python3-wheel python3-venv \
-      libjansson-dev libpcre2-dev liburing-dev libcurl4-openssl-dev \
-      libpcre3-dev zlib1g-dev libssl-dev \
-      perl dos2unix tree curl \
-      postgresql-server-dev-all libpq-dev \
-      kconfig-frontends telnet pipx \
-      patch gettext fail2ban rsync \
-      build-essential pkg-config ca-certificates linux-libc-dev
+```bash
+sudo apt -y install --no-install-recommends \
+  git mercurial make cmake ninja-build \
+  gcc clang g++ \
+  python3-dev python3-pip python3-setuptools \
+  python3-tk python3-wheel python3-venv \
+  libjansson-dev libpcre2-dev liburing-dev libcurl4-openssl-dev \
+  libpcre3-dev zlib1g-dev libssl-dev \
+  perl dos2unix tree curl \
+  postgresql-server-dev-all libpq-dev \
+  kconfig-frontends telnet pipx \
+  patch gettext fail2ban rsync \
+  build-essential pkg-config ca-certificates linux-libc-dev
 
-    pipx install kconfiglib
+pipx install kconfiglib
+```
 
-<details>
-<summary>Why these dependencies?</summary>
-<pre>
-  libjansson-dev          # required for libjwt
-  libpcre2-dev            # required by openresty
-  perl dos2unix mercurial # required by openresty
-  pipx kconfiglib         # used by yunetas, configuration tool
-  kconfig-frontends       # used by yunetas, other configuration tool
-  telnet                  # required by tests
-</pre>
-</details>
+```{dropdown} Why these dependencies?
+- `libjansson-dev`          — required for libjwt
+- `libpcre2-dev`            — required by openresty
+- `perl dos2unix mercurial` — required by openresty
+- `pipx kconfiglib`         — used by yunetas, configuration tool
+- `kconfig-frontends`       — used by yunetas, other configuration tool
+- `telnet`                  — required by tests
+```
 
 ## Install `yunetas`
 
@@ -86,14 +87,14 @@ On Linux:
 
 - Ubuntu 23.04 or above:
 
-    ``` shell
+    ```bash
     sudo apt install pipx
     pipx ensurepath
     ```
 
 - Ubuntu 22.04 or below
 
-    ``` shell
+    ```bash
     python3 -m pip install --user pipx
     python3 -m pipx ensurepath
     ```
@@ -101,25 +102,25 @@ On Linux:
 ## Install `yunetas`
 
 -
-  ``` shell
+  ```bash
   pipx install yunetas
   ```
 
 ### Update or uninstall `yunetas`
 
-```{dropdown} Click to see
+````{dropdown} Click to see
   - Update yunetas:
 
-      ``` shell
+      ```bash
       pipx upgrade yunetas
       ```
 
   - Uninstall yunetas:
 
-      ``` shell
+      ```bash
       pipx uninstall yunetas
       ```
-```
+````
 
 :::
 
@@ -129,7 +130,7 @@ On Linux:
 Steps to install and create a virtual environment:
 - Install [conda]:
 
-    ``` shell
+    ```bash
     mkdir -p ~/miniconda3
     wget https://repo.anaconda.com/miniconda/Miniconda3-latest-Linux-x86_64.sh -O ~/miniconda3/miniconda.sh
     bash ~/miniconda3/miniconda.sh -b -u -p ~/miniconda3
@@ -138,16 +139,16 @@ Steps to install and create a virtual environment:
     ```
 
 - **Now you must close and re-open your current shell**:
-    ``` shell
+    ```bash
     exit # exit and RE-open bash to continue !!
     ```
 - Add conda-forge channel:
-    ``` shell
+    ```bash
     conda config --add channels conda-forge
     ```
 
 - Create the virtual environment `conda_yunetas` and activate:
-    ``` shell
+    ```bash
     conda create -y -n conda_yunetas pip
     conda config --set auto_activate_base false
     echo 'conda activate conda_yunetas' >> ~/.bashrc
@@ -157,7 +158,7 @@ Steps to install and create a virtual environment:
 
 ## Install `yunetas`
 
-``` shell
+```bash
 pip install yunetas
 ```
 
@@ -172,23 +173,31 @@ Clone Yunetas with submodules:
 
 Build your own project directory:
 
-    mkdir ~/yunetaprojects 
-    cd ~/yunetaprojects
+```bash
+mkdir ~/yunetaprojects
+cd ~/yunetaprojects
+```
 
 Get the current version of yunetas:
 
-    git clone --recurse-submodules https://github.com/artgins/yunetas.git
+```bash
+git clone --recurse-submodules https://github.com/artgins/yunetas.git
+```
 
 Or Get some version of yunetas:
 
-    git clone -b <version> --recurse-submodules https://github.com/artgins/yunetas.git <version>
+```bash
+git clone -b <version> --recurse-submodules https://github.com/artgins/yunetas.git <version>
+```
 
 ## Activating yunetas
 
 Go to the yunetas directory in your project and activate:
 
-    cd ~/yunetaprojects/yunetas
-    source yunetas-env.sh
+```bash
+cd ~/yunetaprojects/yunetas
+source yunetas-env.sh
+```
 
 
 ## Configure .bashrc
@@ -196,15 +205,19 @@ Go to the yunetas directory in your project and activate:
 Next times, to activate yunetas environment,
 (you can add these lines to ``~/.bashrc`` :
 
-    # edit: "vim ~/.bashrc" and add next lines: 
-    cd ~/yunetaprojects/yunetas
-    source yunetas-env.sh
+```bash
+# edit: "vim ~/.bashrc" and add next lines:
+cd ~/yunetaprojects/yunetas
+source yunetas-env.sh
+```
 
 ## Configure .yunetasrc
 
-The script source `yunetas-env.sh` also sources the file 
+The script source `yunetas-env.sh` also sources the file
 
-    ~/.yunetasrc
+```text
+~/.yunetasrc
+```
 
 where you can place your own scripts.
 
@@ -215,41 +228,45 @@ The output from Kconfig is a header file ``yuneta_config.h`` with macros that ca
 
 Goto `yunetas` directory:
 
-    cd ~/yunetaprojects/yunetas
+```bash
+cd ~/yunetaprojects/yunetas
+```
 
 Use this utility to edit the Kconfig file and to select the compiler, build type, etc:
 
-    menuconfig
+```text
+menuconfig
 
-    Options:
+Options:
 
-    (Top) → Compiler Selection
-        (X) Clang compiler (default, but don't use in RISC cpus, use GCC)
-        ( ) GCC compiler
+(Top) → Compiler Selection
+    (X) Clang compiler (default, but don't use in RISC cpus, use GCC)
+    ( ) GCC compiler
 
-    (Top) → Build Type
-        (X) RelWithDebInfo
-        ( ) Release
-        ( ) Debug
-        ( ) MinSizeRel
+(Top) → Build Type
+    (X) RelWithDebInfo
+    ( ) Release
+    ( ) Debug
+    ( ) MinSizeRel
 
-    (Top) → TLS Library
-        (X) OpenSSL
-        ( ) Mbed-TLS        TODO
+(Top) → TLS Library
+    (X) OpenSSL
+    ( ) Mbed-TLS        TODO
 
-    (Top) → Build Configuration
-        [ ] Fully static binary (gcc/clang + glibc, no shared libs)
+(Top) → Build Configuration
+    [ ] Fully static binary (gcc/clang + glibc, no shared libs)
 
-    (Top) → Debug Options
-        [*] Use backtrace library
-        [*] Enable track memory
-        [ ] Print times of yev_loop
+(Top) → Debug Options
+    [*] Use backtrace library
+    [*] Enable track memory
+    [ ] Print times of yev_loop
 
-    (Top) → Modules
-        *** Available modules. ***
-        [*] C_PROT support
-        [*] C_CONSOLE support
-        [*] C_POSTGRES support
+(Top) → Modules
+    *** Available modules. ***
+    [*] C_PROT support
+    [*] C_CONSOLE support
+    [*] C_POSTGRES support
+```
 
 
 > ⚠️ **Warning:** Save the configuration, otherwise the compilation will fail, the **.config** file is required.
@@ -263,12 +280,16 @@ Firstly, install yuneta dependencies:
 
 Goto `linux-ext-libs` directory:
 
-    cd ~/yunetaprojects/yunetas/kernel/c/linux-ext-libs/
+```bash
+cd ~/yunetaprojects/yunetas/kernel/c/linux-ext-libs/
+```
 
 Extract, compile and install:
 
-    ./extrae.sh         # clone libraries
-    ./configure-libs.sh # configure, build and install libraries
+```bash
+./extrae.sh         # clone libraries
+./configure-libs.sh # configure, build and install libraries
+```
 
 > ℹ️ **Fully static builds** (`CONFIG_FULLY_STATIC=y`) use the same
 > `configure-libs.sh` with GCC or Clang — no separate toolchain needed.
@@ -282,31 +303,39 @@ Extract, compile and install:
 
 To build and install yunetas:
 
-    yunetas init
-    yunetas build
+```bash
+yunetas init
+yunetas build
+```
 
 
 ### Test
 
 To test:
 
-    yunetas test
+```bash
+yunetas test
+```
 
 By default, the installation directory of include files,
 libraries and binaries will be in ``/yuneta/development/outputs/``
 
 ## Want the old /var/log/syslog back?
 
-    sudo apt-get update
-    sudo apt-get install rsyslog
-    sudo systemctl enable --now rsyslog
+```bash
+sudo apt-get update
+sudo apt-get install rsyslog
+sudo systemctl enable --now rsyslog
+```
 
 ## How remove warning: Setting locale failed:
 
-    dpkg-reconfigure locales
+```bash
+dpkg-reconfigure locales
+```
 
 
-[pipx]:     https://pipx.pypa.io/stable/installation/
+[pipx]:     https://pipx.pypa.io/stable/
 [yunetas]:  https://pypi.org/project/yunetas/
 
 [sphinx]:   https://www.sphinx-doc.org/

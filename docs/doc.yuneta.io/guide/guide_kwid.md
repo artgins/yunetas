@@ -101,7 +101,7 @@ The macros `JSON_DECREF` and `JSON_INCREF` manage the reference count of `json_t
 Decreases the reference count of a JSON object and frees it if the count reaches zero.
 
 ### **Parameters**
-- **json** ([`json_t *`](json_t)) → The JSON object whose reference count should be decreased.
+- **json** (`json_t *`) → The JSON object whose reference count should be decreased.
 
 ### **Return Value**
 - **None** → This macro does not return a value.
@@ -118,7 +118,7 @@ Use this macro to safely free JSON objects when they are no longer needed.
 Increases the reference count of a JSON object, preventing it from being freed prematurely.
 
 ### **Parameters**
-- **json** ([`json_t *`](json_t)) → The JSON object whose reference count should be increased.
+- **json** (`json_t *`) → The JSON object whose reference count should be increased.
 
 ### **Return Value**
 - **None** → This macro does not return a value.

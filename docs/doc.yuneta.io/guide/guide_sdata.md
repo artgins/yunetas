@@ -23,37 +23,16 @@ SData tables are arrays of field descriptors (`sdata_desc_t`) that define struct
 
 The `data_type_t` enumeration defines the types of data that SData fields can represent:
 
-::: {list-table}
-:widths: 30 70
-:header-rows: 1
-
-* - **Type**
-  - **Description**
-
-* - `DTP_STRING`
-  - A text string.
-
-* - `DTP_BOOLEAN`
-  - A boolean value (`TRUE` or `FALSE`).
-
-* - `DTP_INTEGER`
-  - An integer value.
-
-* - `DTP_REAL`
-  - A floating-point number.
-
-* - `DTP_LIST`
-  - A list (array) of values.
-
-* - `DTP_DICT`
-  - A dictionary (key-value pairs).
-
-* - `DTP_JSON`
-  - A JSON object.
-
-* - `DTP_POINTER`
-  - A generic pointer.
-:::
+| Type | Description |
+|---|---|
+| `DTP_STRING`  | A text string. |
+| `DTP_BOOLEAN` | A boolean value (`TRUE` or `FALSE`). |
+| `DTP_INTEGER` | An integer value. |
+| `DTP_REAL`    | A floating-point number. |
+| `DTP_LIST`    | A list (array) of values. |
+| `DTP_DICT`    | A dictionary (key-value pairs). |
+| `DTP_JSON`    | A JSON object. |
+| `DTP_POINTER` | A generic pointer. |
 
 
 ### Data Type Utilities
@@ -73,62 +52,24 @@ The `data_type_t` enumeration defines the types of data that SData fields can re
 
 The `sdata_flag_t` enumeration defines the properties and characteristics of each field. Flags are bitwise-combinable to give fields multiple properties.
 
-::: {list-table}
-:widths: 20 80
-:header-rows: 1
-
-* - **Flag**
-  - **Description**
-
-* - `SDF_NOTACCESS`
-  - Field is not accessible.
-
-* - `SDF_RD`
-  - Field is read-only.
-
-* - `SDF_WR`
-  - Field is writable (and readable).
-
-* - `SDF_REQUIRED`
-  - Field is required; it must not be null.
-
-* - `SDF_PERSIST`
-  - Field is persistent and must be saved/loaded.
-
-* - `SDF_VOLATIL`
-  - Field is volatile and must not be saved/loaded.
-
-* - `SDF_RESOURCE`
-  - Field is a resource, referencing another schema.
-
-* - `SDF_PKEY`
-  - Field is a primary key.
-
-* - `SDF_STATS`
-  - Field holds statistical data (metadata).
-
-* - `SDF_RSTATS`
-  - Field holds resettable statistics, implicitly `SDF_STATS`.
-
-* - `SDF_PSTATS`
-  - Field holds persistent statistics, implicitly `SDF_STATS`.
-
-* - `SDF_AUTHZ_R`
-  - Read access requires authorization (`__read_attribute__`).
-
-* - `SDF_AUTHZ_W`
-  - Write access requires authorization (`__write_attribute__`).
-
-* - `SDF_AUTHZ_X`
-  - Execution requires authorization (`__execute_command__`).
-
-* - `SDF_AUTHZ_S`
-  - Stats read requires authorization (`__read_stats__`).
-
-* - `SDF_AUTHZ_RS`
-  - Stats reset requires authorization (`__reset_stats__`).
-
-:::
+| Flag | Description |
+|---|---|
+| `SDF_NOTACCESS` | Field is not accessible. |
+| `SDF_RD`        | Field is read-only. |
+| `SDF_WR`        | Field is writable (and readable). |
+| `SDF_REQUIRED`  | Field is required; it must not be null. |
+| `SDF_PERSIST`   | Field is persistent and must be saved/loaded. |
+| `SDF_VOLATIL`   | Field is volatile and must not be saved/loaded. |
+| `SDF_RESOURCE`  | Field is a resource, referencing another schema. |
+| `SDF_PKEY`      | Field is a primary key. |
+| `SDF_STATS`     | Field holds statistical data (metadata). |
+| `SDF_RSTATS`    | Field holds resettable statistics, implicitly `SDF_STATS`. |
+| `SDF_PSTATS`    | Field holds persistent statistics, implicitly `SDF_STATS`. |
+| `SDF_AUTHZ_R`   | Read access requires authorization (`__read_attribute__`). |
+| `SDF_AUTHZ_W`   | Write access requires authorization (`__write_attribute__`). |
+| `SDF_AUTHZ_X`   | Execution requires authorization (`__execute_command__`). |
+| `SDF_AUTHZ_S`   | Stats read requires authorization (`__read_stats__`). |
+| `SDF_AUTHZ_RS`  | Stats reset requires authorization (`__reset_stats__`). |
 
 (SDF_NOTACCESS)=
 ### SDF_NOTACCESS
@@ -206,58 +147,19 @@ The `sdata_flag_t` enumeration defines the properties and characteristics of eac
 
 The `sdata_desc_t` structure defines a field or schema. Each descriptor specifies the following:
 
-::: {list-table}
-:widths: 20 25 55
-:header-rows: 1
-
-* - **Field**
-  - **Type**
-  - **Description**
-
-* - `type`
-  - `data_type_t`
-  - The type of the field (e.g., string, boolean).
-
-* - `name`
-  - `const char *`
-  - The name of the field.
-
-* - `alias`
-  - `const char **`
-  - Alternative names (aliases) for the field.
-
-* - `flag`
-  - `sdata_flag_t`
-  - Flags defining the field's properties.
-
-* - `default_value`
-  - `const char *`
-  - The default value of the field.
-
-* - `header`
-  - `const char *`
-  - Header text for table columns.
-
-* - `fillspace`
-  - `int`
-  - Column width for table formatting.
-
-* - `description`
-  - `const char *`
-  - A description of the field's purpose.
-
-* - `json_fn`
-  - `json_function_fn`
-  - Custom function for processing JSON data.
-
-* - `schema`
-  - `const sdata_desc_t *`
-  - Pointer to a sub-schema for compound fields.
-
-* - `authpth`
-  - `const char *`
-  - Authorization path for accessing or modifying the field.
-:::
+| Field | Type | Description |
+|---|---|---|
+| `type`          | `data_type_t`          | The type of the field (e.g., string, boolean). |
+| `name`          | `const char *`         | The name of the field. |
+| `alias`         | `const char **`        | Alternative names (aliases) for the field. |
+| `flag`          | `sdata_flag_t`         | Flags defining the field's properties. |
+| `default_value` | `const char *`         | The default value of the field. |
+| `header`        | `const char *`         | Header text for table columns. |
+| `fillspace`     | `int`                  | Column width for table formatting. |
+| `description`   | `const char *`         | A description of the field's purpose. |
+| `json_fn`       | `json_function_fn`     | Custom function for processing JSON data. |
+| `schema`        | `const sdata_desc_t *` | Pointer to a sub-schema for compound fields. |
+| `authpth`       | `const char *`         | Authorization path for accessing or modifying the field. |
 
 
 ---
