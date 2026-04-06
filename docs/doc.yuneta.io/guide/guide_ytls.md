@@ -10,14 +10,33 @@ The **ytls.h** header file defines the interface for the TLS (Transport Layer Se
 - **Secure Data Transmission:** Functions for sending and receiving encrypted data over TLS connections.
 - **Error Handling & Debugging:** Utilities for logging and debugging TLS-related issues.
 
-## **ytls.c**
-The **ytls.c** implementation file contains the actual logic for managing TLS connections. It utilizes OpenSSL to provide encryption and secure communication. Key functionalities implemented include:
+## **Architecture**
 
-- **TLS Context Setup:** Creating, configuring, and destroying SSL contexts.
+The ytls module uses a **backend-agnostic** design. The public API (`ytls.h` / `ytls.c`) exposes a single `api_tls_t` dispatch table, while the actual crypto is provided by one of two interchangeable backends selected at compile time via Kconfig:
+
+- **OpenSSL** (`CONFIG_HAVE_OPENSSL`) — default, full-featured TLS backend.
+- **mbed-TLS** (`CONFIG_HAVE_MBEDTLS`) — lightweight alternative that produces ~3x smaller static binaries.
+
+The compile-time macro `TLS_LIBRARY_NAME` (defined in `ytls.h`) expands to `"openssl"` or `"mbedtls"` accordingly.
+
+### Source files
+
+| File | Purpose |
+|------|---------|
+| `ytls.h` / `ytls.c` | Public API and dispatch table |
+| `tls/openssl.c` / `openssl.h` | OpenSSL backend implementation |
+| `tls/mbedtls.c` / `mbedtls.h` | mbed-TLS backend implementation |
+
+### Backend implementations
+
+Both backends implement the same functionality:
+
+- **TLS Context Setup:** Creating, configuring, and destroying TLS contexts.
 - **Certificate Loading:** Loading certificates, verifying them, and handling private keys.
 - **Connection Handling:** Establishing, reading, writing, and closing TLS-secured connections.
-- **Error Reporting:** Logging and handling OpenSSL-related errors.
+- **Error Reporting:** Logging and handling backend-specific errors.
 - **Secure Communication:** Encrypting and decrypting data sent over a TLS connection.
+- **Password Hashing:** Both backends use PBKDF2-HMAC (RFC 2898) and produce bit-for-bit identical output, so user/password databases are fully portable between backends.
 
 This module ensures that Yuneta applications can securely transmit data over the network using industry-standard encryption protocols.
 
@@ -25,8 +44,9 @@ This module ensures that Yuneta applications can securely transmit data over the
 The **ytls** module is built with the core philosophy of Yuneta in mind:
 
 - **Security as a Priority:** Ensuring that all data transmitted over the network is encrypted and protected from eavesdropping or tampering.
-- **Minimalism & Efficiency:** Providing a streamlined, efficient implementation that integrates seamlessly with the Yuneta framework.
-- **Reliability & Stability:** Using OpenSSL as the underlying cryptographic library to ensure robust and well-tested security mechanisms.
+- **Backend Agnosticism:** Abstracting the TLS backend behind a dispatch table so the rest of the codebase never depends on a specific crypto library. Switching between OpenSSL and mbed-TLS requires only a Kconfig change and rebuild.
+- **Minimalism & Efficiency:** Providing a streamlined, efficient implementation that integrates seamlessly with the Yuneta framework. Choose mbed-TLS for smaller binaries on embedded/edge deployments.
+- **Reliability & Stability:** Both OpenSSL and mbed-TLS are well-tested, industry-standard cryptographic libraries.
 - **Flexibility:** Allowing customization of TLS parameters, certificates, and cipher suites to meet diverse application needs.
 - **Ease of Use:** Abstracting complex TLS operations while giving developers a simple and consistent API for secure communication.
 
