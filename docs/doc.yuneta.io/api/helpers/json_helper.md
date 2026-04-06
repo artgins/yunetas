@@ -379,7 +379,7 @@ int json_check_refcounts(
 
 | Key | Type | Description |
 |---|---|---|
-| `jn` | `json_t *` | The JSON object to check. It is not owned by the function. |
+| `kw` | `json_t *` | The JSON object to check. It is not owned by the function. |
 | `max_refcount` | `int` | The maximum allowed reference count for any JSON element. If set to a positive value, elements exceeding this limit will be reported. |
 | `result` | `int *` | Pointer to an integer that stores the result of the check. It must be initialized to 0 before calling the function. |
 

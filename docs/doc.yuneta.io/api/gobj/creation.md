@@ -200,7 +200,7 @@ hgobj gobj_create_tree(
 |---|---|---|
 | `parent` | `hgobj` | The parent `gobj` under which the tree will be created. |
 | `tree_config` | `const char *` | A JSON string defining the structure and attributes of the `gobj` tree. |
-| `json_config_variables` | `const char *` | A JSON string containing configuration variables to be applied to the tree. |
+| `json_config_variables` | `json_t *` | A JSON object (owned) containing configuration variables to be applied to the tree. |
 
 **Returns**
 

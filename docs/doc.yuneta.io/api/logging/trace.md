@@ -159,7 +159,7 @@ json_t *gobj_get_gclass_trace_no_level_list(
 
 | Key | Type | Description |
 |---|---|---|
-| `gclass_` | `hgclass` | The gclass to retrieve the disabled trace levels for. If NULL, retrieves the list for all gclasses. |
+| `gclass` | `hgclass` | The gclass to retrieve the disabled trace levels for. If NULL, retrieves the list for all gclasses. |
 
 **Returns**
 

@@ -748,7 +748,7 @@ void set_show_backtrace_fn(
 
 | Key | Type | Description |
 |---|---|---|
-| `show_backtrace_` | `show_backtrace_fn_t` | Function pointer to the backtrace display handler. |
+| `show_backtrace_fn` | `show_backtrace_fn_t` | Function pointer to the backtrace display handler. |
 
 **Returns**
 
@@ -756,7 +756,7 @@ This function does not return a value.
 
 **Notes**
 
-If `show_backtrace_` is set to `NULL`, backtrace logging will be disabled.
+If `show_backtrace_fn` is set to `NULL`, backtrace logging will be disabled.
 
 ---
 
@@ -780,8 +780,8 @@ int stdout_fwrite(
 |---|---|---|
 | `v` | `void *` | Unused parameter, included for compatibility with log handler function signatures. |
 | `priority` | `int` | The priority level of the log message, determining its severity. |
-| `fmt` | `const char *` | The format string specifying how subsequent arguments are formatted. |
-| `...` | `variadic` | Additional arguments corresponding to the format specifiers in `fmt`. |
+| `format` | `const char *` | The format string specifying how subsequent arguments are formatted. |
+| `...` | `variadic` | Additional arguments corresponding to the format specifiers in `format`. |
 
 **Returns**
 

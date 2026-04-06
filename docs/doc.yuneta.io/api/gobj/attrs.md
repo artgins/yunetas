@@ -230,7 +230,7 @@ json_t *gobj_read_attr(
 | Key | Type | Description |
 |---|---|---|
 | `gobj` | `hgobj` | The `hgobj` instance from which the attribute value is retrieved. |
-| `name` | `const char *` | The name of the attribute to retrieve. |
+| `path` | `const char *` | The path of the attribute to retrieve. |
 | `src` | `hgobj` | The source `hgobj` requesting the attribute value. |
 
 **Returns**
@@ -642,7 +642,7 @@ int gobj_write_attrs(
 |---|---|---|
 | `gobj` | `hgobj` | The target `hgobj` object whose attributes will be modified. |
 | `kw` | `json_t *` | A JSON dictionary containing attribute names and their new values. The ownership of this object is transferred to the function. |
-| `flag` | `sdata_flag_t` | A flag specifying which attributes should be updated. Only attributes matching this flag will be modified. |
+| `include_flag` | `sdata_flag_t` | A flag specifying which attributes should be updated. Only attributes matching this flag will be modified. |
 | `src` | `hgobj` | The source `hgobj` object initiating the attribute modification. |
 
 **Returns**
@@ -892,7 +892,7 @@ int gobj_write_strn_attr(
 |---|---|---|
 | `gobj` | `hgobj` | The target object where the attribute will be written. |
 | `name` | `const char *` | The name of the attribute to be written. |
-| `value` | `const char *` | The string value to be written to the attribute. |
+| `s` | `const char *` | The string value to be written to the attribute. |
 | `len` | `size_t` | The maximum length of the string to be written. |
 
 **Returns**

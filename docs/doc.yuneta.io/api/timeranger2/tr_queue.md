@@ -51,7 +51,7 @@ int trq_check_backup(
 
 | Key | Type | Description |
 |---|---|---|
-| `trq` | `tr_queue` | The queue instance to check and perform backup if needed. |
+| `trq` | `tr_queue_t *` | The queue instance to check and perform backup if needed. |
 
 **Returns**
 
@@ -80,7 +80,8 @@ int trq_check_pending_rowid(
 
 | Key | Type | Description |
 |---|---|---|
-| `trq` | `tr_queue` | The queue instance to check. |
+| `trq` | `tr_queue_t *` | The queue instance to check. |
+| `__t__` | `uint64_t` | Time value of the message. |
 | `rowid` | `uint64_t` | The unique row identifier of the message. |
 
 **Returns**
@@ -108,7 +109,7 @@ void trq_close(
 
 | Key | Type | Description |
 |---|---|---|
-| `trq` | `tr_queue` | The queue instance to be closed. |
+| `trq` | `tr_queue_t *` | The queue instance to be closed. |
 
 **Returns**
 
@@ -136,12 +137,12 @@ q_msg_t * trq_get_by_rowid(
 
 | Key | Type | Description |
 |---|---|---|
-| `trq` | `tr_queue` | The queue instance from which to retrieve the message. |
+| `trq` | `tr_queue_t *` | The queue instance from which to retrieve the message. |
 | `rowid` | `uint64_t` | The row ID of the message to retrieve. |
 
 **Returns**
 
-Returns a `q_msg` handle to the retrieved message, or `NULL` if the message is not found.
+Returns a `q_msg_t *` handle to the retrieved message, or `NULL` if the message is not found.
 
 **Notes**
 
@@ -191,7 +192,7 @@ int trq_load(
 
 | Key | Type | Description |
 |---|---|---|
-| `trq` | `tr_queue` | The queue instance from which pending messages will be loaded. |
+| `trq` | `tr_queue_t *` | The queue instance from which pending messages will be loaded. |
 
 **Returns**
 
@@ -220,8 +221,7 @@ int trq_load_all(
 
 | Key | Type | Description |
 |---|---|---|
-| `trq` | `tr_queue` | The queue instance from which messages will be loaded. |
-| `key` | `const char *` | An optional key to filter messages; if NULL, all messages are loaded. |
+| `trq` | `tr_queue_t *` | The queue instance from which messages will be loaded. |
 | `from_rowid` | `int64_t` | The starting rowid for loading messages. |
 | `to_rowid` | `int64_t` | The ending rowid for loading messages. |
 
@@ -250,7 +250,7 @@ json_t *trq_msg_json(
 
 | Key | Type | Description |
 |---|---|---|
-| `msg` | `q_msg` | The queue message whose JSON representation is to be retrieved. |
+| `msg` | `q_msg_t *` | The queue message whose JSON representation is to be retrieved. |
 
 **Returns**
 
@@ -283,14 +283,13 @@ tr_queue_t *trq_open(
 |---|---|---|
 | `tranger` | `json_t *` | Pointer to the `tranger` instance managing the queue. |
 | `topic_name` | `const char *` | Name of the topic associated with the queue. |
-| `pkey` | `const char *` | Primary key used for indexing messages in the queue. |
 | `tkey` | `const char *` | Time key used for ordering messages in the queue. |
 | `system_flag` | `system_flag2_t` | System flags controlling queue behavior. |
 | `backup_queue_size` | `size_t` | Maximum number of messages to retain in the backup queue. |
 
 **Returns**
 
-Returns a `tr_queue` handle representing the opened queue, or `NULL` on failure.
+Returns a `tr_queue_t *` handle representing the opened queue, or `NULL` on failure.
 
 **Notes**
 
@@ -315,8 +314,8 @@ int trq_set_hard_flag(
 
 | Key | Type | Description |
 |---|---|---|
-| `msg` | `q_msg` | The message to be marked. |
-| `hard_mark` | `uint32_t` | The hard flag to set on the message. |
+| `msg` | `q_msg_t *` | The message to be marked. |
+| `hard_mark` | `uint16_t` | The hard flag to set on the message. |
 | `set` | `BOOL` | If `TRUE`, the flag is set; if `FALSE`, the flag is cleared. |
 
 **Returns**
@@ -377,7 +376,7 @@ uint64_t trq_set_soft_mark(
 
 | Key | Type | Description |
 |---|---|---|
-| `msg` | `q_msg` | The queue message on which the soft mark is to be set or cleared. |
+| `msg` | `q_msg_t *` | The queue message on which the soft mark is to be set or cleared. |
 | `soft_mark` | `uint64_t` | The soft mark value to be applied to the message. |
 | `set` | `BOOL` | If `TRUE`, the soft mark is set; if `FALSE`, the soft mark is cleared. |
 
@@ -407,7 +406,7 @@ void trq_unload_msg(
 
 | Key | Type | Description |
 |---|---|---|
-| `msg` | `q_msg` | The message to be unloaded from the queue iterator. |
+| `msg` | `q_msg_t *` | The message to be unloaded from the queue iterator. |
 | `result` | `int32_t` | The result code associated with the message unloading operation. |
 
 **Returns**

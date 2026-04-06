@@ -209,11 +209,34 @@ json_t *gobj_global_variables(void);
 
 **Returns**
 
-A JSON object containing global variables such as `__node_owner__`, `__realm_id__`, `__yuno_id__`, and system-related attributes.
+A JSON object containing the following global variables:
+
+| **Variable**              | **Description**                          |
+|---------------------------|------------------------------------------|
+| `__node_owner__`          | Node owner of the Yuno.                  |
+| `__realm_id__`            | Realm ID of the Yuno.                    |
+| `__realm_owner__`         | Realm owner of the Yuno.                 |
+| `__realm_role__`          | Realm role of the Yuno.                  |
+| `__realm_name__`          | Name of the realm.                       |
+| `__realm_env__`           | Environment of the realm.                |
+| `__yuno_id__`             | Unique ID of the Yuno.                   |
+| `__yuno_role__`           | Role of the Yuno.                        |
+| `__yuno_name__`           | Name of the Yuno.                        |
+| `__yuno_tag__`            | Tag of the Yuno.                         |
+| `__yuno_role_plus_name__` | Role and name of the Yuno.               |
+| `__hostname__`            | Hostname of the system.                  |
+| `__sys_system_name__`     | System name (Linux only).                |
+| `__sys_node_name__`       | Node name (Linux only).                  |
+| `__sys_version__`         | System version (Linux only).             |
+| `__sys_release__`         | System release (Linux only).             |
+| `__sys_machine__`         | Machine type (Linux only).               |
+| `__tls_library__`         | Active TLS backend: `"openssl"` or `"mbedtls"` (compile-time). |
+| `__bind_ip__`             | Bind IP address of the Yuno (set when yuno is running). |
+| `__multiple__`            | Whether the Yuno allows multiple instances (boolean, set when yuno is running). |
 
 **Notes**
 
-The returned JSON object must be managed properly to avoid memory leaks. It includes predefined global variables that provide contextual information about the Yuno instance.
+The returned JSON object must be decremented with `json_decref()` to avoid memory leaks. These variables are also available for substitution in configuration strings via the `(^^ ^^)` syntax — see [Settings](../../guide/settings.md#1-global-variable-substitution).
 
 ---
 

@@ -257,7 +257,7 @@ int mkrdir(
 | Key | Type | Description |
 |---|---|---|
 | `path` | `const char *` | The directory path to be created. |
-| `permission` | `int` | The permission mode for the created directories. |
+| `xpermission` | `int` | The permission mode for the created directories. |
 
 **Returns**
 
@@ -286,7 +286,7 @@ int newdir(
 | Key | Type | Description |
 |---|---|---|
 | `path` | `const char *` | The path of the directory to be created. |
-| `permission` | `int` | The permission mode for the new directory. |
+| `xpermission` | `int` | The permission mode for the new directory. |
 
 **Returns**
 

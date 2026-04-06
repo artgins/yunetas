@@ -7,7 +7,7 @@ and their configuration, can be done with
 the function:
 
 ```C
-    PUBLIC char *json_config(
+    PUBLIC json_t *json_config(
         BOOL print_verbose_config,
         BOOL print_final_config,
         const char *fixed_config,
@@ -28,7 +28,7 @@ The `json_config()` function is a utility in Yuneta designed to generate a final
 
 The `json_config()` function merges multiple JSON configurations into a single final configuration string, following a specific order of precedence. It also includes features like comment handling, variable substitution, and range-based expansion for flexibility and advanced use cases.
 
-The return of `json_config()` is a string that must be converted to JSON.
+The return of `json_config()` is a `json_t *` object (owned by the caller, must be freed with `json_decref()`).
 
 (global_settings)=
 
@@ -41,7 +41,7 @@ and will be merge to `kw` when creating a `gobj`.
 ## Features
 
 ### 1. **Global Variable Substitution**
-The function replaces strings enclosed in `(^^ ^^)` with corresponding values from the `__json_config_variables__` dictionary. This dictionary includes global variables returned by `gobj_global_variables()`.
+The function replaces strings enclosed in `(^^ ^^)` with corresponding values from the `__json_config_variables__` dictionary. This dictionary includes global variables returned by [`gobj_global_variables()`](../api/gobj/info.md#gobj_global_variables).
 
 #### Predefined Variables in `__json_config_variables__`
 
@@ -64,6 +64,9 @@ The function replaces strings enclosed in `(^^ ^^)` with corresponding values fr
 | `__sys_version__`         | System version (Linux only).             |
 | `__sys_release__`         | System release (Linux only).             |
 | `__sys_machine__`         | Machine type (Linux only).               |
+| `__tls_library__`         | Active TLS backend: `"openssl"` or `"mbedtls"` (compile-time). |
+| `__bind_ip__`             | Bind IP address of the Yuno.             |
+| `__multiple__`            | Whether the Yuno allows multiple instances (boolean). |
 
 ### 2. **Comment Handling**
 Supports single-line comments using the syntax `##^` in JSON strings.

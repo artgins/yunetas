@@ -87,8 +87,8 @@ int ghttp_parser_received(
 | Key | Type | Description |
 |---|---|---|
 | `parser` | `GHTTP_PARSER *` | Pointer to the `GHTTP_PARSER` instance handling the HTTP parsing. |
-| `buf` | `char *` | Pointer to the buffer containing the HTTP message data. |
-| `received` | `size_t` | Number of bytes available in `buf` for parsing. |
+| `bf` | `char *` | Pointer to the buffer containing the HTTP message data. |
+| `len` | `size_t` | Number of bytes available in `bf` for parsing. |
 
 **Returns**
 

@@ -109,6 +109,10 @@ Flags define the access permissions and characteristics of attributes:
 - **Authorization:**
   - `SDF_AUTHZ_R`: Read access requires authorization.
   - `SDF_AUTHZ_W`: Write access requires authorization.
+  - `SDF_AUTHZ_X`: Execution requires authorization.
+  - `SDF_AUTHZ_P`: Authorization constraint parameter.
+  - `SDF_AUTHZ_S`: Stats read requires authorization.
+  - `SDF_AUTHZ_RS`: Stats reset requires authorization.
 
 #### 3. **Default Values**
 Default values ensure that attributes are initialized with predictable and meaningful data. They are applied when no explicit value is provided during configuration or runtime.
@@ -304,7 +308,7 @@ The `GMETHODS` structure enables flexible, modular behavior in the Yuneta framew
 
 ```{warning}
 Some methods are not currently utilized in the gobj API. 
-Refer to the [](#mapping_gmethods) section for details.
+Refer to the [Mapping of GMethods](#mapping_gmethods) section for details.
 ```
 
 (mt_create)=

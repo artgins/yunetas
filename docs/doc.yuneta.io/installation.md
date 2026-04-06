@@ -296,7 +296,7 @@ Extract, compile and install:
 > ℹ️ **Fully static builds** (`CONFIG_FULLY_STATIC=y`) use the same
 > `configure-libs.sh` with GCC or Clang — no separate toolchain needed.
 > OpenSSL is built with `no-dso` and `no-sock` to avoid glibc resolver
-> stubs in the static binary.  See `kernel/c/linux-ext-libs/HACKS.rst`
+> stubs in the static binary.  See `kernel/c/linux-ext-libs/HACKS.md`
 > for details.
 
 ## Compile Yunetas

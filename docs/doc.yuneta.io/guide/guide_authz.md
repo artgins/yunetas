@@ -58,11 +58,11 @@ The authorization checker:
 
 ## GClass `C_AUTHZ`
 
-Yuneta provides a GClass `C_AUTHZ` with default implementations for authentication and authorization:
-- **Authentication:** `PUBLIC json_t *authenticate_parser(hgobj gobj_service, json_t *kw, hgobj src)`
+Yuneta provides a module `c_authz` with default standalone implementations for authentication and authorization:
+- **Authentication:** `PUBLIC json_t *authentication_parser(hgobj gobj_service, json_t *kw, hgobj src)`
 - **Authorization:** `PUBLIC BOOL authz_checker(hgobj gobj_to_check, const char *authz, json_t *kw, hgobj src)`
 
-These functions can be used directly by passing them to `gobj_start_up()`.
+These are public module-level functions (not GClass methods). They can be passed directly to `gobj_start_up()` as the global authentication parser and authorization checker. Internally, `authz_checker` locates the `C_AUTHZ` service instance to perform the actual check.
 
 ---
 

@@ -88,12 +88,12 @@ The `persistent_attrs_t` structure contains function pointers for managing persi
 
 ```c
 typedef struct {
-    startup_persistent_attrs_fn  startup_persistent_attrs;
-    end_persistent_attrs_fn      end_persistent_attrs;
-    load_persistent_attrs_fn     load_persistent_attrs;
-    save_persistent_attrs_fn     save_persistent_attrs;
-    remove_persistent_attrs_fn   remove_persistent_attrs;
-    list_persistent_attrs_fn     list_persistent_attrs;
+    startup_persistent_attrs_fn  startup;
+    end_persistent_attrs_fn      end;
+    load_persistent_attrs_fn     load;
+    save_persistent_attrs_fn     save;
+    remove_persistent_attrs_fn   remove;
+    list_persistent_attrs_fn     list;
 } persistent_attrs_t;
 ```
 

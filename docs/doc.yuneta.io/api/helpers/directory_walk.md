@@ -28,13 +28,13 @@ int get_ordered_filename_array(
 |---|---|---|
 | `gobj` | `hgobj` | A handle to the GObj instance, used for logging and error reporting. |
 | `root_dir` | `const char *` | The root directory from which to retrieve filenames. |
-| `pattern` | `const char *` | A regex pattern to filter filenames. If NULL, all files are included. |
+| `re` | `const char *` | A regex pattern to filter filenames. If NULL, all files are included. |
 | `opt` | `wd_option` | Options for directory traversal, such as recursion and file type filtering. |
-| `size` | `int *` | Pointer to an integer that will be set to the number of files found. |
+| `da` | `dir_array_t *` | Pointer to a `dir_array_t` structure that will receive the results. |
 
 **Returns**
 
-Returns a dynamically allocated array of strings containing the ordered filenames. The caller must free the array using `free_ordered_filename_array()`.
+Returns `0` on success, or a negative value on error. Results are stored in the `da` structure. Free with `dir_array_free()`.
 
 **Notes**
 

@@ -69,15 +69,16 @@ yev_event_h yev_create_accept_event(
 |---|---|---|
 | `yev_loop` | `yev_loop_h` | The event loop handle in which the accept event will be created. |
 | `callback` | `yev_callback_t` | The callback function to be invoked when the event is triggered. If it returns -1, the loop in [`yev_loop_run()`](<#yev_loop_run>) will break. |
+| `listen_url` | `const char *` | The URL to listen on (e.g., `"tcp://0.0.0.0:7000"`). |
+| `backlog` | `int` | Queue size of pending connections for socket listening. |
+| `shared` | `BOOL` | Whether to open the socket as shared (`SO_REUSEPORT`). |
+| `ai_family` | `int` | Address family (e.g., `AF_UNSPEC`, `AF_INET`, `AF_INET6`). |
+| `ai_flags` | `int` | Address info flags (e.g., `AI_V4MAPPED \| AI_ADDRCONFIG`). |
 | `gobj` | `hgobj` | The associated `hgobj` object for event handling. |
 
 **Returns**
 
 Returns a `yev_event_h` handle to the newly created accept event, or `NULL` on failure.
-
-**Notes**
-
-The event is configured at creation time by [`yev_create_accept_event()`](#yev_create_accept_event).
 
 ---
 
@@ -104,15 +105,15 @@ yev_event_h yev_create_connect_event(
 |---|---|---|
 | `yev_loop` | `yev_loop_h` | The event loop handle in which the connect event will be created. |
 | `callback` | `yev_callback_t` | The callback function to be invoked when the event is triggered. If it returns -1, the loop in [`yev_loop_run()`](<#yev_loop_run>) will break. |
+| `dst_url` | `const char *` | Destination URL to connect to (e.g., `"tcp://host:port"`). |
+| `src_url` | `const char *` | Source URL for local binding (`host:port` only), or `NULL`. |
+| `ai_family` | `int` | Address family (e.g., `AF_UNSPEC`, `AF_INET`, `AF_INET6`). |
+| `ai_flags` | `int` | Address info flags (e.g., `AI_V4MAPPED \| AI_ADDRCONFIG`). |
 | `gobj` | `hgobj` | The associated GObj instance for event handling. |
 
 **Returns**
 
 Returns a `yev_event_h` handle to the newly created connect event, or `NULL` on failure.
-
-**Notes**
-
-The event is configured at creation time by [`yev_create_connect_event()`](#yev_create_connect_event).
 
 ---
 

@@ -68,6 +68,7 @@ The `sdata_flag_t` enumeration defines the properties and characteristics of eac
 | `SDF_AUTHZ_R`   | Read access requires authorization (`__read_attribute__`). |
 | `SDF_AUTHZ_W`   | Write access requires authorization (`__write_attribute__`). |
 | `SDF_AUTHZ_X`   | Execution requires authorization (`__execute_command__`). |
+| `SDF_AUTHZ_P`   | Authorization constraint parameter. |
 | `SDF_AUTHZ_S`   | Stats read requires authorization (`__read_stats__`). |
 | `SDF_AUTHZ_RS`  | Stats reset requires authorization (`__reset_stats__`). |
 
@@ -130,6 +131,10 @@ The `sdata_flag_t` enumeration defines the properties and characteristics of eac
 (SDF_AUTHZ_S)=
 ### SDF_AUTHZ_S
     Stats read requires authorization (`__read_stats__`).
+
+(SDF_AUTHZ_P)=
+### SDF_AUTHZ_P
+    Authorization constraint parameter.
 
 (SDF_AUTHZ_RS)=
 ### SDF_AUTHZ_RS

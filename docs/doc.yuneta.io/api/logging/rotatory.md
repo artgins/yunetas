@@ -105,7 +105,7 @@ int rotatory_fwrite(
 
 | Key | Type | Description |
 |---|---|---|
-| `hr` | `hrotatory_h` | Handle to the rotatory log instance. |
+| `hr_` | `hrotatory_h` | Handle to the rotatory log instance. |
 | `priority` | `int` | Logging priority level, determining the severity of the message. |
 | `format` | `const char *` | Format string specifying how subsequent arguments are formatted. |
 | `...` | `variadic` | Additional arguments corresponding to the format string. |

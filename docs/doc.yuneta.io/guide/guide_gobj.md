@@ -45,6 +45,7 @@ Flags control the behavior and characteristics of gobjs during their creation. T
 | `gobj_flag_pure_child`    | `0x0010`    | Sets the GObj as a pure child, sending events directly to its parent.          |
 | `gobj_flag_autostart`     | `0x0020`    | Automatically starts the GObj after creation.                                  |
 | `gobj_flag_autoplay`      | `0x0040`    | Automatically plays the GObj after creation.                                   |
+| `gobj_flag_top_service`   | `0x0080`    | Interface (events, attrs, commands, stats) available to external access.        |
 
 ---
 
