@@ -1045,12 +1045,7 @@ PRIVATE int decrypt_data(
         /* Handshake already done — read decrypted application data */
         int ret = flush_clear_data(sskt);
         if(ret < 0) {
-            gobj_log_error(gobj, 0,
-                "function",         "%s", __FUNCTION__,
-                "msgset",           "%s", MSGSET_MBEDTLS_ERROR,
-                "msg",              "%s", "flush_clear_data() FAILED",
-                NULL
-            );
+            // Error already logged in flush_clear_data() (or silenced for close_notify)
             return ret;
         }
     }
