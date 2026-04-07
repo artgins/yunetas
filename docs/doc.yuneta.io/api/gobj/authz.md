@@ -6,6 +6,7 @@ Source code:
 
 - [`gobj.h`](https://github.com/artgins/yunetas/blob/main/kernel/c/gobj-c/src/gobj.h)
 - [`gobj.c`](https://github.com/artgins/yunetas/blob/main/kernel/c/gobj-c/src/gobj.c)
+- [`c_authz.h`](https://github.com/artgins/yunetas/blob/main/kernel/c/root-linux/src/c_authz.h)
 
 (gobj_authenticate)=
 ## `gobj_authenticate()`
@@ -241,3 +242,61 @@ The authorization descriptors are converted from the `sdata_desc_t` format to JS
 
 ---
 
+
+(authz_checker)=
+## `authz_checker()`
+
+Default authorization checker. Used when no custom `authz_checker` is
+provided to [`yuneta_setup()`](../runtime/entry_point.md#yuneta_setup).
+
+```C
+BOOL authz_checker(
+    hgobj gobj_to_check,
+    const char *authz,
+    json_t *kw,
+    hgobj src
+);
+```
+
+**Parameters**
+
+| Key | Type | Description |
+|---|---|---|
+| `gobj_to_check` | `hgobj` | GObject on which authorization is checked. |
+| `authz` | `const char *` | Authorization rule / permission name. |
+| `kw` | `json_t *` | Context keyword arguments. |
+| `src` | `hgobj` | Source gobj requesting authorization. |
+
+**Returns**
+
+`TRUE` if authorized, `FALSE` otherwise.
+
+---
+
+(authentication_parser)=
+## `authentication_parser()`
+
+Default authentication parser. Used when no custom `authentication_parser`
+is provided to [`yuneta_setup()`](../runtime/entry_point.md#yuneta_setup).
+
+```C
+json_t *authentication_parser(
+    hgobj gobj_service,
+    json_t *kw,
+    hgobj src
+);
+```
+
+**Parameters**
+
+| Key | Type | Description |
+|---|---|---|
+| `gobj_service` | `hgobj` | Service gobj. |
+| `kw` | `json_t *` | Keyword arguments with authentication data. |
+| `src` | `hgobj` | Source gobj. |
+
+**Returns**
+
+JSON object with parsed authentication info, or `NULL`.
+
+---

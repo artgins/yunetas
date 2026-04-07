@@ -439,3 +439,55 @@ A string representing the version of the TLS implementation.
 The returned string is managed internally and should not be freed by the caller.
 
 ---
+
+(openssl_api_tls)=
+## `openssl_api_tls()`
+
+Returns the OpenSSL TLS backend dispatch table.
+
+```C
+api_tls_t *openssl_api_tls(void);
+```
+
+**Parameters**
+
+| Key | Type | Description |
+|---|---|---|
+| `-` | `-` | This function does not take any parameters. |
+
+**Returns**
+
+Pointer to the `api_tls_t` structure with OpenSSL-specific implementations.
+
+**Notes**
+
+- Defined in `kernel/c/ytls/src/tls/openssl.h`.
+- Only available when `CONFIG_HAVE_OPENSSL=y`.
+
+---
+
+(mbed_api_tls)=
+## `mbed_api_tls()`
+
+Returns the mbed-TLS backend dispatch table.
+
+```C
+api_tls_t *mbed_api_tls(void);
+```
+
+**Parameters**
+
+| Key | Type | Description |
+|---|---|---|
+| `-` | `-` | This function does not take any parameters. |
+
+**Returns**
+
+Pointer to the `api_tls_t` structure with mbed-TLS-specific implementations.
+
+**Notes**
+
+- Defined in `kernel/c/ytls/src/tls/mbedtls.h`.
+- Only available when `CONFIG_HAVE_MBEDTLS=y`.
+
+---

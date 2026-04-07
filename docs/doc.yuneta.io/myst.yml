@@ -161,6 +161,25 @@ project:
     - title: TLS API
       file: api/ytls/ytls.md
 
+    - title: Runtime API
+      children:
+        - title: Entry Point
+          file: api/runtime/entry_point.md
+        - title: Environment
+          file: api/runtime/environment.md
+        - title: Yuno
+          file: api/runtime/yuno.md
+        - title: Timer
+          file: api/runtime/timer.md
+        - title: Inter-Event Messaging
+          file: api/runtime/msg_ievent.md
+        - title: DB Simple
+          file: api/runtime/dbsimple.md
+        - title: Run Command
+          file: api/runtime/run_command.md
+        - title: GClass Registration
+          file: api/runtime/registration.md
+
     - title: JavaScript API
       children:
         - file: api/js/index.md
