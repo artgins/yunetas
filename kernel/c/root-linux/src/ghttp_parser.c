@@ -81,6 +81,7 @@ PUBLIC GHTTP_PARSER *ghttp_parser_create(
     llhttp_init(&parser->llhttp, type, &settings);
     parser->llhttp.data = parser;
     llhttp_set_lenient_headers(&parser->llhttp, 1);
+    llhttp_set_lenient_data_after_close(&parser->llhttp, 1);
 
     return parser;
 }
@@ -110,6 +111,8 @@ PUBLIC void ghttp_parser_reset(GHTTP_PARSER *parser)
     GBMEM_FREE(parser->last_key);
     llhttp_init(&parser->llhttp, parser->type, &settings);
     parser->llhttp.data = parser;
+    llhttp_set_lenient_headers(&parser->llhttp, 1);
+    llhttp_set_lenient_data_after_close(&parser->llhttp, 1);
 }
 
 /***************************************************************************
