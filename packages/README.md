@@ -19,7 +19,7 @@ cd packages/
 ./RISCV64.sh        # RISC-V 64-bit
 
 # 4. Install the resulting .deb
-sudo apt install ./dist/yuneta-agent-7.2.0-9-amd64.deb
+sudo apt install ./dist/yuneta-agent-7.2.1-9-amd64.deb
 ```
 
 ## Supported Architectures
@@ -350,10 +350,10 @@ After installing the `.deb`, the `postinst` script reminds you to run:
 
 ## Versioning
 
-The package version is read from `../YUNETA_VERSION` (e.g., `YUNETA_VERSION=7.2.0`). The release number is set in each architecture wrapper script (e.g., `RELEASE="9"`). The final package name follows the pattern:
+The package version is read from `../YUNETA_VERSION` (e.g., `YUNETA_VERSION=7.2.1`). The release number is set in each architecture wrapper script (e.g., `RELEASE="9"`). The final package name follows the pattern:
 
 ```
 yuneta-agent-<version>-<release>-<arch>.deb
 ```
 
-Example: `yuneta-agent-7.2.0-9-amd64.deb`
+Example: `yuneta-agent-7.2.1-9-amd64.deb`

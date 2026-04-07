@@ -1,5 +1,10 @@
 # **Changelog**
 
+## v7.2.1 -- 07/Apr/2026
+    - Documentation: add Test Suite page, fix glossary warnings, improve gobj-js and lib-yui READMEs
+    - Remove obsolete defconfig and REVIEW.md
+    - Fix duplicate measure_times declarations in yev_loop.h
+
 ## v7.2.0 -- 04/Apr/2026
     - Fully static glibc binaries (CONFIG_FULLY_STATIC): GCC and Clang, with custom
       static resolver (yuneta_getaddrinfo) and NSS replacements (static_getpwuid, etc.)
