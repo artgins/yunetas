@@ -57,39 +57,6 @@ project:
         - file: guide/guide_ytls.md
         - file: guide/guide_oauth2_pkce_bff.md
 
-    - title: Built-in GClasses
-      children:
-        - title: Overview
-          file: api/gclass/index.md
-        - title: Transport
-          file: api/gclass/transport.md
-        - title: Protocol
-          file: api/gclass/protocol.md
-        - title: Gateway
-          file: api/gclass/gateway.md
-        - title: Inter-Event
-          file: api/gclass/ievent.md
-        - title: Data
-          file: api/gclass/data.md
-        - title: Auth
-          file: api/gclass/auth.md
-        - title: Task & Timer
-          file: api/gclass/task_timer.md
-        - title: System
-          file: api/gclass/system.md
-
-    - title: Built-in Modules
-      file: modules.md
-
-    - title: Built-in Yunos
-      file: yunos.md
-
-    - title: Utilities
-      file: utilities.md
-
-    - title: Benchmarks & Stress Tests
-      file: benchmarks.md
-
     - title: API Reference
       children:
         - title: GObj
@@ -223,6 +190,39 @@ project:
             - file: api/js/logging.md
             - file: api/js/builtin_gclasses.md
             - file: api/js/treedb_helpers.md
+
+    - title: Built-in GClasses
+      children:
+        - title: Overview
+          file: api/gclass/index.md
+        - title: Transport
+          file: api/gclass/transport.md
+        - title: Protocol
+          file: api/gclass/protocol.md
+        - title: Gateway
+          file: api/gclass/gateway.md
+        - title: Inter-Event
+          file: api/gclass/ievent.md
+        - title: Data
+          file: api/gclass/data.md
+        - title: Auth
+          file: api/gclass/auth.md
+        - title: Task & Timer
+          file: api/gclass/task_timer.md
+        - title: System
+          file: api/gclass/system.md
+
+    - title: Built-in Modules
+      file: modules.md
+
+    - title: Built-in Yunos
+      file: yunos.md
+
+    - title: Utilities
+      file: utilities.md
+
+    - title: Benchmarks & Stress Tests
+      file: benchmarks.md
 
     - title: "Appendix: Function Index"
       file: api/appendix_api_index.md
