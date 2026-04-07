@@ -290,7 +290,13 @@ PRIVATE hytls init(
             return NULL;
         }
         mbedtls_ssl_conf_ca_chain(&ytls->conf, &ytls->ca_cert, NULL);
-        mbedtls_ssl_conf_authmode(&ytls->conf, MBEDTLS_SSL_VERIFY_REQUIRED);
+        if(server) {
+            // Server: validate client cert if presented, but don't require it
+            mbedtls_ssl_conf_authmode(&ytls->conf, MBEDTLS_SSL_VERIFY_OPTIONAL);
+        } else {
+            // Client: always verify the server certificate
+            mbedtls_ssl_conf_authmode(&ytls->conf, MBEDTLS_SSL_VERIFY_REQUIRED);
+        }
     } else {
         // No trusted CA configured — disable peer verification
         // (suitable for self-signed certs in development/testing)
