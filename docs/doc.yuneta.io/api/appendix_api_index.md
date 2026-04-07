@@ -1818,7 +1818,7 @@ with links to the API documentation.
 
 2. [**`authz_checker`**](gobj/authz.md#authz_checker) — `PUBLIC BOOL authz_checker(hgobj gobj_to_check, const char *authz, json_t *kw, hgobj src)`
 
-3. [**`authentication_parser`**](gobj/authz.md#authentication_parser) — `PUBLIC json_t *authentication_parser(hgobj gobj_service, json_t *kw, hgobj src)`
+3. [**`authentication_parser`**](gobj/authz.md#api-authentication_parser) — `PUBLIC json_t *authentication_parser(hgobj gobj_service, json_t *kw, hgobj src)`
 
 ### `c_channel.h` — 1 functions
 
@@ -2227,7 +2227,7 @@ All **957 functions** sorted alphabetically with their source header.
 | [**`all_numbers`**](helpers/string_helper.md#all_numbers) | `helpers.h` | gobj-c (Core Framework) |
 | [**`anyfile2json`**](helpers/json_helper.md#anyfile2json) | `helpers.h` | gobj-c (Core Framework) |
 | [**`anystring2json`**](helpers/json_helper.md#anystring2json) | `helpers.h` | gobj-c (Core Framework) |
-| [**`authentication_parser`**](gobj/authz.md#authentication_parser) | `c_authz.h` | root-linux (Runtime GClasses) |
+| [**`authentication_parser`**](gobj/authz.md#api-authentication_parser) | `c_authz.h` | root-linux (Runtime GClasses) |
 | [**`authz_checker`**](gobj/authz.md#authz_checker) | `c_authz.h` | root-linux (Runtime GClasses) |
 | [**`authz_get_level_desc`**](gobj/authz.md#authz_get_level_desc) | `gobj.h` | gobj-c (Core Framework) |
 | [**`authzs_list`**](gobj/authz.md#authzs_list) | `gobj.h` | gobj-c (Core Framework) |

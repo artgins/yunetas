@@ -273,7 +273,7 @@ BOOL authz_checker(
 
 ---
 
-(authentication_parser)=
+(api-authentication_parser)=
 ## `authentication_parser()`
 
 Default authentication parser. Used when no custom `authentication_parser`

@@ -161,6 +161,27 @@ project:
     - title: TLS API
       file: api/ytls/ytls.md
 
+    - title: Built-in GClasses
+      children:
+        - title: Overview
+          file: api/gclass/index.md
+        - title: Transport
+          file: api/gclass/transport.md
+        - title: Protocol
+          file: api/gclass/protocol.md
+        - title: Gateway
+          file: api/gclass/gateway.md
+        - title: Inter-Event
+          file: api/gclass/ievent.md
+        - title: Data
+          file: api/gclass/data.md
+        - title: Auth
+          file: api/gclass/auth.md
+        - title: Task & Timer
+          file: api/gclass/task_timer.md
+        - title: System
+          file: api/gclass/system.md
+
     - title: Runtime API
       children:
         - title: Entry Point
