@@ -177,6 +177,9 @@ project:
         - file: api/js/builtin_gclasses.md
         - file: api/js/treedb_helpers.md
 
+    - title: "Appendix: Function Index"
+      file: api/appendix_api_index.md
+
     - title: Glossary
       file: glossary.md
 
