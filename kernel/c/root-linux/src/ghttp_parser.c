@@ -80,6 +80,7 @@ PUBLIC GHTTP_PARSER *ghttp_parser_create(
 
     llhttp_init(&parser->llhttp, type, &settings);
     parser->llhttp.data = parser;
+    llhttp_set_lenient_headers(&parser->llhttp, 1);
 
     return parser;
 }
