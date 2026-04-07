@@ -358,7 +358,7 @@ int copy_dir(const char *dst, const char *src, json_t *jn_values)
 
     char dst_path[1024];
     char src_path[1024];
-    char rendered_str[80];
+    char rendered_str[NAME_MAX + 1];
     do {
         if (strcmp(entry->d_name, ".") == 0 || strcmp(entry->d_name, "..") == 0) {
             continue;
