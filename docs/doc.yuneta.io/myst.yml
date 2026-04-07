@@ -161,6 +161,9 @@ project:
     - title: TLS API
       file: api/ytls/ytls.md
 
+    - title: JWT API (libjwt)
+      file: api/libjwt.md
+
     - title: Built-in GClasses
       children:
         - title: Overview

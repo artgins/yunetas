@@ -1228,165 +1228,165 @@ with links to the API documentation.
 
 **Source:** `kernel/c/libjwt/src/jwt.h`
 
-1. **`jwt_get_alg`** — `jwt_alg_t jwt_get_alg(const jwt_t *jwt)`
+1. [**`jwt_get_alg`**](libjwt.md#jwt_get_alg) — `jwt_alg_t jwt_get_alg(const jwt_t *jwt)`
 
-2. **`jwt_builder_new`** — `jwt_builder_t *jwt_builder_new(void)`
+2. [**`jwt_builder_new`**](libjwt.md#jwt_builder_new) — `jwt_builder_t *jwt_builder_new(void)`
 
-3. **`jwt_builder_free`** — `void jwt_builder_free(jwt_builder_t *builder)`
+3. [**`jwt_builder_free`**](libjwt.md#jwt_builder_free) — `void jwt_builder_free(jwt_builder_t *builder)`
 
-4. **`jwt_builder_error`** — `int jwt_builder_error(const jwt_builder_t *builder)`
+4. [**`jwt_builder_error`**](libjwt.md#jwt_builder_error) — `int jwt_builder_error(const jwt_builder_t *builder)`
 
-5. **`jwt_builder_error_msg`** — `const char *jwt_builder_error_msg(const jwt_builder_t *builder)`
+5. [**`jwt_builder_error_msg`**](libjwt.md#jwt_builder_error_msg) — `const char *jwt_builder_error_msg(const jwt_builder_t *builder)`
 
-6. **`jwt_builder_error_clear`** — `void jwt_builder_error_clear(jwt_builder_t *builder)`
+6. [**`jwt_builder_error_clear`**](libjwt.md#jwt_builder_error_clear) — `void jwt_builder_error_clear(jwt_builder_t *builder)`
 
-7. **`jwt_builder_setkey`** — `int jwt_builder_setkey(jwt_builder_t *builder, const jwt_alg_t alg, const jwk_item_t *key)`
+7. [**`jwt_builder_setkey`**](libjwt.md#jwt_builder_setkey) — `int jwt_builder_setkey(jwt_builder_t *builder, const jwt_alg_t alg, const jwk_item_t *key)`
 
-8. **`jwt_builder_enable_iat`** — `int jwt_builder_enable_iat(jwt_builder_t *builder, int enable)`
+8. [**`jwt_builder_enable_iat`**](libjwt.md#jwt_builder_enable_iat) — `int jwt_builder_enable_iat(jwt_builder_t *builder, int enable)`
 
-9. **`jwt_builder_setcb`** — `int jwt_builder_setcb(jwt_builder_t *builder, jwt_callback_t cb, void *ctx)`
+9. [**`jwt_builder_setcb`**](libjwt.md#jwt_builder_setcb) — `int jwt_builder_setcb(jwt_builder_t *builder, jwt_callback_t cb, void *ctx)`
 
-10. **`jwt_builder_getctx`** — `void *jwt_builder_getctx(jwt_builder_t *builder)`
+10. [**`jwt_builder_getctx`**](libjwt.md#jwt_builder_getctx) — `void *jwt_builder_getctx(jwt_builder_t *builder)`
 
-11. **`jwt_builder_generate`** — `char *jwt_builder_generate(jwt_builder_t *builder)`
+11. [**`jwt_builder_generate`**](libjwt.md#jwt_builder_generate) — `char *jwt_builder_generate(jwt_builder_t *builder)`
 
-12. **`jwt_checker_new`** — `jwt_checker_t *jwt_checker_new(void)`
+12. [**`jwt_checker_new`**](libjwt.md#jwt_checker_new) — `jwt_checker_t *jwt_checker_new(void)`
 
-13. **`jwt_checker_free`** — `void jwt_checker_free(jwt_checker_t *checker)`
+13. [**`jwt_checker_free`**](libjwt.md#jwt_checker_free) — `void jwt_checker_free(jwt_checker_t *checker)`
 
-14. **`jwt_checker_error`** — `int jwt_checker_error(const jwt_checker_t *checker)`
+14. [**`jwt_checker_error`**](libjwt.md#jwt_checker_error) — `int jwt_checker_error(const jwt_checker_t *checker)`
 
-15. **`jwt_checker_error_msg`** — `const char *jwt_checker_error_msg(const jwt_checker_t *checker)`
+15. [**`jwt_checker_error_msg`**](libjwt.md#jwt_checker_error_msg) — `const char *jwt_checker_error_msg(const jwt_checker_t *checker)`
 
-16. **`jwt_checker_error_clear`** — `void jwt_checker_error_clear(jwt_checker_t *checker)`
+16. [**`jwt_checker_error_clear`**](libjwt.md#jwt_checker_error_clear) — `void jwt_checker_error_clear(jwt_checker_t *checker)`
 
-17. **`jwt_checker_setkey`** — `int jwt_checker_setkey(jwt_checker_t *checker, const jwt_alg_t alg, const jwk_item_t *key)`
+17. [**`jwt_checker_setkey`**](libjwt.md#jwt_checker_setkey) — `int jwt_checker_setkey(jwt_checker_t *checker, const jwt_alg_t alg, const jwk_item_t *key)`
 
-18. **`jwt_checker_setcb`** — `int jwt_checker_setcb(jwt_checker_t *checker, jwt_callback_t cb, void *ctx)`
+18. [**`jwt_checker_setcb`**](libjwt.md#jwt_checker_setcb) — `int jwt_checker_setcb(jwt_checker_t *checker, jwt_callback_t cb, void *ctx)`
 
-19. **`jwt_checker_getctx`** — `void *jwt_checker_getctx(jwt_checker_t *checker)`
+19. [**`jwt_checker_getctx`**](libjwt.md#jwt_checker_getctx) — `void *jwt_checker_getctx(jwt_checker_t *checker)`
 
-20. **`jwt_checker_verify`** — `int jwt_checker_verify(jwt_checker_t *checker, const char *token)`
+20. [**`jwt_checker_verify`**](libjwt.md#jwt_checker_verify) — `int jwt_checker_verify(jwt_checker_t *checker, const char *token)`
 
-21. **`jwt_builder_header_set`** — `jwt_value_error_t jwt_builder_header_set(jwt_builder_t *builder, jwt_value_t *value)`
+21. [**`jwt_builder_header_set`**](libjwt.md#jwt_builder_header_set) — `jwt_value_error_t jwt_builder_header_set(jwt_builder_t *builder, jwt_value_t *value)`
 
-22. **`jwt_builder_header_get`** — `jwt_value_error_t jwt_builder_header_get(jwt_builder_t *builder, jwt_value_t *value)`
+22. [**`jwt_builder_header_get`**](libjwt.md#jwt_builder_header_get) — `jwt_value_error_t jwt_builder_header_get(jwt_builder_t *builder, jwt_value_t *value)`
 
-23. **`jwt_builder_header_del`** — `jwt_value_error_t jwt_builder_header_del(jwt_builder_t *builder, const char *header)`
+23. [**`jwt_builder_header_del`**](libjwt.md#jwt_builder_header_del) — `jwt_value_error_t jwt_builder_header_del(jwt_builder_t *builder, const char *header)`
 
-24. **`jwt_builder_claim_set`** — `jwt_value_error_t jwt_builder_claim_set(jwt_builder_t *builder, jwt_value_t *value)`
+24. [**`jwt_builder_claim_set`**](libjwt.md#jwt_builder_claim_set) — `jwt_value_error_t jwt_builder_claim_set(jwt_builder_t *builder, jwt_value_t *value)`
 
-25. **`jwt_builder_claim_get`** — `jwt_value_error_t jwt_builder_claim_get(jwt_builder_t *builder, jwt_value_t *value)`
+25. [**`jwt_builder_claim_get`**](libjwt.md#jwt_builder_claim_get) — `jwt_value_error_t jwt_builder_claim_get(jwt_builder_t *builder, jwt_value_t *value)`
 
-26. **`jwt_builder_claim_del`** — `jwt_value_error_t jwt_builder_claim_del(jwt_builder_t *builder, const char *claim)`
+26. [**`jwt_builder_claim_del`**](libjwt.md#jwt_builder_claim_del) — `jwt_value_error_t jwt_builder_claim_del(jwt_builder_t *builder, const char *claim)`
 
-27. **`jwt_builder_time_offset`** — `int jwt_builder_time_offset(jwt_builder_t *builder, jwt_claims_t claim, time_t secs)`
+27. [**`jwt_builder_time_offset`**](libjwt.md#jwt_builder_time_offset) — `int jwt_builder_time_offset(jwt_builder_t *builder, jwt_claims_t claim, time_t secs)`
 
-28. **`jwt_checker_claim_get`** — `const char *jwt_checker_claim_get(jwt_checker_t *checker, jwt_claims_t type)`
+28. [**`jwt_checker_claim_get`**](libjwt.md#jwt_checker_claim_get) — `const char *jwt_checker_claim_get(jwt_checker_t *checker, jwt_claims_t type)`
 
-29. **`jwt_checker_claim_set`** — `int jwt_checker_claim_set(jwt_checker_t *checker, jwt_claims_t type, const char *value)`
+29. [**`jwt_checker_claim_set`**](libjwt.md#jwt_checker_claim_set) — `int jwt_checker_claim_set(jwt_checker_t *checker, jwt_claims_t type, const char *value)`
 
-30. **`jwt_checker_claim_del`** — `int jwt_checker_claim_del(jwt_checker_t *checker, jwt_claims_t type)`
+30. [**`jwt_checker_claim_del`**](libjwt.md#jwt_checker_claim_del) — `int jwt_checker_claim_del(jwt_checker_t *checker, jwt_claims_t type)`
 
-31. **`jwt_checker_time_leeway`** — `int jwt_checker_time_leeway(jwt_checker_t *checker, jwt_claims_t claim, time_t secs)`
+31. [**`jwt_checker_time_leeway`**](libjwt.md#jwt_checker_time_leeway) — `int jwt_checker_time_leeway(jwt_checker_t *checker, jwt_claims_t claim, time_t secs)`
 
-32. **`jwt_header_set`** — `jwt_value_error_t jwt_header_set(jwt_t *jwt, jwt_value_t *value)`
+32. [**`jwt_header_set`**](libjwt.md#jwt_header_set) — `jwt_value_error_t jwt_header_set(jwt_t *jwt, jwt_value_t *value)`
 
-33. **`jwt_header_get`** — `jwt_value_error_t jwt_header_get(jwt_t *jwt, jwt_value_t *value)`
+33. [**`jwt_header_get`**](libjwt.md#jwt_header_get) — `jwt_value_error_t jwt_header_get(jwt_t *jwt, jwt_value_t *value)`
 
-34. **`jwt_header_del`** — `jwt_value_error_t jwt_header_del(jwt_t *jwt, const char *header)`
+34. [**`jwt_header_del`**](libjwt.md#jwt_header_del) — `jwt_value_error_t jwt_header_del(jwt_t *jwt, const char *header)`
 
-35. **`jwt_claim_set`** — `jwt_value_error_t jwt_claim_set(jwt_t *jwt, jwt_value_t *value)`
+35. [**`jwt_claim_set`**](libjwt.md#jwt_claim_set) — `jwt_value_error_t jwt_claim_set(jwt_t *jwt, jwt_value_t *value)`
 
-36. **`jwt_claim_get`** — `jwt_value_error_t jwt_claim_get(jwt_t *jwt, jwt_value_t *value)`
+36. [**`jwt_claim_get`**](libjwt.md#jwt_claim_get) — `jwt_value_error_t jwt_claim_get(jwt_t *jwt, jwt_value_t *value)`
 
-37. **`jwt_claim_del`** — `jwt_value_error_t jwt_claim_del(jwt_t *jwt, const char *claim)`
+37. [**`jwt_claim_del`**](libjwt.md#jwt_claim_del) — `jwt_value_error_t jwt_claim_del(jwt_t *jwt, const char *claim)`
 
-38. **`jwt_alg_str`** — `const char *jwt_alg_str(jwt_alg_t alg)`
+38. [**`jwt_alg_str`**](libjwt.md#jwt_alg_str) — `const char *jwt_alg_str(jwt_alg_t alg)`
 
-39. **`jwt_str_alg`** — `jwt_alg_t jwt_str_alg(const char *alg)`
+39. [**`jwt_str_alg`**](libjwt.md#jwt_str_alg) — `jwt_alg_t jwt_str_alg(const char *alg)`
 
-40. **`jwks_load`** — `jwk_set_t *jwks_load(jwk_set_t *jwk_set, const char *jwk_json_str)`
+40. [**`jwks_load`**](libjwt.md#jwks_load) — `jwk_set_t *jwks_load(jwk_set_t *jwk_set, const char *jwk_json_str)`
 
-41. **`jwks_load_strn`** — `jwk_set_t *jwks_load_strn(jwk_set_t *jwk_set, const char *jwk_json_str, const size_t len)`
+41. [**`jwks_load_strn`**](libjwt.md#jwks_load_strn) — `jwk_set_t *jwks_load_strn(jwk_set_t *jwk_set, const char *jwk_json_str, const size_t len)`
 
-42. **`jwks_load_fromfile`** — `jwk_set_t *jwks_load_fromfile(jwk_set_t *jwk_set, const char *file_name)`
+42. [**`jwks_load_fromfile`**](libjwt.md#jwks_load_fromfile) — `jwk_set_t *jwks_load_fromfile(jwk_set_t *jwk_set, const char *file_name)`
 
-43. **`jwks_load_fromfp`** — `jwk_set_t *jwks_load_fromfp(jwk_set_t *jwk_set, FILE *input)`
+43. [**`jwks_load_fromfp`**](libjwt.md#jwks_load_fromfp) — `jwk_set_t *jwks_load_fromfp(jwk_set_t *jwk_set, FILE *input)`
 
-44. **`jwks_load_fromurl`** — `jwk_set_t *jwks_load_fromurl(jwk_set_t *jwk_set, const char *url, int verify)`
+44. [**`jwks_load_fromurl`**](libjwt.md#jwks_load_fromurl) — `jwk_set_t *jwks_load_fromurl(jwk_set_t *jwk_set, const char *url, int verify)`
 
-45. **`jwks_create`** — `jwk_set_t *jwks_create(const char *jwk_json_str)`
+45. [**`jwks_create`**](libjwt.md#jwks_create) — `jwk_set_t *jwks_create(const char *jwk_json_str)`
 
-46. **`jwks_create_strn`** — `jwk_set_t *jwks_create_strn(const char *jwk_json_str, const size_t len)`
+46. [**`jwks_create_strn`**](libjwt.md#jwks_create_strn) — `jwk_set_t *jwks_create_strn(const char *jwk_json_str, const size_t len)`
 
-47. **`jwks_create_fromfile`** — `jwk_set_t *jwks_create_fromfile(const char *file_name)`
+47. [**`jwks_create_fromfile`**](libjwt.md#jwks_create_fromfile) — `jwk_set_t *jwks_create_fromfile(const char *file_name)`
 
-48. **`jwks_create_fromfp`** — `jwk_set_t *jwks_create_fromfp(FILE *input)`
+48. [**`jwks_create_fromfp`**](libjwt.md#jwks_create_fromfp) — `jwk_set_t *jwks_create_fromfp(FILE *input)`
 
-49. **`jwks_create_fromurl`** — `jwk_set_t *jwks_create_fromurl(const char *url, int verify)`
+49. [**`jwks_create_fromurl`**](libjwt.md#jwks_create_fromurl) — `jwk_set_t *jwks_create_fromurl(const char *url, int verify)`
 
-50. **`jwks_error`** — `int jwks_error(const jwk_set_t *jwk_set)`
+50. [**`jwks_error`**](libjwt.md#jwks_error) — `int jwks_error(const jwk_set_t *jwk_set)`
 
-51. **`jwks_error_any`** — `int jwks_error_any(const jwk_set_t *jwk_set)`
+51. [**`jwks_error_any`**](libjwt.md#jwks_error_any) — `int jwks_error_any(const jwk_set_t *jwk_set)`
 
-52. **`jwks_error_msg`** — `const char *jwks_error_msg(const jwk_set_t *jwk_set)`
+52. [**`jwks_error_msg`**](libjwt.md#jwks_error_msg) — `const char *jwks_error_msg(const jwk_set_t *jwk_set)`
 
-53. **`jwks_error_clear`** — `void jwks_error_clear(jwk_set_t *jwk_set)`
+53. [**`jwks_error_clear`**](libjwt.md#jwks_error_clear) — `void jwks_error_clear(jwk_set_t *jwk_set)`
 
-54. **`jwks_free`** — `void jwks_free(jwk_set_t *jwk_set)`
+54. [**`jwks_free`**](libjwt.md#jwks_free) — `void jwks_free(jwk_set_t *jwk_set)`
 
-55. **`jwks_item_get`** — `const jwk_item_t *jwks_item_get(const jwk_set_t *jwk_set, size_t index)`
+55. [**`jwks_item_get`**](libjwt.md#jwks_item_get) — `const jwk_item_t *jwks_item_get(const jwk_set_t *jwk_set, size_t index)`
 
-56. **`jwks_find_bykid`** — `jwk_item_t *jwks_find_bykid(jwk_set_t *jwk_set, const char *kid)`
+56. [**`jwks_find_bykid`**](libjwt.md#jwks_find_bykid) — `jwk_item_t *jwks_find_bykid(jwk_set_t *jwk_set, const char *kid)`
 
-57. **`jwks_item_is_private`** — `int jwks_item_is_private(const jwk_item_t *item)`
+57. [**`jwks_item_is_private`**](libjwt.md#jwks_item_is_private) — `int jwks_item_is_private(const jwk_item_t *item)`
 
-58. **`jwks_item_error`** — `int jwks_item_error(const jwk_item_t *item)`
+58. [**`jwks_item_error`**](libjwt.md#jwks_item_error) — `int jwks_item_error(const jwk_item_t *item)`
 
-59. **`jwks_item_error_msg`** — `const char *jwks_item_error_msg(const jwk_item_t *item)`
+59. [**`jwks_item_error_msg`**](libjwt.md#jwks_item_error_msg) — `const char *jwks_item_error_msg(const jwk_item_t *item)`
 
-60. **`jwks_item_curve`** — `const char *jwks_item_curve(const jwk_item_t *item)`
+60. [**`jwks_item_curve`**](libjwt.md#jwks_item_curve) — `const char *jwks_item_curve(const jwk_item_t *item)`
 
-61. **`jwks_item_kid`** — `const char *jwks_item_kid(const jwk_item_t *item)`
+61. [**`jwks_item_kid`**](libjwt.md#jwks_item_kid) — `const char *jwks_item_kid(const jwk_item_t *item)`
 
-62. **`jwks_item_alg`** — `jwt_alg_t jwks_item_alg(const jwk_item_t *item)`
+62. [**`jwks_item_alg`**](libjwt.md#jwks_item_alg) — `jwt_alg_t jwks_item_alg(const jwk_item_t *item)`
 
-63. **`jwks_item_kty`** — `jwk_key_type_t jwks_item_kty(const jwk_item_t *item)`
+63. [**`jwks_item_kty`**](libjwt.md#jwks_item_kty) — `jwk_key_type_t jwks_item_kty(const jwk_item_t *item)`
 
-64. **`jwks_item_use`** — `jwk_pub_key_use_t jwks_item_use(const jwk_item_t *item)`
+64. [**`jwks_item_use`**](libjwt.md#jwks_item_use) — `jwk_pub_key_use_t jwks_item_use(const jwk_item_t *item)`
 
-65. **`jwks_item_key_ops`** — `jwk_key_op_t jwks_item_key_ops(const jwk_item_t *item)`
+65. [**`jwks_item_key_ops`**](libjwt.md#jwks_item_key_ops) — `jwk_key_op_t jwks_item_key_ops(const jwk_item_t *item)`
 
-66. **`jwks_item_pem`** — `const char *jwks_item_pem(const jwk_item_t *item)`
+66. [**`jwks_item_pem`**](libjwt.md#jwks_item_pem) — `const char *jwks_item_pem(const jwk_item_t *item)`
 
-67. **`jwks_item_key_oct`** — `int jwks_item_key_oct(const jwk_item_t *item, const unsigned char **buf, size_t *len)`
+67. [**`jwks_item_key_oct`**](libjwt.md#jwks_item_key_oct) — `int jwks_item_key_oct(const jwk_item_t *item, const unsigned char **buf, size_t *len)`
 
-68. **`jwks_item_key_bits`** — `int jwks_item_key_bits(const jwk_item_t *item)`
+68. [**`jwks_item_key_bits`**](libjwt.md#jwks_item_key_bits) — `int jwks_item_key_bits(const jwk_item_t *item)`
 
-69. **`jwks_item_free`** — `int jwks_item_free(jwk_set_t *jwk_set, size_t index)`
+69. [**`jwks_item_free`**](libjwt.md#jwks_item_free) — `int jwks_item_free(jwk_set_t *jwk_set, size_t index)`
 
-70. **`jwks_item_free_all`** — `int jwks_item_free_all(jwk_set_t *jwk_set)`
+70. [**`jwks_item_free_all`**](libjwt.md#jwks_item_free_all) — `int jwks_item_free_all(jwk_set_t *jwk_set)`
 
-71. **`jwks_item_free_bad`** — `int jwks_item_free_bad(jwk_set_t *jwk_set)`
+71. [**`jwks_item_free_bad`**](libjwt.md#jwks_item_free_bad) — `int jwks_item_free_bad(jwk_set_t *jwk_set)`
 
-72. **`jwks_item_count`** — `size_t jwks_item_count(const jwk_set_t *jwk_set)`
+72. [**`jwks_item_count`**](libjwt.md#jwks_item_count) — `size_t jwks_item_count(const jwk_set_t *jwk_set)`
 
-73. **`jwt_set_alloc`** — `int jwt_set_alloc(jwt_malloc_t pmalloc, jwt_free_t pfree)`
+73. [**`jwt_set_alloc`**](libjwt.md#jwt_set_alloc) — `int jwt_set_alloc(jwt_malloc_t pmalloc, jwt_free_t pfree)`
 
-74. **`jwt_get_alloc`** — `void jwt_get_alloc(jwt_malloc_t *pmalloc, jwt_free_t *pfree)`
+74. [**`jwt_get_alloc`**](libjwt.md#jwt_get_alloc) — `void jwt_get_alloc(jwt_malloc_t *pmalloc, jwt_free_t *pfree)`
 
-75. **`jwt_get_crypto_ops`** — `const char *jwt_get_crypto_ops(void)`
+75. [**`jwt_get_crypto_ops`**](libjwt.md#jwt_get_crypto_ops) — `const char *jwt_get_crypto_ops(void)`
 
-76. **`jwt_get_crypto_ops_t`** — `jwt_crypto_provider_t jwt_get_crypto_ops_t(void)`
+76. [**`jwt_get_crypto_ops_t`**](libjwt.md#jwt_get_crypto_ops_t) — `jwt_crypto_provider_t jwt_get_crypto_ops_t(void)`
 
-77. **`jwt_set_crypto_ops`** — `int jwt_set_crypto_ops(const char *opname)`
+77. [**`jwt_set_crypto_ops`**](libjwt.md#jwt_set_crypto_ops) — `int jwt_set_crypto_ops(const char *opname)`
 
-78. **`jwt_set_crypto_ops_t`** — `int jwt_set_crypto_ops_t(jwt_crypto_provider_t opname)`
+78. [**`jwt_set_crypto_ops_t`**](libjwt.md#jwt_set_crypto_ops_t) — `int jwt_set_crypto_ops_t(jwt_crypto_provider_t opname)`
 
-79. **`jwt_crypto_ops_supports_jwk`** — `int jwt_crypto_ops_supports_jwk(void)`
+79. [**`jwt_crypto_ops_supports_jwk`**](libjwt.md#jwt_crypto_ops_supports_jwk) — `int jwt_crypto_ops_supports_jwk(void)`
 
-80. **`jwt_init`** — `void jwt_init(void)`
+80. [**`jwt_init`**](libjwt.md#jwt_init) — `void jwt_init(void)`
 
 **Total: 80 functions**
 
@@ -2688,86 +2688,86 @@ All **957 functions** sorted alphabetically with their source header.
 | [**`json_size`**](helpers/json_helper.md#json_size) | `helpers.h` | gobj-c (Core Framework) |
 | [**`json_str_in_list`**](helpers/json_helper.md#json_str_in_list) | `helpers.h` | gobj-c (Core Framework) |
 | [**`json_unflatten_dict`**](helpers/kwid.md#json_unflatten_dict) | `kwid.h` | gobj-c (Core Framework) |
-| **`jwks_create`** | `jwt.h` | libjwt (JWT Authentication) |
-| **`jwks_create_fromfile`** | `jwt.h` | libjwt (JWT Authentication) |
-| **`jwks_create_fromfp`** | `jwt.h` | libjwt (JWT Authentication) |
-| **`jwks_create_fromurl`** | `jwt.h` | libjwt (JWT Authentication) |
-| **`jwks_create_strn`** | `jwt.h` | libjwt (JWT Authentication) |
-| **`jwks_error`** | `jwt.h` | libjwt (JWT Authentication) |
-| **`jwks_error_any`** | `jwt.h` | libjwt (JWT Authentication) |
-| **`jwks_error_clear`** | `jwt.h` | libjwt (JWT Authentication) |
-| **`jwks_error_msg`** | `jwt.h` | libjwt (JWT Authentication) |
-| **`jwks_find_bykid`** | `jwt.h` | libjwt (JWT Authentication) |
-| **`jwks_free`** | `jwt.h` | libjwt (JWT Authentication) |
-| **`jwks_item_alg`** | `jwt.h` | libjwt (JWT Authentication) |
-| **`jwks_item_count`** | `jwt.h` | libjwt (JWT Authentication) |
-| **`jwks_item_curve`** | `jwt.h` | libjwt (JWT Authentication) |
-| **`jwks_item_error`** | `jwt.h` | libjwt (JWT Authentication) |
-| **`jwks_item_error_msg`** | `jwt.h` | libjwt (JWT Authentication) |
-| **`jwks_item_free`** | `jwt.h` | libjwt (JWT Authentication) |
-| **`jwks_item_free_all`** | `jwt.h` | libjwt (JWT Authentication) |
-| **`jwks_item_free_bad`** | `jwt.h` | libjwt (JWT Authentication) |
-| **`jwks_item_get`** | `jwt.h` | libjwt (JWT Authentication) |
-| **`jwks_item_is_private`** | `jwt.h` | libjwt (JWT Authentication) |
-| **`jwks_item_key_bits`** | `jwt.h` | libjwt (JWT Authentication) |
-| **`jwks_item_key_oct`** | `jwt.h` | libjwt (JWT Authentication) |
-| **`jwks_item_key_ops`** | `jwt.h` | libjwt (JWT Authentication) |
-| **`jwks_item_kid`** | `jwt.h` | libjwt (JWT Authentication) |
-| **`jwks_item_kty`** | `jwt.h` | libjwt (JWT Authentication) |
-| **`jwks_item_pem`** | `jwt.h` | libjwt (JWT Authentication) |
-| **`jwks_item_use`** | `jwt.h` | libjwt (JWT Authentication) |
-| **`jwks_load`** | `jwt.h` | libjwt (JWT Authentication) |
-| **`jwks_load_fromfile`** | `jwt.h` | libjwt (JWT Authentication) |
-| **`jwks_load_fromfp`** | `jwt.h` | libjwt (JWT Authentication) |
-| **`jwks_load_fromurl`** | `jwt.h` | libjwt (JWT Authentication) |
-| **`jwks_load_strn`** | `jwt.h` | libjwt (JWT Authentication) |
-| **`jwt_alg_str`** | `jwt.h` | libjwt (JWT Authentication) |
-| **`jwt_builder_claim_del`** | `jwt.h` | libjwt (JWT Authentication) |
-| **`jwt_builder_claim_get`** | `jwt.h` | libjwt (JWT Authentication) |
-| **`jwt_builder_claim_set`** | `jwt.h` | libjwt (JWT Authentication) |
-| **`jwt_builder_enable_iat`** | `jwt.h` | libjwt (JWT Authentication) |
-| **`jwt_builder_error`** | `jwt.h` | libjwt (JWT Authentication) |
-| **`jwt_builder_error_clear`** | `jwt.h` | libjwt (JWT Authentication) |
-| **`jwt_builder_error_msg`** | `jwt.h` | libjwt (JWT Authentication) |
-| **`jwt_builder_free`** | `jwt.h` | libjwt (JWT Authentication) |
-| **`jwt_builder_generate`** | `jwt.h` | libjwt (JWT Authentication) |
-| **`jwt_builder_getctx`** | `jwt.h` | libjwt (JWT Authentication) |
-| **`jwt_builder_header_del`** | `jwt.h` | libjwt (JWT Authentication) |
-| **`jwt_builder_header_get`** | `jwt.h` | libjwt (JWT Authentication) |
-| **`jwt_builder_header_set`** | `jwt.h` | libjwt (JWT Authentication) |
-| **`jwt_builder_new`** | `jwt.h` | libjwt (JWT Authentication) |
-| **`jwt_builder_setcb`** | `jwt.h` | libjwt (JWT Authentication) |
-| **`jwt_builder_setkey`** | `jwt.h` | libjwt (JWT Authentication) |
-| **`jwt_builder_time_offset`** | `jwt.h` | libjwt (JWT Authentication) |
-| **`jwt_checker_claim_del`** | `jwt.h` | libjwt (JWT Authentication) |
-| **`jwt_checker_claim_get`** | `jwt.h` | libjwt (JWT Authentication) |
-| **`jwt_checker_claim_set`** | `jwt.h` | libjwt (JWT Authentication) |
-| **`jwt_checker_error`** | `jwt.h` | libjwt (JWT Authentication) |
-| **`jwt_checker_error_clear`** | `jwt.h` | libjwt (JWT Authentication) |
-| **`jwt_checker_error_msg`** | `jwt.h` | libjwt (JWT Authentication) |
-| **`jwt_checker_free`** | `jwt.h` | libjwt (JWT Authentication) |
-| **`jwt_checker_getctx`** | `jwt.h` | libjwt (JWT Authentication) |
-| **`jwt_checker_new`** | `jwt.h` | libjwt (JWT Authentication) |
-| **`jwt_checker_setcb`** | `jwt.h` | libjwt (JWT Authentication) |
-| **`jwt_checker_setkey`** | `jwt.h` | libjwt (JWT Authentication) |
-| **`jwt_checker_time_leeway`** | `jwt.h` | libjwt (JWT Authentication) |
-| **`jwt_checker_verify`** | `jwt.h` | libjwt (JWT Authentication) |
-| **`jwt_claim_del`** | `jwt.h` | libjwt (JWT Authentication) |
-| **`jwt_claim_get`** | `jwt.h` | libjwt (JWT Authentication) |
-| **`jwt_claim_set`** | `jwt.h` | libjwt (JWT Authentication) |
-| **`jwt_crypto_ops_supports_jwk`** | `jwt.h` | libjwt (JWT Authentication) |
-| **`jwt_get_alg`** | `jwt.h` | libjwt (JWT Authentication) |
-| **`jwt_get_alloc`** | `jwt.h` | libjwt (JWT Authentication) |
-| **`jwt_get_crypto_ops`** | `jwt.h` | libjwt (JWT Authentication) |
-| **`jwt_get_crypto_ops_t`** | `jwt.h` | libjwt (JWT Authentication) |
-| **`jwt_header_del`** | `jwt.h` | libjwt (JWT Authentication) |
-| **`jwt_header_get`** | `jwt.h` | libjwt (JWT Authentication) |
-| **`jwt_header_set`** | `jwt.h` | libjwt (JWT Authentication) |
-| **`jwt_init`** | `jwt.h` | libjwt (JWT Authentication) |
-| **`jwt_set_alloc`** | `jwt.h` | libjwt (JWT Authentication) |
-| **`jwt_set_crypto_ops`** | `jwt.h` | libjwt (JWT Authentication) |
-| **`jwt_set_crypto_ops_t`** | `jwt.h` | libjwt (JWT Authentication) |
-| **`jwt_str_alg`** | `jwt.h` | libjwt (JWT Authentication) |
+| [**`jwks_create`**](libjwt.md#jwks_create) | `jwt.h` | libjwt (JWT Authentication) |
+| [**`jwks_create_fromfile`**](libjwt.md#jwks_create_fromfile) | `jwt.h` | libjwt (JWT Authentication) |
+| [**`jwks_create_fromfp`**](libjwt.md#jwks_create_fromfp) | `jwt.h` | libjwt (JWT Authentication) |
+| [**`jwks_create_fromurl`**](libjwt.md#jwks_create_fromurl) | `jwt.h` | libjwt (JWT Authentication) |
+| [**`jwks_create_strn`**](libjwt.md#jwks_create_strn) | `jwt.h` | libjwt (JWT Authentication) |
+| [**`jwks_error`**](libjwt.md#jwks_error) | `jwt.h` | libjwt (JWT Authentication) |
+| [**`jwks_error_any`**](libjwt.md#jwks_error_any) | `jwt.h` | libjwt (JWT Authentication) |
+| [**`jwks_error_clear`**](libjwt.md#jwks_error_clear) | `jwt.h` | libjwt (JWT Authentication) |
+| [**`jwks_error_msg`**](libjwt.md#jwks_error_msg) | `jwt.h` | libjwt (JWT Authentication) |
+| [**`jwks_find_bykid`**](libjwt.md#jwks_find_bykid) | `jwt.h` | libjwt (JWT Authentication) |
+| [**`jwks_free`**](libjwt.md#jwks_free) | `jwt.h` | libjwt (JWT Authentication) |
+| [**`jwks_item_alg`**](libjwt.md#jwks_item_alg) | `jwt.h` | libjwt (JWT Authentication) |
+| [**`jwks_item_count`**](libjwt.md#jwks_item_count) | `jwt.h` | libjwt (JWT Authentication) |
+| [**`jwks_item_curve`**](libjwt.md#jwks_item_curve) | `jwt.h` | libjwt (JWT Authentication) |
+| [**`jwks_item_error`**](libjwt.md#jwks_item_error) | `jwt.h` | libjwt (JWT Authentication) |
+| [**`jwks_item_error_msg`**](libjwt.md#jwks_item_error_msg) | `jwt.h` | libjwt (JWT Authentication) |
+| [**`jwks_item_free`**](libjwt.md#jwks_item_free) | `jwt.h` | libjwt (JWT Authentication) |
+| [**`jwks_item_free_all`**](libjwt.md#jwks_item_free_all) | `jwt.h` | libjwt (JWT Authentication) |
+| [**`jwks_item_free_bad`**](libjwt.md#jwks_item_free_bad) | `jwt.h` | libjwt (JWT Authentication) |
+| [**`jwks_item_get`**](libjwt.md#jwks_item_get) | `jwt.h` | libjwt (JWT Authentication) |
+| [**`jwks_item_is_private`**](libjwt.md#jwks_item_is_private) | `jwt.h` | libjwt (JWT Authentication) |
+| [**`jwks_item_key_bits`**](libjwt.md#jwks_item_key_bits) | `jwt.h` | libjwt (JWT Authentication) |
+| [**`jwks_item_key_oct`**](libjwt.md#jwks_item_key_oct) | `jwt.h` | libjwt (JWT Authentication) |
+| [**`jwks_item_key_ops`**](libjwt.md#jwks_item_key_ops) | `jwt.h` | libjwt (JWT Authentication) |
+| [**`jwks_item_kid`**](libjwt.md#jwks_item_kid) | `jwt.h` | libjwt (JWT Authentication) |
+| [**`jwks_item_kty`**](libjwt.md#jwks_item_kty) | `jwt.h` | libjwt (JWT Authentication) |
+| [**`jwks_item_pem`**](libjwt.md#jwks_item_pem) | `jwt.h` | libjwt (JWT Authentication) |
+| [**`jwks_item_use`**](libjwt.md#jwks_item_use) | `jwt.h` | libjwt (JWT Authentication) |
+| [**`jwks_load`**](libjwt.md#jwks_load) | `jwt.h` | libjwt (JWT Authentication) |
+| [**`jwks_load_fromfile`**](libjwt.md#jwks_load_fromfile) | `jwt.h` | libjwt (JWT Authentication) |
+| [**`jwks_load_fromfp`**](libjwt.md#jwks_load_fromfp) | `jwt.h` | libjwt (JWT Authentication) |
+| [**`jwks_load_fromurl`**](libjwt.md#jwks_load_fromurl) | `jwt.h` | libjwt (JWT Authentication) |
+| [**`jwks_load_strn`**](libjwt.md#jwks_load_strn) | `jwt.h` | libjwt (JWT Authentication) |
+| [**`jwt_alg_str`**](libjwt.md#jwt_alg_str) | `jwt.h` | libjwt (JWT Authentication) |
+| [**`jwt_builder_claim_del`**](libjwt.md#jwt_builder_claim_del) | `jwt.h` | libjwt (JWT Authentication) |
+| [**`jwt_builder_claim_get`**](libjwt.md#jwt_builder_claim_get) | `jwt.h` | libjwt (JWT Authentication) |
+| [**`jwt_builder_claim_set`**](libjwt.md#jwt_builder_claim_set) | `jwt.h` | libjwt (JWT Authentication) |
+| [**`jwt_builder_enable_iat`**](libjwt.md#jwt_builder_enable_iat) | `jwt.h` | libjwt (JWT Authentication) |
+| [**`jwt_builder_error`**](libjwt.md#jwt_builder_error) | `jwt.h` | libjwt (JWT Authentication) |
+| [**`jwt_builder_error_clear`**](libjwt.md#jwt_builder_error_clear) | `jwt.h` | libjwt (JWT Authentication) |
+| [**`jwt_builder_error_msg`**](libjwt.md#jwt_builder_error_msg) | `jwt.h` | libjwt (JWT Authentication) |
+| [**`jwt_builder_free`**](libjwt.md#jwt_builder_free) | `jwt.h` | libjwt (JWT Authentication) |
+| [**`jwt_builder_generate`**](libjwt.md#jwt_builder_generate) | `jwt.h` | libjwt (JWT Authentication) |
+| [**`jwt_builder_getctx`**](libjwt.md#jwt_builder_getctx) | `jwt.h` | libjwt (JWT Authentication) |
+| [**`jwt_builder_header_del`**](libjwt.md#jwt_builder_header_del) | `jwt.h` | libjwt (JWT Authentication) |
+| [**`jwt_builder_header_get`**](libjwt.md#jwt_builder_header_get) | `jwt.h` | libjwt (JWT Authentication) |
+| [**`jwt_builder_header_set`**](libjwt.md#jwt_builder_header_set) | `jwt.h` | libjwt (JWT Authentication) |
+| [**`jwt_builder_new`**](libjwt.md#jwt_builder_new) | `jwt.h` | libjwt (JWT Authentication) |
+| [**`jwt_builder_setcb`**](libjwt.md#jwt_builder_setcb) | `jwt.h` | libjwt (JWT Authentication) |
+| [**`jwt_builder_setkey`**](libjwt.md#jwt_builder_setkey) | `jwt.h` | libjwt (JWT Authentication) |
+| [**`jwt_builder_time_offset`**](libjwt.md#jwt_builder_time_offset) | `jwt.h` | libjwt (JWT Authentication) |
+| [**`jwt_checker_claim_del`**](libjwt.md#jwt_checker_claim_del) | `jwt.h` | libjwt (JWT Authentication) |
+| [**`jwt_checker_claim_get`**](libjwt.md#jwt_checker_claim_get) | `jwt.h` | libjwt (JWT Authentication) |
+| [**`jwt_checker_claim_set`**](libjwt.md#jwt_checker_claim_set) | `jwt.h` | libjwt (JWT Authentication) |
+| [**`jwt_checker_error`**](libjwt.md#jwt_checker_error) | `jwt.h` | libjwt (JWT Authentication) |
+| [**`jwt_checker_error_clear`**](libjwt.md#jwt_checker_error_clear) | `jwt.h` | libjwt (JWT Authentication) |
+| [**`jwt_checker_error_msg`**](libjwt.md#jwt_checker_error_msg) | `jwt.h` | libjwt (JWT Authentication) |
+| [**`jwt_checker_free`**](libjwt.md#jwt_checker_free) | `jwt.h` | libjwt (JWT Authentication) |
+| [**`jwt_checker_getctx`**](libjwt.md#jwt_checker_getctx) | `jwt.h` | libjwt (JWT Authentication) |
+| [**`jwt_checker_new`**](libjwt.md#jwt_checker_new) | `jwt.h` | libjwt (JWT Authentication) |
+| [**`jwt_checker_setcb`**](libjwt.md#jwt_checker_setcb) | `jwt.h` | libjwt (JWT Authentication) |
+| [**`jwt_checker_setkey`**](libjwt.md#jwt_checker_setkey) | `jwt.h` | libjwt (JWT Authentication) |
+| [**`jwt_checker_time_leeway`**](libjwt.md#jwt_checker_time_leeway) | `jwt.h` | libjwt (JWT Authentication) |
+| [**`jwt_checker_verify`**](libjwt.md#jwt_checker_verify) | `jwt.h` | libjwt (JWT Authentication) |
+| [**`jwt_claim_del`**](libjwt.md#jwt_claim_del) | `jwt.h` | libjwt (JWT Authentication) |
+| [**`jwt_claim_get`**](libjwt.md#jwt_claim_get) | `jwt.h` | libjwt (JWT Authentication) |
+| [**`jwt_claim_set`**](libjwt.md#jwt_claim_set) | `jwt.h` | libjwt (JWT Authentication) |
+| [**`jwt_crypto_ops_supports_jwk`**](libjwt.md#jwt_crypto_ops_supports_jwk) | `jwt.h` | libjwt (JWT Authentication) |
+| [**`jwt_get_alg`**](libjwt.md#jwt_get_alg) | `jwt.h` | libjwt (JWT Authentication) |
+| [**`jwt_get_alloc`**](libjwt.md#jwt_get_alloc) | `jwt.h` | libjwt (JWT Authentication) |
+| [**`jwt_get_crypto_ops`**](libjwt.md#jwt_get_crypto_ops) | `jwt.h` | libjwt (JWT Authentication) |
+| [**`jwt_get_crypto_ops_t`**](libjwt.md#jwt_get_crypto_ops_t) | `jwt.h` | libjwt (JWT Authentication) |
+| [**`jwt_header_del`**](libjwt.md#jwt_header_del) | `jwt.h` | libjwt (JWT Authentication) |
+| [**`jwt_header_get`**](libjwt.md#jwt_header_get) | `jwt.h` | libjwt (JWT Authentication) |
+| [**`jwt_header_set`**](libjwt.md#jwt_header_set) | `jwt.h` | libjwt (JWT Authentication) |
+| [**`jwt_init`**](libjwt.md#jwt_init) | `jwt.h` | libjwt (JWT Authentication) |
+| [**`jwt_set_alloc`**](libjwt.md#jwt_set_alloc) | `jwt.h` | libjwt (JWT Authentication) |
+| [**`jwt_set_crypto_ops`**](libjwt.md#jwt_set_crypto_ops) | `jwt.h` | libjwt (JWT Authentication) |
+| [**`jwt_set_crypto_ops_t`**](libjwt.md#jwt_set_crypto_ops_t) | `jwt.h` | libjwt (JWT Authentication) |
+| [**`jwt_str_alg`**](libjwt.md#jwt_str_alg) | `jwt.h` | libjwt (JWT Authentication) |
 | [**`kw_add_binary_type`**](helpers/kwid.md#kw_add_binary_type) | `kwid.h` | gobj-c (Core Framework) |
 | [**`kw_clone_by_keys`**](helpers/kwid.md#kw_clone_by_keys) | `kwid.h` | gobj-c (Core Framework) |
 | [**`kw_clone_by_not_keys`**](helpers/kwid.md#kw_clone_by_not_keys) | `kwid.h` | gobj-c (Core Framework) |
