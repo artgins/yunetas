@@ -57,168 +57,168 @@ project:
         - file: guide/guide_ytls.md
         - file: guide/guide_oauth2_pkce_bff.md
 
-    - title: GObj API
+    - title: Utilities
+      file: utilities.md
+
+    - title: Built-in Yunos
+      file: yunos.md
+
+    - title: Benchmarks & Stress Tests
+      file: benchmarks.md
+
+    - title: API Reference
       children:
-        - title: Startup
-          file: api/gobj/startup.md
-        - title: GClass
-          file: api/gobj/gclass.md
-        - title: Creation
-          file: api/gobj/creation.md
-        - title: Attributes
-          file: api/gobj/attrs.md
-        - title: Operations
-          file: api/gobj/op.md
-        - title: Events & State
-          file: api/gobj/events_state.md
-        - title: Publish / Subscribe
-          file: api/gobj/publish.md
-        - title: Resource
-          file: api/gobj/resource.md
-        - title: Authorization
-          file: api/gobj/authz.md
-        - title: Info
-          file: api/gobj/info.md
-        - title: Stats
-          file: api/gobj/stats.md
-        - title: Node
-          file: api/gobj/node.md
-
-    - title: Helpers API
-      children:
-        - title: String
-          file: api/helpers/string_helper.md
-        - title: JSON
-          file: api/helpers/json_helper.md
-        - title: kwid (JSON path)
-          file: api/helpers/kwid.md
-        - title: Time & Date
-          file: api/helpers/time_date.md
-        - title: File System
-          file: api/helpers/file_system.md
-        - title: Directory Walk
-          file: api/helpers/directory_walk.md
-        - title: URL Parsing
-          file: api/helpers/url_parsing.md
-        - title: HTTP Parser
-          file: api/helpers/http_parser.md
-        - title: IStream
-          file: api/helpers/istream.md
-        - title: GBuffer
-          file: api/helpers/gbuffer.md
-        - title: Doubly-Linked List
-          file: api/helpers/dl.md
-        - title: Memory
-          file: api/helpers/memory.md
-        - title: Common Protocol
-          file: api/helpers/common_protocol.md
-        - title: Daemon Launcher
-          file: api/helpers/daemon_launcher.md
-        - title: Backtrace
-          file: api/helpers/backtrace.md
-        - title: Misc
-          file: api/helpers/misc.md
-
-    - title: Logging API
-      children:
-        - title: Log
-          file: api/logging/log.md
-        - title: Trace
-          file: api/logging/trace.md
-        - title: Log UDP Handler
-          file: api/logging/log_udp_handler.md
-        - title: Rotatory
-          file: api/logging/rotatory.md
-
-    - title: Parsers API
-      children:
-        - title: Command Parser
-          file: api/parsers/command_parser.md
-        - title: Stats Parser
-          file: api/parsers/stats_parser.md
-
-    - title: Testing API
-      file: api/testing/testing.md
-
-    - title: Timeranger2 API
-      children:
-        - title: timeranger2
-          file: api/timeranger2/timeranger2.md
-        - title: tr_msg
-          file: api/timeranger2/tr_msg.md
-        - title: tr_msg2db
-          file: api/timeranger2/tr_msg2db.md
-        - title: tr_queue
-          file: api/timeranger2/tr_queue.md
-        - title: tr_treedb
-          file: api/timeranger2/treedb.md
-        - title: fs_watcher
-          file: api/timeranger2/fs_watcher.md
-
-    - title: Event Loop API
-      file: api/yev_loop/yev_loop.md
-
-    - title: TLS API
-      file: api/ytls/ytls.md
-
-    - title: JWT API (libjwt)
-      file: api/libjwt.md
-
-    - title: Built-in GClasses
-      children:
-        - title: Overview
-          file: api/gclass/index.md
-        - title: Transport
-          file: api/gclass/transport.md
-        - title: Protocol
-          file: api/gclass/protocol.md
-        - title: Gateway
-          file: api/gclass/gateway.md
-        - title: Inter-Event
-          file: api/gclass/ievent.md
-        - title: Data
-          file: api/gclass/data.md
-        - title: Auth
-          file: api/gclass/auth.md
-        - title: Task & Timer
-          file: api/gclass/task_timer.md
-        - title: System
-          file: api/gclass/system.md
-
-    - title: Runtime API
-      children:
-        - title: Entry Point
-          file: api/runtime/entry_point.md
-        - title: Environment
-          file: api/runtime/environment.md
-        - title: Yuno
-          file: api/runtime/yuno.md
-        - title: Timer
-          file: api/runtime/timer.md
-        - title: Inter-Event Messaging
-          file: api/runtime/msg_ievent.md
-        - title: DB Simple
-          file: api/runtime/dbsimple.md
-        - title: Run Command
-          file: api/runtime/run_command.md
-        - title: GClass Registration
-          file: api/runtime/registration.md
-
-    - title: JavaScript API
-      children:
-        - file: api/js/index.md
-        - file: api/js/bootstrap.md
-        - file: api/js/gclass.md
-        - file: api/js/lifecycle.md
-        - file: api/js/state_machine.md
-        - file: api/js/attrs.md
-        - file: api/js/events.md
-        - file: api/js/hierarchy.md
-        - file: api/js/persistence.md
-        - file: api/js/helpers.md
-        - file: api/js/logging.md
-        - file: api/js/builtin_gclasses.md
-        - file: api/js/treedb_helpers.md
+        - title: GObj
+          children:
+            - title: Startup
+              file: api/gobj/startup.md
+            - title: GClass
+              file: api/gobj/gclass.md
+            - title: Creation
+              file: api/gobj/creation.md
+            - title: Attributes
+              file: api/gobj/attrs.md
+            - title: Operations
+              file: api/gobj/op.md
+            - title: Events & State
+              file: api/gobj/events_state.md
+            - title: Publish / Subscribe
+              file: api/gobj/publish.md
+            - title: Resource
+              file: api/gobj/resource.md
+            - title: Authorization
+              file: api/gobj/authz.md
+            - title: Info
+              file: api/gobj/info.md
+            - title: Stats
+              file: api/gobj/stats.md
+            - title: Node
+              file: api/gobj/node.md
+        - title: Helpers
+          children:
+            - title: String
+              file: api/helpers/string_helper.md
+            - title: JSON
+              file: api/helpers/json_helper.md
+            - title: kwid (JSON path)
+              file: api/helpers/kwid.md
+            - title: Time & Date
+              file: api/helpers/time_date.md
+            - title: File System
+              file: api/helpers/file_system.md
+            - title: Directory Walk
+              file: api/helpers/directory_walk.md
+            - title: URL Parsing
+              file: api/helpers/url_parsing.md
+            - title: HTTP Parser
+              file: api/helpers/http_parser.md
+            - title: IStream
+              file: api/helpers/istream.md
+            - title: GBuffer
+              file: api/helpers/gbuffer.md
+            - title: Doubly-Linked List
+              file: api/helpers/dl.md
+            - title: Memory
+              file: api/helpers/memory.md
+            - title: Common Protocol
+              file: api/helpers/common_protocol.md
+            - title: Daemon Launcher
+              file: api/helpers/daemon_launcher.md
+            - title: Backtrace
+              file: api/helpers/backtrace.md
+            - title: Misc
+              file: api/helpers/misc.md
+        - title: Logging
+          children:
+            - title: Log
+              file: api/logging/log.md
+            - title: Trace
+              file: api/logging/trace.md
+            - title: Log UDP Handler
+              file: api/logging/log_udp_handler.md
+            - title: Rotatory
+              file: api/logging/rotatory.md
+        - title: Parsers
+          children:
+            - title: Command Parser
+              file: api/parsers/command_parser.md
+            - title: Stats Parser
+              file: api/parsers/stats_parser.md
+        - title: Testing
+          file: api/testing/testing.md
+        - title: Timeranger2
+          children:
+            - title: timeranger2
+              file: api/timeranger2/timeranger2.md
+            - title: tr_msg
+              file: api/timeranger2/tr_msg.md
+            - title: tr_msg2db
+              file: api/timeranger2/tr_msg2db.md
+            - title: tr_queue
+              file: api/timeranger2/tr_queue.md
+            - title: tr_treedb
+              file: api/timeranger2/treedb.md
+            - title: fs_watcher
+              file: api/timeranger2/fs_watcher.md
+        - title: Event Loop
+          file: api/yev_loop/yev_loop.md
+        - title: TLS
+          file: api/ytls/ytls.md
+        - title: JWT (libjwt)
+          file: api/libjwt.md
+        - title: Built-in GClasses
+          children:
+            - title: Overview
+              file: api/gclass/index.md
+            - title: Transport
+              file: api/gclass/transport.md
+            - title: Protocol
+              file: api/gclass/protocol.md
+            - title: Gateway
+              file: api/gclass/gateway.md
+            - title: Inter-Event
+              file: api/gclass/ievent.md
+            - title: Data
+              file: api/gclass/data.md
+            - title: Auth
+              file: api/gclass/auth.md
+            - title: Task & Timer
+              file: api/gclass/task_timer.md
+            - title: System
+              file: api/gclass/system.md
+        - title: Runtime
+          children:
+            - title: Entry Point
+              file: api/runtime/entry_point.md
+            - title: Environment
+              file: api/runtime/environment.md
+            - title: Yuno
+              file: api/runtime/yuno.md
+            - title: Timer
+              file: api/runtime/timer.md
+            - title: Inter-Event Messaging
+              file: api/runtime/msg_ievent.md
+            - title: DB Simple
+              file: api/runtime/dbsimple.md
+            - title: Run Command
+              file: api/runtime/run_command.md
+            - title: GClass Registration
+              file: api/runtime/registration.md
+        - title: JavaScript
+          children:
+            - file: api/js/index.md
+            - file: api/js/bootstrap.md
+            - file: api/js/gclass.md
+            - file: api/js/lifecycle.md
+            - file: api/js/state_machine.md
+            - file: api/js/attrs.md
+            - file: api/js/events.md
+            - file: api/js/hierarchy.md
+            - file: api/js/persistence.md
+            - file: api/js/helpers.md
+            - file: api/js/logging.md
+            - file: api/js/builtin_gclasses.md
+            - file: api/js/treedb_helpers.md
 
     - title: "Appendix: Function Index"
       file: api/appendix_api_index.md
