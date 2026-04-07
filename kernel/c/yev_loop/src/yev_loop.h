@@ -410,8 +410,6 @@ PUBLIC yev_event_h yev_create_sendmsg_event(
 
 PUBLIC const char *yev_event_type_name(yev_event_h yev_event);
 PUBLIC const char **yev_flag_strings(void);
-PUBLIC void set_measure_times(int types); // Set the measure of times of types (-1 all)
-PUBLIC int get_measure_times(void); // return yevent types measuring
 
 #ifdef __cplusplus
 }

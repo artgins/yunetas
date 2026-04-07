@@ -158,7 +158,7 @@ static inline void mt_print_time(time_measure_t *time_measure, const char *label
 }
 
 PUBLIC void set_measure_times(int types); // Set the measure of times of types (-1 all)
-PUBLIC int get_measure_times(void);
+PUBLIC int get_measure_times(void); // return yevent types measuring
 
 #ifdef CONFIG_DEBUG_PRINT_YEV_LOOP_TIMES
 extern int measuring_cur_type;
