@@ -858,7 +858,7 @@ PRIVATE void process_next(hgobj gobj)
     priv->processing = TRUE;
 
     /* Build Keycloak URL from parsed parts */
-    char kc_token_url[1024];
+    char kc_token_url[PATH_MAX + 256];
     char kc_token_path[PATH_MAX];
     build_path(kc_token_path, sizeof(kc_token_path), priv->path, "token", NULL);
     snprintf(kc_token_url, sizeof(kc_token_url),

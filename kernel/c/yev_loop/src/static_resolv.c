@@ -89,8 +89,7 @@ static void parse_resolv_conf(
         while(*end && *end != '\n' && *end != '\r' && *end != ' ') end++;
         *end = '\0';
         if(*p) {
-            strncpy(nameservers[*count], p, YUNETA_NS_ADDRLEN - 1);
-            nameservers[*count][YUNETA_NS_ADDRLEN - 1] = '\0';
+            snprintf(nameservers[*count], YUNETA_NS_ADDRLEN, "%s", p);
             (*count)++;
         }
     }
