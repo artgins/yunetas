@@ -1,8 +1,16 @@
 # gobj-js
 
-JavaScript/ES6 implementation of the [Yuneta](https://yuneta.io) framework (v7).
+JavaScript/ES6 implementation of the [Yuneta](https://yuneta.io) GObject runtime (v7).
 
-Yuneta is a **function-oriented**, event-driven framework for building distributed systems. Components are built from plain functions and data tables — not class hierarchies — making the framework portable to any programming language. This package provides the full GObject + Finite State Machine (FSM) runtime for the browser and Node.js environments.
+This package gives you:
+
+- **GObjects** — lightweight, event-driven components organized in a parent-child tree.
+- **Finite State Machines** — every component has an FSM that maps (state, event) pairs to action functions, enforcing clear lifecycle and communication rules.
+- **Typed attributes** — schema-declared properties (`SDATA`) with access flags, defaults, and optional persistence to `localStorage`.
+- **Pub/Sub event system** — components communicate exclusively through JSON events: direct sends, subscriptions, and publications. No direct method calls between components.
+- **Inter-event client** (`C_IEVENT_CLI`) — a built-in WebSocket proxy that lets browser components talk to C-based Yuneta backend services as if they were local GObjects.
+
+Yuneta is a **function-oriented** framework: components (GClasses) are defined by wiring together plain functions and data tables — not class hierarchies — making the architecture portable across languages. The reference implementation is in [C](https://github.com/artgins/yunetas) (~12 000 LOC); this package mirrors the same API and patterns for browser and Node.js environments.
 
 Published as [`@yuneta/gobj-js`](https://www.npmjs.com/package/@yuneta/gobj-js).
 

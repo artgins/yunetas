@@ -1,8 +1,8 @@
 {
     "name": "@yuneta/gobj-js",
     "version": "7.2.0",
-    "description": "Yuneta Simplified v7 in javascript version",
-    "author": "Niyamaka",
+    "description": "GObject + FSM runtime for JavaScript — event-driven components with typed attributes, pub/sub, and WebSocket inter-event client",
+    "author": "ArtGins",
     "license": "MIT",
     "type": "module",
     "main": "dist/gobj-js.cjs.js",

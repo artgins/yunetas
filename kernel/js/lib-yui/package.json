@@ -20,7 +20,7 @@
         "skeleton/",
         "vite-plugin-yuneta-html.js"
     ],
-    "description": "Yuneta UI Library - Reusable GUI components for Yuneta-based projects",
+    "description": "Yuneta UI Library — GClass-based GUI components: app shell, windows, forms, maps, charts, TreeDB editors",
     "scripts": {
         "build": "vite build",
         "prepublishOnly": "npm run build"

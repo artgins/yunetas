@@ -1,7 +1,22 @@
 # lib-yui — Yuneta UI Library
 
-Reusable GUI components for Yuneta-based web applications. Extracted from
-`gui_treedb` to be shared across projects (EstadoDelAire, TreeDB GUI, etc.).
+Reusable GUI components for building Yuneta-based web applications. Every
+component is a GClass (from [`@yuneta/gobj-js`](https://www.npmjs.com/package/@yuneta/gobj-js))
+that plugs into the GObject tree and communicates via events.
+
+The library provides:
+
+- **App shell** (`C_YUI_MAIN`) — layered layout with toolbar, modals, and notifications.
+- **Window manager** (`C_YUI_WINDOW`) — draggable/resizable floating windows.
+- **Tabs** (`C_YUI_TABS`) — tab container for sub-components.
+- **Form builder** (`C_YUI_FORM`) — dynamic forms backed by Tabulator and TomSelect.
+- **Routing** (`C_YUI_ROUTING`) — hash-based menu/content routing.
+- **Map** (`C_YUI_MAP`) — MapLibre GL map wrapper.
+- **Charts** (`C_YUI_UPLOT`) — uPlot chart wrapper.
+- **JSON viewer** (`C_YUI_JSON_GRAPH`) — JSON visualization with AntV/G6.
+- **TreeDB UI** — topic list, table+form editor, graph manager, and G6-based node graph editor for interacting with Yuneta TreeDB backends.
+
+Extracted from `gui_treedb` to be shared across projects (EstadoDelAire, TreeDB GUI, etc.).
 
 ## Install
 
