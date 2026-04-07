@@ -34,7 +34,7 @@ Key terms and concepts of the Yuneta framework, sorted alphabetically.
 :   The built-in mechanism that exposes every yuno's commands and stats over a local socket or WebSocket. Interact with it using `ycommand`, `ybatch`, or `ystats`. See [Utilities](utilities.md).
 
 **CRUDLU**
-:   Extended CRUD operations for [TreeDB](#treedb): **C**reate, **R**ead, **U**pdate, **D**elete, **L**ink, **U**nlink — accounting for graph relationships between nodes.
+:   Extended CRUD operations for [TreeDB](#glossary-treedb): **C**reate, **R**ead, **U**pdate, **D**elete, **L**ink, **U**nlink — accounting for graph relationships between nodes.
 
 (event)=
 **Event**
@@ -45,7 +45,7 @@ Key terms and concepts of the Yuneta framework, sorted alphabetically.
 
 (fkey)=
 **Fkey** (Foreign Key)
-:   A field on a child [TreeDB](#treedb) node that stores a persistent reference to its parent, encoded as `"topic^parent_id^hook_name"`. Link/unlink operations save **only** the child's fkey.
+:   A field on a child [TreeDB](#glossary-treedb) node that stores a persistent reference to its parent, encoded as `"topic^parent_id^hook_name"`. Link/unlink operations save **only** the child's fkey.
 
 (fsm)=
 **FSM** (Finite State Machine)
@@ -76,7 +76,7 @@ Key terms and concepts of the Yuneta framework, sorted alphabetically.
 
 (hook)=
 **Hook**
-:   A field on a parent [TreeDB](#treedb) node that references child nodes. Hooks are in-memory relationships — persistence is through the child's [fkey](#fkey).
+:   A field on a parent [TreeDB](#glossary-treedb) node that references child nodes. Hooks are in-memory relationships — persistence is through the child's [fkey](#fkey).
 
 **Horizontal scaling**
 :   Yuneta's scaling strategy: run one yuno per CPU core and communicate via inter-event messaging. No threads, no locks.
@@ -106,7 +106,7 @@ Key terms and concepts of the Yuneta framework, sorted alphabetically.
 
 (node)=
 **Node**
-:   A JSON object in [TreeDB](#treedb) identified by a primary key (`id`). Contains `__md_treedb__` metadata with `g_rowid`, `i_rowid`, `topic_name`, etc.
+:   A JSON object in [TreeDB](#glossary-treedb) identified by a primary key (`id`). Contains `__md_treedb__` metadata with `g_rowid`, `i_rowid`, `topic_name`, etc.
 
 **Parent / Child**
 :   Gobjs form a hierarchical tree. Every gobj has exactly one parent (except the root yuno). Parents create and manage their children.
@@ -139,7 +139,7 @@ Key terms and concepts of the Yuneta framework, sorted alphabetically.
 
 (snapshot)=
 **Snapshot**
-:   A point-in-time capture of [TreeDB](#treedb) state for backup/restore. Managed via `treedb_shoot_snap()` / `treedb_activate_snap()`.
+:   A point-in-time capture of [TreeDB](#glossary-treedb) state for backup/restore. Managed via `treedb_shoot_snap()` / `treedb_activate_snap()`.
 
 (state)=
 **State**
@@ -153,7 +153,7 @@ Key terms and concepts of the Yuneta framework, sorted alphabetically.
 
 (glossary-timeranger2)=
 **Timeranger2**
-:   Append-only time-series storage engine — the persistence primitive underlying [TreeDB](#treedb), queues, and message stores. See [Timeranger2 guide](guide/guide_timeranger2.md) and [Timeranger2 API](api/timeranger2/timeranger2.md).
+:   Append-only time-series storage engine — the persistence primitive underlying [TreeDB](#glossary-treedb), queues, and message stores. See [Timeranger2 guide](guide/guide_timeranger2.md) and [Timeranger2 API](api/timeranger2/timeranger2.md).
 
 (topic)=
 **Topic**
@@ -162,7 +162,7 @@ Key terms and concepts of the Yuneta framework, sorted alphabetically.
 **Trace level**
 :   A runtime diagnostic category that can be dynamically enabled/disabled per gobj or GClass. Defined in `s_user_trace_level` and controlled via the control plane.
 
-(treedb)=
+(glossary-treedb)=
 **TreeDB** (`tr_treedb`)
 :   Graph memory database built on timeranger2. Nodes belong to topics and are linked via [hook](#hook)/[fkey](#fkey) relationships. See [TreeDB API](api/timeranger2/treedb.md).
 
