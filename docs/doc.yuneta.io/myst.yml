@@ -221,6 +221,9 @@ project:
     - title: Utilities
       file: utilities.md
 
+    - title: Test Suite
+      file: testing.md
+
     - title: Benchmarks & Stress Tests
       file: benchmarks.md
 
