@@ -81,4 +81,13 @@ foreach(test ${SRCS})
     )
     add_test("${current_directory_name}/${test}" ${binary})
 
+    install(
+        TARGETS ${binary}
+        PERMISSIONS
+        OWNER_READ OWNER_WRITE OWNER_EXECUTE
+        GROUP_READ GROUP_WRITE GROUP_EXECUTE
+        WORLD_READ WORLD_EXECUTE
+        DESTINATION ${BIN_DEST_DIR}
+    )
+
 endforeach()
