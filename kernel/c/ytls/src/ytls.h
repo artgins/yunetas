@@ -18,12 +18,12 @@ extern "C"{
 /***************************************************************
  *              Constants
  ***************************************************************/
-/* Compile-time name of the available TLS backend */
+/* Compile-time default TLS backend (prefers OpenSSL when both are available) */
 #include <yuneta_config.h>
-#if defined(CONFIG_HAVE_MBEDTLS)
-    #define TLS_LIBRARY_NAME "mbedtls"
-#elif defined(CONFIG_HAVE_OPENSSL)
+#if defined(CONFIG_HAVE_OPENSSL)
     #define TLS_LIBRARY_NAME "openssl"
+#elif defined(CONFIG_HAVE_MBEDTLS)
+    #define TLS_LIBRARY_NAME "mbedtls"
 #else
     #define TLS_LIBRARY_NAME ""
 #endif

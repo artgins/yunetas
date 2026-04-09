@@ -29,7 +29,8 @@
 #if defined(CONFIG_HAVE_OPENSSL)
     #include <openssl/ssl.h>
     #include <openssl/rand.h>
-#elif defined(CONFIG_HAVE_MBEDTLS)
+#endif
+#if defined(CONFIG_HAVE_MBEDTLS)
     #include <mbedtls/md.h>
     #include <mbedtls/private/pkcs5.h>  /* mbedtls_pkcs5_pbkdf2_hmac_ext() */
     #include <psa/crypto.h>             /* psa_generate_random(), psa_crypto_init() */
@@ -37,7 +38,8 @@
     #ifndef EVP_MAX_MD_SIZE
     #define EVP_MAX_MD_SIZE MBEDTLS_MD_MAX_SIZE
     #endif
-#else
+#endif
+#if !defined(CONFIG_HAVE_OPENSSL) && !defined(CONFIG_HAVE_MBEDTLS)
     #error "No crypto library defined"
 #endif
 #endif
@@ -390,10 +392,9 @@ PRIVATE void mt_create(hgobj gobj)
 #if defined(__linux__)
 #if defined(CONFIG_HAVE_OPENSSL)
     OpenSSL_add_all_digests();
-#elif defined(CONFIG_HAVE_MBEDTLS)
+#endif
+#if defined(CONFIG_HAVE_MBEDTLS)
     psa_crypto_init(); /* PSA must be initialised before any crypto in v4.0 */
-#else
-#error "No crypto library defined"
 #endif
 #endif
 
@@ -2708,7 +2709,7 @@ PRIVATE int gen_salt(hgobj gobj, uint8_t *salt, size_t salt_len)
         return -1;
     }
 #else
-#error "No crypto library defined"
+    #error "No crypto library defined"
 #endif
 #endif
     return 0;

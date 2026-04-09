@@ -31,11 +31,13 @@
 #if defined(CONFIG_HAVE_OPENSSL)
     #include <openssl/ssl.h>
     #include <openssl/rand.h>
-#elif defined(CONFIG_HAVE_MBEDTLS)
+#endif
+#if defined(CONFIG_HAVE_MBEDTLS)
     #include <mbedtls/md.h>
     #include <mbedtls/private/pkcs5.h>  /* mbedtls_pkcs5_pbkdf2_hmac_ext() */
     #include <psa/crypto.h>             /* psa_generate_random(), psa_crypto_init() */
-#else
+#endif
+#if !defined(CONFIG_HAVE_OPENSSL) && !defined(CONFIG_HAVE_MBEDTLS)
     #error "No crypto library defined"
 #endif
 #endif
