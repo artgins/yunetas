@@ -230,7 +230,8 @@ A JSON object containing the following global variables:
 | `__sys_version__`         | System version (Linux only).             |
 | `__sys_release__`         | System release (Linux only).             |
 | `__sys_machine__`         | Machine type (Linux only).               |
-| `__tls_library__`         | Active TLS backend: `"openssl"` or `"mbedtls"` (compile-time). |
+| `__tls_library__`         | Preferred TLS backend: `"openssl"` or `"mbedtls"` (compile-time, prefers OpenSSL). |
+| `__tls_libraries__`       | All enabled TLS backends: `"openssl"`, `"mbedtls"`, or `"openssl+mbedtls"` (compile-time). |
 | `__bind_ip__`             | Bind IP address of the Yuno (set when yuno is running). |
 | `__multiple__`            | Whether the Yuno allows multiple instances (boolean, set when yuno is running). |
 

@@ -394,6 +394,7 @@ PRIVATE void mt_create(hgobj gobj)
     OpenSSL_add_all_digests();
 #endif
 #if defined(CONFIG_HAVE_MBEDTLS)
+    /* Safe to call alongside OpenSSL — PSA and OpenSSL use independent state */
     psa_crypto_init(); /* PSA must be initialised before any crypto in v4.0 */
 #endif
 #endif
@@ -2689,6 +2690,7 @@ PRIVATE int gen_salt(hgobj gobj, uint8_t *salt, size_t salt_len)
 {
 #if defined(__linux__)
 #if defined(CONFIG_HAVE_OPENSSL)
+    /* OpenSSL preferred when both backends are enabled */
     if(RAND_bytes(salt, (int)salt_len) != 1) {
         gobj_log_error(gobj, 0,
             "function",     "%s", __FUNCTION__,
@@ -2741,6 +2743,7 @@ PRIVATE int pbkdf2_any(
 
 #if defined(__linux__)
 #if defined(CONFIG_HAVE_OPENSSL)
+    /* OpenSSL preferred when both backends are enabled */
 
     EVP_MD *md = EVP_MD_fetch(NULL, digest_name, NULL);
     if(!md) {
