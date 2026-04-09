@@ -2,20 +2,24 @@
 
 **TLS abstraction layer** for Yuneta. Exposes a single `api_tls_t`
 dispatch table so the rest of the codebase stays backend-agnostic — the
-actual crypto can be provided by **OpenSSL** or **mbed-TLS**.
+actual crypto can be provided by **OpenSSL**, **mbed-TLS**, or **both**.
 
-## Selecting a backend
+## Selecting backends
 
-The backend is chosen at compile time via `.config` (Kconfig):
+One or both backends can be enabled at compile time via `.config` (Kconfig):
 
 ```
-CONFIG_HAVE_OPENSSL=y     # default
-CONFIG_HAVE_MBEDTLS=y     # alternative (≈3× smaller static binaries)
+CONFIG_HAVE_OPENSSL=y     # default, full-featured
+CONFIG_HAVE_MBEDTLS=y     # lightweight (≈3× smaller static binaries)
 ```
 
-The macro `TLS_LIBRARY_NAME` (defined in `ytls.h`) expands to `"openssl"`
-or `"mbedtls"`. **Always use this macro in configuration strings** instead
-of a hard-coded literal:
+When both are enabled, the preferred default is OpenSSL. Each connection
+can select its backend at runtime via the `"library"` key in the crypto
+JSON config (e.g. `"library": "mbedtls"` to override the default).
+
+The macro `TLS_LIBRARY_NAME` (defined in `ytls.h`) expands to the preferred
+backend name (`"openssl"` when available, otherwise `"mbedtls"`).
+**Always use this macro in configuration strings** instead of a hard-coded literal:
 
 ```c
 "'crypto': { 'library': '" TLS_LIBRARY_NAME "', ... }"

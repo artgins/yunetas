@@ -160,9 +160,15 @@ set(YUNETAS_PCRE_LIBS
     libpcre2-8.a
 )
 
+# libjwt-y.a is listed separately to avoid duplication when both TLS backends are enabled
+if (CONFIG_HAVE_OPENSSL OR CONFIG_HAVE_MBEDTLS)
+    set(JWT_LIBS libjwt-y.a)
+else()
+    set(JWT_LIBS "")
+endif()
+
 if (CONFIG_HAVE_OPENSSL)
     set(OPENSSL_LIBS
-        libjwt-y.a
         libssl.a
         libcrypto.a
         pthread
@@ -174,7 +180,6 @@ endif()
 
 if (CONFIG_HAVE_MBEDTLS)
     set(MBEDTLS_LIBS
-        libjwt-y.a
         libmbedtls.a
         libmbedx509.a
         libmbedcrypto.a

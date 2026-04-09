@@ -154,7 +154,7 @@ menuconfig    # interactive TUI configurator — select compiler, build type, mo
 Key knobs:
 - Compiler: `CONFIG_USE_COMPILER_GCC=y` (default) or CLANG
 - Build type: `CONFIG_BUILD_TYPE_RELWITHDEBINFO=y` (default), Debug, Release, MinSizeRel
-- TLS: `CONFIG_HAVE_OPENSSL=y` (default) or mbed-TLS
+- TLS: `CONFIG_HAVE_OPENSSL=y` (default) and/or `CONFIG_HAVE_MBEDTLS=y` — both can be enabled for runtime selection
 - Static linking: `CONFIG_FULLY_STATIC=y` — fully static glibc binaries (GCC or Clang)
 - Debug extras: `CONFIG_DEBUG_WITH_BACKTRACE`, `CONFIG_DEBUG_TRACK_MEMORY`, `CONFIG_DEBUG_PRINT_YEV_LOOP_TIMES`
 - Optional modules: `CONFIG_MODULE_CONSOLE`, `CONFIG_MODULE_MQTT`, `CONFIG_MODULE_POSTGRES`, `CONFIG_MODULE_TEST`
@@ -248,7 +248,7 @@ Build order as processed by `yunetas` (each layer depends on all above it):
 ```
 kernel/c/gobj-c       ← core GObject framework, logging, buffers, JSON config
 kernel/c/libjwt       ← JWT authentication
-kernel/c/ytls         ← TLS abstraction (OpenSSL or mbed-TLS)
+kernel/c/ytls         ← TLS abstraction (OpenSSL and/or mbed-TLS, runtime selectable)
 kernel/c/yev_loop     ← async event loop (io_uring-based, non-blocking I/O)
 kernel/c/timeranger2  ← append-only time-series persistence
 kernel/c/root-linux   ← runtime GClasses: TCP/UDP, timers, channels, protocols, DB

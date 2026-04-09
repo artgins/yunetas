@@ -31,18 +31,21 @@
 #if defined(CONFIG_HAVE_OPENSSL)
     #include <openssl/ssl.h>
     #include <openssl/rand.h>
-#elif defined(CONFIG_HAVE_MBEDTLS)
+#endif
+#if defined(CONFIG_HAVE_MBEDTLS)
     #include <mbedtls/md.h>
     #include <mbedtls/private/pkcs5.h>  /* mbedtls_pkcs5_pbkdf2_hmac_ext() */
     #include <psa/crypto.h>             /* psa_generate_random(), psa_crypto_init() */
-#else
+#endif
+#if !defined(CONFIG_HAVE_OPENSSL) && !defined(CONFIG_HAVE_MBEDTLS)
     #error "No crypto library defined"
 #endif
 #endif
 
-#if defined(CONFIG_HAVE_MBEDTLS)
+#if defined(CONFIG_HAVE_MBEDTLS) && !defined(CONFIG_HAVE_OPENSSL)
 /* Map lowercase digest name (e.g. "sha512") to mbedtls_md_info_t.
- * Returns NULL if the digest is not supported. */
+ * Returns NULL if the digest is not supported.
+ * Only needed when mbedTLS is the sole crypto backend (OpenSSL preferred). */
 static const mbedtls_md_info_t *md_info_from_name(const char *name)
 {
     char upper[32];
@@ -71,7 +74,7 @@ static const mbedtls_md_info_t *md_info_from_name(const char *name)
 
     return mbedtls_md_info_from_type(t);
 }
-#endif /* CONFIG_HAVE_MBEDTLS */
+#endif /* CONFIG_HAVE_MBEDTLS && !CONFIG_HAVE_OPENSSL */
 
 #ifdef ESP_PLATFORM
 #include "c_esp_transport.h"

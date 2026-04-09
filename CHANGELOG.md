@@ -1,6 +1,9 @@
 # **Changelog**
 
 ## v7.2.1 -- 07/Apr/2026
+    - TLS: change Kconfig from radio (choice) to checkboxes — both OpenSSL and mbedTLS can be
+      enabled simultaneously for runtime backend selection per connection
+    - TLS: add `__tls_libraries__` global variable (reports all compiled backends)
     - Documentation: add Test Suite page, fix glossary warnings, improve gobj-js and lib-yui READMEs
     - Remove obsolete defconfig and REVIEW.md
     - Fix duplicate measure_times declarations in yev_loop.h

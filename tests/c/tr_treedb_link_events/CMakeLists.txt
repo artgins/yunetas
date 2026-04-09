@@ -66,6 +66,7 @@ target_link_libraries(${PROJECT_NAME}
     libyunetas-gobj.a
     ${YUNETAS_EXTERNAL_LIBS}
     ${YUNETAS_PCRE_LIBS}
+    ${JWT_LIBS}
     ${OPENSSL_LIBS}
     ${MBEDTLS_LIBS}
     ${DEBUG_LIBS}

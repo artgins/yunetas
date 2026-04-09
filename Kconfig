@@ -74,21 +74,26 @@ endmenu
 #------------------------------#
 #   TLS libraries
 #------------------------------#
-choice
-    prompt "TLS Library"
-    default HAVE_OPENSSL
+menu "TLS Libraries"
 
 config HAVE_OPENSSL
     bool "OpenSSL"
+    default y
     help
         Use OpenSSL as a TLS library to the YTLS API and libjwt.
+        Can be enabled together with Mbed-TLS for runtime selection.
 
 config HAVE_MBEDTLS
     bool "Mbed-TLS"
+    default n
     help
         Use mbed-tls as a TLS library to the YTLS API and libjwt.
+        Can be enabled together with OpenSSL for runtime selection.
 
-endchoice
+comment "WARNING: At least one TLS library must be selected"
+    depends on !HAVE_OPENSSL && !HAVE_MBEDTLS
+
+endmenu
 
 #------------------------------#
 #   Modules

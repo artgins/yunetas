@@ -6127,6 +6127,20 @@ PUBLIC json_t *gobj_global_variables(void)
 #endif
     );
 
+    json_object_set_new(
+        jn_global_variables,
+        "__tls_libraries__",
+#if defined(CONFIG_HAVE_OPENSSL) && defined(CONFIG_HAVE_MBEDTLS)
+        json_string("openssl+mbedtls")
+#elif defined(CONFIG_HAVE_OPENSSL)
+        json_string("openssl")
+#elif defined(CONFIG_HAVE_MBEDTLS)
+        json_string("mbedtls")
+#else
+        json_string("")
+#endif
+    );
+
     if(gobj_yuno()) {
         json_object_update_new(
             jn_global_variables,

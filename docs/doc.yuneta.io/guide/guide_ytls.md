@@ -12,14 +12,19 @@ The **ytls.h** header file defines the interface for the TLS (Transport Layer Se
 
 ## **Architecture**
 
-The ytls module uses a **backend-agnostic** design. The public API (`ytls.h` / `ytls.c`) exposes a single `api_tls_t` dispatch table, while the actual crypto is provided by one of two interchangeable backends selected at compile time via Kconfig:
+The ytls module uses a **backend-agnostic** design. The public API (`ytls.h` / `ytls.c`) exposes a single `api_tls_t` dispatch table, while the actual crypto is provided by two interchangeable backends configured via Kconfig (one or both can be enabled):
 
 - **OpenSSL** (`CONFIG_HAVE_OPENSSL`) — default, full-featured TLS backend.
 - **mbed-TLS** (`CONFIG_HAVE_MBEDTLS`) — lightweight alternative that produces ~3x smaller static binaries.
 
-The compile-time macro `TLS_LIBRARY_NAME` (defined in `ytls.h`) expands to `"openssl"` or `"mbedtls"` accordingly.
+Both backends can be enabled simultaneously. When both are present, OpenSSL is preferred as the default.
 
-At runtime, the chosen backend is available as the **yuno global variable** `__tls_library__` (set in `gobj.c`). This allows any GObj in the tree to query which TLS backend the yuno was compiled with — for example, to adapt configuration strings or log the active backend at startup.
+The compile-time macro `TLS_LIBRARY_NAME` (defined in `ytls.h`) expands to the preferred backend name: `"openssl"` when OpenSSL is enabled, otherwise `"mbedtls"`.
+
+At runtime, two **yuno global variables** are available (set in `gobj.c`):
+
+- `__tls_library__` — the preferred backend name (`"openssl"` or `"mbedtls"`), used for `(^^__tls_library__^^)` substitution in configuration strings.
+- `__tls_libraries__` — all enabled backends (`"openssl"`, `"mbedtls"`, or `"openssl+mbedtls"`), useful for diagnostics and logging.
 
 ### Source files
 
