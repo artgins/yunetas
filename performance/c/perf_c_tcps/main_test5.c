@@ -14,7 +14,12 @@
  *  Performance 18-Nov-2024 in my machine
  *      # TIME C_TEST5^c_test5 (count: 180000): 10.340712 seconds, 17406 op/sec
  *
- *          Copyright (c) 2024 by ArtGins.
+ *  Performance 09-Apr-2026 in my machine, con openssl
+ *      #TIME (count: 180000): elapsed 10142587762 ns, ops/sec      17746
+ *  Performance 09-Apr-2026 in my machine, con mbedtls
+ *      #TIME (count: 180000): elapsed 15386349952 ns, ops/sec      11698
+ *
+ *          Copyright (c) 2024, by ArtGins.
  *          All Rights Reserved.
  ****************************************************************************/
 #include <yunetas.h>

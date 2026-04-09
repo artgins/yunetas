@@ -6,6 +6,10 @@
         Msg/sec    : 173.3 Thousands
         Bytes/sec  : 177.5 Millions
 
+    - Performance, in my machine, 09-Apr-2026:
+        Msg/sec    : 159.0 Thousands
+        Bytes/sec  : 159.0 Millions
+
  *          Copyright (c) 2023 Niyamaka.
  *          Copyright (c) 2024, ArtGins.
  *          All Rights Reserved.
