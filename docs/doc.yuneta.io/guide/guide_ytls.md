@@ -12,7 +12,7 @@ The **ytls.h** header file defines the interface for the TLS (Transport Layer Se
 
 ## **Architecture**
 
-The ytls module uses a **backend-agnostic** design. The public API (`ytls.h` / `ytls.c`) exposes a single `api_tls_t` dispatch table, while the actual crypto is provided by one of two interchangeable backends selected at compile time via Kconfig:
+The ytls module uses a **backend-agnostic** design. The public API (`ytls.h` / `ytls.c`) exposes a single `api_tls_t` dispatch table, while the actual crypto is provided by two interchangeable backends configured via Kconfig (one or both can be enabled):
 
 - **OpenSSL** (`CONFIG_HAVE_OPENSSL`) — default, full-featured TLS backend.
 - **mbed-TLS** (`CONFIG_HAVE_MBEDTLS`) — lightweight alternative that produces ~3x smaller static binaries.
