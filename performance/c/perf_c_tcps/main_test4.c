@@ -13,13 +13,7 @@
  *  Performance 18-Nov-2024 in my machine
  *      # TIME C_TEST4^c_test4 (count: 180000): 7.239828 seconds, 24862 op/sec
  *
- *  Performance 09-Apr-2026 in my machine, con openssl
- *      #TIME (count: 180000): elapsed 8366332369 ns, ops/sec      21514
- *  Performance 09-Apr-2026 in my machine, con mbedtls
- *      #TIME (count: 180000): elapsed 13673833853 ns, ops/sec      13163
- *
- *
- *          Copyright (c) 2024, by ArtGins.
+ *          Copyright (c) 2024 by ArtGins.
  *          All Rights Reserved.
  ****************************************************************************/
 #include <yunetas.h>

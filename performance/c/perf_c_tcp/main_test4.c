@@ -13,10 +13,7 @@
  *  Performance 18-Nov-2024 in my machine
  *      # TIME C_TEST4^c_test4 (count: 180000): 5.033485 seconds, 35760 op/sec
  *
- *  Performance 09-Apr-2026 in my machine
- *      #TIME (count: 180000): elapsed 6365168455 ns, ops/sec       28278
- *
- *          Copyright (c) 2024, by ArtGins.
+ *          Copyright (c) 2024 by ArtGins.
  *          All Rights Reserved.
  ****************************************************************************/
 #include <yunetas.h>

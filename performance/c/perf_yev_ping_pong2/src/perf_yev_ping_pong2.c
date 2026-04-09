@@ -4,10 +4,6 @@
  *  Same as perf_yev_ping_pong plus save messages in tranger2 (test_topic_pkey_integer_iterator6)
  *
 
-    - Performance, in my machine, 09-Apr-2026:
-        Msg/sec    : 77.4 Thousands
-        Bytes/sec  : 5.4 Millions
-
  *          Copyright (c) 2023 Niyamaka.
  *          Copyright (c) 2024, ArtGins.
  *          All Rights Reserved.
