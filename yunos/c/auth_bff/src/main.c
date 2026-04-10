@@ -42,11 +42,13 @@ PRIVATE char fixed_config[]= "\
 {                                                                   \n\
     'yuno': {                                                       \n\
         'yuno_role': '"APP_NAME"',                                  \n\
-        'tags': ['yuneta', 'auth']                                  \n\
-    },                                                              \n\
+        'tags': ['yuneta', 'utils']                                 \n\
+    }                                                               \n\
+}                                                                   \n\
+";
+PRIVATE char variable_config[]= "\
+{                                                                   \n\
     'environment': {                                                \n\
-        'work_dir': '/yuneta',                                      \n\
-        'domain_dir': 'realms/agent/auth_bff',                      \n\
         'console_log_handlers': {                                   \n\
             'to_stdout': {                                          \n\
                 'handler_type': 'stdout',                           \n\
@@ -56,17 +58,22 @@ PRIVATE char fixed_config[]= "\
         'daemon_log_handlers': {                                    \n\
             'to_file': {                                            \n\
                 'handler_type': 'file',                             \n\
-                'handler_options': 255,                             \n\
-                'filename_mask': 'auth_bff-W.log'                   \n\
+                'filename_mask': 'auth_bff-W.log',                  \n\
+                'max_megas_rotatoryfile_size': 600,                 \n\
+                'handler_options': 255                              \n\
+            },                                                      \n\
+            'to_udp': {                                             \n\
+                'handler_type': 'udp',                              \n\
+                'url': 'udp://127.0.0.1:1992',                      \n\
+                'handler_options': 255                              \n\
             }                                                       \n\
         }                                                           \n\
-    }                                                               \n\
-}                                                                   \n\
-";
-PRIVATE char variable_config[]= "\
-{                                                                   \n\
+    },                                                              \n\
     'yuno': {                                                       \n\
         'required_services': [],                                    \n\
+        'public_services': [],                                      \n\
+        'service_descriptor': {                                     \n\
+        },                                                          \n\
         'trace_levels': {                                           \n\
             'C_TCP': ['connections'],                               \n\
             'C_TCP_S': ['listen', 'not-accepted', 'accepted']       \n\
@@ -80,11 +87,7 @@ PRIVATE char variable_config[]= "\
             'gclass': 'C_AUTH_BFF',                                 \n\
             'default_service': true,                                \n\
             'autostart': true,                                      \n\
-            'autoplay': false,                                      \n\
-            'kw': {                                                 \n\
-            },                                                      \n\
-            'zchilds': [                                            \n\
-            ]                                                       \n\
+            'autoplay': false                                       \n\
         }                                                           \n\
     ]                                                               \n\
 }                                                                   \n\
@@ -107,6 +110,29 @@ static int register_yuno_and_more(void)
     gobj_set_gclass_no_trace(gclass_find_by_name(C_TIMER0), "machine", TRUE);
     gobj_set_gclass_no_trace(gclass_find_by_name(C_TIMER), "machine", TRUE);
     gobj_set_global_no_trace("timer_periodic", TRUE);
+
+    // Samples of traces
+    // gobj_set_gclass_trace(gclass_find_by_name(C_IEVENT_SRV), "identity-card", TRUE);
+    // gobj_set_gclass_trace(gclass_find_by_name(C_IEVENT_CLI), "identity-card", TRUE);
+
+    // gobj_set_gclass_trace(gclass_find_by_name(C_TCP), "traffic", TRUE);
+
+    // Global traces
+    // gobj_set_global_trace("create_delete", TRUE);
+    // gobj_set_global_trace("machine", TRUE);
+    // gobj_set_global_trace("create_delete2", TRUE);
+    // gobj_set_global_trace("subscriptions", TRUE);
+    // gobj_set_global_trace("start_stop", TRUE);
+    // gobj_set_global_trace("monitor", TRUE);
+    // gobj_set_global_trace("event_monitor", TRUE);
+    // gobj_set_global_trace("liburing", TRUE);
+    // gobj_set_global_trace("ev_kw", TRUE);
+    // gobj_set_global_trace("authzs", TRUE);
+    // gobj_set_global_trace("states", TRUE);
+    // gobj_set_global_trace("gbuffers", TRUE);
+    // gobj_set_global_trace("timer_periodic", TRUE);
+    // gobj_set_global_trace("timer", TRUE);
+    // gobj_set_global_trace("liburing_timer", TRUE);
 
     return 0;
 }
