@@ -137,6 +137,7 @@ function mt_start(gobj)
      *  EV_LOGIN_ACCEPTED.  If it fails, remain in ST_LOGOUT so the
      *  user sees the login form.
      */
+    // TODO timeout por que puede no llegar!!! o cancelar si salen del login form
     gobj_change_state(gobj, "ST_WAIT_TOKEN");
     try_restore_session(gobj);
 }
