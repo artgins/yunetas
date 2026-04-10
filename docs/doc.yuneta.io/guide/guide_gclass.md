@@ -63,6 +63,75 @@ A `GClass` consists of several key components that define its operation:
 4. **Extensibility**:
     - The modular design of `GClass` allows new behaviors and features to be added by defining additional methods, events, or states.
 
+## Public Interface — what goes in the `.h`
+
+A GClass is a closed unit. The **only** symbols its header file
+exposes are:
+
+```C
+GOBJ_DECLARE_GCLASS(C_FOO);
+PUBLIC int register_c_foo(void);
+```
+
+That is the entire public surface. Adding raw `PUBLIC` C functions
+to a GClass header — for example a `c_foo_get_state(hgobj)` accessor
+so another module can peek at internal state — is a layering
+violation. It bypasses the FSM, the command parser, the authorization
+checker, the stats system, and the discoverability provided by
+`help`. It also encourages other modules to reach into the GClass via
+raw C calls, which breaks the GClass abstraction.
+
+Everything other code needs to do with a GClass goes through one of
+five uniform mechanisms:
+
+| Need | Mechanism | Caller API |
+|---|---|---|
+| Persistent typed state, configurable | **Attribute** (`SDATA` in `attrs_table`) | `gobj_read_*_attr()` / `gobj_write_*_attr()` |
+| Numeric counter / rate / gauge an operator would chart or reset | **Statistic** (`SDF_STATS` / `SDF_RSTATS` / `SDF_PSTATS`, or override `mt_stats` — see [parser stats guide](#stats_parser_guide)) | [`gobj_stats()`](../api/gobj/stats.md#gobj_stats) |
+| Synchronous query or operation, also human-callable | **Command** (`SDATACM` in [`command_table`](#command_table)) | [`gobj_command()`](../api/gobj/op.md#gobj_command); also reachable via `ycommand` |
+| Asynchronous notification or message flow | **Event** (entry in `event_types[]` + `states[]`) | [`gobj_send_event()`](../api/gobj/events_state.md#gobj_send_event) / [`gobj_publish_event()`](../api/gobj/publish.md#gobj_publish_event) |
+| Tight inter-gobj plumbing without a human use case | **Local method** (entry in [`LMETHOD`](#LMETHOD) table) | `gobj_local_method()` |
+
+That uniformity is what makes the framework introspectable from the
+agent, controllable from `ycommand`, and debuggable in production.
+
+**Anti-pattern** — do not do this in `c_foo.h`:
+
+```C
+GOBJ_DECLARE_GCLASS(C_FOO);
+PUBLIC int register_c_foo(void);
+
+/* WRONG: layering violation */
+PUBLIC json_t *c_foo_get_state(hgobj gobj);
+```
+
+**Correct** — expose the same data as a command, callable both from
+another GClass via `gobj_command()` and from a human operator via
+`ycommand`:
+
+```C
+/* c_foo.c */
+PRIVATE json_t *cmd_view_state(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+    json_t *jn_data = json_pack(...);  /* the snapshot */
+    return msg_iev_build_response(gobj, 0, 0, 0, jn_data, kw);
+}
+
+PRIVATE sdata_desc_t command_table[] = {
+SDATACM(DTP_SCHEMA, "view-state", a_state, 0, cmd_view_state, "..."),
+SDATA_END()
+};
+```
+
+```C
+/* consumer in another GClass */
+json_t *resp = gobj_command(target, "view-state", json_object(), gobj);
+json_t *jn_state = kw_get_dict(gobj, resp, "data", NULL, KW_EXTRACT);
+JSON_DECREF(resp)
+/* use jn_state... */
+```
+
 (gclass_name_t)=
 ## gclass_name_t
 
@@ -1009,6 +1078,77 @@ Values of `gclass_flag_t` Flags
 - `gcflag_singleton`: (`0x0010`)
     - **Description**: Enforces that only one instance of the `GClass` can exist at a time.
     - **Use Case**: For `GClasses` that must maintain a single-instance constraint (e.g., a singleton pattern).
+
+
+## Error Handling Convention — No Silent Errors
+
+In Yuneta, the log is the only window into runtime failures.
+Production debugging starts and ends with `gobj_log_error` and the
+trace levels — there is no other observability surface for the C
+side. Any error path that returns without leaving a trace is a blind
+spot.
+
+The convention is enforced by reading code, not by the compiler:
+
+> **Every path that returns an error indicator (`-1`, `NULL`, `FALSE`,
+> an error sentinel) MUST do one of two things — no exceptions:**
+>
+> 1. Call [`gobj_log_error()`](../api/logging/log.md#gobj_log_error)
+>    immediately before the `return`, with the standard fields
+>    (`function`, `msgset`, `msg`, plus relevant context attributes).
+> 2. If the failure was already logged by the helper that produced
+>    it (typical when calling functions with a `verbose=TRUE` /
+>    `KW_REQUIRED` flag — `gobj_find_service("name", TRUE)`,
+>    `kw_get_*` with `KW_REQUIRED`, `gobj_create_*` on failure, …),
+>    write `// Error already logged` on its own line right above
+>    the `return`.
+
+The annotation in case 2 is **mandatory**, not optional. A bare
+`if(!x) return -1;` with no log and no comment is a defect to fix,
+not a stylistic choice. The comment exists so the next reader can
+tell intentional silence apart from a forgotten trace.
+
+### Example — already logged inside the helper
+
+```C
+priv->gobj_bff_side = gobj_find_service("__bff_side__", TRUE);
+if(!priv->gobj_bff_side) {
+    // Error already logged
+    return -1;
+}
+```
+
+Here `gobj_find_service` was called with `verbose=TRUE`, which makes
+the helper itself emit a `gobj_log_error` on miss. Logging again
+would be noise; the comment proves the silence is intentional.
+
+### Example — direct logging at the point of failure
+
+```C
+const char *url = gobj_read_str_attr(gobj, "url");
+if(empty_string(url)) {
+    gobj_log_error(gobj, 0,
+        "function",     "%s", __FUNCTION__,
+        "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+        "msg",          "%s", "url EMPTY",
+        NULL
+    );
+    return -1;
+}
+```
+
+Validation, allocation failures, business-logic violations and
+syscalls without their own logging fall into this category. Always
+include enough context attributes (`gobj`, `function`, the offending
+input, the attempted operation) so the message is actionable on its
+own.
+
+### When reviewing existing code
+
+Treat untraced error returns as fixable defects, not as background
+noise. Adding the missing log or annotation as part of an unrelated
+change is the right thing to do — it pays observability debt with
+zero risk.
 
 
 (__global_list_persistent_attrs_fn__)=

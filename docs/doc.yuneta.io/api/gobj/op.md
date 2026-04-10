@@ -898,39 +898,6 @@ If a child object has the `gcflag_manual_start` flag set, it will not be started
 
 ---
 
-(gobj_stats)=
-## `gobj_stats()`
-
-Retrieves statistics for the given `hgobj`. If the gclass has a `mt_stats` method, it is used; otherwise, the global statistics parser is invoked.
-
-```C
-json_t *gobj_stats(
-    hgobj gobj,
-    const char *stats,
-    json_t *kw,
-    hgobj src
-);
-```
-
-**Parameters**
-
-| Key | Type | Description |
-|---|---|---|
-| `gobj` | `hgobj` | The `hgobj` instance whose statistics are to be retrieved. |
-| `stats` | `const char *` | The name of the statistics to retrieve. If NULL, all available statistics are returned. |
-| `kw` | `json_t *` | Additional parameters for filtering or modifying the statistics retrieval. Owned by the function. |
-| `src` | `hgobj` | The source `hgobj` requesting the statistics. |
-
-**Returns**
-
-A JSON object containing the requested statistics. The caller is responsible for managing the returned JSON object.
-
-**Notes**
-
-If the gclass has a `mt_stats` method, it is used to retrieve the statistics. Otherwise, the global statistics parser is invoked. If neither is available, an error response is returned.
-
----
-
 (gobj_stop)=
 ## `gobj_stop()`
 

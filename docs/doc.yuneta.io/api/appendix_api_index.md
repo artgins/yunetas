@@ -384,7 +384,7 @@ with links to the API documentation.
 
 85. [**`gobj_audit_commands`**](gobj/info.md#gobj_audit_commands) — `PUBLIC int gobj_audit_commands( int (*audit_command_cb)( const char *command, json_t *kw, void *user_data ), void *user_data )`
 
-86. [**`gobj_stats`**](gobj/op.md#gobj_stats) — `PUBLIC json_t * gobj_stats( hgobj gobj, const char* stats, json_t* kw, hgobj src )`
+86. [**`gobj_stats`**](gobj/stats.md#gobj_stats) — `PUBLIC json_t * gobj_stats( hgobj gobj, const char* stats, json_t* kw, hgobj src )`
 
 87. [**`gobj_set_bottom_gobj`**](gobj/op.md#gobj_set_bottom_gobj) — `PUBLIC hgobj gobj_set_bottom_gobj(hgobj gobj, hgobj bottom_gobj)`
 
@@ -2575,7 +2575,7 @@ All **957 functions** sorted alphabetically with their source header.
 | [**`gobj_start_tree`**](gobj/op.md#gobj_start_tree) | `gobj.h` | gobj-c (Core Framework) |
 | [**`gobj_start_up`**](gobj/startup.md#gobj_start_up) | `gobj.h` | gobj-c (Core Framework) |
 | [**`gobj_state_find_by_name`**](gobj/events_state.md#gobj_state_find_by_name) | `gobj.h` | gobj-c (Core Framework) |
-| [**`gobj_stats`**](gobj/op.md#gobj_stats) | `gobj.h` | gobj-c (Core Framework) |
+| [**`gobj_stats`**](gobj/stats.md#gobj_stats) | `gobj.h` | gobj-c (Core Framework) |
 | [**`gobj_stop`**](gobj/op.md#gobj_stop) | `gobj.h` | gobj-c (Core Framework) |
 | [**`gobj_stop_children`**](gobj/op.md#gobj_stop_children) | `gobj.h` | gobj-c (Core Framework) |
 | [**`gobj_stop_tree`**](gobj/op.md#gobj_stop_tree) | `gobj.h` | gobj-c (Core Framework) |
