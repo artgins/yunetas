@@ -31,25 +31,6 @@
 #include <g_st_kernel.h>
 #include <helpers.h>
 
-#ifdef __linux__
-#if defined(CONFIG_HAVE_OPENSSL)
-    #include <openssl/ssl.h>
-    #include <openssl/rand.h>
-#endif
-#if defined(CONFIG_HAVE_MBEDTLS)
-    #include <mbedtls/md.h>
-    #include <mbedtls/private/pkcs5.h>  /* mbedtls_pkcs5_pbkdf2_hmac_ext() */
-    #include <psa/crypto.h>             /* psa_generate_random(), psa_crypto_init() */
-#endif
-#if !defined(CONFIG_HAVE_OPENSSL) && !defined(CONFIG_HAVE_MBEDTLS)
-    #error "No crypto library defined"
-#endif
-#endif
-
-#ifdef ESP_PLATFORM
-#include "c_esp_transport.h"
-#endif
-
 #include "command_parser.h"
 #include "msg_ievent.h"
 #include "c_timer.h"
