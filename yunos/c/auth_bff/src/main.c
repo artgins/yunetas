@@ -18,6 +18,7 @@
  *          All Rights Reserved.
  ****************************************************************************/
 #include <yunetas.h>
+#include "c_auth_bff_yuno.h"
 
 /***************************************************************************
  *                      Names
@@ -90,7 +91,7 @@ PRIVATE char variable_config[]= "\
     'services': [                                                   \n\
         {                                                           \n\
             'name': 'auth_bff',                                     \n\
-            'gclass': 'C_AUTH_BFF',                                 \n\
+            'gclass': 'C_AUTH_BFF_YUNO',                            \n\
             'default_service': true,                                \n\
             'autostart': true,                                      \n\
             'autoplay': false                                       \n\
@@ -107,7 +108,11 @@ static int register_yuno_and_more(void)
     /*--------------------*
      *  Register gclass
      *--------------------*/
-    // c_auth_bff is registered by yunetas_register_c_core()
+    // C_AUTH_BFF (the per-channel kernel processor) is registered by
+    // yunetas_register_c_core(); it lives as a child of C_CHANNEL inside
+    // the __bff_side__ tree declared by the batch JSON.
+    // Here we register the yuno's own top-level orchestrator GClass.
+    register_c_auth_bff_yuno();
 
     /*------------------------------------------------*
      *          Traces

@@ -51,9 +51,11 @@ endif()
 #   Source
 ##############################################
 SET (YUNO_SRCS
+    src/c_auth_bff_yuno.c
     src/main.c
 )
 SET (YUNO_HDRS
+    src/c_auth_bff_yuno.h
 )
 
 ##############################################
