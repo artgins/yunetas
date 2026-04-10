@@ -110,6 +110,7 @@ PRIVATE int mt_play(hgobj gobj)
      *-------------------------*/
     priv->gobj_bff_side = gobj_find_service("__bff_side__", TRUE);
     if(!priv->gobj_bff_side) {
+        // Error already logged
         return -1;
     }
 
