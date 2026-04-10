@@ -209,6 +209,12 @@ Measured on AMD64, `RelWithDebInfo`, fully static (`CONFIG_FULLY_STATIC`):
 The difference is almost entirely the OpenSSL crypto/TLS library footprint.
 Choose `CONFIG_HAVE_MBEDTLS` when binary size matters (embedded, edge deployment).
 
+**Speed trade-off**: mbedTLS is slower than OpenSSL for TLS round-trips —
+roughly ~40% lower throughput on the `perf_c_tcps` benchmarks (see
+`performance/c/README.md`). So the backend choice is a size-vs-speed
+trade-off: OpenSSL for hot-path servers, mbedTLS when the binary has
+to stay small.
+
 #### What was changed in the Yuneta source to support `CONFIG_FULLY_STATIC`
 
 Static glibc binaries cannot call NSS (Name Service Switch) or the system resolver at runtime.  The following changes were made, all guarded by `#ifdef CONFIG_FULLY_STATIC`:
