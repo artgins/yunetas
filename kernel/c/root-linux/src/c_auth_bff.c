@@ -79,7 +79,20 @@
 /***************************************************************************
  *              Constants
  ***************************************************************************/
-#define MAX_PENDING_QUEUE   16
+/*
+ *  Pending request queue sizing.
+ *
+ *  `pending_queue_size` is a per-instance attr (SDF_RD) so different
+ *  channels can be tuned independently — a low-traffic internal BFF
+ *  keeps the default, a front-line one exposed to bursty login storms
+ *  can raise it without recompiling.
+ *
+ *  The compile-time ceiling MAX_PENDING_QUEUE_SIZE is a safety cap so
+ *  a misconfigured attr can't silently allocate gigabytes: each
+ *  PENDING_AUTH entry is ~8 KB, so 1024 slots ≈ 8 MB per channel.
+ */
+#define DEFAULT_PENDING_QUEUE_SIZE    16
+#define MAX_PENDING_QUEUE_SIZE      1024
 #define COOKIE_NAME_AT      "access_token"
 #define COOKIE_NAME_RT      "refresh_token"
 
@@ -166,6 +179,7 @@ SDATA (DTP_STRING,      "cookie_domain",        SDF_RD, "",     "Cookie Domain a
 SDATA (DTP_STRING,      "allowed_origin",       SDF_RD, "",     "CORS Access-Control-Allow-Origin value"),
 SDATA (DTP_STRING,      "allowed_redirect_uri", SDF_RD, "",     "Allowed redirect_uri prefix (e.g. https://treedb.yunetas.com/); rejects callback requests whose redirect_uri does not start with this"),
 SDATA (DTP_JSON,        "crypto",               SDF_RD,             "{}",   "TLS crypto config for Keycloak outbound calls"),
+SDATA (DTP_INTEGER,     "pending_queue_size",   SDF_RD,             "16",   "Max pending Keycloak requests per channel; clamped to [1, 1024]. Raise for front-line BFFs under burst"),
 SDATA (DTP_POINTER,     "user_data",            0,                  0,      "user data"),
 SDATA (DTP_POINTER,     "user_data2",           0,                  0,      "more user data"),
 SDATA_END()
@@ -192,8 +206,9 @@ PRIVATE const trace_level_t s_user_trace_level[16] = {
  *              Private data
  *---------------------------------------------*/
 typedef struct _PRIVATE_DATA {
-    /* Request queue */
-    PENDING_AUTH    queue[MAX_PENDING_QUEUE];
+    /* Request queue (ring buffer, size = queue_size, allocated in mt_create) */
+    PENDING_AUTH   *queue;
+    int             queue_size;         /* active size, clamped from attr */
     int             q_head;             /* next slot to read */
     int             q_tail;             /* next slot to write */
     int             q_count;
@@ -238,6 +253,34 @@ typedef struct _PRIVATE_DATA {
  ***************************************************************************/
 PRIVATE void mt_create(hgobj gobj)
 {
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    /*
+     *  Allocate the pending-request ring from the configured size, clamped
+     *  to a sane range.  Using gbmem_malloc (which is calloc-backed) gives
+     *  us zero-initialised PENDING_AUTH entries for free.
+     */
+    int requested = (int)gobj_read_integer_attr(gobj, "pending_queue_size");
+    if(requested < 1) {
+        requested = DEFAULT_PENDING_QUEUE_SIZE;
+    } else if(requested > MAX_PENDING_QUEUE_SIZE) {
+        gobj_log_warning(gobj, 0,
+            "function",         "%s", __FUNCTION__,
+            "msgset",           "%s", MSGSET_PARAMETER_ERROR,
+            "msg",              "%s", "pending_queue_size clamped to MAX_PENDING_QUEUE_SIZE",
+            "requested",        "%d", requested,
+            "max",              "%d", MAX_PENDING_QUEUE_SIZE,
+            NULL
+        );
+        requested = MAX_PENDING_QUEUE_SIZE;
+    }
+    priv->queue_size = requested;
+    priv->queue = GBMEM_MALLOC(sizeof(PENDING_AUTH) * (size_t)priv->queue_size);
+    if(!priv->queue) {
+        /* Error already logged by gbmem_malloc */
+        priv->queue_size = 0;
+    }
+
     /*
      *  SERVICE subscription model
      */
@@ -252,6 +295,10 @@ PRIVATE void mt_create(hgobj gobj)
  ***************************************************************************/
 PRIVATE void mt_destroy(hgobj gobj)
 {
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    GBMEM_FREE(priv->queue)
+    priv->queue_size = 0;
 }
 
 /***************************************************************************
@@ -757,18 +804,19 @@ PRIVATE void build_cors_headers(hgobj gobj, const char *origin,
 PRIVATE int enqueue(hgobj gobj, PENDING_AUTH *pa)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
-    if(priv->q_count >= MAX_PENDING_QUEUE) {
+    if(priv->q_count >= priv->queue_size) {
         priv->st_q_full_drops++;
         gobj_log_error(gobj, 0,
-            "function", "%s", __FUNCTION__,
-            "msgset",   "%s", MSGSET_SYSTEM_ERROR,
-            "msg",      "%s", "BFF pending queue full",
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_SYSTEM_ERROR,
+            "msg",          "%s", "BFF pending queue full",
+            "queue_size",   "%d", priv->queue_size,
             NULL
         );
         return -1;
     }
     priv->queue[priv->q_tail] = *pa;
-    priv->q_tail = (priv->q_tail + 1) % MAX_PENDING_QUEUE;
+    priv->q_tail = (priv->q_tail + 1) % priv->queue_size;
     priv->q_count++;
 
     priv->st_requests_total++;
@@ -786,7 +834,7 @@ PRIVATE PENDING_AUTH *dequeue(hgobj gobj)
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
     if(priv->q_count == 0) return NULL;
     PENDING_AUTH *pa = &priv->queue[priv->q_head];
-    priv->q_head = (priv->q_head + 1) % MAX_PENDING_QUEUE;
+    priv->q_head = (priv->q_head + 1) % priv->queue_size;
     priv->q_count--;
     return pa;
 }
@@ -1664,7 +1712,7 @@ PRIVATE json_t *cmd_view_status(hgobj gobj, const char *cmd, json_t *kw, hgobj s
      *  Walk the ring from q_head forward, q_count entries.
      */
     for(int i = 0; i < priv->q_count; i++) {
-        int idx = (priv->q_head + i) % MAX_PENDING_QUEUE;
+        int idx = (priv->q_head + i) % priv->queue_size;
         const PENDING_AUTH *pa = &priv->queue[idx];
         json_t *jn_entry = json_pack("{s:s, s:s}",
             "action",       action_name(pa->action),
@@ -1683,7 +1731,7 @@ PRIVATE json_t *cmd_view_status(hgobj gobj, const char *cmd, json_t *kw, hgobj s
         "q_count",          priv->q_count,
         "q_head",           priv->q_head,
         "q_tail",           priv->q_tail,
-        "q_max",            MAX_PENDING_QUEUE,
+        "q_max",            priv->queue_size,
         "queue",            jn_queue
     );
 
