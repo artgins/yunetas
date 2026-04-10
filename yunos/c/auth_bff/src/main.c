@@ -50,6 +50,12 @@ PRIVATE char variable_config[]= "\
 {                                                                   \n\
     'environment': {                                                \n\
         'console_log_handlers': {                                   \n\
+            'to_file': {                                            \n\
+                'handler_type': 'file',                             \n\
+                'filename_mask': 'auth_bff-W.log',                  \n\
+                'max_megas_rotatoryfile_size': 600,                 \n\
+                'handler_options': 255                              \n\
+            },                                                      \n\
             'to_stdout': {                                          \n\
                 'handler_type': 'stdout',                           \n\
                 'handler_options': 255                              \n\
