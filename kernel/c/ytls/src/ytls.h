@@ -18,7 +18,15 @@ extern "C"{
 /***************************************************************
  *              Constants
  ***************************************************************/
-/* Compile-time default TLS backend (prefers OpenSSL when both are available) */
+/* Compile-time TLS backend names — single source of truth.
+ *
+ *  TLS_LIBRARY_NAME    : preferred backend (OpenSSL wins when both)
+ *  TLS_LIBRARIES_NAME  : every backend compiled in, joined with '+'
+ *
+ *  These strings are pushed into gobj's global variables pool by
+ *  yunetas_register_c_core() so kw configs can substitute them via
+ *  (^^__tls_library__^^) / (^^__tls_libraries__^^).
+ */
 #include <yuneta_config.h>
 #if defined(CONFIG_HAVE_OPENSSL)
     #define TLS_LIBRARY_NAME "openssl"
@@ -26,6 +34,16 @@ extern "C"{
     #define TLS_LIBRARY_NAME "mbedtls"
 #else
     #define TLS_LIBRARY_NAME ""
+#endif
+
+#if defined(CONFIG_HAVE_OPENSSL) && defined(CONFIG_HAVE_MBEDTLS)
+    #define TLS_LIBRARIES_NAME "openssl+mbedtls"
+#elif defined(CONFIG_HAVE_OPENSSL)
+    #define TLS_LIBRARIES_NAME "openssl"
+#elif defined(CONFIG_HAVE_MBEDTLS)
+    #define TLS_LIBRARIES_NAME "mbedtls"
+#else
+    #define TLS_LIBRARIES_NAME ""
 #endif
 
 /***************************************************************

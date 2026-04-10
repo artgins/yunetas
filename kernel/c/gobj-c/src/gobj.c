@@ -318,6 +318,7 @@ PRIVATE json_t * (*__global_list_persistent_attrs_fn__)(hgobj gobj, json_t *keys
 
 PRIVATE dl_list_t dl_gclass = {0};
 PRIVATE json_t *__jn_services__ = 0;        // Dict "service": (json_int_t)(uintptr_t)gobj
+PRIVATE json_t *__jn_extra_global_vars__ = 0; // Extra entries merged into gobj_global_variables()
 PRIVATE dl_list_t dl_trans_filter = {0};
 PRIVATE int trace_machine_format = 1;       // 0 legacy, 1 simpler, 2 full
 /*
@@ -639,6 +640,7 @@ PUBLIC void gobj_end(void)
     }
 
     JSON_DECREF(__jn_services__)
+    JSON_DECREF(__jn_extra_global_vars__)
     JSON_DECREF(__jn_global_settings__)
 
     comm_prot_free();
@@ -6115,31 +6117,13 @@ PUBLIC json_t *gobj_global_variables(void)
 #endif
     );
 
-    json_object_set_new(
-        jn_global_variables,
-        "__tls_library__",
-#if defined(CONFIG_HAVE_OPENSSL)
-        json_string("openssl")
-#elif defined(CONFIG_HAVE_MBEDTLS)
-        json_string("mbedtls")
-#else
-        json_string("")
-#endif
-    );
-
-    json_object_set_new(
-        jn_global_variables,
-        "__tls_libraries__",
-#if defined(CONFIG_HAVE_OPENSSL) && defined(CONFIG_HAVE_MBEDTLS)
-        json_string("openssl+mbedtls")
-#elif defined(CONFIG_HAVE_OPENSSL)
-        json_string("openssl")
-#elif defined(CONFIG_HAVE_MBEDTLS)
-        json_string("mbedtls")
-#else
-        json_string("")
-#endif
-    );
+    /*
+     *  Merge in any extra globals contributed by upper layers
+     *  (TLS backend names, …) via gobj_add_global_variable().
+     */
+    if(__jn_extra_global_vars__) {
+        json_object_update(jn_global_variables, __jn_extra_global_vars__);
+    }
 
     if(gobj_yuno()) {
         json_object_update_new(
@@ -6151,6 +6135,24 @@ PUBLIC json_t *gobj_global_variables(void)
         );
     }
     return jn_global_variables;
+}
+
+/***************************************************************************
+ *  Register an extra global variable, contributed by an upper layer.
+ *  Used e.g. by yunetas_register_c_core() to publish the TLS backend
+ *  names without forcing gobj-c to depend on ytls.
+ ***************************************************************************/
+PUBLIC int gobj_add_global_variable(const char *name, json_t *value)
+{
+    if(empty_string(name) || !value) {
+        JSON_DECREF(value)
+        return -1;
+    }
+    if(!__jn_extra_global_vars__) {
+        __jn_extra_global_vars__ = json_object();
+    }
+    json_object_set_new(__jn_extra_global_vars__, name, value);
+    return 0;
 }
 
 /***************************************************************************

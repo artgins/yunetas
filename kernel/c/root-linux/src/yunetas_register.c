@@ -6,6 +6,7 @@
  *              Copyright (c) 2026, ArtGins.
  *              All Rights Reserved.
  ****************************************************************************/
+#include <ytls.h>           // TLS_LIBRARY_NAME / TLS_LIBRARIES_NAME
 #include "c_yuno.h"         // the grandmother
 #include "c_tcp.h"
 #include "c_tcp_s.h"
@@ -52,6 +53,15 @@ PUBLIC int yunetas_register_c_core(void)
         return -1;
     }
     int result = 0;
+
+    /*
+     *  Publish TLS backend names into gobj's global variables pool
+     *  so kw configs can substitute (^^__tls_library__^^) and
+     *  (^^__tls_libraries__^^).  Defined in ytls.h, the only place
+     *  that owns the CONFIG_HAVE_OPENSSL/MBEDTLS translation.
+     */
+    gobj_add_global_variable("__tls_library__",   json_string(TLS_LIBRARY_NAME));
+    gobj_add_global_variable("__tls_libraries__", json_string(TLS_LIBRARIES_NAME));
 
     result += register_c_authz();
     result += register_c_auth_bff();

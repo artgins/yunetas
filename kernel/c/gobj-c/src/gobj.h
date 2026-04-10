@@ -1318,6 +1318,7 @@ PUBLIC hgclass gobj_gclass(hgobj gobj);
 PUBLIC const char * gobj_full_name(hgobj gobj);
 PUBLIC const char * gobj_short_name(hgobj gobj);
 PUBLIC json_t * gobj_global_variables(void);
+PUBLIC int gobj_add_global_variable(const char *name, json_t *value); // value owned
 PUBLIC void * gobj_priv_data(hgobj gobj);
 PUBLIC hgobj gobj_parent(hgobj gobj);
 PUBLIC BOOL gobj_is_destroying(hgobj gobj);
