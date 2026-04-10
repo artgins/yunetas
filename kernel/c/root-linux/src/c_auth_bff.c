@@ -123,8 +123,9 @@ typedef struct _PENDING_AUTH {
 PRIVATE void process_next(hgobj gobj);
 PRIVATE void send_json_response(hgobj browser_src, int status_code,
     const char *status_text, json_t *jn_body, const char *extra_headers);
-PRIVATE void send_error_response(hgobj browser_src, int status_code,
-    const char *status_text, const char *error_msg, const char *extra_headers);
+PRIVATE void send_error_response(hgobj gobj, hgobj browser_src,
+    int status_code, const char *status_text,
+    const char *error_msg, const char *extra_headers);
 PRIVATE const char *extract_cookie(const char *cookie_header, const char *name,
     char *out, size_t out_size);
 
@@ -153,6 +154,15 @@ SDATA_END()
 /*---------------------------------------------*
  *      GClass trace levels
  *---------------------------------------------*/
+enum {
+    TRACE_MESSAGES  = 0x0001,   /* High-level request flow */
+    TRACE_TRAFFIC   = 0x0002,   /* Full HTTP payloads (sensitive fields masked) */
+};
+PRIVATE const trace_level_t s_user_trace_level[16] = {
+    {"messages",    "Trace request flow: connect, request, queue, Keycloak round-trip, response"},
+    {"traffic",     "Trace full payloads: headers, bodies, Keycloak data (passwords/tokens/codes masked)"},
+    {0, 0}
+};
 
 /*---------------------------------------------*
  *      GClass authz levels
@@ -435,6 +445,65 @@ PRIVATE const char *effective_cookie_domain(
 }
 
 /***************************************************************************
+ *  Trace helpers
+ ***************************************************************************/
+PRIVATE const char *action_name(bff_action_t a)
+{
+    switch(a) {
+        case BFF_CALLBACK: return "callback";
+        case BFF_LOGIN:    return "login";
+        case BFF_REFRESH:  return "refresh";
+        case BFF_LOGOUT:   return "logout";
+        default:           return "?";
+    }
+}
+
+/*
+ *  Return a deep copy of `jn` with sensitive string fields replaced
+ *  by "<N chars>".  Used by TRACE_TRAFFIC so payloads can be inspected
+ *  in production logs without leaking secrets.
+ *  Caller owns the returned object.
+ */
+PRIVATE json_t *redact_for_trace(json_t *jn)
+{
+    if(!jn) {
+        return json_object();
+    }
+    json_t *out = json_deep_copy(jn);
+    if(!json_is_object(out)) {
+        return out;
+    }
+    static const char *secret_keys[] = {
+        "password",
+        "code",
+        "code_verifier",
+        "access_token",
+        "refresh_token",
+        "id_token",
+        "client_secret",
+        NULL
+    };
+    for(int i = 0; secret_keys[i]; i++) {
+        json_t *v = json_object_get(out, secret_keys[i]);
+        if(json_is_string(v)) {
+            char buf[64];
+            snprintf(buf, sizeof(buf), "<%zu chars>",
+                strlen(json_string_value(v)));
+            json_object_set_new(out, secret_keys[i], json_string(buf));
+        }
+    }
+    /* Cookie header may carry the same tokens — drop its raw value too. */
+    json_t *cookie = json_object_get(out, "COOKIE");
+    if(json_is_string(cookie)) {
+        char buf[64];
+        snprintf(buf, sizeof(buf), "<%zu chars>",
+            strlen(json_string_value(cookie)));
+        json_object_set_new(out, "COOKIE", json_string(buf));
+    }
+    return out;
+}
+
+/***************************************************************************
  *  Send an HTTP JSON response to the browser client.
  *
  *  extra_headers: raw header lines ("Set-Cookie: …\r\nSet-Cookie: …\r\n")
@@ -452,11 +521,27 @@ PRIVATE void send_json_response(hgobj browser_src, int status_code,
 }
 
 /***************************************************************************
+ *  Send an HTTP error JSON response and log it on the server.
  *
+ *  Yuneta convention: never produce a silent failure.  Every error path
+ *  that surfaces to the browser also emits a gobj_log_error so the
+ *  operator sees it without enabling traces.
  ***************************************************************************/
-PRIVATE void send_error_response(hgobj browser_src, int status_code,
-    const char *status_text, const char *error_msg, const char *extra_headers)
+PRIVATE void send_error_response(hgobj gobj, hgobj browser_src,
+    int status_code, const char *status_text,
+    const char *error_msg, const char *extra_headers)
 {
+    gobj_log_error(gobj, 0,
+        "function",     "%s", __FUNCTION__,
+        "msgset",       "%s", MSGSET_PROTOCOL_ERROR,
+        "msg",          "%s", "BFF error response",
+        "status",       "%d", status_code,
+        "status_text",  "%s", status_text ? status_text : "",
+        "error",        "%s", error_msg ? error_msg : "",
+        "browser_src",  "%s", browser_src ? gobj_short_name(browser_src) : "",
+        NULL
+    );
+
     json_t *jn_body = json_pack("{s:b, s:s}",
         "success", 0,
         "error",   error_msg
@@ -562,11 +647,26 @@ PRIVATE json_t *result_token_response(
     int status = (int)kw_get_int(gobj, kw, "response_status_code", -1, KW_REQUIRED);
     const char *origin = kw_get_str(gobj, output_data, "_origin", "", 0);
 
+    if(gobj_trace_level(gobj) & TRACE_MESSAGES) {
+        gobj_trace_msg(gobj,
+            "BFF ← Keycloak: action=%s status=%d",
+            action_name(action), status
+        );
+    }
+    if(gobj_trace_level(gobj) & TRACE_TRAFFIC) {
+        json_t *jn_full_body = kw_get_dict(gobj, kw, "body", NULL, 0);
+        if(jn_full_body) {
+            json_t *jn_redact = redact_for_trace(jn_full_body);
+            gobj_trace_json(gobj, jn_redact, "BFF ← Keycloak body (redacted)");
+            JSON_DECREF(jn_redact)
+        }
+    }
+
     char cors_hdrs[1024];
     build_cors_headers(gobj, origin, cors_hdrs, sizeof(cors_hdrs), FALSE);
 
     if(status != 200) {
-        send_error_response(browser_src, 400, status_str(400),
+        send_error_response(gobj, browser_src, 400, status_str(400),
             "Keycloak token exchange failed", cors_hdrs);
         KW_DECREF(kw)
         STOP_TASK()
@@ -574,7 +674,7 @@ PRIVATE json_t *result_token_response(
 
     json_t *jn_body = kw_get_dict(gobj, kw, "body", NULL, KW_REQUIRED);
     if(!jn_body) {
-        send_error_response(browser_src, 500, status_str(500),
+        send_error_response(gobj, browser_src, 500, status_str(500),
             "Empty response from Keycloak", cors_hdrs);
         KW_DECREF(kw)
         STOP_TASK()
@@ -657,6 +757,16 @@ PRIVATE json_t *result_token_response(
             "success",          1,
             "expires_in",       (json_int_t)expires_in,
             "refresh_expires_in", (json_int_t)ref_exp_in
+        );
+    }
+
+    if(gobj_trace_level(gobj) & TRACE_MESSAGES) {
+        gobj_trace_msg(gobj,
+            "BFF → browser: action=%s status=200 username=%s email=%s "
+            "expires_in=%lld refresh_expires_in=%lld",
+            action_name(action),
+            username, email,
+            (long long)expires_in, (long long)ref_exp_in
         );
     }
 
@@ -745,6 +855,18 @@ PRIVATE json_t *action_call_keycloak(
         }
     }
 
+    if(gobj_trace_level(gobj) & TRACE_MESSAGES) {
+        gobj_trace_msg(gobj,
+            "BFF action_call_keycloak: action=%s resource=%s",
+            action_name(action), resource
+        );
+    }
+    if(gobj_trace_level(gobj) & TRACE_TRAFFIC) {
+        json_t *jn_redact = redact_for_trace(jn_data);
+        gobj_trace_json(gobj, jn_redact, "BFF → Keycloak data (redacted)");
+        JSON_DECREF(jn_redact)
+    }
+
     json_t *query = json_pack("{s:s, s:s, s:s, s:o, s:o}",
         "method",   "POST",
         "resource", resource,
@@ -788,6 +910,18 @@ PRIVATE json_t *action_kc_logout(
         json_object_set_new(jn_data, "client_secret", json_string(cs));
     }
 
+    if(gobj_trace_level(gobj) & TRACE_MESSAGES) {
+        gobj_trace_msg(gobj,
+            "BFF action_kc_logout: resource=%s rt_len=%zu",
+            resource, strlen(rt)
+        );
+    }
+    if(gobj_trace_level(gobj) & TRACE_TRAFFIC) {
+        json_t *jn_redact = redact_for_trace(jn_data);
+        gobj_trace_json(gobj, jn_redact, "BFF → Keycloak logout data (redacted)");
+        JSON_DECREF(jn_redact)
+    }
+
     json_t *query = json_pack("{s:s, s:s, s:s, s:o, s:o}",
         "method",   "POST",
         "resource", resource,
@@ -816,6 +950,20 @@ PRIVATE json_t *result_kc_logout(
         gobj, output_data, "_browser_src", 0, 0);
     const char *origin  = kw_get_str(gobj, output_data, "_origin", "", 0);
 
+    int status = (int)kw_get_int(gobj, kw, "response_status_code", -1, 0);
+
+    if(gobj_trace_level(gobj) & TRACE_MESSAGES) {
+        gobj_trace_msg(gobj, "BFF ← Keycloak logout: status=%d", status);
+    }
+    if(gobj_trace_level(gobj) & TRACE_TRAFFIC) {
+        json_t *jn_full_body = kw_get_dict(gobj, kw, "body", NULL, 0);
+        if(jn_full_body) {
+            json_t *jn_redact = redact_for_trace(jn_full_body);
+            gobj_trace_json(gobj, jn_redact, "BFF ← Keycloak logout body (redacted)");
+            JSON_DECREF(jn_redact)
+        }
+    }
+
     char cors_hdrs[1024];
     build_cors_headers(gobj, origin, cors_hdrs, sizeof(cors_hdrs), FALSE);
 
@@ -837,6 +985,10 @@ PRIVATE json_t *result_kc_logout(
         GBMEM_FREE(at_clear)
         GBMEM_FREE(rt_clear)
         GBMEM_FREE(extra)
+
+        if(gobj_trace_level(gobj) & TRACE_MESSAGES) {
+            gobj_trace_msg(gobj, "BFF → browser: logout status=200");
+        }
     }
 
     KW_DECREF(kw)
@@ -869,6 +1021,13 @@ PRIVATE void process_next(hgobj gobj)
         empty_string(priv->port) ? "" : priv->port,
         kc_token_path
     );
+
+    if(gobj_trace_level(gobj) & TRACE_MESSAGES) {
+        gobj_trace_msg(gobj,
+            "BFF → Keycloak: action=%s url=%s queue_after=%d",
+            action_name(pa->action), kc_token_url, priv->q_count
+        );
+    }
 
     json_t *jn_crypto = gobj_read_json_attr(gobj, "crypto");
 
@@ -983,6 +1142,9 @@ PRIVATE json_t *result_done(hgobj gobj, const char *lm, json_t *kw, hgobj src)
  ***************************************************************************/
 PRIVATE int ac_on_open(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 {
+    if(gobj_trace_level(gobj) & TRACE_MESSAGES) {
+        gobj_trace_msg(gobj, "BFF connection OPEN from %s", gobj_short_name(src));
+    }
     KW_DECREF(kw)
     return 0;
 }
@@ -992,6 +1154,9 @@ PRIVATE int ac_on_open(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
  ***************************************************************************/
 PRIVATE int ac_on_close(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 {
+    if(gobj_trace_level(gobj) & TRACE_MESSAGES) {
+        gobj_trace_msg(gobj, "BFF connection CLOSE from %s", gobj_short_name(src));
+    }
     KW_DECREF(kw)
     return 0;
 }
@@ -1014,6 +1179,25 @@ PRIVATE int ac_on_message(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
     const char *host_hdr = jn_headers ?
         kw_get_str(gobj, jn_headers, "HOST", "", 0) : "";
 
+    if(gobj_trace_level(gobj) & TRACE_MESSAGES) {
+        gobj_trace_msg(gobj,
+            "BFF request: method=%d url=%s host=%s origin=%s from=%s",
+            method, url, host_hdr, origin, gobj_short_name(src)
+        );
+    }
+    if(gobj_trace_level(gobj) & TRACE_TRAFFIC) {
+        if(jn_headers) {
+            json_t *jn_redact = redact_for_trace(jn_headers);
+            gobj_trace_json(gobj, jn_redact, "BFF request headers");
+            JSON_DECREF(jn_redact)
+        }
+        if(jn_body) {
+            json_t *jn_redact = redact_for_trace(jn_body);
+            gobj_trace_json(gobj, jn_redact, "BFF request body (redacted)");
+            JSON_DECREF(jn_redact)
+        }
+    }
+
     /* Build CORS headers for response */
     char cors_hdrs[1024];
     build_cors_headers(gobj, origin, cors_hdrs, sizeof(cors_hdrs), FALSE);
@@ -1032,7 +1216,7 @@ PRIVATE int ac_on_message(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 
     /* ---- POST only from here ---- */
     if(method != HTTP_POST) {
-        send_error_response(src, 405, "405 Method Not Allowed",
+        send_error_response(gobj, src, 405, "405 Method Not Allowed",
             "Only POST is allowed", cors_hdrs);
         KW_DECREF(kw)
         return 0;
@@ -1047,7 +1231,7 @@ PRIVATE int ac_on_message(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
     if(strcmp(url, "/auth/callback") == 0) {
         /* POST /auth/callback  { code, code_verifier, redirect_uri } */
         if(!jn_body) {
-            send_error_response(src, 400, status_str(400), "Missing JSON body",
+            send_error_response(gobj, src, 400, status_str(400), "Missing JSON body",
                 cors_hdrs);
             KW_DECREF(kw)
             return 0;
@@ -1057,7 +1241,7 @@ PRIVATE int ac_on_message(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
         const char *ruri    = kw_get_str(gobj, jn_body, "redirect_uri",  "", 0);
 
         if(empty_string(code) || empty_string(cv) || empty_string(ruri)) {
-            send_error_response(src, 400, status_str(400),
+            send_error_response(gobj, src, 400, status_str(400),
                 "code, code_verifier, and redirect_uri are required", cors_hdrs);
             KW_DECREF(kw)
             return 0;
@@ -1071,7 +1255,7 @@ PRIVATE int ac_on_message(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
         const char *allowed_ruri = gobj_read_str_attr(gobj, "allowed_redirect_uri");
         if(!empty_string(allowed_ruri) &&
                 strncmp(ruri, allowed_ruri, strlen(allowed_ruri)) != 0) {
-            send_error_response(src, 400, status_str(400),
+            send_error_response(gobj, src, 400, status_str(400),
                 "redirect_uri not allowed", cors_hdrs);
             KW_DECREF(kw)
             return 0;
@@ -1081,11 +1265,17 @@ PRIVATE int ac_on_message(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
         snprintf(pa.code,          sizeof(pa.code),          "%s", code);
         snprintf(pa.code_verifier, sizeof(pa.code_verifier), "%s", cv);
         snprintf(pa.redirect_uri,  sizeof(pa.redirect_uri),  "%s", ruri);
+        if(gobj_trace_level(gobj) & TRACE_MESSAGES) {
+            gobj_trace_msg(gobj,
+                "BFF /auth/callback: code_len=%zu cv_len=%zu redirect_uri=%s",
+                strlen(code), strlen(cv), ruri
+            );
+        }
 
     } else if(strcmp(url, "/auth/login") == 0) {
         /* POST /auth/login  { username, password } — Direct Access Grant (ROPC) */
         if(!jn_body) {
-            send_error_response(src, 400, status_str(400), "Missing JSON body",
+            send_error_response(gobj, src, 400, status_str(400), "Missing JSON body",
                 cors_hdrs);
             KW_DECREF(kw)
             return 0;
@@ -1094,7 +1284,7 @@ PRIVATE int ac_on_message(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
         const char *password = kw_get_str(gobj, jn_body, "password", "", 0);
 
         if(empty_string(username) || empty_string(password)) {
-            send_error_response(src, 400, status_str(400),
+            send_error_response(gobj, src, 400, status_str(400),
                 "username and password are required", cors_hdrs);
             KW_DECREF(kw)
             return 0;
@@ -1103,19 +1293,28 @@ PRIVATE int ac_on_message(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
         pa.action = BFF_LOGIN;
         snprintf(pa.username, sizeof(pa.username), "%s", username);
         snprintf(pa.password, sizeof(pa.password), "%s", password);
+        if(gobj_trace_level(gobj) & TRACE_MESSAGES) {
+            gobj_trace_msg(gobj,
+                "BFF /auth/login: username=%s password=<%zu chars>",
+                username, strlen(password)
+            );
+        }
 
     } else if(strcmp(url, "/auth/refresh") == 0) {
         /* POST /auth/refresh  (reads httpOnly cookie) */
         char rt[4096];
         if(!extract_cookie(cookie_hdr, COOKIE_NAME_RT, rt, sizeof(rt)) ||
                 empty_string(rt)) {
-            send_error_response(src, 401, status_str(401),
+            send_error_response(gobj, src, 401, status_str(401),
                 "Missing refresh_token cookie", cors_hdrs);
             KW_DECREF(kw)
             return 0;
         }
         pa.action = BFF_REFRESH;
         snprintf(pa.refresh_token, sizeof(pa.refresh_token), "%s", rt);
+        if(gobj_trace_level(gobj) & TRACE_MESSAGES) {
+            gobj_trace_msg(gobj, "BFF /auth/refresh: rt_len=%zu", strlen(rt));
+        }
 
     } else if(strcmp(url, "/auth/logout") == 0) {
         /* POST /auth/logout  (reads httpOnly cookie) */
@@ -1123,16 +1322,19 @@ PRIVATE int ac_on_message(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
         extract_cookie(cookie_hdr, COOKIE_NAME_RT, rt, sizeof(rt));
         pa.action = BFF_LOGOUT;
         snprintf(pa.refresh_token, sizeof(pa.refresh_token), "%s", rt);
+        if(gobj_trace_level(gobj) & TRACE_MESSAGES) {
+            gobj_trace_msg(gobj, "BFF /auth/logout: rt_len=%zu", strlen(rt));
+        }
 
     } else {
-        send_error_response(src, 404, "404 Not Found", "Unknown endpoint",
+        send_error_response(gobj, src, 404, "404 Not Found", "Unknown endpoint",
             cors_hdrs);
         KW_DECREF(kw)
         return 0;
     }
 
     if(enqueue(gobj, &pa) < 0) {
-        send_error_response(src, 503, "503 Service Unavailable",
+        send_error_response(gobj, src, 503, "503 Service Unavailable",
             "Server busy, retry in a moment", cors_hdrs);
         KW_DECREF(kw)
         return 0;
@@ -1158,6 +1360,10 @@ PRIVATE int ac_end_task(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
     }
 
     priv->processing = FALSE;
+
+    if(gobj_trace_level(gobj) & TRACE_MESSAGES) {
+        gobj_trace_msg(gobj, "BFF Keycloak task ended; pending=%d", priv->q_count);
+    }
 
     KW_DECREF(kw)
 
@@ -1271,10 +1477,10 @@ PRIVATE int create_gclass(gclass_name_t gclass_name)
         lmt,
         attrs_table,
         sizeof(PRIVATE_DATA),
-        0,          /* authz_table */
-        0,          /* command_table */
-        0,          /* s_user_trace_level */
-        0           /* gclass_flag */
+        0,                  /* authz_table */
+        0,                  /* command_table */
+        s_user_trace_level,
+        0                   /* gclass_flag */
     );
     if(!__gclass__) {
         return -1;
