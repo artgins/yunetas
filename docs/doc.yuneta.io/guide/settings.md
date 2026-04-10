@@ -65,10 +65,15 @@ The function replaces strings enclosed in `(^^ ^^)` with corresponding values fr
 | `__sys_version__`         | System version (Linux only).             |
 | `__sys_release__`         | System release (Linux only).             |
 | `__sys_machine__`         | Machine type (Linux only).               |
-| `__tls_library__`         | Preferred TLS backend: `"openssl"` or `"mbedtls"` (compile-time, prefers OpenSSL). |
-| `__tls_libraries__`       | All enabled TLS backends: `"openssl"`, `"mbedtls"`, or `"openssl+mbedtls"` (compile-time). |
 | `__bind_ip__`             | Bind IP address of the Yuno.             |
 | `__multiple__`            | Whether the Yuno allows multiple instances (boolean). |
+
+In addition, upper layers can publish their own variables via [`gobj_add_global_variable()`](../api/gobj/info.md#gobj_add_global_variable). The `root-linux` layer uses this hook to add the TLS backend names:
+
+| **Variable**              | **Description**                          |
+|---------------------------|------------------------------------------|
+| `__tls_library__`         | Preferred TLS backend: `"openssl"` or `"mbedtls"` (compile-time, prefers OpenSSL). |
+| `__tls_libraries__`       | All enabled TLS backends: `"openssl"`, `"mbedtls"`, or `"openssl+mbedtls"` (compile-time). |
 
 ### 2. **Comment Handling**
 Supports single-line comments using the syntax `##^` in JSON strings.

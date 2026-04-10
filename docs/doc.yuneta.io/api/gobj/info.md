@@ -230,14 +230,46 @@ A JSON object containing the following global variables:
 | `__sys_version__`         | System version (Linux only).             |
 | `__sys_release__`         | System release (Linux only).             |
 | `__sys_machine__`         | Machine type (Linux only).               |
-| `__tls_library__`         | Preferred TLS backend: `"openssl"` or `"mbedtls"` (compile-time, prefers OpenSSL). |
-| `__tls_libraries__`       | All enabled TLS backends: `"openssl"`, `"mbedtls"`, or `"openssl+mbedtls"` (compile-time). |
 | `__bind_ip__`             | Bind IP address of the Yuno (set when yuno is running). |
 | `__multiple__`            | Whether the Yuno allows multiple instances (boolean, set when yuno is running). |
+
+Plus any extra variables that have been published by upper layers via [`gobj_add_global_variable()`](#gobj_add_global_variable). For example, `root-linux`'s `yunetas_register_c_core()` publishes:
+
+| **Variable**              | **Description**                          |
+|---------------------------|------------------------------------------|
+| `__tls_library__`         | Preferred TLS backend: `"openssl"` or `"mbedtls"` (compile-time, prefers OpenSSL). |
+| `__tls_libraries__`       | All enabled TLS backends: `"openssl"`, `"mbedtls"`, or `"openssl+mbedtls"` (compile-time). |
 
 **Notes**
 
 The returned JSON object must be decremented with `json_decref()` to avoid memory leaks. These variables are also available for substitution in configuration strings via the `(^^ ^^)` syntax — see [Settings](../../guide/settings.md#global-variable-substitution).
+
+---
+
+(gobj_add_global_variable)=
+## `gobj_add_global_variable()`
+
+Publishes an extra entry into the global-variables pool returned by [`gobj_global_variables()`](#gobj_global_variables). It lets upper layers contribute variables that gobj-c itself does not (and should not) know about — for example TLS backend names, which are injected from the `ytls` layer by `yunetas_register_c_core()`.
+
+```C
+int gobj_add_global_variable(const char *name, json_t *value); // value owned
+```
+
+**Parameters**
+
+| Key | Type | Description |
+|---|---|---|
+| `name`  | `const char *` | Variable name (e.g. `"__tls_library__"`). Must be non-empty. |
+| `value` | `json_t *`     | The value to publish. **Ownership is transferred** — the function takes the reference. |
+
+**Returns**
+
+`0` on success; `-1` if `name` is empty or `value` is `NULL` (in which case the value's reference is released anyway).
+
+**Notes**
+
+- Call this once at startup, **before** any service is created (i.e. before `yuneta_entry_point()` reaches the run phase). The variables are merged into every subsequent call to `gobj_global_variables()` and feed kw-config substitution via `(^^var^^)`.
+- The pool is owned by gobj-c and freed automatically at shutdown.
 
 ---
 

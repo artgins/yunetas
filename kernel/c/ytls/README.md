@@ -11,11 +11,24 @@ CONFIG_HAVE_OPENSSL=y     # default
 CONFIG_HAVE_MBEDTLS=y     # alternative (≈3× smaller static binaries)
 ```
 
-The macro `TLS_LIBRARY_NAME` (defined in `ytls.h`) expands to `"openssl"` or `"mbedtls"`. Always use this macro in configuration strings instead of a hard-coded literal:
+`ytls.h` is the single source of truth for the backend names:
+
+- `TLS_LIBRARY_NAME` — preferred backend (`"openssl"` when both are enabled).
+- `TLS_LIBRARIES_NAME` — every backend compiled in, joined with `+` (e.g. `"openssl+mbedtls"`).
+
+Use `TLS_LIBRARY_NAME` directly in C string literals instead of a hard-coded value:
 
 ```c
 'crypto': { 'library': '" TLS_LIBRARY_NAME "', ... }
 ```
+
+`root-linux`'s `yunetas_register_c_core()` publishes both names into gobj's global-variable pool via [`gobj_add_global_variable()`](../../docs/doc.yuneta.io/api/gobj/info.md#gobj_add_global_variable), so kw configs can substitute them at load time:
+
+```json
+"crypto": { "library": "(^^__tls_library__^^)" }
+```
+
+This is what keeps gobj-c free of any `CONFIG_HAVE_OPENSSL` / `CONFIG_HAVE_MBEDTLS` checks — TLS knowledge lives only in this module.
 
 ## Backend notes (mbed-TLS v4.0)
 

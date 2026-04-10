@@ -19,12 +19,15 @@ The ytls module uses a **backend-agnostic** design. The public API (`ytls.h` / `
 
 Both backends can be enabled simultaneously. When both are present, OpenSSL is preferred as the default.
 
-The compile-time macro `TLS_LIBRARY_NAME` (defined in `ytls.h`) expands to the preferred backend name: `"openssl"` when OpenSSL is enabled, otherwise `"mbedtls"`.
+`ytls.h` is the **single source of truth** for the backend names:
 
-At runtime, two **yuno global variables** are available (set in `gobj.c`):
+- `TLS_LIBRARY_NAME` — preferred backend (`"openssl"` when both are enabled).
+- `TLS_LIBRARIES_NAME` — every backend compiled in, joined with `+` (e.g. `"openssl+mbedtls"`).
 
-- `__tls_library__` — the preferred backend name (`"openssl"` or `"mbedtls"`), used for `(^^__tls_library__^^)` substitution in configuration strings.
-- `__tls_libraries__` — all enabled backends (`"openssl"`, `"mbedtls"`, or `"openssl+mbedtls"`), useful for diagnostics and logging.
+At runtime, two matching **yuno global variables** are available — `root-linux`'s `yunetas_register_c_core()` publishes them into gobj's global-variable pool via [`gobj_add_global_variable()`](../api/gobj/info.md#gobj_add_global_variable), so `gobj-c` itself stays free of any `CONFIG_HAVE_OPENSSL` / `CONFIG_HAVE_MBEDTLS` checks:
+
+- `__tls_library__` — preferred backend, used for `(^^__tls_library__^^)` substitution in kw configs.
+- `__tls_libraries__` — all enabled backends, useful for diagnostics and logging.
 
 ### Source files
 

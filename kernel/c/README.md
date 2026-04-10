@@ -498,6 +498,7 @@ const char *gobj_yuno_realm_name(void);
 const char *gobj_yuno_realm_env(void);
 const char *gobj_yuno_node_owner(void);
 json_t     *gobj_global_variables(void);
+int         gobj_add_global_variable(const char *name, json_t *value); // value owned
 
 // Child iteration
 hgobj       gobj_first_child(hgobj gobj);
