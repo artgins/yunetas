@@ -66,6 +66,7 @@
 #include <g_st_kernel.h>
 #include <helpers.h>
 #include <command_parser.h>
+#include <stats_parser.h>      /* build_stats_response() for mt_stats */
 
 #include "msg_ievent.h"
 #include "c_prot_http_cl.h"
@@ -164,20 +165,6 @@ SDATA (DTP_STRING,      "cookie_domain",        SDF_RD, "",     "Cookie Domain a
 SDATA (DTP_STRING,      "allowed_origin",       SDF_RD, "",     "CORS Access-Control-Allow-Origin value"),
 SDATA (DTP_STRING,      "allowed_redirect_uri", SDF_RD, "",     "Allowed redirect_uri prefix (e.g. https://treedb.yunetas.com/); rejects callback requests whose redirect_uri does not start with this"),
 SDATA (DTP_JSON,        "crypto",               SDF_RD,             "{}",   "TLS crypto config for Keycloak outbound calls"),
-
-/*-----------------------------------------------------------------*
- *  Statistics — collected by the agent via gobj_stats().
- *  All resettable (SDF_RSTATS).
- *-----------------------------------------------------------------*/
-SDATA (DTP_INTEGER,     "requests_total",       SDF_RD|SDF_RSTATS,  0,      "Browser requests accepted (any endpoint)"),
-SDATA (DTP_INTEGER,     "q_count",              SDF_RD|SDF_RSTATS,  0,      "Current pending queue depth (mirrors priv->q_count)"),
-SDATA (DTP_INTEGER,     "q_max_seen",           SDF_RD|SDF_RSTATS,  0,      "High-water mark of the pending queue depth"),
-SDATA (DTP_INTEGER,     "q_full_drops",         SDF_RD|SDF_RSTATS,  0,      "Requests rejected because the queue was full (HTTP 503)"),
-SDATA (DTP_INTEGER,     "kc_calls",             SDF_RD|SDF_RSTATS,  0,      "Keycloak round-trips started"),
-SDATA (DTP_INTEGER,     "kc_ok",                SDF_RD|SDF_RSTATS,  0,      "Keycloak round-trips that returned status 200"),
-SDATA (DTP_INTEGER,     "kc_errors",            SDF_RD|SDF_RSTATS,  0,      "Keycloak round-trips that returned non-200 status"),
-SDATA (DTP_INTEGER,     "bff_errors",           SDF_RD|SDF_RSTATS,  0,      "4xx/5xx responses returned to the browser"),
-
 SDATA (DTP_POINTER,     "user_data",            0,                  0,      "user data"),
 SDATA (DTP_POINTER,     "user_data2",           0,                  0,      "more user data"),
 SDATA_END()
@@ -219,6 +206,20 @@ typedef struct _PRIVATE_DATA {
     char host[256];
     char port[16];
     char path[1024];
+
+    /*
+     *  Statistics — plain counters in PRIVATE_DATA, NOT SDF_*STATS
+     *  attributes, so the hot path stays a single ++ instruction with
+     *  no JSON cost.  Exposed via mt_stats() below; mt_stats also
+     *  honours the standard "__reset__" stat name to zero them.
+     */
+    uint64_t        st_requests_total;  /* requests accepted (any endpoint) */
+    uint64_t        st_q_max_seen;      /* high-water mark of q_count */
+    uint64_t        st_q_full_drops;    /* requests rejected because q full */
+    uint64_t        st_kc_calls;        /* Keycloak round-trips started */
+    uint64_t        st_kc_ok;           /* Keycloak round-trips with status 200 */
+    uint64_t        st_kc_errors;       /* Keycloak round-trips with non-200 */
+    uint64_t        st_bff_errors;      /* 4xx/5xx returned to the browser */
 } PRIVATE_DATA;
 
 
@@ -324,6 +325,75 @@ PRIVATE int mt_stop(hgobj gobj)
         priv->gobj_http = NULL;
     }
     return 0;
+}
+
+/***************************************************************************
+ *      Framework Method stats
+ *
+ *  Statistics live as plain uint64_t fields in PRIVATE_DATA so the hot
+ *  path stays a single ++ instruction (no JSON cost per increment).
+ *  This is the override hook called by gobj_stats() — it builds the
+ *  stats dict on demand from priv fields and honours the standard
+ *  "__reset__" stat name to zero the resettable counters (mirroring
+ *  what the default stats_parser.c does for SDF_RSTATS attributes).
+ *
+ *  `stats` semantics, matching stats_parser.c:
+ *    - NULL or ""        → return all stats
+ *    - "__reset__"       → reset resettable counters then return all
+ *    - "<name|prefix>"   → only stats whose name is contained in this
+ ***************************************************************************/
+PRIVATE json_t *mt_stats(hgobj gobj, const char *stats, json_t *kw, hgobj src)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    if(stats && strcmp(stats, "__reset__") == 0) {
+        /*
+         *  Reset resettable counters.  q_count is a live gauge mirroring
+         *  the current ring depth, not a counter — leave it alone.
+         *  q_max_seen restarts from the current depth so the new
+         *  high-water mark is anchored to "now".
+         */
+        priv->st_requests_total = 0;
+        priv->st_q_max_seen     = priv->q_count;
+        priv->st_q_full_drops   = 0;
+        priv->st_kc_calls       = 0;
+        priv->st_kc_ok          = 0;
+        priv->st_kc_errors      = 0;
+        priv->st_bff_errors     = 0;
+        stats = "";  /* fall through and return the (now zeroed) snapshot */
+    }
+
+    /*
+     *  Build a flat dict of every counter.  Filter by name/prefix if
+     *  the caller provided one (same convention as stats_parser.c).
+     */
+    json_t *jn_data = json_object();
+
+#define STAT_INT(name_, value_) do { \
+    if(empty_string(stats) || strstr(stats, name_) != NULL) { \
+        json_object_set_new(jn_data, name_, json_integer((json_int_t)(value_))); \
+    } \
+} while(0)
+
+    STAT_INT("requests_total", priv->st_requests_total);
+    STAT_INT("q_count",        priv->q_count);          /* live gauge */
+    STAT_INT("q_max_seen",     priv->st_q_max_seen);
+    STAT_INT("q_full_drops",   priv->st_q_full_drops);
+    STAT_INT("kc_calls",       priv->st_kc_calls);
+    STAT_INT("kc_ok",          priv->st_kc_ok);
+    STAT_INT("kc_errors",      priv->st_kc_errors);
+    STAT_INT("bff_errors",     priv->st_bff_errors);
+
+#undef STAT_INT
+
+    KW_DECREF(kw)
+    return build_stats_response(
+        gobj,
+        0,          /* result */
+        0,          /* jn_comment */
+        0,          /* jn_schema */
+        jn_data     /* jn_data, owned */
+    );
 }
 
 
@@ -477,15 +547,6 @@ PRIVATE const char *effective_cookie_domain(
 }
 
 /***************************************************************************
- *  Stats helper — increment an SDF_RSTATS attribute by 1.
- ***************************************************************************/
-PRIVATE inline void incr_stat(hgobj gobj, const char *name)
-{
-    gobj_write_integer_attr(gobj, name,
-        gobj_read_integer_attr(gobj, name) + 1);
-}
-
-/***************************************************************************
  *  Trace helpers
  ***************************************************************************/
 PRIVATE const char *action_name(bff_action_t a)
@@ -572,7 +633,8 @@ PRIVATE void send_error_response(hgobj gobj, hgobj browser_src,
     int status_code, const char *status_text,
     const char *error_msg, const char *extra_headers)
 {
-    incr_stat(gobj, "bff_errors");
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+    priv->st_bff_errors++;
 
     gobj_log_error(gobj, 0,
         "function",     "%s", __FUNCTION__,
@@ -630,7 +692,7 @@ PRIVATE int enqueue(hgobj gobj, PENDING_AUTH *pa)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
     if(priv->q_count >= MAX_PENDING_QUEUE) {
-        incr_stat(gobj, "q_full_drops");
+        priv->st_q_full_drops++;
         gobj_log_error(gobj, 0,
             "function", "%s", __FUNCTION__,
             "msgset",   "%s", MSGSET_SYSTEM_ERROR,
@@ -643,11 +705,9 @@ PRIVATE int enqueue(hgobj gobj, PENDING_AUTH *pa)
     priv->q_tail = (priv->q_tail + 1) % MAX_PENDING_QUEUE;
     priv->q_count++;
 
-    /* Stats: queue depth + high-water mark + lifetime request counter */
-    incr_stat(gobj, "requests_total");
-    gobj_write_integer_attr(gobj, "q_count", priv->q_count);
-    if(priv->q_count > gobj_read_integer_attr(gobj, "q_max_seen")) {
-        gobj_write_integer_attr(gobj, "q_max_seen", priv->q_count);
+    priv->st_requests_total++;
+    if((uint64_t)priv->q_count > priv->st_q_max_seen) {
+        priv->st_q_max_seen = priv->q_count;
     }
     return 0;
 }
@@ -662,7 +722,6 @@ PRIVATE PENDING_AUTH *dequeue(hgobj gobj)
     PENDING_AUTH *pa = &priv->queue[priv->q_head];
     priv->q_head = (priv->q_head + 1) % MAX_PENDING_QUEUE;
     priv->q_count--;
-    gobj_write_integer_attr(gobj, "q_count", priv->q_count);
     return pa;
 }
 
@@ -699,7 +758,14 @@ PRIVATE json_t *result_token_response(
     int status = (int)kw_get_int(gobj, kw, "response_status_code", -1, KW_REQUIRED);
     const char *origin = kw_get_str(gobj, output_data, "_origin", "", 0);
 
-    incr_stat(gobj, status == 200 ? "kc_ok" : "kc_errors");
+    {
+        PRIVATE_DATA *priv = gobj_priv_data(gobj);
+        if(status == 200) {
+            priv->st_kc_ok++;
+        } else {
+            priv->st_kc_errors++;
+        }
+    }
 
     if(gobj_trace_level(gobj) & TRACE_MESSAGES) {
         gobj_trace_msg(gobj,
@@ -1006,7 +1072,14 @@ PRIVATE json_t *result_kc_logout(
 
     int status = (int)kw_get_int(gobj, kw, "response_status_code", -1, 0);
 
-    incr_stat(gobj, status == 200 ? "kc_ok" : "kc_errors");
+    {
+        PRIVATE_DATA *priv = gobj_priv_data(gobj);
+        if(status == 200) {
+            priv->st_kc_ok++;
+        } else {
+            priv->st_kc_errors++;
+        }
+    }
 
     if(gobj_trace_level(gobj) & TRACE_MESSAGES) {
         gobj_trace_msg(gobj, "BFF ← Keycloak logout: status=%d", status);
@@ -1078,7 +1151,7 @@ PRIVATE void process_next(hgobj gobj)
         kc_token_path
     );
 
-    incr_stat(gobj, "kc_calls");
+    priv->st_kc_calls++;
 
     if(gobj_trace_level(gobj) & TRACE_MESSAGES) {
         gobj_trace_msg(gobj,
@@ -1569,6 +1642,7 @@ PRIVATE const GMETHODS gmt = {
     .mt_destroy = mt_destroy,
     .mt_start   = mt_start,
     .mt_stop    = mt_stop,
+    .mt_stats   = mt_stats,
 };
 
 PRIVATE LMETHOD lmt[] = {
