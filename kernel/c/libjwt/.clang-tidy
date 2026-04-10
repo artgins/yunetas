@@ -1,0 +1,14 @@
+---
+# libjwt is imported third-party code (github.com/benmcollins/libjwt).
+# Module-local clang-tidy overrides:
+#
+#  - cppcoreguidelines-interfaces-global-init
+#       Disabled.  jwt-crypto-ops.c initialises file-scope tables with
+#       address-of expressions like `&jwt_openssl_ops` (a vtable defined
+#       in another TU).  In C the address of a static-storage object is
+#       a constant expression resolved at link time, independent of the
+#       pointed-to object's value, so the static-init-order issue this
+#       check targets cannot occur.  The diagnostic is a false positive
+#       inherited from C++ semantics.
+InheritParentConfig: true
+Checks: '-cppcoreguidelines-interfaces-global-init'
