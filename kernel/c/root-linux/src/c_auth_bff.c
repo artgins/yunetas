@@ -128,10 +128,28 @@ PRIVATE void send_error_response(hgobj gobj, hgobj browser_src,
     const char *error_msg, const char *extra_headers);
 PRIVATE const char *extract_cookie(const char *cookie_header, const char *name,
     char *out, size_t out_size);
+PRIVATE json_t *cmd_help(hgobj gobj, const char *cmd, json_t *kw, hgobj src);
+PRIVATE json_t *cmd_view_status(hgobj gobj, const char *cmd, json_t *kw, hgobj src);
 
 /***************************************************************************
  *          Data: config, public data, private data
  ***************************************************************************/
+PRIVATE sdata_desc_t pm_help[] = {
+/*-PM----type-----------name------------flag------------default-----description---------- */
+SDATAPM (DTP_STRING,    "cmd",          0,              0,          "command about you want help."),
+SDATAPM (DTP_INTEGER,   "level",        0,              0,          "command search level in childs"),
+SDATA_END()
+};
+
+PRIVATE const char *a_help[]   = {"h", "?", 0};
+PRIVATE const char *a_status[] = {"status", 0};
+
+PRIVATE sdata_desc_t command_table[] = {
+/*-CMD---type-----------name------------alias-----------items-----------json_fn-----------description---------- */
+SDATACM (DTP_SCHEMA,    "help",         a_help,         pm_help,        cmd_help,         "Command's help"),
+SDATACM (DTP_SCHEMA,    "view-status",  a_status,       0,              cmd_view_status,  "Snapshot of this BFF instance: queue, pending tasks and active Keycloak round-trip"),
+SDATA_END()
+};
 
 /*---------------------------------------------*
  *      Attributes
@@ -145,9 +163,23 @@ SDATA (DTP_STRING,      "client_secret",        SDF_RD, "",     "Client secret (
 SDATA (DTP_STRING,      "cookie_domain",        SDF_RD, "",     "Cookie Domain attribute (shared hostname without port)"),
 SDATA (DTP_STRING,      "allowed_origin",       SDF_RD, "",     "CORS Access-Control-Allow-Origin value"),
 SDATA (DTP_STRING,      "allowed_redirect_uri", SDF_RD, "",     "Allowed redirect_uri prefix (e.g. https://treedb.yunetas.com/); rejects callback requests whose redirect_uri does not start with this"),
-SDATA (DTP_JSON,        "crypto",               SDF_RD, "{}",   "TLS crypto config for Keycloak outbound calls"),
-SDATA (DTP_POINTER,     "user_data",            0,      0,      "user data"),
-SDATA (DTP_POINTER,     "user_data2",           0,      0,      "more user data"),
+SDATA (DTP_JSON,        "crypto",               SDF_RD,             "{}",   "TLS crypto config for Keycloak outbound calls"),
+
+/*-----------------------------------------------------------------*
+ *  Statistics — collected by the agent via gobj_stats().
+ *  All resettable (SDF_RSTATS).
+ *-----------------------------------------------------------------*/
+SDATA (DTP_INTEGER,     "requests_total",       SDF_RD|SDF_RSTATS,  0,      "Browser requests accepted (any endpoint)"),
+SDATA (DTP_INTEGER,     "q_count",              SDF_RD|SDF_RSTATS,  0,      "Current pending queue depth (mirrors priv->q_count)"),
+SDATA (DTP_INTEGER,     "q_max_seen",           SDF_RD|SDF_RSTATS,  0,      "High-water mark of the pending queue depth"),
+SDATA (DTP_INTEGER,     "q_full_drops",         SDF_RD|SDF_RSTATS,  0,      "Requests rejected because the queue was full (HTTP 503)"),
+SDATA (DTP_INTEGER,     "kc_calls",             SDF_RD|SDF_RSTATS,  0,      "Keycloak round-trips started"),
+SDATA (DTP_INTEGER,     "kc_ok",                SDF_RD|SDF_RSTATS,  0,      "Keycloak round-trips that returned status 200"),
+SDATA (DTP_INTEGER,     "kc_errors",            SDF_RD|SDF_RSTATS,  0,      "Keycloak round-trips that returned non-200 status"),
+SDATA (DTP_INTEGER,     "bff_errors",           SDF_RD|SDF_RSTATS,  0,      "4xx/5xx responses returned to the browser"),
+
+SDATA (DTP_POINTER,     "user_data",            0,                  0,      "user data"),
+SDATA (DTP_POINTER,     "user_data2",           0,                  0,      "more user data"),
 SDATA_END()
 };
 
@@ -445,6 +477,15 @@ PRIVATE const char *effective_cookie_domain(
 }
 
 /***************************************************************************
+ *  Stats helper — increment an SDF_RSTATS attribute by 1.
+ ***************************************************************************/
+PRIVATE inline void incr_stat(hgobj gobj, const char *name)
+{
+    gobj_write_integer_attr(gobj, name,
+        gobj_read_integer_attr(gobj, name) + 1);
+}
+
+/***************************************************************************
  *  Trace helpers
  ***************************************************************************/
 PRIVATE const char *action_name(bff_action_t a)
@@ -531,6 +572,8 @@ PRIVATE void send_error_response(hgobj gobj, hgobj browser_src,
     int status_code, const char *status_text,
     const char *error_msg, const char *extra_headers)
 {
+    incr_stat(gobj, "bff_errors");
+
     gobj_log_error(gobj, 0,
         "function",     "%s", __FUNCTION__,
         "msgset",       "%s", MSGSET_PROTOCOL_ERROR,
@@ -587,6 +630,7 @@ PRIVATE int enqueue(hgobj gobj, PENDING_AUTH *pa)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
     if(priv->q_count >= MAX_PENDING_QUEUE) {
+        incr_stat(gobj, "q_full_drops");
         gobj_log_error(gobj, 0,
             "function", "%s", __FUNCTION__,
             "msgset",   "%s", MSGSET_SYSTEM_ERROR,
@@ -598,6 +642,13 @@ PRIVATE int enqueue(hgobj gobj, PENDING_AUTH *pa)
     priv->queue[priv->q_tail] = *pa;
     priv->q_tail = (priv->q_tail + 1) % MAX_PENDING_QUEUE;
     priv->q_count++;
+
+    /* Stats: queue depth + high-water mark + lifetime request counter */
+    incr_stat(gobj, "requests_total");
+    gobj_write_integer_attr(gobj, "q_count", priv->q_count);
+    if(priv->q_count > gobj_read_integer_attr(gobj, "q_max_seen")) {
+        gobj_write_integer_attr(gobj, "q_max_seen", priv->q_count);
+    }
     return 0;
 }
 
@@ -611,6 +662,7 @@ PRIVATE PENDING_AUTH *dequeue(hgobj gobj)
     PENDING_AUTH *pa = &priv->queue[priv->q_head];
     priv->q_head = (priv->q_head + 1) % MAX_PENDING_QUEUE;
     priv->q_count--;
+    gobj_write_integer_attr(gobj, "q_count", priv->q_count);
     return pa;
 }
 
@@ -646,6 +698,8 @@ PRIVATE json_t *result_token_response(
 
     int status = (int)kw_get_int(gobj, kw, "response_status_code", -1, KW_REQUIRED);
     const char *origin = kw_get_str(gobj, output_data, "_origin", "", 0);
+
+    incr_stat(gobj, status == 200 ? "kc_ok" : "kc_errors");
 
     if(gobj_trace_level(gobj) & TRACE_MESSAGES) {
         gobj_trace_msg(gobj,
@@ -952,6 +1006,8 @@ PRIVATE json_t *result_kc_logout(
 
     int status = (int)kw_get_int(gobj, kw, "response_status_code", -1, 0);
 
+    incr_stat(gobj, status == 200 ? "kc_ok" : "kc_errors");
+
     if(gobj_trace_level(gobj) & TRACE_MESSAGES) {
         gobj_trace_msg(gobj, "BFF ← Keycloak logout: status=%d", status);
     }
@@ -1021,6 +1077,8 @@ PRIVATE void process_next(hgobj gobj)
         empty_string(priv->port) ? "" : priv->port,
         kc_token_path
     );
+
+    incr_stat(gobj, "kc_calls");
 
     if(gobj_trace_level(gobj) & TRACE_MESSAGES) {
         gobj_trace_msg(gobj,
@@ -1408,6 +1466,98 @@ PRIVATE int ac_stopped(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
     return 0;
 }
 
+
+
+
+                    /***************************
+                     *      Commands
+                     ***************************/
+
+
+
+
+/***************************************************************************
+ *  cmd help
+ ***************************************************************************/
+PRIVATE json_t *cmd_help(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
+{
+    KW_INCREF(kw)
+    json_t *jn_resp = gobj_build_cmds_doc(gobj, kw);
+    return msg_iev_build_response(
+        gobj,
+        0,
+        jn_resp,
+        0,
+        0,
+        kw  // owned
+    );
+}
+
+/***************************************************************************
+ *  cmd view-status — snapshot of this C_AUTH_BFF instance.
+ *
+ *  Returned data shape:
+ *  {
+ *      "name":            "bff-3",
+ *      "full_name":       "...",
+ *      "processing":      true,
+ *      "has_active_http": true,
+ *      "active_http":     "C_PROT_HTTP_CL^bff-3",
+ *      "q_count":         2,
+ *      "q_head":          5,
+ *      "q_tail":          7,
+ *      "q_max":           16,
+ *      "queue": [
+ *          {"action": "login",    "browser_src": "..."},
+ *          {"action": "callback", "browser_src": "..."}
+ *      ]
+ *  }
+ *
+ *  C_AUTH_BFF_YUNO's view-bff-status command aggregates this across
+ *  every per-channel instance via gobj_command(child, "view-status", ...).
+ ***************************************************************************/
+PRIVATE json_t *cmd_view_status(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    json_t *jn_queue = json_array();
+    /*
+     *  Walk the ring from q_head forward, q_count entries.
+     */
+    for(int i = 0; i < priv->q_count; i++) {
+        int idx = (priv->q_head + i) % MAX_PENDING_QUEUE;
+        const PENDING_AUTH *pa = &priv->queue[idx];
+        json_t *jn_entry = json_pack("{s:s, s:s}",
+            "action",       action_name(pa->action),
+            "browser_src",  pa->browser_src ?
+                gobj_short_name(pa->browser_src) : ""
+        );
+        json_array_append_new(jn_queue, jn_entry);
+    }
+
+    json_t *jn_data = json_pack("{s:s, s:s, s:b, s:b, s:s, s:i, s:i, s:i, s:i, s:o}",
+        "name",             gobj_name(gobj),
+        "full_name",        gobj_short_name(gobj),
+        "processing",       priv->processing ? 1 : 0,
+        "has_active_http",  priv->gobj_http ? 1 : 0,
+        "active_http",      priv->gobj_http ? gobj_short_name(priv->gobj_http) : "",
+        "q_count",          priv->q_count,
+        "q_head",           priv->q_head,
+        "q_tail",           priv->q_tail,
+        "q_max",            MAX_PENDING_QUEUE,
+        "queue",            jn_queue
+    );
+
+    return msg_iev_build_response(
+        gobj,
+        0,
+        0,
+        0,
+        jn_data,
+        kw  // owned
+    );
+}
+
 /***************************************************************************
  *                          FSM
  ***************************************************************************/
@@ -1501,7 +1651,7 @@ PRIVATE int create_gclass(gclass_name_t gclass_name)
         attrs_table,
         sizeof(PRIVATE_DATA),
         0,                  /* authz_table */
-        0,                  /* command_table */
+        command_table,
         s_user_trace_level,
         0                   /* gclass_flag */
     );
