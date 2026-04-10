@@ -57,6 +57,7 @@
  *  All Rights Reserved.
  ***********************************************************************/
 #include <string.h>
+#include <strings.h>    /* strcasecmp(), strcasestr() */
 #include <stdio.h>
 #include <limits.h>
 #include <time.h>
@@ -328,6 +329,44 @@ PRIVATE int mt_stop(hgobj gobj)
 }
 
 /***************************************************************************
+ *  Filter predicate matching stats_parser.c::_build_stats().
+ *
+ *  Two-stage match, mirroring the default parser so an mt_stats override
+ *  behaves identically from the caller's point of view:
+ *
+ *    1. Exact/substring — the stat's full `name` appears inside `stats`.
+ *    2. Prefix fallback — extract `name`'s own prefix up to the first '_'
+ *       and look for that inside `stats`.  This is what lets a caller
+ *       pass "kc_" (or "kc") and receive every `kc_*` counter.
+ *
+ *  Both lookups are case-insensitive so ad-hoc filters ("KC", "bff")
+ *  work the same as the canonical lowercase names.
+ ***************************************************************************/
+PRIVATE BOOL stats_match(const char *stats, const char *name)
+{
+    if(empty_string(stats)) {
+        return TRUE;
+    }
+    if(strcasestr(stats, name) != NULL) {
+        return TRUE;
+    }
+    const char *p = strchr(name, '_');
+    if(p) {
+        char prefix[32];
+        size_t ln = (size_t)(p - name);
+        if(ln >= sizeof(prefix)) {
+            ln = sizeof(prefix) - 1;
+        }
+        memcpy(prefix, name, ln);
+        prefix[ln] = '\0';
+        if(strcasestr(stats, prefix) != NULL) {
+            return TRUE;
+        }
+    }
+    return FALSE;
+}
+
+/***************************************************************************
  *      Framework Method stats
  *
  *  Statistics live as plain uint64_t fields in PRIVATE_DATA so the hot
@@ -340,7 +379,9 @@ PRIVATE int mt_stop(hgobj gobj)
  *  `stats` semantics, matching stats_parser.c:
  *    - NULL or ""        → return all stats
  *    - "__reset__"       → reset resettable counters then return all
- *    - "<name|prefix>"   → only stats whose name is contained in this
+ *    - "<name|prefix>"   → stats_match() two-stage case-insensitive
+ *                          filter: full name OR underscore-prefix of
+ *                          the stat's own name appears in <stats>.
  ***************************************************************************/
 PRIVATE json_t *mt_stats(hgobj gobj, const char *stats, json_t *kw, hgobj src)
 {
@@ -370,7 +411,7 @@ PRIVATE json_t *mt_stats(hgobj gobj, const char *stats, json_t *kw, hgobj src)
     json_t *jn_data = json_object();
 
 #define STAT_INT(name_, value_) do { \
-    if(empty_string(stats) || strstr(stats, name_) != NULL) { \
+    if(stats_match(stats, name_)) { \
         json_object_set_new(jn_data, name_, json_integer((json_int_t)(value_))); \
     } \
 } while(0)
@@ -565,6 +606,10 @@ PRIVATE const char *action_name(bff_action_t a)
  *  by "<N chars>".  Used by TRACE_TRAFFIC so payloads can be inspected
  *  in production logs without leaking secrets.
  *  Caller owns the returned object.
+ *
+ *  Keys are matched case-insensitively against the object's real keys
+ *  so HTTP headers (e.g. "Cookie" / "cookie" / "COOKIE") are redacted
+ *  regardless of how the transport normalised them.
  */
 PRIVATE json_t *redact_for_trace(json_t *jn)
 {
@@ -583,25 +628,46 @@ PRIVATE json_t *redact_for_trace(json_t *jn)
         "refresh_token",
         "id_token",
         "client_secret",
+        "cookie",       /* HTTP header may carry the same tokens */
         NULL
     };
-    for(int i = 0; secret_keys[i]; i++) {
-        json_t *v = json_object_get(out, secret_keys[i]);
-        if(json_is_string(v)) {
-            char buf[64];
-            snprintf(buf, sizeof(buf), "<%zu chars>",
-                strlen(json_string_value(v)));
-            json_object_set_new(out, secret_keys[i], json_string(buf));
+
+    /*
+     *  First pass: find every object key whose name matches one of
+     *  secret_keys[] case-insensitively.  We snapshot the matched
+     *  keys into a local buffer because json_object_set_new during
+     *  json_object_foreach iteration is not safe.
+     */
+    char matched[16][64];
+    int n_matched = 0;
+    const char *key;
+    json_t *value;
+    json_object_foreach(out, key, value) {
+        if(!json_is_string(value)) {
+            continue;
+        }
+        for(int i = 0; secret_keys[i]; i++) {
+            if(strcasecmp(key, secret_keys[i]) == 0) {
+                if(n_matched < (int)(sizeof(matched)/sizeof(matched[0]))) {
+                    snprintf(matched[n_matched], sizeof(matched[0]), "%s", key);
+                    n_matched++;
+                }
+                break;
+            }
         }
     }
-    /* Cookie header may carry the same tokens — drop its raw value too. */
-    json_t *cookie = json_object_get(out, "COOKIE");
-    if(json_is_string(cookie)) {
+
+    for(int i = 0; i < n_matched; i++) {
+        json_t *v = json_object_get(out, matched[i]);
+        if(!json_is_string(v)) {
+            continue;
+        }
         char buf[64];
         snprintf(buf, sizeof(buf), "<%zu chars>",
-            strlen(json_string_value(cookie)));
-        json_object_set_new(out, "COOKIE", json_string(buf));
+            strlen(json_string_value(v)));
+        json_object_set_new(out, matched[i], json_string(buf));
     }
+
     return out;
 }
 
