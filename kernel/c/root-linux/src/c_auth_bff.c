@@ -1031,6 +1031,29 @@ PRIVATE void process_next(hgobj gobj)
 
     json_t *jn_crypto = gobj_read_json_attr(gobj, "crypto");
 
+    /*
+     *  Invariant check: only one outbound Keycloak HTTP client may exist
+     *  at a time, kept in priv->gobj_http.  The previous task is supposed
+     *  to have torn it down in ac_end_task before we get back here through
+     *  process_next() — we are also gated by priv->processing == FALSE.
+     *  If we ever find priv->gobj_http already set, the schema isn't lined
+     *  up: the previous round-trip leaked, or we re-entered process_next()
+     *  while a task was still alive.  Trace it as a hard error so it's
+     *  obvious in the logs; the assignment below would otherwise drop the
+     *  previous reference silently.
+     */
+    if(priv->gobj_http) {
+        gobj_log_error(gobj, 0,
+            "function",         "%s", __FUNCTION__,
+            "msgset",           "%s", MSGSET_INTERNAL_ERROR,
+            "msg",              "%s", "priv->gobj_http already set — leaked from a previous Keycloak round-trip",
+            "previous_gobj",    "%s", gobj_short_name(priv->gobj_http),
+            "next_action",      "%s", action_name(pa->action),
+            "next_url",         "%s", kc_token_url,
+            NULL
+        );
+    }
+
     /* Create a transient HTTP client for this one Keycloak request */
     priv->gobj_http = gobj_create(
         gobj_name(gobj),
