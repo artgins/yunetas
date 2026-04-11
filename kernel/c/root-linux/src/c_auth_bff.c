@@ -218,6 +218,10 @@ typedef struct _PRIVATE_DATA {
     /* Current outbound Keycloak connection */
     BOOL            processing;
     hgobj           gobj_http;          /* C_PROT_HTTP_CL while active */
+    hgobj           gobj_task;          /* C_TASK while active; needed so
+                                            ac_kc_watchdog can stop it
+                                            without depending on the natural
+                                            EV_END_TASK completion path. */
 
     /*
      *  Outbound watchdog.  Armed in process_next right after gobj_http
@@ -407,14 +411,20 @@ PRIVATE int mt_start(hgobj gobj)
 /***************************************************************************
  *      Framework Method stop
  *
- *  Two unrelated chains to tear down here:
+ *  Three unrelated chains to tear down here:
  *
  *    1) priv->gobj_http: the OUTBOUND HTTP client to Keycloak, created
  *       on demand in process_next() and torn down in ac_end_task.  If
  *       a Keycloak round-trip is still in flight when the BFF is
  *       stopped, we kill it here.
  *
- *    2) bottom_gobj: the INBOUND C_PROT_HTTP_SR + C_TCP placed below
+ *    2) priv->gobj_task: the C_TASK driving the in-flight Keycloak
+ *       round-trip.  Same rationale — ac_end_task drops it on normal
+ *       completion, but if we're being stopped before ac_end_task ran
+ *       it has to be killed here so the framework's destroy walk
+ *       doesn't trip on a still-RUNNING gobj.
+ *
+ *    3) bottom_gobj: the INBOUND C_PROT_HTTP_SR + C_TCP placed below
  *       us by the IOGATE config.  C_CHANNEL stops its bottom (us) but
  *       does not recurse, so without this the inbound stack would
  *       still be RUNNING when the framework destroys the yuno tree.
@@ -425,6 +435,11 @@ PRIVATE int mt_stop(hgobj gobj)
 
     clear_timeout0(priv->kc_watchdog);
     gobj_stop(priv->kc_watchdog);
+
+    if(priv->gobj_task && gobj_is_running(priv->gobj_task)) {
+        gobj_stop(priv->gobj_task);
+    }
+    priv->gobj_task = NULL;
 
     if(priv->gobj_http) {
         gobj_stop_tree(priv->gobj_http);
@@ -580,6 +595,8 @@ PRIVATE const char *status_str(int code)
         case 401: return "401 Unauthorized";
         case 403: return "403 Forbidden";
         case 500: return "500 Internal Server Error";
+        case 503: return "503 Service Unavailable";
+        case 504: return "504 Gateway Timeout";
         default:  return "500 Internal Server Error";
     }
 }
@@ -1531,6 +1548,7 @@ PRIVATE void process_next(hgobj gobj)
     hgobj gobj_task = gobj_create(gobj_name(gobj), C_TASK, kw_task, gobj);
     gobj_subscribe_event(gobj_task, EV_END_TASK, NULL, gobj);
     gobj_set_volatil(gobj_task, TRUE);
+    priv->gobj_task = gobj_task;
 
     gobj_start_tree(priv->gobj_http);
     gobj_start(gobj_task);
@@ -1885,6 +1903,25 @@ PRIVATE int ac_end_task(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
     clear_timeout0(priv->kc_watchdog);
     priv->kc_watchdog_fired = FALSE;
     priv->active_browser_src = NULL;
+
+    /*
+     *  Tear down the C_TASK.  Two paths land here:
+     *    - Natural completion: c_task::stop_task synchronously publishes
+     *      EV_END_TASK BEFORE calling gobj_stop on itself, so we get the
+     *      event with src == priv->gobj_task while it is still RUNNING.
+     *      We must NOT stop it here — c_task will do it itself the
+     *      moment we return, and a double-stop logs "GObj NOT RUNNING".
+     *    - Watchdog (ac_kc_watchdog → gobj_send_event(EV_END_TASK, src=gobj)):
+     *      the task is still in the middle of waiting for Keycloak and
+     *      nobody is going to stop it for us.  src is c_auth_bff itself
+     *      (not the task), so force-stop here.  EV_STOPPED then chains
+     *      to ac_stopped which destroys the volatil task.
+     */
+    if(src != priv->gobj_task &&
+            priv->gobj_task && gobj_is_running(priv->gobj_task)) {
+        gobj_stop(priv->gobj_task);
+    }
+    priv->gobj_task = NULL;  /* ac_stopped will destroy it */
 
     /* Tear down the transient Keycloak HTTP client */
     if(priv->gobj_http) {
