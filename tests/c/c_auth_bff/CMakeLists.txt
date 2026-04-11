@@ -68,6 +68,7 @@ SET(TESTS
     test9_browser_cancel
     test10_kc_silence
     test11_cancel_retry
+    test12_stale_reply
 )
 
 foreach(test ${TESTS})
