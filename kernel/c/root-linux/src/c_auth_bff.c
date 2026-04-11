@@ -233,6 +233,12 @@ typedef struct _PRIVATE_DATA {
      */
     hgobj           kc_watchdog;
     BOOL            kc_watchdog_fired;  /* set by ac_kc_watchdog, reset in ac_end_task */
+    BOOL            kc_watchdog_armed;  /* TRUE between process_next and ac_end_task;
+                                            ac_kc_watchdog ignores stale fires when FALSE.
+                                            Used instead of clear_timeout0 to avoid the
+                                            CANCELING-then-restart race when one task
+                                            finishes and the next is dispatched in the
+                                            same loop iteration (test8_queue_full). */
     hgobj           active_browser_src; /* browser_src of the in-flight task, cleared in ac_end_task */
 
     /*
@@ -1563,9 +1569,14 @@ PRIVATE void process_next(hgobj gobj)
      *  Arm the outbound watchdog.  0 disables — production deployments
      *  that want to opt out of the safety net (or use a different
      *  external supervisor) can set kc_timeout_ms=0 in the service kw.
+     *
+     *  set_timeout0 on a timer that's still RUNNING from the previous
+     *  task's arm just calls timerfd_settime — no cancel SQE — so this
+     *  is safe for back-to-back tasks (test8_queue_full).
      */
     int kc_timeout_ms = (int)gobj_read_integer_attr(gobj, "kc_timeout_ms");
     if(kc_timeout_ms > 0) {
+        priv->kc_watchdog_armed = TRUE;
         set_timeout0(priv->kc_watchdog, kc_timeout_ms);
     }
 }
@@ -1855,6 +1866,16 @@ PRIVATE int ac_kc_watchdog(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
+    /*
+     *  Stale fire: ac_end_task disarmed us via the flag without
+     *  cancelling the timer.  Ignore.
+     */
+    if(!priv->kc_watchdog_armed) {
+        KW_DECREF(kw)
+        return 0;
+    }
+    priv->kc_watchdog_armed = FALSE;
+
     priv->st_kc_timeouts++;
 
     int kc_timeout_ms = (int)gobj_read_integer_attr(gobj, "kc_timeout_ms");
@@ -1886,8 +1907,7 @@ PRIVATE int ac_kc_watchdog(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src
     }
 
     /*
-     *  Trigger the normal cleanup path.  Note ac_end_task below also
-     *  calls clear_timeout0(priv->kc_watchdog) — safe idempotent.
+     *  Trigger the normal cleanup path.
      */
     gobj_send_event(gobj, EV_END_TASK, 0, gobj);
 
@@ -1899,8 +1919,19 @@ PRIVATE int ac_end_task(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
-    /* Cancel any still-armed watchdog; reset its per-task state. */
-    clear_timeout0(priv->kc_watchdog);
+    /*
+     *  Disarm the watchdog via flag — do NOT clear_timeout0 here.
+     *  clear_timeout0 posts a CANCEL SQE and the timer enters
+     *  CANCELING state.  process_next() runs synchronously below for
+     *  any queued request and would call set_timeout0, which fails
+     *  with "cannot start timer: is CANCELING" until the cancel CQE
+     *  drains.  Instead, the live timer is left running with its
+     *  remaining duration; ac_kc_watchdog ignores fires when
+     *  kc_watchdog_armed==FALSE, and the next process_next() either
+     *  re-arms it (RUNNING → RUNNING via timerfd_settime, no cancel)
+     *  or leaves it to fire harmlessly into the disarmed handler.
+     */
+    priv->kc_watchdog_armed = FALSE;
     priv->kc_watchdog_fired = FALSE;
     priv->active_browser_src = NULL;
 
