@@ -235,16 +235,20 @@ static int register_yuno_and_more(void)
     /*
      *  The 4th POST hits the queue-full branch in enqueue() and is
      *  rejected via send_error_response(503, ..., "Server busy,
-     *  retry in a moment", ...).  That call emits a gobj_log_error
-     *  (no silent errors convention).  Declare it as expected so
-     *  the harness consumes it instead of flagging unexpected.
+     *  retry in a moment", ...).  Both enqueue() and send_error_response()
+     *  emit gobj_log_error (no silent errors convention).  The actual
+     *  log order on the wire is:
+     *    1) "BFF pending queue full"   (from enqueue)
+     *    2) "BFF error response"        (from send_error_response)
+     *  The test harness matches strictly first-in-array, so they must
+     *  be declared in that exact order.
      */
     set_expected_results(
         APP_NAME,
-        json_pack("[{s:s, s:s}, {s:s}]",
+        json_pack("[{s:s}, {s:s, s:s}]",
+            "msg",      "BFF pending queue full",
             "msg",      "BFF error response",
-            "error",    "Server busy, retry in a moment",
-            "msg",      "BFF pending queue full"
+            "error",    "Server busy, retry in a moment"
         ),
         NULL,
         NULL,
