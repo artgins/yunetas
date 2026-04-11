@@ -116,7 +116,15 @@ typedef struct _PRIVATE_DATA {
 PRIVATE void mt_create(hgobj gobj)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
-    priv->timer = gobj_create_pure_child(gobj_name(gobj), C_TIMER, 0, gobj);
+    /*
+     *  C_TIMER0 (high-resolution io_uring timer) instead of C_TIMER.
+     *  C_TIMER is documented as "ACCURACY IN SECONDS" — driven off the
+     *  yuno's 1-second periodic tick, so set_timeout(timer, 100) doesn't
+     *  fire at 100 ms, it fires on the next 1 s boundary.  This test
+     *  needs the cancel to land BEFORE mock-KC's latency timer, so
+     *  millisecond accuracy is mandatory.  See c_timer.c header comment.
+     */
+    priv->timer = gobj_create_pure_child(gobj_name(gobj), C_TIMER0, 0, gobj);
     priv->phase = T9_INIT;
 }
 
@@ -145,14 +153,14 @@ PRIVATE int mt_play(hgobj gobj)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
     /* Warm-up delay lets the BFF and mock-KC listen sockets settle. */
-    set_timeout(priv->timer, 300);
+    set_timeout0(priv->timer, 300);
     return 0;
 }
 
 PRIVATE int mt_pause(hgobj gobj)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
-    clear_timeout(priv->timer);
+    clear_timeout0(priv->timer);
     return 0;
 }
 
@@ -209,7 +217,17 @@ PRIVATE void verify_and_die(hgobj gobj)
 
     priv->test_passed = TRUE;
     priv->phase = T9_VERIFIED;
-    TEST_HELPERS_BEGIN_DYING(priv);
+
+    /*
+     *  Death sequence — inlined instead of TEST_HELPERS_BEGIN_DYING
+     *  because that macro hardcodes set_timeout(), and our timer is
+     *  C_TIMER0 (see mt_create rationale).
+     */
+    if(priv->gobj_http_cl) {
+        gobj_stop_tree(priv->gobj_http_cl);
+    }
+    priv->dying = TRUE;
+    set_timeout0(priv->timer, 100);
 }
 
 
@@ -273,7 +291,7 @@ PRIVATE int ac_timer(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
          *    - mock KC to observe its inbound close and unwind
          *  800 ms is generous but keeps the test well under auto_kill.
          */
-        set_timeout(priv->timer, 800);
+        set_timeout0(priv->timer, 800);
         break;
     }
 
@@ -339,7 +357,7 @@ PRIVATE int ac_on_open(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
      *  fire comfortably before that window expires.
      */
     priv->phase = T9_POSTED;
-    set_timeout(priv->timer, 100);
+    set_timeout0(priv->timer, 100);
 
     JSON_DECREF(kw)
     return 0;

@@ -69,7 +69,7 @@ SDATA (DTP_STRING,      "email",            SDF_RD, "mockuser@example.com", "ema
 SDATA (DTP_INTEGER,     "access_token_ttl", SDF_RD, "300",  "seconds: exp - iat for access_token"),
 SDATA (DTP_INTEGER,     "refresh_token_ttl",SDF_RD, "1800", "seconds: exp - iat for refresh_token"),
 SDATA (DTP_JSON,        "override_body",    SDF_RD, "{}",   "If non-empty, sent verbatim instead of the synthesised token envelope"),
-SDATA (DTP_INTEGER,     "latency_ms",       SDF_RD, "0",    "If > 0, defer each response by this many ms via an internal C_TIMER child. Single pending slot — not re-entrant."),
+SDATA (DTP_INTEGER,     "latency_ms",       SDF_RD, "0",    "If > 0, defer each response by this many ms via an internal C_TIMER0 child (high-resolution). Single pending slot — not re-entrant."),
 SDATA_END()
 };
 
@@ -129,14 +129,22 @@ PRIVATE void mt_create(hgobj gobj)
 
     /*
      *  Timer child used by the latency_ms feature.  Always created so
-     *  ac_on_message can unconditionally call set_timeout(); when
+     *  respond_or_defer() can unconditionally call set_timeout0(); when
      *  latency_ms==0 it is never armed and costs nothing.
+     *
+     *  C_TIMER0 (high-resolution io_uring timer), NOT C_TIMER, because
+     *  C_TIMER is documented as "ACCURACY IN SECONDS" — it rides the
+     *  yuno's 1-s periodic tick, so a 500 ms latency would round up to
+     *  the next second boundary and align with whatever else fires on
+     *  the same tick.  test9_browser_cancel needs the cancel to land
+     *  BEFORE the latency response, which only works with millisecond
+     *  accuracy.
      *
      *  C_PROT_HTTP_SR (our child, plugged in by the yuno tree) auto-
      *  subscribes to its parent in its own mt_create, so we do not have
      *  to do anything else here: EV_ON_MESSAGE arrives naturally.
      */
-    priv->timer = gobj_create_pure_child(gobj_name(gobj), C_TIMER, 0, gobj);
+    priv->timer = gobj_create_pure_child(gobj_name(gobj), C_TIMER0, 0, gobj);
 }
 
 /***************************************************************************
@@ -292,7 +300,7 @@ PRIVATE void respond_or_defer(hgobj gobj, hgobj browser_src, int status,
         );
         JSON_DECREF(priv->pending_body)
         priv->pending_src = NULL;
-        clear_timeout(priv->timer);
+        clear_timeout0(priv->timer);
     }
 
     priv->pending_src     = browser_src;
@@ -309,7 +317,7 @@ PRIVATE void respond_or_defer(hgobj gobj, hgobj browser_src, int status,
         );
     }
 
-    set_timeout(priv->timer, latency_ms);
+    set_timeout0(priv->timer, latency_ms);
 }
 
 /***************************************************************************
@@ -634,7 +642,7 @@ PRIVATE int ac_on_close(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
                 gobj_short_name(src)
             );
         }
-        clear_timeout(priv->timer);
+        clear_timeout0(priv->timer);
         JSON_DECREF(priv->pending_body)
         priv->pending_src = NULL;
         priv->st_pending_cancelled++;
