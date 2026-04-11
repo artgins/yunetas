@@ -217,6 +217,17 @@ typedef struct _PRIVATE_DATA {
     BOOL            processing;
     hgobj           gobj_http;          /* C_PROT_HTTP_CL while active */
 
+    /*
+     *  TRUE while the browser HTTP connection is up (between ac_on_open
+     *  and ac_on_close).  Consulted by result_token_response and
+     *  result_kc_logout before forwarding the Keycloak reply to the
+     *  browser.  If the browser closed mid-round-trip this flag is
+     *  FALSE by the time the task fires, and the BFF drops the reply
+     *  silently instead of trying to write into a socket whose
+     *  c_prot_http_sr is tearing down.
+     */
+    BOOL            browser_alive;
+
     /* Parsed Keycloak token endpoint URL parts */
     char schema[32];
     char host[256];
@@ -236,6 +247,7 @@ typedef struct _PRIVATE_DATA {
     uint64_t        st_kc_ok;           /* Keycloak round-trips with status 200 */
     uint64_t        st_kc_errors;       /* Keycloak round-trips with non-200 */
     uint64_t        st_bff_errors;      /* 4xx/5xx returned to the browser */
+    uint64_t        st_responses_dropped; /* KC replies dropped because browser closed */
 } PRIVATE_DATA;
 
 
@@ -460,11 +472,12 @@ PRIVATE json_t *mt_stats(hgobj gobj, const char *stats, json_t *kw, hgobj src)
          */
         priv->st_requests_total = 0;
         priv->st_q_max_seen     = priv->q_count;
-        priv->st_q_full_drops   = 0;
-        priv->st_kc_calls       = 0;
-        priv->st_kc_ok          = 0;
-        priv->st_kc_errors      = 0;
-        priv->st_bff_errors     = 0;
+        priv->st_q_full_drops       = 0;
+        priv->st_kc_calls           = 0;
+        priv->st_kc_ok              = 0;
+        priv->st_kc_errors          = 0;
+        priv->st_bff_errors         = 0;
+        priv->st_responses_dropped  = 0;
         stats = "";  /* fall through and return the (now zeroed) snapshot */
     }
 
@@ -480,14 +493,15 @@ PRIVATE json_t *mt_stats(hgobj gobj, const char *stats, json_t *kw, hgobj src)
     } \
 } while(0)
 
-    STAT_INT("requests_total", priv->st_requests_total);
-    STAT_INT("q_count",        priv->q_count);          /* live gauge */
-    STAT_INT("q_max_seen",     priv->st_q_max_seen);
-    STAT_INT("q_full_drops",   priv->st_q_full_drops);
-    STAT_INT("kc_calls",       priv->st_kc_calls);
-    STAT_INT("kc_ok",          priv->st_kc_ok);
-    STAT_INT("kc_errors",      priv->st_kc_errors);
-    STAT_INT("bff_errors",     priv->st_bff_errors);
+    STAT_INT("requests_total",      priv->st_requests_total);
+    STAT_INT("q_count",             priv->q_count);          /* live gauge */
+    STAT_INT("q_max_seen",          priv->st_q_max_seen);
+    STAT_INT("q_full_drops",        priv->st_q_full_drops);
+    STAT_INT("kc_calls",            priv->st_kc_calls);
+    STAT_INT("kc_ok",               priv->st_kc_ok);
+    STAT_INT("kc_errors",           priv->st_kc_errors);
+    STAT_INT("bff_errors",          priv->st_bff_errors);
+    STAT_INT("responses_dropped",   priv->st_responses_dropped);
 
 #undef STAT_INT
 
@@ -918,6 +932,28 @@ PRIVATE json_t *result_token_response(
         }
     }
 
+    /*
+     *  Drop the reply if the browser disconnected during the Keycloak
+     *  round-trip.  Stats already reflect what Keycloak said (kc_ok /
+     *  kc_errors bumped above), so charts stay truthful; only the
+     *  forward to a dead c_prot_http_sr is skipped.  CONTINUE_TASK so
+     *  the task finishes normally and ac_end_task runs its cleanup.
+     */
+    {
+        PRIVATE_DATA *priv = gobj_priv_data(gobj);
+        if(!priv->browser_alive) {
+            priv->st_responses_dropped++;
+            if(gobj_trace_level(gobj) & TRACE_MESSAGES) {
+                gobj_trace_msg(gobj,
+                    "BFF browser closed before KC reply — dropping response: action=%s status=%d",
+                    action_name(action), status
+                );
+            }
+            KW_DECREF(kw)
+            CONTINUE_TASK()
+        }
+    }
+
     char cors_hdrs[1024];
     build_cors_headers(gobj, origin, cors_hdrs, sizeof(cors_hdrs), FALSE);
 
@@ -1235,6 +1271,26 @@ PRIVATE json_t *result_kc_logout(
         }
     }
 
+    /*
+     *  Same browser-disconnected gate as result_token_response.  Stats
+     *  already reflect Keycloak's reply; only the forward to a dead
+     *  c_prot_http_sr is skipped.
+     */
+    {
+        PRIVATE_DATA *priv = gobj_priv_data(gobj);
+        if(!priv->browser_alive) {
+            priv->st_responses_dropped++;
+            if(gobj_trace_level(gobj) & TRACE_MESSAGES) {
+                gobj_trace_msg(gobj,
+                    "BFF browser closed before KC logout reply — dropping response: status=%d",
+                    status
+                );
+            }
+            KW_DECREF(kw)
+            CONTINUE_TASK()
+        }
+    }
+
     char cors_hdrs[1024];
     build_cors_headers(gobj, origin, cors_hdrs, sizeof(cors_hdrs), FALSE);
 
@@ -1438,6 +1494,16 @@ PRIVATE json_t *result_done(hgobj gobj, const char *lm, json_t *kw, hgobj src)
  ***************************************************************************/
 PRIVATE int ac_on_open(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 {
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    /*
+     *  Flip the "browser is alive" flag.  Consulted by the async
+     *  result_token_response / result_kc_logout paths so that a
+     *  Keycloak reply arriving AFTER the browser disconnected is
+     *  dropped silently instead of sent into a torn-down socket.
+     */
+    priv->browser_alive = TRUE;
+
     if(gobj_trace_level(gobj) & TRACE_MESSAGES) {
         gobj_trace_msg(gobj, "BFF connection OPEN from %s", gobj_short_name(src));
     }
@@ -1447,11 +1513,31 @@ PRIVATE int ac_on_open(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 
 /***************************************************************************
  *  Browser HTTP connection closed (before we could respond, or after).
+ *
+ *  Any Keycloak round-trip already dispatched keeps running to
+ *  completion — ac_end_task will tear down priv->gobj_http on its own.
+ *  But when its result_* callback eventually fires, priv->browser_alive
+ *  will be FALSE and the response won't be forwarded to the browser,
+ *  so no c_prot_http_sr receives a write on a dead socket.
+ *
+ *  The pending queue is left as-is on purpose: entries there belong to
+ *  this same (now closed) browser by construction — there is one
+ *  C_PROT_HTTP_SR per BFF instance — so result_* will drain them with
+ *  the same drop-on-!browser_alive gate.  Clearing q_count here would
+ *  just skip the drain loop, which is a latent optimisation but not a
+ *  correctness requirement for this minimal fix.
  ***************************************************************************/
 PRIVATE int ac_on_close(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 {
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    priv->browser_alive = FALSE;
+
     if(gobj_trace_level(gobj) & TRACE_MESSAGES) {
-        gobj_trace_msg(gobj, "BFF connection CLOSE from %s", gobj_short_name(src));
+        gobj_trace_msg(gobj,
+            "BFF connection CLOSE from %s (q_count=%d processing=%d)",
+            gobj_short_name(src), priv->q_count, priv->processing
+        );
     }
     KW_DECREF(kw)
     return 0;
