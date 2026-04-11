@@ -122,6 +122,12 @@ typedef enum {
  */
 typedef struct _PENDING_AUTH {
     hgobj       browser_src;            /* c_prot_http_sr gobj to respond to */
+    uint64_t    browser_gen;            /* priv->browser_alive_gen captured at enqueue time;
+                                           compared against the current priv->browser_alive_gen
+                                           when the task's result_* runs to decide whether the
+                                           reply belongs to the same browser connection we
+                                           enqueued for.  0 would mean "no live connection" and
+                                           must never reach result_* — enqueue rejects that case. */
     bff_action_t action;
     char        code[2048];             /* /auth/callback: authorization code */
     char        code_verifier[256];     /* /auth/callback: PKCE verifier */
@@ -240,17 +246,45 @@ typedef struct _PRIVATE_DATA {
                                             finishes and the next is dispatched in the
                                             same loop iteration (test8_queue_full). */
     hgobj           active_browser_src; /* browser_src of the in-flight task, cleared in ac_end_task */
+    uint64_t        active_task_gen;    /* browser generation captured when the in-flight task was dispatched;
+                                           0 when no task is active.  ac_kc_watchdog checks this against
+                                           priv->browser_alive_gen before sending 504 — if they differ the
+                                           connection the task was serving is gone (closed or replaced) and
+                                           the 504 must be dropped instead of delivered to an unrelated browser. */
 
     /*
-     *  TRUE while the browser HTTP connection is up (between ac_on_open
-     *  and ac_on_close).  Consulted by result_token_response and
-     *  result_kc_logout before forwarding the Keycloak reply to the
-     *  browser.  If the browser closed mid-round-trip this flag is
-     *  FALSE by the time the task fires, and the BFF drops the reply
-     *  silently instead of trying to write into a socket whose
-     *  c_prot_http_sr is tearing down.
+     *  Browser identity generation counter.
+     *
+     *  Every ac_on_open bumps `browser_gen_counter` and stores the new
+     *  value in `browser_alive_gen` — a monotonically increasing token
+     *  that uniquely names the connection currently plugged into this
+     *  BFF instance.  ac_on_close sets `browser_alive_gen` back to 0
+     *  (sentinel: "no live connection").
+     *
+     *  Every PENDING_AUTH captures the `browser_alive_gen` that was
+     *  current when it was enqueued (`pa->browser_gen`), and that gen
+     *  is forwarded through the c_task's output_data as `_browser_gen`.
+     *  When result_token_response / result_kc_logout eventually fire
+     *  they compare the task's captured gen against the current
+     *  `browser_alive_gen`.  Three outcomes:
+     *
+     *    task_gen == browser_alive_gen && browser_alive_gen != 0
+     *        → same connection is still up, forward the reply
+     *    browser_alive_gen == 0
+     *        → connection closed, drop the reply (responses_dropped++)
+     *    task_gen != browser_alive_gen (both non-zero)
+     *        → a different connection is now attached to this BFF
+     *          instance (persistent_channels=true + rapid reconnect);
+     *          the reply belongs to an old user and delivering it to
+     *          the new browser would leak that user's token.  Drop.
+     *
+     *  Replaces the old single-BOOL `browser_alive` flag, which only
+     *  covered the "closed" case and was unsafe under persistent
+     *  channels with rapid reconnect — see test12_stale_reply in the
+     *  test suite for the race scenario.
      */
-    BOOL            browser_alive;
+    uint64_t        browser_gen_counter;
+    uint64_t        browser_alive_gen;
 
     /* Parsed Keycloak token endpoint URL parts */
     char schema[32];
@@ -1013,20 +1047,39 @@ PRIVATE json_t *result_token_response(
     }
 
     /*
-     *  Drop the reply if the browser disconnected during the Keycloak
-     *  round-trip.  Stats already reflect what Keycloak said (kc_ok /
-     *  kc_errors bumped above), so charts stay truthful; only the
-     *  forward to a dead c_prot_http_sr is skipped.  CONTINUE_TASK so
-     *  the task finishes normally and ac_end_task runs its cleanup.
+     *  Drop the reply if the connection we were serving is no longer
+     *  the one plugged into this BFF.  Two cases collapse here into a
+     *  single gen-mismatch check:
+     *
+     *    - Browser closed and no new connection came in yet
+     *      → browser_alive_gen == 0
+     *    - Browser closed AND a new connection opened on the same BFF
+     *      (persistent_channels=true + fast reconnect)
+     *      → browser_alive_gen != 0 but != task_gen
+     *
+     *  Either way the token belongs to a user who is no longer on the
+     *  wire and must NOT be forwarded to whoever is on it now — that
+     *  would leak one user's token to the next browser on the same
+     *  BFF instance (test12_stale_reply exercises exactly this race).
+     *
+     *  Stats already reflect what Keycloak said (kc_ok / kc_errors
+     *  bumped above), so charts stay truthful; only the forward to
+     *  the wrong socket is skipped.  CONTINUE_TASK so the task
+     *  finishes normally and ac_end_task runs its cleanup.
      */
     {
         PRIVATE_DATA *priv = gobj_priv_data(gobj);
-        if(!priv->browser_alive) {
+        uint64_t task_gen = (uint64_t)kw_get_int(
+            gobj, output_data, "_browser_gen", 0, 0);
+        if(task_gen == 0 || task_gen != priv->browser_alive_gen) {
             priv->st_responses_dropped++;
             if(gobj_trace_level(gobj) & TRACE_MESSAGES) {
                 gobj_trace_msg(gobj,
-                    "BFF browser closed before KC reply — dropping response: action=%s status=%d",
-                    action_name(action), status
+                    "BFF browser gen mismatch — dropping response: "
+                    "action=%s status=%d task_gen=%llu alive_gen=%llu",
+                    action_name(action), status,
+                    (unsigned long long)task_gen,
+                    (unsigned long long)priv->browser_alive_gen
                 );
             }
             KW_DECREF(kw)
@@ -1370,18 +1423,24 @@ PRIVATE json_t *result_kc_logout(
     }
 
     /*
-     *  Same browser-disconnected gate as result_token_response.  Stats
-     *  already reflect Keycloak's reply; only the forward to a dead
-     *  c_prot_http_sr is skipped.
+     *  Same browser-generation gate as result_token_response.  Drops
+     *  the reply if the connection we were logging out of has been
+     *  closed or replaced.  Stats already reflect Keycloak's reply;
+     *  only the forward to the wrong socket is skipped.
      */
     {
         PRIVATE_DATA *priv = gobj_priv_data(gobj);
-        if(!priv->browser_alive) {
+        uint64_t task_gen = (uint64_t)kw_get_int(
+            gobj, output_data, "_browser_gen", 0, 0);
+        if(task_gen == 0 || task_gen != priv->browser_alive_gen) {
             priv->st_responses_dropped++;
             if(gobj_trace_level(gobj) & TRACE_MESSAGES) {
                 gobj_trace_msg(gobj,
-                    "BFF browser closed before KC logout reply — dropping response: status=%d",
-                    status
+                    "BFF browser gen mismatch on logout reply — dropping: "
+                    "status=%d task_gen=%llu alive_gen=%llu",
+                    status,
+                    (unsigned long long)task_gen,
+                    (unsigned long long)priv->browser_alive_gen
                 );
             }
             KW_DECREF(kw)
@@ -1503,9 +1562,15 @@ PRIVATE void process_next(hgobj gobj)
         )
     );
 
-    /* Build the task with the appropriate action/result pair */
-    json_t *kw_output = json_pack("{s:I, s:i, s:s, s:s, s:s, s:s, s:s, s:s, s:s, s:s}",
+    /*
+     *  Build the task output_data.  `_browser_gen` rides along with
+     *  `_browser_src` so result_token_response / result_kc_logout can
+     *  tell, when the async reply eventually arrives, whether the
+     *  connection we dispatched this task for is still on the wire.
+     */
+    json_t *kw_output = json_pack("{s:I, s:I, s:i, s:s, s:s, s:s, s:s, s:s, s:s, s:s, s:s}",
         "_browser_src",    (json_int_t)(uintptr_t)pa->browser_src,
+        "_browser_gen",    (json_int_t)pa->browser_gen,
         "_action",         (int)pa->action,
         "_code",           pa->code,
         "_code_verifier",  pa->code_verifier,
@@ -1562,8 +1627,12 @@ PRIVATE void process_next(hgobj gobj)
     /*
      *  Remember the browser this task is serving so ac_kc_watchdog
      *  can 504 it without having to reach into the task's output_data.
+     *  Capture the browser generation too so the watchdog can
+     *  short-circuit if the connection has been closed or replaced
+     *  between dispatch and timeout.
      */
     priv->active_browser_src = pa->browser_src;
+    priv->active_task_gen    = pa->browser_gen;
 
     /*
      *  Arm the outbound watchdog.  0 disables — production deployments
@@ -1611,21 +1680,27 @@ PRIVATE json_t *result_done(hgobj gobj, const char *lm, json_t *kw, hgobj src)
 
 /***************************************************************************
  *  New browser HTTP connection opened.
+ *
+ *  Bumps the browser generation counter and stores the new value as
+ *  `browser_alive_gen`.  Every task that gets enqueued while this is
+ *  the current gen carries it through its own output_data, and
+ *  result_token_response / result_kc_logout compare the two before
+ *  forwarding the Keycloak reply — see the PRIVATE_DATA comment on
+ *  the generation scheme for the full rationale.
  ***************************************************************************/
 PRIVATE int ac_on_open(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
-    /*
-     *  Flip the "browser is alive" flag.  Consulted by the async
-     *  result_token_response / result_kc_logout paths so that a
-     *  Keycloak reply arriving AFTER the browser disconnected is
-     *  dropped silently instead of sent into a torn-down socket.
-     */
-    priv->browser_alive = TRUE;
+    priv->browser_gen_counter++;
+    priv->browser_alive_gen = priv->browser_gen_counter;
 
     if(gobj_trace_level(gobj) & TRACE_MESSAGES) {
-        gobj_trace_msg(gobj, "BFF connection OPEN from %s", gobj_short_name(src));
+        gobj_trace_msg(gobj,
+            "BFF connection OPEN from %s (gen=%llu)",
+            gobj_short_name(src),
+            (unsigned long long)priv->browser_alive_gen
+        );
     }
     KW_DECREF(kw)
     return 0;
@@ -1634,31 +1709,35 @@ PRIVATE int ac_on_open(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 /***************************************************************************
  *  Browser HTTP connection closed (before we could respond, or after).
  *
- *  Any Keycloak round-trip already dispatched keeps running to
- *  completion — ac_end_task will tear down priv->gobj_http on its own.
- *  But when its result_* callback eventually fires, priv->browser_alive
- *  will be FALSE and the response won't be forwarded to the browser,
- *  so no c_prot_http_sr receives a write on a dead socket.
+ *  Setting browser_alive_gen to 0 invalidates every queued and
+ *  in-flight task against this (now closed) connection.  Any Keycloak
+ *  round-trip already dispatched keeps running to completion —
+ *  ac_end_task will tear down priv->gobj_http on its own — but when
+ *  its result_* callback eventually fires, the task's captured
+ *  browser_gen will no longer match priv->browser_alive_gen (which
+ *  is either 0 here, or the new gen from a later ac_on_open) and the
+ *  reply will be dropped.
  *
- *  The pending queue is left as-is on purpose: entries there belong to
- *  this same (now closed) browser by construction — there is one
- *  C_PROT_HTTP_SR per BFF instance — so result_* will drain them with
- *  the same drop-on-!browser_alive gate.  Clearing q_count here would
- *  just skip the drain loop, which is a latent optimisation but not a
- *  correctness requirement for this minimal fix.
+ *  The pending queue is left as-is on purpose: entries there are
+ *  naturally invalidated by the gen mismatch when they reach result_*.
+ *  Clearing q_count here would just skip the drain loop, which is a
+ *  latent optimisation but not a correctness requirement.
  ***************************************************************************/
 PRIVATE int ac_on_close(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
-    priv->browser_alive = FALSE;
-
     if(gobj_trace_level(gobj) & TRACE_MESSAGES) {
         gobj_trace_msg(gobj,
-            "BFF connection CLOSE from %s (q_count=%d processing=%d)",
-            gobj_short_name(src), priv->q_count, priv->processing
+            "BFF connection CLOSE from %s (gen=%llu q_count=%d processing=%d)",
+            gobj_short_name(src),
+            (unsigned long long)priv->browser_alive_gen,
+            priv->q_count, priv->processing
         );
     }
+
+    priv->browser_alive_gen = 0;
+
     KW_DECREF(kw)
     return 0;
 }
@@ -1727,6 +1806,17 @@ PRIVATE int ac_on_message(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
     PENDING_AUTH pa;
     memset(&pa, 0, sizeof(pa));
     pa.browser_src = src;
+    /*
+     *  Capture the current browser generation so result_* / watchdog
+     *  can tell, when the async reply eventually lands, whether the
+     *  connection this task was dispatched for is still the one
+     *  plugged into the BFF.  See the PRIVATE_DATA comment on
+     *  browser_alive_gen for the full scheme.
+     */
+    {
+        PRIVATE_DATA *priv_for_gen = gobj_priv_data(gobj);
+        pa.browser_gen = priv_for_gen->browser_alive_gen;
+    }
     snprintf(pa.client_origin, sizeof(pa.client_origin), "%s", origin);
     snprintf(pa.client_host, sizeof(pa.client_host), "%s", host_hdr);
 
@@ -1896,12 +1986,29 @@ PRIVATE int ac_kc_watchdog(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src
     priv->kc_watchdog_fired = TRUE;
 
     /*
-     *  Forward a 504 to the browser if it's still around.  Production
-     *  CORS headers are out of reach here (we don't store them per
-     *  task), so we emit an empty cors_hdrs — the browser is the test
-     *  harness or a real client that already saw the request go out.
+     *  Forward a 504 to the browser only if it's still the same
+     *  connection we dispatched this task for.  Two mismatch cases
+     *  both resolve to "drop the 504":
+     *
+     *    - priv->browser_alive_gen == 0      connection closed
+     *    - priv->active_task_gen != priv->browser_alive_gen
+     *                                          the connection has
+     *                                          been replaced by a
+     *                                          later one under
+     *                                          persistent_channels
+     *
+     *  Sending the 504 to priv->active_browser_src in those cases
+     *  would deliver it to an unrelated browser — exactly the leak
+     *  the generation scheme is meant to prevent.
+     *
+     *  Production CORS headers are out of reach here (we don't store
+     *  them per task), so we emit an empty cors_hdrs — the browser
+     *  is the test harness or a real client that already saw the
+     *  request go out.
      */
-    if(priv->browser_alive && priv->active_browser_src) {
+    if(priv->active_browser_src
+            && priv->active_task_gen != 0
+            && priv->active_task_gen == priv->browser_alive_gen) {
         send_error_response(gobj, priv->active_browser_src, 504, status_str(504),
             "Keycloak timeout", "");
     }
@@ -1934,6 +2041,7 @@ PRIVATE int ac_end_task(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
     priv->kc_watchdog_armed = FALSE;
     priv->kc_watchdog_fired = FALSE;
     priv->active_browser_src = NULL;
+    priv->active_task_gen    = 0;
 
     /*
      *  Tear down the C_TASK.  Two paths land here:
