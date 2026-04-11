@@ -233,9 +233,19 @@ static int register_yuno_and_more(void)
 
     set_auto_kill_time(10);
 
+    /*
+     *  Negative-path test: the BFF translates Keycloak's 401 into a 400
+     *  to the browser via send_error_response(), which by Yuneta
+     *  convention also emits a gobj_log_error("BFF error response", ...).
+     *  Declare it as an expected error so the harness consumes it
+     *  instead of flagging it as unexpected.
+     */
     set_expected_results(
         APP_NAME,
-        json_array(),
+        json_pack("[{s:s, s:s}]",
+            "msg",   "BFF error response",
+            "error", "Keycloak token exchange failed"
+        ),
         NULL,
         NULL,
         TRUE

@@ -226,9 +226,19 @@ static int register_yuno_and_more(void)
 
     set_auto_kill_time(10);
 
+    /*
+     *  Negative-path test: the BFF rejects the missing-password body
+     *  with a 400 via send_error_response(), which by Yuneta convention
+     *  also emits a gobj_log_error("BFF error response", ...).  Declare
+     *  it as an expected error so the harness consumes it instead of
+     *  flagging it as unexpected.
+     */
     set_expected_results(
         APP_NAME,
-        json_array(),
+        json_pack("[{s:s, s:s}]",
+            "msg",   "BFF error response",
+            "error", "username and password are required"
+        ),
         NULL,
         NULL,
         TRUE
