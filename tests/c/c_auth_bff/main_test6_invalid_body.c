@@ -236,8 +236,8 @@ static int register_yuno_and_more(void)
     set_expected_results(
         APP_NAME,
         json_pack("[{s:s, s:s}]",
-            "msg",   "BFF error response",
-            "error", "username and password are required"
+            "msg",        "BFF error response",
+            "error_code", "missing_params"
         ),
         NULL,
         NULL,

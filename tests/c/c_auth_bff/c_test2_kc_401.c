@@ -2,8 +2,10 @@
  *          C_TEST2_KC_401.C
  *
  *          Driver for test2_kc_401: mock Keycloak is scripted to return
- *          401 on the token endpoint.  The BFF must translate that into
- *          HTTP 400 to the browser and bump kc_errors + bff_errors.
+ *          401 invalid_grant on the token endpoint.  The BFF must
+ *          translate that into HTTP 401 to the browser with
+ *          error_code="invalid_credentials" and bump kc_errors +
+ *          bff_errors.
  *
  *          Sequence mirrors c_test1_login: 500 ms warm-up timer →
  *          transient http_cl → POST /auth/login → validate the BFF
@@ -153,7 +155,7 @@ PRIVATE int ac_on_open(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
     if(gobj_trace_level(gobj) & TRACE_MESSAGES) {
-        gobj_trace_msg(gobj, "test2: connected to BFF, posting /auth/login (expect KC 401 → BFF 400)");
+        gobj_trace_msg(gobj, "test2: connected to BFF, posting /auth/login (expect KC 401 → BFF 401 invalid_credentials)");
     }
 
     json_t *jn_headers = json_pack("{s:s}",
@@ -190,16 +192,18 @@ PRIVATE int ac_on_message(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
     }
 
     /*
-     *  BFF converts any non-200 Keycloak response into HTTP 400
-     *  (see c_auth_bff.c::result_token_response).  Anything else
-     *  means the BFF didn't propagate the KC error correctly.
+     *  The BFF maps Keycloak's invalid_grant/401 (mock-kc's default
+     *  error envelope) into a browser-facing HTTP 401 with a stable
+     *  error_code of "invalid_credentials" — the i18n key the GUI
+     *  uses to render "usuario o contraseña incorrectos" in the user's
+     *  language.  See c_auth_bff.h for the full code catalogue.
      */
-    if(status != 400) {
+    if(status != 401) {
         gobj_log_error(gobj, 0,
             "function", "%s", __FUNCTION__,
             "msgset",   "%s", MSGSET_APP_ERROR,
-            "msg",      "%s", "test2_kc_401: expected BFF 400, got different status",
-            "expected", "%d", 400,
+            "msg",      "%s", "test2_kc_401: expected BFF 401, got different status",
+            "expected", "%d", 401,
             "status",   "%d", status,
             NULL
         );
@@ -207,7 +211,8 @@ PRIVATE int ac_on_message(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
     }
 
     /*
-     *  Body shape of an error response: {"success": false, "error": "..."}
+     *  Body shape of an error response:
+     *      {"success": false, "error_code": "...", "error": "..."}
      */
     if(!jn_body || !json_is_object(jn_body)) {
         gobj_log_error(gobj, 0,
@@ -227,12 +232,24 @@ PRIVATE int ac_on_message(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
         );
         goto end;
     }
+    const char *got_code = kw_get_str(gobj, jn_body, "error_code", "", 0);
+    if(strcmp(got_code, "invalid_credentials") != 0) {
+        gobj_log_error(gobj, 0,
+            "function", "%s", __FUNCTION__,
+            "msgset",   "%s", MSGSET_APP_ERROR,
+            "msg",      "%s", "test2_kc_401: body.error_code mismatch",
+            "expected", "%s", "invalid_credentials",
+            "got",      "%s", got_code,
+            NULL
+        );
+        goto end;
+    }
     const char *got_error = kw_get_str(gobj, jn_body, "error", "", 0);
     if(empty_string(got_error)) {
         gobj_log_error(gobj, 0,
             "function", "%s", __FUNCTION__,
             "msgset",   "%s", MSGSET_APP_ERROR,
-            "msg",      "%s", "test2_kc_401: body.error empty",
+            "msg",      "%s", "test2_kc_401: body.error fallback empty",
             NULL
         );
         goto end;

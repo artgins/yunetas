@@ -242,16 +242,17 @@ static int register_yuno_and_more(void)
      *    1) The watchdog itself logs "BFF Keycloak outbound watchdog
      *       fired" (see c_auth_bff.c::ac_kc_watchdog).
      *    2) send_error_response inside ac_kc_watchdog logs
-     *       "BFF error response" with error="Keycloak timeout"
-     *       (see c_auth_bff.c::send_error_response).
+     *       "BFF error response" with error_code="auth_timeout"
+     *       (see c_auth_bff.c::send_error_response and the browser
+     *       error-code catalogue in c_auth_bff.h).
      *  Both are expected and must be declared so test_json passes.
      */
     set_expected_results(
         APP_NAME,
         json_pack("[{s:s}, {s:s, s:s}]",
-            "msg",   "BFF Keycloak outbound watchdog fired",
-            "msg",   "BFF error response",
-            "error", "Keycloak timeout"
+            "msg",        "BFF Keycloak outbound watchdog fired",
+            "msg",        "BFF error response",
+            "error_code", "auth_timeout"
         ),
         NULL,
         NULL,

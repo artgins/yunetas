@@ -6,8 +6,9 @@
  *          Same topology as test1_login, with the mock Keycloak's
  *          `return_status` attr set to 401 so every token request on
  *          /realms/test/protocol/openid-connect/token is answered with
- *          an RFC-6749 error envelope.  The BFF under test should then
- *          respond HTTP 400 to the browser and increment kc_errors +
+ *          an RFC-6749 `invalid_grant` error envelope.  The BFF under
+ *          test must then respond HTTP 401 to the browser with
+ *          error_code="invalid_credentials" and increment kc_errors +
  *          bff_errors.
  *
  *          Copyright (c) 2026, ArtGins.
@@ -234,17 +235,18 @@ static int register_yuno_and_more(void)
     set_auto_kill_time(10);
 
     /*
-     *  Negative-path test: the BFF translates Keycloak's 401 into a 400
-     *  to the browser via send_error_response(), which by Yuneta
-     *  convention also emits a gobj_log_error("BFF error response", ...).
-     *  Declare it as an expected error so the harness consumes it
-     *  instead of flagging it as unexpected.
+     *  Negative-path test: the BFF translates Keycloak's invalid_grant/401
+     *  into a browser-facing HTTP 401 with error_code="invalid_credentials"
+     *  via send_error_response(), which by Yuneta convention also emits
+     *  a gobj_log_error("BFF error response", ...).  Declare it as an
+     *  expected error so the harness consumes it instead of flagging it
+     *  as unexpected.
      */
     set_expected_results(
         APP_NAME,
         json_pack("[{s:s, s:s}]",
-            "msg",   "BFF error response",
-            "error", "Keycloak token exchange failed"
+            "msg",        "BFF error response",
+            "error_code", "invalid_credentials"
         ),
         NULL,
         NULL,

@@ -246,9 +246,9 @@ static int register_yuno_and_more(void)
     set_expected_results(
         APP_NAME,
         json_pack("[{s:s}, {s:s, s:s}]",
-            "msg",      "BFF pending queue full",
-            "msg",      "BFF error response",
-            "error",    "Server busy, retry in a moment"
+            "msg",        "BFF pending queue full",
+            "msg",        "BFF error response",
+            "error_code", "server_busy"
         ),
         NULL,
         NULL,

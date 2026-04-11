@@ -147,7 +147,8 @@ PRIVATE void send_json_response(hgobj browser_src, int status_code,
     const char *status_text, json_t *jn_body, const char *extra_headers);
 PRIVATE void send_error_response(hgobj gobj, hgobj browser_src,
     int status_code, const char *status_text,
-    const char *error_msg, const char *extra_headers);
+    const char *error_code, const char *error_msg,
+    const char *extra_headers);
 PRIVATE const char *extract_cookie(const char *cookie_header, const char *name,
     char *out, size_t out_size);
 PRIVATE json_t *cmd_help(hgobj gobj, const char *cmd, json_t *kw, hgobj src);
@@ -865,10 +866,19 @@ PRIVATE void send_json_response(hgobj browser_src, int status_code,
  *  Yuneta convention: never produce a silent failure.  Every error path
  *  that surfaces to the browser also emits a gobj_log_error so the
  *  operator sees it without enabling traces.
+ *
+ *  Browser contract (see c_auth_bff.h for the full code catalogue):
+ *      { "success":    false,
+ *        "error_code": "<stable_snake_case_code>",
+ *        "error":      "<english developer fallback>" }
+ *
+ *  The GUI MUST use `error_code` as its i18n translation key.  `error`
+ *  is only a fallback and is also mirrored into the server log line.
  ***************************************************************************/
 PRIVATE void send_error_response(hgobj gobj, hgobj browser_src,
     int status_code, const char *status_text,
-    const char *error_msg, const char *extra_headers)
+    const char *error_code, const char *error_msg,
+    const char *extra_headers)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
     priv->st_bff_errors++;
@@ -879,14 +889,16 @@ PRIVATE void send_error_response(hgobj gobj, hgobj browser_src,
         "msg",          "%s", "BFF error response",
         "status",       "%d", status_code,
         "status_text",  "%s", status_text ? status_text : "",
+        "error_code",   "%s", error_code ? error_code : "",
         "error",        "%s", error_msg ? error_msg : "",
         "browser_src",  "%s", browser_src ? gobj_short_name(browser_src) : "",
         NULL
     );
 
-    json_t *jn_body = json_pack("{s:b, s:s}",
-        "success", 0,
-        "error",   error_msg
+    json_t *jn_body = json_pack("{s:b, s:s, s:s}",
+        "success",    0,
+        "error_code", error_code ? error_code : "unknown_error",
+        "error",      error_msg ? error_msg : ""
     );
     send_json_response(browser_src, status_code, status_text, jn_body, extra_headers);
     JSON_DECREF(jn_body)
@@ -1091,16 +1103,70 @@ PRIVATE json_t *result_token_response(
     build_cors_headers(gobj, origin, cors_hdrs, sizeof(cors_hdrs), FALSE);
 
     if(status != 200) {
-        send_error_response(gobj, browser_src, 400, status_str(400),
-            "Keycloak token exchange failed", cors_hdrs);
+        /*
+         *  Map Keycloak failures to stable browser-facing error codes.
+         *  Never leak the word "Keycloak" to the browser — that's an
+         *  internal implementation detail.  The operator still gets
+         *  full detail via gobj_log_error emitted by send_error_response.
+         *
+         *  Keycloak's /token endpoint replies with an RFC-6749 error
+         *  envelope: { "error": "<rfc_code>", "error_description": "..." }.
+         *  We parse that body when present to distinguish the real cause.
+         *
+         *  See the error-code catalogue at the top of c_auth_bff.h.
+         */
+        int         browser_status = 502;
+        const char *browser_code   = "auth_unexpected_error";
+        const char *browser_msg    = "Unexpected authentication error";
+
+        json_t *jn_err_body = kw_get_dict(gobj, kw, "body", NULL, 0);
+        const char *kc_err  = kw_get_str(gobj, jn_err_body, "error",             "", 0);
+        const char *kc_desc = kw_get_str(gobj, jn_err_body, "error_description", "", 0);
+
+        if(status == 401 && strcmp(kc_err, "invalid_grant") == 0) {
+            /*
+             *  Keycloak packs several distinct outcomes under invalid_grant:
+             *    - "Invalid user credentials"      → wrong user/pass
+             *    - "Account is not fully set up"   → disabled/incomplete
+             *    - "Account disabled"              → disabled
+             *    - "Invalid refresh token"         → expired/rotated RT
+             *  Discriminate by the human description text.
+             */
+            if(strcasestr(kc_desc, "disabled") ||
+               strcasestr(kc_desc, "not fully set up")) {
+                browser_status = 403;
+                browser_code   = "account_disabled";
+                browser_msg    = "Account disabled or not fully configured";
+            } else {
+                browser_status = 401;
+                browser_code   = "invalid_credentials";
+                browser_msg    = "Invalid username or password";
+            }
+        } else if(status == 400 && strcmp(kc_err, "invalid_client") == 0) {
+            browser_status = 500;
+            browser_code   = "auth_config_error";
+            browser_msg    = "Authentication configuration error";
+        } else if(status == 429) {
+            browser_status = 429;
+            browser_code   = "auth_rate_limited";
+            browser_msg    = "Too many login attempts, please try again later";
+        } else if(status >= 500 && status < 600) {
+            browser_status = 502;
+            browser_code   = "auth_service_unavailable";
+            browser_msg    = "Authentication service unavailable";
+        }
+
+        send_error_response(gobj, browser_src, browser_status,
+            status_str(browser_status), browser_code, browser_msg, cors_hdrs);
         KW_DECREF(kw)
         STOP_TASK()
     }
 
     json_t *jn_body = kw_get_dict(gobj, kw, "body", NULL, KW_REQUIRED);
     if(!jn_body) {
-        send_error_response(gobj, browser_src, 500, status_str(500),
-            "Empty response from Keycloak", cors_hdrs);
+        send_error_response(gobj, browser_src, 502, status_str(502),
+            "auth_empty_response",
+            "Empty response from authentication service", cors_hdrs);
         KW_DECREF(kw)
         STOP_TASK()
     }
@@ -1798,7 +1864,7 @@ PRIVATE int ac_on_message(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
     /* ---- POST only from here ---- */
     if(method != HTTP_POST) {
         send_error_response(gobj, src, 405, "405 Method Not Allowed",
-            "Only POST is allowed", cors_hdrs);
+            "method_not_allowed", "Only POST is allowed", cors_hdrs);
         KW_DECREF(kw)
         return 0;
     }
@@ -1823,8 +1889,8 @@ PRIVATE int ac_on_message(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
     if(strcmp(url, "/auth/callback") == 0) {
         /* POST /auth/callback  { code, code_verifier, redirect_uri } */
         if(!jn_body) {
-            send_error_response(gobj, src, 400, status_str(400), "Missing JSON body",
-                cors_hdrs);
+            send_error_response(gobj, src, 400, status_str(400),
+                "missing_body", "Missing JSON body", cors_hdrs);
             KW_DECREF(kw)
             return 0;
         }
@@ -1834,6 +1900,7 @@ PRIVATE int ac_on_message(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 
         if(empty_string(code) || empty_string(cv) || empty_string(ruri)) {
             send_error_response(gobj, src, 400, status_str(400),
+                "missing_params",
                 "code, code_verifier, and redirect_uri are required", cors_hdrs);
             KW_DECREF(kw)
             return 0;
@@ -1848,7 +1915,7 @@ PRIVATE int ac_on_message(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
         if(!empty_string(allowed_ruri) &&
                 strncmp(ruri, allowed_ruri, strlen(allowed_ruri)) != 0) {
             send_error_response(gobj, src, 400, status_str(400),
-                "redirect_uri not allowed", cors_hdrs);
+                "redirect_uri_not_allowed", "redirect_uri not allowed", cors_hdrs);
             KW_DECREF(kw)
             return 0;
         }
@@ -1867,8 +1934,8 @@ PRIVATE int ac_on_message(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
     } else if(strcmp(url, "/auth/login") == 0) {
         /* POST /auth/login  { username, password } — Direct Access Grant (ROPC) */
         if(!jn_body) {
-            send_error_response(gobj, src, 400, status_str(400), "Missing JSON body",
-                cors_hdrs);
+            send_error_response(gobj, src, 400, status_str(400),
+                "missing_body", "Missing JSON body", cors_hdrs);
             KW_DECREF(kw)
             return 0;
         }
@@ -1877,6 +1944,7 @@ PRIVATE int ac_on_message(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 
         if(empty_string(username) || empty_string(password)) {
             send_error_response(gobj, src, 400, status_str(400),
+                "missing_params",
                 "username and password are required", cors_hdrs);
             KW_DECREF(kw)
             return 0;
@@ -1898,6 +1966,7 @@ PRIVATE int ac_on_message(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
         if(!extract_cookie(cookie_hdr, COOKIE_NAME_RT, rt, sizeof(rt)) ||
                 empty_string(rt)) {
             send_error_response(gobj, src, 401, status_str(401),
+                "missing_refresh_token",
                 "Missing refresh_token cookie", cors_hdrs);
             KW_DECREF(kw)
             return 0;
@@ -1919,15 +1988,15 @@ PRIVATE int ac_on_message(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
         }
 
     } else {
-        send_error_response(gobj, src, 404, "404 Not Found", "Unknown endpoint",
-            cors_hdrs);
+        send_error_response(gobj, src, 404, "404 Not Found",
+            "unknown_endpoint", "Unknown endpoint", cors_hdrs);
         KW_DECREF(kw)
         return 0;
     }
 
     if(enqueue(gobj, &pa) < 0) {
         send_error_response(gobj, src, 503, "503 Service Unavailable",
-            "Server busy, retry in a moment", cors_hdrs);
+            "server_busy", "Server busy, retry in a moment", cors_hdrs);
         KW_DECREF(kw)
         return 0;
     }
@@ -2010,7 +2079,7 @@ PRIVATE int ac_kc_watchdog(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src
             && priv->active_task_gen != 0
             && priv->active_task_gen == priv->browser_alive_gen) {
         send_error_response(gobj, priv->active_browser_src, 504, status_str(504),
-            "Keycloak timeout", "");
+            "auth_timeout", "Authentication request timed out", "");
     }
 
     /*
