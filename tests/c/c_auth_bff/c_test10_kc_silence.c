@@ -108,6 +108,9 @@ typedef enum {
     T10_INIT          = 0,  /* waiting for warm-up timer */
     T10_CONNECTING,         /* http_cl started, waiting EV_ON_OPEN */
     T10_POSTED,             /* POST sent, waiting EV_ON_MESSAGE (504) */
+    T10_GRACE,              /* 504 received, waiting for mock-KC to
+                                process its inbound close so its
+                                pending_cancelled stat is up to date */
     T10_VERIFIED            /* stats checked, death timer running */
 } t10_phase_t;
 
@@ -271,6 +274,16 @@ PRIVATE int ac_timer(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
         break;
     }
 
+    case T10_GRACE: {
+        /*
+         *  Grace period after the 504 elapsed: by now the BFF outbound
+         *  close FIN has been delivered, mock-KC has seen the close,
+         *  and pending_cancelled is up to date.  Verify and die.
+         */
+        verify_and_die(gobj);
+        break;
+    }
+
     default:
         gobj_log_error(gobj, 0,
             "function", "%s", __FUNCTION__,
@@ -400,7 +413,17 @@ PRIVATE int ac_on_message(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
         goto end;
     }
 
-    verify_and_die(gobj);
+    /*
+     *  504 received and validated.  Mock-KC's pending_cancelled is on
+     *  a separate async path: the BFF closes its outbound to KC during
+     *  ac_kc_watchdog → ac_end_task, and that close has to round-trip
+     *  through io_uring (FIN → KC c_tcp read EOF → EV_DISCONNECTED →
+     *  c_prot_http_sr EV_ON_CLOSE → mock_keycloak ac_on_close →
+     *  pending_cancelled++) before the stat is observable.  Arm a
+     *  short grace timer instead of verifying immediately.
+     */
+    priv->phase = T10_GRACE;
+    set_timeout0(priv->timer, 100);
     JSON_DECREF(kw)
     return 0;
 

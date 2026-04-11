@@ -623,6 +623,21 @@ PRIVATE int ac_timer(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 }
 
 /***************************************************************************
+ *  Absorb EV_STOPPED from our C_TIMER0 child.
+ *
+ *  C_TIMER0 publishes EV_STOPPED to its parent whenever its yev_event
+ *  cancellation completes (clear_timeout0 / mt_stop / yuno teardown).
+ *  Without this entry the FSM dispatcher logs "Event NOT DEFINED in
+ *  state" for every cancel.  We don't act on it — the lifetime of the
+ *  pending slot is already managed by ac_on_close / ac_timer / mt_stop.
+ ***************************************************************************/
+PRIVATE int ac_stopped(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
+{
+    KW_DECREF(kw)
+    return 0;
+}
+
+/***************************************************************************
  *  Client TCP connection closed.
  *
  *  If a deferred response was pending against this very src, the timer
@@ -712,6 +727,7 @@ PRIVATE int create_gclass(gclass_name_t gclass_name)
         {EV_ON_MESSAGE,     ac_on_message,  0},
         {EV_ON_CLOSE,       ac_on_close,    0},
         {EV_TIMEOUT,        ac_timer,       0},
+        {EV_STOPPED,        ac_stopped,     0},
         {0, 0, 0}
     };
 
@@ -725,6 +741,7 @@ PRIVATE int create_gclass(gclass_name_t gclass_name)
         {EV_ON_MESSAGE,     0},
         {EV_ON_CLOSE,       0},
         {EV_TIMEOUT,        0},
+        {EV_STOPPED,        0},
         {0, 0}
     };
 
