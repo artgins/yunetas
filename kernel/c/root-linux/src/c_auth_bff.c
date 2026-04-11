@@ -364,6 +364,18 @@ PRIVATE int mt_start(hgobj gobj)
 
 /***************************************************************************
  *      Framework Method stop
+ *
+ *  Two unrelated chains to tear down here:
+ *
+ *    1) priv->gobj_http: the OUTBOUND HTTP client to Keycloak, created
+ *       on demand in process_next() and torn down in ac_end_task.  If
+ *       a Keycloak round-trip is still in flight when the BFF is
+ *       stopped, we kill it here.
+ *
+ *    2) bottom_gobj: the INBOUND C_PROT_HTTP_SR + C_TCP placed below
+ *       us by the IOGATE config.  C_CHANNEL stops its bottom (us) but
+ *       does not recurse, so without this the inbound stack would
+ *       still be RUNNING when the framework destroys the yuno tree.
  ***************************************************************************/
 PRIVATE int mt_stop(hgobj gobj)
 {
@@ -371,6 +383,11 @@ PRIVATE int mt_stop(hgobj gobj)
     if(priv->gobj_http) {
         gobj_stop_tree(priv->gobj_http);
         priv->gobj_http = NULL;
+    }
+
+    hgobj bottom = gobj_bottom_gobj(gobj);
+    if(bottom && gobj_is_running(bottom)) {
+        gobj_stop_tree(bottom);
     }
     return 0;
 }
