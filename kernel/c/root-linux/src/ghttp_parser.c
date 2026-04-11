@@ -299,7 +299,32 @@ PRIVATE int on_message_complete(llhttp_t* llhttp)
                 parser->gbuf_body = 0;
             }
         }
-        ghttp_parser_reset(parser);
+
+        /*
+         *  Reset the per-message application state so the next pipelined
+         *  request starts clean.
+         *
+         *  CAREFUL: do NOT call ghttp_parser_reset() here.  That helper
+         *  calls llhttp_init(), which zeroes the llhttp internal state
+         *  (cs/sp/return-stack) — and we are still inside llhttp_execute,
+         *  about to return 0 from this callback so llhttp can keep
+         *  parsing the rest of the buffer.  Re-initing llhttp from
+         *  inside its own callback corrupts that state and llhttp
+         *  silently swallows every subsequent message in the buffer
+         *  (test8_queue_full pipelines four POSTs and only the first
+         *  one ever fired EV_ON_MESSAGE).  llhttp handles the
+         *  message-to-message transition internally for keep-alive,
+         *  so we just clear our own per-request fields.
+         */
+        parser->headers_completed = 0;
+        parser->message_completed = 0;
+        parser->body_size = 0;
+        GBMEM_FREE(parser->url);
+        GBUFFER_DECREF(parser->gbuf_body)
+        JSON_DECREF(parser->jn_headers);
+        GBMEM_FREE(parser->cur_key);
+        GBMEM_FREE(parser->last_key);
+
         if(parser->send_event) {
             gobj_send_event(gobj, parser->on_message_event, kw_http, gobj);
         } else {
