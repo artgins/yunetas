@@ -1,5 +1,57 @@
 # **Changelog**
 
+## Unreleased
+    - **CRITICAL fix(ghttp_parser)**: HTTP/1.1 pipelining was silently broken —
+      `on_message_complete()` called `ghttp_parser_reset()`, which in turn called
+      `llhttp_init()` from inside the llhttp callback, corrupting the parser's
+      internal state machine so every subsequent message in the same buffer was
+      swallowed without a log.  Affects every yuno serving or consuming HTTP
+      over keep-alive when more than one message is in flight on a single
+      connection (c_prot_http_sr, c_prot_http_cl, c_websocket).  Fix: reset the
+      per-message app fields inline in `on_message_complete` without touching
+      llhttp; leave `ghttp_parser_reset()` for the other (non-callback) call
+      sites.  Surfaced by the new test suite `tests/c/c_auth_bff/test8_queue_full`.
+    - fix(c_auth_bff): `mt_stop` now tears down the inbound `C_PROT_HTTP_SR + C_TCP`
+      bottom chain in addition to the outbound `priv->gobj_http`.  Previously a
+      SIGTERM to an auth_bff yuno with active browser connections logged
+      "Destroying a RUNNING gobj" during shutdown.
+    - fix(c_auth_bff): drop stale Keycloak reply when the browser disconnected
+      mid-round-trip.  New `browser_alive` gate in `result_token_response` /
+      `result_kc_logout` + new `responses_dropped` stat counter.  Prevents the
+      UAF-ish "gobj DESTROYED" path that surfaced as sporadic test failures
+      during fast cancel-then-retry login flows.
+    - fix(c_auth_bff): outbound Keycloak watchdog.  New per-instance attr
+      `kc_timeout_ms` (default 30000, 0 disables) armed via a `C_TIMER0` child
+      right after the outbound HTTP client is created and cleared in
+      `ac_end_task`.  On fire, responds 504 to the browser and drains the
+      task.  Closes the "Keycloak hangs → channel wedged forever" deadlock that
+      was otherwise a permanent-until-SIGTERM state under silent-upstream
+      conditions.  New `kc_timeouts` stat counter.
+    - fix(c_auth_bff): count any 2xx Keycloak reply as `kc_ok`.  Previously only
+      status == 200 counted, which made every successful `/logout` (Keycloak
+      returns spec-compliant 204 No Content) land in `kc_errors` and poison
+      the health-signal ratio.
+    - fix(c_auth_bff): `mt_stats` filter now mirrors the default `stats_parser.c`
+      two-stage matcher (full name OR underscore-prefix) and is
+      case-insensitive, so `gobj_stats(bff, "kc_", ...)` returns the kc_* set
+      as expected.  `redact_for_trace()` key matching is also case-insensitive
+      so HTTP headers like "Cookie"/"cookie"/"COOKIE" are all masked.
+    - feat(c_auth_bff): `pending_queue_size` is now a per-instance attr
+      (default 16, clamped to [1, 1024]) instead of a compile-time constant.
+      Stored as a `PENDING_AUTH *` ring dynamically allocated in `mt_create`.
+    - feat(tests/c/c_auth_bff): new 11-binary test suite.  Self-contained yunos
+      that spin up a mock Keycloak (signed HS256 JWTs, scriptable latency /
+      return status / override body) alongside the BFF and drive
+      `/auth/login`, `/auth/callback`, `/auth/refresh`, `/auth/logout`
+      through happy paths, validation errors, Keycloak 401, slow KC, queue
+      contention (pipelined POSTs, overflow drop), browser cancel
+      mid-round-trip, cancel-then-retry state cleanup, and KC total silence.
+      Exposed and regression-gated the watchdog, browser_alive, and
+      ghttp_parser fixes above.
+    - refactor(gobj): drop TLS knowledge from gobj-c, inject from ytls layer
+      via the new `gobj_add_global_variable()` extension point; removes the
+      `CONFIG_HAVE_OPENSSL/MBEDTLS` `#if` blocks from `gobj_global_variables()`.
+
 ## v7.2.1 -- 07/Apr/2026
     - TLS: change Kconfig from radio (choice) to checkboxes — both OpenSSL and mbedTLS can be
       enabled simultaneously for runtime backend selection per connection
