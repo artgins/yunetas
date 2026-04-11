@@ -74,7 +74,7 @@
 #include "c_prot_http_sr.h"
 #include "c_task.h"
 #include "c_tcp.h"
-#include "c_timer.h"            /* C_TIMER0 for the outbound watchdog */
+#include "c_timer0.h"           /* C_TIMER0 (ms precision) for the outbound watchdog */
 #include "c_auth_bff.h"
 
 /***************************************************************************
