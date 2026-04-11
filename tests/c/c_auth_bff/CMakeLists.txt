@@ -63,6 +63,7 @@ SET(TESTS
     test4_refresh
     test5_logout
     test6_invalid_body
+    test7_slow_login
 )
 
 foreach(test ${TESTS})

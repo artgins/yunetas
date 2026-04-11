@@ -14,39 +14,60 @@
 #include "test_helpers.h"
 
 /***************************************************************************
- *  Locate the first C_AUTH_BFF instance under __bff_side__.
+ *  Locate the first child of `gclass_name` under the service named
+ *  `service_name`.
  ***************************************************************************/
-PUBLIC hgobj test_helpers_find_bff(hgobj caller_gobj)
+PUBLIC hgobj test_helpers_find_service_child(
+    hgobj caller_gobj,
+    const char *service_name,
+    const char *gclass_name
+)
 {
-    hgobj bff_side = gobj_find_service("__bff_side__", FALSE);
-    if(!bff_side) {
+    hgobj service = gobj_find_service(service_name, FALSE);
+    if(!service) {
         gobj_log_error(caller_gobj, 0,
-            "function", "%s", __FUNCTION__,
-            "msgset",   "%s", MSGSET_APP_ERROR,
-            "msg",      "%s", "test_helpers: __bff_side__ service not found",
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_APP_ERROR,
+            "msg",          "%s", "test_helpers: service not found",
+            "service",      "%s", service_name,
             NULL
         );
         return NULL;
     }
 
     json_t *jn_filter = json_pack("{s:s}",
-        "__gclass_name__", "C_AUTH_BFF"
+        "__gclass_name__", gclass_name
     );
-    json_t *dl = gobj_match_children_tree(bff_side, jn_filter);
+    json_t *dl = gobj_match_children_tree(service, jn_filter);
 
-    hgobj bff = NULL;
+    hgobj found = NULL;
     if(dl && json_array_size(dl) > 0) {
-        bff = (hgobj)(size_t)json_integer_value(json_array_get(dl, 0));
+        found = (hgobj)(size_t)json_integer_value(json_array_get(dl, 0));
     } else {
         gobj_log_error(caller_gobj, 0,
-            "function", "%s", __FUNCTION__,
-            "msgset",   "%s", MSGSET_APP_ERROR,
-            "msg",      "%s", "test_helpers: no C_AUTH_BFF found under __bff_side__",
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_APP_ERROR,
+            "msg",          "%s", "test_helpers: no matching child under service",
+            "service",      "%s", service_name,
+            "gclass",       "%s", gclass_name,
             NULL
         );
     }
     gobj_free_iter(dl);
-    return bff;
+    return found;
+}
+
+/***************************************************************************
+ *  Thin wrapper around test_helpers_find_service_child for the
+ *  common case of locating the C_AUTH_BFF instance in __bff_side__.
+ ***************************************************************************/
+PUBLIC hgobj test_helpers_find_bff(hgobj caller_gobj)
+{
+    return test_helpers_find_service_child(
+        caller_gobj,
+        "__bff_side__",
+        "C_AUTH_BFF"
+    );
 }
 
 /***************************************************************************

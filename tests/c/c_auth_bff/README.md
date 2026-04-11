@@ -34,6 +34,7 @@ fixed test key so the BFF's payload decode sees a well-formed token.
 | `test_auth_bff_test4_refresh` | Happy path `POST /auth/refresh`. Cookie header carries a fake `refresh_token`; empty JSON body. Response has `{success, expires_in, refresh_expires_in}` — no username/email. |
 | `test_auth_bff_test5_logout` | Happy path `POST /auth/logout`. Mock KC returns the spec-compliant 204 No Content; BFF stats (post-fix) count 2xx as `kc_ok`. Browser-facing response is 200 + clear-cookie `Set-Cookie` headers. |
 | `test_auth_bff_test6_invalid_body` | Negative: `POST /auth/login` with a body missing `password`. BFF must reject with 400 *before* touching the queue or Keycloak. Asserts `kc_calls=0, bff_errors=1`. |
+| `test_auth_bff_test7_slow_login` | Happy path against a **slow** mock Keycloak (`latency_ms=200`). The mock's new deferred-response path holds each `/token` reply on an internal `C_TIMER` child for 200 ms. Asserts both the BFF stats (same profile as test1) **and** the mock KC's own stats (`deferred_responses=1, pending_cancelled=0`). First test that exercises the latency code path end-to-end — prerequisite for F2 browser-cancel / KC-silence tests. |
 
 Shared infrastructure:
 
