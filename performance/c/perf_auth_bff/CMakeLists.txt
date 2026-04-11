@@ -74,3 +74,15 @@ target_link_libraries(${BIN}
     ${MBEDTLS_LIBS}
     ${DEBUG_LIBS}
 )
+
+##############################################
+#   System install
+##############################################
+install(
+    TARGETS ${BIN}
+    PERMISSIONS
+    OWNER_READ OWNER_WRITE OWNER_EXECUTE
+    GROUP_READ GROUP_WRITE GROUP_EXECUTE
+    WORLD_READ WORLD_EXECUTE
+    DESTINATION ${BIN_DEST_DIR}
+)
