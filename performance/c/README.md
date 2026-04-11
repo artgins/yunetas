@@ -69,6 +69,32 @@ Same as `perf_yev_ping_pong` with the addition of `tranger2_append_record()` on 
 
 Source: `src/perf_yev_ping_pong2.c` (single file, no GClasses)
 
+### perf_auth_bff -- auth_bff Login Round-Trip (HTTP + c_task)
+
+**Binary:** `perf_auth_bff`
+
+Concurrent throughput benchmark for `c_auth_bff`.  Five HTTP client
+slots run in parallel against five BFF channels, each slot looping
+`connect → POST /auth/login → wait response → close` for 200
+iterations (1,000 total round-trips).  Mock Keycloak is configured
+with `latency_ms=0` so the bottleneck is the BFF + `c_task` +
+`ghttp_parser` + `yev_loop` hot path rather than the simulated
+upstream.
+
+- **5 parallel C_AUTH_BFF channels** under `__bff_side__`
+  (`[^^children^^]` range expansion, same pattern as the
+  production `auth_bff.1801.json` batch but scaled to 5)
+- **5 parallel C_MOCK_KEYCLOAK channels** under `__kc_side__`
+  with `latency_ms=0`
+- **Reuses** `tests/c/c_auth_bff/c_mock_keycloak.{c,h}` and
+  `test_helpers.{c,h}` via CMake shared sources — one copy of
+  the mock in the repo, linked into ctest, stress, and perf
+- `MT_PRINT_TIME` brackets the actual load only (warm-up and
+  register phases excluded) so the reported ops/sec reflects
+  end-to-end login round-trips
+
+Source: `main_perf_auth_bff.c`, `c_perf_auth_bff.c`
+
 ## Performance Summary
 
 ### Nov-2024 (RelWithDebInfo)

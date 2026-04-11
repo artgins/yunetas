@@ -7,3 +7,4 @@ cmake_minimum_required(VERSION 3.11)
 #   Source
 ##############################################
 add_subdirectory(listen)
+add_subdirectory(auth_bff)

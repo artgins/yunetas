@@ -57,6 +57,7 @@
  *  All Rights Reserved.
  ***********************************************************************/
 #include <string.h>
+#include <strings.h>    /* strcasecmp(), strcasestr() */
 #include <stdio.h>
 #include <limits.h>
 #include <time.h>
@@ -73,12 +74,26 @@
 #include "c_prot_http_sr.h"
 #include "c_task.h"
 #include "c_tcp.h"
+#include "c_timer0.h"           /* C_TIMER0 (ms precision) for the outbound watchdog */
 #include "c_auth_bff.h"
 
 /***************************************************************************
  *              Constants
  ***************************************************************************/
-#define MAX_PENDING_QUEUE   16
+/*
+ *  Pending request queue sizing.
+ *
+ *  `pending_queue_size` is a per-instance attr (SDF_RD) so different
+ *  channels can be tuned independently — a low-traffic internal BFF
+ *  keeps the default, a front-line one exposed to bursty login storms
+ *  can raise it without recompiling.
+ *
+ *  The compile-time ceiling MAX_PENDING_QUEUE_SIZE is a safety cap so
+ *  a misconfigured attr can't silently allocate gigabytes: each
+ *  PENDING_AUTH entry is ~8 KB, so 1024 slots ≈ 8 MB per channel.
+ */
+#define DEFAULT_PENDING_QUEUE_SIZE    16
+#define MAX_PENDING_QUEUE_SIZE      1024
 #define COOKIE_NAME_AT      "access_token"
 #define COOKIE_NAME_RT      "refresh_token"
 
@@ -107,6 +122,12 @@ typedef enum {
  */
 typedef struct _PENDING_AUTH {
     hgobj       browser_src;            /* c_prot_http_sr gobj to respond to */
+    uint64_t    browser_gen;            /* priv->browser_alive_gen captured at enqueue time;
+                                           compared against the current priv->browser_alive_gen
+                                           when the task's result_* runs to decide whether the
+                                           reply belongs to the same browser connection we
+                                           enqueued for.  0 would mean "no live connection" and
+                                           must never reach result_* — enqueue rejects that case. */
     bff_action_t action;
     char        code[2048];             /* /auth/callback: authorization code */
     char        code_verifier[256];     /* /auth/callback: PKCE verifier */
@@ -165,6 +186,8 @@ SDATA (DTP_STRING,      "cookie_domain",        SDF_RD, "",     "Cookie Domain a
 SDATA (DTP_STRING,      "allowed_origin",       SDF_RD, "",     "CORS Access-Control-Allow-Origin value"),
 SDATA (DTP_STRING,      "allowed_redirect_uri", SDF_RD, "",     "Allowed redirect_uri prefix (e.g. https://treedb.yunetas.com/); rejects callback requests whose redirect_uri does not start with this"),
 SDATA (DTP_JSON,        "crypto",               SDF_RD,             "{}",   "TLS crypto config for Keycloak outbound calls"),
+SDATA (DTP_INTEGER,     "pending_queue_size",   SDF_RD,             "16",   "Max pending Keycloak requests per channel; clamped to [1, 1024]. Raise for front-line BFFs under burst"),
+SDATA (DTP_INTEGER,     "kc_timeout_ms",        SDF_RD,             "30000","Outbound Keycloak watchdog timeout in milliseconds. 0 disables. When a round-trip exceeds this, the BFF sends 504 to the browser and drains the task"),
 SDATA (DTP_POINTER,     "user_data",            0,                  0,      "user data"),
 SDATA (DTP_POINTER,     "user_data2",           0,                  0,      "more user data"),
 SDATA_END()
@@ -191,8 +214,9 @@ PRIVATE const trace_level_t s_user_trace_level[16] = {
  *              Private data
  *---------------------------------------------*/
 typedef struct _PRIVATE_DATA {
-    /* Request queue */
-    PENDING_AUTH    queue[MAX_PENDING_QUEUE];
+    /* Request queue (ring buffer, size = queue_size, allocated in mt_create) */
+    PENDING_AUTH   *queue;
+    int             queue_size;         /* active size, clamped from attr */
     int             q_head;             /* next slot to read */
     int             q_tail;             /* next slot to write */
     int             q_count;
@@ -200,6 +224,67 @@ typedef struct _PRIVATE_DATA {
     /* Current outbound Keycloak connection */
     BOOL            processing;
     hgobj           gobj_http;          /* C_PROT_HTTP_CL while active */
+    hgobj           gobj_task;          /* C_TASK while active; needed so
+                                            ac_kc_watchdog can stop it
+                                            without depending on the natural
+                                            EV_END_TASK completion path. */
+
+    /*
+     *  Outbound watchdog.  Armed in process_next right after gobj_http
+     *  is created; disarmed in ac_end_task when the task completes
+     *  normally.  If the watchdog fires first the Keycloak round-trip
+     *  has exceeded kc_timeout_ms: the BFF sends 504 to the browser
+     *  and triggers the normal ac_end_task cleanup path.  Uses
+     *  C_TIMER0 (millisecond precision) created in mt_create.
+     */
+    hgobj           kc_watchdog;
+    BOOL            kc_watchdog_fired;  /* set by ac_kc_watchdog, reset in ac_end_task */
+    BOOL            kc_watchdog_armed;  /* TRUE between process_next and ac_end_task;
+                                            ac_kc_watchdog ignores stale fires when FALSE.
+                                            Used instead of clear_timeout0 to avoid the
+                                            CANCELING-then-restart race when one task
+                                            finishes and the next is dispatched in the
+                                            same loop iteration (test8_queue_full). */
+    hgobj           active_browser_src; /* browser_src of the in-flight task, cleared in ac_end_task */
+    uint64_t        active_task_gen;    /* browser generation captured when the in-flight task was dispatched;
+                                           0 when no task is active.  ac_kc_watchdog checks this against
+                                           priv->browser_alive_gen before sending 504 — if they differ the
+                                           connection the task was serving is gone (closed or replaced) and
+                                           the 504 must be dropped instead of delivered to an unrelated browser. */
+
+    /*
+     *  Browser identity generation counter.
+     *
+     *  Every ac_on_open bumps `browser_gen_counter` and stores the new
+     *  value in `browser_alive_gen` — a monotonically increasing token
+     *  that uniquely names the connection currently plugged into this
+     *  BFF instance.  ac_on_close sets `browser_alive_gen` back to 0
+     *  (sentinel: "no live connection").
+     *
+     *  Every PENDING_AUTH captures the `browser_alive_gen` that was
+     *  current when it was enqueued (`pa->browser_gen`), and that gen
+     *  is forwarded through the c_task's output_data as `_browser_gen`.
+     *  When result_token_response / result_kc_logout eventually fire
+     *  they compare the task's captured gen against the current
+     *  `browser_alive_gen`.  Three outcomes:
+     *
+     *    task_gen == browser_alive_gen && browser_alive_gen != 0
+     *        → same connection is still up, forward the reply
+     *    browser_alive_gen == 0
+     *        → connection closed, drop the reply (responses_dropped++)
+     *    task_gen != browser_alive_gen (both non-zero)
+     *        → a different connection is now attached to this BFF
+     *          instance (persistent_channels=true + rapid reconnect);
+     *          the reply belongs to an old user and delivering it to
+     *          the new browser would leak that user's token.  Drop.
+     *
+     *  Replaces the old single-BOOL `browser_alive` flag, which only
+     *  covered the "closed" case and was unsafe under persistent
+     *  channels with rapid reconnect — see test12_stale_reply in the
+     *  test suite for the race scenario.
+     */
+    uint64_t        browser_gen_counter;
+    uint64_t        browser_alive_gen;
 
     /* Parsed Keycloak token endpoint URL parts */
     char schema[32];
@@ -220,6 +305,8 @@ typedef struct _PRIVATE_DATA {
     uint64_t        st_kc_ok;           /* Keycloak round-trips with status 200 */
     uint64_t        st_kc_errors;       /* Keycloak round-trips with non-200 */
     uint64_t        st_bff_errors;      /* 4xx/5xx returned to the browser */
+    uint64_t        st_responses_dropped; /* KC replies dropped because browser closed */
+    uint64_t        st_kc_timeouts;     /* outbound watchdog fired */
 } PRIVATE_DATA;
 
 
@@ -237,6 +324,42 @@ typedef struct _PRIVATE_DATA {
  ***************************************************************************/
 PRIVATE void mt_create(hgobj gobj)
 {
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    /*
+     *  Allocate the pending-request ring from the configured size, clamped
+     *  to a sane range.  Using gbmem_malloc (which is calloc-backed) gives
+     *  us zero-initialised PENDING_AUTH entries for free.
+     */
+    int requested = (int)gobj_read_integer_attr(gobj, "pending_queue_size");
+    if(requested < 1) {
+        requested = DEFAULT_PENDING_QUEUE_SIZE;
+    } else if(requested > MAX_PENDING_QUEUE_SIZE) {
+        gobj_log_warning(gobj, 0,
+            "function",         "%s", __FUNCTION__,
+            "msgset",           "%s", MSGSET_PARAMETER_ERROR,
+            "msg",              "%s", "pending_queue_size clamped to MAX_PENDING_QUEUE_SIZE",
+            "requested",        "%d", requested,
+            "max",              "%d", MAX_PENDING_QUEUE_SIZE,
+            NULL
+        );
+        requested = MAX_PENDING_QUEUE_SIZE;
+    }
+    priv->queue_size = requested;
+    priv->queue = GBMEM_MALLOC(sizeof(PENDING_AUTH) * (size_t)priv->queue_size);
+    if(!priv->queue) {
+        /* Error already logged by gbmem_malloc */
+        priv->queue_size = 0;
+    }
+
+    /*
+     *  Outbound KC watchdog timer (millisecond precision — C_TIMER0,
+     *  not C_TIMER, see c_timer.h header note on "accuracy in seconds").
+     *  Armed in process_next after gobj_http is created; disarmed by
+     *  ac_end_task or by a successful result_* run.
+     */
+    priv->kc_watchdog = gobj_create_pure_child(gobj_name(gobj), C_TIMER0, 0, gobj);
+
     /*
      *  SERVICE subscription model
      */
@@ -251,6 +374,10 @@ PRIVATE void mt_create(hgobj gobj)
  ***************************************************************************/
 PRIVATE void mt_destroy(hgobj gobj)
 {
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    GBMEM_FREE(priv->queue)
+    priv->queue_size = 0;
 }
 
 /***************************************************************************
@@ -259,6 +386,13 @@ PRIVATE void mt_destroy(hgobj gobj)
 PRIVATE int mt_start(hgobj gobj)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    /*
+     *  Start the outbound watchdog's timer child so set_timeout0() is
+     *  cheap when process_next arms it.  C_TIMER0 ignores the start
+     *  until set_timeout0 is called, so this is a no-op scheduling-wise.
+     */
+    gobj_start(priv->kc_watchdog);
 
     /* Pre-parse Keycloak base URL for re-use in every outbound call */
     char kc_base[PATH_MAX];
@@ -316,15 +450,85 @@ PRIVATE int mt_start(hgobj gobj)
 
 /***************************************************************************
  *      Framework Method stop
+ *
+ *  Three unrelated chains to tear down here:
+ *
+ *    1) priv->gobj_http: the OUTBOUND HTTP client to Keycloak, created
+ *       on demand in process_next() and torn down in ac_end_task.  If
+ *       a Keycloak round-trip is still in flight when the BFF is
+ *       stopped, we kill it here.
+ *
+ *    2) priv->gobj_task: the C_TASK driving the in-flight Keycloak
+ *       round-trip.  Same rationale — ac_end_task drops it on normal
+ *       completion, but if we're being stopped before ac_end_task ran
+ *       it has to be killed here so the framework's destroy walk
+ *       doesn't trip on a still-RUNNING gobj.
+ *
+ *    3) bottom_gobj: the INBOUND C_PROT_HTTP_SR + C_TCP placed below
+ *       us by the IOGATE config.  C_CHANNEL stops its bottom (us) but
+ *       does not recurse, so without this the inbound stack would
+ *       still be RUNNING when the framework destroys the yuno tree.
  ***************************************************************************/
 PRIVATE int mt_stop(hgobj gobj)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    clear_timeout0(priv->kc_watchdog);
+    gobj_stop(priv->kc_watchdog);
+
+    if(priv->gobj_task && gobj_is_running(priv->gobj_task)) {
+        gobj_stop(priv->gobj_task);
+    }
+    priv->gobj_task = NULL;
+
     if(priv->gobj_http) {
         gobj_stop_tree(priv->gobj_http);
         priv->gobj_http = NULL;
     }
+
+    hgobj bottom = gobj_bottom_gobj(gobj);
+    if(bottom && gobj_is_running(bottom)) {
+        gobj_stop_tree(bottom);
+    }
     return 0;
+}
+
+/***************************************************************************
+ *  Filter predicate matching stats_parser.c::_build_stats().
+ *
+ *  Two-stage match, mirroring the default parser so an mt_stats override
+ *  behaves identically from the caller's point of view:
+ *
+ *    1. Exact/substring — the stat's full `name` appears inside `stats`.
+ *    2. Prefix fallback — extract `name`'s own prefix up to the first '_'
+ *       and look for that inside `stats`.  This is what lets a caller
+ *       pass "kc_" (or "kc") and receive every `kc_*` counter.
+ *
+ *  Both lookups are case-insensitive so ad-hoc filters ("KC", "bff")
+ *  work the same as the canonical lowercase names.
+ ***************************************************************************/
+PRIVATE BOOL stats_match(const char *stats, const char *name)
+{
+    if(empty_string(stats)) {
+        return TRUE;
+    }
+    if(strcasestr(stats, name) != NULL) {
+        return TRUE;
+    }
+    const char *p = strchr(name, '_');
+    if(p) {
+        char prefix[32];
+        size_t ln = (size_t)(p - name);
+        if(ln >= sizeof(prefix)) {
+            ln = sizeof(prefix) - 1;
+        }
+        memcpy(prefix, name, ln);
+        prefix[ln] = '\0';
+        if(strcasestr(stats, prefix) != NULL) {
+            return TRUE;
+        }
+    }
+    return FALSE;
 }
 
 /***************************************************************************
@@ -340,7 +544,9 @@ PRIVATE int mt_stop(hgobj gobj)
  *  `stats` semantics, matching stats_parser.c:
  *    - NULL or ""        → return all stats
  *    - "__reset__"       → reset resettable counters then return all
- *    - "<name|prefix>"   → only stats whose name is contained in this
+ *    - "<name|prefix>"   → stats_match() two-stage case-insensitive
+ *                          filter: full name OR underscore-prefix of
+ *                          the stat's own name appears in <stats>.
  ***************************************************************************/
 PRIVATE json_t *mt_stats(hgobj gobj, const char *stats, json_t *kw, hgobj src)
 {
@@ -355,11 +561,13 @@ PRIVATE json_t *mt_stats(hgobj gobj, const char *stats, json_t *kw, hgobj src)
          */
         priv->st_requests_total = 0;
         priv->st_q_max_seen     = priv->q_count;
-        priv->st_q_full_drops   = 0;
-        priv->st_kc_calls       = 0;
-        priv->st_kc_ok          = 0;
-        priv->st_kc_errors      = 0;
-        priv->st_bff_errors     = 0;
+        priv->st_q_full_drops       = 0;
+        priv->st_kc_calls           = 0;
+        priv->st_kc_ok              = 0;
+        priv->st_kc_errors          = 0;
+        priv->st_bff_errors         = 0;
+        priv->st_responses_dropped  = 0;
+        priv->st_kc_timeouts        = 0;
         stats = "";  /* fall through and return the (now zeroed) snapshot */
     }
 
@@ -370,19 +578,21 @@ PRIVATE json_t *mt_stats(hgobj gobj, const char *stats, json_t *kw, hgobj src)
     json_t *jn_data = json_object();
 
 #define STAT_INT(name_, value_) do { \
-    if(empty_string(stats) || strstr(stats, name_) != NULL) { \
+    if(stats_match(stats, name_)) { \
         json_object_set_new(jn_data, name_, json_integer((json_int_t)(value_))); \
     } \
 } while(0)
 
-    STAT_INT("requests_total", priv->st_requests_total);
-    STAT_INT("q_count",        priv->q_count);          /* live gauge */
-    STAT_INT("q_max_seen",     priv->st_q_max_seen);
-    STAT_INT("q_full_drops",   priv->st_q_full_drops);
-    STAT_INT("kc_calls",       priv->st_kc_calls);
-    STAT_INT("kc_ok",          priv->st_kc_ok);
-    STAT_INT("kc_errors",      priv->st_kc_errors);
-    STAT_INT("bff_errors",     priv->st_bff_errors);
+    STAT_INT("requests_total",      priv->st_requests_total);
+    STAT_INT("q_count",             priv->q_count);          /* live gauge */
+    STAT_INT("q_max_seen",          priv->st_q_max_seen);
+    STAT_INT("q_full_drops",        priv->st_q_full_drops);
+    STAT_INT("kc_calls",            priv->st_kc_calls);
+    STAT_INT("kc_ok",               priv->st_kc_ok);
+    STAT_INT("kc_errors",           priv->st_kc_errors);
+    STAT_INT("bff_errors",          priv->st_bff_errors);
+    STAT_INT("responses_dropped",   priv->st_responses_dropped);
+    STAT_INT("kc_timeouts",         priv->st_kc_timeouts);
 
 #undef STAT_INT
 
@@ -425,6 +635,8 @@ PRIVATE const char *status_str(int code)
         case 401: return "401 Unauthorized";
         case 403: return "403 Forbidden";
         case 500: return "500 Internal Server Error";
+        case 503: return "503 Service Unavailable";
+        case 504: return "504 Gateway Timeout";
         default:  return "500 Internal Server Error";
     }
 }
@@ -565,6 +777,10 @@ PRIVATE const char *action_name(bff_action_t a)
  *  by "<N chars>".  Used by TRACE_TRAFFIC so payloads can be inspected
  *  in production logs without leaking secrets.
  *  Caller owns the returned object.
+ *
+ *  Keys are matched case-insensitively against the object's real keys
+ *  so HTTP headers (e.g. "Cookie" / "cookie" / "COOKIE") are redacted
+ *  regardless of how the transport normalised them.
  */
 PRIVATE json_t *redact_for_trace(json_t *jn)
 {
@@ -583,25 +799,46 @@ PRIVATE json_t *redact_for_trace(json_t *jn)
         "refresh_token",
         "id_token",
         "client_secret",
+        "cookie",       /* HTTP header may carry the same tokens */
         NULL
     };
-    for(int i = 0; secret_keys[i]; i++) {
-        json_t *v = json_object_get(out, secret_keys[i]);
-        if(json_is_string(v)) {
-            char buf[64];
-            snprintf(buf, sizeof(buf), "<%zu chars>",
-                strlen(json_string_value(v)));
-            json_object_set_new(out, secret_keys[i], json_string(buf));
+
+    /*
+     *  First pass: find every object key whose name matches one of
+     *  secret_keys[] case-insensitively.  We snapshot the matched
+     *  keys into a local buffer because json_object_set_new during
+     *  json_object_foreach iteration is not safe.
+     */
+    char matched[16][64];
+    int n_matched = 0;
+    const char *key;
+    json_t *value;
+    json_object_foreach(out, key, value) {
+        if(!json_is_string(value)) {
+            continue;
+        }
+        for(int i = 0; secret_keys[i]; i++) {
+            if(strcasecmp(key, secret_keys[i]) == 0) {
+                if(n_matched < (int)(sizeof(matched)/sizeof(matched[0]))) {
+                    snprintf(matched[n_matched], sizeof(matched[0]), "%s", key);
+                    n_matched++;
+                }
+                break;
+            }
         }
     }
-    /* Cookie header may carry the same tokens — drop its raw value too. */
-    json_t *cookie = json_object_get(out, "COOKIE");
-    if(json_is_string(cookie)) {
+
+    for(int i = 0; i < n_matched; i++) {
+        json_t *v = json_object_get(out, matched[i]);
+        if(!json_is_string(v)) {
+            continue;
+        }
         char buf[64];
         snprintf(buf, sizeof(buf), "<%zu chars>",
-            strlen(json_string_value(cookie)));
-        json_object_set_new(out, "COOKIE", json_string(buf));
+            strlen(json_string_value(v)));
+        json_object_set_new(out, matched[i], json_string(buf));
     }
+
     return out;
 }
 
@@ -691,18 +928,19 @@ PRIVATE void build_cors_headers(hgobj gobj, const char *origin,
 PRIVATE int enqueue(hgobj gobj, PENDING_AUTH *pa)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
-    if(priv->q_count >= MAX_PENDING_QUEUE) {
+    if(priv->q_count >= priv->queue_size) {
         priv->st_q_full_drops++;
         gobj_log_error(gobj, 0,
-            "function", "%s", __FUNCTION__,
-            "msgset",   "%s", MSGSET_SYSTEM_ERROR,
-            "msg",      "%s", "BFF pending queue full",
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_SYSTEM_ERROR,
+            "msg",          "%s", "BFF pending queue full",
+            "queue_size",   "%d", priv->queue_size,
             NULL
         );
         return -1;
     }
     priv->queue[priv->q_tail] = *pa;
-    priv->q_tail = (priv->q_tail + 1) % MAX_PENDING_QUEUE;
+    priv->q_tail = (priv->q_tail + 1) % priv->queue_size;
     priv->q_count++;
 
     priv->st_requests_total++;
@@ -720,7 +958,7 @@ PRIVATE PENDING_AUTH *dequeue(hgobj gobj)
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
     if(priv->q_count == 0) return NULL;
     PENDING_AUTH *pa = &priv->queue[priv->q_head];
-    priv->q_head = (priv->q_head + 1) % MAX_PENDING_QUEUE;
+    priv->q_head = (priv->q_head + 1) % priv->queue_size;
     priv->q_count--;
     return pa;
 }
@@ -736,6 +974,27 @@ PRIVATE json_t *result_token_response(
     hgobj src_task
 )
 {
+    /*
+     *  Watchdog short-circuit: if the outbound KC watchdog already
+     *  fired for this task, it has already 504'd the browser and
+     *  emitted EV_END_TASK.  Any late reply from Keycloak that still
+     *  makes it through the pipeline must NOT double-respond.  Do the
+     *  check before touching output_data / counters so the stats
+     *  stay truthful (kc_timeouts already incremented, kc_ok stays 0).
+     */
+    {
+        PRIVATE_DATA *priv = gobj_priv_data(gobj);
+        if(priv->kc_watchdog_fired) {
+            if(gobj_trace_level(gobj) & TRACE_MESSAGES) {
+                gobj_trace_msg(gobj,
+                    "BFF result_token_response: late KC reply after watchdog — skipping"
+                );
+            }
+            KW_DECREF(kw)
+            CONTINUE_TASK()
+        }
+    }
+
     /*
      *  Retrieve and remove the pending request that triggered this call.
      *  (It was passed via output_data of the task.)
@@ -759,8 +1018,13 @@ PRIVATE json_t *result_token_response(
     const char *origin = kw_get_str(gobj, output_data, "_origin", "", 0);
 
     {
+        /*
+         *  Count any 2xx as success.  Keycloak's /token endpoint
+         *  returns 200 on the happy path, but the 2xx range is the
+         *  right semantic net — mirrors result_kc_logout below.
+         */
         PRIVATE_DATA *priv = gobj_priv_data(gobj);
-        if(status == 200) {
+        if(status >= 200 && status < 300) {
             priv->st_kc_ok++;
         } else {
             priv->st_kc_errors++;
@@ -779,6 +1043,47 @@ PRIVATE json_t *result_token_response(
             json_t *jn_redact = redact_for_trace(jn_full_body);
             gobj_trace_json(gobj, jn_redact, "BFF ← Keycloak body (redacted)");
             JSON_DECREF(jn_redact)
+        }
+    }
+
+    /*
+     *  Drop the reply if the connection we were serving is no longer
+     *  the one plugged into this BFF.  Two cases collapse here into a
+     *  single gen-mismatch check:
+     *
+     *    - Browser closed and no new connection came in yet
+     *      → browser_alive_gen == 0
+     *    - Browser closed AND a new connection opened on the same BFF
+     *      (persistent_channels=true + fast reconnect)
+     *      → browser_alive_gen != 0 but != task_gen
+     *
+     *  Either way the token belongs to a user who is no longer on the
+     *  wire and must NOT be forwarded to whoever is on it now — that
+     *  would leak one user's token to the next browser on the same
+     *  BFF instance (test12_stale_reply exercises exactly this race).
+     *
+     *  Stats already reflect what Keycloak said (kc_ok / kc_errors
+     *  bumped above), so charts stay truthful; only the forward to
+     *  the wrong socket is skipped.  CONTINUE_TASK so the task
+     *  finishes normally and ac_end_task runs its cleanup.
+     */
+    {
+        PRIVATE_DATA *priv = gobj_priv_data(gobj);
+        uint64_t task_gen = (uint64_t)kw_get_int(
+            gobj, output_data, "_browser_gen", 0, 0);
+        if(task_gen == 0 || task_gen != priv->browser_alive_gen) {
+            priv->st_responses_dropped++;
+            if(gobj_trace_level(gobj) & TRACE_MESSAGES) {
+                gobj_trace_msg(gobj,
+                    "BFF browser gen mismatch — dropping response: "
+                    "action=%s status=%d task_gen=%llu alive_gen=%llu",
+                    action_name(action), status,
+                    (unsigned long long)task_gen,
+                    (unsigned long long)priv->browser_alive_gen
+                );
+            }
+            KW_DECREF(kw)
+            CONTINUE_TASK()
         }
     }
 
@@ -1065,6 +1370,24 @@ PRIVATE json_t *result_kc_logout(
     hgobj src_task
 )
 {
+    /*
+     *  Same watchdog gate as result_token_response: drop any late
+     *  Keycloak logout reply that arrives after ac_kc_watchdog has
+     *  already 504'd the browser.
+     */
+    {
+        PRIVATE_DATA *priv = gobj_priv_data(gobj);
+        if(priv->kc_watchdog_fired) {
+            if(gobj_trace_level(gobj) & TRACE_MESSAGES) {
+                gobj_trace_msg(gobj,
+                    "BFF result_kc_logout: late KC reply after watchdog — skipping"
+                );
+            }
+            KW_DECREF(kw)
+            CONTINUE_TASK()
+        }
+    }
+
     json_t *output_data = gobj_read_json_attr(src_task, "output_data");
     hgobj browser_src   = (hgobj)(uintptr_t)kw_get_int(
         gobj, output_data, "_browser_src", 0, 0);
@@ -1073,8 +1396,14 @@ PRIVATE json_t *result_kc_logout(
     int status = (int)kw_get_int(gobj, kw, "response_status_code", -1, 0);
 
     {
+        /*
+         *  Keycloak returns 204 No Content on a successful logout
+         *  (RFC 6749 / OIDC RP-Initiated Logout), not 200.  Count any
+         *  2xx response as success so the kc_ok / kc_errors counters
+         *  reflect real Keycloak behaviour.
+         */
         PRIVATE_DATA *priv = gobj_priv_data(gobj);
-        if(status == 200) {
+        if(status >= 200 && status < 300) {
             priv->st_kc_ok++;
         } else {
             priv->st_kc_errors++;
@@ -1090,6 +1419,32 @@ PRIVATE json_t *result_kc_logout(
             json_t *jn_redact = redact_for_trace(jn_full_body);
             gobj_trace_json(gobj, jn_redact, "BFF ← Keycloak logout body (redacted)");
             JSON_DECREF(jn_redact)
+        }
+    }
+
+    /*
+     *  Same browser-generation gate as result_token_response.  Drops
+     *  the reply if the connection we were logging out of has been
+     *  closed or replaced.  Stats already reflect Keycloak's reply;
+     *  only the forward to the wrong socket is skipped.
+     */
+    {
+        PRIVATE_DATA *priv = gobj_priv_data(gobj);
+        uint64_t task_gen = (uint64_t)kw_get_int(
+            gobj, output_data, "_browser_gen", 0, 0);
+        if(task_gen == 0 || task_gen != priv->browser_alive_gen) {
+            priv->st_responses_dropped++;
+            if(gobj_trace_level(gobj) & TRACE_MESSAGES) {
+                gobj_trace_msg(gobj,
+                    "BFF browser gen mismatch on logout reply — dropping: "
+                    "status=%d task_gen=%llu alive_gen=%llu",
+                    status,
+                    (unsigned long long)task_gen,
+                    (unsigned long long)priv->browser_alive_gen
+                );
+            }
+            KW_DECREF(kw)
+            CONTINUE_TASK()
         }
     }
 
@@ -1207,9 +1562,15 @@ PRIVATE void process_next(hgobj gobj)
         )
     );
 
-    /* Build the task with the appropriate action/result pair */
-    json_t *kw_output = json_pack("{s:I, s:i, s:s, s:s, s:s, s:s, s:s, s:s, s:s, s:s}",
+    /*
+     *  Build the task output_data.  `_browser_gen` rides along with
+     *  `_browser_src` so result_token_response / result_kc_logout can
+     *  tell, when the async reply eventually arrives, whether the
+     *  connection we dispatched this task for is still on the wire.
+     */
+    json_t *kw_output = json_pack("{s:I, s:I, s:i, s:s, s:s, s:s, s:s, s:s, s:s, s:s, s:s}",
         "_browser_src",    (json_int_t)(uintptr_t)pa->browser_src,
+        "_browser_gen",    (json_int_t)pa->browser_gen,
         "_action",         (int)pa->action,
         "_code",           pa->code,
         "_code_verifier",  pa->code_verifier,
@@ -1258,9 +1619,35 @@ PRIVATE void process_next(hgobj gobj)
     hgobj gobj_task = gobj_create(gobj_name(gobj), C_TASK, kw_task, gobj);
     gobj_subscribe_event(gobj_task, EV_END_TASK, NULL, gobj);
     gobj_set_volatil(gobj_task, TRUE);
+    priv->gobj_task = gobj_task;
 
     gobj_start_tree(priv->gobj_http);
     gobj_start(gobj_task);
+
+    /*
+     *  Remember the browser this task is serving so ac_kc_watchdog
+     *  can 504 it without having to reach into the task's output_data.
+     *  Capture the browser generation too so the watchdog can
+     *  short-circuit if the connection has been closed or replaced
+     *  between dispatch and timeout.
+     */
+    priv->active_browser_src = pa->browser_src;
+    priv->active_task_gen    = pa->browser_gen;
+
+    /*
+     *  Arm the outbound watchdog.  0 disables — production deployments
+     *  that want to opt out of the safety net (or use a different
+     *  external supervisor) can set kc_timeout_ms=0 in the service kw.
+     *
+     *  set_timeout0 on a timer that's still RUNNING from the previous
+     *  task's arm just calls timerfd_settime — no cancel SQE — so this
+     *  is safe for back-to-back tasks (test8_queue_full).
+     */
+    int kc_timeout_ms = (int)gobj_read_integer_attr(gobj, "kc_timeout_ms");
+    if(kc_timeout_ms > 0) {
+        priv->kc_watchdog_armed = TRUE;
+        set_timeout0(priv->kc_watchdog, kc_timeout_ms);
+    }
 }
 
 /***************************************************************************
@@ -1293,11 +1680,27 @@ PRIVATE json_t *result_done(hgobj gobj, const char *lm, json_t *kw, hgobj src)
 
 /***************************************************************************
  *  New browser HTTP connection opened.
+ *
+ *  Bumps the browser generation counter and stores the new value as
+ *  `browser_alive_gen`.  Every task that gets enqueued while this is
+ *  the current gen carries it through its own output_data, and
+ *  result_token_response / result_kc_logout compare the two before
+ *  forwarding the Keycloak reply — see the PRIVATE_DATA comment on
+ *  the generation scheme for the full rationale.
  ***************************************************************************/
 PRIVATE int ac_on_open(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 {
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    priv->browser_gen_counter++;
+    priv->browser_alive_gen = priv->browser_gen_counter;
+
     if(gobj_trace_level(gobj) & TRACE_MESSAGES) {
-        gobj_trace_msg(gobj, "BFF connection OPEN from %s", gobj_short_name(src));
+        gobj_trace_msg(gobj,
+            "BFF connection OPEN from %s (gen=%llu)",
+            gobj_short_name(src),
+            (unsigned long long)priv->browser_alive_gen
+        );
     }
     KW_DECREF(kw)
     return 0;
@@ -1305,12 +1708,36 @@ PRIVATE int ac_on_open(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 
 /***************************************************************************
  *  Browser HTTP connection closed (before we could respond, or after).
+ *
+ *  Setting browser_alive_gen to 0 invalidates every queued and
+ *  in-flight task against this (now closed) connection.  Any Keycloak
+ *  round-trip already dispatched keeps running to completion —
+ *  ac_end_task will tear down priv->gobj_http on its own — but when
+ *  its result_* callback eventually fires, the task's captured
+ *  browser_gen will no longer match priv->browser_alive_gen (which
+ *  is either 0 here, or the new gen from a later ac_on_open) and the
+ *  reply will be dropped.
+ *
+ *  The pending queue is left as-is on purpose: entries there are
+ *  naturally invalidated by the gen mismatch when they reach result_*.
+ *  Clearing q_count here would just skip the drain loop, which is a
+ *  latent optimisation but not a correctness requirement.
  ***************************************************************************/
 PRIVATE int ac_on_close(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 {
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
     if(gobj_trace_level(gobj) & TRACE_MESSAGES) {
-        gobj_trace_msg(gobj, "BFF connection CLOSE from %s", gobj_short_name(src));
+        gobj_trace_msg(gobj,
+            "BFF connection CLOSE from %s (gen=%llu q_count=%d processing=%d)",
+            gobj_short_name(src),
+            (unsigned long long)priv->browser_alive_gen,
+            priv->q_count, priv->processing
+        );
     }
+
+    priv->browser_alive_gen = 0;
+
     KW_DECREF(kw)
     return 0;
 }
@@ -1379,6 +1806,17 @@ PRIVATE int ac_on_message(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
     PENDING_AUTH pa;
     memset(&pa, 0, sizeof(pa));
     pa.browser_src = src;
+    /*
+     *  Capture the current browser generation so result_* / watchdog
+     *  can tell, when the async reply eventually lands, whether the
+     *  connection this task was dispatched for is still the one
+     *  plugged into the BFF.  See the PRIVATE_DATA comment on
+     *  browser_alive_gen for the full scheme.
+     */
+    {
+        PRIVATE_DATA *priv_for_gen = gobj_priv_data(gobj);
+        pa.browser_gen = priv_for_gen->browser_alive_gen;
+    }
     snprintf(pa.client_origin, sizeof(pa.client_origin), "%s", origin);
     snprintf(pa.client_host, sizeof(pa.client_host), "%s", host_hdr);
 
@@ -1503,9 +1941,126 @@ PRIVATE int ac_on_message(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 /***************************************************************************
  *  Keycloak task completed — clean up, process next queued request.
  ***************************************************************************/
+/***************************************************************************
+ *  Outbound Keycloak watchdog fired — the round-trip is taking longer
+ *  than kc_timeout_ms.  Respond 504 to the browser (if still alive)
+ *  and trigger the normal end-of-task cleanup path by emitting
+ *  EV_END_TASK to ourselves, which lands in ac_end_task below.
+ *
+ *  ac_end_task tears down priv->gobj_http, resets priv->processing,
+ *  clears active_browser_src and kc_watchdog_fired, and then runs
+ *  process_next() to dispatch any queued request — so a single stuck
+ *  Keycloak call does not wedge the whole channel.
+ ***************************************************************************/
+PRIVATE int ac_kc_watchdog(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    /*
+     *  Stale fire: ac_end_task disarmed us via the flag without
+     *  cancelling the timer.  Ignore.
+     */
+    if(!priv->kc_watchdog_armed) {
+        KW_DECREF(kw)
+        return 0;
+    }
+    priv->kc_watchdog_armed = FALSE;
+
+    priv->st_kc_timeouts++;
+
+    int kc_timeout_ms = (int)gobj_read_integer_attr(gobj, "kc_timeout_ms");
+    gobj_log_error(gobj, 0,
+        "function",         "%s", __FUNCTION__,
+        "msgset",           "%s", MSGSET_SYSTEM_ERROR,
+        "msg",              "%s", "BFF Keycloak outbound watchdog fired",
+        "kc_timeout_ms",    "%d", kc_timeout_ms,
+        "url",              "%s", priv->host,
+        NULL
+    );
+
+    /*
+     *  Signal to result_token_response / result_kc_logout that, should
+     *  a late Keycloak reply somehow slip in after we've already told
+     *  the browser it's over, they must not double-respond.
+     */
+    priv->kc_watchdog_fired = TRUE;
+
+    /*
+     *  Forward a 504 to the browser only if it's still the same
+     *  connection we dispatched this task for.  Two mismatch cases
+     *  both resolve to "drop the 504":
+     *
+     *    - priv->browser_alive_gen == 0      connection closed
+     *    - priv->active_task_gen != priv->browser_alive_gen
+     *                                          the connection has
+     *                                          been replaced by a
+     *                                          later one under
+     *                                          persistent_channels
+     *
+     *  Sending the 504 to priv->active_browser_src in those cases
+     *  would deliver it to an unrelated browser — exactly the leak
+     *  the generation scheme is meant to prevent.
+     *
+     *  Production CORS headers are out of reach here (we don't store
+     *  them per task), so we emit an empty cors_hdrs — the browser
+     *  is the test harness or a real client that already saw the
+     *  request go out.
+     */
+    if(priv->active_browser_src
+            && priv->active_task_gen != 0
+            && priv->active_task_gen == priv->browser_alive_gen) {
+        send_error_response(gobj, priv->active_browser_src, 504, status_str(504),
+            "Keycloak timeout", "");
+    }
+
+    /*
+     *  Trigger the normal cleanup path.
+     */
+    gobj_send_event(gobj, EV_END_TASK, 0, gobj);
+
+    KW_DECREF(kw)
+    return 0;
+}
+
 PRIVATE int ac_end_task(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    /*
+     *  Disarm the watchdog via flag — do NOT clear_timeout0 here.
+     *  clear_timeout0 posts a CANCEL SQE and the timer enters
+     *  CANCELING state.  process_next() runs synchronously below for
+     *  any queued request and would call set_timeout0, which fails
+     *  with "cannot start timer: is CANCELING" until the cancel CQE
+     *  drains.  Instead, the live timer is left running with its
+     *  remaining duration; ac_kc_watchdog ignores fires when
+     *  kc_watchdog_armed==FALSE, and the next process_next() either
+     *  re-arms it (RUNNING → RUNNING via timerfd_settime, no cancel)
+     *  or leaves it to fire harmlessly into the disarmed handler.
+     */
+    priv->kc_watchdog_armed = FALSE;
+    priv->kc_watchdog_fired = FALSE;
+    priv->active_browser_src = NULL;
+    priv->active_task_gen    = 0;
+
+    /*
+     *  Tear down the C_TASK.  Two paths land here:
+     *    - Natural completion: c_task::stop_task synchronously publishes
+     *      EV_END_TASK BEFORE calling gobj_stop on itself, so we get the
+     *      event with src == priv->gobj_task while it is still RUNNING.
+     *      We must NOT stop it here — c_task will do it itself the
+     *      moment we return, and a double-stop logs "GObj NOT RUNNING".
+     *    - Watchdog (ac_kc_watchdog → gobj_send_event(EV_END_TASK, src=gobj)):
+     *      the task is still in the middle of waiting for Keycloak and
+     *      nobody is going to stop it for us.  src is c_auth_bff itself
+     *      (not the task), so force-stop here.  EV_STOPPED then chains
+     *      to ac_stopped which destroys the volatil task.
+     */
+    if(src != priv->gobj_task &&
+            priv->gobj_task && gobj_is_running(priv->gobj_task)) {
+        gobj_stop(priv->gobj_task);
+    }
+    priv->gobj_task = NULL;  /* ac_stopped will destroy it */
 
     /* Tear down the transient Keycloak HTTP client */
     if(priv->gobj_http) {
@@ -1598,7 +2153,7 @@ PRIVATE json_t *cmd_view_status(hgobj gobj, const char *cmd, json_t *kw, hgobj s
      *  Walk the ring from q_head forward, q_count entries.
      */
     for(int i = 0; i < priv->q_count; i++) {
-        int idx = (priv->q_head + i) % MAX_PENDING_QUEUE;
+        int idx = (priv->q_head + i) % priv->queue_size;
         const PENDING_AUTH *pa = &priv->queue[idx];
         json_t *jn_entry = json_pack("{s:s, s:s}",
             "action",       action_name(pa->action),
@@ -1617,7 +2172,7 @@ PRIVATE json_t *cmd_view_status(hgobj gobj, const char *cmd, json_t *kw, hgobj s
         "q_count",          priv->q_count,
         "q_head",           priv->q_head,
         "q_tail",           priv->q_tail,
-        "q_max",            MAX_PENDING_QUEUE,
+        "q_max",            priv->queue_size,
         "queue",            jn_queue
     );
 
@@ -1688,11 +2243,12 @@ PRIVATE int create_gclass(gclass_name_t gclass_name)
      *      States
      *------------------------*/
     ev_action_t st_idle[] = {
-        {EV_ON_OPEN,    ac_on_open,     0},
-        {EV_ON_MESSAGE, ac_on_message,  0},
-        {EV_ON_CLOSE,   ac_on_close,    0},
-        {EV_END_TASK,   ac_end_task,    0},
-        {EV_STOPPED,    ac_stopped,     0},
+        {EV_ON_OPEN,    ac_on_open,         0},
+        {EV_ON_MESSAGE, ac_on_message,      0},
+        {EV_ON_CLOSE,   ac_on_close,        0},
+        {EV_TIMEOUT,    ac_kc_watchdog,     0},
+        {EV_END_TASK,   ac_end_task,        0},
+        {EV_STOPPED,    ac_stopped,         0},
         {0, 0, 0}
     };
 
@@ -1708,6 +2264,7 @@ PRIVATE int create_gclass(gclass_name_t gclass_name)
         {EV_ON_OPEN,    0},
         {EV_ON_MESSAGE, 0},
         {EV_ON_CLOSE,   0},
+        {EV_TIMEOUT,    0},
         {EV_END_TASK,   0},
         {EV_STOPPED,    0},
         {0, 0}
