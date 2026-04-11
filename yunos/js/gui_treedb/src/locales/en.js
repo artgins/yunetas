@@ -42,9 +42,22 @@ var en = {
 
         'select language': 'Select Language',
         'login denied': 'Access denied',
-        'Invalid user credentials': 'Invalid Credentials',  // keycloak message
-        'Token is not active': 'Expired Credentials',       // keycloak message
         'invalid-username-password': 'Invalid Username or Password',
+
+        // --- auth_bff error codes (see kernel/c/root-linux/src/c_auth_bff.h)
+        'invalid_credentials':      'Invalid username or password',
+        'session_expired':          'Your session has expired. Please log in again.',
+        'account_disabled':         'Account disabled or not fully configured. Please contact the administrator.',
+        'auth_rate_limited':        'Too many login attempts. Please wait a moment and try again.',
+        'auth_service_unavailable': 'Authentication service unavailable. Please try again later.',
+        'auth_config_error':        'Authentication configuration error. Please contact the administrator.',
+        'auth_unexpected_error':    'Unexpected authentication error.',
+        'auth_empty_response':      'No response from the authentication service.',
+        'auth_timeout':             'The authentication service took too long to respond.',
+        'network_error':            'Network error. Please check your connection and try again.',
+        'refresh_denied':           'Your session has expired. Please log in again.',
+        'server_busy':              'The server is busy. Please try again in a moment.',
+
         'no yuneta backend url available': 'No yuneta backend url available',
         'no url available for': 'No url available for',
         'select theme': 'Select Theme',

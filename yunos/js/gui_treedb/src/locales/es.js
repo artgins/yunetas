@@ -42,9 +42,22 @@ let es = {
 
         'select language': 'Seleccionar Lenguaje',
         'login denied': 'Acceso denegado',
-        'Invalid user credentials': 'Credenciales inválidas',   // keycloak message
-        'Token is not active': 'Credenciales caducadas',        // keycloak message
         'invalid-username-password': 'Usuario o password inválidos',
+
+        // --- auth_bff error codes (ver kernel/c/root-linux/src/c_auth_bff.h)
+        'invalid_credentials':      'Usuario o contraseña incorrectos',
+        'session_expired':          'Su sesión ha caducado. Por favor, inicie sesión de nuevo.',
+        'account_disabled':         'Cuenta deshabilitada o no configurada. Contacte con el administrador.',
+        'auth_rate_limited':        'Demasiados intentos. Espere un momento e inténtelo de nuevo.',
+        'auth_service_unavailable': 'Servicio de autenticación no disponible. Inténtelo más tarde.',
+        'auth_config_error':        'Error de configuración de autenticación. Contacte con el administrador.',
+        'auth_unexpected_error':    'Error inesperado en la autenticación.',
+        'auth_empty_response':      'Sin respuesta del servicio de autenticación.',
+        'auth_timeout':             'El servicio de autenticación tardó demasiado en responder.',
+        'network_error':            'Error de red. Compruebe la conexión e inténtelo de nuevo.',
+        'refresh_denied':           'Su sesión ha caducado. Por favor, inicie sesión de nuevo.',
+        'server_busy':              'Servidor ocupado. Inténtelo en unos segundos.',
+
         'no yuneta backend url available': 'No hay yuneta backend url disponible',
         'no url available for': 'No hay url disponible para',
         'select theme': 'Seleccionar Tema',

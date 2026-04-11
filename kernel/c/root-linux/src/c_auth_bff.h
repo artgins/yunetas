@@ -46,7 +46,13 @@ GOBJ_DECLARE_GCLASS(C_AUTH_BFF);
  *  ---------------------------------------------------------------------
  *  Codes emitted by the login/token path (after talking to Keycloak)
  *  ---------------------------------------------------------------------
- *  invalid_credentials       401  Wrong username or password
+ *  invalid_credentials       401  Wrong username or password (LOGIN only)
+ *  session_expired           401  Refresh_token or auth code no longer
+ *                                 valid — emitted for REFRESH and
+ *                                 CALLBACK actions instead of
+ *                                 invalid_credentials, because the user
+ *                                 did not type anything wrong; their
+ *                                 session simply timed out.
  *  account_disabled          403  Account disabled / not fully set up
  *  auth_rate_limited         429  Too many login attempts
  *  auth_service_unavailable  502  Keycloak unreachable or 5xx

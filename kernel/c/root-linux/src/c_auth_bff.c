@@ -1123,24 +1123,50 @@ PRIVATE json_t *result_token_response(
         const char *kc_err  = kw_get_str(gobj, jn_err_body, "error",             "", 0);
         const char *kc_desc = kw_get_str(gobj, jn_err_body, "error_description", "", 0);
 
-        if(status == 401 && strcmp(kc_err, "invalid_grant") == 0) {
+        if(strcmp(kc_err, "invalid_grant") == 0 &&
+                (status == 400 || status == 401)) {
             /*
              *  Keycloak packs several distinct outcomes under invalid_grant:
              *    - "Invalid user credentials"      → wrong user/pass
              *    - "Account is not fully set up"   → disabled/incomplete
              *    - "Account disabled"              → disabled
              *    - "Invalid refresh token"         → expired/rotated RT
-             *  Discriminate by the human description text.
+             *    - "Token is not active"           → refresh_token expired
+             *    - "Code not valid"                → PKCE code reused/expired
+             *
+             *  The right browser-facing mapping depends on BOTH the human
+             *  description AND the action that triggered the Keycloak call:
+             *
+             *    * A disabled account is a disabled account regardless of
+             *      whether we got there via /auth/login or /auth/refresh,
+             *      so that check is action-agnostic.
+             *
+             *    * An invalid_grant from /auth/login means "user typed the
+             *      wrong password" → invalid_credentials.
+             *
+             *    * An invalid_grant from /auth/refresh or /auth/callback
+             *      means "the refresh_token or authorization code we were
+             *      carrying is no longer valid" — NOT that the user typed
+             *      anything wrong.  Mapping it to invalid_credentials would
+             *      show "Usuario o contraseña incorrectos" after a silent
+             *      background refresh, which is actively misleading.  Map
+             *      to session_expired so the GUI renders "your session has
+             *      expired, please log in again" instead.
              */
             if(strcasestr(kc_desc, "disabled") ||
                strcasestr(kc_desc, "not fully set up")) {
                 browser_status = 403;
                 browser_code   = "account_disabled";
                 browser_msg    = "Account disabled or not fully configured";
-            } else {
+            } else if(action == BFF_LOGIN) {
                 browser_status = 401;
                 browser_code   = "invalid_credentials";
                 browser_msg    = "Invalid username or password";
+            } else {
+                /* BFF_REFRESH or BFF_CALLBACK */
+                browser_status = 401;
+                browser_code   = "session_expired";
+                browser_msg    = "Session expired, please log in again";
             }
         } else if(status == 400 && strcmp(kc_err, "invalid_client") == 0) {
             browser_status = 500;

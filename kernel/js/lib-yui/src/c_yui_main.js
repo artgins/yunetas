@@ -1314,13 +1314,34 @@ function ac_login_refreshed(gobj, event, kw, src)
 }
 
 /************************************************
- *
+ *  EV_LOGIN_DENIED payload contract (from c_login.js):
+ *      {
+ *          error_code: "invalid_credentials" | "account_disabled" | ...,
+ *          error:      "<english developer fallback>"
+ *      }
+ *  `error_code` is the stable i18n key published by the auth_bff; see
+ *  the catalogue in kernel/c/root-linux/src/c_auth_bff.h.  We look up
+ *  the translation with t(error_code); if the key is missing from the
+ *  locale file t() returns it verbatim, so we then fall back to t() on
+ *  the english `error` string to keep something readable on screen.
  ************************************************/
 function ac_login_denied(gobj, event, kw, src)
 {
     set_username(gobj, "");
-    let error = kw_get_str(gobj, kw, "error", "login denied", 0);
-    set_error_login_message(gobj, t(error));
+    let error_code = kw_get_str(gobj, kw, "error_code", "", 0);
+    let error      = kw_get_str(gobj, kw, "error", "login denied", 0);
+
+    let translated;
+    if(error_code) {
+        translated = t(error_code);
+        if(translated === error_code) {
+            // key missing from locale — fall back to the english text
+            translated = t(error);
+        }
+    } else {
+        translated = t(error);
+    }
+    set_error_login_message(gobj, translated);
     return 0;
 }
 

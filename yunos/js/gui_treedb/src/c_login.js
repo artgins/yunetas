@@ -195,15 +195,26 @@ async function do_bff_login(gobj, username, password)
             gobj_write_attr(gobj, "username", data.username || data.email || "");
             gobj_send_event(gobj, "EV_LOGIN_ACCEPTED", data, gobj);
         } else {
-            const error = data.error || `HTTP ${resp.status}`;
-            log_info(sprintf("%s: BFF login error: %s", gobj_short_name(gobj), error));
-            gobj_send_event(gobj, "EV_LOGIN_DENIED", { error }, gobj);
+            /*
+             *  BFF error response contract:
+             *      { success:false, error_code:"<stable_key>", error:"<english>" }
+             *  See kernel/c/root-linux/src/c_auth_bff.h for the full catalogue.
+             *  We propagate both: the GUI prefers error_code as the i18n
+             *  translation key and falls back to error if the key is unknown.
+             */
+            const error_code = data.error_code || `http_${resp.status}`;
+            const error      = data.error || `HTTP ${resp.status}`;
+            log_info(sprintf("%s: BFF login error: %s (%s)",
+                gobj_short_name(gobj), error_code, error));
+            gobj_send_event(gobj, "EV_LOGIN_DENIED",
+                { error_code, error }, gobj);
         }
 
     } catch(err) {
         log_error(`${gobj_short_name(gobj)}: BFF login fetch failed: ${err.message}`);
         gobj_send_event(gobj, "EV_LOGIN_DENIED",
-            { error: "Network error during login" }, gobj);
+            { error_code: "network_error", error: "Network error during login" },
+            gobj);
     }
 }
 
@@ -252,16 +263,19 @@ function do_bff_refresh(gobj)
         if(data.success) {
             gobj_send_event(gobj, "EV_LOGIN_REFRESHED", data, gobj);
         } else {
-            log_info(sprintf("%s: BFF refresh denied: %s",
-                gobj_short_name(gobj), data.error || "unknown"));
+            const error_code = data.error_code || "refresh_denied";
+            const error      = data.error || "Refresh denied";
+            log_info(sprintf("%s: BFF refresh denied: %s (%s)",
+                gobj_short_name(gobj), error_code, error));
             gobj_send_event(gobj, "EV_LOGIN_DENIED",
-                { error: data.error || "Refresh denied" }, gobj);
+                { error_code, error }, gobj);
         }
     })
     .catch(err => {
         log_error(`${gobj_short_name(gobj)}: BFF refresh failed: ${err.message}`);
         gobj_send_event(gobj, "EV_LOGIN_DENIED",
-            { error: "Network error during refresh" }, gobj);
+            { error_code: "network_error", error: "Network error during refresh" },
+            gobj);
     });
 }
 
