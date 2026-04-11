@@ -890,8 +890,13 @@ PRIVATE json_t *result_token_response(
     const char *origin = kw_get_str(gobj, output_data, "_origin", "", 0);
 
     {
+        /*
+         *  Count any 2xx as success.  Keycloak's /token endpoint
+         *  returns 200 on the happy path, but the 2xx range is the
+         *  right semantic net — mirrors result_kc_logout below.
+         */
         PRIVATE_DATA *priv = gobj_priv_data(gobj);
-        if(status == 200) {
+        if(status >= 200 && status < 300) {
             priv->st_kc_ok++;
         } else {
             priv->st_kc_errors++;
@@ -1204,8 +1209,14 @@ PRIVATE json_t *result_kc_logout(
     int status = (int)kw_get_int(gobj, kw, "response_status_code", -1, 0);
 
     {
+        /*
+         *  Keycloak returns 204 No Content on a successful logout
+         *  (RFC 6749 / OIDC RP-Initiated Logout), not 200.  Count any
+         *  2xx response as success so the kc_ok / kc_errors counters
+         *  reflect real Keycloak behaviour.
+         */
         PRIVATE_DATA *priv = gobj_priv_data(gobj);
-        if(status == 200) {
+        if(status >= 200 && status < 300) {
             priv->st_kc_ok++;
         } else {
             priv->st_kc_errors++;
