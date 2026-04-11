@@ -72,6 +72,7 @@ typedef struct _PRIVATE_DATA {
     hgobj   timer;
     hgobj   gobj_http_cl;   /* transient HTTP client → BFF */
     BOOL    test_passed;
+    BOOL    dying;          /* TRUE once a death-timer is armed */
 } PRIVATE_DATA;
 
 
@@ -107,12 +108,21 @@ PRIVATE int mt_start(hgobj gobj)
 
 /***************************************************************************
  *      Framework Method stop
+ *
+ *  Safety net: if the test exited via a path that left the transient
+ *  http_cl tree running (e.g. failure before ac_on_message), stop it here
+ *  so the framework doesn't walk into "Destroying a RUNNING gobj" while
+ *  shutting the yuno down.
  ***************************************************************************/
 PRIVATE int mt_stop(hgobj gobj)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
     gobj_stop(priv->timer);
+
+    if(priv->gobj_http_cl && gobj_is_running(priv->gobj_http_cl)) {
+        gobj_stop_tree(priv->gobj_http_cl);
+    }
     return 0;
 }
 
@@ -220,11 +230,26 @@ PRIVATE void check_bff_stats(hgobj gobj, hgobj bff)
 
 
 /***************************************************************************
- *  Timer fired: create the transient HTTP client stack and start it.
+ *  Timer fired: two roles, distinguished by priv->dying.
+ *
+ *  Initial role (dying == FALSE)
+ *      Open the transient HTTP client stack and start it.
+ *
+ *  Death role (dying == TRUE)
+ *      The 100 ms grace period after stopping the http_cl has elapsed,
+ *      so the io_uring close events have had time to propagate to the
+ *      BFF and mock-KC server sides.  Now we can safely die.
  ***************************************************************************/
 PRIVATE int ac_timer(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    if(priv->dying) {
+        JSON_DECREF(kw)
+        set_yuno_must_die();
+        return 0;
+    }
+
     const char *bff_url = gobj_read_str_attr(gobj, "bff_url");
 
     priv->gobj_http_cl = gobj_create(
@@ -390,7 +415,25 @@ PRIVATE int ac_on_message(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 
 end:
     KW_DECREF(kw)
-    set_yuno_must_die();
+
+    /*
+     *  Stop the transient http_cl + c_tcp stack now (while the io_uring
+     *  loop is still spinning) so c_tcp::mt_stop's try_to_stop_yevents()
+     *  can cancel any in-flight reads/writes.  Don't gobj_destroy here:
+     *  the framework will destroy this child during yuno teardown.
+     *
+     *  Then arm a 100 ms death-timer instead of dying immediately, so
+     *  the io_uring close events have time to propagate from the test
+     *  client to the BFF and mock-KC server-side prot_http_sr stacks.
+     *  Otherwise their c_tcps would still be RUNNING when the framework
+     *  destroys them and we'd get "Destroying a RUNNING gobj" errors.
+     */
+    if(priv->gobj_http_cl) {
+        gobj_stop_tree(priv->gobj_http_cl);
+    }
+
+    priv->dying = TRUE;
+    set_timeout(priv->timer, 100);
     return 0;
 }
 
@@ -409,7 +452,13 @@ PRIVATE int ac_on_close(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
             "msg",      "%s", "test1_login: connection closed before success",
             NULL
         );
-        set_yuno_must_die();
+
+        if(priv->gobj_http_cl) {
+            gobj_stop_tree(priv->gobj_http_cl);
+        }
+
+        priv->dying = TRUE;
+        set_timeout(priv->timer, 100);
     }
 
     JSON_DECREF(kw)

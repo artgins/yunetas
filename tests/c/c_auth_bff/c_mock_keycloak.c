@@ -133,9 +133,17 @@ PRIVATE int mt_start(hgobj gobj)
 
 /***************************************************************************
  *      Framework Method stop
+ *
+ *  C_CHANNEL stops its bottom (us), but does not recurse: it's our job
+ *  to stop our own bottom (the inbound C_PROT_HTTP_SR + C_TCP) so the
+ *  framework's destroy walk doesn't trip over a still-RUNNING child.
  ***************************************************************************/
 PRIVATE int mt_stop(hgobj gobj)
 {
+    hgobj bottom = gobj_bottom_gobj(gobj);
+    if(bottom && gobj_is_running(bottom)) {
+        gobj_stop_tree(bottom);
+    }
     return 0;
 }
 
@@ -234,8 +242,12 @@ PRIVATE json_t *build_token_envelope(hgobj gobj)
         "scope",                "openid email profile"
     );
 
-    if(access)  free(access);
-    if(refresh) free(refresh);
+    /*
+     *  Tokens come from libjwt, which we wired to gbmem in
+     *  mock_keycloak_init_jwk(), so they must be freed with GBMEM_FREE.
+     */
+    GBMEM_FREE(access)
+    GBMEM_FREE(refresh)
     return jn;
 }
 
@@ -257,6 +269,21 @@ PUBLIC int mock_keycloak_init_jwk(void)
     if(s_jwk_set) {
         return 0;   /* already initialised */
     }
+
+    /*
+     *  Align libjwt's allocator with gbmem (which jansson is already
+     *  using via entry_point.c).  Without this, jwt_encode() frees a
+     *  jansson buffer (gbmem) through system free() and aborts.
+     *  c_authz does the same call when it is loaded; this test doesn't
+     *  pull c_authz in, so we have to do it ourselves.
+     */
+    sys_malloc_fn_t  malloc_func;
+    sys_realloc_fn_t realloc_func;
+    sys_calloc_fn_t  calloc_func;
+    sys_free_fn_t    free_func;
+    gbmem_get_allocators(&malloc_func, &realloc_func, &calloc_func, &free_func);
+    jwt_set_alloc(malloc_func, free_func);
+
     s_jwk_set = jwks_create(TEST_JWK_JSON);
     if(!s_jwk_set) {
         gobj_log_error(0, 0,
@@ -296,7 +323,9 @@ PUBLIC void mock_keycloak_end_jwk(void)
 
 /***************************************************************************
  *  Build a signed HS256 JWT with preferred_username / email / iat / exp.
- *  Returns a malloc'd string owned by the caller (free with free()).
+ *  Returns a gbmem-allocated string owned by the caller — free with
+ *  GBMEM_FREE, NOT system free().  libjwt's allocator was rewired to
+ *  gbmem in mock_keycloak_init_jwk().
  ***************************************************************************/
 PRIVATE char *make_signed_token(const char *username, const char *email, int ttl)
 {
@@ -385,18 +414,12 @@ PRIVATE int ac_on_message(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
     int method      = (int)kw_get_int(gobj, kw, "request_method", 0, 0);
 
     /*
-     *  The BFF posts form-urlencoded data to us.  ghttp_parser only
-     *  JSON-decodes bodies whose Content-Type is application/json; for
-     *  anything else it hands the raw gbuffer over via the "gbuffer"
-     *  key and zeros its own pointer.  We never inspect the body (all
-     *  routing is URL-based), but we must free the gbuffer to avoid a
-     *  leak on every request.
+     *  ghttp_parser hands non-JSON bodies over via the "gbuffer" key
+     *  in kw.  We never inspect the body (routing is URL-based) and we
+     *  must NOT manually decref it: "gbuffer" is registered as a kwid
+     *  binary type (gobj.c:560), so KW_DECREF below frees it for us.
+     *  Manual decref here causes a double-free / "BAD gbuf_decref()".
      */
-    gbuffer_t *gbuf_body = (gbuffer_t *)(uintptr_t)
-        kw_get_int(gobj, kw, "gbuffer", 0, 0);
-    if(gbuf_body) {
-        gbuffer_decref(gbuf_body);
-    }
 
     if(gobj_trace_level(gobj) & TRACE_MESSAGES) {
         gobj_trace_msg(gobj,
