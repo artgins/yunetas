@@ -50,6 +50,7 @@ endif()
 ##############################################
 SET(SHARED_SRCS
     c_mock_keycloak.c
+    test_helpers.c
 )
 
 ##############################################
@@ -57,6 +58,11 @@ SET(SHARED_SRCS
 ##############################################
 SET(TESTS
     test1_login
+    test2_kc_401
+    test3_callback
+    test4_refresh
+    test5_logout
+    test6_invalid_body
 )
 
 foreach(test ${TESTS})

@@ -26,14 +26,23 @@ fixed test key so the BFF's payload decode sees a well-formed token.
 
 ## Tests
 
-Currently:
-
 | Binary | What it exercises |
 |--------|--------------------|
-| `test_auth_bff_test1_login` | Happy path POST `/auth/login` — BFF calls mock KC, mock KC returns a signed token, BFF responds 200 with `Set-Cookie` for access/refresh tokens and body containing `username` and `email`. Validates the response and the BFF's own stats counters (`requests_total=1`, `kc_calls=1`, `kc_ok=1`, `bff_errors=0`). |
+| `test_auth_bff_test1_login` | Happy path `POST /auth/login`. BFF calls mock KC, mock KC returns a signed token, BFF responds 200 with `Set-Cookie` + body `{username, email}`. Asserts `requests_total=1, kc_calls=1, kc_ok=1, bff_errors=0`. |
+| `test_auth_bff_test2_kc_401` | Mock KC returns 401 on `/token`. BFF must forward as HTTP 400, body `{success:false, error}`. Asserts `kc_calls=1, kc_ok=0, kc_errors=1, bff_errors=1`. |
+| `test_auth_bff_test3_callback` | Happy path `POST /auth/callback` with PKCE `{code, code_verifier, redirect_uri}`. BFF `allowed_redirect_uri` active. Asserts the same success profile as test1. |
+| `test_auth_bff_test4_refresh` | Happy path `POST /auth/refresh`. Cookie header carries a fake `refresh_token`; empty JSON body. Response has `{success, expires_in, refresh_expires_in}` — no username/email. |
+| `test_auth_bff_test5_logout` | Happy path `POST /auth/logout`. Mock KC returns the spec-compliant 204 No Content; BFF stats (post-fix) count 2xx as `kc_ok`. Browser-facing response is 200 + clear-cookie `Set-Cookie` headers. |
+| `test_auth_bff_test6_invalid_body` | Negative: `POST /auth/login` with a body missing `password`. BFF must reject with 400 *before* touching the queue or Keycloak. Asserts `kc_calls=0, bff_errors=1`. |
 
-More tests land in subsequent commits (validation errors, queue full,
-browser cancel, cancel-retry — see the F1/F2 plan in the hilo auth_bff).
+Shared infrastructure:
+
+- `c_mock_keycloak.{c,h}` — scripted Keycloak mock (signed HS256 JWTs,
+  per-request behaviour scripted via attrs).
+- `test_helpers.{c,h}` — `test_helpers_find_bff`, `test_helpers_check_stats`
+  and the `TEST_HELPERS_BEGIN_DYING` graceful-shutdown macro used by
+  every driver from test2 onwards. test1 predates the helper file and
+  still inlines the same logic.
 
 ## Running
 
