@@ -64,6 +64,7 @@ SET(TESTS
     test5_logout
     test6_invalid_body
     test7_slow_login
+    test8_queue_full
     test9_browser_cancel
     test10_kc_silence
     test11_cancel_retry
