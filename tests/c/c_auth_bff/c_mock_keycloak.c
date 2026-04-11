@@ -69,6 +69,7 @@ SDATA (DTP_STRING,      "email",            SDF_RD, "mockuser@example.com", "ema
 SDATA (DTP_INTEGER,     "access_token_ttl", SDF_RD, "300",  "seconds: exp - iat for access_token"),
 SDATA (DTP_INTEGER,     "refresh_token_ttl",SDF_RD, "1800", "seconds: exp - iat for refresh_token"),
 SDATA (DTP_JSON,        "override_body",    SDF_RD, "{}",   "If non-empty, sent verbatim instead of the synthesised token envelope"),
+SDATA (DTP_INTEGER,     "latency_ms",       SDF_RD, "0",    "If > 0, defer each response by this many ms via an internal C_TIMER child. Single pending slot — not re-entrant."),
 SDATA_END()
 };
 
@@ -87,11 +88,26 @@ PRIVATE const trace_level_t s_user_trace_level[16] = {
  *              Private data
  *---------------------------------------------*/
 typedef struct _PRIVATE_DATA {
+    /* Stats */
     uint64_t    st_requests_received;
     uint64_t    st_responses_sent;
     uint64_t    st_token_requests;
     uint64_t    st_logout_requests;
     uint64_t    st_unknown_requests;
+    uint64_t    st_deferred_responses;
+    uint64_t    st_pending_cancelled;
+
+    /*
+     *  Deferred response slot (used when latency_ms > 0).
+     *  Only one pending response at a time — not re-entrant.  A
+     *  second request arriving with a pending slot still occupied is
+     *  treated as a test-harness bug and logged via gobj_log_error.
+     */
+    hgobj       timer;
+    hgobj       pending_src;                /* c_prot_http_sr to reply to */
+    int         pending_status;
+    char        pending_status_text[64];
+    json_t     *pending_body;               /* owned, decref in send/cancel */
 } PRIVATE_DATA;
 
 
@@ -109,11 +125,18 @@ typedef struct _PRIVATE_DATA {
  ***************************************************************************/
 PRIVATE void mt_create(hgobj gobj)
 {
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
     /*
+     *  Timer child used by the latency_ms feature.  Always created so
+     *  ac_on_message can unconditionally call set_timeout(); when
+     *  latency_ms==0 it is never armed and costs nothing.
+     *
      *  C_PROT_HTTP_SR (our child, plugged in by the yuno tree) auto-
      *  subscribes to its parent in its own mt_create, so we do not have
-     *  to do anything here: EV_ON_MESSAGE arrives naturally.
+     *  to do anything else here: EV_ON_MESSAGE arrives naturally.
      */
+    priv->timer = gobj_create_pure_child(gobj_name(gobj), C_TIMER, 0, gobj);
 }
 
 /***************************************************************************
@@ -121,6 +144,10 @@ PRIVATE void mt_create(hgobj gobj)
  ***************************************************************************/
 PRIVATE void mt_destroy(hgobj gobj)
 {
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    /* If a response was deferred and never sent, drop its body. */
+    JSON_DECREF(priv->pending_body)
 }
 
 /***************************************************************************
@@ -128,18 +155,33 @@ PRIVATE void mt_destroy(hgobj gobj)
  ***************************************************************************/
 PRIVATE int mt_start(hgobj gobj)
 {
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    gobj_start(priv->timer);
     return 0;
 }
 
 /***************************************************************************
  *      Framework Method stop
  *
- *  C_CHANNEL stops its bottom (us), but does not recurse: it's our job
- *  to stop our own bottom (the inbound C_PROT_HTTP_SR + C_TCP) so the
- *  framework's destroy walk doesn't trip over a still-RUNNING child.
+ *  Three things to tear down here:
+ *    1) the internal C_TIMER child (own pure child);
+ *    2) any pending deferred response (body decref, slot cleared);
+ *    3) our own bottom (the inbound C_PROT_HTTP_SR + C_TCP).  C_CHANNEL
+ *       stops its bottom (us) but does not recurse, so the inbound
+ *       stack would otherwise stay RUNNING during yuno teardown.
  ***************************************************************************/
 PRIVATE int mt_stop(hgobj gobj)
 {
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    gobj_stop(priv->timer);
+
+    if(priv->pending_body) {
+        JSON_DECREF(priv->pending_body)
+        priv->pending_src = NULL;
+    }
+
     hgobj bottom = gobj_bottom_gobj(gobj);
     if(bottom && gobj_is_running(bottom)) {
         gobj_stop_tree(bottom);
@@ -160,14 +202,18 @@ PRIVATE json_t *mt_stats(hgobj gobj, const char *stats, json_t *kw, hgobj src)
         priv->st_token_requests     = 0;
         priv->st_logout_requests    = 0;
         priv->st_unknown_requests   = 0;
+        priv->st_deferred_responses = 0;
+        priv->st_pending_cancelled  = 0;
     }
 
-    json_t *jn_data = json_pack("{s:I, s:I, s:I, s:I, s:I}",
+    json_t *jn_data = json_pack("{s:I, s:I, s:I, s:I, s:I, s:I, s:I}",
         "requests_received",    (json_int_t)priv->st_requests_received,
         "responses_sent",       (json_int_t)priv->st_responses_sent,
         "token_requests",       (json_int_t)priv->st_token_requests,
         "logout_requests",      (json_int_t)priv->st_logout_requests,
-        "unknown_requests",     (json_int_t)priv->st_unknown_requests
+        "unknown_requests",     (json_int_t)priv->st_unknown_requests,
+        "deferred_responses",   (json_int_t)priv->st_deferred_responses,
+        "pending_cancelled",    (json_int_t)priv->st_pending_cancelled
     );
 
     KW_DECREF(kw)
@@ -208,6 +254,62 @@ PRIVATE void mk_send_json(hgobj gobj, hgobj browser_src, int status,
         );
     }
     (void)status;
+}
+
+/***************************************************************************
+ *  Either send the response now (latency_ms == 0) or stash it in the
+ *  pending slot and arm the timer (latency_ms > 0).
+ *
+ *  Takes ownership of `jn_body` (always decrefs, even in the deferred
+ *  path — it's held in priv->pending_body until ac_timer fires).
+ ***************************************************************************/
+PRIVATE void respond_or_defer(hgobj gobj, hgobj browser_src, int status,
+    const char *status_text, json_t *jn_body)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    int latency_ms = (int)gobj_read_integer_attr(gobj, "latency_ms");
+    if(latency_ms <= 0) {
+        mk_send_json(gobj, browser_src, status, status_text, jn_body);
+        JSON_DECREF(jn_body)
+        return;
+    }
+
+    /*
+     *  Single-slot deferred response.  Re-entrance (a second request
+     *  arriving while a pending response is still on the clock) is a
+     *  test-harness bug, not a feature: flag it and drop the old one
+     *  so the new request still gets served.
+     */
+    if(priv->pending_body) {
+        gobj_log_error(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_INTERNAL_ERROR,
+            "msg",          "%s", "mock-kc deferred slot already occupied — single-slot only",
+            "previous_src", "%s", priv->pending_src ? gobj_short_name(priv->pending_src) : "",
+            "new_src",      "%s", browser_src ? gobj_short_name(browser_src) : "",
+            NULL
+        );
+        JSON_DECREF(priv->pending_body)
+        priv->pending_src = NULL;
+        clear_timeout(priv->timer);
+    }
+
+    priv->pending_src     = browser_src;
+    priv->pending_status  = status;
+    snprintf(priv->pending_status_text, sizeof(priv->pending_status_text),
+        "%s", status_text ? status_text : "");
+    priv->pending_body    = jn_body;        /* takes ownership */
+    priv->st_deferred_responses++;
+
+    if(gobj_trace_level(gobj) & TRACE_MESSAGES) {
+        gobj_trace_msg(gobj,
+            "mock-kc deferred: status=%d latency=%d ms src=%s",
+            status, latency_ms, gobj_short_name(browser_src)
+        );
+    }
+
+    set_timeout(priv->timer, latency_ms);
 }
 
 /***************************************************************************
@@ -453,14 +555,12 @@ PRIVATE int ac_on_message(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
                 "error_description",  "mock keycloak injected error"
             );
         }
-        mk_send_json(gobj, src, status, status_tx, jn_body);
-        JSON_DECREF(jn_body)
+        respond_or_defer(gobj, src, status, status_tx, jn_body);
 
     } else if(strstr(url, "/logout")) {
         priv->st_logout_requests++;
         json_t *jn_empty = json_object();
-        mk_send_json(gobj, src, 204, "204 No Content", jn_empty);
-        JSON_DECREF(jn_empty)
+        respond_or_defer(gobj, src, 204, "204 No Content", jn_empty);
 
     } else {
         priv->st_unknown_requests++;
@@ -472,8 +572,7 @@ PRIVATE int ac_on_message(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
             NULL
         );
         json_t *jn_err = json_pack("{s:s}", "error", "not_found");
-        mk_send_json(gobj, src, 404, "404 Not Found", jn_err);
-        JSON_DECREF(jn_err)
+        respond_or_defer(gobj, src, 404, "404 Not Found", jn_err);
     }
 
     KW_DECREF(kw)
@@ -481,10 +580,66 @@ PRIVATE int ac_on_message(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 }
 
 /***************************************************************************
- *  Browser closed the TCP connection — ignore.
+ *  Latency timer fired: flush the deferred response to the stashed src.
+ *
+ *  By the time we get here, the client connection may have been closed
+ *  (e.g. the test cancelled it mid-flight) and ac_on_close already
+ *  cleared the pending slot.  In that case the slot is empty and we
+ *  silently exit — nothing to send.
+ ***************************************************************************/
+PRIVATE int ac_timer(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    if(!priv->pending_body || !priv->pending_src) {
+        /*
+         *  The pending slot was cleared while the timer was in flight
+         *  (e.g. by ac_on_close).  Nothing to do.
+         */
+        JSON_DECREF(kw)
+        return 0;
+    }
+
+    hgobj   pending_src  = priv->pending_src;
+    int     status       = priv->pending_status;
+    json_t *jn_body      = priv->pending_body;
+
+    priv->pending_src    = NULL;
+    priv->pending_body   = NULL;
+
+    mk_send_json(gobj, pending_src, status, priv->pending_status_text, jn_body);
+    JSON_DECREF(jn_body)
+
+    JSON_DECREF(kw)
+    return 0;
+}
+
+/***************************************************************************
+ *  Client TCP connection closed.
+ *
+ *  If a deferred response was pending against this very src, the timer
+ *  would fire into a now-dead gobj and its send would be rejected.  We
+ *  pre-empt that: cancel the timer, drop the body, bump the cancelled
+ *  counter.  (Conservative match — if pending_src != src we leave the
+ *  slot alone because it belongs to a different connection.)
  ***************************************************************************/
 PRIVATE int ac_on_close(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 {
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    if(priv->pending_src == src && priv->pending_body) {
+        if(gobj_trace_level(gobj) & TRACE_MESSAGES) {
+            gobj_trace_msg(gobj,
+                "mock-kc pending response cancelled (client closed): src=%s",
+                gobj_short_name(src)
+            );
+        }
+        clear_timeout(priv->timer);
+        JSON_DECREF(priv->pending_body)
+        priv->pending_src = NULL;
+        priv->st_pending_cancelled++;
+    }
+
     KW_DECREF(kw)
     return 0;
 }
@@ -548,6 +703,7 @@ PRIVATE int create_gclass(gclass_name_t gclass_name)
         {EV_ON_OPEN,        ac_on_open,     0},
         {EV_ON_MESSAGE,     ac_on_message,  0},
         {EV_ON_CLOSE,       ac_on_close,    0},
+        {EV_TIMEOUT,        ac_timer,       0},
         {0, 0, 0}
     };
 
@@ -560,6 +716,7 @@ PRIVATE int create_gclass(gclass_name_t gclass_name)
         {EV_ON_OPEN,        0},
         {EV_ON_MESSAGE,     0},
         {EV_ON_CLOSE,       0},
+        {EV_TIMEOUT,        0},
         {0, 0}
     };
 

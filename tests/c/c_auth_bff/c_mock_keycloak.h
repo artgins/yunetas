@@ -19,6 +19,10 @@
  *            refresh_token_ttl        (int)  seconds (default 1800)
  *            override_body            (json) if set, sent verbatim instead of
  *                                             the synthesized token envelope
+ *            latency_ms               (int)  if > 0, defer the response by
+ *                                             this many ms via an internal
+ *                                             C_TIMER child (single pending
+ *                                             slot — not re-entrant).
  *
  *          Stats (custom mt_stats, counters in PRIVATE_DATA):
  *            requests_received        token endpoint hits
@@ -26,6 +30,8 @@
  *            token_requests           POSTs on the /token path
  *            logout_requests          POSTs on the /logout path
  *            unknown_requests         anything else
+ *            deferred_responses       requests held by latency_ms
+ *            pending_cancelled        pending responses aborted by EV_ON_CLOSE
  *
  *          Copyright (c) 2026, ArtGins.
  *          All Rights Reserved.
