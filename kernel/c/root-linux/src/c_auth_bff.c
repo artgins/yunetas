@@ -74,6 +74,7 @@
 #include "c_prot_http_sr.h"
 #include "c_task.h"
 #include "c_tcp.h"
+#include "c_timer.h"            /* C_TIMER0 for the outbound watchdog */
 #include "c_auth_bff.h"
 
 /***************************************************************************
@@ -180,6 +181,7 @@ SDATA (DTP_STRING,      "allowed_origin",       SDF_RD, "",     "CORS Access-Con
 SDATA (DTP_STRING,      "allowed_redirect_uri", SDF_RD, "",     "Allowed redirect_uri prefix (e.g. https://treedb.yunetas.com/); rejects callback requests whose redirect_uri does not start with this"),
 SDATA (DTP_JSON,        "crypto",               SDF_RD,             "{}",   "TLS crypto config for Keycloak outbound calls"),
 SDATA (DTP_INTEGER,     "pending_queue_size",   SDF_RD,             "16",   "Max pending Keycloak requests per channel; clamped to [1, 1024]. Raise for front-line BFFs under burst"),
+SDATA (DTP_INTEGER,     "kc_timeout_ms",        SDF_RD,             "30000","Outbound Keycloak watchdog timeout in milliseconds. 0 disables. When a round-trip exceeds this, the BFF sends 504 to the browser and drains the task"),
 SDATA (DTP_POINTER,     "user_data",            0,                  0,      "user data"),
 SDATA (DTP_POINTER,     "user_data2",           0,                  0,      "more user data"),
 SDATA_END()
@@ -218,6 +220,18 @@ typedef struct _PRIVATE_DATA {
     hgobj           gobj_http;          /* C_PROT_HTTP_CL while active */
 
     /*
+     *  Outbound watchdog.  Armed in process_next right after gobj_http
+     *  is created; disarmed in ac_end_task when the task completes
+     *  normally.  If the watchdog fires first the Keycloak round-trip
+     *  has exceeded kc_timeout_ms: the BFF sends 504 to the browser
+     *  and triggers the normal ac_end_task cleanup path.  Uses
+     *  C_TIMER0 (millisecond precision) created in mt_create.
+     */
+    hgobj           kc_watchdog;
+    BOOL            kc_watchdog_fired;  /* set by ac_kc_watchdog, reset in ac_end_task */
+    hgobj           active_browser_src; /* browser_src of the in-flight task, cleared in ac_end_task */
+
+    /*
      *  TRUE while the browser HTTP connection is up (between ac_on_open
      *  and ac_on_close).  Consulted by result_token_response and
      *  result_kc_logout before forwarding the Keycloak reply to the
@@ -248,6 +262,7 @@ typedef struct _PRIVATE_DATA {
     uint64_t        st_kc_errors;       /* Keycloak round-trips with non-200 */
     uint64_t        st_bff_errors;      /* 4xx/5xx returned to the browser */
     uint64_t        st_responses_dropped; /* KC replies dropped because browser closed */
+    uint64_t        st_kc_timeouts;     /* outbound watchdog fired */
 } PRIVATE_DATA;
 
 
@@ -294,6 +309,14 @@ PRIVATE void mt_create(hgobj gobj)
     }
 
     /*
+     *  Outbound KC watchdog timer (millisecond precision — C_TIMER0,
+     *  not C_TIMER, see c_timer.h header note on "accuracy in seconds").
+     *  Armed in process_next after gobj_http is created; disarmed by
+     *  ac_end_task or by a successful result_* run.
+     */
+    priv->kc_watchdog = gobj_create_pure_child(gobj_name(gobj), C_TIMER0, 0, gobj);
+
+    /*
      *  SERVICE subscription model
      */
     hgobj subscriber = (hgobj)gobj_read_pointer_attr(gobj, "user_data");
@@ -319,6 +342,13 @@ PRIVATE void mt_destroy(hgobj gobj)
 PRIVATE int mt_start(hgobj gobj)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    /*
+     *  Start the outbound watchdog's timer child so set_timeout0() is
+     *  cheap when process_next arms it.  C_TIMER0 ignores the start
+     *  until set_timeout0 is called, so this is a no-op scheduling-wise.
+     */
+    gobj_start(priv->kc_watchdog);
 
     /* Pre-parse Keycloak base URL for re-use in every outbound call */
     char kc_base[PATH_MAX];
@@ -392,6 +422,10 @@ PRIVATE int mt_start(hgobj gobj)
 PRIVATE int mt_stop(hgobj gobj)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    clear_timeout0(priv->kc_watchdog);
+    gobj_stop(priv->kc_watchdog);
+
     if(priv->gobj_http) {
         gobj_stop_tree(priv->gobj_http);
         priv->gobj_http = NULL;
@@ -478,6 +512,7 @@ PRIVATE json_t *mt_stats(hgobj gobj, const char *stats, json_t *kw, hgobj src)
         priv->st_kc_errors          = 0;
         priv->st_bff_errors         = 0;
         priv->st_responses_dropped  = 0;
+        priv->st_kc_timeouts        = 0;
         stats = "";  /* fall through and return the (now zeroed) snapshot */
     }
 
@@ -502,6 +537,7 @@ PRIVATE json_t *mt_stats(hgobj gobj, const char *stats, json_t *kw, hgobj src)
     STAT_INT("kc_errors",           priv->st_kc_errors);
     STAT_INT("bff_errors",          priv->st_bff_errors);
     STAT_INT("responses_dropped",   priv->st_responses_dropped);
+    STAT_INT("kc_timeouts",         priv->st_kc_timeouts);
 
 #undef STAT_INT
 
@@ -882,6 +918,27 @@ PRIVATE json_t *result_token_response(
 )
 {
     /*
+     *  Watchdog short-circuit: if the outbound KC watchdog already
+     *  fired for this task, it has already 504'd the browser and
+     *  emitted EV_END_TASK.  Any late reply from Keycloak that still
+     *  makes it through the pipeline must NOT double-respond.  Do the
+     *  check before touching output_data / counters so the stats
+     *  stay truthful (kc_timeouts already incremented, kc_ok stays 0).
+     */
+    {
+        PRIVATE_DATA *priv = gobj_priv_data(gobj);
+        if(priv->kc_watchdog_fired) {
+            if(gobj_trace_level(gobj) & TRACE_MESSAGES) {
+                gobj_trace_msg(gobj,
+                    "BFF result_token_response: late KC reply after watchdog — skipping"
+                );
+            }
+            KW_DECREF(kw)
+            CONTINUE_TASK()
+        }
+    }
+
+    /*
      *  Retrieve and remove the pending request that triggered this call.
      *  (It was passed via output_data of the task.)
      */
@@ -1237,6 +1294,24 @@ PRIVATE json_t *result_kc_logout(
     hgobj src_task
 )
 {
+    /*
+     *  Same watchdog gate as result_token_response: drop any late
+     *  Keycloak logout reply that arrives after ac_kc_watchdog has
+     *  already 504'd the browser.
+     */
+    {
+        PRIVATE_DATA *priv = gobj_priv_data(gobj);
+        if(priv->kc_watchdog_fired) {
+            if(gobj_trace_level(gobj) & TRACE_MESSAGES) {
+                gobj_trace_msg(gobj,
+                    "BFF result_kc_logout: late KC reply after watchdog — skipping"
+                );
+            }
+            KW_DECREF(kw)
+            CONTINUE_TASK()
+        }
+    }
+
     json_t *output_data = gobj_read_json_attr(src_task, "output_data");
     hgobj browser_src   = (hgobj)(uintptr_t)kw_get_int(
         gobj, output_data, "_browser_src", 0, 0);
@@ -1459,6 +1534,22 @@ PRIVATE void process_next(hgobj gobj)
 
     gobj_start_tree(priv->gobj_http);
     gobj_start(gobj_task);
+
+    /*
+     *  Remember the browser this task is serving so ac_kc_watchdog
+     *  can 504 it without having to reach into the task's output_data.
+     */
+    priv->active_browser_src = pa->browser_src;
+
+    /*
+     *  Arm the outbound watchdog.  0 disables — production deployments
+     *  that want to opt out of the safety net (or use a different
+     *  external supervisor) can set kc_timeout_ms=0 in the service kw.
+     */
+    int kc_timeout_ms = (int)gobj_read_integer_attr(gobj, "kc_timeout_ms");
+    if(kc_timeout_ms > 0) {
+        set_timeout0(priv->kc_watchdog, kc_timeout_ms);
+    }
 }
 
 /***************************************************************************
@@ -1731,9 +1822,69 @@ PRIVATE int ac_on_message(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 /***************************************************************************
  *  Keycloak task completed — clean up, process next queued request.
  ***************************************************************************/
+/***************************************************************************
+ *  Outbound Keycloak watchdog fired — the round-trip is taking longer
+ *  than kc_timeout_ms.  Respond 504 to the browser (if still alive)
+ *  and trigger the normal end-of-task cleanup path by emitting
+ *  EV_END_TASK to ourselves, which lands in ac_end_task below.
+ *
+ *  ac_end_task tears down priv->gobj_http, resets priv->processing,
+ *  clears active_browser_src and kc_watchdog_fired, and then runs
+ *  process_next() to dispatch any queued request — so a single stuck
+ *  Keycloak call does not wedge the whole channel.
+ ***************************************************************************/
+PRIVATE int ac_kc_watchdog(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    priv->st_kc_timeouts++;
+
+    int kc_timeout_ms = (int)gobj_read_integer_attr(gobj, "kc_timeout_ms");
+    gobj_log_error(gobj, 0,
+        "function",         "%s", __FUNCTION__,
+        "msgset",           "%s", MSGSET_SYSTEM_ERROR,
+        "msg",              "%s", "BFF Keycloak outbound watchdog fired",
+        "kc_timeout_ms",    "%d", kc_timeout_ms,
+        "url",              "%s", priv->host,
+        NULL
+    );
+
+    /*
+     *  Signal to result_token_response / result_kc_logout that, should
+     *  a late Keycloak reply somehow slip in after we've already told
+     *  the browser it's over, they must not double-respond.
+     */
+    priv->kc_watchdog_fired = TRUE;
+
+    /*
+     *  Forward a 504 to the browser if it's still around.  Production
+     *  CORS headers are out of reach here (we don't store them per
+     *  task), so we emit an empty cors_hdrs — the browser is the test
+     *  harness or a real client that already saw the request go out.
+     */
+    if(priv->browser_alive && priv->active_browser_src) {
+        send_error_response(gobj, priv->active_browser_src, 504, status_str(504),
+            "Keycloak timeout", "");
+    }
+
+    /*
+     *  Trigger the normal cleanup path.  Note ac_end_task below also
+     *  calls clear_timeout0(priv->kc_watchdog) — safe idempotent.
+     */
+    gobj_send_event(gobj, EV_END_TASK, 0, gobj);
+
+    KW_DECREF(kw)
+    return 0;
+}
+
 PRIVATE int ac_end_task(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    /* Cancel any still-armed watchdog; reset its per-task state. */
+    clear_timeout0(priv->kc_watchdog);
+    priv->kc_watchdog_fired = FALSE;
+    priv->active_browser_src = NULL;
 
     /* Tear down the transient Keycloak HTTP client */
     if(priv->gobj_http) {
@@ -1916,11 +2067,12 @@ PRIVATE int create_gclass(gclass_name_t gclass_name)
      *      States
      *------------------------*/
     ev_action_t st_idle[] = {
-        {EV_ON_OPEN,    ac_on_open,     0},
-        {EV_ON_MESSAGE, ac_on_message,  0},
-        {EV_ON_CLOSE,   ac_on_close,    0},
-        {EV_END_TASK,   ac_end_task,    0},
-        {EV_STOPPED,    ac_stopped,     0},
+        {EV_ON_OPEN,    ac_on_open,         0},
+        {EV_ON_MESSAGE, ac_on_message,      0},
+        {EV_ON_CLOSE,   ac_on_close,        0},
+        {EV_TIMEOUT,    ac_kc_watchdog,     0},
+        {EV_END_TASK,   ac_end_task,        0},
+        {EV_STOPPED,    ac_stopped,         0},
         {0, 0, 0}
     };
 
@@ -1936,6 +2088,7 @@ PRIVATE int create_gclass(gclass_name_t gclass_name)
         {EV_ON_OPEN,    0},
         {EV_ON_MESSAGE, 0},
         {EV_ON_CLOSE,   0},
+        {EV_TIMEOUT,    0},
         {EV_END_TASK,   0},
         {EV_STOPPED,    0},
         {0, 0}
