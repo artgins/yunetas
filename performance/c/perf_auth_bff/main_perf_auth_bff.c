@@ -270,7 +270,7 @@ int main(int argc, char *argv[])
 {
     glog_init();
 
-    gobj_log_add_handler("stdout", "stdout", LOG_OPT_ALL, 0);
+    gobj_log_add_handler("stdout", "stdout", LOG_OPT_UP_WARNING, 0);
 
     gobj_log_register_handler(
         "testing",
