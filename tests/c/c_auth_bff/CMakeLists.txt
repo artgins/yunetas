@@ -70,6 +70,9 @@ SET(TESTS
     test11_cancel_retry
     test12_stale_reply
     test13_refresh_expired
+    test14_method_not_allowed
+    test15_missing_body
+    test16_unknown_endpoint
 )
 
 foreach(test ${TESTS})
