@@ -903,7 +903,7 @@ PRIVATE void send_error_response(hgobj gobj, hgobj browser_src,
     } else {
         gobj_log_info(gobj, 0,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_PROTOCOL_ERROR,
+            "msgset",       "%s", MSGSET_PROTOCOL,
             "msg",          "%s", "BFF request rejected",
             "status",       "%d", status_code,
             "status_text",  "%s", status_text ? status_text : "",
