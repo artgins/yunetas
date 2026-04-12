@@ -251,7 +251,7 @@ static int register_yuno_and_more(void)
         APP_NAME,
         json_pack("[{s:s}, {s:s, s:s}]",
             "msg",        "BFF Keycloak outbound watchdog fired",
-            "msg",        "BFF error response",
+            "msg",        "BFF server error",
             "error_code", "auth_timeout"
         ),
         NULL,

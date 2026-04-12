@@ -236,18 +236,13 @@ static int register_yuno_and_more(void)
 
     /*
      *  Negative-path test: the BFF translates Keycloak's invalid_grant/401
-     *  into a browser-facing HTTP 401 with error_code="invalid_credentials"
-     *  via send_error_response(), which by Yuneta convention also emits
-     *  a gobj_log_error("BFF error response", ...).  Declare it as an
-     *  expected error so the harness consumes it instead of flagging it
-     *  as unexpected.
+     *  into a browser-facing HTTP 401 with error_code="invalid_credentials".
+     *  A 4xx response is logged as INFO (not ERROR) because it's a normal
+     *  business outcome — so no expected errors to declare here.
      */
     set_expected_results(
         APP_NAME,
-        json_pack("[{s:s, s:s}]",
-            "msg",        "BFF error response",
-            "error_code", "invalid_credentials"
-        ),
+        json_array(),
         NULL,
         NULL,
         TRUE

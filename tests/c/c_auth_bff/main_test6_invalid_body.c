@@ -228,17 +228,12 @@ static int register_yuno_and_more(void)
 
     /*
      *  Negative-path test: the BFF rejects the missing-password body
-     *  with a 400 via send_error_response(), which by Yuneta convention
-     *  also emits a gobj_log_error("BFF error response", ...).  Declare
-     *  it as an expected error so the harness consumes it instead of
-     *  flagging it as unexpected.
+     *  with a 400 via send_error_response().  A 4xx response is logged
+     *  as INFO (not ERROR) — no expected errors to declare.
      */
     set_expected_results(
         APP_NAME,
-        json_pack("[{s:s, s:s}]",
-            "msg",        "BFF error response",
-            "error_code", "missing_params"
-        ),
+        json_array(),
         NULL,
         NULL,
         TRUE

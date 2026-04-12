@@ -863,10 +863,6 @@ PRIVATE void send_json_response(hgobj browser_src, int status_code,
 /***************************************************************************
  *  Send an HTTP error JSON response and log it on the server.
  *
- *  Yuneta convention: never produce a silent failure.  Every error path
- *  that surfaces to the browser also emits a gobj_log_error so the
- *  operator sees it without enabling traces.
- *
  *  Browser contract (see c_auth_bff.h for the full code catalogue):
  *      { "success":    false,
  *        "error_code": "<stable_snake_case_code>",
@@ -874,6 +870,15 @@ PRIVATE void send_json_response(hgobj browser_src, int status_code,
  *
  *  The GUI MUST use `error_code` as its i18n translation key.  `error`
  *  is only a fallback and is also mirrored into the server log line.
+ *
+ *  Log severity is determined by HTTP status class:
+ *    - 4xx  →  gobj_log_info  "BFF request rejected"
+ *              Expected business outcomes: wrong password, expired
+ *              session, malformed request, bad endpoint.  NOT an error
+ *              — the server is doing exactly what it should.
+ *    - 5xx  →  gobj_log_error "BFF server error"
+ *              Something is genuinely broken: upstream down, config
+ *              wrong, server overwhelmed.  The operator should look.
  ***************************************************************************/
 PRIVATE void send_error_response(hgobj gobj, hgobj browser_src,
     int status_code, const char *status_text,
@@ -883,17 +888,31 @@ PRIVATE void send_error_response(hgobj gobj, hgobj browser_src,
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
     priv->st_bff_errors++;
 
-    gobj_log_error(gobj, 0,
-        "function",     "%s", __FUNCTION__,
-        "msgset",       "%s", MSGSET_PROTOCOL_ERROR,
-        "msg",          "%s", "BFF error response",
-        "status",       "%d", status_code,
-        "status_text",  "%s", status_text ? status_text : "",
-        "error_code",   "%s", error_code ? error_code : "",
-        "error",        "%s", error_msg ? error_msg : "",
-        "browser_src",  "%s", browser_src ? gobj_short_name(browser_src) : "",
-        NULL
-    );
+    if(status_code >= 500) {
+        gobj_log_error(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_PROTOCOL_ERROR,
+            "msg",          "%s", "BFF server error",
+            "status",       "%d", status_code,
+            "status_text",  "%s", status_text ? status_text : "",
+            "error_code",   "%s", error_code ? error_code : "",
+            "error",        "%s", error_msg ? error_msg : "",
+            "browser_src",  "%s", browser_src ? gobj_short_name(browser_src) : "",
+            NULL
+        );
+    } else {
+        gobj_log_info(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_PROTOCOL_ERROR,
+            "msg",          "%s", "BFF request rejected",
+            "status",       "%d", status_code,
+            "status_text",  "%s", status_text ? status_text : "",
+            "error_code",   "%s", error_code ? error_code : "",
+            "error",        "%s", error_msg ? error_msg : "",
+            "browser_src",  "%s", browser_src ? gobj_short_name(browser_src) : "",
+            NULL
+        );
+    }
 
     json_t *jn_body = json_pack("{s:b, s:s, s:s}",
         "success",    0,
