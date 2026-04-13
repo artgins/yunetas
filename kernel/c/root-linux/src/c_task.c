@@ -469,6 +469,32 @@ PRIVATE int stop_task(hgobj gobj, int result)
         kw_task
     );
     gobj_stop(gobj);
+
+    /*===========================================================*
+     *
+     *      ⚠️  AUTO-DESTROY (volatil)  ⚠️
+     *
+     *  C_TASK is typically created dynamically (one task per job),
+     *  so it owns its own lifecycle.  At end-of-work — RIGHT HERE
+     *  in stop_task — destroy ourselves if we were created with
+     *  the volatil flag.  Same pattern as C_COUNTER (see
+     *  c_counter.c::publish_finalcount).
+     *
+     *  Without this, every dynamic C_TASK leaks one gobj + its
+     *  pure C_TIMER child on the heap until yuno teardown.
+     *  Invisible in unit tests (one task per run), a slow memory
+     *  drain in production loads (one task per /auth/* request in
+     *  c_auth_bff, etc).
+     *
+     *  Safe to destroy here: stop_task is invoked from
+     *  execute_action / ac_on_message — a normal event-handler
+     *  context, not from inside another mt_stop call stack, so
+     *  no re-entrancy.
+     *
+     *===========================================================*/
+    if(gobj_is_volatil(gobj)) {
+        gobj_destroy(gobj);
+    }
     return 0;
 }
 
