@@ -69,6 +69,7 @@ libtool
 package-lock.json
 
 \.kdev4$
+\.orig$
 
 ./.kdev4
 ./.kdev4/ginsfsm.kdev4
