@@ -222,7 +222,19 @@ typedef struct _PRIVATE_DATA {
     int             q_tail;             /* next slot to write */
     int             q_count;
 
-    /* Current outbound Keycloak connection */
+    /*
+     *  Name used for the outbound Identity Provider (OAuth2/OIDC) gobj
+     *  chain — "<bff-name>-idp" — so machine traces distinguish the
+     *  outbound C_PROT_HTTP_CL + C_TCP + C_TASK + C_TIMER0 from the
+     *  inbound C_PROT_HTTP_SR + C_TCP, which inherit the BFF's plain
+     *  name from the IOGATE config.  Provider-agnostic ("idp" works
+     *  for Keycloak, Auth0, Okta, Google, ...) and per-BFF unique
+     *  (bff-1-idp vs bff-2-idp) so multi-instance deployments stay
+     *  readable in the logs.  Computed once in mt_create.
+     */
+    char            idp_name[NAME_MAX];
+
+    /* Current outbound Identity Provider connection */
     BOOL            processing;
     hgobj           gobj_http;          /* C_PROT_HTTP_CL while active */
     hgobj           gobj_task;          /* C_TASK while active; needed so
@@ -359,7 +371,8 @@ PRIVATE void mt_create(hgobj gobj)
      *  Armed in process_next after gobj_http is created; disarmed by
      *  ac_end_task or by a successful result_* run.
      */
-    priv->kc_watchdog = gobj_create_pure_child(gobj_name(gobj), C_TIMER0, 0, gobj);
+    snprintf(priv->idp_name, sizeof(priv->idp_name), "%s-idp", gobj_name(gobj));
+    priv->kc_watchdog = gobj_create_pure_child(priv->idp_name, C_TIMER0, 0, gobj);
 
     /*
      *  SERVICE subscription model
@@ -1663,8 +1676,13 @@ PRIVATE void process_next(hgobj gobj)
      *  handlers (gobj_is_volatil) to decide whether to gobj_destroy
      *  the sender.
      */
+    /*
+     *  Name the outbound chain "<bff-name>-idp" (Identity Provider).
+     *  See PRIVATE_DATA::idp_name for the rationale (trace clarity vs
+     *  inbound chain, multi-BFF disambiguation, OAuth2/OIDC neutral).
+     */
     priv->gobj_http = gobj_create_volatil(
-        gobj_name(gobj),
+        priv->idp_name,
         C_PROT_HTTP_CL,
         json_pack("{s:I, s:s}",
             "subscriber", (json_int_t)0,
@@ -1677,7 +1695,7 @@ PRIVATE void process_next(hgobj gobj)
     gobj_set_bottom_gobj(
         priv->gobj_http,
         gobj_create_pure_child(
-            gobj_name(gobj),
+            priv->idp_name,
             C_TCP,
             json_pack("{s:s, s:O}", "url", kc_token_url, "crypto", jn_crypto),
             priv->gobj_http
@@ -1738,7 +1756,7 @@ PRIVATE void process_next(hgobj gobj)
         );
     }
 
-    hgobj gobj_task = gobj_create(gobj_name(gobj), C_TASK, kw_task, gobj);
+    hgobj gobj_task = gobj_create(priv->idp_name, C_TASK, kw_task, gobj);
     gobj_subscribe_event(gobj_task, EV_END_TASK, NULL, gobj);
     gobj_set_volatil(gobj_task, TRUE);
     priv->gobj_task = gobj_task;
