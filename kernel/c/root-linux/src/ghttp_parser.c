@@ -193,18 +193,10 @@ PUBLIC int ghttp_parser_finish(GHTTP_PARSER *parser)
     if(!parser) {
         return 0;
     }
-    hgobj gobj = parser->gobj;
 
     llhttp_errno_t err = llhttp_finish(&parser->llhttp);
     if (err != HPE_OK) {
-        gobj_log_error(gobj, 0,
-            "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_PROTOCOL_ERROR,
-            "msg",          "%s", "llhttp_finish() FAILED",
-            "error",        "%s", llhttp_errno_name(err),
-            "desc",         "%s", llhttp_get_error_reason(&parser->llhttp),
-            NULL
-        );
+        // Silence please, check the return if necessary
         return -1;
     }
     return 0;
