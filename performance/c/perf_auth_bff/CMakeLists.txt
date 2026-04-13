@@ -50,22 +50,20 @@ include_directories("${AUTH_BFF_TEST_DIR}")
 ##############################################
 #   Binary
 ##############################################
-SET(BIN "perf_auth_bff")
-
-add_yuno_executable(${BIN}
+add_yuno_executable(${PROJECT_NAME}
     "main_perf_auth_bff.c"
     "c_perf_auth_bff.c"
     ${SHARED_SRCS}
 )
 
 if(CONFIG_FULLY_STATIC)
-    set_target_properties(${BIN} PROPERTIES
+    set_target_properties(${PROJECT_NAME} PROPERTIES
         LINK_SEARCH_START_STATIC TRUE
         LINK_SEARCH_END_STATIC TRUE
     )
 endif()
 
-target_link_libraries(${BIN}
+target_link_libraries(${PROJECT_NAME}
     ${YUNETAS_KERNEL_LIBS}
     ${YUNETAS_EXTERNAL_LIBS}
     ${YUNETAS_PCRE_LIBS}
@@ -79,10 +77,26 @@ target_link_libraries(${BIN}
 #   System install
 ##############################################
 install(
-    TARGETS ${BIN}
+    TARGETS ${PROJECT_NAME}
     PERMISSIONS
     OWNER_READ OWNER_WRITE OWNER_EXECUTE
     GROUP_READ GROUP_WRITE GROUP_EXECUTE
     WORLD_READ WORLD_EXECUTE
     DESTINATION ${BIN_DEST_DIR}
 )
+
+add_test(NAME ${PROJECT_NAME} COMMAND ${PROJECT_NAME})
+
+# compile in Release mode :
+#
+#     cmake -DCMAKE_BUILD_TYPE=Release ..
+#
+# compile in Release mode optimized but adding debug symbols, useful for profiling :
+#
+#     cmake -DCMAKE_BUILD_TYPE=RelWithDebInfo ..
+#
+# compile with NO optimization and adding debug symbols :
+#
+#     cmake -DCMAKE_BUILD_TYPE=Debug ..
+#
+#
