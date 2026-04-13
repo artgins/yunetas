@@ -100,27 +100,27 @@ Returns the number of bytes successfully parsed. Returns `-1` if an error occurs
 
 ---
 
-(ghttp_parser_reset)=
-## `ghttp_parser_reset()`
+(ghttp_parser_finish)=
+## `ghttp_parser_finish()`
 
-Resets the internal state of a `GHTTP_PARSER` structure, clearing accumulated data such as headers, body, and URL.
+Signals end-of-stream to the underlying llhttp parser (the TCP peer closed the socket). Required to complete HTTP messages whose terminator is the connection close itself — HTTP/1.0 responses without `Content-Length`, and HTTP/1.1 responses with neither `Content-Length` nor `Transfer-Encoding: chunked`. Without this call, `on_message_complete` would never fire for such messages and the subscriber would miss `EV_ON_MESSAGE`.
 
 ```C
-void ghttp_parser_reset(GHTTP_PARSER *parser);
+int ghttp_parser_finish(GHTTP_PARSER *parser);
 ```
 
 **Parameters**
 
 | Key | Type | Description |
 |---|---|---|
-| `parser` | `GHTTP_PARSER *` | Pointer to the `GHTTP_PARSER` structure to reset. |
+| `parser` | `GHTTP_PARSER *` | Pointer to the `GHTTP_PARSER` instance. |
 
 **Returns**
 
-This function does not return a value.
+`0` on success, `-1` on protocol error (e.g. a partial message was in flight when the peer closed).
 
 **Notes**
 
-This function should be called before reusing a `GHTTP_PARSER` instance to ensure a clean state.
+Call it from the gobj's disconnect handler (`ac_disconnected` / `mt_stop`). Never call it from inside an llhttp callback.
 
 ---

@@ -184,8 +184,9 @@ PRIVATE int parse_message(hgobj gobj, gbuffer_t *gbuf, GHTTP_PARSER *parser)
         char *bf = gbuffer_cur_rd_pointer(gbuf);
         int n = ghttp_parser_received(parser, bf, ln);
         if (n == -1) {
-            // Some error in parsing
-            ghttp_parser_reset(parser);
+            // Some error in parsing; caller will close the socket.
+            // No parser reset here: a fresh parser is built by
+            // ac_connected() on the next connection.
             return -1;
         } else if (n > 0) {
             gbuffer_get(gbuf, n);  // take out the bytes consumed
@@ -211,7 +212,23 @@ PRIVATE int ac_connected(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
-    ghttp_parser_reset(priv->parsing_request);
+    /*
+     *  Rebuild the request parser for the new connection.
+     *  A plain re-init of llhttp is not exposed any more; we use the
+     *  destroy+create cycle so every connection starts with a pristine
+     *  state machine.
+     */
+    if(priv->parsing_request) {
+        ghttp_parser_destroy(priv->parsing_request);
+    }
+    priv->parsing_request = ghttp_parser_create(
+        gobj,
+        HTTP_REQUEST,
+        NULL,                   // on_header_event
+        NULL,                   // on_body_event
+        EV_ON_MESSAGE,
+        gobj_is_service(gobj)?FALSE:TRUE
+    );
 
     gobj_publish_event(gobj, EV_ON_OPEN, 0);
 
@@ -229,6 +246,15 @@ PRIVATE int ac_disconnected(hgobj gobj, gobj_event_t event, json_t *kw, hgobj sr
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
     clear_timeout(priv->timer);
+
+    /*
+     *  Let llhttp complete any message whose terminator is the
+     *  connection close.  Errors here are non-fatal (they simply mean
+     *  the peer hung up mid-request).
+     */
+    if(priv->parsing_request) {
+        (void)ghttp_parser_finish(priv->parsing_request);
+    }
 
     if(gobj_is_volatil(src)) {
         gobj_set_bottom_gobj(gobj, 0);
@@ -289,17 +315,39 @@ PRIVATE int ac_send_message(hgobj gobj, gobj_event_t event, json_t *kw, hgobj sr
         int headers_len = strlen(headers);
         kw_decref(jn_body);
 
+        /*
+         *  RFC 7230 §3.3.2/§3.3.3: 1xx, 204 and 304 responses MUST NOT
+         *  carry a message body or Content-Length.  llhttp enforces this
+         *  strictly on the receiving side (any trailing byte after the
+         *  CRLF CRLF is parsed as the start of the next response and
+         *  fails with HPE_INVALID_CONSTANT), so emit a body-less
+         *  response regardless of what the caller passed in `body`.
+         */
+        BOOL no_body = (code[0] == '1') ||
+            (strncmp(code, "204", 3) == 0) ||
+            (strncmp(code, "304", 3) == 0);
+
         gbuf = gbuffer_create(256 + headers_len + body_len, 256 + headers_len + body_len);
-        gbuffer_printf(gbuf,
-            "HTTP/1.1 %s\r\n"
-            "%s"
-            "Content-Type: application/json; charset=utf-8\r\n"
-            "Content-Length: %d\r\n\r\n",
-            code,
-            headers,
-            body_len
-        );
-        gbuffer_append(gbuf, resp, body_len);
+        if(no_body) {
+            gbuffer_printf(gbuf,
+                "HTTP/1.1 %s\r\n"
+                "%s"
+                "\r\n",
+                code,
+                headers
+            );
+        } else {
+            gbuffer_printf(gbuf,
+                "HTTP/1.1 %s\r\n"
+                "%s"
+                "Content-Type: application/json; charset=utf-8\r\n"
+                "Content-Length: %d\r\n\r\n",
+                code,
+                headers,
+                body_len
+            );
+            gbuffer_append(gbuf, resp, body_len);
+        }
         GBMEM_FREE(resp)
     } else  {
         // Old method

@@ -2064,9 +2064,9 @@ with links to the API documentation.
 
 2. [**`ghttp_parser_received`**](helpers/http_parser.md#ghttp_parser_received) — `PUBLIC int ghttp_parser_received( GHTTP_PARSER *parser, char *bf, size_t len )`
 
-3. [**`ghttp_parser_destroy`**](helpers/http_parser.md#ghttp_parser_destroy) — `PUBLIC void ghttp_parser_destroy(GHTTP_PARSER *parser)`
+3. [**`ghttp_parser_finish`**](helpers/http_parser.md#ghttp_parser_finish) — `PUBLIC int ghttp_parser_finish(GHTTP_PARSER *parser)`
 
-4. [**`ghttp_parser_reset`**](helpers/http_parser.md#ghttp_parser_reset) — `PUBLIC void ghttp_parser_reset(GHTTP_PARSER *parser)`
+4. [**`ghttp_parser_destroy`**](helpers/http_parser.md#ghttp_parser_destroy) — `PUBLIC void ghttp_parser_destroy(GHTTP_PARSER *parser)`
 
 ### `istream.h` — 15 functions
 
@@ -2378,8 +2378,8 @@ All **957 functions** sorted alphabetically with their source header.
 | [**`get_yunetas_base`**](helpers/misc.md#get_yunetas_base) | `helpers.h` | gobj-c (Core Framework) |
 | [**`ghttp_parser_create`**](helpers/http_parser.md#ghttp_parser_create) | `ghttp_parser.h` | root-linux (Runtime GClasses) |
 | [**`ghttp_parser_destroy`**](helpers/http_parser.md#ghttp_parser_destroy) | `ghttp_parser.h` | root-linux (Runtime GClasses) |
+| [**`ghttp_parser_finish`**](helpers/http_parser.md#ghttp_parser_finish) | `ghttp_parser.h` | root-linux (Runtime GClasses) |
 | [**`ghttp_parser_received`**](helpers/http_parser.md#ghttp_parser_received) | `ghttp_parser.h` | root-linux (Runtime GClasses) |
-| [**`ghttp_parser_reset`**](helpers/http_parser.md#ghttp_parser_reset) | `ghttp_parser.h` | root-linux (Runtime GClasses) |
 | [**`glog_end`**](logging/log.md#glog_end) | `glogger.h` | gobj-c (Core Framework) |
 | [**`glog_init`**](logging/log.md#glog_init) | `glogger.h` | gobj-c (Core Framework) |
 | [**`gmtime2timezone`**](helpers/time_date.md#gmtime2timezone) | `helpers.h` | gobj-c (Core Framework) |

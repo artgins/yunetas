@@ -81,9 +81,19 @@ PUBLIC int ghttp_parser_received( /* Return bytes consumed or -1 if error */
     char *bf,
     size_t len
 );
-PUBLIC void ghttp_parser_destroy(GHTTP_PARSER *parser);
 
-PUBLIC void ghttp_parser_reset(GHTTP_PARSER *parser);
+/*
+ *  Signal end-of-stream to the parser (TCP peer closed the socket).
+ *  Required to complete messages whose terminator is the connection
+ *  close (HTTP/1.0 responses without Content-Length, or HTTP/1.1
+ *  responses with neither Content-Length nor Transfer-Encoding:
+ *  chunked).  Call it from the gobj's disconnect handler, never from
+ *  inside an llhttp callback.
+ *  Returns 0 on success, -1 on protocol error.
+ */
+PUBLIC int ghttp_parser_finish(GHTTP_PARSER *parser);
+
+PUBLIC void ghttp_parser_destroy(GHTTP_PARSER *parser);
 
 #ifdef __cplusplus
 }

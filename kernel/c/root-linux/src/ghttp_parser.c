@@ -33,16 +33,28 @@ PRIVATE int on_body(llhttp_t* llhttp, const char* at, size_t length);
 
 /****************************************************************
  *         Data
+ *
+ *  The settings table is a read-only vtable shared by every
+ *  parser instance.  It is initialised once, lazily, on the
+ *  first ghttp_parser_create() call via llhttp_settings_init().
  ****************************************************************/
-PRIVATE llhttp_settings_t settings = {
-  .on_message_begin = on_message_begin,
-  .on_url = on_url,
-  .on_header_field = on_header_field,
-  .on_header_value = on_header_value,
-  .on_headers_complete = on_headers_complete,
-  .on_body = on_body,
-  .on_message_complete = on_message_complete,
-};
+PRIVATE BOOL settings_ready = FALSE;
+PRIVATE llhttp_settings_t settings;
+
+PRIVATE void ensure_settings_initialized(void)
+{
+    if(!settings_ready) {
+        llhttp_settings_init(&settings);
+        settings.on_message_begin    = on_message_begin;
+        settings.on_url              = on_url;
+        settings.on_header_field     = on_header_field;
+        settings.on_header_value     = on_header_value;
+        settings.on_headers_complete = on_headers_complete;
+        settings.on_body             = on_body;
+        settings.on_message_complete = on_message_complete;
+        settings_ready = TRUE;
+    }
+}
 
 /***************************************************************************
  *
@@ -57,6 +69,8 @@ PUBLIC GHTTP_PARSER *ghttp_parser_create(
 )
 {
     GHTTP_PARSER *parser;
+
+    ensure_settings_initialized();
 
     /*--------------------------------*
      *      Alloc memory
@@ -91,32 +105,32 @@ PUBLIC GHTTP_PARSER *ghttp_parser_create(
  ***************************************************************************/
 PUBLIC void ghttp_parser_destroy(GHTTP_PARSER *parser)
 {
-    ghttp_parser_reset(parser);
-    GBMEM_FREE(parser);
-}
-
-/***************************************************************************
- *
- ***************************************************************************/
-PUBLIC void ghttp_parser_reset(GHTTP_PARSER *parser)
-{
-    parser->headers_completed = 0;
-    parser->message_completed = 0;
-    parser->body_size = 0;
+    if(!parser) {
+        return;
+    }
     GBMEM_FREE(parser->url);
-    //GBMEM_FREE(parser->body);
     GBUFFER_DECREF(parser->gbuf_body)
     JSON_DECREF(parser->jn_headers);
     GBMEM_FREE(parser->cur_key);
     GBMEM_FREE(parser->last_key);
-    llhttp_init(&parser->llhttp, parser->type, &settings);
-    parser->llhttp.data = parser;
-    llhttp_set_lenient_headers(&parser->llhttp, 1);
-    llhttp_set_lenient_data_after_close(&parser->llhttp, 1);
+    GBMEM_FREE(parser);
 }
 
 /***************************************************************************
- *  Return bytes consumed or -1 if error
+ *  Feed data received on the underlying TCP connection to the parser.
+ *
+ *  Return value:
+ *    > 0   Bytes consumed from `buf`.
+ *              - HPE_OK            : equals `received` (llhttp consumes the
+ *                                     whole buffer in the success case).
+ *              - HPE_PAUSED_UPGRADE: bytes consumed up to (and including)
+ *                                     the blank line of the upgrade request.
+ *                                     The tail (if any) belongs to the new
+ *                                     protocol and must be routed by the
+ *                                     caller to the next handler (e.g. the
+ *                                     first WebSocket frame piggybacked on
+ *                                     the handshake TCP segment).
+ *     -1   Protocol error.  The caller should close the connection.
  ***************************************************************************/
 PUBLIC int ghttp_parser_received(
     GHTTP_PARSER *parser,
@@ -127,8 +141,20 @@ PUBLIC int ghttp_parser_received(
 
     llhttp_errno_t err = llhttp_execute(&parser->llhttp, buf, received);
     if (err == HPE_PAUSED_UPGRADE) {
-        /* handle new protocol (upgrade) */
+        /*
+         *  Handle new protocol (upgrade).
+         *  llhttp stopped exactly after the blank line of the HTTP
+         *  upgrade request; report how many bytes of `buf` were actually
+         *  consumed so the caller can re-route the remainder to the
+         *  next protocol handler.
+         */
+        const char *stop = llhttp_get_error_pos(&parser->llhttp);
+        size_t consumed = (stop && stop >= buf) ? (size_t)(stop - buf) : received;
+        if(consumed > received) {
+            consumed = received;
+        }
         llhttp_resume_after_upgrade(&parser->llhttp);
+        return (int)consumed;
     } else if (err != HPE_OK) {
         /* Handle error. Usually just close the connection. */
         gobj_log_error(gobj,0,
@@ -146,14 +172,43 @@ PUBLIC int ghttp_parser_received(
 }
 
 /***************************************************************************
+ *  Signal end-of-stream to llhttp (the TCP peer closed the socket).
+ *
+ *  Needed to complete HTTP messages whose terminator is the connection
+ *  close — HTTP/1.0 responses without Content-Length, or HTTP/1.1
+ *  responses with neither Content-Length nor Transfer-Encoding: chunked.
+ *  Without this call llhttp would never fire on_message_complete for
+ *  those messages and the caller would hang waiting for EV_ON_MESSAGE.
+ *
+ *  Call it from the gobj's disconnect handler (ac_disconnected / mt_stop),
+ *  not from inside an llhttp callback.
+ *
+ *  Returns 0 on success, -1 on protocol error (incomplete message in
+ *  flight — the caller can ignore this when the peer was expected to
+ *  drop the socket, e.g. after a successful response was already
+ *  delivered).
+ ***************************************************************************/
+PUBLIC int ghttp_parser_finish(GHTTP_PARSER *parser)
+{
+    if(!parser) {
+        return 0;
+    }
+
+    llhttp_errno_t err = llhttp_finish(&parser->llhttp);
+    if (err != HPE_OK) {
+        // Silence please, check the return if necessary
+        return -1;
+    }
+    return 0;
+}
+
+/***************************************************************************
  *  Callbacks must return 0 on success.
  *  Returning a non-zero value indicates error to the parser,
  *  making it exit immediately.
  ***************************************************************************/
 PRIVATE int on_message_begin(llhttp_t* llhttp)
 {
-//     GHTTP_PARSER *parser = llhttp->data;
-//     ghttp_parser_reset(parser);
     return 0;
 }
 
@@ -304,17 +359,15 @@ PRIVATE int on_message_complete(llhttp_t* llhttp)
          *  Reset the per-message application state so the next pipelined
          *  request starts clean.
          *
-         *  CAREFUL: do NOT call ghttp_parser_reset() here.  That helper
-         *  calls llhttp_init(), which zeroes the llhttp internal state
-         *  (cs/sp/return-stack) — and we are still inside llhttp_execute,
-         *  about to return 0 from this callback so llhttp can keep
-         *  parsing the rest of the buffer.  Re-initing llhttp from
-         *  inside its own callback corrupts that state and llhttp
-         *  silently swallows every subsequent message in the buffer
-         *  (test8_queue_full pipelines four POSTs and only the first
-         *  one ever fired EV_ON_MESSAGE).  llhttp handles the
-         *  message-to-message transition internally for keep-alive,
-         *  so we just clear our own per-request fields.
+         *  CAREFUL: do NOT re-init llhttp here.  We are still inside
+         *  llhttp_execute, about to return 0 from this callback so llhttp
+         *  can keep parsing the rest of the buffer.  Re-initing llhttp
+         *  from inside its own callback corrupts its internal state
+         *  (cs/sp/return-stack) and llhttp silently swallows every
+         *  subsequent message in the buffer (test8_queue_full pipelines
+         *  four POSTs and only the first one ever fired EV_ON_MESSAGE).
+         *  llhttp handles the message-to-message transition internally
+         *  for keep-alive, so we just clear our own per-request fields.
          */
         parser->headers_completed = 0;
         parser->message_completed = 0;

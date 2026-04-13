@@ -195,7 +195,6 @@ PRIVATE int mt_stop(hgobj gobj)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
-    ghttp_parser_reset(priv->parsing_response);
     gobj_stop(gobj_bottom_gobj(gobj));
     clear_timeout(priv->timer);
 
@@ -301,8 +300,9 @@ PRIVATE int parse_message(hgobj gobj, gbuffer_t *gbuf, GHTTP_PARSER *parser)
         int n = ghttp_parser_received(parser, bf, ln);
         if (n == -1) {
             gobj_trace_dump_full_gbuf(gobj, gbuf, "ghttp_parser_received() FAILED");
-            // Some error in parsing
-            ghttp_parser_reset(parser);
+            // Some error in parsing; caller will close the socket.
+            // No parser reset here: a fresh parser is built by
+            // ac_connected() on the next connection.
             return -1;
         } else if (n > 0) {
             gbuffer_get(gbuf, (size_t)n);  // take out the bytes consumed
@@ -340,7 +340,37 @@ PRIVATE int ac_connected(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
-    ghttp_parser_reset(priv->parsing_response);
+    /*
+     *  Rebuild the response parser for the new connection.
+     *  A plain re-init of llhttp is not exposed any more; we use the
+     *  destroy+create cycle so every connection starts with a pristine
+     *  state machine.
+     */
+    if(priv->parsing_response) {
+        ghttp_parser_destroy(priv->parsing_response);
+        priv->parsing_response = 0;
+    }
+    BOOL raw_body_data = gobj_read_bool_attr(gobj, "raw_body_data");
+    if(!raw_body_data) {
+        priv->parsing_response = ghttp_parser_create(
+            gobj,
+            HTTP_RESPONSE,  // http_parser_type
+            NULL,           // on_header_event
+            NULL,           // on_body_event
+            EV_ON_MESSAGE,  // on_message_event ==> publish the full message in a gbuffer
+            FALSE           // TRUE: use gobj_send_event, FALSE: use gobj_publish_event
+        );
+    } else {
+        priv->parsing_response = ghttp_parser_create(
+            gobj,
+            HTTP_RESPONSE,  // http_parser_type
+            EV_ON_HEADER,   // on_header_event
+            EV_ON_MESSAGE,  // on_body_event  ==> publish the partial message with original buffer pointer
+            NULL,           // on_message_event
+            FALSE           // TRUE: use gobj_send_event, FALSE: use gobj_publish_event
+        );
+    }
+
     set_timeout(priv->timer, priv->timeout_inactivity);
 
     return gobj_publish_event(gobj, EV_ON_OPEN, kw); // use the same kw
@@ -353,6 +383,18 @@ PRIVATE int ac_disconnected(hgobj gobj, gobj_event_t event, json_t *kw, hgobj sr
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
     clear_timeout(priv->timer);
+
+    /*
+     *  Signal end-of-stream to llhttp.  Critical for HTTP/1.0 responses
+     *  and Connection: close responses without Content-Length, where the
+     *  peer close is the only message terminator: llhttp will fire
+     *  on_message_complete -> EV_ON_MESSAGE right here.  Error return
+     *  is non-fatal (partial message) and the subscriber sees EV_ON_CLOSE.
+     */
+    if(priv->parsing_response) {
+        (void)ghttp_parser_finish(priv->parsing_response);
+    }
+
     return gobj_publish_event(gobj, EV_ON_CLOSE, kw); // use the same kw
 }
 
