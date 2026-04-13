@@ -2,10 +2,13 @@
  *          MAIN_PERF_AUTH_BFF.C
  *
  *          Self-contained throughput benchmark for c_auth_bff.
- *          5 concurrent HTTP client slots × 200 iterations = 1000
- *          full /auth/login round-trips against 5 parallel BFF
- *          channels with latency_ms=0 on the mock Keycloak so the
- *          bottleneck is the BFF + task + parser hot path.
+ *          5 concurrent HTTP client slots × 36 000 iterations =
+ *          180 000 full /auth/login round-trips against 5 parallel
+ *          BFF channels with latency_ms=0 on the mock Keycloak so
+ *          the bottleneck is the BFF + task + parser hot path.
+ *          Each slot reuses one TCP connection (HTTP/1.1 keep-alive)
+ *          for all its iterations, matching the persistent-connection
+ *          model used by perf_c_tcps.
  *
  *          Prints a standard #TIME line at shutdown, same format as
  *          perf_c_tcp / perf_c_tcps, so results sit next to the
@@ -233,7 +236,7 @@ static int register_yuno_and_more(void)
     gobj_set_gclass_no_trace(gclass_find_by_name(C_TIMER),  "machine", TRUE);
     gobj_set_global_no_trace("timer_periodic", TRUE);
 
-    set_auto_kill_time(60);  /* headroom for 1000 round-trips */
+    set_auto_kill_time(300);  /* headroom for 180 000 round-trips */
 
     set_expected_results(
         APP_NAME,

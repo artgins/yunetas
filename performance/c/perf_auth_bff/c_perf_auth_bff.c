@@ -10,16 +10,23 @@
  *          the bottleneck is the BFF + parser + task + event loop
  *          code path rather than the simulated upstream.
  *
+ *          HTTP/1.1 keep-alive: each slot opens exactly ONE TCP
+ *          connection and pumps every iteration through it.  This
+ *          scales to 180 000 round-trips without hitting TIME_WAIT
+ *          ephemeral-port exhaustion, and it's the same persistent-
+ *          connection pattern perf_c_tcps uses to reach 180 000 ops.
+ *
  *          At the end prints a #TIME line in the standard perf_c_*
  *          format so the result sits next to perf_c_tcp / perf_c_tcps
  *          in performance/c/README.md.
  *
  *          Design is a direct descendant of c_stress_auth_bff.c —
- *          same NUM_SLOTS concurrent model, same event flow, just
- *          without the per-slot error verification (errors would
- *          still land as gobj_log_error and fail the run, but we
- *          don't check counts) and with the time measurement
- *          wrapped around the launch / completion.
+ *          same NUM_SLOTS concurrent model, but:
+ *            - persistent connection per slot (vs reconnect per iter)
+ *            - http_cl created with gobj_create_volatil so ac_stopped
+ *              destroys it after stop_tree (vs leaking 1 C_PROT_HTTP_CL
+ *              per slot until yuno teardown — a bug in the stress
+ *              version at low iteration counts, a show-stopper at 180k)
  *
  *          Copyright (c) 2026, ArtGins.
  *          All Rights Reserved.
@@ -35,7 +42,19 @@
  *          Tunables
  ***************************************************************************/
 #define NUM_SLOTS              5
-#define ITERATIONS_PER_SLOT    200     /* → 1000 total round-trips */
+#define ITERATIONS_PER_SLOT    36000   /* → 180 000 total round-trips */
+
+/*
+ *  Each slot opens ONE TCP connection to the BFF and pumps
+ *  ITERATIONS_PER_SLOT sequential HTTP/1.1 login requests over it
+ *  (Connection: keep-alive).  We do NOT close/reopen per iteration:
+ *    - at 1000 ops the measurement is dominated by connect/accept
+ *      overhead and gives no useful signal;
+ *    - at 180 000 ops, connect/close would exhaust ephemeral ports
+ *      (TIME_WAIT) on loopback within seconds.
+ *  Pumping requests over one persistent connection is the same
+ *  pattern perf_c_tcps uses to reach 180 000 ops.
+ */
 
 /***************************************************************************
  *          Global time measurement
@@ -93,7 +112,8 @@ typedef struct _PRIVATE_DATA {
 
 PRIVATE void launch_all_slots(hgobj gobj);
 PRIVATE void open_slot(hgobj gobj, int slot_idx);
-PRIVATE void close_slot_and_restart_or_finish(hgobj gobj, int slot_idx);
+PRIVATE void send_request(hgobj gobj, int slot_idx);
+PRIVATE void finish_slot(hgobj gobj, int slot_idx);
 PRIVATE int  slot_index_for_src(hgobj gobj, hgobj src);
 PRIVATE void maybe_finish_and_die(hgobj gobj);
 
@@ -178,7 +198,13 @@ PRIVATE void open_slot(hgobj gobj, int slot_idx)
 
     const char *bff_url = gobj_read_str_attr(gobj, "bff_url");
 
-    slot->http_cl = gobj_create(
+    /*
+     *  Create the HTTP client as volatil so ac_stopped destroys it
+     *  cleanly at end-of-run.  Volatil != pure_child: only the
+     *  volatil flag is checked by gobj_is_volatil in ac_stopped to
+     *  decide whether to gobj_destroy the stopped gobj.
+     */
+    slot->http_cl = gobj_create_volatil(
         gobj_name(gobj),
         C_PROT_HTTP_CL,
         json_pack("{s:s}", "url", bff_url),
@@ -195,6 +221,46 @@ PRIVATE void open_slot(hgobj gobj, int slot_idx)
     );
     slot->state = SLOT_CONNECTING;
     gobj_start_tree(slot->http_cl);
+}
+
+PRIVATE void send_request(hgobj gobj, int slot_idx)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+    slot_t *slot = &priv->slots[slot_idx];
+
+    json_t *jn_headers = json_pack("{s:s}",
+        "Origin", "http://localhost"
+    );
+    json_t *jn_data = json_pack("{s:s, s:s}",
+        "username", "perfuser",
+        "password", "perfpass"
+    );
+    json_t *query = json_pack("{s:s, s:s, s:o, s:o}",
+        "method",   "POST",
+        "resource", "/auth/login",
+        "headers",  jn_headers,
+        "data",     jn_data
+    );
+    gobj_send_event(slot->http_cl, EV_SEND_MESSAGE, query, gobj);
+    slot->state = SLOT_POSTED;
+}
+
+PRIVATE void finish_slot(hgobj gobj, int slot_idx)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+    slot_t *slot = &priv->slots[slot_idx];
+
+    /*
+     *  All iterations done for this slot — stop the tree.  The
+     *  http_cl is volatil, so ac_stopped will gobj_destroy it (and
+     *  its pure_child TCP bottom via gobj_destroy_children).
+     *  slots_done is bumped in ac_stopped, not here, so the #TIME
+     *  line covers the full drain of all in-flight I/O.
+     */
+    if(slot->http_cl) {
+        gobj_stop_tree(slot->http_cl);
+    }
+    slot->state = SLOT_IDLE;
 }
 
 PRIVATE void launch_all_slots(hgobj gobj)
@@ -222,26 +288,6 @@ PRIVATE void launch_all_slots(hgobj gobj)
     for(int i = 0; i < NUM_SLOTS; i++) {
         priv->slots[i].iteration = 0;
         open_slot(gobj, i);
-    }
-}
-
-PRIVATE void close_slot_and_restart_or_finish(hgobj gobj, int slot_idx)
-{
-    PRIVATE_DATA *priv = gobj_priv_data(gobj);
-    slot_t *slot = &priv->slots[slot_idx];
-
-    if(slot->http_cl) {
-        gobj_stop_tree(slot->http_cl);
-        slot->http_cl = NULL;
-    }
-    slot->iteration++;
-
-    if(slot->iteration < ITERATIONS_PER_SLOT) {
-        open_slot(gobj, slot_idx);
-    } else {
-        slot->state = SLOT_IDLE;
-        priv->slots_done++;
-        maybe_finish_and_die(gobj);
     }
 }
 
@@ -313,8 +359,6 @@ PRIVATE int ac_timer(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 
 PRIVATE int ac_on_open(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 {
-    PRIVATE_DATA *priv = gobj_priv_data(gobj);
-
     int idx = slot_index_for_src(gobj, src);
     if(idx < 0) {
         gobj_log_error(gobj, 0,
@@ -326,24 +370,9 @@ PRIVATE int ac_on_open(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
         JSON_DECREF(kw)
         return 0;
     }
-    slot_t *slot = &priv->slots[idx];
 
-    json_t *jn_headers = json_pack("{s:s}",
-        "Origin", "http://localhost"
-    );
-    json_t *jn_data = json_pack("{s:s, s:s}",
-        "username", "perfuser",
-        "password", "perfpass"
-    );
-    json_t *query = json_pack("{s:s, s:s, s:o, s:o}",
-        "method",   "POST",
-        "resource", "/auth/login",
-        "headers",  jn_headers,
-        "data",     jn_data
-    );
-    gobj_send_event(slot->http_cl, EV_SEND_MESSAGE, query, gobj);
-
-    slot->state = SLOT_POSTED;
+    /* Connection established — fire the first request of this slot. */
+    send_request(gobj, idx);
 
     JSON_DECREF(kw)
     return 0;
@@ -364,6 +393,7 @@ PRIVATE int ac_on_message(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
         JSON_DECREF(kw)
         return 0;
     }
+    slot_t *slot = &priv->slots[idx];
 
     int status = (int)kw_get_int(gobj, kw, "response_status_code", -1, 0);
     if(status != 200) {
@@ -380,7 +410,18 @@ PRIVATE int ac_on_message(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
     }
 
     JSON_DECREF(kw)
-    close_slot_and_restart_or_finish(gobj, idx);
+
+    /*
+     *  HTTP/1.1 keep-alive: don't close the TCP connection between
+     *  requests — just fire the next POST on the same http_cl.
+     *  Only stop the tree when this slot has hit its iteration cap.
+     */
+    slot->iteration++;
+    if(slot->iteration < ITERATIONS_PER_SLOT) {
+        send_request(gobj, idx);
+    } else {
+        finish_slot(gobj, idx);
+    }
     return 0;
 }
 
@@ -392,10 +433,25 @@ PRIVATE int ac_on_close(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 
 PRIVATE int ac_stopped(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 {
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    int idx = slot_index_for_src(gobj, src);
+    if(idx >= 0) {
+        /* clear the slot ref before destroying so stray lookups return -1 */
+        priv->slots[idx].http_cl = NULL;
+        priv->slots_done++;
+    }
+
     if(gobj_is_volatil(src)) {
         gobj_destroy(src);
     }
     JSON_DECREF(kw)
+
+    /*
+     *  Bracket the #TIME line around the full drain: only once every
+     *  slot has reported EV_STOPPED do we consider the run complete.
+     */
+    maybe_finish_and_die(gobj);
     return 0;
 }
 

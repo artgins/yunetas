@@ -1653,12 +1653,17 @@ PRIVATE void process_next(hgobj gobj)
 
     /*
      *  Create a transient HTTP client for this one Keycloak request.
-     *  MUST be a pure_child (volatile) so ac_stopped destroys it after
-     *  gobj_stop_tree in ac_end_task.  Using gobj_create would leak one
+     *  MUST be volatil so ac_stopped destroys it after gobj_stop_tree
+     *  in ac_end_task.  Using plain gobj_create would leak one
      *  C_PROT_HTTP_CL per request — invisible at test scale but fatal
      *  for any long-running BFF or throughput benchmark.
+     *
+     *  Note: pure_child != volatil.  pure_child is about attribute
+     *  ownership; only the volatil flag is checked by ac_stopped
+     *  handlers (gobj_is_volatil) to decide whether to gobj_destroy
+     *  the sender.
      */
-    priv->gobj_http = gobj_create_pure_child(
+    priv->gobj_http = gobj_create_volatil(
         gobj_name(gobj),
         C_PROT_HTTP_CL,
         json_pack("{s:I, s:s}",
