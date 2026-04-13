@@ -1516,7 +1516,9 @@ PRIVATE int process_http(hgobj gobj, gbuffer_t *gbuf, GHTTP_PARSER *parser)
         char *bf = gbuffer_cur_rd_pointer(gbuf);
         int n = ghttp_parser_received(parser, bf, ln);
         if (n == -1) {
-            // Some error in parsing
+            // Some error in parsing; caller will close the socket.
+            // A fresh parser is built by ac_connected() on the next
+            // connection, so no in-place reset is needed here.
             const char *peername = gobj_read_str_attr(gobj, "peername");
             const char *sockname = gobj_read_str_attr(gobj, "sockname");
             gobj_log_error(gobj, 0,
@@ -1528,7 +1530,6 @@ PRIVATE int process_http(hgobj gobj, gbuffer_t *gbuf, GHTTP_PARSER *parser)
                 NULL
             );
 
-            ghttp_parser_reset(parser);
             return -1;
         } else if (n > 0) {
             gbuffer_get(gbuf, n);  // take out the bytes consumed
@@ -1565,8 +1566,30 @@ PRIVATE int ac_connected(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
     priv->inform_on_close = FALSE;
     priv->close_frame_sent = FALSE;
 
-    ghttp_parser_reset(priv->parsing_request);
-    ghttp_parser_reset(priv->parsing_response);
+    /*
+     *  Rebuild both handshake parsers for the new connection.
+     *  A plain re-init of llhttp is not exposed any more; we use the
+     *  destroy+create cycle so every connection starts with a pristine
+     *  state machine.
+     */
+    if(priv->parsing_request) {
+        ghttp_parser_destroy(priv->parsing_request);
+    }
+    priv->parsing_request = ghttp_parser_create(
+        gobj,
+        HTTP_REQUEST,
+        NULL, NULL, NULL,
+        !gobj_is_service(gobj)
+    );
+    if(priv->parsing_response) {
+        ghttp_parser_destroy(priv->parsing_response);
+    }
+    priv->parsing_response = ghttp_parser_create(
+        gobj,
+        HTTP_RESPONSE,
+        NULL, NULL, NULL,
+        !gobj_is_service(gobj)
+    );
 
     if (priv->iamServer) {
         /*
@@ -1608,8 +1631,18 @@ PRIVATE int ac_disconnected(hgobj gobj, gobj_event_t event, json_t *kw, hgobj sr
         gobj_set_bottom_gobj(gobj, 0);
     }
 
-    ghttp_parser_reset(priv->parsing_request);
-    ghttp_parser_reset(priv->parsing_response);
+    /*
+     *  Signal end-of-stream to both handshake parsers.  In practice
+     *  the handshake exchange has already completed by the time we
+     *  upgrade to the websocket frame stream, so this is defensive
+     *  and errors are ignored.
+     */
+    if(priv->parsing_request) {
+        (void)ghttp_parser_finish(priv->parsing_request);
+    }
+    if(priv->parsing_response) {
+        (void)ghttp_parser_finish(priv->parsing_response);
+    }
 
     if(priv->istream_payload) {
         istream_destroy(priv->istream_payload);

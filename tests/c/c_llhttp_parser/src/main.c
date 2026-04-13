@@ -125,8 +125,8 @@ PRIVATE void test_bare_llhttp_idle(int seconds) {
     EXPECT(s_llhttp_msgs == 1, "exactly 1 on_message_complete fired");
 }
 
-PRIVATE void test_bare_llhttp_init_then_reset_then_execute(void) {
-    fprintf(stderr, "\n== bare llhttp: init + reinit + execute (mirrors ghttp_parser_reset) ==\n");
+PRIVATE void test_bare_llhttp_init_then_reinit_then_execute(void) {
+    fprintf(stderr, "\n== bare llhttp: init + reinit + execute (mirrors connection reuse) ==\n");
 
     llhttp_settings_t settings;
     llhttp_settings_init(&settings);
@@ -134,7 +134,8 @@ PRIVATE void test_bare_llhttp_init_then_reset_then_execute(void) {
 
     llhttp_t parser;
     llhttp_init_with_lenient(&parser, &settings);
-    /* Second init mirrors what ghttp_parser_reset does in c_prot_http_cl::ac_connected */
+    /* Second init mirrors the destroy+create cycle done on every new
+     * connection (ac_connected) now that ghttp_parser_reset is gone. */
     llhttp_init_with_lenient(&parser, &settings);
 
     s_llhttp_msgs = 0;
@@ -227,45 +228,77 @@ PRIVATE void test_ghttp_parser_received_after_idle(int seconds) {
     ghttp_parser_destroy(parser);
 }
 
-PRIVATE void test_ghttp_parser_create_reset_received(void) {
-    fprintf(stderr, "\n== ghttp_parser: create + reset + received (mirrors ac_connected) ==\n");
+PRIVATE void test_ghttp_parser_create_recreate_received(void) {
+    fprintf(stderr, "\n== ghttp_parser: create + destroy+create + received (mirrors ac_connected) ==\n");
 
     GHTTP_PARSER *parser = ghttp_parser_create(NULL, HTTP_RESPONSE, NULL, NULL, NULL, FALSE);
     EXPECT(parser != NULL, "ghttp_parser_create returns non-NULL");
 
     /* This is exactly what c_prot_http_cl::ac_connected does on every
-     * EV_CONNECTED — including the first one right after the gobj is
-     * started.  Make sure parsing still works after a reset on a fresh
-     * parser. */
-    ghttp_parser_reset(parser);
+     * EV_CONNECTED now that ghttp_parser_reset is gone — destroy the
+     * old parser and create a fresh one.  Make sure parsing still
+     * works right after the recreate. */
+    ghttp_parser_destroy(parser);
+    parser = ghttp_parser_create(NULL, HTTP_RESPONSE, NULL, NULL, NULL, FALSE);
+    EXPECT(parser != NULL, "re-created ghttp_parser is non-NULL");
 
     char buf[2048];
     size_t n = (size_t)snprintf(buf, sizeof(buf), "%s", RESP_204);
     int rc = ghttp_parser_received(parser, buf, n);
-    EXPECT(rc == (int)n, "received OK after reset on fresh parser");
-    EXPECT(parser && parser->message_completed == 1, "message_completed after reset");
+    EXPECT(rc == (int)n, "received OK after recreate");
+    EXPECT(parser && parser->message_completed == 1, "message_completed after recreate");
 
     ghttp_parser_destroy(parser);
 }
 
-PRIVATE void test_ghttp_parser_create_idle_reset_received(int seconds) {
-    fprintf(stderr, "\n== ghttp_parser: create + sleep %d s + reset + received ==\n", seconds);
+PRIVATE void test_ghttp_parser_create_idle_recreate_received(int seconds) {
+    fprintf(stderr, "\n== ghttp_parser: create + sleep %d s + destroy+create + received ==\n", seconds);
 
     GHTTP_PARSER *parser = ghttp_parser_create(NULL, HTTP_RESPONSE, NULL, NULL, NULL, FALSE);
     EXPECT(parser != NULL, "ghttp_parser_create returns non-NULL");
 
     sleep(seconds);
 
-    /* Reset right before the first parse, simulating the real flow:
+    /* Recreate right before the first parse, simulating the real flow:
      *   create at mt_create → wait for TCP connect (variable time) →
-     *   ac_connected resets parser → first response arrives → parse. */
-    ghttp_parser_reset(parser);
+     *   ac_connected destroys+creates parser → first response arrives → parse. */
+    ghttp_parser_destroy(parser);
+    parser = ghttp_parser_create(NULL, HTTP_RESPONSE, NULL, NULL, NULL, FALSE);
+    EXPECT(parser != NULL, "re-created ghttp_parser is non-NULL");
 
     char buf[2048];
     size_t n = (size_t)snprintf(buf, sizeof(buf), "%s", RESP_204);
     int rc = ghttp_parser_received(parser, buf, n);
-    EXPECT(rc == (int)n, "received OK after idle + reset");
-    EXPECT(parser && parser->message_completed == 1, "message_completed after idle + reset");
+    EXPECT(rc == (int)n, "received OK after idle + recreate");
+    EXPECT(parser && parser->message_completed == 1, "message_completed after idle + recreate");
+
+    ghttp_parser_destroy(parser);
+}
+
+PRIVATE void test_ghttp_parser_finish_eof(void) {
+    fprintf(stderr, "\n== ghttp_parser: EOF-terminated response fires on_message_complete via finish ==\n");
+
+    /* HTTP/1.0 response with no Content-Length — the message ends
+     * only when the peer closes the socket.  Without ghttp_parser_finish()
+     * on_message_complete never fires and EV_ON_MESSAGE is lost. */
+    const char *RESP_10_EOF =
+        "HTTP/1.0 200 OK\r\n"
+        "Content-Type: text/plain\r\n"
+        "\r\n"
+        "hello world";
+
+    GHTTP_PARSER *parser = ghttp_parser_create(NULL, HTTP_RESPONSE, NULL, NULL, NULL, FALSE);
+    EXPECT(parser != NULL, "ghttp_parser_create returns non-NULL");
+
+    char buf[256];
+    size_t n = (size_t)snprintf(buf, sizeof(buf), "%s", RESP_10_EOF);
+    int rc = ghttp_parser_received(parser, buf, n);
+    EXPECT(rc == (int)n, "received consumed all bytes");
+    EXPECT(parser && parser->message_completed == 0, "no message_completed yet (waiting for EOF)");
+
+    int fr = ghttp_parser_finish(parser);
+    EXPECT(fr == 0, "ghttp_parser_finish returns 0");
+    EXPECT(parser && parser->message_completed == 1, "message_completed fired by finish (EOF)");
 
     ghttp_parser_destroy(parser);
 }
@@ -327,7 +360,7 @@ int main(int argc, char *argv[])
     test_bare_llhttp_immediate();
     test_bare_llhttp_idle(1);
     test_bare_llhttp_idle(2);
-    test_bare_llhttp_init_then_reset_then_execute();
+    test_bare_llhttp_init_then_reinit_then_execute();
     test_bare_llhttp_pipelined();
 
     /* (b) ghttp_parser wrapper */
@@ -335,10 +368,11 @@ int main(int argc, char *argv[])
     test_ghttp_parser_received_immediate();
     test_ghttp_parser_received_after_idle(1);
     test_ghttp_parser_received_after_idle(2);
-    test_ghttp_parser_create_reset_received();
-    test_ghttp_parser_create_idle_reset_received(1);
-    test_ghttp_parser_create_idle_reset_received(2);
+    test_ghttp_parser_create_recreate_received();
+    test_ghttp_parser_create_idle_recreate_received(1);
+    test_ghttp_parser_create_idle_recreate_received(2);
     test_ghttp_parser_pipelined();
+    test_ghttp_parser_finish_eof();
 
     gobj_end();
 

@@ -1,6 +1,29 @@
 # **Changelog**
 
 ## Unreleased
+    - **API change(ghttp_parser)**: `ghttp_parser_reset()` is **removed** from
+      the public API.  It was a foot-gun: calling it from inside an llhttp
+      callback (as `on_message_complete` used to do) corrupted llhttp's state
+      machine and silently swallowed pipelined messages.  Callers that need a
+      pristine parser for a new connection now use the destroy+create cycle
+      (see `c_prot_http_sr::ac_connected`, `c_prot_http_cl::ac_connected`,
+      `c_websocket::ac_connected`).  The llhttp settings vtable is now
+      initialised once, lazily, via `llhttp_settings_init()` in
+      `ensure_settings_initialized()`.
+    - **feat(ghttp_parser)**: new `ghttp_parser_finish()` that signals
+      end-of-stream (`llhttp_finish()`) to the parser.  Fixes a latent bug
+      where HTTP/1.0 responses (or HTTP/1.1 `Connection: close` responses
+      without `Content-Length` / `Transfer-Encoding: chunked`) never fired
+      `on_message_complete` because the peer's socket close was the only
+      message terminator.  Wired up in `c_prot_http_cl::ac_disconnected`
+      (the critical case for response parsers), `c_prot_http_sr::ac_disconnected`,
+      and `c_websocket::ac_disconnected`.
+    - **fix(ghttp_parser)**: on `HPE_PAUSED_UPGRADE`, `ghttp_parser_received()`
+      now returns the actual number of bytes llhttp consumed (computed via
+      `llhttp_get_error_pos()`) instead of lying that it consumed the whole
+      buffer.  This lets the caller re-route any tail bytes that belong to
+      the new protocol (e.g. a WebSocket frame piggy-backed on the same TCP
+      segment as the upgrade request) to the next handler.
     - **CRITICAL fix(ghttp_parser)**: HTTP/1.1 pipelining was silently broken —
       `on_message_complete()` called `ghttp_parser_reset()`, which in turn called
       `llhttp_init()` from inside the llhttp callback, corrupting the parser's
