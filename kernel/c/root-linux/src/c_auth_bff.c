@@ -457,7 +457,99 @@ PRIVATE int mt_start(hgobj gobj)
             "url",      "%s", kc_base,
             NULL
         );
+        return -1;
     }
+
+    /*=========================================================*
+     *
+     *  PERSISTENT IdP CONNECTION  ⚠️ WIP — fails on parser bug
+     *
+     *  One outbound C_PROT_HTTP_CL per BFF instance, started here,
+     *  reused for every /auth/* request, stopped (not destroyed) in
+     *  mt_stop, destroyed by the framework's mt_destroy walk.
+     *
+     *  Why: the legacy per-request create/destroy pattern leaks one
+     *  C_PROT_HTTP_CL+C_TCP+timers per request because EV_STOPPED is
+     *  input-only on C_PROT_HTTP_CL — never reaches the BFF's
+     *  ac_stopped, so even a volatil http_cl is not destroyed in
+     *  runtime.  See memory/project_auth_bff_pending_bugs.md.
+     *
+     *  Status (2026-04-13): partial.  Connection establishes, the
+     *  task subscribes correctly, requests go out and responses come
+     *  back — BUT the parser fails on the first response with
+     *  HPE_INVALID_CONSTANT.  Standalone tests of llhttp and the
+     *  ghttp_parser wrapper (tests/c/c_llhttp_parser) pass cleanly,
+     *  so the bug lives in the c_prot_http_cl ↔ ghttp_parser ↔
+     *  gobj/io_uring interaction.  Suspects (in order):
+     *    1) GHTTP_PARSER heap memory corruption between create and
+     *       use (another gbmem_malloc pisa zona del parser);
+     *    2) gbuffer_cur_rd_pointer returning a position offset from
+     *       where the actual response starts;
+     *    3) reconnect-retry loop firing ac_connected at a bad time.
+     *
+     *  Left in place — failing — for review and continued debugging.
+     *=========================================================*/
+    char kc_token_url[PATH_MAX * 2];
+    char kc_token_path[PATH_MAX];
+    build_path(kc_token_path, sizeof(kc_token_path), priv->path, "token", NULL);
+    snprintf(kc_token_url, sizeof(kc_token_url),
+        "%s://%s%s%s%s",
+        priv->schema, priv->host,
+        empty_string(priv->port) ? "" : ":",
+        empty_string(priv->port) ? "" : priv->port,
+        kc_token_path
+    );
+
+    json_t *jn_crypto = gobj_read_json_attr(gobj, "crypto");
+
+    priv->gobj_http = gobj_create_pure_child(
+        priv->idp_name,
+        C_PROT_HTTP_CL,
+        json_pack("{s:I, s:s}",
+            "subscriber", (json_int_t)0,
+            "url",        kc_token_url
+        ),
+        gobj
+    );
+    /*
+     *  Detach BFF from HTTP_CL events — only the per-request C_TASK
+     *  (gobj_results) handles request/response traffic on this conn.
+     *  The HTTP_CL was auto-subscribing the parent (BFF) inside its
+     *  mt_create, so we must explicitly drop that subscription now.
+     */
+    gobj_unsubscribe_event(priv->gobj_http, NULL, NULL, gobj);
+
+    gobj_set_bottom_gobj(
+        priv->gobj_http,
+        gobj_create_pure_child(
+            priv->idp_name,
+            C_TCP,
+            json_pack("{s:s, s:O, s:i}",
+                "url", kc_token_url,
+                "crypto", jn_crypto,
+                /*
+                 *  Aggressive reconnect cadence (100 ms vs the 2 s
+                 *  default).  At BFF startup we may race with sibling
+                 *  autostart services that haven't reached "listening"
+                 *  yet (in-process mock IdP in tests, slow upstream in
+                 *  production); a 2 s back-off would visibly delay the
+                 *  first request.  C_TCP's retry timer arms only after
+                 *  a failed connect, so steady-state cost is zero.
+                 */
+                "timeout_between_connections", 100
+            ),
+            priv->gobj_http
+        )
+    );
+
+    /*
+     *  Connect to the IdP in background.  The TCP child auto-reconnects
+     *  every 100 ms while it can't reach the upstream; once a request
+     *  arrives via process_next() the gobj is either already connected
+     *  (kicked into action via the synthesize-EV_ON_OPEN branch in
+     *  process_next) or about to be (the C_TASK subscribes and waits).
+     */
+    gobj_start_tree(priv->gobj_http);
 
     return 0;
 }
@@ -467,16 +559,18 @@ PRIVATE int mt_start(hgobj gobj)
  *
  *  Three unrelated chains to tear down here:
  *
- *    1) priv->gobj_http: the OUTBOUND HTTP client to Keycloak, created
- *       on demand in process_next() and torn down in ac_end_task.  If
- *       a Keycloak round-trip is still in flight when the BFF is
- *       stopped, we kill it here.
+ *    1) priv->gobj_http: the persistent OUTBOUND HTTP client to the IdP,
+ *       created in mt_start.  Stop the tree only — leave the gobj alive
+ *       so the framework's mt_destroy walk can free it AFTER the
+ *       io_uring cancel/close CQEs from the TCP have drained.
+ *       Synchronous gobj_destroy here would use-after-free against
+ *       still-pending CQE callbacks (verified during the refactor).
  *
- *    2) priv->gobj_task: the C_TASK driving the in-flight Keycloak
- *       round-trip.  Same rationale — ac_end_task drops it on normal
- *       completion, but if we're being stopped before ac_end_task ran
- *       it has to be killed here so the framework's destroy walk
- *       doesn't trip on a still-RUNNING gobj.
+ *    2) priv->gobj_task: the C_TASK driving the in-flight IdP
+ *       round-trip.  ac_end_task drops it (and c_task self-destroys
+ *       on stop_task) on normal completion, but if we're being
+ *       stopped mid-task it has to be killed here so the framework's
+ *       destroy walk doesn't trip on a still-RUNNING gobj.
  *
  *    3) bottom_gobj: the INBOUND C_PROT_HTTP_SR + C_TCP placed below
  *       us by the IOGATE config.  C_CHANNEL stops its bottom (us) but
@@ -497,7 +591,11 @@ PRIVATE int mt_stop(hgobj gobj)
 
     if(priv->gobj_http) {
         gobj_stop_tree(priv->gobj_http);
-        priv->gobj_http = NULL;
+        /*
+         *  Do NOT priv->gobj_http = NULL — the framework still owns
+         *  this child until mt_destroy.  Do NOT gobj_destroy here —
+         *  io_uring CQEs are still pending (use-after-free).
+         */
     }
 
     hgobj bottom = gobj_bottom_gobj(gobj);
@@ -1639,68 +1737,11 @@ PRIVATE void process_next(hgobj gobj)
         );
     }
 
-    json_t *jn_crypto = gobj_read_json_attr(gobj, "crypto");
-
     /*
-     *  Invariant check: only one outbound Keycloak HTTP client may exist
-     *  at a time, kept in priv->gobj_http.  The previous task is supposed
-     *  to have torn it down in ac_end_task before we get back here through
-     *  process_next() — we are also gated by priv->processing == FALSE.
-     *  If we ever find priv->gobj_http already set, the schema isn't lined
-     *  up: the previous round-trip leaked, or we re-entered process_next()
-     *  while a task was still alive.  Trace it as a hard error so it's
-     *  obvious in the logs; the assignment below would otherwise drop the
-     *  previous reference silently.
+     *  gobj_http is the PERSISTENT outbound connection created in
+     *  mt_start.  process_next no longer creates/destroys it per
+     *  request — it's reused across all /auth/* round-trips.
      */
-    if(priv->gobj_http) {
-        gobj_log_error(gobj, 0,
-            "function",         "%s", __FUNCTION__,
-            "msgset",           "%s", MSGSET_INTERNAL_ERROR,
-            "msg",              "%s", "priv->gobj_http already set — leaked from a previous Keycloak round-trip",
-            "previous_gobj",    "%s", gobj_short_name(priv->gobj_http),
-            "next_action",      "%s", action_name(pa->action),
-            "next_url",         "%s", kc_token_url,
-            NULL
-        );
-    }
-
-    /*
-     *  Create a transient HTTP client for this one Keycloak request.
-     *  MUST be volatil so ac_stopped destroys it after gobj_stop_tree
-     *  in ac_end_task.  Using plain gobj_create would leak one
-     *  C_PROT_HTTP_CL per request — invisible at test scale but fatal
-     *  for any long-running BFF or throughput benchmark.
-     *
-     *  Note: pure_child != volatil.  pure_child is about attribute
-     *  ownership; only the volatil flag is checked by ac_stopped
-     *  handlers (gobj_is_volatil) to decide whether to gobj_destroy
-     *  the sender.
-     */
-    /*
-     *  Name the outbound chain "<bff-name>-idp" (Identity Provider).
-     *  See PRIVATE_DATA::idp_name for the rationale (trace clarity vs
-     *  inbound chain, multi-BFF disambiguation, OAuth2/OIDC neutral).
-     */
-    priv->gobj_http = gobj_create_volatil(
-        priv->idp_name,
-        C_PROT_HTTP_CL,
-        json_pack("{s:I, s:s}",
-            "subscriber", (json_int_t)0,
-            "url",        kc_token_url
-        ),
-        gobj
-    );
-    gobj_unsubscribe_event(priv->gobj_http, NULL, NULL, gobj);
-
-    gobj_set_bottom_gobj(
-        priv->gobj_http,
-        gobj_create_pure_child(
-            priv->idp_name,
-            C_TCP,
-            json_pack("{s:s, s:O}", "url", kc_token_url, "crypto", jn_crypto),
-            priv->gobj_http
-        )
-    );
 
     /*
      *  Build the task output_data.  `_browser_gen` rides along with
@@ -1761,8 +1802,31 @@ PRIVATE void process_next(hgobj gobj)
     gobj_set_volatil(gobj_task, TRUE);
     priv->gobj_task = gobj_task;
 
-    gobj_start_tree(priv->gobj_http);
+    /*
+     *  gobj_http is a persistent pure_child started in mt_start, NOT
+     *  recreated per request — don't gobj_start_tree it here.
+     */
     gobj_start(gobj_task);
+
+    /*
+     *  Persistent-connection kick:
+     *
+     *  When gobj_http was created on demand (legacy flow) the C_TASK
+     *  subscribed to its events and waited for EV_ON_OPEN before
+     *  firing action_call_keycloak.  With a persistent connection
+     *  the EV_ON_OPEN already fired long ago (at BFF startup), so
+     *  the task would wait forever for an event that won't come
+     *  again.  Synthesize one here when the connection is already
+     *  established to kick the action chain off.
+     *
+     *  If the connection is mid-handshake or reconnecting we let the
+     *  task wait normally; the natural EV_ON_OPEN will fire when the
+     *  handshake completes.  If the connection ultimately fails
+     *  EV_ON_CLOSE will reach the task and abort it via the watchdog.
+     */
+    if(gobj_current_state(priv->gobj_http) == ST_CONNECTED) {
+        gobj_send_event(gobj_task, EV_ON_OPEN, json_object(), priv->gobj_http);
+    }
 
     /*
      *  Remember the browser this task is serving so ac_kc_watchdog
@@ -2205,11 +2269,12 @@ PRIVATE int ac_end_task(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
     }
     priv->gobj_task = NULL;  /* ac_stopped will destroy it */
 
-    /* Tear down the transient Keycloak HTTP client */
-    if(priv->gobj_http) {
-        gobj_stop_tree(priv->gobj_http);
-        priv->gobj_http = NULL;
-    }
+    /*
+     *  gobj_http is the PERSISTENT IdP connection — created in
+     *  mt_start, alive for the whole BFF instance lifetime.  Do NOT
+     *  stop or destroy it here; the next request will reuse it.
+     *  This is the whole point of the connection-pooling refactor.
+     */
 
     priv->processing = FALSE;
 
