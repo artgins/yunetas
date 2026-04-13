@@ -110,6 +110,7 @@ typedef struct sskt_s {
     char last_error[256];
     int error;
     char rx_bf[16*1024];
+    BOOL *alive; // Points to stack var in flush_clear_data; set to FALSE when freed mid-callback
 } sskt_t;
 
 /***************************************************************
@@ -547,6 +548,7 @@ PRIVATE hsskt new_secure_filter(
     sskt->on_clear_data_cb = on_clear_data_cb;
     sskt->on_encrypted_data_cb = on_encrypted_data_cb;
     sskt->user_data = user_data;
+    sskt->alive = NULL;
 
     sskt->ssl = SSL_new(ytls->ctx);
     if(!sskt->ssl) {
@@ -610,6 +612,15 @@ PRIVATE void shutdown_sskt(hsskt sskt_)
 PRIVATE void free_secure_filter(hsskt sskt_)
 {
     sskt_t *sskt = sskt_;
+
+    /*
+     * If we are being freed from within the on_clear_data_cb callback
+     * (re-entrant destruction), signal the alive marker on the caller's
+     * stack so that flush_clear_data() can stop iterating after we return.
+     */
+    if(sskt->alive) {
+        *sskt->alive = FALSE;
+    }
 
     SSL_free(sskt->ssl);   /* free the SSL object and its BIO's */
     GBMEM_FREE(sskt)
@@ -846,6 +857,17 @@ PRIVATE int flush_clear_data(sskt_t *sskt)
 {
     hgobj gobj = sskt->ytls->gobj;
     int ret = 0;
+
+    /*
+     * Alive marker: a stack variable whose address is stored in sskt->alive.
+     * If on_clear_data_cb triggers re-entrant destruction of sskt
+     * (i.e. free_secure_filter is called while we are still iterating),
+     * free_secure_filter will set this to FALSE before freeing sskt,
+     * and we will stop the loop without touching the freed memory.
+     */
+    BOOL sskt_alive = TRUE;
+    sskt->alive = &sskt_alive;
+
     if(sskt->ytls->trace_tls) {
         gobj_trace_msg(gobj, "------- flush_clear_data(), userp %p", sskt->user_data);
     }
@@ -870,6 +892,7 @@ PRIVATE int flush_clear_data(sskt_t *sskt)
                     NULL
                 );
                 GBUFFER_DECREF(gbuf)
+                sskt->alive = NULL;
                 return -1111; // Mark as TLS error
             } else {
                 // no more data
@@ -881,7 +904,16 @@ PRIVATE int flush_clear_data(sskt_t *sskt)
         // Callback clear data
         gbuffer_set_wr(gbuf, nread);
         ret += sskt->on_clear_data_cb(sskt->user_data, gbuf);
+        /*
+         * Check alive marker: if the callback caused sskt to be freed
+         * (re-entrant destruction), sskt_alive is now FALSE.
+         * Do NOT touch sskt after this point.
+         */
+        if(!sskt_alive) {
+            return ret;
+        }
     }
+    sskt->alive = NULL;
     return ret;
 }
 
