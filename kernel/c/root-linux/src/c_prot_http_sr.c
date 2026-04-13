@@ -315,17 +315,39 @@ PRIVATE int ac_send_message(hgobj gobj, gobj_event_t event, json_t *kw, hgobj sr
         int headers_len = strlen(headers);
         kw_decref(jn_body);
 
+        /*
+         *  RFC 7230 §3.3.2/§3.3.3: 1xx, 204 and 304 responses MUST NOT
+         *  carry a message body or Content-Length.  llhttp enforces this
+         *  strictly on the receiving side (any trailing byte after the
+         *  CRLF CRLF is parsed as the start of the next response and
+         *  fails with HPE_INVALID_CONSTANT), so emit a body-less
+         *  response regardless of what the caller passed in `body`.
+         */
+        BOOL no_body = (code[0] == '1') ||
+            (strncmp(code, "204", 3) == 0) ||
+            (strncmp(code, "304", 3) == 0);
+
         gbuf = gbuffer_create(256 + headers_len + body_len, 256 + headers_len + body_len);
-        gbuffer_printf(gbuf,
-            "HTTP/1.1 %s\r\n"
-            "%s"
-            "Content-Type: application/json; charset=utf-8\r\n"
-            "Content-Length: %d\r\n\r\n",
-            code,
-            headers,
-            body_len
-        );
-        gbuffer_append(gbuf, resp, body_len);
+        if(no_body) {
+            gbuffer_printf(gbuf,
+                "HTTP/1.1 %s\r\n"
+                "%s"
+                "\r\n",
+                code,
+                headers
+            );
+        } else {
+            gbuffer_printf(gbuf,
+                "HTTP/1.1 %s\r\n"
+                "%s"
+                "Content-Type: application/json; charset=utf-8\r\n"
+                "Content-Length: %d\r\n\r\n",
+                code,
+                headers,
+                body_len
+            );
+            gbuffer_append(gbuf, resp, body_len);
+        }
         GBMEM_FREE(resp)
     } else  {
         // Old method
