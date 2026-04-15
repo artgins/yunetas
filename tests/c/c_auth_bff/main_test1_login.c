@@ -250,7 +250,7 @@ static int register_yuno_and_more(void)
     gobj_set_gclass_no_trace(gclass_find_by_name(C_TIMER),  "machine", TRUE);
     gobj_set_global_no_trace("timer_periodic", TRUE);
 
-    // Samples of traces
+    // Samples of traces: DON'T REMOVE
     // gobj_set_gclass_trace(gclass_find_by_name(C_IEVENT_SRV), "identity-card", TRUE);
     // gobj_set_gclass_trace(gclass_find_by_name(C_IEVENT_CLI), "identity-card", TRUE);
 
@@ -258,7 +258,7 @@ static int register_yuno_and_more(void)
 
     // Global traces
     // gobj_set_global_trace("create_delete", TRUE);
-    gobj_set_global_trace("machine", TRUE);
+    // gobj_set_global_trace("machine", TRUE);
     // gobj_set_global_trace("create_delete2", TRUE);
     // gobj_set_global_trace("subscriptions", TRUE);
     // gobj_set_global_trace("start_stop", TRUE);
