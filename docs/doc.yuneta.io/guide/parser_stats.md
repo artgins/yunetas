@@ -99,6 +99,7 @@ Attributes marked with `SDF_PSTATS` serve dual purposes:
 
 ---
 
+(when-to-override-mt_stats)=
 ## When to override `mt_stats`
 
 There are two ways for a GClass to expose statistics, and the right
