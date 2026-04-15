@@ -234,13 +234,6 @@ typedef struct _PRIVATE_DATA {
     hgobj           gobj_idprovider;    /* C_PROT_HTTP_CL */
     hgobj           gobj_task;          /* C_TASK */
 
-    hgobj           active_browser_src; /* browser_src of the in-flight task, cleared in ac_end_task */
-    uint64_t        active_task_gen;    /* browser generation captured when the in-flight task was dispatched;
-                                           0 when no task is active.  ac_kc_watchdog checks this against
-                                           priv->browser_alive_gen before sending 504 — if they differ the
-                                           connection the task was serving is gone (closed or replaced) and
-                                           the 504 must be dropped instead of delivered to an unrelated browser. */
-
     /*
      *  Browser identity generation counter.
      *
@@ -389,6 +382,8 @@ PRIVATE void mt_create(hgobj gobj)
             gobj
         );
         gobj_unsubscribe_event(priv->gobj_idprovider, NULL, NULL, gobj);
+        gobj_subscribe_event(priv->gobj_idprovider, EV_ON_OPEN, NULL, gobj);
+        gobj_subscribe_event(priv->gobj_idprovider, EV_ON_CLOSE, NULL, gobj);
         gobj_set_manual_start(priv->gobj_idprovider, TRUE);
 
         gobj_set_bottom_gobj(
@@ -1695,22 +1690,22 @@ PRIVATE void process_next(hgobj gobj)
         );
     }
 
-    hgobj gobj_task = gobj_create(priv->idp_name, C_TASK, kw_task, gobj);
-    gobj_subscribe_event(gobj_task, EV_END_TASK, NULL, gobj);
-    gobj_set_volatil(gobj_task, TRUE);
-    priv->gobj_task = gobj_task;
+    if(priv->gobj_task) {
+        gobj_log_error(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_INTERNAL_ERROR,
+            "msg",          "%s", "gobj_task already set",
+            NULL
+        );
+    }
+    priv->gobj_task = gobj_create(priv->idp_name, C_TASK, kw_task, gobj);
+    gobj_subscribe_event(priv->gobj_task, EV_END_TASK, NULL, gobj);
+    gobj_set_volatil(priv->gobj_task, TRUE);
 
-    gobj_start(gobj_task);
-
-    /*
-     *  Remember the browser this task is serving so ac_kc_watchdog
-     *  can 504 it without having to reach into the task's output_data.
-     *  Capture the browser generation too so the watchdog can
-     *  short-circuit if the connection has been closed or replaced
-     *  between dispatch and timeout.
-     */
-    priv->active_browser_src = pa->browser_src;
-    priv->active_task_gen    = pa->browser_gen;
+    gobj_start(priv->gobj_task);
+    if(!gobj_is_running(priv->gobj_idprovider)) {
+        gobj_start(priv->gobj_idprovider);
+    }
 }
 
 /***************************************************************************
@@ -1799,12 +1794,12 @@ PRIVATE int ac_on_close(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
     gclass_name_t gclass_src_name = gobj_gclass_name(src);
     if(gclass_src_name == C_PROT_HTTP_CL) {
         /*
-         *  Connection from IdProvider
+         *  Disconnection from IdProvider
          */
 
     } else if(gclass_src_name == C_PROT_HTTP_SR) {
         /*
-         *  Connection from browser
+         *  Disconnection from browser
          */
         if(gobj_trace_level(gobj) & TRACE_MESSAGES) {
             gobj_trace_msg(gobj,
@@ -1813,6 +1808,10 @@ PRIVATE int ac_on_close(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
                 (unsigned long long)priv->browser_alive_gen,
                 priv->q_count, priv->processing
             );
+        }
+
+        if(gobj_read_bool_attr(priv->gobj_idprovider, "connected")) {
+            gobj_stop(priv->gobj_idprovider);
         }
 
         priv->browser_alive_gen = 0;
@@ -2037,38 +2036,6 @@ PRIVATE int ac_end_task(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
-    /*
-     *  Disarm the watchdog via flag — do NOT clear_timeout0 here.
-     *  clear_timeout0 posts a CANCEL SQE and the timer enters
-     *  CANCELING state.  process_next() runs synchronously below for
-     *  any queued request and would call set_timeout0, which fails
-     *  with "cannot start timer: is CANCELING" until the cancel CQE
-     *  drains.  Instead, the live timer is left running with its
-     *  remaining duration; ac_kc_watchdog ignores fires when
-     *  kc_watchdog_armed==FALSE, and the next process_next() either
-     *  re-arms it (RUNNING → RUNNING via timerfd_settime, no cancel)
-     *  or leaves it to fire harmlessly into the disarmed handler.
-     */
-    priv->active_browser_src = NULL;
-    priv->active_task_gen    = 0;
-
-    /*
-     *  Tear down the C_TASK.  Two paths land here:
-     *    - Natural completion: c_task::stop_task synchronously publishes
-     *      EV_END_TASK BEFORE calling gobj_stop on itself, so we get the
-     *      event with src == priv->gobj_task while it is still RUNNING.
-     *      We must NOT stop it here — c_task will do it itself the
-     *      moment we return, and a double-stop logs "GObj NOT RUNNING".
-     *    - Watchdog (ac_kc_watchdog → gobj_send_event(EV_END_TASK, src=gobj)):
-     *      the task is still in the middle of waiting for Keycloak and
-     *      nobody is going to stop it for us.  src is c_auth_bff itself
-     *      (not the task), so force-stop here.  EV_STOPPED then chains
-     *      to ac_stopped which destroys the volatil task.
-     */
-    if(src != priv->gobj_task &&
-            priv->gobj_task && gobj_is_running(priv->gobj_task)) {
-        gobj_stop(priv->gobj_task);
-    }
     priv->gobj_task = NULL;  /* ac_stopped will destroy it */
 
     priv->processing = FALSE;

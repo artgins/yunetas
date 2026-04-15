@@ -611,11 +611,11 @@ PRIVATE int ac_stopped(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
  *          Global methods table
  *---------------------------------------------*/
 PRIVATE const GMETHODS gmt = {
-    .mt_create = mt_create,
+    .mt_create  = mt_create,
     .mt_writing = mt_writing,
     .mt_destroy = mt_destroy,
-    .mt_start = mt_start,
-    .mt_stop = mt_stop,
+    .mt_start   = mt_start,
+    .mt_stop    = mt_stop,
 };
 
 /*------------------------*
