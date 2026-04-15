@@ -71,7 +71,6 @@
 
 #include "msg_ievent.h"
 #include "c_prot_http_cl.h"
-#include "c_prot_http_sr.h"
 #include "c_task.h"
 #include "c_tcp.h"
 #include "c_timer0.h"           /* C_TIMER0 (ms precision) for the outbound watchdog */
@@ -145,19 +144,23 @@ typedef struct _PENDING_AUTH {
 PRIVATE const char *action_name(bff_action_t a);
 PRIVATE void process_next(hgobj gobj);
 PRIVATE void send_json_response(hgobj browser_src, int status_code,
-    const char *status_text, json_t *jn_body, const char *extra_headers);
+    const char *status_text, json_t *jn_body, const char *extra_headers
+);
 PRIVATE void send_error_response(hgobj gobj, hgobj browser_src,
     int status_code, const char *status_text,
     const char *error_code, const char *error_msg,
-    const char *extra_headers);
+    const char *extra_headers
+);
 PRIVATE const char *extract_cookie(const char *cookie_header, const char *name,
-    char *out, size_t out_size);
-PRIVATE json_t *cmd_help(hgobj gobj, const char *cmd, json_t *kw, hgobj src);
-PRIVATE json_t *cmd_view_status(hgobj gobj, const char *cmd, json_t *kw, hgobj src);
+    char *out, size_t out_size
+);
 
 /***************************************************************************
  *          Data: config, public data, private data
  ***************************************************************************/
+PRIVATE json_t *cmd_help(hgobj gobj, const char *cmd, json_t *kw, hgobj src);
+PRIVATE json_t *cmd_view_status(hgobj gobj, const char *cmd, json_t *kw, hgobj src);
+
 PRIVATE sdata_desc_t pm_help[] = {
 /*-PM----type-----------name------------flag------------default-----description---------- */
 SDATAPM (DTP_STRING,    "cmd",          0,              0,          "command about you want help."),
@@ -203,9 +206,9 @@ enum {
     TRACE_TRAFFIC   = 0x0002,   /* Full HTTP payloads (sensitive fields masked) */
 };
 PRIVATE const trace_level_t s_user_trace_level[16] = {
-    {"messages",    "Trace request flow: connect, request, queue, Keycloak round-trip, response"},
-    {"traffic",     "Trace full payloads: headers, bodies, Keycloak data (passwords/tokens/codes masked)"},
-    {0, 0}
+{"messages",    "Trace request flow: connect, request, queue, Keycloak round-trip, response"},
+{"traffic",     "Trace full payloads: headers, bodies, Keycloak data (passwords/tokens/codes masked)"},
+{0, 0}
 };
 
 /*---------------------------------------------*
@@ -1696,10 +1699,14 @@ PRIVATE void process_next(hgobj gobj)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
-    if(priv->processing || priv->q_count == 0) return;
+    if(priv->processing || priv->q_count == 0) {
+        return;
+    }
 
     PENDING_AUTH *pa = dequeue(gobj);
-    if(!pa) return;
+    if(!pa) {
+        return;
+    }
 
     priv->processing = TRUE;
 
