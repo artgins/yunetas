@@ -1030,7 +1030,6 @@ PRIVATE int mt_stop(hgobj gobj)
 
     if(priv->timer) {
         clear_timeout(priv->timer);
-        gobj_stop(priv->timer);
     }
 
     hgobj tcp0 = gobj_bottom_gobj(gobj);

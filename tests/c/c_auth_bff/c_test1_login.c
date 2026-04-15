@@ -311,6 +311,7 @@ PRIVATE int ac_on_open(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 PRIVATE int ac_on_message(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
+    hgobj bff_side = NULL;
 
     int status = (int)kw_get_int(gobj, kw, "response_status_code", -1, 0);
     json_t *jn_body = kw_get_dict(gobj, kw, "body", NULL, 0);
@@ -383,7 +384,7 @@ PRIVATE int ac_on_message(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
      *  __bff_side__ for the first child of gclass C_AUTH_BFF — same
      *  filter the C_AUTH_BFF_YUNO::view-bff-status aggregator uses.
      */
-    hgobj bff_side = gobj_find_service("__bff_side__", FALSE);
+    bff_side = gobj_find_service("__bff_side__", FALSE);
     if(bff_side) {
         json_t *jn_filter = json_pack("{s:s}",
             "__gclass_name__", "C_AUTH_BFF"
@@ -429,7 +430,10 @@ end:
      *  destroys them and we'd get "Destroying a RUNNING gobj" errors.
      */
     if(priv->gobj_http_cl) {
-        gobj_stop_tree(priv->gobj_http_cl);
+        gobj_stop(priv->gobj_http_cl);
+    }
+    if(bff_side) {
+        gobj_stop_tree(bff_side);
     }
 
     priv->dying = TRUE;

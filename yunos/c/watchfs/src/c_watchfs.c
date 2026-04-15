@@ -205,7 +205,6 @@ PRIVATE int mt_stop(hgobj gobj)
 
     gobj_stop(priv->gobj_fs);
     clear_timeout(priv->timer);
-    gobj_stop(priv->timer);
 
     split_free2(priv->patterns_list);
 
