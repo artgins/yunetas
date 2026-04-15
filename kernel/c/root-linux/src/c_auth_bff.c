@@ -230,7 +230,7 @@ typedef struct _PRIVATE_DATA {
 
     /* Current outbound Identity Provider connection */
     BOOL            processing;
-    hgobj           gobj_http;          /* C_PROT_HTTP_CL while active */
+    hgobj           gobj_idprovider;          /* C_PROT_HTTP_CL while active */
     hgobj           gobj_task;          /* C_TASK */
 
     hgobj           active_browser_src; /* browser_src of the in-flight task, cleared in ac_end_task */
@@ -379,7 +379,7 @@ PRIVATE void mt_create(hgobj gobj)
     } else {
         json_t *jn_crypto = gobj_read_json_attr(gobj, "crypto");
 
-        priv->gobj_http = gobj_create(
+        priv->gobj_idprovider = gobj_create(
             priv->idp_name,
             C_PROT_HTTP_CL,
             json_pack("{s:s}",
@@ -387,10 +387,10 @@ PRIVATE void mt_create(hgobj gobj)
             ),
             gobj
         );
-        gobj_unsubscribe_event(priv->gobj_http, NULL, NULL, gobj);
+        gobj_unsubscribe_event(priv->gobj_idprovider, NULL, NULL, gobj);
 
         gobj_set_bottom_gobj(
-            priv->gobj_http,
+            priv->gobj_idprovider,
             gobj_create_pure_child(
                 priv->idp_name,
                 C_TCP,
@@ -402,7 +402,7 @@ PRIVATE void mt_create(hgobj gobj)
                      */
                     "timeout_between_connections", 100
                 ),
-                priv->gobj_http
+                priv->gobj_idprovider
             )
         );
     }
@@ -450,8 +450,8 @@ PRIVATE int mt_stop(hgobj gobj)
     }
     priv->gobj_task = NULL;
 
-    if(priv->gobj_http && gobj_is_running(priv->gobj_http)) {
-        gobj_stop(priv->gobj_http);
+    if(priv->gobj_idprovider && gobj_is_running(priv->gobj_idprovider)) {
+        gobj_stop(priv->gobj_idprovider);
     }
 
     return 0;
@@ -605,8 +605,8 @@ PRIVATE json_t *cmd_view_status(hgobj gobj, const char *cmd, json_t *kw, hgobj s
         "name",             gobj_name(gobj),
         "full_name",        gobj_short_name(gobj),
         "processing",       priv->processing ? 1 : 0,
-        "has_active_http",  priv->gobj_http ? 1 : 0,
-        "active_http",      priv->gobj_http ? gobj_short_name(priv->gobj_http) : "",
+        "has_active_http",  priv->gobj_idprovider ? 1 : 0,
+        "active_http",      priv->gobj_idprovider ? gobj_short_name(priv->gobj_idprovider) : "",
         "q_count",          priv->q_count,
         "q_head",           priv->q_head,
         "q_tail",           priv->q_tail,
@@ -1437,7 +1437,7 @@ PRIVATE json_t *action_call_keycloak(
         "headers",  jn_headers,
         "data",     jn_data
     );
-    gobj_send_event(priv->gobj_http, EV_SEND_MESSAGE, query, gobj);
+    gobj_send_event(priv->gobj_idprovider, EV_SEND_MESSAGE, query, gobj);
 
     KW_DECREF(kw)
     CONTINUE_TASK()
@@ -1492,7 +1492,7 @@ PRIVATE json_t *action_kc_logout(
         "headers",  jn_headers,
         "data",     jn_data
     );
-    gobj_send_event(priv->gobj_http, EV_SEND_MESSAGE, query, gobj);
+    gobj_send_event(priv->gobj_idprovider, EV_SEND_MESSAGE, query, gobj);
 
     KW_DECREF(kw)
     CONTINUE_TASK()
@@ -1667,7 +1667,7 @@ PRIVATE void process_next(hgobj gobj)
                 "{s:s, s:s}"
             "]}",
             "gobj_jobs",    json_integer((json_int_t)(uintptr_t)gobj),
-            "gobj_results", json_integer((json_int_t)(uintptr_t)priv->gobj_http),
+            "gobj_results", json_integer((json_int_t)(uintptr_t)priv->gobj_idprovider),
             "output_data",  kw_output,
             "jobs",
                 "exec_action", "action_call_keycloak",
@@ -1683,7 +1683,7 @@ PRIVATE void process_next(hgobj gobj)
                 "{s:s, s:s}"
             "]}",
             "gobj_jobs",    json_integer((json_int_t)(uintptr_t)gobj),
-            "gobj_results", json_integer((json_int_t)(uintptr_t)priv->gobj_http),
+            "gobj_results", json_integer((json_int_t)(uintptr_t)priv->gobj_idprovider),
             "output_data",  kw_output,
             "jobs",
                 "exec_action", "action_kc_logout",
