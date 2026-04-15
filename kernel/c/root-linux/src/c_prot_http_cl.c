@@ -50,7 +50,9 @@ SDATA (DTP_STRING,  "url",              SDF_PERSIST,    "",         "Url to conn
 SDATA (DTP_INTEGER, "timeout_inactivity",SDF_WR,        "60000",    "Timeout inactivity"),
 SDATA (DTP_STRING,  "cert_pem",         SDF_PERSIST,    "",         "SSL server certificate, PEM format"),
 SDATA (DTP_BOOLEAN, "raw_body_data",    SDF_RD,         "FALSE",    "Publish raw partial data of body or full body at the end"),
-SDATA (DTP_POINTER, "subscriber",       0,              0,          "subscriber of output-events. If null then subscriber is the parent"),
+SDATA (DTP_POINTER, "user_data",        0,              0,          "user data"),
+SDATA (DTP_POINTER, "user_data2",       0,              0,          "more user data"),
+SDATA (DTP_POINTER, "subscriber",       0,              0,          "subscriber of output-events. If it's null then subscriber is the parent."),
 SDATA_END()
 };
 
