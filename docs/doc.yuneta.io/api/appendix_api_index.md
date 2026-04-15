@@ -494,6 +494,8 @@ with links to the API documentation.
 
 140. [**`gobj_set_volatil`**](gobj/info.md#gobj_set_volatil) — `PUBLIC int gobj_set_volatil(hgobj gobj, BOOL set)`
 
+140b. [**`gobj_set_manual_start`**](gobj/info.md#gobj_set_manual_start) — `PUBLIC int gobj_set_manual_start(hgobj gobj, BOOL set)`
+
 141. [**`gobj_is_pure_child`**](gobj/info.md#gobj_is_pure_child) — `PUBLIC BOOL gobj_is_pure_child(hgobj gobj)`
 
 142. [**`gobj_is_bottom_gobj`**](gobj/info.md#gobj_is_bottom_gobj) — `PUBLIC BOOL gobj_is_bottom_gobj(hgobj gobj)`
@@ -2564,6 +2566,7 @@ All **957 functions** sorted alphabetically with their source header.
 | [**`gobj_set_global_trace2`**](logging/trace.md#gobj_set_global_trace2) | `gobj.h` | gobj-c (Core Framework) |
 | [**`gobj_set_gobj_no_trace`**](logging/trace.md#gobj_set_gobj_no_trace) | `gobj.h` | gobj-c (Core Framework) |
 | [**`gobj_set_gobj_trace`**](logging/trace.md#gobj_set_gobj_trace) | `gobj.h` | gobj-c (Core Framework) |
+| [**`gobj_set_manual_start`**](gobj/info.md#gobj_set_manual_start) | `gobj.h` | gobj-c (Core Framework) |
 | [**`gobj_set_shutdown`**](gobj/startup.md#gobj_set_shutdown) | `gobj.h` | gobj-c (Core Framework) |
 | [**`gobj_set_stat`**](gobj/stats.md#gobj_set_stat) | `gobj.h` | gobj-c (Core Framework) |
 | [**`gobj_set_trace_machine_format`**](logging/trace.md#gobj_set_trace_machine_format) | `gobj.h` | gobj-c (Core Framework) |

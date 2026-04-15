@@ -523,6 +523,65 @@ The returned pointer provides direct access to the private data structure of the
 
 ---
 
+(gobj_set_manual_start)=
+## `gobj_set_manual_start()`
+
+Sets or clears the `gobj_flag_manual_start` flag on the given `hgobj` instance.
+
+```C
+int gobj_set_manual_start(
+    hgobj gobj,
+    BOOL set
+);
+```
+
+**Parameters**
+
+| Key | Type | Description |
+|---|---|---|
+| `gobj` | `hgobj` | The `hgobj` whose manual-start flag is to be modified. |
+| `set`  | `BOOL`  | If `TRUE`, the `gobj_flag_manual_start` flag is set; if `FALSE`, it is cleared. |
+
+**Returns**
+
+Returns `0` on success.
+
+**Notes**
+
+The `gobj_flag_manual_start` flag marks an individual `hgobj` as opt-out
+from automatic start walks — the counterpart, at the instance level, of
+the gclass-level `gcflag_manual_start`.  The flag is queried by
+{ref}`gobj_start_tree` and {ref}`gobj_start_children`: a child carrying
+this flag (or whose gclass carries `gcflag_manual_start`) is **skipped**
+during the recursive start, and must be started explicitly by its owner
+with {ref}`gobj_start`.
+
+Typical use: a parent needs to control the lifecycle of one particular
+child (delayed start, conditional start, reconnect throttling via
+`timeout_between_connections`, etc.) without having to mark the whole
+gclass as manual-start.
+
+```C
+// Create the child fully wired up but don't let gobj_start_tree start
+// it — the parent will call gobj_start() at the right moment.
+hgobj slow_peer = gobj_create(name, C_TCP, kw, parent);
+gobj_set_manual_start(slow_peer, TRUE);
+
+// ... later, when the parent decides to actually open the connection:
+gobj_start(slow_peer);
+```
+
+Clear the flag (`set = FALSE`) to restore normal behavior and let the
+next {ref}`gobj_start_tree` on an ancestor start the child again.
+
+The flag is read at start-walk time; setting it on an already-running
+`hgobj` has no effect until the next stop/start cycle.
+
+Symmetry: there is currently no `stop`-walk counterpart — the flag
+controls `gobj_start_*` only.
+
+---
+
 (gobj_set_volatil)=
 ## `gobj_set_volatil()`
 
