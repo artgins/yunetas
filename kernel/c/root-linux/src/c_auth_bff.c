@@ -1027,7 +1027,9 @@ PRIVATE int enqueue(hgobj gobj, PENDING_AUTH *pa)
 PRIVATE PENDING_AUTH *dequeue(hgobj gobj)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
-    if(priv->q_count == 0) return NULL;
+    if(priv->q_count == 0) {
+        return NULL;
+    }
     PENDING_AUTH *pa = &priv->queue[priv->q_head];
     priv->q_head = (priv->q_head + 1) % priv->queue_size;
     priv->q_count--;
