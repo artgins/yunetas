@@ -141,6 +141,7 @@ typedef struct _PENDING_AUTH {
 /***************************************************************************
  *              Prototypes
  ***************************************************************************/
+PRIVATE BOOL stats_match(const char *stats, const char *name);
 PRIVATE const char *action_name(bff_action_t a);
 PRIVATE void process_next(hgobj gobj);
 PRIVATE void send_json_response(hgobj browser_src, int status_code,
@@ -423,8 +424,6 @@ PRIVATE void mt_destroy(hgobj gobj)
  ***************************************************************************/
 PRIVATE int mt_start(hgobj gobj)
 {
-    PRIVATE_DATA *priv = gobj_priv_data(gobj);
-
     return 0;
 }
 
@@ -440,49 +439,11 @@ PRIVATE int mt_stop(hgobj gobj)
     }
     priv->gobj_task = NULL;
 
-    if(priv->gobj_http) {
+    if(priv->gobj_http && gobj_is_running(priv->gobj_http)) {
         gobj_stop(priv->gobj_http);
     }
 
     return 0;
-}
-
-/***************************************************************************
- *  Filter predicate matching stats_parser.c::_build_stats().
- *
- *  Two-stage match, mirroring the default parser so an mt_stats override
- *  behaves identically from the caller's point of view:
- *
- *    1. Exact/substring — the stat's full `name` appears inside `stats`.
- *    2. Prefix fallback — extract `name`'s own prefix up to the first '_'
- *       and look for that inside `stats`.  This is what lets a caller
- *       pass "kc_" (or "kc") and receive every `kc_*` counter.
- *
- *  Both lookups are case-insensitive so ad-hoc filters ("KC", "bff")
- *  work the same as the canonical lowercase names.
- ***************************************************************************/
-PRIVATE BOOL stats_match(const char *stats, const char *name)
-{
-    if(empty_string(stats)) {
-        return TRUE;
-    }
-    if(strcasestr(stats, name) != NULL) {
-        return TRUE;
-    }
-    const char *p = strchr(name, '_');
-    if(p) {
-        char prefix[32];
-        size_t ln = (size_t)(p - name);
-        if(ln >= sizeof(prefix)) {
-            ln = sizeof(prefix) - 1;
-        }
-        memcpy(prefix, name, ln);
-        prefix[ln] = '\0';
-        if(strcasestr(stats, prefix) != NULL) {
-            return TRUE;
-        }
-    }
-    return FALSE;
 }
 
 /***************************************************************************
@@ -661,6 +622,44 @@ PRIVATE json_t *cmd_view_status(hgobj gobj, const char *cmd, json_t *kw, hgobj s
 
 
 
+
+/***************************************************************************
+ *  Filter predicate matching stats_parser.c::_build_stats().
+ *
+ *  Two-stage match, mirroring the default parser so an mt_stats override
+ *  behaves identically from the caller's point of view:
+ *
+ *    1. Exact/substring — the stat's full `name` appears inside `stats`.
+ *    2. Prefix fallback — extract `name`'s own prefix up to the first '_'
+ *       and look for that inside `stats`.  This is what lets a caller
+ *       pass "kc_" (or "kc") and receive every `kc_*` counter.
+ *
+ *  Both lookups are case-insensitive so ad-hoc filters ("KC", "bff")
+ *  work the same as the canonical lowercase names.
+ ***************************************************************************/
+PRIVATE BOOL stats_match(const char *stats, const char *name)
+{
+    if(empty_string(stats)) {
+        return TRUE;
+    }
+    if(strcasestr(stats, name) != NULL) {
+        return TRUE;
+    }
+    const char *p = strchr(name, '_');
+    if(p) {
+        char prefix[32];
+        size_t ln = (size_t)(p - name);
+        if(ln >= sizeof(prefix)) {
+            ln = sizeof(prefix) - 1;
+        }
+        memcpy(prefix, name, ln);
+        prefix[ln] = '\0';
+        if(strcasestr(stats, prefix) != NULL) {
+            return TRUE;
+        }
+    }
+    return FALSE;
+}
 
 /***************************************************************************
  *              Helper: HTTP status text
