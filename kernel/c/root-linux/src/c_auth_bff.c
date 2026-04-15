@@ -389,6 +389,7 @@ PRIVATE void mt_create(hgobj gobj)
             gobj
         );
         gobj_unsubscribe_event(priv->gobj_idprovider, NULL, NULL, gobj);
+        gobj_set_manual_start(priv->gobj_idprovider, TRUE);
 
         gobj_set_bottom_gobj(
             priv->gobj_idprovider,

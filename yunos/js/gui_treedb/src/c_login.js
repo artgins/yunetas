@@ -469,6 +469,7 @@ function create_gclass(gclass_name)
         ]],
 
         ["ST_WAIT_TOKEN", [
+            ["EV_DO_LOGIN",       ac_do_login,        null],
             ["EV_LOGIN_ACCEPTED", ac_login_accepted,  "ST_LOGIN"],
             ["EV_LOGIN_DENIED",   ac_login_denied,    "ST_LOGOUT"]
         ]],

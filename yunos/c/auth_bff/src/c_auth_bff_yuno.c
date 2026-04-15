@@ -61,9 +61,9 @@ typedef struct _PRIVATE_DATA {
 
 
 
-            /******************************
-             *      Framework Methods
-             ******************************/
+                    /******************************
+                     *      Framework Methods
+                     ******************************/
 
 
 
@@ -121,7 +121,10 @@ PRIVATE int mt_play(hgobj gobj)
     /*--------------------------------*
      *      Start
      *--------------------------------*/
-    return gobj_start_tree(priv->gobj_bff_side);
+    if(!gobj_is_running(priv->gobj_bff_side)) {
+        gobj_start_tree(priv->gobj_bff_side);
+    }
+    return 0;
 }
 
 /***************************************************************************
@@ -144,9 +147,9 @@ PRIVATE int mt_pause(hgobj gobj)
 
 
 
-            /***************************
-             *      Commands
-             ***************************/
+                    /***************************
+                     *      Commands
+                     ***************************/
 
 
 
@@ -292,9 +295,9 @@ PRIVATE json_t *cmd_view_bff_status(hgobj gobj, const char *cmd, json_t *kw, hgo
 
 
 
-            /***************************
-             *      Actions
-             ***************************/
+                    /***************************
+                     *      Actions
+                     ***************************/
 
 
 
