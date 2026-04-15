@@ -230,7 +230,7 @@ typedef struct _PRIVATE_DATA {
 
     /* Current outbound Identity Provider connection */
     BOOL            processing;
-    hgobj           gobj_idprovider;          /* C_PROT_HTTP_CL while active */
+    hgobj           gobj_idprovider;    /* C_PROT_HTTP_CL */
     hgobj           gobj_task;          /* C_TASK */
 
     hgobj           active_browser_src; /* browser_src of the in-flight task, cleared in ac_end_task */
