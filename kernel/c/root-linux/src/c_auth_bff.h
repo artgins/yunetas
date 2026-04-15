@@ -13,7 +13,7 @@
  *  httpOnly; Secure; SameSite=Strict cookies so the browser forwards
  *  them automatically with every WebSocket HTTP Upgrade to port 1800.
  *
- *  Copyright (c) 2025, ArtGins.
+ *  Copyright (c) 2026, ArtGins.
  *  All Rights Reserved.
  ****************************************************************************/
 #pragma once

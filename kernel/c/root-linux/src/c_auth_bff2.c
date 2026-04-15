@@ -1708,10 +1708,14 @@ PRIVATE void process_next(hgobj gobj)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
-    if(priv->processing || priv->q_count == 0) return;
+    if(priv->processing || priv->q_count == 0) {
+        return;
+    }
 
     PENDING_AUTH *pa = dequeue(gobj);
-    if(!pa) return;
+    if(!pa) {
+        return;
+    }
 
     priv->processing = TRUE;
 
@@ -1736,12 +1740,6 @@ PRIVATE void process_next(hgobj gobj)
             action_name(pa->action), kc_token_url, priv->q_count
         );
     }
-
-    /*
-     *  gobj_http is the PERSISTENT outbound connection created in
-     *  mt_start.  process_next no longer creates/destroys it per
-     *  request — it's reused across all /auth/* round-trips.
-     */
 
     /*
      *  Build the task output_data.  `_browser_gen` rides along with
