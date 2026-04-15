@@ -119,7 +119,6 @@ typedef enum {
  *  One queued browser request waiting for its Keycloak response.
  */
 typedef struct _PENDING_AUTH {
-    hgobj       browser_src;            /* c_prot_http_sr gobj to respond to */
     uint64_t    browser_gen;            /* priv->browser_alive_gen captured at enqueue time;
                                            compared against the current priv->browser_alive_gen
                                            when the task's result_* runs to decide whether the
@@ -143,10 +142,10 @@ typedef struct _PENDING_AUTH {
 PRIVATE BOOL stats_match(const char *stats, const char *name);
 PRIVATE const char *action_name(bff_action_t a);
 PRIVATE void process_next(hgobj gobj);
-PRIVATE void send_json_response(hgobj browser_src, int status_code,
+PRIVATE void send_json_response(hgobj browser, int status_code,
     const char *status_text, json_t *jn_body, const char *extra_headers
 );
-PRIVATE void send_error_response(hgobj gobj, hgobj browser_src,
+PRIVATE void send_error_response(hgobj gobj, hgobj browser,
     int status_code, const char *status_text,
     const char *error_code, const char *error_msg,
     const char *extra_headers
@@ -590,10 +589,8 @@ PRIVATE json_t *cmd_view_status(hgobj gobj, const char *cmd, json_t *kw, hgobj s
     for(int i = 0; i < priv->q_count; i++) {
         int idx = (priv->q_head + i) % priv->queue_size;
         const PENDING_AUTH *pa = &priv->queue[idx];
-        json_t *jn_entry = json_pack("{s:s, s:s}",
-            "action",       action_name(pa->action),
-            "browser_src",  pa->browser_src ?
-                gobj_short_name(pa->browser_src) : ""
+        json_t *jn_entry = json_pack("{s:s}",
+            "action",       action_name(pa->action)
         );
         json_array_append_new(jn_queue, jn_entry);
     }
@@ -894,7 +891,7 @@ PRIVATE json_t *redact_for_trace(json_t *jn)
  *  extra_headers: raw header lines ("Set-Cookie: …\r\nSet-Cookie: …\r\n")
  *                 or NULL.
  ***************************************************************************/
-PRIVATE void send_json_response(hgobj browser_src, int status_code,
+PRIVATE void send_json_response(hgobj browser, int status_code,
     const char *status_text, json_t *jn_body, const char *extra_headers)
 {
     json_t *kw_resp = json_pack("{s:s, s:s, s:O}",
@@ -902,7 +899,7 @@ PRIVATE void send_json_response(hgobj browser_src, int status_code,
         "headers", extra_headers ? extra_headers : "",
         "body",    jn_body
     );
-    gobj_send_event(browser_src, EV_SEND_MESSAGE, kw_resp, 0);
+    gobj_send_event(browser, EV_SEND_MESSAGE, kw_resp, 0);
 }
 
 /***************************************************************************
@@ -925,7 +922,7 @@ PRIVATE void send_json_response(hgobj browser_src, int status_code,
  *              Something is genuinely broken: upstream down, config
  *              wrong, server overwhelmed.  The operator should look.
  ***************************************************************************/
-PRIVATE void send_error_response(hgobj gobj, hgobj browser_src,
+PRIVATE void send_error_response(hgobj gobj, hgobj browser,
     int status_code, const char *status_text,
     const char *error_code, const char *error_msg,
     const char *extra_headers)
@@ -942,7 +939,6 @@ PRIVATE void send_error_response(hgobj gobj, hgobj browser_src,
             "status_text",  "%s", status_text ? status_text : "",
             "error_code",   "%s", error_code ? error_code : "",
             "error",        "%s", error_msg ? error_msg : "",
-            "browser_src",  "%s", browser_src ? gobj_short_name(browser_src) : "",
             NULL
         );
     } else {
@@ -954,7 +950,6 @@ PRIVATE void send_error_response(hgobj gobj, hgobj browser_src,
             "status_text",  "%s", status_text ? status_text : "",
             "error_code",   "%s", error_code ? error_code : "",
             "error",        "%s", error_msg ? error_msg : "",
-            "browser_src",  "%s", browser_src ? gobj_short_name(browser_src) : "",
             NULL
         );
     }
@@ -964,7 +959,7 @@ PRIVATE void send_error_response(hgobj gobj, hgobj browser_src,
         "error_code", error_code ? error_code : "unknown_error",
         "error",      error_msg ? error_msg : ""
     );
-    send_json_response(browser_src, status_code, status_text, jn_body, extra_headers);
+    send_json_response(browser, status_code, status_text, jn_body, extra_headers);
     JSON_DECREF(jn_body)
 }
 
@@ -1055,19 +1050,8 @@ PRIVATE json_t *result_token_response(
      *  (It was passed via output_data of the task.)
      */
     json_t *output_data = gobj_read_json_attr(src_task, "output_data");
-    hgobj browser_src   = (hgobj)(uintptr_t)kw_get_int(
-        gobj, output_data, "_browser_src", 0, KW_REQUIRED);
     bff_action_t action = (bff_action_t)kw_get_int(
         gobj, output_data, "_action", 0, KW_REQUIRED);
-
-    if(!browser_src) {
-        gobj_log_error(gobj, 0,
-            "function", "%s", __FUNCTION__,
-            "msg",      "%s", "no browser_src in output_data",
-            NULL);
-        KW_DECREF(kw)
-        STOP_TASK()
-    }
 
     int status = (int)kw_get_int(gobj, kw, "response_status_code", -1, KW_REQUIRED);
     const char *origin = kw_get_str(gobj, output_data, "_origin", "", 0);
@@ -1225,7 +1209,7 @@ PRIVATE json_t *result_token_response(
             browser_msg    = "Authentication service unavailable";
         }
 
-        send_error_response(gobj, browser_src, browser_status,
+        send_error_response(gobj, gobj_bottom_gobj(gobj), browser_status,
             status_str(browser_status), browser_code, browser_msg, cors_hdrs);
         KW_DECREF(kw)
         STOP_TASK()
@@ -1233,7 +1217,7 @@ PRIVATE json_t *result_token_response(
 
     json_t *jn_body = kw_get_dict(gobj, kw, "body", NULL, KW_REQUIRED);
     if(!jn_body) {
-        send_error_response(gobj, browser_src, 502, status_str(502),
+        send_error_response(gobj, gobj_bottom_gobj(gobj), 502, status_str(502),
             "auth_empty_response",
             "Empty response from authentication service", cors_hdrs);
         KW_DECREF(kw)
@@ -1330,7 +1314,7 @@ PRIVATE json_t *result_token_response(
         );
     }
 
-    send_json_response(browser_src, 200, status_str(200), jn_resp, extra);
+    send_json_response(gobj_bottom_gobj(gobj), 200, status_str(200), jn_resp, extra);
 
     JSON_DECREF(jn_resp)
     GBMEM_FREE(at_cookie)
@@ -1506,8 +1490,7 @@ PRIVATE json_t *result_kc_logout(
 )
 {
     json_t *output_data = gobj_read_json_attr(src_task, "output_data");
-    hgobj browser_src   = (hgobj)(uintptr_t)kw_get_int(
-        gobj, output_data, "_browser_src", 0, 0);
+    hgobj browser_src   = gobj_bottom_gobj(gobj);
     const char *origin  = kw_get_str(gobj, output_data, "_origin", "", 0);
 
     int status = (int)kw_get_int(gobj, kw, "response_status_code", -1, 0);
@@ -1637,13 +1620,15 @@ PRIVATE void process_next(hgobj gobj)
     }
 
     /*
-     *  Build the task output_data.  `_browser_gen` rides along with
-     *  `_browser_src` so result_token_response / result_kc_logout can
-     *  tell, when the async reply eventually arrives, whether the
-     *  connection we dispatched this task for is still on the wire.
+     *  Build the task output_data.  `_browser_gen` is carried so
+     *  result_token_response / result_kc_logout can tell, when the
+     *  async reply eventually arrives, whether the connection we
+     *  dispatched this task for is still on the wire.  The reply
+     *  itself is sent to gobj_bottom_gobj(gobj) — the current browser
+     *  socket plugged into this BFF instance — not to a stored
+     *  pointer that could outlive its gobj.
      */
-    json_t *kw_output = json_pack("{s:I, s:I, s:i, s:s, s:s, s:s, s:s, s:s, s:s, s:s, s:s}",
-        "_browser_src",    (json_int_t)(uintptr_t)pa->browser_src,
+    json_t *kw_output = json_pack("{s:I, s:i, s:s, s:s, s:s, s:s, s:s, s:s, s:s, s:s}",
         "_browser_gen",    (json_int_t)pa->browser_gen,
         "_action",         (int)pa->action,
         "_code",           pa->code,
@@ -1815,6 +1800,7 @@ PRIVATE int ac_on_close(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
         }
 
         priv->browser_alive_gen = 0;
+        // TODO clean queue
 
     } else {
         gobj_log_error(gobj, 0,
@@ -1836,6 +1822,23 @@ PRIVATE int ac_on_close(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
  ***************************************************************************/
 PRIVATE int ac_on_message(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 {
+    gclass_name_t gclass_src_name = gobj_gclass_name(src);
+    if(gclass_src_name == C_PROT_HTTP_SR) {
+        /*
+         *  message from browser
+         */
+    } else {
+        gobj_log_error(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_INTERNAL_ERROR,
+            "msg",          "%s", "What merde is message from?",
+            "src",          "%s", gobj_full_name(src),
+            NULL
+        );
+        KW_DECREF(kw)
+        return -1;
+    }
+
     int method = (int)kw_get_int(gobj, kw, "request_method", 0, 0);
     const char *url    = kw_get_str(gobj, kw, "url", "", 0);
     json_t *jn_headers = kw_get_dict(gobj, kw, "headers", NULL, 0);
@@ -1893,7 +1896,6 @@ PRIVATE int ac_on_message(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 
     PENDING_AUTH pa;
     memset(&pa, 0, sizeof(pa));
-    pa.browser_src = src;
     /*
      *  Capture the current browser generation so result_* / watchdog
      *  can tell, when the async reply eventually lands, whether the
