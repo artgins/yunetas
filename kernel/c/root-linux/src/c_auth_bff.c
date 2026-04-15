@@ -195,6 +195,7 @@ SDATA (DTP_INTEGER,     "pending_queue_size",   SDF_RD,             "16",   "Max
 SDATA (DTP_INTEGER,     "kc_timeout_ms",        SDF_RD,             "30000","Outbound Keycloak watchdog timeout in milliseconds. 0 disables. When a round-trip exceeds this, the BFF sends 504 to the browser and drains the task"),
 SDATA (DTP_POINTER,     "user_data",            0,                  0,      "user data"),
 SDATA (DTP_POINTER,     "user_data2",           0,                  0,      "more user data"),
+SDATA (DTP_POINTER,     "subscriber",           0,                  0,      "subscriber of output-events. If it's null then subscriber is the parent."),
 SDATA_END()
 };
 
