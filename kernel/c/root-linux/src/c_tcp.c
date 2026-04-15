@@ -87,7 +87,6 @@ PRIVATE const sdata_desc_t attrs_table[] = { // WARNING repeated in c_tcp/c_esp_
 /*-ATTR-type--------name----------------flag------------default-----description---------- */
 SDATA (DTP_BOOLEAN, "__clisrv__",       SDF_STATS,      "FALSE",    "Client of tcp server. This tcp obj is created or configured by C_TCP_S, Check if the '__clisrv__' is TRUE to know if this is a server (client channel) tcp gobj."),
 SDATA (DTP_STRING,  "url",              SDF_RD,         "",         "Url to connect in the case of tcp gobj client. Check if the 'url' is not empty to know if this is a client tcp gobj."),
-SDATA (DTP_BOOLEAN, "manual",           SDF_RD,         "FALSE",    "Set TRUE if you want connect manually"),
 SDATA (DTP_BOOLEAN, "use_ssl",          SDF_RD,         "FALSE",    "True if schema is secure. Set internally if client, externally is clisrv"),
 SDATA (DTP_JSON,    "crypto",           SDF_RD,         "{}",       "Crypto config"),
 SDATA (DTP_POINTER, "ytls",             0,              0,          "TLS handler"),
@@ -367,18 +366,18 @@ PRIVATE int mt_start(hgobj gobj)
          */
         gobj_start(priv->gobj_timer);
 
-        if (!gobj_read_bool_attr(gobj, "manual")) {
-            if (priv->timeout_inactivity > 0) {
-                // don't connect until arrives data to transmit
-                if(priv->connxs > 0) {
-                    // Some connection was happen
-                } else {
-                    // But connect once time at least.
-                    gobj_send_event(gobj, EV_CONNECT, 0, gobj);
-                }
+        if(priv->timeout_inactivity > 0) {
+            /*
+             *  don't connect until arrives data to transmit, except first time
+             */
+            if(priv->connxs > 0) {
+                // First connection already happened
             } else {
+                // But connect once time at least.
                 gobj_send_event(gobj, EV_CONNECT, 0, gobj);
             }
+        } else {
+            gobj_send_event(gobj, EV_CONNECT, 0, gobj);
         }
     }
 
