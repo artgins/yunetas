@@ -232,6 +232,29 @@ static int register_yuno_and_more(void)
     gobj_set_gclass_no_trace(gclass_find_by_name(C_TIMER),  "machine", TRUE);
     gobj_set_global_no_trace("timer_periodic", TRUE);
 
+    // Samples of traces: DON'T REMOVE
+    // gobj_set_gclass_trace(gclass_find_by_name(C_IEVENT_SRV), "identity-card", TRUE);
+    // gobj_set_gclass_trace(gclass_find_by_name(C_IEVENT_CLI), "identity-card", TRUE);
+
+    // gobj_set_gclass_trace(gclass_find_by_name(C_TCP), "traffic", TRUE);
+
+    // Global traces
+    // gobj_set_global_trace("create_delete", TRUE);
+    // gobj_set_global_trace("machine", TRUE);
+    // gobj_set_global_trace("create_delete2", TRUE);
+    // gobj_set_global_trace("subscriptions", TRUE);
+    // gobj_set_global_trace("start_stop", TRUE);
+    // gobj_set_global_trace("monitor", TRUE);
+    // gobj_set_global_trace("event_monitor", TRUE);
+    // gobj_set_global_trace("liburing", TRUE);
+    // gobj_set_global_trace("ev_kw", TRUE);
+    // gobj_set_global_trace("authzs", TRUE);
+    // gobj_set_global_trace("states", TRUE);
+    // gobj_set_global_trace("gbuffers", TRUE);
+    // gobj_set_global_trace("timer_periodic", TRUE);
+    // gobj_set_global_trace("timer", TRUE);
+    // gobj_set_global_trace("liburing_timer", TRUE);
+
     set_auto_kill_time(10);
 
     /*

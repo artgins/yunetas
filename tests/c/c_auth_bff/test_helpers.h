@@ -84,10 +84,14 @@ PUBLIC void test_helpers_check_stats(
  ***************************************************************/
 
 /*
- *  Enter the graceful shutdown sequence.  Stops the transient
- *  http_cl + c_tcp stack so io_uring gets a chance to cancel
- *  in-flight reads/writes, then arms the death timer so the
- *  yuno doesn't try to destroy gobjs that are still RUNNING.
+ *  Enter the graceful shutdown sequence:
+ *    - gobj_stop the transient outbound http_cl (the c_tcp bottom
+ *      rides in its own mt_stop chain; gobj_stop_tree on the whole
+ *      client side would race with its EV_ON_CLOSE cascade)
+ *    - gobj_stop_tree __bff_side__ so the inbound c_tcp_s / c_prot_http_sr
+ *      children are halted before the yuno framework destroys them
+ *    - arm the 100 ms death timer so io_uring close events have time to
+ *      propagate and the framework doesn't trip "Destroying a RUNNING gobj"
  *
  *  See c_test1_login.c::ac_on_message for the full rationale.
  *
@@ -96,12 +100,16 @@ PUBLIC void test_helpers_check_stats(
  *      hgobj gobj_http_cl;
  *      BOOL  dying;
  */
-#define TEST_HELPERS_BEGIN_DYING(priv) do {             \
-    if((priv)->gobj_http_cl) {                          \
-        gobj_stop_tree((priv)->gobj_http_cl);           \
-    }                                                   \
-    (priv)->dying = TRUE;                               \
-    set_timeout((priv)->timer, 100);                    \
+#define TEST_HELPERS_BEGIN_DYING(priv) do {                                 \
+    if((priv)->gobj_http_cl) {                                              \
+        gobj_stop((priv)->gobj_http_cl);                                    \
+    }                                                                       \
+    hgobj _bff_side = gobj_find_service("__bff_side__", FALSE);             \
+    if(_bff_side) {                                                         \
+        gobj_stop_tree(_bff_side);                                          \
+    }                                                                       \
+    (priv)->dying = TRUE;                                                   \
+    set_timeout((priv)->timer, 100);                                        \
 } while(0)
 
 #ifdef __cplusplus

@@ -224,7 +224,11 @@ PRIVATE void verify_and_die(hgobj gobj)
      *  C_TIMER0 (see mt_create rationale).
      */
     if(priv->gobj_http_cl) {
-        gobj_stop_tree(priv->gobj_http_cl);
+        gobj_stop(priv->gobj_http_cl);
+    }
+    hgobj bff_side = gobj_find_service("__bff_side__", FALSE);
+    if(bff_side) {
+        gobj_stop_tree(bff_side);
     }
     priv->dying = TRUE;
     set_timeout0(priv->timer, 100);

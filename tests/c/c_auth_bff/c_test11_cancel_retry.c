@@ -314,7 +314,11 @@ PRIVATE void verify_and_die(hgobj gobj)
 
     /* Death sequence — inlined to use set_timeout0 (see test9). */
     if(priv->gobj_http_cl) {
-        gobj_stop_tree(priv->gobj_http_cl);
+        gobj_stop(priv->gobj_http_cl);
+    }
+    hgobj bff_side = gobj_find_service("__bff_side__", FALSE);
+    if(bff_side) {
+        gobj_stop_tree(bff_side);
     }
     priv->dying = TRUE;
     set_timeout0(priv->timer, 100);
