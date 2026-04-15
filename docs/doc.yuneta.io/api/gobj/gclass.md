@@ -272,7 +272,7 @@ hgclass gclass_create(
 | `gclass_name` | [`gclass_name_t`](#gclass_name_t) | The name of the `gclass` to be created. |
 | `event_types` | [`event_type_t *`](#event_type_t) | A list of event types associated with the `gclass`. |
 | `states` | [`states_t *`](#states_t) | A list of states defining the finite state machine of the `gclass`. |
-| `gmt` | [`const GMETHODS *`](#GMETHODS) | A pointer to the global methods table defining the behavior of the `gclass`. |
+| `gmt` | [`const GMETHODS *`](#GMETHODS) | A pointer to the gclass methods table defining the behavior of the `gclass`. |
 | `lmt` | [`const LMETHOD *`](#LMETHOD) | A pointer to the local methods table for internal method handling. |
 | `attrs_table` | [`const sdata_desc_t *`](#sdata_desc_t) | A pointer to the attribute description table defining the attributes of the `gclass`. |
 | `priv_size` | `size_t` | The size of the private data structure allocated for each instance of the `gclass`. |

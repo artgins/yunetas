@@ -125,7 +125,7 @@ SDATA_END()
 Increment with `gobj_write_integer_attr()`. Each increment goes
 through the SDATA system: name lookup, JSON read, JSON write.
 
-### Path B — `mt_stats` global method with `PRIVATE_DATA` counters
+### Path B — `mt_stats` gclass method with `PRIVATE_DATA` counters
 
 Required for **high-traffic gobjs**. Every `SDF_*STATS` increment via
 `gobj_write_integer_attr()` carries non-trivial cost (string lookup,

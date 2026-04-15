@@ -11,7 +11,7 @@ gclass_create(
     name,               // "C_MY_CLASS"
     event_types,        // [[event_name, flag], ...]
     states,             // [[state_name, ev_action_table], ...]
-    gmt,                // global methods table (mt_create, mt_start, …)
+    gmt,                // gclass methods table (mt_create, mt_start, …)
     lmt,                // low-level methods table
     attrs_table,        // SDATA array
     private_data,       // template object copied per instance

@@ -25,7 +25,7 @@ A `GClass` consists of several key components that define its operation:
     - Set of private variables
 
 4. [`Global Methods`](#GMETHODS)
-    - Set of global methods that supports
+    - Set of gclass methods that supports
 
 5. [`Local Methods`](#LMETHOD)
     - Set of local methods that supports
@@ -59,7 +59,7 @@ A `GClass` consists of several key components that define its operation:
 2. **Instantiation**:
     - A GObject instance is created from a `GClass` using the GObject API.
 3. **Interaction**:
-    - The GObject API (e.g., [`gobj_start()`](#gobj_start), [`gobj_stop()`](#gobj_stop)) dynamically invokes the global methods ([`gmt`](#GMETHODS)) defined in the `GClass`.
+    - The GObject API (e.g., [`gobj_start()`](#gobj_start), [`gobj_stop()`](#gobj_stop)) dynamically invokes the gclass methods ([`gmt`](#GMETHODS)) defined in the `GClass`.
 4. **Extensibility**:
     - The modular design of `GClass` allows new behaviors and features to be added by defining additional methods, events, or states.
 
@@ -367,7 +367,7 @@ Is a system event. Publish when a FSM change his state.
 (GMETHODS)=
 ## GMETHODS
 
-The `GMETHODS` structure in Yuneta defines the global methods that a `GClass` can implement. These methods encapsulate key behaviors and operations associated with the lifecycle, state management, and functionality of GObjects.
+The `GMETHODS` structure in Yuneta defines the gclass methods that a `GClass` can implement. These methods encapsulate key behaviors and operations associated with the lifecycle, state management, and functionality of GObjects.
 
 Each method serves a specific purpose and is invoked through the GObject API, enabling dynamic and modular behavior across different `GClasses`.
 
@@ -769,7 +769,7 @@ that can be implemented by a `GClass`.
 These methods are specific to the internal operation of the `GClass` 
 and are not intended to be invoked dynamically via 
 the [`gobj_local_method()`](<#gobj_local_method>) API, 
-unlike the global methods (`GMETHODS`).
+unlike the gclass methods (`GMETHODS`).
 
 
 (event_type_t)=

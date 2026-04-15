@@ -4261,7 +4261,7 @@ PUBLIC json_t *gobj_local_method(
 }
 
 /***************************************************************************
- *  Execute global method "start" of the gobj
+ *  Execute gclass method "start" of the gobj
  ***************************************************************************/
 PUBLIC int gobj_start(hgobj gobj_)
 {
@@ -4406,7 +4406,7 @@ PUBLIC int gobj_start_tree(hgobj gobj_)
 }
 
 /***************************************************************************
- *  Execute global method "stop" of the gobj
+ *  Execute gclass method "stop" of the gobj
  ***************************************************************************/
 PUBLIC int gobj_stop(hgobj gobj_)
 {
@@ -4543,7 +4543,7 @@ PUBLIC int gobj_stop_tree(hgobj gobj_)
 }
 
 /***************************************************************************
- *  Execute global method "play" of the gobj
+ *  Execute gclass method "play" of the gobj
  ***************************************************************************/
 PUBLIC int gobj_play(hgobj gobj_)
 {
@@ -4630,7 +4630,7 @@ PUBLIC int gobj_play(hgobj gobj_)
 }
 
 /***************************************************************************
- *  Execute global method "pause" of the gobj
+ *  Execute gclass method "pause" of the gobj
  ***************************************************************************/
 PUBLIC int gobj_pause(hgobj gobj_)
 {

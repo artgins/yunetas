@@ -356,7 +356,7 @@ SDATACM2(DTP_SCHEMA,    "remove-denied-ip",         SDF_AUTHZ_X, 0,      pm_remo
 SDATACM2(DTP_SCHEMA,    "system-schema",            SDF_AUTHZ_X, 0,      0, cmd_system_topic_schema,             "Get system topic schema"),
 SDATACM2(DTP_SCHEMA,    "global-variables",         SDF_AUTHZ_X, 0,      0, cmd_global_variables,                "Get global variables"),
 
-SDATACM2(DTP_SCHEMA,    "truncate-log-file",           SDF_AUTHZ_X, 0,      0,          cmd_truncate_log_file,        "Truncate current log file"),
+SDATACM2(DTP_SCHEMA,    "truncate-log-file",        SDF_AUTHZ_X, 0,      0,          cmd_truncate_log_file,        "Truncate current log file"),
 SDATACM2(DTP_SCHEMA,    "reset-log-counters",       SDF_AUTHZ_X, 0,      0,          cmd_reset_log_counters,     "Reset log counters"),
 SDATACM2(DTP_SCHEMA,    "view-log-counters",        SDF_AUTHZ_X, 0,      0,          cmd_view_log_counters,      "View log counters"),
 SDATACM2(DTP_SCHEMA,    "add-log-handler",          SDF_AUTHZ_X, 0,      pm_add_log_handler,cmd_add_log_handler, "Add log handler"),
