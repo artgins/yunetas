@@ -236,14 +236,14 @@ typedef struct _PRIVATE_DATA {
 
     /* Current outbound Identity Provider connection */
     BOOL            processing;
-    hgobj           gobj_http;          /* C_PROT_HTTP_CL while active */
+    hgobj           gobj_idprovider;          /* C_PROT_HTTP_CL while active */
     hgobj           gobj_task;          /* C_TASK while active; needed so
                                             ac_kc_watchdog can stop it
                                             without depending on the natural
                                             EV_END_TASK completion path. */
 
     /*
-     *  Outbound watchdog.  Armed in process_next right after gobj_http
+     *  Outbound watchdog.  Armed in process_next right after gobj_idprovider
      *  is created; disarmed in ac_end_task when the task completes
      *  normally.  If the watchdog fires first the Keycloak round-trip
      *  has exceeded kc_timeout_ms: the BFF sends 504 to the browser
@@ -368,7 +368,7 @@ PRIVATE void mt_create(hgobj gobj)
     /*
      *  Outbound KC watchdog timer (millisecond precision — C_TIMER0,
      *  not C_TIMER, see c_timer.h header note on "accuracy in seconds").
-     *  Armed in process_next after gobj_http is created; disarmed by
+     *  Armed in process_next after gobj_idprovider is created; disarmed by
      *  ac_end_task or by a successful result_* run.
      */
     snprintf(priv->idp_name, sizeof(priv->idp_name), "%s-idp", gobj_name(gobj));
@@ -502,7 +502,7 @@ PRIVATE int mt_start(hgobj gobj)
 
     json_t *jn_crypto = gobj_read_json_attr(gobj, "crypto");
 
-    priv->gobj_http = gobj_create_pure_child(
+    priv->gobj_idprovider = gobj_create_pure_child(
         priv->idp_name,
         C_PROT_HTTP_CL,
         json_pack("{s:I, s:s}",
@@ -517,10 +517,10 @@ PRIVATE int mt_start(hgobj gobj)
      *  The HTTP_CL was auto-subscribing the parent (BFF) inside its
      *  mt_create, so we must explicitly drop that subscription now.
      */
-    gobj_unsubscribe_event(priv->gobj_http, NULL, NULL, gobj);
+    gobj_unsubscribe_event(priv->gobj_idprovider, NULL, NULL, gobj);
 
     gobj_set_bottom_gobj(
-        priv->gobj_http,
+        priv->gobj_idprovider,
         gobj_create_pure_child(
             priv->idp_name,
             C_TCP,
@@ -538,7 +538,7 @@ PRIVATE int mt_start(hgobj gobj)
                  */
                 "timeout_between_connections", 100
             ),
-            priv->gobj_http
+            priv->gobj_idprovider
         )
     );
 
@@ -549,7 +549,7 @@ PRIVATE int mt_start(hgobj gobj)
      *  (kicked into action via the synthesize-EV_ON_OPEN branch in
      *  process_next) or about to be (the C_TASK subscribes and waits).
      */
-    gobj_start_tree(priv->gobj_http);
+    gobj_start_tree(priv->gobj_idprovider);
 
     return 0;
 }
@@ -559,7 +559,7 @@ PRIVATE int mt_start(hgobj gobj)
  *
  *  Three unrelated chains to tear down here:
  *
- *    1) priv->gobj_http: the persistent OUTBOUND HTTP client to the IdP,
+ *    1) priv->gobj_idprovider: the persistent OUTBOUND HTTP client to the IdP,
  *       created in mt_start.  Stop the tree only — leave the gobj alive
  *       so the framework's mt_destroy walk can free it AFTER the
  *       io_uring cancel/close CQEs from the TCP have drained.
@@ -589,10 +589,10 @@ PRIVATE int mt_stop(hgobj gobj)
     }
     priv->gobj_task = NULL;
 
-    if(priv->gobj_http) {
-        gobj_stop_tree(priv->gobj_http);
+    if(priv->gobj_idprovider) {
+        gobj_stop_tree(priv->gobj_idprovider);
         /*
-         *  Do NOT priv->gobj_http = NULL — the framework still owns
+         *  Do NOT priv->gobj_idprovider = NULL — the framework still owns
          *  this child until mt_destroy.  Do NOT gobj_destroy here —
          *  io_uring CQEs are still pending (use-after-free).
          */
@@ -1521,7 +1521,7 @@ PRIVATE json_t *action_call_keycloak(
         "headers",  jn_headers,
         "data",     jn_data
     );
-    gobj_send_event(priv->gobj_http, EV_SEND_MESSAGE, query, gobj);
+    gobj_send_event(priv->gobj_idprovider, EV_SEND_MESSAGE, query, gobj);
 
     KW_DECREF(kw)
     CONTINUE_TASK()
@@ -1576,7 +1576,7 @@ PRIVATE json_t *action_kc_logout(
         "headers",  jn_headers,
         "data",     jn_data
     );
-    gobj_send_event(priv->gobj_http, EV_SEND_MESSAGE, query, gobj);
+    gobj_send_event(priv->gobj_idprovider, EV_SEND_MESSAGE, query, gobj);
 
     KW_DECREF(kw)
     CONTINUE_TASK()
@@ -1769,7 +1769,7 @@ PRIVATE void process_next(hgobj gobj)
                 "{s:s, s:s}"
             "]}",
             "gobj_jobs",    json_integer((json_int_t)(uintptr_t)gobj),
-            "gobj_results", json_integer((json_int_t)(uintptr_t)priv->gobj_http),
+            "gobj_results", json_integer((json_int_t)(uintptr_t)priv->gobj_idprovider),
             "output_data",  kw_output,
             "jobs",
                 "exec_action", "action_call_keycloak",
@@ -1785,7 +1785,7 @@ PRIVATE void process_next(hgobj gobj)
                 "{s:s, s:s}"
             "]}",
             "gobj_jobs",    json_integer((json_int_t)(uintptr_t)gobj),
-            "gobj_results", json_integer((json_int_t)(uintptr_t)priv->gobj_http),
+            "gobj_results", json_integer((json_int_t)(uintptr_t)priv->gobj_idprovider),
             "output_data",  kw_output,
             "jobs",
                 "exec_action", "action_kc_logout",
@@ -1801,7 +1801,7 @@ PRIVATE void process_next(hgobj gobj)
     priv->gobj_task = gobj_task;
 
     /*
-     *  gobj_http is a persistent pure_child started in mt_start, NOT
+     *  gobj_idprovider is a persistent pure_child started in mt_start, NOT
      *  recreated per request — don't gobj_start_tree it here.
      */
     gobj_start(gobj_task);
@@ -1809,7 +1809,7 @@ PRIVATE void process_next(hgobj gobj)
     /*
      *  Persistent-connection kick:
      *
-     *  When gobj_http was created on demand (legacy flow) the C_TASK
+     *  When gobj_idprovider was created on demand (legacy flow) the C_TASK
      *  subscribed to its events and waited for EV_ON_OPEN before
      *  firing action_call_keycloak.  With a persistent connection
      *  the EV_ON_OPEN already fired long ago (at BFF startup), so
@@ -1822,8 +1822,8 @@ PRIVATE void process_next(hgobj gobj)
      *  handshake completes.  If the connection ultimately fails
      *  EV_ON_CLOSE will reach the task and abort it via the watchdog.
      */
-    if(gobj_current_state(priv->gobj_http) == ST_CONNECTED) {
-        gobj_send_event(gobj_task, EV_ON_OPEN, json_object(), priv->gobj_http);
+    if(gobj_current_state(priv->gobj_idprovider) == ST_CONNECTED) {
+        gobj_send_event(gobj_task, EV_ON_OPEN, json_object(), priv->gobj_idprovider);
     }
 
     /*
@@ -1914,7 +1914,7 @@ PRIVATE int ac_on_open(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
  *  Setting browser_alive_gen to 0 invalidates every queued and
  *  in-flight task against this (now closed) connection.  Any Keycloak
  *  round-trip already dispatched keeps running to completion —
- *  ac_end_task will tear down priv->gobj_http on its own — but when
+ *  ac_end_task will tear down priv->gobj_idprovider on its own — but when
  *  its result_* callback eventually fires, the task's captured
  *  browser_gen will no longer match priv->browser_alive_gen (which
  *  is either 0 here, or the new gen from a later ac_on_open) and the
@@ -2152,7 +2152,7 @@ PRIVATE int ac_on_message(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
  *  and trigger the normal end-of-task cleanup path by emitting
  *  EV_END_TASK to ourselves, which lands in ac_end_task below.
  *
- *  ac_end_task tears down priv->gobj_http, resets priv->processing,
+ *  ac_end_task tears down priv->gobj_idprovider, resets priv->processing,
  *  clears active_browser_src and kc_watchdog_fired, and then runs
  *  process_next() to dispatch any queued request — so a single stuck
  *  Keycloak call does not wedge the whole channel.
@@ -2268,7 +2268,7 @@ PRIVATE int ac_end_task(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
     priv->gobj_task = NULL;  /* ac_stopped will destroy it */
 
     /*
-     *  gobj_http is the PERSISTENT IdP connection — created in
+     *  gobj_idprovider is the PERSISTENT IdP connection — created in
      *  mt_start, alive for the whole BFF instance lifetime.  Do NOT
      *  stop or destroy it here; the next request will reuse it.
      *  This is the whole point of the connection-pooling refactor.
@@ -2373,8 +2373,8 @@ PRIVATE json_t *cmd_view_status(hgobj gobj, const char *cmd, json_t *kw, hgobj s
         "name",             gobj_name(gobj),
         "full_name",        gobj_short_name(gobj),
         "processing",       priv->processing ? 1 : 0,
-        "has_active_http",  priv->gobj_http ? 1 : 0,
-        "active_http",      priv->gobj_http ? gobj_short_name(priv->gobj_http) : "",
+        "has_active_http",  priv->gobj_idprovider ? 1 : 0,
+        "active_http",      priv->gobj_idprovider ? gobj_short_name(priv->gobj_idprovider) : "",
         "q_count",          priv->q_count,
         "q_head",           priv->q_head,
         "q_tail",           priv->q_tail,
