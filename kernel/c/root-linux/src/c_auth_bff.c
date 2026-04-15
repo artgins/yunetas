@@ -60,7 +60,6 @@
 #include <strings.h>    /* strcasecmp(), strcasestr() */
 #include <stdio.h>
 #include <limits.h>
-#include <time.h>
 
 #include <gobj.h>
 #include <g_ev_kernel.h>
@@ -71,9 +70,9 @@
 
 #include "msg_ievent.h"
 #include "c_prot_http_cl.h"
+#include "c_prot_http_sr.h"
 #include "c_task.h"
 #include "c_tcp.h"
-#include "c_timer0.h"           /* C_TIMER0 (ms precision) for the outbound watchdog */
 #include "c_auth_bff.h"
 
 /***************************************************************************
@@ -348,14 +347,25 @@ PRIVATE void mt_create(hgobj gobj)
     snprintf(priv->idp_name, sizeof(priv->idp_name), "%s-idp", gobj_name(gobj));
 
     /* Pre-parse IdProvider base URL for re-use in every outbound call */
+    char kc_base[PATH_MAX];
     const char *kc_url  = gobj_read_str_attr(gobj, "keycloak_url");
+    const char *realm   = gobj_read_str_attr(gobj, "realm");
+
+    build_path(kc_base, sizeof(kc_base),
+        kc_url,
+        "realms",
+        realm,
+        "protocol",
+        "openid-connect",
+        NULL
+    );
 
     if(parse_url(gobj,
-        kc_url,
+        kc_base,
         priv->schema, sizeof(priv->schema),
         priv->host,   sizeof(priv->host),
         priv->port,   sizeof(priv->port),
-        priv->path,   sizeof(priv->path),
+        priv->path,   sizeof(priv->path),   // HACK important
         NULL, 0,
         FALSE
     )<0) {
@@ -363,7 +373,7 @@ PRIVATE void mt_create(hgobj gobj)
             "function", "%s", __FUNCTION__,
             "msgset",   "%s", MSGSET_SYSTEM_ERROR,
             "msg",      "%s", "keycloak url parse failed",
-            "url",      "%s", kc_url,
+            "url",      "%s", kc_base,
             NULL
         );
     } else {
@@ -377,6 +387,7 @@ PRIVATE void mt_create(hgobj gobj)
             ),
             gobj
         );
+        gobj_unsubscribe_event(priv->gobj_http, NULL, NULL, gobj);
 
         gobj_set_bottom_gobj(
             priv->gobj_http,
@@ -1729,7 +1740,7 @@ PRIVATE json_t *result_done(hgobj gobj, const char *lm, json_t *kw, hgobj src)
 
 
 /***************************************************************************
- *  New browser HTTP connection opened.
+ *  Connection from browser or IdProvider
  *
  *  Bumps the browser generation counter and stores the new value as
  *  `browser_alive_gen`.  Every task that gets enqueued while this is
@@ -1742,51 +1753,77 @@ PRIVATE int ac_on_open(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
-    priv->browser_gen_counter++;
-    priv->browser_alive_gen = priv->browser_gen_counter;
+    gclass_name_t gclass_src_name = gobj_gclass_name(src);
+    if(gclass_src_name == C_PROT_HTTP_CL) {
+        /*
+         *  Connection from IdProvider
+         */
 
-    if(gobj_trace_level(gobj) & TRACE_MESSAGES) {
-        gobj_trace_msg(gobj,
-            "BFF connection OPEN from %s (gen=%llu)",
-            gobj_short_name(src),
-            (unsigned long long)priv->browser_alive_gen
+    } else if(gclass_src_name == C_PROT_HTTP_SR) {
+        /*
+         *  Connection from browser
+         */
+        priv->browser_gen_counter++;
+        priv->browser_alive_gen = priv->browser_gen_counter;
+
+        if(gobj_trace_level(gobj) & TRACE_MESSAGES) {
+            gobj_trace_msg(gobj,
+                "BFF connection OPEN from %s (gen=%llu)",
+                gobj_short_name(src),
+                (unsigned long long)priv->browser_alive_gen
+            );
+        }
+    } else {
+        gobj_log_error(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_INTERNAL_ERROR,
+            "msg",          "%s", "What merde is message from?",
+            "src",          "%s", gobj_full_name(src),
+            NULL
         );
     }
+
     KW_DECREF(kw)
     return 0;
 }
 
 /***************************************************************************
  *  Browser HTTP connection closed (before we could respond, or after).
- *
- *  Setting browser_alive_gen to 0 invalidates every queued and
- *  in-flight task against this (now closed) connection.  Any Keycloak
- *  round-trip already dispatched keeps running to completion —
- *  ac_end_task will tear down priv->gobj_http on its own — but when
- *  its result_* callback eventually fires, the task's captured
- *  browser_gen will no longer match priv->browser_alive_gen (which
- *  is either 0 here, or the new gen from a later ac_on_open) and the
- *  reply will be dropped.
- *
- *  The pending queue is left as-is on purpose: entries there are
- *  naturally invalidated by the gen mismatch when they reach result_*.
- *  Clearing q_count here would just skip the drain loop, which is a
- *  latent optimisation but not a correctness requirement.
  ***************************************************************************/
 PRIVATE int ac_on_close(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
-    if(gobj_trace_level(gobj) & TRACE_MESSAGES) {
-        gobj_trace_msg(gobj,
-            "BFF connection CLOSE from %s (gen=%llu q_count=%d processing=%d)",
-            gobj_short_name(src),
-            (unsigned long long)priv->browser_alive_gen,
-            priv->q_count, priv->processing
+    gclass_name_t gclass_src_name = gobj_gclass_name(src);
+    if(gclass_src_name == C_PROT_HTTP_CL) {
+        /*
+         *  Connection from IdProvider
+         */
+
+    } else if(gclass_src_name == C_PROT_HTTP_SR) {
+        /*
+         *  Connection from browser
+         */
+        if(gobj_trace_level(gobj) & TRACE_MESSAGES) {
+            gobj_trace_msg(gobj,
+                "BFF connection CLOSE from %s (gen=%llu q_count=%d processing=%d)",
+                gobj_short_name(src),
+                (unsigned long long)priv->browser_alive_gen,
+                priv->q_count, priv->processing
+            );
+        }
+
+        priv->browser_alive_gen = 0;
+
+    } else {
+        gobj_log_error(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_INTERNAL_ERROR,
+            "msg",          "%s", "What merde is message from?",
+            "src",          "%s", gobj_full_name(src),
+            NULL
         );
     }
-
-    priv->browser_alive_gen = 0;
 
     KW_DECREF(kw)
     return 0;
