@@ -760,7 +760,7 @@ typedef struct {
 } trace_level_t;
 
 typedef enum { // HACK strict ascendant value!, strings in gclass_flag_names
-    gcflag_manual_start             = 0x0001,   // gobj_start_tree() don't start. TODO do same with stop
+    gcflag_manual_start             = 0x0001,   // gobj_start_tree() don't start. TODO do same with stop?
     gcflag_no_check_output_events   = 0x0002,   // When publishing don't check events in output_event_list.
     gcflag_ignore_unknown_attrs     = 0x0004,   // When creating a gobj, ignore not existing attrs
     gcflag_required_start_to_play   = 0x0008,   // Don't to play if no start done.
@@ -776,6 +776,7 @@ typedef enum { // HACK strict ascendant value!, strings in gobj_flag_names
     gobj_flag_autostart         = 0x0020,   // Set by gobj_create_tree/gobj_service_factory too
     gobj_flag_autoplay          = 0x0040,   // Set by gobj_create_tree/gobj_service_factory too
     gobj_flag_top_service       = 0x0080,   // Interface (events, attrs, commands, stats) available to external access
+    gobj_flag_manual_start      = 0x0100,   // gobj_start_tree() don't start
 } gobj_flag_t;
 
 
@@ -1329,6 +1330,7 @@ PUBLIC BOOL gobj_is_top_service(hgobj gobj);
 PUBLIC BOOL gobj_is_disabled(hgobj gobj);
 PUBLIC BOOL gobj_is_volatil(hgobj gobj);
 PUBLIC int gobj_set_volatil(hgobj gobj, BOOL set);
+PUBLIC int gobj_set_manual_start(hgobj gobj, BOOL set);
 PUBLIC BOOL gobj_is_pure_child(hgobj gobj);
 PUBLIC BOOL gobj_is_bottom_gobj(hgobj gobj);
 

@@ -282,6 +282,7 @@ PRIVATE const char *gobj_flag_names[] = {
     "gobj_flag_autostart",
     "gobj_flag_autoplay",
     "gobj_flag_top_service",
+    "gobj_flag_manual_start",
     0
 };
 
@@ -1616,7 +1617,7 @@ PUBLIC hgobj gobj_create2(
     gobj->gobj_flag = gobj_flag;
 
     if(__trace_gobj_create_delete__(gobj)) {
-         trace_machine("💙💙⏩ creating: %s^%s (%s%s%s%s%s%s%s)",
+         trace_machine("💙💙⏩ creating: %s^%s (%s%s%s%s%s%s%s%s)",
             gclass->gclass_name,
             gobj_name,
             (gobj_flag & gobj_flag_default_service)? "DefaultService,":"",
@@ -1625,7 +1626,8 @@ PUBLIC hgobj gobj_create2(
             (gobj_flag & gobj_flag_volatil)? "Volatil,":"",
             (gobj_flag & gobj_flag_pure_child)? "PureChild,":"",
             (gobj_flag & gobj_flag_autostart)? "AutoStart,":"",
-            (gobj_flag & gobj_flag_autoplay)? "AutoPlay,":""
+            (gobj_flag & gobj_flag_autoplay)? "AutoPlay,":"",
+            (gobj_flag & gobj_flag_manual_start)? "Manual Start,":""
         );
     }
 
@@ -4338,6 +4340,9 @@ PRIVATE int cb_start_child(hgobj child_, void *user_data, void *user_data2, void
     if(child->gclass->gclass_flag & gcflag_manual_start) {
         return 0;
     }
+    if(child->gobj_flag & gobj_flag_manual_start) {
+        return 0;
+    }
     if(!gobj_is_destroying(child) && !gobj_is_running(child) && !gobj_is_disabled(child)) {
         gobj_start(child);
     }
@@ -4367,6 +4372,9 @@ PRIVATE int cb_start_child_tree(hgobj child_, void *user_data, void *user_data2,
     if(child->gclass->gclass_flag & gcflag_manual_start) {
         return 1;
     }
+    if(child->gobj_flag & gobj_flag_manual_start) {
+        return 1;
+    }
     if(gobj_is_disabled(child)) {
         return 1;
     }
@@ -4394,6 +4402,8 @@ PUBLIC int gobj_start_tree(hgobj gobj_)
     }
 
     if((gobj->gclass->gclass_flag & gcflag_manual_start)) {
+        return 0;
+    } else if(gobj->gobj_flag & gobj_flag_manual_start) {
         return 0;
     } else if(gobj->disabled) {
         return 0;
@@ -6272,6 +6282,21 @@ PUBLIC int gobj_set_volatil(hgobj gobj_, BOOL set)
         gobj->gobj_flag |= gobj_flag_volatil;
     } else {
         gobj->gobj_flag &= ~gobj_flag_volatil;
+    }
+
+    return 0;
+}
+
+/***************************************************************************
+ *  Set as manual start
+ ***************************************************************************/
+PUBLIC int gobj_set_manual_start(hgobj gobj_, BOOL set)
+{
+    gobj_t *gobj = gobj_;
+    if(set) {
+        gobj->gobj_flag |= gobj_flag_manual_start;
+    } else {
+        gobj->gobj_flag &= ~gobj_flag_manual_start;
     }
 
     return 0;
