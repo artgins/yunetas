@@ -142,6 +142,7 @@ typedef struct _PENDING_AUTH {
 /***************************************************************************
  *              Prototypes
  ***************************************************************************/
+PRIVATE const char *action_name(bff_action_t a);
 PRIVATE void process_next(hgobj gobj);
 PRIVATE void send_json_response(hgobj browser_src, int status_code,
     const char *status_text, json_t *jn_body, const char *extra_headers);
@@ -626,6 +627,91 @@ PRIVATE json_t *mt_stats(hgobj gobj, const char *stats, json_t *kw, hgobj src)
                     /***************************
                      *      Commands
                      ***************************/
+
+
+
+
+/***************************************************************************
+ *  cmd help
+ ***************************************************************************/
+PRIVATE json_t *cmd_help(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
+{
+    KW_INCREF(kw)
+    json_t *jn_resp = gobj_build_cmds_doc(gobj, kw);
+    return msg_iev_build_response(
+        gobj,
+        0,
+        jn_resp,
+        0,
+        0,
+        kw  // owned
+    );
+}
+
+/***************************************************************************
+ *  cmd view-status — snapshot of this C_AUTH_BFF instance.
+ *
+ *  Returned data shape:
+ *  {
+ *      "name":            "bff-3",
+ *      "full_name":       "...",
+ *      "processing":      true,
+ *      "has_active_http": true,
+ *      "active_http":     "C_PROT_HTTP_CL^bff-3",
+ *      "q_count":         2,
+ *      "q_head":          5,
+ *      "q_tail":          7,
+ *      "q_max":           16,
+ *      "queue": [
+ *          {"action": "login",    "browser_src": "..."},
+ *          {"action": "callback", "browser_src": "..."}
+ *      ]
+ *  }
+ *
+ *  C_AUTH_BFF_YUNO's view-bff-status command aggregates this across
+ *  every per-channel instance via gobj_command(child, "view-status", ...).
+ ***************************************************************************/
+PRIVATE json_t *cmd_view_status(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    json_t *jn_queue = json_array();
+    /*
+     *  Walk the ring from q_head forward, q_count entries.
+     */
+    for(int i = 0; i < priv->q_count; i++) {
+        int idx = (priv->q_head + i) % priv->queue_size;
+        const PENDING_AUTH *pa = &priv->queue[idx];
+        json_t *jn_entry = json_pack("{s:s, s:s}",
+            "action",       action_name(pa->action),
+            "browser_src",  pa->browser_src ?
+                gobj_short_name(pa->browser_src) : ""
+        );
+        json_array_append_new(jn_queue, jn_entry);
+    }
+
+    json_t *jn_data = json_pack("{s:s, s:s, s:b, s:b, s:s, s:i, s:i, s:i, s:i, s:o}",
+        "name",             gobj_name(gobj),
+        "full_name",        gobj_short_name(gobj),
+        "processing",       priv->processing ? 1 : 0,
+        "has_active_http",  priv->gobj_http ? 1 : 0,
+        "active_http",      priv->gobj_http ? gobj_short_name(priv->gobj_http) : "",
+        "q_count",          priv->q_count,
+        "q_head",           priv->q_head,
+        "q_tail",           priv->q_tail,
+        "q_max",            priv->queue_size,
+        "queue",            jn_queue
+    );
+
+    return msg_iev_build_response(
+        gobj,
+        0,
+        0,
+        0,
+        jn_data,
+        kw  // owned
+    );
+}
 
 
 
@@ -2235,98 +2321,6 @@ PRIVATE int ac_stopped(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
     }
     KW_DECREF(kw)
     return 0;
-}
-
-
-
-
-                    /***************************
-                     *      Commands
-                     ***************************/
-
-
-
-
-/***************************************************************************
- *  cmd help
- ***************************************************************************/
-PRIVATE json_t *cmd_help(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
-{
-    KW_INCREF(kw)
-    json_t *jn_resp = gobj_build_cmds_doc(gobj, kw);
-    return msg_iev_build_response(
-        gobj,
-        0,
-        jn_resp,
-        0,
-        0,
-        kw  // owned
-    );
-}
-
-/***************************************************************************
- *  cmd view-status — snapshot of this C_AUTH_BFF instance.
- *
- *  Returned data shape:
- *  {
- *      "name":            "bff-3",
- *      "full_name":       "...",
- *      "processing":      true,
- *      "has_active_http": true,
- *      "active_http":     "C_PROT_HTTP_CL^bff-3",
- *      "q_count":         2,
- *      "q_head":          5,
- *      "q_tail":          7,
- *      "q_max":           16,
- *      "queue": [
- *          {"action": "login",    "browser_src": "..."},
- *          {"action": "callback", "browser_src": "..."}
- *      ]
- *  }
- *
- *  C_AUTH_BFF_YUNO's view-bff-status command aggregates this across
- *  every per-channel instance via gobj_command(child, "view-status", ...).
- ***************************************************************************/
-PRIVATE json_t *cmd_view_status(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
-{
-    PRIVATE_DATA *priv = gobj_priv_data(gobj);
-
-    json_t *jn_queue = json_array();
-    /*
-     *  Walk the ring from q_head forward, q_count entries.
-     */
-    for(int i = 0; i < priv->q_count; i++) {
-        int idx = (priv->q_head + i) % priv->queue_size;
-        const PENDING_AUTH *pa = &priv->queue[idx];
-        json_t *jn_entry = json_pack("{s:s, s:s}",
-            "action",       action_name(pa->action),
-            "browser_src",  pa->browser_src ?
-                gobj_short_name(pa->browser_src) : ""
-        );
-        json_array_append_new(jn_queue, jn_entry);
-    }
-
-    json_t *jn_data = json_pack("{s:s, s:s, s:b, s:b, s:s, s:i, s:i, s:i, s:i, s:o}",
-        "name",             gobj_name(gobj),
-        "full_name",        gobj_short_name(gobj),
-        "processing",       priv->processing ? 1 : 0,
-        "has_active_http",  priv->gobj_http ? 1 : 0,
-        "active_http",      priv->gobj_http ? gobj_short_name(priv->gobj_http) : "",
-        "q_count",          priv->q_count,
-        "q_head",           priv->q_head,
-        "q_tail",           priv->q_tail,
-        "q_max",            priv->queue_size,
-        "queue",            jn_queue
-    );
-
-    return msg_iev_build_response(
-        gobj,
-        0,
-        0,
-        0,
-        jn_data,
-        kw  // owned
-    );
 }
 
 /***************************************************************************
