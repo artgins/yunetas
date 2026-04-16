@@ -920,7 +920,7 @@ PRIVATE int yev_callback(yev_event_h yev_event)
                         gobj_trace_dump_gbuf(gobj, yev_get_gbuf(yev_event), "%s: %s%s%s",
                             gobj_short_name(gobj),
                             gobj_read_str_attr(gobj, "sockname"),
-                            " <- ",
+                            " ⏪ ",
                             gobj_read_str_attr(gobj, "peername")
                         );
                     }

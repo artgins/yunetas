@@ -914,11 +914,11 @@ PRIVATE void send_json_response(hgobj browser, int status_code,
  *  is only a fallback and is also mirrored into the server log line.
  *
  *  Log severity is determined by HTTP status class:
- *    - 4xx  →  gobj_log_info  "BFF request rejected"
+ *    - 4xx  →  gobj_log_info  "👤BFF request rejected"
  *              Expected business outcomes: wrong password, expired
  *              session, malformed request, bad endpoint.  NOT an error
  *              — the server is doing exactly what it should.
- *    - 5xx  →  gobj_log_error "BFF server error"
+ *    - 5xx  →  gobj_log_error "👤BFF server error"
  *              Something is genuinely broken: upstream down, config
  *              wrong, server overwhelmed.  The operator should look.
  ***************************************************************************/
@@ -934,7 +934,7 @@ PRIVATE void send_error_response(hgobj gobj, hgobj browser,
         gobj_log_error(gobj, 0,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_PROTOCOL_ERROR,
-            "msg",          "%s", "BFF server error",
+            "msg",          "%s", "👤BFF server error",
             "status",       "%d", status_code,
             "status_text",  "%s", status_text ? status_text : "",
             "error_code",   "%s", error_code ? error_code : "",
@@ -945,7 +945,7 @@ PRIVATE void send_error_response(hgobj gobj, hgobj browser,
         gobj_log_info(gobj, 0,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_PROTOCOL,
-            "msg",          "%s", "BFF request rejected",
+            "msg",          "%s", "👤BFF request rejected",
             "status",       "%d", status_code,
             "status_text",  "%s", status_text ? status_text : "",
             "error_code",   "%s", error_code ? error_code : "",
@@ -1004,7 +1004,7 @@ PRIVATE int enqueue(hgobj gobj, PENDING_AUTH *pa)
         gobj_log_error(gobj, 0,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_SYSTEM_ERROR,
-            "msg",          "%s", "BFF pending queue full",
+            "msg",          "%s", "👤BFF pending queue full",
             "queue_size",   "%d", priv->queue_size,
             NULL
         );
@@ -1074,7 +1074,7 @@ PRIVATE json_t *result_token_response(
 
     if(gobj_trace_level(gobj) & TRACE_MESSAGES) {
         gobj_trace_msg(gobj,
-            "BFF ← Keycloak: action=%s status=%d",
+            "👤BFF ⏪ Keycloak: action=%s status=%d",
             action_name(action), status
         );
     }
@@ -1082,7 +1082,7 @@ PRIVATE json_t *result_token_response(
         json_t *jn_full_body = kw_get_dict(gobj, kw, "body", NULL, 0);
         if(jn_full_body) {
             json_t *jn_redact = redact_for_trace(jn_full_body);
-            gobj_trace_json(gobj, jn_redact, "BFF ← Keycloak body (redacted)");
+            gobj_trace_json(gobj, jn_redact, "👤BFF ⏪ Keycloak body (redacted)");
             JSON_DECREF(jn_redact)
         }
     }
@@ -1116,7 +1116,7 @@ PRIVATE json_t *result_token_response(
             priv->st_responses_dropped++;
             if(gobj_trace_level(gobj) & TRACE_MESSAGES) {
                 gobj_trace_msg(gobj,
-                    "BFF browser gen mismatch — dropping response: "
+                    "👤BFF browser gen mismatch — dropping response: "
                     "action=%s status=%d task_gen=%llu alive_gen=%llu",
                     action_name(action), status,
                     (unsigned long long)task_gen,
@@ -1308,7 +1308,7 @@ PRIVATE json_t *result_token_response(
 
     if(gobj_trace_level(gobj) & TRACE_MESSAGES) {
         gobj_trace_msg(gobj,
-            "BFF → browser: action=%s status=200 username=%s email=%s "
+            "👤BFF ⏩ browser: action=%s status=200 username=%s email=%s "
             "expires_in=%lld refresh_expires_in=%lld",
             action_name(action),
             username, email,
@@ -1403,13 +1403,13 @@ PRIVATE json_t *action_call_keycloak(
 
     if(gobj_trace_level(gobj) & TRACE_MESSAGES) {
         gobj_trace_msg(gobj,
-            "BFF action_call_keycloak: action=%s resource=%s",
+            "👤BFF action_call_keycloak: action=%s resource=%s",
             action_name(action), resource
         );
     }
     if(gobj_trace_level(gobj) & TRACE_TRAFFIC) {
         json_t *jn_redact = redact_for_trace(jn_data);
-        gobj_trace_json(gobj, jn_redact, "BFF → Keycloak data (redacted)");
+        gobj_trace_json(gobj, jn_redact, "👤BFF ⏩ Keycloak data (redacted)");
         JSON_DECREF(jn_redact)
     }
 
@@ -1458,13 +1458,13 @@ PRIVATE json_t *action_kc_logout(
 
     if(gobj_trace_level(gobj) & TRACE_MESSAGES) {
         gobj_trace_msg(gobj,
-            "BFF action_kc_logout: resource=%s rt_len=%zu",
+            "👤BFF action_kc_logout: resource=%s rt_len=%zu",
             resource, strlen(rt)
         );
     }
     if(gobj_trace_level(gobj) & TRACE_TRAFFIC) {
         json_t *jn_redact = redact_for_trace(jn_data);
-        gobj_trace_json(gobj, jn_redact, "BFF → Keycloak logout data (redacted)");
+        gobj_trace_json(gobj, jn_redact, "👤BFF ⏩ Keycloak logout data (redacted)");
         JSON_DECREF(jn_redact)
     }
 
@@ -1513,13 +1513,13 @@ PRIVATE json_t *result_kc_logout(
     }
 
     if(gobj_trace_level(gobj) & TRACE_MESSAGES) {
-        gobj_trace_msg(gobj, "BFF ← Keycloak logout: status=%d", status);
+        gobj_trace_msg(gobj, "👤BFF ⏪ Keycloak logout: status=%d", status);
     }
     if(gobj_trace_level(gobj) & TRACE_TRAFFIC) {
         json_t *jn_full_body = kw_get_dict(gobj, kw, "body", NULL, 0);
         if(jn_full_body) {
             json_t *jn_redact = redact_for_trace(jn_full_body);
-            gobj_trace_json(gobj, jn_redact, "BFF ← Keycloak logout body (redacted)");
+            gobj_trace_json(gobj, jn_redact, "👤BFF ⏪ Keycloak logout body (redacted)");
             JSON_DECREF(jn_redact)
         }
     }
@@ -1538,7 +1538,7 @@ PRIVATE json_t *result_kc_logout(
             priv->st_responses_dropped++;
             if(gobj_trace_level(gobj) & TRACE_MESSAGES) {
                 gobj_trace_msg(gobj,
-                    "BFF browser gen mismatch on logout reply — dropping: "
+                    "👤BFF browser gen mismatch on logout reply — dropping: "
                     "status=%d task_gen=%llu alive_gen=%llu",
                     status,
                     (unsigned long long)task_gen,
@@ -1573,7 +1573,7 @@ PRIVATE json_t *result_kc_logout(
         GBMEM_FREE(extra)
 
         if(gobj_trace_level(gobj) & TRACE_MESSAGES) {
-            gobj_trace_msg(gobj, "BFF → browser: logout status=200");
+            gobj_trace_msg(gobj, "👤BFF ⏩ browser: logout status=200");
         }
     }
 
@@ -1616,7 +1616,7 @@ PRIVATE void process_next(hgobj gobj)
 
     if(gobj_trace_level(gobj) & TRACE_MESSAGES) {
         gobj_trace_msg(gobj,
-            "BFF → Keycloak: action=%s url=%s queue_after=%d",
+            "👤BFF ⏩ Keycloak: action=%s url=%s queue_after=%d",
             action_name(pa->action), kc_token_url, priv->q_count
         );
     }
@@ -1765,7 +1765,7 @@ PRIVATE int ac_on_open(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 
         if(gobj_trace_level(gobj) & TRACE_MESSAGES) {
             gobj_trace_msg(gobj,
-                "BFF connection OPEN from %s (gen=%llu)",
+                "👤BFF connection OPEN from %s (gen=%llu)",
                 gobj_short_name(src),
                 (unsigned long long)priv->browser_alive_gen
             );
@@ -1803,7 +1803,7 @@ PRIVATE int ac_on_close(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
          */
         if(gobj_trace_level(gobj) & TRACE_MESSAGES) {
             gobj_trace_msg(gobj,
-                "BFF connection CLOSE from %s (gen=%llu q_count=%d processing=%d)",
+                "👤BFF connection CLOSE from %s (gen=%llu q_count=%d processing=%d)",
                 gobj_short_name(src),
                 (unsigned long long)priv->browser_alive_gen,
                 priv->q_count, priv->processing
@@ -1864,19 +1864,19 @@ PRIVATE int ac_on_message(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 
     if(gobj_trace_level(gobj) & TRACE_MESSAGES) {
         gobj_trace_msg(gobj,
-            "BFF request: method=%d url=%s host=%s origin=%s from=%s",
+            "👤BFF request: method=%d url=%s host=%s origin=%s from=%s",
             method, url, host_hdr, origin, gobj_short_name(src)
         );
     }
     if(gobj_trace_level(gobj) & TRACE_TRAFFIC) {
         if(jn_headers) {
             json_t *jn_redact = redact_for_trace(jn_headers);
-            gobj_trace_json(gobj, jn_redact, "BFF request headers");
+            gobj_trace_json(gobj, jn_redact, "👤BFF request headers");
             JSON_DECREF(jn_redact)
         }
         if(jn_body) {
             json_t *jn_redact = redact_for_trace(jn_body);
-            gobj_trace_json(gobj, jn_redact, "BFF request body (redacted)");
+            gobj_trace_json(gobj, jn_redact, "👤BFF request body (redacted)");
             JSON_DECREF(jn_redact)
         }
     }
@@ -1961,7 +1961,7 @@ PRIVATE int ac_on_message(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
         snprintf(pa.redirect_uri,  sizeof(pa.redirect_uri),  "%s", ruri);
         if(gobj_trace_level(gobj) & TRACE_MESSAGES) {
             gobj_trace_msg(gobj,
-                "BFF /auth/callback: code_len=%zu cv_len=%zu redirect_uri=%s",
+                "👤BFF /auth/callback: code_len=%zu cv_len=%zu redirect_uri=%s",
                 strlen(code), strlen(cv), ruri
             );
         }
@@ -1990,7 +1990,7 @@ PRIVATE int ac_on_message(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
         snprintf(pa.password, sizeof(pa.password), "%s", password);
         if(gobj_trace_level(gobj) & TRACE_MESSAGES) {
             gobj_trace_msg(gobj,
-                "BFF /auth/login: username=%s password=<%zu chars>",
+                "👤BFF /auth/login: username=%s password=<%zu chars>",
                 username, strlen(password)
             );
         }
@@ -2009,7 +2009,7 @@ PRIVATE int ac_on_message(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
         pa.action = BFF_REFRESH;
         snprintf(pa.refresh_token, sizeof(pa.refresh_token), "%s", rt);
         if(gobj_trace_level(gobj) & TRACE_MESSAGES) {
-            gobj_trace_msg(gobj, "BFF /auth/refresh: rt_len=%zu", strlen(rt));
+            gobj_trace_msg(gobj, "👤BFF /auth/refresh: rt_len=%zu", strlen(rt));
         }
 
     } else if(strcmp(url, "/auth/logout") == 0) {
@@ -2019,7 +2019,7 @@ PRIVATE int ac_on_message(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
         pa.action = BFF_LOGOUT;
         snprintf(pa.refresh_token, sizeof(pa.refresh_token), "%s", rt);
         if(gobj_trace_level(gobj) & TRACE_MESSAGES) {
-            gobj_trace_msg(gobj, "BFF /auth/logout: rt_len=%zu", strlen(rt));
+            gobj_trace_msg(gobj, "👤BFF /auth/logout: rt_len=%zu", strlen(rt));
         }
 
     } else {
@@ -2076,7 +2076,7 @@ PRIVATE int ac_end_task(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
         gobj_log_error(gobj, 0,
             "function",  "%s", __FUNCTION__,
             "msgset",    "%s", MSGSET_PROTOCOL_ERROR,
-            "msg",       "%s", "BFF Keycloak outbound watchdog fired",
+            "msg",       "%s", "👤BFF Keycloak outbound watchdog fired",
             "task_gen",  "%llu", (unsigned long long)task_gen,
             "alive_gen", "%llu", (unsigned long long)priv->browser_alive_gen,
             NULL
@@ -2107,7 +2107,7 @@ PRIVATE int ac_end_task(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
     }
 
     if(gobj_trace_level(gobj) & TRACE_MESSAGES) {
-        gobj_trace_msg(gobj, "BFF Keycloak task ended (result=%d); pending=%d",
+        gobj_trace_msg(gobj, "👤BFF Keycloak task ended (result=%d); pending=%d",
             result, priv->q_count);
     }
 

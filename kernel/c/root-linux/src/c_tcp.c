@@ -804,7 +804,7 @@ PRIVATE int write_data(hgobj gobj)
         gobj_trace_dump_gbuf(gobj, gbuf, "%s: %s%s%s",
             gobj_short_name(gobj),
             gobj_read_str_attr(gobj, "sockname"),
-            " -> ",
+            " ⏩ ",
             gobj_read_str_attr(gobj, "peername")
         );
     }
@@ -1158,7 +1158,7 @@ PRIVATE int yev_callback(yev_event_h yev_event)
                         gobj_trace_dump_gbuf(gobj, gbuf, "%s: %s%s%s",
                             gobj_short_name(gobj),
                             gobj_read_str_attr(gobj, "sockname"),
-                            " <- ",
+                            " ⏪ ",
                             gobj_read_str_attr(gobj, "peername")
                         );
                     }
