@@ -1795,7 +1795,11 @@ PRIVATE int ac_on_close(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
     if(gclass_src_name == C_PROT_HTTP_CL) {
         /*
          *  Disconnection from IdProvider
+         *  If browser is disconnected then stop the IdProvider
          */
+        if(!gobj_read_bool_attr(gobj_bottom_gobj(gobj), "connected")) {
+            gobj_stop(priv->gobj_idprovider);
+        }
 
     } else if(gclass_src_name == C_PROT_HTTP_SR) {
         /*
