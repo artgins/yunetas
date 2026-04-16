@@ -212,6 +212,14 @@ else()
     set(MODULE_MQTT "")
 endif()
 
+if (CONFIG_MODULE_MODBUS)
+    set(MODULE_MODBUS
+        libyunetas-module-modbus.a
+    )
+else()
+    set(MODULE_MODBUS "")
+endif()
+
 if (CONFIG_MODULE_POSTGRES)
     set(MODULE_POSTGRES
         libyunetas-module-postgres.a

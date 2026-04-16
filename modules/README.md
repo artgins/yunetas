@@ -20,6 +20,7 @@ modules/
 |--------|---------------|---------|----------|
 | console | `CONFIG_MODULE_CONSOLE` | `libyunetas-module-console.a` | `C_EDITLINE` |
 | mqtt | `CONFIG_MODULE_MQTT` | `libyunetas-module-mqtt.a` | `C_PROT_MQTT2`, `C_MQTT_BROKER` |
+| modbus | `CONFIG_MODULE_MODBUS` | `libyunetas-module-modbus.a` | `C_PROT_MODBUS_M` |
 | postgres | `CONFIG_MODULE_POSTGRES` | `libyunetas-module-postgres.a` | `C_POSTGRES` |
 | test | `CONFIG_MODULE_TEST` | `libyunetas-module-test.a` | `C_PEPON`, `C_TESTON` |
 
@@ -422,6 +423,7 @@ When a module is disabled in `.config`, nothing is compiled and its library is n
 |---------------|---------------|---------|
 | `CONFIG_MODULE_CONSOLE` | `${MODULE_CONSOLE}` | `libyunetas-module-console.a` |
 | `CONFIG_MODULE_MQTT` | `${MODULE_MQTT}` | `libyunetas-module-mqtt.a` |
+| `CONFIG_MODULE_MODBUS` | `${MODULE_MODBUS}` | `libyunetas-module-modbus.a` |
 | `CONFIG_MODULE_POSTGRES` | `${MODULE_POSTGRES}` | `libyunetas-module-postgres.a` |
 | `CONFIG_MODULE_TEST` | `${MODULE_TEST}` | `libyunetas-module-test.a` |
 
