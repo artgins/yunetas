@@ -245,7 +245,7 @@ typedef struct _PRIVATE_DATA {
      *  Every PENDING_AUTH captures the `browser_alive_gen` that was
      *  current when it was enqueued (`pa->browser_gen`), and that gen
      *  is forwarded through the c_task's output_data as `_browser_gen`.
-     *  When result_idp_token / result_idp_logout eventually fire
+     *  When send_token_to_browser / send_logout_to_browser eventually fire
      *  they compare the task's captured gen against the current
      *  `browser_alive_gen`.  Three outcomes:
      *
@@ -1040,7 +1040,7 @@ PRIVATE PENDING_AUTH *dequeue(hgobj gobj)
  *  Shared result handler for callback and refresh.
  *  Reads Keycloak token response, sets httpOnly cookies, responds to browser.
  ***************************************************************************/
-PRIVATE json_t *result_idp_token(
+PRIVATE json_t *send_token_to_browser(
     hgobj gobj,
     const char *lmethod,
     json_t *kw,
@@ -1062,7 +1062,7 @@ PRIVATE json_t *result_idp_token(
         /*
          *  Count any 2xx as success.  Keycloak's /token endpoint
          *  returns 200 on the happy path, but the 2xx range is the
-         *  right semantic net — mirrors result_idp_logout below.
+         *  right semantic net — mirrors send_logout_to_browser below.
          */
         PRIVATE_DATA *priv = gobj_priv_data(gobj);
         if(status >= 200 && status < 300) {
@@ -1330,7 +1330,7 @@ PRIVATE json_t *result_idp_token(
 /***************************************************************************
  *  Send the authorization_code or refresh_token request to Keycloak.
  ***************************************************************************/
-PRIVATE json_t *action_call_idp(
+PRIVATE json_t *get_token_from_idp(
     hgobj gobj,
     const char *lmethod,
     json_t *kw,
@@ -1403,7 +1403,7 @@ PRIVATE json_t *action_call_idp(
 
     if(gobj_trace_level(gobj) & TRACE_MESSAGES) {
         gobj_trace_msg(gobj,
-            "👤BFF action_call_idp: action=%s resource=%s",
+            "👤BFF get_token_from_idp: action=%s resource=%s",
             action_name(action), resource
         );
     }
@@ -1429,7 +1429,7 @@ PRIVATE json_t *action_call_idp(
 /***************************************************************************
  *  Keycloak logout action.
  ***************************************************************************/
-PRIVATE json_t *action_call_idp_logout(
+PRIVATE json_t *get_logout_from_idp(
     hgobj gobj,
     const char *lmethod,
     json_t *kw,
@@ -1458,7 +1458,7 @@ PRIVATE json_t *action_call_idp_logout(
 
     if(gobj_trace_level(gobj) & TRACE_MESSAGES) {
         gobj_trace_msg(gobj,
-            "👤BFF action_call_idp_logout: resource=%s rt_len=%zu",
+            "👤BFF get_logout_from_idp: resource=%s rt_len=%zu",
             resource, strlen(rt)
         );
     }
@@ -1484,7 +1484,7 @@ PRIVATE json_t *action_call_idp_logout(
 /***************************************************************************
  *  Result of Keycloak logout.
  ***************************************************************************/
-PRIVATE json_t *result_idp_logout(
+PRIVATE json_t *send_logout_to_browser(
     hgobj gobj,
     const char *lmethod,
     json_t *kw,
@@ -1525,7 +1525,7 @@ PRIVATE json_t *result_idp_logout(
     }
 
     /*
-     *  Same browser-generation gate as result_idp_token.  Drops
+     *  Same browser-generation gate as send_token_to_browser.  Drops
      *  the reply if the connection we were logging out of has been
      *  closed or replaced.  Stats already reflect Keycloak's reply;
      *  only the forward to the wrong socket is skipped.
@@ -1623,7 +1623,7 @@ PRIVATE void process_next(hgobj gobj)
 
     /*
      *  Build the task output_data.  `_browser_gen` is carried so
-     *  result_idp_token / result_idp_logout can tell, when the
+     *  send_token_to_browser / send_logout_to_browser can tell, when the
      *  async reply eventually arrives, whether the connection we
      *  dispatched this task for is still on the wire.  The reply
      *  itself is sent to gobj_bottom_gobj(gobj) — the current browser
@@ -1671,8 +1671,8 @@ PRIVATE void process_next(hgobj gobj)
             "gobj_results", json_integer((json_int_t)(uintptr_t)priv->gobj_idprovider),
             "output_data",  kw_output,
             "jobs",
-                "exec_action",  "action_call_idp",
-                "exec_result",  "result_idp_token",
+                "exec_action",  "get_token_from_idp",
+                "exec_result",  "send_token_to_browser",
                 "exec_timeout", kc_timeout_ms
         );
     } else {
@@ -1685,8 +1685,8 @@ PRIVATE void process_next(hgobj gobj)
             "gobj_results", json_integer((json_int_t)(uintptr_t)priv->gobj_idprovider),
             "output_data",  kw_output,
             "jobs",
-                "exec_action",  "action_call_idp_logout",
-                "exec_result",  "result_idp_logout",
+                "exec_action",  "get_logout_from_idp",
+                "exec_result",  "send_logout_to_browser",
                 "exec_timeout", kc_timeout_ms
         );
     }
@@ -1724,7 +1724,7 @@ PRIVATE void process_next(hgobj gobj)
  *  Bumps the browser generation counter and stores the new value as
  *  `browser_alive_gen`.  Every task that gets enqueued while this is
  *  the current gen carries it through its own output_data, and
- *  result_idp_token / result_idp_logout compare the two before
+ *  send_token_to_browser / send_logout_to_browser compare the two before
  *  forwarding the Keycloak reply — see the PRIVATE_DATA comment on
  *  the generation scheme for the full rationale.
  ***************************************************************************/
@@ -2076,7 +2076,7 @@ PRIVATE int ac_end_task(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
         /*
          *  Reply 504 only if the browser plugged into this BFF is the
          *  same one that fired the request — same gen-gate as
-         *  result_idp_token.
+         *  send_token_to_browser.
          */
         if(task_gen != 0 && task_gen == priv->browser_alive_gen) {
             char cors_hdrs[1024];
@@ -2137,10 +2137,10 @@ PRIVATE const GMETHODS gmt = {
 };
 
 PRIVATE LMETHOD lmt[] = {
-    {"action_call_idp",         action_call_idp,        0},
-    {"result_idp_token",        result_idp_token,       0},
-    {"action_call_idp_logout",  action_call_idp_logout, 0},
-    {"result_idp_logout",       result_idp_logout,      0},
+    {"get_token_from_idp",      get_token_from_idp,     0},
+    {"send_token_to_browser",   send_token_to_browser,  0},
+    {"get_logout_from_idp",     get_logout_from_idp,    0},
+    {"send_logout_to_browser",  send_logout_to_browser, 0},
     {0, 0, 0}
 };
 
