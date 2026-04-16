@@ -224,7 +224,7 @@ PRIVATE void verify_and_die(hgobj gobj)
     priv->phase = T10_VERIFIED;
 
     /* Death sequence — same inline pattern as test9 (C_TIMER0). */
-    if(priv->gobj_http_cl) {
+    if(priv->gobj_http_cl && gobj_is_running(priv->gobj_http_cl)) {
         gobj_stop(priv->gobj_http_cl);
     }
     hgobj bff_side = gobj_find_service("__bff_side__", FALSE);

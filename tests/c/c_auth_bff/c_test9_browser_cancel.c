@@ -223,7 +223,7 @@ PRIVATE void verify_and_die(hgobj gobj)
      *  because that macro hardcodes set_timeout(), and our timer is
      *  C_TIMER0 (see mt_create rationale).
      */
-    if(priv->gobj_http_cl) {
+    if(priv->gobj_http_cl && gobj_is_running(priv->gobj_http_cl)) {
         gobj_stop(priv->gobj_http_cl);
     }
     hgobj bff_side = gobj_find_service("__bff_side__", FALSE);

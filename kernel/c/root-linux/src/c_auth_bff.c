@@ -1643,37 +1643,50 @@ PRIVATE void process_next(hgobj gobj)
         "_host",           pa->client_host
     );
 
+    /*
+     *  Per-action timeout for the IdP round-trip.  When the IdP doesn't
+     *  reply within `kc_timeout_ms`, C_TASK fires its own timeout and
+     *  publishes EV_END_TASK with result=-2; ac_end_task turns that into
+     *  a 504 to the browser.  No watchdog timer in the BFF itself.
+     */
+    json_int_t kc_timeout_ms = gobj_read_integer_attr(gobj, "kc_timeout_ms");
+    if(kc_timeout_ms <= 0) {
+        kc_timeout_ms = 30000;
+    }
+
     json_t *kw_task;
     if(pa->action == BFF_CALLBACK || pa->action == BFF_LOGIN || pa->action == BFF_REFRESH) {
         kw_task = json_pack(
             "{s:o, s:o, s:o, s:["
-                "{s:s, s:s},"
+                "{s:s, s:s, s:I},"
                 "{s:s, s:s}"
             "]}",
             "gobj_jobs",    json_integer((json_int_t)(uintptr_t)gobj),
             "gobj_results", json_integer((json_int_t)(uintptr_t)priv->gobj_idprovider),
             "output_data",  kw_output,
             "jobs",
-                "exec_action", "action_call_keycloak",
-                "exec_result", "result_token_response",
-                "exec_action", "action_done",
-                "exec_result", "result_done"
+                "exec_action",  "action_call_keycloak",
+                "exec_result",  "result_token_response",
+                "exec_timeout", kc_timeout_ms,
+                "exec_action",  "action_done",
+                "exec_result",  "result_done"
         );
     } else {
         /* BFF_LOGOUT */
         kw_task = json_pack(
             "{s:o, s:o, s:o, s:["
-                "{s:s, s:s},"
+                "{s:s, s:s, s:I},"
                 "{s:s, s:s}"
             "]}",
             "gobj_jobs",    json_integer((json_int_t)(uintptr_t)gobj),
             "gobj_results", json_integer((json_int_t)(uintptr_t)priv->gobj_idprovider),
             "output_data",  kw_output,
             "jobs",
-                "exec_action", "action_kc_logout",
-                "exec_result", "result_kc_logout",
-                "exec_action", "action_done",
-                "exec_result", "result_done"
+                "exec_action",  "action_kc_logout",
+                "exec_result",  "result_kc_logout",
+                "exec_timeout", kc_timeout_ms,
+                "exec_action",  "action_done",
+                "exec_result",  "result_done"
         );
     }
 
@@ -1795,10 +1808,6 @@ PRIVATE int ac_on_close(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
                 (unsigned long long)priv->browser_alive_gen,
                 priv->q_count, priv->processing
             );
-        }
-
-        if(gobj_read_bool_attr(priv->gobj_idprovider, "connected")) {
-            gobj_stop(priv->gobj_idprovider);
         }
 
         priv->browser_alive_gen = 0;
@@ -2035,17 +2044,71 @@ PRIVATE int ac_on_message(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 
 /***************************************************************************
  *  Keycloak task completed — clean up, process next queued request.
+ *
+ *  EV_END_TASK kw shape (from c_task::stop_task):
+ *      { result, last_job, input_data, output_data }
+ *
+ *  result semantics:
+ *      0   normal end (no more jobs)
+ *     -1   a result_X or action_X returned STOP_TASK; the handler
+ *          already produced the browser response (200, 4xx, 502...)
+ *     -2   C_TASK exec_timeout fired — the IdP did not reply within
+ *          kc_timeout_ms and no result handler ran.  Convert into 504
+ *          here so the browser unblocks and the operator gets a log.
  ***************************************************************************/
 PRIVATE int ac_end_task(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
     priv->gobj_task = NULL;  /* ac_stopped will destroy it */
-
     priv->processing = FALSE;
 
+    int result = (int)kw_get_int(gobj, kw, "result", 0, 0);
+
+    if(result == -2) {
+        json_t *output_data = kw_get_dict(gobj, kw, "output_data", NULL, 0);
+        uint64_t task_gen = (uint64_t)kw_get_int(
+            gobj, output_data, "_browser_gen", 0, 0);
+        const char *origin = kw_get_str(gobj, output_data, "_origin", "", 0);
+
+        priv->st_kc_timeouts++;
+
+        gobj_log_error(gobj, 0,
+            "function",  "%s", __FUNCTION__,
+            "msgset",    "%s", MSGSET_PROTOCOL_ERROR,
+            "msg",       "%s", "BFF Keycloak outbound watchdog fired",
+            "task_gen",  "%llu", (unsigned long long)task_gen,
+            "alive_gen", "%llu", (unsigned long long)priv->browser_alive_gen,
+            NULL
+        );
+
+        /*
+         *  Reply 504 only if the browser plugged into this BFF is the
+         *  same one that fired the request — same gen-gate as
+         *  result_token_response.
+         */
+        if(task_gen != 0 && task_gen == priv->browser_alive_gen) {
+            char cors_hdrs[1024];
+            build_cors_headers(gobj, origin, cors_hdrs, sizeof(cors_hdrs), FALSE);
+            send_error_response(gobj, gobj_bottom_gobj(gobj),
+                504, status_str(504),
+                "auth_timeout",
+                "Authentication service did not respond in time",
+                cors_hdrs);
+        }
+
+        /*
+         *  Drop the outbound to the IdP — we've abandoned this round-trip,
+         *  so the upstream server should observe the close.
+         */
+        if(gobj_read_bool_attr(priv->gobj_idprovider, "connected")) {
+            gobj_stop(priv->gobj_idprovider);
+        }
+    }
+
     if(gobj_trace_level(gobj) & TRACE_MESSAGES) {
-        gobj_trace_msg(gobj, "BFF Keycloak task ended; pending=%d", priv->q_count);
+        gobj_trace_msg(gobj, "BFF Keycloak task ended (result=%d); pending=%d",
+            result, priv->q_count);
     }
 
     KW_DECREF(kw)
