@@ -29,7 +29,7 @@
 #define TOPIC_NAME  "topic_pkey_integer_ping_pong"
 
 BOOL dump = FALSE;
-int time2exit = 5;
+int time2exit = 10;
 
 const char *server_url = "tcp://localhost:2222";
 //const char *server_url = "tcp://[::]:2222"; // in ipv6 cannot put the hostname as string TODO find some who does

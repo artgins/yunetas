@@ -1,18 +1,15 @@
 /****************************************************************************
  *          MAIN_PERF_AUTH_BFF.C
  *
- *          Self-contained throughput benchmark for c_auth_bff.
- *          5 concurrent HTTP client slots × 36 000 iterations =
- *          180 000 full /auth/login round-trips against 5 parallel
- *          BFF channels with latency_ms=0 on the mock Keycloak so
- *          the bottleneck is the BFF + task + parser hot path.
- *          Each slot reuses one TCP connection (HTTP/1.1 keep-alive)
- *          for all its iterations, matching the persistent-connection
- *          model used by perf_c_tcps.
+ *          Self-contained throughput benchmark for c_auth_bff, ping_pong
+ *          style.  5 concurrent HTTP/1.1 keep-alive clients pump
+ *          /auth/login POSTs at 5 parallel BFF channels for
+ *          `run_seconds` seconds (default 5).  Live Msg/sec +
+ *          Bytes/sec are printed every second in ANSI-overwrite form,
+ *          same layout as perf_yev_ping_pong.
  *
- *          Prints a standard #TIME line at shutdown, same format as
- *          perf_c_tcp / perf_c_tcps, so results sit next to the
- *          other perf numbers in performance/c/README.md.
+ *          Mock Keycloak runs with latency_ms=0 so the bottleneck is
+ *          the BFF + parser + task + event-loop hot path.
  *
  *          Copyright (c) 2026, ArtGins.
  *          All Rights Reserved.
@@ -236,7 +233,11 @@ static int register_yuno_and_more(void)
     gobj_set_gclass_no_trace(gclass_find_by_name(C_TIMER),  "machine", TRUE);
     gobj_set_global_no_trace("timer_periodic", TRUE);
 
-    set_auto_kill_time(300);  /* headroom for 180 000 round-trips */
+    /*
+     *  Watchdog: the orchestrator self-terminates after run_seconds;
+     *  this is just a safety net in case something wedges.
+     */
+    set_auto_kill_time(60);
 
     set_expected_results(
         APP_NAME,
@@ -246,24 +247,16 @@ static int register_yuno_and_more(void)
         TRUE
     );
 
-    /*
-     *  MT_START_TIME is called inside the orchestrator's
-     *  launch_all_slots() so the timing brackets the actual
-     *  load only, not the register/warm-up phase.
-     */
-
     return res;
 }
 
 static void cleaning(void)
 {
     /*
-     *  perf_time_measure was started by launch_all_slots() and the
-     *  count was set in maybe_finish_and_die().  Print the TIME
-     *  line now, same format as perf_c_tcp / perf_c_tcps so the
-     *  result is grep-friendly and fits the existing README tables.
+     *  Push the prompt past the in-place Msg/sec / Bytes/sec lines
+     *  before test_json prints the "<-- OK" banner.
      */
-    MT_PRINT_TIME(perf_time_measure, APP_NAME)
+    printf(Cursor_Down "\n", 4);
 
     result += test_json(NULL);
     mock_keycloak_end_jwk();
