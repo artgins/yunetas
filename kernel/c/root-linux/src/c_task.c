@@ -441,17 +441,6 @@ PRIVATE int stop_task(hgobj gobj, int result)
         "input_data", gobj_read_json_attr(gobj, "input_data"),
         "output_data", gobj_read_json_attr(gobj, "output_data")
     );
-    if(gobj_trace_level(gobj) & TRACE_MESSAGES) {
-        if(result < 0) {
-            if(result == -2) {
-                gobj_trace_msg(gobj, "💎💎Task END ⏫⏫ ⏳ ERROR, gobj %s", gobj_name(gobj));
-            } else {
-                gobj_trace_msg(gobj, "💎💎Task END ⏫⏫ 🔴 ERROR, gobj %s", gobj_name(gobj));
-            }
-        } else {
-            gobj_trace_msg(gobj, "💎💎Task END ⏫⏫ 🔵 OK, gobj %s", gobj_name(gobj));
-        }
-    }
     if(gobj_trace_level(gobj) & TRACE_MESSAGES2) {
         if(result < 0) {
             if(result == -2) {
@@ -461,6 +450,16 @@ PRIVATE int stop_task(hgobj gobj, int result)
             }
         } else {
             gobj_trace_json(gobj, kw_task, "💎💎Task END ⏫⏫ 🔵 OK, gobj %s", gobj_name(gobj));
+        }
+    } else if(gobj_trace_level(gobj) & TRACE_MESSAGES) {
+        if(result < 0) {
+            if(result == -2) {
+                gobj_trace_msg(gobj, "💎💎Task END ⏫⏫ ⏳ ERROR, gobj %s", gobj_name(gobj));
+            } else {
+                gobj_trace_msg(gobj, "💎💎Task END ⏫⏫ 🔴 ERROR, gobj %s", gobj_name(gobj));
+            }
+        } else {
+            gobj_trace_msg(gobj, "💎💎Task END ⏫⏫ 🔵 OK, gobj %s", gobj_name(gobj));
         }
     }
 
@@ -504,7 +503,7 @@ PRIVATE int execute_action(hgobj gobj)
     const char *action = kw_get_str(gobj, jn_job_, "exec_action", "", KW_REQUIRED);
     json_int_t exec_timeout = kw_get_int(gobj, jn_job_, "exec_timeout", priv->timeout, 0);
 
-    if(gobj_trace_level(gobj) & TRACE_MESSAGES) {
+    if(gobj_trace_level(gobj) & (TRACE_MESSAGES|TRACE_MESSAGES2)) {
         gobj_trace_msg(gobj, "💎💎Task ⏩ exec ACTION %s(%d '%s')", gobj_name(gobj), priv->idx_job, action);
     }
 
@@ -515,17 +514,6 @@ PRIVATE int execute_action(hgobj gobj)
         gobj
     );
 
-    if(gobj_trace_level(gobj) & TRACE_MESSAGES) {
-        if(ret < 0) {
-            gobj_trace_msg(gobj, "💎💎Task ⏪ exec ACTION %s(%d '%s') 🔴 ERROR",
-                gobj_name(gobj), priv->idx_job, action
-            );
-        } else {
-            gobj_trace_msg(gobj, "💎💎Task ⏪ exec ACTION %s(%d '%s') 🔵 OK",
-                gobj_name(gobj), priv->idx_job, action
-            );
-        }
-    }
     if(gobj_trace_level(gobj) & TRACE_MESSAGES2) {
         json_t *kw_task = json_pack("{s:O, s:O}",
             "input_data", gobj_read_json_attr(gobj, "input_data"),
@@ -543,6 +531,16 @@ PRIVATE int execute_action(hgobj gobj)
             );
         }
         json_decref(kw_task);
+    } else if(gobj_trace_level(gobj) & TRACE_MESSAGES) {
+        if(ret < 0) {
+            gobj_trace_msg(gobj, "💎💎Task ⏪ exec ACTION %s(%d '%s') 🔴 ERROR",
+                gobj_name(gobj), priv->idx_job, action
+            );
+        } else {
+            gobj_trace_msg(gobj, "💎💎Task ⏪ exec ACTION %s(%d '%s') 🔵 OK",
+                gobj_name(gobj), priv->idx_job, action
+            );
+        }
     }
 
     if(ret < 0) {
@@ -595,7 +593,7 @@ PRIVATE int ac_on_message(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 
     const char *action = kw_get_str(gobj, jn_job_, "exec_result", "", KW_REQUIRED);
 
-    if(gobj_trace_level(gobj) & TRACE_MESSAGES) {
+    if(gobj_trace_level(gobj) & (TRACE_MESSAGES|TRACE_MESSAGES2)) {
         gobj_trace_msg(gobj, "💎💎Task ⏩ exec RESULT %s(%d '%s')", gobj_name(gobj), priv->idx_job, action);
     }
 
@@ -606,17 +604,6 @@ PRIVATE int ac_on_message(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
         gobj
     );
 
-    if(gobj_trace_level(gobj) & TRACE_MESSAGES) {
-        if(ret < 0) {
-            gobj_trace_msg(gobj, "💎💎Task ⏪ exec RESULT %s(%d '%s') 🔴 ERROR",
-                gobj_name(gobj), priv->idx_job, action
-            );
-        } else {
-            gobj_trace_msg(gobj, "💎💎Task ⏪ exec RESULT %s(%d '%s') 🔵 OK",
-                gobj_name(gobj), priv->idx_job, action
-            );
-        }
-    }
     if(gobj_trace_level(gobj) & TRACE_MESSAGES2) {
         json_t *kw_task = json_pack("{s:O, s:O}",
             "input_data", gobj_read_json_attr(gobj, "input_data"),
@@ -634,6 +621,16 @@ PRIVATE int ac_on_message(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
             );
         }
         json_decref(kw_task);
+    } else if(gobj_trace_level(gobj) & TRACE_MESSAGES) {
+        if(ret < 0) {
+            gobj_trace_msg(gobj, "💎💎Task ⏪ exec RESULT %s(%d '%s') 🔴 ERROR",
+                gobj_name(gobj), priv->idx_job, action
+            );
+        } else {
+            gobj_trace_msg(gobj, "💎💎Task ⏪ exec RESULT %s(%d '%s') 🔵 OK",
+                gobj_name(gobj), priv->idx_job, action
+            );
+        }
     }
 
     if(ret < 0) {
