@@ -179,19 +179,20 @@ PRIVATE void verify_and_die(hgobj gobj)
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
     /*
-     *  BFF-side stats.  kc_ok=1 because result_token_response DID run
-     *  (mock KC responded) and incremented the counter BEFORE the
-     *  browser_alive gate fired.  bff_errors=0 because we did not
-     *  path through send_error_response; we exited via the gate.
-     *  responses_dropped=1 proves the gate did its job.
+     *  BFF-side stats.  kc_ok=0: the BFF tears down the outbound to KC
+     *  on browser disconnect, so result_token_response never runs for
+     *  this request.  responses_dropped=0: the gate never fires either
+     *  (no response ever reached it).  bff_errors=0: no 4xx/5xx was
+     *  produced — the round-trip is simply cancelled.
      */
     const test_stat_expect_t bff_expected[] = {
         {"requests_total",      1},
         {"kc_calls",            1},
-        {"kc_ok",               1},
+        {"kc_ok",               0},
         {"kc_errors",           0},
         {"bff_errors",          0},
-        {"responses_dropped",   1},
+        {"responses_dropped",   0},
+        {"kc_timeouts",         0},
         {"q_full_drops",        0},
         {NULL, 0}
     };
@@ -199,17 +200,16 @@ PRIVATE void verify_and_die(hgobj gobj)
     test_helpers_check_stats(gobj, bff, "test9_browser_cancel[bff]", bff_expected);
 
     /*
-     *  Mock-KC-side stats.  responses_sent=1: the mock's latency timer
-     *  fired and successfully wrote the response to the BFF's outbound
-     *  http_cl (the BFF silently swallowed it).  pending_cancelled=0:
-     *  the pending slot was flushed in ac_timer before the BFF closed
-     *  its outbound side.
+     *  Mock-KC-side stats.  responses_sent=0: mock-KC never got to
+     *  write its deferred reply because the BFF closed the outbound
+     *  first.  pending_cancelled=1: the close is observed on the
+     *  mock side as the pending slot being abandoned.
      */
     const test_stat_expect_t kc_expected[] = {
         {"token_requests",      1},
-        {"responses_sent",      1},
+        {"responses_sent",      0},
         {"deferred_responses",  1},
-        {"pending_cancelled",   0},
+        {"pending_cancelled",   1},
         {NULL, 0}
     };
     hgobj kc = test_helpers_find_service_child(gobj, "__kc_side__", "C_MOCK_KEYCLOAK");

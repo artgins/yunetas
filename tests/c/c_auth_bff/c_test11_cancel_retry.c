@@ -278,15 +278,20 @@ PRIVATE void verify_and_die(hgobj gobj)
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
     /*
-     *  BFF-side stats — two full round-trips, the first one dropped.
+     *  BFF-side stats — request #1 is cancelled when the browser
+     *  closes (outbound to KC torn down, no kc_ok bump), request #2
+     *  completes normally.  responses_dropped stays 0: the gate no
+     *  longer fires because there's no stale reply to filter — the
+     *  outbound was closed before the reply could arrive.
      */
     const test_stat_expect_t bff_expected[] = {
         {"requests_total",      2},
         {"kc_calls",            2},
-        {"kc_ok",               2},
+        {"kc_ok",               1},
         {"kc_errors",           0},
         {"bff_errors",          0},
-        {"responses_dropped",   1},
+        {"responses_dropped",   0},
+        {"kc_timeouts",         0},
         {"q_full_drops",        0},
         {NULL, 0}
     };
@@ -294,16 +299,16 @@ PRIVATE void verify_and_die(hgobj gobj)
     test_helpers_check_stats(gobj, bff, "test11_cancel_retry[bff]", bff_expected);
 
     /*
-     *  Mock-KC-side stats — two requests, two successful timer fires.
-     *  pending_cancelled stays 0 because the first outbound close from
-     *  the BFF comes AFTER the first latency timer already flushed
-     *  (retry at t=1200 > first fire at t≈800).
+     *  Mock-KC-side stats — two requests received; only request #2's
+     *  latency timer fires on a live socket.  Request #1's pending
+     *  slot is cancelled when the BFF closes the outbound during
+     *  browser-disconnect cleanup.
      */
     const test_stat_expect_t kc_expected[] = {
         {"token_requests",      2},
-        {"responses_sent",      2},
+        {"responses_sent",      1},
         {"deferred_responses",  2},
-        {"pending_cancelled",   0},
+        {"pending_cancelled",   1},
         {NULL, 0}
     };
     hgobj kc = test_helpers_find_service_child(gobj, "__kc_side__", "C_MOCK_KEYCLOAK");

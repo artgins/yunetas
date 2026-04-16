@@ -267,17 +267,20 @@ PRIVATE void verify_and_die(hgobj gobj)
     }
 
     /*
-     *  BFF-side: two full round-trips, the first one dropped by the
-     *  gen-mismatch gate.  responses_dropped == 1 is the direct
-     *  observable of the fix working.
+     *  BFF-side: request A is cancelled on browser close (queue flushed,
+     *  outbound torn down) before its reply ever reaches the BFF.  Only
+     *  request B completes normally.  The observable that the fix works
+     *  is `responses_on_conn_2 == 1` above — the new browser never
+     *  receives A's token because A's reply never reaches the BFF in
+     *  the first place.
      */
     const test_stat_expect_t bff_expected[] = {
         {"requests_total",      2},
         {"kc_calls",            2},
-        {"kc_ok",               2},
+        {"kc_ok",               1},
         {"kc_errors",           0},
         {"bff_errors",          0},
-        {"responses_dropped",   1},
+        {"responses_dropped",   0},
         {"kc_timeouts",         0},
         {"q_full_drops",        0},
         {NULL, 0}
@@ -286,17 +289,16 @@ PRIVATE void verify_and_die(hgobj gobj)
     test_helpers_check_stats(gobj, bff, "test12_stale_reply[bff]", bff_expected);
 
     /*
-     *  Mock-KC-side: both requests reached the mock and both latency
-     *  timers fired and wrote their replies to the BFF.  pending_cancelled
-     *  stays 0 because by the time A's outbound c_tcp closes (during
-     *  ac_end_task after the drop), the latency timer has already
-     *  fired.
+     *  Mock-KC-side: both requests reached the mock, but only B's
+     *  latency timer fires on a live socket.  A's pending slot is
+     *  cancelled when the BFF closes the outbound during browser-
+     *  disconnect cleanup.
      */
     const test_stat_expect_t kc_expected[] = {
         {"token_requests",      2},
-        {"responses_sent",      2},
+        {"responses_sent",      1},
         {"deferred_responses",  2},
-        {"pending_cancelled",   0},
+        {"pending_cancelled",   1},
         {NULL, 0}
     };
     hgobj kc = test_helpers_find_service_child(gobj, "__kc_side__", "C_MOCK_KEYCLOAK");
