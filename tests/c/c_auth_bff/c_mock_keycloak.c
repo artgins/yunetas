@@ -4,7 +4,7 @@
  *          Test-only mock of the Keycloak token endpoint.  See the
  *          companion .h for the public surface and the per-attr protocol.
  *
- *          The gclass sits under a C_CHANNEL in the test yuno's __kc_side__
+ *          The gclass sits under a C_CHANNEL in the test yuno's __idp_side__
  *          IOGate, with a C_PROT_HTTP_SR child underneath.  The http_sr
  *          automatically subscribes to its parent (this gclass) so we
  *          receive every parsed request as EV_ON_MESSAGE; we synthesise a

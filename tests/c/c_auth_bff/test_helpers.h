@@ -54,7 +54,7 @@ PUBLIC hgobj test_helpers_find_bff(hgobj caller_gobj);
 /*
  *  Generalised version: locate the first child of `gclass_name`
  *  under the service named `service_name`.  Used by test7 to reach
- *  C_MOCK_KEYCLOAK inside __kc_side__ and cross-check the mock's
+ *  C_MOCK_KEYCLOAK inside __idp_side__ and cross-check the mock's
  *  own stat counters.  Returns NULL on failure (error logged).
  */
 PUBLIC hgobj test_helpers_find_service_child(

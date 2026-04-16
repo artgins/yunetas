@@ -115,7 +115,7 @@ PRIVATE char variable_config[]= "\
                             'name': 'bff-1',                        \n\
                             'gclass': 'C_AUTH_BFF',                 \n\
                             'kw': {                                 \n\
-                                'keycloak_url': 'http://127.0.0.1:"KC_PORT"/', \n\
+                                'idp_url': 'http://127.0.0.1:"KC_PORT"/', \n\
                                 'realm':        'test',             \n\
                                 'client_id':    'test-client',      \n\
                                 'client_secret': '',                \n\
@@ -145,7 +145,7 @@ PRIVATE char variable_config[]= "\
             ]                                                       \n\
         },                                                          \n\
         {                                                           \n\
-            'name': '__kc_side__',                                  \n\
+            'name': '__idp_side__',                                  \n\
             'gclass': 'C_IOGATE',                                   \n\
             'autostart': true,                                      \n\
             'autoplay': true,                                       \n\
@@ -154,7 +154,7 @@ PRIVATE char variable_config[]= "\
             },                                                      \n\
             'children': [                                           \n\
                 {                                                   \n\
-                    'name': 'kc_server',                            \n\
+                    'name': 'idp_server',                            \n\
                     'gclass': 'C_TCP_S',                            \n\
                     'kw': {                                         \n\
                         'url': 'tcp://0.0.0.0:"KC_PORT"',           \n\
@@ -168,26 +168,26 @@ PRIVATE char variable_config[]= "\
                     }                                               \n\
                 },                                                  \n\
                 {                                                   \n\
-                    'name': 'kc-1',                                 \n\
+                    'name': 'idp-1',                                 \n\
                     'gclass': 'C_CHANNEL',                          \n\
                     'kw': {                                         \n\
                     },                                              \n\
                     'children': [                                   \n\
                         {                                           \n\
-                            'name': 'kc-1',                         \n\
+                            'name': 'idp-1',                         \n\
                             'gclass': 'C_MOCK_KEYCLOAK',            \n\
                             'kw': {                                 \n\
                                 'latency_ms': 500                   \n\
                             },                                      \n\
                             'children': [                           \n\
                                 {                                   \n\
-                                    'name': 'kc-1',                 \n\
+                                    'name': 'idp-1',                 \n\
                                     'gclass': 'C_PROT_HTTP_SR',     \n\
                                     'kw': {                         \n\
                                     },                              \n\
                                     'children': [                   \n\
                                         {                           \n\
-                                            'name': 'kc-1',         \n\
+                                            'name': 'idp-1',         \n\
                                             'gclass': 'C_TCP'       \n\
                                         }                           \n\
                                     ]                               \n\

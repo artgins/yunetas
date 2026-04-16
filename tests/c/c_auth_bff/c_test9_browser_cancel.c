@@ -187,12 +187,12 @@ PRIVATE void verify_and_die(hgobj gobj)
      */
     const test_stat_expect_t bff_expected[] = {
         {"requests_total",      1},
-        {"kc_calls",            1},
-        {"kc_ok",               0},
-        {"kc_errors",           0},
+        {"idp_calls",            1},
+        {"idp_ok",               0},
+        {"idp_errors",           0},
         {"bff_errors",          0},
         {"responses_dropped",   0},
-        {"kc_timeouts",         0},
+        {"idp_timeouts",         0},
         {"q_full_drops",        0},
         {NULL, 0}
     };
@@ -212,7 +212,7 @@ PRIVATE void verify_and_die(hgobj gobj)
         {"pending_cancelled",   1},
         {NULL, 0}
     };
-    hgobj kc = test_helpers_find_service_child(gobj, "__kc_side__", "C_MOCK_KEYCLOAK");
+    hgobj kc = test_helpers_find_service_child(gobj, "__idp_side__", "C_MOCK_KEYCLOAK");
     test_helpers_check_stats(gobj, kc, "test9_browser_cancel[mock-kc]", kc_expected);
 
     priv->test_passed = TRUE;

@@ -50,4 +50,4 @@ See `c_auth_bff.h` in `kernel/c/root-linux/src/` for the full attribute list, or
 
 ## Deployment
 
-One `auth_bff` instance per realm. Per-host runtime configuration lives in `batches/<host>/auth_bff.<port>.json` (e.g. `batches/localhost/auth_bff.1801.json`), where the `keycloak_url`, `realm`, `client_id`, `cookie_domain` and other attributes are set.
+One `auth_bff` instance per realm. Per-host runtime configuration lives in `batches/<host>/auth_bff.<port>.json` (e.g. `batches/localhost/auth_bff.1801.json`), where the `idp_url`, `realm`, `client_id`, `cookie_domain` and other attributes are set.

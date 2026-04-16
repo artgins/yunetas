@@ -246,9 +246,9 @@ PRIVATE int ac_on_message(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
      */
     const test_stat_expect_t expected[] = {
         {"requests_total", 0},
-        {"kc_calls",       0},
-        {"kc_ok",          0},
-        {"kc_errors",      0},
+        {"idp_calls",       0},
+        {"idp_ok",          0},
+        {"idp_errors",      0},
         {"bff_errors",     1},
         {"q_full_drops",   0},
         {NULL, 0}

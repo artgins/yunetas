@@ -5,21 +5,21 @@
  *  SEC-06 — httpOnly cookie token storage:
  *  ========================================
  *  This GClass acts as an HTTP server (not WebSocket) that mediates
- *  between the browser SPA and the Keycloak authorization server.
+ *  between the browser SPA and the IdP authorization server.
  *  It exposes four endpoints:
  *
  *    POST /auth/login
  *      Body: { "username": "…", "password": "…" }
- *      Action: Direct Access Grant (grant_type=password) with Keycloak,
+ *      Action: Direct Access Grant (grant_type=password) with IdP,
  *              write access_token and refresh_token as httpOnly cookies,
  *              return { "success": true, "username": "…", "email": "…",
  *                       "expires_in": N, "refresh_expires_in": N }.
- *      Note:   Requires "Direct Access Grants Enabled" in the Keycloak
+ *      Note:   Requires "Direct Access Grants Enabled" in the IdP
  *              client configuration.
  *
  *    POST /auth/callback
  *      Body: { "code": "…", "code_verifier": "…", "redirect_uri": "…" }
- *      Action: exchange the PKCE authorization code with Keycloak
+ *      Action: exchange the PKCE authorization code with IdP
  *              server-side (grant_type=authorization_code + code_verifier),
  *              write access_token and refresh_token as httpOnly cookies,
  *              return { "success": true, "username": "…", "email": "…",
@@ -27,13 +27,13 @@
  *
  *    POST /auth/refresh
  *      Reads the "refresh_token" httpOnly cookie from the request.
- *      Action: call Keycloak refresh endpoint, overwrite cookies.
+ *      Action: call IdP refresh endpoint, overwrite cookies.
  *      Returns { "success": true, "expires_in": N,
  *                "refresh_expires_in": N }.
  *
  *    POST /auth/logout
  *      Reads the "refresh_token" httpOnly cookie from the request.
- *      Action: call Keycloak logout endpoint, clear cookies (Max-Age=0).
+ *      Action: call IdP logout endpoint, clear cookies (Max-Age=0).
  *      Returns { "success": true }.
  *
  *    OPTIONS *
@@ -41,9 +41,9 @@
  *
  *  Architecture:
  *  - Uses C_PROT_HTTP_SR as the lower transport layer.
- *  - For outbound Keycloak calls uses C_PROT_HTTP_CL + C_TASK
+ *  - For outbound IdP calls uses C_PROT_HTTP_CL + C_TASK
  *    (same pattern as C_TASK_AUTHENTICATE).
- *  - One Keycloak request is processed at a time per connection;
+ *  - One IdP request is processed at a time per connection;
  *    concurrent requests are queued in PENDING_AUTH.
  *
  *  Cookie attributes:
@@ -171,7 +171,7 @@ PRIVATE const char *a_status[] = {"status", 0};
 PRIVATE sdata_desc_t command_table[] = {
 /*-CMD---type-----------name------------alias-----------items-----------json_fn-----------description---------- */
 SDATACM (DTP_SCHEMA,    "help",         a_help,         pm_help,        cmd_help,         "Command's help"),
-SDATACM (DTP_SCHEMA,    "view-status",  a_status,       0,              cmd_view_status,  "Snapshot of this BFF instance: queue, pending tasks and active Keycloak round-trip"),
+SDATACM (DTP_SCHEMA,    "view-status",  a_status,       0,              cmd_view_status,  "Snapshot of this BFF instance: queue, pending tasks and active IdP round-trip"),
 SDATA_END()
 };
 
@@ -180,16 +180,16 @@ SDATA_END()
  *---------------------------------------------*/
 PRIVATE sdata_desc_t attrs_table[] = {
 /*-ATTR-type------------name--------------------flag----default-description*/
-SDATA (DTP_STRING,      "keycloak_url",         SDF_RD|SDF_REQUIRED, "", "Keycloak base URL"),
-SDATA (DTP_STRING,      "realm",                SDF_RD|SDF_REQUIRED, "", "Keycloak realm"),
-SDATA (DTP_STRING,      "client_id",            SDF_RD, "",     "Keycloak client_id (resource)"),
+SDATA (DTP_STRING,      "idp_url",         SDF_RD|SDF_REQUIRED, "", "IdP base URL"),
+SDATA (DTP_STRING,      "realm",                SDF_RD|SDF_REQUIRED, "", "IdP realm"),
+SDATA (DTP_STRING,      "client_id",            SDF_RD, "",     "IdP client_id (resource)"),
 SDATA (DTP_STRING,      "client_secret",        SDF_RD, "",     "Client secret (leave empty for public clients with PKCE)"),
 SDATA (DTP_STRING,      "cookie_domain",        SDF_RD, "",     "Cookie Domain attribute (shared hostname without port)"),
 SDATA (DTP_STRING,      "allowed_origin",       SDF_RD, "",     "CORS Access-Control-Allow-Origin value"),
 SDATA (DTP_STRING,      "allowed_redirect_uri", SDF_RD, "",     "Allowed redirect_uri prefix (e.g. https://treedb.yunetas.com/); rejects callback requests whose redirect_uri does not start with this"),
-SDATA (DTP_JSON,        "crypto",               SDF_RD,             "{}",   "TLS crypto config for Keycloak outbound calls"),
-SDATA (DTP_INTEGER,     "pending_queue_size",   SDF_RD,             "16",   "Max pending Keycloak requests per channel; clamped to [1, 1024]. Raise for front-line BFFs under burst"),
-SDATA (DTP_INTEGER,     "kc_timeout_ms",        SDF_RD,             "30000","Outbound Keycloak watchdog timeout in milliseconds. 0 disables. When a round-trip exceeds this, the BFF sends 504 to the browser and drains the task"),
+SDATA (DTP_JSON,        "crypto",               SDF_RD,             "{}",   "TLS crypto config for IdP outbound calls"),
+SDATA (DTP_INTEGER,     "pending_queue_size",   SDF_RD,             "16",   "Max pending IdP requests per channel; clamped to [1, 1024]. Raise for front-line BFFs under burst"),
+SDATA (DTP_INTEGER,     "idp_timeout_ms",        SDF_RD,             "30000","Outbound IdP watchdog timeout in milliseconds. 0 disables. When a round-trip exceeds this, the BFF sends 504 to the browser and drains the task"),
 SDATA (DTP_POINTER,     "user_data",            0,                  0,      "user data"),
 SDATA (DTP_POINTER,     "user_data2",           0,                  0,      "more user data"),
 SDATA (DTP_POINTER,     "subscriber",           0,                  0,      "subscriber of output-events. If it's null then subscriber is the parent."),
@@ -204,8 +204,8 @@ enum {
     TRACE_TRAFFIC   = 0x0002,   /* Full HTTP payloads (sensitive fields masked) */
 };
 PRIVATE const trace_level_t s_user_trace_level[16] = {
-{"messages",    "Trace request flow: connect, request, queue, Keycloak round-trip, response"},
-{"traffic",     "Trace full payloads: headers, bodies, Keycloak data (passwords/tokens/codes masked)"},
+{"messages",    "Trace request flow: connect, request, queue, IdP round-trip, response"},
+{"traffic",     "Trace full payloads: headers, bodies, IdP data (passwords/tokens/codes masked)"},
 {0, 0}
 };
 
@@ -248,7 +248,7 @@ typedef struct _PRIVATE_DATA {
      */
     BOOL            task_valid;
 
-    /* Parsed Keycloak token endpoint URL parts */
+    /* Parsed IdP token endpoint URL parts */
     char schema[32];
     char host[256];
     char port[16];
@@ -263,12 +263,12 @@ typedef struct _PRIVATE_DATA {
     uint64_t        st_requests_total;  /* requests accepted (any endpoint) */
     uint64_t        st_q_max_seen;      /* high-water mark of q_count */
     uint64_t        st_q_full_drops;    /* requests rejected because q full */
-    uint64_t        st_kc_calls;        /* Keycloak round-trips started */
-    uint64_t        st_kc_ok;           /* Keycloak round-trips with status 200 */
-    uint64_t        st_kc_errors;       /* Keycloak round-trips with non-200 */
+    uint64_t        st_idp_calls;        /* IdP round-trips started */
+    uint64_t        st_idp_ok;           /* IdP round-trips with status 200 */
+    uint64_t        st_idp_errors;       /* IdP round-trips with non-200 */
     uint64_t        st_bff_errors;      /* 4xx/5xx returned to the browser */
-    uint64_t        st_responses_dropped; /* KC replies dropped because browser closed */
-    uint64_t        st_kc_timeouts;     /* outbound watchdog fired */
+    uint64_t        st_responses_dropped; /* IdP replies dropped because browser closed */
+    uint64_t        st_idp_timeouts;     /* outbound watchdog fired */
 } PRIVATE_DATA;
 
 
@@ -287,7 +287,6 @@ typedef struct _PRIVATE_DATA {
 PRIVATE void mt_create(hgobj gobj)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
-    // TODO global change keycloak -> idp (Identity Provider)
 
     /*
      *  Initialise the pending-request list and cache the size cap.
@@ -316,12 +315,12 @@ PRIVATE void mt_create(hgobj gobj)
     snprintf(priv->idp_name, sizeof(priv->idp_name), "%s-idp", gobj_name(gobj));
 
     /* Pre-parse IdProvider base URL for re-use in every outbound call */
-    char kc_base[PATH_MAX];
-    const char *kc_url  = gobj_read_str_attr(gobj, "keycloak_url");
+    char idp_base[PATH_MAX];
+    const char *idp_base_url  = gobj_read_str_attr(gobj, "idp_url");
     const char *realm   = gobj_read_str_attr(gobj, "realm");
 
-    build_path(kc_base, sizeof(kc_base),
-        kc_url,
+    build_path(idp_base, sizeof(idp_base),
+        idp_base_url,
         "realms",
         realm,
         "protocol",
@@ -330,7 +329,7 @@ PRIVATE void mt_create(hgobj gobj)
     );
 
     if(parse_url(gobj,
-        kc_base,
+        idp_base,
         priv->schema, sizeof(priv->schema),
         priv->host,   sizeof(priv->host),
         priv->port,   sizeof(priv->port),
@@ -341,8 +340,8 @@ PRIVATE void mt_create(hgobj gobj)
         gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
             "function", "%s", __FUNCTION__,
             "msgset",   "%s", MSGSET_SYSTEM_ERROR,
-            "msg",      "%s", "keycloak url parse failed",
-            "url",      "%s", kc_base,
+            "msg",      "%s", "idp url parse failed",
+            "url",      "%s", idp_base,
             NULL
         );
     } else {
@@ -352,7 +351,7 @@ PRIVATE void mt_create(hgobj gobj)
             priv->idp_name,
             C_PROT_HTTP_CL,
             json_pack("{s:s}",
-                "url", kc_url
+                "url", idp_base_url
             ),
             gobj
         );
@@ -367,7 +366,7 @@ PRIVATE void mt_create(hgobj gobj)
                 priv->idp_name,
                 C_TCP,
                 json_pack("{s:s, s:O, s:i}",
-                    "url", kc_url,
+                    "url", idp_base_url,
                     "crypto", jn_crypto,
                     /*
                      *  Aggressive reconnect cadence (100 ms vs the 2 s default).
@@ -459,12 +458,12 @@ PRIVATE json_t *mt_stats(hgobj gobj, const char *stats, json_t *kw, hgobj src)
         priv->st_requests_total = 0;
         priv->st_q_max_seen     = (uint64_t)dl_size(&priv->dl_pending);
         priv->st_q_full_drops       = 0;
-        priv->st_kc_calls           = 0;
-        priv->st_kc_ok              = 0;
-        priv->st_kc_errors          = 0;
+        priv->st_idp_calls           = 0;
+        priv->st_idp_ok              = 0;
+        priv->st_idp_errors          = 0;
         priv->st_bff_errors         = 0;
         priv->st_responses_dropped  = 0;
-        priv->st_kc_timeouts        = 0;
+        priv->st_idp_timeouts        = 0;
         stats = "";  /* fall through and return the (now zeroed) snapshot */
     }
 
@@ -484,12 +483,12 @@ PRIVATE json_t *mt_stats(hgobj gobj, const char *stats, json_t *kw, hgobj src)
     STAT_INT("q_count",             dl_size(&priv->dl_pending));  /* live gauge */
     STAT_INT("q_max_seen",          priv->st_q_max_seen);
     STAT_INT("q_full_drops",        priv->st_q_full_drops);
-    STAT_INT("kc_calls",            priv->st_kc_calls);
-    STAT_INT("kc_ok",               priv->st_kc_ok);
-    STAT_INT("kc_errors",           priv->st_kc_errors);
+    STAT_INT("idp_calls",            priv->st_idp_calls);
+    STAT_INT("idp_ok",               priv->st_idp_ok);
+    STAT_INT("idp_errors",           priv->st_idp_errors);
     STAT_INT("bff_errors",          priv->st_bff_errors);
     STAT_INT("responses_dropped",   priv->st_responses_dropped);
-    STAT_INT("kc_timeouts",         priv->st_kc_timeouts);
+    STAT_INT("idp_timeouts",         priv->st_idp_timeouts);
 
 #undef STAT_INT
 
@@ -604,9 +603,9 @@ PRIVATE json_t *cmd_view_status(hgobj gobj, const char *cmd, json_t *kw, hgobj s
  *    1. Exact/substring — the stat's full `name` appears inside `stats`.
  *    2. Prefix fallback — extract `name`'s own prefix up to the first '_'
  *       and look for that inside `stats`.  This is what lets a caller
- *       pass "kc_" (or "kc") and receive every `kc_*` counter.
+ *       pass "idp_" (or "idp") and receive every `idp_*` counter.
  *
- *  Both lookups are case-insensitive so ad-hoc filters ("KC", "bff")
+ *  Both lookups are case-insensitive so ad-hoc filters ("IDP", "bff")
  *  work the same as the canonical lowercase names.
  ***************************************************************************/
 PRIVATE BOOL stats_match(const char *stats, const char *name)
@@ -1012,7 +1011,7 @@ PRIVATE PENDING_AUTH *dequeue(hgobj gobj)
 
 /***************************************************************************
  *  Shared result handler for callback and refresh.
- *  Reads Keycloak token response, sets httpOnly cookies, responds to browser.
+ *  Reads IdP token response, sets httpOnly cookies, responds to browser.
  ***************************************************************************/
 PRIVATE json_t *send_token_to_browser(
     hgobj gobj,
@@ -1034,21 +1033,21 @@ PRIVATE json_t *send_token_to_browser(
 
     {
         /*
-         *  Count any 2xx as success.  Keycloak's /token endpoint
+         *  Count any 2xx as success.  IdP's /token endpoint
          *  returns 200 on the happy path, but the 2xx range is the
          *  right semantic net — mirrors send_logout_to_browser below.
          */
         PRIVATE_DATA *priv = gobj_priv_data(gobj);
         if(status >= 200 && status < 300) {
-            priv->st_kc_ok++;
+            priv->st_idp_ok++;
         } else {
-            priv->st_kc_errors++;
+            priv->st_idp_errors++;
         }
     }
 
     if(gobj_trace_level(gobj) & TRACE_MESSAGES) {
         gobj_trace_msg(gobj,
-            "👤BFF ⏪ Keycloak: action=%s status=%d",
+            "👤BFF ⏪ IdP: action=%s status=%d",
             action_name(action), status
         );
     }
@@ -1056,7 +1055,7 @@ PRIVATE json_t *send_token_to_browser(
         json_t *jn_full_body = kw_get_dict(gobj, kw, "body", NULL, 0);
         if(jn_full_body) {
             json_t *jn_redact = redact_for_trace(jn_full_body);
-            gobj_trace_json(gobj, jn_redact, "👤BFF ⏪ Keycloak body (redacted)");
+            gobj_trace_json(gobj, jn_redact, "👤BFF ⏪ IdP body (redacted)");
             JSON_DECREF(jn_redact)
         }
     }
@@ -1069,7 +1068,7 @@ PRIVATE json_t *send_token_to_browser(
      *  process_next kicks off a fresh task — so the stale reply can
      *  never be forwarded to a different user.
      *
-     *  Stats already reflect what the IdP said (kc_ok / kc_errors
+     *  Stats already reflect what the IdP said (idp_ok / idp_errors
      *  bumped above), so charts stay truthful; only the forward to
      *  the wrong socket is skipped.  CONTINUE_TASK so the task
      *  finishes normally and ac_end_task runs its cleanup.
@@ -1095,12 +1094,12 @@ PRIVATE json_t *send_token_to_browser(
 
     if(status != 200) {
         /*
-         *  Map Keycloak failures to stable browser-facing error codes.
-         *  Never leak the word "Keycloak" to the browser — that's an
+         *  Map IdP failures to stable browser-facing error codes.
+         *  Never leak the word "IdP" to the browser — that's an
          *  internal implementation detail.  The operator still gets
          *  full detail via gobj_log_error emitted by send_error_response.
          *
-         *  Keycloak's /token endpoint replies with an RFC-6749 error
+         *  IdP's /token endpoint replies with an RFC-6749 error
          *  envelope: { "error": "<rfc_code>", "error_description": "..." }.
          *  We parse that body when present to distinguish the real cause.
          *
@@ -1111,13 +1110,13 @@ PRIVATE json_t *send_token_to_browser(
         const char *browser_msg    = "Unexpected authentication error";
 
         json_t *jn_err_body = kw_get_dict(gobj, kw, "body", NULL, 0);
-        const char *kc_err  = kw_get_str(gobj, jn_err_body, "error",             "", 0);
-        const char *kc_desc = kw_get_str(gobj, jn_err_body, "error_description", "", 0);
+        const char *idp_err  = kw_get_str(gobj, jn_err_body, "error",             "", 0);
+        const char *idp_desc = kw_get_str(gobj, jn_err_body, "error_description", "", 0);
 
-        if(strcmp(kc_err, "invalid_grant") == 0 &&
+        if(strcmp(idp_err, "invalid_grant") == 0 &&
                 (status == 400 || status == 401)) {
             /*
-             *  Keycloak packs several distinct outcomes under invalid_grant:
+             *  IdP packs several distinct outcomes under invalid_grant:
              *    - "Invalid user credentials"      → wrong user/pass
              *    - "Account is not fully set up"   → disabled/incomplete
              *    - "Account disabled"              → disabled
@@ -1126,7 +1125,7 @@ PRIVATE json_t *send_token_to_browser(
              *    - "Code not valid"                → PKCE code reused/expired
              *
              *  The right browser-facing mapping depends on BOTH the human
-             *  description AND the action that triggered the Keycloak call:
+             *  description AND the action that triggered the IdP call:
              *
              *    * A disabled account is a disabled account regardless of
              *      whether we got there via /auth/login or /auth/refresh,
@@ -1144,8 +1143,8 @@ PRIVATE json_t *send_token_to_browser(
              *      to session_expired so the GUI renders "your session has
              *      expired, please log in again" instead.
              */
-            if(strcasestr(kc_desc, "disabled") ||
-               strcasestr(kc_desc, "not fully set up")) {
+            if(strcasestr(idp_desc, "disabled") ||
+               strcasestr(idp_desc, "not fully set up")) {
                 browser_status = 403;
                 browser_code   = "account_disabled";
                 browser_msg    = "Account disabled or not fully configured";
@@ -1159,7 +1158,7 @@ PRIVATE json_t *send_token_to_browser(
                 browser_code   = "session_expired";
                 browser_msg    = "Session expired, please log in again";
             }
-        } else if(status == 400 && strcmp(kc_err, "invalid_client") == 0) {
+        } else if(status == 400 && strcmp(idp_err, "invalid_client") == 0) {
             browser_status = 500;
             browser_code   = "auth_config_error";
             browser_msg    = "Authentication configuration error";
@@ -1290,7 +1289,7 @@ PRIVATE json_t *send_token_to_browser(
 }
 
 /***************************************************************************
- *  Send the authorization_code or refresh_token request to Keycloak.
+ *  Send the authorization_code or refresh_token request to IdP.
  ***************************************************************************/
 PRIVATE json_t *get_token_from_idp(
     hgobj gobj,
@@ -1371,7 +1370,7 @@ PRIVATE json_t *get_token_from_idp(
     }
     if(gobj_trace_level(gobj) & TRACE_TRAFFIC) {
         json_t *jn_redact = redact_for_trace(jn_data);
-        gobj_trace_json(gobj, jn_redact, "👤BFF ⏩ Keycloak data (redacted)");
+        gobj_trace_json(gobj, jn_redact, "👤BFF ⏩ IdP data (redacted)");
         JSON_DECREF(jn_redact)
     }
 
@@ -1389,7 +1388,7 @@ PRIVATE json_t *get_token_from_idp(
 }
 
 /***************************************************************************
- *  Keycloak logout action.
+ *  IdP logout action.
  ***************************************************************************/
 PRIVATE json_t *get_logout_from_idp(
     hgobj gobj,
@@ -1426,7 +1425,7 @@ PRIVATE json_t *get_logout_from_idp(
     }
     if(gobj_trace_level(gobj) & TRACE_TRAFFIC) {
         json_t *jn_redact = redact_for_trace(jn_data);
-        gobj_trace_json(gobj, jn_redact, "👤BFF ⏩ Keycloak logout data (redacted)");
+        gobj_trace_json(gobj, jn_redact, "👤BFF ⏩ IdP logout data (redacted)");
         JSON_DECREF(jn_redact)
     }
 
@@ -1444,7 +1443,7 @@ PRIVATE json_t *get_logout_from_idp(
 }
 
 /***************************************************************************
- *  Result of Keycloak logout.
+ *  Result of IdP logout.
  ***************************************************************************/
 PRIVATE json_t *send_logout_to_browser(
     hgobj gobj,
@@ -1461,27 +1460,27 @@ PRIVATE json_t *send_logout_to_browser(
 
     {
         /*
-         *  Keycloak returns 204 No Content on a successful logout
+         *  IdP returns 204 No Content on a successful logout
          *  (RFC 6749 / OIDC RP-Initiated Logout), not 200.  Count any
-         *  2xx response as success so the kc_ok / kc_errors counters
-         *  reflect real Keycloak behaviour.
+         *  2xx response as success so the idp_ok / idp_errors counters
+         *  reflect real IdP behaviour.
          */
         PRIVATE_DATA *priv = gobj_priv_data(gobj);
         if(status >= 200 && status < 300) {
-            priv->st_kc_ok++;
+            priv->st_idp_ok++;
         } else {
-            priv->st_kc_errors++;
+            priv->st_idp_errors++;
         }
     }
 
     if(gobj_trace_level(gobj) & TRACE_MESSAGES) {
-        gobj_trace_msg(gobj, "👤BFF ⏪ Keycloak logout: status=%d", status);
+        gobj_trace_msg(gobj, "👤BFF ⏪ IdP logout: status=%d", status);
     }
     if(gobj_trace_level(gobj) & TRACE_TRAFFIC) {
         json_t *jn_full_body = kw_get_dict(gobj, kw, "body", NULL, 0);
         if(jn_full_body) {
             json_t *jn_redact = redact_for_trace(jn_full_body);
-            gobj_trace_json(gobj, jn_redact, "👤BFF ⏪ Keycloak logout body (redacted)");
+            gobj_trace_json(gobj, jn_redact, "👤BFF ⏪ IdP logout body (redacted)");
             JSON_DECREF(jn_redact)
         }
     }
@@ -1489,7 +1488,7 @@ PRIVATE json_t *send_logout_to_browser(
     /*
      *  Same browser-generation gate as send_token_to_browser.  Drops
      *  the reply if the connection we were logging out of has been
-     *  closed or replaced.  Stats already reflect Keycloak's reply;
+     *  closed or replaced.  Stats already reflect IdP's reply;
      *  only the forward to the wrong socket is skipped.
      */
     {
@@ -1557,25 +1556,25 @@ PRIVATE void process_next(hgobj gobj)
     priv->processing = TRUE;
     priv->task_valid = TRUE;
 
-    /* Build Keycloak URL from parsed parts */
-    char kc_token_url[PATH_MAX * 2];
-    char kc_token_path[PATH_MAX];
-    build_path(kc_token_path, sizeof(kc_token_path), priv->path, "token", NULL);
-    snprintf(kc_token_url, sizeof(kc_token_url),
+    /* Build IdP URL from parsed parts */
+    char idp_token_url[PATH_MAX * 2];
+    char idp_token_path[PATH_MAX];
+    build_path(idp_token_path, sizeof(idp_token_path), priv->path, "token", NULL);
+    snprintf(idp_token_url, sizeof(idp_token_url),
         "%s://%s%s%s%s",
         priv->schema,
         priv->host,
         empty_string(priv->port) ? "" : ":",
         empty_string(priv->port) ? "" : priv->port,
-        kc_token_path
+        idp_token_path
     );
 
-    priv->st_kc_calls++;
+    priv->st_idp_calls++;
 
     if(gobj_trace_level(gobj) & TRACE_MESSAGES) {
         gobj_trace_msg(gobj,
-            "👤BFF ⏩ Keycloak: action=%s url=%s queue_after=%d",
-            action_name(pa->action), kc_token_url, (int)dl_size(&priv->dl_pending)
+            "👤BFF ⏩ IdP: action=%s url=%s queue_after=%d",
+            action_name(pa->action), idp_token_url, (int)dl_size(&priv->dl_pending)
         );
     }
 
@@ -1602,13 +1601,13 @@ PRIVATE void process_next(hgobj gobj)
 
     /*
      *  Per-action timeout for the IdP round-trip.  When the IdP doesn't
-     *  reply within `kc_timeout_ms`, C_TASK fires its own timeout and
+     *  reply within `idp_timeout_ms`, C_TASK fires its own timeout and
      *  publishes EV_END_TASK with result=-2; ac_end_task turns that into
      *  a 504 to the browser.  No watchdog timer in the BFF itself.
      */
-    json_int_t kc_timeout_ms = gobj_read_integer_attr(gobj, "kc_timeout_ms");
-    if(kc_timeout_ms <= 0) {
-        kc_timeout_ms = 30000;
+    json_int_t idp_timeout_ms = gobj_read_integer_attr(gobj, "idp_timeout_ms");
+    if(idp_timeout_ms <= 0) {
+        idp_timeout_ms = 30000;
     }
 
     /*
@@ -1630,7 +1629,7 @@ PRIVATE void process_next(hgobj gobj)
             "jobs",
                 "exec_action",  "get_token_from_idp",
                 "exec_result",  "send_token_to_browser",
-                "exec_timeout", kc_timeout_ms
+                "exec_timeout", idp_timeout_ms
         );
     } else {
         /* BFF_LOGOUT */
@@ -1644,7 +1643,7 @@ PRIVATE void process_next(hgobj gobj)
             "jobs",
                 "exec_action",  "get_logout_from_idp",
                 "exec_result",  "send_logout_to_browser",
-                "exec_timeout", kc_timeout_ms
+                "exec_timeout", idp_timeout_ms
         );
     }
 
@@ -1773,7 +1772,7 @@ PRIVATE int ac_on_close(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 
             /*
              *  End the in-flight task synchronously.  Otherwise its
-             *  exec_timeout (kc_timeout_ms, seconds) would keep
+             *  exec_timeout (idp_timeout_ms, seconds) would keep
              *  processing=TRUE and block any request from the next
              *  browser for the full timeout window.  The task is
              *  volatil — stopping it destroys it via its own
@@ -1909,7 +1908,7 @@ PRIVATE int ac_on_message(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
         /*
          *  SEC-06: validate redirect_uri against the configured allowed prefix.
          *  This prevents the BFF from forwarding arbitrary redirect URIs to
-         *  Keycloak, which could be exploited in phishing/open-redirect attacks.
+         *  IdP, which could be exploited in phishing/open-redirect attacks.
          */
         const char *allowed_ruri = gobj_read_str_attr(gobj, "allowed_redirect_uri");
         if(!empty_string(allowed_ruri) &&
@@ -2008,7 +2007,7 @@ PRIVATE int ac_on_message(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 }
 
 /***************************************************************************
- *  Keycloak task completed — clean up, process next queued request.
+ *  IdP task completed — clean up, process next queued request.
  *
  *  EV_END_TASK kw shape (from c_task::stop_task):
  *      { result, last_job, input_data, output_data }
@@ -2018,7 +2017,7 @@ PRIVATE int ac_on_message(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
  *     -1   a result_X or action_X returned STOP_TASK; the handler
  *          already produced the browser response (200, 4xx, 502...)
  *     -2   C_TASK exec_timeout fired — the IdP did not reply within
- *          kc_timeout_ms and no result handler ran.  Convert into 504
+ *          idp_timeout_ms and no result handler ran.  Convert into 504
  *          here so the browser unblocks and the operator gets a log.
  ***************************************************************************/
 PRIVATE int ac_end_task(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
@@ -2031,12 +2030,12 @@ PRIVATE int ac_end_task(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
     int result = (int)kw_get_int(gobj, kw, "result", 0, 0);
 
     if(result == -2) {
-        priv->st_kc_timeouts++;
+        priv->st_idp_timeouts++;
 
         gobj_log_error(gobj, 0,
             "function",   "%s", __FUNCTION__,
             "msgset",     "%s", MSGSET_PROTOCOL_ERROR,
-            "msg",        "%s", "👤BFF Keycloak outbound watchdog fired",
+            "msg",        "%s", "👤BFF IdP outbound watchdog fired",
             "task_valid", "%d", priv->task_valid ? 1 : 0,
             NULL
         );
@@ -2071,7 +2070,7 @@ PRIVATE int ac_end_task(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
     priv->task_valid = FALSE;
 
     if(gobj_trace_level(gobj) & TRACE_MESSAGES) {
-        gobj_trace_msg(gobj, "👤BFF Keycloak task ended (result=%d); pending=%d",
+        gobj_trace_msg(gobj, "👤BFF IdP task ended (result=%d); pending=%d",
             result, (int)dl_size(&priv->dl_pending));
     }
 

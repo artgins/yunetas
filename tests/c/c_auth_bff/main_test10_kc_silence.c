@@ -5,14 +5,14 @@
  *
  *          Differs from main_test1_login in:
  *            - default service is C_TEST10_KC_SILENCE
- *            - BFF kc_timeout_ms = 500 (the watchdog under test)
+ *            - BFF idp_timeout_ms = 500 (the watchdog under test)
  *            - mock Keycloak latency_ms = 60000 (effectively "never
  *              responds" within the test window)
  *            - persistent_channels = true so the C_AUTH_BFF outlives
  *              the watchdog's 504 response (the browser may close
  *              after receiving 504 but we want stats to be readable)
- *            - negative-path expected error: the ac_kc_watchdog path
- *              emits gobj_log_error("BFF Keycloak outbound watchdog
+ *            - negative-path expected error: the task-timeout path
+ *              emits gobj_log_error("BFF IdP outbound watchdog
  *              fired") plus send_error_response's own log; both are
  *              declared as expected so the harness consumes them.
  *
@@ -122,7 +122,7 @@ PRIVATE char variable_config[]= "\
                             'name': 'bff-1',                        \n\
                             'gclass': 'C_AUTH_BFF',                 \n\
                             'kw': {                                 \n\
-                                'keycloak_url': 'http://127.0.0.1:"KC_PORT"/', \n\
+                                'idp_url': 'http://127.0.0.1:"KC_PORT"/', \n\
                                 'realm':        'test',             \n\
                                 'client_id':    'test-client',      \n\
                                 'client_secret': '',                \n\
@@ -131,7 +131,7 @@ PRIVATE char variable_config[]= "\
                                 'allowed_redirect_uri': '',         \n\
                                 'crypto': {},                       \n\
                                 'pending_queue_size': 16,           \n\
-                                'kc_timeout_ms': 500                \n\
+                                'idp_timeout_ms': 500                \n\
                             },                                      \n\
                             'children': [                           \n\
                                 {                                   \n\
@@ -153,7 +153,7 @@ PRIVATE char variable_config[]= "\
             ]                                                       \n\
         },                                                          \n\
         {                                                           \n\
-            'name': '__kc_side__',                                  \n\
+            'name': '__idp_side__',                                  \n\
             'gclass': 'C_IOGATE',                                   \n\
             'autostart': true,                                      \n\
             'autoplay': true,                                       \n\
@@ -162,7 +162,7 @@ PRIVATE char variable_config[]= "\
             },                                                      \n\
             'children': [                                           \n\
                 {                                                   \n\
-                    'name': 'kc_server',                            \n\
+                    'name': 'idp_server',                            \n\
                     'gclass': 'C_TCP_S',                            \n\
                     'kw': {                                         \n\
                         'url': 'tcp://0.0.0.0:"KC_PORT"',           \n\
@@ -176,26 +176,26 @@ PRIVATE char variable_config[]= "\
                     }                                               \n\
                 },                                                  \n\
                 {                                                   \n\
-                    'name': 'kc-1',                                 \n\
+                    'name': 'idp-1',                                 \n\
                     'gclass': 'C_CHANNEL',                          \n\
                     'kw': {                                         \n\
                     },                                              \n\
                     'children': [                                   \n\
                         {                                           \n\
-                            'name': 'kc-1',                         \n\
+                            'name': 'idp-1',                         \n\
                             'gclass': 'C_MOCK_KEYCLOAK',            \n\
                             'kw': {                                 \n\
                                 'latency_ms': 60000                 \n\
                             },                                      \n\
                             'children': [                           \n\
                                 {                                   \n\
-                                    'name': 'kc-1',                 \n\
+                                    'name': 'idp-1',                 \n\
                                     'gclass': 'C_PROT_HTTP_SR',     \n\
                                     'kw': {                         \n\
                                     },                              \n\
                                     'children': [                   \n\
                                         {                           \n\
-                                            'name': 'kc-1',         \n\
+                                            'name': 'idp-1',         \n\
                                             'gclass': 'C_TCP'       \n\
                                         }                           \n\
                                     ]                               \n\
@@ -262,18 +262,17 @@ static int register_yuno_and_more(void)
 
     /*
      *  Two expected errors on the negative path:
-     *    1) The watchdog itself logs "BFF Keycloak outbound watchdog
-     *       fired" (see c_auth_bff.c::ac_kc_watchdog).
-     *    2) send_error_response inside ac_kc_watchdog logs
-     *       "BFF error response" with error_code="auth_timeout"
-     *       (see c_auth_bff.c::send_error_response and the browser
-     *       error-code catalogue in c_auth_bff.h).
+     *    1) The task-timeout path in ac_end_task logs
+     *       "BFF IdP outbound watchdog fired".
+     *    2) send_error_response then logs "BFF server error" with
+     *       error_code="auth_timeout" (see c_auth_bff.c::send_error_response
+     *       and the browser error-code catalogue in c_auth_bff.h).
      *  Both are expected and must be declared so test_json passes.
      */
     set_expected_results(
         APP_NAME,
         json_pack("[{s:s}, {s:s, s:s}]",
-            "msg",        "👤BFF Keycloak outbound watchdog fired",
+            "msg",        "👤BFF IdP outbound watchdog fired",
             "msg",        "👤BFF server error",
             "error_code", "auth_timeout"
         ),

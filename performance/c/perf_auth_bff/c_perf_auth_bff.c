@@ -307,7 +307,7 @@ PRIVATE int ac_timer(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
         if(bff_side) {
             gobj_stop_tree(bff_side);
         }
-        hgobj kc_side = gobj_find_service("__kc_side__", FALSE);
+        hgobj kc_side = gobj_find_service("__idp_side__", FALSE);
         if(kc_side) {
             gobj_stop_tree(kc_side);
         }

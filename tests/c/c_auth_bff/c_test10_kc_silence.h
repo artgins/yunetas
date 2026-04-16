@@ -3,7 +3,7 @@
  *
  *          Driver GClass for test10_kc_silence: Keycloak accepts the
  *          TCP connection but never responds.  Validates the outbound
- *          watchdog added in the previous commit (kc_timeout_ms +
+ *          watchdog added in the previous commit (idp_timeout_ms +
  *          ac_kc_watchdog in c_auth_bff.c).
  *
  *          Copyright (c) 2026, ArtGins.

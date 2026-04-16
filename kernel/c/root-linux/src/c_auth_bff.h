@@ -41,10 +41,10 @@ GOBJ_DECLARE_GCLASS(C_AUTH_BFF);
  *  The `error_code` is the stable contract with the GUI — use it as the
  *  i18n translation key.  The `error` field is a developer-facing English
  *  fallback, mirrored into the server logs; the GUI must NOT display it
- *  as-is (end users never want to read "Keycloak token exchange failed").
+ *  as-is (end users never want to read "IdP token exchange failed").
  *
  *  ---------------------------------------------------------------------
- *  Codes emitted by the login/token path (after talking to Keycloak)
+ *  Codes emitted by the login/token path (after talking to IdP)
  *  ---------------------------------------------------------------------
  *  invalid_credentials       401  Wrong username or password (LOGIN only)
  *  session_expired           401  Refresh_token or auth code no longer
@@ -55,14 +55,14 @@ GOBJ_DECLARE_GCLASS(C_AUTH_BFF);
  *                                 session simply timed out.
  *  account_disabled          403  Account disabled / not fully set up
  *  auth_rate_limited         429  Too many login attempts
- *  auth_service_unavailable  502  Keycloak unreachable or 5xx
+ *  auth_service_unavailable  502  IdP unreachable or 5xx
  *  auth_config_error         500  BFF misconfigured (bad client_id, ...)
- *  auth_unexpected_error     502  Keycloak returned something unexpected
- *  auth_empty_response       502  Keycloak reply had no JSON body
+ *  auth_unexpected_error     502  IdP returned something unexpected
+ *  auth_empty_response       502  IdP reply had no JSON body
  *  auth_timeout              504  Watchdog fired, no reply in time
  *
  *  ---------------------------------------------------------------------
- *  Codes emitted by request validation (before talking to Keycloak)
+ *  Codes emitted by request validation (before talking to IdP)
  *  ---------------------------------------------------------------------
  *  method_not_allowed        405  Request was not POST
  *  missing_body              400  POST without JSON body

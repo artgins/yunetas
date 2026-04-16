@@ -133,7 +133,7 @@ PRIVATE int mt_play(hgobj gobj)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
-    /* Give the __bff_side__ and __kc_side__ listen sockets a moment */
+    /* Give the __bff_side__ and __idp_side__ listen sockets a moment */
     set_timeout(priv->timer, 500);
     return 0;
 }
@@ -192,9 +192,9 @@ PRIVATE void check_bff_stats(hgobj gobj, hgobj bff)
         json_int_t  expected;
     } cases[] = {
         {"requests_total", 1},
-        {"kc_calls",       1},
-        {"kc_ok",          1},
-        {"kc_errors",      0},
+        {"idp_calls",       1},
+        {"idp_ok",          1},
+        {"idp_errors",      0},
         {"bff_errors",     0},
         {"q_full_drops",   0},
         {NULL, 0}

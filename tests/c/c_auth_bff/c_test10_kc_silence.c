@@ -5,7 +5,7 @@
  *
  *          Reproduces the "Keycloak hangs forever" failure mode that
  *          would otherwise wedge an entire BFF channel, and validates
- *          the kc_timeout_ms / ac_kc_watchdog fix in the previous
+ *          the idp_timeout_ms / ac_kc_watchdog fix in the previous
  *          commit.
  *
  *          Setup
@@ -15,7 +15,7 @@
  *            responds" from the test's point of view.  The mock will
  *            sit with a pending slot and a live C_TIMER0 until
  *            shutdown; mt_stop of the mock drains both on teardown.
- *          - BFF: kc_timeout_ms = 500.  Short enough that the test
+ *          - BFF: idp_timeout_ms = 500.  Short enough that the test
  *            runs in ~1 s, long enough that the POST and the BFF's
  *            internal plumbing settle before the watchdog fires.
  *
@@ -66,7 +66,7 @@
  *
  *          Failure without the fix
  *          =======================
- *          Without ac_kc_watchdog / kc_timeout_ms, the POST would
+ *          Without ac_kc_watchdog / idp_timeout_ms, the POST would
  *          hang forever.  The test's auto_kill_time=10 s would fire
  *          and the yuno would shut down, but ctest would still treat
  *          that as a pass (yuno shut down cleanly, no unexpected
@@ -191,12 +191,12 @@ PRIVATE void verify_and_die(hgobj gobj)
 
     const test_stat_expect_t bff_expected[] = {
         {"requests_total",      1},
-        {"kc_calls",            1},
-        {"kc_ok",               0},
-        {"kc_errors",           0},
+        {"idp_calls",            1},
+        {"idp_ok",               0},
+        {"idp_errors",           0},
         {"bff_errors",          1},
         {"responses_dropped",   0},
-        {"kc_timeouts",         1},
+        {"idp_timeouts",         1},
         {"q_full_drops",        0},
         {NULL, 0}
     };
@@ -217,7 +217,7 @@ PRIVATE void verify_and_die(hgobj gobj)
         {"pending_cancelled",   1},
         {NULL, 0}
     };
-    hgobj kc = test_helpers_find_service_child(gobj, "__kc_side__", "C_MOCK_KEYCLOAK");
+    hgobj kc = test_helpers_find_service_child(gobj, "__idp_side__", "C_MOCK_KEYCLOAK");
     test_helpers_check_stats(gobj, kc, "test10_kc_silence[mock-kc]", kc_expected);
 
     priv->test_passed = TRUE;
