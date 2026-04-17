@@ -52,6 +52,7 @@ endif()
 ##############################################
 set(SRCS
     test_yevent_traffic_secure1
+    test_yevent_reload_live
 )
 
 ##############################################
