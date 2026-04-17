@@ -746,25 +746,30 @@ static int completeLine(hgobj gobj)
         freeCompletions(&lc);
         return c;
     } else {
-        /* Multiple candidates: print them with descriptions, then let the
-         * user cycle through them with further TABs. */
-        size_t name_width = 0;
-        for (size_t k = 0; k < lc.len; k++) {
-            size_t l = strlen(lc.cvec[k]);
-            if (l > name_width) name_width = l;
-        }
-        if (name_width > 48) name_width = 48;
-
-        printf("\n");
-        for (size_t k = 0; k < lc.len; k++) {
-            const char *cand = lc.cvec[k];
-            const char *desc = lc.descs ? lc.descs[k] : NULL;
-            /* Left-pad and truncate to name_width to keep descriptions aligned. */
-            printf("  %-*.*s", (int)name_width, (int)name_width, cand);
-            if (desc && *desc) {
-                printf("  %s", desc);
+        /* Multiple candidates: print them with descriptions (stdout path
+         * only — an ncurses-hosted editline shares the terminal with a
+         * display pane, so a raw printf here would be invisible at best
+         * and scramble the pane at worst; the user still gets the cycling
+         * preview via refreshLine below, which IS ncurses-aware). */
+        if(!ls->use_ncurses) {
+            size_t name_width = 0;
+            for (size_t k = 0; k < lc.len; k++) {
+                size_t l = strlen(lc.cvec[k]);
+                if (l > name_width) name_width = l;
             }
+            if (name_width > 48) name_width = 48;
+
             printf("\n");
+            for (size_t k = 0; k < lc.len; k++) {
+                const char *cand = lc.cvec[k];
+                const char *desc = lc.descs ? lc.descs[k] : NULL;
+                /* Left-pad and truncate to name_width to keep descriptions aligned. */
+                printf("  %-*.*s", (int)name_width, (int)name_width, cand);
+                if (desc && *desc) {
+                    printf("  %s", desc);
+                }
+                printf("\n");
+            }
         }
 
         size_t stop = 0, i = 0;
