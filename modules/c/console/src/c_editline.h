@@ -35,7 +35,8 @@ GOBJ_DECLARE_GCLASS(C_EDITLINE);
  ***************************************************************/
 typedef struct editline_completions_s {
     size_t len;
-    char **cvec;
+    char **cvec;        /* full-line replacement for each candidate */
+    char **descs;       /* parallel array; each entry may be NULL */
 } editline_completions_t;
 
 typedef void (*editline_completion_cb_t)(
@@ -59,8 +60,16 @@ PUBLIC void editline_set_completion_callback(
     void *user_data
 );
 
-/*  Append a completion candidate from within a completion callback. */
-PUBLIC void editline_add_completion(editline_completions_t *lc, const char *str);
+/*  Append a completion candidate from within a completion callback.
+ *  `str`  is the full replacement line if the candidate is picked.
+ *  `desc` is an optional human-readable description shown in the
+ *         candidate list when more than one option is available; pass
+ *         NULL if not available. */
+PUBLIC void editline_add_completion(
+    editline_completions_t *lc,
+    const char *str,
+    const char *desc
+);
 
 /***************************************************************
  *              Inline hints API (shown in-place, to the right)

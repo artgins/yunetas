@@ -525,9 +525,16 @@ static void freeCompletions(linenoiseCompletions *lc) {
                 gbmem_free(lc->cvec[i]);
             }
         }
-    }
-    if (lc->cvec != NULL)
         gbmem_free(lc->cvec);
+    }
+    if(lc->descs) {
+        for (i = 0; i < lc->len; i++) {
+            if(lc->descs[i]) {
+                gbmem_free(lc->descs[i]);
+            }
+        }
+        gbmem_free(lc->descs);
+    }
 }
 
 /* This is an helper function for linenoiseEdit() and is called when the
@@ -548,7 +555,35 @@ static int completeLine(hgobj gobj)
     }
     if (lc.len == 0) {
         linenoiseBeep();
+    } else if (lc.len == 1) {
+        /* Exactly one candidate: apply directly, no cycling. */
+        nwritten = snprintf(ls->buf, ls->buflen, "%s", lc.cvec[0]);
+        ls->len = ls->pos = (size_t)nwritten;
+        refreshLine(ls);
+        freeCompletions(&lc);
+        return c;
     } else {
+        /* Multiple candidates: print them with descriptions, then let the
+         * user cycle through them with further TABs. */
+        size_t name_width = 0;
+        for (size_t k = 0; k < lc.len; k++) {
+            size_t l = strlen(lc.cvec[k]);
+            if (l > name_width) name_width = l;
+        }
+        if (name_width > 48) name_width = 48;
+
+        printf("\n");
+        for (size_t k = 0; k < lc.len; k++) {
+            const char *cand = lc.cvec[k];
+            const char *desc = lc.descs ? lc.descs[k] : NULL;
+            /* Left-pad and truncate to name_width to keep descriptions aligned. */
+            printf("  %-*.*s", (int)name_width, (int)name_width, cand);
+            if (desc && *desc) {
+                printf("  %s", desc);
+            }
+            printf("\n");
+        }
+
         size_t stop = 0, i = 0;
 
         while(!stop) {
@@ -626,10 +661,13 @@ PUBLIC void editline_set_hints_callback(
 /* This function is used by the callback function registered by the user
  * in order to add completion options given the input string when the
  * user typed <tab>. */
-PUBLIC void editline_add_completion(editline_completions_t *lc, const char *str)
-{
+PUBLIC void editline_add_completion(
+    editline_completions_t *lc,
+    const char *str,
+    const char *desc
+) {
     size_t len = strlen(str);
-    char *copy, **cvec;
+    char *copy, **cvec, **dvec;
 
     copy = gbmem_malloc(len+1);
     if (copy == NULL) return;
@@ -639,8 +677,18 @@ PUBLIC void editline_add_completion(editline_completions_t *lc, const char *str)
         gbmem_free(copy);
         return;
     }
+    dvec = gbmem_realloc(lc->descs,sizeof(char*)*(lc->len+1));
+    if (dvec == NULL) {
+        /* cvec survived; put it back so freeCompletions can clean up. */
+        lc->cvec = cvec;
+        gbmem_free(copy);
+        return;
+    }
     lc->cvec = cvec;
-    lc->cvec[lc->len++] = copy;
+    lc->descs = dvec;
+    lc->cvec[lc->len] = copy;
+    lc->descs[lc->len] = (desc && *desc) ? gbmem_strdup(desc) : NULL;
+    lc->len++;
 }
 
 /* =========================== Line editing ================================= */

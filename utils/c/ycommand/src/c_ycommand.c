@@ -1331,12 +1331,18 @@ PRIVATE void ycommand_completion_cb(
         /* Completing the command name itself. */
         size_t token_len = strlen(body);
         char candidate[1024];
+        static const char *local_descs[] = {
+            "Show local help",
+            "Show command history",
+            "Exit ycommand",
+            "Exit ycommand",
+        };
 
         for(int i = 0; local_cmds[i]; i++) {
             if(strncmp(local_cmds[i], body, token_len) == 0) {
                 snprintf(candidate, sizeof(candidate), "%.*s%s",
                     (int)prefix_len, buf, local_cmds[i]);
-                editline_add_completion(lc, candidate);
+                editline_add_completion(lc, candidate, local_descs[i]);
             }
         }
         if(priv->commands_cache) {
@@ -1344,9 +1350,11 @@ PRIVATE void ycommand_completion_cb(
             json_t *jn_cmd;
             json_object_foreach(priv->commands_cache, name, jn_cmd) {
                 if(strncmp(name, body, token_len) == 0) {
+                    const char *desc = json_string_value(
+                        json_object_get(jn_cmd, "description"));
                     snprintf(candidate, sizeof(candidate), "%.*s%s",
                         (int)prefix_len, buf, name);
-                    editline_add_completion(lc, candidate);
+                    editline_add_completion(lc, candidate, desc);
                 }
             }
         }
@@ -1394,9 +1402,11 @@ PRIVATE void ycommand_completion_cb(
             continue;
         }
         if(strncmp(pname, last_token, token_len) == 0) {
+            const char *pdesc = json_string_value(
+                json_object_get(jn_p, "description"));
             snprintf(candidate, sizeof(candidate), "%.*s%s=",
                 (int)head_len, buf, pname);
-            editline_add_completion(lc, candidate);
+            editline_add_completion(lc, candidate, pdesc);
         }
     }
 }
