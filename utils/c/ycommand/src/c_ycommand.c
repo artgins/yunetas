@@ -2365,65 +2365,39 @@ PRIVATE int ac_command_answer(hgobj gobj, gobj_event_t event, json_t *kw, hgobj 
     /*
      *  Before running the normal display paths, capture the result+flag
      *  into locals so we can resume (or drop) the queue after display.
-     *  ownership of `kw` stays with display_webix_result / the manual
-     *  printing below, as before.
+     *  ownership of `kw` is passed to display_webix_result.
      */
     int __answer_result = (int)kw_get_int(gobj, kw, "result", 0, 0);
     BOOL __ignore_fail = priv->current_ignore_fail;
     priv->current_ignore_fail = FALSE;
 
-    if(priv->interactive) {
-        int r = display_webix_result(gobj, kw);  /* consumes kw */
-        if(priv->pending_commands && json_array_size(priv->pending_commands) > 0) {
-            if(__answer_result < 0 && !__ignore_fail) {
-                json_array_clear(priv->pending_commands);
-            } else {
-                run_next_pending(gobj);
-            }
-        }
-        return r;
-    } else {
-        int result = __answer_result;
-        const char *comment = kw_get_str(gobj, kw, "comment", "", 0);
-        if(result != 0){
-            printf("%sERROR %d: %s%s\n", On_Red BWhite, result, comment, Color_Off);
-        } else {
-            json_t *jn_data = kw_get_dict_value(gobj, kw, "data", 0, 0);
-            if(json_is_string(jn_data)) {
-                const char *data = json_string_value(jn_data);
-                printf("%s\n", data);
-            } else if(json_is_object(jn_data) || json_is_array(jn_data)) {
-                if(!gobj_read_bool_attr(gobj, "print_with_metadata")) {
-                    json_t *jn_data2 = kw_filter_metadata(gobj, json_incref(jn_data));
-                    print_json("", jn_data2);
-                    JSON_DECREF(jn_data2);
-                } else {
-                    print_json("", jn_data);
-                }
-            }
-            if(!empty_string(comment)) {
-                printf("%s%s%s\n", IYellow, comment, Color_Off);
-            }
-        }
-        KW_DECREF(kw);
-        gobj_set_exit_code(result);
+    /*
+     *  Unified rendering: use display_webix_result() in both modes so the
+     *  non-interactive output also honours the schema → table pipeline
+     *  (and the '*' prefix still forces raw-JSON form via
+     *  __md_iev__.display_mode, set in exec_one_command).
+     */
+    int r = display_webix_result(gobj, kw);  /* consumes kw */
 
-        /*
-         *  Non-interactive: drain queued commands one at a time, stop on
-         *  error unless the dropped command was prefixed with '-'.
-         */
-        if(priv->pending_commands && json_array_size(priv->pending_commands) > 0) {
-            if(result < 0 && !__ignore_fail) {
-                json_array_clear(priv->pending_commands);
-                set_timeout(priv->timer, priv->wait * 1000);
-            } else {
-                run_next_pending(gobj);
-            }
+    if(priv->pending_commands && json_array_size(priv->pending_commands) > 0) {
+        if(__answer_result < 0 && !__ignore_fail) {
+            json_array_clear(priv->pending_commands);
         } else {
+            run_next_pending(gobj);
+        }
+    }
+
+    if(!priv->interactive) {
+        gobj_set_exit_code(__answer_result);
+        /* Schedule the shutdown timeout only when we're actually done —
+         * if more queued commands are still being drained, wait for them. */
+        if(!priv->pending_commands
+           || json_array_size(priv->pending_commands) == 0) {
             set_timeout(priv->timer, priv->wait * 1000);
         }
     }
-    return 0;
+
+    return r;
 }
 
 /***************************************************************************
