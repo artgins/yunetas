@@ -131,11 +131,7 @@
 /***************************************************************************
  *              Structures
  ***************************************************************************/
-// TODO to integrate line completion
-typedef struct linenoiseCompletions {
-  size_t len;
-  char **cvec;
-} linenoiseCompletions;
+typedef editline_completions_t linenoiseCompletions;
 
 /***************************************************************************
  *              Prototypes
@@ -205,6 +201,8 @@ typedef struct _PRIVATE_DATA {
     int in_completion;  /* The user pressed TAB and we are now in completion
                          * mode, so input is handled by completeLine(). */
     size_t completion_idx; /* Index of next completion to propose. */
+    editline_completion_cb_t completion_callback;
+    void *completion_user_data;
 
     size_t buflen;      /* Edited line buffer size. */
     const char *prompt; /* Prompt to display. */
@@ -532,13 +530,16 @@ static void freeCompletions(linenoiseCompletions *lc) {
  *
  * The state of the editing is encapsulated into the pointed linenoiseState
  * structure as described in the structure definition. */
-static int completeLine(PRIVATE_DATA *ls)
+static int completeLine(hgobj gobj)
 {
+    PRIVATE_DATA *ls = gobj_priv_data(gobj);
     linenoiseCompletions lc = { 0, NULL };
     int nread, nwritten;
     char c = 0;
 
-    // TODO completionCallback(ls->buf,&lc);
+    if(ls->completion_callback) {
+        ls->completion_callback(gobj, ls->buf, &lc, ls->completion_user_data);
+    }
     if (lc.len == 0) {
         linenoiseBeep();
     } else {
@@ -593,29 +594,35 @@ static int completeLine(PRIVATE_DATA *ls)
 }
 
 /* Register a callback function to be called for tab-completion. */
-// TODO void linenoiseSetCompletionCallback(linenoiseCompletionCallback *fn) {
-//     completionCallback = fn;
-// }
+PUBLIC void editline_set_completion_callback(
+    hgobj gobj,
+    editline_completion_cb_t cb,
+    void *user_data
+) {
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+    priv->completion_callback = cb;
+    priv->completion_user_data = user_data;
+}
 
 /* This function is used by the callback function registered by the user
  * in order to add completion options given the input string when the
- * user typed <tab>. See the example.c source code for a very easy to
- * understand example. */
-// PRIVATE void linenoiseAddCompletion(linenoiseCompletions *lc, const char *str) {
-//     size_t len = strlen(str);
-//     char *copy, **cvec;
-//
-//     copy = malloc(len+1);
-//     if (copy == NULL) return;
-//     memcpy(copy,str,len+1);
-//     cvec = realloc(lc->cvec,sizeof(char*)*(lc->len+1));
-//     if (cvec == NULL) {
-//         free(copy);
-//         return;
-//     }
-//     lc->cvec = cvec;
-//     lc->cvec[lc->len++] = copy;
-// }
+ * user typed <tab>. */
+PUBLIC void editline_add_completion(editline_completions_t *lc, const char *str)
+{
+    size_t len = strlen(str);
+    char *copy, **cvec;
+
+    copy = malloc(len+1);
+    if (copy == NULL) return;
+    memcpy(copy,str,len+1);
+    cvec = realloc(lc->cvec,sizeof(char*)*(lc->len+1));
+    if (cvec == NULL) {
+        free(copy);
+        return;
+    }
+    lc->cvec = cvec;
+    lc->cvec[lc->len++] = copy;
+}
 
 /* =========================== Line editing ================================= */
 
