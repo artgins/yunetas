@@ -1065,9 +1065,13 @@ for CERT in ${CERT_NAMES}; do
         continue
     fi
 
-    install -m 0644 "${FULLCHAIN}" "${DEST_BASE}/${CERT}.crt"
-    install -m 0644 "${CHAIN}"     "${DEST_BASE}/${CERT}.chain"
-    install -m 0600 "${PRIVKEY}"   "${DEST_PRIV}/${CERT}.key"
+    # install -C compares and skips the copy (incl. mtime bump) when the
+    # content is already identical. This is critical for the agent's
+    # cert-sync timer: without -C, every run of this script would bump
+    # mtimes and trigger a spurious reload-certs broadcast.
+    install -C -m 0644 "${FULLCHAIN}" "${DEST_BASE}/${CERT}.crt"
+    install -C -m 0644 "${CHAIN}"     "${DEST_BASE}/${CERT}.chain"
+    install -C -m 0600 "${PRIVKEY}"   "${DEST_PRIV}/${CERT}.key"
 
     chown yuneta:yuneta "${DEST_BASE}/${CERT}.crt" "${DEST_BASE}/${CERT}.chain" "${DEST_PRIV}/${CERT}.key" || true
     echo "Copied ${CERT} -> ${DEST_BASE}/{${CERT}.crt, ${CERT}.chain, private/${CERT}.key}"
