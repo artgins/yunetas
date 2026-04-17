@@ -204,6 +204,11 @@ typedef struct _PRIVATE_DATA {
     editline_completion_cb_t completion_callback;
     void *completion_user_data;
 
+    editline_hints_cb_t hints_callback;
+    editline_free_hint_cb_t free_hints_callback;
+    void *hints_user_data;
+    hgobj gobj_self;            /* own hgobj, needed from refreshLine (no gobj ptr there) */
+
     size_t buflen;      /* Edited line buffer size. */
     const char *prompt; /* Prompt to display. */
     size_t plen;        /* Prompt length. */
@@ -237,6 +242,7 @@ PRIVATE void refreshLine(PRIVATE_DATA *l);
 PRIVATE void mt_create(hgobj gobj)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
+    priv->gobj_self = gobj;
 
     if(!atexit_registered) {
         atexit(linenoiseAtExit);
@@ -604,6 +610,19 @@ PUBLIC void editline_set_completion_callback(
     priv->completion_user_data = user_data;
 }
 
+/* Register a hints callback. Pass NULL to disable. */
+PUBLIC void editline_set_hints_callback(
+    hgobj gobj,
+    editline_hints_cb_t cb,
+    editline_free_hint_cb_t free_cb,
+    void *user_data
+) {
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+    priv->hints_callback = cb;
+    priv->free_hints_callback = free_cb;
+    priv->hints_user_data = user_data;
+}
+
 /* This function is used by the callback function registered by the user
  * in order to add completion options given the input string when the
  * user typed <tab>. */
@@ -684,6 +703,36 @@ PRIVATE void refreshLine(PRIVATE_DATA *l)
         printf(Move_Horizontal, 1);         // Move to beginning of line
         /* Write the prompt and the current buffer content */
         printf("%s%*.*s", l->prompt, (int)len, (int)len, buf);
+
+        /* Inline hint (in-place, shown to the right of the buffer). */
+        if(l->hints_callback) {
+            int color = -1, bold = 0;
+            char *hint = l->hints_callback(
+                l->gobj_self, l->buf, &color, &bold, l->hints_user_data
+            );
+            if(hint) {
+                size_t hintlen = strlen(hint);
+                /* Truncate so prompt+buf+hint fits in cols. */
+                if(l->cols > 0) {
+                    size_t used = plen + len;
+                    if(used < l->cols) {
+                        size_t room = l->cols - used;
+                        if(hintlen > room) hintlen = room;
+                    } else {
+                        hintlen = 0;
+                    }
+                }
+                if(hintlen > 0) {
+                    if(color < 0) color = 90;   /* bright black (gray) */
+                    printf("\033[%d;%dm%.*s\033[0m",
+                        bold, color, (int)hintlen, hint);
+                }
+                if(l->free_hints_callback) {
+                    l->free_hints_callback(hint, l->hints_user_data);
+                }
+            }
+        }
+
         printf(Move_Horizontal, (int)(pos+plen+1));   // Move cursor to original position
         fflush(stdout);
     }

@@ -98,6 +98,10 @@ PRIVATE BOOL is_commands_list_response(json_t *jn_data);
 PRIVATE void ycommand_completion_cb(
     hgobj gobj, const char *buf, editline_completions_t *lc, void *user_data
 );
+PRIVATE char *ycommand_hints_cb(
+    hgobj gobj, const char *buf, int *out_color, int *out_bold, void *user_data
+);
+PRIVATE void ycommand_free_hint_cb(char *hint, void *user_data);
 
 /***************************************************************************
  *          Data: config, public data, private data
@@ -1329,6 +1333,127 @@ PRIVATE void ycommand_completion_cb(
 }
 
 /***************************************************************************
+ *  Map a yuno sdata type to a short label for the hint.
+ ***************************************************************************/
+PRIVATE const char *short_type_label(const char *type)
+{
+    if(empty_string(type))                return "";
+    if(strcmp(type, "string") == 0)       return "str";
+    if(strcmp(type, "integer") == 0)      return "int";
+    if(strcmp(type, "boolean") == 0)      return "bool";
+    return type;
+}
+
+/***************************************************************************
+ *  Return TRUE if `buf` already contains a "<pname>=" token. The buffer
+ *  always starts with the command name, so the param name must be preceded
+ *  by whitespace — this avoids matches that collide with the command name
+ *  or with the value side of another param.
+ ***************************************************************************/
+PRIVATE BOOL line_has_param(const char *buf, const char *pname)
+{
+    size_t plen = strlen(pname);
+    const char *p = buf;
+    while((p = strstr(p, pname)) != NULL) {
+        BOOL preceded_by_space = (p != buf) && (p[-1] == ' ' || p[-1] == '\t');
+        if(preceded_by_space && p[plen] == '=') {
+            return TRUE;
+        }
+        p += plen;
+    }
+    return FALSE;
+}
+
+/***************************************************************************
+ *  Hints callback: once the user has typed "<cmd> ", show the remaining
+ *  parameters in gray (required as <name=type>, optional as [name=type]).
+ *  Parameters already present on the line are skipped.
+ ***************************************************************************/
+PRIVATE char *ycommand_hints_cb(
+    hgobj editline_gobj,
+    const char *buf,
+    int *out_color,
+    int *out_bold,
+    void *user_data
+) {
+    hgobj gobj = (hgobj)user_data;
+    if(!gobj || empty_string(buf)) {
+        return NULL;
+    }
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+    if(!priv->commands_cache) {
+        return NULL;
+    }
+
+    /* Skip leading spaces and an optional '*' form-mode prefix. */
+    const char *body = buf;
+    while(*body == ' ' || *body == '\t') body++;
+    if(*body == '*') body++;
+
+    /* Hint only after the command name has been completed (first space seen). */
+    const char *first_space = strchr(body, ' ');
+    if(!first_space) {
+        return NULL;
+    }
+    size_t cmd_len = (size_t)(first_space - body);
+    char cmd_name[128];
+    if(cmd_len == 0 || cmd_len >= sizeof(cmd_name)) {
+        return NULL;
+    }
+    memcpy(cmd_name, body, cmd_len);
+    cmd_name[cmd_len] = 0;
+
+    json_t *jn_cmd = json_object_get(priv->commands_cache, cmd_name);
+    if(!jn_cmd) {
+        return NULL;
+    }
+    json_t *jn_params = json_object_get(jn_cmd, "parameters");
+    if(!json_is_array(jn_params) || json_array_size(jn_params) == 0) {
+        return NULL;
+    }
+
+    /* Build "[name=type] <req=type> ..." for params not yet on the line. */
+    gbuffer_t *gbuf = gbuffer_create(128, 4 * 1024);
+    size_t idx;
+    json_t *jn_p;
+    json_array_foreach(jn_params, idx, jn_p) {
+        const char *pname = json_string_value(json_object_get(jn_p, "parameter"));
+        if(empty_string(pname)) {
+            continue;
+        }
+        if(line_has_param(body, pname)) {
+            continue;
+        }
+        const char *ptype = json_string_value(json_object_get(jn_p, "type"));
+        const char *flag = json_string_value(json_object_get(jn_p, "flag"));
+        BOOL required = (flag && strstr(flag, "SDF_REQUIRED") != NULL);
+        gbuffer_printf(gbuf, " %c%s=%s%c",
+            required ? '<' : '[',
+            pname,
+            short_type_label(ptype),
+            required ? '>' : ']'
+        );
+    }
+
+    if(gbuffer_leftbytes(gbuf) == 0) {
+        gbuffer_decref(gbuf);
+        return NULL;
+    }
+
+    /* Caller (c_editline) gives the returned pointer to free_cb — strdup it. */
+    char *hint = gbmem_strdup(gbuffer_cur_rd_pointer(gbuf));
+    gbuffer_decref(gbuf);
+    if(out_color) *out_color = 90;  /* bright black / gray */
+    if(out_bold)  *out_bold  = 0;
+    return hint;
+}
+
+PRIVATE void ycommand_free_hint_cb(char *hint, void *user_data)
+{
+    gbmem_free(hint);
+}
+
+/***************************************************************************
  *  Execute batch of input parameters when the route is opened.
  ***************************************************************************/
 PRIVATE int ac_on_open(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
@@ -1349,6 +1474,12 @@ PRIVATE int ac_on_open(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
     if(priv->interactive && priv->gobj_editline) {
         editline_set_completion_callback(
             priv->gobj_editline, ycommand_completion_cb, gobj
+        );
+        editline_set_hints_callback(
+            priv->gobj_editline,
+            ycommand_hints_cb,
+            ycommand_free_hint_cb,
+            gobj
         );
         /*
          *  ycommand can hop between different yunos (agent, controlcenter, ...)

@@ -62,6 +62,36 @@ PUBLIC void editline_set_completion_callback(
 /*  Append a completion candidate from within a completion callback. */
 PUBLIC void editline_add_completion(editline_completions_t *lc, const char *str);
 
+/***************************************************************
+ *              Inline hints API (shown in-place, to the right)
+ ***************************************************************/
+/*
+ *  Callback invoked on every line refresh. Return NULL for no hint, or a
+ *  heap-allocated string. Optional outputs:
+ *      out_color  ANSI SGR foreground color (default: 90 = bright black/gray)
+ *      out_bold   1 to render bold, 0 otherwise
+ *  The returned pointer is handed to free_cb (if set) after being drawn,
+ *  so the callback is free to use any allocator.
+ */
+typedef char *(*editline_hints_cb_t)(
+    hgobj gobj,
+    const char *buf,
+    int *out_color,
+    int *out_bold,
+    void *user_data
+);
+typedef void (*editline_free_hint_cb_t)(
+    char *hint,
+    void *user_data
+);
+
+PUBLIC void editline_set_hints_callback(
+    hgobj gobj,
+    editline_hints_cb_t cb,
+    editline_free_hint_cb_t free_cb,
+    void *user_data
+);
+
 #ifdef __cplusplus
 }
 #endif
