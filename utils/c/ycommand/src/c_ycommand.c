@@ -1505,11 +1505,41 @@ PRIVATE void ycommand_completion_cb(
         }
         const char *last_token = strrchr(buf, ' ');
         last_token = last_token ? last_token + 1 : buf;
-        if(strchr(last_token, '=')) {
-            return;
-        }
         size_t ltoken_len = strlen(last_token);
         size_t head_len = (size_t)(last_token - buf);
+
+        const char *eq = strchr(last_token, '=');
+        if(eq) {
+            /* Value completion: look up the param's type in the schema and
+             * offer known values (booleans for now). */
+            size_t pname_len = (size_t)(eq - last_token);
+            if(pname_len == 0 || pname_len >= 64) {
+                return;
+            }
+            char pname[64];
+            memcpy(pname, last_token, pname_len);
+            pname[pname_len] = 0;
+            const char *vprefix = eq + 1;
+            size_t vlen = strlen(vprefix);
+            size_t up_to_eq = head_len + pname_len + 1;
+            for(const sdata_desc_t *pp = cmd_entry->schema; pp->name; pp++) {
+                if(strcmp(pp->name, pname) == 0) {
+                    if(DTP_IS_BOOLEAN(pp->type)) {
+                        static const char *bool_vals[] = {"true", "false", NULL};
+                        for(int v = 0; bool_vals[v]; v++) {
+                            if(strncmp(bool_vals[v], vprefix, vlen) == 0) {
+                                snprintf(candidate, sizeof(candidate), "%.*s%s",
+                                    (int)up_to_eq, buf, bool_vals[v]);
+                                editline_add_completion(lc, candidate, NULL);
+                            }
+                        }
+                    }
+                    break;
+                }
+            }
+            return;
+        }
+
         for(const sdata_desc_t *pp = cmd_entry->schema; pp->name; pp++) {
             if(empty_string(pp->name)) {
                 continue;
@@ -1577,16 +1607,50 @@ PRIVATE void ycommand_completion_cb(
         return;
     }
 
-    /* The current token is what the user is typing: the segment after the
-     * last space. An '=' in it means the user is already supplying a value;
-     * we only complete the param *name*, so skip in that case. */
     const char *last_token = strrchr(buf, ' ');
     last_token = last_token ? last_token + 1 : buf;
-    if(strchr(last_token, '=')) {
-        return;
-    }
     size_t token_len = strlen(last_token);
     size_t head_len = (size_t)(last_token - buf);
+
+    const char *eq = strchr(last_token, '=');
+    if(eq) {
+        /* Value completion: look up the param's type and offer known
+         * values (booleans for now). */
+        size_t pname_len = (size_t)(eq - last_token);
+        if(pname_len == 0 || pname_len >= 64) {
+            return;
+        }
+        char pname[64];
+        memcpy(pname, last_token, pname_len);
+        pname[pname_len] = 0;
+        const char *vprefix = eq + 1;
+        size_t vlen = strlen(vprefix);
+        size_t up_to_eq = head_len + pname_len + 1;
+
+        size_t idx;
+        json_t *jn_p;
+        json_array_foreach(jn_params, idx, jn_p) {
+            const char *ppname = json_string_value(
+                json_object_get(jn_p, "parameter"));
+            if(!ppname || strcmp(ppname, pname) != 0) {
+                continue;
+            }
+            const char *ptype = json_string_value(
+                json_object_get(jn_p, "type"));
+            if(ptype && strcmp(ptype, "boolean") == 0) {
+                static const char *bool_vals[] = {"true", "false", NULL};
+                for(int v = 0; bool_vals[v]; v++) {
+                    if(strncmp(bool_vals[v], vprefix, vlen) == 0) {
+                        snprintf(candidate, sizeof(candidate), "%.*s%s",
+                            (int)up_to_eq, buf, bool_vals[v]);
+                        editline_add_completion(lc, candidate, NULL);
+                    }
+                }
+            }
+            break;
+        }
+        return;
+    }
 
     size_t idx;
     json_t *jn_p;
