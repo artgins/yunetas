@@ -141,7 +141,7 @@ struct arguments arguments;
 static char doc[] = APP_DOC;
 
 /* A description of the arguments we accept. */
-static char args_doc[] = "[command ...]";
+static char args_doc[] = "[COMMAND ...]";
 
 /*
  *  The options we understand.
