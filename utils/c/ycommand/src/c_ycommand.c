@@ -40,6 +40,7 @@
 #define CTRL_N  {14}
 #define CTRL_P  {16}
 #define CTRL_R  {18}
+#define CTRL_S  {19}
 #define CTRL_T  {20}
 #define CTRL_U  {21}
 #define CTRL_W  {23}
@@ -2352,6 +2353,7 @@ PRIVATE int create_gclass(gclass_name_t gclass_name)
         {"editline",    EV_EDITLINE_COMPLETE_LINE,    TAB},
         {"editline",    EV_EDITLINE_ENTER,            ENTER},
         {"editline",    EV_EDITLINE_REVERSE_SEARCH,   CTRL_R},
+        {"editline",    EV_EDITLINE_FORWARD_SEARCH,   CTRL_S},
         {"editline",    EV_EDITLINE_PREV_HIST,        MKEY_UP},
         {"editline",    EV_EDITLINE_PREV_HIST,        MKEY_UP2},
         {"editline",    EV_EDITLINE_NEXT_HIST,        MKEY_DOWN},

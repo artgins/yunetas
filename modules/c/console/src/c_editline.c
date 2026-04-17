@@ -238,6 +238,7 @@ PRIVATE void refreshLine(PRIVATE_DATA *l);
 PRIVATE void refreshSearchLine(PRIVATE_DATA *l);
 PRIVATE void editline_exit_search(PRIVATE_DATA *l, int commit);
 PRIVATE void searchUpdate(PRIVATE_DATA *l, int restart_from);
+PRIVATE void searchUpdateForward(PRIVATE_DATA *l, int restart_from);
 PRIVATE int linenoiseEditInsert(PRIVATE_DATA *l, int c);
 
 
@@ -548,6 +549,22 @@ PRIVATE int historySearchBackward(PRIVATE_DATA *l, int from_idx, const char *pat
 }
 
 /*
+ *  Walk l->history[] forward from `from_idx` looking for an entry that
+ *  contains `pat` as a substring. Returns the index, or -1 if none.
+ */
+PRIVATE int historySearchForward(PRIVATE_DATA *l, int from_idx, const char *pat)
+{
+    if(!pat || !*pat) return -1;
+    if(from_idx < 0) from_idx = 0;
+    for(int i = from_idx; i < l->history_len; i++) {
+        if(l->history[i] && strstr(l->history[i], pat)) {
+            return i;
+        }
+    }
+    return -1;
+}
+
+/*
  *  Render "(reverse-i-search)'pat': <match>" instead of the normal line.
  *  Called from refreshLine() whenever l->in_search is set.
  */
@@ -610,6 +627,23 @@ PRIVATE void searchUpdate(PRIVATE_DATA *l, int restart_from)
     } else {
         /* No older match: keep current search_idx so the previous match
          * stays visible. Still beep to signal "nothing further". */
+        if(l->search_pat_len > 0) {
+            linenoiseBeep();
+        }
+    }
+    refreshSearchLine(l);
+}
+
+/*
+ *  Forward counterpart of searchUpdate(). Used by Ctrl+S to step towards
+ *  newer matches while staying in search mode.
+ */
+PRIVATE void searchUpdateForward(PRIVATE_DATA *l, int restart_from)
+{
+    int idx = historySearchForward(l, restart_from, l->search_pat);
+    if(idx >= 0) {
+        l->search_idx = idx;
+    } else {
         if(l->search_pat_len > 0) {
             linenoiseBeep();
         }
@@ -1576,6 +1610,30 @@ PRIVATE int ac_reverse_search(hgobj gobj, gobj_event_t event, json_t *kw, hgobj 
 }
 
 /***************************************************************************
+ *  Ctrl+S: forward counterpart of Ctrl+R. Once in search mode, step to the
+ *  next (newer) match. If invoked outside search mode, enter search from
+ *  the oldest entry — typing then narrows forward.
+ ***************************************************************************/
+PRIVATE int ac_forward_search(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
+{
+    PRIVATE_DATA *l = gobj_priv_data(gobj);
+
+    if(!l->in_search) {
+        l->in_search = 1;
+        l->search_pat[0] = 0;
+        l->search_pat_len = 0;
+        l->search_idx = -1;
+        refreshSearchLine(l);
+    } else {
+        int start = (l->search_idx >= 0) ? (l->search_idx + 1) : 0;
+        searchUpdateForward(l, start);
+    }
+
+    KW_DECREF(kw);
+    return 0;
+}
+
+/***************************************************************************
  *  HACK kw is EVF_KW_WRITING
  ***************************************************************************/
 PRIVATE int ac_gettext(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
@@ -1833,6 +1891,7 @@ PRIVATE int create_gclass(gclass_name_t gclass_name)
         {EV_EDITLINE_DEL_LINE,       ac_del_line,        0},
         {EV_EDITLINE_DEL_PREV_WORD,  ac_del_prev_word,   0},
         {EV_EDITLINE_REVERSE_SEARCH, ac_reverse_search,  0},
+        {EV_EDITLINE_FORWARD_SEARCH, ac_forward_search,  0},
         {EV_MOUSE,                   ac_mouse,           0},
         {EV_GETTEXT,                 ac_gettext,         0},
         {EV_SETTEXT,                 ac_settext,         0},
@@ -1871,6 +1930,7 @@ PRIVATE int create_gclass(gclass_name_t gclass_name)
         {EV_EDITLINE_DEL_LINE,          0},
         {EV_EDITLINE_DEL_PREV_WORD,     0},
         {EV_EDITLINE_REVERSE_SEARCH,    0},
+        {EV_EDITLINE_FORWARD_SEARCH,    0},
         {EV_GETTEXT,                    0},
         {EV_SETTEXT,                    0},
         {EV_KILLFOCUS,                  0},
