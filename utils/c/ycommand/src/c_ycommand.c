@@ -1472,6 +1472,22 @@ PRIVATE int ac_on_open(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
     gobj_write_pointer_attr(gobj, "gobj_connector", src);
 
     if(priv->interactive && priv->gobj_editline) {
+        /*
+         *  Update the prompt to reflect the peer we're talking to, so the
+         *  user can tell at a glance where their commands will land (useful
+         *  when hopping between agent / controlcenter / other yunos).
+         *  Plain text only — ANSI colors would fool the prompt-width logic
+         *  in refreshLine (strlen counts the escape bytes).
+         */
+        char new_prompt[128];
+        if(empty_string(yuno_name)) {
+            snprintf(new_prompt, sizeof(new_prompt), "%s> ", yuno_role);
+        } else {
+            snprintf(new_prompt, sizeof(new_prompt), "%s^%s> ",
+                yuno_role, yuno_name);
+        }
+        gobj_write_str_attr(priv->gobj_editline, "prompt", new_prompt);
+
         editline_set_completion_callback(
             priv->gobj_editline, ycommand_completion_cb, gobj
         );
