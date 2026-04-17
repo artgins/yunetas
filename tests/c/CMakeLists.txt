@@ -9,6 +9,7 @@ project(tests C)
 ##############################################
 add_subdirectory(yev_loop/yev_events)
 add_subdirectory(yev_loop/yev_events_tls)
+add_subdirectory(ytls)
 add_subdirectory(timeranger2)
 add_subdirectory(tr_msg)
 add_subdirectory(tr_treedb)
