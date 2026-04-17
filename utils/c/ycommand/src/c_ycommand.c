@@ -93,7 +93,6 @@ PRIVATE int clear_input_line(hgobj gobj);
 PRIVATE char *get_history_file(char *bf, int bfsize);
 PRIVATE int do_authenticate_task(hgobj gobj);
 PRIVATE int request_commands_cache(hgobj gobj);
-PRIVATE void send_list_gobj_commands(hgobj gobj, const char *gobj_name);
 PRIVATE void merge_commands_into_cache(hgobj gobj, json_t *jn_raw_data);
 PRIVATE BOOL is_commands_list_response(json_t *jn_data);
 PRIVATE void ycommand_completion_cb(
@@ -1188,16 +1187,31 @@ PRIVATE BOOL is_commands_list_response(json_t *jn_data)
 }
 
 /***************************************************************************
- *  Commands-cache: fire one silent `list-gobj-commands` for gobj_name.
- *  All requests are routed through service=__yuno__ because the command
- *  lives on C_YUNO, not on the target service.
+ *  Commands-cache: warm up with the configured service's commands.
+ *  Routed through service=__yuno__ because list-gobj-commands is a command
+ *  of C_YUNO, not of the target service.
+ *
+ *  Yuno-level commands (help, stats, list-gobj-commands, services, ...) are
+ *  intentionally NOT fetched: invoking them requires adding service=__yuno__
+ *  to the line, so having them in the default completion set would be
+ *  misleading. Same story for other services inside the yuno
+ *  (__input_side__, __output_side__, __top_side__, custom names) — invoke
+ *  them manually with service=<name>.
  ***************************************************************************/
-PRIVATE void send_list_gobj_commands(hgobj gobj, const char *gobj_name)
+PRIVATE int request_commands_cache(hgobj gobj)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
+    if(!priv->gobj_connector) {
+        return -1;
+    }
+
+    const char *wanted_service = gobj_read_str_attr(gobj, "yuno_service");
+    if(empty_string(wanted_service)) {
+        wanted_service = "__default_service__";
+    }
     json_t *kw = json_pack("{s:s, s:s, s:i, s:b}",
         "service", "__yuno__",
-        "gobj_name", gobj_name,
+        "gobj_name", wanted_service,
         "details", 1,
         "bottoms", 1
     );
@@ -1212,31 +1226,6 @@ PRIVATE void send_list_gobj_commands(hgobj gobj, const char *gobj_name)
         priv->pending_cache_fetches--;
         JSON_DECREF(webix)
     }
-}
-
-/***************************************************************************
- *  Commands-cache: warm up with commands from __yuno__ and the target
- *  service. The yuno has a common set (list-gobj-commands, help, stats,
- *  trace/attribute management, ...) shared by every yuno; the default
- *  service exposes the yuno-specific commands. Other services within the
- *  yuno (__input_side__, __output_side__, __top_side__, custom names) are
- *  not auto-fetched — invoke them manually with `service=<name>`.
- ***************************************************************************/
-PRIVATE int request_commands_cache(hgobj gobj)
-{
-    PRIVATE_DATA *priv = gobj_priv_data(gobj);
-    if(!priv->gobj_connector) {
-        return -1;
-    }
-
-    send_list_gobj_commands(gobj, "__yuno__");
-
-    const char *wanted_service = gobj_read_str_attr(gobj, "yuno_service");
-    if(empty_string(wanted_service)) {
-        wanted_service = "__default_service__";
-    }
-    send_list_gobj_commands(gobj, wanted_service);
-
     return 0;
 }
 
