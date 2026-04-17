@@ -101,6 +101,7 @@ PRIVATE void merge_commands_into_cache(hgobj gobj, json_t *jn_raw_data);
 PRIVATE BOOL is_commands_list_response(json_t *jn_data);
 PRIVATE BOOL line_has_param(const char *buf, const char *pname);
 PRIVATE int list_history(hgobj gobj);
+PRIVATE void split_commands_into_array(const char *text, json_t *target);
 PRIVATE void split_commands_into_queue(hgobj gobj, const char *text);
 PRIVATE int exec_one_command(hgobj gobj, const char *cmdline);
 PRIVATE void run_next_pending(hgobj gobj);
