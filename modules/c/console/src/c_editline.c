@@ -225,6 +225,7 @@ PRIVATE int linenoiseHistorySetMaxLen(PRIVATE_DATA *l, int len);
 PRIVATE int linenoiseHistoryLoad(PRIVATE_DATA *l, const char *filename);
 PRIVATE int linenoiseHistoryAdd(PRIVATE_DATA *l, const char *line);
 PRIVATE void refreshLine(PRIVATE_DATA *l);
+PRIVATE int linenoiseEditInsert(PRIVATE_DATA *l, int c);
 
 
 
@@ -546,7 +547,7 @@ static void freeCompletions(linenoiseCompletions *lc) {
 static int completeLine(hgobj gobj)
 {
     PRIVATE_DATA *ls = gobj_priv_data(gobj);
-    linenoiseCompletions lc = { 0, NULL };
+    linenoiseCompletions lc = { 0 };
     int nread, nwritten;
     char c = 0;
 
