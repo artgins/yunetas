@@ -9,7 +9,6 @@
  *          All Rights Reserved.
  ***********************************************************************/
 #include <sys/ioctl.h>
-#include <sys/stat.h>
 #include <sys/wait.h>
 #include <fcntl.h>
 #include <string.h>
@@ -18,8 +17,6 @@
 #include <unistd.h>
 #include <limits.h>
 #include <pwd.h>
-#include <time.h>
-#include <ctype.h>
 
 #include <g_ev_console.h>
 #include <c_editline.h>
@@ -96,8 +93,6 @@ PRIVATE int clear_input_line(hgobj gobj);
 PRIVATE char *get_history_file(char *bf, int bfsize);
 PRIVATE int do_authenticate_task(hgobj gobj);
 PRIVATE int request_commands_cache(hgobj gobj);
-PRIVATE int load_commands_cache_from_disk(hgobj gobj);
-PRIVATE int save_commands_cache_to_disk(hgobj gobj, json_t *jn_raw_data);
 PRIVATE json_t *build_flat_commands(json_t *jn_raw_data);
 PRIVATE BOOL is_commands_list_response(json_t *jn_data);
 PRIVATE void ycommand_completion_cb(
@@ -177,8 +172,6 @@ typedef struct _PRIVATE_DATA {
 
     json_t *commands_cache;         /* flat dict: name -> {description,parameters[]} */
     BOOL fetching_commands_cache;   /* next command-answer is the cache fetch */
-    char cache_key[256];            /* role__name__service identifier */
-    char cache_path[PATH_MAX];      /* absolute path of the cache file */
 } PRIVATE_DATA;
 
 
@@ -1143,52 +1136,6 @@ PRIVATE int ac_on_token(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 }
 
 /***************************************************************************
- *  Commands-cache: sanitize a path component
- ***************************************************************************/
-PRIVATE void sanitize_cache_token(char *s)
-{
-    for(; *s; s++) {
-        unsigned char c = (unsigned char)*s;
-        if(!isalnum(c) && c != '-' && c != '_') {
-            *s = '_';
-        }
-    }
-}
-
-/***************************************************************************
- *  Commands-cache: build $HOME/.yuneta/commands_cache/<role>__<name>__<service>.json
- ***************************************************************************/
-PRIVATE int build_cache_path_for(
-    hgobj gobj,
-    const char *role,
-    const char *name,
-    const char *service,
-    char *out_key, int key_size,
-    char *out_path, int path_size
-) {
-    const char *homedir = getenv("HOME");
-    if(!homedir) {
-        struct passwd *_pw = yuneta_getpwuid(getuid());
-        homedir = _pw ? _pw->pw_dir : "/root";
-    }
-
-    snprintf(out_key, key_size, "%s__%s__%s",
-        empty_string(role) ? "_" : role,
-        empty_string(name) ? "_" : name,
-        empty_string(service) ? "_" : service
-    );
-    sanitize_cache_token(out_key);
-
-    char dir[PATH_MAX];
-    snprintf(dir, sizeof(dir), "%s/.yuneta/commands_cache", homedir);
-    if(access(dir, 0) != 0) {
-        mkrdir(dir, 0700);
-    }
-    snprintf(out_path, path_size, "%s/%s.json", dir, out_key);
-    return 0;
-}
-
-/***************************************************************************
  *  Commands-cache: flatten `list-gobj-commands` response into {name: cmd_obj}
  *  Input shape: array of {gclass, commands:[{command,description,parameters:[...]}, ...]}
  *  Returns a new json_t object owned by the caller.
@@ -1238,64 +1185,6 @@ PRIVATE BOOL is_commands_list_response(json_t *jn_data)
 }
 
 /***************************************************************************
- *  Commands-cache: load, validate TTL, flatten, store in priv->commands_cache
- ***************************************************************************/
-#define COMMANDS_CACHE_TTL_SECONDS (7 * 24 * 3600)
-
-PRIVATE int load_commands_cache_from_disk(hgobj gobj)
-{
-    PRIVATE_DATA *priv = gobj_priv_data(gobj);
-
-    if(empty_string(priv->cache_path) || access(priv->cache_path, R_OK) != 0) {
-        return -1;
-    }
-
-    struct stat st;
-    if(stat(priv->cache_path, &st) != 0) {
-        return -1;
-    }
-    time_t now = time(NULL);
-    if(now - st.st_mtime > COMMANDS_CACHE_TTL_SECONDS) {
-        return -1;
-    }
-
-    json_error_t err;
-    json_t *jn_file = json_load_file(priv->cache_path, 0, &err);
-    if(!jn_file) {
-        return -1;
-    }
-    json_t *jn_raw = json_object_get(jn_file, "data");
-    if(!is_commands_list_response(jn_raw)) {
-        JSON_DECREF(jn_file)
-        return -1;
-    }
-
-    JSON_DECREF(priv->commands_cache)
-    priv->commands_cache = build_flat_commands(jn_raw);
-    JSON_DECREF(jn_file)
-    return 0;
-}
-
-/***************************************************************************
- *  Commands-cache: persist the raw list-gobj-commands data to disk
- ***************************************************************************/
-PRIVATE int save_commands_cache_to_disk(hgobj gobj, json_t *jn_raw_data)
-{
-    PRIVATE_DATA *priv = gobj_priv_data(gobj);
-    if(empty_string(priv->cache_path) || !is_commands_list_response(jn_raw_data)) {
-        return -1;
-    }
-    json_t *wrap = json_pack("{s:i, s:s, s:O}",
-        "created", (json_int_t)time(NULL),
-        "cache_key", priv->cache_key,
-        "data", jn_raw_data
-    );
-    int ret = json_dump_file(wrap, priv->cache_path, JSON_INDENT(2));
-    JSON_DECREF(wrap)
-    return ret;
-}
-
-/***************************************************************************
  *  Commands-cache: ask the yuno for its command list (async, silent)
  *  `list-gobj-commands` is a command of C_YUNO, not of the target service,
  *  so the request is routed to the yuno itself via `service=__yuno__`.
@@ -1327,7 +1216,6 @@ PRIVATE int request_commands_cache(hgobj gobj)
         if(is_commands_list_response(jn_data)) {
             JSON_DECREF(priv->commands_cache)
             priv->commands_cache = build_flat_commands(jn_data);
-            save_commands_cache_to_disk(gobj, jn_data);
         }
         priv->fetching_commands_cache = FALSE;
         JSON_DECREF(webix)
@@ -1442,7 +1330,6 @@ PRIVATE int ac_on_open(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
     const char *yuno_role = kw_get_str(gobj, kw, "remote_yuno_role", "", 0);
     const char *yuno_name = kw_get_str(gobj, kw, "remote_yuno_name", "", 0);
-    const char *yuno_service = kw_get_str(gobj, kw, "remote_yuno_service", "", 0);
 
     if(priv->verbose || priv->interactive) {
         printf("Connected to '%s^%s', url:'%s'.\n",
@@ -1454,17 +1341,15 @@ PRIVATE int ac_on_open(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
     gobj_write_pointer_attr(gobj, "gobj_connector", src);
 
     if(priv->interactive && priv->gobj_editline) {
-        build_cache_path_for(
-            gobj, yuno_role, yuno_name, yuno_service,
-            priv->cache_key, sizeof(priv->cache_key),
-            priv->cache_path, sizeof(priv->cache_path)
-        );
         editline_set_completion_callback(
             priv->gobj_editline, ycommand_completion_cb, gobj
         );
-        if(load_commands_cache_from_disk(gobj) != 0) {
-            request_commands_cache(gobj);
-        }
+        /*
+         *  ycommand can hop between different yunos (agent, controlcenter, ...)
+         *  and each exposes its own command set, so we always ask the peer at
+         *  connect time and keep the map only in memory for this session.
+         */
+        request_commands_cache(gobj);
     }
 
     const char *command = gobj_read_str_attr(gobj, "command");
@@ -1623,7 +1508,6 @@ PRIVATE int ac_command_answer(hgobj gobj, gobj_event_t event, json_t *kw, hgobj 
         if(is_commands_list_response(jn_data)) {
             JSON_DECREF(priv->commands_cache)
             priv->commands_cache = build_flat_commands(jn_data);
-            save_commands_cache_to_disk(gobj, jn_data);
         }
         priv->fetching_commands_cache = FALSE;
         /* Redraw the prompt so it isn't left with a stale line. */
