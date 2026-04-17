@@ -42,9 +42,12 @@
 #define BACKSPACE {0x7F}
 #define TAB     {9}
 #define CTRL_K  {11}
+#define CTRL_L  {12}
 #define ENTER   {13}
 #define CTRL_N  {14}
 #define CTRL_P  {16}
+#define CTRL_R  {18}
+#define CTRL_S  {19}
 #define CTRL_T  {20}
 #define CTRL_U  {21}
 #define CTRL_W  {23}
@@ -171,8 +174,11 @@ keytable_t keytable2[] = {
 {"editline",    "EV_EDITLINE_DEL_LINE",         CTRL_U},
 {"editline",    "EV_EDITLINE_DEL_LINE",         CTRL_Y},
 {"editline",    "EV_EDITLINE_DEL_PREV_WORD",    CTRL_W},
+{"editline",    "EV_EDITLINE_REVERSE_SEARCH",   CTRL_R},
+{"editline",    "EV_EDITLINE_FORWARD_SEARCH",   CTRL_S},
 
 {"__top_display_window__",    "EV_CLRSCR",                    CTRL_K},
+{"__top_display_window__",    "EV_CLRSCR",                    CTRL_L},
 {"__top_display_window__",    "EV_SCROLL_PAGE_UP",            MKEY_PREV_PAGE},
 {"__top_display_window__",    "EV_SCROLL_PAGE_DOWN",          MKEY_NEXT_PAGE},
 {"__top_display_window__",    "EV_SCROLL_LINE_UP",            MKEY_ALT_PREV_PAGE},
