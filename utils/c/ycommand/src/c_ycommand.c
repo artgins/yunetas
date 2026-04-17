@@ -176,6 +176,7 @@ typedef struct _PRIVATE_DATA {
 
     json_t *commands_cache;         /* flat dict: name -> cmd_obj */
     int pending_cache_fetches;      /* >0 while cache-warmup responses are pending */
+    char last_sent_command[128];    /* first token of the user's last command, for did-you-mean */
 } PRIVATE_DATA;
 
 
@@ -874,6 +875,72 @@ PRIVATE gbuffer_t *jsontable2str(json_t *jn_schema, json_t *jn_data)
 /***************************************************************************
  *  Print json response in display list window
  ***************************************************************************/
+/***************************************************************************
+ *  Levenshtein distance for short ASCII strings (command names).
+ *  Returns INT_MAX for strings longer than the internal bound.
+ ***************************************************************************/
+PRIVATE int levenshtein(const char *a, const char *b)
+{
+    size_t la = strlen(a);
+    size_t lb = strlen(b);
+    if(la > 128 || lb > 128) {
+        return INT_MAX;
+    }
+    int prev[129], curr[129];
+    for(size_t j = 0; j <= lb; j++) {
+        prev[j] = (int)j;
+    }
+    for(size_t i = 1; i <= la; i++) {
+        curr[0] = (int)i;
+        for(size_t j = 1; j <= lb; j++) {
+            int cost = (a[i-1] == b[j-1]) ? 0 : 1;
+            int del = prev[j] + 1;
+            int ins = curr[j-1] + 1;
+            int sub = prev[j-1] + cost;
+            int m = del < ins ? del : ins;
+            curr[j] = m < sub ? m : sub;
+        }
+        memcpy(prev, curr, (lb + 1) * sizeof(int));
+    }
+    return prev[lb];
+}
+
+/***************************************************************************
+ *  did-you-mean: if `typed` is not in the cache, print the closest match
+ *  when it's within an edit-distance threshold. No-op on cache miss.
+ ***************************************************************************/
+PRIVATE void maybe_suggest_command(hgobj gobj, const char *typed)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+    if(!priv->commands_cache || empty_string(typed)) {
+        return;
+    }
+    /* Skip if the command exists — error is about something else (auth, args). */
+    if(json_object_get(priv->commands_cache, typed)) {
+        return;
+    }
+
+    size_t typed_len = strlen(typed);
+    int threshold = (int)(typed_len / 3);
+    if(threshold < 2) threshold = 2;
+
+    int best = INT_MAX;
+    const char *best_name = NULL;
+    const char *name;
+    json_t *jn_cmd;
+    json_object_foreach(priv->commands_cache, name, jn_cmd) {
+        int d = levenshtein(typed, name);
+        if(d < best) {
+            best = d;
+            best_name = name;
+        }
+    }
+
+    if(best_name && best <= threshold) {
+        printf("Did you mean '%s'?\n", best_name);
+    }
+}
+
 PRIVATE int display_webix_result(
     hgobj gobj,
     json_t *webix)
@@ -927,7 +994,9 @@ PRIVATE int display_webix_result(
     }
 
     if(result < 0) {
+        PRIVATE_DATA *priv = gobj_priv_data(gobj);
         printf("%sERROR %d: %s%s\n", On_Red BWhite, result, comment, Color_Off);
+        maybe_suggest_command(gobj, priv->last_sent_command);
     } else {
         if(!empty_string(comment)) {
             printf("%s\n", comment);
@@ -1614,6 +1683,19 @@ PRIVATE int ac_command(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
         int cy = w.ws_row;
         kw_set_dict_value(gobj, kw_command, "cx", json_integer(cx));
         kw_set_dict_value(gobj, kw_command, "cy", json_integer(cy));
+    }
+
+    /* Remember the command name (first whitespace-delimited token) so the
+     * error path can run did-you-mean against the cache. */
+    {
+        const char *sp = xcmd;
+        while(*sp && *sp != ' ' && *sp != '\t') sp++;
+        size_t cmd_len = (size_t)(sp - xcmd);
+        if(cmd_len >= sizeof(priv->last_sent_command)) {
+            cmd_len = sizeof(priv->last_sent_command) - 1;
+        }
+        memcpy(priv->last_sent_command, xcmd, cmd_len);
+        priv->last_sent_command[cmd_len] = 0;
     }
 
     json_t *webix = 0;
