@@ -991,16 +991,6 @@ PRIVATE int yev_callback(yev_event_h yev_event)
     return 0;
 }
 
-
-
-
-                    /***************************
-                     *      Commands
-                     ***************************/
-
-
-
-
 /***************************************************************************
  *  Read the current 'crypto' attribute and invoke ytls_reload_certificates().
  *  Returns 0 on success, -1 on failure (old ytls kept intact).
@@ -1042,6 +1032,16 @@ PRIVATE int reload_ytls_from_attrs(hgobj gobj)
     }
     return ret;
 }
+
+
+
+
+                    /***************************
+                     *      Commands
+                     ***************************/
+
+
+
 
 /***************************************************************************
  *  Command: reload-certs

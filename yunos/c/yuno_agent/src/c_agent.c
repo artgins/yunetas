@@ -6687,6 +6687,68 @@ PRIVATE json_t *cmd_close_console(hgobj gobj, const char *cmd, json_t *kw, hgobj
     );
 }
 
+/***************************************************************************
+ *  Command: cert-sync-now
+ *  Trigger a cert-sync tick immediately (admin override).
+ ***************************************************************************/
+PRIVATE json_t *cmd_cert_sync_now(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
+{
+    int changed = cert_sync_tick(gobj);
+    json_t *resp = build_command_response(
+        gobj,
+        0,
+        json_sprintf("cert-sync tick done: %s",
+            changed > 0 ? "reloaded" : "no change"),
+        0,
+        json_pack("{s:s, s:i, s:s}",
+            "result",   gobj_read_str_attr(gobj, "cert_sync_last_result"),
+            "changed",  changed,
+            "store_dir", gobj_read_str_attr(gobj, "cert_sync_store_dir")
+        )
+    );
+    JSON_DECREF(kw);
+    return resp;
+}
+
+/***************************************************************************
+ *  Command: cert-sync-status
+ *  Show current cert-sync state: interval, last check, last action, etc.
+ ***************************************************************************/
+PRIVATE json_t *cmd_cert_sync_status(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    /* Read /var/lib/yuneta/last-deploy-hook-run if present (set by the
+     * letsencrypt deploy hook). A missing/stale value is a strong hint
+     * that the hook is failing.
+     */
+    json_int_t hook_last_run = 0;
+    FILE *f = fopen("/var/lib/yuneta/last-deploy-hook-run", "r");
+    if(f) {
+        long long v = 0;
+        if(fscanf(f, "%lld", &v) == 1) {
+            hook_last_run = (json_int_t)v;
+        }
+        fclose(f);
+    }
+
+    json_t *data = json_pack("{s:b, s:i, s:s, s:s, s:i, s:i, s:s, s:i, s:i}",
+        "enabled",           priv->cert_sync_enabled,
+        "interval_sec",      (json_int_t)priv->cert_sync_interval_sec,
+        "store_dir",         gobj_read_str_attr(gobj, "cert_sync_store_dir"),
+        "copy_cmd",          gobj_read_str_attr(gobj, "cert_sync_copy_cmd"),
+        "last_check",        gobj_read_integer_attr(gobj, "cert_sync_last_check"),
+        "last_action",       gobj_read_integer_attr(gobj, "cert_sync_last_action"),
+        "last_result",       gobj_read_str_attr(gobj, "cert_sync_last_result"),
+        "failures",          gobj_read_integer_attr(gobj, "cert_sync_failures"),
+        "deploy_hook_last_run", hook_last_run
+    );
+
+    json_t *resp = build_command_response(gobj, 0, 0, 0, data);
+    JSON_DECREF(kw);
+    return resp;
+}
+
 
 
 
@@ -8987,67 +9049,6 @@ PRIVATE int cert_sync_arm_timer(hgobj gobj)
     return 0;
 }
 
-/***************************************************************************
- *  Command: cert-sync-now
- *  Trigger a cert-sync tick immediately (admin override).
- ***************************************************************************/
-PRIVATE json_t *cmd_cert_sync_now(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
-{
-    int changed = cert_sync_tick(gobj);
-    json_t *resp = build_command_response(
-        gobj,
-        0,
-        json_sprintf("cert-sync tick done: %s",
-            changed > 0 ? "reloaded" : "no change"),
-        0,
-        json_pack("{s:s, s:i, s:s}",
-            "result",   gobj_read_str_attr(gobj, "cert_sync_last_result"),
-            "changed",  changed,
-            "store_dir", gobj_read_str_attr(gobj, "cert_sync_store_dir")
-        )
-    );
-    JSON_DECREF(kw);
-    return resp;
-}
-
-/***************************************************************************
- *  Command: cert-sync-status
- *  Show current cert-sync state: interval, last check, last action, etc.
- ***************************************************************************/
-PRIVATE json_t *cmd_cert_sync_status(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
-{
-    PRIVATE_DATA *priv = gobj_priv_data(gobj);
-
-    /* Read /var/lib/yuneta/last-deploy-hook-run if present (set by the
-     * letsencrypt deploy hook). A missing/stale value is a strong hint
-     * that the hook is failing.
-     */
-    json_int_t hook_last_run = 0;
-    FILE *f = fopen("/var/lib/yuneta/last-deploy-hook-run", "r");
-    if(f) {
-        long long v = 0;
-        if(fscanf(f, "%lld", &v) == 1) {
-            hook_last_run = (json_int_t)v;
-        }
-        fclose(f);
-    }
-
-    json_t *data = json_pack("{s:b, s:i, s:s, s:s, s:i, s:i, s:s, s:i, s:i}",
-        "enabled",           priv->cert_sync_enabled,
-        "interval_sec",      (json_int_t)priv->cert_sync_interval_sec,
-        "store_dir",         gobj_read_str_attr(gobj, "cert_sync_store_dir"),
-        "copy_cmd",          gobj_read_str_attr(gobj, "cert_sync_copy_cmd"),
-        "last_check",        gobj_read_integer_attr(gobj, "cert_sync_last_check"),
-        "last_action",       gobj_read_integer_attr(gobj, "cert_sync_last_action"),
-        "last_result",       gobj_read_str_attr(gobj, "cert_sync_last_result"),
-        "failures",          gobj_read_integer_attr(gobj, "cert_sync_failures"),
-        "deploy_hook_last_run", hook_last_run
-    );
-
-    json_t *resp = build_command_response(gobj, 0, 0, 0, data);
-    JSON_DECREF(kw);
-    return resp;
-}
 
 
 

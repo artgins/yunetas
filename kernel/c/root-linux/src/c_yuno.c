@@ -99,6 +99,8 @@ PRIVATE json_t *cmd_info_mem(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
 PRIVATE json_t *cmd_reload_certs(hgobj gobj, const char *cmd, json_t *kw, hgobj src);
 PRIVATE json_t *cmd_cert_expiry_status(hgobj gobj, const char *cmd, json_t *kw, hgobj src);
 PRIVATE int check_cert_expiry(hgobj gobj);
+PRIVATE int cb_walk_reload_certs(hgobj child, void *user_data, void *user_data2, void *user_data3);
+PRIVATE int cb_walk_cert_expiry(hgobj child, void *user_data, void *user_data2, void *user_data3);
 PRIVATE json_t *cmd_view_gclass(hgobj gobj, const char *cmd, json_t *kw, hgobj src);
 PRIVATE json_t *cmd_view_gobj(hgobj gobj, const char *cmd, json_t *kw, hgobj src);
 PRIVATE json_t *cmd_view_gobj_tree(hgobj gobj, const char *cmd, json_t *kw, hgobj src);
@@ -1524,52 +1526,6 @@ PRIVATE json_t *cmd_info_mem(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
 }
 
 /***************************************************************************
- *  Walk callback: invoke 'reload-certs' on every descendant TLS listener.
- *  user_data : int*  — success count
- *  user_data2: int*  — failure count
- *  user_data3: json_t* — array of {"gobj": name, "result": int, "error": string}
- ***************************************************************************/
-PRIVATE int cb_walk_reload_certs(hgobj child, void *user_data, void *user_data2, void *user_data3)
-{
-    const char *gclass = gobj_gclass_name(child);
-    if(!gclass) {
-        return 0;
-    }
-    if(strcmp(gclass, "C_TCP_S") != 0 && strcmp(gclass, "C_UDP_S") != 0) {
-        return 0;
-    }
-    if(!gobj_is_running(child)) {
-        return 0;
-    }
-    if(!gobj_read_bool_attr(child, "use_ssl")) {
-        return 0;
-    }
-
-    int *ok = (int *)user_data;
-    int *ko = (int *)user_data2;
-    json_t *report = (json_t *)user_data3;
-
-    json_t *resp = gobj_command(child, "reload-certs", json_object(), child);
-    int result = (int)kw_get_int(0, resp, "result", -1, 0);
-    const char *comment = kw_get_str(0, resp, "comment", "", 0);
-
-    json_array_append_new(report, json_pack("{s:s, s:i, s:s}",
-        "gobj",   gobj_short_name(child),
-        "result", result,
-        "comment", comment ? comment : ""
-    ));
-
-    if(result == 0) {
-        (*ok)++;
-    } else {
-        (*ko)++;
-    }
-
-    JSON_DECREF(resp);
-    return 0;
-}
-
-/***************************************************************************
  *  Command: reload-certs
  *  Walk all descendant TLS listeners and invoke their 'reload-certs' command.
  ***************************************************************************/
@@ -1603,117 +1559,6 @@ PRIVATE json_t *cmd_reload_certs(hgobj gobj, const char *cmd, json_t *kw, hgobj 
     );
     JSON_DECREF(kw)
     return kw_response;
-}
-
-/***************************************************************************
- *  Walk callback: collect cert info from every TLS listener.
- *  user_data : json_t*  array of {gobj, subject, issuer, not_after, days_remaining, ...}
- *  user_data2: int*     min_days_remaining across all listeners
- *  user_data3: hgobj    yuno, used only for log context
- ***************************************************************************/
-PRIVATE int cb_walk_cert_expiry(hgobj child, void *user_data, void *user_data2, void *user_data3)
-{
-    const char *gclass = gobj_gclass_name(child);
-    if(!gclass) {
-        return 0;
-    }
-    if(strcmp(gclass, "C_TCP_S") != 0 && strcmp(gclass, "C_UDP_S") != 0) {
-        return 0;
-    }
-    if(!gobj_is_running(child)) {
-        return 0;
-    }
-    if(!gobj_read_bool_attr(child, "use_ssl")) {
-        return 0;
-    }
-
-    json_t *report = (json_t *)user_data;
-    int *min_days = (int *)user_data2;
-
-    json_t *resp = gobj_command(child, "view-cert", json_object(), child);
-    if(!resp) {
-        JSON_DECREF(resp);
-        return 0;
-    }
-
-    /* view-cert returns the cert info under __md_iev__'s "data" sibling
-     * (via build_command_response). Be lenient about both shapes.
-     */
-    json_t *data = json_object_get(resp, "data");
-    if(!data) {
-        /* fallback: some command responses wrap under "result" body */
-        data = resp;
-    }
-    if(json_is_object(data)) {
-        json_t *entry = json_deep_copy(data);
-        json_object_set_new(entry, "gobj", json_string(gobj_short_name(child)));
-        json_array_append_new(report, entry);
-
-        json_int_t days = kw_get_int(0, data, "days_remaining", 999999, 0);
-        if(days < *min_days) {
-            *min_days = (int)days;
-        }
-    }
-
-    JSON_DECREF(resp);
-    return 0;
-}
-
-/***************************************************************************
- *  Periodic cert expiry check. Invoked from ac_timeout_periodic every
- *  timeout_cert_check seconds. Walks every TLS listener, asks for cert
- *  info, and logs a WARNING (if days <= cert_warn_days) or CRITICAL (if
- *  days <= cert_critical_days). Does NOT attempt auto-reload here — the
- *  agent's cert_sync_timer already does that; this path is for alerting.
- ***************************************************************************/
-PRIVATE int check_cert_expiry(hgobj gobj)
-{
-    PRIVATE_DATA *priv = gobj_priv_data(gobj);
-
-    json_t *report = json_array();
-    int min_days = 999999;
-
-    gobj_walk_gobj_children_tree(
-        gobj_yuno(),
-        WALK_TOP2BOTTOM,
-        cb_walk_cert_expiry,
-        report,
-        &min_days,
-        gobj_yuno()
-    );
-
-    size_t idx; json_t *entry;
-    json_array_foreach(report, idx, entry) {
-        const char *subject   = kw_get_str(0, entry, "subject", "", 0);
-        const char *gobj_name = kw_get_str(0, entry, "gobj", "", 0);
-        json_int_t not_after  = kw_get_int(0, entry, "not_after", 0, 0);
-        json_int_t days       = kw_get_int(0, entry, "days_remaining", 999999, 0);
-
-        if(priv->cert_critical_days > 0 && days <= priv->cert_critical_days) {
-            gobj_log_critical(gobj, 0,
-                "msgset",       "%s", MSGSET_INFO,
-                "msg",          "%s", "TLS certificate EXPIRING (critical)",
-                "listener",     "%s", gobj_name,
-                "subject",      "%s", subject,
-                "not_after",    "%ld", (long)not_after,
-                "days_remaining","%d", (int)days,
-                NULL
-            );
-        } else if(priv->cert_warn_days > 0 && days <= priv->cert_warn_days) {
-            gobj_log_warning(gobj, 0,
-                "msgset",       "%s", MSGSET_INFO,
-                "msg",          "%s", "TLS certificate expiring soon",
-                "listener",     "%s", gobj_name,
-                "subject",      "%s", subject,
-                "not_after",    "%ld", (long)not_after,
-                "days_remaining","%d", (int)days,
-                NULL
-            );
-        }
-    }
-
-    JSON_DECREF(report);
-    return 0;
 }
 
 /***************************************************************************
@@ -5267,6 +5112,172 @@ PRIVATE void load_stats(hgobj gobj)
             );
         }
     }
+}
+
+
+
+
+                    /***************************
+                     *      Local Methods
+                     ***************************/
+
+
+
+
+/***************************************************************************
+ *  Walk callback: invoke 'reload-certs' on every descendant TLS listener.
+ *  user_data : int*  — success count
+ *  user_data2: int*  — failure count
+ *  user_data3: json_t* — array of {"gobj": name, "result": int, "comment": string}
+ ***************************************************************************/
+PRIVATE int cb_walk_reload_certs(hgobj child, void *user_data, void *user_data2, void *user_data3)
+{
+    const char *gclass = gobj_gclass_name(child);
+    if(!gclass) {
+        return 0;
+    }
+    if(strcmp(gclass, "C_TCP_S") != 0 && strcmp(gclass, "C_UDP_S") != 0) {
+        return 0;
+    }
+    if(!gobj_is_running(child)) {
+        return 0;
+    }
+    if(!gobj_read_bool_attr(child, "use_ssl")) {
+        return 0;
+    }
+
+    int *ok = (int *)user_data;
+    int *ko = (int *)user_data2;
+    json_t *report = (json_t *)user_data3;
+
+    json_t *resp = gobj_command(child, "reload-certs", json_object(), child);
+    int result = (int)kw_get_int(0, resp, "result", -1, 0);
+    const char *comment = kw_get_str(0, resp, "comment", "", 0);
+
+    json_array_append_new(report, json_pack("{s:s, s:i, s:s}",
+        "gobj",   gobj_short_name(child),
+        "result", result,
+        "comment", comment ? comment : ""
+    ));
+
+    if(result == 0) {
+        (*ok)++;
+    } else {
+        (*ko)++;
+    }
+
+    JSON_DECREF(resp);
+    return 0;
+}
+
+/***************************************************************************
+ *  Walk callback: collect cert info from every TLS listener.
+ *  user_data : json_t*  array of {gobj, subject, issuer, not_after, days_remaining, ...}
+ *  user_data2: int*     min_days_remaining across all listeners
+ *  user_data3: hgobj    yuno, used only for log context
+ ***************************************************************************/
+PRIVATE int cb_walk_cert_expiry(hgobj child, void *user_data, void *user_data2, void *user_data3)
+{
+    const char *gclass = gobj_gclass_name(child);
+    if(!gclass) {
+        return 0;
+    }
+    if(strcmp(gclass, "C_TCP_S") != 0 && strcmp(gclass, "C_UDP_S") != 0) {
+        return 0;
+    }
+    if(!gobj_is_running(child)) {
+        return 0;
+    }
+    if(!gobj_read_bool_attr(child, "use_ssl")) {
+        return 0;
+    }
+
+    json_t *report = (json_t *)user_data;
+    int *min_days = (int *)user_data2;
+
+    json_t *resp = gobj_command(child, "view-cert", json_object(), child);
+    if(!resp) {
+        JSON_DECREF(resp);
+        return 0;
+    }
+
+    /* view-cert returns the cert info under the "data" key of the
+     * build_command_response envelope. Be lenient about both shapes.
+     */
+    json_t *data = json_object_get(resp, "data");
+    if(!data) {
+        data = resp;
+    }
+    if(json_is_object(data)) {
+        json_t *entry = json_deep_copy(data);
+        json_object_set_new(entry, "gobj", json_string(gobj_short_name(child)));
+        json_array_append_new(report, entry);
+
+        json_int_t days = kw_get_int(0, data, "days_remaining", 999999, 0);
+        if(days < *min_days) {
+            *min_days = (int)days;
+        }
+    }
+
+    JSON_DECREF(resp);
+    return 0;
+}
+
+/***************************************************************************
+ *  Periodic cert expiry check. Invoked from ac_timeout_periodic every
+ *  timeout_cert_check seconds. Walks every TLS listener, asks for cert
+ *  info, and logs a WARNING (if days <= cert_warn_days) or CRITICAL (if
+ *  days <= cert_critical_days). Does NOT attempt auto-reload here — the
+ *  agent's cert_sync_timer already does that; this path is for alerting.
+ ***************************************************************************/
+PRIVATE int check_cert_expiry(hgobj gobj)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    json_t *report = json_array();
+    int min_days = 999999;
+
+    gobj_walk_gobj_children_tree(
+        gobj_yuno(),
+        WALK_TOP2BOTTOM,
+        cb_walk_cert_expiry,
+        report,
+        &min_days,
+        gobj_yuno()
+    );
+
+    size_t idx; json_t *entry;
+    json_array_foreach(report, idx, entry) {
+        const char *subject   = kw_get_str(0, entry, "subject", "", 0);
+        const char *gobj_name = kw_get_str(0, entry, "gobj", "", 0);
+        json_int_t not_after  = kw_get_int(0, entry, "not_after", 0, 0);
+        json_int_t days       = kw_get_int(0, entry, "days_remaining", 999999, 0);
+
+        if(priv->cert_critical_days > 0 && days <= priv->cert_critical_days) {
+            gobj_log_critical(gobj, 0,
+                "msgset",       "%s", MSGSET_INFO,
+                "msg",          "%s", "TLS certificate EXPIRING (critical)",
+                "listener",     "%s", gobj_name,
+                "subject",      "%s", subject,
+                "not_after",    "%ld", (long)not_after,
+                "days_remaining","%d", (int)days,
+                NULL
+            );
+        } else if(priv->cert_warn_days > 0 && days <= priv->cert_warn_days) {
+            gobj_log_warning(gobj, 0,
+                "msgset",       "%s", MSGSET_INFO,
+                "msg",          "%s", "TLS certificate expiring soon",
+                "listener",     "%s", gobj_name,
+                "subject",      "%s", subject,
+                "not_after",    "%ld", (long)not_after,
+                "days_remaining","%d", (int)days,
+                NULL
+            );
+        }
+    }
+
+    JSON_DECREF(report);
+    return 0;
 }
 
 
