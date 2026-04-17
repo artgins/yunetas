@@ -1140,22 +1140,20 @@ PRIVATE int linenoiseHistoryAdd(PRIVATE_DATA *l, const char *line)
             return 0;
     }
 
-    /* Don't add duplicated lines. */
-    if(l->history_len && strcmp(l->history[l->history_len-1], line)==0)
-        return 0;
-
     /*
-     *  No repitas si está en las últimas x líneas.
+     *  Dedup: if `line` already appears anywhere in history, remove the
+     *  previous occurrences before appending (bash HISTCONTROL=erasedups
+     *  style). Keeps history compact and puts the freshest use at the end.
      */
-//     for (int i = 0; i < l->history_len && i<5; i++) {
-//         int j = l->history_len-1-i;
-//         if(j<0) {
-//             break;
-//         }
-//         if(strcmp(l->history[j], line)==0) {
-//             return 0;
-//         }
-//     }
+    int write = 0;
+    for(int i = 0; i < l->history_len; i++) {
+        if(l->history[i] && strcmp(l->history[i], line) == 0) {
+            gbmem_free(l->history[i]);
+            continue;
+        }
+        l->history[write++] = l->history[i];
+    }
+    l->history_len = write;
 
     /* Add an heap allocated copy of the line in the history.
      * If we reached the max length, remove the older line. */

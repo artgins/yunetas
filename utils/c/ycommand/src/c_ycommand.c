@@ -36,6 +36,7 @@
 #define BACKSPACE {0x7F}
 #define TAB     {9}
 #define CTRL_K  {11}
+#define CTRL_L  {12}
 #define ENTER   {13}
 #define CTRL_N  {14}
 #define CTRL_P  {16}
@@ -2173,7 +2174,10 @@ PRIVATE int ac_screen_ctrl(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src
 
     SWITCHS(event) {
         CASES(EV_CLRSCR)
+            /* Clear + position cursor at top-left; otherwise the prompt
+             * is redrawn below whatever was on the last line. */
             printf(Clear_Screen);
+            printf(Cursor_Position, 1, 1);
             fflush(stdout);
             if(priv->gobj_editline) {
                 gobj_send_event(priv->gobj_editline, EV_PAINT, 0, gobj);
@@ -2364,6 +2368,7 @@ PRIVATE int create_gclass(gclass_name_t gclass_name)
         {"editline",    EV_EDITLINE_DEL_PREV_WORD,    CTRL_W},
 
         {"screen",      EV_CLRSCR,                    CTRL_K},
+        {"screen",      EV_CLRSCR,                    CTRL_L},
         {"screen",      EV_SCROLL_PAGE_UP,            MKEY_PREV_PAGE},
         {"screen",      EV_SCROLL_PAGE_DOWN,          MKEY_NEXT_PAGE},
         {"screen",      EV_SCROLL_LINE_UP,            MKEY_ALT_PREV_PAGE},
