@@ -529,6 +529,38 @@ PRIVATE void linenoiseBeep(void)
     fflush(stderr);
 }
 
+/* ============================== History accessors ========================= */
+
+/*
+ *  Public helpers to inspect the in-memory history from outside the gclass.
+ *  The last slot may be an "" placeholder for the line being edited — it's
+ *  skipped so the 1-based indices match what the user sees on `history`.
+ */
+PRIVATE int effective_history_len(PRIVATE_DATA *l)
+{
+    int n = l->history_len;
+    if(n > 0 && l->history[n-1] && l->history[n-1][0] == 0) {
+        n--;  /* drop empty editing placeholder */
+    }
+    return n;
+}
+
+PUBLIC int editline_history_count(hgobj gobj)
+{
+    PRIVATE_DATA *l = gobj_priv_data(gobj);
+    return effective_history_len(l);
+}
+
+PUBLIC const char *editline_history_get(hgobj gobj, int idx)
+{
+    PRIVATE_DATA *l = gobj_priv_data(gobj);
+    int n = effective_history_len(l);
+    if(idx < 1 || idx > n) {
+        return NULL;
+    }
+    return l->history[idx - 1];
+}
+
 /* ========================== Reverse-i-search (Ctrl+R) ===================== */
 
 /*

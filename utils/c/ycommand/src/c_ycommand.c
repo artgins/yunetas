@@ -17,6 +17,7 @@
 #include <unistd.h>
 #include <limits.h>
 #include <pwd.h>
+#include <ctype.h>
 
 #include <g_ev_console.h>
 #include <c_editline.h>
@@ -1061,19 +1062,17 @@ PRIVATE char *get_history_file(char *bf, int bfsize)
  ***************************************************************************/
 PRIVATE int list_history(hgobj gobj)
 {
-    char history_file[PATH_MAX];
-    get_history_file(history_file, sizeof(history_file));
-
-    FILE *file = fopen(history_file, "r");
-    if(file) {
-        char temp[4*1024];
-        while(fgets(temp, sizeof(temp), file)) {
-            left_justify(temp);
-            if(strlen(temp)>0) {
-                printf("%s\n", temp);
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+    /* Print the live in-memory history with 1-based indices that match
+     * the !N bang expansion in ac_command. */
+    if(priv->gobj_editline) {
+        int n = editline_history_count(priv->gobj_editline);
+        for(int i = 1; i <= n; i++) {
+            const char *line = editline_history_get(priv->gobj_editline, i);
+            if(line && *line) {
+                printf("%5d  %s\n", i, line);
             }
         }
-        fclose(file);
     }
     clear_input_line(gobj);
     return 0;
@@ -1673,6 +1672,45 @@ PRIVATE int ac_command(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
         KW_DECREF(kw_input_command);
         KW_DECREF(kw);
         return 0;
+    }
+
+    /*
+     *  bash-style history expansion:
+     *      !!          last command
+     *      !N          N-th command (1-based, matches `history` output)
+     *      !prefix     most recent command starting with <prefix>
+     *  Expansion replaces the line in kw_input_command (which is what all
+     *  the code below reads from) and is echoed so the user sees what ran.
+     */
+    if(command[0] == '!' && command[1] && priv->gobj_editline) {
+        const char *spec = command + 1;
+        const char *found = NULL;
+        int n = editline_history_count(priv->gobj_editline);
+        if(spec[0] == '!' && spec[1] == 0) {
+            if(n > 0) found = editline_history_get(priv->gobj_editline, n);
+        } else if(isdigit((unsigned char)spec[0])) {
+            int idx = atoi(spec);
+            if(idx > 0) found = editline_history_get(priv->gobj_editline, idx);
+        } else {
+            size_t plen = strlen(spec);
+            for(int i = n; i >= 1; i--) {
+                const char *entry = editline_history_get(priv->gobj_editline, i);
+                if(entry && strncmp(entry, spec, plen) == 0) {
+                    found = entry;
+                    break;
+                }
+            }
+        }
+        if(!found) {
+            printf("%s%s: event not found%s\n", On_Red BWhite, command, Color_Off);
+            clear_input_line(gobj);
+            KW_DECREF(kw_input_command);
+            KW_DECREF(kw);
+            return 0;
+        }
+        printf("%s\n", found);  /* echo the expanded command */
+        json_object_set_new(kw_input_command, "text", json_string(found));
+        command = kw_get_str(gobj, kw_input_command, "text", "", 0);
     }
 
     if(strcasecmp(command, "exit")==0 || strcasecmp(command, "quit")==0) {

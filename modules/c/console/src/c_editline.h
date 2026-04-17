@@ -60,6 +60,18 @@ PUBLIC void editline_set_completion_callback(
     void *user_data
 );
 
+/***************************************************************
+ *              In-memory history accessors
+ ***************************************************************/
+/* Number of real history entries (an empty placeholder, if any, is
+ * reported as 0 / skipped). Entries are 1-based when accessed via
+ * editline_history_get(). */
+PUBLIC int editline_history_count(hgobj gobj);
+
+/* Return the idx-th history entry (1-based, oldest = 1, newest = count).
+ * Returns NULL when idx is out of range. Pointer is owned by editline. */
+PUBLIC const char *editline_history_get(hgobj gobj, int idx);
+
 /*  Append a completion candidate from within a completion callback.
  *  `str`  is the full replacement line if the candidate is picked.
  *  `desc` is an optional human-readable description shown in the
