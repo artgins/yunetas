@@ -95,6 +95,7 @@ PRIVATE int do_authenticate_task(hgobj gobj);
 PRIVATE int request_commands_cache(hgobj gobj);
 PRIVATE void merge_commands_into_cache(hgobj gobj, json_t *jn_raw_data);
 PRIVATE BOOL is_commands_list_response(json_t *jn_data);
+PRIVATE BOOL line_has_param(const char *buf, const char *pname);
 PRIVATE void ycommand_completion_cb(
     hgobj gobj, const char *buf, editline_completions_t *lc, void *user_data
 );
@@ -1399,6 +1400,10 @@ PRIVATE void ycommand_completion_cb(
     json_array_foreach(jn_params, idx, jn_p) {
         const char *pname = json_string_value(json_object_get(jn_p, "parameter"));
         if(empty_string(pname)) {
+            continue;
+        }
+        /* Skip params already present on the line (same filter as the hint). */
+        if(line_has_param(body, pname)) {
             continue;
         }
         if(strncmp(pname, last_token, token_len) == 0) {
