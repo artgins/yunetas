@@ -209,6 +209,16 @@ typedef struct _PRIVATE_DATA {
     void *hints_user_data;
     hgobj gobj_self;            /* own hgobj, needed from refreshLine (no gobj ptr there) */
 
+    /*
+     *  Reverse-i-search (Ctrl+R) state. While in_search != 0 the rendered
+     *  line is "(reverse-i-search)'pat': <match>" instead of the normal
+     *  prompt+buf. l->buf is left untouched until the user accepts.
+     */
+    int in_search;
+    char search_pat[128];
+    size_t search_pat_len;
+    int search_idx;             /* history idx of current match, -1 none */
+
     size_t buflen;      /* Edited line buffer size. */
     const char *prompt; /* Prompt to display. */
     size_t plen;        /* Prompt length. */
@@ -225,6 +235,9 @@ PRIVATE int linenoiseHistorySetMaxLen(PRIVATE_DATA *l, int len);
 PRIVATE int linenoiseHistoryLoad(PRIVATE_DATA *l, const char *filename);
 PRIVATE int linenoiseHistoryAdd(PRIVATE_DATA *l, const char *line);
 PRIVATE void refreshLine(PRIVATE_DATA *l);
+PRIVATE void refreshSearchLine(PRIVATE_DATA *l);
+PRIVATE void editline_exit_search(PRIVATE_DATA *l, int commit);
+PRIVATE void searchUpdate(PRIVATE_DATA *l, int restart_from);
 PRIVATE int linenoiseEditInsert(PRIVATE_DATA *l, int c);
 
 
@@ -515,6 +528,95 @@ PRIVATE void linenoiseBeep(void)
     fflush(stderr);
 }
 
+/* ========================== Reverse-i-search (Ctrl+R) ===================== */
+
+/*
+ *  Walk l->history[] backward from `from_idx` looking for an entry that
+ *  contains `pat` as a substring. Returns the index, or -1 if none.
+ */
+PRIVATE int historySearchBackward(PRIVATE_DATA *l, int from_idx, const char *pat)
+{
+    if(!pat || !*pat) return -1;
+    if(from_idx < 0) return -1;
+    if(from_idx >= l->history_len) from_idx = l->history_len - 1;
+    for(int i = from_idx; i >= 0; i--) {
+        if(l->history[i] && strstr(l->history[i], pat)) {
+            return i;
+        }
+    }
+    return -1;
+}
+
+/*
+ *  Render "(reverse-i-search)'pat': <match>" instead of the normal line.
+ *  Called from refreshLine() whenever l->in_search is set.
+ */
+PRIVATE void refreshSearchLine(PRIVATE_DATA *l)
+{
+    const char *match = (l->search_idx >= 0 && l->search_idx < l->history_len
+                         && l->history[l->search_idx])
+                        ? l->history[l->search_idx] : "";
+    char prefix[256];
+    int prefix_len = snprintf(prefix, sizeof(prefix),
+        "(reverse-i-search)'%s': ", l->search_pat);
+    if(prefix_len < 0) prefix_len = 0;
+
+    size_t match_len = strlen(match);
+    if(l->cols > 0 && (size_t)prefix_len + match_len > l->cols) {
+        match_len = ((size_t)prefix_len >= l->cols)
+            ? 0 : (l->cols - (size_t)prefix_len);
+    }
+
+    printf(Erase_Whole_Line);
+    printf(Move_Horizontal, 1);
+    printf("%s%.*s", prefix, (int)match_len, match);
+    printf(Move_Horizontal, prefix_len + 1);
+    fflush(stdout);
+}
+
+/*
+ *  Leave search mode. If `commit` is true and we had a match, copy it
+ *  into the buffer so the line can be edited or submitted.
+ */
+PRIVATE void editline_exit_search(PRIVATE_DATA *l, int commit)
+{
+    if(!l->in_search) return;
+    if(commit && l->search_idx >= 0 && l->search_idx < l->history_len
+       && l->history[l->search_idx]) {
+        const char *match = l->history[l->search_idx];
+        size_t mlen = strlen(match);
+        if(mlen >= l->buflen) mlen = l->buflen - 1;
+        memcpy(l->buf, match, mlen);
+        l->buf[mlen] = 0;
+        l->len = mlen;
+        l->pos = mlen;
+    }
+    l->in_search = 0;
+    l->search_pat[0] = 0;
+    l->search_pat_len = 0;
+    l->search_idx = -1;
+}
+
+/*
+ *  Re-run the backward search from the current position after the pattern
+ *  or the anchor changed. `restart_from` is the idx to start from (so
+ *  pressing Ctrl+R again moves past the current match).
+ */
+PRIVATE void searchUpdate(PRIVATE_DATA *l, int restart_from)
+{
+    int idx = historySearchBackward(l, restart_from, l->search_pat);
+    if(idx >= 0) {
+        l->search_idx = idx;
+    } else {
+        /* No older match: keep current search_idx so the previous match
+         * stays visible. Still beep to signal "nothing further". */
+        if(l->search_pat_len > 0) {
+            linenoiseBeep();
+        }
+    }
+    refreshSearchLine(l);
+}
+
 /* ============================== Completion ================================ */
 
 /* Free a list of completion option populated by editline_add_completion(). */
@@ -716,6 +818,10 @@ PUBLIC void editline_add_completion(
  ***************************************************************************/
 PRIVATE void refreshLine(PRIVATE_DATA *l)
 {
+    if(l->in_search) {
+        refreshSearchLine(l);
+        return;
+    }
     size_t plen = strlen(l->prompt);
     char *buf = l->buf;
     size_t len = l->len;
@@ -1152,7 +1258,26 @@ PRIVATE int ac_keychar(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 
     if(kw_has_key(kw, "char")) {
         int c = (int)kw_get_int(gobj, kw, "char", 0, KW_REQUIRED);
-        linenoiseEditInsert(l, c);
+        if(l->in_search) {
+            /* Reverse-i-search mode: editing the pattern. */
+            if(c == 27 || c == 7) {         /* ESC / Ctrl+G -> cancel */
+                editline_exit_search(l, 0);
+                refreshLine(l);
+            } else if(c >= 0x20 && c < 0x7F) {
+                if(l->search_pat_len + 1 < sizeof(l->search_pat)) {
+                    l->search_pat[l->search_pat_len++] = (char)c;
+                    l->search_pat[l->search_pat_len] = 0;
+                    /* Re-run search from the current match position so the
+                     * user can narrow down without jumping around. */
+                    int start = (l->search_idx >= 0)
+                        ? l->search_idx : (l->history_len - 1);
+                    searchUpdate(l, start);
+                }
+            }
+            /* Other chars are ignored in search mode. */
+        } else {
+            linenoiseEditInsert(l, c);
+        }
     }
 
     if(kw_has_key(kw, "gbuffer")) {
@@ -1177,6 +1302,8 @@ PRIVATE int ac_move_start(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 {
     PRIVATE_DATA *l = gobj_priv_data(gobj);
 
+    if(l->in_search) { editline_exit_search(l, 1); refreshLine(l); }
+
     /* go to the start of the line */
     linenoiseEditMoveHome(l);
 
@@ -1190,6 +1317,8 @@ PRIVATE int ac_move_start(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 PRIVATE int ac_move_end(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 {
     PRIVATE_DATA *l = gobj_priv_data(gobj);
+
+    if(l->in_search) { editline_exit_search(l, 1); refreshLine(l); }
 
     /* go to the end of the line */
     linenoiseEditMoveEnd(l);
@@ -1205,6 +1334,8 @@ PRIVATE int ac_move_left(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
     PRIVATE_DATA *l = priv;
+
+    if(l->in_search) { editline_exit_search(l, 1); refreshLine(l); }
 
     /* Move cursor on the left */
     linenoiseEditMoveLeft(l);
@@ -1242,6 +1373,8 @@ PRIVATE int ac_move_right(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 {
     PRIVATE_DATA *l = gobj_priv_data(gobj);
 
+    if(l->in_search) { editline_exit_search(l, 1); refreshLine(l); }
+
     /* Move cursor on the right */
     linenoiseEditMoveRight(l);
 
@@ -1256,7 +1389,21 @@ PRIVATE int ac_backspace(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
-    linenoiseEditBackspace(priv);
+    if(priv->in_search) {
+        /* Shrink the search pattern; restart search from newest on change. */
+        if(priv->search_pat_len > 0) {
+            priv->search_pat_len--;
+            priv->search_pat[priv->search_pat_len] = 0;
+        }
+        if(priv->search_pat_len == 0) {
+            priv->search_idx = -1;
+            refreshSearchLine(priv);
+        } else {
+            searchUpdate(priv, priv->history_len - 1);
+        }
+    } else {
+        linenoiseEditBackspace(priv);
+    }
 
     KW_DECREF(kw);
     return 0;
@@ -1297,6 +1444,12 @@ PRIVATE int ac_enter(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
     PRIVATE_DATA *l = priv;
 
+    /* Commit any in-flight reverse-i-search match into the buffer first. */
+    if(priv->in_search) {
+        editline_exit_search(priv, 1);
+        refreshLine(priv);
+    }
+
     if(!empty_string(priv->buf) && strlen(priv->buf)>1) {
         l->history_len--;
         gbmem_free(l->history[l->history_len]);
@@ -1319,6 +1472,8 @@ PRIVATE int ac_prev_hist(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
     PRIVATE_DATA *l = priv;
 
+    if(l->in_search) { editline_exit_search(l, 0); refreshLine(l); }
+
     linenoiseEditHistoryNext(l, LINENOISE_HISTORY_PREV);
 
     KW_DECREF(kw);
@@ -1332,6 +1487,8 @@ PRIVATE int ac_next_hist(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
     PRIVATE_DATA *l = priv;
+
+    if(l->in_search) { editline_exit_search(l, 0); refreshLine(l); }
 
     linenoiseEditHistoryNext(l, LINENOISE_HISTORY_NEXT);
 
@@ -1389,6 +1546,30 @@ PRIVATE int ac_del_prev_word(hgobj gobj, gobj_event_t event, json_t *kw, hgobj s
 
     /* delete previous word */
     linenoiseEditDeletePrevWord(l);
+
+    KW_DECREF(kw);
+    return 0;
+}
+
+/***************************************************************************
+ *  Ctrl+R: enter reverse-i-search mode, or advance to the next older match.
+ ***************************************************************************/
+PRIVATE int ac_reverse_search(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
+{
+    PRIVATE_DATA *l = gobj_priv_data(gobj);
+
+    if(!l->in_search) {
+        l->in_search = 1;
+        l->search_pat[0] = 0;
+        l->search_pat_len = 0;
+        l->search_idx = -1;
+        refreshSearchLine(l);
+    } else {
+        /* Already searching: step to the previous (older) match. */
+        int start = (l->search_idx > 0) ? (l->search_idx - 1)
+                                        : (l->history_len - 1);
+        searchUpdate(l, start);
+    }
 
     KW_DECREF(kw);
     return 0;
@@ -1651,6 +1832,7 @@ PRIVATE int create_gclass(gclass_name_t gclass_name)
         {EV_EDITLINE_SWAP_CHAR,      ac_swap_char,       0},
         {EV_EDITLINE_DEL_LINE,       ac_del_line,        0},
         {EV_EDITLINE_DEL_PREV_WORD,  ac_del_prev_word,   0},
+        {EV_EDITLINE_REVERSE_SEARCH, ac_reverse_search,  0},
         {EV_MOUSE,                   ac_mouse,           0},
         {EV_GETTEXT,                 ac_gettext,         0},
         {EV_SETTEXT,                 ac_settext,         0},
@@ -1688,6 +1870,7 @@ PRIVATE int create_gclass(gclass_name_t gclass_name)
         {EV_EDITLINE_SWAP_CHAR,         0},
         {EV_EDITLINE_DEL_LINE,          0},
         {EV_EDITLINE_DEL_PREV_WORD,     0},
+        {EV_EDITLINE_REVERSE_SEARCH,    0},
         {EV_GETTEXT,                    0},
         {EV_SETTEXT,                    0},
         {EV_KILLFOCUS,                  0},
