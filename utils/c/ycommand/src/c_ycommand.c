@@ -882,7 +882,7 @@ PRIVATE gbuffer_t *jsontable2str(json_t *jn_schema, json_t *jn_data)
     hgobj gobj = 0;
 
     /*
-     *  Paint Headers
+     *  Paint Headers (bold cyan so they stand out from the data).
      */
     json_array_foreach(jn_schema, col, jn_col) {
         const char *header = kw_get_str(gobj, jn_col, "header", "", 0);
@@ -891,13 +891,15 @@ PRIVATE gbuffer_t *jsontable2str(json_t *jn_schema, json_t *jn_data)
             fillspace = (int)strlen(header);
         }
         if(fillspace > 0) {
-            gbuffer_printf(gbuf, "%-*.*s ", fillspace, fillspace, header);
+            gbuffer_printf(gbuf, "%s%-*.*s%s ",
+                BCyan, fillspace, fillspace, header, Color_Off);
         }
     }
     gbuffer_printf(gbuf, "\n");
 
     /*
-     *  Paint ===
+     *  Paint === (dim) so the header row has visible separation without
+     *  pulling attention away from the data.
      */
     json_array_foreach(jn_schema, col, jn_col) {
         const char *header = kw_get_str(gobj, jn_col, "header", "", 0);
@@ -907,10 +909,12 @@ PRIVATE gbuffer_t *jsontable2str(json_t *jn_schema, json_t *jn_data)
         }
         if(fillspace > 0) {
             gbuffer_printf(gbuf,
-                "%*.*s ",
+                "%s%*.*s%s ",
+                IBlack,
                 fillspace,
                 fillspace,
-                "==========================================================================="
+                "===========================================================================",
+                Color_Off
             );
         }
     }
@@ -1075,7 +1079,8 @@ PRIVATE int display_webix_result(
         maybe_suggest_command(gobj, priv->last_sent_command);
     } else {
         if(!empty_string(comment)) {
-            printf("%s\n", comment);
+            /* Success comment in amber so it's not mistaken for data. */
+            printf("%s%s%s\n", IYellow, comment, Color_Off);
         }
     }
 
@@ -2152,7 +2157,7 @@ PRIVATE int ac_command_answer(hgobj gobj, gobj_event_t event, json_t *kw, hgobj 
                 }
             }
             if(!empty_string(comment)) {
-                printf("%s\n", comment);
+                printf("%s%s%s\n", IYellow, comment, Color_Off);
             }
         }
         KW_DECREF(kw);
