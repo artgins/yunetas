@@ -93,7 +93,8 @@ PRIVATE int clear_input_line(hgobj gobj);
 PRIVATE char *get_history_file(char *bf, int bfsize);
 PRIVATE int do_authenticate_task(hgobj gobj);
 PRIVATE int request_commands_cache(hgobj gobj);
-PRIVATE json_t *build_flat_commands(json_t *jn_raw_data);
+PRIVATE void send_list_gobj_commands(hgobj gobj, const char *gobj_name);
+PRIVATE void merge_commands_into_cache(hgobj gobj, json_t *jn_raw_data);
 PRIVATE BOOL is_commands_list_response(json_t *jn_data);
 PRIVATE void ycommand_completion_cb(
     hgobj gobj, const char *buf, editline_completions_t *lc, void *user_data
@@ -170,8 +171,8 @@ typedef struct _PRIVATE_DATA {
     char mirror_tty_name[NAME_MAX];
     char mirror_tty_uuid[NAME_MAX];
 
-    json_t *commands_cache;         /* flat dict: name -> {description,parameters[]} */
-    BOOL fetching_commands_cache;   /* next command-answer is the cache fetch */
+    json_t *commands_cache;         /* flat dict: name -> cmd_obj */
+    int pending_cache_fetches;      /* >0 while cache-warmup responses are pending */
 } PRIVATE_DATA;
 
 
@@ -1136,15 +1137,19 @@ PRIVATE int ac_on_token(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 }
 
 /***************************************************************************
- *  Commands-cache: flatten `list-gobj-commands` response into {name: cmd_obj}
+ *  Commands-cache: merge a `list-gobj-commands` response into priv->commands_cache.
  *  Input shape: array of {gclass, commands:[{command,description,parameters:[...]}, ...]}
- *  Returns a new json_t object owned by the caller.
+ *  First sighting of a given name wins — keeps cache stable across repeated
+ *  fetches (yuno first, service second).
  ***************************************************************************/
-PRIVATE json_t *build_flat_commands(json_t *jn_raw_data)
+PRIVATE void merge_commands_into_cache(hgobj gobj, json_t *jn_raw_data)
 {
-    json_t *flat = json_object();
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
     if(!json_is_array(jn_raw_data)) {
-        return flat;
+        return;
+    }
+    if(!priv->commands_cache) {
+        priv->commands_cache = json_object();
     }
 
     size_t idx;
@@ -1161,13 +1166,11 @@ PRIVATE json_t *build_flat_commands(json_t *jn_raw_data)
             if(empty_string(name)) {
                 continue;
             }
-            /* If the same command name comes from multiple gclasses, keep the first. */
-            if(!json_object_get(flat, name)) {
-                json_object_set(flat, name, jn_cmd);
+            if(!json_object_get(priv->commands_cache, name)) {
+                json_object_set(priv->commands_cache, name, jn_cmd);
             }
         }
     }
-    return flat;
 }
 
 /***************************************************************************
@@ -1185,11 +1188,39 @@ PRIVATE BOOL is_commands_list_response(json_t *jn_data)
 }
 
 /***************************************************************************
- *  Commands-cache: ask the yuno for its command list (async, silent)
- *  `list-gobj-commands` is a command of C_YUNO, not of the target service,
- *  so the request is routed to the yuno itself via `service=__yuno__`.
- *  We ask for the default service and its bottoms, which matches the set
- *  of commands the user can invoke through this connection.
+ *  Commands-cache: fire one silent `list-gobj-commands` for gobj_name.
+ *  All requests are routed through service=__yuno__ because the command
+ *  lives on C_YUNO, not on the target service.
+ ***************************************************************************/
+PRIVATE void send_list_gobj_commands(hgobj gobj, const char *gobj_name)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+    json_t *kw = json_pack("{s:s, s:s, s:i, s:b}",
+        "service", "__yuno__",
+        "gobj_name", gobj_name,
+        "details", 1,
+        "bottoms", 1
+    );
+    priv->pending_cache_fetches++;
+    json_t *webix = gobj_command(priv->gobj_connector, "list-gobj-commands", kw, gobj);
+    if(webix) {
+        /* Synchronous response: consume here, no display. */
+        json_t *jn_data = kw_get_dict_value(gobj, webix, "data", 0, 0);
+        if(is_commands_list_response(jn_data)) {
+            merge_commands_into_cache(gobj, jn_data);
+        }
+        priv->pending_cache_fetches--;
+        JSON_DECREF(webix)
+    }
+}
+
+/***************************************************************************
+ *  Commands-cache: warm up with commands from __yuno__ and the target
+ *  service. The yuno has a common set (list-gobj-commands, help, stats,
+ *  trace/attribute management, ...) shared by every yuno; the default
+ *  service exposes the yuno-specific commands. Other services within the
+ *  yuno (__input_side__, __output_side__, __top_side__, custom names) are
+ *  not auto-fetched — invoke them manually with `service=<name>`.
  ***************************************************************************/
 PRIVATE int request_commands_cache(hgobj gobj)
 {
@@ -1197,29 +1228,15 @@ PRIVATE int request_commands_cache(hgobj gobj)
     if(!priv->gobj_connector) {
         return -1;
     }
-    priv->fetching_commands_cache = TRUE;
+
+    send_list_gobj_commands(gobj, "__yuno__");
 
     const char *wanted_service = gobj_read_str_attr(gobj, "yuno_service");
     if(empty_string(wanted_service)) {
         wanted_service = "__default_service__";
     }
-    json_t *kw = json_pack("{s:s, s:s, s:i, s:b}",
-        "service", "__yuno__",          /* route to yuno, not the service */
-        "gobj_name", wanted_service,    /* introspect this service... */
-        "details", 1,
-        "bottoms", 1                    /* ...and its bottom chain */
-    );
-    json_t *webix = gobj_command(priv->gobj_connector, "list-gobj-commands", kw, gobj);
-    if(webix) {
-        /* Synchronous response: consume here, no display. */
-        json_t *jn_data = kw_get_dict_value(gobj, webix, "data", 0, 0);
-        if(is_commands_list_response(jn_data)) {
-            JSON_DECREF(priv->commands_cache)
-            priv->commands_cache = build_flat_commands(jn_data);
-        }
-        priv->fetching_commands_cache = FALSE;
-        JSON_DECREF(webix)
-    }
+    send_list_gobj_commands(gobj, wanted_service);
+
     return 0;
 }
 
@@ -1498,24 +1515,28 @@ PRIVATE int ac_command_answer(hgobj gobj, gobj_event_t event, json_t *kw, hgobj 
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
     /*
-     *  Intercept the silent list-gobj-commands response used to warm the cache.
-     *  Always consume silently while the flag is set: even an error response
-     *  (e.g. unauthorized, yuno doesn't expose the command) must not pollute
-     *  the user's session.
+     *  Intercept the silent list-gobj-commands responses used to warm the cache.
+     *  While at least one warm-up is pending, swallow anything that looks like a
+     *  list-gobj-commands answer (success merges, error is ignored). Unrelated
+     *  answers — e.g. a user command's response racing the warm-up — still go
+     *  to the normal display path below.
      */
-    if(priv->fetching_commands_cache) {
+    if(priv->pending_cache_fetches > 0) {
         json_t *jn_data = kw_get_dict_value(gobj, kw, "data", 0, 0);
-        if(is_commands_list_response(jn_data)) {
-            JSON_DECREF(priv->commands_cache)
-            priv->commands_cache = build_flat_commands(jn_data);
+        BOOL is_cache = is_commands_list_response(jn_data);
+        int result = (int)kw_get_int(gobj, kw, "result", 0, 0);
+        /* A pure error response has no data but is still the warm-up's answer. */
+        if(is_cache || (result != 0 && jn_data == NULL)) {
+            if(is_cache) {
+                merge_commands_into_cache(gobj, jn_data);
+            }
+            priv->pending_cache_fetches--;
+            if(priv->interactive) {
+                clear_input_line(gobj);
+            }
+            KW_DECREF(kw);
+            return 0;
         }
-        priv->fetching_commands_cache = FALSE;
-        /* Redraw the prompt so it isn't left with a stale line. */
-        if(priv->interactive) {
-            clear_input_line(gobj);
-        }
-        KW_DECREF(kw);
-        return 0;
     }
 
     if(priv->interactive) {
