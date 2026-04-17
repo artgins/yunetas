@@ -619,12 +619,26 @@ static int completeLine(hgobj gobj)
                     stop = 1;
                     break;
                 default:
-                    /* Update buffer and return */
+                    /* Apply the selected candidate (if on one). */
                     if (i < lc.len) {
                         nwritten = snprintf(ls->buf,ls->buflen,"%s",lc.cvec[i]);
                         ls->len = ls->pos = nwritten;
+                        refreshLine(ls);
                     }
                     stop = 1;
+                    /*
+                     *  Re-dispatch the terminating key so Enter / Backspace /
+                     *  printable chars take effect in the same keystroke —
+                     *  otherwise the user has to press the key a second time.
+                     */
+                    if (c == 13 || c == 10) {           /* Enter */
+                        gobj_send_event(gobj, EV_EDITLINE_ENTER, 0, gobj);
+                    } else if (c == 0x7F || c == 0x08) { /* Backspace / Ctrl-H */
+                        gobj_send_event(gobj, EV_EDITLINE_BACKSPACE, 0, gobj);
+                    } else if ((unsigned char)c >= 0x20 && (unsigned char)c < 0x7F) {
+                        linenoiseEditInsert(ls, c);
+                        refreshLine(ls);
+                    }
                     break;
             }
         }
