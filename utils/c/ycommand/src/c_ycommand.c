@@ -1421,8 +1421,33 @@ PRIVATE int request_commands_cache(hgobj gobj)
 }
 
 /***************************************************************************
+ *  Lookup a local command in local_command_table by name or alias.
+ *  Returns the sdata_desc_t entry or NULL.
+ ***************************************************************************/
+PRIVATE const sdata_desc_t *find_local_command(const char *name, size_t namelen)
+{
+    for(const sdata_desc_t *p = local_command_table; p->name; p++) {
+        if(empty_string(p->name)) {
+            continue;
+        }
+        if(strlen(p->name) == namelen && strncmp(p->name, name, namelen) == 0) {
+            return p;
+        }
+        if(p->alias) {
+            for(const char **a = p->alias; *a; a++) {
+                if(strlen(*a) == namelen && strncmp(*a, name, namelen) == 0) {
+                    return p;
+                }
+            }
+        }
+    }
+    return NULL;
+}
+
+/***************************************************************************
  *  Tab-completion callback: first word -> command names;
  *  after <cmd> <space> ... -> parameter names ("param=")
+ *  Handles both remote commands and local '!' commands.
  ***************************************************************************/
 PRIVATE void ycommand_completion_cb(
     hgobj editline_gobj,
@@ -1437,24 +1462,76 @@ PRIVATE void ycommand_completion_cb(
     }
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
     static const char *local_cmds[] = {"help", "history", "exit", "quit", NULL};
+    static const char *local_descs[] = {
+        "Show local help",
+        "Show command history",
+        "Exit ycommand",
+        "Exit ycommand",
+    };
     /* Skip leading spaces and the optional '*' form-mode prefix. */
     const char *start = buf;
     while(*start == ' ' || *start == '\t') start++;
     const char *body = (*start == '*') ? start + 1 : start;
     size_t prefix_len = (size_t)(body - buf);
+    char candidate[1024];
 
+    /* Local ('!' prefix) branch: enumerate the local_command_table. */
+    if(body[0] == '!') {
+        const char *after_bang = body + 1;
+        size_t bang_prefix_len = prefix_len + 1;  /* keep the '!' in candidates */
+        const char *first_space_local = strchr(after_bang, ' ');
+
+        if(!first_space_local) {
+            /* Completing the local command name. */
+            size_t token_len = strlen(after_bang);
+            for(const sdata_desc_t *p = local_command_table; p->name; p++) {
+                if(empty_string(p->name)) {
+                    continue;
+                }
+                if(strncmp(p->name, after_bang, token_len) == 0) {
+                    snprintf(candidate, sizeof(candidate), "%.*s%s",
+                        (int)bang_prefix_len, buf, p->name);
+                    editline_add_completion(lc, candidate, p->description);
+                }
+            }
+            return;
+        }
+
+        /* "!cmd <space> ..." → walk the command's schema for parameter names. */
+        size_t cmd_len = (size_t)(first_space_local - after_bang);
+        const sdata_desc_t *cmd_entry = find_local_command(after_bang, cmd_len);
+        if(!cmd_entry || !cmd_entry->schema) {
+            return;
+        }
+        const char *last_token = strrchr(buf, ' ');
+        last_token = last_token ? last_token + 1 : buf;
+        if(strchr(last_token, '=')) {
+            return;
+        }
+        size_t ltoken_len = strlen(last_token);
+        size_t head_len = (size_t)(last_token - buf);
+        for(const sdata_desc_t *pp = cmd_entry->schema; pp->name; pp++) {
+            if(empty_string(pp->name)) {
+                continue;
+            }
+            if(line_has_param(body, pp->name)) {
+                continue;
+            }
+            if(strncmp(pp->name, last_token, ltoken_len) == 0) {
+                snprintf(candidate, sizeof(candidate), "%.*s%s=",
+                    (int)head_len, buf, pp->name);
+                editline_add_completion(lc, candidate, pp->description);
+            }
+        }
+        return;
+    }
+
+    /* Remote command branch (existing behaviour). */
     const char *first_space = strchr(body, ' ');
 
     if(!first_space) {
         /* Completing the command name itself. */
         size_t token_len = strlen(body);
-        char candidate[1024];
-        static const char *local_descs[] = {
-            "Show local help",
-            "Show command history",
-            "Exit ycommand",
-            "Exit ycommand",
-        };
 
         for(int i = 0; local_cmds[i]; i++) {
             if(strncmp(local_cmds[i], body, token_len) == 0) {
@@ -1513,7 +1590,6 @@ PRIVATE void ycommand_completion_cb(
 
     size_t idx;
     json_t *jn_p;
-    char candidate[1024];
     json_array_foreach(jn_params, idx, jn_p) {
         const char *pname = json_string_value(json_object_get(jn_p, "parameter"));
         if(empty_string(pname)) {
@@ -1535,6 +1611,8 @@ PRIVATE void ycommand_completion_cb(
 
 /***************************************************************************
  *  Map a yuno sdata type to a short label for the hint.
+ *  The remote command cache returns types as strings ("string", "integer",
+ *  ...); the local command_table uses raw DTP_* bytes. One helper per form.
  ***************************************************************************/
 PRIVATE const char *short_type_label(const char *type)
 {
@@ -1543,6 +1621,16 @@ PRIVATE const char *short_type_label(const char *type)
     if(strcmp(type, "integer") == 0)      return "int";
     if(strcmp(type, "boolean") == 0)      return "bool";
     return type;
+}
+
+PRIVATE const char *short_dtp_label(uint8_t dtp)
+{
+    if(DTP_IS_STRING(dtp))  return "str";
+    if(DTP_IS_BOOLEAN(dtp)) return "bool";
+    if(DTP_IS_INTEGER(dtp)) return "int";
+    if(DTP_IS_REAL(dtp))    return "real";
+    if(DTP_IS_JSON(dtp))    return "json";
+    return "";
 }
 
 /***************************************************************************
@@ -1582,14 +1670,16 @@ PRIVATE char *ycommand_hints_cb(
         return NULL;
     }
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
-    if(!priv->commands_cache) {
-        return NULL;
-    }
 
     /* Skip leading spaces and an optional '*' form-mode prefix. */
     const char *body = buf;
     while(*body == ' ' || *body == '\t') body++;
     if(*body == '*') body++;
+
+    BOOL is_local = (body[0] == '!');
+    if(is_local) {
+        body++;  /* skip '!' for the command-name / param scan */
+    }
 
     /* Hint only after the command name has been completed (first space seen). */
     const char *first_space = strchr(body, ' ');
@@ -1597,43 +1687,77 @@ PRIVATE char *ycommand_hints_cb(
         return NULL;
     }
     size_t cmd_len = (size_t)(first_space - body);
-    char cmd_name[128];
-    if(cmd_len == 0 || cmd_len >= sizeof(cmd_name)) {
-        return NULL;
-    }
-    memcpy(cmd_name, body, cmd_len);
-    cmd_name[cmd_len] = 0;
-
-    json_t *jn_cmd = json_object_get(priv->commands_cache, cmd_name);
-    if(!jn_cmd) {
-        return NULL;
-    }
-    json_t *jn_params = json_object_get(jn_cmd, "parameters");
-    if(!json_is_array(jn_params) || json_array_size(jn_params) == 0) {
+    if(cmd_len == 0) {
         return NULL;
     }
 
-    /* Build "[name=type] <req=type> ..." for params not yet on the line. */
     gbuffer_t *gbuf = gbuffer_create(128, 4 * 1024);
-    size_t idx;
-    json_t *jn_p;
-    json_array_foreach(jn_params, idx, jn_p) {
-        const char *pname = json_string_value(json_object_get(jn_p, "parameter"));
-        if(empty_string(pname)) {
-            continue;
+
+    if(is_local) {
+        const sdata_desc_t *cmd_entry = find_local_command(body, cmd_len);
+        if(!cmd_entry || !cmd_entry->schema) {
+            gbuffer_decref(gbuf);
+            return NULL;
         }
-        if(line_has_param(body, pname)) {
-            continue;
+        for(const sdata_desc_t *pp = cmd_entry->schema; pp->name; pp++) {
+            if(empty_string(pp->name)) {
+                continue;
+            }
+            if(line_has_param(body, pp->name)) {
+                continue;
+            }
+            BOOL required = (pp->flag & SDF_REQUIRED) ? TRUE : FALSE;
+            gbuffer_printf(gbuf, " %c%s=%s%c",
+                required ? '<' : '[',
+                pp->name,
+                short_dtp_label(pp->type),
+                required ? '>' : ']'
+            );
         }
-        const char *ptype = json_string_value(json_object_get(jn_p, "type"));
-        const char *flag = json_string_value(json_object_get(jn_p, "flag"));
-        BOOL required = (flag && strstr(flag, "SDF_REQUIRED") != NULL);
-        gbuffer_printf(gbuf, " %c%s=%s%c",
-            required ? '<' : '[',
-            pname,
-            short_type_label(ptype),
-            required ? '>' : ']'
-        );
+    } else {
+        if(!priv->commands_cache) {
+            gbuffer_decref(gbuf);
+            return NULL;
+        }
+        char cmd_name[128];
+        if(cmd_len >= sizeof(cmd_name)) {
+            gbuffer_decref(gbuf);
+            return NULL;
+        }
+        memcpy(cmd_name, body, cmd_len);
+        cmd_name[cmd_len] = 0;
+        json_t *jn_cmd = json_object_get(priv->commands_cache, cmd_name);
+        if(!jn_cmd) {
+            gbuffer_decref(gbuf);
+            return NULL;
+        }
+        json_t *jn_params = json_object_get(jn_cmd, "parameters");
+        if(!json_is_array(jn_params) || json_array_size(jn_params) == 0) {
+            gbuffer_decref(gbuf);
+            return NULL;
+        }
+
+        /* Build "[name=type] <req=type> ..." for params not yet on the line. */
+        size_t idx;
+        json_t *jn_p;
+        json_array_foreach(jn_params, idx, jn_p) {
+            const char *pname = json_string_value(json_object_get(jn_p, "parameter"));
+            if(empty_string(pname)) {
+                continue;
+            }
+            if(line_has_param(body, pname)) {
+                continue;
+            }
+            const char *ptype = json_string_value(json_object_get(jn_p, "type"));
+            const char *flag = json_string_value(json_object_get(jn_p, "flag"));
+            BOOL required = (flag && strstr(flag, "SDF_REQUIRED") != NULL);
+            gbuffer_printf(gbuf, " %c%s=%s%c",
+                required ? '<' : '[',
+                pname,
+                short_type_label(ptype),
+                required ? '>' : ']'
+            );
+        }
     }
 
     if(gbuffer_leftbytes(gbuf) == 0) {
