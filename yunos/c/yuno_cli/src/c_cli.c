@@ -332,6 +332,102 @@ SDATACM (DTP_STRING,    "",                 0,                  0,          0,  
 SDATA_END()
 };
 
+/***************************************************************************
+ *  Lookup a command_table entry by name or alias.
+ *  Section headers (empty .name) are skipped.
+ ***************************************************************************/
+PRIVATE const sdata_desc_t *find_cli_local_command(const char *name, size_t namelen)
+{
+    for(const sdata_desc_t *p = command_table; p->name; p++) {
+        if(empty_string(p->name)) {
+            continue;
+        }
+        if(strlen(p->name) == namelen && strncmp(p->name, name, namelen) == 0) {
+            return p;
+        }
+        if(p->alias) {
+            for(const char **a = p->alias; *a; a++) {
+                if(strlen(*a) == namelen && strncmp(*a, name, namelen) == 0) {
+                    return p;
+                }
+            }
+        }
+    }
+    return NULL;
+}
+
+/***************************************************************************
+ *  TAB completion callback for ycli.
+ *  ycli doesn't keep a remote commands cache (it hops between multiple
+ *  yunos in separate windows), so completion only covers the local '!cmd'
+ *  table — which is the part that's always stable and worth discovering.
+ ***************************************************************************/
+PRIVATE void cli_completion_cb(
+    hgobj editline_gobj,
+    const char *buf,
+    editline_completions_t *lc,
+    void *user_data)
+{
+    if(!buf) {
+        return;
+    }
+    const char *start = buf;
+    while(*start == ' ' || *start == '\t') start++;
+    const char *body = (*start == '*') ? start + 1 : start;
+    size_t prefix_len = (size_t)(body - buf);
+    char candidate[1024];
+
+    /* Only handle the '!cmd' path; bare commands go to the remote and we
+     * don't have a cached schema to complete against. */
+    if(body[0] != '!') {
+        return;
+    }
+    const char *after_bang = body + 1;
+    size_t bang_prefix_len = prefix_len + 1;  /* keep the '!' in candidates */
+    const char *first_space_local = strchr(after_bang, ' ');
+
+    if(!first_space_local) {
+        /* Completing the local command name. */
+        size_t token_len = strlen(after_bang);
+        for(const sdata_desc_t *p = command_table; p->name; p++) {
+            if(empty_string(p->name)) {
+                continue;
+            }
+            if(strncmp(p->name, after_bang, token_len) == 0) {
+                snprintf(candidate, sizeof(candidate), "%.*s%s",
+                    (int)bang_prefix_len, buf, p->name);
+                editline_add_completion(lc, candidate, p->description);
+            }
+        }
+        return;
+    }
+
+    /* "!cmd <space> ..." → walk the command's schema for parameter names. */
+    size_t cmd_len = (size_t)(first_space_local - after_bang);
+    const sdata_desc_t *cmd_entry = find_cli_local_command(after_bang, cmd_len);
+    if(!cmd_entry || !cmd_entry->schema) {
+        return;
+    }
+    const char *last_token = strrchr(buf, ' ');
+    last_token = last_token ? last_token + 1 : buf;
+    if(strchr(last_token, '=')) {
+        /* TODO value completion — keep it simple for now. */
+        return;
+    }
+    size_t ltoken_len = strlen(last_token);
+    size_t head_len = (size_t)(last_token - buf);
+    for(const sdata_desc_t *pp = cmd_entry->schema; pp->name; pp++) {
+        if(empty_string(pp->name)) {
+            continue;
+        }
+        if(strncmp(pp->name, last_token, ltoken_len) == 0) {
+            snprintf(candidate, sizeof(candidate), "%.*s%s=",
+                (int)head_len, buf, pp->name);
+            editline_add_completion(lc, candidate, pp->description);
+        }
+    }
+}
+
 /*---------------------------------------------*
  *      Attributes
  *---------------------------------------------*/
@@ -515,6 +611,9 @@ PRIVATE int mt_start(hgobj gobj)
     );
 
     if(priv->gobj_editline) {
+        editline_set_completion_callback(
+            priv->gobj_editline, cli_completion_cb, gobj
+        );
         priv->tty_fd = tty_keyboard_init();
         if(priv->tty_fd < 0) {
             if(priv->gwin_stdscr) {
