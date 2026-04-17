@@ -96,6 +96,7 @@ PRIVATE json_t *cmd_attrs_schema(hgobj gobj, const char *cmd, json_t *kw, hgobj 
 PRIVATE json_t *cmd_authzs(hgobj gobj, const char *cmd, json_t *kw, hgobj src);
 PRIVATE json_t *cmd_view_config(hgobj gobj, const char *cmd, json_t *kw, hgobj src);
 PRIVATE json_t *cmd_info_mem(hgobj gobj, const char *cmd, json_t *kw, hgobj src);
+PRIVATE json_t *cmd_reload_certs(hgobj gobj, const char *cmd, json_t *kw, hgobj src);
 PRIVATE json_t *cmd_view_gclass(hgobj gobj, const char *cmd, json_t *kw, hgobj src);
 PRIVATE json_t *cmd_view_gobj(hgobj gobj, const char *cmd, json_t *kw, hgobj src);
 PRIVATE json_t *cmd_view_gobj_tree(hgobj gobj, const char *cmd, json_t *kw, hgobj src);
@@ -347,6 +348,7 @@ SDATACM2(DTP_SCHEMA,    "info-cpus",                SDF_AUTHZ_X, 0,      0,     
 SDATACM2(DTP_SCHEMA,    "info-ifs",                 SDF_AUTHZ_X, 0,      0,          cmd_info_ifs,               "Info of ifs"),
 SDATACM2(DTP_SCHEMA,    "info-os",                  SDF_AUTHZ_X, 0,      0,          cmd_info_os,                "Info os"),
 SDATACM2(DTP_SCHEMA,    "info-mem",                 SDF_AUTHZ_X, 0,      0,          cmd_info_mem,               "Info yuno memory and system"),
+SDATACM2(DTP_SCHEMA,    "reload-certs",             SDF_AUTHZ_X, 0,      0,          cmd_reload_certs,           "Reload TLS certificates on all TLS listeners (TCP/UDP) of this yuno. Active connections are preserved."),
 SDATACM2(DTP_SCHEMA,    "list-allowed-ips",         SDF_AUTHZ_X, 0,      0,          cmd_list_allowed_ips,       "List allowed ips"),
 SDATACM2(DTP_SCHEMA,    "add-allowed-ip",           SDF_AUTHZ_X, 0,      pm_add_allowed_ip,  cmd_add_allowed_ip, "Add a ip to allowed list"),
 SDATACM2(DTP_SCHEMA,    "remove-allowed-ip",        SDF_AUTHZ_X, 0,      pm_remove_allowed_ip, cmd_remove_allowed_ip, "Add a ip to allowed list"),
@@ -1492,6 +1494,88 @@ PRIVATE json_t *cmd_info_mem(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
         0,          // jn_comment
         0,          // jn_schema
         jn_data     // jn_data
+    );
+    JSON_DECREF(kw)
+    return kw_response;
+}
+
+/***************************************************************************
+ *  Walk callback: invoke 'reload-certs' on every descendant TLS listener.
+ *  user_data : int*  — success count
+ *  user_data2: int*  — failure count
+ *  user_data3: json_t* — array of {"gobj": name, "result": int, "error": string}
+ ***************************************************************************/
+PRIVATE int cb_walk_reload_certs(hgobj child, void *user_data, void *user_data2, void *user_data3)
+{
+    const char *gclass = gobj_gclass_name(child);
+    if(!gclass) {
+        return 0;
+    }
+    if(strcmp(gclass, "C_TCP_S") != 0 && strcmp(gclass, "C_UDP_S") != 0) {
+        return 0;
+    }
+    if(!gobj_is_running(child)) {
+        return 0;
+    }
+    if(!gobj_read_bool_attr(child, "use_ssl")) {
+        return 0;
+    }
+
+    int *ok = (int *)user_data;
+    int *ko = (int *)user_data2;
+    json_t *report = (json_t *)user_data3;
+
+    json_t *resp = gobj_command(child, "reload-certs", json_object(), child);
+    int result = (int)kw_get_int(0, resp, "result", -1, 0);
+    const char *comment = kw_get_str(0, resp, "comment", "", 0);
+
+    json_array_append_new(report, json_pack("{s:s, s:i, s:s}",
+        "gobj",   gobj_short_name(child),
+        "result", result,
+        "comment", comment ? comment : ""
+    ));
+
+    if(result == 0) {
+        (*ok)++;
+    } else {
+        (*ko)++;
+    }
+
+    JSON_DECREF(resp);
+    return 0;
+}
+
+/***************************************************************************
+ *  Command: reload-certs
+ *  Walk all descendant TLS listeners and invoke their 'reload-certs' command.
+ ***************************************************************************/
+PRIVATE json_t *cmd_reload_certs(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
+{
+    int ok = 0;
+    int ko = 0;
+    json_t *report = json_array();
+
+    gobj_walk_gobj_children_tree(
+        gobj_yuno(),
+        WALK_TOP2BOTTOM,
+        cb_walk_reload_certs,
+        &ok,
+        &ko,
+        report
+    );
+
+    json_t *jn_data = json_pack("{s:i, s:i, s:o}",
+        "reloaded", ok,
+        "failed",   ko,
+        "details",  report
+    );
+
+    json_t *kw_response = build_command_response(
+        gobj,
+        ko > 0 ? -1 : 0,
+        json_sprintf("reloaded %d TLS listener(s), %d failed", ok, ko),
+        0,
+        jn_data
     );
     JSON_DECREF(kw)
     return kw_response;

@@ -730,25 +730,42 @@ HINT
 EOF
 chmod 0755 "${WORKDIR}/yuneta/bin/install-certbot-snap.sh"
 
-# --- Let's Encrypt: deploy hook to copy + reload + restart ---
+# --- Let's Encrypt: deploy hook to copy + reload ---
+# Each step runs independently: individual failures are logged but do NOT
+# abort the hook (set +e) so that one broken yuno does not block the rest.
+# The hook touches /var/lib/yuneta/last-deploy-hook-run on success so an
+# internal auto-sync monitor can detect hooks that never fired.
 cat > "${WORKDIR}/etc/letsencrypt/renewal-hooks/deploy/reload-certs" <<'EOF'
 #!/bin/sh
 #######################################################################
 # Triggered by certbot after successful renewal.
 # 1) Copies fresh certs to /yuneta/store/certs
 # 2) Reloads selected web server (nginx or openresty)
-# 3) Restarts Yuneta stack (background)
+# 3) Hot-reloads TLS certificates in every running yuno via ycommand
+#    (no process restart, active TLS connections are preserved).
 #######################################################################
-set -eu
+set -u    # fail on unset vars, but NOT on individual command failures
 
 LOG_DIR="/var/log/yuneta"
 mkdir -p "$LOG_DIR"
 
+STATE_DIR="/var/lib/yuneta"
+mkdir -p "$STATE_DIR"
+
+ts() { date '+%Y-%m-%dT%H:%M:%S%z'; }
+log() { printf '[%s] %s\n' "$(ts)" "$*" >>"$LOG_DIR/deploy-hook.log"; }
+
+log "deploy hook started (RENEWED_LINEAGE=${RENEWED_LINEAGE:-?} RENEWED_DOMAINS=${RENEWED_DOMAINS:-?})"
+
 # 1) Copy fresh certs into /yuneta/store/certs (synchronous, requires root)
 if [ -x /yuneta/store/certs/copy-certs.sh ]; then
-    /yuneta/store/certs/copy-certs.sh >>"$LOG_DIR/copy-certs.log" 2>&1
+    if /yuneta/store/certs/copy-certs.sh >>"$LOG_DIR/copy-certs.log" 2>&1; then
+        log "copy-certs.sh OK"
+    else
+        log "copy-certs.sh FAILED (rc=$?)"
+    fi
 else
-    echo "Warning: /yuneta/store/certs/copy-certs.sh not found or not executable." >&2
+    log "copy-certs.sh NOT FOUND — skipping"
 fi
 
 # 2) Reload web server to pick updated certs
@@ -761,26 +778,56 @@ fi
 case "$WEBTYPE" in
     openresty)
         if [ -x /yuneta/bin/openresty/bin/openresty ]; then
-            /yuneta/bin/openresty/bin/openresty -s reload || true
+            if /yuneta/bin/openresty/bin/openresty -s reload >>"$LOG_DIR/deploy-hook.log" 2>&1; then
+                log "openresty reload OK"
+            else
+                log "openresty reload FAILED (rc=$?)"
+            fi
         else
-            echo "Warning: OpenResty binary not found or not executable." >&2
+            log "openresty binary NOT FOUND"
         fi
         ;;
     nginx|*)
         if [ -x /yuneta/bin/nginx/sbin/nginx ]; then
-            /yuneta/bin/nginx/sbin/nginx -s reload || true
+            if /yuneta/bin/nginx/sbin/nginx -s reload >>"$LOG_DIR/deploy-hook.log" 2>&1; then
+                log "nginx reload OK"
+            else
+                log "nginx reload FAILED (rc=$?)"
+            fi
         else
-            echo "Warning: nginx binary not found or not executable." >&2
+            log "nginx binary NOT FOUND"
         fi
         ;;
 esac
 
-# 3) Restart Yuneta stack (background, non-blocking)
-if [ -x /yuneta/bin/restart-yuneta ]; then
-    nohup /yuneta/bin/restart-yuneta >>"$LOG_DIR/restart-yuneta.log" 2>&1 &
+# 3) Hot-reload TLS certs in every running yuno via ycommand
+#    ycommand must run as the yuneta user so it can authenticate with its
+#    own token. Using sudo -u also picks up yuneta's PATH & HOME.
+if [ -x /yuneta/bin/ycommand ]; then
+    if sudo -u yuneta -H /yuneta/bin/ycommand \
+            -c 'command-yuno command=reload-certs service=__yuno__' \
+            >>"$LOG_DIR/deploy-hook.log" 2>&1; then
+        log "ycommand reload-certs OK"
+    else
+        rc=$?
+        log "ycommand reload-certs FAILED (rc=$rc) — falling back to restart-yuneta"
+        if [ -x /yuneta/bin/restart-yuneta ]; then
+            nohup /yuneta/bin/restart-yuneta >>"$LOG_DIR/restart-yuneta.log" 2>&1 &
+            log "restart-yuneta launched in background"
+        else
+            log "restart-yuneta NOT FOUND — certs copied but yunos still using old certs"
+        fi
+    fi
 else
-    echo "Warning: /yuneta/bin/restart-yuneta not found or not executable." >&2
+    log "ycommand NOT FOUND — falling back to restart-yuneta"
+    if [ -x /yuneta/bin/restart-yuneta ]; then
+        nohup /yuneta/bin/restart-yuneta >>"$LOG_DIR/restart-yuneta.log" 2>&1 &
+    fi
 fi
+
+# Record that the hook ran (auto-sync monitor looks at this timestamp)
+date '+%s' > "$STATE_DIR/last-deploy-hook-run" 2>/dev/null || true
+log "deploy hook finished"
 
 exit 0
 EOF

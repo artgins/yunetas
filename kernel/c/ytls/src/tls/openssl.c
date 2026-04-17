@@ -127,6 +127,7 @@ PRIVATE hytls init(
     BOOL server
 );
 PRIVATE void cleanup(hytls ytls);
+PRIVATE int reload_certificates(hytls ytls, json_t *jn_config);
 PRIVATE const char *version(hytls ytls);
 PRIVATE hsskt new_secure_filter(
     hytls ytls,
@@ -149,6 +150,7 @@ PRIVATE api_tls_t api_tls = {
     "OPENSSL",
     init,
     cleanup,
+    reload_certificates,
     version,
     new_secure_filter,
     free_secure_filter,
@@ -325,30 +327,25 @@ PRIVATE void ssl_tls_trace(
 }
 
 /***************************************************************************
+ *  Build a fully-configured SSL_CTX from jn_config.
  *
+ *  If fatal is TRUE, fatal errors use LOG_OPT_EXIT_ZERO (used on first init
+ *  at yuno startup). For hot-reload, set fatal=FALSE so that a failure does
+ *  not kill the yuno — the caller keeps the previous context intact.
+ *
+ *  Returns a new SSL_CTX * (refcount=1) on success, or NULL on failure.
  ***************************************************************************/
-PRIVATE hytls init(
+PRIVATE SSL_CTX *build_ssl_ctx(
     hgobj gobj,
-    json_t *jn_config,  // not owned
-    BOOL server
+    json_t *jn_config,
+    BOOL server,
+    BOOL fatal,
+    BOOL trace_tls,
+    void *trace_arg
 )
 {
-
-    /*--------------------------------*
-     *      Init OPENSSL
-     *--------------------------------*/
-    if(!__initialized__) {
-        __initialized__ = TRUE;
-        SSL_library_init();
-        OpenSSL_add_all_algorithms();
-    }
-    const SSL_METHOD *method = 0;
-    if(server) {
-        method = TLS_server_method();        /* Create new server-method instance */
-    } else {
-        method = TLS_client_method();        /* Create new client-method instance */
-    }
-    SSL_CTX *ctx = SSL_CTX_new(method);         /* Create new context */
+    const SSL_METHOD *method = server ? TLS_server_method() : TLS_client_method();
+    SSL_CTX *ctx = SSL_CTX_new(method);
     if(!ctx) {
         unsigned long err = ERR_get_error();
         gobj_log_error(gobj, 0,
@@ -358,19 +355,149 @@ PRIVATE hytls init(
             "error",        "%s", ERR_error_string(err, NULL),
             NULL
         );
-        return 0;
+        return NULL;
     }
 
-    /*--------------------------------*
-     *      Options
-     *  Lo dejaré tal cual nginx
-     *--------------------------------*/
     SSL_CTX_set_options(ctx, SSL_OP_SINGLE_DH_USE);
-    /* only in 0.9.8m+ */
     SSL_CTX_clear_options(ctx, SSL_OP_NO_SSLv2|SSL_OP_NO_SSLv3|SSL_OP_NO_TLSv1);
     SSL_CTX_set_min_proto_version(ctx, 0);
     SSL_CTX_set_max_proto_version(ctx, TLS1_3_VERSION);
     SSL_CTX_set_read_ahead(ctx, 1);
+
+    if(trace_tls) {
+        SSL_CTX_set_msg_callback(ctx, ssl_tls_trace);
+        SSL_CTX_set_msg_callback_arg(ctx, trace_arg);
+    }
+
+    const char *ssl_certificate = kw_get_str(gobj,
+        jn_config, "ssl_certificate", "", server?KW_REQUIRED:0
+    );
+    const char *ssl_certificate_key = kw_get_str(gobj,
+        jn_config, "ssl_certificate_key", "", server?KW_REQUIRED:0
+    );
+    const char *ssl_ciphers = kw_get_str(gobj,
+        jn_config,
+        "ssl_ciphers",
+        "HIGH:!aNULL:!kRSA:!PSK:!SRP:!MD5:!RC4",
+        0
+    );
+    const char *ssl_trusted_certificate = kw_get_str(gobj,
+        jn_config, "ssl_trusted_certificate", "", 0
+    );
+    int ssl_verify_depth = kw_get_int(gobj, jn_config, "ssl_verify_depth", 1, 0);
+
+    if(SSL_CTX_set_cipher_list(ctx, ssl_ciphers)<0) {
+        unsigned long err = ERR_get_error();
+        gobj_log_error(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_OPENSSL_ERROR,
+            "msg",          "%s", "SSL_CTX_set_cipher_list() FAILED",
+            "error",        "%s", ERR_error_string(err, NULL),
+            NULL
+        );
+    }
+
+    if(server) {
+        log_opt_t log_fatal = fatal ? LOG_OPT_EXIT_ZERO : 0;
+
+        if(SSL_CTX_use_certificate_file(ctx, ssl_certificate, SSL_FILETYPE_PEM)!=1) {
+            unsigned long err = ERR_get_error();
+            gobj_log_error(gobj, log_fatal,
+                "function",     "%s", __FUNCTION__,
+                "msgset",       "%s", MSGSET_OPENSSL_ERROR,
+                "msg",          "%s", "SSL_CTX_use_certificate_file() FAILED",
+                "error",        "%s", ERR_error_string(err, NULL),
+                "cert",         "%s", ssl_certificate,
+                NULL
+            );
+            if(!fatal) {
+                SSL_CTX_free(ctx);
+                return NULL;
+            }
+        }
+        if(SSL_CTX_use_PrivateKey_file(ctx, ssl_certificate_key, SSL_FILETYPE_PEM)!=1) {
+            unsigned long err = ERR_get_error();
+            gobj_log_error(gobj, log_fatal,
+                "function",     "%s", __FUNCTION__,
+                "msgset",       "%s", MSGSET_OPENSSL_ERROR,
+                "msg",          "%s", "SSL_CTX_use_PrivateKey_file() FAILED",
+                "error",        "%s", ERR_error_string(err, NULL),
+                "cert",         "%s", ssl_certificate_key,
+                NULL
+            );
+            if(!fatal) {
+                SSL_CTX_free(ctx);
+                return NULL;
+            }
+        }
+
+        /* Sanity-check: private key must match certificate. */
+        if(SSL_CTX_check_private_key(ctx) != 1) {
+            unsigned long err = ERR_get_error();
+            gobj_log_error(gobj, log_fatal,
+                "function",     "%s", __FUNCTION__,
+                "msgset",       "%s", MSGSET_OPENSSL_ERROR,
+                "msg",          "%s", "SSL_CTX_check_private_key() FAILED: key does not match cert",
+                "error",        "%s", ERR_error_string(err, NULL),
+                "cert",         "%s", ssl_certificate,
+                "cert_key",     "%s", ssl_certificate_key,
+                NULL
+            );
+            if(!fatal) {
+                SSL_CTX_free(ctx);
+                return NULL;
+            }
+        }
+
+        if(!empty_string(ssl_trusted_certificate)) {
+            SSL_CTX_set_verify_depth(ctx, ssl_verify_depth);
+            if(SSL_CTX_load_verify_locations(ctx, ssl_trusted_certificate, NULL)!=1) {
+                unsigned long err = ERR_get_error();
+                gobj_log_error(gobj, log_fatal,
+                    "function",     "%s", __FUNCTION__,
+                    "msgset",       "%s", MSGSET_OPENSSL_ERROR,
+                    "msg",          "%s", "SSL_CTX_load_verify_locations() FAILED",
+                    "error",        "%s", ERR_error_string(err, NULL),
+                    "cert",         "%s", ssl_trusted_certificate,
+                    NULL
+                );
+                if(!fatal) {
+                    SSL_CTX_free(ctx);
+                    return NULL;
+                }
+            }
+        }
+
+        /*
+         * SSL_CTX_load_verify_locations() may leave errors in the error queue
+         * while returning success
+         */
+        ERR_clear_error();
+
+    } else {
+        // TODO SSL_set_tlsext_host_name : "yuneta.io"
+    }
+
+    return ctx;
+}
+
+/***************************************************************************
+ *
+ ***************************************************************************/
+PRIVATE hytls init(
+    hgobj gobj,
+    json_t *jn_config,  // not owned
+    BOOL server
+)
+{
+    /*--------------------------------*
+     *      Init OPENSSL
+     *--------------------------------*/
+    if(!__initialized__) {
+        __initialized__ = TRUE;
+        SSL_library_init();
+        OpenSSL_add_all_algorithms();
+    }
 
     /*--------------------------------*
      *      Alloc memory
@@ -389,103 +516,75 @@ PRIVATE hytls init(
 
     ytls->api_tls = &api_tls;
     ytls->server = server;
-    ytls->ctx = ctx;
     ytls->gobj = gobj;
-
-    /* the SSL trace_tls callback is only used for verbose logging */
     ytls->trace_tls = kw_get_bool(gobj, jn_config, "trace_tls", 0, KW_WILD_NUMBER);
+    ytls->rx_buffer_size = kw_get_int(gobj, jn_config, "rx_buffer_size", 32*1024, 0);
 
     if(ytls->trace_tls) {
-        gobj_log_debug(ytls->gobj, 0,
+        gobj_log_debug(gobj, 0,
             "function",         "%s", __FUNCTION__,
             "msgset",           "%s", MSGSET_INFO,
             "msg",              "%s", "OPENSSL: set trace TRUE",
             NULL
         );
-        SSL_CTX_set_msg_callback(ytls->ctx, ssl_tls_trace);
-        SSL_CTX_set_msg_callback_arg(ytls->ctx, ytls);
     }
 
-    const char *ssl_certificate = kw_get_str(gobj,
-        jn_config, "ssl_certificate", "", server?KW_REQUIRED:0
-    );
-    const char *ssl_certificate_key = kw_get_str(gobj,
-        jn_config, "ssl_certificate_key", "", server?KW_REQUIRED:0
-    );
-    const char *ssl_ciphers = kw_get_str(gobj,
-        jn_config,
-        "ssl_ciphers",
-        "HIGH:!aNULL:!kRSA:!PSK:!SRP:!MD5:!RC4",
-        0
-    );
-    ytls->rx_buffer_size = kw_get_int(gobj,jn_config, "rx_buffer_size", 32*1024, 0);
-
-    const char *ssl_trusted_certificate = kw_get_str(gobj,
-        jn_config, "ssl_trusted_certificate", "", 0
-    );
-    int ssl_verify_depth = kw_get_int(gobj,jn_config, "ssl_verify_depth", 1, 0);
-
-    if(SSL_CTX_set_cipher_list(ytls->ctx, ssl_ciphers)<0) {
-        unsigned long err = ERR_get_error();
-        gobj_log_error(gobj, 0,
-            "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_OPENSSL_ERROR,
-            "msg",          "%s", "SSL_CTX_set_cipher_list() FAILED",
-            "error",        "%s", ERR_error_string(err, NULL),
-            NULL
-        );
-    }
-
-    if(server) {
-        if(SSL_CTX_use_certificate_file(ytls->ctx, ssl_certificate, SSL_FILETYPE_PEM)!=1) {
-            unsigned long err = ERR_get_error();
-            gobj_log_error(gobj, LOG_OPT_EXIT_ZERO,
-                "function",     "%s", __FUNCTION__,
-                "msgset",       "%s", MSGSET_OPENSSL_ERROR,
-                "msg",          "%s", "SSL_CTX_use_certificate_file() FAILED",
-                "error",        "%s", ERR_error_string(err, NULL),
-                "cert",         "%s", ssl_certificate,
-                NULL
-            );
-        }
-        if(SSL_CTX_use_PrivateKey_file(ytls->ctx, ssl_certificate_key, SSL_FILETYPE_PEM)!=1) {
-            unsigned long err = ERR_get_error();
-            gobj_log_error(gobj, LOG_OPT_EXIT_ZERO,
-                "function",     "%s", __FUNCTION__,
-                "msgset",       "%s", MSGSET_OPENSSL_ERROR,
-                "msg",          "%s", "SSL_CTX_use_PrivateKey_file() FAILED",
-                "error",        "%s", ERR_error_string(err, NULL),
-                "cert",         "%s", ssl_certificate_key,
-                NULL
-            );
-        }
-
-        if(!empty_string(ssl_trusted_certificate)) {
-            SSL_CTX_set_verify_depth(ctx, ssl_verify_depth);
-            if(SSL_CTX_load_verify_locations(ctx, ssl_trusted_certificate, NULL)!=1) {
-                unsigned long err = ERR_get_error();
-                gobj_log_error(gobj, LOG_OPT_EXIT_ZERO,
-                    "function",     "%s", __FUNCTION__,
-                    "msgset",       "%s", MSGSET_OPENSSL_ERROR,
-                    "msg",          "%s", "SSL_CTX_load_verify_locations() FAILED",
-                    "error",        "%s", ERR_error_string(err, NULL),
-                    "cert",         "%s", ssl_trusted_certificate,
-                    NULL
-                );
-            }
-        }
-
-        /*
-         * SSL_CTX_load_verify_locations() may leave errors in the error queue
-         * while returning success
-         */
-        ERR_clear_error();
-
-    } else {
-        // TODO SSL_set_tlsext_host_name : "yuneta.io"
+    /*--------------------------------*
+     *      Build SSL_CTX (fatal on first init)
+     *--------------------------------*/
+    ytls->ctx = build_ssl_ctx(gobj, jn_config, server, TRUE, ytls->trace_tls, ytls);
+    if(!ytls->ctx) {
+        GBMEM_FREE(ytls)
+        return 0;
     }
 
     return (hytls)ytls;
+}
+
+/***************************************************************************
+ *  Hot-reload certificates: build a fresh SSL_CTX, atomically swap it in,
+ *  and release our reference to the old one. Existing SSL objects keep the
+ *  old context alive via their own reference (SSL_new() up-refs on creation,
+ *  SSL_free() releases it) — so live connections are NOT disrupted.
+ *
+ *  On failure, the previous context is kept intact.
+ ***************************************************************************/
+PRIVATE int reload_certificates(hytls ytls_, json_t *jn_config)
+{
+    ytls_t *ytls = ytls_;
+    if(!ytls) {
+        return -1;
+    }
+    hgobj gobj = ytls->gobj;
+
+    BOOL trace_tls = kw_get_bool(gobj, jn_config, "trace_tls", ytls->trace_tls, KW_WILD_NUMBER);
+
+    SSL_CTX *new_ctx = build_ssl_ctx(gobj, jn_config, ytls->server, FALSE, trace_tls, ytls);
+    if(!new_ctx) {
+        gobj_log_error(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_OPENSSL_ERROR,
+            "msg",          "%s", "reload_certificates FAILED: keeping previous SSL_CTX",
+            NULL
+        );
+        return -1;
+    }
+
+    SSL_CTX *old_ctx = ytls->ctx;
+    ytls->ctx = new_ctx;
+    ytls->trace_tls = trace_tls;
+
+    if(old_ctx) {
+        SSL_CTX_free(old_ctx);  // refcount--; live SSL objects keep it alive
+    }
+
+    gobj_log_info(gobj, 0,
+        "function",     "%s", __FUNCTION__,
+        "msgset",       "%s", MSGSET_INFO,
+        "msg",          "%s", "TLS certificates reloaded",
+        NULL
+    );
+    return 0;
 }
 
 /***************************************************************************

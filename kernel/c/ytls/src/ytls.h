@@ -82,6 +82,7 @@ typedef struct api_tls_s {
         BOOL server
     );
     void (*cleanup)(hytls ytls);
+    int (*reload_certificates)(hytls ytls, json_t *jn_config /* not owned */);
     const char * (*version)(hytls ytls);
     hsskt (*new_secure_filter)(
         hytls ytls,
@@ -146,6 +147,21 @@ PUBLIC hytls ytls_init(
     Cleanup tls context
 **rst**/
 PUBLIC void ytls_cleanup(hytls ytls);
+
+/**rst**
+    Reload certificates without disrupting live connections.
+
+    Builds a fresh TLS context from jn_config (same keys as ytls_init) and
+    atomically swaps it into ytls. Existing secure filters (live connections)
+    keep the old context alive via refcount until they close; new filters
+    created after the call use the new context with the fresh certificates.
+
+    Returns 0 on success, -1 on failure (the previous context is kept intact).
+**rst**/
+PUBLIC int ytls_reload_certificates(
+    hytls ytls,
+    json_t *jn_config   // not owned
+);
 
 /**rst**
     Version tls

@@ -20,6 +20,7 @@
 #include <ytls.h>
 #include "c_yuno.h"
 #include "c_udp_s.h"
+#include "msg_ievent.h"
 
 
 /***************************************************************************
@@ -33,10 +34,24 @@ PRIVATE int yev_callback(yev_event_h yev_event);
 PRIVATE int udp_set_broadcast(int fd, int on);
 // PRIVATE int send_data(hgobj gobj, gbuffer_t *gbuf);
 PRIVATE void try_to_stop_yevents(hgobj gobj);  // IDEMPOTENT
+PRIVATE int reload_ytls_from_attrs(hgobj gobj);
+PRIVATE json_t *cmd_reload_certs(hgobj gobj, const char *cmd, json_t *kw, hgobj src);
 
 /***************************************************************************
  *          Data: config, public data, private data
  ***************************************************************************/
+
+/*---------------------------------------------*
+ *      Commands
+ *---------------------------------------------*/
+PRIVATE sdata_desc_t pm_reload_certs[] = {
+SDATA_END()
+};
+
+PRIVATE sdata_desc_t command_table[] = {
+SDATACM(DTP_SCHEMA, "reload-certs", 0, pm_reload_certs, cmd_reload_certs, "Reload TLS certificates from the 'crypto' attribute without dropping active connections"),
+SDATA_END()
+};
 
 /*---------------------------------------------*
  *      Attributes
@@ -151,6 +166,18 @@ PRIVATE void mt_create(hgobj gobj)
  ***************************************************************************/
 PRIVATE void mt_writing(hgobj gobj, const char *path)
 {
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    /*
+     * If the 'crypto' attribute is written while the listener is running with
+     * TLS enabled, hot-reload the certificates. Active TLS sessions keep
+     * working with the old state until they close; new sessions use the new.
+     */
+    if(path && strcmp(path, "crypto") == 0) {
+        if(priv->use_ssl && priv->ytls && gobj_is_running(gobj)) {
+            reload_ytls_from_attrs(gobj);
+        }
+    }
 }
 
 /***************************************************************************
@@ -998,6 +1025,95 @@ PRIVATE int ac_tx_data(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
     return 0;
 }
 
+
+
+
+                    /***************************
+                     *      Commands
+                     ***************************/
+
+
+
+
+/***************************************************************************
+ *  Read the current 'crypto' attribute and invoke ytls_reload_certificates().
+ *  Returns 0 on success, -1 on failure (old ytls kept intact).
+ ***************************************************************************/
+PRIVATE int reload_ytls_from_attrs(hgobj gobj)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    if(!priv->use_ssl || !priv->ytls) {
+        return -1;
+    }
+
+    json_t *jn_crypto = gobj_read_json_attr(gobj, "crypto");
+    if(!jn_crypto) {
+        gobj_log_error(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+            "msg",          "%s", "reload-certs: 'crypto' attribute is empty",
+            NULL
+        );
+        return -1;
+    }
+
+    uint32_t trace_level = gobj_trace_level(gobj);
+    json_object_set_new(
+        jn_crypto,
+        "trace_tls",
+        json_boolean(priv->trace_tls || (trace_level & TRACE_TLS))
+    );
+
+    int ret = ytls_reload_certificates(priv->ytls, jn_crypto);
+    if(ret == 0) {
+        gobj_log_info(gobj, 0,
+            "msgset",       "%s", MSGSET_INFO,
+            "msg",          "%s", "TLS certificates reloaded successfully",
+            "url",          "%s", priv->url ? priv->url : "",
+            NULL
+        );
+    }
+    return ret;
+}
+
+/***************************************************************************
+ *  Command: reload-certs
+ ***************************************************************************/
+PRIVATE json_t *cmd_reload_certs(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    if(!priv->use_ssl || !priv->ytls) {
+        return msg_iev_build_response(gobj,
+            -1,
+            json_sprintf("Listener is not TLS-enabled or not running"),
+            0,
+            0,
+            kw
+        );
+    }
+
+    int ret = reload_ytls_from_attrs(gobj);
+    if(ret < 0) {
+        return msg_iev_build_response(gobj,
+            -1,
+            json_sprintf("reload-certs FAILED (check logs)"),
+            0,
+            0,
+            kw
+        );
+    }
+
+    return msg_iev_build_response(gobj,
+        0,
+        json_sprintf("TLS certificates reloaded"),
+        0,
+        0,
+        kw
+    );
+}
+
 /***************************************************************************
  *                          FSM
  ***************************************************************************/
@@ -1084,7 +1200,7 @@ PRIVATE int create_gclass(gclass_name_t gclass_name)
         attrs_table,
         sizeof(PRIVATE_DATA),
         0,  // authz_table
-        0,  // command_table
+        command_table,
         s_user_trace_level,
         0   // gcflag
     );

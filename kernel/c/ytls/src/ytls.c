@@ -98,6 +98,21 @@ PUBLIC void ytls_cleanup(hytls ytls)
     api_tls->cleanup(ytls);
 }
 
+/***************************************************************************
+    Reload certificates (hot-reload)
+ ***************************************************************************/
+PUBLIC int ytls_reload_certificates(hytls ytls, json_t *jn_config)
+{
+    if(!ytls) {
+        return -1;
+    }
+    api_tls_t *api_tls = ((__ytls_t__ *)ytls)->api_tls;
+    if(!api_tls->reload_certificates) {
+        return -1;
+    }
+    return api_tls->reload_certificates(ytls, jn_config);
+}
+
 
 /***************************************************************************
     Version tls
