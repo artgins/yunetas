@@ -510,18 +510,18 @@ PRIVATE void linenoiseBeep(void)
 
 /* ============================== Completion ================================ */
 
-/* Free a list of completion option populated by linenoiseAddCompletion(). */
+/* Free a list of completion option populated by editline_add_completion(). */
 static void freeCompletions(linenoiseCompletions *lc) {
     size_t i;
     if(lc->cvec) {
         for (i = 0; i < lc->len; i++) {
             if(lc->cvec[i]) {
-                free(lc->cvec[i]);
+                gbmem_free(lc->cvec[i]);
             }
         }
     }
     if (lc->cvec != NULL)
-        free(lc->cvec);
+        gbmem_free(lc->cvec);
 }
 
 /* This is an helper function for linenoiseEdit() and is called when the
@@ -612,12 +612,12 @@ PUBLIC void editline_add_completion(editline_completions_t *lc, const char *str)
     size_t len = strlen(str);
     char *copy, **cvec;
 
-    copy = malloc(len+1);
+    copy = gbmem_malloc(len+1);
     if (copy == NULL) return;
     memcpy(copy,str,len+1);
-    cvec = realloc(lc->cvec,sizeof(char*)*(lc->len+1));
+    cvec = gbmem_realloc(lc->cvec,sizeof(char*)*(lc->len+1));
     if (cvec == NULL) {
-        free(copy);
+        gbmem_free(copy);
         return;
     }
     lc->cvec = cvec;
