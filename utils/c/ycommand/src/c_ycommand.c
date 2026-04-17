@@ -100,6 +100,11 @@ PRIVATE int request_commands_cache(hgobj gobj);
 PRIVATE void merge_commands_into_cache(hgobj gobj, json_t *jn_raw_data);
 PRIVATE BOOL is_commands_list_response(json_t *jn_data);
 PRIVATE BOOL line_has_param(const char *buf, const char *pname);
+PRIVATE int list_history(hgobj gobj);
+PRIVATE json_t *cmd_local_help(hgobj gobj, const char *cmd, json_t *kw, hgobj src);
+PRIVATE json_t *cmd_local_history(hgobj gobj, const char *cmd, json_t *kw, hgobj src);
+PRIVATE json_t *cmd_local_clear_history(hgobj gobj, const char *cmd, json_t *kw, hgobj src);
+PRIVATE json_t *cmd_local_exit(hgobj gobj, const char *cmd, json_t *kw, hgobj src);
 PRIVATE void ycommand_completion_cb(
     hgobj gobj, const char *buf, editline_completions_t *lc, void *user_data
 );
@@ -107,6 +112,55 @@ PRIVATE char *ycommand_hints_cb(
     hgobj gobj, const char *buf, int *out_color, int *out_bold, void *user_data
 );
 PRIVATE void ycommand_free_hint_cb(char *hint, void *user_data);
+
+/***************************************************************************
+ *  Local command table (C_YCOMMAND's own commands).
+ *  Invoked with the `!` prefix (following the c_cli convention); the bare
+ *  forms `history`, `exit`, `quit` are also still intercepted in
+ *  ac_command for backward compatibility.
+ ***************************************************************************/
+PRIVATE sdata_desc_t local_pm_help[] = {
+SDATAPM (DTP_STRING,    "cmd",      0,      0,  "Show help for this specific command"),
+SDATAPM (DTP_INTEGER,   "level",    0,      0,  "Depth of help search (1 = bottoms)"),
+SDATA_END()
+};
+
+PRIVATE sdata_desc_t local_command_table[] = {
+/*-CMD---type-----------name----------------alias---------------items-----------json_fn---------description---------- */
+SDATACM (DTP_SCHEMA,    "",                 0,                  0,              0,              "\nLine-edit shortcuts\n-------------------"),
+SDATACM (DTP_STRING,    "", 0, 0, 0,  "Move start          Home, Ctrl+A"),
+SDATACM (DTP_STRING,    "", 0, 0, 0,  "Move end            End, Ctrl+E"),
+SDATACM (DTP_STRING,    "", 0, 0, 0,  "Move left           Left, Ctrl+B"),
+SDATACM (DTP_STRING,    "", 0, 0, 0,  "Move right          Right, Ctrl+F"),
+SDATACM (DTP_STRING,    "", 0, 0, 0,  "Delete char         Del, Ctrl+D"),
+SDATACM (DTP_STRING,    "", 0, 0, 0,  "Backspace           Backspace, Ctrl+H"),
+SDATACM (DTP_STRING,    "", 0, 0, 0,  "Execute             Enter"),
+SDATACM (DTP_STRING,    "", 0, 0, 0,  "Swap char           Ctrl+T"),
+SDATACM (DTP_STRING,    "", 0, 0, 0,  "Delete line         Ctrl+U"),
+SDATACM (DTP_STRING,    "", 0, 0, 0,  "Delete prev. word   Ctrl+W"),
+SDATACM (DTP_STRING,    "", 0, 0, 0,  "Clear screen        Ctrl+L (or Ctrl+K)"),
+SDATACM (DTP_SCHEMA,    "",                 0,                  0,              0,              "\nHistory & search\n----------------"),
+SDATACM (DTP_STRING,    "", 0, 0, 0,  "Previous history    Up"),
+SDATACM (DTP_STRING,    "", 0, 0, 0,  "Next history        Down"),
+SDATACM (DTP_STRING,    "", 0, 0, 0,  "Reverse search      Ctrl+R (press again for next older match)"),
+SDATACM (DTP_STRING,    "", 0, 0, 0,  "Forward search      Ctrl+S"),
+SDATACM (DTP_STRING,    "", 0, 0, 0,  "Exit search         ESC / Ctrl+G (or any edit key to commit)"),
+SDATACM (DTP_SCHEMA,    "",                 0,                  0,              0,              "\nCompletion\n----------"),
+SDATACM (DTP_STRING,    "", 0, 0, 0,  "TAB                 Complete / cycle; lists candidates with descriptions"),
+SDATACM (DTP_SCHEMA,    "",                 0,                  0,              0,              "\nLine-level syntax\n-----------------"),
+SDATACM (DTP_STRING,    "", 0, 0, 0,  "!cmd                Invoke a local ycommand command (below)"),
+SDATACM (DTP_STRING,    "", 0, 0, 0,  "!N                  Re-run history entry N"),
+SDATACM (DTP_STRING,    "", 0, 0, 0,  "!!                  Re-run the last command"),
+SDATACM (DTP_STRING,    "", 0, 0, 0,  "*cmd                Force display-mode form for the response"),
+SDATACM (DTP_STRING,    "", 0, 0, 0,  "cmd service=__yuno__  Send cmd to the yuno (instead of the default service)"),
+SDATACM (DTP_SCHEMA,    "",                 0,                  0,              0,              "\nLocal commands\n--------------"),
+SDATACM (DTP_SCHEMA,    "help",             0,                  local_pm_help,  cmd_local_help,         "Show this help"),
+SDATACM (DTP_SCHEMA,    "history",          0,                  0,              cmd_local_history,      "List command history (also available as `history`)"),
+SDATACM (DTP_SCHEMA,    "clear-history",    0,                  0,              cmd_local_clear_history,"Erase command history"),
+SDATACM (DTP_SCHEMA,    "exit",             0,                  0,              cmd_local_exit,         "Exit ycommand (also available as `exit` / `quit`)"),
+SDATACM (DTP_SCHEMA,    "quit",             0,                  0,              cmd_local_exit,         "Alias of exit"),
+SDATA_END()
+};
 
 /***************************************************************************
  *          Data: config, public data, private data
@@ -1060,6 +1114,50 @@ PRIVATE char *get_history_file(char *bf, int bfsize)
 /***************************************************************************
  *
  ***************************************************************************/
+/***************************************************************************
+ *  Local command handlers (invoked via the `!` prefix or the bare forms
+ *  kept in ac_command).
+ ***************************************************************************/
+PRIVATE json_t *cmd_local_help(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
+{
+    KW_INCREF(kw);
+    json_t *jn_resp = gobj_build_cmds_doc(gobj, kw);
+    return msg_iev_build_response(gobj, 0, jn_resp, 0, 0, kw);
+}
+
+PRIVATE json_t *cmd_local_history(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+    gbuffer_t *gbuf = gbuffer_create(512, 64 * 1024);
+    if(priv->gobj_editline) {
+        int n = editline_history_count(priv->gobj_editline);
+        for(int i = 1; i <= n; i++) {
+            const char *line = editline_history_get(priv->gobj_editline, i);
+            if(line && *line) {
+                gbuffer_printf(gbuf, "%5d  %s\n", i, line);
+            }
+        }
+    }
+    json_t *jn_resp = json_string(gbuffer_cur_rd_pointer(gbuf));
+    gbuffer_decref(gbuf);
+    return msg_iev_build_response(gobj, 0, jn_resp, 0, 0, kw);
+}
+
+PRIVATE json_t *cmd_local_clear_history(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+    if(priv->gobj_editline) {
+        gobj_send_event(priv->gobj_editline, EV_CLEAR_HISTORY, 0, gobj);
+    }
+    return msg_iev_build_response(gobj, 0, json_string("History cleared"), 0, 0, kw);
+}
+
+PRIVATE json_t *cmd_local_exit(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
+{
+    gobj_stop(gobj);
+    return msg_iev_build_response(gobj, 0, 0, 0, 0, kw);
+}
+
 PRIVATE int list_history(hgobj gobj)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
@@ -1607,7 +1705,7 @@ PRIVATE int ac_on_open(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
         if(!empty_string(command)) {
             do_command(gobj, command);
         } else {
-            printf("Type Ctrl+c for exit, 'help' for help, 'history' for show history\n");
+            printf("Type '!help' for local help, '!history' for history, !N to repeat.\n");
             clear_input_line(gobj);
         }
     } else {
@@ -1675,42 +1773,39 @@ PRIVATE int ac_command(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
     }
 
     /*
-     *  bash-style history expansion:
+     *  History expansion (bash-style) — only for purely numeric/`!` forms,
+     *  so they don't clash with `!cmd` routing to the local command table:
      *      !!          last command
-     *      !N          N-th command (1-based, matches `history` output)
-     *      !prefix     most recent command starting with <prefix>
-     *  Expansion replaces the line in kw_input_command (which is what all
-     *  the code below reads from) and is echoed so the user sees what ran.
+     *      !N          N-th command (1-based, matches `!history` output)
+     *  Anything else starting with `!` is treated as a local command and
+     *  dispatched to this gobj further below.
      */
     if(command[0] == '!' && command[1] && priv->gobj_editline) {
         const char *spec = command + 1;
+        BOOL is_history_expansion = FALSE;
         const char *found = NULL;
         int n = editline_history_count(priv->gobj_editline);
         if(spec[0] == '!' && spec[1] == 0) {
+            is_history_expansion = TRUE;
             if(n > 0) found = editline_history_get(priv->gobj_editline, n);
         } else if(isdigit((unsigned char)spec[0])) {
+            is_history_expansion = TRUE;
             int idx = atoi(spec);
             if(idx > 0) found = editline_history_get(priv->gobj_editline, idx);
-        } else {
-            size_t plen = strlen(spec);
-            for(int i = n; i >= 1; i--) {
-                const char *entry = editline_history_get(priv->gobj_editline, i);
-                if(entry && strncmp(entry, spec, plen) == 0) {
-                    found = entry;
-                    break;
-                }
+        }
+        if(is_history_expansion) {
+            if(!found) {
+                printf("%s%s: event not found%s\n",
+                    On_Red BWhite, command, Color_Off);
+                clear_input_line(gobj);
+                KW_DECREF(kw_input_command);
+                KW_DECREF(kw);
+                return 0;
             }
+            printf("%s\n", found);  /* echo the expanded command */
+            json_object_set_new(kw_input_command, "text", json_string(found));
+            command = kw_get_str(gobj, kw_input_command, "text", "", 0);
         }
-        if(!found) {
-            printf("%s%s: event not found%s\n", On_Red BWhite, command, Color_Off);
-            clear_input_line(gobj);
-            KW_DECREF(kw_input_command);
-            KW_DECREF(kw);
-            return 0;
-        }
-        printf("%s\n", found);  /* echo the expanded command */
-        json_object_set_new(kw_input_command, "text", json_string(found));
-        command = kw_get_str(gobj, kw_input_command, "text", "", 0);
     }
 
     if(strcasecmp(command, "exit")==0 || strcasecmp(command, "quit")==0) {
@@ -1752,6 +1847,18 @@ PRIVATE int ac_command(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
         kw_set_dict_value(gobj, kw_command, "cy", json_integer(cy));
     }
 
+    /*
+     *  c_cli convention: `!cmd` runs a LOCAL command of the ycommand gobj
+     *  itself (via the local_command_table registered with the gclass),
+     *  instead of sending to the remote. Strip the prefix here.
+     */
+    BOOL local_cmd = FALSE;
+    if(*xcmd == '!') {
+        xcmd++;
+        while(*xcmd == ' ' || *xcmd == '\t') xcmd++;
+        local_cmd = TRUE;
+    }
+
     /* Remember the command name (first whitespace-delimited token) so the
      * error path can run did-you-mean against the cache. */
     {
@@ -1766,7 +1873,9 @@ PRIVATE int ac_command(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
     }
 
     json_t *webix = 0;
-    if(gobj_in_this_state(gobj, ST_CONNECTED)) {
+    if(local_cmd) {
+        webix = gobj_command(gobj, xcmd, kw_command, gobj);
+    } else if(gobj_in_this_state(gobj, ST_CONNECTED)) {
         webix = gobj_command(priv->gobj_connector, xcmd, kw_command, gobj);
     } else {
         printf("\n%s%s%s\n", On_Red BWhite, "No connection", Color_Off);
@@ -2527,7 +2636,7 @@ PRIVATE int create_gclass(gclass_name_t gclass_name)
         attrs_table,
         sizeof(PRIVATE_DATA),
         0,  // Authorization table
-        0,  // Command table
+        local_command_table,
         s_user_trace_level,
         0   // GClass flags
     );
