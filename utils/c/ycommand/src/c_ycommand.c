@@ -99,6 +99,7 @@ PRIVATE int request_commands_cache(hgobj gobj);
 PRIVATE int load_commands_cache_from_disk(hgobj gobj);
 PRIVATE int save_commands_cache_to_disk(hgobj gobj, json_t *jn_raw_data);
 PRIVATE json_t *build_flat_commands(json_t *jn_raw_data);
+PRIVATE BOOL is_commands_list_response(json_t *jn_data);
 PRIVATE void ycommand_completion_cb(
     hgobj gobj, const char *buf, editline_completions_t *lc, void *user_data
 );
@@ -1188,8 +1189,8 @@ PRIVATE int build_cache_path_for(
 }
 
 /***************************************************************************
- *  Commands-cache: flatten list-gobj-commands response into {name: cmd_obj}
- *  Input: array of {gclass, commands:[{command,description,parameters:[...]}, ...]}
+ *  Commands-cache: flatten `list-gobj-commands` response into {name: cmd_obj}
+ *  Input shape: array of {gclass, commands:[{command,description,parameters:[...]}, ...]}
  *  Returns a new json_t object owned by the caller.
  ***************************************************************************/
 PRIVATE json_t *build_flat_commands(json_t *jn_raw_data)
@@ -1296,6 +1297,10 @@ PRIVATE int save_commands_cache_to_disk(hgobj gobj, json_t *jn_raw_data)
 
 /***************************************************************************
  *  Commands-cache: ask the yuno for its command list (async, silent)
+ *  `list-gobj-commands` is a command of C_YUNO, not of the target service,
+ *  so the request is routed to the yuno itself via `service=__yuno__`.
+ *  We ask for the default service and its bottoms, which matches the set
+ *  of commands the user can invoke through this connection.
  ***************************************************************************/
 PRIVATE int request_commands_cache(hgobj gobj)
 {
@@ -1305,7 +1310,16 @@ PRIVATE int request_commands_cache(hgobj gobj)
     }
     priv->fetching_commands_cache = TRUE;
 
-    json_t *kw = json_pack("{s:i, s:b}", "details", 1, "bottoms", 1);
+    const char *wanted_service = gobj_read_str_attr(gobj, "yuno_service");
+    if(empty_string(wanted_service)) {
+        wanted_service = "__default_service__";
+    }
+    json_t *kw = json_pack("{s:s, s:s, s:i, s:b}",
+        "service", "__yuno__",          /* route to yuno, not the service */
+        "gobj_name", wanted_service,    /* introspect this service... */
+        "details", 1,
+        "bottoms", 1                    /* ...and its bottom chain */
+    );
     json_t *webix = gobj_command(priv->gobj_connector, "list-gobj-commands", kw, gobj);
     if(webix) {
         /* Synchronous response: consume here, no display. */
@@ -1600,8 +1614,9 @@ PRIVATE int ac_command_answer(hgobj gobj, gobj_event_t event, json_t *kw, hgobj 
 
     /*
      *  Intercept the silent list-gobj-commands response used to warm the cache.
-     *  We only consume it when the fetch flag is set AND the response shape
-     *  matches, so a user-issued `list-gobj-commands` is still displayed.
+     *  Always consume silently while the flag is set: even an error response
+     *  (e.g. unauthorized, yuno doesn't expose the command) must not pollute
+     *  the user's session.
      */
     if(priv->fetching_commands_cache) {
         json_t *jn_data = kw_get_dict_value(gobj, kw, "data", 0, 0);
@@ -1609,11 +1624,14 @@ PRIVATE int ac_command_answer(hgobj gobj, gobj_event_t event, json_t *kw, hgobj 
             JSON_DECREF(priv->commands_cache)
             priv->commands_cache = build_flat_commands(jn_data);
             save_commands_cache_to_disk(gobj, jn_data);
-            priv->fetching_commands_cache = FALSE;
-            KW_DECREF(kw);
-            return 0;
         }
-        /* Not the response we were waiting for: fall through and display. */
+        priv->fetching_commands_cache = FALSE;
+        /* Redraw the prompt so it isn't left with a stale line. */
+        if(priv->interactive) {
+            clear_input_line(gobj);
+        }
+        KW_DECREF(kw);
+        return 0;
     }
 
     if(priv->interactive) {
