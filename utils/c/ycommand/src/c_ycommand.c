@@ -125,6 +125,12 @@ SDATAPM (DTP_INTEGER,   "level",    0,      0,  "Depth of help search (1 = botto
 SDATA_END()
 };
 
+PRIVATE const char *a_help[]          = {"h", "?", 0};
+PRIVATE const char *a_history[]       = {"hi", 0};
+PRIVATE const char *a_clear_history[] = {"clh", 0};
+PRIVATE const char *a_exit[]          = {"x", 0};
+PRIVATE const char *a_quit[]          = {"q", 0};
+
 PRIVATE sdata_desc_t local_command_table[] = {
 /*-CMD---type-----------name----------------alias---------------items-----------json_fn---------description---------- */
 SDATACM (DTP_SCHEMA,    "",                 0,                  0,              0,              "\nLine-edit shortcuts\n-------------------"),
@@ -154,11 +160,11 @@ SDATACM (DTP_STRING,    "", 0, 0, 0,  "!!                  Re-run the last comma
 SDATACM (DTP_STRING,    "", 0, 0, 0,  "*cmd                Force display-mode form for the response"),
 SDATACM (DTP_STRING,    "", 0, 0, 0,  "cmd service=__yuno__  Send cmd to the yuno (instead of the default service)"),
 SDATACM (DTP_SCHEMA,    "",                 0,                  0,              0,              "\nLocal commands\n--------------"),
-SDATACM (DTP_SCHEMA,    "help",             0,                  local_pm_help,  cmd_local_help,         "Show this help"),
-SDATACM (DTP_SCHEMA,    "history",          0,                  0,              cmd_local_history,      "List command history (also available as `history`)"),
-SDATACM (DTP_SCHEMA,    "clear-history",    0,                  0,              cmd_local_clear_history,"Erase command history"),
-SDATACM (DTP_SCHEMA,    "exit",             0,                  0,              cmd_local_exit,         "Exit ycommand (also available as `exit` / `quit`)"),
-SDATACM (DTP_SCHEMA,    "quit",             0,                  0,              cmd_local_exit,         "Alias of exit"),
+SDATACM (DTP_SCHEMA,    "help",             a_help,             local_pm_help,  cmd_local_help,         "Show this help"),
+SDATACM (DTP_SCHEMA,    "history",          a_history,          0,              cmd_local_history,      "List command history (also available as `history`)"),
+SDATACM (DTP_SCHEMA,    "clear-history",    a_clear_history,    0,              cmd_local_clear_history,"Erase command history"),
+SDATACM (DTP_SCHEMA,    "exit",             a_exit,             0,              cmd_local_exit,         "Exit ycommand (also available as `exit` / `quit`)"),
+SDATACM (DTP_SCHEMA,    "quit",             a_quit,             0,              cmd_local_exit,         "Alias of exit"),
 SDATA_END()
 };
 
