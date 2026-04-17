@@ -617,11 +617,22 @@ PRIVATE int on_read_cb(hgobj gobj, gbuffer_t *gbuf)
         if(kt) {
             const char *dst = kt->dst_gobj;
             const char *event = kt->event;
+            size_t consumed = strlen((const char *)kt->keycode);
 
             if(strcmp(dst, "editline")==0) {
                 gobj_send_event(priv->gobj_editline, event, 0, gobj);
             } else {
                 gobj_send_event(gobj, event, 0, gobj);
+            }
+
+            /*
+             *  If the read batch carried more bytes after the matched key
+             *  (e.g. user typed TAB immediately followed by a value), feed
+             *  the rest through the normal char path. Otherwise we'd lose
+             *  the keystroke that arrived in the same batch.
+             */
+            for(size_t i = consumed; i < nread; i++) {
+                process_key(gobj, base[i]);
             }
         } else {
             for(int i=0; i<nread; i++) {
