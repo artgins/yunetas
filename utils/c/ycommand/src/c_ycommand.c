@@ -101,10 +101,14 @@ PRIVATE void merge_commands_into_cache(hgobj gobj, json_t *jn_raw_data);
 PRIVATE BOOL is_commands_list_response(json_t *jn_data);
 PRIVATE BOOL line_has_param(const char *buf, const char *pname);
 PRIVATE int list_history(hgobj gobj);
+PRIVATE void split_commands_into_queue(hgobj gobj, const char *text);
+PRIVATE int exec_one_command(hgobj gobj, const char *cmdline);
+PRIVATE void run_next_pending(hgobj gobj);
 PRIVATE json_t *cmd_local_help(hgobj gobj, const char *cmd, json_t *kw, hgobj src);
 PRIVATE json_t *cmd_local_history(hgobj gobj, const char *cmd, json_t *kw, hgobj src);
 PRIVATE json_t *cmd_local_clear_history(hgobj gobj, const char *cmd, json_t *kw, hgobj src);
 PRIVATE json_t *cmd_local_exit(hgobj gobj, const char *cmd, json_t *kw, hgobj src);
+PRIVATE json_t *cmd_local_source(hgobj gobj, const char *cmd, json_t *kw, hgobj src);
 PRIVATE void ycommand_completion_cb(
     hgobj gobj, const char *buf, editline_completions_t *lc, void *user_data
 );
@@ -130,6 +134,12 @@ PRIVATE const char *a_history[]       = {"hi", 0};
 PRIVATE const char *a_clear_history[] = {"clh", 0};
 PRIVATE const char *a_exit[]          = {"x", 0};
 PRIVATE const char *a_quit[]          = {"q", 0};
+PRIVATE const char *a_source[]        = {".", 0};
+
+PRIVATE sdata_desc_t local_pm_source[] = {
+SDATAPM (DTP_STRING,    "file",     0,      0,  "Script file path"),
+SDATA_END()
+};
 
 PRIVATE sdata_desc_t local_command_table[] = {
 /*-CMD---type-----------name----------------alias---------------items-----------json_fn---------description---------- */
@@ -158,6 +168,8 @@ SDATACM (DTP_STRING,    "", 0, 0, 0,  "!cmd                Invoke a local ycomma
 SDATACM (DTP_STRING,    "", 0, 0, 0,  "!N                  Re-run history entry N"),
 SDATACM (DTP_STRING,    "", 0, 0, 0,  "!!                  Re-run the last command"),
 SDATACM (DTP_STRING,    "", 0, 0, 0,  "*cmd                Force display-mode form for the response"),
+SDATACM (DTP_STRING,    "", 0, 0, 0,  "cmd1 ; cmd2 ; ...   Chain commands; each waits for the previous response"),
+SDATACM (DTP_STRING,    "", 0, 0, 0,  "-cmd                Ignore errors for this command (ybatch convention)"),
 SDATACM (DTP_STRING,    "", 0, 0, 0,  "cmd service=__yuno__  Send cmd to the yuno (instead of the default service)"),
 SDATACM (DTP_SCHEMA,    "",                 0,                  0,              0,              "\nLocal commands\n--------------"),
 SDATACM (DTP_SCHEMA,    "help",             a_help,             local_pm_help,  cmd_local_help,         "Show this help"),
@@ -165,6 +177,7 @@ SDATACM (DTP_SCHEMA,    "history",          a_history,          0,              
 SDATACM (DTP_SCHEMA,    "clear-history",    a_clear_history,    0,              cmd_local_clear_history,"Erase command history"),
 SDATACM (DTP_SCHEMA,    "exit",             a_exit,             0,              cmd_local_exit,         "Exit ycommand (also available as `exit` / `quit`)"),
 SDATACM (DTP_SCHEMA,    "quit",             a_quit,             0,              cmd_local_exit,         "Alias of exit"),
+SDATACM (DTP_SCHEMA,    "source",           a_source,           local_pm_source,cmd_local_source,       "Read commands from a file and run them sequentially"),
 SDATA_END()
 };
 
@@ -242,6 +255,17 @@ typedef struct _PRIVATE_DATA {
     json_t *commands_cache;         /* flat dict: name -> cmd_obj */
     int pending_cache_fetches;      /* >0 while cache-warmup responses are pending */
     char last_sent_command[128];    /* first token of the user's last command, for did-you-mean */
+
+    /*
+     *  Command queue: each line the user submits (either typed, `;`-chained,
+     *  sourced from a file, or piped on stdin) is split into one or more
+     *  atomic commands and pushed here. run_next_pending() drains it one
+     *  command at a time, waiting for the previous response before sending
+     *  the next. On error the rest of the queue is dropped — unless the
+     *  command was prefixed with '-' (ybatch convention: ignore-fail).
+     */
+    json_t *pending_commands;       /* json array of strings */
+    BOOL current_ignore_fail;       /* true while an async `-cmd` is in flight */
 } PRIVATE_DATA;
 
 
@@ -343,6 +367,7 @@ PRIVATE void mt_destroy(hgobj gobj)
 
     EXEC_AND_RESET(yev_destroy_event, priv->yev_reading)
     JSON_DECREF(priv->commands_cache)
+    JSON_DECREF(priv->pending_commands)
 }
 
 /***************************************************************************
@@ -1165,8 +1190,71 @@ PRIVATE json_t *cmd_local_clear_history(hgobj gobj, const char *cmd, json_t *kw,
 
 PRIVATE json_t *cmd_local_exit(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
 {
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+    if(priv->pending_commands) {
+        json_array_clear(priv->pending_commands);
+    }
     gobj_stop(gobj);
     return msg_iev_build_response(gobj, 0, 0, 0, 0, kw);
+}
+
+/***************************************************************************
+ *  !source <file>: read `file` line by line, skip blank lines and lines
+ *  starting with `#`, push the rest onto the pending queue so they're
+ *  dispatched sequentially (each waits for the previous response).
+ *  Lines themselves may contain `;` or the `-cmd` ignore-fail prefix.
+ ***************************************************************************/
+PRIVATE json_t *cmd_local_source(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+    const char *file = kw_get_str(gobj, kw, "file", "", 0);
+    if(empty_string(file)) {
+        return msg_iev_build_response(gobj, -1,
+            json_string("Missing 'file' parameter"), 0, 0, kw);
+    }
+    FILE *fp = fopen(file, "r");
+    if(!fp) {
+        return msg_iev_build_response(gobj, -1,
+            json_sprintf("Cannot open '%s': %s", file, strerror(errno)),
+            0, 0, kw);
+    }
+
+    /*
+     *  Collect the new commands in file order first, then splice them onto
+     *  the FRONT of the pending queue so that `!source a.ycmd ; stats` runs
+     *  every line of a.ycmd before `stats`, which matches user intuition.
+     */
+    json_t *new_cmds = json_array();
+    char line[4096];
+    while(fgets(line, sizeof(line), fp)) {
+        size_t len = strlen(line);
+        while(len > 0 && (line[len-1] == '\n' || line[len-1] == '\r')) {
+            line[--len] = 0;
+        }
+        const char *start = line;
+        while(*start == ' ' || *start == '\t') start++;
+        if(*start == 0 || *start == '#') {
+            continue;
+        }
+        split_commands_into_array(start, new_cmds);
+    }
+    fclose(fp);
+
+    if(!priv->pending_commands) {
+        priv->pending_commands = json_array();
+    }
+    size_t insert_at = 0;
+    size_t i;
+    json_t *v;
+    json_array_foreach(new_cmds, i, v) {
+        json_array_insert(priv->pending_commands, insert_at++, v);
+    }
+    int queued = (int)json_array_size(new_cmds);
+    JSON_DECREF(new_cmds);
+
+    return msg_iev_build_response(gobj, 0,
+        json_sprintf("Sourced '%s' (%d command(s))", file, queued),
+        0, 0, kw);
 }
 
 PRIVATE int list_history(hgobj gobj)
@@ -1909,8 +1997,38 @@ PRIVATE int ac_on_open(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
         }
     } else {
         if(empty_string(command)) {
-            printf("What command?\n");
-            gobj_stop(priv->gobj_remote_agent);
+            /*
+             *  Non-interactive with no -c/positional: if stdin is a pipe,
+             *  read commands from it one per line (blank / '#' lines are
+             *  skipped) and drain them sequentially — each waits for the
+             *  previous response, stop on error unless the line was
+             *  prefixed with '-'. This gives ycommand basic pipe-style
+             *  scripting:  `cat batch.ycmd | ycommand -u ws://...`
+             */
+            if(!isatty(STDIN_FILENO)) {
+                char line[4096];
+                while(fgets(line, sizeof(line), stdin)) {
+                    size_t len = strlen(line);
+                    while(len > 0 && (line[len-1] == '\n' || line[len-1] == '\r')) {
+                        line[--len] = 0;
+                    }
+                    const char *s = line;
+                    while(*s == ' ' || *s == '\t') s++;
+                    if(*s == 0 || *s == '#') {
+                        continue;
+                    }
+                    split_commands_into_queue(gobj, s);
+                }
+                if(priv->pending_commands
+                   && json_array_size(priv->pending_commands) > 0) {
+                    run_next_pending(gobj);
+                } else {
+                    gobj_stop(priv->gobj_remote_agent);
+                }
+            } else {
+                printf("What command?\n");
+                gobj_stop(priv->gobj_remote_agent);
+            }
         } else {
             do_command(gobj, command);
         }
@@ -1943,7 +2061,239 @@ PRIVATE int ac_on_close(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 }
 
 /***************************************************************************
+ *  Split `text` into atomic commands on unquoted, top-level `;` and append
+ *  each non-empty chunk to the `target` json array. Brace depth and quote
+ *  state are tracked so `;` inside "...", '...' or {...} is treated as
+ *  literal (needed for JSON-valued parameters like kw={"a":1}).
+ ***************************************************************************/
+PRIVATE void split_commands_into_array(const char *text, json_t *target)
+{
+    if(!text || !target) {
+        return;
+    }
+    const char *start = text;
+    int brace_depth = 0;
+    char in_quote = 0;
+    for(const char *p = text; ; p++) {
+        if(in_quote) {
+            if(*p == 0) break;
+            if(*p == '\\' && p[1]) { p++; continue; }
+            if(*p == in_quote) in_quote = 0;
+            continue;
+        }
+        if(*p == '"' || *p == '\'') {
+            in_quote = *p;
+            continue;
+        }
+        if(*p == '{') {
+            brace_depth++;
+            continue;
+        }
+        if(*p == '}' && brace_depth > 0) {
+            brace_depth--;
+            continue;
+        }
+        if((*p == ';' && brace_depth == 0) || *p == 0) {
+            const char *s = start;
+            const char *e = p;
+            while(s < e && (*s == ' ' || *s == '\t')) s++;
+            while(e > s && (e[-1] == ' ' || e[-1] == '\t')) e--;
+            if(e > s) {
+                size_t n = (size_t)(e - s);
+                char *tmp = gbmem_malloc(n + 1);
+                if(tmp) {
+                    memcpy(tmp, s, n);
+                    tmp[n] = 0;
+                    json_array_append_new(target, json_string(tmp));
+                    gbmem_free(tmp);
+                }
+            }
+            if(*p == 0) break;
+            start = p + 1;
+        }
+    }
+}
+
+PRIVATE void split_commands_into_queue(hgobj gobj, const char *text)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+    if(!priv->pending_commands) {
+        priv->pending_commands = json_array();
+    }
+    split_commands_into_array(text, priv->pending_commands);
+}
+
+/***************************************************************************
+ *  Drain priv->pending_commands in order. Each entry goes through
+ *  exec_one_command(); on sync success we loop to the next, on sync error
+ *  we clear the queue (unless the entry was prefixed with '-') and on
+ *  async dispatch we return and wait for ac_command_answer to resume us.
+ ***************************************************************************/
+PRIVATE void run_next_pending(hgobj gobj)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+    while(priv->pending_commands && json_array_size(priv->pending_commands) > 0) {
+        json_t *jn_cmd = json_array_get(priv->pending_commands, 0);
+        char *cmd_str = gbmem_strdup(json_string_value(jn_cmd));
+        json_array_remove(priv->pending_commands, 0);
+        int ret = exec_one_command(gobj, cmd_str);
+        gbmem_free(cmd_str);
+        if(ret == 1) {
+            /* Async dispatch: ac_command_answer will call us again. */
+            return;
+        }
+        if(ret == -1) {
+            /* Sync error and not ignore-fail: drop the rest of the queue. */
+            json_array_clear(priv->pending_commands);
+            return;
+        }
+        /* ret == 0: sync success, continue to next. */
+    }
+}
+
+/***************************************************************************
+ *  Run a single command line end-to-end. Handles the bang/history
+ *  expansion, the bare `exit` / `quit` / `history` intercepts, local-table
+ *  vs remote routing and the sync/async response split.
+ *  Returns 0 (sync done), 1 (async pending, wait for EV_MT_COMMAND_ANSWER)
+ *  or -1 (sync error; caller should drop remaining queue unless this
+ *  command was prefixed with '-').
+ ***************************************************************************/
+PRIVATE int exec_one_command(hgobj gobj, const char *cmdline)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    while(*cmdline == ' ' || *cmdline == '\t') cmdline++;
+    if(empty_string(cmdline)) {
+        return 0;
+    }
+
+    /* ybatch convention: a leading '-' on the command keeps the batch
+     * going when this one fails. */
+    BOOL ignore_fail = FALSE;
+    if(*cmdline == '-') {
+        ignore_fail = TRUE;
+        cmdline++;
+        while(*cmdline == ' ' || *cmdline == '\t') cmdline++;
+    }
+
+    /* History expansion (bash-style) — only for purely numeric/`!` forms. */
+    char expanded[1024] = {0};
+    if(cmdline[0] == '!' && cmdline[1] && priv->gobj_editline) {
+        const char *spec = cmdline + 1;
+        BOOL is_history_expansion = FALSE;
+        const char *found = NULL;
+        int n = editline_history_count(priv->gobj_editline);
+        if(spec[0] == '!' && spec[1] == 0) {
+            is_history_expansion = TRUE;
+            if(n > 0) found = editline_history_get(priv->gobj_editline, n);
+        } else if(isdigit((unsigned char)spec[0])) {
+            is_history_expansion = TRUE;
+            int idx = atoi(spec);
+            if(idx > 0) found = editline_history_get(priv->gobj_editline, idx);
+        }
+        if(is_history_expansion) {
+            if(!found) {
+                printf("%s%s: event not found%s\n",
+                    On_Red BWhite, cmdline, Color_Off);
+                clear_input_line(gobj);
+                return ignore_fail ? 0 : -1;
+            }
+            printf("%s\n", found);
+            snprintf(expanded, sizeof(expanded), "%s", found);
+            cmdline = expanded;
+        }
+    }
+
+    /* Bare local intercepts kept for muscle memory. */
+    if(strcasecmp(cmdline, "exit") == 0 || strcasecmp(cmdline, "quit") == 0) {
+        if(priv->pending_commands) {
+            json_array_clear(priv->pending_commands);
+        }
+        gobj_stop(gobj);
+        return 0;
+    }
+    if(strcasecmp(cmdline, "history") == 0) {
+        list_history(gobj);
+        return 0;
+    }
+
+    char comment[512] = {0};
+    gbuffer_t *gbuf_parsed_command = replace_cli_vars(cmdline, comment, sizeof(comment));
+    if(!gbuf_parsed_command) {
+        printf("%s%s%s\n", On_Red BWhite, cmdline, Color_Off);
+        clear_input_line(gobj);
+        return ignore_fail ? 0 : -1;
+    }
+    char *xcmd = gbuffer_cur_rd_pointer(gbuf_parsed_command);
+    json_t *kw_command = json_object();
+    if(*xcmd == '*') {
+        xcmd++;
+        kw_set_subdict_value(gobj, kw_command, "__md_iev__",
+            "display_mode", json_string("form"));
+    }
+    if(strstr(xcmd, "open-console")) {
+        struct winsize w;
+        ioctl(STDOUT_FILENO, TIOCGWINSZ, &w);
+        int cx = w.ws_col;
+        int cy = w.ws_row;
+        kw_set_dict_value(gobj, kw_command, "cx", json_integer(cx));
+        kw_set_dict_value(gobj, kw_command, "cy", json_integer(cy));
+    }
+
+    BOOL local_cmd = FALSE;
+    if(*xcmd == '!') {
+        xcmd++;
+        while(*xcmd == ' ' || *xcmd == '\t') xcmd++;
+        local_cmd = TRUE;
+    }
+
+    {
+        const char *sp = xcmd;
+        while(*sp && *sp != ' ' && *sp != '\t') sp++;
+        size_t cmd_len = (size_t)(sp - xcmd);
+        if(cmd_len >= sizeof(priv->last_sent_command)) {
+            cmd_len = sizeof(priv->last_sent_command) - 1;
+        }
+        memcpy(priv->last_sent_command, xcmd, cmd_len);
+        priv->last_sent_command[cmd_len] = 0;
+    }
+
+    json_t *webix = 0;
+    if(local_cmd) {
+        webix = gobj_command(gobj, xcmd, kw_command, gobj);
+    } else if(gobj_in_this_state(gobj, ST_CONNECTED)) {
+        webix = gobj_command(priv->gobj_connector, xcmd, kw_command, gobj);
+    } else {
+        printf("\n%s%s%s\n", On_Red BWhite, "No connection", Color_Off);
+        clear_input_line(gobj);
+        JSON_DECREF(kw_command)
+        gbuffer_decref(gbuf_parsed_command);
+        return ignore_fail ? 0 : -1;
+    }
+    gbuffer_decref(gbuf_parsed_command);
+
+    if(webix) {
+        int result = (int)kw_get_int(gobj, webix, "result", 0, 0);
+        display_webix_result(gobj, webix);  /* consumes webix */
+        if(result < 0) {
+            return ignore_fail ? 0 : -1;
+        }
+        return 0;
+    }
+
+    /* Async: the response will arrive via EV_MT_COMMAND_ANSWER. */
+    priv->current_ignore_fail = ignore_fail;
+    printf("\n"); fflush(stdout);
+    return 1;
+}
+
+/***************************************************************************
  *  HACK Este evento solo puede venir de GCLASS_EDITLINE
+ *
+ *  Just read the text off the source (editline or kw in non-interactive
+ *  mode), split it into atomic commands on top-level ';' and start draining
+ *  the queue. exec_one_command() does the real work per command.
  ***************************************************************************/
 PRIVATE int ac_command(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 {
@@ -1971,130 +2321,9 @@ PRIVATE int ac_command(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
         return 0;
     }
 
-    /*
-     *  History expansion (bash-style) — only for purely numeric/`!` forms,
-     *  so they don't clash with `!cmd` routing to the local command table:
-     *      !!          last command
-     *      !N          N-th command (1-based, matches `!history` output)
-     *  Anything else starting with `!` is treated as a local command and
-     *  dispatched to this gobj further below.
-     */
-    if(command[0] == '!' && command[1] && priv->gobj_editline) {
-        const char *spec = command + 1;
-        BOOL is_history_expansion = FALSE;
-        const char *found = NULL;
-        int n = editline_history_count(priv->gobj_editline);
-        if(spec[0] == '!' && spec[1] == 0) {
-            is_history_expansion = TRUE;
-            if(n > 0) found = editline_history_get(priv->gobj_editline, n);
-        } else if(isdigit((unsigned char)spec[0])) {
-            is_history_expansion = TRUE;
-            int idx = atoi(spec);
-            if(idx > 0) found = editline_history_get(priv->gobj_editline, idx);
-        }
-        if(is_history_expansion) {
-            if(!found) {
-                printf("%s%s: event not found%s\n",
-                    On_Red BWhite, command, Color_Off);
-                clear_input_line(gobj);
-                KW_DECREF(kw_input_command);
-                KW_DECREF(kw);
-                return 0;
-            }
-            printf("%s\n", found);  /* echo the expanded command */
-            json_object_set_new(kw_input_command, "text", json_string(found));
-            command = kw_get_str(gobj, kw_input_command, "text", "", 0);
-        }
-    }
+    split_commands_into_queue(gobj, command);
+    run_next_pending(gobj);
 
-    if(strcasecmp(command, "exit")==0 || strcasecmp(command, "quit")==0) {
-        gobj_stop(gobj);
-        KW_DECREF(kw_input_command);
-        KW_DECREF(kw);
-        return 0;
-    }
-
-    if(strcasecmp(command, "history")==0) {
-        list_history(gobj);
-        KW_DECREF(kw_input_command);
-        KW_DECREF(kw);
-        return 0;
-    }
-
-    char comment[512]={0};
-    gbuffer_t *gbuf_parsed_command = replace_cli_vars(command, comment, sizeof(comment));
-    if(!gbuf_parsed_command) {
-        printf("%s%s%s\n", On_Red BWhite, command, Color_Off);
-        clear_input_line(gobj);
-        KW_DECREF(kw_input_command);
-        KW_DECREF(kw);
-        return 0;
-    }
-    char *xcmd = gbuffer_cur_rd_pointer(gbuf_parsed_command);
-    json_t *kw_command = json_object();
-    if(*xcmd == '*') {
-        xcmd++;
-        kw_set_subdict_value(gobj, kw_command, "__md_iev__", "display_mode", json_string("form"));
-    }
-    if(strstr(xcmd, "open-console")) {
-        struct winsize w;
-        ioctl(STDOUT_FILENO, TIOCGWINSZ, &w);
-
-        int cx = w.ws_col;
-        int cy = w.ws_row;
-        kw_set_dict_value(gobj, kw_command, "cx", json_integer(cx));
-        kw_set_dict_value(gobj, kw_command, "cy", json_integer(cy));
-    }
-
-    /*
-     *  c_cli convention: `!cmd` runs a LOCAL command of the ycommand gobj
-     *  itself (via the local_command_table registered with the gclass),
-     *  instead of sending to the remote. Strip the prefix here.
-     */
-    BOOL local_cmd = FALSE;
-    if(*xcmd == '!') {
-        xcmd++;
-        while(*xcmd == ' ' || *xcmd == '\t') xcmd++;
-        local_cmd = TRUE;
-    }
-
-    /* Remember the command name (first whitespace-delimited token) so the
-     * error path can run did-you-mean against the cache. */
-    {
-        const char *sp = xcmd;
-        while(*sp && *sp != ' ' && *sp != '\t') sp++;
-        size_t cmd_len = (size_t)(sp - xcmd);
-        if(cmd_len >= sizeof(priv->last_sent_command)) {
-            cmd_len = sizeof(priv->last_sent_command) - 1;
-        }
-        memcpy(priv->last_sent_command, xcmd, cmd_len);
-        priv->last_sent_command[cmd_len] = 0;
-    }
-
-    json_t *webix = 0;
-    if(local_cmd) {
-        webix = gobj_command(gobj, xcmd, kw_command, gobj);
-    } else if(gobj_in_this_state(gobj, ST_CONNECTED)) {
-        webix = gobj_command(priv->gobj_connector, xcmd, kw_command, gobj);
-    } else {
-        printf("\n%s%s%s\n", On_Red BWhite, "No connection", Color_Off);
-        clear_input_line(gobj);
-        JSON_DECREF(kw_command)
-    }
-    gbuffer_decref(gbuf_parsed_command);
-
-    /*
-     *  Print json response in display window
-     */
-    if(webix) {
-        display_webix_result(
-            gobj,
-            webix
-        );
-    } else {
-        /* asynchronous responses return 0 */
-        printf("\n"); fflush(stdout);
-    }
     KW_DECREF(kw_input_command);
     KW_DECREF(kw);
     return 0;
@@ -2132,13 +2361,28 @@ PRIVATE int ac_command_answer(hgobj gobj, gobj_event_t event, json_t *kw, hgobj 
         }
     }
 
+    /*
+     *  Before running the normal display paths, capture the result+flag
+     *  into locals so we can resume (or drop) the queue after display.
+     *  ownership of `kw` stays with display_webix_result / the manual
+     *  printing below, as before.
+     */
+    int __answer_result = (int)kw_get_int(gobj, kw, "result", 0, 0);
+    BOOL __ignore_fail = priv->current_ignore_fail;
+    priv->current_ignore_fail = FALSE;
+
     if(priv->interactive) {
-        return display_webix_result(
-            gobj,
-            kw
-        );
+        int r = display_webix_result(gobj, kw);  /* consumes kw */
+        if(priv->pending_commands && json_array_size(priv->pending_commands) > 0) {
+            if(__answer_result < 0 && !__ignore_fail) {
+                json_array_clear(priv->pending_commands);
+            } else {
+                run_next_pending(gobj);
+            }
+        }
+        return r;
     } else {
-        int result = (int)kw_get_int(gobj, kw, "result", -1, 0);
+        int result = __answer_result;
         const char *comment = kw_get_str(gobj, kw, "comment", "", 0);
         if(result != 0){
             printf("%sERROR %d: %s%s\n", On_Red BWhite, result, comment, Color_Off);
@@ -2163,7 +2407,20 @@ PRIVATE int ac_command_answer(hgobj gobj, gobj_event_t event, json_t *kw, hgobj 
         KW_DECREF(kw);
         gobj_set_exit_code(result);
 
-        set_timeout(priv->timer, priv->wait * 1000);
+        /*
+         *  Non-interactive: drain queued commands one at a time, stop on
+         *  error unless the dropped command was prefixed with '-'.
+         */
+        if(priv->pending_commands && json_array_size(priv->pending_commands) > 0) {
+            if(result < 0 && !__ignore_fail) {
+                json_array_clear(priv->pending_commands);
+                set_timeout(priv->timer, priv->wait * 1000);
+            } else {
+                run_next_pending(gobj);
+            }
+        } else {
+            set_timeout(priv->timer, priv->wait * 1000);
+        }
     }
     return 0;
 }
