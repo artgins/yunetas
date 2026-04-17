@@ -18,7 +18,7 @@ Binaries are installed into `$YUNETAS_OUTPUTS/yunos/` by `yunetas build`.
 
 | Binary | Description |
 |--------|-------------|
-| **`ycli`** | Interactive ncurses-based terminal UI for browsing yunos, inspecting state, and sending commands — a friendlier alternative to raw `ycommand`. |
+| **`ycli`** | Interactive ncurses-based terminal UI for browsing yunos, inspecting state, and sending commands. Multi-session / multi-window sibling of `ycommand`; both use the shared `C_EDITLINE` line editor, so line editing, history, `Ctrl+R` / `Ctrl+S` incremental search, `Ctrl+L` clear-screen and TAB completion hooks behave identically in both. Local vs remote routing follows the `!cmd` prefix convention. |
 | **`mqtt_tui`** | MQTT client with a text-based UI. |
 
 ## Messaging & Protocol

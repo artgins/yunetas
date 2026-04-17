@@ -1,6 +1,49 @@
 # **Changelog**
 
 ## Unreleased
+    - **feat(ycommand)**: major interactive / scripting overhaul.
+      - TAB completion of command names, parameter names and boolean values,
+        from a remote `list-gobj-commands` cache fetched at connect time
+        (routed through `service=__yuno__`) and from a local command table
+        for `!cmd` built-ins.
+      - Inline parameter hints in gray (`<name=type>` required,
+        `[name=type]` optional, already-typed params dropped).
+      - Connect-time informative prompt (`<role>^<name>> `) and schema-driven
+        table rendering in both interactive and non-interactive modes (use
+        the `*cmd` prefix to force raw-JSON form).
+      - `Ctrl+R` / `Ctrl+S` incremental history search, `Ctrl+L` clear screen,
+        bash-style `!!` / `!N` history expansion, erasedups history.
+      - c_cli-style local commands via the `!` prefix: `!help` (alias `!h` /
+        `!?`), `!history`, `!clear-history`, `!exit` / `!quit`,
+        `!source <file>` (alias `!.`). Full keybinding + syntax reference
+        available as `!help` and in `utils/c/ycommand/README.md`.
+      - Command chaining with `cmd1 ; cmd2 ; cmd3` (quote/brace-aware split),
+        `-cmd` ignore-fail (ybatch convention), stdin piping
+        (`cat batch.ycmd | ycommand -u ws://...`). A single shared
+        command queue drains one command at a time, waiting for the previous
+        response before sending the next.
+      - `did-you-mean` suggestions on `command not available` errors,
+        Levenshtein-matched against the cache.
+      - Positional command form (`ycommand kill-yuno id=foo`, equivalent to
+        `-c`). The `-c` flag still wins when both are present.
+    - **feat(c_editline)**: new public helpers shared by every editline
+      client — `editline_set_completion_callback` /
+      `editline_set_hints_callback` / `editline_add_completion` /
+      `editline_history_count` / `editline_history_get`. New events
+      `EV_EDITLINE_REVERSE_SEARCH` / `EV_EDITLINE_FORWARD_SEARCH` for
+      incremental history search; candidate list + description is rendered
+      on TAB when multiple options exist.
+    - **fix(c_editline)**: after the user selects a TAB candidate, the
+      keystroke that committed the selection (Enter, Backspace, printable)
+      is now re-dispatched so the action takes effect in the same press
+      instead of requiring a second press.
+    - **fix(ycommand)**: `on_read_cb` no longer drops trailing bytes of a
+      batched read that matched a keytable entry, so rapid TAB+value typing
+      no longer needs a second press.
+    - **docs**: added `utils/c/ycommand/README.md`, `TODO.md` and updated
+      `docs/doc.yuneta.io/{utilities,yunos,modules}.md` to cover the new
+      features.
+
     - **API change(ghttp_parser)**: `ghttp_parser_reset()` is **removed** from
       the public API.  It was a foot-gun: calling it from inside an llhttp
       callback (as `on_message_complete` used to do) corrupted llhttp's state
