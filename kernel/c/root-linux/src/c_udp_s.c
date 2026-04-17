@@ -988,46 +988,6 @@ PRIVATE int yev_callback(yev_event_h yev_event)
 
 
 
-            /***************************
-             *      Actions
-             ***************************/
-
-
-
-
-/***************************************************************************
- *  udp_channel is "ip:port" and it's in the label of gbuff.
- ***************************************************************************/
-PRIVATE int ac_tx_data(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
-{
-    PRIVATE_DATA *priv = gobj_priv_data(gobj);
-
-    gbuffer_t *gbuf = (gbuffer_t *)(uintptr_t)kw_get_int(gobj, kw, "gbuffer", 0, 0);
-    if(!gbuf) {
-        gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
-            "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_INTERNAL_ERROR,
-            "msg",          "%s", "gbuffer NULL",
-            NULL
-        );
-        KW_DECREF(kw)
-        return -1;
-    }
-
-    if(!priv->gbuf_txing) {
-        priv->gbuf_txing = gbuffer_incref(gbuf);
-        write_data(gobj);
-    } else {
-        enqueue_write(gobj, gbuffer_incref(gbuf));
-    }
-
-    KW_DECREF(kw)
-    return 0;
-}
-
-
-
-
                     /***************************
                      *      Commands
                      ***************************/
@@ -1112,6 +1072,46 @@ PRIVATE json_t *cmd_reload_certs(hgobj gobj, const char *cmd, json_t *kw, hgobj 
         0,
         kw
     );
+}
+
+
+
+
+            /***************************
+             *      Actions
+             ***************************/
+
+
+
+
+/***************************************************************************
+ *  udp_channel is "ip:port" and it's in the label of gbuff.
+ ***************************************************************************/
+PRIVATE int ac_tx_data(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    gbuffer_t *gbuf = (gbuffer_t *)(uintptr_t)kw_get_int(gobj, kw, "gbuffer", 0, 0);
+    if(!gbuf) {
+        gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_INTERNAL_ERROR,
+            "msg",          "%s", "gbuffer NULL",
+            NULL
+        );
+        KW_DECREF(kw)
+        return -1;
+    }
+
+    if(!priv->gbuf_txing) {
+        priv->gbuf_txing = gbuffer_incref(gbuf);
+        write_data(gobj);
+    } else {
+        enqueue_write(gobj, gbuffer_incref(gbuf));
+    }
+
+    KW_DECREF(kw)
+    return 0;
 }
 
 /***************************************************************************

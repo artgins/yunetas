@@ -792,29 +792,6 @@ PRIVATE int yev_callback(yev_event_h yev_event)
 
 
                     /***************************
-                     *      Actions
-                     ***************************/
-
-
-
-
-/***************************************************************************
- *
- ***************************************************************************/
-PRIVATE int ac_clisrv_stopped(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
-{
-    PRIVATE_DATA *priv = gobj_priv_data(gobj);
-
-    priv->connxs--;
-
-    JSON_DECREF(kw)
-    return 0;
-}
-
-
-
-
-                    /***************************
                      *      Commands
                      ***************************/
 
@@ -900,6 +877,29 @@ PRIVATE json_t *cmd_reload_certs(hgobj gobj, const char *cmd, json_t *kw, hgobj 
         0,
         kw
     );
+}
+
+
+
+
+                    /***************************
+                     *      Actions
+                     ***************************/
+
+
+
+
+/***************************************************************************
+ *
+ ***************************************************************************/
+PRIVATE int ac_clisrv_stopped(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    priv->connxs--;
+
+    JSON_DECREF(kw)
+    return 0;
 }
 
 /***************************************************************************
