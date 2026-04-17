@@ -47,17 +47,21 @@
 #define KEY_1D   (TMP_DIR "/key_1d.pem")
 #define CERT_365 (TMP_DIR "/cert_365d.pem")
 #define KEY_365  (TMP_DIR "/key_365d.pem")
+#define CERT_EXP (TMP_DIR "/cert_expired.pem")
+#define KEY_EXP  (TMP_DIR "/key_expired.pem")
 
 /***************************************************************
  *              Prototypes
  ***************************************************************/
 PRIVATE int generate_self_signed(const char *cert_path, const char *key_path,
                                  const char *cn, int days);
+PRIVATE int generate_expired(const char *cert_path, const char *key_path, const char *cn);
 PRIVATE void cleanup_tmp(void);
 
 PRIVATE int test_short_validity(void);
 PRIVATE int test_long_validity(void);
 PRIVATE int test_client_no_cert(void);
+PRIVATE int test_expired_cert(void);
 
 /***************************************************************
  *              Data
@@ -81,7 +85,8 @@ int main(int argc, char *argv[])
         goto out;
     }
     if(generate_self_signed(CERT_1D,  KEY_1D,  "ytls_info_1d",  1)   != 0 ||
-       generate_self_signed(CERT_365, KEY_365, "ytls_info_365", 365) != 0) {
+       generate_self_signed(CERT_365, KEY_365, "ytls_info_365", 365) != 0 ||
+       generate_expired(CERT_EXP, KEY_EXP, "ytls_info_expired")      != 0) {
         fprintf(stderr, "cert generation FAILED (is `openssl` installed?)\n");
         result = 1;
         goto out;
@@ -90,6 +95,7 @@ int main(int argc, char *argv[])
     result += test_short_validity();
     result += test_long_validity();
     result += test_client_no_cert();
+    result += test_expired_cert();
 
     if(result == 0) {
         printf("%s: PASS\n", APP);
@@ -134,6 +140,39 @@ PRIVATE int generate_self_signed(const char *cert_path, const char *key_path,
 }
 
 /***************************************************************************
+ *  Build an already-expired self-signed cert.
+ *
+ *  Trick: `openssl x509 -req -days -1` makes notAfter = notBefore - 1 day,
+ *  so the cert is expired the moment it is issued. Accepted by OpenSSL's
+ *  cert loader — we want ytls_init() to still load it and ytls_get_cert_info()
+ *  to report a past not_after so the monitor can flag it.
+ ***************************************************************************/
+PRIVATE int generate_expired(const char *cert_path, const char *key_path, const char *cn)
+{
+    char csr_path[512];
+    snprintf(csr_path, sizeof(csr_path), "%s.csr", cert_path);
+
+    char cmd[2048];
+    snprintf(cmd, sizeof(cmd),
+        "openssl genrsa -out '%s' 2048 >/dev/null 2>&1 && "
+        "openssl req -new -key '%s' -subj '/CN=%s' -out '%s' >/dev/null 2>&1 && "
+        "openssl x509 -req -in '%s' -signkey '%s' -days -1 -out '%s' >/dev/null 2>&1",
+        key_path,
+        key_path, cn, csr_path,
+        csr_path, key_path, cert_path
+    );
+    int rc = system(cmd);
+    unlink(csr_path);
+    if(rc != 0) {
+        return -1;
+    }
+    struct stat st;
+    if(stat(cert_path, &st) != 0 || st.st_size == 0) return -1;
+    if(stat(key_path,  &st) != 0 || st.st_size == 0) return -1;
+    return 0;
+}
+
+/***************************************************************************
  *  Remove TMP_DIR and its files, ignoring errors.
  ***************************************************************************/
 PRIVATE void cleanup_tmp(void)
@@ -142,6 +181,8 @@ PRIVATE void cleanup_tmp(void)
     unlink(KEY_1D);
     unlink(CERT_365);
     unlink(KEY_365);
+    unlink(CERT_EXP);
+    unlink(KEY_EXP);
     rmdir(TMP_DIR);
 }
 
@@ -301,6 +342,66 @@ PRIVATE int test_client_no_cert(void)
         fails++;
     }
 
+    ytls_cleanup(ytls);
+    return fails;
+}
+
+/***************************************************************************
+ *  Case 4: already-expired cert.
+ *  ytls_init() must still succeed (it does not check cert validity at load
+ *  time; clients do that during the TLS handshake). ytls_get_cert_info()
+ *  must report not_after < now, i.e. the monitor's days_remaining computation
+ *  yields a NEGATIVE value — which is the whole point of the expiry monitor.
+ ***************************************************************************/
+PRIVATE int test_expired_cert(void)
+{
+    int fails = 0;
+
+    json_t *cfg = json_pack("{s:s, s:s}",
+        "ssl_certificate",     CERT_EXP,
+        "ssl_certificate_key", KEY_EXP
+    );
+    hytls ytls = ytls_init(0, cfg, TRUE);
+    JSON_DECREF(cfg);
+    if(!ytls) {
+        fprintf(stderr, "expired_cert: ytls_init returned NULL (loader rejected expired cert?)\n");
+        return 1;
+    }
+
+    json_t *info = ytls_get_cert_info(ytls);
+    if(!info) {
+        fprintf(stderr, "expired_cert: get_cert_info returned NULL\n");
+        fails++;
+        goto done;
+    }
+
+    json_int_t not_after = kw_get_int(0, info, "not_after", 0, 0);
+    time_t now = time(NULL);
+
+    if(not_after <= 0) {
+        fprintf(stderr, "expired_cert: not_after is zero/invalid (%lld)\n",
+            (long long)not_after);
+        fails++;
+    } else if(not_after >= (json_int_t)now) {
+        fprintf(stderr,
+            "expired_cert: not_after (%lld) is not in the past (now=%lld)\n",
+            (long long)not_after, (long long)now);
+        fails++;
+    }
+
+    /* The c_yuno monitor computes days_remaining = (not_after - now) / 86400.
+     * For an expired cert that value MUST be <= 0 so the log_critical path
+     * fires (cert_critical_days defaults to 2 in c_yuno).
+     */
+    json_int_t days_remaining = (not_after - (json_int_t)now) / 86400;
+    if(days_remaining > 0) {
+        fprintf(stderr, "expired_cert: days_remaining %lld > 0 (should be <= 0)\n",
+            (long long)days_remaining);
+        fails++;
+    }
+
+    JSON_DECREF(info);
+done:
     ytls_cleanup(ytls);
     return fails;
 }
