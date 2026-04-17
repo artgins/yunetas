@@ -318,6 +318,69 @@ PRIVATE GOBJ_DEFINE_GCLASS(MY_CLASS);
 // 6. register_my_class() populates and registers the descriptor
 ```
 
+### GClass section layout (authoritative)
+
+Every `.c` file that defines a GClass must lay out its function
+definitions under the **five section banners** documented in the
+skeleton
+[`utils/c/yuno-skeleton/skeletons/gclass_service/c_+rootname+.c_tmpl`](utils/c/yuno-skeleton/skeletons/gclass_service/c_%2Brootname%2B.c_tmpl).
+
+Canonical order — **always in this order**:
+
+1. **Framework Methods** — `mt_create`, `mt_destroy`, `mt_start`,
+   `mt_stop`, `mt_writing`, `mt_play`, `mt_pause`, etc.
+2. **Commands** — ONLY the `cmd_*` entry points registered in the
+   `command_table`. No helpers.
+3. **Local Methods** — every helper function used by commands, actions
+   or framework methods (e.g. `cb_walk_*`, `reload_*_from_attrs`,
+   callbacks like `yev_callback`).
+4. **Actions** — `ac_*` functions referenced by `ev_action_t` state
+   tables.
+5. **FSM** — global methods table (`gmt`), `GOBJ_DEFINE_GCLASS`, state
+   tables, event types, and `create_gclass()` / `register_*()`.
+
+Exact banner format (note the indentation and the spacing between the
+banner and adjacent code — four blank lines before and after):
+
+```c
+                    /***************************
+                     *      Commands
+                     ***************************/
+```
+
+The FSM banner uses a slightly longer form:
+
+```c
+                    /***************************
+                     *                          FSM
+                     ***************************/
+```
+
+**Rules that follow from this layout** (learned the hard way while
+reviewing the cert-reload feature):
+
+- **All five banners must be present**, even when a section is empty.
+  An empty Commands section is still valid — the banner documents
+  intent and keeps the layout uniform.
+- **Helpers used by commands belong in Local Methods**, never in
+  Commands. The Commands section holds only the `cmd_*` functions
+  that appear in `command_table`. For example, `reload_ytls_from_attrs`
+  (used by `cmd_reload_certs`) goes under Local Methods.
+- **Walk callbacks (`cb_walk_*`), tree helpers, parsing helpers,
+  conversion helpers** — Local Methods.
+- Do **not** introduce a duplicate banner when the file already has
+  the target section. Merge new functions into the existing section
+  instead.
+- A few historic gclasses predate the skeleton and have Local Methods
+  placed **before** Commands (e.g. `c_tcp_s.c`, `c_udp_s.c`). When
+  adding new code to such files, merge into the existing sections
+  rather than reordering them — reordering pollutes `git blame` for
+  unrelated code. Greenfield gclasses should always follow the
+  skeleton order above.
+
+`c_yuno.c` and `c_agent.c` are the canonical large-gclass examples of
+this layout; `c_timer.c` is the minimal example.
+
 ### Event Loop & Async I/O
 
 `yev_loop` drives everything using **Linux io_uring** (not epoll). GClasses attach `yev_event_t` handles for:

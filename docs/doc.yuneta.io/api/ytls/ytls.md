@@ -121,6 +121,59 @@ Ensure that [`ytls_cleanup()`](<#ytls_cleanup>) is called to free resources allo
 
 ---
 
+(ytls_reload_certificates)=
+## `ytls_reload_certificates()`
+
+Hot-reloads the TLS certificate material of an existing context **without
+disrupting live connections**. Builds a fresh backend state (OpenSSL
+`SSL_CTX` or mbed-TLS `mbedtls_ssl_config` bundle) from the new
+`jn_config`, validates it, and atomically swaps it into the ytls handle.
+
+```C
+int ytls_reload_certificates(
+    hytls    ytls,
+    json_t  *jn_config   // not owned
+);
+```
+
+**Parameters**
+
+| Key | Type | Description |
+|---|---|---|
+| `ytls` | `hytls` | TLS context previously returned by [`ytls_init()`](<#ytls_init>). |
+| `jn_config` | `json_t *` | New crypto config (same keys as [`ytls_init()`](<#ytls_init>): `ssl_certificate`, `ssl_certificate_key`, `ssl_trusted_certificate`, `ssl_ciphers`, `ssl_verify_depth`, `trace_tls`, `rx_buffer_size`). Not owned by the function. |
+
+**Returns**
+
+`0` on success; `-1` on failure (for example: a file is missing, the
+cert and key do not match, or the cert/key is unparseable). On failure
+the previous context is kept intact — the caller can continue serving
+traffic with the old material and retry the reload later.
+
+**Notes**
+
+The old backend state is kept alive, via refcount, for every secure
+filter ([`hsskt`](<#ytls_new_secure_filter>)) created before the reload.
+New filters created after the reload use the fresh state. Concretely:
+
+- **OpenSSL**: `SSL_new()` already increments the `SSL_CTX` refcount;
+  swapping `ytls->ctx` and calling `SSL_CTX_free()` just drops the
+  ytls handle's ref. The `SSL_CTX` lives until the last
+  [`SSL_free`](https://www.openssl.org/docs/man3.0/man3/SSL_free.html)
+  on a per-session `SSL` releases it.
+- **mbed-TLS**: this module maintains an explicit refcount on the
+  `mbedtls_ssl_config` + `mbedtls_x509_crt` + `mbedtls_pk_context`
+  bundle. Each [`hsskt`](<#ytls_new_secure_filter>) takes a ref on
+  creation and releases it on
+  [`ytls_free_secure_filter()`](<#ytls_free_secure_filter>).
+
+This is how Yuneta integrates Let's Encrypt renewals without dropping
+active TLS connections. See the
+[cert management guide](../../guide/guide_cert_management.md) for the
+full operational flow.
+
+---
+
 (ytls_decrypt_data)=
 ## `ytls_decrypt_data()`
 
@@ -267,6 +320,52 @@ This function does not return a value.
 **Notes**
 
 Ensure that [`ytls_shutdown()`](<#ytls_shutdown>) is called before freeing the secure filter to properly close the connection.
+
+---
+
+(ytls_get_cert_info)=
+## `ytls_get_cert_info()`
+
+Introspects the server certificate currently loaded in the TLS context.
+Used by the `view-cert` command on TLS listeners and by the yuno-level
+certificate-expiry monitor.
+
+```C
+json_t *ytls_get_cert_info(
+    hytls  ytls
+);
+```
+
+**Parameters**
+
+| Key | Type | Description |
+|---|---|---|
+| `ytls` | `hytls` | TLS context handle. |
+
+**Returns**
+
+A new `json_t` object owned by the caller, or `NULL` if no server
+certificate is loaded (client-side ytls, or a backend that cannot
+introspect). The caller must `json_decref()` the returned object.
+
+The returned object contains these keys (same shape across the
+OpenSSL and mbed-TLS backends):
+
+| Key | Type | Description |
+|---|---|---|
+| `subject` | `string` | X.509 subject DN in one-line form (e.g. `/CN=api.example.com`). |
+| `issuer` | `string` | X.509 issuer DN in one-line form. Equal to `subject` for self-signed certs. |
+| `not_before` | `integer` | Unix timestamp of the certificate's `notBefore`. |
+| `not_after` | `integer` | Unix timestamp of the certificate's `notAfter`. Use `(not_after - time(NULL)) / 86400` to get `days_remaining`; a negative value means already expired. |
+| `serial` | `string` | Serial number as uppercase hex (no colons). |
+
+**Notes**
+
+Loading an expired certificate does NOT fail — the loader intentionally
+does not enforce validity at load time (the TLS handshake does). This
+is what lets the expiry monitor report a negative `days_remaining` for
+a cert that needs urgent replacement, instead of the yuno refusing to
+start at all.
 
 ---
 

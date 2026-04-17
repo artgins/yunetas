@@ -55,6 +55,7 @@ project:
         - file: guide/guide_timeranger2.md
         - file: guide/guide_yev_loop.md
         - file: guide/guide_ytls.md
+        - file: guide/guide_cert_management.md
         - file: guide/guide_oauth2_pkce_bff.md
 
     - title: API Reference
