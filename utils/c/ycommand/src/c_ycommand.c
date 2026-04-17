@@ -9,6 +9,7 @@
  *          All Rights Reserved.
  ***********************************************************************/
 #include <sys/ioctl.h>
+#include <sys/stat.h>
 #include <sys/wait.h>
 #include <fcntl.h>
 #include <string.h>
@@ -17,6 +18,8 @@
 #include <unistd.h>
 #include <limits.h>
 #include <pwd.h>
+#include <time.h>
+#include <ctype.h>
 
 #include <g_ev_console.h>
 #include <c_editline.h>
@@ -92,6 +95,13 @@ PRIVATE int do_command(hgobj gobj, const char *command);
 PRIVATE int clear_input_line(hgobj gobj);
 PRIVATE char *get_history_file(char *bf, int bfsize);
 PRIVATE int do_authenticate_task(hgobj gobj);
+PRIVATE int request_commands_cache(hgobj gobj);
+PRIVATE int load_commands_cache_from_disk(hgobj gobj);
+PRIVATE int save_commands_cache_to_disk(hgobj gobj, json_t *jn_raw_data);
+PRIVATE json_t *build_flat_commands(json_t *jn_raw_data);
+PRIVATE void ycommand_completion_cb(
+    hgobj gobj, const char *buf, editline_completions_t *lc, void *user_data
+);
 
 /***************************************************************************
  *          Data: config, public data, private data
@@ -163,6 +173,11 @@ typedef struct _PRIVATE_DATA {
     BOOL on_mirror_tty;
     char mirror_tty_name[NAME_MAX];
     char mirror_tty_uuid[NAME_MAX];
+
+    json_t *commands_cache;         /* flat dict: name -> {description,parameters[]} */
+    BOOL fetching_commands_cache;   /* next command-answer is the cache fetch */
+    char cache_key[256];            /* role__name__service identifier */
+    char cache_path[PATH_MAX];      /* absolute path of the cache file */
 } PRIVATE_DATA;
 
 
@@ -263,6 +278,7 @@ PRIVATE void mt_destroy(hgobj gobj)
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
     EXEC_AND_RESET(yev_destroy_event, priv->yev_reading)
+    JSON_DECREF(priv->commands_cache)
 }
 
 /***************************************************************************
@@ -1126,6 +1142,285 @@ PRIVATE int ac_on_token(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 }
 
 /***************************************************************************
+ *  Commands-cache: sanitize a path component
+ ***************************************************************************/
+PRIVATE void sanitize_cache_token(char *s)
+{
+    for(; *s; s++) {
+        unsigned char c = (unsigned char)*s;
+        if(!isalnum(c) && c != '-' && c != '_') {
+            *s = '_';
+        }
+    }
+}
+
+/***************************************************************************
+ *  Commands-cache: build $HOME/.yuneta/commands_cache/<role>__<name>__<service>.json
+ ***************************************************************************/
+PRIVATE int build_cache_path_for(
+    hgobj gobj,
+    const char *role,
+    const char *name,
+    const char *service,
+    char *out_key, int key_size,
+    char *out_path, int path_size
+) {
+    const char *homedir = getenv("HOME");
+    if(!homedir) {
+        struct passwd *_pw = yuneta_getpwuid(getuid());
+        homedir = _pw ? _pw->pw_dir : "/root";
+    }
+
+    snprintf(out_key, key_size, "%s__%s__%s",
+        empty_string(role) ? "_" : role,
+        empty_string(name) ? "_" : name,
+        empty_string(service) ? "_" : service
+    );
+    sanitize_cache_token(out_key);
+
+    char dir[PATH_MAX];
+    snprintf(dir, sizeof(dir), "%s/.yuneta/commands_cache", homedir);
+    if(access(dir, 0) != 0) {
+        mkrdir(dir, 0700);
+    }
+    snprintf(out_path, path_size, "%s/%s.json", dir, out_key);
+    return 0;
+}
+
+/***************************************************************************
+ *  Commands-cache: flatten list-gobj-commands response into {name: cmd_obj}
+ *  Input: array of {gclass, commands:[{command,description,parameters:[...]}, ...]}
+ *  Returns a new json_t object owned by the caller.
+ ***************************************************************************/
+PRIVATE json_t *build_flat_commands(json_t *jn_raw_data)
+{
+    json_t *flat = json_object();
+    if(!json_is_array(jn_raw_data)) {
+        return flat;
+    }
+
+    size_t idx;
+    json_t *jn_gclass;
+    json_array_foreach(jn_raw_data, idx, jn_gclass) {
+        json_t *jn_commands = json_object_get(jn_gclass, "commands");
+        if(!json_is_array(jn_commands)) {
+            continue;
+        }
+        size_t jdx;
+        json_t *jn_cmd;
+        json_array_foreach(jn_commands, jdx, jn_cmd) {
+            const char *name = json_string_value(json_object_get(jn_cmd, "command"));
+            if(empty_string(name)) {
+                continue;
+            }
+            /* If the same command name comes from multiple gclasses, keep the first. */
+            if(!json_object_get(flat, name)) {
+                json_object_set(flat, name, jn_cmd);
+            }
+        }
+    }
+    return flat;
+}
+
+/***************************************************************************
+ *  Commands-cache: recognize the list-gobj-commands response shape
+ ***************************************************************************/
+PRIVATE BOOL is_commands_list_response(json_t *jn_data)
+{
+    if(!json_is_array(jn_data) || json_array_size(jn_data) == 0) {
+        return FALSE;
+    }
+    json_t *first = json_array_get(jn_data, 0);
+    return json_is_object(first)
+        && json_object_get(first, "gclass") != NULL
+        && json_object_get(first, "commands") != NULL;
+}
+
+/***************************************************************************
+ *  Commands-cache: load, validate TTL, flatten, store in priv->commands_cache
+ ***************************************************************************/
+#define COMMANDS_CACHE_TTL_SECONDS (7 * 24 * 3600)
+
+PRIVATE int load_commands_cache_from_disk(hgobj gobj)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    if(empty_string(priv->cache_path) || access(priv->cache_path, R_OK) != 0) {
+        return -1;
+    }
+
+    struct stat st;
+    if(stat(priv->cache_path, &st) != 0) {
+        return -1;
+    }
+    time_t now = time(NULL);
+    if(now - st.st_mtime > COMMANDS_CACHE_TTL_SECONDS) {
+        return -1;
+    }
+
+    json_error_t err;
+    json_t *jn_file = json_load_file(priv->cache_path, 0, &err);
+    if(!jn_file) {
+        return -1;
+    }
+    json_t *jn_raw = json_object_get(jn_file, "data");
+    if(!is_commands_list_response(jn_raw)) {
+        JSON_DECREF(jn_file)
+        return -1;
+    }
+
+    JSON_DECREF(priv->commands_cache)
+    priv->commands_cache = build_flat_commands(jn_raw);
+    JSON_DECREF(jn_file)
+    return 0;
+}
+
+/***************************************************************************
+ *  Commands-cache: persist the raw list-gobj-commands data to disk
+ ***************************************************************************/
+PRIVATE int save_commands_cache_to_disk(hgobj gobj, json_t *jn_raw_data)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+    if(empty_string(priv->cache_path) || !is_commands_list_response(jn_raw_data)) {
+        return -1;
+    }
+    json_t *wrap = json_pack("{s:i, s:s, s:O}",
+        "created", (json_int_t)time(NULL),
+        "cache_key", priv->cache_key,
+        "data", jn_raw_data
+    );
+    int ret = json_dump_file(wrap, priv->cache_path, JSON_INDENT(2));
+    JSON_DECREF(wrap)
+    return ret;
+}
+
+/***************************************************************************
+ *  Commands-cache: ask the yuno for its command list (async, silent)
+ ***************************************************************************/
+PRIVATE int request_commands_cache(hgobj gobj)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+    if(!priv->gobj_connector) {
+        return -1;
+    }
+    priv->fetching_commands_cache = TRUE;
+
+    json_t *kw = json_pack("{s:i, s:b}", "details", 1, "bottoms", 1);
+    json_t *webix = gobj_command(priv->gobj_connector, "list-gobj-commands", kw, gobj);
+    if(webix) {
+        /* Synchronous response: consume here, no display. */
+        json_t *jn_data = kw_get_dict_value(gobj, webix, "data", 0, 0);
+        if(is_commands_list_response(jn_data)) {
+            JSON_DECREF(priv->commands_cache)
+            priv->commands_cache = build_flat_commands(jn_data);
+            save_commands_cache_to_disk(gobj, jn_data);
+        }
+        priv->fetching_commands_cache = FALSE;
+        JSON_DECREF(webix)
+    }
+    return 0;
+}
+
+/***************************************************************************
+ *  Tab-completion callback: first word -> command names;
+ *  after <cmd> <space> ... -> parameter names ("param=")
+ ***************************************************************************/
+PRIVATE void ycommand_completion_cb(
+    hgobj editline_gobj,
+    const char *buf,
+    editline_completions_t *lc,
+    void *user_data
+) {
+    /* user_data is the ycommand gobj registered from ac_on_open. */
+    hgobj gobj = (hgobj)user_data;
+    if(!gobj || !buf) {
+        return;
+    }
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+    static const char *local_cmds[] = {"help", "history", "exit", "quit", NULL};
+    /* Skip leading spaces and the optional '*' form-mode prefix. */
+    const char *start = buf;
+    while(*start == ' ' || *start == '\t') start++;
+    const char *body = (*start == '*') ? start + 1 : start;
+    size_t prefix_len = (size_t)(body - buf);
+
+    const char *first_space = strchr(body, ' ');
+
+    if(!first_space) {
+        /* Completing the command name itself. */
+        size_t token_len = strlen(body);
+        char candidate[1024];
+
+        for(int i = 0; local_cmds[i]; i++) {
+            if(strncmp(local_cmds[i], body, token_len) == 0) {
+                snprintf(candidate, sizeof(candidate), "%.*s%s",
+                    (int)prefix_len, buf, local_cmds[i]);
+                editline_add_completion(lc, candidate);
+            }
+        }
+        if(priv->commands_cache) {
+            const char *name;
+            json_t *jn_cmd;
+            json_object_foreach(priv->commands_cache, name, jn_cmd) {
+                if(strncmp(name, body, token_len) == 0) {
+                    snprintf(candidate, sizeof(candidate), "%.*s%s",
+                        (int)prefix_len, buf, name);
+                    editline_add_completion(lc, candidate);
+                }
+            }
+        }
+        return;
+    }
+
+    /* We have "<cmd> ...". Lookup the command in the cache. */
+    if(!priv->commands_cache) {
+        return;
+    }
+    size_t cmd_len = (size_t)(first_space - body);
+    char cmd_name[128];
+    if(cmd_len == 0 || cmd_len >= sizeof(cmd_name)) {
+        return;
+    }
+    memcpy(cmd_name, body, cmd_len);
+    cmd_name[cmd_len] = 0;
+
+    json_t *jn_cmd = json_object_get(priv->commands_cache, cmd_name);
+    if(!jn_cmd) {
+        return;
+    }
+    json_t *jn_params = json_object_get(jn_cmd, "parameters");
+    if(!json_is_array(jn_params)) {
+        return;
+    }
+
+    /* The current token is what the user is typing: the segment after the
+     * last space. An '=' in it means the user is already supplying a value;
+     * we only complete the param *name*, so skip in that case. */
+    const char *last_token = strrchr(buf, ' ');
+    last_token = last_token ? last_token + 1 : buf;
+    if(strchr(last_token, '=')) {
+        return;
+    }
+    size_t token_len = strlen(last_token);
+    size_t head_len = (size_t)(last_token - buf);
+
+    size_t idx;
+    json_t *jn_p;
+    char candidate[1024];
+    json_array_foreach(jn_params, idx, jn_p) {
+        const char *pname = json_string_value(json_object_get(jn_p, "parameter"));
+        if(empty_string(pname)) {
+            continue;
+        }
+        if(strncmp(pname, last_token, token_len) == 0) {
+            snprintf(candidate, sizeof(candidate), "%.*s%s=",
+                (int)head_len, buf, pname);
+            editline_add_completion(lc, candidate);
+        }
+    }
+}
+
+/***************************************************************************
  *  Execute batch of input parameters when the route is opened.
  ***************************************************************************/
 PRIVATE int ac_on_open(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
@@ -1133,6 +1428,7 @@ PRIVATE int ac_on_open(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
     const char *yuno_role = kw_get_str(gobj, kw, "remote_yuno_role", "", 0);
     const char *yuno_name = kw_get_str(gobj, kw, "remote_yuno_name", "", 0);
+    const char *yuno_service = kw_get_str(gobj, kw, "remote_yuno_service", "", 0);
 
     if(priv->verbose || priv->interactive) {
         printf("Connected to '%s^%s', url:'%s'.\n",
@@ -1142,6 +1438,20 @@ PRIVATE int ac_on_open(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
         );
     }
     gobj_write_pointer_attr(gobj, "gobj_connector", src);
+
+    if(priv->interactive && priv->gobj_editline) {
+        build_cache_path_for(
+            gobj, yuno_role, yuno_name, yuno_service,
+            priv->cache_key, sizeof(priv->cache_key),
+            priv->cache_path, sizeof(priv->cache_path)
+        );
+        editline_set_completion_callback(
+            priv->gobj_editline, ycommand_completion_cb, gobj
+        );
+        if(load_commands_cache_from_disk(gobj) != 0) {
+            request_commands_cache(gobj);
+        }
+    }
 
     const char *command = gobj_read_str_attr(gobj, "command");
     if(priv->interactive) {
@@ -1287,6 +1597,24 @@ PRIVATE int ac_command(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 PRIVATE int ac_command_answer(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    /*
+     *  Intercept the silent list-gobj-commands response used to warm the cache.
+     *  We only consume it when the fetch flag is set AND the response shape
+     *  matches, so a user-issued `list-gobj-commands` is still displayed.
+     */
+    if(priv->fetching_commands_cache) {
+        json_t *jn_data = kw_get_dict_value(gobj, kw, "data", 0, 0);
+        if(is_commands_list_response(jn_data)) {
+            JSON_DECREF(priv->commands_cache)
+            priv->commands_cache = build_flat_commands(jn_data);
+            save_commands_cache_to_disk(gobj, jn_data);
+            priv->fetching_commands_cache = FALSE;
+            KW_DECREF(kw);
+            return 0;
+        }
+        /* Not the response we were waiting for: fall through and display. */
+    }
 
     if(priv->interactive) {
         return display_webix_result(
