@@ -616,10 +616,24 @@ PRIVATE void refreshSearchLine(PRIVATE_DATA *l)
             ? 0 : (l->cols - (size_t)prefix_len);
     }
 
+    /* Position the cursor on the first occurrence of the search pattern
+     * within the match (bash readline behaviour). Falls back to the start
+     * of the match when the pattern isn't found or got truncated away. */
+    size_t cursor_offset = 0;
+    if(l->search_pat_len > 0 && match_len > 0) {
+        const char *hit = strstr(match, l->search_pat);
+        if(hit) {
+            size_t off = (size_t)(hit - match);
+            if(off < match_len) {
+                cursor_offset = off;
+            }
+        }
+    }
+
     printf(Erase_Whole_Line);
     printf(Move_Horizontal, 1);
     printf("%s%.*s", prefix, (int)match_len, match);
-    printf(Move_Horizontal, prefix_len + 1);
+    printf(Move_Horizontal, prefix_len + (int)cursor_offset + 1);
     fflush(stdout);
 }
 
