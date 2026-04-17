@@ -97,6 +97,8 @@ PRIVATE json_t *cmd_authzs(hgobj gobj, const char *cmd, json_t *kw, hgobj src);
 PRIVATE json_t *cmd_view_config(hgobj gobj, const char *cmd, json_t *kw, hgobj src);
 PRIVATE json_t *cmd_info_mem(hgobj gobj, const char *cmd, json_t *kw, hgobj src);
 PRIVATE json_t *cmd_reload_certs(hgobj gobj, const char *cmd, json_t *kw, hgobj src);
+PRIVATE json_t *cmd_cert_expiry_status(hgobj gobj, const char *cmd, json_t *kw, hgobj src);
+PRIVATE int check_cert_expiry(hgobj gobj);
 PRIVATE json_t *cmd_view_gclass(hgobj gobj, const char *cmd, json_t *kw, hgobj src);
 PRIVATE json_t *cmd_view_gobj(hgobj gobj, const char *cmd, json_t *kw, hgobj src);
 PRIVATE json_t *cmd_view_gobj_tree(hgobj gobj, const char *cmd, json_t *kw, hgobj src);
@@ -349,6 +351,7 @@ SDATACM2(DTP_SCHEMA,    "info-ifs",                 SDF_AUTHZ_X, 0,      0,     
 SDATACM2(DTP_SCHEMA,    "info-os",                  SDF_AUTHZ_X, 0,      0,          cmd_info_os,                "Info os"),
 SDATACM2(DTP_SCHEMA,    "info-mem",                 SDF_AUTHZ_X, 0,      0,          cmd_info_mem,               "Info yuno memory and system"),
 SDATACM2(DTP_SCHEMA,    "reload-certs",             SDF_AUTHZ_X, 0,      0,          cmd_reload_certs,           "Reload TLS certificates on all TLS listeners (TCP/UDP) of this yuno. Active connections are preserved."),
+SDATACM2(DTP_SCHEMA,    "cert-expiry-status",       SDF_AUTHZ_X, 0,      0,          cmd_cert_expiry_status,     "Report TLS cert metadata (subject, notAfter, days_remaining) for every TLS listener of this yuno."),
 SDATACM2(DTP_SCHEMA,    "list-allowed-ips",         SDF_AUTHZ_X, 0,      0,          cmd_list_allowed_ips,       "List allowed ips"),
 SDATACM2(DTP_SCHEMA,    "add-allowed-ip",           SDF_AUTHZ_X, 0,      pm_add_allowed_ip,  cmd_add_allowed_ip, "Add a ip to allowed list"),
 SDATACM2(DTP_SCHEMA,    "remove-allowed-ip",        SDF_AUTHZ_X, 0,      pm_remove_allowed_ip, cmd_remove_allowed_ip, "Add a ip to allowed list"),
@@ -482,6 +485,9 @@ SDATA (DTP_INTEGER, "timeout_periodic", SDF_RD,         "1000",         "Timeout
 SDATA (DTP_INTEGER, "timeout_stats",    SDF_RD,         "1000",         "timeout (milliseconds) for publishing stats."),
 SDATA (DTP_INTEGER, "timeout_flush",    SDF_RD,         "2000",         "timeout (milliseconds) for rotatory flush"),
 SDATA (DTP_INTEGER, "timeout_restart",  SDF_PERSIST,    "0",            "timeout (seconds) to restart"),
+SDATA (DTP_INTEGER, "timeout_cert_check", SDF_WR|SDF_PERSIST, "3600",   "Seconds between TLS cert expiry checks (0 to disable)"),
+SDATA (DTP_INTEGER, "cert_warn_days",   SDF_WR|SDF_PERSIST, "7",        "Log WARNING when a TLS cert expires in fewer than N days"),
+SDATA (DTP_INTEGER, "cert_critical_days",SDF_WR|SDF_PERSIST,"2",        "Log CRITICAL when a TLS cert expires in fewer than N days"),
 SDATA (DTP_BOOLEAN, "autoplay",         SDF_RD,         "0",            "Auto play the yuno, don't use in yunos citizen, only in standalone or tests"),
 
 SDATA (DTP_INTEGER, "io_uring_entries", SDF_RD,         "0",            "Entries for the SQ ring, multiply by 3 the maximum number of wanted connections. Default if 0 = 2400"),
@@ -530,11 +536,15 @@ typedef struct _PRIVATE_DATA {
 
     uint64_t t_flush;
     uint64_t t_stats;
+    uint64_t t_cert_check;
     time_t t_restart;
     json_int_t timeout_flush;
     json_int_t timeout_stats;
     json_int_t timeout_restart;
     json_int_t timeout_periodic;
+    json_int_t timeout_cert_check;   // seconds
+    json_int_t cert_warn_days;
+    json_int_t cert_critical_days;
     json_int_t limit_open_files;
 
     yev_event_h yev_signal;
@@ -848,6 +858,9 @@ PRIVATE void mt_create(hgobj gobj)
     SET_PRIV(timeout_stats,         gobj_read_integer_attr)
     SET_PRIV(timeout_flush,         gobj_read_integer_attr)
     SET_PRIV(timeout_restart,       gobj_read_integer_attr)
+    SET_PRIV(timeout_cert_check,    gobj_read_integer_attr)
+    SET_PRIV(cert_warn_days,        gobj_read_integer_attr)
+    SET_PRIV(cert_critical_days,    gobj_read_integer_attr)
     SET_PRIV(limit_open_files,      gobj_read_integer_attr)
 }
 
@@ -870,6 +883,14 @@ PRIVATE void mt_writing(hgobj gobj, const char *path)
         } else {
             priv->t_restart = 0;
         }
+    ELIF_EQ_SET_PRIV(timeout_cert_check, gobj_read_integer_attr)
+        if(priv->timeout_cert_check > 0) {
+            priv->t_cert_check = start_msectimer(priv->timeout_cert_check * 1000);
+        } else {
+            priv->t_cert_check = 0;
+        }
+    ELIF_EQ_SET_PRIV(cert_warn_days,     gobj_read_integer_attr)
+    ELIF_EQ_SET_PRIV(cert_critical_days, gobj_read_integer_attr)
     END_EQ_SET_PRIV()
 }
 
@@ -899,6 +920,9 @@ PRIVATE int mt_start(hgobj gobj)
     }
     if(priv->timeout_restart > 0) {
         priv->t_restart = start_sectimer(priv->timeout_restart);
+    }
+    if(priv->timeout_cert_check > 0) {
+        priv->t_cert_check = start_msectimer(priv->timeout_cert_check * 1000);
     }
 
     yev_start_event(priv->yev_signal);
@@ -1577,6 +1601,149 @@ PRIVATE json_t *cmd_reload_certs(hgobj gobj, const char *cmd, json_t *kw, hgobj 
         0,
         jn_data
     );
+    JSON_DECREF(kw)
+    return kw_response;
+}
+
+/***************************************************************************
+ *  Walk callback: collect cert info from every TLS listener.
+ *  user_data : json_t*  array of {gobj, subject, issuer, not_after, days_remaining, ...}
+ *  user_data2: int*     min_days_remaining across all listeners
+ *  user_data3: hgobj    yuno, used only for log context
+ ***************************************************************************/
+PRIVATE int cb_walk_cert_expiry(hgobj child, void *user_data, void *user_data2, void *user_data3)
+{
+    const char *gclass = gobj_gclass_name(child);
+    if(!gclass) {
+        return 0;
+    }
+    if(strcmp(gclass, "C_TCP_S") != 0 && strcmp(gclass, "C_UDP_S") != 0) {
+        return 0;
+    }
+    if(!gobj_is_running(child)) {
+        return 0;
+    }
+    if(!gobj_read_bool_attr(child, "use_ssl")) {
+        return 0;
+    }
+
+    json_t *report = (json_t *)user_data;
+    int *min_days = (int *)user_data2;
+
+    json_t *resp = gobj_command(child, "view-cert", json_object(), child);
+    if(!resp) {
+        JSON_DECREF(resp);
+        return 0;
+    }
+
+    /* view-cert returns the cert info under __md_iev__'s "data" sibling
+     * (via build_command_response). Be lenient about both shapes.
+     */
+    json_t *data = json_object_get(resp, "data");
+    if(!data) {
+        /* fallback: some command responses wrap under "result" body */
+        data = resp;
+    }
+    if(json_is_object(data)) {
+        json_t *entry = json_deep_copy(data);
+        json_object_set_new(entry, "gobj", json_string(gobj_short_name(child)));
+        json_array_append_new(report, entry);
+
+        json_int_t days = kw_get_int(0, data, "days_remaining", 999999, 0);
+        if(days < *min_days) {
+            *min_days = (int)days;
+        }
+    }
+
+    JSON_DECREF(resp);
+    return 0;
+}
+
+/***************************************************************************
+ *  Periodic cert expiry check. Invoked from ac_timeout_periodic every
+ *  timeout_cert_check seconds. Walks every TLS listener, asks for cert
+ *  info, and logs a WARNING (if days <= cert_warn_days) or CRITICAL (if
+ *  days <= cert_critical_days). Does NOT attempt auto-reload here — the
+ *  agent's cert_sync_timer already does that; this path is for alerting.
+ ***************************************************************************/
+PRIVATE int check_cert_expiry(hgobj gobj)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    json_t *report = json_array();
+    int min_days = 999999;
+
+    gobj_walk_gobj_children_tree(
+        gobj_yuno(),
+        WALK_TOP2BOTTOM,
+        cb_walk_cert_expiry,
+        report,
+        &min_days,
+        gobj_yuno()
+    );
+
+    size_t idx; json_t *entry;
+    json_array_foreach(report, idx, entry) {
+        const char *subject   = kw_get_str(0, entry, "subject", "", 0);
+        const char *gobj_name = kw_get_str(0, entry, "gobj", "", 0);
+        json_int_t not_after  = kw_get_int(0, entry, "not_after", 0, 0);
+        json_int_t days       = kw_get_int(0, entry, "days_remaining", 999999, 0);
+
+        if(priv->cert_critical_days > 0 && days <= priv->cert_critical_days) {
+            gobj_log_critical(gobj, 0,
+                "msgset",       "%s", MSGSET_INFO,
+                "msg",          "%s", "TLS certificate EXPIRING (critical)",
+                "listener",     "%s", gobj_name,
+                "subject",      "%s", subject,
+                "not_after",    "%ld", (long)not_after,
+                "days_remaining","%d", (int)days,
+                NULL
+            );
+        } else if(priv->cert_warn_days > 0 && days <= priv->cert_warn_days) {
+            gobj_log_warning(gobj, 0,
+                "msgset",       "%s", MSGSET_INFO,
+                "msg",          "%s", "TLS certificate expiring soon",
+                "listener",     "%s", gobj_name,
+                "subject",      "%s", subject,
+                "not_after",    "%ld", (long)not_after,
+                "days_remaining","%d", (int)days,
+                NULL
+            );
+        }
+    }
+
+    JSON_DECREF(report);
+    return 0;
+}
+
+/***************************************************************************
+ *  Command: cert-expiry-status
+ *  Report cert metadata for every TLS listener in this yuno.
+ ***************************************************************************/
+PRIVATE json_t *cmd_cert_expiry_status(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    json_t *report = json_array();
+    int min_days = 999999;
+
+    gobj_walk_gobj_children_tree(
+        gobj_yuno(),
+        WALK_TOP2BOTTOM,
+        cb_walk_cert_expiry,
+        report,
+        &min_days,
+        gobj_yuno()
+    );
+
+    json_t *data = json_pack("{s:i, s:I, s:I, s:o}",
+        "listeners",          (int)json_array_size(report),
+        "min_days_remaining", (json_int_t)(min_days == 999999 ? -1 : min_days),
+        "warn_threshold",     (json_int_t)priv->cert_warn_days,
+        "details",            report
+    );
+
+    json_t *kw_response = build_command_response(gobj, 0, 0, 0, data);
     JSON_DECREF(kw)
     return kw_response;
 }
@@ -5140,6 +5307,11 @@ PRIVATE int ac_timeout_periodic(hgobj gobj, gobj_event_t event, json_t *kw, hgob
     if(priv->timeout_stats > 0 && test_msectimer(priv->t_stats)) {
         load_stats(gobj);
         priv->t_stats = start_msectimer(priv->timeout_stats);
+    }
+
+    if(priv->timeout_cert_check > 0 && test_msectimer(priv->t_cert_check)) {
+        check_cert_expiry(gobj);
+        priv->t_cert_check = start_msectimer(priv->timeout_cert_check * 1000);
     }
 
     // Let others uses the periodic timer, WARNING: avoid a lot of C_TIMER's, bad performance!

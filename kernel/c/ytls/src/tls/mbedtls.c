@@ -45,11 +45,14 @@ Here's how the schema translates to mbedTLS:
 
 #ifdef CONFIG_HAVE_MBEDTLS
 
+#include <time.h>
+
 #include <mbedtls/ssl.h>
 #include <mbedtls/error.h>
 #include <mbedtls/x509_crt.h>
 #include <mbedtls/pk.h>
 #include <mbedtls/debug.h>  /* mbedtls_debug_set_threshold() */
+#include <mbedtls/oid.h>    /* MBEDTLS_OID_* for DN printing */
 #include <psa/crypto.h>     /* psa_crypto_init() required by mbedtls v4.0 */
 
 #include <kwid.h>
@@ -133,6 +136,7 @@ PRIVATE hytls init(
 );
 PRIVATE void cleanup(hytls ytls);
 PRIVATE int reload_certificates(hytls ytls, json_t *jn_config);
+PRIVATE json_t *get_cert_info(hytls ytls);
 PRIVATE const char *version(hytls ytls);
 PRIVATE hsskt new_secure_filter(
     hytls ytls,
@@ -156,6 +160,7 @@ PRIVATE api_tls_t api_tls = {
     init,
     cleanup,
     reload_certificates,
+    get_cert_info,
     version,
     new_secure_filter,
     free_secure_filter,
@@ -433,6 +438,80 @@ PRIVATE int reload_certificates(hytls ytls_, json_t *jn_config)
         NULL
     );
     return 0;
+}
+
+/***************************************************************************
+ *  Convert mbedtls_x509_time to Unix time_t.
+ *  Returns 0 on failure.
+ ***************************************************************************/
+PRIVATE time_t mbedtls_time_to_unix(const mbedtls_x509_time *t)
+{
+    if(!t) {
+        return 0;
+    }
+    struct tm tm;
+    memset(&tm, 0, sizeof(tm));
+    tm.tm_year = t->year - 1900;
+    tm.tm_mon  = t->mon  - 1;
+    tm.tm_mday = t->day;
+    tm.tm_hour = t->hour;
+    tm.tm_min  = t->min;
+    tm.tm_sec  = t->sec;
+    /* mbedtls_x509_time is UTC; use timegm to avoid local-TZ shift. */
+    return timegm(&tm);
+}
+
+/***************************************************************************
+ *  Introspect the server certificate currently loaded in ytls->state->cert.
+ *  Caller owns the returned json_t; returns NULL when no cert is loaded.
+ ***************************************************************************/
+PRIVATE json_t *get_cert_info(hytls ytls_)
+{
+    ytls_t *ytls = (ytls_t *)ytls_;
+    if(!ytls || !ytls->state || !ytls->state->has_own_cert) {
+        return NULL;
+    }
+    mbedtls_x509_crt *cert = &ytls->state->cert;
+
+    json_t *info = json_object();
+
+    /* Subject / issuer as one-line DN. */
+    char buf[512];
+    int n;
+    n = mbedtls_x509_dn_gets(buf, sizeof(buf), &cert->subject);
+    if(n > 0) {
+        json_object_set_new(info, "subject", json_string(buf));
+    }
+    n = mbedtls_x509_dn_gets(buf, sizeof(buf), &cert->issuer);
+    if(n > 0) {
+        json_object_set_new(info, "issuer", json_string(buf));
+    }
+
+    /* Validity window as Unix timestamps. */
+    json_object_set_new(info, "not_before",
+        json_integer((json_int_t)mbedtls_time_to_unix(&cert->valid_from)));
+    json_object_set_new(info, "not_after",
+        json_integer((json_int_t)mbedtls_time_to_unix(&cert->valid_to)));
+
+    /* Serial as uppercase hex. mbedtls_x509_serial_gets renders it with a
+     * colon separator (e.g. "03:A4:..."), which is human friendly; we
+     * strip the colons to match the OpenSSL backend's format. */
+    n = mbedtls_x509_serial_gets(buf, sizeof(buf), &cert->serial);
+    if(n > 0) {
+        char serial_hex[256];
+        size_t j = 0;
+        for(size_t i = 0; buf[i] && j < sizeof(serial_hex) - 1; i++) {
+            if(buf[i] != ':') {
+                char c = buf[i];
+                if(c >= 'a' && c <= 'f') c = (char)(c - 'a' + 'A');
+                serial_hex[j++] = c;
+            }
+        }
+        serial_hex[j] = '\0';
+        json_object_set_new(info, "serial", json_string(serial_hex));
+    }
+
+    return info;
 }
 
 /***************************************************************************

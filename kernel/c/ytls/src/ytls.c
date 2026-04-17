@@ -113,6 +113,21 @@ PUBLIC int ytls_reload_certificates(hytls ytls, json_t *jn_config)
     return api_tls->reload_certificates(ytls, jn_config);
 }
 
+/***************************************************************************
+    Get cert info (subject, issuer, not_before, not_after, serial)
+ ***************************************************************************/
+PUBLIC json_t *ytls_get_cert_info(hytls ytls)
+{
+    if(!ytls) {
+        return NULL;
+    }
+    api_tls_t *api_tls = ((__ytls_t__ *)ytls)->api_tls;
+    if(!api_tls->get_cert_info) {
+        return NULL;
+    }
+    return api_tls->get_cert_info(ytls);
+}
+
 
 /***************************************************************************
     Version tls

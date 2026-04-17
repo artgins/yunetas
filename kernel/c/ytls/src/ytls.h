@@ -83,6 +83,7 @@ typedef struct api_tls_s {
     );
     void (*cleanup)(hytls ytls);
     int (*reload_certificates)(hytls ytls, json_t *jn_config /* not owned */);
+    json_t *(*get_cert_info)(hytls ytls);
     const char * (*version)(hytls ytls);
     hsskt (*new_secure_filter)(
         hytls ytls,
@@ -162,6 +163,21 @@ PUBLIC int ytls_reload_certificates(
     hytls ytls,
     json_t *jn_config   // not owned
 );
+
+/**rst**
+    Return metadata about the currently loaded server certificate.
+
+    Fields in the returned JSON (missing for client ytls / no cert loaded):
+      - "subject"    (string)  X.509 subject DN, one-line form
+      - "issuer"     (string)  X.509 issuer DN, one-line form
+      - "not_before" (integer) Unix ts of certificate's notBefore
+      - "not_after"  (integer) Unix ts of certificate's notAfter
+      - "serial"     (string)  Serial number, uppercase hex
+
+    Returns a new json object owned by the caller, or NULL if no cert info
+    is available (e.g. client-side ytls, or backend that can't introspect).
+**rst**/
+PUBLIC json_t *ytls_get_cert_info(hytls ytls);
 
 /**rst**
     Version tls

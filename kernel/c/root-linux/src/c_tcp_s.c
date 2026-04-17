@@ -9,6 +9,7 @@
  *          All Rights Reserved.
  ****************************************************************************/
 #include <string.h>
+#include <time.h>
 #include <unistd.h>
 
 #include <gobj.h>
@@ -37,6 +38,7 @@
 PRIVATE int yev_callback(yev_event_h yev_event);
 PRIVATE int reload_ytls_from_attrs(hgobj gobj);
 PRIVATE json_t *cmd_reload_certs(hgobj gobj, const char *cmd, json_t *kw, hgobj src);
+PRIVATE json_t *cmd_view_cert(hgobj gobj, const char *cmd, json_t *kw, hgobj src);
 
 
 /***************************************************************************
@@ -50,10 +52,14 @@ PRIVATE sdata_desc_t pm_reload_certs[] = {
 /*-PM----type-----------name------------flag------------default-----description---------- */
 SDATA_END()
 };
+PRIVATE sdata_desc_t pm_view_cert[] = {
+SDATA_END()
+};
 
 PRIVATE sdata_desc_t command_table[] = {
 /*-CMD---type-----------name-------------alias---items------------json_fn-----------description---------- */
 SDATACM(DTP_SCHEMA,     "reload-certs",  0,      pm_reload_certs, cmd_reload_certs, "Reload TLS certificates from the 'crypto' attribute without dropping active connections"),
+SDATACM(DTP_SCHEMA,     "view-cert",     0,      pm_view_cert,    cmd_view_cert,    "Show metadata of the currently loaded TLS server certificate (subject, issuer, notBefore, notAfter, serial, days_remaining)"),
 SDATA_END()
 };
 
@@ -877,6 +883,49 @@ PRIVATE json_t *cmd_reload_certs(hgobj gobj, const char *cmd, json_t *kw, hgobj 
         0,
         kw
     );
+}
+
+/***************************************************************************
+ *  Command: view-cert
+ *  Introspect the currently loaded TLS server certificate and include
+ *  `days_remaining` so operators and the expiry monitor can use the same
+ *  output.
+ ***************************************************************************/
+PRIVATE json_t *cmd_view_cert(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    if(!priv->use_ssl || !priv->ytls) {
+        return msg_iev_build_response(gobj,
+            -1,
+            json_sprintf("Listener is not TLS-enabled or not running"),
+            0,
+            0,
+            kw
+        );
+    }
+
+    json_t *info = ytls_get_cert_info(priv->ytls);
+    if(!info) {
+        return msg_iev_build_response(gobj,
+            -1,
+            json_sprintf("No certificate info available"),
+            0,
+            0,
+            kw
+        );
+    }
+
+    /* Derived field: days remaining (negative = already expired). */
+    json_int_t not_after = kw_get_int(gobj, info, "not_after", 0, 0);
+    if(not_after > 0) {
+        time_t now = time(NULL);
+        json_int_t days = (not_after - (json_int_t)now) / 86400;
+        json_object_set_new(info, "days_remaining", json_integer(days));
+    }
+    json_object_set_new(info, "url", json_string(priv->url ? priv->url : ""));
+
+    return msg_iev_build_response(gobj, 0, 0, 0, info, kw);
 }
 
 

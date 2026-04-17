@@ -74,6 +74,9 @@ socket write of encrypted data.
 #include <openssl/ssl.h>
 #include <openssl/engine.h>
 #include <openssl/err.h>
+#include <openssl/bn.h>
+#include <openssl/x509.h>
+#include <time.h>
 
 #include <kwid.h>
 #include <helpers.h>
@@ -128,6 +131,7 @@ PRIVATE hytls init(
 );
 PRIVATE void cleanup(hytls ytls);
 PRIVATE int reload_certificates(hytls ytls, json_t *jn_config);
+PRIVATE json_t *get_cert_info(hytls ytls);
 PRIVATE const char *version(hytls ytls);
 PRIVATE hsskt new_secure_filter(
     hytls ytls,
@@ -151,6 +155,7 @@ PRIVATE api_tls_t api_tls = {
     init,
     cleanup,
     reload_certificates,
+    get_cert_info,
     version,
     new_secure_filter,
     free_secure_filter,
@@ -585,6 +590,79 @@ PRIVATE int reload_certificates(hytls ytls_, json_t *jn_config)
         NULL
     );
     return 0;
+}
+
+/***************************************************************************
+ *  Convert an OpenSSL ASN1_TIME to Unix time_t.
+ *  Returns 0 on failure.
+ ***************************************************************************/
+PRIVATE time_t asn1_time_to_unix(const ASN1_TIME *t)
+{
+    if(!t) {
+        return 0;
+    }
+    struct tm tm;
+    memset(&tm, 0, sizeof(tm));
+    if(ASN1_TIME_to_tm(t, &tm) != 1) {
+        return 0;
+    }
+    /* ASN1_TIME_to_tm fills tm in UTC; use timegm to avoid TZ shift. */
+    return timegm(&tm);
+}
+
+/***************************************************************************
+ *  Introspect the server certificate currently loaded in ytls->ctx.
+ *  Caller owns the returned json_t; returns NULL when no cert is loaded
+ *  (client-side ytls, or init failed).
+ ***************************************************************************/
+PRIVATE json_t *get_cert_info(hytls ytls_)
+{
+    ytls_t *ytls = ytls_;
+    if(!ytls || !ytls->ctx) {
+        return NULL;
+    }
+
+    X509 *cert = SSL_CTX_get0_certificate(ytls->ctx);
+    if(!cert) {
+        return NULL;
+    }
+
+    json_t *info = json_object();
+
+    /* Subject / issuer as one-line DN. */
+    char buf[512];
+    X509_NAME *sn = X509_get_subject_name(cert);
+    if(sn) {
+        X509_NAME_oneline(sn, buf, sizeof(buf));
+        json_object_set_new(info, "subject", json_string(buf));
+    }
+    X509_NAME *in = X509_get_issuer_name(cert);
+    if(in) {
+        X509_NAME_oneline(in, buf, sizeof(buf));
+        json_object_set_new(info, "issuer", json_string(buf));
+    }
+
+    /* Validity window as Unix timestamps. */
+    time_t nb = asn1_time_to_unix(X509_get0_notBefore(cert));
+    time_t na = asn1_time_to_unix(X509_get0_notAfter(cert));
+    json_object_set_new(info, "not_before", json_integer((json_int_t)nb));
+    json_object_set_new(info, "not_after",  json_integer((json_int_t)na));
+
+    /* Serial as uppercase hex. */
+    ASN1_INTEGER *serial = X509_get_serialNumber(cert);
+    if(serial) {
+        BIGNUM *bn = ASN1_INTEGER_to_BN(serial, NULL);
+        if(bn) {
+            char *hex = BN_bn2hex(bn);
+            if(hex) {
+                json_object_set_new(info, "serial", json_string(hex));
+                OPENSSL_free(hex);
+            }
+            BN_free(bn);
+        }
+    }
+
+    return info;
 }
 
 /***************************************************************************
