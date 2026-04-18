@@ -3112,6 +3112,11 @@ PRIVATE int ac_command(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
     json_t *kw_input_command = json_object();
     gobj_send_event(src, EV_GETTEXT, json_incref(kw_input_command), gobj); // EV_GETTEXT is EVF_KW_WRITING
     const char *command = kw_get_str(gobj, kw_input_command, "text", 0, 0);
+    if(empty_string(command)) {
+        KW_DECREF(kw_input_command);
+        KW_DECREF(kw);
+        return 0;
+    }
 
     /* Bash-style history expansion: `!N` runs history entry N, `!!` runs
      * the previous line. Other `!xxx` forms (e.g. `!help`) fall through
