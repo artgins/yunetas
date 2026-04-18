@@ -825,16 +825,6 @@ PRIVATE void completion_render_popup(PRIVATE_DATA *l)
     wbkgd(l->completion_wn, (chtype)' ' | (chtype)def_attr);
     wclear(l->completion_wn);
 
-    /*
-     *  Order matters. In some ncurses builds the attributes of the first
-     *  cell of a row written *after* a neighbouring row that used a
-     *  different attr (e.g. A_DIM on the status line above) land in a
-     *  weird half-state that leaves col 0 with the wrong background.
-     *  Writing the status row FIRST and the content rows after means
-     *  every write happens into a window whose "previous row" is either
-     *  bg-only (the last row above the content area) or another content
-     *  row — same attrs class, no transition.
-     */
     int name_w = (int)l->completion_name_w;
     char row_buf[512];
 
@@ -908,18 +898,6 @@ PRIVATE void completion_render_popup(PRIVATE_DATA *l)
             mvwaddch(l->completion_wn, content_y0 + row, col,
                 (chtype)ch | row_attr);
         }
-        /*
-         *  Second write of col 0 to defeat whatever ncurses optimisation
-         *  was leaving this specific cell with the *previous* row's
-         *  attrs when the popup had just been created. Moving the cursor
-         *  elsewhere first forces the cell to be emitted anew.
-         */
-        unsigned char ch0 = (rlen > 0) ? (unsigned char)row_buf[0] : (unsigned char)' ';
-        mvwaddch(l->completion_wn, content_y0 + row, w - 1,
-            (chtype)((rlen > 0 && (int)rlen > (w - 1))
-                ? (unsigned char)row_buf[w - 1] : (unsigned char)' ') | row_attr);
-        mvwaddch(l->completion_wn, content_y0 + row, 0,
-            (chtype)ch0 | row_attr);
     }
 
     /* touchwin forces ncurses to mark every line as changed so no cell
@@ -1111,6 +1089,18 @@ PRIVATE int completion_open_popup(PRIVATE_DATA *l, linenoiseCompletions *lc)
         return -1;
     }
     top_panel(panel);
+    /*
+     *  Ignore this popup's cursor position. Because the popup is the
+     *  top panel, without leaveok() its internal cursor (wherever the
+     *  last addch left it — e.g. (last_row, col_after) for the content
+     *  loop) would become the physical terminal cursor at doupdate.
+     *  Many terminals render the hardware cursor as an inverted cell,
+     *  so that leftover cursor position was showing up as a spurious
+     *  "second character in reverse" on whichever row/col the render
+     *  happened to end at. With leaveok(TRUE), ncurses keeps the
+     *  cursor where the NEXT wrefresh'd window (the editline) wants it.
+     */
+    leaveok(wn, TRUE);
 
     /* Snapshot the edit buffer so Backspace can restore it verbatim. */
     char *orig = gbmem_strndup(l->buf, l->len);
