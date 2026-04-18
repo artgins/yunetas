@@ -825,8 +825,62 @@ PRIVATE void completion_render_popup(PRIVATE_DATA *l)
     wbkgd(l->completion_wn, (chtype)' ' | (chtype)def_attr);
     wclear(l->completion_wn);
 
+    /*
+     *  Order matters. In some ncurses builds the attributes of the first
+     *  cell of a row written *after* a neighbouring row that used a
+     *  different attr (e.g. A_DIM on the status line above) land in a
+     *  weird half-state that leaves col 0 with the wrong background.
+     *  Writing the status row FIRST and the content rows after means
+     *  every write happens into a window whose "previous row" is either
+     *  bg-only (the last row above the content area) or another content
+     *  row — same attrs class, no transition.
+     */
     int name_w = (int)l->completion_name_w;
     char row_buf[512];
+
+    if(has_status) {
+        /* Status strip first: " 3/42  <up> N above  <down> M below"
+         * Drawn with A_DIM on the popup background (no A_REVERSE) so it
+         * never competes with the highlighted row. ACS_UARROW/ACS_DARROW
+         * fall back to '^'/'v' in line-drawing-less terminals. */
+        char lead[64];
+        snprintf(lead, sizeof(lead), " %zu/%zu  ",
+            l->completion_idx + 1, l->completion_len);
+        int col = 0;
+
+        wattron(l->completion_wn, A_DIM);
+        mvwaddnstr(l->completion_wn, 0, col, lead, w);
+        col += (int)strlen(lead);
+        if(col < w) {
+            if(start > 0) {
+                mvwaddch(l->completion_wn, 0, col++, ACS_UARROW);
+                if(col < w) {
+                    char b[32];
+                    int n = snprintf(b, sizeof(b), " %zu above  ", start);
+                    if(col + n > w) n = w - col;
+                    mvwaddnstr(l->completion_wn, 0, col, b, n);
+                    col += n;
+                }
+            }
+            size_t below = (start + (size_t)content_rows < l->completion_len)
+                ? (l->completion_len - start - (size_t)content_rows) : 0;
+            if(below > 0 && col < w) {
+                mvwaddch(l->completion_wn, 0, col++, ACS_DARROW);
+                if(col < w) {
+                    char b[32];
+                    int n = snprintf(b, sizeof(b), " %zu below  ", below);
+                    if(col + n > w) n = w - col;
+                    mvwaddnstr(l->completion_wn, 0, col, b, n);
+                    col += n;
+                }
+            }
+            /* Pad the rest so the dim bg spans the whole row. */
+            while(col < w) {
+                mvwaddch(l->completion_wn, 0, col++, ' ');
+            }
+        }
+        wattroff(l->completion_wn, A_DIM);
+    }
 
     for(int row = 0; row < content_rows; row++) {
         size_t k = start + (size_t)row;
@@ -846,8 +900,6 @@ PRIVATE void completion_render_popup(PRIVATE_DATA *l)
                 rlen = (size_t)w;
             }
         } else {
-            /* Past the end of the candidate list: fill with blanks using
-             * the same bg so the row doesn't look different. */
             rlen = 0;
         }
         for(int col = 0; col < w; col++) {
@@ -856,57 +908,19 @@ PRIVATE void completion_render_popup(PRIVATE_DATA *l)
             mvwaddch(l->completion_wn, content_y0 + row, col,
                 (chtype)ch | row_attr);
         }
+        /*
+         *  Second write of col 0 to defeat whatever ncurses optimisation
+         *  was leaving this specific cell with the *previous* row's
+         *  attrs when the popup had just been created. Moving the cursor
+         *  elsewhere first forces the cell to be emitted anew.
+         */
+        unsigned char ch0 = (rlen > 0) ? (unsigned char)row_buf[0] : (unsigned char)' ';
+        mvwaddch(l->completion_wn, content_y0 + row, w - 1,
+            (chtype)((rlen > 0 && (int)rlen > (w - 1))
+                ? (unsigned char)row_buf[w - 1] : (unsigned char)' ') | row_attr);
+        mvwaddch(l->completion_wn, content_y0 + row, 0,
+            (chtype)ch0 | row_attr);
     }
-
-    if(has_status) {
-        /* Status strip: "3/42  <up> N above  <down> M below"
-         * Drawn with A_DIM on the popup background (no A_REVERSE) so it
-         * never competes with the highlighted row. ACS_UARROW/ACS_DARROW
-         * fall back to '^'/'v' in line-drawing-less terminals. */
-        char lead[64];
-        snprintf(lead, sizeof(lead), " %zu/%zu  ",
-            l->completion_idx + 1, l->completion_len);
-        int col = 0;
-
-        wattron(l->completion_wn, A_DIM);
-        mvwaddnstr(l->completion_wn, 0, col, lead, w);
-        col += (int)strlen(lead);
-        if(col >= w) {
-            wattroff(l->completion_wn, A_DIM);
-            goto status_done;
-        }
-
-        if(start > 0) {
-            mvwaddch(l->completion_wn, 0, col++, ACS_UARROW);
-            if(col < w) {
-                char buf[32];
-                int n = snprintf(buf, sizeof(buf), " %zu above  ", start);
-                if(col + n > w) n = w - col;
-                mvwaddnstr(l->completion_wn, 0, col, buf, n);
-                col += n;
-            }
-        }
-        size_t below = (start + (size_t)content_rows < l->completion_len)
-            ? (l->completion_len - start - (size_t)content_rows) : 0;
-        if(below > 0 && col < w) {
-            mvwaddch(l->completion_wn, 0, col++, ACS_DARROW);
-            if(col < w) {
-                char buf[32];
-                int n = snprintf(buf, sizeof(buf), " %zu below  ", below);
-                if(col + n > w) n = w - col;
-                mvwaddnstr(l->completion_wn, 0, col, buf, n);
-                col += n;
-            }
-        }
-        /* Pad the rest of the status row so A_DIM attribute fills it
-         * uniformly (otherwise the trailing cells keep a different
-         * background from werase'd ones). */
-        while(col < w) {
-            mvwaddch(l->completion_wn, 0, col++, ' ');
-        }
-        wattroff(l->completion_wn, A_DIM);
-    }
-status_done:
 
     /* touchwin forces ncurses to mark every line as changed so no cell
      * escapes the next physical refresh (belt-and-suspenders on top of
