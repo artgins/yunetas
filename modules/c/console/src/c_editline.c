@@ -813,33 +813,27 @@ PRIVATE void completion_render_popup(PRIVATE_DATA *l)
         }
     }
 
-    /*
-     *  Two-pass render to sidestep a well-known ncurses quirk where
-     *  toggling A_REVERSE on a cell whose character (a leading space) is
-     *  unchanged can leave stale inverse bits on col 0 of the row that
-     *  used to be selected.
-     *
-     *  Pass 1: lay down the plain text content. werase pre-clears the
-     *  whole window with the current attrs (A_NORMAL here), and waddnstr
-     *  writes a space-padded row so every cell is touched.
-     *
-     *  Pass 2: overlay attributes with mvwchgat(), which retargets
-     *  A_COLOR / A_REVERSE on a range of existing cells without going
-     *  through the char-diff path. That's the path ncurses uses for
-     *  highlighting in its own menus / forms libraries and it bypasses
-     *  the attr-only optimisation that the per-cell chtype path tripped.
-     */
+    /* Explicit per-cell write with a chtype that already contains the
+     * desired attrs (color pair + optional A_REVERSE). This bypasses any
+     * attr-only diff optimisation in ncurses / terminfo that was leaving
+     * A_REVERSE on a previously-selected cell when the new cell happened
+     * to hold the same character (a leading space). wbkgd retro-applies
+     * the background to every existing cell; wclear forces the next
+     * refresh to repaint the popup area from scratch. */
     int def_attr = get_paint_color(l->fg_color, l->bg_color);
-    short def_pair = (short)PAIR_NUMBER((chtype)def_attr);
-
     wattrset(l->completion_wn, A_NORMAL);
-    werase(l->completion_wn);
+    wbkgd(l->completion_wn, (chtype)' ' | (chtype)def_attr);
+    wclear(l->completion_wn);
 
     int name_w = (int)l->completion_name_w;
     char row_buf[512];
 
     for(int row = 0; row < content_rows; row++) {
         size_t k = start + (size_t)row;
+        chtype row_attr = (chtype)def_attr;
+        if(k < l->completion_len && k == l->completion_idx) {
+            row_attr |= A_REVERSE;
+        }
         size_t rlen = 0;
         if(k < l->completion_len) {
             const char *cand = l->completion_cvec[k];
@@ -852,32 +846,16 @@ PRIVATE void completion_render_popup(PRIVATE_DATA *l)
                 rlen = (size_t)w;
             }
         } else {
-            /* Past the end of the candidate list: the whole row will be
-             * padded with spaces below. */
+            /* Past the end of the candidate list: fill with blanks using
+             * the same bg so the row doesn't look different. */
             rlen = 0;
         }
-        wmove(l->completion_wn, content_y0 + row, 0);
-        waddnstr(l->completion_wn, row_buf, (int)rlen);
-        /* Pad the tail of the row so every cell has a char to carry the
-         * attrs applied by mvwchgat below. */
-        for(int col = (int)rlen; col < w; col++) {
-            waddch(l->completion_wn, ' ');
+        for(int col = 0; col < w; col++) {
+            unsigned char ch = (col < (int)rlen)
+                ? (unsigned char)row_buf[col] : (unsigned char)' ';
+            mvwaddch(l->completion_wn, content_y0 + row, col,
+                (chtype)ch | row_attr);
         }
-    }
-
-    /* Pass 2: paint the default colour on every content row, then the
-     * A_REVERSE highlight on just the selected one. mvwchgat changes
-     * attributes on existing cells and, unlike the char-based path,
-     * reliably marks every cell as needing a physical update. */
-    for(int row = 0; row < content_rows; row++) {
-        mvwchgat(l->completion_wn, content_y0 + row, 0, w,
-            A_NORMAL, def_pair, NULL);
-    }
-    if(l->completion_idx >= start
-       && l->completion_idx < start + (size_t)content_rows) {
-        int sel_row = (int)(l->completion_idx - start);
-        mvwchgat(l->completion_wn, content_y0 + sel_row, 0, w,
-            A_REVERSE, def_pair, NULL);
     }
 
     if(has_status) {
