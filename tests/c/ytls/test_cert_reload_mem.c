@@ -141,18 +141,22 @@ out:
     /*-------------------------*
      *  Memory accounting check
      *-------------------------*
+     *  gobj_end() must run BEFORE get_cur_system_memory(): gobj_start_up()
+     *  allocates a small amount of baseline state that is only freed by
+     *  gobj_end(). Checking before that would count gobj's own baseline
+     *  as a "leak" even when the reload path is clean.
+     *
      *  Only effective in CONFIG_DEBUG_TRACK_MEMORY + DEBUG builds; in
-     *  release builds this returns 0 unconditionally, so the assertion
-     *  is harmless.
+     *  release builds get_cur_system_memory() returns 0 unconditionally.
      */
+    gobj_end();
+
     size_t leaked = get_cur_system_memory();
     if(leaked != 0) {
         fprintf(stderr, "FAIL: %zu bytes still allocated after cleanup\n", leaked);
         print_track_mem();
         result = 1;
     }
-
-    gobj_end();
 
     if(result == 0) {
         printf("%s: PASS\n", APP);

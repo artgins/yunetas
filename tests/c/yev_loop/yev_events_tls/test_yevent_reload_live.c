@@ -564,13 +564,22 @@ int main(int argc, char *argv[])
     set_memory_check_list(memory_check_list);
 
     const char *test = APP;
+    /*
+     *  The test runs two message exchanges — one before the cert reload
+     *  (MESSAGE_1) and one after (MESSAGE_2) on the SAME live session —
+     *  so "Server: query from the client" and "Client and Server messages
+     *  MATCH" each fire twice, sandwiched around "TLS certificates
+     *  reloaded". The expected-log FIFO must mirror that order exactly.
+     */
     json_t *error_list = json_pack(
-        "[{s:s}, {s:s}, {s:s}, {s:s}, {s:s}]",
+        "[{s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}]",
         "msg", "Client: secure connected",
         "msg", "Server: secure connected",
         "msg", "Server: query from the client",
         "msg", "Client and Server messages MATCH",
-        "msg", "TLS certificates reloaded"
+        "msg", "TLS certificates reloaded",
+        "msg", "Server: query from the client",
+        "msg", "Client and Server messages MATCH"
     );
 
     set_expected_results(test, error_list, NULL, NULL, 1);
