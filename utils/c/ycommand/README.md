@@ -47,10 +47,11 @@ through untouched.
 | `Ctrl+A` / `Ctrl+E`         | Start / end of line                                         |
 | `Ctrl+B` / `Ctrl+F`         | Move left / right one character                             |
 | `Ctrl+D` / `Backspace`      | Delete char under / before cursor                           |
-| `Ctrl+U`                    | Delete whole line                                           |
+| `Ctrl+K`                    | Delete from cursor to end of line (readline)                |
+| `Ctrl+U` / `Ctrl+Y`         | Delete whole line                                           |
 | `Ctrl+W`                    | Delete previous word                                        |
 | `Ctrl+T`                    | Swap character with previous                                |
-| `Ctrl+L` (or `Ctrl+K`)      | Clear screen                                                |
+| `Ctrl+L`                    | Clear screen                                                |
 
 While in `Ctrl+R`/`Ctrl+S` search mode, the prompt changes to
 `(reverse-i-search)'pat': <match>`; `Enter` accepts and submits, an arrow key
