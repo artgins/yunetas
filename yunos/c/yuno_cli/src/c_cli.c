@@ -12,6 +12,7 @@
 #include <pwd.h>
 #include <limits.h>
 #include <errno.h>
+#include <ctype.h>
 #include <sys/ioctl.h>
 
 #include <help_ncurses.h>
@@ -171,13 +172,13 @@ keytable_t keytable2[] = {
 //{"editline",    "EV_EDITLINE_NEXT_HIST",        MKEY_CTRL_DOWN},
 
 {"editline",    "EV_EDITLINE_SWAP_CHAR",        CTRL_T},
+{"editline",    "EV_EDITLINE_DEL_EOL",          CTRL_K},
 {"editline",    "EV_EDITLINE_DEL_LINE",         CTRL_U},
 {"editline",    "EV_EDITLINE_DEL_LINE",         CTRL_Y},
 {"editline",    "EV_EDITLINE_DEL_PREV_WORD",    CTRL_W},
 {"editline",    "EV_EDITLINE_REVERSE_SEARCH",   CTRL_R},
 {"editline",    "EV_EDITLINE_FORWARD_SEARCH",   CTRL_S},
 
-{"__top_display_window__",    "EV_CLRSCR",                    CTRL_K},
 {"__top_display_window__",    "EV_CLRSCR",                    CTRL_L},
 {"__top_display_window__",    "EV_SCROLL_PAGE_UP",            MKEY_PREV_PAGE},
 {"__top_display_window__",    "EV_SCROLL_PAGE_DOWN",          MKEY_NEXT_PAGE},
@@ -192,6 +193,13 @@ keytable_t keytable2[] = {
 {"__top_display_window__",    "EV_SCROLL_LINE_DOWN",          MKEY_ALT_DOWN},
 {"__top_display_window__",    "EV_SCROLL_TOP",                MKEY_CTRLALT_UP},
 {"__top_display_window__",    "EV_SCROLL_BOTTOM",             MKEY_CTRLALT_DOWN},
+
+/* Cancel bindings must sit at the end: standalone ESCAPE (0x1B) is also
+ * the prefix of every MKEY_* above. Keeping it last lets the longer
+ * sequences win the memcmp race in event_by_key(). Ctrl+G (0x07) has no
+ * such ambiguity but is declared here for symmetry. */
+{"editline",    "EV_EDITLINE_CANCEL",           {7}},
+{"editline",    "EV_EDITLINE_CANCEL",           ESCAPE},
 
 {0}
 };
@@ -285,23 +293,26 @@ PRIVATE const char *a_log[] = {"l", 0};
 PRIVATE sdata_desc_t command_table[] = {
 /*-CMD---type-----------name----------------alias---------------items-------json_fn-----description---------- */
 SDATACM (DTP_SCHEMA,    "",                 0,                  0,          0,          "\nEdit line shortcuts\n-------------------"),
-SDATACM (DTP_STRING,    "", 0,  0,  0,  "Move start             -> Home, Ctrl+a"),
-SDATACM (DTP_STRING,    "", 0,  0,  0,  "Move end               -> End, Ctrl+e"),
-SDATACM (DTP_STRING,    "", 0,  0,  0,  "Move left              -> Left, Ctrl+b"),
-SDATACM (DTP_STRING,    "", 0,  0,  0,  "Move right             -> Right, Ctrl+f"),
-SDATACM (DTP_STRING,    "", 0,  0,  0,  "Delete char            -> Del, Ctrl+d"),
-SDATACM (DTP_STRING,    "", 0,  0,  0,  "Backspace (del)        -> Backspace, Ctrl+h"),
+SDATACM (DTP_STRING,    "", 0,  0,  0,  "Move start             -> Home, Ctrl+A"),
+SDATACM (DTP_STRING,    "", 0,  0,  0,  "Move end               -> End, Ctrl+E"),
+SDATACM (DTP_STRING,    "", 0,  0,  0,  "Move left              -> Left, Ctrl+B"),
+SDATACM (DTP_STRING,    "", 0,  0,  0,  "Move right             -> Right, Ctrl+F"),
+SDATACM (DTP_STRING,    "", 0,  0,  0,  "Delete char            -> Del, Ctrl+D"),
+SDATACM (DTP_STRING,    "", 0,  0,  0,  "Backspace (del)        -> Backspace, Ctrl+H"),
 SDATACM (DTP_STRING,    "", 0,  0,  0,  "Execute command        -> Enter"),
 SDATACM (DTP_STRING,    "", 0,  0,  0,  "Previous history       -> Up"),
 SDATACM (DTP_STRING,    "", 0,  0,  0,  "Next history           -> Down"),
-SDATACM (DTP_STRING,    "", 0,  0,  0,  "Swap char              -> Ctrl+t"),
-SDATACM (DTP_STRING,    "", 0,  0,  0,  "Delete line            -> Ctrl+u"),
-SDATACM (DTP_STRING,    "", 0,  0,  0,  "Delete previous word   -> Ctrl+w"),
+SDATACM (DTP_STRING,    "", 0,  0,  0,  "Swap char              -> Ctrl+T"),
+SDATACM (DTP_STRING,    "", 0,  0,  0,  "Delete to EOL          -> Ctrl+K"),
+SDATACM (DTP_STRING,    "", 0,  0,  0,  "Delete line            -> Ctrl+U, Ctrl+Y"),
+SDATACM (DTP_STRING,    "", 0,  0,  0,  "Delete previous word   -> Ctrl+W"),
+SDATACM (DTP_STRING,    "", 0,  0,  0,  "TAB completion         -> Tab   (!cmd local, cmd remote)"),
+SDATACM (DTP_STRING,    "", 0,  0,  0,  "                          Tab cycles, Up/Down move, Enter commits, Esc cancels"),
+SDATACM (DTP_STRING,    "", 0,  0,  0,  "Reverse i-search       -> Ctrl+R (Ctrl+S forward, Esc/Ctrl+G cancel)"),
 SDATACM (DTP_SCHEMA,    "",                 0,                  0,          0,          "\nOutput window shortcuts\n-----------------------"),
-SDATACM (DTP_STRING,    "", 0,  0,  0,  "Previous Window        -> Alt+Left, Ctrl+p"),
-SDATACM (DTP_STRING,    "", 0,  0,  0,  "Next Window            -> Alt+Right, Ctrl+n"),
-SDATACM (DTP_STRING,    "", 0,  0,  0,  "Scroll Bottom          -> Ctrl+End"),
-SDATACM (DTP_STRING,    "", 0,  0,  0,  "Clear Screen           -> Ctrl+k"),
+SDATACM (DTP_STRING,    "", 0,  0,  0,  "Previous Window        -> Alt+Left, Ctrl+P"),
+SDATACM (DTP_STRING,    "", 0,  0,  0,  "Next Window            -> Alt+Right, Ctrl+N"),
+SDATACM (DTP_STRING,    "", 0,  0,  0,  "Clear Screen           -> Ctrl+L"),
 SDATACM (DTP_STRING,    "", 0,  0,  0,  "Scroll Line up         -> Ctrl+Prev.Page, Alt+Up"),
 SDATACM (DTP_STRING,    "", 0,  0,  0,  "Scroll Line down       -> Ctrl+Next.Page, Alt+Down"),
 SDATACM (DTP_STRING,    "", 0,  0,  0,  "Scroll Page up         -> Prev.Page, Ctrl+Up"),
@@ -328,9 +339,173 @@ SDATACM (DTP_STRING,    "authenticate",     0,                  pm_authenticate,
 SDATACM (DTP_STRING,    "",                 0,                  0,          0,          ""),
 SDATACM (DTP_STRING,    "",                 0,                  0,          0,          "You can execute console commands in connection windows with ! prefix."),
 SDATACM (DTP_STRING,    "",                 0,                  0,          0,          "You can force display mode form with * prefix."),
+SDATACM (DTP_STRING,    "",                 0,                  0,          0,          "History expansion: !N repeats entry N from `history`, !! repeats the previous line."),
 SDATACM (DTP_STRING,    "",                 0,                  0,          0,          ""),
 SDATA_END()
 };
+
+/*---------------------------------------------*
+ *              Private data
+ *---------------------------------------------*/
+typedef struct _PRIVATE_DATA {
+    hgobj timer;
+    BOOL use_ncurses;
+    hgobj gwin_stdscr;
+    hgobj gobj_toptoolbar;
+    hgobj gobj_workareabox;
+    hgobj gobj_editbox;
+    hgobj gobj_editline;
+    hgobj gobj_bottomtoolbarbox;
+    hgobj gobj_stsline;
+
+    int tty_fd;
+    yev_event_h yev_reading;
+
+    BOOL on_mirror_tty;
+    char mirror_tty_name[NAME_MAX];
+    char mirror_tty_uuid[NAME_MAX];
+
+    FILE *file_saving_output;
+    json_t *jn_shortkeys;
+
+    json_t *jn_window_counters;
+
+    hgobj last_connection; // To use in not use_ncurses, work with the last agent connection
+
+    /* TAB completion cache of remote commands, keyed by connection pointer
+     * (as hex string). Each entry is a flat dict name -> command-descriptor,
+     * populated from `list-gobj-commands`. Per-connection so switching
+     * windows swaps the candidate set. */
+    json_t *remote_caches;
+    json_t *pending_cache_fetches;   /* hex-ptr -> int counter */
+} PRIVATE_DATA;
+
+
+/***************************************************************************
+ *  Hex-pointer key used to index the per-connection command caches. Using
+ *  a pointer value keeps the key unique even across agents that share a
+ *  name and avoids another attribute on the connection gclass.
+ ***************************************************************************/
+PRIVATE void conn_key(hgobj conn, char *out, size_t out_size)
+{
+    snprintf(out, out_size, "%p", (void *)conn);
+}
+
+/***************************************************************************
+ *  Match the shape of a `list-gobj-commands` response body.
+ *  Copied from c_ycommand's warm-up path — keeping shape-recognition local
+ *  avoids pulling ycommand's whole cache machinery into ycli.
+ ***************************************************************************/
+PRIVATE BOOL is_commands_list_response(json_t *jn_data)
+{
+    if(!json_is_array(jn_data) || json_array_size(jn_data) == 0) {
+        return FALSE;
+    }
+    json_t *first = json_array_get(jn_data, 0);
+    return json_is_object(first)
+        && json_object_get(first, "gclass") != NULL
+        && json_object_get(first, "commands") != NULL;
+}
+
+/***************************************************************************
+ *  Merge a `list-gobj-commands` response into the per-connection cache,
+ *  first-seen wins (keeps the set stable across repeat fetches).
+ ***************************************************************************/
+PRIVATE void merge_commands_into_remote_cache(hgobj gobj, hgobj conn, json_t *jn_raw_data)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+    if(!json_is_array(jn_raw_data) || !conn) {
+        return;
+    }
+    char key[32];
+    conn_key(conn, key, sizeof(key));
+
+    json_t *cache = json_object_get(priv->remote_caches, key);
+    if(!cache) {
+        cache = json_object();
+        json_object_set_new(priv->remote_caches, key, cache);
+    }
+
+    size_t idx;
+    json_t *jn_gclass;
+    json_array_foreach(jn_raw_data, idx, jn_gclass) {
+        json_t *jn_commands = json_object_get(jn_gclass, "commands");
+        if(!json_is_array(jn_commands)) {
+            continue;
+        }
+        size_t jdx;
+        json_t *jn_cmd;
+        json_array_foreach(jn_commands, jdx, jn_cmd) {
+            const char *name = json_string_value(json_object_get(jn_cmd, "command"));
+            if(empty_string(name)) {
+                continue;
+            }
+            if(!json_object_get(cache, name)) {
+                json_object_set(cache, name, jn_cmd);
+            }
+        }
+    }
+}
+
+/***************************************************************************
+ *  Warm a fresh connection's command cache. Silent: the response is
+ *  intercepted in ac_mt_command_answer and does NOT reach the display.
+ *  `list-gobj-commands` lives on the yuno so route it via service=__yuno__
+ *  (same convention as ycommand).
+ ***************************************************************************/
+PRIVATE int request_remote_commands(hgobj gobj, hgobj conn)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+    if(!conn) {
+        return -1;
+    }
+    json_t *kw = json_pack("{s:s, s:s, s:i, s:b}",
+        "service", "__yuno__",
+        "gobj_name", "__default_service__",
+        "details", 1,
+        "bottoms", 1
+    );
+    char key[32];
+    conn_key(conn, key, sizeof(key));
+    int pending = (int)kw_get_int(gobj, priv->pending_cache_fetches, key, 0, KW_CREATE);
+    json_object_set_new(priv->pending_cache_fetches, key,
+        json_integer(pending + 1));
+
+    json_t *webix = gobj_command(conn, "list-gobj-commands", kw, gobj);
+    if(webix) {
+        /* Synchronous response: consume and decrement here, nothing to show. */
+        json_t *jn_data = kw_get_dict_value(gobj, webix, "data", 0, 0);
+        if(is_commands_list_response(jn_data)) {
+            merge_commands_into_remote_cache(gobj, conn, jn_data);
+        }
+        json_object_set_new(priv->pending_cache_fetches, key,
+            json_integer(pending));
+        JSON_DECREF(webix);
+    }
+    return 0;
+}
+
+/***************************************************************************
+ *  True if `line` already contains a `name=` token at a word boundary.
+ *  Used to hide params the user has already set from TAB candidates.
+ ***************************************************************************/
+PRIVATE BOOL line_has_param(const char *line, const char *name)
+{
+    if(empty_string(name) || !line) {
+        return FALSE;
+    }
+    size_t nlen = strlen(name);
+    const char *p = line;
+    while((p = strstr(p, name)) != NULL) {
+        const char *after = p + nlen;
+        BOOL word_boundary = (p == line) || (*(p-1) == ' ') || (*(p-1) == '\t');
+        if(word_boundary && *after == '=') {
+            return TRUE;
+        }
+        p = after;
+    }
+    return FALSE;
+}
 
 /***************************************************************************
  *  Lookup a command_table entry by name or alias.
@@ -358,9 +533,11 @@ PRIVATE const sdata_desc_t *find_cli_local_command(const char *name, size_t name
 
 /***************************************************************************
  *  TAB completion callback for ycli.
- *  ycli doesn't keep a remote commands cache (it hops between multiple
- *  yunos in separate windows), so completion only covers the local '!cmd'
- *  table — which is the part that's always stable and worth discovering.
+ *  Two branches:
+ *   - '!cmd …'  → the local command_table of this gclass.
+ *   - 'cmd …'   → the remote cache of the connection attached to the
+ *                 currently focused display window (__top_display_window__).
+ *  The remote set swaps automatically when the user switches windows.
  ***************************************************************************/
 PRIVATE void cli_completion_cb(
     hgobj editline_gobj,
@@ -371,61 +548,299 @@ PRIVATE void cli_completion_cb(
     if(!buf) {
         return;
     }
+    hgobj gobj = (hgobj)user_data;
+    PRIVATE_DATA *priv = gobj ? gobj_priv_data(gobj) : NULL;
+
     const char *start = buf;
     while(*start == ' ' || *start == '\t') start++;
     const char *body = (*start == '*') ? start + 1 : start;
     size_t prefix_len = (size_t)(body - buf);
     char candidate[1024];
 
-    /* Only handle the '!cmd' path; bare commands go to the remote and we
-     * don't have a cached schema to complete against. */
-    if(body[0] != '!') {
-        return;
-    }
-    const char *after_bang = body + 1;
-    size_t bang_prefix_len = prefix_len + 1;  /* keep the '!' in candidates */
-    const char *first_space_local = strchr(after_bang, ' ');
+    /*----------------------------*
+     *  Local '!cmd' branch
+     *----------------------------*/
+    if(body[0] == '!') {
+        const char *after_bang = body + 1;
+        size_t bang_prefix_len = prefix_len + 1;  /* keep the '!' in candidates */
+        const char *first_space_local = strchr(after_bang, ' ');
 
-    if(!first_space_local) {
-        /* Completing the local command name. */
-        size_t token_len = strlen(after_bang);
-        for(const sdata_desc_t *p = command_table; p->name; p++) {
-            if(empty_string(p->name)) {
+        if(!first_space_local) {
+            size_t token_len = strlen(after_bang);
+            for(const sdata_desc_t *p = command_table; p->name; p++) {
+                if(empty_string(p->name)) {
+                    continue;
+                }
+                if(strncmp(p->name, after_bang, token_len) == 0) {
+                    snprintf(candidate, sizeof(candidate), "%.*s%s",
+                        (int)bang_prefix_len, buf, p->name);
+                    editline_add_completion(lc, candidate, p->description);
+                }
+            }
+            return;
+        }
+
+        size_t cmd_len = (size_t)(first_space_local - after_bang);
+        const sdata_desc_t *cmd_entry = find_cli_local_command(after_bang, cmd_len);
+        if(!cmd_entry || !cmd_entry->schema) {
+            return;
+        }
+        const char *last_token = strrchr(buf, ' ');
+        last_token = last_token ? last_token + 1 : buf;
+        if(strchr(last_token, '=')) {
+            return;
+        }
+        size_t ltoken_len = strlen(last_token);
+        size_t head_len = (size_t)(last_token - buf);
+        for(const sdata_desc_t *pp = cmd_entry->schema; pp->name; pp++) {
+            if(empty_string(pp->name)) {
                 continue;
             }
-            if(strncmp(p->name, after_bang, token_len) == 0) {
-                snprintf(candidate, sizeof(candidate), "%.*s%s",
-                    (int)bang_prefix_len, buf, p->name);
-                editline_add_completion(lc, candidate, p->description);
+            if(line_has_param(body, pp->name)) {
+                continue;
+            }
+            if(strncmp(pp->name, last_token, ltoken_len) == 0) {
+                snprintf(candidate, sizeof(candidate), "%.*s%s=",
+                    (int)head_len, buf, pp->name);
+                editline_add_completion(lc, candidate, pp->description);
             }
         }
         return;
     }
 
-    /* "!cmd <space> ..." → walk the command's schema for parameter names. */
-    size_t cmd_len = (size_t)(first_space_local - after_bang);
-    const sdata_desc_t *cmd_entry = find_cli_local_command(after_bang, cmd_len);
-    if(!cmd_entry || !cmd_entry->schema) {
+    /*----------------------------*
+     *  Remote branch
+     *----------------------------*/
+    if(!priv || !__top_display_window__) {
+        return;
+    }
+    hgobj conn = gobj_read_pointer_attr(__top_display_window__, "user_data");
+    if(!conn) {
+        return;
+    }
+    char key[32];
+    conn_key(conn, key, sizeof(key));
+    json_t *cache = json_object_get(priv->remote_caches, key);
+    if(!cache) {
+        return;
+    }
+
+    const char *first_space = strchr(body, ' ');
+    if(!first_space) {
+        /* Completing the command name. */
+        size_t token_len = strlen(body);
+        const char *name;
+        json_t *jn_cmd;
+        json_object_foreach(cache, name, jn_cmd) {
+            if(strncmp(name, body, token_len) == 0) {
+                const char *desc = json_string_value(
+                    json_object_get(jn_cmd, "description"));
+                snprintf(candidate, sizeof(candidate), "%.*s%s",
+                    (int)prefix_len, buf, name);
+                editline_add_completion(lc, candidate, desc);
+            }
+        }
+        return;
+    }
+
+    /* "<cmd> …" → complete parameter names from the cached schema. */
+    size_t cmd_len = (size_t)(first_space - body);
+    char cmd_name[128];
+    if(cmd_len == 0 || cmd_len >= sizeof(cmd_name)) {
+        return;
+    }
+    memcpy(cmd_name, body, cmd_len);
+    cmd_name[cmd_len] = 0;
+
+    json_t *jn_cmd = json_object_get(cache, cmd_name);
+    if(!jn_cmd) {
+        return;
+    }
+    json_t *jn_params = json_object_get(jn_cmd, "parameters");
+    if(!json_is_array(jn_params)) {
         return;
     }
     const char *last_token = strrchr(buf, ' ');
     last_token = last_token ? last_token + 1 : buf;
     if(strchr(last_token, '=')) {
-        /* TODO value completion — keep it simple for now. */
         return;
     }
     size_t ltoken_len = strlen(last_token);
     size_t head_len = (size_t)(last_token - buf);
-    for(const sdata_desc_t *pp = cmd_entry->schema; pp->name; pp++) {
-        if(empty_string(pp->name)) {
+
+    size_t idx;
+    json_t *jn_p;
+    json_array_foreach(jn_params, idx, jn_p) {
+        const char *pname = json_string_value(
+            json_object_get(jn_p, "parameter"));
+        if(empty_string(pname)) {
             continue;
         }
-        if(strncmp(pp->name, last_token, ltoken_len) == 0) {
+        if(line_has_param(body, pname)) {
+            continue;
+        }
+        if(strncmp(pname, last_token, ltoken_len) == 0) {
+            const char *pdesc = json_string_value(
+                json_object_get(jn_p, "description"));
             snprintf(candidate, sizeof(candidate), "%.*s%s=",
-                (int)head_len, buf, pp->name);
-            editline_add_completion(lc, candidate, pp->description);
+                (int)head_len, buf, pname);
+            editline_add_completion(lc, candidate, pdesc);
         }
     }
+}
+
+/***************************************************************************
+ *  Short labels shown inside the hint ("[param=str]", "<req=int>", ...).
+ ***************************************************************************/
+PRIVATE const char *short_type_label(const char *type)
+{
+    if(empty_string(type))                return "";
+    if(strcmp(type, "string") == 0)       return "str";
+    if(strcmp(type, "integer") == 0)      return "int";
+    if(strcmp(type, "boolean") == 0)      return "bool";
+    return type;
+}
+
+PRIVATE const char *short_dtp_label(uint8_t dtp)
+{
+    if(DTP_IS_STRING(dtp))  return "str";
+    if(DTP_IS_BOOLEAN(dtp)) return "bool";
+    if(DTP_IS_INTEGER(dtp)) return "int";
+    if(DTP_IS_REAL(dtp))    return "real";
+    if(DTP_IS_JSON(dtp))    return "json";
+    return "";
+}
+
+/***************************************************************************
+ *  Inline hint callback: after the user has typed "<cmd> ", list the
+ *  remaining parameters in gray (required as <name=type>, optional as
+ *  [name=type]). Params already on the line are skipped. Mirrors
+ *  ycommand's hint, splitting by '!' prefix (local table) vs remote cache.
+ ***************************************************************************/
+PRIVATE char *cli_hints_cb(
+    hgobj editline_gobj,
+    const char *buf,
+    int *out_color,
+    int *out_bold,
+    void *user_data)
+{
+    hgobj gobj = (hgobj)user_data;
+    if(!gobj || empty_string(buf)) {
+        return NULL;
+    }
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    const char *body = buf;
+    while(*body == ' ' || *body == '\t') body++;
+    if(*body == '*') body++;
+
+    BOOL is_local = (body[0] == '!');
+    if(is_local) {
+        body++;
+    }
+
+    const char *first_space = strchr(body, ' ');
+    if(!first_space) {
+        return NULL;
+    }
+    size_t cmd_len = (size_t)(first_space - body);
+    if(cmd_len == 0) {
+        return NULL;
+    }
+
+    gbuffer_t *gbuf = gbuffer_create(128, 4 * 1024);
+
+    if(is_local) {
+        const sdata_desc_t *cmd_entry = find_cli_local_command(body, cmd_len);
+        if(!cmd_entry || !cmd_entry->schema) {
+            gbuffer_decref(gbuf);
+            return NULL;
+        }
+        for(const sdata_desc_t *pp = cmd_entry->schema; pp->name; pp++) {
+            if(empty_string(pp->name)) {
+                continue;
+            }
+            if(line_has_param(body, pp->name)) {
+                continue;
+            }
+            BOOL required = (pp->flag & SDF_REQUIRED) ? TRUE : FALSE;
+            gbuffer_printf(gbuf, " %c%s=%s%c",
+                required ? '<' : '[',
+                pp->name,
+                short_dtp_label(pp->type),
+                required ? '>' : ']'
+            );
+        }
+    } else {
+        if(!__top_display_window__) {
+            gbuffer_decref(gbuf);
+            return NULL;
+        }
+        hgobj conn = gobj_read_pointer_attr(__top_display_window__, "user_data");
+        if(!conn) {
+            gbuffer_decref(gbuf);
+            return NULL;
+        }
+        char ckey[32];
+        conn_key(conn, ckey, sizeof(ckey));
+        json_t *cache = json_object_get(priv->remote_caches, ckey);
+        if(!cache) {
+            gbuffer_decref(gbuf);
+            return NULL;
+        }
+        char cmd_name[128];
+        if(cmd_len >= sizeof(cmd_name)) {
+            gbuffer_decref(gbuf);
+            return NULL;
+        }
+        memcpy(cmd_name, body, cmd_len);
+        cmd_name[cmd_len] = 0;
+        json_t *jn_cmd = json_object_get(cache, cmd_name);
+        if(!jn_cmd) {
+            gbuffer_decref(gbuf);
+            return NULL;
+        }
+        json_t *jn_params = json_object_get(jn_cmd, "parameters");
+        if(!json_is_array(jn_params) || json_array_size(jn_params) == 0) {
+            gbuffer_decref(gbuf);
+            return NULL;
+        }
+        size_t idx;
+        json_t *jn_p;
+        json_array_foreach(jn_params, idx, jn_p) {
+            const char *pname = json_string_value(json_object_get(jn_p, "parameter"));
+            if(empty_string(pname)) {
+                continue;
+            }
+            if(line_has_param(body, pname)) {
+                continue;
+            }
+            const char *ptype = json_string_value(json_object_get(jn_p, "type"));
+            const char *flag = json_string_value(json_object_get(jn_p, "flag"));
+            BOOL required = (flag && strstr(flag, "SDF_REQUIRED") != NULL);
+            gbuffer_printf(gbuf, " %c%s=%s%c",
+                required ? '<' : '[',
+                pname,
+                short_type_label(ptype),
+                required ? '>' : ']'
+            );
+        }
+    }
+
+    if(gbuffer_leftbytes(gbuf) == 0) {
+        gbuffer_decref(gbuf);
+        return NULL;
+    }
+    char *hint = gbmem_strdup(gbuffer_cur_rd_pointer(gbuf));
+    gbuffer_decref(gbuf);
+    if(out_color) *out_color = 90;
+    if(out_bold)  *out_bold  = 0;
+    return hint;
+}
+
+PRIVATE void cli_free_hint_cb(char *hint, void *user_data)
+{
+    gbmem_free(hint);
 }
 
 /*---------------------------------------------*
@@ -457,38 +872,6 @@ PRIVATE const trace_level_t s_user_trace_level[16] = {
 };
 
 
-/*---------------------------------------------*
- *              Private data
- *---------------------------------------------*/
-typedef struct _PRIVATE_DATA {
-    hgobj timer;
-    BOOL use_ncurses;
-    hgobj gwin_stdscr;
-    hgobj gobj_toptoolbar;
-    hgobj gobj_workareabox;
-    hgobj gobj_editbox;
-    hgobj gobj_editline;
-    hgobj gobj_bottomtoolbarbox;
-    hgobj gobj_stsline;
-
-    int tty_fd;
-    yev_event_h yev_reading;
-
-    BOOL on_mirror_tty;
-    char mirror_tty_name[NAME_MAX];
-    char mirror_tty_uuid[NAME_MAX];
-
-    FILE *file_saving_output;
-    json_t *jn_shortkeys;
-
-    json_t *jn_window_counters;
-
-    hgobj last_connection; // To use in not use_ncurses, work with the last agent connection
-} PRIVATE_DATA;
-
-
-
-
 
             /******************************
              *      Framework Methods
@@ -513,6 +896,8 @@ PRIVATE void mt_create(hgobj gobj)
         JSON_DECREF(jn_dict);
     }
     priv->jn_window_counters = json_object();
+    priv->remote_caches = json_object();
+    priv->pending_cache_fetches = json_object();
 
     /*
      *  Do copy of heavy used parameters, for quick access.
@@ -541,6 +926,8 @@ PRIVATE void mt_destroy(hgobj gobj)
 
     JSON_DECREF(priv->jn_window_counters);
     JSON_DECREF(priv->jn_shortkeys);
+    JSON_DECREF(priv->remote_caches);
+    JSON_DECREF(priv->pending_cache_fetches);
     EXEC_AND_RESET(yev_destroy_event, priv->yev_reading)
 }
 
@@ -613,6 +1000,9 @@ PRIVATE int mt_start(hgobj gobj)
     if(priv->gobj_editline) {
         editline_set_completion_callback(
             priv->gobj_editline, cli_completion_cb, gobj
+        );
+        editline_set_hints_callback(
+            priv->gobj_editline, cli_hints_cb, cli_free_hint_cb, gobj
         );
         priv->tty_fd = tty_keyboard_init();
         if(priv->tty_fd < 0) {
@@ -1271,24 +1661,27 @@ PRIVATE json_t *cmd_list_shortkey(hgobj gobj, const char *cmd, json_t *kw, hgobj
  ***************************************************************************/
 PRIVATE json_t *cmd_list_history(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
 {
-    const char *command = kw_get_str(gobj, kw, "command", 0, 0);
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+    const char *filter = kw_get_str(gobj, kw, "command", 0, 0);
     json_t *jn_data = json_array();
 
-    char history_file[PATH_MAX];
-    get_history_file(history_file, sizeof(history_file));
-
-    FILE *file = fopen(history_file, "r");
-    if(file) {
-        char temp[1024];
-        while(fgets(temp, sizeof(temp), file)) {
-            if(!command || strstr(temp, command)) {
-                left_justify(temp);
-                if(strlen(temp)>0) {
-                    json_array_append_new(jn_data, json_string(temp));
-                }
+    /* Live in-memory history with 1-based indices, mirroring ycommand's
+     * `history` output — the indices match the `!N` bang expansion
+     * performed up in ac_command. */
+    if(priv->gobj_editline) {
+        int n = editline_history_count(priv->gobj_editline);
+        char line[1100];
+        for(int i = 1; i <= n; i++) {
+            const char *h = editline_history_get(priv->gobj_editline, i);
+            if(!h || !*h) {
+                continue;
             }
+            if(!empty_string(filter) && !strstr(h, filter)) {
+                continue;
+            }
+            snprintf(line, sizeof(line), "%5d  %s", i, h);
+            json_array_append_new(jn_data, json_string(line));
         }
-        fclose(file);
     }
 
     return msg_iev_build_response(
@@ -1864,6 +2257,11 @@ PRIVATE int process_read(hgobj gobj, char *base, size_t nread)
                     gobj_send_event(dst_gobj, event_type->event_name, 0, gobj);
                     if(event_type->event_name == EV_EDITLINE_DEL_LINE) {
                         msg2statusline(gobj, 0, "%s", "");
+                        /* msg2statusline wrefresh's the status line and
+                         * steals the terminal cursor; repaint the editline
+                         * so the caret lands back on the input row. */
+                        gobj_send_event(priv->gobj_editline, EV_PAINT,
+                            json_object(), gobj);
                     }
                 } else {
                     gobj_log_error(gobj, 0,
@@ -2715,6 +3113,51 @@ PRIVATE int ac_command(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
     gobj_send_event(src, EV_GETTEXT, json_incref(kw_input_command), gobj); // EV_GETTEXT is EVF_KW_WRITING
     const char *command = kw_get_str(gobj, kw_input_command, "text", 0, 0);
 
+    /* Bash-style history expansion: `!N` runs history entry N, `!!` runs
+     * the previous line. Other `!xxx` forms (e.g. `!help`) fall through
+     * and are handled later as local c_cli commands. */
+    char expanded_cmd[4*1024] = {0};
+    if(command && command[0] == '!' && command[1] && priv->gobj_editline) {
+        const char *spec = command + 1;
+        const char *found = NULL;
+        BOOL is_hist = FALSE;
+        int n = editline_history_count(priv->gobj_editline);
+        if(spec[0] == '!' && spec[1] == 0) {
+            is_hist = TRUE;
+            if(n > 0) {
+                found = editline_history_get(priv->gobj_editline, n);
+            }
+        } else if(isdigit((unsigned char)spec[0])) {
+            is_hist = TRUE;
+            int idx = atoi(spec);
+            if(idx > 0) {
+                found = editline_history_get(priv->gobj_editline, idx);
+            }
+        }
+        if(is_hist) {
+            hgobj wn_err = get_top_display_window(gobj);
+            if(!found) {
+                display_webix_result(
+                    gobj,
+                    wn_err,
+                    msg_iev_build_response(
+                        gobj,
+                        -1,
+                        json_sprintf("%s: event not found", command),
+                        0,
+                        0,
+                        kw_incref(kw)
+                    )
+                );
+                KW_DECREF(kw_input_command);
+                KW_DECREF(kw);
+                return 0;
+            }
+            snprintf(expanded_cmd, sizeof(expanded_cmd), "%s", found);
+            command = expanded_cmd;
+        }
+    }
+
     char params_[4*1024];
     snprintf(params_, sizeof(params_), "%s", command);
     char *save_ptr = 0;
@@ -2956,6 +3399,10 @@ PRIVATE int ac_on_open(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
         gobj_write_pointer_attr(src, "user_data", 0);
     }
 
+    /* Warm the TAB completion cache for this connection. The response is
+     * intercepted in ac_mt_command_answer so it never reaches the display. */
+    request_remote_commands(gobj, src);
+
     hgobj wn_display_console = get_display_window(gobj, "console");
     display_webix_result(
         gobj,
@@ -2997,6 +3444,12 @@ PRIVATE int ac_on_close(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 
     json_object_set_new(priv->jn_window_counters, agent_name, json_integer(0));
 
+    /* Drop this connection's completion cache; next connect warms it again. */
+    char ckey[32];
+    conn_key(src, ckey, sizeof(ckey));
+    json_object_del(priv->remote_caches, ckey);
+    json_object_del(priv->pending_cache_fetches, ckey);
+
     destroy_static(gobj, agent_name);
     destroy_display_window(gobj, agent_name);
 
@@ -3033,6 +3486,28 @@ PRIVATE int ac_on_close(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
  ***************************************************************************/
 PRIVATE int ac_mt_command_answer(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 {
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    /* Intercept the silent list-gobj-commands responses used to warm the
+     * per-connection completion cache. Unrelated answers fall through. */
+    char ckey[32];
+    conn_key(src, ckey, sizeof(ckey));
+    int pending = (int)kw_get_int(gobj, priv->pending_cache_fetches, ckey, 0, 0);
+    if(pending > 0) {
+        json_t *jn_data = kw_get_dict_value(gobj, kw, "data", 0, 0);
+        BOOL is_cache = is_commands_list_response(jn_data);
+        int result = (int)kw_get_int(gobj, kw, "result", 0, 0);
+        if(is_cache || (result != 0 && jn_data == NULL)) {
+            if(is_cache) {
+                merge_commands_into_remote_cache(gobj, src, jn_data);
+            }
+            json_object_set_new(priv->pending_cache_fetches, ckey,
+                json_integer(pending - 1));
+            KW_DECREF(kw);
+            return 0;
+        }
+    }
+
     hgobj wn_display = gobj_read_pointer_attr(src, "user_data");
     display_webix_result(
         gobj,
