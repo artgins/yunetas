@@ -45,11 +45,14 @@ Here's how the schema translates to mbedTLS:
 
 #ifdef CONFIG_HAVE_MBEDTLS
 
+#include <time.h>
+
 #include <mbedtls/ssl.h>
 #include <mbedtls/error.h>
 #include <mbedtls/x509_crt.h>
 #include <mbedtls/pk.h>
 #include <mbedtls/debug.h>  /* mbedtls_debug_set_threshold() */
+#include <mbedtls/oid.h>    /* MBEDTLS_OID_* for DN printing */
 #include <psa/crypto.h>     /* psa_crypto_init() required by mbedtls v4.0 */
 
 #include <kwid.h>
@@ -63,13 +66,27 @@ Here's how the schema translates to mbedTLS:
 /***************************************************************
  *              Structures
  ***************************************************************/
+/*
+ * Refcounted TLS material shared between the live ytls_t "current" pointer
+ * and any sskt_t that was created while this state was current. This lets us
+ * hot-reload certificates without tearing down live connections: we build a
+ * fresh state, swap it into ytls->state, and decref the old one — live
+ * sessions keep the old state alive via their own ref until they close.
+ */
+typedef struct mbedtls_state_s {
+    int refcount;
+    mbedtls_ssl_config conf;
+    mbedtls_x509_crt cert;
+    mbedtls_pk_context pkey;
+    mbedtls_x509_crt ca_cert;
+    BOOL has_own_cert;
+    BOOL has_ca_cert;
+} mbedtls_state_t;
+
 typedef struct ytls_s {
     api_tls_t *api_tls;     // Must be the first item
     BOOL server;
-    mbedtls_ssl_config conf;  // mbedTLS SSL configuration
-    mbedtls_x509_crt cert;    // Own certificate (server, or client mutual-auth)
-    mbedtls_pk_context pkey;  // Private key
-    mbedtls_x509_crt ca_cert; // Trusted CA certificate for peer verification
+    mbedtls_state_t *state; // current TLS state (ytls owns one ref)
 
     // mbedtls_ctr_drbg_context ctr_drbg;
     // mbedtls_entropy_context entropy;
@@ -82,6 +99,7 @@ typedef struct ytls_s {
 
 typedef struct sskt_s {
     ytls_t *ytls;
+    mbedtls_state_t *state_ref; // pinned state for this session (owns one ref)
     mbedtls_ssl_context ssl; // mbedTLS SSL context
     BOOL handshake_informed;
     int (*on_handshake_done_cb)(void *user_data, int error);
@@ -117,6 +135,8 @@ PRIVATE hytls init(
     BOOL server
 );
 PRIVATE void cleanup(hytls ytls);
+PRIVATE int reload_certificates(hytls ytls, json_t *jn_config);
+PRIVATE json_t *get_cert_info(hytls ytls);
 PRIVATE const char *version(hytls ytls);
 PRIVATE hsskt new_secure_filter(
     hytls ytls,
@@ -139,6 +159,8 @@ PRIVATE api_tls_t api_tls = {
     "MBEDTLS",
     init,
     cleanup,
+    reload_certificates,
+    get_cert_info,
     version,
     new_secure_filter,
     free_secure_filter,
@@ -154,6 +176,165 @@ PRIVATE api_tls_t api_tls = {
 /***************************************************************
  *              Data
  ***************************************************************/
+
+/***************************************************************************
+ *  Refcount helpers for mbedtls_state_t
+ ***************************************************************************/
+PRIVATE mbedtls_state_t *state_incref(mbedtls_state_t *s)
+{
+    if(s) {
+        s->refcount++;
+    }
+    return s;
+}
+
+PRIVATE void state_decref(mbedtls_state_t *s)
+{
+    if(!s) {
+        return;
+    }
+    s->refcount--;
+    if(s->refcount <= 0) {
+        mbedtls_ssl_config_free(&s->conf);
+        mbedtls_x509_crt_free(&s->cert);
+        mbedtls_pk_free(&s->pkey);
+        mbedtls_x509_crt_free(&s->ca_cert);
+        GBMEM_FREE(s);
+    }
+}
+
+/***************************************************************************
+ *  Build a fully-configured mbedtls_state_t from jn_config.
+ *  Returns a new state with refcount=1 on success, or NULL on failure.
+ *
+ *  trace_arg is the ytls_t* used by the mbedtls debug callback; pass NULL
+ *  when called before ytls_t exists (init path) — the caller rewires the
+ *  debug callback afterwards if needed.
+ ***************************************************************************/
+PRIVATE mbedtls_state_t *build_state(
+    hgobj gobj,
+    json_t *jn_config,
+    BOOL server,
+    BOOL trace_tls,
+    void *trace_arg
+)
+{
+    mbedtls_state_t *s = GBMEM_MALLOC(sizeof(mbedtls_state_t));
+    if(!s) {
+        gobj_log_error(gobj, 0,
+            "function",         "%s", __FUNCTION__,
+            "msgset",           "%s", MSGSET_MEMORY_ERROR,
+            "msg",              "%s", "no memory for sizeof(mbedtls_state_t)",
+            NULL
+        );
+        return NULL;
+    }
+    s->refcount = 1;
+    mbedtls_ssl_config_init(&s->conf);
+    mbedtls_x509_crt_init(&s->cert);
+    mbedtls_pk_init(&s->pkey);
+    mbedtls_x509_crt_init(&s->ca_cert);
+
+    if(mbedtls_ssl_config_defaults(
+        &s->conf,
+        server ? MBEDTLS_SSL_IS_SERVER : MBEDTLS_SSL_IS_CLIENT,
+        MBEDTLS_SSL_TRANSPORT_STREAM,
+        MBEDTLS_SSL_PRESET_DEFAULT
+    ) != 0) {
+        gobj_log_error(gobj, 0,
+            "function",         "%s", __FUNCTION__,
+            "msgset",           "%s", MSGSET_MBEDTLS_ERROR,
+            "msg",              "%s", "mbedtls_ssl_config_defaults() FAILED",
+            NULL
+        );
+        state_decref(s);
+        return NULL;
+    }
+
+    const char *ssl_certificate = kw_get_str(
+        gobj, jn_config, "ssl_certificate", "", server ? KW_REQUIRED : 0
+    );
+    const char *ssl_certificate_key = kw_get_str(
+        gobj, jn_config, "ssl_certificate_key", "", server ? KW_REQUIRED : 0
+    );
+
+    if(ssl_certificate && ssl_certificate[0] != '\0') {
+        if(mbedtls_x509_crt_parse_file(&s->cert, ssl_certificate) != 0) {
+            gobj_log_error(gobj, 0,
+                "function",         "%s", __FUNCTION__,
+                "msgset",           "%s", MSGSET_MBEDTLS_ERROR,
+                "msg",              "%s", "mbedtls_x509_crt_parse_file() FAILED",
+                "cert",             "%s", ssl_certificate,
+                NULL
+            );
+            state_decref(s);
+            return NULL;
+        }
+
+        if(mbedtls_pk_parse_keyfile(
+            &s->pkey,
+            ssl_certificate_key,
+            NULL
+        ) != 0) {
+            gobj_log_error(gobj, 0,
+                "function",         "%s", __FUNCTION__,
+                "msgset",           "%s", MSGSET_MBEDTLS_ERROR,
+                "msg",              "%s", "mbedtls_pk_parse_keyfile() FAILED",
+                "cert_key",         "%s", ssl_certificate_key,
+                NULL
+            );
+            state_decref(s);
+            return NULL;
+        }
+
+        if(mbedtls_ssl_conf_own_cert(&s->conf, &s->cert, &s->pkey) != 0) {
+            gobj_log_error(gobj, 0,
+                "function",         "%s", __FUNCTION__,
+                "msgset",           "%s", MSGSET_MBEDTLS_ERROR,
+                "msg",              "%s", "mbedtls_ssl_conf_own_cert() FAILED (key does not match cert?)",
+                "cert",             "%s", ssl_certificate,
+                "cert_key",         "%s", ssl_certificate_key,
+                NULL
+            );
+            state_decref(s);
+            return NULL;
+        }
+        s->has_own_cert = TRUE;
+    }
+
+    const char *ssl_trusted_certificate = kw_get_str(
+        gobj, jn_config, "ssl_trusted_certificate", "", 0
+    );
+    if(ssl_trusted_certificate && ssl_trusted_certificate[0] != '\0') {
+        if(mbedtls_x509_crt_parse_file(&s->ca_cert, ssl_trusted_certificate) != 0) {
+            gobj_log_error(gobj, 0,
+                "function",         "%s", __FUNCTION__,
+                "msgset",           "%s", MSGSET_MBEDTLS_ERROR,
+                "msg",              "%s", "mbedtls_x509_crt_parse_file() FAILED for trusted cert",
+                "ssl_trusted_certificate", "%s", ssl_trusted_certificate,
+                NULL
+            );
+            state_decref(s);
+            return NULL;
+        }
+        mbedtls_ssl_conf_ca_chain(&s->conf, &s->ca_cert, NULL);
+        if(server) {
+            mbedtls_ssl_conf_authmode(&s->conf, MBEDTLS_SSL_VERIFY_OPTIONAL);
+        } else {
+            mbedtls_ssl_conf_authmode(&s->conf, MBEDTLS_SSL_VERIFY_REQUIRED);
+        }
+        s->has_ca_cert = TRUE;
+    } else {
+        mbedtls_ssl_conf_authmode(&s->conf, MBEDTLS_SSL_VERIFY_NONE);
+    }
+
+    if(trace_tls && trace_arg) {
+        mbedtls_debug_set_threshold(1);
+        mbedtls_ssl_conf_dbg(&s->conf, mbedtls_debug_callback, trace_arg);
+    }
+
+    return s;
+}
 
 /***************************************************************************
  *
@@ -189,151 +370,148 @@ PRIVATE hytls init(
         return NULL;
     }
 
-    // Initialize mbedTLS structures
-    mbedtls_ssl_config_init(&ytls->conf);
-    mbedtls_x509_crt_init(&ytls->cert);
-    mbedtls_pk_init(&ytls->pkey);
-    mbedtls_x509_crt_init(&ytls->ca_cert);
-    // mbedtls_ctr_drbg_init(&ytls->ctr_drbg);
-    // mbedtls_entropy_init(&ytls->entropy);
-
-    // Seed the CTR-DRBG
-    // const char *pers = "tls";
-    // if(mbedtls_ctr_drbg_seed(
-    //     &ytls->ctr_drbg,
-    //     mbedtls_entropy_func,
-    //     &ytls->entropy,
-    //     (const unsigned char *)pers,
-    //     strlen(pers)
-    // ) != 0) {
-    //     gobj_log_error(gobj, 0,
-    //         "function",         "%s", __FUNCTION__,
-    //         "msgset",           "%s", MSGSET_MBEDTLS_ERROR,
-    //         "msg",              "%s", "mbedtls_ctr_drbg_seed() FAILED",
-    //         NULL
-    //     );
-    //     cleanup((hytls)ytls);
-    //     return NULL;
-    // }
-
-    // Set default SSL configuration
-    if(mbedtls_ssl_config_defaults(
-        &ytls->conf,
-        server ? MBEDTLS_SSL_IS_SERVER : MBEDTLS_SSL_IS_CLIENT,
-        MBEDTLS_SSL_TRANSPORT_STREAM,
-        MBEDTLS_SSL_PRESET_DEFAULT
-    ) != 0) {
-        gobj_log_error(gobj, 0,
-            "function",         "%s", __FUNCTION__,
-            "msgset",           "%s", MSGSET_MBEDTLS_ERROR,
-            "msg",              "%s", "mbedtls_ssl_config_defaults() FAILED",
-            NULL
-        );
-        cleanup((hytls)ytls);
-        return NULL;
-    }
-
-    // Load own certificate and private key (required for server; optional for mutual-TLS client)
-    const char *ssl_certificate = kw_get_str(
-        gobj, jn_config, "ssl_certificate", "", server ? KW_REQUIRED : 0
-    );
-    const char *ssl_certificate_key = kw_get_str(
-        gobj, jn_config, "ssl_certificate_key", "", server ? KW_REQUIRED : 0
-    );
-
-    if(ssl_certificate && ssl_certificate[0] != '\0') {
-        if(mbedtls_x509_crt_parse_file(&ytls->cert, ssl_certificate) != 0) {
-            gobj_log_error(gobj, 0,
-                "function",         "%s", __FUNCTION__,
-                "msgset",           "%s", MSGSET_MBEDTLS_ERROR,
-                "msg",              "%s", "mbedtls_x509_crt_parse_file() FAILED",
-                "cert",             "%s", ssl_certificate,
-                NULL
-            );
-            cleanup((hytls)ytls);
-            return NULL;
-        }
-
-        if(mbedtls_pk_parse_keyfile(
-            &ytls->pkey,
-            ssl_certificate_key,
-            NULL   /* password: NULL for unencrypted keys; f_rng/p_rng removed in v4.0 */
-        ) != 0) {
-            gobj_log_error(gobj, 0,
-                "function",         "%s", __FUNCTION__,
-                "msgset",           "%s", MSGSET_MBEDTLS_ERROR,
-                "msg",              "%s", "mbedtls_pk_parse_keyfile() FAILED",
-                "cert_key",         "%s", ssl_certificate_key,
-                NULL
-            );
-            cleanup((hytls)ytls);
-            return NULL;
-        }
-
-        mbedtls_ssl_conf_own_cert(&ytls->conf, &ytls->cert, &ytls->pkey);
-    }
-
-    // Configure peer certificate verification
-    const char *ssl_trusted_certificate = kw_get_str(
-        gobj, jn_config, "ssl_trusted_certificate", "", 0
-    );
-    if(ssl_trusted_certificate && ssl_trusted_certificate[0] != '\0') {
-        if(mbedtls_x509_crt_parse_file(&ytls->ca_cert, ssl_trusted_certificate) != 0) {
-            gobj_log_error(gobj, 0,
-                "function",         "%s", __FUNCTION__,
-                "msgset",           "%s", MSGSET_MBEDTLS_ERROR,
-                "msg",              "%s", "mbedtls_x509_crt_parse_file() FAILED for trusted cert",
-                "ssl_trusted_certificate", "%s", ssl_trusted_certificate,
-                NULL
-            );
-            cleanup((hytls)ytls);
-            return NULL;
-        }
-        mbedtls_ssl_conf_ca_chain(&ytls->conf, &ytls->ca_cert, NULL);
-        if(server) {
-            // Server: validate client cert if presented, but don't require it
-            mbedtls_ssl_conf_authmode(&ytls->conf, MBEDTLS_SSL_VERIFY_OPTIONAL);
-        } else {
-            // Client: always verify the server certificate
-            mbedtls_ssl_conf_authmode(&ytls->conf, MBEDTLS_SSL_VERIFY_REQUIRED);
-        }
-    } else {
-        // No trusted CA configured — disable peer verification
-        // (suitable for self-signed certs in development/testing)
-        mbedtls_ssl_conf_authmode(&ytls->conf, MBEDTLS_SSL_VERIFY_NONE);
-    }
-
-    // Set the API dispatch table (MUST be first field, required by __ytls_t__ cast)
     ytls->api_tls = &api_tls;
-
-    // Configure other parameters
     ytls->server = server;
-    ytls->rx_buffer_size = kw_get_int(
-        gobj, jn_config, "rx_buffer_size", 32*1024, 0
-    );
-    ytls->trace_tls = kw_get_bool(
-        gobj, jn_config, "trace_tls", 0, KW_WILD_NUMBER
-    );
     ytls->gobj = gobj;
+    ytls->rx_buffer_size = kw_get_int(gobj, jn_config, "rx_buffer_size", 32*1024, 0);
+    ytls->trace_tls = kw_get_bool(gobj, jn_config, "trace_tls", 0, KW_WILD_NUMBER);
     snprintf(ytls->ssl_server_name, sizeof(ytls->ssl_server_name), "%s",
         kw_get_str(gobj, jn_config, "ssl_server_name", "", 0)
     );
 
-    // Activate mbedTLS internal debug callback if trace requested.
-    // mbedtls_debug_set_threshold() is global: level 1=errors, 2=states,
-    // 3=info, 4=verbose. Default is 0 (silent) — must be raised explicitly.
     if(ytls->trace_tls) {
-        gobj_log_debug(ytls->gobj, 0,
+        gobj_log_debug(gobj, 0,
             "function",         "%s", __FUNCTION__,
             "msgset",           "%s", MSGSET_INFO,
             "msg",              "%s", "MBEDTLS: set trace TRUE",
             NULL
         );
-        mbedtls_debug_set_threshold(1);
-        mbedtls_ssl_conf_dbg(&ytls->conf, mbedtls_debug_callback, ytls);
+    }
+
+    ytls->state = build_state(gobj, jn_config, server, ytls->trace_tls, ytls);
+    if(!ytls->state) {
+        GBMEM_FREE(ytls);
+        return NULL;
     }
 
     return (hytls)ytls;
+}
+
+/***************************************************************************
+ *  Hot-reload certificates: build a fresh state, swap it in, and release
+ *  our reference to the old one. Existing sessions keep the old state alive
+ *  via their own ref (state_ref in sskt_t) until they close.
+ *
+ *  On failure, the previous state is kept intact.
+ ***************************************************************************/
+PRIVATE int reload_certificates(hytls ytls_, json_t *jn_config)
+{
+    ytls_t *ytls = (ytls_t *)ytls_;
+    if(!ytls) {
+        return -1;
+    }
+    hgobj gobj = ytls->gobj;
+
+    BOOL trace_tls = kw_get_bool(gobj, jn_config, "trace_tls", ytls->trace_tls, KW_WILD_NUMBER);
+
+    mbedtls_state_t *new_state = build_state(gobj, jn_config, ytls->server, trace_tls, ytls);
+    if(!new_state) {
+        gobj_log_error(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_MBEDTLS_ERROR,
+            "msg",          "%s", "reload_certificates FAILED: keeping previous state",
+            NULL
+        );
+        return -1;
+    }
+
+    mbedtls_state_t *old_state = ytls->state;
+    ytls->state = new_state;
+    ytls->trace_tls = trace_tls;
+
+    state_decref(old_state);  // live sskts keep their own ref
+
+    gobj_log_info(gobj, 0,
+        "function",     "%s", __FUNCTION__,
+        "msgset",       "%s", MSGSET_INFO,
+        "msg",          "%s", "TLS certificates reloaded",
+        NULL
+    );
+    return 0;
+}
+
+/***************************************************************************
+ *  Convert mbedtls_x509_time to Unix time_t.
+ *  Returns 0 on failure.
+ ***************************************************************************/
+PRIVATE time_t mbedtls_time_to_unix(const mbedtls_x509_time *t)
+{
+    if(!t) {
+        return 0;
+    }
+    struct tm tm;
+    memset(&tm, 0, sizeof(tm));
+    tm.tm_year = t->year - 1900;
+    tm.tm_mon  = t->mon  - 1;
+    tm.tm_mday = t->day;
+    tm.tm_hour = t->hour;
+    tm.tm_min  = t->min;
+    tm.tm_sec  = t->sec;
+    /* mbedtls_x509_time is UTC; use timegm to avoid local-TZ shift. */
+    return timegm(&tm);
+}
+
+/***************************************************************************
+ *  Introspect the server certificate currently loaded in ytls->state->cert.
+ *  Caller owns the returned json_t; returns NULL when no cert is loaded.
+ ***************************************************************************/
+PRIVATE json_t *get_cert_info(hytls ytls_)
+{
+    ytls_t *ytls = (ytls_t *)ytls_;
+    if(!ytls || !ytls->state || !ytls->state->has_own_cert) {
+        return NULL;
+    }
+    mbedtls_x509_crt *cert = &ytls->state->cert;
+
+    json_t *info = json_object();
+
+    /* Subject / issuer as one-line DN. */
+    char buf[512];
+    int n;
+    n = mbedtls_x509_dn_gets(buf, sizeof(buf), &cert->subject);
+    if(n > 0) {
+        json_object_set_new(info, "subject", json_string(buf));
+    }
+    n = mbedtls_x509_dn_gets(buf, sizeof(buf), &cert->issuer);
+    if(n > 0) {
+        json_object_set_new(info, "issuer", json_string(buf));
+    }
+
+    /* Validity window as Unix timestamps. */
+    json_object_set_new(info, "not_before",
+        json_integer((json_int_t)mbedtls_time_to_unix(&cert->valid_from)));
+    json_object_set_new(info, "not_after",
+        json_integer((json_int_t)mbedtls_time_to_unix(&cert->valid_to)));
+
+    /* Serial as uppercase hex. mbedtls_x509_serial_gets renders it with a
+     * colon separator (e.g. "03:A4:..."), which is human friendly; we
+     * strip the colons to match the OpenSSL backend's format. */
+    n = mbedtls_x509_serial_gets(buf, sizeof(buf), &cert->serial);
+    if(n > 0) {
+        char serial_hex[256];
+        size_t j = 0;
+        for(size_t i = 0; buf[i] && j < sizeof(serial_hex) - 1; i++) {
+            if(buf[i] != ':') {
+                char c = buf[i];
+                if(c >= 'a' && c <= 'f') c = (char)(c - 'a' + 'A');
+                serial_hex[j++] = c;
+            }
+        }
+        serial_hex[j] = '\0';
+        json_object_set_new(info, "serial", json_string(serial_hex));
+    }
+
+    return info;
 }
 
 /***************************************************************************
@@ -346,13 +524,10 @@ PRIVATE void cleanup(hytls ytls_)
         return;
     }
 
-    // Free mbedTLS structures
-    mbedtls_ssl_config_free(&ytls->conf);
-    mbedtls_x509_crt_free(&ytls->cert);
-    mbedtls_pk_free(&ytls->pkey);
-    mbedtls_x509_crt_free(&ytls->ca_cert);
-    // mbedtls_ctr_drbg_free(&ytls->ctr_drbg);
-    // mbedtls_entropy_free(&ytls->entropy);
+    // Release our ref on the current state. If any sskt still holds a ref,
+    // the state lives until the last one is freed.
+    state_decref(ytls->state);
+    ytls->state = NULL;
 
     // Free the ytls structure itself
     GBMEM_FREE(ytls);
@@ -451,16 +626,32 @@ PRIVATE hsskt new_secure_filter(
         return NULL;
     }
 
+    // Pin the current TLS state for the lifetime of this session. The state
+    // may be swapped by reload_certificates() later, but this session keeps
+    // using the state it was created with.
+    sskt->state_ref = state_incref(ytls->state);
+    if(!sskt->state_ref) {
+        gobj_log_error(ytls->gobj, 0,
+            "function",         "%s", __FUNCTION__,
+            "msgset",           "%s", MSGSET_MBEDTLS_ERROR,
+            "msg",              "%s", "no TLS state (ytls not initialised?)",
+            NULL
+        );
+        GBMEM_FREE(sskt);
+        return NULL;
+    }
+
     // Initialize the mbedTLS SSL context
     mbedtls_ssl_init(&sskt->ssl);
 
-    if(mbedtls_ssl_setup(&sskt->ssl, &ytls->conf) != 0) {
+    if(mbedtls_ssl_setup(&sskt->ssl, &sskt->state_ref->conf) != 0) {
         gobj_log_error(ytls->gobj, 0,
             "function",         "%s", __FUNCTION__,
             "msgset",           "%s", MSGSET_MBEDTLS_ERROR,
             "msg",              "%s", "mbedtls_ssl_setup() FAILED",
             NULL
         );
+        state_decref(sskt->state_ref);
         GBMEM_FREE(sskt);
         return NULL;
     }
@@ -595,7 +786,8 @@ PRIVATE void free_secure_filter(hsskt sskt_)
         *sskt->alive = FALSE;
     }
 
-    // Free the mbedTLS SSL context
+    // Free the mbedTLS SSL context (must happen BEFORE releasing the state
+    // reference, since ssl still points into state->conf).
     mbedtls_ssl_free(&sskt->ssl);
 
     // Free the encrypted buffer if it exists
@@ -607,6 +799,10 @@ PRIVATE void free_secure_filter(hsskt sskt_)
     if(sskt->output_buffer) {
         gbuffer_decref(sskt->output_buffer);
     }
+
+    // Release this session's ref on the TLS state. If ytls has already been
+    // cleaned up and/or a newer state is current, the old state is freed here.
+    state_decref(sskt->state_ref);
 
     // Free the sskt structure itself
     GBMEM_FREE(sskt);
@@ -645,12 +841,15 @@ PRIVATE void set_trace(hsskt sskt_, BOOL set)
         NULL
     );
 
-    if(ytls->trace_tls) {
-        mbedtls_debug_set_threshold(1);
-        mbedtls_ssl_conf_dbg(&ytls->conf, mbedtls_debug_callback, ytls);
-    } else {
-        mbedtls_debug_set_threshold(0);
-        mbedtls_ssl_conf_dbg(&ytls->conf, NULL, NULL);
+    // Apply the trace setting to this session's pinned state config.
+    if(sskt->state_ref) {
+        if(ytls->trace_tls) {
+            mbedtls_debug_set_threshold(1);
+            mbedtls_ssl_conf_dbg(&sskt->state_ref->conf, mbedtls_debug_callback, ytls);
+        } else {
+            mbedtls_debug_set_threshold(0);
+            mbedtls_ssl_conf_dbg(&sskt->state_ref->conf, NULL, NULL);
+        }
     }
 }
 

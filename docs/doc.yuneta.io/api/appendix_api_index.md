@@ -1436,7 +1436,11 @@ with links to the API documentation.
 
 12. [**`ytls_flush`**](ytls/ytls.md#ytls_flush) — `PUBLIC int ytls_flush(hytls ytls, hsskt sskt)`
 
-**Total: 14 functions**
+13. [**`ytls_reload_certificates`**](ytls/ytls.md#ytls_reload_certificates) — `PUBLIC int ytls_reload_certificates( hytls ytls, json_t *jn_config )`
+
+14. [**`ytls_get_cert_info`**](ytls/ytls.md#ytls_get_cert_info) — `PUBLIC json_t *ytls_get_cert_info( hytls ytls )`
+
+**Total: 16 functions**
 
 ## yev_loop (Event Loop)
 
@@ -3152,9 +3156,11 @@ All **957 functions** sorted alphabetically with their source header.
 | [**`ytls_encrypt_data`**](ytls/ytls.md#ytls_encrypt_data) | `ytls.h` | ytls (TLS Abstraction) |
 | [**`ytls_flush`**](ytls/ytls.md#ytls_flush) | `ytls.h` | ytls (TLS Abstraction) |
 | [**`ytls_free_secure_filter`**](ytls/ytls.md#ytls_free_secure_filter) | `ytls.h` | ytls (TLS Abstraction) |
+| [**`ytls_get_cert_info`**](ytls/ytls.md#ytls_get_cert_info) | `ytls.h` | ytls (TLS Abstraction) |
 | [**`ytls_get_last_error`**](ytls/ytls.md#ytls_get_last_error) | `ytls.h` | ytls (TLS Abstraction) |
 | [**`ytls_init`**](ytls/ytls.md#ytls_init) | `ytls.h` | ytls (TLS Abstraction) |
 | [**`ytls_new_secure_filter`**](ytls/ytls.md#ytls_new_secure_filter) | `ytls.h` | ytls (TLS Abstraction) |
+| [**`ytls_reload_certificates`**](ytls/ytls.md#ytls_reload_certificates) | `ytls.h` | ytls (TLS Abstraction) |
 | [**`ytls_set_trace`**](ytls/ytls.md#ytls_set_trace) | `ytls.h` | ytls (TLS Abstraction) |
 | [**`ytls_shutdown`**](ytls/ytls.md#ytls_shutdown) | `ytls.h` | ytls (TLS Abstraction) |
 | [**`ytls_version`**](ytls/ytls.md#ytls_version) | `ytls.h` | ytls (TLS Abstraction) |

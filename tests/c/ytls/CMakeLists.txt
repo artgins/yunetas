@@ -6,10 +6,6 @@ get_filename_component(current_directory_name ${CMAKE_CURRENT_SOURCE_DIR} NAME)
 
 #-----------------------------------------------------#
 #   Resolve YUNETAS_BASE
-#   Get yunetas base path:
-#   - defined in environment variable YUNETAS_BASE
-#   - else default "/yuneta/development/yunetas"
-#   - else default "/yuneta/development"
 #-----------------------------------------------------#
 if(DEFINED ENV{YUNETAS_BASE} AND IS_DIRECTORY "$ENV{YUNETAS_BASE}")
   set(YUNETAS_BASE "$ENV{YUNETAS_BASE}")
@@ -24,20 +20,14 @@ else()
       "or ensure /yuneta/development[/yunetas] exists.")
 endif()
 
-message(DEBUG "Using YUNETAS_BASE: ${YUNETAS_BASE}")
-
-# Ensure the expected cmake file exists
 set(_yunetas_project_cmake "${YUNETAS_BASE}/tools/cmake/project.cmake")
 if(NOT EXISTS "${_yunetas_project_cmake}")
   message(FATAL_ERROR "Missing: ${_yunetas_project_cmake}")
 endif()
-
 include("${_yunetas_project_cmake}")
 
 #----------------------------------------#
 #   Static binaries
-#   To compile as static,
-#   also using gcc, set next:
 #----------------------------------------#
 if(CONFIG_FULLY_STATIC)
     set(CMAKE_EXE_LINKER_FLAGS "-static -Wl,-Bstatic")
@@ -46,14 +36,13 @@ if(CONFIG_FULLY_STATIC)
     set(BUILD_SHARED_LIBS OFF)
 endif()
 
-
 ##############################################
 #   Source
 ##############################################
 set(SRCS
-    test_yevent_traffic_secure1
-    test_yevent_reload_live
-    test_yevent_reload_stress
+    test_cert_reload
+    test_cert_info
+    test_cert_reload_mem
 )
 
 ##############################################

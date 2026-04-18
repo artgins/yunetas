@@ -354,6 +354,100 @@ PRIVATE GOBJ_DEFINE_GCLASS(MY_CLASS);
 // 6. register_my_class() populates and registers the descriptor
 ```
 
+### GClass section layout (authoritative)
+
+Every `.c` file that defines a GClass must lay out its function
+definitions under the **five section banners** documented in the
+skeleton
+[`utils/c/yuno-skeleton/skeletons/gclass_service/c_+rootname+.c_tmpl`](utils/c/yuno-skeleton/skeletons/gclass_service/c_%2Brootname%2B.c_tmpl).
+
+Canonical order — **always in this order**:
+
+1. **Framework Methods** — `mt_create`, `mt_destroy`, `mt_start`,
+   `mt_stop`, `mt_writing`, `mt_play`, `mt_pause`, etc.
+2. **Commands** — ONLY the `cmd_*` entry points registered in the
+   `command_table`. No helpers.
+3. **Local Methods** — every helper function used by commands, actions
+   or framework methods (e.g. `cb_walk_*`, `reload_*_from_attrs`,
+   callbacks like `yev_callback`).
+4. **Actions** — `ac_*` functions referenced by `ev_action_t` state
+   tables.
+5. **FSM** — global methods table (`gmt`), `GOBJ_DEFINE_GCLASS`, state
+   tables, event types, and `create_gclass()` / `register_*()`.
+
+Exact banner format (note the indentation and the spacing between the
+banner and adjacent code — four blank lines before and after):
+
+```c
+                    /***************************
+                     *      Commands
+                     ***************************/
+```
+
+The FSM banner uses a slightly longer form:
+
+```c
+                    /***************************
+                     *                          FSM
+                     ***************************/
+```
+
+**Rules that follow from this layout** (learned the hard way while
+reviewing the cert-reload feature):
+
+- **All five banners must be present**, even when a section is empty.
+  An empty Commands section is still valid — the banner documents
+  intent and keeps the layout uniform.
+- **Helpers used by commands belong in Local Methods**, never in
+  Commands. The Commands section holds only the `cmd_*` functions
+  that appear in `command_table`. For example, `reload_ytls_from_attrs`
+  (used by `cmd_reload_certs`) goes under Local Methods.
+- **Walk callbacks (`cb_walk_*`), tree helpers, parsing helpers,
+  conversion helpers** — Local Methods.
+- Do **not** introduce a duplicate banner when the file already has
+  the target section. Merge new functions into the existing section
+  instead.
+- A few historic gclasses predate the skeleton and have Local Methods
+  placed **before** Commands (e.g. `c_tcp_s.c`, `c_udp_s.c`). When
+  adding new code to such files, merge into the existing sections
+  rather than reordering them — reordering pollutes `git blame` for
+  unrelated code. Greenfield gclasses should always follow the
+  skeleton order above.
+
+`c_yuno.c` and `c_agent.c` are the canonical large-gclass examples of
+this layout; `c_timer.c` is the minimal example.
+
+### Writing tests against the gobj framework
+
+Two gotchas that break tests at runtime (not at compile time) — learned
+from reviewer fixes on the cert-reload test suite:
+
+- **`gobj_end()` must run BEFORE any `get_cur_system_memory()` check.**
+  `gobj_start_up()` allocates a small baseline (measured ~104 bytes)
+  that is only freed by `gobj_end()`. If the leak check happens first,
+  it always reports that baseline as a leak in debug builds with
+  `CONFIG_DEBUG_TRACK_MEMORY`, and the test fails regardless of
+  whether the code under test is clean. Pattern:
+
+  ```c
+  do_test();
+  gobj_end();                      // free baseline FIRST
+  size_t leaked = get_cur_system_memory();
+  if(leaked != 0) { /* real leak */ }
+  ```
+
+  To tell a real leak from the baseline, probe the same check across
+  0 / 1 / N iterations of the code under test: a constant delta means
+  the extra allocation belongs to startup, not to the loop.
+
+- **`set_expected_results()` + `test_json(NULL)` uses a strict FIFO.**
+  Every `gobj_log_info` / `gobj_info_msg` emitted during the test must
+  appear in the `error_list` **once per emission, in order**. If the
+  test runs a phase twice (e.g. two message exchanges sandwiching a
+  reload), every recurring log line must appear twice in the list. A
+  shorter list causes the extra emissions to be flagged as unexpected
+  and the test fails even when the code is correct.
+
 ### Event Loop & Async I/O
 
 `yev_loop` drives everything using **Linux io_uring** (not epoll). GClasses attach `yev_event_t` handles for:

@@ -82,6 +82,8 @@ typedef struct api_tls_s {
         BOOL server
     );
     void (*cleanup)(hytls ytls);
+    int (*reload_certificates)(hytls ytls, json_t *jn_config /* not owned */);
+    json_t *(*get_cert_info)(hytls ytls);
     const char * (*version)(hytls ytls);
     hsskt (*new_secure_filter)(
         hytls ytls,
@@ -146,6 +148,36 @@ PUBLIC hytls ytls_init(
     Cleanup tls context
 **rst**/
 PUBLIC void ytls_cleanup(hytls ytls);
+
+/**rst**
+    Reload certificates without disrupting live connections.
+
+    Builds a fresh TLS context from jn_config (same keys as ytls_init) and
+    atomically swaps it into ytls. Existing secure filters (live connections)
+    keep the old context alive via refcount until they close; new filters
+    created after the call use the new context with the fresh certificates.
+
+    Returns 0 on success, -1 on failure (the previous context is kept intact).
+**rst**/
+PUBLIC int ytls_reload_certificates(
+    hytls ytls,
+    json_t *jn_config   // not owned
+);
+
+/**rst**
+    Return metadata about the currently loaded server certificate.
+
+    Fields in the returned JSON (missing for client ytls / no cert loaded):
+      - "subject"    (string)  X.509 subject DN, one-line form
+      - "issuer"     (string)  X.509 issuer DN, one-line form
+      - "not_before" (integer) Unix ts of certificate's notBefore
+      - "not_after"  (integer) Unix ts of certificate's notAfter
+      - "serial"     (string)  Serial number, uppercase hex
+
+    Returns a new json object owned by the caller, or NULL if no cert info
+    is available (e.g. client-side ytls, or backend that can't introspect).
+**rst**/
+PUBLIC json_t *ytls_get_cert_info(hytls ytls);
 
 /**rst**
     Version tls

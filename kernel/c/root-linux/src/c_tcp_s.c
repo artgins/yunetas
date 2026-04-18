@@ -9,6 +9,7 @@
  *          All Rights Reserved.
  ****************************************************************************/
 #include <string.h>
+#include <time.h>
 #include <unistd.h>
 
 #include <gobj.h>
@@ -21,6 +22,7 @@
 #include "c_channel.h"
 #include "c_tcp.h"
 #include "c_tcp_s.h"
+#include "msg_ievent.h"
 
 /***************************************************************************
  *              Constants
@@ -34,11 +36,32 @@
  *              Prototypes
  ***************************************************************************/
 PRIVATE int yev_callback(yev_event_h yev_event);
+PRIVATE int reload_ytls_from_attrs(hgobj gobj);
+PRIVATE json_t *cmd_reload_certs(hgobj gobj, const char *cmd, json_t *kw, hgobj src);
+PRIVATE json_t *cmd_view_cert(hgobj gobj, const char *cmd, json_t *kw, hgobj src);
 
 
 /***************************************************************************
  *          Data: config, public data, private data
  ***************************************************************************/
+
+/*---------------------------------------------*
+ *      Commands
+ *---------------------------------------------*/
+PRIVATE sdata_desc_t pm_reload_certs[] = {
+/*-PM----type-----------name------------flag------------default-----description---------- */
+SDATA_END()
+};
+PRIVATE sdata_desc_t pm_view_cert[] = {
+SDATA_END()
+};
+
+PRIVATE sdata_desc_t command_table[] = {
+/*-CMD---type-----------name-------------alias---items------------json_fn-----------description---------- */
+SDATACM(DTP_SCHEMA,     "reload-certs",  0,      pm_reload_certs, cmd_reload_certs, "Reload TLS certificates from the 'crypto' attribute without dropping active connections"),
+SDATACM(DTP_SCHEMA,     "view-cert",     0,      pm_view_cert,    cmd_view_cert,    "Show metadata of the currently loaded TLS server certificate (subject, issuer, notBefore, notAfter, serial, days_remaining)"),
+SDATA_END()
+};
 
 /*---------------------------------------------*
  *      Attributes
@@ -162,6 +185,17 @@ PRIVATE void mt_writing(hgobj gobj, const char *path)
     ELIF_EQ_SET_PRIV(trace_tls,         gobj_read_bool_attr)
     ELIF_EQ_SET_PRIV(only_allowed_ips,  gobj_read_bool_attr)
     END_EQ_SET_PRIV()
+
+    /*
+     * If the 'crypto' attribute is written while the listener is running with
+     * TLS enabled, hot-reload the certificates. New connections will use the
+     * new cert/key; existing TLS sessions keep working until they close.
+     */
+    if(path && strcmp(path, "crypto") == 0) {
+        if(priv->use_ssl && priv->ytls && gobj_is_running(gobj)) {
+            reload_ytls_from_attrs(gobj);
+        }
+    }
 }
 
 /***************************************************************************
@@ -760,6 +794,140 @@ PRIVATE int yev_callback(yev_event_h yev_event)
     return 0;
 }
 
+/***************************************************************************
+ *  Read the current 'crypto' attribute, build a jn_crypto payload (as
+ *  mt_start does) and invoke ytls_reload_certificates(). Returns 0 on
+ *  success, -1 on failure (old ytls kept intact).
+ ***************************************************************************/
+PRIVATE int reload_ytls_from_attrs(hgobj gobj)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    if(!priv->use_ssl || !priv->ytls) {
+        return -1;
+    }
+
+    json_t *jn_crypto = gobj_read_json_attr(gobj, "crypto");
+    if(!jn_crypto) {
+        gobj_log_error(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+            "msg",          "%s", "reload-certs: 'crypto' attribute is empty",
+            NULL
+        );
+        return -1;
+    }
+
+    uint32_t trace_level = gobj_trace_level(gobj);
+    json_object_set_new(
+        jn_crypto,
+        "trace_tls",
+        json_boolean(priv->trace_tls || (trace_level & TRACE_TLS))
+    );
+
+    int ret = ytls_reload_certificates(priv->ytls, jn_crypto);
+    if(ret == 0) {
+        gobj_log_info(gobj, 0,
+            "msgset",       "%s", MSGSET_INFO,
+            "msg",          "%s", "TLS certificates reloaded successfully",
+            "url",          "%s", priv->url ? priv->url : "",
+            NULL
+        );
+    }
+    return ret;
+}
+
+
+
+
+                    /***************************
+                     *      Commands
+                     ***************************/
+
+
+
+
+/***************************************************************************
+ *  Command: reload-certs
+ *  Reload TLS certificates from the current 'crypto' attribute.
+ ***************************************************************************/
+PRIVATE json_t *cmd_reload_certs(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    if(!priv->use_ssl || !priv->ytls) {
+        return msg_iev_build_response(gobj,
+            -1,
+            json_sprintf("Listener is not TLS-enabled or not running"),
+            0,
+            0,
+            kw
+        );
+    }
+
+    int ret = reload_ytls_from_attrs(gobj);
+    if(ret < 0) {
+        return msg_iev_build_response(gobj,
+            -1,
+            json_sprintf("reload-certs FAILED (check logs)"),
+            0,
+            0,
+            kw
+        );
+    }
+
+    return msg_iev_build_response(gobj,
+        0,
+        json_sprintf("TLS certificates reloaded"),
+        0,
+        0,
+        kw
+    );
+}
+
+/***************************************************************************
+ *  Command: view-cert
+ *  Introspect the currently loaded TLS server certificate and include
+ *  `days_remaining` so operators and the expiry monitor can use the same
+ *  output.
+ ***************************************************************************/
+PRIVATE json_t *cmd_view_cert(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    if(!priv->use_ssl || !priv->ytls) {
+        return msg_iev_build_response(gobj,
+            -1,
+            json_sprintf("Listener is not TLS-enabled or not running"),
+            0,
+            0,
+            kw
+        );
+    }
+
+    json_t *info = ytls_get_cert_info(priv->ytls);
+    if(!info) {
+        return msg_iev_build_response(gobj,
+            -1,
+            json_sprintf("No certificate info available"),
+            0,
+            0,
+            kw
+        );
+    }
+
+    /* Derived field: days remaining (negative = already expired). */
+    json_int_t not_after = kw_get_int(gobj, info, "not_after", 0, 0);
+    if(not_after > 0) {
+        time_t now = time(NULL);
+        json_int_t days = (not_after - (json_int_t)now) / 86400;
+        json_object_set_new(info, "days_remaining", json_integer(days));
+    }
+    json_object_set_new(info, "url", json_string(priv->url ? priv->url : ""));
+
+    return msg_iev_build_response(gobj, 0, 0, 0, info, kw);
+}
+
 
 
 
@@ -867,7 +1035,7 @@ PRIVATE int create_gclass(gclass_name_t gclass_name)
         attrs_table,
         sizeof(PRIVATE_DATA),
         0,  // authz_table,
-        0,  // command_table,
+        command_table,
         s_user_trace_level,
         0 // gclass_flag
     );

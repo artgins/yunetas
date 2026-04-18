@@ -11,6 +11,7 @@
 #include <time.h>
 #include <string.h>
 #include <stdio.h>
+#include <stdlib.h>
 #include <grp.h>
 #include <errno.h>
 #include <unistd.h>
@@ -18,6 +19,8 @@
 #include <pwd.h>
 #include <signal.h>
 #include <fcntl.h>
+#include <sys/stat.h>
+#include <dirent.h>
 
 #include <c_pty.h>
 #include "c_agent.h"
@@ -296,6 +299,13 @@ PRIVATE json_t *cmd_public_services_instances(hgobj gobj, const char *cmd, json_
 
 PRIVATE json_t *cmd_ping(hgobj gobj, const char *cmd, json_t *kw, hgobj src);
 PRIVATE json_t *cmd_uuid(hgobj gobj, const char *cmd, json_t *kw, hgobj src);
+
+PRIVATE json_t *cmd_cert_sync_now(hgobj gobj, const char *cmd, json_t *kw, hgobj src);
+PRIVATE json_t *cmd_cert_sync_status(hgobj gobj, const char *cmd, json_t *kw, hgobj src);
+
+PRIVATE int cert_sync_tick(hgobj gobj);
+PRIVATE int cert_sync_arm_timer(hgobj gobj);
+PRIVATE int cert_sync_broadcast_reload(hgobj gobj);
 
 PRIVATE sdata_desc_t pm_help[] = {
 /*-PM----type-----------name------------flag------------default-----description---------- */
@@ -807,6 +817,8 @@ SDATACM2 (DTP_SCHEMA,   "command-agent",    SDF_WILD_CMD,       0,              
 SDATACM2 (DTP_SCHEMA,   "stats-agent",      SDF_WILD_CMD,       0,                  pm_stats_agent, cmd_stats_agent, "Get statistics of agent"),
 SDATACM2 (DTP_SCHEMA,   "set-ordered-kill", 0,                  0,                  0,              cmd_set_okill,  "Kill yunos with SIGQUIT, ordered kill"),
 SDATACM2 (DTP_SCHEMA,   "set-quick-kill",   0,                  0,                  0,              cmd_set_qkill,  "Kill yunos with SIGKILL, quick kill"),
+SDATACM2 (DTP_SCHEMA,   "cert-sync-now",    0,                  0,                  0,              cmd_cert_sync_now,"Run cert auto-sync immediately (copy letsencrypt + reload every yuno)"),
+SDATACM2 (DTP_SCHEMA,   "cert-sync-status", 0,                  0,                  0,              cmd_cert_sync_status,"Show cert auto-sync state (last check, last action, failures)"),
 SDATACM2 (DTP_SCHEMA,   "",                 0,                  0,                  0,              0,              "\nYuneta tree\n-----------"),
 SDATACM2 (DTP_SCHEMA,   "dir-logs",         0,                  0,                  pm_logs,        cmd_dir_logs,   "List log filenames of yuno"),
 SDATACM2 (DTP_SCHEMA,   "dir-local-data",   0,                  0,                  pm_local_data,  cmd_dir_local_data, "List local data filenames of yuno"),
@@ -916,6 +928,21 @@ SDATA (DTP_BOOLEAN,     "use_audit_command_file",SDF_WR,        "1",            
 SDATA (DTP_INTEGER,     "max_megas_audit_file",SDF_WR,          "500",          "max megas rotatory file size"),
 SDATA (DTP_INTEGER,     "min_free_disk_percentage",SDF_WR,      "20",           "min free disk percentage using audit file"),
 
+/*  Certificate auto-sync: self-healing path independent of the certbot
+ *  deploy hook. On every tick the agent runs the copy-certs script (as
+ *  root via sudo, which yuneta has NOPASSWD for) and, if the files under
+ *  cert_sync_store_dir changed, broadcasts reload-certs to all running
+ *  yunos — so expired certificates get replaced even when the hook fails.
+ */
+SDATA (DTP_BOOLEAN,     "cert_sync_enabled",     SDF_WR|SDF_PERSIST, "1",           "Enable periodic TLS certificate auto-sync + hot-reload"),
+SDATA (DTP_INTEGER,     "cert_sync_interval_sec",SDF_WR|SDF_PERSIST, "900",         "Seconds between cert-sync checks (default 15 min)"),
+SDATA (DTP_STRING,      "cert_sync_store_dir",   SDF_WR|SDF_PERSIST, "/yuneta/store/certs", "Directory watched for cert file changes (owned by yuneta)"),
+SDATA (DTP_STRING,      "cert_sync_copy_cmd",    SDF_WR|SDF_PERSIST, "/usr/bin/sudo -n /yuneta/store/certs/copy-certs.sh", "Command to copy fresh letsencrypt certs into cert_sync_store_dir (runs root)"),
+SDATA (DTP_INTEGER,     "cert_sync_last_check",  SDF_RSTATS,         "0",           "Unix ts of last cert-sync check"),
+SDATA (DTP_INTEGER,     "cert_sync_last_action", SDF_RSTATS,         "0",           "Unix ts of last time a cert change was applied"),
+SDATA (DTP_STRING,      "cert_sync_last_result", SDF_RSTATS,         "",            "Last cert-sync outcome (ok / skipped / error)"),
+SDATA (DTP_INTEGER,     "cert_sync_failures",    SDF_RSTATS,         "0",           "Cumulative cert-sync failures since startup"),
+
 SDATA (DTP_POINTER,     "user_data",        0,                  0,              "User data"),
 SDATA (DTP_POINTER,     "user_data2",       0,                  0,              "More user data"),
 SDATA (DTP_POINTER,     "subscriber",       0,                  0,              "Subscriber of output-events. Not a child gobj"),
@@ -965,6 +992,12 @@ typedef struct _PRIVATE_DATA {
     hrotatory_h audit_file;
 
     json_int_t timeout_expiration;
+
+    /* cert auto-sync (see attrs cert_sync_*) */
+    hgobj cert_sync_timer;
+    BOOL cert_sync_enabled;
+    int32_t cert_sync_interval_sec;
+    json_t *cert_sync_state; // dict: filename -> "size:mtime", snapshot of store_dir
 } PRIVATE_DATA;
 
 
@@ -1027,6 +1060,14 @@ PRIVATE void mt_create(hgobj gobj)
      *      Create timer to start yunos
      *---------------------------------------*/
     priv->timer = gobj_create_pure_child(gobj_name(gobj), C_TIMER, 0, gobj);
+
+    /*---------------------------------------*
+     *      Cert auto-sync timer (child). It
+     *      fires EV_TIMEOUT on this gobj; we
+     *      tell it apart by checking `src`.
+     *---------------------------------------*/
+    priv->cert_sync_timer = gobj_create_pure_child("cert_sync", C_TIMER, 0, gobj);
+    priv->cert_sync_state = json_object();
 
     /*---------------------------------------*
      *      Check if already running
@@ -1121,6 +1162,8 @@ PRIVATE void mt_create(hgobj gobj)
      */
     SET_PRIV(timerStBoot,             gobj_read_integer_attr)
     SET_PRIV(timeout_expiration,      gobj_read_integer_attr)
+    SET_PRIV(cert_sync_enabled,       gobj_read_bool_attr)
+    SET_PRIV(cert_sync_interval_sec,  (int32_t)gobj_read_integer_attr)
 }
 
 /***************************************************************************
@@ -1142,6 +1185,7 @@ PRIVATE void mt_destroy(hgobj gobj)
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
     JSON_DECREF(priv->list_consoles);
+    JSON_DECREF(priv->cert_sync_state);
 
     if(priv->audit_file) {
         rotatory_close(priv->audit_file);
@@ -1173,6 +1217,12 @@ PRIVATE int mt_start(hgobj gobj)
         gobj_start_tree(gobj_controlcenter);
     }
 
+    /*----------------------------------------*
+     *  Cert auto-sync timer (self-healing for
+     *  the Let's Encrypt deploy-hook path)
+     *----------------------------------------*/
+    cert_sync_arm_timer(gobj);
+
     return 0;
 }
 
@@ -1184,6 +1234,9 @@ PRIVATE int mt_stop(hgobj gobj)
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
     clear_timeout(priv->timer);
+    if(priv->cert_sync_timer) {
+        clear_timeout(priv->cert_sync_timer);
+    }
     gobj_unsubscribe_event(priv->gobj_authz, 0, 0, gobj);
 
     return 0;
@@ -6634,6 +6687,68 @@ PRIVATE json_t *cmd_close_console(hgobj gobj, const char *cmd, json_t *kw, hgobj
     );
 }
 
+/***************************************************************************
+ *  Command: cert-sync-now
+ *  Trigger a cert-sync tick immediately (admin override).
+ ***************************************************************************/
+PRIVATE json_t *cmd_cert_sync_now(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
+{
+    int changed = cert_sync_tick(gobj);
+    json_t *resp = build_command_response(
+        gobj,
+        0,
+        json_sprintf("cert-sync tick done: %s",
+            changed > 0 ? "reloaded" : "no change"),
+        0,
+        json_pack("{s:s, s:i, s:s}",
+            "result",   gobj_read_str_attr(gobj, "cert_sync_last_result"),
+            "changed",  changed,
+            "store_dir", gobj_read_str_attr(gobj, "cert_sync_store_dir")
+        )
+    );
+    JSON_DECREF(kw);
+    return resp;
+}
+
+/***************************************************************************
+ *  Command: cert-sync-status
+ *  Show current cert-sync state: interval, last check, last action, etc.
+ ***************************************************************************/
+PRIVATE json_t *cmd_cert_sync_status(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    /* Read /var/lib/yuneta/last-deploy-hook-run if present (set by the
+     * letsencrypt deploy hook). A missing/stale value is a strong hint
+     * that the hook is failing.
+     */
+    json_int_t hook_last_run = 0;
+    FILE *f = fopen("/var/lib/yuneta/last-deploy-hook-run", "r");
+    if(f) {
+        long long v = 0;
+        if(fscanf(f, "%lld", &v) == 1) {
+            hook_last_run = (json_int_t)v;
+        }
+        fclose(f);
+    }
+
+    json_t *data = json_pack("{s:b, s:i, s:s, s:s, s:i, s:i, s:s, s:i, s:i}",
+        "enabled",           priv->cert_sync_enabled,
+        "interval_sec",      (json_int_t)priv->cert_sync_interval_sec,
+        "store_dir",         gobj_read_str_attr(gobj, "cert_sync_store_dir"),
+        "copy_cmd",          gobj_read_str_attr(gobj, "cert_sync_copy_cmd"),
+        "last_check",        gobj_read_integer_attr(gobj, "cert_sync_last_check"),
+        "last_action",       gobj_read_integer_attr(gobj, "cert_sync_last_action"),
+        "last_result",       gobj_read_str_attr(gobj, "cert_sync_last_result"),
+        "failures",          gobj_read_integer_attr(gobj, "cert_sync_failures"),
+        "deploy_hook_last_run", hook_last_run
+    );
+
+    json_t *resp = build_command_response(gobj, 0, 0, 0, data);
+    JSON_DECREF(kw);
+    return resp;
+}
+
 
 
 
@@ -8735,6 +8850,206 @@ PRIVATE int restart_nodes(hgobj gobj)
     return ret;
 }
 
+/***************************************************************************
+ *  Cert auto-sync helpers.
+ *
+ *  The yuneta user cannot read /etc/letsencrypt/live/ (0700 root), so the
+ *  agent delegates the privileged copy to copy-certs.sh via sudo (yuneta
+ *  has NOPASSWD:ALL). To detect whether the copy actually changed anything
+ *  we snapshot the size+mtime of every .crt file in the store directory
+ *  before and after the copy; a diff triggers the reload broadcast.
+ ***************************************************************************/
+
+/* Build a {filename: "size:mtime"} snapshot of *.crt files in dir. */
+PRIVATE json_t *cert_sync_snapshot_dir(const char *dir)
+{
+    json_t *snap = json_object();
+    DIR *d = opendir(dir);
+    if(!d) {
+        return snap;
+    }
+    struct dirent *ent;
+    while((ent = readdir(d)) != NULL) {
+        const char *name = ent->d_name;
+        size_t len = strlen(name);
+        if(len < 5) {
+            continue;
+        }
+        /* only .crt files (ignore .chain, .key, and dotfiles) */
+        if(strcmp(name + len - 4, ".crt") != 0) {
+            continue;
+        }
+        char path[PATH_MAX];
+        snprintf(path, sizeof(path), "%s/%s", dir, name);
+        struct stat st;
+        if(stat(path, &st) != 0) {
+            continue;
+        }
+        char buf[64];
+        snprintf(buf, sizeof(buf), "%lld:%lld",
+            (long long)st.st_size, (long long)st.st_mtime);
+        json_object_set_new(snap, name, json_string(buf));
+    }
+    closedir(d);
+    return snap;
+}
+
+PRIVATE BOOL cert_sync_snapshots_differ(json_t *a, json_t *b)
+{
+    if(!a || !b) {
+        return TRUE;
+    }
+    if(json_object_size(a) != json_object_size(b)) {
+        return TRUE;
+    }
+    const char *key; json_t *val;
+    json_object_foreach(a, key, val) {
+        json_t *other = json_object_get(b, key);
+        if(!other) {
+            return TRUE;
+        }
+        const char *sa = json_string_value(val);
+        const char *sb = json_string_value(other);
+        if(!sa || !sb || strcmp(sa, sb) != 0) {
+            return TRUE;
+        }
+    }
+    return FALSE;
+}
+
+/*
+ *  Broadcast the yuno-level 'reload-certs' command to every running yuno
+ *  plus the local agent (in case it has TLS listeners of its own).
+ *  We piggy-back on cmd_command_yuno() to reuse its iteration + dispatch
+ *  for the remote yunos.
+ */
+PRIVATE int cert_sync_broadcast_reload(hgobj gobj)
+{
+    /* Remote yunos (the yunos table does not include the agent itself). */
+    json_t *kw_remote = json_pack("{s:s, s:s}",
+        "command", "reload-certs",
+        "service", "__yuno__"
+    );
+    json_t *resp_remote = cmd_command_yuno(gobj, "command-yuno", kw_remote, gobj);
+    JSON_DECREF(resp_remote);
+    /* kw_remote was consumed by cmd_command_yuno. */
+
+    /* Agent itself — in case it ever exposes a TLS listener. */
+    json_t *resp_local = gobj_command(gobj_yuno(), "reload-certs", json_object(), gobj);
+    JSON_DECREF(resp_local);
+
+    return 0;
+}
+
+PRIVATE int cert_sync_tick(hgobj gobj)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    if(!priv->cert_sync_enabled) {
+        return 0;
+    }
+
+    const char *store_dir = gobj_read_str_attr(gobj, "cert_sync_store_dir");
+    const char *copy_cmd  = gobj_read_str_attr(gobj, "cert_sync_copy_cmd");
+
+    gobj_write_integer_attr(gobj, "cert_sync_last_check", (json_int_t)time(NULL));
+
+    /* 1) snapshot store dir BEFORE the copy */
+    json_t *before = cert_sync_snapshot_dir(store_dir);
+
+    /* 2) run copy-certs.sh via sudo. A non-zero return means the script
+     *    failed entirely (e.g. sudo denied) — we bump failures but still
+     *    compare the snapshots, because the previous run may have copied
+     *    successfully and the store could be out of sync with the yunos.
+     */
+    BOOL copy_ok = TRUE;
+    if(!empty_string(copy_cmd)) {
+        int rc = system(copy_cmd);
+        if(rc != 0) {
+            copy_ok = FALSE;
+            gobj_log_warning(gobj, 0,
+                "function",     "%s", __FUNCTION__,
+                "msgset",       "%s", MSGSET_SYSTEM_ERROR,
+                "msg",          "%s", "cert-sync copy command FAILED",
+                "cmd",          "%s", copy_cmd,
+                "rc",           "%d", rc,
+                "errno",        "%d", errno,
+                NULL
+            );
+        }
+    }
+
+    /* 3) snapshot AFTER; compare against the stored snapshot from last tick
+     *    (or the pre-copy one if it's the first). A change in either means
+     *    new cert material, so we reload every yuno.
+     */
+    json_t *after = cert_sync_snapshot_dir(store_dir);
+
+    BOOL changed = cert_sync_snapshots_differ(priv->cert_sync_state, after)
+                || cert_sync_snapshots_differ(before, after);
+
+    if(changed) {
+        cert_sync_broadcast_reload(gobj);
+        gobj_write_integer_attr(gobj, "cert_sync_last_action", (json_int_t)time(NULL));
+        gobj_write_str_attr(gobj, "cert_sync_last_result",
+            copy_ok ? "reloaded" : "reloaded (copy script reported error)");
+        gobj_log_info(gobj, 0,
+            "msgset",       "%s", MSGSET_INFO,
+            "msg",          "%s", "cert-sync detected cert change, broadcasted reload-certs",
+            "store_dir",    "%s", store_dir,
+            NULL
+        );
+    } else if(!copy_ok) {
+        gobj_write_str_attr(gobj, "cert_sync_last_result", "copy-script-failed");
+        gobj_write_integer_attr(gobj, "cert_sync_failures",
+            gobj_read_integer_attr(gobj, "cert_sync_failures") + 1);
+    } else {
+        gobj_write_str_attr(gobj, "cert_sync_last_result", "no-change");
+    }
+
+    JSON_DECREF(priv->cert_sync_state);
+    priv->cert_sync_state = after;   // becomes the baseline for next tick
+    JSON_DECREF(before);
+    return changed ? 1 : 0;
+}
+
+PRIVATE int cert_sync_arm_timer(hgobj gobj)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    if(!priv->cert_sync_timer) {
+        return -1;
+    }
+    if(!priv->cert_sync_enabled) {
+        clear_timeout(priv->cert_sync_timer);
+        return 0;
+    }
+
+    int32_t secs = priv->cert_sync_interval_sec;
+    if(secs < 30) {
+        secs = 30;  // guardrail — don't hammer sudo + disk
+    }
+
+    /* Take the initial snapshot so the first tick's "changed?" check has
+     * a sane baseline. Without this, the very first tick would always see
+     * "different" vs the empty dict and broadcast a reload unnecessarily.
+     */
+    const char *store_dir = gobj_read_str_attr(gobj, "cert_sync_store_dir");
+    JSON_DECREF(priv->cert_sync_state);
+    priv->cert_sync_state = cert_sync_snapshot_dir(store_dir);
+
+    set_timeout_periodic(priv->cert_sync_timer, ((json_int_t)secs) * 1000);
+    gobj_log_info(gobj, 0,
+        "msgset",       "%s", MSGSET_INFO,
+        "msg",          "%s", "cert-sync timer armed",
+        "interval_sec", "%d", (int)secs,
+        "store_dir",    "%s", store_dir,
+        NULL
+    );
+    return 0;
+}
+
+
 
 
 
@@ -10587,6 +10902,12 @@ PRIVATE int ac_write_tty(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 PRIVATE int ac_timeout(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    if(src == priv->cert_sync_timer) {
+        cert_sync_tick(gobj);
+        KW_DECREF(kw);
+        return 0;
+    }
 
     if(!priv->util_yunos_running) {
         priv->util_yunos_running = 1;
