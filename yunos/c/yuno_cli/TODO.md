@@ -22,10 +22,20 @@ Pendientes conocidos, ordenados por alcance.
   - `wattrset(A_NORMAL)` explícito antes del write para asegurar que no
     queda ningún bit colgado.
 
+  Intento actual (commit abierto): **render en dos pasadas con
+  `mvwchgat`**. Pass 1 escribe solo el texto (attrs A_NORMAL) y rellena
+  la fila completa con espacios para que cada celda tenga un char que
+  luego pueda cargar atributos. Pass 2 aplica colores por fila con
+  `mvwchgat(row, 0, w, A_NORMAL, pair, NULL)` y, sobre la fila
+  seleccionada, `mvwchgat(row, 0, w, A_REVERSE, pair, NULL)`. `mvwchgat`
+  es el camino que usan las propias librerías `menu` y `form` de ncurses
+  para resaltar selecciones y no pasa por el diff-de-chars optimizado
+  que estaba tragando la celda col 0.
+
   Fichero afectado: `modules/c/console/src/c_editline.c`, función
   `completion_render_popup()`.
 
-  Hipótesis restantes a investigar:
+  Si `mvwchgat` tampoco resuelve el bug, las hipótesis siguientes son:
   1. Interacción entre el `wbkgdset` del popup y el
      `wbkgdset`/`wbkgd` de la ventana bajo él (workarea) al componer
      paneles — alguna celda concreta queda con atributos heredados del
@@ -35,8 +45,7 @@ Pendientes conocidos, ordenados por alcance.
   3. Último recurso: **destruir y recrear** la ventana del popup en
      cada render (`del_panel` + `delwin` + `newwin` + `new_panel` +
      `top_panel`). Es caro (~1 ms extra por tecla) pero debería
-     eliminar cualquier estado residual. Probablemente lo correcto si
-     ninguna de las anteriores da con la raíz.
+     eliminar cualquier estado residual.
 
   Workaround actual: el bug es puramente cosmético; la selección
   lógica es correcta y el `Enter` commit a buffer funciona igual.
