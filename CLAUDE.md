@@ -381,6 +381,37 @@ reviewing the cert-reload feature):
 `c_yuno.c` and `c_agent.c` are the canonical large-gclass examples of
 this layout; `c_timer.c` is the minimal example.
 
+### Writing tests against the gobj framework
+
+Two gotchas that break tests at runtime (not at compile time) — learned
+from reviewer fixes on the cert-reload test suite:
+
+- **`gobj_end()` must run BEFORE any `get_cur_system_memory()` check.**
+  `gobj_start_up()` allocates a small baseline (measured ~104 bytes)
+  that is only freed by `gobj_end()`. If the leak check happens first,
+  it always reports that baseline as a leak in debug builds with
+  `CONFIG_DEBUG_TRACK_MEMORY`, and the test fails regardless of
+  whether the code under test is clean. Pattern:
+
+  ```c
+  do_test();
+  gobj_end();                      // free baseline FIRST
+  size_t leaked = get_cur_system_memory();
+  if(leaked != 0) { /* real leak */ }
+  ```
+
+  To tell a real leak from the baseline, probe the same check across
+  0 / 1 / N iterations of the code under test: a constant delta means
+  the extra allocation belongs to startup, not to the loop.
+
+- **`set_expected_results()` + `test_json(NULL)` uses a strict FIFO.**
+  Every `gobj_log_info` / `gobj_info_msg` emitted during the test must
+  appear in the `error_list` **once per emission, in order**. If the
+  test runs a phase twice (e.g. two message exchanges sandwiching a
+  reload), every recurring log line must appear twice in the list. A
+  shorter list causes the extra emissions to be flagged as unexpected
+  and the test fails even when the code is correct.
+
 ### Event Loop & Async I/O
 
 `yev_loop` drives everything using **Linux io_uring** (not epoll). GClasses attach `yev_event_t` handles for:
