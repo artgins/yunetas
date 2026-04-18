@@ -1,6 +1,74 @@
 # **Changelog**
 
 ## Unreleased
+    - **feat(ycommand)**: major interactive / scripting overhaul.
+      - TAB completion of command names, parameter names and boolean values,
+        from a remote `list-gobj-commands` cache fetched at connect time
+        (routed through `service=__yuno__`) and from a local command table
+        for `!cmd` built-ins.
+      - Inline parameter hints in gray (`<name=type>` required,
+        `[name=type]` optional, already-typed params dropped).
+      - Connect-time informative prompt (`<role>^<name>> `) and schema-driven
+        table rendering in both interactive and non-interactive modes (use
+        the `*cmd` prefix to force raw-JSON form).
+      - `Ctrl+R` / `Ctrl+S` incremental history search, `Ctrl+L` clear screen,
+        bash-style `!!` / `!N` history expansion, erasedups history.
+      - c_cli-style local commands via the `!` prefix: `!help` (alias `!h` /
+        `!?`), `!history`, `!clear-history`, `!exit` / `!quit`,
+        `!source <file>` (alias `!.`). Full keybinding + syntax reference
+        available as `!help` and in `utils/c/ycommand/README.md`.
+      - Command chaining with `cmd1 ; cmd2 ; cmd3` (quote/brace-aware split),
+        `-cmd` ignore-fail (ybatch convention), stdin piping
+        (`cat batch.ycmd | ycommand -u ws://...`). A single shared
+        command queue drains one command at a time, waiting for the previous
+        response before sending the next.
+      - `did-you-mean` suggestions on `command not available` errors,
+        Levenshtein-matched against the cache.
+      - Positional command form (`ycommand kill-yuno id=foo`, equivalent to
+        `-c`). The `-c` flag still wins when both are present.
+    - **feat(c_editline)**: new public helpers shared by every editline
+      client — `editline_set_completion_callback` /
+      `editline_set_hints_callback` / `editline_add_completion` /
+      `editline_history_count` / `editline_history_get`. New events
+      `EV_EDITLINE_REVERSE_SEARCH` / `EV_EDITLINE_FORWARD_SEARCH` for
+      incremental history search; candidate list + description is rendered
+      on TAB when multiple options exist.
+    - **fix(c_editline)**: after the user selects a TAB candidate, the
+      keystroke that committed the selection (Enter, Backspace, printable)
+      is now re-dispatched so the action takes effect in the same press
+      instead of requiring a second press.
+    - **fix(ycommand)**: `on_read_cb` no longer drops trailing bytes of a
+      batched read that matched a keytable entry, so rapid TAB+value typing
+      no longer needs a second press.
+    - **feat(ycli)**: TAB completion brought in line with ycommand, adapted
+      to the multi-window ncurses UI.
+      - `!cmd<TAB>` completes local `c_cli` commands; `cmd<TAB>` (no `!`)
+        completes remote commands of the yuno attached to the focused
+        display window. Cache is per-connection, fetched silently on
+        `EV_ON_OPEN` via `list-gobj-commands` and dropped on
+        `EV_ON_CLOSE`.
+      - Multi-candidate list is rendered in a temporary ncurses popup
+        above the editline (no more blocking `read(STDIN_FILENO)` inside
+        the yev_loop callback); cycling is driven through the normal FSM
+        (TAB / Up / Down navigate, Enter commits to the edit line only,
+        Esc / Ctrl+G / Backspace cancel, printable keys commit + insert).
+      - Scrollable popup with a status row (`N/M  ↑ K above  ↓ L below`)
+        rendered in dim attributes so A_REVERSE on the selected row can
+        never bleed into it.
+      - Inline hints (`<req=type>` / `[opt=type]`) in gray (A_BOLD on
+        COLOR_BLACK = bright-black / gray in most terminals).
+    - **feat(c_editline)**: new `EV_EDITLINE_CANCEL` event for escape-style
+      cancellation of reverse-i-search and TAB-popup sub-modes; `refreshSearchLine`
+      now draws through ncurses (`wmove/waddnstr/wrefresh`) on `use_ncurses`
+      clients instead of bypassing the pane via `printf`.
+    - **feat(ycli / ycommand)**: `Ctrl+K` switched to readline semantics —
+      delete from cursor to end of line (`EV_EDITLINE_DEL_EOL`).
+      `Ctrl+U` / `Ctrl+Y` remain "delete whole line"; `Ctrl+L` is the
+      clear-screen shortcut (previously shared with `Ctrl+K`).
+    - **docs**: added `utils/c/ycommand/README.md`, `TODO.md` and updated
+      `docs/doc.yuneta.io/{utilities,yunos,modules}.md` to cover the new
+      features.
+
     - **API change(ghttp_parser)**: `ghttp_parser_reset()` is **removed** from
       the public API.  It was a foot-gun: calling it from inside an llhttp
       callback (as `on_message_complete` used to do) corrupted llhttp's state

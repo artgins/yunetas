@@ -17,6 +17,7 @@
 #include <unistd.h>
 #include <limits.h>
 #include <pwd.h>
+#include <ctype.h>
 
 #include <g_ev_console.h>
 #include <c_editline.h>
@@ -36,9 +37,12 @@
 #define BACKSPACE {0x7F}
 #define TAB     {9}
 #define CTRL_K  {11}
+#define CTRL_L  {12}
 #define ENTER   {13}
 #define CTRL_N  {14}
 #define CTRL_P  {16}
+#define CTRL_R  {18}
+#define CTRL_S  {19}
 #define CTRL_T  {20}
 #define CTRL_U  {21}
 #define CTRL_W  {23}
@@ -92,6 +96,92 @@ PRIVATE int do_command(hgobj gobj, const char *command);
 PRIVATE int clear_input_line(hgobj gobj);
 PRIVATE char *get_history_file(char *bf, int bfsize);
 PRIVATE int do_authenticate_task(hgobj gobj);
+PRIVATE int request_commands_cache(hgobj gobj);
+PRIVATE void merge_commands_into_cache(hgobj gobj, json_t *jn_raw_data);
+PRIVATE BOOL is_commands_list_response(json_t *jn_data);
+PRIVATE BOOL line_has_param(const char *buf, const char *pname);
+PRIVATE int list_history(hgobj gobj);
+PRIVATE void split_commands_into_array(const char *text, json_t *target);
+PRIVATE void split_commands_into_queue(hgobj gobj, const char *text);
+PRIVATE int exec_one_command(hgobj gobj, const char *cmdline);
+PRIVATE void run_next_pending(hgobj gobj);
+PRIVATE json_t *cmd_local_help(hgobj gobj, const char *cmd, json_t *kw, hgobj src);
+PRIVATE json_t *cmd_local_history(hgobj gobj, const char *cmd, json_t *kw, hgobj src);
+PRIVATE json_t *cmd_local_clear_history(hgobj gobj, const char *cmd, json_t *kw, hgobj src);
+PRIVATE json_t *cmd_local_exit(hgobj gobj, const char *cmd, json_t *kw, hgobj src);
+PRIVATE json_t *cmd_local_source(hgobj gobj, const char *cmd, json_t *kw, hgobj src);
+PRIVATE void ycommand_completion_cb(
+    hgobj gobj, const char *buf, editline_completions_t *lc, void *user_data
+);
+PRIVATE char *ycommand_hints_cb(
+    hgobj gobj, const char *buf, int *out_color, int *out_bold, void *user_data
+);
+PRIVATE void ycommand_free_hint_cb(char *hint, void *user_data);
+
+/***************************************************************************
+ *  Local command table (C_YCOMMAND's own commands).
+ *  Invoked with the `!` prefix (following the c_cli convention); the bare
+ *  forms `history`, `exit`, `quit` are also still intercepted in
+ *  ac_command for backward compatibility.
+ ***************************************************************************/
+PRIVATE sdata_desc_t local_pm_help[] = {
+SDATAPM (DTP_STRING,    "cmd",      0,      0,  "Show help for this specific command"),
+SDATAPM (DTP_INTEGER,   "level",    0,      0,  "Depth of help search (1 = bottoms)"),
+SDATA_END()
+};
+
+PRIVATE const char *a_help[]          = {"h", "?", 0};
+PRIVATE const char *a_history[]       = {"hi", 0};
+PRIVATE const char *a_clear_history[] = {"clh", 0};
+PRIVATE const char *a_exit[]          = {"x", 0};
+PRIVATE const char *a_quit[]          = {"q", 0};
+PRIVATE const char *a_source[]        = {".", 0};
+
+PRIVATE sdata_desc_t local_pm_source[] = {
+SDATAPM (DTP_STRING,    "file",     0,      0,  "Script file path"),
+SDATA_END()
+};
+
+PRIVATE sdata_desc_t local_command_table[] = {
+/*-CMD---type-----------name----------------alias---------------items-----------json_fn---------description---------- */
+SDATACM (DTP_SCHEMA,    "",                 0,                  0,              0,              "\nLine-edit shortcuts\n-------------------"),
+SDATACM (DTP_STRING,    "", 0, 0, 0,  "Move start          Home, Ctrl+A"),
+SDATACM (DTP_STRING,    "", 0, 0, 0,  "Move end            End, Ctrl+E"),
+SDATACM (DTP_STRING,    "", 0, 0, 0,  "Move left           Left, Ctrl+B"),
+SDATACM (DTP_STRING,    "", 0, 0, 0,  "Move right          Right, Ctrl+F"),
+SDATACM (DTP_STRING,    "", 0, 0, 0,  "Delete char         Del, Ctrl+D"),
+SDATACM (DTP_STRING,    "", 0, 0, 0,  "Backspace           Backspace, Ctrl+H"),
+SDATACM (DTP_STRING,    "", 0, 0, 0,  "Execute             Enter"),
+SDATACM (DTP_STRING,    "", 0, 0, 0,  "Swap char           Ctrl+T"),
+SDATACM (DTP_STRING,    "", 0, 0, 0,  "Delete to EOL       Ctrl+K (readline)"),
+SDATACM (DTP_STRING,    "", 0, 0, 0,  "Delete line         Ctrl+U, Ctrl+Y"),
+SDATACM (DTP_STRING,    "", 0, 0, 0,  "Delete prev. word   Ctrl+W"),
+SDATACM (DTP_STRING,    "", 0, 0, 0,  "Clear screen        Ctrl+L"),
+SDATACM (DTP_SCHEMA,    "",                 0,                  0,              0,              "\nHistory & search\n----------------"),
+SDATACM (DTP_STRING,    "", 0, 0, 0,  "Previous history    Up"),
+SDATACM (DTP_STRING,    "", 0, 0, 0,  "Next history        Down"),
+SDATACM (DTP_STRING,    "", 0, 0, 0,  "Reverse search      Ctrl+R (press again for next older match)"),
+SDATACM (DTP_STRING,    "", 0, 0, 0,  "Forward search      Ctrl+S"),
+SDATACM (DTP_STRING,    "", 0, 0, 0,  "Exit search         ESC / Ctrl+G (or any edit key to commit)"),
+SDATACM (DTP_SCHEMA,    "",                 0,                  0,              0,              "\nCompletion\n----------"),
+SDATACM (DTP_STRING,    "", 0, 0, 0,  "TAB                 Complete / cycle; lists candidates with descriptions"),
+SDATACM (DTP_SCHEMA,    "",                 0,                  0,              0,              "\nLine-level syntax\n-----------------"),
+SDATACM (DTP_STRING,    "", 0, 0, 0,  "!cmd                Invoke a local ycommand command (below)"),
+SDATACM (DTP_STRING,    "", 0, 0, 0,  "!N                  Re-run history entry N"),
+SDATACM (DTP_STRING,    "", 0, 0, 0,  "!!                  Re-run the last command"),
+SDATACM (DTP_STRING,    "", 0, 0, 0,  "*cmd                Force display-mode form for the response"),
+SDATACM (DTP_STRING,    "", 0, 0, 0,  "cmd1 ; cmd2 ; ...   Chain commands; each waits for the previous response"),
+SDATACM (DTP_STRING,    "", 0, 0, 0,  "-cmd                Ignore errors for this command (ybatch convention)"),
+SDATACM (DTP_STRING,    "", 0, 0, 0,  "cmd service=__yuno__  Send cmd to the yuno (instead of the default service)"),
+SDATACM (DTP_SCHEMA,    "",                 0,                  0,              0,              "\nLocal commands\n--------------"),
+SDATACM (DTP_SCHEMA,    "help",             a_help,             local_pm_help,  cmd_local_help,         "Show this help"),
+SDATACM (DTP_SCHEMA,    "history",          a_history,          0,              cmd_local_history,      "List command history (also available as `history`)"),
+SDATACM (DTP_SCHEMA,    "clear-history",    a_clear_history,    0,              cmd_local_clear_history,"Erase command history"),
+SDATACM (DTP_SCHEMA,    "exit",             a_exit,             0,              cmd_local_exit,         "Exit ycommand (also available as `exit` / `quit`)"),
+SDATACM (DTP_SCHEMA,    "quit",             a_quit,             0,              cmd_local_exit,         "Alias of exit"),
+SDATACM (DTP_SCHEMA,    "source",           a_source,           local_pm_source,cmd_local_source,       "Read commands from a file and run them sequentially"),
+SDATA_END()
+};
 
 /***************************************************************************
  *          Data: config, public data, private data
@@ -163,6 +253,21 @@ typedef struct _PRIVATE_DATA {
     BOOL on_mirror_tty;
     char mirror_tty_name[NAME_MAX];
     char mirror_tty_uuid[NAME_MAX];
+
+    json_t *commands_cache;         /* flat dict: name -> cmd_obj */
+    int pending_cache_fetches;      /* >0 while cache-warmup responses are pending */
+    char last_sent_command[128];    /* first token of the user's last command, for did-you-mean */
+
+    /*
+     *  Command queue: each line the user submits (either typed, `;`-chained,
+     *  sourced from a file, or piped on stdin) is split into one or more
+     *  atomic commands and pushed here. run_next_pending() drains it one
+     *  command at a time, waiting for the previous response before sending
+     *  the next. On error the rest of the queue is dropped — unless the
+     *  command was prefixed with '-' (ybatch convention: ignore-fail).
+     */
+    json_t *pending_commands;       /* json array of strings */
+    BOOL current_ignore_fail;       /* true while an async `-cmd` is in flight */
 } PRIVATE_DATA;
 
 
@@ -263,6 +368,8 @@ PRIVATE void mt_destroy(hgobj gobj)
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
     EXEC_AND_RESET(yev_destroy_event, priv->yev_reading)
+    JSON_DECREF(priv->commands_cache)
+    JSON_DECREF(priv->pending_commands)
 }
 
 /***************************************************************************
@@ -601,11 +708,22 @@ PRIVATE int on_read_cb(hgobj gobj, gbuffer_t *gbuf)
         if(kt) {
             const char *dst = kt->dst_gobj;
             const char *event = kt->event;
+            size_t consumed = strlen((const char *)kt->keycode);
 
             if(strcmp(dst, "editline")==0) {
                 gobj_send_event(priv->gobj_editline, event, 0, gobj);
             } else {
                 gobj_send_event(gobj, event, 0, gobj);
+            }
+
+            /*
+             *  If the read batch carried more bytes after the matched key
+             *  (e.g. user typed TAB immediately followed by a value), feed
+             *  the rest through the normal char path. Otherwise we'd lose
+             *  the keystroke that arrived in the same batch.
+             */
+            for(size_t i = consumed; i < nread; i++) {
+                process_key(gobj, base[i]);
             }
         } else {
             for(int i=0; i<nread; i++) {
@@ -791,7 +909,7 @@ PRIVATE gbuffer_t *jsontable2str(json_t *jn_schema, json_t *jn_data)
     hgobj gobj = 0;
 
     /*
-     *  Paint Headers
+     *  Paint Headers (bold cyan so they stand out from the data).
      */
     json_array_foreach(jn_schema, col, jn_col) {
         const char *header = kw_get_str(gobj, jn_col, "header", "", 0);
@@ -800,13 +918,15 @@ PRIVATE gbuffer_t *jsontable2str(json_t *jn_schema, json_t *jn_data)
             fillspace = (int)strlen(header);
         }
         if(fillspace > 0) {
-            gbuffer_printf(gbuf, "%-*.*s ", fillspace, fillspace, header);
+            gbuffer_printf(gbuf, "%s%-*.*s%s ",
+                BCyan, fillspace, fillspace, header, Color_Off);
         }
     }
     gbuffer_printf(gbuf, "\n");
 
     /*
-     *  Paint ===
+     *  Paint === (dim) so the header row has visible separation without
+     *  pulling attention away from the data.
      */
     json_array_foreach(jn_schema, col, jn_col) {
         const char *header = kw_get_str(gobj, jn_col, "header", "", 0);
@@ -816,10 +936,12 @@ PRIVATE gbuffer_t *jsontable2str(json_t *jn_schema, json_t *jn_data)
         }
         if(fillspace > 0) {
             gbuffer_printf(gbuf,
-                "%*.*s ",
+                "%s%*.*s%s ",
+                IBlack,
                 fillspace,
                 fillspace,
-                "==========================================================================="
+                "===========================================================================",
+                Color_Off
             );
         }
     }
@@ -860,6 +982,72 @@ PRIVATE gbuffer_t *jsontable2str(json_t *jn_schema, json_t *jn_data)
 /***************************************************************************
  *  Print json response in display list window
  ***************************************************************************/
+/***************************************************************************
+ *  Levenshtein distance for short ASCII strings (command names).
+ *  Returns INT_MAX for strings longer than the internal bound.
+ ***************************************************************************/
+PRIVATE int levenshtein(const char *a, const char *b)
+{
+    size_t la = strlen(a);
+    size_t lb = strlen(b);
+    if(la > 128 || lb > 128) {
+        return INT_MAX;
+    }
+    int prev[129], curr[129];
+    for(size_t j = 0; j <= lb; j++) {
+        prev[j] = (int)j;
+    }
+    for(size_t i = 1; i <= la; i++) {
+        curr[0] = (int)i;
+        for(size_t j = 1; j <= lb; j++) {
+            int cost = (a[i-1] == b[j-1]) ? 0 : 1;
+            int del = prev[j] + 1;
+            int ins = curr[j-1] + 1;
+            int sub = prev[j-1] + cost;
+            int m = del < ins ? del : ins;
+            curr[j] = m < sub ? m : sub;
+        }
+        memcpy(prev, curr, (lb + 1) * sizeof(int));
+    }
+    return prev[lb];
+}
+
+/***************************************************************************
+ *  did-you-mean: if `typed` is not in the cache, print the closest match
+ *  when it's within an edit-distance threshold. No-op on cache miss.
+ ***************************************************************************/
+PRIVATE void maybe_suggest_command(hgobj gobj, const char *typed)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+    if(!priv->commands_cache || empty_string(typed)) {
+        return;
+    }
+    /* Skip if the command exists — error is about something else (auth, args). */
+    if(json_object_get(priv->commands_cache, typed)) {
+        return;
+    }
+
+    size_t typed_len = strlen(typed);
+    int threshold = (int)(typed_len / 3);
+    if(threshold < 2) threshold = 2;
+
+    int best = INT_MAX;
+    const char *best_name = NULL;
+    const char *name;
+    json_t *jn_cmd;
+    json_object_foreach(priv->commands_cache, name, jn_cmd) {
+        int d = levenshtein(typed, name);
+        if(d < best) {
+            best = d;
+            best_name = name;
+        }
+    }
+
+    if(best_name && best <= threshold) {
+        printf("Did you mean '%s'?\n", best_name);
+    }
+}
+
 PRIVATE int display_webix_result(
     hgobj gobj,
     json_t *webix)
@@ -913,10 +1101,13 @@ PRIVATE int display_webix_result(
     }
 
     if(result < 0) {
+        PRIVATE_DATA *priv = gobj_priv_data(gobj);
         printf("%sERROR %d: %s%s\n", On_Red BWhite, result, comment, Color_Off);
+        maybe_suggest_command(gobj, priv->last_sent_command);
     } else {
         if(!empty_string(comment)) {
-            printf("%s\n", comment);
+            /* Success comment in amber so it's not mistaken for data. */
+            printf("%s%s%s\n", IYellow, comment, Color_Off);
         }
     }
 
@@ -961,21 +1152,126 @@ PRIVATE char *get_history_file(char *bf, int bfsize)
 /***************************************************************************
  *
  ***************************************************************************/
-PRIVATE int list_history(hgobj gobj)
+/***************************************************************************
+ *  Local command handlers (invoked via the `!` prefix or the bare forms
+ *  kept in ac_command).
+ ***************************************************************************/
+PRIVATE json_t *cmd_local_help(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
 {
-    char history_file[PATH_MAX];
-    get_history_file(history_file, sizeof(history_file));
+    KW_INCREF(kw);
+    json_t *jn_resp = gobj_build_cmds_doc(gobj, kw);
+    return msg_iev_build_response(gobj, 0, jn_resp, 0, 0, kw);
+}
 
-    FILE *file = fopen(history_file, "r");
-    if(file) {
-        char temp[4*1024];
-        while(fgets(temp, sizeof(temp), file)) {
-            left_justify(temp);
-            if(strlen(temp)>0) {
-                printf("%s\n", temp);
+PRIVATE json_t *cmd_local_history(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+    gbuffer_t *gbuf = gbuffer_create(512, 64 * 1024);
+    if(priv->gobj_editline) {
+        int n = editline_history_count(priv->gobj_editline);
+        for(int i = 1; i <= n; i++) {
+            const char *line = editline_history_get(priv->gobj_editline, i);
+            if(line && *line) {
+                gbuffer_printf(gbuf, "%5d  %s\n", i, line);
             }
         }
-        fclose(file);
+    }
+    json_t *jn_resp = json_string(gbuffer_cur_rd_pointer(gbuf));
+    gbuffer_decref(gbuf);
+    return msg_iev_build_response(gobj, 0, jn_resp, 0, 0, kw);
+}
+
+PRIVATE json_t *cmd_local_clear_history(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+    if(priv->gobj_editline) {
+        gobj_send_event(priv->gobj_editline, EV_CLEAR_HISTORY, 0, gobj);
+    }
+    return msg_iev_build_response(gobj, 0, json_string("History cleared"), 0, 0, kw);
+}
+
+PRIVATE json_t *cmd_local_exit(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+    if(priv->pending_commands) {
+        json_array_clear(priv->pending_commands);
+    }
+    gobj_stop(gobj);
+    return msg_iev_build_response(gobj, 0, 0, 0, 0, kw);
+}
+
+/***************************************************************************
+ *  !source <file>: read `file` line by line, skip blank lines and lines
+ *  starting with `#`, push the rest onto the pending queue so they're
+ *  dispatched sequentially (each waits for the previous response).
+ *  Lines themselves may contain `;` or the `-cmd` ignore-fail prefix.
+ ***************************************************************************/
+PRIVATE json_t *cmd_local_source(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+    const char *file = kw_get_str(gobj, kw, "file", "", 0);
+    if(empty_string(file)) {
+        return msg_iev_build_response(gobj, -1,
+            json_string("Missing 'file' parameter"), 0, 0, kw);
+    }
+    FILE *fp = fopen(file, "r");
+    if(!fp) {
+        return msg_iev_build_response(gobj, -1,
+            json_sprintf("Cannot open '%s': %s", file, strerror(errno)),
+            0, 0, kw);
+    }
+
+    /*
+     *  Collect the new commands in file order first, then splice them onto
+     *  the FRONT of the pending queue so that `!source a.ycmd ; stats` runs
+     *  every line of a.ycmd before `stats`, which matches user intuition.
+     */
+    json_t *new_cmds = json_array();
+    char line[4096];
+    while(fgets(line, sizeof(line), fp)) {
+        size_t len = strlen(line);
+        while(len > 0 && (line[len-1] == '\n' || line[len-1] == '\r')) {
+            line[--len] = 0;
+        }
+        const char *start = line;
+        while(*start == ' ' || *start == '\t') start++;
+        if(*start == 0 || *start == '#') {
+            continue;
+        }
+        split_commands_into_array(start, new_cmds);
+    }
+    fclose(fp);
+
+    if(!priv->pending_commands) {
+        priv->pending_commands = json_array();
+    }
+    size_t insert_at = 0;
+    size_t i;
+    json_t *v;
+    json_array_foreach(new_cmds, i, v) {
+        json_array_insert(priv->pending_commands, insert_at++, v);
+    }
+    int queued = (int)json_array_size(new_cmds);
+    JSON_DECREF(new_cmds);
+
+    return msg_iev_build_response(gobj, 0,
+        json_sprintf("Sourced '%s' (%d command(s))", file, queued),
+        0, 0, kw);
+}
+
+PRIVATE int list_history(hgobj gobj)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+    /* Print the live in-memory history with 1-based indices that match
+     * the !N bang expansion in ac_command. */
+    if(priv->gobj_editline) {
+        int n = editline_history_count(priv->gobj_editline);
+        for(int i = 1; i <= n; i++) {
+            const char *line = editline_history_get(priv->gobj_editline, i);
+            if(line && *line) {
+                printf("%5d  %s\n", i, line);
+            }
+        }
     }
     clear_input_line(gobj);
     return 0;
@@ -1126,6 +1422,522 @@ PRIVATE int ac_on_token(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 }
 
 /***************************************************************************
+ *  Commands-cache: merge a `list-gobj-commands` response into priv->commands_cache.
+ *  Input shape: array of {gclass, commands:[{command,description,parameters:[...]}, ...]}
+ *  First sighting of a given name wins — keeps cache stable across repeated
+ *  fetches (yuno first, service second).
+ ***************************************************************************/
+PRIVATE void merge_commands_into_cache(hgobj gobj, json_t *jn_raw_data)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+    if(!json_is_array(jn_raw_data)) {
+        return;
+    }
+    if(!priv->commands_cache) {
+        priv->commands_cache = json_object();
+    }
+
+    size_t idx;
+    json_t *jn_gclass;
+    json_array_foreach(jn_raw_data, idx, jn_gclass) {
+        json_t *jn_commands = json_object_get(jn_gclass, "commands");
+        if(!json_is_array(jn_commands)) {
+            continue;
+        }
+        size_t jdx;
+        json_t *jn_cmd;
+        json_array_foreach(jn_commands, jdx, jn_cmd) {
+            const char *name = json_string_value(json_object_get(jn_cmd, "command"));
+            if(empty_string(name)) {
+                continue;
+            }
+            if(!json_object_get(priv->commands_cache, name)) {
+                json_object_set(priv->commands_cache, name, jn_cmd);
+            }
+        }
+    }
+}
+
+/***************************************************************************
+ *  Commands-cache: recognize the list-gobj-commands response shape
+ ***************************************************************************/
+PRIVATE BOOL is_commands_list_response(json_t *jn_data)
+{
+    if(!json_is_array(jn_data) || json_array_size(jn_data) == 0) {
+        return FALSE;
+    }
+    json_t *first = json_array_get(jn_data, 0);
+    return json_is_object(first)
+        && json_object_get(first, "gclass") != NULL
+        && json_object_get(first, "commands") != NULL;
+}
+
+/***************************************************************************
+ *  Commands-cache: warm up with the configured service's commands.
+ *  Routed through service=__yuno__ because list-gobj-commands is a command
+ *  of C_YUNO, not of the target service.
+ *
+ *  Yuno-level commands (help, stats, list-gobj-commands, services, ...) are
+ *  intentionally NOT fetched: invoking them requires adding service=__yuno__
+ *  to the line, so having them in the default completion set would be
+ *  misleading. Same story for other services inside the yuno
+ *  (__input_side__, __output_side__, __top_side__, custom names) — invoke
+ *  them manually with service=<name>.
+ ***************************************************************************/
+PRIVATE int request_commands_cache(hgobj gobj)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+    if(!priv->gobj_connector) {
+        return -1;
+    }
+
+    const char *wanted_service = gobj_read_str_attr(gobj, "yuno_service");
+    if(empty_string(wanted_service)) {
+        wanted_service = "__default_service__";
+    }
+    json_t *kw = json_pack("{s:s, s:s, s:i, s:b}",
+        "service", "__yuno__",
+        "gobj_name", wanted_service,
+        "details", 1,
+        "bottoms", 1
+    );
+    priv->pending_cache_fetches++;
+    json_t *webix = gobj_command(priv->gobj_connector, "list-gobj-commands", kw, gobj);
+    if(webix) {
+        /* Synchronous response: consume here, no display. */
+        json_t *jn_data = kw_get_dict_value(gobj, webix, "data", 0, 0);
+        if(is_commands_list_response(jn_data)) {
+            merge_commands_into_cache(gobj, jn_data);
+        }
+        priv->pending_cache_fetches--;
+        JSON_DECREF(webix)
+    }
+    return 0;
+}
+
+/***************************************************************************
+ *  Lookup a local command in local_command_table by name or alias.
+ *  Returns the sdata_desc_t entry or NULL.
+ ***************************************************************************/
+PRIVATE const sdata_desc_t *find_local_command(const char *name, size_t namelen)
+{
+    for(const sdata_desc_t *p = local_command_table; p->name; p++) {
+        if(empty_string(p->name)) {
+            continue;
+        }
+        if(strlen(p->name) == namelen && strncmp(p->name, name, namelen) == 0) {
+            return p;
+        }
+        if(p->alias) {
+            for(const char **a = p->alias; *a; a++) {
+                if(strlen(*a) == namelen && strncmp(*a, name, namelen) == 0) {
+                    return p;
+                }
+            }
+        }
+    }
+    return NULL;
+}
+
+/***************************************************************************
+ *  Tab-completion callback: first word -> command names;
+ *  after <cmd> <space> ... -> parameter names ("param=")
+ *  Handles both remote commands and local '!' commands.
+ ***************************************************************************/
+PRIVATE void ycommand_completion_cb(
+    hgobj editline_gobj,
+    const char *buf,
+    editline_completions_t *lc,
+    void *user_data
+) {
+    /* user_data is the ycommand gobj registered from ac_on_open. */
+    hgobj gobj = (hgobj)user_data;
+    if(!gobj || !buf) {
+        return;
+    }
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+    static const char *local_cmds[] = {"help", "history", "exit", "quit", NULL};
+    static const char *local_descs[] = {
+        "Show local help",
+        "Show command history",
+        "Exit ycommand",
+        "Exit ycommand",
+    };
+    /* Skip leading spaces and the optional '*' form-mode prefix. */
+    const char *start = buf;
+    while(*start == ' ' || *start == '\t') start++;
+    const char *body = (*start == '*') ? start + 1 : start;
+    size_t prefix_len = (size_t)(body - buf);
+    char candidate[1024];
+
+    /* Local ('!' prefix) branch: enumerate the local_command_table. */
+    if(body[0] == '!') {
+        const char *after_bang = body + 1;
+        size_t bang_prefix_len = prefix_len + 1;  /* keep the '!' in candidates */
+        const char *first_space_local = strchr(after_bang, ' ');
+
+        if(!first_space_local) {
+            /* Completing the local command name. */
+            size_t token_len = strlen(after_bang);
+            for(const sdata_desc_t *p = local_command_table; p->name; p++) {
+                if(empty_string(p->name)) {
+                    continue;
+                }
+                if(strncmp(p->name, after_bang, token_len) == 0) {
+                    snprintf(candidate, sizeof(candidate), "%.*s%s",
+                        (int)bang_prefix_len, buf, p->name);
+                    editline_add_completion(lc, candidate, p->description);
+                }
+            }
+            return;
+        }
+
+        /* "!cmd <space> ..." → walk the command's schema for parameter names. */
+        size_t cmd_len = (size_t)(first_space_local - after_bang);
+        const sdata_desc_t *cmd_entry = find_local_command(after_bang, cmd_len);
+        if(!cmd_entry || !cmd_entry->schema) {
+            return;
+        }
+        const char *last_token = strrchr(buf, ' ');
+        last_token = last_token ? last_token + 1 : buf;
+        size_t ltoken_len = strlen(last_token);
+        size_t head_len = (size_t)(last_token - buf);
+
+        const char *eq = strchr(last_token, '=');
+        if(eq) {
+            /* Value completion: look up the param's type in the schema and
+             * offer known values (booleans for now). */
+            size_t pname_len = (size_t)(eq - last_token);
+            if(pname_len == 0 || pname_len >= 64) {
+                return;
+            }
+            char pname[64];
+            memcpy(pname, last_token, pname_len);
+            pname[pname_len] = 0;
+            const char *vprefix = eq + 1;
+            size_t vlen = strlen(vprefix);
+            size_t up_to_eq = head_len + pname_len + 1;
+            for(const sdata_desc_t *pp = cmd_entry->schema; pp->name; pp++) {
+                if(strcmp(pp->name, pname) == 0) {
+                    if(DTP_IS_BOOLEAN(pp->type)) {
+                        static const char *bool_vals[] = {"true", "false", NULL};
+                        for(int v = 0; bool_vals[v]; v++) {
+                            if(strncmp(bool_vals[v], vprefix, vlen) == 0) {
+                                snprintf(candidate, sizeof(candidate), "%.*s%s",
+                                    (int)up_to_eq, buf, bool_vals[v]);
+                                editline_add_completion(lc, candidate, NULL);
+                            }
+                        }
+                    }
+                    break;
+                }
+            }
+            return;
+        }
+
+        for(const sdata_desc_t *pp = cmd_entry->schema; pp->name; pp++) {
+            if(empty_string(pp->name)) {
+                continue;
+            }
+            if(line_has_param(body, pp->name)) {
+                continue;
+            }
+            if(strncmp(pp->name, last_token, ltoken_len) == 0) {
+                snprintf(candidate, sizeof(candidate), "%.*s%s=",
+                    (int)head_len, buf, pp->name);
+                editline_add_completion(lc, candidate, pp->description);
+            }
+        }
+        return;
+    }
+
+    /* Remote command branch (existing behaviour). */
+    const char *first_space = strchr(body, ' ');
+
+    if(!first_space) {
+        /* Completing the command name itself. */
+        size_t token_len = strlen(body);
+
+        for(int i = 0; local_cmds[i]; i++) {
+            if(strncmp(local_cmds[i], body, token_len) == 0) {
+                snprintf(candidate, sizeof(candidate), "%.*s%s",
+                    (int)prefix_len, buf, local_cmds[i]);
+                editline_add_completion(lc, candidate, local_descs[i]);
+            }
+        }
+        if(priv->commands_cache) {
+            const char *name;
+            json_t *jn_cmd;
+            json_object_foreach(priv->commands_cache, name, jn_cmd) {
+                if(strncmp(name, body, token_len) == 0) {
+                    const char *desc = json_string_value(
+                        json_object_get(jn_cmd, "description"));
+                    snprintf(candidate, sizeof(candidate), "%.*s%s",
+                        (int)prefix_len, buf, name);
+                    editline_add_completion(lc, candidate, desc);
+                }
+            }
+        }
+        return;
+    }
+
+    /* We have "<cmd> ...". Lookup the command in the cache. */
+    if(!priv->commands_cache) {
+        return;
+    }
+    size_t cmd_len = (size_t)(first_space - body);
+    char cmd_name[128];
+    if(cmd_len == 0 || cmd_len >= sizeof(cmd_name)) {
+        return;
+    }
+    memcpy(cmd_name, body, cmd_len);
+    cmd_name[cmd_len] = 0;
+
+    json_t *jn_cmd = json_object_get(priv->commands_cache, cmd_name);
+    if(!jn_cmd) {
+        return;
+    }
+    json_t *jn_params = json_object_get(jn_cmd, "parameters");
+    if(!json_is_array(jn_params)) {
+        return;
+    }
+
+    const char *last_token = strrchr(buf, ' ');
+    last_token = last_token ? last_token + 1 : buf;
+    size_t token_len = strlen(last_token);
+    size_t head_len = (size_t)(last_token - buf);
+
+    const char *eq = strchr(last_token, '=');
+    if(eq) {
+        /* Value completion: look up the param's type and offer known
+         * values (booleans for now). */
+        size_t pname_len = (size_t)(eq - last_token);
+        if(pname_len == 0 || pname_len >= 64) {
+            return;
+        }
+        char pname[64];
+        memcpy(pname, last_token, pname_len);
+        pname[pname_len] = 0;
+        const char *vprefix = eq + 1;
+        size_t vlen = strlen(vprefix);
+        size_t up_to_eq = head_len + pname_len + 1;
+
+        size_t idx;
+        json_t *jn_p;
+        json_array_foreach(jn_params, idx, jn_p) {
+            const char *ppname = json_string_value(
+                json_object_get(jn_p, "parameter"));
+            if(!ppname || strcmp(ppname, pname) != 0) {
+                continue;
+            }
+            const char *ptype = json_string_value(
+                json_object_get(jn_p, "type"));
+            if(ptype && strcmp(ptype, "boolean") == 0) {
+                static const char *bool_vals[] = {"true", "false", NULL};
+                for(int v = 0; bool_vals[v]; v++) {
+                    if(strncmp(bool_vals[v], vprefix, vlen) == 0) {
+                        snprintf(candidate, sizeof(candidate), "%.*s%s",
+                            (int)up_to_eq, buf, bool_vals[v]);
+                        editline_add_completion(lc, candidate, NULL);
+                    }
+                }
+            }
+            break;
+        }
+        return;
+    }
+
+    size_t idx;
+    json_t *jn_p;
+    json_array_foreach(jn_params, idx, jn_p) {
+        const char *pname = json_string_value(json_object_get(jn_p, "parameter"));
+        if(empty_string(pname)) {
+            continue;
+        }
+        /* Skip params already present on the line (same filter as the hint). */
+        if(line_has_param(body, pname)) {
+            continue;
+        }
+        if(strncmp(pname, last_token, token_len) == 0) {
+            const char *pdesc = json_string_value(
+                json_object_get(jn_p, "description"));
+            snprintf(candidate, sizeof(candidate), "%.*s%s=",
+                (int)head_len, buf, pname);
+            editline_add_completion(lc, candidate, pdesc);
+        }
+    }
+}
+
+/***************************************************************************
+ *  Map a yuno sdata type to a short label for the hint.
+ *  The remote command cache returns types as strings ("string", "integer",
+ *  ...); the local command_table uses raw DTP_* bytes. One helper per form.
+ ***************************************************************************/
+PRIVATE const char *short_type_label(const char *type)
+{
+    if(empty_string(type))                return "";
+    if(strcmp(type, "string") == 0)       return "str";
+    if(strcmp(type, "integer") == 0)      return "int";
+    if(strcmp(type, "boolean") == 0)      return "bool";
+    return type;
+}
+
+PRIVATE const char *short_dtp_label(uint8_t dtp)
+{
+    if(DTP_IS_STRING(dtp))  return "str";
+    if(DTP_IS_BOOLEAN(dtp)) return "bool";
+    if(DTP_IS_INTEGER(dtp)) return "int";
+    if(DTP_IS_REAL(dtp))    return "real";
+    if(DTP_IS_JSON(dtp))    return "json";
+    return "";
+}
+
+/***************************************************************************
+ *  Return TRUE if `buf` already contains a "<pname>=" token. The buffer
+ *  always starts with the command name, so the param name must be preceded
+ *  by whitespace — this avoids matches that collide with the command name
+ *  or with the value side of another param.
+ ***************************************************************************/
+PRIVATE BOOL line_has_param(const char *buf, const char *pname)
+{
+    size_t plen = strlen(pname);
+    const char *p = buf;
+    while((p = strstr(p, pname)) != NULL) {
+        BOOL preceded_by_space = (p != buf) && (p[-1] == ' ' || p[-1] == '\t');
+        if(preceded_by_space && p[plen] == '=') {
+            return TRUE;
+        }
+        p += plen;
+    }
+    return FALSE;
+}
+
+/***************************************************************************
+ *  Hints callback: once the user has typed "<cmd> ", show the remaining
+ *  parameters in gray (required as <name=type>, optional as [name=type]).
+ *  Parameters already present on the line are skipped.
+ ***************************************************************************/
+PRIVATE char *ycommand_hints_cb(
+    hgobj editline_gobj,
+    const char *buf,
+    int *out_color,
+    int *out_bold,
+    void *user_data
+) {
+    hgobj gobj = (hgobj)user_data;
+    if(!gobj || empty_string(buf)) {
+        return NULL;
+    }
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    /* Skip leading spaces and an optional '*' form-mode prefix. */
+    const char *body = buf;
+    while(*body == ' ' || *body == '\t') body++;
+    if(*body == '*') body++;
+
+    BOOL is_local = (body[0] == '!');
+    if(is_local) {
+        body++;  /* skip '!' for the command-name / param scan */
+    }
+
+    /* Hint only after the command name has been completed (first space seen). */
+    const char *first_space = strchr(body, ' ');
+    if(!first_space) {
+        return NULL;
+    }
+    size_t cmd_len = (size_t)(first_space - body);
+    if(cmd_len == 0) {
+        return NULL;
+    }
+
+    gbuffer_t *gbuf = gbuffer_create(128, 4 * 1024);
+
+    if(is_local) {
+        const sdata_desc_t *cmd_entry = find_local_command(body, cmd_len);
+        if(!cmd_entry || !cmd_entry->schema) {
+            gbuffer_decref(gbuf);
+            return NULL;
+        }
+        for(const sdata_desc_t *pp = cmd_entry->schema; pp->name; pp++) {
+            if(empty_string(pp->name)) {
+                continue;
+            }
+            if(line_has_param(body, pp->name)) {
+                continue;
+            }
+            BOOL required = (pp->flag & SDF_REQUIRED) ? TRUE : FALSE;
+            gbuffer_printf(gbuf, " %c%s=%s%c",
+                required ? '<' : '[',
+                pp->name,
+                short_dtp_label(pp->type),
+                required ? '>' : ']'
+            );
+        }
+    } else {
+        if(!priv->commands_cache) {
+            gbuffer_decref(gbuf);
+            return NULL;
+        }
+        char cmd_name[128];
+        if(cmd_len >= sizeof(cmd_name)) {
+            gbuffer_decref(gbuf);
+            return NULL;
+        }
+        memcpy(cmd_name, body, cmd_len);
+        cmd_name[cmd_len] = 0;
+        json_t *jn_cmd = json_object_get(priv->commands_cache, cmd_name);
+        if(!jn_cmd) {
+            gbuffer_decref(gbuf);
+            return NULL;
+        }
+        json_t *jn_params = json_object_get(jn_cmd, "parameters");
+        if(!json_is_array(jn_params) || json_array_size(jn_params) == 0) {
+            gbuffer_decref(gbuf);
+            return NULL;
+        }
+
+        /* Build "[name=type] <req=type> ..." for params not yet on the line. */
+        size_t idx;
+        json_t *jn_p;
+        json_array_foreach(jn_params, idx, jn_p) {
+            const char *pname = json_string_value(json_object_get(jn_p, "parameter"));
+            if(empty_string(pname)) {
+                continue;
+            }
+            if(line_has_param(body, pname)) {
+                continue;
+            }
+            const char *ptype = json_string_value(json_object_get(jn_p, "type"));
+            const char *flag = json_string_value(json_object_get(jn_p, "flag"));
+            BOOL required = (flag && strstr(flag, "SDF_REQUIRED") != NULL);
+            gbuffer_printf(gbuf, " %c%s=%s%c",
+                required ? '<' : '[',
+                pname,
+                short_type_label(ptype),
+                required ? '>' : ']'
+            );
+        }
+    }
+
+    if(gbuffer_leftbytes(gbuf) == 0) {
+        gbuffer_decref(gbuf);
+        return NULL;
+    }
+
+    /* Caller (c_editline) gives the returned pointer to free_cb — strdup it. */
+    char *hint = gbmem_strdup(gbuffer_cur_rd_pointer(gbuf));
+    gbuffer_decref(gbuf);
+    if(out_color) *out_color = 90;  /* bright black / gray */
+    if(out_bold)  *out_bold  = 0;
+    return hint;
+}
+
+PRIVATE void ycommand_free_hint_cb(char *hint, void *user_data)
+{
+    gbmem_free(hint);
+}
+
+/***************************************************************************
  *  Execute batch of input parameters when the route is opened.
  ***************************************************************************/
 PRIVATE int ac_on_open(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
@@ -1143,18 +1955,82 @@ PRIVATE int ac_on_open(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
     }
     gobj_write_pointer_attr(gobj, "gobj_connector", src);
 
+    if(priv->interactive && priv->gobj_editline) {
+        /*
+         *  Update the prompt to reflect the peer we're talking to, so the
+         *  user can tell at a glance where their commands will land (useful
+         *  when hopping between agent / controlcenter / other yunos).
+         *  Plain text only — ANSI colors would fool the prompt-width logic
+         *  in refreshLine (strlen counts the escape bytes).
+         */
+        char new_prompt[128];
+        if(empty_string(yuno_name)) {
+            snprintf(new_prompt, sizeof(new_prompt), "%s> ", yuno_role);
+        } else {
+            snprintf(new_prompt, sizeof(new_prompt), "%s^%s> ",
+                yuno_role, yuno_name);
+        }
+        gobj_write_str_attr(priv->gobj_editline, "prompt", new_prompt);
+
+        editline_set_completion_callback(
+            priv->gobj_editline, ycommand_completion_cb, gobj
+        );
+        editline_set_hints_callback(
+            priv->gobj_editline,
+            ycommand_hints_cb,
+            ycommand_free_hint_cb,
+            gobj
+        );
+        /*
+         *  ycommand can hop between different yunos (agent, controlcenter, ...)
+         *  and each exposes its own command set, so we always ask the peer at
+         *  connect time and keep the map only in memory for this session.
+         */
+        request_commands_cache(gobj);
+    }
+
     const char *command = gobj_read_str_attr(gobj, "command");
     if(priv->interactive) {
         if(!empty_string(command)) {
             do_command(gobj, command);
         } else {
-            printf("Type Ctrl+c for exit, 'help' for help, 'history' for show history\n");
+            printf("Type '!help' for local help, '!history' for history, !N to repeat.\n");
             clear_input_line(gobj);
         }
     } else {
         if(empty_string(command)) {
-            printf("What command?\n");
-            gobj_stop(priv->gobj_remote_agent);
+            /*
+             *  Non-interactive with no -c/positional: if stdin is a pipe,
+             *  read commands from it one per line (blank / '#' lines are
+             *  skipped) and drain them sequentially — each waits for the
+             *  previous response, stop on error unless the line was
+             *  prefixed with '-'. This gives ycommand basic pipe-style
+             *  scripting:  `cat batch.ycmd | ycommand -u ws://...`
+             */
+            if(!isatty(STDIN_FILENO)) {
+                char line[4096];
+                while(fgets(line, sizeof(line), stdin)) {
+                    size_t len = strlen(line);
+                    while(len > 0 && (line[len-1] == '\n' || line[len-1] == '\r')) {
+                        line[--len] = 0;
+                    }
+                    const char *s = line;
+                    while(*s == ' ' || *s == '\t') s++;
+                    if(*s == 0 || *s == '#') {
+                        continue;
+                    }
+                    split_commands_into_queue(gobj, s);
+                }
+                if(priv->pending_commands
+                   && json_array_size(priv->pending_commands) > 0) {
+                    run_next_pending(gobj);
+                } else {
+                    gobj_stop(priv->gobj_remote_agent);
+                }
+            } else {
+                printf("What command?\n");
+                gobj_stop(priv->gobj_remote_agent);
+            }
         } else {
             do_command(gobj, command);
         }
@@ -1187,7 +2063,239 @@ PRIVATE int ac_on_close(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 }
 
 /***************************************************************************
+ *  Split `text` into atomic commands on unquoted, top-level `;` and append
+ *  each non-empty chunk to the `target` json array. Brace depth and quote
+ *  state are tracked so `;` inside "...", '...' or {...} is treated as
+ *  literal (needed for JSON-valued parameters like kw={"a":1}).
+ ***************************************************************************/
+PRIVATE void split_commands_into_array(const char *text, json_t *target)
+{
+    if(!text || !target) {
+        return;
+    }
+    const char *start = text;
+    int brace_depth = 0;
+    char in_quote = 0;
+    for(const char *p = text; ; p++) {
+        if(in_quote) {
+            if(*p == 0) break;
+            if(*p == '\\' && p[1]) { p++; continue; }
+            if(*p == in_quote) in_quote = 0;
+            continue;
+        }
+        if(*p == '"' || *p == '\'') {
+            in_quote = *p;
+            continue;
+        }
+        if(*p == '{') {
+            brace_depth++;
+            continue;
+        }
+        if(*p == '}' && brace_depth > 0) {
+            brace_depth--;
+            continue;
+        }
+        if((*p == ';' && brace_depth == 0) || *p == 0) {
+            const char *s = start;
+            const char *e = p;
+            while(s < e && (*s == ' ' || *s == '\t')) s++;
+            while(e > s && (e[-1] == ' ' || e[-1] == '\t')) e--;
+            if(e > s) {
+                size_t n = (size_t)(e - s);
+                char *tmp = gbmem_malloc(n + 1);
+                if(tmp) {
+                    memcpy(tmp, s, n);
+                    tmp[n] = 0;
+                    json_array_append_new(target, json_string(tmp));
+                    gbmem_free(tmp);
+                }
+            }
+            if(*p == 0) break;
+            start = p + 1;
+        }
+    }
+}
+
+PRIVATE void split_commands_into_queue(hgobj gobj, const char *text)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+    if(!priv->pending_commands) {
+        priv->pending_commands = json_array();
+    }
+    split_commands_into_array(text, priv->pending_commands);
+}
+
+/***************************************************************************
+ *  Drain priv->pending_commands in order. Each entry goes through
+ *  exec_one_command(); on sync success we loop to the next, on sync error
+ *  we clear the queue (unless the entry was prefixed with '-') and on
+ *  async dispatch we return and wait for ac_command_answer to resume us.
+ ***************************************************************************/
+PRIVATE void run_next_pending(hgobj gobj)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+    while(priv->pending_commands && json_array_size(priv->pending_commands) > 0) {
+        json_t *jn_cmd = json_array_get(priv->pending_commands, 0);
+        char *cmd_str = gbmem_strdup(json_string_value(jn_cmd));
+        json_array_remove(priv->pending_commands, 0);
+        int ret = exec_one_command(gobj, cmd_str);
+        gbmem_free(cmd_str);
+        if(ret == 1) {
+            /* Async dispatch: ac_command_answer will call us again. */
+            return;
+        }
+        if(ret == -1) {
+            /* Sync error and not ignore-fail: drop the rest of the queue. */
+            json_array_clear(priv->pending_commands);
+            return;
+        }
+        /* ret == 0: sync success, continue to next. */
+    }
+}
+
+/***************************************************************************
+ *  Run a single command line end-to-end. Handles the bang/history
+ *  expansion, the bare `exit` / `quit` / `history` intercepts, local-table
+ *  vs remote routing and the sync/async response split.
+ *  Returns 0 (sync done), 1 (async pending, wait for EV_MT_COMMAND_ANSWER)
+ *  or -1 (sync error; caller should drop remaining queue unless this
+ *  command was prefixed with '-').
+ ***************************************************************************/
+PRIVATE int exec_one_command(hgobj gobj, const char *cmdline)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    while(*cmdline == ' ' || *cmdline == '\t') cmdline++;
+    if(empty_string(cmdline)) {
+        return 0;
+    }
+
+    /* ybatch convention: a leading '-' on the command keeps the batch
+     * going when this one fails. */
+    BOOL ignore_fail = FALSE;
+    if(*cmdline == '-') {
+        ignore_fail = TRUE;
+        cmdline++;
+        while(*cmdline == ' ' || *cmdline == '\t') cmdline++;
+    }
+
+    /* History expansion (bash-style) — only for purely numeric/`!` forms. */
+    char expanded[1024] = {0};
+    if(cmdline[0] == '!' && cmdline[1] && priv->gobj_editline) {
+        const char *spec = cmdline + 1;
+        BOOL is_history_expansion = FALSE;
+        const char *found = NULL;
+        int n = editline_history_count(priv->gobj_editline);
+        if(spec[0] == '!' && spec[1] == 0) {
+            is_history_expansion = TRUE;
+            if(n > 0) found = editline_history_get(priv->gobj_editline, n);
+        } else if(isdigit((unsigned char)spec[0])) {
+            is_history_expansion = TRUE;
+            int idx = atoi(spec);
+            if(idx > 0) found = editline_history_get(priv->gobj_editline, idx);
+        }
+        if(is_history_expansion) {
+            if(!found) {
+                printf("%s%s: event not found%s\n",
+                    On_Red BWhite, cmdline, Color_Off);
+                clear_input_line(gobj);
+                return ignore_fail ? 0 : -1;
+            }
+            printf("%s\n", found);
+            snprintf(expanded, sizeof(expanded), "%s", found);
+            cmdline = expanded;
+        }
+    }
+
+    /* Bare local intercepts kept for muscle memory. */
+    if(strcasecmp(cmdline, "exit") == 0 || strcasecmp(cmdline, "quit") == 0) {
+        if(priv->pending_commands) {
+            json_array_clear(priv->pending_commands);
+        }
+        gobj_stop(gobj);
+        return 0;
+    }
+    if(strcasecmp(cmdline, "history") == 0) {
+        list_history(gobj);
+        return 0;
+    }
+
+    char comment[512] = {0};
+    gbuffer_t *gbuf_parsed_command = replace_cli_vars(cmdline, comment, sizeof(comment));
+    if(!gbuf_parsed_command) {
+        printf("%s%s%s\n", On_Red BWhite, cmdline, Color_Off);
+        clear_input_line(gobj);
+        return ignore_fail ? 0 : -1;
+    }
+    char *xcmd = gbuffer_cur_rd_pointer(gbuf_parsed_command);
+    json_t *kw_command = json_object();
+    if(*xcmd == '*') {
+        xcmd++;
+        kw_set_subdict_value(gobj, kw_command, "__md_iev__",
+            "display_mode", json_string("form"));
+    }
+    if(strstr(xcmd, "open-console")) {
+        struct winsize w;
+        ioctl(STDOUT_FILENO, TIOCGWINSZ, &w);
+        int cx = w.ws_col;
+        int cy = w.ws_row;
+        kw_set_dict_value(gobj, kw_command, "cx", json_integer(cx));
+        kw_set_dict_value(gobj, kw_command, "cy", json_integer(cy));
+    }
+
+    BOOL local_cmd = FALSE;
+    if(*xcmd == '!') {
+        xcmd++;
+        while(*xcmd == ' ' || *xcmd == '\t') xcmd++;
+        local_cmd = TRUE;
+    }
+
+    {
+        const char *sp = xcmd;
+        while(*sp && *sp != ' ' && *sp != '\t') sp++;
+        size_t cmd_len = (size_t)(sp - xcmd);
+        if(cmd_len >= sizeof(priv->last_sent_command)) {
+            cmd_len = sizeof(priv->last_sent_command) - 1;
+        }
+        memcpy(priv->last_sent_command, xcmd, cmd_len);
+        priv->last_sent_command[cmd_len] = 0;
+    }
+
+    json_t *webix = 0;
+    if(local_cmd) {
+        webix = gobj_command(gobj, xcmd, kw_command, gobj);
+    } else if(gobj_in_this_state(gobj, ST_CONNECTED)) {
+        webix = gobj_command(priv->gobj_connector, xcmd, kw_command, gobj);
+    } else {
+        printf("\n%s%s%s\n", On_Red BWhite, "No connection", Color_Off);
+        clear_input_line(gobj);
+        JSON_DECREF(kw_command)
+        gbuffer_decref(gbuf_parsed_command);
+        return ignore_fail ? 0 : -1;
+    }
+    gbuffer_decref(gbuf_parsed_command);
+
+    if(webix) {
+        int result = (int)kw_get_int(gobj, webix, "result", 0, 0);
+        display_webix_result(gobj, webix);  /* consumes webix */
+        if(result < 0) {
+            return ignore_fail ? 0 : -1;
+        }
+        return 0;
+    }
+
+    /* Async: the response will arrive via EV_MT_COMMAND_ANSWER. */
+    priv->current_ignore_fail = ignore_fail;
+    printf("\n"); fflush(stdout);
+    return 1;
+}
+
+/***************************************************************************
  *  HACK Este evento solo puede venir de GCLASS_EDITLINE
+ *
+ *  Just read the text off the source (editline or kw in non-interactive
+ *  mode), split it into atomic commands on top-level ';' and start draining
+ *  the queue. exec_one_command() does the real work per command.
  ***************************************************************************/
 PRIVATE int ac_command(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 {
@@ -1215,67 +2323,9 @@ PRIVATE int ac_command(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
         return 0;
     }
 
-    if(strcasecmp(command, "exit")==0 || strcasecmp(command, "quit")==0) {
-        gobj_stop(gobj);
-        KW_DECREF(kw_input_command);
-        KW_DECREF(kw);
-        return 0;
-    }
+    split_commands_into_queue(gobj, command);
+    run_next_pending(gobj);
 
-    if(strcasecmp(command, "history")==0) {
-        list_history(gobj);
-        KW_DECREF(kw_input_command);
-        KW_DECREF(kw);
-        return 0;
-    }
-
-    char comment[512]={0};
-    gbuffer_t *gbuf_parsed_command = replace_cli_vars(command, comment, sizeof(comment));
-    if(!gbuf_parsed_command) {
-        printf("%s%s%s\n", On_Red BWhite, command, Color_Off);
-        clear_input_line(gobj);
-        KW_DECREF(kw_input_command);
-        KW_DECREF(kw);
-        return 0;
-    }
-    char *xcmd = gbuffer_cur_rd_pointer(gbuf_parsed_command);
-    json_t *kw_command = json_object();
-    if(*xcmd == '*') {
-        xcmd++;
-        kw_set_subdict_value(gobj, kw_command, "__md_iev__", "display_mode", json_string("form"));
-    }
-    if(strstr(xcmd, "open-console")) {
-        struct winsize w;
-        ioctl(STDOUT_FILENO, TIOCGWINSZ, &w);
-
-        int cx = w.ws_col;
-        int cy = w.ws_row;
-        kw_set_dict_value(gobj, kw_command, "cx", json_integer(cx));
-        kw_set_dict_value(gobj, kw_command, "cy", json_integer(cy));
-    }
-
-    json_t *webix = 0;
-    if(gobj_in_this_state(gobj, ST_CONNECTED)) {
-        webix = gobj_command(priv->gobj_connector, xcmd, kw_command, gobj);
-    } else {
-        printf("\n%s%s%s\n", On_Red BWhite, "No connection", Color_Off);
-        clear_input_line(gobj);
-        JSON_DECREF(kw_command)
-    }
-    gbuffer_decref(gbuf_parsed_command);
-
-    /*
-     *  Print json response in display window
-     */
-    if(webix) {
-        display_webix_result(
-            gobj,
-            webix
-        );
-    } else {
-        /* asynchronous responses return 0 */
-        printf("\n"); fflush(stdout);
-    }
     KW_DECREF(kw_input_command);
     KW_DECREF(kw);
     return 0;
@@ -1288,40 +2338,67 @@ PRIVATE int ac_command_answer(hgobj gobj, gobj_event_t event, json_t *kw, hgobj 
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
-    if(priv->interactive) {
-        return display_webix_result(
-            gobj,
-            kw
-        );
-    } else {
-        int result = (int)kw_get_int(gobj, kw, "result", -1, 0);
-        const char *comment = kw_get_str(gobj, kw, "comment", "", 0);
-        if(result != 0){
-            printf("%sERROR %d: %s%s\n", On_Red BWhite, result, comment, Color_Off);
-        } else {
-            json_t *jn_data = kw_get_dict_value(gobj, kw, "data", 0, 0);
-            if(json_is_string(jn_data)) {
-                const char *data = json_string_value(jn_data);
-                printf("%s\n", data);
-            } else if(json_is_object(jn_data) || json_is_array(jn_data)) {
-                if(!gobj_read_bool_attr(gobj, "print_with_metadata")) {
-                    json_t *jn_data2 = kw_filter_metadata(gobj, json_incref(jn_data));
-                    print_json("", jn_data2);
-                    JSON_DECREF(jn_data2);
-                } else {
-                    print_json("", jn_data);
-                }
+    /*
+     *  Intercept the silent list-gobj-commands responses used to warm the cache.
+     *  While at least one warm-up is pending, swallow anything that looks like a
+     *  list-gobj-commands answer (success merges, error is ignored). Unrelated
+     *  answers — e.g. a user command's response racing the warm-up — still go
+     *  to the normal display path below.
+     */
+    if(priv->pending_cache_fetches > 0) {
+        json_t *jn_data = kw_get_dict_value(gobj, kw, "data", 0, 0);
+        BOOL is_cache = is_commands_list_response(jn_data);
+        int result = (int)kw_get_int(gobj, kw, "result", 0, 0);
+        /* A pure error response has no data but is still the warm-up's answer. */
+        if(is_cache || (result != 0 && jn_data == NULL)) {
+            if(is_cache) {
+                merge_commands_into_cache(gobj, jn_data);
             }
-            if(!empty_string(comment)) {
-                printf("%s\n", comment);
+            priv->pending_cache_fetches--;
+            if(priv->interactive) {
+                clear_input_line(gobj);
             }
+            KW_DECREF(kw);
+            return 0;
         }
-        KW_DECREF(kw);
-        gobj_set_exit_code(result);
-
-        set_timeout(priv->timer, priv->wait * 1000);
     }
-    return 0;
+
+    /*
+     *  Before running the normal display paths, capture the result+flag
+     *  into locals so we can resume (or drop) the queue after display.
+     *  ownership of `kw` is passed to display_webix_result.
+     */
+    int __answer_result = (int)kw_get_int(gobj, kw, "result", 0, 0);
+    BOOL __ignore_fail = priv->current_ignore_fail;
+    priv->current_ignore_fail = FALSE;
+
+    /*
+     *  Unified rendering: use display_webix_result() in both modes so the
+     *  non-interactive output also honours the schema → table pipeline
+     *  (and the '*' prefix still forces raw-JSON form via
+     *  __md_iev__.display_mode, set in exec_one_command).
+     */
+    int r = display_webix_result(gobj, kw);  /* consumes kw */
+
+    if(priv->pending_commands && json_array_size(priv->pending_commands) > 0) {
+        if(__answer_result < 0 && !__ignore_fail) {
+            json_array_clear(priv->pending_commands);
+        } else {
+            run_next_pending(gobj);
+        }
+    }
+
+    if(!priv->interactive) {
+        gobj_set_exit_code(__answer_result);
+        /* Schedule the shutdown timeout only when we're actually done —
+         * if more queued commands are still being drained, wait for them. */
+        if(!priv->pending_commands
+           || json_array_size(priv->pending_commands) == 0) {
+            set_timeout(priv->timer, priv->wait * 1000);
+        }
+    }
+
+    return r;
 }
 
 /***************************************************************************
@@ -1676,7 +2753,10 @@ PRIVATE int ac_screen_ctrl(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src
 
     SWITCHS(event) {
         CASES(EV_CLRSCR)
+            /* Clear + position cursor at top-left; otherwise the prompt
+             * is redrawn below whatever was on the last line. */
             printf(Clear_Screen);
+            printf(Cursor_Position, 1, 1);
             fflush(stdout);
             if(priv->gobj_editline) {
                 gobj_send_event(priv->gobj_editline, EV_PAINT, 0, gobj);
@@ -1855,16 +2935,19 @@ PRIVATE int create_gclass(gclass_name_t gclass_name)
         {"editline",    EV_EDITLINE_BACKSPACE,        BACKSPACE},
         {"editline",    EV_EDITLINE_COMPLETE_LINE,    TAB},
         {"editline",    EV_EDITLINE_ENTER,            ENTER},
+        {"editline",    EV_EDITLINE_REVERSE_SEARCH,   CTRL_R},
+        {"editline",    EV_EDITLINE_FORWARD_SEARCH,   CTRL_S},
         {"editline",    EV_EDITLINE_PREV_HIST,        MKEY_UP},
         {"editline",    EV_EDITLINE_PREV_HIST,        MKEY_UP2},
         {"editline",    EV_EDITLINE_NEXT_HIST,        MKEY_DOWN},
         {"editline",    EV_EDITLINE_NEXT_HIST,        MKEY_DOWN2},
         {"editline",    EV_EDITLINE_SWAP_CHAR,        CTRL_T},
+        {"editline",    EV_EDITLINE_DEL_EOL,          CTRL_K},
         {"editline",    EV_EDITLINE_DEL_LINE,         CTRL_U},
         {"editline",    EV_EDITLINE_DEL_LINE,         CTRL_Y},
         {"editline",    EV_EDITLINE_DEL_PREV_WORD,    CTRL_W},
 
-        {"screen",      EV_CLRSCR,                    CTRL_K},
+        {"screen",      EV_CLRSCR,                    CTRL_L},
         {"screen",      EV_SCROLL_PAGE_UP,            MKEY_PREV_PAGE},
         {"screen",      EV_SCROLL_PAGE_DOWN,          MKEY_NEXT_PAGE},
         {"screen",      EV_SCROLL_LINE_UP,            MKEY_ALT_PREV_PAGE},
@@ -1985,7 +3068,7 @@ PRIVATE int create_gclass(gclass_name_t gclass_name)
         attrs_table,
         sizeof(PRIVATE_DATA),
         0,  // Authorization table
-        0,  // Command table
+        local_command_table,
         s_user_trace_level,
         0   // GClass flags
     );

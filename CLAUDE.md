@@ -2,6 +2,42 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
+## ⚠️ CRITICAL: Memory allocation in C code
+
+**NEVER use raw `malloc` / `calloc` / `realloc` / `free` / `strdup` / `strndup` in Yuneta C code.**
+**ALWAYS use the `gbmem_*` wrappers declared in `kernel/c/gobj-c/src/gbmem.h`.**
+
+This applies to every file under `kernel/c/`, `modules/c/`, `utils/c/`, `yunos/c/`, `tests/c/`,
+`performance/c/`, and `stress/c/` — i.e. any C code that links against the gobj-c framework.
+
+| Forbidden          | Use instead                  |
+|--------------------|------------------------------|
+| `malloc(n)`        | `gbmem_malloc(n)`            |
+| `calloc(n, sz)`    | `gbmem_calloc(n, sz)`        |
+| `realloc(p, n)`    | `gbmem_realloc(p, n)`        |
+| `free(p)`          | `gbmem_free(p)`              |
+| `strdup(s)`        | `gbmem_strdup(s)`            |
+| `strndup(s, n)`    | `gbmem_strndup(s, n)`        |
+
+**Why it matters:**
+- `gbmem_*` routes through Yuneta's allocator, which is swapped at startup via
+  `gbmem_set_allocators()` and `json_set_alloc_funcs()`. Mixing raw libc calls
+  with `gbmem_*` causes pointers allocated by one to be freed by the other →
+  heap corruption or leaks that bypass the `CONFIG_DEBUG_TRACK_MEMORY` audit.
+- Memory-tracking, size limits (`MEM_MAX_BLOCK`, `MEM_MAX_SYSTEM_MEMORY`) and
+  the superblock pool (`USE_OWN_SYSTEM_MEMORY`) only work if every allocation
+  goes through `gbmem_*`.
+- Jansson is routed through `gbmem_*` via `json_set_alloc_funcs()`, so all
+  `json_*` APIs are already safe — no special handling needed there.
+
+**Rule of thumb:** if the file links against `yunetas.h` or the gobj-c framework,
+use `gbmem_*`. The only exception is third-party code isolated in
+`kernel/c/linux-ext-libs/` (OpenSSL, liburing, …) which uses its own allocator.
+
+When reviewing diffs or writing new code, grep for `\bmalloc\s*\(`, `\bfree\s*\(`,
+`\brealloc\s*\(`, `\bstrdup\s*\(` and replace every hit with the `gbmem_*`
+equivalent.
+
 ## System Prerequisites
 
 Install system dependencies (from doc.yuneta.io):

@@ -35,9 +35,12 @@
 #define BACKSPACE {0x7F}
 #define TAB     {9}
 #define CTRL_K  {11}
+#define CTRL_L  {12}
 #define ENTER   {13}
 #define CTRL_N  {14}
 #define CTRL_P  {16}
+#define CTRL_R  {18}
+#define CTRL_S  {19}
 #define CTRL_T  {20}
 #define CTRL_U  {21}
 #define CTRL_W  {23}
@@ -1724,17 +1727,27 @@ PRIVATE int create_gclass(gclass_name_t gclass_name)
         {"editline",    EV_EDITLINE_NEXT_HIST,        MKEY_DOWN},
         {"editline",    EV_EDITLINE_NEXT_HIST,        MKEY_DOWN2},
         {"editline",    EV_EDITLINE_SWAP_CHAR,        CTRL_T},
+        {"editline",    EV_EDITLINE_DEL_EOL,          CTRL_K},
         {"editline",    EV_EDITLINE_DEL_LINE,         CTRL_U},
         {"editline",    EV_EDITLINE_DEL_LINE,         CTRL_Y},
         {"editline",    EV_EDITLINE_DEL_PREV_WORD,    CTRL_W},
+        {"editline",    EV_EDITLINE_REVERSE_SEARCH,   CTRL_R},
+        {"editline",    EV_EDITLINE_FORWARD_SEARCH,   CTRL_S},
 
-        {"screen",      EV_CLRSCR,                    CTRL_K},
+        {"screen",      EV_CLRSCR,                    CTRL_L},
         {"screen",      EV_SCROLL_PAGE_UP,            MKEY_PREV_PAGE},
         {"screen",      EV_SCROLL_PAGE_DOWN,          MKEY_NEXT_PAGE},
         {"screen",      EV_SCROLL_LINE_UP,            MKEY_ALT_PREV_PAGE},
         {"screen",      EV_SCROLL_LINE_DOWN,          MKEY_ALT_NEXT_PAGE},
         {"screen",      EV_SCROLL_TOP,                MKEY_ALT_START},
         {"screen",      EV_SCROLL_BOTTOM,             MKEY_ALT_END},
+
+        /* Cancel bindings live at the end: standalone ESCAPE (0x1B) is
+         * the prefix of every MKEY_* above. Keeping it last lets longer
+         * sequences win the memcmp match in event_by_key(). Ctrl+G
+         * (0x07) has no such ambiguity but is here for symmetry. */
+        {"editline",    EV_EDITLINE_CANCEL,           {7}},
+        {"editline",    EV_EDITLINE_CANCEL,           ESCAPE},
 
         {0}
     };

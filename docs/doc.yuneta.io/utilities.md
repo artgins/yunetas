@@ -9,8 +9,8 @@ Command-line tools shipped with Yuneta. All binaries are installed into
 
 | Binary | Description |
 |--------|-------------|
-| **`ycommand`** | Control-plane CLI — sends commands and stats requests to a running yuno over a local socket or WebSocket. Supports single-command and interactive shell modes. |
-| **`ybatch`** | Batch command runner — executes a script of commands against a yuno. Useful for automation, provisioning, and smoke tests. |
+| **`ycommand`** | Control-plane CLI — sends commands and stats requests to a running yuno over a local socket or WebSocket. Single-command, interactive and batch modes. Interactive mode has TAB completion, inline parameter hints, `Ctrl+R`/`Ctrl+S` history search, `!help` / `!history` / `!source` local commands, bash-style `!!` / `!N` history expansion, did-you-mean suggestions on errors and schema-driven table output. Non-interactive accepts commands either via `-c`, as positional args or piped on stdin, with `;` chaining and `-cmd` ignore-fail (the `ybatch` convention). See [utils/c/ycommand/README.md](https://github.com/artgins/yunetas/blob/main/utils/c/ycommand/README.md) for the full syntax and shortcut reference. |
+| **`ybatch`** | Batch command runner — executes a JSON-formatted script of commands against a yuno. Useful for automation, provisioning, and smoke tests. Complementary to `ycommand`'s line-oriented scripting. |
 | **`ystats`** | Real-time statistics subscriber — displays live stats from a yuno with configurable refresh interval and filtering. |
 | **`ytests`** | Test-suite runner against a live service — supports repeat/interval options for soak testing. |
 | **`ylist`** | List running yunos on the local machine with process information. Use `--pids` for scripting. |

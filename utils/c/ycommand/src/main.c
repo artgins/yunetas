@@ -22,10 +22,11 @@
  *  Used by main to communicate with parse_opt.
  */
 #define MIN_ARGS 0
-#define MAX_ARGS 0
+#define MAX_ARGS 128
 struct arguments
 {
     char *args[MAX_ARGS+1];     /* positional args */
+    int arg_count;              /* number of positional args collected */
 
     int print_role;
     char *url;
@@ -140,7 +141,7 @@ struct arguments arguments;
 static char doc[] = APP_DOC;
 
 /* A description of the arguments we accept. */
-static char args_doc[] = "";
+static char args_doc[] = "[COMMAND ...]";
 
 /*
  *  The options we understand.
@@ -270,11 +271,11 @@ static error_t parse_opt (int key, char *arg, struct argp_state *state)
         break;
 
     case ARGP_KEY_ARG:
-        if (state->arg_num >= MAX_ARGS) {
+        if (arguments->arg_count >= MAX_ARGS) {
             /* Too many arguments. */
             argp_usage (state);
         }
-        arguments->args[state->arg_num] = arg;
+        arguments->args[arguments->arg_count++] = arg;
         break;
 
     case ARGP_KEY_END:
@@ -364,6 +365,33 @@ int main(int argc, char *argv[])
      *  Parse arguments
      */
     argp_parse (&argp, argc, argv, 0, 0, &arguments);
+
+    /*
+     *  If -c/--command was not given but positional arguments were,
+     *  join them with spaces as the command (ycommand [OPTION...] <cmd> <args...>).
+     *  Raw libc malloc here is fine: the parse happens before gbmem is
+     *  initialised (main.c runs before yuneta_setup()) and existing code
+     *  in this file follows the same convention — see the kw_utility dump below.
+     */
+    if(arguments.arg_count > 0 && (!arguments.command || !*arguments.command)) {
+        size_t total = 1;
+        for(int i = 0; i < arguments.arg_count; i++) {
+            total += strlen(arguments.args[i]) + 1;
+        }
+        char *joined = malloc(total);
+        if(!joined) {
+            printf("Out of memory while building command line\n");
+            exit(-1);
+        }
+        joined[0] = 0;
+        for(int i = 0; i < arguments.arg_count; i++) {
+            if(i > 0) {
+                strcat(joined, " ");
+            }
+            strcat(joined, arguments.args[i]);
+        }
+        arguments.command = joined;
+    }
 
     /*
      *  Check arguments
