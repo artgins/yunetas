@@ -40,6 +40,31 @@
     - **fix(ycommand)**: `on_read_cb` no longer drops trailing bytes of a
       batched read that matched a keytable entry, so rapid TAB+value typing
       no longer needs a second press.
+    - **feat(ycli)**: TAB completion brought in line with ycommand, adapted
+      to the multi-window ncurses UI.
+      - `!cmd<TAB>` completes local `c_cli` commands; `cmd<TAB>` (no `!`)
+        completes remote commands of the yuno attached to the focused
+        display window. Cache is per-connection, fetched silently on
+        `EV_ON_OPEN` via `list-gobj-commands` and dropped on
+        `EV_ON_CLOSE`.
+      - Multi-candidate list is rendered in a temporary ncurses popup
+        above the editline (no more blocking `read(STDIN_FILENO)` inside
+        the yev_loop callback); cycling is driven through the normal FSM
+        (TAB / Up / Down navigate, Enter commits to the edit line only,
+        Esc / Ctrl+G / Backspace cancel, printable keys commit + insert).
+      - Scrollable popup with a status row (`N/M  ↑ K above  ↓ L below`)
+        rendered in dim attributes so A_REVERSE on the selected row can
+        never bleed into it.
+      - Inline hints (`<req=type>` / `[opt=type]`) in gray (A_BOLD on
+        COLOR_BLACK = bright-black / gray in most terminals).
+    - **feat(c_editline)**: new `EV_EDITLINE_CANCEL` event for escape-style
+      cancellation of reverse-i-search and TAB-popup sub-modes; `refreshSearchLine`
+      now draws through ncurses (`wmove/waddnstr/wrefresh`) on `use_ncurses`
+      clients instead of bypassing the pane via `printf`.
+    - **feat(ycli / ycommand)**: `Ctrl+K` switched to readline semantics —
+      delete from cursor to end of line (`EV_EDITLINE_DEL_EOL`).
+      `Ctrl+U` / `Ctrl+Y` remain "delete whole line"; `Ctrl+L` is the
+      clear-screen shortcut (previously shared with `Ctrl+K`).
     - **docs**: added `utils/c/ycommand/README.md`, `TODO.md` and updated
       `docs/doc.yuneta.io/{utilities,yunos,modules}.md` to cover the new
       features.
