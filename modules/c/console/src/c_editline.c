@@ -198,11 +198,26 @@ typedef struct _PRIVATE_DATA {
     int mlmode;         /* Multi line mode. Default is single line. */
     char *buf;          /* Edited line buffer. */
 
-    int in_completion;  /* The user pressed TAB and we are now in completion
-                         * mode, so input is handled by completeLine(). */
-    size_t completion_idx; /* Index of next completion to propose. */
+    int in_completion;  /* 1 while a multi-candidate popup is open (ncurses
+                         * only). Further TAB/Enter/Esc/Backspace are rerouted
+                         * by the action handlers to drive the popup instead of
+                         * editing the line in the usual way. */
+    size_t completion_idx;      /* currently highlighted candidate */
     editline_completion_cb_t completion_callback;
     void *completion_user_data;
+
+    /* Ncurses popup state (valid only while in_completion==1). */
+    WINDOW *completion_wn;
+    PANEL  *completion_panel;
+    char  **completion_cvec;    /* gbmem_strdup'd candidate strings */
+    char  **completion_descs;   /* parallel; entries may be NULL */
+    size_t  completion_len;
+    size_t  completion_name_w;  /* widest candidate, capped for layout */
+    /* Snapshot of the edit buffer taken when the popup opened, so Esc /
+     * Backspace can restore the line the user had typed. */
+    char   *completion_orig_buf;
+    size_t  completion_orig_len;
+    size_t  completion_orig_pos;
 
     editline_hints_cb_t hints_callback;
     editline_free_hint_cb_t free_hints_callback;
@@ -240,6 +255,12 @@ PRIVATE void editline_exit_search(PRIVATE_DATA *l, int commit);
 PRIVATE void searchUpdate(PRIVATE_DATA *l, int restart_from);
 PRIVATE void searchUpdateForward(PRIVATE_DATA *l, int restart_from);
 PRIVATE int linenoiseEditInsert(PRIVATE_DATA *l, int c);
+
+/* Ncurses completion popup (only used when l->use_ncurses && in_completion). */
+PRIVATE void completion_preview_candidate(PRIVATE_DATA *l, size_t idx);
+PRIVATE void completion_render_popup(PRIVATE_DATA *l);
+PRIVATE void completion_restore_original(PRIVATE_DATA *l);
+PRIVATE void completion_close(PRIVATE_DATA *l);
 
 
 
@@ -377,6 +398,9 @@ PRIVATE int mt_stop(hgobj gobj)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
+    if(priv->in_completion) {
+        completion_close(priv);
+    }
     if(priv->panel) {
         del_panel(priv->panel);
         priv->panel = 0;
@@ -598,7 +622,9 @@ PRIVATE int historySearchForward(PRIVATE_DATA *l, int from_idx, const char *pat)
 
 /*
  *  Render "(reverse-i-search)'pat': <match>" instead of the normal line.
- *  Called from refreshLine() whenever l->in_search is set.
+ *  Called from refreshLine() whenever l->in_search is set. Draws on the
+ *  editline's ncurses window when available; falls back to stdout for
+ *  batch/stdout clients (ycommand).
  */
 PRIVATE void refreshSearchLine(PRIVATE_DATA *l)
 {
@@ -630,11 +656,30 @@ PRIVATE void refreshSearchLine(PRIVATE_DATA *l)
         }
     }
 
-    printf(Erase_Whole_Line);
-    printf(Move_Horizontal, 1);
-    printf("%s%.*s", prefix, (int)match_len, match);
-    printf(Move_Horizontal, prefix_len + (int)cursor_offset + 1);
-    fflush(stdout);
+    if(l->use_ncurses) {
+        if(!l->wn) {
+            return;
+        }
+        int attr = get_paint_color(l->fg_color, l->bg_color);
+        if(attr) {
+            wattron(l->wn, attr);
+        }
+        wmove(l->wn, 0, 0);
+        wclrtoeol(l->wn);
+        waddnstr(l->wn, prefix, prefix_len);
+        waddnstr(l->wn, match, (int)match_len);
+        if(attr) {
+            wattroff(l->wn, attr);
+        }
+        wmove(l->wn, 0, prefix_len + (int)cursor_offset);
+        wrefresh(l->wn);
+    } else {
+        printf(Erase_Whole_Line);
+        printf(Move_Horizontal, 1);
+        printf("%s%.*s", prefix, (int)match_len, match);
+        printf(Move_Horizontal, prefix_len + (int)cursor_offset + 1);
+        fflush(stdout);
+    }
 }
 
 /*
@@ -720,12 +765,393 @@ static void freeCompletions(linenoiseCompletions *lc) {
     }
 }
 
-/* This is an helper function for linenoiseEdit() and is called when the
- * user types the <tab> key in order to complete the string currently in the
- * input.
- *
- * The state of the editing is encapsulated into the pointed linenoiseState
- * structure as described in the structure definition. */
+/***************************************************************************
+ *  Popup candidate preview: copy cvec[idx] into the edit buffer so the
+ *  selected candidate is visible on the editline while the user decides.
+ ***************************************************************************/
+PRIVATE void completion_preview_candidate(PRIVATE_DATA *l, size_t idx)
+{
+    if(idx >= l->completion_len || !l->completion_cvec) {
+        return;
+    }
+    const char *cand = l->completion_cvec[idx];
+    size_t nwritten = (size_t)snprintf(l->buf, l->buflen, "%s", cand);
+    l->len = l->pos = nwritten;
+    refreshLine(l);
+}
+
+/***************************************************************************
+ *  Draw the completion popup. Current candidate is rendered in A_REVERSE.
+ *  If the list is taller than the popup, scroll the viewport to keep the
+ *  selection in view. Cursor is parked back on the editline after drawing.
+ ***************************************************************************/
+PRIVATE void completion_render_popup(PRIVATE_DATA *l)
+{
+    if(!l->completion_wn) {
+        return;
+    }
+    int h, w;
+    getmaxyx(l->completion_wn, h, w);
+    if(h <= 0 || w <= 0) {
+        return;
+    }
+
+    /* When the list doesn't fit, reserve the top row for a non-inverse
+     * status line ("3/42  ↑ N above  ↓ M below"). That keeps the scroll
+     * indicator from colliding with the A_REVERSE of the selected row. */
+    BOOL has_status = (l->completion_len > (size_t)h) && (h >= 2);
+    int content_rows = has_status ? (h - 1) : h;
+    int content_y0   = has_status ? 1 : 0;
+
+    size_t start = 0;
+    if(l->completion_len > (size_t)content_rows) {
+        if(l->completion_idx >= (size_t)content_rows) {
+            start = l->completion_idx - (size_t)content_rows + 1;
+        }
+        if(start + (size_t)content_rows > l->completion_len) {
+            start = l->completion_len - (size_t)content_rows;
+        }
+    }
+
+    /* Explicit per-cell write with a chtype that already contains the
+     * desired attrs (color pair + optional A_REVERSE). This bypasses any
+     * attr-only diff optimisation in ncurses / terminfo that was leaving
+     * A_REVERSE on a previously-selected cell when the new cell happened
+     * to hold the same character (a leading space). wbkgd retro-applies
+     * the background to every existing cell; wclear forces the next
+     * refresh to repaint the popup area from scratch. */
+    int def_attr = get_paint_color(l->fg_color, l->bg_color);
+    wattrset(l->completion_wn, A_NORMAL);
+    wbkgd(l->completion_wn, (chtype)' ' | (chtype)def_attr);
+    wclear(l->completion_wn);
+
+    int name_w = (int)l->completion_name_w;
+    char row_buf[512];
+
+    for(int row = 0; row < content_rows; row++) {
+        size_t k = start + (size_t)row;
+        chtype row_attr = (chtype)def_attr;
+        if(k < l->completion_len && k == l->completion_idx) {
+            row_attr |= A_REVERSE;
+        }
+        size_t rlen = 0;
+        if(k < l->completion_len) {
+            const char *cand = l->completion_cvec[k];
+            const char *desc = l->completion_descs ? l->completion_descs[k] : NULL;
+            snprintf(row_buf, sizeof(row_buf), " %-*.*s  %s",
+                name_w, name_w, cand ? cand : "",
+                (desc && *desc) ? desc : "");
+            rlen = strlen(row_buf);
+            if((int)rlen > w) {
+                rlen = (size_t)w;
+            }
+        } else {
+            /* Past the end of the candidate list: fill with blanks using
+             * the same bg so the row doesn't look different. */
+            rlen = 0;
+        }
+        for(int col = 0; col < w; col++) {
+            unsigned char ch = (col < (int)rlen)
+                ? (unsigned char)row_buf[col] : (unsigned char)' ';
+            mvwaddch(l->completion_wn, content_y0 + row, col,
+                (chtype)ch | row_attr);
+        }
+    }
+
+    if(has_status) {
+        /* Status strip: "3/42  <up> N above  <down> M below"
+         * Drawn with A_DIM on the popup background (no A_REVERSE) so it
+         * never competes with the highlighted row. ACS_UARROW/ACS_DARROW
+         * fall back to '^'/'v' in line-drawing-less terminals. */
+        char lead[64];
+        snprintf(lead, sizeof(lead), " %zu/%zu  ",
+            l->completion_idx + 1, l->completion_len);
+        int col = 0;
+
+        wattron(l->completion_wn, A_DIM);
+        mvwaddnstr(l->completion_wn, 0, col, lead, w);
+        col += (int)strlen(lead);
+        if(col >= w) {
+            wattroff(l->completion_wn, A_DIM);
+            goto status_done;
+        }
+
+        if(start > 0) {
+            mvwaddch(l->completion_wn, 0, col++, ACS_UARROW);
+            if(col < w) {
+                char buf[32];
+                int n = snprintf(buf, sizeof(buf), " %zu above  ", start);
+                if(col + n > w) n = w - col;
+                mvwaddnstr(l->completion_wn, 0, col, buf, n);
+                col += n;
+            }
+        }
+        size_t below = (start + (size_t)content_rows < l->completion_len)
+            ? (l->completion_len - start - (size_t)content_rows) : 0;
+        if(below > 0 && col < w) {
+            mvwaddch(l->completion_wn, 0, col++, ACS_DARROW);
+            if(col < w) {
+                char buf[32];
+                int n = snprintf(buf, sizeof(buf), " %zu below  ", below);
+                if(col + n > w) n = w - col;
+                mvwaddnstr(l->completion_wn, 0, col, buf, n);
+                col += n;
+            }
+        }
+        /* Pad the rest of the status row so A_DIM attribute fills it
+         * uniformly (otherwise the trailing cells keep a different
+         * background from werase'd ones). */
+        while(col < w) {
+            mvwaddch(l->completion_wn, 0, col++, ' ');
+        }
+        wattroff(l->completion_wn, A_DIM);
+    }
+status_done:
+
+    /* touchwin forces ncurses to mark every line as changed so no cell
+     * escapes the next physical refresh (belt-and-suspenders on top of
+     * wclear + wbkgd + explicit chtype writes). */
+    touchwin(l->completion_wn);
+    wnoutrefresh(l->completion_wn);
+    if(l->wn) {
+        wmove(l->wn, 0, (int)(l->pos + l->plen));
+        wnoutrefresh(l->wn);
+    }
+    update_panels();
+    doupdate();
+}
+
+/***************************************************************************
+ *  Put back the text the user had typed before TAB opened the popup.
+ ***************************************************************************/
+PRIVATE void completion_restore_original(PRIVATE_DATA *l)
+{
+    if(!l->completion_orig_buf) {
+        return;
+    }
+    size_t n = strlen(l->completion_orig_buf);
+    if(n >= l->buflen) {
+        n = l->buflen - 1;
+    }
+    memcpy(l->buf, l->completion_orig_buf, n);
+    l->buf[n] = 0;
+    l->len = l->completion_orig_len;
+    l->pos = l->completion_orig_pos;
+    if(l->len > l->buflen - 1) {
+        l->len = l->buflen - 1;
+    }
+    if(l->pos > l->len) {
+        l->pos = l->len;
+    }
+    refreshLine(l);
+}
+
+/***************************************************************************
+ *  Tear down the popup and release the snapshot. Safe to call repeatedly.
+ ***************************************************************************/
+PRIVATE void completion_close(PRIVATE_DATA *l)
+{
+    if(l->completion_panel) {
+        del_panel(l->completion_panel);
+        l->completion_panel = 0;
+    }
+    if(l->completion_wn) {
+        delwin(l->completion_wn);
+        l->completion_wn = 0;
+    }
+    if(l->completion_cvec) {
+        for(size_t i = 0; i < l->completion_len; i++) {
+            if(l->completion_cvec[i]) {
+                gbmem_free(l->completion_cvec[i]);
+            }
+        }
+        gbmem_free(l->completion_cvec);
+        l->completion_cvec = 0;
+    }
+    if(l->completion_descs) {
+        for(size_t i = 0; i < l->completion_len; i++) {
+            if(l->completion_descs[i]) {
+                gbmem_free(l->completion_descs[i]);
+            }
+        }
+        gbmem_free(l->completion_descs);
+        l->completion_descs = 0;
+    }
+    if(l->completion_orig_buf) {
+        gbmem_free(l->completion_orig_buf);
+        l->completion_orig_buf = 0;
+    }
+    l->completion_len = 0;
+    l->completion_idx = 0;
+    l->completion_name_w = 0;
+    l->completion_orig_len = 0;
+    l->completion_orig_pos = 0;
+    l->in_completion = 0;
+    update_panels();
+    doupdate();
+    refreshLine(l);
+}
+
+/***************************************************************************
+ *  Open the popup from a non-empty linenoiseCompletions. Ownership of the
+ *  candidate strings is moved into the PRIVATE_DATA (duplicated here so the
+ *  caller can freeCompletions its own lc right after).
+ *  Returns 0 on success, -1 if the window could not be allocated.
+ ***************************************************************************/
+PRIVATE int completion_open_popup(PRIVATE_DATA *l, linenoiseCompletions *lc)
+{
+    if(!l->wn || lc->len < 2) {
+        return -1;
+    }
+
+    size_t name_w = 0;
+    for(size_t k = 0; k < lc->len; k++) {
+        size_t n = lc->cvec[k] ? strlen(lc->cvec[k]) : 0;
+        if(n > name_w) {
+            name_w = n;
+        }
+    }
+    if(name_w > 48) {
+        name_w = 48;
+    }
+    size_t desc_w = 0;
+    if(lc->descs) {
+        for(size_t k = 0; k < lc->len; k++) {
+            size_t n = lc->descs[k] ? strlen(lc->descs[k]) : 0;
+            if(n > desc_w) {
+                desc_w = n;
+            }
+        }
+    }
+    if(desc_w > 60) {
+        desc_w = 60;
+    }
+
+    int ey, ex;
+    getbegyx(l->wn, ey, ex);
+    int term_h = 0, term_w = 0;
+    getmaxyx(stdscr, term_h, term_w);
+    (void)term_h;
+
+    int max_rows_above = ey;            /* space between top and editline */
+    int content_cap = 10;               /* up to 10 candidates visible */
+    if(max_rows_above < content_cap) {
+        content_cap = max_rows_above;
+    }
+    int desired_h;
+    if((int)lc->len <= content_cap) {
+        desired_h = (int)lc->len;       /* no scroll row needed */
+    } else {
+        desired_h = content_cap + 1;    /* +1 for the status/scroll row */
+        if(desired_h > max_rows_above) {
+            desired_h = max_rows_above;
+        }
+    }
+    if(desired_h < 1) {
+        desired_h = 1;
+    }
+
+    int desired_w = (int)(name_w + 2 + desc_w + 4);  /* " name  desc  " */
+    if(desired_w < 16) {
+        desired_w = 16;
+    }
+    if(desired_w > term_w) {
+        desired_w = term_w;
+    }
+
+    int py = ey - desired_h;
+    int px = ex;
+    if(py < 0) {
+        py = 0;
+    }
+    if(px + desired_w > term_w) {
+        px = term_w - desired_w;
+        if(px < 0) {
+            px = 0;
+        }
+    }
+
+    WINDOW *wn = newwin(desired_h, desired_w, py, px);
+    if(!wn) {
+        gobj_log_error(l->gobj_self, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_SYSTEM_ERROR,
+            "msg",          "%s", "newwin() FAILED",
+            NULL
+        );
+        return -1;
+    }
+    int def_attr = get_paint_color(l->fg_color, l->bg_color);
+    if(def_attr) {
+        wbkgdset(wn, ' ' | def_attr);
+    }
+    PANEL *panel = new_panel(wn);
+    if(!panel) {
+        delwin(wn);
+        gobj_log_error(l->gobj_self, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_SYSTEM_ERROR,
+            "msg",          "%s", "new_panel() FAILED",
+            NULL
+        );
+        return -1;
+    }
+    top_panel(panel);
+
+    /* Snapshot the edit buffer so Backspace can restore it verbatim. */
+    char *orig = gbmem_strndup(l->buf, l->len);
+    if(!orig) {
+        del_panel(panel);
+        delwin(wn);
+        return -1;
+    }
+
+    char **cvec = gbmem_malloc(sizeof(char *) * lc->len);
+    char **descs = gbmem_malloc(sizeof(char *) * lc->len);
+    if(!cvec || !descs) {
+        if(cvec) {
+            gbmem_free(cvec);
+        }
+        if(descs) {
+            gbmem_free(descs);
+        }
+        gbmem_free(orig);
+        del_panel(panel);
+        delwin(wn);
+        return -1;
+    }
+    for(size_t k = 0; k < lc->len; k++) {
+        cvec[k] = lc->cvec[k] ? gbmem_strdup(lc->cvec[k]) : NULL;
+        descs[k] = (lc->descs && lc->descs[k]) ? gbmem_strdup(lc->descs[k]) : NULL;
+    }
+
+    l->completion_wn = wn;
+    l->completion_panel = panel;
+    l->completion_cvec = cvec;
+    l->completion_descs = descs;
+    l->completion_len = lc->len;
+    l->completion_name_w = name_w;
+    l->completion_orig_buf = orig;
+    l->completion_orig_len = l->len;
+    l->completion_orig_pos = l->pos;
+    l->completion_idx = 0;
+    l->in_completion = 1;
+
+    completion_preview_candidate(l, 0);
+    completion_render_popup(l);
+    return 0;
+}
+
+/***************************************************************************
+ *  TAB handler. Build candidate list via the user callback, then:
+ *   - 0 candidates  → beep
+ *   - 1 candidate   → apply directly
+ *   - ≥2 candidates, ncurses → open the popup and return (further TAB /
+ *                              Enter / printable / Backspace are handled by
+ *                              the FSM intercepts)
+ *   - ≥2 candidates, stdout → print the list and cycle via read(stdin),
+ *                              preserving the previous ycommand behaviour.
+ ***************************************************************************/
 static int completeLine(hgobj gobj)
 {
     PRIVATE_DATA *ls = gobj_priv_data(gobj);
@@ -745,31 +1171,32 @@ static int completeLine(hgobj gobj)
         refreshLine(ls);
         freeCompletions(&lc);
         return c;
+    } else if(ls->use_ncurses) {
+        /* Popup-driven: no blocking read here, the FSM resumes on next key. */
+        if(completion_open_popup(ls, &lc) < 0) {
+            linenoiseBeep();
+        }
+        freeCompletions(&lc);
+        return c;
     } else {
-        /* Multiple candidates: print them with descriptions (stdout path
-         * only — an ncurses-hosted editline shares the terminal with a
-         * display pane, so a raw printf here would be invisible at best
-         * and scramble the pane at worst; the user still gets the cycling
-         * preview via refreshLine below, which IS ncurses-aware). */
-        if(!ls->use_ncurses) {
-            size_t name_width = 0;
-            for (size_t k = 0; k < lc.len; k++) {
-                size_t l = strlen(lc.cvec[k]);
-                if (l > name_width) name_width = l;
-            }
-            if (name_width > 48) name_width = 48;
+        /* Stdout path (ycommand / batch): print the list with descriptions,
+         * then cycle synchronously via read(stdin). */
+        size_t name_width = 0;
+        for (size_t k = 0; k < lc.len; k++) {
+            size_t l = strlen(lc.cvec[k]);
+            if (l > name_width) name_width = l;
+        }
+        if (name_width > 48) name_width = 48;
 
-            printf("\n");
-            for (size_t k = 0; k < lc.len; k++) {
-                const char *cand = lc.cvec[k];
-                const char *desc = lc.descs ? lc.descs[k] : NULL;
-                /* Left-pad and truncate to name_width to keep descriptions aligned. */
-                printf("  %-*.*s", (int)name_width, (int)name_width, cand);
-                if (desc && *desc) {
-                    printf("  %s", desc);
-                }
-                printf("\n");
+        printf("\n");
+        for (size_t k = 0; k < lc.len; k++) {
+            const char *cand = lc.cvec[k];
+            const char *desc = lc.descs ? lc.descs[k] : NULL;
+            printf("  %-*.*s", (int)name_width, (int)name_width, cand);
+            if (desc && *desc) {
+                printf("  %s", desc);
             }
+            printf("\n");
         }
 
         size_t stop = 0, i = 0;
@@ -790,7 +1217,6 @@ static int completeLine(hgobj gobj)
             }
 
             nread = read(STDIN_FILENO, &c, 1);
-            // trace_msg0("kb x%X %c", c, c);
             if (nread <= 0) {
                 freeCompletions(&lc);
                 return -1;
@@ -802,23 +1228,16 @@ static int completeLine(hgobj gobj)
                     if (i == lc.len) linenoiseBeep();
                     break;
                 case 27: /* escape */
-                    /* Re-show original buffer */
                     if (i < lc.len) refreshLine(ls);
                     stop = 1;
                     break;
                 default:
-                    /* Apply the selected candidate (if on one). */
                     if (i < lc.len) {
                         nwritten = snprintf(ls->buf,ls->buflen,"%s",lc.cvec[i]);
                         ls->len = ls->pos = nwritten;
                         refreshLine(ls);
                     }
                     stop = 1;
-                    /*
-                     *  Re-dispatch the terminating key so Enter / Backspace /
-                     *  printable chars take effect in the same keystroke —
-                     *  otherwise the user has to press the key a second time.
-                     */
                     if (c == 13 || c == 10) {           /* Enter */
                         gobj_send_event(gobj, EV_EDITLINE_ENTER, 0, gobj);
                     } else if (c == 0x7F || c == 0x08) { /* Backspace / Ctrl-H */
@@ -947,7 +1366,43 @@ PRIVATE void refreshLine(PRIVATE_DATA *l)
             wattroff(l->wn, attr);
         }
 
-        /* Move cursor to original position. */
+        /* Inline hint in a softer colour. A_DIM alone doesn't help when
+         * fg is already black — can't dim further. A_BOLD on COLOR_BLACK
+         * is rendered as "bright black" / grey by most terminals (same
+         * idea as SGR 90 used on the stdout path). */
+        if(l->hints_callback) {
+            int color = -1, bold = 0;
+            char *hint = l->hints_callback(
+                l->gobj_self, l->buf, &color, &bold, l->hints_user_data
+            );
+            if(hint) {
+                size_t hintlen = strlen(hint);
+                if(l->cols > 0) {
+                    size_t used = plen + len;
+                    if(used < l->cols) {
+                        size_t room = l->cols - used;
+                        if(hintlen > room) hintlen = room;
+                    } else {
+                        hintlen = 0;
+                    }
+                }
+                if(hintlen > 0) {
+                    int hint_attr = A_BOLD | A_DIM;
+                    int pair = get_paint_color(l->fg_color, l->bg_color);
+                    if(pair) {
+                        hint_attr |= pair;
+                    }
+                    wattron(l->wn, hint_attr);
+                    waddnstr(l->wn, hint, (int)hintlen);
+                    wattroff(l->wn, hint_attr);
+                }
+                if(l->free_hints_callback) {
+                    l->free_hints_callback(hint, l->hints_user_data);
+                }
+            }
+        }
+
+        /* Move cursor to original position (after the buf, before any hint). */
         wmove(l->wn, 0, (int)(pos+plen));
 
         wrefresh(l->wn);
@@ -1334,33 +1789,47 @@ PRIVATE int linenoiseHistoryLoad(PRIVATE_DATA *l, const char *filename)
 /***************************************************************************
  *  char
  ***************************************************************************/
+/* One byte of input → either grow the search pattern (while in_search) or
+ * insert into the edit buffer. Shared by both kw shapes ("char" / "gbuffer")
+ * so the two paths stay in lock-step. */
+PRIVATE void feed_one_char(PRIVATE_DATA *l, int c)
+{
+    if(l->in_search) {
+        if(c == 27 || c == 7) {         /* ESC / Ctrl+G -> cancel */
+            editline_exit_search(l, 0);
+            refreshLine(l);
+            return;
+        }
+        if(c >= 0x20 && c < 0x7F) {
+            if(l->search_pat_len + 1 < sizeof(l->search_pat)) {
+                l->search_pat[l->search_pat_len++] = (char)c;
+                l->search_pat[l->search_pat_len] = 0;
+                /* Re-run from the current match so narrowing doesn't jump. */
+                int start = (l->search_idx >= 0)
+                    ? l->search_idx : (l->history_len - 1);
+                searchUpdate(l, start);
+            }
+        }
+        /* Other chars are ignored in search mode. */
+        return;
+    }
+    linenoiseEditInsert(l, c);
+}
+
 PRIVATE int ac_keychar(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
     PRIVATE_DATA *l = priv;
 
+    /* A printable char while the popup is open commits the previewed
+     * candidate and types the new char after it (readline semantics). */
+    if(priv->in_completion) {
+        completion_close(priv);
+    }
+
     if(kw_has_key(kw, "char")) {
         int c = (int)kw_get_int(gobj, kw, "char", 0, KW_REQUIRED);
-        if(l->in_search) {
-            /* Reverse-i-search mode: editing the pattern. */
-            if(c == 27 || c == 7) {         /* ESC / Ctrl+G -> cancel */
-                editline_exit_search(l, 0);
-                refreshLine(l);
-            } else if(c >= 0x20 && c < 0x7F) {
-                if(l->search_pat_len + 1 < sizeof(l->search_pat)) {
-                    l->search_pat[l->search_pat_len++] = (char)c;
-                    l->search_pat[l->search_pat_len] = 0;
-                    /* Re-run search from the current match position so the
-                     * user can narrow down without jumping around. */
-                    int start = (l->search_idx >= 0)
-                        ? l->search_idx : (l->history_len - 1);
-                    searchUpdate(l, start);
-                }
-            }
-            /* Other chars are ignored in search mode. */
-        } else {
-            linenoiseEditInsert(l, c);
-        }
+        feed_one_char(l, c);
     }
 
     if(kw_has_key(kw, "gbuffer")) {
@@ -1369,8 +1838,7 @@ PRIVATE int ac_keychar(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
         int len = (int)gbuffer_leftbytes(gbuf);
 
         for(int i=0; i<len; i++) {
-            int c = p[i];
-            linenoiseEditInsert(l, c);  // ascii editor, no utf-8
+            feed_one_char(l, (unsigned char)p[i]);
         }
     }
 
@@ -1385,6 +1853,7 @@ PRIVATE int ac_move_start(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 {
     PRIVATE_DATA *l = gobj_priv_data(gobj);
 
+    if(l->in_completion) { completion_close(l); }
     if(l->in_search) { editline_exit_search(l, 1); refreshLine(l); }
 
     /* go to the start of the line */
@@ -1401,6 +1870,7 @@ PRIVATE int ac_move_end(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 {
     PRIVATE_DATA *l = gobj_priv_data(gobj);
 
+    if(l->in_completion) { completion_close(l); }
     if(l->in_search) { editline_exit_search(l, 1); refreshLine(l); }
 
     /* go to the end of the line */
@@ -1418,6 +1888,7 @@ PRIVATE int ac_move_left(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
     PRIVATE_DATA *l = priv;
 
+    if(l->in_completion) { completion_close(l); }
     if(l->in_search) { editline_exit_search(l, 1); refreshLine(l); }
 
     /* Move cursor on the left */
@@ -1456,6 +1927,7 @@ PRIVATE int ac_move_right(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 {
     PRIVATE_DATA *l = gobj_priv_data(gobj);
 
+    if(l->in_completion) { completion_close(l); }
     if(l->in_search) { editline_exit_search(l, 1); refreshLine(l); }
 
     /* Move cursor on the right */
@@ -1484,6 +1956,12 @@ PRIVATE int ac_backspace(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
         } else {
             searchUpdate(priv, priv->history_len - 1);
         }
+    } else if(priv->in_completion) {
+        /* Backspace cancels the completion and restores the text the user
+         * had typed; it does NOT delete a char on top of that (less
+         * surprising than commit+delete when the popup is visible). */
+        completion_restore_original(priv);
+        completion_close(priv);
     } else {
         linenoiseEditBackspace(priv);
     }
@@ -1497,6 +1975,19 @@ PRIVATE int ac_backspace(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
  ***************************************************************************/
 PRIVATE int ac_complete_line(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 {
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    if(priv->in_completion) {
+        /* Cycle to the next candidate; preview it on the editline. */
+        if(priv->completion_len > 0) {
+            priv->completion_idx = (priv->completion_idx + 1) % priv->completion_len;
+            completion_preview_candidate(priv, priv->completion_idx);
+            completion_render_popup(priv);
+        }
+        KW_DECREF(kw);
+        return 0;
+    }
+
     completeLine(gobj);
     KW_DECREF(kw);
     return 0;
@@ -1533,6 +2024,16 @@ PRIVATE int ac_enter(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
         refreshLine(priv);
     }
 
+    /* Enter inside completion only commits the previewed candidate to
+     * the edit line and closes the popup — it does NOT submit the
+     * command. A second Enter (outside the popup) is what runs it, so
+     * the user has a chance to edit the chosen candidate first. */
+    if(priv->in_completion) {
+        completion_close(priv);
+        KW_DECREF(kw);
+        return 0;
+    }
+
     if(!empty_string(priv->buf) && strlen(priv->buf)>1) {
         l->history_len--;
         gbmem_free(l->history[l->history_len]);
@@ -1555,6 +2056,19 @@ PRIVATE int ac_prev_hist(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
     PRIVATE_DATA *l = priv;
 
+    if(priv->in_completion) {
+        /* Up inside the popup = previous candidate. */
+        if(priv->completion_len > 0) {
+            priv->completion_idx =
+                (priv->completion_idx + priv->completion_len - 1)
+                % priv->completion_len;
+            completion_preview_candidate(priv, priv->completion_idx);
+            completion_render_popup(priv);
+        }
+        KW_DECREF(kw);
+        return 0;
+    }
+
     if(l->in_search) { editline_exit_search(l, 0); refreshLine(l); }
 
     linenoiseEditHistoryNext(l, LINENOISE_HISTORY_PREV);
@@ -1570,6 +2084,18 @@ PRIVATE int ac_next_hist(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
     PRIVATE_DATA *l = priv;
+
+    if(priv->in_completion) {
+        /* Down inside the popup = next candidate. */
+        if(priv->completion_len > 0) {
+            priv->completion_idx =
+                (priv->completion_idx + 1) % priv->completion_len;
+            completion_preview_candidate(priv, priv->completion_idx);
+            completion_render_popup(priv);
+        }
+        KW_DECREF(kw);
+        return 0;
+    }
 
     if(l->in_search) { editline_exit_search(l, 0); refreshLine(l); }
 
@@ -1652,6 +2178,27 @@ PRIVATE int ac_reverse_search(hgobj gobj, gobj_event_t event, json_t *kw, hgobj 
         int start = (l->search_idx > 0) ? (l->search_idx - 1)
                                         : (l->history_len - 1);
         searchUpdate(l, start);
+    }
+
+    KW_DECREF(kw);
+    return 0;
+}
+
+/***************************************************************************
+ *  Esc / Ctrl+G: cancel whichever sub-mode is active. Search restores the
+ *  pre-search buffer (untouched during search anyway). Completion restores
+ *  the snapshot taken when the popup opened.
+ ***************************************************************************/
+PRIVATE int ac_cancel(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
+{
+    PRIVATE_DATA *l = gobj_priv_data(gobj);
+
+    if(l->in_completion) {
+        completion_restore_original(l);
+        completion_close(l);
+    } else if(l->in_search) {
+        editline_exit_search(l, 0);
+        refreshLine(l);
     }
 
     KW_DECREF(kw);
@@ -1941,6 +2488,7 @@ PRIVATE int create_gclass(gclass_name_t gclass_name)
         {EV_EDITLINE_DEL_PREV_WORD,  ac_del_prev_word,   0},
         {EV_EDITLINE_REVERSE_SEARCH, ac_reverse_search,  0},
         {EV_EDITLINE_FORWARD_SEARCH, ac_forward_search,  0},
+        {EV_EDITLINE_CANCEL,         ac_cancel,          0},
         {EV_MOUSE,                   ac_mouse,           0},
         {EV_GETTEXT,                 ac_gettext,         0},
         {EV_SETTEXT,                 ac_settext,         0},
@@ -1980,6 +2528,7 @@ PRIVATE int create_gclass(gclass_name_t gclass_name)
         {EV_EDITLINE_DEL_PREV_WORD,     0},
         {EV_EDITLINE_REVERSE_SEARCH,    0},
         {EV_EDITLINE_FORWARD_SEARCH,    0},
+        {EV_EDITLINE_CANCEL,            0},
         {EV_GETTEXT,                    0},
         {EV_SETTEXT,                    0},
         {EV_KILLFOCUS,                  0},
