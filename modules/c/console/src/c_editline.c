@@ -213,13 +213,6 @@ typedef struct _PRIVATE_DATA {
     char  **completion_descs;   /* parallel; entries may be NULL */
     size_t  completion_len;
     size_t  completion_name_w;  /* widest candidate, capped for layout */
-    /* Popup geometry, captured at open time so the render can tear the
-     * window down and rebuild it on every frame (see comment in
-     * completion_render_popup for the col-0 ncurses workaround). */
-    int     completion_py;
-    int     completion_px;
-    int     completion_h;
-    int     completion_w;
     /* Snapshot of the edit buffer taken when the popup opened, so Esc /
      * Backspace can restore the line the user had typed. */
     char   *completion_orig_buf;
@@ -794,49 +787,14 @@ PRIVATE void completion_preview_candidate(PRIVATE_DATA *l, size_t idx)
  ***************************************************************************/
 PRIVATE void completion_render_popup(PRIVATE_DATA *l)
 {
-    if(l->completion_h <= 0 || l->completion_w <= 0) {
+    if(!l->completion_wn) {
         return;
     }
-
-    /*
-     *  Nuclear workaround for the col-0 "stale A_REVERSE" ncurses quirk:
-     *  tear the popup window down and build a fresh one on every render.
-     *  Previous attempts (wclear + wbkgd + touchwin, per-cell chtype with
-     *  mvwaddch, two-pass render with mvwchgat) all kept leaving the col
-     *  0 cell of a row that lost its A_REVERSE with the old inverse
-     *  background. Reallocating the window guarantees no cell state
-     *  survives between frames. The extra cost is ~1 cheap newwin+panel
-     *  per keystroke while cycling the popup, which is invisible in
-     *  practice.
-     */
-    if(l->completion_panel) {
-        del_panel(l->completion_panel);
-        l->completion_panel = 0;
-    }
-    if(l->completion_wn) {
-        delwin(l->completion_wn);
-        l->completion_wn = 0;
-    }
-
-    WINDOW *wn = newwin(l->completion_h, l->completion_w,
-        l->completion_py, l->completion_px);
-    if(!wn) {
+    int h, w;
+    getmaxyx(l->completion_wn, h, w);
+    if(h <= 0 || w <= 0) {
         return;
     }
-    int def_bg_attr = get_paint_color(l->fg_color, l->bg_color);
-    if(def_bg_attr) {
-        wbkgdset(wn, ' ' | def_bg_attr);
-    }
-    PANEL *panel = new_panel(wn);
-    if(!panel) {
-        delwin(wn);
-        return;
-    }
-    top_panel(panel);
-    l->completion_wn = wn;
-    l->completion_panel = panel;
-
-    int h = l->completion_h, w = l->completion_w;
 
     /* When the list doesn't fit, reserve the top row for a non-inverse
      * status line ("3/42  ↑ N above  ↓ M below"). That keeps the scroll
@@ -1195,10 +1153,6 @@ PRIVATE int completion_open_popup(PRIVATE_DATA *l, linenoiseCompletions *lc)
     l->completion_descs = descs;
     l->completion_len = lc->len;
     l->completion_name_w = name_w;
-    l->completion_py = py;
-    l->completion_px = px;
-    l->completion_h = desired_h;
-    l->completion_w = desired_w;
     l->completion_orig_buf = orig;
     l->completion_orig_len = l->len;
     l->completion_orig_pos = l->pos;
