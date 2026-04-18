@@ -50,6 +50,64 @@ Both backends implement the same functionality:
 
 This module ensures that Yuneta applications can securely transmit data over the network using industry-standard encryption protocols.
 
+## Hot-reloading certificates
+
+`ytls` can swap the certificate material of a running TLS listener **without
+dropping the sessions that are already established**. This is how Yuneta
+keeps MQTT brokers, intake gates and control-plane channels online while
+Let's Encrypt renews a certificate in the background.
+
+### API
+
+[`ytls_reload_certificates()`](../api/ytls/ytls.md#ytls_reload_certificates)
+is the only entry point. It rebuilds the per-backend context from the cert
+paths already stored in the `ytls` handle, validates it, and atomically
+swaps it in. If any step fails, the previous context is kept intact and the
+caller sees a negative return — traffic is never interrupted by a bad
+reload.
+
+[`ytls_get_cert_info()`](../api/ytls/ytls.md#ytls_get_cert_info) returns
+`subject`, `issuer`, `not_before`, `not_after`, `serial` and
+`days_remaining` for the currently-active context, so operators can observe
+the live cert (not just the file on disk).
+
+### How live sessions survive the swap
+
+The invariant is: **live sessions hold their own reference on the old
+context**, so the swap only drops the handle's reference. This is the
+easiest thing to break when touching the reload path.
+
+- **OpenSSL backend.** `SSL_new(ctx)` bumps the `SSL_CTX` refcount,
+  `SSL_free(ssl)` decrements it. `ytls_reload_certificates()` builds
+  `new_ctx`, swaps `ytls->ctx = new_ctx` and calls `SSL_CTX_free(old_ctx)`
+  to release the handle's ref. In-flight `SSL *` objects keep `old_ctx`
+  alive until the last session closes.
+- **mbed-TLS backend.** `ytls` maintains an explicit `mbedtls_state_t`
+  bundle (`mbedtls_ssl_config` + `mbedtls_x509_crt` + `mbedtls_pk_context`)
+  with a refcount. Each `hsskt` takes a ref on creation and releases it on
+  `ytls_free_secure_filter()`. The swap drops the handle's ref; live
+  sessions keep the old bundle alive on their own.
+
+### Callers
+
+Yuneta ships three layers of defence that all drive
+`ytls_reload_certificates()` through the same path — see the
+[TLS certificate management guide](guide_cert_management.md) for the full
+picture:
+
+1. **Layer 1 — certbot deploy hook.** Pushes the `reload-certs` command
+   down the yuno tree the moment certbot succeeds.
+2. **Layer 2 — `c_agent` auto-sync timer.** Re-reads the cert files every
+   `cert_sync_interval_sec` seconds (default 15 min) and broadcasts
+   `reload-certs` when `size+mtime` changes.
+3. **Layer 3 — `c_yuno` expiry monitor.** Periodic `view-cert` walk with
+   warning / critical thresholds (`cert_warn_days`, `cert_critical_days`);
+   alerts only — never reloads.
+
+Each `C_TCP_S` / `C_UDP_S` listener also exposes `reload-certs` and
+`view-cert` directly, so a single listener can be targeted from
+`ycommand` without touching the rest of the yuno.
+
 ## Philosophy of ytls
 The **ytls** module is built with the core philosophy of Yuneta in mind:
 

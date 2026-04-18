@@ -1,6 +1,53 @@
 # **Changelog**
 
-## Unreleased
+## v7.3.0 -- 18/Apr/2026
+    - **feat(ytls, c_yuno, c_agent): TLS certificate hot-reload with
+      three-layer defence-in-depth**. Lets a Yuneta host keep thousands of
+      persistent TLS connections alive across a Let's Encrypt renewal,
+      with no deploy-hook single point of failure.
+      - **ytls**: new [`ytls_reload_certificates()`](docs/doc.yuneta.io/api/ytls/ytls.md)
+        that rebuilds the backend context (OpenSSL `SSL_CTX` or mbed-TLS
+        `mbedtls_state_t` bundle), validates it, and atomically swaps it
+        in. Live sessions hold their own refcount on the previous context,
+        so already-established connections keep working until they close.
+        Invalid material rolls back cleanly — traffic is never interrupted
+        by a bad reload. `ytls_get_cert_info()` returns
+        `{subject, issuer, not_before, not_after, serial, days_remaining}`
+        for the live context, not just the file on disk.
+      - **c_agent**: new cert auto-sync timer (attr
+        `cert_sync_interval_sec`, default 900 s) that re-reads
+        `/yuneta/store/certs/` via `sudo -n copy-certs.sh`; when any
+        `size+mtime` changes, broadcasts `reload-certs` to every running
+        yuno. Exposes `cert-sync-now` / `cert-sync-status` commands and
+        self-heals if the certbot deploy hook fails silently.
+      - **c_yuno**: periodic expiry monitor (attr `timeout_cert_check`,
+        default 3600 s) that walks every `C_TCP_S` / `C_UDP_S` listener
+        and logs `gobj_log_warning()` at `cert_warn_days` (default 7) and
+        `gobj_log_critical()` at `cert_critical_days` (default 2).
+        Alert-only — the sync layer owns the reload responsibility.
+      - **c_tcp_s / c_udp_s**: per-listener `reload-certs` and `view-cert`
+        commands, routable via `ycommand -c 'command-yuno command=reload-certs
+        service=__yuno__'` or `gobj=<name>` for a single listener.
+      - **packages**: `/etc/letsencrypt/renewal-hooks/deploy/reload-certs`
+        hook copies certs, reloads the web server and broadcasts the
+        yuno-level reload. Each step runs with `set +e`; output is logged
+        to `/var/log/yuneta/deploy-hook.log` and the hook writes its last
+        run timestamp to `/var/lib/yuneta/last-deploy-hook-run` so
+        `cert-sync-status` can spot a hook that never runs.
+      - **tests**: `tests/c/ytls/test_cert_reload`,
+        `test_cert_info`, `test_cert_reload_mem` (1000 reloads, zero leak)
+        and `tests/c/yev_loop/yev_events_tls/test_yevent_reload_live`,
+        `test_yevent_reload_stress` (50 reloads with a live session).
+      - **docs**: new guide [`guide/guide_cert_management.md`](docs/doc.yuneta.io/guide/guide_cert_management.md)
+        covers the end-to-end story, layered design and file / permission
+        layout; `guide/guide_ytls.md` gains a hot-reload section.
+
+    - **feat(gobj): `gobj_set_manual_start()` + `gobj_flag_manual_start`**.
+      A gobj can now opt out of the automatic `start-tree` walk so its
+      parent keeps ownership of lifecycle but decides *when* to bring it
+      up. Used in `c_auth_bff` to keep `gobj_idprovider` dormant until the
+      BFF has validated its configuration.
+
     - **feat(ycommand)**: major interactive / scripting overhaul.
       - TAB completion of command names, parameter names and boolean values,
         from a remote `list-gobj-commands` cache fetched at connect time
@@ -102,46 +149,112 @@
       per-message app fields inline in `on_message_complete` without touching
       llhttp; leave `ghttp_parser_reset()` for the other (non-callback) call
       sites.  Surfaced by the new test suite `tests/c/c_auth_bff/test8_queue_full`.
-    - fix(c_auth_bff): `mt_stop` now tears down the inbound `C_PROT_HTTP_SR + C_TCP`
-      bottom chain in addition to the outbound `priv->gobj_http`.  Previously a
-      SIGTERM to an auth_bff yuno with active browser connections logged
-      "Destroying a RUNNING gobj" during shutdown.
-    - fix(c_auth_bff): drop stale Keycloak reply when the browser disconnected
-      mid-round-trip.  New `browser_alive` gate in `result_token_response` /
-      `result_kc_logout` + new `responses_dropped` stat counter.  Prevents the
-      UAF-ish "gobj DESTROYED" path that surfaced as sporadic test failures
-      during fast cancel-then-retry login flows.
-    - fix(c_auth_bff): outbound Keycloak watchdog.  New per-instance attr
-      `kc_timeout_ms` (default 30000, 0 disables) armed via a `C_TIMER0` child
-      right after the outbound HTTP client is created and cleared in
-      `ac_end_task`.  On fire, responds 504 to the browser and drains the
-      task.  Closes the "Keycloak hangs → channel wedged forever" deadlock that
-      was otherwise a permanent-until-SIGTERM state under silent-upstream
-      conditions.  New `kc_timeouts` stat counter.
-    - fix(c_auth_bff): count any 2xx Keycloak reply as `kc_ok`.  Previously only
-      status == 200 counted, which made every successful `/logout` (Keycloak
-      returns spec-compliant 204 No Content) land in `kc_errors` and poison
-      the health-signal ratio.
-    - fix(c_auth_bff): `mt_stats` filter now mirrors the default `stats_parser.c`
-      two-stage matcher (full name OR underscore-prefix) and is
-      case-insensitive, so `gobj_stats(bff, "kc_", ...)` returns the kc_* set
-      as expected.  `redact_for_trace()` key matching is also case-insensitive
-      so HTTP headers like "Cookie"/"cookie"/"COOKIE" are all masked.
-    - feat(c_auth_bff): `pending_queue_size` is now a per-instance attr
-      (default 16, clamped to [1, 1024]) instead of a compile-time constant.
-      Stored as a `PENDING_AUTH *` ring dynamically allocated in `mt_create`.
-    - feat(tests/c/c_auth_bff): new 11-binary test suite.  Self-contained yunos
-      that spin up a mock Keycloak (signed HS256 JWTs, scriptable latency /
-      return status / override body) alongside the BFF and drive
-      `/auth/login`, `/auth/callback`, `/auth/refresh`, `/auth/logout`
-      through happy paths, validation errors, Keycloak 401, slow KC, queue
-      contention (pipelined POSTs, overflow drop), browser cancel
-      mid-round-trip, cancel-then-retry state cleanup, and KC total silence.
-      Exposed and regression-gated the watchdog, browser_alive, and
-      ghttp_parser fixes above.
-    - refactor(gobj): drop TLS knowledge from gobj-c, inject from ytls layer
-      via the new `gobj_add_global_variable()` extension point; removes the
-      `CONFIG_HAVE_OPENSSL/MBEDTLS` `#if` blocks from `gobj_global_variables()`.
+    - **refactor(c_auth_bff): IdP-agnostic naming, single-job task, queue +
+      routing hardening**. The BFF used to be visibly wired to Keycloak
+      (`kc_*` attrs, stats, logs). Code, attrs and stats now use the
+      generic `idp_*` prefix; any OIDC provider fits. The outbound IdP
+      gobj chain is now named `<bff-name>-idp` for trace clarity.
+      - **Pending queue** migrated from a fixed-size `PENDING_AUTH *` ring
+        to a `dl_list`, drained one job at a time. Configurable per
+        instance via `pending_queue_size` (default 16, clamped to
+        `[1, 1024]`). Overflow bumps `q_full_drops` and the browser sees
+        a mapped `error_code`; peak depth is exposed as `q_max_seen`.
+      - **Flush-on-disconnect**: when a browser closes mid-round-trip the
+        BFF flushes its pending queue for that channel; late IdP replies
+        for disconnected clients are dropped (`responses_dropped` counter)
+        instead of being forwarded. Each task also carries a per-browser
+        generation so a cross-user token leak cannot occur.
+      - **Single-job task, teardown-safe close**: the C_TASK instance
+        holds a single job at a time; `mt_stop` drains the inbound
+        `C_PROT_HTTP_SR + C_TCP` chain and the outbound `gobj_http` so a
+        SIGTERM with live browser connections no longer logs
+        "Destroying a RUNNING gobj".
+      - **Outbound watchdog**: per-instance attr `idp_timeout_ms`
+        (default 30000, 0 disables) armed via a `C_TIMER0` child right
+        after the outbound HTTP client is created and cleared in
+        `ac_end_task`. On fire, responds 504 to the browser and drains
+        the task; closes the "IdP silence → channel wedged forever"
+        deadlock. New `idp_timeouts` stat counter.
+      - **IdP health signal fix**: count any 2xx IdP reply as `idp_ok`;
+        previously only 200 counted, so every successful `/logout`
+        (Keycloak returns spec-compliant 204 No Content) poisoned the
+        ratio as an `idp_error`.
+      - **Logout routing fix**: route the logout reply to the bottom
+        browser channel, not to the dangling `_browser_src` from an
+        earlier round-trip.
+      - **`mt_stats` filter** mirrors the default `stats_parser.c`
+        two-stage matcher (full name OR underscore-prefix) and is
+        case-insensitive, so `gobj_stats(bff, "idp_", ...)` returns the
+        idp_* set as expected. `redact_for_trace()` key matching is also
+        case-insensitive so HTTP headers like "Cookie"/"cookie"/"COOKIE"
+        are all masked.
+      - **Stats moved to PRIVATE_DATA + `mt_stats`** for zero hot-path
+        cost; the gclass now also exposes a stats/queue-state command
+        through the normal command interface.
+      - **Stable `error_code`** in every BFF response (snake_case, e.g.
+        `invalid_refresh_token`, `idp_unreachable`, `queue_full`) — the
+        GUI uses this as its i18n translation key. Action-aware error
+        mapping wired through `gui_treedb`.
+      - **Log hygiene**: 4xx IdP replies are logged as `INFO`, not
+        `ERROR` (a wrong password is not a server error), with
+        `MSGSET_PROTOCOL`. New `messages` / `traffic` trace levels; 👤
+        BFF log prefix and ⏩/⏪ direction arrows across BFF traces.
+      - **Own orchestrator GClass** at the top of the `auth_bff` yuno
+        (replaces the citizen-yuno shortcut) and `gobj_idprovider` is
+        tagged `gobj_flag_manual_start` so it stays dormant until the
+        BFF validates its configuration.
+      - `gobj_http` single-instance invariant is now asserted in debug
+        builds to catch re-entrancy regressions.
+
+    - **perf(auth_bff)**: new `perf_auth_bff` ping-pong-style live
+      throughput benchmark (`performance/c/perf_auth_bff/`). Default
+      10 s run, ~180 000 ops on the reference box; registered as ctest.
+
+    - **test(c_auth_bff)**: 16-binary suite self-contained under
+      `tests/c/c_auth_bff/` with a scriptable mock Keycloak
+      (`c_mock_keycloak`): signed HS256 JWTs, configurable latency /
+      status / body override. Covers login, callback, refresh, logout,
+      validation errors, IdP 401, slow IdP, queue pipelining + overflow,
+      browser cancel mid-round-trip, cancel-then-retry, cross-user stale
+      replies, expired refresh, 405 / missing body / unknown endpoint.
+      Gates the watchdog, `browser_alive`, flush-on-disconnect and
+      ghttp_parser fixes.
+
+    - **test(c_llhttp_parser)**: sanity suite for the vendored llhttp
+      library and the `ghttp_parser` wrapper (`tests/c/c_llhttp_parser/`).
+
+    - **stress(auth_bff)**: new concurrent stress runner
+      (`stress/c/auth_bff/`) that exercises the pending queue, the
+      watchdog and the flush-on-disconnect path.
+
+    - **fix(c_prot_http_sr)**: omit response body on 1xx / 204 / 304
+      replies (RFC 7230). The parser path was emitting a body for these
+      status codes, confusing downstream clients and tripping some
+      proxies.
+
+    - **fix(c_task)**: `volatil` gobjs now self-destroy at end-of-work —
+      making the long-standing `// auto-destroy` comment actually true.
+      The outbound HTTP client used by the BFF is created `volatil` so
+      teardown is explicit and framework-free (PR #95). Also silences
+      the `-Wcomment` warning in the auto-destroy comment and dedups
+      `TRACE_MESSAGES` / `TRACE_MESSAGES2` output.
+
+    - **fix(lib-yui)**: restore `publi_page` iframe rendering for
+      logged-out users — a regression in the login split hid the public
+      landing page behind the auth screen.
+
+    - **fix(ytls/openssl)**: guard `flush_clear_data` against a
+      re-entrant `sskt` free under specific TLS teardown paths.
+
+    - **build(libjwt)**: yuno skeleton `CMakeLists.txt` templates now
+      link `${JWT_LIBS}` out of the box (PR #92).
+
+    - **refactor(gobj)**: drop TLS knowledge from `gobj-c`, inject it
+      from the ytls layer via a new `gobj_add_global_variable()`
+      extension point. Removes the `CONFIG_HAVE_OPENSSL/MBEDTLS` `#if`
+      blocks from `gobj_global_variables()` and keeps the core
+      backend-agnostic — `root-linux`'s `yunetas_register_c_core()`
+      publishes `__tls_library__` and `__tls_libraries__` at startup.
 
 ## v7.2.1 -- 07/Apr/2026
     - TLS: change Kconfig from radio (choice) to checkboxes — both OpenSSL and mbedTLS can be

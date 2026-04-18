@@ -55,6 +55,7 @@ certbot `deploy-hook` at
 Each step runs independently (`set +e`) so one broken yuno cannot
 cascade-abort the hook. All output goes to `/var/log/yuneta/deploy-hook.log`.
 
+(reload-certs-yuno)=
 ### The `reload-certs` command chain
 
 `command-yuno command=reload-certs service=__yuno__` is routed to

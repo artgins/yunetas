@@ -44,6 +44,10 @@ The returned `GHTTP_PARSER` instance must be destroyed using [`ghttp_parser_dest
 
 ---
 
+**API break (7.3.0):** `ghttp_parser_reset()` has been **removed** from the public API. Calling it from inside an llhttp callback (for example, `on_message_complete`) corrupted llhttp's internal state machine and silently swallowed pipelined HTTP/1.1 messages. Callers that need a fresh parser for a new connection should destroy the current parser and create a new one via [`ghttp_parser_create()`](#ghttp_parser_create) — see `c_prot_http_sr::ac_connected`, `c_prot_http_cl::ac_connected` and `c_websocket::ac_connected` for the canonical pattern.
+
+---
+
 (ghttp_parser_destroy)=
 ## `ghttp_parser_destroy()`
 
