@@ -39,7 +39,7 @@ extern "C"{
             gobj_log_error(0, LOG_OPT_TRACE_STACK,                  \
                 "gobj",         "%s", __FILE__,                     \
                 "function",     "%s", __FUNCTION__,                 \
-                "msgset",       "%s", MSGSET_INTERNAL_ERROR,        \
+                "msgset",       "%s", MSGSET_INTERNAL,        \
                 "msg",          "%s", "BAD json_decref()",          \
                 "refcount",     "%d", (int)((json)->refcount),      \
                 "type",         "%d", (int)((json)->type),          \
@@ -59,7 +59,7 @@ extern "C"{
             gobj_log_error(0, LOG_OPT_TRACE_STACK,                  \
                 "gobj",         "%s", __FILE__,                     \
                 "function",     "%s", __FUNCTION__,                 \
-                "msgset",       "%s", MSGSET_INTERNAL_ERROR,        \
+                "msgset",       "%s", MSGSET_INTERNAL,        \
                 "msg",          "%s", "BAD json_incref()",          \
                 "refcount",     "%d", (int)((json)->refcount),      \
                 "type",         "%d", (int)((json)->type),          \

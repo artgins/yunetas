@@ -281,7 +281,7 @@ PRIVATE void maybe_verify_and_die(hgobj gobj)
         if(slot->ok_count != expected_per_slot) {
             gobj_log_error(gobj, 0,
                 "function", "%s", __FUNCTION__,
-                "msgset",   "%s", MSGSET_APP_ERROR,
+                "msgset",   "%s", MSGSET_APP,
                 "msg",      "%s", "stress: slot ok_count mismatch",
                 "slot",     "%d", i,
                 "expected", "%d", expected_per_slot,
@@ -292,7 +292,7 @@ PRIVATE void maybe_verify_and_die(hgobj gobj)
         if(slot->err_count != 0) {
             gobj_log_error(gobj, 0,
                 "function", "%s", __FUNCTION__,
-                "msgset",   "%s", MSGSET_APP_ERROR,
+                "msgset",   "%s", MSGSET_APP,
                 "msg",      "%s", "stress: slot err_count != 0",
                 "slot",     "%d", i,
                 "err_count","%d", slot->err_count,
@@ -307,7 +307,7 @@ PRIVATE void maybe_verify_and_die(hgobj gobj)
     if(total_ok != total_expected || total_err != 0) {
         gobj_log_error(gobj, 0,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_APP_ERROR,
+            "msgset",       "%s", MSGSET_APP,
             "msg",          "%s", "stress: aggregated response counters wrong",
             "total_ok",     "%d", total_ok,
             "total_err",    "%d", total_err,
@@ -381,7 +381,7 @@ PRIVATE void maybe_verify_and_die(hgobj gobj)
         if(bff_count != NUM_SLOTS) {
             gobj_log_error(gobj, 0,
                 "function", "%s", __FUNCTION__,
-                "msgset",   "%s", MSGSET_APP_ERROR,
+                "msgset",   "%s", MSGSET_APP,
                 "msg",      "%s", "stress: wrong BFF instance count",
                 "expected", "%d", NUM_SLOTS,
                 "got",      "%d", bff_count,
@@ -398,7 +398,7 @@ PRIVATE void maybe_verify_and_die(hgobj gobj)
                 || sum_q_full    != 0) {
             gobj_log_error(gobj, 0,
                 "function",        "%s", __FUNCTION__,
-                "msgset",          "%s", MSGSET_APP_ERROR,
+                "msgset",          "%s", MSGSET_APP,
                 "msg",             "%s", "stress: BFF aggregate stats wrong",
                 "expected_total",  "%d", total_expected,
                 "requests_total",  "%lld", (long long)sum_requests,
@@ -414,7 +414,7 @@ PRIVATE void maybe_verify_and_die(hgobj gobj)
     } else {
         gobj_log_error(gobj, 0,
             "function", "%s", __FUNCTION__,
-            "msgset",   "%s", MSGSET_APP_ERROR,
+            "msgset",   "%s", MSGSET_APP,
             "msg",      "%s", "stress: __bff_side__ not found",
             NULL
         );
@@ -458,7 +458,7 @@ PRIVATE int ac_timer(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
     } else {
         gobj_log_error(gobj, 0,
             "function", "%s", __FUNCTION__,
-            "msgset",   "%s", MSGSET_APP_ERROR,
+            "msgset",   "%s", MSGSET_APP,
             "msg",      "%s", "stress: unexpected ac_timer after launch",
             NULL
         );
@@ -476,7 +476,7 @@ PRIVATE int ac_on_open(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
     if(idx < 0) {
         gobj_log_error(gobj, 0,
             "function", "%s", __FUNCTION__,
-            "msgset",   "%s", MSGSET_APP_ERROR,
+            "msgset",   "%s", MSGSET_APP,
             "msg",      "%s", "stress: EV_ON_OPEN from unknown src",
             "src",      "%s", gobj_short_name(src),
             NULL
@@ -488,7 +488,7 @@ PRIVATE int ac_on_open(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
     if(slot->state != SLOT_CONNECTING) {
         gobj_log_error(gobj, 0,
             "function", "%s", __FUNCTION__,
-            "msgset",   "%s", MSGSET_APP_ERROR,
+            "msgset",   "%s", MSGSET_APP,
             "msg",      "%s", "stress: EV_ON_OPEN in unexpected slot state",
             "slot",     "%d", idx,
             "state",    "%d", (int)slot->state,
@@ -530,7 +530,7 @@ PRIVATE int ac_on_message(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
     if(idx < 0) {
         gobj_log_error(gobj, 0,
             "function", "%s", __FUNCTION__,
-            "msgset",   "%s", MSGSET_APP_ERROR,
+            "msgset",   "%s", MSGSET_APP,
             "msg",      "%s", "stress: EV_ON_MESSAGE from unknown src",
             NULL
         );
@@ -550,7 +550,7 @@ PRIVATE int ac_on_message(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
         slot->err_count++;
         gobj_log_error(gobj, 0,
             "function", "%s", __FUNCTION__,
-            "msgset",   "%s", MSGSET_APP_ERROR,
+            "msgset",   "%s", MSGSET_APP,
             "msg",      "%s", "stress: unexpected non-200 response",
             "slot",     "%d", idx,
             "iteration","%d", slot->iteration,
@@ -616,7 +616,7 @@ PRIVATE int create_gclass(gclass_name_t gclass_name)
     if(__gclass__) {
         gobj_log_error(0, 0,
             "function", "%s", __FUNCTION__,
-            "msgset",   "%s", MSGSET_INTERNAL_ERROR,
+            "msgset",   "%s", MSGSET_INTERNAL,
             "msg",      "%s", "GClass ALREADY created",
             "gclass",   "%s", gclass_name,
             NULL

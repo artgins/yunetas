@@ -437,7 +437,7 @@ PRIVATE int mt_start(hgobj gobj)
     if(!priv->tranger) {
         gobj_log_critical(gobj, priv->exit_on_error,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+            "msgset",       "%s", MSGSET_PARAMETER,
             "msg",          "%s", "tranger NULL",
             NULL
         );
@@ -449,7 +449,7 @@ PRIVATE int mt_start(hgobj gobj)
         if(master) {
             gobj_log_critical(gobj, priv->exit_on_error,
                 "function",     "%s", __FUNCTION__,
-                "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+                "msgset",       "%s", MSGSET_PARAMETER,
                 "msg",          "%s", "treedb_schema NULL",
                 NULL
             );
@@ -458,7 +458,7 @@ PRIVATE int mt_start(hgobj gobj)
     if(empty_string(priv->treedb_name)) {
         gobj_log_critical(gobj, priv->exit_on_error,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+            "msgset",       "%s", MSGSET_PARAMETER,
             "msg",          "%s", "treedb_name name EMPTY",
             NULL
         );
@@ -573,7 +573,7 @@ PRIVATE json_t *mt_topic_desc(hgobj gobj, const char *topic_name)
         )) {
             gobj_log_error(gobj, 0,
                 "function",     "%s", __FUNCTION__,
-                "msgset",       "%s", MSGSET_TREEDB_ERROR,
+                "msgset",       "%s", MSGSET_TREEDB,
                 "msg",          "%s", "Topic name not found in treedbs",
                 "treedb_name",  "%s", priv->treedb_name,
                 "topic_name",   "%s", topic_name,
@@ -628,7 +628,7 @@ PRIVATE json_t *mt_topic_links(
         )) {
             gobj_log_error(gobj, 0,
                 "function",     "%s", __FUNCTION__,
-                "msgset",       "%s", MSGSET_TREEDB_ERROR,
+                "msgset",       "%s", MSGSET_TREEDB,
                 "msg",          "%s", "Topic name not found in treedbs",
                 "treedb_name",  "%s", priv->treedb_name,
                 "topic_name",   "%s", topic_name,
@@ -688,7 +688,7 @@ PRIVATE json_t *mt_topic_hooks(
         )) {
             gobj_log_error(gobj, 0,
                 "function",     "%s", __FUNCTION__,
-                "msgset",       "%s", MSGSET_TREEDB_ERROR,
+                "msgset",       "%s", MSGSET_TREEDB,
                 "msg",          "%s", "Topic name not found in treedbs",
                 "treedb_name",  "%s", priv->treedb_name,
                 "topic_name",   "%s", topic_name,
@@ -763,7 +763,7 @@ PRIVATE json_t *mt_create_node( // Return is YOURS
     )) {
         gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_TREEDB_ERROR,
+            "msgset",       "%s", MSGSET_TREEDB,
             "msg",          "%s", "Topic name not found in treedbs",
             "treedb_name",  "%s", priv->treedb_name,
             "topic_name",   "%s", topic_name,
@@ -854,7 +854,7 @@ PRIVATE json_t *mt_update_node( // Return is YOURS
     )) {
         gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_TREEDB_ERROR,
+            "msgset",       "%s", MSGSET_TREEDB,
             "msg",          "%s", "Topic name not found in treedbs",
             "treedb_name",  "%s", priv->treedb_name,
             "topic_name",   "%s", topic_name,
@@ -882,7 +882,7 @@ PRIVATE json_t *mt_update_node( // Return is YOURS
             }
             gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
                 "function",     "%s", __FUNCTION__,
-                "msgset",       "%s", MSGSET_TREEDB_ERROR,
+                "msgset",       "%s", MSGSET_TREEDB,
                 "msg",          "%s", msg,
                 "treedb_name",  "%s", priv->treedb_name,
                 "topic_name",   "%s", topic_name,
@@ -972,7 +972,7 @@ PRIVATE int mt_delete_node(
     )) {
         gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_TREEDB_ERROR,
+            "msgset",       "%s", MSGSET_TREEDB,
             "msg",          "%s", "Topic name not found in treedbs",
             "treedb_name",  "%s", priv->treedb_name,
             "topic_name",   "%s", topic_name,
@@ -987,7 +987,7 @@ PRIVATE int mt_delete_node(
     if(empty_string(id)) {
         gobj_log_error(gobj, 0,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_TREEDB_ERROR,
+            "msgset",       "%s", MSGSET_TREEDB,
             "msg",          "%s", "id required to delete node",
             "treedb_name",  "%s", priv->treedb_name,
             "topic_name",   "%s", topic_name,
@@ -1009,7 +1009,7 @@ PRIVATE int mt_delete_node(
         if(!no_verbose) {
             gobj_log_error(gobj, 0,
                 "function",     "%s", __FUNCTION__,
-                "msgset",       "%s", MSGSET_TREEDB_ERROR,
+                "msgset",       "%s", MSGSET_TREEDB,
                 "msg",          "%s", "node not found",
                 "treedb_name",  "%s", priv->treedb_name,
                 "topic_name",   "%s", topic_name,
@@ -1111,7 +1111,7 @@ PRIVATE int mt_link_nodes(
     )) {
         gobj_log_error(gobj, 0,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_TREEDB_ERROR,
+            "msgset",       "%s", MSGSET_TREEDB,
             "msg",          "%s", "Topic name not found in treedbs",
             "treedb_name",  "%s", priv->treedb_name,
             "topic_name",   "%s", parent_topic_name,
@@ -1129,7 +1129,7 @@ PRIVATE int mt_link_nodes(
     )) {
         gobj_log_error(gobj, 0,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_TREEDB_ERROR,
+            "msgset",       "%s", MSGSET_TREEDB,
             "msg",          "%s", "Topic name not found in treedbs",
             "treedb_name",  "%s", priv->treedb_name,
             "topic_name",   "%s", child_topic_name,
@@ -1154,7 +1154,7 @@ PRIVATE int mt_link_nodes(
     if(!parent_node) {
         gobj_log_error(gobj, 0,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+            "msgset",       "%s", MSGSET_PARAMETER,
             "msg",          "%s", "parent node not found",
             NULL
         );
@@ -1172,7 +1172,7 @@ PRIVATE int mt_link_nodes(
     if(!child_node) {
         gobj_log_error(gobj, 0,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+            "msgset",       "%s", MSGSET_PARAMETER,
             "msg",          "%s", "child node not found",
             NULL
         );
@@ -1235,7 +1235,7 @@ PRIVATE int mt_unlink_nodes(
     )) {
         gobj_log_error(gobj, 0,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_TREEDB_ERROR,
+            "msgset",       "%s", MSGSET_TREEDB,
             "msg",          "%s", "Topic name not found in treedbs",
             "treedb_name",  "%s", priv->treedb_name,
             "topic_name",   "%s", parent_topic_name,
@@ -1253,7 +1253,7 @@ PRIVATE int mt_unlink_nodes(
     )) {
         gobj_log_error(gobj, 0,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_TREEDB_ERROR,
+            "msgset",       "%s", MSGSET_TREEDB,
             "msg",          "%s", "Topic name not found in treedbs",
             "treedb_name",  "%s", priv->treedb_name,
             "topic_name",   "%s", child_topic_name,
@@ -1278,7 +1278,7 @@ PRIVATE int mt_unlink_nodes(
     if(!parent_node) {
         gobj_log_error(gobj, 0,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+            "msgset",       "%s", MSGSET_PARAMETER,
             "msg",          "%s", "parent node not found",
             NULL
         );
@@ -1296,7 +1296,7 @@ PRIVATE int mt_unlink_nodes(
     if(!child_node) {
         gobj_log_error(gobj, 0,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+            "msgset",       "%s", MSGSET_PARAMETER,
             "msg",          "%s", "child node not found",
             NULL
         );
@@ -1339,7 +1339,7 @@ PRIVATE json_t *mt_get_node(
     )) {
         gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_TREEDB_ERROR,
+            "msgset",       "%s", MSGSET_TREEDB,
             "msg",          "%s", "Topic name not found in treedbs",
             "treedb_name",  "%s", priv->treedb_name,
             "topic_name",   "%s", topic_name,
@@ -1392,7 +1392,7 @@ PRIVATE json_t *mt_list_nodes(
     )) {
         gobj_log_error(gobj, 0,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_TREEDB_ERROR,
+            "msgset",       "%s", MSGSET_TREEDB,
             "msg",          "%s", "Topic name not found in treedbs",
             "treedb_name",  "%s", priv->treedb_name,
             "topic_name",   "%s", topic_name,
@@ -1475,7 +1475,7 @@ PRIVATE json_t *mt_list_instances(
     )) {
         gobj_log_error(gobj, 0,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_TREEDB_ERROR,
+            "msgset",       "%s", MSGSET_TREEDB,
             "msg",          "%s", "Topic name not found in treedbs",
             "treedb_name",  "%s", priv->treedb_name,
             "topic_name",   "%s", topic_name,
@@ -1541,7 +1541,7 @@ PRIVATE json_t *mt_node_parents(
     )) {
         gobj_log_error(gobj, 0,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_TREEDB_ERROR,
+            "msgset",       "%s", MSGSET_TREEDB,
             "msg",          "%s", "Topic name not found in treedbs",
             "treedb_name",  "%s", priv->treedb_name,
             "topic_name",   "%s", topic_name,
@@ -1556,7 +1556,7 @@ PRIVATE json_t *mt_node_parents(
     if(!node) {
         gobj_log_warning(gobj, 0,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_TREEDB_ERROR,
+            "msgset",       "%s", MSGSET_TREEDB,
             "msg",          "%s", "Node not found",
             "treedb_name",  "%s", priv->treedb_name,
             "topic_name",   "%s", topic_name,
@@ -1629,7 +1629,7 @@ PRIVATE json_t *mt_node_children(
     )) {
         gobj_log_warning(gobj, 0,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_TREEDB_ERROR,
+            "msgset",       "%s", MSGSET_TREEDB,
             "msg",          "%s", "Topic name not found in treedbs",
             "treedb_name",  "%s", priv->treedb_name,
             "topic_name",   "%s", topic_name,
@@ -1645,7 +1645,7 @@ PRIVATE json_t *mt_node_children(
     if(!node) {
         gobj_log_error(gobj, 0,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_TREEDB_ERROR,
+            "msgset",       "%s", MSGSET_TREEDB,
             "msg",          "%s", "Node not found",
             "treedb_name",  "%s", priv->treedb_name,
             "topic_name",   "%s", topic_name,
@@ -1724,7 +1724,7 @@ PRIVATE json_t *mt_topic_jtree(
     )) {
         gobj_log_warning(gobj, 0,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_TREEDB_ERROR,
+            "msgset",       "%s", MSGSET_TREEDB,
             "msg",          "%s", "Topic name not found in treedbs",
             "treedb_name",  "%s", priv->treedb_name,
             "topic_name",   "%s", topic_name,
@@ -1743,7 +1743,7 @@ PRIVATE json_t *mt_topic_jtree(
     if(!node) {
         gobj_log_error(gobj, 0,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_TREEDB_ERROR,
+            "msgset",       "%s", MSGSET_TREEDB,
             "msg",          "%s", "Node not found",
             "treedb_name",  "%s", priv->treedb_name,
             "topic_name",   "%s", topic_name,
@@ -1796,7 +1796,7 @@ PRIVATE json_t *mt_node_tree(
     )) {
         gobj_log_warning(gobj, 0,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_TREEDB_ERROR,
+            "msgset",       "%s", MSGSET_TREEDB,
             "msg",          "%s", "Topic name not found in treedbs",
             "treedb_name",  "%s", priv->treedb_name,
             "topic_name",   "%s", topic_name,
@@ -1814,7 +1814,7 @@ PRIVATE json_t *mt_node_tree(
     if(!node) {
         gobj_log_error(gobj, 0,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_TREEDB_ERROR,
+            "msgset",       "%s", MSGSET_TREEDB,
             "msg",          "%s", "Node not found",
             "treedb_name",  "%s", priv->treedb_name,
             "topic_name",   "%s", topic_name,
@@ -3851,7 +3851,7 @@ PRIVATE int create_gclass(gclass_name_t gclass_name)
     if(__gclass__) {
         gobj_log_error(0, 0,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_INTERNAL_ERROR,
+            "msgset",       "%s", MSGSET_INTERNAL,
             "msg",          "%s", "GClass ALREADY created",
             "gclass",       "%s", gclass_name,
             NULL

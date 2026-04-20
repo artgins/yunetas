@@ -674,7 +674,7 @@ PRIVATE int yev_loop_callback(yev_event_h yev_event)
                     } else {
                         gobj_log_error(gobj, 0,
                             "function",     "%s", __FUNCTION__,
-                            "msgset",       "%s", MSGSET_SYSTEM_ERROR,
+                            "msgset",       "%s", MSGSET_SYSTEM,
                             "msg",          "%s", "len != sizeof(struct signalfd_siginfo)",
                             "len",          "%d", len,
                             NULL
@@ -694,7 +694,7 @@ PRIVATE int yev_loop_callback(yev_event_h yev_event)
             } else {
                 gobj_log_error(gobj, 0,
                     "function",     "%s", __FUNCTION__,
-                    "msgset",       "%s", MSGSET_INTERNAL_ERROR,
+                    "msgset",       "%s", MSGSET_INTERNAL,
                     "msg",          "%s", "what event?",
                     NULL
                 );
@@ -704,7 +704,7 @@ PRIVATE int yev_loop_callback(yev_event_h yev_event)
         default:
             gobj_log_error(gobj, 0,
                 "function",     "%s", __FUNCTION__,
-                "msgset",       "%s", MSGSET_INTERNAL_ERROR,
+                "msgset",       "%s", MSGSET_INTERNAL,
                 "msg",          "%s", "event type NOT IMPLEMENTED",
                 NULL
             );
@@ -820,7 +820,7 @@ PRIVATE void mt_create(hgobj gobj)
     if(!is_yuneta) {
         gobj_log_error(gobj, LOG_OPT_EXIT_ZERO,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_INTERNAL_ERROR,
+            "msgset",       "%s", MSGSET_INTERNAL,
             "msg",          "%s", "User or group 'yuneta' is needed to run a yuno",
             NULL
         );
@@ -3338,7 +3338,7 @@ PRIVATE json_t *cmd_add_log_handler(hgobj gobj, const char* cmd, json_t* kw, hgo
             } else {
                 gobj_log_error(gobj, 0,
                     "function",     "%s", __FUNCTION__,
-                    "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+                    "msgset",       "%s", MSGSET_PARAMETER,
                     "msg",          "%s", "log_add_handler() FAILED",
                     "handler_type", "%s", handler_type,
                     "url",          "%s", url,
@@ -3348,7 +3348,7 @@ PRIVATE json_t *cmd_add_log_handler(hgobj gobj, const char* cmd, json_t* kw, hgo
         } else {
             gobj_log_error(gobj, 0,
                 "function",     "%s", __FUNCTION__,
-                "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+                "msgset",       "%s", MSGSET_PARAMETER,
                 "msg",          "%s", "udpc_open() FAILED",
                 "handler_type", "%s", handler_type,
                 "url",          "%s", url,
@@ -4340,7 +4340,7 @@ PRIVATE void boost_process_performance(int priority, int cpu_core)
         if(sched_setscheduler(0, SCHED_RR, &param) < 0) {
             gobj_log_error(0, 0,
                 "function",     "%s", __FUNCTION__,
-                "msgset",       "%s", MSGSET_SYSTEM_ERROR,
+                "msgset",       "%s", MSGSET_SYSTEM,
                 "msg",          "%s", "sched_setscheduler() FAILED",
                 "errno",        "%d", errno,
                 "serrno",       "%s", strerror(errno),
@@ -4350,7 +4350,7 @@ PRIVATE void boost_process_performance(int priority, int cpu_core)
     } else {
         gobj_log_error(0, 0,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_SYSTEM_ERROR,
+            "msgset",       "%s", MSGSET_SYSTEM,
             "msg",          "%s", "Missing CAP_SYS_NICE (skipping sched_setscheduler)",
             NULL
         );
@@ -4366,7 +4366,7 @@ PRIVATE void boost_process_performance(int priority, int cpu_core)
     if(sched_setaffinity(0, sizeof(cpu_set_t), &cpuset) < 0) {
         gobj_log_error(0, 0,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_SYSTEM_ERROR,
+            "msgset",       "%s", MSGSET_SYSTEM,
             "msg",          "%s", "sched_setaffinity() FAILED",
             "errno",        "%d", errno,
             "serrno",       "%s", strerror(errno),
@@ -4381,7 +4381,7 @@ PRIVATE void boost_process_performance(int priority, int cpu_core)
         if(mlockall(MCL_CURRENT | MCL_FUTURE) < 0) {
             gobj_log_error(0, 0,
                 "function",     "%s", __FUNCTION__,
-                "msgset",       "%s", MSGSET_SYSTEM_ERROR,
+                "msgset",       "%s", MSGSET_SYSTEM,
                 "msg",          "%s", "mlockall() FAILED",
                 "errno",        "%d", errno,
                 "serrno",       "%s", strerror(errno),
@@ -4391,7 +4391,7 @@ PRIVATE void boost_process_performance(int priority, int cpu_core)
     } else {
         gobj_log_error(0, 0,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_SYSTEM_ERROR,
+            "msgset",       "%s", MSGSET_SYSTEM,
             "msg",          "%s", "Missing CAP_IPC_LOCK (skipping mlockall)",
             NULL
         );
@@ -4553,7 +4553,7 @@ PRIVATE int catch_signals(hgobj gobj)
     if(sigprocmask(SIG_BLOCK, &mask, NULL) == -1) {
         gobj_log_error(gobj, 0,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_SYSTEM_ERROR,
+            "msgset",       "%s", MSGSET_SYSTEM,
             "msg",          "%s", "sigprocmask() FAILED",
             "errno",        "%d", errno,
             "strerror",     "%s", strerror(errno),
@@ -4567,7 +4567,7 @@ PRIVATE int catch_signals(hgobj gobj)
     if(sfd == -1) {
         gobj_log_error(gobj, 0,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_SYSTEM_ERROR,
+            "msgset",       "%s", MSGSET_SYSTEM,
             "msg",          "%s", "signalfd() FAILED",
             "errno",        "%d", errno,
             "strerror",     "%s", strerror(errno),
@@ -4666,7 +4666,7 @@ PRIVATE int set_user_gclass_traces(hgobj gobj)
         if(!json_is_array(jn_name)) {
             gobj_log_error(gobj, 0,
                 "function",     "%s", __FUNCTION__,
-                "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+                "msgset",       "%s", MSGSET_PARAMETER,
                 "msg",          "%s", "value MUST be a json list",
                 "name",         "%s", name,
                 NULL
@@ -4707,7 +4707,7 @@ PRIVATE int set_user_gclass_no_traces(hgobj gobj)
         if(!json_is_array(jn_name)) {
             gobj_log_error(gobj, 0,
                 "function",     "%s", __FUNCTION__,
-                "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+                "msgset",       "%s", MSGSET_PARAMETER,
                 "msg",          "%s", "value MUST be a json list",
                 "name",         "%s", name,
                 NULL
@@ -4754,7 +4754,7 @@ PRIVATE int set_user_trace_filter(hgobj gobj)
         if(!json_is_object(jn_trace_filter)) {
             gobj_log_error(gobj, 0,
                 "function",     "%s", __FUNCTION__,
-                "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+                "msgset",       "%s", MSGSET_PARAMETER,
                 "msg",          "%s", "filter MUST be a json object",
                 "name",         "%s", name,
                 NULL
@@ -4825,7 +4825,7 @@ PRIVATE int set_user_gobj_traces(hgobj gobj)
                 );
                 gobj_log_error(gobj, 0,
                     "function",     "%s", __FUNCTION__,
-                    "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+                    "msgset",       "%s", MSGSET_PARAMETER,
                     "msg",          "%s", temp,
                     "name",         "%s", name,
                     NULL
@@ -4843,7 +4843,7 @@ PRIVATE int set_user_gobj_traces(hgobj gobj)
         if(!json_is_array(jn_name)) {
             gobj_log_error(gobj, 0,
                 "function",     "%s", __FUNCTION__,
-                "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+                "msgset",       "%s", MSGSET_PARAMETER,
                 "msg",          "%s", "value MUST be a json list",
                 "name",         "%s", name,
                 NULL
@@ -4915,7 +4915,7 @@ PRIVATE int set_user_gobj_no_traces(hgobj gobj)
                 );
                 gobj_log_error(gobj, 0,
                     "function",     "%s", __FUNCTION__,
-                    "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+                    "msgset",       "%s", MSGSET_PARAMETER,
                     "msg",          "%s", temp,
                     "name",         "%s", name,
                     NULL
@@ -4932,7 +4932,7 @@ PRIVATE int set_user_gobj_no_traces(hgobj gobj)
         if(!json_is_array(jn_name)) {
             gobj_log_error(gobj, 0,
                 "function",     "%s", __FUNCTION__,
-                "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+                "msgset",       "%s", MSGSET_PARAMETER,
                 "msg",          "%s", "value MUST be a json list",
                 "name",         "%s", name,
                 NULL
@@ -4970,7 +4970,7 @@ PRIVATE int set_limit_open_files(hgobj gobj, json_int_t limit_open_files)
     if(getrlimit(RLIMIT_NOFILE, &rl) != 0) {
         gobj_log_error(gobj, 0,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_SYSTEM_ERROR,
+            "msgset",       "%s", MSGSET_SYSTEM,
             "msg",          "%s", "getrlimit() FAILED",
             "limit",        "%lu", (unsigned long)limit_open_files,
             "errno",        "%d", errno,
@@ -5010,7 +5010,7 @@ PRIVATE int set_limit_open_files(hgobj gobj, json_int_t limit_open_files)
     if(setrlimit(RLIMIT_NOFILE, &rl)<0) {
         gobj_log_error(gobj, 0,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_SYSTEM_ERROR,
+            "msgset",       "%s", MSGSET_SYSTEM,
             "msg",          "%s", "setrlimit() FAILED",
             "rlim_cur",     "%lu", (unsigned long)rl.rlim_cur,
             "rlim_max",     "%lu", (unsigned long)rl.rlim_max,
@@ -5025,7 +5025,7 @@ PRIVATE int set_limit_open_files(hgobj gobj, json_int_t limit_open_files)
     if(getrlimit(RLIMIT_NOFILE, &rl) != 0) {
         gobj_log_error(gobj, 0,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_SYSTEM_ERROR,
+            "msgset",       "%s", MSGSET_SYSTEM,
             "msg",          "%s", "getrlimit() FAILED",
             "limit",        "%lu", (unsigned long)limit_open_files,
             "errno",        "%d", errno,
@@ -5037,7 +5037,7 @@ PRIVATE int set_limit_open_files(hgobj gobj, json_int_t limit_open_files)
     if(rl.rlim_cur < limit_open_files) {
         gobj_log_error(gobj, 0,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_SYSTEM_ERROR,
+            "msgset",       "%s", MSGSET_SYSTEM,
             "msg",          "%s", "setrlimit() limit doesn't comply",
             "rlim_cur",     "%lu", (unsigned long)rl.rlim_cur,
             "rlim_max",     "%lu", (unsigned long)rl.rlim_max,
@@ -5387,7 +5387,7 @@ PRIVATE int create_gclass(gclass_name_t gclass_name)
     if(__gclass__) {
         gobj_log_error(0, 0,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_INTERNAL_ERROR,
+            "msgset",       "%s", MSGSET_INTERNAL,
             "msg",          "%s", "GClass ALREADY created",
             "gclass",       "%s", gclass_name,
             NULL

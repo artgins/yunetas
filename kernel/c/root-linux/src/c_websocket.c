@@ -242,7 +242,7 @@ PRIVATE void mt_create(hgobj gobj)
     if(!priv->istream_frame) {
         gobj_log_error(gobj, 0,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_INTERNAL_ERROR,
+            "msgset",       "%s", MSGSET_INTERNAL,
             "msg",          "%s", "istream_create() FAILED",
             NULL
         );
@@ -473,7 +473,7 @@ PRIVATE int _add_frame_header(hgobj gobj, gbuffer_t *gbuf, char h_fin, char h_op
     } else {
         gobj_log_error(gobj, 0,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+            "msgset",       "%s", MSGSET_PARAMETER,
             "msg",          "%s", "data TOO LONG",
             "ln",           "%d", ln,
             NULL
@@ -513,7 +513,7 @@ PRIVATE int _write_control_frame(hgobj gobj, char h_fin, char h_opcode, char *da
     if(!gbuf) {
         gobj_log_error(gobj, 0,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_INTERNAL_ERROR,
+            "msgset",       "%s", MSGSET_INTERNAL,
             "msg",          "%s", "gbuffer_create() FAILED",
             NULL
         );
@@ -807,7 +807,7 @@ PRIVATE gbuffer_t * unmask_data(hgobj gobj, gbuffer_t *gbuf, uint8_t *h_mask)
         } else {
             gobj_log_error(gobj, 0,
                 "function",     "%s", __FUNCTION__,
-                "msgset",       "%s", MSGSET_INTERNAL_ERROR,
+                "msgset",       "%s", MSGSET_INTERNAL,
                 "msg",          "%s", "gbuffer_get() return NULL",
                 NULL
             );
@@ -849,7 +849,7 @@ PRIVATE int frame_completed(hgobj gobj)
         if(ln != frame_head->frame_length) {
             gobj_log_error(gobj, 0,
                 "function",     "%s", __FUNCTION__,
-                "msgset",       "%s", MSGSET_INTERNAL_ERROR,
+                "msgset",       "%s", MSGSET_INTERNAL,
                 "msg",          "%s", "BAD message LENGTH",
                 "frame_length", "%d", frame_head->frame_length,
                 "ln",           "%d", ln,
@@ -923,7 +923,7 @@ PRIVATE int frame_completed(hgobj gobj)
                 if(!unmasked) {
                     gobj_log_error(gobj, 0,
                         "function",     "%s", __FUNCTION__,
-                        "msgset",       "%s", MSGSET_INTERNAL_ERROR,
+                        "msgset",       "%s", MSGSET_INTERNAL,
                         "msg",          "%s", "gbuffer_create() FAILED",
                         NULL
                     );
@@ -1060,7 +1060,7 @@ PRIVATE int frame_completed(hgobj gobj)
                 }
                 gobj_log_error(gobj, 0,
                     "function",     "%s", __FUNCTION__,
-                    "msgset",       "%s", MSGSET_INTERNAL_ERROR,
+                    "msgset",       "%s", MSGSET_INTERNAL,
                     "msg",          "%s", "Websocket BAD OPCODE",
                     "opcode",       "%d", operation,
                     NULL
@@ -1112,7 +1112,7 @@ PRIVATE int frame_completed(hgobj gobj)
             if(!priv->gbuf_message) {
                 gobj_log_error(gobj, 0,
                     "function",     "%s", __FUNCTION__,
-                    "msgset",       "%s", MSGSET_INTERNAL_ERROR,
+                    "msgset",       "%s", MSGSET_INTERNAL,
                     "msg",          "%s", "gbuffer_create() FAILED",
                     NULL
                 );
@@ -1213,7 +1213,7 @@ PRIVATE int send_http_message(hgobj gobj, const char *http_message)
     if(!gbuf) {
         gobj_log_error(gobj, 0,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_INTERNAL_ERROR,
+            "msgset",       "%s", MSGSET_INTERNAL,
             "msg",          "%s", "gbuffer_create() FAILED",
             NULL
         );
@@ -1238,7 +1238,7 @@ PRIVATE int send_http_message2(hgobj gobj, const char *format, ...)
     if(!gbuf) {
         gobj_log_error(gobj, 0,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_INTERNAL_ERROR,
+            "msgset",       "%s", MSGSET_INTERNAL,
             "msg",          "%s", "gbuffer_create() FAILED",
             NULL
         );
@@ -1289,7 +1289,7 @@ PRIVATE BOOL do_request(
     if(!gbuf) {
         gobj_log_error(gobj, 0,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_INTERNAL_ERROR,
+            "msgset",       "%s", MSGSET_INTERNAL,
             "msg",          "%s", "gbuffer_create() FAILED",
             NULL
         );
@@ -1523,7 +1523,7 @@ PRIVATE int process_http(hgobj gobj, gbuffer_t *gbuf, GHTTP_PARSER *parser)
             const char *sockname = gobj_read_str_attr(gobj, "sockname");
             gobj_log_error(gobj, 0,
                 "function",     "%s", __FUNCTION__,
-                "msgset",       "%s", MSGSET_PROTOCOL_ERROR,
+                "msgset",       "%s", MSGSET_PROTOCOL,
                 "msg",          "%s", "http parser failed",
                 "peername",     "%s", peername?peername:"",
                 "sockname",     "%s", sockname?sockname:"",
@@ -1744,7 +1744,7 @@ PRIVATE int ac_process_handshake(hgobj gobj, gobj_event_t event, json_t *kw, hgo
             } else {
                 gobj_log_error(gobj, 0,
                     "function",     "%s", __FUNCTION__,
-                    "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+                    "msgset",       "%s", MSGSET_PARAMETER,
                     "msg",          "%s", "NO 101 HTTP Response",
                     "status",       "%d", 0, //response->status,
                     NULL
@@ -1791,7 +1791,7 @@ PRIVATE int ac_timeout_wait_handshake(hgobj gobj, gobj_event_t event, json_t *kw
 PRIVATE int ac_timeout_wait_disconnected(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 {
     gobj_log_warning(gobj, 0,
-        "msgset",       "%s", MSGSET_PROTOCOL_ERROR,
+        "msgset",       "%s", MSGSET_PROTOCOL,
         "msg",          "%s", "Timeout waiting websocket disconnected",
         NULL
     );
@@ -1847,7 +1847,7 @@ PRIVATE int ac_process_frame_header(hgobj gobj, gobj_event_t event, json_t *kw, 
                     priv->istream_payload = 0;
                     gobj_log_error(gobj, 0,
                         "function",     "%s", __FUNCTION__,
-                        "msgset",       "%s", MSGSET_INTERNAL_ERROR,
+                        "msgset",       "%s", MSGSET_INTERNAL,
                         "msg",          "%s", "istream_payload NOT NULL",
                         NULL
                     );
@@ -1860,7 +1860,7 @@ PRIVATE int ac_process_frame_header(hgobj gobj, gobj_event_t event, json_t *kw, 
                 if(!frame_length) {
                     gobj_log_error(gobj, 0,
                         "function",     "%s", __FUNCTION__,
-                        "msgset",       "%s", MSGSET_MEMORY_ERROR,
+                        "msgset",       "%s", MSGSET_MEMORY,
                         "msg",          "%s", "no memory for istream_payload",
                         "frame_length", "%d", frame_length,
                         NULL
@@ -1877,7 +1877,7 @@ PRIVATE int ac_process_frame_header(hgobj gobj, gobj_event_t event, json_t *kw, 
                 if(!priv->istream_payload) {
                     gobj_log_error(gobj, 0,
                         "function",     "%s", __FUNCTION__,
-                        "msgset",       "%s", MSGSET_MEMORY_ERROR,
+                        "msgset",       "%s", MSGSET_MEMORY,
                         "msg",          "%s", "no memory for istream_payload",
                         "frame_length", "%d", frame_length,
                         NULL
@@ -1958,7 +1958,7 @@ PRIVATE int ac_process_payload_data(hgobj gobj, gobj_event_t event, json_t *kw, 
 PRIVATE int ac_timeout_wait_payload_data(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 {
     gobj_log_info(gobj, 0,
-        "msgset",       "%s", MSGSET_PROTOCOL_ERROR,
+        "msgset",       "%s", MSGSET_PROTOCOL,
         "msg",          "%s", "Timeout waiting websocket PAYLOAD data",
         NULL
     );
@@ -1978,7 +1978,7 @@ PRIVATE int ac_send_message(hgobj gobj, gobj_event_t event, json_t *kw, hgobj sr
     if(!gbuf_data) {
         gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_INTERNAL_ERROR,
+            "msgset",       "%s", MSGSET_INTERNAL,
             "msg",          "%s", "gbuf NULL",
             NULL
         );
@@ -2089,7 +2089,7 @@ PRIVATE int create_gclass(gclass_name_t gclass_name)
     if(__gclass__) {
         gobj_log_error(0, 0,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_INTERNAL_ERROR,
+            "msgset",       "%s", MSGSET_INTERNAL,
             "msg",          "%s", "GClass ALREADY created",
             "gclass",       "%s", gclass_name,
             NULL

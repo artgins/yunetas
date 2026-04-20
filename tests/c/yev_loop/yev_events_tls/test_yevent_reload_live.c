@@ -102,7 +102,7 @@ PRIVATE int send_clear_data(hytls ytls, hsskt sskt, gbuffer_t *gbuf)
     if(ytls_encrypt_data(ytls, sskt, gbuf)<0) {
         gobj_log_error(0, 0,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_SYSTEM_ERROR,
+            "msgset",       "%s", MSGSET_SYSTEM,
             "msg",          "%s", "ytls_encrypt_data() FAILED",
             "error",        "%s", ytls_get_last_error(ytls, sskt),
             NULL
@@ -267,7 +267,7 @@ PRIVATE int yev_server_callback(yev_event_h yev_event)
                 if(ytls_decrypt_data(ytls_server, sskt_server, gbuffer_incref(gbuf_rx))<0) {
                     gobj_log_error(0, 0,
                         "function",     "%s", __FUNCTION__,
-                        "msgset",       "%s", MSGSET_LIBURING_ERROR,
+                        "msgset",       "%s", MSGSET_LIBURING,
                         "msg",          "%s", "ytls_decrypt_data() FAILED",
                         NULL
                     );
@@ -283,7 +283,7 @@ PRIVATE int yev_server_callback(yev_event_h yev_event)
         default:
             gobj_log_error(0, 0,
                 "function",     "%s", __FUNCTION__,
-                "msgset",       "%s", MSGSET_LIBURING_ERROR,
+                "msgset",       "%s", MSGSET_LIBURING,
                 "msg",          "%s", "yev_event not implemented",
                 "event_type",   "%s", yev_event_type_name(yev_event),
                 NULL
@@ -344,7 +344,7 @@ PRIVATE int yev_client_callback(yev_event_h yev_event)
                 if(ytls_decrypt_data(ytls_client, sskt_client, gbuffer_incref(gbuf_rx))<0) {
                     gobj_log_error(0, 0,
                         "function",     "%s", __FUNCTION__,
-                        "msgset",       "%s", MSGSET_LIBURING_ERROR,
+                        "msgset",       "%s", MSGSET_LIBURING,
                         "msg",          "%s", "ytls_decrypt_data() FAILED",
                         NULL
                     );
@@ -360,7 +360,7 @@ PRIVATE int yev_client_callback(yev_event_h yev_event)
         default:
             gobj_log_error(0, 0,
                 "function",     "%s", __FUNCTION__,
-                "msgset",       "%s", MSGSET_LIBURING_ERROR,
+                "msgset",       "%s", MSGSET_LIBURING,
                 "msg",          "%s", "yev_event not implemented",
                 "event_type",   "%s", yev_event_type_name(yev_event),
                 NULL

@@ -221,7 +221,7 @@ PRIVATE void verify_and_die(hgobj gobj)
     if(priv->ok_count != 3) {
         gobj_log_error(gobj, 0,
             "function", "%s", __FUNCTION__,
-            "msgset",   "%s", MSGSET_APP_ERROR,
+            "msgset",   "%s", MSGSET_APP,
             "msg",      "%s", "test8_queue_full: wrong number of 200 responses",
             "expected", "%d", 3,
             "got",      "%d", priv->ok_count,
@@ -231,7 +231,7 @@ PRIVATE void verify_and_die(hgobj gobj)
     if(priv->err_count != 1) {
         gobj_log_error(gobj, 0,
             "function", "%s", __FUNCTION__,
-            "msgset",   "%s", MSGSET_APP_ERROR,
+            "msgset",   "%s", MSGSET_APP,
             "msg",      "%s", "test8_queue_full: wrong number of 503 responses",
             "expected", "%d", 1,
             "got",      "%d", priv->err_count,
@@ -343,7 +343,7 @@ PRIVATE int ac_timer(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
     default:
         gobj_log_error(gobj, 0,
             "function", "%s", __FUNCTION__,
-            "msgset",   "%s", MSGSET_APP_ERROR,
+            "msgset",   "%s", MSGSET_APP,
             "msg",      "%s", "test8_queue_full: unexpected ac_timer phase",
             "phase",    "%d", (int)priv->phase,
             NULL
@@ -362,7 +362,7 @@ PRIVATE int ac_on_open(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
     if(priv->phase != T8_CONNECTING) {
         gobj_log_error(gobj, 0,
             "function", "%s", __FUNCTION__,
-            "msgset",   "%s", MSGSET_APP_ERROR,
+            "msgset",   "%s", MSGSET_APP,
             "msg",      "%s", "test8_queue_full: EV_ON_OPEN in unexpected phase",
             "phase",    "%d", (int)priv->phase,
             NULL
@@ -401,7 +401,7 @@ PRIVATE int ac_on_message(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
     if(priv->phase != T8_AWAITING) {
         gobj_log_error(gobj, 0,
             "function", "%s", __FUNCTION__,
-            "msgset",   "%s", MSGSET_APP_ERROR,
+            "msgset",   "%s", MSGSET_APP,
             "msg",      "%s", "test8_queue_full: EV_ON_MESSAGE in unexpected phase",
             "phase",    "%d", (int)priv->phase,
             NULL
@@ -426,7 +426,7 @@ PRIVATE int ac_on_message(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
         if(!jn_body || !json_is_true(json_object_get(jn_body, "success"))) {
             gobj_log_error(gobj, 0,
                 "function", "%s", __FUNCTION__,
-                "msgset",   "%s", MSGSET_APP_ERROR,
+                "msgset",   "%s", MSGSET_APP,
                 "msg",      "%s", "test8_queue_full: 200 response with success!=true",
                 NULL
             );
@@ -437,7 +437,7 @@ PRIVATE int ac_on_message(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
         if(!jn_body || json_is_true(json_object_get(jn_body, "success"))) {
             gobj_log_error(gobj, 0,
                 "function", "%s", __FUNCTION__,
-                "msgset",   "%s", MSGSET_APP_ERROR,
+                "msgset",   "%s", MSGSET_APP,
                 "msg",      "%s", "test8_queue_full: 503 response with success!=false",
                 NULL
             );
@@ -447,7 +447,7 @@ PRIVATE int ac_on_message(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
     } else {
         gobj_log_error(gobj, 0,
             "function", "%s", __FUNCTION__,
-            "msgset",   "%s", MSGSET_APP_ERROR,
+            "msgset",   "%s", MSGSET_APP,
             "msg",      "%s", "test8_queue_full: unexpected response status",
             "status",   "%d", status,
             NULL
@@ -481,7 +481,7 @@ PRIVATE int ac_on_close(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
     if(priv->phase == T8_AWAITING && priv->responses_received < EXPECTED_RESPONSES) {
         gobj_log_error(gobj, 0,
             "function",             "%s", __FUNCTION__,
-            "msgset",               "%s", MSGSET_APP_ERROR,
+            "msgset",               "%s", MSGSET_APP,
             "msg",                  "%s", "test8_queue_full: connection closed before all responses received",
             "responses_received",   "%d", priv->responses_received,
             "expected",             "%d", EXPECTED_RESPONSES,
@@ -531,7 +531,7 @@ PRIVATE int create_gclass(gclass_name_t gclass_name)
     if(__gclass__) {
         gobj_log_error(0, 0,
             "function", "%s", __FUNCTION__,
-            "msgset",   "%s", MSGSET_INTERNAL_ERROR,
+            "msgset",   "%s", MSGSET_INTERNAL,
             "msg",      "%s", "GClass ALREADY created",
             "gclass",   "%s", gclass_name,
             NULL

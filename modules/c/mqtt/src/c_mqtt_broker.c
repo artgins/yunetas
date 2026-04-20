@@ -988,7 +988,7 @@ PRIVATE int open_database(hgobj gobj)
          */
         gobj_log_error(gobj, 0,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_APP_ERROR,
+            "msgset",       "%s", MSGSET_APP,
             "msg",          "%s", "Parse schema fails",
             NULL
         );
@@ -1022,7 +1022,7 @@ PRIVATE int open_database(hgobj gobj)
         const char *comment = kw_get_str(gobj, jn_resp, "comment", "", KW_REQUIRED);
         gobj_log_error(gobj, 0,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_APP_ERROR,
+            "msgset",       "%s", MSGSET_APP,
             "msg",          "%s", comment,
             NULL
         );
@@ -1046,7 +1046,7 @@ PRIVATE int open_database(hgobj gobj)
          */
         gobj_log_error(gobj, 0,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_APP_ERROR,
+            "msgset",       "%s", MSGSET_APP,
             "msg",          "%s", "Parse schema fails",
             NULL
         );
@@ -1705,7 +1705,7 @@ PRIVATE int sub__add( // WARNING return 1 if subs already exists
     if(topic_tokenize(topic, &local_topic, &levels, &sharename) < 0) {
         gobj_log_error(gobj, 0,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+            "msgset",       "%s", MSGSET_PARAMETER,
             "msg",          "%s", "Failed to tokenize topic",
             "client_id",    "%s", client_id,
             "topic",        "%s", topic,
@@ -1731,7 +1731,7 @@ PRIVATE int sub__add( // WARNING return 1 if subs already exists
     if(!node) {
         gobj_log_error(gobj, 0,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_MEMORY_ERROR,
+            "msgset",       "%s", MSGSET_MEMORY,
             "msg",          "%s", "Failed to create tree node",
             "client_id",    "%s", client_id,
             "topic",        "%s", topic,
@@ -1751,7 +1751,7 @@ PRIVATE int sub__add( // WARNING return 1 if subs already exists
         if(!subs) {
             gobj_log_error(gobj, 0,
                 "function",     "%s", __FUNCTION__,
-                "msgset",       "%s", MSGSET_MEMORY_ERROR,
+                "msgset",       "%s", MSGSET_MEMORY,
                 "msg",          "%s", "Failed to create subs dict",
                 NULL
             );
@@ -1762,7 +1762,7 @@ PRIVATE int sub__add( // WARNING return 1 if subs already exists
         if(json_object_set_new(node, SUBS_KEY, subs) < 0) {
             gobj_log_error(gobj, 0,
                 "function",     "%s", __FUNCTION__,
-                "msgset",       "%s", MSGSET_MEMORY_ERROR,
+                "msgset",       "%s", MSGSET_MEMORY,
                 "msg",          "%s", "Failed to create subs",
                 NULL
             );
@@ -1783,7 +1783,7 @@ PRIVATE int sub__add( // WARNING return 1 if subs already exists
     if(!sub_info) {
         gobj_log_error(gobj, 0,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_MEMORY_ERROR,
+            "msgset",       "%s", MSGSET_MEMORY,
             "msg",          "%s", "Failed to create subscription info",
             NULL
         );
@@ -1805,7 +1805,7 @@ PRIVATE int sub__add( // WARNING return 1 if subs already exists
         json_decref(sub_info);
         gobj_log_error(gobj, 0,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_MEMORY_ERROR,
+            "msgset",       "%s", MSGSET_MEMORY,
             "msg",          "%s", "Failed to create sub_info",
             NULL
         );
@@ -1947,7 +1947,7 @@ PRIVATE int sub__remove(
     if(!topic || !client_id) {
         gobj_log_error(gobj, 0,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+            "msgset",       "%s", MSGSET_PARAMETER,
             "msg",          "%s", "topic or client_id is NULL",
             NULL
         );
@@ -1960,7 +1960,7 @@ PRIVATE int sub__remove(
     if(topic_tokenize(topic, &local_topic, &levels, &sharename) < 0) {
         gobj_log_error(gobj, 0,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+            "msgset",       "%s", MSGSET_PARAMETER,
             "msg",          "%s", "Failed to tokenize topic",
             "client_id",    "%s", client_id,
             "topic",        "%s", topic,
@@ -2198,7 +2198,7 @@ PRIVATE int retain__queue(
     if(topic_tokenize(sub, &local_sub, &sub_levels, &sharename) < 0) {
         gobj_log_error(gobj, 0,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+            "msgset",       "%s", MSGSET_PARAMETER,
             "msg",          "%s", "Failed to tokenize subscription",
             "sub",          "%s", sub,
             NULL
@@ -2219,7 +2219,7 @@ PRIVATE int retain__queue(
     if(!session) {
         gobj_log_error(gobj, 0,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+            "msgset",       "%s", MSGSET_PARAMETER,
             "msg",          "%s", "Session not found for retain queue",
             "client_id",    "%s", client_id,
             NULL
@@ -3053,7 +3053,7 @@ PRIVATE int subs__send(
     if(!session) {
         gobj_log_error(gobj, 0,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+            "msgset",       "%s", MSGSET_PARAMETER,
             "msg",          "%s", "Session of subs's client not found",
             "client",       "%s", client_id,
             NULL
@@ -3296,7 +3296,7 @@ PRIVATE size_t sub__messages_queue(
     if(empty_string(topic)) {
         gobj_log_error(gobj, 0,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+            "msgset",       "%s", MSGSET_PARAMETER,
             "msg",          "%s", "topic is NULL",
             NULL
         );
@@ -3309,7 +3309,7 @@ PRIVATE size_t sub__messages_queue(
     if(strchr(topic, '+') || strchr(topic, '#')) {
         gobj_log_error(gobj, 0,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+            "msgset",       "%s", MSGSET_PARAMETER,
             "msg",          "%s", "Published topic cannot contain wildcards",
             "topic",        "%s", topic,
             NULL
@@ -3326,7 +3326,7 @@ PRIVATE size_t sub__messages_queue(
     if(topic_tokenize(topic, &local_topic, &levels, &sharename) < 0) {
         gobj_log_error(gobj, 0,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+            "msgset",       "%s", MSGSET_PARAMETER,
             "msg",          "%s", "Failed to tokenize topic",
             "topic",        "%s", topic,
             NULL
@@ -3536,7 +3536,7 @@ PRIVATE int ac_on_open(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
     if(src != priv->gobj_input_side) {
          gobj_log_error(gobj, 0,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_INTERNAL_ERROR,
+            "msgset",       "%s", MSGSET_INTERNAL,
             "msg",          "%s", "on_open NOT from input_size",
             "src",          "%s", gobj_full_name(src),
             NULL
@@ -3867,7 +3867,7 @@ PRIVATE int ac_on_close(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
     if(src != priv->gobj_input_side) {
         gobj_log_error(gobj, 0,
            "function",     "%s", __FUNCTION__,
-           "msgset",       "%s", MSGSET_INTERNAL_ERROR,
+           "msgset",       "%s", MSGSET_INTERNAL,
            "msg",          "%s", "event NOT from input_side",
            "src",          "%s", gobj_full_name(src),
            NULL
@@ -3909,7 +3909,7 @@ PRIVATE int ac_on_close(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
     if(!session) {
         gobj_log_error(gobj, 0,
            "function",     "%s", __FUNCTION__,
-           "msgset",       "%s", MSGSET_INTERNAL_ERROR,
+           "msgset",       "%s", MSGSET_INTERNAL,
            "msg",          "%s", "session NULL",
            "client_id",    "%s", client_id,
            NULL
@@ -4113,7 +4113,7 @@ PRIVATE int ac_mqtt_subscribe(hgobj gobj, gobj_event_t event, json_t *kw, hgobj 
     if(src != priv->gobj_input_side) {
         gobj_log_error(gobj, 0,
            "function",     "%s", __FUNCTION__,
-           "msgset",       "%s", MSGSET_INTERNAL_ERROR,
+           "msgset",       "%s", MSGSET_INTERNAL,
            "msg",          "%s", "event NOT from input_side",
            "src",          "%s", gobj_full_name(src),
            NULL
@@ -4239,7 +4239,7 @@ PRIVATE int ac_mqtt_unsubscribe(hgobj gobj, gobj_event_t event, json_t *kw, hgob
     if(src != priv->gobj_input_side) {
         gobj_log_error(gobj, 0,
            "function",     "%s", __FUNCTION__,
-           "msgset",       "%s", MSGSET_INTERNAL_ERROR,
+           "msgset",       "%s", MSGSET_INTERNAL,
            "msg",          "%s", "event NOT from input_side",
            "src",          "%s", gobj_full_name(src),
            NULL
@@ -4309,7 +4309,7 @@ PRIVATE int ac_on_message(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
     if(src != priv->gobj_top_side) {
         gobj_log_error(gobj, 0,
            "function",     "%s", __FUNCTION__,
-           "msgset",       "%s", MSGSET_INTERNAL_ERROR,
+           "msgset",       "%s", MSGSET_INTERNAL,
            "msg",          "%s", "event NOT from input_side",
            "src",          "%s", gobj_full_name(src),
            NULL
@@ -4353,7 +4353,7 @@ PRIVATE int ac_mqtt_message(hgobj gobj, gobj_event_t event, json_t *kw, hgobj sr
     if(src != priv->gobj_input_side) {
         gobj_log_error(gobj, 0,
            "function",     "%s", __FUNCTION__,
-           "msgset",       "%s", MSGSET_INTERNAL_ERROR,
+           "msgset",       "%s", MSGSET_INTERNAL,
            "msg",          "%s", "event NOT from input_side",
            "src",          "%s", gobj_full_name(src),
            NULL
@@ -4683,7 +4683,7 @@ PRIVATE int create_gclass(gclass_name_t gclass_name)
     if(__gclass__) {
         gobj_log_error(0, 0,
             "function", "%s", __FUNCTION__,
-            "msgset",   "%s", MSGSET_INTERNAL_ERROR,
+            "msgset",   "%s", MSGSET_INTERNAL,
             "msg",      "%s", "GClass ALREADY created",
             "gclass",   "%s", gclass_name,
             NULL

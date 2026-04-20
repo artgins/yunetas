@@ -203,7 +203,7 @@ PRIVATE json_t *mt_stats(hgobj gobj, const char *stats, json_t *kw, hgobj src)
     if(gobj_current_state(gobj) != ST_SESSION) {
         gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_INTERNAL_ERROR,
+            "msgset",       "%s", MSGSET_INTERNAL,
             "msg",          "%s", "Not in session",
             "stats",        "%s", stats?stats:"",
             NULL
@@ -263,7 +263,7 @@ PRIVATE json_t *mt_command(hgobj gobj, const char *command, json_t *kw, hgobj sr
     if(gobj_current_state(gobj) != ST_SESSION) {
         gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_INTERNAL_ERROR,
+            "msgset",       "%s", MSGSET_INTERNAL,
             "msg",          "%s", "Not in session",
             "command",      "%s", command,
             NULL
@@ -323,7 +323,7 @@ PRIVATE int mt_inject_event(hgobj gobj, gobj_event_t event, json_t *kw, hgobj sr
     if(gobj_current_state(gobj) != ST_SESSION) {
         gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_INTERNAL_ERROR,
+            "msgset",       "%s", MSGSET_INTERNAL,
             "msg",          "%s", "Not in session",
             "event",        "%s", event,
             NULL
@@ -431,7 +431,7 @@ PRIVATE hgobj get_bottom_gobj(hgobj gobj)
     } else {
         gobj_log_error(gobj, 0,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_INTERNAL_ERROR,
+            "msgset",       "%s", MSGSET_INTERNAL,
             "msg",          "%s", "NOT below gobj",
             NULL
         );
@@ -647,7 +647,7 @@ PRIVATE int ac_identity_card(hgobj gobj, gobj_event_t event, json_t *kw, hgobj s
     if(!jn_request) {
         gobj_log_error(gobj, 0,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_PROTOCOL_ERROR,
+            "msgset",       "%s", MSGSET_PROTOCOL,
             "msg",          "%s", "no ievent_gate_stack",
             NULL
         );
@@ -677,7 +677,7 @@ PRIVATE int ac_identity_card(hgobj gobj, gobj_event_t event, json_t *kw, hgobj s
     if(strcasecmp(iev_dst_role, gobj_yuno_role())!=0) {
         gobj_log_error(gobj, 0,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_PROTOCOL_ERROR,
+            "msgset",       "%s", MSGSET_PROTOCOL,
             "msg",          "%s", "dst_role NOT MATCH",
             "my_role",      "%s", gobj_yuno_role(),
             "dst_role",     "%s", iev_dst_role,
@@ -695,7 +695,7 @@ PRIVATE int ac_identity_card(hgobj gobj, gobj_event_t event, json_t *kw, hgobj s
         if(strcasecmp(iev_dst_yuno, gobj_yuno_name())!=0) {
             gobj_log_error(gobj, 0,
                 "function",     "%s", __FUNCTION__,
-                "msgset",       "%s", MSGSET_PROTOCOL_ERROR,
+                "msgset",       "%s", MSGSET_PROTOCOL,
                 "msg",          "%s", "dst_yuno NOT MATCH",
                 "my_yuno",      "%s", gobj_yuno_name(),
                 "dst_yuno",     "%s", iev_dst_yuno,
@@ -713,7 +713,7 @@ PRIVATE int ac_identity_card(hgobj gobj, gobj_event_t event, json_t *kw, hgobj s
     if(empty_string(iev_src_role)) {
         gobj_log_error(gobj, 0,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_PROTOCOL_ERROR,
+            "msgset",       "%s", MSGSET_PROTOCOL,
             "msg",          "%s", "GOT identity card without yuno role",
             NULL
         );
@@ -728,7 +728,7 @@ PRIVATE int ac_identity_card(hgobj gobj, gobj_event_t event, json_t *kw, hgobj s
     if(empty_string(iev_src_service)) {
         gobj_log_error(gobj, 0,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_PROTOCOL_ERROR,
+            "msgset",       "%s", MSGSET_PROTOCOL,
             "msg",          "%s", "GOT identity card without yuno service",
             NULL
         );
@@ -744,7 +744,7 @@ PRIVATE int ac_identity_card(hgobj gobj, gobj_event_t event, json_t *kw, hgobj s
     if (!gobj_service) {
         gobj_log_error(gobj, 0,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_PROTOCOL_ERROR,
+            "msgset",       "%s", MSGSET_PROTOCOL,
             "msg",          "%s", "dst_srv NOT FOUND in this yuno",
             "dst_service",  "%s", iev_dst_service,
             NULL
@@ -810,7 +810,7 @@ PRIVATE int ac_identity_card(hgobj gobj, gobj_event_t event, json_t *kw, hgobj s
         // TODO y en el cliente mete la ip de origen
         gobj_log_warning(gobj, 0,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_PROTOCOL_ERROR,
+            "msgset",       "%s", MSGSET_PROTOCOL,
             "msg",          "%s", "Authentication rejected",
             "cause",        "%s", comment,
             "detail",       "%j", jn_resp,
@@ -947,7 +947,7 @@ PRIVATE int ac_on_message(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
     if(!gbuf) {
         gobj_log_error(gobj, 0,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_INTERNAL_ERROR,
+            "msgset",       "%s", MSGSET_INTERNAL,
             "msg",          "%s", "gbuffer NULL, expected gbuf with inter-event",
             NULL
         );
@@ -966,7 +966,7 @@ PRIVATE int ac_on_message(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
     if(!iev_kw) {
         gobj_log_error(gobj, 0,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_INTERNAL_ERROR,
+            "msgset",       "%s", MSGSET_INTERNAL,
             "msg",          "%s", "iev_create_from_gbuffer() FAILED",
             NULL
         );
@@ -1029,7 +1029,7 @@ PRIVATE int ac_on_message(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
         }
         gobj_log_error(gobj, 0,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_INTERNAL_ERROR,
+            "msgset",       "%s", MSGSET_INTERNAL,
             "msg",          "%s", "event UNKNOWN in not-session state",
             "event",        "%s", iev_event,
             NULL
@@ -1064,7 +1064,7 @@ PRIVATE int ac_on_message(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
         if(strcmp(iev_dst_role, gobj_yuno_role())!=0) {
             gobj_log_error(gobj, 0,
                 "function",     "%s", __FUNCTION__,
-                "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+                "msgset",       "%s", MSGSET_PARAMETER,
                 "msg",          "%s", "It's not my role",
                 "yuno_role",    "%s", iev_dst_role,
                 "my_role",      "%s", gobj_yuno_role(),
@@ -1082,7 +1082,7 @@ PRIVATE int ac_on_message(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
         if(strcmp(iev_dst_yuno, gobj_yuno_name())!=0) {
             gobj_log_error(gobj, 0,
                 "function",     "%s", __FUNCTION__,
-                "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+                "msgset",       "%s", MSGSET_PARAMETER,
                 "msg",          "%s", "It's not my name",
                 "yuno_name",    "%s", iev_dst_yuno,
                 "my_name",      "%s", gobj_yuno_name(),
@@ -1108,7 +1108,7 @@ PRIVATE int ac_on_message(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
     if(!gobj_service) {
         gobj_log_error(gobj, 0,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+            "msgset",       "%s", MSGSET_PARAMETER,
             "msg",          "%s", "event ignored, service not found",
             "service",      "%s", iev_dst_service,
             "event",        "%s", iev_event,
@@ -1173,7 +1173,7 @@ PRIVATE int ac_on_message(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 //                     gobj_log_error(gobj, 0,
 //                         "gobj",         "%s", gobj_full_name(publisher_),
 //                         "function",     "%s", __FUNCTION__,
-//                         "msgset",       "%s", MSGSET_AUTH_ERROR,
+//                         "msgset",       "%s", MSGSET_AUTH,
 //                         "msg",          "%s", "No permission to subscribe event",
 //                         //"user",         "%s", gobj_get_user(subscriber_),
 //                         "gclass",       "%s", gobj_gclass_name(publisher_),
@@ -1193,7 +1193,7 @@ PRIVATE int ac_on_message(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
          if(!gobj_has_output_event(gobj_service, iev_event, EVF_PUBLIC_EVENT)) {
             gobj_log_error(gobj, 0,
                 "function",     "%s", __FUNCTION__,
-                "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+                "msgset",       "%s", MSGSET_PARAMETER,
                 "msg",          "%s", "SUBSCRIBING event ignored, not PUBLIC or PUBLIC event",
                 "service",      "%s", iev_dst_service,
                 "gobj_service", "%s", gobj_short_name(gobj_service),
@@ -1251,7 +1251,7 @@ PRIVATE int ac_on_message(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
         if(!gobj_has_output_event(gobj_service, iev_event, EVF_PUBLIC_EVENT)) {
             gobj_log_error(gobj, 0,
                 "function",     "%s", __FUNCTION__,
-                "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+                "msgset",       "%s", MSGSET_PARAMETER,
                 "msg",          "%s", "UNSUBSCRIBING event ignored, not PUBLIC or PUBLIC event",
                 "service",      "%s", iev_dst_service,
                 "gobj_service", "%s", gobj_short_name(gobj_service),
@@ -1294,7 +1294,7 @@ PRIVATE int ac_on_message(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 //                 gobj_log_error(gobj, 0,
 //                     "gobj",         "%s", gobj_full_name(dst),
 //                     "function",     "%s", __FUNCTION__,
-//                     "msgset",       "%s", MSGSET_AUTH_ERROR,
+//                     "msgset",       "%s", MSGSET_AUTH,
 //                     "msg",          "%s", "No permission to inject event",
 //                     //"user",         "%s", gobj_get_user(src),
 //                     "gclass",       "%s", gobj_gclass_name(dst),
@@ -1363,7 +1363,7 @@ PRIVATE int ac_mt_stats(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
     if(!gobj_read_bool_attr(gobj, "authenticated")) {
         gobj_log_error(gobj, 0,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_INTERNAL_ERROR,
+            "msgset",       "%s", MSGSET_INTERNAL,
             "msg",          "%s", "Only authenticated users can request stats",
             NULL
         );
@@ -1412,7 +1412,7 @@ PRIVATE int ac_mt_stats(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
         if(!gobj_service) {
             gobj_log_error(gobj, 0,
                 "function",     "%s", __FUNCTION__,
-                "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+                "msgset",       "%s", MSGSET_PARAMETER,
                 "msg",          "%s", "Service not found",
                 "service",      "%s", service,
                 "event",        "%s", event,
@@ -1502,7 +1502,7 @@ PRIVATE int ac_mt_command(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
     if(!gobj_read_bool_attr(gobj, "authenticated")) {
         gobj_log_error(gobj, 0,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_INTERNAL_ERROR,
+            "msgset",       "%s", MSGSET_INTERNAL,
             "msg",          "%s", "Only authenticated users can request commands",
             NULL
         );
@@ -1552,7 +1552,7 @@ PRIVATE int ac_mt_command(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
         if(!gobj_service) {
             gobj_log_error(gobj, 0,
                 "function",     "%s", __FUNCTION__,
-                "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+                "msgset",       "%s", MSGSET_PARAMETER,
                 "msg",          "%s", "Service not found",
                 "service",      "%s", service,
                 "event",        "%s", event,
@@ -1687,7 +1687,7 @@ PRIVATE int ac_remote_log(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
     const char *msg = kw_get_str(gobj, kw, "msg", "", 0);
     gobj_log_error(gobj, 0,
         "function",     "%s", __FUNCTION__,
-        "msgset",       "%s", MSGSET_APP_ERROR,
+        "msgset",       "%s", MSGSET_APP,
         "msg",          "%s", "Remote Error",
         "remote msg",   "%s", msg,
         NULL
@@ -1752,7 +1752,7 @@ PRIVATE int create_gclass(gclass_name_t gclass_name)
     if(__gclass__) {
         gobj_log_error(0, 0,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_INTERNAL_ERROR,
+            "msgset",       "%s", MSGSET_INTERNAL,
             "msg",          "%s", "GClass ALREADY created",
             "gclass",       "%s", gclass_name,
             NULL

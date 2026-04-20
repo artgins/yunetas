@@ -196,7 +196,7 @@ PRIVATE void mt_destroy(hgobj gobj)
     if(!gobj_in_this_state(gobj, ST_STOPPED)) {
         gobj_log_error(gobj, 0,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_INTERNAL_ERROR,
+            "msgset",       "%s", MSGSET_INTERNAL,
             "msg",          "%s", "GObj NOT STOPPED. UV handler ACTIVE!",
             NULL
         );
@@ -219,7 +219,7 @@ PRIVATE int mt_start(hgobj gobj)
     if(priv->yev_server_udp) {
         gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_INTERNAL_ERROR,
+            "msgset",       "%s", MSGSET_INTERNAL,
             "msg",          "%s", "yev_server_udp ALREADY exists",
             "state",        "%s", gobj_current_state(gobj),
             NULL
@@ -254,7 +254,7 @@ PRIVATE int mt_start(hgobj gobj)
     )<0) {
         gobj_log_error(gobj, 0,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+            "msgset",       "%s", MSGSET_PARAMETER,
             "msg",          "%s", "Parsing url failed",
             "url",          "%s", priv->url,
             NULL
@@ -298,7 +298,7 @@ PRIVATE int mt_start(hgobj gobj)
     if(!priv->yev_server_udp) {
         gobj_log_error(gobj, 0,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_SYSTEM_ERROR,
+            "msgset",       "%s", MSGSET_SYSTEM,
             "msg",          "%s", "yev_create_accept_event() FAILED",
             "url",          "%s", priv->url,
             NULL
@@ -448,7 +448,7 @@ PRIVATE int udp_set_broadcast(int fd, int on)
     ) {
         gobj_log_error(0, 0,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_SYSTEM_ERROR,
+            "msgset",       "%s", MSGSET_SYSTEM,
             "msg",          "%s", "setsockopt() FAILED",
             "errno",        "%d", errno,
             "serrno",       "%s", strerror(errno),
@@ -499,7 +499,7 @@ PRIVATE int write_data(hgobj gobj)
         if(ytls_encrypt_data(priv->ytls, priv->sskt, gbuf)<0) {
             gobj_log_error(gobj, 0,
                 "function",     "%s", __FUNCTION__,
-                "msgset",       "%s", MSGSET_SYSTEM_ERROR,
+                "msgset",       "%s", MSGSET_SYSTEM,
                 "msg",          "%s", "ytls_encrypt_data() FAILED",
                 "error",        "%s", ytls_get_last_error(priv->ytls, priv->sskt),
                 NULL
@@ -509,7 +509,7 @@ PRIVATE int write_data(hgobj gobj)
         if(gbuffer_leftbytes(gbuf) > 0) {
             gobj_log_error(gobj, 0,
                 "function",     "%s", __FUNCTION__,
-                "msgset",       "%s", MSGSET_INTERNAL_ERROR,
+                "msgset",       "%s", MSGSET_INTERNAL,
                 "msg",          "%s", "NEED a queue, NOT ALL DATA being encrypted",
                 NULL
             );
@@ -588,7 +588,7 @@ PRIVATE int send_data(hgobj gobj, gbuffer_t *gbuf)
     if(!udp_channel) {
         gobj_log_error(gobj, 0,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_INTERNAL_ERROR,
+            "msgset",       "%s", MSGSET_INTERNAL,
             "msg",          "%s", "udp_channel NULL",
             NULL
         );
@@ -600,7 +600,7 @@ PRIVATE int send_data(hgobj gobj, gbuffer_t *gbuf)
     if(ln > 1500) {
         gobj_log_error(gobj, 0,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_INTERNAL_ERROR,
+            "msgset",       "%s", MSGSET_INTERNAL,
             "msg",          "%s", "UPD lenght must not be greater than 1500",
             "ln",           "%d", ln,
             NULL
@@ -644,7 +644,7 @@ PRIVATE int send_data(hgobj gobj, gbuffer_t *gbuf)
     if(!port) {
         gobj_log_error(gobj, 0,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_INTERNAL_ERROR,
+            "msgset",       "%s", MSGSET_INTERNAL,
             "msg",          "%s", "UDP port is 0",
             "udp_channel", "%s", udp_channel,
             NULL
@@ -662,7 +662,7 @@ PRIVATE int send_data(hgobj gobj, gbuffer_t *gbuf)
     if(ret < 0) {
         gobj_log_error(gobj, 0,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_LIBUV_ERROR,
+            "msgset",       "%s", MSGSET_LIBURING,
             "msg",          "%s", "uv_ip?_addr() FAILED",
             "uv_error",     "%s", uv_err_name(ret),
             "udp_channel", "%s", udp_channel,
@@ -686,7 +686,7 @@ PRIVATE int send_data(hgobj gobj, gbuffer_t *gbuf)
     if(ret < 0) {
         gobj_log_error(gobj, 0,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_LIBUV_ERROR,
+            "msgset",       "%s", MSGSET_LIBURING,
             "msg",          "%s", "uv_udp_send() FAILED",
             "uv_error",     "%s", uv_err_name(ret),
             "udp_channel", "%s", udp_channel,
@@ -975,7 +975,7 @@ PRIVATE int yev_callback(yev_event_h yev_event)
         default:
             gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
                 "function",     "%s", __FUNCTION__,
-                "msgset",       "%s", MSGSET_SYSTEM_ERROR,
+                "msgset",       "%s", MSGSET_SYSTEM,
                 "msg",          "%s", "UDP: event type NOT IMPLEMENTED",
                 "msg2",         "%s", "🌐UDP: event type NOT IMPLEMENTED",
                 "url",          "%s", gobj_read_str_attr(gobj, "url"),
@@ -1007,7 +1007,7 @@ PRIVATE int reload_ytls_from_attrs(hgobj gobj)
     if(!jn_crypto) {
         gobj_log_error(gobj, 0,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+            "msgset",       "%s", MSGSET_PARAMETER,
             "msg",          "%s", "reload-certs: 'crypto' attribute is empty",
             NULL
         );
@@ -1140,7 +1140,7 @@ PRIVATE int ac_tx_data(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
     if(!gbuf) {
         gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_INTERNAL_ERROR,
+            "msgset",       "%s", MSGSET_INTERNAL,
             "msg",          "%s", "gbuffer NULL",
             NULL
         );
@@ -1196,7 +1196,7 @@ PRIVATE int create_gclass(gclass_name_t gclass_name)
     if(__gclass__) {
         gobj_log_error(0, 0,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_INTERNAL_ERROR,
+            "msgset",       "%s", MSGSET_INTERNAL,
             "msg",          "%s", "GClass ALREADY created",
             "gclass",       "%s", gclass_name,
             NULL

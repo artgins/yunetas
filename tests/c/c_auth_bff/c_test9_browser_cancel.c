@@ -308,7 +308,7 @@ PRIVATE int ac_timer(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
     default:
         gobj_log_error(gobj, 0,
             "function", "%s", __FUNCTION__,
-            "msgset",   "%s", MSGSET_APP_ERROR,
+            "msgset",   "%s", MSGSET_APP,
             "msg",      "%s", "test9_browser_cancel: unexpected ac_timer phase",
             "phase",    "%d", (int)priv->phase,
             NULL
@@ -327,7 +327,7 @@ PRIVATE int ac_on_open(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
     if(priv->phase != T9_CONNECTING) {
         gobj_log_error(gobj, 0,
             "function", "%s", __FUNCTION__,
-            "msgset",   "%s", MSGSET_APP_ERROR,
+            "msgset",   "%s", MSGSET_APP,
             "msg",      "%s", "test9_browser_cancel: EV_ON_OPEN in unexpected phase",
             "phase",    "%d", (int)priv->phase,
             NULL
@@ -387,7 +387,7 @@ PRIVATE int ac_on_close(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
     if(priv->phase < T9_POSTED) {
         gobj_log_error(gobj, 0,
             "function", "%s", __FUNCTION__,
-            "msgset",   "%s", MSGSET_APP_ERROR,
+            "msgset",   "%s", MSGSET_APP,
             "msg",      "%s", "test9_browser_cancel: unexpected EV_ON_CLOSE before POST",
             "phase",    "%d", (int)priv->phase,
             NULL
@@ -409,7 +409,7 @@ PRIVATE int ac_on_message(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
      */
     gobj_log_error(gobj, 0,
         "function", "%s", __FUNCTION__,
-        "msgset",   "%s", MSGSET_APP_ERROR,
+        "msgset",   "%s", MSGSET_APP,
         "msg",      "%s", "test9_browser_cancel: BFF wrote a reply after cancel — fix regressed",
         NULL
     );
@@ -454,7 +454,7 @@ PRIVATE int create_gclass(gclass_name_t gclass_name)
     if(__gclass__) {
         gobj_log_error(0, 0,
             "function", "%s", __FUNCTION__,
-            "msgset",   "%s", MSGSET_INTERNAL_ERROR,
+            "msgset",   "%s", MSGSET_INTERNAL,
             "msg",      "%s", "GClass ALREADY created",
             "gclass",   "%s", gclass_name,
             NULL

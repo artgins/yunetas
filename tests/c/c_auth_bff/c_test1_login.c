@@ -169,7 +169,7 @@ PRIVATE void check_bff_stats(hgobj gobj, hgobj bff)
     if(!resp) {
         gobj_log_error(gobj, 0,
             "function", "%s", __FUNCTION__,
-            "msgset",   "%s", MSGSET_APP_ERROR,
+            "msgset",   "%s", MSGSET_APP,
             "msg",      "%s", "test1_login: gobj_stats(bff) returned NULL",
             NULL
         );
@@ -179,7 +179,7 @@ PRIVATE void check_bff_stats(hgobj gobj, hgobj bff)
     if(!jn_data) {
         gobj_log_error(gobj, 0,
             "function", "%s", __FUNCTION__,
-            "msgset",   "%s", MSGSET_APP_ERROR,
+            "msgset",   "%s", MSGSET_APP,
             "msg",      "%s", "test1_login: stats response has no 'data' dict",
             NULL
         );
@@ -206,7 +206,7 @@ PRIVATE void check_bff_stats(hgobj gobj, hgobj bff)
         if(got != cases[i].expected) {
             gobj_log_error(gobj, 0,
                 "function", "%s", __FUNCTION__,
-                "msgset",   "%s", MSGSET_APP_ERROR,
+                "msgset",   "%s", MSGSET_APP,
                 "msg",      "%s", "test1_login: BFF stat counter mismatch",
                 "stat",     "%s", cases[i].name,
                 "expected", "%lld", (long long)cases[i].expected,
@@ -327,7 +327,7 @@ PRIVATE int ac_on_message(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
     if(status != 200) {
         gobj_log_error(gobj, 0,
             "function", "%s", __FUNCTION__,
-            "msgset",   "%s", MSGSET_APP_ERROR,
+            "msgset",   "%s", MSGSET_APP,
             "msg",      "%s", "test1_login: BFF returned non-200",
             "status",   "%d", status,
             NULL
@@ -339,7 +339,7 @@ PRIVATE int ac_on_message(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
     if(!jn_body || !json_is_object(jn_body)) {
         gobj_log_error(gobj, 0,
             "function", "%s", __FUNCTION__,
-            "msgset",   "%s", MSGSET_APP_ERROR,
+            "msgset",   "%s", MSGSET_APP,
             "msg",      "%s", "test1_login: BFF response body missing or not an object",
             NULL
         );
@@ -348,7 +348,7 @@ PRIVATE int ac_on_message(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
     if(!json_is_true(json_object_get(jn_body, "success"))) {
         gobj_log_error(gobj, 0,
             "function", "%s", __FUNCTION__,
-            "msgset",   "%s", MSGSET_APP_ERROR,
+            "msgset",   "%s", MSGSET_APP,
             "msg",      "%s", "test1_login: body.success is not true",
             NULL
         );
@@ -359,7 +359,7 @@ PRIVATE int ac_on_message(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
     if(strcmp(got_user, "mockuser") != 0) {
         gobj_log_error(gobj, 0,
             "function", "%s", __FUNCTION__,
-            "msgset",   "%s", MSGSET_APP_ERROR,
+            "msgset",   "%s", MSGSET_APP,
             "msg",      "%s", "test1_login: wrong username in body",
             "expected", "%s", "mockuser",
             "got",      "%s", got_user,
@@ -370,7 +370,7 @@ PRIVATE int ac_on_message(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
     if(strcmp(got_mail, "mockuser@example.com") != 0) {
         gobj_log_error(gobj, 0,
             "function", "%s", __FUNCTION__,
-            "msgset",   "%s", MSGSET_APP_ERROR,
+            "msgset",   "%s", MSGSET_APP,
             "msg",      "%s", "test1_login: wrong email in body",
             "expected", "%s", "mockuser@example.com",
             "got",      "%s", got_mail,
@@ -397,7 +397,7 @@ PRIVATE int ac_on_message(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
         } else {
             gobj_log_error(gobj, 0,
                 "function", "%s", __FUNCTION__,
-                "msgset",   "%s", MSGSET_APP_ERROR,
+                "msgset",   "%s", MSGSET_APP,
                 "msg",      "%s", "test1_login: no C_AUTH_BFF found under __bff_side__",
                 NULL
             );
@@ -406,7 +406,7 @@ PRIVATE int ac_on_message(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
     } else {
         gobj_log_error(gobj, 0,
             "function", "%s", __FUNCTION__,
-            "msgset",   "%s", MSGSET_APP_ERROR,
+            "msgset",   "%s", MSGSET_APP,
             "msg",      "%s", "test1_login: __bff_side__ service not found",
             NULL
         );
@@ -452,7 +452,7 @@ PRIVATE int ac_on_close(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
     if(!priv->test_passed) {
         gobj_log_error(gobj, 0,
             "function", "%s", __FUNCTION__,
-            "msgset",   "%s", MSGSET_APP_ERROR,
+            "msgset",   "%s", MSGSET_APP,
             "msg",      "%s", "test1_login: connection closed before success",
             NULL
         );
@@ -513,7 +513,7 @@ PRIVATE int create_gclass(gclass_name_t gclass_name)
     if(__gclass__) {
         gobj_log_error(0, 0,
             "function", "%s", __FUNCTION__,
-            "msgset",   "%s", MSGSET_INTERNAL_ERROR,
+            "msgset",   "%s", MSGSET_INTERNAL,
             "msg",      "%s", "GClass ALREADY created",
             "gclass",   "%s", gclass_name,
             NULL

@@ -221,7 +221,7 @@ PRIVATE int create_gclass(gclass_name_t gclass_name)
     if(__gclass__) {
         gobj_log_error(0, 0,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_INTERNAL_ERROR,
+            "msgset",       "%s", MSGSET_INTERNAL,
             "msg",          "%s", "GClass ALREADY created",
             "gclass",       "%s", gclass_name,
             NULL
@@ -299,7 +299,7 @@ PUBLIC void set_timeout(hgobj gobj, json_int_t msec)
     if(!gobj_typeof_gclass(gobj, C_TIMER)) {
         gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_INTERNAL_ERROR,
+            "msgset",       "%s", MSGSET_INTERNAL,
             "msg",          "%s", "set_timeout() must be used only in C_TIMER",
             NULL
         );
@@ -348,7 +348,7 @@ PUBLIC void set_timeout_periodic(hgobj gobj, json_int_t msec)
     if(!gobj_typeof_gclass(gobj, C_TIMER)) {
         gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_INTERNAL_ERROR,
+            "msgset",       "%s", MSGSET_INTERNAL,
             "msg",          "%s", "set_timeout_periodic() must be used only in C_TIMER",
             NULL
         );
@@ -397,7 +397,7 @@ PUBLIC void clear_timeout(hgobj gobj)
     if(!gobj_typeof_gclass(gobj, C_TIMER)) {
         gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_INTERNAL_ERROR,
+            "msgset",       "%s", MSGSET_INTERNAL,
             "msg",          "%s", "clear_timeout() must be used only in C_TIMER",
             NULL
         );

@@ -108,7 +108,7 @@ PRIVATE int send_clear_data(hytls ytls, hsskt sskt, gbuffer_t *gbuf)
     if(ytls_encrypt_data(ytls, sskt, gbuf)<0) {
         gobj_log_error(0, 0,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_SYSTEM_ERROR,
+            "msgset",       "%s", MSGSET_SYSTEM,
             "msg",          "%s", "ytls_encrypt_data() FAILED",
             "error",        "%s", ytls_get_last_error(ytls, sskt),
             NULL

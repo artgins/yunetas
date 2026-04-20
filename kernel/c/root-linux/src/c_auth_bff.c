@@ -299,7 +299,7 @@ PRIVATE void mt_create(hgobj gobj)
     } else if(requested > MAX_PENDING_QUEUE_SIZE) {
         gobj_log_warning(gobj, 0,
             "function",         "%s", __FUNCTION__,
-            "msgset",           "%s", MSGSET_PARAMETER_ERROR,
+            "msgset",           "%s", MSGSET_PARAMETER,
             "msg",              "%s", "pending_queue_size clamped to MAX_PENDING_QUEUE_SIZE",
             "requested",        "%d", requested,
             "max",              "%d", MAX_PENDING_QUEUE_SIZE,
@@ -339,7 +339,7 @@ PRIVATE void mt_create(hgobj gobj)
     )<0) {
         gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
             "function", "%s", __FUNCTION__,
-            "msgset",   "%s", MSGSET_SYSTEM_ERROR,
+            "msgset",   "%s", MSGSET_SYSTEM,
             "msg",      "%s", "idp url parse failed",
             "url",      "%s", idp_base,
             NULL
@@ -899,7 +899,7 @@ PRIVATE void send_error_response(hgobj gobj, hgobj browser,
     if(status_code >= 500) {
         gobj_log_error(gobj, 0,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_PROTOCOL_ERROR,
+            "msgset",       "%s", MSGSET_PROTOCOL,
             "msg",          "%s", "👤BFF server error",
             "status",       "%d", status_code,
             "status_text",  "%s", status_text ? status_text : "",
@@ -971,7 +971,7 @@ PRIVATE int enqueue(hgobj gobj, const PENDING_AUTH *pa)
         priv->st_q_full_drops++;
         gobj_log_error(gobj, 0,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_SYSTEM_ERROR,
+            "msgset",       "%s", MSGSET_SYSTEM,
             "msg",          "%s", "👤BFF pending queue full",
             "queue_size",   "%d", priv->queue_size_max,
             NULL
@@ -1650,7 +1650,7 @@ PRIVATE void process_next(hgobj gobj)
     if(priv->gobj_task) {
         gobj_log_error(gobj, 0,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_INTERNAL_ERROR,
+            "msgset",       "%s", MSGSET_INTERNAL,
             "msg",          "%s", "gobj_task already set",
             NULL
         );
@@ -1698,7 +1698,7 @@ PRIVATE int ac_on_open(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
     } else {
         gobj_log_error(gobj, 0,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_INTERNAL_ERROR,
+            "msgset",       "%s", MSGSET_INTERNAL,
             "msg",          "%s", "What merde is message from?",
             "src",          "%s", gobj_full_name(src),
             NULL
@@ -1791,7 +1791,7 @@ PRIVATE int ac_on_close(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
     } else {
         gobj_log_error(gobj, 0,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_INTERNAL_ERROR,
+            "msgset",       "%s", MSGSET_INTERNAL,
             "msg",          "%s", "What merde is message from?",
             "src",          "%s", gobj_full_name(src),
             NULL
@@ -1816,7 +1816,7 @@ PRIVATE int ac_on_message(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
     } else {
         gobj_log_error(gobj, 0,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_INTERNAL_ERROR,
+            "msgset",       "%s", MSGSET_INTERNAL,
             "msg",          "%s", "What merde is message from?",
             "src",          "%s", gobj_full_name(src),
             NULL
@@ -2034,7 +2034,7 @@ PRIVATE int ac_end_task(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 
         gobj_log_error(gobj, 0,
             "function",   "%s", __FUNCTION__,
-            "msgset",     "%s", MSGSET_PROTOCOL_ERROR,
+            "msgset",     "%s", MSGSET_PROTOCOL,
             "msg",        "%s", "👤BFF IdP outbound watchdog fired",
             "task_valid", "%d", priv->task_valid ? 1 : 0,
             NULL
@@ -2138,7 +2138,7 @@ PRIVATE int create_gclass(gclass_name_t gclass_name)
     if(__gclass__) {
         gobj_log_error(0, 0,
             "function", "%s", __FUNCTION__,
-            "msgset",   "%s", MSGSET_INTERNAL_ERROR,
+            "msgset",   "%s", MSGSET_INTERNAL,
             "msg",      "%s", "GClass ALREADY created",
             "gclass",   "%s", gclass_name,
             NULL);

@@ -143,7 +143,7 @@ PRIVATE int mt_play(hgobj gobj)
     if(priv->total_steps == 0) {
         gobj_log_error(gobj, 0,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+            "msgset",       "%s", MSGSET_PARAMETER,
             "msg",          "%s", "Empty script, nothing to test",
             NULL
         );
@@ -291,7 +291,7 @@ PRIVATE int validate_event_trace(hgobj gobj)
         if(!found) {
             gobj_log_error(gobj, 0,
                 "function",     "%s", __FUNCTION__,
-                "msgset",       "%s", MSGSET_APP_ERROR,
+                "msgset",       "%s", MSGSET_APP,
                 "msg",          "%s", "Expected event not found in trace",
                 "expected_event", "%s", exp_event ? exp_event : "?",
                 "expected_source", "%s", exp_source ? exp_source : "?",
@@ -323,7 +323,7 @@ PRIVATE void finish_test(hgobj gobj)
     } else {
         gobj_log_error(gobj, 0,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_APP_ERROR,
+            "msgset",       "%s", MSGSET_APP,
             "msg",          "%s", "Test script FAILED",
             NULL
         );
@@ -364,7 +364,7 @@ PRIVATE int execute_next_step(hgobj gobj)
     if(!action) {
         gobj_log_error(gobj, 0,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+            "msgset",       "%s", MSGSET_PARAMETER,
             "msg",          "%s", "Script step missing 'action' field",
             "step",         "%d", priv->current_step,
             NULL
@@ -382,7 +382,7 @@ PRIVATE int execute_next_step(hgobj gobj)
         if(!target) {
             gobj_log_error(gobj, 0,
                 "function",     "%s", __FUNCTION__,
-                "msgset",       "%s", MSGSET_APP_ERROR,
+                "msgset",       "%s", MSGSET_APP,
                 "msg",          "%s", "Service not found for start_tree",
                 "target",       "%s", target_name ? target_name : "?",
                 "step",         "%d", priv->current_step,
@@ -407,7 +407,7 @@ PRIVATE int execute_next_step(hgobj gobj)
         if(!target) {
             gobj_log_error(gobj, 0,
                 "function",     "%s", __FUNCTION__,
-                "msgset",       "%s", MSGSET_APP_ERROR,
+                "msgset",       "%s", MSGSET_APP,
                 "msg",          "%s", "Service not found for stop_tree",
                 "target",       "%s", target_name ? target_name : "?",
                 "step",         "%d", priv->current_step,
@@ -432,7 +432,7 @@ PRIVATE int execute_next_step(hgobj gobj)
         if(!target) {
             gobj_log_error(gobj, 0,
                 "function",     "%s", __FUNCTION__,
-                "msgset",       "%s", MSGSET_APP_ERROR,
+                "msgset",       "%s", MSGSET_APP,
                 "msg",          "%s", "Service not found for send_event",
                 "target",       "%s", target_name ? target_name : "?",
                 "step",         "%d", priv->current_step,
@@ -448,7 +448,7 @@ PRIVATE int execute_next_step(hgobj gobj)
         if(!event) {
             gobj_log_error(gobj, 0,
                 "function",     "%s", __FUNCTION__,
-                "msgset",       "%s", MSGSET_APP_ERROR,
+                "msgset",       "%s", MSGSET_APP,
                 "msg",          "%s", "Cannot resolve event for send_event",
                 "event",        "%s", event_name ? event_name : "?",
                 "step",         "%d", priv->current_step,
@@ -479,7 +479,7 @@ PRIVATE int execute_next_step(hgobj gobj)
         if(!target) {
             gobj_log_error(gobj, 0,
                 "function",     "%s", __FUNCTION__,
-                "msgset",       "%s", MSGSET_APP_ERROR,
+                "msgset",       "%s", MSGSET_APP,
                 "msg",          "%s", "Service not found for send_iev",
                 "target",       "%s", target_name ? target_name : "?",
                 "step",         "%d", priv->current_step,
@@ -495,7 +495,7 @@ PRIVATE int execute_next_step(hgobj gobj)
         if(!event) {
             gobj_log_error(gobj, 0,
                 "function",     "%s", __FUNCTION__,
-                "msgset",       "%s", MSGSET_APP_ERROR,
+                "msgset",       "%s", MSGSET_APP,
                 "msg",          "%s", "Cannot resolve event for send_iev",
                 "event",        "%s", event_name ? event_name : "?",
                 "step",         "%d", priv->current_step,
@@ -540,7 +540,7 @@ PRIVATE int execute_next_step(hgobj gobj)
         if(!source) {
             gobj_log_error(gobj, 0,
                 "function",     "%s", __FUNCTION__,
-                "msgset",       "%s", MSGSET_APP_ERROR,
+                "msgset",       "%s", MSGSET_APP,
                 "msg",          "%s", "Service not found for wait_event",
                 "source",       "%s", svc_name ? svc_name : "?",
                 "step",         "%d", priv->current_step,
@@ -601,7 +601,7 @@ PRIVATE int execute_next_step(hgobj gobj)
         if(!target) {
             gobj_log_error(gobj, 0,
                 "function",     "%s", __FUNCTION__,
-                "msgset",       "%s", MSGSET_APP_ERROR,
+                "msgset",       "%s", MSGSET_APP,
                 "msg",          "%s", "Service not found for subscribe",
                 "target",       "%s", target_name ? target_name : "?",
                 "step",         "%d", priv->current_step,
@@ -642,7 +642,7 @@ PRIVATE int execute_next_step(hgobj gobj)
         if(!target) {
             gobj_log_error(gobj, 0,
                 "function",     "%s", __FUNCTION__,
-                "msgset",       "%s", MSGSET_APP_ERROR,
+                "msgset",       "%s", MSGSET_APP,
                 "msg",          "%s", "Service not found for check_state",
                 "target",       "%s", target_name ? target_name : "?",
                 "step",         "%d", priv->current_step,
@@ -659,7 +659,7 @@ PRIVATE int execute_next_step(hgobj gobj)
         if(!expected_state || !current_state || strcmp(current_state, expected_state) != 0) {
             gobj_log_error(gobj, 0,
                 "function",     "%s", __FUNCTION__,
-                "msgset",       "%s", MSGSET_APP_ERROR,
+                "msgset",       "%s", MSGSET_APP,
                 "msg",          "%s", "State check failed",
                 "target",       "%s", target_name,
                 "expected",     "%s", expected_state ? expected_state : "?",
@@ -680,7 +680,7 @@ PRIVATE int execute_next_step(hgobj gobj)
      *--------------------------------------------*/
     gobj_log_error(gobj, 0,
         "function",     "%s", __FUNCTION__,
-        "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+        "msgset",       "%s", MSGSET_PARAMETER,
         "msg",          "%s", "Unknown script action",
         "action",       "%s", action,
         "step",         "%d", priv->current_step,
@@ -708,7 +708,7 @@ PRIVATE int ac_timeout(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
         // Timeout while waiting for an event
         gobj_log_error(gobj, 0,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_APP_ERROR,
+            "msgset",       "%s", MSGSET_APP,
             "msg",          "%s", "Timeout waiting for event",
             "event",        "%s", priv->wait_event_name ? priv->wait_event_name : "?",
             "step",         "%d", priv->current_step,
@@ -765,7 +765,7 @@ PRIVATE int ac_on_event(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
                            memcmp(actual, expected_payload, actual_len) != 0) {
                             gobj_log_error(gobj, 0,
                                 "function",     "%s", __FUNCTION__,
-                                "msgset",       "%s", MSGSET_APP_ERROR,
+                                "msgset",       "%s", MSGSET_APP,
                                 "msg",          "%s", "Payload mismatch in wait_event",
                                 "expected",     "%s", expected_payload,
                                 "step",         "%d", priv->current_step,
@@ -776,7 +776,7 @@ PRIVATE int ac_on_event(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
                     } else {
                         gobj_log_error(gobj, 0,
                             "function",     "%s", __FUNCTION__,
-                            "msgset",       "%s", MSGSET_APP_ERROR,
+                            "msgset",       "%s", MSGSET_APP,
                             "msg",          "%s", "No gbuffer in event for payload check",
                             "step",         "%d", priv->current_step,
                             NULL
@@ -791,7 +791,7 @@ PRIVATE int ac_on_event(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
                     if(!kw_match_simple(kw, filter)) {
                         gobj_log_error(gobj, 0,
                             "function",     "%s", __FUNCTION__,
-                            "msgset",       "%s", MSGSET_APP_ERROR,
+                            "msgset",       "%s", MSGSET_APP,
                             "msg",          "%s", "KW mismatch in wait_event",
                             "event",        "%s", event,
                             "step",         "%d", priv->current_step,
@@ -883,7 +883,7 @@ PRIVATE int create_gclass(gclass_name_t gclass_name)
     if(__gclass__) {
         gobj_log_error(0, 0,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_INTERNAL_ERROR,
+            "msgset",       "%s", MSGSET_INTERNAL,
             "msg",          "%s", "GClass ALREADY created",
             "gclass",       "%s", gclass_name,
             NULL

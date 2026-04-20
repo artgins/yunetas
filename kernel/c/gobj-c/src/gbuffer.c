@@ -36,7 +36,7 @@ PUBLIC gbuffer_t *gbuffer_create(
     if(!gbuf) {
         gobj_log_error(0, LOG_OPT_TRACE_STACK,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_MEMORY_ERROR,
+            "msgset",       "%s", MSGSET_MEMORY,
             "msg",          "%s", "no memory",
             "sizeof",       "%d", (int)sizeof(struct gbuffer_s),
             NULL
@@ -48,7 +48,7 @@ PUBLIC gbuffer_t *gbuffer_create(
     if(!gbuf->data) {
         gobj_log_error(0, LOG_OPT_TRACE_STACK,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_MEMORY_ERROR,
+            "msgset",       "%s", MSGSET_MEMORY,
             "msg",          "%s", "no memory",
             "data_size",    "%d", (int)data_size,
             NULL
@@ -95,7 +95,7 @@ PRIVATE BOOL gbuffer_realloc(gbuffer_t *gbuf, size_t need_size)
     if((more + 1) > gbuf->max_memory_size) {
         gobj_log_error(0, LOG_OPT_TRACE_STACK,
             "function",         "%s", __FUNCTION__,
-            "msgset",           "%s", MSGSET_INTERNAL_ERROR,
+            "msgset",           "%s", MSGSET_INTERNAL,
             "msg",              "%s", "MAXIMUM SPACE REACHED",
             "more",             "%ld", more,
             "max_memory_size",  "%ld", gbuf->max_memory_size,
@@ -111,7 +111,7 @@ PRIVATE BOOL gbuffer_realloc(gbuffer_t *gbuf, size_t need_size)
     if(!new_buf) {
         gobj_log_error(0, LOG_OPT_TRACE_STACK,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_INTERNAL_ERROR,
+            "msgset",       "%s", MSGSET_INTERNAL,
             "msg",          "%s", "NOT ENOUGH SPACE",
             "more",         "%d", (int)more,
             NULL
@@ -182,7 +182,7 @@ PUBLIC int gbuffer_set_rd_offset(gbuffer_t *gbuf, size_t position)
     if(position >= gbuf->data_size) {
         gobj_log_error(0, LOG_OPT_TRACE_STACK,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_INTERNAL_ERROR,
+            "msgset",       "%s", MSGSET_INTERNAL,
             "msg",          "%s", "len GREATER than data_size",
             "len",          "%d", (int)position,
             "data_size",    "%d", (int)gbuf->data_size,
@@ -193,7 +193,7 @@ PUBLIC int gbuffer_set_rd_offset(gbuffer_t *gbuf, size_t position)
     if(position > gbuf->tail) {
         gobj_log_error(0, LOG_OPT_TRACE_STACK,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_INTERNAL_ERROR,
+            "msgset",       "%s", MSGSET_INTERNAL,
             "msg",          "%s", "len GREATER than curp",
             "len",          "%d", (int)position,
             "curp",         "%d", (int)gbuf->curp,
@@ -265,7 +265,7 @@ PUBLIC int gbuffer_set_wr(gbuffer_t *gbuf, size_t offset)
     if(offset > gbuf->data_size) { // WARNING collateral damage? (original>=), version 3.4.3
         gobj_log_error(0, LOG_OPT_TRACE_STACK,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_INTERNAL_ERROR,
+            "msgset",       "%s", MSGSET_INTERNAL,
             "msg",          "%s", "offset GREATER than data_size",
             "offset",       "%d", (int)offset,
             "data_size",    "%d", (int)gbuf->data_size,
@@ -296,7 +296,7 @@ PUBLIC size_t gbuffer_append(gbuffer_t *gbuf, void *bf, size_t len)
     if(!gbuf) {
         gobj_log_error(0, LOG_OPT_TRACE_STACK,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+            "msgset",       "%s", MSGSET_PARAMETER,
             "msg",          "%s", "gbuf is NULL",
             NULL
         );
@@ -305,7 +305,7 @@ PUBLIC size_t gbuffer_append(gbuffer_t *gbuf, void *bf, size_t len)
     if(!bf) {
         gobj_log_error(0, LOG_OPT_TRACE_STACK,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_INTERNAL_ERROR,
+            "msgset",       "%s", MSGSET_INTERNAL,
             "msg",          "%s", "bf is NULL",
             NULL
         );
@@ -314,7 +314,7 @@ PUBLIC size_t gbuffer_append(gbuffer_t *gbuf, void *bf, size_t len)
     if(!len) {
         gobj_log_error(0, LOG_OPT_TRACE_STACK,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_INTERNAL_ERROR,
+            "msgset",       "%s", MSGSET_INTERNAL,
             "msg",          "%s", "len is ZERO",
             NULL
         );
@@ -327,7 +327,7 @@ PUBLIC size_t gbuffer_append(gbuffer_t *gbuf, void *bf, size_t len)
     if(gbuffer_freebytes(gbuf) < len) {
         gobj_log_error(0, LOG_OPT_TRACE_STACK,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_INTERNAL_ERROR,
+            "msgset",       "%s", MSGSET_INTERNAL,
             "msg",          "%s", "NOT ENOUGH SPACE, append only 'free' bytes",
             "free",         "%d", (int)gbuffer_freebytes(gbuf),
             "needed",       "%d", (int)len,
@@ -365,7 +365,7 @@ PUBLIC int gbuffer_append_gbuf(
         if(!p) {
             gobj_log_error(0, LOG_OPT_TRACE_STACK,
                 "function",     "%s", __FUNCTION__,
-                "msgset",       "%s", MSGSET_INTERNAL_ERROR,
+                "msgset",       "%s", MSGSET_INTERNAL,
                 "msg",          "%s", "gbuf_get() FAILED",
                 NULL
             );
@@ -374,7 +374,7 @@ PUBLIC int gbuffer_append_gbuf(
         if(gbuffer_append(dst, p, chunk_size)!=chunk_size) {
             gobj_log_error(0, LOG_OPT_TRACE_STACK,
                 "function",     "%s", __FUNCTION__,
-                "msgset",       "%s", MSGSET_INTERNAL_ERROR,
+                "msgset",       "%s", MSGSET_INTERNAL,
                 "msg",          "%s", "gbuf_append() FAILED",
                 NULL
             );
@@ -398,7 +398,7 @@ PUBLIC size_t gbuffer_append_json( // Old json_append2gbuf
     if(!str) {
         gobj_log_error(0, LOG_OPT_TRACE_STACK,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_INTERNAL_ERROR,
+            "msgset",       "%s", MSGSET_INTERNAL,
             "msg",          "%s", "json2str() FAILED",
             NULL
         );
@@ -453,7 +453,7 @@ PUBLIC int gbuffer_vprintf(gbuffer_t *gbuf, const char *format, va_list ap)
     if(written < 0) {
         gobj_log_error(0, LOG_OPT_TRACE_STACK,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+            "msgset",       "%s", MSGSET_PARAMETER,
             "msg",          "%s", "vsnprintf FAILED",
             NULL
         );
@@ -471,7 +471,7 @@ PUBLIC int gbuffer_vprintf(gbuffer_t *gbuf, const char *format, va_list ap)
             if(written < 0) {
                 gobj_log_error(0, LOG_OPT_TRACE_STACK,
                     "function",     "%s", __FUNCTION__,
-                    "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+                    "msgset",       "%s", MSGSET_PARAMETER,
                     "msg",          "%s", "vsnprintf FAILED",
                     "errno",        "%d", errno,
                     "strerror",     "%s", strerror(errno),
@@ -481,7 +481,7 @@ PUBLIC int gbuffer_vprintf(gbuffer_t *gbuf, const char *format, va_list ap)
             } else if(written >= (int)len) {
                 gobj_log_error(0, LOG_OPT_TRACE_STACK,
                     "function",     "%s", __FUNCTION__,
-                    "msgset",       "%s", MSGSET_INTERNAL_ERROR,
+                    "msgset",       "%s", MSGSET_INTERNAL,
                     "msg",          "%s", "NOT ENOUGH SPACE",
                     "free",         "%d", (int)gbuffer_freebytes(gbuf),
                     "needed",       "%d", (int)len,
@@ -518,7 +518,7 @@ PUBLIC int gbuffer_setlabel(gbuffer_t *gbuf, const char *label)
     if(!gbuf) {
         gobj_log_error(0, LOG_OPT_TRACE_STACK,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+            "msgset",       "%s", MSGSET_PARAMETER,
             "msg",          "%s", "gbuf is NULL",
             NULL
         );
@@ -552,7 +552,7 @@ PUBLIC int gbuf2file(
     if(fd<0) {
         gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_SYSTEM_ERROR,
+            "msgset",       "%s", MSGSET_SYSTEM,
             "msg",          "%s", "newfile() FAILED",
             "path",         "%s", path,
             "errno",        "%d", errno,
@@ -573,7 +573,7 @@ PUBLIC int gbuf2file(
         if(write(fd, p, len)!=len) {
             gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
                 "function",     "%s", __FUNCTION__,
-                "msgset",       "%s", MSGSET_SYSTEM_ERROR,
+                "msgset",       "%s", MSGSET_SYSTEM,
                 "msg",          "%s", "write() FAILED",
                 "errno",        "%d", errno,
                 "strerror",     "%s", strerror(errno),
@@ -617,7 +617,7 @@ PUBLIC json_t *gbuffer_serialize(
     if(!jn_bf) {
         gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_INTERNAL_ERROR,
+            "msgset",       "%s", MSGSET_INTERNAL,
             "msg",          "%s", "Cannot serialize gbuffer data, json_string() FAILED",
             NULL
         );
@@ -929,7 +929,7 @@ PUBLIC gbuffer_t *gbuffer_binary_to_base64(const char *src, size_t len)
     if(!gbuf_output) {
         gobj_log_error(0, LOG_OPT_TRACE_STACK,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+            "msgset",       "%s", MSGSET_PARAMETER,
             "msg",          "%s", "gbuffer_create() FAILED",
             "len",          "%d", (int)len,
             NULL
@@ -942,7 +942,7 @@ PUBLIC gbuffer_t *gbuffer_binary_to_base64(const char *src, size_t len)
         gbuffer_decref(gbuf_output);
         gobj_log_error(0, LOG_OPT_TRACE_STACK,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+            "msgset",       "%s", MSGSET_PARAMETER,
             "msg",          "%s", "gbuf_create() FAILED",
             "len",          "%d", (int)len,
             NULL
@@ -963,7 +963,7 @@ PUBLIC gbuffer_t *gbuffer_file2base64(const char *path)
     if(!infile) {
         gobj_log_error(0, LOG_OPT_TRACE_STACK,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+            "msgset",       "%s", MSGSET_PARAMETER,
             "msg",          "%s", "Cannot open file",
             "path",         "%s", path,
             NULL
@@ -978,7 +978,7 @@ PUBLIC gbuffer_t *gbuffer_file2base64(const char *path)
         fclose(infile);
         gobj_log_error(0, LOG_OPT_TRACE_STACK,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+            "msgset",       "%s", MSGSET_PARAMETER,
             "msg",          "%s", "No memory",
             "len",          "%d", (int)len,
             NULL
@@ -1003,7 +1003,7 @@ PUBLIC gbuffer_t *gbuffer_base64_to_binary(const char *base64, size_t base64_len
     if(!base64) {
         gobj_log_error(0, LOG_OPT_TRACE_STACK,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+            "msgset",       "%s", MSGSET_PARAMETER,
             "msg",          "%s", "base64 NULL",
             NULL
         );
@@ -1016,7 +1016,7 @@ PUBLIC gbuffer_t *gbuffer_base64_to_binary(const char *base64, size_t base64_len
     if(!gbuf_output) {
         gobj_log_error(0, LOG_OPT_TRACE_STACK,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+            "msgset",       "%s", MSGSET_PARAMETER,
             "msg",          "%s", "gbuf_create() FAILED",
             "len",          "%d", (int)output_len,
             NULL
@@ -1029,7 +1029,7 @@ PUBLIC gbuffer_t *gbuffer_base64_to_binary(const char *base64, size_t base64_len
         gbuffer_decref(gbuf_output);
         gobj_log_error(0, LOG_OPT_TRACE_STACK,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+            "msgset",       "%s", MSGSET_PARAMETER,
             "msg",          "%s", "b64_decode() FAILED",
             "len",          "%d", (int)output_len,
             NULL
@@ -1051,7 +1051,7 @@ PUBLIC gbuffer_t *gbuffer_encode_base64( // return new gbuffer
     if(!gbuf_input) {
         gobj_log_error(0, LOG_OPT_TRACE_STACK,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+            "msgset",       "%s", MSGSET_PARAMETER,
             "msg",          "%s", "gbuf_input NULL",
             NULL
         );
@@ -1129,7 +1129,7 @@ PUBLIC json_t *gbuf2json(
             gobj_log_error(0, LOG_OPT_TRACE_STACK,
                 "gobj",         "%s", __FILE__,
                 "function",     "%s", __FUNCTION__,
-                "msgset",       "%s", MSGSET_JSON_ERROR,
+                "msgset",       "%s", MSGSET_JSON,
                 "msg",          "%s", "json_load_callback() FAILED",
                 "error",        "%s", jn_error.text,
                 NULL

@@ -27,7 +27,7 @@ PUBLIC hgobj test_helpers_find_service_child(
     if(!service) {
         gobj_log_error(caller_gobj, 0,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_APP_ERROR,
+            "msgset",       "%s", MSGSET_APP,
             "msg",          "%s", "test_helpers: service not found",
             "service",      "%s", service_name,
             NULL
@@ -46,7 +46,7 @@ PUBLIC hgobj test_helpers_find_service_child(
     } else {
         gobj_log_error(caller_gobj, 0,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_APP_ERROR,
+            "msgset",       "%s", MSGSET_APP,
             "msg",          "%s", "test_helpers: no matching child under service",
             "service",      "%s", service_name,
             "gclass",       "%s", gclass_name,
@@ -88,7 +88,7 @@ PUBLIC void test_helpers_check_stats(
     if(!resp) {
         gobj_log_error(caller_gobj, 0,
             "function",  "%s", __FUNCTION__,
-            "msgset",    "%s", MSGSET_APP_ERROR,
+            "msgset",    "%s", MSGSET_APP,
             "msg",       "%s", "test_helpers: gobj_stats(bff) returned NULL",
             "test_name", "%s", test_name ? test_name : "",
             NULL
@@ -99,7 +99,7 @@ PUBLIC void test_helpers_check_stats(
     if(!jn_data) {
         gobj_log_error(caller_gobj, 0,
             "function",  "%s", __FUNCTION__,
-            "msgset",    "%s", MSGSET_APP_ERROR,
+            "msgset",    "%s", MSGSET_APP,
             "msg",       "%s", "test_helpers: stats response has no 'data' dict",
             "test_name", "%s", test_name ? test_name : "",
             NULL
@@ -114,7 +114,7 @@ PUBLIC void test_helpers_check_stats(
         if(got != expected[i].expected) {
             gobj_log_error(caller_gobj, 0,
                 "function",  "%s", __FUNCTION__,
-                "msgset",    "%s", MSGSET_APP_ERROR,
+                "msgset",    "%s", MSGSET_APP,
                 "msg",       "%s", "test_helpers: BFF stat counter mismatch",
                 "test_name", "%s", test_name ? test_name : "",
                 "stat",      "%s", expected[i].name,

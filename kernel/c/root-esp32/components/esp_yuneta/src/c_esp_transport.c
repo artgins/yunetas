@@ -162,7 +162,7 @@ PRIVATE void mt_create(hgobj gobj)
     )<0) {
         gobj_log_error(gobj, 0,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+            "msgset",       "%s", MSGSET_PARAMETER,
             "msg",          "%s", "Parsing url failed",
             "url",          "%s", gobj_read_str_attr(gobj, "url"),
             NULL
@@ -271,7 +271,7 @@ PRIVATE void mt_writing(hgobj gobj, const char *path)
             )<0) {
                 gobj_log_error(gobj, 0,
                     "function",     "%s", __FUNCTION__,
-                    "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+                    "msgset",       "%s", MSGSET_PARAMETER,
                     "msg",          "%s", "Parsing url failed",
                     "url",          "%s", gobj_read_str_attr(gobj, "url"),
                     NULL
@@ -310,7 +310,7 @@ PRIVATE int mt_start(hgobj gobj)
     if(priv->task_running) {
         gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_INTERNAL_ERROR,
+            "msgset",       "%s", MSGSET_INTERNAL,
             "msg",          "%s", "gobj asked to start task, but task was already started",
             NULL
         );
@@ -320,7 +320,7 @@ PRIVATE int mt_start(hgobj gobj)
     if(empty_string(gobj_read_str_attr(gobj, "host"))) {
         gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+            "msgset",       "%s", MSGSET_PARAMETER,
             "msg",          "%s", "Cannot start transport, NO host defined",
             NULL
         );
@@ -331,7 +331,7 @@ PRIVATE int mt_start(hgobj gobj)
         if(empty_string(gobj_read_str_attr(gobj, "port"))) {
             gobj_log_error(gobj, 0,
                 "function",     "%s", __FUNCTION__,
-                "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+                "msgset",       "%s", MSGSET_PARAMETER,
                 "msg",          "%s", "Cannot start transport, NO port defined",
                 NULL
             );
@@ -342,7 +342,7 @@ PRIVATE int mt_start(hgobj gobj)
     if(!(state == ST_STOPPED || state == ST_DISCONNECTED)) {
         gobj_log_error(gobj, 0,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_INTERNAL_ERROR,
+            "msgset",       "%s", MSGSET_INTERNAL,
             "msg",          "%s", "Initial wrong task state",
             "state",        "%s", gobj_current_state(gobj),
             NULL
@@ -385,7 +385,7 @@ PRIVATE int mt_start(hgobj gobj)
     if(ret != pdPASS) {
         gobj_log_error(gobj, 0,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+            "msgset",       "%s", MSGSET_PARAMETER,
             "msg",          "%s", "Cannot create Transport Task",
             NULL
         );
@@ -419,7 +419,7 @@ PRIVATE int mt_stop(hgobj gobj)
         if(running_task == priv->rx_task_h) {
             gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
                 "function",     "%s", __FUNCTION__,
-                "msgset",       "%s", MSGSET_INTERNAL_ERROR,
+                "msgset",       "%s", MSGSET_INTERNAL,
                 "msg",          "%s", "gobj cannot be stopped from ESP task",
                 NULL
             );
@@ -429,7 +429,7 @@ PRIVATE int mt_stop(hgobj gobj)
     } else {
         gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_INTERNAL_ERROR,
+            "msgset",       "%s", MSGSET_INTERNAL,
             "msg",          "%s", "gobj asked to stop task, but task was not started",
             NULL
         );
@@ -511,7 +511,7 @@ PRIVATE void rx_task(void *pv)
             case TASK_TRANSPORT_STOPPED:
                 gobj_log_error(gobj, 0,
                     "function",     "%s", __FUNCTION__,
-                    "msgset",       "%s", MSGSET_INTERNAL_ERROR,
+                    "msgset",       "%s", MSGSET_INTERNAL,
                     "msg",          "%s", "wrong TRANSPORT_STOPPED state",
                     NULL
                 );
@@ -534,7 +534,7 @@ PRIVATE void rx_task(void *pv)
                         int actual_errno = esp_transport_get_errno(priv->transport);
                         gobj_log_error(gobj, 0,
                             "function",     "%s", __FUNCTION__,
-                            "msgset",       "%s", MSGSET_INTERNAL_ERROR,
+                            "msgset",       "%s", MSGSET_INTERNAL,
                             "msg",          "%s", "esp_transport_connect() FAILED",
                             "url",          "%s", gobj_read_str_attr(gobj, "url"),
                             "schema",       "%s", gobj_read_str_attr(gobj, "schema"),
@@ -587,7 +587,7 @@ PRIVATE void rx_task(void *pv)
                         int actual_errno = esp_transport_get_errno(priv->transport);
                         gobj_log_error(gobj, 0,
                             "function",     "%s", __FUNCTION__,
-                            "msgset",       "%s", MSGSET_SYSTEM_ERROR,
+                            "msgset",       "%s", MSGSET_SYSTEM,
                             "msg",          "%s", "esp_transport_read() FAILED",
                             "url",          "%s", gobj_read_str_attr(gobj, "url"),
                             "err",          "%d", read_len,
@@ -671,7 +671,7 @@ PRIVATE void transport_tx_ev_loop_callback(
             int actual_errno = esp_transport_get_errno(priv->transport);
             gobj_log_error(gobj, 0,
                 "function",     "%s", __FUNCTION__,
-                "msgset",       "%s", MSGSET_INTERNAL_ERROR,
+                "msgset",       "%s", MSGSET_INTERNAL,
                 "msg",          "%s", "esp_transport_write() FAILED",
                 "url",          "%s", gobj_read_str_attr(gobj, "url"),
                 "errno",        "%d", actual_errno,
@@ -687,7 +687,7 @@ PRIVATE void transport_tx_ev_loop_callback(
             if(actual_errno != 0) {
                 gobj_log_error(gobj, 0,
                     "function",     "%s", __FUNCTION__,
-                    "msgset",       "%s", MSGSET_INTERNAL_ERROR,
+                    "msgset",       "%s", MSGSET_INTERNAL,
                     "msg",          "%s", "esp_transport_write() return 0",
                     "errno",        "%d", actual_errno,
                     "serrno",       "%s", strerror(actual_errno),
@@ -831,7 +831,7 @@ PRIVATE int ac_tx_data(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
     if(!gbuf) {
         gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_INTERNAL_ERROR,
+            "msgset",       "%s", MSGSET_INTERNAL,
             "msg",          "%s", "gbuffer NULL",
             NULL
         );
@@ -856,7 +856,7 @@ PRIVATE int ac_tx_data(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
     if(err != ESP_OK) {
         gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_SYSTEM_ERROR,
+            "msgset",       "%s", MSGSET_SYSTEM,
             "msg",          "%s", "esp_event_post_to(Transport TX) FAILED",
             "esp_error",    "%s", esp_err_to_name(err),
             NULL
@@ -970,7 +970,7 @@ PRIVATE int create_gclass(gclass_name_t gclass_name)
     if(__gclass__) {
         gobj_log_error(0, 0,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_INTERNAL_ERROR,
+            "msgset",       "%s", MSGSET_INTERNAL,
             "msg",          "%s", "GClass ALREADY created",
             "gclass",       "%s", gclass_name,
             NULL

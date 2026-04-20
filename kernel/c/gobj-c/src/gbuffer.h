@@ -80,7 +80,7 @@ static inline gbuffer_t *gbuffer_incref(gbuffer_t *gbuf) /* Incr ref */
     if(!gbuf || gbuf->refcount <= 0) {
         gobj_log_error(0, LOG_OPT_TRACE_STACK,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+            "msgset",       "%s", MSGSET_PARAMETER,
             "msg",          "%s", "BAD gbuf_incref()",
             NULL
         );
@@ -95,7 +95,7 @@ static inline void gbuffer_decref(gbuffer_t *gbuf) /* Decr ref */
     if(!gbuf || gbuf->refcount <= 0) {
         gobj_log_error(0, LOG_OPT_TRACE_STACK,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+            "msgset",       "%s", MSGSET_PARAMETER,
             "msg",          "%s", "BAD gbuf_decref()",
             "pointer",      "%p", gbuf,
             NULL

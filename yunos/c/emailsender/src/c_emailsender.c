@@ -467,7 +467,7 @@ PRIVATE int open_queues(hgobj gobj)
     if(priv->tranger) {
         gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_INTERNAL_ERROR,
+            "msgset",       "%s", MSGSET_INTERNAL,
             "msg",          "%s", "tranger NOT NULL",
             NULL
         );
@@ -478,7 +478,7 @@ PRIVATE int open_queues(hgobj gobj)
     if(empty_string(path)) {
         gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_INTERNAL_ERROR,
+            "msgset",       "%s", MSGSET_INTERNAL,
             "msg",          "%s", "tranger path EMPTY",
             NULL
         );
@@ -493,7 +493,7 @@ PRIVATE int open_queues(hgobj gobj)
     if(empty_string(database)) {
         gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_INTERNAL_ERROR,
+            "msgset",       "%s", MSGSET_INTERNAL,
             "msg",          "%s", "tranger database EMPTY",
             NULL
         );
@@ -504,7 +504,7 @@ PRIVATE int open_queues(hgobj gobj)
     if(empty_string(topic_emails_queue)) {
         gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_INTERNAL_ERROR,
+            "msgset",       "%s", MSGSET_INTERNAL,
             "msg",          "%s", "tranger topic_emails_queue EMPTY",
             NULL
         );
@@ -515,7 +515,7 @@ PRIVATE int open_queues(hgobj gobj)
     if(empty_string(topic_emails_failed)) {
         gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_INTERNAL_ERROR,
+            "msgset",       "%s", MSGSET_INTERNAL,
             "msg",          "%s", "tranger topic_emails_failed EMPTY",
             NULL
         );
@@ -597,7 +597,7 @@ PRIVATE q_msg_t *enqueue_message(
     if(!priv->trq_emails_queue) {
         gobj_log_critical(gobj, LOG_OPT_ABORT|LOG_OPT_TRACE_STACK,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_INTERNAL_ERROR,
+            "msgset",       "%s", MSGSET_INTERNAL,
             "msg",          "%s", "trq_msgs NULL",
             NULL
         );
@@ -612,7 +612,7 @@ PRIVATE q_msg_t *enqueue_message(
     if(!msg) {
         gobj_log_critical(gobj, LOG_OPT_ABORT|LOG_OPT_TRACE_STACK,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_INTERNAL_ERROR,
+            "msgset",       "%s", MSGSET_INTERNAL,
             "msg",          "%s", "Message NOT SAVED in the emails queue",
             NULL
         );
@@ -635,7 +635,7 @@ PRIVATE q_msg_t *enqueue_failing_message(
     if(!priv->trq_emails_failed) {
         gobj_log_critical(gobj, LOG_OPT_ABORT|LOG_OPT_TRACE_STACK,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_INTERNAL_ERROR,
+            "msgset",       "%s", MSGSET_INTERNAL,
             "msg",          "%s", "trq_msgs NULL",
             NULL
         );
@@ -650,7 +650,7 @@ PRIVATE q_msg_t *enqueue_failing_message(
     if(!msg) {
         gobj_log_critical(gobj, LOG_OPT_ABORT|LOG_OPT_TRACE_STACK,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_INTERNAL_ERROR,
+            "msgset",       "%s", MSGSET_INTERNAL,
             "msg",          "%s", "Message NOT SAVED in the failing queue",
             NULL
         );
@@ -689,7 +689,7 @@ PRIVATE int process_curl_response(hgobj gobj, q_msg_t *msg, int result, const ch
     if(result < 0) {
         // Error already logged
         gobj_log_error(gobj, 0,
-            "msgset",   "%s", MSGSET_APP_ERROR,
+            "msgset",   "%s", MSGSET_APP,
             "msg",      "%s", "email NOT sent",
             "to",       "%s", to,
             "url",      "%s", priv->url,
@@ -712,7 +712,7 @@ PRIVATE int process_curl_response(hgobj gobj, q_msg_t *msg, int result, const ch
     } else {
         gobj_log_error(gobj, 0,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_INTERNAL_ERROR,
+            "msgset",       "%s", MSGSET_INTERNAL,
             "msg",          "%s", "pending_acks ZERO or NEGATIVE",
             "to",           "%s", to,
             "pending_acks", "%ld", (unsigned long) priv->pending_acks,
@@ -785,7 +785,7 @@ PRIVATE int ac_timeout_to_dequeue(hgobj gobj, gobj_event_t event, json_t *kw, hg
     if(priv->sd_cur_email) {
         gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_INTERNAL_ERROR,
+            "msgset",       "%s", MSGSET_INTERNAL,
             "msg",          "%s", "Already a current sending email",
             NULL
         );
@@ -816,7 +816,7 @@ PRIVATE int ac_curl_command(hgobj gobj, gobj_event_t event, json_t *kw, hgobj sr
     if(!priv->sd_cur_email) {
         gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_INTERNAL_ERROR,
+            "msgset",       "%s", MSGSET_INTERNAL,
             "msg",          "%s", "NOT a current sending email",
             NULL
         );
@@ -849,7 +849,7 @@ PRIVATE int ac_curl_command(hgobj gobj, gobj_event_t event, json_t *kw, hgobj sr
     if(!gbuf) {
         gobj_log_error(gobj, 0,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+            "msgset",       "%s", MSGSET_PARAMETER,
             "msg",          "%s", "gbuf NULL",
             "url",          "%s", priv->url,
             NULL
@@ -864,7 +864,7 @@ PRIVATE int ac_curl_command(hgobj gobj, gobj_event_t event, json_t *kw, hgobj sr
     if(empty_string(to)) {
         gobj_log_error(gobj, 0,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+            "msgset",       "%s", MSGSET_PARAMETER,
             "msg",          "%s", "<to> field is NULL",
             "url",          "%s", priv->url,
             NULL
@@ -903,7 +903,7 @@ PRIVATE int ac_curl_command(hgobj gobj, gobj_event_t event, json_t *kw, hgobj sr
     if(!kw_curl) {
         gobj_log_error(gobj, 0,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_INTERNAL_ERROR,
+            "msgset",       "%s", MSGSET_INTERNAL,
             "msg",          "%s", "json_pack() FAILED",
             NULL
         );
@@ -924,7 +924,7 @@ PRIVATE int ac_curl_command(hgobj gobj, gobj_event_t event, json_t *kw, hgobj sr
         } else {
             gobj_log_error(gobj, 0,
                 "function",     "%s", __FUNCTION__,
-                "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+                "msgset",       "%s", MSGSET_PARAMETER,
                 "msg",          "%s", "attachment file not found, ignoring it",
                 "attachments",  "%s", attachments,
                 NULL
@@ -1030,7 +1030,7 @@ PRIVATE int create_gclass(gclass_name_t gclass_name)
     if(__gclass__) {
         gobj_log_error(0, 0,
             "function", "%s", __FUNCTION__,
-            "msgset",   "%s", MSGSET_INTERNAL_ERROR,
+            "msgset",   "%s", MSGSET_INTERNAL,
             "msg",      "%s", "GClass ALREADY created",
             "gclass",   "%s", gclass_name,
             NULL

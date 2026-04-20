@@ -982,7 +982,7 @@ void gobj_log_debug(hgobj gobj, log_opt_t opt, ...);                // [JS] as l
 // Usage example (key-value pairs terminated by NULL)
 gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
     "function",     __FUNCTION__,
-    "msgset",       MSGSET_PARAMETER_ERROR,
+    "msgset",       MSGSET_PARAMETER,
     "msg",          "Invalid parameter",
     "key",          key,
     NULL

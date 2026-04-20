@@ -153,7 +153,7 @@ PRIVATE void mt_create(hgobj gobj)
     if(!priv->istream_frame) {
         gobj_log_error(gobj, 0,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_INTERNAL_ERROR,
+            "msgset",       "%s", MSGSET_INTERNAL,
             "msg",          "%s", "istream_create() FAILED",
             NULL
         );
@@ -370,7 +370,7 @@ PRIVATE int decode_head(hgobj gobj, FRAME_HEAD *frame, char *data)
     if(header_erpl4.len > priv->max_pkt_size) {
         gobj_log_error(gobj, 0,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_MEMORY_ERROR,
+            "msgset",       "%s", MSGSET_MEMORY,
             "msg",          "%s", "TOO LONG SIZE",
             "len",          "%d", header_erpl4.len,
             NULL
@@ -517,7 +517,7 @@ PRIVATE int ac_disconnected(hgobj gobj, gobj_event_t event, json_t *kw, hgobj sr
 PRIVATE int ac_timeout_wait_disconnected(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 {
     gobj_log_warning(gobj, 0,
-        "msgset",       "%s", MSGSET_MQTT_ERROR,
+        "msgset",       "%s", MSGSET_MQTT,
         "msg",          "%s", "Timeout waiting disconnected",
         NULL
     );
@@ -534,7 +534,7 @@ PRIVATE int ac_timeout_wait_disconnected(hgobj gobj, gobj_event_t event, json_t 
 PRIVATE int ac_timeout_wait_handshake(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 {
     gobj_log_warning(gobj, 0,
-        "msgset",       "%s", MSGSET_MQTT_ERROR,
+        "msgset",       "%s", MSGSET_MQTT,
         "msg",          "%s", "Timeout waiting handshake",
         NULL
     );
@@ -589,7 +589,7 @@ PRIVATE int ac_process_frame_header(hgobj gobj, gobj_event_t event, json_t *kw, 
                     priv->istream_payload = NULL;
                     gobj_log_error(gobj, 0,
                         "function",     "%s", __FUNCTION__,
-                        "msgset",       "%s", MSGSET_INTERNAL_ERROR,
+                        "msgset",       "%s", MSGSET_INTERNAL,
                         "msg",          "%s", "istream_payload NOT NULL",
                         NULL
                     );
@@ -602,7 +602,7 @@ PRIVATE int ac_process_frame_header(hgobj gobj, gobj_event_t event, json_t *kw, 
                 if(!frame_length) {
                     gobj_log_error(gobj, 0,
                         "function",     "%s", __FUNCTION__,
-                        "msgset",       "%s", MSGSET_MEMORY_ERROR,
+                        "msgset",       "%s", MSGSET_MEMORY,
                         "msg",          "%s", "no memory for istream_payload",
                         "frame_length", "%d", frame_length,
                         NULL
@@ -618,7 +618,7 @@ PRIVATE int ac_process_frame_header(hgobj gobj, gobj_event_t event, json_t *kw, 
                 if(!priv->istream_payload) {
                     gobj_log_error(gobj, 0,
                         "function",     "%s", __FUNCTION__,
-                        "msgset",       "%s", MSGSET_MEMORY_ERROR,
+                        "msgset",       "%s", MSGSET_MEMORY,
                         "msg",          "%s", "no memory for istream_payload",
                         "frame_length", "%d", frame_length,
                         NULL
@@ -636,7 +636,7 @@ PRIVATE int ac_process_frame_header(hgobj gobj, gobj_event_t event, json_t *kw, 
             } else {
                 gobj_log_error(gobj, 0,
                     "function",     "%s", __FUNCTION__,
-                    "msgset",       "%s", MSGSET_INTERNAL_ERROR,
+                    "msgset",       "%s", MSGSET_INTERNAL,
                     "msg",          "%s", "frame_length cannot be 0",
                     NULL
                 );
@@ -688,7 +688,7 @@ PRIVATE int ac_process_payload_data(hgobj gobj, gobj_event_t event, json_t *kw, 
         if(frame_completed(gobj)<0) {
             gobj_log_error(gobj, 0,
                 "function",     "%s", __FUNCTION__,
-                "msgset",       "%s", MSGSET_INTERNAL_ERROR,
+                "msgset",       "%s", MSGSET_INTERNAL,
                 "msg",          "%s", "Protocol error, disconnect",
                 NULL
             );
@@ -715,7 +715,7 @@ PRIVATE int ac_process_payload_data(hgobj gobj, gobj_event_t event, json_t *kw, 
 PRIVATE int ac_timeout_wait_payload_data(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 {
     gobj_log_info(gobj, 0,
-        "msgset",       "%s", MSGSET_MQTT_ERROR,
+        "msgset",       "%s", MSGSET_MQTT,
         "msg",          "%s", "Timeout waiting PAYLOAD data",
         NULL
     );
@@ -743,7 +743,7 @@ PRIVATE int ac_send_message(hgobj gobj, gobj_event_t event, json_t *kw, hgobj sr
         if(!gbuf) {
             gobj_log_error(gobj, 0,
                 "function",     "%s", __FUNCTION__,
-                "msgset",       "%s", MSGSET_INTERNAL_ERROR,
+                "msgset",       "%s", MSGSET_INTERNAL,
                 "msg",          "%s", "gbuffer NULL",
                 NULL
             );
@@ -839,7 +839,7 @@ PRIVATE int create_gclass(gclass_name_t gclass_name)
     if(__gclass__) {
         gobj_log_error(0, 0,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_INTERNAL_ERROR,
+            "msgset",       "%s", MSGSET_INTERNAL,
             "msg",          "%s", "GClass ALREADY created",
             "gclass",       "%s", gclass_name,
             NULL

@@ -326,7 +326,7 @@ PRIVATE json_t *result_create_table_if_not_exists(
     } else {
         gobj_log_error(gobj, 0,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_POSTGRES_ERROR,
+            "msgset",       "%s", MSGSET_POSTGRES,
             "msg",          "%s", "Cannot create table",
             NULL
         );
@@ -408,7 +408,7 @@ PRIVATE json_t *result_add_row(
             left_justify(temp);
             gobj_log_error(gobj, 0,
                 "function",     "%s", __FUNCTION__,
-                "msgset",       "%s", MSGSET_POSTGRES_ERROR,
+                "msgset",       "%s", MSGSET_POSTGRES,
                 "msg",          "%s", temp,
                 NULL
             );
@@ -573,7 +573,7 @@ PRIVATE json_t *record2createtable(
             DEFAULTS
                 gobj_log_error(gobj, 0,
                     "function",     "%s", __FUNCTION__,
-                    "msgset",       "%s", MSGSET_POSTGRES_ERROR,
+                    "msgset",       "%s", MSGSET_POSTGRES,
                     "msg",          "%s", "Type header UNKNOWN",
                     "type",         "%s", type,
                     NULL
@@ -699,7 +699,7 @@ PRIVATE json_t *record2insertsql(
             DEFAULTS
                 gobj_log_error(gobj, 0,
                     "function",     "%s", __FUNCTION__,
-                    "msgset",       "%s", MSGSET_POSTGRES_ERROR,
+                    "msgset",       "%s", MSGSET_POSTGRES,
                     "msg",          "%s", "Type header UNKNOWN",
                     "type",         "%s", type,
                     NULL
@@ -738,7 +738,7 @@ PRIVATE int process_msg(
     if(!__msg_key__) {
         gobj_log_error(gobj, 0,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_INTERNAL_ERROR,
+            "msgset",       "%s", MSGSET_INTERNAL,
             "msg",          "%s", "Not __msg_key__, free queue's msg",
             "src",          "%s", gobj_full_name(src),
             NULL
@@ -755,7 +755,7 @@ PRIVATE int process_msg(
     if(gobj_find_service(task_name, FALSE)) {
         gobj_log_error(gobj, 0,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_INTERNAL_ERROR,
+            "msgset",       "%s", MSGSET_INTERNAL,
             "msg",          "%s", "task already active",
             "task_name",    "%s", task_name,
             NULL
@@ -814,7 +814,7 @@ PRIVATE int ac_on_open(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
     } else {
         gobj_log_error(gobj, 0,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_INTERNAL_ERROR,
+            "msgset",       "%s", MSGSET_INTERNAL,
             "msg",          "%s", "What fuck from?",
             "src",          "%s", gobj_full_name(src),
             NULL
@@ -838,7 +838,7 @@ PRIVATE int ac_on_close(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
     } else {
         gobj_log_error(gobj, 0,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_INTERNAL_ERROR,
+            "msgset",       "%s", MSGSET_INTERNAL,
             "msg",          "%s", "What fuck from?",
             "src",          "%s", gobj_full_name(src),
             NULL
@@ -889,7 +889,7 @@ PRIVATE int ac_on_message(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
     } else {
         gobj_log_error(gobj, 0,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_INTERNAL_ERROR,
+            "msgset",       "%s", MSGSET_INTERNAL,
             "msg",          "%s", "What fuck from?",
             "src",          "%s", gobj_full_name(src),
             NULL
@@ -922,7 +922,7 @@ PRIVATE int ac_end_task(
             // Error from some task action
             gobj_log_error(gobj, 0,
                 "function",     "%s", __FUNCTION__,
-                "msgset",       "%s", MSGSET_POSTGRES_ERROR,
+                "msgset",       "%s", MSGSET_POSTGRES,
                 "msg",          "%s", "Task End with error",
                 "comment",      "%s", comment,
                 "last_job",     "%d", last_job,
@@ -935,7 +935,7 @@ PRIVATE int ac_end_task(
             // Error from task manager: timeout, incomplete task
             gobj_log_error(gobj, 0,
                 "function",     "%s", __FUNCTION__,
-                "msgset",       "%s", MSGSET_POSTGRES_ERROR,
+                "msgset",       "%s", MSGSET_POSTGRES,
                 "msg",          "%s", "Task End by timeout",
                 "comment",      "%s", comment,
                 "last_job",     "%d", last_job,
@@ -1014,7 +1014,7 @@ PRIVATE int create_gclass(gclass_name_t gclass_name)
     if(__gclass__) {
         gobj_log_error(0, 0,
             "function", "%s", __FUNCTION__,
-            "msgset",   "%s", MSGSET_INTERNAL_ERROR,
+            "msgset",   "%s", MSGSET_INTERNAL,
             "msg",      "%s", "GClass ALREADY created",
             "gclass",   "%s", gclass_name,
             NULL

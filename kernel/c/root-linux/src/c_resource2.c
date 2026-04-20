@@ -216,7 +216,7 @@ PRIVATE json_t *mt_create_resource(hgobj gobj, const char *resource, json_t *kw,
     if(empty_string(resource)) {
         gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+            "msgset",       "%s", MSGSET_PARAMETER,
             "msg",          "%s", "Resource name empty",
             "service",      "%s", priv->service,
             "database",     "%s", priv->database,
@@ -235,7 +235,7 @@ PRIVATE json_t *mt_create_resource(hgobj gobj, const char *resource, json_t *kw,
         if(!update) {
             gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
                 "function",     "%s", __FUNCTION__,
-                "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+                "msgset",       "%s", MSGSET_PARAMETER,
                 "msg",          "%s", "Resource already exists",
                 "path",         "%s", path,
                 "service",      "%s", priv->service,
@@ -250,7 +250,7 @@ PRIVATE json_t *mt_create_resource(hgobj gobj, const char *resource, json_t *kw,
             if(jn_resource == kw) {
                 gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
                     "function",     "%s", __FUNCTION__,
-                    "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+                    "msgset",       "%s", MSGSET_PARAMETER,
                     "msg",          "%s", "Creating same resource as kw, use gobj_save_resource()",
                     "path",         "%s", path,
                     "service",      "%s", priv->service,
@@ -319,7 +319,7 @@ PRIVATE int mt_save_resource(
     if(empty_string(resource)) {
         gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+            "msgset",       "%s", MSGSET_PARAMETER,
             "msg",          "%s", "Resource name empty",
             "service",      "%s", priv->service,
             "database",     "%s", priv->database,
@@ -333,7 +333,7 @@ PRIVATE int mt_save_resource(
     if(jn_resource != record) {
         gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+            "msgset",       "%s", MSGSET_PARAMETER,
             "msg",          "%s", "Saving a different resource",
             "service",      "%s", priv->service,
             "database",     "%s", priv->database,
@@ -368,7 +368,7 @@ PRIVATE int mt_delete_resource(
     if(empty_string(resource)) {
         gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+            "msgset",       "%s", MSGSET_PARAMETER,
             "msg",          "%s", "Resource name empty",
             "service",      "%s", priv->service,
             "database",     "%s", priv->database,
@@ -383,7 +383,7 @@ PRIVATE int mt_delete_resource(
     if(!jn_resource) {
         gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+            "msgset",       "%s", MSGSET_PARAMETER,
             "msg",          "%s", "No resource found",
             "service",      "%s", priv->service,
             "database",     "%s", priv->database,
@@ -398,7 +398,7 @@ PRIVATE int mt_delete_resource(
     if(record && record != jn_resource) {
         gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+            "msgset",       "%s", MSGSET_PARAMETER,
             "msg",          "%s", "Deleting a different resource",
             "service",      "%s", priv->service,
             "database",     "%s", priv->database,
@@ -495,7 +495,7 @@ PRIVATE json_t *mt_get_resource(
     if(empty_string(resource)) {
         gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+            "msgset",       "%s", MSGSET_PARAMETER,
             "msg",          "%s", "Resource name empty",
             "service",      "%s", priv->service,
             "database",     "%s", priv->database,
@@ -551,7 +551,7 @@ PRIVATE BOOL load_resource_cb(
     } else {
         gobj_log_error(gobj, 0,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_JSON_ERROR,
+            "msgset",       "%s", MSGSET_JSON,
             "msg",          "%s", "Wrong json file",
             "path",         "%s", fullpath,
             NULL
@@ -625,7 +625,7 @@ PRIVATE int save_record(
         gobj_log_error(gobj, 0,
             "gobj",         "%s", __FILE__,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_JSON_ERROR,
+            "msgset",       "%s", MSGSET_JSON,
             "msg",          "%s", "Cannot save record",
             "path",         "%s", path,
             NULL
@@ -650,7 +650,7 @@ PRIVATE int delete_record(
     if(ret < 0) {
         gobj_log_error(gobj, 0,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_SYSTEM_ERROR,
+            "msgset",       "%s", MSGSET_SYSTEM,
             "msg",          "%s", "Cannot delete record file",
             "path",         "%s", path,
             NULL
@@ -712,7 +712,7 @@ PRIVATE int create_gclass(gclass_name_t gclass_name)
     if(__gclass__) {
         gobj_log_error(0, 0,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_INTERNAL_ERROR,
+            "msgset",       "%s", MSGSET_INTERNAL,
             "msg",          "%s", "GClass ALREADY created",
             "gclass",       "%s", gclass_name,
             NULL

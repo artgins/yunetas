@@ -240,7 +240,7 @@ PRIVATE int mt_start(hgobj gobj)
         if(priv->exitOnError) {
             gobj_log_warning(gobj, 0,
                 "function",     "%s", __FUNCTION__,
-                "msgset",       "%s", MSGSET_SYSTEM_ERROR,
+                "msgset",       "%s", MSGSET_SYSTEM,
                 "msg",          "%s", "Exiting",
                 "exitOnError",  "%d", priv->exitOnError,
                 NULL
@@ -268,7 +268,7 @@ PRIVATE int mt_start(hgobj gobj)
     )<0) {
         gobj_log_error(gobj, 0,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+            "msgset",       "%s", MSGSET_PARAMETER,
             "msg",          "%s", "Parsing url failed",
             "url",          "%s", url,
             NULL
@@ -276,7 +276,7 @@ PRIVATE int mt_start(hgobj gobj)
         if(priv->exitOnError) {
             gobj_log_warning(gobj, 0,
                 "function",     "%s", __FUNCTION__,
-                "msgset",       "%s", MSGSET_SYSTEM_ERROR,
+                "msgset",       "%s", MSGSET_SYSTEM,
                 "msg",          "%s", "Exiting",
                 "exitOnError",  "%d", priv->exitOnError,
                 NULL
@@ -298,7 +298,7 @@ PRIVATE int mt_start(hgobj gobj)
         if(priv->exitOnError) {
             gobj_log_warning(gobj, 0,
                 "function",     "%s", __FUNCTION__,
-                "msgset",       "%s", MSGSET_SYSTEM_ERROR,
+                "msgset",       "%s", MSGSET_SYSTEM,
                 "msg",          "%s", "Exiting",
                 "exitOnError",  "%d", priv->exitOnError,
                 NULL
@@ -328,7 +328,7 @@ PRIVATE int mt_start(hgobj gobj)
     if(!priv->yev_server_accept) {
         gobj_log_error(gobj, 0,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_SYSTEM_ERROR,
+            "msgset",       "%s", MSGSET_SYSTEM,
             "msg",          "%s", "yev_create_accept_event() FAILED",
             "url",          "%s", url,
             NULL
@@ -336,7 +336,7 @@ PRIVATE int mt_start(hgobj gobj)
         if(priv->exitOnError) {
             gobj_log_warning(gobj, 0,
                 "function",     "%s", __FUNCTION__,
-                "msgset",       "%s", MSGSET_SYSTEM_ERROR,
+                "msgset",       "%s", MSGSET_SYSTEM,
                 "msg",          "%s", "Exiting",
                 "exitOnError",  "%d", priv->exitOnError,
                 NULL
@@ -419,7 +419,7 @@ PRIVATE int mt_start(hgobj gobj)
                 if(!gobj_bottom) {
                     gobj_log_error(gobj, 0,
                         "function",     "%s", __FUNCTION__,
-                        "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+                        "msgset",       "%s", MSGSET_PARAMETER,
                         "msg",          "%s", "Bottom gobj not found",
                         "child",        "%s", gobj_full_name(child),
                         "url",          "%s", priv->url,
@@ -488,7 +488,7 @@ PRIVATE int mt_start(hgobj gobj)
         if(!channels) {
             gobj_log_error(gobj, 0,
                 "function",     "%s", __FUNCTION__,
-                "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+                "msgset",       "%s", MSGSET_PARAMETER,
                 "msg",          "%s", "C_TCP_S new method: No channels found",
                 "url",          "%s", url,
                 NULL
@@ -554,7 +554,7 @@ PRIVATE int yev_callback(yev_event_h yev_event)
     if(!gobj) {
         gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_INTERNAL_ERROR,
+            "msgset",       "%s", MSGSET_INTERNAL,
             "msg",          "%s", "gobj NULL",
             NULL
         );
@@ -598,7 +598,7 @@ PRIVATE int yev_callback(yev_event_h yev_event)
             } else {
                 gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
                     "function",     "%s", __FUNCTION__,
-                    "msgset",       "%s", MSGSET_INTERNAL_ERROR,
+                    "msgset",       "%s", MSGSET_INTERNAL,
                     "msg",          "%s", "dup_idx not match",
                     NULL
                 );
@@ -611,7 +611,7 @@ PRIVATE int yev_callback(yev_event_h yev_event)
     if(yev_get_type(yev_event) != YEV_ACCEPT_TYPE) {
         gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_SYSTEM_ERROR,
+            "msgset",       "%s", MSGSET_SYSTEM,
             "msg",          "%s", "TCP_S: event type NOT IMPLEMENTED",
             "msg2",         "%s", "🌐TCP_S: event type NOT IMPLEMENTED",
             "event_type",   "%s", yev_event_type_name(yev_event),
@@ -627,7 +627,7 @@ PRIVATE int yev_callback(yev_event_h yev_event)
     if(fd_clisrv<0) {
         gobj_log_error(gobj, 0,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_SYSTEM_ERROR,
+            "msgset",       "%s", MSGSET_SYSTEM,
             "msg",          "%s", "TCP_S: yev_callback fd_clisrv FAILED ",
             "msg2",         "%s", "🌐TCP_S: yev_callback fd_clisrv FAILED ",
             "event_type",   "%s", yev_event_type_name(yev_event),
@@ -811,7 +811,7 @@ PRIVATE int reload_ytls_from_attrs(hgobj gobj)
     if(!jn_crypto) {
         gobj_log_error(gobj, 0,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+            "msgset",       "%s", MSGSET_PARAMETER,
             "msg",          "%s", "reload-certs: 'crypto' attribute is empty",
             NULL
         );
@@ -987,7 +987,7 @@ PRIVATE int create_gclass(gclass_name_t gclass_name)
     if(__gclass__) {
         gobj_log_error(0, 0,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_INTERNAL_ERROR,
+            "msgset",       "%s", MSGSET_INTERNAL,
             "msg",          "%s", "GClass ALREADY created",
             "gclass",       "%s", gclass_name,
             NULL

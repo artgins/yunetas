@@ -197,7 +197,7 @@ PUBLIC char *gbmem_strndup(const char *str, size_t size)
     if(!str) {
         gobj_log_error(0, LOG_OPT_TRACE_STACK,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+            "msgset",       "%s", MSGSET_PARAMETER,
             "msg",          "%s", "str is NULL",
             NULL
         );
@@ -355,7 +355,7 @@ PRIVATE void *_mem_malloc(size_t size)
     if(size > __max_block__) {
         gobj_log_error(0, LOG_OPT_TRACE_STACK,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_MEMORY_ERROR,
+            "msgset",       "%s", MSGSET_MEMORY,
             "msg",          "%s", "SIZE GREATER THAN MAX_BLOCK",
             "size",         "%ld", (long)size,
             "max_block",    "%d", (int)__max_block__,
@@ -370,7 +370,7 @@ PRIVATE void *_mem_malloc(size_t size)
     if(__cur_system_memory__ > __max_system_memory__) {
         gobj_log_critical(0, LOG_OPT_ABORT,
             "function",             "%s", __FUNCTION__,
-            "msgset",               "%s", MSGSET_MEMORY_ERROR,
+            "msgset",               "%s", MSGSET_MEMORY,
             "msg",                  "%s", "REACHED MAX_SYSTEM_MEMORY",
             NULL
         );
@@ -385,7 +385,7 @@ PRIVATE void *_mem_malloc(size_t size)
 #endif
         gobj_log_critical(0, LOG_OPT_ABORT,
             "function",             "%s", __FUNCTION__,
-            "msgset",               "%s", MSGSET_MEMORY_ERROR,
+            "msgset",               "%s", MSGSET_MEMORY,
             "msg",                  "%s", "NO MEMORY calloc() failed",
             "size",                 "%ld", (long)size,
             NULL
@@ -462,7 +462,7 @@ PRIVATE void *_mem_realloc(void *p, size_t new_size)
     if(new_size > __max_block__) {
         gobj_log_error(0, LOG_OPT_TRACE_STACK,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_MEMORY_ERROR,
+            "msgset",       "%s", MSGSET_MEMORY,
             "msg",          "%s", "SIZE GREATER THAN MAX_BLOCK",
             "size",         "%ld", (long)new_size,
             "max_block",    "%d", (int)__max_block__,
@@ -476,7 +476,7 @@ PRIVATE void *_mem_realloc(void *p, size_t new_size)
     if(__cur_system_memory__ > __max_system_memory__) {
         gobj_log_critical(0, LOG_OPT_ABORT,
             "function",             "%s", __FUNCTION__,
-            "msgset",               "%s", MSGSET_MEMORY_ERROR,
+            "msgset",               "%s", MSGSET_MEMORY,
             "msg",                  "%s", "REACHED MAX_SYSTEM_MEMORY",
             NULL
         );
@@ -489,7 +489,7 @@ PRIVATE void *_mem_realloc(void *p, size_t new_size)
     if(!pm__) {
         gobj_log_critical(0, LOG_OPT_ABORT,
             "function",             "%s", __FUNCTION__,
-            "msgset",               "%s", MSGSET_MEMORY_ERROR,
+            "msgset",               "%s", MSGSET_MEMORY,
             "msg",                  "%s", "NO MEMORY realloc() failed",
             "new_size",             "%ld", (long)new_size,
             NULL

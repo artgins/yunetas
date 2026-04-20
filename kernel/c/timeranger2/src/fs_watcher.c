@@ -99,7 +99,7 @@ PUBLIC fs_event_t *fs_create_watcher_event(
     if(!is_directory(path)) {
         gobj_log_error(gobj, 0,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+            "msgset",       "%s", MSGSET_PARAMETER,
             "msg",          "%s", "No is a directory",
             "path",         "%s", path?path:"",
             NULL
@@ -118,7 +118,7 @@ PUBLIC fs_event_t *fs_create_watcher_event(
         }
         gobj_log_critical(yev_get_yuno(yev_loop)?gobj:0, 0,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_SYSTEM_ERROR,
+            "msgset",       "%s", MSGSET_SYSTEM,
             "msg",          "%s", "inotify_init1() FAILED",
             "msg2",         "%s", serr,
             "errno",        "%d", err,
@@ -132,7 +132,7 @@ PUBLIC fs_event_t *fs_create_watcher_event(
     if(!fs_event) {
         gobj_log_error(gobj, 0,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_SYSTEM_ERROR,
+            "msgset",       "%s", MSGSET_SYSTEM,
             "msg",          "%s", "No memory for yev event",    // use the same string
             NULL
         );
@@ -176,7 +176,7 @@ PUBLIC fs_event_t *fs_create_watcher_event(
     if(!gbuf) {
         gobj_log_error(gobj, 0,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_SYSTEM_ERROR,
+            "msgset",       "%s", MSGSET_SYSTEM,
             "msg",          "%s", "No memory for fs_event gbuf",
             NULL
         );
@@ -384,7 +384,7 @@ PRIVATE int yev_callback(
         default:
             gobj_log_error(gobj, 0,
                 "function",     "%s", __FUNCTION__,
-                "msgset",       "%s", MSGSET_INTERNAL_ERROR,
+                "msgset",       "%s", MSGSET_INTERNAL,
                 "msg",          "%s", "event type NOT IMPLEMENTED",
                 NULL
             );
@@ -549,7 +549,7 @@ PRIVATE int add_watch(fs_event_t *fs_event, const char *path)
     if (wd == -1) {
         gobj_log_error(fs_event->gobj, LOG_OPT_TRACE_STACK,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_INTERNAL_ERROR,
+            "msgset",       "%s", MSGSET_INTERNAL,
             "msg",          "%s", "inotify_add_watch() FAILED",
             "path" ,        "%s", path,
             "serrno" ,      "%s", strerror(errno),
@@ -593,7 +593,7 @@ PRIVATE int remove_watch(fs_event_t *fs_event, const char *path, int wd)
     if(json_object_del(fs_event->jn_tracked_paths, s_wd)<0) {
         gobj_log_error(fs_event->gobj, LOG_OPT_TRACE_STACK,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_INTERNAL_ERROR,
+            "msgset",       "%s", MSGSET_INTERNAL,
             "msg",          "%s", "wd not found",
             "wd" ,          "%d", wd,
             NULL
@@ -620,7 +620,7 @@ PRIVATE int remove_watch(fs_event_t *fs_event, const char *path, int wd)
         if(errno != EINVAL) { // Han borrado el directorio
             gobj_log_error(fs_event->gobj, 0,
                 "function",     "%s", __FUNCTION__,
-                "msgset",       "%s", MSGSET_INTERNAL_ERROR,
+                "msgset",       "%s", MSGSET_INTERNAL,
                 "msg",          "%s", "inotify_rm_watch() FAILED",
                 "path" ,        "%s", path,
                 "serrno" ,      "%s", strerror(errno),
@@ -646,7 +646,7 @@ PRIVATE const char *get_path(fs_event_t *fs_event, int wd)
 
     gobj_log_error(fs_event->gobj, LOG_OPT_TRACE_STACK,
         "function",     "%s", __FUNCTION__,
-        "msgset",       "%s", MSGSET_INTERNAL_ERROR,
+        "msgset",       "%s", MSGSET_INTERNAL,
         "msg",          "%s", "wd not found",
         "wd" ,          "%d", wd,
         NULL

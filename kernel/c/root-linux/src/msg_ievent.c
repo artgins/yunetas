@@ -53,7 +53,7 @@ PUBLIC json_t *iev_create( // For use within Yuno
     if(empty_string(event)) {
         gobj_log_error(gobj, 0,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+            "msgset",       "%s", MSGSET_PARAMETER,
             "msg",          "%s", "event NULL",
             NULL
         );
@@ -64,7 +64,7 @@ PUBLIC json_t *iev_create( // For use within Yuno
     if(!kw) {
         gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+            "msgset",       "%s", MSGSET_PARAMETER,
             "msg",          "%s", "kw NULL",
             NULL
         );
@@ -112,7 +112,7 @@ PUBLIC gbuffer_t *iev_create_to_gbuffer( // old iev_create()
     if(empty_string(event)) {
         gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+            "msgset",       "%s", MSGSET_PARAMETER,
             "msg",          "%s", "event NULL",
             NULL
         );
@@ -130,7 +130,7 @@ PUBLIC gbuffer_t *iev_create_to_gbuffer( // old iev_create()
     if(!kw) {
         gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+            "msgset",       "%s", MSGSET_PARAMETER,
             "msg",          "%s", "kw_serialize() FAILED",
             NULL
         );
@@ -165,7 +165,7 @@ PUBLIC json_t *iev_create_from_gbuffer(
     if(!jn_msg) {
         gobj_log_error(gobj, 0,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_JSON_ERROR,
+            "msgset",       "%s", MSGSET_JSON,
             "msg",          "%s", "gbuf2json() FAILED",
             NULL
         );
@@ -181,7 +181,7 @@ PUBLIC json_t *iev_create_from_gbuffer(
     if(empty_string(event_)) {
         gobj_log_error(gobj, 0,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+            "msgset",       "%s", MSGSET_PARAMETER,
             "msg",          "%s", "event EMPTY",
             NULL
         );
@@ -191,7 +191,7 @@ PUBLIC json_t *iev_create_from_gbuffer(
     if(!kw) { // WARNING cannot be null!
         gobj_log_error(gobj, 0,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+            "msgset",       "%s", MSGSET_PARAMETER,
             "msg",          "%s", "kw EMPTY",
             NULL
         );
@@ -334,7 +334,7 @@ PUBLIC int msg_iev_push_stack( // Push a record in the stack
     if(!json_is_object(kw)) {
         gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_INTERNAL_ERROR,
+            "msgset",       "%s", MSGSET_INTERNAL,
             "msg",          "%s", "kw is not a dict",
             NULL
         );
@@ -351,7 +351,7 @@ PUBLIC int msg_iev_push_stack( // Push a record in the stack
     } else {
         gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_INTERNAL_ERROR,
+            "msgset",       "%s", MSGSET_INTERNAL,
             "msg",          "%s", "jn_stack is not a list",
             "stack",        "%s", stack,
             NULL
@@ -374,7 +374,7 @@ PUBLIC json_t *msg_iev_get_stack( // Get a record without popping from the stack
     if(!json_is_object(kw)) {
         gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_INTERNAL_ERROR,
+            "msgset",       "%s", MSGSET_INTERNAL,
             "msg",          "%s", "kw is not a dict",
             NULL
         );
@@ -385,7 +385,7 @@ PUBLIC json_t *msg_iev_get_stack( // Get a record without popping from the stack
         if(verbose) {
             gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
                 "function",     "%s", __FUNCTION__,
-                "msgset",       "%s", MSGSET_INTERNAL_ERROR,
+                "msgset",       "%s", MSGSET_INTERNAL,
                 "msg",          "%s", "__md_iev__ NOT FOUND",
                 NULL
             );
@@ -399,7 +399,7 @@ PUBLIC json_t *msg_iev_get_stack( // Get a record without popping from the stack
         if(verbose) {
             gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
                 "function",     "%s", __FUNCTION__,
-                "msgset",       "%s", MSGSET_INTERNAL_ERROR,
+                "msgset",       "%s", MSGSET_INTERNAL,
                 "msg",          "%s", "__md_iev__ stack NOT FOUND",
                 "stack",        "%s", stack,
                 NULL
@@ -425,7 +425,7 @@ PUBLIC json_t * msg_iev_pop_stack( // Pop a record from stack. Return is YOURS, 
     if(!json_is_object(kw)) {
         gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_INTERNAL_ERROR,
+            "msgset",       "%s", MSGSET_INTERNAL,
             "msg",          "%s", "kw is not a dict",
             NULL
         );
@@ -435,7 +435,7 @@ PUBLIC json_t * msg_iev_pop_stack( // Pop a record from stack. Return is YOURS, 
     if(!md_iev) {
         gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_INTERNAL_ERROR,
+            "msgset",       "%s", MSGSET_INTERNAL,
             "msg",          "%s", "__md_iev__ NOT FOUND",
             NULL
         );
@@ -447,7 +447,7 @@ PUBLIC json_t * msg_iev_pop_stack( // Pop a record from stack. Return is YOURS, 
     if(!jn_stack) {
         gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_INTERNAL_ERROR,
+            "msgset",       "%s", MSGSET_INTERNAL,
             "msg",          "%s", "__md_iev__ stack NOT FOUND",
             "stack",        "%s", stack,
             NULL

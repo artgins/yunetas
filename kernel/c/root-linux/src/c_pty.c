@@ -188,7 +188,7 @@ PRIVATE int mt_start(hgobj gobj)
     if(priv->master_fd != -1) {
         gobj_log_error(gobj, 0,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_INTERNAL_ERROR,
+            "msgset",       "%s", MSGSET_INTERNAL,
             "msg",          "%s", "master_fd terminal ALREADY open",
             NULL
         );
@@ -207,7 +207,7 @@ PRIVATE int mt_start(hgobj gobj)
     if (pid < 0) {
         gobj_log_error(gobj, 0,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_SYSTEM_ERROR,
+            "msgset",       "%s", MSGSET_SYSTEM,
             "msg",          "%s", "forkpty() FAILED",
             "errno",        "%d", errno,
             "strerror",     "%s", strerror(errno),
@@ -247,7 +247,7 @@ PRIVATE int mt_start(hgobj gobj)
         if(priv->uv_in < 0) {
            gobj_log_error(gobj, 0,
                "function",     "%s", __FUNCTION__,
-               "msgset",       "%s", MSGSET_SYSTEM_ERROR,
+               "msgset",       "%s", MSGSET_SYSTEM,
                "msg",          "%s", "fd_duplicate() FAILED",
                "errno",        "%d", errno,
                "strerror",     "%s", strerror(errno),
@@ -265,7 +265,7 @@ PRIVATE int mt_start(hgobj gobj)
         if(priv->uv_out < 0) {
            gobj_log_error(gobj, 0,
                "function",     "%s", __FUNCTION__,
-               "msgset",       "%s", MSGSET_SYSTEM_ERROR,
+               "msgset",       "%s", MSGSET_SYSTEM,
                "msg",          "%s", "fd_duplicate() FAILED",
                "errno",        "%d", errno,
                "strerror",     "%s", strerror(errno),
@@ -489,7 +489,7 @@ PRIVATE int yev_callback(yev_event_h yev_event)
         default:
             gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
                 "function",     "%s", __FUNCTION__,
-                "msgset",       "%s", MSGSET_SYSTEM_ERROR,
+                "msgset",       "%s", MSGSET_SYSTEM,
                 "msg",          "%s", "TCP: event type NOT IMPLEMENTED",
                 "msg2",         "%s", "🌐TCP: event type NOT IMPLEMENTED",
                 "url",          "%s", gobj_read_str_attr(gobj, "url"),
@@ -630,7 +630,7 @@ PRIVATE int on_read_cb(hgobj gobj, gbuffer_t *gbuf)
     if(!gbuf_base64) {
         gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_MEMORY_ERROR,
+            "msgset",       "%s", MSGSET_MEMORY,
             "msg",          "%s", "gbuffer_binary_to_base64() FAILED",
             NULL
         );
@@ -662,7 +662,7 @@ PRIVATE int on_read_cb(hgobj gobj, gbuffer_t *gbuf)
 //     }
 //     gobj_log_error(gobj, 0,
 //         "function", "%s", __FUNCTION__,
-//         "msgset",   "%s", MSGSET_SYSTEM_ERROR,
+//         "msgset",   "%s", MSGSET_SYSTEM,
 //         "msg",      "%s", "TIOCSIG failed",
 //         "errno",    "%d", errno,
 //         "strerror", "%s", strerror(errno),
@@ -786,7 +786,7 @@ PRIVATE int enqueue_write(hgobj gobj, gbuffer_t *gbuf)
         if((counter % priv->max_tx_queue)==0) {
             gobj_log_error(gobj, 0,
                 "function",     "%s", __FUNCTION__,
-                "msgset",       "%s", MSGSET_INTERNAL_ERROR,
+                "msgset",       "%s", MSGSET_INTERNAL,
                 "msg",          "%s", "throw away pty tx message",
                 "counter",      "%d", (int)counter,
                 NULL
@@ -824,7 +824,7 @@ PRIVATE int ac_write_tty(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
     if(!gbuf) {
         gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_INTERNAL_ERROR,
+            "msgset",       "%s", MSGSET_INTERNAL,
             "msg",          "%s", "gbuffer NULL",
             NULL
         );
@@ -880,7 +880,7 @@ PRIVATE int create_gclass(gclass_name_t gclass_name)
     if(__gclass__) {
         gobj_log_error(0, 0,
             "function", "%s", __FUNCTION__,
-            "msgset",   "%s", MSGSET_INTERNAL_ERROR,
+            "msgset",   "%s", MSGSET_INTERNAL,
             "msg",      "%s", "GClass ALREADY created",
             "gclass",   "%s", gclass_name,
             NULL

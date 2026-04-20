@@ -43,7 +43,7 @@ int dbesp_startup_persistent_attrs(void)
         // Retry nvs_flash_init
         gobj_log_error(0, 0,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_SYSTEM_ERROR,
+            "msgset",       "%s", MSGSET_SYSTEM,
             "msg",          "%s", "nvs_flash_init() FAILED, flash erase",
             "esp_error",    "%s", esp_err_to_name(err),
             NULL
@@ -55,7 +55,7 @@ int dbesp_startup_persistent_attrs(void)
     if(err != ESP_OK) {
         gobj_log_error(0, 0,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_SYSTEM_ERROR,
+            "msgset",       "%s", MSGSET_SYSTEM,
             "msg",          "%s", "nvs_flash_init() FAILED",
             "error",        "%s", esp_err_to_name(err),
             NULL
@@ -93,7 +93,7 @@ PRIVATE json_t *load_json(
     if(err != ESP_OK) {
         gobj_log_error(gobj, 0,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_SYSTEM_ERROR,
+            "msgset",       "%s", MSGSET_SYSTEM,
             "msg",          "%s", "nvs_open() FAILED",
             "namespace",    "%s", gobj_gclass_name(gobj),
             "esp_error",    "%s", esp_err_to_name(err),
@@ -114,7 +114,7 @@ PRIVATE json_t *load_json(
         default:
             gobj_log_error(gobj, 0,
                 "function",     "%s", __FUNCTION__,
-                "msgset",       "%s", MSGSET_SYSTEM_ERROR,
+                "msgset",       "%s", MSGSET_SYSTEM,
                 "msg",          "%s", "nvs_get_str() FAILED",
                 "namespace",    "%s", gobj_gclass_name(gobj),
                 "key",          "%s", gobj_name(gobj),
@@ -129,7 +129,7 @@ PRIVATE json_t *load_json(
     if(err != ESP_OK) {
         gobj_log_error(gobj, 0,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_SYSTEM_ERROR,
+            "msgset",       "%s", MSGSET_SYSTEM,
             "msg",          "%s", "nvs_get_str() 2 FAILED",
             "namespace",    "%s", gobj_gclass_name(gobj),
             "key",          "%s", gobj_name(gobj),
@@ -168,7 +168,7 @@ PRIVATE int save_json(
     if(err != ESP_OK) {
         gobj_log_error(gobj, 0,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_SYSTEM_ERROR,
+            "msgset",       "%s", MSGSET_SYSTEM,
             "msg",          "%s", "nvs_open() FAILED",
             "namespace",    "%s", gobj_gclass_name(gobj),
             "esp_error",    "%s", esp_err_to_name(err),
@@ -181,7 +181,7 @@ PRIVATE int save_json(
     if(err != ESP_OK) {
         gobj_log_error(gobj, 0,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_SYSTEM_ERROR,
+            "msgset",       "%s", MSGSET_SYSTEM,
             "msg",          "%s", "nvs_set_str() FAILED",
             "namespace",    "%s", gobj_gclass_name(gobj),
             "esp_error",    "%s", esp_err_to_name(err),
@@ -196,7 +196,7 @@ PRIVATE int save_json(
     if(err != ESP_OK) {
         gobj_log_error(gobj, 0,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_SYSTEM_ERROR,
+            "msgset",       "%s", MSGSET_SYSTEM,
             "msg",          "%s", "nvs_commit() FAILED",
             "namespace",    "%s", gobj_gclass_name(gobj),
             "esp_error",    "%s", esp_err_to_name(err),

@@ -316,7 +316,7 @@ PRIVATE int run_tests(hgobj gobj)
     if(priv->linked_count != 1) {
         gobj_log_error(gobj, 0,
             "function", "%s", __FUNCTION__,
-            "msgset", "%s", MSGSET_INTERNAL_ERROR,
+            "msgset", "%s", MSGSET_INTERNAL,
             "msg", "%s", "TEST FAIL: link dept->dept expected 1 linked event",
             "got", "%d", priv->linked_count,
             NULL
@@ -326,7 +326,7 @@ PRIVATE int run_tests(hgobj gobj)
     if(strcmp(priv->last_linked_hook, "departments") != 0) {
         gobj_log_error(gobj, 0,
             "function", "%s", __FUNCTION__,
-            "msgset", "%s", MSGSET_INTERNAL_ERROR,
+            "msgset", "%s", MSGSET_INTERNAL,
             "msg", "%s", "TEST FAIL: wrong hook_name in linked event",
             "expected", "%s", "departments",
             "got", "%s", priv->last_linked_hook,
@@ -338,7 +338,7 @@ PRIVATE int run_tests(hgobj gobj)
        strcmp(priv->last_linked_child_id, "research") != 0) {
         gobj_log_error(gobj, 0,
             "function", "%s", __FUNCTION__,
-            "msgset", "%s", MSGSET_INTERNAL_ERROR,
+            "msgset", "%s", MSGSET_INTERNAL,
             "msg", "%s", "TEST FAIL: wrong parent_id/child_id in linked event",
             "parent_id", "%s", priv->last_linked_parent_id,
             "child_id", "%s", priv->last_linked_child_id,
@@ -359,7 +359,7 @@ PRIVATE int run_tests(hgobj gobj)
     if(priv->unlinked_count != 1) {
         gobj_log_error(gobj, 0,
             "function", "%s", __FUNCTION__,
-            "msgset", "%s", MSGSET_INTERNAL_ERROR,
+            "msgset", "%s", MSGSET_INTERNAL,
             "msg", "%s", "TEST FAIL: unlink expected 1 unlinked event",
             "got", "%d", priv->unlinked_count,
             NULL
@@ -370,7 +370,7 @@ PRIVATE int run_tests(hgobj gobj)
        strcmp(priv->last_unlinked_child_id, "research") != 0) {
         gobj_log_error(gobj, 0,
             "function", "%s", __FUNCTION__,
-            "msgset", "%s", MSGSET_INTERNAL_ERROR,
+            "msgset", "%s", MSGSET_INTERNAL,
             "msg", "%s", "TEST FAIL: wrong ids in unlinked event",
             "parent_id", "%s", priv->last_unlinked_parent_id,
             "child_id", "%s", priv->last_unlinked_child_id,
@@ -390,7 +390,7 @@ PRIVATE int run_tests(hgobj gobj)
     if(priv->linked_count != 1) {
         gobj_log_error(gobj, 0,
             "function", "%s", __FUNCTION__,
-            "msgset", "%s", MSGSET_INTERNAL_ERROR,
+            "msgset", "%s", MSGSET_INTERNAL,
             "msg", "%s", "TEST FAIL: cross-topic link expected 1 linked event",
             "got", "%d", priv->linked_count,
             NULL
@@ -401,7 +401,7 @@ PRIVATE int run_tests(hgobj gobj)
        strcmp(priv->last_linked_child_topic, "users") != 0) {
         gobj_log_error(gobj, 0,
             "function", "%s", __FUNCTION__,
-            "msgset", "%s", MSGSET_INTERNAL_ERROR,
+            "msgset", "%s", MSGSET_INTERNAL,
             "msg", "%s", "TEST FAIL: wrong topic names in cross-topic link event",
             "parent_topic", "%s", priv->last_linked_parent_topic,
             "child_topic", "%s", priv->last_linked_child_topic,
@@ -585,7 +585,7 @@ PRIVATE int create_gclass(gclass_name_t gclass_name)
     if(__gclass__) {
         gobj_log_error(0, 0,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_INTERNAL_ERROR,
+            "msgset",       "%s", MSGSET_INTERNAL,
             "msg",          "%s", "GClass ALREADY created",
             "gclass",       "%s", gclass_name,
             NULL

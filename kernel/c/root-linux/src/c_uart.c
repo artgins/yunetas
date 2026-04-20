@@ -157,7 +157,7 @@ PRIVATE int mt_start(hgobj gobj)
     if(!(state == ST_STOPPED || state == ST_DISCONNECTED)) {
         gobj_log_error(gobj, 0,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_INTERNAL_ERROR,
+            "msgset",       "%s", MSGSET_INTERNAL,
             "msg",          "%s", "Initial wrong task state",
             "state",        "%s", gobj_current_state(gobj),
             NULL
@@ -288,7 +288,7 @@ PRIVATE int _serial_baudrate_to_bits(int baudrate)
 //     if(tcgetattr(fd, &termios_settings)<0) {
 //         gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
 //             "function",     "%s", __FUNCTION__,
-//             "msgset",       "%s", MSGSET_PROTOCOL_ERROR,
+//             "msgset",       "%s", MSGSET_PROTOCOL,
 //             "msg",          "%s", "tcgetattr() FAILED",
 //             "url",          "%s", gobj_read_str_attr(gobj, "url"),
 //             "fd",           "%d", fd,
@@ -308,7 +308,7 @@ PRIVATE int _serial_baudrate_to_bits(int baudrate)
 //         baudrate = B9600;
 //         gobj_log_error(gobj, 0,
 //             "function",     "%s", __FUNCTION__,
-//             "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+//             "msgset",       "%s", MSGSET_PARAMETER,
 //             "url",          "%s", gobj_read_str_attr(gobj, "url"),
 //             "fd",           "%d", fd,
 //             "msg",          "%s", "Bad baudrate",
@@ -336,7 +336,7 @@ PRIVATE int _serial_baudrate_to_bits(int baudrate)
 //             parity = PARITY_NONE;
 //             gobj_log_error(gobj, 0,
 //                 "function",     "%s", __FUNCTION__,
-//                 "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+//                 "msgset",       "%s", MSGSET_PARAMETER,
 //                 "msg",          "%s", "Parity UNKNOWN",
 //                 "url",          "%s", gobj_read_str_attr(gobj, "url"),
 //                 "fd",           "%d", fd,
@@ -359,7 +359,7 @@ PRIVATE int _serial_baudrate_to_bits(int baudrate)
 //         default:
 //             gobj_log_error(gobj, 0,
 //                 "function",     "%s", __FUNCTION__,
-//                 "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+//                 "msgset",       "%s", MSGSET_PARAMETER,
 //                 "msg",          "%s", "Bad bytesize",
 //                 "url",          "%s", gobj_read_str_attr(gobj, "url"),
 //                 "fd",           "%d", fd,
@@ -381,7 +381,7 @@ PRIVATE int _serial_baudrate_to_bits(int baudrate)
 //         default:
 //             gobj_log_error(gobj, 0,
 //                 "function",     "%s", __FUNCTION__,
-//                 "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+//                 "msgset",       "%s", MSGSET_PARAMETER,
 //                 "msg",          "%s", "Bad stopbits",
 //                 "url",          "%s", gobj_read_str_attr(gobj, "url"),
 //                 "fd",           "%d", fd,
@@ -453,7 +453,7 @@ PRIVATE int _serial_baudrate_to_bits(int baudrate)
 //     if(tcsetattr(fd, TCSANOW, &termios_settings)<0) {
 //         gobj_log_error(gobj, 0,
 //             "function",     "%s", __FUNCTION__,
-//             "msgset",       "%s", MSGSET_PROTOCOL_ERROR,
+//             "msgset",       "%s", MSGSET_PROTOCOL,
 //             "msg",          "%s", "tcsetattr() FAILED",
 //             "url",          "%s", gobj_read_str_attr(gobj, "url"),
 //             "fd",           "%d", fd,
@@ -476,7 +476,7 @@ PRIVATE int configure_tty(hgobj gobj, int fd)
     if(tcgetattr(fd, &termios_settings)<0) {
         gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_PROTOCOL_ERROR,
+            "msgset",       "%s", MSGSET_PROTOCOL,
             "msg",          "%s", "tcgetattr() FAILED",
             "device",       "%s", gobj_read_str_attr(gobj, "url"),
             "fd",           "%d", fd,
@@ -496,7 +496,7 @@ PRIVATE int configure_tty(hgobj gobj, int fd)
         baudrate = B9600;
         gobj_log_error(gobj, 0,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+            "msgset",       "%s", MSGSET_PARAMETER,
             "device",       "%s", gobj_read_str_attr(gobj, "url"),
             "fd",           "%d", fd,
             "msg",          "%s", "Bad baudrate",
@@ -524,7 +524,7 @@ PRIVATE int configure_tty(hgobj gobj, int fd)
             parity = PARITY_NONE;
             gobj_log_error(gobj, 0,
                 "function",     "%s", __FUNCTION__,
-                "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+                "msgset",       "%s", MSGSET_PARAMETER,
                 "msg",          "%s", "Parity UNKNOWN",
                 "device",       "%s", gobj_read_str_attr(gobj, "url"),
                 "fd",           "%d", fd,
@@ -547,7 +547,7 @@ PRIVATE int configure_tty(hgobj gobj, int fd)
         default:
             gobj_log_error(gobj, 0,
                 "function",     "%s", __FUNCTION__,
-                "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+                "msgset",       "%s", MSGSET_PARAMETER,
                 "msg",          "%s", "Bad bytesize",
                 "device",       "%s", gobj_read_str_attr(gobj, "url"),
                 "fd",           "%d", fd,
@@ -569,7 +569,7 @@ PRIVATE int configure_tty(hgobj gobj, int fd)
         default:
             gobj_log_error(gobj, 0,
                 "function",     "%s", __FUNCTION__,
-                "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+                "msgset",       "%s", MSGSET_PARAMETER,
                 "msg",          "%s", "Bad stopbits",
                 "device",       "%s", gobj_read_str_attr(gobj, "url"),
                 "fd",           "%d", fd,
@@ -658,7 +658,7 @@ PRIVATE int configure_tty(hgobj gobj, int fd)
     if(tcsetattr(fd, TCSANOW, &termios_settings)<0) {
         gobj_log_error(gobj, 0,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_PROTOCOL_ERROR,
+            "msgset",       "%s", MSGSET_PROTOCOL,
             "msg",          "%s", "tcsetattr() FAILED",
             "device",       "%s", gobj_read_str_attr(gobj, "url"),
             "fd",           "%d", fd,
@@ -684,7 +684,7 @@ PRIVATE int open_tty(hgobj gobj)
     if(empty_string(path)) {
         gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+            "msgset",       "%s", MSGSET_PARAMETER,
             "msg",          "%s", "path EMPTY",
             NULL
         );
@@ -695,7 +695,7 @@ PRIVATE int open_tty(hgobj gobj)
     if(fd < 0) {
         gobj_log_error(gobj, 0,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_PROTOCOL_ERROR,
+            "msgset",       "%s", MSGSET_PROTOCOL,
             "msg",          "%s", "Cannot open tty device",
             "url",          "%s", path,
             "errno",        "%d", errno,
@@ -977,7 +977,7 @@ PRIVATE int yev_callback(yev_event_h yev_event)
         default:
             gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
                 "function",     "%s", __FUNCTION__,
-                "msgset",       "%s", MSGSET_SYSTEM_ERROR,
+                "msgset",       "%s", MSGSET_SYSTEM,
                 "msg",          "%s", "event type NOT IMPLEMENTED",
                 "url",          "%s", gobj_read_str_attr(gobj, "url"),
                 "event_type",   "%s", yev_event_type_name(yev_event),
@@ -1038,7 +1038,7 @@ PRIVATE int ac_tx_data(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
     if(!gbuf) {
         gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_INTERNAL_ERROR,
+            "msgset",       "%s", MSGSET_INTERNAL,
             "msg",          "%s", "gbuffer NULL",
             NULL
         );
@@ -1098,7 +1098,7 @@ PRIVATE int create_gclass(gclass_name_t gclass_name)
     if(__gclass__) {
         gobj_log_error(0, 0,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_INTERNAL_ERROR,
+            "msgset",       "%s", MSGSET_INTERNAL,
             "msg",          "%s", "GClass ALREADY created",
             "gclass",       "%s", gclass_name,
             NULL

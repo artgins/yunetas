@@ -291,7 +291,7 @@ PRIVATE int ac_timer(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
     default:
         gobj_log_error(gobj, 0,
             "function", "%s", __FUNCTION__,
-            "msgset",   "%s", MSGSET_APP_ERROR,
+            "msgset",   "%s", MSGSET_APP,
             "msg",      "%s", "test10_kc_silence: unexpected ac_timer phase",
             "phase",    "%d", (int)priv->phase,
             NULL
@@ -310,7 +310,7 @@ PRIVATE int ac_on_open(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
     if(priv->phase != T10_CONNECTING) {
         gobj_log_error(gobj, 0,
             "function", "%s", __FUNCTION__,
-            "msgset",   "%s", MSGSET_APP_ERROR,
+            "msgset",   "%s", MSGSET_APP,
             "msg",      "%s", "test10_kc_silence: EV_ON_OPEN in unexpected phase",
             "phase",    "%d", (int)priv->phase,
             NULL
@@ -357,7 +357,7 @@ PRIVATE int ac_on_message(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
     if(priv->phase != T10_POSTED) {
         gobj_log_error(gobj, 0,
             "function", "%s", __FUNCTION__,
-            "msgset",   "%s", MSGSET_APP_ERROR,
+            "msgset",   "%s", MSGSET_APP,
             "msg",      "%s", "test10_kc_silence: EV_ON_MESSAGE in unexpected phase",
             "phase",    "%d", (int)priv->phase,
             NULL
@@ -379,7 +379,7 @@ PRIVATE int ac_on_message(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
     if(status != 504) {
         gobj_log_error(gobj, 0,
             "function", "%s", __FUNCTION__,
-            "msgset",   "%s", MSGSET_APP_ERROR,
+            "msgset",   "%s", MSGSET_APP,
             "msg",      "%s", "test10_kc_silence: expected BFF 504, got different status",
             "expected", "%d", 504,
             "status",   "%d", status,
@@ -391,7 +391,7 @@ PRIVATE int ac_on_message(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
     if(!jn_body || !json_is_object(jn_body)) {
         gobj_log_error(gobj, 0,
             "function", "%s", __FUNCTION__,
-            "msgset",   "%s", MSGSET_APP_ERROR,
+            "msgset",   "%s", MSGSET_APP,
             "msg",      "%s", "test10_kc_silence: BFF error body missing or not an object",
             NULL
         );
@@ -400,7 +400,7 @@ PRIVATE int ac_on_message(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
     if(json_is_true(json_object_get(jn_body, "success"))) {
         gobj_log_error(gobj, 0,
             "function", "%s", __FUNCTION__,
-            "msgset",   "%s", MSGSET_APP_ERROR,
+            "msgset",   "%s", MSGSET_APP,
             "msg",      "%s", "test10_kc_silence: body.success must be false",
             NULL
         );
@@ -410,7 +410,7 @@ PRIVATE int ac_on_message(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
     if(empty_string(got_error)) {
         gobj_log_error(gobj, 0,
             "function", "%s", __FUNCTION__,
-            "msgset",   "%s", MSGSET_APP_ERROR,
+            "msgset",   "%s", MSGSET_APP,
             "msg",      "%s", "test10_kc_silence: body.error empty",
             NULL
         );
@@ -452,14 +452,14 @@ PRIVATE int ac_on_close(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
     if(priv->phase == T10_CONNECTING) {
         gobj_log_error(gobj, 0,
             "function", "%s", __FUNCTION__,
-            "msgset",   "%s", MSGSET_APP_ERROR,
+            "msgset",   "%s", MSGSET_APP,
             "msg",      "%s", "test10_kc_silence: unexpected EV_ON_CLOSE in T10_CONNECTING",
             NULL
         );
     } else if(priv->phase == T10_POSTED && !priv->test_passed) {
         gobj_log_error(gobj, 0,
             "function", "%s", __FUNCTION__,
-            "msgset",   "%s", MSGSET_APP_ERROR,
+            "msgset",   "%s", MSGSET_APP,
             "msg",      "%s", "test10_kc_silence: connection closed without 504 reply",
             NULL
         );
@@ -507,7 +507,7 @@ PRIVATE int create_gclass(gclass_name_t gclass_name)
     if(__gclass__) {
         gobj_log_error(0, 0,
             "function", "%s", __FUNCTION__,
-            "msgset",   "%s", MSGSET_INTERNAL_ERROR,
+            "msgset",   "%s", MSGSET_INTERNAL,
             "msg",      "%s", "GClass ALREADY created",
             "gclass",   "%s", gclass_name,
             NULL

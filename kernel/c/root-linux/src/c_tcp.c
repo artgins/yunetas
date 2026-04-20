@@ -247,7 +247,7 @@ PRIVATE int mt_start(hgobj gobj)
     if(!(state == ST_STOPPED || state == ST_DISCONNECTED)) {
         gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_INTERNAL_ERROR,
+            "msgset",       "%s", MSGSET_INTERNAL,
             "msg",          "%s", "Initial wrong tcp state",
             "state",        "%s", gobj_current_state(gobj),
             NULL
@@ -258,7 +258,7 @@ PRIVATE int mt_start(hgobj gobj)
     if(priv->yev_connect) {
         gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_INTERNAL_ERROR,
+            "msgset",       "%s", MSGSET_INTERNAL,
             "msg",          "%s", "yev_connect ALREADY exists",
             "state",        "%s", gobj_current_state(gobj),
             NULL
@@ -295,7 +295,7 @@ PRIVATE int mt_start(hgobj gobj)
             } else {
                 gobj_log_error(gobj, 0,
                     "function",     "%s", __FUNCTION__,
-                    "msgset",       "%s", MSGSET_INTERNAL_ERROR,
+                    "msgset",       "%s", MSGSET_INTERNAL,
                     "msg",          "%s", "New method (listen) without fd_listen",
                     NULL
                 );
@@ -328,7 +328,7 @@ PRIVATE int mt_start(hgobj gobj)
         )<0) {
             gobj_log_error(gobj, 0,
                 "function",     "%s", __FUNCTION__,
-                "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+                "msgset",       "%s", MSGSET_PARAMETER,
                 "msg",          "%s", "Parsing url failed",
                 "url",          "%s", gobj_read_str_attr(gobj, "url"),
                 NULL
@@ -350,7 +350,7 @@ PRIVATE int mt_start(hgobj gobj)
         if(!priv->yev_connect) {
             gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
                 "function",     "%s", __FUNCTION__,
-                "msgset",       "%s", MSGSET_INTERNAL_ERROR,
+                "msgset",       "%s", MSGSET_INTERNAL,
                 "msg",          "%s", "Cannot connect tcp gobj",
                 NULL
             );
@@ -578,7 +578,7 @@ PRIVATE void set_connected(hgobj gobj, int fd)
         if(!priv->sskt) {
             gobj_log_error(gobj, 0,
                 "function",     "%s", __FUNCTION__,
-                "msgset",       "%s", MSGSET_SYSTEM_ERROR,
+                "msgset",       "%s", MSGSET_SYSTEM,
                 "msg",          "%s", "ytls_new_secure_filter() FAILED",
                 "error",        "%s", ytls_get_last_error(priv->ytls, priv->sskt),
                 NULL
@@ -814,7 +814,7 @@ PRIVATE int write_data(hgobj gobj)
         if(ytls_encrypt_data(priv->ytls, priv->sskt, gbuf)<0) {
             gobj_log_error(gobj, 0,
                 "function",     "%s", __FUNCTION__,
-                "msgset",       "%s", MSGSET_SYSTEM_ERROR,
+                "msgset",       "%s", MSGSET_SYSTEM,
                 "msg",          "%s", "ytls_encrypt_data() FAILED",
                 "error",        "%s", ytls_get_last_error(priv->ytls, priv->sskt),
                 NULL
@@ -824,7 +824,7 @@ PRIVATE int write_data(hgobj gobj)
         if(gbuffer_leftbytes(gbuf) > 0) {
             gobj_log_error(gobj, 0,
                 "function",     "%s", __FUNCTION__,
-                "msgset",       "%s", MSGSET_INTERNAL_ERROR,
+                "msgset",       "%s", MSGSET_INTERNAL,
                 "msg",          "%s", "NEED a queue, NOT ALL DATA being encrypted",
                 NULL
             );
@@ -894,7 +894,7 @@ PRIVATE int enqueue_write(hgobj gobj, gbuffer_t *gbuf)
          if((counter % priv->max_tx_queue)==0) {
              gobj_log_error(gobj, 0,
                  "function",     "%s", __FUNCTION__,
-                 "msgset",       "%s", MSGSET_INTERNAL_ERROR,
+                 "msgset",       "%s", MSGSET_INTERNAL,
                  "msg",          "%s", "throw away tcp tx message",
                  "counter",      "%d", (int)counter,
                  NULL
@@ -1024,7 +1024,7 @@ PRIVATE void try_to_stop_yevents(hgobj gobj)  // IDEMPOTENT
 //     if(ytls_encrypt_data(ytls, sskt, gbuf)<0) {
 //         gobj_log_error(0, 0,
 //             "function",     "%s", __FUNCTION__,
-//             "msgset",       "%s", MSGSET_SYSTEM_ERROR,
+//             "msgset",       "%s", MSGSET_SYSTEM,
 //             "msg",          "%s", "ytls_encrypt_data() FAILED",
 //             "error",        "%s", ytls_get_last_error(ytls, sskt),
 //             NULL
@@ -1034,7 +1034,7 @@ PRIVATE void try_to_stop_yevents(hgobj gobj)  // IDEMPOTENT
 //     if(gbuffer_leftbytes(gbuf) > 0) {
 //         gobj_log_error(0, 0,
 //             "function",     "%s", __FUNCTION__,
-//             "msgset",       "%s", MSGSET_INTERNAL_ERROR,
+//             "msgset",       "%s", MSGSET_INTERNAL,
 //             "msg",          "%s", "NEED a queue, NOT ALL DATA being encrypted",
 //             NULL
 //         );
@@ -1314,7 +1314,7 @@ PRIVATE int yev_callback(yev_event_h yev_event)
                     if(trace) {
                         gobj_log_debug(gobj, 0,
                             "function",     "%s", __FUNCTION__,
-                            "msgset",       "%s", MSGSET_LIBURING_ERROR,
+                            "msgset",       "%s", MSGSET_LIBURING,
                             "msg",          "%s", "TCP: connect FAILED",
                             "msg2",         "%s", "🌐TCP: connect FAILED",
                             "url",          "%s", gobj_read_str_attr(gobj, "url"),
@@ -1364,7 +1364,7 @@ PRIVATE int yev_callback(yev_event_h yev_event)
                     if(trace) {
                         gobj_log_debug(gobj, 0,
                             "function",     "%s", __FUNCTION__,
-                            "msgset",       "%s", MSGSET_LIBURING_ERROR,
+                            "msgset",       "%s", MSGSET_LIBURING,
                             "msg",          "%s", "TCP: accept FAILED",
                             "msg2",         "%s", "🌐TCP: accept FAILED",
                             "url",          "%s", gobj_read_str_attr(gobj, "url"),
@@ -1413,7 +1413,7 @@ PRIVATE int yev_callback(yev_event_h yev_event)
         default:
             gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
                 "function",     "%s", __FUNCTION__,
-                "msgset",       "%s", MSGSET_SYSTEM_ERROR,
+                "msgset",       "%s", MSGSET_SYSTEM,
                 "msg",          "%s", "TCP: event type NOT IMPLEMENTED",
                 "msg2",         "%s", "🌐TCP: event type NOT IMPLEMENTED",
                 "url",          "%s", gobj_read_str_attr(gobj, "url"),
@@ -1458,7 +1458,7 @@ PRIVATE int ac_connect(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
     )<0) {
         gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_INTERNAL_ERROR,
+            "msgset",       "%s", MSGSET_INTERNAL,
             "msg",          "%s", "Cannot connect tcp gobj",
             NULL
         );
@@ -1500,7 +1500,7 @@ PRIVATE int ac_connect(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
     if(yev_start_event(priv->yev_connect)<0) {
         gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_INTERNAL_ERROR,
+            "msgset",       "%s", MSGSET_INTERNAL,
             "msg",          "%s", "Cannot connect tcp gobj",
             NULL
         );
@@ -1522,7 +1522,7 @@ PRIVATE int ac_tx_data(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
     if(!gbuf) {
         gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_INTERNAL_ERROR,
+            "msgset",       "%s", MSGSET_INTERNAL,
             "msg",          "%s", "gbuffer NULL",
             NULL
         );
@@ -1651,7 +1651,7 @@ PRIVATE int create_gclass(gclass_name_t gclass_name)
     if(__gclass__) {
         gobj_log_error(0, 0,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_INTERNAL_ERROR,
+            "msgset",       "%s", MSGSET_INTERNAL,
             "msg",          "%s", "GClass ALREADY created",
             "gclass",       "%s", gclass_name,
             NULL

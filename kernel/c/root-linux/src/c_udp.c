@@ -161,7 +161,7 @@ PRIVATE int mt_start(hgobj gobj)
     if(!priv->yev_connect) {
         gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_INTERNAL_ERROR,
+            "msgset",       "%s", MSGSET_INTERNAL,
             "msg",          "%s", "Cannot connect tcp gobj",
             NULL
         );
@@ -236,7 +236,7 @@ PRIVATE void mt_destroy(hgobj gobj)
     if(!gobj_in_this_state(gobj, ST_STOPPED)) {
         gobj_log_error(gobj, 0,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_INTERNAL_ERROR,
+            "msgset",       "%s", MSGSET_INTERNAL,
             "msg",          "%s", "GObj NOT STOPPED. UV handler ACTIVE!",
             NULL
         );
@@ -329,7 +329,7 @@ PRIVATE int enqueue_write(hgobj gobj, gbuffer_t *gbuf)
     //     if((counter % priv->max_tx_queue)==0) {
     //         log_error(0,
     //             "function",     "%s", __FUNCTION__,
-    //             "msgset",       "%s", MSGSET_INTERNAL_ERROR,
+    //             "msgset",       "%s", MSGSET_INTERNAL,
     //             "msg",          "%s", "Tiro mensaje tx",
     //             "counter",      "%d", (int)counter,
     //             NULL
@@ -372,7 +372,7 @@ PRIVATE int write_data(hgobj gobj)
         if(ytls_encrypt_data(priv->ytls, priv->sskt, gbuf)<0) {
             gobj_log_error(gobj, 0,
                 "function",     "%s", __FUNCTION__,
-                "msgset",       "%s", MSGSET_SYSTEM_ERROR,
+                "msgset",       "%s", MSGSET_SYSTEM,
                 "msg",          "%s", "ytls_encrypt_data() FAILED",
                 "error",        "%s", ytls_get_last_error(priv->ytls, priv->sskt),
                 NULL
@@ -382,7 +382,7 @@ PRIVATE int write_data(hgobj gobj)
         if(gbuffer_leftbytes(gbuf) > 0) {
             gobj_log_error(gobj, 0,
                 "function",     "%s", __FUNCTION__,
-                "msgset",       "%s", MSGSET_INTERNAL_ERROR,
+                "msgset",       "%s", MSGSET_INTERNAL,
                 "msg",          "%s", "NEED a queue, NOT ALL DATA being encrypted",
                 NULL
             );
@@ -462,7 +462,7 @@ PRIVATE void on_read_cb(
     if(nread < 0) {
         gobj_log_error(gobj, 0,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_LIBUV_ERROR,
+            "msgset",       "%s", MSGSET_LIBURING,
             "msg",          "%s", "read FAILED",
             "uv_error",     "%s", uv_err_name(nread),
             NULL
@@ -504,7 +504,7 @@ PRIVATE void on_read_cb(
         if(!gbuf) {
             gobj_log_error(gobj, 0,
                 "function",     "%s", __FUNCTION__,
-                "msgset",       "%s", MSGSET_MEMORY_ERROR,
+                "msgset",       "%s", MSGSET_MEMORY,
                 "msg",          "%s", "no memory for gbuf",
                 "size",         "%d", nread,
                 NULL);
@@ -536,7 +536,7 @@ PRIVATE void on_upd_send_cb(uv_udp_send_t* req, int status)
     if (status != 0) {
         gobj_log_error(gobj, 0,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_LIBUV_ERROR,
+            "msgset",       "%s", MSGSET_LIBURING,
             "msg",          "%s", "upd send FAILED",
             "uv_error",     "%s", uv_err_name(status),
             NULL
@@ -590,7 +590,7 @@ PRIVATE int send_data(hgobj gobj, gbuffer_t *gbuf)
         // TODO aunque ponga un data_size de 1500 luego crece
         //gobj_log_error(gobj, 0,
         //    "function",     "%s", __FUNCTION__,
-        //    "msgset",       "%s", MSGSET_INTERNAL_ERROR,
+        //    "msgset",       "%s", MSGSET_INTERNAL,
         //    "msg",          "%s", "UPD lenght must not be greater than 1500",
         //    "ln",           "%d", ln,
         //    "rHost",        "%s", priv->rHost,
@@ -644,7 +644,7 @@ PRIVATE int send_data(hgobj gobj, gbuffer_t *gbuf)
     if(ret < 0) {
         gobj_log_error(gobj, 0,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_LIBUV_ERROR,
+            "msgset",       "%s", MSGSET_LIBURING,
             "msg",          "%s", "uv_udp_send() FAILED",
             "uv_error",     "%s", uv_err_name(ret),
             "rHost",        "%s", priv->rHost,
@@ -851,7 +851,7 @@ PRIVATE int yev_callback(yev_event_h yev_event)
         default:
             gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
                 "function",     "%s", __FUNCTION__,
-                "msgset",       "%s", MSGSET_SYSTEM_ERROR,
+                "msgset",       "%s", MSGSET_SYSTEM,
                 "msg",          "%s", "UDP: event type NOT IMPLEMENTED",
                 "msg2",         "%s", "🌐UDP: event type NOT IMPLEMENTED",
                 "url",          "%s", gobj_read_str_attr(gobj, "url"),
@@ -888,7 +888,7 @@ PRIVATE int ac_tx_data(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
     if(!gbuf) {
         gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_INTERNAL_ERROR,
+            "msgset",       "%s", MSGSET_INTERNAL,
             "msg",          "%s", "gbuffer NULL",
             NULL
         );
@@ -943,7 +943,7 @@ PRIVATE int create_gclass(gclass_name_t gclass_name)
     if(__gclass__) {
         gobj_log_error(0, 0,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_INTERNAL_ERROR,
+            "msgset",       "%s", MSGSET_INTERNAL,
             "msg",          "%s", "GClass ALREADY created",
             "gclass",       "%s", gclass_name,
             NULL

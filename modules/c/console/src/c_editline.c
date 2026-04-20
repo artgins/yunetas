@@ -367,7 +367,7 @@ PRIVATE int mt_start(hgobj gobj)
         if(!priv->wn) {
             gobj_log_error(gobj, 0,
                 "function",     "%s", __FUNCTION__,
-                "msgset",       "%s", MSGSET_SYSTEM_ERROR,
+                "msgset",       "%s", MSGSET_SYSTEM,
                 "msg",          "%s", "newwin() FAILED",
                 NULL
             );
@@ -447,7 +447,7 @@ PRIVATE int enableRawMode(int fd)
     if (!isatty(fd)) {
         gobj_log_error(0, LOG_OPT_TRACE_STACK,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_SYSTEM_ERROR,
+            "msgset",       "%s", MSGSET_SYSTEM,
             "msg",          "%s", "NOT a TTY",
             NULL
         );
@@ -460,7 +460,7 @@ PRIVATE int enableRawMode(int fd)
     if (tcgetattr(fd,&orig_termios) == -1) {
         gobj_log_error(0, LOG_OPT_TRACE_STACK,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_SYSTEM_ERROR,
+            "msgset",       "%s", MSGSET_SYSTEM,
             "msg",          "%s", "tcgetattr() FAILED",
             "errno",        "%d", errno,
             "serrno",       "%s", strerror(errno),
@@ -489,7 +489,7 @@ PRIVATE int enableRawMode(int fd)
     if (tcsetattr(fd,TCSAFLUSH,&raw) < 0) {
         gobj_log_error(0, LOG_OPT_TRACE_STACK,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_SYSTEM_ERROR,
+            "msgset",       "%s", MSGSET_SYSTEM,
             "msg",          "%s", "tcsetattr() FAILED",
             "errno",        "%d", errno,
             "serrno",       "%s", strerror(errno),
@@ -1067,7 +1067,7 @@ PRIVATE int completion_open_popup(PRIVATE_DATA *l, linenoiseCompletions *lc)
     if(!wn) {
         gobj_log_error(l->gobj_self, 0,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_SYSTEM_ERROR,
+            "msgset",       "%s", MSGSET_SYSTEM,
             "msg",          "%s", "newwin() FAILED",
             NULL
         );
@@ -1082,7 +1082,7 @@ PRIVATE int completion_open_popup(PRIVATE_DATA *l, linenoiseCompletions *lc)
         delwin(wn);
         gobj_log_error(l->gobj_self, 0,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_SYSTEM_ERROR,
+            "msgset",       "%s", MSGSET_SYSTEM,
             "msg",          "%s", "new_panel() FAILED",
             NULL
         );
@@ -2463,7 +2463,7 @@ PRIVATE int create_gclass(gclass_name_t gclass_name)
     if(__gclass__) {
         gobj_log_error(0, 0,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_INTERNAL_ERROR,
+            "msgset",       "%s", MSGSET_INTERNAL,
             "msg",          "%s", "GClass ALREADY created",
             "gclass",       "%s", gclass_name,
             NULL

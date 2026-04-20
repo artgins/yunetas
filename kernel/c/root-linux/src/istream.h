@@ -30,7 +30,7 @@ PUBLIC istream_h istream_create(
     if(var) {                                                           \
         gobj_log_error((gobj), LOG_OPT_TRACE_STACK,                     \
             "function",     "%s", __FUNCTION__,                         \
-            "msgset",       "%s", MSGSET_INTERNAL_ERROR,                \
+            "msgset",       "%s", MSGSET_INTERNAL,                \
             "msg",          "%s", "istream_h ALREADY exists! Destroyed",  \
             NULL                                                        \
         );                                                              \

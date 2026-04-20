@@ -138,7 +138,7 @@ PRIVATE int mt_start(hgobj gobj)
     if(!path || access(path, 0)!=0) {
         gobj_log_error(gobj, 0,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+            "msgset",       "%s", MSGSET_PARAMETER,
             "msg",          "%s", "path NOT EXIST",
             "path",         "%s", path,
             NULL
@@ -167,7 +167,7 @@ PRIVATE int mt_start(hgobj gobj)
         if(r!=0) {
             gobj_log_error(gobj, 0,
                 "function",     "%s", __FUNCTION__,
-                "msgset",       "%s", MSGSET_SYSTEM_ERROR,
+                "msgset",       "%s", MSGSET_SYSTEM,
                 "msg",          "%s", "regcomp() FAILED",
                 "re",           "%s", priv->patterns_list[i],
                 NULL
@@ -520,7 +520,7 @@ PRIVATE int create_gclass(gclass_name_t gclass_name)
     if(__gclass__) {
         gobj_log_error(0, 0,
             "function", "%s", __FUNCTION__,
-            "msgset",   "%s", MSGSET_INTERNAL_ERROR,
+            "msgset",   "%s", MSGSET_INTERNAL,
             "msg",      "%s", "GClass ALREADY created",
             "gclass",   "%s", gclass_name,
             NULL

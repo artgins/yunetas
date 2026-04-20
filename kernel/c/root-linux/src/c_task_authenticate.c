@@ -293,7 +293,7 @@ PRIVATE int mt_start(hgobj gobj)
     if(r < 0) {
         gobj_log_error(gobj, 0,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_TASK_ERROR,
+            "msgset",       "%s", MSGSET_TASK,
             "msg",          "%s", "BAD url parsing",
             "url",          "%s", auth_url,
             NULL
@@ -539,7 +539,7 @@ PRIVATE json_t *result_get_token(
         );
         gobj_log_error(gobj, 0,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_TASK_ERROR,
+            "msgset",       "%s", MSGSET_TASK,
             "msg",          "%s", "Oauth2 response without body",
             NULL
         );
@@ -593,7 +593,7 @@ PRIVATE json_t *result_get_token(
         json_object_set_new(output_data_, "comment", json_string("No access token in response"));
         gobj_log_error(gobj, 0,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_TASK_ERROR,
+            "msgset",       "%s", MSGSET_TASK,
             "msg",          "%s", "Oauth2 response without id_token or access_token",
             NULL
         );
@@ -713,7 +713,7 @@ PRIVATE json_t *result_logout(
     if(response_status_code != 204) {
         gobj_log_error(gobj, 0,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_TASK_ERROR,
+            "msgset",       "%s", MSGSET_TASK,
             "msg",          "%s", "Logout has failed",
             "status_code",  "%d", response_status_code,
             "status",       "%s", llhttp_status_name((llhttp_status_t)response_status_code),
@@ -813,7 +813,7 @@ PRIVATE int create_gclass(gclass_name_t gclass_name)
     if(__gclass__) {
         gobj_log_error(0, 0,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_INTERNAL_ERROR,
+            "msgset",       "%s", MSGSET_INTERNAL,
             "msg",          "%s", "GClass ALREADY created",
             "gclass",       "%s", gclass_name,
             NULL

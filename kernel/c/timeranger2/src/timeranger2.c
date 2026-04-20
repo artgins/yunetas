@@ -340,7 +340,7 @@ PUBLIC json_t *tranger2_startup(
         if(empty_string(path_)) {
             gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
                 "function",     "%s", __FUNCTION__,
-                "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+                "msgset",       "%s", MSGSET_PARAMETER,
                 "msg",          "%s", "Cannot startup TimeRanger. What path?",
                 NULL
             );
@@ -356,7 +356,7 @@ PUBLIC json_t *tranger2_startup(
         if(empty_string(database)) {
             gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
                 "function",     "%s", __FUNCTION__,
-                "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+                "msgset",       "%s", MSGSET_PARAMETER,
                 "msg",          "%s", "Cannot startup TimeRanger. What database?",
                 NULL
             );
@@ -415,7 +415,7 @@ PUBLIC json_t *tranger2_startup(
             if(jn_disk_tranger) {
                 gobj_log_warning(gobj, 0,
                     "function",     "%s", __FUNCTION__,
-                    "msgset",       "%s", MSGSET_TRANGER_ERROR,
+                    "msgset",       "%s", MSGSET_TRANGER,
                     "msg",          "%s", "Open as not master, __timeranger2__.json locked",
                     "path",         "%s", directory,
                     NULL
@@ -423,7 +423,7 @@ PUBLIC json_t *tranger2_startup(
             } else {
                 gobj_log_error(gobj, 0,
                     "function",     "%s", __FUNCTION__,
-                    "msgset",       "%s", MSGSET_TRANGER_ERROR,
+                    "msgset",       "%s", MSGSET_TRANGER,
                     "msg",          "%s", "Cannot open __timeranger__",
                     "path",         "%s", directory,
                     NULL
@@ -441,7 +441,7 @@ PUBLIC json_t *tranger2_startup(
         if(!master) {
             gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
                 "function",     "%s", __FUNCTION__,
-                "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+                "msgset",       "%s", MSGSET_PARAMETER,
                 "msg",          "%s", "Cannot startup TimeRanger. __timeranger2__.json not found and not master",
                 "path",         "%s", directory,
                 NULL
@@ -484,7 +484,7 @@ PUBLIC json_t *tranger2_startup(
         if(!jn_disk_tranger) {
             gobj_log_error(gobj, 0,
                 "function",     "%s", __FUNCTION__,
-                "msgset",       "%s", MSGSET_TRANGER_ERROR,
+                "msgset",       "%s", MSGSET_TRANGER,
                 "msg",          "%s", "Cannot create __timeranger2__.json",
                 "path",         "%s", directory,
                 NULL
@@ -617,7 +617,7 @@ PUBLIC json_t *tranger2_create_topic( // WARNING returned json IS NOT YOURS
     if(empty_string(topic_name)) {
         gobj_log_error(gobj, 0,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+            "msgset",       "%s", MSGSET_PARAMETER,
             "database",     "%s", kw_get_str(gobj, tranger, "directory", "", KW_REQUIRED),
             "msg",          "%s", "tranger_create_topic(): What topic name?",
             NULL
@@ -649,7 +649,7 @@ PUBLIC json_t *tranger2_create_topic( // WARNING returned json IS NOT YOURS
         if(!master) {
             gobj_log_error(gobj, 0,
                 "function",     "%s", __FUNCTION__,
-                "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+                "msgset",       "%s", MSGSET_PARAMETER,
                 "directory",    "%s", directory,
                 "msg",          "%s", "Cannot open TimeRanger topic. Not found and no master",
                 NULL
@@ -668,7 +668,7 @@ PUBLIC json_t *tranger2_create_topic( // WARNING returned json IS NOT YOURS
         if(empty_string(pkey)) {
             gobj_log_error(gobj, 0,
                 "function",     "%s", __FUNCTION__,
-                "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+                "msgset",       "%s", MSGSET_PARAMETER,
                 "database",     "%s", kw_get_str(gobj, tranger, "directory", "", KW_REQUIRED),
                 "msg",          "%s", "tranger_create_topic(): What pkey?",
                 NULL
@@ -683,7 +683,7 @@ PUBLIC json_t *tranger2_create_topic( // WARNING returned json IS NOT YOURS
             gobj_log_critical(gobj, kw_get_int(gobj, tranger, "on_critical_error", 0, KW_REQUIRED),
                 "function",     "%s", __FUNCTION__,
                 "path",         "%s", directory,
-                "msgset",       "%s", MSGSET_SYSTEM_ERROR,
+                "msgset",       "%s", MSGSET_SYSTEM,
                 "msg",          "%s", "Cannot create TimeRanger subdir. mkrdir() FAILED",
                 "errno",        "%d", errno,
                 "serrno",       "%s", strerror(errno),
@@ -714,7 +714,7 @@ PUBLIC json_t *tranger2_create_topic( // WARNING returned json IS NOT YOURS
             } else {
                 gobj_log_error(gobj, 0,
                     "function",     "%s", __FUNCTION__,
-                    "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+                    "msgset",       "%s", MSGSET_PARAMETER,
                     "database",     "%s", kw_get_str(gobj, tranger, "directory", "", KW_REQUIRED),
                     "msg",          "%s", "tranger_create_topic(): What key type?",
                     NULL
@@ -813,7 +813,7 @@ PUBLIC json_t *tranger2_create_topic( // WARNING returned json IS NOT YOURS
             gobj_log_critical(gobj, kw_get_int(gobj, tranger, "on_critical_error", 0, KW_REQUIRED),
                 "function",     "%s", __FUNCTION__,
                 "path",         "%s", full_path,
-                "msgset",       "%s", MSGSET_SYSTEM_ERROR,
+                "msgset",       "%s", MSGSET_SYSTEM,
                 "msg",          "%s", "Cannot create TimeRanger subdir. mkrdir() FAILED",
                 "errno",        "%d", errno,
                 "serrno",       "%s", strerror(errno),
@@ -831,7 +831,7 @@ PUBLIC json_t *tranger2_create_topic( // WARNING returned json IS NOT YOURS
             gobj_log_critical(gobj, kw_get_int(gobj, tranger, "on_critical_error", 0, KW_REQUIRED),
                 "function",     "%s", __FUNCTION__,
                 "path",         "%s", full_path,
-                "msgset",       "%s", MSGSET_SYSTEM_ERROR,
+                "msgset",       "%s", MSGSET_SYSTEM,
                 "msg",          "%s", "Cannot create TimeRanger subdir. mkrdir() FAILED",
                 "errno",        "%d", errno,
                 "serrno",       "%s", strerror(errno),
@@ -937,7 +937,7 @@ PUBLIC json_t *tranger2_open_topic( // WARNING returned json IS NOT YOURS
     if(empty_string(topic_name)) {
         gobj_log_error(gobj, 0,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+            "msgset",       "%s", MSGSET_PARAMETER,
             "database",     "%s", kw_get_str(gobj, tranger, "directory", "", KW_REQUIRED),
             "msg",          "%s", "tranger_open_topic(): What topic name?",
             NULL
@@ -966,7 +966,7 @@ PUBLIC json_t *tranger2_open_topic( // WARNING returned json IS NOT YOURS
         if(verbose) {
             gobj_log_error(gobj, 0,
                 "function",     "%s", __FUNCTION__,
-                "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+                "msgset",       "%s", MSGSET_PARAMETER,
                 "msg",          "%s", "tranger_open_topic(): directory not found",
                 "directory",    "%s", kw_get_str(gobj, tranger, "directory", "", KW_REQUIRED),
                 NULL
@@ -1098,7 +1098,7 @@ PUBLIC json_t *tranger2_topic( // WARNING returned JSON IS NOT YOURS
         if(!topic) {
             gobj_log_error(gobj, 0,
                 "function",     "%s", __FUNCTION__,
-                "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+                "msgset",       "%s", MSGSET_PARAMETER,
                 "msg",          "%s", "Cannot open topic",
                 "topic",        "%s", topic_name,
                 NULL
@@ -1283,7 +1283,7 @@ PUBLIC int tranger2_close_topic(
     if(!topic) {
         gobj_log_error(gobj, 0,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+            "msgset",       "%s", MSGSET_PARAMETER,
             "msg",          "%s", "tranger_close_topic(): Topic not found",
             "database",     "%s", kw_get_str(gobj, tranger, "directory", "", KW_REQUIRED),
             "topic",        "%s", topic_name,
@@ -1358,7 +1358,7 @@ PUBLIC int tranger2_delete_topic(
     if(!topic) {
         gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_INTERNAL_ERROR,
+            "msgset",       "%s", MSGSET_INTERNAL,
             "msg",          "%s", "Topic not found",
             "topic",        "%s", topic_name,
             NULL
@@ -1477,7 +1477,7 @@ PUBLIC json_t *tranger2_backup_topic(
         } else {
             gobj_log_error(gobj, 0,
                 "function",     "%s", __FUNCTION__,
-                "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+                "msgset",       "%s", MSGSET_PARAMETER,
                 "msg",          "%s", "backup_directory EXISTS",
                 "path",         "%s", backup_directory,
                 NULL
@@ -1504,7 +1504,7 @@ PUBLIC json_t *tranger2_backup_topic(
     if(!topic_desc) {
         gobj_log_error(gobj, 0,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+            "msgset",       "%s", MSGSET_PARAMETER,
             "msg",          "%s", "Cannot load topic_desc.json",
             NULL
         );
@@ -1547,7 +1547,7 @@ PUBLIC json_t *tranger2_backup_topic(
     if(rename(directory, backup_directory)<0) {
         gobj_log_error(gobj, 0,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+            "msgset",       "%s", MSGSET_PARAMETER,
             "msg",          "%s", "cannot backup topic",
             "errno",        "%d", errno,
             "serrno",       "%s", strerror(errno),
@@ -1592,7 +1592,7 @@ PUBLIC int tranger2_write_topic_var(
     if(!jn_topic_var) {
         gobj_log_error(gobj, 0,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+            "msgset",       "%s", MSGSET_PARAMETER,
             "msg",          "%s", "jn_topic_var EMPTY",
             NULL
         );
@@ -1601,7 +1601,7 @@ PUBLIC int tranger2_write_topic_var(
     if(!json_is_object(jn_topic_var)) {
         gobj_log_error(gobj, 0,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+            "msgset",       "%s", MSGSET_PARAMETER,
             "msg",          "%s", "jn_topic_var is NOT DICT",
             NULL
         );
@@ -1613,7 +1613,7 @@ PUBLIC int tranger2_write_topic_var(
     if(!master) {
         gobj_log_error(gobj, 0,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+            "msgset",       "%s", MSGSET_PARAMETER,
             "msg",          "%s", "Only master can write",
             NULL
         );
@@ -1675,7 +1675,7 @@ PUBLIC int tranger2_write_topic_cols(
     if(!jn_topic_cols) {
         gobj_log_error(gobj, 0,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+            "msgset",       "%s", MSGSET_PARAMETER,
             "msg",          "%s", "jn_topic_cols EMPTY",
             NULL
         );
@@ -1684,7 +1684,7 @@ PUBLIC int tranger2_write_topic_cols(
     if(!json_is_object(jn_topic_cols) && !json_is_array(jn_topic_cols)) {
         gobj_log_error(gobj, 0,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+            "msgset",       "%s", MSGSET_PARAMETER,
             "msg",          "%s", "jn_topic_cols MUST BE dict or list",
             NULL
         );
@@ -1696,7 +1696,7 @@ PUBLIC int tranger2_write_topic_cols(
     if(!master) {
         gobj_log_error(gobj, 0,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+            "msgset",       "%s", MSGSET_PARAMETER,
             "msg",          "%s", "Only master can write",
             NULL
         );
@@ -1827,7 +1827,7 @@ PRIVATE char *get_file_id(
     if(!tm) {
         gobj_log_error(gobj, 0,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+            "msgset",       "%s", MSGSET_PARAMETER,
             "msg",          "%s", "gmtime() FAILED",
             "errno",        "%d", errno,
             "serrno",       "%s", strerror(errno),
@@ -1889,7 +1889,7 @@ PRIVATE int create_file(
     if(!master) {
         gobj_log_error(gobj, 0,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+            "msgset",       "%s", MSGSET_PARAMETER,
             "path",         "%s", full_path,
             "msg",          "%s", "Only master can write",
             NULL
@@ -1919,7 +1919,7 @@ PRIVATE int create_file(
                 gobj_log_critical(gobj, kw_get_int(gobj, tranger, "on_critical_error", 0, KW_REQUIRED),
                     "function",     "%s", __FUNCTION__,
                     "path",         "%s", path_key,
-                    "msgset",       "%s", MSGSET_SYSTEM_ERROR,
+                    "msgset",       "%s", MSGSET_SYSTEM,
                     "msg",          "%s", "Cannot create subdir. mkrdir() FAILED",
                     "errno",        "%d", errno,
                     "serrno",       "%s", strerror(errno),
@@ -1929,7 +1929,7 @@ PRIVATE int create_file(
         } else {
             gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
                 "function",     "%s", __FUNCTION__,
-                "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+                "msgset",       "%s", MSGSET_PARAMETER,
                 "path",         "%s", path_key,
                 "msg",          "%s", "key directory not found",
                 NULL
@@ -1955,7 +1955,7 @@ PRIVATE int create_file(
 
             gobj_log_error(gobj, 0,
                 "function",             "%s", __FUNCTION__,
-                "msgset",               "%s", MSGSET_INTERNAL_ERROR,
+                "msgset",               "%s", MSGSET_INTERNAL,
                 "path",                 "%s", full_path,
                 "msg",                  "%s", "TOO MANY OPEN FILES 1",
                 "current soft limit",   "%d", rl.rlim_cur,
@@ -1968,7 +1968,7 @@ PRIVATE int create_file(
             if(fp < 0) {
                 gobj_log_critical(gobj, kw_get_int(gobj, tranger, "on_critical_error", 0, KW_REQUIRED),
                     "function",     "%s", __FUNCTION__,
-                    "msgset",       "%s", MSGSET_SYSTEM_ERROR,
+                    "msgset",       "%s", MSGSET_SYSTEM,
                     "msg",          "%s", "Cannot create json file, after close files",
                     "path",         "%s", full_path,
                     "errno",        "%d", errno,
@@ -1980,7 +1980,7 @@ PRIVATE int create_file(
         } else {
             gobj_log_critical(gobj, kw_get_int(gobj, tranger, "on_critical_error", 0, KW_REQUIRED),
                 "function",     "%s", __FUNCTION__,
-                "msgset",       "%s", MSGSET_SYSTEM_ERROR,
+                "msgset",       "%s", MSGSET_SYSTEM,
                 "msg",          "%s", "Cannot create json file",
                 "path",         "%s", full_path,
                 "errno",        "%d", errno,
@@ -2055,7 +2055,7 @@ PRIVATE int get_topic_wr_fd( // optimized
 
                     gobj_log_error(gobj, 0,
                         "function",             "%s", __FUNCTION__,
-                        "msgset",               "%s", MSGSET_INTERNAL_ERROR,
+                        "msgset",               "%s", MSGSET_INTERNAL,
                         "path",                 "%s", full_path,
                         "msg",                  "%s", "TOO MANY OPEN FILES 2",
                         "current soft limit",   "%d", rl.rlim_cur,
@@ -2078,7 +2078,7 @@ PRIVATE int get_topic_wr_fd( // optimized
             gobj_log_critical(gobj,
                 master?kw_get_int(gobj, tranger, "on_critical_error", 0, KW_REQUIRED):0,
                 "function",     "%s", __FUNCTION__,
-                "msgset",       "%s", MSGSET_SYSTEM_ERROR,
+                "msgset",       "%s", MSGSET_SYSTEM,
                 "msg",          "%s", "Cannot open file to write",
                 "path",         "%s", full_path,
                 "errno",        "%d", errno,
@@ -2166,7 +2166,7 @@ PRIVATE int get_topic_rd_fd(
 
                 gobj_log_error(gobj, 0,
                     "function",             "%s", __FUNCTION__,
-                    "msgset",               "%s", MSGSET_INTERNAL_ERROR,
+                    "msgset",               "%s", MSGSET_INTERNAL,
                     "path",                 "%s", full_path,
                     "msg",                  "%s", "TOO MANY OPEN FILES 3",
                     "current soft limit",   "%d", rl.rlim_cur,
@@ -2182,7 +2182,7 @@ PRIVATE int get_topic_rd_fd(
             gobj_log_critical(gobj,
                 master?kw_get_int(gobj, tranger, "on_critical_error", 0, KW_REQUIRED):0,
                 "function",     "%s", __FUNCTION__,
-                "msgset",       "%s", MSGSET_SYSTEM_ERROR,
+                "msgset",       "%s", MSGSET_SYSTEM,
                 "msg",          "%s", "Cannot open file to read",
                 "path",         "%s", full_path,
                 "errno",        "%d", errno,
@@ -2339,7 +2339,7 @@ PUBLIC int tranger2_append_record(
     if(!record || record->refcount <= 0) {
         gobj_log_error(gobj, 0,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_INTERNAL_ERROR,
+            "msgset",       "%s", MSGSET_INTERNAL,
             "msg",          "%s", "Cannot append record, record NULL",
             "topic",        "%s", topic_name,
             NULL
@@ -2353,7 +2353,7 @@ PUBLIC int tranger2_append_record(
     if(!master) {
         gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+            "msgset",       "%s", MSGSET_PARAMETER,
             "msg",          "%s", "Cannot append record, NO master",
             "topic",        "%s", topic_name,
             NULL
@@ -2367,7 +2367,7 @@ PUBLIC int tranger2_append_record(
     if(!topic) {
         gobj_log_error(gobj, 0,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_INTERNAL_ERROR,
+            "msgset",       "%s", MSGSET_INTERNAL,
             "msg",          "%s", "Cannot append record, topic not found",
             "topic",        "%s", topic_name,
             NULL
@@ -2414,7 +2414,7 @@ PUBLIC int tranger2_append_record(
                 if(empty_string(key_value)) {
                     gobj_log_error(gobj, 0,
                         "function",     "%s", __FUNCTION__,
-                        "msgset",       "%s", MSGSET_JSON_ERROR,
+                        "msgset",       "%s", MSGSET_JSON,
                         "msg",          "%s", "Cannot append record, no pkey",
                         "topic",        "%s", topic_name,
                         "pkey",         "%s", pkey,
@@ -2428,7 +2428,7 @@ PUBLIC int tranger2_append_record(
                     // Key will be a directory name, cannot be greater than NAME_MAX
                     gobj_log_error(gobj, 0,
                         "function",     "%s", __FUNCTION__,
-                        "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+                        "msgset",       "%s", MSGSET_PARAMETER,
                         "msg",          "%s", "Cannot append record, pkey too long",
                         "topic",        "%s", topic_name,
                         "key_value",    "%s", pkey,
@@ -2462,7 +2462,7 @@ PUBLIC int tranger2_append_record(
             // No pkey
             gobj_log_error(gobj, 0,
                 "function",     "%s", __FUNCTION__,
-                "msgset",       "%s", MSGSET_JSON_ERROR,
+                "msgset",       "%s", MSGSET_JSON,
                 "msg",          "%s", "Cannot append record, no pkey type",
                 "topic",        "%s", topic_name,
                 "pkey",         "%s", pkey,
@@ -2518,7 +2518,7 @@ PUBLIC int tranger2_append_record(
         if(__offset__ < 0) {
             gobj_log_critical(gobj, kw_get_int(gobj, tranger, "on_critical_error", 0, KW_REQUIRED),
                 "function",     "%s", __FUNCTION__,
-                "msgset",       "%s", MSGSET_SYSTEM_ERROR,
+                "msgset",       "%s", MSGSET_SYSTEM,
                 "msg",          "%s", "Cannot append record, lseek() FAILED",
                 "topic",        "%s", topic_name,
                 "errno",        "%d", errno,
@@ -2538,7 +2538,7 @@ PUBLIC int tranger2_append_record(
         if(!srecord) {
             gobj_log_error(gobj, 0,
                 "function",     "%s", __FUNCTION__,
-                "msgset",       "%s", MSGSET_JSON_ERROR,
+                "msgset",       "%s", MSGSET_JSON,
                 "msg",          "%s", "Cannot append record, json_dumps() FAILED",
                 "topic",        "%s", topic_name,
                 NULL
@@ -2586,7 +2586,7 @@ PUBLIC int tranger2_append_record(
         if(ln != md_record.__size__) {
             gobj_log_critical(gobj, kw_get_int(gobj, tranger, "on_critical_error", 0, KW_REQUIRED),
                 "function",     "%s", __FUNCTION__,
-                "msgset",       "%s", MSGSET_SYSTEM_ERROR,
+                "msgset",       "%s", MSGSET_SYSTEM,
                 "msg",          "%s", "Cannot append record, write FAILED",
                 "topic",        "%s", topic_name,
                 "errno",        "%d", errno,
@@ -2619,7 +2619,7 @@ PUBLIC int tranger2_append_record(
         if(offset < 0) {
             gobj_log_critical(gobj, kw_get_int(gobj, tranger, "on_critical_error", 0, KW_REQUIRED),
                 "function",     "%s", __FUNCTION__,
-                "msgset",       "%s", MSGSET_SYSTEM_ERROR,
+                "msgset",       "%s", MSGSET_SYSTEM,
                 "msg",          "%s", "Cannot append record, lseek() FAILED",
                 "topic",        "%s", topic_name,
                 "errno",        "%d", errno,
@@ -2650,7 +2650,7 @@ PUBLIC int tranger2_append_record(
         if(ln != sizeof(md2_record_t)) {
             gobj_log_critical(gobj, kw_get_int(gobj, tranger, "on_critical_error", 0, KW_REQUIRED),
                 "function",     "%s", __FUNCTION__,
-                "msgset",       "%s", MSGSET_SYSTEM_ERROR,
+                "msgset",       "%s", MSGSET_SYSTEM,
                 "msg",          "%s", "Cannot save record metadata, write FAILED",
                 "topic",        "%s", tranger2_topic_name(topic),
                 "errno",        "%d", errno,
@@ -2669,7 +2669,7 @@ PUBLIC int tranger2_append_record(
             if(g_rowid != i_rowid) {
                 gobj_log_error(gobj, 0,
                     "function",     "%s", __FUNCTION__,
-                    "msgset",       "%s", MSGSET_JSON_ERROR,
+                    "msgset",       "%s", MSGSET_JSON,
                     "msg",          "%s", "g_rowid != i_rowid",
                     "topic",        "%s", topic_name,
                     "g_rowid",      "%lu", (unsigned long) g_rowid,
@@ -2755,7 +2755,7 @@ PUBLIC int tranger2_delete_record(
     if(!master) {
         gobj_log_error(gobj, 0,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+            "msgset",       "%s", MSGSET_PARAMETER,
             "msg",          "%s", "Only master can delete",
             "topic_name",   "%s", topic_name,
             "key",          "%s", key,
@@ -2768,7 +2768,7 @@ PUBLIC int tranger2_delete_record(
     if(!topic) {
         gobj_log_error(gobj, 0,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+            "msgset",       "%s", MSGSET_PARAMETER,
             "msg",          "%s", "tranger2_topic() failed",
             "topic",        "%s", topic_name,
             NULL
@@ -2796,7 +2796,7 @@ PUBLIC int tranger2_delete_record(
             gobj_log_critical(gobj, LOG_OPT_TRACE_STACK,
                 "function",     "%s", __FUNCTION__,
                 "path",         "%s", path_key,
-                "msgset",       "%s", MSGSET_SYSTEM_ERROR,
+                "msgset",       "%s", MSGSET_SYSTEM,
                 "msg",          "%s", "Cannot delete subdir key. rmrdir() FAILED",
                 "errno",        "%d", errno,
                 "serrno",       "%s", strerror(errno),
@@ -2808,7 +2808,7 @@ PUBLIC int tranger2_delete_record(
     } else {
         gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+            "msgset",       "%s", MSGSET_PARAMETER,
             "path",         "%s", path_key,
             "msg",          "%s", "key directory not found",
             NULL
@@ -2846,7 +2846,7 @@ PRIVATE int get_md_record_for_wr(
     if(i_rowid == 0) {
         gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_INTERNAL_ERROR,
+            "msgset",       "%s", MSGSET_INTERNAL,
             "msg",          "%s", "rowid 0",
             "topic",        "%s", tranger2_topic_name(topic),
             "i_rowid",      "%lu", (unsigned long)i_rowid,
@@ -2866,7 +2866,7 @@ PRIVATE int get_md_record_for_wr(
     if(offset != offset_) {
         gobj_log_critical(gobj, kw_get_int(gobj, tranger, "on_critical_error", 0, KW_REQUIRED) | LOG_OPT_TRACE_STACK,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_INTERNAL_ERROR,
+            "msgset",       "%s", MSGSET_INTERNAL,
             "msg",          "%s", "lseek() failed, topic_idx.md corrupted",
             "topic",        "%s", kw_get_str(gobj, topic, "directory", 0, KW_REQUIRED),
             "offset",       "%lu", (unsigned long)offset,
@@ -2886,7 +2886,7 @@ PRIVATE int get_md_record_for_wr(
     if(ln != sizeof(md2_record_t)) {
         gobj_log_critical(gobj, kw_get_int(gobj, tranger, "on_critical_error", 0, KW_REQUIRED) | LOG_OPT_TRACE_STACK,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_SYSTEM_ERROR,
+            "msgset",       "%s", MSGSET_SYSTEM,
             "msg",          "%s", "Cannot read record metadata, read FAILED",
             "topic",        "%s", tranger2_topic_name(topic),
             "errno",        "%d", errno,
@@ -2907,7 +2907,7 @@ PRIVATE int get_md_record_for_wr(
     if(get_time_t(md_record) != __t__) {
         gobj_log_critical(gobj, kw_get_int(gobj, tranger, "on_critical_error", 0, KW_REQUIRED) | LOG_OPT_TRACE_STACK,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_INTERNAL_ERROR,
+            "msgset",       "%s", MSGSET_INTERNAL,
             "msg",          "%s", "__t__ not match, topic_idx.md corrupted",
             "topic",        "%s", kw_get_str(gobj, topic, "directory", 0, KW_REQUIRED),
             "t1",           "%lu", (unsigned long)get_time_t(md_record),
@@ -2939,7 +2939,7 @@ PRIVATE int rewrite_md_to_file(
     if(offset != offset_) {
         gobj_log_critical(gobj, kw_get_int(gobj, tranger, "on_critical_error", 0, KW_REQUIRED) | LOG_OPT_TRACE_STACK,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_INTERNAL_ERROR,
+            "msgset",       "%s", MSGSET_INTERNAL,
             "msg",          "%s", "lseek() failed, topic_idx.md corrupted",
             "topic",        "%s", kw_get_str(gobj, topic, "directory", 0, KW_REQUIRED),
             "offset",       "%lu", (unsigned long)offset,
@@ -2966,7 +2966,7 @@ PRIVATE int rewrite_md_to_file(
     if(ln != sizeof(md2_record_t)) {
         gobj_log_critical(gobj, kw_get_int(gobj, tranger, "on_critical_error", 0, KW_REQUIRED),
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_SYSTEM_ERROR,
+            "msgset",       "%s", MSGSET_SYSTEM,
             "msg",          "%s", "Cannot re-write record metadata, write FAILED",
             "topic",        "%s", tranger2_topic_name(topic),
             "errno",        "%d", errno,
@@ -3002,7 +3002,7 @@ PUBLIC int tranger2_write_user_flag(
     if(!topic) {
         gobj_log_error(gobj, 0,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+            "msgset",       "%s", MSGSET_PARAMETER,
             "msg",          "%s", "Cannot open topic",
             "topic",        "%s", topic_name,
             "errno",        "%d", errno,
@@ -3071,7 +3071,7 @@ PUBLIC int tranger2_set_user_flag(
     if(!topic) {
         gobj_log_error(gobj, 0,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+            "msgset",       "%s", MSGSET_PARAMETER,
             "msg",          "%s", "Cannot open topic",
             "topic",        "%s", topic_name,
             "errno",        "%d", errno,
@@ -3151,7 +3151,7 @@ PUBLIC uint16_t tranger2_read_user_flag(
     if(!topic) {
         gobj_log_error(gobj, 0,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+            "msgset",       "%s", MSGSET_PARAMETER,
             "msg",          "%s", "Cannot open topic",
             "topic",        "%s", topic_name,
             "errno",        "%d", errno,
@@ -3218,7 +3218,7 @@ PUBLIC json_t *tranger2_open_rt_mem(
     if(!topic) {
         gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+            "msgset",       "%s", MSGSET_PARAMETER,
             "msg",          "%s", "tranger2_open_rt_mem: what topic?",
             NULL
         );
@@ -3230,7 +3230,7 @@ PUBLIC json_t *tranger2_open_rt_mem(
     if(!load_record_callback) {
         gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+            "msgset",       "%s", MSGSET_PARAMETER,
             "msg",          "%s", "tranger2_open_rt_mem: what load_record_callback?",
             NULL
         );
@@ -3249,7 +3249,7 @@ PUBLIC json_t *tranger2_open_rt_mem(
     if(tranger2_get_rt_mem_by_id(tranger, topic_name, id, creator)) {
         gobj_log_warning(gobj, 0,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+            "msgset",       "%s", MSGSET_PARAMETER,
             "msg",          "%s", "tranger2_open_rt_mem(): Mem already exists",
             "topic_name",   "%s", tranger2_topic_name(topic),
             "key",          "%s", key,
@@ -3311,7 +3311,7 @@ PUBLIC int tranger2_close_rt_mem(
     if(!mem) {
         gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+            "msgset",       "%s", MSGSET_PARAMETER,
             "msg",          "%s", "tranger2_close_rt_mem(): mem NULL",
             NULL
         );
@@ -3340,7 +3340,7 @@ PUBLIC int tranger2_close_rt_mem(
     if(!lists) {
         gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+            "msgset",       "%s", MSGSET_PARAMETER,
             "msg",          "%s", "tranger2_close_rt_mem(): lists not found",
             NULL
         );
@@ -3356,7 +3356,7 @@ PUBLIC int tranger2_close_rt_mem(
     } else {
         gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+            "msgset",       "%s", MSGSET_PARAMETER,
             "msg",          "%s", "tranger2_close_rt_mem(): list not found",
             NULL
         );
@@ -3381,7 +3381,7 @@ PUBLIC json_t *tranger2_get_rt_mem_by_id(
     if(empty_string(id)) {
         gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+            "msgset",       "%s", MSGSET_PARAMETER,
             "msg",          "%s", "tranger2_get_rt_mem_by_id: what id?",
             NULL
         );
@@ -3450,7 +3450,7 @@ PUBLIC json_t *tranger2_open_rt_disk(
     if(!topic) {
         gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+            "msgset",       "%s", MSGSET_PARAMETER,
             "msg",          "%s", "what topic?",
             NULL
         );
@@ -3462,7 +3462,7 @@ PUBLIC json_t *tranger2_open_rt_disk(
     if(!load_record_callback) {
         gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+            "msgset",       "%s", MSGSET_PARAMETER,
             "msg",          "%s", "what load_record_callback?",
             NULL
         );
@@ -3474,7 +3474,7 @@ PUBLIC json_t *tranger2_open_rt_disk(
     if(empty_string(id)) {
         gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+            "msgset",       "%s", MSGSET_PARAMETER,
             "msg",          "%s", "what id?",
             NULL
         );
@@ -3488,7 +3488,7 @@ PUBLIC json_t *tranger2_open_rt_disk(
     if(tranger2_get_rt_disk_by_id(tranger, topic_name, id, creator)) {
         gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+            "msgset",       "%s", MSGSET_PARAMETER,
             "msg",          "%s", "Disk already exists",
             "topic_name",   "%s", tranger2_topic_name(topic),
             "key",          "%s", key,
@@ -3579,7 +3579,7 @@ PUBLIC int tranger2_close_rt_disk(
     if(!disk) {
         gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+            "msgset",       "%s", MSGSET_PARAMETER,
             "msg",          "%s", "tranger2_close_rt_disk(): disk NULL",
             NULL
         );
@@ -3651,7 +3651,7 @@ PUBLIC int tranger2_close_rt_disk(
     if(!disks) {
         gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+            "msgset",       "%s", MSGSET_PARAMETER,
             "msg",          "%s", "tranger2_close_rt_disk(): disks not found",
             NULL
         );
@@ -3667,7 +3667,7 @@ PUBLIC int tranger2_close_rt_disk(
     } else {
         gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+            "msgset",       "%s", MSGSET_PARAMETER,
             "msg",          "%s", "tranger2_close_rt_disk(): disk not found",
             NULL
         );
@@ -3692,7 +3692,7 @@ PUBLIC json_t *tranger2_get_rt_disk_by_id(
     if(empty_string(id)) {
         gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+            "msgset",       "%s", MSGSET_PARAMETER,
             "msg",          "%s", "tranger2_get_rt_disk_by_id: what id?",
             NULL
         );
@@ -3750,7 +3750,7 @@ PRIVATE BOOL find_rt_disk_cb(
     if(strcmp(disks, "disks")!=0) {
         gobj_log_error(gobj, 0,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_INTERNAL_ERROR,
+            "msgset",       "%s", MSGSET_INTERNAL,
             "msg",          "%s", "Bad path master 0 /disks/rt_id/",
             "directory",    "%s", directory,
             "filename",     "%s", filename,
@@ -3826,7 +3826,7 @@ PRIVATE fs_event_t *monitor_disks_directory_by_master(
     if(!fs_event) {
         gobj_log_error(gobj, 0,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_INTERNAL_ERROR,
+            "msgset",       "%s", MSGSET_INTERNAL,
             "msg",          "%s", "fs_create_watcher_event FAILED",
             NULL
         );
@@ -3887,7 +3887,7 @@ PRIVATE int master_fs_callback(fs_event_t *fs_event)
                 if(strcmp(disks, "disks")!=0) {
                     gobj_log_error(gobj, 0,
                         "function",     "%s", __FUNCTION__,
-                        "msgset",       "%s", MSGSET_INTERNAL_ERROR,
+                        "msgset",       "%s", MSGSET_INTERNAL,
                         "msg",          "%s", "Bad path master 1 /disks/rt_id/",
                         "directory",    "%s", fs_event->directory,
                         "filename",     "%s", fs_event->filename,
@@ -3949,7 +3949,7 @@ PRIVATE int master_fs_callback(fs_event_t *fs_event)
                      */
                     gobj_log_error(gobj, 0,
                         "function",     "%s", __FUNCTION__,
-                        "msgset",       "%s", MSGSET_INTERNAL_ERROR,
+                        "msgset",       "%s", MSGSET_INTERNAL,
                         "msg",          "%s", "Bad path master 2 /disks/rt_id/",
                         "directory",    "%s", fs_event->directory,
                         "filename",     "%s", fs_event->filename,
@@ -3970,7 +3970,7 @@ PRIVATE int master_fs_callback(fs_event_t *fs_event)
         case FS_FILE_CREATED_TYPE:
             gobj_log_error(gobj, 0,
                 "function",     "%s", __FUNCTION__,
-                "msgset",       "%s", MSGSET_INTERNAL_ERROR,
+                "msgset",       "%s", MSGSET_INTERNAL,
                 "msg",          "%s", "FS_FILE_CREATED_TYPE master fs_event NOT processed",
                 NULL
             );
@@ -3978,7 +3978,7 @@ PRIVATE int master_fs_callback(fs_event_t *fs_event)
         case FS_FILE_DELETED_TYPE:
             gobj_log_error(gobj, 0,
                 "function",     "%s", __FUNCTION__,
-                "msgset",       "%s", MSGSET_INTERNAL_ERROR,
+                "msgset",       "%s", MSGSET_INTERNAL,
                 "msg",          "%s", "FS_FILE_DELETED_TYPE master fs_event NOT processed",
                 NULL
             );
@@ -3986,7 +3986,7 @@ PRIVATE int master_fs_callback(fs_event_t *fs_event)
         case FS_FILE_MODIFIED_TYPE:
             gobj_log_error(gobj, 0,
                 "function",     "%s", __FUNCTION__,
-                "msgset",       "%s", MSGSET_INTERNAL_ERROR,
+                "msgset",       "%s", MSGSET_INTERNAL,
                 "msg",          "%s", "FS_FILE_MODIFIED_TYPE master fs_event NOT processed",
                 NULL
             );
@@ -3994,7 +3994,7 @@ PRIVATE int master_fs_callback(fs_event_t *fs_event)
         case FS_FILE_RENAME_TYPE:
             gobj_log_error(gobj, 0,
                 "function",     "%s", __FUNCTION__,
-                "msgset",       "%s", MSGSET_INTERNAL_ERROR,
+                "msgset",       "%s", MSGSET_INTERNAL,
                 "msg",          "%s", "FS_FILE_RENAME_TYPE master fs_event NOT processed",
                 NULL
             );
@@ -4047,7 +4047,7 @@ PRIVATE int master_to_update_client_load_record_callback(
         if(mkdir(full_path_dest, json_integer_value(json_object_get(tranger, "xpermission")))<0) {
             gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
                 "function",     "%s", __FUNCTION__,
-                "msgset",       "%s", MSGSET_SYSTEM_ERROR,
+                "msgset",       "%s", MSGSET_SYSTEM,
                 "msg",          "%s", "mkdir() FAILED",
                 "path",         "%s", full_path_dest,
                 "errno",        "%d", errno,
@@ -4092,7 +4092,7 @@ PRIVATE int master_to_update_client_load_record_callback(
         if(link(full_path_orig, full_path_dest)<0) {
             gobj_log_error(gobj, 0,
                 "function",     "%s", __FUNCTION__,
-                "msgset",       "%s", MSGSET_SYSTEM_ERROR,
+                "msgset",       "%s", MSGSET_SYSTEM,
                 "msg",          "%s", "link() FAILED",
                 "src",          "%s", full_path_orig,
                 "dst",          "%s", full_path_dest,
@@ -4123,7 +4123,7 @@ PRIVATE fs_event_t *monitor_rt_disk_by_client(
     if(empty_string(id)) {
         gobj_log_error(gobj, 0,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_INTERNAL_ERROR,
+            "msgset",       "%s", MSGSET_INTERNAL,
             "msg",          "%s", "rt_id cannot be empty",
             NULL
         );
@@ -4160,7 +4160,7 @@ PRIVATE fs_event_t *monitor_rt_disk_by_client(
     if(mkdir(full_path, json_integer_value(json_object_get(tranger, "xpermission")))<0) {
         gobj_log_error(gobj, 0,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_SYSTEM_ERROR,
+            "msgset",       "%s", MSGSET_SYSTEM,
             "msg",          "%s", "mkdir() FAILED",
             "path",         "%s", full_path,
             "errno",        "%d", errno,
@@ -4181,7 +4181,7 @@ PRIVATE fs_event_t *monitor_rt_disk_by_client(
     if(!fs_event) {
         gobj_log_error(gobj, 0,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_INTERNAL_ERROR,
+            "msgset",       "%s", MSGSET_INTERNAL,
             "msg",          "%s", "fs_create_watcher_event FAILED",
             NULL
         );
@@ -4254,7 +4254,7 @@ PRIVATE int client_fs_callback(fs_event_t *fs_event)
             // TODO this indicate that a key has been removed, do something
             gobj_log_error(gobj, 0,
                 "function",     "%s", __FUNCTION__,
-                "msgset",       "%s", MSGSET_INTERNAL_ERROR,
+                "msgset",       "%s", MSGSET_INTERNAL,
                 "msg",          "%s", "FS_SUBDIR_DELETED_TYPE client fs_event NOT processed",
                 NULL
             );
@@ -4302,7 +4302,7 @@ PRIVATE int client_fs_callback(fs_event_t *fs_event)
         case FS_FILE_MODIFIED_TYPE:
             gobj_log_error(gobj, 0,
                 "function",     "%s", __FUNCTION__,
-                "msgset",       "%s", MSGSET_INTERNAL_ERROR,
+                "msgset",       "%s", MSGSET_INTERNAL,
                 "msg",          "%s", "FS_FILE_MODIFIED_TYPE client fs_event NOT processed",
                 NULL
             );
@@ -4311,7 +4311,7 @@ PRIVATE int client_fs_callback(fs_event_t *fs_event)
         case FS_FILE_RENAME_TYPE:
             gobj_log_error(gobj, 0,
                 "function",     "%s", __FUNCTION__,
-                "msgset",       "%s", MSGSET_INTERNAL_ERROR,
+                "msgset",       "%s", MSGSET_INTERNAL,
                 "msg",          "%s", "FS_FILE_RENAME_TYPE client fs_event NOT processed",
                 NULL
             );
@@ -4374,7 +4374,7 @@ PRIVATE int update_key_by_hard_link(
     if(unlink(path)<0) { // WARNING it's a bit slow!
         gobj_log_error(gobj, 0,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_SYSTEM_ERROR,
+            "msgset",       "%s", MSGSET_SYSTEM,
             "msg",          "%s", "unlink() FAILED",
             "path",         "%s", path,
             "errno",        "%d", errno,
@@ -4391,7 +4391,7 @@ PRIVATE int update_key_by_hard_link(
     if(strcmp(disks, "disks")!=0) {
         gobj_log_error(gobj, 0,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_INTERNAL_ERROR,
+            "msgset",       "%s", MSGSET_INTERNAL,
             "msg",          "%s", "Bad path client 2 /disks/rt_id/key/md2",
             "path",         "%s", path,
             "topic_name",   "%s", topic_name,
@@ -4688,7 +4688,7 @@ PRIVATE int find_keys_in_disk(
     if(!dir) {
         gobj_log_error(gobj, 0,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+            "msgset",       "%s", MSGSET_PARAMETER,
             "msg",          "%s", "find tranger2 keys: directory not found",
             "path",         "%s", full_path,
            NULL
@@ -4847,7 +4847,7 @@ PRIVATE json_t *get_last_cache_cell(
     if(!cache_files) {
         gobj_log_error(gobj, 0,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_INTERNAL_ERROR,
+            "msgset",       "%s", MSGSET_INTERNAL,
             "msg",          "%s", "no cache files",
             "topic",        "%s", tranger2_topic_name(topic),
             "key",          "%s", key,
@@ -5049,7 +5049,7 @@ PRIVATE uint64_t load_first_and_last_record_md(
     if(fd<0) {
         gobj_log_critical(gobj, 0,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_SYSTEM_ERROR,
+            "msgset",       "%s", MSGSET_SYSTEM,
             "msg",          "%s", "Cannot open md2 file",
             "path",         "%s", full_path,
             "errno",        "%d", errno,
@@ -5077,7 +5077,7 @@ PRIVATE uint64_t load_first_and_last_record_md(
         if(ln<0) {
             gobj_log_critical(gobj, 0,
                 "function",     "%s", __FUNCTION__,
-                "msgset",       "%s", MSGSET_SYSTEM_ERROR,
+                "msgset",       "%s", MSGSET_SYSTEM,
                 "msg",          "%s", "Cannot read first record of md2 file",
                 "path",         "%s", full_path,
                 "errno",        "%d", errno,
@@ -5099,7 +5099,7 @@ PRIVATE uint64_t load_first_and_last_record_md(
     if(offset < 0 || (offset % sizeof(md2_record_t)!=0)) {
         gobj_log_critical(gobj, 0,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_INTERNAL_ERROR,
+            "msgset",       "%s", MSGSET_INTERNAL,
             "msg",          "%s", "Cannot read last record, md2 file corrupted",
             "path",         "%s", full_path,
             "offset",       "%ld", (long)offset,
@@ -5123,7 +5123,7 @@ PRIVATE uint64_t load_first_and_last_record_md(
         if(offset2 < 0 || offset2 != offset) {
             gobj_log_critical(gobj, 0,
                 "function",     "%s", __FUNCTION__,
-                "msgset",       "%s", MSGSET_SYSTEM_ERROR,
+                "msgset",       "%s", MSGSET_SYSTEM,
                 "msg",          "%s", "Cannot read last record, lseek() FAILED",
                 "errno",        "%d", errno,
                 "serrno",       "%s", strerror(errno),
@@ -5144,7 +5144,7 @@ PRIVATE uint64_t load_first_and_last_record_md(
         } else {
             gobj_log_critical(gobj, 0,
                 "function",     "%s", __FUNCTION__,
-                "msgset",       "%s", MSGSET_SYSTEM_ERROR,
+                "msgset",       "%s", MSGSET_SYSTEM,
                 "msg",          "%s", "Cannot read last record of md2 file",
                 "path",         "%s", full_path,
                 "errno",        "%d", errno,
@@ -5177,7 +5177,7 @@ PRIVATE json_int_t update_new_record_from_mem(
     if(!topic_cache) {
         gobj_log_error(gobj, 0,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_INTERNAL_ERROR,
+            "msgset",       "%s", MSGSET_INTERNAL,
             "msg",          "%s", "no cache files",
             "topic",        "%s", tranger2_topic_name(topic),
             "key",          "%s", key,
@@ -5256,7 +5256,7 @@ PRIVATE json_int_t update_totals_of_key_cache(
     if(!cache_files) {
         gobj_log_error(gobj, 0,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_INTERNAL_ERROR,
+            "msgset",       "%s", MSGSET_INTERNAL,
             "msg",          "%s", "no cache files",
             "topic",        "%s", tranger2_topic_name(topic),
             "key",          "%s", key,
@@ -5435,7 +5435,7 @@ PUBLIC json_t *tranger2_open_iterator( // LOADING: load data from disk, APPENDIN
     if(empty_string(key)) {
         gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+            "msgset",       "%s", MSGSET_PARAMETER,
             "msg",          "%s", "What key?",
             "topic_name",   "%s", topic_name,
             NULL
@@ -5454,7 +5454,7 @@ PUBLIC json_t *tranger2_open_iterator( // LOADING: load data from disk, APPENDIN
     if(tranger2_get_iterator_by_id(tranger, topic_name, iterator_id, creator)) {
         gobj_log_error(gobj, 0,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+            "msgset",       "%s", MSGSET_PARAMETER,
             "msg",          "%s", "Iterator already exists",
             "topic_name",   "%s", topic_name,
             "key",          "%s", key,
@@ -5637,7 +5637,7 @@ PUBLIC int tranger2_close_iterator(
     if(!iterator) {
         gobj_log_error(gobj, 0,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+            "msgset",       "%s", MSGSET_PARAMETER,
             "msg",          "%s", "tranger2_close_iterator(): iterator NULL",
             NULL
         );
@@ -5659,7 +5659,7 @@ PUBLIC int tranger2_close_iterator(
     if(!iterators) {
         gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+            "msgset",       "%s", MSGSET_PARAMETER,
             "msg",          "%s", "tranger2_close_iterator(): iterators not found",
             NULL
         );
@@ -5675,7 +5675,7 @@ PUBLIC int tranger2_close_iterator(
     } else {
         gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+            "msgset",       "%s", MSGSET_PARAMETER,
             "msg",          "%s", "tranger2_close_iterator(): iterator not found",
             NULL
         );
@@ -5700,7 +5700,7 @@ PUBLIC json_t *tranger2_get_iterator_by_id(
     if(empty_string(id)) {
         gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+            "msgset",       "%s", MSGSET_PARAMETER,
             "msg",          "%s", "tranger2_get_iterator_by_id: What id?",
             NULL
         );
@@ -5773,7 +5773,7 @@ PUBLIC json_t *tranger2_iterator_get_page( // return must be owned
     if(!iterator) {
         gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+            "msgset",       "%s", MSGSET_PARAMETER,
             "msg",          "%s", "tranger2_iterator_get_page(): iterator NULL",
             NULL
         );
@@ -5959,7 +5959,7 @@ PRIVATE json_t *get_segments(
     if(!cache_total) {
         gobj_log_error(gobj, 0,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_INTERNAL_ERROR,
+            "msgset",       "%s", MSGSET_INTERNAL,
             "msg",          "%s", "no cache",
             "topic",        "%s", tranger2_topic_name(topic),
             "key",          "%s", key,
@@ -6643,7 +6643,7 @@ PRIVATE json_int_t next_segment_row(
             if(cur_rowid != segment_first_row) {
                 gobj_log_error(gobj, 0,
                     "function",     "%s", __FUNCTION__,
-                    "msgset",       "%s", MSGSET_INTERNAL_ERROR,
+                    "msgset",       "%s", MSGSET_INTERNAL,
                     "msg",          "%s", "next rowids not consecutive",
                     "cur_rowid",    "%ld", (long)cur_rowid,
                     "segment_first","%ld", (long)segment_first_row,
@@ -6682,7 +6682,7 @@ PRIVATE json_int_t next_segment_row(
             if(cur_rowid != segment_last_row) {
                 gobj_log_error(gobj, 0,
                     "function",     "%s", __FUNCTION__,
-                    "msgset",       "%s", MSGSET_INTERNAL_ERROR,
+                    "msgset",       "%s", MSGSET_INTERNAL,
                     "msg",          "%s", "previous rowids not consecutive",
                     "cur_rowid",    "%ld", (long)cur_rowid,
                     "segment_first","%ld", (long)segment_last_row,
@@ -6866,7 +6866,7 @@ PRIVATE int get_md_by_rowid(
     if(!(rowid >= first_rowid && rowid <= last_rowid)) {
         gobj_log_error(gobj, 0,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_INTERNAL_ERROR,
+            "msgset",       "%s", MSGSET_INTERNAL,
             "msg",          "%s", "Bad rowid range in segment",
             "topic",        "%s", tranger2_topic_name(topic),
             "key",          "%s", key,
@@ -6882,7 +6882,7 @@ PRIVATE int get_md_by_rowid(
     if(relative_rowid <= 0) {
         gobj_log_critical(gobj, 0,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_SYSTEM_ERROR,
+            "msgset",       "%s", MSGSET_SYSTEM,
             "msg",          "%s", "Cannot read record metadata, relative_rowid negative",
             "topic",        "%s", tranger2_topic_name(topic),
             "directory",    "%s", kw_get_str(gobj, topic, "directory", 0, KW_REQUIRED),
@@ -6940,7 +6940,7 @@ PRIVATE int read_md(
     if(rowid <= 0) {
         gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_INTERNAL_ERROR,
+            "msgset",       "%s", MSGSET_INTERNAL,
             "msg",          "%s", "rowid must be relative to 1",
             "topic",        "%s", tranger2_topic_name(topic),
             "key",          "%s", key,
@@ -6973,7 +6973,7 @@ PRIVATE int read_md(
     if(offset != offset_) {
         gobj_log_critical(gobj, 0,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_SYSTEM_ERROR,
+            "msgset",       "%s", MSGSET_SYSTEM,
             "msg",          "%s", "Cannot read record metadata, lseek FAILED",
             "topic",        "%s", tranger2_topic_name(topic),
             "directory",    "%s", kw_get_str(gobj, topic, "directory", 0, KW_REQUIRED),
@@ -6993,7 +6993,7 @@ PRIVATE int read_md(
     if(ln != sizeof(md2_record_t)) {
         gobj_log_critical(gobj, 0,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_SYSTEM_ERROR,
+            "msgset",       "%s", MSGSET_SYSTEM,
             "msg",          "%s", "Cannot read record metadata, read FAILED",
             "topic",        "%s", tranger2_topic_name(topic),
             "directory",    "%s", kw_get_str(gobj, topic, "directory", 0, KW_REQUIRED),
@@ -7039,7 +7039,7 @@ PUBLIC json_t *tranger2_read_record_content( // return is yours
     if(!topic) {
         gobj_log_error(gobj, 0,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_MEMORY_ERROR,
+            "msgset",       "%s", MSGSET_MEMORY,
             "msg",          "%s", "What topic?",
             NULL
         );
@@ -7054,7 +7054,7 @@ PUBLIC json_t *tranger2_read_record_content( // return is yours
     if(empty_string(key)) {
         gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_MEMORY_ERROR,
+            "msgset",       "%s", MSGSET_MEMORY,
             "msg",          "%s", "What key?",
             NULL
         );
@@ -7063,7 +7063,7 @@ PUBLIC json_t *tranger2_read_record_content( // return is yours
     if(!md_record_ex) {
         gobj_log_error(gobj, 0,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_MEMORY_ERROR,
+            "msgset",       "%s", MSGSET_MEMORY,
             "msg",          "%s", "md_record_ex required",
             NULL
         );
@@ -7135,7 +7135,7 @@ PRIVATE json_t *read_record_content(
     if(offset != offset_) {
         gobj_log_critical(gobj, 0,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_SYSTEM_ERROR,
+            "msgset",       "%s", MSGSET_SYSTEM,
             "msg",          "%s", "Cannot read record data, lseek FAILED",
             "topic",        "%s", tranger2_topic_name(topic),
             "directory",    "%s", kw_get_str(gobj, topic, "directory", 0, KW_REQUIRED),
@@ -7151,7 +7151,7 @@ PRIVATE json_t *read_record_content(
     if(!p) {
         gobj_log_error(gobj, 0,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_MEMORY_ERROR,
+            "msgset",       "%s", MSGSET_MEMORY,
             "msg",          "%s", "Cannot read record data. NO Memory",
             "topic",        "%s", tranger2_topic_name(topic),
             "directory",    "%s", kw_get_str(gobj, topic, "directory", 0, KW_REQUIRED),
@@ -7169,7 +7169,7 @@ PRIVATE json_t *read_record_content(
     if(ln != md_record_ex->__size__) {
         gobj_log_critical(gobj, 0,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_SYSTEM_ERROR,
+            "msgset",       "%s", MSGSET_SYSTEM,
             "msg",          "%s", "Cannot read record data, read FAILED",
             "topic",        "%s", tranger2_topic_name(topic),
             "directory",    "%s", kw_get_str(gobj, topic, "directory", 0, KW_REQUIRED),
@@ -7218,7 +7218,7 @@ PRIVATE json_t *read_record_content(
     if(!record) {
         gobj_log_critical(gobj, 0, // Let continue, will be a message lost
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_SYSTEM_ERROR,
+            "msgset",       "%s", MSGSET_SYSTEM,
             "msg",          "%s", "Bad data, anystring2json() FAILED.",
             "topic",        "%s", tranger2_topic_name(topic),
             "__t__",        "%lu", (unsigned long)md_record_ex->__t__,
@@ -7272,7 +7272,7 @@ PUBLIC json_t *tranger2_open_list( // WARNING loading all records causes delay i
     if(!topic) {
         gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+            "msgset",       "%s", MSGSET_PARAMETER,
             "msg",          "%s", "topic not found",
             "topic_name",   "%s", topic_name,
             NULL
@@ -7289,7 +7289,7 @@ PUBLIC json_t *tranger2_open_list( // WARNING loading all records causes delay i
     if(!load_record_callback) {
         gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+            "msgset",       "%s", MSGSET_PARAMETER,
             "msg",          "%s", "load_record_callback is required to tranger2_open_list",
             NULL
         );
@@ -7379,7 +7379,7 @@ PUBLIC json_t *tranger2_open_list( // WARNING loading all records causes delay i
         if(!rt) {
             gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
                 "function",     "%s", __FUNCTION__,
-                "msgset",       "%s", MSGSET_INTERNAL_ERROR,
+                "msgset",       "%s", MSGSET_INTERNAL,
                 "msg",          "%s", "Cannot open rt",
                 "topic_name",   "%s", topic_name,
                 NULL
@@ -7397,7 +7397,7 @@ PUBLIC json_t *tranger2_open_list( // WARNING loading all records causes delay i
         if(!extra) {
             gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
                 "function",     "%s", __FUNCTION__,
-                "msgset",       "%s", MSGSET_INTERNAL_ERROR,
+                "msgset",       "%s", MSGSET_INTERNAL,
                 "msg",          "%s", "list with no-realtime require extra",
                 "topic_name",   "%s", topic_name,
                 NULL
@@ -7435,7 +7435,7 @@ PUBLIC int tranger2_close_list(
     }
     gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
         "function",     "%s", __FUNCTION__,
-        "msgset",       "%s", MSGSET_INTERNAL_ERROR,
+        "msgset",       "%s", MSGSET_INTERNAL,
         "msg",          "%s", "list not found",
         NULL
     );
@@ -7457,7 +7457,7 @@ PUBLIC int tranger2_close_all_lists(
     if(empty_string(topic_name)) {
         gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+            "msgset",       "%s", MSGSET_PARAMETER,
             "msg",          "%s", "What topic name?",
             NULL
         );
@@ -7638,7 +7638,7 @@ PUBLIC void tranger2_print_md0_record(
     } else {
         gobj_log_error(0, 0,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_INTERNAL_ERROR,
+            "msgset",       "%s", MSGSET_INTERNAL,
             "msg",          "%s", "BAD metadata, without key type",
             NULL
         );
@@ -7705,7 +7705,7 @@ PUBLIC void tranger2_print_md1_record(
     } else {
         gobj_log_error(0, 0,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_INTERNAL_ERROR,
+            "msgset",       "%s", MSGSET_INTERNAL,
             "msg",          "%s", "BAD metadata, without key type",
             NULL
         );

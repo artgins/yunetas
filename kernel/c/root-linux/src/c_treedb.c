@@ -275,7 +275,7 @@ PRIVATE void mt_create(hgobj gobj)
     if(!priv->tranger_system_) {
         gobj_log_critical(gobj, priv->exit_on_error,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+            "msgset",       "%s", MSGSET_PARAMETER,
             "msg",          "%s", "tranger NULL",
             NULL
         );
@@ -558,7 +558,7 @@ PRIVATE json_t *cmd_open_treedb(hgobj gobj, const char *cmd, json_t *kw, hgobj s
     if(!tranger_client) {
         gobj_log_critical(gobj, exit_on_error,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+            "msgset",       "%s", MSGSET_PARAMETER,
             "msg",          "%s", "tranger client NULL",
             NULL
         );
@@ -994,7 +994,7 @@ PRIVATE int build_new_treedb_schema(
 //             if(col) {
 //                 gobj_log_error(gobj, 0,
 //                     "function",     "%s", __FUNCTION__,
-//                     "msgset",       "%s", MSGSET_TREEDB_ERROR,
+//                     "msgset",       "%s", MSGSET_TREEDB,
 //                     "msg",          "%s", "Column alreade defined",
 //                     "topic_name",   "%s", topic_name,
 //                     NULL
@@ -1137,7 +1137,7 @@ PRIVATE json_t *get_client_treedb_schema(
     if(parse_schema(jn_client_treedb_schema)<0) {
         gobj_log_error(gobj, 0,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_TREEDB_ERROR,
+            "msgset",       "%s", MSGSET_TREEDB,
             "msg",          "%s", "Input Schema fails",
             NULL
         );
@@ -1180,7 +1180,7 @@ PRIVATE json_t *get_client_treedb_schema(
         } else {
             gobj_log_error(gobj, 0,
                 "function",     "%s", __FUNCTION__,
-                "msgset",       "%s", MSGSET_TREEDB_ERROR,
+                "msgset",       "%s", MSGSET_TREEDB,
                 "msg",          "%s", "Last treedb schema fails",
                 NULL
             );
@@ -1208,7 +1208,7 @@ PRIVATE json_t *get_client_treedb_schema(
         } else {
             gobj_log_error(gobj, 0,
                 "function",     "%s", __FUNCTION__,
-                "msgset",       "%s", MSGSET_TREEDB_ERROR,
+                "msgset",       "%s", MSGSET_TREEDB,
                 "msg",          "%s", "New treedb schema fails",
                 NULL
             );
@@ -1223,7 +1223,7 @@ PRIVATE json_t *get_client_treedb_schema(
     if(parse_schema(client_treedb_schema)<0) {
         gobj_log_error(gobj, 0,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_TREEDB_ERROR,
+            "msgset",       "%s", MSGSET_TREEDB,
             "msg",          "%s", "Schema fails",
             NULL
         );
@@ -1368,7 +1368,7 @@ PRIVATE int create_gclass(gclass_name_t gclass_name)
     if(__gclass__) {
         gobj_log_error(0, 0,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_INTERNAL_ERROR,
+            "msgset",       "%s", MSGSET_INTERNAL,
             "msg",          "%s", "GClass ALREADY created",
             "gclass",       "%s", gclass_name,
             NULL

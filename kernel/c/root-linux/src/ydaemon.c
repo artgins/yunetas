@@ -235,7 +235,7 @@ PRIVATE int relauncher(
             gobj_log_error(0,0,
                 "gobj",             "%s", __FILE__,
                 "function",         "%s", __FUNCTION__,
-                "msgset",           "%s", MSGSET_SYSTEM_ERROR,
+                "msgset",           "%s", MSGSET_SYSTEM,
                 "msg",              "%s", "Daemon relaunched",
                 "process",          "%s", process_name,
                 "pid",              "%d", (int)getpid(),

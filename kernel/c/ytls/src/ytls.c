@@ -61,7 +61,7 @@ PUBLIC hytls ytls_init(
         DEFAULTS
             gobj_log_error(gobj, 0,
                 "function",         "%s", __FUNCTION__,
-                "msgset",           "%s", MSGSET_INTERNAL_ERROR,
+                "msgset",           "%s", MSGSET_INTERNAL,
                 "msg",              "%s", "tls_library NOT DEFINED",
                 "library",          "%s", tls_library,
                 NULL
@@ -75,7 +75,7 @@ PUBLIC hytls ytls_init(
          */
         gobj_log_error(gobj, LOG_OPT_EXIT_ZERO,
             "function",         "%s", __FUNCTION__,
-            "msgset",           "%s", MSGSET_INTERNAL_ERROR,
+            "msgset",           "%s", MSGSET_INTERNAL,
             "msg",              "%s", "api_tls() FAILED",
             "library",          "%s", tls_library,
             NULL

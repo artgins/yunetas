@@ -327,7 +327,7 @@ static void event_handler(void* arg, esp_event_base_t event_base, int32_t event_
                     if(esp_netif_get_netif_impl_name(esp_netif, ifr_name) != ESP_OK) {
                         gobj_log_error(gobj, 0,
                             "function",     "%s", __FUNCTION__,
-                            "msgset",       "%s", MSGSET_SYSTEM_ERROR,
+                            "msgset",       "%s", MSGSET_SYSTEM,
                             "msg",          "%s", "esp_netif_get_netif_impl_name() FAILED",
                             NULL
                         );
@@ -415,7 +415,7 @@ static void event_handler(void* arg, esp_event_base_t event_base, int32_t event_
     if(!processed) {
         gobj_log_warning(gobj, 0,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_INTERNAL_ERROR,
+            "msgset",       "%s", MSGSET_INTERNAL,
             "msg",          "%s", "ESP WIFI event not processed",
             "event_base",   "%s", event_base,
             "event_id",     "%d", (int)event_id,
@@ -443,7 +443,7 @@ PRIVATE int start_smartconfig(hgobj gobj)
     if(err != ESP_OK) {
         gobj_log_error(gobj, 0,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_SYSTEM_ERROR,
+            "msgset",       "%s", MSGSET_SYSTEM,
             "msg",          "%s", "esp_smartconfig_set_type() FAILED",
             "esp_error",    "%s", esp_err_to_name(err),
             NULL
@@ -454,7 +454,7 @@ PRIVATE int start_smartconfig(hgobj gobj)
     if(err != ESP_OK) {
         gobj_log_error(gobj, 0,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_SYSTEM_ERROR,
+            "msgset",       "%s", MSGSET_SYSTEM,
             "msg",          "%s", "esp_smartconfig_start() FAILED",
             "esp_error",    "%s", esp_err_to_name(err),
             NULL
@@ -505,7 +505,7 @@ PRIVATE int connect_station(hgobj gobj)
         start_smartconfig(gobj);    // change to ST_WIFI_WAIT_SSID_CONF if empty wifi list, wait forever
         gobj_log_error(gobj, 0,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_INTERNAL_ERROR,
+            "msgset",       "%s", MSGSET_INTERNAL,
             "msg",          "%s", "change to start_smartconfig from connect_station",
             NULL
         );
@@ -516,7 +516,7 @@ PRIVATE int connect_station(hgobj gobj)
     if(idx_now >= max_wifi_list) {
         gobj_log_error(gobj, 0,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_INTERNAL_ERROR,
+            "msgset",       "%s", MSGSET_INTERNAL,
             "msg",          "%s", "BAD idx_wifi_list",
             "idx_now",      "%d", idx_now,
             "max_idx",      "%d", max_wifi_list,
@@ -559,7 +559,7 @@ PRIVATE int connect_station(hgobj gobj)
     if(err != 0) {
         gobj_log_error(gobj, 0,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_SYSTEM_ERROR,
+            "msgset",       "%s", MSGSET_SYSTEM,
             "msg",          "%s", "esp_wifi_set_config() FAILED",
             "error",        "%s", esp_err_to_name(err),
             NULL
@@ -764,7 +764,7 @@ PRIVATE int ac_smartconfig_done_save(hgobj gobj, gobj_event_t event, json_t *kw,
     if(empty_string(id)) {
         gobj_log_error(gobj, 0,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_SYSTEM_ERROR,
+            "msgset",       "%s", MSGSET_SYSTEM,
             "msg",          "%s", "ssid empty",
             NULL
         );
@@ -805,7 +805,7 @@ PRIVATE int ac_timeout_smartconfig(hgobj gobj, gobj_event_t event, json_t *kw, h
 
     gobj_log_error(gobj, 0,
         "function",     "%s", __FUNCTION__,
-        "msgset",       "%s", MSGSET_PROTOCOL_ERROR,
+        "msgset",       "%s", MSGSET_PROTOCOL,
         "msg",          "%s", "smartconfig Timeout",
         NULL
     );
@@ -951,7 +951,7 @@ PRIVATE int create_gclass(gclass_name_t gclass_name)
     if(__gclass__) {
         gobj_log_error(0, 0,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_INTERNAL_ERROR,
+            "msgset",       "%s", MSGSET_INTERNAL,
             "msg",          "%s", "GClass ALREADY created",
             "gclass",       "%s", gclass_name,
             NULL

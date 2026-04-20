@@ -284,7 +284,7 @@ PUBLIC const char *mqtt_property_identifier_to_string(uint32_t identifier)
         default:
             gobj_log_error(gobj, 0,
                 "function",     "%s", __FUNCTION__,
-                "msgset",       "%s", MSGSET_MQTT_ERROR,
+                "msgset",       "%s", MSGSET_MQTT,
                 "msg",          "%s", "Mqtt unknown property",
                 "identifier",   "%d", (int)identifier,
                 NULL
@@ -470,7 +470,7 @@ PUBLIC json_t *new_mqtt_message(
     if(!kw_mqtt_msg) {
         gobj_log_error(gobj, 0,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_MQTT_ERROR,
+            "msgset",       "%s", MSGSET_MQTT,
             "msg",          "%s", "Mqtt publish: cannot create the message",
             "topic",        "%s", topic,
             NULL

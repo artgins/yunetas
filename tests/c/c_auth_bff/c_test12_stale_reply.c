@@ -258,7 +258,7 @@ PRIVATE void verify_and_die(hgobj gobj)
     if(priv->responses_on_conn_2 != 1) {
         gobj_log_error(gobj, 0,
             "function",             "%s", __FUNCTION__,
-            "msgset",               "%s", MSGSET_APP_ERROR,
+            "msgset",               "%s", MSGSET_APP,
             "msg",                  "%s", "test12_stale_reply: cross-user token leak — more than one reply on conn 2",
             "responses_on_conn_2",  "%d", priv->responses_on_conn_2,
             "expected",             "%d", 1,
@@ -380,7 +380,7 @@ PRIVATE int ac_timer(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
     default:
         gobj_log_error(gobj, 0,
             "function", "%s", __FUNCTION__,
-            "msgset",   "%s", MSGSET_APP_ERROR,
+            "msgset",   "%s", MSGSET_APP,
             "msg",      "%s", "test12_stale_reply: unexpected ac_timer phase",
             "phase",    "%d", (int)priv->phase,
             NULL
@@ -429,7 +429,7 @@ PRIVATE int ac_on_open(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
     default:
         gobj_log_error(gobj, 0,
             "function", "%s", __FUNCTION__,
-            "msgset",   "%s", MSGSET_APP_ERROR,
+            "msgset",   "%s", MSGSET_APP,
             "msg",      "%s", "test12_stale_reply: EV_ON_OPEN in unexpected phase",
             "phase",    "%d", (int)priv->phase,
             NULL
@@ -448,7 +448,7 @@ PRIVATE int ac_on_message(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
     if(priv->phase != T12_AWAITING_RESPONSE && priv->phase != T12_VERIFIED) {
         gobj_log_error(gobj, 0,
             "function", "%s", __FUNCTION__,
-            "msgset",   "%s", MSGSET_APP_ERROR,
+            "msgset",   "%s", MSGSET_APP,
             "msg",      "%s", "test12_stale_reply: EV_ON_MESSAGE in unexpected phase",
             "phase",    "%d", (int)priv->phase,
             NULL
@@ -477,7 +477,7 @@ PRIVATE int ac_on_message(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
     if(priv->responses_on_conn_2 > 1) {
         gobj_log_error(gobj, 0,
             "function",             "%s", __FUNCTION__,
-            "msgset",               "%s", MSGSET_APP_ERROR,
+            "msgset",               "%s", MSGSET_APP,
             "msg",                  "%s", "test12_stale_reply: CROSS-USER TOKEN LEAK — second reply on conn B",
             "responses_on_conn_2",  "%d", priv->responses_on_conn_2,
             NULL
@@ -495,7 +495,7 @@ PRIVATE int ac_on_message(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
     if(status != 200) {
         gobj_log_error(gobj, 0,
             "function", "%s", __FUNCTION__,
-            "msgset",   "%s", MSGSET_APP_ERROR,
+            "msgset",   "%s", MSGSET_APP,
             "msg",      "%s", "test12_stale_reply: conn B non-200",
             "status",   "%d", status,
             NULL
@@ -506,7 +506,7 @@ PRIVATE int ac_on_message(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
             || !json_is_true(json_object_get(jn_body, "success"))) {
         gobj_log_error(gobj, 0,
             "function", "%s", __FUNCTION__,
-            "msgset",   "%s", MSGSET_APP_ERROR,
+            "msgset",   "%s", MSGSET_APP,
             "msg",      "%s", "test12_stale_reply: conn B body missing or success!=true",
             NULL
         );
@@ -537,7 +537,7 @@ PRIVATE int ac_on_close(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
     if(priv->phase < T12_AWAITING_CANCEL) {
         gobj_log_error(gobj, 0,
             "function", "%s", __FUNCTION__,
-            "msgset",   "%s", MSGSET_APP_ERROR,
+            "msgset",   "%s", MSGSET_APP,
             "msg",      "%s", "test12_stale_reply: unexpected EV_ON_CLOSE",
             "phase",    "%d", (int)priv->phase,
             NULL
@@ -584,7 +584,7 @@ PRIVATE int create_gclass(gclass_name_t gclass_name)
     if(__gclass__) {
         gobj_log_error(0, 0,
             "function", "%s", __FUNCTION__,
-            "msgset",   "%s", MSGSET_INTERNAL_ERROR,
+            "msgset",   "%s", MSGSET_INTERNAL,
             "msg",      "%s", "GClass ALREADY created",
             "gclass",   "%s", gclass_name,
             NULL

@@ -689,7 +689,7 @@ PRIVATE int send_email(
     if(!gobj_emailsender) {
         gobj_log_error(gobj, 0,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_SERVICE_ERROR,
+            "msgset",       "%s", MSGSET_SERVICE,
             "msg",          "%s", "Service 'emailsender' not found",
             NULL
         );
@@ -947,7 +947,7 @@ PRIVATE int do_log_stats(hgobj gobj, int priority, json_t *kw)
         json_object_set_new(jn_set, msg, json_integer(counter));
     }
 
-    if(strcmp(msgset, MSGSET_QUEUE_ALARM)==0) {
+    if(strcmp(msgset, MSGSET_QUEUE)==0) {
         json_int_t queue_size = kw_get_int(gobj, kw, "queue_size", 10000, 0);
         if(priv->restart_on_alarm && priv->queue_restart_limit > 0 && queue_size >= priv->queue_restart_limit) {
             const char *restart_yuneta_command = gobj_read_str_attr(gobj, "restart_yuneta_command");
@@ -958,7 +958,7 @@ PRIVATE int do_log_stats(hgobj gobj, int priority, json_t *kw)
                     if(ret < 0) {
                         gobj_log_error(gobj, 0,
                             "function",     "%s", __FUNCTION__,
-                            "msgset",       "%s", MSGSET_INTERNAL_ERROR,
+                            "msgset",       "%s", MSGSET_INTERNAL,
                             "msg",          "%s", "system() FAILED",
                             NULL
                         );
@@ -970,7 +970,7 @@ PRIVATE int do_log_stats(hgobj gobj, int priority, json_t *kw)
                         if(ret < 0) {
                             gobj_log_error(gobj, 0,
                                 "function",     "%s", __FUNCTION__,
-                                "msgset",       "%s", MSGSET_INTERNAL_ERROR,
+                                "msgset",       "%s", MSGSET_INTERNAL,
                                 "msg",          "%s", "system() FAILED",
                                 NULL
                             );
@@ -1133,7 +1133,7 @@ PRIVATE int send_warn_free_disk(hgobj gobj, int percent, int minimun)
     json_t *jn_value = json_pack("{s:s, s:s, s:s, s:s, s:i}",
         "gobj",         gobj_full_name(gobj),
         "function",     __FUNCTION__,
-        "msgset",       MSGSET_SYSTEM_ERROR,
+        "msgset",       MSGSET_SYSTEM,
         "msg",          bf,
         "len",          percent
     );
@@ -1157,7 +1157,7 @@ PRIVATE int send_warn_free_mem(hgobj gobj, int percent)
     json_t *jn_value = json_pack("{s:s, s:s, s:s, s:s, s:i}",
         "gobj",         gobj_full_name(gobj),
         "function",     __FUNCTION__,
-        "msgset",       MSGSET_SYSTEM_ERROR,
+        "msgset",       MSGSET_SYSTEM,
         "msg",          bf,
         "len",          percent
     );
@@ -1217,7 +1217,7 @@ PRIVATE int ac_on_message(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
     if(len < 17) {
         gobj_log_error(gobj, 0,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_JSON_ERROR,
+            "msgset",       "%s", MSGSET_JSON,
             "msg",          "%s", "gbuffer too small",
             "len",          "%d", len,
             NULL
@@ -1243,7 +1243,7 @@ PRIVATE int ac_on_message(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
         if(gobj_trace_level(gobj) & TRACE_DEBUG) {
             gobj_log_error(gobj, 0,
                 "function",     "%s", __FUNCTION__,
-                "msgset",       "%s", MSGSET_JSON_ERROR,
+                "msgset",       "%s", MSGSET_JSON,
                 "msg",          "%s", "BAD crc",
                 "my-crc",       "%s", scrc,
                 "his-crc",      "%s", pcrc,
@@ -1269,7 +1269,7 @@ PRIVATE int ac_on_message(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
             if(gobj_trace_level(gobj) & TRACE_DEBUG) {
                 gobj_log_warning(gobj, 0,
                     "function",     "%s", __FUNCTION__,
-                    "msgset",       "%s", MSGSET_JSON_ERROR,
+                    "msgset",       "%s", MSGSET_JSON,
                     "msg",          "%s", "BAD sequence",
                     "last",         "%d", last_sequence,
                     "curr",         "%d", sequence,
@@ -1409,7 +1409,7 @@ PRIVATE int create_gclass(gclass_name_t gclass_name)
     if(__gclass__) {
         gobj_log_error(0, 0,
             "function", "%s", __FUNCTION__,
-            "msgset",   "%s", MSGSET_INTERNAL_ERROR,
+            "msgset",   "%s", MSGSET_INTERNAL,
             "msg",      "%s", "GClass ALREADY created",
             "gclass",   "%s", gclass_name,
             NULL

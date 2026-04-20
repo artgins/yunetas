@@ -355,7 +355,7 @@ PRIVATE SSL_CTX *build_ssl_ctx(
         unsigned long err = ERR_get_error();
         gobj_log_error(gobj, 0,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_OPENSSL_ERROR,
+            "msgset",       "%s", MSGSET_OPENSSL,
             "msg",          "%s", "SSL_CTX_new() FAILED",
             "error",        "%s", ERR_error_string(err, NULL),
             NULL
@@ -395,7 +395,7 @@ PRIVATE SSL_CTX *build_ssl_ctx(
         unsigned long err = ERR_get_error();
         gobj_log_error(gobj, 0,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_OPENSSL_ERROR,
+            "msgset",       "%s", MSGSET_OPENSSL,
             "msg",          "%s", "SSL_CTX_set_cipher_list() FAILED",
             "error",        "%s", ERR_error_string(err, NULL),
             NULL
@@ -409,7 +409,7 @@ PRIVATE SSL_CTX *build_ssl_ctx(
             unsigned long err = ERR_get_error();
             gobj_log_error(gobj, log_fatal,
                 "function",     "%s", __FUNCTION__,
-                "msgset",       "%s", MSGSET_OPENSSL_ERROR,
+                "msgset",       "%s", MSGSET_OPENSSL,
                 "msg",          "%s", "SSL_CTX_use_certificate_file() FAILED",
                 "error",        "%s", ERR_error_string(err, NULL),
                 "cert",         "%s", ssl_certificate,
@@ -424,7 +424,7 @@ PRIVATE SSL_CTX *build_ssl_ctx(
             unsigned long err = ERR_get_error();
             gobj_log_error(gobj, log_fatal,
                 "function",     "%s", __FUNCTION__,
-                "msgset",       "%s", MSGSET_OPENSSL_ERROR,
+                "msgset",       "%s", MSGSET_OPENSSL,
                 "msg",          "%s", "SSL_CTX_use_PrivateKey_file() FAILED",
                 "error",        "%s", ERR_error_string(err, NULL),
                 "cert",         "%s", ssl_certificate_key,
@@ -441,7 +441,7 @@ PRIVATE SSL_CTX *build_ssl_ctx(
             unsigned long err = ERR_get_error();
             gobj_log_error(gobj, log_fatal,
                 "function",     "%s", __FUNCTION__,
-                "msgset",       "%s", MSGSET_OPENSSL_ERROR,
+                "msgset",       "%s", MSGSET_OPENSSL,
                 "msg",          "%s", "SSL_CTX_check_private_key() FAILED: key does not match cert",
                 "error",        "%s", ERR_error_string(err, NULL),
                 "cert",         "%s", ssl_certificate,
@@ -460,7 +460,7 @@ PRIVATE SSL_CTX *build_ssl_ctx(
                 unsigned long err = ERR_get_error();
                 gobj_log_error(gobj, log_fatal,
                     "function",     "%s", __FUNCTION__,
-                    "msgset",       "%s", MSGSET_OPENSSL_ERROR,
+                    "msgset",       "%s", MSGSET_OPENSSL,
                     "msg",          "%s", "SSL_CTX_load_verify_locations() FAILED",
                     "error",        "%s", ERR_error_string(err, NULL),
                     "cert",         "%s", ssl_trusted_certificate,
@@ -511,7 +511,7 @@ PRIVATE hytls init(
     if(!ytls) {
         gobj_log_error(gobj, 0,
             "function",         "%s", __FUNCTION__,
-            "msgset",           "%s", MSGSET_MEMORY_ERROR,
+            "msgset",           "%s", MSGSET_MEMORY,
             "msg",              "%s", "no memory for sizeof(ytls_t)",
             "sizeof(ytls_t)",   "%d", sizeof(ytls_t),
             NULL
@@ -568,7 +568,7 @@ PRIVATE int reload_certificates(hytls ytls_, json_t *jn_config)
     if(!new_ctx) {
         gobj_log_error(gobj, 0,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_OPENSSL_ERROR,
+            "msgset",       "%s", MSGSET_OPENSSL,
             "msg",          "%s", "reload_certificates FAILED: keeping previous SSL_CTX",
             NULL
         );
@@ -712,7 +712,7 @@ PRIVATE hsskt new_secure_filter(
         gobj_log_error(gobj, 0,
             "gobj",             "%s", __FILE__,
             "function",         "%s", __FUNCTION__,
-            "msgset",           "%s", MSGSET_MEMORY_ERROR,
+            "msgset",           "%s", MSGSET_MEMORY,
             "msg",              "%s", "no memory for sizeof(sskt_t)",
             "sizeof(sskt_t)",   "%d", sizeof(sskt_t),
             NULL
@@ -733,7 +733,7 @@ PRIVATE hsskt new_secure_filter(
         ERR_error_string_n(sskt->error, sskt->last_error, sizeof(sskt->last_error));
         gobj_log_error(gobj, 0,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_OPENSSL_ERROR,
+            "msgset",       "%s", MSGSET_OPENSSL,
             "msg",          "%s", "SSL_new() FAILED",
             "error",        "%d", (int)sskt->error,
             "serror",       "%s", sskt->last_error,
@@ -930,7 +930,7 @@ PRIVATE int flush_encrypted_data(sskt_t *sskt)
         if(!gbuf) {
             gobj_log_error(gobj, 0,
                 "function",     "%s", __FUNCTION__,
-                "msgset",       "%s", MSGSET_MEMORY_ERROR,
+                "msgset",       "%s", MSGSET_MEMORY,
                 "msg",          "%s", "No memory for BIO_pending",
                 NULL
             );
@@ -967,7 +967,7 @@ PRIVATE int encrypt_data(
     if(!SSL_is_init_finished(sskt->ssl)) {
         gobj_log_error(gobj, 0,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_OPENSSL_ERROR,
+            "msgset",       "%s", MSGSET_OPENSSL,
             "msg",          "%s", "TLS handshake PENDING",
             NULL
         );
@@ -999,7 +999,7 @@ PRIVATE int encrypt_data(
                 ERR_error_string_n(sskt->error, sskt->last_error, sizeof(sskt->last_error));
                 gobj_log_error(gobj, 0,
                     "function",     "%s", __FUNCTION__,
-                    "msgset",       "%s", MSGSET_OPENSSL_ERROR,
+                    "msgset",       "%s", MSGSET_OPENSSL,
                     "msg",          "%s", "SSL_write() FAILED",
                     "ret",          "%d", (int)ret,
                     "error",        "%d", (int)sskt->error,
@@ -1061,7 +1061,7 @@ PRIVATE int flush_clear_data(sskt_t *sskt)
                 ERR_error_string_n(sskt->error, sskt->last_error, sizeof(sskt->last_error));
                 gobj_log_error(gobj, 0,
                     "function",     "%s", __FUNCTION__,
-                    "msgset",       "%s", MSGSET_OPENSSL_ERROR,
+                    "msgset",       "%s", MSGSET_OPENSSL,
                     "msg",          "%s", "SSL_read() FAILED",
                     "ret",          "%d", (int)nread,
                     "error",        "%d", (int)sskt->error,
@@ -1116,7 +1116,7 @@ PRIVATE int decrypt_data(
             ERR_error_string_n(sskt->error, sskt->last_error, sizeof(sskt->last_error));
             gobj_log_error(gobj, 0,
                 "function",     "%s", __FUNCTION__,
-                "msgset",       "%s", MSGSET_OPENSSL_ERROR,
+                "msgset",       "%s", MSGSET_OPENSSL,
                 "msg",          "%s", "BIO_write() FAILED",
                 "ret",          "%d", (int)written,
                 "error",        "%d", (int)sskt->error,

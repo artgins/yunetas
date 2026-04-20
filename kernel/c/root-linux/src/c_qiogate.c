@@ -229,7 +229,7 @@ PRIVATE int mt_start(hgobj gobj)
     if(priv->timeout_ack <= 0) {
         gobj_log_error(gobj, 0,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+            "msgset",       "%s", MSGSET_PARAMETER,
             "msg",          "%s", "timeout_ack EMPTY",
             NULL
         );
@@ -461,7 +461,7 @@ PRIVATE int send_alert(hgobj gobj, const char *subject, const char *message)
     if(!gobj_emailsender) {
         gobj_log_error(gobj, 0,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_SERVICE_ERROR,
+            "msgset",       "%s", MSGSET_SERVICE,
             "msg",          "%s", "Service 'emailsender' not found",
             NULL
         );
@@ -494,7 +494,7 @@ PRIVATE int open_queue(hgobj gobj)
     if(priv->tranger_queues) {
         gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_INTERNAL_ERROR,
+            "msgset",       "%s", MSGSET_INTERNAL,
             "msg",          "%s", "tranger NOT NULL",
             NULL
         );
@@ -505,7 +505,7 @@ PRIVATE int open_queue(hgobj gobj)
     if(empty_string(path)) {
         gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_INTERNAL_ERROR,
+            "msgset",       "%s", MSGSET_INTERNAL,
             "msg",          "%s", "tranger path EMPTY",
             NULL
         );
@@ -520,7 +520,7 @@ PRIVATE int open_queue(hgobj gobj)
     if(empty_string(database)) {
         gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_INTERNAL_ERROR,
+            "msgset",       "%s", MSGSET_INTERNAL,
             "msg",          "%s", "tranger database EMPTY",
             NULL
         );
@@ -531,7 +531,7 @@ PRIVATE int open_queue(hgobj gobj)
     if(empty_string(topic_name)) {
         gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_INTERNAL_ERROR,
+            "msgset",       "%s", MSGSET_INTERNAL,
             "msg",          "%s", "tranger topic_name EMPTY",
             NULL
         );
@@ -601,7 +601,7 @@ PRIVATE q_msg_t *enqueue_message(
     if(!priv->trq_msgs) {
         gobj_log_critical(gobj, LOG_OPT_ABORT|LOG_OPT_TRACE_STACK,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_INTERNAL_ERROR,
+            "msgset",       "%s", MSGSET_INTERNAL,
             "msg",          "%s", "trq_msgs NULL",
             NULL
         );
@@ -622,7 +622,7 @@ PRIVATE q_msg_t *enqueue_message(
     if(!msg) {
         gobj_log_critical(gobj, LOG_OPT_ABORT|LOG_OPT_TRACE_STACK,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_INTERNAL_ERROR,
+            "msgset",       "%s", MSGSET_INTERNAL,
             "msg",          "%s", "Message NOT SAVED in the queue",
             NULL
         );
@@ -670,7 +670,7 @@ PRIVATE q_msg_t *enqueue_message(
                 );
                 gobj_log_error(gobj, 0,
                     "function",     "%s", __FUNCTION__,
-                    "msgset",       "%s", MSGSET_QUEUE_ALARM,
+                    "msgset",       "%s", MSGSET_QUEUE,
                     "msg",          "%s", subject,
                     "node",         "%s", get_hostname(),
                     "yuno",         "%s", gobj_yuno_role_plus_name(),
@@ -882,7 +882,7 @@ PRIVATE int dequeue_msg(
             } else {
                 gobj_log_error(gobj, 0,
                     "function",     "%s", __FUNCTION__,
-                    "msgset",       "%s", MSGSET_INTERNAL_ERROR,
+                    "msgset",       "%s", MSGSET_INTERNAL,
                     "msg",          "%s", "ppending_acks ZERO or NEGATIVE",
                     "pending_acks", "%ld", (unsigned long) priv->pending_acks,
                     NULL
@@ -900,7 +900,7 @@ PRIVATE int dequeue_msg(
         )!=0) {
             gobj_log_error(gobj, 0,
                 "function",     "%s", __FUNCTION__,
-                "msgset",       "%s", MSGSET_INTERNAL_ERROR,
+                "msgset",       "%s", MSGSET_INTERNAL,
                 "msg",          "%s", "Message not found in the queue",
                 "rowid",        "%ld", (unsigned long)rowid,
                 NULL
@@ -1001,7 +1001,7 @@ PRIVATE int ac_on_open(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
     } else {
         gobj_log_error(gobj, 0,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_INTERNAL_ERROR,
+            "msgset",       "%s", MSGSET_INTERNAL,
             "msg",          "%s", "source unknown",
             "src",          "%s", gobj_full_name(src),
             NULL
@@ -1025,7 +1025,7 @@ PRIVATE int ac_on_close(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
     } else {
         gobj_log_error(gobj, 0,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_INTERNAL_ERROR,
+            "msgset",       "%s", MSGSET_INTERNAL,
             "msg",          "%s", "source unknown",
             "src",          "%s", gobj_full_name(src),
             NULL
@@ -1049,7 +1049,7 @@ PRIVATE int ac_on_message(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 
     gobj_log_error(gobj, 0,
         "function",     "%s", __FUNCTION__,
-        "msgset",       "%s", MSGSET_INTERNAL_ERROR,
+        "msgset",       "%s", MSGSET_INTERNAL,
         "msg",          "%s", "source unknown",
         "src",          "%s", gobj_full_name(src),
         NULL
@@ -1153,7 +1153,7 @@ PRIVATE int create_gclass(gclass_name_t gclass_name)
     if(__gclass__) {
         gobj_log_error(0, 0,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_INTERNAL_ERROR,
+            "msgset",       "%s", MSGSET_INTERNAL,
             "msg",          "%s", "GClass ALREADY created",
             "gclass",       "%s", gclass_name,
             NULL

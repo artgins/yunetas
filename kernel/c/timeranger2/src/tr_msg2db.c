@@ -108,7 +108,7 @@ PUBLIC json_t *msg2db_open_db(
     if(empty_string(msg2db_name)) {
         gobj_log_error(gobj, 0,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_MSG2DB_ERROR,
+            "msgset",       "%s", MSGSET_MSG2DB,
             "msg",          "%s", "msg2db_name NULL",
             NULL
         );
@@ -195,7 +195,7 @@ PUBLIC json_t *msg2db_open_db(
         if(!jn_schema) {
             gobj_log_error(gobj, 0,
                 "function",     "%s", __FUNCTION__,
-                "msgset",       "%s", MSGSET_MSG2DB_ERROR,
+                "msgset",       "%s", MSGSET_MSG2DB,
                 "msg",          "%s", "Cannot load TreeDB schema from file.",
                 "msg2db_name",  "%s", msg2db_name,
                 "schema_file",  "%s", schema_full_path,
@@ -206,7 +206,7 @@ PUBLIC json_t *msg2db_open_db(
     } else if(!jn_schema) {
         gobj_log_error(gobj, 0,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_MSG2DB_ERROR,
+            "msgset",       "%s", MSGSET_MSG2DB,
             "msg",          "%s", "TreeDB without schema.",
             "msg2db_name",  "%s", msg2db_name,
             NULL
@@ -230,7 +230,7 @@ PUBLIC json_t *msg2db_open_db(
     if(!jn_schema_topics) {
         gobj_log_error(gobj, 0,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_MSG2DB_ERROR,
+            "msgset",       "%s", MSGSET_MSG2DB,
             "msg",          "%s", "No topics found",
             "msg2db_name",  "%s", msg2db_name,
             NULL
@@ -246,7 +246,7 @@ PUBLIC json_t *msg2db_open_db(
     if(msg2db) {
         gobj_log_error(gobj, 0,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_MSG2DB_ERROR,
+            "msgset",       "%s", MSGSET_MSG2DB,
             "msg",          "%s", "TreeDB ALREADY opened.",
             "msg2db_name",  "%s", msg2db_name,
             NULL
@@ -265,7 +265,7 @@ PUBLIC json_t *msg2db_open_db(
         if(empty_string(topic_name)) {
             gobj_log_error(gobj, 0,
                 "function",     "%s", __FUNCTION__,
-                "msgset",       "%s", MSGSET_MSG2DB_ERROR,
+                "msgset",       "%s", MSGSET_MSG2DB,
                 "msg",          "%s", "Schema topic without topic_name",
                 "msg2db_name",  "%s", msg2db_name,
                 "schema_topic", "%j", schema_topic,
@@ -277,7 +277,7 @@ PUBLIC json_t *msg2db_open_db(
         if(strcmp(pkey, "id")!=0) {
             gobj_log_error(gobj, 0,
                 "function",     "%s", __FUNCTION__,
-                "msgset",       "%s", MSGSET_MSG2DB_ERROR,
+                "msgset",       "%s", MSGSET_MSG2DB,
                 "msg",          "%s", "Schema topic without pkey=id",
                 "msg2db_name",  "%s", msg2db_name,
                 "schema_topic", "%j", schema_topic,
@@ -289,7 +289,7 @@ PUBLIC json_t *msg2db_open_db(
         if(empty_string(pkey2_col)) {
             gobj_log_error(gobj, 0,
                 "function",     "%s", __FUNCTION__,
-                "msgset",       "%s", MSGSET_MSG2DB_ERROR,
+                "msgset",       "%s", MSGSET_MSG2DB,
                 "msg",          "%s", "Schema topic without pkey2",
                 "msg2db_name",  "%s", msg2db_name,
                 "schema_topic", "%j", schema_topic,
@@ -384,7 +384,7 @@ PUBLIC json_t *msg2db_open_db(
         )) {
             gobj_log_error(gobj, 0,
                 "function",     "%s", __FUNCTION__,
-                "msgset",       "%s", MSGSET_MSG2DB_ERROR,
+                "msgset",       "%s", MSGSET_MSG2DB,
                 "msg",          "%s", "tranger2_open_list() failed",
                 "topic_name",   "%s", topic_name,
                 NULL
@@ -414,7 +414,7 @@ PUBLIC int msg2db_close_db(
     if(!msg2db) {
         gobj_log_error(gobj, 0,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_MSG2DB_ERROR,
+            "msgset",       "%s", MSGSET_MSG2DB,
             "msg",          "%s", "Msg2db not found",
             "msg2db_name",  "%s", msg2db_name,
             NULL
@@ -468,7 +468,7 @@ PRIVATE int set_tranger_field_value(
     if(!field) {
         gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_MSG2DB_ERROR,
+            "msgset",       "%s", MSGSET_MSG2DB,
             "msg",          "%s", "Col desc without 'id'",
             "topic_name",   "%s", topic_name,
             "col",          "%j", col,
@@ -480,7 +480,7 @@ PRIVATE int set_tranger_field_value(
     if(!type) {
         gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_MSG2DB_ERROR,
+            "msgset",       "%s", MSGSET_MSG2DB,
             "msg",          "%s", "Col desc without 'type'",
             "topic_name",   "%s", topic_name,
             "col",          "%j", col,
@@ -498,7 +498,7 @@ PRIVATE int set_tranger_field_value(
         if(!value || json_is_null(value)) {
             gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
                 "function",     "%s", __FUNCTION__,
-                "msgset",       "%s", MSGSET_MSG2DB_ERROR,
+                "msgset",       "%s", MSGSET_MSG2DB,
                 "msg",          "%s", "Field required",
                 "topic_name",   "%s", topic_name,
                 "field",        "%s", field,
@@ -516,7 +516,7 @@ PRIVATE int set_tranger_field_value(
         if(kw_has_word(gobj, desc_flag, "notnull", 0)) {
             gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
                 "function",     "%s", __FUNCTION__,
-                "msgset",       "%s", MSGSET_MSG2DB_ERROR,
+                "msgset",       "%s", MSGSET_MSG2DB,
                 "msg",          "%s", "Field cannot be null",
                 "topic_name",   "%s", topic_name,
                 "field",        "%s", field,
@@ -568,7 +568,7 @@ PRIVATE int set_tranger_field_value(
             } else {
                 gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
                     "function",     "%s", __FUNCTION__,
-                    "msgset",       "%s", MSGSET_MSG2DB_ERROR,
+                    "msgset",       "%s", MSGSET_MSG2DB,
                     "msg",          "%s", "Value must be string",
                     "topic_name",   "%s", topic_name,
                     "col",          "%j", col,
@@ -593,7 +593,7 @@ PRIVATE int set_tranger_field_value(
                 json_object_set_new(record, field, json_integer(v));
                 gobj_log_info(gobj, LOG_OPT_TRACE_STACK,
                     "function",     "%s", __FUNCTION__,
-                    "msgset",       "%s", MSGSET_MSG2DB_ERROR,
+                    "msgset",       "%s", MSGSET_MSG2DB,
                     "msg",          "%s", "Value must be integer",
                     "topic_name",   "%s", topic_name,
                     "col",          "%j", col,
@@ -617,7 +617,7 @@ PRIVATE int set_tranger_field_value(
                 json_object_set_new(record, field, json_real(v));
                 gobj_log_info(gobj, LOG_OPT_TRACE_STACK,
                     "function",     "%s", __FUNCTION__,
-                    "msgset",       "%s", MSGSET_MSG2DB_ERROR,
+                    "msgset",       "%s", MSGSET_MSG2DB,
                     "msg",          "%s", "Value must be real",
                     "topic_name",   "%s", topic_name,
                     "col",          "%j", col,
@@ -637,7 +637,7 @@ PRIVATE int set_tranger_field_value(
         DEFAULTS
             gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
                 "function",     "%s", __FUNCTION__,
-                "msgset",       "%s", MSGSET_MSG2DB_ERROR,
+                "msgset",       "%s", MSGSET_MSG2DB,
                 "msg",          "%s", "Col type unknown",
                 "topic_name",   "%s", topic_name,
                 "col",          "%j", col,
@@ -722,7 +722,7 @@ PRIVATE int set_volatil_field_value(
         DEFAULTS
             gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
                 "function",     "%s", __FUNCTION__,
-                "msgset",       "%s", MSGSET_MSG2DB_ERROR,
+                "msgset",       "%s", MSGSET_MSG2DB,
                 "msg",          "%s", "Col type unknown",
                 "field",        "%s", field,
                 "type",         "%s", type,
@@ -750,7 +750,7 @@ PRIVATE int _set_volatil_values(
     if(!cols) {
         gobj_log_error(gobj, 0,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_MSG2DB_ERROR,
+            "msgset",       "%s", MSGSET_MSG2DB,
             "msg",          "%s", "Topic without cols",
             "topic_name",   "%s", topic_name,
             NULL
@@ -813,7 +813,7 @@ PRIVATE json_t *record2tranger(
     if(!cols) {
         gobj_log_error(gobj, 0,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_MSG2DB_ERROR,
+            "msgset",       "%s", MSGSET_MSG2DB,
             "msg",          "%s", "Topic without cols",
             "topic_name",   "%s", topic_name,
             NULL
@@ -914,7 +914,7 @@ PRIVATE int load_record_callback(
         if(!indexx) {
             gobj_log_error(gobj, 0,
                 "function",     "%s", __FUNCTION__,
-                "msgset",       "%s", MSGSET_MSG2DB_ERROR,
+                "msgset",       "%s", MSGSET_MSG2DB,
                 "msg",          "%s", "Msg2Db Topic indexx NOT FOUND",
                 "path",         "%s", path,
                 "topic_name",   "%s", topic_name,
@@ -943,7 +943,7 @@ PRIVATE int load_record_callback(
         if(empty_string(pkey2_value)) {
             gobj_log_error(gobj, 0,
                 "function",     "%s", __FUNCTION__,
-                "msgset",       "%s", MSGSET_MSG2DB_ERROR,
+                "msgset",       "%s", MSGSET_MSG2DB,
                 "msg",          "%s", "Field 'pkey2' required",
                 "path",         "%s", path,
                 "topic_name",   "%s", topic_name,
@@ -1012,7 +1012,7 @@ PUBLIC json_t *msg2db_append_message( // Return is NOT YOURS
     if(!indexx) {
         gobj_log_error(gobj, 0,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_MSG2DB_ERROR,
+            "msgset",       "%s", MSGSET_MSG2DB,
             "msg",          "%s", "Msg2Db Topic indexx NOT FOUND",
             "path",         "%s", path,
             "topic_name",   "%s", topic_name,
@@ -1041,7 +1041,7 @@ PUBLIC json_t *msg2db_append_message( // Return is NOT YOURS
         } else {
             gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
                 "function",     "%s", __FUNCTION__,
-                "msgset",       "%s", MSGSET_MSG2DB_ERROR,
+                "msgset",       "%s", MSGSET_MSG2DB,
                 "msg",          "%s", "Field 'id' required",
                 "path",         "%s", path,
                 "topic_name",   "%s", topic_name,
@@ -1061,7 +1061,7 @@ PUBLIC json_t *msg2db_append_message( // Return is NOT YOURS
     if(!kw_has_key(kw, pkey2_col)) {
         gobj_log_error(gobj, 0,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_MSG2DB_ERROR,
+            "msgset",       "%s", MSGSET_MSG2DB,
             "msg",          "%s", "Field 'pkey2' required",
             "path",         "%s", path,
             "topic_name",   "%s", topic_name,
@@ -1171,7 +1171,7 @@ PUBLIC json_t *msg2db_list_messages( // Return MUST be decref
     if(!indexx) {
         gobj_log_error(gobj, 0,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_MSG2DB_ERROR,
+            "msgset",       "%s", MSGSET_MSG2DB,
             "msg",          "%s", "Msg2Db Topic indexx NOT FOUND",
             "path",         "%s", path,
             "topic_name",   "%s", topic_name,
@@ -1208,7 +1208,7 @@ PUBLIC json_t *msg2db_list_messages( // Return MUST be decref
     } else  {
         gobj_log_error(gobj, 0,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_INTERNAL_ERROR,
+            "msgset",       "%s", MSGSET_INTERNAL,
             "msg",          "%s", "kw MUST BE a json object",
             NULL
         );
@@ -1249,7 +1249,7 @@ PUBLIC json_t *msg2db_get_message( // Return is NOT YOURS
     if(!indexx) {
         gobj_log_error(gobj, 0,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_MSG2DB_ERROR,
+            "msgset",       "%s", MSGSET_MSG2DB,
             "msg",          "%s", "Msg2Db Topic indexx NOT FOUND",
             "path",         "%s", path,
             "topic_name",   "%s", topic_name,
@@ -1272,7 +1272,7 @@ PUBLIC json_t *msg2db_get_message( // Return is NOT YOURS
     } else  {
         gobj_log_error(gobj, 0,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_INTERNAL_ERROR,
+            "msgset",       "%s", MSGSET_INTERNAL,
             "msg",          "%s", "kw MUST BE a json object",
             NULL
         );

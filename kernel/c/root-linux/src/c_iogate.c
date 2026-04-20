@@ -260,7 +260,7 @@ PRIVATE int mt_child_added(hgobj gobj, hgobj child)
     ) {
         gobj_log_error(gobj, 0,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+            "msgset",       "%s", MSGSET_PARAMETER,
             "msg",          "%s", "IOGate child must be a C_CHANNEL gclass",
             "child gclass", "%s", gobj_gclass_name(child),
             NULL
@@ -784,7 +784,7 @@ PRIVATE int send_one_rotate(hgobj gobj, gobj_event_t event, json_t *kw, hgobj sr
             if(repeated%1000 == 0) {
                 gobj_log_error(gobj, 0,
                     "function",     "%s", __FUNCTION__,
-                    "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+                    "msgset",       "%s", MSGSET_PARAMETER,
                     "msg",          "%s", "No channel FOUND to send",
                     "channel",      "%s", channel?channel:"???",
                     "event",        "%s", event,
@@ -877,7 +877,7 @@ PRIVATE int send_all(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
     if(!some) {
         gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+            "msgset",       "%s", MSGSET_PARAMETER,
             "msg",          "%s", "No channel FOUND to send",
             "event",        "%s", event,
             NULL
@@ -1171,7 +1171,7 @@ PRIVATE int ac_drop(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
             if(!channel_gobj) {
                 gobj_log_error(gobj, 0,
                     "function",     "%s", __FUNCTION__,
-                    "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+                    "msgset",       "%s", MSGSET_PARAMETER,
                     "msg",          "%s", "channel NOT FOUND",
                     "channel",      "%s", channel,
                     "event",        "%s", event,
@@ -1282,7 +1282,7 @@ PRIVATE int create_gclass(gclass_name_t gclass_name)
     if(__gclass__) {
         gobj_log_error(0, 0,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_INTERNAL_ERROR,
+            "msgset",       "%s", MSGSET_INTERNAL,
             "msg",          "%s", "GClass ALREADY created",
             "gclass",       "%s", gclass_name,
             NULL

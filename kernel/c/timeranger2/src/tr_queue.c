@@ -49,7 +49,7 @@ PUBLIC tr_queue_t *trq_open(
     if(!trq) {
         gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_MEMORY_ERROR,
+            "msgset",       "%s", MSGSET_MEMORY,
             "msg",          "%s", "Cannot create tr_queue. GBMEM_MALLOC() FAILED",
             NULL
         );
@@ -152,7 +152,7 @@ PRIVATE q_msg_t *new_msg(
     if(!msg) {
         gobj_log_error(gobj, 0,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_MEMORY_ERROR,
+            "msgset",       "%s", MSGSET_MEMORY,
             "msg",          "%s", "Cannot create msg. GBMEM_MALLOC() FAILED",
             NULL
         );
@@ -162,7 +162,7 @@ PRIVATE q_msg_t *new_msg(
     if(rowid != md_record->rowid) {
         gobj_log_error(gobj, 0,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_INTERNAL_ERROR,
+            "msgset",       "%s", MSGSET_INTERNAL,
             "msg",          "%s", "rowid NOT MATCH",
             "rowid",        "%d", (int)rowid,
             "md_rowid",     "%d", (int)md_record->rowid,
@@ -221,7 +221,7 @@ PUBLIC int trq_load(tr_queue_t * trq)
     if(!trq) {
         gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_INTERNAL_ERROR,
+            "msgset",       "%s", MSGSET_INTERNAL,
             "msg",          "%s", "trq NULL",
             NULL
         );
@@ -280,7 +280,7 @@ PUBLIC int trq_load(tr_queue_t * trq)
     if(!tr_list) {
         gobj_log_error(gobj, 0,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_TREEDB_ERROR,
+            "msgset",       "%s", MSGSET_TREEDB,
             "msg",          "%s", "tranger2_open_list() failed",
             "topic_name",   "%s", trq->topic_name,
             NULL
@@ -393,7 +393,7 @@ PUBLIC q_msg_t *trq_append2(
     if(!kw || kw->refcount <= 0) {
         gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_INTERNAL_ERROR,
+            "msgset",       "%s", MSGSET_INTERNAL,
             "msg",          "%s", "kw NULL",
             "topic",        "%s", trq->topic_name,
             NULL
@@ -522,7 +522,7 @@ PUBLIC json_t *trq_msg_json(q_msg_t *msg) // Load the message, Return json is YO
         hgobj gobj = (hgobj)json_integer_value(json_object_get(msg->trq->tranger, "gobj"));
         gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_INTERNAL_ERROR,
+            "msgset",       "%s", MSGSET_INTERNAL,
             "msg",          "%s", "jn_msg NULL",
             "topic",        "%s", msg->trq->topic_name,
             NULL
@@ -589,7 +589,7 @@ PUBLIC json_t *trq_answer(
     } else {
         gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_INTERNAL_ERROR,
+            "msgset",       "%s", MSGSET_INTERNAL,
             "msg",          "%s", "queue message without metadata",
             NULL
         );

@@ -19,7 +19,7 @@ PUBLIC int dl_init(dl_list_t *dl, hgobj gobj)
     if(dl->head || dl->tail || dl->__itemsInContainer__) {
         gobj_log_error(0, LOG_OPT_TRACE_STACK,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_INTERNAL_ERROR,
+            "msgset",       "%s", MSGSET_INTERNAL,
             "msg",          "%s", "dl_init(): Wrong dl_list_t, MUST be empty",
             NULL
         );
@@ -41,7 +41,7 @@ PRIVATE BOOL check_links(register dl_item_t *item)
     if(item->__prev__ || item->__next__ || item->__dl__) {
         gobj_log_error(0, LOG_OPT_TRACE_STACK,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_INTERNAL_ERROR,
+            "msgset",       "%s", MSGSET_INTERNAL,
             "msg",          "%s", "Wrong dl_item_t, WITH links",
             NULL
         );
@@ -59,7 +59,7 @@ PRIVATE BOOL check_no_links(register dl_item_t *item)
     if(!item->__dl__) {
         gobj_log_error(0, LOG_OPT_TRACE_STACK,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_INTERNAL_ERROR,
+            "msgset",       "%s", MSGSET_INTERNAL,
             "msg",          "%s", "Wrong dl_item_t, WITHOUT links",
             NULL
         );
@@ -173,7 +173,7 @@ PUBLIC int dl_delete(dl_list_t *dl, void * curr_, void (*fnfree)(void *))
     if(curr==0) {
         gobj_log_error(0, LOG_OPT_TRACE_STACK,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_INTERNAL_ERROR,
+            "msgset",       "%s", MSGSET_INTERNAL,
             "msg",          "%s", "Deleting item NULL",
             NULL
         );
@@ -185,7 +185,7 @@ PUBLIC int dl_delete(dl_list_t *dl, void * curr_, void (*fnfree)(void *))
     if(curr->__dl__ != dl) {
         gobj_log_error(0, LOG_OPT_TRACE_STACK,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_INTERNAL_ERROR,
+            "msgset",       "%s", MSGSET_INTERNAL,
             "msg",          "%s", "Deleting item with DIFFERENT dl_list_t",
             NULL
         );
@@ -198,7 +198,7 @@ PUBLIC int dl_delete(dl_list_t *dl, void * curr_, void (*fnfree)(void *))
     if(dl->head==0 || dl->tail==0 || dl->__itemsInContainer__==0) {
         gobj_log_error(0, LOG_OPT_TRACE_STACK,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_INTERNAL_ERROR,
+            "msgset",       "%s", MSGSET_INTERNAL,
             "msg",          "%s", "Deleting item in EMPTY list",
             NULL
         );
@@ -281,7 +281,7 @@ PUBLIC void dl_flush(dl_list_t *dl, void (*fnfree)(void *))
     if(dl->head || dl->tail || dl->__itemsInContainer__) {
         gobj_log_error(0, LOG_OPT_TRACE_STACK,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_INTERNAL_ERROR,
+            "msgset",       "%s", MSGSET_INTERNAL,
             "msg",          "%s", "Wrong dl_list_t, MUST be empty",
             NULL
         );

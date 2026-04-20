@@ -1129,7 +1129,7 @@ const char *url = gobj_read_str_attr(gobj, "url");
 if(empty_string(url)) {
     gobj_log_error(gobj, 0,
         "function",     "%s", __FUNCTION__,
-        "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+        "msgset",       "%s", MSGSET_PARAMETER,
         "msg",          "%s", "url EMPTY",
         NULL
     );

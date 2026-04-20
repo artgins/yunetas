@@ -467,7 +467,7 @@ PRIVATE void mt_create(hgobj gobj)
          */
         gobj_log_error(gobj, 0,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_APP_ERROR,
+            "msgset",       "%s", MSGSET_APP,
             "msg",          "%s", "Parse schema fails",
             NULL
         );
@@ -1121,7 +1121,7 @@ PRIVATE json_t *mt_authenticate(hgobj gobj, json_t *kw, hgobj src)
     if(!sessions) {
         gobj_log_error(gobj, 0,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_AUTH_ERROR,
+            "msgset",       "%s", MSGSET_AUTH,
             "msg",          "%s", "__sessions NULL",
             "username",     "%s", username,
             "service",      "%s", dst_service,
@@ -2406,7 +2406,7 @@ PRIVATE int create_validation_key(
     if(alg == JWT_ALG_INVAL) {
         gobj_log_error(gobj, 0,
             "function",         "%s", __FUNCTION__,
-            "msgset",           "%s", MSGSET_CONFIGURATION_ERROR,
+            "msgset",           "%s", MSGSET_CONFIGURATION,
             "msg",              "%s", "JWT Algorithm UNKNOWN",
             "msg",              "%s", "jwt_str_alg() FAILED",
             "kid",              "%s", kid,
@@ -2424,7 +2424,7 @@ PRIVATE int create_validation_key(
     if(!jwk_item) {
         gobj_log_error(gobj, 0,
             "function",         "%s", __FUNCTION__,
-            "msgset",           "%s", MSGSET_INTERNAL_ERROR,
+            "msgset",           "%s", MSGSET_INTERNAL,
             "msg",              "%s", "jwk_process_one() FAILED",
             "kid",              "%s", kid,
             "algorithm",        "%s", algorithm,
@@ -2442,7 +2442,7 @@ PRIVATE int create_validation_key(
     if(!jwt_checker) {
         gobj_log_error(gobj, 0,
             "function",         "%s", __FUNCTION__,
-            "msgset",           "%s", MSGSET_INTERNAL_ERROR,
+            "msgset",           "%s", MSGSET_INTERNAL,
             "msg",              "%s", "jwk_process_one() FAILED",
             "kid",              "%s", kid,
             "algorithm",        "%s", algorithm,
@@ -2458,7 +2458,7 @@ PRIVATE int create_validation_key(
         const char *serror = jwt_checker_error_msg(jwt_checker);
         gobj_log_error(gobj, 0,
             "function",         "%s", __FUNCTION__,
-            "msgset",           "%s", MSGSET_INTERNAL_ERROR,
+            "msgset",           "%s", MSGSET_INTERNAL,
             "msg",              "%s", "jwt_checker_setkey() FAILED",
             "serror",           "%s", serror,
             "kid",              "%s", kid,
@@ -2480,7 +2480,7 @@ PRIVATE int create_validation_key(
         const char *serror = jwt_checker_error_msg(jwt_checker);
         gobj_log_error(gobj, 0,
             "function",         "%s", __FUNCTION__,
-            "msgset",           "%s", MSGSET_INTERNAL_ERROR,
+            "msgset",           "%s", MSGSET_INTERNAL,
             "msg",              "%s", "jwt_checker_* FAILED",
             "serror",           "%s", serror,
             "kid",              "%s", kid,
@@ -2535,7 +2535,7 @@ PRIVATE int destroy_validation_key(
     } else {
         gobj_log_error(gobj, 0,
             "function",         "%s", __FUNCTION__,
-            "msgset",           "%s", MSGSET_CONFIGURATION_ERROR,
+            "msgset",           "%s", MSGSET_CONFIGURATION,
             "msg",              "%s", "kid NOT FOUND",
             "kid",              "%s", kid,
             NULL
@@ -2694,7 +2694,7 @@ PRIVATE int gen_salt(hgobj gobj, uint8_t *salt, size_t salt_len)
     if(RAND_bytes(salt, (int)salt_len) != 1) {
         gobj_log_error(gobj, 0,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_INTERNAL_ERROR,
+            "msgset",       "%s", MSGSET_INTERNAL,
             "msg",          "%s", "RAND_bytes() FAILED",
             NULL
         );
@@ -2704,7 +2704,7 @@ PRIVATE int gen_salt(hgobj gobj, uint8_t *salt, size_t salt_len)
     if(psa_generate_random(salt, salt_len) != PSA_SUCCESS) {
         gobj_log_error(gobj, 0,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_INTERNAL_ERROR,
+            "msgset",       "%s", MSGSET_INTERNAL,
             "msg",          "%s", "psa_generate_random() FAILED",
             NULL
         );
@@ -2749,7 +2749,7 @@ PRIVATE int pbkdf2_any(
     if(!md) {
         gobj_log_error(gobj, 0,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_INTERNAL_ERROR,
+            "msgset",       "%s", MSGSET_INTERNAL,
             "msg",          "%s", "Unable to get openssl digest",
             "digest",       "%s", digest_name,
             NULL
@@ -2761,7 +2761,7 @@ PRIVATE int pbkdf2_any(
     if(md_size <= 0) { /* Should not happen for HMAC-capable digests */
         gobj_log_error(gobj, 0,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_INTERNAL_ERROR,
+            "msgset",       "%s", MSGSET_INTERNAL,
             "msg",          "%s", "EVP_MD_get_size() failed",
             "digest",       "%s", digest_name,
             NULL
@@ -2773,7 +2773,7 @@ PRIVATE int pbkdf2_any(
     if(md_size > out_len) {
         gobj_log_error(gobj, 0,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_INTERNAL_ERROR,
+            "msgset",       "%s", MSGSET_INTERNAL,
             "msg",          "%s", "out_key size too small",
             "digest",       "%s", digest_name,
             "md_size",      "%d", (int)md_size,
@@ -2792,7 +2792,7 @@ PRIVATE int pbkdf2_any(
     ) != 1) {
         gobj_log_error(gobj, 0,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_INTERNAL_ERROR,
+            "msgset",       "%s", MSGSET_INTERNAL,
             "msg",          "%s", "PKCS5_PBKDF2_HMAC() failed",
             "digest",       "%s", digest_name,
             NULL
@@ -2831,7 +2831,7 @@ PRIVATE int pbkdf2_any(
     else {
         gobj_log_error(gobj, 0,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_INTERNAL_ERROR,
+            "msgset",       "%s", MSGSET_INTERNAL,
             "msg",          "%s", "Unsupported digest",
             "digest",       "%s", digest_name,
             NULL
@@ -2843,7 +2843,7 @@ PRIVATE int pbkdf2_any(
     if(!md_info) {
         gobj_log_error(gobj, 0,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_INTERNAL_ERROR,
+            "msgset",       "%s", MSGSET_INTERNAL,
             "msg",          "%s", "Unsupported digest",
             "digest",       "%s", digest_name,
             NULL
@@ -2855,7 +2855,7 @@ PRIVATE int pbkdf2_any(
     if((size_t)md_size > out_len) {
         gobj_log_error(gobj, 0,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_INTERNAL_ERROR,
+            "msgset",       "%s", MSGSET_INTERNAL,
             "msg",          "%s", "out_key size too small",
             "digest",       "%s", digest_name,
             "md_size",      "%d", md_size,
@@ -2872,7 +2872,7 @@ PRIVATE int pbkdf2_any(
         (uint32_t)md_size, out_key) != 0) {
         gobj_log_error(gobj, 0,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_INTERNAL_ERROR,
+            "msgset",       "%s", MSGSET_INTERNAL,
             "msg",          "%s", "mbedtls_pkcs5_pbkdf2_hmac_ext() failed",
             "digest",       "%s", digest_name,
             NULL
@@ -2928,7 +2928,7 @@ PRIVATE json_t *hash_password(
     if(gen_salt(gobj, salt, sizeof(salt)) != 0) {
         gobj_log_error(gobj, 0,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_INTERNAL_ERROR,
+            "msgset",       "%s", MSGSET_INTERNAL,
             "msg",          "%s", "RAND_bytes() FAILED",
             NULL
         );
@@ -2947,7 +2947,7 @@ PRIVATE json_t *hash_password(
     if(hash_len <= 0) {
         gobj_log_error(gobj, 0,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_INTERNAL_ERROR,
+            "msgset",       "%s", MSGSET_INTERNAL,
             "msg",          "%s", "pbkdf2_any() failed",
             "digest",       "%s", digest,
             NULL
@@ -3016,7 +3016,7 @@ PRIVATE int pbkdf2_verify_any(
     if(hash_len <= 0) {
         gobj_log_error(gobj, 0,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_INTERNAL_ERROR,
+            "msgset",       "%s", MSGSET_INTERNAL,
             "msg",          "%s", "pbkdf2_any() failed",
             "digest",       "%s", digest,
             NULL
@@ -3026,7 +3026,7 @@ PRIVATE int pbkdf2_verify_any(
     if(hash_len != expected_len) {
         gobj_log_error(gobj, 0,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_INTERNAL_ERROR,
+            "msgset",       "%s", MSGSET_INTERNAL,
             "msg",          "%s", "expected_len don't match",
             "digest",       "%s", digest,
             "hash_len",     "%d", (int)hash_len,
@@ -3087,7 +3087,7 @@ PRIVATE int check_password(
     if(empty_string(username)) {
         gobj_log_warning(gobj, 0,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_AUTH_ERROR,
+            "msgset",       "%s", MSGSET_AUTH,
             "msg",          "%s", "No username given to check password",
             NULL
         );
@@ -3107,7 +3107,7 @@ PRIVATE int check_password(
     if(!user) {
         gobj_log_warning(gobj, 0,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_AUTH_ERROR,
+            "msgset",       "%s", MSGSET_AUTH,
             "msg",          "%s", "User not exist",
             "username",     "%s", username,
             NULL
@@ -3163,7 +3163,7 @@ PRIVATE int check_password(
 
     gobj_log_warning(gobj, 0,
         "function",     "%s", __FUNCTION__,
-        "msgset",       "%s", MSGSET_AUTH_ERROR,
+        "msgset",       "%s", MSGSET_AUTH,
         "msg",          "%s", "User pwd not matched",
         "username",     "%s", username,
         NULL
@@ -3421,7 +3421,7 @@ PRIVATE json_t *get_user_permissions(
     if(!user) {
         gobj_log_warning(gobj, 0,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_TREEDB_ERROR,
+            "msgset",       "%s", MSGSET_TREEDB,
             "msg",          "%s", "User not found",
             "username"      "%s", username,
             NULL
@@ -3644,7 +3644,7 @@ PRIVATE int ac_on_close(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
         if(empty_string(session_id)) {
             gobj_log_error(gobj, 0,
                 "function",         "%s", __FUNCTION__,
-                "msgset",           "%s", MSGSET_PARAMETER_ERROR,
+                "msgset",           "%s", MSGSET_PARAMETER,
                 "msg",              "%s", "__session_id__ not found",
                 "src",              "%s", gobj_full_name(src),
                 NULL
@@ -3664,7 +3664,7 @@ PRIVATE int ac_on_close(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
         if(!user) {
             gobj_log_error(gobj, 0,
                 "function",     "%s", __FUNCTION__,
-                "msgset",       "%s", MSGSET_INTERNAL_ERROR,
+                "msgset",       "%s", MSGSET_INTERNAL,
                 "msg",          "%s", "User not found",
                 "username",     "%s", username,
                 NULL
@@ -3851,7 +3851,7 @@ PRIVATE int ac_reject_user(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src
     if(!sessions) {
         gobj_log_error(gobj, 0,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_INTERNAL_ERROR,
+            "msgset",       "%s", MSGSET_INTERNAL,
             "msg",          "%s", "__sessions NULL",
             NULL
         );
@@ -3926,7 +3926,7 @@ PRIVATE int create_gclass(gclass_name_t gclass_name)
     if(__gclass__) {
         gobj_log_error(0, 0,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_INTERNAL_ERROR,
+            "msgset",       "%s", MSGSET_INTERNAL,
             "msg",          "%s", "GClass ALREADY created",
             "gclass",       "%s", gclass_name,
             NULL
@@ -4004,7 +4004,7 @@ PUBLIC BOOL authz_checker(hgobj gobj_to_check, const char *authz, json_t *kw, hg
          */
         gobj_log_error(gobj, 0,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_INTERNAL_ERROR,
+            "msgset",       "%s", MSGSET_INTERNAL,
             "msg",          "%s", "No gclass authz found",
             NULL
         );
@@ -4018,7 +4018,7 @@ PUBLIC BOOL authz_checker(hgobj gobj_to_check, const char *authz, json_t *kw, hg
         if(empty_string(__username__)) {
             gobj_log_error(gobj, 0,
                 "function",     "%s", __FUNCTION__,
-                "msgset",       "%s", MSGSET_INTERNAL_ERROR,
+                "msgset",       "%s", MSGSET_INTERNAL,
                 "msg",          "%s", "__username__ not found in kw nor src",
                 "src",          "%s", gobj_full_name(src),
                 NULL

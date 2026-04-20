@@ -91,7 +91,7 @@ PRIVATE int save_json(
     if(ret < 0) {
         gobj_log_error(gobj, 0,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_JSON_ERROR,
+            "msgset",       "%s", MSGSET_JSON,
             "msg",          "%s", "Cannot save device json database",
             "path",         "%s", filename,
             NULL

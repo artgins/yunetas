@@ -42,7 +42,7 @@
             // Error from some task action
             gobj_log_error(gobj, 0,
                 "function",     "%s", __FUNCTION__,
-                "msgset",       "%s", MSGSET_APP_ERROR,
+                "msgset",       "%s", MSGSET_APP,
                 "msg",          "%s", "Task End with error",
                 "comment",      "%s", comment,
                 "src",          "%s", gobj_full_name(src),
@@ -54,7 +54,7 @@
             // Error from task manager: timeout, incomplete task
             gobj_log_error(gobj, 0,
                 "function",     "%s", __FUNCTION__,
-                "msgset",       "%s", MSGSET_APP_ERROR,
+                "msgset",       "%s", MSGSET_APP,
                 "msg",          "%s", "Task End by timeout",
                 "comment",      "%s", comment,
                 "src",          "%s", gobj_full_name(src),
@@ -230,7 +230,7 @@ PRIVATE void mt_create(hgobj gobj)
         if(gobj_is_volatil(priv->gobj_results)) {
             // gobj_log_error(gobj, 0,
             //     "function",     "%s", __FUNCTION__,
-            //     "msgset",       "%s", MSGSET_INTERNAL_ERROR,
+            //     "msgset",       "%s", MSGSET_INTERNAL,
             //     "msg",          "%s", "WARNING don't use volatil gobjs in gobj_results",
             //     "dst",          "%s", gobj_name(priv->gobj_results),
             //     NULL
@@ -244,7 +244,7 @@ PRIVATE void mt_create(hgobj gobj)
     } else {
         gobj_log_error(gobj, 0,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_INTERNAL_ERROR,
+            "msgset",       "%s", MSGSET_INTERNAL,
             "msg",          "%s", "gobj_results must be a json integer or string",
             "gobj_results", "%j", jn_gobj_results,
             NULL
@@ -257,7 +257,7 @@ PRIVATE void mt_create(hgobj gobj)
         if(gobj_is_volatil(priv->gobj_jobs)) {
             // gobj_log_error(gobj, 0,
             //     "function",     "%s", __FUNCTION__,
-            //     "msgset",       "%s", MSGSET_INTERNAL_ERROR,
+            //     "msgset",       "%s", MSGSET_INTERNAL,
             //     "msg",          "%s", "WARNING don't use volatil gobjs in gobj_jobs",
             //     "dst",          "%s", gobj_name(priv->gobj_jobs),
             //     NULL
@@ -271,7 +271,7 @@ PRIVATE void mt_create(hgobj gobj)
     } else {
         gobj_log_error(gobj, 0,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_INTERNAL_ERROR,
+            "msgset",       "%s", MSGSET_INTERNAL,
             "msg",          "%s", "gobj_jobs must be a json integer or string",
             "gobj_jobs", "%j", jn_gobj_jobs,
             NULL
@@ -406,7 +406,7 @@ PRIVATE json_t *cmd_authzs(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
             // Error from some task action
             gobj_log_error(gobj, 0,
                 "function",     "%s", __FUNCTION__,
-                "msgset",       "%s", MSGSET_APP_ERROR,
+                "msgset",       "%s", MSGSET_APP,
                 "msg",          "%s", "Task End with error",
                 "comment",      "%s", comment,
                 "src",          "%s", gobj_full_name(src),
@@ -418,7 +418,7 @@ PRIVATE json_t *cmd_authzs(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
             // Error from task manager: timeout, incomplete task
             gobj_log_error(gobj, 0,
                 "function",     "%s", __FUNCTION__,
-                "msgset",       "%s", MSGSET_APP_ERROR,
+                "msgset",       "%s", MSGSET_APP,
                 "msg",          "%s", "Task End by timeout",
                 "comment",      "%s", comment,
                 "src",          "%s", gobj_full_name(src),
@@ -485,7 +485,7 @@ PRIVATE int execute_action(hgobj gobj)
     if(priv->idx_job > priv->max_job) {
         gobj_log_error(gobj, 0,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_INTERNAL_ERROR,
+            "msgset",       "%s", MSGSET_INTERNAL,
             "msg",          "%s", "cur_job index overflow",
             "cur_job",      "%d", priv->idx_job,
             "max_job",      "%d", priv->max_job,
@@ -711,7 +711,7 @@ PRIVATE int create_gclass(gclass_name_t gclass_name)
     if(__gclass__) {
         gobj_log_error(0, 0,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_INTERNAL_ERROR,
+            "msgset",       "%s", MSGSET_INTERNAL,
             "msg",          "%s", "GClass ALREADY created",
             "gclass",       "%s", gclass_name,
             NULL

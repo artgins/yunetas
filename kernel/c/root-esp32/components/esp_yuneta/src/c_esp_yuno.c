@@ -474,7 +474,7 @@ PRIVATE void mt_create(hgobj gobj)
     if(!is_yuneta) {
         gobj_log_error(gobj, LOG_OPT_EXIT_ZERO,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_INTERNAL_ERROR,
+            "msgset",       "%s", MSGSET_INTERNAL,
             "msg",          "%s", "User or group 'yuneta' is needed to run a yuno",
             NULL
         );
@@ -2788,7 +2788,7 @@ PRIVATE json_t* cmd_add_log_handler(hgobj gobj, const char* cmd, json_t* kw, hgo
             } else {
                 gobj_log_error(gobj, 0,
                     "function",     "%s", __FUNCTION__,
-                    "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+                    "msgset",       "%s", MSGSET_PARAMETER,
                     "msg",          "%s", "log_add_handler() FAILED",
                     "handler_type", "%s", handler_type,
                     "url",          "%s", url,
@@ -2798,7 +2798,7 @@ PRIVATE json_t* cmd_add_log_handler(hgobj gobj, const char* cmd, json_t* kw, hgo
         } else {
             gobj_log_error(gobj, 0,
                 "function",     "%s", __FUNCTION__,
-                "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+                "msgset",       "%s", MSGSET_PARAMETER,
                 "msg",          "%s", "udpc_open() FAILED",
                 "handler_type", "%s", handler_type,
                 "url",          "%s", url,
@@ -2995,7 +2995,7 @@ PRIVATE int set_user_gclass_traces(hgobj gobj)
         if(!json_is_array(jn_name)) {
             gobj_log_error(gobj, 0,
                 "function",     "%s", __FUNCTION__,
-                "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+                "msgset",       "%s", MSGSET_PARAMETER,
                 "msg",          "%s", "value MUST be a json list",
                 "name",         "%s", name,
                 NULL
@@ -3036,7 +3036,7 @@ PRIVATE int set_user_gclass_no_traces(hgobj gobj)
         if(!json_is_array(jn_name)) {
             gobj_log_error(gobj, 0,
                 "function",     "%s", __FUNCTION__,
-                "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+                "msgset",       "%s", MSGSET_PARAMETER,
                 "msg",          "%s", "value MUST be a json list",
                 "name",         "%s", name,
                 NULL
@@ -3083,7 +3083,7 @@ PRIVATE int set_user_trace_filter(hgobj gobj)
         if(!json_is_object(jn_trace_filter)) {
             gobj_log_error(gobj, 0,
                 "function",     "%s", __FUNCTION__,
-                "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+                "msgset",       "%s", MSGSET_PARAMETER,
                 "msg",          "%s", "filter MUST be a json object",
                 "name",         "%s", name,
                 NULL
@@ -3154,7 +3154,7 @@ PRIVATE int set_user_gobj_traces(hgobj gobj)
                 );
                 gobj_log_error(gobj, 0,
                     "function",     "%s", __FUNCTION__,
-                    "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+                    "msgset",       "%s", MSGSET_PARAMETER,
                     "msg",          "%s", temp,
                     "name",         "%s", name,
                     NULL
@@ -3172,7 +3172,7 @@ PRIVATE int set_user_gobj_traces(hgobj gobj)
         if(!json_is_array(jn_name)) {
             gobj_log_error(gobj, 0,
                 "function",     "%s", __FUNCTION__,
-                "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+                "msgset",       "%s", MSGSET_PARAMETER,
                 "msg",          "%s", "value MUST be a json list",
                 "name",         "%s", name,
                 NULL
@@ -3244,7 +3244,7 @@ PRIVATE int set_user_gobj_no_traces(hgobj gobj)
                 );
                 gobj_log_error(gobj, 0,
                     "function",     "%s", __FUNCTION__,
-                    "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+                    "msgset",       "%s", MSGSET_PARAMETER,
                     "msg",          "%s", temp,
                     "name",         "%s", name,
                     NULL
@@ -3261,7 +3261,7 @@ PRIVATE int set_user_gobj_no_traces(hgobj gobj)
         if(!json_is_array(jn_name)) {
             gobj_log_error(gobj, 0,
                 "function",     "%s", __FUNCTION__,
-                "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+                "msgset",       "%s", MSGSET_PARAMETER,
                 "msg",          "%s", "value MUST be a json list",
                 "name",         "%s", name,
                 NULL
@@ -3542,7 +3542,7 @@ PRIVATE int create_gclass(gclass_name_t gclass_name)
     if(__gclass__) {
         gobj_log_error(0, 0,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_INTERNAL_ERROR,
+            "msgset",       "%s", MSGSET_INTERNAL,
             "msg",          "%s", "GClass ALREADY created",
             "gclass",       "%s", gclass_name,
             NULL
@@ -3643,7 +3643,7 @@ PUBLIC int gobj_post_event(
     if(!jn) {
         gobj_log_error(yuno, LOG_OPT_TRACE_STACK,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_JSON_ERROR,
+            "msgset",       "%s", MSGSET_JSON,
             "msg",          "%s", "json_pack_ex() FAILED",
             "error",        "%s", error.text,
             NULL
@@ -3664,7 +3664,7 @@ PUBLIC int gobj_post_event(
     if(err != ESP_OK) {
         gobj_log_error(yuno, LOG_OPT_TRACE_STACK,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_SYSTEM_ERROR,
+            "msgset",       "%s", MSGSET_SYSTEM,
             "msg",          "%s", "esp_event_post_to() FAILED",
             "esp_error",    "%s", esp_err_to_name(err),
             NULL

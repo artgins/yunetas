@@ -192,7 +192,7 @@ PRIVATE void mt_create(hgobj gobj)
 
         gobj_log_error(gobj, 0,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+            "msgset",       "%s", MSGSET_PARAMETER,
             "msg",          "%s", "yuneta_agent22: node_owner EMPTY, exiting",
             NULL
         );
@@ -237,7 +237,7 @@ PRIVATE void mt_create(hgobj gobj)
                 } else {
                     gobj_log_error(gobj, 0,
                         "function",     "%s", __FUNCTION__,
-                        "msgset",       "%s", MSGSET_SYSTEM_ERROR,
+                        "msgset",       "%s", MSGSET_SYSTEM,
                         "msg",          "%s", "cannot check pid",
                         "pid",          "%d", pid,
                         "errno",        "%d", errno,
@@ -422,7 +422,7 @@ PRIVATE json_t *cmd_list_consoles(hgobj gobj, const char *cmd, json_t *kw, hgobj
                 if(!gobj_input_gate) {
                     gobj_log_error(gobj, 0,
                         "function",     "%s", __FUNCTION__,
-                        "msgset",       "%s", MSGSET_INTERNAL_ERROR,
+                        "msgset",       "%s", MSGSET_INTERNAL,
                         "msg",          "%s", "no route child found",
                         "service",      "%s", route_service,
                         "child",        "%s", route_child,
@@ -764,7 +764,7 @@ PRIVATE int add_console_route(
     if(!jn_route) {
         gobj_log_error(gobj, 0,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_INTERNAL_ERROR,
+            "msgset",       "%s", MSGSET_INTERNAL,
             "msg",          "%s", "cannot create route",
             "route_service","%s", route_service,
             "route_child",  "%s", route_child,
@@ -817,7 +817,7 @@ PRIVATE int delete_console(hgobj gobj, const char *name)
     if(!jn_console) {
         gobj_log_error(gobj, 0,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_INTERNAL_ERROR,
+            "msgset",       "%s", MSGSET_INTERNAL,
             "msg",          "%s", "no console conf found",
             "name",         "%s", name,
             NULL
@@ -843,7 +843,7 @@ PRIVATE int delete_console(hgobj gobj, const char *name)
             if(!gobj_input_gate) {
                 gobj_log_error(gobj, 0,
                     "function",     "%s", __FUNCTION__,
-                    "msgset",       "%s", MSGSET_INTERNAL_ERROR,
+                    "msgset",       "%s", MSGSET_INTERNAL,
                     "msg",          "%s", "no route child found",
                     "service",      "%s", route_service,
                     "child",        "%s", route_child,
@@ -939,7 +939,7 @@ PRIVATE int ac_tty_open(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
             if(!gobj_input_gate) {
                 gobj_log_error(gobj, 0,
                     "function",     "%s", __FUNCTION__,
-                    "msgset",       "%s", MSGSET_INTERNAL_ERROR,
+                    "msgset",       "%s", MSGSET_INTERNAL,
                     "msg",          "%s", "no route child found",
                     "service",      "%s", route_service,
                     "child",        "%s", route_child,
@@ -995,7 +995,7 @@ PRIVATE int ac_tty_close(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
             if(!gobj_input_gate) {
                 gobj_log_error(gobj, 0,
                     "function",     "%s", __FUNCTION__,
-                    "msgset",       "%s", MSGSET_INTERNAL_ERROR,
+                    "msgset",       "%s", MSGSET_INTERNAL,
                     "msg",          "%s", "no route child found",
                     "service",      "%s", route_service,
                     "child",        "%s", route_child,
@@ -1054,7 +1054,7 @@ PRIVATE int ac_tty_data(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
             if(!gobj_input_gate) {
                 gobj_log_error(gobj, 0,
                     "function",     "%s", __FUNCTION__,
-                    "msgset",       "%s", MSGSET_INTERNAL_ERROR,
+                    "msgset",       "%s", MSGSET_INTERNAL,
                     "msg",          "%s", "no route child found",
                     "service",      "%s", route_service,
                     "child",        "%s", route_child,
@@ -1092,7 +1092,7 @@ PRIVATE int ac_write_tty(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
     if(empty_string(content64)) {
         gobj_log_error(gobj, 0,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_PROTOCOL_ERROR,
+            "msgset",       "%s", MSGSET_PROTOCOL,
             "msg",          "%s", "content64 required",
             "name",         "%s", name,
             NULL
@@ -1106,7 +1106,7 @@ PRIVATE int ac_write_tty(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
     if(!gobj_console) {
         gobj_log_error(gobj, 0,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_PROTOCOL_ERROR,
+            "msgset",       "%s", MSGSET_PROTOCOL,
             "msg",          "%s", "console not found",
             "name",         "%s", name,
             NULL
@@ -1120,7 +1120,7 @@ PRIVATE int ac_write_tty(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
     if(!gbuf) {
         gobj_log_error(gobj, 0,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_PROTOCOL_ERROR,
+            "msgset",       "%s", MSGSET_PROTOCOL,
             "msg",          "%s", "Bad data",
             "name",         "%s", name,
             NULL
@@ -1178,7 +1178,7 @@ PRIVATE int create_gclass(gclass_name_t gclass_name)
     if(__gclass__) {
         gobj_log_error(0, 0,
             "function", "%s", __FUNCTION__,
-            "msgset",   "%s", MSGSET_INTERNAL_ERROR,
+            "msgset",   "%s", MSGSET_INTERNAL,
             "msg",      "%s", "GClass ALREADY created",
             "gclass",   "%s", gclass_name,
             NULL

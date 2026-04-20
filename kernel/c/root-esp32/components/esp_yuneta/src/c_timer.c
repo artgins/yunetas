@@ -119,7 +119,7 @@ PRIVATE int mt_stop(hgobj gobj)
     if(err) {
         gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_SYSTEM_ERROR,
+            "msgset",       "%s", MSGSET_SYSTEM,
             "msg",          "%s", "esp_timer_delete() FAILED",
             "esp_error",    "%s", esp_err_to_name(err),
             NULL
@@ -145,7 +145,7 @@ PRIVATE int mt_play(hgobj gobj)
         if(err != ESP_OK) {
             gobj_log_error(gobj, 0,
                 "function",     "%s", __FUNCTION__,
-                "msgset",       "%s", MSGSET_SYSTEM_ERROR,
+                "msgset",       "%s", MSGSET_SYSTEM,
                 "msg",          "%s", "esp_timer_stop() FAILED",
                 "esp_error",    "%s", esp_err_to_name(err),
                 NULL
@@ -158,7 +158,7 @@ PRIVATE int mt_play(hgobj gobj)
         if(err != ESP_OK) {
             gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
                 "function",     "%s", __FUNCTION__,
-                "msgset",       "%s", MSGSET_SYSTEM_ERROR,
+                "msgset",       "%s", MSGSET_SYSTEM,
                 "msg",          "%s", "esp_timer_start_periodic() FAILED",
                 "esp_error",    "%s", esp_err_to_name(err),
                 NULL
@@ -169,7 +169,7 @@ PRIVATE int mt_play(hgobj gobj)
         if(err != ESP_OK) {
             gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
                 "function",     "%s", __FUNCTION__,
-                "msgset",       "%s", MSGSET_SYSTEM_ERROR,
+                "msgset",       "%s", MSGSET_SYSTEM,
                 "msg",          "%s", "esp_timer_start_once() FAILED",
                 "esp_error",    "%s", esp_err_to_name(err),
                 NULL
@@ -194,7 +194,7 @@ PRIVATE int mt_pause(hgobj gobj)
         if(err != ESP_OK) {
             gobj_log_error(gobj, 0,
                 "function",     "%s", __FUNCTION__,
-                "msgset",       "%s", MSGSET_SYSTEM_ERROR,
+                "msgset",       "%s", MSGSET_SYSTEM,
                 "msg",          "%s", "esp_timer_stop() FAILED",
                 "esp_error",    "%s", esp_err_to_name(err),
                 NULL
@@ -310,7 +310,7 @@ PRIVATE int create_gclass(gclass_name_t gclass_name)
     if(__gclass__) {
         gobj_log_error(0, 0,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_INTERNAL_ERROR,
+            "msgset",       "%s", MSGSET_INTERNAL,
             "msg",          "%s", "GClass ALREADY created",
             "gclass",       "%s", gclass_name,
             NULL

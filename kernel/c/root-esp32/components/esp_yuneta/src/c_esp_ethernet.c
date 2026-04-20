@@ -254,7 +254,7 @@ static void event_handler(void* arg, esp_event_base_t event_base, int32_t event_
                     if(esp_netif_get_netif_impl_name(esp_netif, ifr_name) != ESP_OK) {
                         gobj_log_error(gobj, 0,
                             "function",     "%s", __FUNCTION__,
-                            "msgset",       "%s", MSGSET_SYSTEM_ERROR,
+                            "msgset",       "%s", MSGSET_SYSTEM,
                             "msg",          "%s", "esp_netif_get_netif_impl_name() FAILED",
                             NULL
                         );
@@ -304,7 +304,7 @@ static void event_handler(void* arg, esp_event_base_t event_base, int32_t event_
     if(!processed) {
         gobj_log_warning(gobj, 0,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_INTERNAL_ERROR,
+            "msgset",       "%s", MSGSET_INTERNAL,
             "msg",          "%s", "ESP ETHERNET event not processed",
             "event_base",   "%s", event_base,
             "event_id",     "%d", (int)event_id,
@@ -438,7 +438,7 @@ PRIVATE int start_ethernet(hgobj gobj)
     if(!priv->eth_netif) {
         gobj_log_error(gobj, 0,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_SYSTEM_ERROR,
+            "msgset",       "%s", MSGSET_SYSTEM,
             "msg",          "%s", "esp_netif_new() FAILED",
             NULL
         );
@@ -728,7 +728,7 @@ PRIVATE int create_gclass(gclass_name_t gclass_name)
     if(__gclass__) {
         gobj_log_error(0, 0,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_INTERNAL_ERROR,
+            "msgset",       "%s", MSGSET_INTERNAL,
             "msg",          "%s", "GClass ALREADY created",
             "gclass",       "%s", gclass_name,
             NULL

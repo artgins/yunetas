@@ -198,7 +198,7 @@ PRIVATE int ac_message(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
     if(strcmp(topic, "test/topic") != 0) {
         gobj_log_error(gobj, 0,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_APP_ERROR,
+            "msgset",       "%s", MSGSET_APP,
             "msg",          "%s", "MQTT test FAILED: wrong topic",
             "expected",     "%s", "test/topic",
             "got",          "%s", topic,
@@ -209,7 +209,7 @@ PRIVATE int ac_message(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
         if(!gbuf) {
             gobj_log_error(gobj, 0,
                 "function",     "%s", __FUNCTION__,
-                "msgset",       "%s", MSGSET_APP_ERROR,
+                "msgset",       "%s", MSGSET_APP,
                 "msg",          "%s", "MQTT test FAILED: NULL gbuffer in message",
                 NULL
             );
@@ -222,7 +222,7 @@ PRIVATE int ac_message(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
             if(payloadlen != expected_len || memcmp(payload, expected, expected_len) != 0) {
                 gobj_log_error(gobj, 0,
                     "function",     "%s", __FUNCTION__,
-                    "msgset",       "%s", MSGSET_APP_ERROR,
+                    "msgset",       "%s", MSGSET_APP,
                     "msg",          "%s", "MQTT test FAILED: wrong payload",
                     "expected",     "%s", expected,
                     NULL
@@ -253,7 +253,7 @@ PRIVATE int ac_on_close(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
     if(!priv->message_received) {
         gobj_log_error(gobj, 0,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_APP_ERROR,
+            "msgset",       "%s", MSGSET_APP,
             "msg",          "%s", "MQTT test FAILED: connection closed before message received",
             NULL
         );
@@ -329,7 +329,7 @@ PRIVATE int create_gclass(gclass_name_t gclass_name)
     if(__gclass__) {
         gobj_log_error(0, 0,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_INTERNAL_ERROR,
+            "msgset",       "%s", MSGSET_INTERNAL,
             "msg",          "%s", "GClass ALREADY created",
             "gclass",       "%s", gclass_name,
             NULL

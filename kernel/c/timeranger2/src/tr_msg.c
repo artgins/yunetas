@@ -145,7 +145,7 @@ PRIVATE int load_record_callback(
     if(!jn_record) {
         gobj_log_error(gobj, 0,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_INTERNAL_ERROR,
+            "msgset",       "%s", MSGSET_INTERNAL,
             "msg",          "%s", "jn_record NULL",
             NULL
         );
@@ -295,7 +295,7 @@ PUBLIC json_t *trmsg_open_list( // WARNING loading all records causes delay in s
     if(!topic) {
         gobj_log_error(gobj, 0,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+            "msgset",       "%s", MSGSET_PARAMETER,
             "msg",          "%s", "topic not found",
             "topic_name",   "%s", topic_name,
             NULL
@@ -331,7 +331,7 @@ PUBLIC json_t *trmsg_open_list( // WARNING loading all records causes delay in s
     if(!rt) {
         gobj_log_error(gobj, 0,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_TREEDB_ERROR,
+            "msgset",       "%s", MSGSET_TREEDB,
             "msg",          "%s", "tranger2_open_list() failed",
             "topic_name",   "%s", topic_name,
             NULL

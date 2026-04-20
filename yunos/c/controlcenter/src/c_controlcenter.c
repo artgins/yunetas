@@ -341,7 +341,7 @@ PRIVATE int mt_play(hgobj gobj)
          */
         gobj_log_error(gobj, 0,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_APP_ERROR,
+            "msgset",       "%s", MSGSET_APP,
             "msg",          "%s", "Parse schema fails",
             NULL
         );
@@ -374,7 +374,7 @@ PRIVATE int mt_play(hgobj gobj)
         const char *comment = kw_get_str(gobj, jn_resp, "comment", "", KW_REQUIRED);
         gobj_log_error(gobj, 0,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_APP_ERROR,
+            "msgset",       "%s", MSGSET_APP,
             "msg",          "%s", comment,
             NULL
         );
@@ -877,7 +877,7 @@ PRIVATE int ac_on_open(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
     if(src != priv->gobj_top_side && src != priv->gobj_input_side) {
         gobj_log_error(gobj, 0,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_INTERNAL_ERROR,
+            "msgset",       "%s", MSGSET_INTERNAL,
             "msg",          "%s", "on_open NOT from GOBJ_TOP_SIDE",
             "src",          "%s", gobj_full_name(src),
             NULL
@@ -949,7 +949,7 @@ PRIVATE int ac_stats_yuno_answer(hgobj gobj, gobj_event_t event, json_t *kw, hgo
     if(!gobj_requester) {
         gobj_log_error(gobj, 0,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_INTERNAL_ERROR,
+            "msgset",       "%s", MSGSET_INTERNAL,
             "msg",          "%s", "service not found",
             "service",      "%s", dst_service,
             NULL
@@ -1004,7 +1004,7 @@ PRIVATE int ac_command_yuno_answer(hgobj gobj, gobj_event_t event, json_t *kw, h
     if(!gobj_requester) {
         gobj_log_error(gobj, 0,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_INTERNAL_ERROR,
+            "msgset",       "%s", MSGSET_INTERNAL,
             "msg",          "%s", "service not found",
             "service",      "%s", dst_service,
             NULL
@@ -1059,7 +1059,7 @@ PRIVATE int ac_tty_mirror_open(hgobj gobj, gobj_event_t event, json_t *kw, hgobj
     if(!gobj_requester) {
         gobj_log_error(gobj, 0,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_INTERNAL_ERROR,
+            "msgset",       "%s", MSGSET_INTERNAL,
             "msg",          "%s", "service not found",
             "service",      "%s", dst_service,
             NULL
@@ -1118,7 +1118,7 @@ PRIVATE int ac_tty_mirror_close(hgobj gobj, gobj_event_t event, json_t *kw, hgob
     if(!gobj_requester) {
         gobj_log_error(gobj, 0,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_INTERNAL_ERROR,
+            "msgset",       "%s", MSGSET_INTERNAL,
             "msg",          "%s", "service not found",
             "service",      "%s", dst_service,
             NULL
@@ -1177,7 +1177,7 @@ PRIVATE int ac_tty_mirror_data(hgobj gobj, gobj_event_t event, json_t *kw, hgobj
     if(!gobj_requester) {
         gobj_log_error(gobj, 0,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_INTERNAL_ERROR,
+            "msgset",       "%s", MSGSET_INTERNAL,
             "msg",          "%s", "service not found",
             "service",      "%s", dst_service,
             NULL
@@ -1581,7 +1581,7 @@ PRIVATE int create_gclass(gclass_name_t gclass_name)
     if(__gclass__) {
         gobj_log_error(0, 0,
             "function", "%s", __FUNCTION__,
-            "msgset",   "%s", MSGSET_INTERNAL_ERROR,
+            "msgset",   "%s", MSGSET_INTERNAL,
             "msg",      "%s", "GClass ALREADY created",
             "gclass",   "%s", gclass_name,
             NULL

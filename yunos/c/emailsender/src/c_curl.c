@@ -406,7 +406,7 @@ PRIVATE int send_email(
     if(!rcpt_list) {
         gobj_log_error(0, 0,
             "function", "%s", __FUNCTION__,
-            "msgset",   "%s", MSGSET_INTERNAL_ERROR,
+            "msgset",   "%s", MSGSET_INTERNAL,
             "msg",      "%s", "No valid recipients found",
             NULL
         );
@@ -427,7 +427,7 @@ retry_send:
     if(!curl) {
         gobj_log_error(0, 0,
             "function", "%s", __FUNCTION__,
-            "msgset",   "%s", MSGSET_INTERNAL_ERROR,
+            "msgset",   "%s", MSGSET_INTERNAL,
             "msg",      "%s", "curl_easy_init() failed",
             NULL
         );
@@ -567,7 +567,7 @@ retry_send:
         curl_easy_getinfo(curl, CURLINFO_RESPONSE_CODE, &response_code);
         gobj_log_error(0, 0,
             "function", "%s", __FUNCTION__,
-            "msgset",   "%s", MSGSET_INTERNAL_ERROR,
+            "msgset",   "%s", MSGSET_INTERNAL,
             "msg",      "%s", "Send attempt failed",
             "try",      "%d", attempt + 1,
             "serror",   "%s", curl_easy_strerror(res),
@@ -579,7 +579,7 @@ retry_send:
             int backoff = INITIAL_BACKOFF << attempt;
             gobj_log_error(0, 0,
                 "function", "%s", __FUNCTION__,
-                "msgset",   "%s", MSGSET_INTERNAL_ERROR,
+                "msgset",   "%s", MSGSET_INTERNAL,
                 "msg",      "%s", "Retrying in seconds...",
                 "seconds",  "%d", backoff,
                 NULL
@@ -700,7 +700,7 @@ PRIVATE int create_gclass(gclass_name_t gclass_name)
     if(__gclass__) {
         gobj_log_error(0, 0,
             "function", "%s", __FUNCTION__,
-            "msgset",   "%s", MSGSET_INTERNAL_ERROR,
+            "msgset",   "%s", MSGSET_INTERNAL,
             "msg",      "%s", "GClass ALREADY created",
             "gclass",   "%s", gclass_name,
             NULL

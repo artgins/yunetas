@@ -957,7 +957,7 @@ PRIVATE int mt_start(hgobj gobj)
     if(ioctl(STDIN_FILENO, TIOCGWINSZ, &winsz)<0) {
         gobj_log_error(0, 0,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_SYSTEM_ERROR,
+            "msgset",       "%s", MSGSET_SYSTEM,
             "msg",          "%s", "ioctl() FAILED",
             "errno",        "%d", errno,
             "serrno",       "%s", strerror(errno),
@@ -1015,7 +1015,7 @@ PRIVATE int mt_start(hgobj gobj)
             print_error(0, "\r\n\r\nCannot open a tty device. Are you in a valid login session?\r\n");
             gobj_log_error(0, 0,
                 "function",     "%s", __FUNCTION__,
-                "msgset",       "%s", MSGSET_SYSTEM_ERROR,
+                "msgset",       "%s", MSGSET_SYSTEM,
                 "msg",          "%s", "cannot open a tty window",
                 NULL
             );
@@ -1220,7 +1220,7 @@ PRIVATE json_t *cmd_connect(hgobj gobj, const char *command, json_t *kw, hgobj s
     )<0) {
         gobj_log_error(gobj, 0,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+            "msgset",       "%s", MSGSET_PARAMETER,
             "msg",          "%s", "parse_http_url() FAILED",
             "url",          "%s", url,
             NULL
@@ -1900,7 +1900,7 @@ PRIVATE int yev_callback(yev_event_h yev_event)
         default:
             gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
                 "function",     "%s", __FUNCTION__,
-                "msgset",       "%s", MSGSET_SYSTEM_ERROR,
+                "msgset",       "%s", MSGSET_SYSTEM,
                 "msg",          "%s", "TCP: event type NOT IMPLEMENTED",
                 "msg2",         "%s", "🌐TCP: event type NOT IMPLEMENTED",
                 "url",          "%s", gobj_read_str_attr(gobj, "url"),
@@ -2202,7 +2202,7 @@ PRIVATE int process_read(hgobj gobj, char *base, size_t nread)
             if(!dst_gobj) {
                 gobj_log_error(gobj, 0,
                     "function",     "%s", __FUNCTION__,
-                    "msgset",       "%s", MSGSET_INTERNAL_ERROR,
+                    "msgset",       "%s", MSGSET_INTERNAL,
                     "msg",          "%s", "service gobj NOT FOUND",
                     "service",      "%s", dst,
                     NULL
@@ -2214,7 +2214,7 @@ PRIVATE int process_read(hgobj gobj, char *base, size_t nread)
                 } else {
                     gobj_log_error(gobj, 0,
                         "function",     "%s", __FUNCTION__,
-                        "msgset",       "%s", MSGSET_INTERNAL_ERROR,
+                        "msgset",       "%s", MSGSET_INTERNAL,
                         "msg",          "%s", "event NOT FOUND",
                         "service",      "%s", gobj_short_name(dst_gobj),
                         "event",        "%s", event,
@@ -2246,7 +2246,7 @@ PRIVATE int process_read(hgobj gobj, char *base, size_t nread)
             if(!dst_gobj) {
                 gobj_log_error(gobj, 0,
                     "function",     "%s", __FUNCTION__,
-                    "msgset",       "%s", MSGSET_INTERNAL_ERROR,
+                    "msgset",       "%s", MSGSET_INTERNAL,
                     "msg",          "%s", "service gobj NOT FOUND",
                     "service",       "%s", dst,
                     NULL
@@ -2266,7 +2266,7 @@ PRIVATE int process_read(hgobj gobj, char *base, size_t nread)
                 } else {
                     gobj_log_error(gobj, 0,
                         "function",     "%s", __FUNCTION__,
-                        "msgset",       "%s", MSGSET_INTERNAL_ERROR,
+                        "msgset",       "%s", MSGSET_INTERNAL,
                         "msg",          "%s", "event NOT FOUND",
                         "service",      "%s", gobj_short_name(dst_gobj),
                         "event",        "%s", event,
@@ -2614,7 +2614,7 @@ PRIVATE int set_top_window(hgobj gobj, const char *name)
     } else {
         gobj_log_error(gobj, 0,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_INTERNAL_ERROR,
+            "msgset",       "%s", MSGSET_INTERNAL,
             "msg",          "%s", "gobj_child_by_name() FAILED",
             "name",         "%s", name,
             NULL
@@ -4049,7 +4049,7 @@ PRIVATE int create_gclass(gclass_name_t gclass_name)
     if(__gclass__) {
         gobj_log_error(0, 0,
             "function", "%s", __FUNCTION__,
-            "msgset",   "%s", MSGSET_INTERNAL_ERROR,
+            "msgset",   "%s", MSGSET_INTERNAL,
             "msg",      "%s", "GClass ALREADY created",
             "gclass",   "%s", gclass_name,
             NULL

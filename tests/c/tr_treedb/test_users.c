@@ -43,7 +43,7 @@ PRIVATE int load_topic_new_data(
         if(!record) {
             gobj_log_error(gobj, 0,
                 "function",     "%s", __FUNCTION__,
-                "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+                "msgset",       "%s", MSGSET_PARAMETER,
                 "msg",          "%s", "treedb_create_node() FAILED",
                 "treedb_name",  "%s", treedb_name,
                 "topic_name",   "%s", topic_name,
@@ -96,7 +96,7 @@ PRIVATE int load_topic_new_data(
                 if(empty_string(child_id)) {
                     gobj_log_error(gobj, 0,
                         "function",     "%s", __FUNCTION__,
-                        "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+                        "msgset",       "%s", MSGSET_PARAMETER,
                         "msg",          "%s", "Record without id",
                         "treedb_name",  "%s", treedb_name,
                         "topic_name",   "%s", topic_name,
@@ -120,7 +120,7 @@ PRIVATE int load_topic_new_data(
                 if(!child_record) {
                     gobj_log_error(gobj, 0,
                         "function",     "%s", __FUNCTION__,
-                        "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+                        "msgset",       "%s", MSGSET_PARAMETER,
                         "msg",          "%s", "Node not found",
                         "treedb_name",  "%s", treedb_name,
                         "topic_name",   "%s", topic_name,
@@ -149,7 +149,7 @@ PRIVATE int load_topic_new_data(
                         split_free2(ss);
                         gobj_log_error(gobj, 0,
                             "function",     "%s", __FUNCTION__,
-                            "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+                            "msgset",       "%s", MSGSET_PARAMETER,
                             "msg",          "%s", "Wrong mix fkey",
                             "treedb_name",  "%s", treedb_name,
                             "topic_name",   "%s", topic_name,
@@ -176,7 +176,7 @@ PRIVATE int load_topic_new_data(
                     if(!parent_record) {
                         gobj_log_error(gobj, 0,
                             "function",     "%s", __FUNCTION__,
-                            "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+                            "msgset",       "%s", MSGSET_PARAMETER,
                             "msg",          "%s", "Node not found",
                             "treedb_name",  "%s", treedb_name,
                             "topic_name",   "%s", parent_topic_name,
@@ -198,7 +198,7 @@ PRIVATE int load_topic_new_data(
                     )<0) {
                         gobj_log_error(gobj, 0,
                             "function",     "%s", __FUNCTION__,
-                            "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+                            "msgset",       "%s", MSGSET_PARAMETER,
                             "msg",          "%s", "treedb_link_nodes() FAILED",
                             "treedb_name",  "%s", treedb_name,
                             "hook_name",    "%s", hook_name,
@@ -245,7 +245,7 @@ PRIVATE int load_treedbs(
         if(!treedb) {
             gobj_log_error(gobj, 0,
                 "function",     "%s", __FUNCTION__,
-                "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+                "msgset",       "%s", MSGSET_PARAMETER,
                 "msg",          "%s", "Treedb not found in tranger",
                 "treedb_name",  "%s", treedb_name,
                 NULL
@@ -262,7 +262,7 @@ PRIVATE int load_treedbs(
             if(!topic_desc) {
                 gobj_log_error(gobj, 0,
                     "function",     "%s", __FUNCTION__,
-                    "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+                    "msgset",       "%s", MSGSET_PARAMETER,
                     "msg",          "%s", "Topic not found in treedb",
                     "treedb_name",  "%s", treedb_name,
                     "topic_name",   "%s", topic_name,
@@ -278,7 +278,7 @@ PRIVATE int load_treedbs(
             if(strcmp(operation, "update")==0) {
                 gobj_log_error(gobj, 0,
                     "function",     "%s", __FUNCTION__,
-                    "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+                    "msgset",       "%s", MSGSET_PARAMETER,
                     "msg",          "%s", "update operation not implemented",
                     "treedb_name",  "%s", treedb_name,
                     "topic_name",   "%s", topic_name,
@@ -290,7 +290,7 @@ PRIVATE int load_treedbs(
                 if(current_data_size>0) {
                     gobj_log_error(gobj, 0,
                         "function",     "%s", __FUNCTION__,
-                        "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+                        "msgset",       "%s", MSGSET_PARAMETER,
                         "msg",          "%s", "Topic data NOT EMPTY",
                         "treedb_name",  "%s", treedb_name,
                         "topic_name",   "%s", topic_name,

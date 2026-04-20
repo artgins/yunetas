@@ -548,7 +548,7 @@ PRIVATE int mt_start(hgobj gobj)
             if(!priv->istream_head) {
                 gobj_log_critical(0,0,
                     "function",     "%s", __FUNCTION__,
-                    "msgset",       "%s", MSGSET_INTERNAL_ERROR,
+                    "msgset",       "%s", MSGSET_INTERNAL,
                     "msg",          "%s", "istream_create(head) FAILED",
                     NULL
                 );
@@ -565,7 +565,7 @@ PRIVATE int mt_start(hgobj gobj)
             if(!priv->istream_head) {
                 gobj_log_critical(0,0,
                     "function",     "%s", __FUNCTION__,
-                    "msgset",       "%s", MSGSET_INTERNAL_ERROR,
+                    "msgset",       "%s", MSGSET_INTERNAL,
                     "msg",          "%s", "istream_create(head) FAILED",
                     NULL
                 );
@@ -861,7 +861,7 @@ PRIVATE const char *modbus_function_name(int modbus_function)
         default:
             gobj_log_error(0, LOG_OPT_TRACE_STACK,
                 "function",     "%s", __FUNCTION__,
-                "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+                "msgset",       "%s", MSGSET_PARAMETER,
                 "msg",          "%s", "Modbus function UNKNOWN",
                 "function",     "%d", modbus_function,
                 NULL
@@ -1018,7 +1018,7 @@ PRIVATE gbuffer_t *build_modbus_request_read_message(hgobj gobj, json_t *jn_slav
             if(size > MODBUS_MAX_READ_BITS) {
                 gobj_log_error(gobj, 0,
                     "function",     "%s", __FUNCTION__,
-                    "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+                    "msgset",       "%s", MSGSET_PARAMETER,
                     "msg",          "%s", "Modbus Too many coils requested",
                     "type",         "%s", type,
                     "size",         "%d", size,
@@ -1033,7 +1033,7 @@ PRIVATE gbuffer_t *build_modbus_request_read_message(hgobj gobj, json_t *jn_slav
             if(size > MODBUS_MAX_READ_BITS) {
                 gobj_log_error(gobj, 0,
                     "function",     "%s", __FUNCTION__,
-                    "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+                    "msgset",       "%s", MSGSET_PARAMETER,
                     "msg",          "%s", "Modbus Too many discrete inputs requested",
                     "size",         "%d", size,
                     NULL
@@ -1047,7 +1047,7 @@ PRIVATE gbuffer_t *build_modbus_request_read_message(hgobj gobj, json_t *jn_slav
             if(size > MODBUS_MAX_READ_REGISTERS) {
                 gobj_log_error(gobj, 0,
                     "function",     "%s", __FUNCTION__,
-                    "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+                    "msgset",       "%s", MSGSET_PARAMETER,
                     "msg",          "%s", "Modbus Too many discrete inputs requested",
                     "size",         "%d", size,
                     NULL
@@ -1060,7 +1060,7 @@ PRIVATE gbuffer_t *build_modbus_request_read_message(hgobj gobj, json_t *jn_slav
             if(size > MODBUS_MAX_READ_REGISTERS) {
                 gobj_log_error(gobj, 0,
                     "function",     "%s", __FUNCTION__,
-                    "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+                    "msgset",       "%s", MSGSET_PARAMETER,
                     "msg",          "%s", "Modbus Too many discrete inputs requested",
                     "size",         "%d", size,
                     NULL
@@ -1071,7 +1071,7 @@ PRIVATE gbuffer_t *build_modbus_request_read_message(hgobj gobj, json_t *jn_slav
         default:
             gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
                 "function",     "%s", __FUNCTION__,
-                "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+                "msgset",       "%s", MSGSET_PARAMETER,
                 "msg",          "%s", "Modbus object type UNKNOWN",
                 "type",         "%s", type,
                 NULL
@@ -1128,7 +1128,7 @@ PRIVATE gbuffer_t *build_modbus_request_read_message(hgobj gobj, json_t *jn_slav
         DEFAULTS
             gobj_log_error(gobj, 0,
                 "function",     "%s", __FUNCTION__,
-                "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+                "msgset",       "%s", MSGSET_PARAMETER,
                 "msg",          "%s", "Modbus protocol NOT IMPLEMENTED",
                 "protocol",     "%s", priv->modbus_protocol,
                 NULL
@@ -1167,7 +1167,7 @@ PRIVATE gbuffer_t *build_modbus_request_write_message(hgobj gobj, json_t *jn_req
     if(size == 0 || size > MODBUS_MAX_WRITE_REGISTERS) {
         gobj_log_error(gobj, 0,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+            "msgset",       "%s", MSGSET_PARAMETER,
             "msg",          "%s", "Modbus Too many discrete values to write or zero",
             "size",         "%d", size,
             NULL
@@ -1178,7 +1178,7 @@ PRIVATE gbuffer_t *build_modbus_request_write_message(hgobj gobj, json_t *jn_req
     if(!jn_value) {
         gobj_log_error(gobj, 0,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+            "msgset",       "%s", MSGSET_PARAMETER,
             "msg",          "%s", "Modbus write needs a value",
             NULL
         );
@@ -1193,7 +1193,7 @@ PRIVATE gbuffer_t *build_modbus_request_write_message(hgobj gobj, json_t *jn_req
         if(json_array_size(jn_value) != size) {
             gobj_log_error(gobj, 0,
                 "function",     "%s", __FUNCTION__,
-                "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+                "msgset",       "%s", MSGSET_PARAMETER,
                 "msg",          "%s", "Modbus write array size not match",
                 "size",         "%d", size,
                 "json_size",    "%d", json_array_size(jn_value),
@@ -1206,7 +1206,7 @@ PRIVATE gbuffer_t *build_modbus_request_write_message(hgobj gobj, json_t *jn_req
     } else {
         gobj_log_error(gobj, 0,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+            "msgset",       "%s", MSGSET_PARAMETER,
             "msg",          "%s", "Modbus json value type not valid",
             NULL
         );
@@ -1237,7 +1237,7 @@ PRIVATE gbuffer_t *build_modbus_request_write_message(hgobj gobj, json_t *jn_req
         default:
             gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
                 "function",     "%s", __FUNCTION__,
-                "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+                "msgset",       "%s", MSGSET_PARAMETER,
                 "msg",          "%s", "Modbus object type NOT SUPPORTED to write",
                 "type",         "%s", type,
                 NULL
@@ -1302,7 +1302,7 @@ PRIVATE gbuffer_t *build_modbus_request_write_message(hgobj gobj, json_t *jn_req
         DEFAULTS
             gobj_log_error(gobj, 0,
                 "function",     "%s", __FUNCTION__,
-                "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+                "msgset",       "%s", MSGSET_PARAMETER,
                 "msg",          "%s", "Modbus protocol UNKNOWN",
                 "protocol",     "%s", priv->modbus_protocol,
                 NULL
@@ -1363,7 +1363,7 @@ PRIVATE int collect_register_bytes(
             default:
                 gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
                     "function",     "%s", __FUNCTION__,
-                    "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+                    "msgset",       "%s", MSGSET_PARAMETER,
                     "msg",          "%s", "type NOT implemented or UNKNOWN",
                     "type",         "%s", get_object_type_name(ot),
                     NULL
@@ -1429,7 +1429,7 @@ PRIVATE modbus_object_type_t get_object_type(hgobj gobj, const char *type_)
         DEFAULTS
             gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
                 "function",     "%s", __FUNCTION__,
-                "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+                "msgset",       "%s", MSGSET_PARAMETER,
                 "msg",          "%s", "Modbus object type UNKNOWN",
                 "type",         "%s", type,
                 NULL
@@ -1450,7 +1450,7 @@ PRIVATE int build_slave_data(hgobj gobj)
     if(!priv->slaves_) {
         gobj_log_error(gobj, 0,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_INTERNAL_ERROR,
+            "msgset",       "%s", MSGSET_INTERNAL,
             "msg",          "%s", "slaves_ NULL",
             NULL
         );
@@ -1459,7 +1459,7 @@ PRIVATE int build_slave_data(hgobj gobj)
     if(!priv->max_slaves) {
         gobj_log_error(gobj, 0,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_INTERNAL_ERROR,
+            "msgset",       "%s", MSGSET_INTERNAL,
             "msg",          "%s", "NO slave defined",
             NULL
         );
@@ -1474,7 +1474,7 @@ PRIVATE int build_slave_data(hgobj gobj)
     if(!priv->slave_data) {
         gobj_log_error(gobj, 0,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_MEMORY_ERROR,
+            "msgset",       "%s", MSGSET_MEMORY,
             "msg",          "%s", "no memory for slave_data",
             "size",         "%d", array_size,
             NULL
@@ -1527,7 +1527,7 @@ PRIVATE int build_slave_data(hgobj gobj)
             if(address < 0 || address > 0xFFFF) {
                 gobj_log_error(gobj, 0,
                     "function",     "%s", __FUNCTION__,
-                    "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+                    "msgset",       "%s", MSGSET_PARAMETER,
                     "msg",          "%s", "Modbus object address OUT OF RANGE",
                     "type",         "%s", type,
                     "object_type",  "%d", object_type,
@@ -1541,7 +1541,7 @@ PRIVATE int build_slave_data(hgobj gobj)
             if(size < 0 || size > 0xFFFF) {
                 gobj_log_error(gobj, 0,
                     "function",     "%s", __FUNCTION__,
-                    "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+                    "msgset",       "%s", MSGSET_PARAMETER,
                     "msg",          "%s", "Modbus object size OUT OF RANGE",
                     "type",         "%s", type,
                     "object_type",  "%d", object_type,
@@ -1557,7 +1557,7 @@ PRIVATE int build_slave_data(hgobj gobj)
             if((address + size) >= 0xFFFF) {
                 gobj_log_error(gobj, 0,
                     "function",     "%s", __FUNCTION__,
-                    "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+                    "msgset",       "%s", MSGSET_PARAMETER,
                     "msg",          "%s", "Modbus object data OUT OF RANGE",
                     "type",         "%s", type,
                     "object_type",  "%d", object_type,
@@ -1585,7 +1585,7 @@ PRIVATE int build_slave_data(hgobj gobj)
                 if(cell_control->control.value_busy) {
                     gobj_log_error(gobj, 0,
                         "function",     "%s", __FUNCTION__,
-                        "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+                        "msgset",       "%s", MSGSET_PARAMETER,
                         "msg",          "%s", "Map OVERRIDE",
                         "type",         "%s", type,
                         "object_type",  "%d", object_type,
@@ -1629,7 +1629,7 @@ PRIVATE int free_slave_data(hgobj gobj)
     if(!pslv) {
         gobj_log_error(0, LOG_OPT_TRACE_STACK,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_INTERNAL_ERROR,
+            "msgset",       "%s", MSGSET_INTERNAL,
             "msg",          "%s", "slave data NULL",
             NULL
         );
@@ -1666,7 +1666,7 @@ PRIVATE int print_slave_data(hgobj gobj)
     if(!pslv) {
         gobj_log_error(0, LOG_OPT_TRACE_STACK,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_INTERNAL_ERROR,
+            "msgset",       "%s", MSGSET_INTERNAL,
             "msg",          "%s", "slave data NULL",
             NULL
         );
@@ -1725,7 +1725,7 @@ PRIVATE int load_slave_mapping(hgobj gobj)
     if(!priv->cur_slave_) {
         gobj_log_error(gobj, 0,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_INTERNAL_ERROR,
+            "msgset",       "%s", MSGSET_INTERNAL,
             "msg",          "%s", "cur_slave_ NULL",
             "idx_slaves",   "%d", priv->idx_slaves,
             "slaves_",      "%j", priv->slaves_?priv->slaves_:json_null(),
@@ -1741,7 +1741,7 @@ PRIVATE int load_slave_mapping(hgobj gobj)
     if(priv->max_mapping == 0) {
         gobj_log_error(gobj, 0,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_INTERNAL_ERROR,
+            "msgset",       "%s", MSGSET_INTERNAL,
             "msg",          "%s", "slave without mapping",
             "idx_slaves",   "%d", priv->idx_slaves,
             "cur_slave_",   "%j", priv->cur_slave_,
@@ -1818,7 +1818,7 @@ PRIVATE int poll_modbus(hgobj gobj)
     if(priv->cur_map_) {
         gobj_log_error(gobj, 0,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_INTERNAL_ERROR,
+            "msgset",       "%s", MSGSET_INTERNAL,
             "msg",          "%s", "cur_map_ ALREADY loaded",
             "idx_slaves",   "%d", priv->idx_slaves,
             "idx_mapping",  "%d", priv->idx_mapping,
@@ -1831,7 +1831,7 @@ PRIVATE int poll_modbus(hgobj gobj)
     if(!priv->cur_map_) {
         gobj_log_error(gobj, 0,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_INTERNAL_ERROR,
+            "msgset",       "%s", MSGSET_INTERNAL,
             "msg",          "%s", "cur_map_ NULL",
             "idx_slaves",   "%d", priv->idx_slaves,
             "idx_mapping",  "%d", priv->idx_mapping,
@@ -1845,7 +1845,7 @@ PRIVATE int poll_modbus(hgobj gobj)
     if(kw_get_bool(gobj, priv->cur_map_, "disabled", 0, 0)) {
         gobj_log_error(gobj, 0,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_INTERNAL_ERROR,
+            "msgset",       "%s", MSGSET_INTERNAL,
             "msg",          "%s", "cur_map_ DISABLED",
             "idx_slaves",   "%d", priv->idx_slaves,
             "idx_mapping",  "%d", priv->idx_mapping,
@@ -2002,7 +2002,7 @@ PRIVATE int framehead_consume(hgobj gobj, FRAME_HEAD *frame, istream_h istream, 
         frame->payload_length = sizeof(uint16_t); // + crc
         gobj_log_error(gobj, 0,
             "function",         "%s", __FUNCTION__,
-            "msgset",           "%s", MSGSET_PROTOCOL_ERROR,
+            "msgset",           "%s", MSGSET_PROTOCOL,
             "msg",              "%s", "modbus exception",
             "error_code",       "%d", frame->error_code,
             "error_name",       "%s", modbus_exception_name(frame->error_code),
@@ -2048,7 +2048,7 @@ PRIVATE int frame_completed(hgobj gobj)
              if (len < 2 || !bf) {
                  gobj_log_error(gobj, 0,
                     "function",         "%s", __FUNCTION__,
-                    "msgset",           "%s", MSGSET_PROTOCOL_ERROR,
+                    "msgset",           "%s", MSGSET_PROTOCOL,
                     "msg",              "%s", "Not enough data",
                     "len",              "%d", len,
                     NULL
@@ -2062,7 +2062,7 @@ PRIVATE int frame_completed(hgobj gobj)
              if (crc_calculated != crc_received) {
                  gobj_log_error(gobj, 0,
                     "function",         "%s", __FUNCTION__,
-                    "msgset",           "%s", MSGSET_PROTOCOL_ERROR,
+                    "msgset",           "%s", MSGSET_PROTOCOL,
                     "msg",              "%s", "CRC error",
                     "crc received",     "%d", crc_received,
                     "crc calculated",   "%d", crc_calculated,
@@ -2079,7 +2079,7 @@ PRIVATE int frame_completed(hgobj gobj)
         DEFAULTS
             gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
                 "function",     "%s", __FUNCTION__,
-                "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+                "msgset",       "%s", MSGSET_PARAMETER,
                 "msg",          "%s", "Protocol modbus NOT IMPLEMENTED",
                 NULL
             );
@@ -2100,7 +2100,7 @@ PRIVATE slave_data_t *get_slave_data(hgobj gobj, int slave_id, BOOL verbose)
     if(!pslv) {
         gobj_log_error(0, LOG_OPT_TRACE_STACK,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_INTERNAL_ERROR,
+            "msgset",       "%s", MSGSET_INTERNAL,
             "msg",          "%s", "slave data NULL",
             "slave_id",     "%d", slave_id,
             NULL
@@ -2118,7 +2118,7 @@ PRIVATE slave_data_t *get_slave_data(hgobj gobj, int slave_id, BOOL verbose)
     if(verbose) {
         gobj_log_error(0, LOG_OPT_TRACE_STACK,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_INTERNAL_ERROR,
+            "msgset",       "%s", MSGSET_INTERNAL,
             "msg",          "%s", "slave data NOT FOUND",
             "slave_id",     "%d", slave_id,
             NULL
@@ -2220,7 +2220,7 @@ PRIVATE int store_slave_word(
         default:
             gobj_log_error(gobj, 0,
                 "function",     "%s", __FUNCTION__,
-                "msgset",       "%s", MSGSET_INTERNAL_ERROR,
+                "msgset",       "%s", MSGSET_INTERNAL,
                 "msg",          "%s", "BAD object type",
                 "slave_id",     "%d", slave_id,
                 "object_type",  "%d", object_type,
@@ -2252,7 +2252,7 @@ PRIVATE int store_modbus_response_data(hgobj gobj, uint8_t *bf, int len)
         if(byte_count != len) {
             gobj_log_error(gobj, 0,
                 "function",     "%s", __FUNCTION__,
-                "msgset",       "%s", MSGSET_PROTOCOL_ERROR,
+                "msgset",       "%s", MSGSET_PROTOCOL,
                 "msg",          "%s", "byte_count != len",
                 "byte_count",   "%d", byte_count,
                 "len",          "%d", len,
@@ -2277,7 +2277,7 @@ PRIVATE int store_modbus_response_data(hgobj gobj, uint8_t *bf, int len)
     if(req_slave_id != slave_id) {
         gobj_log_error(gobj, 0,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_PROTOCOL_ERROR,
+            "msgset",       "%s", MSGSET_PROTOCOL,
             "msg",          "%s", "slave_id NOT MATCH",
             "req_slave_id", "%d", req_slave_id,
             "slave_id",     "%d", slave_id,
@@ -2289,7 +2289,7 @@ PRIVATE int store_modbus_response_data(hgobj gobj, uint8_t *bf, int len)
     if(priv->modbus_function != modbus_function) {
         gobj_log_error(gobj, 0,
             "function",         "%s", __FUNCTION__,
-            "msgset",           "%s", MSGSET_PROTOCOL_ERROR,
+            "msgset",           "%s", MSGSET_PROTOCOL,
             "msg",              "%s", "modbus function NOT MATCH",
             "function esperada","%s", modbus_function_name(priv->modbus_function),
             "function recibida","%s", modbus_function_name(modbus_function),
@@ -2351,7 +2351,7 @@ PRIVATE int store_modbus_response_data(hgobj gobj, uint8_t *bf, int len)
     if(req_nb_value != rsp_nb_value) {
         gobj_log_error(gobj, 0,
             "function",         "%s", __FUNCTION__,
-            "msgset",           "%s", MSGSET_PROTOCOL_ERROR,
+            "msgset",           "%s", MSGSET_PROTOCOL,
             "msg",              "%s", "Quantity not corresponding to the request",
             "function",         "%s", modbus_function_name(modbus_function),
             "rsp_nb_value",     "%d", rsp_nb_value,
@@ -2448,7 +2448,7 @@ PRIVATE int store_modbus_response_data(hgobj gobj, uint8_t *bf, int len)
         default:
             gobj_log_error(gobj, 0,
                 "function",         "%s", __FUNCTION__,
-                "msgset",           "%s", MSGSET_INTERNAL_ERROR,
+                "msgset",           "%s", MSGSET_INTERNAL,
                 "msg",              "%s", "Function NOT IMPLEMENTED",
                 "function",         "%s", modbus_function_name(modbus_function),
                 NULL
@@ -2490,7 +2490,7 @@ PRIVATE endian_format_t get_endian_format(hgobj gobj, const char *format_)
         DEFAULTS
             gobj_log_error(gobj, 0,
                 "function",     "%s", __FUNCTION__,
-                "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+                "msgset",       "%s", MSGSET_PARAMETER,
                 "msg",          "%s", "endian format UNKNOWN",
                 "format",       "%s", format_,
                 NULL
@@ -2547,7 +2547,7 @@ PRIVATE variable_format_t get_variable_format(hgobj gobj, const char *format_)
         DEFAULTS
             gobj_log_error(gobj, 0,
                 "function",     "%s", __FUNCTION__,
-                "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+                "msgset",       "%s", MSGSET_PARAMETER,
                 "msg",          "%s", "variable format UNKNOWN",
                 "format",       "%s", format_,
                 NULL
@@ -3242,7 +3242,7 @@ PRIVATE int check_conversion_variable(hgobj gobj, slave_data_t *pslv, json_t *jn
     if(object_type < 0) {
         gobj_log_error(gobj, 0,
             "function",         "%s", __FUNCTION__,
-            "msgset",           "%s", MSGSET_PARAMETER_ERROR,
+            "msgset",           "%s", MSGSET_PARAMETER,
             "msg",              "%s", "Conversion: bad object type",
             "slave_id",         "%d", slave_id,
             "variable",         "%j", jn_variable,
@@ -3255,7 +3255,7 @@ PRIVATE int check_conversion_variable(hgobj gobj, slave_data_t *pslv, json_t *jn
     if(address < 0 || address > 0xFFFF) {
         gobj_log_error(gobj, 0,
             "function",         "%s", __FUNCTION__,
-            "msgset",           "%s", MSGSET_PARAMETER_ERROR,
+            "msgset",           "%s", MSGSET_PARAMETER,
             "msg",              "%s", "Conversion: bad address",
             "slave_id",         "%d", slave_id,
             "variable",         "%j", jn_variable,
@@ -3268,7 +3268,7 @@ PRIVATE int check_conversion_variable(hgobj gobj, slave_data_t *pslv, json_t *jn
     if(empty_string(variable_id)) {
         gobj_log_error(gobj, 0,
             "function",         "%s", __FUNCTION__,
-            "msgset",           "%s", MSGSET_PARAMETER_ERROR,
+            "msgset",           "%s", MSGSET_PARAMETER,
             "msg",              "%s", "Conversion: variable id empty",
             "slave_id",         "%d", slave_id,
             "variable",         "%j", jn_variable,
@@ -3282,7 +3282,7 @@ PRIVATE int check_conversion_variable(hgobj gobj, slave_data_t *pslv, json_t *jn
     if(variable_format < 0) {
         gobj_log_error(gobj, 0,
             "function",         "%s", __FUNCTION__,
-            "msgset",           "%s", MSGSET_PARAMETER_ERROR,
+            "msgset",           "%s", MSGSET_PARAMETER,
             "msg",              "%s", "Conversion: variable format UNKNOWN",
             "slave_id",         "%d", slave_id,
             "variable",         "%j", jn_variable,
@@ -3297,7 +3297,7 @@ PRIVATE int check_conversion_variable(hgobj gobj, slave_data_t *pslv, json_t *jn
     if(endian_format < 0) {
         gobj_log_error(gobj, 0,
             "function",         "%s", __FUNCTION__,
-            "msgset",           "%s", MSGSET_PARAMETER_ERROR,
+            "msgset",           "%s", MSGSET_PARAMETER,
             "msg",              "%s", "Conversion: endian format UNKNOWN",
             "slave_id",         "%d", slave_id,
             "variable",         "%j", jn_variable,
@@ -3358,7 +3358,7 @@ PRIVATE int check_conversion_variable(hgobj gobj, slave_data_t *pslv, json_t *jn
         if(!cell_control || !cell_control->control.value_busy) {
             gobj_log_error(gobj, 0,
                 "function",     "%s", __FUNCTION__,
-                "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+                "msgset",       "%s", MSGSET_PARAMETER,
                 "msg",          "%s", "Conversion: cell not defined",
                 "slave_id",     "%d", slave_id,
                 "type",         "%s", type,
@@ -3374,7 +3374,7 @@ PRIVATE int check_conversion_variable(hgobj gobj, slave_data_t *pslv, json_t *jn
         if(cell_control->control.compound_value) {
             gobj_log_error(gobj, 0,
                 "function",     "%s", __FUNCTION__,
-                "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+                "msgset",       "%s", MSGSET_PARAMETER,
                 "msg",          "%s", "Conversion: OVERRIDE compound value",
                 "slave_id",     "%d", slave_id,
                 "type",         "%s", type,
@@ -3542,7 +3542,7 @@ PRIVATE int ac_rx_data(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
                     fin = TRUE;
                     gobj_log_error(gobj, 0,
                         "function",     "%s", __FUNCTION__,
-                        "msgset",       "%s", MSGSET_PROTOCOL_ERROR,
+                        "msgset",       "%s", MSGSET_PROTOCOL,
                         "msg",          "%s", "modbus framehead_consume() FAILED",
                         NULL
                     );
@@ -3571,7 +3571,7 @@ PRIVATE int ac_rx_data(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
                     if(!priv->istream_payload) {
                         gobj_log_error(gobj, 0,
                             "function",     "%s", __FUNCTION__,
-                            "msgset",       "%s", MSGSET_MEMORY_ERROR,
+                            "msgset",       "%s", MSGSET_MEMORY,
                             "msg",          "%s", "no memory for istream_payload",
                             "payload_length", "%d", priv->frame_head.payload_length,
                             NULL
@@ -3617,7 +3617,7 @@ PRIVATE int ac_rx_data(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
         if(gbuffer_leftbytes(gbuf)>0) {
             gobj_log_error(gobj, 0,
                 "function",     "%s", __FUNCTION__,
-                "msgset",       "%s", MSGSET_PROTOCOL_ERROR,
+                "msgset",       "%s", MSGSET_PROTOCOL,
                 "msg",          "%s", "Modbus: response too large",
                 NULL
             );
@@ -3726,7 +3726,7 @@ PRIVATE int ac_timeout_response(hgobj gobj, gobj_event_t event, json_t *kw, hgob
 
     gobj_log_error(gobj, 0,
         "function",     "%s", __FUNCTION__,
-        "msgset",       "%s", MSGSET_PROTOCOL_ERROR,
+        "msgset",       "%s", MSGSET_PROTOCOL,
         "msg",          "%s", "Modbus Timeout",
         NULL
     );
@@ -3806,7 +3806,7 @@ PRIVATE int create_gclass(gclass_name_t gclass_name)
     if(__gclass__) {
         gobj_log_error(0, 0,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_INTERNAL_ERROR,
+            "msgset",       "%s", MSGSET_INTERNAL,
             "msg",          "%s", "GClass ALREADY created",
             "gclass",       "%s", gclass_name,
             NULL

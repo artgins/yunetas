@@ -116,7 +116,7 @@ PRIVATE int mt_start(hgobj gobj)
     if(!path || access(path, 0)!=0) {
         gobj_log_error(gobj, 0,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+            "msgset",       "%s", MSGSET_PARAMETER,
             "msg",          "%s", "path NOT EXIST",
             "path",         "%s", path,
             NULL
@@ -198,7 +198,7 @@ PRIVATE SUBDIR_WATCH * create_subdir_watch(hgobj gobj, const char *path)
     if(!sw) {
         gobj_log_error(gobj, 0,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_MEMORY_ERROR,
+            "msgset",       "%s", MSGSET_MEMORY,
             "msg",          "%s", "gbmem_malloc() FAILED",
             NULL
         );
@@ -328,7 +328,7 @@ PRIVATE int create_gclass(gclass_name_t gclass_name)
     if(__gclass__) {
         gobj_log_error(0, 0,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_INTERNAL_ERROR,
+            "msgset",       "%s", MSGSET_INTERNAL,
             "msg",          "%s", "GClass ALREADY created",
             "gclass",       "%s", gclass_name,
             NULL

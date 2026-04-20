@@ -43,7 +43,7 @@ PUBLIC istream_h istream_create(
     if(!ist) {
         gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_MEMORY_ERROR,
+            "msgset",       "%s", MSGSET_MEMORY,
             "msg",          "%s", "No memory to istream_h",
             "sizeof",       "%d", sizeof(struct _ISTREAM),
             NULL
@@ -62,7 +62,7 @@ PUBLIC istream_h istream_create(
     if(!ist->gbuf) {
         gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_MEMORY_ERROR,
+            "msgset",       "%s", MSGSET_MEMORY,
             "msg",          "%s", "No memory to istream_h->gbuf",
             "data_size",    "%d", data_size,
             NULL
@@ -110,7 +110,7 @@ PUBLIC int istream_read_until_delimiter(
     if(delimiter_size <= 0) {
         gobj_log_error(ist->gobj, LOG_OPT_TRACE_STACK,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+            "msgset",       "%s", MSGSET_PARAMETER,
             "msg",          "%s", "delimiter_size is <= 0",
             NULL
         );
@@ -124,7 +124,7 @@ PUBLIC int istream_read_until_delimiter(
     if(!ist->delimiter) {
         gobj_log_error(ist->gobj, LOG_OPT_TRACE_STACK,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_MEMORY_ERROR,
+            "msgset",       "%s", MSGSET_MEMORY,
             "msg",          "%s", "No memory to ist->delimiter",
             NULL
         );
@@ -174,7 +174,7 @@ PUBLIC size_t istream_consume(istream_h istream, char *bf, size_t len)
     if(!ist->gbuf) {
         gobj_log_error(ist->gobj, LOG_OPT_TRACE_STACK,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_INTERNAL_ERROR,
+            "msgset",       "%s", MSGSET_INTERNAL,
             "msg",          "%s", "gbuf NULL",
             NULL
         );
@@ -199,7 +199,7 @@ PUBLIC size_t istream_consume(istream_h istream, char *bf, size_t len)
             if(gbuffer_append(ist->gbuf, &c, 1)!=1) {
                 gobj_log_error(ist->gobj, LOG_OPT_TRACE_STACK,
                     "function",     "%s", __FUNCTION__,
-                    "msgset",       "%s", MSGSET_INTERNAL_ERROR,
+                    "msgset",       "%s", MSGSET_INTERNAL,
                     "msg",          "%s", "gbuf FULL",
                     NULL
                 );
@@ -229,7 +229,7 @@ PUBLIC size_t istream_consume(istream_h istream, char *bf, size_t len)
             if(!ist->gbuf) {
                 gobj_log_error(ist->gobj, LOG_OPT_TRACE_STACK,
                     "function",     "%s", __FUNCTION__,
-                    "msgset",       "%s", MSGSET_MEMORY_ERROR,
+                    "msgset",       "%s", MSGSET_MEMORY,
                     "msg",          "%s", "No memory to istream_h->gbuf",
                     "data_size",    "%d", ist->data_size,
                     NULL
@@ -252,7 +252,7 @@ PUBLIC char *istream_cur_rd_pointer(istream_h istream)
         gobj_log_error(0, LOG_OPT_TRACE_STACK,
             "gobj",         "%s", __FILE__,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_INTERNAL_ERROR,
+            "msgset",       "%s", MSGSET_INTERNAL,
             "msg",          "%s", "istream_h NULL",
             NULL
         );
@@ -270,7 +270,7 @@ PUBLIC size_t istream_length(istream_h istream)
     if(!ist) {
         gobj_log_error(0, LOG_OPT_TRACE_STACK,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_INTERNAL_ERROR,
+            "msgset",       "%s", MSGSET_INTERNAL,
             "msg",          "%s", "istream_h NULL",
             NULL
         );
@@ -288,7 +288,7 @@ PUBLIC gbuffer_t *istream_get_gbuffer(istream_h istream)
     if(!ist) {
         gobj_log_error(0, LOG_OPT_TRACE_STACK,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_INTERNAL_ERROR,
+            "msgset",       "%s", MSGSET_INTERNAL,
             "msg",          "%s", "istream_h NULL",
             NULL
         );
@@ -306,7 +306,7 @@ PUBLIC gbuffer_t *istream_pop_gbuffer(istream_h istream)
     if(!ist) {
         gobj_log_error(0, LOG_OPT_TRACE_STACK,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_INTERNAL_ERROR,
+            "msgset",       "%s", MSGSET_INTERNAL,
             "msg",          "%s", "istream_h NULL",
             NULL
         );
@@ -327,7 +327,7 @@ PUBLIC int istream_new_gbuffer(istream_h istream, size_t data_size, size_t max_s
     if(!ist) {
         gobj_log_error(0, LOG_OPT_TRACE_STACK,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_INTERNAL_ERROR,
+            "msgset",       "%s", MSGSET_INTERNAL,
             "msg",          "%s", "istream_h NULL",
             NULL
         );
@@ -341,7 +341,7 @@ PUBLIC int istream_new_gbuffer(istream_h istream, size_t data_size, size_t max_s
     if(!ist->gbuf) {
         gobj_log_error(ist->gobj, LOG_OPT_TRACE_STACK,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_MEMORY_ERROR,
+            "msgset",       "%s", MSGSET_MEMORY,
             "msg",          "%s", "gbuf_create() return NULL",
             NULL
         );
@@ -362,7 +362,7 @@ PUBLIC char *istream_extract_matched_data(istream_h istream, size_t *len)
     if(!ist) {
         gobj_log_error(0, LOG_OPT_TRACE_STACK,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_INTERNAL_ERROR,
+            "msgset",       "%s", MSGSET_INTERNAL,
             "msg",          "%s", "istream_h NULL",
             NULL
         );
@@ -374,7 +374,7 @@ PUBLIC char *istream_extract_matched_data(istream_h istream, size_t *len)
     if(!ist->gbuf) {
         gobj_log_error(ist->gobj, LOG_OPT_TRACE_STACK,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_INTERNAL_ERROR,
+            "msgset",       "%s", MSGSET_INTERNAL,
             "msg",          "%s", "gbuf NULL",
             NULL
         );
@@ -400,7 +400,7 @@ PUBLIC int istream_reset_wr(istream_h istream)
         gobj_log_error(0, LOG_OPT_TRACE_STACK,
             "gobj",         "%s", __FILE__,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_INTERNAL_ERROR,
+            "msgset",       "%s", MSGSET_INTERNAL,
             "msg",          "%s", "ist or gbuf NULL",
             NULL
         );
@@ -420,7 +420,7 @@ PUBLIC int istream_reset_rd(istream_h istream)
     if(!ist || !ist->gbuf) {
         gobj_log_error(0, LOG_OPT_TRACE_STACK,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_INTERNAL_ERROR,
+            "msgset",       "%s", MSGSET_INTERNAL,
             "msg",          "%s", "ist or gbuf NULL",
             NULL
         );
@@ -449,7 +449,7 @@ PUBLIC BOOL istream_is_completed(istream_h istream)
     if(!ist) {
         gobj_log_error(0, LOG_OPT_TRACE_STACK,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_INTERNAL_ERROR,
+            "msgset",       "%s", MSGSET_INTERNAL,
             "msg",          "%s", "ist NULL",
             NULL
         );

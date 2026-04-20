@@ -36,7 +36,7 @@ PUBLIC gbuffer_t *run_command(const char *command) // use popen(), synchronous
     if(fp == NULL) {
         gobj_log_error(0, 0,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+            "msgset",       "%s", MSGSET_PARAMETER,
             "msg",          "%s", "Can't exec command",
             "command",      "%s", command,
             "errno",        "%d", errno,
@@ -50,7 +50,7 @@ PUBLIC gbuffer_t *run_command(const char *command) // use popen(), synchronous
     if(!gbuf) {
         gobj_log_error(0, 0,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+            "msgset",       "%s", MSGSET_PARAMETER,
             "msg",          "%s", "Can't create gbuffer",
             NULL
         );
@@ -174,7 +174,7 @@ PUBLIC int pty_sync_spawn(
         // Can't fork
         gobj_log_error(0, 0,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_SYSTEM_ERROR,
+            "msgset",       "%s", MSGSET_SYSTEM,
             "msg",          "%s", "forkpty() FAILED",
             "errno",        "%d", errno,
             "strerror",     "%s", strerror(errno),
@@ -188,7 +188,7 @@ PUBLIC int pty_sync_spawn(
         if (ret < 0) {
             gobj_log_error(0, 0,
                 "function",     "%s", __FUNCTION__,
-                "msgset",       "%s", MSGSET_SYSTEM_ERROR,
+                "msgset",       "%s", MSGSET_SYSTEM,
                 "msg",          "%s", "execlp() FAILED",
                 "command",      "%s", command,
                 "errno",        "%d", errno,

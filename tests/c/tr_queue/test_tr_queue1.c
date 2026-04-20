@@ -102,7 +102,7 @@ static int test(tr_queue_t *trq_msgs, int caso)
                 )!=0) {
                     gobj_log_error(0, 0,
                         "function",     "%s", __FUNCTION__,
-                        "msgset",       "%s", MSGSET_INTERNAL_ERROR,
+                        "msgset",       "%s", MSGSET_INTERNAL,
                         "msg",          "%s", "Message not found in the queue",
                         "rowid",        "%ld", (unsigned long)rowid,
                         "md_rowid",     "%ld", (unsigned long)md_rowid,

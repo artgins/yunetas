@@ -1040,7 +1040,7 @@ PRIVATE void mt_create(hgobj gobj)
 
         gobj_log_error(gobj, 0,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+            "msgset",       "%s", MSGSET_PARAMETER,
             "msg",          "%s", "yuneta_agent: node_owner EMPTY, setting none",
             NULL
         );
@@ -1097,7 +1097,7 @@ PRIVATE void mt_create(hgobj gobj)
                 } else {
                     gobj_log_error(gobj, 0,
                         "function",     "%s", __FUNCTION__,
-                        "msgset",       "%s", MSGSET_SYSTEM_ERROR,
+                        "msgset",       "%s", MSGSET_SYSTEM,
                         "msg",          "%s", "cannot check pid",
                         "pid",          "%d", pid,
                         "errno",        "%d", errno,
@@ -1300,7 +1300,7 @@ PRIVATE int mt_play(hgobj gobj)
          */
         gobj_log_error(gobj, 0,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_APP_ERROR,
+            "msgset",       "%s", MSGSET_APP,
             "msg",          "%s", "Parse schema fails",
             NULL
         );
@@ -1339,7 +1339,7 @@ PRIVATE int mt_play(hgobj gobj)
         );
         gobj_log_error(gobj, LOG_OPT_EXIT_ZERO|LOG_OPT_TRACE_STACK,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_APP_ERROR,
+            "msgset",       "%s", MSGSET_APP,
             "msg",          "%s", comment,
             NULL
         );
@@ -2957,7 +2957,7 @@ PRIVATE json_t *yuno_basic_information(hgobj gobj, const char *cmd)
     if(!gbuf) {
         gobj_log_error(gobj, 0,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+            "msgset",       "%s", MSGSET_PARAMETER,
             "msg",          "%s", "Incorrect binary",
             "command",      "%s", command,
             NULL
@@ -2969,7 +2969,7 @@ PRIVATE json_t *yuno_basic_information(hgobj gobj, const char *cmd)
     if(empty_string(cmd_output)) {
         gobj_log_error(gobj, 0,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+            "msgset",       "%s", MSGSET_PARAMETER,
             "msg",          "%s", "Incorrect binary",
             "command",      "%s", command,
             NULL
@@ -2985,7 +2985,7 @@ PRIVATE json_t *yuno_basic_information(hgobj gobj, const char *cmd)
     if(!p) {
         gobj_log_error(gobj, 0,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+            "msgset",       "%s", MSGSET_PARAMETER,
             "msg",          "%s", "Dict not found",
             "command",      "%s", command,
             "output",       "%s", cmd_output,
@@ -3144,7 +3144,7 @@ PRIVATE json_t *cmd_install_binary(hgobj gobj, const char *cmd, json_t *kw, hgob
     if(copyfile(path, destination, yuneta_xpermission(), TRUE)<0) {
          gobj_log_error(gobj, 0,
              "function",     "%s", __FUNCTION__,
-             "msgset",       "%s", MSGSET_SYSTEM_ERROR,
+             "msgset",       "%s", MSGSET_SYSTEM,
              "msg",          "%s", "copyfile() FAILED",
              "path",         "%s", path,
              "destination",  "%s", destination,
@@ -3370,7 +3370,7 @@ PRIVATE json_t *cmd_update_binary(hgobj gobj, const char *cmd, json_t *kw, hgobj
     if(copyfile(path, destination, yuneta_xpermission(), TRUE)<0) {
         gobj_log_error(gobj, 0,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_SYSTEM_ERROR,
+            "msgset",       "%s", MSGSET_SYSTEM,
             "msg",          "%s", "copyfile() FAILED",
             "path",         "%s", path,
             "destination",  "%s", destination,
@@ -4823,7 +4823,7 @@ PRIVATE json_t *cmd_run_yuno(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
     if(json_array_size(iter)==0) {
         gobj_log_error(gobj, 0,
             "function",         "%s", __FUNCTION__,
-            "msgset",           "%s", MSGSET_OPERATIONAL_ERROR,
+            "msgset",           "%s", MSGSET_OPERATIONAL,
             "msg",              "%s", "Yuno not found or already running",
             "kw",               "%j", kw,
             NULL
@@ -4964,7 +4964,7 @@ PRIVATE json_t *cmd_run_yuno(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
             } else {
                 gobj_log_error(gobj, 0,
                     "function",         "%s", __FUNCTION__,
-                    "msgset",           "%s", MSGSET_INTERNAL_ERROR,
+                    "msgset",           "%s", MSGSET_INTERNAL,
                     "msg",              "%s", "run_yuno() FAILED",
                     "ret",              "%d", r,
                     NULL
@@ -6413,7 +6413,7 @@ PRIVATE json_t *cmd_list_consoles(hgobj gobj, const char *cmd, json_t *kw, hgobj
                 if(!gobj_input_gate) {
                     gobj_log_error(gobj, 0,
                         "function",     "%s", __FUNCTION__,
-                        "msgset",       "%s", MSGSET_INTERNAL_ERROR,
+                        "msgset",       "%s", MSGSET_INTERNAL,
                         "msg",          "%s", "no route child found",
                         "service",      "%s", route_service,
                         "child",        "%s", route_child,
@@ -6839,7 +6839,7 @@ PRIVATE int add_console_route(
     if(!jn_route) {
         gobj_log_error(gobj, 0,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_INTERNAL_ERROR,
+            "msgset",       "%s", MSGSET_INTERNAL,
             "msg",          "%s", "cannot create route",
             "route_service","%s", route_service,
             "route_child",  "%s", route_child,
@@ -6892,7 +6892,7 @@ PRIVATE int delete_console(hgobj gobj, const char *name)
     if(!jn_console) {
         gobj_log_error(gobj, 0,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_INTERNAL_ERROR,
+            "msgset",       "%s", MSGSET_INTERNAL,
             "msg",          "%s", "no console conf found",
             "name",         "%s", name,
             NULL
@@ -6918,7 +6918,7 @@ PRIVATE int delete_console(hgobj gobj, const char *name)
             if(!gobj_input_gate) {
                 gobj_log_error(gobj, 0,
                     "function",     "%s", __FUNCTION__,
-                    "msgset",       "%s", MSGSET_INTERNAL_ERROR,
+                    "msgset",       "%s", MSGSET_INTERNAL,
                     "msg",          "%s", "no route child found",
                     "service",      "%s", route_service,
                     "child",        "%s", route_child,
@@ -6978,7 +6978,7 @@ PRIVATE int exec_startup_command(hgobj gobj)
         if(system(startup_command)!=0) {
             gobj_log_error(gobj, 0,
                 "function",     "%s", __FUNCTION__,
-                "msgset",       "%s", MSGSET_SYSTEM_ERROR,
+                "msgset",       "%s", MSGSET_SYSTEM,
                 "msg",          "%s", "system() FAILED",
                 "script",       "%s", startup_command,
                 "errno",        "%d", errno,
@@ -7175,7 +7175,7 @@ PRIVATE char * build_yuno_bin_path(hgobj gobj, json_t *yuno, char *bf, int bfsiz
         if(mkrdir(bf, yuneta_xpermission())<0) {
             gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
                 "function",     "%s", __FUNCTION__,
-                "msgset",       "%s", MSGSET_SYSTEM_ERROR,
+                "msgset",       "%s", MSGSET_SYSTEM,
                 "msg",          "%s", "Cannot create directory",
                 "path",         "%s", bf,
                 "errno",        "%d", errno,
@@ -7202,7 +7202,7 @@ PRIVATE char * build_yuno_log_path(hgobj gobj, json_t *yuno, char *bf, int bfsiz
         if(mkrdir(bf, yuneta_xpermission())<0) {
             gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
                 "function",     "%s", __FUNCTION__,
-                "msgset",       "%s", MSGSET_SYSTEM_ERROR,
+                "msgset",       "%s", MSGSET_SYSTEM,
                 "msg",          "%s", "Cannot create directory",
                 "path",         "%s", bf,
                 "errno",        "%d", errno,
@@ -7259,7 +7259,7 @@ PRIVATE json_t *get_yuno_realm(hgobj gobj, json_t *yuno)
     if(!hs_realm) {
         gobj_log_error(gobj, 0,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_INTERNAL_ERROR,
+            "msgset",       "%s", MSGSET_INTERNAL,
             "msg",          "%s", "no realm found",
             "realm_id",     "%s", realm_id,
             NULL
@@ -7299,7 +7299,7 @@ PRIVATE json_t *get_yuno_binary(hgobj gobj, json_t *yuno)
         if(is_snap_activated) {
             gobj_log_error(gobj, 0,
                 "function",     "%s", __FUNCTION__,
-                "msgset",       "%s", MSGSET_INTERNAL_ERROR,
+                "msgset",       "%s", MSGSET_INTERNAL,
                 "msg",          "%s", "primary binary not found",
                 NULL
             );
@@ -7320,7 +7320,7 @@ PRIVATE json_t *get_yuno_binary(hgobj gobj, json_t *yuno)
         if(json_array_size(binaries)==0) {
             gobj_log_error(gobj, 0,
                 "function",     "%s", __FUNCTION__,
-                "msgset",       "%s", MSGSET_INTERNAL_ERROR,
+                "msgset",       "%s", MSGSET_INTERNAL,
                 "msg",          "%s", "secondary binary not found",
                 NULL
             );
@@ -7375,7 +7375,7 @@ PRIVATE json_t *get_yuno_config(hgobj gobj, json_t *yuno)
         if(is_snap_activated) {
             gobj_log_error(gobj, 0,
                 "function",     "%s", __FUNCTION__,
-                "msgset",       "%s", MSGSET_INTERNAL_ERROR,
+                "msgset",       "%s", MSGSET_INTERNAL,
                 "msg",          "%s", "primary configuration not found",
                 NULL
             );
@@ -7396,7 +7396,7 @@ PRIVATE json_t *get_yuno_config(hgobj gobj, json_t *yuno)
         if(json_array_size(configurations)==0) {
             gobj_log_error(gobj, 0,
                 "function",     "%s", __FUNCTION__,
-                "msgset",       "%s", MSGSET_INTERNAL_ERROR,
+                "msgset",       "%s", MSGSET_INTERNAL,
                 "msg",          "%s", "secondary configuration not found",
                 NULL
             );
@@ -7520,7 +7520,7 @@ PRIVATE int write_service_client_connectors(
         if(!hs_service) {
             gobj_log_error(gobj, 0,
                 "function",         "%s", __FUNCTION__,
-                "msgset",           "%s", MSGSET_SERVICE_ERROR,
+                "msgset",           "%s", MSGSET_SERVICE,
                 "msg",              "%s", "required service NOT FOUND",
                 "required service", "%s", yuno_service,
                 "required yuno_id", "%s", yuno_id_,
@@ -7535,7 +7535,7 @@ PRIVATE int write_service_client_connectors(
         if(!jn_connector) {
             gobj_log_error(gobj, 0,
                 "function",         "%s", __FUNCTION__,
-                "msgset",           "%s", MSGSET_SERVICE_ERROR,
+                "msgset",           "%s", MSGSET_SERVICE,
                 "msg",              "%s", "service connector NULL",
                 "required service", "%s", yuno_service,
                 "required yuno_id", "%s", yuno_id_,
@@ -7751,7 +7751,7 @@ PRIVATE gbuffer_t *build_yuno_running_script(
         if(empty_string(node_owner)) {
             gobj_log_error(gobj, 0,
                 "function",     "%s", __FUNCTION__,
-                "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+                "msgset",       "%s", MSGSET_PARAMETER,
                 "msg",          "%s", "node_owner EMPTY",
                 NULL
             );
@@ -7996,7 +7996,7 @@ PRIVATE int run_yuno(
     if(ret != 0) {
         gobj_log_error(gobj, 0,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_SYSTEM_ERROR,
+            "msgset",       "%s", MSGSET_SYSTEM,
             "msg",          "%s", "Cannot run the yuno",
             "realm_id",     "%s", realm_id,
             "yuno_id",      "%s", yuno_id,
@@ -8013,7 +8013,7 @@ PRIVATE int run_yuno(
     if(fd<0) {
         gobj_log_error(gobj, 0,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_SYSTEM_ERROR,
+            "msgset",       "%s", MSGSET_SYSTEM,
             "msg",          "%s", "newfile() FAILED",
             "path",         "%s", script_path,
             "errno",        "%d", errno,
@@ -8056,7 +8056,7 @@ PRIVATE int kill_yuno(hgobj gobj, json_t *yuno)
     if(!pid) {
         gobj_log_error(gobj, 0,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_INTERNAL_ERROR,
+            "msgset",       "%s", MSGSET_INTERNAL,
             "msg",          "%s", "yuno PID NULL",
             "yuno_id",      "%s", yuno_id,
             "pid",          "%d", (int)pid,
@@ -8086,7 +8086,7 @@ PRIVATE int kill_yuno(hgobj gobj, json_t *yuno)
         if(last_errno != ESRCH) { // No such process
             gobj_log_error(gobj, 0,
                 "function",     "%s", __FUNCTION__,
-                "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+                "msgset",       "%s", MSGSET_PARAMETER,
                 "msg",          "%s", "Cannot kill yuno",
                 "yuno_id",      "%s", yuno_id,
                 "pid",          "%d", (int)pid,
@@ -8109,7 +8109,7 @@ PRIVATE int kill_yuno(hgobj gobj, json_t *yuno)
                 if(last_errno != ESRCH) { // No such process
                     gobj_log_info(gobj, 0,
                         "function",     "%s", __FUNCTION__,
-                        "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+                        "msgset",       "%s", MSGSET_PARAMETER,
                         "msg",          "%s", "Cannot kill watcher yuno",
                         "yuno_id",      "%s", yuno_id,
                         "watcher_pid",  "%d", (int)watcher_pid,
@@ -8650,7 +8650,7 @@ PRIVATE unsigned get_new_service_port(hgobj gobj)
         if(idx < 0) {
             gobj_log_error(gobj, 0,
                 "function",     "%s", __FUNCTION__,
-                "msgset",       "%s", MSGSET_INTERNAL_ERROR,
+                "msgset",       "%s", MSGSET_INTERNAL,
                 "msg",          "%s", "integer not in list",
                 NULL
             );
@@ -8661,7 +8661,7 @@ PRIVATE unsigned get_new_service_port(hgobj gobj)
         if(idx >= json_array_size(jn_port_list)) {
             gobj_log_error(gobj, 0,
                 "function",     "%s", __FUNCTION__,
-                "msgset",       "%s", MSGSET_SERVICE_ERROR,
+                "msgset",       "%s", MSGSET_SERVICE,
                 "msg",          "%s", "Range of ports are exhausted",
                 NULL
             );
@@ -8755,7 +8755,7 @@ PRIVATE int register_public_services(
                 if(!hs_service) {
                     gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
                         "function",     "%s", __FUNCTION__,
-                        "msgset",       "%s", MSGSET_SERVICE_ERROR,
+                        "msgset",       "%s", MSGSET_SERVICE,
                         "msg",          "%s", "Cannot create service",
                         "yuno_role",    "%s", yuno_role,
                         "yuno_name",    "%s", yuno_name,
@@ -8969,7 +8969,7 @@ PRIVATE int cert_sync_tick(hgobj gobj)
             copy_ok = FALSE;
             gobj_log_warning(gobj, 0,
                 "function",     "%s", __FUNCTION__,
-                "msgset",       "%s", MSGSET_SYSTEM_ERROR,
+                "msgset",       "%s", MSGSET_SYSTEM,
                 "msg",          "%s", "cert-sync copy command FAILED",
                 "cmd",          "%s", copy_cmd,
                 "rc",           "%d", rc,
@@ -10023,7 +10023,7 @@ PRIVATE int ac_play_yuno_ack(hgobj gobj, gobj_event_t event, json_t *kw, hgobj s
     if(!yuno) {
         gobj_log_error(gobj, 0,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_INTERNAL_ERROR,
+            "msgset",       "%s", MSGSET_INTERNAL,
             "msg",          "%s", "hs_yuno NULL",
             NULL
         );
@@ -10097,7 +10097,7 @@ PRIVATE int ac_pause_yuno_ack(hgobj gobj, gobj_event_t event, json_t *kw, hgobj 
         if(!yuno) {
             gobj_log_error(gobj, 0,
                 "function",     "%s", __FUNCTION__,
-                "msgset",       "%s", MSGSET_INTERNAL_ERROR,
+                "msgset",       "%s", MSGSET_INTERNAL,
                 "msg",          "%s", "hs_yuno NULL",
                 NULL
             );
@@ -10147,7 +10147,7 @@ PRIVATE int ac_stats_yuno_answer(hgobj gobj, gobj_event_t event, json_t *kw, hgo
     if(!gobj_requester) {
         gobj_log_error(gobj, 0,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_INTERNAL_ERROR,
+            "msgset",       "%s", MSGSET_INTERNAL,
             "msg",          "%s", "child not found",
             "child",        "%s", dst_service,
             NULL
@@ -10199,7 +10199,7 @@ PRIVATE int ac_command_yuno_answer(hgobj gobj, gobj_event_t event, json_t *kw, h
     if(!gobj_requester) {
         gobj_log_error(gobj, 0,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_INTERNAL_ERROR,
+            "msgset",       "%s", MSGSET_INTERNAL,
             "msg",          "%s", "child not found",
             "child",        "%s", dst_service,
             NULL
@@ -10282,7 +10282,7 @@ PRIVATE int ac_on_open(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
     if(found==0) {
         gobj_log_error(gobj, 0,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_INTERNAL_ERROR,
+            "msgset",       "%s", MSGSET_INTERNAL,
             "msg",          "%s", "yuno NOT FOUND",
             "yuno_id",      "%s", yuno_id,
             NULL
@@ -10304,7 +10304,7 @@ PRIVATE int ac_on_open(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
     if(_pid && getpgid(_pid) >= 0) {
         gobj_log_error(gobj, 0,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_INTERNAL_ERROR,
+            "msgset",       "%s", MSGSET_INTERNAL,
             "msg",          "%s", "yuno ALREADY living, killing new yuno",
             "yuno_id",      "%s", yuno_id,
             "current pid",  "%d", (int)_pid,
@@ -10325,7 +10325,7 @@ PRIVATE int ac_on_open(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
     if(strcmp(yuno_role, SDATA_GET_STR(yuno, "yuno_role"))!=0) {
         gobj_log_error(gobj, 0,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_INTERNAL_ERROR,
+            "msgset",       "%s", MSGSET_INTERNAL,
             "msg",          "%s", "yuno_role not match",
             "yuno_role registered", "%s", SDATA_GET_STR(yuno, "yuno_role"),
             "yuno_role incoming",   "%s", yuno_role,
@@ -10344,7 +10344,7 @@ PRIVATE int ac_on_open(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
     if(strcmp(yuno_name, SDATA_GET_STR(yuno, "yuno_name"))!=0) {
         gobj_log_error(gobj, 0,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_INTERNAL_ERROR,
+            "msgset",       "%s", MSGSET_INTERNAL,
             "msg",          "%s", "yuno_name not match",
             "yuno_name registered", "%s", SDATA_GET_STR(yuno, "yuno_name"),
             "yuno_name incoming",   "%s", yuno_name,
@@ -10364,7 +10364,7 @@ PRIVATE int ac_on_open(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
     if(strcmp(yuno_release, SDATA_GET_STR(yuno, "yuno_release"))!=0) {
         gobj_log_error(gobj, 0,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_INTERNAL_ERROR,
+            "msgset",       "%s", MSGSET_INTERNAL,
             "msg",          "%s", "yuno_release not match",
             "yuno_release registered", "%s", SDATA_GET_STR(yuno, "yuno_release"),
             "yuno_release incoming","%s", yuno_release,
@@ -10385,7 +10385,7 @@ PRIVATE int ac_on_open(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
     if(strcmp(realm_id, SDATA_GET_STR(yuno, "realm_id`0"))!=0) {
         gobj_log_error(gobj, 0,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_INTERNAL_ERROR,
+            "msgset",       "%s", MSGSET_INTERNAL,
             "msg",          "%s", "realm_id not match",
             "realm_id registered", "%s", SDATA_GET_STR(yuno, "realm_id`0"),
             "realm_id incoming","%s", realm_id,
@@ -10420,7 +10420,7 @@ PRIVATE int ac_on_open(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
     } else {
         gobj_log_error(gobj, 0,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_INTERNAL_ERROR,
+            "msgset",       "%s", MSGSET_INTERNAL,
             "msg",          "%s", "channel_gobj NULL",
             NULL
         );
@@ -10510,7 +10510,7 @@ PRIVATE int ac_on_close(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
     if(!channel_gobj) {
         gobj_log_error(gobj, 0,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_INTERNAL_ERROR,
+            "msgset",       "%s", MSGSET_INTERNAL,
             "msg",          "%s", "channel_gobj NULL",
             NULL
         );
@@ -10613,7 +10613,7 @@ PRIVATE int ac_final_count(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src
     if(!gobj_requester_channel) {
         gobj_log_error(gobj, 0,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_INTERNAL_ERROR,
+            "msgset",       "%s", MSGSET_INTERNAL,
             "msg",          "%s", "requester channel child not found",
             "chanel child", "%s", requester,
             NULL
@@ -10696,7 +10696,7 @@ PRIVATE int ac_tty_open(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
             if(!gobj_input_gate) {
                 gobj_log_error(gobj, 0,
                     "function",     "%s", __FUNCTION__,
-                    "msgset",       "%s", MSGSET_INTERNAL_ERROR,
+                    "msgset",       "%s", MSGSET_INTERNAL,
                     "msg",          "%s", "no route child found",
                     "service",      "%s", route_service,
                     "child",        "%s", route_child,
@@ -10752,7 +10752,7 @@ PRIVATE int ac_tty_close(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
             if(!gobj_input_gate) {
                 gobj_log_error(gobj, 0,
                     "function",     "%s", __FUNCTION__,
-                    "msgset",       "%s", MSGSET_INTERNAL_ERROR,
+                    "msgset",       "%s", MSGSET_INTERNAL,
                     "msg",          "%s", "no route child found",
                     "service",      "%s", route_service,
                     "child",        "%s", route_child,
@@ -10811,7 +10811,7 @@ PRIVATE int ac_tty_data(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
             if(!gobj_input_gate) {
                 gobj_log_error(gobj, 0,
                     "function",     "%s", __FUNCTION__,
-                    "msgset",       "%s", MSGSET_INTERNAL_ERROR,
+                    "msgset",       "%s", MSGSET_INTERNAL,
                     "msg",          "%s", "no route child found",
                     "service",      "%s", route_service,
                     "child",        "%s", route_child,
@@ -10849,7 +10849,7 @@ PRIVATE int ac_write_tty(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
     if(empty_string(content64)) {
         gobj_log_error(gobj, 0,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_PROTOCOL_ERROR,
+            "msgset",       "%s", MSGSET_PROTOCOL,
             "msg",          "%s", "content64 required",
             "name",         "%s", name,
             NULL
@@ -10863,7 +10863,7 @@ PRIVATE int ac_write_tty(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
     if(!gobj_console) {
         gobj_log_error(gobj, 0,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_PROTOCOL_ERROR,
+            "msgset",       "%s", MSGSET_PROTOCOL,
             "msg",          "%s", "console not found",
             "name",         "%s", name,
             NULL
@@ -10877,7 +10877,7 @@ PRIVATE int ac_write_tty(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
     if(!gbuf) {
         gobj_log_error(gobj, 0,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_PROTOCOL_ERROR,
+            "msgset",       "%s", MSGSET_PROTOCOL,
             "msg",          "%s", "Bad data",
             "name",         "%s", name,
             NULL
@@ -10965,7 +10965,7 @@ PRIVATE int create_gclass(gclass_name_t gclass_name)
     if(__gclass__) {
         gobj_log_error(0, 0,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_INTERNAL_ERROR,
+            "msgset",       "%s", MSGSET_INTERNAL,
             "msg",          "%s", "GClass ALREADY created",
             "gclass",       "%s", gclass_name,
             NULL

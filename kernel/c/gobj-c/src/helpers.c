@@ -357,7 +357,7 @@ PUBLIC int mkrdir(const char *path, int xpermission)
                     if(errno != EEXIST) {
                         gobj_log_error(0, 0,
                             "function",     "%s", __FUNCTION__,
-                            "msgset",       "%s", MSGSET_SYSTEM_ERROR,
+                            "msgset",       "%s", MSGSET_SYSTEM,
                             "msg",          "%s", "newdir() FAILED",
                             "path",         "%s", tmp,
                             "errno",        "%d", errno,
@@ -371,7 +371,7 @@ PUBLIC int mkrdir(const char *path, int xpermission)
                 // If it's not a directory, return an error
                 gobj_log_error(0, 0,
                     "function",     "%s", __FUNCTION__,
-                    "msgset",       "%s", MSGSET_SYSTEM_ERROR,
+                    "msgset",       "%s", MSGSET_SYSTEM,
                     "msg",          "%s", "Not a directory",
                     "path",         "%s", tmp,
                     "errno",        "%d", errno,
@@ -390,7 +390,7 @@ PUBLIC int mkrdir(const char *path, int xpermission)
             if(errno != EEXIST) {
                 gobj_log_error(0, 0,
                     "function",     "%s", __FUNCTION__,
-                    "msgset",       "%s", MSGSET_SYSTEM_ERROR,
+                    "msgset",       "%s", MSGSET_SYSTEM,
                     "msg",          "%s", "newdir() FAILED",
                     "path",         "%s", tmp,
                     "errno",        "%d", errno,
@@ -403,7 +403,7 @@ PUBLIC int mkrdir(const char *path, int xpermission)
     } else if(stat(tmp, &st) != 0 && !S_ISDIR(st.st_mode)) {
         gobj_log_error(0, 0,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_SYSTEM_ERROR,
+            "msgset",       "%s", MSGSET_SYSTEM,
             "msg",          "%s", "Not a directory",
             "path",         "%s", tmp,
             "errno",        "%d", errno,
@@ -436,7 +436,7 @@ PUBLIC int rmrdir(const char *path)
         if (remove(path) != 0) {
             gobj_log_error(0, 0,
                 "function",     "%s", __FUNCTION__,
-                "msgset",       "%s", MSGSET_SYSTEM_ERROR,
+                "msgset",       "%s", MSGSET_SYSTEM,
                 "msg",          "%s", "remove() FAILED",
                 "errno",        "%d", errno,
                 "serrno",       "%s", strerror(errno),
@@ -451,7 +451,7 @@ PUBLIC int rmrdir(const char *path)
         if (dir == NULL) {
             gobj_log_error(0, 0,
                 "function",     "%s", __FUNCTION__,
-                "msgset",       "%s", MSGSET_SYSTEM_ERROR,
+                "msgset",       "%s", MSGSET_SYSTEM,
                 "msg",          "%s", "Cannot open directory",
                 "path",         "%s", path,
                 "errno",        "%d", errno,
@@ -483,7 +483,7 @@ PUBLIC int rmrdir(const char *path)
         if (rmdir(path) != 0) {
             gobj_log_error(0, 0,
                 "function",     "%s", __FUNCTION__,
-                "msgset",       "%s", MSGSET_SYSTEM_ERROR,
+                "msgset",       "%s", MSGSET_SYSTEM,
                 "msg",          "%s", "rmdir() FAILED",
                 "errno",        "%d", errno,
                 "serrno",       "%s", strerror(errno),
@@ -508,7 +508,7 @@ PUBLIC int rmrcontentdir(const char *root_dir)
     if (!(dir = opendir(root_dir))) {
         gobj_log_error(0, 0,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_SYSTEM_ERROR,
+            "msgset",       "%s", MSGSET_SYSTEM,
             "msg",          "%s", "Cannot open directory",
             "path",         "%s", root_dir,
             "errno",        "%d", errno,
@@ -1423,7 +1423,7 @@ PUBLIC json_t *load_persistent_json(
         if(!(silence && on_critical_error == LOG_NONE)) {
             gobj_log_critical(gobj, on_critical_error|LOG_OPT_TRACE_STACK,
                 "function",     "%s", __FUNCTION__,
-                "msgset",       "%s", MSGSET_INTERNAL_ERROR,
+                "msgset",       "%s", MSGSET_INTERNAL,
                 "msg",          "%s", "Cannot load json, file not exist",
                 "path",         "%s", full_path,
                 NULL
@@ -1442,7 +1442,7 @@ PUBLIC json_t *load_persistent_json(
         if(!(silence && on_critical_error == LOG_NONE)) {
             gobj_log_critical(gobj, on_critical_error,
                 "function",     "%s", __FUNCTION__,
-                "msgset",       "%s", MSGSET_SYSTEM_ERROR,
+                "msgset",       "%s", MSGSET_SYSTEM,
                 "msg",          "%s", exclusive? "Cannot open an exclusive json file":"Cannot open a json file",
                 "msg2",         "%s", exclusive? "Check if someone has opened the file":"Check permissions",
                 "exclusive",    "%d", exclusive,
@@ -1459,7 +1459,7 @@ PUBLIC json_t *load_persistent_json(
     if(!jn) {
         gobj_log_critical(gobj, on_critical_error,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_JSON_ERROR,
+            "msgset",       "%s", MSGSET_JSON,
             "msg",          "%s", "Cannot load json file, bad json",
             NULL
         );
@@ -1501,7 +1501,7 @@ PUBLIC json_t *load_json_from_file(
     if(fd<0) {
         gobj_log_critical(gobj, on_critical_error,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_SYSTEM_ERROR,
+            "msgset",       "%s", MSGSET_SYSTEM,
             "msg",          "%s", "Cannot open json file",
             "path",         "%s", full_path,
             "errno",        "%d", errno,
@@ -1515,7 +1515,7 @@ PUBLIC json_t *load_json_from_file(
     if(!jn) {
         gobj_log_critical(gobj, on_critical_error,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_JSON_ERROR,
+            "msgset",       "%s", MSGSET_JSON,
             "msg",          "%s", "Cannot load json file, bad json",
             NULL
         );
@@ -1545,7 +1545,7 @@ PUBLIC int save_json_to_file(
     if(!directory || !filename) {
         gobj_log_critical(gobj, on_critical_error|LOG_OPT_TRACE_STACK,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_SYSTEM_ERROR,
+            "msgset",       "%s", MSGSET_SYSTEM,
             "msg",          "%s", "Parameter 'directory' or 'filename' NULL",
             NULL
         );
@@ -1564,7 +1564,7 @@ PUBLIC int save_json_to_file(
         if(mkrdir(directory, xpermission)<0) {
             gobj_log_critical(gobj, on_critical_error,
                 "function",     "%s", __FUNCTION__,
-                "msgset",       "%s", MSGSET_SYSTEM_ERROR,
+                "msgset",       "%s", MSGSET_SYSTEM,
                 "msg",          "%s", "Cannot create directory",
                 "directory",    "%s", directory,
                 "errno",        "%d", errno,
@@ -1593,7 +1593,7 @@ PUBLIC int save_json_to_file(
     if(fp < 0) {
         gobj_log_critical(gobj, on_critical_error,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_SYSTEM_ERROR,
+            "msgset",       "%s", MSGSET_SYSTEM,
             "msg",          "%s", "Cannot create json file",
             "filename",     "%s", full_path,
             "errno",        "%d", errno,
@@ -1607,7 +1607,7 @@ PUBLIC int save_json_to_file(
     if(json_dumpfd(jn_data, fp, JSON_INDENT(2))<0) {
         gobj_log_critical(gobj, on_critical_error,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_JSON_ERROR,
+            "msgset",       "%s", MSGSET_JSON,
             "msg",          "%s", "Cannot write in json file",
             "errno",        "%d", errno,
             "serrno",       "%s", strerror(errno),
@@ -1645,7 +1645,7 @@ PUBLIC json_t *create_json_record(
     if(!json_desc) {
         gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+            "msgset",       "%s", MSGSET_PARAMETER,
             "msg",          "%s", "DESC null",
             NULL
         );
@@ -1657,7 +1657,7 @@ PUBLIC json_t *create_json_record(
         if(empty_string(json_desc->name)) {
             gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
                 "function",     "%s", __FUNCTION__,
-                "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+                "msgset",       "%s", MSGSET_PARAMETER,
                 "msg",          "%s", "DESC without key field",
                 NULL
             );
@@ -1666,7 +1666,7 @@ PUBLIC json_t *create_json_record(
         if(empty_string(json_desc->type)) {
             gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
                 "function",     "%s", __FUNCTION__,
-                "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+                "msgset",       "%s", MSGSET_PARAMETER,
                 "msg",          "%s", "DESC without type field",
                 NULL
             );
@@ -1742,7 +1742,7 @@ PUBLIC json_t *create_json_record(
             DEFAULTS
                 gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
                     "function",     "%s", __FUNCTION__,
-                    "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+                    "msgset",       "%s", MSGSET_PARAMETER,
                     "msg",          "%s", "Type UNKNOWN",
                     "type",         "%s", json_desc->type,
                     NULL
@@ -1892,7 +1892,7 @@ PUBLIC int json_list_str_index(json_t *jn_list, const char *str, BOOL ignore_cas
     if(!json_is_array(jn_list)) {
         gobj_log_error(0, LOG_OPT_TRACE_STACK,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+            "msgset",       "%s", MSGSET_PARAMETER,
             "msg",          "%s", "list MUST BE a json array",
             NULL
         );
@@ -1931,7 +1931,7 @@ PUBLIC json_int_t json_list_int(json_t *jn_list, size_t idx)
     if(!json_is_array(jn_list)) {
         gobj_log_error(0, LOG_OPT_TRACE_STACK,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+            "msgset",       "%s", MSGSET_PARAMETER,
             "msg",          "%s", "list MUST BE a json array",
             NULL
         );
@@ -1942,7 +1942,7 @@ PUBLIC json_int_t json_list_int(json_t *jn_list, size_t idx)
     if(jn_int && !json_is_integer(jn_int)) {
         gobj_log_error(0, LOG_OPT_TRACE_STACK,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+            "msgset",       "%s", MSGSET_PARAMETER,
             "msg",          "%s", "value MUST BE a json integer",
             NULL);
         return 0;
@@ -1960,7 +1960,7 @@ PUBLIC int json_list_int_index(json_t *jn_list, json_int_t value)
     if(!json_is_array(jn_list)) {
         gobj_log_error(0, LOG_OPT_TRACE_STACK,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+            "msgset",       "%s", MSGSET_PARAMETER,
             "msg",          "%s", "list MUST BE a json array",
             NULL
         );
@@ -2067,7 +2067,7 @@ PUBLIC json_t *json_range_list(json_t *list) // WARNING slow function, don't use
     if(!json_is_range(list, &first, &second)) {
         gobj_log_error(0, 0,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+            "msgset",       "%s", MSGSET_PARAMETER,
             "msg",          "%s", "Not a range",
             NULL
         );
@@ -2141,7 +2141,7 @@ PUBLIC int json_dict_recursive_update(
     if(!json_is_object(object) || !json_is_object(other)) {
         gobj_log_error(0, 0,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+            "msgset",       "%s", MSGSET_PARAMETER,
             "msg",          "%s", "json_dict_recursive_update(): parameters must be objects",
             NULL
         );
@@ -2377,7 +2377,7 @@ PUBLIC json_t *anystring2json(const char *bf, size_t len, BOOL verbose)
         if(verbose) {
             gobj_log_error(0, LOG_OPT_TRACE_STACK,
                 "function",     "%s", __FUNCTION__,
-                "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+                "msgset",       "%s", MSGSET_PARAMETER,
                 "msg",          "%s", "bf NULL",
                 NULL
             );
@@ -2391,7 +2391,7 @@ PUBLIC json_t *anystring2json(const char *bf, size_t len, BOOL verbose)
         if(verbose) {
             gobj_log_error(0, LOG_OPT_TRACE_STACK,
                 "function",     "%s", __FUNCTION__,
-                "msgset",       "%s", MSGSET_JSON_ERROR,
+                "msgset",       "%s", MSGSET_JSON,
                 "msg",          "%s", "json_loadb() FAILED",
                 "bf",           "%s", bf,
                 "error",        "%s", error.text,
@@ -2419,7 +2419,7 @@ PUBLIC json_t *anyfile2json(const char *path, BOOL verbose)
         if(verbose) {
             gobj_log_error(0, LOG_OPT_TRACE_STACK,
                 "function",     "%s", __FUNCTION__,
-                "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+                "msgset",       "%s", MSGSET_PARAMETER,
                 "msg",          "%s", "json_load_file() FAILED",
                 "path",         "%s", path,
                 "error",        "%s", error.text,
@@ -2448,7 +2448,7 @@ PUBLIC json_t *string2json(const char *str, BOOL verbose)
         if(verbose) {
             gobj_log_error(0, LOG_OPT_TRACE_STACK,
                 "function",     "%s", __FUNCTION__,
-                "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+                "msgset",       "%s", MSGSET_PARAMETER,
                 "msg",          "%s", "json_loads() FAILED",
                 "str",          "%s", str,
                 "error",        "%s", error.text,
@@ -2527,7 +2527,7 @@ PUBLIC json_t *json_config_string2json(const char *bf, BOOL verbose)
         if(verbose) {
             gobj_log_error(0, LOG_OPT_TRACE_STACK,
                 "function",     "%s", __FUNCTION__,
-                "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+                "msgset",       "%s", MSGSET_PARAMETER,
                 "msg",          "%s", "json_loads() FAILED",
                 "str",          "%s", s,
                 "error",        "%s", error.text,
@@ -2628,7 +2628,7 @@ PUBLIC int json_check_refcounts(
         gobj_log_error(0, LOG_OPT_TRACE_STACK,
             "gobj",         "%s", __FILE__,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_INTERNAL_ERROR,
+            "msgset",       "%s", MSGSET_INTERNAL,
             "msg",          "%s", "jn NULL",
             NULL
         );
@@ -2644,7 +2644,7 @@ PUBLIC int json_check_refcounts(
                 gobj_log_error(0,0,
                     "gobj",         "%s", __FILE__,
                     "function",     "%s", __FUNCTION__,
-                    "msgset",       "%s", MSGSET_INTERNAL_ERROR,
+                    "msgset",       "%s", MSGSET_INTERNAL,
                     "msg",          "%s", "refcount <= 0",
                     "refcount",     "%d", (int)jn->refcount,
                     NULL
@@ -2658,7 +2658,7 @@ PUBLIC int json_check_refcounts(
                 gobj_log_error(0,0,
                     "gobj",         "%s", __FILE__,
                     "function",     "%s", __FUNCTION__,
-                    "msgset",       "%s", MSGSET_INTERNAL_ERROR,
+                    "msgset",       "%s", MSGSET_INTERNAL,
                     "msg",          "%s", "refcount > max_refcount",
                     "refcount",     "%d", (int)jn->refcount,
                     "max_refcount", "%d", (int)max_refcount,
@@ -2682,7 +2682,7 @@ PUBLIC int json_check_refcounts(
                 gobj_log_error(0,0,
                     "gobj",         "%s", __FILE__,
                     "function",     "%s", __FUNCTION__,
-                    "msgset",       "%s", MSGSET_INTERNAL_ERROR,
+                    "msgset",       "%s", MSGSET_INTERNAL,
                     "msg",          "%s", "refcount <= 0",
                     "refcount",     "%d", (int)jn->refcount,
                     NULL
@@ -2696,7 +2696,7 @@ PUBLIC int json_check_refcounts(
                 gobj_log_error(0,0,
                     "gobj",         "%s", __FILE__,
                     "function",     "%s", __FUNCTION__,
-                    "msgset",       "%s", MSGSET_INTERNAL_ERROR,
+                    "msgset",       "%s", MSGSET_INTERNAL,
                     "msg",          "%s", "refcount > max_refcount",
                     "refcount",     "%d", (int)jn->refcount,
                     "max_refcount", "%d", (int)max_refcount,
@@ -2722,7 +2722,7 @@ PUBLIC int json_check_refcounts(
             gobj_log_error(0,0,
                 "gobj",         "%s", __FILE__,
                 "function",     "%s", __FUNCTION__,
-                "msgset",       "%s", MSGSET_INTERNAL_ERROR,
+                "msgset",       "%s", MSGSET_INTERNAL,
                 "msg",          "%s", "refcount <= 0",
                 "refcount",     "%d", (int)jn->refcount,
                 NULL
@@ -2735,7 +2735,7 @@ PUBLIC int json_check_refcounts(
             gobj_log_error(0,0,
                 "gobj",         "%s", __FILE__,
                 "function",     "%s", __FUNCTION__,
-                "msgset",       "%s", MSGSET_INTERNAL_ERROR,
+                "msgset",       "%s", MSGSET_INTERNAL,
                 "msg",          "%s", "refcount > max_refcount",
                 "refcount",     "%d", (int)jn->refcount,
                 "max_refcount", "%d", (int)max_refcount,
@@ -2755,7 +2755,7 @@ PUBLIC int json_check_refcounts(
         gobj_log_error(0,0,
             "gobj",         "%s", __FILE__,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_INTERNAL_ERROR,
+            "msgset",       "%s", MSGSET_INTERNAL,
             "msg",          "%s", "json corrupted",
             "refcount",     "%d", (int)jn->refcount,
             "max_refcount", "%d", (int)max_refcount,
@@ -2787,7 +2787,7 @@ PUBLIC int json_print_refcounts(
         gobj_log_error(0, LOG_OPT_TRACE_STACK,
             "gobj",         "%s", __FILE__,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_INTERNAL_ERROR,
+            "msgset",       "%s", MSGSET_INTERNAL,
             "msg",          "%s", "jn NULL",
             NULL
         );
@@ -2856,7 +2856,7 @@ PUBLIC int json_print_refcounts(
         gobj_log_error(0,0,
             "gobj",         "%s", __FILE__,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_INTERNAL_ERROR,
+            "msgset",       "%s", MSGSET_INTERNAL,
             "msg",          "%s", "json corrupted",
             NULL
         );
@@ -2878,7 +2878,7 @@ PUBLIC BOOL json_str_in_list(hgobj gobj, json_t *jn_list, const char *str, BOOL 
     if(!json_is_array(jn_list)) {
         gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+            "msgset",       "%s", MSGSET_PARAMETER,
             "msg",          "%s", "list MUST BE a json array",
             NULL
         );
@@ -2888,7 +2888,7 @@ PUBLIC BOOL json_str_in_list(hgobj gobj, json_t *jn_list, const char *str, BOOL 
     if(!str) {
         gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+            "msgset",       "%s", MSGSET_PARAMETER,
             "msg",          "%s", "str NULL",
             NULL
         );
@@ -2947,7 +2947,7 @@ PRIVATE int _walk_tree(
         if(!(errno==EACCES ||errno==ENOENT)) {
             gobj_log_error(gobj, 0,
                 "function",     "%s", __FUNCTION__,
-                "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+                "msgset",       "%s", MSGSET_PARAMETER,
                 "msg",          "%s", "Cannot open directory",
                 "path",         "%s", root_dir,
                 "error",        "%d", errno,
@@ -2983,7 +2983,7 @@ PRIVATE int _walk_tree(
             if(!(errno==EACCES ||errno==ENOENT)) {
                 gobj_log_error(gobj, 0,
                     "function",     "%s", __FUNCTION__,
-                    "msgset",       "%s", MSGSET_SYSTEM_ERROR,
+                    "msgset",       "%s", MSGSET_SYSTEM,
                     "msg",          "%s", "stat() FAILED",
                     "path",         "%s", path,
                     "error",        "%d", errno,
@@ -3057,7 +3057,7 @@ PUBLIC int walk_dir_tree(
     if(!is_directory(root_dir)) {
         gobj_log_error(gobj, 0,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+            "msgset",       "%s", MSGSET_PARAMETER,
             "msg",          "%s", "Cannot open directory",
             "path",         "%s", root_dir,
            NULL
@@ -3071,7 +3071,7 @@ PUBLIC int walk_dir_tree(
     if(ret!=0) {
         gobj_log_error(gobj, 0,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+            "msgset",       "%s", MSGSET_PARAMETER,
             "msg",          "%s", "regcomp() FAILED",
             "error",        "%d", ret,
            NULL
@@ -3122,7 +3122,7 @@ PRIVATE int dir_array_add(
         if(!new_items) {
             gobj_log_error(0, 0,
                 "function",     "%s", __FUNCTION__,
-                "msgset",       "%s", MSGSET_MEMORY_ERROR,
+                "msgset",       "%s", MSGSET_MEMORY,
                 "msg",          "%s", "No memory to dir_array",
                 "sizeof",       "%d", new_capacity * sizeof(char *),
                 NULL
@@ -3153,7 +3153,7 @@ PUBLIC int find_files_with_suffix_array(
     if(!dir) {
         gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+            "msgset",       "%s", MSGSET_PARAMETER,
             "msg",          "%s", "Cannot open directory",
             "path",         "%s", directory,
             "errno",        "%d", errno,
@@ -3275,7 +3275,7 @@ PUBLIC int walk_dir_array(
     if(!is_directory(root_dir)) {
         gobj_log_error(gobj, 0,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+            "msgset",       "%s", MSGSET_PARAMETER,
             "msg",          "%s", "Cannot open directory",
             "path",         "%s", root_dir,
            NULL
@@ -3287,7 +3287,7 @@ PUBLIC int walk_dir_array(
     if(ret!=0) {
         gobj_log_error(gobj, 0,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+            "msgset",       "%s", MSGSET_PARAMETER,
             "msg",          "%s", "regcomp() FAILED",
             "error",        "%d", ret,
            NULL
@@ -5371,7 +5371,7 @@ PUBLIC void list_open_files(void)
     if (dir == NULL) {
         gobj_log_error(0, 0,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_SYSTEM_ERROR,
+            "msgset",       "%s", MSGSET_SYSTEM,
             "msg",          "%s", "Cannot open directory",
             "path",         "%s", fd_dir_path,
             "errno",        "%d", errno,
@@ -5547,7 +5547,7 @@ PUBLIC int create_random_uuid(char *bf, int bfsize) {
     if (bfsize < 37) {
         gobj_log_error(0, LOG_OPT_TRACE_STACK,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+            "msgset",       "%s", MSGSET_PARAMETER,
             "msg",          "%s", "buffer TOO small",
             NULL
         );
@@ -5565,7 +5565,7 @@ PUBLIC int create_random_uuid(char *bf, int bfsize) {
     if (ret != sizeof(uuid)) {
         gobj_log_error(0, LOG_OPT_TRACE_STACK,
             "function", "%s", __FUNCTION__,
-            "msgset",   "%s", MSGSET_RUNTIME_ERROR,
+            "msgset",   "%s", MSGSET_RUNTIME,
             "msg",      "%s", "getrandom failed",
             "errno",    "%d", errno,
             NULL
@@ -5770,7 +5770,7 @@ PUBLIC int comm_prot_register(gclass_name_t gclass_name, const char *schema)
     if(!lh) {
         gobj_log_error(0, 0,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_INTERNAL_ERROR,
+            "msgset",       "%s", MSGSET_INTERNAL,
             "msg",          "%s", "No memory to comm_prot_t",
             NULL
         );
@@ -5804,7 +5804,7 @@ PUBLIC gclass_name_t comm_prot_get_gclass(const char *schema)
 
     gobj_log_error(0, LOG_OPT_TRACE_STACK,
         "function",     "%s", __FUNCTION__,
-        "msgset",       "%s", MSGSET_INTERNAL_ERROR,
+        "msgset",       "%s", MSGSET_INTERNAL,
         "msg",          "%s", "gclass for schema not found",
         "schema",       "%s", schema,
         NULL
@@ -6070,7 +6070,7 @@ PUBLIC int parse_url(
     if(empty_string(uri)) {
         gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
             "function",             "%s", __FUNCTION__,
-            "msgset",               "%s", MSGSET_INTERNAL_ERROR,
+            "msgset",               "%s", MSGSET_INTERNAL,
             "msg",                  "%s", "uri EMPTY",
             "url",                  "%s", uri,
             NULL
@@ -6101,7 +6101,7 @@ PUBLIC int parse_url(
     if(!schema_end) {
         gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
             "function",             "%s", __FUNCTION__,
-            "msgset",               "%s", MSGSET_INTERNAL_ERROR,
+            "msgset",               "%s", MSGSET_INTERNAL,
             "msg",                  "%s", "parse_url() FAILED, no schema",
             "url",                  "%s", uri,
             NULL
@@ -6191,7 +6191,7 @@ PUBLIC int get_url_schema(
     if(empty_string(uri)) {
         gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_INTERNAL_ERROR,
+            "msgset",       "%s", MSGSET_INTERNAL,
             "msg",          "%s", "uri EMPTY",
             "url",          "%s", uri,
             NULL
@@ -6203,7 +6203,7 @@ PUBLIC int get_url_schema(
     if(!schema_end) {
         gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_INTERNAL_ERROR,
+            "msgset",       "%s", MSGSET_INTERNAL,
             "msg",          "%s", "no schema found",
             "url",          "%s", uri,
             NULL
@@ -6218,7 +6218,7 @@ PUBLIC int get_url_schema(
 
     gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
         "function",     "%s", __FUNCTION__,
-        "msgset",       "%s", MSGSET_INTERNAL_ERROR,
+        "msgset",       "%s", MSGSET_INTERNAL,
         "msg",          "%s", "no schema found",
         "url",          "%s", uri,
         NULL
@@ -6539,7 +6539,7 @@ PUBLIC int set_nonblocking(int fd)
     if(flags < 0) {
         gobj_log_error(0, LOG_OPT_TRACE_STACK,
              "function",     "%s", __FUNCTION__,
-             "msgset",       "%s", MSGSET_SYSTEM_ERROR,
+             "msgset",       "%s", MSGSET_SYSTEM,
              "msg",          "%s", "fcntl() FAILED",
              "serrno",       "%s", strerror(errno),
              NULL
@@ -6552,7 +6552,7 @@ PUBLIC int set_nonblocking(int fd)
     if(flags < 0) {
         gobj_log_error(0, LOG_OPT_TRACE_STACK,
              "function",     "%s", __FUNCTION__,
-             "msgset",       "%s", MSGSET_SYSTEM_ERROR,
+             "msgset",       "%s", MSGSET_SYSTEM,
              "msg",          "%s", "fcntl() FAILED",
              "serrno",       "%s", strerror(errno),
              NULL
@@ -6571,7 +6571,7 @@ PUBLIC int set_cloexec(int fd) // children must not inherit
     if(fd < 0) {
         gobj_log_error(0, LOG_OPT_TRACE_STACK,
              "function",     "%s", __FUNCTION__,
-             "msgset",       "%s", MSGSET_SYSTEM_ERROR,
+             "msgset",       "%s", MSGSET_SYSTEM,
              "msg",          "%s", "fd negative",
              NULL
          );
@@ -6582,7 +6582,7 @@ PUBLIC int set_cloexec(int fd) // children must not inherit
     if(flags < 0) {
         gobj_log_error(0, LOG_OPT_TRACE_STACK,
              "function",     "%s", __FUNCTION__,
-             "msgset",       "%s", MSGSET_SYSTEM_ERROR,
+             "msgset",       "%s", MSGSET_SYSTEM,
              "msg",          "%s", "fcntl() FAILED",
              "serrno",       "%s", strerror(errno),
              NULL
@@ -6594,7 +6594,7 @@ PUBLIC int set_cloexec(int fd) // children must not inherit
     if(flags < 0) {
         gobj_log_error(0, LOG_OPT_TRACE_STACK,
              "function",     "%s", __FUNCTION__,
-             "msgset",       "%s", MSGSET_SYSTEM_ERROR,
+             "msgset",       "%s", MSGSET_SYSTEM,
              "msg",          "%s", "fcntl() FAILED",
              "serrno",       "%s", strerror(errno),
              NULL

@@ -233,7 +233,7 @@ PRIVATE void mt_destroy(hgobj gobj)
     if(json_array_size(priv->dl_queries)) {
         gobj_log_error(gobj, 0,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_INTERNAL_ERROR,
+            "msgset",       "%s", MSGSET_INTERNAL,
             "msg",          "%s", "records LOST",
             NULL
         );
@@ -404,7 +404,7 @@ PRIVATE void noticeProcessor(void *arg, const char *message)
     } else {
         gobj_log_error(gobj, 0,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_POSTGRES_ERROR,
+            "msgset",       "%s", MSGSET_POSTGRES,
             "msg",          "%s", message,
             NULL
         );
@@ -458,7 +458,7 @@ PRIVATE void set_disconnected(hgobj gobj)
 //     if(status < 0) {
 //         gobj_log_error(gobj, 0,
 //             "function",     "%s", __FUNCTION__,
-//             "msgset",       "%s", MSGSET_LIBUV_ERROR,
+//             "msgset",       "%s", MSGSET_LIBURING,
 //             "msg",          "%s", "poll FAILED",
 //             "uv_error",     "%s", uv_err_name(status),
 //             NULL
@@ -473,7 +473,7 @@ PRIVATE void set_disconnected(hgobj gobj)
 //             if(PQstatus(priv->conn) != CONNECTION_OK) {
 //                 gobj_log_error(gobj, 0,
 //                     "function",     "%s", __FUNCTION__,
-//                     "msgset",       "%s", MSGSET_POSTGRES_ERROR,
+//                     "msgset",       "%s", MSGSET_POSTGRES,
 //                     "msg",          "%s", "Postgres connection closed 1",
 //                     "error",        "%s", PQerrorMessage(priv->conn),
 //                     NULL
@@ -500,7 +500,7 @@ PRIVATE void set_disconnected(hgobj gobj)
 //                                      */
 //                                     gobj_log_error(gobj, 0,
 //                                         "function",     "%s", __FUNCTION__,
-//                                         "msgset",       "%s", MSGSET_POSTGRES_ERROR,
+//                                         "msgset",       "%s", MSGSET_POSTGRES,
 //                                         "msg",          "%s", "Postgres Multiple Results or disconnected",
 //                                         NULL
 //                                     );
@@ -519,7 +519,7 @@ PRIVATE void set_disconnected(hgobj gobj)
 //                                  */
 //                                 gobj_log_error(gobj, 0,
 //                                     "function",     "%s", __FUNCTION__,
-//                                     "msgset",       "%s", MSGSET_POSTGRES_ERROR,
+//                                     "msgset",       "%s", MSGSET_POSTGRES,
 //                                     "msg",          "%s", "Avoid LOOP?",
 //                                     NULL
 //                                 );
@@ -535,7 +535,7 @@ PRIVATE void set_disconnected(hgobj gobj)
 //                         if(ret < 0) {
 //                             gobj_log_error(gobj, 0,
 //                                 "function",     "%s", __FUNCTION__,
-//                                 "msgset",       "%s", MSGSET_POSTGRES_ERROR,
+//                                 "msgset",       "%s", MSGSET_POSTGRES,
 //                                 "msg",          "%s", "PQflush() FAILED",
 //                                 NULL
 //                             );
@@ -544,7 +544,7 @@ PRIVATE void set_disconnected(hgobj gobj)
 //                     } else {
 //                         gobj_log_error(gobj, 0,
 //                             "function",     "%s", __FUNCTION__,
-//                             "msgset",       "%s", MSGSET_POSTGRES_ERROR,
+//                             "msgset",       "%s", MSGSET_POSTGRES,
 //                             "msg",          "%s", "PQconsumeInput FAILED",
 //                             "error",        "%s", PQerrorMessage(priv->conn),
 //                             NULL
@@ -560,7 +560,7 @@ PRIVATE void set_disconnected(hgobj gobj)
 //                 if(ret < 0) {
 //                     gobj_log_error(gobj, 0,
 //                         "function",     "%s", __FUNCTION__,
-//                         "msgset",       "%s", MSGSET_POSTGRES_ERROR,
+//                         "msgset",       "%s", MSGSET_POSTGRES,
 //                         "msg",          "%s", "PQflush() FAILED",
 //                         NULL
 //                     );
@@ -597,7 +597,7 @@ PRIVATE void set_disconnected(hgobj gobj)
 //             case PGRES_POLLING_FAILED:
 //                 gobj_log_error(gobj, 0,
 //                     "function",     "%s", __FUNCTION__,
-//                     "msgset",       "%s", MSGSET_LIBUV_ERROR,
+//                     "msgset",       "%s", MSGSET_LIBURING,
 //                     "msg",          "%s", "Postgres connection FAILED",
 //                     "error",        "%s", PQerrorMessage(priv->conn),
 //                     NULL
@@ -616,7 +616,7 @@ PRIVATE void set_disconnected(hgobj gobj)
 //         DEFAULTS
 //             gobj_log_error(gobj, 0,
 //                 "function",     "%s", __FUNCTION__,
-//                 "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+//                 "msgset",       "%s", MSGSET_PARAMETER,
 //                 "msg",          "%s", "state UNKNOWN",
 //                 "state",        "%s", state,
 //                 NULL
@@ -680,7 +680,7 @@ PRIVATE int clear_queue(hgobj gobj, json_t *kw_)
     if(!found) {
         gobj_log_error(gobj, 0,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+            "msgset",       "%s", MSGSET_PARAMETER,
             "msg",          "%s", "query to clear NOT FOUND",
             "id",           "%s", id,
             NULL
@@ -709,7 +709,7 @@ PRIVATE int push_queue(
     if(empty_string(query)) {
         gobj_log_error(gobj, 0,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+            "msgset",       "%s", MSGSET_PARAMETER,
             "msg",          "%s", "query EMPTY",
             NULL
         );
@@ -768,7 +768,7 @@ PRIVATE int send_cur_query(hgobj gobj)
     if(!priv->cur_query) {
         gobj_log_error(gobj, 0,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_INTERNAL_ERROR,
+            "msgset",       "%s", MSGSET_INTERNAL,
             "msg",          "%s", "NO cur_query",
             NULL
         );
@@ -784,7 +784,7 @@ PRIVATE int send_cur_query(hgobj gobj)
     if(!PQsendQuery(priv->conn, query)) {
         gobj_log_error(gobj, 0,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_POSTGRES_ERROR,
+            "msgset",       "%s", MSGSET_POSTGRES,
             "msg",          "%s", "PQsendQuery FAILED",
             "error",        "%s", PQerrorMessage(priv->conn),
             NULL
@@ -811,7 +811,7 @@ PRIVATE int send_cur_query(hgobj gobj)
 //     if(!priv->cur_query) {
 //         gobj_log_error(gobj, 0,
 //             "function",     "%s", __FUNCTION__,
-//             "msgset",       "%s", MSGSET_INTERNAL_ERROR,
+//             "msgset",       "%s", MSGSET_INTERNAL,
 //             "msg",          "%s", "No query for result",
 //             NULL
 //         );
@@ -825,7 +825,7 @@ PRIVATE int send_cur_query(hgobj gobj)
 //         char *error = PQerrorMessage(priv->conn);
 //         gobj_log_error(gobj, 0,
 //             "function",     "%s", __FUNCTION__,
-//             "msgset",       "%s", MSGSET_POSTGRES_ERROR,
+//             "msgset",       "%s", MSGSET_POSTGRES,
 //             "msg",          "%s", "Postgres connection closed 3",
 //             "error",        "%s", error,
 //             NULL
@@ -844,7 +844,7 @@ PRIVATE int send_cur_query(hgobj gobj)
 //     if(with_binaries) {
 //         gobj_log_error(gobj, 0,
 //             "function",     "%s", __FUNCTION__,
-//             "msgset",       "%s", MSGSET_INTERNAL_ERROR,
+//             "msgset",       "%s", MSGSET_INTERNAL,
 //             "msg",          "%s", "Postgres Binary response NOT SUPPORTED",
 //             NULL
 //         );
@@ -908,7 +908,7 @@ PRIVATE int send_cur_query(hgobj gobj)
 //                                 json_object_set_new(row, col_name, json_string(v));
 //                                 gobj_log_error(gobj, 0,
 //                                     "function",     "%s", __FUNCTION__,
-//                                     "msgset",       "%s", MSGSET_INTERNAL_ERROR,
+//                                     "msgset",       "%s", MSGSET_INTERNAL,
 //                                     "msg",          "%s", "Postgres type NOT IMPLEMENTED",
 //                                     "oid",          "%d", oid,
 //                                     NULL
@@ -939,7 +939,7 @@ PRIVATE int send_cur_query(hgobj gobj)
 //             json_object_set_new(kw_result, "comment", json_string("No result status supported"));
 //             gobj_log_error(gobj, 0,
 //                 "function",     "%s", __FUNCTION__,
-//                 "msgset",       "%s", MSGSET_INTERNAL_ERROR,
+//                 "msgset",       "%s", MSGSET_INTERNAL,
 //                 "msg",          "%s", "No result status supported",
 //                 "st",           "%d", st,
 //                 "status",       "%s", PQresStatus(st),
@@ -976,7 +976,7 @@ PRIVATE int send_cur_query(hgobj gobj)
 //             if(gobj_is_volatil(dst)) {
 //                 gobj_log_error(gobj, 0,
 //                     "function",     "%s", __FUNCTION__,
-//                     "msgset",       "%s", MSGSET_INTERNAL_ERROR,
+//                     "msgset",       "%s", MSGSET_INTERNAL,
 //                     "msg",          "%s", "WARNING don't use volatil gobjs",
 //                     "dst",          "%s", gobj_name(dst),
 //                     NULL
@@ -999,7 +999,7 @@ PRIVATE int send_cur_query(hgobj gobj)
 //         } else {
 //             gobj_log_error(gobj, 0,
 //                 "function",     "%s", __FUNCTION__,
-//                 "msgset",       "%s", MSGSET_INTERNAL_ERROR,
+//                 "msgset",       "%s", MSGSET_INTERNAL,
 //                 "msg",          "%s", "dst UNKNOWN",
 //                 NULL
 //             );
@@ -1034,7 +1034,7 @@ PRIVATE int ac_connect(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
     if(empty_string(url)) {
         gobj_log_error(gobj, 0,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+            "msgset",       "%s", MSGSET_PARAMETER,
             "msg",          "%s", "Not postgres URI has been configured!",
             NULL
         );
@@ -1042,7 +1042,7 @@ PRIVATE int ac_connect(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
     if(priv->conn) {
         gobj_log_error(gobj, 0,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_INTERNAL_ERROR,
+            "msgset",       "%s", MSGSET_INTERNAL,
             "msg",          "%s", "PGConn ALREADY set",
             NULL
         );
@@ -1053,7 +1053,7 @@ PRIVATE int ac_connect(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
     if(priv->conn == NULL) {
         gobj_log_error(gobj, 0,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_INTERNAL_ERROR,
+            "msgset",       "%s", MSGSET_INTERNAL,
             "msg",          "%s", "PQconnectStart FAILED",
             NULL
         );
@@ -1162,7 +1162,7 @@ PRIVATE int ac_timeout_data(hgobj gobj, gobj_event_t event, json_t *kw, hgobj sr
 
     gobj_log_error(gobj, 0,
         "function",     "%s", __FUNCTION__,
-        "msgset",       "%s", MSGSET_POSTGRES_ERROR,
+        "msgset",       "%s", MSGSET_POSTGRES,
         "msg",          "%s", "Postgres timeout, reset connection",
         NULL
     );
@@ -1278,7 +1278,7 @@ PRIVATE int create_gclass(gclass_name_t gclass_name)
     if(__gclass__) {
         gobj_log_error(0, 0,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_INTERNAL_ERROR,
+            "msgset",       "%s", MSGSET_INTERNAL,
             "msg",          "%s", "GClass ALREADY created",
             "gclass",       "%s", gclass_name,
             NULL

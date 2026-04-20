@@ -304,7 +304,7 @@ PRIVATE int extrae_json(hgobj gobj)
                 } else {
                     gobj_log_error(gobj, 0,
                         "function",     "%s", __FUNCTION__,
-                        "msgset",       "%s", MSGSET_SERVICE_ERROR,
+                        "msgset",       "%s", MSGSET_SERVICE,
                         "msg",          "%s", "Error json",
                         NULL
                     );
@@ -410,7 +410,7 @@ PRIVATE int cmd_connect(hgobj gobj)
     )<0) {
         gobj_log_error(gobj, 0,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+            "msgset",       "%s", MSGSET_PARAMETER,
             "msg",          "%s", "parse_http_url() FAILED",
             "url",          "%s", url,
             NULL
@@ -727,7 +727,7 @@ PRIVATE int create_gclass(gclass_name_t gclass_name)
     if(__gclass__) {
         gobj_log_error(0, 0,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_INTERNAL_ERROR,
+            "msgset",       "%s", MSGSET_INTERNAL,
             "msg",          "%s", "GClass ALREADY created",
             "gclass",       "%s", gclass_name,
             NULL

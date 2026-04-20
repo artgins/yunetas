@@ -221,7 +221,7 @@ PRIVATE int mt_play(hgobj gobj)
         if(agent_client) {
             gobj_log_error(gobj, 0,
                 "function",     "%s", __FUNCTION__,
-                "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+                "msgset",       "%s", MSGSET_PARAMETER,
                 "msg",          "%s", "What yuno __input_side__ url?",
                 NULL
             );
@@ -252,7 +252,7 @@ PRIVATE int mt_play(hgobj gobj)
         if(agent_client) {
             gobj_log_error(gobj, 0,
                 "function",     "%s", __FUNCTION__,
-                "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+                "msgset",       "%s", MSGSET_PARAMETER,
                 "msg",          "%s", "What TimeRanger path?",
                 NULL
             );
@@ -266,7 +266,7 @@ PRIVATE int mt_play(hgobj gobj)
         if(agent_client) {
             gobj_log_error(gobj, 0,
                 "function",     "%s", __FUNCTION__,
-                "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+                "msgset",       "%s", MSGSET_PARAMETER,
                 "msg",          "%s", "What Database?",
                 NULL
             );
@@ -281,7 +281,7 @@ PRIVATE int mt_play(hgobj gobj)
         if(agent_client) {
             gobj_log_error(gobj, 0,
                 "function",     "%s", __FUNCTION__,
-                "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+                "msgset",       "%s", MSGSET_PARAMETER,
                 "msg",          "%s", "What Topic?",
                 NULL
             );
@@ -407,7 +407,7 @@ PRIVATE int mt_play(hgobj gobj)
     // if(agent_client) {
     //     gobj_log_error(gobj, LOG_OPT_EXIT_ZERO,
     //         "function",     "%s", __FUNCTION__,
-    //         "msgset",       "%s", MSGSET_INTERNAL_ERROR,
+    //         "msgset",       "%s", MSGSET_INTERNAL,
     //         "msg",          "%s", "tranger_startup() FAILED",
     //         "path",         "%s", path,
     //         "database",     "%s", database,
@@ -431,7 +431,7 @@ PRIVATE int mt_play(hgobj gobj)
     // if(agent_client) {
     //     gobj_log_error(gobj, LOG_OPT_EXIT_ZERO,
     //         "function",     "%s", __FUNCTION__,
-    //         "msgset",       "%s", MSGSET_INTERNAL_ERROR,
+    //         "msgset",       "%s", MSGSET_INTERNAL,
     //         "msg",          "%s", "tranger_open_topic() FAILED",
     //         "path",         "%s", path,
     //         "database",     "%s", database,
@@ -922,7 +922,7 @@ PRIVATE int create_gclass(gclass_name_t gclass_name)
     if(__gclass__) {
         gobj_log_error(0, 0,
             "function", "%s", __FUNCTION__,
-            "msgset",   "%s", MSGSET_INTERNAL_ERROR,
+            "msgset",   "%s", MSGSET_INTERNAL,
             "msg",      "%s", "GClass ALREADY created",
             "gclass",   "%s", gclass_name,
             NULL

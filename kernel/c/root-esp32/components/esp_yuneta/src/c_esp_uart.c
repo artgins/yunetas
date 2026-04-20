@@ -193,7 +193,7 @@ PRIVATE int mt_start(hgobj gobj)
     if(err != ESP_OK) {
         gobj_log_error(gobj, 0,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_SYSTEM_ERROR,
+            "msgset",       "%s", MSGSET_SYSTEM,
             "msg",          "%s", "uart_set_pin() FAILED",
             "esp_error",    "%s", esp_err_to_name(err),
             "uart_number",  "%d", (int)uart_number,
@@ -223,7 +223,7 @@ PRIVATE int mt_start(hgobj gobj)
         if(ret != pdPASS) {
             gobj_log_error(gobj, 0,
                 "function",     "%s", __FUNCTION__,
-                "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+                "msgset",       "%s", MSGSET_PARAMETER,
                 "msg",          "%s", "Cannot create Uart Task",
                 NULL
             );
@@ -231,7 +231,7 @@ PRIVATE int mt_start(hgobj gobj)
     } else {
         gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+            "msgset",       "%s", MSGSET_PARAMETER,
             "msg",          "%s", "Uart Task Already exists",
             NULL
         );
@@ -266,7 +266,7 @@ PRIVATE int mt_stop(hgobj gobj)
         if(running_task == priv->rx_task_h) {
             gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
                 "function",     "%s", __FUNCTION__,
-                "msgset",       "%s", MSGSET_INTERNAL_ERROR,
+                "msgset",       "%s", MSGSET_INTERNAL,
                 "msg",          "%s", "gobj cannot be stopped from ESP task",
                 NULL
             );
@@ -276,7 +276,7 @@ PRIVATE int mt_stop(hgobj gobj)
     } else {
         gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_INTERNAL_ERROR,
+            "msgset",       "%s", MSGSET_INTERNAL,
             "msg",          "%s", "gobj asked to stop task, but task was not started",
             NULL
         );
@@ -358,7 +358,7 @@ PRIVATE void rx_task(void *pv)
                     xQueueReset(priv->uart_queue);
                     gobj_log_error(gobj, 0,
                         "function",     "%s", __FUNCTION__,
-                        "msgset",       "%s", MSGSET_SYSTEM_ERROR,
+                        "msgset",       "%s", MSGSET_SYSTEM,
                         "msg",          "%s", "UART_FIFO_OVF",
                         NULL
                     );
@@ -370,7 +370,7 @@ PRIVATE void rx_task(void *pv)
                     xQueueReset(priv->uart_queue);
                     gobj_log_error(gobj, 0,
                         "function",     "%s", __FUNCTION__,
-                        "msgset",       "%s", MSGSET_SYSTEM_ERROR,
+                        "msgset",       "%s", MSGSET_SYSTEM,
                         "msg",          "%s", "UART_BUFFER_FULL",
                         NULL
                     );
@@ -378,7 +378,7 @@ PRIVATE void rx_task(void *pv)
                 case UART_BREAK:
                     gobj_log_error(gobj, 0,
                         "function",     "%s", __FUNCTION__,
-                        "msgset",       "%s", MSGSET_SYSTEM_ERROR,
+                        "msgset",       "%s", MSGSET_SYSTEM,
                         "msg",          "%s", "UART_BREAK",
                         NULL
                     );
@@ -386,7 +386,7 @@ PRIVATE void rx_task(void *pv)
                 case UART_PARITY_ERR:
                     gobj_log_error(gobj, 0,
                         "function",     "%s", __FUNCTION__,
-                        "msgset",       "%s", MSGSET_SYSTEM_ERROR,
+                        "msgset",       "%s", MSGSET_SYSTEM,
                         "msg",          "%s", "UART_PARITY_ERR",
                         NULL
                     );
@@ -394,7 +394,7 @@ PRIVATE void rx_task(void *pv)
                 case UART_FRAME_ERR:
                     gobj_log_error(gobj, 0,
                         "function",     "%s", __FUNCTION__,
-                        "msgset",       "%s", MSGSET_SYSTEM_ERROR,
+                        "msgset",       "%s", MSGSET_SYSTEM,
                         "msg",          "%s", "UART_FRAME_ERR",
                         NULL
                     );
@@ -402,7 +402,7 @@ PRIVATE void rx_task(void *pv)
                 case UART_DATA_BREAK:
                     gobj_log_error(gobj, 0,
                         "function",     "%s", __FUNCTION__,
-                        "msgset",       "%s", MSGSET_SYSTEM_ERROR,
+                        "msgset",       "%s", MSGSET_SYSTEM,
                         "msg",          "%s", "UART_DATA_BREAK",
                         NULL
                     );
@@ -410,7 +410,7 @@ PRIVATE void rx_task(void *pv)
                 case UART_PATTERN_DET:
                     gobj_log_error(gobj, 0,
                         "function",     "%s", __FUNCTION__,
-                        "msgset",       "%s", MSGSET_SYSTEM_ERROR,
+                        "msgset",       "%s", MSGSET_SYSTEM,
                         "msg",          "%s", "UART_PATTERN_DET",
                         NULL
                     );
@@ -460,7 +460,7 @@ PRIVATE void uart_tx_ev_loop_callback(
         if (wlen < 0) {
             gobj_log_error(gobj, 0,
                 "function",     "%s", __FUNCTION__,
-                "msgset",       "%s", MSGSET_INTERNAL_ERROR,
+                "msgset",       "%s", MSGSET_INTERNAL,
                 "msg",          "%s", "uart_write_bytes() FAILED",
                 NULL
             );
@@ -470,7 +470,7 @@ PRIVATE void uart_tx_ev_loop_callback(
             // Timeout
             gobj_log_error(gobj, 0,
                 "function",     "%s", __FUNCTION__,
-                "msgset",       "%s", MSGSET_INTERNAL_ERROR,
+                "msgset",       "%s", MSGSET_INTERNAL,
                 "msg",          "%s", "uart_write_bytes() return 0",
                 NULL
             );
@@ -528,7 +528,7 @@ PRIVATE int ac_tx_data(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
     if(!gbuf) {
         gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_INTERNAL_ERROR,
+            "msgset",       "%s", MSGSET_INTERNAL,
             "msg",          "%s", "gbuffer NULL",
             NULL
         );
@@ -550,7 +550,7 @@ PRIVATE int ac_tx_data(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
     if(err != ESP_OK) {
         gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_SYSTEM_ERROR,
+            "msgset",       "%s", MSGSET_SYSTEM,
             "msg",          "%s", "esp_event_post_to(Uart TX) FAILED",
             "esp_error",    "%s", esp_err_to_name(err),
             NULL
@@ -608,7 +608,7 @@ PRIVATE int create_gclass(gclass_name_t gclass_name)
     if(__gclass__) {
         gobj_log_error(0, 0,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_INTERNAL_ERROR,
+            "msgset",       "%s", MSGSET_INTERNAL,
             "msg",          "%s", "GClass ALREADY created",
             "gclass",       "%s", gclass_name,
             NULL

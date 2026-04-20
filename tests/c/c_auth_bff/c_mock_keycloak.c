@@ -292,7 +292,7 @@ PRIVATE void respond_or_defer(hgobj gobj, hgobj browser_src, int status,
     if(priv->pending_body) {
         gobj_log_error(gobj, 0,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_INTERNAL_ERROR,
+            "msgset",       "%s", MSGSET_INTERNAL,
             "msg",          "%s", "mock-kc deferred slot already occupied — single-slot only",
             "previous_src", "%s", priv->pending_src ? gobj_short_name(priv->pending_src) : "",
             "new_src",      "%s", browser_src ? gobj_short_name(browser_src) : "",
@@ -398,7 +398,7 @@ PUBLIC int mock_keycloak_init_jwk(void)
     if(!s_jwk_set) {
         gobj_log_error(0, 0,
             "function", "%s", __FUNCTION__,
-            "msgset",   "%s", MSGSET_INTERNAL_ERROR,
+            "msgset",   "%s", MSGSET_INTERNAL,
             "msg",      "%s", "jwks_create failed for test JWK",
             NULL
         );
@@ -408,7 +408,7 @@ PUBLIC int mock_keycloak_init_jwk(void)
     if(!s_hs256_key) {
         gobj_log_error(0, 0,
             "function", "%s", __FUNCTION__,
-            "msgset",   "%s", MSGSET_INTERNAL_ERROR,
+            "msgset",   "%s", MSGSET_INTERNAL,
             "msg",      "%s", "jwks_item_get(0) returned NULL",
             NULL
         );
@@ -442,7 +442,7 @@ PRIVATE char *make_signed_token(const char *username, const char *email, int ttl
     if(!s_hs256_key) {
         gobj_log_error(0, 0,
             "function", "%s", __FUNCTION__,
-            "msgset",   "%s", MSGSET_INTERNAL_ERROR,
+            "msgset",   "%s", MSGSET_INTERNAL,
             "msg",      "%s", "mock_keycloak_init_jwk() not called",
             NULL
         );
@@ -453,7 +453,7 @@ PRIVATE char *make_signed_token(const char *username, const char *email, int ttl
     if(!b) {
         gobj_log_error(0, 0,
             "function", "%s", __FUNCTION__,
-            "msgset",   "%s", MSGSET_MEMORY_ERROR,
+            "msgset",   "%s", MSGSET_MEMORY,
             "msg",      "%s", "jwt_builder_new failed",
             NULL
         );
@@ -463,7 +463,7 @@ PRIVATE char *make_signed_token(const char *username, const char *email, int ttl
     if(jwt_builder_setkey(b, JWT_ALG_HS256, s_hs256_key) != 0) {
         gobj_log_error(0, 0,
             "function", "%s", __FUNCTION__,
-            "msgset",   "%s", MSGSET_INTERNAL_ERROR,
+            "msgset",   "%s", MSGSET_INTERNAL,
             "msg",      "%s", "jwt_builder_setkey failed",
             NULL
         );
@@ -492,7 +492,7 @@ PRIVATE char *make_signed_token(const char *username, const char *email, int ttl
     if(!token) {
         gobj_log_error(0, 0,
             "function", "%s", __FUNCTION__,
-            "msgset",   "%s", MSGSET_INTERNAL_ERROR,
+            "msgset",   "%s", MSGSET_INTERNAL,
             "msg",      "%s", "jwt_builder_generate returned NULL",
             NULL
         );
@@ -574,7 +574,7 @@ PRIVATE int ac_on_message(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
         priv->st_unknown_requests++;
         gobj_log_error(gobj, 0,
             "function", "%s", __FUNCTION__,
-            "msgset",   "%s", MSGSET_PROTOCOL_ERROR,
+            "msgset",   "%s", MSGSET_PROTOCOL,
             "msg",      "%s", "mock-kc unknown URL",
             "url",      "%s", url,
             NULL
@@ -711,7 +711,7 @@ PRIVATE int create_gclass(gclass_name_t gclass_name)
     if(__gclass__) {
         gobj_log_error(0, 0,
             "function", "%s", __FUNCTION__,
-            "msgset",   "%s", MSGSET_INTERNAL_ERROR,
+            "msgset",   "%s", MSGSET_INTERNAL,
             "msg",      "%s", "GClass ALREADY created",
             "gclass",   "%s", gclass_name,
             NULL

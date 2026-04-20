@@ -79,7 +79,7 @@ PUBLIC GHTTP_PARSER *ghttp_parser_create(
     if(!parser) {
         gobj_log_error(gobj, 0,
             "function",             "%s", __FUNCTION__,
-            "msgset",               "%s", MSGSET_MEMORY_ERROR,
+            "msgset",               "%s", MSGSET_MEMORY,
             "msg",                  "%s", "no memory for sizeof(GHTTP_PARSER)",
             "sizeof(GHTTP_PARSER)", "%d", sizeof(GHTTP_PARSER),
             NULL);
@@ -159,7 +159,7 @@ PUBLIC int ghttp_parser_received(
         /* Handle error. Usually just close the connection. */
         gobj_log_error(gobj,0,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_PROTOCOL_ERROR,
+            "msgset",       "%s", MSGSET_PROTOCOL,
             "msg",          "%s", "llhttp_execute() FAILED",
             "error",        "%s", llhttp_errno_name(err),
             "desc",         "%s", llhttp_get_error_reason(&parser->llhttp),
@@ -275,7 +275,7 @@ PRIVATE int on_body(llhttp_t* llhttp, const char* at, size_t length)
             if(!parser->gbuf_body) {
                 gobj_log_error(gobj, 0,
                     "function",     "%s", __FUNCTION__,
-                    "msgset",       "%s", MSGSET_MEMORY_ERROR,
+                    "msgset",       "%s", MSGSET_MEMORY,
                     "msg",          "%s", "no memory for body",
                     "body_size",    "%d", parser->body_size,
                     "more length",  "%d", length,
@@ -339,7 +339,7 @@ PRIVATE int on_message_complete(llhttp_t* llhttp)
             if(body_len != parser->body_size) {
                 gobj_log_error(gobj, 0,
                     "function",     "%s", __FUNCTION__,
-                    "msgset",       "%s", MSGSET_MEMORY_ERROR,
+                    "msgset",       "%s", MSGSET_MEMORY,
                     "msg",          "%s", "NO MATCH in body size",
                     "body_size",    "%d", (int)parser->body_size,
                     "body_len",     "%d", (int)body_len,
@@ -411,7 +411,7 @@ PRIVATE int on_url(llhttp_t* llhttp, const char* at, size_t length)
     if(!parser->url) {
         gobj_log_error(gobj, 0,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_MEMORY_ERROR,
+            "msgset",       "%s", MSGSET_MEMORY,
             "msg",          "%s", "no memory for url",
             "length",       "%d", length,
             NULL
@@ -438,7 +438,7 @@ PRIVATE int on_header_field(llhttp_t* llhttp, const char* at, size_t length)
     if(!parser->jn_headers) {
         gobj_log_error(gobj, 0,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_MEMORY_ERROR,
+            "msgset",       "%s", MSGSET_MEMORY,
             "msg",          "%s", "no memory for url",
             "length",       "%d", length,
             NULL
@@ -459,7 +459,7 @@ PRIVATE int on_header_field(llhttp_t* llhttp, const char* at, size_t length)
     if(!parser->cur_key) {
         gobj_log_error(gobj, 0,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_MEMORY_ERROR,
+            "msgset",       "%s", MSGSET_MEMORY,
             "msg",          "%s", "no memory for header field",
             "length",       "%d", length,
             NULL);
@@ -483,7 +483,7 @@ PRIVATE int on_header_value(llhttp_t* llhttp, const char* at, size_t length)
     if(!parser->jn_headers) {
         gobj_log_error(gobj, 0,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_INTERNAL_ERROR,
+            "msgset",       "%s", MSGSET_INTERNAL,
             "msg",          "%s", "jn_headers NULL",
             "length",       "%d", length,
             NULL);
@@ -499,7 +499,7 @@ PRIVATE int on_header_value(llhttp_t* llhttp, const char* at, size_t length)
         if(!parser->cur_key) {
             gobj_log_error(gobj, 0,
                 "function",     "%s", __FUNCTION__,
-                "msgset",       "%s", MSGSET_INTERNAL_ERROR,
+                "msgset",       "%s", MSGSET_INTERNAL,
                 "msg",          "%s", "cur_key NULL",
                 NULL);
             return -1;
@@ -525,7 +525,7 @@ PRIVATE int on_header_value(llhttp_t* llhttp, const char* at, size_t length)
     if(!value) {
         gobj_log_error(gobj, 0,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_MEMORY_ERROR,
+            "msgset",       "%s", MSGSET_MEMORY,
             "msg",          "%s", "no memory for header value",
             "length",       "%d", length,
             NULL

@@ -70,7 +70,7 @@ PUBLIC int kw_add_binary_type(
     if(max_serialize_slot >= MAX_SERIALIZED_FIELDS) {
         gobj_log_error(0, LOG_OPT_TRACE_STACK,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_INTERNAL_ERROR,
+            "msgset",       "%s", MSGSET_INTERNAL,
             "msg",          "%s", "table serialize fields FULL",
             NULL
         );
@@ -129,7 +129,7 @@ PUBLIC json_t *kw_serialize(
                 } else {
                     gobj_log_error(0, LOG_OPT_TRACE_STACK,
                         "function",     "%s", __FUNCTION__,
-                        "msgset",       "%s", MSGSET_INTERNAL_ERROR,
+                        "msgset",       "%s", MSGSET_INTERNAL,
                         "msg",          "%s", "serialize_fn() FAILED",
                         "key",          "%s", pf->binary_field_name,
                         NULL
@@ -183,7 +183,7 @@ PUBLIC char *kw_serialize_to_string( // return must be free with jsonp_free()
                 } else {
                     gobj_log_error(0, LOG_OPT_TRACE_STACK,
                         "function",     "%s", __FUNCTION__,
-                        "msgset",       "%s", MSGSET_INTERNAL_ERROR,
+                        "msgset",       "%s", MSGSET_INTERNAL,
                         "msg",          "%s", "serialize_fn() FAILED",
                         "key",          "%s", pf->binary_field_name,
                         NULL
@@ -286,7 +286,7 @@ PUBLIC json_t *kw_incref(json_t *kw)
     if((int)kw->refcount <= 0) {
         gobj_log_error(0, LOG_OPT_TRACE_STACK,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_INTERNAL_ERROR,
+            "msgset",       "%s", MSGSET_INTERNAL,
             "msg",          "%s", "BAD kw_incref()",
             "refcount",     "%d", (int)(kw->refcount),
             "type",         "%d", (int)(kw->type),
@@ -330,7 +330,7 @@ PUBLIC json_t *kw_decref(json_t* kw)
     if((int)(kw->refcount) <= 0) {
         gobj_log_error(0, LOG_OPT_TRACE_STACK,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_INTERNAL_ERROR,
+            "msgset",       "%s", MSGSET_INTERNAL,
             "msg",          "%s", "BAD kw_decref()",
             "refcount",     "%d", (int)(kw->refcount),
             "type",         "%d", (int)(kw->type),
@@ -397,7 +397,7 @@ PUBLIC char kw_set_path_delimiter(char delimiter_)
 //     if(!(json_is_object(kw) || json_is_array(kw))) {
 //         gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
 //             "function",     "%s", __FUNCTION__,
-//             "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+//             "msgset",       "%s", MSGSET_PARAMETER,
 //             "msg",          "%s", "kw must be list or dict",
 //             "path",         "%s", path?path:"",
 //             NULL
@@ -407,7 +407,7 @@ PUBLIC char kw_set_path_delimiter(char delimiter_)
 //     if(empty_string(path)) {
 //         gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
 //             "function",     "%s", __FUNCTION__,
-//             "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+//             "msgset",       "%s", MSGSET_PARAMETER,
 //             "msg",          "%s", "path EMPTY",
 //             NULL
 //         );
@@ -416,7 +416,7 @@ PUBLIC char kw_set_path_delimiter(char delimiter_)
 //     if(kw->refcount <=0) {
 //         gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
 //             "function",     "%s", __FUNCTION__,
-//             "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+//             "msgset",       "%s", MSGSET_PARAMETER,
 //             "msg",          "%s", "json refcount 0",
 //             "path",         "%s", path,
 //             NULL
@@ -438,7 +438,7 @@ PUBLIC char kw_set_path_delimiter(char delimiter_)
 //             if(verbose) {
 //                 gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
 //                     "function",     "%s", __FUNCTION__,
-//                     "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+//                     "msgset",       "%s", MSGSET_PARAMETER,
 //                     "msg",          "%s", "short path",
 //                     "path",         "%s", path,
 //                     "segment",      "%s", segment,
@@ -456,7 +456,7 @@ PUBLIC char kw_set_path_delimiter(char delimiter_)
 //                 if(verbose) {
 //                     gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
 //                         "function",     "%s", __FUNCTION__,
-//                         "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+//                         "msgset",       "%s", MSGSET_PARAMETER,
 //                         "msg",          "%s", "path not found",
 //                         "path",         "%s", path,
 //                         "segment",      "%s", segment,
@@ -476,7 +476,7 @@ PUBLIC char kw_set_path_delimiter(char delimiter_)
 //                     if(verbose) {
 //                         gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
 //                             "function",     "%s", __FUNCTION__,
-//                             "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+//                             "msgset",       "%s", MSGSET_PARAMETER,
 //                             "msg",          "%s", "path not found",
 //                             "path",         "%s", path,
 //                             "segment",      "%s", segment,
@@ -499,7 +499,7 @@ PUBLIC char kw_set_path_delimiter(char delimiter_)
 //         if(verbose) {
 //             gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
 //                 "function",     "%s", __FUNCTION__,
-//                 "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+//                 "msgset",       "%s", MSGSET_PARAMETER,
 //                 "msg",          "%s", "long path",
 //                 "path",         "%s", path,
 //                 "segment",      "%s", segment,
@@ -531,7 +531,7 @@ PUBLIC json_t *kw_find_path(hgobj gobj, json_t *kw, const char *path, BOOL verbo
     if(!(json_is_object(kw) || json_is_array(kw))) {
         gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+            "msgset",       "%s", MSGSET_PARAMETER,
             "msg",          "%s", "kw must be list or dict",
             "path",         "%s", path?path:"",
             NULL
@@ -541,7 +541,7 @@ PUBLIC json_t *kw_find_path(hgobj gobj, json_t *kw, const char *path, BOOL verbo
     if(!path) {
         gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+            "msgset",       "%s", MSGSET_PARAMETER,
             "msg",          "%s", "path NULL",
             NULL
         );
@@ -550,7 +550,7 @@ PUBLIC json_t *kw_find_path(hgobj gobj, json_t *kw, const char *path, BOOL verbo
     if(kw->refcount <=0) {
         gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+            "msgset",       "%s", MSGSET_PARAMETER,
             "msg",          "%s", "json refcount 0",
             "path",         "%s", path,
             NULL
@@ -566,7 +566,7 @@ PUBLIC json_t *kw_find_path(hgobj gobj, json_t *kw, const char *path, BOOL verbo
             if(!value && verbose) {
                 gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
                     "function",     "%s", __FUNCTION__,
-                    "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+                    "msgset",       "%s", MSGSET_PARAMETER,
                     "msg",          "%s", "path not found",
                     "path",         "%s", path,
                     NULL
@@ -581,7 +581,7 @@ PUBLIC json_t *kw_find_path(hgobj gobj, json_t *kw, const char *path, BOOL verbo
             if(!value && verbose) {
                 gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
                     "function",     "%s", __FUNCTION__,
-                    "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+                    "msgset",       "%s", MSGSET_PARAMETER,
                     "msg",          "%s", "path not found",
                     "path",         "%s", path,
                     "idx",          "%d", idx,
@@ -596,7 +596,7 @@ PUBLIC json_t *kw_find_path(hgobj gobj, json_t *kw, const char *path, BOOL verbo
     if(snprintf(segment, sizeof(segment), "%.*s", (int)(size_t)(p-path), path)>=sizeof(segment)) {
         gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_INTERNAL_ERROR,
+            "msgset",       "%s", MSGSET_INTERNAL,
             "msg",          "%s", "buffer too small",
             "path",         "%s", path,
             NULL
@@ -611,7 +611,7 @@ PUBLIC json_t *kw_find_path(hgobj gobj, json_t *kw, const char *path, BOOL verbo
             if(verbose) {
                 gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
                     "function",     "%s", __FUNCTION__,
-                    "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+                    "msgset",       "%s", MSGSET_PARAMETER,
                     "msg",          "%s", "Dict segment not found",
                     "path",         "%s", path,
                     "segment",      "%s", segment,
@@ -628,7 +628,7 @@ PUBLIC json_t *kw_find_path(hgobj gobj, json_t *kw, const char *path, BOOL verbo
             if(verbose) {
                 gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
                     "function",     "%s", __FUNCTION__,
-                    "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+                    "msgset",       "%s", MSGSET_PARAMETER,
                     "msg",          "%s", "List segment not found",
                     "path",         "%s", path,
                     "segment",      "%s", segment,
@@ -656,7 +656,7 @@ PUBLIC int kw_set_dict_value(
     if(!json_is_object(kw)) {
         gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+            "msgset",       "%s", MSGSET_PARAMETER,
             "msg",          "%s", "kw MUST BE a json object",
             "path",         "%s", path,
             NULL
@@ -668,7 +668,7 @@ PUBLIC int kw_set_dict_value(
     if(kw->refcount <=0) {
         gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+            "msgset",       "%s", MSGSET_PARAMETER,
             "msg",          "%s", "json refcount 0",
             "path",         "%s", path,
             NULL
@@ -690,7 +690,7 @@ PUBLIC int kw_set_dict_value(
         if(!v) {
             gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
                 "function",     "%s", __FUNCTION__,
-                "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+                "msgset",       "%s", MSGSET_PARAMETER,
                 "msg",          "%s", "short path",
                 "path",         "%s", path,
                 "segment",      "%s", segment,
@@ -721,7 +721,7 @@ PUBLIC int kw_set_dict_value(
                     fin = TRUE;
                     gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
                         "function",     "%s", __FUNCTION__,
-                        "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+                        "msgset",       "%s", MSGSET_PARAMETER,
                         "msg",          "%s", "path not found",
                         "path",         "%s", path,
                         "segment",      "%s", segment,
@@ -742,7 +742,7 @@ PUBLIC int kw_set_dict_value(
     if(i<list_size) {
         gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+            "msgset",       "%s", MSGSET_PARAMETER,
             "msg",          "%s", "long path",
             "path",         "%s", path,
             "segment",      "%s", segment,
@@ -774,7 +774,7 @@ PUBLIC int kw_set_subdict_value(
     if(json_object_set_new(jn_subdict, key, value)<0) {
         gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_INTERNAL_ERROR,
+            "msgset",       "%s", MSGSET_INTERNAL,
             "msg",          "%s", "json_object_set_new() FAILED",
             "path",         "%s", path,
             "key",          "%s", key,
@@ -806,7 +806,7 @@ PUBLIC int kw_delete(
         } else {
             gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
                 "function",     "%s", __FUNCTION__,
-                "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+                "msgset",       "%s", MSGSET_PARAMETER,
                 "msg",          "%s", "path not found",
                 "path",         "%s", s,
                 NULL
@@ -822,7 +822,7 @@ PUBLIC int kw_delete(
         } else {
             gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
                 "function",     "%s", __FUNCTION__,
-                "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+                "msgset",       "%s", MSGSET_PARAMETER,
                 "msg",          "%s", "path not found",
                 "path",         "%s", path,
                 NULL
@@ -845,7 +845,7 @@ PUBLIC int kw_delete_subkey(hgobj gobj, json_t *kw, const char *path, const char
     if(!jn_dict) {
         gobj_log_error(gobj,  LOG_OPT_TRACE_STACK,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+            "msgset",       "%s", MSGSET_PARAMETER,
             "msg",          "%s", "subdict not found",
             "subdict",      "%s", path,
             NULL
@@ -855,7 +855,7 @@ PUBLIC int kw_delete_subkey(hgobj gobj, json_t *kw, const char *path, const char
     if(!kw_has_key(jn_dict, key)) {
         gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+            "msgset",       "%s", MSGSET_PARAMETER,
             "msg",          "%s", "key not found",
             "subdict",      "%s", path,
             "key",          "%s", key,
@@ -912,7 +912,7 @@ int kwid_find_record_in_list(
         if(flag & KW_VERBOSE) {
             gobj_log_error(gobj, 0,
                 "function",     "%s", __FUNCTION__,
-                "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+                "msgset",       "%s", MSGSET_PARAMETER,
                 "msg",          "%s", "id NULL or kw_list is not a list",
                 NULL
             );
@@ -926,7 +926,7 @@ int kwid_find_record_in_list(
         if(!id_) {
             gobj_log_error(gobj, 0,
                 "function",     "%s", __FUNCTION__,
-                "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+                "msgset",       "%s", MSGSET_PARAMETER,
                 "msg",          "%s", "list item is not a id record",
                 NULL
             );
@@ -940,7 +940,7 @@ int kwid_find_record_in_list(
     if(flag & KW_VERBOSE) {
         gobj_log_error(gobj, 0,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+            "msgset",       "%s", MSGSET_PARAMETER,
             "msg",          "%s", "record not found in this list",
             "id",           "%s", id,
             NULL
@@ -965,7 +965,7 @@ PUBLIC int kw_find_json_in_list(
         if(flag & KW_VERBOSE) {
             gobj_log_error(gobj, 0,
                 "function",     "%s", __FUNCTION__,
-                "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+                "msgset",       "%s", MSGSET_PARAMETER,
                 "msg",          "%s", "item NULL or kw_list is not a list",
                 NULL
             );
@@ -985,7 +985,7 @@ PUBLIC int kw_find_json_in_list(
     if(flag & KW_VERBOSE) {
         gobj_log_error(gobj, 0,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+            "msgset",       "%s", MSGSET_PARAMETER,
             "msg",          "%s", "item not found in this list",
             "item",         "%j", item,
             NULL
@@ -1034,7 +1034,7 @@ PUBLIC json_t *kw_select( // WARNING return **duplicated** objects
     } else  {
         gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+            "msgset",       "%s", MSGSET_PARAMETER,
             "msg",          "%s", "kw MUST BE a json array or object",
             NULL
         );
@@ -1085,7 +1085,7 @@ PUBLIC json_t *kw_collect( // WARNING return **duplicated** objects
     } else  {
         gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+            "msgset",       "%s", MSGSET_PARAMETER,
             "msg",          "%s", "kw MUST BE a json array or object",
             NULL
         );
@@ -1141,7 +1141,7 @@ PRIVATE BOOL _kwid_compare_records_path(
         if(verbose) {
             gobj_log_error(gobj, 0,
                 "function",     "%s", __FUNCTION__,
-                "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+                "msgset",       "%s", MSGSET_PARAMETER,
                 "msg",          "%s", "record NULL",
                 "path",         "%s", path,
                 NULL
@@ -1155,7 +1155,7 @@ PRIVATE BOOL _kwid_compare_records_path(
         if(verbose) {
             gobj_log_error(gobj, 0,
                 "function",     "%s", __FUNCTION__,
-                "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+                "msgset",       "%s", MSGSET_PARAMETER,
                 "msg",          "%s", "expected NULL",
                 "path",         "%s", path,
                 NULL
@@ -1369,7 +1369,7 @@ PRIVATE BOOL _kwid_compare_lists_path(
         if(verbose) {
             gobj_log_error(gobj, 0,
                 "function",     "%s", __FUNCTION__,
-                "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+                "msgset",       "%s", MSGSET_PARAMETER,
                 "msg",          "%s", "list NULL",
                 "path",         "%s", path,
                 NULL
@@ -1383,7 +1383,7 @@ PRIVATE BOOL _kwid_compare_lists_path(
         if(verbose) {
             gobj_log_error(gobj, 0,
                 "function",     "%s", __FUNCTION__,
-                "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+                "msgset",       "%s", MSGSET_PARAMETER,
                 "msg",          "%s", "expected NULL",
                 "path",         "%s", path,
                 NULL
@@ -1661,7 +1661,7 @@ PUBLIC json_t *kw_get_dict(
         if(flag & KW_REQUIRED) {
             gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
                 "function",     "%s", __FUNCTION__,
-                "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+                "msgset",       "%s", MSGSET_PARAMETER,
                 "msg",          "%s", "path NOT FOUND, default value returned",
                 "path",         "%s", path,
                 NULL
@@ -1674,7 +1674,7 @@ PUBLIC json_t *kw_get_dict(
         if(flag & KW_REQUIRED) {
             gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
                 "function",     "%s", __FUNCTION__,
-                "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+                "msgset",       "%s", MSGSET_PARAMETER,
                 "msg",          "%s", "path MUST BE a json dict, default value returned",
                 "path",         "%s", path,
                 NULL
@@ -1712,7 +1712,7 @@ PUBLIC json_t *kw_get_list(
         if(flag & KW_REQUIRED) {
             gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
                 "function",     "%s", __FUNCTION__,
-                "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+                "msgset",       "%s", MSGSET_PARAMETER,
                 "msg",          "%s", "path NOT FOUND, default value returned",
                 "path",         "%s", path,
                 NULL
@@ -1725,7 +1725,7 @@ PUBLIC json_t *kw_get_list(
         if(flag & KW_REQUIRED) {
             gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
                 "function",     "%s", __FUNCTION__,
-                "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+                "msgset",       "%s", MSGSET_PARAMETER,
                 "msg",          "%s", "path MUST BE a json list, default value returned",
                 "path",         "%s", path,
                 NULL
@@ -1756,7 +1756,7 @@ PUBLIC json_t *kw_get_list_value(
     if(!json_is_array(kw)) {
         gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+            "msgset",       "%s", MSGSET_PARAMETER,
             "msg",          "%s", "kw MUST BE a json array",
             NULL
         );
@@ -1766,7 +1766,7 @@ PUBLIC json_t *kw_get_list_value(
         if(flag & KW_REQUIRED) {
             gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
                 "function",     "%s", __FUNCTION__,
-                "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+                "msgset",       "%s", MSGSET_PARAMETER,
                 "msg",          "%s", "list idx NOT FOUND",
                 "idx",          "%d", (int)idx,
                 "array_size",   "%d", (int)json_array_size(kw),
@@ -1804,7 +1804,7 @@ PUBLIC json_int_t kw_get_int(
         if(flag & KW_REQUIRED) {
             gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
                 "function",     "%s", __FUNCTION__,
-                "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+                "msgset",       "%s", MSGSET_PARAMETER,
                 "msg",          "%s", "path NOT FOUND, default value returned",
                 "path",         "%s", path,
                 NULL
@@ -1817,7 +1817,7 @@ PUBLIC json_int_t kw_get_int(
         if(!(flag & KW_WILD_NUMBER)) {
             gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
                 "function",     "%s", __FUNCTION__,
-                "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+                "msgset",       "%s", MSGSET_PARAMETER,
                 "msg",          "%s", "path MUST BE a json integer",
                 "path",         "%s", path,
                 NULL
@@ -1849,7 +1849,7 @@ PUBLIC json_int_t kw_get_int(
     } else {
         gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+            "msgset",       "%s", MSGSET_PARAMETER,
             "msg",          "%s", "path MUST BE a simple json element",
             "path",         "%s", path,
             NULL
@@ -1883,7 +1883,7 @@ PUBLIC double kw_get_real(
         if(flag & KW_REQUIRED) {
             gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
                 "function",     "%s", __FUNCTION__,
-                "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+                "msgset",       "%s", MSGSET_PARAMETER,
                 "msg",          "%s", "path NOT FOUND, default value returned",
                 "path",         "%s", path,
                 NULL
@@ -1896,7 +1896,7 @@ PUBLIC double kw_get_real(
         if(!(flag & KW_WILD_NUMBER)) {
             gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
                 "function",     "%s", __FUNCTION__,
-                "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+                "msgset",       "%s", MSGSET_PARAMETER,
                 "msg",          "%s", "path MUST BE a json real",
                 "path",         "%s", path,
                 NULL
@@ -1920,7 +1920,7 @@ PUBLIC double kw_get_real(
     } else {
         gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+            "msgset",       "%s", MSGSET_PARAMETER,
             "msg",          "%s", "path MUST BE a simple json element",
             "path",         "%s", path,
             NULL
@@ -1954,7 +1954,7 @@ PUBLIC BOOL kw_get_bool(
         if(flag & KW_REQUIRED) {
             gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
                 "function",     "%s", __FUNCTION__,
-                "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+                "msgset",       "%s", MSGSET_PARAMETER,
                 "msg",          "%s", "path NOT FOUND, default value returned",
                 "path",         "%s", path,
                 NULL
@@ -1967,7 +1967,7 @@ PUBLIC BOOL kw_get_bool(
         if(!(flag & KW_WILD_NUMBER)) {
             gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
                 "function",     "%s", __FUNCTION__,
-                "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+                "msgset",       "%s", MSGSET_PARAMETER,
                 "msg",          "%s", "path MUST BE a json boolean",
                 "path",         "%s", path,
                 NULL
@@ -1998,7 +1998,7 @@ PUBLIC BOOL kw_get_bool(
     } else {
         gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+            "msgset",       "%s", MSGSET_PARAMETER,
             "msg",          "%s", "path MUST BE a simple json element",
             "path",         "%s", path,
             NULL
@@ -2037,7 +2037,7 @@ PUBLIC const char *kw_get_str(
         if(flag & KW_REQUIRED) {
             gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
                 "function",     "%s", __FUNCTION__,
-                "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+                "msgset",       "%s", MSGSET_PARAMETER,
                 "msg",          "%s", "path NOT FOUND, default value returned",
                 "path",         "%s", path,
                 NULL
@@ -2050,7 +2050,7 @@ PUBLIC const char *kw_get_str(
         if(!json_is_null(jn_str)) {
             gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
                 "function",     "%s", __FUNCTION__,
-                "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+                "msgset",       "%s", MSGSET_PARAMETER,
                 "msg",          "%s", "path MUST BE a json str",
                 "path",         "%s", path,
                 NULL
@@ -2063,7 +2063,7 @@ PUBLIC const char *kw_get_str(
     if(flag & KW_EXTRACT) {
         gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+            "msgset",       "%s", MSGSET_PARAMETER,
             "msg",          "%s", "Cannot extract a string",
             "path",         "%s", path,
             NULL
@@ -2093,7 +2093,7 @@ PUBLIC json_t *kw_get_dict_value(
         if(flag & KW_REQUIRED) {
             gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
                 "function",     "%s", __FUNCTION__,
-                "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+                "msgset",       "%s", MSGSET_PARAMETER,
                 "msg",          "%s", "path NOT FOUND, default value returned",
                 "path",         "%s", path,
                 NULL
@@ -2131,7 +2131,7 @@ PUBLIC json_t *kw_get_subdict_value(
             if(flag & KW_REQUIRED) {
                 gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
                     "function",     "%s", __FUNCTION__,
-                    "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+                    "msgset",       "%s", MSGSET_PARAMETER,
                     "msg",          "%s", "path NOT FOUND, default value returned",
                     "path",         "%s", path,
                     NULL
@@ -2147,7 +2147,7 @@ PUBLIC json_t *kw_get_subdict_value(
         if(flag & KW_REQUIRED) {
             gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
                 "function",     "%s", __FUNCTION__,
-                "msgset",       "%s", MSGSET_INTERNAL_ERROR,
+                "msgset",       "%s", MSGSET_INTERNAL,
                 "msg",          "%s", "key NULL",
                 "path",         "%s", path,
                 NULL
@@ -2327,7 +2327,7 @@ PUBLIC json_t *kw_duplicate(
     } else {
         gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+            "msgset",       "%s", MSGSET_PARAMETER,
             "msg",          "%s", "json to duplicate must be an object or array",
             NULL
         );
@@ -2389,7 +2389,7 @@ PUBLIC json_t *kw_clone_by_keys(
             if(verbose) {
                 gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
                     "function",     "%s", __FUNCTION__,
-                    "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+                    "msgset",       "%s", MSGSET_PARAMETER,
                     "msg",          "%s", "key not found",
                     "key",          "%s", key,
                     NULL
@@ -2407,7 +2407,7 @@ PUBLIC json_t *kw_clone_by_keys(
                 if(verbose) {
                     gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
                         "function",     "%s", __FUNCTION__,
-                        "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+                        "msgset",       "%s", MSGSET_PARAMETER,
                         "msg",          "%s", "key not found",
                         "key",          "%s", key,
                         NULL
@@ -2427,7 +2427,7 @@ PUBLIC json_t *kw_clone_by_keys(
                 if(verbose) {
                     gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
                         "function",     "%s", __FUNCTION__,
-                        "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+                        "msgset",       "%s", MSGSET_PARAMETER,
                         "msg",          "%s", "key not found",
                         "key",          "%s", key,
                         NULL
@@ -2475,7 +2475,7 @@ PUBLIC json_t *kw_clone_by_not_keys(
             if(verbose) {
                 gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
                     "function",     "%s", __FUNCTION__,
-                    "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+                    "msgset",       "%s", MSGSET_PARAMETER,
                     "msg",          "%s", "key not found",
                     "key",          "%s", key,
                     NULL
@@ -2493,7 +2493,7 @@ PUBLIC json_t *kw_clone_by_not_keys(
                 if(verbose) {
                     gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
                         "function",     "%s", __FUNCTION__,
-                        "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+                        "msgset",       "%s", MSGSET_PARAMETER,
                         "msg",          "%s", "key not found",
                         "key",          "%s", key,
                         NULL
@@ -2513,7 +2513,7 @@ PUBLIC json_t *kw_clone_by_not_keys(
                 if(verbose) {
                     gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
                         "function",     "%s", __FUNCTION__,
-                        "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+                        "msgset",       "%s", MSGSET_PARAMETER,
                         "msg",          "%s", "key not found",
                         "key",          "%s", key,
                         NULL
@@ -2775,7 +2775,7 @@ PUBLIC int kw_walk(
     } else {
         gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+            "msgset",       "%s", MSGSET_PARAMETER,
             "msg",          "%s", "json to duplicate must be an object or array",
             NULL
         );
@@ -2894,7 +2894,7 @@ PUBLIC json_t *kw_collapse(
     if(!json_is_object(kw)) {
         gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+            "msgset",       "%s", MSGSET_PARAMETER,
             "msg",          "%s", "kw_collapse() kw must be a dictionary",
             NULL
         );
@@ -2942,7 +2942,7 @@ PRIVATE json_t *_kwid_get(
             if(verbose) {
                 gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
                     "function",     "%s", __FUNCTION__,
-                    "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+                    "msgset",       "%s", MSGSET_PARAMETER,
                     "msg",          "%s", "short path",
                     "path",         "%s", path,
                     "segment",      "%s", segment,
@@ -3096,7 +3096,7 @@ PUBLIC json_t *kwid_new_list(
     default:
         gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+            "msgset",       "%s", MSGSET_PARAMETER,
             "msg",          "%s", "wrong type for list",
             "path",         "%s", temp,
             "jn",           "%j", jn,
@@ -3169,7 +3169,7 @@ PUBLIC json_t *kwid_new_dict(
     default:
         gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+            "msgset",       "%s", MSGSET_PARAMETER,
             "msg",          "%s", "wrong type for dict",
             "path",         "%s", temp,
             "jn",           "%j", jn,
@@ -3198,7 +3198,7 @@ PUBLIC json_t *kw_filter_private(
     } else {
         gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+            "msgset",       "%s", MSGSET_PARAMETER,
             "msg",          "%s", "json to duplicate must be an object or array",
             NULL
         );
@@ -3224,7 +3224,7 @@ PUBLIC json_t *kw_filter_metadata(
     } else {
         gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+            "msgset",       "%s", MSGSET_PARAMETER,
             "msg",          "%s", "json to duplicate must be an object or array",
             NULL
         );
@@ -3281,7 +3281,7 @@ PUBLIC json_t *kwjr_get( // Return is NOT yours, unless use of KW_EXTRACT
     if(!(json_is_array(kw) || json_is_object(kw))) {
         gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+            "msgset",       "%s", MSGSET_PARAMETER,
             "msg",          "%s", "kw must be dict or list",
             NULL
         );
@@ -3291,7 +3291,7 @@ PUBLIC json_t *kwjr_get( // Return is NOT yours, unless use of KW_EXTRACT
     if(empty_string(id)) {
         gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+            "msgset",       "%s", MSGSET_PARAMETER,
             "msg",          "%s", "id NULL",
             NULL
         );
@@ -3313,7 +3313,7 @@ PUBLIC json_t *kwjr_get( // Return is NOT yours, unless use of KW_EXTRACT
             if(flag & KW_REQUIRED) {
                 gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
                     "function",     "%s", __FUNCTION__,
-                    "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+                    "msgset",       "%s", MSGSET_PARAMETER,
                     "msg",          "%s", "record NOT FOUND",
                     "id",           "%s", id,
                     NULL
@@ -3379,7 +3379,7 @@ PUBLIC json_t *kwjr_get( // Return is NOT yours, unless use of KW_EXTRACT
             if(flag & KW_REQUIRED) {
                 gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
                     "function",     "%s", __FUNCTION__,
-                    "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+                    "msgset",       "%s", MSGSET_PARAMETER,
                     "msg",          "%s", "record NOT FOUND",
                     "id",           "%s", id,
                     NULL
@@ -3393,7 +3393,7 @@ PUBLIC json_t *kwjr_get( // Return is NOT yours, unless use of KW_EXTRACT
     default:
         gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+            "msgset",       "%s", MSGSET_PARAMETER,
             "msg",          "%s", "kw must be dict or list",
             "id",           "%s", id,
             NULL
@@ -3562,7 +3562,7 @@ PUBLIC BOOL kw_has_word(
         if(flag & KW_VERBOSE) {
             gobj_log_error(gobj, 0,
                 "function",     "%s", __FUNCTION__,
-                "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+                "msgset",       "%s", MSGSET_PARAMETER,
                 "msg",          "%s", "kw_has_word() kw NULL",
                 NULL
             );
@@ -3603,7 +3603,7 @@ PUBLIC BOOL kw_has_word(
         if(flag & KW_VERBOSE) {
             gobj_log_error(gobj, 0,
                 "function",     "%s", __FUNCTION__,
-                "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+                "msgset",       "%s", MSGSET_PARAMETER,
                 "msg",          "%s", "Searching word needs object,array,string",
                 "word",         "%s", word,
                 NULL

@@ -173,7 +173,7 @@ PRIVATE int mt_start(hgobj gobj)
     if(!priv->n_children) {
         gobj_log_error(gobj, 0,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_CONFIGURATION_ERROR,
+            "msgset",       "%s", MSGSET_CONFIGURATION,
             "msg",          "%s", "NO CHILDS of C_QIOGATE gclass",
             NULL
         );
@@ -182,7 +182,7 @@ PRIVATE int mt_start(hgobj gobj)
     if(empty_string(priv->key)) {
         gobj_log_error(gobj, 0,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_CONFIGURATION_ERROR,
+            "msgset",       "%s", MSGSET_CONFIGURATION,
             "msg",          "%s", "key EMPTY",
             "method",       "%s", priv->method,
             "key",          "%s", priv->key,
@@ -333,7 +333,7 @@ PRIVATE int ac_send_message(hgobj gobj, gobj_event_t event, json_t *kw, hgobj sr
     if(priv->n_children <= 0) {
         gobj_log_error(gobj, 0,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_INTERNAL_ERROR,
+            "msgset",       "%s", MSGSET_INTERNAL,
             "msg",          "%s", "C_QIOGATE WITHOUT destine",
             NULL
         );
@@ -360,7 +360,7 @@ PRIVATE int ac_send_message(hgobj gobj, gobj_event_t event, json_t *kw, hgobj sr
             } else {
                 gobj_log_error(gobj, 0,
                     "function",     "%s", __FUNCTION__,
-                    "msgset",       "%s", MSGSET_CONFIGURATION_ERROR,
+                    "msgset",       "%s", MSGSET_CONFIGURATION,
                     "msg",          "%s", "key value WITHOUT LENGTH",
                     "method",       "%s", priv->method,
                     "key",          "%s", priv->key,
@@ -379,7 +379,7 @@ PRIVATE int ac_send_message(hgobj gobj, gobj_event_t event, json_t *kw, hgobj sr
     if(!gobj_dst) {
         gobj_log_error(gobj, 0,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_INTERNAL_ERROR,
+            "msgset",       "%s", MSGSET_INTERNAL,
             "msg",          "%s", "C_QIOGATE destine NOT FOUND",
             NULL
         );
@@ -432,7 +432,7 @@ PRIVATE int create_gclass(gclass_name_t gclass_name)
     if(__gclass__) {
         gobj_log_error(0, 0,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_INTERNAL_ERROR,
+            "msgset",       "%s", MSGSET_INTERNAL,
             "msg",          "%s", "GClass ALREADY created",
             "gclass",       "%s", gclass_name,
             NULL

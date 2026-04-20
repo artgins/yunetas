@@ -101,7 +101,7 @@ PRIVATE void mt_create(hgobj gobj)
     } else {
         gobj_log_error(gobj, 0,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+            "msgset",       "%s", MSGSET_PARAMETER,
             "msg",          "%s", "event_type not found",
             "event",        "%s", priv->final_event_name,
             NULL
@@ -136,7 +136,7 @@ PRIVATE int mt_start(hgobj gobj)
     } else {
         gobj_log_warning(gobj, 0,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+            "msgset",       "%s", MSGSET_PARAMETER,
             "msg",          "%s", "C_COUNTER without expiration_timeout",
             NULL
         );
@@ -146,7 +146,7 @@ PRIVATE int mt_start(hgobj gobj)
     if(!priv->max_count) {
         gobj_log_error(gobj, 0,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+            "msgset",       "%s", MSGSET_PARAMETER,
             "msg",          "%s", "max_count ZERO",
             NULL
         );
@@ -155,7 +155,7 @@ PRIVATE int mt_start(hgobj gobj)
     if(!json_is_array(priv->jn_input_schema)) {
         gobj_log_error(gobj, 0,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+            "msgset",       "%s", MSGSET_PARAMETER,
             "msg",          "%s", "input_schema MUST BE a json array",
             NULL
         );
@@ -208,7 +208,7 @@ PRIVATE int mt_stop(hgobj gobj)
 //         if(!jn_field) {
 //             gobj_log_error(gobj, 0,
 //                 "function",     "%s", __FUNCTION__,
-//                 "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+//                 "msgset",       "%s", MSGSET_PARAMETER,
 //                 "msg",          "%s", "filter field NOT in event kw",
 //                 "field",        "%s", field,
 //                 NULL
@@ -225,7 +225,7 @@ PRIVATE int mt_stop(hgobj gobj)
 //                 if(!json_is_string(jn_field)) {
 //                     gobj_log_error(gobj, 0,
 //                         "function",     "%s", __FUNCTION__,
-//                         "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+//                         "msgset",       "%s", MSGSET_PARAMETER,
 //                         "msg",          "%s", "json filter is str but event kw NOT",
 //                         "field",        "%s", field,
 //                         NULL
@@ -254,7 +254,7 @@ PRIVATE int mt_stop(hgobj gobj)
 //             if(!json_is_integer(jn_field)) {
 //                 gobj_log_error(gobj, 0,
 //                     "function",     "%s", __FUNCTION__,
-//                     "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+//                     "msgset",       "%s", MSGSET_PARAMETER,
 //                     "msg",          "%s", "json filter is integer but event kw NOT",
 //                     "field",        "%s", field,
 //                     NULL
@@ -270,7 +270,7 @@ PRIVATE int mt_stop(hgobj gobj)
 //         } else {
 //             gobj_log_error(gobj, 0,
 //                 "function",     "%s", __FUNCTION__,
-//                 "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+//                 "msgset",       "%s", MSGSET_PARAMETER,
 //                 "msg",          "%s", "json filter type NOT IMPLEMENTED",
 //                 NULL
 //             );
@@ -326,7 +326,7 @@ PRIVATE int ac_count(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
     if(json_array_size(priv->jn_input_schema)==0) {
         gobj_log_error(gobj, 0,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+            "msgset",       "%s", MSGSET_PARAMETER,
             "msg",          "%s", "filter list EMPTY",
             NULL
         );
@@ -338,7 +338,7 @@ PRIVATE int ac_count(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
         if(!json_is_object(jn_EvChkItem)) {
             gobj_log_error(gobj, 0,
                 "function",     "%s", __FUNCTION__,
-                "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+                "msgset",       "%s", MSGSET_PARAMETER,
                 "msg",          "%s", "list item (EvChkItem) MUST BE a json object",
                 NULL
             );
@@ -453,7 +453,7 @@ PRIVATE int create_gclass(gclass_name_t gclass_name)
     if(__gclass__) {
         gobj_log_error(0, 0,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_INTERNAL_ERROR,
+            "msgset",       "%s", MSGSET_INTERNAL,
             "msg",          "%s", "GClass ALREADY created",
             "gclass",       "%s", gclass_name,
             NULL

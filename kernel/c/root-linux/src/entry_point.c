@@ -826,7 +826,7 @@ PRIVATE void process(
         gobj_log_error(0,0,
             "gobj",         "%s", __FILE__,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_RUNTIME_ERROR,
+            "msgset",       "%s", MSGSET_RUNTIME,
             "msg",          "%s", "gobj_create_yuno() FAILED",
             "role",         "%s", __yuno_role__,
             NULL
@@ -850,7 +850,7 @@ PRIVATE void process(
             if(!json_is_object(jn_service_tree)) {
                 gobj_log_error(yuno, 0,
                     "function",     "%s", __FUNCTION__,
-                    "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+                    "msgset",       "%s", MSGSET_PARAMETER,
                     "msg",          "%s", "service config MUST BE an json object",
                     "index",        "%d", index,
                     NULL
@@ -861,7 +861,7 @@ PRIVATE void process(
             if(empty_string(service_name)) {
                 gobj_log_error(yuno, 0,
                     "function",     "%s", __FUNCTION__,
-                    "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+                    "msgset",       "%s", MSGSET_PARAMETER,
                     "msg",          "%s", "service without name",
                     "index",        "%d", index,
                     NULL
@@ -873,7 +873,7 @@ PRIVATE void process(
             if(!gobj_service_factory(service_name, jn_service_tree)) {
                 gobj_log_error(yuno, 0,
                     "function",     "%s", __FUNCTION__,
-                    "msgset",       "%s", MSGSET_INTERNAL_ERROR,
+                    "msgset",       "%s", MSGSET_INTERNAL,
                     "msg",          "%s", "Cannot create factory service",
                     "service",      "%s", service_name,
                     NULL

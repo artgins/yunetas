@@ -258,7 +258,7 @@ PRIVATE int mt_start(hgobj gobj)
         default:
             gobj_log_error(gobj, 0,
                 "function",     "%s", __FUNCTION__,
-                "msgset",       "%s", MSGSET_INTERNAL_ERROR,
+                "msgset",       "%s", MSGSET_INTERNAL,
                 "msg",          "%s", "ota state",
                 "ota_state",    "%d", (int)ota_state,
                 NULL
@@ -520,7 +520,7 @@ PRIVATE BOOL check_image(hgobj gobj, char *ota_write_data, size_t data_read)
     if (data_read < sizeof(esp_image_header_t) + sizeof(esp_image_segment_header_t) + sizeof(esp_app_desc_t)) {
         gobj_log_error(gobj, 0,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_INTERNAL_ERROR,
+            "msgset",       "%s", MSGSET_INTERNAL,
             "msg",          "%s", "file message data TOO SHORT",
             "msg2",         "%s", "🌀👎file message data TOO SHORT",
             NULL
@@ -540,7 +540,7 @@ PRIVATE BOOL check_image(hgobj gobj, char *ota_write_data, size_t data_read)
     if(same!=0 && !force) {
         gobj_log_error(gobj, 0,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_INTERNAL_ERROR,
+            "msgset",       "%s", MSGSET_INTERNAL,
             "msg",          "%s", "Binary yuno role NOT MATCH",
             "msg",          "%s", "🌀👎Binary yuno role NOT MATCH",
             "me",           "%s", gobj_yuno_role(),
@@ -685,7 +685,7 @@ PRIVATE int ac_on_header(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
         if(response_status_code != 200) {
             gobj_log_error(gobj, 0,
                 "function",     "%s", __FUNCTION__,
-                "msgset",       "%s", MSGSET_SYSTEM_ERROR,
+                "msgset",       "%s", MSGSET_SYSTEM,
                 "msg",          "%s", "BAD HTTP Status",
                 "msg2",         "%s", "🌀👎BAD HTTP Status",
                 "status",       "%d", response_status_code,
@@ -700,7 +700,7 @@ PRIVATE int ac_on_header(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
         if(priv->content_length == 0) {
             gobj_log_error(gobj, 0,
                 "function",     "%s", __FUNCTION__,
-                "msgset",       "%s", MSGSET_SYSTEM_ERROR,
+                "msgset",       "%s", MSGSET_SYSTEM,
                 "msg",          "%s", "content_length is 0",
                 NULL
             );
@@ -717,7 +717,7 @@ PRIVATE int ac_on_header(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
     } else {
         gobj_log_error(gobj, 0,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_INTERNAL_ERROR,
+            "msgset",       "%s", MSGSET_INTERNAL,
             "msg",          "%s", "source unknown",
             NULL
         );
@@ -747,7 +747,7 @@ PRIVATE int ac_on_message(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
         if(response_status_code != 200) {
             gobj_log_error(gobj, 0,
                 "function",     "%s", __FUNCTION__,
-                "msgset",       "%s", MSGSET_SYSTEM_ERROR,
+                "msgset",       "%s", MSGSET_SYSTEM,
                 "msg",          "%s", "BAD HTTP Status",
                 "msg2",         "%s", "🌀👎BAD HTTP Status",
                 "status",       "%d", response_status_code,
@@ -789,7 +789,7 @@ PRIVATE int ac_on_message(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
                 if (err != ESP_OK) {
                     gobj_log_error(gobj, 0,
                         "function",     "%s", __FUNCTION__,
-                        "msgset",       "%s", MSGSET_SYSTEM_ERROR,
+                        "msgset",       "%s", MSGSET_SYSTEM,
                         "msg",          "%s", "esp_ota_begin() FAILED",
                         "msg2",         "%s", "🌀👎esp_ota_begin() FAILED",
                         "error",        "%d", err,
@@ -811,7 +811,7 @@ PRIVATE int ac_on_message(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
             if (err != ESP_OK) {
                 gobj_log_error(gobj, 0,
                     "function",     "%s", __FUNCTION__,
-                    "msgset",       "%s", MSGSET_SYSTEM_ERROR,
+                    "msgset",       "%s", MSGSET_SYSTEM,
                     "msg",          "%s", "esp_ota_write() FAILED",
                     "msg2",         "%s", "🌀👎esp_ota_write() FAILED",
                     "error",        "%d", err,
@@ -849,7 +849,7 @@ PRIVATE int ac_on_message(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
             if (err != ESP_OK) {
                 gobj_log_error(gobj, 0,
                     "function",     "%s", __FUNCTION__,
-                    "msgset",       "%s", MSGSET_SYSTEM_ERROR,
+                    "msgset",       "%s", MSGSET_SYSTEM,
                     "msg",          "%s", "esp_ota_end() FAILED",
                     "msg2",         "%s", "🌀👎esp_ota_end() FAILED",
                     "error",        "%d", err,
@@ -864,7 +864,7 @@ PRIVATE int ac_on_message(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
             if (err != ESP_OK) {
                 gobj_log_error(gobj, 0,
                     "function",     "%s", __FUNCTION__,
-                    "msgset",       "%s", MSGSET_SYSTEM_ERROR,
+                    "msgset",       "%s", MSGSET_SYSTEM,
                     "msg",          "%s", "esp_ota_set_boot_partition() FAILED",
                     "msg2",         "%s", "🌀👎esp_ota_set_boot_partition() FAILED",
                     "error",        "%d", err,
@@ -889,7 +889,7 @@ PRIVATE int ac_on_message(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
     } else {
         gobj_log_error(gobj, 0,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_INTERNAL_ERROR,
+            "msgset",       "%s", MSGSET_INTERNAL,
             "msg",          "%s", "source unknown",
             "src",          "%s", gobj_full_name(src),
             NULL
@@ -959,7 +959,7 @@ PRIVATE int create_gclass(gclass_name_t gclass_name)
     if(__gclass__) {
         gobj_log_error(0, 0,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_INTERNAL_ERROR,
+            "msgset",       "%s", MSGSET_INTERNAL,
             "msg",          "%s", "GClass ALREADY created",
             "gclass",       "%s", gclass_name,
             NULL

@@ -207,7 +207,7 @@ PRIVATE UDP_CHANNEL *new_udp_channel(hgobj gobj, const char *name)
     if(!ch) {
         gobj_log_error(gobj, 0,
             "function",             "%s", __FUNCTION__,
-            "msgset",               "%s", MSGSET_MEMORY_ERROR,
+            "msgset",               "%s", MSGSET_MEMORY,
             "msg",                  "%s", "no memory",
             "sizeof(UDP_CHANNEL)",  "%d", sizeof(UDP_CHANNEL),
             NULL
@@ -333,7 +333,7 @@ PRIVATE int ac_rx_data(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
             if(!ch->gbuf) {
                 gobj_log_error(gobj, 0,
                     "function",         "%s", __FUNCTION__,
-                    "msgset",           "%s", MSGSET_MEMORY_ERROR,
+                    "msgset",           "%s", MSGSET_MEMORY,
                     "msg",              "%s", "no memory",
                     "size",             "%d", size,
                     NULL
@@ -354,7 +354,7 @@ PRIVATE int ac_rx_data(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
             if(gbuffer_append(ch->gbuf, p, 1)!=1) {
                 gobj_log_error(gobj, 0,
                     "function",         "%s", __FUNCTION__,
-                    "msgset",           "%s", MSGSET_MEMORY_ERROR,
+                    "msgset",           "%s", MSGSET_MEMORY,
                     "msg",              "%s", "gbuffer_append() FAILED",
                     NULL
                 );
@@ -389,7 +389,7 @@ PRIVATE int ac_send_message(hgobj gobj, gobj_event_t event, json_t *kw, hgobj sr
     } else {
         gobj_log_error(gobj, 0,
             "function",             "%s", __FUNCTION__,
-            "msgset",               "%s", MSGSET_PARAMETER_ERROR,
+            "msgset",               "%s", MSGSET_PARAMETER,
             "msg",                  "%s", "UDP channel NOT FOUND",
             "udp_channel",          "%s", udp_channel?udp_channel:"",
             NULL
@@ -465,7 +465,7 @@ PRIVATE int create_gclass(gclass_name_t gclass_name)
     if(__gclass__) {
         gobj_log_error(0, 0,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_INTERNAL_ERROR,
+            "msgset",       "%s", MSGSET_INTERNAL,
             "msg",          "%s", "GClass ALREADY created",
             "gclass",       "%s", gclass_name,
             NULL

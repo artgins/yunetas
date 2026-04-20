@@ -285,7 +285,7 @@ PRIVATE int yev_server_callback(yev_event_h yev_event)
         default:
             gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
                 "function",     "%s", __FUNCTION__,
-                "msgset",       "%s", MSGSET_SYSTEM_ERROR,
+                "msgset",       "%s", MSGSET_SYSTEM,
                 "msg",          "%s", "event type NOT IMPLEMENTED",
                 "event_type",   "%s", yev_event_type_name(yev_event),
                 NULL
@@ -446,7 +446,7 @@ PRIVATE int yev_client_callback(yev_event_h yev_event)
         default:
             gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
                 "function",     "%s", __FUNCTION__,
-                "msgset",       "%s", MSGSET_SYSTEM_ERROR,
+                "msgset",       "%s", MSGSET_SYSTEM,
                 "msg",          "%s", "event type NOT IMPLEMENTED",
                 "event_type",   "%s", yev_event_type_name(yev_event),
                 NULL

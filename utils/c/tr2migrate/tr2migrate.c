@@ -230,7 +230,7 @@ PRIVATE int copy_file(const char *source, const char *destination)
     if ((input = open(source, O_RDONLY)) == -1) {
         gobj_log_error(0, 0,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+            "msgset",       "%s", MSGSET_PARAMETER,
             "msg",          "%s", "Cannot open source file",
             "path",         "%s", source,
             NULL
@@ -241,7 +241,7 @@ PRIVATE int copy_file(const char *source, const char *destination)
     if ((output = newfile(destination, 0660, FALSE)) == -1) {
         gobj_log_error(0, 0,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+            "msgset",       "%s", MSGSET_PARAMETER,
             "msg",          "%s", "Cannot create destine file",
             "path",         "%s", destination,
             NULL
@@ -254,7 +254,7 @@ PRIVATE int copy_file(const char *source, const char *destination)
     if (fstat(input, &file_stat)<0) {
         gobj_log_error(0, 0,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+            "msgset",       "%s", MSGSET_PARAMETER,
             "msg",          "%s", "fstat() FAILE",
             "path",         "%s", source,
             "serrno",       "%s", strerror(errno),
@@ -271,7 +271,7 @@ PRIVATE int copy_file(const char *source, const char *destination)
         if (bytes_copied<0) {
             gobj_log_error(0, 0,
                 "function",     "%s", __FUNCTION__,
-                "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+                "msgset",       "%s", MSGSET_PARAMETER,
                 "msg",          "%s", "Failed to copy file contents using sendfile",
                 "path",         "%s", destination,
                 "serrno",       "%s", strerror(errno),
@@ -286,7 +286,7 @@ PRIVATE int copy_file(const char *source, const char *destination)
     if (fchown(output, file_stat.st_uid, file_stat.st_gid) == -1) {
         gobj_log_error(0, 0,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+            "msgset",       "%s", MSGSET_PARAMETER,
             "msg",          "%s", "fchown() FAILED",
             "path",         "%s", destination,
             "serrno",       "%s", strerror(errno),
@@ -300,7 +300,7 @@ PRIVATE int copy_file(const char *source, const char *destination)
     if (chmod(destination, file_stat.st_mode) == -1) {
         gobj_log_error(0, 0,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+            "msgset",       "%s", MSGSET_PARAMETER,
             "msg",          "%s", "chmod() FAILED",
             "path",         "%s", destination,
             "serrno",       "%s", strerror(errno),
@@ -337,7 +337,7 @@ PRIVATE BOOL copy_files_first_level_cb(
         if(!timeranger_file) {
             gobj_log_error(0, 0,
                 "function",     "%s", __FUNCTION__,
-                "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+                "msgset",       "%s", MSGSET_PARAMETER,
                 "msg",          "%s", "Cannot read tranger file",
                 "path",         "%s", path_source,
                 NULL
@@ -447,7 +447,7 @@ PRIVATE BOOL copy_topics_cb(
     if(!is_regular_file(path_source)) {
         gobj_log_error(0, 0,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+            "msgset",       "%s", MSGSET_PARAMETER,
             "msg",          "%s", "topic_desc.json NOT FOUND",
             "path",         "%s", path_source,
             NULL

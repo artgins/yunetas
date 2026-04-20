@@ -682,7 +682,7 @@ PUBLIC hgclass gclass_create( // create and register gclass
     if(strchr(gclass_name, '`') || strchr(gclass_name, '^') || strchr(gclass_name, '.')) {
         gobj_log_error(0, 0,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+            "msgset",       "%s", MSGSET_PARAMETER,
             "msg",          "%s", "GClass name CANNOT have '.' or '^' or '`' char",
             "gclass",       "%s", gclass_name,
             NULL
@@ -693,7 +693,7 @@ PUBLIC hgclass gclass_create( // create and register gclass
     if(gclass_find_by_name(gclass_name)) {
         gobj_log_error(NULL, 0,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+            "msgset",       "%s", MSGSET_PARAMETER,
             "msg",          "%s", "gclass_name ALREADY exists",
             "gclass_name",  "%s", gclass_name,
             NULL
@@ -704,7 +704,7 @@ PUBLIC hgclass gclass_create( // create and register gclass
     if(empty_string(gclass_name)) {
         gobj_log_error(NULL, 0,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+            "msgset",       "%s", MSGSET_PARAMETER,
             "msg",          "%s", "gclass_name EMPTY",
             NULL
         );
@@ -715,7 +715,7 @@ PUBLIC hgclass gclass_create( // create and register gclass
     if(strlen(gclass_name) > 15) {
         gobj_log_error(NULL, 0,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+            "msgset",       "%s", MSGSET_PARAMETER,
             "msg",          "%s", "gclass_name name TOO LONG for ESP32",
             "gclass_name",  "%s", gclass_name,
             "len",          "%d", (int)strlen(gclass_name),
@@ -729,7 +729,7 @@ PUBLIC hgclass gclass_create( // create and register gclass
     if(gclass == NULL) {
         gobj_log_error(NULL, 0,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_MEMORY_ERROR,
+            "msgset",       "%s", MSGSET_MEMORY,
             "msg",          "%s", "No memory",
             "gclass_name",  "%s", gclass_name,
             "size",         "%d", (int)sizeof(*gclass),
@@ -783,7 +783,7 @@ PUBLIC hgclass gclass_create( // create and register gclass
         if(gclass_event_type(gclass, event_type->event_name)) {
             gobj_log_error(0, 0,
                 "function",     "%s", __FUNCTION__,
-                "msgset",       "%s", MSGSET_INTERNAL_ERROR,
+                "msgset",       "%s", MSGSET_INTERNAL,
                 "msg",          "%s", "SMachine: event repeated in input_events",
                 "gclass",       "%s", gclass->gclass_name,
                 "event",        "%s", event_type->event_name,
@@ -821,7 +821,7 @@ PUBLIC int gclass_add_state(
     if(!hgclass) {
         gobj_log_error(NULL, LOG_OPT_TRACE_STACK,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+            "msgset",       "%s", MSGSET_PARAMETER,
             "msg",          "%s", "hgclass NULL",
             NULL
         );
@@ -833,7 +833,7 @@ PUBLIC int gclass_add_state(
     if(_find_state(gclass, state_name)) {
         gobj_log_error(NULL, LOG_OPT_TRACE_STACK,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+            "msgset",       "%s", MSGSET_PARAMETER,
             "msg",          "%s", "state already exists",
             "state",        "%s", state_name,
             NULL
@@ -846,7 +846,7 @@ PUBLIC int gclass_add_state(
     if(state == NULL) {
         gobj_log_error(NULL, LOG_OPT_TRACE_STACK,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_MEMORY_ERROR,
+            "msgset",       "%s", MSGSET_MEMORY,
             "msg",          "%s", "No memory",
             "state",        "%s", state_name,
             "size",         "%d", (int)sizeof(*state),
@@ -905,7 +905,7 @@ PUBLIC int gclass_add_ev_action(
     if(!hgclass) {
         gobj_log_error(NULL, LOG_OPT_TRACE_STACK,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+            "msgset",       "%s", MSGSET_PARAMETER,
             "msg",          "%s", "hgclass NULL",
             NULL
         );
@@ -914,7 +914,7 @@ PUBLIC int gclass_add_ev_action(
     if(empty_string(state_name)) {
         gobj_log_error(NULL, LOG_OPT_TRACE_STACK,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+            "msgset",       "%s", MSGSET_PARAMETER,
             "msg",          "%s", "state_name EMPTY",
             NULL
         );
@@ -927,7 +927,7 @@ PUBLIC int gclass_add_ev_action(
     if(!state) {
         gobj_log_error(NULL, LOG_OPT_TRACE_STACK,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_INTERNAL_ERROR,
+            "msgset",       "%s", MSGSET_INTERNAL,
             "msg",          "%s", "state not found",
             "gclass",       "%s", gclass->gclass_name,
             "state",        "%s", state_name,
@@ -939,7 +939,7 @@ PUBLIC int gclass_add_ev_action(
     if(_find_event_action(state, event_name)) {
         gobj_log_error(NULL, LOG_OPT_TRACE_STACK,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_INTERNAL_ERROR,
+            "msgset",       "%s", MSGSET_INTERNAL,
             "msg",          "%s", "event already exists",
             "gclass",       "%s", gclass->gclass_name,
             "state",        "%s", state_name,
@@ -953,7 +953,7 @@ PUBLIC int gclass_add_ev_action(
     if(event_action == NULL) {
         gobj_log_error(NULL, LOG_OPT_TRACE_STACK,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_MEMORY_ERROR,
+            "msgset",       "%s", MSGSET_MEMORY,
             "msg",          "%s", "No memory",
             "gclass",       "%s", gclass->gclass_name,
             "state",        "%s", state_name,
@@ -1008,7 +1008,7 @@ PUBLIC event_type_t *gobj_find_event_type(const char *event, event_flag_t event_
     if(verbose) {
         gobj_log_error(NULL, LOG_OPT_TRACE_STACK,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+            "msgset",       "%s", MSGSET_PARAMETER,
             "msg",          "%s", "EVENT NOT FOUND",
             "event",        "%s", event,
             NULL
@@ -1039,7 +1039,7 @@ PUBLIC void gclass_unregister(hgclass hgclass)
     if(gclass->instances > 0) {
         gobj_log_error(NULL, LOG_OPT_TRACE_STACK,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_INTERNAL_ERROR,
+            "msgset",       "%s", MSGSET_INTERNAL,
             "msg",          "%s", "Cannot unregister gclass: instances in use",
             "gclass",       "%s", gclass->gclass_name,
             "instances",    "%d", gclass->instances,
@@ -1189,7 +1189,7 @@ PRIVATE int _add_event_type(
     if(event == NULL) {
         gobj_log_error(NULL, LOG_OPT_TRACE_STACK,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_MEMORY_ERROR,
+            "msgset",       "%s", MSGSET_MEMORY,
             "msg",          "%s", "No memory",
             "size",         "%d", (int)sizeof(*event),
             NULL
@@ -1233,7 +1233,7 @@ PUBLIC int gclass_check_fsm(hgclass gclass_)
     if(!dl_size(&gclass->dl_states)) {
         gobj_log_error(0,0,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_INTERNAL_ERROR,
+            "msgset",       "%s", MSGSET_INTERNAL,
             "msg",          "%s", "GClass without states",
             "gclass",       "%s", gclass->gclass_name,
             NULL
@@ -1260,7 +1260,7 @@ PUBLIC int gclass_check_fsm(hgclass gclass_)
             if(!event_type) {
                 gobj_log_error(0, 0,
                     "function",     "%s", __FUNCTION__,
-                    "msgset",       "%s", MSGSET_INTERNAL_ERROR,
+                    "msgset",       "%s", MSGSET_INTERNAL,
                     "msg",          "%s", "SMachine: state's event NOT in input_events",
                     "gclass",       "%s", gclass->gclass_name,
                     "state",        "%s", state->state_name,
@@ -1275,7 +1275,7 @@ PUBLIC int gclass_check_fsm(hgclass gclass_)
                 if(!next_state) {
                     gobj_log_error(0, 0,
                         "function",     "%s", __FUNCTION__,
-                        "msgset",       "%s", MSGSET_INTERNAL_ERROR,
+                        "msgset",       "%s", MSGSET_INTERNAL,
                         "msg",          "%s", "SMachine: next state NOT in state names",
                         "gclass",       "%s", gclass->gclass_name,
                         "state",        "%s", state->state_name,
@@ -1320,7 +1320,7 @@ PUBLIC int gclass_check_fsm(hgclass gclass_)
             if(!found) {
                 gobj_log_error(0, 0,
                     "function",     "%s", __FUNCTION__,
-                    "msgset",       "%s", MSGSET_INTERNAL_ERROR,
+                    "msgset",       "%s", MSGSET_INTERNAL,
                     "msg",          "%s", "SMachine: input_list's event NOT in state",
                     "gclass",       "%s", gclass->gclass_name,
                     "event",        "%s", event_->event_type.event_name,
@@ -1465,7 +1465,7 @@ PUBLIC hgobj gobj_create2(
     if(strlen(gobj_name) > GOBJ_NAME_MAX) {
         gobj_log_error(NULL, LOG_OPT_TRACE_STACK,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+            "msgset",       "%s", MSGSET_PARAMETER,
             "msg",          "%s", "gobj_name name TOO LONG",
             "gobj_name",    "%s", gobj_name,
             "len",          "%d", (int)strlen(gobj_name),
@@ -1483,7 +1483,7 @@ PUBLIC hgobj gobj_create2(
         if(__yuno__) {
             gobj_log_error(NULL, LOG_OPT_TRACE_STACK,
                 "function",     "%s", __FUNCTION__,
-                "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+                "msgset",       "%s", MSGSET_PARAMETER,
                 "msg",          "%s", "__yuno__ already created",
                 NULL
             );
@@ -1496,7 +1496,7 @@ PUBLIC hgobj gobj_create2(
         if(!parent) {
             gobj_log_error(0, LOG_OPT_TRACE_STACK,
                 "function",     "%s", __FUNCTION__,
-                "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+                "msgset",       "%s", MSGSET_PARAMETER,
                 "msg",          "%s", "gobj NEEDS a parent!",
                 "gclass",       "%s", gclass_name,
                 "name",         "%s", gobj_name,
@@ -1511,7 +1511,7 @@ PUBLIC hgobj gobj_create2(
         if(gobj_find_service(gobj_name, FALSE)) {
             gobj_log_error(0, LOG_OPT_TRACE_STACK,
                 "function",     "%s", __FUNCTION__,
-                "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+                "msgset",       "%s", MSGSET_PARAMETER,
                 "msg",          "%s", "service ALREADY registered!",
                 "gclass",       "%s", gclass_name,
                 "name",         "%s", gobj_name,
@@ -1526,7 +1526,7 @@ PUBLIC hgobj gobj_create2(
         if(__default_service__) {
             gobj_log_error(0, LOG_OPT_TRACE_STACK,
                 "function",     "%s", __FUNCTION__,
-                "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+                "msgset",       "%s", MSGSET_PARAMETER,
                 "msg",          "%s", "default service ALREADY registered!",
                 "gclass",       "%s", gclass_name,
                 "name",         "%s", gobj_name,
@@ -1541,7 +1541,7 @@ PUBLIC hgobj gobj_create2(
     if(empty_string(gclass_name)) {
         gobj_log_error(NULL, LOG_OPT_TRACE_STACK,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+            "msgset",       "%s", MSGSET_PARAMETER,
             "msg",          "%s", "gclass_name EMPTY",
             "gobj_name",    "%s", gobj_name,
             NULL
@@ -1553,7 +1553,7 @@ PUBLIC hgobj gobj_create2(
     if(strchr(gclass_name, '`') || strchr(gclass_name, '^')) {
         gobj_log_error(0, LOG_OPT_TRACE_STACK,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+            "msgset",       "%s", MSGSET_PARAMETER,
             "msg",          "%s", "GObj name CANNOT have '^' or '`' char",
             "gclass",       "%s", gclass_name,
             NULL
@@ -1569,7 +1569,7 @@ PUBLIC hgobj gobj_create2(
     if(!gclass) {
         gobj_log_error(NULL, LOG_OPT_TRACE_STACK,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+            "msgset",       "%s", MSGSET_PARAMETER,
             "msg",          "%s", "gclass NOT FOUND",
             "gclass",       "%s", gclass_name,
             "gobj_name",    "%s", gobj_name,
@@ -1591,7 +1591,7 @@ PUBLIC hgobj gobj_create2(
     if(gobj == NULL) {
         gobj_log_error(0, LOG_OPT_TRACE_STACK,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_MEMORY_ERROR,
+            "msgset",       "%s", MSGSET_MEMORY,
             "msg",          "%s", "No memory",
             "gclass",       "%s", gclass->gclass_name,
             "gobj_name",    "%s", gobj_name,
@@ -1641,7 +1641,7 @@ PUBLIC hgobj gobj_create2(
             !gobj->jn_attrs || (gclass->priv_size && !gobj->priv)) {
         gobj_log_error(0, LOG_OPT_TRACE_STACK,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_MEMORY_ERROR,
+            "msgset",       "%s", MSGSET_MEMORY,
             "msg",          "%s", "No memory",
             "gclass",       "%s", gclass->gclass_name,
             "gobj_name",    "%s", gobj_name,
@@ -1827,7 +1827,7 @@ PRIVATE int expand_children_list(hgobj gobj, json_t *kw)
     if(!__range__ || !__vars__ || !__content__) {
         gobj_log_error(gobj, 0,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+            "msgset",       "%s", MSGSET_PARAMETER,
             "msg",          "%s", "Expand [^^children^^] needs of __range__, __vars__ and __content__ keys",
             NULL
         );
@@ -1870,7 +1870,7 @@ PRIVATE int expand_children_list(hgobj gobj, json_t *kw)
     } else {
         gobj_log_error(gobj, 0,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+            "msgset",       "%s", MSGSET_PARAMETER,
             "msg",          "%s", "Bad __range__",
             NULL
         );
@@ -1911,7 +1911,7 @@ PRIVATE hgobj gobj_create_tree0(
     if(!gclass) {
         gobj_log_error(parent, 0,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+            "msgset",       "%s", MSGSET_PARAMETER,
             "msg",          "%s", "gclass NOT FOUND",
             "gclass_name",  "%s", gclass_name,
             "name",         "%s", name?name:"",
@@ -1945,7 +1945,7 @@ PRIVATE hgobj gobj_create_tree0(
                 } else {
                     gobj_log_error(parent, 0,
                         "function",     "%s", __FUNCTION__,
-                        "msgset",       "%s", MSGSET_INTERNAL_ERROR,
+                        "msgset",       "%s", MSGSET_INTERNAL,
                         "msg",          "%s", "subscriber service gobj NOT FOUND",
                         "subscriber",   "%s", subscriber_name,
                         "name",         "%s", name?name:"",
@@ -1956,7 +1956,7 @@ PRIVATE hgobj gobj_create_tree0(
             } else {
                 gobj_log_error(parent, 0,
                     "function",     "%s", __FUNCTION__,
-                    "msgset",       "%s", MSGSET_INTERNAL_ERROR,
+                    "msgset",       "%s", MSGSET_INTERNAL,
                     "msg",          "%s", "subscriber json INVALID",
                     "name",         "%s", name?name:"",
                     "gclass",       "%s", gclass_name,
@@ -1994,7 +1994,7 @@ PRIVATE hgobj gobj_create_tree0(
     if(!gobj) {
         gobj_log_error(parent, 0,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_INTERNAL_ERROR,
+            "msgset",       "%s", MSGSET_INTERNAL,
             "msg",          "%s", "_create_gobj() FAILED",
             "name",         "%s", name?name:"",
             "gclass",       "%s", gclass_name,
@@ -2020,7 +2020,7 @@ PRIVATE hgobj gobj_create_tree0(
         if(jn_children) {
             gobj_log_error(parent, 0,
                 "function",     "%s", __FUNCTION__,
-                "msgset",       "%s", MSGSET_INTERNAL_ERROR,
+                "msgset",       "%s", MSGSET_INTERNAL,
                 "msg",          "%s", "DEPRECATED config with 'zchilds'",
                 "name",         "%s", name?name:"",
                 "gclass",       "%s", gclass_name,
@@ -2044,7 +2044,7 @@ PRIVATE hgobj gobj_create_tree0(
         if(!last_child) {
             gobj_log_error(parent, 0,
                 "function",     "%s", __FUNCTION__,
-                "msgset",       "%s", MSGSET_INTERNAL_ERROR,
+                "msgset",       "%s", MSGSET_INTERNAL,
                 "msg",          "%s", "gobj_create_tree0() FAILED",
                 "jn_child",     "%j", jn_child,
                 NULL
@@ -2065,7 +2065,7 @@ PRIVATE hgobj gobj_create_tree0(
         if(jn_expand_children) {
             gobj_log_error(parent, 0,
                 "function",     "%s", __FUNCTION__,
-                "msgset",       "%s", MSGSET_INTERNAL_ERROR,
+                "msgset",       "%s", MSGSET_INTERNAL,
                 "msg",          "%s", "DEPRECATED config with '[^^zchilds^^]'",
                 "name",         "%s", name?name:"",
                 "gclass",       "%s", gclass_name,
@@ -2100,7 +2100,7 @@ PUBLIC hgobj gobj_service_factory(
         gobj_log_error(0,0,
             "gobj",         "%s", __FILE__,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+            "msgset",       "%s", MSGSET_PARAMETER,
             "msg",          "%s", "service gclass EMPTY",
             "service",      "%s", name?name:"",
             NULL
@@ -2117,7 +2117,7 @@ PUBLIC hgobj gobj_service_factory(
         gobj_log_error(0, 0,
             "gobj",         "%s", __FILE__,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+            "msgset",       "%s", MSGSET_PARAMETER,
             "msg",          "%s", "gclass NOT FOUND",
             "service",      "%s", name?name:"",
             "gclass",       "%s", gclass_name,
@@ -2230,7 +2230,7 @@ PUBLIC hgobj gobj_create_tree(
     if(!parent) {
         gobj_log_error(parent_, 0,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+            "msgset",       "%s", MSGSET_PARAMETER,
             "msg",          "%s", "parent null",
             NULL);
         return (hgobj) 0;
@@ -2274,7 +2274,7 @@ PUBLIC void gobj_destroy(hgobj hgobj)
     if(hgobj == NULL) {
         gobj_log_error(NULL, LOG_OPT_TRACE_STACK,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+            "msgset",       "%s", MSGSET_PARAMETER,
             "msg",          "%s", "hgobj NULL",
             NULL
         );
@@ -2289,7 +2289,7 @@ PUBLIC void gobj_destroy(hgobj hgobj)
     if(gobj->__refs__ > 0) {
         gobj_log_error(0, LOG_OPT_TRACE_STACK,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+            "msgset",       "%s", MSGSET_PARAMETER,
             "msg",          "%s", "gobj DESTROYING with references",
             "refs",         "%d", gobj->__refs__,
             NULL
@@ -2302,7 +2302,7 @@ PUBLIC void gobj_destroy(hgobj hgobj)
         }
         gobj_log_error(0, LOG_OPT_TRACE_STACK,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+            "msgset",       "%s", MSGSET_PARAMETER,
             "msg",          "%s", "gobj ALREADY DESTROYING",
             "full-name",    "%s", gobj_full_name(gobj),
             "shutdowning",  "%d", gobj_is_shutdowning(),
@@ -2346,7 +2346,7 @@ PUBLIC void gobj_destroy(hgobj hgobj)
     if(gobj->playing) {
         gobj_log_error(gobj, 0,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_OPERATIONAL_ERROR,
+            "msgset",       "%s", MSGSET_OPERATIONAL,
             "msg",          "%s", "Destroying a PLAYING gobj",
             "full-name",    "%s", gobj_full_name(gobj),
             NULL
@@ -2360,7 +2360,7 @@ PUBLIC void gobj_destroy(hgobj hgobj)
     if(gobj->running) {
         gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_OPERATIONAL_ERROR,
+            "msgset",       "%s", MSGSET_OPERATIONAL,
             "msg",          "%s", "Destroying a RUNNING gobj",
             "full-name",    "%s", gobj_full_name(gobj),
             NULL
@@ -2442,7 +2442,7 @@ PUBLIC void gobj_destroy_children(hgobj gobj_)
     if(!gobj) {
         gobj_log_error(0, 0,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+            "msgset",       "%s", MSGSET_PARAMETER,
             "msg",          "%s", "gobj NULL",
             NULL
         );
@@ -2457,7 +2457,7 @@ PUBLIC void gobj_destroy_children(hgobj gobj_)
         } else {
             gobj_log_error(0, LOG_OPT_TRACE_STACK,
                 "function",     "%s", __FUNCTION__,
-                "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+                "msgset",       "%s", MSGSET_PARAMETER,
                 "msg",          "%s", "Destroying a destroyed child",
                 NULL
             );
@@ -2500,7 +2500,7 @@ PUBLIC int gobj_destroy_named_children(hgobj gobj_, const char *name)
     if(!gobj) {
         gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+            "msgset",       "%s", MSGSET_PARAMETER,
             "msg",          "%s", "gobj NULL",
             NULL
         );
@@ -2538,7 +2538,7 @@ PRIVATE int _register_service(gobj_t *gobj)
 
         gobj_log_error(0, LOG_OPT_TRACE_STACK,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+            "msgset",       "%s", MSGSET_PARAMETER,
             "msg",          "%s", "service ALREADY REGISTERED. Will be UPDATED",
             "prev gclass",  "%s", gobj_gclass_name(prev_gobj),
             "gclass",       "%s", gobj_gclass_name(gobj),
@@ -2556,7 +2556,7 @@ PRIVATE int _register_service(gobj_t *gobj)
     if(ret == -1) {
         gobj_log_error(0, 0,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_JSON_ERROR,
+            "msgset",       "%s", MSGSET_JSON,
             "msg",          "%s", "json_object_set_new() FAILED",
             "gclass",       "%s", gobj_gclass_name(gobj),
             "gobj_name",    "%s", gobj->gobj_name,
@@ -2584,7 +2584,7 @@ PRIVATE int _deregister_service(gobj_t *gobj)
     if(!jn_obj) {
         gobj_log_error(0, LOG_OPT_TRACE_STACK,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+            "msgset",       "%s", MSGSET_PARAMETER,
             "msg",          "%s", "service NOT found in register",
             "gclass",       "%s", gobj_gclass_name(gobj),
             "gobj_name",    "%s", gobj->gobj_name,
@@ -2678,7 +2678,7 @@ PRIVATE int print_attr_not_found(hgobj gobj, const char *attr)
 {
     gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
         "function",     "%s", __FUNCTION__,
-        "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+        "msgset",       "%s", MSGSET_PARAMETER,
         "msg",          "%s", "GClass Attribute NOT FOUND",
         "gclass",       "%s", gobj_gclass_name(gobj),
         "attr",         "%s", attr,
@@ -2710,7 +2710,7 @@ PRIVATE int json2sdata(
     if(!hsdata || !kw) {
         gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+            "msgset",       "%s", MSGSET_PARAMETER,
             "msg",          "%s", "hsdata or kw NULL",
             NULL
         );
@@ -2902,7 +2902,7 @@ PUBLIC int gobj_load_persistent_attrs(  // str, list or dict. Only gobj services
     if(!(gobj->gobj_flag & (gobj_flag_service|gobj_flag_top_service))) {
         gobj_log_warning(gobj, LOG_OPT_TRACE_STACK,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+            "msgset",       "%s", MSGSET_PARAMETER,
             "msg",          "%s", "Only gobj services can load/save persistent attrs",
             NULL
         );
@@ -2931,7 +2931,7 @@ PUBLIC int gobj_save_persistent_attrs(
     if(!(gobj->gobj_flag & (gobj_flag_service|gobj_flag_top_service))) {
         gobj_log_warning(gobj, LOG_OPT_TRACE_STACK,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+            "msgset",       "%s", MSGSET_PARAMETER,
             "msg",          "%s", "Only gobj services can load/save persistent attrs",
             NULL
         );
@@ -3013,7 +3013,7 @@ PRIVATE int sdata_write_default_values(
     if(gobj_is_destroying(gobj)) {
         gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+            "msgset",       "%s", MSGSET_PARAMETER,
             "msg",          "%s", "gobj destroyed",
             NULL
         );
@@ -3109,7 +3109,7 @@ PRIVATE int set_default(gobj_t *gobj, json_t *sdata, const sdata_desc_t *it)
     if(!jn_value) {
         gobj_log_error(gobj, 0,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+            "msgset",       "%s", MSGSET_PARAMETER,
             "msg",          "%s", "default_value WRONG",
             "item",         "%s", it->name,
             "value",        "%s", svalue,
@@ -3121,7 +3121,7 @@ PRIVATE int set_default(gobj_t *gobj, json_t *sdata, const sdata_desc_t *it)
     if(json_object_set_new(sdata, it->name, jn_value)<0) {
         gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_JSON_ERROR,
+            "msgset",       "%s", MSGSET_JSON,
             "msg",          "%s", "json_object_set() FAILED",
             "attr",         "%s", it->name,
             NULL
@@ -3211,7 +3211,7 @@ PRIVATE int json2item(
             if(!json_is_array(jn_value2)) {
                 gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
                     "function",     "%s", __FUNCTION__,
-                    "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+                    "msgset",       "%s", MSGSET_PARAMETER,
                     "msg",          "%s", "attr must be an array",
                     "attr",         "%s", it->name,
                     NULL
@@ -3235,7 +3235,7 @@ PRIVATE int json2item(
             if(!json_is_object(jn_value2)) {
                 gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
                     "function",     "%s", __FUNCTION__,
-                    "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+                    "msgset",       "%s", MSGSET_PARAMETER,
                     "msg",          "%s", "attr must be an object",
                     "attr",         "%s", it->name,
                     NULL
@@ -3252,7 +3252,7 @@ PRIVATE int json2item(
             if(!json_is_integer(jn_value_)) {
                 gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
                     "function",     "%s", __FUNCTION__,
-                    "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+                    "msgset",       "%s", MSGSET_PARAMETER,
                     "msg",          "%s", "attr must be an integer",
                     "attr",         "%s", it->name,
                     NULL
@@ -3266,7 +3266,7 @@ PRIVATE int json2item(
     if(json_object_set_new(sdata, it->name, jn_value2)<0) {
         gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_JSON_ERROR,
+            "msgset",       "%s", MSGSET_JSON,
             "msg",          "%s", "json_object_set() FAILED",
             "attr",         "%s", it->name,
             NULL
@@ -3328,7 +3328,7 @@ PUBLIC const sdata_desc_t *gclass_attr_desc(hgclass gclass_, const char *attr, B
         if(verbose) {
             gobj_log_error(0, LOG_OPT_TRACE_STACK,
                 "function",     "%s", __FUNCTION__,
-                "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+                "msgset",       "%s", MSGSET_PARAMETER,
                 "msg",          "%s", "gclass NULL",
                 NULL
             );
@@ -3350,7 +3350,7 @@ PUBLIC const sdata_desc_t *gclass_attr_desc(hgclass gclass_, const char *attr, B
     if(verbose) {
         gobj_log_error(0, LOG_OPT_TRACE_STACK,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+            "msgset",       "%s", MSGSET_PARAMETER,
             "msg",          "%s", "GClass Attribute NOT FOUND",
             "gclass",       "%s", gclass->gclass_name,
             "attr",         "%s", attr,
@@ -3371,7 +3371,7 @@ PUBLIC const sdata_desc_t *gobj_attr_desc(hgobj gobj_, const char *attr, BOOL ve
         if(verbose) {
             gobj_log_error(0, LOG_OPT_TRACE_STACK,
                 "function",     "%s", __FUNCTION__,
-                "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+                "msgset",       "%s", MSGSET_PARAMETER,
                 "msg",          "%s", "gobj NULL",
                 NULL
             );
@@ -3485,7 +3485,7 @@ PUBLIC json_t *gobj_read_attr( // Return is NOT yours!
 
     gobj_log_warning(gobj, LOG_OPT_TRACE_STACK,
         "function",     "%s", __FUNCTION__,
-        "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+        "msgset",       "%s", MSGSET_PARAMETER,
         "msg",          "%s", "GClass Attribute NOT FOUND",
         "gclass",       "%s", gobj_gclass_name(gobj),
         "attr",         "%s", name,
@@ -3530,7 +3530,7 @@ PUBLIC json_t *gobj_read_user_data( // Return is NOT yours
     if(!gobj) {
         gobj_log_error(0, LOG_OPT_TRACE_STACK,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+            "msgset",       "%s", MSGSET_PARAMETER,
             "msg",          "%s", "gobj NULL",
             NULL
         );
@@ -3559,7 +3559,7 @@ PUBLIC int gobj_write_attr(
     if(!gobj_has_attr(gobj, path)) {
         gobj_log_error(0, LOG_OPT_TRACE_STACK,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+            "msgset",       "%s", MSGSET_PARAMETER,
             "msg",          "%s", "Attribute not found",
             "path",         "%s", path,
             NULL
@@ -3614,7 +3614,7 @@ PUBLIC int gobj_write_user_data(
     if(!gobj) {
         gobj_log_error(0, LOG_OPT_TRACE_STACK,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+            "msgset",       "%s", MSGSET_PARAMETER,
             "msg",          "%s", "gobj NULL",
             NULL
         );
@@ -3637,7 +3637,7 @@ PRIVATE json_t *gobj_hsdata2(hgobj gobj_, const char *name, gobj_t **gobj_found)
     if(!gobj) {
         gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+            "msgset",       "%s", MSGSET_PARAMETER,
             "msg",          "%s", "gobj NULL",
             NULL
         );
@@ -3715,7 +3715,7 @@ PUBLIC const char *gobj_read_str_attr(hgobj gobj_, const char *name)
 
     gobj_log_warning(gobj, LOG_OPT_TRACE_STACK,
         "function",     "%s", __FUNCTION__,
-        "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+        "msgset",       "%s", MSGSET_PARAMETER,
         "msg",          "%s", "GClass Attribute NOT FOUND",
         "gclass",       "%s", gobj_gclass_name(gobj),
         "attr",         "%s", name,
@@ -3759,7 +3759,7 @@ PUBLIC BOOL gobj_read_bool_attr(hgobj gobj_, const char *name)
 
     gobj_log_warning(gobj, LOG_OPT_TRACE_STACK,
         "function",     "%s", __FUNCTION__,
-        "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+        "msgset",       "%s", MSGSET_PARAMETER,
         "msg",          "%s", "GClass Attribute NOT FOUND",
         "gclass",       "%s", gobj_gclass_name(gobj),
         "attr",         "%s", name,
@@ -3795,7 +3795,7 @@ PUBLIC json_int_t gobj_read_integer_attr(hgobj gobj_, const char *name)
 
     gobj_log_warning(gobj, LOG_OPT_TRACE_STACK,
         "function",     "%s", __FUNCTION__,
-        "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+        "msgset",       "%s", MSGSET_PARAMETER,
         "msg",          "%s", "GClass Attribute NOT FOUND",
         "gclass",       "%s", gobj_gclass_name(gobj),
         "attr",         "%s", name,
@@ -3827,7 +3827,7 @@ PUBLIC double gobj_read_real_attr(hgobj gobj_, const char *name)
 
     gobj_log_warning(gobj, LOG_OPT_TRACE_STACK,
         "function",     "%s", __FUNCTION__,
-        "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+        "msgset",       "%s", MSGSET_PARAMETER,
         "msg",          "%s", "GClass Attribute NOT FOUND",
         "gclass",       "%s", gobj_gclass_name(gobj),
         "attr",         "%s", name,
@@ -3859,7 +3859,7 @@ PUBLIC json_t *gobj_read_json_attr(hgobj gobj_, const char *name) // WARNING ret
 
     gobj_log_warning(gobj, LOG_OPT_TRACE_STACK,
         "function",     "%s", __FUNCTION__,
-        "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+        "msgset",       "%s", MSGSET_PARAMETER,
         "msg",          "%s", "GClass Attribute NOT FOUND",
         "gclass",       "%s", gobj_gclass_name(gobj),
         "attr",         "%s", name,
@@ -3891,7 +3891,7 @@ PUBLIC void *gobj_read_pointer_attr(hgobj gobj_, const char *name)
 
     gobj_log_warning(gobj, LOG_OPT_TRACE_STACK,
         "function",     "%s", __FUNCTION__,
-        "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+        "msgset",       "%s", MSGSET_PARAMETER,
         "msg",          "%s", "GClass Attribute NOT FOUND",
         "gclass",       "%s", gobj_gclass_name(gobj),
         "attr",         "%s", name,
@@ -3922,7 +3922,7 @@ PUBLIC int gobj_write_str_attr(hgobj gobj_, const char *name, const char *value)
 
     gobj_log_warning(gobj, LOG_OPT_TRACE_STACK,
         "function",     "%s", __FUNCTION__,
-        "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+        "msgset",       "%s", MSGSET_PARAMETER,
         "msg",          "%s", "GClass Attribute NOT FOUND",
         "gclass",       "%s", gobj_gclass_name(gobj),
         "attr",         "%s", name,
@@ -3944,7 +3944,7 @@ PUBLIC int gobj_write_strn_attr(hgobj gobj_, const char *name, const char *value
         if(!value) {
             gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
                 "function",     "%s", __FUNCTION__,
-                "msgset",       "%s", MSGSET_MEMORY_ERROR,
+                "msgset",       "%s", MSGSET_MEMORY,
                 "msg",          "%s", "gbmem_strndup() FAILED",
                 "gclass",       "%s", gobj_gclass_name(gobj),
                 "attr",         "%s", name?name:"",
@@ -3969,7 +3969,7 @@ PUBLIC int gobj_write_strn_attr(hgobj gobj_, const char *name, const char *value
 
     gobj_log_warning(gobj, LOG_OPT_TRACE_STACK,
         "function",     "%s", __FUNCTION__,
-        "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+        "msgset",       "%s", MSGSET_PARAMETER,
         "msg",          "%s", "GClass Attribute NOT FOUND",
         "gclass",       "%s", gobj_gclass_name(gobj),
         "attr",         "%s", name,
@@ -3999,7 +3999,7 @@ PUBLIC int gobj_write_bool_attr(hgobj gobj_, const char *name, BOOL value)
 
     gobj_log_warning(gobj, LOG_OPT_TRACE_STACK,
         "function",     "%s", __FUNCTION__,
-        "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+        "msgset",       "%s", MSGSET_PARAMETER,
         "msg",          "%s", "GClass Attribute NOT FOUND",
         "gclass",       "%s", gobj_gclass_name(gobj),
         "attr",         "%s", name,
@@ -4029,7 +4029,7 @@ PUBLIC int gobj_write_integer_attr(hgobj gobj_, const char *name, json_int_t val
 
     gobj_log_warning(gobj, LOG_OPT_TRACE_STACK,
         "function",     "%s", __FUNCTION__,
-        "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+        "msgset",       "%s", MSGSET_PARAMETER,
         "msg",          "%s", "GClass Attribute NOT FOUND",
         "gclass",       "%s", gobj_gclass_name(gobj),
         "attr",         "%s", name,
@@ -4059,7 +4059,7 @@ PUBLIC int gobj_write_real_attr(hgobj gobj_, const char *name, double value)
 
     gobj_log_warning(gobj, LOG_OPT_TRACE_STACK,
         "function",     "%s", __FUNCTION__,
-        "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+        "msgset",       "%s", MSGSET_PARAMETER,
         "msg",          "%s", "GClass Attribute NOT FOUND",
         "gclass",       "%s", gobj_gclass_name(gobj),
         "attr",         "%s", name,
@@ -4089,7 +4089,7 @@ PUBLIC int gobj_write_json_attr(hgobj gobj_, const char *name, json_t *jn_value)
 
     gobj_log_warning(gobj, LOG_OPT_TRACE_STACK,
         "function",     "%s", __FUNCTION__,
-        "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+        "msgset",       "%s", MSGSET_PARAMETER,
         "msg",          "%s", "GClass Attribute NOT FOUND",
         "gclass",       "%s", gobj_gclass_name(gobj),
         "attr",         "%s", name,
@@ -4120,7 +4120,7 @@ PUBLIC int gobj_write_new_json_attr(hgobj gobj_, const char *name, json_t *jn_va
 
     gobj_log_warning(gobj, LOG_OPT_TRACE_STACK,
         "function",     "%s", __FUNCTION__,
-        "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+        "msgset",       "%s", MSGSET_PARAMETER,
         "msg",          "%s", "GClass Attribute NOT FOUND",
         "gclass",       "%s", gobj_gclass_name(gobj),
         "attr",         "%s", name,
@@ -4151,7 +4151,7 @@ PUBLIC int gobj_write_pointer_attr(hgobj gobj_, const char *name, void *value)
 
     gobj_log_warning(gobj, LOG_OPT_TRACE_STACK,
         "function",     "%s", __FUNCTION__,
-        "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+        "msgset",       "%s", MSGSET_PARAMETER,
         "msg",          "%s", "GClass Attribute NOT FOUND",
         "gclass",       "%s", gobj_gclass_name(gobj),
         "attr",         "%s", name,
@@ -4231,7 +4231,7 @@ PUBLIC json_t *gobj_local_method(
         gobj_log_error(0, 0,
             "gobj",         "%s", __FILE__,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+            "msgset",       "%s", MSGSET_PARAMETER,
             "msg",          "%s", "hgobj NULL or DESTROYED",
             NULL
         );
@@ -4251,7 +4251,7 @@ PUBLIC json_t *gobj_local_method(
 
     gobj_log_error(gobj, 0,
         "function",     "%s", __FUNCTION__,
-        "msgset",       "%s", MSGSET_INTERNAL_ERROR,
+        "msgset",       "%s", MSGSET_INTERNAL,
         "msg",          "%s", "internal method NOT EXIST",
         "full-name",    "%s", gobj_full_name(gobj),
         "lmethod",      "%s", lmethod,
@@ -4272,7 +4272,7 @@ PUBLIC int gobj_start(hgobj gobj_)
     if(!gobj) {
         gobj_log_error(0, LOG_OPT_TRACE_STACK,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+            "msgset",       "%s", MSGSET_PARAMETER,
             "msg",          "%s", "gobj NULL",
             NULL
         );
@@ -4281,7 +4281,7 @@ PUBLIC int gobj_start(hgobj gobj_)
     if(gobj->running) {
         gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_OPERATIONAL_ERROR,
+            "msgset",       "%s", MSGSET_OPERATIONAL,
             "msg",          "%s", "GObj ALREADY RUNNING",
             NULL
         );
@@ -4290,7 +4290,7 @@ PUBLIC int gobj_start(hgobj gobj_)
     if(gobj->disabled) {
         gobj_log_warning(gobj, LOG_OPT_TRACE_STACK,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_OPERATIONAL_ERROR,
+            "msgset",       "%s", MSGSET_OPERATIONAL,
             "msg",          "%s", "GObj DISABLED",
             NULL
         );
@@ -4304,7 +4304,7 @@ PUBLIC int gobj_start(hgobj gobj_)
     if(jn_required_attrs) {
         gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_OPERATIONAL_ERROR,
+            "msgset",       "%s", MSGSET_OPERATIONAL,
             "msg",          "%s", "Cannot start without all required attributes",
             "attrs",        "%j", jn_required_attrs,
             NULL
@@ -4353,7 +4353,7 @@ PUBLIC int gobj_start_children(hgobj gobj)
     if(!gobj) {
         gobj_log_error(0, LOG_OPT_TRACE_STACK,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+            "msgset",       "%s", MSGSET_PARAMETER,
             "msg",          "%s", "gobj NULL",
             NULL
         );
@@ -4389,7 +4389,7 @@ PUBLIC int gobj_start_tree(hgobj gobj_)
     if(!gobj) {
         gobj_log_error(0, LOG_OPT_TRACE_STACK,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+            "msgset",       "%s", MSGSET_PARAMETER,
             "msg",          "%s", "gobj NULL",
             NULL
         );
@@ -4425,7 +4425,7 @@ PUBLIC int gobj_stop(hgobj gobj_)
     if(!gobj) {
         gobj_log_error(0, LOG_OPT_TRACE_STACK,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+            "msgset",       "%s", MSGSET_PARAMETER,
             "msg",          "%s", "gobj NULL",
             NULL
         );
@@ -4434,7 +4434,7 @@ PUBLIC int gobj_stop(hgobj gobj_)
     if(gobj->obflag & obflag_destroying) {
         gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+            "msgset",       "%s", MSGSET_PARAMETER,
             "msg",          "%s", "hgobj destroying",
             NULL
         );
@@ -4444,7 +4444,7 @@ PUBLIC int gobj_stop(hgobj gobj_)
         if(!gobj_is_shutdowning()) {
             gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
                 "function",     "%s", __FUNCTION__,
-                "msgset",       "%s", MSGSET_OPERATIONAL_ERROR,
+                "msgset",       "%s", MSGSET_OPERATIONAL,
                 "msg",          "%s", "GObj NOT RUNNING",
                 NULL
             );
@@ -4455,7 +4455,7 @@ PUBLIC int gobj_stop(hgobj gobj_)
         // It's auto-stopping but display error (magic but warn!).
         gobj_log_warning(gobj, LOG_OPT_TRACE_STACK,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_OPERATIONAL_ERROR,
+            "msgset",       "%s", MSGSET_OPERATIONAL,
             "msg",          "%s", "GObj stopping without previous pause",
             "gobj_",        "%s", gobj_full_name(gobj),
             NULL
@@ -4498,7 +4498,7 @@ PUBLIC int gobj_stop_children(hgobj gobj_)
     if(!gobj) {
         gobj_log_error(0, LOG_OPT_TRACE_STACK,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+            "msgset",       "%s", MSGSET_PARAMETER,
             "msg",          "%s", "gobj NULL",
             NULL
         );
@@ -4507,7 +4507,7 @@ PUBLIC int gobj_stop_children(hgobj gobj_)
     if(gobj->obflag & obflag_destroying) {
         gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+            "msgset",       "%s", MSGSET_PARAMETER,
             "msg",          "%s", "hgobj destroying",
             NULL
         );
@@ -4525,7 +4525,7 @@ PUBLIC int gobj_stop_tree(hgobj gobj_)
     if(!gobj) {
         gobj_log_error(0, LOG_OPT_TRACE_STACK,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+            "msgset",       "%s", MSGSET_PARAMETER,
             "msg",          "%s", "gobj NULL",
             NULL
         );
@@ -4534,7 +4534,7 @@ PUBLIC int gobj_stop_tree(hgobj gobj_)
     if(gobj->obflag & obflag_destroying) {
         gobj_log_error(0, LOG_OPT_TRACE_STACK,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+            "msgset",       "%s", MSGSET_PARAMETER,
             "msg",          "%s", "hgobj destroying",
             NULL
         );
@@ -4562,7 +4562,7 @@ PUBLIC int gobj_play(hgobj gobj_)
     if(!gobj) {
         gobj_log_error(0, LOG_OPT_TRACE_STACK,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+            "msgset",       "%s", MSGSET_PARAMETER,
             "msg",          "%s", "gobj NULL",
             NULL
         );
@@ -4571,7 +4571,7 @@ PUBLIC int gobj_play(hgobj gobj_)
     if(gobj->obflag & obflag_destroying) {
         gobj_log_error(0, LOG_OPT_TRACE_STACK,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+            "msgset",       "%s", MSGSET_PARAMETER,
             "msg",          "%s", "hgobj destroying",
             NULL
         );
@@ -4580,7 +4580,7 @@ PUBLIC int gobj_play(hgobj gobj_)
     if(gobj->playing) {
         gobj_log_warning(gobj, LOG_OPT_TRACE_STACK,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_OPERATIONAL_ERROR,
+            "msgset",       "%s", MSGSET_OPERATIONAL,
             "msg",          "%s", "GObj ALREADY PLAYING",
             NULL
         );
@@ -4589,7 +4589,7 @@ PUBLIC int gobj_play(hgobj gobj_)
     if(gobj->disabled) {
         gobj_log_warning(gobj, 0,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_OPERATIONAL_ERROR,
+            "msgset",       "%s", MSGSET_OPERATIONAL,
             "msg",          "%s", "GObj DISABLED",
             NULL
         );
@@ -4600,7 +4600,7 @@ PUBLIC int gobj_play(hgobj gobj_)
             // Default: It's auto-starting but display error (magic but warn!).
             gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
                 "function",     "%s", __FUNCTION__,
-                "msgset",       "%s", MSGSET_OPERATIONAL_ERROR,
+                "msgset",       "%s", MSGSET_OPERATIONAL,
                 "msg",          "%s", "GObj playing without previous start",
                 NULL
             );
@@ -4608,7 +4608,7 @@ PUBLIC int gobj_play(hgobj gobj_)
         } else {
             gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
                 "function",     "%s", __FUNCTION__,
-                "msgset",       "%s", MSGSET_OPERATIONAL_ERROR,
+                "msgset",       "%s", MSGSET_OPERATIONAL,
                 "msg",          "%s", "Cannot play, start not done",
                 NULL
             );
@@ -4649,7 +4649,7 @@ PUBLIC int gobj_pause(hgobj gobj_)
     if(!gobj) {
         gobj_log_error(0, LOG_OPT_TRACE_STACK,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+            "msgset",       "%s", MSGSET_PARAMETER,
             "msg",          "%s", "gobj NULL",
             NULL
         );
@@ -4658,7 +4658,7 @@ PUBLIC int gobj_pause(hgobj gobj_)
     if(gobj->obflag & obflag_destroying) {
         gobj_log_error(0, LOG_OPT_TRACE_STACK,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+            "msgset",       "%s", MSGSET_PARAMETER,
             "msg",          "%s", "hgobj destroying",
             NULL
         );
@@ -4667,7 +4667,7 @@ PUBLIC int gobj_pause(hgobj gobj_)
     if(!gobj->playing) {
         gobj_log_info(gobj, 0,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_OPERATIONAL_ERROR,
+            "msgset",       "%s", MSGSET_OPERATIONAL,
             "msg",          "%s", "GObj NOT PLAYING",
             NULL
         );
@@ -4715,7 +4715,7 @@ PUBLIC int gobj_disable(hgobj gobj_)
     if(!gobj) {
         gobj_log_error(0, LOG_OPT_TRACE_STACK,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+            "msgset",       "%s", MSGSET_PARAMETER,
             "msg",          "%s", "gobj NULL",
             NULL
         );
@@ -4723,7 +4723,7 @@ PUBLIC int gobj_disable(hgobj gobj_)
     }
     if(gobj->disabled) {
         gobj_log_info(0, LOG_OPT_TRACE_STACK,
-            "msgset",       "%s", MSGSET_OPERATIONAL_ERROR,
+            "msgset",       "%s", MSGSET_OPERATIONAL,
             "msg",          "%s", "GObj ALREADY disabled",
             NULL
         );
@@ -4747,7 +4747,7 @@ PUBLIC int gobj_enable(hgobj gobj_)
     if(!gobj) {
         gobj_log_error(0, LOG_OPT_TRACE_STACK,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+            "msgset",       "%s", MSGSET_PARAMETER,
             "msg",          "%s", "gobj NULL",
             NULL
         );
@@ -4756,7 +4756,7 @@ PUBLIC int gobj_enable(hgobj gobj_)
     if(!gobj->disabled) {
         gobj_log_info(0, LOG_OPT_TRACE_STACK,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_OPERATIONAL_ERROR,
+            "msgset",       "%s", MSGSET_OPERATIONAL,
             "msg",          "%s", "GObj NOT disabled",
             NULL
         );
@@ -4784,7 +4784,7 @@ PUBLIC json_t *gobj_command( // With AUTHZ
     if(!gobj || gobj->obflag & (obflag_destroyed|obflag_destroying)) {
         gobj_log_error(NULL, LOG_OPT_TRACE_STACK,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+            "msgset",       "%s", MSGSET_PARAMETER,
             "msg",          "%s", "hgobj NULL or DESTROYED",
             NULL
         );
@@ -4832,7 +4832,7 @@ PUBLIC json_t *gobj_command( // With AUTHZ
     } else {
         gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_INTERNAL_ERROR,
+            "msgset",       "%s", MSGSET_INTERNAL,
             "msg",          "%s", "global command parser function not available",
             NULL
         );
@@ -4874,7 +4874,7 @@ PUBLIC json_t *gobj_stats(hgobj gobj_, const char *stats, json_t *kw, hgobj src)
         gobj_log_error(NULL, LOG_OPT_TRACE_STACK,
             "gobj",         "%s", __FILE__,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+            "msgset",       "%s", MSGSET_PARAMETER,
             "msg",          "%s", "hgobj NULL or DESTROYED",
             NULL
         );
@@ -4913,7 +4913,7 @@ PUBLIC json_t *gobj_stats(hgobj gobj_, const char *stats, json_t *kw, hgobj src)
     } else {
         gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_INTERNAL_ERROR,
+            "msgset",       "%s", MSGSET_INTERNAL,
             "msg",          "%s", "stats parser not available",
             NULL
         );
@@ -4941,7 +4941,7 @@ PUBLIC hgobj gobj_set_bottom_gobj(hgobj gobj_, hgobj bottom_gobj)
     if(!gobj) {
         gobj_log_error(0, LOG_OPT_TRACE_STACK,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+            "msgset",       "%s", MSGSET_PARAMETER,
             "msg",          "%s", "gobj NULL",
             NULL
         );
@@ -4970,7 +4970,7 @@ PUBLIC hgobj gobj_set_bottom_gobj(hgobj gobj_, hgobj bottom_gobj)
         if(bottom_gobj) {
             gobj_log_warning(gobj, LOG_OPT_TRACE_STACK,
                 "function",     "%s", __FUNCTION__,
-                "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+                "msgset",       "%s", MSGSET_PARAMETER,
                 "msg",          "%s", "bottom_gobj already set",
                 "prev_gobj",    "%s", gobj_full_name(gobj->bottom_gobj),
                 "new_gobj",     "%s", gobj_full_name(bottom_gobj),
@@ -5036,7 +5036,7 @@ PUBLIC hgobj gobj_find_service(const char *service, BOOL verbose)
         if(verbose) {
             gobj_log_error(0, LOG_OPT_TRACE_STACK,
                 "function",     "%s", __FUNCTION__,
-                "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+                "msgset",       "%s", MSGSET_PARAMETER,
                 "msg",          "%s", "service EMPTY",
                 NULL
             );
@@ -5060,7 +5060,7 @@ PUBLIC hgobj gobj_find_service(const char *service, BOOL verbose)
         if(verbose) {
             gobj_log_error(0, LOG_OPT_TRACE_STACK,
                 "function",     "%s", __FUNCTION__,
-                "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+                "msgset",       "%s", MSGSET_PARAMETER,
                 "msg",          "%s", "service NOT FOUND",
                 "service",      "%s", service,
                 NULL
@@ -5094,7 +5094,7 @@ PUBLIC hgobj gobj_find_service_by_gclass(const char *gclass_name, BOOL verbose) 
     if(verbose) {
         gobj_log_error(0, LOG_OPT_TRACE_STACK,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+            "msgset",       "%s", MSGSET_PARAMETER,
             "msg",          "%s", "service NOT FOUND",
             "gclass",       "%s", gclass_name,
             NULL
@@ -5116,7 +5116,7 @@ PUBLIC hgobj gobj_nearest_top_service(hgobj gobj_)
     if(!gobj || gobj->obflag & obflag_destroyed) {
         gobj_log_error(gobj, 0,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+            "msgset",       "%s", MSGSET_PARAMETER,
             "msg",          "%s", "hgobj NULL or DESTROYED",
             NULL
         );
@@ -5162,7 +5162,7 @@ PUBLIC hgobj gobj_first_child(hgobj gobj_)
     if(!gobj) {
         gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+            "msgset",       "%s", MSGSET_PARAMETER,
             "msg",          "%s", "gobj NULL",
             NULL
         );
@@ -5181,7 +5181,7 @@ PUBLIC hgobj gobj_last_child(hgobj gobj_)
     if(!gobj) {
         gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+            "msgset",       "%s", MSGSET_PARAMETER,
             "msg",          "%s", "gobj NULL",
             NULL
         );
@@ -5200,7 +5200,7 @@ PUBLIC hgobj gobj_next_child(hgobj child)
     if(!gobj) {
         gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+            "msgset",       "%s", MSGSET_PARAMETER,
             "msg",          "%s", "gobj NULL",
             NULL
         );
@@ -5218,7 +5218,7 @@ PUBLIC hgobj gobj_prev_child(hgobj child)
     if(!gobj) {
         gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+            "msgset",       "%s", MSGSET_PARAMETER,
             "msg",          "%s", "gobj NULL",
             NULL
         );
@@ -5237,7 +5237,7 @@ PUBLIC hgobj gobj_child_by_name(hgobj gobj_, const char *name)
     if(!gobj) {
         gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+            "msgset",       "%s", MSGSET_PARAMETER,
             "msg",          "%s", "gobj NULL",
             NULL
         );
@@ -5246,7 +5246,7 @@ PUBLIC hgobj gobj_child_by_name(hgobj gobj_, const char *name)
     if(empty_string(name)) {
         gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+            "msgset",       "%s", MSGSET_PARAMETER,
             "msg",          "%s", "name NULL",
             NULL
         );
@@ -5278,7 +5278,7 @@ PUBLIC hgobj gobj_child_by_index(hgobj gobj_, size_t idx) // relative to 1
     if(!gobj) {
         gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+            "msgset",       "%s", MSGSET_PARAMETER,
             "msg",          "%s", "gobj NULL",
             NULL
         );
@@ -5439,7 +5439,7 @@ PUBLIC hgobj gobj_find_child(
     if(!gobj) {
         gobj_log_error(0, LOG_OPT_TRACE_STACK,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+            "msgset",       "%s", MSGSET_PARAMETER,
             "msg",          "%s", "gobj NULL",
             NULL
         );
@@ -5496,7 +5496,7 @@ PUBLIC json_t *gobj_match_children(
     if(!gobj) {
         gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+            "msgset",       "%s", MSGSET_PARAMETER,
             "msg",          "%s", "gobj NULL",
             NULL
         );
@@ -5533,7 +5533,7 @@ PUBLIC json_t *gobj_match_children_tree(
     if(!gobj) {
         gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+            "msgset",       "%s", MSGSET_PARAMETER,
             "msg",          "%s", "gobj NULL",
             NULL
         );
@@ -5565,7 +5565,7 @@ PUBLIC int gobj_free_iter(json_t *iter)
         if(!gobj) {
             gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
                 "function",     "%s", __FUNCTION__,
-                "msgset",       "%s", MSGSET_INTERNAL_ERROR,
+                "msgset",       "%s", MSGSET_INTERNAL,
                 "msg",          "%s", "gobj NULL",
                 NULL
             );
@@ -5574,7 +5574,7 @@ PUBLIC int gobj_free_iter(json_t *iter)
         if(gobj->__refs__ <= 0) {
             gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
                 "function",     "%s", __FUNCTION__,
-                "msgset",       "%s", MSGSET_INTERNAL_ERROR,
+                "msgset",       "%s", MSGSET_INTERNAL,
                 "msg",          "%s", "iter gobj with refs <= 0",
                 "refs",         "%d", gobj->__refs__,
                 NULL
@@ -5669,7 +5669,7 @@ PUBLIC int gobj_walk_gobj_children(
     if(gobj_is_destroying(gobj)) {
         gobj_log_error(0, LOG_OPT_TRACE_STACK,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+            "msgset",       "%s", MSGSET_PARAMETER,
             "msg",          "%s", "gobj NULL or destroying",
             NULL
         );
@@ -5696,7 +5696,7 @@ PUBLIC int gobj_walk_gobj_children_tree(
     if(!gobj) {
         gobj_log_error(0, LOG_OPT_TRACE_STACK,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+            "msgset",       "%s", MSGSET_PARAMETER,
             "msg",          "%s", "gobj NULL",
             NULL
         );
@@ -6367,7 +6367,7 @@ PUBLIC const sdata_desc_t *gclass_command_desc(hgclass gclass_, const char *name
         if(verbose) {
             gobj_log_error(0, LOG_OPT_TRACE_STACK,
                 "function",     "%s", __FUNCTION__,
-                "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+                "msgset",       "%s", MSGSET_PARAMETER,
                 "msg",          "%s", "gclass NULL",
                 NULL
             );
@@ -6379,7 +6379,7 @@ PUBLIC const sdata_desc_t *gclass_command_desc(hgclass gclass_, const char *name
         if(verbose) {
             gobj_log_error(0, LOG_OPT_TRACE_STACK,
                 "function",     "%s", __FUNCTION__,
-                "msgset",       "%s", MSGSET_INTERNAL_ERROR,
+                "msgset",       "%s", MSGSET_INTERNAL,
                 "msg",          "%s", "command table not available",
                 "gclass",       "%s", gclass->gclass_name,
                 "command",      "%s", name,
@@ -6401,7 +6401,7 @@ PUBLIC const sdata_desc_t *gclass_command_desc(hgclass gclass_, const char *name
     if(verbose) {
         gobj_log_error(0, LOG_OPT_TRACE_STACK,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+            "msgset",       "%s", MSGSET_PARAMETER,
             "msg",          "%s", "GClass command NOT FOUND",
             "gclass",       "%s", gclass->gclass_name,
             "command",      "%s", name,
@@ -6422,7 +6422,7 @@ PUBLIC const sdata_desc_t *gobj_command_desc(hgobj gobj_, const char *name, BOOL
         if(verbose) {
             gobj_log_error(0, LOG_OPT_TRACE_STACK,
                 "function",     "%s", __FUNCTION__,
-                "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+                "msgset",       "%s", MSGSET_PARAMETER,
                 "msg",          "%s", "gobj NULL",
                 NULL
             );
@@ -7409,7 +7409,7 @@ PUBLIC int gobj_send_event(
     if(dst_ == NULL) {
         gobj_log_error(NULL, LOG_OPT_TRACE_STACK,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+            "msgset",       "%s", MSGSET_PARAMETER,
             "msg",          "%s", "hgobj dst NULL",
             "event",        "%s", event,
             NULL
@@ -7423,7 +7423,7 @@ PUBLIC int gobj_send_event(
     if(dst->obflag & (obflag_destroyed|obflag_destroying)) {
         gobj_log_error(dst, LOG_OPT_TRACE_STACK,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+            "msgset",       "%s", MSGSET_PARAMETER,
             "msg",          "%s", (dst->obflag & obflag_destroyed)? "gobj DESTROYED":"gobj DESTROYING",
             "event",        "%s", event,
             NULL
@@ -7436,7 +7436,7 @@ PUBLIC int gobj_send_event(
     if(!state) {
         gobj_log_error(NULL, LOG_OPT_TRACE_STACK,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_INTERNAL_ERROR,
+            "msgset",       "%s", MSGSET_INTERNAL,
             "msg",          "%s", "current_state NULL",
             "gclass_name",  "%s", dst->gclass->gclass_name,
             "event",        "%s", event,
@@ -7501,7 +7501,7 @@ PUBLIC int gobj_send_event(
             );
         }
         gobj_log_error(dst, LOG_OPT_TRACE_STACK,
-            "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+            "msgset",       "%s", MSGSET_PARAMETER,
             "msg",          "%s", "Event NOT DEFINED in state",
             "msg2",          "%s", "📛📛 Event NOT DEFINED in state 📛📛",
             "gclass_name",  "%s", dst->gclass->gclass_name,
@@ -7633,7 +7633,7 @@ PUBLIC int gobj_send_event_to_children(  // Send the event to all children of fi
     if(!gobj) {
         gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+            "msgset",       "%s", MSGSET_PARAMETER,
             "msg",          "%s", "gobj NULL",
             NULL
         );
@@ -7660,7 +7660,7 @@ PUBLIC int gobj_send_event_to_children_tree(
         gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
             "gobj",         "%s", __FILE__,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+            "msgset",       "%s", MSGSET_PARAMETER,
             "msg",          "%s", "gobj NULL",
             NULL
         );
@@ -7683,7 +7683,7 @@ PUBLIC BOOL gobj_change_state(
     if(hgobj == NULL) {
         gobj_log_error(NULL, LOG_OPT_TRACE_STACK,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+            "msgset",       "%s", MSGSET_PARAMETER,
             "msg",          "%s", "hgobj NULL",
             NULL
         );
@@ -7695,7 +7695,7 @@ PUBLIC BOOL gobj_change_state(
     if(gobj->obflag & obflag_destroyed) {
         gobj_log_error(0, LOG_OPT_TRACE_STACK,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+            "msgset",       "%s", MSGSET_PARAMETER,
             "msg",          "%s", "gobj DESTROYED",
             NULL
         );
@@ -7709,7 +7709,7 @@ PUBLIC BOOL gobj_change_state(
     if(!new_state) {
         gobj_log_error(NULL, LOG_OPT_TRACE_STACK,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_INTERNAL_ERROR,
+            "msgset",       "%s", MSGSET_INTERNAL,
             "msg",          "%s", "state unknown",
             "gclass_name",  "%s", gobj->gclass->gclass_name,
             "state_name",   "%s", state_name,
@@ -7768,7 +7768,7 @@ PUBLIC gobj_state_t gobj_current_state(hgobj hgobj)
     if(hgobj == NULL) {
         gobj_log_error(NULL, LOG_OPT_TRACE_STACK,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+            "msgset",       "%s", MSGSET_PARAMETER,
             "msg",          "%s", "hgobj NULL",
             NULL
         );
@@ -7854,7 +7854,7 @@ PUBLIC event_type_t *gobj_event_type( // silent function
     if(gobj_ == NULL) {
         gobj_log_error(NULL, LOG_OPT_TRACE_STACK,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+            "msgset",       "%s", MSGSET_PARAMETER,
             "msg",          "%s", "hgobj NULL",
             "event",        "%s", event,
             NULL
@@ -7866,7 +7866,7 @@ PUBLIC event_type_t *gobj_event_type( // silent function
     if(!event) {
         gobj_log_error(NULL, LOG_OPT_TRACE_STACK,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+            "msgset",       "%s", MSGSET_PARAMETER,
             "msg",          "%s", "event NULL",
             NULL
         );
@@ -7902,7 +7902,7 @@ PUBLIC event_type_t *gobj_event_type_by_name(hgobj gobj_, const char *event_name
     if(gobj_ == NULL) {
         gobj_log_error(NULL, LOG_OPT_TRACE_STACK,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+            "msgset",       "%s", MSGSET_PARAMETER,
             "msg",          "%s", "hgobj NULL",
             "event",        "%s", event_name,
             NULL
@@ -7914,7 +7914,7 @@ PUBLIC event_type_t *gobj_event_type_by_name(hgobj gobj_, const char *event_name
     if(empty_string(event_name)) {
         gobj_log_error(NULL, LOG_OPT_TRACE_STACK,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+            "msgset",       "%s", MSGSET_PARAMETER,
             "msg",          "%s", "event_name NULL",
             NULL
         );
@@ -8290,7 +8290,7 @@ PRIVATE int _delete_subscription(
         if(json_array_remove(publisher->dl_subscriptions, (size_t)idx)<0) {
             gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
                 "function",     "%s", __FUNCTION__,
-                "msgset",       "%s", MSGSET_INTERNAL_ERROR,
+                "msgset",       "%s", MSGSET_INTERNAL,
                 "msg",          "%s", "json_array_remove() subscriptions FAILED",
                 NULL
             );
@@ -8298,7 +8298,7 @@ PRIVATE int _delete_subscription(
     } else {
         gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_INTERNAL_ERROR,
+            "msgset",       "%s", MSGSET_INTERNAL,
             "msg",          "%s", "subscription in publisher not found",
             NULL
         );
@@ -8316,7 +8316,7 @@ PRIVATE int _delete_subscription(
         if(json_array_remove(subscriber->dl_subscribings, (size_t)idx)<0) {
             gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
                 "function",     "%s", __FUNCTION__,
-                "msgset",       "%s", MSGSET_INTERNAL_ERROR,
+                "msgset",       "%s", MSGSET_INTERNAL,
                 "msg",          "%s", "json_array_remove() subscribings FAILED",
                 NULL
             );
@@ -8324,7 +8324,7 @@ PRIVATE int _delete_subscription(
     } else {
         gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_INTERNAL_ERROR,
+            "msgset",       "%s", MSGSET_INTERNAL,
             "msg",          "%s", "subscription in subscriber not found",
             NULL
         );
@@ -8361,7 +8361,7 @@ PUBLIC json_t *gobj_subscribe_event( // return not yours
     if(!publisher) {
         gobj_log_error(0, LOG_OPT_TRACE_STACK,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+            "msgset",       "%s", MSGSET_PARAMETER,
             "msg",          "%s", "publisher NULL",
             "event",        "%s", event,
             NULL
@@ -8372,7 +8372,7 @@ PUBLIC json_t *gobj_subscribe_event( // return not yours
     if(!subscriber) {
         gobj_log_error(publisher, LOG_OPT_TRACE_STACK,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+            "msgset",       "%s", MSGSET_PARAMETER,
             "msg",          "%s", "subscriber NULL",
             "event",        "%s", event,
             NULL
@@ -8391,7 +8391,7 @@ PUBLIC json_t *gobj_subscribe_event( // return not yours
         )) {
             gobj_log_warning(publisher, LOG_OPT_TRACE_STACK,
                 "function",     "%s", __FUNCTION__,
-                "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+                "msgset",       "%s", MSGSET_PARAMETER,
                 "msg",          "%s", "key ignored in subscription",
                 "key",          "%s", key,
                 "event",        "%s", event,
@@ -8409,7 +8409,7 @@ PUBLIC json_t *gobj_subscribe_event( // return not yours
             if(!(publisher->gclass->gclass_flag & gcflag_no_check_output_events)) {
                 gobj_log_error(publisher, 0,
                     "function",     "%s", __FUNCTION__,
-                    "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+                    "msgset",       "%s", MSGSET_PARAMETER,
                     "msg",          "%s", "event NOT in output event list",
                     "event",        "%s", event,
                     "gclass",       "%s", gobj_gclass_name(publisher),
@@ -8441,7 +8441,7 @@ PUBLIC json_t *gobj_subscribe_event( // return not yours
     if(json_array_size(dl_subs) > 0) {
         gobj_log_warning(publisher, LOG_OPT_TRACE_STACK,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+            "msgset",       "%s", MSGSET_PARAMETER,
             "msg",          "%s", "subscription(s) REPEATED, will be deleted and override",
             "event",        "%s", event,
             "kw",           "%j", kw,
@@ -8465,7 +8465,7 @@ PUBLIC json_t *gobj_subscribe_event( // return not yours
     if(!subs) {
         gobj_log_error(publisher, LOG_OPT_TRACE_STACK,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+            "msgset",       "%s", MSGSET_PARAMETER,
             "msg",          "%s", "_create_subscription() FAILED",
             "event",        "%s", event,
             "publisher",    "%s", gobj_full_name(publisher),
@@ -8479,7 +8479,7 @@ PUBLIC json_t *gobj_subscribe_event( // return not yours
     if(json_array_append(publisher->dl_subscriptions, subs)<0) {
         gobj_log_error(publisher, LOG_OPT_TRACE_STACK,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_INTERNAL_ERROR,
+            "msgset",       "%s", MSGSET_INTERNAL,
             "msg",          "%s", "json_array_append(subscriptions) FAILED",
             "event",        "%s", event,
             "publisher",    "%s", gobj_full_name(publisher),
@@ -8490,7 +8490,7 @@ PUBLIC json_t *gobj_subscribe_event( // return not yours
     if(json_array_append(subscriber->dl_subscribings, subs)<0) {
         gobj_log_error(publisher, LOG_OPT_TRACE_STACK,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_INTERNAL_ERROR,
+            "msgset",       "%s", MSGSET_INTERNAL,
             "msg",          "%s", "json_array_append(subscribings) FAILED",
             "event",        "%s", event,
             "publisher",    "%s", gobj_full_name(publisher),
@@ -8566,7 +8566,7 @@ PUBLIC int gobj_unsubscribe_event(
     if(!publisher) {
         gobj_log_error(0, LOG_OPT_TRACE_STACK,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+            "msgset",       "%s", MSGSET_PARAMETER,
             "msg",          "%s", "publisher NULL",
             "event",        "%s", event,
             NULL
@@ -8577,7 +8577,7 @@ PUBLIC int gobj_unsubscribe_event(
     if(!subscriber) {
         gobj_log_error(publisher, LOG_OPT_TRACE_STACK,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+            "msgset",       "%s", MSGSET_PARAMETER,
             "msg",          "%s", "subscriber NULL",
             "event",        "%s", event,
             NULL
@@ -8596,7 +8596,7 @@ PUBLIC int gobj_unsubscribe_event(
         )) {
             gobj_log_warning(publisher, LOG_OPT_TRACE_STACK,
                 "function",     "%s", __FUNCTION__,
-                "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+                "msgset",       "%s", MSGSET_PARAMETER,
                 "msg",          "%s", "key ignored in subscription",
                 "key",          "%s", key,
                 "event",        "%s", event,
@@ -8614,7 +8614,7 @@ PUBLIC int gobj_unsubscribe_event(
             if(!(publisher->gclass->gclass_flag & gcflag_no_check_output_events)) {
                 gobj_log_error(publisher, 0,
                     "function",     "%s", __FUNCTION__,
-                    "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+                    "msgset",       "%s", MSGSET_PARAMETER,
                     "msg",          "%s", "event NOT in output event list",
                     "event",        "%s", event,
                     "gclass",       "%s", gobj_gclass_name(publisher),
@@ -8649,7 +8649,7 @@ PUBLIC int gobj_unsubscribe_event(
     if(!deleted) {
         gobj_log_error(publisher, LOG_OPT_TRACE_STACK,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+            "msgset",       "%s", MSGSET_PARAMETER,
             "msg",          "%s", "No subscription found",
             "event",        "%s", event,
             "publisher",    "%s", gobj_full_name(publisher),
@@ -8851,7 +8851,7 @@ PUBLIC int gobj_publish_event(
     if(!publisher) {
         gobj_log_error(0, LOG_OPT_TRACE_STACK,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+            "msgset",       "%s", MSGSET_PARAMETER,
             "msg",          "%s", "gobj NULL",
             NULL
         );
@@ -8861,7 +8861,7 @@ PUBLIC int gobj_publish_event(
     if(publisher->obflag & obflag_destroyed) {
         gobj_log_error(0, LOG_OPT_TRACE_STACK,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+            "msgset",       "%s", MSGSET_PARAMETER,
             "msg",          "%s", "gobj DESTROYED",
             NULL
         );
@@ -8871,7 +8871,7 @@ PUBLIC int gobj_publish_event(
     if(empty_string(event)) {
         gobj_log_error(publisher, LOG_OPT_TRACE_STACK,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+            "msgset",       "%s", MSGSET_PARAMETER,
             "msg",          "%s", "event EMPTY",
             NULL
         );
@@ -8892,7 +8892,7 @@ PUBLIC int gobj_publish_event(
         if(!(publisher->gclass->gclass_flag & gcflag_no_check_output_events)) {
             gobj_log_error(publisher, 0,
                 "function",     "%s", __FUNCTION__,
-                "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+                "msgset",       "%s", MSGSET_PARAMETER,
                 "msg",          "%s", "event NOT in output event list",
                 "event",        "%s", event,
                 "gclass",       "%s", gobj_gclass_name(publisher),
@@ -9227,7 +9227,7 @@ PUBLIC json_t *gobj_authenticate(hgobj gobj_, json_t *kw, hgobj src)
     if(!gobj || gobj->obflag & obflag_destroyed) {
         gobj_log_error(0, 0,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+            "msgset",       "%s", MSGSET_PARAMETER,
             "msg",          "%s", "hgobj NULL or DESTROYED",
             NULL
         );
@@ -9306,7 +9306,7 @@ PUBLIC json_t *authzs_list(
 
     gobj_log_error(gobj, 0,
         "function",     "%s", __FUNCTION__,
-        "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+        "msgset",       "%s", MSGSET_PARAMETER,
         "msg",          "%s", "authz not found",
         "authz",        "%s", authz,
         NULL
@@ -9338,7 +9338,7 @@ PUBLIC json_t *gobj_authz(
     if(!gobj || gobj->obflag & obflag_destroyed) {
         gobj_log_error(0, 0,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+            "msgset",       "%s", MSGSET_PARAMETER,
             "msg",          "%s", "hgobj NULL or DESTROYED",
             NULL
         );
@@ -9363,7 +9363,7 @@ PUBLIC BOOL gobj_user_has_authz(
     if(!gobj || gobj->obflag & obflag_destroyed) {
         gobj_log_error(0, 0,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+            "msgset",       "%s", MSGSET_PARAMETER,
             "msg",          "%s", "hgobj NULL or DESTROYED",
             NULL
         );
@@ -9605,7 +9605,7 @@ PUBLIC json_t *gobj_create_resource(
         gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
             "gobj",         "%s", __FILE__,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+            "msgset",       "%s", MSGSET_PARAMETER,
             "msg",          "%s", "hgobj NULL or DESTROYED",
             NULL
         );
@@ -9616,7 +9616,7 @@ PUBLIC json_t *gobj_create_resource(
     if(!gobj->gclass->gmt->mt_create_resource) {
         gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_INTERNAL_ERROR,
+            "msgset",       "%s", MSGSET_INTERNAL,
             "msg",          "%s", "mt_create_resource not defined",
             NULL
         );
@@ -9643,7 +9643,7 @@ PUBLIC int gobj_save_resource(
         gobj_log_error(gobj, 0,
             "gobj",         "%s", __FILE__,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+            "msgset",       "%s", MSGSET_PARAMETER,
             "msg",          "%s", "hgobj NULL or DESTROYED",
             NULL
         );
@@ -9653,7 +9653,7 @@ PUBLIC int gobj_save_resource(
     if(!record) {
         gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+            "msgset",       "%s", MSGSET_PARAMETER,
             "msg",          "%s", "gobj_save_resource(): record NULL",
             NULL
         );
@@ -9663,7 +9663,7 @@ PUBLIC int gobj_save_resource(
     if(!gobj->gclass->gmt->mt_save_resource) {
         gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+            "msgset",       "%s", MSGSET_PARAMETER,
             "msg",          "%s", "mt_save_resource not defined",
             NULL
         );
@@ -9689,7 +9689,7 @@ PUBLIC int gobj_delete_resource(
         gobj_log_error(gobj, 0,
             "gobj",         "%s", __FILE__,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+            "msgset",       "%s", MSGSET_PARAMETER,
             "msg",          "%s", "hgobj NULL or DESTROYED",
             NULL
         );
@@ -9700,7 +9700,7 @@ PUBLIC int gobj_delete_resource(
     if(!record) {
         gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+            "msgset",       "%s", MSGSET_PARAMETER,
             "msg",          "%s", "gobj_delete_resource(): record NULL",
             NULL
         );
@@ -9710,7 +9710,7 @@ PUBLIC int gobj_delete_resource(
     if(!gobj->gclass->gmt->mt_delete_resource) {
         gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+            "msgset",       "%s", MSGSET_PARAMETER,
             "msg",          "%s", "mt_delete_resource not defined",
             NULL
         );
@@ -9737,7 +9737,7 @@ PUBLIC json_t *gobj_list_resource(
         gobj_log_error(gobj, 0,
             "gobj",         "%s", __FILE__,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+            "msgset",       "%s", MSGSET_PARAMETER,
             "msg",          "%s", "hgobj NULL or DESTROYED",
             NULL
         );
@@ -9748,7 +9748,7 @@ PUBLIC json_t *gobj_list_resource(
     if(!gobj->gclass->gmt->mt_list_resource) {
         gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+            "msgset",       "%s", MSGSET_PARAMETER,
             "msg",          "%s", "mt_list_resource not defined",
             NULL
         );
@@ -9774,7 +9774,7 @@ PUBLIC json_t *gobj_get_resource( // WARNING return is NOT yours!
         gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
             "gobj",         "%s", __FILE__,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+            "msgset",       "%s", MSGSET_PARAMETER,
             "msg",          "%s", "hgobj NULL or DESTROYED",
             NULL
         );
@@ -9785,7 +9785,7 @@ PUBLIC json_t *gobj_get_resource( // WARNING return is NOT yours!
     if(!gobj->gclass->gmt->mt_get_resource) {
         gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_INTERNAL_ERROR,
+            "msgset",       "%s", MSGSET_INTERNAL,
             "msg",          "%s", "mt_get_resource not defined",
             NULL
         );
@@ -9822,7 +9822,7 @@ PUBLIC json_t *gobj_treedbs( // Return a list with treedb names
         gobj_log_error(gobj, 0,
             "gobj",         "%s", __FILE__,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+            "msgset",       "%s", MSGSET_PARAMETER,
             "msg",          "%s", "hgobj NULL or DESTROYED",
             NULL
         );
@@ -9832,7 +9832,7 @@ PUBLIC json_t *gobj_treedbs( // Return a list with treedb names
     if(!gobj->gclass->gmt->mt_treedbs) {
         gobj_log_error(gobj, 0,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_INTERNAL_ERROR,
+            "msgset",       "%s", MSGSET_INTERNAL,
             "msg",          "%s", "mt_treedbs not defined",
             NULL
         );
@@ -9857,7 +9857,7 @@ PUBLIC json_t *gobj_treedb_topics(
         gobj_log_error(gobj, 0,
             "gobj",         "%s", __FILE__,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+            "msgset",       "%s", MSGSET_PARAMETER,
             "msg",          "%s", "hgobj NULL or DESTROYED",
             NULL
         );
@@ -9867,7 +9867,7 @@ PUBLIC json_t *gobj_treedb_topics(
     if(!gobj->gclass->gmt->mt_treedb_topics) {
         gobj_log_error(gobj, 0,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_INTERNAL_ERROR,
+            "msgset",       "%s", MSGSET_INTERNAL,
             "msg",          "%s", "mt_treedb_topics not defined",
             NULL
         );
@@ -9890,7 +9890,7 @@ PUBLIC json_t *gobj_topic_desc(
         gobj_log_error(gobj, 0,
             "gobj",         "%s", __FILE__,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+            "msgset",       "%s", MSGSET_PARAMETER,
             "msg",          "%s", "hgobj NULL or DESTROYED",
             NULL
         );
@@ -9899,7 +9899,7 @@ PUBLIC json_t *gobj_topic_desc(
     if(!gobj->gclass->gmt->mt_topic_desc) {
         gobj_log_error(gobj, 0,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_INTERNAL_ERROR,
+            "msgset",       "%s", MSGSET_INTERNAL,
             "msg",          "%s", "mt_topic_desc not defined",
             NULL
         );
@@ -9924,7 +9924,7 @@ PUBLIC json_t *gobj_topic_links(
         gobj_log_error(gobj, 0,
             "gobj",         "%s", __FILE__,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+            "msgset",       "%s", MSGSET_PARAMETER,
             "msg",          "%s", "hgobj NULL or DESTROYED",
             NULL
         );
@@ -9934,7 +9934,7 @@ PUBLIC json_t *gobj_topic_links(
     if(!gobj->gclass->gmt->mt_topic_links) {
         gobj_log_error(gobj, 0,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_INTERNAL_ERROR,
+            "msgset",       "%s", MSGSET_INTERNAL,
             "msg",          "%s", "mt_topic_links not defined",
             NULL
         );
@@ -9960,7 +9960,7 @@ PUBLIC json_t *gobj_topic_hooks(
         gobj_log_error(gobj, 0,
             "gobj",         "%s", __FILE__,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+            "msgset",       "%s", MSGSET_PARAMETER,
             "msg",          "%s", "hgobj NULL or DESTROYED",
             NULL
         );
@@ -9970,7 +9970,7 @@ PUBLIC json_t *gobj_topic_hooks(
     if(!gobj->gclass->gmt->mt_topic_hooks) {
         gobj_log_error(gobj, 0,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_INTERNAL_ERROR,
+            "msgset",       "%s", MSGSET_INTERNAL,
             "msg",          "%s", "mt_topic_hooks not defined",
             NULL
         );
@@ -9994,7 +9994,7 @@ PUBLIC size_t gobj_topic_size(
         gobj_log_error(gobj, 0,
             "gobj",         "%s", __FILE__,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+            "msgset",       "%s", MSGSET_PARAMETER,
             "msg",          "%s", "hgobj NULL or DESTROYED",
             NULL
         );
@@ -10003,7 +10003,7 @@ PUBLIC size_t gobj_topic_size(
     if(!gobj->gclass->gmt->mt_topic_size) {
         gobj_log_error(gobj, 0,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_INTERNAL_ERROR,
+            "msgset",       "%s", MSGSET_INTERNAL,
             "msg",          "%s", "mt_topic_size not defined",
             NULL
         );
@@ -10028,7 +10028,7 @@ PUBLIC json_t *gobj_create_node( // Return is YOURS
         gobj_log_error(gobj, 0,
             "gobj",         "%s", __FILE__,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+            "msgset",       "%s", MSGSET_PARAMETER,
             "msg",          "%s", "hgobj NULL or DESTROYED",
             NULL
         );
@@ -10039,7 +10039,7 @@ PUBLIC json_t *gobj_create_node( // Return is YOURS
     if(!gobj->gclass->gmt->mt_create_node) {
         gobj_log_error(gobj, 0,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_INTERNAL_ERROR,
+            "msgset",       "%s", MSGSET_INTERNAL,
             "msg",          "%s", "mt_create_node not defined",
             NULL
         );
@@ -10066,7 +10066,7 @@ PUBLIC json_t *gobj_update_node( // Return is YOURS
         gobj_log_error(gobj, 0,
             "gobj",         "%s", __FILE__,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+            "msgset",       "%s", MSGSET_PARAMETER,
             "msg",          "%s", "hgobj NULL or DESTROYED",
             NULL
         );
@@ -10077,7 +10077,7 @@ PUBLIC json_t *gobj_update_node( // Return is YOURS
     if(!gobj->gclass->gmt->mt_update_node) {
         gobj_log_error(gobj, 0,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_INTERNAL_ERROR,
+            "msgset",       "%s", MSGSET_INTERNAL,
             "msg",          "%s", "mt_update_node not defined",
             NULL
         );
@@ -10104,7 +10104,7 @@ PUBLIC int gobj_delete_node(
         gobj_log_error(gobj, 0,
             "gobj",         "%s", __FILE__,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+            "msgset",       "%s", MSGSET_PARAMETER,
             "msg",          "%s", "hgobj NULL or DESTROYED",
             NULL
         );
@@ -10115,7 +10115,7 @@ PUBLIC int gobj_delete_node(
     if(!gobj->gclass->gmt->mt_delete_node) {
         gobj_log_error(gobj, 0,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_INTERNAL_ERROR,
+            "msgset",       "%s", MSGSET_INTERNAL,
             "msg",          "%s", "mt_delete_node not defined",
             NULL
         );
@@ -10144,7 +10144,7 @@ PUBLIC int gobj_link_nodes(
         gobj_log_error(gobj, 0,
             "gobj",         "%s", __FILE__,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+            "msgset",       "%s", MSGSET_PARAMETER,
             "msg",          "%s", "hgobj NULL or DESTROYED",
             NULL
         );
@@ -10155,7 +10155,7 @@ PUBLIC int gobj_link_nodes(
     if(!gobj->gclass->gmt->mt_link_nodes) {
         gobj_log_error(gobj, 0,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_INTERNAL_ERROR,
+            "msgset",       "%s", MSGSET_INTERNAL,
             "msg",          "%s", "mt_link_nodes not defined",
             NULL
         );
@@ -10192,7 +10192,7 @@ PUBLIC int gobj_unlink_nodes(
         gobj_log_error(gobj, 0,
             "gobj",         "%s", __FILE__,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+            "msgset",       "%s", MSGSET_PARAMETER,
             "msg",          "%s", "hgobj NULL or DESTROYED",
             NULL
         );
@@ -10203,7 +10203,7 @@ PUBLIC int gobj_unlink_nodes(
     if(!gobj->gclass->gmt->mt_unlink_nodes) {
         gobj_log_error(gobj, 0,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_INTERNAL_ERROR,
+            "msgset",       "%s", MSGSET_INTERNAL,
             "msg",          "%s", "mt_unlink_nodes not defined",
             NULL
         );
@@ -10238,7 +10238,7 @@ PUBLIC json_t *gobj_get_node( // Return is YOURS
         gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
             "gobj",         "%s", __FILE__,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+            "msgset",       "%s", MSGSET_PARAMETER,
             "msg",          "%s", "hgobj NULL or DESTROYED",
             NULL
         );
@@ -10249,7 +10249,7 @@ PUBLIC json_t *gobj_get_node( // Return is YOURS
     if(!gobj->gclass->gmt->mt_get_node) {
         gobj_log_error(gobj, 0,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_INTERNAL_ERROR,
+            "msgset",       "%s", MSGSET_INTERNAL,
             "msg",          "%s", "mt_get_node not defined",
             NULL
         );
@@ -10276,7 +10276,7 @@ PUBLIC json_t *gobj_list_nodes( // Return MUST be decref
         gobj_log_error(gobj, 0,
             "gobj",         "%s", __FILE__,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+            "msgset",       "%s", MSGSET_PARAMETER,
             "msg",          "%s", "hgobj NULL or DESTROYED",
             NULL
         );
@@ -10287,7 +10287,7 @@ PUBLIC json_t *gobj_list_nodes( // Return MUST be decref
     if(!gobj->gclass->gmt->mt_list_nodes) {
         gobj_log_error(gobj, 0,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_INTERNAL_ERROR,
+            "msgset",       "%s", MSGSET_INTERNAL,
             "msg",          "%s", "mt_list_nodes not defined",
             NULL
         );
@@ -10316,7 +10316,7 @@ PUBLIC json_t *gobj_list_instances(
         gobj_log_error(gobj, 0,
             "gobj",         "%s", __FILE__,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+            "msgset",       "%s", MSGSET_PARAMETER,
             "msg",          "%s", "hgobj NULL or DESTROYED",
             NULL
         );
@@ -10327,7 +10327,7 @@ PUBLIC json_t *gobj_list_instances(
     if(!gobj->gclass->gmt->mt_list_instances) {
         gobj_log_error(gobj, 0,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_INTERNAL_ERROR,
+            "msgset",       "%s", MSGSET_INTERNAL,
             "msg",          "%s", "mt_list_instances not defined",
             NULL
         );
@@ -10360,7 +10360,7 @@ PUBLIC json_t *gobj_node_parents( // Return MUST be decref
         gobj_log_error(gobj, 0,
             "gobj",         "%s", __FILE__,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+            "msgset",       "%s", MSGSET_PARAMETER,
             "msg",          "%s", "hgobj NULL or DESTROYED",
             NULL
         );
@@ -10371,7 +10371,7 @@ PUBLIC json_t *gobj_node_parents( // Return MUST be decref
     if(!gobj->gclass->gmt->mt_node_parents) {
         gobj_log_error(gobj, 0,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_INTERNAL_ERROR,
+            "msgset",       "%s", MSGSET_INTERNAL,
             "msg",          "%s", "mt_node_parents not defined",
             NULL
         );
@@ -10401,7 +10401,7 @@ PUBLIC json_t *gobj_node_children( // Return MUST be decref
         gobj_log_error(gobj, 0,
             "gobj",         "%s", __FILE__,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+            "msgset",       "%s", MSGSET_PARAMETER,
             "msg",          "%s", "hgobj NULL or DESTROYED",
             NULL
         );
@@ -10412,7 +10412,7 @@ PUBLIC json_t *gobj_node_children( // Return MUST be decref
     if(!gobj->gclass->gmt->mt_node_children) {
         gobj_log_error(gobj, 0,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_INTERNAL_ERROR,
+            "msgset",       "%s", MSGSET_INTERNAL,
             "msg",          "%s", "mt_node_children not defined",
             NULL
         );
@@ -10446,7 +10446,7 @@ PUBLIC json_t *gobj_topic_jtree( // Return MUST be decref
         gobj_log_error(gobj, 0,
             "gobj",         "%s", __FILE__,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+            "msgset",       "%s", MSGSET_PARAMETER,
             "msg",          "%s", "hgobj NULL or DESTROYED",
             NULL
         );
@@ -10458,7 +10458,7 @@ PUBLIC json_t *gobj_topic_jtree( // Return MUST be decref
     if(!gobj->gclass->gmt->mt_topic_jtree) {
         gobj_log_error(gobj, 0,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_INTERNAL_ERROR,
+            "msgset",       "%s", MSGSET_INTERNAL,
             "msg",          "%s", "mt_topic_jtree not defined",
             NULL
         );
@@ -10495,7 +10495,7 @@ PUBLIC json_t *gobj_node_tree( // Return MUST be decref
         gobj_log_error(gobj, 0,
             "gobj",         "%s", __FILE__,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+            "msgset",       "%s", MSGSET_PARAMETER,
             "msg",          "%s", "hgobj NULL or DESTROYED",
             NULL
         );
@@ -10506,7 +10506,7 @@ PUBLIC json_t *gobj_node_tree( // Return MUST be decref
     if(!gobj->gclass->gmt->mt_node_tree) {
         gobj_log_error(gobj, 0,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_INTERNAL_ERROR,
+            "msgset",       "%s", MSGSET_INTERNAL,
             "msg",          "%s", "mt_node_tree not defined",
             NULL
         );
@@ -10538,7 +10538,7 @@ PUBLIC int gobj_shoot_snap(
         gobj_log_error(gobj, 0,
             "gobj",         "%s", __FILE__,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+            "msgset",       "%s", MSGSET_PARAMETER,
             "msg",          "%s", "hgobj NULL or DESTROYED",
             NULL
         );
@@ -10548,7 +10548,7 @@ PUBLIC int gobj_shoot_snap(
     if(!gobj->gclass->gmt->mt_shoot_snap) {
         gobj_log_error(gobj, 0,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_INTERNAL_ERROR,
+            "msgset",       "%s", MSGSET_INTERNAL,
             "msg",          "%s", "mt_shoot_snap not defined",
             NULL
         );
@@ -10573,7 +10573,7 @@ PUBLIC int gobj_activate_snap(
         gobj_log_error(gobj, 0,
             "gobj",         "%s", __FILE__,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+            "msgset",       "%s", MSGSET_PARAMETER,
             "msg",          "%s", "hgobj NULL or DESTROYED",
             NULL
         );
@@ -10583,7 +10583,7 @@ PUBLIC int gobj_activate_snap(
     if(!gobj->gclass->gmt->mt_activate_snap) {
         gobj_log_error(gobj, 0,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_INTERNAL_ERROR,
+            "msgset",       "%s", MSGSET_INTERNAL,
             "msg",          "%s", "mt_activate_snap not defined",
             NULL
         );
@@ -10607,7 +10607,7 @@ PUBLIC json_t *gobj_list_snaps(
         gobj_log_error(gobj, 0,
             "gobj",         "%s", __FILE__,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+            "msgset",       "%s", MSGSET_PARAMETER,
             "msg",          "%s", "hgobj NULL or DESTROYED",
             NULL
         );
@@ -10617,7 +10617,7 @@ PUBLIC json_t *gobj_list_snaps(
     if(!gobj->gclass->gmt->mt_list_snaps) {
         gobj_log_error(gobj, 0,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_INTERNAL_ERROR,
+            "msgset",       "%s", MSGSET_INTERNAL,
             "msg",          "%s", "mt_list_snaps not defined",
             NULL
         );
@@ -11176,7 +11176,7 @@ PRIVATE int _set_gobj_trace_level(gobj_t * gobj, const char *level, BOOL set)
                 if(__initialized__) {
                     gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
                         "function",     "%s", __FUNCTION__,
-                        "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+                        "msgset",       "%s", MSGSET_PARAMETER,
                         "msg",          "%s", "gclass trace level NOT FOUND",
                         "gobj_name",    "%s", gobj_short_name(gobj),
                         "level",        "%s", level,
@@ -11258,7 +11258,7 @@ PUBLIC int gobj_set_gclass_trace(hgclass gclass_, const char *level, BOOL set)
                 if(__initialized__) {
                     gobj_log_error(0, LOG_OPT_TRACE_STACK,
                         "function",     "%s", __FUNCTION__,
-                        "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+                        "msgset",       "%s", MSGSET_PARAMETER,
                         "msg",          "%s", "gclass trace level NOT FOUND",
                         "gclass",       "%s", gclass->gclass_name,
                         "level",        "%s", level,
@@ -11319,7 +11319,7 @@ PUBLIC int gobj_set_global_trace(const char *level, BOOL set)
                 if(__initialized__) {
                     gobj_log_error(0, LOG_OPT_TRACE_STACK,
                         "function",     "%s", __FUNCTION__,
-                        "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+                        "msgset",       "%s", MSGSET_PARAMETER,
                         "msg",          "%s", "global trace level NOT FOUND",
                         "level",        "%s", level,
                         NULL
@@ -11363,7 +11363,7 @@ PUBLIC int gobj_set_global_no_trace(const char *level, BOOL set)
                 if(__initialized__) {
                     gobj_log_error(0, LOG_OPT_TRACE_STACK,
                         "function",     "%s", __FUNCTION__,
-                        "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+                        "msgset",       "%s", MSGSET_PARAMETER,
                         "msg",          "%s", "global trace level NOT FOUND",
                         "level",        "%s", level,
                         NULL
@@ -11450,7 +11450,7 @@ PUBLIC int gobj_add_trace_filter(hgclass gclass_, const char *attr, const char *
     if(empty_string(attr)) {
         gobj_log_error(0, LOG_OPT_TRACE_STACK,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+            "msgset",       "%s", MSGSET_PARAMETER,
             "msg",          "%s", "attr NULL",
             NULL
         );
@@ -11459,7 +11459,7 @@ PUBLIC int gobj_add_trace_filter(hgclass gclass_, const char *attr, const char *
     if(!gclass_has_attr(gclass, attr)) {
         gobj_log_error(0, LOG_OPT_TRACE_STACK,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+            "msgset",       "%s", MSGSET_PARAMETER,
             "msg",          "%s", "gclass has not this attribute",
             "attr",         "%s", attr,
             NULL
@@ -11475,7 +11475,7 @@ PUBLIC int gobj_add_trace_filter(hgclass gclass_, const char *attr, const char *
     if(!jn_list) {
         gobj_log_error(0, LOG_OPT_TRACE_STACK,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_MEMORY_ERROR,
+            "msgset",       "%s", MSGSET_MEMORY,
             "msg",          "%s", "cannot create list",
             "attr",         "%s", attr,
             "value",        "%s", value?value:"",
@@ -11513,7 +11513,7 @@ PUBLIC int gobj_remove_trace_filter(hgclass gclass_, const char *attr, const cha
     if(!jn_list) {
         gobj_log_error(0, LOG_OPT_TRACE_STACK,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+            "msgset",       "%s", MSGSET_PARAMETER,
             "msg",          "%s", "attr not found",
             "attr",         "%s", attr,
             "value",        "%s", value?value:"",
@@ -11535,7 +11535,7 @@ PUBLIC int gobj_remove_trace_filter(hgclass gclass_, const char *attr, const cha
     if(idx < 0) {
         gobj_log_error(0, LOG_OPT_TRACE_STACK,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+            "msgset",       "%s", MSGSET_PARAMETER,
             "msg",          "%s", "value not found",
             "attr",         "%s", attr,
             "value",        "%s", value?value:"",
@@ -11576,7 +11576,7 @@ PUBLIC int gobj_set_gclass_no_trace(hgclass gclass_, const char *level, BOOL set
     if(!gclass) {
         gobj_log_error(0, LOG_OPT_TRACE_STACK,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+            "msgset",       "%s", MSGSET_PARAMETER,
             "msg",          "%s", "gclass NULL",
             NULL
         );
@@ -11594,7 +11594,7 @@ PUBLIC int gobj_set_gclass_no_trace(hgclass gclass_, const char *level, BOOL set
                 if(__initialized__) {
                     gobj_log_error(0, LOG_OPT_TRACE_STACK,
                         "function",     "%s", __FUNCTION__,
-                        "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+                        "msgset",       "%s", MSGSET_PARAMETER,
                         "msg",          "%s", "gclass trace level NOT FOUND",
                         "gclass",       "%s", gclass->gclass_name,
                         "level",        "%s", level,
@@ -11644,7 +11644,7 @@ PRIVATE int _set_gobj_trace_no_level(hgobj gobj_, const char *level, BOOL set)
                 if(__initialized__) {
                     gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
                         "function",     "%s", __FUNCTION__,
-                        "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+                        "msgset",       "%s", MSGSET_PARAMETER,
                         "msg",          "%s", "gclass trace level NOT FOUND",
                         "level",        "%s", level,
                         NULL
