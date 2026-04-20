@@ -10903,12 +10903,6 @@ PRIVATE int ac_timeout(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
-    if(src == priv->cert_sync_timer) {
-        cert_sync_tick(gobj);
-        KW_DECREF(kw);
-        return 0;
-    }
-
     if(!priv->util_yunos_running) {
         priv->util_yunos_running = 1;
         run_util_yunos(gobj);
@@ -10918,6 +10912,17 @@ PRIVATE int ac_timeout(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
         run_enabled_yunos(gobj);
         exec_startup_command(gobj);
     }
+
+    KW_DECREF(kw);
+    return 0;
+}
+
+/***************************************************************************
+ *  Periodic cert-sync tick.
+ ***************************************************************************/
+PRIVATE int ac_timeout_periodic(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
+{
+    cert_sync_tick(gobj);
 
     KW_DECREF(kw);
     return 0;
@@ -11001,6 +11006,7 @@ PRIVATE int create_gclass(gclass_name_t gclass_name)
         {EV_TTY_CLOSE,            ac_tty_close,           0},
         {EV_WRITE_TTY,            ac_write_tty,           0},
         {EV_TIMEOUT,              ac_timeout,             0},
+        {EV_TIMEOUT_PERIODIC,     ac_timeout_periodic,    0},
         {EV_STOPPED,              0,                      0},
         {0,0,0}
     };
@@ -11035,6 +11041,7 @@ PRIVATE int create_gclass(gclass_name_t gclass_name)
         {EV_ON_CLOSE,             0},
         {EV_FINAL_COUNT,          0},
         {EV_TIMEOUT,              0},
+        {EV_TIMEOUT_PERIODIC,     0},
         {EV_STOPPED,              0},
 
         /* Publications (outputs) */
