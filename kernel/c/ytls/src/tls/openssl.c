@@ -763,12 +763,11 @@ PRIVATE hsskt new_secure_filter(
 
     SSL_set_bio(sskt->ssl, sskt->rbio, sskt->wbio);
 
-    if(do_handshake(sskt)<0) {
-        SSL_free(sskt->ssl);   /* free the SSL object and its BIO's */
-        GBMEM_FREE(sskt)
-        return 0;
-    }
-
+    /*
+     *  The filter is left "cold": no SSL_do_handshake() here. The caller is
+     *  responsible for invoking ytls_do_handshake() once ready (e.g. c_tcp
+     *  does so after changing to ST_WAIT_HANDSHAKE).
+     */
     return sskt;
 }
 

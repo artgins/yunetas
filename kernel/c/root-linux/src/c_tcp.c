@@ -589,6 +589,25 @@ PRIVATE void set_connected(hgobj gobj, int fd)
 
         ytls_set_trace(priv->ytls, priv->sskt, (trace_level & TRACE_TLS)?TRUE:FALSE);
 
+        /*
+         *  Kick off the handshake explicitly. On the client side this emits
+         *  the ClientHello via on_encrypted_data_cb (which is wired to
+         *  EV_SEND_ENCRYPTED_DATA; we are already in ST_WAIT_HANDSHAKE so
+         *  the event is accepted). On the server side it is a no-op that
+         *  returns 0 (WANT_READ) until the peer speaks first.
+         */
+        if(ytls_do_handshake(priv->ytls, priv->sskt) < 0) {
+            gobj_log_error(gobj, 0,
+                "function",     "%s", __FUNCTION__,
+                "msgset",       "%s", MSGSET_SYSTEM,
+                "msg",          "%s", "ytls_do_handshake() FAILED",
+                "error",        "%s", ytls_get_last_error(priv->ytls, priv->sskt),
+                NULL
+            );
+            try_to_stop_yevents(gobj);
+            return;
+        }
+
     } else {
         /*---------------------------*
          *      Clear traffic

@@ -235,6 +235,7 @@ PRIVATE int yev_server_callback(yev_event_h yev_event)
                     (void *)(uintptr_t)yev_get_result(yev_event_accept)
                 );
                 if(!sskt_server) ret = -1;
+                else if(ytls_do_handshake(ytls_server, sskt_server) < 0) ret = -1;
             } else {
                 ret = -1;
             }
@@ -291,6 +292,7 @@ PRIVATE int yev_client_callback(yev_event_h yev_event)
                     (void *)(uintptr_t)yev_get_fd(yev_event_connect)
                 );
                 if(!sskt_client) ret = -1;
+                else if(ytls_do_handshake(ytls_client, sskt_client) < 0) ret = -1;
             } else {
                 ret = -1;
             }

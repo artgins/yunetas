@@ -285,6 +285,8 @@ PRIVATE int yev_server_callback(yev_event_h yev_event)
                         //msg = "Server: Bad ytls";
                         //log_error()
                         ret = -1; // break the loop
+                    } else if(ytls_do_handshake(ytls_server, sskt_server) < 0) {
+                        ret = -1; // break the loop
                     }
 
                 } else {
@@ -425,6 +427,8 @@ PRIVATE int yev_client_callback(yev_event_h yev_event)
                     if(!sskt_client) {
                         //msg = "Client: Bad ytls";
                         //log_error()
+                        ret = -1; // break the loop
+                    } else if(ytls_do_handshake(ytls_client, sskt_client) < 0) {
                         ret = -1; // break the loop
                     }
 

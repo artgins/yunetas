@@ -720,27 +720,13 @@ PRIVATE hsskt new_secure_filter(
         NULL                        // Function for receive timeout (optional)
     );
 
-    // For client: initiate the TLS handshake (sends Client Hello)
-    if(!ytls->server) {
-        int ret = mbedtls_ssl_handshake(&sskt->ssl);
-        if(ret != 0 && ret != MBEDTLS_ERR_SSL_WANT_READ && ret != MBEDTLS_ERR_SSL_WANT_WRITE) {
-            char error_buf[256];
-            mbedtls_strerror(ret, error_buf, sizeof(error_buf));
-            gobj_log_error(ytls->gobj, 0,
-                "function",         "%s", __FUNCTION__,
-                "msgset",           "%s", MSGSET_MBEDTLS,
-                "msg",              "%s", "Initial TLS handshake (Client Hello) FAILED",
-                "error_code",       "%d", ret,
-                "error_message",    "%s", error_buf,
-                NULL
-            );
-            free_secure_filter(sskt);
-            return NULL;
-        }
-        // Flush the Client Hello that send_callback accumulated in output_buffer
-        flush_encrypted_data(sskt);
-    }
-
+    /*
+     *  The filter is left "cold": no mbedtls_ssl_handshake() here. The caller
+     *  is responsible for invoking ytls_do_handshake() once ready (e.g. c_tcp
+     *  does so after changing to ST_WAIT_HANDSHAKE). On the client side this
+     *  triggers the ClientHello; on the server side it is a no-op that returns
+     *  WANT_READ until the peer sends its ClientHello.
+     */
     return sskt;
 }
 
