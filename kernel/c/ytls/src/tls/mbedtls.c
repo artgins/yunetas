@@ -1190,40 +1190,14 @@ PRIVATE int decrypt_data(
 
     /*
      * Drive the TLS engine.
-     * - During handshake: recv_callback pulls data from encrypted_buffer;
+     * - During handshake: delegate to do_handshake() (same pattern as
+     *   openssl backend). recv_callback pulls data from encrypted_buffer;
      *   send_callback forwards outgoing handshake bytes via on_encrypted_data_cb.
      * - After handshake: read decrypted application data via flush_clear_data.
      */
     if(!mbedtls_ssl_is_handshake_over(&sskt->ssl)) {
-        int ret = mbedtls_ssl_handshake(&sskt->ssl);
-        if(ret == 0) {
-            /* Handshake just completed — flush handshake response bytes */
-            flush_encrypted_data(sskt);
-            if(!sskt->handshake_informed) {
-                sskt->handshake_informed = TRUE;
-                sskt->on_handshake_done_cb(sskt->user_data, 0);
-            }
-        } else if(ret == MBEDTLS_ERR_SSL_WANT_READ || ret == MBEDTLS_ERR_SSL_WANT_WRITE) {
-            /* Normal: need more data from the network or waiting for write */
-            flush_encrypted_data(sskt); // Send accumulated handshake bytes
-            if(sskt->ytls->trace_tls) {
-                gobj_trace_msg(gobj, "------- decrypt_data handshake: %s, userp %p",
-                    ret == MBEDTLS_ERR_SSL_WANT_READ ? "WANT_READ" : "WANT_WRITE",
-                    sskt->user_data);
-            }
-        } else {
-            char error_buf[256];
-            mbedtls_strerror(ret, error_buf, sizeof(error_buf));
-            gobj_log_error(gobj, 0,
-                "function",         "%s", __FUNCTION__,
-                "msgset",           "%s", MSGSET_MBEDTLS,
-                "msg",              "%s", "TLS handshake failed",
-                "error_code",       "%d", ret,
-                "error_message",    "%s", error_buf,
-                NULL
-            );
-            gobj_log_set_last_message("%s", error_buf);
-            sskt->on_handshake_done_cb(sskt->user_data, -1);
+        if(do_handshake(sskt) < 0) {
+            // Error already logged; callback already invoked.
             return -1111; // Mark as TLS error (must be < -1000 for c_tcp to close the socket)
         }
     } else {
