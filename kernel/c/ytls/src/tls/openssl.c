@@ -111,7 +111,7 @@ typedef struct sskt_s {
     int (*on_encrypted_data_cb)(void *user_data, gbuffer_t *gbuf);
     void *user_data;
     char last_error[256];
-    int error;
+    unsigned long error; // holds ERR_get_error() (unsigned long per OpenSSL API)
     char rx_bf[16*1024];
     BOOL *alive; // Points to stack var in flush_clear_data; set to FALSE when freed mid-callback
 } sskt_t;
@@ -735,7 +735,7 @@ PRIVATE hsskt new_secure_filter(
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_OPENSSL,
             "msg",          "%s", "SSL_new() FAILED",
-            "error",        "%d", (int)sskt->error,
+            "error",        "%lu", (unsigned long)sskt->error,
             "serror",       "%s", sskt->last_error,
             NULL
         );
@@ -1001,7 +1001,7 @@ PRIVATE int encrypt_data(
                     "msgset",       "%s", MSGSET_OPENSSL,
                     "msg",          "%s", "SSL_write() FAILED",
                     "ret",          "%d", (int)ret,
-                    "error",        "%d", (int)sskt->error,
+                    "error",        "%lu", (unsigned long)sskt->error,
                     "serror",       "%s", sskt->last_error,
                     NULL
                 );
@@ -1055,26 +1055,31 @@ PRIVATE int flush_clear_data(sskt_t *sskt)
             gobj_trace_msg(gobj, "------- flush_clear_data() %d, userp %p", nread, sskt->user_data);
         }
         if(nread <= 0) {
-            sskt->error = ERR_get_error();
-            if(sskt->error < 0) {
-                ERR_error_string_n(sskt->error, sskt->last_error, sizeof(sskt->last_error));
-                gobj_log_error(gobj, 0,
-                    "function",     "%s", __FUNCTION__,
-                    "msgset",       "%s", MSGSET_OPENSSL,
-                    "msg",          "%s", "SSL_read() FAILED",
-                    "ret",          "%d", (int)nread,
-                    "error",        "%d", (int)sskt->error,
-                    "serror",       "%s", sskt->last_error,
-                    NULL
-                );
-                GBUFFER_DECREF(gbuf)
-                sskt->alive = NULL;
-                return -1111; // Mark as TLS error
-            } else {
-                // no more data
+            const int ssl_err = SSL_get_error(sskt->ssl, nread);
+            if(ssl_err == SSL_ERROR_WANT_READ
+                    || ssl_err == SSL_ERROR_WANT_WRITE
+                    || ssl_err == SSL_ERROR_ZERO_RETURN) {
+                // No more data right now (WANT_*) or peer sent close_notify
+                // (ZERO_RETURN — clean TLS shutdown; TCP-level close is
+                // reported separately by the read yev_event).
                 GBUFFER_DECREF(gbuf)
                 break;
             }
+            sskt->error = ERR_get_error();
+            ERR_error_string_n(sskt->error, sskt->last_error, sizeof(sskt->last_error));
+            gobj_log_error(gobj, 0,
+                "function",     "%s", __FUNCTION__,
+                "msgset",       "%s", MSGSET_OPENSSL,
+                "msg",          "%s", "SSL_read() FAILED",
+                "ret",          "%d", (int)nread,
+                "ssl_err",      "%d", ssl_err,
+                "error",        "%lu", (unsigned long)sskt->error,
+                "serror",       "%s", sskt->last_error,
+                NULL
+            );
+            GBUFFER_DECREF(gbuf)
+            sskt->alive = NULL;
+            return -1111; // Mark as TLS error
         }
 
         // Callback clear data
@@ -1118,7 +1123,7 @@ PRIVATE int decrypt_data(
                 "msgset",       "%s", MSGSET_OPENSSL,
                 "msg",          "%s", "BIO_write() FAILED",
                 "ret",          "%d", (int)written,
-                "error",        "%d", (int)sskt->error,
+                "error",        "%lu", (unsigned long)sskt->error,
                 "serror",       "%s", sskt->last_error,
                 NULL
             );
