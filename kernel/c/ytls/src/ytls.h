@@ -100,11 +100,11 @@ typedef struct api_tls_s {
     );
     void (*free_secure_filter)(hsskt sskt);
     int (*do_handshake)(hsskt sskt); // Must return 1 (done), 0 (in progress), -1 (failure)
-    int (*encrypt_data)(
+    int (*encrypt_data)(                // return 0 on success, <-1000 on TLS error (c_tcp closes socket)
         hsskt sskt,
         gbuffer_t *gbuf  // owned
     );
-    int (*decrypt_data)(
+    int (*decrypt_data)(                // return 0 on success, <-1000 on TLS error (c_tcp closes socket)
         hsskt sskt,
         gbuffer_t *gbuf  // owned
     );

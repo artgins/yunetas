@@ -890,7 +890,7 @@ PRIVATE int do_handshake(hsskt sskt_)
             );
             gobj_log_set_last_message("%s", error_buf);
             sskt->on_handshake_done_cb(sskt->user_data, -1);
-            return -1111; // Mark as TLS error (must be < -1000 for c_tcp to close the socket)
+            return -1; // Handshake failure (vtable contract: 1/0/-1)
         }
     }
 

@@ -896,9 +896,10 @@ PRIVATE int do_handshake(hsskt sskt_)
             sskt->handshake_informed = TRUE;
             sskt->on_handshake_done_cb(sskt->user_data, 0);
         }
+        return 1; // handshake done
     }
 
-    return 0;
+    return 0; // handshake in progress (WANT_READ/WANT_WRITE)
 }
 
 /***************************************************************************
