@@ -468,6 +468,8 @@ Returns an `hsskt` handle representing the newly created secure filter, or `NULL
 
 The secure filter manages encrypted communication and invokes the provided callbacks for handshake completion, clear data reception, and encrypted data transmission.
 
+The filter is returned "cold": no handshake is started automatically. Call [`ytls_do_handshake()`](<#ytls_do_handshake>) right after this function to kick off the TLS handshake. On the client side this emits the ClientHello via `on_encrypted_data_cb`; on the server side it is a no-op that returns `0` (WANT_READ) until the peer speaks first.
+
 ---
 
 (ytls_set_trace)=

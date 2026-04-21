@@ -185,7 +185,11 @@ PUBLIC json_t *ytls_get_cert_info(hytls ytls);
 PUBLIC const char * ytls_version(hytls ytls);
 
 /**rst**
-    Get new secure filter
+    Get new secure filter.
+    The filter is returned "cold": no handshake is started automatically.
+    The caller must invoke ytls_do_handshake() once ready to kick off
+    the TLS handshake (on the client side this emits the ClientHello;
+    on the server side it is a no-op until the peer speaks first).
 **rst**/
 PUBLIC hsskt ytls_new_secure_filter(
     hytls ytls,
