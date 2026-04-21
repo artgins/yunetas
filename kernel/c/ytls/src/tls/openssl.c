@@ -870,7 +870,6 @@ PRIVATE int do_handshake(hsskt sskt_)
                 );
             }
             flush_encrypted_data(sskt);
-            flush_clear_data(sskt);
             break;
 
         default:
