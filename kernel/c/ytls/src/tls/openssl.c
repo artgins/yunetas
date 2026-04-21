@@ -864,12 +864,11 @@ PRIVATE int do_handshake(hsskt sskt_)
         case SSL_ERROR_WANT_READ:
         case SSL_ERROR_WANT_WRITE:
             if(sskt->ytls->trace_tls) {
-                gobj_trace_msg(gobj, "------- encrypt_data: %s, userp %p",
-                    ret==SSL_ERROR_WANT_READ?"SSL_ERROR_WANT_READ":"SSL_ERROR_WANT_WRITE",
+                gobj_trace_msg(gobj, "------- do_handshake: %s, userp %p",
+                    detail==SSL_ERROR_WANT_READ?"SSL_ERROR_WANT_READ":"SSL_ERROR_WANT_WRITE",
                     sskt->user_data
                 );
             }
-            flush_encrypted_data(sskt);
             break;
 
         default:
