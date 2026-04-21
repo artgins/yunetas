@@ -157,15 +157,19 @@ PUBLIC int ghttp_parser_received(
         return (int)consumed;
     } else if (err != HPE_OK) {
         /* Handle error. Usually just close the connection. */
-        gobj_log_error(gobj,0,
+        const char *peername = gobj_read_str_attr(gobj, "peername");
+        const char *sockname = gobj_read_str_attr(gobj, "sockname");
+        gobj_log_warning(gobj,0,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_PROTOCOL,
-            "msg",          "%s", "llhttp_execute() FAILED",
+            "msg",          "%s", "Protocol violation: non-HTTP data received",
+            "peername",     "%s", peername?peername:"",
+            "sockname",     "%s", sockname?sockname:"",
             "error",        "%s", llhttp_errno_name(err),
             "desc",         "%s", llhttp_get_error_reason(&parser->llhttp),
             NULL
         );
-        gobj_trace_dump(gobj, buf, received, "llhttp_execute() FAILED");
+        gobj_trace_dump(gobj, buf, received, "Protocol violation: non-HTTP data received");
         return -1;
     }
     return (int)received;

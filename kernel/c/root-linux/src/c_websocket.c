@@ -1509,27 +1509,17 @@ PRIVATE BOOL do_response(hgobj gobj, GHTTP_PARSER *request)
  *  Return 0 if no new request.
  *  Return 1 if new request available in `request`.
  ***************************************************************************/
-PRIVATE int process_http(hgobj gobj, gbuffer_t *gbuf, GHTTP_PARSER *parser)
+PRIVATE int parse_http_message(hgobj gobj, gbuffer_t *gbuf, GHTTP_PARSER *parser)
 {
     while (gbuffer_leftbytes(gbuf)) {
         size_t ln = gbuffer_leftbytes(gbuf);
         char *bf = gbuffer_cur_rd_pointer(gbuf);
         int n = ghttp_parser_received(parser, bf, ln);
         if (n == -1) {
-            // Some error in parsing; caller will close the socket.
-            // A fresh parser is built by ac_connected() on the next
-            // connection, so no in-place reset is needed here.
-            const char *peername = gobj_read_str_attr(gobj, "peername");
-            const char *sockname = gobj_read_str_attr(gobj, "sockname");
-            gobj_log_error(gobj, 0,
-                "function",     "%s", __FUNCTION__,
-                "msgset",       "%s", MSGSET_PROTOCOL,
-                "msg",          "%s", "http parser failed",
-                "peername",     "%s", peername?peername:"",
-                "sockname",     "%s", sockname?sockname:"",
-                NULL
-            );
-
+            // Error already logged
+            // Http protocol violation, caller must to close the socket.
+            // No parser reset here: a fresh parser is built by
+            // ac_connected() on the next connection.
             return -1;
         } else if (n > 0) {
             gbuffer_get(gbuf, n);  // take out the bytes consumed
@@ -1686,7 +1676,7 @@ PRIVATE int ac_process_handshake(hgobj gobj, gobj_event_t event, json_t *kw, hgo
         /*
          * analyze the request and respond
          */
-        int result = process_http(gobj, gbuf, priv->parsing_request);
+        int result = parse_http_message(gobj, gbuf, priv->parsing_request);
         if (result < 0) {
             gobj_send_event(gobj_bottom_gobj(gobj), EV_DROP, 0, gobj);
 
@@ -1726,7 +1716,7 @@ PRIVATE int ac_process_handshake(hgobj gobj, gobj_event_t event, json_t *kw, hgo
         /*
          * analyze the response
          */
-        int result = process_http(gobj, gbuf, priv->parsing_response);
+        int result = parse_http_message(gobj, gbuf, priv->parsing_response);
         if (result < 0) {
             gobj_send_event(gobj_bottom_gobj(gobj), EV_DROP, 0, gobj);
 

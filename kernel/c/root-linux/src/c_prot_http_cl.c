@@ -294,15 +294,15 @@ PRIVATE int check_url(hgobj gobj)
  *  Return 0 if no new request.
  *  Return 1 if new request available in `request`.
  ***************************************************************************/
-PRIVATE int parse_message(hgobj gobj, gbuffer_t *gbuf, GHTTP_PARSER *parser)
+PRIVATE int parse_http_message(hgobj gobj, gbuffer_t *gbuf, GHTTP_PARSER *parser)
 {
     size_t ln;
     while((ln=gbuffer_leftbytes(gbuf))>0) {
         char *bf = gbuffer_cur_rd_pointer(gbuf);
         int n = ghttp_parser_received(parser, bf, ln);
         if (n == -1) {
-            gobj_trace_dump_full_gbuf(gobj, gbuf, "ghttp_parser_received() FAILED");
-            // Some error in parsing; caller will close the socket.
+            // Error already logged
+            // Http protocol violation, caller must to close the socket.
             // No parser reset here: a fresh parser is built by
             // ac_connected() on the next connection.
             return -1;
@@ -418,7 +418,7 @@ PRIVATE int ac_rx_data(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 
     set_timeout(priv->timer, priv->timeout_inactivity);
 
-    int result = parse_message(gobj, gbuf, priv->parsing_response);
+    int result = parse_http_message(gobj, gbuf, priv->parsing_response);
     if (result < 0) {
         gobj_send_event(gobj_bottom_gobj(gobj), EV_DROP, 0, gobj);
     }
