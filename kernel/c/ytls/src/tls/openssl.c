@@ -863,6 +863,12 @@ PRIVATE int do_handshake(hsskt sskt_)
         switch(detail) {
         case SSL_ERROR_WANT_READ:
         case SSL_ERROR_WANT_WRITE:
+            if(sskt->ytls->trace_tls) {
+                gobj_trace_msg(gobj, "------- do_handshake: %s, userp %p",
+                    detail==SSL_ERROR_WANT_READ?"SSL_ERROR_WANT_READ":"SSL_ERROR_WANT_WRITE",
+                    sskt->user_data
+                );
+            }
             break;
 
         default:
@@ -877,7 +883,7 @@ PRIVATE int do_handshake(hsskt sskt_)
     flush_encrypted_data(sskt);
 
     BOOL handshake_end = SSL_is_init_finished(sskt->ssl);
-    if(ret==1 || handshake_end) {
+    if(ret==1 || handshake_end) { // Viene los dos a la vez
         /*
         - return 1
             The TLS/SSL handshake was successfully completed,
@@ -1043,7 +1049,6 @@ PRIVATE int flush_clear_data(sskt_t *sskt)
     while(sskt->ssl) {
         gbuffer_t *gbuf = gbuffer_create(sskt->ytls->rx_buffer_size, sskt->ytls->rx_buffer_size);
         char *p = gbuffer_cur_wr_pointer(gbuf);
-        ERR_clear_error(); // clear stale errors so ERR_get_error() reports only THIS call's failure
         int nread = SSL_read(sskt->ssl, p, sskt->ytls->rx_buffer_size);
         if(sskt->ytls->trace_tls) {
             gobj_trace_msg(gobj, "------- flush_clear_data() %d, userp %p", nread, sskt->user_data);
@@ -1061,14 +1066,7 @@ PRIVATE int flush_clear_data(sskt_t *sskt)
             }
             sskt->error = ERR_get_error();
             ERR_error_string_n(sskt->error, sskt->last_error, sizeof(sskt->last_error));
-            /*
-             * Log at warning level: SSL_read() failures after a working TLS session
-             * (e.g. invalid post-handshake record, peer renegotiation attempt on TLS 1.3,
-             * or a stale/corrupt second TLS record bundled with the first) are operational
-             * noise, not application-layer bugs. The connection is closed correctly below.
-             * Using WARNING keeps these out of Global Errors while remaining visible in logs.
-             */
-            gobj_log_warning(gobj, 0,
+            gobj_log_error(gobj, 0,
                 "function",     "%s", __FUNCTION__,
                 "msgset",       "%s", MSGSET_OPENSSL,
                 "msg",          "%s", "SSL_read() FAILED",
