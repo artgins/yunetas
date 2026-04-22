@@ -844,6 +844,13 @@ PRIVATE int do_handshake(hsskt sskt_)
         gobj_trace_msg(gobj, "------- do_handshake, userp %p", sskt->user_data);
     }
 
+    /*
+     * SSL_get_error() consults the thread-local error queue to classify the
+     * result of the SSL operation. Any stale error left by unrelated code
+     * (e.g. libjwt RSA signature verification) will make SSL_get_error()
+     * misreport a benign WANT_READ/WANT_WRITE as SSL_ERROR_SSL.
+     */
+    ERR_clear_error();
     int ret = SSL_do_handshake(sskt->ssl);
     if(ret <= 0)  {
         /*
@@ -976,6 +983,7 @@ PRIVATE int encrypt_data(
     size_t len;
     while(sskt->ssl && (len = gbuffer_chunk(gbuf))>0) {
         const char *p = gbuffer_cur_rd_pointer(gbuf);    // Don't pop data, be sure it's written
+        ERR_clear_error(); // see do_handshake() note on stale error-queue entries
         const int written = SSL_write(sskt->ssl, p, len);
         if(written <= 0) {
             const int ret = SSL_get_error(sskt->ssl, written);
@@ -1049,6 +1057,7 @@ PRIVATE int flush_clear_data(sskt_t *sskt)
     while(sskt->ssl) {
         gbuffer_t *gbuf = gbuffer_create(sskt->ytls->rx_buffer_size, sskt->ytls->rx_buffer_size);
         char *p = gbuffer_cur_wr_pointer(gbuf);
+        ERR_clear_error(); // see do_handshake() note on stale error-queue entries
         int nread = SSL_read(sskt->ssl, p, sskt->ytls->rx_buffer_size);
         if(sskt->ytls->trace_tls) {
             gobj_trace_msg(gobj, "------- flush_clear_data() %d, userp %p", nread, sskt->user_data);
