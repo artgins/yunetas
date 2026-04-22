@@ -106,7 +106,6 @@ typedef struct sskt_s {
     BIO *rbio; /* SSL reads from, we write to. */
     BIO *wbio; /* SSL writes to, we read from. */
     BOOL handshake_informed;
-    BOOL post_handshake; // TRUE after handshake success until first application data received
     int (*on_handshake_done_cb)(void *user_data, int error);
     int (*on_clear_data_cb)(void *user_data, gbuffer_t *gbuf);
     int (*on_encrypted_data_cb)(void *user_data, gbuffer_t *gbuf);
@@ -727,7 +726,6 @@ PRIVATE hsskt new_secure_filter(
     sskt->on_encrypted_data_cb = on_encrypted_data_cb;
     sskt->user_data = user_data;
     sskt->alive = NULL;
-    sskt->post_handshake = FALSE;
 
     sskt->ssl = SSL_new(ytls->ctx);
     if(!sskt->ssl) {
@@ -884,73 +882,18 @@ PRIVATE int do_handshake(hsskt sskt_)
 
     flush_encrypted_data(sskt);
 
-    if(ret == 1) {
+    BOOL handshake_end = SSL_is_init_finished(sskt->ssl);
+    if(ret==1 || handshake_end) {
         /*
-         * TLS 1.3 server: SSL_do_handshake() returns 1 after sending the server
-         * Finished (state TLS_ST_OK), but the client Finished is verified by the
-         * first SSL_read() call (OpenSSL design — see SSL_do_handshake(3)).
-         * Run a probe SSL_read() now so that garbage arriving in the same TCP
-         * segment as the ClientHello is caught here as a handshake failure,
-         * mirroring mbedTLS where mbedtls_ssl_handshake() blocks until the full
-         * exchange completes. For garbage that arrives in a later TCP segment
-         * (post_handshake flag), flush_clear_data() logs it at warning level
-         * rather than error, keeping it out of Global Errors.
-         */
-        gbuffer_t *probe = gbuffer_create(sskt->ytls->rx_buffer_size, sskt->ytls->rx_buffer_size);
-        if(probe) {
-            char *probe_p = gbuffer_cur_wr_pointer(probe);
-            int nread = SSL_read(sskt->ssl, probe_p, sskt->ytls->rx_buffer_size);
-            if(nread <= 0) {
-                GBUFFER_DECREF(probe);
-                const int ssl_err = SSL_get_error(sskt->ssl, nread);
-                if(ssl_err != SSL_ERROR_WANT_READ
-                        && ssl_err != SSL_ERROR_WANT_WRITE
-                        && ssl_err != SSL_ERROR_ZERO_RETURN) {
-                    // Invalid client Finished in same TCP segment — handshake failure
-                    sskt->error = ERR_get_error();
-                    ERR_error_string_n(sskt->error, sskt->last_error, sizeof(sskt->last_error));
-                    gobj_log_set_last_message("%s", sskt->last_error);
-                    sskt->on_handshake_done_cb(sskt->user_data, -1);
-                    return -1;
-                }
-                // WANT_READ/WANT_WRITE/ZERO_RETURN: client Finished not yet in rbio
-            } else {
-                // Application data arrived together with the client Finished.
-                // Fire handshake callback before delivering data (ordering guarantee).
-                gbuffer_set_wr(probe, nread);
-                if(!sskt->handshake_informed) {
-                    sskt->handshake_informed = TRUE;
-                    sskt->post_handshake = FALSE; // data already received, flag not needed
-                    sskt->on_handshake_done_cb(sskt->user_data, 0);
-                }
-                BOOL sskt_alive = TRUE;
-                sskt->alive = &sskt_alive;
-                sskt->on_clear_data_cb(sskt->user_data, probe);
-                if(!sskt_alive) {
-                    return 1;
-                }
-                sskt->alive = NULL;
-                return 1;
-            }
-        }
-
+        - return 1
+            The TLS/SSL handshake was successfully completed,
+            a TLS/SSL connection has been established.
+        */
         if(!sskt->handshake_informed) {
             sskt->handshake_informed = TRUE;
-            sskt->post_handshake = TRUE; // client Finished not yet verified via SSL_read
             sskt->on_handshake_done_cb(sskt->user_data, 0);
         }
         return 1; // handshake done
-    }
-
-    // WANT_READ/WANT_WRITE: defensive check for the edge-case where
-    // SSL_do_handshake returns <=0 but SSL_is_init_finished is already TRUE.
-    if(SSL_is_init_finished(sskt->ssl)) {
-        if(!sskt->handshake_informed) {
-            sskt->handshake_informed = TRUE;
-            sskt->post_handshake = TRUE;
-            sskt->on_handshake_done_cb(sskt->user_data, 0);
-        }
-        return 1;
     }
 
     return 0; // handshake in progress (WANT_READ/WANT_WRITE)
@@ -1134,9 +1077,7 @@ PRIVATE int flush_clear_data(sskt_t *sskt)
             gobj_log_warning(gobj, 0,
                 "function",     "%s", __FUNCTION__,
                 "msgset",       "%s", MSGSET_OPENSSL,
-                "msg",          "%s", sskt->post_handshake ?
-                                        "SSL_read() FAILED (pre-data, late handshake)" :
-                                        "SSL_read() FAILED",
+                "msg",          "%s", "SSL_read() FAILED",
                 "ret",          "%d", (int)nread,
                 "ssl_err",      "%d", ssl_err,
                 "error",        "%lu", (unsigned long)sskt->error,
@@ -1150,7 +1091,6 @@ PRIVATE int flush_clear_data(sskt_t *sskt)
 
         // Callback clear data
         gbuffer_set_wr(gbuf, nread);
-        sskt->post_handshake = FALSE; // first application data received, flag no longer needed
         ret += sskt->on_clear_data_cb(sskt->user_data, gbuf);
         /*
          * Check alive marker: if the callback caused sskt to be freed
@@ -1203,7 +1143,7 @@ PRIVATE int decrypt_data(
         if(sskt->ytls->trace_tls) {
             gobj_trace_msg(gobj, "------- <== decrypt_data, userp %p, len %zu", sskt->user_data, len);
         }
-        if(!sskt->handshake_informed) {
+        if(!SSL_is_init_finished(sskt->ssl)) {
             if(do_handshake(sskt)<0) {
                 // Error already logged
                 GBUFFER_DECREF(gbuf)
