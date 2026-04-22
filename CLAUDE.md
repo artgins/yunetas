@@ -533,14 +533,22 @@ ycommand -c 'run-yuno'                    # start all enabled yunos
 
 #### 1. Activate traces
 
-```bash
-# GClass-level trace (e.g. TLS and traffic on C_TCP for yuno id=1997)
-ycommand -c 'command-yuno id=1997 service=__yuno__ command=set-gclass-trace gclass=C_TCP set=1 level=tls'
-ycommand -c 'command-yuno id=1997 service=__yuno__ command=set-gclass-trace gclass=C_TCP set=1 level=traffic'
+Traces depend on what is being investigated. Each GClass defines its own trace levels;
+there are also global traces that apply across all GClasses.
 
-# Global trace (FSM events)
-ycommand -c 'command-yuno id=1997 service=__yuno__ command=set-global-trace level=machine set=1'
+```bash
+# Discover available trace levels for a GClass
+ycommand -c 'command-yuno id=<id> service=__yuno__ command=get-gclass-trace gclass=<GClass>'
+
+# Enable a GClass trace level
+ycommand -c 'command-yuno id=<id> service=__yuno__ command=set-gclass-trace gclass=<GClass> set=1 level=<level>'
+
+# Enable a global trace level
+ycommand -c 'command-yuno id=<id> service=__yuno__ command=set-global-trace level=<level> set=1'
 ```
+
+Global trace levels include `machine` (FSM events), `connections`, `traffic`, among others.
+GClass trace levels are specific to each class — e.g. `C_TCP` has `tls`, `traffic`, `connect`, etc.
 
 #### 2. Monitor logs
 
@@ -575,11 +583,12 @@ ycommand -c 'run-yuno'
 
 #### 4. Deactivate traces when done
 
+Use the same commands with `set=0`. The response shows remaining active traces;
+it should return `[]` or only the permanently configured ones.
+
 ```bash
-ycommand -c 'command-yuno id=1997 service=__yuno__ command=set-gclass-trace gclass=C_TCP set=0 level=tls'
-ycommand -c 'command-yuno id=1997 service=__yuno__ command=set-gclass-trace gclass=C_TCP set=0 level=traffic'
-ycommand -c 'command-yuno id=1997 service=__yuno__ command=set-global-trace level=machine set=0'
-# Response shows remaining active traces — should be [] or only permanent ones
+ycommand -c 'command-yuno id=<id> service=__yuno__ command=set-gclass-trace gclass=<GClass> set=0 level=<level>'
+ycommand -c 'command-yuno id=<id> service=__yuno__ command=set-global-trace level=<level> set=0'
 ```
 
 ## Environment Variables
