@@ -863,12 +863,6 @@ PRIVATE int do_handshake(hsskt sskt_)
         switch(detail) {
         case SSL_ERROR_WANT_READ:
         case SSL_ERROR_WANT_WRITE:
-            if(sskt->ytls->trace_tls) {
-                gobj_trace_msg(gobj, "------- do_handshake: %s, userp %p",
-                    detail==SSL_ERROR_WANT_READ?"SSL_ERROR_WANT_READ":"SSL_ERROR_WANT_WRITE",
-                    sskt->user_data
-                );
-            }
             break;
 
         default:
