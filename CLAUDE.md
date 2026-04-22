@@ -522,8 +522,64 @@ Running yunos expose commands and stats over a local socket. Use `ycommand` to i
 ```bash
 ycommand -c 'help'                        # list commands of the default yuno
 ycommand -c 'stats'                       # get stats
+ycommand -c 'list-yunos'                  # list all managed yunos with pid/status
+ycommand -c 'list-binaries'               # list stored binaries with size and date
 ycommand -c 'kill-yuno id=<id>'           # stop a yuno
-ycommand -c 'update-binary id=X content64=$$(X)'   # update binary (dev only)
+ycommand -c 'update-binary id=X content64=$$(X)'   # upload new binary (same version)
+ycommand -c 'run-yuno'                    # start all enabled yunos
+```
+
+### Debugging a running yuno
+
+#### 1. Activate traces
+
+```bash
+# GClass-level trace (e.g. TLS and traffic on C_TCP for yuno id=1997)
+ycommand -c 'command-yuno id=1997 service=__yuno__ command=set-gclass-trace gclass=C_TCP set=1 level=tls'
+ycommand -c 'command-yuno id=1997 service=__yuno__ command=set-gclass-trace gclass=C_TCP set=1 level=traffic'
+
+# Global trace (FSM events)
+ycommand -c 'command-yuno id=1997 service=__yuno__ command=set-global-trace level=machine set=1'
+```
+
+#### 2. Monitor logs
+
+```bash
+# Find the active log (most recent)
+ls -lt /yuneta/realms/<realm>/<yuno>/logs/
+
+# Follow in real time, filtering by keyword
+tail -f /yuneta/realms/<realm>/<yuno>/logs/<N>.log | grep -a "keyword"
+```
+
+#### 3. Deploy an updated binary
+
+**Always go through the agent — never kill processes manually or overwrite a running binary directly.**
+
+```bash
+# 1. Build
+cd /yuneta/development/yunetas/yunos/c/<yuno>/build && make clean && make install
+
+# 2. Kill the running yuno(s)
+ycommand -c 'kill-yuno yuno_role=<role>'
+
+# 3. Upload the new binary (version string stays the same)
+ycommand -c 'update-binary id=<role> content64=$$(<role>)'
+
+# 4. Verify the new size/date
+ycommand -c 'list-binaries'
+
+# 5. Start the yuno(s)
+ycommand -c 'run-yuno'
+```
+
+#### 4. Deactivate traces when done
+
+```bash
+ycommand -c 'command-yuno id=1997 service=__yuno__ command=set-gclass-trace gclass=C_TCP set=0 level=tls'
+ycommand -c 'command-yuno id=1997 service=__yuno__ command=set-gclass-trace gclass=C_TCP set=0 level=traffic'
+ycommand -c 'command-yuno id=1997 service=__yuno__ command=set-global-trace level=machine set=0'
+# Response shows remaining active traces — should be [] or only permanent ones
 ```
 
 ## Environment Variables
