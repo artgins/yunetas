@@ -1126,7 +1126,7 @@ PRIVATE json_t *cmd_write_attr(hgobj gobj, const char *cmd, json_t *kw, hgobj sr
         json_t *kw_response = build_command_response(
             gobj,
             -1,     // result
-            json_sprintf("%s: what gobj?", gobj_short_name(gobj)),
+            json_sprintf("%s: what gobj?", gobj_yuno_role_plus_name()),
             0,      // jn_schema
             0       // jn_data
         );
@@ -1142,7 +1142,7 @@ PRIVATE json_t *cmd_write_attr(hgobj gobj, const char *cmd, json_t *kw, hgobj sr
                 gobj,
                 -1,     // result
                 json_sprintf("%s: gobj not found: '%s'",
-                    gobj_short_name(gobj),
+                    gobj_yuno_role_plus_name(),
                     gobj_name_
                 ),
                 0,      // jn_schema
@@ -1158,7 +1158,7 @@ PRIVATE json_t *cmd_write_attr(hgobj gobj, const char *cmd, json_t *kw, hgobj sr
         json_t *kw_response = build_command_response(
             gobj,
             -1,     // result
-            json_sprintf("%s: what attribute?", gobj_short_name(gobj)),
+            json_sprintf("%s: what attribute?", gobj_yuno_role_plus_name()),
             0,      // jn_schema
             0       // jn_data
         );
@@ -1203,7 +1203,7 @@ PRIVATE json_t *cmd_write_attr(hgobj gobj, const char *cmd, json_t *kw, hgobj sr
         json_t *kw_response = build_command_response(
             gobj,
             -1,     // result
-            json_sprintf("%s: what value?", gobj_short_name(gobj)),
+            json_sprintf("%s: what value?", gobj_yuno_role_plus_name()),
             0,      // jn_schema
             0       // jn_data
         );
@@ -1327,7 +1327,7 @@ PRIVATE json_t *cmd_view_attrs(hgobj gobj, const char *cmd, json_t *kw, hgobj sr
         json_t *kw_response = build_command_response(
             gobj,
             -1,     // result
-            json_sprintf("%s: what gobj?", gobj_short_name(gobj)),
+            json_sprintf("%s: what gobj?", gobj_yuno_role_plus_name()),
             0,      // jn_schema
             0       // jn_data
         );
@@ -1343,7 +1343,7 @@ PRIVATE json_t *cmd_view_attrs(hgobj gobj, const char *cmd, json_t *kw, hgobj sr
                 gobj,
                 -1,     // result
                 json_sprintf("%s: gobj not found: '%s'",
-                    gobj_short_name(gobj),
+                    gobj_yuno_role_plus_name(),
                     gobj_name_
                 ),
                 0,      // jn_schema
@@ -1429,7 +1429,7 @@ PRIVATE json_t *cmd_attrs_schema(hgobj gobj, const char *cmd, json_t *kw, hgobj 
         json_t *kw_response = build_command_response(
             gobj,
             -1,     // result
-            json_sprintf("%s: what gobj?", gobj_short_name(gobj)),
+            json_sprintf("%s: what gobj?", gobj_yuno_role_plus_name()),
             0,      // jn_schema
             0       // jn_data
         );
@@ -1445,7 +1445,7 @@ PRIVATE json_t *cmd_attrs_schema(hgobj gobj, const char *cmd, json_t *kw, hgobj 
                 gobj,
                 -1,     // result
                 json_sprintf("%s: gobj not found: '%s'",
-                    gobj_short_name(gobj),
+                    gobj_yuno_role_plus_name(),
                     gobj_name_
                 ),
                 0,      // jn_schema
@@ -1475,7 +1475,7 @@ PRIVATE json_t *cmd_authzs(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
     json_t *kw_response = build_command_response(
         gobj,
         -1,     // result
-        json_sprintf("%s: Not yet implemented", gobj_short_name(gobj)),
+        json_sprintf("%s: Not yet implemented", gobj_yuno_role_plus_name()),
         0,      // jn_schema
         0       // jn_data
     );
@@ -1563,7 +1563,7 @@ PRIVATE json_t *cmd_reload_certs(hgobj gobj, const char *cmd, json_t *kw, hgobj 
         gobj,
         ko > 0 ? -1 : 0,
         json_sprintf("%s: reloaded %d TLS listener(s), %d failed",
-            gobj_short_name(gobj),
+            gobj_yuno_role_plus_name(),
             ok,
             ko
         ),
@@ -1622,7 +1622,7 @@ PRIVATE json_t *cmd_view_gclass(hgobj gobj, const char *cmd, json_t *kw, hgobj s
         json_t *kw_response = build_command_response(
             gobj,
             -1,     // result
-            json_sprintf("%s: what gclass?", gobj_short_name(gobj)),
+            json_sprintf("%s: what gclass?", gobj_yuno_role_plus_name()),
             0,      // jn_schema
             0       // jn_data
         );
@@ -1643,7 +1643,7 @@ PRIVATE json_t *cmd_view_gclass(hgobj gobj, const char *cmd, json_t *kw, hgobj s
             gobj,
             -1,     // result
             json_sprintf("%s: what gclass is '%s'?",
-                gobj_short_name(gobj),
+                gobj_yuno_role_plus_name(),
                 gclass_name_
             ),
             0,      // jn_schema
@@ -1682,7 +1682,7 @@ PRIVATE json_t *cmd_view_gobj(hgobj gobj, const char *cmd, json_t *kw, hgobj src
         json_t *kw_response = build_command_response(
             gobj,
             -1,     // result
-            json_sprintf("%s: what gobj?", gobj_short_name(gobj)),
+            json_sprintf("%s: what gobj?", gobj_yuno_role_plus_name()),
             0,      // jn_schema
             0       // jn_data
         );
@@ -1698,7 +1698,7 @@ PRIVATE json_t *cmd_view_gobj(hgobj gobj, const char *cmd, json_t *kw, hgobj src
                 gobj,
                 -1,     // result
                 json_sprintf("%s: gobj not found: '%s'",
-                    gobj_short_name(gobj),
+                    gobj_yuno_role_plus_name(),
                     gobj_name_
                 ),
                 0,      // jn_schema
@@ -1738,7 +1738,7 @@ PRIVATE json_t *cmd_view_gobj_tree(hgobj gobj, const char *cmd, json_t *kw, hgob
         json_t *kw_response = build_command_response(
             gobj,
             -1,     // result
-            json_sprintf("%s: what gobj?", gobj_short_name(gobj)),
+            json_sprintf("%s: what gobj?", gobj_yuno_role_plus_name()),
             0,      // jn_schema
             0       // jn_data
         );
@@ -1754,7 +1754,7 @@ PRIVATE json_t *cmd_view_gobj_tree(hgobj gobj, const char *cmd, json_t *kw, hgob
                 gobj,
                 -1,     // result
                 json_sprintf("%s: gobj not found: '%s'",
-                    gobj_short_name(gobj),
+                    gobj_yuno_role_plus_name(),
                     gobj_name_
                 ),
                 0,      // jn_schema
@@ -1795,7 +1795,7 @@ PRIVATE json_t *cmd_enable_gobj(hgobj gobj, const char *cmd, json_t *kw, hgobj s
         json_t *kw_response = build_command_response(
             gobj,
             -1,     // result
-            json_sprintf("%s: what gobj?", gobj_short_name(gobj)),
+            json_sprintf("%s: what gobj?", gobj_yuno_role_plus_name()),
             0,      // jn_schema
             0       // jn_data
         );
@@ -1811,7 +1811,7 @@ PRIVATE json_t *cmd_enable_gobj(hgobj gobj, const char *cmd, json_t *kw, hgobj s
                 gobj,
                 -1,     // result
                 json_sprintf("%s: gobj not found: '%s'",
-                    gobj_short_name(gobj),
+                    gobj_yuno_role_plus_name(),
                     gobj_name_
                 ),
                 0,      // jn_schema
@@ -1851,7 +1851,7 @@ PRIVATE json_t *cmd_disable_gobj(hgobj gobj, const char *cmd, json_t *kw, hgobj 
         json_t *kw_response = build_command_response(
             gobj,
             -1,     // result
-            json_sprintf("%s: what gobj?", gobj_short_name(gobj)),
+            json_sprintf("%s: what gobj?", gobj_yuno_role_plus_name()),
             0,      // jn_schema
             0       // jn_data
         );
@@ -1867,7 +1867,7 @@ PRIVATE json_t *cmd_disable_gobj(hgobj gobj, const char *cmd, json_t *kw, hgobj 
                 gobj,
                 -1,     // result
                 json_sprintf("%s: gobj not found: '%s'",
-                    gobj_short_name(gobj),
+                    gobj_yuno_role_plus_name(),
                     gobj_name_
                 ),
                 0,      // jn_schema
@@ -1943,7 +1943,7 @@ PRIVATE json_t *cmd_remove_persistent_attrs(hgobj gobj, const char* cmd, json_t*
         json_t *kw_response = build_command_response(
             gobj,
             -1,     // result
-            json_sprintf("%s: what gobj?", gobj_short_name(gobj)),
+            json_sprintf("%s: what gobj?", gobj_yuno_role_plus_name()),
             0,      // jn_schema
             0       // jn_data
         );
@@ -1959,7 +1959,7 @@ PRIVATE json_t *cmd_remove_persistent_attrs(hgobj gobj, const char* cmd, json_t*
                 gobj,
                 -1,     // result
                 json_sprintf("%s: gobj not found: '%s'",
-                    gobj_short_name(gobj),
+                    gobj_yuno_role_plus_name(),
                     gobj_name_
                 ),
                 0,      // jn_schema
@@ -1977,7 +1977,7 @@ PRIVATE json_t *cmd_remove_persistent_attrs(hgobj gobj, const char* cmd, json_t*
         json_t *kw_response = build_command_response(
             gobj,
             -1,     // result
-            json_sprintf("%s: what attribute?", gobj_short_name(gobj)),
+            json_sprintf("%s: what attribute?", gobj_yuno_role_plus_name()),
             0,      // jn_schema
             0       // jn_data
         );
@@ -2253,7 +2253,7 @@ PRIVATE json_t *cmd_set_global_trace(hgobj gobj, const char *cmd, json_t *kw, hg
             gobj,
             -1,     // result
             json_sprintf(
-                "%s: what level?", gobj_short_name(gobj)
+                "%s: what level?", gobj_yuno_role_plus_name()
             ),
             0,      // jn_schema
             0       // jn_data
@@ -2268,7 +2268,7 @@ PRIVATE json_t *cmd_set_global_trace(hgobj gobj, const char *cmd, json_t *kw, hg
             gobj,
             -1,     // result
             json_sprintf(
-                "%s: bitmask set or re-set?", gobj_short_name(gobj)
+                "%s: bitmask set or re-set?", gobj_yuno_role_plus_name()
             ),
             0,      // jn_schema
             0       // jn_data
@@ -2297,7 +2297,7 @@ PRIVATE json_t *cmd_set_global_trace(hgobj gobj, const char *cmd, json_t *kw, hg
         gobj,
         ret,
         json_sprintf("%s: %s",
-            gobj_short_name(gobj),
+            gobj_yuno_role_plus_name(),
             (ret<0)? gobj_log_last_message():""
         ),
         0,      // jn_schema
@@ -2328,7 +2328,7 @@ PRIVATE json_t *cmd_info_gclass_trace(hgobj gobj, const char *cmd, json_t *kw, h
                     gobj,
                     -1,     // result
                     json_sprintf("%s: what gclass is '%s'?",
-                        gobj_short_name(gobj),
+                        gobj_yuno_role_plus_name(),
                         gclass_name_
                     ),
                     0,      // jn_schema
@@ -2378,7 +2378,7 @@ PRIVATE json_t *cmd_get_gclass_trace(hgobj gobj, const char *cmd, json_t *kw, hg
                     gobj,
                     -1,     // result
                     json_sprintf("%s: what gclass is '%s'?",
-                        gobj_short_name(gobj),
+                        gobj_yuno_role_plus_name(),
                         gclass_name_
                     ),
                     0,      // jn_schema
@@ -2398,7 +2398,7 @@ PRIVATE json_t *cmd_get_gclass_trace(hgobj gobj, const char *cmd, json_t *kw, hg
         gobj,
         0,      // result
         json_sprintf("%s: %d gclass with some trace",
-            gobj_short_name(gobj),
+            gobj_yuno_role_plus_name(),
             (int)json_array_size(jn_data)
         ),
         0,      // jn_schema
@@ -2431,7 +2431,7 @@ PRIVATE json_t *cmd_get_gclass_no_trace(hgobj gobj, const char *cmd, json_t *kw,
                     gobj,
                     -1,     // result
                     json_sprintf("%s: what gclass is '%s'?",
-                        gobj_short_name(gobj),
+                        gobj_yuno_role_plus_name(),
                         gclass_name_
                     ),
                     0,      // jn_schema
@@ -2451,7 +2451,7 @@ PRIVATE json_t *cmd_get_gclass_no_trace(hgobj gobj, const char *cmd, json_t *kw,
         gobj,
         0,      // result
         json_sprintf("%s: %d gclass with some no trace",
-            gobj_short_name(gobj),
+            gobj_yuno_role_plus_name(),
             (int)json_array_size(jn_data)
         ),
         0,      // jn_schema
@@ -2481,7 +2481,7 @@ PRIVATE json_t *cmd_set_gclass_trace(hgobj gobj, const char *cmd, json_t *kw, hg
                 gobj,
                 -1,     // result
                 json_sprintf("%s: what gclass is '%s'?",
-                    gobj_short_name(gobj),
+                    gobj_yuno_role_plus_name(),
                     gclass_name_
                 ),
                 0,      // jn_schema
@@ -2498,7 +2498,7 @@ PRIVATE json_t *cmd_set_gclass_trace(hgobj gobj, const char *cmd, json_t *kw, hg
             gobj,
             -1,     // result
             json_sprintf(
-                "%s: what level?", gobj_short_name(gobj)
+                "%s: what level?", gobj_yuno_role_plus_name()
             ),
             0,      // jn_schema
             0       // jn_data
@@ -2513,7 +2513,7 @@ PRIVATE json_t *cmd_set_gclass_trace(hgobj gobj, const char *cmd, json_t *kw, hg
             gobj,
             -1,     // result
             json_sprintf(
-                "%s: bitmask set or re-set?", gobj_short_name(gobj)
+                "%s: bitmask set or re-set?", gobj_yuno_role_plus_name()
             ),
             0,      // jn_schema
             0       // jn_data
@@ -2542,7 +2542,7 @@ PRIVATE json_t *cmd_set_gclass_trace(hgobj gobj, const char *cmd, json_t *kw, hg
         gobj,
         ret,
         json_sprintf("%s: %s",
-            gobj_short_name(gobj),
+            gobj_yuno_role_plus_name(),
             (ret<0)? gobj_log_last_message():""
         ),
         0,      // jn_schema
@@ -2572,7 +2572,7 @@ PRIVATE json_t *cmd_set_no_gclass_trace(hgobj gobj, const char *cmd, json_t *kw,
                 gobj,
                 -1,     // result
                 json_sprintf("%s: what gclass is '%s'?",
-                    gobj_short_name(gobj),
+                    gobj_yuno_role_plus_name(),
                     gclass_name_
                 ),
                 0,      // jn_schema
@@ -2589,7 +2589,7 @@ PRIVATE json_t *cmd_set_no_gclass_trace(hgobj gobj, const char *cmd, json_t *kw,
             gobj,
             -1,     // result
             json_sprintf(
-                "%s: what level?", gobj_short_name(gobj)
+                "%s: what level?", gobj_yuno_role_plus_name()
             ),
             0,      // jn_schema
             0       // jn_data
@@ -2604,7 +2604,7 @@ PRIVATE json_t *cmd_set_no_gclass_trace(hgobj gobj, const char *cmd, json_t *kw,
             gobj,
             -1,     // result
             json_sprintf(
-                "%s: bitmask set or re-set?", gobj_short_name(gobj)
+                "%s: bitmask set or re-set?", gobj_yuno_role_plus_name()
             ),
             0,      // jn_schema
             0       // jn_data
@@ -2655,7 +2655,7 @@ PRIVATE json_t *cmd_get_gobj_trace(hgobj gobj, const char *cmd, json_t *kw, hgob
         json_t *kw_response = build_command_response(
             gobj,
             -1,     // result
-            json_sprintf("%s: what gobj?", gobj_short_name(gobj)),
+            json_sprintf("%s: what gobj?", gobj_yuno_role_plus_name()),
             0,      // jn_schema
             0       // jn_data
         );
@@ -2671,7 +2671,7 @@ PRIVATE json_t *cmd_get_gobj_trace(hgobj gobj, const char *cmd, json_t *kw, hgob
                 gobj,
                 -1,     // result
                 json_sprintf("%s: gobj not found: '%s'",
-                    gobj_short_name(gobj),
+                    gobj_yuno_role_plus_name(),
                     gobj_name_
                 ),
                 0,      // jn_schema
@@ -2690,7 +2690,7 @@ PRIVATE json_t *cmd_get_gobj_trace(hgobj gobj, const char *cmd, json_t *kw, hgob
         gobj,
         0,      // result
         json_sprintf("%s: %d gobjs with some trace",
-            gobj_short_name(gobj),
+            gobj_yuno_role_plus_name(),
             (int)json_array_size(jn_data)
         ),
         0,      // jn_schema
@@ -2716,7 +2716,7 @@ PRIVATE json_t *cmd_get_gobj_no_trace(hgobj gobj, const char *cmd, json_t *kw, h
         json_t *kw_response = build_command_response(
             gobj,
             -1,     // result
-            json_sprintf("%s: what gobj?", gobj_short_name(gobj)),
+            json_sprintf("%s: what gobj?", gobj_yuno_role_plus_name()),
             0,      // jn_schema
             0       // jn_data
         );
@@ -2732,7 +2732,7 @@ PRIVATE json_t *cmd_get_gobj_no_trace(hgobj gobj, const char *cmd, json_t *kw, h
                 gobj,
                 -1,     // result
                 json_sprintf("%s: gobj not found: '%s'",
-                    gobj_short_name(gobj),
+                    gobj_yuno_role_plus_name(),
                     gobj_name_
                 ),
                 0,      // jn_schema
@@ -2751,7 +2751,7 @@ PRIVATE json_t *cmd_get_gobj_no_trace(hgobj gobj, const char *cmd, json_t *kw, h
         gobj,
         0,      // result
         json_sprintf("%s: %d gobjs with some no trace",
-            gobj_short_name(gobj),
+            gobj_yuno_role_plus_name(),
             (int)json_array_size(jn_data)
         ),
         0,      // jn_schema
@@ -2781,7 +2781,7 @@ PRIVATE json_t *cmd_set_gobj_trace(hgobj gobj, const char *cmd, json_t *kw, hgob
                 gobj,
                 -1,     // result
                 json_sprintf("%s: gobj not found: '%s'",
-                    gobj_short_name(gobj),
+                    gobj_yuno_role_plus_name(),
                     gobj_name_
                 ),
                 0,      // jn_schema
@@ -2798,7 +2798,7 @@ PRIVATE json_t *cmd_set_gobj_trace(hgobj gobj, const char *cmd, json_t *kw, hgob
             gobj,
             -1,     // result
             json_sprintf(
-                "%s: what level?", gobj_short_name(gobj)
+                "%s: what level?", gobj_yuno_role_plus_name()
             ),
             0,      // jn_schema
             0       // jn_data
@@ -2813,7 +2813,7 @@ PRIVATE json_t *cmd_set_gobj_trace(hgobj gobj, const char *cmd, json_t *kw, hgob
             gobj,
             -1,     // result
             json_sprintf(
-                "%s: bitmask set or re-set?", gobj_short_name(gobj)
+                "%s: bitmask set or re-set?", gobj_yuno_role_plus_name()
             ),
             0,      // jn_schema
             0       // jn_data
@@ -2842,7 +2842,7 @@ PRIVATE json_t *cmd_set_gobj_trace(hgobj gobj, const char *cmd, json_t *kw, hgob
         gobj,
         ret,
         json_sprintf("%s: %s",
-            gobj_short_name(gobj),
+            gobj_yuno_role_plus_name(),
             (ret<0)? gobj_log_last_message():""
         ),
         0,
@@ -2872,7 +2872,7 @@ PRIVATE json_t *cmd_set_no_gobj_trace(hgobj gobj, const char *cmd, json_t *kw, h
                 gobj,
                 -1,     // result
                 json_sprintf("%s: gobj not found: '%s'",
-                    gobj_short_name(gobj),
+                    gobj_yuno_role_plus_name(),
                     gobj_name_
                 ),
                 0,      // jn_schema
@@ -2889,7 +2889,7 @@ PRIVATE json_t *cmd_set_no_gobj_trace(hgobj gobj, const char *cmd, json_t *kw, h
             gobj,
             -1,     // result
             json_sprintf(
-                "%s: what level?", gobj_short_name(gobj)
+                "%s: what level?", gobj_yuno_role_plus_name()
             ),
             0,      // jn_schema
             0       // jn_data
@@ -2904,7 +2904,7 @@ PRIVATE json_t *cmd_set_no_gobj_trace(hgobj gobj, const char *cmd, json_t *kw, h
             gobj,
             -1,     // result
             json_sprintf(
-                "%s: bitmask set or re-set?", gobj_short_name(gobj)
+                "%s: bitmask set or re-set?", gobj_yuno_role_plus_name()
             ),
             0,      // jn_schema
             0       // jn_data
@@ -2932,7 +2932,7 @@ PRIVATE json_t *cmd_set_no_gobj_trace(hgobj gobj, const char *cmd, json_t *kw, h
         gobj,
         ret,
         json_sprintf("%s: %s",
-            gobj_short_name(gobj),
+            gobj_yuno_role_plus_name(),
             (ret<0)? gobj_log_last_message():""
         ),
         0,
@@ -2957,7 +2957,7 @@ PRIVATE json_t *cmd_set_trace_filter(hgobj gobj, const char *cmd, json_t *kw, hg
             gobj,
             -1,     // result
             json_sprintf(
-                "%s: set or re-set?", gobj_short_name(gobj)
+                "%s: set or re-set?", gobj_yuno_role_plus_name()
             ),
             0,      // jn_schema
             0       // jn_data
@@ -2990,7 +2990,7 @@ PRIVATE json_t *cmd_set_trace_filter(hgobj gobj, const char *cmd, json_t *kw, hg
                 gobj,
                 -1,     // result
                 json_sprintf("%s: what gclass is '%s'?",
-                    gobj_short_name(gobj),
+                    gobj_yuno_role_plus_name(),
                     gclass_name_
                 ),
                 0,      // jn_schema
@@ -3005,7 +3005,7 @@ PRIVATE json_t *cmd_set_trace_filter(hgobj gobj, const char *cmd, json_t *kw, hg
         json_t *kw_response = build_command_response(
             gobj,
             -1,
-            json_sprintf("%s: what attr?", gobj_short_name(gobj)),
+            json_sprintf("%s: what attr?", gobj_yuno_role_plus_name()),
             0,
             0
         );
@@ -3016,7 +3016,7 @@ PRIVATE json_t *cmd_set_trace_filter(hgobj gobj, const char *cmd, json_t *kw, hg
         json_t *kw_response = build_command_response(
             gobj,
             -1,
-            json_sprintf("%s: what value?", gobj_short_name(gobj)),
+            json_sprintf("%s: what value?", gobj_yuno_role_plus_name()),
             0,
             0
         );
@@ -3041,7 +3041,7 @@ PRIVATE json_t *cmd_set_trace_filter(hgobj gobj, const char *cmd, json_t *kw, hg
         gobj,
         ret,
         json_sprintf("%s: %s",
-            gobj_short_name(gobj),
+            gobj_yuno_role_plus_name(),
             (ret<0)? gobj_log_last_message():""
         ),
         0,      // jn_schema
@@ -3071,7 +3071,7 @@ PRIVATE json_t *cmd_get_trace_filter(hgobj gobj, const char *cmd, json_t *kw, hg
                 gobj,
                 -1,     // result
                 json_sprintf("%s: what gclass is '%s'?",
-                    gobj_short_name(gobj),
+                    gobj_yuno_role_plus_name(),
                     gclass_name_
                 ),
                 0,      // jn_schema
@@ -3113,7 +3113,7 @@ PRIVATE json_t *cmd_reset_all_traces(hgobj gobj, const char *cmd, json_t *kw, hg
                     gobj,
                     -1,     // result
                     json_sprintf("%s: what gclass is '%s'?",
-                        gobj_short_name(gobj),
+                        gobj_yuno_role_plus_name(),
                         gclass_name_
                     ),
                     0,      // jn_schema
@@ -3156,7 +3156,7 @@ PRIVATE json_t *cmd_reset_all_traces(hgobj gobj, const char *cmd, json_t *kw, hg
                     gobj,
                     -1,     // result
                     json_sprintf("%s: gobj not found: '%s'",
-                        gobj_short_name(gobj),
+                        gobj_yuno_role_plus_name(),
                         gobj_name_
                     ),
                     0,      // jn_schema
@@ -3193,7 +3193,7 @@ PRIVATE json_t *cmd_reset_all_traces(hgobj gobj, const char *cmd, json_t *kw, hg
     json_t *kw_response = build_command_response(
         gobj,
         -1,
-        json_sprintf("%s: What gclass or gobj?", gobj_short_name(gobj)),
+        json_sprintf("%s: What gclass or gobj?", gobj_yuno_role_plus_name()),
         0,
         0
     );
@@ -3212,7 +3212,7 @@ PRIVATE json_t* cmd_set_deep_trace(hgobj gobj, const char* cmd, json_t* kw, hgob
             gobj,
             -1,     // result
             json_sprintf(
-                "%s: bitmask set or re-set?", gobj_short_name(gobj)
+                "%s: bitmask set or re-set?", gobj_yuno_role_plus_name()
             ),
             0,      // jn_schema
             0       // jn_data
@@ -3238,7 +3238,7 @@ PRIVATE json_t* cmd_set_deep_trace(hgobj gobj, const char* cmd, json_t* kw, hgob
         gobj,
         0,
         json_sprintf(
-            "%s: daemon debug set to %d", gobj_short_name(gobj), trace
+            "%s: daemon debug set to %d", gobj_yuno_role_plus_name(), trace
         ),
         0,
         0
@@ -3258,7 +3258,7 @@ PRIVATE json_t* cmd_set_trace_machine_format(hgobj gobj, const char* cmd, json_t
             gobj,
             -1,     // result
             json_sprintf(
-                "%s: bitmask set or re-set?", gobj_short_name(gobj)
+                "%s: bitmask set or re-set?", gobj_yuno_role_plus_name()
             ),
             0,      // jn_schema
             0       // jn_data
@@ -3284,7 +3284,7 @@ PRIVATE json_t* cmd_set_trace_machine_format(hgobj gobj, const char* cmd, json_t
         gobj,
         0,
         json_sprintf(
-            "%s: daemon debug set to %d", gobj_short_name(gobj), trace
+            "%s: daemon debug set to %d", gobj_yuno_role_plus_name(), trace
         ),
         0,
         0
@@ -3302,7 +3302,7 @@ PRIVATE json_t *cmd_truncate_log_file(hgobj gobj, const char *cmd, json_t *kw, h
     json_t *kw_response = build_command_response(
         gobj,
         0,
-        json_sprintf("%s: Truncate current log done.", gobj_short_name(gobj)),
+        json_sprintf("%s: Truncate current log done.", gobj_yuno_role_plus_name()),
         0,
         0
     );
@@ -3319,7 +3319,7 @@ PRIVATE json_t *cmd_reset_log_counters(hgobj gobj, const char *cmd, json_t *kw, 
     json_t *kw_response = build_command_response(
         gobj,
         0,
-        json_sprintf("%s: Log counters reset.", gobj_short_name(gobj)),
+        json_sprintf("%s: Log counters reset.", gobj_yuno_role_plus_name()),
         0,
         0
     );
@@ -3363,7 +3363,7 @@ PRIVATE json_t *cmd_add_log_handler(hgobj gobj, const char* cmd, json_t* kw, hgo
         json_t *kw_response = build_command_response(
             gobj,
             -1,
-            json_sprintf("%s: What name?", gobj_short_name(gobj)),
+            json_sprintf("%s: What name?", gobj_yuno_role_plus_name()),
             0,
             0
         );
@@ -3379,7 +3379,7 @@ PRIVATE json_t *cmd_add_log_handler(hgobj gobj, const char* cmd, json_t* kw, hgo
             gobj,
             -1,
             json_sprintf("%s: Handler already exists: %s",
-                gobj_short_name(gobj),
+                gobj_yuno_role_plus_name(),
                 handler_name
             ),
             0,
@@ -3394,7 +3394,7 @@ PRIVATE json_t *cmd_add_log_handler(hgobj gobj, const char* cmd, json_t* kw, hgo
             gobj,
             -1,
             json_sprintf("%s: Handler 'file' type not allowed",
-                gobj_short_name(gobj)
+                gobj_yuno_role_plus_name()
             ),
             0,
             0
@@ -3408,7 +3408,7 @@ PRIVATE json_t *cmd_add_log_handler(hgobj gobj, const char* cmd, json_t* kw, hgo
             json_t *kw_response = build_command_response(
                 gobj,
                 -1,
-                json_sprintf("%s: What url?", gobj_short_name(gobj)),
+                json_sprintf("%s: What url?", gobj_yuno_role_plus_name()),
                 0,
                 0
             );
@@ -3462,7 +3462,7 @@ PRIVATE json_t *cmd_add_log_handler(hgobj gobj, const char* cmd, json_t* kw, hgo
             gobj,
             -1,
             json_sprintf("%s: Unknown '%s' handler type.",
-                gobj_short_name(gobj),
+                gobj_yuno_role_plus_name(),
                 handler_type
             ),
             0,
@@ -3478,7 +3478,7 @@ PRIVATE json_t *cmd_add_log_handler(hgobj gobj, const char* cmd, json_t* kw, hgo
     json_t *kw_response = build_command_response(
         gobj,
         added>0?0:-1,
-        json_sprintf("%s: %d handlers added.", gobj_short_name(gobj), added),
+        json_sprintf("%s: %d handlers added.", gobj_yuno_role_plus_name(), added),
         0,
         0
     );
@@ -3496,7 +3496,7 @@ PRIVATE json_t *cmd_del_log_handler(hgobj gobj, const char* cmd, json_t* kw, hgo
         json_t *kw_response = build_command_response(
             gobj,
             -1,
-            json_sprintf("%s: what name?", gobj_short_name(gobj)),
+            json_sprintf("%s: what name?", gobj_yuno_role_plus_name()),
             0,
             0
         );
@@ -3511,7 +3511,7 @@ PRIVATE json_t *cmd_del_log_handler(hgobj gobj, const char* cmd, json_t* kw, hgo
     json_t *kw_response = build_command_response(
         gobj,
         deletions>0?0:-1,
-        json_sprintf("%s: %d handlers deleted.", gobj_short_name(gobj), deletions),
+        json_sprintf("%s: %d handlers deleted.", gobj_yuno_role_plus_name(), deletions),
         0,
         0
     );
@@ -3569,7 +3569,7 @@ PRIVATE json_t *cmd_info_cpus(hgobj gobj, const char *cmd, json_t *kw, hgobj src
         gobj,
         0,
         json_sprintf("%s: %d cores",
-            gobj_short_name(gobj),
+            gobj_yuno_role_plus_name(),
             (int)json_array_size(jn_list)
         ),
         0,
@@ -3762,7 +3762,7 @@ PRIVATE json_t* cmd_add_allowed_ip(hgobj gobj, const char* cmd, json_t* kw, hgob
         return build_command_response(
             gobj,
             -1,     // result
-            json_sprintf("%s: What ip?", gobj_short_name(gobj)),
+            json_sprintf("%s: What ip?", gobj_yuno_role_plus_name()),
             0,      // jn_schema
             0       // jn_data
         );
@@ -3772,7 +3772,7 @@ PRIVATE json_t* cmd_add_allowed_ip(hgobj gobj, const char* cmd, json_t* kw, hgob
         return build_command_response(
             gobj,
             -1,     // result
-            json_sprintf("%s: Allowed, TRUE or FALSE?", gobj_short_name(gobj)),
+            json_sprintf("%s: Allowed, TRUE or FALSE?", gobj_yuno_role_plus_name()),
             0,      // jn_schema
             0       // jn_data
         );
@@ -3805,7 +3805,7 @@ PRIVATE json_t* cmd_remove_allowed_ip(hgobj gobj, const char* cmd, json_t* kw, h
         return build_command_response(
             gobj,
             -1,     // result
-            json_sprintf("%s: What ip?", gobj_short_name(gobj)),
+            json_sprintf("%s: What ip?", gobj_yuno_role_plus_name()),
             0,      // jn_schema
             0       // jn_data
         );
@@ -3859,7 +3859,7 @@ PRIVATE json_t* cmd_add_denied_ip(hgobj gobj, const char* cmd, json_t* kw, hgobj
         return build_command_response(
             gobj,
             -1,     // result
-            json_sprintf("%s: What ip?", gobj_short_name(gobj)),
+            json_sprintf("%s: What ip?", gobj_yuno_role_plus_name()),
             0,      // jn_schema
             0       // jn_data
         );
@@ -3869,7 +3869,7 @@ PRIVATE json_t* cmd_add_denied_ip(hgobj gobj, const char* cmd, json_t* kw, hgobj
         return build_command_response(
             gobj,
             -1,     // result
-            json_sprintf("%s: Denied, TRUE or FALSE?", gobj_short_name(gobj)),
+            json_sprintf("%s: Denied, TRUE or FALSE?", gobj_yuno_role_plus_name()),
             0,      // jn_schema
             0       // jn_data
         );
@@ -3902,7 +3902,7 @@ PRIVATE json_t* cmd_remove_denied_ip(hgobj gobj, const char* cmd, json_t* kw, hg
         return build_command_response(
             gobj,
             -1,     // result
-            json_sprintf("%s: What ip?", gobj_short_name(gobj)),
+            json_sprintf("%s: What ip?", gobj_yuno_role_plus_name()),
             0,      // jn_schema
             0       // jn_data
         );
@@ -4017,7 +4017,7 @@ PRIVATE json_t* cmd_list_subscriptions(hgobj gobj, const char* cmd, json_t* kw, 
                 gobj,
                 -1,
                 json_sprintf(
-                    "%s: gobj '%s' not found.", gobj_short_name(gobj), gobj_name_
+                    "%s: gobj '%s' not found.", gobj_yuno_role_plus_name(), gobj_name_
                 ),
                 0,
                 0
@@ -4037,7 +4037,7 @@ PRIVATE json_t* cmd_list_subscriptions(hgobj gobj, const char* cmd, json_t* kw, 
                 gobj,
                 -1,
                 json_sprintf(
-                    "%s: event '%s' not found.", gobj_short_name(gobj), event_name
+                    "%s: event '%s' not found.", gobj_yuno_role_plus_name(), event_name
                 ),
                 0,
                 NULL
@@ -4107,7 +4107,7 @@ PRIVATE json_t* cmd_list_subscribings(hgobj gobj, const char* cmd, json_t* kw, h
                 gobj,
                 -1,
                 json_sprintf(
-                    "%s: gobj '%s' not found.", gobj_short_name(gobj), gobj_name_
+                    "%s: gobj '%s' not found.", gobj_yuno_role_plus_name(), gobj_name_
                 ),
                 0,
                 NULL
@@ -4127,7 +4127,7 @@ PRIVATE json_t* cmd_list_subscribings(hgobj gobj, const char* cmd, json_t* kw, h
                 gobj,
                 -1,
                 json_sprintf(
-                    "%s: event '%s' not found.", gobj_short_name(gobj), event_name
+                    "%s: event '%s' not found.", gobj_yuno_role_plus_name(), event_name
                 ),
                 0,
                 0
@@ -4220,7 +4220,7 @@ PRIVATE json_t *cmd_list_gclass_commands(hgobj gobj, const char* cmd, json_t* kw
                     gobj,
                     -1,     // result
                     json_sprintf("%s: what gclass is '%s'?",
-                        gobj_short_name(gobj),
+                        gobj_yuno_role_plus_name(),
                         gclass_name
                     ),
                     0,      // jn_schema
@@ -4299,7 +4299,7 @@ PRIVATE json_t *cmd_list_gobj_commands(hgobj gobj, const char* cmd, json_t* kw, 
         json_t *kw_response = build_command_response(
             gobj,
             -1,     // result
-            json_sprintf("%s: what gobj?", gobj_short_name(gobj)),
+            json_sprintf("%s: what gobj?", gobj_yuno_role_plus_name()),
             0,      // jn_schema
             0       // jn_data
         );
@@ -4315,7 +4315,7 @@ PRIVATE json_t *cmd_list_gobj_commands(hgobj gobj, const char* cmd, json_t* kw, 
                 gobj,
                 -1,     // result
                 json_sprintf("%s: gobj not found: '%s'",
-                    gobj_short_name(gobj),
+                    gobj_yuno_role_plus_name(),
                     gobj_name_
                 ),
                 0,      // jn_schema
