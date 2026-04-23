@@ -1126,7 +1126,7 @@ PRIVATE json_t *cmd_write_attr(hgobj gobj, const char *cmd, json_t *kw, hgobj sr
         json_t *kw_response = build_command_response(
             gobj,
             -1,     // result
-            json_sprintf("what gobj?"),   // jn_comment
+            json_sprintf("%s: what gobj?", gobj_short_name(gobj)),
             0,      // jn_schema
             0       // jn_data
         );
@@ -1141,7 +1141,10 @@ PRIVATE json_t *cmd_write_attr(hgobj gobj, const char *cmd, json_t *kw, hgobj sr
             json_t *kw_response = build_command_response(
                 gobj,
                 -1,     // result
-                json_sprintf("gobj not found: '%s'", gobj_name_),   // jn_comment
+                json_sprintf("%s: gobj not found: '%s'",
+                    gobj_short_name(gobj),
+                    gobj_name_
+                ),
                 0,      // jn_schema
                 0       // jn_data
             );
@@ -1155,7 +1158,7 @@ PRIVATE json_t *cmd_write_attr(hgobj gobj, const char *cmd, json_t *kw, hgobj sr
         json_t *kw_response = build_command_response(
             gobj,
             -1,     // result
-            json_sprintf("what attribute?"),   // jn_comment
+            json_sprintf("%s: what attribute?", gobj_short_name(gobj)),
             0,      // jn_schema
             0       // jn_data
         );
@@ -1200,7 +1203,7 @@ PRIVATE json_t *cmd_write_attr(hgobj gobj, const char *cmd, json_t *kw, hgobj sr
         json_t *kw_response = build_command_response(
             gobj,
             -1,     // result
-            json_sprintf("what value?"),   // jn_comment
+            json_sprintf("%s: what value?", gobj_short_name(gobj)),
             0,      // jn_schema
             0       // jn_data
         );
@@ -1324,7 +1327,7 @@ PRIVATE json_t *cmd_view_attrs(hgobj gobj, const char *cmd, json_t *kw, hgobj sr
         json_t *kw_response = build_command_response(
             gobj,
             -1,     // result
-            json_sprintf("what gobj?"),   // jn_comment
+            json_sprintf("%s: what gobj?", gobj_short_name(gobj)),
             0,      // jn_schema
             0       // jn_data
         );
@@ -1339,7 +1342,10 @@ PRIVATE json_t *cmd_view_attrs(hgobj gobj, const char *cmd, json_t *kw, hgobj sr
             json_t *kw_response = build_command_response(
                 gobj,
                 -1,     // result
-                json_sprintf("gobj not found: '%s'", gobj_name_),   // jn_comment
+                json_sprintf("%s: gobj not found: '%s'",
+                    gobj_short_name(gobj),
+                    gobj_name_
+                ),
                 0,      // jn_schema
                 0       // jn_data
             );
@@ -1423,7 +1429,7 @@ PRIVATE json_t *cmd_attrs_schema(hgobj gobj, const char *cmd, json_t *kw, hgobj 
         json_t *kw_response = build_command_response(
             gobj,
             -1,     // result
-            json_sprintf("what gobj?"),   // jn_comment
+            json_sprintf("%s: what gobj?", gobj_short_name(gobj)),
             0,      // jn_schema
             0       // jn_data
         );
@@ -1438,7 +1444,10 @@ PRIVATE json_t *cmd_attrs_schema(hgobj gobj, const char *cmd, json_t *kw, hgobj 
             json_t *kw_response = build_command_response(
                 gobj,
                 -1,     // result
-                json_sprintf("gobj not found: '%s'", gobj_name_),   // jn_comment
+                json_sprintf("%s: gobj not found: '%s'",
+                    gobj_short_name(gobj),
+                    gobj_name_
+                ),
                 0,      // jn_schema
                 0       // jn_data
             );
@@ -1466,7 +1475,7 @@ PRIVATE json_t *cmd_authzs(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
     json_t *kw_response = build_command_response(
         gobj,
         -1,     // result
-        json_sprintf("Not yet implemented"),   // jn_comment
+        json_sprintf("%s: Not yet implemented", gobj_short_name(gobj)),
         0,      // jn_schema
         0       // jn_data
     );
@@ -1553,7 +1562,11 @@ PRIVATE json_t *cmd_reload_certs(hgobj gobj, const char *cmd, json_t *kw, hgobj 
     json_t *kw_response = build_command_response(
         gobj,
         ko > 0 ? -1 : 0,
-        json_sprintf("reloaded %d TLS listener(s), %d failed", ok, ko),
+        json_sprintf("%s: reloaded %d TLS listener(s), %d failed",
+            gobj_short_name(gobj),
+            ok,
+            ko
+        ),
         0,
         jn_data
     );
@@ -1609,7 +1622,7 @@ PRIVATE json_t *cmd_view_gclass(hgobj gobj, const char *cmd, json_t *kw, hgobj s
         json_t *kw_response = build_command_response(
             gobj,
             -1,     // result
-            json_sprintf("what gclass?"),
+            json_sprintf("%s: what gclass?", gobj_short_name(gobj)),
             0,      // jn_schema
             0       // jn_data
         );
@@ -1629,7 +1642,10 @@ PRIVATE json_t *cmd_view_gclass(hgobj gobj, const char *cmd, json_t *kw, hgobj s
         json_t *kw_response = build_command_response(
             gobj,
             -1,     // result
-            json_sprintf("what gclass is '%s'?", gclass_name_),
+            json_sprintf("%s: what gclass is '%s'?",
+                gobj_short_name(gobj),
+                gclass_name_
+            ),
             0,      // jn_schema
             0       // jn_data
         );
@@ -1666,7 +1682,7 @@ PRIVATE json_t *cmd_view_gobj(hgobj gobj, const char *cmd, json_t *kw, hgobj src
         json_t *kw_response = build_command_response(
             gobj,
             -1,     // result
-            json_sprintf("what gobj?"),   // jn_comment
+            json_sprintf("%s: what gobj?", gobj_short_name(gobj)),
             0,      // jn_schema
             0       // jn_data
         );
@@ -1681,7 +1697,10 @@ PRIVATE json_t *cmd_view_gobj(hgobj gobj, const char *cmd, json_t *kw, hgobj src
             json_t *kw_response = build_command_response(
                 gobj,
                 -1,     // result
-                json_sprintf("gobj not found: '%s'", gobj_name_),   // jn_comment
+                json_sprintf("%s: gobj not found: '%s'",
+                    gobj_short_name(gobj),
+                    gobj_name_
+                ),
                 0,      // jn_schema
                 0       // jn_data
             );
@@ -1719,7 +1738,7 @@ PRIVATE json_t *cmd_view_gobj_tree(hgobj gobj, const char *cmd, json_t *kw, hgob
         json_t *kw_response = build_command_response(
             gobj,
             -1,     // result
-            json_sprintf("what gobj?"),   // jn_comment
+            json_sprintf("%s: what gobj?", gobj_short_name(gobj)),
             0,      // jn_schema
             0       // jn_data
         );
@@ -1734,7 +1753,10 @@ PRIVATE json_t *cmd_view_gobj_tree(hgobj gobj, const char *cmd, json_t *kw, hgob
             json_t *kw_response = build_command_response(
                 gobj,
                 -1,     // result
-                json_sprintf("gobj not found: '%s'", gobj_name_),   // jn_comment
+                json_sprintf("%s: gobj not found: '%s'",
+                    gobj_short_name(gobj),
+                    gobj_name_
+                ),
                 0,      // jn_schema
                 0       // jn_data
             );
@@ -1773,7 +1795,7 @@ PRIVATE json_t *cmd_enable_gobj(hgobj gobj, const char *cmd, json_t *kw, hgobj s
         json_t *kw_response = build_command_response(
             gobj,
             -1,     // result
-            json_sprintf("what gobj?"),   // jn_comment
+            json_sprintf("%s: what gobj?", gobj_short_name(gobj)),
             0,      // jn_schema
             0       // jn_data
         );
@@ -1788,7 +1810,10 @@ PRIVATE json_t *cmd_enable_gobj(hgobj gobj, const char *cmd, json_t *kw, hgobj s
             json_t *kw_response = build_command_response(
                 gobj,
                 -1,     // result
-                json_sprintf("gobj not found: '%s'", gobj_name_),   // jn_comment
+                json_sprintf("%s: gobj not found: '%s'",
+                    gobj_short_name(gobj),
+                    gobj_name_
+                ),
                 0,      // jn_schema
                 0       // jn_data
             );
@@ -1826,7 +1851,7 @@ PRIVATE json_t *cmd_disable_gobj(hgobj gobj, const char *cmd, json_t *kw, hgobj 
         json_t *kw_response = build_command_response(
             gobj,
             -1,     // result
-            json_sprintf("what gobj?"),   // jn_comment
+            json_sprintf("%s: what gobj?", gobj_short_name(gobj)),
             0,      // jn_schema
             0       // jn_data
         );
@@ -1841,7 +1866,10 @@ PRIVATE json_t *cmd_disable_gobj(hgobj gobj, const char *cmd, json_t *kw, hgobj 
             json_t *kw_response = build_command_response(
                 gobj,
                 -1,     // result
-                json_sprintf("gobj not found: '%s'", gobj_name_),   // jn_comment
+                json_sprintf("%s: gobj not found: '%s'",
+                    gobj_short_name(gobj),
+                    gobj_name_
+                ),
                 0,      // jn_schema
                 0       // jn_data
             );
@@ -1915,7 +1943,7 @@ PRIVATE json_t *cmd_remove_persistent_attrs(hgobj gobj, const char* cmd, json_t*
         json_t *kw_response = build_command_response(
             gobj,
             -1,     // result
-            json_sprintf("what gobj?"),   // jn_comment
+            json_sprintf("%s: what gobj?", gobj_short_name(gobj)),
             0,      // jn_schema
             0       // jn_data
         );
@@ -1930,7 +1958,10 @@ PRIVATE json_t *cmd_remove_persistent_attrs(hgobj gobj, const char* cmd, json_t*
             json_t *kw_response = build_command_response(
                 gobj,
                 -1,     // result
-                json_sprintf("gobj not found: '%s'", gobj_name_),   // jn_comment
+                json_sprintf("%s: gobj not found: '%s'",
+                    gobj_short_name(gobj),
+                    gobj_name_
+                ),
                 0,      // jn_schema
                 0       // jn_data
             );
@@ -1946,7 +1977,7 @@ PRIVATE json_t *cmd_remove_persistent_attrs(hgobj gobj, const char* cmd, json_t*
         json_t *kw_response = build_command_response(
             gobj,
             -1,     // result
-            json_sprintf("what attribute?"),
+            json_sprintf("%s: what attribute?", gobj_short_name(gobj)),
             0,      // jn_schema
             0       // jn_data
         );
@@ -2265,7 +2296,10 @@ PRIVATE json_t *cmd_set_global_trace(hgobj gobj, const char *cmd, json_t *kw, hg
     json_t *kw_response = build_command_response(
         gobj,
         ret,
-        json_sprintf("%s", (ret<0)? gobj_log_last_message():""),
+        json_sprintf("%s: %s",
+            gobj_short_name(gobj),
+            (ret<0)? gobj_log_last_message():""
+        ),
         0,      // jn_schema
         jn_data
     );
@@ -2293,7 +2327,10 @@ PRIVATE json_t *cmd_info_gclass_trace(hgobj gobj, const char *cmd, json_t *kw, h
                 json_t *kw_response = build_command_response(
                     gobj,
                     -1,     // result
-                    json_sprintf("what gclass is '%s'?", gclass_name_),
+                    json_sprintf("%s: what gclass is '%s'?",
+                        gobj_short_name(gobj),
+                        gclass_name_
+                    ),
                     0,      // jn_schema
                     0       // jn_data
                 );
@@ -2340,7 +2377,10 @@ PRIVATE json_t *cmd_get_gclass_trace(hgobj gobj, const char *cmd, json_t *kw, hg
                 json_t *kw_response = build_command_response(
                     gobj,
                     -1,     // result
-                    json_sprintf("what gclass is '%s'?", gclass_name_),
+                    json_sprintf("%s: what gclass is '%s'?",
+                        gobj_short_name(gobj),
+                        gclass_name_
+                    ),
                     0,      // jn_schema
                     0       // jn_data
                 );
@@ -2357,7 +2397,10 @@ PRIVATE json_t *cmd_get_gclass_trace(hgobj gobj, const char *cmd, json_t *kw, hg
     json_t *kw_response = build_command_response(
         gobj,
         0,      // result
-        json_sprintf("%d gclass with some trace", (int)json_array_size(jn_data)),
+        json_sprintf("%s: %d gclass with some trace",
+            gobj_short_name(gobj),
+            (int)json_array_size(jn_data)
+        ),
         0,      // jn_schema
         jn_data
     );
@@ -2387,7 +2430,10 @@ PRIVATE json_t *cmd_get_gclass_no_trace(hgobj gobj, const char *cmd, json_t *kw,
                 json_t *kw_response = build_command_response(
                     gobj,
                     -1,     // result
-                    json_sprintf("what gclass is '%s'?", gclass_name_),
+                    json_sprintf("%s: what gclass is '%s'?",
+                        gobj_short_name(gobj),
+                        gclass_name_
+                    ),
                     0,      // jn_schema
                     0       // jn_data
                 );
@@ -2404,7 +2450,10 @@ PRIVATE json_t *cmd_get_gclass_no_trace(hgobj gobj, const char *cmd, json_t *kw,
     json_t *kw_response = build_command_response(
         gobj,
         0,      // result
-        json_sprintf("%d gclass with some no trace", (int)json_array_size(jn_data)),
+        json_sprintf("%s: %d gclass with some no trace",
+            gobj_short_name(gobj),
+            (int)json_array_size(jn_data)
+        ),
         0,      // jn_schema
         jn_data
     );
@@ -2431,7 +2480,10 @@ PRIVATE json_t *cmd_set_gclass_trace(hgobj gobj, const char *cmd, json_t *kw, hg
             json_t *kw_response = build_command_response(
                 gobj,
                 -1,     // result
-                json_sprintf("what gclass is '%s'?", gclass_name_),
+                json_sprintf("%s: what gclass is '%s'?",
+                    gobj_short_name(gobj),
+                    gclass_name_
+                ),
                 0,      // jn_schema
                 0       // jn_data
             );
@@ -2489,7 +2541,10 @@ PRIVATE json_t *cmd_set_gclass_trace(hgobj gobj, const char *cmd, json_t *kw, hg
     json_t *kw_response = build_command_response(
         gobj,
         ret,
-        json_sprintf("%s", (ret<0)? gobj_log_last_message():""),
+        json_sprintf("%s: %s",
+            gobj_short_name(gobj),
+            (ret<0)? gobj_log_last_message():""
+        ),
         0,      // jn_schema
         jn_data
     );
@@ -2516,7 +2571,10 @@ PRIVATE json_t *cmd_set_no_gclass_trace(hgobj gobj, const char *cmd, json_t *kw,
             json_t *kw_response = build_command_response(
                 gobj,
                 -1,     // result
-                json_sprintf("what gclass is '%s'?", gclass_name_),
+                json_sprintf("%s: what gclass is '%s'?",
+                    gobj_short_name(gobj),
+                    gclass_name_
+                ),
                 0,      // jn_schema
                 0       // jn_data
             );
@@ -2597,7 +2655,7 @@ PRIVATE json_t *cmd_get_gobj_trace(hgobj gobj, const char *cmd, json_t *kw, hgob
         json_t *kw_response = build_command_response(
             gobj,
             -1,     // result
-            json_sprintf("what gobj?"),   // jn_comment
+            json_sprintf("%s: what gobj?", gobj_short_name(gobj)),
             0,      // jn_schema
             0       // jn_data
         );
@@ -2612,7 +2670,10 @@ PRIVATE json_t *cmd_get_gobj_trace(hgobj gobj, const char *cmd, json_t *kw, hgob
             json_t *kw_response = build_command_response(
                 gobj,
                 -1,     // result
-                json_sprintf("gobj not found: '%s'", gobj_name_),   // jn_comment
+                json_sprintf("%s: gobj not found: '%s'",
+                    gobj_short_name(gobj),
+                    gobj_name_
+                ),
                 0,      // jn_schema
                 0       // jn_data
             );
@@ -2628,7 +2689,10 @@ PRIVATE json_t *cmd_get_gobj_trace(hgobj gobj, const char *cmd, json_t *kw, hgob
     json_t *kw_response = build_command_response(
         gobj,
         0,      // result
-        json_sprintf("%d gobjs with some trace", (int)json_array_size(jn_data)),
+        json_sprintf("%s: %d gobjs with some trace",
+            gobj_short_name(gobj),
+            (int)json_array_size(jn_data)
+        ),
         0,      // jn_schema
         jn_data
     );
@@ -2652,7 +2716,7 @@ PRIVATE json_t *cmd_get_gobj_no_trace(hgobj gobj, const char *cmd, json_t *kw, h
         json_t *kw_response = build_command_response(
             gobj,
             -1,     // result
-            json_sprintf("what gobj?"),   // jn_comment
+            json_sprintf("%s: what gobj?", gobj_short_name(gobj)),
             0,      // jn_schema
             0       // jn_data
         );
@@ -2667,7 +2731,10 @@ PRIVATE json_t *cmd_get_gobj_no_trace(hgobj gobj, const char *cmd, json_t *kw, h
             json_t *kw_response = build_command_response(
                 gobj,
                 -1,     // result
-                json_sprintf("gobj not found: '%s'", gobj_name_),   // jn_comment
+                json_sprintf("%s: gobj not found: '%s'",
+                    gobj_short_name(gobj),
+                    gobj_name_
+                ),
                 0,      // jn_schema
                 0       // jn_data
             );
@@ -2683,7 +2750,10 @@ PRIVATE json_t *cmd_get_gobj_no_trace(hgobj gobj, const char *cmd, json_t *kw, h
     json_t *kw_response = build_command_response(
         gobj,
         0,      // result
-        json_sprintf("%d gobjs with some no trace", (int)json_array_size(jn_data)),
+        json_sprintf("%s: %d gobjs with some no trace",
+            gobj_short_name(gobj),
+            (int)json_array_size(jn_data)
+        ),
         0,      // jn_schema
         jn_data
     );
@@ -2710,7 +2780,10 @@ PRIVATE json_t *cmd_set_gobj_trace(hgobj gobj, const char *cmd, json_t *kw, hgob
             json_t *kw_response = build_command_response(
                 gobj,
                 -1,     // result
-                json_sprintf("gobj not found: '%s'", gobj_name_),   // jn_comment
+                json_sprintf("%s: gobj not found: '%s'",
+                    gobj_short_name(gobj),
+                    gobj_name_
+                ),
                 0,      // jn_schema
                 0       // jn_data
             );
@@ -2768,7 +2841,10 @@ PRIVATE json_t *cmd_set_gobj_trace(hgobj gobj, const char *cmd, json_t *kw, hgob
     json_t *kw_response = build_command_response(
         gobj,
         ret,
-        json_sprintf("%s", (ret<0)? gobj_log_last_message():""),
+        json_sprintf("%s: %s",
+            gobj_short_name(gobj),
+            (ret<0)? gobj_log_last_message():""
+        ),
         0,
         jn_data
     );
@@ -2795,7 +2871,10 @@ PRIVATE json_t *cmd_set_no_gobj_trace(hgobj gobj, const char *cmd, json_t *kw, h
             json_t *kw_response = build_command_response(
                 gobj,
                 -1,     // result
-                json_sprintf("gobj not found: '%s'", gobj_name_),   // jn_comment
+                json_sprintf("%s: gobj not found: '%s'",
+                    gobj_short_name(gobj),
+                    gobj_name_
+                ),
                 0,      // jn_schema
                 0       // jn_data
             );
@@ -2852,7 +2931,10 @@ PRIVATE json_t *cmd_set_no_gobj_trace(hgobj gobj, const char *cmd, json_t *kw, h
     json_t *kw_response = build_command_response(
         gobj,
         ret,
-        json_sprintf("%s", (ret<0)? gobj_log_last_message():""),
+        json_sprintf("%s: %s",
+            gobj_short_name(gobj),
+            (ret<0)? gobj_log_last_message():""
+        ),
         0,
         jn_data
     );
@@ -2907,7 +2989,10 @@ PRIVATE json_t *cmd_set_trace_filter(hgobj gobj, const char *cmd, json_t *kw, hg
             json_t *kw_response = build_command_response(
                 gobj,
                 -1,     // result
-                json_sprintf("what gclass is '%s'?", gclass_name_),
+                json_sprintf("%s: what gclass is '%s'?",
+                    gobj_short_name(gobj),
+                    gclass_name_
+                ),
                 0,      // jn_schema
                 0       // jn_data
             );
@@ -2920,7 +3005,7 @@ PRIVATE json_t *cmd_set_trace_filter(hgobj gobj, const char *cmd, json_t *kw, hg
         json_t *kw_response = build_command_response(
             gobj,
             -1,
-            json_sprintf("what attr?"),
+            json_sprintf("%s: what attr?", gobj_short_name(gobj)),
             0,
             0
         );
@@ -2931,7 +3016,7 @@ PRIVATE json_t *cmd_set_trace_filter(hgobj gobj, const char *cmd, json_t *kw, hg
         json_t *kw_response = build_command_response(
             gobj,
             -1,
-            json_sprintf("what value?"),
+            json_sprintf("%s: what value?", gobj_short_name(gobj)),
             0,
             0
         );
@@ -2955,7 +3040,10 @@ PRIVATE json_t *cmd_set_trace_filter(hgobj gobj, const char *cmd, json_t *kw, hg
     json_t *kw_response = build_command_response(
         gobj,
         ret,
-        json_sprintf("%s", (ret<0)? gobj_log_last_message():""),
+        json_sprintf("%s: %s",
+            gobj_short_name(gobj),
+            (ret<0)? gobj_log_last_message():""
+        ),
         0,      // jn_schema
         json_incref(jn_filters)
     );
@@ -2982,7 +3070,10 @@ PRIVATE json_t *cmd_get_trace_filter(hgobj gobj, const char *cmd, json_t *kw, hg
             json_t *kw_response = build_command_response(
                 gobj,
                 -1,     // result
-                json_sprintf("what gclass is '%s'?", gclass_name_),
+                json_sprintf("%s: what gclass is '%s'?",
+                    gobj_short_name(gobj),
+                    gclass_name_
+                ),
                 0,      // jn_schema
                 0       // jn_data
             );
@@ -3021,7 +3112,10 @@ PRIVATE json_t *cmd_reset_all_traces(hgobj gobj, const char *cmd, json_t *kw, hg
                 json_t *kw_response = build_command_response(
                     gobj,
                     -1,     // result
-                    json_sprintf("what gclass is '%s'?", gclass_name_),
+                    json_sprintf("%s: what gclass is '%s'?",
+                        gobj_short_name(gobj),
+                        gclass_name_
+                    ),
                     0,      // jn_schema
                     0       // jn_data
                 );
@@ -3061,7 +3155,10 @@ PRIVATE json_t *cmd_reset_all_traces(hgobj gobj, const char *cmd, json_t *kw, hg
                 json_t *kw_response = build_command_response(
                     gobj,
                     -1,     // result
-                    json_sprintf("gobj not found: '%s'", gobj_name_),   // jn_comment
+                    json_sprintf("%s: gobj not found: '%s'",
+                        gobj_short_name(gobj),
+                        gobj_name_
+                    ),
                     0,      // jn_schema
                     0       // jn_data
                 );
@@ -3096,7 +3193,7 @@ PRIVATE json_t *cmd_reset_all_traces(hgobj gobj, const char *cmd, json_t *kw, hg
     json_t *kw_response = build_command_response(
         gobj,
         -1,
-        json_sprintf("What gclass or gobj?"),
+        json_sprintf("%s: What gclass or gobj?", gobj_short_name(gobj)),
         0,
         0
     );
@@ -3266,7 +3363,7 @@ PRIVATE json_t *cmd_add_log_handler(hgobj gobj, const char* cmd, json_t* kw, hgo
         json_t *kw_response = build_command_response(
             gobj,
             -1,
-            json_sprintf("What name?"),
+            json_sprintf("%s: What name?", gobj_short_name(gobj)),
             0,
             0
         );
@@ -3281,7 +3378,10 @@ PRIVATE json_t *cmd_add_log_handler(hgobj gobj, const char* cmd, json_t* kw, hgo
         json_t *kw_response = build_command_response(
             gobj,
             -1,
-            json_sprintf("Handler already exists: %s", handler_name),
+            json_sprintf("%s: Handler already exists: %s",
+                gobj_short_name(gobj),
+                handler_name
+            ),
             0,
             0
         );
@@ -3293,7 +3393,9 @@ PRIVATE json_t *cmd_add_log_handler(hgobj gobj, const char* cmd, json_t* kw, hgo
         json_t *kw_response = build_command_response(
             gobj,
             -1,
-            json_sprintf("Handler 'file' type not allowed"),
+            json_sprintf("%s: Handler 'file' type not allowed",
+                gobj_short_name(gobj)
+            ),
             0,
             0
         );
@@ -3306,7 +3408,7 @@ PRIVATE json_t *cmd_add_log_handler(hgobj gobj, const char* cmd, json_t* kw, hgo
             json_t *kw_response = build_command_response(
                 gobj,
                 -1,
-                json_sprintf("What url?"),
+                json_sprintf("%s: What url?", gobj_short_name(gobj)),
                 0,
                 0
             );
@@ -3359,7 +3461,10 @@ PRIVATE json_t *cmd_add_log_handler(hgobj gobj, const char* cmd, json_t* kw, hgo
         json_t *kw_response = build_command_response(
             gobj,
             -1,
-            json_sprintf("Unknown '%s' handler type.", handler_type),
+            json_sprintf("%s: Unknown '%s' handler type.",
+                gobj_short_name(gobj),
+                handler_type
+            ),
             0,
             0
         );
@@ -3463,7 +3568,10 @@ PRIVATE json_t *cmd_info_cpus(hgobj gobj, const char *cmd, json_t *kw, hgobj src
     json_t *kw_response = build_command_response(
         gobj,
         0,
-        json_sprintf("%d cores", (int)json_array_size(jn_list)),
+        json_sprintf("%s: %d cores",
+            gobj_short_name(gobj),
+            (int)json_array_size(jn_list)
+        ),
         0,
         jn_list
     );
@@ -3654,7 +3762,7 @@ PRIVATE json_t* cmd_add_allowed_ip(hgobj gobj, const char* cmd, json_t* kw, hgob
         return build_command_response(
             gobj,
             -1,     // result
-            json_sprintf("What ip?"),
+            json_sprintf("%s: What ip?", gobj_short_name(gobj)),
             0,      // jn_schema
             0       // jn_data
         );
@@ -3664,7 +3772,7 @@ PRIVATE json_t* cmd_add_allowed_ip(hgobj gobj, const char* cmd, json_t* kw, hgob
         return build_command_response(
             gobj,
             -1,     // result
-            json_sprintf("Allowed, TRUE or FALSE?"),
+            json_sprintf("%s: Allowed, TRUE or FALSE?", gobj_short_name(gobj)),
             0,      // jn_schema
             0       // jn_data
         );
@@ -3697,7 +3805,7 @@ PRIVATE json_t* cmd_remove_allowed_ip(hgobj gobj, const char* cmd, json_t* kw, h
         return build_command_response(
             gobj,
             -1,     // result
-            json_sprintf("What ip?"),
+            json_sprintf("%s: What ip?", gobj_short_name(gobj)),
             0,      // jn_schema
             0       // jn_data
         );
@@ -3751,7 +3859,7 @@ PRIVATE json_t* cmd_add_denied_ip(hgobj gobj, const char* cmd, json_t* kw, hgobj
         return build_command_response(
             gobj,
             -1,     // result
-            json_sprintf("What ip?"),
+            json_sprintf("%s: What ip?", gobj_short_name(gobj)),
             0,      // jn_schema
             0       // jn_data
         );
@@ -3761,7 +3869,7 @@ PRIVATE json_t* cmd_add_denied_ip(hgobj gobj, const char* cmd, json_t* kw, hgobj
         return build_command_response(
             gobj,
             -1,     // result
-            json_sprintf("Denied, TRUE or FALSE?"),
+            json_sprintf("%s: Denied, TRUE or FALSE?", gobj_short_name(gobj)),
             0,      // jn_schema
             0       // jn_data
         );
@@ -3794,7 +3902,7 @@ PRIVATE json_t* cmd_remove_denied_ip(hgobj gobj, const char* cmd, json_t* kw, hg
         return build_command_response(
             gobj,
             -1,     // result
-            json_sprintf("What ip?"),
+            json_sprintf("%s: What ip?", gobj_short_name(gobj)),
             0,      // jn_schema
             0       // jn_data
         );
@@ -4111,7 +4219,10 @@ PRIVATE json_t *cmd_list_gclass_commands(hgobj gobj, const char* cmd, json_t* kw
                 json_t *kw_response = build_command_response(
                     gobj,
                     -1,     // result
-                    json_sprintf("what gclass is '%s'?", gclass_name),
+                    json_sprintf("%s: what gclass is '%s'?",
+                        gobj_short_name(gobj),
+                        gclass_name
+                    ),
                     0,      // jn_schema
                     0       // jn_data
                 );
@@ -4188,7 +4299,7 @@ PRIVATE json_t *cmd_list_gobj_commands(hgobj gobj, const char* cmd, json_t* kw, 
         json_t *kw_response = build_command_response(
             gobj,
             -1,     // result
-            json_sprintf("what gobj?"),   // jn_comment
+            json_sprintf("%s: what gobj?", gobj_short_name(gobj)),
             0,      // jn_schema
             0       // jn_data
         );
@@ -4203,7 +4314,10 @@ PRIVATE json_t *cmd_list_gobj_commands(hgobj gobj, const char* cmd, json_t* kw, 
             json_t *kw_response = build_command_response(
                 gobj,
                 -1,     // result
-                json_sprintf("gobj not found: '%s'", gobj_name_),   // jn_comment
+                json_sprintf("%s: gobj not found: '%s'",
+                    gobj_short_name(gobj),
+                    gobj_name_
+                ),
                 0,      // jn_schema
                 0       // jn_data
             );
