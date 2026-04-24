@@ -59,9 +59,13 @@ SDATA(data_type_t.DTP_STRING,   "level",         0,  "primary",    "primary|seco
 SDATA(data_type_t.DTP_POINTER,  "shell",         0,  null,         "C_YUI_SHELL gobj (for navigation calls)"),
 SDATA(data_type_t.DTP_POINTER,  "$container",    0,  null,         "Root HTMLElement of this nav"),
 SDATA(data_type_t.DTP_STRING,   "active_route",  0,  "",           "Currently active route"),
+SDATA(data_type_t.DTP_POINTER,  "translate",     0,  null,         "Optional i18n resolver: (key) => string"),
 SDATA(data_type_t.DTP_POINTER,  "priv",          0,  null,         "Private runtime state (click listener, etc.)"),
 SDATA_END()
 ];
+
+/*  Monotonic id generator for ARIA pairs (aria-controls etc.). */
+let __nav_aria_seq__ = 0;
 
 let PRIVATE_DATA = {};
 let __gclass__ = null;
@@ -133,6 +137,7 @@ function build_ui(gobj)
 
     let items = gobj_read_attr(gobj, "menu_items") || [];
     let zone = gobj_read_attr(gobj, "zone") || "";
+    let menu_id = gobj_read_attr(gobj, "menu_id") || "nav";
     let $root;
 
     switch(layout) {
@@ -148,9 +153,25 @@ function build_ui(gobj)
     $root.setAttribute("data-nav-layout", layout);
     $root.classList.add("yui-nav", `yui-nav-${layout}`);
 
+    /*  Accessibility: every nav root is a landmark.  For the drawer we
+     *  tag the wrapper as role=dialog and the panel as role=navigation. */
+    if(layout !== "drawer") {
+        $root.setAttribute("role", "navigation");
+        if(!$root.hasAttribute("aria-label")) {
+            $root.setAttribute("aria-label", menu_id);
+        }
+    }
+
     wire_clicks(gobj, $root);
 
     gobj_write_attr(gobj, "$container", $root);
+}
+
+function translate_of(gobj, s)
+{
+    let t = gobj_read_attr(gobj, "translate");
+    if(typeof t === "function") { return t(s); }
+    return s;
 }
 
 /************************************************************
@@ -163,7 +184,7 @@ function render_vertical(gobj, items)
 
     let $ul = ["ul", {class: "menu-list"}];
     for(let it of items) {
-        $ul.push(item_li(it, { icon_pos, show_label, stacked: false }));
+        $ul.push(item_li(gobj, it, { icon_pos, show_label, stacked: false }));
     }
     return createElement2(
         ["aside", {class: "menu p-3"},
@@ -179,7 +200,7 @@ function render_icon_bar(gobj, items)
 
     let $bar = ["div", {class: "yui-nav-iconbar level is-mobile"}];
     for(let it of items) {
-        $bar.push(item_iconbar(it, { icon_pos, show_label }));
+        $bar.push(item_iconbar(gobj, it, { icon_pos, show_label }));
     }
     return createElement2($bar);
 }
@@ -187,7 +208,6 @@ function render_icon_bar(gobj, items)
 function render_tabs(gobj, items)
 {
     let show_label = gobj_read_attr(gobj, "show_label");
-    let icon_pos = gobj_read_attr(gobj, "icon_pos");
 
     let $ul = ["ul", {}];
     for(let it of items) {
@@ -197,11 +217,14 @@ function render_tabs(gobj, items)
                 ["i", {class: it.icon, "aria-hidden":"true"}]]);
         }
         if(show_label && !empty_string(it.name)) {
-            children.push(["span", {}, it.name]);
+            children.push(["span", {}, translate_of(gobj, it.name)]);
         }
         $ul.push(
             ["li", {class: "", "data-item-id": it.id, "data-route": it.route || ""},
-                ["a", {href: it.route ? "#" + it.route : "#"}, ...children]
+                ["a", {href: it.route ? "#" + it.route : "#",
+                       "data-item-id": it.id,
+                       "data-route":   it.route || ""},
+                 ...children]
             ]
         );
     }
@@ -213,17 +236,27 @@ function render_tabs(gobj, items)
 function render_drawer(gobj, items)
 {
     /*  Off-canvas drawer: initially hidden; toggled via .is-active on the
-     *  outer wrapper.  The hamburger toggle is the caller's responsibility
-     *  (or declared in the toolbar config).
+     *  outer wrapper.  Open/close is driven from the toolbar or from the
+     *  public yui_shell_{open,close,toggle}_drawer() helpers.
      */
+    let menu_id = gobj_read_attr(gobj, "menu_id") || "drawer";
     let wrap = document.createElement("div");
     wrap.className = "yui-drawer";
+    wrap.setAttribute("role", "dialog");
+    wrap.setAttribute("aria-modal", "true");
+    wrap.setAttribute("aria-label", translate_of(gobj, menu_id));
+
     let back = document.createElement("div");
     back.className = "yui-drawer-backdrop";
     back.setAttribute("data-close-drawer", "1");
+    back.setAttribute("aria-hidden", "true");
+
     let panel = document.createElement("div");
     panel.className = "yui-drawer-panel";
+    panel.setAttribute("role", "navigation");
+    panel.setAttribute("aria-label", translate_of(gobj, menu_id));
     panel.appendChild(render_vertical(gobj, items));
+
     wrap.appendChild(back);
     wrap.appendChild(panel);
     return wrap;
@@ -233,14 +266,15 @@ function render_submenu(gobj, items)
 {
     let show_label = gobj_read_attr(gobj, "show_label");
     let icon_pos = gobj_read_attr(gobj, "icon_pos");
+    let menu_id = gobj_read_attr(gobj, "menu_id") || "";
 
     let $ul = ["ul", {class: "menu-list"}];
     for(let it of items) {
-        $ul.push(item_li(it, { icon_pos, show_label, stacked: false, compact: true }));
+        $ul.push(item_li(gobj, it, { icon_pos, show_label, stacked: false, compact: true }));
     }
     return createElement2(
         ["aside", {class: "menu p-2"},
-            ["p", {class: "menu-label"}, "—"],
+            ["p", {class: "menu-label"}, translate_of(gobj, menu_id) || "—"],
             $ul
         ]
     );
@@ -257,17 +291,32 @@ function render_accordion(gobj, items)
 
     let $root = createElement2(["aside", {class: "menu yui-nav-accordion p-2"}]);
     for(let it of items) {
+        let acc_id = ++__nav_aria_seq__;
+        let head_id = `yui-acc-head-${acc_id}`;
+        let body_id = `yui-acc-body-${acc_id}`;
+
         let $hdr = createElement2(
-            ["p", {class: "menu-label yui-accordion-head",
-                   "data-item-id": it.id, "data-route": it.route || ""},
-                it.name || ""]
+            ["button", {type: "button",
+                        id: head_id,
+                        class: "menu-label yui-accordion-head",
+                        "data-item-id": it.id,
+                        "data-route":   it.route || "",
+                        "aria-expanded": "false",
+                        "aria-controls": body_id},
+                translate_of(gobj, it.name || "")]
         );
         $root.appendChild($hdr);
-        let $ul = createElement2(["ul", {class: "menu-list yui-accordion-body is-hidden"}]);
+
+        let $ul = createElement2(
+            ["ul", {id: body_id,
+                    class: "menu-list yui-accordion-body is-hidden",
+                    role: "region",
+                    "aria-labelledby": head_id}]
+        );
         if(is_array(it.submenu && it.submenu.items)) {
             for(let sub of it.submenu.items) {
                 $ul.appendChild(createElement2(
-                    item_li(sub, { icon_pos, show_label, stacked: false })
+                    item_li(gobj, sub, { icon_pos, show_label, stacked: false })
                 ));
             }
         }
@@ -279,16 +328,17 @@ function render_accordion(gobj, items)
 /************************************************************
  *  Shared helpers
  ************************************************************/
-function item_li(it, opts)
+function item_li(gobj, it, opts)
 {
     let { icon_pos, show_label, stacked } = opts;
     let children = [];
+    let label = translate_of(gobj, it.name || "");
 
     let icon_el = !empty_string(it.icon)
         ? ["span", {class: "icon"}, ["i", {class: it.icon, "aria-hidden":"true"}]]
         : null;
-    let label_el = (show_label && !empty_string(it.name))
-        ? ["span", {class: "yui-nav-label"}, it.name]
+    let label_el = (show_label && !empty_string(label))
+        ? ["span", {class: "yui-nav-label"}, label]
         : null;
 
     let a_class = "yui-nav-item";
@@ -304,23 +354,34 @@ function item_li(it, opts)
         if(label_el) children.push(label_el);
     }
 
+    let a_attrs = {
+        class: a_class,
+        href: it.route ? "#" + it.route : "#",
+        "data-item-id": it.id,
+        "data-route":   it.route || "",
+        "data-disabled": it.disabled ? "1" : "0",
+        "aria-label":   label || it.id
+    };
+    if(it.disabled) {
+        a_attrs["aria-disabled"] = "true";
+        a_attrs["tabindex"] = "-1";
+    }
+
     return ["li", {},
-        ["a", {class: a_class, href: it.route ? "#" + it.route : "#",
-               "data-item-id": it.id, "data-route": it.route || "",
-               "data-disabled": it.disabled ? "1" : "0"},
-         ...children]
+        ["a", a_attrs, ...children]
     ];
 }
 
-function item_iconbar(it, opts)
+function item_iconbar(gobj, it, opts)
 {
     let { icon_pos, show_label } = opts;
+    let label = translate_of(gobj, it.name || "");
     let icon_el = !empty_string(it.icon)
         ? ["span", {class: "icon is-medium"},
            ["i", {class: it.icon, "aria-hidden":"true"}]]
         : null;
-    let label_el = (show_label && !empty_string(it.name))
-        ? ["span", {class: "yui-nav-label is-size-7"}, it.name]
+    let label_el = (show_label && !empty_string(label))
+        ? ["span", {class: "yui-nav-label is-size-7"}, label]
         : null;
 
     let children = [];
@@ -335,7 +396,9 @@ function item_iconbar(it, opts)
     return ["div", {class: "level-item"},
         ["a", {class: "yui-nav-item yui-nav-stacked",
                href: it.route ? "#" + it.route : "#",
-               "data-item-id": it.id, "data-route": it.route || ""},
+               "data-item-id": it.id,
+               "data-route":   it.route || "",
+               "aria-label":   label || it.id},
          ...children]
     ];
 }
@@ -366,6 +429,7 @@ function wire_clicks(gobj, $root)
                 let open = $next.classList.contains("is-hidden");
                 $next.classList.toggle("is-hidden", !open);
                 $head.classList.toggle("is-open", open);
+                $head.setAttribute("aria-expanded", open ? "true" : "false");
             }
             ev.preventDefault();
             return;
@@ -451,6 +515,7 @@ function ac_route_changed(gobj, event, kw, src)
             );
             $body.classList.toggle("is-hidden", !contains_active);
             $hd.classList.toggle("is-open", contains_active);
+            $hd.setAttribute("aria-expanded", contains_active ? "true" : "false");
         });
     }
     return 0;

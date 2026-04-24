@@ -217,3 +217,59 @@
     background-color: var(--bulma-link, #485fc7);
     color: var(--bulma-link-invert, #fff);
 }
+
+/*============================================================
+ *      Toolbar
+ *============================================================*/
+.yui-toolbar {
+    min-height: 2.5rem;
+}
+.yui-toolbar-item {
+    background: transparent;
+    border: none;
+    cursor: pointer;
+    padding: 0.5rem 0.75rem;
+    display: inline-flex;
+    align-items: center;
+    gap: 0.4rem;
+    color: var(--bulma-text, inherit);
+}
+.yui-toolbar-item:hover {
+    background-color: var(--bulma-scheme-main-bis, rgba(0,0,0,0.04));
+}
+
+/*============================================================
+ *      Keyboard focus (accessibility)
+ *      Use :focus-visible so we don't show an outline on click.
+ *============================================================*/
+.yui-nav a:focus-visible,
+.yui-nav button:focus-visible,
+.yui-toolbar-item:focus-visible,
+.yui-accordion-head:focus-visible {
+    outline: 2px solid var(--bulma-link, #485fc7);
+    outline-offset: 2px;
+    border-radius: 0.25rem;
+}
+
+/*============================================================
+ *      Shell placeholder (shown when navigation fails silently)
+ *============================================================*/
+.yui-shell-placeholder {
+    max-width: 60rem;
+}
+
+/*============================================================
+ *      Accordion head styling — needed because it is now a
+ *      <button>, which has default button styles to override.
+ *============================================================*/
+.yui-nav-accordion .yui-accordion-head {
+    display: block;
+    width: 100%;
+    text-align: inherit;
+    background: transparent;
+    border: none;
+    padding: 0.5em 0.75em;
+    margin: 0;
+    font: inherit;
+    color: inherit;
+}

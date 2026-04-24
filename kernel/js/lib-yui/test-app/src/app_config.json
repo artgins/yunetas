@@ -1,5 +1,5 @@
 {
-    "_comment": "Declarative config for C_YUI_SHELL.  Shell config is the root 'shell' key; menus under 'menu'; toolbar under 'toolbar'.",
+    "_comment": "Main declarative config for C_YUI_SHELL. Exercises: vertical (left), icon-bar (bottom), tabs (top-sub), drawer (overlay), eager lifecycle (help), toolbar with hamburger + home.",
 
     "shell": {
         "breakpoints": "bulma",
@@ -18,6 +18,33 @@
         }
     },
 
+    "toolbar": {
+        "zone": "top",
+        "aria_label": "App toolbar",
+        "items": [
+            {
+                "id": "burger",
+                "icon": "icon-menu",
+                "name": "",
+                "aria_label": "Open quick menu",
+                "action": { "type": "drawer", "op": "toggle", "menu_id": "quick" }
+            },
+            {
+                "id": "home",
+                "icon": "icon-home",
+                "name": "Home",
+                "action": { "type": "navigate", "route": "/dash/ov" }
+            },
+            {
+                "id": "help",
+                "icon": "icon-help",
+                "name": "Help",
+                "align": "end",
+                "action": { "type": "navigate", "route": "/help" }
+            }
+        ]
+    },
+
     "menu": {
         "primary": {
             "render": {
@@ -33,7 +60,7 @@
                     "submenu": {
                         "render": {
                             "top-sub": "tabs",
-                            "right":   "vertical"
+                            "right":   "submenu"
                         },
                         "items": [
                             {
@@ -83,7 +110,7 @@
                     "submenu": {
                         "render": {
                             "top-sub": "tabs",
-                            "right":   "vertical"
+                            "right":   "submenu"
                         },
                         "items": [
                             {
@@ -121,7 +148,30 @@
                         "gclass": "C_TEST_VIEW",
                         "kw": { "title": "Settings", "color": "#6D597A" }
                     }
+                },
+                {
+                    "id": "help",
+                    "name": "Help",
+                    "icon": "icon-help",
+                    "route": "/help",
+                    "target": {
+                        "stage": "main",
+                        "gclass": "C_TEST_VIEW",
+                        "kw": { "title": "Help (eager)", "color": "#8338EC" },
+                        "lifecycle": "eager"
+                    }
                 }
+            ]
+        },
+
+        "quick": {
+            "render": {
+                "top-sub": "drawer"
+            },
+            "items": [
+                { "id": "q-ov",       "name": "Quick: Overview", "icon": "icon-eye",    "route": "/dash/ov" },
+                { "id": "q-alerts",   "name": "Quick: Alerts",   "icon": "icon-alerts", "route": "/dash/alerts" },
+                { "id": "q-settings", "name": "Quick: Settings", "icon": "icon-gear",   "route": "/settings" }
             ]
         }
     }

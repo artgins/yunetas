@@ -9,6 +9,10 @@
  *      desktop (>=1024) primary menu moves to left (vertical),
  *                       submenu becomes vertical list at right.
  *
+ *  URL switches:
+ *      ?preset=accordion    loads app_config_accordion.json instead
+ *                           (exercises the accordion + submenu layouts).
+ *
  *          Copyright (c) 2026, ArtGins.
  *          All Rights Reserved.
  ***********************************************************************/
@@ -31,7 +35,26 @@ import {register_c_test_view} from "./c_test_view.js";
 import "bulma/css/bulma.css";
 import "@yuneta/lib-yui/src/c_yui_shell.css";
 
-import app_config from "./app_config.json";
+import app_config          from "./app_config.json";
+import app_config_accordion from "./app_config_accordion.json";
+
+
+/*  Identity i18n resolver — shows the SHELL translate hook without
+ *  doing any actual translation. Swap for a real resolver to see
+ *  labels change across the whole UI. */
+function identity_translate(key) {
+    return key;
+}
+
+
+function pick_config()
+{
+    let q = new URLSearchParams(window.location.search);
+    switch(q.get("preset")) {
+        case "accordion": return app_config_accordion;
+        default:          return app_config;
+    }
+}
 
 
 function main()
@@ -55,13 +78,13 @@ function main()
         { yuno_name: "shell test", yuno_role: "shell_test_gui", yuno_version: "0.1.0" }
     );
 
-    /*  Create the shell as default service (gobj_play starts it). */
     gobj_create_default_service(
         "shell",
         "C_YUI_SHELL",
         {
-            config: app_config,
-            use_hash: true
+            config:    pick_config(),
+            use_hash:  true,
+            translate: identity_translate
         },
         yuno
     );
@@ -71,8 +94,5 @@ function main()
 }
 
 window.addEventListener("load", () => {
-    if(window.location.hash === "") {
-        window.location.hash = "";  /* keep empty so shell uses default_route */
-    }
     main();
 });

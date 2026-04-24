@@ -70,6 +70,7 @@ SDATA(data_type_t.DTP_STRING,   "default_route",  0,  "",    "Fallback route if 
 SDATA(data_type_t.DTP_STRING,   "current_route",  0,  "",    "Current active route"),
 SDATA(data_type_t.DTP_BOOLEAN,  "use_hash",       0,  true,  "Bind navigation to window.location.hash"),
 SDATA(data_type_t.DTP_POINTER,  "mount_element",  0,  null,  "HTMLElement to mount shell into (default: document.body)"),
+SDATA(data_type_t.DTP_POINTER,  "translate",      0,  null,  "Optional i18n resolver: (key) => string. Applied to item.name / toolbar labels."),
 
 SDATA(data_type_t.DTP_POINTER,  "$container",     0,  null,  "Root HTMLElement of the shell"),
 SDATA(data_type_t.DTP_POINTER,  "priv",           0,  null,  "Private runtime state (zones/layers/stages/navs)"),
@@ -117,6 +118,7 @@ function mt_start(gobj)
 
     build_item_index(gobj, config);
     instantiate_menus(gobj, config);
+    build_toolbar(gobj, config);
 
     /*  lifecycle: "eager" — preinstantiate views that must exist from boot. */
     preinstantiate_eager_views(gobj);
@@ -434,6 +436,21 @@ function instantiate_menus(gobj, config)
         }
     }
 
+    /*  Drawer menus are overlays: they don't need a host in the zone grid.
+     *  Any menu with render[zone].layout === "drawer" is instantiated too;
+     *  instantiate_nav_in_zone() will mount it on the overlay layer.       */
+    for(let menu_id in menus) {
+        let r = (menus[menu_id] && menus[menu_id].render) || {};
+        for(let zone_id in r) {
+            let cfg = r[zone_id];
+            let layout = is_string(cfg) ? cfg : (cfg && cfg.layout);
+            if(layout === "drawer") {
+                let list = (zones_for_menu[menu_id] = zones_for_menu[menu_id] || []);
+                if(list.indexOf(zone_id) < 0) { list.push(zone_id); }
+            }
+        }
+    }
+
     for(let menu_id in zones_for_menu) {
         let menu = menus[menu_id];
         if(!menu) continue;
@@ -497,6 +514,7 @@ function instantiate_nav_in_zone(gobj, menu, menu_id, zone_id, level)
     }
 
     let nav_name = `nav_${menu_id.replace(/\./g, "_")}_${zone_id}`;
+    let layout = render_cfg.layout || "vertical";
     let nav = gobj_create(
         nav_name,
         "C_YUI_NAV",
@@ -504,18 +522,27 @@ function instantiate_nav_in_zone(gobj, menu, menu_id, zone_id, level)
             menu_id:     menu_id,
             menu_items:  menu.items || [],
             zone:        zone_id,
-            layout:      render_cfg.layout || "vertical",
+            layout:      layout,
             icon_pos:    render_cfg.icon_pos || default_icon_pos(zone_id),
             show_label:  render_cfg.show_label !== false,
             level:       level,
-            shell:       gobj
+            shell:       gobj,
+            translate:   gobj_read_attr(gobj, "translate")
         },
         gobj
     );
 
+    /*  Drawers are position:fixed full-screen overlays: mount them on the
+     *  overlay layer, not inside the zone grid cell (which may be display:
+     *  none at some breakpoints and would hide the drawer).  The zone still
+     *  serves as a declarative anchor in the config. */
     let $c = gobj_read_attr(nav, "$container");
-    if($c && priv.zones[zone_id]) {
-        priv.zones[zone_id].appendChild($c);
+    if($c) {
+        if(layout === "drawer" && priv.layers.overlay) {
+            priv.layers.overlay.appendChild($c);
+        } else if(priv.zones[zone_id]) {
+            priv.zones[zone_id].appendChild($c);
+        }
     }
 
     /*  The shell owns routing: we subscribe to the nav's click intent
@@ -686,6 +713,110 @@ function safe_id(s)
 {
     return String(s).replace(/[^a-zA-Z0-9_]/g, "_").replace(/^_+|_+$/g, "");
 }
+
+/************************************************************
+ *  Toolbar — a small declarative bar mounted in whichever zone
+ *  declares `host: "toolbar"`.  Items support three action types:
+ *      navigate { type:"navigate", route }
+ *      drawer   { type:"drawer",   op:"toggle"|"open"|"close", menu_id? }
+ *      event    { type:"event",    event, kw? }
+ ************************************************************/
+function build_toolbar(gobj, config)
+{
+    let tb = config && config.toolbar;
+    if(!tb || !is_array(tb.items)) { return; }
+
+    let priv = gobj_read_attr(gobj, "priv");
+    let zone_id = tb.zone || find_toolbar_zone(config);
+    let $zone = priv.zones[zone_id];
+    if(!$zone) {
+        log_warning(`C_YUI_SHELL: toolbar target zone '${zone_id}' not found`);
+        return;
+    }
+
+    let translate = gobj_read_attr(gobj, "translate") || (s => s);
+
+    let $bar = createElement2(
+        ["nav", {class: "yui-toolbar navbar",
+                 role: "navigation",
+                 "aria-label": tb.aria_label || "Toolbar"},
+            ["div", {class: "navbar-brand yui-toolbar-start"}],
+            ["div", {class: "navbar-end   yui-toolbar-end"}]
+        ]
+    );
+    let $start = $bar.querySelector(".yui-toolbar-start");
+    let $end   = $bar.querySelector(".yui-toolbar-end");
+
+    for(let it of tb.items) {
+        let parent = (it.align === "end") ? $end : $start;
+        let children = [];
+        if(!empty_string(it.icon)) {
+            children.push(["span", {class: "icon"},
+                ["i", {class: it.icon, "aria-hidden": "true"}]]);
+        }
+        if(!empty_string(it.name)) {
+            children.push(["span", {}, translate(it.name)]);
+        }
+
+        let $item = createElement2(
+            ["button", {class: "navbar-item yui-toolbar-item is-unselectable",
+                        type: "button",
+                        "data-toolbar-item-id": it.id || "",
+                        "aria-label": translate(it.aria_label || it.name || it.id || "")},
+             ...children]
+        );
+        $item.addEventListener("click", ev => {
+            ev.preventDefault();
+            handle_toolbar_action(gobj, it);
+        });
+        parent.appendChild($item);
+    }
+
+    $zone.appendChild($bar);
+}
+
+function find_toolbar_zone(config)
+{
+    let zones = (config && config.shell && config.shell.zones) || {};
+    for(let z in zones) {
+        if(zones[z].host === "toolbar") { return z; }
+    }
+    return "top";
+}
+
+function handle_toolbar_action(gobj, item)
+{
+    let action = (item && item.action) || {};
+    switch(action.type) {
+        case "navigate":
+            if(!empty_string(action.route)) {
+                if(gobj_read_attr(gobj, "use_hash")) {
+                    window.location.hash = route_to_hash(action.route);
+                } else {
+                    navigate_to(gobj, action.route);
+                }
+            }
+            break;
+        case "drawer": {
+            let op = action.op || "toggle";
+            let menu_id = action.menu_id || null;
+            if     (op === "open")  { open_drawer(gobj, menu_id);  }
+            else if(op === "close") { close_drawer(gobj, menu_id); }
+            else                    { toggle_drawer(gobj, menu_id); }
+            break;
+        }
+        case "event":
+            if(!empty_string(action.event)) {
+                gobj_publish_event(gobj, action.event, action.kw || {});
+            }
+            break;
+        default:
+            log_warning(
+                `C_YUI_SHELL: toolbar item '${item.id||"?"}' has no/unknown action.type`
+            );
+    }
+}
+
 
 /************************************************************
  *  Create all views whose item declares lifecycle:"eager".
