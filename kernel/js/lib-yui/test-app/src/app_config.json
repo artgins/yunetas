@@ -1,0 +1,128 @@
+{
+    "_comment": "Declarative config for C_YUI_SHELL.  Shell config is the root 'shell' key; menus under 'menu'; toolbar under 'toolbar'.",
+
+    "shell": {
+        "breakpoints": "bulma",
+
+        "zones": {
+            "top":        { "host": "toolbar",        "show_on": ">=tablet" },
+            "left":       { "host": "menu.primary",   "show_on": ">=desktop" },
+            "bottom":     { "host": "menu.primary",   "show_on": "<desktop"  },
+            "top-sub":    { "host": "menu.secondary", "show_on": "<desktop"  },
+            "right":      { "host": "menu.secondary", "show_on": ">=desktop" },
+            "center":     { "host": "stage.main" }
+        },
+
+        "stages": {
+            "main": { "zone": "center", "default_route": "/dash/ov" }
+        }
+    },
+
+    "menu": {
+        "primary": {
+            "render": {
+                "left":   { "layout": "vertical", "icon_pos": "left", "show_label": true },
+                "bottom": { "layout": "icon-bar", "icon_pos": "top",  "show_label": true }
+            },
+            "items": [
+                {
+                    "id": "dash",
+                    "name": "Dashboard",
+                    "icon": "icon-dash",
+                    "route": "/dash",
+                    "submenu": {
+                        "render": {
+                            "top-sub": "tabs",
+                            "right":   "vertical"
+                        },
+                        "items": [
+                            {
+                                "id": "ov",
+                                "name": "Overview",
+                                "icon": "icon-eye",
+                                "route": "/dash/ov",
+                                "target": {
+                                    "stage": "main",
+                                    "gclass": "C_TEST_VIEW",
+                                    "kw": { "title": "Overview", "color": "#2A9D8F" },
+                                    "lifecycle": "keep_alive"
+                                }
+                            },
+                            {
+                                "id": "devices",
+                                "name": "Devices",
+                                "icon": "icon-devices",
+                                "route": "/dash/devices",
+                                "target": {
+                                    "stage": "main",
+                                    "gclass": "C_TEST_VIEW",
+                                    "kw": { "title": "Devices", "color": "#E76F51" },
+                                    "lifecycle": "keep_alive"
+                                }
+                            },
+                            {
+                                "id": "alerts",
+                                "name": "Alerts",
+                                "icon": "icon-alerts",
+                                "route": "/dash/alerts",
+                                "target": {
+                                    "stage": "main",
+                                    "gclass": "C_TEST_VIEW",
+                                    "kw": { "title": "Alerts", "color": "#E9C46A" },
+                                    "lifecycle": "lazy_destroy"
+                                }
+                            }
+                        ]
+                    }
+                },
+                {
+                    "id": "reports",
+                    "name": "Reports",
+                    "icon": "icon-reports",
+                    "route": "/reports",
+                    "submenu": {
+                        "render": {
+                            "top-sub": "tabs",
+                            "right":   "vertical"
+                        },
+                        "items": [
+                            {
+                                "id": "daily",
+                                "name": "Daily",
+                                "icon": "icon-day",
+                                "route": "/reports/daily",
+                                "target": {
+                                    "stage": "main",
+                                    "gclass": "C_TEST_VIEW",
+                                    "kw": { "title": "Daily reports", "color": "#264653" }
+                                }
+                            },
+                            {
+                                "id": "monthly",
+                                "name": "Monthly",
+                                "icon": "icon-month",
+                                "route": "/reports/monthly",
+                                "target": {
+                                    "stage": "main",
+                                    "gclass": "C_TEST_VIEW",
+                                    "kw": { "title": "Monthly reports", "color": "#F4A261" }
+                                }
+                            }
+                        ]
+                    }
+                },
+                {
+                    "id": "settings",
+                    "name": "Settings",
+                    "icon": "icon-gear",
+                    "route": "/settings",
+                    "target": {
+                        "stage": "main",
+                        "gclass": "C_TEST_VIEW",
+                        "kw": { "title": "Settings", "color": "#6D597A" }
+                    }
+                }
+            ]
+        }
+    }
+}
