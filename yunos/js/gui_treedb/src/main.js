@@ -52,6 +52,7 @@ import "@yuneta/lib-yui/src/yui_icons.css";
 import "tabulator-tables/dist/css/tabulator.min.css"; // Import Tabulator CSS
 import "tabulator-tables/dist/css/tabulator_bulma.css";
 import "uplot/dist/uPlot.min.css";
+import "maplibre-gl/dist/maplibre-gl.css";
 
 import "vanilla-jsoneditor/themes/jse-theme-dark.css";
 import "tom-select/dist/css/tom-select.css"; // Import Tom-Select CSS

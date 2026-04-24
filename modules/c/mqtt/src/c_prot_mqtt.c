@@ -1588,15 +1588,20 @@ PRIVATE void ws_close(hgobj gobj, int reason)
         }
     }
 
-    do_disconnect(gobj, reason);
+    /*
+     *  WARNING: feedback, retroalimentación
+     *  Set timer close before send drop, could be event disconnect come immediately
+     */
+    set_timeout(priv->timer, gobj_read_integer_attr(gobj, "timeout_close"));
 
     if(priv->iamServer) {
         hgobj tcp0 = gobj_bottom_gobj(gobj);
         if(gobj_is_running(tcp0)) {
             gobj_send_event(tcp0, EV_DROP, 0, gobj);
         }
+    } else {
+        gobj_send_event(gobj_bottom_gobj(gobj), EV_DROP, 0, gobj);
     }
-    set_timeout(priv->timer, gobj_read_integer_attr(gobj, "timeout_close"));
 }
 
 /***************************************************************************
@@ -8284,13 +8289,6 @@ PRIVATE int ac_process_payload_data(hgobj gobj, gobj_event_t event, json_t *kw, 
         if((ret=frame_completed(gobj))<0) {
             if(gobj_trace_level(gobj) & SHOW_DECODE) {
                 trace_msg0("❌❌ Mqtt error: disconnecting: %d", ret);
-            } else {
-                gobj_log_error(gobj, 0,
-                    "function",     "%s", __FUNCTION__,
-                    "msgset",       "%s", MSGSET_INTERNAL,
-                    "msg",          "%s", "Mqtt error: disconnecting",
-                    NULL
-                );
                 gobj_trace_dump_full_gbuf(gobj, gbuf, "Mqtt error: disconnecting");
             }
             ws_close(gobj, MQTT_RC_PROTOCOL_ERROR);
