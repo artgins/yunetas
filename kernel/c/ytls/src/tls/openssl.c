@@ -86,6 +86,7 @@ socket write of encrypted data.
 /***************************************************************
  *              Constants
  ***************************************************************/
+#define HANDSHAKE_TRANSCRIPT_MAX (16*1024) // Max peer bytes retained for forensic dump on handshake failure
 
 /***************************************************************
  *              Structures
@@ -114,12 +115,15 @@ typedef struct sskt_s {
     unsigned long error; // holds ERR_get_error() (unsigned long per OpenSSL API)
     char rx_bf[16*1024];
     BOOL *alive; // Points to stack var in flush_clear_data; set to FALSE when freed mid-callback
+    gbuffer_t *handshake_transcript; // Raw peer bytes captured during handshake; dumped on failure, released on success
 } sskt_t;
 
 /***************************************************************
  *              Prototypes
  ***************************************************************/
 PRIVATE int flush_clear_data(sskt_t *sskt);
+PRIVATE void capture_handshake_bytes(sskt_t *sskt, const void *bytes, size_t len);
+PRIVATE void dump_handshake_transcript_on_fail(sskt_t *sskt);
 
 /***************************************************************
  *              Api
@@ -727,6 +731,21 @@ PRIVATE hsskt new_secure_filter(
     sskt->user_data = user_data;
     sskt->alive = NULL;
 
+    /*
+     *  Forensic transcript: capture raw peer bytes during handshake so that
+     *  a failure can be investigated (SNI, cipher suites, fingerprint).
+     *  Allocation failure is non-fatal: the filter still works without it.
+     */
+    sskt->handshake_transcript = gbuffer_create(HANDSHAKE_TRANSCRIPT_MAX, HANDSHAKE_TRANSCRIPT_MAX);
+    if(!sskt->handshake_transcript) {
+        gobj_log_error(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_MEMORY,
+            "msg",          "%s", "no memory for handshake_transcript",
+            NULL
+        );
+    }
+
     sskt->ssl = SSL_new(ytls->ctx);
     if(!sskt->ssl) {
         sskt->error = ERR_get_error();
@@ -739,6 +758,7 @@ PRIVATE hsskt new_secure_filter(
             "serror",       "%s", sskt->last_error,
             NULL
         );
+        GBUFFER_DECREF(sskt->handshake_transcript)
         GBMEM_FREE(sskt)
         return 0;
     }
@@ -799,6 +819,7 @@ PRIVATE void free_secure_filter(hsskt sskt_)
     }
 
     SSL_free(sskt->ssl);   /* free the SSL object and its BIO's */
+    GBUFFER_DECREF(sskt->handshake_transcript)
     GBMEM_FREE(sskt)
 }
 
@@ -830,6 +851,38 @@ PRIVATE void set_trace(hsskt sskt_, BOOL set)
         SSL_CTX_set_msg_callback(sskt->ytls->ctx, 0);
         SSL_set_msg_callback(sskt->ssl, 0);
     }
+}
+
+/***************************************************************************
+    Append peer bytes to the forensic transcript (bounded, never grows).
+ ***************************************************************************/
+PRIVATE void capture_handshake_bytes(sskt_t *sskt, const void *bytes, size_t len)
+{
+    if(!sskt->handshake_transcript || len == 0) {
+        return;
+    }
+    size_t room = gbuffer_freebytes(sskt->handshake_transcript);
+    if(room == 0) {
+        return;
+    }
+    size_t take = len < room ? len : room;
+    gbuffer_append(sskt->handshake_transcript, (void *)bytes, take);
+}
+
+/***************************************************************************
+    Dump the captured handshake transcript on failure, then release it.
+    Called from do_handshake() fatal branch; safe when transcript is empty.
+ ***************************************************************************/
+PRIVATE void dump_handshake_transcript_on_fail(sskt_t *sskt)
+{
+    hgobj gobj = sskt->ytls->gobj;
+
+    if(sskt->handshake_transcript && gbuffer_leftbytes(sskt->handshake_transcript) > 0) {
+        gobj_trace_dump_gbuf(gobj, sskt->handshake_transcript,
+            "TLS handshake FAILS: raw peer bytes (userp %p)", sskt->user_data
+        );
+    }
+    GBUFFER_DECREF(sskt->handshake_transcript)
 }
 
 /***************************************************************************
@@ -881,7 +934,8 @@ PRIVATE int do_handshake(hsskt sskt_)
         default:
             sskt->error = ERR_get_error();
             ERR_error_string_n(sskt->error, sskt->last_error, sizeof(sskt->last_error));
-            gobj_log_set_last_message("%s", sskt->last_error);
+            gobj_log_set_last_message("OPENSSL: %s", sskt->last_error);
+            dump_handshake_transcript_on_fail(sskt);
             sskt->on_handshake_done_cb(sskt->user_data, -1);
             return -1;
         }
@@ -900,6 +954,7 @@ PRIVATE int do_handshake(hsskt sskt_)
             sskt->handshake_informed = TRUE;
             sskt->on_handshake_done_cb(sskt->user_data, 0);
         }
+        GBUFFER_DECREF(sskt->handshake_transcript) // handshake succeeded: transcript no longer needed
         return 1; // handshake done
     }
 
@@ -1121,6 +1176,14 @@ PRIVATE int decrypt_data(
     size_t len;
     while((len = gbuffer_chunk(gbuf))>0) {
         char *p = gbuffer_cur_rd_pointer(gbuf);    // Don't pop data, be sure it's written
+
+        /*
+         *  Capture raw peer bytes for forensic dump BEFORE feeding the BIO —
+         *  once BIO_write runs, the bytes are owned by OpenSSL.
+         */
+        if(!SSL_is_init_finished(sskt->ssl)) {
+            capture_handshake_bytes(sskt, p, len);
+        }
 
         int written = BIO_write(sskt->rbio, p, len);
         if(written < 0) {

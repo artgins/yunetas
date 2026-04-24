@@ -62,6 +62,7 @@ Here's how the schema translates to mbedTLS:
 /***************************************************************
  *              Constants
  ***************************************************************/
+#define HANDSHAKE_TRANSCRIPT_MAX (16*1024) // Max peer bytes retained for forensic dump on handshake failure
 
 /***************************************************************
  *              Structures
@@ -112,12 +113,15 @@ typedef struct sskt_s {
     gbuffer_t *encrypted_buffer; // Receives encrypted bytes from the network (recv path)
     gbuffer_t *output_buffer;    // Accumulates encrypted bytes from send_callback (send path)
     BOOL *alive; // Points to stack var in flush_clear_data; set to FALSE when freed mid-callback
+    gbuffer_t *handshake_transcript; // Raw peer bytes captured during handshake; dumped on failure, released on success
 } sskt_t;
 
 /***************************************************************
  *              Prototypes
  ***************************************************************/
 PRIVATE int flush_clear_data(sskt_t *sskt);
+PRIVATE void capture_handshake_bytes(sskt_t *sskt, const void *bytes, size_t len);
+PRIVATE void dump_handshake_transcript_on_fail(sskt_t *sskt);
 PRIVATE void mbedtls_debug_callback(
     void *ctx,
     int level,
@@ -691,6 +695,21 @@ PRIVATE hsskt new_secure_filter(
         return NULL;
     }
 
+    /*
+     *  Forensic transcript: capture raw peer bytes during handshake so that
+     *  a failure can be investigated (SNI, cipher suites, fingerprint).
+     *  Allocation failure is non-fatal: the filter still works without it.
+     */
+    sskt->handshake_transcript = gbuffer_create(HANDSHAKE_TRANSCRIPT_MAX, HANDSHAKE_TRANSCRIPT_MAX);
+    if(!sskt->handshake_transcript) {
+        gobj_log_error(ytls->gobj, 0,
+            "function",         "%s", __FUNCTION__,
+            "msgset",           "%s", MSGSET_MEMORY,
+            "msg",              "%s", "no memory for handshake_transcript",
+            NULL
+        );
+    }
+
     // Set SNI hostname for client connections (enables server_name extension in ClientHello)
     if(!ytls->server && ytls->ssl_server_name[0] != '\0') {
         int ret = mbedtls_ssl_set_hostname(&sskt->ssl, ytls->ssl_server_name);
@@ -786,6 +805,12 @@ PRIVATE void free_secure_filter(hsskt sskt_)
         gbuffer_decref(sskt->output_buffer);
     }
 
+    // Free the handshake transcript if it is still held (failure paths / abrupt close)
+    if(sskt->handshake_transcript) {
+        gbuffer_decref(sskt->handshake_transcript);
+        sskt->handshake_transcript = NULL;
+    }
+
     // Release this session's ref on the TLS state. If ytls has already been
     // cleaned up and/or a newer state is current, the old state is freed here.
     state_decref(sskt->state_ref);
@@ -840,6 +865,41 @@ PRIVATE void set_trace(hsskt sskt_, BOOL set)
 }
 
 /***************************************************************************
+    Append peer bytes to the forensic transcript (bounded, never grows).
+ ***************************************************************************/
+PRIVATE void capture_handshake_bytes(sskt_t *sskt, const void *bytes, size_t len)
+{
+    if(!sskt->handshake_transcript || len == 0) {
+        return;
+    }
+    size_t room = gbuffer_freebytes(sskt->handshake_transcript);
+    if(room == 0) {
+        return;
+    }
+    size_t take = len < room ? len : room;
+    gbuffer_append(sskt->handshake_transcript, (void *)bytes, take);
+}
+
+/***************************************************************************
+    Dump the captured handshake transcript on failure, then release it.
+    Called from do_handshake() fatal branch; safe when transcript is empty.
+ ***************************************************************************/
+PRIVATE void dump_handshake_transcript_on_fail(sskt_t *sskt)
+{
+    hgobj gobj = sskt->ytls->gobj;
+
+    if(sskt->handshake_transcript && gbuffer_leftbytes(sskt->handshake_transcript) > 0) {
+        gobj_trace_dump_gbuf(gobj, sskt->handshake_transcript,
+            "TLS handshake FAILS: raw peer bytes (userp %p)", sskt->user_data
+        );
+    }
+    if(sskt->handshake_transcript) {
+        gbuffer_decref(sskt->handshake_transcript);
+        sskt->handshake_transcript = NULL;
+    }
+}
+
+/***************************************************************************
     Do handshake
  ***************************************************************************/
 PRIVATE int do_handshake(hsskt sskt_)
@@ -866,15 +926,8 @@ PRIVATE int do_handshake(hsskt sskt_)
         } else {
             char error_buf[256];
             mbedtls_strerror(ret, error_buf, sizeof(error_buf));
-            gobj_log_error(gobj, 0,
-                "function",         "%s", __FUNCTION__,
-                "msgset",           "%s", MSGSET_MBEDTLS,
-                "msg",              "%s", "TLS handshake failed",
-                "error_code",       "%d", ret,
-                "error_message",    "%s", error_buf,
-                NULL
-            );
-            gobj_log_set_last_message("%s", error_buf);
+            gobj_log_set_last_message("MBEDTLS: %s", error_buf);
+            dump_handshake_transcript_on_fail(sskt);
             sskt->on_handshake_done_cb(sskt->user_data, -1);
             return -1; // Handshake failure (vtable contract: 1/0/-1)
         }
@@ -885,6 +938,12 @@ PRIVATE int do_handshake(hsskt sskt_)
     if(!sskt->handshake_informed) {
         sskt->handshake_informed = TRUE;
         sskt->on_handshake_done_cb(sskt->user_data, 0); // Indicate success
+    }
+
+    // Handshake succeeded: transcript no longer needed
+    if(sskt->handshake_transcript) {
+        gbuffer_decref(sskt->handshake_transcript);
+        sskt->handshake_transcript = NULL;
     }
 
     return 1; // Handshake done
@@ -1169,6 +1228,15 @@ PRIVATE int decrypt_data(
         }
 
         const char *src = gbuffer_cur_rd_pointer(gbuf);
+
+        /*
+         *  Capture raw peer bytes for forensic dump BEFORE they are handed
+         *  to mbedTLS via encrypted_buffer → recv_callback.
+         */
+        if(!mbedtls_ssl_is_handshake_over(&sskt->ssl)) {
+            capture_handshake_bytes(sskt, src, len);
+        }
+
         size_t appended = gbuffer_append(sskt->encrypted_buffer, (void *)src, len);
         if(appended == 0) {
             /* Buffer full — this should not happen with a 32 KB buffer for TLS */
