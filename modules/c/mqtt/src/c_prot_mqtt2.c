@@ -7817,7 +7817,7 @@ PRIVATE int framehead_consume(
             // Error already logged
             return -1;
         }
-        if(!priv->in_session) {
+        if(!priv->in_session && priv->iamServer) {
             if(frame->command != CMD_CONNECT) {
                 gobj_log_warning(gobj, 0,
                     "function",     "%s", __FUNCTION__,
