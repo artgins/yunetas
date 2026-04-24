@@ -518,6 +518,12 @@ function instantiate_nav_in_zone(gobj, menu, menu_id, zone_id, level)
         priv.zones[zone_id].appendChild($c);
     }
 
+    /*  The shell owns routing: we subscribe to the nav's click intent
+     *  and the nav subscribes to our route-changed broadcast.          */
+    try {
+        gobj_subscribe_event(nav, "EV_NAV_CLICKED", {}, gobj);
+    } catch(e) { /* ignore */ }
+
     gobj_start(nav);
     priv.navs.push(nav);
     return nav;
@@ -659,12 +665,19 @@ function build_view_gobj(gobj, entry, route, stage)
         return null;
     }
 
+    /*  Hard contract: every view gclass MUST expose a $container
+     *  HTMLElement by the time mt_create returns.  If not, the shell
+     *  cannot mount or hide it — abort cleanly.  */
     let $view = gobj_read_attr(view, "$container");
     if(!$view) {
-        log_warning(`C_YUI_SHELL: gclass '${target.gclass}' did not expose $container`);
-    } else {
-        stage.el.appendChild($view);
+        log_error(
+            `C_YUI_SHELL: gclass '${target.gclass}' does not expose $container; ` +
+            `the view is unusable — check its mt_create`
+        );
+        try { gobj_destroy(view); } catch(e) {}
+        return null;
     }
+    stage.el.appendChild($view);
     gobj_start(view);
     return view;
 }
@@ -802,6 +815,35 @@ function update_secondary_nav_visibility(gobj, entry)
 
 
                     /******************************
+                     *          Actions
+                     ******************************/
+
+
+/*  Click-through from a C_YUI_NAV child: we own routing here. */
+function ac_nav_clicked(gobj, event, kw, src)
+{
+    let route = (kw && kw.route) || "";
+    if(empty_string(route)) { return 0; }
+
+    /*  When hash routing is on, let the hash drive navigate_to() — that
+     *  way back/forward buttons and programmatic hash changes all flow
+     *  through the same code path.  Otherwise call navigate_to directly. */
+    if(gobj_read_attr(gobj, "use_hash")) {
+        let target_hash = route_to_hash(route);
+        if(window.location.hash !== target_hash) {
+            window.location.hash = target_hash;  /*  fires hashchange */
+        } else {
+            /*  Same hash: hashchange won't fire — navigate explicitly. */
+            navigate_to(gobj, route);
+        }
+    } else {
+        navigate_to(gobj, route);
+    }
+    return 0;
+}
+
+
+                    /******************************
                      *           FSM
                      ******************************/
 
@@ -822,14 +864,15 @@ function create_gclass(gclass_name)
 
     const states = [
         ["ST_IDLE", [
-            /*  All navigation goes through navigate_to(); the NAV children
-             *  call us directly via the `shell` attr, no events required.
-             *  The only outgoing event is EV_ROUTE_CHANGED (published).
-             */
+            /*  Navigation requests flow through EV_NAV_CLICKED (emitted
+             *  by child C_YUI_NAVs) and through the window.hashchange
+             *  listener (see mt_start).  The shell is the sole router.  */
+            ["EV_NAV_CLICKED", ac_nav_clicked, null]
         ]]
     ];
 
     const event_types = [
+        ["EV_NAV_CLICKED",   0],
         ["EV_ROUTE_CHANGED", event_flag_t.EVF_OUTPUT_EVENT|event_flag_t.EVF_PUBLIC_EVENT]
     ];
 

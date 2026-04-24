@@ -22,10 +22,11 @@
 /* global document */
 
 import {
-    SDATA, SDATA_END, data_type_t,
+    SDATA, SDATA_END, data_type_t, event_flag_t,
     gclass_create, log_error,
     gobj_subscribe_event, gobj_parent,
     gobj_read_attr, gobj_write_attr,
+    gobj_publish_event,
     gobj_name,
     createElement2, empty_string, is_array, is_object, is_string,
 } from "@yuneta/gobj-js";
@@ -370,7 +371,11 @@ function wire_clicks(gobj, $root)
             return;
         }
 
-        /*  Normal navigation intent. */
+        /*  Normal navigation intent.
+         *  The nav never navigates on its own: it emits EV_NAV_CLICKED
+         *  and lets the shell decide how to route (via hash or direct
+         *  call).  This breaks the circular import on yui_shell_navigate
+         *  and keeps ownership of routing in one place. */
         let $a = target.closest("[data-route]");
         if(!$a) return;
         let route = $a.getAttribute("data-route");
@@ -379,17 +384,13 @@ function wire_clicks(gobj, $root)
             ev.preventDefault();
             return;
         }
-        /*  Let hashchange do the work — but fall back to explicit call
-         *  if hash routing is disabled.  */
-        let shell = gobj_read_attr(gobj, "shell");
-        let use_hash = shell && gobj_read_attr(shell, "use_hash");
-        if(!use_hash && shell) {
-            ev.preventDefault();
-            /*  Dynamic import of helper to avoid circular require.  */
-            import("./c_yui_shell.js").then(m => {
-                m.yui_shell_navigate(shell, route);
-            });
-        }
+        ev.preventDefault();
+        gobj_publish_event(gobj, "EV_NAV_CLICKED", {
+            route:    route,
+            item_id:  $a.getAttribute("data-item-id") || "",
+            zone:     gobj_read_attr(gobj, "zone")  || "",
+            level:    gobj_read_attr(gobj, "level") || "primary"
+        });
     };
 
     $root.addEventListener("click", handler);
@@ -488,7 +489,8 @@ function create_gclass(gclass_name)
     ];
 
     const event_types = [
-        ["EV_ROUTE_CHANGED", 0]
+        ["EV_ROUTE_CHANGED", 0],
+        ["EV_NAV_CLICKED",   event_flag_t.EVF_OUTPUT_EVENT|event_flag_t.EVF_PUBLIC_EVENT]
     ];
 
     __gclass__ = gclass_create(
