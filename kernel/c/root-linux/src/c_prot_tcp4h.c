@@ -293,15 +293,20 @@ PRIVATE void ws_close(hgobj gobj, int reason)
     // Change firstly for avoid new messages from client
     gobj_change_state(gobj, ST_DISCONNECTED);
 
-    gobj_send_event(gobj_bottom_gobj(gobj), EV_DROP, 0, gobj);
+    /*
+     *  WARNING: feedback, retroalimentación
+     *  Set timer close before send drop, could be event disconnect come immediately
+     */
+    set_timeout(priv->timer, priv->timeout_close);
 
     if(priv->iamServer) {
         hgobj tcp0 = gobj_bottom_gobj(gobj);
         if(gobj_is_running(tcp0)) {
             gobj_send_event(gobj_bottom_gobj(gobj), EV_DROP, 0, gobj);
         }
+    } else {
+        gobj_send_event(gobj_bottom_gobj(gobj), EV_DROP, 0, gobj);
     }
-    set_timeout(priv->timer, priv->timeout_close);
 }
 
 /***************************************************************************
@@ -517,7 +522,7 @@ PRIVATE int ac_disconnected(hgobj gobj, gobj_event_t event, json_t *kw, hgobj sr
 PRIVATE int ac_timeout_wait_disconnected(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 {
     gobj_log_warning(gobj, 0,
-        "msgset",       "%s", MSGSET_MQTT,
+        "msgset",       "%s", MSGSET_PROTOCOL,
         "msg",          "%s", "Timeout waiting disconnected",
         NULL
     );
@@ -534,7 +539,7 @@ PRIVATE int ac_timeout_wait_disconnected(hgobj gobj, gobj_event_t event, json_t 
 PRIVATE int ac_timeout_wait_handshake(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 {
     gobj_log_warning(gobj, 0,
-        "msgset",       "%s", MSGSET_MQTT,
+        "msgset",       "%s", MSGSET_PROTOCOL,
         "msg",          "%s", "Timeout waiting handshake",
         NULL
     );
@@ -715,7 +720,7 @@ PRIVATE int ac_process_payload_data(hgobj gobj, gobj_event_t event, json_t *kw, 
 PRIVATE int ac_timeout_wait_payload_data(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 {
     gobj_log_info(gobj, 0,
-        "msgset",       "%s", MSGSET_MQTT,
+        "msgset",       "%s", MSGSET_PROTOCOL,
         "msg",          "%s", "Timeout waiting PAYLOAD data",
         NULL
     );

@@ -569,6 +569,12 @@ PRIVATE void ws_close(hgobj gobj, int code, const char *reason)
     // Change firstly for avoid new messages from client
     gobj_change_state(gobj, ST_DISCONNECTED);
 
+    /*
+     *  WARNING: feedback, retroalimentación
+     *  Set timer close before send drop, could be event disconnect come immediately
+     */
+    set_timeout(priv->timer, priv->timeout_close);
+
     if(!priv->close_frame_sent) {
         priv->close_frame_sent = TRUE;
         send_close_frame(gobj, code, reason);
@@ -580,7 +586,6 @@ PRIVATE void ws_close(hgobj gobj, int code, const char *reason)
             gobj_send_event(tcp0, EV_DROP, 0, gobj);
         }
     }
-    set_timeout(priv->timer, priv->timeout_close);
 }
 
 /***************************************************************************
