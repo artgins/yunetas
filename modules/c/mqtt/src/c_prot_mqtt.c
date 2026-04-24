@@ -2126,7 +2126,6 @@ PRIVATE int framehead_prepare_new_frame(FRAME_HEAD *frame)
  ***************************************************************************/
 PRIVATE int decode_head(hgobj gobj, FRAME_HEAD *frame, char *data)
 {
-    PRIVATE_DATA *priv = gobj_priv_data(gobj);
     unsigned char byte1, byte2;
 
     byte1 = *(data+0);
@@ -2137,19 +2136,6 @@ PRIVATE int decode_head(hgobj gobj, FRAME_HEAD *frame, char *data)
      */
     frame->command = byte1 & 0xF0;
     frame->flags = byte1 & 0x0F;
-
-    if(!priv->in_session) {
-        if(frame->command != CMD_CONNECT) {
-            gobj_log_error(gobj, 0,
-                "function",     "%s", __FUNCTION__,
-                "msgset",       "%s", MSGSET_MQTT,
-                "msg",          "%s", "First command MUST be CONNECT",
-                "command",      "%s", get_command_name(frame->command),
-                NULL
-            );
-            return -1;
-        }
-    }
 
     /*
      *  decod byte2
@@ -2170,7 +2156,13 @@ PRIVATE int decode_head(hgobj gobj, FRAME_HEAD *frame, char *data)
  *  Consume input data to get and analyze the frame header.
  *  Return the consumed size.
  ***************************************************************************/
-PRIVATE int framehead_consume(hgobj gobj, FRAME_HEAD *frame, istream_h istream, char *bf, int len)
+PRIVATE int framehead_consume(
+    hgobj gobj,
+    FRAME_HEAD *frame,
+    istream_h istream,
+    char *bf,
+    int len
+)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
@@ -2202,6 +2194,18 @@ PRIVATE int framehead_consume(hgobj gobj, FRAME_HEAD *frame, istream_h istream, 
         if(decode_head(gobj, frame, data)<0) {
             // Error already logged
             return -1;
+        }
+        if(!priv->in_session) {
+            if(frame->command != CMD_CONNECT) {
+                gobj_log_warning(gobj, 0,
+                    "function",     "%s", __FUNCTION__,
+                    "msgset",       "%s", MSGSET_MQTT,
+                    "msg",          "%s", "First mqtt command must be CONNECT",
+                    NULL
+                );
+                return -1;
+            }
+            gobj_trace_dump(gobj, bf, len, "First mqtt command must be CONNECT");
         }
     }
 

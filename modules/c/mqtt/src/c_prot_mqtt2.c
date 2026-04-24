@@ -7817,6 +7817,18 @@ PRIVATE int framehead_consume(
             // Error already logged
             return -1;
         }
+        if(!priv->in_session) {
+            if(frame->command != CMD_CONNECT) {
+                gobj_log_warning(gobj, 0,
+                    "function",     "%s", __FUNCTION__,
+                    "msgset",       "%s", MSGSET_MQTT,
+                    "msg",          "%s", "First mqtt command must be CONNECT",
+                    NULL
+                );
+                return -1;
+            }
+            gobj_trace_dump(gobj, bf, len, "First mqtt command must be CONNECT");
+        }
     }
 
     /*
