@@ -22,7 +22,13 @@ export { register_c_yui_json_graph } from "./src/c_yui_json_graph.js";
 /*
  *  Declarative shell + menu navigation (new in v7.4)
  */
-export { register_c_yui_shell, yui_shell_navigate } from "./src/c_yui_shell.js";
+export {
+    register_c_yui_shell,
+    yui_shell_navigate,
+    yui_shell_open_drawer,
+    yui_shell_close_drawer,
+    yui_shell_toggle_drawer,
+} from "./src/c_yui_shell.js";
 export { register_c_yui_nav } from "./src/c_yui_nav.js";
 
 /*
