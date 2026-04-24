@@ -20,6 +20,12 @@ export { register_c_yui_uplot } from "./src/c_yui_uplot.js";
 export { register_c_yui_json_graph } from "./src/c_yui_json_graph.js";
 
 /*
+ *  Declarative shell + menu navigation (new in v7.4)
+ */
+export { register_c_yui_shell, yui_shell_navigate } from "./src/c_yui_shell.js";
+export { register_c_yui_nav } from "./src/c_yui_nav.js";
+
+/*
  *  TreeDB components
  */
 export { register_c_yui_treedb_topics } from "./src/c_yui_treedb_topics.js";
@@ -42,6 +48,7 @@ export { info_traffic, setup_dev } from "./src/yui_dev.js";
  *  CSS - import these in your main entry point
  *  Example:
  *    import "lib-yui/src/c_yui_main.css";
+ *    import "lib-yui/src/c_yui_shell.css";     // declarative shell
  *    import "lib-yui/src/c_yui_map.css";
  *    import "lib-yui/src/c_yui_routing.css";
  *    import "lib-yui/src/ytable.css";
