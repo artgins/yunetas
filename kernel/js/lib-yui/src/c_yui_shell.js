@@ -98,12 +98,13 @@ function mt_create(gobj)
 
     /*  Per-instance private state (avoid the gclass-level PRIVATE_DATA). */
     gobj_write_attr(gobj, "priv", {
-        zones:        {},
-        layers:       {},
-        stages:       {},
-        navs:         [],
-        item_index:   {},
-        hash_handler: null
+        zones:           {},
+        layers:          {},
+        stages:          {},
+        navs:            [],
+        item_index:      {},
+        hash_handler:    null,
+        keydown_handler: null
     });
 
     build_ui(gobj);
@@ -112,12 +113,15 @@ function mt_create(gobj)
 function mt_start(gobj)
 {
     let config = gobj_read_attr(gobj, "config") || {};
+    let priv = gobj_read_attr(gobj, "priv");
 
     build_item_index(gobj, config);
     instantiate_menus(gobj, config);
 
+    /*  lifecycle: "eager" — preinstantiate views that must exist from boot. */
+    preinstantiate_eager_views(gobj);
+
     if(gobj_read_attr(gobj, "use_hash")) {
-        let priv = gobj_read_attr(gobj, "priv");
         priv.hash_handler = () => {
             let route = hash_to_route(window.location.hash);
             if(!empty_string(route)) {
@@ -127,6 +131,14 @@ function mt_start(gobj)
         window.addEventListener("hashchange", priv.hash_handler);
     }
 
+    /*  Global Escape to close any open drawer. */
+    priv.keydown_handler = ev => {
+        if(ev.key === "Escape" || ev.keyCode === 27) {
+            close_all_drawers(gobj);
+        }
+    };
+    window.addEventListener("keydown", priv.keydown_handler);
+
     let initial = hash_to_route(window.location.hash);
     if(empty_string(initial)) {
         initial = gobj_read_attr(gobj, "default_route") ||
@@ -135,6 +147,17 @@ function mt_start(gobj)
     }
     if(!empty_string(initial)) {
         navigate_to(gobj, initial);
+    } else {
+        /*  No hash, no default_route, no stage default: tell the user loudly. */
+        show_stage_placeholder(
+            gobj, "main",
+            "C_YUI_SHELL: no route to display (empty hash, no default_route, " +
+            "no stages.main.default_route)"
+        );
+        log_error(
+            "C_YUI_SHELL: no initial route — set default_route, " +
+            "shell.stages.<name>.default_route, or navigate via hash"
+        );
     }
 }
 
@@ -146,6 +169,10 @@ function mt_stop(gobj)
     if(priv.hash_handler) {
         window.removeEventListener("hashchange", priv.hash_handler);
         priv.hash_handler = null;
+    }
+    if(priv.keydown_handler) {
+        window.removeEventListener("keydown", priv.keydown_handler);
+        priv.keydown_handler = null;
     }
 
     for(let nav of priv.navs) {
@@ -530,6 +557,10 @@ function route_to_hash(route)
 function navigate_to(gobj, route)
 {
     let priv = gobj_read_attr(gobj, "priv");
+    if(empty_string(route)) {
+        log_error("C_YUI_SHELL: navigate_to called with empty route");
+        return;
+    }
     let entry = priv.item_index[route];
 
     /*  Route level 1 only: if it has a submenu, navigate to its default subitem */
@@ -542,9 +573,16 @@ function navigate_to(gobj, route)
     }
 
     if(!entry || !entry.target) {
-        log_warning(`C_YUI_SHELL: no target for route '${route}'`);
+        log_error(`C_YUI_SHELL: no target for route '${route}'`);
+        show_stage_placeholder(
+            gobj, "main",
+            `C_YUI_SHELL: route '${route}' is not declared in any menu item`
+        );
         return;
     }
+
+    /*  A fresh navigation clears any placeholder shown earlier. */
+    clear_stage_placeholder(gobj, entry.stage || "main");
 
     let stage_name = entry.stage || "main";
     let stage = priv.stages[stage_name];
@@ -636,6 +674,109 @@ function safe_id(s)
     return String(s).replace(/[^a-zA-Z0-9_]/g, "_").replace(/^_+|_+$/g, "");
 }
 
+/************************************************************
+ *  Create all views whose item declares lifecycle:"eager".
+ *  They are mounted hidden; navigate_to() will reveal them.
+ ************************************************************/
+function preinstantiate_eager_views(gobj)
+{
+    let priv = gobj_read_attr(gobj, "priv");
+    for(let route in priv.item_index) {
+        let entry = priv.item_index[route];
+        let t = entry.target;
+        if(!t || t.lifecycle !== "eager") continue;
+        let stage_name = entry.stage || "main";
+        let stage = priv.stages[stage_name];
+        if(!stage) {
+            log_warning(`C_YUI_SHELL: eager view ${route} has no stage '${stage_name}'`);
+            continue;
+        }
+        if(stage.items[route]) continue;          /*  already built */
+        let view = build_view_gobj(gobj, entry, route, stage);
+        if(!view) continue;
+        stage.items[route] = view;
+        let $c = gobj_read_attr(view, "$container");
+        if($c) { $c.classList.add("is-hidden"); }
+    }
+}
+
+/************************************************************
+ *  Drawer API — toggle/open/close a nav rendered with
+ *  layout:"drawer".  menu_id is optional; if omitted, acts on
+ *  the first drawer found.
+ ************************************************************/
+function drawers(gobj, menu_id)
+{
+    let priv = gobj_read_attr(gobj, "priv");
+    let out = [];
+    for(let nav of priv.navs) {
+        if(gobj_read_attr(nav, "layout") !== "drawer") continue;
+        if(menu_id && gobj_read_attr(nav, "menu_id") !== menu_id) continue;
+        let $c = gobj_read_attr(nav, "$container");
+        if($c) { out.push($c); }
+    }
+    return out;
+}
+
+function open_drawer(gobj, menu_id)
+{
+    for(let $c of drawers(gobj, menu_id)) {
+        $c.classList.add("is-active");
+    }
+}
+
+function close_drawer(gobj, menu_id)
+{
+    for(let $c of drawers(gobj, menu_id)) {
+        $c.classList.remove("is-active");
+    }
+}
+
+function toggle_drawer(gobj, menu_id)
+{
+    for(let $c of drawers(gobj, menu_id)) {
+        $c.classList.toggle("is-active");
+    }
+}
+
+function close_all_drawers(gobj)
+{
+    let priv = gobj_read_attr(gobj, "priv");
+    if(!priv) return;
+    for(let nav of priv.navs) {
+        if(gobj_read_attr(nav, "layout") !== "drawer") continue;
+        let $c = gobj_read_attr(nav, "$container");
+        if($c) { $c.classList.remove("is-active"); }
+    }
+}
+
+/************************************************************
+ *  Render a visible placeholder in a stage (used when we have
+ *  nothing to show, e.g. no default route configured).
+ ************************************************************/
+function show_stage_placeholder(gobj, stage_name, message)
+{
+    let priv = gobj_read_attr(gobj, "priv");
+    let stage = priv.stages[stage_name];
+    if(!stage || !stage.el) return;
+    clear_stage_placeholder(gobj, stage_name);
+    let $msg = createElement2(
+        ["div", {class: "yui-shell-placeholder notification is-warning is-light m-4"},
+            ["p", {class: "is-size-6"}, message]
+        ]
+    );
+    stage.el.appendChild($msg);
+}
+
+function clear_stage_placeholder(gobj, stage_name)
+{
+    let priv = gobj_read_attr(gobj, "priv");
+    let stage = priv.stages[stage_name];
+    if(!stage || !stage.el) return;
+    let $old = stage.el.querySelector(":scope > .yui-shell-placeholder");
+    if($old) { $old.parentNode.removeChild($old); }
+}
+
 function update_secondary_nav_visibility(gobj, entry)
 {
     let priv = gobj_read_attr(gobj, "priv");
@@ -725,5 +866,17 @@ function yui_shell_navigate(shell_gobj, route)
     navigate_to(shell_gobj, route);
 }
 
+/*  Drawer helpers — toggle the off-canvas nav from the outside
+ *  (e.g. a hamburger button in the toolbar).  menu_id is optional. */
+function yui_shell_open_drawer(shell_gobj, menu_id)    { open_drawer(shell_gobj, menu_id);   }
+function yui_shell_close_drawer(shell_gobj, menu_id)   { close_drawer(shell_gobj, menu_id);  }
+function yui_shell_toggle_drawer(shell_gobj, menu_id)  { toggle_drawer(shell_gobj, menu_id); }
 
-export { register_c_yui_shell, yui_shell_navigate };
+
+export {
+    register_c_yui_shell,
+    yui_shell_navigate,
+    yui_shell_open_drawer,
+    yui_shell_close_drawer,
+    yui_shell_toggle_drawer
+};

@@ -58,6 +58,7 @@ SDATA(data_type_t.DTP_STRING,   "level",         0,  "primary",    "primary|seco
 SDATA(data_type_t.DTP_POINTER,  "shell",         0,  null,         "C_YUI_SHELL gobj (for navigation calls)"),
 SDATA(data_type_t.DTP_POINTER,  "$container",    0,  null,         "Root HTMLElement of this nav"),
 SDATA(data_type_t.DTP_STRING,   "active_route",  0,  "",           "Currently active route"),
+SDATA(data_type_t.DTP_POINTER,  "priv",          0,  null,         "Private runtime state (click listener, etc.)"),
 SDATA_END()
 ];
 
@@ -79,6 +80,9 @@ function mt_create(gobj)
     if(subscriber) {
         gobj_subscribe_event(gobj, null, {}, subscriber);
     }
+    gobj_write_attr(gobj, "priv", {
+        click_handler: null
+    });
     build_ui(gobj);
 }
 
@@ -101,10 +105,15 @@ function mt_stop(gobj)
 function mt_destroy(gobj)
 {
     let $c = gobj_read_attr(gobj, "$container");
+    let priv = gobj_read_attr(gobj, "priv");
+    if($c && priv && priv.click_handler) {
+        $c.removeEventListener("click", priv.click_handler);
+    }
     if($c && $c.parentNode) {
         $c.parentNode.removeChild($c);
     }
     gobj_write_attr(gobj, "$container", null);
+    gobj_write_attr(gobj, "priv", null);
 }
 
 
@@ -332,8 +341,37 @@ function item_iconbar(it, opts)
 
 function wire_clicks(gobj, $root)
 {
-    $root.addEventListener("click", ev => {
-        let $a = ev.target.closest && ev.target.closest("[data-route]");
+    let priv = gobj_read_attr(gobj, "priv") || {};
+
+    let handler = ev => {
+        let target = ev.target;
+        if(!target || !target.closest) return;
+
+        /*  Drawer backdrop close. */
+        let $bk = target.closest("[data-close-drawer]");
+        if($bk) {
+            let $drawer = $bk.closest(".yui-drawer");
+            if($drawer) { $drawer.classList.remove("is-active"); }
+            ev.preventDefault();
+            return;
+        }
+
+        /*  Accordion head toggle takes precedence over navigation: the
+         *  head is a container for its sub-items, not a destination. */
+        let $head = target.closest(".yui-accordion-head");
+        if($head && $root.contains($head)) {
+            let $next = $head.nextElementSibling;
+            if($next && $next.classList.contains("yui-accordion-body")) {
+                let open = $next.classList.contains("is-hidden");
+                $next.classList.toggle("is-hidden", !open);
+                $head.classList.toggle("is-open", open);
+            }
+            ev.preventDefault();
+            return;
+        }
+
+        /*  Normal navigation intent. */
+        let $a = target.closest("[data-route]");
         if(!$a) return;
         let route = $a.getAttribute("data-route");
         if(empty_string(route)) return;
@@ -352,16 +390,10 @@ function wire_clicks(gobj, $root)
                 m.yui_shell_navigate(shell, route);
             });
         }
-        /*  Accordion heading toggle: if the anchor is an accordion head,
-         *  expand/collapse its body.  */
-        if($a.classList.contains("yui-accordion-head")) {
-            ev.preventDefault();
-            let $next = $a.nextElementSibling;
-            if($next && $next.classList.contains("yui-accordion-body")) {
-                $next.classList.toggle("is-hidden");
-            }
-        }
-    });
+    };
+
+    $root.addEventListener("click", handler);
+    priv.click_handler = handler;
 }
 
 
@@ -403,6 +435,22 @@ function ac_route_changed(gobj, event, kw, src)
         let $li = $a.closest("li");
         if($li) $li.classList.add("is-active");
         $a.classList.add("is-active");
+    }
+
+    /*  Accordion: ensure only the section containing the active leaf
+     *  is expanded.  Any other open section collapses. */
+    if(gobj_read_attr(gobj, "layout") === "accordion") {
+        let active_leaf_id = (item && item.id) || id_to_mark;
+        let heads = $c.querySelectorAll(".yui-accordion-head");
+        heads.forEach($hd => {
+            let $body = $hd.nextElementSibling;
+            if(!$body || !$body.classList.contains("yui-accordion-body")) return;
+            let contains_active = !!$body.querySelector(
+                `[data-item-id="${css_escape(active_leaf_id)}"]`
+            );
+            $body.classList.toggle("is-hidden", !contains_active);
+            $hd.classList.toggle("is-open", contains_active);
+        });
     }
     return 0;
 }

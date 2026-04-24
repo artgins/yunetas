@@ -202,10 +202,10 @@
     content: "▾";
     float: right;
     transition: transform 0.15s ease;
-}
-.yui-nav-accordion .yui-accordion-head + .yui-accordion-body.is-hidden + .yui-accordion-head::before,
-.yui-nav-accordion .yui-accordion-head:has(+ .yui-accordion-body.is-hidden)::after {
     transform: rotate(-90deg);
+}
+.yui-nav-accordion .yui-accordion-head.is-open::after {
+    transform: none;
 }
 
 /*============================================================
