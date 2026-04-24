@@ -103,8 +103,25 @@ Cada zona puede declarar:
   - `"toolbar"` — hospedará la toolbar definida en `toolbar`.
 - `show_on`: expresión de breakpoints Bulma. Formas aceptadas:
   - `"mobile"`, `"tablet"`, `"desktop"`, `"widescreen"`, `"fullhd"`
-  - `">=desktop"`, `"<tablet"`, `"<=tablet"`, `">mobile"`
-  - Combinable con `|`: `"mobile|tablet"`
+  - `">=desktop"`, `"<tablet"`, `"<=tablet"`, `">mobile"`, `">fullhd"` (→ ∅)
+  - Combinable con `|`: `"mobile|tablet"`, `">=desktop|mobile"`
+
+El shell traduce la expresión a un conjunto de **clases CSS propias** que
+ocultan la zona por breakpoint. Bulma sólo define helpers "hasta"
+(`is-hidden-tablet`, `is-hidden-desktop`) — para poder decir *"sólo
+oculto en tablet"* `lib-yui` añade estas clases en `c_yui_shell.css`:
+
+| Clase                          | Oculta en                   |
+|--------------------------------|-----------------------------|
+| `.yui-hidden-mobile`           | `<769 px`                   |
+| `.yui-hidden-tablet-only`      | `769–1023 px`               |
+| `.yui-hidden-desktop-only`     | `1024–1215 px`              |
+| `.yui-hidden-widescreen-only`  | `1216–1407 px`              |
+| `.yui-hidden-fullhd`           | `≥1408 px`                  |
+
+No se esperan clases fuera de esta tabla en `show_on`. El parser es puro
+y está cubierto por `tests/shell_show_on.test.mjs` (`npm test` en
+`lib-yui/`).
 
 Ejemplo:
 
@@ -159,7 +176,35 @@ cuando sólo hay una stage principal con nombre `main` en `center`.
     layout (`"tabs"`) en vez de un objeto.
 - `items[]` — opciones.
 
-### 3.4 `items[]` — estructura de una opción
+### 3.4 `toolbar`
+
+```json
+"toolbar": {
+  "zone": "top",
+  "aria_label": "App toolbar",
+  "items": [
+    { "id": "burger", "icon": "icon-menu",
+      "aria_label": "Open menu",
+      "action": { "type": "drawer", "op": "toggle", "menu_id": "quick" } },
+    { "id": "home",   "icon": "icon-home",  "name": "Home",
+      "action": { "type": "navigate", "route": "/dash/ov" } },
+    { "id": "user",   "icon": "icon-user",  "align": "end",
+      "action": { "type": "event", "event": "EV_OPEN_USER_MENU" } }
+  ]
+}
+```
+
+- `zone` — zona hospedadora. Por defecto, la primera zona que declare
+  `"host": "toolbar"` en `shell.zones`.
+- `items[].action.type`:
+  - `"navigate"` → `{ route }` — delega en el shell (respeta `use_hash`).
+  - `"drawer"`   → `{ op: "toggle" | "open" | "close", menu_id? }` —
+    abre/cierra el nav con `layout:"drawer"` que coincide con `menu_id`.
+  - `"event"`    → `{ event, kw? }` — `gobj_publish_event` desde el shell.
+- `items[].align`: `"start"` (por defecto) o `"end"` (alinea a la derecha).
+- `aria_label` por item se usa como `aria-label` del `<button>`.
+
+### 3.5 `items[]` — estructura de una opción
 
 ```json
 {
@@ -237,25 +282,39 @@ Default recomendado: `keep_alive`.
 
 ### `C_YUI_SHELL`
 
-| Atributo         | Tipo     | Descripción                                         |
-|------------------|----------|-----------------------------------------------------|
-| `config`         | JSON     | El JSON descrito arriba                             |
-| `default_route`  | string   | Fallback si hash vacío y no hay `stages.*.default_route` |
-| `current_route`  | string   | Lectura: ruta activa                                |
-| `use_hash`       | bool     | Si `true`, sincroniza `window.location.hash`        |
-| `mount_element`  | HTMLElement | Dónde montar el shell (default `document.body`)  |
-| `$container`     | HTMLElement | Raíz del shell                                   |
+| Atributo         | Tipo        | Descripción                                              |
+|------------------|-------------|----------------------------------------------------------|
+| `config`         | JSON        | El JSON descrito arriba                                  |
+| `default_route`  | string      | Fallback si hash vacío y no hay `stages.*.default_route` |
+| `current_route`  | string      | Lectura: ruta activa                                     |
+| `use_hash`       | bool        | Si `true`, sincroniza `window.location.hash`             |
+| `mount_element`  | HTMLElement | Dónde montar el shell (default `document.body`)          |
+| `translate`      | function    | `(key) => string` — i18n opcional; aplicado a `item.name`, labels de toolbar y `aria-label` |
+| `$container`     | HTMLElement | Raíz del shell                                           |
 
 Eventos publicados:
-- `EV_ROUTE_CHANGED` — `{ route, item, parent_item, stage }`
+- `EV_ROUTE_CHANGED` — `{ route, item, parent_item, stage }`.
+
+Helpers públicos (import desde `@yuneta/lib-yui`):
+- `yui_shell_navigate(shell, route)` — navegación programática.
+- `yui_shell_open_drawer(shell, menu_id?)`,
+  `yui_shell_close_drawer(shell, menu_id?)`,
+  `yui_shell_toggle_drawer(shell, menu_id?)` — actúan sobre el
+  `C_YUI_NAV` con `layout:"drawer"` cuyo `menu_id` coincida (todos si
+  `menu_id` se omite). Con `Escape` el shell los cierra por defecto.
 
 ### `C_YUI_NAV`
 
 Se instancia desde el shell (uno por par *menú, zona*). Usuario final
-no suele crearlo directamente.
+no suele crearlo directamente. El nav **no** navega: publica la
+intención y el shell enruta.
+
+Eventos publicados:
+- `EV_NAV_CLICKED` — `{ route, item_id, zone, level }`. El shell está
+  suscrito y decide si cambiar el hash o llamar a `navigate_to` directo.
 
 Atributos de interés: `menu_items`, `zone`, `layout`, `icon_pos`,
-`show_label`, `level` (`primary` | `secondary`), `shell`.
+`show_label`, `level` (`primary` | `secondary`), `shell`, `translate`.
 
 ---
 
@@ -321,15 +380,61 @@ contador `instance #` que pinta `C_TEST_VIEW`).
 
 ---
 
-## 10. Lo que queda fuera de este primer corte
+## 10. Estado y plan de retirada
 
-- La **toolbar declarativa** — hoy `shell.zones.top.host = "toolbar"`
-  reserva la zona pero la toolbar se sigue construyendo con
-  `yui_toolbar()`. Pendiente: parser JSON de `toolbar.items[]`.
-- **Migración de `C_YUI_MAIN`** — los diálogos volátiles, `display_*`
-  y el gestor de modales siguen en `c_yui_main.js`. El shell los
-  reemplazará reutilizando el layer `modal`/`notification`/`loading`
-  que ya crea.
-- **`C_YUI_ROUTING` reducido** — la ruta hash vive ahora en el shell;
-  `C_YUI_ROUTING` sigue intacto porque lo usan `C_YUI_TABS` y otros.
-  Se puede retirar cuando cada consumidor se reescriba sobre el shell.
+Este corte cierra **todas** las promesas del diseño original. Pendientes
+son los dos consumidores históricos (`C_YUI_MAIN` y `C_YUI_ROUTING`) que
+todavía se usan desde otras partes de `lib-yui`:
+
+### Implementado ✓
+
+- Zonas + `show_on` con los operadores `>=`, `<=`, `<`, `>`, enumeración y
+  `|`. Parser puro testeado (`npm test`).
+- Inferencia automática de la stage `main` desde `"host": "stage.<name>"`.
+- Los 6 layouts de menú (`vertical`, `icon-bar`, `tabs`, `drawer`,
+  `submenu`, `accordion`), con auto-expansión de la rama activa en
+  accordion al cambiar ruta.
+- Drawer off-canvas: se monta en el layer `overlay` (no dentro del grid
+  de zonas), cierre por click en backdrop y por `Escape`, API pública
+  `yui_shell_{open,close,toggle}_drawer`.
+- `lifecycle: eager | keep_alive | lazy_destroy`, con el primero
+  preinstanciando las vistas al arrancar.
+- **Toolbar declarativa** (`toolbar.items[]` con acciones `navigate`,
+  `drawer`, `event`).
+- Un único router: el nav publica `EV_NAV_CLICKED`, el shell enruta.
+- Hook de i18n `translate: (key) => string` aplicado a labels y
+  `aria-label`.
+- Accesibilidad: `role="navigation"` en navs, `role="dialog"` +
+  `aria-modal` en drawers, `aria-expanded` / `aria-controls` en
+  accordion, `aria-disabled` + `tabindex="-1"` en ítems deshabilitados,
+  `:focus-visible` en todo control interactivo.
+- Fail ruidoso cuando no hay ruta: `log_error` + placeholder visible en
+  la stage, en lugar de pantalla en blanco.
+- Contrato duro: si una vista no expone `$container`, el shell registra
+  error y destruye el gobj a medio construir.
+
+### Plan de retirada de `C_YUI_MAIN` / `C_YUI_ROUTING`
+
+Los siguientes puntos son los bloqueantes antes de borrar cada uno:
+
+1. **Modales y notificaciones** — `C_YUI_MAIN` expone `display_*`,
+   gestor de diálogos volátiles y toasts. El shell ya crea los layers
+   `modal`, `notification` y `loading` en `build_ui`, pero todavía no
+   hay API declarativa para ellos. Primer paso: mover `display_error`,
+   `display_info`, `display_confirm` a helpers del shell que pinten en
+   `layers.notification` / `layers.modal`.
+2. **Grid de widgets / `C_YUI_MAIN.layout`** — revisar qué consumidores
+   de `lib-yui` lo usan (`grep register_c_yui_main`). Cada uno pasa al
+   shell declarando sus zonas.
+3. **`C_YUI_ROUTING`** — el hash routing ya está en el shell, pero
+   `C_YUI_TABS` y algún otro componente todavía lo usan. Se retira
+   cuando cada uno se reescribe para suscribirse a `EV_ROUTE_CHANGED`
+   del shell en lugar de a `EV_ROUTING_CHANGED` de `C_YUI_ROUTING`.
+
+Checklist antes de borrar cualquiera de los dos gclasses:
+
+- [ ] `grep -r register_c_yui_main  kernel/ utils/ yunos/` vacío.
+- [ ] `grep -r register_c_yui_routing kernel/ utils/ yunos/` vacío.
+- [ ] Helpers equivalentes a `display_*` disponibles sobre el shell.
+- [ ] Consumidores de `EV_ROUTING_CHANGED` migrados a
+      `EV_ROUTE_CHANGED` del shell.

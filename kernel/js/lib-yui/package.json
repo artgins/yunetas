@@ -23,6 +23,7 @@
     "description": "Yuneta UI Library — GClass-based GUI components: app shell, windows, forms, maps, charts, TreeDB editors",
     "scripts": {
         "build": "vite build",
+        "test": "node --test tests/*.test.mjs",
         "prepublishOnly": "npm run build"
     },
     "devDependencies": {

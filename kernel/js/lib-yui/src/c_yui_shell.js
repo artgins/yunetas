@@ -36,14 +36,17 @@ import {
     createElement2, empty_string, is_object, is_array, is_string,
 } from "@yuneta/gobj-js";
 
+import {
+    BULMA_BP_ORDER,
+    breakpoints_from_expr,
+    bulma_hidden_class,
+} from "./shell_show_on.js";
+
 
 /***************************************************************
  *              Constants
  ***************************************************************/
 const GCLASS_NAME = "C_YUI_SHELL";
-
-/*  Bulma breakpoint order (low → high).  Used by show_on parser. */
-const BULMA_BP_ORDER = ["mobile", "tablet", "desktop", "widescreen", "fullhd"];
 
 /*  Zones rendered inside the base layer. */
 const ZONE_IDS = ["top", "top-sub", "left", "center", "right", "bottom-sub", "bottom"];
@@ -329,50 +332,6 @@ function apply_show_on($el, expr)
     }
     $el.setAttribute("data-show-on", expr);
 }
-
-function breakpoints_from_expr(expr)
-{
-    let out = { mobile:false, tablet:false, desktop:false, widescreen:false, fullhd:false };
-    expr = String(expr).trim();
-    if(expr === "*" || expr === "") {
-        for(let bp of BULMA_BP_ORDER) out[bp] = true;
-        return out;
-    }
-    let parts = expr.split("|").map(s => s.trim()).filter(s => s.length);
-    for(let p of parts) {
-        let m;
-        if((m = /^>=(\w+)$/.exec(p))) {
-            let idx = BULMA_BP_ORDER.indexOf(m[1]);
-            if(idx >= 0) for(let i=idx;i<BULMA_BP_ORDER.length;i++) out[BULMA_BP_ORDER[i]] = true;
-        } else if((m = /^<(\w+)$/.exec(p))) {
-            let idx = BULMA_BP_ORDER.indexOf(m[1]);
-            if(idx > 0) for(let i=0;i<idx;i++) out[BULMA_BP_ORDER[i]] = true;
-        } else if((m = /^<=(\w+)$/.exec(p))) {
-            let idx = BULMA_BP_ORDER.indexOf(m[1]);
-            if(idx >= 0) for(let i=0;i<=idx;i++) out[BULMA_BP_ORDER[i]] = true;
-        } else if((m = /^>(\w+)$/.exec(p))) {
-            let idx = BULMA_BP_ORDER.indexOf(m[1]);
-            if(idx >= 0) for(let i=idx+1;i<BULMA_BP_ORDER.length;i++) out[BULMA_BP_ORDER[i]] = true;
-        } else if(out.hasOwnProperty(p)) {
-            out[p] = true;
-        }
-    }
-    return out;
-}
-
-/*  Map each Bulma breakpoint to the helper class that hides it. */
-function bulma_hidden_class(bp)
-{
-    switch(bp) {
-        case "mobile":     return "yui-hidden-mobile";       /*  <769  */
-        case "tablet":     return "yui-hidden-tablet-only";  /*  769-1023 */
-        case "desktop":    return "yui-hidden-desktop-only"; /*  1024-1215 */
-        case "widescreen": return "yui-hidden-widescreen-only"; /*  1216-1407 */
-        case "fullhd":     return "yui-hidden-fullhd";       /*  ≥1408 */
-    }
-    return "";
-}
-
 
 /************************************************************
  *  Precompute: route → { item, parent_item, stage, target }
