@@ -433,7 +433,10 @@ PRIVATE json_t *cmd_view_channels(hgobj gobj, const char *cmd, json_t *kw, hgobj
     return msg_iev_build_response(
         gobj,
         0,
-        json_sprintf("%d channels", (int)json_array_size(jn_data) - 2),
+        json_sprintf("%s: %d channels",
+            gobj_yuno_role_plus_name(),
+            (int)json_array_size(jn_data) - 2
+        ),
         0,
         jn_data, // owned
         kw  // owned
