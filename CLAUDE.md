@@ -38,6 +38,78 @@ When reviewing diffs or writing new code, grep for `\bmalloc\s*\(`, `\bfree\s*\(
 `\brealloc\s*\(`, `\bstrdup\s*\(` and replace every hit with the `gbmem_*`
 equivalent.
 
+## ⚠️ CRITICAL: Always braces, never single-line bodies
+
+**Every `if` / `else` / `else if` / `for` / `while` / `do` body must
+be wrapped in `{ ... }` and laid out across multiple lines.** Applies
+to **every language** in the repo — C, JS, Python utility scripts,
+shell — and to every block, no matter how short.
+
+| Forbidden                           | Required                                  |
+|-------------------------------------|-------------------------------------------|
+| `if(!ptr) return;`                  | `if(!ptr) {`<br>`    return;`<br>`}`      |
+| `if(x) doIt();`                     | `if(x) {`<br>`    doIt();`<br>`}`         |
+| `for(...) continue;`                | `for(...) {`<br>`    continue;`<br>`}`    |
+| `if(x) y(); else z();`              | `if(x) {`<br>`    y();`<br>`} else {`<br>`    z();`<br>`}` |
+| `if(x) { y(); }` (one-liner)        | `if(x) {`<br>`    y();`<br>`}`            |
+
+**Why it matters (visual reasoning):** the user reviews code by
+*looking* at it. A `return;` or `continue;` hidden at the end of a
+single-line `if` is invisible at a glance — it disappears into the
+condition. Important control-flow statements (`return`, `continue`,
+`break`, `throw`) deserve a braced body so the eye lands on them
+immediately when scanning the file.
+
+**Bad — control-flow disappears at the right edge:**
+
+```js
+for(let nav of priv.navs) {
+    let level = gobj_read_attr(nav, "level");
+    if(level !== "secondary") continue;
+    let menu_id = gobj_read_attr(nav, "menu_id") || "";
+    let m = /^secondary\.(.+)$/.exec(menu_id);
+    if(!m) continue;
+    let $c = gobj_read_attr(nav, "$container");
+    if(!$c) continue;
+    ...
+}
+```
+
+**Good — every guard is visible:**
+
+```js
+for(let nav of priv.navs) {
+    let level = gobj_read_attr(nav, "level");
+    if(level !== "secondary") {
+        continue;
+    }
+    let menu_id = gobj_read_attr(nav, "menu_id") || "";
+    let m = /^secondary\.(.+)$/.exec(menu_id);
+    if(!m) {
+        continue;
+    }
+    let $c = gobj_read_attr(nav, "$container");
+    if(!$c) {
+        continue;
+    }
+    ...
+}
+```
+
+When reviewing or writing code, search for these patterns and fix
+each occurrence:
+
+- `\)\s*(return|continue|break|throw)` followed by anything other
+  than `{` on the next character.
+- `\)\s*[a-zA-Z_$].*[^{]\s*$` — a non-brace statement after a
+  control-flow `)` on the same line.
+- `\}\s*else\s+(?!if|\{)` — an `else` whose body starts with code,
+  not a brace.
+- `\)\s*\{[^}]*\}\s*$` — a one-liner braced body (the body and the
+  braces all collapsed onto a single line). Expand it.
+
+Yes, this is a verbose style. It is intentional. Visibility wins.
+
 ## System Prerequisites
 
 Install system dependencies (from doc.yuneta.io):
@@ -356,10 +428,29 @@ PRIVATE GOBJ_DEFINE_GCLASS(MY_CLASS);
 
 ### GClass section layout (authoritative)
 
-Every `.c` file that defines a GClass must lay out its function
-definitions under the **five section banners** documented in the
-skeleton
-[`utils/c/yuno-skeleton/skeletons/gclass_service/c_+rootname+.c_tmpl`](utils/c/yuno-skeleton/skeletons/gclass_service/c_%2Brootname%2B.c_tmpl).
+Every gclass file — in any language — must mirror the layout of the
+matching template under
+[`utils/c/yuno-skeleton/skeletons/`](utils/c/yuno-skeleton/skeletons).
+That directory is the **single source of truth** for the minimum
+structure of a gclass; the templates live there:
+
+| Flavour                   | Skeleton                                                     |
+|---------------------------|--------------------------------------------------------------|
+| C service-level gclass    | `gclass_service/c_+rootname+.c_tmpl` (+`.h_tmpl`)            |
+| C child-level gclass      | `gclass_child/c_+rootname+.c_tmpl` (+`.h_tmpl`)              |
+| JS gclass                 | `js_gclass/+rootname+.js_tmpl`                               |
+| Standalone yuno (C)       | `yuno_standalone/src/c_+rootname+.c_tmpl` (+`.h_tmpl`)       |
+| Citizen yuno (C)          | `yuno_citizen/src/c_+rootname+.c_tmpl` (+`.h_tmpl`)          |
+
+Future languages add new sub-directories here; the layout rule is the
+same.
+
+**Every banner from the skeleton must be present in the gclass, even
+when its section is empty.** The banner is the visual anchor used to
+*scan* the file — it documents intent and keeps the layout uniform
+across the whole codebase, regardless of how full each section is on
+a given day. Adding extra banners outside the skeleton set is also
+forbidden, for the same reason.
 
 Canonical order — **always in this order**:
 
@@ -416,6 +507,207 @@ reviewing the cert-reload feature):
 
 `c_yuno.c` and `c_agent.c` are the canonical large-gclass examples of
 this layout; `c_timer.c` is the minimal example.
+
+### JS GClass — banner set per the skeleton
+
+The JS skeleton
+([`js_gclass/+rootname+.js_tmpl`](utils/c/yuno-skeleton/skeletons/js_gclass/%2Brootname%2B.js_tmpl))
+defines four banners, **all four mandatory even when empty**:
+
+1. `Framework Methods` — indented, 30-star wrapper.
+2. `Local Methods` — indented, 27-star wrapper.
+3. `Actions` — indented, 27-star wrapper.
+4. `FSM` — file-level (NOT indented), 64-star wrapper.
+
+Every `mt_*` / `ac_*` function takes its own block header on top
+(`Framework Method: Create`, etc.) — same skeleton.
+
+The C skeletons have one extra section (`Commands`) between
+Framework Methods and Local Methods; the FSM banner in C is also a
+file-level wrapper. See `gclass_service/c_+rootname+.c_tmpl` for
+the canonical 5-section C layout.
+
+**The user reads gclass files visually**, by scanning for these
+banners. A missing or non-canonical banner makes the file unreadable
+for the reviewer even when the code is correct.
+
+### GClass blank-line spacing rules (apply to every language)
+
+The skeleton encodes a **fixed spacing grammar** that the eye uses to
+locate sections. It is not optional and is the most common drift in
+generated code, so the rules are spelled out here in full.
+
+**Rule A — Indented section banners (Framework Methods, Commands,
+Local Methods, Actions) need exactly 4 blank lines above AND 4 blank
+lines below.** No more, no fewer. The 4 blanks are how the banner
+reads as a separator at a glance. The FSM banner in JS and C is the
+file-level wrapper form (not indented) and rides directly on top of
+its first block (`gmt`/states/etc.) with at most 1 blank above —
+match the skeleton exactly.
+
+**Rule B — Everywhere else, the separator is exactly 1 blank line.**
+Two blank lines between regular code is forbidden. This includes:
+
+- between two functions inside the same section,
+- between a function's closing `}` and the next per-function block
+  header `/*** Framework Method: Start ***/`,
+- between the import block and the first file-level block header,
+- between a top-level `const`/`let` and the next file-level block
+  header.
+
+**Rule C — Per-function block headers (`/*** Framework Method:
+Create ***/`, `/*** Action: foo ***/`) sit directly above their
+function with no blank line between header and `function`.** The
+1-blank separator from Rule B goes *above* the header.
+
+Canonical layout, copy-paste reference:
+
+```js
+let __gclass__ = null;
+                            ← rule A: blank #1
+                            ← rule A: blank #2
+                            ← rule A: blank #3
+                            ← rule A: blank #4
+                    /******************************
+                     *      Framework Methods
+                     ******************************/
+                            ← rule A: blank #1
+                            ← rule A: blank #2
+                            ← rule A: blank #3
+                            ← rule A: blank #4
+/***************************************************************
+ *          Framework Method: Create
+ ***************************************************************/
+function mt_create(gobj) {
+    ...
+}
+                            ← rule B: blank #1 (only one!)
+/***************************************************************
+ *          Framework Method: Start
+ ***************************************************************/
+function mt_start(gobj) {
+    ...
+}
+```
+
+**Common mistakes to NOT reproduce:**
+
+```js
+let __gclass__ = null;          /* WRONG — rule A wants 4 blanks above the banner */
+
+
+                    /******************************
+                     *      Framework Methods
+                     ******************************/
+```
+
+```js
+    return 0;
+}                               /* WRONG — rule B says 1 blank, never 2 */
+
+
+/***************************************************************
+ *          Framework Method: Start
+ ***************************************************************/
+```
+
+When in doubt, open
+`utils/c/yuno-skeleton/skeletons/js_gclass/+rootname+.js_tmpl` (or
+the matching C template) and **count blank lines**. The skeleton is
+the answer.
+
+### GClass subscription model (CHILD vs SERVICE) — applies to every language
+
+Every gclass picks **exactly one** of two canonical subscription
+patterns and writes the block verbatim, with the canonical comment,
+inside `mt_create`. Do not invent a third path or weaken either
+pattern to silence a runtime error.
+
+```js
+/*
+ *  CHILD subscription model
+ */
+let subscriber = gobj_read_pointer_attr(gobj, "subscriber");
+if(!subscriber) {
+    subscriber = gobj_parent(gobj);
+}
+gobj_subscribe_event(gobj, null, {}, subscriber);
+```
+
+```js
+/*
+ *  SERVICE subscription model
+ */
+const subscriber = gobj_read_pointer_attr(gobj, "subscriber");
+if(subscriber) {
+    gobj_subscribe_event(gobj, null, {}, subscriber);
+}
+```
+
+How to choose:
+
+- **CHILD** — the gobj is created with a parent gobj
+  (`gobj_create(name, GCLASS, kw, parent)`); the parent is the
+  natural audience for its output events. The parent's FSM **must**
+  declare every event the child publishes.
+- **SERVICE** — the gobj is created via
+  `gobj_create_default_service` / `gobj_create_service`; it is a
+  top-level node, so subscribers must opt in explicitly via the
+  `subscriber` attr.
+
+When `gobj_publish_event` from a CHILD raises *"Event NOT DEFINED in
+state: <parent>, <state>, <event>"*, the fix is one of:
+
+1. Declare the event/action in the parent gclass's FSM, **or**
+2. Confirm the publishing gobj is actually a SERVICE and switch its
+   `mt_create` block accordingly.
+
+**Never** strip the parent fallback from a CHILD gclass to silence
+the error. That breaks the convention every other gclass relies on.
+
+#### Mark broadcast events that may have no subscribers with `EVF_NO_WARN_SUBS`
+
+When a SERVICE gclass publishes an event whose subscribers are
+optional (apps may or may not be listening), tag the event with
+`event_flag_t.EVF_NO_WARN_SUBS` (in JS) / `EVF_NO_WARN_SUBS` (in C)
+in the `event_types` table. Otherwise `gobj_publish_event` logs a
+*"Publish event WITHOUT subscribers"* warning every time the event
+fires and nobody is listening — noisy and not actionable.
+
+```js
+const event_types = [
+    ["EV_ROUTE_CHANGED", event_flag_t.EVF_OUTPUT_EVENT
+                        |event_flag_t.EVF_PUBLIC_EVENT
+                        |event_flag_t.EVF_NO_WARN_SUBS]
+];
+```
+
+```c
+event_type_t event_types[] = {
+    {EV_TIMEOUT_PERIODIC, EVF_OUTPUT_EVENT|EVF_NO_WARN_SUBS},
+    {NULL, 0}
+};
+```
+
+Existing examples to mimic: `c_yui_main.js`
+(`EV_RESIZE`/`EV_THEME`), `c_yui_window.js`
+(`EV_WINDOW_TO_CLOSE`/`EV_WINDOW_MOVED`/`EV_WINDOW_RESIZED`),
+`c_yuno.c` / `c_esp_yuno.c` (`EV_TIMEOUT_PERIODIC`),
+`c_agent.c` / `c_agent22.c`
+(`EV_PLAY_YUNO_ACK`/`EV_PAUSE_YUNO_ACK`).
+
+**The gclass decides per-event whether having a subscriber is
+mandatory.** `EVF_NO_WARN_SUBS` is the explicit annotation for
+*"this event's subscribers are optional, missing one is not a
+bug"*. Without the flag, a missing subscriber is treated as a real
+signal — keep the warning when the gclass really does require
+someone to react (e.g. a CHILD whose parent's FSM must declare and
+handle the event). Don't use the flag as a generic noise
+suppressor.
+
+Reference: `kernel/js/lib-yui/src/c_yui_form.js` (CHILD),
+`kernel/js/lib-yui/src/c_yui_main.js` (SERVICE + EVF_NO_WARN_SUBS),
+`kernel/c/root-linux/src/c_timer.c` (CHILD in C).
 
 ### Writing tests against the gobj framework
 

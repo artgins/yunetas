@@ -1,0 +1,102 @@
+{
+    "_comment": "Alternate preset that exercises the accordion + submenu layouts. Enabled by main.js when the URL contains ?preset=accordion.",
+
+    "shell": {
+        "breakpoints": "bulma",
+
+        "zones": {
+            "top":     { "host": "toolbar",       "show_on": ">=tablet" },
+            "left":    { "host": "menu.tree",     "show_on": ">=desktop" },
+            "bottom":  { "host": "menu.primary",  "show_on": "<desktop"  },
+            "right":   { "host": "menu.secondary","show_on": ">=desktop" },
+            "top-sub": { "host": "menu.secondary","show_on": "<desktop"  },
+            "center":  { "host": "stage.main" }
+        },
+        "stages": {
+            "main": { "zone": "center", "default_route": "/dash/ov" }
+        }
+    },
+
+    "toolbar": {
+        "zone": "top",
+        "aria_label": "App toolbar",
+        "items": [
+            { "id": "burger", "icon": "icon-menu",
+              "aria_label": "Open quick menu",
+              "action": { "type": "drawer", "op": "toggle", "menu_id": "quick" } },
+            { "id": "home",   "icon": "icon-home", "name": "Home",
+              "action": { "type": "navigate", "route": "/dash/ov" } }
+        ]
+    },
+
+    "menu": {
+        "tree": {
+            "render": { "left": { "layout": "accordion" } },
+            "items": [
+                {
+                    "id": "dash", "name": "Dashboard", "route": "/dash",
+                    "submenu": {
+                        "items": [
+                            { "id": "ov",      "name": "Overview", "icon": "icon-eye",
+                              "route": "/dash/ov",
+                              "target": { "stage": "main", "gclass": "C_TEST_VIEW",
+                                          "kw": { "title":"Overview","color":"#2A9D8F"},
+                                          "lifecycle": "keep_alive" } },
+                            { "id": "devices", "name": "Devices", "icon": "icon-devices",
+                              "route": "/dash/devices",
+                              "target": { "stage": "main", "gclass": "C_TEST_VIEW",
+                                          "kw": { "title":"Devices","color":"#E76F51"},
+                                          "lifecycle": "keep_alive" } },
+                            { "id": "alerts",  "name": "Alerts",  "icon": "icon-alerts",
+                              "route": "/dash/alerts",
+                              "target": { "stage": "main", "gclass": "C_TEST_VIEW",
+                                          "kw": { "title":"Alerts","color":"#E9C46A" },
+                                          "lifecycle": "lazy_destroy" } }
+                        ]
+                    }
+                },
+                {
+                    "id": "reports", "name": "Reports", "route": "/reports",
+                    "submenu": {
+                        "items": [
+                            { "id": "daily",   "name": "Daily",
+                              "route": "/reports/daily",
+                              "target": { "stage":"main","gclass":"C_TEST_VIEW",
+                                          "kw":{"title":"Daily","color":"#264653"}} },
+                            { "id": "monthly", "name": "Monthly",
+                              "route": "/reports/monthly",
+                              "target": { "stage":"main","gclass":"C_TEST_VIEW",
+                                          "kw":{"title":"Monthly","color":"#F4A261"}} }
+                        ]
+                    }
+                }
+            ]
+        },
+
+        "primary": {
+            "render": { "bottom": { "layout": "icon-bar", "icon_pos": "top" } },
+            "items": [
+                { "id": "dash",    "name": "Dash",    "icon": "icon-dash",    "route": "/dash/ov" },
+                { "id": "reports", "name": "Reports", "icon": "icon-reports", "route": "/reports/daily" },
+                { "id": "settings","name": "Settings","icon": "icon-gear",    "route": "/settings",
+                  "target": { "stage":"main","gclass":"C_TEST_VIEW",
+                              "kw":{"title":"Settings","color":"#6D597A"}} }
+            ]
+        },
+
+        "secondary": {
+            "_comment": "Used only when the primary active route has a submenu; but our tree already exposes leaves, so this stays empty for this preset.",
+            "render": { "right": "submenu", "top-sub": "tabs" },
+            "items": []
+        },
+
+        "quick": {
+            "render": { "top-sub": "drawer" },
+            "items": [
+                { "id":"q-ov",       "name":"Quick: Overview", "icon":"icon-eye",    "route":"/dash/ov" },
+                { "id":"q-alerts",   "name":"Quick: Alerts",   "icon":"icon-alerts", "route":"/dash/alerts" },
+                { "id":"q-settings", "name":"Quick: Settings", "icon":"icon-gear",   "route":"/settings" }
+            ]
+        }
+    }
+}
