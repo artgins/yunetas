@@ -406,24 +406,48 @@ counter painted by `C_TEST_VIEW`).
 
 ---
 
-## 10. Status and retirement plan
+## 10. Coexistence with `C_YUI_MAIN` / `C_YUI_ROUTING` — no migration planned
 
-This pass closes **every** promise of the original design. What remains
-are the two historical consumers (`C_YUI_MAIN` and `C_YUI_ROUTING`)
-still used elsewhere inside `lib-yui`:
+This pass closes **every** promise of the original design.
+`C_YUI_MAIN` and `C_YUI_ROUTING` are **not** scheduled for removal:
+they keep being shipped and supported alongside the new shell.
 
-### Implemented ✓
+### Which one to use
+
+- **New GUIs → `C_YUI_SHELL` + `C_YUI_NAV`.** Declarative config,
+  routed stages, drawer overlay, focus-trap, hot-swap i18n, the new
+  modal/notification helpers (`yui_shell_show_*` / `yui_shell_confirm_*`,
+  see `TODO.md` §4).
+- **Existing GUIs → keep `C_YUI_MAIN` + `C_YUI_ROUTING`.** Switching
+  is opt-in, not mandated. If an app already works on top of the
+  legacy stack, leave it alone.
+
+The two stacks coexist and **do not interoperate** in the same DOM —
+do not import `c_yui_main.css` and `c_yui_shell.css` together (see
+§11 below). One app picks one stack and stays there.
+
+### Drift policy between the two stacks
+
+Bug reports against `display_*`, `get_yes*`, `get_ok` (legacy) are
+fixed on the legacy implementation only. The new shell helpers
+(`yui_shell_show_*`, `yui_shell_confirm_*`) **do not back-port**
+those fixes unless the original behaviour was a real feature, not a
+quirk. Conversely, improvements landed on the new shell stay on the
+shell. Treat the two APIs as parallel — same intent, separate code.
+
+### Implemented ✓ in this pass
 
 - Zones + `show_on` with the operators `>=`, `<=`, `<`, `>`,
   enumeration, and `|`. Pure parser, unit-tested (`npm test`).
 - Automatic inference of the `main` stage from `"host":
   "stage.<name>"`.
 - All 6 menu layouts (`vertical`, `icon-bar`, `tabs`, `drawer`,
-  `submenu`, `accordion`), with auto-expansion of the active branch on
-  accordion when the route changes.
+  `submenu`, `accordion`), with auto-expansion of the active branch
+  on accordion when the route changes.
 - Off-canvas drawer: mounted on the `overlay` layer (not inside the
   zone grid), closed on backdrop click and on `Escape`, public API
-  `yui_shell_{open,close,toggle}_drawer`.
+  `yui_shell_{open,close,toggle}_drawer`, focus-trap with
+  Tab/Shift-Tab cycling and focus restoration.
 - `lifecycle: eager | keep_alive | lazy_destroy`, with the first one
   preinstantiating the views at startup.
 - **Declarative toolbar** (`toolbar.items[]` with `navigate`,
@@ -431,7 +455,8 @@ still used elsewhere inside `lib-yui`:
 - Single router: the nav publishes `EV_NAV_CLICKED`, the shell
   routes.
 - i18n hook `translate: (key) => string` applied to labels and
-  `aria-label`.
+  `aria-label`, plus `yui_shell_set_translate` for hot-swap of the
+  resolver at runtime.
 - Accessibility: `role="navigation"` on navs, `role="dialog"` +
   `aria-modal` on drawers, `aria-expanded` / `aria-controls` on the
   accordion, `aria-disabled` + `tabindex="-1"` on disabled items,
@@ -441,32 +466,11 @@ still used elsewhere inside `lib-yui`:
 - Hard contract: when a view does not expose `$container`, the shell
   logs an error and destroys the half-built gobj.
 
-### Retirement plan for `C_YUI_MAIN` / `C_YUI_ROUTING`
+### If the migration decision is ever revisited
 
-These are the blockers before either of them can be deleted:
-
-1. **Modals and notifications** — `C_YUI_MAIN` exposes `display_*`,
-   the volatile-dialog manager and toasts. The shell already creates
-   the `modal`, `notification`, and `loading` layers in `build_ui`,
-   but there is still no declarative API on top of them. First step:
-   move `display_error`, `display_info`, `display_confirm` to shell
-   helpers that paint into `layers.notification` / `layers.modal`.
-2. **Widget grid / `C_YUI_MAIN.layout`** — review which `lib-yui`
-   consumers use it (`grep register_c_yui_main`). Each one switches
-   to the shell by declaring its zones.
-3. **`C_YUI_ROUTING`** — the hash routing already lives in the shell,
-   but `C_YUI_TABS` and a few other components still use it. It can
-   be retired once each one is rewritten to subscribe to the shell's
-   `EV_ROUTE_CHANGED` instead of `C_YUI_ROUTING`'s `EV_ROUTING_CHANGED`.
-
-Checklist before deleting either gclass:
-
-- [ ] `grep -r register_c_yui_main  kernel/ utils/ yunos/` is empty.
-- [ ] `grep -r register_c_yui_routing kernel/ utils/ yunos/` is empty.
-- [ ] Helpers equivalent to `display_*` are available on top of the
-      shell.
-- [ ] Consumers of `EV_ROUTING_CHANGED` migrated to the shell's
-      `EV_ROUTE_CHANGED`.
+The work needed to retire `C_YUI_MAIN` / `C_YUI_ROUTING` is captured
+as an optional, deferred track in `TODO.md` §8 (sub-tasks 8.1 → 8.4).
+Until that decision is made, do **not** start any of those sub-tasks.
 
 ---
 
