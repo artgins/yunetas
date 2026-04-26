@@ -125,6 +125,21 @@ function mt_start(gobj)
     let config = gobj_read_attr(gobj, "config") || {};
     let priv = gobj_read_attr(gobj, "priv");
 
+    /*  Validate the declarative config before anything reads it. This is a
+     *  system boundary (app-supplied JSON); validation makes shape errors
+     *  visible loudly instead of producing a half-built shell. */
+    if(!validate_config(config)) {
+        let $base = priv.layers && priv.layers.base;
+        if($base) {
+            $base.appendChild(createElement2(
+                ["div", {class: "notification is-danger m-4"},
+                    ["p", "C_YUI_SHELL: invalid config — see browser console for details"]
+                ]
+            ));
+        }
+        return;
+    }
+
     build_item_index(gobj, config);
     instantiate_menus(gobj, config);
     build_toolbar(gobj, config);
@@ -192,7 +207,12 @@ function mt_stop(gobj)
     }
 
     for(let nav of priv.navs) {
-        try { gobj_stop(nav); gobj_destroy(nav); } catch(e) { /* ignore */ }
+        try {
+            gobj_stop(nav);
+            gobj_destroy(nav);
+        } catch(e) {
+            log_warning(`C_YUI_SHELL: stop/destroy nav failed: ${e}`);
+        }
     }
     priv.navs = [];
 
@@ -200,7 +220,12 @@ function mt_stop(gobj)
         let st = priv.stages[name];
         for(let route in st.items) {
             let g = st.items[route];
-            try { gobj_stop(g); gobj_destroy(g); } catch(e) { /* ignore */ }
+            try {
+                gobj_stop(g);
+                gobj_destroy(g);
+            } catch(e) {
+                log_warning(`C_YUI_SHELL: stop/destroy view '${route}' failed: ${e}`);
+            }
         }
         st.items = {};
         st.active_route = null;
@@ -229,6 +254,76 @@ function mt_destroy(gobj)
 
 
 
+
+/************************************************************
+ *  Validate the declarative config (system boundary: app JSON).
+ *
+ *  Reports every missing/wrong field via log_error so a malformed
+ *  config fails loudly instead of producing an empty/broken shell.
+ *  Returns true iff the config is structurally usable.
+ ************************************************************/
+function validate_config(config)
+{
+    let ok = true;
+
+    if(!is_object(config)) {
+        log_error("C_YUI_SHELL: config must be a JSON object");
+        return false;
+    }
+    if(!is_object(config.shell)) {
+        log_error("C_YUI_SHELL: config.shell is missing or not an object");
+        return false;
+    }
+
+    let shell_cfg = config.shell;
+    if(shell_cfg.zones !== undefined && !is_object(shell_cfg.zones)) {
+        log_error("C_YUI_SHELL: config.shell.zones must be an object");
+        ok = false;
+    }
+    if(shell_cfg.stages !== undefined && !is_object(shell_cfg.stages)) {
+        log_error("C_YUI_SHELL: config.shell.stages must be an object");
+        ok = false;
+    }
+
+    let zones_cfg = is_object(shell_cfg.zones) ? shell_cfg.zones : {};
+    for(let zid in zones_cfg) {
+        if(ZONE_IDS.indexOf(zid) < 0) {
+            log_error(
+                `C_YUI_SHELL: unknown zone '${zid}' in config.shell.zones; ` +
+                `valid zones: ${ZONE_IDS.join(", ")}`
+            );
+            ok = false;
+        }
+    }
+
+    let stages_cfg = is_object(shell_cfg.stages) ? shell_cfg.stages : {};
+    for(let sname in stages_cfg) {
+        let st = stages_cfg[sname];
+        if(!is_object(st)) {
+            log_error(`C_YUI_SHELL: config.shell.stages.${sname} must be an object`);
+            ok = false;
+            continue;
+        }
+        let zone = st.zone || "center";
+        if(ZONE_IDS.indexOf(zone) < 0) {
+            log_error(
+                `C_YUI_SHELL: stage '${sname}' references unknown zone '${zone}'`
+            );
+            ok = false;
+        }
+    }
+
+    if(config.menu !== undefined && !is_object(config.menu)) {
+        log_error("C_YUI_SHELL: config.menu must be an object");
+        ok = false;
+    }
+    if(config.toolbar !== undefined && !is_array(config.toolbar)) {
+        log_error("C_YUI_SHELL: config.toolbar must be an array");
+        ok = false;
+    }
+
+    return ok;
+}
 
 /************************************************************
  *  Build the DOM: layers → base → zones
@@ -596,6 +691,16 @@ function route_to_hash(route)
 function navigate_to(gobj, route)
 {
     let priv = gobj_read_attr(gobj, "priv");
+
+    /*  Audit witness: publish the navigation intent FIRST, before any
+     *  validation or DOM work. This guarantees that the FSM trace and
+     *  any subscribed auditor see every requested route — including
+     *  rerouted submenu defaults and routes that ultimately fail. */
+    gobj_publish_event(gobj, "EV_NAVIGATION_REQUESTED", {
+        route: route,
+        from:  gobj_read_attr(gobj, "current_route") || ""
+    });
+
     if(empty_string(route)) {
         log_error("C_YUI_SHELL: navigate_to called with empty route");
         return;
@@ -643,7 +748,12 @@ function navigate_to(gobj, route)
         /*  lazy_destroy: drop previous on exit */
         let prev_entry = priv.item_index[prev_route];
         if(prev_entry && prev_entry.target && prev_entry.target.lifecycle === "lazy_destroy") {
-            try { gobj_stop(prev_gobj); gobj_destroy(prev_gobj); } catch(e) {}
+            try {
+                gobj_stop(prev_gobj);
+                gobj_destroy(prev_gobj);
+            } catch(e) {
+                log_warning(`C_YUI_SHELL: lazy_destroy of '${prev_route}' failed: ${e}`);
+            }
             delete stage.items[prev_route];
         }
     }
@@ -718,7 +828,11 @@ function build_view_gobj(gobj, entry, route, stage)
             `C_YUI_SHELL: gclass '${target.gclass}' does not expose $container; ` +
             `the view is unusable — check its mt_create`
         );
-        try { gobj_destroy(view); } catch(e) {}
+        try {
+            gobj_destroy(view);
+        } catch(e) {
+            log_warning(`C_YUI_SHELL: cleanup gobj_destroy failed for ${target.gclass}: ${e}`);
+        }
         return null;
     }
     stage.el.appendChild($view);
@@ -1177,10 +1291,16 @@ function create_gclass(gclass_name)
     ];
 
     const event_types = [
-        ["EV_NAV_CLICKED",   0],
-        ["EV_ROUTE_CHANGED", event_flag_t.EVF_OUTPUT_EVENT
-                            |event_flag_t.EVF_PUBLIC_EVENT
-                            |event_flag_t.EVF_NO_WARN_SUBS]
+        ["EV_NAV_CLICKED",          0],
+        /*  Audit witness: every navigation attempt publishes this BEFORE
+         *  any work is done, so the FSM trace records intent regardless
+         *  of whether the route resolves successfully. */
+        ["EV_NAVIGATION_REQUESTED", event_flag_t.EVF_OUTPUT_EVENT
+                                   |event_flag_t.EVF_PUBLIC_EVENT
+                                   |event_flag_t.EVF_NO_WARN_SUBS],
+        ["EV_ROUTE_CHANGED",        event_flag_t.EVF_OUTPUT_EVENT
+                                   |event_flag_t.EVF_PUBLIC_EVENT
+                                   |event_flag_t.EVF_NO_WARN_SUBS]
     ];
 
     __gclass__ = gclass_create(

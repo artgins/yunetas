@@ -23,7 +23,7 @@
 
 import {
     SDATA, SDATA_END, data_type_t, event_flag_t,
-    gclass_create, log_error,
+    gclass_create, log_error, log_warning,
     gobj_subscribe_event,
     gobj_parent,
     gobj_read_attr, gobj_read_pointer_attr, gobj_write_attr,
@@ -109,7 +109,9 @@ function mt_start(gobj)
          *  the active item. */
         try {
             gobj_subscribe_event(shell, "EV_ROUTE_CHANGED", {}, gobj);
-        } catch(e) { /* already subscribed, ignore */ }
+        } catch(e) {
+            log_warning(`C_YUI_NAV: subscribe to EV_ROUTE_CHANGED failed: ${e}`);
+        }
     }
 }
 
