@@ -1072,7 +1072,9 @@ function create_gclass(gclass_name)
 
     const event_types = [
         ["EV_NAV_CLICKED",   0],
-        ["EV_ROUTE_CHANGED", event_flag_t.EVF_OUTPUT_EVENT|event_flag_t.EVF_PUBLIC_EVENT]
+        ["EV_ROUTE_CHANGED", event_flag_t.EVF_OUTPUT_EVENT
+                            |event_flag_t.EVF_PUBLIC_EVENT
+                            |event_flag_t.EVF_NO_WARN_SUBS]
     ];
 
     __gclass__ = gclass_create(

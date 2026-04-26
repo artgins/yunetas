@@ -665,8 +665,48 @@ state: <parent>, <state>, <event>"*, the fix is one of:
 **Never** strip the parent fallback from a CHILD gclass to silence
 the error. That breaks the convention every other gclass relies on.
 
+#### Mark broadcast events that may have no subscribers with `EVF_NO_WARN_SUBS`
+
+When a SERVICE gclass publishes an event whose subscribers are
+optional (apps may or may not be listening), tag the event with
+`event_flag_t.EVF_NO_WARN_SUBS` (in JS) / `EVF_NO_WARN_SUBS` (in C)
+in the `event_types` table. Otherwise `gobj_publish_event` logs a
+*"Publish event WITHOUT subscribers"* warning every time the event
+fires and nobody is listening — noisy and not actionable.
+
+```js
+const event_types = [
+    ["EV_ROUTE_CHANGED", event_flag_t.EVF_OUTPUT_EVENT
+                        |event_flag_t.EVF_PUBLIC_EVENT
+                        |event_flag_t.EVF_NO_WARN_SUBS]
+];
+```
+
+```c
+event_type_t event_types[] = {
+    {EV_TIMEOUT_PERIODIC, EVF_OUTPUT_EVENT|EVF_NO_WARN_SUBS},
+    {NULL, 0}
+};
+```
+
+Existing examples to mimic: `c_yui_main.js`
+(`EV_RESIZE`/`EV_THEME`), `c_yui_window.js`
+(`EV_WINDOW_TO_CLOSE`/`EV_WINDOW_MOVED`/`EV_WINDOW_RESIZED`),
+`c_yuno.c` / `c_esp_yuno.c` (`EV_TIMEOUT_PERIODIC`),
+`c_agent.c` / `c_agent22.c`
+(`EV_PLAY_YUNO_ACK`/`EV_PAUSE_YUNO_ACK`).
+
+**The gclass decides per-event whether having a subscriber is
+mandatory.** `EVF_NO_WARN_SUBS` is the explicit annotation for
+*"this event's subscribers are optional, missing one is not a
+bug"*. Without the flag, a missing subscriber is treated as a real
+signal — keep the warning when the gclass really does require
+someone to react (e.g. a CHILD whose parent's FSM must declare and
+handle the event). Don't use the flag as a generic noise
+suppressor.
+
 Reference: `kernel/js/lib-yui/src/c_yui_form.js` (CHILD),
-`kernel/js/lib-yui/src/c_yui_main.js` (SERVICE),
+`kernel/js/lib-yui/src/c_yui_main.js` (SERVICE + EVF_NO_WARN_SUBS),
 `kernel/c/root-linux/src/c_timer.c` (CHILD in C).
 
 ### Writing tests against the gobj framework
