@@ -417,6 +417,95 @@ reviewing the cert-reload feature):
 `c_yuno.c` and `c_agent.c` are the canonical large-gclass examples of
 this layout; `c_timer.c` is the minimal example.
 
+### JS GClass section layout (authoritative)
+
+JS gclasses follow the same banner discipline as C, with one
+difference: they use **four sections** (no Commands), in this order:
+
+1. **Framework Methods** — `mt_create`, `mt_start`, `mt_stop`,
+   `mt_destroy`, `mt_child_added`, `mt_child_removed`, etc.
+2. **Local Methods** — `build_ui`, helpers, callbacks, anything that
+   isn't a framework method nor an action.
+3. **Actions** — `ac_*` functions referenced by the FSM state tables.
+4. **FSM** — `gmt`, `create_gclass()`, `register_c_*()`, state and
+   event tables.
+
+Banner form (same as C, four blank lines before and after):
+
+```js
+                    /***************************
+                     *      Framework Methods
+                     ***************************/
+```
+
+Every `mt_*` / `ac_*` function carries its own block header on top:
+
+```js
+/***************************************************************
+ *          Framework Method: Create
+ ***************************************************************/
+function mt_create(gobj) { ... }
+```
+
+**The user reads gclass files visually**, by scanning for these
+banners. Without them the file is unreadable for the reviewer even
+when the code is correct. Reference files: `kernel/js/lib-yui/src/
+c_yui_form.js`, `c_yui_main.js`, `c_yui_tabs.js`, `c_yui_shell.js`,
+`c_yui_nav.js`.
+
+### GClass subscription model (CHILD vs SERVICE) — applies to C and JS
+
+Every gclass picks **exactly one** of two canonical subscription
+patterns and writes the block verbatim, with the canonical comment,
+inside `mt_create`. Do not invent a third path or weaken either
+pattern to silence a runtime error.
+
+```js
+/*
+ *  CHILD subscription model
+ */
+let subscriber = gobj_read_pointer_attr(gobj, "subscriber");
+if(!subscriber) {
+    subscriber = gobj_parent(gobj);
+}
+gobj_subscribe_event(gobj, null, {}, subscriber);
+```
+
+```js
+/*
+ *  SERVICE subscription model
+ */
+const subscriber = gobj_read_pointer_attr(gobj, "subscriber");
+if(subscriber) {
+    gobj_subscribe_event(gobj, null, {}, subscriber);
+}
+```
+
+How to choose:
+
+- **CHILD** — the gobj is created with a parent gobj
+  (`gobj_create(name, GCLASS, kw, parent)`); the parent is the
+  natural audience for its output events. The parent's FSM **must**
+  declare every event the child publishes.
+- **SERVICE** — the gobj is created via
+  `gobj_create_default_service` / `gobj_create_service`; it is a
+  top-level node, so subscribers must opt in explicitly via the
+  `subscriber` attr.
+
+When `gobj_publish_event` from a CHILD raises *"Event NOT DEFINED in
+state: <parent>, <state>, <event>"*, the fix is one of:
+
+1. Declare the event/action in the parent gclass's FSM, **or**
+2. Confirm the publishing gobj is actually a SERVICE and switch its
+   `mt_create` block accordingly.
+
+**Never** strip the parent fallback from a CHILD gclass to silence
+the error. That breaks the convention every other gclass relies on.
+
+Reference: `kernel/js/lib-yui/src/c_yui_form.js` (CHILD),
+`kernel/js/lib-yui/src/c_yui_main.js` (SERVICE),
+`kernel/c/root-linux/src/c_timer.c` (CHILD in C).
+
 ### Writing tests against the gobj framework
 
 Two gotchas that break tests at runtime (not at compile time) — learned
