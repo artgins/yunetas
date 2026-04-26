@@ -41,10 +41,6 @@ import {
     bulma_hidden_class,
 } from "./shell_show_on.js";
 
-import {
-    yui_nav_rebuild,
-} from "./c_yui_nav.js";
-
 /***************************************************************
  *              Constants
  ***************************************************************/
@@ -74,7 +70,6 @@ SDATA(data_type_t.DTP_STRING,   "default_route",  0,  "",    "Fallback route if 
 SDATA(data_type_t.DTP_STRING,   "current_route",  0,  "",    "Current active route"),
 SDATA(data_type_t.DTP_BOOLEAN,  "use_hash",       0,  true,  "Bind navigation to window.location.hash"),
 SDATA(data_type_t.DTP_POINTER,  "mount_element",  0,  null,  "HTMLElement to mount shell into (default: document.body)"),
-SDATA(data_type_t.DTP_POINTER,  "translate",      0,  null,  "Optional i18n resolver: (key) => string. Applied to item.name / toolbar labels."),
 
 SDATA(data_type_t.DTP_POINTER,  "$container",     0,  null,  "Root HTMLElement of the shell"),
 SDATA(data_type_t.DTP_POINTER,  "priv",           0,  null,  "Private runtime state (zones/layers/stages/navs)"),
@@ -530,8 +525,7 @@ function instantiate_nav_in_zone(gobj, menu, menu_id, zone_id, level, nav_label)
             icon_pos:    render_cfg.icon_pos || default_icon_pos(zone_id),
             show_label:  render_cfg.show_label !== false,
             level:       level,
-            shell:       gobj,
-            translate:   gobj_read_attr(gobj, "translate")
+            shell:       gobj
         },
         gobj
     );
@@ -759,8 +753,11 @@ function build_toolbar(gobj, config)
         return;
     }
 
-    let translate = gobj_read_attr(gobj, "translate") || (s => s);
-
+    /*  Toolbar labels follow the same i18n contract as nav labels:
+     *  every translatable text node carries `i18n: <canonical key>`,
+     *  which createElement2 maps to `data-i18n` on the rendered
+     *  element.  Apps swap languages by calling
+     *  refresh_language(shell.$container, t) — no DOM rebuild here. */
     let $bar = createElement2(
         ["nav", {class: "yui-toolbar navbar",
                  role: "navigation",
@@ -782,14 +779,15 @@ function build_toolbar(gobj, config)
                 ["i", {class: it.icon, "aria-hidden": "true"}]]);
         }
         if(!empty_string(it.name)) {
-            children.push(["span", {}, translate(it.name)]);
+            children.push(["span", {i18n: it.name}, it.name]);
         }
 
+        let aria_key = it.aria_label || it.name || it.id || "";
         let $item = createElement2(
             ["button", {class: "navbar-item yui-toolbar-item is-unselectable",
                         type: "button",
                         "data-toolbar-item-id": it.id || "",
-                        "aria-label": translate(it.aria_label || it.name || it.id || "")},
+                        "aria-label": aria_key},
              children]
         );
         $item.addEventListener("click", ev => {
@@ -800,32 +798,6 @@ function build_toolbar(gobj, config)
     }
 
     $zone.appendChild($bar);
-}
-
-/************************************************************
- *  Rebuild the toolbar in place: removes the existing one
- *  from its zone (if any) and re-runs build_toolbar with the
- *  current config.  Called by yui_shell_set_translate so the
- *  toolbar labels pick up the new resolver.
- ************************************************************/
-function rebuild_toolbar(gobj)
-{
-    let priv = gobj_read_attr(gobj, "priv");
-    if(!priv) {
-        return;
-    }
-    for(let zone_id in priv.zones) {
-        let $zone = priv.zones[zone_id];
-        if(!$zone) {
-            continue;
-        }
-        let $old = $zone.querySelector(":scope > .yui-toolbar");
-        if($old) {
-            $old.parentNode.removeChild($old);
-        }
-    }
-    let config = gobj_read_attr(gobj, "config") || {};
-    build_toolbar(gobj, config);
 }
 
 function find_toolbar_zone(config)
@@ -1255,44 +1227,18 @@ function yui_shell_open_drawer(shell_gobj, menu_id)    { open_drawer(shell_gobj,
 function yui_shell_close_drawer(shell_gobj, menu_id)   { close_drawer(shell_gobj, menu_id);  }
 function yui_shell_toggle_drawer(shell_gobj, menu_id)  { toggle_drawer(shell_gobj, menu_id); }
 
-/*  Hot-swap the i18n resolver.  Updates the `translate` attr on the
- *  shell, propagates it to every nav, rebuilds nav DOMs and the
- *  toolbar, and re-publishes EV_ROUTE_CHANGED so navs re-mark the
- *  active item under the new labels. */
-function yui_shell_set_translate(shell_gobj, fn)
-{
-    gobj_write_attr(shell_gobj, "translate", fn);
-    let priv = gobj_read_attr(shell_gobj, "priv");
-    if(!priv) {
-        return;
-    }
-    for(let nav of priv.navs) {
-        gobj_write_attr(nav, "translate", fn);
-        try {
-            yui_nav_rebuild(nav);
-        } catch(e) {
-            log_error(`C_YUI_SHELL: yui_nav_rebuild failed: ${e}`);
-        }
-    }
-    rebuild_toolbar(shell_gobj);
-
-    let current = gobj_read_attr(shell_gobj, "current_route");
-    if(!empty_string(current) && priv.item_index[current]) {
-        let entry = priv.item_index[current];
-        gobj_publish_event(shell_gobj, "EV_ROUTE_CHANGED", {
-            route: current,
-            item: entry.item,
-            parent_item: entry.parent_item,
-            stage: entry.stage || "main"
-        });
-    }
-}
+/*  Note: there is no shell-level language switch helper.  Every
+ *  translatable text node rendered by the shell and its navs is
+ *  tagged with `data-i18n` (the canonical English key).  Apps swap
+ *  language by calling
+ *      refresh_language(shell_$container, t)
+ *  from `@yuneta/gobj-js`, exactly like `c_yui_main.js` does in
+ *  `change_language()`.  The shell does not own that flow. */
 
 export {
     register_c_yui_shell,
     yui_shell_navigate,
     yui_shell_open_drawer,
     yui_shell_close_drawer,
-    yui_shell_toggle_drawer,
-    yui_shell_set_translate
+    yui_shell_toggle_drawer
 };

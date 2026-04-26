@@ -4,12 +4,15 @@
  *      C_TEST_LANG — Language toggle controller for the test app.
  *      Subscribes to the shell's `EV_TOGGLE_LANGUAGE` (published by the
  *      toolbar item with `action.type:"event"`), flips between two
- *      trivial dictionaries on each click, and applies the new
- *      resolver via `yui_shell_set_translate`.
+ *      trivial dictionaries on each click and refreshes the DOM via
+ *      the canonical `refresh_language(element, t)` helper from
+ *      `@yuneta/gobj-js`.
  *
- *      This is the canonical pattern for any app that needs to react
- *      to custom toolbar events: a small CHILD gobj that declares the
- *      event in its FSM and subscribes to the shell.
+ *      This is the same pattern `c_yui_main.js` uses in its
+ *      `change_language()` function: every translatable text node is
+ *      tagged at render time with `data-i18n="<canonical key>"` and a
+ *      single DOM walk replaces every text node by `t(key)`.  No DOM
+ *      rebuild, no shell-specific helper.
  *
  *          Copyright (c) 2026, ArtGins.
  *          All Rights Reserved.
@@ -20,11 +23,8 @@ import {
     gobj_parent,
     gobj_read_attr, gobj_read_pointer_attr, gobj_write_attr,
     gobj_subscribe_event,
+    refresh_language,
 } from "@yuneta/gobj-js";
-
-import {
-    yui_shell_set_translate,
-} from "@yuneta/lib-yui";
 
 
 /***************************************************************
@@ -33,11 +33,10 @@ import {
 const GCLASS_NAME = "C_TEST_LANG";
 
 /*  Two minimal dictionaries — keys are the canonical English label
- *  strings the test-app uses in its app_config*.json.
- *
- *  Real apps would resolve via i18next / similar; here we keep it
- *  inline so the harness has no extra dependency. */
-const DICT_EN = {};   /*  Identity for English. */
+ *  strings the test app uses in its app_config*.json.  English is
+ *  the identity dictionary; anything not in the Spanish map falls
+ *  through to the canonical key. */
+const DICT_EN = {};
 const DICT_ES = {
     "Dashboard":         "Panel",
     "Overview":          "Resumen",
@@ -68,7 +67,7 @@ const DICT_ES = {
 const attrs_table = [
 SDATA(data_type_t.DTP_POINTER,  "subscriber",  0,  null,  "Subscriber of output events"),
 
-SDATA(data_type_t.DTP_POINTER,  "shell",       0,  null,  "C_YUI_SHELL gobj to drive translate on"),
+SDATA(data_type_t.DTP_POINTER,  "shell",       0,  null,  "C_YUI_SHELL gobj whose DOM we refresh"),
 SDATA(data_type_t.DTP_BOOLEAN,  "is_es",       0,  false, "Current language flag (true = ES, false = EN)"),
 SDATA_END()
 ];
@@ -148,8 +147,8 @@ function mt_destroy(gobj)
 
 /***************************************************************
  *  Build a translate function backed by `dict`: returns the
- *  mapped value when present, falls back to the input key
- *  (so untranslated labels still display).
+ *  mapped value when present, falls back to the input key (so
+ *  untranslated labels still display).
  ***************************************************************/
 function make_translator(dict)
 {
@@ -176,8 +175,9 @@ function make_translator(dict)
 
 /***************************************************************
  *  Toolbar fired EV_TOGGLE_LANGUAGE — flip the language flag and
- *  hot-swap the shell's translate hook.  The shell takes care of
- *  rebuilding every nav and the toolbar.
+ *  walk the shell's `$container` calling refresh_language with
+ *  the matching dictionary.  Same flow `c_yui_main.js` uses for
+ *  its language switch.
  ***************************************************************/
 function ac_toggle_language(gobj, event, kw, src)
 {
@@ -188,7 +188,9 @@ function ac_toggle_language(gobj, event, kw, src)
     let is_es = !gobj_read_attr(gobj, "is_es");
     gobj_write_attr(gobj, "is_es", is_es);
     let dict = is_es ? DICT_ES : DICT_EN;
-    yui_shell_set_translate(shell, make_translator(dict));
+    let t = make_translator(dict);
+    let $container = gobj_read_attr(shell, "$container") || document;
+    refresh_language($container, t);
     return 0;
 }
 

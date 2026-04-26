@@ -42,15 +42,6 @@ import app_config          from "./app_config.json";
 import app_config_accordion from "./app_config_accordion.json";
 
 
-/*  Identity i18n resolver — shows the SHELL translate hook without
- *  doing any actual translation. The C_TEST_LANG controller swaps
- *  this for a Spanish dictionary on every click of the toolbar's
- *  ES/EN button (see c_test_lang.js). */
-function identity_translate(key) {
-    return key;
-}
-
-
 function pick_config()
 {
     let q = new URLSearchParams(window.location.search);
@@ -87,16 +78,15 @@ function main()
         "shell",
         "C_YUI_SHELL",
         {
-            config:    pick_config(),
-            use_hash:  true,
-            translate: identity_translate
+            config:   pick_config(),
+            use_hash: true
         },
         yuno
     );
 
     /*  Side controller: subscribes to the shell's EV_TOGGLE_LANGUAGE
-     *  (published by the toolbar's lang button) and swaps the shell's
-     *  translate hook on each click. */
+     *  (published by the toolbar's lang button) and walks the shell's
+     *  $container with refresh_language() on each click. */
     let shell = gobj_find_service("shell", false);
     gobj_create_pure_child(
         "test_lang",
