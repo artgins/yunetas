@@ -41,6 +41,10 @@ import {
     bulma_hidden_class,
 } from "./shell_show_on.js";
 
+import {
+    yui_nav_rebuild,
+} from "./c_yui_nav.js";
+
 /***************************************************************
  *              Constants
  ***************************************************************/
@@ -798,6 +802,32 @@ function build_toolbar(gobj, config)
     $zone.appendChild($bar);
 }
 
+/************************************************************
+ *  Rebuild the toolbar in place: removes the existing one
+ *  from its zone (if any) and re-runs build_toolbar with the
+ *  current config.  Called by yui_shell_set_translate so the
+ *  toolbar labels pick up the new resolver.
+ ************************************************************/
+function rebuild_toolbar(gobj)
+{
+    let priv = gobj_read_attr(gobj, "priv");
+    if(!priv) {
+        return;
+    }
+    for(let zone_id in priv.zones) {
+        let $zone = priv.zones[zone_id];
+        if(!$zone) {
+            continue;
+        }
+        let $old = $zone.querySelector(":scope > .yui-toolbar");
+        if($old) {
+            $old.parentNode.removeChild($old);
+        }
+    }
+    let config = gobj_read_attr(gobj, "config") || {};
+    build_toolbar(gobj, config);
+}
+
 function find_toolbar_zone(config)
 {
     let zones = (config && config.shell && config.shell.zones) || {};
@@ -906,24 +936,117 @@ function drawers(gobj, menu_id)
     return out;
 }
 
+/************************************************************
+ *  Focus-trap for an open drawer:
+ *      - on activate: save document.activeElement, install a
+ *        keydown trap that cycles Tab/Shift+Tab inside the
+ *        panel, move focus to the first focusable child.
+ *      - on release: remove the trap and restore focus.
+ *  State is kept per-drawer in priv.drawer_focus_states so
+ *  multiple drawers (rare but legal) work independently.
+ ************************************************************/
+const FOCUSABLE_SELECTOR =
+    'a[href], button:not([disabled]), input:not([disabled]),' +
+    ' select:not([disabled]), textarea:not([disabled]),' +
+    ' [tabindex]:not([tabindex="-1"])';
+
+function activate_focus_trap(gobj, $drawer)
+{
+    let priv = gobj_read_attr(gobj, "priv");
+    if(!priv) {
+        return;
+    }
+    if(!priv.drawer_focus_states) {
+        priv.drawer_focus_states = new Map();
+    }
+    if(priv.drawer_focus_states.has($drawer)) {
+        return;
+    }
+    let saved = document.activeElement;
+    let panel = $drawer.querySelector(".yui-drawer-panel") || $drawer;
+
+    let trap = ev => {
+        if(ev.key !== "Tab") {
+            return;
+        }
+        let nodes = panel.querySelectorAll(FOCUSABLE_SELECTOR);
+        if(nodes.length === 0) {
+            return;
+        }
+        let first = nodes[0];
+        let last = nodes[nodes.length - 1];
+        let inside = panel.contains(document.activeElement);
+        if(ev.shiftKey) {
+            if(!inside || document.activeElement === first) {
+                last.focus();
+                ev.preventDefault();
+            }
+        } else {
+            if(!inside || document.activeElement === last) {
+                first.focus();
+                ev.preventDefault();
+            }
+        }
+    };
+    document.addEventListener("keydown", trap, true);
+    priv.drawer_focus_states.set($drawer, { saved: saved, trap: trap, panel: panel });
+
+    let first = panel.querySelector(FOCUSABLE_SELECTOR);
+    if(first && typeof first.focus === "function") {
+        first.focus();
+    }
+}
+
+function release_focus_trap(gobj, $drawer)
+{
+    let priv = gobj_read_attr(gobj, "priv");
+    if(!priv || !priv.drawer_focus_states) {
+        return;
+    }
+    let st = priv.drawer_focus_states.get($drawer);
+    if(!st) {
+        return;
+    }
+    document.removeEventListener("keydown", st.trap, true);
+    priv.drawer_focus_states.delete($drawer);
+    if(st.saved && typeof st.saved.focus === "function" && document.body.contains(st.saved)) {
+        st.saved.focus();
+    }
+}
+
 function open_drawer(gobj, menu_id)
 {
     for(let $c of drawers(gobj, menu_id)) {
+        if($c.classList.contains("is-active")) {
+            continue;
+        }
         $c.classList.add("is-active");
+        activate_focus_trap(gobj, $c);
     }
 }
 
 function close_drawer(gobj, menu_id)
 {
     for(let $c of drawers(gobj, menu_id)) {
+        if(!$c.classList.contains("is-active")) {
+            continue;
+        }
         $c.classList.remove("is-active");
+        release_focus_trap(gobj, $c);
     }
 }
 
 function toggle_drawer(gobj, menu_id)
 {
     for(let $c of drawers(gobj, menu_id)) {
+        let was = $c.classList.contains("is-active");
         $c.classList.toggle("is-active");
+        let now = $c.classList.contains("is-active");
+        if(now && !was) {
+            activate_focus_trap(gobj, $c);
+        } else if(!now && was) {
+            release_focus_trap(gobj, $c);
+        }
     }
 }
 
@@ -938,9 +1061,14 @@ function close_all_drawers(gobj)
             continue;
         }
         let $c = gobj_read_attr(nav, "$container");
-        if($c) {
-            $c.classList.remove("is-active");
+        if(!$c) {
+            continue;
         }
+        if(!$c.classList.contains("is-active")) {
+            continue;
+        }
+        $c.classList.remove("is-active");
+        release_focus_trap(gobj, $c);
     }
 }
 
@@ -1120,10 +1248,44 @@ function yui_shell_open_drawer(shell_gobj, menu_id)    { open_drawer(shell_gobj,
 function yui_shell_close_drawer(shell_gobj, menu_id)   { close_drawer(shell_gobj, menu_id);  }
 function yui_shell_toggle_drawer(shell_gobj, menu_id)  { toggle_drawer(shell_gobj, menu_id); }
 
+/*  Hot-swap the i18n resolver.  Updates the `translate` attr on the
+ *  shell, propagates it to every nav, rebuilds nav DOMs and the
+ *  toolbar, and re-publishes EV_ROUTE_CHANGED so navs re-mark the
+ *  active item under the new labels. */
+function yui_shell_set_translate(shell_gobj, fn)
+{
+    gobj_write_attr(shell_gobj, "translate", fn);
+    let priv = gobj_read_attr(shell_gobj, "priv");
+    if(!priv) {
+        return;
+    }
+    for(let nav of priv.navs) {
+        gobj_write_attr(nav, "translate", fn);
+        try {
+            yui_nav_rebuild(nav);
+        } catch(e) {
+            log_error(`C_YUI_SHELL: yui_nav_rebuild failed: ${e}`);
+        }
+    }
+    rebuild_toolbar(shell_gobj);
+
+    let current = gobj_read_attr(shell_gobj, "current_route");
+    if(!empty_string(current) && priv.item_index[current]) {
+        let entry = priv.item_index[current];
+        gobj_publish_event(shell_gobj, "EV_ROUTE_CHANGED", {
+            route: current,
+            item: entry.item,
+            parent_item: entry.parent_item,
+            stage: entry.stage || "main"
+        });
+    }
+}
+
 export {
     register_c_yui_shell,
     yui_shell_navigate,
     yui_shell_open_drawer,
     yui_shell_close_drawer,
-    yui_shell_toggle_drawer
+    yui_shell_toggle_drawer,
+    yui_shell_set_translate
 };
