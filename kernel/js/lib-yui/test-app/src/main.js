@@ -21,7 +21,6 @@ import {
     gobj_create_yuno,
     gobj_create_default_service,
     gobj_create_pure_child,
-    gobj_find_service,
     gobj_start, gobj_play,
     register_c_yuno,
     register_c_timer,
@@ -74,7 +73,11 @@ function main()
         { yuno_name: "shell test", yuno_role: "shell_test_gui", yuno_version: "0.1.0" }
     );
 
-    gobj_create_default_service(
+    /*  Capture the shell directly — gobj_create_default_service
+     *  registers __default_service__ but does NOT populate the
+     *  __jn_services__ map, so gobj_find_service("shell") would
+     *  return null.  Use the return value instead. */
+    let shell = gobj_create_default_service(
         "shell",
         "C_YUI_SHELL",
         {
@@ -87,7 +90,6 @@ function main()
     /*  Side controller: subscribes to the shell's EV_TOGGLE_LANGUAGE
      *  (published by the toolbar's lang button) and walks the shell's
      *  $container with refresh_language() on each click. */
-    let shell = gobj_find_service("shell", false);
     gobj_create_pure_child(
         "test_lang",
         "C_TEST_LANG",
