@@ -478,7 +478,8 @@ function instantiate_menus(gobj, config)
                 };
                 let sub_menu_id = `secondary.${item.id}`;
                 let nav = instantiate_nav_in_zone(
-                    gobj, submenu_def, sub_menu_id, zone_id, "secondary"
+                    gobj, submenu_def, sub_menu_id, zone_id, "secondary",
+                    item.name || ""
                 );
                 /*  Hidden until primary is active. */
                 let $c = gobj_read_attr(nav, "$container");
@@ -502,7 +503,7 @@ function render_to_obj(layout)
     return { layout: "vertical" };
 }
 
-function instantiate_nav_in_zone(gobj, menu, menu_id, zone_id, level)
+function instantiate_nav_in_zone(gobj, menu, menu_id, zone_id, level, nav_label)
 {
     let priv = gobj_read_attr(gobj, "priv");
     let render_cfg = (menu.render && (menu.render[zone_id] || menu.render["*"])) ||
@@ -518,6 +519,7 @@ function instantiate_nav_in_zone(gobj, menu, menu_id, zone_id, level)
         "C_YUI_NAV",
         {
             menu_id:     menu_id,
+            nav_label:   nav_label || "",
             menu_items:  menu.items || [],
             zone:        zone_id,
             layout:      layout,

@@ -47,6 +47,7 @@ const attrs_table = [
 SDATA(data_type_t.DTP_POINTER,  "subscriber",    0,  null,         "Subscriber of output events"),
 
 SDATA(data_type_t.DTP_STRING,   "menu_id",       0,  "",           "Id of the menu this nav renders"),
+SDATA(data_type_t.DTP_STRING,   "nav_label",     0,  "",           "Human-readable label for aria/heading; falls back to menu_id"),
 SDATA(data_type_t.DTP_JSON,     "menu_items",    0,  null,         "Array of menu items to render"),
 SDATA(data_type_t.DTP_STRING,   "zone",          0,  "",           "Zone id where this nav lives"),
 SDATA(data_type_t.DTP_STRING,   "layout",        0,  "vertical",   "vertical|icon-bar|tabs|drawer|submenu|accordion"),
@@ -181,7 +182,8 @@ function build_ui(gobj)
     if(layout !== "drawer") {
         $root.setAttribute("role", "navigation");
         if(!$root.hasAttribute("aria-label")) {
-            $root.setAttribute("aria-label", menu_id);
+            let label = gobj_read_attr(gobj, "nav_label") || menu_id;
+            $root.setAttribute("aria-label", translate_of(gobj, label));
         }
     }
 
@@ -305,6 +307,7 @@ function render_submenu(gobj, items)
     let show_label = gobj_read_attr(gobj, "show_label");
     let icon_pos = gobj_read_attr(gobj, "icon_pos");
     let menu_id = gobj_read_attr(gobj, "menu_id") || "";
+    let nav_label = gobj_read_attr(gobj, "nav_label") || menu_id;
 
     let lis = [];
     for(let it of items) {
@@ -313,7 +316,7 @@ function render_submenu(gobj, items)
     return createElement2(
         ["aside", {class: "menu p-2"},
             [
-                ["p", {class: "menu-label"}, translate_of(gobj, menu_id) || "—"],
+                ["p", {class: "menu-label"}, translate_of(gobj, nav_label) || "—"],
                 ["ul", {class: "menu-list"}, lis]
             ]
         ]
