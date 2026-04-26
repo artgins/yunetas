@@ -90,7 +90,7 @@ function main()
     /*  Side controller: subscribes to the shell's EV_TOGGLE_LANGUAGE
      *  (published by the toolbar's lang button) and walks the shell's
      *  $container with refresh_language() on each click. */
-    gobj_create_pure_child(
+    let test_lang = gobj_create_pure_child(
         "test_lang",
         "C_TEST_LANG",
         { shell: shell },
@@ -99,6 +99,13 @@ function main()
 
     gobj_start(yuno);
     gobj_play(yuno);
+
+    /*  c_yuno.mt_play only starts the default_service (the shell);
+     *  pure children of the yuno (like test_lang) are NOT started
+     *  automatically.  Start it explicitly so its mt_start runs and
+     *  the EV_TOGGLE_LANGUAGE subscription is registered before the
+     *  user can click the toolbar button. */
+    gobj_start(test_lang);
 }
 
 window.addEventListener("load", () => {
