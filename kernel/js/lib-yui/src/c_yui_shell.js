@@ -41,7 +41,6 @@ import {
     bulma_hidden_class,
 } from "./shell_show_on.js";
 
-
 /***************************************************************
  *              Constants
  ***************************************************************/
@@ -59,7 +58,6 @@ const LAYER_DEFS = [
     ["notification", 120],
     ["loading",      150]
 ];
-
 
 /***************************************************************
  *              Attrs
@@ -82,6 +80,8 @@ SDATA_END()
 let PRIVATE_DATA = {};
 
 let __gclass__ = null;
+
+
 
 
                     /******************************
@@ -218,6 +218,8 @@ function mt_destroy(gobj)
     gobj_write_attr(gobj, "$container", null);
     gobj_write_attr(gobj, "priv", null);
 }
+
+
 
 
                     /***************************
@@ -399,7 +401,6 @@ function build_item_index(gobj, config)
     }
 }
 
-
 /************************************************************
  *  For each menu declared: for each zone hosting it, create
  *  a C_YUI_NAV that renders it with that zone's style.
@@ -547,7 +548,6 @@ function default_icon_pos(zone_id)
     return "left";
 }
 
-
 /************************************************************
  *  Hash <-> route
  ************************************************************/
@@ -565,7 +565,6 @@ function route_to_hash(route)
     let s = route.charAt(0) === "/" ? route : "/" + route;
     return "#" + s;
 }
-
 
 /************************************************************
  *  Navigate: make `route` active
@@ -807,7 +806,6 @@ function handle_toolbar_action(gobj, item)
     }
 }
 
-
 /************************************************************
  *  Create all views whose item declares lifecycle:"eager".
  *  They are mounted hidden; navigate_to() will reveal them.
@@ -935,6 +933,8 @@ function update_secondary_nav_visibility(gobj, entry)
 }
 
 
+
+
                     /***************************
                      *      Actions
                      ***************************/
@@ -966,7 +966,6 @@ function ac_nav_clicked(gobj, event, kw, src)
     }
     return 0;
 }
-
 
 /***************************************************************
  *              FSM
@@ -1023,7 +1022,6 @@ function register_c_yui_shell()
     return create_gclass(GCLASS_NAME);
 }
 
-
 /***************************************************************
  *  Public helpers — exported alongside register_c_yui_shell().
  *  Not gclass methods, no banner needed; left grouped at the
@@ -1043,7 +1041,6 @@ function yui_shell_navigate(shell_gobj, route)
 function yui_shell_open_drawer(shell_gobj, menu_id)    { open_drawer(shell_gobj, menu_id);   }
 function yui_shell_close_drawer(shell_gobj, menu_id)   { close_drawer(shell_gobj, menu_id);  }
 function yui_shell_toggle_drawer(shell_gobj, menu_id)  { toggle_drawer(shell_gobj, menu_id); }
-
 
 export {
     register_c_yui_shell,

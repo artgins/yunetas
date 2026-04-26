@@ -459,6 +459,91 @@ the canonical 5-section C layout.
 banners. A missing or non-canonical banner makes the file unreadable
 for the reviewer even when the code is correct.
 
+### GClass blank-line spacing rules (apply to every language)
+
+The skeleton encodes a **fixed spacing grammar** that the eye uses to
+locate sections. It is not optional and is the most common drift in
+generated code, so the rules are spelled out here in full.
+
+**Rule A — Indented section banners (Framework Methods, Commands,
+Local Methods, Actions) need exactly 4 blank lines above AND 4 blank
+lines below.** No more, no fewer. The 4 blanks are how the banner
+reads as a separator at a glance. The FSM banner in JS and C is the
+file-level wrapper form (not indented) and rides directly on top of
+its first block (`gmt`/states/etc.) with at most 1 blank above —
+match the skeleton exactly.
+
+**Rule B — Everywhere else, the separator is exactly 1 blank line.**
+Two blank lines between regular code is forbidden. This includes:
+
+- between two functions inside the same section,
+- between a function's closing `}` and the next per-function block
+  header `/*** Framework Method: Start ***/`,
+- between the import block and the first file-level block header,
+- between a top-level `const`/`let` and the next file-level block
+  header.
+
+**Rule C — Per-function block headers (`/*** Framework Method:
+Create ***/`, `/*** Action: foo ***/`) sit directly above their
+function with no blank line between header and `function`.** The
+1-blank separator from Rule B goes *above* the header.
+
+Canonical layout, copy-paste reference:
+
+```js
+let __gclass__ = null;
+                            ← rule A: blank #1
+                            ← rule A: blank #2
+                            ← rule A: blank #3
+                            ← rule A: blank #4
+                    /******************************
+                     *      Framework Methods
+                     ******************************/
+                            ← rule A: blank #1
+                            ← rule A: blank #2
+                            ← rule A: blank #3
+                            ← rule A: blank #4
+/***************************************************************
+ *          Framework Method: Create
+ ***************************************************************/
+function mt_create(gobj) {
+    ...
+}
+                            ← rule B: blank #1 (only one!)
+/***************************************************************
+ *          Framework Method: Start
+ ***************************************************************/
+function mt_start(gobj) {
+    ...
+}
+```
+
+**Common mistakes to NOT reproduce:**
+
+```js
+let __gclass__ = null;          /* WRONG — rule A wants 4 blanks above the banner */
+
+
+                    /******************************
+                     *      Framework Methods
+                     ******************************/
+```
+
+```js
+    return 0;
+}                               /* WRONG — rule B says 1 blank, never 2 */
+
+
+/***************************************************************
+ *          Framework Method: Start
+ ***************************************************************/
+```
+
+When in doubt, open
+`utils/c/yuno-skeleton/skeletons/js_gclass/+rootname+.js_tmpl` (or
+the matching C template) and **count blank lines**. The skeleton is
+the answer.
+
 ### GClass subscription model (CHILD vs SERVICE) — applies to every language
 
 Every gclass picks **exactly one** of two canonical subscription

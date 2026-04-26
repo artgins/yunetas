@@ -31,7 +31,6 @@ import {
     createElement2, empty_string, is_array, is_object, is_string,
 } from "@yuneta/gobj-js";
 
-
 /***************************************************************
  *              Constants
  ***************************************************************/
@@ -40,7 +39,6 @@ const GCLASS_NAME = "C_YUI_NAV";
 const SUPPORTED_LAYOUTS = [
     "vertical", "icon-bar", "tabs", "drawer", "submenu", "accordion"
 ];
-
 
 /***************************************************************
  *              Attrs
@@ -69,6 +67,8 @@ let __nav_aria_seq__ = 0;
 
 let PRIVATE_DATA = {};
 let __gclass__ = null;
+
+
 
 
                     /******************************
@@ -136,6 +136,8 @@ function mt_destroy(gobj)
     gobj_write_attr(gobj, "$container", null);
     gobj_write_attr(gobj, "priv", null);
 }
+
+
 
 
                     /***************************
@@ -498,6 +500,8 @@ function wire_clicks(gobj, $root)
 }
 
 
+
+
                     /***************************
                      *      Actions
                      ***************************/
@@ -567,7 +571,6 @@ function css_escape(s)
     /*  Minimal escape for attribute selector */
     return String(s).replace(/"/g, '\\"');
 }
-
 
 /***************************************************************
  *              FSM
