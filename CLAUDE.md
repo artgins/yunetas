@@ -356,10 +356,29 @@ PRIVATE GOBJ_DEFINE_GCLASS(MY_CLASS);
 
 ### GClass section layout (authoritative)
 
-Every `.c` file that defines a GClass must lay out its function
-definitions under the **five section banners** documented in the
-skeleton
-[`utils/c/yuno-skeleton/skeletons/gclass_service/c_+rootname+.c_tmpl`](utils/c/yuno-skeleton/skeletons/gclass_service/c_%2Brootname%2B.c_tmpl).
+Every gclass file — in any language — must mirror the layout of the
+matching template under
+[`utils/c/yuno-skeleton/skeletons/`](utils/c/yuno-skeleton/skeletons).
+That directory is the **single source of truth** for the minimum
+structure of a gclass; the templates live there:
+
+| Flavour                   | Skeleton                                                     |
+|---------------------------|--------------------------------------------------------------|
+| C service-level gclass    | `gclass_service/c_+rootname+.c_tmpl` (+`.h_tmpl`)            |
+| C child-level gclass      | `gclass_child/c_+rootname+.c_tmpl` (+`.h_tmpl`)              |
+| JS gclass                 | `js_gclass/+rootname+.js_tmpl`                               |
+| Standalone yuno (C)       | `yuno_standalone/src/c_+rootname+.c_tmpl` (+`.h_tmpl`)       |
+| Citizen yuno (C)          | `yuno_citizen/src/c_+rootname+.c_tmpl` (+`.h_tmpl`)          |
+
+Future languages add new sub-directories here; the layout rule is the
+same.
+
+**Every banner from the skeleton must be present in the gclass, even
+when its section is empty.** The banner is the visual anchor used to
+*scan* the file — it documents intent and keeps the layout uniform
+across the whole codebase, regardless of how full each section is on
+a given day. Adding extra banners outside the skeleton set is also
+forbidden, for the same reason.
 
 Canonical order — **always in this order**:
 
@@ -417,43 +436,30 @@ reviewing the cert-reload feature):
 `c_yuno.c` and `c_agent.c` are the canonical large-gclass examples of
 this layout; `c_timer.c` is the minimal example.
 
-### JS GClass section layout (authoritative)
+### JS GClass — banner set per the skeleton
 
-JS gclasses follow the same banner discipline as C, with one
-difference: they use **four sections** (no Commands), in this order:
+The JS skeleton
+([`js_gclass/+rootname+.js_tmpl`](utils/c/yuno-skeleton/skeletons/js_gclass/%2Brootname%2B.js_tmpl))
+defines four banners, **all four mandatory even when empty**:
 
-1. **Framework Methods** — `mt_create`, `mt_start`, `mt_stop`,
-   `mt_destroy`, `mt_child_added`, `mt_child_removed`, etc.
-2. **Local Methods** — `build_ui`, helpers, callbacks, anything that
-   isn't a framework method nor an action.
-3. **Actions** — `ac_*` functions referenced by the FSM state tables.
-4. **FSM** — `gmt`, `create_gclass()`, `register_c_*()`, state and
-   event tables.
+1. `Framework Methods` — indented, 30-star wrapper.
+2. `Local Methods` — indented, 27-star wrapper.
+3. `Actions` — indented, 27-star wrapper.
+4. `FSM` — file-level (NOT indented), 64-star wrapper.
 
-Banner form (same as C, four blank lines before and after):
+Every `mt_*` / `ac_*` function takes its own block header on top
+(`Framework Method: Create`, etc.) — same skeleton.
 
-```js
-                    /***************************
-                     *      Framework Methods
-                     ***************************/
-```
-
-Every `mt_*` / `ac_*` function carries its own block header on top:
-
-```js
-/***************************************************************
- *          Framework Method: Create
- ***************************************************************/
-function mt_create(gobj) { ... }
-```
+The C skeletons have one extra section (`Commands`) between
+Framework Methods and Local Methods; the FSM banner in C is also a
+file-level wrapper. See `gclass_service/c_+rootname+.c_tmpl` for
+the canonical 5-section C layout.
 
 **The user reads gclass files visually**, by scanning for these
-banners. Without them the file is unreadable for the reviewer even
-when the code is correct. Reference files: `kernel/js/lib-yui/src/
-c_yui_form.js`, `c_yui_main.js`, `c_yui_tabs.js`, `c_yui_shell.js`,
-`c_yui_nav.js`.
+banners. A missing or non-canonical banner makes the file unreadable
+for the reviewer even when the code is correct.
 
-### GClass subscription model (CHILD vs SERVICE) — applies to C and JS
+### GClass subscription model (CHILD vs SERVICE) — applies to every language
 
 Every gclass picks **exactly one** of two canonical subscription
 patterns and writes the block verbatim, with the canonical comment,
