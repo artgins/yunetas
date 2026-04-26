@@ -193,7 +193,9 @@ function build_ui(gobj)
 function translate_of(gobj, s)
 {
     let t = gobj_read_attr(gobj, "translate");
-    if(typeof t === "function") { return t(s); }
+    if(typeof t === "function") {
+        return t(s);
+    }
     return s;
 }
 
@@ -385,11 +387,19 @@ function item_li(gobj, it, opts)
     }
 
     if(icon_pos === "right" || icon_pos === "bottom") {
-        if(label_el) children.push(label_el);
-        if(icon_el)  children.push(icon_el);
+        if(label_el) {
+            children.push(label_el);
+        }
+        if(icon_el) {
+            children.push(icon_el);
+        }
     } else {
-        if(icon_el)  children.push(icon_el);
-        if(label_el) children.push(label_el);
+        if(icon_el) {
+            children.push(icon_el);
+        }
+        if(label_el) {
+            children.push(label_el);
+        }
     }
 
     let a_attrs = {
@@ -424,11 +434,19 @@ function item_iconbar(gobj, it, opts)
 
     let children = [];
     if(icon_pos === "bottom") {
-        if(label_el) children.push(label_el);
-        if(icon_el)  children.push(icon_el);
+        if(label_el) {
+            children.push(label_el);
+        }
+        if(icon_el) {
+            children.push(icon_el);
+        }
     } else {
-        if(icon_el)  children.push(icon_el);
-        if(label_el) children.push(label_el);
+        if(icon_el) {
+            children.push(icon_el);
+        }
+        if(label_el) {
+            children.push(label_el);
+        }
     }
 
     return ["div", {class: "level-item"},
@@ -447,13 +465,17 @@ function wire_clicks(gobj, $root)
 
     let handler = ev => {
         let target = ev.target;
-        if(!target || !target.closest) return;
+        if(!target || !target.closest) {
+            return;
+        }
 
         /*  Drawer backdrop close. */
         let $bk = target.closest("[data-close-drawer]");
         if($bk) {
             let $drawer = $bk.closest(".yui-drawer");
-            if($drawer) { $drawer.classList.remove("is-active"); }
+            if($drawer) {
+                $drawer.classList.remove("is-active");
+            }
             ev.preventDefault();
             return;
         }
@@ -479,9 +501,13 @@ function wire_clicks(gobj, $root)
          *  call).  This breaks the circular import on yui_shell_navigate
          *  and keeps ownership of routing in one place. */
         let $a = target.closest("[data-route]");
-        if(!$a) return;
+        if(!$a) {
+            return;
+        }
         let route = $a.getAttribute("data-route");
-        if(empty_string(route)) return;
+        if(empty_string(route)) {
+            return;
+        }
         if($a.getAttribute("data-disabled") === "1") {
             ev.preventDefault();
             return;
@@ -521,7 +547,9 @@ function ac_route_changed(gobj, event, kw, src)
 
     gobj_write_attr(gobj, "active_route", route);
     let $c = gobj_read_attr(gobj, "$container");
-    if(!$c) return 0;
+    if(!$c) {
+        return 0;
+    }
 
     /*  Remove prior active class on any children */
     let previouslyActive = $c.querySelectorAll(".is-active");
@@ -537,13 +565,17 @@ function ac_route_changed(gobj, event, kw, src)
     } else {
         id_to_mark = item && item.id;
     }
-    if(!id_to_mark) return 0;
+    if(!id_to_mark) {
+        return 0;
+    }
 
     let $a = $c.querySelector(`[data-item-id="${css_escape(id_to_mark)}"]`);
     if($a) {
         /*  For Bulma .tabs and .menu, 'is-active' goes on the <li> parent. */
         let $li = $a.closest("li");
-        if($li) $li.classList.add("is-active");
+        if($li) {
+            $li.classList.add("is-active");
+        }
         $a.classList.add("is-active");
     }
 
@@ -554,7 +586,9 @@ function ac_route_changed(gobj, event, kw, src)
         let heads = $c.querySelectorAll(".yui-accordion-head");
         heads.forEach($hd => {
             let $body = $hd.nextElementSibling;
-            if(!$body || !$body.classList.contains("yui-accordion-body")) return;
+            if(!$body || !$body.classList.contains("yui-accordion-body")) {
+                return;
+            }
             let contains_active = !!$body.querySelector(
                 `[data-item-id="${css_escape(active_leaf_id)}"]`
             );

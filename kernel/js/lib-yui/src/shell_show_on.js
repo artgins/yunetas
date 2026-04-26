@@ -33,7 +33,9 @@ export function breakpoints_from_expr(expr)
     let out = { mobile:false, tablet:false, desktop:false, widescreen:false, fullhd:false };
     expr = String(expr == null ? "" : expr).trim();
     if(expr === "*" || expr === "") {
-        for(let bp of BULMA_BP_ORDER) { out[bp] = true; }
+        for(let bp of BULMA_BP_ORDER) {
+            out[bp] = true;
+        }
         return out;
     }
     let parts = expr.split("|").map(s => s.trim()).filter(s => s.length);
@@ -42,22 +44,30 @@ export function breakpoints_from_expr(expr)
         if((m = /^>=(\w+)$/.exec(p))) {
             let idx = BULMA_BP_ORDER.indexOf(m[1]);
             if(idx >= 0) {
-                for(let i=idx;i<BULMA_BP_ORDER.length;i++) { out[BULMA_BP_ORDER[i]] = true; }
+                for(let i=idx;i<BULMA_BP_ORDER.length;i++) {
+                    out[BULMA_BP_ORDER[i]] = true;
+                }
             }
         } else if((m = /^<(\w+)$/.exec(p))) {
             let idx = BULMA_BP_ORDER.indexOf(m[1]);
             if(idx > 0) {
-                for(let i=0;i<idx;i++) { out[BULMA_BP_ORDER[i]] = true; }
+                for(let i=0;i<idx;i++) {
+                    out[BULMA_BP_ORDER[i]] = true;
+                }
             }
         } else if((m = /^<=(\w+)$/.exec(p))) {
             let idx = BULMA_BP_ORDER.indexOf(m[1]);
             if(idx >= 0) {
-                for(let i=0;i<=idx;i++) { out[BULMA_BP_ORDER[i]] = true; }
+                for(let i=0;i<=idx;i++) {
+                    out[BULMA_BP_ORDER[i]] = true;
+                }
             }
         } else if((m = /^>(\w+)$/.exec(p))) {
             let idx = BULMA_BP_ORDER.indexOf(m[1]);
             if(idx >= 0) {
-                for(let i=idx+1;i<BULMA_BP_ORDER.length;i++) { out[BULMA_BP_ORDER[i]] = true; }
+                for(let i=idx+1;i<BULMA_BP_ORDER.length;i++) {
+                    out[BULMA_BP_ORDER[i]] = true;
+                }
             }
         } else if(Object.prototype.hasOwnProperty.call(out, p)) {
             out[p] = true;

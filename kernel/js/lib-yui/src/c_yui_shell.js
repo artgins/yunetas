@@ -179,7 +179,9 @@ function mt_start(gobj)
 function mt_stop(gobj)
 {
     let priv = gobj_read_attr(gobj, "priv");
-    if(!priv) { return; }
+    if(!priv) {
+        return;
+    }
 
     if(priv.hash_handler) {
         window.removeEventListener("hashchange", priv.hash_handler);
@@ -432,14 +434,18 @@ function instantiate_menus(gobj, config)
             let layout = is_string(cfg) ? cfg : (cfg && cfg.layout);
             if(layout === "drawer") {
                 let list = (zones_for_menu[menu_id] = zones_for_menu[menu_id] || []);
-                if(list.indexOf(zone_id) < 0) { list.push(zone_id); }
+                if(list.indexOf(zone_id) < 0) {
+                    list.push(zone_id);
+                }
             }
         }
     }
 
     for(let menu_id in zones_for_menu) {
         let menu = menus[menu_id];
-        if(!menu) continue;
+        if(!menu) {
+            continue;
+        }
         for(let zone_id of zones_for_menu[menu_id]) {
             instantiate_nav_in_zone(gobj, menu, menu_id, zone_id, "primary");
         }
@@ -453,10 +459,14 @@ function instantiate_menus(gobj, config)
     if(primary && is_array(primary.items)) {
         for(let item of primary.items) {
             let sub = item.submenu;
-            if(!sub || !is_array(sub.items)) continue;
+            if(!sub || !is_array(sub.items)) {
+                continue;
+            }
             let render_by_zone = sub.render || {};
             for(let zone_id in render_by_zone) {
-                if(zone_id === "*") continue;
+                if(zone_id === "*") {
+                    continue;
+                }
                 let layout = render_by_zone[zone_id];
                 if(!priv.zones[zone_id]) {
                     log_warning(`C_YUI_SHELL: submenu renders in unknown zone '${zone_id}'`);
@@ -472,7 +482,9 @@ function instantiate_menus(gobj, config)
                 );
                 /*  Hidden until primary is active. */
                 let $c = gobj_read_attr(nav, "$container");
-                if($c) { $c.classList.add("is-hidden"); }
+                if($c) {
+                    $c.classList.add("is-hidden");
+                }
             }
         }
     }
@@ -542,9 +554,15 @@ function instantiate_nav_in_zone(gobj, menu, menu_id, zone_id, level)
 
 function default_icon_pos(zone_id)
 {
-    if(zone_id === "bottom" || zone_id === "top")       return "top";
-    if(zone_id === "left" || zone_id === "right")       return "left";
-    if(zone_id === "top-sub" || zone_id === "bottom-sub") return "left";
+    if(zone_id === "bottom" || zone_id === "top") {
+        return "top";
+    }
+    if(zone_id === "left" || zone_id === "right") {
+        return "left";
+    }
+    if(zone_id === "top-sub" || zone_id === "bottom-sub") {
+        return "left";
+    }
     return "left";
 }
 
@@ -553,15 +571,21 @@ function default_icon_pos(zone_id)
  ************************************************************/
 function hash_to_route(hash)
 {
-    if(!hash) return "";
+    if(!hash) {
+        return "";
+    }
     let s = String(hash).replace(/^#/, "");
-    if(s.charAt(0) !== "/") s = "/" + s;
+    if(s.charAt(0) !== "/") {
+        s = "/" + s;
+    }
     return s;
 }
 
 function route_to_hash(route)
 {
-    if(!route) return "";
+    if(!route) {
+        return "";
+    }
     let s = route.charAt(0) === "/" ? route : "/" + route;
     return "#" + s;
 }
@@ -612,7 +636,9 @@ function navigate_to(gobj, route)
         let prev_gobj = stage.items[prev_route];
         if(prev_gobj) {
             let $c = gobj_read_attr(prev_gobj, "$container");
-            if($c) $c.classList.add("is-hidden");
+            if($c) {
+                $c.classList.add("is-hidden");
+            }
         }
         /*  lazy_destroy: drop previous on exit */
         let prev_entry = priv.item_index[prev_route];
@@ -626,11 +652,15 @@ function navigate_to(gobj, route)
     let cur = stage.items[route];
     if(!cur) {
         cur = build_view_gobj(gobj, entry, route, stage);
-        if(!cur) return;
+        if(!cur) {
+            return;
+        }
         stage.items[route] = cur;
     }
     let $c = gobj_read_attr(cur, "$container");
-    if($c) $c.classList.remove("is-hidden");
+    if($c) {
+        $c.classList.remove("is-hidden");
+    }
 
     stage.active_route = route;
     gobj_write_attr(gobj, "current_route", route);
@@ -711,7 +741,9 @@ function safe_id(s)
 function build_toolbar(gobj, config)
 {
     let tb = config && config.toolbar;
-    if(!tb || !is_array(tb.items)) { return; }
+    if(!tb || !is_array(tb.items)) {
+        return;
+    }
 
     let priv = gobj_read_attr(gobj, "priv");
     let zone_id = tb.zone || find_toolbar_zone(config);
@@ -768,7 +800,9 @@ function find_toolbar_zone(config)
 {
     let zones = (config && config.shell && config.shell.zones) || {};
     for(let z in zones) {
-        if(zones[z].host === "toolbar") { return z; }
+        if(zones[z].host === "toolbar") {
+            return z;
+        }
     }
     return "top";
 }
@@ -789,9 +823,15 @@ function handle_toolbar_action(gobj, item)
         case "drawer": {
             let op = action.op || "toggle";
             let menu_id = action.menu_id || null;
-            if     (op === "open")  { open_drawer(gobj, menu_id);  }
-            else if(op === "close") { close_drawer(gobj, menu_id); }
-            else                    { toggle_drawer(gobj, menu_id); }
+            if(op === "open") {
+                open_drawer(gobj, menu_id);
+            }
+            else if(op === "close") {
+                close_drawer(gobj, menu_id);
+            }
+            else {
+                 { toggle_drawer(gobj, menu_id); }
+            }
             break;
         }
         case "event":
@@ -816,19 +856,27 @@ function preinstantiate_eager_views(gobj)
     for(let route in priv.item_index) {
         let entry = priv.item_index[route];
         let t = entry.target;
-        if(!t || t.lifecycle !== "eager") continue;
+        if(!t || t.lifecycle !== "eager") {
+            continue;
+        }
         let stage_name = entry.stage || "main";
         let stage = priv.stages[stage_name];
         if(!stage) {
             log_warning(`C_YUI_SHELL: eager view ${route} has no stage '${stage_name}'`);
             continue;
         }
-        if(stage.items[route]) continue;          /*  already built */
+        if(stage.items[route]) {
+            continue;          /*  already built */
+        }
         let view = build_view_gobj(gobj, entry, route, stage);
-        if(!view) continue;
+        if(!view) {
+            continue;
+        }
         stage.items[route] = view;
         let $c = gobj_read_attr(view, "$container");
-        if($c) { $c.classList.add("is-hidden"); }
+        if($c) {
+            $c.classList.add("is-hidden");
+        }
     }
 }
 
@@ -842,10 +890,16 @@ function drawers(gobj, menu_id)
     let priv = gobj_read_attr(gobj, "priv");
     let out = [];
     for(let nav of priv.navs) {
-        if(gobj_read_attr(nav, "layout") !== "drawer") continue;
-        if(menu_id && gobj_read_attr(nav, "menu_id") !== menu_id) continue;
+        if(gobj_read_attr(nav, "layout") !== "drawer") {
+            continue;
+        }
+        if(menu_id && gobj_read_attr(nav, "menu_id") !== menu_id) {
+            continue;
+        }
         let $c = gobj_read_attr(nav, "$container");
-        if($c) { out.push($c); }
+        if($c) {
+            out.push($c);
+        }
     }
     return out;
 }
@@ -874,11 +928,17 @@ function toggle_drawer(gobj, menu_id)
 function close_all_drawers(gobj)
 {
     let priv = gobj_read_attr(gobj, "priv");
-    if(!priv) return;
+    if(!priv) {
+        return;
+    }
     for(let nav of priv.navs) {
-        if(gobj_read_attr(nav, "layout") !== "drawer") continue;
+        if(gobj_read_attr(nav, "layout") !== "drawer") {
+            continue;
+        }
         let $c = gobj_read_attr(nav, "$container");
-        if($c) { $c.classList.remove("is-active"); }
+        if($c) {
+            $c.classList.remove("is-active");
+        }
     }
 }
 
@@ -890,7 +950,9 @@ function show_stage_placeholder(gobj, stage_name, message)
 {
     let priv = gobj_read_attr(gobj, "priv");
     let stage = priv.stages[stage_name];
-    if(!stage || !stage.el) return;
+    if(!stage || !stage.el) {
+        return;
+    }
     clear_stage_placeholder(gobj, stage_name);
     let $msg = createElement2(
         ["div", {class: "yui-shell-placeholder notification is-warning is-light m-4"},
@@ -904,9 +966,13 @@ function clear_stage_placeholder(gobj, stage_name)
 {
     let priv = gobj_read_attr(gobj, "priv");
     let stage = priv.stages[stage_name];
-    if(!stage || !stage.el) return;
+    if(!stage || !stage.el) {
+        return;
+    }
     let $old = stage.el.querySelector(":scope > .yui-shell-placeholder");
-    if($old) { $old.parentNode.removeChild($old); }
+    if($old) {
+        $old.parentNode.removeChild($old);
+    }
 }
 
 function update_secondary_nav_visibility(gobj, entry)
@@ -918,12 +984,18 @@ function update_secondary_nav_visibility(gobj, entry)
 
     for(let nav of priv.navs) {
         let level = gobj_read_attr(nav, "level");
-        if(level !== "secondary") continue;
+        if(level !== "secondary") {
+            continue;
+        }
         let menu_id = gobj_read_attr(nav, "menu_id") || "";
         let m = /^secondary\.(.+)$/.exec(menu_id);
-        if(!m) continue;
+        if(!m) {
+            continue;
+        }
         let $c = gobj_read_attr(nav, "$container");
-        if(!$c) continue;
+        if(!$c) {
+            continue;
+        }
         if(m[1] === active_primary_id) {
             $c.classList.remove("is-hidden");
         } else {
@@ -948,7 +1020,9 @@ function update_secondary_nav_visibility(gobj, entry)
 function ac_nav_clicked(gobj, event, kw, src)
 {
     let route = (kw && kw.route) || "";
-    if(empty_string(route)) { return 0; }
+    if(empty_string(route)) {
+        return 0;
+    }
 
     /*  When hash routing is on, let the hash drive navigate_to() — that
      *  way back/forward buttons and programmatic hash changes all flow

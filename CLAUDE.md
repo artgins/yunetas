@@ -38,6 +38,78 @@ When reviewing diffs or writing new code, grep for `\bmalloc\s*\(`, `\bfree\s*\(
 `\brealloc\s*\(`, `\bstrdup\s*\(` and replace every hit with the `gbmem_*`
 equivalent.
 
+## ⚠️ CRITICAL: Always braces, never single-line bodies
+
+**Every `if` / `else` / `else if` / `for` / `while` / `do` body must
+be wrapped in `{ ... }` and laid out across multiple lines.** Applies
+to **every language** in the repo — C, JS, Python utility scripts,
+shell — and to every block, no matter how short.
+
+| Forbidden                           | Required                                  |
+|-------------------------------------|-------------------------------------------|
+| `if(!ptr) return;`                  | `if(!ptr) {`<br>`    return;`<br>`}`      |
+| `if(x) doIt();`                     | `if(x) {`<br>`    doIt();`<br>`}`         |
+| `for(...) continue;`                | `for(...) {`<br>`    continue;`<br>`}`    |
+| `if(x) y(); else z();`              | `if(x) {`<br>`    y();`<br>`} else {`<br>`    z();`<br>`}` |
+| `if(x) { y(); }` (one-liner)        | `if(x) {`<br>`    y();`<br>`}`            |
+
+**Why it matters (visual reasoning):** the user reviews code by
+*looking* at it. A `return;` or `continue;` hidden at the end of a
+single-line `if` is invisible at a glance — it disappears into the
+condition. Important control-flow statements (`return`, `continue`,
+`break`, `throw`) deserve a braced body so the eye lands on them
+immediately when scanning the file.
+
+**Bad — control-flow disappears at the right edge:**
+
+```js
+for(let nav of priv.navs) {
+    let level = gobj_read_attr(nav, "level");
+    if(level !== "secondary") continue;
+    let menu_id = gobj_read_attr(nav, "menu_id") || "";
+    let m = /^secondary\.(.+)$/.exec(menu_id);
+    if(!m) continue;
+    let $c = gobj_read_attr(nav, "$container");
+    if(!$c) continue;
+    ...
+}
+```
+
+**Good — every guard is visible:**
+
+```js
+for(let nav of priv.navs) {
+    let level = gobj_read_attr(nav, "level");
+    if(level !== "secondary") {
+        continue;
+    }
+    let menu_id = gobj_read_attr(nav, "menu_id") || "";
+    let m = /^secondary\.(.+)$/.exec(menu_id);
+    if(!m) {
+        continue;
+    }
+    let $c = gobj_read_attr(nav, "$container");
+    if(!$c) {
+        continue;
+    }
+    ...
+}
+```
+
+When reviewing or writing code, search for these patterns and fix
+each occurrence:
+
+- `\)\s*(return|continue|break|throw)` followed by anything other
+  than `{` on the next character.
+- `\)\s*[a-zA-Z_$].*[^{]\s*$` — a non-brace statement after a
+  control-flow `)` on the same line.
+- `\}\s*else\s+(?!if|\{)` — an `else` whose body starts with code,
+  not a brace.
+- `\)\s*\{[^}]*\}\s*$` — a one-liner braced body (the body and the
+  braces all collapsed onto a single line). Expand it.
+
+Yes, this is a verbose style. It is intentional. Visibility wins.
+
 ## System Prerequisites
 
 Install system dependencies (from doc.yuneta.io):
