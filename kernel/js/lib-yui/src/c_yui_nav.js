@@ -25,7 +25,8 @@ import {
     SDATA, SDATA_END, data_type_t, event_flag_t,
     gclass_create, log_error,
     gobj_subscribe_event,
-    gobj_read_attr, gobj_write_attr,
+    gobj_parent,
+    gobj_read_attr, gobj_read_pointer_attr, gobj_write_attr,
     gobj_publish_event,
     createElement2, empty_string, is_array, is_object, is_string,
 } from "@yuneta/gobj-js";
@@ -70,44 +71,58 @@ let PRIVATE_DATA = {};
 let __gclass__ = null;
 
 
-                    /******************************
+                    /***************************
                      *      Framework Methods
-                     ******************************/
+                     ***************************/
 
 
+
+
+/***************************************************************
+ *          Framework Method: Create
+ ***************************************************************/
 function mt_create(gobj)
 {
-    /*  EV_NAV_CLICKED is forwarded to the shell via an explicit
-     *  subscribe in instantiate_nav_in_zone(); we only honour an
-     *  externally supplied `subscriber` here, never the parent
-     *  fallback — the parent (the shell itself) doesn't need a
-     *  catch-all on every nav event. */
-    let subscriber = gobj_read_attr(gobj, "subscriber");
-    if(subscriber) {
-        gobj_subscribe_event(gobj, null, {}, subscriber);
+    /*
+     *  CHILD subscription model
+     */
+    let subscriber = gobj_read_pointer_attr(gobj, "subscriber");
+    if(!subscriber) {
+        subscriber = gobj_parent(gobj);
     }
+    gobj_subscribe_event(gobj, null, {}, subscriber);
+
     gobj_write_attr(gobj, "priv", {
         click_handler: null
     });
     build_ui(gobj);
 }
 
+/***************************************************************
+ *          Framework Method: Start
+ ***************************************************************/
 function mt_start(gobj)
 {
     let shell = gobj_read_attr(gobj, "shell");
     if(shell) {
-        /*  Listen to route changes from the shell so we can highlight the
-         *  active item.  */
+        /*  Listen to route changes from the shell so we can highlight
+         *  the active item. */
         try {
             gobj_subscribe_event(shell, "EV_ROUTE_CHANGED", {}, gobj);
         } catch(e) { /* already subscribed, ignore */ }
     }
 }
 
+/***************************************************************
+ *          Framework Method: Stop
+ ***************************************************************/
 function mt_stop(gobj)
 {
 }
 
+/***************************************************************
+ *          Framework Method: Destroy
+ ***************************************************************/
 function mt_destroy(gobj)
 {
     let $c = gobj_read_attr(gobj, "$container");
@@ -123,11 +138,16 @@ function mt_destroy(gobj)
 }
 
 
-                    /******************************
+                    /***************************
                      *      Local Methods
-                     ******************************/
+                     ***************************/
 
 
+
+
+/************************************************************
+ *  Build the UI: dispatch to one of the six layout renderers
+ ************************************************************/
 function build_ui(gobj)
 {
     let layout = gobj_read_attr(gobj, "layout") || "vertical";
@@ -478,11 +498,16 @@ function wire_clicks(gobj, $root)
 }
 
 
-                    /******************************
+                    /***************************
                      *      Actions
-                     ******************************/
+                     ***************************/
 
 
+
+
+/************************************************************
+ *  EV_ROUTE_CHANGED from the shell — refresh active highlight
+ ************************************************************/
 function ac_route_changed(gobj, event, kw, src)
 {
     let route = kw.route || "";
@@ -544,11 +569,16 @@ function css_escape(s)
 }
 
 
-                    /******************************
-                     *           FSM
-                     ******************************/
+                    /***************************
+                     *          FSM
+                     ***************************/
 
 
+
+
+/*---------------------------------------------*
+ *          Global methods table
+ *---------------------------------------------*/
 const gmt = {
     mt_create:  mt_create,
     mt_start:   mt_start,

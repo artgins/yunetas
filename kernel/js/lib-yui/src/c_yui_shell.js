@@ -31,7 +31,7 @@ import {
     gobj_start, gobj_stop,
     gobj_publish_event,
     gobj_subscribe_event,
-    gobj_read_attr, gobj_write_attr,
+    gobj_read_attr, gobj_read_pointer_attr, gobj_write_attr,
     createElement2, empty_string, is_object, is_array, is_string,
 } from "@yuneta/gobj-js";
 
@@ -84,20 +84,22 @@ let PRIVATE_DATA = {};
 let __gclass__ = null;
 
 
-                    /******************************
+                    /***************************
                      *      Framework Methods
-                     ******************************/
+                     ***************************/
 
 
+
+
+/***************************************************************
+ *          Framework Method: Create
+ ***************************************************************/
 function mt_create(gobj)
 {
-    /*  EV_ROUTE_CHANGED is a public broadcast — consumers subscribe
-     *  explicitly (the navs do it from their mt_start, apps may do it
-     *  via the `subscriber` attr).  Do NOT auto-subscribe the parent
-     *  here: the parent is typically the yuno, whose FSM does not
-     *  accept route events and would log an "event not defined"
-     *  error every time the route changes. */
-    let subscriber = gobj_read_attr(gobj, "subscriber");
+    /*
+     *  SERVICE subscription model
+     */
+    const subscriber = gobj_read_pointer_attr(gobj, "subscriber");
     if(subscriber) {
         gobj_subscribe_event(gobj, null, {}, subscriber);
     }
@@ -116,6 +118,9 @@ function mt_create(gobj)
     build_ui(gobj);
 }
 
+/***************************************************************
+ *          Framework Method: Start
+ ***************************************************************/
 function mt_start(gobj)
 {
     let config = gobj_read_attr(gobj, "config") || {};
@@ -168,6 +173,9 @@ function mt_start(gobj)
     }
 }
 
+/***************************************************************
+ *          Framework Method: Stop
+ ***************************************************************/
 function mt_stop(gobj)
 {
     let priv = gobj_read_attr(gobj, "priv");
@@ -198,6 +206,9 @@ function mt_stop(gobj)
     }
 }
 
+/***************************************************************
+ *          Framework Method: Destroy
+ ***************************************************************/
 function mt_destroy(gobj)
 {
     let $container = gobj_read_attr(gobj, "$container");
@@ -209,9 +220,11 @@ function mt_destroy(gobj)
 }
 
 
-                    /******************************
+                    /***************************
                      *      Local Methods
-                     ******************************/
+                     ***************************/
+
+
 
 
 /************************************************************
@@ -517,11 +530,9 @@ function instantiate_nav_in_zone(gobj, menu, menu_id, zone_id, level)
         }
     }
 
-    /*  The shell owns routing: we subscribe to the nav's click intent
-     *  and the nav subscribes to our route-changed broadcast.          */
-    try {
-        gobj_subscribe_event(nav, "EV_NAV_CLICKED", {}, gobj);
-    } catch(e) { /* ignore */ }
+    /*  The CHILD subscription model in C_YUI_NAV.mt_create already
+     *  subscribes the parent (us) to EV_NAV_CLICKED, so no explicit
+     *  call is needed here. */
 
     gobj_start(nav);
     priv.navs.push(nav);
@@ -924,12 +935,16 @@ function update_secondary_nav_visibility(gobj, entry)
 }
 
 
-                    /******************************
-                     *          Actions
-                     ******************************/
+                    /***************************
+                     *      Actions
+                     ***************************/
 
 
-/*  Click-through from a C_YUI_NAV child: we own routing here. */
+
+
+/************************************************************
+ *  Click-through from a C_YUI_NAV child: we own routing here.
+ ************************************************************/
 function ac_nav_clicked(gobj, event, kw, src)
 {
     let route = (kw && kw.route) || "";
@@ -953,11 +968,16 @@ function ac_nav_clicked(gobj, event, kw, src)
 }
 
 
-                    /******************************
-                     *           FSM
-                     ******************************/
+                    /***************************
+                     *          FSM
+                     ***************************/
 
 
+
+
+/*---------------------------------------------*
+ *          Global methods table
+ *---------------------------------------------*/
 const gmt = {
     mt_create:  mt_create,
     mt_start:   mt_start,
@@ -1008,12 +1028,16 @@ function register_c_yui_shell()
 }
 
 
-                    /******************************
+                    /***************************
                      *      Public helpers
-                     ******************************/
+                     ***************************/
 
 
-/*  Programmatic navigation (bypass hash).  */
+
+
+/************************************************************
+ *  Programmatic navigation (bypass hash).
+ ************************************************************/
 function yui_shell_navigate(shell_gobj, route)
 {
     navigate_to(shell_gobj, route);
