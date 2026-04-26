@@ -23,6 +23,10 @@ export default defineConfig({
             { find: /^@yuneta\/gobj-js$/, replacement: gobjJsSrc }
         ]
     },
+    build: {
+        sourcemap: true,
+        chunkSizeWarningLimit: 6000
+    },
     server: {
         port: 5180,
         open: true
