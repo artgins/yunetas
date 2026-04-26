@@ -39,34 +39,25 @@ Order rationale (revised after the "no legacy migration" decision):
 
 ---
 
-## 1. Test-app: language-switch button (smoke for `yui_shell_set_translate`)
+## 1. Test-app: language-switch button (smoke for `refresh_language`)
 
-The hot-swap helper is implemented and exported, but no consumer
-exercises it.  Add a tiny visible loop:
+**Status: DONE** (canonical pattern).
 
-- Add a 4th item to `app_config.json → toolbar.items` (`align: "end"`),
-  e.g. `{ "id": "lang", "icon": "icon-translate", "name": "ES/EN",
-  "action": { "type": "event", "event": "EV_TOGGLE_LANGUAGE" } }`.
-- In `test-app/src/main.js` subscribe to `EV_TOGGLE_LANGUAGE` of the
-  shell; on each fire, flip an in-memory boolean and call
-  `yui_shell_set_translate(shell, fn)` with one of two trivial
-  dictionaries (`"Dashboard" ↔ "Panel"`, `"Reports" ↔ "Informes"`,
-  `"Settings" ↔ "Ajustes"`, etc.).
-- After the click, the menu in `left`/`bottom`, the submenu in
-  `top-sub`/`right`, the heading of the secondary nav (uses
-  `nav_label`) and every toolbar `<button>` label should swap.
-- Update `test-app/README.md` with a "Live i18n" section.
+The shell tags every translatable text node with
+`data-i18n="<canonical key>"` (via `createElement2`'s `i18n` attr).
+Apps switch language by calling
+`refresh_language(shell.$container, t)` from `@yuneta/gobj-js` —
+the same flow `c_yui_main.js` uses in its `change_language()`.
+There is no shell-level translate hook and no DOM rebuild.
 
-**Caveat to document:** `yui_shell_set_translate` only re-publishes
-`EV_ROUTE_CHANGED` when `current_route` is non-empty.  If the user
-clicks the language toggle *before* the first navigation has
-succeeded, navs are rebuilt but the active highlight is empty until
-they navigate.  Surface this in the README so it doesn't surprise
-integrators.
-
-**Done when:** clicking the ES/EN button visibly relabels every menu,
-heading and toolbar button, and the active item highlight survives
-the re-publish of `EV_ROUTE_CHANGED`.
+The test-app exercises this with:
+- A `lang` toolbar item (`align: "end"`) that fires the user-defined
+  `EV_TOGGLE_LANGUAGE` via `action.type:"event"`.  The shell is
+  registered with `gcflag_no_check_output_events` so it forwards the
+  event without the app having to extend its `event_types` table.
+- A small CHILD gobj `C_TEST_LANG` that subscribes to that event and
+  calls `refresh_language(shell.$container, t)` with one of two
+  trivial dictionaries (EN identity / ES map).
 
 ---
 
@@ -77,13 +68,15 @@ publish:
 
 - Bump to `7.4.0`.
 - Add a section to top-level `CHANGELOG.md`:
-    - **Added**: `C_YUI_SHELL`, `C_YUI_NAV`, `shell_show_on` parser with
-      13 `node --test` tests, declarative toolbar, all 6 nav layouts,
-      drawer overlay with focus-trap, hot-swap i18n via
-      `yui_shell_set_translate`, public helpers
+    - **Added**: `C_YUI_SHELL`, `C_YUI_NAV`, `shell_show_on` parser
+      with 13 `node --test` tests, declarative toolbar, all 6 nav
+      layouts, drawer overlay with focus-trap, canonical i18n
+      (every translatable label rendered with
+      `data-i18n="<canonical key>"`; apps switch language by calling
+      `refresh_language(shell.$container, t)` from
+      `@yuneta/gobj-js`), public helpers
       `yui_shell_navigate / yui_shell_open_drawer /
-      yui_shell_close_drawer / yui_shell_toggle_drawer /
-      yui_shell_set_translate / yui_nav_rebuild`.
+      yui_shell_close_drawer / yui_shell_toggle_drawer`.
     - **Fixed (review pass)**: `build_item_index` route collision,
       drawer staying open after navigation, vite alias matching
       sub-paths, missing drawer helper re-exports, ugly

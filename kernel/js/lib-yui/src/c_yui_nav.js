@@ -58,7 +58,6 @@ SDATA(data_type_t.DTP_STRING,   "level",         0,  "primary",    "primary|seco
 SDATA(data_type_t.DTP_POINTER,  "shell",         0,  null,         "C_YUI_SHELL gobj (for navigation calls)"),
 SDATA(data_type_t.DTP_POINTER,  "$container",    0,  null,         "Root HTMLElement of this nav"),
 SDATA(data_type_t.DTP_STRING,   "active_route",  0,  "",           "Currently active route"),
-SDATA(data_type_t.DTP_POINTER,  "translate",     0,  null,         "Optional i18n resolver: (key) => string"),
 SDATA(data_type_t.DTP_POINTER,  "priv",          0,  null,         "Private runtime state (click listener, etc.)"),
 SDATA_END()
 ];
@@ -183,7 +182,7 @@ function build_ui(gobj)
         $root.setAttribute("role", "navigation");
         if(!$root.hasAttribute("aria-label")) {
             let label = gobj_read_attr(gobj, "nav_label") || menu_id;
-            $root.setAttribute("aria-label", translate_of(gobj, label));
+            $root.setAttribute("aria-label", label);
         }
     }
 
@@ -192,19 +191,10 @@ function build_ui(gobj)
     gobj_write_attr(gobj, "$container", $root);
 }
 
-function translate_of(gobj, s)
-{
-    let t = gobj_read_attr(gobj, "translate");
-    if(typeof t === "function") {
-        return t(s);
-    }
-    return s;
-}
-
 /************************************************************
  *  Layouts
  *
- *  IMPORTANT: createElement2 destructures node descriptors as
+ *  IMPORTANT 1: createElement2 destructures node descriptors as
  *  [tag, attrs, content, events] positionally, so multiple
  *  children MUST be wrapped in a single array (otherwise the
  *  third sibling would be interpreted as an event-listener map
@@ -212,6 +202,15 @@ function translate_of(gobj, s)
  *
  *      OK:    ["ul", {}, [li1, li2, li3]]
  *      WRONG: ["ul", {}, li1, li2, li3]
+ *
+ *  IMPORTANT 2: every translatable text node carries an `i18n`
+ *  attribute with its canonical (English) key.  createElement2
+ *  maps it to `data-i18n` on the rendered element.  The host app
+ *  changes language by calling `refresh_language(element, t)`
+ *  from `@yuneta/gobj-js`, which walks all `[data-i18n]` and
+ *  re-translates the first text node with `t(key)`.  See the
+ *  legacy `change_language()` in `c_yui_main.js` for the
+ *  canonical pattern.
  ************************************************************/
 function render_vertical(gobj, items)
 {
@@ -255,7 +254,7 @@ function render_tabs(gobj, items)
                 ["i", {class: it.icon, "aria-hidden":"true"}]]);
         }
         if(show_label && !empty_string(it.name)) {
-            children.push(["span", {}, translate_of(gobj, it.name)]);
+            children.push(["span", {i18n: it.name}, it.name]);
         }
         lis.push(
             ["li", {class: "", "data-item-id": it.id, "data-route": it.route || ""},
@@ -284,7 +283,7 @@ function render_drawer(gobj, items)
     wrap.className = "yui-drawer";
     wrap.setAttribute("role", "dialog");
     wrap.setAttribute("aria-modal", "true");
-    wrap.setAttribute("aria-label", translate_of(gobj, menu_id));
+    wrap.setAttribute("aria-label", menu_id);
 
     let back = document.createElement("div");
     back.className = "yui-drawer-backdrop";
@@ -294,7 +293,7 @@ function render_drawer(gobj, items)
     let panel = document.createElement("div");
     panel.className = "yui-drawer-panel";
     panel.setAttribute("role", "navigation");
-    panel.setAttribute("aria-label", translate_of(gobj, menu_id));
+    panel.setAttribute("aria-label", menu_id);
     panel.appendChild(render_vertical(gobj, items));
 
     wrap.appendChild(back);
@@ -313,10 +312,14 @@ function render_submenu(gobj, items)
     for(let it of items) {
         lis.push(item_li(gobj, it, { icon_pos, show_label, stacked: false, compact: true }));
     }
+    let heading_text = nav_label || "—";
+    let heading_attrs = nav_label
+        ? { class: "menu-label", i18n: nav_label }
+        : { class: "menu-label" };
     return createElement2(
         ["aside", {class: "menu p-2"},
             [
-                ["p", {class: "menu-label"}, translate_of(gobj, nav_label) || "—"],
+                ["p", heading_attrs, heading_text],
                 ["ul", {class: "menu-list"}, lis]
             ]
         ]
@@ -338,16 +341,20 @@ function render_accordion(gobj, items)
         let head_id = `yui-acc-head-${acc_id}`;
         let body_id = `yui-acc-body-${acc_id}`;
 
-        let $hdr = createElement2(
-            ["button", {type: "button",
-                        id: head_id,
-                        class: "menu-label yui-accordion-head",
-                        "data-item-id": it.id,
-                        "data-route":   it.route || "",
-                        "aria-expanded": "false",
-                        "aria-controls": body_id},
-                translate_of(gobj, it.name || "")]
-        );
+        let head_text = it.name || "";
+        let head_attrs = {
+            type: "button",
+            id: head_id,
+            class: "menu-label yui-accordion-head",
+            "data-item-id": it.id,
+            "data-route":   it.route || "",
+            "aria-expanded": "false",
+            "aria-controls": body_id
+        };
+        if(!empty_string(head_text)) {
+            head_attrs.i18n = head_text;
+        }
+        let $hdr = createElement2(["button", head_attrs, head_text]);
         $root.appendChild($hdr);
 
         let $ul = createElement2(
@@ -375,13 +382,13 @@ function item_li(gobj, it, opts)
 {
     let { icon_pos, show_label, stacked } = opts;
     let children = [];
-    let label = translate_of(gobj, it.name || "");
+    let label = it.name || "";
 
     let icon_el = !empty_string(it.icon)
         ? ["span", {class: "icon"}, ["i", {class: it.icon, "aria-hidden":"true"}]]
         : null;
     let label_el = (show_label && !empty_string(label))
-        ? ["span", {class: "yui-nav-label"}, label]
+        ? ["span", {class: "yui-nav-label", i18n: label}, label]
         : null;
 
     let a_class = "yui-nav-item";
@@ -426,13 +433,13 @@ function item_li(gobj, it, opts)
 function item_iconbar(gobj, it, opts)
 {
     let { icon_pos, show_label } = opts;
-    let label = translate_of(gobj, it.name || "");
+    let label = it.name || "";
     let icon_el = !empty_string(it.icon)
         ? ["span", {class: "icon is-medium"},
            ["i", {class: it.icon, "aria-hidden":"true"}]]
         : null;
     let label_el = (show_label && !empty_string(label))
-        ? ["span", {class: "yui-nav-label is-size-7"}, label]
+        ? ["span", {class: "yui-nav-label is-size-7", i18n: label}, label]
         : null;
 
     let children = [];
@@ -661,44 +668,4 @@ function register_c_yui_nav()
     return create_gclass(GCLASS_NAME);
 }
 
-/***************************************************************
- *  Rebuild the nav DOM in place.  Used by the shell when the
- *  `translate` attr changes at runtime: the DOM has to be torn
- *  down and re-rendered with the new label resolver, but the
- *  parent and the visibility state must be preserved so the
- *  layout does not flicker.  Active-item highlight is NOT
- *  re-applied here — the shell is expected to re-publish
- *  EV_ROUTE_CHANGED right after, which the nav handles via its
- *  existing ac_route_changed action.
- ***************************************************************/
-function yui_nav_rebuild(nav)
-{
-    let $old = gobj_read_attr(nav, "$container");
-    let priv = gobj_read_attr(nav, "priv");
-    let $parent = ($old && $old.parentNode) || null;
-    let was_hidden = !!($old && $old.classList.contains("is-hidden"));
-    let was_active_drawer = !!($old && $old.classList.contains("is-active"));
-
-    if($old && priv && priv.click_handler) {
-        $old.removeEventListener("click", priv.click_handler);
-    }
-
-    build_ui(nav);
-
-    let $new = gobj_read_attr(nav, "$container");
-    if($parent && $new) {
-        if($old && $old.parentNode === $parent) {
-            $parent.replaceChild($new, $old);
-        } else {
-            $parent.appendChild($new);
-        }
-        if(was_hidden) {
-            $new.classList.add("is-hidden");
-        }
-        if(was_active_drawer) {
-            $new.classList.add("is-active");
-        }
-    }
-}
-
-export { register_c_yui_nav, yui_nav_rebuild };
+export { register_c_yui_nav };

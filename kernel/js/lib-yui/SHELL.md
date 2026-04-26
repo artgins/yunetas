@@ -295,7 +295,6 @@ Recommended default: `keep_alive`.
 | `current_route`  | string      | Read-only: active route                                  |
 | `use_hash`       | bool        | If `true`, syncs `window.location.hash`                  |
 | `mount_element`  | HTMLElement | Where to mount the shell (default `document.body`)       |
-| `translate`      | function    | `(key) => string` — optional i18n; applied to `item.name`, toolbar labels, and `aria-label` |
 | `$container`     | HTMLElement | Shell root                                               |
 
 Published events:
@@ -312,12 +311,27 @@ Public helpers (import from `@yuneta/lib-yui`):
   focus-trap on its panel: `Tab` / `Shift+Tab` cycle inside, and on
   close the focus is restored to whichever element triggered the
   open.
-- `yui_shell_set_translate(shell, fn)` — hot-swap the i18n resolver.
-  Replaces the `translate` attr on the shell and on every nav,
-  rebuilds the nav DOMs and the toolbar, then re-publishes
-  `EV_ROUTE_CHANGED` so navs re-mark the active item under the new
-  labels. Use this to switch languages without destroying the
-  shell.
+
+### Internationalisation
+
+The shell does **not** own i18n. Every translatable text node it
+renders (menu labels, secondary-nav heading, toolbar buttons) is
+emitted with `data-i18n="<canonical English key>"` via
+`createElement2`'s `i18n` attribute. To switch languages, use the
+canonical helper from `@yuneta/gobj-js`:
+
+```js
+import { refresh_language } from "@yuneta/gobj-js";
+import i18next, { t } from "i18next";
+
+i18next.changeLanguage("es");
+refresh_language(shell.$container, t);
+```
+
+This is the same flow `c_yui_main.js` uses in its
+`change_language()`. Apps that already configure i18next get the
+shell labels switched for free; apps without i18next can pass any
+`(key) => string` function as `t`.
 
 ### `C_YUI_NAV`
 
@@ -331,16 +345,15 @@ Published events:
   `navigate_to` directly.
 
 Notable attributes: `menu_items`, `zone`, `layout`, `icon_pos`,
-`show_label`, `level` (`primary` | `secondary`), `shell`, `translate`,
-`nav_label` (human-readable label used by the secondary navs as their
-heading and `aria-label`; the shell fills it from the parent item's
-`name`).
+`show_label`, `level` (`primary` | `secondary`), `shell`,
+`nav_label` (human-readable label used by the secondary navs as
+their heading and `aria-label`; the shell fills it from the parent
+item's `name`).
 
-Public helpers:
-- `yui_nav_rebuild(nav)` — tear the nav's DOM down and re-render it
-  in place, preserving the host parent and the visibility state.
-  Called by `yui_shell_set_translate`; you typically don't need it
-  directly.
+The nav has no `translate` attr — it does not translate text
+itself. Labels are emitted with `data-i18n` and a single
+`refresh_language` call on the shell's `$container` re-translates
+every nav at once.
 
 ---
 
@@ -415,9 +428,10 @@ they keep being shipped and supported alongside the new shell.
 ### Which one to use
 
 - **New GUIs → `C_YUI_SHELL` + `C_YUI_NAV`.** Declarative config,
-  routed stages, drawer overlay, focus-trap, hot-swap i18n, the new
-  modal/notification helpers (`yui_shell_show_*` / `yui_shell_confirm_*`,
-  see `TODO.md` §4).
+  routed stages, drawer overlay, focus-trap, `data-i18n` labels
+  driven by `refresh_language()` (the canonical Yuneta i18n flow),
+  the new modal/notification helpers (`yui_shell_show_*` /
+  `yui_shell_confirm_*`, see `TODO.md` §4).
 - **Existing GUIs → keep `C_YUI_MAIN` + `C_YUI_ROUTING`.** Switching
   is opt-in, not mandated. If an app already works on top of the
   legacy stack, leave it alone.
@@ -454,9 +468,10 @@ shell. Treat the two APIs as parallel — same intent, separate code.
   `drawer`, and `event` actions).
 - Single router: the nav publishes `EV_NAV_CLICKED`, the shell
   routes.
-- i18n hook `translate: (key) => string` applied to labels and
-  `aria-label`, plus `yui_shell_set_translate` for hot-swap of the
-  resolver at runtime.
+- Canonical i18n: every translatable text node carries
+  `data-i18n="<canonical key>"`; apps switch language by calling
+  `refresh_language(shell.$container, t)` from `@yuneta/gobj-js`,
+  the same helper `c_yui_main.js` uses.
 - Accessibility: `role="navigation"` on navs, `role="dialog"` +
   `aria-modal` on drawers, `aria-expanded` / `aria-controls` on the
   accordion, `aria-disabled` + `tabindex="-1"` on disabled items,
