@@ -32,7 +32,6 @@ import {
     gobj_publish_event,
     gobj_subscribe_event,
     gobj_read_attr, gobj_write_attr,
-    gobj_parent, gobj_name,
     createElement2, empty_string, is_object, is_array, is_string,
 } from "@yuneta/gobj-js";
 
@@ -92,10 +91,13 @@ let __gclass__ = null;
 
 function mt_create(gobj)
 {
+    /*  EV_ROUTE_CHANGED is a public broadcast — consumers subscribe
+     *  explicitly (the navs do it from their mt_start, apps may do it
+     *  via the `subscriber` attr).  Do NOT auto-subscribe the parent
+     *  here: the parent is typically the yuno, whose FSM does not
+     *  accept route events and would log an "event not defined"
+     *  error every time the route changes. */
     let subscriber = gobj_read_attr(gobj, "subscriber");
-    if(!subscriber) {
-        subscriber = gobj_parent(gobj);
-    }
     if(subscriber) {
         gobj_subscribe_event(gobj, null, {}, subscriber);
     }

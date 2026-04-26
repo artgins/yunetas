@@ -24,10 +24,9 @@
 import {
     SDATA, SDATA_END, data_type_t, event_flag_t,
     gclass_create, log_error,
-    gobj_subscribe_event, gobj_parent,
+    gobj_subscribe_event,
     gobj_read_attr, gobj_write_attr,
     gobj_publish_event,
-    gobj_name,
     createElement2, empty_string, is_array, is_object, is_string,
 } from "@yuneta/gobj-js";
 
@@ -78,10 +77,12 @@ let __gclass__ = null;
 
 function mt_create(gobj)
 {
+    /*  EV_NAV_CLICKED is forwarded to the shell via an explicit
+     *  subscribe in instantiate_nav_in_zone(); we only honour an
+     *  externally supplied `subscriber` here, never the parent
+     *  fallback — the parent (the shell itself) doesn't need a
+     *  catch-all on every nav event. */
     let subscriber = gobj_read_attr(gobj, "subscriber");
-    if(!subscriber) {
-        subscriber = gobj_parent(gobj);
-    }
     if(subscriber) {
         gobj_subscribe_event(gobj, null, {}, subscriber);
     }
